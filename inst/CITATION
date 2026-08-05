@@ -3,19 +3,28 @@
 
 citHeader("Pour citer le package HStat dans vos publications, utilisez :")
 
-## Recuperation dynamique de la version et de l'annee depuis le DESCRIPTION,
-## avec repli si les metadonnees ne sont pas disponibles.
+## Version et annee suivent automatiquement DESCRIPTION.
+## `meta` est fourni par R a la lecture de ce fichier et contient les champs de
+## DESCRIPTION : c'est la source la plus fiable, disponible meme quand
+## packageVersion() ne l'est pas encore (lecture pendant l'installation).
+vers <- if (!is.null(meta$Version) && nzchar(meta$Version)) {
+  meta$Version
+} else {
+  tryCatch(as.character(utils::packageVersion("HStat")),
+           error = function(e) "")
+}
+
 year <- tryCatch(
   sub("-.*", "", utils::packageDate("HStat")),
-  error = function(e) format(Sys.Date(), "%Y")
+  error = function(e) NA_character_
 )
-if (is.null(year) || is.na(year) || !nzchar(year))
-  year <- format(Sys.Date(), "%Y")
-
-vers <- tryCatch(
-  as.character(utils::packageVersion("HStat")),
-  error = function(e) "0.2.3"
-)
+if (is.null(year) || is.na(year) || !nzchar(year)) {
+  year <- if (!is.null(meta$Date) && nzchar(meta$Date)) {
+    sub("-.*", "", meta$Date)
+  } else {
+    format(Sys.Date(), "%Y")
+  }
+}
 
 bibentry(
   bibtype  = "Manual",
