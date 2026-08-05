@@ -2905,15 +2905,76 @@ hstat_cut_intervals <- function(x, method = c("width", "quantile", "manual"),
 # pour DuckDB : doublement des guillemets internes puis encadrement par "...".
 hstat_sql_ident <- function(x) sprintf('"%s"', gsub('"', '""', x))
 
+# =============================================================================
+#  VERSION DU PAQUET -- source unique de verite
+# -----------------------------------------------------------------------------
+#  Le numero de version ne vit qu'a UN seul endroit : le champ Version: de
+#  DESCRIPTION. Tout ce qui l'affiche (citation, en-tetes, exports) doit le lire
+#  ici, jamais le recopier.
+#
+#  Deux situations a couvrir :
+#   - HStat installe comme paquet : utils::packageVersion() suffit ;
+#   - application lancee depuis les SOURCES (runApp("inst/app"), deploiement
+#     shinyapps.io du dossier, source("HStat.R")...) : le paquet n'est alors pas
+#     installe, packageVersion() echoue, et il faut lire DESCRIPTION sur disque.
+#  Sans ce second cas, la citation restait figee sur un numero code en dur.
+# =============================================================================
+
+# Localise DESCRIPTION, que l'on tourne depuis les sources ou depuis l'installe.
+# Les chemins relatifs couvrent les repertoires de travail usuels : racine du
+# paquet, inst/app/ (repertoire courant quand l'application tourne), inst/.
+.hstat_description_path <- function() {
+  cands <- c(
+    tryCatch(system.file("DESCRIPTION", package = "HStat"), error = function(e) ""),
+    "DESCRIPTION",
+    file.path("..", "..", "DESCRIPTION"),
+    file.path("..", "DESCRIPTION"),
+    file.path("..", "..", "..", "DESCRIPTION")
+  )
+  cands <- cands[nzchar(cands) & file.exists(cands)]
+  if (length(cands)) cands[1] else NA_character_
+}
+
+# Lit un champ de DESCRIPTION ; NA_character_ si absent ou illisible.
+.hstat_description_field <- function(field) {
+  p <- .hstat_description_path()
+  if (is.na(p)) return(NA_character_)
+  v <- tryCatch(read.dcf(p, fields = field)[1, 1],
+                error = function(e) NA_character_)
+  if (is.null(v) || is.na(v) || !nzchar(v)) NA_character_ else as.character(v)
+}
+
+# Version courante du paquet : paquet installe, puis DESCRIPTION, puis repli.
+# packageVersion() leve une erreur et packageDate() un AVERTISSEMENT quand le
+# paquet n'est pas installe : on neutralise les deux, sinon l'onglet de citation
+# deverse un avertissement a chaque rendu.
+hstat_version <- function(fallback = "0.0.0") {
+  v <- suppressWarnings(tryCatch(as.character(utils::packageVersion("HStat")),
+                                 error = function(e) NA_character_))
+  if (length(v) && !is.na(v) && nzchar(v)) return(v)
+  v <- .hstat_description_field("Version")
+  if (!is.na(v)) return(v)
+  fallback
+}
+
+# Annee a citer : date de construction du paquet, puis champ Date: de
+# DESCRIPTION, puis annee courante.
+hstat_pkg_year <- function() {
+  y <- suppressWarnings(tryCatch(
+    sub("-.*", "", as.character(utils::packageDate("HStat"))),
+    error = function(e) NA_character_))
+  if (length(y) && !is.null(y) && !is.na(y) && nzchar(y)) return(y)
+  d <- .hstat_description_field("Date")
+  if (!is.na(d)) return(sub("-.*", "", d))
+  format(Sys.Date(), "%Y")
+}
+
 # Genere la citation du package HStat dans differents styles.
-# Lit dynamiquement version/annee/auteur (repli si le package n'est pas installe).
+# Version et annee suivent automatiquement DESCRIPTION (cf. hstat_version()).
 hstat_citation <- function(style = c("text", "bibtex", "ris", "apa", "vancouver", "markdown")) {
   style <- match.arg(style)
-  # Metadonnees (avec repli robuste)
-  vers <- tryCatch(as.character(utils::packageVersion("HStat")), error = function(e) "0.2.3")
-  year <- tryCatch(sub("-.*", "", as.character(utils::packageDate("HStat"))),
-                   error = function(e) NA_character_)
-  if (is.null(year) || is.na(year) || !nzchar(year)) year <- format(Sys.Date(), "%Y")
+  vers <- hstat_version()
+  year <- hstat_pkg_year()
   author_last <- "KOUADIO"; author_first <- "Houphouet"; author_initial <- "H"
   title <- "HStat : Application Shiny interactive pour l'analyse statistique"
   url   <- "https://github.com/houphouet/hstat"

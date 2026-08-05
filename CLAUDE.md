@@ -12,9 +12,29 @@ Règle appliquée depuis le début du projet (cf. historique de `DESCRIPTION`) :
 | Nouvelle fonctionnalité, nouvelle analyse, nouveau module (`feat:`) | **mineur** | `0.6.0` → `0.7.0` |
 | Correction, refactorisation, nettoyage, doc (`fix:`, `chore:`, `docs:`) | **correctif** | `0.5.1` → `0.5.2` |
 
-Le numéro de version n'apparaît qu'à un seul endroit : `DESCRIPTION`.
-Ne pas le dupliquer ailleurs (ni dans l'interface, ni dans les modules) —
-l'application le lit depuis le paquet.
+### Le numéro n'est écrit qu'à un seul endroit
+
+`DESCRIPTION` est la source unique de vérité. **Ne jamais recopier un numéro de
+version ailleurs**, pas même en repli d'un `tryCatch` : un repli codé en dur ne
+se met pas à jour et finit par mentir (la citation est restée bloquée sur
+`0.2.3` alors que le paquet était en `0.7.1`).
+
+Tout affichage de la version passe par `hstat_version()` (`Utils.R`), qui
+résout dans cet ordre :
+
+1. `utils::packageVersion("HStat")` — quand HStat est installé comme paquet ;
+2. le champ `Version:` de `DESCRIPTION` lu sur disque — quand l'application
+   tourne **depuis les sources** (`runApp("inst/app")`, déploiement du dossier
+   sur shinyapps.io…), cas où `packageVersion()` échoue ;
+3. `"0.0.0"` en dernier recours — volontairement invalide, pour qu'un numéro
+   absent se voie au lieu de passer pour une vraie version.
+
+`hstat_pkg_year()` suit la même logique pour l'année de citation.
+Dans `inst/CITATION`, utiliser l'objet `meta` fourni par R (`meta$Version`).
+
+Note : `packageVersion()` lève une **erreur** quand le paquet est absent, mais
+`packageDate()` un **avertissement** — il faut `suppressWarnings()` en plus du
+`tryCatch()`, sinon l'onglet de citation pollue la console à chaque rendu.
 
 ## Structure
 

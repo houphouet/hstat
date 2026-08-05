@@ -1335,3 +1335,32 @@ test_that("hstat_glm_note detecte non-convergence et separation", {
   expect_match(sep$note, "Séparation")
   expect_match(sep$note, "pénalisée")
 })
+
+test_that("la version citee suit DESCRIPTION et n'est jamais codee en dur", {
+  desc <- .hstat_description_path()
+  skip_if(is.na(desc), "DESCRIPTION introuvable depuis le repertoire de test")
+  attendue <- unname(read.dcf(desc, fields = "Version")[1, 1])
+  expect_true(nzchar(attendue))
+  expect_identical(hstat_version(), attendue)
+  # La version doit apparaitre telle quelle dans TOUS les styles de citation :
+  # c'est ce qui garantit qu'aucun style ne retombe sur un numero fige.
+  for (st in c("text", "apa", "vancouver", "markdown", "bibtex", "ris")) {
+    cit <- hstat_citation(st)
+    expect_true(nzchar(cit), info = st)
+    expect_true(grepl(attendue, cit, fixed = TRUE), info = st)
+  }
+  # Le repli ne sert que si rien n'est trouvable : il ne doit jamais primer sur
+  # DESCRIPTION, et ne doit pas etre un numero de version plausible.
+  expect_false(identical(hstat_version(), "0.0.0"))
+  expect_identical(hstat_version(fallback = "sentinelle"), attendue)
+})
+
+test_that("la resolution de version ne fuit ni erreur ni avertissement", {
+  # packageVersion() leve une erreur et packageDate() un avertissement quand le
+  # paquet n'est pas installe : les deux doivent rester silencieux.
+  expect_silent(hstat_version())
+  expect_silent(hstat_pkg_year())
+  expect_silent(hstat_citation("text"))
+  # L'annee est toujours une annee a 4 chiffres exploitable.
+  expect_match(hstat_pkg_year(), "^[0-9]{4}$")
+})
