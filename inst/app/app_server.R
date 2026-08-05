@@ -1444,7 +1444,13 @@ server <- function(input, output, session) {
     )
     
     gradient_cols <- c("#00AFBB", "#E7B800", "#FC4E07")
-    lbl_sz <- if (!is.null(input$pcaLabelSize)) input$pcaLabelSize else 4
+    # Tailles de labels reglees en POINTS par l'utilisateur (12 a 24 pt),
+    # converties vers l'unite de ggplot2 (mm) : une taille pour les individus,
+    # une autre pour les variables.
+    lbl_ind <- hstat_lbl_pt2gg(input$pcaLabelSize)
+    lbl_var <- hstat_lbl_pt2gg(input$pcaVarLabelSize)
+    n_ind_p <- nrow(res.pca$ind$coord)
+    n_var_p <- nrow(res.pca$var$coord)
     pt_sz  <- if (!is.null(input$pcaPointSize)) input$pcaPointSize else 2
     ln_w   <- if (!is.null(input$pcaLineWidth)) input$pcaLineWidth else 0.8
 
@@ -1453,33 +1459,39 @@ server <- function(input, output, session) {
                         axes = c(axis_x, axis_y),
                         col.var = col_var,
                         gradient.cols = gradient_cols,
-                        repel = TRUE, max.overlaps = Inf, labelsize = lbl_sz,
+                        repel = TRUE, max.overlaps = Inf, labelsize = lbl_var,
                         ggtheme = theme_minimal(),
                         title = plot_title)
       # Les labels des variables heritaient du degrade de couleur (contrib/cos2),
       # rendant les noms clairs peu lisibles ("flous"). On force le TEXTE en noir
       # et en gras, tout en gardant les fleches colorees par la metrique.
       p <- .mv_darken_text_labels(p)
+      p <- hstat_apply_label_sizes(p, lbl_var)
     } else if (input$pcaPlotType == "ind") {
       p <- fviz_pca_ind(res.pca,
                         axes = c(axis_x, axis_y),
                         col.ind = col_ind,
                         gradient.cols = gradient_cols,
-                        repel = TRUE, labelsize = lbl_sz, pointsize = pt_sz,
+                        repel = TRUE, labelsize = lbl_ind, pointsize = pt_sz,
                         ggtheme = theme_minimal(),
                         title = plot_title)
+      p <- hstat_apply_label_sizes(p, lbl_ind)
     } else {
       # Biplot : les individus sont colores selon le critere choisi, mais les
       # VARIABLES (fleches + labels) sont forcees en NOIR pour rester visibles
       # (sinon elles se confondent avec le degrade des individus).
       p <- fviz_pca_biplot(res.pca,
                            axes = c(axis_x, axis_y),
-                           repel = TRUE, labelsize = lbl_sz, pointsize = pt_sz,
+                           repel = TRUE, labelsize = lbl_ind, pointsize = pt_sz,
                            col.var = "black",
                            col.ind = col_ind,
                            gradient.cols = gradient_cols,
                            ggtheme = theme_minimal(),
                            title = plot_title)
+      # Le biplot melange les deux familles de labels : on retaille apres coup
+      # les calques de texte des variables, factoextra n'exposant qu'un seul
+      # argument `labelsize`.
+      p <- hstat_apply_label_sizes(p, lbl_ind, lbl_var, n_var_p, n_ind_p)
     }
     # Epaissir les fleches/segments (largeur des traces)
     p <- p + ggplot2::theme(line = ggplot2::element_line(linewidth = ln_w))
@@ -1518,15 +1530,21 @@ server <- function(input, output, session) {
                             habillage = grp, addEllipses = TRUE,
                             ellipse.type = "confidence", ellipse.level = 0.95,
                             col.var = "black", repel = TRUE,
+                            labelsize = lbl_ind,
                             ggtheme = theme_minimal(), title = plot_title),
             error = function(e) NULL)
+          if (!is.null(p_ell))
+            p_ell <- hstat_apply_label_sizes(p_ell, lbl_ind, lbl_var,
+                                             n_var_p, n_ind_p)
         } else {
           p_ell <- tryCatch(
             fviz_pca_ind(res.pca, axes = c(axis_x, axis_y),
                          geom = "point", habillage = grp, addEllipses = TRUE,
                          ellipse.type = "confidence", ellipse.level = 0.95,
+                         labelsize = lbl_ind,
                          repel = FALSE, ggtheme = theme_minimal(), title = plot_title),
             error = function(e) NULL)
+          if (!is.null(p_ell)) p_ell <- hstat_apply_label_sizes(p_ell, lbl_ind)
         }
         if (!is.null(p_ell)) p <- p_ell + labs(x = x_label, y = y_label)
       }
@@ -2814,21 +2832,13 @@ server <- function(input, output, session) {
     n_clusters <- length(unique(res.hcpc$data.clust$clust))
     cluster_colors <- generate_distinct_colors(n_clusters)
     
-    # Calculer une taille de texte adaptative selon le nombre d'individus,
-    # sauf si l'utilisateur a fixe une taille via le curseur dedie.
+    # Taille des labels des feuilles : reglee en POINTS par l'utilisateur
+    # (12 a 24 pt). fviz_dend attend un facteur cex, ou cex = 1 correspond a la
+    # police de reference de 12 pt ; on impose ensuite la taille exacte sur les
+    # calques de texte du ggplot produit.
     n_individus <- nrow(res.hcpc$data.clust)
-    cex_auto <- if (n_individus <= 20) {
-      0.9
-    } else if (n_individus <= 50) {
-      0.7
-    } else if (n_individus <= 100) {
-      0.55
-    } else if (n_individus <= 250) {
-      0.45
-    } else {
-      0.35
-    }
-    cex_labels <- if (!is.null(input$hcpcLabelSize)) as.numeric(input$hcpcLabelSize) else cex_auto
+    dend_lbl_pt <- hstat_lbl_pt(input$hcpcLabelSize)
+    cex_labels  <- hstat_lbl_pt2cex(input$hcpcLabelSize)
     # Largeur des branches : valeur du curseur PONDEREE par la densite du
     # dendrogramme. Avec des centaines d'individus, les branches terminales sont
     # separees de quelques pixels seulement : une largeur fixe les fait fusionner
@@ -2875,7 +2885,11 @@ server <- function(input, output, session) {
       }, logical(1))
       p_dend$layers <- p_dend$layers[keep]
     }
-    
+    # Taille exacte des etiquettes de feuilles, en points : fviz_dend ne fait
+    # que moduler cex, on fixe donc la taille finale sur les calques de texte.
+    if (show_labels)
+      p_dend <- hstat_apply_label_sizes(p_dend, hstat_lbl_pt2gg(dend_lbl_pt))
+
     p_dend <- p_dend + 
       labs(caption = paste("Nombre de clusters :", n_clusters)) +
       theme(
@@ -3003,7 +3017,7 @@ server <- function(input, output, session) {
                               ellipse.type = "convex",
                               ellipse.alpha = 0.20,
                               pointsize = hcpc_pt,
-                              labelsize = if (!is.null(input$hcpcClusterLabelSize)) input$hcpcClusterLabelSize else 4,
+                              labelsize = hstat_lbl_pt2gg(input$hcpcClusterLabelSize),
                               palette = cluster_colors,
                               ggtheme = theme_minimal(),
                               main = cluster_title) +
@@ -3014,7 +3028,12 @@ server <- function(input, output, session) {
             axis.title = element_text(size = hcpc_txt),
             axis.text = element_text(size = hcpc_txt - 2),
             plot.title = element_text(size = hcpc_txt + 2, face = "bold"))
-    
+
+    # Taille exacte des etiquettes d'individus, en points.
+    if (show_lab)
+      p_cluster <- hstat_apply_label_sizes(
+        p_cluster, hstat_lbl_pt2gg(input$hcpcClusterLabelSize))
+
     if (!is.null(input$hcpcCenterAxes) && input$hcpcCenterAxes) {
       coords <- res.pca$ind$coord[, c(axis_x, axis_y)]
       max_range <- max(abs(range(coords, na.rm = TRUE)))
@@ -4352,7 +4371,7 @@ server <- function(input, output, session) {
     names(group_colors) <- levels(factor(afd_df$Groupe))
 
     afd_pt   <- if (!is.null(input$afdPointSize)) input$afdPointSize else 3
-    afd_lbl  <- if (!is.null(input$afdLabelSize)) input$afdLabelSize else 3
+    afd_lbl  <- hstat_lbl_pt2gg(input$afdLabelSize)
     afd_txt  <- if (!is.null(input$afdAxisTextSize)) input$afdAxisTextSize else 12
 
     if (n_dims > 1 && !is.null(axis_y)) {
@@ -4467,7 +4486,7 @@ server <- function(input, output, session) {
       y_col <- paste0("LD", axis_y)
       
       afd_ln  <- if (!is.null(input$afdLineWidth)) input$afdLineWidth else 1.3
-      afd_vlbl <- if (!is.null(input$afdLabelSize)) input$afdLabelSize else 3.8
+      afd_vlbl <- hstat_lbl_pt2gg(input$afdVarLabelSize)
       p_var <- ggplot(var_df, aes_string(x = x_col, y = y_col,
                                          color = "Niveau", label = "Variable")) +
         geom_segment(aes_string(xend = x_col, yend = y_col, color = "Niveau"),
@@ -5164,12 +5183,25 @@ server <- function(input, output, session) {
   # Dispatcher de visualisation factorielle (Variables / Individus / Biplot) avec
   # coloration, communs a ACM / AFDM / AFM. 'kind' = "mca" | "famd" | "mfa".
   # ptsz = taille des individus, arrsz = epaisseur des fleches de variables,
-  # lblsz = taille des labels, show_lab = afficher les labels des individus.
+  # lblsz / lblszvar = taille des labels (unite ggplot2) des INDIVIDUS et des
+  # VARIABLES / modalites, show_lab = afficher les labels des individus.
   mv_factor_viz <- function(model, kind, plottype, colorby, title, subtitle,
-                            ptsz = 2, arrsz = 0.6, lblsz = 4, show_lab = FALSE,
+                            ptsz = 2, arrsz = 0.6, lblsz = 4, lblszvar = NULL,
+                            show_lab = FALSE,
                             axes = c(1, 2), group_values = NULL) {
     if (!requireNamespace("factoextra", quietly = TRUE)) return(NULL)
     axes <- as.integer(axes); if (length(axes) != 2 || any(is.na(axes))) axes <- c(1L, 2L)
+    if (is.null(lblszvar)) lblszvar <- lblsz
+    # Effectifs servant a distinguer, apres coup, les calques de texte des
+    # variables de ceux des individus sur un biplot. Chaque methode range ses
+    # coordonnees de variables ailleurs (modalites en ACM, quanti/quali en
+    # AFDM, groupes en AFM) : on collecte tous les effectifs candidats.
+    n_ind_m <- tryCatch(nrow(model$ind$coord), error = function(e) NA_integer_)
+    n_var_m <- unlist(lapply(
+      list(model$var$coord, model$quanti.var$coord, model$quali.var$coord,
+           model$group$coord),
+      function(z) tryCatch(nrow(z), error = function(e) NULL)))
+    if (is.null(n_var_m)) n_var_m <- NA_integer_
     cv <- mv_color_value(colorby)
     gc <- c("#00AFBB", "#E7B800", "#FC4E07")
     th <- tryCatch(mv_gg_theme(), error = function(e) ggplot2::theme_minimal())
@@ -5197,7 +5229,7 @@ server <- function(input, output, session) {
       if (kind == "mca") {
         switch(plottype,
           "var"    = factoextra::fviz_mca_var(model, axes = axes, col.var = cv, gradient.cols = gc,
-                       repel = TRUE, max.overlaps = Inf, labelsize = lblsz, ggtheme = th),
+                       repel = TRUE, max.overlaps = Inf, labelsize = lblszvar, ggtheme = th),
           "ind"    = factoextra::fviz_mca_ind(model, axes = axes, col.ind = cv_ind, gradient.cols = gc, addEllipses = use_ellipse, ellipse.type = "confidence",
                        repel = TRUE, max.overlaps = Inf, pointsize = ptsz, labelsize = lblsz,
                        label = ind_lab, ggtheme = th),
@@ -5210,7 +5242,7 @@ server <- function(input, output, session) {
       } else if (kind == "famd") {
         switch(plottype,
           "var"    = factoextra::fviz_famd_var(model, axes = axes, col.var = cv, gradient.cols = gc,
-                       repel = TRUE, max.overlaps = Inf, labelsize = lblsz, ggtheme = th),
+                       repel = TRUE, max.overlaps = Inf, labelsize = lblszvar, ggtheme = th),
           "ind"    = factoextra::fviz_famd_ind(model, axes = axes, col.ind = cv_ind, gradient.cols = gc, addEllipses = use_ellipse, ellipse.type = "confidence",
                        repel = TRUE, max.overlaps = Inf, pointsize = ptsz, labelsize = lblsz,
                        label = ind_lab, ggtheme = th),
@@ -5231,7 +5263,7 @@ server <- function(input, output, session) {
                   arrow = ggplot2::arrow(length = ggplot2::unit(0.02 * (1 + arrsz), "npc")),
                   color = "black", linewidth = arrsz) +
                 ggplot2::geom_text(data = qv2, ggplot2::aes(x = x, y = y, label = lab),
-                  inherit.aes = FALSE, color = "black", size = lblsz, fontface = "bold",
+                  inherit.aes = FALSE, color = "black", size = lblszvar, fontface = "bold",
                   vjust = -0.4)
             }
             # Modalités des variables QUALITATIVES (points + labels) en violet,
@@ -5243,7 +5275,7 @@ server <- function(input, output, session) {
                 ggplot2::geom_point(data = ql2, ggplot2::aes(x = x, y = y),
                   inherit.aes = FALSE, color = "#7b3fa0", shape = 17, size = 3) +
                 ggplot2::geom_text(data = ql2, ggplot2::aes(x = x, y = y, label = lab),
-                  inherit.aes = FALSE, color = "#7b3fa0", size = lblsz, fontface = "bold",
+                  inherit.aes = FALSE, color = "#7b3fa0", size = lblszvar, fontface = "bold",
                   vjust = 1.4)
             }
             pind
@@ -5251,7 +5283,7 @@ server <- function(input, output, session) {
       } else {
         switch(plottype,
           "var"    = factoextra::fviz_mfa_var(model, axes = axes, "group", repel = TRUE, max.overlaps = Inf,
-                       labelsize = lblsz, ggtheme = th),
+                       labelsize = lblszvar, ggtheme = th),
           "ind"    = factoextra::fviz_mfa_ind(model, axes = axes, col.ind = cv_ind, gradient.cols = gc, addEllipses = use_ellipse, ellipse.type = "confidence",
                        repel = TRUE, max.overlaps = Inf, pointsize = ptsz, labelsize = lblsz,
                        label = ind_lab, ggtheme = th),
@@ -5266,6 +5298,13 @@ server <- function(input, output, session) {
     p <- p + ggplot2::labs(title = title, subtitle = subtitle)
     # Labels lisibles (noir/gras) plutot que la couleur claire du degrade.
     p <- .mv_darken_text_labels(p)
+    # factoextra n'expose qu'un seul `labelsize` : sur un graphique melangeant
+    # individus et variables (biplot), on retaille apres coup les calques de
+    # texte des variables pour honorer les deux reglages en points.
+    p <- if (identical(plottype, "var"))
+      hstat_apply_label_sizes(p, lblszvar)
+    else
+      hstat_apply_label_sizes(p, lblsz, lblszvar, n_var_m, n_ind_m)
     # Centrage : on rend les axes symetriques autour de l'origine (0,0) pour que
     # le nuage ne soit pas tasse d'un cote. On lit les bornes effectives du plot
     # (individus + fleches de variables) et on impose des limites symetriques.
@@ -5357,12 +5396,19 @@ server <- function(input, output, session) {
                       "Paired" = "Paired", "Viridis" = "viridis", "Plasma" = "plasma"),
           selected = "default"),
         fluidRow(
-          column(4, sliderInput(paste0(prefix, "_ptsz"), "Taille des points",
+          column(6, sliderInput(paste0(prefix, "_ptsz"), "Taille des points",
                                 min = 0.5, max = 8, value = 2.4, step = 0.5)),
-          column(4, sliderInput(paste0(prefix, "_lblsz"), "Taille des labels",
-                                min = 2, max = 12, value = 3.6, step = 0.5)),
-          column(4, sliderInput(paste0(prefix, "_arrsz"), "Épaisseur des tracés",
+          column(6, sliderInput(paste0(prefix, "_arrsz"), "Épaisseur des tracés",
                                 min = 0.3, max = 4, value = 0.7, step = 0.1))),
+        fluidRow(
+          column(6, hstat_lbl_slider(paste0(prefix, "_lblsz"),
+                                     "Taille des labels des individus")),
+          column(6, hstat_lbl_slider(paste0(prefix, "_lblszvar"),
+                                     "Taille des labels des variables"))),
+        tags$small(style = "color:#6b7280;", icon("info-circle"),
+          paste(" Tailles exprimées en points (12 à 24 pt). Le second curseur",
+                "s'applique aux noms de variables, modalités ou colonnes",
+                "affichés sur le graphique.")),
         checkboxInput(paste0(prefix, "_showlab"),
           tagList(icon("font"), " Afficher les labels des individus / variables"), value = FALSE)),
       div(style = "background:#f4f0ff; border-left:3px solid #7b3fa0; padding:8px 12px; margin:6px 0; border-radius:0 4px 4px 0;",
@@ -5406,12 +5452,19 @@ server <- function(input, output, session) {
                       "Paired" = "Paired", "Viridis" = "viridis", "Plasma" = "plasma"),
           selected = "default"),
         fluidRow(
-          column(4, sliderInput(paste0(prefix, "_ptsz"), "Taille des points",
+          column(6, sliderInput(paste0(prefix, "_ptsz"), "Taille des points",
                                 min = 0.5, max = 8, value = 2.4, step = 0.5)),
-          column(4, sliderInput(paste0(prefix, "_lblsz"), "Taille des labels",
-                                min = 2, max = 12, value = 3.6, step = 0.5)),
-          column(4, sliderInput(paste0(prefix, "_arrsz"), "Épaisseur des tracés",
+          column(6, sliderInput(paste0(prefix, "_arrsz"), "Épaisseur des tracés",
                                 min = 0.3, max = 4, value = 0.7, step = 0.1))),
+        fluidRow(
+          column(6, hstat_lbl_slider(paste0(prefix, "_lblsz"),
+                                     "Taille des labels des individus")),
+          column(6, hstat_lbl_slider(paste0(prefix, "_lblszvar"),
+                                     "Taille des labels des variables"))),
+        tags$small(style = "color:#6b7280;", icon("info-circle"),
+          paste(" Tailles exprimées en points (12 à 24 pt). Le second curseur",
+                "s'applique aux noms de variables, modalités ou colonnes",
+                "affichés sur le graphique.")),
         fluidRow(
           column(6, sliderInput(paste0(prefix, "_textsz"), "Taille texte axes",
                                 min = 8, max = 22, value = 12, step = 1)),
@@ -5585,7 +5638,13 @@ server <- function(input, output, session) {
   }
   # Tailles accessibles aux plotfns (locales par methode, sinon globales)
   mv_pt_size <- function() .mv_loc("ptsz", input$mv_point_size %||% 2.4)
-  mv_lbl_size <- function() .mv_loc("lblsz", input$mv_label_size %||% 3.6)
+  # Tailles de labels : reglees en POINTS (12 a 24 pt) par l'utilisateur, une
+  # valeur pour les INDIVIDUS et une pour les VARIABLES / modalites. Les
+  # accesseurs renvoient directement l'unite ggplot2 (mm).
+  mv_lbl_pt_ind  <- function() hstat_lbl_pt(.mv_loc("lblsz", input$mv_label_size))
+  mv_lbl_pt_var  <- function() hstat_lbl_pt(.mv_loc("lblszvar", input$mv_label_size_var))
+  mv_lbl_size     <- function() hstat_lbl_pt2gg(mv_lbl_pt_ind())
+  mv_lbl_size_var <- function() hstat_lbl_pt2gg(mv_lbl_pt_var())
   mv_ln_width <- function() .mv_loc("arrsz", input$mv_line_width %||% 0.7)
   mv_show_labels <- function() isTRUE(.mv_loc("showlab", input$mv_show_labels))
   # Ajoute des etiquettes (repel) a un ggplot si l'option globale est active.
@@ -6485,13 +6544,15 @@ server <- function(input, output, session) {
                       color = "#2c3e50") } +
                 geom_label(data = vdf, aes(x = x, y = y, label = name),
                            hjust = 1, fill = "#eaf2f8", color = "#1a5276",
-                           label.size = 0.3, size = 3.6, fontface = "bold",
+                           label.size = 0.3, size = mv_lbl_size_var(),
+                           fontface = "bold",
                            label.padding = grid::unit(0.35, "lines")) +
                 geom_point(data = fdf, aes(x = x, y = y), shape = 21,
                            size = 24, fill = "#fdebd0", color = "#b9770e",
                            stroke = 1) +
                 geom_text(data = fdf, aes(x = x, y = y, label = name),
-                          size = 4, fontface = "bold", color = "#7e5109") +
+                          size = mv_lbl_size_var(), fontface = "bold",
+                          color = "#7e5109") +
                 scale_linewidth(range = c(0.4, 2.2), guide = "none") +
                 scale_color_manual(values = c("TRUE" = "#1565c0", "FALSE" = "#c0392b"),
                                    labels = c("TRUE" = "positive", "FALSE" = "négative"),
@@ -7178,7 +7239,12 @@ server <- function(input, output, session) {
               geom_hline(yintercept = 0, color = "#bbb", linewidth = .4) +
               geom_vline(xintercept = 0, color = "#bbb", linewidth = .4) +
               geom_point(aes(shape = Type), size = 3) +
-              geom_text(vjust = -0.8, size = 3.3, show.legend = FALSE) +
+              # Lignes = individus, colonnes = variables : chaque famille suit
+              # son propre reglage de taille de label (en points).
+              geom_text(aes(size = Type), vjust = -0.8, show.legend = FALSE) +
+              scale_size_manual(values = c("Ligne" = mv_lbl_size(),
+                                           "Colonne" = mv_lbl_size_var()),
+                                guide = "none") +
               scale_color_manual(values = c("Ligne"="#6a1b9a","Colonne"="#e67e22")) +
               labs(title = paste0("AFC : ", rv, " x ", cv),
                    subtitle = paste0("Inertie axes 1-2 = ", round(dim12,1), " %"),
@@ -7278,7 +7344,9 @@ server <- function(input, output, session) {
                                 "ACM -- analyse des correspondances multiples", sub_t,
                                 ptsz = input$mv_mca_ptsz %||% mv_pt_size(),
                                 arrsz = input$mv_mca_arrsz %||% mv_ln_width(),
-                                lblsz = input$mv_mca_lblsz %||% mv_lbl_size(), show_lab = isTRUE(input$mv_mca_showlab),
+                                lblsz = hstat_lbl_pt2gg(input$mv_mca_lblsz %||% mv_lbl_pt_ind()),
+                                lblszvar = hstat_lbl_pt2gg(input$mv_mca_lblszvar %||% mv_lbl_pt_var()),
+                                show_lab = isTRUE(input$mv_mca_showlab),
                                 axes = c(as.integer(input$mv_mca_axisx %||% 1), as.integer(input$mv_mca_axisy %||% 2)),
                                 group_values = grp_vals)
             if (!is.null(pp)) {
@@ -7299,7 +7367,8 @@ server <- function(input, output, session) {
                 pp <- pp + ggplot2::geom_point(data = qs, ggplot2::aes(Dim1, Dim2),
                              inherit.aes = FALSE, color = "#16a085", shape = 17, size = 3) +
                   ggplot2::geom_text(data = qs, ggplot2::aes(Dim1, Dim2, label = lab),
-                             inherit.aes = FALSE, color = "#16a085", vjust = -0.8, size = 3)
+                             inherit.aes = FALSE, color = "#16a085", vjust = -0.8,
+                             size = hstat_lbl_pt2gg(input$mv_mca_lblszvar %||% mv_lbl_pt_var()))
               }
               return(pp)
             }
@@ -7308,7 +7377,8 @@ server <- function(input, output, session) {
               geom_hline(yintercept = 0, color = "#bbb", linewidth = .4) +
               geom_vline(xintercept = 0, color = "#bbb", linewidth = .4) +
               geom_point(size = 3, color = "#6a1b9a") +
-              geom_text(vjust = -0.8, size = 3.3, color = "#2c3e50") +
+              geom_text(vjust = -0.8, color = "#2c3e50",
+                        size = hstat_lbl_pt2gg(input$mv_mca_lblszvar %||% mv_lbl_pt_var())) +
               labs(title = "ACM -- plan des modalités", subtitle = sub_t,
                    x = paste0("Dim 1 (", round(eig[1,2],1), " %)"),
                    y = paste0("Dim 2 (", round(eig[min(2,nrow(eig)),2],1), " %)")) +
@@ -7486,9 +7556,10 @@ server <- function(input, output, session) {
           paste0("`", xv, "`", collapse = " + ")))
 
         if (nlev == 2) {
-          fit <- stats::glm(fml, data = sub, family = stats::binomial())
-          ll0 <- stats::glm(stats::as.formula(paste0("`",yv,"` ~ 1")),
-                            data = sub, family = stats::binomial())
+          gl  <- hstat_glm_fit(fml, data = sub, family = stats::binomial())
+          fit <- gl$fit
+          ll0 <- hstat_glm_fit(stats::as.formula(paste0("`",yv,"` ~ 1")),
+                               data = sub, family = stats::binomial())$fit
           mcf <- as.numeric(1 - stats::logLik(fit)/stats::logLik(ll0))
           pp <- stats::predict(fit, type = "response")
           pc <- factor(ifelse(pp > .5, levels(sub[[yv]])[2], levels(sub[[yv]])[1]),
@@ -7548,7 +7619,11 @@ server <- function(input, output, session) {
             mv_section_header("Rapports de cotes (odds ratios)", "#6c757d", "table"),
             mv_data_table(or_df, "#6c757d", digits = 4))
           summ <- utils::capture.output(summary(fit))
-          note <- "Regression logistique binaire estimée."
+          # Non-convergence / separation : on remonte le diagnostic dans la
+          # note affichee plutot que de laisser l'avertissement en console.
+          note <- if (!is.null(gl$note))
+            paste("Regression logistique binaire estimée. ATTENTION :", gl$note)
+          else "Regression logistique binaire estimée."
         } else {
           if (!mv_has("nnet"))
             return(list(ok = FALSE, error = "Package 'nnet' requis pour la logistique multinomiale."))
@@ -7691,7 +7766,9 @@ server <- function(input, output, session) {
                                 input$mv_famd_colorby, "AFDM -- données mixtes", sub_t,
                                 ptsz = input$mv_famd_ptsz %||% mv_pt_size(),
                                 arrsz = input$mv_famd_arrsz %||% mv_ln_width(),
-                                lblsz = input$mv_famd_lblsz %||% mv_lbl_size(), show_lab = isTRUE(input$mv_famd_showlab),
+                                lblsz = hstat_lbl_pt2gg(input$mv_famd_lblsz %||% mv_lbl_pt_ind()),
+                                lblszvar = hstat_lbl_pt2gg(input$mv_famd_lblszvar %||% mv_lbl_pt_var()),
+                                show_lab = isTRUE(input$mv_famd_showlab),
                                 axes = c(as.integer(input$mv_famd_axisx %||% 1), as.integer(input$mv_famd_axisy %||% 2)),
                                 group_values = grp_vals)
             if (!is.null(pp)) {
@@ -7802,7 +7879,9 @@ server <- function(input, output, session) {
                                 input$mv_mfa_colorby, "AFM -- analyse factorielle multiple", sub_t,
                                 ptsz = input$mv_mfa_ptsz %||% mv_pt_size(),
                                 arrsz = input$mv_mfa_arrsz %||% mv_ln_width(),
-                                lblsz = input$mv_mfa_lblsz %||% mv_lbl_size(), show_lab = isTRUE(input$mv_mfa_showlab),
+                                lblsz = hstat_lbl_pt2gg(input$mv_mfa_lblsz %||% mv_lbl_pt_ind()),
+                                lblszvar = hstat_lbl_pt2gg(input$mv_mfa_lblszvar %||% mv_lbl_pt_var()),
+                                show_lab = isTRUE(input$mv_mfa_showlab),
                                 axes = c(as.integer(input$mv_mfa_axisx %||% 1), as.integer(input$mv_mfa_axisy %||% 2)),
                                 group_values = grp_vals)
             if (!is.null(pp)) return(pp)

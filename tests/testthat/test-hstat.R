@@ -1153,3 +1153,185 @@ test_that("les tableaux de metriques exposent une colonne Seuils renseignee", {
   expect_true(all(nzchar(mc$Seuils)))
   expect_match(mc$Seuils[mc$Metrique == "Kappa de Cohen"], "Landis")
 })
+
+# =============================================================================
+#  v0.7.0 -- Comparaison a une valeur de reference & tailles de labels
+# =============================================================================
+
+test_that("le test t a un echantillon reproduit stats::t.test", {
+  set.seed(42)
+  x <- rnorm(40, mean = 5.4, sd = 1.1)
+  r <- hstat_ref_test(x, mu = 5, method = "ttest")
+  b <- stats::t.test(x, mu = 5)
+  expect_equal(r$p.value, b$p.value)
+  expect_equal(r$statistic, unname(b$statistic))
+  expect_equal(r$parameter, unname(b$parameter))
+  expect_equal(r$estimate, mean(x))
+  expect_equal(r$reference, 5)
+  expect_equal(r$effect, (mean(x) - 5) / stats::sd(x))   # d de Cohen
+  expect_match(r$interpretation, "référence")
+})
+
+test_that("les alternatives unilaterales sont transmises aux tests", {
+  set.seed(7)
+  x <- rnorm(30, mean = 12, sd = 2)
+  for (alt in c("two.sided", "greater", "less")) {
+    r <- hstat_ref_test(x, mu = 10, method = "ttest", alternative = alt)
+    expect_equal(r$p.value, stats::t.test(x, mu = 10, alternative = alt)$p.value)
+    expect_identical(r$alternative, alt)
+  }
+  # Un ecart positif est plus significatif en "greater" qu'en "less".
+  expect_lt(hstat_ref_test(x, mu = 10, method = "ttest", alternative = "greater")$p.value,
+            hstat_ref_test(x, mu = 10, method = "ttest", alternative = "less")$p.value)
+})
+
+test_that("le test z utilise l'ecart-type de reference fourni", {
+  set.seed(3)
+  x <- rnorm(25, mean = 102, sd = 5)
+  r <- hstat_ref_test(x, mu = 100, method = "ztest", sigma = 5)
+  expect_equal(r$statistic, (mean(x) - 100) / (5 / sqrt(25)))
+  expect_equal(r$p.value, 2 * stats::pnorm(-abs(r$statistic)))
+  # Sans ecart-type de reference, le test doit refuser de s'executer.
+  expect_error(hstat_ref_test(x, mu = 100, method = "ztest"), "écart-type")
+  expect_error(hstat_ref_test(x, mu = 100, method = "ztest", sigma = -1), "écart-type")
+})
+
+test_that("le Chi2 de conformite d'une variance suit la loi attendue", {
+  set.seed(11)
+  x <- rnorm(31, mean = 0, sd = 3)
+  r <- hstat_ref_test(x, mu = 0, method = "variance", sigma = 3)
+  expect_equal(r$statistic, 30 * stats::var(x) / 9)
+  expect_equal(r$parameter, 30)
+  expect_equal(r$estimate, stats::var(x))
+  expect_true(r$conf.low <= stats::var(x) && stats::var(x) <= r$conf.high)
+  expect_error(hstat_ref_test(x, mu = 0, method = "variance"), "écart-type")
+})
+
+test_that("Wilcoxon signe et test du signe comparent la mediane a la norme", {
+  set.seed(19)
+  x <- c(rnorm(24, mean = 8), 40, 45)   # queue lourde : la mediane reste robuste
+  w <- hstat_ref_test(x, mu = 8, method = "wilcoxon")
+  s <- hstat_ref_test(x, mu = 8, method = "sign")
+  expect_equal(w$estimate, stats::median(x))
+  expect_equal(s$estimate, stats::median(x))
+  expect_equal(s$p.value,
+               stats::binom.test(sum(x > 8), sum(x != 8), 0.5)$p.value)
+  expect_true(is.na(s$parameter))   # « ddl » n'a pas de sens pour un test exact
+})
+
+test_that("le TOST conclut a l'equivalence quand la marge est large", {
+  set.seed(23)
+  x <- rnorm(60, mean = 100.2, sd = 2)
+  large <- hstat_ref_test(x, mu = 100, method = "tost", margin = 3)
+  etroit <- hstat_ref_test(x, mu = 100, method = "tost", margin = 0.05)
+  expect_lt(large$p.value, 0.05)      # equivalence demontree
+  expect_gt(etroit$p.value, 0.05)     # equivalence non demontree
+  expect_match(large$interpretation, "Équivalence démontrée")
+  expect_match(etroit$interpretation, "NON démontrée")
+  expect_error(hstat_ref_test(x, mu = 100, method = "tost"), "marge")
+})
+
+test_that("les tests de conformite d'une proportion reproduisent binom/prop.test", {
+  b <- hstat_ref_prop_test(42, 100, p0 = 0.5, method = "binom")
+  expect_equal(b$p.value, stats::binom.test(42, 100, 0.5)$p.value)
+  expect_equal(b$estimate, 0.42)
+  p <- hstat_ref_prop_test(42, 100, p0 = 0.5, method = "prop")
+  expect_equal(p$p.value,
+               suppressWarnings(stats::prop.test(42, 100, p = 0.5))$p.value)
+  # h de Cohen : nul quand la proportion observee vaut la reference.
+  expect_equal(hstat_ref_prop_test(50, 100, p0 = 0.5, method = "binom")$effect, 0)
+  # Un effectif faible declenche l'avertissement sur l'approximation normale.
+  expect_match(hstat_ref_prop_test(1, 20, p0 = 0.02, method = "prop")$note, "exact")
+  expect_error(hstat_ref_prop_test(120, 100, p0 = 0.5), "dépasser")
+  expect_error(hstat_ref_prop_test(5, 100, p0 = 1.5), "entre 0 et 1")
+})
+
+test_that("le test de Poisson compare un taux d'evenements a la norme", {
+  r <- hstat_ref_prop_test(15, 100, p0 = 0.10, method = "poisson")
+  expect_equal(r$p.value, stats::poisson.test(15, T = 100, r = 0.10)$p.value)
+  expect_equal(r$estimate, 0.15)
+  expect_equal(r$effect, 1.5)          # rapport de taux
+  expect_error(hstat_ref_prop_test(15, 100, p0 = 0, method = "poisson"), "positif")
+})
+
+test_that("hstat_ref_result_row produit les colonnes du tableau de resultats", {
+  set.seed(5)
+  r <- hstat_ref_test(rnorm(20, 3), mu = 2, method = "ttest")
+  row <- hstat_ref_result_row(r, "teneur")
+  expect_identical(names(row),
+    c("Test","Variable","Facteur","Statistique","ddl","p_value","Interpretation"))
+  expect_equal(nrow(row), 1)
+  expect_identical(row$Variable, "teneur")
+  expect_match(row$Facteur, "Référence")
+})
+
+test_that("les entrees invalides d'un test de conformite sont rejetees", {
+  expect_error(hstat_ref_test(c(1, NA, Inf), mu = 0), "2 valeurs")
+  expect_error(hstat_ref_test(rnorm(10), mu = NA), "nombre")
+  expect_error(hstat_ref_test(rnorm(10), mu = 0, method = "inconnu"), "inconnue")
+  expect_error(hstat_ref_test(rnorm(10), mu = 0, conf.level = 1.4), "confiance")
+  # Les valeurs non finies sont ecartees sans faire echouer le test.
+  r <- hstat_ref_test(c(rnorm(15, 5), NA, NaN), mu = 5, method = "ttest")
+  expect_equal(r$n, 15)
+})
+
+test_that("la taille des labels est bornee a 12-24 pt et convertie pour ggplot2", {
+  expect_equal(HSTAT_LBL_PT_MIN, 12)
+  expect_equal(HSTAT_LBL_PT_MAX, 24)
+  # Bornage des saisies hors domaine, absentes ou invalides.
+  expect_equal(hstat_lbl_pt(3), 12)
+  expect_equal(hstat_lbl_pt(99), 24)
+  expect_equal(hstat_lbl_pt(NULL), HSTAT_LBL_PT_DEFAULT)
+  expect_equal(hstat_lbl_pt(NA), HSTAT_LBL_PT_DEFAULT)
+  expect_equal(hstat_lbl_pt("18"), 18)
+  # 1 pt = 1/72,27 pouce ; ggplot2 exprime la taille en mm.
+  expect_equal(hstat_lbl_pt2gg(12), 12 / (72.27 / 25.4))
+  expect_equal(hstat_lbl_pt2gg(24), 2 * hstat_lbl_pt2gg(12))
+  expect_equal(hstat_lbl_pt2cex(12), 1)
+  expect_equal(hstat_lbl_pt2cex(24), 2)
+})
+
+test_that("hstat_apply_label_sizes distingue les labels d'individus et de variables", {
+  mk <- function(nr, cls) list(geom = structure(list(), class = c(cls, "Geom")),
+                               data = data.frame(a = seq_len(nr)),
+                               aes_params = list())
+  sizes <- function(p) vapply(p$layers, function(l) {
+    if (is.null(l$aes_params$size)) NA_real_ else l$aes_params$size
+  }, numeric(1))
+  p <- list(layers = list(mk(50, "GeomTextRepel"), mk(4, "GeomText"),
+                          mk(50, "GeomPoint")))
+  r <- hstat_apply_label_sizes(p, 4.2, 8.4, n_var = 4, n_ind = 50)
+  expect_equal(sizes(r), c(4.2, 8.4, NA))          # points non touches
+  # Individus et variables en nombres egaux : impossible de les distinguer,
+  # tout le texte prend la taille des individus.
+  r2 <- hstat_apply_label_sizes(p, 4.2, 8.4, n_var = 50, n_ind = 50)
+  expect_equal(sizes(r2), c(4.2, 4.2, NA))
+  # Une seule taille fournie : elle s'applique a tous les calques de texte.
+  expect_equal(sizes(hstat_apply_label_sizes(p, 8.4)), c(8.4, 8.4, NA))
+  # Plusieurs effectifs candidats (quanti / quali / groupes) : chacun compte,
+  # et ceux qui coincident avec le nombre d'individus sont ecartes.
+  p3 <- list(layers = list(mk(50, "GeomTextRepel"), mk(4, "GeomText"),
+                           mk(7, "GeomText")))
+  expect_equal(sizes(hstat_apply_label_sizes(p3, 4.2, 8.4,
+                                             n_var = c(4, 7, 50), n_ind = 50)),
+               c(4.2, 8.4, 8.4))
+  expect_equal(sizes(hstat_apply_label_sizes(p3, 4.2, 8.4,
+                                             n_var = c(NA, 0), n_ind = 50)),
+               c(4.2, 4.2, 4.2))
+  expect_null(hstat_apply_label_sizes(NULL, 4))
+})
+
+test_that("hstat_glm_note detecte non-convergence et separation", {
+  # Modele sain : aucun diagnostic.
+  set.seed(31)
+  d <- data.frame(y = rbinom(80, 1, 0.5), x = rnorm(80))
+  ok <- hstat_glm_fit(y ~ x, data = d)
+  expect_true(inherits(ok$fit, "glm"))
+  expect_null(ok$note)
+  # Separation complete : x classe parfaitement y.
+  ds <- data.frame(y = c(rep(0, 20), rep(1, 20)), x = c(rnorm(20, -8), rnorm(20, 8)))
+  sep <- hstat_glm_fit(y ~ x, data = ds)
+  expect_false(is.null(sep$note))
+  expect_match(sep$note, "Séparation")
+  expect_match(sep$note, "pénalisée")
+})

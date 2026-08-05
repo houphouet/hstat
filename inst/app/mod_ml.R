@@ -19,6 +19,33 @@
   "Naïve Bayes (e1071)"                 = "nb",
   "Réseau de neurones 1 couche (nnet)"  = "nnet")
 
+# ---------------------------------------------------------------------------
+#  xgboost : l'interface xgboost::xgboost() a change d'API (data -> x,
+#  label -> y, 'params' supprime, 'verbose' non reconnu). L'appeler a l'ancienne
+#  faisait remonter une avalanche d'avertissements de depreciation a chaque
+#  ajustement (et deviendra une erreur). On passe donc par l'API stable
+#  xgb.train() + xgb.DMatrix(), identique d'une version a l'autre.
+# ---------------------------------------------------------------------------
+.hstat_xgb_fit <- function(x, y, params, nrounds) {
+  dm <- xgboost::xgb.DMatrix(as.matrix(x), label = as.numeric(y))
+  suppressWarnings(xgboost::xgb.train(params = params, data = dm,
+                                      nrounds = as.integer(nrounds),
+                                      verbose = 0))
+}
+
+# Normalise la sortie de predict() : selon la version de xgboost, un modele
+# multi:softprob renvoie soit un vecteur a plat (n * k), soit deja une matrice
+# n x k. On renvoie toujours une matrice n x k en multiclasse, un vecteur
+# numerique sinon.
+.hstat_xgb_predict <- function(model, x, n_class = 1L) {
+  pr <- suppressWarnings(stats::predict(model, as.matrix(x)))
+  if (n_class > 2L) {
+    if (!is.matrix(pr)) pr <- matrix(pr, ncol = n_class, byrow = TRUE)
+    return(pr)
+  }
+  as.numeric(pr)
+}
+
 mod_ml_ui <- function(id) {
   ns <- NS(id)
   tagList(
@@ -293,6 +320,7 @@ mod_ml_server <- function(id, values) {
         stop(sprintf("Le package '%s' est requis (install.packages(\"%s\")).", pkg, pkg))
       pf <- NULL; imp <- NULL; label <- names(.ml_catalog())[match(idm, .ml_catalog())]
       auto <- isTRUE(input$hpAuto); hp <- if (auto) NULL else "réglages manuels"
+      warn <- NULL   # diagnostic d'ajustement affiché sous les hyperparamètres
 
       if (idm == "lmglm") {
         if (auto) hp <- "aucun hyperparamètre à régler"
@@ -302,7 +330,8 @@ mod_ml_server <- function(id, values) {
           imp <- data.frame(Variable = rownames(co)[-1],
                             Importance = abs(co[-1, "t value"]))
         } else if (nlevels(tr[[ti]]) == 2) {
-          m <- stats::glm(p$f, data = tr, family = stats::binomial())
+          gl <- hstat_glm_fit(p$f, data = tr, family = stats::binomial())
+          m <- gl$fit; warn <- gl$note
           pf <- function(nd) { pr <- as.numeric(stats::predict(m, nd, type = "response"))
             list(pred = factor(levels(tr[[ti]])[1 + (pr > 0.5)], levels = levels(tr[[ti]])),
                  prob = pr) }
@@ -410,17 +439,16 @@ mod_ml_server <- function(id, values) {
           xv <- xv[, colnames(xf), drop = FALSE]
           lf <- if (!cls) tsp$fit[[ti]] else as.numeric(tsp$fit[[ti]]) - 1
           grid <- expand.grid(depth = c(3L, 5L, 7L), eta = c(0.05, 0.1, 0.3))
+          nk <- nlevels(tr[[ti]])
           sc <- vapply(seq_len(nrow(grid)), function(i) {
             pi_ <- list(objective = obj, max_depth = grid$depth[i], eta = grid$eta[i])
-            if (obj == "multi:softprob") pi_$num_class <- nlevels(tr[[ti]])
-            mm <- xgboost::xgboost(data = xf, label = lf, params = pi_,
-                                   nrounds = 150, verbose = 0)
-            pr <- stats::predict(mm, xv)
+            if (obj == "multi:softprob") pi_$num_class <- nk
+            mm <- .hstat_xgb_fit(xf, lf, pi_, 150)
+            pr <- .hstat_xgb_predict(mm, xv, if (cls) nk else 1L)
             pv <- if (!cls) pr
               else if (obj == "binary:logistic")
                 levels(tr[[ti]])[1 + (pr > 0.5)]
-              else levels(tr[[ti]])[max.col(matrix(pr, ncol = nlevels(tr[[ti]]),
-                                                   byrow = TRUE))]
+              else levels(tr[[ti]])[max.col(pr)]
             tune_score(tsp$val[[ti]], pv, cls)
           }, numeric(1))
           b <- which.min(sc)
@@ -431,8 +459,7 @@ mod_ml_server <- function(id, values) {
         }
         pars <- list(objective = obj, max_depth = depth, eta = eta)
         if (obj == "multi:softprob") pars$num_class <- nlevels(tr[[ti]])
-        m <- xgboost::xgboost(data = x, label = lab, params = pars,
-                              nrounds = nrounds, verbose = 0)
+        m <- .hstat_xgb_fit(x, lab, pars, nrounds)
         pf <- function(nd) {
           xn <- mk_mm(p, nd)
           miss <- setdiff(colnames(x), colnames(xn))
@@ -440,14 +467,15 @@ mod_ml_server <- function(id, values) {
                                             dimnames = list(NULL, miss))
                               xn <- cbind(xn, add) }
           xn <- xn[, colnames(x), drop = FALSE]
-          pr <- stats::predict(m, xn)
+          nk <- nlevels(tr[[ti]])
+          pr <- .hstat_xgb_predict(m, xn, if (cls) nk else 1L)
           if (!cls) list(pred = as.numeric(pr), prob = NULL)
-          else if (nlevels(tr[[ti]]) == 2)
+          else if (nk == 2)
             list(pred = factor(levels(tr[[ti]])[1 + (pr > 0.5)], levels = levels(tr[[ti]])),
                  prob = as.numeric(pr))
           else {
-            pm <- matrix(pr, ncol = nlevels(tr[[ti]]), byrow = TRUE,
-                         dimnames = list(NULL, levels(tr[[ti]])))
+            pm <- pr
+            colnames(pm) <- levels(tr[[ti]])
             list(pred = factor(colnames(pm)[max.col(pm)], levels = levels(tr[[ti]])),
                  prob = pm)
           }
@@ -550,7 +578,7 @@ mod_ml_server <- function(id, values) {
               else hstat_metrics_reg(te[[ti]], out$pred)
       if (!is.null(imp)) imp <- imp[order(-imp$Importance), , drop = FALSE]
       list(ok = TRUE, label = label, predict_fun = pf, metrics = mets,
-           pred = out$pred, prob = out$prob, imp = imp, hp = hp)
+           pred = out$pred, prob = out$prob, imp = imp, hp = hp, warn = warn)
     }
 
     fits <- eventReactive(input$mlRun, {
@@ -625,10 +653,18 @@ mod_ml_server <- function(id, values) {
     })
     output$mlHp <- renderUI({
       c0 <- tryCatch(cur(), error = function(e) NULL)
-      if (is.null(c0) || is.null(c0$r$hp)) return(NULL)
-      div(class = "callout callout-success", style = "margin-top:4px;",
-          icon("gears"), strong(" Hyperparamètres retenus : "), c0$r$hp,
-          " — les métriques et graphiques ci-dessous sont calculés avec ces réglages.")
+      if (is.null(c0)) return(NULL)
+      tagList(
+        if (!is.null(c0$r$hp))
+          div(class = "callout callout-success", style = "margin-top:4px;",
+              icon("gears"), strong(" Hyperparamètres retenus : "), c0$r$hp,
+              " — les métriques et graphiques ci-dessous sont calculés avec ces réglages."),
+        # Diagnostic d'ajustement (ex. non-convergence / séparation d'un GLM) :
+        # affiché ici plutôt que laissé en avertissement dans la console.
+        if (!is.null(c0$r$warn))
+          div(class = "callout callout-warning", style = "margin-top:4px;",
+              icon("triangle-exclamation"), strong(" Diagnostic d'ajustement : "),
+              c0$r$warn))
     })
     output$clDoc <- renderUI(hstat_model_doc_ui(input$clMethod %||% "kmeans"))
 
