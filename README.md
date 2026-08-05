@@ -63,6 +63,29 @@ Environment variables (all optional):
 
 ---
 
+## Qualitative coding workbench (CAQDAS)
+
+Under **Analyses qualitatives → Codage / thématisation**, HStat provides a
+MAXQDA-style coding workbench:
+
+- **Coding** — read one open-ended answer at a time, select a word, sentence
+  or paragraph with the mouse, then drag-and-drop it onto a code (clicking the
+  code works too). The passage gets a coloured label; overlapping codes are
+  rendered as a gradient of their colours.
+- **Retrieval and cross-tabulation** — click a code to list every excerpt it
+  covers, and cross the coded text with respondent profiles (for instance, only
+  the price complaints made by the "Moins de 25 ans" group).
+- **Visualisation and reports** — word clouds, a concept map of code
+  co-occurrences (the MAXMaps equivalent, laid out by classical MDS), cross
+  matrices, and an Excel workbook gathering codebook, excerpts and matrices.
+  The whole coding project can be saved to `.rds` and reloaded later.
+- **Optional AI assistant** — with an Anthropic API key (typed in the UI or
+  read from `ANTHROPIC_API_KEY`), Claude can propose a codebook from the corpus
+  and pre-code the answers. Suggestions are tagged "IA" and can be reviewed or
+  dropped in one click. Without a key, every other feature works unchanged.
+
+---
+
 ## Project structure
 
 ```
@@ -76,6 +99,7 @@ Environment variables (all optional):
 │   │   ├── app_server.R
 │   │   ├── HStat.R
 │   │   ├── mod_clean.R
+│   │   ├── mod_coding.R
 │   │   ├── mod_descriptive.R
 │   │   ├── mod_design.R
 │   │   ├── mod_dl.R
@@ -142,7 +166,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.7.5. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.8.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -150,7 +174,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.7.5},
+  note   = {Version 0.8.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

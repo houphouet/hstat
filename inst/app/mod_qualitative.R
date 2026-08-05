@@ -2192,18 +2192,29 @@ mod_qualitative_ui <- function(id) {
     shiny::fluidRow(
       shinydashboard::box(width = 12, status = "warning", solidHeader = FALSE, background = "navy",
         shiny::h3(shiny::icon("comments"), " Analyses de données qualitatives d'enquête",
-                  style = "margin:0;color:white;"))
-    ),
-    shiny::fluidRow(
-      shiny::column(4,
-        shinydashboard::box(width = 12, title = shiny::tagList(shiny::icon("sliders-h"), " Configuration"),
-                   status = "warning", solidHeader = TRUE,
+                  style = "margin:0;color:white;"),
+        # Le selecteur de famille vit dans le bandeau (et non dans la boite de
+        # configuration) : l'atelier de codage occupe toute la largeur, il ne
+        # peut donc pas heberger ce selecteur dans une colonne de gauche.
+        shiny::div(style = "max-width:560px;margin-top:12px;",
           shiny::selectInput(ns("family"), "Famille d'analyse",
             choices = c("Nominale (catégories)" = "nominal",
                         "Ordinale (échelles, Likert)" = "ordinal",
                         "Textuelle (questions ouvertes)" = "textual",
+                        "Codage / thématisation (CAQDAS, façon MAXQDA)" = "coding",
                         "Outils (modalités, manquants, recodage, OR/RR)" = "tools"),
-            selected = "nominal"),
+            selected = "nominal")))
+    ),
+
+    # ---- Atelier de codage qualitatif (CAQDAS) : voir mod_coding.R ----
+    shiny::conditionalPanel(sprintf("input['%s'] == 'coding'", ns("family")),
+      mod_coding_ui(ns("coding"))),
+
+    shiny::conditionalPanel(sprintf("input['%s'] != 'coding'", ns("family")),
+    shiny::fluidRow(
+      shiny::column(4,
+        shinydashboard::box(width = 12, title = shiny::tagList(shiny::icon("sliders-h"), " Configuration"),
+                   status = "warning", solidHeader = TRUE,
 
           # ---- NOMINALE ----
           shiny::conditionalPanel(sprintf("input['%s'] == 'nominal'", ns("family")),
@@ -2434,7 +2445,7 @@ mod_qualitative_ui <- function(id) {
           )
         )
       )
-    )
+    ))
   )
 }
 
@@ -2444,6 +2455,10 @@ mod_qualitative_ui <- function(id) {
 mod_qualitative_server <- function(id, values) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    # Atelier de codage qualitatif (CAQDAS) : module autonome, affiche quand la
+    # famille « Codage / thématisation » est selectionnee.
+    mod_coding_server("coding", values)
 
     get_data <- shiny::reactive({
       d <- values$data

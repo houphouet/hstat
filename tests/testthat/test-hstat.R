@@ -52,6 +52,12 @@ local({
   if (file.exists(qual_path))
     suppressWarnings(suppressMessages(
       sys.source(qual_path, envir = e, keep.source = FALSE)))
+  # Idem pour l'atelier de codage qualitatif (hstat_code_*, hstat_seg_*,
+  # hstat_ai_*), qui vit dans mod_coding.R.
+  cod_path <- file.path(dirname(utils_path), "mod_coding.R")
+  if (file.exists(cod_path))
+    suppressWarnings(suppressMessages(
+      sys.source(cod_path, envir = e, keep.source = FALSE)))
   # Exporter TOUTES les fonctions (y compris cachees, ex. .hstat_sql_stat_exprs)
   for (nm in ls(e, all.names = TRUE))
     assign(nm, get(nm, envir = e), envir = globalenv())
@@ -1441,4 +1447,375 @@ test_that("la version du README suit celle de DESCRIPTION", {
   expect_identical(sort(citees), attendue,
                    info = paste0("README.md cite ", paste(citees, collapse = ", "),
                                  " alors que DESCRIPTION est en ", attendue))
+})
+
+# =============================================================================
+#  ATELIER DE CODAGE QUALITATIF (CAQDAS) -- mod_coding.R
+# =============================================================================
+
+test_that("livre de codes : ajout, unicite, couleurs et suppression", {
+  cb <- hstat_code_new_codebook()
+  expect_equal(nrow(cb), 0L)
+
+  cb <- hstat_code_add(cb, "Prix trop eleve")
+  cb <- hstat_code_add(cb, "Satisfaction")
+  expect_equal(nrow(cb), 2L)
+  expect_equal(cb$code_id, c("prix_trop_eleve", "satisfaction"))
+  # Deux codes ne doivent jamais partager une couleur tant que la palette suffit
+  expect_equal(length(unique(cb$color)), 2L)
+
+  # Libelle deja present (a la casse pres) : refuse en silence
+  expect_equal(nrow(hstat_code_add(cb, "satisfaction")), 2L)
+  # Libelle vide : refuse aussi
+  expect_equal(nrow(hstat_code_add(cb, "   ")), 2L)
+
+  # Couleur imposee
+  cb <- hstat_code_add(cb, "Delais", color = "#123456")
+  expect_equal(cb$color[cb$code_id == "delais"], "#123456")
+
+  cb <- hstat_code_update(cb, "delais", label = "Delais de livraison", memo = "retards")
+  expect_equal(hstat_code_label(cb, "delais"), "Delais de livraison")
+  expect_equal(cb$memo[cb$code_id == "delais"], "retards")
+
+  cb <- hstat_code_remove(cb, "delais")
+  expect_equal(nrow(cb), 2L)
+  # Un code inconnu retombe sur son identifiant plutot que sur NA
+  expect_equal(hstat_code_label(cb, "inconnu"), "inconnu")
+  expect_equal(hstat_code_color(cb, "inconnu"), "#95a5a6")
+})
+
+test_that("hstat_code_slug produit des identifiants uniques et sans accents", {
+  expect_equal(hstat_code_slug("Prix tres eleve"), "prix_tres_eleve")
+  expect_equal(hstat_code_slug("Qualite / Securite"), "qualite_securite")
+  expect_equal(hstat_code_slug("Prix", existing = c("prix")), "prix_2")
+  expect_equal(hstat_code_slug("Prix", existing = c("prix", "prix_2")), "prix_3")
+  expect_equal(hstat_code_slug("!!!"), "code")
+})
+
+test_that("segments : ajout, dedoublonnage, suppression et effectifs", {
+  cb <- hstat_code_add(hstat_code_add(hstat_code_new_codebook(), "Prix"), "Delai")
+  sg <- hstat_code_new_segments()
+
+  sg <- hstat_seg_add(sg, "D00001", "prix", 0, 10, "trop cher!!")
+  expect_equal(nrow(sg), 1L)
+  # Meme document, meme code, memes bornes : depot en double ignore
+  sg <- hstat_seg_add(sg, "D00001", "prix", 0, 10, "trop cher!!")
+  expect_equal(nrow(sg), 1L)
+  # Selection vide ou inversee : refusee
+  sg <- hstat_seg_add(sg, "D00001", "prix", 5, 5, "")
+  sg <- hstat_seg_add(sg, "D00001", "prix", 9, 3, "")
+  expect_equal(nrow(sg), 1L)
+
+  sg <- hstat_seg_add(sg, "D00002", "prix", 2, 8, "cher")
+  sg <- hstat_seg_add(sg, "D00002", "delai", 10, 20, "trop long")
+  expect_equal(nrow(sg), 3L)
+
+  cnt <- hstat_code_counts(cb, sg)
+  expect_equal(cnt$n_seg[cnt$code_id == "prix"], 2L)
+  expect_equal(cnt$n_doc[cnt$code_id == "prix"], 2L)
+  expect_equal(cnt$n_seg[cnt$code_id == "delai"], 1L)
+
+  expect_equal(nrow(hstat_seg_for_doc(sg, "D00002")), 2L)
+  expect_equal(nrow(hstat_seg_remove(sg, sg$seg_id[1])), 2L)
+  # Supprimer un code emporte ses etiquettes : pas de segment orphelin
+  expect_equal(nrow(hstat_seg_drop_code(sg, "prix")), 1L)
+})
+
+test_that("hstat_code_highlight_html balise le bon passage et echappe le HTML", {
+  cb <- hstat_code_add(hstat_code_new_codebook(), "Prix", color = "#e74c3c")
+  txt <- "Le prix est trop eleve"
+  # "prix" occupe les positions 3 a 7 (bornes JS : debut a 0, fin exclue)
+  sg <- hstat_seg_add(hstat_code_new_segments(), "D1", "prix", 3, 7, "prix")
+
+  h <- hstat_code_highlight_html(txt, sg, cb)
+  expect_true(grepl("<mark", h, fixed = TRUE))
+  expect_true(grepl(">prix</mark>", h, fixed = TRUE))
+  expect_true(grepl("231,76,60", h, fixed = TRUE))   # #e74c3c en rgba
+  # Le texte hors segment reste intact
+  expect_true(grepl("Le ", h, fixed = TRUE))
+  expect_true(grepl(" est trop eleve", h, fixed = TRUE))
+
+  # Sans segment : simple echappement, aucune balise <mark>
+  expect_false(grepl("<mark", hstat_code_highlight_html(txt, NULL, cb), fixed = TRUE))
+
+  # Le texte du repondant ne doit jamais pouvoir injecter du HTML
+  h2 <- hstat_code_highlight_html("a <script>x</script> b",
+                                  hstat_code_new_segments(), cb)
+  expect_false(grepl("<script>", h2, fixed = TRUE))
+  expect_true(grepl("&lt;script&gt;", h2, fixed = TRUE))
+
+  # Texte vide
+  expect_true(grepl("vide", hstat_code_highlight_html("", NULL, cb)))
+})
+
+test_that("hstat_code_highlight_html gere les chevauchements", {
+  cb <- hstat_code_add(hstat_code_add(hstat_code_new_codebook(), "A", color = "#e74c3c"),
+                       "B", color = "#2980b9")
+  txt <- "0123456789"
+  sg <- hstat_seg_add(hstat_code_new_segments(), "D1", "a", 0, 6, "012345")
+  sg <- hstat_seg_add(sg, "D1", "b", 4, 10, "456789")
+
+  h <- hstat_code_highlight_html(txt, sg, cb)
+  # Le texte affiche doit rester exactement le texte d'origine, balises otees
+  expect_equal(gsub("<[^>]*>", "", h), txt)
+  # La zone commune (4-6) recoit un degrade des deux couleurs
+  expect_true(grepl("linear-gradient", h, fixed = TRUE))
+  expect_true(grepl("A + B", h, fixed = TRUE))
+
+  # Bornes hors du texte : ramenees dans les limites, sans erreur
+  sg2 <- hstat_seg_add(hstat_code_new_segments(), "D1", "a", 5, 999, "x")
+  expect_equal(gsub("<[^>]*>", "", hstat_code_highlight_html(txt, sg2, cb)), txt)
+})
+
+test_that("hstat_code_docs ne retient que les lignes non vides", {
+  df <- data.frame(rep = c("trop cher", "", NA, "service parfait"),
+                   age = c("<25", "25-40", "<25", ">40"),
+                   stringsAsFactors = FALSE)
+  d <- hstat_code_docs(df, "rep")
+  expect_equal(nrow(d), 2L)
+  expect_equal(d$row, c(1L, 4L))
+  expect_equal(d$text, c("trop cher", "service parfait"))
+  # Le profil suit les documents retenus, dans le meme ordre
+  p <- hstat_code_profile(df, d, "age")
+  expect_equal(p$age, c("<25", ">40"))
+  # Colonne inexistante : tableau vide plutot qu'erreur
+  expect_equal(nrow(hstat_code_docs(df, "absente")), 0L)
+})
+
+test_that("hstat_code_retrieve filtre par code, par profil et par mot-cle", {
+  df <- data.frame(rep = c("c'est trop cher", "service parfait", "prix excessif"),
+                   age = c("<25", ">40", "<25"), stringsAsFactors = FALSE)
+  d  <- hstat_code_docs(df, "rep")
+  pr <- hstat_code_profile(df, d, "age")
+  cb <- hstat_code_add(hstat_code_add(hstat_code_new_codebook(), "Prix"), "Service")
+  sg <- hstat_seg_add(hstat_code_new_segments(), d$doc_id[1], "prix", 7, 15, "trop cher")
+  sg <- hstat_seg_add(sg, d$doc_id[2], "service", 0, 15, "service parfait")
+  sg <- hstat_seg_add(sg, d$doc_id[3], "prix", 0, 14, "prix excessif")
+
+  expect_equal(nrow(hstat_code_retrieve(sg, cb, d)), 3L)
+  expect_equal(nrow(hstat_code_retrieve(sg, cb, d, code_ids = "prix")), 2L)
+
+  # « Les critiques sur le prix emises par les moins de 25 ans »
+  r <- hstat_code_retrieve(sg, cb, d, code_ids = "prix", profile = pr,
+                           filter_var = "age", filter_levels = "<25")
+  expect_equal(nrow(r), 2L)
+  expect_true(all(r$age == "<25"))
+  expect_true("Extrait" %in% names(r))
+
+  r2 <- hstat_code_retrieve(sg, cb, d, profile = pr, filter_var = "age",
+                            filter_levels = ">40")
+  expect_equal(nrow(r2), 1L)
+  expect_equal(r2$Code, "Service")
+
+  expect_equal(nrow(hstat_code_retrieve(sg, cb, d, search = "excessif")), 1L)
+  expect_equal(nrow(hstat_code_retrieve(hstat_code_new_segments(), cb, d)), 0L)
+})
+
+test_that("hstat_code_matrix croise les codes et les profils", {
+  df <- data.frame(rep = c("a", "b", "c"), age = c("<25", "<25", ">40"),
+                   stringsAsFactors = FALSE)
+  d  <- hstat_code_docs(df, "rep")
+  pr <- hstat_code_profile(df, d, "age")
+  cb <- hstat_code_add(hstat_code_add(hstat_code_new_codebook(), "Prix"), "Service")
+  sg <- hstat_seg_add(hstat_code_new_segments(), d$doc_id[1], "prix", 0, 1, "a")
+  sg <- hstat_seg_add(sg, d$doc_id[1], "prix", 0, 1, "a")   # doublon : ignore
+  sg <- hstat_seg_add(sg, d$doc_id[2], "prix", 0, 1, "b")
+  sg <- hstat_seg_add(sg, d$doc_id[3], "service", 0, 1, "c")
+
+  m <- hstat_code_matrix(sg, cb, pr, "age", count = "segments")
+  expect_equal(m$Code, c("Prix", "Service"))
+  expect_equal(m[["<25"]], c(2L, 0L))
+  expect_equal(m[[">40"]], c(0L, 1L))
+  expect_equal(m$Total, c(2, 1))
+
+  # Sans variable de profil : simple colonne d'effectifs
+  m0 <- hstat_code_matrix(sg, cb, pr, "")
+  expect_equal(names(m0), c("Code", "Total"))
+  expect_equal(m0$Total, c(2L, 1L))
+
+  # Comptage par repondant : deux segments dans le meme document pesent 1
+  sg2 <- hstat_seg_add(sg, d$doc_id[1], "prix", 5, 9, "zzzz")
+  expect_equal(hstat_code_matrix(sg2, cb, pr, "age", count = "segments")[["<25"]][1], 3L)
+  expect_equal(hstat_code_matrix(sg2, cb, pr, "age", count = "documents")[["<25"]][1], 2L)
+
+  expect_null(hstat_code_matrix(sg, hstat_code_new_codebook(), pr, "age"))
+})
+
+test_that("hstat_code_cooccurrence distingue meme reponse et meme passage", {
+  cb <- hstat_code_add(hstat_code_add(hstat_code_new_codebook(), "A"), "B")
+  # Deux codes dans la meme reponse, mais sur des passages disjoints
+  sg <- hstat_seg_add(hstat_code_new_segments(), "D1", "a", 0, 5, "xxxxx")
+  sg <- hstat_seg_add(sg, "D1", "b", 20, 25, "yyyyy")
+
+  m_doc <- hstat_code_cooccurrence(sg, cb, mode = "document")
+  expect_equal(m_doc["A", "B"], 1L)
+  m_ov <- hstat_code_cooccurrence(sg, cb, mode = "overlap")
+  expect_equal(m_ov["A", "B"], 0L)
+
+  # Passages qui se recouvrent
+  sg2 <- hstat_seg_add(hstat_code_new_segments(), "D1", "a", 0, 10, "x")
+  sg2 <- hstat_seg_add(sg2, "D1", "b", 5, 15, "y")
+  expect_equal(hstat_code_cooccurrence(sg2, cb, mode = "overlap")["A", "B"], 1L)
+  # Matrice symetrique, diagonale nulle
+  m2 <- hstat_code_cooccurrence(sg2, cb, mode = "overlap")
+  expect_equal(m2["A", "B"], m2["B", "A"])
+  expect_equal(unname(diag(m2)), c(0L, 0L))
+
+  # Moins de deux codes : rien a croiser
+  expect_null(hstat_code_cooccurrence(sg, hstat_code_add(hstat_code_new_codebook(), "A")))
+})
+
+test_that("la mise en page du nuage de mots ne superpose aucun mot", {
+  set.seed(1)
+  w <- c("prix", "cher", "service", "qualite", "delai", "accueil", "attente")
+  f <- c(30, 25, 20, 12, 8, 5, 3)
+  lay <- hstat_code_cloud_layout(w, f, max_words = 10, min_size = 4, max_size = 14)
+  expect_true(nrow(lay) >= 5)
+  expect_true(all(is.finite(lay$x)) && all(is.finite(lay$y)))
+  # Le mot le plus frequent est le plus gros et occupe le centre
+  expect_equal(lay$word[1], "prix")
+  expect_equal(lay$size[1], max(lay$size))
+  expect_equal(lay$x[1], 0)
+
+  # Aucun recouvrement des boites englobantes
+  bw <- nchar(lay$word) * lay$size * 0.62
+  bh <- lay$size * 1.35
+  for (i in seq_len(nrow(lay) - 1L)) for (j in (i + 1L):nrow(lay)) {
+    ov <- abs(lay$x[i] - lay$x[j]) < (bw[i] + bw[j]) / 2 &&
+          abs(lay$y[i] - lay$y[j]) < (bh[i] + bh[j]) / 2
+    expect_false(ov, info = sprintf("« %s » chevauche « %s »", lay$word[i], lay$word[j]))
+  }
+
+  # Plafond du nombre de mots respecte
+  expect_true(nrow(hstat_code_cloud_layout(w, f, max_words = 3)) <= 3)
+  expect_null(hstat_code_cloud_layout(character(0), numeric(0)))
+})
+
+test_that("la carte conceptuelle place autant de noeuds que de codes", {
+  cb <- hstat_code_new_codebook()
+  for (l in c("Prix", "Service", "Delai", "Qualite")) cb <- hstat_code_add(cb, l)
+  sg <- hstat_code_new_segments()
+  sg <- hstat_seg_add(sg, "D1", "prix", 0, 5, "a")
+  sg <- hstat_seg_add(sg, "D1", "service", 6, 9, "b")
+  sg <- hstat_seg_add(sg, "D2", "prix", 0, 5, "a")
+  sg <- hstat_seg_add(sg, "D2", "delai", 6, 9, "c")
+  sg <- hstat_seg_add(sg, "D3", "qualite", 0, 5, "d")
+
+  m <- hstat_code_cooccurrence(sg, cb)
+  cnt <- hstat_code_counts(cb, sg)
+  lay <- hstat_code_map_layout(m, stats::setNames(cnt$n_seg, cnt$label))
+  expect_equal(nrow(lay), 4L)
+  expect_true(all(is.finite(lay$x)) && all(is.finite(lay$y)))
+  expect_setequal(lay$label, cb$label)
+
+  if (requireNamespace("ggplot2", quietly = TRUE)) {
+    p <- hstat_code_map_plot(m, cb, cnt)
+    expect_s3_class(p, "ggplot")
+  }
+  # Aucune cooccurrence : repli sur la disposition circulaire, sans erreur
+  vide <- hstat_code_cooccurrence(hstat_code_new_segments(), cb)
+  expect_equal(nrow(hstat_code_map_layout(vide, stats::setNames(rep(1, 4), cb$label))), 4L)
+})
+
+test_that("assistant IA : degradation propre en l'absence de cle", {
+  old <- Sys.getenv("ANTHROPIC_API_KEY", unset = NA)
+  Sys.unsetenv("ANTHROPIC_API_KEY")
+  on.exit(if (!is.na(old)) Sys.setenv(ANTHROPIC_API_KEY = old), add = TRUE)
+
+  expect_equal(hstat_ai_key(NULL), "")
+  expect_equal(hstat_ai_key("  sk-test  "), "sk-test")
+  expect_false(hstat_ai_available(NULL))
+
+  st <- hstat_ai_status(NULL)
+  expect_false(st$ok)
+  expect_true(grepl("cle d'API", st$message, fixed = TRUE))
+
+  # Aucun appel reseau ne doit partir sans cle
+  r <- hstat_ai_call("bonjour", api_key = NULL)
+  expect_false(r$ok)
+  expect_true(nzchar(r$error))
+
+  Sys.setenv(ANTHROPIC_API_KEY = "sk-depuis-l-environnement")
+  expect_equal(hstat_ai_key(NULL), "sk-depuis-l-environnement")
+  Sys.unsetenv("ANTHROPIC_API_KEY")
+})
+
+test_that("le modele IA declare est bien claude-opus-5", {
+  expect_equal(HSTAT_AI_MODEL, "claude-opus-5")
+})
+
+test_that("hstat_ai_extract_json tolere le texte et les blocs markdown", {
+  skip_if_not(requireNamespace("jsonlite", quietly = TRUE))
+  j1 <- hstat_ai_extract_json('Voici le resultat :\n```json\n{"codes":[{"label":"Prix"}]}\n```\nVoila.')
+  expect_equal(j1$codes[[1]]$label, "Prix")
+  j2 <- hstat_ai_extract_json('{"codes":[{"label":"A"},{"label":"B"}]}')
+  expect_equal(length(j2$codes), 2L)
+  expect_null(hstat_ai_extract_json("aucun json ici"))
+  expect_null(hstat_ai_extract_json(""))
+})
+
+test_that("hstat_ai_parse_codebook extrait libelles et memos", {
+  skip_if_not(requireNamespace("jsonlite", quietly = TRUE))
+  p <- hstat_ai_extract_json(
+    '{"codes":[{"label":"Prix trop eleve","memo":"cout juge excessif"},
+               {"label":"Accueil","memo":""},
+               {"label":"","memo":"ignore"}]}')
+  cb <- hstat_ai_parse_codebook(p)
+  expect_equal(nrow(cb), 2L)
+  expect_equal(cb$label, c("Prix trop eleve", "Accueil"))
+  expect_equal(cb$memo[1], "cout juge excessif")
+  expect_null(hstat_ai_parse_codebook(NULL))
+})
+
+test_that("hstat_code_locate_quote retrouve l'extrait dans le texte", {
+  txt <- "Le service est correct mais le prix est vraiment trop eleve."
+  p <- hstat_code_locate_quote(txt, "le prix est vraiment trop eleve")
+  expect_false(is.null(p))
+  expect_equal(substr(txt, p[["start"]] + 1, p[["end"]]), "le prix est vraiment trop eleve")
+
+  # Casse differente
+  p2 <- hstat_code_locate_quote(txt, "LE PRIX EST VRAIMENT TROP ELEVE")
+  expect_false(is.null(p2))
+  expect_equal(p2[["start"]], p[["start"]])
+
+  # Espaces normalises par le modele
+  p3 <- hstat_code_locate_quote(txt, "le   prix    est vraiment")
+  expect_false(is.null(p3))
+
+  # Extrait invente : rien n'est pose sur le texte
+  expect_null(hstat_code_locate_quote(txt, "la livraison a ete tres rapide"))
+  expect_null(hstat_code_locate_quote(txt, ""))
+})
+
+test_that("hstat_ai_parse_autocode n'accepte que les extraits reellement presents", {
+  skip_if_not(requireNamespace("jsonlite", quietly = TRUE))
+  df <- data.frame(rep = c("le prix est trop eleve", "service impeccable"),
+                   stringsAsFactors = FALSE)
+  d  <- hstat_code_docs(df, "rep")
+  cb <- hstat_code_add(hstat_code_add(hstat_code_new_codebook(), "Prix"), "Service")
+
+  p <- hstat_ai_extract_json(sprintf(
+    '{"codages":[{"doc":"%s","code":"Prix","extrait":"le prix est trop eleve"},
+                 {"doc":"%s","code":"Service","extrait":"un extrait totalement invente"},
+                 {"doc":"%s","code":"Code inconnu","extrait":"service impeccable"}]}',
+    d$doc_id[1], d$doc_id[2], d$doc_id[2]))
+  sg <- hstat_ai_parse_autocode(p, d, cb)
+
+  expect_equal(nrow(sg), 1L)
+  expect_equal(sg$code_id, "prix")
+  expect_equal(sg$source, "IA")
+  expect_equal(sg$text, "le prix est trop eleve")
+  expect_equal(attr(sg, "non_localises"), 2L)
+})
+
+test_that("mod_coding.R est source par HStat.R avant mod_qualitative.R", {
+  root <- .hstat_repo_root()
+  h <- readLines(file.path(root, "inst", "app", "HStat.R"), warn = FALSE)
+  i_cod <- grep('source\\("mod_coding\\.R"', h)
+  i_qua <- grep('source\\("mod_qualitative\\.R"', h)
+  expect_length(i_cod, 1L)
+  expect_length(i_qua, 1L)
+  # mod_qualitative_ui() appelle mod_coding_ui() : l'ordre doit tenir
+  expect_true(i_cod < i_qua)
+  expect_true(file.exists(file.path(root, "inst", "app", "mod_coding.R")))
 })

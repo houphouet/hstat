@@ -56,6 +56,13 @@ L'application vit dans `inst/app/` :
 Corollaire : une fonction utilisée à la fois par l'UI et le serveur doit être
 définie dans `Utils.R`, pas dans le corps de `server`.
 
+### Modules imbriqués : l'ordre de `source()` compte
+
+`mod_qualitative_ui()` appelle `mod_coding_ui()` (l'atelier de codage CAQDAS
+vit dans son propre fichier plutôt que d'alourdir les ~2900 lignes de
+`mod_qualitative.R`). `HStat.R` doit donc sourcer `mod_coding.R` **avant**
+`mod_qualitative.R` — un test garde cette contrainte.
+
 ## Tests
 
 `tests/testthat/test-hstat.R` est la suite de référence (celle qu'exécute
@@ -109,10 +116,17 @@ démarrage subsiste car Shiny l'émet avant de tester le fichier.
 
 ## Fins de ligne
 
-Attention : le dépôt est **mixte**. `Utils.R` et `mod_tests.R` sont en **CRLF**,
-les autres fichiers R en LF. Préserver les fins de ligne existantes lors d'une
-édition — un fichier réécrit intégralement en LF produit un diff de plusieurs
-milliers de lignes qui masque le changement réel.
+Attention : le dépôt est **mixte**. `Utils.R`, `mod_tests.R` et
+`mod_qualitative.R` sont en **CRLF**, les autres fichiers R en LF. Préserver les
+fins de ligne existantes lors d'une édition — un fichier réécrit intégralement
+en LF produit un diff de plusieurs milliers de lignes qui masque le changement
+réel.
+
+Vérifier avant d'éditer plutôt que se fier à cette liste :
+
+```sh
+file inst/app/mon_fichier.R   # « with CRLF line terminators » ou non
+```
 
 Vérification rapide avant de committer :
 
