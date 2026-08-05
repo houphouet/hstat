@@ -1,12 +1,16 @@
 # =============================================================================
 #  HStat -- Tests automatises (testthat)
 #
-#  Comment lancer :
+#  Comment lancer, depuis la RACINE du depot :
 #    1. Installer testthat :  install.packages("testthat")
-#    2. Depuis le dossier de l'application :
-#         testthat::test_dir("tests")
-#    ou pour un seul fichier :
-#         testthat::test_file("tests/test-hstat.R")
+#    2. testthat::test_dir("tests/testthat")
+#    ou pour ce seul fichier :
+#         testthat::test_file("tests/testthat/test-hstat.R")
+#
+#  Viser "tests/testthat" et non "tests" : testthat traite tout fichier dont le
+#  nom commence par "test" comme une suite, y compris tests/testthat.R, dont le
+#  library(HStat) echoue tant que le paquet n'est pas installe.
+#  R CMD check, lui, passe bien par tests/testthat.R apres installation.
 #
 #  Ces tests couvrent les FONCTIONS DE CALCUL et utilitaires de Utils.R :
 #  detection de format, formatage, moteur de donnees (chemin memoire),
@@ -52,6 +56,16 @@ local({
   for (nm in ls(e, all.names = TRUE))
     assign(nm, get(nm, envir = e), envir = globalenv())
 })
+
+# -- Racine du depot (pour les tests portant sur app.R et R/) ----------------
+# Renvoie NA quand les tests tournent depuis un paquet installe, ou app.R et le
+# dossier R/ n'existent plus : les tests concernes s'y skippent d'eux-memes.
+.hstat_repo_root <- function() {
+  cands <- c(".", "..", file.path("..", ".."), file.path("..", "..", ".."))
+  hit <- cands[file.exists(file.path(cands, "DESCRIPTION")) &
+               dir.exists(file.path(cands, "inst", "app"))]
+  if (length(hit)) normalizePath(hit[1]) else NA_character_
+}
 
 # -- Charger le module d'analyses qualitatives (fonctions de calcul) ---------
 local({
@@ -1138,7 +1152,12 @@ test_that("hstat_model_doc couvre tous les modeles et fournit les 4 champs", {
     expect_false(is.null(f), info = id)
     expect_true(all(c("nom","principe","objectif","conditions") %in% names(f)),
                 info = id)
-    expect_true(all(nchar(unlist(f)) > 10), info = id)
+    # Le NOM peut legitimement etre court ("TBATS", "Prophet", "DBSCAN",
+    # "k-means") : on exige seulement qu'il soit renseigne. Ce sont les trois
+    # champs redactionnels qui doivent etre substantiels.
+    expect_true(nzchar(f$nom), info = id)
+    expect_true(all(nchar(unlist(f[c("principe","objectif","conditions")])) > 10),
+                info = id)
   }
   expect_null(hstat_model_doc("modele_inexistant"))
 })
@@ -1363,4 +1382,42 @@ test_that("la resolution de version ne fuit ni erreur ni avertissement", {
   expect_silent(hstat_citation("text"))
   # L'annee est toujours une annee a 4 chiffres exploitable.
   expect_match(hstat_pkg_year(), "^[0-9]{4}$")
+})
+
+# =============================================================================
+#  v0.7.4 -- Point d'entree de deploiement (app.R a la racine)
+# =============================================================================
+
+test_that("app.R sert bien www/ une fois deploye depuis la racine", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "racine du depot introuvable depuis le repertoire de test")
+  app_r <- file.path(root, "app.R")
+  skip_if_not(file.exists(app_r), "app.R absent (paquet installe)")
+  # On inspecte le CODE seul : les commentaires de app.R expliquent justement
+  # pourquoi setwd() est proscrit, et les inclure ferait echouer le test a tort.
+  src <- paste(sub("#.*$", "", readLines(app_r, warn = FALSE)), collapse = "\n")
+
+  # Shiny resout le dossier de l'application AVANT d'evaluer app.R : un setwd()
+  # arrive trop tard et laisse www/ introuvable. L'app repondait alors 404 sur
+  # hstat-theme.css, Sortable.min.js et les polices une fois deployee.
+  expect_false(grepl("setwd\\s*\\(", src),
+               info = "app.R ne doit pas utiliser setwd() : www/ ne serait plus servi")
+  expect_true(grepl("shinyAppDir\\s*\\(", src),
+              info = "app.R doit declarer le dossier de l'app via shinyAppDir()")
+
+  # Les ressources statiques doivent exister la ou shinyAppDir() les cherchera.
+  www <- file.path(root, "inst", "app", "www")
+  expect_true(dir.exists(www))
+  for (f in c("hstat-theme.css", "Sortable.min.js"))
+    expect_true(file.exists(file.path(www, f)), info = f)
+  expect_true(length(list.files(file.path(www, "fonts"), pattern = "\\.woff2$")) > 0)
+})
+
+test_that("Shiny ne source pas le dossier R/ du paquet dans l'application", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "racine du depot introuvable depuis le repertoire de test")
+  skip_if_not(dir.exists(file.path(root, "R")), "dossier R/ absent (paquet installe)")
+  # shiny::loadSupport() s'arrete si R/_disable_autoload.R existe ; sans lui,
+  # run_hstat() etait injecte dans l'environnement de l'application.
+  expect_true(file.exists(file.path(root, "R", "_disable_autoload.R")))
 })

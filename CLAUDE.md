@@ -61,7 +61,45 @@ Placer la logique statistique dans `Utils.R` plutôt que dans un `observeEvent`
 la rend testable — c'est le motif suivi par `hstat_ref_test()`,
 `hstat_metrics_*()`, `hstat_q_*()`, etc.
 
-Lancer : `testthat::test_dir("tests")`.
+Lancer, depuis la racine du dépôt : **`testthat::test_dir("tests/testthat")`**.
+
+Viser `tests/testthat` et non `tests` : testthat considère comme suite tout
+fichier dont le nom commence par `test`, y compris `tests/testthat.R`, dont le
+`library(HStat)` échoue tant que le paquet n'est pas installé. `R CMD check`,
+lui, passe bien par `tests/testthat.R` une fois l'installation faite.
+
+### Environnement de test sans accès à CRAN
+
+CRAN peut être injoignable ; les paquets R sont alors disponibles via apt
+(`apt-cache search '^r-cran-'`, ~1130 paquets) :
+
+```sh
+apt-get install -y r-cran-testthat r-cran-shiny r-cran-ggplot2 r-cran-dplyr \
+                   r-cran-svglite r-cran-openxlsx r-cran-dt
+```
+
+`svglite` est indispensable au test d'export image (`ggsave(device = "svg")`) :
+sans lui la suite tombe en erreur, alors que rien n'est cassé dans le code.
+
+## Déploiement : `app.R` à la racine
+
+`app.R` (racine) est le pont vers `inst/app/` pour shinyapps.io, Posit Connect
+et Shiny Server. Il doit se contenter de :
+
+```r
+shiny::shinyAppDir(app_dir)
+```
+
+**Ne jamais y faire `setwd()` puis `source()`.** Shiny résout le dossier de
+l'application — et donc l'emplacement de `www/` — *avant* d'évaluer `app.R` :
+un `setwd()` arrive trop tard. L'application déployée répondait alors 404 sur
+`hstat-theme.css`, `Sortable.min.js` et toutes les polices, et s'affichait sans
+son thème ni le glisser-déposer. Un test de non-régression garde cette règle.
+
+`R/_disable_autoload.R` empêche par ailleurs Shiny de sourcer le dossier `R/`
+du paquet dans l'environnement de l'application (`run_hstat` y était injecté).
+Shiny cherche ce fichier dans `R/`, pas à la racine ; l'avertissement au
+démarrage subsiste car Shiny l'émet avant de tester le fichier.
 
 ## Fins de ligne
 

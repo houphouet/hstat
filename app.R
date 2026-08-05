@@ -7,6 +7,20 @@
 # package R) ; ce fichier fait donc le pont vers inst/app/.
 #
 # Pour lancer depuis le PACKAGE installe, utilisez plutot : HStat::run_hstat()
+# -----------------------------------------------------------------------------
+# IMPORTANT -- pourquoi shinyAppDir() et surtout PAS setwd() + source() :
+#
+# Shiny sert le dossier www/ a la racine de l'URL en se basant sur le dossier
+# de l'application, resolu AVANT l'evaluation de ce fichier. Un setwd() effectue
+# ici arrive donc trop tard : Shiny continue de chercher www/ a la racine du
+# depot, ou il n'existe pas. Resultat, une fois deploye, l'application repondait
+# 404 sur hstat-theme.css, Sortable.min.js et toutes les polices -- elle
+# s'affichait sans son theme et sans le glisser-deposer.
+#
+# shinyAppDir() declare inst/app comme LE dossier de l'application : Shiny y
+# trouve app.R, y source le code et y sert www/. Aucun setwd() n'est necessaire
+# (setwd() modifie de surcroit l'etat global du processus R, ce qui est a
+# proscrire dans une application servie).
 # =============================================================================
 
 app_dir <- "inst/app"
@@ -21,17 +35,4 @@ if (!file.exists(file.path(app_dir, "HStat.R"))) {
   }
 }
 
-# Se placer dans le dossier de l'app : les source(\"Utils.R\", ...) et les
-# ressources www/ (chemins relatifs) en dependent.
-setwd(app_dir)
-
-# HStat.R se termine par shinyApp(ui, server) ; on retourne cette valeur.
-.hstat_app <- source("HStat.R", local = FALSE, encoding = "UTF-8")$value
-
-if (!inherits(.hstat_app, "shiny.appobj")) {
-  stop("HStat : l'application n'a pas pu etre construite. Verifiez que tous ",
-       "les paquets requis sont installes (shinydashboard, shinyWidgets, ...).",
-       call. = FALSE)
-}
-
-.hstat_app
+shiny::shinyAppDir(app_dir)
