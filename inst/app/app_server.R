@@ -5229,7 +5229,8 @@ server <- function(input, output, session) {
       if (kind == "mca") {
         switch(plottype,
           "var"    = factoextra::fviz_mca_var(model, axes = axes, col.var = cv, gradient.cols = gc,
-                       repel = TRUE, max.overlaps = Inf, labelsize = lblszvar, ggtheme = th),
+                       repel = TRUE, max.overlaps = Inf, labelsize = lblszvar,
+                       pointsize = ptsz, ggtheme = th),
           "ind"    = factoextra::fviz_mca_ind(model, axes = axes, col.ind = cv_ind, gradient.cols = gc, addEllipses = use_ellipse, ellipse.type = "confidence",
                        repel = TRUE, max.overlaps = Inf, pointsize = ptsz, labelsize = lblsz,
                        label = ind_lab, ggtheme = th),
@@ -5242,7 +5243,8 @@ server <- function(input, output, session) {
       } else if (kind == "famd") {
         switch(plottype,
           "var"    = factoextra::fviz_famd_var(model, axes = axes, col.var = cv, gradient.cols = gc,
-                       repel = TRUE, max.overlaps = Inf, labelsize = lblszvar, ggtheme = th),
+                       repel = TRUE, max.overlaps = Inf, labelsize = lblszvar,
+                       pointsize = ptsz, ggtheme = th),
           "ind"    = factoextra::fviz_famd_ind(model, axes = axes, col.ind = cv_ind, gradient.cols = gc, addEllipses = use_ellipse, ellipse.type = "confidence",
                        repel = TRUE, max.overlaps = Inf, pointsize = ptsz, labelsize = lblsz,
                        label = ind_lab, ggtheme = th),
@@ -5273,7 +5275,8 @@ server <- function(input, output, session) {
               ql2 <- data.frame(x = ql[, axes[1]], y = ql[, axes[2]], lab = rownames(ql))
               pind <- pind +
                 ggplot2::geom_point(data = ql2, ggplot2::aes(x = x, y = y),
-                  inherit.aes = FALSE, color = "#7b3fa0", shape = 17, size = 3) +
+                  inherit.aes = FALSE, color = "#7b3fa0", shape = 17,
+                  size = ptsz + 0.6) +
                 ggplot2::geom_text(data = ql2, ggplot2::aes(x = x, y = y, label = lab),
                   inherit.aes = FALSE, color = "#7b3fa0", size = lblszvar, fontface = "bold",
                   vjust = 1.4)
@@ -5283,7 +5286,7 @@ server <- function(input, output, session) {
       } else {
         switch(plottype,
           "var"    = factoextra::fviz_mfa_var(model, axes = axes, "group", repel = TRUE, max.overlaps = Inf,
-                       labelsize = lblszvar, ggtheme = th),
+                       labelsize = lblszvar, pointsize = ptsz, ggtheme = th),
           "ind"    = factoextra::fviz_mfa_ind(model, axes = axes, col.ind = cv_ind, gradient.cols = gc, addEllipses = use_ellipse, ellipse.type = "confidence",
                        repel = TRUE, max.overlaps = Inf, pointsize = ptsz, labelsize = lblsz,
                        label = ind_lab, ggtheme = th),
@@ -7035,7 +7038,7 @@ server <- function(input, output, session) {
           pdf <- data.frame(Observe = y, Predit = pr)
           plotfn <- function() {
             ggplot(pdf, aes(Observe, Predit)) +
-              geom_point(size = 2.4, alpha = .75, color = "#1565c0") +
+              geom_point(size = mv_pt_size(), alpha = .75, color = "#1565c0") +
               geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "#c0392b") +
               labs(title = "PLS -- valeurs predites vs observées",
                    subtitle = paste0("R2Y = ", round(r2y,3),
@@ -7152,7 +7155,7 @@ server <- function(input, output, session) {
             paste(utils::capture.output(s), collapse = "\n")),
           plotfn = function() {
             ggplot(res_df, aes(Ajuste, Residu)) +
-              geom_point(size = 2.2, alpha = .7, color = "#1565c0") +
+              geom_point(size = mv_pt_size(), alpha = .7, color = "#1565c0") +
               geom_hline(yintercept = 0, linetype = "dashed", color = "#c0392b") +
               geom_smooth(method = "loess", se = FALSE, color = "#f39c12", linewidth = .8) +
               labs(title = "Regression -- residus vs valeurs ajustees",
@@ -7238,7 +7241,7 @@ server <- function(input, output, session) {
             ggplot(biplot, aes(Dim1, Dim2, color = Type, label = Label)) +
               geom_hline(yintercept = 0, color = "#bbb", linewidth = .4) +
               geom_vline(xintercept = 0, color = "#bbb", linewidth = .4) +
-              geom_point(aes(shape = Type), size = 3) +
+              geom_point(aes(shape = Type), size = mv_pt_size()) +
               # Lignes = individus, colonnes = variables : chaque famille suit
               # son propre reglage de taille de label (en points).
               geom_text(aes(size = Type), vjust = -0.8, show.legend = FALSE) +
@@ -7365,7 +7368,8 @@ server <- function(input, output, session) {
                 qs <- as.data.frame(mca$quali.sup$coord[, 1:2, drop = FALSE])
                 names(qs) <- c("Dim1","Dim2"); qs$lab <- rownames(mca$quali.sup$coord)
                 pp <- pp + ggplot2::geom_point(data = qs, ggplot2::aes(Dim1, Dim2),
-                             inherit.aes = FALSE, color = "#16a085", shape = 17, size = 3) +
+                             inherit.aes = FALSE, color = "#16a085", shape = 17,
+                             size = mv_pt_size() + 0.6) +
                   ggplot2::geom_text(data = qs, ggplot2::aes(Dim1, Dim2, label = lab),
                              inherit.aes = FALSE, color = "#16a085", vjust = -0.8,
                              size = hstat_lbl_pt2gg(input$mv_mca_lblszvar %||% mv_lbl_pt_var()))
@@ -7376,7 +7380,7 @@ server <- function(input, output, session) {
             ggplot(vc, aes(Dim1, Dim2, label = Modalite)) +
               geom_hline(yintercept = 0, color = "#bbb", linewidth = .4) +
               geom_vline(xintercept = 0, color = "#bbb", linewidth = .4) +
-              geom_point(size = 3, color = "#6a1b9a") +
+              geom_point(size = mv_pt_size(), color = "#6a1b9a") +
               geom_text(vjust = -0.8, color = "#2c3e50",
                         size = hstat_lbl_pt2gg(input$mv_mca_lblszvar %||% mv_lbl_pt_var())) +
               labs(title = "ACM -- plan des modalités", subtitle = sub_t,
