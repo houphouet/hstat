@@ -975,8 +975,10 @@ ui <- dashboardPage(
                                                                           min = 8, max = 24, value = 13, step = 1)),
                                                     column(3, sliderInput("pcaAxisTitleSize", "Taille titres d'axes",
                                                                           min = 8, max = 26, value = 14, step = 1)),
-                                                    column(3, sliderInput("pcaLabelSize", "Taille des labels (points/variables)",
-                                                                          min = 2, max = 12, value = 4, step = 0.5)),
+                                                    column(3, hstat_lbl_slider("pcaLabelSize", "Taille des labels des individus")),
+                                                    column(3, hstat_lbl_slider("pcaVarLabelSize", "Taille des labels des variables"))
+                                                  ),
+                                                  fluidRow(
                                                     column(3, sliderInput("pcaPointSize", "Taille des points (individus)",
                                                                           min = 0.5, max = 8, value = 2, step = 0.5))
                                                   ),
@@ -1220,8 +1222,7 @@ ui <- dashboardPage(
                                                      checkboxInput("hcpcCenterAxes", "Centrer sur (0,0)", TRUE),
                                                      div(style = "background:#eafaf3; border-left:3px solid #16a085; padding:8px 12px; border-radius:0 4px 4px 0; margin:6px 0;",
                                                        checkboxInput("hcpcClusterShowLabels", tagList(icon("font"), " Afficher les labels des individus sur la carte"), value = FALSE),
-                                                       sliderInput("hcpcClusterLabelSize", "Taille des labels (carte)",
-                                                                   min = 2, max = 10, value = 4, step = 0.5)),
+                                                       hstat_lbl_slider("hcpcClusterLabelSize", "Taille des labels des individus (carte)")),
                                                      hr(),
                                                      h5("Options Téléchargement carte clusters:"),
                                                      p(style = "font-size: 11px; color: #5cb85c; font-style: italic;",
@@ -1249,8 +1250,7 @@ ui <- dashboardPage(
                                                      div(style = "background:#eafaf3; border-left:3px solid #16a085; padding:8px 12px; border-radius:0 4px 4px 0; margin:6px 0;",
                                                        sliderInput("hcpcBranchWidth", tagList(icon("grip-lines"), " Largeur des branches"),
                                                                    min = 0.1, max = 4, value = 0.5, step = 0.1),
-                                                       sliderInput("hcpcLabelSize", tagList(icon("font"), " Taille des labels (individus)"),
-                                                                   min = 0.2, max = 3, value = 0.8, step = 0.05),
+                                                       hstat_lbl_slider("hcpcLabelSize", tagList(icon("font"), " Taille des labels (individus)")),
                                                        checkboxInput("hcpcShowLabels", "Afficher les labels des individus sur les branches", value = FALSE)),
                                                      p(style = "font-style: italic; color: #666;", 
                                                        "Le dendrogramme n'est pas centré sur (0,0)"),
@@ -1547,8 +1547,11 @@ ui <- dashboardPage(
                                               h5(style="margin-top:0;color:#495057;", icon("sliders-h"), " Taille des éléments"),
                                               fluidRow(
                                                 column(3, sliderInput("afdPointSize", "Taille des points", min = 0.5, max = 8, value = 3, step = 0.5)),
-                                                column(3, sliderInput("afdLabelSize", "Taille des labels", min = 2, max = 10, value = 3.5, step = 0.5)),
-                                                column(3, sliderInput("afdLineWidth", "Largeur des flèches", min = 0.3, max = 4, value = 1.3, step = 0.1)),
+                                                column(3, hstat_lbl_slider("afdLabelSize", "Taille des labels des individus")),
+                                                column(3, hstat_lbl_slider("afdVarLabelSize", "Taille des labels des variables")),
+                                                column(3, sliderInput("afdLineWidth", "Largeur des flèches", min = 0.3, max = 4, value = 1.3, step = 0.1))
+                                              ),
+                                              fluidRow(
                                                 column(3, sliderInput("afdAxisTextSize", "Taille texte axes", min = 8, max = 22, value = 12, step = 1))
                                               )
                                             ),

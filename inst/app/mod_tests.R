@@ -137,9 +137,109 @@ mod_tests_ui <- function(id) {
                       )
                   )
                 ),
-              
+
+                # BOX COMPARAISON A UNE VALEUR DE REFERENCE (NORME)
+                # Tests a UN echantillon : on confronte les donnees a une valeur
+                # cible connue (norme reglementaire, valeur theorique, objectif)
+                # au lieu de comparer des groupes entre eux.
+                fluidRow(
+                  box(title = tagList(icon("bullseye"),
+                                      " Comparaison à une valeur de référence (norme)"),
+                      status = "primary", width = 12, solidHeader = TRUE,
+                      collapsible = TRUE, collapsed = TRUE,
+                      div(style = "background-color:#eef7fb; border-left:4px solid #1b9fd0; padding:10px; margin-bottom:12px;",
+                          tags$p(style = "margin:0; color:#2c3e50;",
+                                 icon("circle-info"),
+                                 HTML(paste(" Ces tests ne comparent pas des groupes entre eux :",
+                                            "ils confrontent la ou les <b>variables réponse</b>",
+                                            "sélectionnées ci-dessus à une <b>valeur de référence</b>",
+                                            "connue d'avance (norme réglementaire, valeur théorique,",
+                                            "objectif, moyenne historique).")))),
+                      fluidRow(
+                        # ---- Réglages communs ----
+                        column(4,
+                               h4("Paramètres", style = "color:#3c8dbc;"),
+                               numericInput(ns("refValue"),
+                                            tagList(icon("bullseye"), " Valeur de référence (norme) :"),
+                                            value = 0),
+                               radioButtons(ns("refAlt"), "Hypothèse alternative :",
+                                            choices = c("Bilatérale (différente de la norme)" = "two.sided",
+                                                        "Unilatérale : supérieure à la norme" = "greater",
+                                                        "Unilatérale : inférieure à la norme" = "less"),
+                                            selected = "two.sided"),
+                               sliderInput(ns("refConf"), "Niveau de confiance :",
+                                           min = 0.80, max = 0.99, value = 0.95, step = 0.01),
+                               numericInput(ns("refSigma"),
+                                            tagList(icon("wave-square"),
+                                                    " Écart-type de référence (test z / variance) :"),
+                                            value = NULL, min = 0),
+                               numericInput(ns("refMargin"),
+                                            tagList(icon("arrows-left-right"),
+                                                    " Marge d'équivalence (TOST) :"),
+                                            value = NULL, min = 0),
+                               div(style = "font-size:11px; color:#7f8c8d;",
+                                   icon("circle-info"),
+                                   paste(" L'écart-type de référence n'est requis que pour le test z",
+                                         "et le Chi² de conformité d'une variance ; la marge",
+                                         "uniquement pour le test d'équivalence."))
+                        ),
+                        # ---- Variables quantitatives ----
+                        column(4,
+                               h4("Variable quantitative vs norme", style = "color:#00a65a;"),
+                               div(style = "font-size:11px; color:#7f8c8d; margin-bottom:8px;",
+                                   "Appliqués aux variables réponse sélectionnées en haut de page."),
+                               div(style = "display:flex; flex-direction:column; gap:8px;",
+                                   actionButton(ns("testRefT"), "Test t (1 échantillon)",
+                                                class = "btn-success btn-block", icon = icon("check")),
+                                   actionButton(ns("testRefZ"), "Test z (écart-type connu)",
+                                                class = "btn-success btn-block", icon = icon("check")),
+                                   actionButton(ns("testRefTOST"), "Équivalence à la norme (TOST)",
+                                                class = "btn-success btn-block", icon = icon("arrows-left-right")),
+                                   actionButton(ns("testRefVar"), "Chi² de conformité (variance)",
+                                                class = "btn-success btn-block", icon = icon("wave-square")),
+                                   actionButton(ns("testRefWilcox"), "Wilcoxon signé (médiane)",
+                                                class = "btn-warning btn-block", icon = icon("check")),
+                                   actionButton(ns("testRefSign"), "Test du signe (médiane)",
+                                                class = "btn-warning btn-block", icon = icon("check")))
+                        ),
+                        # ---- Proportions / taux ----
+                        column(4,
+                               h4("Proportion / taux vs norme", style = "color:#f39c12;"),
+                               uiOutput(ns("refPropVarSelect")),
+                               uiOutput(ns("refPropLevelSelect")),
+                               numericInput(ns("refPropP0"),
+                                            tagList(icon("percent"),
+                                                    " Proportion (ou taux) de référence :"),
+                                            value = 0.5, min = 0, step = 0.01),
+                               div(style = "display:flex; flex-direction:column; gap:8px;",
+                                   actionButton(ns("testRefBinom"), "Test binomial exact",
+                                                class = "btn-warning btn-block", icon = icon("check")),
+                                   actionButton(ns("testRefProp"), "Chi² de conformité (proportion)",
+                                                class = "btn-warning btn-block", icon = icon("check")),
+                                   actionButton(ns("testRefPoisson"), "Test de Poisson (taux)",
+                                                class = "btn-warning btn-block", icon = icon("check"))),
+                               div(style = "font-size:11px; color:#7f8c8d; margin-top:6px;",
+                                   icon("circle-info"),
+                                   paste(" Pour le test de Poisson, la référence est un taux",
+                                         "d'événements par observation (et non une proportion",
+                                         "bornée à 1)."))
+                        )
+                      ),
+                      # ---- Détail du dernier test de conformité ----
+                      conditionalPanel(
+                        ns = ns,
+                        condition = "output.hasRefTest",
+                        hr(),
+                        h4(tagList(icon("table"), " Détail de la comparaison à la référence"),
+                           style = "color:#3c8dbc;"),
+                        DTOutput(ns("refTestDetails")),
+                        uiOutput(ns("refTestNote"))
+                      )
+                  )
+                ),
+
                 # BOX MANOVA / PERMANOVA -- Assistant guide visible apres execution
-              
+
                 conditionalPanel(
                   ns = ns,
                   condition = "output.showManovaWorkflow",
@@ -2331,7 +2431,223 @@ mod_tests_server <- function(id, values) {
       showNotification("Aucun résultat Wilcoxon généré", type = "warning")
     }
   })
-  
+
+  # ===========================================================================
+  #  COMPARAISON A UNE VALEUR DE REFERENCE (NORME) -- tests a un echantillon
+  # ---------------------------------------------------------------------------
+  #  Les moteurs de calcul vivent dans Utils.R (hstat_ref_test /
+  #  hstat_ref_prop_test). Ici on collecte les reglages de l'interface, on boucle
+  #  sur les variables reponse selectionnees, et on alimente le tableau de
+  #  resultats commun ainsi qu'un tableau de detail (estimation, intervalle de
+  #  confiance, taille d'effet).
+  # ===========================================================================
+
+  # Niveau de confiance borne au domaine valide.
+  .ref_conf <- function() {
+    v <- suppressWarnings(as.numeric(input$refConf))[1]
+    if (is.na(v) || v <= 0 || v >= 1) 0.95 else v
+  }
+  .ref_alt <- function() input$refAlt %||% "two.sided"
+  # Libellé lisible d'une méthode, pour les lignes en erreur (les lignes
+  # calculées portent déjà le nom complet renvoyé par le moteur).
+  .ref_method_label <- function(m) switch(m,
+    ttest = "Test t (1 échantillon)", ztest = "Test z (1 échantillon)",
+    wilcoxon = "Wilcoxon signé (1 échantillon)", sign = "Test du signe (1 échantillon)",
+    variance = "Chi² de conformité (variance)", tost = "TOST (équivalence à la norme)",
+    m)
+
+  # Lance une methode quantitative sur toutes les variables reponse choisies.
+  .run_ref_quanti <- function(method, need_sigma = FALSE, need_margin = FALSE) {
+    if (is.null(input$responseVar) || length(input$responseVar) == 0) {
+      showNotification("Sélectionnez au moins une variable réponse.", type = "warning")
+      return()
+    }
+    mu <- suppressWarnings(as.numeric(input$refValue))[1]
+    if (is.na(mu)) {
+      showNotification("Renseignez une valeur de référence numérique.", type = "error")
+      return()
+    }
+    sigma <- suppressWarnings(as.numeric(input$refSigma))[1]
+    if (need_sigma && (is.na(sigma) || sigma <= 0)) {
+      showNotification(paste("Ce test exige un écart-type de référence",
+                             "strictement positif."), type = "error")
+      return()
+    }
+    margin <- suppressWarnings(as.numeric(input$refMargin))[1]
+    if (need_margin && (is.na(margin) || margin <= 0)) {
+      showNotification(paste("Le test d'équivalence exige une marge",
+                             "strictement positive."), type = "error")
+      return()
+    }
+    rows <- list(); details <- list(); notes <- character(0)
+    for (var in input$responseVar) {
+      res <- tryCatch(
+        hstat_ref_test(values$filteredData[[var]], mu = mu, method = method,
+                       alternative = .ref_alt(), conf.level = .ref_conf(),
+                       sigma = if (is.na(sigma)) NULL else sigma,
+                       margin = if (is.na(margin)) NULL else margin),
+        error = function(e) conditionMessage(e))
+      if (is.character(res)) {
+        rows[[var]] <- data.frame(
+          Test = .ref_method_label(method), Variable = var,
+          Facteur = paste("Référence =", format(mu)),
+          Statistique = NA_real_, ddl = NA_real_, p_value = NA_real_,
+          Interpretation = paste("Erreur :", res), stringsAsFactors = FALSE)
+        next
+      }
+      rows[[var]] <- hstat_ref_result_row(res, var)
+      details[[var]] <- .ref_detail_row(res, var)
+      if (!is.na(res$note)) notes <- c(notes, res$note)
+    }
+    .push_ref_results(rows, details, notes)
+  }
+
+  # Ligne du tableau de detail (une par variable testee).
+  .ref_detail_row <- function(res, var) {
+    ic <- if (is.na(res$conf.low) && is.na(res$conf.high)) "-"
+          else sprintf("[%s ; %s]",
+                       if (is.finite(res$conf.low)) signif(res$conf.low, 5) else "-Inf",
+                       if (is.finite(res$conf.high)) signif(res$conf.high, 5) else "+Inf")
+    data.frame(
+      Variable     = var,
+      Test         = res$test,
+      n            = res$n,
+      Estimation   = signif(res$estimate, 6),
+      Reference    = signif(res$reference, 6),
+      Ecart        = signif(res$estimate - res$reference, 6),
+      IC           = ic,
+      Taille_effet = if (is.na(res$effect)) NA_real_ else signif(res$effect, 4),
+      Mesure_effet = res$effect_label,
+      Hypothese    = .hstat_ref_alt_label(res$alternative),
+      p_value      = res$p.value,
+      stringsAsFactors = FALSE)
+  }
+
+  # Publie les résultats dans le tableau commun + le tableau de détail.
+  .push_ref_results <- function(rows, details, notes) {
+    if (length(rows) == 0) {
+      showNotification("Aucun résultat généré.", type = "warning")
+      return()
+    }
+    values$testResultsDF     <- do.call(rbind, rows)
+    values$refTestDetails    <- if (length(details)) do.call(rbind, details) else NULL
+    values$refTestNotes      <- unique(notes)
+    values$normalityResults  <- NULL
+    values$homogeneityResults <- NULL
+    values$currentTestType   <- "reference"
+    ps <- vapply(rows, function(r) r$p_value[1], numeric(1))
+    n_sig <- sum(!is.na(ps) & ps < 0.05)
+    # Le TOST inverse l'hypothèse nulle : un p petit y conclut à l'ÉQUIVALENCE
+    # et non à un écart. Le message doit suivre.
+    is_tost <- any(grepl("TOST", vapply(rows, function(r) r$Test[1], character(1)),
+                         fixed = TRUE))
+    showNotification(
+      if (is_tost)
+        sprintf("%d test(s) d'équivalence : équivalence démontrée pour %d variable(s).",
+                length(rows), n_sig)
+      else
+        sprintf("%d test(s) de conformité : %d écart(s) significatif(s) à la norme.",
+                length(rows), n_sig),
+      type = "message", duration = 5)
+  }
+
+  observeEvent(input$testRefT,      .run_ref_quanti("ttest"))
+  observeEvent(input$testRefZ,      .run_ref_quanti("ztest", need_sigma = TRUE))
+  observeEvent(input$testRefWilcox, .run_ref_quanti("wilcoxon"))
+  observeEvent(input$testRefSign,   .run_ref_quanti("sign"))
+  observeEvent(input$testRefVar,    .run_ref_quanti("variance", need_sigma = TRUE))
+  observeEvent(input$testRefTOST,   .run_ref_quanti("tost", need_margin = TRUE))
+
+  # --- Proportion / taux vs référence ---------------------------------------
+  output$refPropVarSelect <- renderUI({
+    req(values$filteredData)
+    df <- values$filteredData
+    cat_cols <- names(df)[sapply(df, function(x)
+      is.factor(x) || is.character(x) || is.logical(x) ||
+      (is.numeric(x) && length(unique(stats::na.omit(x))) <= 20))]
+    if (length(cat_cols) == 0)
+      return(div(style = "color:#c0392b; font-size:12px;",
+                 "Aucune variable catégorielle disponible."))
+    pickerInput(ns("refPropVar"),
+                tagList(icon("tag"), " Variable catégorielle :"),
+                choices = cat_cols, multiple = FALSE,
+                options = list(`live-search` = TRUE))
+  })
+
+  output$refPropLevelSelect <- renderUI({
+    req(values$filteredData, input$refPropVar)
+    lv <- unique(stats::na.omit(as.character(values$filteredData[[input$refPropVar]])))
+    if (length(lv) == 0) return(NULL)
+    selectInput(ns("refPropLevel"),
+                tagList(icon("check"), " Modalité comptée (« succès ») :"),
+                choices = sort(lv))
+  })
+
+  .run_ref_prop <- function(method) {
+    if (is.null(input$refPropVar) || is.null(input$refPropLevel)) {
+      showNotification(paste("Choisissez une variable catégorielle et la",
+                             "modalité à compter."), type = "warning")
+      return()
+    }
+    p0 <- suppressWarnings(as.numeric(input$refPropP0))[1]
+    if (is.na(p0) || p0 <= 0) {
+      showNotification("Renseignez une proportion (ou un taux) de référence positive.",
+                       type = "error")
+      return()
+    }
+    v <- as.character(values$filteredData[[input$refPropVar]])
+    v <- v[!is.na(v)]
+    n <- length(v); k <- sum(v == input$refPropLevel)
+    if (n == 0) {
+      showNotification("Aucune observation valide pour cette variable.", type = "error")
+      return()
+    }
+    res <- tryCatch(
+      hstat_ref_prop_test(k, n, p0 = p0, method = method,
+                          alternative = .ref_alt(), conf.level = .ref_conf()),
+      error = function(e) conditionMessage(e))
+    lbl <- paste0(input$refPropVar, " = ", input$refPropLevel)
+    if (is.character(res)) {
+      showNotification(paste("Erreur :", res), type = "error", duration = 10)
+      return()
+    }
+    row <- hstat_ref_result_row(res, lbl,
+             reference_label = paste("Référence =", format(p0)))
+    det <- .ref_detail_row(res, lbl)
+    det$n <- n
+    .push_ref_results(stats::setNames(list(row), lbl),
+                      stats::setNames(list(det), lbl),
+                      if (is.na(res$note)) character(0) else res$note)
+  }
+
+  observeEvent(input$testRefBinom,   .run_ref_prop("binom"))
+  observeEvent(input$testRefProp,    .run_ref_prop("prop"))
+  observeEvent(input$testRefPoisson, .run_ref_prop("poisson"))
+
+  # Le détail ne s'affiche que tant que le dernier test lancé est bien un test
+  # de conformité : sinon il resterait à l'écran après un autre test.
+  output$hasRefTest <- reactive(
+    !is.null(values$refTestDetails) &&
+    identical(values$currentTestType, "reference"))
+  outputOptions(output, "hasRefTest", suspendWhenHidden = FALSE)
+
+  output$refTestDetails <- renderDT({
+    req(values$refTestDetails, identical(values$currentTestType, "reference"))
+    d <- values$refTestDetails
+    d$p_value <- sapply(d$p_value, function(p) if (is.na(p)) NA_character_ else fmt_p(p))
+    datatable(d, rownames = FALSE,
+              options = list(dom = "t", scrollX = TRUE, pageLength = 25))
+  })
+
+  output$refTestNote <- renderUI({
+    n <- values$refTestNotes
+    if (!identical(values$currentTestType, "reference")) return(NULL)
+    if (is.null(n) || length(n) == 0) return(NULL)
+    div(class = "callout callout-info", style = "margin-top:8px;",
+        icon("circle-info"), strong(" À propos de ce test : "),
+        tags$ul(lapply(n, tags$li)))
+  })
+
   observeEvent(input$testKruskal, {
     req(input$responseVar, input$factorVar)
     if (length(input$factorVar) > 1) {
@@ -2675,9 +2991,13 @@ mod_tests_server <- function(id, values) {
       df <- values$filteredData
       for (var in input$responseVar) {
         formula_str <- paste0("`", var, "` ~ ", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = "+"))
-        model <- glm(as.formula(formula_str), data = df, family = gaussian())
+        gl <- hstat_glm_fit(as.formula(formula_str), data = df, family = gaussian())
+        model <- gl$fit
+        if (!is.null(gl$note))
+          showNotification(paste0("GLM (", var, ") : ", gl$note),
+                           type = "warning", duration = 12)
         summary_model <- summary(model)
-        
+
         model_list[[var]] <- model
         
         coef_table <- summary_model$coefficients

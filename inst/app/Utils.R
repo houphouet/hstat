@@ -411,6 +411,133 @@ interpret_test_results <- function(test_type, p_value, test_object = NULL) {
   )
 }
 
+# =============================================================================
+#  AJUSTEMENT ROBUSTE D'UN GLM (non-convergence / séparation)
+# -----------------------------------------------------------------------------
+#  glm.fit() émet « l'algorithme n'a pas convergé » dans deux situations :
+#   - le budget d'itérations par défaut (25) est trop court ;
+#   - surtout : les données sont (quasi-)séparées, c'est-à-dire qu'une
+#     combinaison des prédicteurs classe parfaitement les deux modalités de Y.
+#     Les coefficients divergent alors vers l'infini et l'algorithme tourne
+#     jusqu'à la limite d'itérations sans jamais se stabiliser.
+#  Ces fonctions augmentent le budget d'itérations, capturent l'avertissement au
+#  lieu de le laisser filer dans la console, et renvoient un diagnostic lisible
+#  affichable dans l'interface.
+# =============================================================================
+
+# Diagnostic textuel d'un objet glm : NULL si tout va bien, sinon un message
+# expliquant la cause probable et la conduite à tenir.
+hstat_glm_note <- function(fit, warns = character(0), maxit = 100) {
+  if (is.null(fit)) return(NULL)
+  converged <- isTRUE(fit$converged)
+  fv <- tryCatch(stats::fitted(fit), error = function(e) numeric(0))
+  binom <- tryCatch(identical(fit$family$family, "binomial"),
+                    error = function(e) FALSE)
+  # Probabilités ajustées collées à 0 ou 1 : signature de la séparation.
+  extreme <- binom && length(fv) > 0 &&
+    any(fv < 1e-8 | fv > 1 - 1e-8, na.rm = TRUE)
+  co <- tryCatch(stats::coef(fit), error = function(e) numeric(0))
+  huge <- length(co) > 0 && any(abs(co) > 30, na.rm = TRUE)
+  if (converged && !extreme && !huge && length(warns) == 0) return(NULL)
+  msg <- character(0)
+  if (!converged)
+    msg <- c(msg, sprintf("L'estimation n'a pas convergé en %d itérations.", maxit))
+  if (extreme || huge)
+    msg <- c(msg, paste0(
+      "Séparation (quasi-)complète détectée : un ou plusieurs prédicteurs ",
+      "séparent parfaitement les modalités de la réponse. Les coefficients et ",
+      "les rapports de cotes divergent ; leurs écarts-types et p-values ne sont ",
+      "pas interprétables."))
+  if (length(msg) == 0) msg <- unique(warns)
+  msg <- c(msg, paste0(
+    "Pistes : retirer ou regrouper le prédicteur responsable, fusionner les ",
+    "modalités à faible effectif, ou passer à une régression pénalisée ",
+    "(Ridge / Lasso), stable dans ce cas."))
+  paste(msg, collapse = " ")
+}
+
+# =============================================================================
+#  TAILLE DES LABELS EN POINTS TYPOGRAPHIQUES (analyses multivariées)
+# -----------------------------------------------------------------------------
+#  Toutes les analyses multivariées exposent deux réglages de taille de label,
+#  bornés à [12, 24] pt : un pour les INDIVIDUS, un pour les VARIABLES (ou
+#  modalités). ggplot2 exprime la taille du texte en millimètres — aussi bien
+#  dans geom_text(size = ) que dans l'argument labelsize de factoextra — d'où la
+#  conversion par le facteur .pt = 72,27 / 25,4.
+# =============================================================================
+HSTAT_LBL_PT_MIN     <- 12
+HSTAT_LBL_PT_MAX     <- 24
+HSTAT_LBL_PT_DEFAULT <- 12
+.HSTAT_PT_PER_MM     <- 72.27 / 25.4   # identique à ggplot2::.pt
+
+# Borne une taille saisie à l'intervalle autorisé, en retombant sur la valeur
+# par défaut si l'entrée est absente ou invalide.
+hstat_lbl_pt <- function(pt, default = HSTAT_LBL_PT_DEFAULT) {
+  v <- suppressWarnings(as.numeric(pt))[1]
+  if (is.na(v) || !is.finite(v)) v <- default
+  min(max(v, HSTAT_LBL_PT_MIN), HSTAT_LBL_PT_MAX)
+}
+
+# Points -> unité de taille ggplot2 (mm).
+hstat_lbl_pt2gg <- function(pt, default = HSTAT_LBL_PT_DEFAULT) {
+  hstat_lbl_pt(pt, default) / .HSTAT_PT_PER_MM
+}
+
+# Points -> facteur cex (graphiques base R et fviz_dend), où cex = 1 correspond
+# à la police de référence de 12 pt.
+hstat_lbl_pt2cex <- function(pt, default = HSTAT_LBL_PT_DEFAULT) {
+  hstat_lbl_pt(pt, default) / 12
+}
+
+# Curseur standard « taille des labels », toujours gradué en points.
+hstat_lbl_slider <- function(id, label, value = HSTAT_LBL_PT_DEFAULT) {
+  sliderInput(id, label, min = HSTAT_LBL_PT_MIN, max = HSTAT_LBL_PT_MAX,
+              value = value, step = 1, post = " pt")
+}
+
+# Impose la taille des calques de texte d'un ggplot déjà construit (factoextra
+# n'expose qu'un seul argument `labelsize`, commun aux individus et aux
+# variables). `size_default` s'applique à tous les calques de texte ; si
+# `size_var` et `n_var` sont fournis, les calques dont les données comptent
+# exactement `n_var` lignes — les labels de variables / modalités — reçoivent
+# `size_var`. `n_var` accepte plusieurs effectifs candidats (variables
+# quantitatives, modalités, groupes), les méthodes factorielles n'exposant pas
+# toutes leurs coordonnées au même endroit. Ce repérage par effectif n'est
+# fiable que si individus et variables sont en nombres différents, d'où le
+# garde-fou sur `n_ind`.
+hstat_apply_label_sizes <- function(p, size_default, size_var = NULL,
+                                    n_var = NA_integer_, n_ind = NA_integer_) {
+  if (is.null(p) || is.null(p$layers)) return(p)
+  n_var <- suppressWarnings(as.integer(n_var))
+  n_var <- unique(n_var[!is.na(n_var) & n_var > 0])
+  if (!is.na(n_ind)) n_var <- n_var[n_var != n_ind]   # comptes ambigus écartés
+  use_var <- !is.null(size_var) && length(n_var) > 0
+  for (i in seq_along(p$layers)) {
+    if (!any(grepl("Text|Label", class(p$layers[[i]]$geom)))) next
+    nr <- tryCatch(
+      if (is.data.frame(p$layers[[i]]$data)) nrow(p$layers[[i]]$data)
+      else NA_integer_,
+      error = function(e) NA_integer_)
+    sz <- if (use_var && !is.na(nr) && nr %in% n_var) size_var else size_default
+    if (!is.null(sz) && is.finite(sz)) p$layers[[i]]$aes_params$size <- sz
+  }
+  p
+}
+
+# Ajuste un glm en silence et renvoie list(fit = <glm>, note = <message|NULL>).
+hstat_glm_fit <- function(formula, data, family = stats::binomial(),
+                          maxit = 100, ...) {
+  warns <- character(0)
+  fit <- withCallingHandlers(
+    stats::glm(formula, data = data, family = family,
+               control = stats::glm.control(maxit = maxit), ...),
+    warning = function(w) {
+      warns <<- c(warns, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    })
+  list(fit = fit, note = hstat_glm_note(fit, warns, maxit))
+}
+
 interpret_normality <- function(p_value) {
   if (is.na(p_value)) return("Résultat non disponible")
   if (p_value >= 0.05) {
@@ -2211,6 +2338,287 @@ hstat_shapiro <- function(x) {
     "Shapiro-Wilk normality test (sous-echantillon aleatoire de 5000 valeurs sur %s)",
     format(n, big.mark = " "))
   res
+}
+
+# =============================================================================
+#  COMPARAISON A UNE VALEUR DE REFERENCE (NORME)
+# -----------------------------------------------------------------------------
+#  Tests a UN echantillon : au lieu de comparer deux groupes entre eux, on
+#  confronte une serie de mesures a une valeur cible connue d'avance (norme
+#  reglementaire, valeur theorique, objectif, historique...).
+#
+#  Famille quantitative — hstat_ref_test() :
+#    "ttest"    test t a un echantillon (moyenne vs mu0, ecart-type estime)
+#    "ztest"    test z a un echantillon (moyenne vs mu0, ecart-type connu)
+#    "wilcoxon" test des rangs signes de Wilcoxon (mediane vs mu0)
+#    "sign"     test du signe (mediane vs mu0, aucune hypothese de symetrie)
+#    "variance" test du Chi2 de conformite d'une variance (s2 vs sigma0^2)
+#    "tost"     test d'equivalence TOST (la moyenne est-elle DANS +/- marge
+#               autour de la norme ?) — l'hypothese nulle y est l'ecart, pas
+#               l'egalite : un p petit conclut a l'equivalence.
+#
+#  Famille categorielle — hstat_ref_prop_test() :
+#    "binom"    test binomial exact (proportion vs p0)
+#    "prop"     test du Chi2 / z de conformite d'une proportion (approx. normale)
+#    "poisson"  test de conformite d'un taux d'evenements (lambda vs lambda0)
+#
+#  Toutes renvoient une liste normalisee : statistique, ddl, p_value, estimation,
+#  intervalle de confiance, taille d'effet et interpretation redigee.
+# =============================================================================
+
+# Vocabulaire commun aux sorties.
+.hstat_ref_alt_label <- function(alternative) {
+  switch(alternative,
+         "two.sided" = "bilatéral (différent de la référence)",
+         "greater"   = "unilatéral (supérieur à la référence)",
+         "less"      = "unilatéral (inférieur à la référence)",
+         alternative)
+}
+
+# Interprétation rédigée d'un test de conformité.
+.hstat_ref_interp <- function(label, p, estimate, mu, alternative,
+                              unit = "", digits = 4) {
+  if (is.na(p)) return("Résultat non disponible")
+  sig <- p < 0.05
+  sens <- if (alternative == "two.sided") {
+    if (estimate > mu) "supérieure" else "inférieure"
+  } else if (alternative == "greater") "supérieure" else "inférieure"
+  if (sig)
+    sprintf(paste0("%s : l'écart à la référence (%s) est significatif ",
+                   "(p = %s). La valeur observée (%s%s) est %s à la norme."),
+            label, format(mu), format.pval(p, digits = 3),
+            format(round(estimate, digits)), unit, sens)
+  else
+    sprintf(paste0("%s : aucun écart significatif à la référence (%s) ",
+                   "(p = %s). Les données sont compatibles avec la norme."),
+            label, format(mu), format.pval(p, digits = 3))
+}
+
+# Enveloppe de sortie commune.
+.hstat_ref_out <- function(test, statistic, parameter, p.value, estimate,
+                           reference, conf.int, effect, effect_label,
+                           alternative, n, interpretation, note = NA_character_) {
+  list(test = test, statistic = statistic, parameter = parameter,
+       p.value = p.value, estimate = estimate, reference = reference,
+       conf.low = conf.int[1], conf.high = conf.int[2],
+       effect = effect, effect_label = effect_label,
+       alternative = alternative, n = n,
+       interpretation = interpretation, note = note)
+}
+
+# --- Famille quantitative ----------------------------------------------------
+hstat_ref_test <- function(x, mu = 0, method = "ttest",
+                           alternative = c("two.sided", "greater", "less"),
+                           conf.level = 0.95, sigma = NULL, margin = NULL) {
+  alternative <- match.arg(alternative)
+  x <- suppressWarnings(as.numeric(x))
+  x <- x[is.finite(x)]
+  n <- length(x)
+  if (!is.finite(mu)) stop("La valeur de référence doit être un nombre.")
+  if (n < 2) stop("Au moins 2 valeurs valides sont requises.")
+  if (!conf.level > 0 || !conf.level < 1)
+    stop("Le niveau de confiance doit être compris strictement entre 0 et 1.")
+  m <- mean(x); s <- stats::sd(x)
+
+  if (method == "ttest") {
+    tr <- stats::t.test(x, mu = mu, alternative = alternative,
+                        conf.level = conf.level)
+    # d de Cohen a un echantillon : ecart a la norme en ecarts-types.
+    d <- if (s > 0) (m - mu) / s else NA_real_
+    return(.hstat_ref_out(
+      "Test t (1 échantillon)", unname(tr$statistic), unname(tr$parameter),
+      tr$p.value, m, mu, tr$conf.int, d, "d de Cohen", alternative, n,
+      .hstat_ref_interp("Test t à un échantillon", tr$p.value, m, mu, alternative)))
+  }
+
+  if (method == "ztest") {
+    if (is.null(sigma) || !is.finite(sigma) || sigma <= 0)
+      stop("Le test z exige un écart-type de référence strictement positif.")
+    se <- sigma / sqrt(n)
+    z  <- (m - mu) / se
+    p  <- switch(alternative,
+                 "two.sided" = 2 * stats::pnorm(-abs(z)),
+                 "greater"   = stats::pnorm(z, lower.tail = FALSE),
+                 "less"      = stats::pnorm(z))
+    q  <- stats::qnorm(1 - (1 - conf.level) / 2)
+    ci <- switch(alternative,
+                 "two.sided" = c(m - q * se, m + q * se),
+                 "greater"   = c(m - stats::qnorm(conf.level) * se, Inf),
+                 "less"      = c(-Inf, m + stats::qnorm(conf.level) * se))
+    return(.hstat_ref_out(
+      "Test z (1 échantillon, sigma connu)", z, NA_real_, p, m, mu, ci,
+      (m - mu) / sigma, "d de Cohen", alternative, n,
+      .hstat_ref_interp("Test z à un échantillon", p, m, mu, alternative),
+      sprintf("Écart-type de référence sigma = %s.", format(sigma))))
+  }
+
+  if (method == "wilcoxon") {
+    tr <- suppressWarnings(stats::wilcox.test(
+      x, mu = mu, alternative = alternative, conf.level = conf.level,
+      conf.int = TRUE, exact = FALSE, correct = TRUE))
+    med <- stats::median(x)
+    # r = Z / sqrt(n), Z reconstitue depuis la p-value bilaterale.
+    z_eq <- stats::qnorm(min(max(tr$p.value / 2, 1e-300), 0.5), lower.tail = FALSE)
+    r <- z_eq / sqrt(n)
+    ci <- if (is.null(tr$conf.int)) c(NA_real_, NA_real_) else tr$conf.int
+    return(.hstat_ref_out(
+      "Wilcoxon signé (1 échantillon)", unname(tr$statistic), NA_real_,
+      tr$p.value, med, mu, ci, r, "r (Z/racine(n))", alternative, n,
+      .hstat_ref_interp("Test des rangs signés de Wilcoxon", tr$p.value, med, mu,
+                        alternative),
+      "Compare la médiane à la norme ; suppose une distribution symétrique."))
+  }
+
+  if (method == "sign") {
+    d0 <- x[x != mu]
+    k  <- sum(d0 > mu); nn <- length(d0)
+    if (nn < 1) stop("Toutes les valeurs sont égales à la référence.")
+    tr <- stats::binom.test(k, nn, p = 0.5, alternative = alternative,
+                            conf.level = conf.level)
+    med <- stats::median(x)
+    return(.hstat_ref_out(
+      "Test du signe (1 échantillon)", k, NA_real_, tr$p.value, med, mu,
+      c(NA_real_, NA_real_), unname(tr$estimate), "Proportion au-dessus de la norme",
+      alternative, n,
+      .hstat_ref_interp("Test du signe", tr$p.value, med, mu, alternative),
+      sprintf(paste0("%d valeurs au-dessus de la norme sur %d non nulles ",
+                     "(%d ex aequo écartés). Aucune hypothèse de symétrie."),
+              k, nn, n - nn)))
+  }
+
+  if (method == "variance") {
+    if (is.null(sigma) || !is.finite(sigma) || sigma <= 0)
+      stop("Le test de conformité d'une variance exige un écart-type de référence positif.")
+    dfree <- n - 1
+    chi2  <- dfree * s^2 / sigma^2
+    p <- switch(alternative,
+                "two.sided" = 2 * min(stats::pchisq(chi2, dfree),
+                                      stats::pchisq(chi2, dfree, lower.tail = FALSE)),
+                "greater"   = stats::pchisq(chi2, dfree, lower.tail = FALSE),
+                "less"      = stats::pchisq(chi2, dfree))
+    p <- min(p, 1)
+    a <- (1 - conf.level) / 2
+    ci <- c(dfree * s^2 / stats::qchisq(1 - a, dfree),
+            dfree * s^2 / stats::qchisq(a, dfree))
+    return(.hstat_ref_out(
+      "Chi² de conformité (variance)", chi2, dfree, p, s^2, sigma^2, ci,
+      s^2 / sigma^2, "Rapport de variances", alternative, n,
+      .hstat_ref_interp("Test du Chi² de conformité d'une variance", p, s^2,
+                        sigma^2, alternative),
+      "Test sensible à la non-normalité : vérifier la normalité au préalable."))
+  }
+
+  if (method == "tost") {
+    if (is.null(margin) || !is.finite(margin) || margin <= 0)
+      stop("Le test d'équivalence exige une marge d'équivalence strictement positive.")
+    # Deux tests unilateraux : H0 = |moyenne - norme| >= marge.
+    lo <- stats::t.test(x, mu = mu - margin, alternative = "greater")
+    hi <- stats::t.test(x, mu = mu + margin, alternative = "less")
+    p  <- max(lo$p.value, hi$p.value)
+    # Intervalle de confiance a 1 - 2*alpha : convention TOST.
+    ci <- stats::t.test(x, conf.level = 1 - 2 * (1 - conf.level))$conf.int
+    interp <- if (p < 0.05)
+      sprintf(paste0("Équivalence démontrée (p = %s) : la moyenne observée (%s) ",
+                     "est comprise dans la marge de +/- %s autour de la norme (%s)."),
+              format.pval(p, digits = 3), format(round(m, 4)), format(margin),
+              format(mu))
+    else
+      sprintf(paste0("Équivalence NON démontrée (p = %s) : on ne peut pas ",
+                     "conclure que la moyenne observée (%s) reste dans la marge ",
+                     "de +/- %s autour de la norme (%s)."),
+              format.pval(p, digits = 3), format(round(m, 4)), format(margin),
+              format(mu))
+    return(.hstat_ref_out(
+      "TOST (équivalence à la norme)",
+      if (lo$p.value >= hi$p.value) unname(lo$statistic) else unname(hi$statistic),
+      unname(lo$parameter), p, m, mu, ci, (m - mu) / s, "d de Cohen",
+      "two.sided", n, interp,
+      paste0("Hypothèse nulle inversée : un p < 0,05 conclut à l'équivalence. ",
+             "Intervalle affiché au niveau 1 - 2 alpha (convention TOST).")))
+  }
+
+  stop("Méthode de comparaison à une référence inconnue : ", method)
+}
+
+# --- Famille categorielle ----------------------------------------------------
+#  successes / n : effectif observe et effectif total. Pour "poisson", n est la
+#  taille de la population (ou le temps d'exposition) et p0 le taux attendu par
+#  unite.
+hstat_ref_prop_test <- function(successes, n, p0 = 0.5, method = "binom",
+                                alternative = c("two.sided", "greater", "less"),
+                                conf.level = 0.95) {
+  alternative <- match.arg(alternative)
+  successes <- as.numeric(successes)[1]; n <- as.numeric(n)[1]
+  if (!is.finite(successes) || !is.finite(n) || n <= 0 || successes < 0)
+    stop("Effectifs invalides pour un test de conformité.")
+  if (method != "poisson" && (successes > n))
+    stop("L'effectif observé ne peut pas dépasser l'effectif total.")
+
+  if (method == "poisson") {
+    if (!is.finite(p0) || p0 <= 0)
+      stop("Le taux de référence doit être strictement positif.")
+    tr <- stats::poisson.test(round(successes), T = n, r = p0,
+                              alternative = alternative, conf.level = conf.level)
+    rate <- successes / n
+    return(.hstat_ref_out(
+      "Test de Poisson (taux vs référence)", round(successes), NA_real_, tr$p.value,
+      rate, p0, tr$conf.int, rate / p0, "Rapport de taux", alternative, n,
+      .hstat_ref_interp("Test de conformité d'un taux", tr$p.value, rate, p0,
+                        alternative),
+      "Suppose des événements indépendants et un taux constant."))
+  }
+
+  if (!is.finite(p0) || p0 <= 0 || p0 >= 1)
+    stop("La proportion de référence doit être comprise strictement entre 0 et 1.")
+
+  if (method == "binom") {
+    tr <- stats::binom.test(round(successes), round(n), p = p0,
+                            alternative = alternative, conf.level = conf.level)
+    ph <- successes / n
+    # h de Cohen : taille d'effet pour un ecart de proportions.
+    h <- 2 * asin(sqrt(ph)) - 2 * asin(sqrt(p0))
+    return(.hstat_ref_out(
+      "Test binomial exact (proportion)", round(successes), NA_real_, tr$p.value,
+      ph, p0, tr$conf.int, h, "h de Cohen", alternative, round(n),
+      .hstat_ref_interp("Test binomial exact", tr$p.value, ph, p0, alternative),
+      "Exact : valable quel que soit l'effectif."))
+  }
+
+  if (method == "prop") {
+    tr <- suppressWarnings(stats::prop.test(
+      round(successes), round(n), p = p0, alternative = alternative,
+      conf.level = conf.level, correct = TRUE))
+    ph <- successes / n
+    h <- 2 * asin(sqrt(ph)) - 2 * asin(sqrt(p0))
+    small <- n * p0 < 5 || n * (1 - p0) < 5
+    return(.hstat_ref_out(
+      "Chi² de conformité (proportion)", unname(tr$statistic),
+      unname(tr$parameter), tr$p.value, ph, p0, tr$conf.int, h, "h de Cohen",
+      alternative, round(n),
+      .hstat_ref_interp("Test du Chi² de conformité d'une proportion",
+                        tr$p.value, ph, p0, alternative),
+      if (small)
+        "Approximation normale peu fiable ici (n*p0 < 5) : préférer le test binomial exact."
+      else "Approximation normale avec correction de continuité."))
+  }
+
+  stop("Méthode de conformité d'une proportion inconnue : ", method)
+}
+
+# Convertit une sortie hstat_ref_* en ligne du tableau de résultats de l'onglet
+# « Tests statistiques » (mêmes colonnes que les autres tests).
+hstat_ref_result_row <- function(res, variable, reference_label = NULL) {
+  data.frame(
+    Test        = res$test,
+    Variable    = variable,
+    Facteur     = if (is.null(reference_label))
+                    paste("Référence =", format(res$reference))
+                  else reference_label,
+    Statistique = if (is.na(res$statistic)) NA_real_ else round(res$statistic, 4),
+    ddl         = if (is.na(res$parameter)) NA_real_ else round(res$parameter, 2),
+    p_value     = res$p.value,
+    Interpretation = res$interpretation,
+    stringsAsFactors = FALSE)
 }
 
 # Taille max des analyses a matrice de distances (dist, vegdist, silhouette,
