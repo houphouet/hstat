@@ -119,7 +119,37 @@ mod_tests_ui <- function(id) {
                                    actionButton(ns("testGLM"),  "Modèle linéaire généralisé",   class = "btn-success btn-block", icon = icon("check")),
                                    actionButton(ns("testGLMM"), "Modèle (généralisé) mixte",    class = "btn-success btn-block", icon = icon("sitemap")),
                                    actionButton(ns("testRMAnova"), "ANOVA à mesures répétées",   class = "btn-success btn-block", icon = icon("repeat"))
-                               )
+                               ),
+                               # --- Comparaison a une valeur de reference (norme) -------------
+                               # Tests a UN echantillon : les donnees sont confrontees a une
+                               # valeur cible connue au lieu d'etre comparees entre groupes.
+                               # Les BOUTONS quantitatifs vivent ici, sous les tests
+                               # parametriques ; les REGLAGES communs et le volet proportions
+                               # occupent le bas de la colonne voisine (meme accent violet).
+                               div(style = "border-left:4px solid #6a1b9a; padding-left:10px; margin-top:16px;",
+                                   h4(tagList(icon("bullseye"), " Comparaison à une norme"),
+                                      style = "color:#6a1b9a;"),
+                                   div(style = "font-size:11px; color:#7f8c8d; margin:-4px 0 8px 0;",
+                                       "Confronte les variables réponse à une valeur de référence (réglages ci-contre)."),
+                                   div(style = "display:flex; flex-direction:column; gap:8px;",
+                                       actionButton(ns("testRefT"), "Test t (1 échantillon)",
+                                                    class = "btn-block", icon = icon("bullseye"),
+                                                    style = "background:#6a1b9a; color:#fff; border-color:#59167f;"),
+                                       actionButton(ns("testRefZ"), "Test z (écart-type connu)",
+                                                    class = "btn-block", icon = icon("bullseye"),
+                                                    style = "background:#6a1b9a; color:#fff; border-color:#59167f;"),
+                                       actionButton(ns("testRefTOST"), "Équivalence à la norme (TOST)",
+                                                    class = "btn-block", icon = icon("arrows-left-right"),
+                                                    style = "background:#6a1b9a; color:#fff; border-color:#59167f;"),
+                                       actionButton(ns("testRefVar"), "Chi² de conformité (variance)",
+                                                    class = "btn-block", icon = icon("wave-square"),
+                                                    style = "background:#6a1b9a; color:#fff; border-color:#59167f;"),
+                                       actionButton(ns("testRefWilcox"), "Wilcoxon signé (médiane)",
+                                                    class = "btn-block", icon = icon("bullseye"),
+                                                    style = "background:#8e44ad; color:#fff; border-color:#76398f;"),
+                                       actionButton(ns("testRefSign"), "Test du signe (médiane)",
+                                                    class = "btn-block", icon = icon("bullseye"),
+                                                    style = "background:#8e44ad; color:#fff; border-color:#76398f;")))
                         ),
                         column(4,
                                h4("Tests non-paramétriques", style = "color: #f39c12;"),
@@ -129,112 +159,80 @@ mod_tests_ui <- function(id) {
                                    actionButton(ns("testScheirerRayHare"), "Test de Scheirer-Ray-Hare",  class = "btn-warning btn-block", icon = icon("check")),
                                    actionButton(ns("testRMNonParam"), "Non paramétrique répété",  class = "btn-warning btn-block", icon = icon("repeat")),
                                    actionButton(ns("testPERMANOVA"),       "PERMANOVA (>= 2 réponses)",  class = "btn-warning btn-block", icon = icon("layer-group"))
-                               )
+                               ),
                                # Le Test Chi² / Multinomial a été déplacé dans
                                # « Analyses qualitatives » (famille Nominale) où
                                # il vit désormais avec les tableaux croisés.
+
+                               # --- Reglages de la comparaison a une norme --------------------
+                               # Occupent l'espace laisse libre sous les tests non parametriques
+                               # et pilotent les boutons violets de la colonne precedente.
+                               div(style = "border-left:4px solid #6a1b9a; padding-left:10px; margin-top:16px;",
+                                   h4(tagList(icon("sliders-h"), " Réglages de la norme"),
+                                      style = "color:#6a1b9a;"),
+                                   numericInput(ns("refValue"),
+                                                tagList(icon("bullseye"), " Valeur de référence :"),
+                                                value = 0),
+                                   fluidRow(
+                                     column(6, numericInput(ns("refSigma"),
+                                                tagList(icon("wave-square"), " Écart-type (test z / variance)"),
+                                                value = NULL, min = 0)),
+                                     column(6, numericInput(ns("refMargin"),
+                                                tagList(icon("arrows-left-right"), " Marge (TOST)"),
+                                                value = NULL, min = 0))),
+                                   selectInput(ns("refAlt"), "Hypothèse alternative :",
+                                               choices = c("Bilatérale (différente de la norme)" = "two.sided",
+                                                           "Unilatérale : supérieure à la norme" = "greater",
+                                                           "Unilatérale : inférieure à la norme" = "less"),
+                                               selected = "two.sided"),
+                                   sliderInput(ns("refConf"), "Niveau de confiance :",
+                                               min = 0.80, max = 0.99, value = 0.95, step = 0.01),
+                                   div(style = "font-size:11px; color:#7f8c8d; margin-top:-4px;",
+                                       icon("circle-info"),
+                                       paste(" L'écart-type ne sert qu'au test z et au Chi² de variance ;",
+                                             "la marge, qu'au test d'équivalence.")),
+                                   tags$hr(style = "margin:10px 0;"),
+                                   h5(tagList(icon("percent"), " Proportion / taux vs norme"),
+                                      style = "color:#6a1b9a; font-weight:bold;"),
+                                   uiOutput(ns("refPropVarSelect")),
+                                   uiOutput(ns("refPropLevelSelect")),
+                                   numericInput(ns("refPropP0"),
+                                                "Proportion (ou taux) de référence :",
+                                                value = 0.5, min = 0, step = 0.01),
+                                   div(style = "display:flex; flex-direction:column; gap:8px;",
+                                       actionButton(ns("testRefBinom"), "Test binomial exact",
+                                                    class = "btn-block", icon = icon("percent"),
+                                                    style = "background:#8e44ad; color:#fff; border-color:#76398f;"),
+                                       actionButton(ns("testRefProp"), "Chi² de conformité (proportion)",
+                                                    class = "btn-block", icon = icon("percent"),
+                                                    style = "background:#8e44ad; color:#fff; border-color:#76398f;"),
+                                       actionButton(ns("testRefPoisson"), "Test de Poisson (taux)",
+                                                    class = "btn-block", icon = icon("percent"),
+                                                    style = "background:#8e44ad; color:#fff; border-color:#76398f;")),
+                                   div(style = "font-size:11px; color:#7f8c8d; margin-top:6px;",
+                                       icon("circle-info"),
+                                       paste(" Pour Poisson, la référence est un taux d'événements",
+                                             "par observation, non une proportion bornée à 1.")))
                         )
                       )
                   )
                 ),
 
-                # BOX COMPARAISON A UNE VALEUR DE REFERENCE (NORME)
-                # Tests a UN echantillon : on confronte les donnees a une valeur
-                # cible connue (norme reglementaire, valeur theorique, objectif)
-                # au lieu de comparer des groupes entre eux.
-                fluidRow(
-                  box(title = tagList(icon("bullseye"),
-                                      " Comparaison à une valeur de référence (norme)"),
-                      status = "primary", width = 12, solidHeader = TRUE,
-                      collapsible = TRUE, collapsed = TRUE,
-                      div(style = "background-color:#eef7fb; border-left:4px solid #1b9fd0; padding:10px; margin-bottom:12px;",
-                          tags$p(style = "margin:0; color:#2c3e50;",
-                                 icon("circle-info"),
-                                 HTML(paste(" Ces tests ne comparent pas des groupes entre eux :",
-                                            "ils confrontent la ou les <b>variables réponse</b>",
-                                            "sélectionnées ci-dessus à une <b>valeur de référence</b>",
-                                            "connue d'avance (norme réglementaire, valeur théorique,",
-                                            "objectif, moyenne historique).")))),
-                      fluidRow(
-                        # ---- Réglages communs ----
-                        column(4,
-                               h4("Paramètres", style = "color:#3c8dbc;"),
-                               numericInput(ns("refValue"),
-                                            tagList(icon("bullseye"), " Valeur de référence (norme) :"),
-                                            value = 0),
-                               radioButtons(ns("refAlt"), "Hypothèse alternative :",
-                                            choices = c("Bilatérale (différente de la norme)" = "two.sided",
-                                                        "Unilatérale : supérieure à la norme" = "greater",
-                                                        "Unilatérale : inférieure à la norme" = "less"),
-                                            selected = "two.sided"),
-                               sliderInput(ns("refConf"), "Niveau de confiance :",
-                                           min = 0.80, max = 0.99, value = 0.95, step = 0.01),
-                               numericInput(ns("refSigma"),
-                                            tagList(icon("wave-square"),
-                                                    " Écart-type de référence (test z / variance) :"),
-                                            value = NULL, min = 0),
-                               numericInput(ns("refMargin"),
-                                            tagList(icon("arrows-left-right"),
-                                                    " Marge d'équivalence (TOST) :"),
-                                            value = NULL, min = 0),
-                               div(style = "font-size:11px; color:#7f8c8d;",
-                                   icon("circle-info"),
-                                   paste(" L'écart-type de référence n'est requis que pour le test z",
-                                         "et le Chi² de conformité d'une variance ; la marge",
-                                         "uniquement pour le test d'équivalence."))
-                        ),
-                        # ---- Variables quantitatives ----
-                        column(4,
-                               h4("Variable quantitative vs norme", style = "color:#00a65a;"),
-                               div(style = "font-size:11px; color:#7f8c8d; margin-bottom:8px;",
-                                   "Appliqués aux variables réponse sélectionnées en haut de page."),
-                               div(style = "display:flex; flex-direction:column; gap:8px;",
-                                   actionButton(ns("testRefT"), "Test t (1 échantillon)",
-                                                class = "btn-success btn-block", icon = icon("check")),
-                                   actionButton(ns("testRefZ"), "Test z (écart-type connu)",
-                                                class = "btn-success btn-block", icon = icon("check")),
-                                   actionButton(ns("testRefTOST"), "Équivalence à la norme (TOST)",
-                                                class = "btn-success btn-block", icon = icon("arrows-left-right")),
-                                   actionButton(ns("testRefVar"), "Chi² de conformité (variance)",
-                                                class = "btn-success btn-block", icon = icon("wave-square")),
-                                   actionButton(ns("testRefWilcox"), "Wilcoxon signé (médiane)",
-                                                class = "btn-warning btn-block", icon = icon("check")),
-                                   actionButton(ns("testRefSign"), "Test du signe (médiane)",
-                                                class = "btn-warning btn-block", icon = icon("check")))
-                        ),
-                        # ---- Proportions / taux ----
-                        column(4,
-                               h4("Proportion / taux vs norme", style = "color:#f39c12;"),
-                               uiOutput(ns("refPropVarSelect")),
-                               uiOutput(ns("refPropLevelSelect")),
-                               numericInput(ns("refPropP0"),
-                                            tagList(icon("percent"),
-                                                    " Proportion (ou taux) de référence :"),
-                                            value = 0.5, min = 0, step = 0.01),
-                               div(style = "display:flex; flex-direction:column; gap:8px;",
-                                   actionButton(ns("testRefBinom"), "Test binomial exact",
-                                                class = "btn-warning btn-block", icon = icon("check")),
-                                   actionButton(ns("testRefProp"), "Chi² de conformité (proportion)",
-                                                class = "btn-warning btn-block", icon = icon("check")),
-                                   actionButton(ns("testRefPoisson"), "Test de Poisson (taux)",
-                                                class = "btn-warning btn-block", icon = icon("check"))),
-                               div(style = "font-size:11px; color:#7f8c8d; margin-top:6px;",
-                                   icon("circle-info"),
-                                   paste(" Pour le test de Poisson, la référence est un taux",
-                                         "d'événements par observation (et non une proportion",
-                                         "bornée à 1)."))
-                        )
-                      ),
-                      # ---- Détail du dernier test de conformité ----
-                      conditionalPanel(
-                        ns = ns,
-                        condition = "output.hasRefTest",
-                        hr(),
-                        h4(tagList(icon("table"), " Détail de la comparaison à la référence"),
-                           style = "color:#3c8dbc;"),
+                # RESULTAT DETAILLE DE LA COMPARAISON A UNE NORME
+                # Les reglages et les boutons vivent desormais dans la boite
+                # « Parametres des tests » ; seul le detail du resultat
+                # (estimation, intervalle de confiance, taille d'effet) apparait
+                # ici, et uniquement apres execution d'un test de conformite.
+                conditionalPanel(
+                  ns = ns,
+                  condition = "output.hasRefTest",
+                  fluidRow(
+                    box(title = tagList(icon("bullseye"),
+                                        " Détail de la comparaison à la référence"),
+                        status = "primary", width = 12, solidHeader = TRUE,
+                        collapsible = TRUE,
                         DTOutput(ns("refTestDetails")),
-                        uiOutput(ns("refTestNote"))
-                      )
+                        uiOutput(ns("refTestNote")))
                   )
                 ),
 

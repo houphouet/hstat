@@ -1421,3 +1421,24 @@ test_that("Shiny ne source pas le dossier R/ du paquet dans l'application", {
   # run_hstat() etait injecte dans l'environnement de l'application.
   expect_true(file.exists(file.path(root, "R", "_disable_autoload.R")))
 })
+
+test_that("la version du README suit celle de DESCRIPTION", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "racine du depot introuvable depuis le repertoire de test")
+  readme <- file.path(root, "README.md")
+  skip_if_not(file.exists(readme), "README.md absent (paquet installe)")
+  attendue <- unname(read.dcf(file.path(root, "DESCRIPTION"), fields = "Version")[1, 1])
+  txt <- readLines(readme, warn = FALSE)
+
+  # Le README est du markdown statique : il ne peut pas lire DESCRIPTION, son
+  # numero doit donc y etre ecrit a la main. Ce test transforme cette etape
+  # manuelle en garde-fou -- le README de citation etait reste bloque sur 0.6.0
+  # alors que le paquet etait en 0.7.4.
+  citees <- unique(unlist(regmatches(txt, gregexpr("Version [0-9]+\\.[0-9]+\\.[0-9]+", txt))))
+  citees <- sub("^Version ", "", citees)
+  expect_true(length(citees) > 0,
+              info = "aucune version citee dans README.md : le bloc de citation a-t-il disparu ?")
+  expect_identical(sort(citees), attendue,
+                   info = paste0("README.md cite ", paste(citees, collapse = ", "),
+                                 " alors que DESCRIPTION est en ", attendue))
+})

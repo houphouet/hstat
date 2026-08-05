@@ -32,6 +32,12 @@ résout dans cet ordre :
 `hstat_pkg_year()` suit la même logique pour l'année de citation.
 Dans `inst/CITATION`, utiliser l'objet `meta` fourni par R (`meta$Version`).
 
+**Seule exception : `README.md`.** C'est du markdown statique, il ne peut pas
+lire `DESCRIPTION` : son bloc de citation porte donc le numéro en dur et doit
+être mis à jour à la main à chaque montée de version. Un test échoue si les deux
+divergent — le README était resté bloqué sur `0.6.0` alors que le paquet était
+en `0.7.4`.
+
 Note : `packageVersion()` lève une **erreur** quand le paquet est absent, mais
 `packageDate()` un **avertissement** — il faut `suppressWarnings()` en plus du
 `tryCatch()`, sinon l'onglet de citation pollue la console à chaque rendu.
