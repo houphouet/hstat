@@ -1605,6 +1605,20 @@ mod_correlation_server <- function(id, values) {
       out
     })
 
+    # Depot des tests de correlation pour l'aide a la decision.
+    observeEvent(cor_results(), {
+      res <- tryCatch(cor_results(), error = function(e) NULL)
+      if (is.null(res) || !NROW(res)) return()
+      hstat_ai_capture(values, "Correlations",
+        sprintf("Tests de correlation (%s)",
+                paste(unique(if ("Methode" %in% names(res)) res$Methode
+                             else input$corTestMethod %||% "pearson"), collapse = ", ")),
+        tables = list("Correlations par paire" = res),
+        meta = list(variables = input$corTestVars,
+                    `correction des p` = input$corTestAdjust,
+                    `niveau de confiance` = input$corTestConf))
+    }, ignoreInit = TRUE)
+
     output$corTestTable <- DT::renderDT({
       res <- cor_results()
       req(!is.null(res))

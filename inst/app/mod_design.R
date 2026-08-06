@@ -2133,6 +2133,19 @@ mod_design_server <- function(id, values) {
       DT::datatable(hstat_effect_conventions(), rownames = FALSE, options = list(pageLength = 18, dom = "t"))
     })
 
+    # Depot du calcul de puissance pour l'aide a la decision.
+    observeEvent(pow_res(), {
+      r <- tryCatch(pow_res(), error = function(e) NULL)
+      tb <- hstat_ai_as_table(if (is.list(r) && !is.null(r$table)) r$table else r)
+      if (is.null(tb) || !NROW(tb)) return()
+      hstat_ai_capture(values, "Plan & Puissance",
+        sprintf("Analyse de puissance (%s)", input$powTest %||% "t_two"),
+        tables = list("Resultat du calcul" = tb),
+        meta = list(`type d'analyse` = input$powAnalysis,
+                    `taille d'effet` = input$powEffect,
+                    alpha = input$powAlpha, puissance = input$powPower))
+    }, ignoreInit = TRUE)
+
     pow_res <- eventReactive(input$powCalc, {
       test <- input$powTest %||% "t_two"
       F_factorial <- c("anova_factorial", "rm_between", "rm_within", "rm_interaction",

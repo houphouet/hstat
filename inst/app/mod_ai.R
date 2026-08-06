@@ -395,6 +395,30 @@ hstat_ai_capture <- function(values, module, title, tables = list(),
   invisible(values$aiContext)
 }
 
+# Coercition en data.frame de ce qu'une analyse renvoie : les modules
+# produisent tantot un tableau, tantot une liste de valeurs nommees (puissance,
+# effectif requis...). Le registre n'a pas a s'en soucier.
+hstat_ai_as_table <- function(x) {
+  if (is.null(x)) return(NULL)
+  if (is.data.frame(x)) return(x)
+  if (is.matrix(x)) return(as.data.frame(x))
+  if (is.list(x)) {
+    plats <- vapply(x, function(e) is.atomic(e) && length(e) == 1L, logical(1))
+    x <- x[plats]
+    if (!length(x)) return(NULL)
+    return(data.frame(Grandeur = names(x),
+                      Valeur = vapply(x, function(e) {
+                        if (is.numeric(e)) format(signif(e, 5), trim = TRUE)
+                        else as.character(e)
+                      }, character(1)),
+                      stringsAsFactors = FALSE, row.names = NULL))
+  }
+  if (is.atomic(x) && length(x))
+    return(data.frame(Grandeur = names(x) %||% seq_along(x),
+                      Valeur = as.character(x), stringsAsFactors = FALSE))
+  NULL
+}
+
 # Mise en texte compacte d'un contexte, pour l'invite du modele. Les tableaux
 # sont tronques : une invite de 200 lignes de chiffres degrade la reponse d'un
 # modele local bien plus qu'elle ne l'informe.
@@ -930,6 +954,91 @@ hstat_ai_interpret_prompt <- function(ctx, profile = NULL, reco = NULL,
     "## Analyse recommandee pour la suite\n",
     "Dans la derniere section, appuie-toi sur les analyses appelees par le profil ",
     "des donnees, et rappelle que la decision revient a l'utilisateur.")
+}
+
+
+# ---------------------------------------------------------------------------
+# GUIDAGE A LA FIN DE L'ANALYSE
+# ---------------------------------------------------------------------------
+# Une recommandation qui n'arrive que si l'utilisateur pense a changer d'onglet
+# n'aide personne. Des qu'une analyse depose son resultat, un bandeau discret
+# annonce ce que le profil des donnees appelle, avec un lien vers le detail.
+# Le lien bascule d'onglet cote navigateur : pas d'aller-retour serveur, et
+# aucun couplage entre les modules d'analyse et l'assistance.
+# ---------------------------------------------------------------------------
+
+# Un identifiant de sortie par onglet d'analyse. Declares ici plutot que
+# disperses : ajouter un onglet, c'est ajouter une ligne a cette liste et poser
+# hstat_ai_hint_slot() dans son interface.
+HSTAT_AI_HINT_IDS <- c(
+  "aihint_descriptive", "aihint_viz", "aihint_correlation", "aihint_tests",
+  "aihint_multiple", "aihint_multivariate", "aihint_qualitative",
+  "aihint_timeseries", "aihint_ml", "aihint_dl", "aihint_design",
+  "aihint_threshold")
+
+# Emplacement a poser en bas d'un onglet d'analyse.
+hstat_ai_hint_slot <- function(id) {
+  stopifnot(id %in% HSTAT_AI_HINT_IDS)
+  shiny::uiOutput(id)
+}
+
+# Greffe l'emplacement a la fin d'un tabItem deja construit. Permet d'ajouter
+# le bandeau aux onglets dont l'interface est produite par un module, sans
+# toucher au module : `tabItem()` renvoie un simple div, on lui ajoute un
+# enfant. Un onglet introuvable ou d'une autre forme est renvoye tel quel
+# plutot que de casser la construction de l'interface.
+hstat_ai_with_hint <- function(tab, id) {
+  if (!inherits(tab, "shiny.tag") || is.null(tab$children)) return(tab)
+  tab$children <- c(tab$children, list(hstat_ai_hint_slot(id)))
+  tab
+}
+
+hstat_ai_hint_ui <- function(ctx, reco, verdict = NULL) {
+  if (is.null(ctx)) return(NULL)
+  top <- if (!is.null(reco) && nrow(reco))
+    reco$Analyse[reco$Pertinence == "Recommandee"] else character(0)
+  suite <- if (!is.null(reco) && nrow(reco))
+    reco$Analyse[reco$Pertinence == "A enchainer"] else character(0)
+
+  lien <- shiny::tags$a(
+    href = "#", style = "font-weight:bold;color:#1b6f8c;",
+    onclick = paste0(
+      "$('a[href=\"#shiny-tab-aidecision\"]').click();",
+      "$(window).scrollTop(0);return false;"),
+    shiny::icon("compass-drafting"), " Interpreter ces resultats")
+
+  shiny::div(
+    style = paste0("background:#eaf4fb;border-left:5px solid #2e86c1;",
+                   "padding:12px 16px;border-radius:6px;margin-top:14px;font-size:13px;"),
+    shiny::tags$strong(shiny::icon("lightbulb"), " Aide a la decision"),
+    shiny::tags$span(style = "color:#7f8c8d;", sprintf(" - a la suite de : %s", ctx$title)),
+    shiny::br(),
+    if (length(top))
+      shiny::tags$span("Le profil de vos donnees appelle ",
+                       shiny::tags$b(paste(top, collapse = " ou ")), ".")
+    else
+      shiny::tags$span("Choisissez les variables analysees dans l'onglet dedie pour obtenir une recommandation."),
+    if (length(suite))
+      shiny::tags$span(" A enchainer : ", shiny::tags$b(paste(suite, collapse = ", ")), "."),
+    if (!is.null(verdict) && !isTRUE(verdict$coherent))
+      shiny::tagList(shiny::br(), shiny::tags$span(style = "color:#b9770e;",
+        shiny::icon("circle-question"), " ", verdict$message)),
+    shiny::br(),
+    lien,
+    shiny::tags$span(style = "color:#7f8c8d;",
+      " - la methode reste votre choix : l'assistance eclaire, elle ne decide pas."))
+}
+
+# Notification a la fin d'une analyse. Volontairement breve : le detail vit
+# dans l'onglet, ceci n'est qu'un rappel que l'aide existe et qu'elle a
+# quelque chose a dire sur CE resultat.
+hstat_ai_hint_text <- function(ctx, reco) {
+  if (is.null(ctx)) return(NULL)
+  top <- if (!is.null(reco) && nrow(reco))
+    reco$Analyse[reco$Pertinence == "Recommandee"] else character(0)
+  if (!length(top)) return(NULL)
+  sprintf("%s enregistree. Le profil de vos donnees appelle %s.",
+          ctx$title, paste(top, collapse = " ou "))
 }
 
 

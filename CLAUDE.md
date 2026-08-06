@@ -90,6 +90,21 @@ Corollaire : l'observateur doit vivre **là où ses `input$` existent**. Un modu
 namespacé (`mod_descriptive`, `mod_ml`…) porte le sien dans son propre
 `moduleServer` — `input$numVars` n'a aucun sens dans `app_server.R`.
 
+Un test vérifie qu'aucune famille d'analyse n'est oubliée : ajouter un onglet
+d'analyse sans y poser de `hstat_ai_capture()` le fait échouer.
+
+### Bandeau de guidage : greffé, pas inséré
+
+Le bandeau de fin d'analyse (`aihint_*`) s'ajoute aux onglets **sans toucher
+aux modules** : `hstat_ai_with_hint()` ajoute un enfant au `tabItem` que le
+module a déjà construit. Les identifiants sont déclarés une seule fois dans
+`HSTAT_AI_HINT_IDS` ; un test vérifie que déclarés et posés coïncident
+exactement — un identifiant déclaré mais jamais posé ne s'afficherait nulle
+part, l'inverse ferait échouer `hstat_ai_hint_slot()` au démarrage.
+
+Une sortie Shiny ne peut apparaître qu'une fois dans le DOM : chaque onglet a
+donc son propre identifiant, et `app_server.R` les rend en boucle.
+
 ### Ne jamais appeler une fonction de rendu à la main
 
 `DT::renderDT(...)()`, `shiny::renderTable(...)()` depuis un `renderUI` échouent

@@ -2259,3 +2259,99 @@ test_that("une analyse descriptive n'est pas jugee comme un test", {
   vt <- hstat_reco_verdict(r, "ANOVA a un facteur", "Tests statistiques")
   expect_false(vt$exploratoire)
 })
+
+test_that("hstat_ai_as_table accepte tout ce que renvoient les modules", {
+  df <- data.frame(a = 1:2, b = c("x", "y"), stringsAsFactors = FALSE)
+  expect_identical(hstat_ai_as_table(df), df)
+
+  # Liste de valeurs nommees (calcul de puissance, metriques de modele...)
+  tb <- hstat_ai_as_table(list(n = 64L, puissance = 0.8012345, test = "t apparie"))
+  expect_equal(names(tb), c("Grandeur", "Valeur"))
+  expect_equal(tb$Grandeur, c("n", "puissance", "test"))
+  expect_equal(tb$Valeur[2], "0.80123")          # arrondi lisible
+  # Les elements non scalaires sont ecartes plutot que de casser la conversion
+  expect_equal(nrow(hstat_ai_as_table(list(n = 10, courbe = 1:100))), 1L)
+
+  expect_equal(nrow(hstat_ai_as_table(matrix(1:4, 2))), 2L)
+  expect_equal(nrow(hstat_ai_as_table(c(alpha = 0.05, beta = 0.2))), 2L)
+  expect_null(hstat_ai_as_table(NULL))
+  expect_null(hstat_ai_as_table(list()))
+})
+
+test_that("le guidage de fin d'analyse annonce la recommandation", {
+  set.seed(12)
+  d <- data.frame(y = c(stats::rnorm(40), stats::rnorm(40, 2)),
+                  g = rep(c("A", "B"), each = 40), stringsAsFactors = FALSE)
+  r <- hstat_reco_analyses(hstat_data_profile(d, "y", "g"))
+  ctx <- list(title = "Statistiques descriptives", module = "Analyses descriptives",
+              tables = list(), text = NULL, meta = list(), time = Sys.time())
+
+  msg <- hstat_ai_hint_text(ctx, r)
+  expect_true(grepl("Statistiques descriptives", msg, fixed = TRUE))
+  expect_true(grepl("Student|Welch", msg))
+  # Sans recommandation calculable, pas de message plutot qu'un message creux
+  expect_null(hstat_ai_hint_text(ctx, NULL))
+  expect_null(hstat_ai_hint_text(NULL, r))
+
+  ui <- hstat_ai_hint_ui(ctx, r)
+  h <- paste(as.character(ui), collapse = "")
+  expect_true(grepl("Aide a la decision", h, fixed = TRUE))
+  expect_true(grepl("shiny-tab-aidecision", h, fixed = TRUE))   # le lien bascule d'onglet
+  # Le rappel de responsabilite accompagne chaque recommandation
+  expect_true(grepl("l'assistance eclaire, elle ne decide pas", h, fixed = TRUE))
+  expect_null(hstat_ai_hint_ui(NULL, r))
+})
+
+test_that("hstat_ai_with_hint greffe l'emplacement sans casser l'onglet", {
+  tab <- shinydashboard::tabItem(tabName = "essai", shiny::h3("contenu"))
+  n0 <- length(tab$children)
+  out <- hstat_ai_with_hint(tab, "aihint_tests")
+  expect_equal(length(out$children), n0 + 1L)
+  h <- paste(as.character(out), collapse = "")
+  expect_true(grepl("contenu", h, fixed = TRUE))       # le contenu d'origine survit
+  expect_true(grepl("aihint_tests", h, fixed = TRUE))
+  expect_true(grepl("shiny-tab-essai", h, fixed = TRUE))
+
+  # Un identifiant inconnu doit echouer bruyamment : un bandeau muet passerait
+  # inapercu jusqu'a ce qu'un utilisateur le signale.
+  expect_error(hstat_ai_hint_slot("aihint_inexistant"))
+  # Une entree qui n'est pas un tabItem est renvoyee telle quelle
+  expect_identical(hstat_ai_with_hint("pas un tag", "aihint_tests"), "pas un tag")
+})
+
+test_that("chaque onglet d'analyse porte un emplacement de guidage", {
+  root <- .hstat_repo_root()
+  ux <- readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE)
+  used <- unique(unlist(regmatches(ux, gregexpr("aihint_[a-z]+", ux))))
+  # Declares et poses doivent coincider exactement : un identifiant declare mais
+  # jamais pose ne s'afficherait nulle part, l'inverse planterait au demarrage.
+  expect_setequal(used, HSTAT_AI_HINT_IDS)
+  expect_equal(length(HSTAT_AI_HINT_IDS), 12L)
+
+  # Tous les onglets d'analyse du menu doivent etre couverts
+  # Suffixes attendus : ils suivent le nom du MODULE (mod_viz -> viz), pas
+  # toujours celui de l'onglet (tabName = "visualization").
+  onglets <- c("descriptive", "viz", "correlation", "tests", "multiple",
+               "multivariate", "qualitative", "timeseries", "ml", "dl",
+               "design", "threshold")
+  expect_setequal(sub("^aihint_", "", HSTAT_AI_HINT_IDS), onglets)
+
+  # ... et le serveur doit rendre chacun d'eux
+  srv <- readLines(file.path(root, "inst", "app", "app_server.R"), warn = FALSE)
+  expect_true(any(grepl("HSTAT_AI_HINT_IDS", srv, fixed = TRUE)))
+})
+
+test_that("toutes les familles d'analyse deposent un contexte", {
+  root <- file.path(.hstat_repo_root(), "inst", "app")
+  src <- unlist(lapply(list.files(root, pattern = "\\.R$", full.names = TRUE),
+                       readLines, warn = FALSE))
+  src <- src[!grepl("^\\s*#", src)]
+  pose <- unique(unlist(regmatches(
+    src, gregexpr('hstat_ai_capture\\(values, "[^"]+"', src))))
+  pose <- gsub('.*"([^"]+)"$', "\\1", pose)
+  attendu <- c("Tests statistiques", "Comparaisons multiples", "Analyses multivariees",
+               "Analyses descriptives", "Machine Learning", "Analyses qualitatives",
+               "Series temporelles", "Correlations", "Deep Learning", "Plan & Puissance")
+  for (m in attendu)
+    expect_true(m %in% pose, info = paste("aucune capture pour :", m))
+})

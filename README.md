@@ -117,12 +117,18 @@ into something you can paste into a report, and tells you which analysis your
 data actually call for. It never chooses or runs an analysis: the method stays
 your decision, and your responsibility.
 
-**Automatic capture.** Every analysis you run (statistical tests, descriptive
-statistics, post-hoc comparisons, the 14 multivariate analyses, machine
-learning, time series, qualitative analyses) drops its results into a shared
-slot. No module knows about the assistant, and the assistant knows about no
-module — a new analysis is picked up for free as long as it feeds the same
-slots.
+**Automatic capture — every analysis tab.** Statistical tests, descriptive
+statistics, correlations, post-hoc comparisons, the 14 multivariate analyses,
+qualitative analyses, time series, machine learning, deep learning, and power
+analysis all drop their results into a shared slot. No module knows about the
+assistant, and the assistant knows about no module — a new analysis is picked
+up for free as long as it feeds the same slots.
+
+**Guidance where the analysis ends.** A recommendation you only get if you
+think to change tabs helps nobody. As soon as an analysis produces a result, a
+banner at the bottom of that tab announces what your data profile calls for,
+with a one-click link to the full interpretation — and a notification says the
+same thing. All twelve analysis tabs carry one.
 
 **Interpretation.** Two paths, both available:
 
@@ -239,7 +245,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.10.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.11.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -247,7 +253,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.10.0},
+  note   = {Version 0.11.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

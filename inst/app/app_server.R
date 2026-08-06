@@ -466,6 +466,46 @@ server <- function(input, output, session) {
   # modifiee, et une analyse ajoutee plus tard sera captee sans rien changer
   # ici du moment qu'elle alimente les memes emplacements.
   # ==========================================================================
+  # Guidage a la fin de l'analyse : des qu'un resultat est depose, un bandeau
+  # (mv_ai_hint, insere dans les onglets) et une notification annoncent ce que
+  # le profil des donnees appelle. C'est le « a la fin des analyses » : la
+  # recommandation vient a l'utilisateur, il n'a pas a aller la chercher.
+  ai_hint <- reactive({
+    ctx <- values$aiContext
+    if (is.null(ctx) || is.null(values$data)) return(NULL)
+    vars <- intersect(ctx$meta$variables %||% character(0), names(values$data))
+    grp  <- intersect(ctx$meta$groupe %||% character(0), names(values$data))
+    if (!length(vars)) return(list(ctx = ctx, reco = NULL, verdict = NULL))
+    pr <- tryCatch(hstat_data_profile(values$data, vars,
+                                      if (length(grp)) grp[1] else NULL),
+                   error = function(e) NULL)
+    rc <- tryCatch(hstat_reco_analyses(pr), error = function(e) NULL)
+    list(ctx = ctx, reco = rc,
+         verdict = tryCatch(hstat_reco_verdict(rc, ctx$title, ctx$module),
+                            error = function(e) NULL))
+  })
+
+  # Un bandeau par onglet d'analyse : une sortie Shiny ne peut apparaitre
+  # qu'une fois dans le DOM, chaque onglet a donc son identifiant.
+  for (hid in HSTAT_AI_HINT_IDS) local({
+    id <- hid
+    output[[id]] <- renderUI({
+      h <- ai_hint()
+      if (is.null(h)) return(NULL)
+      hstat_ai_hint_ui(h$ctx, h$reco, h$verdict)
+    })
+  })
+
+  observeEvent(values$aiContext, {
+    h <- ai_hint()
+    msg <- if (is.null(h)) NULL else hstat_ai_hint_text(h$ctx, h$reco)
+    if (is.null(msg)) return()
+    showNotification(
+      tagList(icon("lightbulb"), " ", msg, br(),
+              tags$small("Onglet « Interpretation & aide a la decision » pour le detail.")),
+      type = "message", duration = 12)
+  }, ignoreInit = TRUE)
+
   observeEvent(values$testResultsDF, {
     df <- values$testResultsDF
     if (is.null(df) || !NROW(df)) return()
