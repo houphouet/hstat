@@ -2629,6 +2629,24 @@ mod_qualitative_server <- function(id, values) {
     })
 
     # ---- Calcul de l'analyse ----
+    # Depot du resultat qualitatif pour l'aide a la decision.
+    shiny::observeEvent(result(), {
+      r <- tryCatch(result(), error = function(e) NULL)
+      if (is.null(r) || isFALSE(r$ok)) return()
+      tabs <- if (!is.null(r$tables)) r$tables else list()
+      if (!is.null(r$metrics)) tabs <- c(list("Metriques" = r$metrics), tabs)
+      vars <- unique(unlist(lapply(
+        c("nom_var1", "nom_var2", "ord_var1", "ord_var2", "txt_var",
+          "orrr_expo", "orrr_issue", "tools_vars"),
+        function(id) input[[id]])))
+      hstat_ai_capture(values, "Analyses qualitatives",
+        r$title %||% sprintf("Analyse qualitative (%s)", input$family %||% "nominal"),
+        tables = tabs,
+        text = if (!is.null(r$console)) paste(r$console, collapse = "\n") else NULL,
+        meta = list(variables = vars, groupe = input$ord_group %||% input$nom_var2,
+                    famille = input$family))
+    }, ignoreInit = TRUE)
+
     result <- shiny::eventReactive(input$run, {
       d <- get_data()
       fam <- input$family %||% "nominal"

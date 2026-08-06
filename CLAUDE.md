@@ -56,6 +56,48 @@ L'application vit dans `inst/app/` :
 Corollaire : une fonction utilisée à la fois par l'UI et le serveur doit être
 définie dans `Utils.R`, pas dans le corps de `server`.
 
+### Assistance IA : deux roles, et deux seulement
+
+`mod_ai.R` porte le moteur d'inference **partagé par toute l'application**
+(c'est pourquoi `HStat.R` le source juste après `Utils.R` — un test garde cet
+ordre) et l'onglet d'aide à la décision.
+
+L'assistance **interprète** des résultats et **recommande** une analyse. Elle ne
+choisit ni ne lance jamais une analyse : le choix de la méthode engage
+l'interprétation scientifique du travail, il reste à l'analyste. L'invite
+adressée au modèle l'interdit explicitement, et un test le vérifie.
+
+**La recommandation ne passe jamais par un modèle de langue.** `hstat_reco_*`
+applique des règles statistiques classiques au profil des variables : c'est
+déterministe, hors ligne, et explicable. Un test statistique ne doit pas être
+conseillé par génération de texte.
+
+Piège corrigé, à ne pas réintroduire : la normalité se teste **dans chaque
+groupe**, jamais sur la variable regroupée. Deux groupes parfaitement normaux
+mais bien séparés forment un mélange bimodal que Shapiro rejette (p ≈ 1e-6 là
+où chaque groupe donne p ≈ 0,8) — tester le mélange déconseillerait l'ANOVA
+précisément quand elle convient.
+
+### Capture des résultats : observer, ne pas instrumenter
+
+Les modules déposent déjà leurs résultats dans `values` ; l'assistance les y
+**observe** (`hstat_ai_capture()` appelé depuis un `observeEvent`). Aucun module
+n'appelle l'assistance, aucune analyse n'est modifiée, et une analyse ajoutée
+plus tard est captée sans rien changer du moment qu'elle alimente les mêmes
+emplacements.
+
+Corollaire : l'observateur doit vivre **là où ses `input$` existent**. Un module
+namespacé (`mod_descriptive`, `mod_ml`…) porte le sien dans son propre
+`moduleServer` — `input$numVars` n'a aucun sens dans `app_server.R`.
+
+### Ne jamais appeler une fonction de rendu à la main
+
+`DT::renderDT(...)()`, `shiny::renderTable(...)()` depuis un `renderUI` échouent
+avec « argument "name" is missing » : une fonction de rendu attend la session et
+le nom de sortie que Shiny lui passe. Deux fois le piège dans ce dépôt. Il faut
+soit une sortie dédiée (`DTOutput` + `renderDT`), soit un composant statique
+(`.hstat_html_table()` dans `mod_ai.R`).
+
 ### Assistance au codage : local et gratuit d'abord
 
 `mod_coding.R` propose trois moteurs d'assistance (`HSTAT_AI_ENGINES`). L'ordre

@@ -110,6 +110,54 @@ MAXQDA-style coding workbench:
 
 ---
 
+## Result interpretation & decision support
+
+A dedicated tab — **Interprétation & aide à la décision** — turns raw output
+into something you can paste into a report, and tells you which analysis your
+data actually call for. It never chooses or runs an analysis: the method stays
+your decision, and your responsibility.
+
+**Automatic capture.** Every analysis you run (statistical tests, descriptive
+statistics, post-hoc comparisons, the 14 multivariate analyses, machine
+learning, time series, qualitative analyses) drops its results into a shared
+slot. No module knows about the assistant, and the assistant knows about no
+module — a new analysis is picked up for free as long as it feeds the same
+slots.
+
+**Interpretation.** Two paths, both available:
+
+- *Automatic reading* — deterministic, offline, always available. It re-reads
+  your tables, states every p-value and its significance at your chosen alpha,
+  summarises the data profile, and lists the analyses your data call for.
+  Nothing is generated: these numbers are read, not written.
+- *Model-written interpretation* — the local model (or Claude) turns the same
+  material into a **Lecture des résultats / Ce que cela signifie / Précautions
+  et limites / Analyse recommandée** write-up, in scientific, plain-language or
+  detailed register, downloadable as Markdown or plain text. The prompt forbids
+  inventing any figure, re-running anything, or telling the user they were
+  wrong. If the model is unreachable, it falls back to the automatic reading.
+
+**Analysis recommendation — no language model involved.** Recommendations come
+from classical statistical rules applied to a profile of your variables:
+variable types, group sizes and balance, per-group normality (Shapiro-Wilk),
+homogeneity of variance (Bartlett or Levene), pairing. A statistical test
+should not be suggested by text generation, so it isn't. Every recommendation
+comes with the reason behind it, and the profile tab shows the numbers the
+recommendation rests on.
+
+Normality is tested **within each group**, never on the pooled variable — two
+perfectly normal but well-separated groups form a bimodal mixture that
+Shapiro-Wilk rejects (p ≈ 1e-6 where each group gives p ≈ 0.8), which would
+steer you away from ANOVA exactly when it fits.
+
+The verdict tells you whether the analysis you ran is among those your data
+call for — phrased as information, never as a reprimand, since a research
+question or a field constraint can justify a choice the rules don't know
+about. Descriptive analyses are treated as a preliminary step and get a "what
+next" suggestion rather than a verdict.
+
+---
+
 ## Project structure
 
 ```
@@ -121,6 +169,7 @@ MAXQDA-style coding workbench:
 │   ├── app
 │   │   ├── app.R
 │   │   ├── app_server.R
+│   │   ├── mod_ai.R
 │   │   ├── HStat.R
 │   │   ├── mod_clean.R
 │   │   ├── mod_coding.R
@@ -190,7 +239,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.9.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.10.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -198,7 +247,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.9.0},
+  note   = {Version 0.10.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

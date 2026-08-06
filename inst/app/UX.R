@@ -184,6 +184,8 @@ ui <- dashboardPage(
       menuItem("Comparaisons post-hoc", tabName = "multiple", icon = icon("sort-amount-down")),
       menuItem("Analyses multivariées", tabName = "multivariate", icon = icon("project-diagram")),
       menuItem("Analyses qualitatives", tabName = "qualitative", icon = icon("comments")),
+      menuItem("Interprétation & aide à la décision", tabName = "aidecision",
+               icon = icon("compass-drafting")),
       tags$li(class = "header", "4. Modélisation & prédiction"),
       menuItem("Séries temporelles", tabName = "timeseries", icon = icon("clock")),
       menuItem("Machine Learning", tabName = "ml", icon = icon("robot")),
@@ -1884,6 +1886,9 @@ ui <- dashboardPage(
       mod_design_ui("design"),
       # ---- Analyses qualitatives d'enquete ----
       mod_qualitative_ui("qualitative"),
+
+      # ---- Interpretation des resultats et aide a la decision ----
+      mod_ai_ui("aidecision"),
       # ---- Seuils d'efficacité ----
       tabItem(tabName = "timeseries",
               mod_timeseries_ui("timeseries")

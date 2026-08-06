@@ -325,6 +325,18 @@ mod_descriptive_ui <- function(id) {
 mod_descriptive_server <- function(id, values) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    # Depot des statistiques descriptives pour l'aide a la decision. Ici, et non
+    # dans app_server.R : les selecteurs sont namespaces, `input$numVars`
+    # n'existe qu'a l'interieur de ce module.
+    observeEvent(values$descStats, {
+      df <- values$descStats
+      if (is.null(df) || !NROW(df)) return()
+      hstat_ai_capture(values, "Analyses descriptives",
+        "Statistiques descriptives",
+        tables = list("Statistiques descriptives" = df),
+        meta = list(variables = input$numVars, groupe = input$descFactors))
+    }, ignoreInit = TRUE)
   # ---- Analyse descriptives ----
   
   output$numVarSelect <- renderUI({

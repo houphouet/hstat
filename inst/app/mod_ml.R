@@ -598,6 +598,21 @@ mod_ml_server <- function(id, values) {
       list(res = res, p = p)
     })
 
+    # Depot de la comparaison de modeles pour l'aide a la decision.
+    observeEvent(comp_df(), {
+      df <- tryCatch(comp_df(), error = function(e) NULL)
+      if (is.null(df) || !NROW(df)) return()
+      p <- tryCatch(fits()$p, error = function(e) NULL)
+      hstat_ai_capture(values, "Machine Learning",
+        sprintf("Comparaison de modeles (%s)",
+                if (!is.null(p) && identical(p$task, "classification"))
+                  "classification" else "regression"),
+        tables = list("Comparaison des modeles" = df),
+        meta = list(variables = c(input$mlTarget, input$mlPredictors),
+                    `variable cible` = input$mlTarget,
+                    `modeles compares` = input$mlModels))
+    }, ignoreInit = TRUE)
+
     comp_df <- reactive({
       f <- fits(); req(f)
       cls <- f$p$task == "classification"

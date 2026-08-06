@@ -52,8 +52,14 @@ local({
   if (file.exists(qual_path))
     suppressWarnings(suppressMessages(
       sys.source(qual_path, envir = e, keep.source = FALSE)))
-  # Idem pour l'atelier de codage qualitatif (hstat_code_*, hstat_seg_*,
-  # hstat_ai_*), qui vit dans mod_coding.R.
+  # Le moteur d'inference et l'aide a la decision (hstat_ai_*, hstat_reco_*,
+  # hstat_data_profile) vivent dans mod_ai.R : partages par tous les modules.
+  ai_path <- file.path(dirname(utils_path), "mod_ai.R")
+  if (file.exists(ai_path))
+    suppressWarnings(suppressMessages(
+      sys.source(ai_path, envir = e, keep.source = FALSE)))
+  # Idem pour l'atelier de codage qualitatif (hstat_code_*, hstat_seg_*),
+  # qui vit dans mod_coding.R.
   cod_path <- file.path(dirname(utils_path), "mod_coding.R")
   if (file.exists(cod_path))
     suppressWarnings(suppressMessages(
@@ -2020,4 +2026,236 @@ test_that("le corps des requetes locales a la forme attendue par les serveurs", 
   j <- jsonlite::toJSON(.hstat_ai_body_ollama("x", model = "m"), auto_unbox = TRUE)
   expect_true(grepl('"messages":[{', j, fixed = TRUE))
   expect_true(grepl('"stream":false', j, fixed = TRUE))
+})
+
+# =============================================================================
+#  AIDE A LA DECISION -- mod_ai.R
+# =============================================================================
+
+test_that("la normalite est evaluee DANS chaque groupe, pas sur le melange", {
+  set.seed(11)
+  # Deux groupes parfaitement normaux mais bien separes : leur melange est
+  # bimodal et Shapiro le rejette (p ~ 1e-6) alors que chaque groupe le passe.
+  # Tester le melange conduirait a deconseiller l'ANOVA quand elle convient.
+  d <- data.frame(y = c(stats::rnorm(30, 0, 1), stats::rnorm(30, 8, 1)),
+                  g = rep(c("A", "B"), each = 30), stringsAsFactors = FALSE)
+  expect_lt(stats::shapiro.test(d$y)$p.value, 0.001)   # le melange echoue
+
+  p <- hstat_data_profile(d, "y", "g")
+  expect_equal(p$variables$y$normale$portee, "par groupe")
+  expect_true(p$variables$y$normale$ok)
+  expect_equal(nrow(p$variables$y$normale$detail), 2L)
+  expect_true(all(p$variables$y$normale$detail$Normale))
+
+  r <- hstat_reco_analyses(p)
+  expect_true(grepl("t de Student|Welch", r$Analyse[r$Pertinence == "Recommandee"][1]))
+
+  # Sans facteur, la normalite est bien evaluee globalement
+  p0 <- hstat_data_profile(d, "y")
+  expect_equal(p0$variables$y$normale$portee, "globale")
+  expect_false(isTRUE(p0$variables$y$normale$ok))
+})
+
+test_that("le profil identifie correctement le type des variables", {
+  d <- data.frame(
+    quanti = stats::rnorm(50),
+    ordinale = sample(1:5, 50, TRUE),
+    binaire = sample(c(0, 1), 50, TRUE),
+    categ = sample(c("a", "b", "c", "d"), 50, TRUE),
+    stringsAsFactors = FALSE)
+  p <- hstat_data_profile(d, names(d))
+  expect_equal(p$variables$quanti$type, "quantitative")
+  expect_equal(p$variables$ordinale$type, "ordinale")   # entier a peu de niveaux
+  expect_equal(p$variables$binaire$type, "binaire")
+  expect_equal(p$variables$categ$type, "categorielle")
+  expect_equal(p$n, 50L)
+  expect_equal(p$n_quanti, 1L)
+  expect_null(hstat_data_profile(NULL))
+  expect_null(hstat_data_profile(d, "colonne_absente"))
+})
+
+test_that("le recommandateur suit les regles statistiques classiques", {
+  set.seed(4)
+  reco1 <- function(p) hstat_reco_analyses(p)$Analyse[
+    hstat_reco_analyses(p)$Pertinence == "Recommandee"][1]
+
+  # Deux groupes, normalite intra-groupe, variances homogenes -> t de Student
+  d <- data.frame(y = c(stats::rnorm(40, 0, 1), stats::rnorm(40, 1, 1)),
+                  g = rep(c("A", "B"), each = 40), stringsAsFactors = FALSE)
+  expect_match(reco1(hstat_data_profile(d, "y", "g")), "Student")
+
+  # Trois groupes non normaux -> Kruskal-Wallis
+  d3 <- data.frame(y = stats::rexp(90, 0.2),
+                   g = rep(c("A", "B", "C"), each = 30), stringsAsFactors = FALSE)
+  expect_equal(reco1(hstat_data_profile(d3, "y", "g")), "Kruskal-Wallis")
+  # ... et le post-hoc doit etre propose a la suite
+  r3 <- hstat_reco_analyses(hstat_data_profile(d3, "y", "g"))
+  expect_true("Comparaisons post-hoc" %in% r3$Analyse)
+
+  # Un groupe sous 5 observations : pas de test parametrique en tete
+  dp <- data.frame(y = stats::rnorm(20, 5, 1),
+                   g = rep(c("A", "B", "C", "D"), c(3, 3, 3, 11)),
+                   stringsAsFactors = FALSE)
+  rp <- hstat_reco_analyses(hstat_data_profile(dp, "y", "g"))
+  expect_equal(rp$Analyse[rp$Pertinence == "Recommandee"][1], "Kruskal-Wallis")
+  expect_true("Test exact / permutation" %in% rp$Analyse)
+
+  # Deux qualitatives -> chi-deux, et la taille d'effet a enchainer
+  dq <- data.frame(a = sample(c("x", "y"), 120, TRUE),
+                   b = sample(c("u", "v", "w"), 120, TRUE), stringsAsFactors = FALSE)
+  rq <- hstat_reco_analyses(hstat_data_profile(dq, c("a", "b"), "a"))
+  expect_match(rq$Analyse[rq$Pertinence == "Recommandee"][1], "chi-deux")
+  expect_true(any(grepl("Cramer", rq$Analyse)))
+
+  # Mesures appariees -> version appariee du test
+  da <- data.frame(y = stats::rnorm(60), g = rep(c("avant", "apres"), each = 30),
+                   stringsAsFactors = FALSE)
+  expect_match(reco1(hstat_data_profile(da, "y", "g", paired = TRUE)), "apparie")
+
+  expect_null(hstat_reco_analyses(NULL))
+})
+
+test_that("le verdict signale un ecart sans jamais desavouer l'utilisateur", {
+  set.seed(5)
+  d <- data.frame(y = stats::rexp(90, 0.2), g = rep(c("A", "B", "C"), each = 30),
+                  stringsAsFactors = FALSE)
+  r <- hstat_reco_analyses(hstat_data_profile(d, "y", "g"))
+
+  v_ok <- hstat_reco_verdict(r, "Kruskal-Wallis sur 3 groupes")
+  expect_true(v_ok$coherent)
+
+  v_no <- hstat_reco_verdict(r, "ANOVA a un facteur")
+  expect_false(v_no$coherent)
+  expect_true(grepl("Kruskal-Wallis", v_no$message, fixed = TRUE))
+  # Le ton compte autant que le fond : on informe, on ne condamne pas.
+  expect_true(grepl("ne disqualifie pas", v_no$message, fixed = TRUE))
+  expect_true(grepl("A vous de trancher", v_no$message, fixed = TRUE))
+  expect_false(grepl("erreur|faux|incorrect", tolower(v_no$message)))
+
+  expect_null(hstat_reco_verdict(NULL, "x"))
+  expect_null(hstat_reco_verdict(r, ""))
+})
+
+test_that("hstat_ai_capture depose un contexte exploitable", {
+  values <- new.env()
+  df <- data.frame(Test = "Test t", Variable = "score", p_value = 0.012,
+                   stringsAsFactors = FALSE)
+  ctx <- hstat_ai_capture(values, "Tests statistiques", "Test t de Student",
+                          tables = list("Resultats" = df, "Vide" = NULL),
+                          meta = list(variables = "score", groupe = "sexe"))
+  expect_equal(ctx$title, "Test t de Student")
+  # Les tableaux vides ne sont pas conserves : ils n'apporteraient rien a l'invite
+  expect_equal(names(ctx$tables), "Resultats")
+  expect_equal(ctx$meta$variables, "score")
+  expect_identical(values$aiContext, ctx)
+
+  txt <- hstat_ai_context_text(ctx)
+  expect_true(grepl("Test t de Student", txt, fixed = TRUE))
+  expect_true(grepl("score", txt, fixed = TRUE))
+  expect_true(grepl("0.012", txt, fixed = TRUE))
+  expect_equal(hstat_ai_context_text(NULL), "")
+})
+
+test_that("la lecture automatique relit les p-values sans modele ni reseau", {
+  set.seed(6)
+  d <- data.frame(y = c(stats::rnorm(30), stats::rnorm(30, 2)),
+                  g = rep(c("A", "B"), each = 30), stringsAsFactors = FALSE)
+  p <- hstat_data_profile(d, "y", "g")
+  r <- hstat_reco_analyses(p)
+  ctx <- list(title = "Test t de Student", module = "Tests",
+              tables = list("Resultats" = data.frame(
+                Test = c("Groupe A vs B", "Groupe A vs C"),
+                p_value = c(0.0031, 0.42), stringsAsFactors = FALSE)),
+              text = NULL, meta = list(), time = Sys.time())
+
+  out <- hstat_ai_interpret_offline(ctx, p, r, hstat_reco_verdict(r, ctx$title))
+  expect_true(grepl("Test t de Student", out, fixed = TRUE))
+  # Les chiffres sont LUS, pas generes : chaque p-value doit s'y retrouver
+  expect_true(grepl("0.0031", out, fixed = TRUE))
+  expect_true(grepl("significatif", out, fixed = TRUE))
+  expect_true(grepl("non significatif", out, fixed = TRUE))
+  expect_true(grepl("Analyses appelees par vos donnees", out, fixed = TRUE))
+  # Le rappel de responsabilite ne doit jamais disparaitre
+  expect_true(grepl("vous appartient", out, fixed = TRUE))
+
+  # Un seuil different change le verdict, pas les chiffres
+  out01 <- hstat_ai_interpret_offline(ctx, p, r, NULL, alpha = 0.001)
+  expect_true(grepl("0.0031", out01, fixed = TRUE))
+  expect_false(grepl("-> significatif", out01, fixed = TRUE))
+
+  expect_null(hstat_ai_interpret_offline(NULL))
+})
+
+test_that("l'invite d'interpretation interdit d'inventer et de decider", {
+  ctx <- list(title = "ANOVA", module = "Tests",
+              tables = list("R" = data.frame(p_value = 0.02)),
+              text = NULL, meta = list(), time = Sys.time())
+  pr <- hstat_ai_interpret_prompt(ctx, NULL, NULL, NULL, "scientifique")
+  expect_true(grepl("N'invente aucun chiffre", pr, fixed = TRUE))
+  expect_true(grepl("Ne recalcule rien", pr, fixed = TRUE))
+  expect_true(grepl("appartient a l'utilisateur", pr, fixed = TRUE))
+  expect_true(grepl("## Analyse recommandee pour la suite", pr, fixed = TRUE))
+  # Les trois niveaux de redaction produisent bien des consignes differentes
+  n <- vapply(c("scientifique", "vulgarise", "detaille"),
+              function(k) hstat_ai_interpret_prompt(ctx, niveau = k), character(1))
+  expect_equal(length(unique(n)), 3L)
+})
+
+test_that("le markdown du modele est converti sans pouvoir injecter de HTML", {
+  h <- .hstat_md_to_html("## Titre\n\nUn **gras** et un *italique*.\n\n- point A\n- point B")
+  expect_true(grepl("<h4", h, fixed = TRUE))
+  expect_true(grepl("<strong>gras</strong>", h, fixed = TRUE))
+  expect_true(grepl("<em>italique</em>", h, fixed = TRUE))
+  expect_equal(lengths(regmatches(h, gregexpr("<li>", h, fixed = TRUE))), 2L)
+
+  # Une reponse de modele reste du contenu non fiable : jamais injectee telle quelle
+  inj <- .hstat_md_to_html("Voici <script>alert(1)</script> et <img onerror=x>")
+  expect_false(grepl("<script>", inj, fixed = TRUE))
+  expect_true(grepl("&lt;script&gt;", inj, fixed = TRUE))
+  expect_equal(.hstat_md_to_html(""), "")
+  expect_equal(.hstat_md_to_html(NULL), "")
+})
+
+test_that("mod_ai.R est source avant les modules qui s'en servent", {
+  root <- .hstat_repo_root()
+  h <- readLines(file.path(root, "inst", "app", "HStat.R"), warn = FALSE)
+  i_ai <- grep('source\\("mod_ai\\.R"', h)
+  expect_length(i_ai, 1L)
+  # Le moteur est partage : il doit preceder tous les modules d'analyse
+  for (m in c("mod_coding.R", "mod_qualitative.R", "mod_ml.R", "mod_timeseries.R")) {
+    j <- grep(sprintf('source\\("%s"', gsub("\\.", "\\\\.", m)), h)
+    expect_length(j, 1L)
+    expect_true(i_ai < j, info = paste("mod_ai.R doit preceder", m))
+  }
+  # L'onglet est declare dans l'interface et branche cote serveur
+  ux <- readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE)
+  expect_true(any(grepl('mod_ai_ui\\("aidecision"\\)', ux)))
+  expect_true(any(grepl('tabName = "aidecision"', ux)))
+  srv <- readLines(file.path(root, "inst", "app", "app_server.R"), warn = FALSE)
+  expect_true(any(grepl('mod_ai_server\\("aidecision", values\\)', srv)))
+  expect_true(any(grepl("aiContext", srv)))
+})
+
+test_that("une analyse descriptive n'est pas jugee comme un test", {
+  set.seed(9)
+  d <- data.frame(y = stats::rnorm(90), g = rep(c("A", "B", "C"), each = 30),
+                  stringsAsFactors = FALSE)
+  r <- hstat_reco_analyses(hstat_data_profile(d, "y", "g"))
+
+  # Sans module, la comparaison au catalogue s'applique
+  v0 <- hstat_reco_verdict(r, "Statistiques descriptives")
+  expect_false(v0$coherent)
+
+  # Avec le module, on propose la suite au lieu de juger : une moyenne n'est
+  # pas un mauvais test, c'est une etape anterieure.
+  v <- hstat_reco_verdict(r, "Statistiques descriptives", "Analyses descriptives")
+  expect_true(v$coherent)
+  expect_true(v$exploratoire)
+  expect_true(grepl("etape preliminaire", v$message, fixed = TRUE))
+  expect_true(grepl("pas un test", v$message, fixed = TRUE))
+  expect_true(grepl("A vous de decider", v$message, fixed = TRUE))
+
+  # Un module de tests reste evalue normalement
+  vt <- hstat_reco_verdict(r, "ANOVA a un facteur", "Tests statistiques")
+  expect_false(vt$exploratoire)
 })
