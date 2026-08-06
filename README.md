@@ -63,6 +63,107 @@ Environment variables (all optional):
 
 ---
 
+## Qualitative coding workbench (CAQDAS)
+
+Under **Analyses qualitatives → Codage / thématisation**, HStat provides a
+MAXQDA-style coding workbench:
+
+- **Coding** — read one open-ended answer at a time, select a word, sentence
+  or paragraph with the mouse, then drag-and-drop it onto a code (clicking the
+  code works too). The passage gets a coloured label; overlapping codes are
+  rendered as a gradient of their colours.
+- **Retrieval and cross-tabulation** — click a code to list every excerpt it
+  covers, and cross the coded text with respondent profiles (for instance, only
+  the price complaints made by the "Moins de 25 ans" group).
+- **Visualisation and reports** — word clouds, a concept map of code
+  co-occurrences (the MAXMaps equivalent, laid out by classical MDS), cross
+  matrices, and an Excel workbook gathering codebook, excerpts and matrices.
+  The whole coding project can be saved to `.rds` and reloaded later.
+- **Coding assistant — free, local and offline.** Three engines, none of which
+  requires an account or a paid subscription:
+
+  | Engine | Needs | Network | Cost |
+  |---|---|---|---|
+  | **Local model** *(default)* | Ollama or any OpenAI-compatible inference server (llama.cpp, LM Studio, vLLM, Jan) running on your machine | none once the model is downloaded | free |
+  | **Automatic thematisation** | nothing at all — it runs inside R | none, ever | free |
+  | Claude API | an Anthropic API key | required | paid |
+
+  The assistant proposes a codebook from your corpus, then pre-codes the
+  answers. Suggestions are tagged and can be reviewed or dropped in one click.
+
+  The **local model** engine talks to `http://127.0.0.1:11434` (Ollama) or
+  `http://127.0.0.1:8080` (OpenAI-compatible) — install Ollama once, run
+  `ollama pull qwen2.5`, and everything afterwards works with no Internet
+  connection. Survey responses never leave the machine. Installed models are
+  discovered automatically and listed in a dropdown.
+
+  The **automatic thematisation** engine uses no language model at all: corpus
+  terms are clustered by hierarchical clustering on their co-occurrence across
+  answers (cosine distance, Ward's method), so words appearing in the same
+  answers form a theme. Each theme comes with a **keyword dictionary** you can
+  edit, which then pre-codes the *whole* corpus — accent- and case-insensitive,
+  labelling the sentence carrying the keyword — instantly and deterministically.
+
+  Whatever the engine, an excerpt proposed by a model is located in the real
+  text before any label is placed: a quote the model invented is discarded and
+  counted, never applied to the wrong passage.
+
+---
+
+## Result interpretation & decision support
+
+A dedicated tab — **Interprétation & aide à la décision** — turns raw output
+into something you can paste into a report, and tells you which analysis your
+data actually call for. It never chooses or runs an analysis: the method stays
+your decision, and your responsibility.
+
+**Automatic capture — every analysis tab.** Statistical tests, descriptive
+statistics, correlations, post-hoc comparisons, the 14 multivariate analyses,
+qualitative analyses, time series, machine learning, deep learning, and power
+analysis all drop their results into a shared slot. No module knows about the
+assistant, and the assistant knows about no module — a new analysis is picked
+up for free as long as it feeds the same slots.
+
+**Guidance where the analysis ends.** A recommendation you only get if you
+think to change tabs helps nobody. As soon as an analysis produces a result, a
+banner at the bottom of that tab announces what your data profile calls for,
+with a one-click link to the full interpretation — and a notification says the
+same thing. All twelve analysis tabs carry one.
+
+**Interpretation.** Two paths, both available:
+
+- *Automatic reading* — deterministic, offline, always available. It re-reads
+  your tables, states every p-value and its significance at your chosen alpha,
+  summarises the data profile, and lists the analyses your data call for.
+  Nothing is generated: these numbers are read, not written.
+- *Model-written interpretation* — the local model (or Claude) turns the same
+  material into a **Lecture des résultats / Ce que cela signifie / Précautions
+  et limites / Analyse recommandée** write-up, in scientific, plain-language or
+  detailed register, downloadable as Markdown or plain text. The prompt forbids
+  inventing any figure, re-running anything, or telling the user they were
+  wrong. If the model is unreachable, it falls back to the automatic reading.
+
+**Analysis recommendation — no language model involved.** Recommendations come
+from classical statistical rules applied to a profile of your variables:
+variable types, group sizes and balance, per-group normality (Shapiro-Wilk),
+homogeneity of variance (Bartlett or Levene), pairing. A statistical test
+should not be suggested by text generation, so it isn't. Every recommendation
+comes with the reason behind it, and the profile tab shows the numbers the
+recommendation rests on.
+
+Normality is tested **within each group**, never on the pooled variable — two
+perfectly normal but well-separated groups form a bimodal mixture that
+Shapiro-Wilk rejects (p ≈ 1e-6 where each group gives p ≈ 0.8), which would
+steer you away from ANOVA exactly when it fits.
+
+The verdict tells you whether the analysis you ran is among those your data
+call for — phrased as information, never as a reprimand, since a research
+question or a field constraint can justify a choice the rules don't know
+about. Descriptive analyses are treated as a preliminary step and get a "what
+next" suggestion rather than a verdict.
+
+---
+
 ## Project structure
 
 ```
@@ -74,8 +175,10 @@ Environment variables (all optional):
 │   ├── app
 │   │   ├── app.R
 │   │   ├── app_server.R
+│   │   ├── mod_ai.R
 │   │   ├── HStat.R
 │   │   ├── mod_clean.R
+│   │   ├── mod_coding.R
 │   │   ├── mod_descriptive.R
 │   │   ├── mod_design.R
 │   │   ├── mod_dl.R
@@ -142,7 +245,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.7.5. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.11.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -150,7 +253,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.7.5},
+  note   = {Version 0.11.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

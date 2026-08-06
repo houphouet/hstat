@@ -45,6 +45,9 @@ server <- function(input, output, session) {
     isSampled    = FALSE,          # TRUE si values$data est un echantillon
     sourceKind   = NULL,           # Type de fichier source
     sourceSize   = NULL,           # Taille du fichier source (octets)
+    # Derniere analyse realisee, deposee par les modules via
+    # hstat_ai_capture() et lue par l'onglet d'aide a la decision.
+    aiContext    = NULL,
     resetSignal  = 0               # Compteur incremente a chaque reinitialisation
                                    # globale ; observe par les modules (Plan &
                                    # Puissance, Seuils) pour reinitialiser leur etat.
@@ -451,6 +454,83 @@ server <- function(input, output, session) {
   mod_correlation_server("corrélation", values)
   mod_design_server("design", values)
   mod_qualitative_server("qualitative", values)
+  mod_ai_server("aidecision", values)
+
+  # ==========================================================================
+  # CAPTURE AUTOMATIQUE POUR L'AIDE A LA DECISION
+  # (les analyses dont les selecteurs vivent dans un module namespace deposent
+  #  leur contexte depuis le module : `input$maVariable` n'a pas de sens ici)
+  # --------------------------------------------------------------------------
+  # Les modules deposent deja leurs resultats dans `values` : il suffit de les
+  # y observer. Aucun module n'appelle l'assistance, aucune analyse n'est
+  # modifiee, et une analyse ajoutee plus tard sera captee sans rien changer
+  # ici du moment qu'elle alimente les memes emplacements.
+  # ==========================================================================
+  # Guidage a la fin de l'analyse : des qu'un resultat est depose, un bandeau
+  # (mv_ai_hint, insere dans les onglets) et une notification annoncent ce que
+  # le profil des donnees appelle. C'est le « a la fin des analyses » : la
+  # recommandation vient a l'utilisateur, il n'a pas a aller la chercher.
+  ai_hint <- reactive({
+    ctx <- values$aiContext
+    if (is.null(ctx) || is.null(values$data)) return(NULL)
+    vars <- intersect(ctx$meta$variables %||% character(0), names(values$data))
+    grp  <- intersect(ctx$meta$groupe %||% character(0), names(values$data))
+    if (!length(vars)) return(list(ctx = ctx, reco = NULL, verdict = NULL))
+    pr <- tryCatch(hstat_data_profile(values$data, vars,
+                                      if (length(grp)) grp[1] else NULL),
+                   error = function(e) NULL)
+    rc <- tryCatch(hstat_reco_analyses(pr), error = function(e) NULL)
+    list(ctx = ctx, reco = rc,
+         verdict = tryCatch(hstat_reco_verdict(rc, ctx$title, ctx$module),
+                            error = function(e) NULL))
+  })
+
+  # Un bandeau par onglet d'analyse : une sortie Shiny ne peut apparaitre
+  # qu'une fois dans le DOM, chaque onglet a donc son identifiant.
+  for (hid in HSTAT_AI_HINT_IDS) local({
+    id <- hid
+    output[[id]] <- renderUI({
+      h <- ai_hint()
+      if (is.null(h)) return(NULL)
+      hstat_ai_hint_ui(h$ctx, h$reco, h$verdict)
+    })
+  })
+
+  observeEvent(values$aiContext, {
+    h <- ai_hint()
+    msg <- if (is.null(h)) NULL else hstat_ai_hint_text(h$ctx, h$reco)
+    if (is.null(msg)) return()
+    showNotification(
+      tagList(icon("lightbulb"), " ", msg, br(),
+              tags$small("Onglet « Interpretation & aide a la decision » pour le detail.")),
+      type = "message", duration = 12)
+  }, ignoreInit = TRUE)
+
+  observeEvent(values$testResultsDF, {
+    df <- values$testResultsDF
+    if (is.null(df) || !NROW(df)) return()
+    titre <- if ("Test" %in% names(df))
+      paste(unique(as.character(df$Test)), collapse = " / ") else "Tests statistiques"
+    vars <- if ("Variable" %in% names(df)) unique(as.character(df$Variable)) else NULL
+    grp  <- if ("Facteur" %in% names(df)) {
+      g <- unique(as.character(df$Facteur)); g[!is.na(g) & nzchar(g)]
+    } else NULL
+    tabs <- list("Resultats des tests" = df)
+    if (!is.null(values$normalityResults)) tabs[["Normalite"]] <- values$normalityResults
+    if (!is.null(values$homogeneityResults)) tabs[["Homogeneite des variances"]] <- values$homogeneityResults
+    if (!is.null(values$chiSqFreqData)) tabs[["Effectifs observes / attendus"]] <- values$chiSqFreqData
+    hstat_ai_capture(values, "Tests statistiques", titre, tables = tabs,
+                     meta = list(variables = vars, groupe = grp,
+                                 `type de test` = values$currentTestType))
+  }, ignoreInit = TRUE)
+
+  observeEvent(values$multiResults, {
+    df <- values$multiResults
+    if (is.null(df) || !NROW(df)) return()
+    hstat_ai_capture(values, "Comparaisons multiples", "Comparaisons post-hoc",
+      tables = list("Comparaisons" = df),
+      meta = list(variables = values$multiGroups))
+  }, ignoreInit = TRUE)
   mod_timeseries_server("timeseries", values)
   mod_ml_server("ml", values)
   mod_dl_server("dl", values)
@@ -5782,9 +5862,43 @@ server <- function(input, output, session) {
         })
     })
   }
+  # Libelles des analyses multivariees, pour l'onglet d'aide a la decision.
+  MV_LIBELLES <- c(
+    kmeans = "Classification k-means", efa = "Analyse factorielle exploratoire",
+    cfa = "Analyse factorielle confirmatoire", mtmm = "Matrice multitrait-multimethode",
+    pls = "Regression PLS", regmult = "Regression multiple",
+    afc = "Analyse factorielle des correspondances (AFC)",
+    mca = "Analyse des correspondances multiples (ACM)",
+    kmodes = "Classification k-modes", lca = "Analyse en classes latentes",
+    logit = "Regression logistique", famd = "Analyse factorielle de donnees mixtes (AFDM)",
+    mfa = "Analyse factorielle multiple (AFM)", kproto = "Classification k-prototypes")
+
   for (k in c("kmeans","efa","cfa","mtmm","pls","regmult","afc","mca",
               "kmodes","lca","logit","famd","mfa","kproto"))
     mv_register(k)
+
+  # Depot du resultat multivarie courant pour l'aide a la decision. Un
+  # observateur par cle plutot qu'un appel dans chacune des 14 analyses : le
+  # code de l'analyse n'a rien a savoir de l'assistance.
+  for (k in c("kmeans","efa","cfa","mtmm","pls","regmult","afc","mca",
+              "kmodes","lca","logit","famd","mfa","kproto")) {
+    local({
+      key <- k
+      observeEvent(mv_res[[key]], {
+        r <- mv_res[[key]]
+        if (is.null(r) || isFALSE(r$ok)) return()
+        vars <- unlist(lapply(paste0("mv_", key, c("_vars", "_x", "_y", "_num", "_quanti")),
+                              function(id) input[[id]]))
+        grp <- unlist(lapply(paste0("mv_", key, c("_group", "_cat", "_quali", "_facteur")),
+                             function(id) input[[id]]))
+        hstat_ai_capture(values, "Analyses multivariees",
+          MV_LIBELLES[[key]] %||% key,
+          tables = list("Metriques" = r$metrics),
+          text = if (!is.null(r$summary)) paste(r$summary, collapse = "\n") else NULL,
+          meta = list(variables = unique(vars), groupe = unique(grp)))
+      }, ignoreInit = TRUE)
+    })
+  }
 
   # ============================ CONTROLES =====================================
   mv_pick_num <- function(id, label, multiple = TRUE, selected = NULL) {

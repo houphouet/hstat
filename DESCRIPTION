@@ -1,7 +1,7 @@
 Package: HStat
 Type: Package
 Title: Interactive Shiny Application for Statistical Analysis
-Version: 0.7.5
+Version: 0.11.0
 Authors@R: person("Houphouet", "KOUADIO", email = "houphouet.kouadio@epitech.eu",
                    role = c("aut", "cre"),
                    comment = c(ORCID = "0000-0002-8238-1091"))
@@ -119,5 +119,7 @@ Imports:
     writexl,
     zip
 Suggests:
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    httr,
+    jsonlite
 Config/testthat/edition: 3

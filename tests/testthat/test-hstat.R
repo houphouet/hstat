@@ -52,6 +52,18 @@ local({
   if (file.exists(qual_path))
     suppressWarnings(suppressMessages(
       sys.source(qual_path, envir = e, keep.source = FALSE)))
+  # Le moteur d'inference et l'aide a la decision (hstat_ai_*, hstat_reco_*,
+  # hstat_data_profile) vivent dans mod_ai.R : partages par tous les modules.
+  ai_path <- file.path(dirname(utils_path), "mod_ai.R")
+  if (file.exists(ai_path))
+    suppressWarnings(suppressMessages(
+      sys.source(ai_path, envir = e, keep.source = FALSE)))
+  # Idem pour l'atelier de codage qualitatif (hstat_code_*, hstat_seg_*),
+  # qui vit dans mod_coding.R.
+  cod_path <- file.path(dirname(utils_path), "mod_coding.R")
+  if (file.exists(cod_path))
+    suppressWarnings(suppressMessages(
+      sys.source(cod_path, envir = e, keep.source = FALSE)))
   # Exporter TOUTES les fonctions (y compris cachees, ex. .hstat_sql_stat_exprs)
   for (nm in ls(e, all.names = TRUE))
     assign(nm, get(nm, envir = e), envir = globalenv())
@@ -1441,4 +1453,905 @@ test_that("la version du README suit celle de DESCRIPTION", {
   expect_identical(sort(citees), attendue,
                    info = paste0("README.md cite ", paste(citees, collapse = ", "),
                                  " alors que DESCRIPTION est en ", attendue))
+})
+
+# =============================================================================
+#  ATELIER DE CODAGE QUALITATIF (CAQDAS) -- mod_coding.R
+# =============================================================================
+
+test_that("livre de codes : ajout, unicite, couleurs et suppression", {
+  cb <- hstat_code_new_codebook()
+  expect_equal(nrow(cb), 0L)
+
+  cb <- hstat_code_add(cb, "Prix trop eleve")
+  cb <- hstat_code_add(cb, "Satisfaction")
+  expect_equal(nrow(cb), 2L)
+  expect_equal(cb$code_id, c("prix_trop_eleve", "satisfaction"))
+  # Deux codes ne doivent jamais partager une couleur tant que la palette suffit
+  expect_equal(length(unique(cb$color)), 2L)
+
+  # Libelle deja present (a la casse pres) : refuse en silence
+  expect_equal(nrow(hstat_code_add(cb, "satisfaction")), 2L)
+  # Libelle vide : refuse aussi
+  expect_equal(nrow(hstat_code_add(cb, "   ")), 2L)
+
+  # Couleur imposee
+  cb <- hstat_code_add(cb, "Delais", color = "#123456")
+  expect_equal(cb$color[cb$code_id == "delais"], "#123456")
+
+  cb <- hstat_code_update(cb, "delais", label = "Delais de livraison", memo = "retards")
+  expect_equal(hstat_code_label(cb, "delais"), "Delais de livraison")
+  expect_equal(cb$memo[cb$code_id == "delais"], "retards")
+
+  cb <- hstat_code_remove(cb, "delais")
+  expect_equal(nrow(cb), 2L)
+  # Un code inconnu retombe sur son identifiant plutot que sur NA
+  expect_equal(hstat_code_label(cb, "inconnu"), "inconnu")
+  expect_equal(hstat_code_color(cb, "inconnu"), "#95a5a6")
+})
+
+test_that("hstat_code_slug produit des identifiants uniques et sans accents", {
+  expect_equal(hstat_code_slug("Prix tres eleve"), "prix_tres_eleve")
+  expect_equal(hstat_code_slug("Qualite / Securite"), "qualite_securite")
+  expect_equal(hstat_code_slug("Prix", existing = c("prix")), "prix_2")
+  expect_equal(hstat_code_slug("Prix", existing = c("prix", "prix_2")), "prix_3")
+  expect_equal(hstat_code_slug("!!!"), "code")
+})
+
+test_that("segments : ajout, dedoublonnage, suppression et effectifs", {
+  cb <- hstat_code_add(hstat_code_add(hstat_code_new_codebook(), "Prix"), "Delai")
+  sg <- hstat_code_new_segments()
+
+  sg <- hstat_seg_add(sg, "D00001", "prix", 0, 10, "trop cher!!")
+  expect_equal(nrow(sg), 1L)
+  # Meme document, meme code, memes bornes : depot en double ignore
+  sg <- hstat_seg_add(sg, "D00001", "prix", 0, 10, "trop cher!!")
+  expect_equal(nrow(sg), 1L)
+  # Selection vide ou inversee : refusee
+  sg <- hstat_seg_add(sg, "D00001", "prix", 5, 5, "")
+  sg <- hstat_seg_add(sg, "D00001", "prix", 9, 3, "")
+  expect_equal(nrow(sg), 1L)
+
+  sg <- hstat_seg_add(sg, "D00002", "prix", 2, 8, "cher")
+  sg <- hstat_seg_add(sg, "D00002", "delai", 10, 20, "trop long")
+  expect_equal(nrow(sg), 3L)
+
+  cnt <- hstat_code_counts(cb, sg)
+  expect_equal(cnt$n_seg[cnt$code_id == "prix"], 2L)
+  expect_equal(cnt$n_doc[cnt$code_id == "prix"], 2L)
+  expect_equal(cnt$n_seg[cnt$code_id == "delai"], 1L)
+
+  expect_equal(nrow(hstat_seg_for_doc(sg, "D00002")), 2L)
+  expect_equal(nrow(hstat_seg_remove(sg, sg$seg_id[1])), 2L)
+  # Supprimer un code emporte ses etiquettes : pas de segment orphelin
+  expect_equal(nrow(hstat_seg_drop_code(sg, "prix")), 1L)
+})
+
+test_that("hstat_code_highlight_html balise le bon passage et echappe le HTML", {
+  cb <- hstat_code_add(hstat_code_new_codebook(), "Prix", color = "#e74c3c")
+  txt <- "Le prix est trop eleve"
+  # "prix" occupe les positions 3 a 7 (bornes JS : debut a 0, fin exclue)
+  sg <- hstat_seg_add(hstat_code_new_segments(), "D1", "prix", 3, 7, "prix")
+
+  h <- hstat_code_highlight_html(txt, sg, cb)
+  expect_true(grepl("<mark", h, fixed = TRUE))
+  expect_true(grepl(">prix</mark>", h, fixed = TRUE))
+  expect_true(grepl("231,76,60", h, fixed = TRUE))   # #e74c3c en rgba
+  # Le texte hors segment reste intact
+  expect_true(grepl("Le ", h, fixed = TRUE))
+  expect_true(grepl(" est trop eleve", h, fixed = TRUE))
+
+  # Sans segment : simple echappement, aucune balise <mark>
+  expect_false(grepl("<mark", hstat_code_highlight_html(txt, NULL, cb), fixed = TRUE))
+
+  # Le texte du repondant ne doit jamais pouvoir injecter du HTML
+  h2 <- hstat_code_highlight_html("a <script>x</script> b",
+                                  hstat_code_new_segments(), cb)
+  expect_false(grepl("<script>", h2, fixed = TRUE))
+  expect_true(grepl("&lt;script&gt;", h2, fixed = TRUE))
+
+  # Texte vide
+  expect_true(grepl("vide", hstat_code_highlight_html("", NULL, cb)))
+})
+
+test_that("hstat_code_highlight_html gere les chevauchements", {
+  cb <- hstat_code_add(hstat_code_add(hstat_code_new_codebook(), "A", color = "#e74c3c"),
+                       "B", color = "#2980b9")
+  txt <- "0123456789"
+  sg <- hstat_seg_add(hstat_code_new_segments(), "D1", "a", 0, 6, "012345")
+  sg <- hstat_seg_add(sg, "D1", "b", 4, 10, "456789")
+
+  h <- hstat_code_highlight_html(txt, sg, cb)
+  # Le texte affiche doit rester exactement le texte d'origine, balises otees
+  expect_equal(gsub("<[^>]*>", "", h), txt)
+  # La zone commune (4-6) recoit un degrade des deux couleurs
+  expect_true(grepl("linear-gradient", h, fixed = TRUE))
+  expect_true(grepl("A + B", h, fixed = TRUE))
+
+  # Bornes hors du texte : ramenees dans les limites, sans erreur
+  sg2 <- hstat_seg_add(hstat_code_new_segments(), "D1", "a", 5, 999, "x")
+  expect_equal(gsub("<[^>]*>", "", hstat_code_highlight_html(txt, sg2, cb)), txt)
+})
+
+test_that("hstat_code_docs ne retient que les lignes non vides", {
+  df <- data.frame(rep = c("trop cher", "", NA, "service parfait"),
+                   age = c("<25", "25-40", "<25", ">40"),
+                   stringsAsFactors = FALSE)
+  d <- hstat_code_docs(df, "rep")
+  expect_equal(nrow(d), 2L)
+  expect_equal(d$row, c(1L, 4L))
+  expect_equal(d$text, c("trop cher", "service parfait"))
+  # Le profil suit les documents retenus, dans le meme ordre
+  p <- hstat_code_profile(df, d, "age")
+  expect_equal(p$age, c("<25", ">40"))
+  # Colonne inexistante : tableau vide plutot qu'erreur
+  expect_equal(nrow(hstat_code_docs(df, "absente")), 0L)
+})
+
+test_that("hstat_code_retrieve filtre par code, par profil et par mot-cle", {
+  df <- data.frame(rep = c("c'est trop cher", "service parfait", "prix excessif"),
+                   age = c("<25", ">40", "<25"), stringsAsFactors = FALSE)
+  d  <- hstat_code_docs(df, "rep")
+  pr <- hstat_code_profile(df, d, "age")
+  cb <- hstat_code_add(hstat_code_add(hstat_code_new_codebook(), "Prix"), "Service")
+  sg <- hstat_seg_add(hstat_code_new_segments(), d$doc_id[1], "prix", 7, 15, "trop cher")
+  sg <- hstat_seg_add(sg, d$doc_id[2], "service", 0, 15, "service parfait")
+  sg <- hstat_seg_add(sg, d$doc_id[3], "prix", 0, 14, "prix excessif")
+
+  expect_equal(nrow(hstat_code_retrieve(sg, cb, d)), 3L)
+  expect_equal(nrow(hstat_code_retrieve(sg, cb, d, code_ids = "prix")), 2L)
+
+  # « Les critiques sur le prix emises par les moins de 25 ans »
+  r <- hstat_code_retrieve(sg, cb, d, code_ids = "prix", profile = pr,
+                           filter_var = "age", filter_levels = "<25")
+  expect_equal(nrow(r), 2L)
+  expect_true(all(r$age == "<25"))
+  expect_true("Extrait" %in% names(r))
+
+  r2 <- hstat_code_retrieve(sg, cb, d, profile = pr, filter_var = "age",
+                            filter_levels = ">40")
+  expect_equal(nrow(r2), 1L)
+  expect_equal(r2$Code, "Service")
+
+  expect_equal(nrow(hstat_code_retrieve(sg, cb, d, search = "excessif")), 1L)
+  expect_equal(nrow(hstat_code_retrieve(hstat_code_new_segments(), cb, d)), 0L)
+})
+
+test_that("hstat_code_matrix croise les codes et les profils", {
+  df <- data.frame(rep = c("a", "b", "c"), age = c("<25", "<25", ">40"),
+                   stringsAsFactors = FALSE)
+  d  <- hstat_code_docs(df, "rep")
+  pr <- hstat_code_profile(df, d, "age")
+  cb <- hstat_code_add(hstat_code_add(hstat_code_new_codebook(), "Prix"), "Service")
+  sg <- hstat_seg_add(hstat_code_new_segments(), d$doc_id[1], "prix", 0, 1, "a")
+  sg <- hstat_seg_add(sg, d$doc_id[1], "prix", 0, 1, "a")   # doublon : ignore
+  sg <- hstat_seg_add(sg, d$doc_id[2], "prix", 0, 1, "b")
+  sg <- hstat_seg_add(sg, d$doc_id[3], "service", 0, 1, "c")
+
+  m <- hstat_code_matrix(sg, cb, pr, "age", count = "segments")
+  expect_equal(m$Code, c("Prix", "Service"))
+  expect_equal(m[["<25"]], c(2L, 0L))
+  expect_equal(m[[">40"]], c(0L, 1L))
+  expect_equal(m$Total, c(2, 1))
+
+  # Sans variable de profil : simple colonne d'effectifs
+  m0 <- hstat_code_matrix(sg, cb, pr, "")
+  expect_equal(names(m0), c("Code", "Total"))
+  expect_equal(m0$Total, c(2L, 1L))
+
+  # Comptage par repondant : deux segments dans le meme document pesent 1
+  sg2 <- hstat_seg_add(sg, d$doc_id[1], "prix", 5, 9, "zzzz")
+  expect_equal(hstat_code_matrix(sg2, cb, pr, "age", count = "segments")[["<25"]][1], 3L)
+  expect_equal(hstat_code_matrix(sg2, cb, pr, "age", count = "documents")[["<25"]][1], 2L)
+
+  expect_null(hstat_code_matrix(sg, hstat_code_new_codebook(), pr, "age"))
+})
+
+test_that("hstat_code_cooccurrence distingue meme reponse et meme passage", {
+  cb <- hstat_code_add(hstat_code_add(hstat_code_new_codebook(), "A"), "B")
+  # Deux codes dans la meme reponse, mais sur des passages disjoints
+  sg <- hstat_seg_add(hstat_code_new_segments(), "D1", "a", 0, 5, "xxxxx")
+  sg <- hstat_seg_add(sg, "D1", "b", 20, 25, "yyyyy")
+
+  m_doc <- hstat_code_cooccurrence(sg, cb, mode = "document")
+  expect_equal(m_doc["A", "B"], 1L)
+  m_ov <- hstat_code_cooccurrence(sg, cb, mode = "overlap")
+  expect_equal(m_ov["A", "B"], 0L)
+
+  # Passages qui se recouvrent
+  sg2 <- hstat_seg_add(hstat_code_new_segments(), "D1", "a", 0, 10, "x")
+  sg2 <- hstat_seg_add(sg2, "D1", "b", 5, 15, "y")
+  expect_equal(hstat_code_cooccurrence(sg2, cb, mode = "overlap")["A", "B"], 1L)
+  # Matrice symetrique, diagonale nulle
+  m2 <- hstat_code_cooccurrence(sg2, cb, mode = "overlap")
+  expect_equal(m2["A", "B"], m2["B", "A"])
+  expect_equal(unname(diag(m2)), c(0L, 0L))
+
+  # Moins de deux codes : rien a croiser
+  expect_null(hstat_code_cooccurrence(sg, hstat_code_add(hstat_code_new_codebook(), "A")))
+})
+
+test_that("la mise en page du nuage de mots ne superpose aucun mot", {
+  set.seed(1)
+  w <- c("prix", "cher", "service", "qualite", "delai", "accueil", "attente")
+  f <- c(30, 25, 20, 12, 8, 5, 3)
+  lay <- hstat_code_cloud_layout(w, f, max_words = 10, min_size = 4, max_size = 14)
+  expect_true(nrow(lay) >= 5)
+  expect_true(all(is.finite(lay$x)) && all(is.finite(lay$y)))
+  # Le mot le plus frequent est le plus gros et occupe le centre
+  expect_equal(lay$word[1], "prix")
+  expect_equal(lay$size[1], max(lay$size))
+  expect_equal(lay$x[1], 0)
+
+  # Aucun recouvrement des boites englobantes
+  bw <- nchar(lay$word) * lay$size * 0.62
+  bh <- lay$size * 1.35
+  for (i in seq_len(nrow(lay) - 1L)) for (j in (i + 1L):nrow(lay)) {
+    ov <- abs(lay$x[i] - lay$x[j]) < (bw[i] + bw[j]) / 2 &&
+          abs(lay$y[i] - lay$y[j]) < (bh[i] + bh[j]) / 2
+    expect_false(ov, info = sprintf("« %s » chevauche « %s »", lay$word[i], lay$word[j]))
+  }
+
+  # Plafond du nombre de mots respecte
+  expect_true(nrow(hstat_code_cloud_layout(w, f, max_words = 3)) <= 3)
+  expect_null(hstat_code_cloud_layout(character(0), numeric(0)))
+})
+
+test_that("la carte conceptuelle place autant de noeuds que de codes", {
+  cb <- hstat_code_new_codebook()
+  for (l in c("Prix", "Service", "Delai", "Qualite")) cb <- hstat_code_add(cb, l)
+  sg <- hstat_code_new_segments()
+  sg <- hstat_seg_add(sg, "D1", "prix", 0, 5, "a")
+  sg <- hstat_seg_add(sg, "D1", "service", 6, 9, "b")
+  sg <- hstat_seg_add(sg, "D2", "prix", 0, 5, "a")
+  sg <- hstat_seg_add(sg, "D2", "delai", 6, 9, "c")
+  sg <- hstat_seg_add(sg, "D3", "qualite", 0, 5, "d")
+
+  m <- hstat_code_cooccurrence(sg, cb)
+  cnt <- hstat_code_counts(cb, sg)
+  lay <- hstat_code_map_layout(m, stats::setNames(cnt$n_seg, cnt$label))
+  expect_equal(nrow(lay), 4L)
+  expect_true(all(is.finite(lay$x)) && all(is.finite(lay$y)))
+  expect_setequal(lay$label, cb$label)
+
+  if (requireNamespace("ggplot2", quietly = TRUE)) {
+    p <- hstat_code_map_plot(m, cb, cnt)
+    expect_s3_class(p, "ggplot")
+  }
+  # Aucune cooccurrence : repli sur la disposition circulaire, sans erreur
+  vide <- hstat_code_cooccurrence(hstat_code_new_segments(), cb)
+  expect_equal(nrow(hstat_code_map_layout(vide, stats::setNames(rep(1, 4), cb$label))), 4L)
+})
+
+test_that("le moteur hors ligne est toujours disponible, sans cle ni reseau", {
+  old <- Sys.getenv("ANTHROPIC_API_KEY", unset = NA)
+  Sys.unsetenv("ANTHROPIC_API_KEY")
+  on.exit(if (!is.na(old)) Sys.setenv(ANTHROPIC_API_KEY = old), add = TRUE)
+
+  # C'est la garantie centrale : le moteur « auto » ne depend de rien.
+  st <- hstat_ai_status("auto")
+  expect_true(st$ok)
+  expect_true(grepl("sans reseau", st$message, fixed = TRUE))
+})
+
+test_that("le moteur par defaut est local, jamais l'API payante", {
+  # Le premier choix propose a l'utilisateur et le defaut de hstat_ai_call()
+  # doivent rester le moteur local : gratuit et hors ligne.
+  expect_equal(unname(HSTAT_AI_ENGINES[1]), "local")
+  expect_equal(formals(hstat_ai_call)$engine, "local")
+  expect_equal(formals(hstat_ai_status)$engine, "local")
+  expect_true("claude" %in% HSTAT_AI_ENGINES)
+})
+
+test_that("API Claude : degradation propre en l'absence de cle", {
+  old <- Sys.getenv("ANTHROPIC_API_KEY", unset = NA)
+  Sys.unsetenv("ANTHROPIC_API_KEY")
+  on.exit(if (!is.na(old)) Sys.setenv(ANTHROPIC_API_KEY = old), add = TRUE)
+
+  expect_equal(hstat_ai_key(NULL), "")
+  expect_equal(hstat_ai_key("  sk-test  "), "sk-test")
+  expect_false(hstat_ai_available(NULL))
+
+  st <- hstat_ai_status("claude")
+  expect_false(st$ok)
+  expect_true(grepl("cle d'API", st$message, fixed = TRUE))
+  # Le message doit orienter vers les moteurs gratuits
+  expect_true(grepl("gratuits et locaux", st$message, fixed = TRUE))
+
+  # Aucun appel reseau ne doit partir sans cle
+  r <- hstat_ai_call("bonjour", engine = "claude", api_key = NULL)
+  expect_false(r$ok)
+  expect_true(nzchar(r$error))
+
+  Sys.setenv(ANTHROPIC_API_KEY = "sk-depuis-l-environnement")
+  expect_equal(hstat_ai_key(NULL), "sk-depuis-l-environnement")
+  Sys.unsetenv("ANTHROPIC_API_KEY")
+})
+
+test_that("adresses par defaut des serveurs d'inference locaux", {
+  # 127.0.0.1 et non localhost : on veut que ce soit visiblement la machine
+  # de l'utilisateur, et rien d'autre.
+  expect_true(grepl("^http://127\\.0\\.0\\.1:11434$", hstat_ai_url("ollama")))
+  expect_true(grepl("^http://127\\.0\\.0\\.1:8080$", hstat_ai_url("openai")))
+  expect_equal(hstat_ai_url("ollama", "http://192.168.1.5:11434/"),
+               "http://192.168.1.5:11434")
+  expect_equal(hstat_ai_url("ollama", "   "), "http://127.0.0.1:11434")
+})
+
+test_that("serveur local injoignable : message actionnable, jamais d'erreur", {
+  skip_if_not(requireNamespace("httr", quietly = TRUE))
+  # Port volontairement ferme
+  st <- hstat_ai_status("local", "ollama", "http://127.0.0.1:9")
+  expect_false(st$ok)
+  expect_true(grepl("Ollama", st$message, fixed = TRUE))
+  expect_equal(hstat_ai_ollama_models("http://127.0.0.1:9", timeout = 2), character(0))
+
+  r <- hstat_ai_call("bonjour", engine = "local", url = "http://127.0.0.1:9",
+                     model = "inexistant", timeout = 3)
+  expect_false(r$ok)
+  expect_true(nzchar(r$error))
+})
+
+test_that("le modele Claude declare est bien claude-opus-5", {
+  expect_equal(HSTAT_AI_MODEL, "claude-opus-5")
+})
+
+test_that("hstat_code_auto_codebook degage des themes sans modele ni reseau", {
+  set.seed(3)
+  # Chaque registre partage un terme pivot d'une reponse a l'autre : c'est
+  # exactement la structure de cooccurrence sur laquelle s'appuie la methode.
+  prix <- rep(c("Le prix est vraiment trop eleve.",
+                "Un prix excessif, beaucoup trop cher.",
+                "Le prix annonce reste cher et excessif."), 6)
+  serv <- rep(c("L accueil du personnel est chaleureux.",
+                "Un accueil competent et vraiment disponible.",
+                "L accueil reste chaleureux et disponible."), 6)
+  cb <- hstat_code_auto_codebook(c(prix, serv), n_codes = 2, min_char = 4)
+
+  expect_false(is.null(cb))
+  expect_equal(nrow(cb), 2L)
+  expect_setequal(names(cb), c("label", "memo", "keywords"))
+  expect_true(all(nzchar(cb$label)))
+  expect_false(any(duplicated(tolower(cb$label))))
+  expect_true(all(nzchar(cb$keywords)))
+
+  # Les deux registres lexicaux doivent se retrouver dans des themes distincts
+  kw <- lapply(seq_len(2), function(i) trimws(strsplit(cb$keywords[i], ";")[[1]]))
+  th_prix <- which(vapply(kw, function(k) "prix" %in% k, logical(1)))
+  th_serv <- which(vapply(kw, function(k) "personnel" %in% k, logical(1)))
+  expect_length(th_prix, 1L)
+  expect_length(th_serv, 1L)
+  expect_false(identical(th_prix, th_serv))
+
+  # Corpus trop court : refus explicite plutot qu'erreur
+  expect_null(hstat_code_auto_codebook(c("a", "b")))
+  expect_null(hstat_code_auto_codebook(character(0)))
+})
+
+test_that(".hstat_code_sentences decoupe sans rogner de lettre", {
+  t <- "Le service est parfait. En revanche, le prix est trop eleve ! Je ne reviendrai pas."
+  b <- .hstat_code_sentences(t)
+  expect_equal(nrow(b), 3L)
+  got <- vapply(seq_len(3), function(i) substr(t, b[i, 1] + 1, b[i, 2]), character(1))
+  expect_equal(got, c("Le service est parfait",
+                      "En revanche, le prix est trop eleve",
+                      "Je ne reviendrai pas"))
+  # Sans ponctuation finale, le texte entier forme une phrase
+  expect_equal(substr("un seul bloc", 1, .hstat_code_sentences("un seul bloc")[1, 2]),
+               "un seul bloc")
+  expect_null(.hstat_code_sentences(""))
+  expect_null(.hstat_code_sentences("..."))
+})
+
+test_that("le codage par dictionnaire pose des bornes exactes", {
+  df <- data.frame(avis = c("Le prix est trop eleve. Mais l accueil est parfait.",
+                            "Rien a signaler.",
+                            "TARIF excessif et PRIX abusif !"),
+                   stringsAsFactors = FALSE)
+  d  <- hstat_code_docs(df, "avis")
+  cb <- hstat_code_add(hstat_code_new_codebook(), "Prix", keywords = "prix; tarif")
+  cb <- hstat_code_add(cb, "Accueil", keywords = "accueil")
+
+  sg <- hstat_code_lexical_apply(d, cb, scope = "phrase")
+  expect_true(nrow(sg) >= 3)
+  expect_true(all(sg$source == "auto"))
+  # Toute borne doit redonner exactement le texte stocke
+  for (i in seq_len(nrow(sg))) {
+    txt <- d$text[d$doc_id == sg$doc_id[i]]
+    expect_equal(substr(txt, sg$start[i] + 1, sg$end[i]), sg$text[i])
+  }
+  # La phrase entiere est etiquetee, pas le seul mot-cle
+  expect_true(any(grepl("Le prix est trop eleve", sg$text, fixed = TRUE)))
+  # La reponse sans mot-cle n'est pas codee
+  expect_false(d$doc_id[2] %in% sg$doc_id)
+  # Casse ignoree : « TARIF » et « PRIX » sont dans la meme phrase, donc un
+  # seul segment pour le code Prix (le doublon de bornes est ecarte)
+  expect_equal(sum(sg$doc_id == d$doc_id[3] & sg$code_id == "prix"), 1L)
+
+  # Portee « mot » : le segment se limite au mot-cle
+  sm <- hstat_code_lexical_apply(d, cb, scope = "mot")
+  expect_true(all(tolower(sm$text) %in% c("prix", "tarif", "accueil")))
+  expect_true(nrow(sm) > nrow(sg))
+})
+
+test_that("le dictionnaire ignore les accents sans decaler les positions", {
+  df <- data.frame(avis = "Le tarif est vraiment \u00e9lev\u00e9 et la qualit\u00e9 m\u00e9diocre.",
+                   stringsAsFactors = FALSE)
+  d  <- hstat_code_docs(df, "avis")
+  # Mot-cle sans accent, texte avec accents
+  cb <- hstat_code_add(hstat_code_new_codebook(), "Qualite", keywords = "qualite; eleve")
+  sg <- hstat_code_lexical_apply(d, cb, scope = "mot")
+  expect_equal(nrow(sg), 2L)
+  # Les positions doivent pointer sur les formes ACCENTUEES du texte d'origine
+  expect_setequal(sg$text, c("\u00e9lev\u00e9", "qualit\u00e9"))
+  for (i in seq_len(nrow(sg)))
+    expect_equal(substr(d$text, sg$start[i] + 1, sg$end[i]), sg$text[i])
+})
+
+test_that("mots-cles : lecture, ecriture et migration d'un ancien projet", {
+  cb <- hstat_code_add(hstat_code_new_codebook(), "Prix",
+                       keywords = "prix; tarif ; cher")
+  expect_equal(hstat_code_keywords_of(cb, "prix"), c("prix", "tarif", "cher"))
+  expect_equal(hstat_code_keywords_of(cb, "inconnu"), character(0))
+
+  cb2 <- hstat_code_update(cb, "prix", keywords = "cout")
+  expect_equal(hstat_code_keywords_of(cb2, "prix"), "cout")
+
+  # Livre de codes enregistre par une version anterieure a la colonne keywords
+  ancien <- data.frame(code_id = "prix", label = "Prix", color = "#e74c3c",
+                       memo = "", created = "2026-01-01 00:00:00",
+                       stringsAsFactors = FALSE)
+  mig <- hstat_code_migrate_codebook(ancien)
+  expect_true("keywords" %in% names(mig))
+  expect_equal(mig$keywords, "")
+  expect_equal(mig$label, "Prix")
+  expect_equal(nrow(hstat_code_migrate_codebook(NULL)), 0L)
+})
+
+test_that("les codes sans mots-cles sont comptes, pas silencieusement ignores", {
+  df <- data.frame(avis = "Le prix est eleve.", stringsAsFactors = FALSE)
+  d  <- hstat_code_docs(df, "avis")
+  cb <- hstat_code_add(hstat_code_new_codebook(), "Prix", keywords = "prix")
+  cb <- hstat_code_add(cb, "Delai")            # sans dictionnaire
+  sg <- hstat_code_lexical_apply(d, cb)
+  expect_equal(attr(sg, "codes_sans_mots_cles"), 1L)
+  expect_true(all(sg$code_id == "prix"))
+})
+
+test_that("hstat_ai_extract_json tolere le texte et les blocs markdown", {
+  skip_if_not(requireNamespace("jsonlite", quietly = TRUE))
+  j1 <- hstat_ai_extract_json('Voici le resultat :\n```json\n{"codes":[{"label":"Prix"}]}\n```\nVoila.')
+  expect_equal(j1$codes[[1]]$label, "Prix")
+  j2 <- hstat_ai_extract_json('{"codes":[{"label":"A"},{"label":"B"}]}')
+  expect_equal(length(j2$codes), 2L)
+  expect_null(hstat_ai_extract_json("aucun json ici"))
+  expect_null(hstat_ai_extract_json(""))
+})
+
+test_that("hstat_ai_parse_codebook extrait libelles et memos", {
+  skip_if_not(requireNamespace("jsonlite", quietly = TRUE))
+  p <- hstat_ai_extract_json(
+    '{"codes":[{"label":"Prix trop eleve","memo":"cout juge excessif"},
+               {"label":"Accueil","memo":""},
+               {"label":"","memo":"ignore"}]}')
+  cb <- hstat_ai_parse_codebook(p)
+  expect_equal(nrow(cb), 2L)
+  expect_equal(cb$label, c("Prix trop eleve", "Accueil"))
+  expect_equal(cb$memo[1], "cout juge excessif")
+  expect_null(hstat_ai_parse_codebook(NULL))
+})
+
+test_that("hstat_code_locate_quote retrouve l'extrait dans le texte", {
+  txt <- "Le service est correct mais le prix est vraiment trop eleve."
+  p <- hstat_code_locate_quote(txt, "le prix est vraiment trop eleve")
+  expect_false(is.null(p))
+  expect_equal(substr(txt, p[["start"]] + 1, p[["end"]]), "le prix est vraiment trop eleve")
+
+  # Casse differente
+  p2 <- hstat_code_locate_quote(txt, "LE PRIX EST VRAIMENT TROP ELEVE")
+  expect_false(is.null(p2))
+  expect_equal(p2[["start"]], p[["start"]])
+
+  # Espaces normalises par le modele
+  p3 <- hstat_code_locate_quote(txt, "le   prix    est vraiment")
+  expect_false(is.null(p3))
+
+  # Extrait invente : rien n'est pose sur le texte
+  expect_null(hstat_code_locate_quote(txt, "la livraison a ete tres rapide"))
+  expect_null(hstat_code_locate_quote(txt, ""))
+})
+
+test_that("hstat_ai_parse_autocode n'accepte que les extraits reellement presents", {
+  skip_if_not(requireNamespace("jsonlite", quietly = TRUE))
+  df <- data.frame(rep = c("le prix est trop eleve", "service impeccable"),
+                   stringsAsFactors = FALSE)
+  d  <- hstat_code_docs(df, "rep")
+  cb <- hstat_code_add(hstat_code_add(hstat_code_new_codebook(), "Prix"), "Service")
+
+  p <- hstat_ai_extract_json(sprintf(
+    '{"codages":[{"doc":"%s","code":"Prix","extrait":"le prix est trop eleve"},
+                 {"doc":"%s","code":"Service","extrait":"un extrait totalement invente"},
+                 {"doc":"%s","code":"Code inconnu","extrait":"service impeccable"}]}',
+    d$doc_id[1], d$doc_id[2], d$doc_id[2]))
+  sg <- hstat_ai_parse_autocode(p, d, cb)
+
+  expect_equal(nrow(sg), 1L)
+  expect_equal(sg$code_id, "prix")
+  expect_equal(sg$source, "IA")
+  expect_equal(sg$text, "le prix est trop eleve")
+  expect_equal(attr(sg, "non_localises"), 2L)
+})
+
+test_that("mod_coding.R est source par HStat.R avant mod_qualitative.R", {
+  root <- .hstat_repo_root()
+  h <- readLines(file.path(root, "inst", "app", "HStat.R"), warn = FALSE)
+  i_cod <- grep('source\\("mod_coding\\.R"', h)
+  i_qua <- grep('source\\("mod_qualitative\\.R"', h)
+  expect_length(i_cod, 1L)
+  expect_length(i_qua, 1L)
+  # mod_qualitative_ui() appelle mod_coding_ui() : l'ordre doit tenir
+  expect_true(i_cod < i_qua)
+  expect_true(file.exists(file.path(root, "inst", "app", "mod_coding.R")))
+})
+
+test_that("le corps des requetes locales a la forme attendue par les serveurs", {
+  # Ces champs sont le contrat avec Ollama et avec les serveurs compatibles
+  # OpenAI : un renommage silencieux casserait l'assistant sans erreur visible.
+  b <- .hstat_ai_body_ollama("code ce corpus", system = "tu reponds en JSON",
+                             model = "qwen2.5", json = TRUE)
+  expect_equal(b$model, "qwen2.5")
+  expect_false(b$stream)                    # sinon la reponse arrive par morceaux
+  expect_equal(b$format, "json")
+  expect_equal(b$options$temperature, 0.2)  # thematisation stable, pas creative
+  expect_equal(vapply(b$messages, function(m) m$role, character(1)),
+               c("system", "user"))
+  expect_equal(b$messages[[2]]$content, "code ce corpus")
+
+  # Sans consigne systeme, un seul message
+  b0 <- .hstat_ai_body_ollama("x", system = NULL, model = "m")
+  expect_equal(vapply(b0$messages, function(m) m$role, character(1)), "user")
+  expect_null(.hstat_ai_body_ollama("x", model = "m", json = FALSE)$format)
+
+  o <- .hstat_ai_body_openai("code ce corpus", system = "sys", model = "local-model",
+                             max_tokens = 2048L, json = TRUE)
+  expect_equal(o$model, "local-model")
+  expect_false(o$stream)
+  expect_equal(o$max_tokens, 2048L)
+  expect_equal(o$response_format$type, "json_object")
+  # Le rejeu apres un refus du serveur passe par la meme fonction sans le champ
+  expect_null(.hstat_ai_body_openai("x", model = "m", json = FALSE)$response_format)
+
+  skip_if_not(requireNamespace("jsonlite", quietly = TRUE))
+  # `messages` doit rester un TABLEAU JSON, meme avec un seul message
+  j <- jsonlite::toJSON(.hstat_ai_body_ollama("x", model = "m"), auto_unbox = TRUE)
+  expect_true(grepl('"messages":[{', j, fixed = TRUE))
+  expect_true(grepl('"stream":false', j, fixed = TRUE))
+})
+
+# =============================================================================
+#  AIDE A LA DECISION -- mod_ai.R
+# =============================================================================
+
+test_that("la normalite est evaluee DANS chaque groupe, pas sur le melange", {
+  set.seed(11)
+  # Deux groupes parfaitement normaux mais bien separes : leur melange est
+  # bimodal et Shapiro le rejette (p ~ 1e-6) alors que chaque groupe le passe.
+  # Tester le melange conduirait a deconseiller l'ANOVA quand elle convient.
+  d <- data.frame(y = c(stats::rnorm(30, 0, 1), stats::rnorm(30, 8, 1)),
+                  g = rep(c("A", "B"), each = 30), stringsAsFactors = FALSE)
+  expect_lt(stats::shapiro.test(d$y)$p.value, 0.001)   # le melange echoue
+
+  p <- hstat_data_profile(d, "y", "g")
+  expect_equal(p$variables$y$normale$portee, "par groupe")
+  expect_true(p$variables$y$normale$ok)
+  expect_equal(nrow(p$variables$y$normale$detail), 2L)
+  expect_true(all(p$variables$y$normale$detail$Normale))
+
+  r <- hstat_reco_analyses(p)
+  expect_true(grepl("t de Student|Welch", r$Analyse[r$Pertinence == "Recommandee"][1]))
+
+  # Sans facteur, la normalite est bien evaluee globalement
+  p0 <- hstat_data_profile(d, "y")
+  expect_equal(p0$variables$y$normale$portee, "globale")
+  expect_false(isTRUE(p0$variables$y$normale$ok))
+})
+
+test_that("le profil identifie correctement le type des variables", {
+  d <- data.frame(
+    quanti = stats::rnorm(50),
+    ordinale = sample(1:5, 50, TRUE),
+    binaire = sample(c(0, 1), 50, TRUE),
+    categ = sample(c("a", "b", "c", "d"), 50, TRUE),
+    stringsAsFactors = FALSE)
+  p <- hstat_data_profile(d, names(d))
+  expect_equal(p$variables$quanti$type, "quantitative")
+  expect_equal(p$variables$ordinale$type, "ordinale")   # entier a peu de niveaux
+  expect_equal(p$variables$binaire$type, "binaire")
+  expect_equal(p$variables$categ$type, "categorielle")
+  expect_equal(p$n, 50L)
+  expect_equal(p$n_quanti, 1L)
+  expect_null(hstat_data_profile(NULL))
+  expect_null(hstat_data_profile(d, "colonne_absente"))
+})
+
+test_that("le recommandateur suit les regles statistiques classiques", {
+  set.seed(4)
+  reco1 <- function(p) hstat_reco_analyses(p)$Analyse[
+    hstat_reco_analyses(p)$Pertinence == "Recommandee"][1]
+
+  # Deux groupes, normalite intra-groupe, variances homogenes -> t de Student
+  d <- data.frame(y = c(stats::rnorm(40, 0, 1), stats::rnorm(40, 1, 1)),
+                  g = rep(c("A", "B"), each = 40), stringsAsFactors = FALSE)
+  expect_match(reco1(hstat_data_profile(d, "y", "g")), "Student")
+
+  # Trois groupes non normaux -> Kruskal-Wallis
+  d3 <- data.frame(y = stats::rexp(90, 0.2),
+                   g = rep(c("A", "B", "C"), each = 30), stringsAsFactors = FALSE)
+  expect_equal(reco1(hstat_data_profile(d3, "y", "g")), "Kruskal-Wallis")
+  # ... et le post-hoc doit etre propose a la suite
+  r3 <- hstat_reco_analyses(hstat_data_profile(d3, "y", "g"))
+  expect_true("Comparaisons post-hoc" %in% r3$Analyse)
+
+  # Un groupe sous 5 observations : pas de test parametrique en tete
+  dp <- data.frame(y = stats::rnorm(20, 5, 1),
+                   g = rep(c("A", "B", "C", "D"), c(3, 3, 3, 11)),
+                   stringsAsFactors = FALSE)
+  rp <- hstat_reco_analyses(hstat_data_profile(dp, "y", "g"))
+  expect_equal(rp$Analyse[rp$Pertinence == "Recommandee"][1], "Kruskal-Wallis")
+  expect_true("Test exact / permutation" %in% rp$Analyse)
+
+  # Deux qualitatives -> chi-deux, et la taille d'effet a enchainer
+  dq <- data.frame(a = sample(c("x", "y"), 120, TRUE),
+                   b = sample(c("u", "v", "w"), 120, TRUE), stringsAsFactors = FALSE)
+  rq <- hstat_reco_analyses(hstat_data_profile(dq, c("a", "b"), "a"))
+  expect_match(rq$Analyse[rq$Pertinence == "Recommandee"][1], "chi-deux")
+  expect_true(any(grepl("Cramer", rq$Analyse)))
+
+  # Mesures appariees -> version appariee du test
+  da <- data.frame(y = stats::rnorm(60), g = rep(c("avant", "apres"), each = 30),
+                   stringsAsFactors = FALSE)
+  expect_match(reco1(hstat_data_profile(da, "y", "g", paired = TRUE)), "apparie")
+
+  expect_null(hstat_reco_analyses(NULL))
+})
+
+test_that("le verdict signale un ecart sans jamais desavouer l'utilisateur", {
+  set.seed(5)
+  d <- data.frame(y = stats::rexp(90, 0.2), g = rep(c("A", "B", "C"), each = 30),
+                  stringsAsFactors = FALSE)
+  r <- hstat_reco_analyses(hstat_data_profile(d, "y", "g"))
+
+  v_ok <- hstat_reco_verdict(r, "Kruskal-Wallis sur 3 groupes")
+  expect_true(v_ok$coherent)
+
+  v_no <- hstat_reco_verdict(r, "ANOVA a un facteur")
+  expect_false(v_no$coherent)
+  expect_true(grepl("Kruskal-Wallis", v_no$message, fixed = TRUE))
+  # Le ton compte autant que le fond : on informe, on ne condamne pas.
+  expect_true(grepl("ne disqualifie pas", v_no$message, fixed = TRUE))
+  expect_true(grepl("A vous de trancher", v_no$message, fixed = TRUE))
+  expect_false(grepl("erreur|faux|incorrect", tolower(v_no$message)))
+
+  expect_null(hstat_reco_verdict(NULL, "x"))
+  expect_null(hstat_reco_verdict(r, ""))
+})
+
+test_that("hstat_ai_capture depose un contexte exploitable", {
+  values <- new.env()
+  df <- data.frame(Test = "Test t", Variable = "score", p_value = 0.012,
+                   stringsAsFactors = FALSE)
+  ctx <- hstat_ai_capture(values, "Tests statistiques", "Test t de Student",
+                          tables = list("Resultats" = df, "Vide" = NULL),
+                          meta = list(variables = "score", groupe = "sexe"))
+  expect_equal(ctx$title, "Test t de Student")
+  # Les tableaux vides ne sont pas conserves : ils n'apporteraient rien a l'invite
+  expect_equal(names(ctx$tables), "Resultats")
+  expect_equal(ctx$meta$variables, "score")
+  expect_identical(values$aiContext, ctx)
+
+  txt <- hstat_ai_context_text(ctx)
+  expect_true(grepl("Test t de Student", txt, fixed = TRUE))
+  expect_true(grepl("score", txt, fixed = TRUE))
+  expect_true(grepl("0.012", txt, fixed = TRUE))
+  expect_equal(hstat_ai_context_text(NULL), "")
+})
+
+test_that("la lecture automatique relit les p-values sans modele ni reseau", {
+  set.seed(6)
+  d <- data.frame(y = c(stats::rnorm(30), stats::rnorm(30, 2)),
+                  g = rep(c("A", "B"), each = 30), stringsAsFactors = FALSE)
+  p <- hstat_data_profile(d, "y", "g")
+  r <- hstat_reco_analyses(p)
+  ctx <- list(title = "Test t de Student", module = "Tests",
+              tables = list("Resultats" = data.frame(
+                Test = c("Groupe A vs B", "Groupe A vs C"),
+                p_value = c(0.0031, 0.42), stringsAsFactors = FALSE)),
+              text = NULL, meta = list(), time = Sys.time())
+
+  out <- hstat_ai_interpret_offline(ctx, p, r, hstat_reco_verdict(r, ctx$title))
+  expect_true(grepl("Test t de Student", out, fixed = TRUE))
+  # Les chiffres sont LUS, pas generes : chaque p-value doit s'y retrouver
+  expect_true(grepl("0.0031", out, fixed = TRUE))
+  expect_true(grepl("significatif", out, fixed = TRUE))
+  expect_true(grepl("non significatif", out, fixed = TRUE))
+  expect_true(grepl("Analyses appelees par vos donnees", out, fixed = TRUE))
+  # Le rappel de responsabilite ne doit jamais disparaitre
+  expect_true(grepl("vous appartient", out, fixed = TRUE))
+
+  # Un seuil different change le verdict, pas les chiffres
+  out01 <- hstat_ai_interpret_offline(ctx, p, r, NULL, alpha = 0.001)
+  expect_true(grepl("0.0031", out01, fixed = TRUE))
+  expect_false(grepl("-> significatif", out01, fixed = TRUE))
+
+  expect_null(hstat_ai_interpret_offline(NULL))
+})
+
+test_that("l'invite d'interpretation interdit d'inventer et de decider", {
+  ctx <- list(title = "ANOVA", module = "Tests",
+              tables = list("R" = data.frame(p_value = 0.02)),
+              text = NULL, meta = list(), time = Sys.time())
+  pr <- hstat_ai_interpret_prompt(ctx, NULL, NULL, NULL, "scientifique")
+  expect_true(grepl("N'invente aucun chiffre", pr, fixed = TRUE))
+  expect_true(grepl("Ne recalcule rien", pr, fixed = TRUE))
+  expect_true(grepl("appartient a l'utilisateur", pr, fixed = TRUE))
+  expect_true(grepl("## Analyse recommandee pour la suite", pr, fixed = TRUE))
+  # Les trois niveaux de redaction produisent bien des consignes differentes
+  n <- vapply(c("scientifique", "vulgarise", "detaille"),
+              function(k) hstat_ai_interpret_prompt(ctx, niveau = k), character(1))
+  expect_equal(length(unique(n)), 3L)
+})
+
+test_that("le markdown du modele est converti sans pouvoir injecter de HTML", {
+  h <- .hstat_md_to_html("## Titre\n\nUn **gras** et un *italique*.\n\n- point A\n- point B")
+  expect_true(grepl("<h4", h, fixed = TRUE))
+  expect_true(grepl("<strong>gras</strong>", h, fixed = TRUE))
+  expect_true(grepl("<em>italique</em>", h, fixed = TRUE))
+  expect_equal(lengths(regmatches(h, gregexpr("<li>", h, fixed = TRUE))), 2L)
+
+  # Une reponse de modele reste du contenu non fiable : jamais injectee telle quelle
+  inj <- .hstat_md_to_html("Voici <script>alert(1)</script> et <img onerror=x>")
+  expect_false(grepl("<script>", inj, fixed = TRUE))
+  expect_true(grepl("&lt;script&gt;", inj, fixed = TRUE))
+  expect_equal(.hstat_md_to_html(""), "")
+  expect_equal(.hstat_md_to_html(NULL), "")
+})
+
+test_that("mod_ai.R est source avant les modules qui s'en servent", {
+  root <- .hstat_repo_root()
+  h <- readLines(file.path(root, "inst", "app", "HStat.R"), warn = FALSE)
+  i_ai <- grep('source\\("mod_ai\\.R"', h)
+  expect_length(i_ai, 1L)
+  # Le moteur est partage : il doit preceder tous les modules d'analyse
+  for (m in c("mod_coding.R", "mod_qualitative.R", "mod_ml.R", "mod_timeseries.R")) {
+    j <- grep(sprintf('source\\("%s"', gsub("\\.", "\\\\.", m)), h)
+    expect_length(j, 1L)
+    expect_true(i_ai < j, info = paste("mod_ai.R doit preceder", m))
+  }
+  # L'onglet est declare dans l'interface et branche cote serveur
+  ux <- readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE)
+  expect_true(any(grepl('mod_ai_ui\\("aidecision"\\)', ux)))
+  expect_true(any(grepl('tabName = "aidecision"', ux)))
+  srv <- readLines(file.path(root, "inst", "app", "app_server.R"), warn = FALSE)
+  expect_true(any(grepl('mod_ai_server\\("aidecision", values\\)', srv)))
+  expect_true(any(grepl("aiContext", srv)))
+})
+
+test_that("une analyse descriptive n'est pas jugee comme un test", {
+  set.seed(9)
+  d <- data.frame(y = stats::rnorm(90), g = rep(c("A", "B", "C"), each = 30),
+                  stringsAsFactors = FALSE)
+  r <- hstat_reco_analyses(hstat_data_profile(d, "y", "g"))
+
+  # Sans module, la comparaison au catalogue s'applique
+  v0 <- hstat_reco_verdict(r, "Statistiques descriptives")
+  expect_false(v0$coherent)
+
+  # Avec le module, on propose la suite au lieu de juger : une moyenne n'est
+  # pas un mauvais test, c'est une etape anterieure.
+  v <- hstat_reco_verdict(r, "Statistiques descriptives", "Analyses descriptives")
+  expect_true(v$coherent)
+  expect_true(v$exploratoire)
+  expect_true(grepl("etape preliminaire", v$message, fixed = TRUE))
+  expect_true(grepl("pas un test", v$message, fixed = TRUE))
+  expect_true(grepl("A vous de decider", v$message, fixed = TRUE))
+
+  # Un module de tests reste evalue normalement
+  vt <- hstat_reco_verdict(r, "ANOVA a un facteur", "Tests statistiques")
+  expect_false(vt$exploratoire)
+})
+
+test_that("hstat_ai_as_table accepte tout ce que renvoient les modules", {
+  df <- data.frame(a = 1:2, b = c("x", "y"), stringsAsFactors = FALSE)
+  expect_identical(hstat_ai_as_table(df), df)
+
+  # Liste de valeurs nommees (calcul de puissance, metriques de modele...)
+  tb <- hstat_ai_as_table(list(n = 64L, puissance = 0.8012345, test = "t apparie"))
+  expect_equal(names(tb), c("Grandeur", "Valeur"))
+  expect_equal(tb$Grandeur, c("n", "puissance", "test"))
+  expect_equal(tb$Valeur[2], "0.80123")          # arrondi lisible
+  # Les elements non scalaires sont ecartes plutot que de casser la conversion
+  expect_equal(nrow(hstat_ai_as_table(list(n = 10, courbe = 1:100))), 1L)
+
+  expect_equal(nrow(hstat_ai_as_table(matrix(1:4, 2))), 2L)
+  expect_equal(nrow(hstat_ai_as_table(c(alpha = 0.05, beta = 0.2))), 2L)
+  expect_null(hstat_ai_as_table(NULL))
+  expect_null(hstat_ai_as_table(list()))
+})
+
+test_that("le guidage de fin d'analyse annonce la recommandation", {
+  set.seed(12)
+  d <- data.frame(y = c(stats::rnorm(40), stats::rnorm(40, 2)),
+                  g = rep(c("A", "B"), each = 40), stringsAsFactors = FALSE)
+  r <- hstat_reco_analyses(hstat_data_profile(d, "y", "g"))
+  ctx <- list(title = "Statistiques descriptives", module = "Analyses descriptives",
+              tables = list(), text = NULL, meta = list(), time = Sys.time())
+
+  msg <- hstat_ai_hint_text(ctx, r)
+  expect_true(grepl("Statistiques descriptives", msg, fixed = TRUE))
+  expect_true(grepl("Student|Welch", msg))
+  # Sans recommandation calculable, pas de message plutot qu'un message creux
+  expect_null(hstat_ai_hint_text(ctx, NULL))
+  expect_null(hstat_ai_hint_text(NULL, r))
+
+  ui <- hstat_ai_hint_ui(ctx, r)
+  h <- paste(as.character(ui), collapse = "")
+  expect_true(grepl("Aide a la decision", h, fixed = TRUE))
+  expect_true(grepl("shiny-tab-aidecision", h, fixed = TRUE))   # le lien bascule d'onglet
+  # Le rappel de responsabilite accompagne chaque recommandation
+  expect_true(grepl("l'assistance eclaire, elle ne decide pas", h, fixed = TRUE))
+  expect_null(hstat_ai_hint_ui(NULL, r))
+})
+
+test_that("hstat_ai_with_hint greffe l'emplacement sans casser l'onglet", {
+  tab <- shinydashboard::tabItem(tabName = "essai", shiny::h3("contenu"))
+  n0 <- length(tab$children)
+  out <- hstat_ai_with_hint(tab, "aihint_tests")
+  expect_equal(length(out$children), n0 + 1L)
+  h <- paste(as.character(out), collapse = "")
+  expect_true(grepl("contenu", h, fixed = TRUE))       # le contenu d'origine survit
+  expect_true(grepl("aihint_tests", h, fixed = TRUE))
+  expect_true(grepl("shiny-tab-essai", h, fixed = TRUE))
+
+  # Un identifiant inconnu doit echouer bruyamment : un bandeau muet passerait
+  # inapercu jusqu'a ce qu'un utilisateur le signale.
+  expect_error(hstat_ai_hint_slot("aihint_inexistant"))
+  # Une entree qui n'est pas un tabItem est renvoyee telle quelle
+  expect_identical(hstat_ai_with_hint("pas un tag", "aihint_tests"), "pas un tag")
+})
+
+test_that("chaque onglet d'analyse porte un emplacement de guidage", {
+  root <- .hstat_repo_root()
+  ux <- readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE)
+  used <- unique(unlist(regmatches(ux, gregexpr("aihint_[a-z]+", ux))))
+  # Declares et poses doivent coincider exactement : un identifiant declare mais
+  # jamais pose ne s'afficherait nulle part, l'inverse planterait au demarrage.
+  expect_setequal(used, HSTAT_AI_HINT_IDS)
+  expect_equal(length(HSTAT_AI_HINT_IDS), 12L)
+
+  # Tous les onglets d'analyse du menu doivent etre couverts
+  # Suffixes attendus : ils suivent le nom du MODULE (mod_viz -> viz), pas
+  # toujours celui de l'onglet (tabName = "visualization").
+  onglets <- c("descriptive", "viz", "correlation", "tests", "multiple",
+               "multivariate", "qualitative", "timeseries", "ml", "dl",
+               "design", "threshold")
+  expect_setequal(sub("^aihint_", "", HSTAT_AI_HINT_IDS), onglets)
+
+  # ... et le serveur doit rendre chacun d'eux
+  srv <- readLines(file.path(root, "inst", "app", "app_server.R"), warn = FALSE)
+  expect_true(any(grepl("HSTAT_AI_HINT_IDS", srv, fixed = TRUE)))
+})
+
+test_that("toutes les familles d'analyse deposent un contexte", {
+  root <- file.path(.hstat_repo_root(), "inst", "app")
+  src <- unlist(lapply(list.files(root, pattern = "\\.R$", full.names = TRUE),
+                       readLines, warn = FALSE))
+  src <- src[!grepl("^\\s*#", src)]
+  pose <- unique(unlist(regmatches(
+    src, gregexpr('hstat_ai_capture\\(values, "[^"]+"', src))))
+  pose <- gsub('.*"([^"]+)"$', "\\1", pose)
+  attendu <- c("Tests statistiques", "Comparaisons multiples", "Analyses multivariees",
+               "Analyses descriptives", "Machine Learning", "Analyses qualitatives",
+               "Series temporelles", "Correlations", "Deep Learning", "Plan & Puissance")
+  for (m in attendu)
+    expect_true(m %in% pose, info = paste("aucune capture pour :", m))
 })

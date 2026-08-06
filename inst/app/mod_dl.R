@@ -403,6 +403,20 @@ mod_dl_server <- function(id, values) {
            engine = "torch")
     }
 
+    # Depot du resultat du reseau de neurones pour l'aide a la decision.
+    observeEvent(dlfit(), {
+      f <- tryCatch(dlfit(), error = function(e) NULL)
+      if (is.null(f) || is.null(f$metrics)) return()
+      hstat_ai_capture(values, "Deep Learning",
+        sprintf("Reseau de neurones (%s)",
+                if (!is.null(f$p) && identical(f$p$task, "classification"))
+                  "classification" else "regression"),
+        tables = list("Metriques du modele" = hstat_ai_as_table(f$metrics)),
+        meta = list(variables = c(input$dlTarget, input$dlPredictors),
+                    `variable cible` = input$dlTarget,
+                    `couches cachees` = f$hidden))
+    }, ignoreInit = TRUE)
+
     dlfit <- eventReactive(input$dlRun, {
       p <- prepare_dl()
       hidden <- parse_hidden(input$dlHidden)

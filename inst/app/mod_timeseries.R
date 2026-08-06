@@ -337,6 +337,22 @@ mod_timeseries_server <- function(id, values) {
     }
 
     # ---- Entraînement + comparaison ------------------------------------------
+    # Depot du resultat de prevision pour l'aide a la decision.
+    observeEvent(fits(), {
+      f <- tryCatch(fits(), error = function(e) NULL)
+      if (is.null(f)) return()
+      mets <- tryCatch(do.call(rbind, lapply(names(f), function(nm) {
+        r <- f[[nm]]
+        if (is.null(r) || isFALSE(r$ok) || is.null(r$metrics)) return(NULL)
+        cbind(Modele = nm, r$metrics)
+      })), error = function(e) NULL)
+      if (is.null(mets) || !NROW(mets)) return()
+      hstat_ai_capture(values, "Series temporelles",
+        "Prevision et comparaison de modeles",
+        tables = list("Qualite de prevision" = as.data.frame(mets)),
+        meta = list(variables = input$tsVar, `horizon` = input$tsHorizon))
+    }, ignoreInit = TRUE)
+
     fits <- eventReactive(input$tsRun, {
       df <- values$cleanData
       validate(need(!is.null(df), "Chargez d'abord des données."),

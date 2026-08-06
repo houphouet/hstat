@@ -1,0 +1,1491 @@
+# ===========================================================================
+# HStat - mod_ai.R
+# Assistance par IA : moteur d'inference partage + aide a la decision
+# ---------------------------------------------------------------------------
+# Deux roles, et deux seulement :
+#
+#   1. INTERPRETER des resultats deja obtenus, pour que l'utilisateur reparte
+#      avec un texte pret a l'emploi plutot qu'un tableau brut.
+#
+#   2. RECOMMANDER l'analyse qui aurait convenu aux donnees, a la fin d'une
+#      analyse, pour eclairer le choix suivant.
+#
+# Ce que l'assistance ne fait PAS, volontairement : choisir l'analyse a la
+# place de l'utilisateur, ni la lancer. Le choix de la methode engage
+# l'interpretation scientifique du travail : il reste a l'analyste, qui en
+# demeure responsable. L'assistance eclaire, elle ne decide pas.
+#
+# La recommandation (hstat_reco_*) est entierement DETERMINISTE et hors ligne :
+# elle applique des regles statistiques classiques au profil des variables. Un
+# modele de langue n'y intervient jamais — on ne veut pas qu'un test statistique
+# soit conseille par generation de texte. Le modele, lui, redige l'interpretation.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# 10. ASSISTANT DE CODAGE - TROIS MOTEURS
+# ---------------------------------------------------------------------------
+# L'assistance au codage doit pouvoir tourner GRATUITEMENT, EN LOCAL et SANS
+# CONNEXION INTERNET. Trois moteurs sont donc proposes, du plus autonome au
+# moins autonome :
+#
+#   "auto"   Thematisation statistique, sans aucun modele de langue. Tourne
+#            dans le processus R, instantanement, sans rien installer et sans
+#            reseau. C'est le seul moteur garanti disponible partout.
+#
+#   "local"  Modele de langue execute SUR LA MACHINE de l'utilisateur, servi
+#            par Ollama ou par n'importe quel serveur d'inference compatible
+#            OpenAI (llama.cpp, LM Studio, vLLM, Jan...). Gratuit, hors ligne
+#            une fois le modele telecharge, et de loin le plus performant des
+#            trois sur la comprehension du sens. C'est le moteur par defaut.
+#
+#   "claude" API Claude en ligne. Payante et necessitant une connexion : elle
+#            n'est proposee qu'en dernier recours, jamais par defaut.
+#
+# Les appels HTTP restent locaux dans les deux premiers cas (127.0.0.1) : rien
+# ne sort de la machine, ce qui compte aussi pour la confidentialite de donnees
+# d'enquete. R n'ayant de SDK ni pour Ollama ni pour Anthropic, tout passe par
+# {httr} + {jsonlite}, gardes en Suggests : sans eux, le moteur "auto" reste
+# pleinement fonctionnel.
+# ---------------------------------------------------------------------------
+
+HSTAT_AI_ENGINES <- c(
+  "Modele local (Ollama / llama.cpp) - gratuit, hors ligne" = "local",
+  "Thematisation automatique (statistique, sans modele)"    = "auto",
+  "API Claude (en ligne, payante)"                          = "claude")
+
+HSTAT_AI_BACKENDS <- c(
+  "Ollama"                                            = "ollama",
+  "Serveur compatible OpenAI (llama.cpp, LM Studio...)" = "openai")
+
+HSTAT_AI_DEFAULT_URL <- c(ollama = "http://127.0.0.1:11434",
+                          openai = "http://127.0.0.1:8080")
+
+HSTAT_AI_MODEL <- "claude-opus-5"   # utilise uniquement par le moteur "claude"
+
+hstat_ai_key <- function(explicit = NULL) {
+  k <- if (is.null(explicit)) "" else trimws(as.character(explicit)[1])
+  if (is.na(k) || !nzchar(k)) k <- trimws(Sys.getenv("ANTHROPIC_API_KEY", ""))
+  k
+}
+
+hstat_ai_url <- function(backend = "ollama", url = NULL) {
+  u <- if (is.null(url)) "" else trimws(as.character(url)[1])
+  if (is.na(u) || !nzchar(u))
+    u <- unname(HSTAT_AI_DEFAULT_URL[[match.arg(backend, c("ollama", "openai"))]])
+  sub("/+$", "", u)
+}
+
+.hstat_ai_http_ok <- function() {
+  requireNamespace("httr", quietly = TRUE) &&
+    requireNamespace("jsonlite", quietly = TRUE)
+}
+
+# Modeles reellement installes dans Ollama. Vecteur vide si le serveur n'est
+# pas joignable : l'interface saura alors dire quoi faire plutot que d'offrir
+# une liste vide sans explication.
+hstat_ai_ollama_models <- function(url = NULL, timeout = 5) {
+  if (!.hstat_ai_http_ok()) return(character(0))
+  res <- tryCatch(
+    httr::GET(paste0(hstat_ai_url("ollama", url), "/api/tags"), httr::timeout(timeout)),
+    error = function(e) NULL)
+  if (is.null(res) || httr::status_code(res) >= 300) return(character(0))
+  p <- tryCatch(jsonlite::fromJSON(httr::content(res, as = "text", encoding = "UTF-8"),
+                                   simplifyVector = FALSE),
+                error = function(e) NULL)
+  if (is.null(p$models)) return(character(0))
+  nm <- vapply(p$models, function(m) if (is.null(m$name)) "" else as.character(m$name)[1],
+               character(1))
+  sort(nm[nzchar(nm)])
+}
+
+# Modeles annonces par un serveur compatible OpenAI (GET /v1/models).
+hstat_ai_openai_models <- function(url = NULL, timeout = 5) {
+  if (!.hstat_ai_http_ok()) return(character(0))
+  res <- tryCatch(
+    httr::GET(paste0(hstat_ai_url("openai", url), "/v1/models"), httr::timeout(timeout)),
+    error = function(e) NULL)
+  if (is.null(res) || httr::status_code(res) >= 300) return(character(0))
+  p <- tryCatch(jsonlite::fromJSON(httr::content(res, as = "text", encoding = "UTF-8"),
+                                   simplifyVector = FALSE),
+                error = function(e) NULL)
+  if (is.null(p$data)) return(character(0))
+  nm <- vapply(p$data, function(m) if (is.null(m$id)) "" else as.character(m$id)[1],
+               character(1))
+  sort(nm[nzchar(nm)])
+}
+
+hstat_ai_models <- function(backend = "ollama", url = NULL, timeout = 5) {
+  if (identical(backend, "openai")) hstat_ai_openai_models(url, timeout)
+  else hstat_ai_ollama_models(url, timeout)
+}
+
+# Diagnostic lisible, propre a chaque moteur. Toujours actionnable : on dit ce
+# qui manque ET comment y remedier, plutot qu'un simple « indisponible ».
+hstat_ai_status <- function(engine = "local", backend = "ollama", url = NULL,
+                            model = NULL, api_key = NULL) {
+  if (identical(engine, "auto"))
+    return(list(ok = TRUE,
+                message = paste0("Thematisation automatique disponible : elle tourne ",
+                                 "dans R, sans modele, sans installation et sans reseau.")))
+
+  if (!.hstat_ai_http_ok()) {
+    miss <- c(if (!requireNamespace("httr", quietly = TRUE)) "{httr}",
+              if (!requireNamespace("jsonlite", quietly = TRUE)) "{jsonlite}")
+    return(list(ok = FALSE,
+                message = sprintf(
+                  "Moteur indisponible : le(s) paquet(s) %s manquent. Installez-les avec install.packages(c(%s)), ou basculez sur la thematisation automatique, qui n'en a pas besoin.",
+                  paste(miss, collapse = " et "),
+                  paste(sprintf('"%s"', gsub("[{}]", "", miss)), collapse = ", "))))
+  }
+
+  if (identical(engine, "claude")) {
+    if (!nzchar(hstat_ai_key(api_key)))
+      return(list(ok = FALSE,
+                  message = paste0("API Claude indisponible : renseignez une cle d'API ",
+                                   "(champ ci-dessous ou variable ANTHROPIC_API_KEY). ",
+                                   "Cette option est payante et necessite une connexion ",
+                                   "Internet ; les deux autres moteurs sont gratuits et locaux.")))
+    return(list(ok = TRUE, message = sprintf("API Claude disponible (modele %s).",
+                                             HSTAT_AI_MODEL)))
+  }
+
+  # engine == "local"
+  u <- hstat_ai_url(backend, url)
+  mods <- hstat_ai_models(backend, u)
+  if (!length(mods)) {
+    aide <- if (identical(backend, "ollama"))
+      paste0("Installez Ollama (ollama.com, gratuit), lancez-le, puis telechargez ",
+             "un modele une seule fois : `ollama pull qwen2.5` par exemple. ",
+             "Le telechargement fait, tout fonctionne hors ligne.")
+    else
+      paste0("Demarrez votre serveur d'inference (llama.cpp `llama-server`, ",
+             "LM Studio, vLLM, Jan...) et verifiez son adresse ci-dessous.")
+    return(list(ok = FALSE, models = character(0),
+                message = sprintf("Aucun modele local joignable sur %s. %s", u, aide)))
+  }
+  if (!is.null(model) && nzchar(model) && !(model %in% mods))
+    return(list(ok = FALSE, models = mods,
+                message = sprintf("Le modele « %s » n'est pas installe sur %s. Modeles disponibles : %s.",
+                                  model, u, paste(mods, collapse = ", "))))
+  list(ok = TRUE, models = mods,
+       message = sprintf("Modele local disponible sur %s (%d modele(s) installe(s)). Gratuit, hors ligne, aucune donnee ne quitte la machine.",
+                         u, length(mods)))
+}
+
+# Retro-compatibilite : l'ancienne signature ne connaissait que Claude.
+hstat_ai_available <- function(explicit = NULL) {
+  isTRUE(hstat_ai_status("claude", api_key = explicit)$ok)
+}
+
+# --- Appels HTTP, un par moteur ---------------------------------------------
+# Tous renvoient list(ok, text, error) : aucune panne reseau, aucun serveur
+# absent ne doit faire tomber l'application.
+
+.hstat_ai_post <- function(url, body, headers = NULL, timeout = 600) {
+  args <- list(url,
+               body = jsonlite::toJSON(body, auto_unbox = TRUE, null = "null"),
+               encode = "raw", httr::timeout(timeout))
+  hdr <- c(`content-type` = "application/json", headers)
+  args <- append(args, list(do.call(httr::add_headers, as.list(hdr))), after = 1)
+  tryCatch(do.call(httr::POST, args), error = function(e) e)
+}
+
+# Corps de requete, isole du reseau : c'est la partie qui casse en silence si
+# un champ change de nom, et c'est donc celle qu'il faut pouvoir tester.
+.hstat_ai_messages <- function(prompt, system = NULL) {
+  msgs <- list()
+  if (!is.null(system) && nzchar(system))
+    msgs <- c(msgs, list(list(role = "system", content = system)))
+  c(msgs, list(list(role = "user", content = prompt)))
+}
+
+.hstat_ai_body_ollama <- function(prompt, system = NULL, model = "", json = TRUE) {
+  body <- list(model = model,
+               messages = .hstat_ai_messages(prompt, system),
+               stream = FALSE,
+               # Temperature basse : on veut une thematisation stable et
+               # reproductible, pas de la creativite.
+               options = list(temperature = 0.2))
+  # `format: "json"` contraint Ollama a produire du JSON valide, ce qui evite
+  # l'essentiel des reponses inexploitables des petits modeles.
+  if (isTRUE(json)) body$format <- "json"
+  body
+}
+
+.hstat_ai_body_openai <- function(prompt, system = NULL, model = "",
+                                  max_tokens = 4096L, json = TRUE) {
+  body <- list(model = model,
+               messages = .hstat_ai_messages(prompt, system),
+               stream = FALSE, temperature = 0.2,
+               max_tokens = as.integer(max_tokens))
+  if (isTRUE(json)) body$response_format <- list(type = "json_object")
+  body
+}
+
+.hstat_ai_call_ollama <- function(prompt, system = NULL, url = NULL,
+                                  model = NULL, json = TRUE, timeout = 600) {
+  u <- hstat_ai_url("ollama", url)
+  if (is.null(model) || !nzchar(model)) {
+    mods <- hstat_ai_ollama_models(u)
+    if (!length(mods))
+      return(list(ok = FALSE, text = "",
+                  error = sprintf("Aucun modele Ollama joignable sur %s.", u)))
+    model <- mods[1]
+  }
+  body <- .hstat_ai_body_ollama(prompt, system, model, json)
+
+  res <- .hstat_ai_post(paste0(u, "/api/chat"), body, timeout = timeout)
+  if (inherits(res, "error"))
+    return(list(ok = FALSE, text = "",
+                error = sprintf("Serveur local injoignable sur %s (%s). Ollama est-il demarre ?",
+                                u, conditionMessage(res))))
+  raw <- httr::content(res, as = "text", encoding = "UTF-8")
+  p <- tryCatch(jsonlite::fromJSON(raw, simplifyVector = FALSE), error = function(e) NULL)
+  if (httr::status_code(res) >= 300)
+    return(list(ok = FALSE, text = "",
+                error = sprintf("Erreur du serveur local (HTTP %d) : %s",
+                                httr::status_code(res),
+                                substr(if (!is.null(p$error)) p$error else raw, 1, 400))))
+  txt <- if (!is.null(p$message$content)) p$message$content else p$response
+  if (is.null(txt))
+    return(list(ok = FALSE, text = "", error = "Reponse illisible du serveur local."))
+  list(ok = TRUE, text = as.character(txt)[1], error = NULL, model = model)
+}
+
+.hstat_ai_call_openai <- function(prompt, system = NULL, url = NULL, model = NULL,
+                                  api_key = NULL, max_tokens = 4096L,
+                                  json = TRUE, timeout = 600) {
+  u <- hstat_ai_url("openai", url)
+  if (is.null(model) || !nzchar(model)) {
+    mods <- hstat_ai_openai_models(u)
+    model <- if (length(mods)) mods[1] else "local-model"
+  }
+  mk <- function(with_json)
+    .hstat_ai_body_openai(prompt, system, model, max_tokens, with_json)
+  hdr <- if (!is.null(api_key) && nzchar(api_key))
+    c(Authorization = paste("Bearer", api_key)) else NULL
+
+  send <- function(with_json)
+    .hstat_ai_post(paste0(u, "/v1/chat/completions"), mk(with_json), hdr, timeout)
+
+  res <- send(isTRUE(json))
+  # Tous les serveurs locaux n'acceptent pas response_format : une requete
+  # rejetee pour ce seul motif est rejouee sans lui plutot que d'echouer.
+  if (!inherits(res, "error") && isTRUE(json) && httr::status_code(res) == 400)
+    res <- send(FALSE)
+
+  if (inherits(res, "error"))
+    return(list(ok = FALSE, text = "",
+                error = sprintf("Serveur local injoignable sur %s (%s).",
+                                u, conditionMessage(res))))
+  raw <- httr::content(res, as = "text", encoding = "UTF-8")
+  p <- tryCatch(jsonlite::fromJSON(raw, simplifyVector = FALSE), error = function(e) NULL)
+  if (httr::status_code(res) >= 300) {
+    msg <- if (!is.null(p$error$message)) p$error$message else raw
+    return(list(ok = FALSE, text = "",
+                error = sprintf("Erreur du serveur local (HTTP %d) : %s",
+                                httr::status_code(res), substr(msg, 1, 400))))
+  }
+  txt <- tryCatch(p$choices[[1]]$message$content, error = function(e) NULL)
+  if (is.null(txt))
+    return(list(ok = FALSE, text = "", error = "Reponse illisible du serveur local."))
+  list(ok = TRUE, text = as.character(txt)[1], error = NULL, model = model)
+}
+
+.hstat_ai_call_claude <- function(prompt, system = NULL, api_key = NULL,
+                                  model = HSTAT_AI_MODEL, max_tokens = 8000L,
+                                  thinking = TRUE, timeout = 300) {
+  key <- hstat_ai_key(api_key)
+  if (!nzchar(key)) return(list(ok = FALSE, text = "", error = "Cle d'API absente."))
+
+  body <- list(model = model, max_tokens = as.integer(max_tokens),
+               messages = list(list(role = "user", content = prompt)))
+  if (!is.null(system) && nzchar(system)) body$system <- system
+  # La reflexion adaptative est le mode par defaut des modeles Claude recents ;
+  # `budget_tokens` y est rejete, on ne l'envoie donc pas.
+  if (isTRUE(thinking)) body$thinking <- list(type = "adaptive")
+
+  res <- .hstat_ai_post("https://api.anthropic.com/v1/messages", body,
+                        c(`x-api-key` = key, `anthropic-version` = "2023-06-01"),
+                        timeout)
+  if (inherits(res, "error"))
+    return(list(ok = FALSE, text = "",
+                error = paste("Echec de la connexion :", conditionMessage(res))))
+
+  raw <- httr::content(res, as = "text", encoding = "UTF-8")
+  parsed <- tryCatch(jsonlite::fromJSON(raw, simplifyVector = FALSE),
+                     error = function(e) NULL)
+  if (httr::status_code(res) >= 300) {
+    msg <- if (!is.null(parsed$error$message)) parsed$error$message else raw
+    return(list(ok = FALSE, text = "",
+                error = sprintf("Erreur API (HTTP %d) : %s",
+                                httr::status_code(res), substr(msg, 1, 500))))
+  }
+  if (is.null(parsed) || is.null(parsed$content))
+    return(list(ok = FALSE, text = "", error = "Reponse illisible de l'API."))
+
+  # Le contenu est une liste de blocs ; avec la reflexion adaptative, les blocs
+  # `thinking` precedent le bloc `text` : on ne garde que le texte.
+  txt <- vapply(parsed$content, function(b)
+    if (identical(b$type, "text") && !is.null(b$text)) b$text else "", character(1))
+  list(ok = TRUE, text = paste(txt[nzchar(txt)], collapse = "\n"), error = NULL,
+       model = model)
+}
+
+# Aiguillage. `engine = "local"` par defaut : gratuit et hors ligne.
+hstat_ai_call <- function(prompt, system = NULL, engine = "local",
+                          backend = "ollama", url = NULL, model = NULL,
+                          api_key = NULL, max_tokens = 8000L, json = TRUE,
+                          timeout = NULL) {
+  if (!.hstat_ai_http_ok())
+    return(list(ok = FALSE, text = "",
+                error = "Les paquets {httr} et {jsonlite} sont requis pour ce moteur."))
+  if (identical(engine, "claude"))
+    return(.hstat_ai_call_claude(prompt, system, api_key, HSTAT_AI_MODEL,
+                                 max_tokens, TRUE, timeout %||% 300))
+  # Les modeles locaux tournent sur le processeur de l'utilisateur : le delai
+  # d'attente par defaut est bien plus large que pour une API distante.
+  tmo <- timeout %||% 900
+  if (identical(backend, "openai"))
+    .hstat_ai_call_openai(prompt, system, url, model, api_key, max_tokens, json, tmo)
+  else
+    .hstat_ai_call_ollama(prompt, system, url, model, json, tmo)
+}
+
+
+# Extraction tolerante du JSON : le modele peut encadrer sa reponse de texte
+# ou de balises ```json. On isole le premier objet/tableau complet.
+hstat_ai_extract_json <- function(txt) {
+  if (is.null(txt) || !nzchar(txt)) return(NULL)
+  if (!requireNamespace("jsonlite", quietly = TRUE)) return(NULL)
+  s <- gsub("```[a-zA-Z]*", "", txt, perl = TRUE)
+  s <- gsub("```", "", s, fixed = TRUE)
+  i <- regexpr("[\\{\\[]", s, perl = TRUE)
+  if (i < 0) return(NULL)
+  j <- max(gregexpr("[\\}\\]]", s, perl = TRUE)[[1]])
+  if (j < i) return(NULL)
+  tryCatch(jsonlite::fromJSON(substr(s, i, j), simplifyVector = FALSE),
+           error = function(e) NULL)
+}
+
+
+
+# ---------------------------------------------------------------------------
+# REGISTRE DES ANALYSES
+# ---------------------------------------------------------------------------
+# Chaque module depose ici ce qu'il vient de produire. L'onglet d'aide a la
+# decision n'a alors plus qu'a lire `values$aiContext` : aucun module n'a
+# besoin de connaitre l'assistance, et l'assistance n'a besoin de connaitre
+# aucun module.
+# ---------------------------------------------------------------------------
+
+# `tables` : liste nommee de data.frame ; `text` : sortie R brute eventuelle ;
+# `meta` : variables utilisees, groupe, options — ce qui permet de recommander.
+hstat_ai_capture <- function(values, module, title, tables = list(),
+                             text = NULL, meta = list()) {
+  if (is.null(values)) return(invisible(NULL))
+  tables <- Filter(function(x) !is.null(x) && NROW(x) > 0, tables)
+  values$aiContext <- list(
+    module = as.character(module)[1],
+    title  = as.character(title)[1],
+    tables = tables,
+    text   = if (is.null(text)) NULL else paste(as.character(text), collapse = "\n"),
+    meta   = meta,
+    time   = Sys.time())
+  invisible(values$aiContext)
+}
+
+# Coercition en data.frame de ce qu'une analyse renvoie : les modules
+# produisent tantot un tableau, tantot une liste de valeurs nommees (puissance,
+# effectif requis...). Le registre n'a pas a s'en soucier.
+hstat_ai_as_table <- function(x) {
+  if (is.null(x)) return(NULL)
+  if (is.data.frame(x)) return(x)
+  if (is.matrix(x)) return(as.data.frame(x))
+  if (is.list(x)) {
+    plats <- vapply(x, function(e) is.atomic(e) && length(e) == 1L, logical(1))
+    x <- x[plats]
+    if (!length(x)) return(NULL)
+    return(data.frame(Grandeur = names(x),
+                      Valeur = vapply(x, function(e) {
+                        if (is.numeric(e)) format(signif(e, 5), trim = TRUE)
+                        else as.character(e)
+                      }, character(1)),
+                      stringsAsFactors = FALSE, row.names = NULL))
+  }
+  if (is.atomic(x) && length(x))
+    return(data.frame(Grandeur = names(x) %||% seq_along(x),
+                      Valeur = as.character(x), stringsAsFactors = FALSE))
+  NULL
+}
+
+# Mise en texte compacte d'un contexte, pour l'invite du modele. Les tableaux
+# sont tronques : une invite de 200 lignes de chiffres degrade la reponse d'un
+# modele local bien plus qu'elle ne l'informe.
+hstat_ai_context_text <- function(ctx, max_rows = 25, max_chars = 6000) {
+  if (is.null(ctx)) return("")
+  out <- c(sprintf("ANALYSE REALISEE : %s", ctx$title))
+  if (length(ctx$meta)) {
+    m <- vapply(names(ctx$meta), function(k) {
+      v <- ctx$meta[[k]]
+      if (is.null(v) || !length(v)) return("")
+      sprintf("- %s : %s", k, paste(utils::head(as.character(v), 12), collapse = ", "))
+    }, character(1))
+    m <- m[nzchar(m)]
+    if (length(m)) out <- c(out, "", "PARAMETRES :", m)
+  }
+  for (nm in names(ctx$tables)) {
+    tb <- ctx$tables[[nm]]
+    if (is.null(tb) || !NROW(tb)) next
+    trunc <- NROW(tb) > max_rows
+    tb <- utils::head(as.data.frame(tb), max_rows)
+    out <- c(out, "", sprintf("TABLEAU - %s :", nm),
+             paste(utils::capture.output(print(tb, row.names = FALSE)), collapse = "\n"),
+             if (trunc) sprintf("(... %d lignes au total)", NROW(ctx$tables[[nm]])) else NULL)
+  }
+  if (!is.null(ctx$text) && nzchar(ctx$text))
+    out <- c(out, "", "SORTIE R :", substr(ctx$text, 1, 2500))
+  substr(paste(out, collapse = "\n"), 1, max_chars)
+}
+
+
+# ---------------------------------------------------------------------------
+# PROFIL DES VARIABLES
+# ---------------------------------------------------------------------------
+# Ce que la recommandation regarde : nature des variables, effectifs, normalite,
+# homogeneite des variances, appariement. Tout est calcule ici, une fois, et
+# reste consultable par l'utilisateur : une recommandation dont on ne voit pas
+# les raisons ne vaut rien.
+# ---------------------------------------------------------------------------
+
+.hstat_reco_type <- function(x) {
+  if (is.numeric(x)) {
+    u <- length(unique(stats::na.omit(x)))
+    # Un entier a deux valeurs est un facteur deguise (0/1, 1/2...).
+    if (u <= 2) return("binaire")
+    if (u <= 7 && all(stats::na.omit(x) == round(stats::na.omit(x)))) return("ordinale")
+    return("quantitative")
+  }
+  if (is.logical(x)) return("binaire")
+  if (is.ordered(x)) return("ordinale")
+  u <- length(unique(stats::na.omit(as.character(x))))
+  if (u <= 2) return("binaire")
+  "categorielle"
+}
+
+# Normalite : Shapiro-Wilk quand l'effectif le permet. Au-dela de 5000, le test
+# rejette pour des ecarts sans consequence pratique ; on se rabat alors sur
+# l'asymetrie et l'aplatissement, plus honnetes a grand n.
+.hstat_reco_normal <- function(x) {
+  x <- stats::na.omit(as.numeric(x))
+  n <- length(x)
+  if (n < 3) return(list(ok = NA, methode = "effectif insuffisant", p = NA_real_))
+  if (n <= 5000) {
+    p <- tryCatch(stats::shapiro.test(x)$p.value, error = function(e) NA_real_)
+    return(list(ok = if (is.na(p)) NA else p > 0.05, methode = "Shapiro-Wilk", p = p))
+  }
+  m <- mean(x); s <- stats::sd(x)
+  if (!is.finite(s) || s == 0) return(list(ok = FALSE, methode = "variance nulle", p = NA_real_))
+  skew <- mean(((x - m) / s)^3)
+  kurt <- mean(((x - m) / s)^4) - 3
+  list(ok = abs(skew) < 1 && abs(kurt) < 2,
+       methode = sprintf("asymetrie %.2f / aplatissement %.2f (n > 5000)", skew, kurt),
+       p = NA_real_)
+}
+
+# Normalite EVALUEE DANS CHAQUE GROUPE, et non sur la variable groupee.
+# La distinction n'est pas un detail : deux groupes parfaitement normaux mais
+# bien separes forment ensemble une distribution bimodale que Shapiro rejette
+# (p ~ 1e-6 la ou chaque groupe donne p ~ 0.8). Tester le melange conduirait a
+# deconseiller l'ANOVA precisement quand elle convient. Ce que l'ANOVA et le
+# test t supposent, c'est la normalite INTRA-groupe (celle des residus).
+.hstat_reco_normal_by <- function(x, g) {
+  ok <- stats::complete.cases(x, g)
+  x <- as.numeric(x)[ok]; g <- as.character(g)[ok]
+  lev <- unique(g)
+  if (!length(lev)) return(list(ok = NA, methode = "aucune observation complete",
+                                p = NA_real_, portee = "par groupe"))
+  det <- do.call(rbind, lapply(lev, function(l) {
+    r <- .hstat_reco_normal(x[g == l])
+    data.frame(Groupe = l, n = sum(g == l), p = r$p, Normale = r$ok,
+               stringsAsFactors = FALSE)
+  }))
+  testables <- !is.na(det$Normale)
+  list(ok = if (!any(testables)) NA else all(det$Normale[testables]),
+       methode = sprintf("Shapiro-Wilk dans chacun des %d groupes", length(lev)),
+       p = if (any(testables)) min(det$p[testables], na.rm = TRUE) else NA_real_,
+       portee = "par groupe",
+       detail = det)
+}
+
+hstat_data_profile <- function(df, vars = NULL, group = NULL, paired = FALSE) {
+  if (is.null(df) || !NROW(df)) return(NULL)
+  df <- as.data.frame(df)
+  vars <- intersect(vars %||% names(df), names(df))
+  if (!length(vars)) return(NULL)
+
+  has_g <- !is.null(group) && nzchar(group) && group %in% names(df) &&
+           !identical(group, "") && !(group %in% vars && length(vars) == 1)
+  v <- lapply(vars, function(nm) {
+    x <- df[[nm]]
+    ty <- .hstat_reco_type(x)
+    n_ok <- sum(!is.na(x))
+    norm <- if (ty != "quantitative") NULL
+            else if (has_g && !identical(nm, group))
+              .hstat_reco_normal_by(x, df[[group]])
+            else c(.hstat_reco_normal(x), list(portee = "globale"))
+    list(nom = nm, type = ty, n = n_ok,
+         n_manquant = sum(is.na(x)),
+         modalites = if (ty %in% c("categorielle", "ordinale", "binaire"))
+                       length(unique(stats::na.omit(as.character(x)))) else NA_integer_,
+         normale = norm)
+  })
+  names(v) <- vars
+
+  g <- NULL
+  if (!is.null(group) && nzchar(group) && group %in% names(df)) {
+    gv <- as.character(df[[group]])
+    tb <- table(gv[!is.na(gv) & nzchar(gv)])
+    quanti <- vars[vapply(v, function(e) e$type == "quantitative", logical(1))]
+    # Homogeneite des variances : Bartlett suppose la normalite, on ne l'utilise
+    # donc que si toutes les variables quantitatives la respectent.
+    homo <- NA
+    if (length(quanti) && length(tb) >= 2) {
+      normales <- all(vapply(quanti, function(nm) isTRUE(v[[nm]]$normale$ok), logical(1)))
+      p <- tryCatch({
+        f <- stats::as.formula(sprintf("`%s` ~ `%s`", quanti[1], group))
+        if (normales) stats::bartlett.test(f, data = df)$p.value
+        else if (requireNamespace("car", quietly = TRUE))
+          stats::na.omit(car::leveneTest(f, data = df)$`Pr(>F)`)[1]
+        else NA_real_
+      }, error = function(e) NA_real_)
+      homo <- if (is.na(p)) NA else p > 0.05
+    }
+    g <- list(nom = group, k = length(tb), effectifs = as.integer(tb),
+              modalites = names(tb),
+              equilibre = if (length(tb) >= 2) max(tb) / max(1, min(tb)) <= 1.5 else NA,
+              petits_effectifs = any(tb < 5),
+              variances_homogenes = homo)
+  }
+
+  list(n = nrow(df), variables = v, groupe = g, apparie = isTRUE(paired),
+       n_quanti = sum(vapply(v, function(e) e$type == "quantitative", logical(1))),
+       n_quali  = sum(vapply(v, function(e) e$type %in% c("categorielle", "binaire"), logical(1))),
+       n_ordinal = sum(vapply(v, function(e) e$type == "ordinale", logical(1))))
+}
+
+
+# ---------------------------------------------------------------------------
+# RECOMMANDATION D'ANALYSE - DETERMINISTE, HORS LIGNE
+# ---------------------------------------------------------------------------
+# Regles statistiques classiques appliquees au profil. Renvoie un tableau
+# ordonne : l'analyse la plus adaptee d'abord, avec le MOTIF de chaque
+# recommandation — c'est le motif qui permet a l'utilisateur de trancher, pas
+# le classement.
+# ---------------------------------------------------------------------------
+
+.hstat_reco_row <- function(analyse, pertinence, pourquoi, conditions = "",
+                            alternative = "") {
+  data.frame(Analyse = analyse, Pertinence = pertinence, Pourquoi = pourquoi,
+             `Conditions a verifier` = conditions, `Si non remplies` = alternative,
+             check.names = FALSE, stringsAsFactors = FALSE)
+}
+
+hstat_reco_analyses <- function(profile) {
+  if (is.null(profile)) return(NULL)
+  v <- profile$variables
+  g <- profile$groupe
+  types <- vapply(v, function(e) e$type, character(1))
+  quanti <- names(types)[types == "quantitative"]
+  quali  <- names(types)[types %in% c("categorielle", "binaire")]
+  ordin  <- names(types)[types == "ordinale"]
+  normal_tous <- length(quanti) > 0 &&
+    all(vapply(quanti, function(nm) isTRUE(v[[nm]]$normale$ok), logical(1)))
+  petit <- profile$n < 30
+  out <- list()
+
+  # ---- Une quantitative, un facteur ----
+  if (length(quanti) >= 1 && !is.null(g)) {
+    homo <- g$variances_homogenes
+    if (g$k == 2) {
+      if (profile$apparie) {
+        out <- c(out, list(
+          if (normal_tous)
+            .hstat_reco_row("Test t apparie", "Recommandee",
+              "Une variable quantitative mesuree deux fois sur les memes sujets, distribution compatible avec la normalite.",
+              "Normalite des DIFFERENCES entre les deux mesures.",
+              "Test des rangs signes de Wilcoxon.")
+          else
+            .hstat_reco_row("Wilcoxon apparie (rangs signes)", "Recommandee",
+              "Mesures appariees et distribution qui s'ecarte de la normalite.",
+              "Symetrie approximative des differences.",
+              "Test des signes, qui ne suppose rien de plus.")))
+      } else {
+        out <- c(out, list(
+          if (normal_tous && !isFALSE(homo) && !isTRUE(g$petits_effectifs))
+            .hstat_reco_row("Test t de Student (deux echantillons)", "Recommandee",
+              sprintf("Une quantitative comparee entre %d groupes independants, normalite intra-groupe acceptable%s.",
+                      g$k, if (isTRUE(homo)) " et variances homogenes" else ""),
+              "Independance des observations ; normalite dans chaque groupe.",
+              "Test t de Welch si les variances different, Mann-Whitney sinon.")
+          else if (normal_tous && !isTRUE(g$petits_effectifs))
+            .hstat_reco_row("Test t de Welch", "Recommandee",
+              "Normalite intra-groupe acceptable mais variances inegales entre les deux groupes : Welch ne les suppose pas egales.",
+              "Independance des observations.",
+              "Mann-Whitney.")
+          else
+            .hstat_reco_row("Mann-Whitney (Wilcoxon)", "Recommandee",
+              sprintf("Deux groupes independants%s.",
+                      if (isTRUE(g$petits_effectifs))
+                        " dont au moins un compte moins de 5 observations : la normalite n'y est pas verifiable"
+                      else " et distribution non normale dans au moins un groupe"),
+              "Independance ; formes de distribution comparables si l'on conclut sur les medianes.",
+              "Comparaison des rangs seule, sans conclure sur la mediane.")))
+      }
+    } else if (g$k > 2) {
+      out <- c(out, list(
+        if (normal_tous && !isFALSE(homo) && !isTRUE(g$petits_effectifs))
+          .hstat_reco_row("ANOVA a un facteur", "Recommandee",
+            sprintf("Une quantitative comparee entre %d groupes, normalite intra-groupe et homogeneite des variances acceptables.", g$k),
+            "Independance ; normalite des residus ; homogeneite des variances.",
+            "ANOVA de Welch, ou Kruskal-Wallis.")
+        else if (normal_tous && !isTRUE(g$petits_effectifs))
+          .hstat_reco_row("ANOVA de Welch", "Recommandee",
+            "Normalite intra-groupe acceptable mais variances heterogenes entre groupes.",
+            "Independance des observations.",
+            "Kruskal-Wallis.")
+        else if (isTRUE(g$petits_effectifs))
+          .hstat_reco_row("Kruskal-Wallis", "Recommandee",
+            sprintf("%d groupes dont au moins un compte moins de 5 observations : la normalite n'y est pas verifiable, un test de rangs ne la suppose pas.", g$k),
+            "Independance des observations.",
+            "Test de permutation, si meme les rangs sont trop peu nombreux.")
+        else
+          .hstat_reco_row("Kruskal-Wallis", "Recommandee",
+            sprintf("%d groupes independants et distribution non normale dans au moins un groupe.", g$k),
+            "Independance ; formes comparables pour conclure sur les medianes.",
+            "Comparaison des rangs seule.")))
+      out <- c(out, list(.hstat_reco_row(
+        "Comparaisons post-hoc", "A enchainer",
+        "Un test global significatif dit qu'au moins deux groupes different, jamais lesquels : le post-hoc le precise.",
+        "Correction pour comparaisons multiples (Tukey, Holm, Bonferroni...).",
+        "Sans correction, le risque d'erreur de premiere espece s'accumule.")))
+    }
+    if (isTRUE(g$petits_effectifs))
+      out <- c(out, list(.hstat_reco_row(
+        "Test exact / permutation", "A envisager",
+        "Au moins un groupe compte moins de 5 observations : les approximations asymptotiques deviennent peu fiables.",
+        "-", "-")))
+  }
+
+  # ---- Deux quantitatives, aucun facteur ----
+  if (length(quanti) >= 2 && is.null(g)) {
+    out <- c(out, list(
+      if (normal_tous)
+        .hstat_reco_row("Correlation de Pearson", "Recommandee",
+          "Deux variables quantitatives dont les distributions sont compatibles avec la normalite.",
+          "Relation lineaire ; absence de valeurs extremes influentes.",
+          "Correlation de Spearman, qui ne suppose que la monotonie.")
+      else
+        .hstat_reco_row("Correlation de Spearman", "Recommandee",
+          "Deux quantitatives dont au moins une s'ecarte de la normalite : la correlation des rangs ne la suppose pas.",
+          "Relation monotone.",
+          "Tau de Kendall, plus robuste sur petits effectifs.")))
+    out <- c(out, list(.hstat_reco_row(
+      "Regression lineaire", "A envisager",
+      "Si l'une des deux variables est expliquee par l'autre, la regression quantifie l'effet la ou la correlation ne mesure que l'association.",
+      "Linearite, independance, homoscedasticite, normalite des residus.",
+      "Regression robuste, ou transformation de la reponse.")))
+    if (length(quanti) >= 3)
+      out <- c(out, list(.hstat_reco_row(
+        "ACP (analyse en composantes principales)", "A envisager",
+        sprintf("%d variables quantitatives : l'ACP resume leur structure commune et revele les redondances.", length(quanti)),
+        "Variables correlees entre elles ; effectif superieur au nombre de variables.",
+        "Matrice de correlations seule si les variables sont independantes.")))
+  }
+
+  # ---- Deux qualitatives ----
+  if (length(quali) >= 2 || (length(quali) >= 1 && !is.null(g) && length(quanti) == 0)) {
+    petits <- isTRUE(g$petits_effectifs)
+    out <- c(out, list(
+      if (petits)
+        .hstat_reco_row("Test exact de Fisher", "Recommandee",
+          "Tableau croise dont certains effectifs attendus sont faibles : le chi-deux n'y est plus valide.",
+          "Effectifs attendus < 5 dans plus de 20 % des cases.",
+          "Regroupement de modalites, puis chi-deux.")
+      else
+        .hstat_reco_row("Test du chi-deux d'independance", "Recommandee",
+          "Deux variables categorielles : le chi-deux teste leur independance.",
+          "Effectifs attendus >= 5 dans au moins 80 % des cases.",
+          "Test exact de Fisher.")))
+    out <- c(out, list(.hstat_reco_row(
+      "V de Cramer / Odds Ratio", "A enchainer",
+      "Un test dit s'il y a association, jamais sa force : la taille d'effet le dit.",
+      "-", "-")))
+    if (length(quali) >= 3)
+      out <- c(out, list(.hstat_reco_row(
+        "ACM (analyse des correspondances multiples)", "A envisager",
+        sprintf("%d variables categorielles : l'ACM positionne individus et modalites dans un meme plan.", length(quali)),
+        "Modalites suffisamment representees (regrouper les plus rares).", "-")))
+  }
+
+  # ---- Ordinales ----
+  if (length(ordin) >= 1) {
+    out <- c(out, list(.hstat_reco_row(
+      "Analyse ordinale (Likert, rangs)", if (length(ordin) >= 2) "Recommandee" else "A envisager",
+      "Variable a modalites ordonnees : la traiter comme quantitative suppose des ecarts egaux entre echelons, ce qui est rarement vrai.",
+      "Ordre des modalites correctement declare.",
+      "Traitement categoriel simple si l'ordre n'a pas de sens.")))
+    if (length(ordin) >= 2)
+      out <- c(out, list(.hstat_reco_row(
+        "Correlation de Spearman / Kendall", "A envisager",
+        "Deux variables ordinales : la correlation des rangs respecte leur nature.",
+        "Relation monotone.", "-")))
+  }
+
+  # ---- Reponse binaire : modelisation ----
+  bin <- names(types)[types == "binaire"]
+  if (length(bin) >= 1 && (length(quanti) >= 1 || length(quali) >= 1))
+    out <- c(out, list(.hstat_reco_row(
+      "Regression logistique", "A envisager",
+      sprintf("« %s » ne prend que deux valeurs : la regression logistique modelise sa probabilite a partir des autres variables.", bin[1]),
+      "Effectif suffisant par modalite (au moins 10 evenements par predicteur).",
+      "Test exact ou regression penalisee si les effectifs sont faibles.")))
+
+  if (!length(out)) return(NULL)
+  res <- do.call(rbind, out)
+  # Le rang tient a la pertinence, pas a l'ordre d'ecriture des regles.
+  ordre <- c("Recommandee" = 1, "A enchainer" = 2, "A envisager" = 3)
+  res[order(ordre[res$Pertinence], seq_len(nrow(res))), , drop = FALSE]
+}
+
+# Verdict lisible sur l'analyse effectivement realisee : elle figure ou non
+# parmi les recommandations. On ne dit jamais « vous avez eu tort » — le
+# contexte d'une enquete justifie parfois un choix que les regles ignorent.
+# Modules dont la sortie n'est pas un test : les comparer aux recommandations
+# n'aurait pas de sens — une statistique descriptive n'est pas un mauvais test,
+# c'est une etape anterieure. On y propose la suite plutot qu'un verdict.
+HSTAT_RECO_EXPLORATOIRE <- c("Analyses descriptives", "Visualisation",
+                             "Exploration", "Analyses qualitatives")
+
+hstat_reco_verdict <- function(reco, titre_analyse, module = NULL) {
+  if (is.null(reco) || !nrow(reco) || is.null(titre_analyse) || !nzchar(titre_analyse))
+    return(NULL)
+  if (!is.null(module) && module %in% HSTAT_RECO_EXPLORATOIRE) {
+    reco_1 <- reco$Analyse[reco$Pertinence == "Recommandee"]
+    return(list(
+      coherent = TRUE, exploratoire = TRUE,
+      message = sprintf(
+        "« %s » decrit vos donnees : c'est une etape preliminaire, pas un test, il n'y a donc rien a valider ici. Pour aller plus loin, le profil de vos variables appelle %s. A vous de decider si cette suite a du sens pour votre question de recherche.",
+        titre_analyse,
+        if (length(reco_1)) paste(reco_1, collapse = " ou ") else "une analyse inferentielle")))
+  }
+  cle <- function(x) {
+    x <- tolower(chartr("àâäéèêëîïôöùûüç", "aaaeeeeiioouuuc", x))
+    gsub("[^a-z]+", " ", x)
+  }
+  t <- cle(titre_analyse)
+  mots <- lapply(cle(reco$Analyse), function(a) strsplit(a, " ")[[1]])
+  hit <- vapply(mots, function(w) {
+    w <- w[nchar(w) >= 4]
+    length(w) > 0 && any(vapply(w, function(z) grepl(z, t, fixed = TRUE), logical(1)))
+  }, logical(1))
+  reco_1 <- reco$Analyse[reco$Pertinence == "Recommandee"]
+  if (any(hit))
+    list(coherent = TRUE, exploratoire = FALSE,
+         message = sprintf(
+           "L'analyse que vous avez menee figure parmi celles que le profil de vos donnees appelle (%s).",
+           paste(reco$Analyse[hit], collapse = ", ")))
+  else
+    list(coherent = FALSE, exploratoire = FALSE,
+         message = sprintf(
+           "Au vu du profil des variables, %s aurait ete le choix le plus direct. Cela ne disqualifie pas votre analyse : un objectif de recherche ou une contrainte de terrain peut la justifier. A vous de trancher.",
+           if (length(reco_1)) paste(reco_1, collapse = " ou ") else "une autre approche"))
+}
+
+
+# ---------------------------------------------------------------------------
+# INTERPRETATION DES RESULTATS
+# ---------------------------------------------------------------------------
+
+# Reperage des p-values dans un tableau de resultats, quel que soit le module
+# qui l'a produit : les intitules varient (`p`, `p.value`, `Pr(>F)`, `p ajustee`...)
+# mais la colonne existe presque toujours.
+.hstat_ai_pcols <- function(tb) {
+  nm <- names(tb)
+  hit <- grepl("^p([._ ]?(value|valeur))?$|p[-_. ]?value|^pr\\(|p[-_. ]?ajust",
+               tolower(nm), perl = TRUE)
+  nm[hit & vapply(tb, is.numeric, logical(1))]
+}
+
+.hstat_ai_signif <- function(p, alpha = 0.05) {
+  if (is.na(p)) return("indeterminee")
+  if (p < alpha) "significatif" else "non significatif"
+}
+
+# Lecture automatique, DETERMINISTE, des resultats captures. Sert de reponse
+# quand aucun modele n'est joignable, et de garde-fou quand il l'est : ces
+# chiffres-la ne sont pas generes, ils sont lus.
+hstat_ai_interpret_offline <- function(ctx, profile = NULL, reco = NULL,
+                                       verdict = NULL, alpha = 0.05) {
+  if (is.null(ctx)) return(NULL)
+  L <- c(sprintf("## %s", ctx$title), "")
+
+  if (!is.null(profile)) {
+    ty <- vapply(profile$variables, function(e) e$type, character(1))
+    L <- c(L, "### Donnees analysees", "",
+           sprintf("- %d observations ; %s.", profile$n,
+                   paste(sprintf("%d variable(s) %s", table(ty), names(table(ty))),
+                         collapse = ", ")))
+    if (!is.null(profile$groupe))
+      L <- c(L, sprintf("- Facteur « %s » a %d modalites (effectifs : %s)%s.",
+                        profile$groupe$nom, profile$groupe$k,
+                        paste(profile$groupe$effectifs, collapse = ", "),
+                        if (isTRUE(profile$groupe$petits_effectifs))
+                          " — au moins un groupe sous 5 observations" else ""))
+    for (nm in names(profile$variables)) {
+      e <- profile$variables[[nm]]
+      if (is.null(e$normale) || is.na(e$normale$ok)) next
+      L <- c(L, sprintf("- « %s » : distribution %s la normalite (%s%s).", nm,
+                        if (isTRUE(e$normale$ok)) "compatible avec" else "incompatible avec",
+                        e$normale$methode,
+                        if (!is.na(e$normale$p)) sprintf(", p = %.4g", e$normale$p) else ""))
+    }
+    L <- c(L, "")
+  }
+
+  # --- Lecture des p-values ---
+  lues <- 0L
+  for (nm in names(ctx$tables)) {
+    tb <- as.data.frame(ctx$tables[[nm]])
+    pc <- .hstat_ai_pcols(tb)
+    if (!length(pc)) next
+    if (lues == 0L) L <- c(L, "### Ce que disent les tests", "")
+    lab_col <- names(tb)[vapply(tb, function(x) is.character(x) || is.factor(x), logical(1))]
+    for (i in seq_len(min(nrow(tb), 20L))) {
+      p <- suppressWarnings(as.numeric(tb[[pc[1]]][i]))
+      etiq <- if (length(lab_col)) as.character(tb[[lab_col[1]]][i]) else sprintf("ligne %d", i)
+      L <- c(L, sprintf("- **%s** : p = %s -> %s au seuil de %.0f %%.",
+                        etiq,
+                        if (is.na(p)) "n.d." else format(signif(p, 3), scientific = p < 1e-4),
+                        .hstat_ai_signif(p, alpha), 100 * alpha))
+      lues <- lues + 1L
+    }
+    if (nrow(tb) > 20L) L <- c(L, sprintf("- (... %d lignes supplementaires)", nrow(tb) - 20L))
+  }
+  if (lues == 0L)
+    L <- c(L, "### Resultats", "",
+           "Aucune p-value reperee automatiquement dans les tableaux : reportez-vous au detail ci-dessous.")
+  L <- c(L, "")
+
+  if (!is.null(verdict))
+    L <- c(L, "### Coherence du choix d'analyse", "", verdict$message, "")
+
+  if (!is.null(reco) && nrow(reco)) {
+    L <- c(L, "### Analyses appelees par vos donnees", "")
+    for (i in seq_len(nrow(reco)))
+      L <- c(L, sprintf("- **%s** *(%s)* — %s", reco$Analyse[i], reco$Pertinence[i],
+                        reco$Pourquoi[i]))
+    L <- c(L, "",
+           paste0("*Ces propositions decoulent du profil de vos variables. ",
+                  "Le choix de l'analyse, lui, vous appartient : lui seul engage ",
+                  "l'interpretation scientifique de votre travail.*"))
+  }
+  paste(L, collapse = "\n")
+}
+
+HSTAT_AI_NIVEAUX <- c(
+  "Rapport scientifique (concis, normalise)" = "scientifique",
+  "Vulgarise (sans jargon)"                  = "vulgarise",
+  "Detaille (methode + limites)"             = "detaille")
+
+hstat_ai_interpret_prompt <- function(ctx, profile = NULL, reco = NULL,
+                                      verdict = NULL, niveau = "scientifique",
+                                      contexte = "", alpha = 0.05) {
+  style <- switch(niveau,
+    vulgarise = paste0("Ecris pour un lecteur sans formation statistique : pas de jargon, ",
+                       "pas de symboles, des phrases courtes. Explique ce que le resultat ",
+                       "signifie concretement."),
+    detaille  = paste0("Redige un texte complet : rappel de la methode et de ses conditions ",
+                       "d'application, resultats chiffres, taille d'effet, limites de ",
+                       "l'analyse et portee des conclusions."),
+    paste0("Redige comme une section « Resultats » d'article scientifique : concis, ",
+           "impersonnel, chiffres entre parentheses selon l'usage (statistique, ddl, ",
+           "p, taille d'effet)."))
+
+  bloc_reco <- if (!is.null(reco) && nrow(reco))
+    paste0("\n\nANALYSES QUE LE PROFIL DES DONNEES APPELLE (calculees par HStat, ",
+           "deterministes — reprends-les telles quelles, n'en invente pas d'autres) :\n",
+           paste(sprintf("- %s (%s) : %s", reco$Analyse, reco$Pertinence, reco$Pourquoi),
+                 collapse = "\n")) else ""
+
+  bloc_profil <- if (!is.null(profile)) {
+    ty <- vapply(profile$variables, function(e) e$type, character(1))
+    nrm <- vapply(profile$variables, function(e)
+      if (is.null(e$normale) || is.na(e$normale$ok)) "non evaluee"
+      else if (isTRUE(e$normale$ok)) "compatible avec la normalite"
+      else "non normale", character(1))
+    paste0("\n\nPROFIL DES DONNEES :\n",
+           sprintf("- %d observations\n", profile$n),
+           paste(sprintf("- %s : %s (%s)", names(ty), ty, nrm), collapse = "\n"),
+           if (!is.null(profile$groupe))
+             sprintf("\n- Facteur %s : %d modalites, effectifs %s",
+                     profile$groupe$nom, profile$groupe$k,
+                     paste(profile$groupe$effectifs, collapse = "/")) else "")
+  } else ""
+
+  paste0(
+    "Tu es statisticien. On te donne les RESULTATS d'une analyse deja realisee ",
+    "par l'utilisateur. Ta mission est de les INTERPRETER, en francais.\n\n",
+    "REGLES ABSOLUES :\n",
+    "1. N'invente aucun chiffre. N'utilise que les valeurs presentes ci-dessous. ",
+    "Si une valeur manque, dis-le au lieu de la deviner.\n",
+    "2. Ne recalcule rien et ne propose pas de relancer l'analyse a ta facon.\n",
+    "3. Le choix de l'analyse appartient a l'utilisateur : tu peux signaler ",
+    "qu'une autre methode aurait mieux convenu, jamais affirmer qu'il a eu tort.\n",
+    sprintf("4. Seuil de signification retenu : %.0f %%.\n", 100 * alpha),
+    "\nSTYLE : ", style,
+    if (nzchar(trimws(contexte))) paste0("\n\nCONTEXTE DE L'ETUDE : ", contexte) else "",
+    bloc_profil, bloc_reco,
+    "\n\n", hstat_ai_context_text(ctx),
+    "\n\nStructure ta reponse en markdown avec exactement ces sections :\n",
+    "## Lecture des resultats\n",
+    "## Ce que cela signifie\n",
+    "## Precautions et limites\n",
+    "## Analyse recommandee pour la suite\n",
+    "Dans la derniere section, appuie-toi sur les analyses appelees par le profil ",
+    "des donnees, et rappelle que la decision revient a l'utilisateur.")
+}
+
+
+# ---------------------------------------------------------------------------
+# GUIDAGE A LA FIN DE L'ANALYSE
+# ---------------------------------------------------------------------------
+# Une recommandation qui n'arrive que si l'utilisateur pense a changer d'onglet
+# n'aide personne. Des qu'une analyse depose son resultat, un bandeau discret
+# annonce ce que le profil des donnees appelle, avec un lien vers le detail.
+# Le lien bascule d'onglet cote navigateur : pas d'aller-retour serveur, et
+# aucun couplage entre les modules d'analyse et l'assistance.
+# ---------------------------------------------------------------------------
+
+# Un identifiant de sortie par onglet d'analyse. Declares ici plutot que
+# disperses : ajouter un onglet, c'est ajouter une ligne a cette liste et poser
+# hstat_ai_hint_slot() dans son interface.
+HSTAT_AI_HINT_IDS <- c(
+  "aihint_descriptive", "aihint_viz", "aihint_correlation", "aihint_tests",
+  "aihint_multiple", "aihint_multivariate", "aihint_qualitative",
+  "aihint_timeseries", "aihint_ml", "aihint_dl", "aihint_design",
+  "aihint_threshold")
+
+# Emplacement a poser en bas d'un onglet d'analyse.
+hstat_ai_hint_slot <- function(id) {
+  stopifnot(id %in% HSTAT_AI_HINT_IDS)
+  shiny::uiOutput(id)
+}
+
+# Greffe l'emplacement a la fin d'un tabItem deja construit. Permet d'ajouter
+# le bandeau aux onglets dont l'interface est produite par un module, sans
+# toucher au module : `tabItem()` renvoie un simple div, on lui ajoute un
+# enfant. Un onglet introuvable ou d'une autre forme est renvoye tel quel
+# plutot que de casser la construction de l'interface.
+hstat_ai_with_hint <- function(tab, id) {
+  if (!inherits(tab, "shiny.tag") || is.null(tab$children)) return(tab)
+  tab$children <- c(tab$children, list(hstat_ai_hint_slot(id)))
+  tab
+}
+
+hstat_ai_hint_ui <- function(ctx, reco, verdict = NULL) {
+  if (is.null(ctx)) return(NULL)
+  top <- if (!is.null(reco) && nrow(reco))
+    reco$Analyse[reco$Pertinence == "Recommandee"] else character(0)
+  suite <- if (!is.null(reco) && nrow(reco))
+    reco$Analyse[reco$Pertinence == "A enchainer"] else character(0)
+
+  lien <- shiny::tags$a(
+    href = "#", style = "font-weight:bold;color:#1b6f8c;",
+    onclick = paste0(
+      "$('a[href=\"#shiny-tab-aidecision\"]').click();",
+      "$(window).scrollTop(0);return false;"),
+    shiny::icon("compass-drafting"), " Interpreter ces resultats")
+
+  shiny::div(
+    style = paste0("background:#eaf4fb;border-left:5px solid #2e86c1;",
+                   "padding:12px 16px;border-radius:6px;margin-top:14px;font-size:13px;"),
+    shiny::tags$strong(shiny::icon("lightbulb"), " Aide a la decision"),
+    shiny::tags$span(style = "color:#7f8c8d;", sprintf(" - a la suite de : %s", ctx$title)),
+    shiny::br(),
+    if (length(top))
+      shiny::tags$span("Le profil de vos donnees appelle ",
+                       shiny::tags$b(paste(top, collapse = " ou ")), ".")
+    else
+      shiny::tags$span("Choisissez les variables analysees dans l'onglet dedie pour obtenir une recommandation."),
+    if (length(suite))
+      shiny::tags$span(" A enchainer : ", shiny::tags$b(paste(suite, collapse = ", ")), "."),
+    if (!is.null(verdict) && !isTRUE(verdict$coherent))
+      shiny::tagList(shiny::br(), shiny::tags$span(style = "color:#b9770e;",
+        shiny::icon("circle-question"), " ", verdict$message)),
+    shiny::br(),
+    lien,
+    shiny::tags$span(style = "color:#7f8c8d;",
+      " - la methode reste votre choix : l'assistance eclaire, elle ne decide pas."))
+}
+
+# Notification a la fin d'une analyse. Volontairement breve : le detail vit
+# dans l'onglet, ceci n'est qu'un rappel que l'aide existe et qu'elle a
+# quelque chose a dire sur CE resultat.
+hstat_ai_hint_text <- function(ctx, reco) {
+  if (is.null(ctx)) return(NULL)
+  top <- if (!is.null(reco) && nrow(reco))
+    reco$Analyse[reco$Pertinence == "Recommandee"] else character(0)
+  if (!length(top)) return(NULL)
+  sprintf("%s enregistree. Le profil de vos donnees appelle %s.",
+          ctx$title, paste(top, collapse = " ou "))
+}
+
+
+# ---------------------------------------------------------------------------
+# RENDU
+# ---------------------------------------------------------------------------
+
+# Tableau HTML statique. Utilisable dans un renderUI, contrairement a
+# shiny::renderTable() qui est une fonction de rendu et non un composant.
+.hstat_html_table <- function(df) {
+  df <- as.data.frame(df)
+  if (!nrow(df)) return(shiny::tags$em(style = "color:#95a5a6;", "(tableau vide)"))
+  fmt <- function(x) {
+    if (is.numeric(x)) ifelse(is.na(x), "", format(signif(x, 5), trim = TRUE))
+    else ifelse(is.na(x), "", as.character(x))
+  }
+  shiny::tags$div(style = "overflow-x:auto;",
+    shiny::tags$table(class = "table table-condensed table-striped",
+      shiny::tags$thead(shiny::tags$tr(lapply(names(df), shiny::tags$th))),
+      shiny::tags$tbody(lapply(seq_len(nrow(df)), function(i)
+        shiny::tags$tr(lapply(seq_along(df), function(j)
+          shiny::tags$td(fmt(df[[j]])[i])))))))
+}
+
+# Conversion markdown -> HTML des seules constructions demandees au modele
+# (titres, gras, italique, listes). Ecrite a la main plutot que confiee a un
+# paquet : c'est trois expressions regulieres, et surtout le texte est ECHAPPE
+# d'abord — une reponse de modele reste du contenu non fiable qu'on n'injecte
+# pas tel quel dans la page.
+.hstat_md_to_html <- function(txt) {
+  if (is.null(txt) || !nzchar(txt)) return("")
+  esc <- function(x) {
+    x <- gsub("&", "&amp;", x, fixed = TRUE)
+    x <- gsub("<", "&lt;", x, fixed = TRUE)
+    gsub(">", "&gt;", x, fixed = TRUE)
+  }
+  inline <- function(x) {
+    x <- gsub("\\*\\*(.+?)\\*\\*", "<strong>\\1</strong>", x, perl = TRUE)
+    x <- gsub("(?<!\\*)\\*([^*]+?)\\*(?!\\*)", "<em>\\1</em>", x, perl = TRUE)
+    gsub("`([^`]+)`", "<code>\\1</code>", x, perl = TRUE)
+  }
+  lines <- strsplit(esc(txt), "\n", fixed = TRUE)[[1]]
+  out <- character(0); in_ul <- FALSE
+  close_ul <- function() { if (in_ul) { out <<- c(out, "</ul>"); in_ul <<- FALSE } }
+  for (l in lines) {
+    t <- trimws(l)
+    if (!nzchar(t)) { close_ul(); next }
+    if (grepl("^#{1,6} ", t)) {
+      close_ul()
+      n <- min(6L, nchar(sub("^(#+).*$", "\\1", t)))
+      out <- c(out, sprintf("<h%d style='margin-top:18px;'>%s</h%d>",
+                            n + 2L, inline(sub("^#+ +", "", t)), n + 2L))
+    } else if (grepl("^[-*+] ", t)) {
+      if (!in_ul) { out <- c(out, "<ul>"); in_ul <- TRUE }
+      out <- c(out, sprintf("<li>%s</li>", inline(sub("^[-*+] +", "", t))))
+    } else {
+      close_ul()
+      out <- c(out, sprintf("<p>%s</p>", inline(t)))
+    }
+  }
+  close_ul()
+  paste(out, collapse = "\n")
+}
+
+
+# ===========================================================================
+# ONGLET « INTERPRETATION & AIDE A LA DECISION »
+# ===========================================================================
+mod_ai_ui <- function(id) {
+  ns <- shiny::NS(id)
+  shinydashboard::tabItem(
+    tabName = "aidecision",
+    shiny::fluidRow(
+      shinydashboard::box(width = 12, status = "primary", solidHeader = FALSE,
+        background = "navy",
+        shiny::h3(shiny::icon("compass-drafting"),
+                  " Interpretation des resultats & aide a la decision",
+                  style = "margin:0;color:white;"),
+        shiny::p(style = "margin:8px 0 0 0;color:#d6e4f0;font-size:13px;",
+          "L'assistance interprete les resultats que vous venez d'obtenir et vous ",
+          "indique quelles analyses le profil de vos donnees appelle. ",
+          shiny::tags$b("Elle ne choisit ni ne lance aucune analyse"),
+          " : la methode reste votre decision, et votre responsabilite."))
+    ),
+    shiny::fluidRow(
+      shiny::column(4,
+        shinydashboard::box(width = 12, status = "primary", solidHeader = TRUE,
+          title = shiny::tagList(shiny::icon("clipboard-check"), " Analyse a interpreter"),
+          shiny::uiOutput(ns("ctx_box")),
+          shiny::hr(style = "margin:10px 0;"),
+          shiny::h5(shiny::icon("table-columns"), " Profil des donnees"),
+          shiny::tags$small(style = "color:#7f8c8d;display:block;margin-bottom:8px;",
+            "Sert a la recommandation. Pre-rempli depuis la derniere analyse ; ",
+            "ajustez-le si vous voulez explorer un autre scenario."),
+          shiny::uiOutput(ns("vars_ui")),
+          shiny::uiOutput(ns("group_ui")),
+          shiny::checkboxInput(ns("paired"), "Mesures appariees (memes sujets)", FALSE),
+          shiny::sliderInput(ns("alpha"), "Seuil de signification", min = 0.001,
+                             max = 0.10, value = 0.05, step = 0.001),
+          shiny::hr(style = "margin:10px 0;"),
+          shiny::selectInput(ns("niveau"), "Niveau de redaction",
+                             choices = HSTAT_AI_NIVEAUX, selected = "scientifique"),
+          shiny::textAreaInput(ns("contexte"), "Contexte de l'etude (facultatif)",
+                               rows = 2,
+                               placeholder = "Ex. essai clinique, 3 bras, critere principal"),
+          shiny::hr(style = "margin:10px 0;"),
+          shiny::actionButton(ns("go"), "Interpreter avec le modele",
+                              icon = shiny::icon("wand-magic-sparkles"),
+                              class = "btn-primary btn-block"),
+          shiny::br(),
+          shiny::actionButton(ns("go_offline"), "Lecture automatique (sans modele)",
+                              icon = shiny::icon("calculator"),
+                              class = "btn-default btn-block btn-sm"),
+          shiny::tags$small(style = "color:#7f8c8d;display:block;margin-top:8px;",
+            shiny::icon("circle-info"),
+            " La lecture automatique ne genere rien : elle relit vos tableaux et ",
+            "en enonce les p-values. Elle fonctionne toujours, sans modele.")
+        ),
+        shinydashboard::box(width = 12, status = "warning", solidHeader = TRUE,
+          collapsible = TRUE, collapsed = TRUE,
+          title = shiny::tagList(shiny::icon("microchip"), " Moteur d'inference"),
+          shiny::radioButtons(ns("engine"), NULL, choices = HSTAT_AI_ENGINES,
+                              selected = "local"),
+          shiny::conditionalPanel(sprintf("input['%s'] == 'local'", ns("engine")),
+            shiny::radioButtons(ns("backend"), "Serveur", choices = HSTAT_AI_BACKENDS,
+                                selected = "ollama", inline = TRUE),
+            shiny::textInput(ns("url"), "Adresse",
+                             value = unname(HSTAT_AI_DEFAULT_URL[["ollama"]])),
+            shiny::uiOutput(ns("model_ui")),
+            shiny::actionButton(ns("ping"), "Tester la connexion",
+                                icon = shiny::icon("plug-circle-check"),
+                                class = "btn-default btn-sm btn-block")),
+          shiny::conditionalPanel(sprintf("input['%s'] == 'claude'", ns("engine")),
+            shiny::passwordInput(ns("key"), "Cle d'API Anthropic",
+                                 placeholder = "sk-ant-... (ou ANTHROPIC_API_KEY)")),
+          shiny::uiOutput(ns("status")))
+      ),
+      shiny::column(8,
+        shinydashboard::box(width = 12, status = "primary", solidHeader = TRUE,
+          title = shiny::tagList(shiny::icon("lightbulb"), " Aide a la decision"),
+          shiny::tabsetPanel(id = ns("tabs"),
+            shiny::tabPanel(shiny::tagList(shiny::icon("file-lines"), " Interpretation"),
+              shiny::br(),
+              shiny::uiOutput(ns("interp_note")),
+              shiny::div(style = "background:#ffffff;border:1px solid #e0e0e0;border-radius:6px;padding:16px 20px;min-height:280px;",
+                         shiny::uiOutput(ns("interp"))),
+              shiny::br(),
+              shiny::fluidRow(
+                shiny::column(4, shiny::downloadButton(ns("dl_md"), "Markdown",
+                                                       class = "btn-info btn-sm btn-block")),
+                shiny::column(4, shiny::downloadButton(ns("dl_txt"), "Texte brut",
+                                                       class = "btn-info btn-sm btn-block")))),
+            shiny::tabPanel(shiny::tagList(shiny::icon("route"), " Analyse recommandee"),
+              shiny::br(),
+              shiny::uiOutput(ns("verdict")),
+              DT::DTOutput(ns("reco_table")),
+              shiny::br(),
+              shiny::div(style = "background:#fdf3e3;border-left:5px solid #e67e22;padding:12px 16px;border-radius:6px;font-size:13px;",
+                shiny::icon("triangle-exclamation"),
+                shiny::tags$b(" Ces propositions ne decident pas a votre place."),
+                " Elles decoulent mecaniquement du type de vos variables, de leurs ",
+                "effectifs et de tests de normalite et d'homogeneite. Une question de ",
+                "recherche, un plan d'experience ou une contrainte de terrain peuvent ",
+                "justifier un autre choix — que vous seul etes en mesure de faire.")),
+            shiny::tabPanel(shiny::tagList(shiny::icon("magnifying-glass-chart"), " Profil des donnees"),
+              shiny::br(),
+              DT::DTOutput(ns("profile_table")),
+              shiny::br(),
+              shiny::uiOutput(ns("profile_notes"))),
+            shiny::tabPanel(shiny::tagList(shiny::icon("table"), " Resultats captures"),
+              shiny::br(),
+              shiny::uiOutput(ns("ctx_tables")))
+          ))
+      )
+    )
+  )
+}
+
+mod_ai_server <- function(id, values) {
+  shiny::moduleServer(id, function(input, output, session) {
+    ns <- session$ns
+    rv <- shiny::reactiveValues(txt = NULL, source = NULL, err = NULL)
+
+    ctx <- shiny::reactive(values$aiContext)
+
+    get_data <- shiny::reactive({
+      d <- values$data
+      shiny::validate(shiny::need(!is.null(d) && nrow(d) > 0,
+        "Chargez d'abord un jeu de donnees dans l'onglet Chargement."))
+      as.data.frame(d)
+    })
+
+    output$ctx_box <- shiny::renderUI({
+      c0 <- ctx()
+      if (is.null(c0))
+        return(shiny::div(class = "callout callout-warning", style = "padding:10px 14px;",
+          shiny::icon("circle-info"),
+          shiny::tags$b(" Aucune analyse enregistree."),
+          shiny::br(),
+          "Lancez une analyse dans l'un des onglets (tests, descriptives, ",
+          "correlations, multivariees, qualitatives...), puis revenez ici. ",
+          "Vous pouvez deja obtenir une recommandation en choisissant vos ",
+          "variables ci-dessous."))
+      shiny::div(class = "callout callout-success", style = "padding:10px 14px;",
+        shiny::icon("circle-check"), shiny::tags$b(" ", c0$title), shiny::br(),
+        shiny::tags$small(sprintf("Module : %s - %d tableau(x) - %s",
+                                  c0$module, length(c0$tables),
+                                  format(c0$time, "%H:%M:%S"))))
+    })
+
+    # Les selecteurs sont pre-remplis depuis l'analyse capturee : l'utilisateur
+    # arrive sur un profil deja pertinent, qu'il reste libre de modifier.
+    output$vars_ui <- shiny::renderUI({
+      d <- get_data()
+      pre <- intersect(ctx()$meta$variables %||% character(0), names(d))
+      shiny::selectInput(ns("vars"), "Variables analysees", choices = names(d),
+                         selected = if (length(pre)) pre else NULL, multiple = TRUE)
+    })
+    output$group_ui <- shiny::renderUI({
+      d <- get_data()
+      pre <- intersect(ctx()$meta$groupe %||% character(0), names(d))
+      shiny::selectInput(ns("group"), "Variable de groupe (facteur)",
+                         choices = c("(aucune)" = "", names(d)),
+                         selected = if (length(pre)) pre[1] else "")
+    })
+
+    profile <- shiny::reactive({
+      d <- get_data()
+      shiny::req(length(input$vars) > 0)
+      hstat_data_profile(d, input$vars, input$group, isTRUE(input$paired))
+    })
+    reco <- shiny::reactive(hstat_reco_analyses(profile()))
+    verdict <- shiny::reactive({
+      c0 <- ctx()
+      if (is.null(c0)) return(NULL)
+      hstat_reco_verdict(reco(), c0$title, c0$module)
+    })
+
+    # ---------------------------------------------------- moteur
+    ai_models <- shiny::reactiveVal(character(0))
+    shiny::observeEvent(input$backend, {
+      shiny::updateTextInput(session, "url",
+                             value = unname(HSTAT_AI_DEFAULT_URL[[input$backend]]))
+    }, ignoreInit = TRUE)
+    shiny::observeEvent(input$ping, {
+      st <- hstat_ai_status("local", input$backend %||% "ollama", input$url)
+      ai_models(if (is.null(st$models)) character(0) else st$models)
+      shiny::showNotification(st$message,
+                              type = if (isTRUE(st$ok)) "message" else "warning",
+                              duration = 10)
+    })
+    output$model_ui <- shiny::renderUI({
+      m <- ai_models()
+      if (!length(m))
+        return(shiny::textInput(ns("model"), "Modele",
+                                placeholder = "ex. qwen2.5 - testez la connexion"))
+      shiny::selectInput(ns("model"), "Modele", choices = m,
+                         selected = shiny::isolate(input$model) %||% m[1])
+    })
+    output$status <- shiny::renderUI({
+      st <- hstat_ai_status(input$engine %||% "local", input$backend %||% "ollama",
+                            input$url, input$model, input$key)
+      shiny::div(class = if (isTRUE(st$ok)) "callout callout-success" else "callout callout-warning",
+                 style = "padding:8px 12px;font-size:12px;",
+                 shiny::icon(if (isTRUE(st$ok)) "circle-check" else "triangle-exclamation"),
+                 " ", st$message)
+    })
+
+    # ---------------------------------------------------- interpretation
+    .offline <- function() {
+      c0 <- ctx()
+      if (is.null(c0)) {
+        shiny::showNotification(
+          "Aucune analyse enregistree : lancez d'abord une analyse dans un autre onglet.",
+          type = "warning", duration = 7)
+        return(invisible(NULL))
+      }
+      pr <- tryCatch(profile(), error = function(e) NULL)
+      rv$txt <- hstat_ai_interpret_offline(c0, pr, tryCatch(reco(), error = function(e) NULL),
+                                           tryCatch(verdict(), error = function(e) NULL),
+                                           input$alpha %||% 0.05)
+      rv$source <- "Lecture automatique (aucun modele, aucun reseau)"
+      rv$err <- NULL
+    }
+
+    shiny::observeEvent(input$go_offline, .offline())
+
+    shiny::observeEvent(input$go, {
+      c0 <- ctx()
+      if (is.null(c0)) {
+        shiny::showNotification(
+          "Aucune analyse enregistree : lancez d'abord une analyse dans un autre onglet.",
+          type = "warning", duration = 7); return()
+      }
+      eng <- input$engine %||% "local"
+      if (identical(eng, "auto")) {
+        # Le moteur « sans modele » de l'assistance, c'est la lecture automatique.
+        .offline(); return()
+      }
+      st <- hstat_ai_status(eng, input$backend %||% "ollama", input$url,
+                            input$model, input$key)
+      if (!isTRUE(st$ok)) {
+        shiny::showNotification(paste0(st$message,
+          " La lecture automatique, elle, reste disponible."),
+          type = "error", duration = 12)
+        return()
+      }
+      pr <- tryCatch(profile(), error = function(e) NULL)
+      rc <- tryCatch(reco(), error = function(e) NULL)
+      vd <- tryCatch(verdict(), error = function(e) NULL)
+
+      shiny::withProgress(message = "Redaction de l'interpretation...", value = 0.4, {
+        res <- hstat_ai_call(
+          hstat_ai_interpret_prompt(c0, pr, rc, vd, input$niveau %||% "scientifique",
+                                    input$contexte %||% "", input$alpha %||% 0.05),
+          system = paste0("Tu es statisticien. Tu interpretes des resultats deja ",
+                          "obtenus, sans jamais inventer de chiffre ni relancer ",
+                          "d'analyse. Tu reponds en francais, en markdown."),
+          engine = eng, backend = input$backend %||% "ollama", url = input$url,
+          model = input$model, api_key = input$key, json = FALSE)
+        shiny::incProgress(0.5)
+        if (!isTRUE(res$ok)) {
+          rv$err <- res$error
+          shiny::showNotification(paste0(res$error,
+            " Repli sur la lecture automatique."), type = "error", duration = 12)
+          .offline(); return()
+        }
+        rv$txt <- res$text
+        rv$source <- sprintf("%s%s", if (identical(eng, "claude")) "API Claude" else "Modele local",
+                             if (!is.null(res$model)) sprintf(" (%s)", res$model) else "")
+        rv$err <- NULL
+      })
+    })
+
+    output$interp_note <- shiny::renderUI({
+      if (is.null(rv$txt))
+        return(shiny::div(class = "callout callout-info", style = "padding:10px 14px;",
+          shiny::icon("circle-info"),
+          " Lancez une analyse dans un autre onglet, puis demandez son interpretation ici."))
+      shiny::div(class = "callout callout-success", style = "padding:8px 12px;font-size:12px;",
+        shiny::icon("pen-nib"), shiny::tags$b(" Source : "), rv$source,
+        shiny::br(),
+        shiny::tags$small(
+          "Texte a relire avant publication : l'assistance interprete, elle ne valide pas."))
+    })
+
+    output$interp <- shiny::renderUI({
+      if (is.null(rv$txt))
+        return(shiny::tags$em(style = "color:#95a5a6;", "Aucune interpretation pour l'instant."))
+      shiny::HTML(.hstat_md_to_html(rv$txt))
+    })
+
+    output$dl_md <- shiny::downloadHandler(
+      filename = function() sprintf("hstat_interpretation_%s.md", format(Sys.Date(), "%Y%m%d")),
+      content = function(file) writeLines(rv$txt %||% "", file, useBytes = TRUE))
+    output$dl_txt <- shiny::downloadHandler(
+      filename = function() sprintf("hstat_interpretation_%s.txt", format(Sys.Date(), "%Y%m%d")),
+      content = function(file)
+        writeLines(gsub("[*#`]", "", rv$txt %||% ""), file, useBytes = TRUE))
+
+    # ---------------------------------------------------- recommandation
+    output$verdict <- shiny::renderUI({
+      v <- verdict()
+      if (is.null(v)) return(NULL)
+      shiny::div(class = if (isTRUE(v$exploratoire)) "callout callout-info"
+                        else if (isTRUE(v$coherent)) "callout callout-success"
+                        else "callout callout-warning",
+        style = "padding:10px 14px;",
+        shiny::icon(if (isTRUE(v$exploratoire)) "compass"
+                    else if (isTRUE(v$coherent)) "circle-check" else "circle-question"),
+        " ", v$message)
+    })
+
+    output$reco_table <- DT::renderDT({
+      r <- reco()
+      shiny::validate(shiny::need(!is.null(r) && nrow(r) > 0,
+        "Choisissez au moins une variable analysee, a gauche."))
+      DT::datatable(r, rownames = FALSE,
+                    options = list(pageLength = 10, scrollX = TRUE, dom = "t"))
+    })
+
+    output$profile_table <- DT::renderDT({
+      p <- profile()
+      shiny::validate(shiny::need(!is.null(p), "Choisissez au moins une variable."))
+      tb <- do.call(rbind, lapply(p$variables, function(e) data.frame(
+        Variable = e$nom, Type = e$type, `n valide` = e$n, Manquants = e$n_manquant,
+        Modalites = e$modalites,
+        Normalite = if (is.null(e$normale)) "-"
+                    else if (is.na(e$normale$ok)) "non evaluable"
+                    else if (isTRUE(e$normale$ok)) "compatible" else "ecart a la normalite",
+        `Test de normalite` = if (is.null(e$normale)) "-" else e$normale$methode,
+        p = if (is.null(e$normale) || is.na(e$normale$p)) NA_real_
+            else signif(e$normale$p, 4),
+        check.names = FALSE, stringsAsFactors = FALSE)))
+      DT::datatable(tb, rownames = FALSE, options = list(dom = "t", scrollX = TRUE))
+    })
+
+    output$profile_notes <- shiny::renderUI({
+      p <- profile()
+      if (is.null(p)) return(NULL)
+      el <- list(shiny::tags$li(sprintf("%d observations dans le jeu de donnees.", p$n)))
+      if (!is.null(p$groupe)) {
+        g <- p$groupe
+        el <- c(el, list(shiny::tags$li(sprintf(
+          "Facteur « %s » : %d modalites (%s), effectifs %s.", g$nom, g$k,
+          paste(g$modalites, collapse = ", "), paste(g$effectifs, collapse = " / ")))))
+        if (isTRUE(g$petits_effectifs))
+          el <- c(el, list(shiny::tags$li(shiny::tags$b("Au moins un groupe compte moins de 5 observations"),
+            " : les approximations asymptotiques y sont peu fiables.")))
+        if (!is.na(g$variances_homogenes))
+          el <- c(el, list(shiny::tags$li(sprintf("Variances %s entre groupes.",
+            if (isTRUE(g$variances_homogenes)) "homogenes" else "heterogenes"))))
+        if (!is.na(g$equilibre) && !isTRUE(g$equilibre))
+          el <- c(el, list(shiny::tags$li("Groupes desequilibres (rapport des effectifs > 1,5).")))
+      }
+      # Le detail par groupe justifie la recommandation : sans lui, on demande
+      # a l'utilisateur de croire sur parole.
+      for (nm in names(p$variables)) {
+        e <- p$variables[[nm]]
+        if (is.null(e$normale) || is.null(e$normale$detail)) next
+        d <- e$normale$detail
+        el <- c(el, list(shiny::tags$li(sprintf(
+          "Normalite de « %s » testee DANS CHAQUE GROUPE : %s.", nm,
+          paste(sprintf("%s (n=%d, p=%s)", d$Groupe, d$n,
+                        ifelse(is.na(d$p), "n.d.", format(signif(d$p, 3)))),
+                collapse = " ; ")))))
+      }
+      shiny::div(class = "callout callout-info", style = "padding:10px 14px;",
+        shiny::tags$b(shiny::icon("list-check"), " Ce sur quoi repose la recommandation"),
+        shiny::tags$ul(el))
+    })
+
+    output$ctx_tables <- shiny::renderUI({
+      c0 <- ctx()
+      if (is.null(c0)) return(shiny::tags$em(style = "color:#95a5a6;",
+        "Aucune analyse enregistree."))
+      shiny::tagList(
+        lapply(names(c0$tables), function(nm) shiny::tagList(
+          shiny::h5(shiny::icon("table"), " ", nm),
+          # Table statique construite a la main : une fonction de rendu Shiny
+          # attend la session et le nom de sortie, elle ne s'appelle pas
+          # directement depuis un renderUI.
+          .hstat_html_table(utils::head(as.data.frame(c0$tables[[nm]]), 30)),
+          shiny::br())),
+        if (!is.null(c0$text) && nzchar(c0$text))
+          shiny::tagList(shiny::h5(shiny::icon("terminal"), " Sortie R"),
+                         shiny::tags$pre(style = "max-height:320px;overflow:auto;", c0$text)))
+    })
+  })
+}
