@@ -119,18 +119,32 @@ mod_tests_ui <- function(id) {
                                    actionButton(ns("testGLM"),  "Modèle linéaire généralisé",   class = "btn-success btn-block", icon = icon("check")),
                                    actionButton(ns("testGLMM"), "Modèle (généralisé) mixte",    class = "btn-success btn-block", icon = icon("sitemap")),
                                    actionButton(ns("testRMAnova"), "ANOVA à mesures répétées",   class = "btn-success btn-block", icon = icon("repeat"))
+                               )
+                        ),
+                        column(4,
+                               h4("Tests non-paramétriques", style = "color: #f39c12;"),
+                               div(style="display:flex; flex-direction:column; gap:8px;",
+                                   actionButton(ns("testWilcox"),          "Test de Wilcoxon",          class = "btn-warning btn-block", icon = icon("check")),
+                                   actionButton(ns("testKruskal"),         "Test de Kruskal-Wallis",     class = "btn-warning btn-block", icon = icon("check")),
+                                   actionButton(ns("testScheirerRayHare"), "Test de Scheirer-Ray-Hare",  class = "btn-warning btn-block", icon = icon("check")),
+                                   actionButton(ns("testRMNonParam"), "Non paramétrique répété",  class = "btn-warning btn-block", icon = icon("repeat")),
+                                   actionButton(ns("testPERMANOVA"),       "PERMANOVA (>= 2 réponses)",  class = "btn-warning btn-block", icon = icon("layer-group"))
                                ),
+                               # Le Test Chi² / Multinomial a été déplacé dans
+                               # « Analyses qualitatives » (famille Nominale) où
+                               # il vit désormais avec les tableaux croisés.
+
                                # --- Comparaison a une valeur de reference (norme) -------------
                                # Tests a UN echantillon : les donnees sont confrontees a une
                                # valeur cible connue au lieu d'etre comparees entre groupes.
-                               # Les BOUTONS quantitatifs vivent ici, sous les tests
-                               # parametriques ; les REGLAGES communs et le volet proportions
-                               # occupent le bas de la colonne voisine (meme accent violet).
+                               # La section entiere occupe le bas de cette colonne, dans son
+                               # ordre de lecture : d'abord les tests offerts, puis les
+                               # reglages qui les pilotent, puis le volet proportions.
                                div(style = "border-left:4px solid #6a1b9a; padding-left:10px; margin-top:16px;",
                                    h4(tagList(icon("bullseye"), " Comparaison à une norme"),
                                       style = "color:#6a1b9a;"),
                                    div(style = "font-size:11px; color:#7f8c8d; margin:-4px 0 8px 0;",
-                                       "Confronte les variables réponse à une valeur de référence (réglages ci-contre)."),
+                                       "Confronte les variables réponse à une valeur de référence (réglages ci-dessous)."),
                                    div(style = "display:flex; flex-direction:column; gap:8px;",
                                        actionButton(ns("testRefT"), "Test t (1 échantillon)",
                                                     class = "btn-block", icon = icon("bullseye"),
@@ -149,25 +163,12 @@ mod_tests_ui <- function(id) {
                                                     style = "background:#8e44ad; color:#fff; border-color:#76398f;"),
                                        actionButton(ns("testRefSign"), "Test du signe (médiane)",
                                                     class = "btn-block", icon = icon("bullseye"),
-                                                    style = "background:#8e44ad; color:#fff; border-color:#76398f;")))
-                        ),
-                        column(4,
-                               h4("Tests non-paramétriques", style = "color: #f39c12;"),
-                               div(style="display:flex; flex-direction:column; gap:8px;",
-                                   actionButton(ns("testWilcox"),          "Test de Wilcoxon",          class = "btn-warning btn-block", icon = icon("check")),
-                                   actionButton(ns("testKruskal"),         "Test de Kruskal-Wallis",     class = "btn-warning btn-block", icon = icon("check")),
-                                   actionButton(ns("testScheirerRayHare"), "Test de Scheirer-Ray-Hare",  class = "btn-warning btn-block", icon = icon("check")),
-                                   actionButton(ns("testRMNonParam"), "Non paramétrique répété",  class = "btn-warning btn-block", icon = icon("repeat")),
-                                   actionButton(ns("testPERMANOVA"),       "PERMANOVA (>= 2 réponses)",  class = "btn-warning btn-block", icon = icon("layer-group"))
-                               ),
-                               # Le Test Chi² / Multinomial a été déplacé dans
-                               # « Analyses qualitatives » (famille Nominale) où
-                               # il vit désormais avec les tableaux croisés.
+                                                    style = "background:#8e44ad; color:#fff; border-color:#76398f;"))),
 
                                # --- Reglages de la comparaison a une norme --------------------
-                               # Occupent l'espace laisse libre sous les tests non parametriques
-                               # et pilotent les boutons violets de la colonne precedente.
-                               div(style = "border-left:4px solid #6a1b9a; padding-left:10px; margin-top:16px;",
+                               # Places SOUS les boutons ci-dessus : meme accent violet, meme
+                               # colonne, l'ensemble se lit d'un seul tenant.
+                               div(style = "border-left:4px solid #6a1b9a; padding-left:10px; margin-top:12px;",
                                    h4(tagList(icon("sliders-h"), " Réglages de la norme"),
                                       style = "color:#6a1b9a;"),
                                    numericInput(ns("refValue"),
