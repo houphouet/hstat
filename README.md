@@ -79,10 +79,34 @@ MAXQDA-style coding workbench:
   co-occurrences (the MAXMaps equivalent, laid out by classical MDS), cross
   matrices, and an Excel workbook gathering codebook, excerpts and matrices.
   The whole coding project can be saved to `.rds` and reloaded later.
-- **Optional AI assistant** — with an Anthropic API key (typed in the UI or
-  read from `ANTHROPIC_API_KEY`), Claude can propose a codebook from the corpus
-  and pre-code the answers. Suggestions are tagged "IA" and can be reviewed or
-  dropped in one click. Without a key, every other feature works unchanged.
+- **Coding assistant — free, local and offline.** Three engines, none of which
+  requires an account or a paid subscription:
+
+  | Engine | Needs | Network | Cost |
+  |---|---|---|---|
+  | **Local model** *(default)* | Ollama or any OpenAI-compatible inference server (llama.cpp, LM Studio, vLLM, Jan) running on your machine | none once the model is downloaded | free |
+  | **Automatic thematisation** | nothing at all — it runs inside R | none, ever | free |
+  | Claude API | an Anthropic API key | required | paid |
+
+  The assistant proposes a codebook from your corpus, then pre-codes the
+  answers. Suggestions are tagged and can be reviewed or dropped in one click.
+
+  The **local model** engine talks to `http://127.0.0.1:11434` (Ollama) or
+  `http://127.0.0.1:8080` (OpenAI-compatible) — install Ollama once, run
+  `ollama pull qwen2.5`, and everything afterwards works with no Internet
+  connection. Survey responses never leave the machine. Installed models are
+  discovered automatically and listed in a dropdown.
+
+  The **automatic thematisation** engine uses no language model at all: corpus
+  terms are clustered by hierarchical clustering on their co-occurrence across
+  answers (cosine distance, Ward's method), so words appearing in the same
+  answers form a theme. Each theme comes with a **keyword dictionary** you can
+  edit, which then pre-codes the *whole* corpus — accent- and case-insensitive,
+  labelling the sentence carrying the keyword — instantly and deterministically.
+
+  Whatever the engine, an excerpt proposed by a model is located in the real
+  text before any label is placed: a quote the model invented is discarded and
+  counted, never applied to the wrong passage.
 
 ---
 
@@ -166,7 +190,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.8.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.9.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -174,7 +198,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.8.0},
+  note   = {Version 0.9.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

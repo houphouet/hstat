@@ -56,6 +56,24 @@ L'application vit dans `inst/app/` :
 Corollaire : une fonction utilisée à la fois par l'UI et le serveur doit être
 définie dans `Utils.R`, pas dans le corps de `server`.
 
+### Assistance au codage : local et gratuit d'abord
+
+`mod_coding.R` propose trois moteurs d'assistance (`HSTAT_AI_ENGINES`). L'ordre
+n'est pas cosmétique : **le moteur local est le premier choix et le défaut de
+`hstat_ai_call()` / `hstat_ai_status()`**, l'API payante vient en dernier. Un
+test garde cet ordre — une fonctionnalité facturée à l'usage ne doit jamais
+devenir le chemin par défaut d'un utilisateur qui n'a rien demandé.
+
+Le moteur `"auto"` (thématisation statistique) ne dépend d'aucun paquet
+optionnel : c'est le seul dont la disponibilité est garantie, et c'est vers lui
+que renvoient les messages d'erreur des deux autres. `httr` et `jsonlite`
+restent donc en **Suggests**, jamais en Imports.
+
+Les corps de requête sont construits par `.hstat_ai_body_ollama()` et
+`.hstat_ai_body_openai()`, séparés de l'envoi réseau : c'est la partie qui casse
+en silence quand un serveur renomme un champ, elle doit rester testable sans
+serveur.
+
 ### Modules imbriqués : l'ordre de `source()` compte
 
 `mod_qualitative_ui()` appelle `mod_coding_ui()` (l'atelier de codage CAQDAS

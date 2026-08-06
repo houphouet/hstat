@@ -92,10 +92,24 @@ hstat_code_slug <- function(label, existing = character(0)) {
 # 1. LIVRE DE CODES
 # ---------------------------------------------------------------------------
 
+# `keywords` : dictionnaire du code (mots-cles separes par des points-virgules).
+# C'est ce qui permet le codage automatique hors ligne, sans modele de langue.
 hstat_code_new_codebook <- function() {
   data.frame(code_id = character(0), label = character(0), color = character(0),
-             memo = character(0), created = character(0),
+             memo = character(0), keywords = character(0), created = character(0),
              stringsAsFactors = FALSE)
+}
+
+# Un projet enregistre avant l'arrivee du dictionnaire n'a pas la colonne
+# `keywords` : on la recree plutot que de refuser le fichier.
+hstat_code_migrate_codebook <- function(codebook) {
+  if (is.null(codebook)) return(hstat_code_new_codebook())
+  codebook <- as.data.frame(codebook, stringsAsFactors = FALSE)
+  for (col in c("code_id", "label", "color", "memo", "keywords", "created"))
+    if (!(col %in% names(codebook)))
+      codebook[[col]] <- rep("", max(0L, nrow(codebook)))
+  codebook[, c("code_id", "label", "color", "memo", "keywords", "created"),
+           drop = FALSE]
 }
 
 # Premiere couleur de la palette non encore utilisee ; au-dela on repart au
@@ -106,7 +120,7 @@ hstat_code_next_color <- function(codebook) {
   if (length(free) > 0) free[1] else HSTAT_CODE_PALETTE[(length(used) %% length(HSTAT_CODE_PALETTE)) + 1L]
 }
 
-hstat_code_add <- function(codebook, label, color = NULL, memo = "") {
+hstat_code_add <- function(codebook, label, color = NULL, memo = "", keywords = "") {
   if (is.null(codebook)) codebook <- hstat_code_new_codebook()
   label <- trimws(as.character(label)[1])
   if (is.na(label) || !nzchar(label)) return(codebook)
@@ -120,6 +134,7 @@ hstat_code_add <- function(codebook, label, color = NULL, memo = "") {
     label   = label,
     color   = as.character(color)[1],
     memo    = as.character(memo)[1],
+    keywords = as.character(keywords)[1],
     created = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
     stringsAsFactors = FALSE))
 }
@@ -129,13 +144,15 @@ hstat_code_remove <- function(codebook, code_id) {
   codebook[!(codebook$code_id %in% code_id), , drop = FALSE]
 }
 
-hstat_code_update <- function(codebook, code_id, label = NULL, color = NULL, memo = NULL) {
+hstat_code_update <- function(codebook, code_id, label = NULL, color = NULL,
+                              memo = NULL, keywords = NULL) {
   if (is.null(codebook) || nrow(codebook) == 0) return(codebook)
   i <- which(codebook$code_id == code_id[1])
   if (!length(i)) return(codebook)
   if (!is.null(label) && nzchar(trimws(label))) codebook$label[i] <- trimws(label)
   if (!is.null(color) && nzchar(color))         codebook$color[i] <- color
   if (!is.null(memo))                           codebook$memo[i]  <- memo
+  if (!is.null(keywords))                       codebook$keywords[i] <- keywords
   codebook
 }
 
@@ -665,14 +682,45 @@ hstat_code_cloud_plot <- function(layout, palette = "default",
 
 
 # ---------------------------------------------------------------------------
-# 10. ASSISTANT IA (API Claude) - OPTIONNEL
+# 10. ASSISTANT DE CODAGE - TROIS MOTEURS
 # ---------------------------------------------------------------------------
-# R ne dispose pas de SDK Anthropic officiel : l'appel se fait donc en HTTP
-# direct sur POST https://api.anthropic.com/v1/messages via {httr}.
-# Tout est facultatif : sans cle d'API ni {httr}/{jsonlite}, l'atelier de
-# codage fonctionne entierement a la main, seul l'assistant est desactive.
+# L'assistance au codage doit pouvoir tourner GRATUITEMENT, EN LOCAL et SANS
+# CONNEXION INTERNET. Trois moteurs sont donc proposes, du plus autonome au
+# moins autonome :
+#
+#   "auto"   Thematisation statistique, sans aucun modele de langue. Tourne
+#            dans le processus R, instantanement, sans rien installer et sans
+#            reseau. C'est le seul moteur garanti disponible partout.
+#
+#   "local"  Modele de langue execute SUR LA MACHINE de l'utilisateur, servi
+#            par Ollama ou par n'importe quel serveur d'inference compatible
+#            OpenAI (llama.cpp, LM Studio, vLLM, Jan...). Gratuit, hors ligne
+#            une fois le modele telecharge, et de loin le plus performant des
+#            trois sur la comprehension du sens. C'est le moteur par defaut.
+#
+#   "claude" API Claude en ligne. Payante et necessitant une connexion : elle
+#            n'est proposee qu'en dernier recours, jamais par defaut.
+#
+# Les appels HTTP restent locaux dans les deux premiers cas (127.0.0.1) : rien
+# ne sort de la machine, ce qui compte aussi pour la confidentialite de donnees
+# d'enquete. R n'ayant de SDK ni pour Ollama ni pour Anthropic, tout passe par
+# {httr} + {jsonlite}, gardes en Suggests : sans eux, le moteur "auto" reste
+# pleinement fonctionnel.
 # ---------------------------------------------------------------------------
-HSTAT_AI_MODEL <- "claude-opus-5"
+
+HSTAT_AI_ENGINES <- c(
+  "Modele local (Ollama / llama.cpp) - gratuit, hors ligne" = "local",
+  "Thematisation automatique (statistique, sans modele)"    = "auto",
+  "API Claude (en ligne, payante)"                          = "claude")
+
+HSTAT_AI_BACKENDS <- c(
+  "Ollama"                                            = "ollama",
+  "Serveur compatible OpenAI (llama.cpp, LM Studio...)" = "openai")
+
+HSTAT_AI_DEFAULT_URL <- c(ollama = "http://127.0.0.1:11434",
+                          openai = "http://127.0.0.1:8080")
+
+HSTAT_AI_MODEL <- "claude-opus-5"   # utilise uniquement par le moteur "claude"
 
 hstat_ai_key <- function(explicit = NULL) {
   k <- if (is.null(explicit)) "" else trimws(as.character(explicit)[1])
@@ -680,57 +728,246 @@ hstat_ai_key <- function(explicit = NULL) {
   k
 }
 
-# Trois conditions : les deux paquets HTTP/JSON et une cle.
-hstat_ai_available <- function(explicit = NULL) {
+hstat_ai_url <- function(backend = "ollama", url = NULL) {
+  u <- if (is.null(url)) "" else trimws(as.character(url)[1])
+  if (is.na(u) || !nzchar(u))
+    u <- unname(HSTAT_AI_DEFAULT_URL[[match.arg(backend, c("ollama", "openai"))]])
+  sub("/+$", "", u)
+}
+
+.hstat_ai_http_ok <- function() {
   requireNamespace("httr", quietly = TRUE) &&
-    requireNamespace("jsonlite", quietly = TRUE) &&
-    nzchar(hstat_ai_key(explicit))
+    requireNamespace("jsonlite", quietly = TRUE)
 }
 
-# Diagnostic lisible de ce qui manque, pour l'afficher dans l'interface.
-hstat_ai_status <- function(explicit = NULL) {
-  miss <- character(0)
-  if (!requireNamespace("httr", quietly = TRUE)) miss <- c(miss, "le paquet {httr}")
-  if (!requireNamespace("jsonlite", quietly = TRUE)) miss <- c(miss, "le paquet {jsonlite}")
-  if (!nzchar(hstat_ai_key(explicit)))
-    miss <- c(miss, "une cle d'API (champ ci-dessus ou variable ANTHROPIC_API_KEY)")
-  if (!length(miss)) return(list(ok = TRUE, message = "Assistant IA disponible."))
-  list(ok = FALSE,
-       message = paste0("Assistant IA indisponible : il manque ",
-                        paste(miss, collapse = ", "), "."))
+# Modeles reellement installes dans Ollama. Vecteur vide si le serveur n'est
+# pas joignable : l'interface saura alors dire quoi faire plutot que d'offrir
+# une liste vide sans explication.
+hstat_ai_ollama_models <- function(url = NULL, timeout = 5) {
+  if (!.hstat_ai_http_ok()) return(character(0))
+  res <- tryCatch(
+    httr::GET(paste0(hstat_ai_url("ollama", url), "/api/tags"), httr::timeout(timeout)),
+    error = function(e) NULL)
+  if (is.null(res) || httr::status_code(res) >= 300) return(character(0))
+  p <- tryCatch(jsonlite::fromJSON(httr::content(res, as = "text", encoding = "UTF-8"),
+                                   simplifyVector = FALSE),
+                error = function(e) NULL)
+  if (is.null(p$models)) return(character(0))
+  nm <- vapply(p$models, function(m) if (is.null(m$name)) "" else as.character(m$name)[1],
+               character(1))
+  sort(nm[nzchar(nm)])
 }
 
-# Appel brut. Renvoie toujours une liste list(ok, text, error) : aucune erreur
-# reseau ne doit faire tomber l'application.
-hstat_ai_call <- function(prompt, system = NULL, api_key = NULL,
-                          model = HSTAT_AI_MODEL, max_tokens = 8000L,
-                          thinking = TRUE, timeout = 300) {
+# Modeles annonces par un serveur compatible OpenAI (GET /v1/models).
+hstat_ai_openai_models <- function(url = NULL, timeout = 5) {
+  if (!.hstat_ai_http_ok()) return(character(0))
+  res <- tryCatch(
+    httr::GET(paste0(hstat_ai_url("openai", url), "/v1/models"), httr::timeout(timeout)),
+    error = function(e) NULL)
+  if (is.null(res) || httr::status_code(res) >= 300) return(character(0))
+  p <- tryCatch(jsonlite::fromJSON(httr::content(res, as = "text", encoding = "UTF-8"),
+                                   simplifyVector = FALSE),
+                error = function(e) NULL)
+  if (is.null(p$data)) return(character(0))
+  nm <- vapply(p$data, function(m) if (is.null(m$id)) "" else as.character(m$id)[1],
+               character(1))
+  sort(nm[nzchar(nm)])
+}
+
+hstat_ai_models <- function(backend = "ollama", url = NULL, timeout = 5) {
+  if (identical(backend, "openai")) hstat_ai_openai_models(url, timeout)
+  else hstat_ai_ollama_models(url, timeout)
+}
+
+# Diagnostic lisible, propre a chaque moteur. Toujours actionnable : on dit ce
+# qui manque ET comment y remedier, plutot qu'un simple « indisponible ».
+hstat_ai_status <- function(engine = "local", backend = "ollama", url = NULL,
+                            model = NULL, api_key = NULL) {
+  if (identical(engine, "auto"))
+    return(list(ok = TRUE,
+                message = paste0("Thematisation automatique disponible : elle tourne ",
+                                 "dans R, sans modele, sans installation et sans reseau.")))
+
+  if (!.hstat_ai_http_ok()) {
+    miss <- c(if (!requireNamespace("httr", quietly = TRUE)) "{httr}",
+              if (!requireNamespace("jsonlite", quietly = TRUE)) "{jsonlite}")
+    return(list(ok = FALSE,
+                message = sprintf(
+                  "Moteur indisponible : le(s) paquet(s) %s manquent. Installez-les avec install.packages(c(%s)), ou basculez sur la thematisation automatique, qui n'en a pas besoin.",
+                  paste(miss, collapse = " et "),
+                  paste(sprintf('"%s"', gsub("[{}]", "", miss)), collapse = ", "))))
+  }
+
+  if (identical(engine, "claude")) {
+    if (!nzchar(hstat_ai_key(api_key)))
+      return(list(ok = FALSE,
+                  message = paste0("API Claude indisponible : renseignez une cle d'API ",
+                                   "(champ ci-dessous ou variable ANTHROPIC_API_KEY). ",
+                                   "Cette option est payante et necessite une connexion ",
+                                   "Internet ; les deux autres moteurs sont gratuits et locaux.")))
+    return(list(ok = TRUE, message = sprintf("API Claude disponible (modele %s).",
+                                             HSTAT_AI_MODEL)))
+  }
+
+  # engine == "local"
+  u <- hstat_ai_url(backend, url)
+  mods <- hstat_ai_models(backend, u)
+  if (!length(mods)) {
+    aide <- if (identical(backend, "ollama"))
+      paste0("Installez Ollama (ollama.com, gratuit), lancez-le, puis telechargez ",
+             "un modele une seule fois : `ollama pull qwen2.5` par exemple. ",
+             "Le telechargement fait, tout fonctionne hors ligne.")
+    else
+      paste0("Demarrez votre serveur d'inference (llama.cpp `llama-server`, ",
+             "LM Studio, vLLM, Jan...) et verifiez son adresse ci-dessous.")
+    return(list(ok = FALSE, models = character(0),
+                message = sprintf("Aucun modele local joignable sur %s. %s", u, aide)))
+  }
+  if (!is.null(model) && nzchar(model) && !(model %in% mods))
+    return(list(ok = FALSE, models = mods,
+                message = sprintf("Le modele « %s » n'est pas installe sur %s. Modeles disponibles : %s.",
+                                  model, u, paste(mods, collapse = ", "))))
+  list(ok = TRUE, models = mods,
+       message = sprintf("Modele local disponible sur %s (%d modele(s) installe(s)). Gratuit, hors ligne, aucune donnee ne quitte la machine.",
+                         u, length(mods)))
+}
+
+# Retro-compatibilite : l'ancienne signature ne connaissait que Claude.
+hstat_ai_available <- function(explicit = NULL) {
+  isTRUE(hstat_ai_status("claude", api_key = explicit)$ok)
+}
+
+# --- Appels HTTP, un par moteur ---------------------------------------------
+# Tous renvoient list(ok, text, error) : aucune panne reseau, aucun serveur
+# absent ne doit faire tomber l'application.
+
+.hstat_ai_post <- function(url, body, headers = NULL, timeout = 600) {
+  args <- list(url,
+               body = jsonlite::toJSON(body, auto_unbox = TRUE, null = "null"),
+               encode = "raw", httr::timeout(timeout))
+  hdr <- c(`content-type` = "application/json", headers)
+  args <- append(args, list(do.call(httr::add_headers, as.list(hdr))), after = 1)
+  tryCatch(do.call(httr::POST, args), error = function(e) e)
+}
+
+# Corps de requete, isole du reseau : c'est la partie qui casse en silence si
+# un champ change de nom, et c'est donc celle qu'il faut pouvoir tester.
+.hstat_ai_messages <- function(prompt, system = NULL) {
+  msgs <- list()
+  if (!is.null(system) && nzchar(system))
+    msgs <- c(msgs, list(list(role = "system", content = system)))
+  c(msgs, list(list(role = "user", content = prompt)))
+}
+
+.hstat_ai_body_ollama <- function(prompt, system = NULL, model = "", json = TRUE) {
+  body <- list(model = model,
+               messages = .hstat_ai_messages(prompt, system),
+               stream = FALSE,
+               # Temperature basse : on veut une thematisation stable et
+               # reproductible, pas de la creativite.
+               options = list(temperature = 0.2))
+  # `format: "json"` contraint Ollama a produire du JSON valide, ce qui evite
+  # l'essentiel des reponses inexploitables des petits modeles.
+  if (isTRUE(json)) body$format <- "json"
+  body
+}
+
+.hstat_ai_body_openai <- function(prompt, system = NULL, model = "",
+                                  max_tokens = 4096L, json = TRUE) {
+  body <- list(model = model,
+               messages = .hstat_ai_messages(prompt, system),
+               stream = FALSE, temperature = 0.2,
+               max_tokens = as.integer(max_tokens))
+  if (isTRUE(json)) body$response_format <- list(type = "json_object")
+  body
+}
+
+.hstat_ai_call_ollama <- function(prompt, system = NULL, url = NULL,
+                                  model = NULL, json = TRUE, timeout = 600) {
+  u <- hstat_ai_url("ollama", url)
+  if (is.null(model) || !nzchar(model)) {
+    mods <- hstat_ai_ollama_models(u)
+    if (!length(mods))
+      return(list(ok = FALSE, text = "",
+                  error = sprintf("Aucun modele Ollama joignable sur %s.", u)))
+    model <- mods[1]
+  }
+  body <- .hstat_ai_body_ollama(prompt, system, model, json)
+
+  res <- .hstat_ai_post(paste0(u, "/api/chat"), body, timeout = timeout)
+  if (inherits(res, "error"))
+    return(list(ok = FALSE, text = "",
+                error = sprintf("Serveur local injoignable sur %s (%s). Ollama est-il demarre ?",
+                                u, conditionMessage(res))))
+  raw <- httr::content(res, as = "text", encoding = "UTF-8")
+  p <- tryCatch(jsonlite::fromJSON(raw, simplifyVector = FALSE), error = function(e) NULL)
+  if (httr::status_code(res) >= 300)
+    return(list(ok = FALSE, text = "",
+                error = sprintf("Erreur du serveur local (HTTP %d) : %s",
+                                httr::status_code(res),
+                                substr(if (!is.null(p$error)) p$error else raw, 1, 400))))
+  txt <- if (!is.null(p$message$content)) p$message$content else p$response
+  if (is.null(txt))
+    return(list(ok = FALSE, text = "", error = "Reponse illisible du serveur local."))
+  list(ok = TRUE, text = as.character(txt)[1], error = NULL, model = model)
+}
+
+.hstat_ai_call_openai <- function(prompt, system = NULL, url = NULL, model = NULL,
+                                  api_key = NULL, max_tokens = 4096L,
+                                  json = TRUE, timeout = 600) {
+  u <- hstat_ai_url("openai", url)
+  if (is.null(model) || !nzchar(model)) {
+    mods <- hstat_ai_openai_models(u)
+    model <- if (length(mods)) mods[1] else "local-model"
+  }
+  mk <- function(with_json)
+    .hstat_ai_body_openai(prompt, system, model, max_tokens, with_json)
+  hdr <- if (!is.null(api_key) && nzchar(api_key))
+    c(Authorization = paste("Bearer", api_key)) else NULL
+
+  send <- function(with_json)
+    .hstat_ai_post(paste0(u, "/v1/chat/completions"), mk(with_json), hdr, timeout)
+
+  res <- send(isTRUE(json))
+  # Tous les serveurs locaux n'acceptent pas response_format : une requete
+  # rejetee pour ce seul motif est rejouee sans lui plutot que d'echouer.
+  if (!inherits(res, "error") && isTRUE(json) && httr::status_code(res) == 400)
+    res <- send(FALSE)
+
+  if (inherits(res, "error"))
+    return(list(ok = FALSE, text = "",
+                error = sprintf("Serveur local injoignable sur %s (%s).",
+                                u, conditionMessage(res))))
+  raw <- httr::content(res, as = "text", encoding = "UTF-8")
+  p <- tryCatch(jsonlite::fromJSON(raw, simplifyVector = FALSE), error = function(e) NULL)
+  if (httr::status_code(res) >= 300) {
+    msg <- if (!is.null(p$error$message)) p$error$message else raw
+    return(list(ok = FALSE, text = "",
+                error = sprintf("Erreur du serveur local (HTTP %d) : %s",
+                                httr::status_code(res), substr(msg, 1, 400))))
+  }
+  txt <- tryCatch(p$choices[[1]]$message$content, error = function(e) NULL)
+  if (is.null(txt))
+    return(list(ok = FALSE, text = "", error = "Reponse illisible du serveur local."))
+  list(ok = TRUE, text = as.character(txt)[1], error = NULL, model = model)
+}
+
+.hstat_ai_call_claude <- function(prompt, system = NULL, api_key = NULL,
+                                  model = HSTAT_AI_MODEL, max_tokens = 8000L,
+                                  thinking = TRUE, timeout = 300) {
   key <- hstat_ai_key(api_key)
   if (!nzchar(key)) return(list(ok = FALSE, text = "", error = "Cle d'API absente."))
-  if (!requireNamespace("httr", quietly = TRUE) ||
-      !requireNamespace("jsonlite", quietly = TRUE))
-    return(list(ok = FALSE, text = "",
-                error = "Les paquets {httr} et {jsonlite} sont requis."))
 
-  body <- list(
-    model = model,
-    max_tokens = as.integer(max_tokens),
-    messages = list(list(role = "user", content = prompt)))
+  body <- list(model = model, max_tokens = as.integer(max_tokens),
+               messages = list(list(role = "user", content = prompt)))
   if (!is.null(system) && nzchar(system)) body$system <- system
   # La reflexion adaptative est le mode par defaut des modeles Claude recents ;
   # `budget_tokens` y est rejete, on ne l'envoie donc pas.
   if (isTRUE(thinking)) body$thinking <- list(type = "adaptive")
 
-  res <- tryCatch(
-    httr::POST(
-      "https://api.anthropic.com/v1/messages",
-      httr::add_headers(`x-api-key` = key,
-                        `anthropic-version` = "2023-06-01",
-                        `content-type` = "application/json"),
-      body = jsonlite::toJSON(body, auto_unbox = TRUE),
-      encode = "raw",
-      httr::timeout(timeout)),
-    error = function(e) e)
+  res <- .hstat_ai_post("https://api.anthropic.com/v1/messages", body,
+                        c(`x-api-key` = key, `anthropic-version` = "2023-06-01"),
+                        timeout)
   if (inherits(res, "error"))
     return(list(ok = FALSE, text = "",
                 error = paste("Echec de la connexion :", conditionMessage(res))))
@@ -751,7 +988,229 @@ hstat_ai_call <- function(prompt, system = NULL, api_key = NULL,
   # `thinking` precedent le bloc `text` : on ne garde que le texte.
   txt <- vapply(parsed$content, function(b)
     if (identical(b$type, "text") && !is.null(b$text)) b$text else "", character(1))
-  list(ok = TRUE, text = paste(txt[nzchar(txt)], collapse = "\n"), error = NULL)
+  list(ok = TRUE, text = paste(txt[nzchar(txt)], collapse = "\n"), error = NULL,
+       model = model)
+}
+
+# Aiguillage. `engine = "local"` par defaut : gratuit et hors ligne.
+hstat_ai_call <- function(prompt, system = NULL, engine = "local",
+                          backend = "ollama", url = NULL, model = NULL,
+                          api_key = NULL, max_tokens = 8000L, json = TRUE,
+                          timeout = NULL) {
+  if (!.hstat_ai_http_ok())
+    return(list(ok = FALSE, text = "",
+                error = "Les paquets {httr} et {jsonlite} sont requis pour ce moteur."))
+  if (identical(engine, "claude"))
+    return(.hstat_ai_call_claude(prompt, system, api_key, HSTAT_AI_MODEL,
+                                 max_tokens, TRUE, timeout %||% 300))
+  # Les modeles locaux tournent sur le processeur de l'utilisateur : le delai
+  # d'attente par defaut est bien plus large que pour une API distante.
+  tmo <- timeout %||% 900
+  if (identical(backend, "openai"))
+    .hstat_ai_call_openai(prompt, system, url, model, api_key, max_tokens, json, tmo)
+  else
+    .hstat_ai_call_ollama(prompt, system, url, model, json, tmo)
+}
+
+
+# ---------------------------------------------------------------------------
+# 10 bis. MOTEUR HORS LIGNE : THEMATISATION STATISTIQUE + DICTIONNAIRE
+# ---------------------------------------------------------------------------
+# Aucun modele de langue, aucun reseau, aucune installation : tout se calcule
+# dans le processus R a partir du corpus lui-meme. C'est le seul moteur dont la
+# disponibilite est garantie, et il sert de socle aux deux autres puisque le
+# dictionnaire qu'il produit reste editable a la main.
+#
+# Principe : classification ascendante hierarchique des TERMES du corpus sur
+# leur cooccurrence dans les reponses (distance cosinus, methode de Ward). Deux
+# mots qui reviennent dans les memes reponses finissent dans le meme theme.
+# ---------------------------------------------------------------------------
+
+# Repli d'accents et passage en minuscules. Propriete essentielle : chartr() et
+# tolower() operent caractere par caractere, la LONGUEUR est donc preservee.
+# C'est ce qui permet de chercher un mot-cle sans accent dans un texte accentue
+# tout en gardant des positions de segment valides.
+.hstat_code_fold <- function(x) {
+  x <- tolower(as.character(x))
+  chartr("àâäéèêëîïôöùûüç",
+         "aaaeeeeiioouuuc", x)
+}
+
+# Echappement pour une expression reguliere : tout ce qui n'est ni alphanumerique
+# ni espace est protege. Passer par une classe POSIX evite la classe de
+# caracteres invalide que produisait un echappement ecrit a la main.
+.hstat_code_rx_escape <- function(x) gsub("([^[:alnum:][:space:]])", "\\\\\\1", x)
+
+hstat_code_keywords_of <- function(codebook, code_id) {
+  if (is.null(codebook) || nrow(codebook) == 0) return(character(0))
+  i <- match(code_id[1], codebook$code_id)
+  if (is.na(i)) return(character(0))
+  k <- codebook$keywords[i]
+  if (is.na(k) || !nzchar(trimws(k))) return(character(0))
+  k <- trimws(strsplit(k, "[;,\n]")[[1]])
+  unique(k[nzchar(k)])
+}
+
+# Construit un livre de codes a partir du corpus.
+# Renvoie data.frame(label, memo, keywords) - le meme contrat que
+# hstat_ai_parse_codebook(), pour que l'interface traite les deux pareillement.
+hstat_code_auto_codebook <- function(texts, n_codes = 8, min_char = 4,
+                                     min_docs = 2, max_terms = 60,
+                                     max_df = 0.9, extra_stopwords = NULL) {
+  texts <- as.character(texts)
+  texts <- texts[!is.na(texts) & nzchar(trimws(texts))]
+  if (length(texts) < 3) return(NULL)
+
+  # Tokenisation SANS racinisation : on a besoin des formes de surface pour
+  # constituer un dictionnaire recherchable dans le texte d'origine.
+  toks <- hstat_q_tokenize(texts, min_char = min_char, stem = FALSE,
+                           remove_numbers = TRUE, extra_stopwords = extra_stopwords)
+  if (!length(unlist(toks))) return(NULL)
+
+  # Regroupement des formes flechies par racine ; la forme la plus frequente
+  # sert d'etiquette, toutes les formes rencontrees entrent au dictionnaire.
+  all_w <- unlist(toks)
+  stems <- hstat_q_stem_fr(all_w)
+  surf <- split(all_w, stems)
+  best <- vapply(surf, function(v) names(sort(table(v), decreasing = TRUE))[1], character(1))
+  forms <- lapply(surf, function(v) sort(unique(v)))
+
+  # Presence par racine et par document
+  stem_by_doc <- lapply(toks, function(w) if (length(w)) unique(hstat_q_stem_fr(w)) else character(0))
+  n_doc <- length(stem_by_doc)
+  freq <- sort(table(unlist(stem_by_doc)), decreasing = TRUE)
+  # Trop rare : bruit. Present dans presque toutes les reponses : ne discrimine
+  # aucun theme (l'equivalent d'un mot vide propre a ce corpus).
+  freq <- freq[freq >= min_docs & freq <= max_df * n_doc]
+  if (length(freq) < 2) return(NULL)
+  keep <- names(freq)[seq_len(min(length(freq), max_terms))]
+
+  # Matrice termes x documents
+  M <- matrix(0L, nrow = length(keep), ncol = n_doc, dimnames = list(keep, NULL))
+  for (j in seq_len(n_doc)) {
+    hit <- match(stem_by_doc[[j]], keep)
+    hit <- hit[!is.na(hit)]
+    if (length(hit)) M[hit, j] <- 1L
+  }
+
+  k <- max(2L, min(as.integer(n_codes), nrow(M) - 1L))
+  norm <- sqrt(rowSums(M^2)); norm[norm == 0] <- 1
+  sim <- (M %*% t(M)) / outer(norm, norm)
+  sim[!is.finite(sim)] <- 0
+  d <- stats::as.dist(1 - sim)
+  cl <- tryCatch(stats::cutree(stats::hclust(d, method = "ward.D2"), k = k),
+                 error = function(e) NULL)
+  if (is.null(cl)) return(NULL)
+
+  # Un theme par groupe, ordonne par poids decroissant dans le corpus.
+  out <- lapply(sort(unique(cl)), function(g) {
+    st <- names(cl)[cl == g]
+    st <- st[order(freq[st], decreasing = TRUE)]
+    kw <- unique(unlist(forms[st]))
+    list(label = best[[st[1]]],
+         n = sum(freq[st]),
+         memo = sprintf("Theme construit automatiquement a partir de : %s.",
+                        paste(utils::head(vapply(st, function(z) best[[z]], character(1)), 6),
+                              collapse = ", ")),
+         keywords = paste(kw, collapse = "; "))
+  })
+  out <- out[order(vapply(out, function(e) e$n, numeric(1)), decreasing = TRUE)]
+
+  res <- data.frame(
+    label    = vapply(out, function(e) e$label, character(1)),
+    memo     = vapply(out, function(e) e$memo, character(1)),
+    keywords = vapply(out, function(e) e$keywords, character(1)),
+    stringsAsFactors = FALSE)
+  # Deux groupes peuvent partager leur terme dominant : on desambigue plutot
+  # que de laisser hstat_code_add() rejeter silencieusement le doublon.
+  dup <- duplicated(tolower(res$label))
+  res$label[dup] <- paste0(res$label[dup], " (2)")
+  res
+}
+
+# Bornes des phrases d'un texte, en convention JavaScript (debut a 0, fin
+# exclue), espaces de tete et de queue exclus. Sert au codage par dictionnaire :
+# etiqueter le mot seul donne des extraits inexploitables a la restitution, la
+# phrase qui le porte est l'unite de sens qu'un codeur humain retiendrait.
+.hstat_code_sentences <- function(text) {
+  n <- nchar(text)
+  if (n == 0) return(NULL)
+  m <- gregexpr("[.!?;\n]+", text, perl = TRUE)[[1]]
+  cuts <- if (length(m) == 1L && m[1] == -1L) integer(0)
+          else as.integer(m) - 1L + attr(m, "match.length")
+  starts <- c(0L, cuts)
+  ends   <- c(cuts, n)
+  keep   <- ends > starts
+  starts <- starts[keep]; ends <- ends[keep]
+  if (!length(starts)) return(NULL)
+  # Rognage des blancs et de la ponctuation de bordure, sans jamais sortir des
+  # bornes du texte. Classes POSIX obligatoires : dans une classe de caracteres,
+  # `\s` n'est pas une abreviation mais les deux caracteres « \ » et « s » —
+  # la version precedente rognait donc la lettre s en fin de phrase.
+  for (i in seq_along(starts)) {
+    while (starts[i] < ends[i] &&
+           grepl("^[[:space:]]$", substr(text, starts[i] + 1, starts[i] + 1)))
+      starts[i] <- starts[i] + 1L
+    while (ends[i] > starts[i] &&
+           grepl("^[[:space:].!?;]$", substr(text, ends[i], ends[i])))
+      ends[i] <- ends[i] - 1L
+  }
+  keep <- ends > starts
+  if (!any(keep)) return(NULL)
+  cbind(start = starts[keep], end = ends[keep])
+}
+
+# Codage automatique par dictionnaire : toute occurrence d'un mot-cle etiquette
+# la phrase qui la porte (ou le mot seul si `scope = "mot"`). Instantane,
+# deterministe, sans reseau — et applicable a TOUT le corpus, la ou un modele de
+# langue impose d'echantillonner.
+hstat_code_lexical_apply <- function(docs, codebook, whole_word = TRUE,
+                                     scope = c("phrase", "mot"),
+                                     max_per_doc = 20L) {
+  scope <- match.arg(scope)
+  out <- hstat_code_new_segments()
+  if (is.null(docs) || !nrow(docs) || is.null(codebook) || !nrow(codebook)) return(out)
+
+  pats <- lapply(seq_len(nrow(codebook)), function(i) {
+    kw <- hstat_code_keywords_of(codebook, codebook$code_id[i])
+    kw <- .hstat_code_fold(kw)
+    kw <- kw[nzchar(kw)]
+    if (!length(kw)) return(NULL)
+    kw <- kw[order(nchar(kw), decreasing = TRUE)]   # le plus long d'abord
+    body <- paste(.hstat_code_rx_escape(kw), collapse = "|")
+    if (isTRUE(whole_word)) sprintf("\\b(?:%s)\\b", body) else sprintf("(?:%s)", body)
+  })
+
+  n_no_kw <- sum(vapply(pats, is.null, logical(1)))
+  for (j in seq_len(nrow(docs))) {
+    txt <- docs$text[j]
+    fold <- .hstat_code_fold(txt)
+    # Garde-fou : si le repli changeait la longueur, les positions calculees sur
+    # `fold` ne vaudraient plus rien sur `txt`. On saute plutot que de mal coder.
+    if (nchar(fold) != nchar(txt)) next
+    sent <- if (identical(scope, "phrase")) .hstat_code_sentences(txt) else NULL
+    for (i in seq_along(pats)) {
+      if (is.null(pats[[i]])) next
+      m <- gregexpr(pats[[i]], fold, perl = TRUE)[[1]]
+      if (length(m) == 1L && m[1] == -1L) next
+      len <- attr(m, "match.length")
+      n <- min(length(m), max_per_doc)
+      for (h in seq_len(n)) {
+        a <- m[h] - 1L
+        b <- a + len[h]
+        if (!is.null(sent)) {
+          k <- which(sent[, "start"] <= a & sent[, "end"] >= b)
+          if (length(k)) { a <- sent[k[1], "start"]; b <- sent[k[1], "end"] }
+        }
+        # Plusieurs mots-cles d'un meme code dans une meme phrase donnent les
+        # memes bornes : hstat_seg_add() ecarte le doublon de lui-meme.
+        out <- hstat_seg_add(out, docs$doc_id[j], codebook$code_id[i], a, b,
+                             substr(txt, a + 1, b), source = "auto")
+      }
+    }
+  }
+  attr(out, "codes_sans_mots_cles") <- n_no_kw
+  out
 }
 
 # Extraction tolerante du JSON : le modele peut encadrer sa reponse de texte
@@ -803,8 +1262,10 @@ hstat_ai_parse_codebook <- function(parsed) {
   }, character(1))
   keep <- nzchar(trimws(lab))
   if (!any(keep)) return(NULL)
+  # Meme contrat que hstat_code_auto_codebook() : l'interface traite les deux
+  # sources de la meme facon. Un modele ne fournit pas de dictionnaire.
   data.frame(label = trimws(lab[keep]), memo = memo[keep],
-             stringsAsFactors = FALSE)
+             keywords = rep("", sum(keep)), stringsAsFactors = FALSE)
 }
 
 hstat_ai_autocode_prompt <- function(docs, codebook) {
@@ -1213,34 +1674,95 @@ mod_coding_ui <- function(id) {
                                                      class = "btn-success btn-sm btn-block",
                                                      icon = shiny::icon("file-excel"))))),
 
-          # ---- Assistant IA ----
-          shiny::tabPanel(shiny::tagList(shiny::icon("wand-magic-sparkles"), " Assistant IA"),
+          # ---- Assistant de codage (trois moteurs) ----
+          shiny::tabPanel(shiny::tagList(shiny::icon("wand-magic-sparkles"), " Assistant de codage"),
             shiny::br(),
-            shiny::div(style = "background:#f4ecf7;border-left:5px solid #8e44ad;padding:12px 16px;border-radius:6px;",
-              shiny::tags$strong(shiny::icon("robot"), " Codage assiste par intelligence artificielle"),
+            shiny::div(style = "background:#eafaf1;border-left:5px solid #27ae60;padding:12px 16px;border-radius:6px;",
+              shiny::tags$strong(shiny::icon("shield-halved"),
+                                 " Gratuit, local et hors ligne par defaut"),
               shiny::tags$p(style = "margin:6px 0 0 0;font-size:13px;",
                 "L'assistant propose un livre de codes a partir de votre corpus, puis ",
-                "pre-code les reponses. ", shiny::tags$b("Ses propositions restent des propositions"),
-                " : elles arrivent etiquetees « IA » et vous pouvez les corriger ou les ",
-                "supprimer une a une. Cette fonction est optionnelle ; sans cle d'API, ",
-                "tout le reste de l'atelier fonctionne normalement.")),
+                "pre-code les reponses. Il tourne ",
+                shiny::tags$b("sur votre machine"), " : aucune donnee d'enquete ne part ",
+                "sur Internet et il n'y a rien a payer. ",
+                shiny::tags$b("Ses propositions restent des propositions"),
+                " : elles arrivent etiquetees et vous pouvez les corriger ou les ",
+                "supprimer une a une.")),
             shiny::br(),
+
+            # ---- Choix du moteur ----
             shiny::fluidRow(
-              shiny::column(6,
-                shiny::passwordInput(ns("ai_key"), "Cle d'API Anthropic",
-                                     placeholder = "sk-ant-... (ou variable ANTHROPIC_API_KEY)"),
-                shiny::tags$small(style = "color:#7f8c8d;",
-                  shiny::icon("lock"), " La cle n'est utilisee que pour cette session ",
-                  "et n'est ni enregistree, ni exportee avec vos resultats.")),
+              shiny::column(5,
+                shiny::radioButtons(ns("ai_engine"), "Moteur",
+                  choices = HSTAT_AI_ENGINES, selected = "local"),
+                shiny::tags$small(style = "color:#7f8c8d;display:block;",
+                  shiny::icon("circle-info"),
+                  " Le modele local est le plus performant sur le sens ; la ",
+                  "thematisation automatique ne demande aucune installation et ",
+                  "repond instantanement.")),
+
+              # --- Reglages du modele local ---
+              shiny::column(7,
+                shiny::conditionalPanel(sprintf("input['%s'] == 'local'", ns("ai_engine")),
+                  shiny::fluidRow(
+                    shiny::column(5,
+                      shiny::radioButtons(ns("ai_backend"), "Serveur d'inference",
+                        choices = HSTAT_AI_BACKENDS, selected = "ollama")),
+                    shiny::column(7,
+                      shiny::textInput(ns("ai_url"), "Adresse du serveur",
+                                       value = unname(HSTAT_AI_DEFAULT_URL[["ollama"]])),
+                      shiny::uiOutput(ns("ai_model_ui")))),
+                  shiny::actionButton(ns("ai_ping"), "Tester la connexion et lister les modeles",
+                                      icon = shiny::icon("plug-circle-check"),
+                                      class = "btn-default btn-sm"),
+                  shiny::tags$small(style = "color:#7f8c8d;display:block;margin-top:6px;",
+                    shiny::icon("download"),
+                    " Une seule installation suffit : ", shiny::tags$b("ollama.com"),
+                    " (gratuit), puis ", shiny::tags$code("ollama pull qwen2.5"),
+                    " dans un terminal. Le modele telecharge, tout fonctionne ",
+                    "sans connexion Internet.")),
+
+                shiny::conditionalPanel(sprintf("input['%s'] == 'auto'", ns("ai_engine")),
+                  shiny::div(style = "background:#f8f9fa;border:1px solid #e0e0e0;border-radius:6px;padding:10px 14px;font-size:13px;",
+                    shiny::tags$b(shiny::icon("calculator"), " Comment ca marche"),
+                    shiny::tags$p(style = "margin:6px 0 0 0;",
+                      "Les termes du corpus sont regroupes par classification ",
+                      "hierarchique sur leurs cooccurrences dans les reponses : deux ",
+                      "mots qui reviennent dans les memes reponses forment un theme. ",
+                      "Chaque theme arrive avec son ", shiny::tags$b("dictionnaire"),
+                      " de mots-cles, editable ci-dessous, qui sert ensuite au ",
+                      "pre-codage de ", shiny::tags$b("tout"), " le corpus."))),
+
+                shiny::conditionalPanel(sprintf("input['%s'] == 'claude'", ns("ai_engine")),
+                  shiny::passwordInput(ns("ai_key"), "Cle d'API Anthropic",
+                                       placeholder = "sk-ant-... (ou variable ANTHROPIC_API_KEY)"),
+                  shiny::tags$small(style = "color:#7f8c8d;",
+                    shiny::icon("lock"), " La cle n'est utilisee que pour cette session ",
+                    "et n'est ni enregistree, ni exportee avec vos resultats. ",
+                    shiny::tags$b("Cette option est payante"), " et envoie vos reponses ",
+                    "chez un tiers ; les deux autres moteurs ne le font pas.")))),
+
+            shiny::hr(),
+            shiny::fluidRow(
               shiny::column(3,
                 shiny::sliderInput(ns("ai_ncodes"), "Nombre de codes a proposer",
-                                   min = 3, max = 20, value = 8, step = 1),
-                shiny::numericInput(ns("ai_maxdoc"), "Reponses envoyees (max.)",
-                                    value = 60, min = 5, max = 300, step = 5)),
+                                   min = 3, max = 20, value = 8, step = 1)),
+              shiny::column(3,
+                shiny::sliderInput(ns("ai_minchar"), "Longueur min. des mots",
+                                   min = 3, max = 8, value = 4, step = 1),
+                shiny::tags$small(style = "color:#7f8c8d;",
+                                  "Thematisation automatique uniquement.")),
+              shiny::column(3,
+                shiny::numericInput(ns("ai_maxdoc"), "Reponses envoyees au modele (max.)",
+                                    value = 60, min = 5, max = 300, step = 5),
+                shiny::tags$small(style = "color:#7f8c8d;",
+                  "Sans effet sur la thematisation automatique et le dictionnaire, ",
+                  "qui traitent tout le corpus.")),
               shiny::column(3,
                 shiny::textAreaInput(ns("ai_context"), "Contexte de l'enquete (facultatif)",
                                      rows = 3,
                                      placeholder = "Ex. enquete de satisfaction clients, secteur telecom"))),
+
             shiny::uiOutput(ns("ai_status")),
             shiny::br(),
             shiny::fluidRow(
@@ -1251,10 +1773,40 @@ mod_coding_ui <- function(id) {
                 "2. Pre-coder les reponses", icon = shiny::icon("highlighter"),
                 class = "btn-warning btn-block")),
               shiny::column(4, shiny::actionButton(ns("ai_drop"),
-                "Supprimer les codages IA", icon = shiny::icon("eraser"),
+                "Supprimer les codages automatiques", icon = shiny::icon("eraser"),
                 class = "btn-danger btn-block"))),
             shiny::br(),
-            shiny::uiOutput(ns("ai_result"))),
+            shiny::uiOutput(ns("ai_result")),
+            DT::DTOutput(ns("ai_table")),
+
+            # ---- Dictionnaire des codes ----
+            shiny::hr(),
+            shiny::div(style = "background:#fef9e7;border-left:5px solid #d4ac0d;padding:12px 16px;border-radius:6px;",
+              shiny::tags$strong(shiny::icon("book"), " Dictionnaire des codes"),
+              shiny::tags$p(style = "margin:6px 0 0 0;font-size:13px;",
+                "Chaque code peut porter une liste de mots-cles. Le pre-codage par ",
+                "dictionnaire etiquette alors, dans tout le corpus, la phrase qui ",
+                "contient l'un d'eux — sans modele, sans reseau et en un instant. ",
+                "Les accents et la casse sont ignores a la recherche.")),
+            shiny::br(),
+            shiny::fluidRow(
+              shiny::column(4, shiny::uiOutput(ns("dict_code_ui"))),
+              shiny::column(8, shiny::textAreaInput(ns("dict_words"),
+                "Mots-cles (separes par des points-virgules)", rows = 2,
+                placeholder = "prix; tarif; cher; couteux; excessif"))),
+            shiny::fluidRow(
+              shiny::column(4, shiny::actionButton(ns("dict_save"),
+                "Enregistrer les mots-cles de ce code", icon = shiny::icon("floppy-disk"),
+                class = "btn-default btn-block btn-sm")),
+              shiny::column(4, shiny::radioButtons(ns("dict_scope"), NULL,
+                choices = c("Etiqueter la phrase entiere" = "phrase",
+                            "Etiqueter le mot seul" = "mot"),
+                selected = "phrase", inline = FALSE)),
+              shiny::column(4, shiny::actionButton(ns("dict_apply"),
+                "Appliquer le dictionnaire a tout le corpus",
+                icon = shiny::icon("wand-magic"), class = "btn-success btn-block btn-sm"))),
+            shiny::br(),
+            DT::DTOutput(ns("dict_table"))),
 
           # ---- Export / sauvegarde ----
           shiny::tabPanel(shiny::tagList(shiny::icon("file-export"), " Export & sauvegarde"),
@@ -1822,89 +2374,168 @@ mod_coding_server <- function(id, values) {
                            data.frame(Code = rownames(m), m, check.names = FALSE)), file)
       })
 
-    # ==================================================== ASSISTANT IA
-    output$ai_status <- shiny::renderUI({
-      st <- hstat_ai_status(input$ai_key)
-      if (isTRUE(st$ok))
-        shiny::div(class = "callout callout-success", style = "padding:8px 12px;",
-          shiny::icon("circle-check"), " ", st$message,
-          shiny::tags$small(style = "display:block;color:#7f8c8d;",
-            sprintf("Modele : %s.", HSTAT_AI_MODEL)))
-      else
-        shiny::div(class = "callout callout-warning", style = "padding:8px 12px;",
-          shiny::icon("triangle-exclamation"), " ", st$message,
-          shiny::tags$small(style = "display:block;color:#7f8c8d;",
-            "Le reste de l'atelier de codage reste pleinement utilisable."))
+    # ================================= ASSISTANT DE CODAGE (3 moteurs)
+    # Les reglages du moteur, rassembles une fois pour toutes : les quatre
+    # observateurs ci-dessous en dependent tous.
+    ai_opts <- shiny::reactive(list(
+      engine  = input$ai_engine %||% "local",
+      backend = input$ai_backend %||% "ollama",
+      url     = input$ai_url,
+      model   = input$ai_model,
+      key     = input$ai_key))
+
+    # Changer de serveur d'inference remet l'adresse par defaut correspondante :
+    # 11434 pour Ollama, 8080 pour un serveur compatible OpenAI.
+    shiny::observeEvent(input$ai_backend, {
+      shiny::updateTextInput(session, "ai_url",
+                             value = unname(HSTAT_AI_DEFAULT_URL[[input$ai_backend]]))
+    }, ignoreInit = TRUE)
+
+    ai_models <- shiny::reactiveVal(character(0))
+    shiny::observeEvent(input$ai_ping, {
+      o <- ai_opts()
+      st <- hstat_ai_status("local", o$backend, o$url)
+      ai_models(if (is.null(st$models)) character(0) else st$models)
+      shiny::showNotification(st$message,
+                              type = if (isTRUE(st$ok)) "message" else "warning",
+                              duration = 10)
     })
 
+    output$ai_model_ui <- shiny::renderUI({
+      m <- ai_models()
+      if (!length(m))
+        return(shiny::textInput(ns("ai_model"), "Modele",
+                                placeholder = "ex. qwen2.5 - « Tester la connexion » liste les modeles installes"))
+      shiny::selectInput(ns("ai_model"), "Modele", choices = m,
+                         selected = shiny::isolate(input$ai_model) %||% m[1])
+    })
+
+    output$ai_status <- shiny::renderUI({
+      o <- ai_opts()
+      st <- hstat_ai_status(o$engine, o$backend, o$url, o$model, o$key)
+      shiny::div(class = if (isTRUE(st$ok)) "callout callout-success" else "callout callout-warning",
+        style = "padding:8px 12px;",
+        shiny::icon(if (isTRUE(st$ok)) "circle-check" else "triangle-exclamation"),
+        " ", st$message,
+        if (!isTRUE(st$ok) && !identical(o$engine, "auto"))
+          shiny::tags$small(style = "display:block;color:#7f8c8d;margin-top:4px;",
+            "En attendant, le moteur « Thematisation automatique » fonctionne sans ",
+            "rien installer, et tout le reste de l'atelier de codage est utilisable."))
+    })
+
+    # ---- Etape 1 : proposer un livre de codes ----
     shiny::observeEvent(input$ai_codebook, {
-      st <- hstat_ai_status(input$ai_key)
-      if (!isTRUE(st$ok)) { shiny::showNotification(st$message, type = "error", duration = 8); return() }
+      o <- ai_opts()
+      st <- hstat_ai_status(o$engine, o$backend, o$url, o$model, o$key)
+      if (!isTRUE(st$ok)) { shiny::showNotification(st$message, type = "error", duration = 10); return() }
       tx <- docs()$text
       if (!length(tx)) { shiny::showNotification("Corpus vide.", type = "error"); return() }
+
+      if (identical(o$engine, "auto")) {
+        shiny::withProgress(message = "Thematisation du corpus...", value = 0.5, {
+          cb <- hstat_code_auto_codebook(tx, n_codes = input$ai_ncodes %||% 8,
+                                         min_char = input$ai_minchar %||% 4)
+          if (is.null(cb)) {
+            rv$ai <- list(ok = FALSE,
+                          msg = paste0("Corpus trop court ou trop homogene pour en degager ",
+                                       "des themes. Reduisez la longueur minimale des mots, ",
+                                       "ou creez les codes a la main."))
+            shiny::showNotification(rv$ai$msg, type = "warning", duration = 8); return()
+          }
+          .push_codebook(cb, "Thematisation automatique")
+        })
+        return()
+      }
+
       n_max <- max(5L, as.integer(input$ai_maxdoc %||% 60))
       if (length(tx) > n_max) tx <- tx[round(seq(1, length(tx), length.out = n_max))]
-
-      shiny::withProgress(message = "L'assistant analyse le corpus...", value = 0.4, {
+      shiny::withProgress(message = "Le modele analyse le corpus...", value = 0.4, {
         res <- hstat_ai_call(
           hstat_ai_codebook_prompt(tx, input$ai_ncodes %||% 8, input$ai_context %||% ""),
           system = "Tu es un analyste qualitatif rigoureux. Tu reponds exclusivement en JSON valide.",
-          api_key = input$ai_key)
+          engine = o$engine, backend = o$backend, url = o$url, model = o$model,
+          api_key = o$key)
         shiny::incProgress(0.4)
         if (!isTRUE(res$ok)) {
           rv$ai <- list(ok = FALSE, msg = res$error)
-          shiny::showNotification(res$error, type = "error", duration = 10); return()
+          shiny::showNotification(res$error, type = "error", duration = 12); return()
         }
         cb <- hstat_ai_parse_codebook(hstat_ai_extract_json(res$text))
         if (is.null(cb)) {
-          rv$ai <- list(ok = FALSE, msg = "Reponse de l'assistant non exploitable.",
+          rv$ai <- list(ok = FALSE,
+                        msg = paste0("Reponse du modele non exploitable. Un modele local ",
+                                     "trop petit peut ne pas tenir le format JSON : ",
+                                     "essayez un modele plus grand, ou le moteur ",
+                                     "« Thematisation automatique »."),
                         raw = substr(res$text, 1, 1500))
-          shiny::showNotification("Reponse de l'assistant non exploitable.",
-                                  type = "error", duration = 8); return()
+          shiny::showNotification(rv$ai$msg, type = "error", duration = 10); return()
         }
-        added <- 0L
-        for (i in seq_len(nrow(cb))) {
-          before <- nrow(rv$codebook)
-          rv$codebook <- hstat_code_add(rv$codebook, cb$label[i], memo = cb$memo[i])
-          if (nrow(rv$codebook) > before) added <- added + 1L
-        }
-        rv$next_color <- hstat_code_next_color(rv$codebook)
-        colourpicker::updateColourInput(session, "new_color", value = rv$next_color)
-        rv$ai <- list(ok = TRUE,
-                      msg = sprintf("%d code(s) ajoute(s) sur %d proposition(s).",
-                                    added, nrow(cb)),
-                      table = cb)
-        shiny::showNotification(rv$ai$msg, type = "message", duration = 6)
+        .push_codebook(cb, if (identical(o$engine, "claude")) "API Claude"
+                           else sprintf("Modele local%s",
+                                        if (!is.null(res$model)) paste0(" (", res$model, ")") else ""))
       })
     })
 
+    # Ajout des codes proposes, quel que soit le moteur : meme contrat
+    # data.frame(label, memo, keywords).
+    .push_codebook <- function(cb, source_label) {
+      added <- 0L
+      for (i in seq_len(nrow(cb))) {
+        before <- nrow(rv$codebook)
+        rv$codebook <- hstat_code_add(rv$codebook, cb$label[i], memo = cb$memo[i],
+                                      keywords = if ("keywords" %in% names(cb)) cb$keywords[i] else "")
+        if (nrow(rv$codebook) > before) added <- added + 1L
+      }
+      rv$next_color <- hstat_code_next_color(rv$codebook)
+      colourpicker::updateColourInput(session, "new_color", value = rv$next_color)
+      rv$ai <- list(ok = TRUE,
+                    msg = sprintf("%s : %d code(s) ajoute(s) sur %d proposition(s).",
+                                  source_label, added, nrow(cb)),
+                    table = cb)
+      shiny::showNotification(rv$ai$msg, type = "message", duration = 7)
+    }
+
+    # ---- Etape 2 : pre-coder les reponses ----
     shiny::observeEvent(input$ai_autocode, {
-      st <- hstat_ai_status(input$ai_key)
-      if (!isTRUE(st$ok)) { shiny::showNotification(st$message, type = "error", duration = 8); return() }
+      o <- ai_opts()
+      st <- hstat_ai_status(o$engine, o$backend, o$url, o$model, o$key)
+      if (!isTRUE(st$ok)) { shiny::showNotification(st$message, type = "error", duration = 10); return() }
       if (nrow(rv$codebook) == 0) {
         shiny::showNotification("Creez d'abord un livre de codes (etape 1, ou a la main).",
                                 type = "warning", duration = 6); return()
       }
       dd <- docs()
+
+      if (identical(o$engine, "auto")) {
+        # Sans modele, le pre-codage est celui du dictionnaire : il porte sur
+        # TOUT le corpus, pas sur un echantillon.
+        .apply_dictionary(dd, "Thematisation automatique")
+        return()
+      }
+
       n_max <- max(5L, as.integer(input$ai_maxdoc %||% 60))
       sub <- if (nrow(dd) > n_max) dd[round(seq(1, nrow(dd), length.out = n_max)), , drop = FALSE] else dd
-
-      shiny::withProgress(message = "L'assistant pre-code les reponses...", value = 0.4, {
+      shiny::withProgress(message = "Le modele pre-code les reponses...", value = 0.4, {
         res <- hstat_ai_call(
           hstat_ai_autocode_prompt(sub, rv$codebook),
           system = "Tu es un analyste qualitatif rigoureux. Tu reponds exclusivement en JSON valide et tu cites les extraits mot pour mot.",
-          api_key = input$ai_key)
+          engine = o$engine, backend = o$backend, url = o$url, model = o$model,
+          api_key = o$key)
         shiny::incProgress(0.4)
         if (!isTRUE(res$ok)) {
           rv$ai <- list(ok = FALSE, msg = res$error)
-          shiny::showNotification(res$error, type = "error", duration = 10); return()
+          shiny::showNotification(res$error, type = "error", duration = 12); return()
         }
         segs <- hstat_ai_parse_autocode(hstat_ai_extract_json(res$text), sub, rv$codebook)
         if (is.null(segs) || nrow(segs) == 0) {
           rv$ai <- list(ok = FALSE,
-                        msg = "Aucun codage exploitable n'a pu etre localise dans le texte.",
+                        msg = paste0("Aucun codage exploitable n'a pu etre localise dans le ",
+                                     "texte. Les extraits cites par le modele doivent etre ",
+                                     "mot pour mot ; un modele local trop petit les reformule ",
+                                     "souvent. Le pre-codage par dictionnaire, lui, ne peut ",
+                                     "pas se tromper de passage."),
                         raw = substr(res$text, 1, 1500))
-          shiny::showNotification(rv$ai$msg, type = "warning", duration = 8); return()
+          shiny::showNotification(rv$ai$msg, type = "warning", duration = 10); return()
         }
         added <- 0L
         for (i in seq_len(nrow(segs))) {
@@ -1931,9 +2562,10 @@ mod_coding_server <- function(id, values) {
     })
 
     shiny::observeEvent(input$ai_drop, {
-      n <- sum(rv$segments$source == "IA")
-      rv$segments <- rv$segments[rv$segments$source != "IA", , drop = FALSE]
-      shiny::showNotification(sprintf("%d etiquette(s) issue(s) de l'IA supprimee(s).", n),
+      auto <- rv$segments$source %in% c("IA", "auto")
+      n <- sum(auto)
+      rv$segments <- rv$segments[!auto, , drop = FALSE]
+      shiny::showNotification(sprintf("%d etiquette(s) posee(s) automatiquement supprimee(s).", n),
                               type = "message", duration = 5)
     })
 
@@ -1947,10 +2579,101 @@ mod_coding_server <- function(id, values) {
         if (!is.null(a$raw))
           shiny::tags$pre(style = "margin-top:8px;max-height:180px;overflow:auto;font-size:11px;",
                           a$raw))
-      if (is.null(a$table)) return(box)
-      shiny::tagList(box, shiny::br(),
-                     DT::renderDT(DT::datatable(a$table, rownames = FALSE,
-                       options = list(pageLength = 10, scrollX = TRUE, dom = "tip")))())
+      box
+    })
+
+    # La table des propositions vit dans sa PROPRE sortie. Un DT::renderDT()
+    # appele a la main depuis un renderUI echoue (« argument "name" is
+    # missing ») : une fonction de rendu attend la session et le nom de sortie
+    # que Shiny lui passe, elle ne s'invoque pas directement.
+    output$ai_table <- DT::renderDT({
+      a <- rv$ai
+      shiny::validate(shiny::need(!is.null(a) && !is.null(a$table),
+                                  "Aucune proposition pour l'instant."))
+      tb <- a$table
+      # Les colonnes techniques du contrat interne deviennent des intitules
+      # lisibles a l'ecran.
+      names(tb) <- vapply(names(tb), function(n) switch(
+        n, label = "Code", memo = "Definition", keywords = "Mots-cles", n),
+        character(1))
+      DT::datatable(tb, rownames = FALSE,
+                    options = list(pageLength = 10, scrollX = TRUE, dom = "tip"))
+    })
+
+    # ==================================================== DICTIONNAIRE
+    output$dict_code_ui <- shiny::renderUI({
+      cb <- rv$codebook
+      shiny::selectInput(ns("dict_code"), "Code",
+        choices = if (nrow(cb)) stats::setNames(cb$code_id, cb$label) else character(0),
+        selected = shiny::isolate(input$dict_code))
+    })
+
+    # Le champ suit le code selectionne, sans ecraser une saisie en cours.
+    shiny::observeEvent(input$dict_code, {
+      shiny::updateTextAreaInput(session, "dict_words",
+        value = paste(hstat_code_keywords_of(rv$codebook, input$dict_code), collapse = "; "))
+    })
+
+    shiny::observeEvent(input$dict_save, {
+      shiny::req(input$dict_code)
+      kw <- trimws(input$dict_words %||% "")
+      kw <- paste(unique(trimws(strsplit(kw, "[;,\n]")[[1]])), collapse = "; ")
+      rv$codebook <- hstat_code_update(rv$codebook, input$dict_code, keywords = kw)
+      shiny::showNotification(
+        sprintf("Mots-cles enregistres pour « %s ».",
+                hstat_code_label(rv$codebook, input$dict_code)),
+        type = "message", duration = 4)
+    })
+
+    .apply_dictionary <- function(dd, source_label) {
+      if (!any(nzchar(trimws(rv$codebook$keywords)))) {
+        rv$ai <- list(ok = FALSE,
+                      msg = paste0("Aucun code ne porte de mots-cles. Renseignez-en ",
+                                   "ci-dessous, ou lancez d'abord la thematisation ",
+                                   "automatique, qui en propose."))
+        shiny::showNotification(rv$ai$msg, type = "warning", duration = 8)
+        return(invisible(NULL))
+      }
+      shiny::withProgress(message = "Application du dictionnaire...", value = 0.5, {
+        segs <- hstat_code_lexical_apply(dd, rv$codebook,
+                                         scope = input$dict_scope %||% "phrase")
+        added <- 0L
+        for (i in seq_len(nrow(segs))) {
+          before <- nrow(rv$segments)
+          rv$segments <- hstat_seg_add(rv$segments, segs$doc_id[i], segs$code_id[i],
+                                       segs$start[i], segs$end[i], segs$text[i],
+                                       source = "auto")
+          if (nrow(rv$segments) > before) added <- added + 1L
+        }
+        sans <- attr(segs, "codes_sans_mots_cles")
+        rv$ai <- list(
+          ok = TRUE,
+          msg = sprintf("%s : %d etiquette(s) posee(s) sur %d reponse(s) analysee(s) (tout le corpus).%s",
+                        source_label, added, nrow(dd),
+                        if (!is.null(sans) && sans > 0)
+                          sprintf(" %d code(s) sans mots-cles ont ete ignore(s).", sans) else ""),
+          table = if (nrow(segs)) utils::head(data.frame(
+            Reponse = segs$doc_id,
+            Code = hstat_code_label(rv$codebook, segs$code_id),
+            Extrait = segs$text, stringsAsFactors = FALSE), 200) else NULL)
+        shiny::showNotification(rv$ai$msg, type = "message", duration = 8)
+      })
+    }
+
+    shiny::observeEvent(input$dict_apply, .apply_dictionary(docs(), "Dictionnaire"))
+
+    output$dict_table <- DT::renderDT({
+      cb <- rv$codebook
+      shiny::validate(shiny::need(nrow(cb) > 0,
+        "Aucun code : creez-en a la main, ou faites-en proposer par l'assistant."))
+      cnt <- hstat_code_counts(cb, rv$segments)
+      DT::datatable(
+        data.frame(Code = cb$label,
+                   `Mots-cles` = ifelse(nzchar(trimws(cb$keywords)), cb$keywords, "-"),
+                   Segments = cnt$n_seg,
+                   Definition = ifelse(nzchar(cb$memo), cb$memo, "-"),
+                   check.names = FALSE, stringsAsFactors = FALSE),
+        rownames = FALSE, options = list(pageLength = 10, scrollX = TRUE, dom = "tip"))
     })
 
     # ==================================================== EXPORT / PROJET
@@ -1995,8 +2718,11 @@ mod_coding_server <- function(id, values) {
         shiny::showNotification("Ce fichier n'est pas un projet de codage HStat.",
                                 type = "error", duration = 6); return()
       }
-      rv$codebook <- obj$codebook
+      # Un projet enregistre avant l'arrivee du dictionnaire n'a pas la colonne
+      # `keywords` : la migration la recree plutot que de refuser le fichier.
+      rv$codebook <- hstat_code_migrate_codebook(obj$codebook)
       rv$segments <- obj$segments
+      rv$next_color <- hstat_code_next_color(rv$codebook)
       if (!is.null(obj$doc_var) && obj$doc_var %in% names(get_data()))
         shiny::updateSelectInput(session, "doc_var", selected = obj$doc_var)
       shiny::showNotification(

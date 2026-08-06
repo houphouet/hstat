@@ -1717,7 +1717,27 @@ test_that("la carte conceptuelle place autant de noeuds que de codes", {
   expect_equal(nrow(hstat_code_map_layout(vide, stats::setNames(rep(1, 4), cb$label))), 4L)
 })
 
-test_that("assistant IA : degradation propre en l'absence de cle", {
+test_that("le moteur hors ligne est toujours disponible, sans cle ni reseau", {
+  old <- Sys.getenv("ANTHROPIC_API_KEY", unset = NA)
+  Sys.unsetenv("ANTHROPIC_API_KEY")
+  on.exit(if (!is.na(old)) Sys.setenv(ANTHROPIC_API_KEY = old), add = TRUE)
+
+  # C'est la garantie centrale : le moteur « auto » ne depend de rien.
+  st <- hstat_ai_status("auto")
+  expect_true(st$ok)
+  expect_true(grepl("sans reseau", st$message, fixed = TRUE))
+})
+
+test_that("le moteur par defaut est local, jamais l'API payante", {
+  # Le premier choix propose a l'utilisateur et le defaut de hstat_ai_call()
+  # doivent rester le moteur local : gratuit et hors ligne.
+  expect_equal(unname(HSTAT_AI_ENGINES[1]), "local")
+  expect_equal(formals(hstat_ai_call)$engine, "local")
+  expect_equal(formals(hstat_ai_status)$engine, "local")
+  expect_true("claude" %in% HSTAT_AI_ENGINES)
+})
+
+test_that("API Claude : degradation propre en l'absence de cle", {
   old <- Sys.getenv("ANTHROPIC_API_KEY", unset = NA)
   Sys.unsetenv("ANTHROPIC_API_KEY")
   on.exit(if (!is.na(old)) Sys.setenv(ANTHROPIC_API_KEY = old), add = TRUE)
@@ -1726,12 +1746,14 @@ test_that("assistant IA : degradation propre en l'absence de cle", {
   expect_equal(hstat_ai_key("  sk-test  "), "sk-test")
   expect_false(hstat_ai_available(NULL))
 
-  st <- hstat_ai_status(NULL)
+  st <- hstat_ai_status("claude")
   expect_false(st$ok)
   expect_true(grepl("cle d'API", st$message, fixed = TRUE))
+  # Le message doit orienter vers les moteurs gratuits
+  expect_true(grepl("gratuits et locaux", st$message, fixed = TRUE))
 
   # Aucun appel reseau ne doit partir sans cle
-  r <- hstat_ai_call("bonjour", api_key = NULL)
+  r <- hstat_ai_call("bonjour", engine = "claude", api_key = NULL)
   expect_false(r$ok)
   expect_true(nzchar(r$error))
 
@@ -1740,8 +1762,154 @@ test_that("assistant IA : degradation propre en l'absence de cle", {
   Sys.unsetenv("ANTHROPIC_API_KEY")
 })
 
-test_that("le modele IA declare est bien claude-opus-5", {
+test_that("adresses par defaut des serveurs d'inference locaux", {
+  # 127.0.0.1 et non localhost : on veut que ce soit visiblement la machine
+  # de l'utilisateur, et rien d'autre.
+  expect_true(grepl("^http://127\\.0\\.0\\.1:11434$", hstat_ai_url("ollama")))
+  expect_true(grepl("^http://127\\.0\\.0\\.1:8080$", hstat_ai_url("openai")))
+  expect_equal(hstat_ai_url("ollama", "http://192.168.1.5:11434/"),
+               "http://192.168.1.5:11434")
+  expect_equal(hstat_ai_url("ollama", "   "), "http://127.0.0.1:11434")
+})
+
+test_that("serveur local injoignable : message actionnable, jamais d'erreur", {
+  skip_if_not(requireNamespace("httr", quietly = TRUE))
+  # Port volontairement ferme
+  st <- hstat_ai_status("local", "ollama", "http://127.0.0.1:9")
+  expect_false(st$ok)
+  expect_true(grepl("Ollama", st$message, fixed = TRUE))
+  expect_equal(hstat_ai_ollama_models("http://127.0.0.1:9", timeout = 2), character(0))
+
+  r <- hstat_ai_call("bonjour", engine = "local", url = "http://127.0.0.1:9",
+                     model = "inexistant", timeout = 3)
+  expect_false(r$ok)
+  expect_true(nzchar(r$error))
+})
+
+test_that("le modele Claude declare est bien claude-opus-5", {
   expect_equal(HSTAT_AI_MODEL, "claude-opus-5")
+})
+
+test_that("hstat_code_auto_codebook degage des themes sans modele ni reseau", {
+  set.seed(3)
+  # Chaque registre partage un terme pivot d'une reponse a l'autre : c'est
+  # exactement la structure de cooccurrence sur laquelle s'appuie la methode.
+  prix <- rep(c("Le prix est vraiment trop eleve.",
+                "Un prix excessif, beaucoup trop cher.",
+                "Le prix annonce reste cher et excessif."), 6)
+  serv <- rep(c("L accueil du personnel est chaleureux.",
+                "Un accueil competent et vraiment disponible.",
+                "L accueil reste chaleureux et disponible."), 6)
+  cb <- hstat_code_auto_codebook(c(prix, serv), n_codes = 2, min_char = 4)
+
+  expect_false(is.null(cb))
+  expect_equal(nrow(cb), 2L)
+  expect_setequal(names(cb), c("label", "memo", "keywords"))
+  expect_true(all(nzchar(cb$label)))
+  expect_false(any(duplicated(tolower(cb$label))))
+  expect_true(all(nzchar(cb$keywords)))
+
+  # Les deux registres lexicaux doivent se retrouver dans des themes distincts
+  kw <- lapply(seq_len(2), function(i) trimws(strsplit(cb$keywords[i], ";")[[1]]))
+  th_prix <- which(vapply(kw, function(k) "prix" %in% k, logical(1)))
+  th_serv <- which(vapply(kw, function(k) "personnel" %in% k, logical(1)))
+  expect_length(th_prix, 1L)
+  expect_length(th_serv, 1L)
+  expect_false(identical(th_prix, th_serv))
+
+  # Corpus trop court : refus explicite plutot qu'erreur
+  expect_null(hstat_code_auto_codebook(c("a", "b")))
+  expect_null(hstat_code_auto_codebook(character(0)))
+})
+
+test_that(".hstat_code_sentences decoupe sans rogner de lettre", {
+  t <- "Le service est parfait. En revanche, le prix est trop eleve ! Je ne reviendrai pas."
+  b <- .hstat_code_sentences(t)
+  expect_equal(nrow(b), 3L)
+  got <- vapply(seq_len(3), function(i) substr(t, b[i, 1] + 1, b[i, 2]), character(1))
+  expect_equal(got, c("Le service est parfait",
+                      "En revanche, le prix est trop eleve",
+                      "Je ne reviendrai pas"))
+  # Sans ponctuation finale, le texte entier forme une phrase
+  expect_equal(substr("un seul bloc", 1, .hstat_code_sentences("un seul bloc")[1, 2]),
+               "un seul bloc")
+  expect_null(.hstat_code_sentences(""))
+  expect_null(.hstat_code_sentences("..."))
+})
+
+test_that("le codage par dictionnaire pose des bornes exactes", {
+  df <- data.frame(avis = c("Le prix est trop eleve. Mais l accueil est parfait.",
+                            "Rien a signaler.",
+                            "TARIF excessif et PRIX abusif !"),
+                   stringsAsFactors = FALSE)
+  d  <- hstat_code_docs(df, "avis")
+  cb <- hstat_code_add(hstat_code_new_codebook(), "Prix", keywords = "prix; tarif")
+  cb <- hstat_code_add(cb, "Accueil", keywords = "accueil")
+
+  sg <- hstat_code_lexical_apply(d, cb, scope = "phrase")
+  expect_true(nrow(sg) >= 3)
+  expect_true(all(sg$source == "auto"))
+  # Toute borne doit redonner exactement le texte stocke
+  for (i in seq_len(nrow(sg))) {
+    txt <- d$text[d$doc_id == sg$doc_id[i]]
+    expect_equal(substr(txt, sg$start[i] + 1, sg$end[i]), sg$text[i])
+  }
+  # La phrase entiere est etiquetee, pas le seul mot-cle
+  expect_true(any(grepl("Le prix est trop eleve", sg$text, fixed = TRUE)))
+  # La reponse sans mot-cle n'est pas codee
+  expect_false(d$doc_id[2] %in% sg$doc_id)
+  # Casse ignoree : « TARIF » et « PRIX » sont dans la meme phrase, donc un
+  # seul segment pour le code Prix (le doublon de bornes est ecarte)
+  expect_equal(sum(sg$doc_id == d$doc_id[3] & sg$code_id == "prix"), 1L)
+
+  # Portee « mot » : le segment se limite au mot-cle
+  sm <- hstat_code_lexical_apply(d, cb, scope = "mot")
+  expect_true(all(tolower(sm$text) %in% c("prix", "tarif", "accueil")))
+  expect_true(nrow(sm) > nrow(sg))
+})
+
+test_that("le dictionnaire ignore les accents sans decaler les positions", {
+  df <- data.frame(avis = "Le tarif est vraiment \u00e9lev\u00e9 et la qualit\u00e9 m\u00e9diocre.",
+                   stringsAsFactors = FALSE)
+  d  <- hstat_code_docs(df, "avis")
+  # Mot-cle sans accent, texte avec accents
+  cb <- hstat_code_add(hstat_code_new_codebook(), "Qualite", keywords = "qualite; eleve")
+  sg <- hstat_code_lexical_apply(d, cb, scope = "mot")
+  expect_equal(nrow(sg), 2L)
+  # Les positions doivent pointer sur les formes ACCENTUEES du texte d'origine
+  expect_setequal(sg$text, c("\u00e9lev\u00e9", "qualit\u00e9"))
+  for (i in seq_len(nrow(sg)))
+    expect_equal(substr(d$text, sg$start[i] + 1, sg$end[i]), sg$text[i])
+})
+
+test_that("mots-cles : lecture, ecriture et migration d'un ancien projet", {
+  cb <- hstat_code_add(hstat_code_new_codebook(), "Prix",
+                       keywords = "prix; tarif ; cher")
+  expect_equal(hstat_code_keywords_of(cb, "prix"), c("prix", "tarif", "cher"))
+  expect_equal(hstat_code_keywords_of(cb, "inconnu"), character(0))
+
+  cb2 <- hstat_code_update(cb, "prix", keywords = "cout")
+  expect_equal(hstat_code_keywords_of(cb2, "prix"), "cout")
+
+  # Livre de codes enregistre par une version anterieure a la colonne keywords
+  ancien <- data.frame(code_id = "prix", label = "Prix", color = "#e74c3c",
+                       memo = "", created = "2026-01-01 00:00:00",
+                       stringsAsFactors = FALSE)
+  mig <- hstat_code_migrate_codebook(ancien)
+  expect_true("keywords" %in% names(mig))
+  expect_equal(mig$keywords, "")
+  expect_equal(mig$label, "Prix")
+  expect_equal(nrow(hstat_code_migrate_codebook(NULL)), 0L)
+})
+
+test_that("les codes sans mots-cles sont comptes, pas silencieusement ignores", {
+  df <- data.frame(avis = "Le prix est eleve.", stringsAsFactors = FALSE)
+  d  <- hstat_code_docs(df, "avis")
+  cb <- hstat_code_add(hstat_code_new_codebook(), "Prix", keywords = "prix")
+  cb <- hstat_code_add(cb, "Delai")            # sans dictionnaire
+  sg <- hstat_code_lexical_apply(d, cb)
+  expect_equal(attr(sg, "codes_sans_mots_cles"), 1L)
+  expect_true(all(sg$code_id == "prix"))
 })
 
 test_that("hstat_ai_extract_json tolere le texte et les blocs markdown", {
@@ -1818,4 +1986,38 @@ test_that("mod_coding.R est source par HStat.R avant mod_qualitative.R", {
   # mod_qualitative_ui() appelle mod_coding_ui() : l'ordre doit tenir
   expect_true(i_cod < i_qua)
   expect_true(file.exists(file.path(root, "inst", "app", "mod_coding.R")))
+})
+
+test_that("le corps des requetes locales a la forme attendue par les serveurs", {
+  # Ces champs sont le contrat avec Ollama et avec les serveurs compatibles
+  # OpenAI : un renommage silencieux casserait l'assistant sans erreur visible.
+  b <- .hstat_ai_body_ollama("code ce corpus", system = "tu reponds en JSON",
+                             model = "qwen2.5", json = TRUE)
+  expect_equal(b$model, "qwen2.5")
+  expect_false(b$stream)                    # sinon la reponse arrive par morceaux
+  expect_equal(b$format, "json")
+  expect_equal(b$options$temperature, 0.2)  # thematisation stable, pas creative
+  expect_equal(vapply(b$messages, function(m) m$role, character(1)),
+               c("system", "user"))
+  expect_equal(b$messages[[2]]$content, "code ce corpus")
+
+  # Sans consigne systeme, un seul message
+  b0 <- .hstat_ai_body_ollama("x", system = NULL, model = "m")
+  expect_equal(vapply(b0$messages, function(m) m$role, character(1)), "user")
+  expect_null(.hstat_ai_body_ollama("x", model = "m", json = FALSE)$format)
+
+  o <- .hstat_ai_body_openai("code ce corpus", system = "sys", model = "local-model",
+                             max_tokens = 2048L, json = TRUE)
+  expect_equal(o$model, "local-model")
+  expect_false(o$stream)
+  expect_equal(o$max_tokens, 2048L)
+  expect_equal(o$response_format$type, "json_object")
+  # Le rejeu apres un refus du serveur passe par la meme fonction sans le champ
+  expect_null(.hstat_ai_body_openai("x", model = "m", json = FALSE)$response_format)
+
+  skip_if_not(requireNamespace("jsonlite", quietly = TRUE))
+  # `messages` doit rester un TABLEAU JSON, meme avec un seul message
+  j <- jsonlite::toJSON(.hstat_ai_body_ollama("x", model = "m"), auto_unbox = TRUE)
+  expect_true(grepl('"messages":[{', j, fixed = TRUE))
+  expect_true(grepl('"stream":false', j, fixed = TRUE))
 })
