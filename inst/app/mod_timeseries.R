@@ -577,7 +577,17 @@ mod_timeseries_server <- function(id, values) {
       if (length(res) < 8) return(NULL)
       lb <- stats::Box.test(res, lag = min(24, max(4, length(res) %/% 5)),
                             type = "Ljung-Box")
-      ok <- lb$p.value > 0.05
+      # Des residus de variance nulle (modele qui reproduit exactement le train)
+      # donnent p = NaN : `if (p > 0.05)` levait alors « missing value where
+      # TRUE/FALSE needed » et faisait disparaitre tout le bloc de diagnostic.
+      verdict <- hstat_p_verdict(lb$p.value)
+      if (identical(verdict, "indeterminable"))
+        return(div(class = "callout callout-warning", style = "margin-top:8px;",
+          icon("circle-question"), strong(" Test de Ljung-Box : "),
+          "non calculable — les résidus n'ont pas de variance exploitable ",
+          "(le modèle reproduit la série d'apprentissage à l'identique). ",
+          "L'absence d'autocorrélation résiduelle ne peut être ni confirmée ni infirmée."))
+      ok <- identical(verdict, "non significatif")
       div(class = paste("callout", if (ok) "callout-info" else "callout-warning"),
           style = "margin-top:8px;",
           icon(if (ok) "check-circle" else "exclamation-triangle"),

@@ -105,6 +105,26 @@ part, l'inverse ferait échouer `hstat_ai_hint_slot()` au démarrage.
 Une sortie Shiny ne peut apparaître qu'une fois dans le DOM : chaque onglet a
 donc son propre identifiant, et `app_server.R` les rend en boucle.
 
+### Ne jamais brancher sur une statistique non calculable
+
+Un test statistique rend `NA` ou `NaN` dès que ses données sont dégénérées
+(variance nulle, matrice singulière, effectifs vides). `if (p < 0.05)` lève
+alors « missing value where TRUE/FALSE needed » et fait tomber **toute** la
+sortie, pas seulement la ligne concernée. Passer par `hstat_p_verdict()`
+(`Utils.R`), qui rend trois états — `significatif` / `non significatif` /
+`indeterminable` — et traiter le troisième explicitement. Un test barre la
+route à toute nouvelle condition `if (... $p.value < ...)` non gardée.
+
+### FactoMineR : les coordonnées peuvent n'être qu'un vecteur
+
+Dès qu'un résultat ne comporte qu'un seul axe, FactoMineR renvoie ses
+coordonnées comme un **vecteur nu** et non une matrice : `ncol()` vaut `NULL`
+et `coord[, 1:2]` échoue sur « incorrect number of dimensions ». Le cas est
+courant, pas exotique : toute AFC croisant une variable **binaire** (sexe,
+oui/non, avant/après) produit une table dont la plus petite dimension vaut 2,
+donc un seul axe. Passer systématiquement par `hstat_coord_mat()` (`Utils.R`)
+avant d'indexer. Un test le vérifie sur l'ensemble du dépôt.
+
 ### Ne jamais appeler une fonction de rendu à la main
 
 `DT::renderDT(...)()`, `shiny::renderTable(...)()` depuis un `renderUI` échouent
@@ -191,11 +211,17 @@ démarrage subsiste car Shiny l'émet avant de tester le fichier.
 
 ## Fins de ligne
 
-Attention : le dépôt est **mixte**. `Utils.R`, `mod_tests.R` et
-`mod_qualitative.R` sont en **CRLF**, les autres fichiers R en LF. Préserver les
-fins de ligne existantes lors d'une édition — un fichier réécrit intégralement
-en LF produit un diff de plusieurs milliers de lignes qui masque le changement
-réel.
+Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. Sont en
+**CRLF** : `Utils.R`, `HStat.R`, `inst/app/app.R`, `mod_clean.R`,
+`mod_descriptive.R`, `mod_design.R`, `mod_explore.R`, `mod_filter.R`,
+`mod_qualitative.R`, `mod_tests.R`, `mod_threshold.R`, `mod_viz.R`, ainsi que
+`README.md` et le `app.R` racine. Sont en **LF** : `UX.R`, `app_server.R`,
+`mod_ai.R`, `mod_coding.R`, `mod_dl.R`, `mod_ml.R`, `mod_timeseries.R`, le
+dossier `R/`, `CLAUDE.md` et la suite de tests.
+
+Préserver les fins de ligne existantes lors d'une édition — un fichier réécrit
+intégralement en LF produit un diff de plusieurs milliers de lignes qui masque
+le changement réel.
 
 Vérifier avant d'éditer plutôt que se fier à cette liste :
 

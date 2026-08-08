@@ -5423,11 +5423,13 @@ mod_tests_server <- function(id, values) {
       }
       
       dw_test <- lmtest::dwtest(values$currentModel)
-      interp_text <- if (dw_test$p.value > 0.05) {
-        "Pas d'autocorrélation significative des résidus (p > 0.05)."
-      } else {
-        "Autocorrélation significative des résidus (p < 0.05). Vérifiez l'indépendance des observations."
-      }
+      # Un modele degenere (residus constants) rend p = NA : on le dit au lieu
+      # de laisser `if (p > 0.05)` faire tomber la sortie.
+      interp_text <- switch(
+        hstat_p_verdict(dw_test$p.value),
+        "non significatif" = "Pas d'autocorrélation significative des résidus (p > 0.05).",
+        "significatif" = "Autocorrélation significative des résidus (p < 0.05). Vérifiez l'indépendance des observations.",
+        "Test de Durbin-Watson non calculable sur ce modèle (résidus dégénérés).")
       
       HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
       
