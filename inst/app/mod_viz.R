@@ -1123,6 +1123,27 @@ mod_viz_server <- function(id, values) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
+    # Depot des variables portees au graphique. Ici, et non dans le corps du
+    # module : les selecteurs sont namespaces, `input$vizXVar` n'existe qu'a
+    # l'interieur du moduleServer. Un graphique suggere une relation ;
+    # l'aide a la decision dit quel test la formaliserait.
+    observeEvent(list(input$vizXVar, input$vizYVar, input$vizType), {
+      d <- values$filteredData %||% values$data
+      if (is.null(d) || !NROW(d)) return()
+      vars <- intersect(unique(c(input$vizXVar, input$vizYVar)), names(d))
+      if (!length(vars)) return()
+      grp <- intersect(input$vizColorVar %||% character(0), names(d))
+      hstat_ai_capture(values, "Visualisation",
+        sprintf("Graphique : %s", paste(vars, collapse = " x ")),
+        meta = list(variables = vars, groupe = grp,
+                    `type de graphique` = input$vizType),
+        # La figure part en FONCTION, pas en objet : elle n'est dessinee que si
+        # un rapport la reclame. `isolate` parce que le telechargement d'un
+        # rapport n'est pas un contexte reactif, et qu'un reactif ne se lit pas
+        # en dehors d'un tel contexte.
+        plot = function() shiny::isolate(createPlot()))
+    }, ignoreInit = TRUE)
+
   get_date_display_fmt <- function() {
     fmt <- input$xDateDisplayFormat %||% "%d-%m-%Y"
     if (viz_valid_date_fmt(fmt)) fmt else "%d-%m-%Y"
@@ -2947,7 +2968,7 @@ mod_viz_server <- function(id, values) {
              }
       )
     }, error = function(e) {
-      showNotification(paste("Erreur lors de la création du graphique:", e$message), 
+      showNotification(hstat_err_fr(e, "Erreur lors de la création du graphique"), 
                        type = "error", duration = 5)
       return(NULL)
     })
@@ -3245,14 +3266,14 @@ mod_viz_server <- function(id, values) {
               )
             )),
             error = function(e) {
-              showNotification(paste("Axe Y2 :", conditionMessage(e)),
+              showNotification(hstat_err_fr(e, "Axe Y2"),
                                type = "warning", duration = 3)
             }
           )
         }
         
       }, error = function(e) {
-        showNotification(paste("Axe Y2 :", e$message), type = "warning", duration = 4)
+        showNotification(hstat_err_fr(e, "Axe Y2"), type = "warning", duration = 4)
       })
     }
     
@@ -3969,7 +3990,7 @@ mod_viz_server <- function(id, values) {
       
     }, error = function(e) {
       showNotification(
-        paste("Erreur lors du téléchargement:", e$message), 
+        hstat_err_fr(e, "Téléchargement"), 
         type = "error", 
         duration = 8
       )
@@ -4064,7 +4085,7 @@ mod_viz_server <- function(id, values) {
     plotly_obj <- tryCatch(
       suppressWarnings(suppressMessages(ggplotly(p, tooltip = "all"))),
       error = function(e) {
-        showNotification(paste("Conversion interactive:", conditionMessage(e)),
+        showNotification(hstat_err_fr(e, "Conversion en graphique interactif"),
                          type = "warning", duration = 4)
         NULL
       }

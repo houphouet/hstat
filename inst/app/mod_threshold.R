@@ -415,6 +415,7 @@ mod_threshold_ui <- function(id) {
 }
 
 mod_threshold_server <- function(id, values) {
+
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
   # ---- Seuils d'efficacité ----
@@ -431,6 +432,20 @@ mod_threshold_server <- function(id, values) {
     legend_label_mapping = NULL,
     legend_label_styles = NULL
   )
+
+  # Depot des donnees de seuils pour l'aide a la decision. Pose ICI, apres la
+  # creation de `threshold_values` : place plus haut, l'objet n'existe pas
+  # encore au moment ou l'observateur est enregistre.
+  observeEvent(threshold_values$plot_data, {
+    pd <- threshold_values$plot_data
+    if (is.null(pd) || !NROW(pd)) return()
+    hstat_ai_capture(values, "Seuils d'efficacite",
+      "Courbes de seuils d'efficacite",
+      tables = list("Points des courbes" = utils::head(as.data.frame(pd), 200)),
+      meta = list(variables = threshold_values$selected_y_vars,
+                  `points traces` = NROW(pd)),
+      plot = function() shiny::isolate(threshold_values$current_plot))
+  }, ignoreInit = TRUE)
 
   # Reinitialisation globale : quand l'utilisateur clique sur "Réinitialiser" dans
   # l'en-tete de l'application, on remet ce module (Seuils d'efficacite) a zero :
@@ -1129,7 +1144,7 @@ mod_threshold_server <- function(id, values) {
       return(p)
       
     }, error = function(e) {
-      showNotification(paste("Erreur lors de la mise à jour:", e$message), type = "error", duration = 5)
+      showNotification(hstat_err_fr(e, "Erreur lors de la mise à jour"), type = "error", duration = 5)
       return(NULL)
     })
   })
@@ -1306,7 +1321,7 @@ mod_threshold_server <- function(id, values) {
         
       }, error = function(e) {
         showNotification(
-          paste0("Erreur lors de l'export: ", e$message,
+          paste0(hstat_err_fr(e, "Export"), " ",
                  "\n\nConseils:",
                  "\n- Réduisez les dimensions ou le DPI",
                  "\n- Utilisez un format vectoriel (SVG, PDF) pour haute résolution",

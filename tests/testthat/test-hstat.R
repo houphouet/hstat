@@ -58,6 +58,12 @@ local({
   if (file.exists(ai_path))
     suppressWarnings(suppressMessages(
       sys.source(ai_path, envir = e, keep.source = FALSE)))
+  # Le generateur de rapport (hstat_report_*) vit dans mod_report.R et
+  # s'appuie sur les helpers de mod_ai.R : le charger apres lui.
+  rep_path <- file.path(dirname(utils_path), "mod_report.R")
+  if (file.exists(rep_path))
+    suppressWarnings(suppressMessages(
+      sys.source(rep_path, envir = e, keep.source = FALSE)))
   # Idem pour l'atelier de codage qualitatif (hstat_code_*, hstat_seg_*),
   # qui vit dans mod_coding.R.
   cod_path <- file.path(dirname(utils_path), "mod_coding.R")
@@ -93,7 +99,9 @@ local({
 
 
 # =============================================================================
-context("Détection du type de fichier")
+# --------------------------------------------------------------------------
+#  Détection du type de fichier
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_file_kind reconnait les extensions courantes", {
@@ -118,7 +126,9 @@ test_that("hstat_file_kind renvoie 'inconnu' pour le reste", {
 
 
 # =============================================================================
-context("Formatage des tailles de fichier")
+# --------------------------------------------------------------------------
+#  Formatage des tailles de fichier
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_format_size formate correctement les ordres de grandeur", {
@@ -136,7 +146,9 @@ test_that("hstat_format_size donne une valeur numérique plausible", {
 
 
 # =============================================================================
-context("Chemin SQL (echappement)")
+# --------------------------------------------------------------------------
+#  Chemin SQL (echappement)
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_sql_path normalise les antislash et echappe les apostrophes", {
@@ -147,7 +159,9 @@ test_that("hstat_sql_path normalise les antislash et echappe les apostrophes", {
 
 
 # =============================================================================
-context("Graine reproductible")
+# --------------------------------------------------------------------------
+#  Graine reproductible
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_set_seed rend les tirages reproductibles", {
@@ -171,7 +185,9 @@ test_that("deux graines differentes produisent des tirages differents", {
 
 
 # =============================================================================
-context("Chargeur de données -- chemin en memoire (CSV)")
+# --------------------------------------------------------------------------
+#  Chargeur de données -- chemin en memoire (CSV)
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_load_data lit un CSV en memoire et renseigne les metadonnees", {
@@ -210,7 +226,9 @@ test_that("le seuil hors-memoire n'affecte pas un petit CSV", {
 
 
 # =============================================================================
-context("Expressions SQL d'agregation")
+# --------------------------------------------------------------------------
+#  Expressions SQL d'agregation
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that(".hstat_sql_stat_exprs génère les expressions attendues", {
@@ -232,7 +250,9 @@ test_that(".hstat_sql_stat_exprs ne retourne que les stats demandees", {
 
 
 # =============================================================================
-context("Agregations exactes via DuckDB (si disponible)")
+# --------------------------------------------------------------------------
+#  Agregations exactes via DuckDB (si disponible)
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("describe_global DuckDB == calcul de référence R", {
@@ -376,7 +396,9 @@ test_that("Analyse textuelle et thématique", {
 
 
 # =============================================================================
-context("Sécurité -- évaluateur de formules et identifiants SQL")
+# --------------------------------------------------------------------------
+#  Sécurité -- évaluateur de formules et identifiants SQL
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_safe_eval évalue les formules légitimes", {
@@ -409,7 +431,9 @@ test_that("hstat_sql_ident neutralise les guillemets dans les identifiants", {
 
 
 # =============================================================================
-context("Visualisation -- conversion numérique FR et capuchons de moustache")
+# --------------------------------------------------------------------------
+#  Visualisation -- conversion numérique FR et capuchons de moustache
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_as_numeric_fr convertit les formats français", {
@@ -452,7 +476,9 @@ test_that("hstat_add_whisker_caps insère des capuchons alignés", {
 
 
 # =============================================================================
-context("Types de variables -- facteurs ordinaux")
+# --------------------------------------------------------------------------
+#  Types de variables -- facteurs ordinaux
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("la conversion en facteur ordinal respecte l'ordre défini", {
@@ -481,7 +507,9 @@ test_that("la conversion en facteur ordinal respecte l'ordre défini", {
 
 
 # =============================================================================
-context("Analyses qualitatives -- sorties console et IC du V de Cramér")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- sorties console et IC du V de Cramér
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("les tests bivariés reproduisent la présentation console R (Titanic)", {
@@ -523,7 +551,9 @@ test_that("l'IC du V de Cramér encadre l'estimation", {
 
 
 # =============================================================================
-context("Analyses qualitatives -- OR/RR toutes modalités et interprétation")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- OR/RR toutes modalités et interprétation
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("le mode 'toutes les modalités' croise chaque X avec chaque Y", {
@@ -568,7 +598,9 @@ test_that("l'interprétation par ligne détecte le sens de l'association", {
 
 
 # =============================================================================
-context("Analyses qualitatives -- texte (NLP) et modes")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- texte (NLP) et modes
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("le stemmer français regroupe les formes fléchies sans sur-découper", {
@@ -631,7 +663,9 @@ test_that("hstat_q_apply_palette re-colore sans casser le graphique", {
 
 
 # =============================================================================
-context("Analyses qualitatives -- couleurs par défaut de ggplot")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- couleurs par défaut de ggplot
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("les graphiques utilisent les échelles par défaut de ggplot", {
@@ -657,7 +691,9 @@ test_that("les graphiques utilisent les échelles par défaut de ggplot", {
 
 
 # =============================================================================
-context("Analyses qualitatives -- Chi²/Multinomial et tableaux croisés intégrés")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- Chi²/Multinomial et tableaux croisés intégrés
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("le Chi² d'ajustement reproduit chisq.test et interprète ses métriques", {
@@ -708,7 +744,9 @@ test_that("les tableaux croisés intégrés fournissent profils et métriques in
 
 
 # =============================================================================
-context("Analyses qualitatives -- croisement d'une variable avec elle-même")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- croisement d'une variable avec elle-même
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("les graphiques croisés fonctionnent même si les variables ont le même nom", {
@@ -733,7 +771,9 @@ test_that("les graphiques croisés fonctionnent même si les variables ont le m�
 
 
 # =============================================================================
-context("Analyses qualitatives -- exportation des résultats")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- exportation des résultats
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that(".safe_name produit des noms de fichiers propres", {
@@ -774,7 +814,9 @@ test_that("l'export image fonctionne dans tous les formats", {
 
 
 # =============================================================================
-context("Analyses qualitatives -- mise en forme interactive du graphique")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- mise en forme interactive du graphique
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_q_apply_style applique titres, tailles, rotation et style", {
@@ -816,7 +858,9 @@ test_that("palette et style se composent sur tous les graphiques", {
 
 
 # =============================================================================
-context("Sécurité -- v25 : tables SQL, délimiteur, limite d'upload")
+# --------------------------------------------------------------------------
+#  Sécurité -- v25 : tables SQL, délimiteur, limite d'upload
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("un nom de table piégé est neutralisé dans les requêtes DuckDB", {
@@ -850,7 +894,9 @@ test_that("la limite d'upload est configurable et bornée", {
 
 
 # =============================================================================
-context("Nettoyage -- classes d'intervalles (discrétisation)")
+# --------------------------------------------------------------------------
+#  Nettoyage -- classes d'intervalles (discrétisation)
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("les trois méthodes de découpage produisent des facteurs ordonnés", {
@@ -927,7 +973,9 @@ test_that("les trois conventions de bornes produisent les bonnes étiquettes", {
 
 
 # =============================================================================
-context("Post-hoc paramétrique -- ajustement des p-values")
+# --------------------------------------------------------------------------
+#  Post-hoc paramétrique -- ajustement des p-values
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("un ajustement plus strict rend les groupes au moins aussi homogènes", {
@@ -960,7 +1008,9 @@ test_that("p.adjust reproduit les méthodes proposées à l'utilisateur", {
 
 
 # =============================================================================
-context("Analyses qualitatives -- post-hoc du Chi² d'ajustement (déplacé)")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- post-hoc du Chi² d'ajustement (déplacé)
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("le Chi² d'ajustement fournit un post-hoc par paires et des lettres de groupes", {
@@ -999,7 +1049,9 @@ test_that("le post-hoc est aussi disponible avec le multinomial exact", {
 
 
 # =============================================================================
-context("Analyses qualitatives -- proportions, corrélation interprétée, rangs/médianes")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- proportions, corrélation interprétée, rangs/médianes
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("les tableaux croisés incluent un graphique de proportions", {
@@ -1052,7 +1104,9 @@ test_that("le test d'adéquation stratifié teste Y dans chaque groupe de X", {
 
 
 # =============================================================================
-context("Citation du package")
+# --------------------------------------------------------------------------
+#  Citation du package
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_citation produit les 6 styles valides", {
@@ -2475,4 +2529,719 @@ test_that("aucune coordonnee FactoMineR n'est indexee sans passer par le garde-f
   }
   expect_equal(fautes, character(0),
                info = paste("indexations non protegees :", paste(fautes, collapse = " | ")))
+})
+
+# =============================================================================
+#  DIAGNOSTIC DE QUALITE DES DONNEES
+# =============================================================================
+
+test_that("hstat_data_quality repere les problemes courants", {
+  set.seed(21)
+  n <- 60
+  d <- data.frame(
+    constante   = rep(7, n),
+    presque_na  = c(rnorm(3), rep(NA, n - 3)),
+    normale     = rnorm(n),
+    nombres_txt = as.character(round(rnorm(n), 3)),
+    ecrasante   = c(rep("oui", n - 1), "non"),
+    identifiant = paste0("ID", seq_len(n)),
+    stringsAsFactors = FALSE)
+  dq <- hstat_data_quality(d)
+
+  expect_true(is.data.frame(dq))
+  expect_setequal(names(dq), c("Variable", "Constat", "Gravite", "Suggestion"))
+  expect_true(all(dq$Gravite %in% HSTAT_QUALITE_GRAVITES))
+  # Chaque constat doit porter une suggestion : un diagnostic sans issue ne sert a rien
+  expect_true(all(nzchar(dq$Suggestion)))
+
+  c_var <- function(v) dq$Constat[dq$Variable == v]
+  expect_true(any(grepl("une seule valeur", c_var("constante"))))
+  expect_true(any(grepl("manquantes", c_var("presque_na"))))
+  expect_true(any(grepl("nombres stockes comme du texte", c_var("nombres_txt"))))
+  expect_true(any(grepl("couvre", c_var("ecrasante"))))
+  expect_true(any(grepl("valeurs distinctes", c_var("identifiant"))))
+  # La variable saine n'apparait pas
+  expect_length(c_var("normale"), 0L)
+
+  # Les constats les plus graves passent en tete
+  rang <- match(dq$Gravite, HSTAT_QUALITE_GRAVITES)
+  expect_false(is.unsorted(rang))
+})
+
+test_that("hstat_data_quality detecte redondance, doublons et effectif insuffisant", {
+  set.seed(22)
+  x <- rnorm(50)
+  d <- data.frame(a = x, b = x * 2 + 1e-9, c = rnorm(50))  # a et b colineaires
+  d <- rbind(d, d[1:3, ])                                   # 3 doublons
+  dq <- hstat_data_quality(d)
+  expect_true(any(grepl("correlation", dq$Constat)))
+  expect_true(any(grepl("identique", dq$Constat)))
+
+  # Peu d'observations pour beaucoup de variables
+  petit <- as.data.frame(matrix(rnorm(10 * 8), nrow = 10))
+  dq2 <- hstat_data_quality(petit)
+  expect_true(any(grepl("observations pour", dq2$Constat)))
+  expect_true(any(grepl("effectif total", dq2$Constat)))
+})
+
+test_that("un jeu de donnees sain ne genere aucune fausse alerte", {
+  set.seed(23)
+  d <- data.frame(
+    score = rnorm(200, 10, 2),
+    age = round(runif(200, 18, 75)),
+    groupe = rep(c("A", "B", "C", "D"), each = 50),
+    stringsAsFactors = FALSE)
+  dq <- hstat_data_quality(d)
+  expect_equal(nrow(dq), 1L)
+  expect_true(grepl("aucun probleme", dq$Constat[1]))
+  expect_true(grepl("Aucun probleme", hstat_data_quality_resume(dq)))
+
+  expect_null(hstat_data_quality(NULL))
+  expect_null(hstat_data_quality(data.frame()))
+  expect_null(hstat_data_quality_resume(NULL))
+})
+
+test_that("le resume compte correctement les gravites", {
+  dq <- rbind(
+    .hstat_q_row("a", "x", "bloquant", "s"),
+    .hstat_q_row("b", "y", "important", "s"),
+    .hstat_q_row("c", "z", "important", "s"),
+    .hstat_q_row("d", "w", "a surveiller", "s"))
+  r <- hstat_data_quality_resume(dq)
+  expect_true(grepl("4 constat", r, fixed = TRUE))
+  expect_true(grepl("1 bloquant", r, fixed = TRUE))
+  expect_true(grepl("2 important", r, fixed = TRUE))
+  expect_true(grepl("1 a surveiller", r, fixed = TRUE))
+})
+
+test_that("TOUS les modules d'analyse deposent un contexte pour l'IA", {
+  root <- file.path(.hstat_repo_root(), "inst", "app")
+  src <- unlist(lapply(list.files(root, pattern = "\\.R$", full.names = TRUE),
+                       readLines, warn = FALSE))
+  src <- src[!grepl("^\\s*#", src)]
+  pose <- gsub('.*"([^"]+)"$', "\\1", unique(unlist(regmatches(
+    src, gregexpr('hstat_ai_capture\\(values, "[^"]+"', src)))))
+
+  # La liste complete : aucun module ne doit rester muet.
+  attendu <- c("Exploration", "Nettoyage", "Filtrage", "Analyses descriptives",
+               "Visualisation", "Correlations", "Tests statistiques",
+               "Comparaisons multiples", "Analyses multivariees",
+               "Analyses qualitatives", "Series temporelles", "Machine Learning",
+               "Deep Learning", "Plan & Puissance", "Seuils d'efficacite")
+  for (m in attendu)
+    expect_true(m %in% pose, info = paste("aucune capture pour le module :", m))
+  expect_gte(length(pose), length(attendu))
+})
+
+# =============================================================================
+#  JOURNAL DE REPRODUCTIBILITE
+# =============================================================================
+
+test_that("hstat_rlog_code produit le code R attendu par famille d'analyse", {
+  cas <- function(module, titre, vars = NULL, grp = NULL)
+    hstat_rlog_code(list(module = module, title = titre,
+                         meta = list(variables = vars, groupe = grp)))
+
+  expect_match(paste(cas("Exploration", "Structure"), collapse = " "), "str\\(donnees\\)")
+
+  # Le test choisi doit suivre le TITRE, pas le module
+  expect_match(cas("Tests statistiques", "ANOVA", "score", "groupe")[1],
+               "aov\\(score ~ groupe", perl = TRUE)
+  expect_match(cas("Tests statistiques", "Kruskal-Wallis", "score", "groupe"),
+               "kruskal.test\\(score ~ groupe", perl = TRUE)
+  expect_match(cas("Tests statistiques", "Test t de Student", "score", "groupe"),
+               "t.test\\(score ~ groupe", perl = TRUE)
+  expect_match(cas("Tests statistiques", "Normalité (données brutes)", "score"),
+               "shapiro.test\\(donnees\\$score\\)", perl = TRUE)
+  expect_match(cas("Tests statistiques", "Régression linéaire", "y", "x")[1],
+               "lm\\(y ~ x", perl = TRUE)
+
+  expect_match(cas("Correlations", "Tests de correlation", c("a", "b"))[2],
+               "cor.test\\(donnees\\$a, donnees\\$b\\)", perl = TRUE)
+  expect_match(cas("Analyses multivariees", "Analyse en Composantes Principales (ACP)",
+                   c("a", "b"))[1], "FactoMineR::PCA", fixed = TRUE)
+  expect_match(cas("Analyses multivariees", "Classification k-means", c("a", "b")),
+               "stats::kmeans", fixed = TRUE)
+  expect_match(cas("Analyses qualitatives", "Tableau croise", c("sexe", "avis")),
+               "chisq.test\\(table\\(", perl = TRUE)
+
+  # Honnetete : quand le code exact n'est pas reconstituable, on ne devine pas
+  expect_null(cas("Machine Learning", "Comparaison de modeles", "score"))
+  expect_null(cas("Deep Learning", "Reseau de neurones", "score"))
+  expect_null(cas("Nettoyage", "Etat des donnees", "score"))
+  # ... ni quand les variables necessaires manquent
+  expect_null(cas("Tests statistiques", "ANOVA"))
+  expect_null(hstat_rlog_code(NULL))
+})
+
+test_that("les noms de variables non syntaxiques sont proteges", {
+  code <- hstat_rlog_code(list(module = "Tests statistiques", title = "ANOVA",
+    meta = list(variables = "ma variable", groupe = "groupe 2")))
+  expect_match(code[1], "`ma variable` ~ `groupe 2`", fixed = TRUE)
+  # Un nom deja syntaxique n'est pas alourdi
+  expect_equal(.hstat_rlog_nom(c("score", "ma var", "x.1", "2eme")),
+               c("score", "`ma var`", "x.1", "`2eme`"))
+})
+
+test_that("le script de session est du R valide et executable", {
+  h <- list(
+    list(module = "Exploration", title = "Structure",
+         meta = list(variables = c("score", "groupe")), time = Sys.time()),
+    list(module = "Tests statistiques", title = "ANOVA",
+         meta = list(variables = "score", groupe = "groupe"), time = Sys.time()),
+    list(module = "Correlations", title = "Correlations",
+         meta = list(variables = c("score", "age")), time = Sys.time()),
+    list(module = "Machine Learning", title = "Comparaison",
+         meta = list(variables = "score"), time = Sys.time()))
+  sc <- hstat_rlog_script(h, source = "essai.csv", version = "9.9.9")
+
+  # 1. Le script doit s'analyser : un journal qui ne parse pas ne sert a rien
+  f <- tempfile(fileext = ".R"); on.exit(unlink(f), add = TRUE)
+  writeLines(sc, f)
+  expect_silent(parse(f))
+
+  # 2. Il doit s'executer sur de vraies donnees
+  set.seed(2)
+  donnees <- data.frame(score = stats::rnorm(60), age = stats::runif(60, 18, 70),
+                        groupe = rep(c("A", "B", "C"), each = 20),
+                        stringsAsFactors = FALSE)
+  lignes <- strsplit(sc, "\n")[[1]]
+  lignes <- lignes[!grepl("^donnees <- read.csv", lignes)]   # pas de fichier reel
+  env <- new.env(); assign("donnees", donnees, envir = env)
+  expect_error(
+    utils::capture.output(eval(parse(text = paste(lignes, collapse = "\n")), envir = env)),
+    NA)
+
+  # 3. Le contenu attendu y est
+  expect_true(grepl("Journal de session HStat 9.9.9", sc, fixed = TRUE))
+  expect_true(grepl("essai.csv", sc, fixed = TRUE))
+  expect_true(grepl("aov(score ~ groupe", sc, fixed = TRUE))
+  expect_true(grepl("NON RECONSTITUE", sc, fixed = TRUE))   # l'etape ML signalee
+  # L'ordre chronologique est respecte
+  expect_lt(regexpr("1. Exploration", sc, fixed = TRUE),
+            regexpr("2. Tests statistiques", sc, fixed = TRUE))
+
+  # Session vide : un script utilisable quand meme
+  vide <- hstat_rlog_script(NULL)
+  expect_true(grepl("Aucune analyse enregistree", vide, fixed = TRUE))
+  expect_silent(parse(text = vide))
+})
+
+test_that("le nom de l'objet de donnees est configurable", {
+  h <- list(list(module = "Exploration", title = "S",
+                 meta = list(variables = "x"), time = Sys.time()))
+  sc <- hstat_rlog_script(h, donnees = "mes_donnees")
+  expect_true(grepl("mes_donnees <- read.csv", sc, fixed = TRUE))
+  expect_true(grepl("str(mes_donnees)", sc, fixed = TRUE))
+  expect_false(grepl("str(donnees)", sc, fixed = TRUE))
+})
+
+test_that("l'historique s'accumule sans doublon immediat", {
+  values <- new.env()
+  m <- list(variables = "score", groupe = "groupe")
+  hstat_ai_capture(values, "Tests statistiques", "ANOVA", meta = m)
+  hstat_ai_capture(values, "Tests statistiques", "ANOVA", meta = m)   # repetition
+  expect_length(values$aiHistory, 1L)
+
+  hstat_ai_capture(values, "Tests statistiques", "Kruskal-Wallis", meta = m)
+  expect_length(values$aiHistory, 2L)
+  # Revenir a une analyse deja faite la reinscrit : c'est bien un journal
+  hstat_ai_capture(values, "Tests statistiques", "ANOVA", meta = m)
+  expect_length(values$aiHistory, 3L)
+  expect_equal(vapply(values$aiHistory, function(c0) c0$title, character(1)),
+               c("ANOVA", "Kruskal-Wallis", "ANOVA"))
+  # Le dernier contexte reste accessible pour l'interpretation
+  expect_equal(values$aiContext$title, "ANOVA")
+  # L'historique conserve desormais les tableaux : le rapport les reprend.
+  # Sans tableau depose, l'entree en porte une liste vide, pas NULL.
+  expect_length(values$aiHistory[[1]]$tables, 0L)
+})
+
+test_that("l'historique s'allege au-dela des analyses recentes", {
+  values <- new.env()
+  tb <- list(Resultat = data.frame(x = 1:3))
+  for (i in seq_len(HSTAT_HIST_DETAIL + 3L))
+    hstat_ai_capture(values, "Tests statistiques", paste("Analyse", i),
+                     tables = tb, meta = list(variables = "x"),
+                     plot = function() NULL)
+  h <- values$aiHistory
+  expect_length(h, HSTAT_HIST_DETAIL + 3L)
+  # Les plus anciennes perdent tableaux et figures, pas leur identite : le
+  # journal de reproductibilite continue de les citer.
+  expect_null(h[[1]]$tables)
+  expect_null(h[[1]]$plot)
+  expect_equal(h[[1]]$title, "Analyse 1")
+  # Les recentes gardent tout
+  expect_length(h[[length(h)]]$tables, 1L)
+  expect_true(is.function(h[[length(h)]]$plot))
+})
+
+
+# ===========================================================================
+# RAPPORT AUTOMATIQUE (mod_report.R)
+# ===========================================================================
+
+.hstat_test_hist <- function() list(
+  list(module = "Tests statistiques", title = "Test t de Student",
+       time = Sys.time(), meta = list(variables = "poids", groupe = "sexe"),
+       tables = list(Resultat = data.frame(Variable = "poids", t = 2.31,
+                                           p = 0.0231)),
+       plot = NULL),
+  list(module = "Visualisation", title = "Graphique : poids x sexe",
+       time = Sys.time(), meta = list(variables = c("poids", "sexe")),
+       tables = list(), plot = NULL))
+
+test_that("le markdown du rapport respecte les sections demandees", {
+  h <- .hstat_test_hist()
+  md <- hstat_report_markdown(h, titre = "Mon rapport", auteur = "A. B.",
+                              contexte = "essai clinique",
+                              donnees_resume = data.frame(Variable = "poids",
+                                                          Type = "numerique"),
+                              qualite = data.frame(Variable = "poids",
+                                                   Constat = "3 % manquants"),
+                              interpretation = "La difference est nette.",
+                              reco = data.frame(Analyse = "Test t"),
+                              script = "t.test(poids ~ sexe, data = donnees)",
+                              version = "9.9.9")
+  expect_true(grepl("# Mon rapport", md, fixed = TRUE))
+  expect_true(grepl("A. B.", md, fixed = TRUE))
+  expect_true(grepl("HStat 9.9.9", md, fixed = TRUE))
+  expect_true(grepl("essai clinique", md, fixed = TRUE))
+  for (titre in c("## Donnees analysees", "## Diagnostic de qualite",
+                  "## Analyses menees", "## Interpretation",
+                  "## Analyses appelees", "## Annexe"))
+    expect_true(grepl(titre, md, fixed = TRUE), info = titre)
+  # Le contenu des analyses y est, pas seulement leur titre
+  expect_true(grepl("Test t de Student", md, fixed = TRUE))
+  expect_true(grepl("0.0231", md, fixed = TRUE))
+
+  # Une section non demandee ne doit pas apparaitre. Le piege : passer les
+  # LIBELLES du vecteur au lieu de ses valeurs vide le rapport en silence.
+  md2 <- hstat_report_markdown(h, sections = c("analyses"),
+                               qualite = data.frame(V = 1),
+                               script = "x <- 1")
+  expect_true(grepl("## Analyses menees", md2, fixed = TRUE))
+  expect_false(grepl("## Diagnostic", md2, fixed = TRUE))
+  expect_false(grepl("## Annexe", md2, fixed = TRUE))
+})
+
+test_that("les tableaux markdown sont bien formes et bornes", {
+  md <- .hstat_rep_tableau_md(data.frame(a = 1:3, b = c("x", "y", "z")))
+  lignes <- strsplit(md, "\n")[[1]]
+  expect_true(grepl("^\\| a \\| b \\|$", lignes[1]))
+  expect_true(grepl("^\\|", lignes[2]) && grepl("---", lignes[2]))
+  expect_length(lignes, 5L)
+  # Au-dela du plafond, le tableau est tronque ET le dit
+  gros <- .hstat_rep_tableau_md(data.frame(a = 1:100), max_lignes = 10L)
+  expect_true(grepl("100 lignes au total", gros, fixed = TRUE))
+  # Une barre verticale dans une cellule ne casse pas la colonne
+  echap <- .hstat_rep_tableau_md(data.frame(a = "gauche|droite"))
+  expect_true(grepl("gauche\\|droite", echap, fixed = TRUE))
+  expect_equal(.hstat_rep_tableau_md(data.frame()), "*(tableau vide)*")
+})
+
+test_that("le convertisseur du rapport rend tableaux, code et titres", {
+  md <- paste("# Titre", "", "| a | b |", "| --- | --- |", "| 1 | 2 |", "",
+              "- point", "", "```r", "x <- 1 < 2", "```", "",
+              "Texte **gras**.", sep = "\n")
+  html <- .hstat_rep_md_to_html(md)
+  expect_true(grepl("<h1>Titre</h1>", html, fixed = TRUE))
+  expect_true(grepl("<table>", html, fixed = TRUE))
+  expect_true(grepl("<th>a</th>", html, fixed = TRUE))
+  expect_true(grepl("<td>1</td>", html, fixed = TRUE))
+  expect_true(grepl("<li>point</li>", html, fixed = TRUE))
+  expect_true(grepl("<strong>gras</strong>", html, fixed = TRUE))
+  # Un tableau ne doit JAMAIS ressortir en barres verticales dans un paragraphe
+  expect_false(grepl("<p>|", html, fixed = TRUE))
+  # Le code de l'annexe est recopie tel quel, et echappe
+  expect_true(grepl("<pre><code>", html, fixed = TRUE))
+  expect_true(grepl("x &lt;- 1 &lt; 2", html, fixed = TRUE))
+})
+
+test_that("le convertisseur echappe le HTML injecte", {
+  html <- .hstat_rep_md_to_html("<script>alert(1)</script>")
+  expect_false(grepl("<script>", html, fixed = TRUE))
+  expect_true(grepl("&lt;script&gt;", html, fixed = TRUE))
+})
+
+test_that("le resume du jeu de donnees decrit chaque variable", {
+  d <- data.frame(poids = c(60, 70, NA), sexe = factor(c("F", "H", "F")),
+                  stringsAsFactors = FALSE)
+  r <- hstat_report_resume_donnees(d)
+  expect_equal(nrow(r), 2L)
+  expect_equal(r$Type, c("numerique", "categorielle"))
+  expect_equal(r$Renseignees, c(2L, 3L))
+  expect_equal(r$Manquantes, c(1L, 0L))
+  expect_true(grepl("60", r[["Modalites / etendue"]][1]))
+  expect_true(grepl("2 modalite", r[["Modalites / etendue"]][2]))
+  expect_null(hstat_report_resume_donnees(NULL))
+})
+
+test_that("une figure indessinable disparait sans faire tomber le rapport", {
+  skip_if_not_installed("ggplot2")
+  d <- file.path(tempdir(), paste0("hstat_test_fig_", as.integer(runif(1, 1e6, 1e7))))
+  on.exit(unlink(d, recursive = TRUE), add = TRUE)
+  h <- list(
+    list(module = "Visualisation", title = "Nuage", time = Sys.time(),
+         meta = list(), tables = list(),
+         plot = function() ggplot2::ggplot(data.frame(x = 1:5, y = 1:5),
+                                           ggplot2::aes(x, y)) + ggplot2::geom_point()),
+    list(module = "Visualisation", title = "Cassee", time = Sys.time(),
+         meta = list(), tables = list(),
+         plot = function() stop("variable supprimee entre-temps")),
+    list(module = "Tests statistiques", title = "Sans figure",
+         time = Sys.time(), meta = list(), tables = list(), plot = NULL))
+  figs <- hstat_report_figures(h, dossier = d)
+  expect_equal(nrow(figs), 1L)
+  expect_true(grepl("Nuage", figs$titre[1], fixed = TRUE))
+  expect_true(file.exists(figs$fichier[1]) && file.size(figs$fichier[1]) > 0)
+  # Aucune figure du tout : un data.frame vide, pas une erreur
+  expect_equal(nrow(hstat_report_figures(list(), dossier = d)), 0L)
+  expect_equal(nrow(hstat_report_figures(h[3], dossier = d)), 0L)
+})
+
+test_that("le HTML incorpore ses figures et reste un fichier unique", {
+  skip_if_not_installed("base64enc")
+  png <- tempfile(fileext = ".png")
+  on.exit(unlink(png), add = TRUE)
+  grDevices::png(png, width = 240, height = 240); plot(1); grDevices::dev.off()
+
+  md <- hstat_report_markdown(list(), sections = "figures",
+                              figures = data.frame(titre = "Ma figure",
+                                                   fichier = png,
+                                                   stringsAsFactors = FALSE))
+  expect_true(grepl("## Figures", md, fixed = TRUE))
+  expect_true(grepl(sprintf("![Ma figure](%s)", png), md, fixed = TRUE))
+
+  html <- .hstat_rep_images_html(.hstat_rep_md_to_html(md))
+  expect_true(grepl("<img src=\"data:image/png;base64,", html, fixed = TRUE))
+  # Le chemin du fichier ne doit plus apparaitre : un rapport envoye par
+  # courriel ne peut pas aller relire /tmp.
+  expect_false(grepl(png, html, fixed = TRUE))
+
+  # Figure absente : le rapport le dit au lieu d'afficher une image cassee
+  manquante <- .hstat_rep_images_html(
+    .hstat_rep_md_to_html("![X](/introuvable/fig.png)"))
+  expect_true(grepl("figure indisponible", manquante, fixed = TRUE))
+})
+
+test_that("le rendu HTML aboutit toujours, et le repli se dit", {
+  md <- hstat_report_markdown(.hstat_test_hist(), titre = "T")
+  f <- tempfile(fileext = ".html")
+  on.exit(unlink(f), add = TRUE)
+  r <- hstat_report_render(md, f, "html", "T")
+  expect_true(r$ok)
+  expect_equal(r$format, "html")
+  expect_equal(r$message, "")
+  html <- paste(readLines(f, warn = FALSE), collapse = "\n")
+  expect_true(grepl("<!DOCTYPE html>", html, fixed = TRUE))
+  expect_true(grepl("<table>", html, fixed = TRUE))
+
+  # Word demande sur une machine sans pandoc : repli HTML, et on le DIT.
+  r2 <- hstat_report_render(md, f, "docx", "T",
+                            dispo = c(html = TRUE, docx = FALSE, pdf = FALSE))
+  expect_true(r2$ok)
+  expect_equal(r2$format, "html")
+  expect_true(grepl("indisponible", r2$message, fixed = TRUE))
+  expect_true(grepl("DOCX", r2$message, fixed = TRUE))
+
+  r3 <- hstat_report_render(md, f, "pdf", "T",
+                            dispo = c(html = TRUE, docx = TRUE, pdf = FALSE))
+  expect_equal(r3$format, "html")
+  expect_true(grepl("PDF", r3$message, fixed = TRUE))
+})
+
+test_that("le message de disponibilite oriente vers une solution", {
+  expect_null(hstat_report_message_dispo(c(html = TRUE, docx = TRUE, pdf = TRUE)))
+  m <- hstat_report_message_dispo(c(html = TRUE, docx = FALSE, pdf = FALSE))
+  expect_true(grepl("pandoc", m, fixed = TRUE))
+  expect_true(grepl("tinytex", m, fixed = TRUE))
+  expect_true(grepl("HTML", m, fixed = TRUE))
+  # Le HTML est toujours annonce comme disponible
+  d <- hstat_report_formats_dispo()
+  expect_true(d[["html"]])
+  expect_named(d, c("html", "docx", "pdf"))
+})
+
+test_that("le rendu Word passe par pandoc quand il est la", {
+  skip_if_not_installed("rmarkdown")
+  skip_if_not(isTRUE(tryCatch(rmarkdown::pandoc_available(),
+                              error = function(e) FALSE)),
+              "pandoc indisponible")
+  f <- tempfile(fileext = ".docx")
+  on.exit(unlink(f), add = TRUE)
+  r <- hstat_report_render(hstat_report_markdown(.hstat_test_hist(), titre = "T"),
+                           f, "docx", "T")
+  expect_true(r$ok)
+  expect_equal(r$format, "docx")
+  expect_true(file.size(f) > 1000)
+  # Un .docx est une archive zip contenant word/document.xml
+  expect_true(any(grepl("word/document.xml", utils::unzip(f, list = TRUE)$Name,
+                        fixed = TRUE)))
+})
+
+
+# ===========================================================================
+# TRADUCTION DES ERREURS R (hstat_err_fr)
+# ===========================================================================
+
+test_that("les erreurs R courantes deviennent des consignes en francais", {
+  cas <- list(
+    # message R                                        # mot attendu dans la traduction
+    list("data are essentially constant",              "ne varie pas"),
+    list("not enough 'y' observations",                "Effectif insuffisant"),
+    list("grouping factor must have exactly 2 levels", "deux groupes"),
+    list("incorrect number of dimensions",             "un seul axe"),
+    list("system is computationally singular: reciprocal condition number",
+                                                       "redondantes"),
+    list("missing value where TRUE/FALSE needed",      "degenerees"),
+    list("0 (non-NA) cases",                           "Aucune observation"),
+    list("NA/NaN/Inf in foreign function call (arg 1)", "manquantes ou infinies"),
+    list("undefined columns selected",                 "absente du jeu de donnees"),
+    list("there is no package called 'poLCA'",         "pas installe"),
+    list("contrasts can be applied only to factors with 2 or more levels",
+                                                       "une seule modalite"),
+    list("sample size must be between 3 and 5000",     "Shapiro-Wilk"),
+    list("figure margins too large",                   "trop petite"))
+  for (c0 in cas) {
+    tr <- hstat_err_fr(simpleError(c0[[1]]))
+    expect_true(grepl(c0[[2]], tr, fixed = TRUE),
+                info = paste0(c0[[1]], " -> ", tr))
+    # Le message d'origine survit : c'est ce qu'un utilisateur copiera pour
+    # demander de l'aide, et sans lui une traduction fautive est indebuggable.
+    expect_true(grepl(c0[[1]], tr, fixed = TRUE), info = c0[[1]])
+    expect_true(grepl("message R :", tr, fixed = TRUE))
+  }
+})
+
+test_that("chaque traduction dit quoi faire, pas seulement ce qui s'est passe", {
+  # Une traduction qui se contente de nommer la panne ne sert a rien. On exige
+  # au moins un verbe d'action dans chacune.
+  gestes <- paste("Choisissez|Verifiez|Retirez|Convertissez|Installez|Traitez",
+                  "|Simplifiez|Croisez|Augmentez|Agrandissez|Reduisez|Utilisez",
+                  "|reselectionnez|Signalez|Installez", sep = "")
+  for (r in HSTAT_ERR_FR)
+    expect_true(grepl(gestes, r[[2]], perl = TRUE, ignore.case = TRUE),
+                info = substr(r[[2]], 1, 70))
+  # Et chaque motif doit etre une expression reguliere valide
+  for (r in HSTAT_ERR_FR)
+    expect_silent(grepl(r[[1]], "test", perl = TRUE))
+})
+
+test_that("une erreur inconnue est annoncee comme non traduite, pas maquillee", {
+  tr <- hstat_err_fr(simpleError("une panne totalement inedite"))
+  expect_true(grepl("non traduit", tr, fixed = TRUE))
+  expect_true(grepl("une panne totalement inedite", tr, fixed = TRUE))
+  # Le contexte prefixe le message quand l'appelant le connait
+  expect_true(grepl("^Test t : ", hstat_err_fr(simpleError("boum"), "Test t")))
+  # Une chaine nue est acceptee au meme titre qu'une condition
+  expect_equal(hstat_err_fr("data are essentially constant"),
+               hstat_err_fr(simpleError("data are essentially constant")))
+  # Une erreur sans message ne produit pas une phrase tronquee
+  expect_true(grepl("erreur sans message", hstat_err_fr(simpleError("")),
+                    fixed = TRUE))
+})
+
+test_that("aucun message R brut n'est affiche a l'utilisateur", {
+  root <- file.path(.hstat_repo_root(), "inst", "app")
+  skip_if(is.na(.hstat_repo_root()))
+  fautes <- character(0)
+  for (f in list.files(root, pattern = "\\.R$", full.names = TRUE)) {
+    if (basename(f) %in% c("HStat.R")) next   # secours de demarrage, hors Shiny
+    l <- readLines(f, warn = FALSE, encoding = "UTF-8")
+    l <- l[!grepl("^\\s*#", l)]
+    # conditionMessage() dans une notification ou une validation : le message
+    # anglais de R arriverait tel quel dans une interface francaise.
+    hit <- grep("(showNotification|validate\\(need)\\(.*(conditionMessage|e\\$message)",
+                l, value = TRUE)
+    hit <- hit[!grepl("hstat_err_fr", hit)]
+    # Les colonnes « Interpretation » des tableaux de resultats sont lues comme
+    # une phrase : un message anglais y est encore plus depayse qu'ailleurs.
+    hit <- c(hit, grep("Interpretation = paste\\(\"Erreur", l, value = TRUE))
+    if (length(hit)) fautes <- c(fautes, paste0(basename(f), " : ", trimws(hit)))
+  }
+  expect_equal(fautes, character(0),
+    info = paste("Passer par hstat_err_fr() : l'interface est en francais.\n",
+                 paste(fautes, collapse = "\n")))
+})
+
+
+# ===========================================================================
+# PERSISTANCE DE LA SESSION
+# ---------------------------------------------------------------------------
+# Un verrouillage d'ecran ne doit pas fermer l'application. Ces tests gardent
+# les trois pieces du mecanisme : l'autorisation cote serveur, le script cote
+# navigateur, et le fait que le voile gris de Shiny soit bien neutralise.
+# ===========================================================================
+
+test_that("le serveur autorise la reprise de session", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("allowReconnect", src, fixed = TRUE))
+  # « force » et non TRUE : sans lui, la reprise n'est active que derriere un
+  # serveur qui la gere, alors que HStat tourne le plus souvent en local.
+  expect_true(grepl('allowReconnect\\("force"\\)', src))
+  # Le signal de maintien envoye par le navigateur est bien recu
+  expect_true(grepl("input\\$hstat_keepalive", src))
+})
+
+test_that("le script de persistance est present et branche", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  js <- file.path(root, "inst", "app", "www", "hstat-session.js")
+  expect_true(file.exists(js))
+  src <- paste(readLines(js, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+
+  # Les quatre reprises : deconnexion, retour de visibilite (deverrouillage),
+  # retour du focus, retour du reseau.
+  for (ev in c("shiny:disconnected", "shiny:connected", "visibilitychange",
+               "online"))
+    expect_true(grepl(ev, src, fixed = TRUE), info = ev)
+  expect_true(grepl("reconnect()", src, fixed = TRUE))
+  expect_true(grepl("hstat_keepalive", src, fixed = TRUE))
+  expect_true(grepl("beforeunload", src, fixed = TRUE))
+  # Le maintien ne doit pas declencher d'analyse : signal, pas entree.
+  expect_true(grepl('priority: "event"', src, fixed = TRUE))
+
+  ux <- paste(readLines(file.path(root, "inst", "app", "UX.R"),
+                        warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("hstat-session.js", ux, fixed = TRUE))
+  # Le voile gris de Shiny est masque : sinon il recouvrirait le bandeau
+  # francais et l'utilisateur croirait l'application morte.
+  expect_true(grepl("shiny-disconnected-overlay", ux, fixed = TRUE))
+})
+
+test_that("le bandeau de reprise parle francais et rassure", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- paste(readLines(file.path(root, "inst", "app", "www", "hstat-session.js"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # Le message doit dire que rien n'est perdu : c'est la seule chose que
+  # l'utilisateur veut savoir a cet instant.
+  expect_true(grepl("Connexion interrompue", src, fixed = TRUE))
+  expect_true(grepl("n'est pas perdu", src, fixed = TRUE))
+  expect_true(grepl("Connexion retablie", src, fixed = TRUE))
+  # Et lui laisser la main plutot que de le faire attendre
+  expect_true(grepl("Reprendre maintenant", src, fixed = TRUE))
+  # Aucun libelle anglais dans ce qui s'affiche. Le voile de Shiny est cite
+  # dans l'en-tete du fichier pour expliquer ce qu'on remplace : on ne cherche
+  # donc l'anglais que dans les appels d'affichage.
+  affichages <- regmatches(src, gregexpr('afficher\\([^;]+', src))[[1]]
+  expect_true(length(affichages) >= 2L)
+  for (a in affichages)
+    expect_false(grepl("Disconnected|Please refresh|reload the page", a),
+                 info = substr(a, 1, 60))
+})
+
+
+# ===========================================================================
+# CLASSIFICATIONS SUR PAQUETS OPTIONNELS (k-modes, LCA, k-prototypes)
+# ---------------------------------------------------------------------------
+# klaR, poLCA et clustMixType ne sont pas installes par defaut. Les analyses
+# elles-memes ne sont donc pas executables ici — mais leur STATISTIQUE DE
+# QUALITE l'est, parce qu'elle a ete sortie du paquet. C'est le seul moyen de
+# garder ces trois analyses sous controle sans pouvoir les lancer.
+# ===========================================================================
+
+test_that("le pseudo-R2 k-modes vaut ce qu'il doit valoir", {
+  # 6 individus, 2 variables binaires, partition parfaite en 2 groupes.
+  d <- data.frame(a = c("x","x","x","y","y","y"),
+                  b = c("p","p","p","q","q","q"), stringsAsFactors = FALSE)
+  # Dissimilarite totale : pour chaque variable, n - effectif du mode = 6 - 3.
+  q <- hstat_kmodes_pseudo_r2(withindiff = c(0, 0), data = d)
+  expect_equal(q$dissimilarite_totale, 6)
+  expect_equal(q$dissimilarite_intra, 0)
+  expect_equal(q$pseudo_r2, 1)
+  expect_equal(q$verdict, "ok")
+
+  # Partition qui n'explique rien : dissimilarite intra = dissimilarite totale
+  q0 <- hstat_kmodes_pseudo_r2(withindiff = c(3, 3), data = d)
+  expect_equal(q0$pseudo_r2, 0)
+  expect_equal(q0$verdict, "err")
+
+  # Cas degenere : variables constantes -> aucune dissimilarite a expliquer.
+  # Le pseudo-R2 n'existe pas ; il ne doit pas valoir 0 ni faire tomber la
+  # sortie, il doit se declarer indeterminable.
+  cst <- data.frame(a = rep("x", 6), b = rep("p", 6), stringsAsFactors = FALSE)
+  qc <- hstat_kmodes_pseudo_r2(0, cst)
+  expect_equal(qc$dissimilarite_totale, 0)
+  expect_true(is.na(qc$pseudo_r2))
+  expect_equal(qc$verdict, "indeterminable")
+})
+
+test_that("l'entropie relative distingue une classification nette d'une confuse", {
+  # Affectations sans ambiguite -> entropie relative = 1
+  nette <- rbind(c(1, 0), c(1, 0), c(0, 1), c(0, 1))
+  e1 <- hstat_lca_entropie(nette)
+  expect_equal(e1$entropie_relative, 1, tolerance = 1e-6)
+  expect_equal(e1$verdict, "ok")
+
+  # Affectations indiscernables (50/50) -> entropie relative = 0
+  floue <- matrix(0.5, nrow = 4, ncol = 2)
+  e0 <- hstat_lca_entropie(floue)
+  expect_equal(e0$entropie_relative, 0, tolerance = 1e-6)
+  expect_equal(e0$verdict, "err")
+
+  # Une seule classe : l'entropie n'est pas definie (log(1) = 0 au denominateur)
+  e_una <- hstat_lca_entropie(matrix(1, nrow = 4, ncol = 1))
+  expect_equal(e_una$verdict, "indeterminable")
+  expect_equal(hstat_lca_entropie(matrix(numeric(0), 0, 2))$verdict,
+               "indeterminable")
+})
+
+test_that("l'equilibre d'une partition signale les classes minoritaires", {
+  expect_equal(hstat_part_equilibre(c(50, 50))$verdict, "ok")
+  expect_equal(hstat_part_equilibre(c(50, 50))$part_min, 0.5)
+  # 4 % : sous le seuil de 5 %, la classe n'est pas interpretable
+  expect_equal(hstat_part_equilibre(c(96, 4))$verdict, "warn")
+  expect_equal(hstat_part_equilibre(c(95, 5))$verdict, "ok")
+  # Un cluster vide
+  expect_equal(hstat_part_equilibre(c(100, 0))$verdict, "warn")
+  # Aucun effectif : indeterminable, jamais une division par zero
+  expect_equal(hstat_part_equilibre(integer(0))$verdict, "indeterminable")
+  expect_equal(hstat_part_equilibre(c(0, 0))$verdict, "indeterminable")
+  # Accepte une table() comme les modules la fournissent (2 et 1 sur 3 : la
+  # plus petite pese 33 %, largement au-dessus du seuil)
+  eq <- hstat_part_equilibre(table(c("a","a","b")))
+  expect_equal(eq$verdict, "ok")
+  expect_equal(eq$part_min, 1/3)
+})
+
+test_that("hstat_seuil_verdict ne branche jamais sur une valeur non calculable", {
+  expect_equal(hstat_seuil_verdict(0.9, 0.8, 0.6), "ok")
+  expect_equal(hstat_seuil_verdict(0.7, 0.8, 0.6), "warn")
+  expect_equal(hstat_seuil_verdict(0.1, 0.8, 0.6), "err")
+  for (x in list(NA, NA_real_, NaN, Inf, -Inf, NULL, character(0), c(1, 2)))
+    expect_equal(hstat_seuil_verdict(x, 0.8, 0.6), "indeterminable")
+})
+
+test_that("un paquet absent donne une consigne, pas une impasse", {
+  for (pkg in c("klaR", "poLCA", "clustMixType")) {
+    m <- hstat_pkg_manquant(pkg, "Analyse X")
+    expect_true(grepl("Analyse X", m, fixed = TRUE))
+    expect_true(grepl(pkg, m, fixed = TRUE))
+    # La commande d'installation, telle quelle
+    expect_true(grepl(sprintf('install.packages("%s")', pkg), m, fixed = TRUE))
+    # Et une voie de repli disponible SANS ce paquet
+    expect_true(grepl("En attendant", m, fixed = TRUE))
+    expect_true(grepl("ACM|AFDM", m))
+  }
+  # Un paquet sans repli declare reste explicite sur l'installation
+  m <- hstat_pkg_manquant("truc")
+  expect_true(grepl('install.packages("truc")', m, fixed = TRUE))
+})
+
+test_that("aucune des trois analyses ne renvoie encore un message d'impasse", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  for (pkg in c("klaR", "poLCA", "clustMixType")) {
+    expect_false(grepl(sprintf("error = \"Package '%s' indisponible.\"", pkg),
+                       src, fixed = TRUE), info = pkg)
+    expect_true(grepl(sprintf('hstat_pkg_manquant("%s"', pkg), src, fixed = TRUE),
+                info = pkg)
+  }
 })

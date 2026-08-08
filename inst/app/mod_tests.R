@@ -1895,7 +1895,7 @@ mod_correlation_server <- function(id, values) {
           p$type, p$label_size, p$text_size, p$title, p$pval_mode, p$sig_level,
           p$pval_size, p$reorder, p$palette, p$coef_color, p$pval_color_sig,
           p$pval_color_ns, p$white_on_dark, focus_var = fv),
-        error = function(e) showNotification(paste("Erreur matrice:", e$message),
+        error = function(e) showNotification(hstat_err_fr(e, "Erreur matrice"),
                                              type = "error", duration = 5))
     },
     # Apercu a l'ecran : on rend a HAUTE RESOLUTION (res = 192 = 2x densite) pour un
@@ -2051,7 +2051,7 @@ mod_tests_server <- function(id, values) {
         log_entries[[new_var_name]] <- log_entry
         added <- c(added, new_var_name)
       }, error = function(e) {
-        errors <<- c(errors, paste0("[", var, "] : ", conditionMessage(e)))
+        errors <<- c(errors, hstat_err_fr(e, sprintf("[%s]", var)))
       })
     }
     if (length(errors) > 0)
@@ -2220,7 +2220,7 @@ mod_tests_server <- function(id, values) {
           Statistique = NA,
           ddl = NA,
           p_value = NA,
-          Interpretation = paste("Erreur:", e$message),
+          Interpretation = hstat_err_fr(e),
           stringsAsFactors = FALSE
         )
       })
@@ -2279,7 +2279,7 @@ mod_tests_server <- function(id, values) {
           Statistique = NA,
           ddl = NA,
           p_value = NA,
-          Interpretation = paste("Erreur:", e$message),
+          Interpretation = hstat_err_fr(e),
           stringsAsFactors = FALSE
         )
       })
@@ -2302,6 +2302,10 @@ mod_tests_server <- function(id, values) {
       return()
     }
     
+    # Motifs de refus, collectes pendant la boucle. « Aucun résultat généré »
+    # laisse l'utilisateur deviner ce qui cloche ; on lui dit ce qui bloque ET
+    # quelle analyse convient a son cas.
+    motifs_refus <- character(0)
     results_list <- list()
     normality_results <- list()
     homogeneity_results <- list()
@@ -2313,6 +2317,17 @@ mod_tests_server <- function(id, values) {
         factor_levels <- levels(factor(as.character(values$filteredData[[fvar]])))
         
         if (length(factor_levels) != 2) {
+          # `<-` et non `<<-` : l'expression d'un tryCatch est evaluee dans le
+          # cadre de son appelant, donc ici meme. `<<-` sauterait ce cadre et
+          # creerait une variable globale, laissant `motifs_refus` vide.
+          motifs_refus <- c(motifs_refus, sprintf(
+            "« %s » compte %d modalité(s) (%s). Le test t en compare exactement deux. %s",
+            fvar, length(factor_levels),
+            paste(utils::head(factor_levels, 5), collapse = ", "),
+            if (length(factor_levels) > 2)
+              "Pour plus de deux groupes, utilisez l'ANOVA — ou Kruskal-Wallis si la normalité n'est pas acquise."
+            else
+              "Vérifiez le facteur choisi : il ne distingue qu'un seul groupe."))
           next
         }
         
@@ -2377,7 +2392,7 @@ mod_tests_server <- function(id, values) {
           Statistique = NA,
           ddl = NA,
           p_value = NA,
-          Interpretation = paste("Erreur:", e$message),
+          Interpretation = hstat_err_fr(e),
           stringsAsFactors = FALSE
         )
       })
@@ -2392,7 +2407,13 @@ mod_tests_server <- function(id, values) {
       values$currentModelVar <- 1
       values$currentTestType <- "parametric"
     } else {
-      showNotification("Aucun résultat t-test généré", type = "warning")
+      showNotification(
+        if (length(motifs_refus))
+          paste("Test t impossible :", paste(unique(motifs_refus), collapse = " "))
+        else
+          paste("Aucun résultat t-test généré. Vérifiez que les variables réponse",
+                "sont numériques et comportent assez de données non manquantes."),
+        type = "warning", duration = 12)
     }
   })
   
@@ -2429,7 +2450,7 @@ mod_tests_server <- function(id, values) {
           Statistique = NA,
           ddl = NA,
           p_value = NA,
-          Interpretation = paste("Erreur:", e$message),
+          Interpretation = hstat_err_fr(e),
           stringsAsFactors = FALSE
         )
       })
@@ -2499,13 +2520,13 @@ mod_tests_server <- function(id, values) {
                        alternative = .ref_alt(), conf.level = .ref_conf(),
                        sigma = if (is.na(sigma)) NULL else sigma,
                        margin = if (is.na(margin)) NULL else margin),
-        error = function(e) conditionMessage(e))
+        error = function(e) hstat_err_fr(e))
       if (is.character(res)) {
         rows[[var]] <- data.frame(
           Test = .ref_method_label(method), Variable = var,
           Facteur = paste("Référence =", format(mu)),
           Statistique = NA_real_, ddl = NA_real_, p_value = NA_real_,
-          Interpretation = paste("Erreur :", res), stringsAsFactors = FALSE)
+          Interpretation = res, stringsAsFactors = FALSE)
         next
       }
       rows[[var]] <- hstat_ref_result_row(res, var)
@@ -2618,10 +2639,10 @@ mod_tests_server <- function(id, values) {
     res <- tryCatch(
       hstat_ref_prop_test(k, n, p0 = p0, method = method,
                           alternative = .ref_alt(), conf.level = .ref_conf()),
-      error = function(e) conditionMessage(e))
+      error = function(e) hstat_err_fr(e))
     lbl <- paste0(input$refPropVar, " = ", input$refPropLevel)
     if (is.character(res)) {
-      showNotification(paste("Erreur :", res), type = "error", duration = 10)
+      showNotification(res, type = "error", duration = 12)
       return()
     }
     row <- hstat_ref_result_row(res, lbl,
@@ -2705,7 +2726,7 @@ mod_tests_server <- function(id, values) {
           Statistique = NA,
           ddl = NA,
           p_value = NA,
-          Interpretation = paste("Erreur:", e$message),
+          Interpretation = hstat_err_fr(e),
           stringsAsFactors = FALSE
         )
       })
@@ -2814,7 +2835,7 @@ mod_tests_server <- function(id, values) {
         values$scheirerResults <- test_result
         
       }, error = function(e) {
-        error_msg <- paste(var, ":", e$message)
+        error_msg <- hstat_err_fr(e, var)
         error_messages <<- c(error_messages, error_msg)
         
         results_list[[var]] <- data.frame(
@@ -2824,7 +2845,7 @@ mod_tests_server <- function(id, values) {
           Statistique = NA,
           ddl = NA,
           p_value = NA,
-          Interpretation = paste("Erreur:", e$message),
+          Interpretation = hstat_err_fr(e),
           stringsAsFactors = FALSE
         )
       })
@@ -2933,7 +2954,7 @@ mod_tests_server <- function(id, values) {
       }
       
     }, error = function(e) {
-      showNotification(paste("Erreur ANOVA :", e$message), type = "error")
+      showNotification(hstat_err_fr(e, "Erreur ANOVA"), type = "error")
     })
   })
   
@@ -2990,7 +3011,7 @@ mod_tests_server <- function(id, values) {
       }
       
     }, error = function(e) {
-      showNotification(paste("Erreur régression :", e$message), type = "error")
+      showNotification(hstat_err_fr(e, "Erreur régression"), type = "error")
     })
   })
   
@@ -3057,7 +3078,7 @@ mod_tests_server <- function(id, values) {
       }
       
     }, error = function(e) {
-      showNotification(paste("Erreur GLM :", e$message), type = "error")
+      showNotification(hstat_err_fr(e, "Erreur GLM"), type = "error")
     })
   })
   
@@ -3464,7 +3485,7 @@ mod_tests_server <- function(id, values) {
           showNotification("Aucun résultat GLMM généré.", type = "warning")
         }
       }, error = function(e) {
-        showNotification(paste("Erreur modèle mixte :", e$message), type = "error", duration = 8)
+        showNotification(hstat_err_fr(e, "Erreur modèle mixte"), type = "error", duration = 8)
       })
     })
   })
@@ -3613,7 +3634,7 @@ mod_tests_server <- function(id, values) {
           showNotification("Aucun résultat rmANOVA généré.", type = "warning")
         }
       }, error = function(e) {
-        showNotification(paste("Erreur rmANOVA :", e$message), type = "error", duration = 9)
+        showNotification(hstat_err_fr(e, "Erreur rmANOVA"), type = "error", duration = 9)
       })
     })
   })
@@ -3756,7 +3777,7 @@ mod_tests_server <- function(id, values) {
           showNotification("Aucun résultat généré.", type = "warning")
         }
       }, error = function(e) {
-        showNotification(paste("Erreur non paramétrique répété :", e$message), type = "error", duration = 9)
+        showNotification(hstat_err_fr(e, "Erreur non paramétrique répété"), type = "error", duration = 9)
       })
     })
   })
@@ -3835,7 +3856,7 @@ mod_tests_server <- function(id, values) {
         type = "message", duration = 4
       )
     }, error = function(e) {
-      showNotification(paste("Erreur MANOVA :", e$message), type = "error", duration = 10)
+      showNotification(hstat_err_fr(e, "Erreur MANOVA"), type = "error", duration = 10)
     })
   })
   
@@ -3925,7 +3946,7 @@ mod_tests_server <- function(id, values) {
       )
     }, error = function(e) {
       removeNotification("permanovaProgress")
-      showNotification(paste("Erreur PERMANOVA :", e$message), type = "error", duration = 10)
+      showNotification(hstat_err_fr(e, "Erreur PERMANOVA"), type = "error", duration = 10)
     })
   })
   
@@ -3976,7 +3997,7 @@ mod_tests_server <- function(id, values) {
         type = "message", duration = 6
       )
     }, error = function(e) {
-      showNotification(paste("Erreur diagnostic :", e$message), type = "error", duration = 10)
+      showNotification(hstat_err_fr(e, "Erreur diagnostic"), type = "error", duration = 10)
     })
   })
   
@@ -4041,7 +4062,7 @@ mod_tests_server <- function(id, values) {
                          type = "message", duration = 4)
       }
     }, error = function(e) {
-      showNotification(paste("Erreur effets simples :", e$message), type = "error")
+      showNotification(hstat_err_fr(e, "Erreur effets simples"), type = "error")
     })
   })
   
@@ -4592,7 +4613,7 @@ mod_tests_server <- function(id, values) {
       values$currentTestType <- "chisq"
       showNotification(paste0("Chi²=",round(tr$statistic,3)," p=",formatC(tr$p.value,"g",digits=4)),
                        type="message", duration=4)
-    }, error = function(e) showNotification(paste("Erreur Chi²:",e$message), type="error"))
+    }, error = function(e) showNotification(hstat_err_fr(e, "Erreur Chi²"), type="error"))
   })
   
   observeEvent(input$testMultinomial, {
@@ -4623,7 +4644,7 @@ mod_tests_server <- function(id, values) {
       values$currentTestType  <- "chisq"
       showNotification(paste0("Multinomial p=",formatC(tr$p.value,"g",digits=4)),
                        type="message",duration=4)
-    }, error = function(e) showNotification(paste("Erreur Multinomial:",e$message),type="error"))
+    }, error = function(e) showNotification(hstat_err_fr(e, "Erreur Multinomial"),type="error"))
   })
   
   observeEvent(input$runChiSqPostHoc, {
@@ -4869,7 +4890,7 @@ mod_tests_server <- function(id, values) {
       showNotification(
         paste0("Chi² + Post-hoc terminés (", adj_method, ")"),
         type="message", duration=4)
-    }, error=function(e) showNotification(paste("Erreur:",e$message),type="error"))
+    }, error=function(e) showNotification(hstat_err_fr(e, "Erreur"),type="error"))
   })
   
   output$showParametricDiagnostics <- reactive({
@@ -5126,7 +5147,7 @@ mod_tests_server <- function(id, values) {
         png(file, width = 3200, height = 2400, res = 300, type = "cairo")
         par(mfrow = c(1, 1))
         plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
-        text(1, 1, paste("Erreur:", substr(e$message, 1, 50)), cex = 1.2, col = "red")
+        text(1, 1, paste(strwrap(hstat_err_fr(e), 55), collapse = "\n"), cex = 0.85, col = "red")
         dev.off()
       })
     }
@@ -5181,7 +5202,7 @@ mod_tests_server <- function(id, values) {
       }, error = function(e) {
         png(file, width = 2000, height = 1600, res = 300, type = "cairo-png")
         plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
-        text(1, 1, paste("Erreur:", substr(e$message, 1, 50)), cex = 1, col = "red")
+        text(1, 1, paste(strwrap(hstat_err_fr(e), 55), collapse = "\n"), cex = 0.85, col = "red")
         dev.off()
       })
     }
@@ -5233,7 +5254,7 @@ mod_tests_server <- function(id, values) {
       
     }, error = function(e) {
       plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
-      text(1, 1, paste("Erreur QQ-plot:", substr(e$message, 1, 50)), cex = 1, col = "red")
+      text(1, 1, paste(strwrap(hstat_err_fr(e, "QQ-plot"), 55), collapse = "\n"), cex = 0.85, col = "red")
     })
   })
   
@@ -5613,10 +5634,10 @@ mod_tests_server <- function(id, values) {
         res_test <- tryCatch(
           chisq.test(observed, p = rep(1/n, n)),
           warning = function(w) {
-            showNotification(paste("Attention:", conditionMessage(w)), type = "warning", duration = 5)
+            showNotification(hstat_err_fr(w, "Avertissement"), type = "warning", duration = 10)
             suppressWarnings(chisq.test(observed, p = rep(1/n, n)))
           },
-          error = function(e) { showNotification(paste("Erreur chi²:", e$message), type = "error"); NULL }
+          error = function(e) { showNotification(hstat_err_fr(e, "Erreur chi²"), type = "error"); NULL }
         )
         if (is.null(res_test)) return()
         stat_name <- "Chi2"
@@ -5627,7 +5648,7 @@ mod_tests_server <- function(id, values) {
       } else {
         res_test <- tryCatch(
           EMT::multinomial.test(observed, p = rep(1/n, n)),
-          error = function(e) { showNotification(paste("Erreur multinomial:", e$message), type = "error"); NULL }
+          error = function(e) { showNotification(hstat_err_fr(e, "Erreur multinomial"), type = "error"); NULL }
         )
         if (is.null(res_test)) return()
         stat_name <- "Multinomial"
@@ -6745,7 +6766,8 @@ mod_tests_server <- function(id, values) {
             multi_results_list[[paste(var, fvar, "main", sep = "_")]] <- res
           }
         }, error = function(e) {
-          showNotification(paste("Erreur effet principal:", var, fvar, "-", e$message), type = "error")
+          showNotification(hstat_err_fr(e, sprintf("Effet principal %s x %s", var, fvar)),
+                           type = "error", duration = 12)
         })
       }
       
@@ -6889,7 +6911,8 @@ mod_tests_server <- function(id, values) {
               )
             }
           }, error = function(e) {
-            showNotification(paste("Erreur interaction:", interaction_term, "-", e$message), type = "error")
+            showNotification(hstat_err_fr(e, paste("Interaction", interaction_term)),
+                             type = "error", duration = 12)
           })
         }
       }
@@ -7019,7 +7042,7 @@ mod_tests_server <- function(id, values) {
             n_levels       = nlevels(grp)
           )
         }, error = function(e) {
-          showNotification(paste0("PostHoc multivarié (facteur ", fvar, ") : ", e$message),
+          showNotification(hstat_err_fr(e, sprintf("Post-hoc multivarié (facteur %s)", fvar)),
                            type = "warning", duration = 5)
         })
       }
@@ -8436,7 +8459,7 @@ mod_tests_server <- function(id, values) {
           p <- ggplot(plot_data, aes(x = x_var, y = y_var, fill = x_var)) +
             geom_boxplot(alpha = 0.7) +
             annotate("text", 
-                     x = 1:nrow(agg), 
+                     x = seq_len(nrow(agg)),   # seq_len : 1:0 rendrait c(1, 0)
                      y = y_max + y_range * 0.05, 
                      label = agg$groups, 
                      size = safe_graph_value_size,  
@@ -8459,7 +8482,7 @@ mod_tests_server <- function(id, values) {
             geom_violin(alpha = 0.7) +
             geom_boxplot(width = 0.1, alpha = 0.5, fill = "white") +
             annotate("text", 
-                     x = 1:nrow(agg), 
+                     x = seq_len(nrow(agg)),   # seq_len : 1:0 rendrait c(1, 0)
                      y = y_max + y_range * 0.05, 
                      label = agg$groups, 
                      size = safe_graph_value_size,  
@@ -8485,7 +8508,7 @@ mod_tests_server <- function(id, values) {
           p <- ggplot(agg, aes(x = x_var, y = Moyenne, fill = x_var, color = x_var)) +
             geom_point(size = 4, shape = 21, stroke = 2) +
             annotate("text", 
-                     x = 1:nrow(agg), 
+                     x = seq_len(nrow(agg)),   # seq_len : 1:0 rendrait c(1, 0)
                      y = y_text_pos, 
                      label = agg$groups, 
                      size = safe_graph_value_size,  
@@ -8514,7 +8537,7 @@ mod_tests_server <- function(id, values) {
           p <- ggplot(agg, aes(x = x_var, y = Moyenne, fill = x_var)) +
             geom_col(alpha = 0.7, color = "black") +
             annotate("text", 
-                     x = 1:nrow(agg), 
+                     x = seq_len(nrow(agg)),   # seq_len : 1:0 rendrait c(1, 0)
                      y = agg$Moyenne * 0.8, 
                      label = agg$groups, 
                      size = safe_graph_value_size,  
@@ -8612,7 +8635,7 @@ mod_tests_server <- function(id, values) {
       }
       
     }, error = function(e) {
-      showNotification(paste("Erreur graphique:", e$message), type = "error", duration = 10)
+      showNotification(hstat_err_fr(e, "Erreur graphique"), type = "error", duration = 10)
       return(NULL)
     })
     
@@ -8796,7 +8819,7 @@ mod_tests_server <- function(id, values) {
         }
         TRUE
       }, error = function(e) {
-        showNotification(paste("Échec de l'export :", e$message), type = "error", duration = 8)
+        showNotification(hstat_err_fr(e, "Échec de l'export"), type = "error", duration = 8)
         FALSE
       })
 

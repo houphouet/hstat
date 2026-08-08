@@ -117,10 +117,67 @@ into something you can paste into a report, and tells you which analysis your
 data actually call for. It never chooses or runs an analysis: the method stays
 your decision, and your responsibility.
 
-**Automatic capture — every analysis tab.** Statistical tests, descriptive
-statistics, correlations, post-hoc comparisons, the 14 multivariate analyses,
-qualitative analyses, time series, machine learning, deep learning, and power
-analysis all drop their results into a shared slot. No module knows about the
+**Continuous integration.** `.github/workflows/tests.yml` runs on every push and
+pull request: a dependency-free syntax pass over all R files plus a version
+consistency check, then the full `testthat` suite. Packages are installed from
+an explicit list rather than from `DESCRIPTION`'s 107 Imports — the suite only
+sources four files, and installing everything would make CI take an hour
+without testing anything more.
+
+**Reproducibility journal.** Every analysis you run is recorded, and the
+**Journal & reproductibilité** tab turns the session into an executable **R
+script**: data loading, then each analysis in the order you ran it, with its
+parameters. Steps whose settings were purely interactive are flagged
+`NON RECONSTITUÉ` and documented in a comment rather than guessed — a script
+that silently differed from what the app computed would be worse than no script
+at all. The generated script is verified to parse and to run.
+
+**Automatic report.** The **Rapport** tab assembles everything the session
+produced into one document you can hand over as it stands: dataset summary,
+data-quality findings, every analysis with its parameters and tables, the
+figures, the written interpretation, the recommended analyses, and the R script
+as an appendix. Pick the sections you want and one of three formats —
+**HTML**, **Word (.docx)** or **PDF**. HTML is assembled in R itself and is
+therefore always available, figures embedded as base64 so the file stays a
+single, mailable document; Word and PDF go through pandoc and LaTeX, and when
+those are missing the app **says so, points at the fix, and falls back to
+HTML** rather than failing with a technical message. The report computes
+nothing — it typesets what you already obtained.
+
+**Errors you can act on.** R speaks English, and it speaks to statisticians:
+*"data are essentially constant"*, *"incorrect number of dimensions"*,
+*"system is computationally singular"*. HStat translates the errors it surfaces
+into French sentences that name the **cause** and then the **gesture** — which
+variable to change, which filter to check, which package to install, which
+analysis to use instead. The original R message is kept in parentheses, never
+dropped: it is what you would paste when asking for help. A repo-wide test
+fails if any new code puts a raw R message in front of the user.
+
+**The session survives a locked screen.** When the computer sleeps or locks,
+the browser suspends its connection and Shiny's websocket drops — the app used
+to grey out and the session was gone, data and analyses with it. HStat now
+keeps the session alive server-side (`allowReconnect`), replaces Shiny's grey
+"Disconnected from the server" veil with a French banner saying the work is
+**not lost**, and reconnects on its own — immediately when you unlock the
+machine, come back to the tab, or the network returns. Closing the tab with
+data loaded asks for confirmation. **Only you close the application.**
+
+**Data health check.** A dedicated tab reports what is wrong with the dataset
+before you analyse it: missing-value rates, constant and quasi-constant
+variables, numbers stored as text, rare or too-numerous categories, extreme
+values, near-perfect redundancy between variables, duplicate rows, and too few
+observations for the number of variables. Every finding carries a **severity**
+— *bloquant* / *important* / *à surveiller* — and a **concrete suggestion**,
+not just a percentage. Deterministic, offline, and sampled above 20 000 rows so
+it stays instant on large files.
+
+**Automatic capture — every module, without exception.** Exploration, cleaning, filtering,
+descriptive statistics, visualisation, correlations, statistical tests, post-hoc
+comparisons, the 14 multivariate analyses, qualitative analyses, time series,
+machine learning, deep learning, power analysis and efficacy thresholds — all 15
+families drop their results into a shared slot. A module only claims the context
+when it has actually done something: filtering stays silent until a filter
+really removes observations. No module knows about the
 assistant, and the assistant knows about no module — a new analysis is picked
 up for free as long as it feeds the same slots.
 
@@ -245,7 +302,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.11.2. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.15.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -253,7 +310,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.11.2},
+  note   = {Version 0.15.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

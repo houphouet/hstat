@@ -42,16 +42,10 @@ HSTAT_CODE_PALETTE <- c(
   "#1abc9c", "#9b59b6", "#34495e", "#f1948a", "#5499c7"
 )
 
-# Echappement HTML : le texte des repondants est injecte tel quel dans le DOM.
-.hstat_code_esc <- function(x) {
-  x <- as.character(x)
-  x[is.na(x)] <- ""
-  x <- gsub("&", "&amp;", x, fixed = TRUE)
-  x <- gsub("<", "&lt;",  x, fixed = TRUE)
-  x <- gsub(">", "&gt;",  x, fixed = TRUE)
-  x <- gsub('"', "&quot;", x, fixed = TRUE)
-  gsub("'", "&#39;", x, fixed = TRUE)
-}
+# Echappement HTML du texte des repondants avant injection dans le DOM.
+# L'implementation vit dans Utils.R : la meme porte sert au rapport et aux
+# reponses des modeles de langue.
+.hstat_code_esc <- function(x) hstat_html_escape(x)
 
 # "#e74c3c" + alpha -> "rgba(231,76,60,0.35)". Un fond translucide laisse le
 # texte lisible la ou une couleur pleine l'ecraserait.

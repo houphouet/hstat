@@ -2485,7 +2485,7 @@ mod_design_server <- function(id, values) {
           seed = input$dsgSeed %||% 123, k = kk, base_design = input$dsgBase %||% "rcbd",
           k_mode = k_mode),
         error = function(e) {
-          validate(need(FALSE, paste0("Erreur : ", conditionMessage(e))))
+          validate(need(FALSE, hstat_err_fr(e)))
         })
       # Message si alpha-lattice generalise (blocs incomplets inegaux)
       if (!is.null(attr(b, "alpha_generalized")))

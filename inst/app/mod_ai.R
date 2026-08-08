@@ -379,20 +379,65 @@ hstat_ai_extract_json <- function(txt) {
 # aucun module.
 # ---------------------------------------------------------------------------
 
+# Bornes de l'historique : au-dela de HSTAT_HIST_DETAIL analyses, les plus
+# anciennes perdent leurs tableaux et leurs figures (le journal, lui, n'en a
+# pas besoin) ; au-dela de HSTAT_HIST_MAX, elles sortent de l'historique.
+HSTAT_HIST_DETAIL <- 30L
+HSTAT_HIST_MAX    <- 200L
+
 # `tables` : liste nommee de data.frame ; `text` : sortie R brute eventuelle ;
 # `meta` : variables utilisees, groupe, options — ce qui permet de recommander.
+# `plot` : fonction sans argument qui trace le graphique de l'analyse, quand le
+# module en possede une. Le rapport s'en sert pour reproduire la figure ; les
+# modules qui n'en ont pas passent simplement NULL.
 hstat_ai_capture <- function(values, module, title, tables = list(),
-                             text = NULL, meta = list()) {
+                             text = NULL, meta = list(), plot = NULL) {
   if (is.null(values)) return(invisible(NULL))
+  # Normalisation A L'ENTREE du registre. Les modules deposent ce qu'ils ont
+  # sous la main : un data.frame, une matrice, mais aussi un objet `htest` brut
+  # renvoye par t.test() ou shapiro.test(). `as.data.frame()` echoue dessus
+  # (« cannot coerce class "htest" to a data.frame ») et faisait tomber toute
+  # l'analyse. Coercer ici, une fois, plutot que dans chacun des lecteurs
+  # (historique, rapport, onglet « Resultats captures »).
+  tables <- lapply(tables, function(x)
+    tryCatch(hstat_ai_as_table(x), error = function(e) NULL))
   tables <- Filter(function(x) !is.null(x) && NROW(x) > 0, tables)
-  values$aiContext <- list(
+  ctx <- list(
     module = as.character(module)[1],
     title  = as.character(title)[1],
     tables = tables,
     text   = if (is.null(text)) NULL else paste(as.character(text), collapse = "\n"),
     meta   = meta,
+    plot   = if (is.function(plot)) plot else NULL,
     time   = Sys.time())
-  invisible(values$aiContext)
+  values$aiContext <- ctx
+
+  # Historique : le journal de reproductibilite a besoin de TOUTES les analyses
+  # menees, pas seulement de la derniere. On ecarte la repetition immediate a
+  # l'identique (un curseur deplace re-declenche la meme analyse) pour que le
+  # script reste lisible.
+  h <- values$aiHistory %||% list()
+  precedent <- if (length(h)) h[[length(h)]] else NULL
+  meme <- !is.null(precedent) &&
+    identical(precedent$module, ctx$module) &&
+    identical(precedent$title, ctx$title) &&
+    identical(precedent$meta, ctx$meta)
+  if (!meme) {
+    # Le rapport a besoin des tableaux et des figures ; le journal, seulement
+    # des metadonnees. On garde donc le detail des analyses RECENTES et on
+    # l'allege sur les anciennes : la memoire reste bornee quelle que soit la
+    # duree de la session.
+    entree <- ctx[c("module", "title", "meta", "time", "plot")]
+    entree$tables <- lapply(tables, function(x) utils::head(x, 100L))
+    h[[length(h) + 1L]] <- entree
+    if (length(h) > HSTAT_HIST_DETAIL) {
+      a_alleger <- seq_len(length(h) - HSTAT_HIST_DETAIL)
+      for (i in a_alleger) { h[[i]]$tables <- NULL; h[[i]]$plot <- NULL }
+    }
+    if (length(h) > HSTAT_HIST_MAX) h <- utils::tail(h, HSTAT_HIST_MAX)
+    values$aiHistory <- h
+  }
+  invisible(ctx)
 }
 
 # Coercition en data.frame de ce qu'une analyse renvoie : les modules
@@ -572,6 +617,343 @@ hstat_data_profile <- function(df, vars = NULL, group = NULL, paired = FALSE) {
        n_quanti = sum(vapply(v, function(e) e$type == "quantitative", logical(1))),
        n_quali  = sum(vapply(v, function(e) e$type %in% c("categorielle", "binaire"), logical(1))),
        n_ordinal = sum(vapply(v, function(e) e$type == "ordinale", logical(1))))
+}
+
+
+# ---------------------------------------------------------------------------
+# JOURNAL DE REPRODUCTIBILITE
+# ---------------------------------------------------------------------------
+# Restitue, sous forme de SCRIPT R executable, les analyses menees pendant la
+# session. C'est ce qui separe un outil clic-bouton d'un outil dont les
+# resultats sont publiables : un relecteur doit pouvoir refaire le chemin.
+#
+# Regle de conduite : quand le code exact ne peut pas etre reconstitue
+# fidelement (reglages interactifs d'un module, modele de ML avec ses
+# hyperparametres), on ecrit un COMMENTAIRE qui dit ce qui a ete fait, jamais
+# du code plausible mais faux. Un script qui differe en silence de ce que
+# l'application a calcule serait pire que pas de script du tout.
+# ---------------------------------------------------------------------------
+
+# Nom de variable protege : `ma variable` si l'identifiant n'est pas syntaxique.
+.hstat_rlog_nom <- function(x) {
+  x <- as.character(x)
+  ifelse(grepl("^[A-Za-z.][A-Za-z0-9._]*$", x) & !grepl("^\\.[0-9]", x),
+         x, paste0("`", x, "`"))
+}
+
+.hstat_rlog_vec <- function(x) {
+  if (!length(x)) return("NULL")
+  paste0("c(", paste(sprintf('"%s"', x), collapse = ", "), ")")
+}
+
+# Code R correspondant a UNE analyse capturee. NULL si rien de fidele n'est
+# reconstituable — l'appelant ecrira alors un commentaire.
+hstat_rlog_code <- function(ctx, donnees = "donnees") {
+  if (is.null(ctx)) return(NULL)
+  v <- intersect(ctx$meta$variables %||% character(0), ctx$meta$variables %||% character(0))
+  v <- as.character(v[nzchar(v)])
+  g <- as.character((ctx$meta$groupe %||% character(0)))
+  g <- g[nzchar(g)]
+  t <- tolower(chartr("àâäéèêëîïôöùûüç", "aaaeeeeiioouuuc", ctx$title %||% ""))
+  y <- if (length(v)) .hstat_rlog_nom(v[1]) else NULL
+  f <- if (length(g)) .hstat_rlog_nom(g[1]) else NULL
+  fml <- if (!is.null(y) && !is.null(f)) sprintf("%s ~ %s", y, f) else NULL
+
+  switch(ctx$module %||% "",
+
+    "Exploration" = c(sprintf("str(%s)", donnees), sprintf("summary(%s)", donnees)),
+
+    "Analyses descriptives" = if (length(v))
+      c(sprintf("summary(%s[, %s, drop = FALSE])", donnees, .hstat_rlog_vec(v)),
+        if (!is.null(fml)) sprintf("aggregate(%s, data = %s, FUN = mean)", fml, donnees)),
+
+    "Correlations" = if (length(v) >= 2)
+      c(sprintf('cor(%s[, %s], use = "pairwise.complete.obs")', donnees, .hstat_rlog_vec(v)),
+        sprintf("cor.test(%s$%s, %s$%s)", donnees, .hstat_rlog_nom(v[1]),
+                donnees, .hstat_rlog_nom(v[2]))),
+
+    "Tests statistiques" = {
+      if (grepl("normalite", t)) {
+        if (length(v)) sprintf("shapiro.test(%s$%s)", donnees, y) else NULL
+      } else if (grepl("homogeneite|levene", t)) {
+        if (!is.null(fml)) sprintf("car::leveneTest(%s, data = %s)", fml, donnees) else NULL
+      } else if (grepl("kruskal", t)) {
+        if (!is.null(fml)) sprintf("kruskal.test(%s, data = %s)", fml, donnees) else NULL
+      } else if (grepl("wilcoxon|mann", t)) {
+        if (!is.null(fml)) sprintf("wilcox.test(%s, data = %s)", fml, donnees) else NULL
+      } else if (grepl("anova", t)) {
+        if (!is.null(fml)) c(sprintf("modele <- aov(%s, data = %s)", fml, donnees),
+                             "summary(modele)") else NULL
+      } else if (grepl("test t|student|welch", t)) {
+        if (!is.null(fml)) sprintf("t.test(%s, data = %s)", fml, donnees) else NULL
+      } else if (grepl("regression lineaire", t)) {
+        if (!is.null(fml)) c(sprintf("modele <- lm(%s, data = %s)", fml, donnees),
+                             "summary(modele)") else NULL
+      } else if (grepl("chi", t)) {
+        if (length(v) >= 1 && !is.null(f))
+          sprintf("chisq.test(table(%s$%s, %s$%s))", donnees, y, donnees, f) else NULL
+      } else if (grepl("1 echantillon|conformite|norme|equivalence|signe", t)) {
+        # Les tests a une reference dependent de la valeur cible saisie :
+        # elle figure dans les parametres, on la reporte telle quelle.
+        NULL
+      } else NULL
+    },
+
+    "Comparaisons multiples" = if (!is.null(fml))
+      c(sprintf("modele <- aov(%s, data = %s)", fml, donnees), "TukeyHSD(modele)"),
+
+    "Analyses multivariees" = {
+      if (grepl("composantes principales|\\bacp\\b", t) && length(v))
+        c(sprintf("acp <- FactoMineR::PCA(%s[, %s], graph = FALSE)", donnees, .hstat_rlog_vec(v)),
+          "summary(acp)")
+      else if (grepl("k-means", t) && length(v))
+        sprintf("stats::kmeans(scale(%s[, %s]), centers = 3)", donnees, .hstat_rlog_vec(v))
+      else if (grepl("correspondances multiples|\\bacm\\b", t) && length(v))
+        sprintf("FactoMineR::MCA(%s[, %s], graph = FALSE)", donnees, .hstat_rlog_vec(v))
+      else if (grepl("correspondances", t) && length(v) >= 2)
+        sprintf("FactoMineR::CA(table(%s$%s, %s$%s), graph = FALSE)",
+                donnees, .hstat_rlog_nom(v[1]), donnees, .hstat_rlog_nom(v[2]))
+      else if (grepl("donnees mixtes|afdm", t) && length(v))
+        sprintf("FactoMineR::FAMD(%s[, %s], graph = FALSE)", donnees, .hstat_rlog_vec(v))
+      else if (grepl("factorielle exploratoire|\\bafe\\b", t) && length(v))
+        sprintf("psych::fa(%s[, %s], nfactors = 2, rotate = \"varimax\")",
+                donnees, .hstat_rlog_vec(v))
+      else if (grepl("regression lineaire multiple", t) && !is.null(fml))
+        c(sprintf("modele <- lm(%s, data = %s)", fml, donnees), "summary(modele)")
+      else NULL
+    },
+
+    "Analyses qualitatives" = if (length(v) >= 2)
+      sprintf("chisq.test(table(%s$%s, %s$%s))", donnees, .hstat_rlog_nom(v[1]),
+              donnees, .hstat_rlog_nom(v[2]))
+      else if (length(v) == 1) sprintf("table(%s$%s)", donnees, y),
+
+    "Series temporelles" = if (length(v))
+      c(sprintf("serie <- ts(%s$%s)", donnees, y),
+        "modele <- forecast::auto.arima(serie)",
+        "forecast::forecast(modele, h = 12)"),
+
+    NULL)
+}
+
+# Script complet de la session.
+hstat_rlog_script <- function(history, source = NULL, version = NULL,
+                              donnees = "donnees") {
+  entete <- c(
+    "# =============================================================================",
+    sprintf("# Journal de session HStat%s",
+            if (!is.null(version)) paste0(" ", version) else ""),
+    sprintf("# Genere le %s", format(Sys.time(), "%Y-%m-%d a %H:%M:%S")),
+    "# -----------------------------------------------------------------------------",
+    "# Script reconstitue a partir des analyses menees dans l'application.",
+    "#",
+    "# A LIRE AVANT DE L'EXECUTER :",
+    "#  - Verifiez le chargement des donnees ci-dessous : le chemin, le separateur",
+    "#    et l'encodage dependent de votre fichier.",
+    "#  - Les etapes marquees « NON RECONSTITUE » ont ete faites de facon",
+    "#    interactive. Leurs parametres sont rappeles en commentaire, mais le code",
+    "#    n'est pas ecrit : mieux vaut une lacune signalee qu'un code plausible et",
+    "#    faux, qui donnerait un resultat different de celui que vous avez lu.",
+    "#  - Les analyses apparaissent dans l'ordre ou vous les avez menees.",
+    "# =============================================================================",
+    "")
+
+  chargement <- c(
+    "# ---- Donnees ----------------------------------------------------------------",
+    if (!is.null(source) && nzchar(source))
+      sprintf('# Fichier d\'origine : %s', source) else NULL,
+    sprintf('%s <- read.csv("mon_fichier.csv", stringsAsFactors = FALSE)', donnees),
+    "")
+
+  if (is.null(history) || !length(history))
+    return(paste(c(entete, chargement,
+                   "# Aucune analyse enregistree pour cette session."),
+                 collapse = "\n"))
+
+  corps <- unlist(lapply(seq_along(history), function(i) {
+    ctx <- history[[i]]
+    code <- hstat_rlog_code(ctx, donnees)
+    params <- unlist(lapply(names(ctx$meta), function(k) {
+      val <- ctx$meta[[k]]
+      if (is.null(val) || !length(val)) return(NULL)
+      sprintf("#   %s : %s", k, paste(utils::head(as.character(val), 10), collapse = ", "))
+    }))
+    titre <- sprintf("# ---- %d. %s : %s ", i, ctx$module, ctx$title)
+    c(paste0(titre, strrep("-", max(3L, 79L - nchar(titre)))),
+      if (!is.null(ctx$time)) sprintf("#   (%s)", format(ctx$time, "%H:%M:%S")),
+      params,
+      if (is.null(code))
+        c("#   NON RECONSTITUE : etape realisee de facon interactive.", "")
+      else c(code, ""))
+  }))
+
+  paste(c(entete, chargement, corps), collapse = "\n")
+}
+
+
+# ---------------------------------------------------------------------------
+# DIAGNOSTIC DE QUALITE DES DONNEES
+# ---------------------------------------------------------------------------
+# Ce que les logiciels du marche appellent « data health check ». Entierement
+# deterministe et hors ligne : chaque constat porte sa GRAVITE et une
+# SUGGESTION concrete, pas un simple pourcentage. L'utilisateur decide ; le
+# diagnostic lui donne de quoi decider.
+#
+# L'analyse porte sur un echantillon au-dela de 20 000 lignes : les proportions
+# restent fiables et le diagnostic reste instantane sur un gros fichier.
+# ---------------------------------------------------------------------------
+
+HSTAT_QUALITE_GRAVITES <- c("bloquant", "important", "a surveiller")
+
+.hstat_q_row <- function(variable, constat, gravite, suggestion) {
+  data.frame(Variable = variable, Constat = constat, Gravite = gravite,
+             Suggestion = suggestion, stringsAsFactors = FALSE)
+}
+
+hstat_data_quality <- function(df, seuil_na = 0.20, seuil_modalite = 0.95,
+                               seuil_cor = 0.95, max_modalites = 30,
+                               n_echantillon = 20000L) {
+  if (is.null(df) || !NROW(df) || !NCOL(df)) return(NULL)
+  df <- as.data.frame(df)
+  n_total <- nrow(df)
+  if (n_total > n_echantillon) {
+    set.seed(1L)
+    df <- df[sort(sample.int(n_total, n_echantillon)), , drop = FALSE]
+  }
+  n <- nrow(df); p <- ncol(df)
+  out <- list()
+
+  for (nm in names(df)) {
+    x <- df[[nm]]
+    chr <- is.character(x) || is.factor(x)
+    vide <- if (chr) is.na(x) | !nzchar(trimws(as.character(x))) else is.na(x)
+    taux_na <- mean(vide)
+
+    # --- Valeurs manquantes -------------------------------------------------
+    if (taux_na >= 0.90)
+      out <- c(out, list(.hstat_q_row(nm,
+        sprintf("%.0f %% de valeurs manquantes", 100 * taux_na), "bloquant",
+        "Variable quasi vide : l'exclure des analyses, ou retrouver la source des donnees manquantes.")))
+    else if (taux_na >= 0.50)
+      out <- c(out, list(.hstat_q_row(nm,
+        sprintf("%.0f %% de valeurs manquantes", 100 * taux_na), "important",
+        "Au-dela de la moitie, l'imputation invente plus qu'elle ne restitue. Preferer l'exclusion, ou une analyse sur cas complets en le declarant.")))
+    else if (taux_na >= seuil_na)
+      out <- c(out, list(.hstat_q_row(nm,
+        sprintf("%.0f %% de valeurs manquantes", 100 * taux_na), "a surveiller",
+        "Onglet Nettoyage : imputation par la mediane/le mode, ou par kNN / missForest si le mecanisme n'est pas aleatoire.")))
+
+    vals <- x[!vide]
+    if (!length(vals)) next
+    u <- length(unique(vals))
+
+    # --- Variables sans information ----------------------------------------
+    if (u == 1L) {
+      out <- c(out, list(.hstat_q_row(nm,
+        sprintf("une seule valeur (« %s »)", substr(as.character(vals[1]), 1, 30)), "important",
+        "Variable constante : elle ne peut expliquer aucune variation. La retirer des modeles (elle fait aussi echouer l'ACP et la standardisation).")))
+      next
+    }
+    if (chr && u >= 0.95 * length(vals) && u > 20)
+      out <- c(out, list(.hstat_q_row(nm,
+        sprintf("%d valeurs distinctes sur %d observations", u, length(vals)), "a surveiller",
+        "Ressemble a un identifiant ou a du texte libre. Comme identifiant : l'exclure des analyses. Comme texte : l'onglet Analyses qualitatives sait le coder et le thematiser.")))
+
+    if (chr) {
+      tb <- sort(table(as.character(vals)), decreasing = TRUE)
+      # --- Modalite ecrasante ---------------------------------------------
+      if (tb[1] / length(vals) >= seuil_modalite)
+        out <- c(out, list(.hstat_q_row(nm,
+          sprintf("la modalite « %s » couvre %.0f %% des reponses", names(tb)[1],
+                  100 * tb[1] / length(vals)), "important",
+          "Variable quasi constante : aucun test ne detectera de difference. Regrouper les modalites, ou renoncer a l'utiliser comme facteur.")))
+      # --- Modalites trop rares --------------------------------------------
+      rares <- names(tb)[tb < 5]
+      if (length(rares) && u <= max_modalites)
+        out <- c(out, list(.hstat_q_row(nm,
+          sprintf("%d modalite(s) sous 5 observations (%s)", length(rares),
+                  paste(utils::head(rares, 4), collapse = ", ")), "a surveiller",
+          "Les tests du Chi2 et les approximations asymptotiques y perdent leur validite. Regrouper ces modalites, ou passer au test exact de Fisher.")))
+      if (u > max_modalites && u < 0.95 * length(vals))
+        out <- c(out, list(.hstat_q_row(nm,
+          sprintf("%d modalites distinctes", u), "a surveiller",
+          sprintf("Au-dela de %d modalites, les tableaux croises deviennent illisibles et les effectifs trop faibles. Regrouper en categories plus larges.", max_modalites))))
+
+      # --- Nombres stockes en texte ----------------------------------------
+      num <- suppressWarnings(as.numeric(gsub(",", ".", as.character(vals))))
+      if (mean(!is.na(num)) >= 0.95 && u > 10)
+        out <- c(out, list(.hstat_q_row(nm,
+          "des nombres stockes comme du texte", "important",
+          "Convertir en numerique (onglet Nettoyage). En l'etat, moyennes, correlations et tests quantitatifs sont impossibles sur cette variable.")))
+    } else if (is.numeric(vals)) {
+      v <- as.numeric(vals)
+      # --- Valeurs extremes -------------------------------------------------
+      qs <- stats::quantile(v, c(.25, .75), na.rm = TRUE)
+      iqr <- qs[2] - qs[1]
+      if (is.finite(iqr) && iqr > 0) {
+        ext <- sum(v < qs[1] - 3 * iqr | v > qs[2] + 3 * iqr)
+        if (ext > 0)
+          out <- c(out, list(.hstat_q_row(nm,
+            sprintf("%d valeur(s) extreme(s) (au-dela de 3 ecarts interquartiles)", ext), "a surveiller",
+            "Verifier s'il s'agit d'erreurs de saisie ou de vraies observations. Si elles sont reelles, preferer les tests de rangs, qui n'en dependent pas.")))
+      }
+      if (any(!is.finite(v)))
+        out <- c(out, list(.hstat_q_row(nm,
+          sprintf("%d valeur(s) infinie(s) ou non numerique(s)", sum(!is.finite(v))), "bloquant",
+          "Ces valeurs font echouer la plupart des calculs. Les remplacer ou les retirer dans l'onglet Nettoyage.")))
+    }
+  }
+
+  # --- Redondance entre variables quantitatives ------------------------------
+  quanti <- names(df)[vapply(df, function(z) is.numeric(z) &&
+                             length(unique(stats::na.omit(z))) > 2, logical(1))]
+  if (length(quanti) >= 2) {
+    M <- suppressWarnings(stats::cor(df[, quanti, drop = FALSE], use = "pairwise.complete.obs"))
+    idx <- which(upper.tri(M) & abs(M) >= seuil_cor & is.finite(M), arr.ind = TRUE)
+    if (nrow(idx))
+      for (k in seq_len(min(nrow(idx), 8L)))
+        out <- c(out, list(.hstat_q_row(
+          paste(quanti[idx[k, 1]], "/", quanti[idx[k, 2]]),
+          sprintf("correlation de %.2f entre ces deux variables", M[idx[k, 1], idx[k, 2]]), "important",
+          "Redondance quasi parfaite : en garder une seule. Ensemble, elles rendent une regression instable (colinearite) et faussent la lecture des coefficients.")))
+  }
+
+  # --- Lignes en double -------------------------------------------------------
+  dup <- sum(duplicated(df))
+  if (dup > 0)
+    out <- c(out, list(.hstat_q_row("(jeu de donnees)",
+      sprintf("%d ligne(s) strictement identique(s)", dup), "important",
+      "Doublons probables de saisie ou d'import. Les supprimer, sinon ils gonflent artificiellement les effectifs et resserrent a tort les intervalles de confiance.")))
+
+  # --- Effectif au regard du nombre de variables -------------------------------
+  if (n < 5 * p)
+    out <- c(out, list(.hstat_q_row("(jeu de donnees)",
+      sprintf("%d observations pour %d variables", n, p), "important",
+      "Trop peu d'observations par variable : les modeles multivaries surapprendront. Reduire le nombre de variables, ou se limiter a des analyses bivariees.")))
+  if (n < 30)
+    out <- c(out, list(.hstat_q_row("(jeu de donnees)",
+      sprintf("effectif total de %d observations", n), "a surveiller",
+      "Sous 30 observations, les approximations normales sont fragiles : preferer les tests exacts et les tests de rangs.")))
+
+  if (!length(out)) return(.hstat_q_row("(jeu de donnees)",
+    "aucun probleme detecte", "a surveiller",
+    "Structure saine : valeurs manquantes, modalites, valeurs extremes et redondances sont dans les clous."))
+
+  res <- do.call(rbind, out)
+  rang <- c("bloquant" = 1, "important" = 2, "a surveiller" = 3)
+  res[order(rang[res$Gravite], res$Variable), , drop = FALSE]
+}
+
+# Resume d'une ligne, pour un bandeau ou une notification.
+hstat_data_quality_resume <- function(dq) {
+  if (is.null(dq) || !nrow(dq)) return(NULL)
+  if (nrow(dq) == 1L && grepl("aucun probleme", dq$Constat[1]))
+    return("Aucun probleme de qualite detecte sur ce jeu de donnees.")
+  n <- table(factor(dq$Gravite, levels = HSTAT_QUALITE_GRAVITES))
+  parts <- c(if (n[["bloquant"]]) sprintf("%d bloquant(s)", n[["bloquant"]]),
+             if (n[["important"]]) sprintf("%d important(s)", n[["important"]]),
+             if (n[["a surveiller"]]) sprintf("%d a surveiller", n[["a surveiller"]]))
+  sprintf("%d constat(s) de qualite : %s.", nrow(dq), paste(parts, collapse = ", "))
 }
 
 
@@ -765,7 +1147,8 @@ hstat_reco_analyses <- function(profile) {
 # n'aurait pas de sens — une statistique descriptive n'est pas un mauvais test,
 # c'est une etape anterieure. On y propose la suite plutot qu'un verdict.
 HSTAT_RECO_EXPLORATOIRE <- c("Analyses descriptives", "Visualisation",
-                             "Exploration", "Analyses qualitatives")
+                             "Exploration", "Analyses qualitatives",
+                             "Nettoyage", "Filtrage", "Seuils d'efficacite")
 
 hstat_reco_verdict <- function(reco, titre_analyse, module = NULL) {
   if (is.null(reco) || !nrow(reco) || is.null(titre_analyse) || !nzchar(titre_analyse))
@@ -1208,6 +1591,82 @@ mod_ai_ui <- function(id) {
               DT::DTOutput(ns("profile_table")),
               shiny::br(),
               shiny::uiOutput(ns("profile_notes"))),
+            shiny::tabPanel(shiny::tagList(shiny::icon("code"), " Journal & reproductibilite"),
+              shiny::br(),
+              shiny::div(style = "background:#eafaf1;border-left:5px solid #27ae60;padding:12px 16px;border-radius:6px;font-size:13px;",
+                shiny::tags$strong(shiny::icon("scroll"), " Script R de votre session"),
+                shiny::tags$p(style = "margin:6px 0 0 0;",
+                  "Les analyses que vous avez menees, dans l'ordre, sous forme de code R ",
+                  "executable. C'est ce qu'un relecteur attend pour refaire le chemin. ",
+                  shiny::tags$b("Les etapes purement interactives sont signalees, pas inventees"),
+                  " : un script qui differerait en silence de ce que vous avez lu serait ",
+                  "pire que pas de script.")),
+              shiny::br(),
+              shiny::fluidRow(
+                shiny::column(6, shiny::uiOutput(ns("rlog_resume"))),
+                shiny::column(3, shiny::textInput(ns("rlog_objet"), "Nom de l'objet de donnees",
+                                                  value = "donnees")),
+                shiny::column(3, shiny::br(),
+                  shiny::downloadButton(ns("dl_rlog"), "Telecharger le script (.R)",
+                                        class = "btn-success btn-block"))),
+              shiny::tags$pre(style = "background:#f8f9fa;border:1px solid #e0e0e0;border-radius:6px;padding:14px;max-height:560px;overflow:auto;font-size:12px;line-height:1.5;",
+                              shiny::textOutput(ns("rlog_script"), container = shiny::tags$code)),
+              shiny::br(),
+              DT::DTOutput(ns("rlog_table"))),
+            shiny::tabPanel(shiny::tagList(shiny::icon("file-word"), " Rapport"),
+              shiny::br(),
+              shiny::div(style = "background:#eaf4fb;border-left:5px solid #2e86c1;padding:12px 16px;border-radius:6px;font-size:13px;",
+                shiny::tags$strong(shiny::icon("file-lines"), " Un document, transmissible tel quel"),
+                shiny::tags$p(style = "margin:6px 0 0 0;",
+                  "Vos analyses, vos figures et vos interpretations reunies en un ",
+                  "rapport redige. ",
+                  shiny::tags$b("Le rapport ne calcule rien"),
+                  " : il met en forme ce que vous avez deja obtenu. A relire avant ",
+                  "diffusion — les interpretations eclairent la lecture, elles ne la valident pas.")),
+              shiny::br(),
+              shiny::fluidRow(
+                shiny::column(5,
+                  shiny::textInput(ns("rep_titre"), "Titre du rapport",
+                                   value = "Rapport d'analyse statistique"),
+                  shiny::textInput(ns("rep_auteur"), "Auteur (facultatif)",
+                                   placeholder = "Nom, laboratoire, service"),
+                  shiny::radioButtons(ns("rep_format"), "Format",
+                                      choices = HSTAT_REPORT_FORMATS,
+                                      selected = "html"),
+                  shiny::uiOutput(ns("rep_dispo"))),
+                shiny::column(4,
+                  shiny::checkboxGroupInput(ns("rep_sections"), "Sections a inclure",
+                                            choices = HSTAT_REPORT_SECTIONS,
+                                            selected = unname(HSTAT_REPORT_SECTIONS))),
+                shiny::column(3,
+                  shiny::uiOutput(ns("rep_resume")),
+                  shiny::br(),
+                  shiny::downloadButton(ns("dl_rapport"), "Produire le rapport",
+                                        class = "btn-success btn-block"),
+                  shiny::br(),
+                  shiny::actionButton(ns("rep_apercu_go"), "Apercu",
+                                      icon = shiny::icon("eye"),
+                                      class = "btn-default btn-block btn-sm"))),
+              shiny::hr(),
+              shiny::div(style = "background:#ffffff;border:1px solid #e0e0e0;border-radius:6px;padding:16px 20px;max-height:620px;overflow:auto;",
+                         shiny::uiOutput(ns("rep_apercu")))),
+            shiny::tabPanel(shiny::tagList(shiny::icon("stethoscope"), " Qualite des donnees"),
+              shiny::br(),
+              shiny::uiOutput(ns("dq_resume")),
+              DT::DTOutput(ns("dq_table")),
+              shiny::br(),
+              shiny::div(style = "background:#eaf4fb;border-left:5px solid #2e86c1;padding:12px 16px;border-radius:6px;font-size:13px;",
+                shiny::icon("circle-info"),
+                shiny::tags$b(" Comment lire ce diagnostic."),
+                " Chaque constat porte sa gravite et une suggestion concrete. ",
+                shiny::tags$b("Bloquant"), " : l'analyse echouera ou n'aura pas de sens en l'etat. ",
+                shiny::tags$b("Important"), " : le resultat sera trompeur si rien n'est fait. ",
+                shiny::tags$b("A surveiller"), " : a connaitre avant d'interpreter. ",
+                "Le diagnostic est calcule dans R, sans modele et sans reseau ; ",
+                "au-dela de 20 000 lignes il porte sur un echantillon."),
+              shiny::br(),
+              shiny::downloadButton(ns("dl_dq"), "Telecharger le diagnostic (CSV)",
+                                    class = "btn-info btn-sm")),
             shiny::tabPanel(shiny::tagList(shiny::icon("table"), " Resultats captures"),
               shiny::br(),
               shiny::uiOutput(ns("ctx_tables")))
@@ -1470,6 +1929,184 @@ mod_ai_server <- function(id, values) {
         shiny::tags$b(shiny::icon("list-check"), " Ce sur quoi repose la recommandation"),
         shiny::tags$ul(el))
     })
+
+    # ---------------------------------------------------- journal de session
+    rlog_texte <- shiny::reactive({
+      hstat_rlog_script(values$aiHistory,
+                        source = values$sourceKind,
+                        version = hstat_version(),
+                        donnees = {
+                          o <- trimws(input$rlog_objet %||% "donnees")
+                          if (nzchar(o)) o else "donnees"
+                        })
+    })
+
+    output$rlog_script <- shiny::renderText(rlog_texte())
+
+    output$rlog_resume <- shiny::renderUI({
+      h <- values$aiHistory
+      if (is.null(h) || !length(h))
+        return(shiny::div(class = "callout callout-info", style = "padding:10px 14px;",
+          shiny::icon("circle-info"),
+          " Aucune analyse enregistree. Le journal se remplit a mesure que vous travaillez."))
+      reconstitues <- sum(vapply(h, function(c0)
+        !is.null(hstat_rlog_code(c0)), logical(1)))
+      shiny::div(class = "callout callout-success", style = "padding:10px 14px;",
+        shiny::icon("circle-check"),
+        sprintf(" %d analyse(s) enregistree(s), dont %d avec leur code R.",
+                length(h), reconstitues),
+        if (reconstitues < length(h))
+          shiny::tags$small(style = "display:block;color:#7f8c8d;",
+            sprintf("Les %d autres sont documentees en commentaire : leurs reglages etaient interactifs.",
+                    length(h) - reconstitues)))
+    })
+
+    output$rlog_table <- DT::renderDT({
+      h <- values$aiHistory
+      shiny::validate(shiny::need(!is.null(h) && length(h) > 0,
+        "Le journal se remplit a mesure que vous menez des analyses."))
+      DT::datatable(
+        data.frame(
+          `#` = seq_along(h),
+          Heure = vapply(h, function(c0) format(c0$time, "%H:%M:%S"), character(1)),
+          Module = vapply(h, function(c0) c0$module %||% "", character(1)),
+          Analyse = vapply(h, function(c0) c0$title %||% "", character(1)),
+          `Code R` = vapply(h, function(c0)
+            if (is.null(hstat_rlog_code(c0))) "commentaire" else "reconstitue", character(1)),
+          check.names = FALSE, stringsAsFactors = FALSE),
+        rownames = FALSE, options = list(pageLength = 15, scrollX = TRUE, order = list()))
+    })
+
+    output$dl_rlog <- shiny::downloadHandler(
+      filename = function() sprintf("hstat_session_%s.R", format(Sys.Date(), "%Y%m%d")),
+      content = function(file) writeLines(rlog_texte(), file, useBytes = TRUE))
+
+    data_quality <- shiny::reactive({
+      d <- values$filteredData %||% values$cleanData %||% values$data
+      shiny::validate(shiny::need(!is.null(d) && NROW(d) > 0,
+        "Chargez d'abord un jeu de donnees dans l'onglet Chargement."))
+      hstat_data_quality(as.data.frame(d))
+    })
+
+    output$dq_resume <- shiny::renderUI({
+      dq <- tryCatch(data_quality(), error = function(e) NULL)
+      if (is.null(dq)) return(NULL)
+      msg <- hstat_data_quality_resume(dq)
+      grave <- sum(dq$Gravite == "bloquant")
+      shiny::div(class = if (grave > 0) "callout callout-danger"
+                        else if (any(dq$Gravite == "important")) "callout callout-warning"
+                        else "callout callout-success",
+        style = "padding:10px 14px;",
+        shiny::icon(if (grave > 0) "triangle-exclamation" else "circle-check"),
+        " ", msg)
+    })
+
+    output$dq_table <- DT::renderDT({
+      dq <- data_quality()
+      shiny::validate(shiny::need(!is.null(dq) && nrow(dq) > 0, "Aucun constat."))
+      DT::datatable(dq, rownames = FALSE, filter = "top",
+                    options = list(pageLength = 15, scrollX = TRUE)) |>
+        DT::formatStyle("Gravite", target = "row",
+          backgroundColor = DT::styleEqual(HSTAT_QUALITE_GRAVITES,
+                                           c("#fdecea", "#fef5e7", "#f4f6f7")))
+    })
+
+    output$dl_dq <- shiny::downloadHandler(
+      filename = function() sprintf("hstat_qualite_donnees_%s.csv", format(Sys.Date(), "%Y%m%d")),
+      content = function(file)
+        utils::write.csv(tryCatch(data_quality(), error = function(e) NULL),
+                         file, row.names = FALSE, fileEncoding = "UTF-8"))
+
+    # ---------------------------------------------------- rapport automatique
+    rep_dispo <- shiny::reactive(hstat_report_formats_dispo())
+
+    output$rep_dispo <- shiny::renderUI({
+      msg <- hstat_report_message_dispo(rep_dispo())
+      if (is.null(msg))
+        return(shiny::div(class = "callout callout-success", style = "padding:8px 12px;font-size:12px;",
+          shiny::icon("circle-check"), " Les trois formats sont disponibles sur cette machine."))
+      shiny::div(class = "callout callout-warning", style = "padding:8px 12px;font-size:12px;",
+                 shiny::icon("triangle-exclamation"), " ", msg)
+    })
+
+    # Le format REELLEMENT produit : demander du PDF sans LaTeX donne du HTML.
+    # Le calculer ici plutot que dans le seul `content` permet de nommer le
+    # fichier correctement — un .pdf contenant du HTML ne s'ouvrirait pas.
+    rep_format <- shiny::reactive({
+      f <- input$rep_format %||% "html"
+      if (isTRUE(rep_dispo()[[f]])) f else "html"
+    })
+
+    rep_figures <- function() {
+      d <- file.path(tempdir(), paste0("hstat_fig_", session$token))
+      unlink(d, recursive = TRUE)
+      tryCatch(hstat_report_figures(values$aiHistory, dossier = d),
+               error = function(e) NULL)
+    }
+
+    rep_markdown <- function(figures = NULL) {
+      d <- values$filteredData %||% values$cleanData %||% values$data
+      sections <- input$rep_sections %||% unname(HSTAT_REPORT_SECTIONS)
+      hstat_report_markdown(
+        history        = values$aiHistory,
+        titre          = if (nzchar(trimws(input$rep_titre %||% "")))
+                           trimws(input$rep_titre) else "Rapport d'analyse",
+        auteur         = trimws(input$rep_auteur %||% ""),
+        contexte       = trimws(input$contexte %||% ""),
+        sections       = sections,
+        donnees_resume = if ("donnees" %in% sections)
+                           tryCatch(hstat_report_resume_donnees(d), error = function(e) NULL),
+        qualite        = if ("qualite" %in% sections)
+                           tryCatch(data_quality(), error = function(e) NULL),
+        interpretation = rv$txt,
+        reco           = if ("reco" %in% sections)
+                           tryCatch(reco(), error = function(e) NULL),
+        script         = if ("script" %in% sections)
+                           tryCatch(rlog_texte(), error = function(e) NULL),
+        version        = hstat_version(),
+        figures        = figures)
+    }
+
+    output$rep_resume <- shiny::renderUI({
+      h <- values$aiHistory %||% list()
+      nfig <- sum(vapply(h, function(x) is.function(x$plot), logical(1)))
+      shiny::div(style = "font-size:12px;color:#566573;line-height:1.7;",
+        shiny::icon("list-check"), shiny::tags$b(" Le rapport contiendra"), shiny::br(),
+        sprintf("%d analyse(s)", length(h)), shiny::br(),
+        sprintf("%d figure(s) disponible(s)", nfig), shiny::br(),
+        if (!is.null(rv$txt) && nzchar(rv$txt)) "une interpretation redigee"
+        else shiny::tags$span(style = "color:#b9770e;",
+          "aucune interpretation (lancez-en une dans l'onglet Interpretation)"))
+    })
+
+    rep_apercu <- shiny::eventReactive(input$rep_apercu_go, {
+      figs <- if ("figures" %in% (input$rep_sections %||% character(0)))
+        rep_figures() else NULL
+      .hstat_rep_images_html(.hstat_rep_md_to_html(rep_markdown(figs)))
+    })
+
+    output$rep_apercu <- shiny::renderUI({
+      if (is.null(input$rep_apercu_go) || input$rep_apercu_go == 0)
+        return(shiny::tags$em(style = "color:#95a5a6;",
+          "Cliquez sur « Apercu » pour voir le rapport avant de le produire."))
+      shiny::HTML(rep_apercu())
+    })
+
+    output$dl_rapport <- shiny::downloadHandler(
+      filename = function()
+        sprintf("hstat_rapport_%s.%s", format(Sys.Date(), "%Y%m%d"), rep_format()),
+      content = function(file) {
+        figs <- if ("figures" %in% (input$rep_sections %||% character(0)))
+          rep_figures() else NULL
+        res <- hstat_report_render(rep_markdown(figs), file,
+                                   format = rep_format(),
+                                   titre = trimws(input$rep_titre %||% "Rapport d'analyse"),
+                                   dispo = rep_dispo())
+        # Le repli doit se DIRE : un utilisateur qui a demande du Word et
+        # recoit du HTML sans explication croit a un bug.
+        if (nzchar(res$message %||% ""))
+          shiny::showNotification(res$message, type = "warning", duration = 12)
+      })
 
     output$ctx_tables <- shiny::renderUI({
       c0 <- ctx()

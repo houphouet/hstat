@@ -335,7 +335,8 @@ mod_descriptive_server <- function(id, values) {
       hstat_ai_capture(values, "Analyses descriptives",
         "Statistiques descriptives",
         tables = list("Statistiques descriptives" = df),
-        meta = list(variables = input$numVars, groupe = input$descFactors))
+        meta = list(variables = input$numVars, groupe = input$descFactors),
+        plot = function() shiny::isolate(generate_desc_plot()))
     }, ignoreInit = TRUE)
   # ---- Analyse descriptives ----
   
@@ -468,7 +469,7 @@ mod_descriptive_server <- function(id, values) {
       
     }, error = function(e) {
       removeNotification("calcProgress")
-      showNotification(paste("Erreur:", e$message), type = "error", duration = 5)
+      showNotification(hstat_err_fr(e, "Erreur"), type = "error", duration = 5)
     })
   })
 
@@ -514,7 +515,7 @@ mod_descriptive_server <- function(id, values) {
                 format(values$fullNrow %||% 0, big.mark = " ")),
         type = "message", duration = 6)
     }, error = function(e) {
-      showNotification(paste("Erreur (jeu complet) :", conditionMessage(e)),
+      showNotification(hstat_err_fr(e, "Calcul sur le jeu complet"),
                        type = "error", duration = 6)
     })
   })

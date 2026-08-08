@@ -1,0 +1,145 @@
+# =============================================================================
+# HStat - integration continue
+# -----------------------------------------------------------------------------
+# Deux travaux, du plus rapide au plus complet :
+#
+#   syntaxe  Analyse chaque fichier R sans installer la moindre dependance.
+#            Quelques secondes, et attrape une parenthese manquante ou une
+#            virgule orpheline avant meme qu'un paquet soit telecharge.
+#
+#   tests    La suite testthat de reference. On installe une LISTE EXPLICITE de
+#            paquets, et non les 107 Imports de DESCRIPTION : la suite ne
+#            source que Utils.R, mod_ai.R, mod_coding.R et mod_qualitative.R,
+#            et plusieurs Imports (torch, duckdb, poLCA...) sont longs a
+#            compiler ou indisponibles en binaire. Installer tout ferait durer
+#            la CI plus d'une heure pour ne rien tester de plus.
+#
+# Les paquets sont ranges en deux groupes : ceux SANS lesquels la suite ne peut
+# pas demarrer, et ceux qui font passer des tests de skip_if_not() a execution
+# reelle. Un ajout de test qui exige un nouveau paquet doit l'ajouter ici, sinon
+# le test se contentera d'etre saute -- en silence.
+# =============================================================================
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  syntaxe:
+    name: Analyse syntaxique
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+
+      - name: Analyser tous les fichiers R
+        shell: Rscript {0}
+        run: |
+          fichiers <- c(list.files("inst/app", "\\.R$", full.names = TRUE),
+                        list.files("R", "\\.R$", full.names = TRUE),
+                        "app.R", "tests/testthat/test-hstat.R")
+          fichiers <- fichiers[file.exists(fichiers)]
+          echecs <- character(0)
+          for (f in fichiers) {
+            r <- tryCatch({ parse(f, encoding = "UTF-8"); NULL },
+                          error = function(e) conditionMessage(e))
+            if (is.null(r)) cat("ok  ", f, "\n")
+            else { cat("ECHEC", f, ":", r, "\n"); echecs <- c(echecs, f) }
+          }
+          cat("\n", length(fichiers) - length(echecs), "/", length(fichiers),
+              "fichiers analyses sans erreur\n")
+          if (length(echecs)) quit(status = 1)
+
+      - name: Verifier la coherence des versions
+        shell: Rscript {0}
+        run: |
+          # DESCRIPTION fait foi ; README porte le numero en dur (markdown
+          # statique) et doit suivre. Un test le verifie deja, mais l'echec est
+          # plus lisible ici, avant meme l'installation des paquets.
+          v <- unname(read.dcf("DESCRIPTION", "Version")[1, 1])
+          rd <- paste(readLines("README.md", warn = FALSE), collapse = "\n")
+          cites <- unique(regmatches(rd, gregexpr("Version [0-9]+\\.[0-9]+\\.[0-9]+", rd))[[1]])
+          cites <- sub("^Version ", "", cites)
+          cat("DESCRIPTION :", v, "| README :", paste(cites, collapse = ", "), "\n")
+          if (!length(cites)) { cat("Aucune version citee dans README.md\n"); quit(status = 1) }
+          if (!all(cites == v)) {
+            cat("Divergence : mettre a jour le bloc de citation du README.\n")
+            quit(status = 1)
+          }
+          cat("Versions coherentes.\n")
+
+  tests:
+    name: Suite testthat
+    runs-on: ubuntu-latest
+    needs: syntaxe
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+
+      - name: Bibliotheques systeme
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libcurl4-openssl-dev libssl-dev libxml2-dev \
+            libfontconfig1-dev libfreetype6-dev libharfbuzz-dev libfribidi-dev \
+            libpng-dev libtiff5-dev libjpeg-dev
+
+      - name: Cache des paquets R
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: ${{ runner.os }}-r-${{ hashFiles('.github/workflows/tests.yml') }}
+          restore-keys: ${{ runner.os }}-r-
+
+      - name: Installer les paquets
+        shell: Rscript {0}
+        run: |
+          # Indispensables : sans eux la suite ne demarre pas.
+          requis <- c("testthat", "shiny", "shinydashboard")
+          # Facultatifs : leur absence transforme des tests reels en tests
+          # sautes. On les veut donc presents, mais leur echec d'installation
+          # ne doit pas faire tomber la CI.
+          souhaites <- c("ggplot2", "ggrepel", "DT", "dplyr", "FactoMineR",
+                         "openxlsx", "jsonlite", "httr", "car", "svglite",
+                         "scales", "stringr", "reshape2", "ggdendro", "digest",
+                         "base64enc", "rmarkdown")
+          install.packages(requis)
+          manquants <- requis[!vapply(requis, requireNamespace, logical(1), quietly = TRUE)]
+          if (length(manquants))
+            stop("Paquets indispensables absents : ", paste(manquants, collapse = ", "))
+          try(install.packages(souhaites), silent = TRUE)
+          absents <- souhaites[!vapply(souhaites, requireNamespace, logical(1), quietly = TRUE)]
+          if (length(absents))
+            cat("::warning::Paquets facultatifs absents, des tests seront sautes : ",
+                paste(absents, collapse = ", "), "\n", sep = "")
+
+      - name: Lancer la suite
+        shell: Rscript {0}
+        run: |
+          # test_dir("tests/testthat") et non "tests" : testthat traiterait
+          # aussi tests/testthat.R comme une suite, or son library(HStat)
+          # echoue tant que le paquet n'est pas installe.
+          res <- testthat::test_dir("tests/testthat", stop_on_failure = FALSE,
+                                    reporter = "summary")
+          df <- as.data.frame(res)
+          cat(sprintf("\nassertions : %d | echecs : %d | erreurs : %d | sautes : %d\n",
+                      sum(df$passed), sum(df$failed), sum(df$error), sum(df$skipped)))
+          if (sum(df$failed) + sum(df$error) > 0) quit(status = 1)

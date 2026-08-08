@@ -380,6 +380,250 @@ get_all_factor_candidates <- function(df, max_numeric_levels = 30) {
   nms[keep]
 }
 
+# Echappement HTML. Pose ici plutot que dans un module : le texte des
+# repondants (atelier de codage), les reponses d'un modele de langue et les
+# titres de rapport passent tous par la meme porte avant d'entrer dans le DOM.
+hstat_html_escape <- function(x) {
+  x <- as.character(x)
+  x[is.na(x)] <- ""
+  x <- gsub("&", "&amp;", x, fixed = TRUE)
+  x <- gsub("<", "&lt;",  x, fixed = TRUE)
+  x <- gsub(">", "&gt;",  x, fixed = TRUE)
+  x <- gsub('"', "&quot;", x, fixed = TRUE)
+  gsub("'", "&#39;", x, fixed = TRUE)
+}
+
+# ===========================================================================
+# PAQUET ABSENT : LE DIRE, ET PROPOSER UNE VOIE DE REPLI
+# ---------------------------------------------------------------------------
+# « Package 'klaR' indisponible. » est une impasse : l'utilisateur ne sait ni
+# comment l'installer, ni quoi faire en attendant. Or il y a presque toujours
+# une analyse voisine, deja disponible, qui repond a la meme question — moins
+# bien, mais tout de suite.
+#
+# Ces trois classifications reposent sur des paquets non installes par defaut.
+# Elles restent donc les seules analyses de l'application qui ne peuvent etre
+# ni executees ni testees sur une machine minimale, d'ou ce soin particulier.
+# ===========================================================================
+
+HSTAT_PKG_REPLI <- list(
+  klaR = paste("En attendant, une ACM sur les memes variables suivie d'une CAH",
+               "sur les coordonnees factorielles donne une classification",
+               "d'individus decrits par des variables qualitatives. Les deux",
+               "analyses sont disponibles dans cet onglet."),
+  poLCA = paste("En attendant, une ACM suivie d'une CAH degage des profils",
+                "comparables. Elle ne fournit pas les probabilites",
+                "d'appartenance ni les criteres AIC/BIC, mais elle repond a la",
+                "meme question : quels groupes d'individus se ressemblent ?"),
+  clustMixType = paste("En attendant, une AFDM (analyse factorielle de donnees",
+                       "mixtes) suivie d'une CAH traite egalement un melange de",
+                       "variables numeriques et qualitatives. Les deux analyses",
+                       "sont disponibles dans cet onglet."))
+
+hstat_pkg_manquant <- function(pkg, analyse = NULL) {
+  paste0(
+    if (!is.null(analyse)) paste0(analyse, " : ") else "",
+    sprintf("le paquet R « %s » n'est pas installe sur cette machine, ", pkg),
+    "cette analyse ne peut donc pas etre lancee. ",
+    sprintf("Pour l'ajouter : install.packages(\"%s\"), puis relancez ", pkg),
+    "HStat. ",
+    HSTAT_PKG_REPLI[[pkg]] %||% "")
+}
+
+# ---------------------------------------------------------------------------
+# QUALITE D'UNE PARTITION
+# Ces fonctions vivent ici, et non dans l'observateur qui les appelle, pour une
+# raison precise : klaR, poLCA et clustMixType sont absents de beaucoup de
+# machines, la CI comprise. Sortir le calcul du paquet le rend testable sur des
+# valeurs posees a la main — c'est la seule facon de garder ces analyses sous
+# controle sans pouvoir les executer.
+# ---------------------------------------------------------------------------
+
+# Pseudo-R2 d'une partition k-modes : part de la dissimilarite totale expliquee
+# par la partition. `d_tot` est la dissimilarite d'une partition a un seul
+# groupe (chaque variable ramenee a son mode).
+hstat_kmodes_pseudo_r2 <- function(withindiff, data) {
+  d_tot <- sum(vapply(as.data.frame(data), function(col) {
+    tb <- table(col)
+    if (!length(tb)) 0 else sum(tb) - max(tb)
+  }, numeric(1)))
+  tot <- sum(withindiff)
+  r2 <- if (is.finite(d_tot) && d_tot > 0) 1 - tot / d_tot else NA_real_
+  list(dissimilarite_intra = tot, dissimilarite_totale = d_tot,
+       pseudo_r2 = r2, verdict = hstat_seuil_verdict(r2, 0.50, 0.30))
+}
+
+# Entropie relative d'une classification latente : 1 = chaque individu affecte
+# sans ambiguite, 0 = affectations indiscernables.
+hstat_lca_entropie <- function(posterior) {
+  p <- as.matrix(posterior)
+  if (!nrow(p) || ncol(p) < 2)
+    return(list(entropie = NA_real_, entropie_relative = NA_real_,
+                verdict = "indeterminable"))
+  # Le plancher evite log(0) sans deplacer l'entropie de facon sensible.
+  ent <- -sum(p * log(p + 1e-12))
+  rel <- 1 - ent / (nrow(p) * log(ncol(p)))
+  list(entropie = ent, entropie_relative = rel,
+       verdict = hstat_seuil_verdict(rel, 0.80, 0.60))
+}
+
+# Equilibre des effectifs : une classe a 1 % n'est pas interpretable, quelle
+# que soit la qualite du reste.
+hstat_part_equilibre <- function(sizes, seuil = 0.05) {
+  n <- sum(sizes)
+  if (!length(sizes) || !is.finite(n) || n <= 0)
+    return(list(part_min = NA_real_, verdict = "indeterminable"))
+  part <- min(sizes) / n
+  list(part_min = part, effectifs = as.numeric(sizes),
+       verdict = if (!is.finite(part)) "indeterminable"
+                 else if (part >= seuil) "ok" else "warn")
+}
+
+# Verdict a trois niveaux sur une statistique bornee. Renvoie « indeterminable »
+# et non une erreur quand la statistique n'a pas pu etre calculee : brancher sur
+# un NA ferait tomber toute la sortie (cf. hstat_p_verdict).
+hstat_seuil_verdict <- function(x, seuil_ok, seuil_warn) {
+  if (length(x) != 1L || !is.finite(x)) return("indeterminable")
+  if (x >= seuil_ok) "ok" else if (x >= seuil_warn) "warn" else "err"
+}
+
+# ===========================================================================
+# TRADUCTION DES ERREURS R
+# ---------------------------------------------------------------------------
+# L'interface est en francais ; les erreurs de R, non. « data are essentially
+# constant » ou « incorrect number of dimensions » ne disent rien a un
+# utilisateur, et surtout ne disent pas QUOI FAIRE — c'est la seule chose qui
+# l'interesse a ce moment-la.
+#
+# Deux principes :
+#   1. Chaque traduction enonce la CAUSE puis le GESTE. « Variance nulle » ne
+#      suffit pas ; « toutes les valeurs sont identiques, choisissez une autre
+#      variable » se suit.
+#   2. Le message R d'origine n'est jamais supprime, il est mis entre
+#      parentheses. Sans lui, un utilisateur qui demande de l'aide n'a plus
+#      rien a montrer, et une erreur mal traduite devient indebuggable.
+#
+# Les motifs sont des expressions regulieres, testees dans l'ordre : le plus
+# specifique d'abord. Les messages de R dependant de la locale, on accepte les
+# deux formulations quand elles different.
+# ===========================================================================
+
+HSTAT_ERR_FR <- list(
+  list("data are essentially constant|essentiellement constant",
+       paste("La variable ne varie pas : toutes ses valeurs sont identiques (ou",
+             "presque). Aucun test ne peut comparer ce qui ne varie pas.",
+             "Choisissez une autre variable, ou verifiez que le filtre actif",
+             "n'a pas reduit vos donnees a un seul cas de figure.")),
+  list("all 'x' values are identical|values are identical",
+       paste("Toutes les observations portent la meme valeur. Le test n'a rien",
+             "a comparer. Verifiez la variable choisie et les filtres actifs.")),
+  list("sample size must be between 3 and 5000",
+       paste("Le test de Shapiro-Wilk exige entre 3 et 5000 observations.",
+             "Au-dela, utilisez un graphique quantile-quantile plutot qu'un",
+             "test : sur de tels effectifs, il rejetterait le moindre ecart.")),
+  list("not enough .?(x|y|finite)?.? observations|not enough observations",
+       paste("Effectif insuffisant pour ce test. Verifiez le nombre",
+             "d'observations non manquantes dans chaque groupe : un groupe vide",
+             "ou reduit a une seule observation suffit a bloquer le calcul.")),
+  list("grouping factor must have exactly 2 levels",
+       paste("Ce test compare exactement deux groupes, or le facteur choisi",
+             "n'en distingue pas deux. Pour plus de deux groupes, utilisez",
+             "l'ANOVA — ou Kruskal-Wallis si la normalite n'est pas acquise.")),
+  list("not enough 'x' observations|need at least 2 groups|at least two groups",
+       paste("Il faut au moins deux groupes comportant des observations, et",
+             "l'un d'eux est vide apres retrait des valeurs manquantes.",
+             "Verifiez les effectifs par groupe, et les filtres actifs.")),
+  list("contrasts can be applied only to factors with 2 or more levels",
+       paste("Une des variables explicatives ne prend qu'une seule modalite",
+             "dans les donnees analysees : elle n'apporte aucune information au",
+             "modele. Retirez-la, ou verifiez les filtres actifs.")),
+  list("incorrect number of dimensions",
+       paste("Le resultat ne comporte qu'un seul axe factoriel : il ne peut pas",
+             "etre represente dans un plan. C'est le cas courant d'une AFC",
+             "croisant une variable binaire (sexe, oui/non, avant/apres).",
+             "Croisez des variables comportant davantage de modalites.")),
+  list("exactly singular|computationally singular|singular matrix|matrice singuli",
+       paste("La matrice n'est pas inversible : au moins deux variables sont",
+             "redondantes (l'une se deduit des autres), ou il y a moins",
+             "d'observations que de variables. Retirez une des variables",
+             "correlees, ou augmentez l'effectif.")),
+  list("non-conformable arg",
+       paste("Les dimensions des tableaux combines ne correspondent pas.",
+             "Verifiez que toutes les variables retenues portent bien sur les",
+             "memes observations.")),
+  list("missing value where TRUE/FALSE needed",
+       paste("Une statistique n'a pas pu etre calculee (elle vaut NA) et une",
+             "decision en dependait. C'est le signe de donnees degenerees :",
+             "verifiez la variance et l'effectif de chaque groupe, ainsi que",
+             "le taux de valeurs manquantes.")),
+  list("0 \\(non-NA\\) cases|no complete element|complete\\.cases",
+       paste("Aucune observation ne renseigne toutes les variables choisies a",
+             "la fois. Retirez la variable la plus lacunaire, ou traitez les",
+             "valeurs manquantes dans l'onglet Nettoyage.")),
+  list("NA/NaN/Inf in foreign function call|infinite or missing values",
+       paste("Les donnees contiennent des valeurs manquantes ou infinies que ce",
+             "calcul n'accepte pas. Traitez-les dans l'onglet Nettoyage",
+             "(imputation ou retrait) avant de relancer.")),
+  list("undefined columns selected|subscript out of bounds",
+       paste("Une variable attendue est absente du jeu de donnees. Elle a sans",
+             "doute ete renommee ou retiree depuis le choix : reselectionnez",
+             "vos variables.")),
+  list("there is no package called",
+       paste("Un paquet R necessaire a cette analyse n'est pas installe.",
+             "Installez-le, puis relancez l'application ; cette analyse restera",
+             "indisponible en attendant, les autres continuent de fonctionner.")),
+  list("could not find function",
+       paste("Une fonction attendue est introuvable : le paquet qui la fournit",
+             "n'est pas installe ou n'a pas pu etre charge. Installez-le, puis",
+             "relancez l'application.")),
+  list("cannot open file|No such file or directory|impossible d'ouvrir",
+       paste("Le fichier n'a pas pu etre ouvert. Verifiez le chemin, que le",
+             "fichier n'a pas ete deplace, et vos droits d'acces.")),
+  list("arguments imply differing number of rows|replacement has .* rows",
+       paste("Les colonnes assemblees n'ont pas le meme nombre de lignes.",
+             "Verifiez que les jeux de donnees fusionnes portent bien sur les",
+             "memes observations.")),
+  list("approximation may be incorrect|approximation incorrecte",
+       paste("Certains effectifs theoriques sont inferieurs a 5 :",
+             "l'approximation du khi-deux devient douteuse. Utilisez le test",
+             "exact de Fisher, ou regroupez les modalites les moins",
+             "frequentes.")),
+  list("figure margins too large",
+       paste("La zone de trace est trop petite pour le graphique demande.",
+             "Agrandissez la fenetre, ou reduisez la taille des etiquettes.")),
+  list("argument \"name\" is missing",
+       paste("Erreur interne d'affichage. Signalez-la : elle vient du code de",
+             "l'application, pas de vos donnees.")),
+  list("must be numeric|not numeric|doit etre numerique",
+       paste("Ce calcul attend une variable numerique et a recu du texte ou une",
+             "categorie. Convertissez la variable dans l'onglet Nettoyage, ou",
+             "choisissez une variable numerique.")),
+  list("system is exactly singular|did not converge|ne converge pas",
+       paste("Le modele n'a pas converge. Les groupes sont probablement",
+             "parfaitement separes, ou l'effectif est trop faible pour le",
+             "nombre de parametres estimes. Simplifiez le modele.")))
+
+# Traduit une erreur R en francais actionnable. `e` accepte une condition ou
+# une chaine. `contexte` prefixe le message (« Test t : … ») quand l'appelant
+# sait de quelle analyse il s'agit.
+hstat_err_fr <- function(e, contexte = NULL) {
+  msg <- if (inherits(e, "condition")) conditionMessage(e) else as.character(e)[1]
+  msg <- trimws(paste(msg, collapse = " "))
+  if (!length(msg) || !nzchar(msg)) msg <- "erreur sans message"
+  prefixe <- if (!is.null(contexte) && nzchar(contexte))
+    paste0(contexte, " : ") else ""
+  for (r in HSTAT_ERR_FR) {
+    if (grepl(r[[1]], msg, ignore.case = TRUE, perl = TRUE))
+      # Le message d'origine reste entre parentheses : c'est ce qu'un
+      # utilisateur copiera pour demander de l'aide.
+      return(sprintf("%s%s (message R : %s)", prefixe, r[[2]], msg))
+  }
+  # Rien de connu : on ne masque pas, on annonce. Presenter un message anglais
+  # comme une phrase francaise serait pire que de dire qu'il ne l'est pas.
+  sprintf("%sL'analyse a echoue. Message renvoye par R (non traduit) : %s",
+          prefixe, msg)
+}
+
 # FactoMineR reduit ses coordonnees a un VECTEUR des que le resultat ne comporte
 # qu'un seul axe. C'est le cas d'une AFC croisant une variable BINAIRE avec une
 # autre (une table 3x2 ne porte qu'une dimension), situation tres courante en
@@ -3263,7 +3507,7 @@ hstat_merge_frames <- function(frames, type = "inner",
     .hstat_merge_frames_impl(frames, type, key_left, key_right, add_source,
                              source_names, source_col, source_mode),
     error = function(e) list(ok = FALSE, data = NULL,
-      msg = paste("Erreur pendant la fusion :", conditionMessage(e))))
+      msg = hstat_err_fr(e, "Fusion")))
   out
 }
 

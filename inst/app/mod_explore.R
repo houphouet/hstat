@@ -237,6 +237,20 @@ mod_explore_ui <- function(id) {
 }
 
 mod_explore_server <- function(id, values) {
+  # Depot du diagnostic de qualite pour l'aide a la decision. L'exploration ne
+  # produit pas de test : ce qu'elle a d'exploitable, ce sont les constats de
+  # qualite et les suggestions concretes qui en decoulent.
+  shiny::observeEvent(values$data, {
+    d <- values$data
+    if (is.null(d) || !NROW(d)) return()
+    dq <- tryCatch(hstat_data_quality(d), error = function(e) NULL)
+    hstat_ai_capture(values, "Exploration",
+      "Structure et qualite du jeu de donnees",
+      tables = list("Diagnostic de qualite" = dq),
+      meta = list(variables = names(d),
+                  observations = NROW(d), colonnes = NCOL(d)))
+  }, ignoreInit = FALSE)
+
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
   # ---- Exploration ----
@@ -393,7 +407,7 @@ mod_explore_server <- function(id, values) {
         legend_text_size = params$legend_text_size
       )
     }, error = function(e) {
-      showNotification(paste("Erreur lors de la création du graphique:", e$message), 
+      showNotification(hstat_err_fr(e, "Erreur lors de la création du graphique"), 
                        type = "error", duration = 5)
       return(NULL)
     })
@@ -422,7 +436,7 @@ mod_explore_server <- function(id, values) {
           legend_text_size = params$legend_text_size
         )
       }, error = function(e) {
-        showNotification(paste("Erreur téléchargement:", e$message), type = "error")
+        showNotification(hstat_err_fr(e, "Erreur téléchargement"), type = "error")
         return(NULL)
       })
       
@@ -506,7 +520,7 @@ mod_explore_server <- function(id, values) {
         rotate_labels = params$rotate_labels
       )
     }, error = function(e) {
-      showNotification(paste("Erreur lors de la création du graphique:", e$message), 
+      showNotification(hstat_err_fr(e, "Erreur lors de la création du graphique"), 
                        type = "error", duration = 5)
       return(NULL)
     })
@@ -533,7 +547,7 @@ mod_explore_server <- function(id, values) {
           rotate_labels = params$rotate_labels
         )
       }, error = function(e) {
-        showNotification(paste("Erreur téléchargement:", e$message), type = "error")
+        showNotification(hstat_err_fr(e, "Erreur téléchargement"), type = "error")
         return(NULL)
       })
       
