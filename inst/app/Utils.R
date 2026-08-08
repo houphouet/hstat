@@ -380,6 +380,31 @@ get_all_factor_candidates <- function(df, max_numeric_levels = 30) {
   nms[keep]
 }
 
+# FactoMineR reduit ses coordonnees a un VECTEUR des que le resultat ne comporte
+# qu'un seul axe. C'est le cas d'une AFC croisant une variable BINAIRE avec une
+# autre (une table 3x2 ne porte qu'une dimension), situation tres courante en
+# enquete : sexe, oui/non, avant/apres. `ncol()` vaut alors NULL et l'indexation
+# `[, 1:2]` echoue sur « incorrect number of dimensions ». On restitue
+# systematiquement une matrice avant tout usage.
+hstat_coord_mat <- function(x) {
+  if (is.null(x)) return(NULL)
+  if (is.null(dim(x)))
+    return(matrix(x, ncol = 1L, dimnames = list(names(x), "Dim 1")))
+  as.matrix(x)
+}
+
+# Verdict a TROIS etats sur une p-value : significatif / non significatif /
+# indeterminable. Un test statistique rend NA ou NaN des que ses donnees sont
+# degenerees (variance nulle, matrice singuliere, effectifs vides) ; brancher
+# alors directement dessus — `if (p < 0.05)` — leve « missing value where
+# TRUE/FALSE needed » et fait tomber la sortie entiere au lieu de signaler
+# poliment que le test n'a pas pu conclure.
+hstat_p_verdict <- function(p, alpha = 0.05) {
+  p <- suppressWarnings(as.numeric(p)[1])
+  if (!is.finite(p)) return("indeterminable")
+  if (p < alpha) "significatif" else "non significatif"
+}
+
 interpret_p_value <- function(p_value) {
   if (is.na(p_value)) {
     return("NA")
@@ -2530,7 +2555,11 @@ hstat_ref_test <- function(x, mu = 0, method = "ttest",
               format(mu))
     return(.hstat_ref_out(
       "TOST (équivalence à la norme)",
-      if (lo$p.value >= hi$p.value) unname(lo$statistic) else unname(hi$statistic),
+      # Statistique du test unilateral CONTRAIGNANT (celui de plus grande
+      # p-value : TOST conclut sur le maximum des deux). `isTRUE()` plutot
+      # qu'une comparaison nue : une p-value non calculable ne doit pas lever
+      # « missing value where TRUE/FALSE needed » au moment de l'affichage.
+      if (isTRUE(lo$p.value >= hi$p.value)) unname(lo$statistic) else unname(hi$statistic),
       unname(lo$parameter), p, m, mu, ci, (m - mu) / s, "d de Cohen",
       "two.sided", n, interp,
       paste0("Hypothèse nulle inversée : un p < 0,05 conclut à l'équivalence. ",

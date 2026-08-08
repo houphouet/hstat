@@ -5334,9 +5334,14 @@ server <- function(input, output, session) {
             pind <- factoextra::fviz_famd_ind(model, axes = axes, col.ind = cv_ind, gradient.cols = gc, addEllipses = use_ellipse, ellipse.type = "confidence",
                        repel = TRUE, max.overlaps = Inf, pointsize = ptsz, labelsize = lblsz,
                        label = ind_lab, ggtheme = th)
-            qv <- tryCatch(as.data.frame(model$quanti.var$coord), error = function(e) NULL)
-            if (!is.null(qv) && ncol(qv) >= 2) {
-              sc <- 0.9 * max(abs(range(c(model$ind$coord[,1], model$ind$coord[,2]))), na.rm = TRUE) /
+            qv <- tryCatch(as.data.frame(hstat_coord_mat(model$quanti.var$coord)),
+                           error = function(e) NULL)
+            # Le biplot superpose deux plans : il exige DEUX axes de chaque cote.
+            # Un modele reduit a une dimension n'en fournit qu'un, et
+            # `coord[, 2]` echouait ; on se rabat alors sur les seuls individus.
+            ind_co <- hstat_coord_mat(model$ind$coord)
+            if (!is.null(qv) && ncol(qv) >= 2 && !is.null(ind_co) && ncol(ind_co) >= 2) {
+              sc <- 0.9 * max(abs(range(c(ind_co[, 1], ind_co[, 2]))), na.rm = TRUE) /
                     max(abs(range(c(qv[,1], qv[,2]))), na.rm = TRUE)
               qv2 <- data.frame(x = qv[,1]*sc, y = qv[,2]*sc, lab = rownames(qv))
               pind <- pind +
@@ -5410,7 +5415,9 @@ server <- function(input, output, session) {
   mv_add_ind_ellipses <- function(p, model, prefix, group_values = NULL) {
     if (is.null(p)) return(p)
     if (!isTRUE(input[[paste0(prefix, "_ellipse")]])) return(p)
-    coord <- tryCatch(as.data.frame(model$ind$coord[, 1:2, drop = FALSE]),
+    coord <- tryCatch(as.data.frame(
+                        hstat_coord_mat(model$ind$coord)[
+                          , 1:min(2, ncol(hstat_coord_mat(model$ind$coord))), drop = FALSE]),
                       error = function(e) NULL)
     if (is.null(coord) || ncol(coord) < 2 || nrow(coord) < 3) return(p)
     names(coord)[1:2] <- c("Dim1", "Dim2")
@@ -6572,7 +6579,10 @@ server <- function(input, output, session) {
         n_low <- sum(comm < .40)
         cross <- sum(apply(abs(load), 1, function(r) sum(r > .30) > 1))
         st_kmo <- if (kmo >= .80) "ok" else if (kmo >= .60) "warn" else "err"
-        st_bar <- if (bart$p.value < .05) "ok" else "err"
+        # Matrice de correlations singuliere -> p = NA : on signale l'echec du
+        # test plutot que de faire tomber le tableau de metriques.
+        st_bar <- switch(hstat_p_verdict(bart$p.value),
+                         "significatif" = "ok", "non significatif" = "err", "warn")
         st_var <- if (var_exp >= .60) "ok" else if (var_exp >= .50) "warn" else "err"
         st_com <- if (n_low == 0) "ok" else "warn"
         st_cro <- if (cross == 0) "ok" else "warn"
@@ -6921,8 +6931,11 @@ server <- function(input, output, session) {
         # ---- Criteres de Campbell & Fiske ------------------------------------
         # C1 : validites significatives et suffisamment grandes.
         c1_sig <- mean(val$p < .05) * 100
-        st_c1 <- if (all(val$p < .05) && mean_val >= .50) "ok"
-                 else if (mean_val >= .30) "warn" else "err"
+        # all() sur un vecteur contenant NA rend NA, et `if (NA && ...)` echoue :
+        # une seule variable constante suffisait a faire tomber la matrice MTMM.
+        val_tous_sig <- isTRUE(all(is.finite(val$p)) && all(val$p < .05))
+        st_c1 <- if (val_tous_sig && isTRUE(mean_val >= .50)) "ok"
+                 else if (isTRUE(mean_val >= .30)) "warn" else "err"
         # C2 : chaque validite > correlations HT-heteroM partageant une variable.
         # C3 : chaque validite > correlations HT-monoM partageant une variable.
         cmp_pct <- function(ref_df) {
@@ -7303,7 +7316,9 @@ server <- function(input, output, session) {
         cramer <- sqrt(chi$statistic / (sum(tab) * (min(dim(tab)) - 1)))
         exp_low <- mean(chi$expected < 5) * 100
         dim12 <- sum(eig[1:min(2,nrow(eig)),2])
-        st_chi <- if (chi$p.value < .05) "ok" else "err"
+        # Table de contingence degeneree -> p = NA.
+        st_chi <- switch(hstat_p_verdict(chi$p.value),
+                         "significatif" = "ok", "non significatif" = "err", "warn")
         st_exp <- if (exp_low <= 20) "ok" else "warn"
         st_dim <- if (dim12 >= 70) "ok" else if (dim12 >= 50) "warn" else "err"
         st_cr  <- if (cramer >= .3) "ok" else if (cramer >= .1) "warn" else "err"
@@ -7327,12 +7342,13 @@ server <- function(input, output, session) {
                  "<= 20 % conseille pour la validite du Chi2",
                  if (st_exp=="ok") "Validite du Chi2 satisfaisante" else "Trop de cases a faible effectif",
                  st_exp))
-        rc <- as.data.frame(ca$row$coord[, 1:min(2,ncol(ca$row$coord)), drop = FALSE])
+        row_co <- hstat_coord_mat(ca$row$coord); col_co <- hstat_coord_mat(ca$col$coord)
+        rc <- as.data.frame(row_co[, 1:min(2, ncol(row_co)), drop = FALSE])
         if (ncol(rc) < 2) rc$D2 <- 0
-        names(rc)[1:2] <- c("Dim1","Dim2"); rc$Label <- rownames(ca$row$coord); rc$Type <- "Ligne"
-        cc <- as.data.frame(ca$col$coord[, 1:min(2,ncol(ca$col$coord)), drop = FALSE])
+        names(rc)[1:2] <- c("Dim1","Dim2"); rc$Label <- rownames(row_co); rc$Type <- "Ligne"
+        cc <- as.data.frame(col_co[, 1:min(2, ncol(col_co)), drop = FALSE])
         if (ncol(cc) < 2) cc$D2 <- 0
-        names(cc)[1:2] <- c("Dim1","Dim2"); cc$Label <- rownames(ca$col$coord); cc$Type <- "Colonne"
+        names(cc)[1:2] <- c("Dim1","Dim2"); cc$Label <- rownames(col_co); cc$Type <- "Colonne"
         biplot <- rbind(rc[,c("Dim1","Dim2","Label","Type")], cc[,c("Dim1","Dim2","Label","Type")])
         eig_df <- data.frame(Axe = rownames(eig), Valeur_propre = round(eig[,1],4),
                              Variance = round(eig[,2],2), Cumul = round(eig[,3],2))
@@ -7427,7 +7443,7 @@ server <- function(input, output, session) {
           mv_row("Seuil de contribution moyen", paste0(round(seuil_ctr,2)," %"),
                  "Une modalité contribue si CTR > 100/nb modalités",
                  "Référence pour reperer les modalités structurantes", "info"))
-        vc <- as.data.frame(mca$var$coord[, 1:min(2,ncol(mca$var$coord)), drop = FALSE])
+        vc <- as.data.frame(hstat_coord_mat(mca$var$coord)[, 1:min(2, ncol(hstat_coord_mat(mca$var$coord))), drop = FALSE])
         if (ncol(vc) < 2) vc$D2 <- 0
         names(vc)[1:2] <- c("Dim1","Dim2"); vc$Modalite <- rownames(mca$var$coord)
         eig_df <- data.frame(Axe = rownames(eig), Valeur_propre = round(eig[,1],4),
@@ -7479,7 +7495,8 @@ server <- function(input, output, session) {
               }
               # Modalités supplémentaires en vert (sur var/biplot)
               if (!is.null(mca$quali.sup) && pt %in% c("var","biplot")) {
-                qs <- as.data.frame(mca$quali.sup$coord[, 1:2, drop = FALSE])
+                qs_co <- hstat_coord_mat(mca$quali.sup$coord)
+                qs <- as.data.frame(qs_co[, 1:min(2, ncol(qs_co)), drop = FALSE])
                 names(qs) <- c("Dim1","Dim2"); qs$lab <- rownames(mca$quali.sup$coord)
                 pp <- pp + ggplot2::geom_point(data = qs, ggplot2::aes(Dim1, Dim2),
                              inherit.aes = FALSE, color = "#16a085", shape = 17,
@@ -7852,7 +7869,7 @@ server <- function(input, output, session) {
                  ">= 70-80 % conseille",
                  if (st_cum=="ok") "Bonne restitution cumulee" else "Restitution cumulee limitee",
                  st_cum))
-        ic <- as.data.frame(famd$ind$coord[, 1:min(2,ncol(famd$ind$coord)), drop = FALSE])
+        ic <- as.data.frame(hstat_coord_mat(famd$ind$coord)[, 1:min(2, ncol(hstat_coord_mat(famd$ind$coord))), drop = FALSE])
         if (ncol(ic) < 2) ic$D2 <- 0
         names(ic)[1:2] <- c("Dim1","Dim2")
         ic$label <- if (!is.null(rownames(famd$ind$coord))) rownames(famd$ind$coord) else as.character(seq_len(nrow(ic)))
@@ -7965,7 +7982,7 @@ server <- function(input, output, session) {
           mv_row("Blocs definis", paste0(length(qv), " quanti / ", length(cv), " quali"),
                  "Chaque bloc equilibre par sa 1re valeur propre",
                  "Structure en groupes de variables", "info"))
-        ic <- as.data.frame(mfa$ind$coord[, 1:min(2,ncol(mfa$ind$coord)), drop = FALSE])
+        ic <- as.data.frame(hstat_coord_mat(mfa$ind$coord)[, 1:min(2, ncol(hstat_coord_mat(mfa$ind$coord))), drop = FALSE])
         if (ncol(ic) < 2) ic$D2 <- 0
         names(ic)[1:2] <- c("Dim1","Dim2")
         ic$label <- if (!is.null(rownames(mfa$ind$coord))) rownames(mfa$ind$coord) else as.character(seq_len(nrow(ic)))

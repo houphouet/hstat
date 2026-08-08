@@ -2355,3 +2355,124 @@ test_that("toutes les familles d'analyse deposent un contexte", {
   for (m in attendu)
     expect_true(m %in% pose, info = paste("aucune capture pour :", m))
 })
+
+# =============================================================================
+#  ROBUSTESSE AUX STATISTIQUES NON CALCULABLES
+# =============================================================================
+
+test_that("hstat_p_verdict distingue trois etats, dont l'indeterminable", {
+  expect_equal(hstat_p_verdict(0.001), "significatif")
+  expect_equal(hstat_p_verdict(0.049), "significatif")
+  expect_equal(hstat_p_verdict(0.05), "non significatif")   # borne stricte
+  expect_equal(hstat_p_verdict(0.9), "non significatif")
+
+  # Le troisieme etat est la raison d'etre de la fonction : un test qui n'a pas
+  # pu conclure ne doit pas etre lu comme « non significatif ».
+  expect_equal(hstat_p_verdict(NA), "indeterminable")
+  expect_equal(hstat_p_verdict(NaN), "indeterminable")
+  expect_equal(hstat_p_verdict(NULL), "indeterminable")
+  expect_equal(hstat_p_verdict(Inf), "indeterminable")
+  expect_equal(hstat_p_verdict(character(0)), "indeterminable")
+  expect_equal(hstat_p_verdict("abc"), "indeterminable")
+
+  # Seuil ajustable
+  expect_equal(hstat_p_verdict(0.03, alpha = 0.01), "non significatif")
+  expect_equal(hstat_p_verdict(0.003, alpha = 0.01), "significatif")
+})
+
+test_that("le verdict rend l'ancien piege impossible", {
+  # C'est exactement le cas qui faisait tomber le diagnostic de Ljung-Box :
+  # des residus de variance nulle donnent p = NaN, et `if (p > 0.05)` levait
+  # « missing value where TRUE/FALSE needed ».
+  res <- rep(0, 40)
+  lb <- suppressWarnings(stats::Box.test(res, lag = 8, type = "Ljung-Box"))
+  expect_true(is.nan(lb$p.value))
+  expect_error(if (lb$p.value > 0.05) TRUE else FALSE)          # l'ancien code
+  expect_equal(hstat_p_verdict(lb$p.value), "indeterminable")   # le nouveau
+  # Et le verdict se consomme sans jamais brancher sur un NA
+  expect_silent(switch(hstat_p_verdict(lb$p.value),
+                       "significatif" = "a", "non significatif" = "b", "c"))
+})
+
+test_that("aucune condition ne branche directement sur une p-value non gardee", {
+  root <- file.path(.hstat_repo_root(), "inst", "app")
+  motif <- "if\\s*\\([^)]*\\$p\\.value\\s*[<>]"
+  trouve <- character(0)
+  for (f in list.files(root, pattern = "\\.R$", full.names = TRUE)) {
+    l <- readLines(f, warn = FALSE)
+    l <- l[!grepl("^\\s*#", l)]
+    hit <- grep(motif, l, value = TRUE)
+    # `isTRUE(...)` et `is.finite(...)` sont des gardes acceptables
+    hit <- hit[!grepl("isTRUE|isFALSE|is\\.finite|is\\.na", hit)]
+    if (length(hit)) trouve <- c(trouve, paste0(basename(f), " : ", hit))
+  }
+  expect_equal(trouve, character(0),
+               info = paste("conditions non gardees :", paste(trouve, collapse = " | ")))
+})
+
+test_that("hstat_coord_mat protege des coordonnees reduites a un vecteur", {
+  # Cas nominal : une matrice reste une matrice
+  m <- matrix(1:6, ncol = 3, dimnames = list(c("a","b"), paste("Dim", 1:3)))
+  expect_identical(dim(hstat_coord_mat(m)), c(2L, 3L))
+  expect_equal(colnames(hstat_coord_mat(m)), colnames(m))
+
+  # Cas du bug : un seul axe -> FactoMineR rend un vecteur nu
+  v <- c(a = 0.3, b = -0.2, c = 0.1)
+  out <- hstat_coord_mat(v)
+  expect_true(is.matrix(out))
+  expect_equal(dim(out), c(3L, 1L))
+  expect_equal(rownames(out), c("a","b","c"))
+  expect_equal(unname(out[, 1]), unname(v))
+  # ... et l'indexation qui echouait passe desormais
+  expect_error(v[, 1:min(2, ncol(v)), drop = FALSE])                    # avant
+  expect_silent(out[, 1:min(2, ncol(out)), drop = FALSE])               # apres
+
+  expect_null(hstat_coord_mat(NULL))
+  # Un data.frame de coordonnees est accepte aussi
+  expect_true(is.matrix(hstat_coord_mat(data.frame(x = 1:3, y = 4:6))))
+})
+
+test_that("une AFC croisant une variable binaire ne casse plus", {
+  skip_if_not(requireNamespace("FactoMineR", quietly = TRUE))
+  set.seed(4)
+  # Table 3x2 : une seule dimension. Cas tres courant (sexe, oui/non...).
+  d <- data.frame(groupe = sample(c("Temoin","A","B"), 90, TRUE),
+                  sexe = sample(c("F","H"), 90, TRUE), stringsAsFactors = FALSE)
+  tab <- table(d$groupe, d$sexe)
+  ca <- FactoMineR::CA(tab, graph = FALSE)
+
+  # FactoMineR reduit bien les coordonnees des lignes a un vecteur ici :
+  # c'est la cause exacte de « incorrect number of dimensions ».
+  expect_null(dim(ca$row$coord))
+
+  row_co <- hstat_coord_mat(ca$row$coord)
+  col_co <- hstat_coord_mat(ca$col$coord)
+  rc <- as.data.frame(row_co[, 1:min(2, ncol(row_co)), drop = FALSE])
+  if (ncol(rc) < 2) rc$D2 <- 0
+  names(rc)[1:2] <- c("Dim1", "Dim2")
+  expect_equal(nrow(rc), 3L)
+  expect_equal(names(rc)[1:2], c("Dim1", "Dim2"))
+  expect_equal(rownames(row_co), rownames(tab))
+
+  cc <- as.data.frame(col_co[, 1:min(2, ncol(col_co)), drop = FALSE])
+  if (ncol(cc) < 2) cc$D2 <- 0
+  expect_equal(nrow(cc), 2L)
+})
+
+test_that("aucune coordonnee FactoMineR n'est indexee sans passer par le garde-fou", {
+  root <- file.path(.hstat_repo_root(), "inst", "app")
+  fautes <- character(0)
+  for (f in list.files(root, pattern = "\\.R$", full.names = TRUE)) {
+    l <- readLines(f, warn = FALSE)
+    l <- l[!grepl("^\\s*#", l)]
+    # `<objet>$<champ>$coord[` sans hstat_coord_mat() sur la meme ligne
+    hit <- grep("\\$coord\\[", l, value = TRUE)
+    hit <- hit[!grepl("hstat_coord_mat", hit)]
+    # les acces a des axes explicitement choisis par l'utilisateur (axis_x/axis_y)
+    # portent deja leur propre validation en amont
+    hit <- hit[!grepl("axis_x|axis_y", hit)]
+    if (length(hit)) fautes <- c(fautes, paste0(basename(f), " : ", trimws(hit)))
+  }
+  expect_equal(fautes, character(0),
+               info = paste("indexations non protegees :", paste(fautes, collapse = " | ")))
+})
