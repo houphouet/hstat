@@ -3360,3 +3360,219 @@ test_that("l'interface propose de choisir la resolution", {
   # incorporerait 9000 px en base64 dans un onglet a chaque clic.
   expect_true(grepl("rep_figures(apercu = TRUE)", src, fixed = TRUE))
 })
+
+
+# ===========================================================================
+# AUDIT : DONNEES QUI CASSENT LA MISE EN FORME
+# ---------------------------------------------------------------------------
+# Cinq defauts trouves en soumettant les fonctions pures a des donnees
+# degenerees. Aucun ne levait d'erreur visible : ils produisaient un document
+# faux, ou un script que R refusait d'executer. Ce sont les pires.
+# ===========================================================================
+
+test_that("une barre verticale dans un NOM de colonne ne casse pas le tableau", {
+  d <- data.frame(a = 1:2, b = 3:4)
+  names(d) <- c("Rendement|t/ha", "normal")
+  md <- .hstat_rep_tableau_md(d)
+  lignes <- strsplit(md, "\n")[[1]]
+  # On compte les barres SEPARATRICES, donc non echappees : « \\| » appartient
+  # a une valeur et ne delimite aucune colonne.
+  sep <- function(s) lengths(gregexpr("(?<!\\\\)\\|", s, perl = TRUE))
+  # L'en-tete et le separateur doivent annoncer le MEME nombre de colonnes ;
+  # sinon le tableau ne se rend plus du tout.
+  expect_equal(sep(lignes[1]), sep(lignes[2]))
+  expect_equal(sep(lignes[1]), sep(lignes[3]))
+  # La barre du nom est echappee, donc toujours lisible
+  expect_true(grepl("Rendement\\|t/ha", md, fixed = TRUE))
+
+  # Et le rendu HTML ne doit pas inventer une colonne : le convertisseur doit
+  # honorer l'echappement au lieu de couper sur toutes les barres.
+  html <- .hstat_rep_md_to_html(md)
+  expect_equal(lengths(gregexpr("<th>", html)), 2L)
+  expect_true(grepl("<th>Rendement|t/ha</th>", html, fixed = TRUE))
+  expect_equal(lengths(gregexpr("<td>", html)), 4L)   # 2 lignes x 2 colonnes
+})
+
+test_that("un retour a la ligne dans une cellule ne scinde pas la ligne", {
+  # Cas reel : les reponses libres du module qualitatif en contiennent.
+  d <- data.frame(reponse = "trop cher\net livre en retard", n = 1L,
+                  stringsAsFactors = FALSE)
+  md <- .hstat_rep_tableau_md(d)
+  lignes <- strsplit(md, "\n")[[1]]
+  expect_length(lignes, 3L)              # en-tete, separateur, UNE ligne
+  expect_true(grepl("trop cher et livre en retard", md, fixed = TRUE))
+  # Meme protection sur un nom de colonne
+  d2 <- data.frame(x = 1); names(d2) <- "titre\nsur deux lignes"
+  expect_length(strsplit(.hstat_rep_tableau_md(d2), "\n")[[1]], 3L)
+})
+
+test_that("un crochet dans un titre de figure n'empeche pas son incorporation", {
+  skip_if_not_installed("base64enc")
+  png <- tempfile(fileext = ".png")
+  on.exit(unlink(png), add = TRUE)
+  grDevices::png(png, width = 240, height = 240); plot(1); grDevices::dev.off()
+
+  for (titre in c("Visualisation — Graphique : x]y",
+                  "Analyse [ACP] des donnees",
+                  "Titre\nsur deux lignes")) {
+    md <- hstat_report_markdown(list(), sections = "figures",
+            figures = data.frame(titre = titre, fichier = png,
+                                 stringsAsFactors = FALSE))
+    html <- .hstat_rep_images_html(.hstat_rep_md_to_html(md))
+    expect_true(grepl("<img src=\"data:image/png;base64,", html, fixed = TRUE),
+                info = titre)
+    # Le markdown brut ne doit jamais ressortir dans le document
+    expect_false(grepl("![", html, fixed = TRUE), info = titre)
+  }
+})
+
+test_that("le script du journal reste executable quel que soit le nom de colonne", {
+  # Le journal promet un script qui s'analyse et s'execute. Un accent grave
+  # dans un nom fermait la citation trop tot : R refusait le script entier.
+  noms <- c("a`b", "a\\b", "a\"b", "a; rm -rf /", "Rendement (t/ha)",
+            "variable é", "2021", "")
+  for (v in noms) {
+    h <- list(list(module = "Tests statistiques", title = "ANOVA",
+                   meta = list(variables = v, groupe = "g"), time = Sys.time()))
+    sc <- hstat_rlog_script(h)
+    expect_silent(parse(text = sc))
+  }
+  # La citation resiste, et le nom reste lisible
+  expect_equal(.hstat_rlog_nom("a`b"), "`a\\`b`")
+  expect_equal(.hstat_rlog_nom("simple"), "simple")
+  # Vectorise : un appel porte souvent plusieurs variables
+  expect_equal(.hstat_rlog_nom(c("x", "a b")), c("x", "`a b`"))
+})
+
+test_that("hstat_part_equilibre rend un verdict, jamais une erreur", {
+  # Passer le vecteur d'affectation au lieu de sa table est une confusion
+  # facile ; elle faisait tomber toute la sortie de l'analyse.
+  expect_equal(hstat_part_equilibre(factor(c("a", "a", "b")))$verdict,
+               "indeterminable")
+  expect_equal(hstat_part_equilibre(c("a", "b"))$verdict, "indeterminable")
+  expect_equal(hstat_part_equilibre(list())$verdict, "indeterminable")
+  expect_equal(hstat_part_equilibre(c(NA, NaN, Inf))$verdict, "indeterminable")
+  # Des effectifs en texte restent exploitables
+  expect_equal(hstat_part_equilibre(c("96", "4"))$verdict, "warn")
+  # Le comportement nominal est intact
+  expect_equal(hstat_part_equilibre(c(50, 50))$verdict, "ok")
+  expect_equal(hstat_part_equilibre(table(rep(c("a", "b"), c(96, 4))))$verdict,
+               "warn")
+})
+
+
+# ===========================================================================
+# AUDIT : NE RIEN CONSEILLER SUR UNE VARIABLE VIDE
+# ---------------------------------------------------------------------------
+# Le plus grave defaut de cette passe : le moteur de recommandation conseillait
+# un chi-deux d'independance sur une colonne entierement vide. Conseiller avec
+# aplomb une analyse impossible est pire que ne rien conseiller — c'est ce
+# qu'un utilisateur suit sans se mefier.
+# ===========================================================================
+
+test_that("une variable sans aucune valeur n'a pas de type", {
+  # Le piege : unique(na.omit(x)) est vide, donc de longueur 0 <= 2, et la
+  # variable etait typee « binaire ».
+  expect_equal(.hstat_reco_type(rep(NA, 30)), "indeterminable")
+  expect_equal(.hstat_reco_type(rep(NA_character_, 30)), "indeterminable")
+  expect_equal(.hstat_reco_type(rep(NA_real_, 30)), "indeterminable")
+  expect_equal(.hstat_reco_type(logical(0)), "indeterminable")
+  expect_equal(.hstat_reco_type(NULL), "indeterminable")
+  # Le typage normal est intact
+  expect_equal(.hstat_reco_type(rnorm(50)), "quantitative")
+  expect_equal(.hstat_reco_type(c(0, 1, 1, 0)), "binaire")
+  expect_equal(.hstat_reco_type(factor(c("a", "b", "c"))), "categorielle")
+  expect_equal(.hstat_reco_type(c(TRUE, FALSE, NA)), "binaire")
+})
+
+test_that("aucune analyse n'est recommandee sur une variable vide", {
+  d <- data.frame(vide = rep(NA, 40), g = rep(c("a", "b"), 20))
+  reco <- hstat_reco_analyses(hstat_data_profile(d, "vide", "g"))
+  expect_true(NROW(reco) >= 1)
+  # Plus aucun test statistique propose
+  expect_false(any(grepl("chi-deux|Chi-deux|Student|Mann-Whitney|ANOVA",
+                         reco$Analyse)))
+  # A la place, un constat bloquant qui nomme la variable et dit quoi faire
+  expect_true(any(reco$Pertinence == "Bloquant"))
+  bloc <- reco[reco$Pertinence == "Bloquant", ][1, ]
+  expect_true(grepl("vide", bloc$Analyse, fixed = TRUE) ||
+              grepl("Aucune analyse", bloc$Analyse, fixed = TRUE))
+  expect_true(grepl("« vide »", bloc$Pourquoi, fixed = TRUE))
+  expect_true(grepl("Nettoyage", bloc[["Si non remplies"]], fixed = TRUE))
+
+  # Une variable vide parmi d'autres n'empeche pas de conseiller sur le reste
+  d2 <- data.frame(vide = rep(NA, 40), x = rnorm(40), g = rep(c("a", "b"), 20))
+  r2 <- hstat_reco_analyses(hstat_data_profile(d2, c("vide", "x"), "g"))
+  expect_true(any(r2$Pertinence == "Bloquant"))
+  expect_true(any(grepl("Student|Mann-Whitney|Welch", r2$Analyse)))
+})
+
+test_that("le profil compte les variables par type sans compter les vides", {
+  d <- data.frame(vide = rep(NA, 20), x = rnorm(20), g = rep(c("a", "b"), 10))
+  p <- hstat_data_profile(d, c("vide", "x"), "g")
+  expect_equal(p$variables$vide$type, "indeterminable")
+  expect_equal(p$variables$vide$n, 0L)
+  expect_equal(p$n_quanti, 1L)     # seule `x` compte
+  expect_equal(p$n_quali, 0L)      # `vide` n'est plus prise pour une binaire
+  # Une variable vide n'a pas de test de normalite
+  expect_null(p$variables$vide$normale)
+})
+
+test_that("le resume du rapport ne montre aucun nom de classe R en anglais", {
+  d <- data.frame(vide = rep(NA, 5), x = 1:5, g = c("a","b","a","b","a"),
+                  d = as.Date("2026-01-01") + 0:4,
+                  b = c(TRUE, FALSE, TRUE, FALSE, TRUE),
+                  stringsAsFactors = FALSE)
+  r <- hstat_report_resume_donnees(d)
+  expect_false(any(r$Type %in% c("logical", "integer", "character", "factor",
+                                 "numeric", "Date")))
+  expect_equal(r$Type[r$Variable == "vide"], "vide (aucune valeur)")
+  expect_equal(r$Type[r$Variable == "b"], "binaire (vrai / faux)")
+  expect_equal(r$Type[r$Variable == "d"], "date")
+  expect_equal(r$Type[r$Variable == "x"], "numerique")
+})
+
+
+# ===========================================================================
+# AUDIT : LE POLYFILL OBSOLETE DE PLOTLY
+# ---------------------------------------------------------------------------
+# plotly attache un polyfill « typedarray » destine aux navigateurs sans
+# tableaux types (IE9). Son code reference `GLOBAL`, variable de Node.js
+# inexistante dans un navigateur : une ReferenceError etait levee sur chaque
+# page portant un graphique interactif. Rien ne cassait, mais une erreur
+# permanente en console masque les vraies.
+# ===========================================================================
+
+test_that("le polyfill typedarray est retire des graphiques interactifs", {
+  skip_if_not_installed("plotly")
+  p <- plotly::plot_ly(x = 1:3, y = 1:3, type = "scatter", mode = "markers")
+  avant <- vapply(plotly::plotly_build(p)$dependencies,
+                  function(d) d$name, character(1))
+  # Le polyfill est bien la avant nettoyage : sans cela le test ne prouve rien.
+  skip_if_not("typedarray" %in% avant,
+              "cette version de plotly n'attache plus typedarray")
+
+  b <- hstat_plotly_clean(p)
+  apres <- vapply(b$dependencies, function(d) d$name, character(1))
+  expect_false("typedarray" %in% apres)
+  # Et plotly lui-meme doit rester : retirer trop casserait tout affichage.
+  expect_true(any(grepl("plotly", apres)))
+  expect_true(inherits(b, "plotly"))
+  # Idempotent, et tolerant a l'absence d'objet
+  expect_false("typedarray" %in%
+    vapply(hstat_plotly_clean(b)$dependencies, function(d) d$name, character(1)))
+  expect_null(hstat_plotly_clean(NULL))
+})
+
+test_that("le nettoyage est pose sur renderPlotly, pas sur chaque appel", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- paste(readLines(file.path(root, "inst", "app", "Utils.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # Habiller chaque appel ne marcherait pas : leurs corps comportent des
+  # `return()` qui sauteraient le nettoyage. C'est `exprToFunction` qui rend
+  # l'interception correcte.
+  expect_true(grepl("renderPlotly <- function", src, fixed = TRUE))
+  expect_true(grepl("exprToFunction", src, fixed = TRUE))
+  expect_true(grepl("hstat_plotly_clean(fn())", src, fixed = TRUE))
+})

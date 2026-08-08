@@ -63,10 +63,16 @@ hstat_report_resume_donnees <- function(df, max_vars = 60L) {
   vars <- utils::head(names(df), max_vars)
   type <- vapply(vars, function(v) {
     x <- df[[v]]
-    if (is.numeric(x)) "numerique"
+    # Une colonne entierement vide est lue comme `logical` par les lecteurs de
+    # CSV. Rendre « logical » tel quel affichait un nom de classe R anglais au
+    # milieu d'un tableau francais, et ne disait pas ce qui compte : la colonne
+    # est vide. Le repli final reste traduit pour la meme raison.
+    if (all(is.na(x))) "vide (aucune valeur)"
+    else if (is.numeric(x)) "numerique"
     else if (is.factor(x) || is.character(x)) "categorielle"
     else if (inherits(x, c("Date", "POSIXct"))) "date"
-    else class(x)[1]
+    else if (is.logical(x)) "binaire (vrai / faux)"
+    else sprintf("autre (%s)", class(x)[1])
   }, character(1))
   data.frame(
     Variable = vars, Type = unname(type),
@@ -183,6 +189,16 @@ hstat_report_figures <- function(history, dossier = tempdir(),
 # Le corps est ecrit en MARKDOWN : c'est le seul format que pandoc convertit
 # vers Word et PDF, et que l'on sait aussi rendre en HTML sans lui.
 
+# Texte alternatif d'une image markdown. Crochets et retours a la ligne y sont
+# structurants : `![Graphique : x]y](fig.png)` se lit comme un lien ferme apres
+# « x », l'image n'est plus reconnue, et `![...](...)` ressort tel quel dans le
+# document. Le titre vient d'un nom d'analyse, donc de donnees utilisateur.
+.hstat_rep_alt <- function(x) {
+  x <- gsub("[\r\n]+", " ", as.character(x))
+  x <- gsub("[][]", "", x)
+  trimws(x)
+}
+
 .hstat_rep_tableau_md <- function(df, max_lignes = 40L) {
   df <- as.data.frame(df)
   if (!nrow(df) || !ncol(df)) return("*(tableau vide)*")
@@ -191,13 +207,26 @@ hstat_report_figures <- function(history, dossier = tempdir(),
   n_total <- nrow(df)
   tronque <- n_total > max_lignes
   df <- utils::head(df, max_lignes)
+  # Un tableau markdown vit sur UNE ligne par enregistrement, et la barre
+  # verticale y est le separateur de colonnes. Deux caracteres le detruisent
+  # donc, et tous deux arrivent de vraies donnees :
+  #   - le retour a la ligne, omnipresent dans les reponses libres du module
+  #     qualitatif : la ligne se scinde et tout le tableau part de travers ;
+  #   - la barre verticale, qu'un en-tete de CSV peut porter (« Rendement|t/ha »).
+  # Les valeurs etaient deja protegees, PAS les noms de colonnes : l'en-tete
+  # annoncait alors une colonne de plus que le separateur, et le tableau ne se
+  # rendait plus du tout.
+  md_cell <- function(x) {
+    x <- gsub("[\r\n]+", " ", as.character(x))
+    gsub("|", "\\|", x, fixed = TRUE)
+  }
   fmt <- function(x) {
     if (is.numeric(x)) ifelse(is.na(x), "", format(signif(x, 5), trim = TRUE))
-    else ifelse(is.na(x), "", gsub("|", "\\|", as.character(x), fixed = TRUE))
+    else ifelse(is.na(x), "", md_cell(x))
   }
   cellules <- lapply(df, fmt)
   lignes <- c(
-    paste0("| ", paste(names(df), collapse = " | "), " |"),
+    paste0("| ", paste(md_cell(names(df)), collapse = " | "), " |"),
     paste0("|", paste(rep(" --- ", ncol(df)), collapse = "|"), "|"),
     vapply(seq_len(nrow(df)), function(i)
       paste0("| ", paste(vapply(cellules, function(c) c[i], character(1)),
@@ -266,7 +295,11 @@ hstat_report_markdown <- function(history, titre = "Rapport d'analyse",
       L <- c(L, sprintf("**Figure %d — %s**", i, figures$titre[i]), "",
              # Chemin de fichier : pandoc l'incorpore dans le .docx, et le rendu
              # HTML le remplace par l'image en base64 (document autonome).
-             sprintf("![%s](%s)", figures$titre[i], figures$fichier[i]), "")
+             # Le texte alternatif est ASSAINI : un crochet dans un titre
+             # d'analyse fermait le `![...]` trop tot, l'image n'etait plus
+             # reconnue et le markdown brut ressortait dans le document.
+             sprintf("![%s](%s)", .hstat_rep_alt(figures$titre[i]),
+                     figures$fichier[i]), "")
     }
   }
 
@@ -317,7 +350,11 @@ hstat_report_markdown <- function(history, titre = "Rapport d'analyse",
 
 .hstat_rep_cellules <- function(t) {
   t <- sub("^\\|", "", t); t <- sub("\\|$", "", t)
-  trimws(strsplit(t, "|", fixed = TRUE)[[1]])
+  # Decoupe sur les barres NON echappees seulement. Une barre appartenant a une
+  # valeur est ecrite « \| » par `.hstat_rep_tableau_md` ; la couper ici
+  # ajouterait une colonne fantome et decalerait toute la ligne.
+  cel <- strsplit(t, "(?<!\\\\)\\|", perl = TRUE)[[1]]
+  trimws(gsub("\\|", "|", cel, fixed = TRUE))
 }
 
 .hstat_rep_md_to_html <- function(txt) {

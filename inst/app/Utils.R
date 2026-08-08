@@ -394,6 +394,44 @@ hstat_html_escape <- function(x) {
 }
 
 # ===========================================================================
+# GRAPHIQUES INTERACTIFS : RETIRER LE POLYFILL OBSOLETE DE PLOTLY
+# ---------------------------------------------------------------------------
+# plotly attache une dependance « typedarray », polyfill destine aux
+# navigateurs depourvus de tableaux types (IE9). Son code reference `GLOBAL`,
+# une variable de Node.js qui n'existe pas dans un navigateur : il leve donc
+# une ReferenceError des qu'il est evalue, sur CHAQUE page portant un
+# graphique interactif. Rien ne casse — les tableaux types sont natifs partout
+# depuis 2012 — mais la console d'un utilisateur qui l'ouvre est polluee par
+# une erreur permanente, et une erreur permanente masque les vraies.
+#
+# `plotly_build()` est appele ici parce que la dependance n'est attachee qu'a
+# la construction ; le rendu l'appellerait de toute facon, le cout ne fait que
+# changer de place.
+# ===========================================================================
+hstat_plotly_clean <- function(p) {
+  if (is.null(p)) return(p)
+  b <- tryCatch(plotly::plotly_build(p), error = function(e) NULL)
+  if (is.null(b)) return(p)
+  if (!is.null(b$dependencies))
+    b$dependencies <- Filter(function(d) !identical(d$name, "typedarray"),
+                             b$dependencies)
+  b
+}
+
+# Le nettoyage est pose sur `renderPlotly` lui-meme plutot qu'a chacun des
+# appels : les corps de ces sorties comportent plusieurs `return()`, et un
+# habillage de l'expression serait purement et simplement saute par le premier
+# d'entre eux. `exprToFunction` transforme le bloc en fonction — le `return()`
+# en sort alors normalement, et la valeur passe bien par le nettoyage.
+if (.hstat_has("plotly")) {
+  renderPlotly <- function(expr, env = parent.frame(), quoted = FALSE) {
+    fn <- shiny::exprToFunction(expr, env, quoted)
+    plotly::renderPlotly(hstat_plotly_clean(fn()),
+                         env = environment(), quoted = FALSE)
+  }
+}
+
+# ===========================================================================
 # PAQUET ABSENT : LE DIRE, ET PROPOSER UNE VOIE DE REPLI
 # ---------------------------------------------------------------------------
 # « Package 'klaR' indisponible. » est une impasse : l'utilisateur ne sait ni
@@ -470,6 +508,16 @@ hstat_lca_entropie <- function(posterior) {
 # Equilibre des effectifs : une classe a 1 % n'est pas interpretable, quelle
 # que soit la qualite du reste.
 hstat_part_equilibre <- function(sizes, seuil = 0.05) {
+  # Les modules fournissent tantot des effectifs (`km$size`), tantot une
+  # `table()`. Un appelant qui passerait le VECTEUR d'affectation plutot que sa
+  # table — confusion facile — envoyait ici un facteur, sur lequel `sum()`
+  # echoue (« 'sum' not meaningful for factors ») et faisait tomber toute la
+  # sortie. La fonction promet un verdict, pas une erreur : on convertit ce qui
+  # se convertit, et on rend « indeterminable » sur le reste.
+  if (is.factor(sizes) || is.character(sizes))
+    sizes <- suppressWarnings(as.numeric(as.character(sizes)))
+  sizes <- suppressWarnings(as.numeric(sizes))
+  sizes <- sizes[is.finite(sizes)]
   n <- sum(sizes)
   if (!length(sizes) || !is.finite(n) || n <= 0)
     return(list(part_min = NA_real_, verdict = "indeterminable"))
