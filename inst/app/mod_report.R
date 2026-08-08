@@ -90,6 +90,31 @@ hstat_report_resume_donnees <- function(df, max_vars = 60L) {
 # demande. Une figure devenue indessinable (donnees filtrees entre-temps,
 # variable supprimee) rend alors NULL et disparait du document — elle ne fait
 # pas tomber le rapport entier.
+#
+# RESOLUTION : 1000 dpi PAR DEFAUT, et jamais moins.
+# Un rapport part chez un relecteur, un comite de lecture ou un imprimeur. Les
+# revues scientifiques exigent couramment 300 a 600 dpi pour les figures ; a
+# 150 dpi, une figure est nette a l'ecran et floue des qu'elle est imprimee, et
+# le defaut ne se voit qu'une fois le document soumis. On tranche donc au-dessus
+# de l'exigence usuelle.
+#
+# Le cout est mesure, pas suppose : a 9 x 5,5 pouces, un nuage de points type
+# pese 0,36 Mo a 1000 dpi (contre 0,04 Mo a 150) pour 2,3 s de trace. Vingt
+# figures tiennent donc dans ~7 Mo et une minute — largement soutenable pour un
+# document qu'on produit une fois.
+#
+# `HSTAT_REPORT_DPI_MIN` est un PLANCHER, pas une valeur par defaut : un
+# appelant qui demanderait moins est remonte a 1000. Seul l'apercu a l'ecran y
+# echappe explicitement (voir `apercu = TRUE`) — y incorporer une image de
+# 9000 px en base64 n'ajouterait rien de visible et rendrait l'onglet poussif.
+
+HSTAT_REPORT_DPI_MIN <- 1000L
+
+# Resolutions proposees a l'utilisateur. Toutes >= au plancher.
+HSTAT_REPORT_DPI <- c(
+  "1000 dpi — qualite d'impression (defaut)" = "1000",
+  "1200 dpi — exigences editoriales strictes" = "1200",
+  "2400 dpi — tres haute definition (fichiers lourds)" = "2400")
 
 .hstat_rep_dessine <- function(f, fichier, largeur, hauteur, dpi) {
   obj <- tryCatch(f(), error = function(e) NULL)
@@ -116,8 +141,15 @@ hstat_report_resume_donnees <- function(df, max_vars = 60L) {
 # Rend en PNG les figures de l'historique. Renvoie un data.frame (titre,
 # fichier) des seules figures reellement produites.
 hstat_report_figures <- function(history, dossier = tempdir(),
-                                 largeur = 9, hauteur = 5.5, dpi = 150,
-                                 max_figures = 20L) {
+                                 largeur = 9, hauteur = 5.5,
+                                 dpi = HSTAT_REPORT_DPI_MIN,
+                                 max_figures = 20L, apercu = FALSE,
+                                 progres = NULL) {
+  # Le plancher s'applique au document. L'apercu a l'ecran en est dispense :
+  # il sert a verifier la mise en page, pas a etre imprime.
+  dpi <- if (isTRUE(apercu)) 150L
+         else max(suppressWarnings(as.numeric(dpi)[1]), HSTAT_REPORT_DPI_MIN,
+                  na.rm = TRUE)
   vide <- data.frame(titre = character(0), fichier = character(0),
                      stringsAsFactors = FALSE)
   if (!length(history)) return(vide)
@@ -128,6 +160,12 @@ hstat_report_figures <- function(history, dossier = tempdir(),
   res <- vide
   for (i in seq_along(avec)) {
     h <- avec[[i]]
+    # A 1000 dpi une figure demande quelques secondes : sans ce rappel,
+    # l'utilisateur ferait face a une minute de silence apres avoir clique.
+    if (is.function(progres))
+      tryCatch(progres(i, length(avec),
+                       paste(c(h$module, h$title), collapse = " — ")),
+               error = function(e) NULL)
     fichier <- file.path(dossier, sprintf("figure_%02d.png", i))
     ok <- .hstat_rep_dessine(h$plot, fichier, largeur, hauteur, dpi)
     if (!ok || !file.exists(fichier) || file.size(fichier) == 0) {

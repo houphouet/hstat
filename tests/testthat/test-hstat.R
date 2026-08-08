@@ -3245,3 +3245,118 @@ test_that("aucune des trois analyses ne renvoie encore un message d'impasse", {
                 info = pkg)
   }
 })
+
+
+# ===========================================================================
+# RESOLUTION DES FIGURES DU RAPPORT
+# ---------------------------------------------------------------------------
+# Un rapport part chez un relecteur ou un imprimeur : a 150 dpi une figure est
+# nette a l'ecran et floue sur papier, et le defaut ne se voit qu'une fois le
+# document remis. D'ou un PLANCHER, verifie sur les pixels reellement produits
+# et non sur l'argument passe.
+# ===========================================================================
+
+# Dimensions lues dans l'en-tete IHDR du PNG. Ecrit a la main plutot que confie
+# a un paquet : `png` n'est pas garanti present, et l'en-tete PNG tient en
+# quatre octets par dimension a des positions fixes.
+.hstat_png_dims <- function(f) {
+  r <- readBin(f, "raw", 33L)
+  if (length(r) < 24L) return(c(largeur = NA_integer_, hauteur = NA_integer_))
+  ent <- function(i) sum(as.integer(r[i:(i + 3L)]) * c(2^24, 2^16, 2^8, 1))
+  c(largeur = ent(17L), hauteur = ent(21L))
+}
+
+.hstat_hist_figure <- function() list(
+  list(module = "Visualisation", title = "Nuage", time = Sys.time(),
+       meta = list(), tables = list(),
+       plot = function() ggplot2::ggplot(data.frame(x = 1:8, y = (1:8)^2),
+                                         ggplot2::aes(x, y)) + ggplot2::geom_point()))
+
+test_that("le plancher de resolution est bien de 1000 dpi", {
+  expect_gte(HSTAT_REPORT_DPI_MIN, 1000L)
+  # Toutes les resolutions proposees respectent le plancher
+  expect_true(all(as.numeric(HSTAT_REPORT_DPI) >= HSTAT_REPORT_DPI_MIN))
+  expect_equal(unname(HSTAT_REPORT_DPI[1]), "1000")
+})
+
+test_that("une figure de rapport sort a 1000 dpi par defaut", {
+  skip_if_not_installed("ggplot2")
+  d <- file.path(tempdir(), paste0("hstat_dpi_", as.integer(runif(1, 1e6, 1e7))))
+  on.exit(unlink(d, recursive = TRUE), add = TRUE)
+  f <- hstat_report_figures(.hstat_hist_figure(), dossier = d)
+  expect_equal(nrow(f), 1L)
+  px <- .hstat_png_dims(f$fichier[1])
+  # 9 x 5,5 pouces a 1000 dpi. On verifie les PIXELS produits, pas l'argument :
+  # un ggsave qui ignorerait le dpi passerait autrement inapercu.
+  expect_equal(unname(px[["largeur"]]), 9000)
+  expect_equal(unname(px[["hauteur"]]), 5500)
+})
+
+test_that("une resolution inferieure au plancher est remontee, pas obeie", {
+  skip_if_not_installed("ggplot2")
+  d <- file.path(tempdir(), paste0("hstat_dpi_", as.integer(runif(1, 1e6, 1e7))))
+  on.exit(unlink(d, recursive = TRUE), add = TRUE)
+  for (bas in list(72, 150, 300, NA, "", NULL)) {
+    f <- hstat_report_figures(.hstat_hist_figure(), dossier = d, dpi = bas)
+    px <- .hstat_png_dims(f$fichier[1])
+    expect_equal(unname(px[["largeur"]]), 9000,
+                 info = paste("dpi demande :", paste(bas, collapse = "")))
+  }
+})
+
+test_that("une resolution superieure au plancher est respectee", {
+  skip_if_not_installed("ggplot2")
+  d <- file.path(tempdir(), paste0("hstat_dpi_", as.integer(runif(1, 1e6, 1e7))))
+  on.exit(unlink(d, recursive = TRUE), add = TRUE)
+  f <- hstat_report_figures(.hstat_hist_figure(), dossier = d, dpi = 1200)
+  px <- .hstat_png_dims(f$fichier[1])
+  expect_equal(unname(px[["largeur"]]), 10800)
+  # La chaine de caracteres du selecteur doit marcher comme le nombre
+  f2 <- hstat_report_figures(.hstat_hist_figure(), dossier = d, dpi = "1200")
+  expect_equal(unname(.hstat_png_dims(f2$fichier[1])[["largeur"]]), 10800)
+})
+
+test_that("seul l'apercu a l'ecran echappe au plancher", {
+  skip_if_not_installed("ggplot2")
+  d <- file.path(tempdir(), paste0("hstat_dpi_", as.integer(runif(1, 1e6, 1e7))))
+  on.exit(unlink(d, recursive = TRUE), add = TRUE)
+  f <- hstat_report_figures(.hstat_hist_figure(), dossier = d, apercu = TRUE)
+  px <- .hstat_png_dims(f$fichier[1])
+  expect_equal(unname(px[["largeur"]]), 1350)   # 9 pouces a 150 dpi
+  # L'apercu ignore meme une resolution elevee explicitement demandee : il sert
+  # a verifier la mise en page, pas a etre imprime.
+  f2 <- hstat_report_figures(.hstat_hist_figure(), dossier = d,
+                             apercu = TRUE, dpi = 2400)
+  expect_equal(unname(.hstat_png_dims(f2$fichier[1])[["largeur"]]), 1350)
+})
+
+test_that("la progression est rapportee figure par figure", {
+  skip_if_not_installed("ggplot2")
+  d <- file.path(tempdir(), paste0("hstat_dpi_", as.integer(runif(1, 1e6, 1e7))))
+  on.exit(unlink(d, recursive = TRUE), add = TRUE)
+  h <- rep(.hstat_hist_figure(), 3)
+  vus <- list()
+  hstat_report_figures(h, dossier = d, apercu = TRUE,
+                       progres = function(i, n, titre) vus[[length(vus) + 1L]] <<- c(i, n))
+  expect_length(vus, 3L)
+  expect_equal(vapply(vus, function(x) x[1], numeric(1)), c(1, 2, 3))
+  expect_true(all(vapply(vus, function(x) x[2], numeric(1)) == 3))
+
+  # Un rappel qui echoue ne doit pas emporter le rapport : la progression est
+  # un confort, les figures sont le livrable.
+  expect_silent(f <- hstat_report_figures(h, dossier = d, apercu = TRUE,
+                                          progres = function(i, n, t) stop("boum")))
+  expect_equal(nrow(f), 3L)
+})
+
+test_that("l'interface propose de choisir la resolution", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- paste(readLines(file.path(root, "inst", "app", "mod_ai.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("rep_dpi", src, fixed = TRUE))
+  expect_true(grepl("HSTAT_REPORT_DPI", src, fixed = TRUE))
+  # L'apercu passe par apercu = TRUE, le telechargement non : sans cela on
+  # incorporerait 9000 px en base64 dans un onglet a chaque clic.
+  expect_true(grepl("rep_figures(apercu = TRUE)", src, fixed = TRUE))
+})
