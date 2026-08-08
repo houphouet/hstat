@@ -91,7 +91,15 @@ namespacé (`mod_descriptive`, `mod_ml`…) porte le sien dans son propre
 `moduleServer` — `input$numVars` n'a aucun sens dans `app_server.R`.
 
 Un test vérifie qu'aucune famille d'analyse n'est oubliée : ajouter un onglet
-d'analyse sans y poser de `hstat_ai_capture()` le fait échouer.
+d'analyse sans y poser de `hstat_ai_capture()` le fait échouer. Les **15**
+familles sont couvertes, exploration et nettoyage compris.
+
+Le registre n'a qu'un emplacement : la dernière analyse gagne. Un module ne doit
+donc revendiquer le contexte que s'il a **réellement agi** — `mod_filter` se tait
+tant qu'aucun filtre n'a retiré d'observation, `mod_clean` tant qu'aucune
+transformation n'a été appliquée. Sans cette réserve, trois modules se
+déclenchaient au chargement et s'écrasaient l'un l'autre, affichant un libellé
+faux.
 
 ### Bandeau de guidage : greffé, pas inséré
 

@@ -1222,7 +1222,7 @@ server <- function(input, output, session) {
   output$pcaAxisXSelect <- renderUI({
     req(pcaResultReactive())
     res.pca <- pcaResultReactive()
-    n_dims <- ncol(res.pca$ind$coord)
+    n_dims <- ncol(hstat_coord_mat(res.pca$ind$coord))
     
     selectInput("pcaAxisX", "Axe X:",
                 choices = setNames(1:n_dims, paste0("PC", 1:n_dims)),
@@ -1232,7 +1232,7 @@ server <- function(input, output, session) {
   output$pcaAxisYSelect <- renderUI({
     req(pcaResultReactive())
     res.pca <- pcaResultReactive()
-    n_dims <- ncol(res.pca$ind$coord)
+    n_dims <- ncol(hstat_coord_mat(res.pca$ind$coord))
     
     selectInput("pcaAxisY", "Axe Y:",
                 choices = setNames(1:n_dims, paste0("PC", 1:n_dims)),
@@ -3019,7 +3019,7 @@ server <- function(input, output, session) {
   output$hcpcAxisXSelect <- renderUI({
     req(pcaResultReactive())
     res.pca <- pcaResultReactive()
-    n_dims <- ncol(res.pca$ind$coord)
+    n_dims <- ncol(hstat_coord_mat(res.pca$ind$coord))
     
     selectInput("hcpcAxisX", "Axe X:",
                 choices = setNames(1:n_dims, paste0("PC", 1:n_dims)),
@@ -3029,7 +3029,7 @@ server <- function(input, output, session) {
   output$hcpcAxisYSelect <- renderUI({
     req(pcaResultReactive())
     res.pca <- pcaResultReactive()
-    n_dims <- ncol(res.pca$ind$coord)
+    n_dims <- ncol(hstat_coord_mat(res.pca$ind$coord))
     
     selectInput("hcpcAxisY", "Axe Y:",
                 choices = setNames(1:n_dims, paste0("PC", 1:n_dims)),

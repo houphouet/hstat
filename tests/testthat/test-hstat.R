@@ -2476,3 +2476,105 @@ test_that("aucune coordonnee FactoMineR n'est indexee sans passer par le garde-f
   expect_equal(fautes, character(0),
                info = paste("indexations non protegees :", paste(fautes, collapse = " | ")))
 })
+
+# =============================================================================
+#  DIAGNOSTIC DE QUALITE DES DONNEES
+# =============================================================================
+
+test_that("hstat_data_quality repere les problemes courants", {
+  set.seed(21)
+  n <- 60
+  d <- data.frame(
+    constante   = rep(7, n),
+    presque_na  = c(rnorm(3), rep(NA, n - 3)),
+    normale     = rnorm(n),
+    nombres_txt = as.character(round(rnorm(n), 3)),
+    ecrasante   = c(rep("oui", n - 1), "non"),
+    identifiant = paste0("ID", seq_len(n)),
+    stringsAsFactors = FALSE)
+  dq <- hstat_data_quality(d)
+
+  expect_true(is.data.frame(dq))
+  expect_setequal(names(dq), c("Variable", "Constat", "Gravite", "Suggestion"))
+  expect_true(all(dq$Gravite %in% HSTAT_QUALITE_GRAVITES))
+  # Chaque constat doit porter une suggestion : un diagnostic sans issue ne sert a rien
+  expect_true(all(nzchar(dq$Suggestion)))
+
+  c_var <- function(v) dq$Constat[dq$Variable == v]
+  expect_true(any(grepl("une seule valeur", c_var("constante"))))
+  expect_true(any(grepl("manquantes", c_var("presque_na"))))
+  expect_true(any(grepl("nombres stockes comme du texte", c_var("nombres_txt"))))
+  expect_true(any(grepl("couvre", c_var("ecrasante"))))
+  expect_true(any(grepl("valeurs distinctes", c_var("identifiant"))))
+  # La variable saine n'apparait pas
+  expect_length(c_var("normale"), 0L)
+
+  # Les constats les plus graves passent en tete
+  rang <- match(dq$Gravite, HSTAT_QUALITE_GRAVITES)
+  expect_false(is.unsorted(rang))
+})
+
+test_that("hstat_data_quality detecte redondance, doublons et effectif insuffisant", {
+  set.seed(22)
+  x <- rnorm(50)
+  d <- data.frame(a = x, b = x * 2 + 1e-9, c = rnorm(50))  # a et b colineaires
+  d <- rbind(d, d[1:3, ])                                   # 3 doublons
+  dq <- hstat_data_quality(d)
+  expect_true(any(grepl("correlation", dq$Constat)))
+  expect_true(any(grepl("identique", dq$Constat)))
+
+  # Peu d'observations pour beaucoup de variables
+  petit <- as.data.frame(matrix(rnorm(10 * 8), nrow = 10))
+  dq2 <- hstat_data_quality(petit)
+  expect_true(any(grepl("observations pour", dq2$Constat)))
+  expect_true(any(grepl("effectif total", dq2$Constat)))
+})
+
+test_that("un jeu de donnees sain ne genere aucune fausse alerte", {
+  set.seed(23)
+  d <- data.frame(
+    score = rnorm(200, 10, 2),
+    age = round(runif(200, 18, 75)),
+    groupe = rep(c("A", "B", "C", "D"), each = 50),
+    stringsAsFactors = FALSE)
+  dq <- hstat_data_quality(d)
+  expect_equal(nrow(dq), 1L)
+  expect_true(grepl("aucun probleme", dq$Constat[1]))
+  expect_true(grepl("Aucun probleme", hstat_data_quality_resume(dq)))
+
+  expect_null(hstat_data_quality(NULL))
+  expect_null(hstat_data_quality(data.frame()))
+  expect_null(hstat_data_quality_resume(NULL))
+})
+
+test_that("le resume compte correctement les gravites", {
+  dq <- rbind(
+    .hstat_q_row("a", "x", "bloquant", "s"),
+    .hstat_q_row("b", "y", "important", "s"),
+    .hstat_q_row("c", "z", "important", "s"),
+    .hstat_q_row("d", "w", "a surveiller", "s"))
+  r <- hstat_data_quality_resume(dq)
+  expect_true(grepl("4 constat", r, fixed = TRUE))
+  expect_true(grepl("1 bloquant", r, fixed = TRUE))
+  expect_true(grepl("2 important", r, fixed = TRUE))
+  expect_true(grepl("1 a surveiller", r, fixed = TRUE))
+})
+
+test_that("TOUS les modules d'analyse deposent un contexte pour l'IA", {
+  root <- file.path(.hstat_repo_root(), "inst", "app")
+  src <- unlist(lapply(list.files(root, pattern = "\\.R$", full.names = TRUE),
+                       readLines, warn = FALSE))
+  src <- src[!grepl("^\\s*#", src)]
+  pose <- gsub('.*"([^"]+)"$', "\\1", unique(unlist(regmatches(
+    src, gregexpr('hstat_ai_capture\\(values, "[^"]+"', src)))))
+
+  # La liste complete : aucun module ne doit rester muet.
+  attendu <- c("Exploration", "Nettoyage", "Filtrage", "Analyses descriptives",
+               "Visualisation", "Correlations", "Tests statistiques",
+               "Comparaisons multiples", "Analyses multivariees",
+               "Analyses qualitatives", "Series temporelles", "Machine Learning",
+               "Deep Learning", "Plan & Puissance", "Seuils d'efficacite")
+  for (m in attendu)
+    expect_true(m %in% pose, info = paste("aucune capture pour le module :", m))
+  expect_gte(length(pose), length(attendu))
+})

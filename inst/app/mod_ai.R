@@ -576,6 +576,172 @@ hstat_data_profile <- function(df, vars = NULL, group = NULL, paired = FALSE) {
 
 
 # ---------------------------------------------------------------------------
+# DIAGNOSTIC DE QUALITE DES DONNEES
+# ---------------------------------------------------------------------------
+# Ce que les logiciels du marche appellent « data health check ». Entierement
+# deterministe et hors ligne : chaque constat porte sa GRAVITE et une
+# SUGGESTION concrete, pas un simple pourcentage. L'utilisateur decide ; le
+# diagnostic lui donne de quoi decider.
+#
+# L'analyse porte sur un echantillon au-dela de 20 000 lignes : les proportions
+# restent fiables et le diagnostic reste instantane sur un gros fichier.
+# ---------------------------------------------------------------------------
+
+HSTAT_QUALITE_GRAVITES <- c("bloquant", "important", "a surveiller")
+
+.hstat_q_row <- function(variable, constat, gravite, suggestion) {
+  data.frame(Variable = variable, Constat = constat, Gravite = gravite,
+             Suggestion = suggestion, stringsAsFactors = FALSE)
+}
+
+hstat_data_quality <- function(df, seuil_na = 0.20, seuil_modalite = 0.95,
+                               seuil_cor = 0.95, max_modalites = 30,
+                               n_echantillon = 20000L) {
+  if (is.null(df) || !NROW(df) || !NCOL(df)) return(NULL)
+  df <- as.data.frame(df)
+  n_total <- nrow(df)
+  if (n_total > n_echantillon) {
+    set.seed(1L)
+    df <- df[sort(sample.int(n_total, n_echantillon)), , drop = FALSE]
+  }
+  n <- nrow(df); p <- ncol(df)
+  out <- list()
+
+  for (nm in names(df)) {
+    x <- df[[nm]]
+    chr <- is.character(x) || is.factor(x)
+    vide <- if (chr) is.na(x) | !nzchar(trimws(as.character(x))) else is.na(x)
+    taux_na <- mean(vide)
+
+    # --- Valeurs manquantes -------------------------------------------------
+    if (taux_na >= 0.90)
+      out <- c(out, list(.hstat_q_row(nm,
+        sprintf("%.0f %% de valeurs manquantes", 100 * taux_na), "bloquant",
+        "Variable quasi vide : l'exclure des analyses, ou retrouver la source des donnees manquantes.")))
+    else if (taux_na >= 0.50)
+      out <- c(out, list(.hstat_q_row(nm,
+        sprintf("%.0f %% de valeurs manquantes", 100 * taux_na), "important",
+        "Au-dela de la moitie, l'imputation invente plus qu'elle ne restitue. Preferer l'exclusion, ou une analyse sur cas complets en le declarant.")))
+    else if (taux_na >= seuil_na)
+      out <- c(out, list(.hstat_q_row(nm,
+        sprintf("%.0f %% de valeurs manquantes", 100 * taux_na), "a surveiller",
+        "Onglet Nettoyage : imputation par la mediane/le mode, ou par kNN / missForest si le mecanisme n'est pas aleatoire.")))
+
+    vals <- x[!vide]
+    if (!length(vals)) next
+    u <- length(unique(vals))
+
+    # --- Variables sans information ----------------------------------------
+    if (u == 1L) {
+      out <- c(out, list(.hstat_q_row(nm,
+        sprintf("une seule valeur (« %s »)", substr(as.character(vals[1]), 1, 30)), "important",
+        "Variable constante : elle ne peut expliquer aucune variation. La retirer des modeles (elle fait aussi echouer l'ACP et la standardisation).")))
+      next
+    }
+    if (chr && u >= 0.95 * length(vals) && u > 20)
+      out <- c(out, list(.hstat_q_row(nm,
+        sprintf("%d valeurs distinctes sur %d observations", u, length(vals)), "a surveiller",
+        "Ressemble a un identifiant ou a du texte libre. Comme identifiant : l'exclure des analyses. Comme texte : l'onglet Analyses qualitatives sait le coder et le thematiser.")))
+
+    if (chr) {
+      tb <- sort(table(as.character(vals)), decreasing = TRUE)
+      # --- Modalite ecrasante ---------------------------------------------
+      if (tb[1] / length(vals) >= seuil_modalite)
+        out <- c(out, list(.hstat_q_row(nm,
+          sprintf("la modalite « %s » couvre %.0f %% des reponses", names(tb)[1],
+                  100 * tb[1] / length(vals)), "important",
+          "Variable quasi constante : aucun test ne detectera de difference. Regrouper les modalites, ou renoncer a l'utiliser comme facteur.")))
+      # --- Modalites trop rares --------------------------------------------
+      rares <- names(tb)[tb < 5]
+      if (length(rares) && u <= max_modalites)
+        out <- c(out, list(.hstat_q_row(nm,
+          sprintf("%d modalite(s) sous 5 observations (%s)", length(rares),
+                  paste(utils::head(rares, 4), collapse = ", ")), "a surveiller",
+          "Les tests du Chi2 et les approximations asymptotiques y perdent leur validite. Regrouper ces modalites, ou passer au test exact de Fisher.")))
+      if (u > max_modalites && u < 0.95 * length(vals))
+        out <- c(out, list(.hstat_q_row(nm,
+          sprintf("%d modalites distinctes", u), "a surveiller",
+          sprintf("Au-dela de %d modalites, les tableaux croises deviennent illisibles et les effectifs trop faibles. Regrouper en categories plus larges.", max_modalites))))
+
+      # --- Nombres stockes en texte ----------------------------------------
+      num <- suppressWarnings(as.numeric(gsub(",", ".", as.character(vals))))
+      if (mean(!is.na(num)) >= 0.95 && u > 10)
+        out <- c(out, list(.hstat_q_row(nm,
+          "des nombres stockes comme du texte", "important",
+          "Convertir en numerique (onglet Nettoyage). En l'etat, moyennes, correlations et tests quantitatifs sont impossibles sur cette variable.")))
+    } else if (is.numeric(vals)) {
+      v <- as.numeric(vals)
+      # --- Valeurs extremes -------------------------------------------------
+      qs <- stats::quantile(v, c(.25, .75), na.rm = TRUE)
+      iqr <- qs[2] - qs[1]
+      if (is.finite(iqr) && iqr > 0) {
+        ext <- sum(v < qs[1] - 3 * iqr | v > qs[2] + 3 * iqr)
+        if (ext > 0)
+          out <- c(out, list(.hstat_q_row(nm,
+            sprintf("%d valeur(s) extreme(s) (au-dela de 3 ecarts interquartiles)", ext), "a surveiller",
+            "Verifier s'il s'agit d'erreurs de saisie ou de vraies observations. Si elles sont reelles, preferer les tests de rangs, qui n'en dependent pas.")))
+      }
+      if (any(!is.finite(v)))
+        out <- c(out, list(.hstat_q_row(nm,
+          sprintf("%d valeur(s) infinie(s) ou non numerique(s)", sum(!is.finite(v))), "bloquant",
+          "Ces valeurs font echouer la plupart des calculs. Les remplacer ou les retirer dans l'onglet Nettoyage.")))
+    }
+  }
+
+  # --- Redondance entre variables quantitatives ------------------------------
+  quanti <- names(df)[vapply(df, function(z) is.numeric(z) &&
+                             length(unique(stats::na.omit(z))) > 2, logical(1))]
+  if (length(quanti) >= 2) {
+    M <- suppressWarnings(stats::cor(df[, quanti, drop = FALSE], use = "pairwise.complete.obs"))
+    idx <- which(upper.tri(M) & abs(M) >= seuil_cor & is.finite(M), arr.ind = TRUE)
+    if (nrow(idx))
+      for (k in seq_len(min(nrow(idx), 8L)))
+        out <- c(out, list(.hstat_q_row(
+          paste(quanti[idx[k, 1]], "/", quanti[idx[k, 2]]),
+          sprintf("correlation de %.2f entre ces deux variables", M[idx[k, 1], idx[k, 2]]), "important",
+          "Redondance quasi parfaite : en garder une seule. Ensemble, elles rendent une regression instable (colinearite) et faussent la lecture des coefficients.")))
+  }
+
+  # --- Lignes en double -------------------------------------------------------
+  dup <- sum(duplicated(df))
+  if (dup > 0)
+    out <- c(out, list(.hstat_q_row("(jeu de donnees)",
+      sprintf("%d ligne(s) strictement identique(s)", dup), "important",
+      "Doublons probables de saisie ou d'import. Les supprimer, sinon ils gonflent artificiellement les effectifs et resserrent a tort les intervalles de confiance.")))
+
+  # --- Effectif au regard du nombre de variables -------------------------------
+  if (n < 5 * p)
+    out <- c(out, list(.hstat_q_row("(jeu de donnees)",
+      sprintf("%d observations pour %d variables", n, p), "important",
+      "Trop peu d'observations par variable : les modeles multivaries surapprendront. Reduire le nombre de variables, ou se limiter a des analyses bivariees.")))
+  if (n < 30)
+    out <- c(out, list(.hstat_q_row("(jeu de donnees)",
+      sprintf("effectif total de %d observations", n), "a surveiller",
+      "Sous 30 observations, les approximations normales sont fragiles : preferer les tests exacts et les tests de rangs.")))
+
+  if (!length(out)) return(.hstat_q_row("(jeu de donnees)",
+    "aucun probleme detecte", "a surveiller",
+    "Structure saine : valeurs manquantes, modalites, valeurs extremes et redondances sont dans les clous."))
+
+  res <- do.call(rbind, out)
+  rang <- c("bloquant" = 1, "important" = 2, "a surveiller" = 3)
+  res[order(rang[res$Gravite], res$Variable), , drop = FALSE]
+}
+
+# Resume d'une ligne, pour un bandeau ou une notification.
+hstat_data_quality_resume <- function(dq) {
+  if (is.null(dq) || !nrow(dq)) return(NULL)
+  if (nrow(dq) == 1L && grepl("aucun probleme", dq$Constat[1]))
+    return("Aucun probleme de qualite detecte sur ce jeu de donnees.")
+  n <- table(factor(dq$Gravite, levels = HSTAT_QUALITE_GRAVITES))
+  parts <- c(if (n[["bloquant"]]) sprintf("%d bloquant(s)", n[["bloquant"]]),
+             if (n[["important"]]) sprintf("%d important(s)", n[["important"]]),
+             if (n[["a surveiller"]]) sprintf("%d a surveiller", n[["a surveiller"]]))
+  sprintf("%d constat(s) de qualite : %s.", nrow(dq), paste(parts, collapse = ", "))
+}
+
+
+# ---------------------------------------------------------------------------
 # RECOMMANDATION D'ANALYSE - DETERMINISTE, HORS LIGNE
 # ---------------------------------------------------------------------------
 # Regles statistiques classiques appliquees au profil. Renvoie un tableau
@@ -765,7 +931,8 @@ hstat_reco_analyses <- function(profile) {
 # n'aurait pas de sens — une statistique descriptive n'est pas un mauvais test,
 # c'est une etape anterieure. On y propose la suite plutot qu'un verdict.
 HSTAT_RECO_EXPLORATOIRE <- c("Analyses descriptives", "Visualisation",
-                             "Exploration", "Analyses qualitatives")
+                             "Exploration", "Analyses qualitatives",
+                             "Nettoyage", "Filtrage", "Seuils d'efficacite")
 
 hstat_reco_verdict <- function(reco, titre_analyse, module = NULL) {
   if (is.null(reco) || !nrow(reco) || is.null(titre_analyse) || !nzchar(titre_analyse))
@@ -1208,6 +1375,23 @@ mod_ai_ui <- function(id) {
               DT::DTOutput(ns("profile_table")),
               shiny::br(),
               shiny::uiOutput(ns("profile_notes"))),
+            shiny::tabPanel(shiny::tagList(shiny::icon("stethoscope"), " Qualite des donnees"),
+              shiny::br(),
+              shiny::uiOutput(ns("dq_resume")),
+              DT::DTOutput(ns("dq_table")),
+              shiny::br(),
+              shiny::div(style = "background:#eaf4fb;border-left:5px solid #2e86c1;padding:12px 16px;border-radius:6px;font-size:13px;",
+                shiny::icon("circle-info"),
+                shiny::tags$b(" Comment lire ce diagnostic."),
+                " Chaque constat porte sa gravite et une suggestion concrete. ",
+                shiny::tags$b("Bloquant"), " : l'analyse echouera ou n'aura pas de sens en l'etat. ",
+                shiny::tags$b("Important"), " : le resultat sera trompeur si rien n'est fait. ",
+                shiny::tags$b("A surveiller"), " : a connaitre avant d'interpreter. ",
+                "Le diagnostic est calcule dans R, sans modele et sans reseau ; ",
+                "au-dela de 20 000 lignes il porte sur un echantillon."),
+              shiny::br(),
+              shiny::downloadButton(ns("dl_dq"), "Telecharger le diagnostic (CSV)",
+                                    class = "btn-info btn-sm")),
             shiny::tabPanel(shiny::tagList(shiny::icon("table"), " Resultats captures"),
               shiny::br(),
               shiny::uiOutput(ns("ctx_tables")))
@@ -1470,6 +1654,42 @@ mod_ai_server <- function(id, values) {
         shiny::tags$b(shiny::icon("list-check"), " Ce sur quoi repose la recommandation"),
         shiny::tags$ul(el))
     })
+
+    data_quality <- shiny::reactive({
+      d <- values$filteredData %||% values$cleanData %||% values$data
+      shiny::validate(shiny::need(!is.null(d) && NROW(d) > 0,
+        "Chargez d'abord un jeu de donnees dans l'onglet Chargement."))
+      hstat_data_quality(as.data.frame(d))
+    })
+
+    output$dq_resume <- shiny::renderUI({
+      dq <- tryCatch(data_quality(), error = function(e) NULL)
+      if (is.null(dq)) return(NULL)
+      msg <- hstat_data_quality_resume(dq)
+      grave <- sum(dq$Gravite == "bloquant")
+      shiny::div(class = if (grave > 0) "callout callout-danger"
+                        else if (any(dq$Gravite == "important")) "callout callout-warning"
+                        else "callout callout-success",
+        style = "padding:10px 14px;",
+        shiny::icon(if (grave > 0) "triangle-exclamation" else "circle-check"),
+        " ", msg)
+    })
+
+    output$dq_table <- DT::renderDT({
+      dq <- data_quality()
+      shiny::validate(shiny::need(!is.null(dq) && nrow(dq) > 0, "Aucun constat."))
+      DT::datatable(dq, rownames = FALSE, filter = "top",
+                    options = list(pageLength = 15, scrollX = TRUE)) |>
+        DT::formatStyle("Gravite", target = "row",
+          backgroundColor = DT::styleEqual(HSTAT_QUALITE_GRAVITES,
+                                           c("#fdecea", "#fef5e7", "#f4f6f7")))
+    })
+
+    output$dl_dq <- shiny::downloadHandler(
+      filename = function() sprintf("hstat_qualite_donnees_%s.csv", format(Sys.Date(), "%Y%m%d")),
+      content = function(file)
+        utils::write.csv(tryCatch(data_quality(), error = function(e) NULL),
+                         file, row.names = FALSE, fileEncoding = "UTF-8"))
 
     output$ctx_tables <- shiny::renderUI({
       c0 <- ctx()

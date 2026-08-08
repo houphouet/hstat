@@ -415,6 +415,7 @@ mod_threshold_ui <- function(id) {
 }
 
 mod_threshold_server <- function(id, values) {
+
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
   # ---- Seuils d'efficacité ----
@@ -431,6 +432,19 @@ mod_threshold_server <- function(id, values) {
     legend_label_mapping = NULL,
     legend_label_styles = NULL
   )
+
+  # Depot des donnees de seuils pour l'aide a la decision. Pose ICI, apres la
+  # creation de `threshold_values` : place plus haut, l'objet n'existe pas
+  # encore au moment ou l'observateur est enregistre.
+  observeEvent(threshold_values$plot_data, {
+    pd <- threshold_values$plot_data
+    if (is.null(pd) || !NROW(pd)) return()
+    hstat_ai_capture(values, "Seuils d'efficacite",
+      "Courbes de seuils d'efficacite",
+      tables = list("Points des courbes" = utils::head(as.data.frame(pd), 200)),
+      meta = list(variables = threshold_values$selected_y_vars,
+                  `points traces` = NROW(pd)))
+  }, ignoreInit = TRUE)
 
   # Reinitialisation globale : quand l'utilisateur clique sur "Réinitialiser" dans
   # l'en-tete de l'application, on remet ce module (Seuils d'efficacite) a zero :

@@ -117,10 +117,22 @@ into something you can paste into a report, and tells you which analysis your
 data actually call for. It never chooses or runs an analysis: the method stays
 your decision, and your responsibility.
 
-**Automatic capture — every analysis tab.** Statistical tests, descriptive
-statistics, correlations, post-hoc comparisons, the 14 multivariate analyses,
-qualitative analyses, time series, machine learning, deep learning, and power
-analysis all drop their results into a shared slot. No module knows about the
+**Data health check.** A dedicated tab reports what is wrong with the dataset
+before you analyse it: missing-value rates, constant and quasi-constant
+variables, numbers stored as text, rare or too-numerous categories, extreme
+values, near-perfect redundancy between variables, duplicate rows, and too few
+observations for the number of variables. Every finding carries a **severity**
+— *bloquant* / *important* / *à surveiller* — and a **concrete suggestion**,
+not just a percentage. Deterministic, offline, and sampled above 20 000 rows so
+it stays instant on large files.
+
+**Automatic capture — every module, without exception.** Exploration, cleaning, filtering,
+descriptive statistics, visualisation, correlations, statistical tests, post-hoc
+comparisons, the 14 multivariate analyses, qualitative analyses, time series,
+machine learning, deep learning, power analysis and efficacy thresholds — all 15
+families drop their results into a shared slot. A module only claims the context
+when it has actually done something: filtering stays silent until a filter
+really removes observations. No module knows about the
 assistant, and the assistant knows about no module — a new analysis is picked
 up for free as long as it feeds the same slots.
 
@@ -245,7 +257,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.11.2. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.12.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -253,7 +265,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.11.2},
+  note   = {Version 0.12.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

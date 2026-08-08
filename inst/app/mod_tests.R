@@ -8436,7 +8436,7 @@ mod_tests_server <- function(id, values) {
           p <- ggplot(plot_data, aes(x = x_var, y = y_var, fill = x_var)) +
             geom_boxplot(alpha = 0.7) +
             annotate("text", 
-                     x = 1:nrow(agg), 
+                     x = seq_len(nrow(agg)),   # seq_len : 1:0 rendrait c(1, 0)
                      y = y_max + y_range * 0.05, 
                      label = agg$groups, 
                      size = safe_graph_value_size,  
@@ -8459,7 +8459,7 @@ mod_tests_server <- function(id, values) {
             geom_violin(alpha = 0.7) +
             geom_boxplot(width = 0.1, alpha = 0.5, fill = "white") +
             annotate("text", 
-                     x = 1:nrow(agg), 
+                     x = seq_len(nrow(agg)),   # seq_len : 1:0 rendrait c(1, 0)
                      y = y_max + y_range * 0.05, 
                      label = agg$groups, 
                      size = safe_graph_value_size,  
@@ -8485,7 +8485,7 @@ mod_tests_server <- function(id, values) {
           p <- ggplot(agg, aes(x = x_var, y = Moyenne, fill = x_var, color = x_var)) +
             geom_point(size = 4, shape = 21, stroke = 2) +
             annotate("text", 
-                     x = 1:nrow(agg), 
+                     x = seq_len(nrow(agg)),   # seq_len : 1:0 rendrait c(1, 0)
                      y = y_text_pos, 
                      label = agg$groups, 
                      size = safe_graph_value_size,  
@@ -8514,7 +8514,7 @@ mod_tests_server <- function(id, values) {
           p <- ggplot(agg, aes(x = x_var, y = Moyenne, fill = x_var)) +
             geom_col(alpha = 0.7, color = "black") +
             annotate("text", 
-                     x = 1:nrow(agg), 
+                     x = seq_len(nrow(agg)),   # seq_len : 1:0 rendrait c(1, 0)
                      y = agg$Moyenne * 0.8, 
                      label = agg$groups, 
                      size = safe_graph_value_size,  

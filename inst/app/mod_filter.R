@@ -104,6 +104,26 @@ mod_filter_ui <- function(id) {
 }
 
 mod_filter_server <- function(id, values) {
+  # Depot de l'effet du filtrage. Le point qui compte : combien d'observations
+  # restent, et donc quelle puissance statistique subsiste.
+  shiny::observeEvent(values$filteredData, {
+    d <- values$filteredData
+    if (is.null(d) || !NROW(d)) return()
+    n0 <- NROW(values$cleanData %||% values$data)
+    # Au chargement, `filteredData` vaut le jeu complet : ce n'est pas un
+    # filtrage. Ne revendiquer le contexte que si un filtre a reellement
+    # retire des observations, sinon ce module ecraserait celui qui a
+    # veritablement quelque chose a dire.
+    if (NROW(d) >= n0) return()
+    dq <- tryCatch(hstat_data_quality(d), error = function(e) NULL)
+    hstat_ai_capture(values, "Filtrage",
+      sprintf("Sous-echantillon filtre (%d observations sur %d)", NROW(d), n0),
+      tables = list("Diagnostic de qualite" = dq),
+      meta = list(variables = names(d), `observations retenues` = NROW(d),
+                  `observations initiales` = n0,
+                  `part conservee` = sprintf("%.1f %%", 100 * NROW(d) / max(1, n0))))
+  }, ignoreInit = TRUE)
+
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
   # ---- Filtrage ----

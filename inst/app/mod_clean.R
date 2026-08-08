@@ -645,6 +645,25 @@ mod_clean_ui <- function(id) {
 }
 
 mod_clean_server <- function(id, values) {
+  # Depot de l'etat des donnees apres nettoyage : c'est le nouveau diagnostic
+  # de qualite qui dit si le nettoyage a atteint son but.
+  shiny::observeEvent(values$cleanData, {
+    d <- values$cleanData
+    if (is.null(d) || !NROW(d)) return()
+    # Au chargement, `cleanData` est une copie du jeu brut : rien n'a ete
+    # nettoye. On n'annonce un nettoyage que s'il a vraiment eu lieu.
+    if (!length(values$transformationLog) &&
+        identical(dim(d), dim(values$data))) return()
+    dq <- tryCatch(hstat_data_quality(d), error = function(e) NULL)
+    hstat_ai_capture(values, "Nettoyage",
+      "Etat des donnees apres nettoyage",
+      tables = list("Diagnostic de qualite" = dq),
+      meta = list(variables = names(d), observations = NROW(d),
+                  `transformations appliquees` =
+                    if (length(values$transformationLog))
+                      length(values$transformationLog) else 0L))
+  }, ignoreInit = TRUE)
+
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
