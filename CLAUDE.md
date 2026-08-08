@@ -191,6 +191,50 @@ Règle de conduite : quand le code exact n'est pas reconstituable fidèlement
 silence de ce que l'application a calculé serait pire que pas de script. Un test
 vérifie que le script généré **s'analyse et s'exécute** réellement.
 
+## Rapport automatique
+
+`mod_report.R` assemble en un document ce que la session a produit. Il ne
+calcule rien : il met en forme `values$aiHistory`, comme le journal.
+
+Le corps est écrit en **markdown**, parce que c'est le seul format que pandoc
+convertit vers Word *et* PDF, et qu'on sait aussi rendre en HTML sans lui.
+
+**Le HTML est le format de référence, et il ne peut pas échouer** : il est
+assemblé en R, sans dépendance externe. Word et PDF passent par `rmarkdown`,
+donc par pandoc (et LaTeX pour le PDF) — outils absents de beaucoup de postes.
+Quand ils manquent, `hstat_report_render()` rend le HTML et **renvoie le motif
+du repli** dans `res$message` ; l'appelant doit l'afficher. Un utilisateur qui
+demande du Word et reçoit du HTML sans explication croit à un bug. Même règle
+pour le nom du fichier : `rep_format()` calcule le format *effectivement*
+produit avant de nommer le téléchargement — un `.pdf` contenant du HTML ne
+s'ouvrirait pas.
+
+**Deux convertisseurs markdown → HTML, et c'est voulu.** Celui de `mod_ai.R`
+(`.hstat_md_to_html`) ne connaît que titres, gras et listes : il suffit à une
+réponse de modèle. Le rapport, lui, est fait de **tableaux**, de blocs de code
+et de figures — passé au premier, un tableau ressortait en barres verticales au
+milieu d'un paragraphe. D'où `.hstat_rep_md_to_html()`, propre au rapport.
+
+**Les figures sont déposées en fonction, pas en objet** :
+`hstat_ai_capture(..., plot = function() shiny::isolate(createPlot()))`. Elles
+ne sont dessinées qu'au moment où un rapport les réclame, et une figure devenue
+indessinable (variable supprimée entre-temps) disparaît du document au lieu de
+le faire tomber. `isolate()` est indispensable : le téléchargement d'un rapport
+n'est pas un contexte réactif, et un réactif ne s'y lit pas.
+
+Le HTML **incorpore ses images en base64**. Un rapport qui pointerait vers
+`/tmp` s'afficherait sans ses figures dès qu'on l'envoie à un relecteur.
+
+Corollaire sur l'historique : `hstat_ai_capture()` conserve désormais les
+tableaux (100 lignes) et les figures des `HSTAT_HIST_DETAIL` dernières analyses,
+puis les allège, et borne l'historique à `HSTAT_HIST_MAX`. La mémoire reste
+bornée quelle que soit la durée de la session.
+
+Piège corrigé : `hstat_report_markdown(sections = ...)` attend les **valeurs**
+de `HSTAT_REPORT_SECTIONS` (`"donnees"`, `"qualite"`…), pas ses noms, qui sont
+les libellés affichés. Passer les noms vidait le rapport **en silence** — seul
+l'en-tête sortait.
+
 ## Tests
 
 `tests/testthat/test-hstat.R` est la suite de référence (celle qu'exécute

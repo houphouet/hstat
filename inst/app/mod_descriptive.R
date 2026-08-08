@@ -335,7 +335,8 @@ mod_descriptive_server <- function(id, values) {
       hstat_ai_capture(values, "Analyses descriptives",
         "Statistiques descriptives",
         tables = list("Statistiques descriptives" = df),
-        meta = list(variables = input$numVars, groupe = input$descFactors))
+        meta = list(variables = input$numVars, groupe = input$descFactors),
+        plot = function() shiny::isolate(generate_desc_plot()))
     }, ignoreInit = TRUE)
   # ---- Analyse descriptives ----
   

@@ -380,6 +380,19 @@ get_all_factor_candidates <- function(df, max_numeric_levels = 30) {
   nms[keep]
 }
 
+# Echappement HTML. Pose ici plutot que dans un module : le texte des
+# repondants (atelier de codage), les reponses d'un modele de langue et les
+# titres de rapport passent tous par la meme porte avant d'entrer dans le DOM.
+hstat_html_escape <- function(x) {
+  x <- as.character(x)
+  x[is.na(x)] <- ""
+  x <- gsub("&", "&amp;", x, fixed = TRUE)
+  x <- gsub("<", "&lt;",  x, fixed = TRUE)
+  x <- gsub(">", "&gt;",  x, fixed = TRUE)
+  x <- gsub('"', "&quot;", x, fixed = TRUE)
+  gsub("'", "&#39;", x, fixed = TRUE)
+}
+
 # FactoMineR reduit ses coordonnees a un VECTEUR des que le resultat ne comporte
 # qu'un seul axe. C'est le cas d'une AFC croisant une variable BINAIRE avec une
 # autre (une table 3x2 ne porte qu'une dimension), situation tres courante en

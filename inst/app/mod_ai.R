@@ -379,10 +379,19 @@ hstat_ai_extract_json <- function(txt) {
 # aucun module.
 # ---------------------------------------------------------------------------
 
+# Bornes de l'historique : au-dela de HSTAT_HIST_DETAIL analyses, les plus
+# anciennes perdent leurs tableaux et leurs figures (le journal, lui, n'en a
+# pas besoin) ; au-dela de HSTAT_HIST_MAX, elles sortent de l'historique.
+HSTAT_HIST_DETAIL <- 30L
+HSTAT_HIST_MAX    <- 200L
+
 # `tables` : liste nommee de data.frame ; `text` : sortie R brute eventuelle ;
 # `meta` : variables utilisees, groupe, options — ce qui permet de recommander.
+# `plot` : fonction sans argument qui trace le graphique de l'analyse, quand le
+# module en possede une. Le rapport s'en sert pour reproduire la figure ; les
+# modules qui n'en ont pas passent simplement NULL.
 hstat_ai_capture <- function(values, module, title, tables = list(),
-                             text = NULL, meta = list()) {
+                             text = NULL, meta = list(), plot = NULL) {
   if (is.null(values)) return(invisible(NULL))
   tables <- Filter(function(x) !is.null(x) && NROW(x) > 0, tables)
   ctx <- list(
@@ -391,6 +400,7 @@ hstat_ai_capture <- function(values, module, title, tables = list(),
     tables = tables,
     text   = if (is.null(text)) NULL else paste(as.character(text), collapse = "\n"),
     meta   = meta,
+    plot   = if (is.function(plot)) plot else NULL,
     time   = Sys.time())
   values$aiContext <- ctx
 
@@ -405,9 +415,18 @@ hstat_ai_capture <- function(values, module, title, tables = list(),
     identical(precedent$title, ctx$title) &&
     identical(precedent$meta, ctx$meta)
   if (!meme) {
-    h[[length(h) + 1L]] <- ctx[c("module", "title", "meta", "time")]
-    # Plafond : une session longue ne doit pas faire enfler la memoire.
-    if (length(h) > 200L) h <- utils::tail(h, 200L)
+    # Le rapport a besoin des tableaux et des figures ; le journal, seulement
+    # des metadonnees. On garde donc le detail des analyses RECENTES et on
+    # l'allege sur les anciennes : la memoire reste bornee quelle que soit la
+    # duree de la session.
+    entree <- ctx[c("module", "title", "meta", "time", "plot")]
+    entree$tables <- lapply(tables, function(x) utils::head(as.data.frame(x), 100L))
+    h[[length(h) + 1L]] <- entree
+    if (length(h) > HSTAT_HIST_DETAIL) {
+      a_alleger <- seq_len(length(h) - HSTAT_HIST_DETAIL)
+      for (i in a_alleger) { h[[i]]$tables <- NULL; h[[i]]$plot <- NULL }
+    }
+    if (length(h) > HSTAT_HIST_MAX) h <- utils::tail(h, HSTAT_HIST_MAX)
     values$aiHistory <- h
   }
   invisible(ctx)
@@ -1586,6 +1605,43 @@ mod_ai_ui <- function(id) {
                               shiny::textOutput(ns("rlog_script"), container = shiny::tags$code)),
               shiny::br(),
               DT::DTOutput(ns("rlog_table"))),
+            shiny::tabPanel(shiny::tagList(shiny::icon("file-word"), " Rapport"),
+              shiny::br(),
+              shiny::div(style = "background:#eaf4fb;border-left:5px solid #2e86c1;padding:12px 16px;border-radius:6px;font-size:13px;",
+                shiny::tags$strong(shiny::icon("file-lines"), " Un document, transmissible tel quel"),
+                shiny::tags$p(style = "margin:6px 0 0 0;",
+                  "Vos analyses, vos figures et vos interpretations reunies en un ",
+                  "rapport redige. ",
+                  shiny::tags$b("Le rapport ne calcule rien"),
+                  " : il met en forme ce que vous avez deja obtenu. A relire avant ",
+                  "diffusion — les interpretations eclairent la lecture, elles ne la valident pas.")),
+              shiny::br(),
+              shiny::fluidRow(
+                shiny::column(5,
+                  shiny::textInput(ns("rep_titre"), "Titre du rapport",
+                                   value = "Rapport d'analyse statistique"),
+                  shiny::textInput(ns("rep_auteur"), "Auteur (facultatif)",
+                                   placeholder = "Nom, laboratoire, service"),
+                  shiny::radioButtons(ns("rep_format"), "Format",
+                                      choices = HSTAT_REPORT_FORMATS,
+                                      selected = "html"),
+                  shiny::uiOutput(ns("rep_dispo"))),
+                shiny::column(4,
+                  shiny::checkboxGroupInput(ns("rep_sections"), "Sections a inclure",
+                                            choices = HSTAT_REPORT_SECTIONS,
+                                            selected = unname(HSTAT_REPORT_SECTIONS))),
+                shiny::column(3,
+                  shiny::uiOutput(ns("rep_resume")),
+                  shiny::br(),
+                  shiny::downloadButton(ns("dl_rapport"), "Produire le rapport",
+                                        class = "btn-success btn-block"),
+                  shiny::br(),
+                  shiny::actionButton(ns("rep_apercu_go"), "Apercu",
+                                      icon = shiny::icon("eye"),
+                                      class = "btn-default btn-block btn-sm"))),
+              shiny::hr(),
+              shiny::div(style = "background:#ffffff;border:1px solid #e0e0e0;border-radius:6px;padding:16px 20px;max-height:620px;overflow:auto;",
+                         shiny::uiOutput(ns("rep_apercu")))),
             shiny::tabPanel(shiny::tagList(shiny::icon("stethoscope"), " Qualite des donnees"),
               shiny::br(),
               shiny::uiOutput(ns("dq_resume")),
@@ -1952,6 +2008,97 @@ mod_ai_server <- function(id, values) {
       content = function(file)
         utils::write.csv(tryCatch(data_quality(), error = function(e) NULL),
                          file, row.names = FALSE, fileEncoding = "UTF-8"))
+
+    # ---------------------------------------------------- rapport automatique
+    rep_dispo <- shiny::reactive(hstat_report_formats_dispo())
+
+    output$rep_dispo <- shiny::renderUI({
+      msg <- hstat_report_message_dispo(rep_dispo())
+      if (is.null(msg))
+        return(shiny::div(class = "callout callout-success", style = "padding:8px 12px;font-size:12px;",
+          shiny::icon("circle-check"), " Les trois formats sont disponibles sur cette machine."))
+      shiny::div(class = "callout callout-warning", style = "padding:8px 12px;font-size:12px;",
+                 shiny::icon("triangle-exclamation"), " ", msg)
+    })
+
+    # Le format REELLEMENT produit : demander du PDF sans LaTeX donne du HTML.
+    # Le calculer ici plutot que dans le seul `content` permet de nommer le
+    # fichier correctement — un .pdf contenant du HTML ne s'ouvrirait pas.
+    rep_format <- shiny::reactive({
+      f <- input$rep_format %||% "html"
+      if (isTRUE(rep_dispo()[[f]])) f else "html"
+    })
+
+    rep_figures <- function() {
+      d <- file.path(tempdir(), paste0("hstat_fig_", session$token))
+      unlink(d, recursive = TRUE)
+      tryCatch(hstat_report_figures(values$aiHistory, dossier = d),
+               error = function(e) NULL)
+    }
+
+    rep_markdown <- function(figures = NULL) {
+      d <- values$filteredData %||% values$cleanData %||% values$data
+      sections <- input$rep_sections %||% unname(HSTAT_REPORT_SECTIONS)
+      hstat_report_markdown(
+        history        = values$aiHistory,
+        titre          = if (nzchar(trimws(input$rep_titre %||% "")))
+                           trimws(input$rep_titre) else "Rapport d'analyse",
+        auteur         = trimws(input$rep_auteur %||% ""),
+        contexte       = trimws(input$contexte %||% ""),
+        sections       = sections,
+        donnees_resume = if ("donnees" %in% sections)
+                           tryCatch(hstat_report_resume_donnees(d), error = function(e) NULL),
+        qualite        = if ("qualite" %in% sections)
+                           tryCatch(data_quality(), error = function(e) NULL),
+        interpretation = rv$txt,
+        reco           = if ("reco" %in% sections)
+                           tryCatch(reco(), error = function(e) NULL),
+        script         = if ("script" %in% sections)
+                           tryCatch(rlog_texte(), error = function(e) NULL),
+        version        = hstat_version(),
+        figures        = figures)
+    }
+
+    output$rep_resume <- shiny::renderUI({
+      h <- values$aiHistory %||% list()
+      nfig <- sum(vapply(h, function(x) is.function(x$plot), logical(1)))
+      shiny::div(style = "font-size:12px;color:#566573;line-height:1.7;",
+        shiny::icon("list-check"), shiny::tags$b(" Le rapport contiendra"), shiny::br(),
+        sprintf("%d analyse(s)", length(h)), shiny::br(),
+        sprintf("%d figure(s) disponible(s)", nfig), shiny::br(),
+        if (!is.null(rv$txt) && nzchar(rv$txt)) "une interpretation redigee"
+        else shiny::tags$span(style = "color:#b9770e;",
+          "aucune interpretation (lancez-en une dans l'onglet Interpretation)"))
+    })
+
+    rep_apercu <- shiny::eventReactive(input$rep_apercu_go, {
+      figs <- if ("figures" %in% (input$rep_sections %||% character(0)))
+        rep_figures() else NULL
+      .hstat_rep_images_html(.hstat_rep_md_to_html(rep_markdown(figs)))
+    })
+
+    output$rep_apercu <- shiny::renderUI({
+      if (is.null(input$rep_apercu_go) || input$rep_apercu_go == 0)
+        return(shiny::tags$em(style = "color:#95a5a6;",
+          "Cliquez sur « Apercu » pour voir le rapport avant de le produire."))
+      shiny::HTML(rep_apercu())
+    })
+
+    output$dl_rapport <- shiny::downloadHandler(
+      filename = function()
+        sprintf("hstat_rapport_%s.%s", format(Sys.Date(), "%Y%m%d"), rep_format()),
+      content = function(file) {
+        figs <- if ("figures" %in% (input$rep_sections %||% character(0)))
+          rep_figures() else NULL
+        res <- hstat_report_render(rep_markdown(figs), file,
+                                   format = rep_format(),
+                                   titre = trimws(input$rep_titre %||% "Rapport d'analyse"),
+                                   dispo = rep_dispo())
+        # Le repli doit se DIRE : un utilisateur qui a demande du Word et
+        # recoit du HTML sans explication croit a un bug.
+        if (nzchar(res$message %||% ""))
+          shiny::showNotification(res$message, type = "warning", duration = 12)
+      })
 
     output$ctx_tables <- shiny::renderUI({
       c0 <- ctx()

@@ -15,6 +15,7 @@ local({
 
 source("Utils.R",  local = FALSE, encoding = "UTF-8")
 source("mod_ai.R", local = FALSE, encoding = "UTF-8")
+source("mod_report.R", local = FALSE, encoding = "UTF-8")
 source("mod_threshold.R", local = FALSE, encoding = "UTF-8")
 source("mod_explore.R", local = FALSE, encoding = "UTF-8")
 source("mod_clean.R", local = FALSE, encoding = "UTF-8")

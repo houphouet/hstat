@@ -119,7 +119,8 @@ jobs:
           # ne doit pas faire tomber la CI.
           souhaites <- c("ggplot2", "ggrepel", "DT", "dplyr", "FactoMineR",
                          "openxlsx", "jsonlite", "httr", "car", "svglite",
-                         "scales", "stringr", "reshape2", "ggdendro", "digest")
+                         "scales", "stringr", "reshape2", "ggdendro", "digest",
+                         "base64enc", "rmarkdown")
           install.packages(requis)
           manquants <- requis[!vapply(requis, requireNamespace, logical(1), quietly = TRUE)]
           if (length(manquants))

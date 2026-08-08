@@ -443,7 +443,8 @@ mod_threshold_server <- function(id, values) {
       "Courbes de seuils d'efficacite",
       tables = list("Points des courbes" = utils::head(as.data.frame(pd), 200)),
       meta = list(variables = threshold_values$selected_y_vars,
-                  `points traces` = NROW(pd)))
+                  `points traces` = NROW(pd)),
+      plot = function() shiny::isolate(threshold_values$current_plot))
   }, ignoreInit = TRUE)
 
   # Reinitialisation globale : quand l'utilisateur clique sur "Réinitialiser" dans

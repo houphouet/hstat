@@ -58,6 +58,12 @@ local({
   if (file.exists(ai_path))
     suppressWarnings(suppressMessages(
       sys.source(ai_path, envir = e, keep.source = FALSE)))
+  # Le generateur de rapport (hstat_report_*) vit dans mod_report.R et
+  # s'appuie sur les helpers de mod_ai.R : le charger apres lui.
+  rep_path <- file.path(dirname(utils_path), "mod_report.R")
+  if (file.exists(rep_path))
+    suppressWarnings(suppressMessages(
+      sys.source(rep_path, envir = e, keep.source = FALSE)))
   # Idem pour l'atelier de codage qualitatif (hstat_code_*, hstat_seg_*),
   # qui vit dans mod_coding.R.
   cod_path <- file.path(dirname(utils_path), "mod_coding.R")
@@ -2746,6 +2752,230 @@ test_that("l'historique s'accumule sans doublon immediat", {
                c("ANOVA", "Kruskal-Wallis", "ANOVA"))
   # Le dernier contexte reste accessible pour l'interpretation
   expect_equal(values$aiContext$title, "ANOVA")
-  # L'historique ne conserve pas les tableaux : seul le journal l'utilise
-  expect_null(values$aiHistory[[1]]$tables)
+  # L'historique conserve desormais les tableaux : le rapport les reprend.
+  # Sans tableau depose, l'entree en porte une liste vide, pas NULL.
+  expect_length(values$aiHistory[[1]]$tables, 0L)
+})
+
+test_that("l'historique s'allege au-dela des analyses recentes", {
+  values <- new.env()
+  tb <- list(Resultat = data.frame(x = 1:3))
+  for (i in seq_len(HSTAT_HIST_DETAIL + 3L))
+    hstat_ai_capture(values, "Tests statistiques", paste("Analyse", i),
+                     tables = tb, meta = list(variables = "x"),
+                     plot = function() NULL)
+  h <- values$aiHistory
+  expect_length(h, HSTAT_HIST_DETAIL + 3L)
+  # Les plus anciennes perdent tableaux et figures, pas leur identite : le
+  # journal de reproductibilite continue de les citer.
+  expect_null(h[[1]]$tables)
+  expect_null(h[[1]]$plot)
+  expect_equal(h[[1]]$title, "Analyse 1")
+  # Les recentes gardent tout
+  expect_length(h[[length(h)]]$tables, 1L)
+  expect_true(is.function(h[[length(h)]]$plot))
+})
+
+
+# ===========================================================================
+# RAPPORT AUTOMATIQUE (mod_report.R)
+# ===========================================================================
+
+.hstat_test_hist <- function() list(
+  list(module = "Tests statistiques", title = "Test t de Student",
+       time = Sys.time(), meta = list(variables = "poids", groupe = "sexe"),
+       tables = list(Resultat = data.frame(Variable = "poids", t = 2.31,
+                                           p = 0.0231)),
+       plot = NULL),
+  list(module = "Visualisation", title = "Graphique : poids x sexe",
+       time = Sys.time(), meta = list(variables = c("poids", "sexe")),
+       tables = list(), plot = NULL))
+
+test_that("le markdown du rapport respecte les sections demandees", {
+  h <- .hstat_test_hist()
+  md <- hstat_report_markdown(h, titre = "Mon rapport", auteur = "A. B.",
+                              contexte = "essai clinique",
+                              donnees_resume = data.frame(Variable = "poids",
+                                                          Type = "numerique"),
+                              qualite = data.frame(Variable = "poids",
+                                                   Constat = "3 % manquants"),
+                              interpretation = "La difference est nette.",
+                              reco = data.frame(Analyse = "Test t"),
+                              script = "t.test(poids ~ sexe, data = donnees)",
+                              version = "9.9.9")
+  expect_true(grepl("# Mon rapport", md, fixed = TRUE))
+  expect_true(grepl("A. B.", md, fixed = TRUE))
+  expect_true(grepl("HStat 9.9.9", md, fixed = TRUE))
+  expect_true(grepl("essai clinique", md, fixed = TRUE))
+  for (titre in c("## Donnees analysees", "## Diagnostic de qualite",
+                  "## Analyses menees", "## Interpretation",
+                  "## Analyses appelees", "## Annexe"))
+    expect_true(grepl(titre, md, fixed = TRUE), info = titre)
+  # Le contenu des analyses y est, pas seulement leur titre
+  expect_true(grepl("Test t de Student", md, fixed = TRUE))
+  expect_true(grepl("0.0231", md, fixed = TRUE))
+
+  # Une section non demandee ne doit pas apparaitre. Le piege : passer les
+  # LIBELLES du vecteur au lieu de ses valeurs vide le rapport en silence.
+  md2 <- hstat_report_markdown(h, sections = c("analyses"),
+                               qualite = data.frame(V = 1),
+                               script = "x <- 1")
+  expect_true(grepl("## Analyses menees", md2, fixed = TRUE))
+  expect_false(grepl("## Diagnostic", md2, fixed = TRUE))
+  expect_false(grepl("## Annexe", md2, fixed = TRUE))
+})
+
+test_that("les tableaux markdown sont bien formes et bornes", {
+  md <- .hstat_rep_tableau_md(data.frame(a = 1:3, b = c("x", "y", "z")))
+  lignes <- strsplit(md, "\n")[[1]]
+  expect_true(grepl("^\\| a \\| b \\|$", lignes[1]))
+  expect_true(grepl("^\\|", lignes[2]) && grepl("---", lignes[2]))
+  expect_length(lignes, 5L)
+  # Au-dela du plafond, le tableau est tronque ET le dit
+  gros <- .hstat_rep_tableau_md(data.frame(a = 1:100), max_lignes = 10L)
+  expect_true(grepl("100 lignes au total", gros, fixed = TRUE))
+  # Une barre verticale dans une cellule ne casse pas la colonne
+  echap <- .hstat_rep_tableau_md(data.frame(a = "gauche|droite"))
+  expect_true(grepl("gauche\\|droite", echap, fixed = TRUE))
+  expect_equal(.hstat_rep_tableau_md(data.frame()), "*(tableau vide)*")
+})
+
+test_that("le convertisseur du rapport rend tableaux, code et titres", {
+  md <- paste("# Titre", "", "| a | b |", "| --- | --- |", "| 1 | 2 |", "",
+              "- point", "", "```r", "x <- 1 < 2", "```", "",
+              "Texte **gras**.", sep = "\n")
+  html <- .hstat_rep_md_to_html(md)
+  expect_true(grepl("<h1>Titre</h1>", html, fixed = TRUE))
+  expect_true(grepl("<table>", html, fixed = TRUE))
+  expect_true(grepl("<th>a</th>", html, fixed = TRUE))
+  expect_true(grepl("<td>1</td>", html, fixed = TRUE))
+  expect_true(grepl("<li>point</li>", html, fixed = TRUE))
+  expect_true(grepl("<strong>gras</strong>", html, fixed = TRUE))
+  # Un tableau ne doit JAMAIS ressortir en barres verticales dans un paragraphe
+  expect_false(grepl("<p>|", html, fixed = TRUE))
+  # Le code de l'annexe est recopie tel quel, et echappe
+  expect_true(grepl("<pre><code>", html, fixed = TRUE))
+  expect_true(grepl("x &lt;- 1 &lt; 2", html, fixed = TRUE))
+})
+
+test_that("le convertisseur echappe le HTML injecte", {
+  html <- .hstat_rep_md_to_html("<script>alert(1)</script>")
+  expect_false(grepl("<script>", html, fixed = TRUE))
+  expect_true(grepl("&lt;script&gt;", html, fixed = TRUE))
+})
+
+test_that("le resume du jeu de donnees decrit chaque variable", {
+  d <- data.frame(poids = c(60, 70, NA), sexe = factor(c("F", "H", "F")),
+                  stringsAsFactors = FALSE)
+  r <- hstat_report_resume_donnees(d)
+  expect_equal(nrow(r), 2L)
+  expect_equal(r$Type, c("numerique", "categorielle"))
+  expect_equal(r$Renseignees, c(2L, 3L))
+  expect_equal(r$Manquantes, c(1L, 0L))
+  expect_true(grepl("60", r[["Modalites / etendue"]][1]))
+  expect_true(grepl("2 modalite", r[["Modalites / etendue"]][2]))
+  expect_null(hstat_report_resume_donnees(NULL))
+})
+
+test_that("une figure indessinable disparait sans faire tomber le rapport", {
+  skip_if_not_installed("ggplot2")
+  d <- file.path(tempdir(), paste0("hstat_test_fig_", as.integer(runif(1, 1e6, 1e7))))
+  on.exit(unlink(d, recursive = TRUE), add = TRUE)
+  h <- list(
+    list(module = "Visualisation", title = "Nuage", time = Sys.time(),
+         meta = list(), tables = list(),
+         plot = function() ggplot2::ggplot(data.frame(x = 1:5, y = 1:5),
+                                           ggplot2::aes(x, y)) + ggplot2::geom_point()),
+    list(module = "Visualisation", title = "Cassee", time = Sys.time(),
+         meta = list(), tables = list(),
+         plot = function() stop("variable supprimee entre-temps")),
+    list(module = "Tests statistiques", title = "Sans figure",
+         time = Sys.time(), meta = list(), tables = list(), plot = NULL))
+  figs <- hstat_report_figures(h, dossier = d)
+  expect_equal(nrow(figs), 1L)
+  expect_true(grepl("Nuage", figs$titre[1], fixed = TRUE))
+  expect_true(file.exists(figs$fichier[1]) && file.size(figs$fichier[1]) > 0)
+  # Aucune figure du tout : un data.frame vide, pas une erreur
+  expect_equal(nrow(hstat_report_figures(list(), dossier = d)), 0L)
+  expect_equal(nrow(hstat_report_figures(h[3], dossier = d)), 0L)
+})
+
+test_that("le HTML incorpore ses figures et reste un fichier unique", {
+  skip_if_not_installed("base64enc")
+  png <- tempfile(fileext = ".png")
+  on.exit(unlink(png), add = TRUE)
+  grDevices::png(png, width = 240, height = 240); plot(1); grDevices::dev.off()
+
+  md <- hstat_report_markdown(list(), sections = "figures",
+                              figures = data.frame(titre = "Ma figure",
+                                                   fichier = png,
+                                                   stringsAsFactors = FALSE))
+  expect_true(grepl("## Figures", md, fixed = TRUE))
+  expect_true(grepl(sprintf("![Ma figure](%s)", png), md, fixed = TRUE))
+
+  html <- .hstat_rep_images_html(.hstat_rep_md_to_html(md))
+  expect_true(grepl("<img src=\"data:image/png;base64,", html, fixed = TRUE))
+  # Le chemin du fichier ne doit plus apparaitre : un rapport envoye par
+  # courriel ne peut pas aller relire /tmp.
+  expect_false(grepl(png, html, fixed = TRUE))
+
+  # Figure absente : le rapport le dit au lieu d'afficher une image cassee
+  manquante <- .hstat_rep_images_html(
+    .hstat_rep_md_to_html("![X](/introuvable/fig.png)"))
+  expect_true(grepl("figure indisponible", manquante, fixed = TRUE))
+})
+
+test_that("le rendu HTML aboutit toujours, et le repli se dit", {
+  md <- hstat_report_markdown(.hstat_test_hist(), titre = "T")
+  f <- tempfile(fileext = ".html")
+  on.exit(unlink(f), add = TRUE)
+  r <- hstat_report_render(md, f, "html", "T")
+  expect_true(r$ok)
+  expect_equal(r$format, "html")
+  expect_equal(r$message, "")
+  html <- paste(readLines(f, warn = FALSE), collapse = "\n")
+  expect_true(grepl("<!DOCTYPE html>", html, fixed = TRUE))
+  expect_true(grepl("<table>", html, fixed = TRUE))
+
+  # Word demande sur une machine sans pandoc : repli HTML, et on le DIT.
+  r2 <- hstat_report_render(md, f, "docx", "T",
+                            dispo = c(html = TRUE, docx = FALSE, pdf = FALSE))
+  expect_true(r2$ok)
+  expect_equal(r2$format, "html")
+  expect_true(grepl("indisponible", r2$message, fixed = TRUE))
+  expect_true(grepl("DOCX", r2$message, fixed = TRUE))
+
+  r3 <- hstat_report_render(md, f, "pdf", "T",
+                            dispo = c(html = TRUE, docx = TRUE, pdf = FALSE))
+  expect_equal(r3$format, "html")
+  expect_true(grepl("PDF", r3$message, fixed = TRUE))
+})
+
+test_that("le message de disponibilite oriente vers une solution", {
+  expect_null(hstat_report_message_dispo(c(html = TRUE, docx = TRUE, pdf = TRUE)))
+  m <- hstat_report_message_dispo(c(html = TRUE, docx = FALSE, pdf = FALSE))
+  expect_true(grepl("pandoc", m, fixed = TRUE))
+  expect_true(grepl("tinytex", m, fixed = TRUE))
+  expect_true(grepl("HTML", m, fixed = TRUE))
+  # Le HTML est toujours annonce comme disponible
+  d <- hstat_report_formats_dispo()
+  expect_true(d[["html"]])
+  expect_named(d, c("html", "docx", "pdf"))
+})
+
+test_that("le rendu Word passe par pandoc quand il est la", {
+  skip_if_not_installed("rmarkdown")
+  skip_if_not(isTRUE(tryCatch(rmarkdown::pandoc_available(),
+                              error = function(e) FALSE)),
+              "pandoc indisponible")
+  f <- tempfile(fileext = ".docx")
+  on.exit(unlink(f), add = TRUE)
+  r <- hstat_report_render(hstat_report_markdown(.hstat_test_hist(), titre = "T"),
+                           f, "docx", "T")
+  expect_true(r$ok)
+  expect_equal(r$format, "docx")
+  expect_true(file.size(f) > 1000)
+  # Un .docx est une archive zip contenant word/document.xml
+  expect_true(any(grepl("word/document.xml", utils::unzip(f, list = TRUE)$Name,
+                        fixed = TRUE)))
 })
