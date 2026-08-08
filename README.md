@@ -242,17 +242,21 @@ next" suggestion rather than a verdict.
 
 ```
 .
-├── app.R
-├── DESCRIPTION
+├── .github
+│   └── workflows
+│       └── tests.yml               # CI: dependency-free syntax pass, then the testthat suite
+├── app.R                           # deployment bridge to inst/app (shinyAppDir — never setwd)
+├── CLAUDE.md                       # repository conventions
+├── DESCRIPTION                     # single source of truth for the version number
 ├── Hstat.Rproj
 ├── inst
 │   ├── app
-│   │   ├── app.R
-│   │   ├── app_server.R
-│   │   ├── mod_ai.R
-│   │   ├── HStat.R
+│   │   ├── app.R                   # standard Shiny entry point; serves www/
+│   │   ├── app_server.R            # server(): shared state and multivariate analyses
+│   │   ├── HStat.R                 # sources the modules in order, then shinyApp(ui, server)
+│   │   ├── mod_ai.R                # inference engine, decision support, reproducibility journal
 │   │   ├── mod_clean.R
-│   │   ├── mod_coding.R
+│   │   ├── mod_coding.R            # CAQDAS coding workbench
 │   │   ├── mod_descriptive.R
 │   │   ├── mod_design.R
 │   │   ├── mod_dl.R
@@ -260,12 +264,13 @@ next" suggestion rather than a verdict.
 │   │   ├── mod_filter.R
 │   │   ├── mod_ml.R
 │   │   ├── mod_qualitative.R
+│   │   ├── mod_report.R            # automatic report (HTML / Word / PDF)
 │   │   ├── mod_tests.R
 │   │   ├── mod_threshold.R
 │   │   ├── mod_timeseries.R
 │   │   ├── mod_viz.R
-│   │   ├── Utils.R
-│   │   ├── UX.R
+│   │   ├── Utils.R                 # shared computation helpers; sourced first
+│   │   ├── UX.R                    # ui: every tab
 │   │   └── www
 │   │       ├── fonts
 │   │       │   ├── archivo-latin-400-normal.woff2
@@ -290,21 +295,22 @@ next" suggestion rather than a verdict.
 │   │       │   ├── newsreader-latin-500-normal.woff2
 │   │       │   ├── newsreader-latin-600-normal.woff2
 │   │       │   └── Newsreader-LICENSE.txt
+│   │       ├── hstat-session.js    # session persistence: reconnect banner, keep-alive
 │   │       ├── hstat-theme.css
-│   │       └── Sortable.min.js
+│   │       └── Sortable.min.js     # drag-and-drop for the coding workbench
 │   └── CITATION
 ├── man
 │   └── run_hstat.Rd
 ├── NAMESPACE
 ├── R
-│   ├── run_hstat.R
-│   └── zzz.R
+│   ├── _disable_autoload.R         # stops Shiny sourcing R/ into the app environment
+│   ├── run_hstat.R                 # run_hstat(): installs missing packages, then launches
+│   └── zzz.R                       # startup message with the citation
 ├── README.md
 └── tests
-    ├── test-hstat.R
     ├── testthat
-    │   └── test-hstat.R
-    └── testthat.R
+    │   └── test-hstat.R            # the reference suite
+    └── testthat.R                  # entry point used by R CMD check
 ```
 ---
 
@@ -319,7 +325,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.16.1. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.16.2. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -327,7 +333,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.16.1},
+  note   = {Version 0.16.2},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

@@ -38,6 +38,15 @@ lire `DESCRIPTION` : son bloc de citation porte donc le numéro en dur et doit
 divergent — le README était resté bloqué sur `0.6.0` alors que le paquet était
 en `0.7.4`.
 
+Même problème, même remède pour la section **« Project structure »** : rien ne
+la met à jour quand un fichier arrive ou disparaît, et elle avait dérivé —
+cinq fichiers réels manquants (le workflow de CI, `CLAUDE.md`,
+`R/_disable_autoload.R`, `mod_report.R`, `hstat-session.js`) et un fichier
+inexistant listé (`tests/test-hstat.R`). Une documentation qui **invente** un
+fichier est pire qu'une documentation absente : on le cherche. Un test
+reconstitue l'arbre du README et le compare à `git ls-files` dans les deux
+sens ; il a été vérifié comme échouant sur chacune des deux dérives.
+
 Note : `packageVersion()` lève une **erreur** quand le paquet est absent, mais
 `packageDate()` un **avertissement** — il faut `suppressWarnings()` en plus du
 `tryCatch()`, sinon l'onglet de citation pollue la console à chaque rendu.
