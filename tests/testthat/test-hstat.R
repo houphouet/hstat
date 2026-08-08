@@ -3576,3 +3576,60 @@ test_that("le nettoyage est pose sur renderPlotly, pas sur chaque appel", {
   expect_true(grepl("exprToFunction", src, fixed = TRUE))
   expect_true(grepl("hstat_plotly_clean(fn())", src, fixed = TRUE))
 })
+
+
+# ===========================================================================
+# L'ARBORESCENCE DU README DOIT DECRIRE LE DEPOT REEL
+# ---------------------------------------------------------------------------
+# La section « Project structure » est du markdown statique : rien ne la met a
+# jour quand un fichier arrive ou disparait. Elle avait derive — cinq fichiers
+# reels manquaient (dont le workflow de CI, mod_report.R et hstat-session.js)
+# et un fichier inexistant y figurait (tests/test-hstat.R). Une documentation
+# qui invente un fichier est pire qu'une documentation absente : on le cherche.
+# ===========================================================================
+
+# Reconstitue les chemins decrits par l'arbre du README. Un noeud est un
+# FICHIER s'il n'est le prefixe d'aucun autre : inutile de deviner d'apres
+# l'extension, l'arbre porte deja l'information.
+.hstat_readme_arbre <- function(readme) {
+  txt <- paste(readLines(readme, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  bloc <- strsplit(strsplit(txt, "## Project structure", fixed = TRUE)[[1]][2],
+                   "```", fixed = TRUE)[[1]][2]
+  lignes <- strsplit(bloc, "\n", fixed = TRUE)[[1]]
+  pile <- character(0); chemins <- character(0)
+  for (l in lignes) {
+    if (!nzchar(trimws(l)) || identical(trimws(l), ".")) next
+    m <- regmatches(l, regexec("^([\\s│├└─]*)(?:├──|└──)\\s+(\\S+)", l, perl = TRUE))[[1]]
+    if (length(m) < 3) next
+    prof <- nchar(m[2]) %/% 4L
+    length(pile) <- max(length(pile), prof + 1L)
+    pile[prof + 1L] <- m[3]
+    chemins <- c(chemins, paste(pile[seq_len(prof + 1L)], collapse = "/"))
+  }
+  chemins[!vapply(chemins, function(c0)
+    any(startsWith(chemins, paste0(c0, "/"))), logical(1))]
+}
+
+test_that("l'arborescence du README decrit exactement le depot", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  skip_if(!nzchar(Sys.which("git")), "git indisponible")
+  suivis <- suppressWarnings(system2("git", c("-C", shQuote(root), "ls-files"),
+                                     stdout = TRUE, stderr = FALSE))
+  skip_if(!length(suivis) || !any(grepl("DESCRIPTION", suivis, fixed = TRUE)),
+          "depot git non lisible depuis les tests")
+
+  decrits <- .hstat_readme_arbre(file.path(root, "README.md"))
+  # Le parseur doit avoir vu quelque chose : sans ce garde-fou, un arbre
+  # illisible donnerait deux ensembles vides et le test passerait a tort.
+  expect_gt(length(decrits), 40L)
+
+  absents  <- setdiff(suivis, decrits)
+  inventes <- setdiff(decrits, suivis)
+  expect_equal(absents, character(0),
+    info = paste("Fichiers du depot absents du README :\n  ",
+                 paste(absents, collapse = "\n   ")))
+  expect_equal(inventes, character(0),
+    info = paste("Fichiers listes par le README mais inexistants :\n  ",
+                 paste(inventes, collapse = "\n   ")))
+})
