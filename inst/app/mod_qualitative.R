@@ -2747,7 +2747,7 @@ mod_qualitative_server <- function(id, values) {
             list(ok = FALSE, notes = "Le recodage s'applique avec le bouton « Appliquer le recodage ».")
           }
         }
-      }, error = function(e) list(ok = FALSE, notes = paste("Erreur :", conditionMessage(e))))
+      }, error = function(e) list(ok = FALSE, notes = hstat_err_fr(e)))
       res
     })
 

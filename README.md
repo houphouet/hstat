@@ -144,6 +144,24 @@ those are missing the app **says so, points at the fix, and falls back to
 HTML** rather than failing with a technical message. The report computes
 nothing — it typesets what you already obtained.
 
+**Errors you can act on.** R speaks English, and it speaks to statisticians:
+*"data are essentially constant"*, *"incorrect number of dimensions"*,
+*"system is computationally singular"*. HStat translates the errors it surfaces
+into French sentences that name the **cause** and then the **gesture** — which
+variable to change, which filter to check, which package to install, which
+analysis to use instead. The original R message is kept in parentheses, never
+dropped: it is what you would paste when asking for help. A repo-wide test
+fails if any new code puts a raw R message in front of the user.
+
+**The session survives a locked screen.** When the computer sleeps or locks,
+the browser suspends its connection and Shiny's websocket drops — the app used
+to grey out and the session was gone, data and analyses with it. HStat now
+keeps the session alive server-side (`allowReconnect`), replaces Shiny's grey
+"Disconnected from the server" veil with a French banner saying the work is
+**not lost**, and reconnects on its own — immediately when you unlock the
+machine, come back to the tab, or the network returns. Closing the tab with
+data loaded asks for confirmation. **Only you close the application.**
+
 **Data health check.** A dedicated tab reports what is wrong with the dataset
 before you analyse it: missing-value rates, constant and quasi-constant
 variables, numbers stored as text, rare or too-numerous categories, extreme
@@ -284,7 +302,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.14.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.15.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -292,7 +310,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.14.0},
+  note   = {Version 0.15.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

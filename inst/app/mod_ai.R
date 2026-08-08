@@ -393,6 +393,14 @@ HSTAT_HIST_MAX    <- 200L
 hstat_ai_capture <- function(values, module, title, tables = list(),
                              text = NULL, meta = list(), plot = NULL) {
   if (is.null(values)) return(invisible(NULL))
+  # Normalisation A L'ENTREE du registre. Les modules deposent ce qu'ils ont
+  # sous la main : un data.frame, une matrice, mais aussi un objet `htest` brut
+  # renvoye par t.test() ou shapiro.test(). `as.data.frame()` echoue dessus
+  # (« cannot coerce class "htest" to a data.frame ») et faisait tomber toute
+  # l'analyse. Coercer ici, une fois, plutot que dans chacun des lecteurs
+  # (historique, rapport, onglet « Resultats captures »).
+  tables <- lapply(tables, function(x)
+    tryCatch(hstat_ai_as_table(x), error = function(e) NULL))
   tables <- Filter(function(x) !is.null(x) && NROW(x) > 0, tables)
   ctx <- list(
     module = as.character(module)[1],
@@ -420,7 +428,7 @@ hstat_ai_capture <- function(values, module, title, tables = list(),
     # l'allege sur les anciennes : la memoire reste bornee quelle que soit la
     # duree de la session.
     entree <- ctx[c("module", "title", "meta", "time", "plot")]
-    entree$tables <- lapply(tables, function(x) utils::head(as.data.frame(x), 100L))
+    entree$tables <- lapply(tables, function(x) utils::head(x, 100L))
     h[[length(h) + 1L]] <- entree
     if (length(h) > HSTAT_HIST_DETAIL) {
       a_alleger <- seq_len(length(h) - HSTAT_HIST_DETAIL)

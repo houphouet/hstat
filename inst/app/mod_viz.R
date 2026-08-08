@@ -2968,7 +2968,7 @@ mod_viz_server <- function(id, values) {
              }
       )
     }, error = function(e) {
-      showNotification(paste("Erreur lors de la création du graphique:", e$message), 
+      showNotification(hstat_err_fr(e, "Erreur lors de la création du graphique"), 
                        type = "error", duration = 5)
       return(NULL)
     })
@@ -3266,14 +3266,14 @@ mod_viz_server <- function(id, values) {
               )
             )),
             error = function(e) {
-              showNotification(paste("Axe Y2 :", conditionMessage(e)),
+              showNotification(hstat_err_fr(e, "Axe Y2"),
                                type = "warning", duration = 3)
             }
           )
         }
         
       }, error = function(e) {
-        showNotification(paste("Axe Y2 :", e$message), type = "warning", duration = 4)
+        showNotification(hstat_err_fr(e, "Axe Y2"), type = "warning", duration = 4)
       })
     }
     
@@ -3990,7 +3990,7 @@ mod_viz_server <- function(id, values) {
       
     }, error = function(e) {
       showNotification(
-        paste("Erreur lors du téléchargement:", e$message), 
+        hstat_err_fr(e, "Téléchargement"), 
         type = "error", 
         duration = 8
       )
@@ -4085,7 +4085,7 @@ mod_viz_server <- function(id, values) {
     plotly_obj <- tryCatch(
       suppressWarnings(suppressMessages(ggplotly(p, tooltip = "all"))),
       error = function(e) {
-        showNotification(paste("Conversion interactive:", conditionMessage(e)),
+        showNotification(hstat_err_fr(e, "Conversion en graphique interactif"),
                          type = "warning", duration = 4)
         NULL
       }

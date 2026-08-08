@@ -1144,7 +1144,7 @@ mod_threshold_server <- function(id, values) {
       return(p)
       
     }, error = function(e) {
-      showNotification(paste("Erreur lors de la mise à jour:", e$message), type = "error", duration = 5)
+      showNotification(hstat_err_fr(e, "Erreur lors de la mise à jour"), type = "error", duration = 5)
       return(NULL)
     })
   })
@@ -1321,7 +1321,7 @@ mod_threshold_server <- function(id, values) {
         
       }, error = function(e) {
         showNotification(
-          paste0("Erreur lors de l'export: ", e$message,
+          paste0(hstat_err_fr(e, "Export"), " ",
                  "\n\nConseils:",
                  "\n- Réduisez les dimensions ou le DPI",
                  "\n- Utilisez un format vectoriel (SVG, PDF) pour haute résolution",

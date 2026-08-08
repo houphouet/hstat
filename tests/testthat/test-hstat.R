@@ -2979,3 +2979,269 @@ test_that("le rendu Word passe par pandoc quand il est la", {
   expect_true(any(grepl("word/document.xml", utils::unzip(f, list = TRUE)$Name,
                         fixed = TRUE)))
 })
+
+
+# ===========================================================================
+# TRADUCTION DES ERREURS R (hstat_err_fr)
+# ===========================================================================
+
+test_that("les erreurs R courantes deviennent des consignes en francais", {
+  cas <- list(
+    # message R                                        # mot attendu dans la traduction
+    list("data are essentially constant",              "ne varie pas"),
+    list("not enough 'y' observations",                "Effectif insuffisant"),
+    list("grouping factor must have exactly 2 levels", "deux groupes"),
+    list("incorrect number of dimensions",             "un seul axe"),
+    list("system is computationally singular: reciprocal condition number",
+                                                       "redondantes"),
+    list("missing value where TRUE/FALSE needed",      "degenerees"),
+    list("0 (non-NA) cases",                           "Aucune observation"),
+    list("NA/NaN/Inf in foreign function call (arg 1)", "manquantes ou infinies"),
+    list("undefined columns selected",                 "absente du jeu de donnees"),
+    list("there is no package called 'poLCA'",         "pas installe"),
+    list("contrasts can be applied only to factors with 2 or more levels",
+                                                       "une seule modalite"),
+    list("sample size must be between 3 and 5000",     "Shapiro-Wilk"),
+    list("figure margins too large",                   "trop petite"))
+  for (c0 in cas) {
+    tr <- hstat_err_fr(simpleError(c0[[1]]))
+    expect_true(grepl(c0[[2]], tr, fixed = TRUE),
+                info = paste0(c0[[1]], " -> ", tr))
+    # Le message d'origine survit : c'est ce qu'un utilisateur copiera pour
+    # demander de l'aide, et sans lui une traduction fautive est indebuggable.
+    expect_true(grepl(c0[[1]], tr, fixed = TRUE), info = c0[[1]])
+    expect_true(grepl("message R :", tr, fixed = TRUE))
+  }
+})
+
+test_that("chaque traduction dit quoi faire, pas seulement ce qui s'est passe", {
+  # Une traduction qui se contente de nommer la panne ne sert a rien. On exige
+  # au moins un verbe d'action dans chacune.
+  gestes <- paste("Choisissez|Verifiez|Retirez|Convertissez|Installez|Traitez",
+                  "|Simplifiez|Croisez|Augmentez|Agrandissez|Reduisez|Utilisez",
+                  "|reselectionnez|Signalez|Installez", sep = "")
+  for (r in HSTAT_ERR_FR)
+    expect_true(grepl(gestes, r[[2]], perl = TRUE, ignore.case = TRUE),
+                info = substr(r[[2]], 1, 70))
+  # Et chaque motif doit etre une expression reguliere valide
+  for (r in HSTAT_ERR_FR)
+    expect_silent(grepl(r[[1]], "test", perl = TRUE))
+})
+
+test_that("une erreur inconnue est annoncee comme non traduite, pas maquillee", {
+  tr <- hstat_err_fr(simpleError("une panne totalement inedite"))
+  expect_true(grepl("non traduit", tr, fixed = TRUE))
+  expect_true(grepl("une panne totalement inedite", tr, fixed = TRUE))
+  # Le contexte prefixe le message quand l'appelant le connait
+  expect_true(grepl("^Test t : ", hstat_err_fr(simpleError("boum"), "Test t")))
+  # Une chaine nue est acceptee au meme titre qu'une condition
+  expect_equal(hstat_err_fr("data are essentially constant"),
+               hstat_err_fr(simpleError("data are essentially constant")))
+  # Une erreur sans message ne produit pas une phrase tronquee
+  expect_true(grepl("erreur sans message", hstat_err_fr(simpleError("")),
+                    fixed = TRUE))
+})
+
+test_that("aucun message R brut n'est affiche a l'utilisateur", {
+  root <- file.path(.hstat_repo_root(), "inst", "app")
+  skip_if(is.na(.hstat_repo_root()))
+  fautes <- character(0)
+  for (f in list.files(root, pattern = "\\.R$", full.names = TRUE)) {
+    if (basename(f) %in% c("HStat.R")) next   # secours de demarrage, hors Shiny
+    l <- readLines(f, warn = FALSE, encoding = "UTF-8")
+    l <- l[!grepl("^\\s*#", l)]
+    # conditionMessage() dans une notification ou une validation : le message
+    # anglais de R arriverait tel quel dans une interface francaise.
+    hit <- grep("(showNotification|validate\\(need)\\(.*(conditionMessage|e\\$message)",
+                l, value = TRUE)
+    hit <- hit[!grepl("hstat_err_fr", hit)]
+    # Les colonnes « Interpretation » des tableaux de resultats sont lues comme
+    # une phrase : un message anglais y est encore plus depayse qu'ailleurs.
+    hit <- c(hit, grep("Interpretation = paste\\(\"Erreur", l, value = TRUE))
+    if (length(hit)) fautes <- c(fautes, paste0(basename(f), " : ", trimws(hit)))
+  }
+  expect_equal(fautes, character(0),
+    info = paste("Passer par hstat_err_fr() : l'interface est en francais.\n",
+                 paste(fautes, collapse = "\n")))
+})
+
+
+# ===========================================================================
+# PERSISTANCE DE LA SESSION
+# ---------------------------------------------------------------------------
+# Un verrouillage d'ecran ne doit pas fermer l'application. Ces tests gardent
+# les trois pieces du mecanisme : l'autorisation cote serveur, le script cote
+# navigateur, et le fait que le voile gris de Shiny soit bien neutralise.
+# ===========================================================================
+
+test_that("le serveur autorise la reprise de session", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("allowReconnect", src, fixed = TRUE))
+  # « force » et non TRUE : sans lui, la reprise n'est active que derriere un
+  # serveur qui la gere, alors que HStat tourne le plus souvent en local.
+  expect_true(grepl('allowReconnect\\("force"\\)', src))
+  # Le signal de maintien envoye par le navigateur est bien recu
+  expect_true(grepl("input\\$hstat_keepalive", src))
+})
+
+test_that("le script de persistance est present et branche", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  js <- file.path(root, "inst", "app", "www", "hstat-session.js")
+  expect_true(file.exists(js))
+  src <- paste(readLines(js, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+
+  # Les quatre reprises : deconnexion, retour de visibilite (deverrouillage),
+  # retour du focus, retour du reseau.
+  for (ev in c("shiny:disconnected", "shiny:connected", "visibilitychange",
+               "online"))
+    expect_true(grepl(ev, src, fixed = TRUE), info = ev)
+  expect_true(grepl("reconnect()", src, fixed = TRUE))
+  expect_true(grepl("hstat_keepalive", src, fixed = TRUE))
+  expect_true(grepl("beforeunload", src, fixed = TRUE))
+  # Le maintien ne doit pas declencher d'analyse : signal, pas entree.
+  expect_true(grepl('priority: "event"', src, fixed = TRUE))
+
+  ux <- paste(readLines(file.path(root, "inst", "app", "UX.R"),
+                        warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("hstat-session.js", ux, fixed = TRUE))
+  # Le voile gris de Shiny est masque : sinon il recouvrirait le bandeau
+  # francais et l'utilisateur croirait l'application morte.
+  expect_true(grepl("shiny-disconnected-overlay", ux, fixed = TRUE))
+})
+
+test_that("le bandeau de reprise parle francais et rassure", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- paste(readLines(file.path(root, "inst", "app", "www", "hstat-session.js"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # Le message doit dire que rien n'est perdu : c'est la seule chose que
+  # l'utilisateur veut savoir a cet instant.
+  expect_true(grepl("Connexion interrompue", src, fixed = TRUE))
+  expect_true(grepl("n'est pas perdu", src, fixed = TRUE))
+  expect_true(grepl("Connexion retablie", src, fixed = TRUE))
+  # Et lui laisser la main plutot que de le faire attendre
+  expect_true(grepl("Reprendre maintenant", src, fixed = TRUE))
+  # Aucun libelle anglais dans ce qui s'affiche. Le voile de Shiny est cite
+  # dans l'en-tete du fichier pour expliquer ce qu'on remplace : on ne cherche
+  # donc l'anglais que dans les appels d'affichage.
+  affichages <- regmatches(src, gregexpr('afficher\\([^;]+', src))[[1]]
+  expect_true(length(affichages) >= 2L)
+  for (a in affichages)
+    expect_false(grepl("Disconnected|Please refresh|reload the page", a),
+                 info = substr(a, 1, 60))
+})
+
+
+# ===========================================================================
+# CLASSIFICATIONS SUR PAQUETS OPTIONNELS (k-modes, LCA, k-prototypes)
+# ---------------------------------------------------------------------------
+# klaR, poLCA et clustMixType ne sont pas installes par defaut. Les analyses
+# elles-memes ne sont donc pas executables ici — mais leur STATISTIQUE DE
+# QUALITE l'est, parce qu'elle a ete sortie du paquet. C'est le seul moyen de
+# garder ces trois analyses sous controle sans pouvoir les lancer.
+# ===========================================================================
+
+test_that("le pseudo-R2 k-modes vaut ce qu'il doit valoir", {
+  # 6 individus, 2 variables binaires, partition parfaite en 2 groupes.
+  d <- data.frame(a = c("x","x","x","y","y","y"),
+                  b = c("p","p","p","q","q","q"), stringsAsFactors = FALSE)
+  # Dissimilarite totale : pour chaque variable, n - effectif du mode = 6 - 3.
+  q <- hstat_kmodes_pseudo_r2(withindiff = c(0, 0), data = d)
+  expect_equal(q$dissimilarite_totale, 6)
+  expect_equal(q$dissimilarite_intra, 0)
+  expect_equal(q$pseudo_r2, 1)
+  expect_equal(q$verdict, "ok")
+
+  # Partition qui n'explique rien : dissimilarite intra = dissimilarite totale
+  q0 <- hstat_kmodes_pseudo_r2(withindiff = c(3, 3), data = d)
+  expect_equal(q0$pseudo_r2, 0)
+  expect_equal(q0$verdict, "err")
+
+  # Cas degenere : variables constantes -> aucune dissimilarite a expliquer.
+  # Le pseudo-R2 n'existe pas ; il ne doit pas valoir 0 ni faire tomber la
+  # sortie, il doit se declarer indeterminable.
+  cst <- data.frame(a = rep("x", 6), b = rep("p", 6), stringsAsFactors = FALSE)
+  qc <- hstat_kmodes_pseudo_r2(0, cst)
+  expect_equal(qc$dissimilarite_totale, 0)
+  expect_true(is.na(qc$pseudo_r2))
+  expect_equal(qc$verdict, "indeterminable")
+})
+
+test_that("l'entropie relative distingue une classification nette d'une confuse", {
+  # Affectations sans ambiguite -> entropie relative = 1
+  nette <- rbind(c(1, 0), c(1, 0), c(0, 1), c(0, 1))
+  e1 <- hstat_lca_entropie(nette)
+  expect_equal(e1$entropie_relative, 1, tolerance = 1e-6)
+  expect_equal(e1$verdict, "ok")
+
+  # Affectations indiscernables (50/50) -> entropie relative = 0
+  floue <- matrix(0.5, nrow = 4, ncol = 2)
+  e0 <- hstat_lca_entropie(floue)
+  expect_equal(e0$entropie_relative, 0, tolerance = 1e-6)
+  expect_equal(e0$verdict, "err")
+
+  # Une seule classe : l'entropie n'est pas definie (log(1) = 0 au denominateur)
+  e_una <- hstat_lca_entropie(matrix(1, nrow = 4, ncol = 1))
+  expect_equal(e_una$verdict, "indeterminable")
+  expect_equal(hstat_lca_entropie(matrix(numeric(0), 0, 2))$verdict,
+               "indeterminable")
+})
+
+test_that("l'equilibre d'une partition signale les classes minoritaires", {
+  expect_equal(hstat_part_equilibre(c(50, 50))$verdict, "ok")
+  expect_equal(hstat_part_equilibre(c(50, 50))$part_min, 0.5)
+  # 4 % : sous le seuil de 5 %, la classe n'est pas interpretable
+  expect_equal(hstat_part_equilibre(c(96, 4))$verdict, "warn")
+  expect_equal(hstat_part_equilibre(c(95, 5))$verdict, "ok")
+  # Un cluster vide
+  expect_equal(hstat_part_equilibre(c(100, 0))$verdict, "warn")
+  # Aucun effectif : indeterminable, jamais une division par zero
+  expect_equal(hstat_part_equilibre(integer(0))$verdict, "indeterminable")
+  expect_equal(hstat_part_equilibre(c(0, 0))$verdict, "indeterminable")
+  # Accepte une table() comme les modules la fournissent (2 et 1 sur 3 : la
+  # plus petite pese 33 %, largement au-dessus du seuil)
+  eq <- hstat_part_equilibre(table(c("a","a","b")))
+  expect_equal(eq$verdict, "ok")
+  expect_equal(eq$part_min, 1/3)
+})
+
+test_that("hstat_seuil_verdict ne branche jamais sur une valeur non calculable", {
+  expect_equal(hstat_seuil_verdict(0.9, 0.8, 0.6), "ok")
+  expect_equal(hstat_seuil_verdict(0.7, 0.8, 0.6), "warn")
+  expect_equal(hstat_seuil_verdict(0.1, 0.8, 0.6), "err")
+  for (x in list(NA, NA_real_, NaN, Inf, -Inf, NULL, character(0), c(1, 2)))
+    expect_equal(hstat_seuil_verdict(x, 0.8, 0.6), "indeterminable")
+})
+
+test_that("un paquet absent donne une consigne, pas une impasse", {
+  for (pkg in c("klaR", "poLCA", "clustMixType")) {
+    m <- hstat_pkg_manquant(pkg, "Analyse X")
+    expect_true(grepl("Analyse X", m, fixed = TRUE))
+    expect_true(grepl(pkg, m, fixed = TRUE))
+    # La commande d'installation, telle quelle
+    expect_true(grepl(sprintf('install.packages("%s")', pkg), m, fixed = TRUE))
+    # Et une voie de repli disponible SANS ce paquet
+    expect_true(grepl("En attendant", m, fixed = TRUE))
+    expect_true(grepl("ACM|AFDM", m))
+  }
+  # Un paquet sans repli declare reste explicite sur l'installation
+  m <- hstat_pkg_manquant("truc")
+  expect_true(grepl('install.packages("truc")', m, fixed = TRUE))
+})
+
+test_that("aucune des trois analyses ne renvoie encore un message d'impasse", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  for (pkg in c("klaR", "poLCA", "clustMixType")) {
+    expect_false(grepl(sprintf("error = \"Package '%s' indisponible.\"", pkg),
+                       src, fixed = TRUE), info = pkg)
+    expect_true(grepl(sprintf('hstat_pkg_manquant("%s"', pkg), src, fixed = TRUE),
+                info = pkg)
+  }
+})

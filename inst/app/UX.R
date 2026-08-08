@@ -212,6 +212,13 @@ ui <- dashboardPage(
       # Accessibilite : declare la langue du document (lecteurs d'ecran, prononciation).
       tags$script(HTML(
         "document.documentElement.setAttribute('lang','fr');")),
+      # Persistance de la session : le voile gris de Shiny (« Disconnected from
+      # the server ») est masque au profit d'un bandeau francais qui annonce
+      # l'etat et laisse reprendre la main. Un verrouillage d'ecran ne doit pas
+      # fermer l'application : seul l'utilisateur la ferme.
+      tags$style(HTML(
+        "#shiny-disconnected-overlay{display:none !important;}")),
+      tags$script(src = "hstat-session.js"),
       # Copie de la citation dans le presse-papiers (API moderne + repli execCommand).
       tags$script(HTML(
         "Shiny.addCustomMessageHandler('hstat_copy_clip', function(m){",

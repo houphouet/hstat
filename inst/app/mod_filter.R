@@ -226,7 +226,7 @@ mod_filter_server <- function(id, values) {
         duration = 5
       )
     }, error = function(e) {
-      showNotification(paste("Erreur filtre par plage:", e$message), type = "error", duration = 10)
+      showNotification(hstat_err_fr(e, "Erreur filtre par plage"), type = "error", duration = 10)
     })
   })
   
@@ -293,7 +293,7 @@ mod_filter_server <- function(id, values) {
         duration = 5
       )
     }, error = function(e) {
-      showNotification(paste("Erreur filtre par valeur:", e$message), type = "error", duration = 10)
+      showNotification(hstat_err_fr(e, "Erreur filtre par valeur"), type = "error", duration = 10)
     })
   })
   
@@ -345,7 +345,7 @@ mod_filter_server <- function(id, values) {
         duration = 5
       )
     }, error = function(e) {
-      showNotification(paste("Erreur filtre par colonnes:", e$message), type = "error", duration = 10)
+      showNotification(hstat_err_fr(e, "Erreur filtre par colonnes"), type = "error", duration = 10)
     })
   })
   
@@ -381,7 +381,7 @@ mod_filter_server <- function(id, values) {
       values$filteredData <- filtered
       showNotification(paste("Filtrage (2 facteurs) appliqué. Lignes:", nrow(filtered)), type = "message", duration = 5)
     }, error = function(e) {
-      showNotification(paste("Erreur filtrage:", e$message), type = "error", duration = 10)
+      showNotification(hstat_err_fr(e, "Erreur filtrage"), type = "error", duration = 10)
     })
   })
   
@@ -399,7 +399,7 @@ mod_filter_server <- function(id, values) {
       values$filteredData <- filtered
       showNotification(paste("Filtrage (N facteurs) appliqué. Lignes:", nrow(filtered)), type = "message", duration = 5)
     }, error = function(e) {
-      showNotification(paste("Erreur filtrage N facteurs:", e$message), type = "error", duration = 10)
+      showNotification(hstat_err_fr(e, "Erreur filtrage N facteurs"), type = "error", duration = 10)
     })
   })
   

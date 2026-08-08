@@ -180,8 +180,7 @@ mod_dl_server <- function(id, values) {
                    value = 0.2, {
         ok <- tryCatch({ torch::install_torch(); TRUE },
                        error = function(e) {
-                         showNotification(paste("Échec de l'installation de torch :",
-                                                conditionMessage(e)),
+                         showNotification(hstat_err_fr(e, "Échec de l'installation de torch"),
                                           type = "error", duration = 12)
                          FALSE
                        })

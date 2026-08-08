@@ -790,7 +790,7 @@ mod_clean_server <- function(id, values) {
         type = "message", duration = 5
       )
     }, error = function(e) {
-      showNotification(paste("Erreur suppression :", e$message), type = "error", duration = 8)
+      showNotification(hstat_err_fr(e, "Erreur suppression"), type = "error", duration = 8)
     })
   })
   
@@ -963,7 +963,7 @@ mod_clean_server <- function(id, values) {
               data_temp[[col]] <- as.Date(data_temp[[col]])
             }
           }, error = function(e) {
-            showNotification(paste("Erreur pour `", col, "` :", e$message), 
+            showNotification(hstat_err_fr(e, sprintf("Variable `%s`", col)), 
                              type = "warning", duration = 5)
           })
         }
@@ -1324,7 +1324,7 @@ mod_clean_server <- function(id, values) {
       updateTextInput(session, "calcFormula", value = "")
       
     }, error = function(e) {
-      showNotification(paste("Erreur dans la formule:", e$message), 
+      showNotification(hstat_err_fr(e, "Erreur dans la formule"), 
                        type = "error", duration = 5)
     })
   })
@@ -1546,7 +1546,7 @@ mod_clean_server <- function(id, values) {
             data_temp[[col]][is.na(data_temp[[col]])] <- input$naValue
           }
         }, error = function(e) {
-          showNotification(paste("Erreur pour `", col, "` :", e$message), 
+          showNotification(hstat_err_fr(e, sprintf("Variable `%s`", col)), 
                            type = "error", duration = 5)
         })
         

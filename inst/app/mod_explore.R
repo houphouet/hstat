@@ -407,7 +407,7 @@ mod_explore_server <- function(id, values) {
         legend_text_size = params$legend_text_size
       )
     }, error = function(e) {
-      showNotification(paste("Erreur lors de la création du graphique:", e$message), 
+      showNotification(hstat_err_fr(e, "Erreur lors de la création du graphique"), 
                        type = "error", duration = 5)
       return(NULL)
     })
@@ -436,7 +436,7 @@ mod_explore_server <- function(id, values) {
           legend_text_size = params$legend_text_size
         )
       }, error = function(e) {
-        showNotification(paste("Erreur téléchargement:", e$message), type = "error")
+        showNotification(hstat_err_fr(e, "Erreur téléchargement"), type = "error")
         return(NULL)
       })
       
@@ -520,7 +520,7 @@ mod_explore_server <- function(id, values) {
         rotate_labels = params$rotate_labels
       )
     }, error = function(e) {
-      showNotification(paste("Erreur lors de la création du graphique:", e$message), 
+      showNotification(hstat_err_fr(e, "Erreur lors de la création du graphique"), 
                        type = "error", duration = 5)
       return(NULL)
     })
@@ -547,7 +547,7 @@ mod_explore_server <- function(id, values) {
           rotate_labels = params$rotate_labels
         )
       }, error = function(e) {
-        showNotification(paste("Erreur téléchargement:", e$message), type = "error")
+        showNotification(hstat_err_fr(e, "Erreur téléchargement"), type = "error")
         return(NULL)
       })
       

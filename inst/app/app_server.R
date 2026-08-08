@@ -1,5 +1,34 @@
 server <- function(input, output, session) {
-  
+
+  # ---------------------------------------------------------------------------
+  # PERSISTANCE DE LA SESSION
+  # Un verrouillage d'ecran, une mise en veille ou une coupure reseau passagere
+  # font tomber le websocket de Shiny. Sans cette autorisation, la session est
+  # DETRUITE cote serveur : l'utilisateur retrouve une page grise et a perdu ses
+  # donnees, ses filtres et ses analyses. Avec elle, l'etat est conserve et le
+  # navigateur peut reprendre la main (le bandeau de www/hstat-session.js s'en
+  # charge). Seul l'utilisateur ferme l'application.
+  #
+  # « force » et non TRUE : sans lui, Shiny n'active la reprise que derriere un
+  # serveur qui la gere (Connect, Shiny Server Pro). Or HStat tourne le plus
+  # souvent en local, cas ou le besoin est le plus fort.
+  try(session$allowReconnect("force"), silent = TRUE)
+
+  # Signal de maintien envoye par le navigateur. Il n'alimente aucun calcul :
+  # sa seule fonction est d'empecher une coupure pour inactivite. On le lit
+  # explicitement pour qu'il ne soit pas pris pour une entree oubliee.
+  observeEvent(input$hstat_keepalive, {
+    invisible(NULL)
+  }, ignoreInit = TRUE)
+
+  # Garde-fou a la fermeture : le navigateur ne demande confirmation que si des
+  # donnees sont chargees. Une confirmation qui s'affiche a chaque visite n'est
+  # plus lue, et protegerait une page vide.
+  observe({
+    session$sendCustomMessage("hstat_travail",
+                              list(actif = !is.null(values$data) && NROW(values$data) > 0))
+  })
+
   options(shiny.error = function() {
     msg <- tryCatch(conditionMessage(sys.call()), error = function(e) "Erreur inconnue")
     shinyjs::logjs(paste("[HStat] Erreur non capturée:", msg))
@@ -221,7 +250,8 @@ server <- function(input, output, session) {
         showNotification("Données chargées avec succès.", type = "message")
       }
     }, error = function(e) {
-      showNotification(paste("Erreur de chargement :", conditionMessage(e)), type = "error")
+      showNotification(hstat_err_fr(e, "Chargement des donnees"), type = "error",
+                       duration = 15)
     })
   })
 
@@ -296,7 +326,7 @@ server <- function(input, output, session) {
       showNotification(tagList(icon("check"), " ", res$msg), type = "message", duration = 5)
     }, error = function(e) {
       merge_msg(list(ok = FALSE, msg = paste("Échec de la fusion :", conditionMessage(e))))
-      showNotification(paste("Échec de la fusion :", conditionMessage(e)),
+      showNotification(hstat_err_fr(e, "Fusion"),
                        type = "error", duration = 8)
     })
   })
@@ -439,7 +469,7 @@ server <- function(input, output, session) {
                 format(nrow(values$data), big.mark = " ")),
         type = "message", duration = 7)
     }, error = function(e) {
-      showNotification(paste("Erreur de tirage :", conditionMessage(e)),
+      showNotification(hstat_err_fr(e, "Tirage"),
                        type = "error", duration = 6)
     })
   })
@@ -593,7 +623,7 @@ server <- function(input, output, session) {
         h_cm <- if (!is.na(h_px) && h_px > 0) h_px / dpi_val * 2.54 else 20
         
         p <- tryCatch(plot_func(), error = function(e) {
-          showNotification(paste("Erreur génération graphique:", conditionMessage(e)),
+          showNotification(hstat_err_fr(e, "Graphique"),
                            type = "error", duration = 5)
           NULL
         })
@@ -605,7 +635,7 @@ server <- function(input, output, session) {
             width = w_cm, height = h_cm, dpi = dpi_val, units = "cm"
           )),
           error = function(e) {
-            showNotification(paste("Erreur export", toupper(fmt), ":", e$message),
+            showNotification(hstat_err_fr(e, paste("Export", toupper(fmt))),
                              type = "error", duration = 10)
           }
         )
@@ -1194,7 +1224,7 @@ server <- function(input, output, session) {
       ))
       
     }, error = function(e) {
-      showNotification(paste("Erreur dataframes ACP:", e$message), type = "error")
+      showNotification(hstat_err_fr(e, "Erreur dataframes ACP"), type = "error")
       return(NULL)
     })
   })
@@ -1209,7 +1239,7 @@ server <- function(input, output, session) {
         showNotification("Dataframes ACP mis en cache", type = "message", duration = 2)
       }
     }, error = function(e) {
-      showNotification(paste("Erreur stockage ACP:", e$message), type = "warning")
+      showNotification(hstat_err_fr(e, "Erreur stockage ACP"), type = "warning")
     })
   })
   
@@ -1665,7 +1695,7 @@ server <- function(input, output, session) {
     p <- tryCatch(
       suppressWarnings(suppressMessages(createPcaPlot(pcaResultReactive()))),
       error = function(e) {
-        showNotification(paste("Erreur graphique ACP :", e$message), type = "error", duration = 8)
+        showNotification(hstat_err_fr(e, "Erreur graphique ACP"), type = "error", duration = 8)
         NULL
       }
     )
@@ -1831,7 +1861,7 @@ server <- function(input, output, session) {
       )
     }, error = function(e) {
       div(class = "callout callout-danger",
-          tags$p(tagList(icon("exclamation-triangle"), " Erreur lors du calcul Bartlett/KMO : ", e$message)))
+          tags$p(tagList(icon("exclamation-triangle"), " ", hstat_err_fr(e, "Calcul Bartlett/KMO"))))
     })
   })
   
@@ -1975,7 +2005,7 @@ server <- function(input, output, session) {
       
     }, error = function(e) {
       plot.new()
-      text(0.5, 0.5, paste("Erreur analyse parallèle :", e$message),
+      text(0.5, 0.5, paste(strwrap(hstat_err_fr(e, "Analyse parallèle"), 55), collapse = "\n"),
            cex = 1, col = "#e74c3c", adj = c(0.5, 0.5))
     })
   }, res = 120)
@@ -2210,7 +2240,7 @@ server <- function(input, output, session) {
         ))
         saveWorkbook(wb, file, overwrite = TRUE)
         showNotification("Export Excel ACP réussi !", type = "message", duration = 3)
-      }, error = function(e) showNotification(paste("Erreur Excel ACP :", e$message), type = "error", duration = 8))
+      }, error = function(e) showNotification(hstat_err_fr(e, "Erreur Excel ACP"), type = "error", duration = 8))
     }
   )
   
@@ -2234,7 +2264,7 @@ server <- function(input, output, session) {
           "acp_cos2_variables"  = dfs$cos2_variables
         ))
         showNotification(paste0("Export CSV ACP réussi (", length(n), " fichiers) !"), type = "message", duration = 3)
-      }, error = function(e) showNotification(paste("Erreur CSV ACP :", e$message), type = "error", duration = 8))
+      }, error = function(e) showNotification(hstat_err_fr(e, "Erreur CSV ACP"), type = "error", duration = 8))
     }
   )
   
@@ -2257,7 +2287,7 @@ server <- function(input, output, session) {
         ))
         saveWorkbook(wb, file, overwrite = TRUE)
         showNotification("Export Excel HCPC réussi !", type = "message", duration = 3)
-      }, error = function(e) showNotification(paste("Erreur Excel HCPC :", e$message), type = "error", duration = 8))
+      }, error = function(e) showNotification(hstat_err_fr(e, "Erreur Excel HCPC"), type = "error", duration = 8))
     }
   )
   
@@ -2277,7 +2307,7 @@ server <- function(input, output, session) {
           "hcpc_affectation_clusters" = dfs$affectation_clusters
         ))
         showNotification(paste0("Export CSV HCPC réussi (", length(n), " fichiers) !"), type = "message", duration = 3)
-      }, error = function(e) showNotification(paste("Erreur CSV HCPC :", e$message), type = "error", duration = 8))
+      }, error = function(e) showNotification(hstat_err_fr(e, "Erreur CSV HCPC"), type = "error", duration = 8))
     }
   )
   
@@ -2300,7 +2330,7 @@ server <- function(input, output, session) {
         ))
         saveWorkbook(wb, file, overwrite = TRUE)
         showNotification("Export Excel AFD réussi !", type = "message", duration = 3)
-      }, error = function(e) showNotification(paste("Erreur Excel AFD :", e$message), type = "error", duration = 8))
+      }, error = function(e) showNotification(hstat_err_fr(e, "Erreur Excel AFD"), type = "error", duration = 8))
     }
   )
   
@@ -2320,7 +2350,7 @@ server <- function(input, output, session) {
           "afd_matrice_confusion"       = dfs$matrice_confusion
         ))
         showNotification(paste0("Export CSV AFD réussi (", length(n), " fichiers) !"), type = "message", duration = 3)
-      }, error = function(e) showNotification(paste("Erreur CSV AFD :", e$message), type = "error", duration = 8))
+      }, error = function(e) showNotification(hstat_err_fr(e, "Erreur CSV AFD"), type = "error", duration = 8))
     }
   )
   
@@ -2577,7 +2607,7 @@ server <- function(input, output, session) {
         saveWorkbook(wb, file, overwrite = TRUE)
         showNotification("Fichier Excel ACP telecharge avec succès!", type = "message")
       }, error = function(e) {
-        showNotification(paste("Erreur lors du Téléchargement Excel :", e$message), type = "error")
+        showNotification(hstat_err_fr(e, "Erreur lors du Téléchargement Excel"), type = "error")
       })
     }
   )
@@ -2635,7 +2665,7 @@ server <- function(input, output, session) {
         zip(file, file.path(temp_dir, csv_files), flags = "-j")
         showNotification("Fichiers CSV ACP telecharges avec succès!", type = "message")
       }, error = function(e) {
-        showNotification(paste("Erreur lors du Téléchargement CSV :", e$message), type = "error")
+        showNotification(hstat_err_fr(e, "Erreur lors du Téléchargement CSV"), type = "error")
       })
     }
   )
@@ -2706,7 +2736,7 @@ server <- function(input, output, session) {
       }
       return(res.hcpc)
     }, error = function(e) {
-      showNotification(paste("Erreur HCPC :", e$message), type = "error", duration = 8)
+      showNotification(hstat_err_fr(e, "Erreur HCPC"), type = "error", duration = 8)
       return(NULL)
     })
   })
@@ -2830,7 +2860,7 @@ server <- function(input, output, session) {
       return(result)
       
     }, error = function(e) {
-      showNotification(paste("Erreur creation dataframes HCPC :", e$message), type = "error", duration = 10)
+      showNotification(hstat_err_fr(e, "Erreur creation dataframes HCPC"), type = "error", duration = 10)
       return(NULL)
     })
   })
@@ -2860,7 +2890,7 @@ server <- function(input, output, session) {
           showNotification("Erreur: Impossible de créer les dataframes HCPC", type = "error", duration = 5)
         }
       }, error = function(e) {
-        showNotification(paste("Erreur stockage HCPC:", e$message), type = "error", duration = 5)
+        showNotification(hstat_err_fr(e, "Erreur stockage HCPC"), type = "error", duration = 5)
       })
     })
   })
@@ -3260,7 +3290,7 @@ server <- function(input, output, session) {
       createHcpcHeightsPlot(hcpcResultReactive()),
       error = function(e) {
         plot.new()
-        text(0.5, 0.5, paste("Erreur :", e$message), cex = 1, col = "#e74c3c")
+        text(0.5, 0.5, paste(strwrap(hstat_err_fr(e), 55), collapse = "\n"), cex = 0.85, col = "#e74c3c")
       }
     )
   }, res = 120)
@@ -3405,7 +3435,7 @@ server <- function(input, output, session) {
       )
     }, error = function(e) {
       div(class = "callout callout-danger",
-          tags$p(tagList(icon("exclamation-triangle"), " Erreur calcul métriques HCPC : ", e$message)))
+          tags$p(tagList(icon("exclamation-triangle"), " ", hstat_err_fr(e, "Calcul des métriques HCPC"))))
     })
   })
   
@@ -3591,7 +3621,7 @@ server <- function(input, output, session) {
         }
         
       }, error = function(e) {
-        showNotification(paste("Erreur lors du Téléchargement Excel :", e$message), type = "error", duration = 10)
+        showNotification(hstat_err_fr(e, "Erreur lors du Téléchargement Excel"), type = "error", duration = 10)
       })
     }
   )
@@ -3669,7 +3699,7 @@ server <- function(input, output, session) {
         }
         
       }, error = function(e) {
-        showNotification(paste("Erreur lors du Téléchargement CSV :", e$message), type = "error", duration = 10)
+        showNotification(hstat_err_fr(e, "Erreur lors du Téléchargement CSV"), type = "error", duration = 10)
       })
     }
   )
@@ -4141,7 +4171,7 @@ server <- function(input, output, session) {
       afd_predict <- tryCatch(
         predict(afd_result, afd_data[, vars_to_use, drop = FALSE]),
         error = function(e) {
-          showNotification(paste("AFD predict() :", e$message), type = "error", duration = 8)
+          showNotification(hstat_err_fr(e, "AFD predict()"), type = "error", duration = 8)
           NULL
         }
       )
@@ -4324,7 +4354,7 @@ server <- function(input, output, session) {
         cv_accuracy = cv_accuracy_df
       ))
     }, error = function(e) {
-      showNotification(paste("Erreur dataframes AFD:", e$message), type = "error")
+      showNotification(hstat_err_fr(e, "Erreur dataframes AFD"), type = "error")
       return(NULL)
     })
   })
@@ -4354,7 +4384,7 @@ server <- function(input, output, session) {
           showNotification("Erreur: Impossible de créer les dataframes AFD", type = "error", duration = 5)
         }
       }, error = function(e) {
-        showNotification(paste("Erreur stockage AFD:", e$message), type = "error", duration = 5)
+        showNotification(hstat_err_fr(e, "Erreur stockage AFD"), type = "error", duration = 5)
       })
     })
   })
@@ -5124,7 +5154,7 @@ server <- function(input, output, session) {
         showNotification("Fichier Excel AFD telecharge avec succès!", type = "message", duration = 3)
         
       }, error = function(e) {
-        showNotification(paste("Erreur Excel AFD:", e$message), type = "error", duration = 10)
+        showNotification(hstat_err_fr(e, "Erreur Excel AFD"), type = "error", duration = 10)
       })
     }
   )
@@ -5193,7 +5223,7 @@ server <- function(input, output, session) {
                          type = "message", duration = 3)
         
       }, error = function(e) {
-        showNotification(paste("Erreur CSV AFD:", e$message), type = "error", duration = 10)
+        showNotification(hstat_err_fr(e, "Erreur CSV AFD"), type = "error", duration = 10)
       })
     }
   )
@@ -7534,7 +7564,8 @@ server <- function(input, output, session) {
     mv_res[["kmodes"]] <- local({
       tryCatch({
         if (!mv_has("klaR"))
-          return(list(ok = FALSE, error = "Package 'klaR' indisponible."))
+          return(list(ok = FALSE,
+                      error = hstat_pkg_manquant("klaR", "Classification k-modes")))
         d <- mv_data(); vars <- input$mv_kmodes_vars
         if (is.null(vars) || length(vars) < 2)
           return(list(ok = FALSE, error = "Sélectionnez au moins 2 variables qualitatives."))
@@ -7545,23 +7576,28 @@ server <- function(input, output, session) {
         hstat_set_seed(input$globalSeed)
         sub <- mv_subsample(sub, 8000)
         km <- klaR::kmodes(sub, modes = k, iter.max = input$mv_kmodes_iter %||% 20)
-        tot_diff <- sum(km$withindiff)
         sizes <- km$size
-        d_tot <- sum(sapply(sub, function(col) { tb <- table(col); sum(tb) - max(tb) }))
-        pr2 <- if (d_tot > 0) 1 - tot_diff/d_tot else NA
-        st_r2 <- if (!is.na(pr2) && pr2 >= .5) "ok" else if (!is.na(pr2) && pr2 >= .3) "warn" else "err"
-        st_bal <- if (min(sizes) >= .05*nrow(sub)) "ok" else "warn"
+        # Calcul sorti dans Utils.R : klaR est absent de beaucoup de machines,
+        # la qualite de la partition doit rester testable sans lui.
+        q <- hstat_kmodes_pseudo_r2(km$withindiff, sub)
+        tot_diff <- q$dissimilarite_intra
+        pr2 <- q$pseudo_r2
+        st_r2 <- q$verdict
+        st_bal <- hstat_part_equilibre(sizes)$verdict
         metrics <- rbind(
           mv_row("Dissimilarite intra totale", tot_diff,
                  "Plus faible = clusters plus homogenes",
                  "A minimiser entre solutions", "info"),
           mv_row("Pseudo-R2 (separation)", if (is.na(pr2)) "n/d" else round(pr2,3),
                  ">= 0,50 nette ; 0,30-0,50 modérée ; < 0,30 faible",
-                 if (st_r2=="ok") "Partition nette" else if (st_r2=="warn") "Partition modérée" else "Partition peu séparée",
+                 switch(st_r2, ok = "Partition nette", warn = "Partition modérée",
+                        err = "Partition peu séparée",
+                        "Non calculable : les variables retenues ne varient pas"),
                  st_r2),
           mv_row("Equilibre des clusters", paste(sizes, collapse=" / "),
                  "Eviter clusters vides ou très minoritaires",
-                 if (st_bal=="ok") "Répartition acceptable" else "Cluster très minoritaire",
+                 switch(st_bal, ok = "Répartition acceptable",
+                        warn = "Cluster très minoritaire", "Effectifs non calculables"),
                  st_bal),
           mv_row("Nombre de clusters", k,
                  "Fixe a priori -- comparer plusieurs k",
@@ -7608,7 +7644,8 @@ server <- function(input, output, session) {
     mv_res[["lca"]] <- local({
       tryCatch({
         if (!mv_has("poLCA"))
-          return(list(ok = FALSE, error = "Package 'poLCA' indisponible."))
+          return(list(ok = FALSE,
+                      error = hstat_pkg_manquant("poLCA", "Analyse en classes latentes")))
         d <- mv_data(); vars <- input$mv_lca_vars
         if (is.null(vars) || length(vars) < 3)
           return(list(ok = FALSE, error = "Sélectionnez au moins 3 indicateurs catégoriels."))
@@ -7623,12 +7660,12 @@ server <- function(input, output, session) {
         fit <- poLCA::poLCA(fml, data = sub, nclass = nclass,
                             nrep = input$mv_lca_rep %||% 5, verbose = FALSE)
         post <- fit$posterior
-        ent <- -sum(post * log(post + 1e-12))
-        N <- nrow(post); K <- ncol(post)
-        ent_rel <- 1 - ent / (N * log(K))
-        min_sz <- min(table(fit$predclass)) / N
-        st_ent <- if (ent_rel >= .80) "ok" else if (ent_rel >= .60) "warn" else "err"
-        st_sz  <- if (min_sz >= .05) "ok" else "warn"
+        e <- hstat_lca_entropie(post)
+        ent_rel <- e$entropie_relative
+        st_ent <- e$verdict
+        eq <- hstat_part_equilibre(table(fit$predclass))
+        min_sz <- eq$part_min
+        st_sz  <- eq$verdict
         metrics <- rbind(
           mv_row("BIC", round(fit$bic,1),
                  "Plus bas = meilleur (comparer entre nb de classes)",
@@ -7638,14 +7675,17 @@ server <- function(input, output, session) {
                  "Critere complementaire de sélection", "info"),
           mv_row("Entropie relative", round(ent_rel,3),
                  ">= 0,80 bonne separation ; 0,60-0,80 modérée ; < 0,60 faible",
-                 if (st_ent=="ok") "Classes bien séparées" else if (st_ent=="warn") "Separation modérée" else "Classes mal séparées",
+                 switch(st_ent, ok = "Classes bien séparées", warn = "Separation modérée",
+                        err = "Classes mal séparées",
+                        "Non calculable : une seule classe estimée"),
                  st_ent),
           mv_row("G2 (rapport de vraisemblance)", round(fit$Gsq,1),
                  "Plus faible = meilleur ajustement du modèle",
                  "Qualite d'ajustement", "info"),
           mv_row("Plus petite classe", paste0(round(100*min_sz,1)," %"),
                  ">= 5 % conseille pour une classe interpretable",
-                 if (st_sz=="ok") "Classes de taille suffisante" else "Classe très minoritaire",
+                 switch(st_sz, ok = "Classes de taille suffisante",
+                        warn = "Classe très minoritaire", "Effectifs non calculables"),
                  st_sz))
         cl_df <- as.data.frame(table(Classe = fit$predclass))
         cl_df$Classe <- factor(cl_df$Classe)
@@ -8043,7 +8083,8 @@ server <- function(input, output, session) {
     mv_res[["kproto"]] <- local({
       tryCatch({
         if (!mv_has("clustMixType"))
-          return(list(ok = FALSE, error = "Package 'clustMixType' indisponible."))
+          return(list(ok = FALSE,
+                      error = hstat_pkg_manquant("clustMixType", "Classification k-prototypes")))
         d <- mv_data(); vars <- input$mv_kproto_vars
         if (is.null(vars) || length(vars) < 2)
           return(list(ok = FALSE, error = "Sélectionnez au moins 2 variables."))
@@ -8066,7 +8107,7 @@ server <- function(input, output, session) {
           as.numeric(v$index)
         }, error = function(e) NA)
         st_sil <- if (is.na(sil)) "info" else if (sil >= .5) "ok" else if (sil >= .25) "warn" else "err"
-        st_bal <- if (min(sizes) >= .05*nrow(sub)) "ok" else "warn"
+        st_bal <- hstat_part_equilibre(sizes)$verdict
         metrics <- rbind(
           mv_row("Cout total intra (within SS)", round(tot_cost,1),
                  "Plus faible = clusters plus compacts",
@@ -8078,7 +8119,8 @@ server <- function(input, output, session) {
                  st_sil),
           mv_row("Equilibre des clusters", paste(sizes, collapse=" / "),
                  "Eviter clusters vides ou très minoritaires",
-                 if (st_bal=="ok") "Répartition acceptable" else "Cluster très minoritaire",
+                 switch(st_bal, ok = "Répartition acceptable",
+                        warn = "Cluster très minoritaire", "Effectifs non calculables"),
                  st_bal),
           mv_row("Composition du tableau", paste0(nq, " quanti / ", nc, " quali"),
                  "Les deux types doivent être presents",
