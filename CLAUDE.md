@@ -175,6 +175,41 @@ vit dans son propre fichier plutôt que d'alourdir les ~2900 lignes de
 `mod_qualitative.R`). `HStat.R` doit donc sourcer `mod_coding.R` **avant**
 `mod_qualitative.R` — un test garde cette contrainte.
 
+### Atelier de codage : arbre de codes et mémos
+
+`mod_coding.R` porte deux structures que MAXQDA a et qu'un livre de codes plat
+ne peut pas remplacer.
+
+**La hiérarchie** (`parent_id`, `""` à la racine). Sans elle, l'arborescence
+finit encodée dans les libellés (« Prix - trop cher »), ce qui interdit toute
+agrégation : `hstat_code_counts()` rend donc `n_seg` (le code seul) **et**
+`n_seg_cumul` (toute la branche). Un total qui ignorerait les sous-codes
+afficherait zéro sur un code parent pourtant abondamment documenté.
+
+Trois invariants, chacun testé :
+
+1. **Le même libellé est permis sous deux parents différents**, interdit deux
+   fois sous le même. « Prix > Qualité » et « Service > Qualité » sont deux
+   codes légitimes ; c'est même l'intérêt de la hiérarchie.
+2. **Supprimer un code ne supprime pas le codage de ses enfants** : ils
+   remontent d'un niveau, sauf `avec_descendants = TRUE`.
+3. **Un code ne peut devenir son propre descendant.** `hstat_code_update()`
+   refuse le déplacement — la branche se détacherait de l'arbre et
+   disparaîtrait de l'affichage.
+
+`hstat_code_migrate_codebook()` répare au chargement : colonne absente, parent
+introuvable (remonté à la racine), et **cycle** (un fichier édité à la main peut
+en contenir un ; `hstat_code_tree()` boucrerait indéfiniment).
+
+**Les mémos** (`hstat_memo_*`) portent sur un code, un document, un segment, ou
+rien (mémo libre). C'est la pièce qui transforme un codage en analyse. Le mémo
+de code existait déjà comme colonne du livre de codes : il y reste, et
+`hstat_memo_sync_codes()` le reprend dans le registre — idempotent, pour qu'un
+projet ancien ne perde rien et ne duplique rien.
+
+Le texte d'un mémo est **échappé** avant affichage (`hstat_html_escape`) : c'est
+de la saisie utilisateur, elle n'entre pas telle quelle dans le DOM.
+
 ## Intégration continue
 
 `.github/workflows/tests.yml` — deux travaux : `syntaxe` (analyse de tous les
