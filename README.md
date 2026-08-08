@@ -72,6 +72,22 @@ MAXQDA-style coding workbench:
   or paragraph with the mouse, then drag-and-drop it onto a code (clicking the
   code works too). The passage gets a coloured label; overlapping codes are
   rendered as a gradient of their colours.
+- **A hierarchical code system.** Codes nest: *Prix > Trop cher > Livraison
+  tardive*. A parent shows both its own segment count and the **cumulative
+  count for its whole branch** — "how many segments mention price, sub-codes
+  included?" is the question a hierarchy exists to answer, and a total that
+  ignored sub-codes would read zero on a heavily documented parent. The same
+  label is allowed under two different parents (*Prix > Qualité* and *Service >
+  Qualité* are two different things) but refused twice under the same one.
+  Deleting a code lifts its sub-codes one level rather than silently taking
+  their coding with them, and a code can never become its own descendant — its
+  branch would detach from the tree and vanish from view.
+- **Memos** — on a code (why it exists, where its boundary runs), on a document
+  (what makes this interview atypical), on a segment, or free-standing (the
+  hypothesis taking shape). This is what turns coding into analysis, and what a
+  reviewer asks for when they want to understand how you got there. Full-text
+  search ignores case and accents; memos already held in the codebook are
+  carried over automatically, so no older project loses them.
 - **Retrieval and cross-tabulation** — click a code to list every excerpt it
   covers, and cross the coded text with respondent profiles (for instance, only
   the price complaints made by the "Moins de 25 ans" group).
@@ -325,7 +341,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.16.2. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.17.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -333,7 +349,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.16.2},
+  note   = {Version 0.17.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

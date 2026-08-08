@@ -3633,3 +3633,244 @@ test_that("l'arborescence du README decrit exactement le depot", {
     info = paste("Fichiers listes par le README mais inexistants :\n  ",
                  paste(inventes, collapse = "\n   ")))
 })
+
+
+# ===========================================================================
+# SYSTEME DE CODES HIERARCHIQUE (equivalent du code system de MAXQDA)
+# ---------------------------------------------------------------------------
+# Un livre de codes plat oblige a encoder la hierarchie dans les libelles
+# (« Prix - trop cher »), ce qui interdit toute agregation : on ne peut plus
+# demander « combien de segments parlent du prix, tous sous-codes confondus ».
+# ===========================================================================
+
+.hstat_cb_essai <- function() {
+  cb <- hstat_code_add(hstat_code_new_codebook(), "Prix")
+  p  <- cb$code_id[cb$label == "Prix"]
+  cb <- hstat_code_add(cb, "Trop cher", parent_id = p)
+  tc <- cb$code_id[cb$label == "Trop cher"]
+  cb <- hstat_code_add(cb, "Livraison tardive", parent_id = tc)
+  cb <- hstat_code_add(cb, "Service")
+  cb
+}
+
+test_that("un code peut avoir un parent, et l'arbre s'affiche dans l'ordre", {
+  cb <- .hstat_cb_essai()
+  tr <- hstat_code_tree(cb)
+  expect_equal(nrow(tr), nrow(cb))
+  # Chaque code suit son parent, et la profondeur sert a l'indentation
+  expect_equal(tr$profondeur[tr$code_id == cb$code_id[cb$label == "Prix"]], 0L)
+  expect_equal(tr$profondeur[tr$code_id == cb$code_id[cb$label == "Trop cher"]], 1L)
+  expect_equal(tr$profondeur[tr$code_id == cb$code_id[cb$label == "Livraison tardive"]], 2L)
+  expect_true("Prix > Trop cher > Livraison tardive" %in% tr$chemin)
+  # Un enfant est toujours liste apres son parent
+  expect_lt(which(tr$code_id == cb$code_id[cb$label == "Prix"]),
+            which(tr$code_id == cb$code_id[cb$label == "Trop cher"]))
+})
+
+test_that("le meme libelle est permis sous deux parents, interdit sous le meme", {
+  cb <- .hstat_cb_essai()
+  p <- cb$code_id[cb$label == "Prix"]; s <- cb$code_id[cb$label == "Service"]
+  cb <- hstat_code_add(cb, "Qualite", parent_id = p)
+  n <- nrow(cb)
+  # « Prix > Qualite » et « Service > Qualite » sont deux codes legitimes
+  cb <- hstat_code_add(cb, "Qualite", parent_id = s)
+  expect_equal(nrow(cb), n + 1L)
+  # Deux fois le meme libelle sous le meme parent rendrait la restitution ambigue
+  expect_equal(nrow(hstat_code_add(cb, "Qualite", parent_id = s)), n + 1L)
+})
+
+test_that("les effectifs sont cumules sur toute la branche", {
+  cb <- .hstat_cb_essai()
+  p  <- cb$code_id[cb$label == "Prix"]
+  tc <- cb$code_id[cb$label == "Trop cher"]
+  lt <- cb$code_id[cb$label == "Livraison tardive"]
+  seg <- data.frame(seg_id = paste0("s", 1:4),
+                    doc_id = c("d1", "d1", "d2", "d3"),
+                    code_id = c(tc, tc, lt, p),
+                    start = 1, end = 2, text = "x", source = "m", created = "",
+                    stringsAsFactors = FALSE)
+  cn <- hstat_code_counts(cb, seg)
+  ligne <- function(id) cn[cn$code_id == id, ]
+  # Le code parent porte 1 segment en propre, 4 sur la branche
+  expect_equal(ligne(p)$n_seg, 1L)
+  expect_equal(ligne(p)$n_seg_cumul, 4L)
+  expect_equal(ligne(p)$n_doc_cumul, 3L)
+  expect_equal(ligne(tc)$n_seg_cumul, 3L)
+  expect_equal(ligne(lt)$n_seg_cumul, 1L)
+  # Un code sans descendance : cumul = effectif propre
+  s <- cb$code_id[cb$label == "Service"]
+  expect_equal(ligne(s)$n_seg_cumul, ligne(s)$n_seg)
+})
+
+test_that("supprimer un code ne fait pas disparaitre le codage de ses enfants", {
+  cb <- .hstat_cb_essai()
+  p <- cb$code_id[cb$label == "Prix"]
+  # Par defaut les sous-codes REMONTENT au parent du code supprime
+  ap <- hstat_code_remove(cb, p)
+  expect_false(p %in% ap$code_id)
+  expect_true("Trop cher" %in% ap$label)
+  expect_equal(ap$parent_id[ap$label == "Trop cher"], "")
+  # Le petit-enfant garde son propre parent
+  expect_equal(ap$parent_id[ap$label == "Livraison tardive"],
+               ap$code_id[ap$label == "Trop cher"])
+  # Sur demande explicite, la branche entiere part
+  br <- hstat_code_remove(cb, p, avec_descendants = TRUE)
+  expect_equal(sort(br$label), "Service")
+})
+
+test_that("un code ne peut pas devenir son propre descendant", {
+  cb <- .hstat_cb_essai()
+  p  <- cb$code_id[cb$label == "Prix"]
+  lt <- cb$code_id[cb$label == "Livraison tardive"]
+  # Deplacer Prix sous son propre petit-enfant detacherait la branche
+  ap <- hstat_code_update(cb, p, parent_id = lt)
+  expect_equal(ap$parent_id[ap$code_id == p], "")
+  expect_equal(ap$parent_id[ap$code_id == p], cb$parent_id[cb$code_id == p])
+  # Ni sous lui-meme
+  expect_equal(hstat_code_update(cb, p, parent_id = p)$parent_id[
+                 cb$code_id == p], "")
+  # Un deplacement legitime, lui, passe
+  s <- cb$code_id[cb$label == "Service"]
+  expect_equal(hstat_code_update(cb, s, parent_id = p)$parent_id[
+                 cb$code_id == s], p)
+})
+
+test_that("un livre de codes ancien ou abime est repare, jamais refuse", {
+  # Projet enregistre avant la hierarchie : la colonne est recreee
+  vieux <- data.frame(code_id = "a", label = "A", color = "#fff", memo = "",
+                      keywords = "", created = "", stringsAsFactors = FALSE)
+  m <- hstat_code_migrate_codebook(vieux)
+  expect_true("parent_id" %in% names(m))
+  expect_equal(m$parent_id, "")
+  expect_equal(names(m), HSTAT_CODE_COLS)
+
+  # Parent introuvable : le code remonte a la racine plutot que de disparaitre
+  casse <- data.frame(code_id = c("a", "b"), label = c("A", "B"),
+                      color = "#fff", memo = "", keywords = "",
+                      parent_id = c("", "fantome"), created = "",
+                      stringsAsFactors = FALSE)
+  expect_equal(hstat_code_migrate_codebook(casse)$parent_id, c("", ""))
+
+  # Cycle (fichier edite a la main) : l'affichage de l'arbre boucleait
+  cycle <- data.frame(code_id = c("a", "b"), label = c("A", "B"),
+                      color = "#fff", memo = "", keywords = "",
+                      parent_id = c("b", "a"), created = "",
+                      stringsAsFactors = FALSE)
+  repare <- hstat_code_migrate_codebook(cycle)
+  expect_equal(repare$parent_id, c("", ""))
+  expect_equal(nrow(hstat_code_tree(repare)), 2L)
+})
+
+test_that("ancetres et descendants se lisent dans les deux sens", {
+  cb <- .hstat_cb_essai()
+  p  <- cb$code_id[cb$label == "Prix"]
+  tc <- cb$code_id[cb$label == "Trop cher"]
+  lt <- cb$code_id[cb$label == "Livraison tardive"]
+  expect_equal(hstat_code_ancestors(cb, lt), c(tc, p))
+  expect_equal(hstat_code_ancestors(cb, p), character(0))
+  expect_setequal(hstat_code_descendants(cb, p), c(tc, lt))
+  expect_setequal(hstat_code_descendants(cb, p, inclus = TRUE), c(p, tc, lt))
+  expect_equal(hstat_code_descendants(cb, cb$code_id[cb$label == "Service"]),
+               character(0))
+})
+
+
+# ===========================================================================
+# MEMOS (equivalent des memos de MAXQDA)
+# ---------------------------------------------------------------------------
+# C'est la piece qui transforme un codage en analyse : pourquoi ce code existe,
+# ou passe sa frontiere, ce qu'un entretien a d'atypique, l'hypothese qui se
+# dessine. C'est aussi ce qu'un relecteur demande pour comprendre le chemin.
+# ===========================================================================
+
+test_that("un memo se pose sur un code, un document, un segment ou rien", {
+  m <- hstat_memo_new()
+  expect_equal(nrow(m), 0L)
+  expect_equal(names(m), HSTAT_MEMO_COLS)
+  m <- hstat_memo_add(m, "code", "prix", "Frontiere", "Ne code pas le SAV.")
+  m <- hstat_memo_add(m, "document", "d3", "", "Ancien salarie.")
+  m <- hstat_memo_add(m, "segment", "s12", "", "Contredit le debut.")
+  m <- hstat_memo_add(m, "libre", "", "Hypothese", "Les jeunes critiquent le prix.")
+  expect_equal(nrow(m), 4L)
+  expect_equal(nrow(hstat_memo_for(m, "code")), 1L)
+  expect_equal(hstat_memo_for(m, "document", "d3")$texte, "Ancien salarie.")
+  expect_equal(nrow(hstat_memo_for(m, "document", "inexistant")), 0L)
+  # Un memo libre ne s'accroche a rien
+  expect_equal(hstat_memo_for(m, "libre")$cible_id, "")
+})
+
+test_that("un memo vide n'est pas cree, un titre absent est deduit", {
+  m <- hstat_memo_add(hstat_memo_new(), "libre", "", "", "")
+  expect_equal(nrow(m), 0L)
+  expect_equal(nrow(hstat_memo_add(m, "libre", "", "", "   ")), 0L)
+  # Titre deduit du debut du texte : la liste reste lisible
+  long <- paste(rep("mot", 40), collapse = " ")
+  m2 <- hstat_memo_add(hstat_memo_new(), "libre", "", "", long)
+  expect_true(nzchar(m2$titre))
+  expect_lte(nchar(m2$titre), 64L)
+  expect_true(grepl("\\.\\.\\.$", m2$titre))
+  # Un titre seul suffit a creer le memo
+  expect_equal(nrow(hstat_memo_add(hstat_memo_new(), "libre", "", "Idee", "")), 1L)
+})
+
+test_that("un type de cible inconnu bascule en memo libre, jamais orphelin", {
+  m <- hstat_memo_add(hstat_memo_new(), "n'importe quoi", "x", "T", "texte")
+  expect_equal(m$cible_type, "libre")
+  expect_equal(m$cible_id, "")
+  # Idem a la relecture d'un fichier abime
+  abime <- data.frame(memo_id = "m1", cible_type = "inconnu", cible_id = "z",
+                      titre = "T", texte = "t", auteur = "", created = "",
+                      modified = "", stringsAsFactors = FALSE)
+  expect_equal(hstat_memo_migrate(abime)$cible_type, "libre")
+  # Fichier ancien sans certaines colonnes
+  vieux <- data.frame(memo_id = "m1", texte = "t", stringsAsFactors = FALSE)
+  expect_equal(names(hstat_memo_migrate(vieux)), HSTAT_MEMO_COLS)
+})
+
+test_that("la recherche de memos ignore la casse et les accents", {
+  m <- hstat_memo_add(hstat_memo_new(), "libre", "", "Hypothèse",
+                      "Les critiques viennent des plus jeunes.")
+  expect_equal(nrow(hstat_memo_search(m, "hypothese")), 1L)
+  expect_equal(nrow(hstat_memo_search(m, "HYPOTHÈSE")), 1L)
+  expect_equal(nrow(hstat_memo_search(m, "jeunes")), 1L)     # dans le corps
+  expect_equal(nrow(hstat_memo_search(m, "introuvable")), 0L)
+  # Une recherche vide ne filtre rien
+  expect_equal(nrow(hstat_memo_search(m, "")), 1L)
+})
+
+test_that("modification et suppression d'un memo", {
+  m <- hstat_memo_add(hstat_memo_new(), "code", "prix", "Avant", "texte")
+  id <- m$memo_id[1]
+  m2 <- hstat_memo_update(m, id, titre = "Apres", texte = "nouveau")
+  expect_equal(m2$titre, "Apres")
+  expect_equal(m2$texte, "nouveau")
+  expect_equal(m2$created, m$created)      # la creation ne bouge pas
+  # Un identifiant inconnu ne casse rien
+  expect_equal(hstat_memo_update(m, "fantome", titre = "X")$titre, "Avant")
+  expect_equal(nrow(hstat_memo_remove(m2, id)), 0L)
+  expect_equal(nrow(hstat_memo_remove(m2, "fantome")), 1L)
+})
+
+test_that("les memos deja portes par le livre de codes sont repris sans doublon", {
+  cb <- hstat_code_add(hstat_code_new_codebook(), "Service",
+                       memo = "Tout ce qui touche a l'accueil.")
+  m <- hstat_memo_sync_codes(hstat_memo_new(), cb)
+  expect_equal(nrow(m), 1L)
+  expect_equal(m$cible_type, "code")
+  expect_equal(m$titre, "Service")
+  # Rejouer la reprise ne duplique pas
+  expect_equal(nrow(hstat_memo_sync_codes(m, cb)), 1L)
+  # Un code sans memo n'en fabrique pas
+  cb2 <- hstat_code_add(cb, "Prix")
+  expect_equal(nrow(hstat_memo_sync_codes(hstat_memo_new(), cb2)), 1L)
+})
+
+test_that("le resume des memos couvre les quatre cibles", {
+  m <- hstat_memo_add(hstat_memo_new(), "code", "a", "T", "t")
+  m <- hstat_memo_add(m, "code", "b", "T", "t")
+  r <- hstat_memo_resume(m)
+  expect_equal(nrow(r), length(HSTAT_MEMO_CIBLES))
+  expect_equal(r$Memos[r$Cible == "Code"], 2L)
+  expect_equal(r$Memos[r$Cible == "Document"], 0L)
+  expect_equal(sum(hstat_memo_resume(hstat_memo_new())$Memos), 0L)
+})

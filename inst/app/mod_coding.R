@@ -88,22 +88,117 @@ hstat_code_slug <- function(label, existing = character(0)) {
 
 # `keywords` : dictionnaire du code (mots-cles separes par des points-virgules).
 # C'est ce qui permet le codage automatique hors ligne, sans modele de langue.
+# `parent_id` : identifiant du code parent, "" a la racine. C'est le systeme de
+# codes HIERARCHIQUE de MAXQDA. Un livre de codes plat oblige a encoder la
+# hierarchie dans les libelles (« Prix - trop cher », « Prix - rapport
+# qualite »), ce qui interdit toute agregation : on ne peut plus demander
+# « combien de segments parlent du prix, tous sous-codes confondus ».
 hstat_code_new_codebook <- function() {
   data.frame(code_id = character(0), label = character(0), color = character(0),
-             memo = character(0), keywords = character(0), created = character(0),
+             memo = character(0), keywords = character(0),
+             parent_id = character(0), created = character(0),
              stringsAsFactors = FALSE)
 }
 
+HSTAT_CODE_COLS <- c("code_id", "label", "color", "memo", "keywords",
+                     "parent_id", "created")
+
 # Un projet enregistre avant l'arrivee du dictionnaire n'a pas la colonne
-# `keywords` : on la recree plutot que de refuser le fichier.
+# `keywords` ; un projet anterieur a la hierarchie n'a pas `parent_id`. On les
+# recree plutot que de refuser le fichier : un utilisateur ne doit jamais
+# perdre un codage parce que le format a evolue.
 hstat_code_migrate_codebook <- function(codebook) {
   if (is.null(codebook)) return(hstat_code_new_codebook())
   codebook <- as.data.frame(codebook, stringsAsFactors = FALSE)
-  for (col in c("code_id", "label", "color", "memo", "keywords", "created"))
+  for (col in HSTAT_CODE_COLS)
     if (!(col %in% names(codebook)))
       codebook[[col]] <- rep("", max(0L, nrow(codebook)))
-  codebook[, c("code_id", "label", "color", "memo", "keywords", "created"),
-           drop = FALSE]
+  codebook <- codebook[, HSTAT_CODE_COLS, drop = FALSE]
+  # Un parent efface ou introuvable rendrait le code invisible dans l'arbre :
+  # on le remonte a la racine plutot que de le perdre.
+  codebook$parent_id[is.na(codebook$parent_id)] <- ""
+  orphelin <- nzchar(codebook$parent_id) &
+              !(codebook$parent_id %in% codebook$code_id)
+  codebook$parent_id[orphelin] <- ""
+  # Un cycle (A enfant de B, B enfant de A) ferait tourner l'affichage de
+  # l'arbre a l'infini. Il ne peut pas naitre de l'application, mais un fichier
+  # edite a la main, si.
+  codebook$parent_id[hstat_code_cycles(codebook)] <- ""
+  codebook
+}
+
+# Identifiants dont la remontee des parents boucle ou depasse la profondeur du
+# livre de codes : ce sont ceux impliques dans un cycle.
+hstat_code_cycles <- function(codebook) {
+  if (is.null(codebook) || !nrow(codebook)) return(logical(0))
+  vapply(seq_len(nrow(codebook)), function(i) {
+    vus <- codebook$code_id[i]
+    p <- codebook$parent_id[i]
+    while (nzchar(p)) {
+      if (p %in% vus) return(TRUE)
+      vus <- c(vus, p)
+      j <- match(p, codebook$code_id)
+      if (is.na(j)) return(FALSE)
+      p <- codebook$parent_id[j]
+    }
+    FALSE
+  }, logical(1))
+}
+
+# Ancetres d'un code, du parent immediat jusqu'a la racine.
+hstat_code_ancestors <- function(codebook, code_id) {
+  out <- character(0)
+  if (is.null(codebook) || !nrow(codebook)) return(out)
+  p <- codebook$parent_id[match(code_id[1], codebook$code_id)]
+  while (length(p) && !is.na(p) && nzchar(p) && !(p %in% out)) {
+    out <- c(out, p)
+    p <- codebook$parent_id[match(p, codebook$code_id)]
+  }
+  out
+}
+
+# Descendants d'un code, a toute profondeur. `inclus = TRUE` ajoute le code
+# lui-meme : c'est la forme utile pour agreger les effectifs d'une branche.
+hstat_code_descendants <- function(codebook, code_id, inclus = FALSE) {
+  if (is.null(codebook) || !nrow(codebook)) return(character(0))
+  out <- character(0)
+  file <- as.character(code_id)
+  while (length(file)) {
+    enfants <- codebook$code_id[codebook$parent_id %in% file]
+    enfants <- setdiff(enfants, c(out, code_id))
+    out <- c(out, enfants)
+    file <- enfants
+  }
+  if (inclus) unique(c(as.character(code_id), out)) else out
+}
+
+# Arbre mis a plat, dans l'ordre d'affichage : chaque code suit son parent, et
+# `profondeur` sert a l'indentation. Les fratries sont classees par libelle.
+hstat_code_tree <- function(codebook) {
+  vide <- data.frame(code_id = character(0), profondeur = integer(0),
+                     chemin = character(0), stringsAsFactors = FALSE)
+  if (is.null(codebook) || !nrow(codebook)) return(vide)
+  cb <- hstat_code_migrate_codebook(codebook)
+  ordre <- character(0); prof <- integer(0)
+  descendre <- function(parent, niveau) {
+    i <- which(cb$parent_id == parent)
+    i <- i[order(tolower(cb$label[i]))]
+    for (k in i) {
+      ordre <<- c(ordre, cb$code_id[k]); prof <<- c(prof, niveau)
+      descendre(cb$code_id[k], niveau + 1L)
+    }
+  }
+  descendre("", 0L)
+  # Filet : un code qu'aucune racine n'atteint (cas impossible apres migration)
+  # est ajoute a la fin plutot que d'etre escamote.
+  oublies <- setdiff(cb$code_id, ordre)
+  ordre <- c(ordre, oublies); prof <- c(prof, rep(0L, length(oublies)))
+  data.frame(
+    code_id = ordre, profondeur = prof,
+    chemin = vapply(ordre, function(id) paste(c(
+      rev(hstat_code_label(cb, hstat_code_ancestors(cb, id))),
+      hstat_code_label(cb, id)), collapse = " > "), character(1)),
+    stringsAsFactors = FALSE, row.names = NULL)
 }
 
 # Premiere couleur de la palette non encore utilisee ; au-dela on repart au
@@ -114,13 +209,21 @@ hstat_code_next_color <- function(codebook) {
   if (length(free) > 0) free[1] else HSTAT_CODE_PALETTE[(length(used) %% length(HSTAT_CODE_PALETTE)) + 1L]
 }
 
-hstat_code_add <- function(codebook, label, color = NULL, memo = "", keywords = "") {
+hstat_code_add <- function(codebook, label, color = NULL, memo = "",
+                           keywords = "", parent_id = "") {
   if (is.null(codebook)) codebook <- hstat_code_new_codebook()
+  codebook <- hstat_code_migrate_codebook(codebook)
   label <- trimws(as.character(label)[1])
   if (is.na(label) || !nzchar(label)) return(codebook)
-  # Un meme libelle ne peut pas exister deux fois : le codage deviendrait
-  # ambigu au moment de la restitution.
-  if (any(tolower(codebook$label) == tolower(label))) return(codebook)
+  # Un meme libelle ne peut pas exister deux fois SOUS LE MEME PARENT : le
+  # codage deviendrait ambigu a la restitution. Sous deux parents differents,
+  # « Prix > Qualite » et « Service > Qualite » sont en revanche legitimes, et
+  # c'est meme tout l'interet de la hierarchie.
+  parent_id <- as.character(parent_id %||% "")[1]
+  if (is.na(parent_id)) parent_id <- ""
+  if (nzchar(parent_id) && !(parent_id %in% codebook$code_id)) parent_id <- ""
+  fratrie <- codebook$label[codebook$parent_id == parent_id]
+  if (any(tolower(fratrie) == tolower(label))) return(codebook)
   if (is.null(color) || !nzchar(as.character(color)[1]))
     color <- hstat_code_next_color(codebook)
   rbind(codebook, data.frame(
@@ -129,24 +232,52 @@ hstat_code_add <- function(codebook, label, color = NULL, memo = "", keywords = 
     color   = as.character(color)[1],
     memo    = as.character(memo)[1],
     keywords = as.character(keywords)[1],
+    parent_id = parent_id,
     created = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
     stringsAsFactors = FALSE))
 }
 
-hstat_code_remove <- function(codebook, code_id) {
+# `avec_descendants = TRUE` supprime la branche entiere. Par defaut les
+# sous-codes sont REMONTES au parent du code supprime : supprimer « Prix » ne
+# doit pas emporter en silence le codage patiemment place sous ses sous-codes.
+hstat_code_remove <- function(codebook, code_id, avec_descendants = FALSE) {
   if (is.null(codebook) || nrow(codebook) == 0) return(hstat_code_new_codebook())
-  codebook[!(codebook$code_id %in% code_id), , drop = FALSE]
+  codebook <- hstat_code_migrate_codebook(codebook)
+  cibles <- if (isTRUE(avec_descendants))
+    unique(unlist(lapply(code_id, function(id)
+      hstat_code_descendants(codebook, id, inclus = TRUE))))
+  else as.character(code_id)
+  if (!isTRUE(avec_descendants)) {
+    for (id in cibles) {
+      grand_parent <- codebook$parent_id[match(id, codebook$code_id)]
+      if (length(grand_parent) && !is.na(grand_parent))
+        codebook$parent_id[codebook$parent_id == id] <- grand_parent
+    }
+  }
+  hstat_code_migrate_codebook(codebook[!(codebook$code_id %in% cibles), ,
+                                       drop = FALSE])
 }
 
 hstat_code_update <- function(codebook, code_id, label = NULL, color = NULL,
-                              memo = NULL, keywords = NULL) {
+                              memo = NULL, keywords = NULL, parent_id = NULL) {
   if (is.null(codebook) || nrow(codebook) == 0) return(codebook)
+  codebook <- hstat_code_migrate_codebook(codebook)
   i <- which(codebook$code_id == code_id[1])
   if (!length(i)) return(codebook)
   if (!is.null(label) && nzchar(trimws(label))) codebook$label[i] <- trimws(label)
   if (!is.null(color) && nzchar(color))         codebook$color[i] <- color
   if (!is.null(memo))                           codebook$memo[i]  <- memo
   if (!is.null(keywords))                       codebook$keywords[i] <- keywords
+  if (!is.null(parent_id)) {
+    p <- as.character(parent_id)[1]
+    if (is.na(p)) p <- ""
+    # Un code ne peut devenir enfant ni de lui-meme ni d'un de ses propres
+    # descendants : la branche se detacherait de l'arbre et disparaitrait de
+    # l'affichage. On refuse le deplacement plutot que de casser le livre.
+    interdits <- hstat_code_descendants(codebook, codebook$code_id[i], inclus = TRUE)
+    if (!nzchar(p) || (p %in% codebook$code_id && !(p %in% interdits)))
+      codebook$parent_id[i] <- p
+  }
   codebook
 }
 
@@ -163,6 +294,150 @@ hstat_code_color <- function(codebook, code_id) {
   out <- codebook$color[match(code_id, codebook$code_id)]
   out[is.na(out)] <- "#95a5a6"
   out
+}
+
+
+# ---------------------------------------------------------------------------
+# 1 bis. MEMOS
+# ---------------------------------------------------------------------------
+# Le memo est l'outil par lequel l'analyste garde la trace de son raisonnement :
+# pourquoi ce code a ete cree, ce qui distingue deux sous-codes voisins, ce
+# qu'un entretien a d'atypique, l'hypothese qui se dessine. C'est la piece qui
+# transforme un codage en analyse — et c'est ce qu'un relecteur demande quand il
+# veut comprendre comment on est arrive la.
+#
+# Quatre cibles, comme dans MAXQDA :
+#   code      pourquoi ce code existe, ou passe sa frontiere
+#   document  ce que cet entretien a de particulier
+#   segment   ce que ce passage precis suggere
+#   libre     l'hypothese en cours, qui ne se rattache encore a rien
+#
+# Le memo de code existait deja comme colonne du livre de codes ; il y reste
+# (les projets enregistres en dependent) et `hstat_memo_sync_codes()` le reprend
+# ici pour que tout se retrouve au meme endroit.
+
+HSTAT_MEMO_CIBLES <- c("Code" = "code", "Document" = "document",
+                       "Segment" = "segment", "Libre" = "libre")
+
+hstat_memo_new <- function() {
+  data.frame(memo_id = character(0), cible_type = character(0),
+             cible_id = character(0), titre = character(0), texte = character(0),
+             auteur = character(0), created = character(0),
+             modified = character(0), stringsAsFactors = FALSE)
+}
+
+HSTAT_MEMO_COLS <- c("memo_id", "cible_type", "cible_id", "titre", "texte",
+                     "auteur", "created", "modified")
+
+hstat_memo_migrate <- function(memos) {
+  if (is.null(memos)) return(hstat_memo_new())
+  memos <- as.data.frame(memos, stringsAsFactors = FALSE)
+  for (col in HSTAT_MEMO_COLS)
+    if (!(col %in% names(memos))) memos[[col]] <- rep("", max(0L, nrow(memos)))
+  memos <- memos[, HSTAT_MEMO_COLS, drop = FALSE]
+  for (col in HSTAT_MEMO_COLS) {
+    memos[[col]] <- as.character(memos[[col]])
+    memos[[col]][is.na(memos[[col]])] <- ""
+  }
+  # Un type inconnu rendrait le memo introuvable dans toutes les vues : on le
+  # bascule en memo libre plutot que de le laisser orphelin.
+  inconnu <- !(memos$cible_type %in% HSTAT_MEMO_CIBLES)
+  memos$cible_type[inconnu] <- "libre"
+  memos$cible_id[memos$cible_type == "libre"] <- ""
+  memos
+}
+
+hstat_memo_add <- function(memos, cible_type = "libre", cible_id = "",
+                           titre = "", texte = "", auteur = "") {
+  memos <- hstat_memo_migrate(memos)
+  texte <- paste(as.character(texte), collapse = "\n")
+  titre <- trimws(as.character(titre)[1] %||% "")
+  # Un memo sans titre ni texte n'a rien a dire : on ne cree pas de coquille
+  # vide qui encombrerait la liste.
+  if (!nzchar(trimws(texte)) && !nzchar(titre)) return(memos)
+  type <- as.character(cible_type)[1]
+  if (!(type %in% HSTAT_MEMO_CIBLES)) type <- "libre"
+  maintenant <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  if (!nzchar(titre))
+    titre <- paste0(substr(gsub("[\r\n]+", " ", texte), 1, 60),
+                    if (nchar(texte) > 60) "..." else "")
+  rbind(memos, data.frame(
+    memo_id = hstat_code_slug(paste0("memo-", type), memos$memo_id),
+    cible_type = type,
+    cible_id = if (identical(type, "libre")) "" else as.character(cible_id)[1],
+    titre = titre, texte = texte,
+    auteur = as.character(auteur)[1] %||% "",
+    created = maintenant, modified = maintenant,
+    stringsAsFactors = FALSE))
+}
+
+hstat_memo_update <- function(memos, memo_id, titre = NULL, texte = NULL) {
+  memos <- hstat_memo_migrate(memos)
+  i <- which(memos$memo_id == as.character(memo_id)[1])
+  if (!length(i)) return(memos)
+  if (!is.null(titre)) memos$titre[i] <- trimws(as.character(titre)[1])
+  if (!is.null(texte)) memos$texte[i] <- paste(as.character(texte), collapse = "\n")
+  memos$modified[i] <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  memos
+}
+
+hstat_memo_remove <- function(memos, memo_id) {
+  memos <- hstat_memo_migrate(memos)
+  memos[!(memos$memo_id %in% as.character(memo_id)), , drop = FALSE]
+}
+
+# Memos attaches a une cible. Sans `cible_id`, tous ceux du type demande.
+hstat_memo_for <- function(memos, cible_type = NULL, cible_id = NULL) {
+  memos <- hstat_memo_migrate(memos)
+  if (!is.null(cible_type))
+    memos <- memos[memos$cible_type %in% cible_type, , drop = FALSE]
+  if (!is.null(cible_id))
+    memos <- memos[memos$cible_id %in% as.character(cible_id), , drop = FALSE]
+  memos
+}
+
+# Recherche plein texte, titre et corps confondus. Insensible a la casse et aux
+# accents : un memo saisi « hypothèse » se retrouve en tapant « hypothese ».
+hstat_memo_search <- function(memos, motif) {
+  memos <- hstat_memo_migrate(memos)
+  motif <- trimws(as.character(motif)[1] %||% "")
+  if (!nzchar(motif) || !nrow(memos)) return(memos)
+  plat <- function(x) tolower(iconv(x, to = "ASCII//TRANSLIT") %||% tolower(x))
+  aiguille <- plat(motif)
+  garde <- grepl(aiguille, plat(memos$titre), fixed = TRUE) |
+           grepl(aiguille, plat(memos$texte), fixed = TRUE)
+  garde[is.na(garde)] <- FALSE
+  memos[garde, , drop = FALSE]
+}
+
+# Reprend dans le registre les memos portes par la colonne `memo` du livre de
+# codes. Sans cela, un projet ancien verrait ses memos de code disparaitre de la
+# nouvelle vue alors qu'ils sont toujours la.
+hstat_memo_sync_codes <- function(memos, codebook) {
+  memos <- hstat_memo_migrate(memos)
+  if (is.null(codebook) || !nrow(codebook)) return(memos)
+  cb <- hstat_code_migrate_codebook(codebook)
+  for (i in seq_len(nrow(cb))) {
+    txt <- trimws(cb$memo[i])
+    if (!nzchar(txt)) next
+    deja <- hstat_memo_for(memos, "code", cb$code_id[i])
+    if (any(trimws(deja$texte) == txt)) next
+    memos <- hstat_memo_add(memos, "code", cb$code_id[i],
+                            titre = cb$label[i], texte = txt)
+  }
+  memos
+}
+
+# Vue d'ensemble : combien de memos, et sur quoi. Un projet ou tous les memos
+# portent sur des codes et aucun sur les documents signale une analyse qui n'a
+# pas encore regarde ses entretiens un par un.
+hstat_memo_resume <- function(memos) {
+  memos <- hstat_memo_migrate(memos)
+  data.frame(
+    Cible = names(HSTAT_MEMO_CIBLES),
+    Memos = vapply(unname(HSTAT_MEMO_CIBLES),
+                   function(t) sum(memos$cible_type == t), integer(1)),
+    stringsAsFactors = FALSE)
 }
 
 
@@ -234,8 +509,22 @@ hstat_code_counts <- function(codebook, segments) {
     n_seg[i] <- if (is.null(s)) 0L else nrow(s)
     n_doc[i] <- if (is.null(s) || nrow(s) == 0) 0L else length(unique(s$doc_id))
   }
+  # Effectifs CUMULES sur la branche : « combien de segments parlent du prix,
+  # tous sous-codes confondus ? » est la question que la hierarchie permet de
+  # poser, et un total qui ignorerait les sous-codes afficherait zero sur un
+  # code parent pourtant abondamment documente.
+  cb <- hstat_code_migrate_codebook(codebook)
+  cum_seg <- integer(nrow(cb)); cum_doc <- integer(nrow(cb))
+  for (i in seq_len(nrow(cb))) {
+    br <- hstat_code_descendants(cb, cb$code_id[i], inclus = TRUE)
+    s <- if (is.null(segments) || nrow(segments) == 0) NULL
+         else segments[segments$code_id %in% br, , drop = FALSE]
+    cum_seg[i] <- if (is.null(s)) 0L else nrow(s)
+    cum_doc[i] <- if (is.null(s) || nrow(s) == 0) 0L else length(unique(s$doc_id))
+  }
   data.frame(code_id = codebook$code_id, label = codebook$label,
              color = codebook$color, n_seg = n_seg, n_doc = n_doc,
+             n_seg_cumul = cum_seg, n_doc_cumul = cum_doc,
              stringsAsFactors = FALSE)
 }
 
@@ -1177,14 +1466,21 @@ mod_coding_ui <- function(id) {
             shiny::column(4, colourpicker::colourInput(ns("new_color"), NULL,
                                                        value = HSTAT_CODE_PALETTE[1],
                                                        showColour = "background"))),
+          # Code parent : c'est ce qui fait du livre de codes un ARBRE. Sans
+          # lui, la hierarchie finit encodee dans les libelles (« Prix - trop
+          # cher ») et aucune agregation par branche n'est plus possible.
+          shiny::uiOutput(ns("new_parent_ui")),
           shiny::actionButton(ns("add_code"), "Ajouter le code",
                               icon = shiny::icon("plus"), class = "btn-warning btn-block btn-sm"),
           shiny::hr(style = "margin:10px 0;"),
           shiny::uiOutput(ns("code_chips")),
           shiny::hr(style = "margin:10px 0;"),
+          shiny::uiOutput(ns("move_code_ui")),
+          shiny::hr(style = "margin:10px 0;"),
           shiny::tags$small(style = "color:#7f8c8d;", shiny::icon("info-circle"),
             " Deposez une selection sur un code, ou cliquez dessus. Le ",
-            shiny::tags$b("x"), " supprime le code et ses etiquettes."),
+            shiny::tags$b("x"), " supprime le code ; ses sous-codes remontent ",
+            "d'un niveau plutot que d'etre emportes avec lui."),
           shiny::br(), shiny::br(),
           shiny::actionButton(ns("clear_codes"), "Vider le livre de codes",
                               icon = shiny::icon("trash"), class = "btn-danger btn-xs btn-block"))
@@ -1464,6 +1760,48 @@ mod_coding_ui <- function(id) {
             shiny::br(),
             DT::DTOutput(ns("dict_table"))),
 
+          # ---- Memos ----
+          # Le memo est ce qui transforme un codage en analyse : pourquoi ce
+          # code existe, ou passe sa frontiere, ce qu'un entretien a
+          # d'atypique. C'est aussi ce qu'un relecteur demande pour comprendre
+          # comment on est arrive la.
+          shiny::tabPanel(shiny::tagList(shiny::icon("note-sticky"), " Memos"),
+            shiny::br(),
+            shiny::div(style = "background:#eafaf1;border-left:5px solid #27ae60;padding:12px 16px;border-radius:6px;font-size:13px;",
+              shiny::tags$strong(shiny::icon("pen-to-square"), " Le carnet de bord de votre analyse"),
+              shiny::tags$p(style = "margin:6px 0 0 0;",
+                "Notez pourquoi un code existe, ou passe sa frontiere, ce qu'un ",
+                "entretien a de particulier, l'hypothese qui se dessine. ",
+                shiny::tags$b("Rien de tout cela ne se retrouve dans les tableaux"),
+                " — et c'est pourtant ce qu'on vous demandera pour justifier vos ",
+                "conclusions.")),
+            shiny::br(),
+            shiny::fluidRow(
+              shiny::column(4,
+                shiny::selectInput(ns("memo_type"), "Porte sur",
+                                   choices = HSTAT_MEMO_CIBLES, selected = "libre"),
+                shiny::uiOutput(ns("memo_cible_ui")),
+                shiny::textInput(ns("memo_titre"), "Titre (facultatif)",
+                                 placeholder = "Deduit du texte s'il est vide"),
+                shiny::textAreaInput(ns("memo_texte"), "Memo", rows = 6,
+                                     placeholder = "Ce que vous voulez retrouver dans six mois."),
+                shiny::actionButton(ns("memo_add"), "Enregistrer le memo",
+                                    icon = shiny::icon("plus"),
+                                    class = "btn-success btn-block"),
+                shiny::br(),
+                shiny::uiOutput(ns("memo_resume"))),
+              shiny::column(8,
+                shiny::fluidRow(
+                  shiny::column(7, shiny::textInput(ns("memo_q"), NULL,
+                    placeholder = "Rechercher dans les memos (accents ignores)")),
+                  shiny::column(5, shiny::selectInput(ns("memo_filtre"), NULL,
+                    choices = c("Tous les memos" = "", HSTAT_MEMO_CIBLES)))),
+                DT::DTOutput(ns("memo_table")),
+                shiny::br(),
+                shiny::uiOutput(ns("memo_detail")),
+                shiny::downloadButton(ns("dl_memos"), "Telecharger les memos (CSV)",
+                                      class = "btn-info btn-sm")))),
+
           # ---- Export / sauvegarde ----
           shiny::tabPanel(shiny::tagList(shiny::icon("file-export"), " Export & sauvegarde"),
             shiny::br(),
@@ -1505,6 +1843,7 @@ mod_coding_server <- function(id, values) {
       cur      = 1L,
       sel      = NULL,
       ai       = NULL,
+      memos    = hstat_memo_new(),
       # Teinte proposee par defaut pour le prochain code : memorisee cote R
       # pour ne pas dependre de l'aller-retour du selecteur de couleur.
       next_color = HSTAT_CODE_PALETTE[1])
@@ -1658,10 +1997,14 @@ mod_coding_server <- function(id, values) {
       col <- if (is.null(chosen) ||
                  identical(tolower(chosen), tolower(rv$next_color))) NULL else chosen
       before <- nrow(rv$codebook)
-      rv$codebook <- hstat_code_add(rv$codebook, lab, col)
+      parent <- input$new_parent %||% ""
+      rv$codebook <- hstat_code_add(rv$codebook, lab, col, parent_id = parent)
       if (nrow(rv$codebook) == before) {
-        shiny::showNotification(sprintf("Le code « %s » existe deja.", lab),
-                                type = "warning", duration = 4)
+        shiny::showNotification(
+          if (nzchar(parent))
+            sprintf("Le code « %s » existe deja sous ce parent. Sous un autre parent, il serait accepte.", lab)
+          else sprintf("Le code « %s » existe deja a la racine.", lab),
+          type = "warning", duration = 6)
       } else {
         shiny::updateTextInput(session, "new_code", value = "")
         rv$next_color <- hstat_code_next_color(rv$codebook)
@@ -1692,6 +2035,128 @@ mod_coding_server <- function(id, values) {
         type = "message", duration = 5)
     })
 
+    # ------------------------------------------------------------- memos
+    # La cible depend du type : un memo de code se rattache a un code, un memo
+    # de document a une reponse, un memo libre a rien du tout.
+    output$memo_cible_ui <- shiny::renderUI({
+      type <- input$memo_type %||% "libre"
+      if (identical(type, "libre")) return(NULL)
+      ch <- switch(type,
+        code = { cb <- rv$codebook
+                 if (!nrow(cb)) character(0)
+                 else { a <- hstat_code_tree(cb); stats::setNames(a$code_id, a$chemin) } },
+        document = { d <- docs()
+                     if (is.null(d) || !nrow(d)) character(0)
+                     else stats::setNames(d$doc_id, substr(d$text, 1, 70)) },
+        segment = { s <- rv$segments
+                    if (is.null(s) || !nrow(s)) character(0)
+                    else stats::setNames(s$seg_id, substr(s$text, 1, 70)) },
+        character(0))
+      if (!length(ch))
+        return(shiny::tags$small(style = "color:#b9770e;",
+          shiny::icon("circle-info"),
+          " Rien a quoi rattacher ce memo pour l'instant."))
+      shiny::selectInput(ns("memo_cible"), "Cible", choices = ch)
+    })
+
+    shiny::observeEvent(input$memo_add, {
+      avant <- nrow(rv$memos)
+      rv$memos <- hstat_memo_add(rv$memos, input$memo_type %||% "libre",
+                                 input$memo_cible %||% "",
+                                 input$memo_titre %||% "", input$memo_texte %||% "")
+      if (nrow(rv$memos) == avant) {
+        shiny::showNotification(
+          "Un memo vide n'est pas enregistre : saisissez un titre ou un texte.",
+          type = "warning", duration = 5)
+      } else {
+        shiny::updateTextInput(session, "memo_titre", value = "")
+        shiny::updateTextAreaInput(session, "memo_texte", value = "")
+        shiny::showNotification("Memo enregistre.", type = "message", duration = 3)
+      }
+    })
+
+    # Les memos de code saisis dans l'ancien champ du livre de codes sont
+    # repris ici : un projet ancien ne doit pas voir ses memos disparaitre.
+    shiny::observeEvent(rv$codebook, {
+      rv$memos <- hstat_memo_sync_codes(rv$memos, rv$codebook)
+    }, ignoreInit = TRUE)
+
+    memos_vus <- shiny::reactive({
+      m <- hstat_memo_search(rv$memos, input$memo_q %||% "")
+      f <- input$memo_filtre %||% ""
+      if (nzchar(f)) m <- m[m$cible_type == f, , drop = FALSE]
+      m
+    })
+
+    output$memo_table <- DT::renderDT({
+      m <- memos_vus()
+      shiny::validate(shiny::need(nrow(m) > 0,
+        "Aucun memo. Le premier est souvent le plus utile : pourquoi ce code."))
+      # Le libelle de la cible plutot que son identifiant : « prix-trop-eleve »
+      # ne dit rien a la relecture.
+      cible <- vapply(seq_len(nrow(m)), function(i) {
+        switch(m$cible_type[i],
+          code = hstat_code_label(rv$codebook, m$cible_id[i]),
+          document = { d <- docs()
+                       j <- match(m$cible_id[i], d$doc_id)
+                       if (is.na(j)) m$cible_id[i] else substr(d$text[j], 1, 60) },
+          segment = { s <- rv$segments
+                      j <- match(m$cible_id[i], s$seg_id)
+                      if (is.na(j)) m$cible_id[i] else substr(s$text[j], 1, 60) },
+          "")
+      }, character(1))
+      DT::datatable(
+        data.frame(Porte_sur = names(HSTAT_MEMO_CIBLES)[
+                     match(m$cible_type, HSTAT_MEMO_CIBLES)],
+                   Cible = cible, Titre = m$titre,
+                   Modifie = m$modified, check.names = FALSE,
+                   stringsAsFactors = FALSE),
+        rownames = FALSE, selection = "single",
+        options = list(pageLength = 10, scrollX = TRUE))
+    })
+
+    output$memo_detail <- shiny::renderUI({
+      i <- input$memo_table_rows_selected
+      m <- memos_vus()
+      if (!length(i) || i > nrow(m))
+        return(shiny::tags$em(style = "color:#95a5a6;",
+          "Selectionnez un memo pour le lire en entier."))
+      shiny::div(style = "background:#fffdf5;border:1px solid #f0e2c0;border-radius:6px;padding:14px 18px;",
+        shiny::h4(style = "margin-top:0;", m$titre[i]),
+        # Le texte est ECHAPPE : un memo reste du contenu saisi par
+        # l'utilisateur, on ne l'injecte pas tel quel dans la page.
+        shiny::HTML(gsub("\n", "<br>", hstat_html_escape(m$texte[i]))),
+        shiny::hr(style = "margin:10px 0;"),
+        shiny::tags$small(style = "color:#7f8c8d;",
+          sprintf("Cree le %s, modifie le %s.", m$created[i], m$modified[i])),
+        shiny::br(),
+        shiny::actionButton(ns("memo_del"), "Supprimer ce memo",
+                            icon = shiny::icon("trash"), class = "btn-danger btn-xs"))
+    })
+
+    shiny::observeEvent(input$memo_del, {
+      i <- input$memo_table_rows_selected
+      m <- memos_vus()
+      shiny::req(length(i), i <= nrow(m))
+      rv$memos <- hstat_memo_remove(rv$memos, m$memo_id[i])
+      shiny::showNotification("Memo supprime.", type = "message", duration = 3)
+    })
+
+    output$memo_resume <- shiny::renderUI({
+      r <- hstat_memo_resume(rv$memos)
+      if (!sum(r$Memos))
+        return(shiny::tags$small(style = "color:#7f8c8d;",
+          shiny::icon("circle-info"), " Aucun memo pour l'instant."))
+      shiny::div(style = "font-size:12px;color:#566573;",
+        shiny::tags$b("Memos enregistres"), shiny::br(),
+        shiny::HTML(paste(sprintf("%s : %d", r$Cible, r$Memos), collapse = "<br>")))
+    })
+
+    output$dl_memos <- shiny::downloadHandler(
+      filename = function() sprintf("hstat_memos_%s.csv", format(Sys.Date(), "%Y%m%d")),
+      content = function(file)
+        utils::write.csv(rv$memos, file, row.names = FALSE, fileEncoding = "UTF-8"))
+
     output$code_chips <- shiny::renderUI({
       cb <- rv$codebook
       if (nrow(cb) == 0)
@@ -1699,18 +2164,76 @@ mod_coding_server <- function(id, values) {
           "Aucun code pour l'instant. Creez-en un ci-dessus, ou laissez ",
           "l'assistant IA vous en proposer."))
       cnt <- hstat_code_counts(cb, rv$segments)
-      shiny::tagList(lapply(seq_len(nrow(cb)), function(i) {
+      # Les codes sont affiches dans l'ORDRE DE L'ARBRE, chaque enfant sous son
+      # parent et decale : c'est la seule facon de lire une hierarchie.
+      arbre <- hstat_code_tree(cb)
+      shiny::tagList(lapply(seq_len(nrow(arbre)), function(k) {
+        i <- match(arbre$code_id[k], cb$code_id)
+        j <- match(arbre$code_id[k], cnt$code_id)
+        a_enfants <- length(hstat_code_descendants(cb, cb$code_id[i])) > 0
         shiny::tags$div(
           class = "hstat-code-chip", `data-code` = cb$code_id[i],
-          style = sprintf("background:%s;color:%s;", cb$color[i],
-                          .hstat_code_ink(cb$color[i])),
-          title = if (nzchar(cb$memo[i])) cb$memo[i] else cb$label[i],
+          style = sprintf("background:%s;color:%s;margin-left:%dpx;",
+                          cb$color[i], .hstat_code_ink(cb$color[i]),
+                          as.integer(arbre$profondeur[k]) * 14L),
+          title = paste0(arbre$chemin[k],
+                         if (nzchar(cb$memo[i])) paste0("\n", cb$memo[i]) else ""),
           shiny::tags$span(class = "hstat-chip-del", `data-code` = cb$code_id[i],
                            title = "Supprimer ce code", shiny::HTML("&times;")),
+          # Sur un code parent, l'effectif de la BRANCHE est ce qui interesse :
+          # un total qui ignorerait les sous-codes afficherait zero sur un code
+          # pourtant abondamment documente.
           shiny::tags$span(class = "hstat-chip-count",
-                           sprintf("%d seg. / %d rep.", cnt$n_seg[i], cnt$n_doc[i])),
+            if (a_enfants)
+              sprintf("%d (%d) seg.", cnt$n_seg[j], cnt$n_seg_cumul[j])
+            else sprintf("%d seg. / %d rep.", cnt$n_seg[j], cnt$n_doc[j])),
+          if (arbre$profondeur[k] > 0) shiny::HTML("&#8627; "),
           cb$label[i])
       }))
+    })
+
+    # Choix du code parent a la creation. « (racine) » d'abord : la majorite
+    # des codes sont crees a la racine, ce doit rester le geste par defaut.
+    output$new_parent_ui <- shiny::renderUI({
+      cb <- rv$codebook
+      if (is.null(cb) || !nrow(cb)) return(NULL)
+      arbre <- hstat_code_tree(cb)
+      ch <- stats::setNames(c("", arbre$code_id), c("(racine)", arbre$chemin))
+      shiny::selectInput(ns("new_parent"), NULL, choices = ch, selected = "")
+    })
+
+    # Deplacer un code existant dans l'arbre. Le refus des cycles est assure
+    # par hstat_code_update() : on ne peut pas se retrouver avec une branche
+    # detachee de l'arbre, donc invisible.
+    output$move_code_ui <- shiny::renderUI({
+      cb <- rv$codebook
+      if (is.null(cb) || nrow(cb) < 2) return(NULL)
+      arbre <- hstat_code_tree(cb)
+      ch <- stats::setNames(arbre$code_id, arbre$chemin)
+      shiny::tagList(
+        shiny::tags$small(style = "color:#7f8c8d;font-weight:bold;",
+                          shiny::icon("sitemap"), " Deplacer un code"),
+        shiny::selectInput(ns("move_code"), NULL, choices = ch),
+        shiny::selectInput(ns("move_to"), "sous",
+                           choices = stats::setNames(c("", arbre$code_id),
+                                                     c("(racine)", arbre$chemin))),
+        shiny::actionButton(ns("do_move"), "Deplacer",
+                            icon = shiny::icon("arrows-up-down-left-right"),
+                            class = "btn-default btn-xs btn-block"))
+    })
+
+    shiny::observeEvent(input$do_move, {
+      shiny::req(input$move_code)
+      avant <- rv$codebook$parent_id[rv$codebook$code_id == input$move_code]
+      rv$codebook <- hstat_code_update(rv$codebook, input$move_code,
+                                       parent_id = input$move_to %||% "")
+      apres <- rv$codebook$parent_id[rv$codebook$code_id == input$move_code]
+      if (identical(avant, apres) && !identical(avant, input$move_to %||% ""))
+        shiny::showNotification(
+          paste("Deplacement refuse : un code ne peut pas devenir enfant de",
+                "lui-meme ni d'un de ses propres sous-codes — sa branche se",
+                "detacherait de l'arbre."),
+          type = "warning", duration = 8)
     })
 
     # ------------------------------------------------------- depot d'un code
