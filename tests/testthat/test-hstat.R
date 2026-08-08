@@ -93,7 +93,9 @@ local({
 
 
 # =============================================================================
-context("Détection du type de fichier")
+# --------------------------------------------------------------------------
+#  Détection du type de fichier
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_file_kind reconnait les extensions courantes", {
@@ -118,7 +120,9 @@ test_that("hstat_file_kind renvoie 'inconnu' pour le reste", {
 
 
 # =============================================================================
-context("Formatage des tailles de fichier")
+# --------------------------------------------------------------------------
+#  Formatage des tailles de fichier
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_format_size formate correctement les ordres de grandeur", {
@@ -136,7 +140,9 @@ test_that("hstat_format_size donne une valeur numérique plausible", {
 
 
 # =============================================================================
-context("Chemin SQL (echappement)")
+# --------------------------------------------------------------------------
+#  Chemin SQL (echappement)
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_sql_path normalise les antislash et echappe les apostrophes", {
@@ -147,7 +153,9 @@ test_that("hstat_sql_path normalise les antislash et echappe les apostrophes", {
 
 
 # =============================================================================
-context("Graine reproductible")
+# --------------------------------------------------------------------------
+#  Graine reproductible
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_set_seed rend les tirages reproductibles", {
@@ -171,7 +179,9 @@ test_that("deux graines differentes produisent des tirages differents", {
 
 
 # =============================================================================
-context("Chargeur de données -- chemin en memoire (CSV)")
+# --------------------------------------------------------------------------
+#  Chargeur de données -- chemin en memoire (CSV)
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_load_data lit un CSV en memoire et renseigne les metadonnees", {
@@ -210,7 +220,9 @@ test_that("le seuil hors-memoire n'affecte pas un petit CSV", {
 
 
 # =============================================================================
-context("Expressions SQL d'agregation")
+# --------------------------------------------------------------------------
+#  Expressions SQL d'agregation
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that(".hstat_sql_stat_exprs génère les expressions attendues", {
@@ -232,7 +244,9 @@ test_that(".hstat_sql_stat_exprs ne retourne que les stats demandees", {
 
 
 # =============================================================================
-context("Agregations exactes via DuckDB (si disponible)")
+# --------------------------------------------------------------------------
+#  Agregations exactes via DuckDB (si disponible)
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("describe_global DuckDB == calcul de référence R", {
@@ -376,7 +390,9 @@ test_that("Analyse textuelle et thématique", {
 
 
 # =============================================================================
-context("Sécurité -- évaluateur de formules et identifiants SQL")
+# --------------------------------------------------------------------------
+#  Sécurité -- évaluateur de formules et identifiants SQL
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_safe_eval évalue les formules légitimes", {
@@ -409,7 +425,9 @@ test_that("hstat_sql_ident neutralise les guillemets dans les identifiants", {
 
 
 # =============================================================================
-context("Visualisation -- conversion numérique FR et capuchons de moustache")
+# --------------------------------------------------------------------------
+#  Visualisation -- conversion numérique FR et capuchons de moustache
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_as_numeric_fr convertit les formats français", {
@@ -452,7 +470,9 @@ test_that("hstat_add_whisker_caps insère des capuchons alignés", {
 
 
 # =============================================================================
-context("Types de variables -- facteurs ordinaux")
+# --------------------------------------------------------------------------
+#  Types de variables -- facteurs ordinaux
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("la conversion en facteur ordinal respecte l'ordre défini", {
@@ -481,7 +501,9 @@ test_that("la conversion en facteur ordinal respecte l'ordre défini", {
 
 
 # =============================================================================
-context("Analyses qualitatives -- sorties console et IC du V de Cramér")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- sorties console et IC du V de Cramér
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("les tests bivariés reproduisent la présentation console R (Titanic)", {
@@ -523,7 +545,9 @@ test_that("l'IC du V de Cramér encadre l'estimation", {
 
 
 # =============================================================================
-context("Analyses qualitatives -- OR/RR toutes modalités et interprétation")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- OR/RR toutes modalités et interprétation
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("le mode 'toutes les modalités' croise chaque X avec chaque Y", {
@@ -568,7 +592,9 @@ test_that("l'interprétation par ligne détecte le sens de l'association", {
 
 
 # =============================================================================
-context("Analyses qualitatives -- texte (NLP) et modes")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- texte (NLP) et modes
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("le stemmer français regroupe les formes fléchies sans sur-découper", {
@@ -631,7 +657,9 @@ test_that("hstat_q_apply_palette re-colore sans casser le graphique", {
 
 
 # =============================================================================
-context("Analyses qualitatives -- couleurs par défaut de ggplot")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- couleurs par défaut de ggplot
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("les graphiques utilisent les échelles par défaut de ggplot", {
@@ -657,7 +685,9 @@ test_that("les graphiques utilisent les échelles par défaut de ggplot", {
 
 
 # =============================================================================
-context("Analyses qualitatives -- Chi²/Multinomial et tableaux croisés intégrés")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- Chi²/Multinomial et tableaux croisés intégrés
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("le Chi² d'ajustement reproduit chisq.test et interprète ses métriques", {
@@ -708,7 +738,9 @@ test_that("les tableaux croisés intégrés fournissent profils et métriques in
 
 
 # =============================================================================
-context("Analyses qualitatives -- croisement d'une variable avec elle-même")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- croisement d'une variable avec elle-même
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("les graphiques croisés fonctionnent même si les variables ont le même nom", {
@@ -733,7 +765,9 @@ test_that("les graphiques croisés fonctionnent même si les variables ont le m�
 
 
 # =============================================================================
-context("Analyses qualitatives -- exportation des résultats")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- exportation des résultats
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that(".safe_name produit des noms de fichiers propres", {
@@ -774,7 +808,9 @@ test_that("l'export image fonctionne dans tous les formats", {
 
 
 # =============================================================================
-context("Analyses qualitatives -- mise en forme interactive du graphique")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- mise en forme interactive du graphique
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_q_apply_style applique titres, tailles, rotation et style", {
@@ -816,7 +852,9 @@ test_that("palette et style se composent sur tous les graphiques", {
 
 
 # =============================================================================
-context("Sécurité -- v25 : tables SQL, délimiteur, limite d'upload")
+# --------------------------------------------------------------------------
+#  Sécurité -- v25 : tables SQL, délimiteur, limite d'upload
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("un nom de table piégé est neutralisé dans les requêtes DuckDB", {
@@ -850,7 +888,9 @@ test_that("la limite d'upload est configurable et bornée", {
 
 
 # =============================================================================
-context("Nettoyage -- classes d'intervalles (discrétisation)")
+# --------------------------------------------------------------------------
+#  Nettoyage -- classes d'intervalles (discrétisation)
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("les trois méthodes de découpage produisent des facteurs ordonnés", {
@@ -927,7 +967,9 @@ test_that("les trois conventions de bornes produisent les bonnes étiquettes", {
 
 
 # =============================================================================
-context("Post-hoc paramétrique -- ajustement des p-values")
+# --------------------------------------------------------------------------
+#  Post-hoc paramétrique -- ajustement des p-values
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("un ajustement plus strict rend les groupes au moins aussi homogènes", {
@@ -960,7 +1002,9 @@ test_that("p.adjust reproduit les méthodes proposées à l'utilisateur", {
 
 
 # =============================================================================
-context("Analyses qualitatives -- post-hoc du Chi² d'ajustement (déplacé)")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- post-hoc du Chi² d'ajustement (déplacé)
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("le Chi² d'ajustement fournit un post-hoc par paires et des lettres de groupes", {
@@ -999,7 +1043,9 @@ test_that("le post-hoc est aussi disponible avec le multinomial exact", {
 
 
 # =============================================================================
-context("Analyses qualitatives -- proportions, corrélation interprétée, rangs/médianes")
+# --------------------------------------------------------------------------
+#  Analyses qualitatives -- proportions, corrélation interprétée, rangs/médianes
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("les tableaux croisés incluent un graphique de proportions", {
@@ -1052,7 +1098,9 @@ test_that("le test d'adéquation stratifié teste Y dans chaque groupe de X", {
 
 
 # =============================================================================
-context("Citation du package")
+# --------------------------------------------------------------------------
+#  Citation du package
+# --------------------------------------------------------------------------
 # =============================================================================
 
 test_that("hstat_citation produit les 6 styles valides", {
