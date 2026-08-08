@@ -2578,3 +2578,126 @@ test_that("TOUS les modules d'analyse deposent un contexte pour l'IA", {
     expect_true(m %in% pose, info = paste("aucune capture pour le module :", m))
   expect_gte(length(pose), length(attendu))
 })
+
+# =============================================================================
+#  JOURNAL DE REPRODUCTIBILITE
+# =============================================================================
+
+test_that("hstat_rlog_code produit le code R attendu par famille d'analyse", {
+  cas <- function(module, titre, vars = NULL, grp = NULL)
+    hstat_rlog_code(list(module = module, title = titre,
+                         meta = list(variables = vars, groupe = grp)))
+
+  expect_match(paste(cas("Exploration", "Structure"), collapse = " "), "str\\(donnees\\)")
+
+  # Le test choisi doit suivre le TITRE, pas le module
+  expect_match(cas("Tests statistiques", "ANOVA", "score", "groupe")[1],
+               "aov\\(score ~ groupe", perl = TRUE)
+  expect_match(cas("Tests statistiques", "Kruskal-Wallis", "score", "groupe"),
+               "kruskal.test\\(score ~ groupe", perl = TRUE)
+  expect_match(cas("Tests statistiques", "Test t de Student", "score", "groupe"),
+               "t.test\\(score ~ groupe", perl = TRUE)
+  expect_match(cas("Tests statistiques", "Normalité (données brutes)", "score"),
+               "shapiro.test\\(donnees\\$score\\)", perl = TRUE)
+  expect_match(cas("Tests statistiques", "Régression linéaire", "y", "x")[1],
+               "lm\\(y ~ x", perl = TRUE)
+
+  expect_match(cas("Correlations", "Tests de correlation", c("a", "b"))[2],
+               "cor.test\\(donnees\\$a, donnees\\$b\\)", perl = TRUE)
+  expect_match(cas("Analyses multivariees", "Analyse en Composantes Principales (ACP)",
+                   c("a", "b"))[1], "FactoMineR::PCA", fixed = TRUE)
+  expect_match(cas("Analyses multivariees", "Classification k-means", c("a", "b")),
+               "stats::kmeans", fixed = TRUE)
+  expect_match(cas("Analyses qualitatives", "Tableau croise", c("sexe", "avis")),
+               "chisq.test\\(table\\(", perl = TRUE)
+
+  # Honnetete : quand le code exact n'est pas reconstituable, on ne devine pas
+  expect_null(cas("Machine Learning", "Comparaison de modeles", "score"))
+  expect_null(cas("Deep Learning", "Reseau de neurones", "score"))
+  expect_null(cas("Nettoyage", "Etat des donnees", "score"))
+  # ... ni quand les variables necessaires manquent
+  expect_null(cas("Tests statistiques", "ANOVA"))
+  expect_null(hstat_rlog_code(NULL))
+})
+
+test_that("les noms de variables non syntaxiques sont proteges", {
+  code <- hstat_rlog_code(list(module = "Tests statistiques", title = "ANOVA",
+    meta = list(variables = "ma variable", groupe = "groupe 2")))
+  expect_match(code[1], "`ma variable` ~ `groupe 2`", fixed = TRUE)
+  # Un nom deja syntaxique n'est pas alourdi
+  expect_equal(.hstat_rlog_nom(c("score", "ma var", "x.1", "2eme")),
+               c("score", "`ma var`", "x.1", "`2eme`"))
+})
+
+test_that("le script de session est du R valide et executable", {
+  h <- list(
+    list(module = "Exploration", title = "Structure",
+         meta = list(variables = c("score", "groupe")), time = Sys.time()),
+    list(module = "Tests statistiques", title = "ANOVA",
+         meta = list(variables = "score", groupe = "groupe"), time = Sys.time()),
+    list(module = "Correlations", title = "Correlations",
+         meta = list(variables = c("score", "age")), time = Sys.time()),
+    list(module = "Machine Learning", title = "Comparaison",
+         meta = list(variables = "score"), time = Sys.time()))
+  sc <- hstat_rlog_script(h, source = "essai.csv", version = "9.9.9")
+
+  # 1. Le script doit s'analyser : un journal qui ne parse pas ne sert a rien
+  f <- tempfile(fileext = ".R"); on.exit(unlink(f), add = TRUE)
+  writeLines(sc, f)
+  expect_silent(parse(f))
+
+  # 2. Il doit s'executer sur de vraies donnees
+  set.seed(2)
+  donnees <- data.frame(score = stats::rnorm(60), age = stats::runif(60, 18, 70),
+                        groupe = rep(c("A", "B", "C"), each = 20),
+                        stringsAsFactors = FALSE)
+  lignes <- strsplit(sc, "\n")[[1]]
+  lignes <- lignes[!grepl("^donnees <- read.csv", lignes)]   # pas de fichier reel
+  env <- new.env(); assign("donnees", donnees, envir = env)
+  expect_error(
+    utils::capture.output(eval(parse(text = paste(lignes, collapse = "\n")), envir = env)),
+    NA)
+
+  # 3. Le contenu attendu y est
+  expect_true(grepl("Journal de session HStat 9.9.9", sc, fixed = TRUE))
+  expect_true(grepl("essai.csv", sc, fixed = TRUE))
+  expect_true(grepl("aov(score ~ groupe", sc, fixed = TRUE))
+  expect_true(grepl("NON RECONSTITUE", sc, fixed = TRUE))   # l'etape ML signalee
+  # L'ordre chronologique est respecte
+  expect_lt(regexpr("1. Exploration", sc, fixed = TRUE),
+            regexpr("2. Tests statistiques", sc, fixed = TRUE))
+
+  # Session vide : un script utilisable quand meme
+  vide <- hstat_rlog_script(NULL)
+  expect_true(grepl("Aucune analyse enregistree", vide, fixed = TRUE))
+  expect_silent(parse(text = vide))
+})
+
+test_that("le nom de l'objet de donnees est configurable", {
+  h <- list(list(module = "Exploration", title = "S",
+                 meta = list(variables = "x"), time = Sys.time()))
+  sc <- hstat_rlog_script(h, donnees = "mes_donnees")
+  expect_true(grepl("mes_donnees <- read.csv", sc, fixed = TRUE))
+  expect_true(grepl("str(mes_donnees)", sc, fixed = TRUE))
+  expect_false(grepl("str(donnees)", sc, fixed = TRUE))
+})
+
+test_that("l'historique s'accumule sans doublon immediat", {
+  values <- new.env()
+  m <- list(variables = "score", groupe = "groupe")
+  hstat_ai_capture(values, "Tests statistiques", "ANOVA", meta = m)
+  hstat_ai_capture(values, "Tests statistiques", "ANOVA", meta = m)   # repetition
+  expect_length(values$aiHistory, 1L)
+
+  hstat_ai_capture(values, "Tests statistiques", "Kruskal-Wallis", meta = m)
+  expect_length(values$aiHistory, 2L)
+  # Revenir a une analyse deja faite la reinscrit : c'est bien un journal
+  hstat_ai_capture(values, "Tests statistiques", "ANOVA", meta = m)
+  expect_length(values$aiHistory, 3L)
+  expect_equal(vapply(values$aiHistory, function(c0) c0$title, character(1)),
+               c("ANOVA", "Kruskal-Wallis", "ANOVA"))
+  # Le dernier contexte reste accessible pour l'interpretation
+  expect_equal(values$aiContext$title, "ANOVA")
+  # L'historique ne conserve pas les tableaux : seul le journal l'utilise
+  expect_null(values$aiHistory[[1]]$tables)
+})

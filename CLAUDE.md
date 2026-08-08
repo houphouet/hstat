@@ -166,6 +166,31 @@ vit dans son propre fichier plutôt que d'alourdir les ~2900 lignes de
 `mod_qualitative.R`). `HStat.R` doit donc sourcer `mod_coding.R` **avant**
 `mod_qualitative.R` — un test garde cette contrainte.
 
+## Intégration continue
+
+`.github/workflows/tests.yml` — deux travaux : `syntaxe` (analyse de tous les
+fichiers R **sans installer une seule dépendance**, plus la cohérence des
+versions) puis `tests` (la suite testthat).
+
+Les paquets sont installés depuis une **liste explicite**, jamais depuis les 107
+`Imports` de `DESCRIPTION` : la suite ne source que quatre fichiers, et
+installer tout ferait durer la CI plus d'une heure sans rien tester de plus.
+La liste sépare l'indispensable (`testthat`, `shiny`, `shinydashboard` — sans
+eux la suite ne démarre pas) du souhaitable (dont l'absence transforme des tests
+réels en tests sautés, **en silence**). Un test qui exige un nouveau paquet doit
+l'ajouter à cette liste.
+
+## Journal de reproductibilité
+
+`hstat_rlog_*` (`mod_ai.R`) reconstitue le script R de la session à partir de
+`values$aiHistory`, alimenté par `hstat_ai_capture()`.
+
+Règle de conduite : quand le code exact n'est pas reconstituable fidèlement
+(réglages interactifs, hyperparamètres de ML), écrire un **commentaire**
+`NON RECONSTITUÉ`, jamais du code plausible. Un script qui différerait en
+silence de ce que l'application a calculé serait pire que pas de script. Un test
+vérifie que le script généré **s'analyse et s'exécute** réellement.
+
 ## Tests
 
 `tests/testthat/test-hstat.R` est la suite de référence (celle qu'exécute

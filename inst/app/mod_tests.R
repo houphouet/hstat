@@ -2302,6 +2302,10 @@ mod_tests_server <- function(id, values) {
       return()
     }
     
+    # Motifs de refus, collectes pendant la boucle. « Aucun résultat généré »
+    # laisse l'utilisateur deviner ce qui cloche ; on lui dit ce qui bloque ET
+    # quelle analyse convient a son cas.
+    motifs_refus <- character(0)
     results_list <- list()
     normality_results <- list()
     homogeneity_results <- list()
@@ -2313,6 +2317,17 @@ mod_tests_server <- function(id, values) {
         factor_levels <- levels(factor(as.character(values$filteredData[[fvar]])))
         
         if (length(factor_levels) != 2) {
+          # `<-` et non `<<-` : l'expression d'un tryCatch est evaluee dans le
+          # cadre de son appelant, donc ici meme. `<<-` sauterait ce cadre et
+          # creerait une variable globale, laissant `motifs_refus` vide.
+          motifs_refus <- c(motifs_refus, sprintf(
+            "« %s » compte %d modalité(s) (%s). Le test t en compare exactement deux. %s",
+            fvar, length(factor_levels),
+            paste(utils::head(factor_levels, 5), collapse = ", "),
+            if (length(factor_levels) > 2)
+              "Pour plus de deux groupes, utilisez l'ANOVA — ou Kruskal-Wallis si la normalité n'est pas acquise."
+            else
+              "Vérifiez le facteur choisi : il ne distingue qu'un seul groupe."))
           next
         }
         
@@ -2392,7 +2407,13 @@ mod_tests_server <- function(id, values) {
       values$currentModelVar <- 1
       values$currentTestType <- "parametric"
     } else {
-      showNotification("Aucun résultat t-test généré", type = "warning")
+      showNotification(
+        if (length(motifs_refus))
+          paste("Test t impossible :", paste(unique(motifs_refus), collapse = " "))
+        else
+          paste("Aucun résultat t-test généré. Vérifiez que les variables réponse",
+                "sont numériques et comportent assez de données non manquantes."),
+        type = "warning", duration = 12)
     }
   })
   

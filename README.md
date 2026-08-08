@@ -117,6 +117,21 @@ into something you can paste into a report, and tells you which analysis your
 data actually call for. It never chooses or runs an analysis: the method stays
 your decision, and your responsibility.
 
+**Continuous integration.** `.github/workflows/tests.yml` runs on every push and
+pull request: a dependency-free syntax pass over all R files plus a version
+consistency check, then the full `testthat` suite. Packages are installed from
+an explicit list rather than from `DESCRIPTION`'s 107 Imports — the suite only
+sources four files, and installing everything would make CI take an hour
+without testing anything more.
+
+**Reproducibility journal.** Every analysis you run is recorded, and the
+**Journal & reproductibilité** tab turns the session into an executable **R
+script**: data loading, then each analysis in the order you ran it, with its
+parameters. Steps whose settings were purely interactive are flagged
+`NON RECONSTITUÉ` and documented in a comment rather than guessed — a script
+that silently differed from what the app computed would be worse than no script
+at all. The generated script is verified to parse and to run.
+
 **Data health check.** A dedicated tab reports what is wrong with the dataset
 before you analyse it: missing-value rates, constant and quasi-constant
 variables, numbers stored as text, rare or too-numerous categories, extreme
@@ -257,7 +272,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.12.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.13.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -265,7 +280,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.12.0},
+  note   = {Version 0.13.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

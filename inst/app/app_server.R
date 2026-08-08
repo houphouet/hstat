@@ -48,6 +48,9 @@ server <- function(input, output, session) {
     # Derniere analyse realisee, deposee par les modules via
     # hstat_ai_capture() et lue par l'onglet d'aide a la decision.
     aiContext    = NULL,
+    # Historique complet des analyses menees : sert au journal de
+    # reproductibilite, qui a besoin de toutes, pas seulement de la derniere.
+    aiHistory    = NULL,
     resetSignal  = 0               # Compteur incremente a chaque reinitialisation
                                    # globale ; observe par les modules (Plan &
                                    # Puissance, Seuils) pour reinitialiser leur etat.
