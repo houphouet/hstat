@@ -1633,6 +1633,15 @@ mod_ai_ui <- function(id) {
                   shiny::radioButtons(ns("rep_format"), "Format",
                                       choices = HSTAT_REPORT_FORMATS,
                                       selected = "html"),
+                  shiny::selectInput(ns("rep_dpi"), "Resolution des figures",
+                                     choices = HSTAT_REPORT_DPI,
+                                     selected = "1000"),
+                  shiny::tags$small(style = "color:#7f8c8d;display:block;margin-top:-8px;",
+                    shiny::icon("circle-info"),
+                    " Les figures sont tracees pour l'impression, pas pour l'ecran : ",
+                    "a 150 dpi elles paraissent nettes a l'affichage et sortent ",
+                    "floues sur papier, et le defaut ne se voit qu'une fois le ",
+                    "document remis. Comptez quelques secondes par figure."),
                   shiny::uiOutput(ns("rep_dispo"))),
                 shiny::column(4,
                   shiny::checkboxGroupInput(ns("rep_sections"), "Sections a inclure",
@@ -2037,11 +2046,23 @@ mod_ai_server <- function(id, values) {
       if (isTRUE(rep_dispo()[[f]])) f else "html"
     })
 
-    rep_figures <- function() {
-      d <- file.path(tempdir(), paste0("hstat_fig_", session$token))
+    # `apercu = TRUE` degrade volontairement la resolution : l'apercu sert a
+    # verifier la mise en page, incorporer 9000 px en base64 dans un onglet
+    # n'ajouterait rien de visible et le rendrait poussif. Le document
+    # telecharge, lui, passe toujours par le plancher d'impression.
+    rep_figures <- function(apercu = FALSE) {
+      d <- file.path(tempdir(),
+                     paste0("hstat_fig_", session$token, if (apercu) "_ap" else ""))
       unlink(d, recursive = TRUE)
-      tryCatch(hstat_report_figures(values$aiHistory, dossier = d),
-               error = function(e) NULL)
+      tryCatch(
+        hstat_report_figures(
+          values$aiHistory, dossier = d, apercu = apercu,
+          dpi = suppressWarnings(as.numeric(input$rep_dpi %||% HSTAT_REPORT_DPI_MIN)),
+          progres = if (apercu) NULL else function(i, n, titre)
+            shiny::setProgress(value = i / max(n, 1),
+                               detail = sprintf("Figure %d sur %d — %s", i, n,
+                                                substr(titre, 1, 60)))),
+        error = function(e) NULL)
     }
 
     rep_markdown <- function(figures = NULL) {
@@ -2081,7 +2102,7 @@ mod_ai_server <- function(id, values) {
 
     rep_apercu <- shiny::eventReactive(input$rep_apercu_go, {
       figs <- if ("figures" %in% (input$rep_sections %||% character(0)))
-        rep_figures() else NULL
+        rep_figures(apercu = TRUE) else NULL
       .hstat_rep_images_html(.hstat_rep_md_to_html(rep_markdown(figs)))
     })
 
@@ -2096,12 +2117,18 @@ mod_ai_server <- function(id, values) {
       filename = function()
         sprintf("hstat_rapport_%s.%s", format(Sys.Date(), "%Y%m%d"), rep_format()),
       content = function(file) {
+        # Le trace a 1000 dpi prend quelques secondes par figure : sans
+        # progression, l'utilisateur ne saurait pas si son clic a porte.
         figs <- if ("figures" %in% (input$rep_sections %||% character(0)))
-          rep_figures() else NULL
-        res <- hstat_report_render(rep_markdown(figs), file,
-                                   format = rep_format(),
-                                   titre = trimws(input$rep_titre %||% "Rapport d'analyse"),
-                                   dispo = rep_dispo())
+          shiny::withProgress(
+            message = "Trace des figures pour l'impression...",
+            value = 0, rep_figures()) else NULL
+        res <- shiny::withProgress(
+          message = "Assemblage du document...", value = 0.9,
+          hstat_report_render(rep_markdown(figs), file,
+                              format = rep_format(),
+                              titre = trimws(input$rep_titre %||% "Rapport d'analyse"),
+                              dispo = rep_dispo()))
         # Le repli doit se DIRE : un utilisateur qui a demande du Word et
         # recoit du HTML sans explication croit a un bug.
         if (nzchar(res$message %||% ""))

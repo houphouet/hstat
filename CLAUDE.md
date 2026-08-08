@@ -222,6 +222,24 @@ indessinable (variable supprimée entre-temps) disparaît du document au lieu de
 le faire tomber. `isolate()` est indispensable : le téléchargement d'un rapport
 n'est pas un contexte réactif, et un réactif ne s'y lit pas.
 
+**Les figures sont tracées pour l'impression : 1000 dpi au minimum.**
+`HSTAT_REPORT_DPI_MIN` est un **plancher**, pas une valeur par défaut — une
+résolution inférieure passée par un appelant est remontée. Les revues exigent
+couramment 300 à 600 dpi ; à 150 dpi une figure est nette à l'écran et floue sur
+papier, et le défaut ne se voit qu'une fois le document remis.
+
+Seul l'aperçu à l'écran y échappe (`apercu = TRUE`, 150 dpi) : il sert à
+vérifier la mise en page, et incorporer 9000 px en base64 dans un onglet
+rendrait la page poussive sans rien ajouter de visible.
+
+Le coût a été mesuré, pas supposé : à 9 × 5,5 pouces, un nuage de points pèse
+0,36 Mo à 1000 dpi (0,04 Mo à 150) pour 2,3 s de tracé. D'où le rappel
+`progres` — sans lui, vingt figures font une minute de silence après le clic.
+
+Les tests vérifient les **pixels réellement produits** (en-tête IHDR du PNG),
+jamais l'argument passé : un `ggsave` qui ignorerait le `dpi` passerait
+autrement inaperçu.
+
 Le HTML **incorpore ses images en base64**. Un rapport qui pointerait vers
 `/tmp` s'afficherait sans ses figures dès qu'on l'envoie à un relecteur.
 

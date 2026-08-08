@@ -144,6 +144,15 @@ those are missing the app **says so, points at the fix, and falls back to
 HTML** rather than failing with a technical message. The report computes
 nothing — it typesets what you already obtained.
 
+Figures are drawn **for print, not for the screen**: **1000 dpi minimum**, and
+that is a floor, not a default — a lower value passed anywhere is raised back
+to it. Journals typically ask for 300–600 dpi; at 150 dpi a figure looks sharp
+on screen and comes out blurred on paper, and you only find out once the
+document has been submitted. 1200 and 2400 dpi are offered for stricter
+requirements. The cost is measured, not assumed: a scatterplot at 9 × 5.5 in
+weighs 0.36 MB at 1000 dpi and takes about two seconds. Only the on-screen
+preview is exempt — it checks the layout, it is not what you print.
+
 **Errors you can act on.** R speaks English, and it speaks to statisticians:
 *"data are essentially constant"*, *"incorrect number of dimensions"*,
 *"system is computationally singular"*. HStat translates the errors it surfaces
@@ -302,7 +311,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.15.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.16.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -310,7 +319,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.15.0},
+  note   = {Version 0.16.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```
