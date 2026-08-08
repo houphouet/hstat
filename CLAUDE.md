@@ -320,6 +320,68 @@ Elles rendent toutes un verdict à quatre états dont `indeterminable`
 quatrième cas explicitement — sinon une partition non calculable serait
 affichée comme « peu séparée », ce qui est faux.
 
+## Mise en forme : les données de l'utilisateur cassent le markdown
+
+Un tableau markdown vit sur **une ligne par enregistrement**, et la barre
+verticale y sépare les colonnes. Deux caractères le détruisent donc, et tous
+deux viennent de vraies données :
+
+- le **retour à la ligne**, omniprésent dans les réponses libres du module
+  qualitatif — la ligne se scinde et tout le tableau part de travers ;
+- la **barre verticale**, qu'un en-tête de CSV peut porter (`Rendement|t/ha`).
+
+`.hstat_rep_tableau_md()` protège désormais les deux, **y compris dans les noms
+de colonnes** — ils ne l'étaient pas, et l'en-tête annonçait alors une colonne
+de plus que le séparateur : le tableau ne se rendait plus du tout.
+
+Corollaire : `.hstat_rep_cellules()` doit découper sur les barres **non
+échappées** seulement, sinon le rendu HTML réinvente la colonne fantôme que
+l'échappement venait d'éviter.
+
+Même logique pour le texte alternatif des figures (`.hstat_rep_alt()`) : un
+crochet dans un titre d'analyse fermait le `![...]` trop tôt, l'image n'était
+plus reconnue et le markdown brut ressortait dans le document.
+
+## Le journal doit rester exécutable, quel que soit le nom de colonne
+
+`.hstat_rlog_nom()` cite les noms non syntaxiques entre accents graves — mais un
+nom peut **lui-même** en contenir. Une colonne `` a`b `` fermait la citation
+trop tôt et produisait un script que R refusait d'analyser, alors que le journal
+a précisément pour promesse d'être exécutable. R accepte l'accent grave échappé
+par une barre oblique inverse ; la barre elle-même doit donc être échappée
+d'abord. Un test balaie une batterie de noms hostiles.
+
+## Ne jamais recommander une analyse sur une variable vide
+
+`.hstat_reco_type()` rend `"indeterminable"` quand la variable ne comporte
+**aucune** valeur observée. Sans ce garde-fou, `unique(na.omit(x))` était vide,
+donc de longueur 0 ≤ 2, et la variable était typée **binaire** : le moteur
+recommandait un chi-deux d'indépendance sur une colonne entièrement vide.
+
+Conseiller avec aplomb une analyse impossible est **pire que ne rien
+conseiller** — c'est ce qu'un utilisateur suit sans se méfier. Les listes
+`quanti` / `quali` / `ordin` excluent naturellement ce type, et
+`hstat_reco_analyses()` émet en plus une ligne `Bloquant` qui nomme la variable
+et renvoie à l'onglet Nettoyage : le silence seul serait trompeur.
+
+Même exigence de langue dans `hstat_report_resume_donnees()` : une colonne vide
+est lue comme `logical` par les lecteurs de CSV, et le nom de classe R sortait
+tel quel au milieu d'un tableau français.
+
+## Graphiques interactifs : le polyfill obsolète de plotly
+
+plotly attache une dépendance `typedarray`, polyfill destiné aux navigateurs
+sans tableaux typés (IE9). Son code référence `GLOBAL`, variable de Node.js
+inexistante dans un navigateur : une `ReferenceError` était levée sur **chaque**
+page portant un graphique interactif. Rien ne cassait, mais une erreur
+permanente en console masque les vraies.
+
+`hstat_plotly_clean()` retire la dépendance. Le nettoyage est posé sur
+**`renderPlotly` lui-même**, pas sur chacun des dix appels : leurs corps
+comportent des `return()` qui sauteraient purement et simplement un habillage de
+l'expression. `shiny::exprToFunction()` transforme le bloc en fonction — le
+`return()` en sort alors normalement, et la valeur passe bien par le nettoyage.
+
 ## Tests
 
 `tests/testthat/test-hstat.R` est la suite de référence (celle qu'exécute

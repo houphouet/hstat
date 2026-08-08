@@ -153,6 +153,14 @@ requirements. The cost is measured, not assumed: a scatterplot at 9 × 5.5 in
 weighs 0.36 MB at 1000 dpi and takes about two seconds. Only the on-screen
 preview is exempt — it checks the layout, it is not what you print.
 
+**It refuses to advise on a variable it cannot analyse.** A column with no
+observed value at all has no type — and the engine used to type it as *binary*
+(the set of its distinct non-missing values being empty, hence of size ≤ 2) and
+recommend a chi-square test of independence on it. Confidently recommending an
+impossible analysis is worse than recommending nothing: it is what a user
+follows without suspicion. Such variables are now reported as **blocking**, by
+name, pointing at the cleaning tab.
+
 **Errors you can act on.** R speaks English, and it speaks to statisticians:
 *"data are essentially constant"*, *"incorrect number of dimensions"*,
 *"system is computationally singular"*. HStat translates the errors it surfaces
@@ -311,7 +319,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.16.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.16.1. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -319,7 +327,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.16.0},
+  note   = {Version 0.16.1},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

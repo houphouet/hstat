@@ -504,6 +504,13 @@ hstat_ai_context_text <- function(ctx, max_rows = 25, max_chars = 6000) {
 # ---------------------------------------------------------------------------
 
 .hstat_reco_type <- function(x) {
+  # Une variable sans AUCUNE valeur observee n'a pas de type. Sans ce garde-fou,
+  # `unique(na.omit(x))` etait vide, donc de longueur 0 <= 2, et la variable
+  # etait typee « binaire » : le moteur recommandait alors un chi-deux
+  # d'independance sur une colonne entierement vide. Conseiller avec aplomb une
+  # analyse impossible est pire que ne rien conseiller — et c'est exactement ce
+  # qu'un utilisateur suivrait sans se mefier.
+  if (is.null(x) || !length(x) || all(is.na(x))) return("indeterminable")
   if (is.numeric(x)) {
     u <- length(unique(stats::na.omit(x)))
     # Un entier a deux valeurs est un facteur deguise (0/1, 1/2...).
@@ -637,8 +644,18 @@ hstat_data_profile <- function(df, vars = NULL, group = NULL, paired = FALSE) {
 # Nom de variable protege : `ma variable` si l'identifiant n'est pas syntaxique.
 .hstat_rlog_nom <- function(x) {
   x <- as.character(x)
+  # Un nom non syntaxique se cite entre accents graves — mais le nom peut LUI
+  # MEME en contenir, et le fermait alors prematurement : une colonne nommee
+  # « a`b » produisait un script que R refusait d'analyser, alors que le journal
+  # a precisement pour promesse d'etre executable. R accepte l'accent grave
+  # echappe par une barre oblique inverse a l'interieur des accents graves ; la
+  # barre elle-meme doit donc etre echappee d'abord.
+  cite <- function(s) {
+    s <- gsub("\\", "\\\\", s, fixed = TRUE)
+    paste0("`", gsub("`", "\\`", s, fixed = TRUE), "`")
+  }
   ifelse(grepl("^[A-Za-z.][A-Za-z0-9._]*$", x) & !grepl("^\\.[0-9]", x),
-         x, paste0("`", x, "`"))
+         x, vapply(x, cite, character(1), USE.NAMES = FALSE))
 }
 
 .hstat_rlog_vec <- function(x) {
@@ -985,6 +1002,21 @@ hstat_reco_analyses <- function(profile) {
     all(vapply(quanti, function(nm) isTRUE(v[[nm]]$normale$ok), logical(1)))
   petit <- profile$n < 30
   out <- list()
+
+  # Variables sans aucune valeur observee. Elles sont deja exclues des listes
+  # ci-dessus (leur type vaut « indeterminable »), mais le silence serait
+  # trompeur : l'utilisateur les a choisies, il doit savoir pourquoi elles ne
+  # donnent lieu a aucune proposition.
+  vides <- names(types)[types == "indeterminable"]
+  if (length(vides)) {
+    out <- c(out, list(.hstat_reco_row(
+      "Aucune analyse possible en l'etat", "Bloquant",
+      sprintf("%s ne comporte aucune valeur observee : il n'y a rien a analyser.",
+              paste(sprintf("« %s »", vides), collapse = ", ")),
+      "Au moins quelques observations non manquantes par variable.",
+      paste("Verifiez l'import (separateur, colonne decalee) et les filtres",
+            "actifs, ou traitez les valeurs manquantes dans l'onglet Nettoyage."))))
+  }
 
   # ---- Une quantitative, un facteur ----
   if (length(quanti) >= 1 && !is.null(g)) {
