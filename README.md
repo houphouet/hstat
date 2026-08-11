@@ -60,6 +60,12 @@ a workbook of twelve doesn't block the other eleven. The result replaces the
 working dataset. Under the hood this is the same merge engine used for multiple
 files — sheets have no reason to obey a different logic.
 
+The multi-file merge section works the same way: **a workbook dropped there is
+unfolded into its sheets**, so one workbook with three sheets is enough to feed
+a merge — two separate files are no longer required. The key selectors list the
+columns of each sheet, so joins are configured exactly as they are between
+files.
+
 ---
 
 ## Large datasets (out-of-memory engine)
@@ -366,7 +372,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.18.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.19.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -374,7 +380,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.18.0},
+  note   = {Version 0.19.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

@@ -198,7 +198,12 @@ server <- function(input, output, session) {
     if (!length(sheets)) return(NULL)
     tagList(
       selectInput("sheet", "Feuille Excel :", choices = sheets, selected = sheets[1]),
+      # `open = NA` : le bloc est DEPLIE d'emblee. Replie, il se resumait a une
+      # ligne que l'utilisateur ne remarquait pas — la fonctionnalite existait
+      # sans que personne ne la voie. Il ne s'affiche que lorsqu'il sert, c'est
+      # a dire quand le classeur compte plus d'une feuille.
       if (length(sheets) > 1) tags$details(
+        open = NA,
         style = "margin:4px 0 10px; padding:10px 14px; background:#eef7fb; border:1px solid #b6e0ef; border-radius:8px;",
         tags$summary(style = "cursor:pointer; font-weight:700; color:#1b6f8c; font-size:14px;",
           icon("layer-group"),
@@ -380,28 +385,50 @@ server <- function(input, output, session) {
   # pas les donnees completes : lire 5 fichiers entiers en memoire des la selection
   # pouvait saturer la memoire et fermer l'application. La lecture complete n'a lieu
   # qu'au moment de la fusion (bouton Fusionner).
+  # Les en-tetes alimentent les selecteurs de cle. Ils doivent donc suivre
+  # exactement le meme depliage que `merge_frames_read()` : sinon les feuilles
+  # d'un classeur sont bien fusionnees, mais aucune de leurs colonnes n'est
+  # proposee comme cle — la jointure devient impossible a parametrer.
   merge_headers_read <- reactive({
-    req(input$mergeFiles)
-    fp <- input$mergeFiles
-    if (nrow(fp) < 2) return(NULL)
-    sep <- input$mergeSep %||% ","
-    cols <- lapply(seq_len(nrow(fp)), function(i) {
-      tryCatch(hstat_read_header_mem(fp$datapath[i], sep = sep), error = function(e) NULL)
-    })
-    list(cols = cols, names = tools::file_path_sans_ext(fp$name))
+    mf <- tryCatch(merge_frames_read(), error = function(e) NULL)
+    if (is.null(mf)) return(NULL)
+    list(cols = lapply(mf$frames, function(d) if (is.null(d)) NULL else names(d)),
+         names = mf$names)
   })
 
   merge_frames_read <- reactive({
     req(input$mergeFiles)
     fp <- input$mergeFiles
-    if (nrow(fp) < 2) return(NULL)
     sep <- input$mergeSep %||% ","
-    frames <- lapply(seq_len(nrow(fp)), function(i) {
-      tryCatch(
+    frames <- list(); noms <- character(0)
+    for (i in seq_len(nrow(fp))) {
+      base <- tools::file_path_sans_ext(fp$name[i])
+      # Un classeur est DEPLIE en ses feuilles : deposer deux classeurs de
+      # trois feuilles ici donnait deux tableaux au lieu de six, les autres
+      # feuilles etant ignorees en silence. Un seul classeur multi-feuilles
+      # suffit desormais a alimenter une fusion.
+      feuilles <- hstat_excel_sheets(fp$datapath[i])
+      if (length(feuilles) > 1) {
+        r <- tryCatch(hstat_excel_read_sheets(fp$datapath[i], feuilles),
+                      error = function(e) NULL)
+        if (!is.null(r) && length(r$frames)) {
+          frames <- c(frames, r$frames)
+          # Le nom porte le fichier ET la feuille : avec plusieurs classeurs,
+          # « 2024 » seul ne dirait pas de quel fichier il vient.
+          noms <- c(noms, if (nrow(fp) > 1) paste(base, r$names, sep = " - ")
+                          else r$names)
+          next
+        }
+      }
+      frames <- c(frames, list(tryCatch(
         hstat_read_any_mem(fp$datapath[i], sep = sep, name = fp$name[i]),
-        error = function(e) NULL)
-    })
-    list(frames = frames, names = tools::file_path_sans_ext(fp$name))
+        error = function(e) NULL)))
+      noms <- c(noms, base)
+    }
+    # Deux tableaux restent le minimum — mais ils peuvent venir d'un seul
+    # classeur, ce qui n'etait pas possible auparavant.
+    if (length(frames) < 2) return(NULL)
+    list(frames = frames, names = noms)
   })
 
   output$mergeKeyLeftUI <- renderUI({
