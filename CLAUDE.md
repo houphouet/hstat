@@ -297,6 +297,29 @@ de `HSTAT_REPORT_SECTIONS` (`"donnees"`, `"qualite"`…), pas ses noms, qui sont
 les libellés affichés. Passer les noms vidait le rapport **en silence** — seul
 l'en-tête sortait.
 
+## Réinitialisation : exhaustive par construction, jamais par énumération
+
+`hstat_valeurs_initiales()` (`Utils.R`) est la **source unique** de l'état de
+session : `reactiveValues` est construit depuis elle, et la réinitialisation la
+reparcourt. Un champ ajouté là est donc créé au démarrage **et** effacé à la
+remise à zéro, sans qu'on ait à y penser deux fois.
+
+Avant, les deux listes étaient distinctes et avaient dérivé : `aiContext`,
+`aiHistory`, `cahClusters`, `y2Vars`… survivaient à la réinitialisation.
+La remise à zéro vide en plus tout champ créé en cours de session par un module
+(`setdiff` sur `reactiveValuesToList`).
+
+**`shinyjs::reset("file")` ne vide pas `input$file`.** Il remet le widget à
+blanc, mais la valeur reste : la feuille Excel choisie et le bloc de combinaison
+de feuilles survivaient donc à la réinitialisation. D'où `fichierNeutralise` et
+le réactif `fichier_actif()` — **seule porte d'accès au fichier**, un test barre
+tout accès direct à `input$file`.
+
+**Aucune fonction essentielle ne doit dépendre d'un paquet optionnel.**
+`shinyalert` est facultatif ; sans repli, `shinyalert()` levait une erreur avalée
+par l'observateur et le bouton « Réinitialiser » ne faisait **rien, en silence**.
+Le repli passe par `modalDialog`, qui fait partie de Shiny.
+
 ## Bilingue : traduire l'AFFICHAGE, pas les 9 700 appels
 
 L'application compte ~9 700 chaînes destinées à l'utilisateur sur 24 fichiers.

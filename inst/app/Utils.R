@@ -508,6 +508,56 @@ hstat_i18n_coverage <- function(chaines, path = hstat_i18n_path()) {
        taux = if (!length(chaines)) 1 else length(traduites) / length(chaines))
 }
 
+# ===========================================================================
+# ETAT INITIAL DE LA SESSION : UNE SEULE SOURCE DE VERITE
+# ---------------------------------------------------------------------------
+# La reinitialisation remettait a NULL une liste de champs ENUMEREE A LA MAIN,
+# distincte de celle qui cree `reactiveValues`. Les deux listes ont derive :
+# tout champ ajoute depuis (aiContext, aiHistory, cahClusters, y2Vars…)
+# survivait a la reinitialisation, et l'utilisateur retrouvait des restes de sa
+# session precedente.
+#
+# Les deux usages partagent desormais CETTE liste. Un champ ajoute ici est
+# cree au demarrage et efface a la reinitialisation, sans qu'on ait a y penser.
+# ===========================================================================
+hstat_valeurs_initiales <- function() {
+  list(
+    data = NULL, cleanData = NULL, filteredData = NULL, descStats = NULL,
+    normResults = NULL, leveneResults = NULL, testResults = NULL,
+    anovaModel = NULL, lastKruskal = NULL, multiResults = NULL,
+    multiGroups = NULL, currentPlot = NULL, residualsNorm = NULL,
+    leveneResid = NULL, multiNormResults = NULL, multiLeveneResults = NULL,
+    pcaResult = NULL, clusterResult = NULL, currentModel = NULL,
+    testInterpretation = NULL, cahResult = NULL, currentInteractivePlot = NULL,
+    cahClusters = NULL, testResultsDF = NULL,
+    multiResultsMain = NULL, multiResultsInteraction = NULL,
+    normalityResults = NULL, homogeneityResults = NULL,
+    currentVarIndex = 1, currentValidationVar = 1,
+    allTestResults = list(), allPostHocResults = list(), modelsList = list(),
+    normalityResultsPerVar = list(), homogeneityResultsPerVar = list(),
+    currentDiagVar = 1, currentResidVar = 1,
+    customXOrder = NULL, y2Vars = NULL, dualAxisActive = FALSE,
+    y2VarsActive = NULL, y2RangeForAxis = NULL, y2UnifiedColorMap = NULL,
+    postHocSyncTrigger = NULL,
+    transformationLog = list(),
+    chiSqResults = NULL, chiSqFreqData = NULL, chiSqPostHocData = NULL,
+    chiSqPlotObj = NULL, chiSqRawObs = NULL, chiSqModalites = NULL,
+    chiSqPGlobal = NULL,
+    # ---- Moteur de donnees (memoire / hors-memoire DuckDB) ----
+    dbCon = NULL, dbTable = NULL, dataMode = "memory",
+    fullNrow = NULL, fullNcol = NULL, fullNA = NULL, isSampled = FALSE,
+    sourceKind = NULL, sourceSize = NULL,
+    # ---- Aide a la decision ----
+    aiContext = NULL, aiHistory = NULL,
+    # Chemin du fichier NEUTRALISE par la derniere reinitialisation.
+    # `shinyjs::reset("file")` remet le widget a blanc mais `input$file` garde
+    # sa valeur : sans ce temoin, la feuille Excel choisie et le bloc de
+    # combinaison de feuilles survivaient a la reinitialisation.
+    fichierNeutralise = NULL,
+    resetSignal = 0
+  )
+}
+
 hstat_html_escape <- function(x) {
   x <- as.character(x)
   x[is.na(x)] <- ""

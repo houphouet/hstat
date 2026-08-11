@@ -4127,3 +4127,85 @@ test_that("la bascule cote navigateur est presente et branchee", {
   expect_true(grepl("hstat_i18n_json", ux, fixed = TRUE))
   expect_true(grepl("hstatLangEn", ux, fixed = TRUE))
 })
+
+
+# ===========================================================================
+# REINITIALISATION COMPLETE
+# ---------------------------------------------------------------------------
+# La remise a zero effacait une liste de champs ENUMEREE A LA MAIN, distincte
+# de celle qui cree `reactiveValues`. Les deux ont derive : tout champ ajoute
+# depuis survivait a la reinitialisation, et l'utilisateur retrouvait des
+# restes de sa session precedente.
+# ===========================================================================
+
+test_that("l'etat initial est decrit a un seul endroit", {
+  init <- hstat_valeurs_initiales()
+  expect_true(is.list(init))
+  expect_gt(length(init), 50L)
+  expect_true(all(nzchar(names(init))))
+  expect_false(any(duplicated(names(init))))
+  # Les champs structurants doivent y figurer, sinon ils ne seraient ni crees
+  # au demarrage ni effaces a la reinitialisation.
+  for (nm in c("data", "cleanData", "filteredData", "aiContext", "aiHistory",
+               "dbCon", "dataMode", "resetSignal", "fichierNeutralise"))
+    expect_true(nm %in% names(init), info = nm)
+  # Les valeurs par defaut qui ne sont pas NULL sont celles qu'on attend
+  expect_equal(init$dataMode, "memory")
+  expect_equal(init$resetSignal, 0)
+  expect_false(init$isSampled)
+  expect_equal(init$allTestResults, list())
+})
+
+test_that("creation et reinitialisation partagent la meme liste", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # `reactiveValues` est construit DEPUIS la liste, pas recopie a cote
+  expect_true(grepl("do.call(reactiveValues, hstat_valeurs_initiales())",
+                    src, fixed = TRUE))
+  # La reinitialisation reparcourt la meme liste
+  expect_true(grepl("init <- hstat_valeurs_initiales()", src, fixed = TRUE))
+  expect_true(grepl("for (nm in names(init)) values[[nm]] <- init[[nm]]",
+                    src, fixed = TRUE))
+  # Et vide en plus ce qu'un module aurait cree en cours de session
+  expect_true(grepl("setdiff(names(reactiveValuesToList(values)), names(init))",
+                    src, fixed = TRUE))
+  # L'ancienne enumeration a la main a bien disparu
+  expect_false(grepl("values$chiSqPGlobal     <- NULL", src, fixed = TRUE))
+})
+
+test_that("le fichier reste neutralise apres la reinitialisation", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # shinyjs::reset() remet le WIDGET a blanc mais input$file garde sa valeur :
+  # sans temoin, la feuille Excel et le bloc de combinaison survivaient.
+  expect_true(grepl("values$fichierNeutralise <- isolate(input$file$datapath)",
+                    src, fixed = TRUE))
+  expect_true(grepl("fichier_actif <- reactive", src, fixed = TRUE))
+  # Tout ce qui derive du fichier passe par cette porte, et une seule
+  lignes <- strsplit(src, "\n", fixed = TRUE)[[1]]
+  lignes <- lignes[!grepl("^\\s*#", lignes)]
+  brut <- grep("input\\$file", lignes, value = TRUE)
+  brut <- brut[!grepl("fichierNeutralise|f <- input\\$file", brut)]
+  expect_equal(brut, character(0),
+    info = paste("Acces direct a input$file, qui ignore la neutralisation :\n  ",
+                 paste(brut, collapse = "\n   ")))
+})
+
+test_that("la reinitialisation ne depend pas d'un paquet optionnel", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # shinyalert est optionnel : sans repli, shinyalert() levait une erreur
+  # avalee par l'observateur et le bouton ne faisait RIEN, en silence.
+  expect_true(grepl('requireNamespace("shinyalert"', src, fixed = TRUE))
+  expect_true(grepl("showModal(modalDialog(", src, fixed = TRUE))
+  expect_true(grepl("resetConfirm", src, fixed = TRUE))
+  # Les deux chemins de confirmation appellent la MEME remise a zero
+  expect_true(grepl(".hstat_reinitialiser <- function()", src, fixed = TRUE))
+  expect_gte(lengths(gregexpr(".hstat_reinitialiser()", src, fixed = TRUE)), 2L)
+})
