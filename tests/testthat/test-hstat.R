@@ -4288,3 +4288,58 @@ test_that("la langue est propre a la session, jamais globale", {
   # choisie avant la connexion ne parviendrait jamais au serveur.
   expect_true(grepl("setTimeout(envoyer", js, fixed = TRUE))
 })
+
+
+# ===========================================================================
+# INTERPRETATIONS TRADUITES
+# ---------------------------------------------------------------------------
+# Les phrases FIGEES passent par le dictionnaire, comme le reste de
+# l'interface. Les phrases COMPOSEES (sprintf avec un effectif, un nom de
+# variable) n'y entrent pas : le traducteur ne remplace que des chaines
+# entieres. Elles demandent une reecriture par gabarit — chantier distinct,
+# non entrepris ici, et ce test dit ou l'on en est plutot que de le masquer.
+# ===========================================================================
+
+test_that("les analyses recommandees sont nommees en anglais", {
+  for (a in c("Test t de Student (deux echantillons)", "ANOVA a un facteur",
+              "Correlation de Pearson", "Regression lineaire",
+              "Test du chi-deux d'independance", "Comparaisons post-hoc",
+              "Aucune analyse possible en l'etat")) {
+    t <- tr(a, "en")
+    expect_false(identical(t, a), info = a)
+    expect_true(nzchar(t))
+  }
+  expect_equal(tr("ANOVA a un facteur", "en"), "One-way ANOVA")
+  expect_equal(tr("Test du chi-deux d'independance", "en"),
+               "Chi-square test of independence")
+})
+
+test_that("les conditions et alternatives des recommandations sont traduites", {
+  for (x in c("Independance des observations ; normalite dans chaque groupe.",
+              "Effectifs attendus >= 5 dans au moins 80 % des cases.",
+              "Test exact de Fisher.",
+              "Correlation de Spearman, qui ne suppose que la monotonie."))
+    expect_false(identical(tr(x, "en"), x), info = substr(x, 1, 40))
+  # La ponctuation anglaise ne garde pas l'espace avant le point-virgule
+  expect_false(grepl(" ;", tr("Independance des observations ; normalite dans chaque groupe.",
+                              "en"), fixed = TRUE))
+})
+
+test_that("les suggestions de qualite les plus frequentes sont traduites", {
+  for (x in c("Ces valeurs font echouer la plupart des calculs. Les remplacer ou les retirer dans l'onglet Nettoyage.",
+              "Variable quasi vide : l'exclure des analyses, ou retrouver la source des donnees manquantes.",
+              "Convertir en numerique (onglet Nettoyage). En l'etat, moyennes, correlations et tests quantitatifs sont impossibles."))
+    expect_false(identical(tr(x, "en"), x), info = substr(x, 1, 40))
+})
+
+test_that("le dictionnaire couvre desormais plus que la seule navigation", {
+  d <- hstat_i18n_load()
+  expect_gt(nrow(d), 300L)
+  # Les trois familles doivent y etre representees : interface, messages
+  # d'erreur, interpretations.
+  expect_true("Tests statistiques" %in% d$fr)                 # interface
+  expect_true("message R" %in% d$fr)                          # erreurs
+  expect_true("ANOVA a un facteur" %in% d$fr)                 # interpretations
+  # Le poids embarque reste raisonnable : c'est la promesse de legerete.
+  expect_lt(nchar(hstat_i18n_json("en")) / 1024, 60)
+})

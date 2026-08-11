@@ -349,6 +349,23 @@ Quatre points à ne pas défaire :
    élément portant `data-hstat-notranslate` est ignoré : les données de
    l'utilisateur ne doivent jamais être traduites par morceaux.
 
+Trois familles de texte, trois chemins :
+
+| Texte | Chemin | Pourquoi |
+|---|---|---|
+| Interface (libellés, onglets, boutons) | dictionnaire côté navigateur | chaîne entière présente dans le DOM |
+| Messages d'erreur, verdicts | `tr()` côté **serveur**, même CSV | composés phrase par phrase, donc absents du DOM comme chaîne entière |
+| Interprétations **composées** (`sprintf`) | non traduites à ce jour | demandent une réécriture par gabarit, pas une substitution |
+
+`hstat_langue_session()` lit `session$userData` — **pas une option globale** :
+sur un serveur partagé, une option ferait basculer la langue de tous les
+utilisateurs dès que l'un change la sienne. La valeur par défaut de
+`hstat_err_fr()` l'appelle, ce qui évite de toucher ses ~70 points d'appel.
+
+Détail de typographie : le français met une espace avant les deux-points,
+l'anglais non. Un test le vérifie — garder la ponctuation française dans une
+phrase anglaise trahirait la traduction.
+
 Un terme identique dans les deux langues (« Exploration ») est une **décision de
 traduction**, pas un déchet : il compte dans la couverture, mais
 `hstat_i18n_json()` ne l'envoie pas au navigateur où il ne ferait rien.
