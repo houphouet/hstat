@@ -143,11 +143,30 @@
     try { localStorage.setItem(CLE_STOCKAGE, l); } catch (e) {}
     document.documentElement.setAttribute("lang", l);
     marquerSegment(l);
+    // Le SERVEUR doit connaitre la langue : les messages d'erreur et les
+    // interpretations sont composes en R, phrase par phrase, et n'existent
+    // donc pas comme chaine entiere dans le dictionnaire du navigateur.
+    signalerAuServeur(l);
     // Repasser en francais doit restituer le texte d'origine : on parcourt
     // donc la page dans les deux sens de bascule.
     enCours = true;
     try { traduireTexte(document.body); traduireAttributs(document.body); }
     catch (e) {} finally { enCours = false; }
+  }
+
+  // Shiny n'est pas forcement pret quand ce fichier s'execute (il est charge
+  // dans l'en-tete) : on reessaie jusqu'a ce qu'il reponde, sinon la langue
+  // choisie avant la connexion ne parviendrait jamais au serveur.
+  function signalerAuServeur(l) {
+    var essais = 0;
+    (function envoyer() {
+      if (window.Shiny && Shiny.setInputValue) {
+        try { Shiny.setInputValue("hstat_langue", l, { priority: "event" }); }
+        catch (e) {}
+        return;
+      }
+      if (++essais < 100) setTimeout(envoyer, 200);
+    })();
   }
 
   window.hstatSetLangue = definirLangue;
@@ -167,6 +186,7 @@
     var voulue = "fr";
     try { voulue = localStorage.getItem(CLE_STOCKAGE) || "fr"; } catch (e) {}
     if (voulue === "en") definirLangue("en");
+    else signalerAuServeur("fr");
     marquerSegment(voulue);
   }
 

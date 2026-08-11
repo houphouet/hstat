@@ -14,6 +14,14 @@ server <- function(input, output, session) {
   # souvent en local, cas ou le besoin est le plus fort.
   try(session$allowReconnect("force"), silent = TRUE)
 
+  # Langue choisie dans le bandeau, signalee par www/hstat-i18n.js. Elle est
+  # rangee dans `session$userData` — donc propre a CET utilisateur — et lue par
+  # `hstat_langue_session()`. Les messages composes en R (erreurs, verdicts)
+  # suivent ainsi la langue sans qu'aucun de leurs ~70 points d'appel change.
+  observeEvent(input$hstat_langue, {
+    session$userData$langue <- if (identical(input$hstat_langue, "en")) "en" else "fr"
+  }, ignoreInit = FALSE)
+
   # Signal de maintien envoye par le navigateur. Il n'alimente aucun calcul :
   # sa seule fonction est d'empecher une coupure pour inactivite. On le lit
   # explicitement pour qu'il ne soit pas pris pour une entree oubliee.

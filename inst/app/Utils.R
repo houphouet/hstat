@@ -829,22 +829,43 @@ HSTAT_ERR_FR <- list(
 # Traduit une erreur R en francais actionnable. `e` accepte une condition ou
 # une chaine. `contexte` prefixe le message (« Test t : … ») quand l'appelant
 # sait de quelle analyse il s'agit.
-hstat_err_fr <- function(e, contexte = NULL) {
+# Langue de la session courante. Elle est portee par `session$userData` et non
+# par une option globale : sur un serveur partage, une option ferait basculer
+# la langue de TOUS les utilisateurs des que l'un d'eux change la sienne.
+# Hors Shiny (tests, scripts), le francais s'applique.
+hstat_langue_session <- function() {
+  d <- tryCatch(shiny::getDefaultReactiveDomain(), error = function(e) NULL)
+  if (is.null(d) || is.null(d$userData)) return("fr")
+  l <- tryCatch(d$userData$langue, error = function(e) NULL)
+  if (identical(l, "en")) "en" else "fr"
+}
+
+# `lang` : ces messages sont COMPOSES ici, phrase par phrase, et n'existent
+# donc pas comme chaine entiere dans le dictionnaire du navigateur — celui-ci
+# ne remplace que des correspondances completes. La traduction se fait ainsi
+# cote serveur, mais elle puise dans LE MEME fichier CSV que le reste : une
+# seule source de verite pour les traductions.
+hstat_err_fr <- function(e, contexte = NULL, lang = hstat_langue_session()) {
   msg <- if (inherits(e, "condition")) conditionMessage(e) else as.character(e)[1]
   msg <- trimws(paste(msg, collapse = " "))
-  if (!length(msg) || !nzchar(msg)) msg <- "erreur sans message"
+  if (!length(msg) || !nzchar(msg)) msg <- tr("erreur sans message", lang)
+  # Le francais met une espace avant les deux-points, l'anglais non. Garder la
+  # ponctuation francaise dans une phrase anglaise trahirait la traduction.
+  dp <- if (identical(lang, "en")) ": " else " : "
   prefixe <- if (!is.null(contexte) && nzchar(contexte))
-    paste0(contexte, " : ") else ""
+    paste0(contexte, dp) else ""
   for (r in HSTAT_ERR_FR) {
     if (grepl(r[[1]], msg, ignore.case = TRUE, perl = TRUE))
       # Le message d'origine reste entre parentheses : c'est ce qu'un
       # utilisateur copiera pour demander de l'aide.
-      return(sprintf("%s%s (message R : %s)", prefixe, r[[2]], msg))
+      return(sprintf("%s%s (%s%s%s)", prefixe, tr(r[[2]], lang),
+                     tr("message R", lang), dp, msg))
   }
   # Rien de connu : on ne masque pas, on annonce. Presenter un message anglais
   # comme une phrase francaise serait pire que de dire qu'il ne l'est pas.
-  sprintf("%sL'analyse a echoue. Message renvoye par R (non traduit) : %s",
-          prefixe, msg)
+  sprintf("%s%s%s%s", prefixe,
+          tr("L'analyse a echoue. Message renvoye par R (non traduit)", lang),
+          dp, msg)
 }
 
 # FactoMineR reduit ses coordonnees a un VECTEUR des que le resultat ne comporte

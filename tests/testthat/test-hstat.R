@@ -4209,3 +4209,82 @@ test_that("la reinitialisation ne depend pas d'un paquet optionnel", {
   expect_true(grepl(".hstat_reinitialiser <- function()", src, fixed = TRUE))
   expect_gte(lengths(gregexpr(".hstat_reinitialiser()", src, fixed = TRUE)), 2L)
 })
+
+
+# ===========================================================================
+# MESSAGES D'ERREUR BILINGUES
+# ---------------------------------------------------------------------------
+# Ces messages sont COMPOSES en R, phrase par phrase : ils n'existent pas comme
+# chaine entiere dans le dictionnaire du navigateur, qui ne remplace que des
+# correspondances completes. La traduction se fait donc cote serveur — mais
+# elle puise dans LE MEME fichier CSV, une seule source de verite.
+# ===========================================================================
+
+test_that("les 23 explications d'erreur sont traduites", {
+  textes <- vapply(HSTAT_ERR_FR, function(r) r[[2]], character(1))
+  cv <- hstat_i18n_coverage(textes)
+  expect_equal(cv$manquantes, character(0),
+    info = paste("Explications non traduites :\n  ",
+                 paste(substr(cv$manquantes, 1, 60), collapse = "\n   ")))
+  expect_equal(cv$traduites, length(textes))
+})
+
+test_that("hstat_err_fr rend l'anglais quand la langue est l'anglais", {
+  fr <- hstat_err_fr(simpleError("data are essentially constant"), "Test t", "fr")
+  en <- hstat_err_fr(simpleError("data are essentially constant"), "t-test", "en")
+  expect_true(grepl("La variable ne varie pas", fr, fixed = TRUE))
+  expect_true(grepl("The variable does not vary", en, fixed = TRUE))
+  # Le message R d'origine survit dans les deux langues : c'est ce qu'un
+  # utilisateur copiera pour demander de l'aide.
+  expect_true(grepl("data are essentially constant", fr, fixed = TRUE))
+  expect_true(grepl("data are essentially constant", en, fixed = TRUE))
+  # L'encadrement suit la langue, sinon la phrase serait mi-anglaise
+  expect_true(grepl("message R :", fr, fixed = TRUE))
+  expect_true(grepl("R message:", en, fixed = TRUE))
+  expect_false(grepl("message R :", en, fixed = TRUE))
+})
+
+test_that("une erreur inconnue s'annonce comme non traduite dans les deux langues", {
+  fr <- hstat_err_fr(simpleError("panne inedite"), NULL, "fr")
+  en <- hstat_err_fr(simpleError("panne inedite"), NULL, "en")
+  expect_true(grepl("non traduit", fr, fixed = TRUE))
+  # Ponctuation francaise en francais, anglaise en anglais
+  expect_true(grepl("(non traduit) : panne", fr, fixed = TRUE))
+  expect_true(grepl("(untranslated): panne", en, fixed = TRUE))
+  expect_true(grepl("untranslated", en, fixed = TRUE))
+  expect_true(grepl("panne inedite", en, fixed = TRUE))
+  # Une erreur sans message reste explicite
+  expect_true(grepl("error with no message",
+                    hstat_err_fr(simpleError(""), NULL, "en"), fixed = TRUE))
+})
+
+test_that("la langue est propre a la session, jamais globale", {
+  # Hors Shiny, le francais s'applique — et rien ne plante.
+  expect_equal(hstat_langue_session(), "fr")
+  # Le defaut de hstat_err_fr lit la session : aucun des ~70 points d'appel
+  # n'a besoin de passer la langue.
+  expect_true(grepl("hstat_langue_session()",
+                    paste(deparse(args(hstat_err_fr)), collapse = " "),
+                    fixed = TRUE))
+
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  u <- paste(readLines(file.path(root, "inst", "app", "Utils.R"), warn = FALSE,
+                       encoding = "UTF-8"), collapse = "\n")
+  # `session$userData` et non une option globale : sur un serveur partage, une
+  # option ferait basculer la langue de TOUS les utilisateurs a la fois.
+  expect_true(grepl("d$userData$langue", u, fixed = TRUE))
+  expect_false(grepl('getOption("hstat.langue"', u, fixed = TRUE))
+
+  a <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                       warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("session$userData$langue <-", a, fixed = TRUE))
+  expect_true(grepl("input$hstat_langue", a, fixed = TRUE))
+
+  js <- paste(readLines(file.path(root, "inst", "app", "www", "hstat-i18n.js"),
+                        warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("hstat_langue", js, fixed = TRUE))
+  # Shiny n'est pas pret quand ce fichier s'execute : sans reessai, la langue
+  # choisie avant la connexion ne parviendrait jamais au serveur.
+  expect_true(grepl("setTimeout(envoyer", js, fixed = TRUE))
+})
