@@ -185,13 +185,133 @@ server <- function(input, output, session) {
   })
   
   # ---- Chargement ----
-  output$sheetUI <- renderUI({
+  # Feuilles du classeur. Un classeur d'enquete porte souvent une feuille par
+  # annee, par site ou par vague : ne lire que la premiere revient a jeter le
+  # reste des donnees.
+  excel_sheets_r <- reactive({
     req(input$file)
-    ext <- tools::file_ext(input$file$datapath)
-    if (ext %in% c("xlsx", "xls")) {
-      sheets <- readxl::excel_sheets(input$file$datapath)
-      selectInput("sheet", "Feuille Excel :", choices = sheets, selected = sheets[1])
-    }
+    hstat_excel_sheets(input$file$datapath)
+  })
+
+  output$sheetUI <- renderUI({
+    sheets <- excel_sheets_r()
+    if (!length(sheets)) return(NULL)
+    tagList(
+      selectInput("sheet", "Feuille Excel :", choices = sheets, selected = sheets[1]),
+      if (length(sheets) > 1) tags$details(
+        style = "margin:4px 0 10px; padding:10px 14px; background:#eef7fb; border:1px solid #b6e0ef; border-radius:8px;",
+        tags$summary(style = "cursor:pointer; font-weight:700; color:#1b6f8c; font-size:14px;",
+          icon("layer-group"),
+          sprintf(" Ce classeur contient %d feuilles — les combiner en un seul jeu de donnees", length(sheets))),
+        div(style = "padding-top:12px;",
+          p(style = "color:#5a6a7a; font-size:13px;",
+            "Choisissez les feuilles a combiner. ",
+            tags$b("Le resultat remplace les donnees de travail actuelles"),
+            " et devient le jeu sur lequel portent toutes les analyses."),
+          checkboxGroupInput("sheetPick", "Feuilles a combiner",
+                             choices = sheets, selected = sheets),
+          # Le conseil est calcule sur les feuilles reellement choisies : c'est
+          # la structure des donnees qui dit si elles s'empilent ou se joignent,
+          # pas l'utilisateur qui doit le deviner.
+          uiOutput("sheetAdvice"),
+          selectInput("sheetMergeType", "Comment les combiner",
+            choices = list(
+              "Mettre bout a bout (meme structure)" = c(
+                "Empiler les lignes" = "rows",
+                "Empiler et supprimer les doublons" = "union_distinct"),
+              "Rapprocher par une cle (structures differentes)" = c(
+                "Jointure interne (lignes presentes partout)" = "inner",
+                "Jointure a gauche (garde toute la 1re feuille)" = "left",
+                "Jointure complete (garde tout)" = "full")),
+            selected = "rows"),
+          conditionalPanel(
+            condition = "['inner','left','full'].indexOf(input.sheetMergeType) >= 0",
+            textInput("sheetKey", "Colonne(s) cle, separees par une virgule",
+                      placeholder = "Ex. id, ou site, annee")),
+          conditionalPanel(
+            condition = "input.sheetMergeType == 'rows'",
+            fluidRow(
+              column(6, textInput("sheetSourceName", "Colonne d'origine",
+                                  value = "feuille")),
+              column(6, radioButtons("sheetSourceMode", "Valeur inscrite",
+                       choices = c("Nom de la feuille" = "name",
+                                   "Nombre extrait du nom" = "number"),
+                       selected = "name"))),
+            tags$small(style = "color:#6b7280;", icon("info-circle"),
+              " Chaque ligne garde la trace de sa feuille d'origine. Avec ",
+              tags$b("Nombre extrait"), ", une feuille nommee « 2024 » donne 2024 : ",
+              "la colonne devient une vraie variable d'annee, utilisable en analyse.")),
+          actionButton("applySheetMerge",
+                       tagList(icon("object-group"), " Combiner ces feuilles"),
+                       class = "btn-info"),
+          uiOutput("sheetMergeStatus"))))
+  })
+
+  output$sheetAdvice <- renderUI({
+    sel <- input$sheetPick
+    if (is.null(sel) || length(sel) < 2) return(
+      tags$small(style = "color:#b9770e;", icon("circle-info"),
+                 " Selectionnez au moins deux feuilles."))
+    r <- hstat_excel_read_sheets(input$file$datapath, sel)
+    if (!length(r$frames)) return(
+      div(class = "callout callout-warning", style = "padding:8px 12px;font-size:12px;", r$msg))
+    a <- hstat_excel_compat(r$frames, r$names)
+    div(class = if (a$identiques) "callout callout-success" else "callout callout-info",
+        style = "padding:8px 12px;font-size:12px;margin-bottom:8px;",
+        icon("lightbulb"), " ", a$msg,
+        if (length(r$ignorees))
+          tags$div(style = "margin-top:4px;", tags$b("Ecartees : "),
+                   paste(r$ignorees, collapse = ", "), " (vides ou illisibles)."))
+  })
+
+  sheet_merge_msg <- reactiveVal(NULL)
+
+  observeEvent(input$applySheetMerge, {
+    tryCatch({
+      sel <- input$sheetPick
+      if (is.null(sel) || length(sel) < 2) {
+        sheet_merge_msg(list(ok = FALSE,
+          msg = "Choisissez au moins deux feuilles a combiner.")); return()
+      }
+      r <- hstat_excel_read_sheets(input$file$datapath, sel)
+      if (length(r$frames) < 2) {
+        sheet_merge_msg(list(ok = FALSE, msg = paste(
+          "Au moins deux feuilles exploitables sont necessaires.", r$msg))); return()
+      }
+      # Meme moteur que la fusion de plusieurs fichiers : les feuilles n'ont
+      # aucune raison d'avoir leur propre logique de jointure.
+      res <- hstat_merge_frames(
+        frames = r$frames, type = input$sheetMergeType %||% "rows",
+        key_left = input$sheetKey, key_right = NULL,
+        add_source = TRUE, source_names = r$names,
+        source_col = input$sheetSourceName %||% "feuille",
+        source_mode = input$sheetSourceMode %||% "name")
+      if (!isTRUE(res$ok)) { sheet_merge_msg(list(ok = FALSE, msg = res$msg)); return() }
+      d <- as.data.frame(res$data)
+      values$data <- d; values$cleanData <- d; values$filteredData <- d
+      values$dataMode <- "memory"
+      values$sourceKind <- "xlsx"
+      # Le moteur de fusion parle de « fichiers » — c'est son vocabulaire, il
+      # sert d'abord a fusionner des fichiers. Ici ce sont des feuilles, et
+      # laisser « 3 fichiers » sous les yeux de quelqu'un qui vient d'en
+      # combiner trois d'un meme classeur serait deroutant.
+      msg <- paste(gsub("fichiers", "feuilles", gsub("fichier", "feuille", res$msg)),
+                   sprintf("Feuilles combinees : %s.",
+                           paste(r$names, collapse = ", ")))
+      sheet_merge_msg(list(ok = TRUE, msg = msg))
+      showNotification(tagList(icon("check"), " ", msg), type = "message", duration = 8)
+    }, error = function(e) {
+      sheet_merge_msg(list(ok = FALSE, msg = hstat_err_fr(e, "Combinaison des feuilles")))
+    })
+  })
+
+  output$sheetMergeStatus <- renderUI({
+    m <- sheet_merge_msg()
+    if (is.null(m)) return(NULL)
+    div(class = if (isTRUE(m$ok)) "callout callout-success" else "callout callout-danger",
+        style = "padding:8px 12px;font-size:13px;margin-top:8px;",
+        icon(if (isTRUE(m$ok)) "circle-check" else "triangle-exclamation"),
+        " ", m$msg)
   })
 
   observeEvent(input$loadData, {
