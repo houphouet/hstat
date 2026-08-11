@@ -14,6 +14,14 @@ server <- function(input, output, session) {
   # souvent en local, cas ou le besoin est le plus fort.
   try(session$allowReconnect("force"), silent = TRUE)
 
+  # Langue choisie dans le bandeau, signalee par www/hstat-i18n.js. Elle est
+  # rangee dans `session$userData` — donc propre a CET utilisateur — et lue par
+  # `hstat_langue_session()`. Les messages composes en R (erreurs, verdicts)
+  # suivent ainsi la langue sans qu'aucun de leurs ~70 points d'appel change.
+  observeEvent(input$hstat_langue, {
+    session$userData$langue <- if (identical(input$hstat_langue, "en")) "en" else "fr"
+  }, ignoreInit = FALSE)
+
   # Signal de maintien envoye par le navigateur. Il n'alimente aucun calcul :
   # sa seule fonction est d'empecher une coupure pour inactivite. On le lit
   # explicitement pour qu'il ne soit pas pris pour une entree oubliee.
@@ -34,56 +42,10 @@ server <- function(input, output, session) {
     shinyjs::logjs(paste("[HStat] Erreur non capturée:", msg))
   })
   
-  values <- reactiveValues(
-    data = NULL, cleanData = NULL, filteredData = NULL, descStats = NULL,
-    normResults = NULL, leveneResults = NULL, testResults = NULL,
-    anovaModel = NULL, lastKruskal = NULL, multiResults = NULL, multiGroups = NULL,
-    currentPlot = NULL, residualsNorm = NULL, leveneResid = NULL,
-    multiNormResults = NULL, multiLeveneResults = NULL,
-    pcaResult = NULL, clusterResult = NULL, currentModel = NULL,
-    testInterpretation = NULL, cahResult = NULL, currentInteractivePlot = NULL,
-    cahClusters = NULL,
-    testResultsDF = NULL,
-    multiResultsMain = NULL, multiResultsInteraction = NULL,
-    normalityResults = NULL, homogeneityResults = NULL,
-    currentVarIndex = 1, currentValidationVar = 1,
-    allTestResults = list(),  
-    allPostHocResults = list(),  
-    modelsList = list(),  
-    normalityResultsPerVar = list(), homogeneityResultsPerVar = list(),  
-    currentDiagVar = 1, currentResidVar = 1,
-    customXOrder = NULL,
-    y2Vars = NULL,
-    dualAxisActive = FALSE,
-    y2VarsActive = NULL,
-    y2RangeForAxis = NULL,
-    y2UnifiedColorMap = NULL,
-    postHocSyncTrigger = NULL,
-    transformationLog  = list(),   # Journal des transformations appliquées
-    chiSqResults       = NULL,     # Résultat du test chi2 / multinomial
-    chiSqFreqData      = NULL,     # Données fréquences/pct traitées
-    chiSqPostHocData   = NULL,     # Post-hoc chi2 (lettres + paires)
-    chiSqPlotObj       = NULL,     # Graphique chi2 courant
-    # ---- Moteur de donnees (memoire / hors-memoire DuckDB) ----
-    dbCon        = NULL,           # Connexion DuckDB (NULL en mode memoire)
-    dbTable      = NULL,           # Nom de la table/vue DuckDB
-    dataMode     = "memory",       # "memory" ou "duckdb"
-    fullNrow     = NULL,           # Nombre de lignes du jeu COMPLET
-    fullNcol     = NULL,           # Nombre de colonnes du jeu complet
-    fullNA       = NULL,           # Total de valeurs manquantes (jeu complet)
-    isSampled    = FALSE,          # TRUE si values$data est un echantillon
-    sourceKind   = NULL,           # Type de fichier source
-    sourceSize   = NULL,           # Taille du fichier source (octets)
-    # Derniere analyse realisee, deposee par les modules via
-    # hstat_ai_capture() et lue par l'onglet d'aide a la decision.
-    aiContext    = NULL,
-    # Historique complet des analyses menees : sert au journal de
-    # reproductibilite, qui a besoin de toutes, pas seulement de la derniere.
-    aiHistory    = NULL,
-    resetSignal  = 0               # Compteur incremente a chaque reinitialisation
-                                   # globale ; observe par les modules (Plan &
-                                   # Puissance, Seuils) pour reinitialiser leur etat.
-  )
+  # L'etat initial vit dans Utils.R : la creation et la reinitialisation
+  # partagent la MEME liste. Un champ ajoute la-bas est cree ici et efface a la
+  # reinitialisation, sans qu'on ait a y penser deux fois.
+  values <- do.call(reactiveValues, hstat_valeurs_initiales())
 
   # Indicateurs de lancement des analyses multivariees : chaque analyse ne
   # s'execute QUE lorsque l'utilisateur clique sur son bouton dedie (evite le
@@ -106,91 +68,102 @@ server <- function(input, output, session) {
   
   
   # ---- Aide et réinitialisation ----
+  # `shinyalert` est un paquet OPTIONNEL (il figure parmi ceux dont l'absence
+  # est toleree au demarrage). Sans repli, `shinyalert()` levait une erreur
+  # avalee par l'observateur : le bouton « Reinitialiser » ne faisait alors
+  # RIEN, en silence. Une fonction essentielle ne peut pas dependre d'un
+  # paquet facultatif ; `modalDialog` fait partie de Shiny et est toujours la.
+  .hstat_a_shinyalert <- isTRUE(requireNamespace("shinyalert", quietly = TRUE))
+
   observeEvent(input$helpBtn, {
-    shinyalert(
-      title = "Aide",
-      text = "Cette application permet d'analyser statistiquement des données expérimentales. 
-              Naviguez à travers les onglets de gauche pour charger, explorer, nettoyer, filtrer et analyser vos données.
-              Utilisez le bouton 'Exemple' pour télécharger un jeu de données d'exemple.",
-      type = "info"
-    )
+    txt <- paste("Cette application permet d'analyser statistiquement des",
+                 "données expérimentales. Naviguez à travers les onglets de",
+                 "gauche pour charger, explorer, nettoyer, filtrer et analyser",
+                 "vos données.")
+    if (.hstat_a_shinyalert)
+      shinyalert(title = "Aide", text = txt, type = "info")
+    else
+      showModal(modalDialog(title = "Aide", txt, easyClose = TRUE,
+                            footer = modalButton("Fermer")))
   })
   
-  observeEvent(input$resetBtn, {
-    shinyalert(
-      title = "Réinitialiser",
-      text = "Êtes-vous sûr de vouloir réinitialiser l'application ? Toutes les données seront perdues.",
-      type = "warning",
-      showCancelButton = TRUE,
-      confirmButtonText = "Oui",
-      cancelButtonText = "Non",
-      callbackR = function(value) {
-        if (value) {
-          values$data <- NULL
-          values$cleanData <- NULL
-          values$filteredData <- NULL
-          values$descStats <- NULL
-          values$normResults <- NULL
-          values$leveneResults <- NULL
-          values$testResults <- NULL
-          values$anovaModel <- NULL
-          values$lastKruskal <- NULL
-          values$multiResults <- NULL
-          values$multiGroups <- NULL
-          values$currentPlot <- NULL
-          values$residualsNorm <- NULL
-          values$leveneResid <- NULL
-          values$multiNormResults <- NULL
-          values$multiLeveneResults <- NULL
-          values$pcaResult <- NULL
-          values$clusterResult <- NULL
-          values$currentModel <- NULL
-          values$testInterpretation <- NULL
-          values$cahResult <- NULL
-          values$currentInteractivePlot <- NULL
-          values$allTestResults <- list()
-          values$allPostHocResults <- list()
-          values$modelsList <- list()
-          values$normalityResultsPerVar <- list()
-          values$homogeneityResultsPerVar <- list()
-          values$transformationLog <- list()   # reset transformations
-          values$chiSqResults     <- NULL
-          values$chiSqFreqData    <- NULL
-          values$chiSqPostHocData <- NULL
-          values$chiSqPlotObj     <- NULL
-          values$chiSqRawObs      <- NULL
-          values$chiSqModalites   <- NULL
-          values$chiSqPGlobal     <- NULL
+  # La remise a zero elle-meme, appelee par les deux chemins de confirmation.
+  .hstat_reinitialiser <- function() {
+          # La connexion hors-memoire se ferme AVANT d'effacer sa reference,
+          # sinon le fichier reste verrouille et le processus DuckDB en vie.
           if (!is.null(values$dbCon)) hstat_duckdb_close(values$dbCon)
-          values$dbCon     <- NULL
-          values$dbTable   <- NULL
-          values$dataMode  <- "memory"
-          values$fullNrow  <- NULL
-          values$fullNcol  <- NULL
-          values$fullNA    <- NULL
-          values$isSampled <- FALSE
-          values$sourceKind <- NULL
-          values$sourceSize <- NULL
-          
+
+          init <- hstat_valeurs_initiales()
+          for (nm in names(init)) values[[nm]] <- init[[nm]]
+          # Un champ cree en cours de session par un module (il y en a) n'est
+          # pas dans la liste initiale : on le vide aussi, sans quoi il
+          # survivrait a la reinitialisation.
+          for (nm in setdiff(names(reactiveValuesToList(values)), names(init)))
+            values[[nm]] <- NULL
+
+          # `shinyjs::reset("file")` remet le widget a blanc mais `input$file`
+          # garde sa valeur : la feuille Excel choisie et le bloc de
+          # combinaison de feuilles survivaient donc a la reinitialisation. On
+          # note le chemin a neutraliser, et tout ce qui derive du fichier le
+          # traite comme absent jusqu'a un NOUVEAU choix.
+          values$fichierNeutralise <- isolate(input$file$datapath)
           tryCatch(shinyjs::reset("file"), error = function(e) NULL)
+
+          # Messages de resultat des deux fusions : ils restaient affiches sous
+          # un panneau devenu vide.
+          sheet_merge_msg(NULL)
+          merge_msg(NULL)
+
           # Signale aux modules (Plan & Puissance, Seuils d'efficacite) de
           # reinitialiser leur propre etat et leurs controles.
           values$resetSignal <- (values$resetSignal %||% 0) + 1
           updateTabItems(session, "tabs", "load")
-          
-          showNotification("Application réinitialisée", type = "message")
-        }
-      }
-    )
+
+    showNotification("Application réinitialisée", type = "message")
+  }
+
+  observeEvent(input$resetBtn, {
+    msg <- paste("Êtes-vous sûr de vouloir réinitialiser l'application ?",
+                 "Toutes les données seront perdues.")
+    if (.hstat_a_shinyalert) {
+      shinyalert(title = "Réinitialiser", text = msg, type = "warning",
+                 showCancelButton = TRUE, confirmButtonText = "Oui",
+                 cancelButtonText = "Non",
+                 callbackR = function(value) if (isTRUE(value)) .hstat_reinitialiser())
+    } else {
+      showModal(modalDialog(
+        title = "Réinitialiser", msg, easyClose = FALSE,
+        footer = tagList(modalButton("Non"),
+                         actionButton("resetConfirm", "Oui", class = "btn-warning"))))
+    }
+  })
+
+  observeEvent(input$resetConfirm, {
+    removeModal()
+    .hstat_reinitialiser()
   })
   
   # ---- Chargement ----
+  # LE fichier courant, et la seule porte par laquelle on y accede.
+  # `shinyjs::reset("file")` remet le widget a blanc mais `input$file` conserve
+  # sa valeur : tout ce qui en derivait — la feuille Excel choisie, le bloc de
+  # combinaison de feuilles, l'apercu — survivait a la reinitialisation. Le
+  # fichier neutralise est donc traite comme absent jusqu'a un NOUVEAU choix.
+  fichier_actif <- reactive({
+    f <- input$file
+    if (is.null(f)) return(NULL)
+    if (!is.null(values$fichierNeutralise) &&
+        identical(f$datapath, values$fichierNeutralise)) return(NULL)
+    f
+  })
+
   # Feuilles du classeur. Un classeur d'enquete porte souvent une feuille par
   # annee, par site ou par vague : ne lire que la premiere revient a jeter le
   # reste des donnees.
   excel_sheets_r <- reactive({
-    req(input$file)
-    hstat_excel_sheets(input$file$datapath)
+    f <- fichier_actif()
+    if (is.null(f)) return(character(0))
+    hstat_excel_sheets(f$datapath)
   })
 
   output$sheetUI <- renderUI({
@@ -257,7 +230,7 @@ server <- function(input, output, session) {
     if (is.null(sel) || length(sel) < 2) return(
       tags$small(style = "color:#b9770e;", icon("circle-info"),
                  " Selectionnez au moins deux feuilles."))
-    r <- hstat_excel_read_sheets(input$file$datapath, sel)
+    r <- hstat_excel_read_sheets(fichier_actif()$datapath, sel)
     if (!length(r$frames)) return(
       div(class = "callout callout-warning", style = "padding:8px 12px;font-size:12px;", r$msg))
     a <- hstat_excel_compat(r$frames, r$names)
@@ -278,7 +251,7 @@ server <- function(input, output, session) {
         sheet_merge_msg(list(ok = FALSE,
           msg = "Choisissez au moins deux feuilles a combiner.")); return()
       }
-      r <- hstat_excel_read_sheets(input$file$datapath, sel)
+      r <- hstat_excel_read_sheets(fichier_actif()$datapath, sel)
       if (length(r$frames) < 2) {
         sheet_merge_msg(list(ok = FALSE, msg = paste(
           "Au moins deux feuilles exploitables sont necessaires.", r$msg))); return()
@@ -320,8 +293,8 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$loadData, {
-    req(input$file)
-    kind <- hstat_file_kind(input$file$datapath)
+    req(fichier_actif())
+    kind <- hstat_file_kind(fichier_actif()$datapath)
     if (kind == "inconnu") {
       showNotification("Format de fichier non pris en charge.", type = "error")
       return(invisible(NULL))
@@ -340,7 +313,7 @@ server <- function(input, output, session) {
         smp <- as.integer(input$sampleSize %||% HSTAT_SAMPLE_SIZE)
         incProgress(0.3, detail = "Lecture")
         res <- hstat_load_data(
-          path = input$file$datapath, kind = kind,
+          path = fichier_actif()$datapath, kind = kind,
           header = input$header %||% TRUE, sep = input$sep %||% ",",
           sheet = input$sheet %||% 1,
           threshold = thr, sample_size = smp)

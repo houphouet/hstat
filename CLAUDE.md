@@ -297,6 +297,87 @@ de `HSTAT_REPORT_SECTIONS` (`"donnees"`, `"qualite"`…), pas ses noms, qui sont
 les libellés affichés. Passer les noms vidait le rapport **en silence** — seul
 l'en-tête sortait.
 
+## Réinitialisation : exhaustive par construction, jamais par énumération
+
+`hstat_valeurs_initiales()` (`Utils.R`) est la **source unique** de l'état de
+session : `reactiveValues` est construit depuis elle, et la réinitialisation la
+reparcourt. Un champ ajouté là est donc créé au démarrage **et** effacé à la
+remise à zéro, sans qu'on ait à y penser deux fois.
+
+Avant, les deux listes étaient distinctes et avaient dérivé : `aiContext`,
+`aiHistory`, `cahClusters`, `y2Vars`… survivaient à la réinitialisation.
+La remise à zéro vide en plus tout champ créé en cours de session par un module
+(`setdiff` sur `reactiveValuesToList`).
+
+**`shinyjs::reset("file")` ne vide pas `input$file`.** Il remet le widget à
+blanc, mais la valeur reste : la feuille Excel choisie et le bloc de combinaison
+de feuilles survivaient donc à la réinitialisation. D'où `fichierNeutralise` et
+le réactif `fichier_actif()` — **seule porte d'accès au fichier**, un test barre
+tout accès direct à `input$file`.
+
+**Aucune fonction essentielle ne doit dépendre d'un paquet optionnel.**
+`shinyalert` est facultatif ; sans repli, `shinyalert()` levait une erreur avalée
+par l'observateur et le bouton « Réinitialiser » ne faisait **rien, en silence**.
+Le repli passe par `modalDialog`, qui fait partie de Shiny.
+
+## Bilingue : traduire l'AFFICHAGE, pas les 9 700 appels
+
+L'application compte ~9 700 chaînes destinées à l'utilisateur sur 24 fichiers.
+Les envelopper une à une dans un appel de traduction toucherait chaque ligne de
+code. La traduction est donc appliquée **au texte affiché**, dans le navigateur
+(`www/hstat-i18n.js`), à partir d'un dictionnaire incorporé dans la page.
+L'interface de `UX.R`, celle des modules, les notifications et les tableaux
+rendus passent par le même filtre sans qu'aucun appel soit modifié.
+
+**La clé est la chaîne française elle-même.** Conséquence voulue : une chaîne
+absente du dictionnaire reste en français au lieu d'afficher un identifiant
+technique. Une traduction incomplète dégrade doucement.
+
+Quatre points à ne pas défaire :
+
+1. **Le dictionnaire est incorporé** (`window.HSTAT_I18N`), jamais chargé par
+   requête : le bilingue doit fonctionner hors ligne. Aucune API de traduction —
+   elle exigerait une connexion, coûterait à l'usage, et traduirait mal le
+   vocabulaire statistique.
+2. **Un `MutationObserver` rattrape le contenu rendu après la bascule.** Sans
+   lui, seule l'interface initiale serait traduite : notifications, tableaux et
+   sorties Shiny resteraient en français.
+3. **Le retour au français restitue le texte d'origine**, conservé sur le nœud
+   (`__hstatFr`). Une traduction inverse par dictionnaire perdrait les accents
+   et confondrait deux termes traduits pareil.
+4. **Seules les correspondances exactes et complètes sont remplacées**, et un
+   élément portant `data-hstat-notranslate` est ignoré : les données de
+   l'utilisateur ne doivent jamais être traduites par morceaux.
+
+Trois familles de texte, trois chemins :
+
+| Texte | Chemin | Pourquoi |
+|---|---|---|
+| Interface (libellés, onglets, boutons) | dictionnaire côté navigateur | chaîne entière présente dans le DOM |
+| Messages d'erreur, verdicts | `tr()` côté **serveur**, même CSV | composés phrase par phrase, donc absents du DOM comme chaîne entière |
+| Interprétations **composées** (`sprintf`) | non traduites à ce jour | demandent une réécriture par gabarit, pas une substitution |
+
+`hstat_langue_session()` lit `session$userData` — **pas une option globale** :
+sur un serveur partagé, une option ferait basculer la langue de tous les
+utilisateurs dès que l'un change la sienne. La valeur par défaut de
+`hstat_err_fr()` l'appelle, ce qui évite de toucher ses ~70 points d'appel.
+
+Détail de typographie : le français met une espace avant les deux-points,
+l'anglais non. Un test le vérifie — garder la ponctuation française dans une
+phrase anglaise trahirait la traduction.
+
+Un terme identique dans les deux langues (« Exploration ») est une **décision de
+traduction**, pas un déchet : il compte dans la couverture, mais
+`hstat_i18n_json()` ne l'envoie pas au navigateur où il ne ferait rien.
+
+Piège corrigé : une clé de cache vide levait « attempt to use zero-length
+variable name ». Un dictionnaire introuvable est un cas **normal** (paquet non
+installé, exécution depuis un dossier quelconque) et ne doit pas empêcher le
+démarrage.
+
+`hstat_i18n_coverage()` dit ce qui est couvert et nomme ce qui manque ; un test
+échoue si une entrée du menu latéral cesse d'être traduite.
+
 ## Classeur Excel : les feuilles sont des fichiers comme les autres
 
 Un classeur d'enquête porte souvent une feuille par année, par site ou par

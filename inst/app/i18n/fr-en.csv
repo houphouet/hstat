@@ -1,0 +1,310 @@
+fr,en
+Chargement,Loading
+Exploration,Exploration
+Nettoyage,Cleaning
+Filtrage,Filtering
+Analyses descriptives,Descriptive statistics
+Visualisation des données,Data visualisation
+Corrélations,Correlations
+Tests statistiques,Statistical tests
+Comparaisons post-hoc,Post-hoc comparisons
+Analyses multivariées,Multivariate analyses
+Analyses qualitatives,Qualitative analyses
+Interprétation & aide à la décision,Interpretation & decision support
+Séries temporelles,Time series
+Machine Learning,Machine learning
+Deep Learning,Deep learning
+Plan & Puissance,Design & power
+Seuils d'efficacité,Efficacy thresholds
+Citer HStat,Cite HStat
+Charger données,Load data
+Choisir un fichier,Choose a file
+Aperçu des données,Data preview
+Charger,Load
+Séparateur (CSV/TXT),Separator (CSV/TXT)
+Avec en-têtes,With headers
+Virgule,Comma
+Point-virgule,Semicolon
+Feuille Excel :,Excel sheet:
+Feuilles à combiner,Sheets to combine
+Comment les combiner,How to combine them
+Combiner ces feuilles,Combine these sheets
+Empiler les lignes,Stack the rows
+Empiler et supprimer les doublons,Stack and drop duplicates
+Jointure interne (lignes présentes partout),Inner join (rows present everywhere)
+Jointure à gauche (garde toute la 1re feuille),Left join (keeps the whole first sheet)
+Jointure complète (garde tout),Full join (keeps everything)
+Colonne d'origine,Source column
+Valeur inscrite,Value recorded
+Nom de la feuille,Sheet name
+Nombre extrait du nom,Number extracted from the name
+Options avancées (gros fichiers),Advanced options (large files)
+Seuil hors-mémoire (Mo),Out-of-memory threshold (MB)
+Taille de l'échantillon (lignes),Sample size (rows)
+Type de fusion,Merge type
+Fusionner les fichiers,Merge the files
+Lignes,Rows
+Colonnes,Columns
+Variable,Variable
+Variables,Variables
+Valeur,Value
+Valeurs,Values
+Effectif,Count
+Effectifs,Counts
+Fréquence,Frequency
+Pourcentage,Percentage
+Moyenne,Mean
+Médiane,Median
+Écart-type,Standard deviation
+Variance,Variance
+Minimum,Minimum
+Maximum,Maximum
+Étendue,Range
+Quartile,Quartile
+Somme,Sum
+Total,Total
+Groupe,Group
+Groupes,Groups
+Facteur,Factor
+Facteurs,Factors
+Modalité,Category
+Modalités,Categories
+Observation,Observation
+Observations,Observations
+Manquants,Missing
+Valeurs manquantes,Missing values
+Aucun,None
+Aucune,None
+Oui,Yes
+Non,No
+Tous,All
+Toutes,All
+Date,Date
+Test,Test
+Tests,Tests
+Résultat,Result
+Résultats,Results
+Résumé,Summary
+Détails,Details
+Interprétation,Interpretation
+Statistique,Statistic
+Seuil,Threshold
+Intervalle de confiance,Confidence interval
+Taille d'effet,Effect size
+Puissance,Power
+Corrélation,Correlation
+Coefficient,Coefficient
+Écart,Difference
+Différence,Difference
+Erreur standard,Standard error
+Degrés de liberté,Degrees of freedom
+significatif,significant
+non significatif,not significant
+indeterminable,undeterminable
+Significatif,Significant
+Non significatif,Not significant
+Recommandee,Recommended
+Recommandée,Recommended
+À envisager,Worth considering
+À enchaîner,Follow-up
+Bloquant,Blocking
+Important,Important
+À surveiller,Worth watching
+Gravité,Severity
+Constat,Finding
+Suggestion,Suggestion
+Calculer,Compute
+Calculer les statistiques,Compute the statistics
+Lancer,Run
+Lancer l'analyse,Run the analysis
+Appliquer,Apply
+Réinitialiser,Reset
+Annuler,Cancel
+Valider,Confirm
+Enregistrer,Save
+Supprimer,Delete
+Ajouter,Add
+Modifier,Edit
+Rechercher,Search
+Exporter,Export
+Télécharger,Download
+Importer,Import
+Aperçu,Preview
+Fermer,Close
+Retour,Back
+Suivant,Next
+Précédent,Previous
+Tout sélectionner,Select all
+Tout désélectionner,Deselect all
+Graphique,Chart
+Graphiques,Charts
+Titre,Title
+Sous-titre,Subtitle
+Légende,Legend
+Couleur,Colour
+Couleurs,Colours
+Taille,Size
+Largeur,Width
+Hauteur,Height
+Résolution,Resolution
+Police,Font
+Gras,Bold
+Italique,Italic
+Normal,Normal
+Thème,Theme
+Axe des X,X axis
+Axe des Y,Y axis
+Type de graphique,Chart type
+Nuage de points,Scatter plot
+Histogramme,Histogram
+Boîte à moustaches,Box plot
+Diagramme en barres,Bar chart
+Camembert,Pie chart
+Courbe,Line
+Densité,Density
+Violon,Violin
+Test de normalité,Normality test
+Test d'homogénéité,Homogeneity test
+Test t de Student,Student's t-test
+Régression linéaire,Linear regression
+Modèle linéaire généralisé,Generalised linear model
+Test de Wilcoxon,Wilcoxon test
+Test de Kruskal-Wallis,Kruskal-Wallis test
+Comparaison à une norme,Comparison with a reference value
+Réglages de la norme,Reference value settings
+Tests paramétriques,Parametric tests
+Tests non-paramétriques,Non-parametric tests
+Tests sur données brutes,Tests on raw data
+Variable réponse,Response variable
+Variable de groupe,Grouping variable
+Variable explicative,Explanatory variable
+Analyse en Composantes Principales (ACP),Principal Component Analysis (PCA)
+Analyse Factorielle Discriminante (AFD),Discriminant Factor Analysis
+Analyse factorielle des correspondances (AFC),Correspondence Analysis (CA)
+Analyse des correspondances multiples (ACM),Multiple Correspondence Analysis (MCA)
+Classification k-modes,k-modes clustering
+Analyse en classes latentes,Latent class analysis
+Classification k-prototypes,k-prototypes clustering
+Régression logistique,Logistic regression
+Nombre de clusters,Number of clusters
+Qualité de la partition,Partition quality
+Livre de codes,Codebook
+Ajouter le code,Add the code
+Déplacer un code,Move a code
+Récupération,Retrieval
+Matrice de croisement,Cross matrix
+Nuage de mots,Word cloud
+Carte conceptuelle,Concept map
+Assistant de codage,Coding assistant
+Export & sauvegarde,Export & save
+Memos,Memos
+Mémos,Memos
+Porte sur,Applies to
+Code,Code
+Codes,Codes
+Document,Document
+Documents,Documents
+Segment,Segment
+Segments,Segments
+Libre,Free-standing
+Cible,Target
+Enregistrer le memo,Save the memo
+Rapport,Report
+Titre du rapport,Report title
+Auteur (facultatif),Author (optional)
+Format,Format
+Sections à inclure,Sections to include
+Produire le rapport,Produce the report
+Résolution des figures,Figure resolution
+Journal & reproductibilité,Journal & reproducibility
+Qualité des données,Data quality
+Profil des données,Data profile
+Analyse recommandée,Recommended analysis
+Résultats capturés,Captured results
+Moteur d'inférence,Inference engine
+Serveur,Server
+Adresse,Address
+Tester la connexion,Test the connection
+Niveau de rédaction,Writing level
+Contexte de l'étude (facultatif),Study context (optional)
+Seuil de signification,Significance level
+Mesures appariées (mêmes sujets),Paired measurements (same subjects)
+Variables analysées,Variables analysed
+Variable de groupe (facteur),Grouping variable (factor)
+Analyse à interpréter,Analysis to interpret
+Aide à la décision,Decision support
+Erreur,Error
+Avertissement,Warning
+Attention,Warning
+Information,Information
+Chargement en cours...,Loading...
+Aucune donnée,No data
+Aucun résultat,No result
+Connexion interrompue,Connection interrupted
+Connexion rétablie,Connection restored
+Reprendre maintenant,Resume now
+"La variable ne varie pas : toutes ses valeurs sont identiques (ou presque). Aucun test ne peut comparer ce qui ne varie pas. Choisissez une autre variable, ou verifiez que le filtre actif n'a pas reduit vos donnees a un seul cas de figure.","The variable does not vary: all its values are identical (or nearly so). No test can compare what does not vary. Choose another variable, or check that the active filter has not reduced your data to a single case."
+Toutes les observations portent la meme valeur. Le test n'a rien a comparer. Verifiez la variable choisie et les filtres actifs.,Every observation carries the same value. The test has nothing to compare. Check the chosen variable and the active filters.
+"Le test de Shapiro-Wilk exige entre 3 et 5000 observations. Au-dela, utilisez un graphique quantile-quantile plutot qu'un test : sur de tels effectifs, il rejetterait le moindre ecart.","The Shapiro-Wilk test requires between 3 and 5000 observations. Beyond that, use a quantile-quantile plot rather than a test: at such sample sizes it would reject the slightest departure."
+Effectif insuffisant pour ce test. Verifiez le nombre d'observations non manquantes dans chaque groupe : un groupe vide ou reduit a une seule observation suffit a bloquer le calcul.,"Too few observations for this test. Check the number of non-missing observations in each group: one empty group, or a group reduced to a single observation, is enough to block the computation."
+"Ce test compare exactement deux groupes, or le facteur choisi n'en distingue pas deux. Pour plus de deux groupes, utilisez l'ANOVA — ou Kruskal-Wallis si la normalite n'est pas acquise.","This test compares exactly two groups, and the chosen factor does not distinguish two. For more than two groups, use ANOVA — or Kruskal-Wallis if normality is not established."
+"Il faut au moins deux groupes comportant des observations, et l'un d'eux est vide apres retrait des valeurs manquantes. Verifiez les effectifs par groupe, et les filtres actifs.","At least two groups with observations are needed, and one of them is empty once missing values are removed. Check the group sizes and the active filters."
+"Une des variables explicatives ne prend qu'une seule modalite dans les donnees analysees : elle n'apporte aucune information au modele. Retirez-la, ou verifiez les filtres actifs.","One of the explanatory variables takes a single category in the analysed data: it brings no information to the model. Remove it, or check the active filters."
+"Le resultat ne comporte qu'un seul axe factoriel : il ne peut pas etre represente dans un plan. C'est le cas courant d'une AFC croisant une variable binaire (sexe, oui/non, avant/apres). Croisez des variables comportant davantage de modalites.","The result has only one factorial axis: it cannot be drawn in a plane. This is the usual case of a correspondence analysis crossing a binary variable (sex, yes/no, before/after). Cross variables with more categories."
+"La matrice n'est pas inversible : au moins deux variables sont redondantes (l'une se deduit des autres), ou il y a moins d'observations que de variables. Retirez une des variables correlees, ou augmentez l'effectif.","The matrix is not invertible: at least two variables are redundant (one follows from the others), or there are fewer observations than variables. Remove one of the correlated variables, or increase the sample size."
+Les dimensions des tableaux combines ne correspondent pas. Verifiez que toutes les variables retenues portent bien sur les memes observations.,The dimensions of the combined tables do not match. Check that every selected variable refers to the same observations.
+"Une statistique n'a pas pu etre calculee (elle vaut NA) et une decision en dependait. C'est le signe de donnees degenerees : verifiez la variance et l'effectif de chaque groupe, ainsi que le taux de valeurs manquantes.","A statistic could not be computed (it is NA) and a decision depended on it. This points to degenerate data: check the variance and size of each group, and the proportion of missing values."
+"Aucune observation ne renseigne toutes les variables choisies a la fois. Retirez la variable la plus lacunaire, ou traitez les valeurs manquantes dans l'onglet Nettoyage.","No observation has a value for all the chosen variables at once. Remove the sparsest variable, or handle the missing values in the Cleaning tab."
+Les donnees contiennent des valeurs manquantes ou infinies que ce calcul n'accepte pas. Traitez-les dans l'onglet Nettoyage (imputation ou retrait) avant de relancer.,The data contain missing or infinite values that this computation does not accept. Handle them in the Cleaning tab (imputation or removal) before running it again.
+Une variable attendue est absente du jeu de donnees. Elle a sans doute ete renommee ou retiree depuis le choix : reselectionnez vos variables.,An expected variable is absent from the dataset. It was probably renamed or removed since you chose it: select your variables again.
+"Un paquet R necessaire a cette analyse n'est pas installe. Installez-le, puis relancez l'application ; cette analyse restera indisponible en attendant, les autres continuent de fonctionner.","An R package required by this analysis is not installed. Install it, then restart the application; this analysis stays unavailable meanwhile, the others keep working."
+"Une fonction attendue est introuvable : le paquet qui la fournit n'est pas installe ou n'a pas pu etre charge. Installez-le, puis relancez l'application.","An expected function cannot be found: the package providing it is not installed, or could not be loaded. Install it, then restart the application."
+"Le fichier n'a pas pu etre ouvert. Verifiez le chemin, que le fichier n'a pas ete deplace, et vos droits d'acces.","The file could not be opened. Check the path, that the file has not been moved, and your access rights."
+Les colonnes assemblees n'ont pas le meme nombre de lignes. Verifiez que les jeux de donnees fusionnes portent bien sur les memes observations.,The assembled columns do not have the same number of rows. Check that the merged datasets refer to the same observations.
+"Certains effectifs theoriques sont inferieurs a 5 : l'approximation du khi-deux devient douteuse. Utilisez le test exact de Fisher, ou regroupez les modalites les moins frequentes.","Some expected counts are below 5: the chi-square approximation becomes unreliable. Use Fisher's exact test, or merge the least frequent categories."
+"La zone de trace est trop petite pour le graphique demande. Agrandissez la fenetre, ou reduisez la taille des etiquettes.","The plotting area is too small for the requested chart. Enlarge the window, or reduce the label size."
+"Erreur interne d'affichage. Signalez-la : elle vient du code de l'application, pas de vos donnees.","Internal display error. Please report it: it comes from the application's code, not from your data."
+"Ce calcul attend une variable numerique et a recu du texte ou une categorie. Convertissez la variable dans l'onglet Nettoyage, ou choisissez une variable numerique.","This computation expects a numeric variable and received text or a category. Convert the variable in the Cleaning tab, or choose a numeric variable."
+"Le modele n'a pas converge. Les groupes sont probablement parfaitement separes, ou l'effectif est trop faible pour le nombre de parametres estimes. Simplifiez le modele.","The model did not converge. The groups are probably perfectly separated, or the sample is too small for the number of estimated parameters. Simplify the model."
+message R,R message
+L'analyse a echoue. Message renvoye par R (non traduit),The analysis failed. Message returned by R (untranslated)
+erreur sans message,error with no message
+100 % de valeurs manquantes,100 % missing values
+des nombres stockes comme du texte,numbers stored as text
+Ces valeurs font echouer la plupart des calculs. Les remplacer ou les retirer dans l'onglet Nettoyage.,These values make most computations fail. Replace or remove them in the Cleaning tab.
+"Variable quasi vide : l'exclure des analyses, ou retrouver la source des donnees manquantes.","Nearly empty variable: exclude it from the analyses, or trace the source of the missing data."
+Variable constante : elle ne peut expliquer aucune variation. La retirer des modeles (elle fait aussi echouer plusieurs tests).,Constant variable: it cannot explain any variation. Remove it from the models (it also makes several tests fail).
+"Convertir en numerique (onglet Nettoyage). En l'etat, moyennes, correlations et tests quantitatifs sont impossibles.","Convert to numeric (Cleaning tab). As it stands, means, correlations and quantitative tests are impossible."
+Test t de Student (deux echantillons),Student's t-test (two samples)
+Test t de Welch,Welch's t-test
+Mann-Whitney (Wilcoxon),Mann-Whitney (Wilcoxon)
+ANOVA a un facteur,One-way ANOVA
+Correlation de Pearson,Pearson correlation
+Correlation de Spearman,Spearman correlation
+Regression lineaire,Linear regression
+Regression logistique,Logistic regression
+Test du chi-deux d'independance,Chi-square test of independence
+V de Cramer / Odds Ratio,Cramer's V / odds ratio
+Aucune analyse possible en l'etat,No analysis possible as things stand
+Deux variables categorielles : le chi-deux teste leur independance.,Two categorical variables: the chi-square tests their independence.
+Deux variables quantitatives dont les distributions sont compatibles avec la normalite.,Two quantitative variables whose distributions are compatible with normality.
+"Si l'une des deux variables est expliquee par l'autre, la regression quantifie l'effet la ou la correlation ne mesure que l'association.","If one of the two variables is explained by the other, regression quantifies the effect where correlation only measures association."
+"Un test dit s'il y a association, jamais sa force : la taille d'effet le dit.","A test says whether there is an association, never how strong: the effect size does."
+"Un test global significatif dit qu'au moins deux groupes different, jamais lesquels : le post-hoc le precise.","A significant global test says at least two groups differ, never which ones: the post-hoc pins it down."
+Independance ; normalite des residus ; homogeneite des variances.,Independence; normality of residuals; homogeneity of variances.
+Independance des observations ; normalite dans chaque groupe.,Independence of observations; normality within each group.
+"Linearite, independance, homoscedasticite, normalite des residus.","Linearity, independence, homoscedasticity, normality of residuals."
+Relation lineaire ; absence de valeurs extremes influentes.,Linear relationship; no influential outliers.
+Effectifs attendus >= 5 dans au moins 80 % des cases.,Expected counts >= 5 in at least 80 % of the cells.
+Effectif suffisant par modalite (au moins 10 evenements par predicteur).,Enough observations per category (at least 10 events per predictor).
+"Correction pour comparaisons multiples (Tukey, Holm, Bonferroni...).","Correction for multiple comparisons (Tukey, Holm, Bonferroni...)."
+Au moins quelques observations non manquantes par variable.,At least a few non-missing observations per variable.
+"ANOVA de Welch, ou Kruskal-Wallis.","Welch's ANOVA, or Kruskal-Wallis."
+"Correlation de Spearman, qui ne suppose que la monotonie.","Spearman correlation, which only assumes monotonicity."
+"Regression robuste, ou transformation de la reponse.","Robust regression, or transformation of the response."
+"Sans correction, le risque d'erreur de premiere espece s'accumule.","Without correction, the type I error rate accumulates."
+Test exact de Fisher.,Fisher's exact test.
+Test exact ou regression penalisee si les effectifs sont faibles.,Exact test or penalised regression if counts are small.
+"Test t de Welch si les variances different, Mann-Whitney sinon.","Welch's t-test if the variances differ, Mann-Whitney otherwise."
+A envisager,Worth considering
+A enchainer,Follow-up

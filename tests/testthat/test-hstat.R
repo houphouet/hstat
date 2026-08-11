@@ -3995,3 +3995,351 @@ test_that("des feuilles de structures differentes se joignent par une cle", {
   # Chaque ligne recoit bien la region de son site
   expect_equal(j$data$region[j$data$site == "A"][1], "Nord")
 })
+
+
+# ===========================================================================
+# BILINGUE (francais / anglais)
+# ---------------------------------------------------------------------------
+# La cle est la chaine FRANCAISE elle-meme. Consequence voulue : une chaine
+# absente du dictionnaire reste en francais au lieu d'afficher un identifiant
+# technique. Une traduction incomplete degrade doucement, elle ne casse rien.
+# ===========================================================================
+
+test_that("le dictionnaire se charge et rejette ce qui ne sert a rien", {
+  d <- hstat_i18n_load()
+  expect_true(is.data.frame(d))
+  expect_equal(names(d), c("fr", "en"))
+  expect_gt(nrow(d), 100L)
+  # Aucune entree vide, aucune traduction identique a la source, aucun doublon
+  expect_true(all(nzchar(d$fr)) && all(nzchar(d$en)))
+  expect_false(any(duplicated(d$fr)))
+  # « Exploration » se dit de la meme facon dans les deux langues : l'entree
+  # est une DECISION de traduction et compte dans la couverture, mais elle
+  # n'est pas envoyee au navigateur ou elle ne ferait rien.
+  identiques <- d$fr[d$fr == d$en]
+  expect_gt(length(identiques), 0L)
+  j <- hstat_i18n_json("en")
+  for (x in utils::head(identiques, 5))
+    expect_false(grepl(sprintf('"%s":', x), j, fixed = TRUE), info = x)
+
+  # Fichier absent ou illisible : dictionnaire vide, jamais une erreur — le
+  # bilingue est un confort, son absence ne doit pas empecher de demarrer.
+  vide <- hstat_i18n_load(path = NA_character_, force = TRUE)
+  expect_equal(nrow(vide), 0L)
+  f <- tempfile(fileext = ".csv"); on.exit(unlink(f), add = TRUE)
+  writeLines(c("colonne1,colonne2", "a,b"), f)
+  expect_equal(nrow(hstat_i18n_load(f, force = TRUE)), 0L)
+})
+
+test_that("tr() traduit, et laisse le francais quand il ne sait pas", {
+  expect_equal(tr("Tests statistiques", "en"), "Statistical tests")
+  expect_equal(tr("Chargement", "en"), "Loading")
+  # La regle de degradation douce : inconnu -> inchange
+  expect_equal(tr("Chaine absente du dictionnaire", "en"),
+               "Chaine absente du dictionnaire")
+  # En francais, rien n'est touche
+  expect_equal(tr("Tests statistiques", "fr"), "Tests statistiques")
+  # Vectorise : chaque element est traite independamment
+  expect_equal(tr(c("Charger", "Inconnu", "Resultat inconnu"), "en"),
+               c("Load", "Inconnu", "Resultat inconnu"))
+  # Entrees degenerees
+  expect_null(tr(NULL, "en"))
+  expect_equal(tr(character(0), "en"), character(0))
+  expect_equal(tr(NA_character_, "en"), NA_character_)
+})
+
+test_that("le dictionnaire envoye au navigateur est un JSON valide", {
+  j <- hstat_i18n_json("en")
+  expect_true(startsWith(j, "{") && endsWith(j, "}"))
+  expect_gt(nchar(j), 1000L)
+  # Le francais n'embarque rien : la page reste legere par defaut
+  expect_equal(hstat_i18n_json("fr"), "{}")
+
+  # Les guillemets et antislashs doivent etre echappes, sinon le JSON casse et
+  # la page entiere perd son script.
+  f <- tempfile(fileext = ".csv"); on.exit(unlink(f), add = TRUE)
+  utils::write.csv(data.frame(
+    fr = c('Dire "oui"', "Chemin C:\\dossier", "Sur\ndeux lignes"),
+    en = c('Say "yes"', "Path C:\\folder", "On\ntwo lines"),
+    stringsAsFactors = FALSE), f, row.names = FALSE, fileEncoding = "UTF-8")
+  j2 <- hstat_i18n_json("en", f)
+  expect_false(grepl('[^\\\\]"oui"', j2))          # le guillemet est echappe
+  expect_true(grepl('\\\\"oui\\\\"', j2))
+  expect_true(grepl("\\\\\\\\dossier", j2))        # l'antislash aussi
+  expect_false(grepl("\n", j2, fixed = TRUE))      # plus de saut de ligne brut
+  skip_if_not_installed("jsonlite")
+  expect_silent(jsonlite::fromJSON(j2))
+  expect_equal(unname(jsonlite::fromJSON(j2)[["Dire \"oui\""]]), "Say \"yes\"")
+})
+
+test_that("la couverture se mesure et nomme ce qui manque", {
+  cv <- hstat_i18n_coverage(c("Chargement", "Tests statistiques", "Zzz inconnu"))
+  expect_equal(cv$total, 3L)
+  expect_equal(cv$traduites, 2L)
+  expect_equal(cv$manquantes, "Zzz inconnu")
+  expect_equal(cv$taux, 2/3)
+  # Aucune chaine : pas de division par zero
+  expect_equal(hstat_i18n_coverage(character(0))$taux, 1)
+})
+
+test_that("la navigation entiere est traduite", {
+  # Le menu lateral est ce que l'utilisateur voit en permanence : s'il reste en
+  # francais, l'application ne parait pas bilingue quoi qu'on traduise ailleurs.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  ux <- readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE,
+                  encoding = "UTF-8")
+  menus <- grep("menuItem\\(", ux, value = TRUE)
+  libelles <- unlist(lapply(menus, function(l) {
+    m <- regmatches(l, regexpr('"[^"]+"', l))
+    if (length(m)) gsub('"', "", m) else NULL
+  }))
+  expect_gt(length(libelles), 10L)
+  cv <- hstat_i18n_coverage(libelles)
+  expect_equal(cv$manquantes, character(0),
+               info = paste("Entrees de menu non traduites :",
+                            paste(cv$manquantes, collapse = ", ")))
+})
+
+test_that("la bascule cote navigateur est presente et branchee", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  js <- file.path(root, "inst", "app", "www", "hstat-i18n.js")
+  expect_true(file.exists(js))
+  src <- paste(readLines(js, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+
+  # Le contenu rendu APRES la bascule (notifications, tableaux, sorties) doit
+  # etre rattrape : sans observateur, seule l'interface initiale serait traduite.
+  expect_true(grepl("MutationObserver", src, fixed = TRUE))
+  # Le retour au francais restitue le texte d'origine plutot que de retraduire
+  # en sens inverse, ce qui perdrait accents et doublons de sens.
+  expect_true(grepl("__hstatFr", src, fixed = TRUE))
+  # Le choix survit a un rechargement
+  expect_true(grepl("localStorage", src, fixed = TRUE))
+  # Les donnees de l'utilisateur sont protegeables
+  expect_true(grepl("data-hstat-notranslate", src, fixed = TRUE))
+
+  ux <- paste(readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE,
+                        encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("hstat-i18n.js", ux, fixed = TRUE))
+  # Le dictionnaire est INCORPORE : le bilingue doit fonctionner hors ligne.
+  expect_true(grepl("window.HSTAT_I18N", ux, fixed = TRUE))
+  expect_true(grepl("hstat_i18n_json", ux, fixed = TRUE))
+  expect_true(grepl("hstatLangEn", ux, fixed = TRUE))
+})
+
+
+# ===========================================================================
+# REINITIALISATION COMPLETE
+# ---------------------------------------------------------------------------
+# La remise a zero effacait une liste de champs ENUMEREE A LA MAIN, distincte
+# de celle qui cree `reactiveValues`. Les deux ont derive : tout champ ajoute
+# depuis survivait a la reinitialisation, et l'utilisateur retrouvait des
+# restes de sa session precedente.
+# ===========================================================================
+
+test_that("l'etat initial est decrit a un seul endroit", {
+  init <- hstat_valeurs_initiales()
+  expect_true(is.list(init))
+  expect_gt(length(init), 50L)
+  expect_true(all(nzchar(names(init))))
+  expect_false(any(duplicated(names(init))))
+  # Les champs structurants doivent y figurer, sinon ils ne seraient ni crees
+  # au demarrage ni effaces a la reinitialisation.
+  for (nm in c("data", "cleanData", "filteredData", "aiContext", "aiHistory",
+               "dbCon", "dataMode", "resetSignal", "fichierNeutralise"))
+    expect_true(nm %in% names(init), info = nm)
+  # Les valeurs par defaut qui ne sont pas NULL sont celles qu'on attend
+  expect_equal(init$dataMode, "memory")
+  expect_equal(init$resetSignal, 0)
+  expect_false(init$isSampled)
+  expect_equal(init$allTestResults, list())
+})
+
+test_that("creation et reinitialisation partagent la meme liste", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # `reactiveValues` est construit DEPUIS la liste, pas recopie a cote
+  expect_true(grepl("do.call(reactiveValues, hstat_valeurs_initiales())",
+                    src, fixed = TRUE))
+  # La reinitialisation reparcourt la meme liste
+  expect_true(grepl("init <- hstat_valeurs_initiales()", src, fixed = TRUE))
+  expect_true(grepl("for (nm in names(init)) values[[nm]] <- init[[nm]]",
+                    src, fixed = TRUE))
+  # Et vide en plus ce qu'un module aurait cree en cours de session
+  expect_true(grepl("setdiff(names(reactiveValuesToList(values)), names(init))",
+                    src, fixed = TRUE))
+  # L'ancienne enumeration a la main a bien disparu
+  expect_false(grepl("values$chiSqPGlobal     <- NULL", src, fixed = TRUE))
+})
+
+test_that("le fichier reste neutralise apres la reinitialisation", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # shinyjs::reset() remet le WIDGET a blanc mais input$file garde sa valeur :
+  # sans temoin, la feuille Excel et le bloc de combinaison survivaient.
+  expect_true(grepl("values$fichierNeutralise <- isolate(input$file$datapath)",
+                    src, fixed = TRUE))
+  expect_true(grepl("fichier_actif <- reactive", src, fixed = TRUE))
+  # Tout ce qui derive du fichier passe par cette porte, et une seule
+  lignes <- strsplit(src, "\n", fixed = TRUE)[[1]]
+  lignes <- lignes[!grepl("^\\s*#", lignes)]
+  brut <- grep("input\\$file", lignes, value = TRUE)
+  brut <- brut[!grepl("fichierNeutralise|f <- input\\$file", brut)]
+  expect_equal(brut, character(0),
+    info = paste("Acces direct a input$file, qui ignore la neutralisation :\n  ",
+                 paste(brut, collapse = "\n   ")))
+})
+
+test_that("la reinitialisation ne depend pas d'un paquet optionnel", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # shinyalert est optionnel : sans repli, shinyalert() levait une erreur
+  # avalee par l'observateur et le bouton ne faisait RIEN, en silence.
+  expect_true(grepl('requireNamespace("shinyalert"', src, fixed = TRUE))
+  expect_true(grepl("showModal(modalDialog(", src, fixed = TRUE))
+  expect_true(grepl("resetConfirm", src, fixed = TRUE))
+  # Les deux chemins de confirmation appellent la MEME remise a zero
+  expect_true(grepl(".hstat_reinitialiser <- function()", src, fixed = TRUE))
+  expect_gte(lengths(gregexpr(".hstat_reinitialiser()", src, fixed = TRUE)), 2L)
+})
+
+
+# ===========================================================================
+# MESSAGES D'ERREUR BILINGUES
+# ---------------------------------------------------------------------------
+# Ces messages sont COMPOSES en R, phrase par phrase : ils n'existent pas comme
+# chaine entiere dans le dictionnaire du navigateur, qui ne remplace que des
+# correspondances completes. La traduction se fait donc cote serveur — mais
+# elle puise dans LE MEME fichier CSV, une seule source de verite.
+# ===========================================================================
+
+test_that("les 23 explications d'erreur sont traduites", {
+  textes <- vapply(HSTAT_ERR_FR, function(r) r[[2]], character(1))
+  cv <- hstat_i18n_coverage(textes)
+  expect_equal(cv$manquantes, character(0),
+    info = paste("Explications non traduites :\n  ",
+                 paste(substr(cv$manquantes, 1, 60), collapse = "\n   ")))
+  expect_equal(cv$traduites, length(textes))
+})
+
+test_that("hstat_err_fr rend l'anglais quand la langue est l'anglais", {
+  fr <- hstat_err_fr(simpleError("data are essentially constant"), "Test t", "fr")
+  en <- hstat_err_fr(simpleError("data are essentially constant"), "t-test", "en")
+  expect_true(grepl("La variable ne varie pas", fr, fixed = TRUE))
+  expect_true(grepl("The variable does not vary", en, fixed = TRUE))
+  # Le message R d'origine survit dans les deux langues : c'est ce qu'un
+  # utilisateur copiera pour demander de l'aide.
+  expect_true(grepl("data are essentially constant", fr, fixed = TRUE))
+  expect_true(grepl("data are essentially constant", en, fixed = TRUE))
+  # L'encadrement suit la langue, sinon la phrase serait mi-anglaise
+  expect_true(grepl("message R :", fr, fixed = TRUE))
+  expect_true(grepl("R message:", en, fixed = TRUE))
+  expect_false(grepl("message R :", en, fixed = TRUE))
+})
+
+test_that("une erreur inconnue s'annonce comme non traduite dans les deux langues", {
+  fr <- hstat_err_fr(simpleError("panne inedite"), NULL, "fr")
+  en <- hstat_err_fr(simpleError("panne inedite"), NULL, "en")
+  expect_true(grepl("non traduit", fr, fixed = TRUE))
+  # Ponctuation francaise en francais, anglaise en anglais
+  expect_true(grepl("(non traduit) : panne", fr, fixed = TRUE))
+  expect_true(grepl("(untranslated): panne", en, fixed = TRUE))
+  expect_true(grepl("untranslated", en, fixed = TRUE))
+  expect_true(grepl("panne inedite", en, fixed = TRUE))
+  # Une erreur sans message reste explicite
+  expect_true(grepl("error with no message",
+                    hstat_err_fr(simpleError(""), NULL, "en"), fixed = TRUE))
+})
+
+test_that("la langue est propre a la session, jamais globale", {
+  # Hors Shiny, le francais s'applique — et rien ne plante.
+  expect_equal(hstat_langue_session(), "fr")
+  # Le defaut de hstat_err_fr lit la session : aucun des ~70 points d'appel
+  # n'a besoin de passer la langue.
+  expect_true(grepl("hstat_langue_session()",
+                    paste(deparse(args(hstat_err_fr)), collapse = " "),
+                    fixed = TRUE))
+
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  u <- paste(readLines(file.path(root, "inst", "app", "Utils.R"), warn = FALSE,
+                       encoding = "UTF-8"), collapse = "\n")
+  # `session$userData` et non une option globale : sur un serveur partage, une
+  # option ferait basculer la langue de TOUS les utilisateurs a la fois.
+  expect_true(grepl("d$userData$langue", u, fixed = TRUE))
+  expect_false(grepl('getOption("hstat.langue"', u, fixed = TRUE))
+
+  a <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                       warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("session$userData$langue <-", a, fixed = TRUE))
+  expect_true(grepl("input$hstat_langue", a, fixed = TRUE))
+
+  js <- paste(readLines(file.path(root, "inst", "app", "www", "hstat-i18n.js"),
+                        warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("hstat_langue", js, fixed = TRUE))
+  # Shiny n'est pas pret quand ce fichier s'execute : sans reessai, la langue
+  # choisie avant la connexion ne parviendrait jamais au serveur.
+  expect_true(grepl("setTimeout(envoyer", js, fixed = TRUE))
+})
+
+
+# ===========================================================================
+# INTERPRETATIONS TRADUITES
+# ---------------------------------------------------------------------------
+# Les phrases FIGEES passent par le dictionnaire, comme le reste de
+# l'interface. Les phrases COMPOSEES (sprintf avec un effectif, un nom de
+# variable) n'y entrent pas : le traducteur ne remplace que des chaines
+# entieres. Elles demandent une reecriture par gabarit — chantier distinct,
+# non entrepris ici, et ce test dit ou l'on en est plutot que de le masquer.
+# ===========================================================================
+
+test_that("les analyses recommandees sont nommees en anglais", {
+  for (a in c("Test t de Student (deux echantillons)", "ANOVA a un facteur",
+              "Correlation de Pearson", "Regression lineaire",
+              "Test du chi-deux d'independance", "Comparaisons post-hoc",
+              "Aucune analyse possible en l'etat")) {
+    t <- tr(a, "en")
+    expect_false(identical(t, a), info = a)
+    expect_true(nzchar(t))
+  }
+  expect_equal(tr("ANOVA a un facteur", "en"), "One-way ANOVA")
+  expect_equal(tr("Test du chi-deux d'independance", "en"),
+               "Chi-square test of independence")
+})
+
+test_that("les conditions et alternatives des recommandations sont traduites", {
+  for (x in c("Independance des observations ; normalite dans chaque groupe.",
+              "Effectifs attendus >= 5 dans au moins 80 % des cases.",
+              "Test exact de Fisher.",
+              "Correlation de Spearman, qui ne suppose que la monotonie."))
+    expect_false(identical(tr(x, "en"), x), info = substr(x, 1, 40))
+  # La ponctuation anglaise ne garde pas l'espace avant le point-virgule
+  expect_false(grepl(" ;", tr("Independance des observations ; normalite dans chaque groupe.",
+                              "en"), fixed = TRUE))
+})
+
+test_that("les suggestions de qualite les plus frequentes sont traduites", {
+  for (x in c("Ces valeurs font echouer la plupart des calculs. Les remplacer ou les retirer dans l'onglet Nettoyage.",
+              "Variable quasi vide : l'exclure des analyses, ou retrouver la source des donnees manquantes.",
+              "Convertir en numerique (onglet Nettoyage). En l'etat, moyennes, correlations et tests quantitatifs sont impossibles."))
+    expect_false(identical(tr(x, "en"), x), info = substr(x, 1, 40))
+})
+
+test_that("le dictionnaire couvre desormais plus que la seule navigation", {
+  d <- hstat_i18n_load()
+  expect_gt(nrow(d), 300L)
+  # Les trois familles doivent y etre representees : interface, messages
+  # d'erreur, interpretations.
+  expect_true("Tests statistiques" %in% d$fr)                 # interface
+  expect_true("message R" %in% d$fr)                          # erreurs
+  expect_true("ANOVA a un facteur" %in% d$fr)                 # interpretations
+  # Le poids embarque reste raisonnable : c'est la promesse de legerete.
+  expect_lt(nchar(hstat_i18n_json("en")) / 1024, 60)
+})
