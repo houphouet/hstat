@@ -37,6 +37,46 @@ installed automatically if needed on first run.
 
 ---
 
+## Bilingual (French / English), offline
+
+A **FR / EN** toggle sits in the header. The choice survives a reload.
+
+The mechanism is deliberately unusual, and the reason is arithmetic: the app
+holds around **9 700 user-facing strings across 24 R files**. Wrapping each one
+in a translation call would touch every line of code and take weeks. So the
+translation is applied to the **rendered text**, in the browser, from a
+dictionary embedded in the page — the interface built by `UX.R`, the module
+UIs, notifications and rendered tables all pass through the same filter without
+a single call site being modified. A `MutationObserver` catches whatever Shiny
+renders later.
+
+Three properties follow:
+
+- **Offline, always.** The dictionary ships inside the page. No request, ever.
+  No translation API: it would need a connection, cost money per use, and
+  mistranslate statistical vocabulary.
+- **Light.** A CSV of pairs, ~7 KB of JSON in the page — less than one of the
+  bundled fonts. Terms spelled the same in both languages are recorded as a
+  translation decision but never sent, since replacing them would change
+  nothing on screen.
+- **Graceful.** The key *is* the French string, so anything not yet translated
+  stays in French rather than showing a technical identifier. Partial coverage
+  degrades quietly; it never breaks a screen.
+
+Switching back to French restores the exact original text, kept on each node —
+not a reverse lookup, which would lose accents and collapse distinct terms.
+
+Translations live in `inst/app/i18n/fr-en.csv`: two columns, `fr` and `en`.
+Adding a language pair is a CSV edit, not a code change. `hstat_i18n_coverage()`
+reports what is covered and names what is missing.
+
+**Current coverage: the whole navigation, plus the most frequent labels,
+buttons, verdicts and messages.** The long written interpretations remain in
+French for now — they are generated sentences, not fixed strings, and need
+rewriting as templates rather than substitution.
+
+---
+
 ## Excel workbooks: several sheets, one dataset
 
 A survey workbook usually carries **one sheet per year, per site or per wave**.
@@ -301,6 +341,8 @@ next" suggestion rather than a verdict.
 │   │   ├── app.R                   # standard Shiny entry point; serves www/
 │   │   ├── app_server.R            # server(): shared state and multivariate analyses
 │   │   ├── HStat.R                 # sources the modules in order, then shinyApp(ui, server)
+│   │   ├── i18n
+│   │   │   └── fr-en.csv           # translation pairs; adding a language is a CSV edit
 │   │   ├── mod_ai.R                # inference engine, decision support, reproducibility journal
 │   │   ├── mod_clean.R
 │   │   ├── mod_coding.R            # CAQDAS coding workbench
@@ -342,6 +384,7 @@ next" suggestion rather than a verdict.
 │   │       │   ├── newsreader-latin-500-normal.woff2
 │   │       │   ├── newsreader-latin-600-normal.woff2
 │   │       │   └── Newsreader-LICENSE.txt
+│   │       ├── hstat-i18n.js       # FR/EN toggle applied to the rendered text
 │   │       ├── hstat-session.js    # session persistence: reconnect banner, keep-alive
 │   │       ├── hstat-theme.css
 │   │       └── Sortable.min.js     # drag-and-drop for the coding workbench
@@ -372,7 +415,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.19.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.20.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -380,7 +423,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.19.0},
+  note   = {Version 0.20.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

@@ -297,6 +297,47 @@ de `HSTAT_REPORT_SECTIONS` (`"donnees"`, `"qualite"`…), pas ses noms, qui sont
 les libellés affichés. Passer les noms vidait le rapport **en silence** — seul
 l'en-tête sortait.
 
+## Bilingue : traduire l'AFFICHAGE, pas les 9 700 appels
+
+L'application compte ~9 700 chaînes destinées à l'utilisateur sur 24 fichiers.
+Les envelopper une à une dans un appel de traduction toucherait chaque ligne de
+code. La traduction est donc appliquée **au texte affiché**, dans le navigateur
+(`www/hstat-i18n.js`), à partir d'un dictionnaire incorporé dans la page.
+L'interface de `UX.R`, celle des modules, les notifications et les tableaux
+rendus passent par le même filtre sans qu'aucun appel soit modifié.
+
+**La clé est la chaîne française elle-même.** Conséquence voulue : une chaîne
+absente du dictionnaire reste en français au lieu d'afficher un identifiant
+technique. Une traduction incomplète dégrade doucement.
+
+Quatre points à ne pas défaire :
+
+1. **Le dictionnaire est incorporé** (`window.HSTAT_I18N`), jamais chargé par
+   requête : le bilingue doit fonctionner hors ligne. Aucune API de traduction —
+   elle exigerait une connexion, coûterait à l'usage, et traduirait mal le
+   vocabulaire statistique.
+2. **Un `MutationObserver` rattrape le contenu rendu après la bascule.** Sans
+   lui, seule l'interface initiale serait traduite : notifications, tableaux et
+   sorties Shiny resteraient en français.
+3. **Le retour au français restitue le texte d'origine**, conservé sur le nœud
+   (`__hstatFr`). Une traduction inverse par dictionnaire perdrait les accents
+   et confondrait deux termes traduits pareil.
+4. **Seules les correspondances exactes et complètes sont remplacées**, et un
+   élément portant `data-hstat-notranslate` est ignoré : les données de
+   l'utilisateur ne doivent jamais être traduites par morceaux.
+
+Un terme identique dans les deux langues (« Exploration ») est une **décision de
+traduction**, pas un déchet : il compte dans la couverture, mais
+`hstat_i18n_json()` ne l'envoie pas au navigateur où il ne ferait rien.
+
+Piège corrigé : une clé de cache vide levait « attempt to use zero-length
+variable name ». Un dictionnaire introuvable est un cas **normal** (paquet non
+installé, exécution depuis un dossier quelconque) et ne doit pas empêcher le
+démarrage.
+
+`hstat_i18n_coverage()` dit ce qui est couvert et nomme ce qui manque ; un test
+échoue si une entrée du menu latéral cesse d'être traduite.
+
 ## Classeur Excel : les feuilles sont des fichiers comme les autres
 
 Un classeur d'enquête porte souvent une feuille par année, par site ou par

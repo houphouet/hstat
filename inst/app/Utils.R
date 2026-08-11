@@ -383,6 +383,131 @@ get_all_factor_candidates <- function(df, max_numeric_levels = 30) {
 # Echappement HTML. Pose ici plutot que dans un module : le texte des
 # repondants (atelier de codage), les reponses d'un modele de langue et les
 # titres de rapport passent tous par la meme porte avant d'entrer dans le DOM.
+# ===========================================================================
+# BILINGUE (francais / anglais)
+# ---------------------------------------------------------------------------
+# Trois exigences, dans cet ordre :
+#   HORS LIGNE   aucun appel reseau, jamais. Une API de traduction exigerait
+#                une connexion, couterait a l'usage, et traduirait mal le
+#                vocabulaire statistique — « test de l'etendue studentisee »
+#                ne survit pas a un traducteur automatique.
+#   LEGER        un CSV de paires, charge une fois. Quelques dizaines de Ko,
+#                moins qu'une seule des polices embarquees.
+#   COMPLET      l'application compte ~9 700 chaines destinees a l'utilisateur,
+#                reparties sur 24 fichiers. Les envelopper une a une dans un
+#                appel de traduction serait un chantier de plusieurs semaines
+#                et casserait chaque ligne de code au passage.
+#
+# D'ou le choix : la traduction est appliquee AU TEXTE AFFICHE, dans le
+# navigateur, a partir d'un dictionnaire embarque dans la page. L'interface
+# construite par UX.R, les modules, les notifications et les tableaux rendus
+# passent tous par le meme filtre, sans qu'aucun appel de code soit modifie.
+#
+# LA CLE EST LA CHAINE FRANCAISE ELLE-MEME. Consequence directe et voulue :
+# une chaine absente du dictionnaire reste en francais au lieu d'afficher un
+# identifiant technique. Une traduction incomplete degrade donc doucement,
+# elle ne casse rien.
+# ===========================================================================
+
+HSTAT_LANGUES <- c("Francais" = "fr", "English" = "en")
+
+# Le dictionnaire est cherche depuis le dossier de l'application, depuis la
+# racine du depot, et en remontant : la suite de tests tourne depuis
+# `tests/testthat/`, ou aucun des deux premiers chemins n'existe.
+hstat_i18n_path <- function() {
+  rel <- c(file.path("i18n", "fr-en.csv"),
+           file.path("inst", "app", "i18n", "fr-en.csv"))
+  prefixes <- c(".", "..", file.path("..", ".."), file.path("..", "..", ".."))
+  cands <- c(as.vector(outer(prefixes, rel, file.path)),
+             system.file("app", "i18n", "fr-en.csv", package = "HStat"))
+  hit <- cands[nzchar(cands) & file.exists(cands)]
+  if (length(hit)) normalizePath(hit[1]) else NA_character_
+}
+
+# Le dictionnaire est lu UNE fois et garde en memoire : il est relu a chaque
+# ouverture de session sinon, pour un fichier qui ne change pas.
+.hstat_i18n_cache <- new.env(parent = emptyenv())
+
+hstat_i18n_load <- function(path = hstat_i18n_path(), force = FALSE) {
+  # Une cle vide leverait « attempt to use zero-length variable name » : le
+  # dictionnaire introuvable est un cas normal (paquet non installe, execution
+  # depuis un dossier quelconque), il ne doit pas faire tomber le demarrage.
+  cle <- if (length(path) != 1L || is.na(path) || !nzchar(path)) "(aucun)" else path
+  if (!isTRUE(force) && !is.null(.hstat_i18n_cache[[cle]]))
+    return(.hstat_i18n_cache[[cle]])
+  vide <- data.frame(fr = character(0), en = character(0),
+                     stringsAsFactors = FALSE)
+  d <- if (identical(cle, "(aucun)")) vide else tryCatch(
+    utils::read.csv(path, stringsAsFactors = FALSE, encoding = "UTF-8",
+                    colClasses = "character"),
+    error = function(e) vide)
+  if (!all(c("fr", "en") %in% names(d))) d <- vide
+  d$fr <- trimws(as.character(d$fr)); d$en <- trimws(as.character(d$en))
+  # Une entree vide ne sert a rien ; une entree en double rendrait la
+  # traduction imprevisible. En revanche « Exploration » se dit de la meme
+  # facon dans les deux langues : c'est une DECISION de traduction, pas un
+  # dechet, et la couverture doit la compter. Ce sont les seules a ne pas etre
+  # envoyees au navigateur (voir hstat_i18n_json), ou elles ne feraient rien.
+  d <- d[nzchar(d$fr) & nzchar(d$en), , drop = FALSE]
+  d <- d[!duplicated(d$fr), , drop = FALSE]
+  .hstat_i18n_cache[[cle]] <- d
+  d
+}
+
+# Dictionnaire pret a l'emploi : francais -> langue demandee.
+hstat_i18n_dict <- function(lang = "fr", path = hstat_i18n_path()) {
+  if (!identical(lang, "en")) return(stats::setNames(character(0), character(0)))
+  d <- hstat_i18n_load(path)
+  stats::setNames(d$en, d$fr)
+}
+
+# Traduction cote R, pour le texte que le serveur compose lui-meme (noms de
+# fichiers telecharges, en-tetes de rapport). Une chaine inconnue ressort
+# INCHANGEE : c'est la regle de degradation douce.
+tr <- function(x, lang = "fr", dict = NULL) {
+  if (is.null(x) || !length(x)) return(x)
+  if (!identical(lang, "en")) return(x)
+  if (is.null(dict)) dict <- hstat_i18n_dict(lang)
+  if (!length(dict)) return(x)
+  out <- as.character(x)
+  hit <- match(out, names(dict))
+  out[!is.na(hit)] <- unname(dict[hit[!is.na(hit)]])
+  out
+}
+
+# Dictionnaire serialise pour le navigateur. Sans jsonlite (Suggests), on
+# construit le JSON a la main — quelques echappements, et aucune dependance
+# imposee pour une fonctionnalite d'interface.
+hstat_i18n_json <- function(lang = "en", path = hstat_i18n_path()) {
+  d <- hstat_i18n_dict(lang, path)
+  # Les termes identiques dans les deux langues sont retires ICI : les envoyer
+  # alourdirait la page pour un remplacement qui ne change rien a l'ecran.
+  d <- d[names(d) != unname(d)]
+  if (!length(d)) return("{}")
+  esc <- function(s) {
+    s <- gsub("\\", "\\\\", s, fixed = TRUE)
+    s <- gsub("\"", "\\\"", s, fixed = TRUE)
+    s <- gsub("\r", "\\r", s, fixed = TRUE)
+    s <- gsub("\n", "\\n", s, fixed = TRUE)
+    gsub("\t", "\\t", s, fixed = TRUE)
+  }
+  paste0("{", paste(sprintf("\"%s\":\"%s\"", esc(names(d)), esc(unname(d))),
+                    collapse = ","), "}")
+}
+
+# Etat de la traduction : combien de chaines de l'interface sont couvertes, et
+# lesquelles manquent. Sert au suivi du chantier, et a un test qui empeche la
+# couverture de reculer en silence quand du texte est ajoute.
+hstat_i18n_coverage <- function(chaines, path = hstat_i18n_path()) {
+  d <- hstat_i18n_load(path)
+  chaines <- unique(trimws(as.character(chaines)))
+  chaines <- chaines[nzchar(chaines)]
+  traduites <- intersect(chaines, d$fr)
+  list(total = length(chaines), traduites = length(traduites),
+       manquantes = setdiff(chaines, d$fr),
+       taux = if (!length(chaines)) 1 else length(traduites) / length(chaines))
+}
+
 hstat_html_escape <- function(x) {
   x <- as.character(x)
   x[is.na(x)] <- ""

@@ -3995,3 +3995,135 @@ test_that("des feuilles de structures differentes se joignent par une cle", {
   # Chaque ligne recoit bien la region de son site
   expect_equal(j$data$region[j$data$site == "A"][1], "Nord")
 })
+
+
+# ===========================================================================
+# BILINGUE (francais / anglais)
+# ---------------------------------------------------------------------------
+# La cle est la chaine FRANCAISE elle-meme. Consequence voulue : une chaine
+# absente du dictionnaire reste en francais au lieu d'afficher un identifiant
+# technique. Une traduction incomplete degrade doucement, elle ne casse rien.
+# ===========================================================================
+
+test_that("le dictionnaire se charge et rejette ce qui ne sert a rien", {
+  d <- hstat_i18n_load()
+  expect_true(is.data.frame(d))
+  expect_equal(names(d), c("fr", "en"))
+  expect_gt(nrow(d), 100L)
+  # Aucune entree vide, aucune traduction identique a la source, aucun doublon
+  expect_true(all(nzchar(d$fr)) && all(nzchar(d$en)))
+  expect_false(any(duplicated(d$fr)))
+  # « Exploration » se dit de la meme facon dans les deux langues : l'entree
+  # est une DECISION de traduction et compte dans la couverture, mais elle
+  # n'est pas envoyee au navigateur ou elle ne ferait rien.
+  identiques <- d$fr[d$fr == d$en]
+  expect_gt(length(identiques), 0L)
+  j <- hstat_i18n_json("en")
+  for (x in utils::head(identiques, 5))
+    expect_false(grepl(sprintf('"%s":', x), j, fixed = TRUE), info = x)
+
+  # Fichier absent ou illisible : dictionnaire vide, jamais une erreur — le
+  # bilingue est un confort, son absence ne doit pas empecher de demarrer.
+  vide <- hstat_i18n_load(path = NA_character_, force = TRUE)
+  expect_equal(nrow(vide), 0L)
+  f <- tempfile(fileext = ".csv"); on.exit(unlink(f), add = TRUE)
+  writeLines(c("colonne1,colonne2", "a,b"), f)
+  expect_equal(nrow(hstat_i18n_load(f, force = TRUE)), 0L)
+})
+
+test_that("tr() traduit, et laisse le francais quand il ne sait pas", {
+  expect_equal(tr("Tests statistiques", "en"), "Statistical tests")
+  expect_equal(tr("Chargement", "en"), "Loading")
+  # La regle de degradation douce : inconnu -> inchange
+  expect_equal(tr("Chaine absente du dictionnaire", "en"),
+               "Chaine absente du dictionnaire")
+  # En francais, rien n'est touche
+  expect_equal(tr("Tests statistiques", "fr"), "Tests statistiques")
+  # Vectorise : chaque element est traite independamment
+  expect_equal(tr(c("Charger", "Inconnu", "Resultat inconnu"), "en"),
+               c("Load", "Inconnu", "Resultat inconnu"))
+  # Entrees degenerees
+  expect_null(tr(NULL, "en"))
+  expect_equal(tr(character(0), "en"), character(0))
+  expect_equal(tr(NA_character_, "en"), NA_character_)
+})
+
+test_that("le dictionnaire envoye au navigateur est un JSON valide", {
+  j <- hstat_i18n_json("en")
+  expect_true(startsWith(j, "{") && endsWith(j, "}"))
+  expect_gt(nchar(j), 1000L)
+  # Le francais n'embarque rien : la page reste legere par defaut
+  expect_equal(hstat_i18n_json("fr"), "{}")
+
+  # Les guillemets et antislashs doivent etre echappes, sinon le JSON casse et
+  # la page entiere perd son script.
+  f <- tempfile(fileext = ".csv"); on.exit(unlink(f), add = TRUE)
+  utils::write.csv(data.frame(
+    fr = c('Dire "oui"', "Chemin C:\\dossier", "Sur\ndeux lignes"),
+    en = c('Say "yes"', "Path C:\\folder", "On\ntwo lines"),
+    stringsAsFactors = FALSE), f, row.names = FALSE, fileEncoding = "UTF-8")
+  j2 <- hstat_i18n_json("en", f)
+  expect_false(grepl('[^\\\\]"oui"', j2))          # le guillemet est echappe
+  expect_true(grepl('\\\\"oui\\\\"', j2))
+  expect_true(grepl("\\\\\\\\dossier", j2))        # l'antislash aussi
+  expect_false(grepl("\n", j2, fixed = TRUE))      # plus de saut de ligne brut
+  skip_if_not_installed("jsonlite")
+  expect_silent(jsonlite::fromJSON(j2))
+  expect_equal(unname(jsonlite::fromJSON(j2)[["Dire \"oui\""]]), "Say \"yes\"")
+})
+
+test_that("la couverture se mesure et nomme ce qui manque", {
+  cv <- hstat_i18n_coverage(c("Chargement", "Tests statistiques", "Zzz inconnu"))
+  expect_equal(cv$total, 3L)
+  expect_equal(cv$traduites, 2L)
+  expect_equal(cv$manquantes, "Zzz inconnu")
+  expect_equal(cv$taux, 2/3)
+  # Aucune chaine : pas de division par zero
+  expect_equal(hstat_i18n_coverage(character(0))$taux, 1)
+})
+
+test_that("la navigation entiere est traduite", {
+  # Le menu lateral est ce que l'utilisateur voit en permanence : s'il reste en
+  # francais, l'application ne parait pas bilingue quoi qu'on traduise ailleurs.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  ux <- readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE,
+                  encoding = "UTF-8")
+  menus <- grep("menuItem\\(", ux, value = TRUE)
+  libelles <- unlist(lapply(menus, function(l) {
+    m <- regmatches(l, regexpr('"[^"]+"', l))
+    if (length(m)) gsub('"', "", m) else NULL
+  }))
+  expect_gt(length(libelles), 10L)
+  cv <- hstat_i18n_coverage(libelles)
+  expect_equal(cv$manquantes, character(0),
+               info = paste("Entrees de menu non traduites :",
+                            paste(cv$manquantes, collapse = ", ")))
+})
+
+test_that("la bascule cote navigateur est presente et branchee", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  js <- file.path(root, "inst", "app", "www", "hstat-i18n.js")
+  expect_true(file.exists(js))
+  src <- paste(readLines(js, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+
+  # Le contenu rendu APRES la bascule (notifications, tableaux, sorties) doit
+  # etre rattrape : sans observateur, seule l'interface initiale serait traduite.
+  expect_true(grepl("MutationObserver", src, fixed = TRUE))
+  # Le retour au francais restitue le texte d'origine plutot que de retraduire
+  # en sens inverse, ce qui perdrait accents et doublons de sens.
+  expect_true(grepl("__hstatFr", src, fixed = TRUE))
+  # Le choix survit a un rechargement
+  expect_true(grepl("localStorage", src, fixed = TRUE))
+  # Les donnees de l'utilisateur sont protegeables
+  expect_true(grepl("data-hstat-notranslate", src, fixed = TRUE))
+
+  ux <- paste(readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE,
+                        encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("hstat-i18n.js", ux, fixed = TRUE))
+  # Le dictionnaire est INCORPORE : le bilingue doit fonctionner hors ligne.
+  expect_true(grepl("window.HSTAT_I18N", ux, fixed = TRUE))
+  expect_true(grepl("hstat_i18n_json", ux, fixed = TRUE))
+  expect_true(grepl("hstatLangEn", ux, fixed = TRUE))
+})

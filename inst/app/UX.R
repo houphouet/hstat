@@ -148,6 +148,17 @@ ui <- dashboardPage(
         numericInput("globalSeed", label = NULL, value = 123, min = 1, max = 1e9, step = 1, width = "78px")),
       actionButton("helpBtn", "Aide", icon = icon("question-circle"), class = "hstat-hdr-btn"),
       actionButton("resetBtn", "Réinitialiser", icon = icon("redo"), class = "hstat-hdr-btn hstat-hdr-btn-warn")),
+    # Bascule de langue. Meme forme que la bascule de theme : deux segments,
+    # pas de menu deroulant — c'est un choix binaire, consulte rarement mais
+    # qui doit rester visible.
+    tags$li(class = "dropdown",
+      div(class = "hstat-theme-toggle", `data-hstat-notranslate` = NA,
+        tags$span(class = "seg active", id = "hstatLangFr",
+          onclick = "window.hstatSetLangue && hstatSetLangue('fr');this.classList.add('active');document.getElementById('hstatLangEn').classList.remove('active');",
+          "FR"),
+        tags$span(class = "seg", id = "hstatLangEn",
+          onclick = "window.hstatSetLangue && hstatSetLangue('en');this.classList.add('active');document.getElementById('hstatLangFr').classList.remove('active');",
+          "EN"))),
     tags$li(class = "dropdown",
       div(class = "hstat-theme-toggle",
         tags$span(class = "seg active", id = "hstatThemeLight",
@@ -219,6 +230,12 @@ ui <- dashboardPage(
       tags$style(HTML(
         "#shiny-disconnected-overlay{display:none !important;}")),
       tags$script(src = "hstat-session.js"),
+      # Dictionnaire de traduction INCORPORE dans la page : aucune requete
+      # reseau, le bilingue fonctionne hors ligne. La cle est la chaine
+      # francaise elle-meme, donc une chaine non traduite reste en francais.
+      tags$script(HTML(sprintf("window.HSTAT_I18N = %s;",
+                               hstat_i18n_json("en")))),
+      tags$script(src = "hstat-i18n.js"),
       # Copie de la citation dans le presse-papiers (API moderne + repli execCommand).
       tags$script(HTML(
         "Shiny.addCustomMessageHandler('hstat_copy_clip', function(m){",
