@@ -60,6 +60,12 @@ a workbook of twelve doesn't block the other eleven. The result replaces the
 working dataset. Under the hood this is the same merge engine used for multiple
 files — sheets have no reason to obey a different logic.
 
+The multi-file merge section works the same way: **a workbook dropped there is
+unfolded into its sheets**, so one workbook with three sheets is enough to feed
+a merge — two separate files are no longer required. The key selectors list the
+columns of each sheet, so joins are configured exactly as they are between
+files.
+
 ---
 
 ## Large datasets (out-of-memory engine)
