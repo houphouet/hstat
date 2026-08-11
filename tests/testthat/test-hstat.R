@@ -3874,3 +3874,124 @@ test_that("le resume des memos couvre les quatre cibles", {
   expect_equal(r$Memos[r$Cible == "Document"], 0L)
   expect_equal(sum(hstat_memo_resume(hstat_memo_new())$Memos), 0L)
 })
+
+
+# ===========================================================================
+# CLASSEUR EXCEL : COMBINER PLUSIEURS FEUILLES
+# ---------------------------------------------------------------------------
+# Un classeur d'enquete porte souvent une feuille par annee, par site ou par
+# vague. Ne lire que la premiere revient a jeter le reste des donnees. Les
+# feuilles sont donc lues en une liste de tableaux et passees au moteur de
+# fusion qui sert deja aux fichiers multiples — pas de logique parallele.
+# ===========================================================================
+
+.hstat_classeur_essai <- function() {
+  f <- tempfile(fileext = ".xlsx")
+  writexl::write_xlsx(list(
+    "2023" = data.frame(id = 1:3, site = c("A", "B", "A"), val = c(1, 2, 3)),
+    "2024" = data.frame(id = 4:6, site = c("A", "C", "B"), val = c(4, 5, 6)),
+    "Notes" = data.frame(),
+    "Referentiel" = data.frame(site = c("A", "B", "C"),
+                               region = c("Nord", "Sud", "Est"))), f)
+  f
+}
+
+test_that("les feuilles d'un classeur sont listees, sans jamais lever d'erreur", {
+  skip_if_not_installed("writexl")
+  skip_if_not_installed("readxl")
+  f <- .hstat_classeur_essai()
+  on.exit(unlink(f), add = TRUE)
+  expect_equal(hstat_excel_sheets(f), c("2023", "2024", "Notes", "Referentiel"))
+  # La fonction alimente une sortie Shiny : une erreur y ferait tomber tout le
+  # panneau de chargement. Tout ce qui n'est pas un classeur rend character(0).
+  expect_equal(hstat_excel_sheets(tempfile(fileext = ".csv")), character(0))
+  expect_equal(hstat_excel_sheets("/introuvable.xlsx"), character(0))
+  expect_equal(hstat_excel_sheets(NULL), character(0))
+  expect_equal(hstat_excel_sheets(""), character(0))
+  expect_equal(hstat_excel_sheets(character(0)), character(0))
+})
+
+test_that("une feuille vide est ecartee et nommee, sans bloquer les autres", {
+  skip_if_not_installed("writexl")
+  f <- .hstat_classeur_essai()
+  on.exit(unlink(f), add = TRUE)
+  r <- hstat_excel_read_sheets(f, c("2023", "2024", "Notes"))
+  expect_length(r$frames, 2L)
+  expect_equal(r$names, c("2023", "2024"))
+  expect_equal(r$ignorees, "Notes")
+  # Sur un classeur de douze feuilles, une seule mal formee ne doit pas tout
+  # bloquer — mais l'utilisateur doit savoir laquelle a saute.
+  expect_true(grepl("Notes", r$msg, fixed = TRUE))
+  expect_true(grepl("ecartee", r$msg, fixed = TRUE))
+
+  # Sans precision, toutes les feuilles sont lues
+  expect_equal(hstat_excel_read_sheets(f)$names, c("2023", "2024", "Referentiel"))
+  # Feuille inexistante : message clair, pas d'erreur
+  expect_length(hstat_excel_read_sheets(f, "Fantome")$frames, 0L)
+  expect_length(hstat_excel_read_sheets(tempfile(fileext = ".csv"))$frames, 0L)
+})
+
+test_that("le diagnostic conseille l'empilement ou la jointure selon la structure", {
+  skip_if_not_installed("writexl")
+  f <- .hstat_classeur_essai()
+  on.exit(unlink(f), add = TRUE)
+
+  # Memes colonnes : on empile
+  meme <- hstat_excel_read_sheets(f, c("2023", "2024"))
+  a <- hstat_excel_compat(meme$frames, meme$names)
+  expect_true(a$identiques)
+  expect_equal(a$suggestion, "rows")
+  expect_true(grepl("empilement", a$msg, fixed = TRUE))
+
+  # Structures differentes : on joint par une cle
+  mixte <- hstat_excel_read_sheets(f, c("2023", "Referentiel"))
+  b <- hstat_excel_compat(mixte$frames, mixte$names)
+  expect_false(b$identiques)
+  expect_equal(b$communes, "site")
+  expect_equal(b$suggestion, "inner")
+  expect_true(grepl("jointure", b$msg, ignore.case = TRUE))
+
+  # Aucune colonne commune : ni l'un ni l'autre n'a de sens, et on le dit
+  c0 <- hstat_excel_compat(list(data.frame(a = 1), data.frame(b = 2)))
+  expect_true(grepl("AUCUNE colonne en commun", c0$msg, fixed = TRUE))
+  expect_true(grepl("en-tetes", c0$msg, fixed = TRUE))
+  # Aucune feuille : pas d'erreur
+  expect_false(hstat_excel_compat(list())$identiques)
+})
+
+test_that("les feuilles s'empilent avec leur origine, exploitable en analyse", {
+  skip_if_not_installed("writexl")
+  f <- .hstat_classeur_essai()
+  on.exit(unlink(f), add = TRUE)
+  r <- hstat_excel_read_sheets(f, c("2023", "2024"))
+  m <- hstat_merge_frames(r$frames, type = "rows", add_source = TRUE,
+                          source_names = r$names, source_col = "annee",
+                          source_mode = "number")
+  expect_true(m$ok)
+  expect_equal(nrow(m$data), 6L)
+  expect_true("annee" %in% names(m$data))
+  # « Nombre extrait » doit donner une vraie variable numerique d'annee, sinon
+  # elle ne servirait a rien dans une analyse.
+  expect_true(is.numeric(m$data$annee))
+  expect_setequal(unique(m$data$annee), c(2023, 2024))
+
+  # En mode « nom », la colonne reste le libelle de la feuille
+  m2 <- hstat_merge_frames(r$frames, type = "rows", add_source = TRUE,
+                           source_names = r$names, source_col = "feuille",
+                           source_mode = "name")
+  expect_setequal(unique(m2$data$feuille), c("2023", "2024"))
+})
+
+test_that("des feuilles de structures differentes se joignent par une cle", {
+  skip_if_not_installed("writexl")
+  f <- .hstat_classeur_essai()
+  on.exit(unlink(f), add = TRUE)
+  r <- hstat_excel_read_sheets(f, c("2023", "Referentiel"))
+  j <- hstat_merge_frames(r$frames, type = "inner", key_left = "site",
+                          source_names = r$names)
+  expect_true(j$ok)
+  expect_true("region" %in% names(j$data))
+  expect_equal(nrow(j$data), 3L)          # les 3 lignes de 2023 ont un site connu
+  # Chaque ligne recoit bien la region de son site
+  expect_equal(j$data$region[j$data$site == "A"][1], "Nord")
+})

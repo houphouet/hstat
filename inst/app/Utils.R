@@ -3547,6 +3547,97 @@ hstat_read_any_mem <- function(path, sep = ",", name = NULL) {
 # type : "inner"/"left"/"right"/"full" (jointures), "rows" (UNION), "cols" (cbind).
 # key_left / key_right : noms de colonnes cle (jointures). add_source : colonne
 # d'origine pour l'empilement. Renvoie list(ok, data, msg).
+# ===========================================================================
+# CLASSEUR EXCEL : LES FEUILLES SE TRAITENT COMME DES FICHIERS
+# ---------------------------------------------------------------------------
+# Un classeur d'enquete porte tres souvent une feuille par annee, par site ou
+# par vague. Ne lire que la premiere revient a jeter le reste des donnees, et
+# recopier chaque feuille dans un fichier separe pour pouvoir les fusionner est
+# un travail manuel que l'application peut faire.
+#
+# On ne construit PAS de moteur de fusion parallele : les feuilles sont lues en
+# une liste de tableaux et passees a `hstat_merge_frames()`, celui-la meme qui
+# sert deja a fusionner plusieurs fichiers. Toutes ses jointures — empilement,
+# jointure par cle, intersection… — deviennent donc disponibles sur les
+# feuilles sans une ligne de logique supplementaire.
+# ===========================================================================
+
+# Noms des feuilles d'un classeur. Rend character(0) — jamais une erreur — pour
+# tout ce qui n'est pas un classeur lisible : l'appelant est une sortie Shiny,
+# une erreur y ferait tomber tout le panneau de chargement.
+hstat_excel_sheets <- function(path) {
+  if (is.null(path) || !length(path) || !nzchar(path[1]) || !file.exists(path[1]))
+    return(character(0))
+  if (!(tolower(tools::file_ext(path[1])) %in% c("xlsx", "xls")))
+    return(character(0))
+  s <- tryCatch(readxl::excel_sheets(path[1]), error = function(e) character(0))
+  s <- as.character(s)
+  s[!is.na(s) & nzchar(s)]
+}
+
+# Lit les feuilles demandees. Une feuille vide ou illisible est ECARTEE et
+# nommee dans `ignorees` plutot que de faire echouer l'ensemble : sur un
+# classeur de douze feuilles, une seule mal formee ne doit pas tout bloquer.
+hstat_excel_read_sheets <- function(path, sheets = NULL) {
+  dispo <- hstat_excel_sheets(path)
+  if (!length(dispo))
+    return(list(frames = list(), names = character(0), ignorees = character(0),
+                msg = "Ce fichier n'est pas un classeur Excel lisible."))
+  choisies <- if (is.null(sheets) || !length(sheets)) dispo
+              else intersect(as.character(sheets), dispo)
+  if (!length(choisies))
+    return(list(frames = list(), names = character(0), ignorees = character(0),
+                msg = "Aucune des feuilles demandees n'existe dans ce classeur."))
+  frames <- list(); noms <- character(0); ignorees <- character(0)
+  for (s in choisies) {
+    d <- tryCatch(as.data.frame(readxl::read_excel(path, sheet = s),
+                                stringsAsFactors = FALSE),
+                  error = function(e) NULL)
+    if (is.null(d) || !nrow(d) || !ncol(d)) { ignorees <- c(ignorees, s); next }
+    frames[[length(frames) + 1L]] <- d
+    noms <- c(noms, s)
+  }
+  msg <- if (!length(frames)) "Aucune feuille exploitable dans ce classeur."
+         else sprintf("%d feuille(s) lue(s)%s.", length(frames),
+                      if (length(ignorees))
+                        sprintf(", %d ecartee(s) car vide(s) ou illisible(s) : %s",
+                                length(ignorees), paste(ignorees, collapse = ", "))
+                      else "")
+  list(frames = frames, names = noms, ignorees = ignorees, msg = msg)
+}
+
+# Compare la structure des feuilles. C'est ce qui permet de CONSEILLER une
+# fusion plutot que de laisser l'utilisateur deviner : des feuilles aux memes
+# colonnes s'empilent, des feuilles differentes se joignent par une cle.
+hstat_excel_compat <- function(frames, names_ = NULL) {
+  if (!length(frames))
+    return(list(identiques = FALSE, communes = character(0),
+                suggestion = "rows", msg = "Aucune feuille a comparer."))
+  cols <- lapply(frames, names)
+  communes <- Reduce(intersect, cols)
+  toutes <- unique(unlist(cols))
+  identiques <- length(communes) == length(toutes) &&
+                all(vapply(cols, function(c0) length(c0) == length(toutes), logical(1)))
+  msg <- if (identiques)
+    sprintf(paste("Les %d feuilles portent exactement les memes %d colonnes :",
+                  "l'empilement les met bout a bout, une ligne par observation."),
+            length(frames), length(toutes))
+  else if (length(communes))
+    sprintf(paste("Les feuilles ont %d colonne(s) en commun (%s) et %d colonne(s)",
+                  "propres. Une jointure par cle rapproche les lignes qui se",
+                  "correspondent ; l'empilement les mettrait bout a bout en",
+                  "laissant des vides."),
+            length(communes), paste(utils::head(communes, 6), collapse = ", "),
+            length(setdiff(toutes, communes)))
+  else
+    paste("Les feuilles n'ont AUCUNE colonne en commun : ni jointure ni",
+          "empilement n'a de sens en l'etat. Verifiez que la premiere ligne de",
+          "chaque feuille porte bien les en-tetes.")
+  list(identiques = identiques, communes = communes,
+       suggestion = if (identiques) "rows" else if (length(communes)) "inner" else "rows",
+       msg = msg)
+}
+
 hstat_merge_frames <- function(frames, type = "inner",
                                key_left = NULL, key_right = NULL,
                                add_source = TRUE, source_names = NULL,

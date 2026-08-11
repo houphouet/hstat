@@ -297,6 +297,36 @@ de `HSTAT_REPORT_SECTIONS` (`"donnees"`, `"qualite"`…), pas ses noms, qui sont
 les libellés affichés. Passer les noms vidait le rapport **en silence** — seul
 l'en-tête sortait.
 
+## Classeur Excel : les feuilles sont des fichiers comme les autres
+
+Un classeur d'enquête porte souvent une feuille par année, par site ou par
+vague. `hstat_excel_read_sheets()` les lit en une **liste de tableaux**, qui
+part ensuite dans `hstat_merge_frames()` — celui-là même qui fusionne plusieurs
+fichiers.
+
+**Ne pas écrire un second moteur de fusion.** Toutes les jointures existantes
+(empilement, jointure par clé, intersection…) deviennent disponibles sur les
+feuilles sans une ligne de logique supplémentaire, et une correction faite dans
+le moteur profite aux deux chemins.
+
+`hstat_excel_sheets()` rend `character(0)` — jamais une erreur — pour tout ce
+qui n'est pas un classeur lisible : elle alimente une sortie Shiny, où une
+erreur ferait tomber tout le panneau de chargement.
+
+Une feuille vide ou illisible est **écartée et nommée**, pas fatale : sur un
+classeur de douze feuilles, une seule mal formée ne doit pas bloquer les onze
+autres.
+
+`hstat_excel_compat()` compare les colonnes et **conseille** : mêmes colonnes →
+empilement, colonnes communes partielles → jointure par clé, aucune colonne
+commune → ni l'un ni l'autre (et l'on suggère de vérifier les en-têtes).
+L'utilisateur n'a pas à deviner ce que sa structure de données appelle.
+
+Détail de langue : le moteur parle de « fichiers », c'est son vocabulaire
+d'origine. Le message est retraduit en « feuilles » à l'affichage — lire
+« 3 fichiers » après avoir combiné trois feuilles d'un même classeur est
+déroutant.
+
 ## Messages d'erreur : jamais du R brut
 
 `hstat_err_fr()` (`Utils.R`) traduit les erreurs de R en français. Toute erreur

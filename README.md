@@ -37,6 +37,31 @@ installed automatically if needed on first run.
 
 ---
 
+## Excel workbooks: several sheets, one dataset
+
+A survey workbook usually carries **one sheet per year, per site or per wave**.
+Reading only the first one throws the rest of the data away, and copying each
+sheet into its own file just to be able to combine them is manual work the app
+can do.
+
+Select the workbook and HStat lists its sheets. Tick the ones you want, and it
+**looks at their structure to tell you how to combine them** rather than
+leaving you to guess:
+
+- same columns everywhere → **stack them**, one row per observation, each row
+  keeping the name of the sheet it came from. With *number extracted*, a sheet
+  named `2024` yields `2024` as a **numeric** column — a real year variable you
+  can analyse, not a label;
+- different columns with something in common → **join on a key**, so a
+  reference sheet (site → region) enriches every observation.
+
+Empty or unreadable sheets are skipped and **named**, so one malformed sheet in
+a workbook of twelve doesn't block the other eleven. The result replaces the
+working dataset. Under the hood this is the same merge engine used for multiple
+files — sheets have no reason to obey a different logic.
+
+---
+
 ## Large datasets (out-of-memory engine)
 
 HStat handles datasets far beyond available RAM. Files under the
@@ -341,7 +366,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.17.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.18.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -349,7 +374,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.17.0},
+  note   = {Version 0.18.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```
