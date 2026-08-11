@@ -41,6 +41,28 @@
   var IGNORE = { SCRIPT: 1, STYLE: 1, TEXTAREA: 1, CODE: 1, PRE: 1, SVG: 1 };
   var ATTRS = ["placeholder", "title", "aria-label", "alt"];
 
+  // LES DONNEES DE L'UTILISATEUR NE SE TRADUISENT PAS.
+  // Une cellule de tableau peut contenir « Oui », « Non », « Total »,
+  // « Normal » — des valeurs de SES donnees qui coincident mot pour mot avec
+  // des libelles d'interface. Traduites, elles alteraient ce que l'utilisateur
+  // lit de son propre fichier : le pire defaut possible pour un outil
+  // statistique. Constate a l'ecran : « Oui » devenait « Yes » dans l'apercu.
+  //
+  // Regle : dans une cellule <td>, on ne traduit qu'au-dela de LONGUEUR_CELLULE
+  // caracteres. Une valeur de donnees n'est presque jamais identique a une
+  // phrase longue, alors qu'une interpretation l'est toujours. Les en-tetes
+  // <th>, eux, restent traduits — ce sont des libelles, pas des donnees.
+  var LONGUEUR_CELLULE = 25;
+
+  function dansCellule(el) {
+    while (el && el.nodeType === 1) {
+      if (el.tagName === "TD") return true;
+      if (el.tagName === "TABLE" || el.tagName === "BODY") return false;
+      el = el.parentNode;
+    }
+    return false;
+  }
+
   function ignorable(el) {
     while (el) {
       if (el.nodeType === 1) {
@@ -68,10 +90,15 @@
         if (t.__hstatFr !== undefined) continue;   // deja traduit
         var cible = DICT[net];
         if (cible === undefined) continue;
+        // Protection des donnees de l'utilisateur : voir LONGUEUR_CELLULE.
+        if (net.length <= LONGUEUR_CELLULE && dansCellule(t.parentNode)) continue;
         t.__hstatFr = brut;
         // Les espaces qui entourent le texte sont conserves : les retirer
         // collerait un libelle a l'icone qui le precede.
-        t.nodeValue = brut.replace(net, cible);
+        // Le remplacement passe par une FONCTION : avec une chaine, « $& » et
+        // « $\u0060 » dans une traduction seraient interpretes comme des
+        // references au texte trouve et la corrompraient.
+        t.nodeValue = brut.replace(net, function () { return cible; });
       } else if (t.__hstatFr !== undefined) {
         t.nodeValue = t.__hstatFr;
         delete t.__hstatFr;

@@ -349,6 +349,38 @@ Quatre points à ne pas défaire :
    élément portant `data-hstat-notranslate` est ignoré : les données de
    l'utilisateur ne doivent jamais être traduites par morceaux.
 
+#### Une cellule de tableau n'est pas un libellé
+
+La correspondance exacte ne suffisait pas : une colonne du fichier chargé
+valant « Oui »/« Non » — ou « Total », « Normal », « Moyenne » — coïncide **mot
+pour mot** avec des libellés d'interface. Constaté à l'écran : passer en anglais
+transformait les « Oui » de l'aperçu en « Yes ». L'application réécrivait les
+données que l'utilisateur était venu lire ; c'est le pire défaut possible pour
+un outil statistique, et il est silencieux.
+
+Règle : dans une cellule `<td>`, on ne traduit **qu'au-delà de
+`LONGUEUR_CELLULE` (25) caractères**. Une valeur de données n'est presque jamais
+une phrase entière, alors qu'une interprétation l'est toujours. Les en-têtes
+`<th>` restent traduits — ce sont des libellés, pas des données.
+
+Le prix est assumé : une interprétation **courte** placée dans une cellule
+(« Test exact de Fisher. », 21 caractères) reste en français. C'est la
+dégradation douce du point 2 ; l'inverse — altérer une donnée — n'en est pas
+une.
+
+#### Le remplacement passe par une fonction, jamais par une chaîne
+
+`String.replace(trouvé, chaîne)` interprète `$&`, `` $` `` et `$'` dans le
+**remplacement** comme des références au texte trouvé. Une traduction contenant
+ces suites ressortait corrompue. La forme fonction (`replace(net, function () {
+return cible; })`) les rend littéralement.
+
+Les deux défauts sont gardés par un test qui **exécute** le traducteur sous
+`node` (banc d'essai fournissant le minimum de DOM), pas par une recherche de
+chaîne dans le fichier : un test textuel passerait encore si le code changeait
+de forme en gardant le défaut. Il a été vérifié comme échouant sur la version
+d'avant correction, sur les deux points à la fois.
+
 Trois familles de texte, trois chemins :
 
 | Texte | Chemin | Pourquoi |

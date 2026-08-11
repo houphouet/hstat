@@ -4130,6 +4130,149 @@ test_that("la bascule cote navigateur est presente et branchee", {
 
 
 # ===========================================================================
+# LE TRADUCTEUR NE DOIT PAS TOUCHER AUX DONNEES DE L'UTILISATEUR
+# ---------------------------------------------------------------------------
+# Constate a l'ecran, et c'est le pire defaut possible pour un outil
+# statistique : une colonne valant « Oui »/« Non » dans le fichier charge
+# s'affichait « Yes »/« No » une fois l'anglais choisi. L'application
+# reecrivait les donnees que l'utilisateur etait venu lire.
+#
+# Second defaut du meme passage : le remplacement se faisait avec une CHAINE,
+# or String.replace interprete « $& » et « $\u0060 » comme des references au
+# texte trouve. Une traduction contenant ces suites ressortait corrompue.
+#
+# Les deux se prouvent en EXECUTANT le traducteur, pas en cherchant une chaine
+# dans le fichier : un test textuel passerait encore si le code changeait de
+# forme en gardant le defaut. Le banc d'essai ci-dessous fournit le minimum de
+# DOM necessaire (arbre de noeuds, TreeWalker, attributs) et a ete verifie
+# comme ECHOUANT sur la version d'avant correction.
+# ===========================================================================
+
+.hstat_node <- function() {
+  for (cmd in c("node", "nodejs", "/opt/node22/bin/node")) {
+    ok <- tryCatch(system2(cmd, "--version", stdout = TRUE, stderr = TRUE),
+                   error = function(e) NULL, warning = function(w) NULL)
+    if (!is.null(ok) && length(ok)) return(cmd)
+  }
+  NA_character_
+}
+
+test_that("la bascule laisse intactes les donnees de l'utilisateur", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  node <- .hstat_node()
+  skip_if(is.na(node), "node absent : le traducteur ne peut pas etre execute")
+
+  banc <- tempfile(fileext = ".js")
+  writeLines(r"---(// Banc d'essai minimal : assez de DOM pour executer hstat-i18n.js pour de vrai.
+var fs = require("fs"), vm = require("vm");
+var SRC = process.argv[2];
+
+function El(tag) {
+  return { nodeType: 1, tagName: tag, childNodes: [], parentNode: null, A: {},
+           hasAttribute: function (n) { return this.A[n] !== undefined; },
+           getAttribute: function (n) { return this.A[n]; },
+           setAttribute: function (n, v) { this.A[n] = v; },
+           classList: { add: function () {}, remove: function () {} } };
+}
+function Txt(v) { return { nodeType: 3, nodeValue: v, parentNode: null }; }
+function add(p, c) { c.parentNode = p; p.childNodes.push(c); return c; }
+function tous(n, out) {
+  out = out || [];
+  (n.childNodes || []).forEach(function (c) { out.push(c); tous(c, out); });
+  return out;
+}
+function equiper(el) {
+  el.querySelectorAll = function () {
+    return tous(this).filter(function (n) { return n.nodeType === 1; });
+  };
+  return el;
+}
+
+var html = equiper(El("HTML"));
+var body = equiper(El("BODY"));
+add(html, body);
+
+// --- interface : un libelle de menu hors tableau
+var menu = add(body, equiper(El("SPAN")));
+var tMenu = add(menu, Txt("Chargement"));
+
+// --- un tableau : en-tete (libelle) + cellules (DONNEES DE L'UTILISATEUR)
+var table = add(body, equiper(El("TABLE")));
+var th = add(table, equiper(El("TH")));
+var tTh = add(th, Txt("Chargement"));
+var td = add(table, equiper(El("TD")));
+var tTd = add(td, Txt("Oui"));
+var tdLong = add(table, equiper(El("TD")));
+var tLong = add(tdLong, Txt("Effectifs attendus >= 5 dans au moins 80 % des cases."));
+
+// --- le piege du remplacement : une traduction contenant « $& »
+var tdDollar = add(body, equiper(El("SPAN")));
+var tDollar = add(tdDollar, Txt("Prix"));
+
+var ctx = {
+  console: console, setTimeout: function () { return 0; }, clearTimeout: function () {},
+  localStorage: { getItem: function () { return null; }, setItem: function () {} },
+  NodeFilter: { SHOW_TEXT: 4 },
+  document: {
+    readyState: "complete", body: body, documentElement: html,
+    getElementById: function () { return null; },
+    addEventListener: function () {},
+    createTreeWalker: function (racine) {
+      var l = tous(racine).filter(function (n) { return n.nodeType === 3; }), i = -1;
+      return { nextNode: function () { return ++i < l.length ? l[i] : null; } };
+    }
+  }
+};
+ctx.window = ctx;
+ctx.window.HSTAT_I18N = {
+  "Chargement": "Loading", "Oui": "Yes",
+  "Effectifs attendus >= 5 dans au moins 80 % des cases.": "Expected counts >= 5 in at least 80% of cells.",
+  "Prix": "$& remplace"
+};
+vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(SRC, "utf8"), ctx);
+
+ctx.window.hstatSetLangue("en");
+var apres = {
+  menu: tMenu.nodeValue, th: tTh.nodeValue, cellule: tTd.nodeValue,
+  cellule_longue: tLong.nodeValue, dollar: tDollar.nodeValue
+};
+ctx.window.hstatSetLangue("fr");
+apres.retour_menu = tMenu.nodeValue;
+apres.retour_cellule = tTd.nodeValue;
+apres.retour_dollar = tDollar.nodeValue;
+process.stdout.write(JSON.stringify(apres));
+)---", banc, useBytes = TRUE)
+  js <- file.path(root, "inst", "app", "www", "hstat-i18n.js")
+
+  sortie <- suppressWarnings(system2(node, c(shQuote(banc), shQuote(js)),
+                                     stdout = TRUE, stderr = TRUE))
+  skip_if(length(sortie) == 0, "le banc d'essai n'a rien produit")
+  res <- tryCatch(jsonlite::fromJSON(paste(sortie, collapse = "")),
+                  error = function(e) NULL)
+  skip_if(is.null(res), paste("banc d'essai :", paste(sortie, collapse = " ")))
+
+  # 1. UNE VALEUR DE DONNEES DANS UNE CELLULE RESTE CE QU'ELLE EST.
+  expect_equal(res$cellule, "Oui")
+  # 2. Un libelle d'interface hors tableau se traduit.
+  expect_equal(res$menu, "Loading")
+  # 3. Un EN-TETE est un libelle, pas une donnee : il se traduit.
+  expect_equal(res$th, "Loading")
+  # 4. Une interpretation, elle, tient dans une cellule et doit passer : une
+  #    valeur de donnees n'est presque jamais une phrase entiere.
+  expect_equal(res$cellule_longue,
+               "Expected counts >= 5 in at least 80% of cells.")
+  # 5. « $& » dans une traduction sort tel quel, il n'est pas interprete.
+  expect_equal(res$dollar, "$& remplace")
+  # 6. Le retour au francais restitue le texte d'origine, exactement.
+  expect_equal(res$retour_menu, "Chargement")
+  expect_equal(res$retour_cellule, "Oui")
+  expect_equal(res$retour_dollar, "Prix")
+})
+
+
+# ===========================================================================
 # REINITIALISATION COMPLETE
 # ---------------------------------------------------------------------------
 # La remise a zero effacait une liste de champs ENUMEREE A LA MAIN, distincte
