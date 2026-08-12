@@ -340,6 +340,45 @@ de `HSTAT_REPORT_SECTIONS` (`"donnees"`, `"qualite"`…), pas ses noms, qui sont
 les libellés affichés. Passer les noms vidait le rapport **en silence** — seul
 l'en-tête sortait.
 
+## Seuils d'efficacité : comparer chaque modalité au témoin
+
+`hstat_efficacite()` applique la formule d'Abbott — celle de l'agronomie, de la
+phytopharmacie et de l'entomologie :
+
+```
+efficacité (%) = (témoin − traitement) × 100 / témoin
+```
+
+Le module ne faisait que **tracer** des courbes à partir d'une variable
+d'efficacité calculée ailleurs ; le calcul se fait désormais dans
+l'application, en boucle sur toutes les modalités.
+
+Quatre décisions, chacune testée :
+
+1. **Le témoin vaut zéro par définition, et on l'écrit.** La formule le donne
+   bien… sauf si sa valeur est nulle, où elle rend `NaN` (0/0). On pose donc 0
+   explicitement : le témoin ne se compare pas à lui-même.
+2. **Un témoin nul rend l'efficacité indéfinie pour tout le monde.** Diviser
+   par zéro produirait des `Inf` silencieux, qui ressortiraient en graphique
+   comme des barres démesurées. On rend `NA` **et on le dit**
+   (`attr(res, "message")`).
+3. **Une efficacité négative est un résultat, pas une erreur.** Elle signifie
+   que la modalité fait moins bien que le témoin ; la borner à zéro masquerait
+   précisément ce qu'il faut voir.
+4. **Le groupement facultatif est ce qui rend la suite possible.** Sans lui, il
+   n'y a qu'une ligne par modalité et plus rien à tester. En calculant
+   l'efficacité **dans** chaque répétition (bloc, essai, site), on obtient une
+   vraie variable, analysable ensuite par ANOVA ou comparaisons multiples.
+
+Les colonnes `Groupe` et `Variable` **disparaissent** quand elles n'apportent
+rien (pas de groupement, une seule variable mesurée) : une colonne vide fait
+croire à une information absente.
+
+Le tableau peut remplacer le jeu de travail (`values$data` / `cleanData` /
+`filteredData`), ce qui le rend analysable par les autres onglets. Le geste est
+annoncé sans détour : remplacer les données de quelqu'un sans le prévenir
+serait le pire des services.
+
 ## Variables à valeurs nulles : trois frontières, trois pièges
 
 `hstat_vars_zero()` liste les colonnes dont **toutes les valeurs observées**

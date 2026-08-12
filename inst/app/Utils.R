@@ -3406,6 +3406,131 @@ hstat_i18n_termes_json <- function(df, ...) {
 }
 
 # =============================================================================
+#  SEUILS D'EFFICACITE : COMPARAISON DE CHAQUE MODALITE AU TEMOIN
+# -----------------------------------------------------------------------------
+#  Formule d'Abbott, celle qu'emploient l'agronomie, la phytopharmacie et
+#  l'entomologie pour dire de combien un traitement reduit ce que l'on mesure
+#  par rapport a un temoin non traite :
+#
+#      efficacite (%) = (temoin - traitement) x 100 / temoin
+#
+#  QUATRE DECISIONS, CHACUNE TESTEE
+#
+#  1. LE TEMOIN VAUT ZERO PAR DEFINITION, ET ON L'ECRIT. La formule donnerait
+#     bien 0 pour lui... sauf si sa valeur est nulle, ou elle rend NaN (0/0).
+#     On pose donc 0 explicitement : le temoin ne se compare pas a lui-meme.
+#
+#  2. UN TEMOIN NUL REND L'EFFICACITE INDEFINIE POUR TOUT LE MONDE. Diviser
+#     par zero produirait des Inf silencieux qui ressortiraient en graphique
+#     comme des barres demesurees. On rend NA et on le DIT (attribut `message`).
+#
+#  3. UNE EFFICACITE NEGATIVE EST UN RESULTAT, PAS UNE ERREUR. Elle signifie
+#     que la modalite fait moins bien que le temoin. La borner a zero
+#     masquerait precisement ce qu'il faut voir.
+#
+#  4. LE GROUPEMENT FACULTATIF EST CE QUI REND LA SUITE POSSIBLE. Sans lui, il
+#     n'y a qu'une ligne par modalite et plus rien a tester. En calculant
+#     l'efficacite DANS chaque repetition (bloc, essai, site), on obtient une
+#     vraie variable, analysable ensuite par ANOVA ou comparaisons multiples.
+#
+#  `agg` : "moyenne" (defaut), "mediane" ou "somme" -- la valeur resumee de
+#  chaque modalite avant comparaison.
+# =============================================================================
+HSTAT_EFF_AGG <- c("Moyenne" = "moyenne", "Mediane" = "mediane", "Somme" = "somme")
+
+hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
+                             agg = c("moyenne", "mediane", "somme"),
+                             var_groupe = NULL) {
+  agg <- match.arg(agg)
+  vide <- data.frame(Modalite = character(0), Variable = character(0),
+                     N = integer(0), Valeur = numeric(0), Temoin = numeric(0),
+                     Efficacite = numeric(0),
+                     check.names = FALSE, stringsAsFactors = FALSE)
+  msg <- function(x, m) { attr(x, "message") <- m; x }
+
+  if (!is.data.frame(df) || !NROW(df))
+    return(msg(vide, "Aucune donnee : chargez un jeu de donnees."))
+  if (is.null(var_modalite) || !nzchar(var_modalite[1]) ||
+      !(var_modalite[1] %in% names(df)))
+    return(msg(vide, "Choisissez la variable qui porte les traitements."))
+  vars_reponse <- intersect(as.character(vars_reponse), names(df))
+  if (!length(vars_reponse))
+    return(msg(vide, "Choisissez au moins une variable a mesurer."))
+
+  modal <- trimws(as.character(df[[var_modalite[1]]]))
+  modal[is.na(modal) | !nzchar(modal)] <- NA_character_
+  temoin <- trimws(as.character(temoin)[1])
+  if (is.na(temoin) || !nzchar(temoin) || !(temoin %in% modal))
+    return(msg(vide, paste0("Le temoin choisi n'existe pas dans « ",
+                            var_modalite[1], " » : choisissez une modalite presente.")))
+
+  grp <- if (!is.null(var_groupe) && nzchar(var_groupe[1]) &&
+             var_groupe[1] %in% names(df))
+    trimws(as.character(df[[var_groupe[1]]])) else rep("", NROW(df))
+  grp[is.na(grp)] <- "(manquant)"
+
+  resume <- function(x) {
+    x <- suppressWarnings(as.numeric(x)); x <- x[is.finite(x)]
+    if (!length(x)) return(c(n = 0L, v = NA_real_))
+    c(n = length(x),
+      v = switch(agg, moyenne = mean(x), mediane = stats::median(x), somme = sum(x)))
+  }
+
+  niveaux <- sort(unique(modal[!is.na(modal)]))
+  lignes <- list(); alertes <- character(0)
+  for (g in sort(unique(grp))) {
+    dans_g <- grp == g
+    for (v in vars_reponse) {
+      y <- df[[v]]
+      ref <- resume(y[dans_g & !is.na(modal) & modal == temoin])
+      if (!is.finite(ref[["v"]]))
+        alertes <- c(alertes, sprintf("temoin sans valeur mesurable pour « %s »", v))
+      else if (ref[["v"]] == 0)
+        alertes <- c(alertes, sprintf("temoin nul pour « %s » : l'efficacite n'est pas definissable", v))
+      for (m in niveaux) {
+        r <- resume(y[dans_g & !is.na(modal) & modal == m])
+        # Decision 1 : le temoin ne se compare pas a lui-meme.
+        eff <- if (identical(m, temoin)) 0
+               # Decision 2 : jamais de division par zero silencieuse.
+               else if (!is.finite(ref[["v"]]) || ref[["v"]] == 0 || !is.finite(r[["v"]])) NA_real_
+               else (ref[["v"]] - r[["v"]]) * 100 / ref[["v"]]
+        lignes[[length(lignes) + 1L]] <- data.frame(
+          Groupe = g, Modalite = m, Variable = v,
+          N = as.integer(r[["n"]]),
+          Valeur = unname(r[["v"]]), Temoin = unname(ref[["v"]]),
+          Efficacite = eff,
+          check.names = FALSE, stringsAsFactors = FALSE)
+      }
+    }
+  }
+  out <- do.call(rbind, lignes)
+  # La colonne de groupe ne sert a rien quand il n'y a pas de groupement : la
+  # garder vide ferait croire a une information absente.
+  if (all(!nzchar(out$Groupe))) out$Groupe <- NULL
+  # Une seule variable mesuree : la colonne « Variable » n'apprend rien.
+  if (length(vars_reponse) == 1L) out$Variable <- NULL
+  rownames(out) <- NULL
+  attr(out, "temoin") <- temoin
+  attr(out, "agg") <- agg
+  msg(out, if (length(alertes))
+    paste0("Attention : ", paste(unique(alertes), collapse = " ; "), ".")
+    else sprintf("%s modalite(s) comparee(s) au temoin « %s » (%s).",
+                 length(niveaux), temoin, agg))
+}
+
+# Modalites d'une colonne, temoin exclu : « une fois le temoin choisi, les
+# autres modalites passent dans une variable ». Sert a l'affichage et a la
+# verification, et rend character(0) plutot qu'une erreur sur une entree vide.
+hstat_eff_modalites <- function(df, var_modalite, temoin = NULL) {
+  if (!is.data.frame(df) || is.null(var_modalite) || !length(var_modalite) ||
+      !(var_modalite[1] %in% names(df))) return(character(0))
+  m <- trimws(as.character(df[[var_modalite[1]]]))
+  m <- sort(unique(m[!is.na(m) & nzchar(m)]))
+  if (is.null(temoin) || !length(temoin)) return(m)
+  setdiff(m, trimws(as.character(temoin)[1]))
+}
+
+# =============================================================================
 #  VARIABLES ENTIEREMENT NULLES
 # -----------------------------------------------------------------------------
 #  Une colonne dont TOUTES les valeurs observees valent zero ne porte aucune
