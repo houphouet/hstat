@@ -108,7 +108,7 @@ mod_ml_ui <- function(id) {
               actionButton(ns("mlRun"), "Entraîner et comparer",
                            icon = icon("play"), class = "btn-primary"),
               tags$small(style = "color:#6b7280; display:block; margin-top:8px;",
-                sprintf("Les lignes incomplètes sont écartées. Au-delà de %s lignes, l'entraînement porte sur un échantillon aléatoire (HSTAT_ML_MAX_N).",
+                trf("Les lignes incomplètes sont écartées. Au-delà de %s lignes, l'entraînement porte sur un échantillon aléatoire (HSTAT_ML_MAX_N).",
                         format(HSTAT_ML_MAX_N, big.mark = " ")))),
           box(title = tagList(icon("trophy"), " Comparaison des modèles"),
               status = "success", width = 8, solidHeader = TRUE,
@@ -317,7 +317,7 @@ mod_ml_server <- function(id, values) {
     fit_ml <- function(idm, p) {
       tr <- p$train; te <- p$test; ti <- p$ti; cls <- p$task == "classification"
       need_pkg <- function(pkg) if (!requireNamespace(pkg, quietly = TRUE))
-        stop(sprintf("Le package '%s' est requis (install.packages(\"%s\")).", pkg, pkg))
+        stop(trf("Le package '%s' est requis (install.packages(\"%s\")).", pkg, pkg))
       pf <- NULL; imp <- NULL; label <- names(.ml_catalog())[match(idm, .ml_catalog())]
       auto <- isTRUE(input$hpAuto); hp <- if (auto) NULL else "réglages manuels"
       warn <- NULL   # diagnostic d'ajustement affiché sous les hyperparamètres
@@ -355,7 +355,7 @@ mod_ml_server <- function(id, values) {
             min(glmnet::cv.glmnet(x, y, alpha = a, family = fam, nfolds = 5)$cvm),
             numeric(1))
           alpha <- grid[which.min(cvm)]
-          hp <- sprintf("alpha = %.2f (%s), lambda par validation croisée",
+          hp <- trf("alpha = %.2f (%s), lambda par validation croisée",
                         alpha, if (alpha == 0) "Ridge" else if (alpha == 1) "Lasso"
                                else "Elastic-Net")
         }
@@ -382,7 +382,7 @@ mod_ml_server <- function(id, values) {
           ct <- m0$cptable
           cp_best <- as.numeric(ct[which.min(ct[, "xerror"]), "CP"])
           m <- rpart::prune(m0, cp = cp_best)
-          hp <- sprintf("cp = %.4g (élagage au minimum d'erreur de validation croisée, %d feuille(s))",
+          hp <- trf("cp = %.4g (élagage au minimum d'erreur de validation croisée, %d feuille(s))",
                         cp_best, sum(m$frame$var == "<leaf>"))
         } else
         m <- rpart::rpart(p$f, data = tr, method = if (cls) "class" else "anova",
@@ -554,7 +554,7 @@ mod_ml_server <- function(id, values) {
           }, numeric(1))
           b <- which.min(scv)
           size <- grid$size[b]; decay <- grid$decay[b]
-          hp <- sprintf("%d neurones cachés, decay = %.4g (validation)", size, decay)
+          hp <- trf("%d neurones cachés, decay = %.4g (validation)", size, decay)
         }
         m <- nnet::nnet(p$f, data = sc(tr), size = size,
                         decay = decay, maxit = 400, trace = FALSE,
@@ -700,7 +700,7 @@ mod_ml_server <- function(id, values) {
           ggplot2::geom_point(color = col, alpha = 0.55, size = 1.6) +
           ggplot2::geom_abline(slope = 1, intercept = 0, linetype = "dashed",
                                color = "#e74c3c") +
-          ggplot2::labs(title = sprintf("%s — observé vs prédit (test)", r$label),
+          ggplot2::labs(title = trf("%s — observé vs prédit (test)", r$label),
                         x = "Valeur observée", y = "Valeur prédite")
       } else if (nlevels(p$test[[p$ti]]) == 2 && !is.null(r$prob) &&
                  requireNamespace("pROC", quietly = TRUE)) {
@@ -771,7 +771,7 @@ mod_ml_server <- function(id, values) {
       d$Variable <- factor(d$Variable, levels = rev(d$Variable))
       g <- ggplot2::ggplot(d, ggplot2::aes(Importance, Variable)) +
         ggplot2::geom_col(fill = hstat_plot_opt(input, "mlO", "Col", "#2c7fb8")) +
-        ggplot2::labs(title = sprintf("Importance des variables — %s", c0$r$label),
+        ggplot2::labs(title = trf("Importance des variables — %s", c0$r$label),
                       y = NULL)
       hstat_apply_plot_opts(g, input, "mlO")
     })
@@ -782,7 +782,7 @@ mod_ml_server <- function(id, values) {
       c0 <- cur()
       if (is.null(c0$r$imp) || nrow(c0$r$imp) == 0) return(NULL)
       div(class = "callout callout-info", style = "margin-top:8px;", icon("lightbulb"),
-          sprintf(" La variable la plus déterminante est « %s » : c'est elle que le modèle exploite le plus pour prédire « %s ». Les variables en bas de classement peuvent souvent être retirées sans perte de performance.",
+          trf(" La variable la plus déterminante est « %s » : c'est elle que le modèle exploite le plus pour prédire « %s ». Les variables en bas de classement peuvent souvent être retirées sans perte de performance.",
                   c0$r$imp$Variable[1], c0$p$target))
     })
 
@@ -800,7 +800,7 @@ mod_ml_server <- function(id, values) {
           hstat_model_interpretation(c0$p$task, c0$r$metrics, c0$r$label,
                                      nrow(c0$p$train), nrow(c0$p$test),
             notes = if (!is.null(c0$r$hp) && !identical(c0$r$hp, "réglages manuels"))
-              sprintf("Hyperparamètres retenus par la recherche automatique : %s.", c0$r$hp)
+              trf("Hyperparamètres retenus par la recherche automatique : %s.", c0$r$hp)
             else NULL))
     })
 
@@ -830,7 +830,7 @@ mod_ml_server <- function(id, values) {
         } else ""
         div(class = "callout callout-info", style = "margin-top:10px;",
             icon("bullseye"),
-            strong(sprintf(" Prédiction de « %s » : %s%s. ", c0$p$target, val, conf)),
+            strong(trf(" Prédiction de « %s » : %s%s. ", c0$p$target, val, conf)),
             if (c0$p$task == "regression")
               "Valeur estimée par le modèle pour le cas saisi ; sa fiabilité correspond aux métriques du jeu de test (voir RMSE/MAE)."
             else "Classe la plus probable selon le modèle pour le cas saisi.")
@@ -877,11 +877,11 @@ mod_ml_server <- function(id, values) {
       pc <- d[[paste0("Prediction_", c0$p$target)]]
       div(class = "callout callout-info", style = "margin-top:8px;", icon("lightbulb"),
           if (c0$p$task == "regression")
-            sprintf(" %d cas prédits. Valeurs prédites : moyenne = %s, min = %s, max = %s.",
+            trf(" %d cas prédits. Valeurs prédites : moyenne = %s, min = %s, max = %s.",
                     nrow(d), format(round(mean(as.numeric(pc)), 3), big.mark = " "),
                     format(round(min(as.numeric(pc)), 3), big.mark = " "),
                     format(round(max(as.numeric(pc)), 3), big.mark = " "))
-          else sprintf(" %d cas prédits. Classe la plus fréquente : « %s » (%d cas).",
+          else trf(" %d cas prédits. Classe la plus fréquente : « %s » (%d cas).",
                        nrow(d), names(sort(table(pc), decreasing = TRUE))[1],
                        max(table(pc))))
     })
@@ -938,7 +938,7 @@ mod_ml_server <- function(id, values) {
       ggplot2::ggplot(d, ggplot2::aes(PC1, PC2, color = Groupe)) +
         ggplot2::geom_point(alpha = 0.6, size = 1.7) +
         ggplot2::stat_ellipse(data = subset(d, Groupe != "Bruit"), level = 0.9) +
-        ggplot2::labs(title = sprintf("Groupes projetés sur le plan principal (%s)", r$meth),
+        ggplot2::labs(title = trf("Groupes projetés sur le plan principal (%s)", r$meth),
                       x = sprintf("Dim 1 (%.1f %%)", pv[1]),
                       y = sprintf("Dim 2 (%.1f %%)", pv[2])) +
         ggplot2::theme_minimal(base_size = 13)
@@ -984,10 +984,10 @@ mod_ml_server <- function(id, values) {
       r <- clres(); req(r)
       div(class = "callout callout-info", style = "margin-top:10px;",
           icon("lightbulb"), strong(" Interprétation : "),
-          sprintf("La méthode %s a identifié %d groupe(s)%s. ", r$meth,
+          trf("La méthode %s a identifié %d groupe(s)%s. ", r$meth,
                   length(unique(r$cl[r$cl > 0])),
                   if (any(r$cl == 0)) sprintf(" (+ %d points de bruit)", sum(r$cl == 0)) else ""),
-          if (is.finite(r$sil)) sprintf(
+          if (is.finite(r$sil)) trf(
             "Silhouette moyenne = %.3f : %s Le tableau des moyennes par groupe (export CSV/Excel) sert de carte d'identité de chaque groupe : comparez les colonnes pour nommer les profils.",
             r$sil,
             if (r$sil >= 0.5) "structure de groupes nette et fiable."

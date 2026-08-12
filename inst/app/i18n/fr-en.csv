@@ -400,3 +400,186 @@ une seule valeur (« %s »),a single value (“%s”)
 "« %s » decrit vos donnees : c'est une etape preliminaire, pas un test, il n'y a donc rien a valider ici. Pour aller plus loin, le profil de vos variables appelle %s. A vous de decider si cette suite a du sens pour votre question de recherche.","“%s” describes your data: this is a preliminary step, not a test, so there is nothing to validate here. To go further, the profile of your variables calls for %s. It is for you to decide whether that next step makes sense for your research question."
 « %s » ne prend que deux valeurs : la regression logistique modelise sa probabilite a partir des autres variables.,“%s” takes only two values: logistic regression models its probability from the other variables.
 Écart-type de référence sigma = %s.,Reference standard deviation sigma = %s.
+"  Axe %d : variable la plus saturante = %s (saturation = %s)
+","  Axis %d: most heavily loading variable = %s (loading = %s)
+"
+ %d cas prédits (moyenne = %s)., %d cases predicted (mean = %s).
+ %d cas prédits ; classe majoritaire : « %s »., %d cases predicted; majority class: “%s”.
+ %d cas prédits. Classe la plus fréquente : « %s » (%d cas)., %d cases predicted. Most frequent class: “%s” (%d cases).
+" %d cas prédits. Valeurs prédites : moyenne = %s, min = %s, max = %s."," %d cases predicted. Predicted values: mean = %s, min = %s, max = %s."
+" %d extrait(s) correspondant a la selection, sur %d etiquette(s) au total."," %d excerpt(s) matching the selection, out of %d label(s) in total."
+ %d modalités distinctes : trop pour définir un ordre manuel. La variable sera ordonnée selon l'ordre alphabétique., %d distinct categories: too many to order by hand. The variable will be ordered alphabetically.
+ %d proposition(s) ecartee(s) : extrait introuvable dans le texte., %d suggestion(s) discarded: excerpt not found in the text.
+ %d valeurs X uniques -- courbe directe., %d unique X values -- direct curve.
+ %s observations : la saisie une à une n'est pas praticable. , %s observations: entering values one by one is not practical. 
+" %s variable(s) entièrement vide(s), sans aucune valeur observée : "," %s entirely empty variable(s), with no observed value at all: "
+ (%d obs. -> %d valeurs uniques)., (%d obs. -> %d unique values).
+ (dont %d nouvelles observations importées), (including %d newly imported observations)
+ <b>ddl du numerateur calculé = %d</b> &nbsp;|&nbsp; Nombre de cellules (groupes) = %d, <b>Numerator df computed = %d</b> &nbsp;|&nbsp; Number of cells (groups) = %d
+ Aucune occurrence de « %s »., No occurrence of “%s”.
+ Ce classeur contient %d feuilles — les combiner en un seul jeu de donnees, This workbook holds %d sheets — combine them into a single data set
+ La variable la plus déterminante est « %s » : c'est elle que le modèle exploite le plus pour prédire « %s ». Les variables en bas de classement peuvent souvent être retirées sans perte de performance., The most decisive variable is “%s”: it is the one the model relies on most to predict “%s”. Variables at the bottom of the ranking can often be removed without losing performance.
+ Meilleur modèle sur le jeu de test : %s , Best model on the test set: %s 
+ Mode en mémoire — jeu de données entièrement chargé (%s lignes)., In-memory mode — data set fully loaded (%s rows).
+ Ordre des modalités : %s (%d proportions attendues)., Category order: %s (%d expected proportions).
+ Prédiction de « %s » : %s%s., Prediction of “%s”: %s%s.
+ Prédiction de « %s » : %s%s. , Prediction of “%s”: %s%s. 
+ Répartition proposée : %d répétition(s)/bloc(s) x %d échantillon(s) par parcelle = %d unités par traitement (total %d). Cliquez sur le bouton pour l'appliquer au plan., Suggested allocation: %d replicate(s)/block(s) x %d sample(s) per plot = %d units per treatment (total %d). Click the button to apply it to the design.
+ Supprimer automatiquement les %d variable(s) suggérée(s), Automatically remove the %d suggested variable(s)
+ Traitement appliqué (%d valeur(s)/ligne(s) affectée(s))., Treatment applied (%d value(s)/row(s) affected).
+" Type détecté pour ""%s"" : %s"," Type detected for ""%s"": %s"
+" Variable « %s » créée (%d classes, facteur ordonné)%s."," Variable “%s” created (%d classes, ordered factor)%s."
+ variable(s) sur %s concernée(s)., variable(s) out of %s affected.
+ « %s » renommée en « %s », “%s” renamed to “%s”
+ Échantillon courant : <b>%s</b> lignes sur <b>%s</b> (%s %% du jeu complet)., Current sample: <b>%s</b> rows out of <b>%s</b> (%s %% of the full data set).
+%d entrées → %s → %s ; %s paramètres entraînés (moteur %s).,%d inputs → %s → %s ; %s trained parameters (engine %s).
+%d groupe(s) sur %d présentent une distribution significativement différente des proportions attendues.,%d group(s) out of %d show a distribution significantly different from the expected proportions.
+%d modalités (mode menus). Saisissez la nouvelle valeur de chaque modalité.,%d categories (menu mode). Enter the new value for each category.
+"%d modalités (mode tableau éditable). Format : ancienne = nouvelle, une par ligne.","%d categories (editable-table mode). Format: old = new, one per line."
+%d modalités (tableau éditable).%s,%d categories (editable table).%s
+%d modalités à égalité au sommet (%.1f %% chacune).,%d categories tied at the top (%.1f %% each).
+%d mots vides français retirés (+ %d personnalisés).,%d French stop words removed (+ %d custom ones).
+"%d neurones cachés, decay = %.4g (validation)","%d hidden neurons, decay = %.4g (validation)"
+"%d observations appariées (paires complètes X, Y).","%d paired observations (complete X, Y pairs)."
+%d observations appariées analysées.,%d paired observations analysed.
+"%d observations, %d modalités, proportions %s.","%d observations, %d categories, %s proportions."
+%d répondants complets sur %d.,%d complete respondents out of %d.
+"%d répondants, format %s.","%d respondents, %s format."
+%d réponses textuelles analysées.,%d text answers analysed.
+%d thèmes dégagés par analyse sémantique latente (SVD) puis regroupement k-means :,%d themes extracted by latent semantic analysis (SVD) then k-means clustering:
+%d traitement(s) x %d répétition(s) x %d échantillon(s)/parcelle = %d unités d'observation.,%d treatment(s) x %d replicate(s) x %d sample(s)/plot = %d observation units.
+%d valeurs manquantes exclues.,%d missing values excluded.
+%d variable(s) analysée(s).,%d variable(s) analysed.
+%d variable(s) dépassent 20 %% de manquants : %s. Un recodage ou une imputation peut être nécessaire.,%d variable(s) exceed 20 %% missing: %s. Recoding or imputation may be needed.
+"%d variable(s) passée(s) en revue, totalisant %d modalités distinctes.","%d variable(s) reviewed, totalling %d distinct categories."
+%s : %d etiquette(s) posee(s) sur %d reponse(s) analysee(s) (tout le corpus).%s,%s: %d label(s) applied across %d answer(s) analysed (whole corpus).%s
+"%s : aucune configuration valide pour cette combinaison (nombre de traitements, taille de bloc k, répétitions). Essayez d'autres valeurs.","%s: no valid configuration for this combination (number of treatments, block size k, replicates). Try other values."
+"%s significatif (OR = %.2f) : être ""%s"" %s la cote de ""%s = %s"".","%s significant (OR = %.2f): being ""%s"" %s the odds of ""%s = %s""."
+%s variable(s) supprimée(s) : %s.,%s variable(s) removed: %s.
+%s zéro(s) déclaré(s) manquant(s) sur %s variable(s).,%s zero(s) declared missing across %s variable(s).
+%s zéro(s) remplacé(s) par %s sur %s variable(s).,%s zero(s) replaced by %s across %s variable(s).
+%s — observé vs prédit (test),%s — observed vs predicted (test)
+%s — prévision sur le jeu de test,%s — forecast on the test set
+%s — prévisions futures (h = %d),%s — future forecasts (h = %d)
+%s%% des observations sont manquantes.,%s%% of the observations are missing.
+*Detail non conserve : seules les %d dernieres analyses gardent leurs tableaux.*,*Detail not kept: only the last %d analyses retain their tables.*
+... (%d autres combinaisons dans le tableau détaillé).,... (%d further combinations in the detailed table).
+=== Test d'adéquation stratifié : %s selon %s ===,=== Stratified goodness-of-fit test: %s by %s ===
+ACP : variable(s) non numérique(s) traitée(s) comme qualitative(s) supplémentaire(s) : %s.,PCA: non-numeric variable(s) treated as supplementary qualitative variable(s): %s.
+Alpha Lattice (k exact) : %d traitements en blocs de %d -> le dernier bloc de chaque réplique contient %d traitement(s).,Alpha Lattice (exact k): %d treatments in blocks of %d -> the last block of each replicate holds %d treatment(s).
+Alpha Lattice : aucun k parfait pour %d traitements -> plan en blocs incomplets généralisé.,Alpha Lattice: no perfect k for %d treatments -> generalised incomplete-block design.
+Alpha Lattice : k=%s ajusté automatiquement à k=%d pour %d traitements (valeurs conseillées : %s).,Alpha Lattice: k=%s adjusted automatically to k=%d for %d treatments (recommended values: %s).
+Alpha Lattice généralisé : %d traitements répartis en blocs incomplets de taille %d (%s). Plan résolvable valable pour tout nombre de traitements.,Generalised Alpha Lattice: %d treatments spread over incomplete blocks of size %d (%s). A resolvable design valid for any number of treatments.
+"Analyse de %d combinaison(s) de modalités : %d présente(nt) une association significative (IC de l'OR excluant 1), %d non significative(s).","Analysis of %d category combination(s): %d show a significant association (OR confidence interval excluding 1), %d not significant."
+Analyse stratifiée : %d groupes de %s.,Stratified analysis: %d groups of %s.
+Analyse stratifiée : distribution de « %s » testée dans chacune des %d modalités de « %s ».,Stratified analysis: the distribution of “%s” tested within each of the %d categories of “%s”.
+Analyse sémantique latente (SVD) + k-means : %d thèmes.,Latent semantic analysis (SVD) + k-means: %d themes.
+Clé(s) du 1er fichier (%s),Key(s) of the 1st file (%s)
+Clé(s) du 2e fichier (%s) — même nombre de colonnes,Key(s) of the 2nd file (%s) — same number of columns
+Cohérence interne de l'échelle (alpha de Cronbach = %.3f) : %s.,Internal consistency of the scale (Cronbach's alpha = %.3f): %s.
+Comparaison de %d groupes (rangs et médianes).,Comparison of %d groups (ranks and medians).
+"Corrélation ordinale NON significative entre « %s » et « %s » : rho de Spearman = %.3f (%s, %s).","Ordinal correlation NOT significant between “%s” and “%s”: Spearman's rho = %.3f (%s, %s)."
+"Corrélation ordinale SIGNIFICATIVE entre « %s » et « %s » : rho de Spearman = %.3f (%s, %s).","Ordinal correlation SIGNIFICANT between “%s” and “%s”: Spearman's rho = %.3f (%s, %s)."
+"Cree le %s, modifie le %s.","Created on %s, modified on %s."
+Différence %s de « %s » entre les %d groupes de « %s » (%s).,%s difference in “%s” across the %d groups of “%s” (%s).
+"Distribution %s : %d modalités à égalité au sommet (%s), chacune à %.1f %%.","%s distribution: %d categories tied at the top (%s), each at %.1f %%."
+Distribution %s : %d mode(s) détecté(s).,%s distribution: %d mode(s) detected.
+"Diversité de l'information (max possible = %.3f). Plus c'est élevé, plus c'est diversifié.","Information diversity (maximum possible = %.3f). The higher it is, the more diverse."
+Découpage en mots : %d occurrences sur %d réponses.,Tokenisation: %d occurrences across %d answers.
+"En moyenne, chaque répondant a coché %.2f options.",On average each respondent ticked %.2f options.
+Expositions futures saisies manuellement (%d valeur(s)).,Future exposures entered by hand (%d value(s)).
+Fichier de <b>%s</b> (%s lignes). Le jeu complet reste sur disque (DuckDB) ; les analyses portent sur un <b>échantillon représentatif de %s lignes</b>. Les compteurs ci-dessous reflètent le jeu complet.,File of <b>%s</b> (%s rows). The full data set stays on disk (DuckDB); the analyses run on a <b>representative sample of %s rows</b>. The counters below reflect the full data set.
+Fichier volumineux (%s) : mode hors-mémoire activé. Analyse sur un échantillon de %s lignes (sur %s au total).,Large file (%s): out-of-memory mode enabled. Analysis on a sample of %s rows (out of %s in total).
+Field book : %d unités expérimentales,Field book: %d experimental units
+Force de l'association (V de Cramér = %.3f) : %s.,Strength of the association (Cramér's V = %.3f): %s.
+"Force de l'association : %s (0,1 faible ; 0,2 modérée ; 0,4 forte).",Strength of the association: %s (0.1 weak; 0.2 moderate; 0.4 strong).
+Grandes parcelles = %s (couleur) ; sous-parcelles = %s (bandeau) ; sous-sous-parcelles = %s (étiquette de cellule),Main plots = %s (colour); sub-plots = %s (strip); sub-sub-plots = %s (cell label)
+Groupes projetés sur le plan principal (%s),Clusters projected on the principal plane (%s)
+"Généralisation par paires : %d exposition(s) vs issue ""%s"".","Pairwise generalisation: %d exposure(s) vs outcome ""%s""."
+H0 : chaque modalité a la même probabilité (1/%d = %.1f %%).,H0: every category has the same probability (1/%d = %.1f %%).
+H0 : les proportions valent %s.,H0: the proportions are %s.
+Hyperparamètres retenus par la recherche automatique : %s.,Hyperparameters selected by the automatic search: %s.
+Hypothèse nulle : proportions %s,Null hypothesis: %s proportions
+Importance des variables — %s,Variable importance — %s
+Importe depuis Puissance : %d facteur(s) (%s modalités).,Imported from Power: %d factor(s) (%s categories).
+Indice de Simpson = %.3f : probabilité que deux répondants au hasard donnent des réponses differentes.,Simpson index = %.3f: the probability that two respondents drawn at random give different answers.
+"L'option la plus citée est ""%s"" (%.1f %% des répondants).","The most frequently cited option is ""%s"" (%.1f %% of respondents)."
+"LSTM (fenêtre %d, %d neurones) — test + futur","LSTM (window %d, %d neurons) — test + future"
+La conversion en %s a echoue (%s). Le rapport est rendu en HTML.,Conversion to %s failed (%s). The report is rendered as HTML.
+"La modalité la plus fréquente (mode) est ""%s"" (%.1f %% des réponses valides).","The most frequent category (mode) is ""%s"" (%.1f %% of valid answers)."
+"La modalité qui s'écarte le plus de l'attendu est ""%s"" (résidu = %.2f ; %.0f %% du Khi-deux).","The category departing most from expectation is ""%s"" (residual = %.2f; %.0f %% of the chi-square)."
+"La moitie centrale des réponses se situe entre ""%s"" et ""%s"".","The middle half of the answers lies between ""%s"" and ""%s""."
+La méthode %s a identifié %d groupe(s)%s. ,The %s method identified %d cluster(s)%s. 
+"La réponse médiane est ""%s"" (niveau %d sur %d).","The median answer is ""%s"" (level %d of %d)."
+La variable compte %d modalités distinctes sur %d réponses valides.,The variable has %d distinct categories across %d valid answers.
+"La variable la plus diversifiée est ""%s"" (%d modalités).","The most diverse variable is ""%s"" (%d categories)."
+La variable « %s » est introuvable.,Variable “%s” cannot be found.
+La variable « %s » n'est pas numérique : l'histogramme requiert une variable numérique.,Variable “%s” is not numeric: the histogram requires a numeric variable.
+La variable « %s » ne contient aucune valeur numérique valide.,Variable “%s” holds no valid numeric value.
+"Le LSTM apprend à prédire chaque valeur à partir des %d précédentes. Sur le jeu de test, la MAPE vaut %s %% : %s ",The LSTM learns to predict each value from the %d preceding ones. On the test set the MAPE is %s %% : %s 
+Le code « %s » existe deja a la racine.,Code “%s” already exists at the root.
+"Le groupe « %s » présente les rangs les plus élevés, « %s » les plus faibles.","Group “%s” shows the highest ranks, “%s” the lowest."
+Le jeu de données contient %.2f %% de cellules manquantes au total.,The data set holds %.2f %% missing cells in total.
+"Le modèle %s, ré-entraîné sur l'intégralité de la série%s, projette une trajectoire %s sur les %d prochaines périodes (de %s à %s). ","The %s model, refitted on the whole series%s, projects a %s trajectory over the next %d periods (from %s to %s). "
+Le nom « %s » existe déjà.,The name “%s” already exists.
+Le nom « %s » existe déjà. Choisissez un nom unique.,The name “%s” already exists. Choose a unique name.
+Le nombre de proportions attendues (%d) doit égaler le nombre de modalités (%d : %s).,The number of expected proportions (%d) must equal the number of categories (%d: %s).
+"Le package '%s' est requis (install.packages(""%s"")).","Package '%s' is required (install.packages(""%s""))."
+Le rho² suggère qu'environ %.1f %% de la variation des rangs est partagée entre les deux variables.,The rho squared suggests that about %.1f %% of the variation in ranks is shared between the two variables.
+Le score total moyen est de %.1f (somme de %d items).,The mean total score is %.1f (sum of %d items).
+"Le tau de Kendall (%.3f, p = %s) confirme la concordance des rangs ; il est plus robuste pour de petits échantillons.","Kendall's tau (%.3f, p = %s) confirms the concordance of ranks; it is more robust for small samples."
+"Le tau de Kendall (%.3f, p = %s) va dans le même sens.","Kendall's tau (%.3f, p = %s) points the same way."
+"Les lignes incomplètes sont écartées. Au-delà de %s lignes, l'entraînement porte sur un échantillon aléatoire (HSTAT_ML_MAX_N).","Incomplete rows are discarded. Beyond %s rows, training runs on a random sample (HSTAT_ML_MAX_N)."
+Les mots les plus fréquents sont : %s.,The most frequent words are: %s.
+MLP (%s) — observé vs prédit (test),MLP (%s) — observed vs predicted (test)
+Matrice document-terme : %d termes retenus ; pondération TF-IDF.,Document-term matrix: %d terms kept; TF-IDF weighting.
+"Minuscules, retrait des accents, de la ponctuation%s, mots < %d lettres.","Lower case, accents and punctuation removed%s, words shorter than %d letters."
+Modalité la plus fréquente (%.1f %% des réponses).,Most frequent category (%.1f %% of the answers).
+Modalités comparées : %s.,Categories compared: %s.
+Nombre de modalités du facteur %s,Number of categories of factor %s
+Nouvel échantillon de %s lignes. Relancez vos analyses pour en tenir compte.,New sample of %s rows. Re-run your analyses to take it into account.
+On ne peut pas conclure à une association monotone entre « %s » et « %s » : la relation observée (rho = %.3f) est compatible avec le hasard.,No monotonic association can be concluded between “%s” and “%s”: the observed relationship (rho = %.3f) is compatible with chance.
+"On rejette l'hypothèse d'indépendance : lorsque « %s » augmente, « %s » tend à %s.","The independence hypothesis is rejected: as “%s” increases, “%s” tends to %s."
+"Post-hoc (%d comparaisons par paires, ajustement %s) : %d groupe(s) homogène(s) de modalités identifié(s). Les modalités partageant une lettre ne diffèrent pas significativement.","Post-hoc (%d pairwise comparisons, %s adjustment): %d homogeneous group(s) of categories identified. Categories sharing a letter do not differ significantly."
+"Pour le DLNM, le fichier doit contenir la colonne d'exposition '%s' (valeurs futures).","For the DLNM, the file must hold the exposure column '%s' (future values)."
+"Prédicteurs standardisés automatiquement (indispensable aux réseaux de neurones). Au-delà de %s lignes, entraînement sur échantillon (HSTAT_ML_MAX_N).","Predictors standardised automatically (essential for neural networks). Beyond %s rows, training runs on a sample (HSTAT_ML_MAX_N)."
+"Recodage %s appliqué à « %s » : %d valeur(s) modifiée(s), %d modalité(s)%s.","%s recoding applied to “%s”: %d value(s) changed, %d category/categories%s."
+"Recodage appliqué à « %s » : %d valeur(s) modifiée(s), %d modalité(s) après recodage.","Recoding applied to “%s”: %d value(s) changed, %d category/categories after recoding."
+Regression logistique (Hsieh et al. 1998) : prédicteur %s ; OR par %s.,Logistic regression (Hsieh et al. 1998): %s predictor; OR per %s.
+Score moyen = %.2f sur une échelle de 1 a %d.,Mean score = %.2f on a scale from 1 to %d.
+Silhouette moyenne = %.3f : %s Le tableau des moyennes par groupe (export CSV/Excel) sert de carte d'identité de chaque groupe : comparez les colonnes pour nommer les profils.,Mean silhouette = %.3f: %s The table of group means (CSV/Excel export) acts as an identity card for each cluster: compare the columns to name the profiles.
+Sous-echantillon filtre (%d observations sur %d),Filtered subsample (%d observations out of %d)
+Statistiques exactes calculées sur le jeu complet (%s lignes).,Exact statistics computed on the full data set (%s rows).
+"Structure : %d variables, %d observations","Structure: %d variables, %d observations"
+Série trop courte : au moins %d observations requises.,Series too short: at least %d observations are required.
+"Taille d'effet : %s (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande).",Effect size: %s (benchmarks: 0.1 small; 0.3 medium; 0.5 large).
+Taille d'effet w de Cohen = %.3f : écart %s.,Cohen's w effect size = %.3f: %s departure.
+Taille par modalité (total = %d observations),Size per category (total = %d observations)
+Taille transférée : %d répétitions x %d échantillon(s)/parcelle. Vérifiez l'onglet Plan expérimental.,Size transferred: %d replicates x %d sample(s)/plot. Check the Experimental design tab.
+"Test %s des proportions %s de ""%s"" : p = %s -- %s.","%s test of the %s proportions of ""%s"": p = %s -- %s."
+Test de la médiane (Mood) : %s,Median test (Mood): %s
+Test exact (%s) : recommandé pour les petits effectifs.,Exact test (%s): recommended for small counts.
+"Tonalité dominante : %s (%.0f %% positif, %.0f %% négatif).","Dominant tone: %s (%.0f %% positive, %.0f %% negative)."
+Toutes les modalités : %d exposition(s) x %d issue(s) = %d tableaux 2x2.,All categories: %d exposure(s) x %d outcome(s) = %d 2x2 tables.
+Variable « %s » renommée en « %s ».,Variable “%s” renamed to “%s”.
+"alpha = %.2f (%s), lambda par validation croisée","alpha = %.2f (%s), lambda by cross-validation"
+"cp = %.4g (élagage au minimum d'erreur de validation croisée, %d feuille(s))","cp = %.4g (pruned at the minimum cross-validation error, %d leaf/leaves)"
+"p = %s < 0,001 : association très hautement significative.",p = %s < 0.001: very highly significant association.
+"p = %s < 0,001 : différence très hautement significative.",p = %s < 0.001: very highly significant difference.
+"p = %s < 0,01 : différence hautement significative.",p = %s < 0.01: highly significant difference.
+"p = %s < 0,05 : différence significative.",p = %s < 0.05: significant difference.
+"p = %s >= 0,05 : différence non significative.",p = %s >= 0.05: non-significant difference.
+réseau de neurones %s (couches cachées : %s),%s neural network (hidden layers: %s)
+« %s » : %s valeur(s) enregistrée(s).,“%s”: %s value(s) recorded.
+équiprobables,equiprobable
+personnalisées,custom
+blocs égaux,equal blocks
+dernier bloc de %d,last block of %d
+"Taille d'effet : négligeable (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande).",Effect size: negligible (benchmarks: 0.1 small; 0.3 medium; 0.5 large).
+"Taille d'effet : petite (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande).",Effect size: small (benchmarks: 0.1 small; 0.3 medium; 0.5 large).
+"Taille d'effet : moyenne (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande).",Effect size: medium (benchmarks: 0.1 small; 0.3 medium; 0.5 large).
+"Taille d'effet : grande (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande).",Effect size: large (benchmarks: 0.1 small; 0.3 medium; 0.5 large).
+Taille d'effet w de Cohen = %.3f : écart négligeable.,Cohen's w effect size = %.3f: negligible departure.
+Taille d'effet w de Cohen = %.3f : écart petit.,Cohen's w effect size = %.3f: small departure.
+Taille d'effet w de Cohen = %.3f : écart moyen.,Cohen's w effect size = %.3f: medium departure.
+Taille d'effet w de Cohen = %.3f : écart grand.,Cohen's w effect size = %.3f: large departure.

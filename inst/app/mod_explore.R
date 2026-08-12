@@ -290,7 +290,7 @@ mod_explore_server <- function(id, values) {
                      buttons = .hstat_dt_buttons("structure_données")),
       caption = htmltools::tags$caption(
         style = "caption-side: top; font-weight: 600;",
-        sprintf("Structure : %d variables, %d observations", ncol(df), n))
+        trf("Structure : %d variables, %d observations", ncol(df), n))
     )
   })
 
@@ -346,15 +346,15 @@ mod_explore_server <- function(id, values) {
     # le jeu de donnees contient des colonnes en double (p. ex. apres une fusion ou
     # un CSV aux en-tetes dupliques), et garantit un nom de colonne unique.
     if (!var %in% names(data))
-      stop(sprintf("La variable « %s » est introuvable.", var))
+      stop(trf("La variable « %s » est introuvable.", var))
     col_idx <- which(names(data) == var)[1]      # 1re colonne portant ce nom
     xv <- data[[col_idx]]
     if (!is.numeric(xv))
-      stop(sprintf("La variable « %s » n'est pas numérique : l'histogramme requiert une variable numérique.", var))
+      stop(trf("La variable « %s » n'est pas numérique : l'histogramme requiert une variable numérique.", var))
     pdata <- data.frame(.x = xv)
     pdata <- pdata[!is.na(pdata$.x), , drop = FALSE]
     if (nrow(pdata) == 0)
-      stop(sprintf("La variable « %s » ne contient aucune valeur numérique valide.", var))
+      stop(trf("La variable « %s » ne contient aucune valeur numérique valide.", var))
 
     p <- ggplot(pdata, aes(x = .x)) +
       geom_histogram(aes(y = after_stat(density)), fill = "lightblue",

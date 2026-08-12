@@ -4343,6 +4343,48 @@ test_that("une phrase composee traduit son gabarit, jamais ses arguments", {
   expect_true(grepl("a", x, fixed = TRUE))
 })
 
+test_that("un mot ambigu n'entre pas seul au dictionnaire", {
+  # « moyenne » vaut *medium* pour une taille d'effet mais *mean* en
+  # statistique. La cle du dictionnaire etant la chaine francaise elle-meme,
+  # une entree pour l'un corromprait l'autre — exactement le defaut que la
+  # restitution du texte d'origine sert deja a eviter dans l'autre sens.
+  # La nuance est donc portee par la PHRASE ENTIERE.
+  for (mot in c("moyenne", "grande", "petite", "moyen", "grand", "petit"))
+    expect_equal(tr(mot, "en"), mot, info = mot)
+
+  p <- "Taille d'effet : moyenne (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande)."
+  expect_false(identical(tr(p, "en"), p))
+  expect_true(grepl("medium", tr(p, "en"), fixed = TRUE))
+  expect_true(grepl("medium departure",
+                    trf("Taille d'effet w de Cohen = %.3f : écart moyen.", 0.35,
+                        lang = "en"), fixed = TRUE))
+
+  # Un mot NON ambigu choisi par le code passe, lui, explicitement par tr() :
+  # ce n'est pas une donnee de l'utilisateur.
+  expect_false(identical(tr("équiprobables", "en"), "équiprobables"))
+})
+
+test_that("chaque gabarit du dictionnaire porte les memes marqueurs dans les deux langues", {
+  # Un marqueur perdu ou reordonne ferait lever « too few arguments » a
+  # sprintf. trf() retombe alors sur le francais, mais la traduction serait
+  # morte en silence : ce test la rend visible.
+  d <- hstat_i18n_load()
+  # MEME definition que le filtre du dictionnaire (HSTAT_I18N_MARQUEUR) :
+  # deux motifs distincts finiraient par diverger, et l'un des deux mentirait.
+  mk <- function(s) {
+    m <- regmatches(s, gregexpr(HSTAT_I18N_MARQUEUR, s))[[1]]
+    m[m != "%%"]
+  }
+  fautifs <- character(0)
+  for (i in seq_len(nrow(d))) {
+    a <- mk(d$fr[i]); b <- mk(d$en[i])
+    if (!identical(a, b))
+      fautifs <- c(fautifs, substr(d$fr[i], 1, 50))
+  }
+  expect_equal(fautifs, character(0),
+               info = paste("Marqueurs divergents :", paste(fautifs, collapse = " | ")))
+})
+
 test_that("les gabarits ne partent pas au navigateur", {
   # Une phrase composee est traduite DANS R, avant d'exister. Sa forme a
   # marqueurs n'apparait jamais telle quelle dans le DOM : l'envoyer
@@ -4357,8 +4399,9 @@ test_that("les gabarits ne partent pas au navigateur", {
 
   # Le motif vise les MARQUEURS de sprintf, pas le caractere « % » seul : un
   # libelle d'interface comme « % colonne » doit continuer de partir.
-  motif <- "%[-0-9.]*[sdfgeix%]"
-  for (x in c("% colonne", "% ligne", "Taux de 50 % atteint"))
+  motif <- HSTAT_I18N_MARQUEUR
+  for (x in c("% colonne", "% ligne", "Taux de 50 % atteint",
+              "100 % de valeurs manquantes"))
     expect_false(grepl(motif, x), info = x)
   for (x in c("%s : %d valeur(s)", "%.1f %% des observations", "%d groupes"))
     expect_true(grepl(motif, x), info = x)

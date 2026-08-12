@@ -97,11 +97,18 @@ arguments, which are precisely where your variable names and values live, pass
 through without ever being read. Here the guarantee comes from the construction
 rather than from a precaution.
 
-**Current coverage: the whole navigation, the most frequent labels, buttons,
-verdicts and messages, and the composed interpretations of the metrics, the
-recommendation engine and the statistical tests.** Sentences composed in the
-remaining modules still fall back to French, correctly filled in — adding them
-is a CSV edit now that the mechanism exists, not a code change.
+**Current coverage: the whole navigation, labels, buttons, verdicts, error
+messages, and the 228 composed sentences of every module** — metrics,
+recommendation engine, statistical tests, qualitative analyses, experimental
+design, machine learning, time series, cleaning and reports.
+
+One rule shapes the dictionary: **an ambiguous word never goes in on its own.**
+*Moyenne* means *medium* for an effect size and *mean* in statistics; a single
+key would corrupt the other sense. The nuance is carried by the whole sentence
+instead — four complete sentences rather than a template and an adjective. A
+word chosen by the code that *isn't* ambiguous (*équiprobables*, *blocs égaux*)
+is opted in explicitly at the call site. `trf()` never translates its arguments
+by itself; that is what protects your values.
 
 ---
 
@@ -467,7 +474,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.26.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.27.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -475,7 +482,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.26.0},
+  note   = {Version 0.27.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

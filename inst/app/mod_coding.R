@@ -2368,7 +2368,7 @@ mod_coding_server <- function(id, values) {
         shiny::showNotification(
           if (nzchar(parent))
             sprintf("Le code « %s » existe deja sous ce parent. Sous un autre parent, il serait accepte.", lab)
-          else sprintf("Le code « %s » existe deja a la racine.", lab),
+          else trf("Le code « %s » existe deja a la racine.", lab),
           type = "warning", duration = 6)
       } else {
         shiny::updateTextInput(session, "new_code", value = "")
@@ -2493,7 +2493,7 @@ mod_coding_server <- function(id, values) {
         shiny::HTML(gsub("\n", "<br>", hstat_html_escape(m$texte[i]))),
         shiny::hr(style = "margin:10px 0;"),
         shiny::tags$small(style = "color:#7f8c8d;",
-          sprintf("Cree le %s, modifie le %s.", m$created[i], m$modified[i])),
+          trf("Cree le %s, modifie le %s.", m$created[i], m$modified[i])),
         shiny::br(),
         shiny::actionButton(ns("memo_del"), "Supprimer ce memo",
                             icon = shiny::icon("trash"), class = "btn-danger btn-xs"))
@@ -2774,7 +2774,7 @@ mod_coding_server <- function(id, values) {
       if (!nrow(k))
         return(shiny::div(class = "callout callout-warning", style = "padding:8px 12px;",
           shiny::icon("circle-exclamation"),
-          sprintf(" Aucune occurrence de « %s ».", m),
+          trf(" Aucune occurrence de « %s ».", m),
           if (isTRUE(input$kwic_regex))
             " Verifiez l'expression reguliere : une expression invalide ne rend aucune ligne." else ""))
       shiny::div(class = "callout callout-info", style = "padding:8px 12px;",
@@ -2949,7 +2949,7 @@ mod_coding_server <- function(id, values) {
           " Aucun codage pour l'instant : commencez par etiqueter des passages ci-dessus."))
       shiny::div(class = "callout callout-info", style = "padding:8px 12px;",
         shiny::icon("quote-left"),
-        sprintf(" %d extrait(s) correspondant a la selection, sur %d etiquette(s) au total.",
+        trf(" %d extrait(s) correspondant a la selection, sur %d etiquette(s) au total.",
                 n, nrow(rv$segments)))
     })
 
@@ -3319,7 +3319,7 @@ mod_coding_server <- function(id, values) {
                         "%d etiquette(s) ajoutee(s) sur %d reponse(s) analysee(s).%s",
                         added, nrow(sub),
                         if (!is.null(miss) && miss > 0)
-                          sprintf(" %d proposition(s) ecartee(s) : extrait introuvable dans le texte.", miss)
+                          trf(" %d proposition(s) ecartee(s) : extrait introuvable dans le texte.", miss)
                         else ""),
                       table = data.frame(
                         Reponse = segs$doc_id,
@@ -3416,7 +3416,7 @@ mod_coding_server <- function(id, values) {
         sans <- attr(segs, "codes_sans_mots_cles")
         rv$ai <- list(
           ok = TRUE,
-          msg = sprintf("%s : %d etiquette(s) posee(s) sur %d reponse(s) analysee(s) (tout le corpus).%s",
+          msg = trf("%s : %d etiquette(s) posee(s) sur %d reponse(s) analysee(s) (tout le corpus).%s",
                         source_label, added, nrow(dd),
                         if (!is.null(sans) && sans > 0)
                           sprintf(" %d code(s) sans mots-cles ont ete ignore(s).", sans) else ""),

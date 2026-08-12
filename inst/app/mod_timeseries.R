@@ -443,7 +443,7 @@ mod_timeseries_server <- function(id, values) {
       if (nrow(d) == 0) return(NULL)
       div(class = "callout callout-info", style = "margin-top:10px;",
           icon("trophy"),
-          strong(sprintf(" Meilleur modèle sur le jeu de test : %s ", d$Modele[1])),
+          strong(trf(" Meilleur modèle sur le jeu de test : %s ", d$Modele[1])),
           sprintf("(RMSE = %s, MAPE = %s %%). Le classement repose sur l'erreur de ",
                   format(d$RMSE[1], big.mark = " "), d$`MAPE (%)`[1]),
           "prévision hors échantillon, le critère le plus honnête pour comparer des modèles.")
@@ -512,7 +512,7 @@ mod_timeseries_server <- function(id, values) {
       g <- fc_plot(c0$r$fc, c0$f$y,
                    col = hstat_plot_opt(input, "tsO", "Col", "#2c7fb8"),
                    lwd = hstat_finite(input$tsOLwd, 0.9),
-                   title_def = sprintf("%s — prévision sur le jeu de test", c0$label))
+                   title_def = trf("%s — prévision sur le jeu de test", c0$label))
       hstat_apply_plot_opts(g, input, "tsO")
     })
     output$tsPlot <- renderPlot(ts_plot_gg())
@@ -639,7 +639,7 @@ mod_timeseries_server <- function(id, values) {
         if (length(manual) > 0) {
           if (length(manual) < h) h <- length(manual)
           ef <- manual[seq_len(h)]
-          note <- sprintf("Expositions futures saisies manuellement (%d valeur(s)).", h)
+          note <- trf("Expositions futures saisies manuellement (%d valeur(s)).", h)
         } else if (!is.null(input$simFile$datapath)) {
           nd <- tryCatch({
             if (grepl("\\.xlsx$", input$simFile$name, ignore.case = TRUE))
@@ -648,7 +648,7 @@ mod_timeseries_server <- function(id, values) {
           }, error = function(e) NULL)
           validate(need(!is.null(nd), "Fichier importé illisible."),
                    need(input$dlnmExpo %in% names(nd),
-                        sprintf("Pour le DLNM, le fichier doit contenir la colonne d'exposition '%s' (valeurs futures).",
+                        trf("Pour le DLNM, le fichier doit contenir la colonne d'exposition '%s' (valeurs futures).",
                                 input$dlnmExpo)))
           ef <- suppressWarnings(as.numeric(nd[[input$dlnmExpo]]))
           ef <- ef[is.finite(ef)]
@@ -723,7 +723,7 @@ mod_timeseries_server <- function(id, values) {
       g <- fc_plot(s$fc, s$y,
                    col = hstat_plot_opt(input, "tsO", "Col", "#27ae60"),
                    lwd = hstat_finite(input$tsOLwd, 0.9),
-                   title_def = sprintf("%s — prévisions futures (h = %d)", s$label, s$h))
+                   title_def = trf("%s — prévisions futures (h = %d)", s$label, s$h))
       hstat_apply_plot_opts(g, input, "tsO")
     })
     output$simPlot <- renderPlot(sim_gg())
@@ -738,9 +738,9 @@ mod_timeseries_server <- function(id, values) {
         else if (last < first * 0.98) "orientée à la baisse" else "globalement stable"
       div(class = "callout callout-info", style = "margin-top:10px;",
           icon("lightbulb"), strong(" Interprétation des prévisions : "),
-          sprintf("Le modèle %s, ré-entraîné sur l'intégralité de la série%s, projette une trajectoire %s sur les %d prochaines périodes (de %s à %s). ",
+          trf("Le modèle %s, ré-entraîné sur l'intégralité de la série%s, projette une trajectoire %s sur les %d prochaines périodes (de %s à %s). ",
                   s$label,
-                  if (s$appended > 0) sprintf(" (dont %d nouvelles observations importées)", s$appended) else "",
+                  if (s$appended > 0) trf(" (dont %d nouvelles observations importées)", s$appended) else "",
                   trend, s$h,
                   format(first, big.mark = " "), format(last, big.mark = " ")),
           if (!is.null(d$`Borne haute 95%`))

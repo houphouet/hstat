@@ -963,7 +963,7 @@ mod_clean_server <- function(id, values) {
               if (too_many_lvls) {
                 tags$small(style = "color:#e65100;",
                   icon("exclamation-triangle"),
-                  sprintf(" %d modalités distinctes : trop pour définir un ordre manuel. La variable sera ordonnée selon l'ordre alphabétique.", length(lvl_choices)))
+                  trf(" %d modalités distinctes : trop pour définir un ordre manuel. La variable sera ordonnée selon l'ordre alphabétique.", length(lvl_choices)))
               } else {
                 tagList(
                   tags$small(style = "color:#8d6e63;",
@@ -1082,7 +1082,7 @@ mod_clean_server <- function(id, values) {
       rename_msg(list(ok = FALSE, msg = "Le nouveau nom est identique à l'ancien.")); return()
     }
     if (new %in% setdiff(names(values$cleanData), old)) {
-      rename_msg(list(ok = FALSE, msg = sprintf("Le nom « %s » existe déjà. Choisissez un nom unique.", new))); return()
+      rename_msg(list(ok = FALSE, msg = trf("Le nom « %s » existe déjà. Choisissez un nom unique.", new))); return()
     }
     # Renommage répercuté dans tous les jeux de données pour rester cohérent.
     for (slot in c("data", "cleanData", "filteredData")) {
@@ -1092,10 +1092,10 @@ mod_clean_server <- function(id, values) {
         values[[slot]] <- dd
       }
     }
-    rename_msg(list(ok = TRUE, msg = sprintf("Variable « %s » renommée en « %s ».", old, new)))
+    rename_msg(list(ok = TRUE, msg = trf("Variable « %s » renommée en « %s ».", old, new)))
     updateTextInput(session, "renameVarNew", value = "")
     showNotification(
-      ui = tagList(icon("check"), sprintf(" « %s » renommée en « %s »", old, new)),
+      ui = tagList(icon("check"), trf(" « %s » renommée en « %s »", old, new)),
       type = "message", duration = 3)
   })
 
@@ -1138,7 +1138,7 @@ mod_clean_server <- function(id, values) {
     if (length(lv) > RECODE_THRESHOLD) {
       default_txt <- paste(sprintf("%s = %s", lv, lv), collapse = "\n")
       tagList(
-        tags$small(sprintf("%d modalités (tableau éditable).%s", length(lv),
+        tags$small(trf("%d modalités (tableau éditable).%s", length(lv),
           if (is_ordinal) " L'ordre des lignes = ordre du facteur ordinal." else "")),
         textAreaInput(ns("recodeTable"), NULL, value = default_txt,
                       rows = min(20, length(lv) + 1), width = "100%"))
@@ -1198,7 +1198,7 @@ mod_clean_server <- function(id, values) {
       }
     }
     recode_msg(list(ok = TRUE,
-      msg = sprintf("Recodage %s appliqué à « %s » : %d valeur(s) modifiée(s), %d modalité(s)%s.",
+      msg = trf("Recodage %s appliqué à « %s » : %d valeur(s) modifiée(s), %d modalité(s)%s.",
                     if (is_ordinal) "ordinal" else "nominal", v, n_changed,
                     length(unique(new_order)), if (is_ordinal) " (ordre défini)" else "")))
   })
@@ -1769,7 +1769,7 @@ mod_clean_server <- function(id, values) {
     values$filteredData <- d
     outlier_report(tryCatch(compute_outliers(), error = function(e) NULL))
     showNotification(tagList(icon("check"),
-      sprintf(" Traitement appliqué (%d valeur(s)/ligne(s) affectée(s)).", n_changed)),
+      trf(" Traitement appliqué (%d valeur(s)/ligne(s) affectée(s)).", n_changed)),
       type = "message", duration = 4)
   })
 
@@ -1798,7 +1798,7 @@ mod_clean_server <- function(id, values) {
       return(div(class = "alert alert-success", style = "padding:8px;",
                  icon("check-circle"),
                  " Aucune variable concernée : toutes les variables numériques portent au moins une valeur non nulle."))
-    p(tags$b(nrow(z)), sprintf(" variable(s) sur %s concernée(s).", NCOL(values$cleanData)))
+    p(tags$b(nrow(z)), trf(" variable(s) sur %s concernée(s).", NCOL(values$cleanData)))
   })
 
   output$zeroVarsTable <- renderTable({
@@ -1816,7 +1816,7 @@ mod_clean_server <- function(id, values) {
     if (!length(v)) return(NULL)
     div(class = "alert alert-warning", style = "padding:8px;margin-top:8px;",
         icon("exclamation-triangle"),
-        sprintf(" %s variable(s) entièrement vide(s), sans aucune valeur observée : ", length(v)),
+        trf(" %s variable(s) entièrement vide(s), sans aucune valeur observée : ", length(v)),
         tags$b(paste(v, collapse = ", ")),
         ". Ce ne sont pas des zéros : il n'y a rien à comparer à zéro.")
   })
@@ -1842,7 +1842,7 @@ mod_clean_server <- function(id, values) {
     if (NROW(d) > 500)
       return(div(class = "alert alert-warning", style = "padding:8px;",
                  icon("exclamation-triangle"),
-                 sprintf(" %s observations : la saisie une à une n'est pas praticable. ", NROW(d)),
+                 trf(" %s observations : la saisie une à une n'est pas praticable. ", NROW(d)),
                  "Utilisez le remplacement par une valeur, ou corrigez le fichier source."))
     x <- d[[v]]
     txt <- paste(ifelse(is.na(x), "NA", as.character(x)), collapse = "\n")
@@ -1905,7 +1905,7 @@ mod_clean_server <- function(id, values) {
     res <- tryCatch({
       if (action == "supprimer") {
         d <- d[, setdiff(names(d), vars), drop = FALSE]
-        list(ok = TRUE, texte = sprintf("%s variable(s) supprimée(s) : %s.",
+        list(ok = TRUE, texte = trf("%s variable(s) supprimée(s) : %s.",
                                         length(vars), paste(vars, collapse = ", ")))
       } else if (action == "na") {
         n <- 0L
@@ -1917,7 +1917,7 @@ mod_clean_server <- function(id, values) {
           x[idx] <- NA_real_
           d[[cn]] <- x
         }
-        list(ok = TRUE, texte = sprintf("%s zéro(s) déclaré(s) manquant(s) sur %s variable(s).",
+        list(ok = TRUE, texte = trf("%s zéro(s) déclaré(s) manquant(s) sur %s variable(s).",
                                         n, length(vars)))
       } else if (action == "valeur") {
         n <- 0L
@@ -1929,11 +1929,11 @@ mod_clean_server <- function(id, values) {
           x[idx] <- val
           d[[cn]] <- x
         }
-        list(ok = TRUE, texte = sprintf("%s zéro(s) remplacé(s) par %s sur %s variable(s).",
+        list(ok = TRUE, texte = trf("%s zéro(s) remplacé(s) par %s sur %s variable(s).",
                                         n, val, length(vars)))
       } else {
         d[[vars[1]]] <- saisie$valeurs
-        list(ok = TRUE, texte = sprintf("« %s » : %s valeur(s) enregistrée(s).",
+        list(ok = TRUE, texte = trf("« %s » : %s valeur(s) enregistrée(s).",
                                         vars[1], NROW(d)))
       }
     }, error = function(e) list(ok = FALSE, texte = hstat_err_fr(e)))
@@ -2054,7 +2054,7 @@ mod_clean_server <- function(id, values) {
     values$filteredData <- d
     values$data <- d
     showNotification(tagList(icon("check"),
-      sprintf(" Variable « %s » créée (%d classes, facteur ordonné)%s.",
+      trf(" Variable « %s » créée (%d classes, facteur ordonné)%s.",
               new_name, nlevels(r$factor),
               if (overwrite) " -- ancienne colonne remplacée" else "")),
       type = "message", duration = 5)
@@ -2107,7 +2107,7 @@ mod_clean_server <- function(id, values) {
       showNotification(sprintf("Colonne « %s » introuvable.", old), type = "warning"); return()
     }
     if (new %in% setdiff(names(values$cleanData), old)) {
-      showNotification(sprintf("Le nom « %s » existe déjà.", new), type = "error"); return()
+      showNotification(trf("Le nom « %s » existe déjà.", new), type = "error"); return()
     }
     for (slot in c("data", "cleanData", "filteredData")) {
       dd <- values[[slot]]
@@ -2116,7 +2116,7 @@ mod_clean_server <- function(id, values) {
         values[[slot]] <- dd
       }
     }
-    showNotification(tagList(icon("check"), sprintf(" « %s » renommée en « %s »", old, new)),
+    showNotification(tagList(icon("check"), trf(" « %s » renommée en « %s »", old, new)),
                      type = "message", duration = 3)
   })
   })

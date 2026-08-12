@@ -523,6 +523,34 @@ Une traduction fautive peut avoir perdu un marqueur : `sprintf` lèverait alors
 « too few arguments » et ferait tomber toute la sortie pour une simple erreur de
 dictionnaire. `trf()` retombe sur le français, qui marche.
 
+#### Un mot ambigu n'entre pas seul au dictionnaire
+
+La clé étant la chaîne française elle-même, un mot qui a **deux sens** ne peut
+pas y figurer : « moyenne » vaut *medium* pour une taille d'effet et *mean* en
+statistique. Une entrée pour l'un corromprait l'autre — le défaut symétrique de
+celui que la restitution du texte d'origine évite déjà.
+
+La nuance est donc portée par la **phrase entière** : quatre phrases complètes
+plutôt qu'un gabarit et un adjectif. Un test vérifie que les adjectifs nus
+(`moyenne`, `grande`, `petit`…) restent absents du dictionnaire.
+
+En revanche, un mot **non ambigu choisi par le code** (« équiprobables »,
+« blocs égaux ») passe explicitement par `tr()` au point d'appel. C'est la
+distinction qui compte : `trf()` ne traduit jamais ses arguments *de lui-même*
+— c'est ce qui protège les valeurs de l'utilisateur — mais le développeur peut
+déclarer qu'un argument est un libellé, pas une donnée.
+
+#### Une seule définition de ce qu'est un gabarit
+
+`HSTAT_I18N_MARQUEUR` sert au filtre du dictionnaire **et** au test. Deux motifs
+distincts finiraient par diverger, et l'un des deux mentirait.
+
+Il ne tolère pas l'indicateur d'espace (`% d`), délibérément : « 100 % **de**
+valeurs manquantes » n'est pas un gabarit, c'est un libellé où le pour-cent est
+suivi du mot « de ». Un motif plus permissif y voyait un marqueur, écartait la
+phrase du dictionnaire du navigateur, et la faisait passer pour une traduction
+fautive.
+
 Trois familles de texte, trois chemins :
 
 | Texte | Chemin | Pourquoi |

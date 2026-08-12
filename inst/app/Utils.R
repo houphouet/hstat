@@ -490,7 +490,7 @@ hstat_i18n_json <- function(lang = "en", path = hstat_i18n_path()) {
   # 19,7 -- et la legerete est une promesse du bilingue.
   # Le motif vise les marqueurs de sprintf, pas le caractere « % » seul : le
   # libelle d'interface « % colonne » doit continuer de partir.
-  d <- d[!grepl("%[-0-9.]*[sdfgeix%]", names(d))]
+  d <- d[!grepl(HSTAT_I18N_MARQUEUR, names(d))]
   if (!length(d)) return("{}")
   esc <- function(s) {
     s <- gsub("\\", "\\\\", s, fixed = TRUE)
@@ -3308,6 +3308,16 @@ hstat_format_size <- function(bytes) {
 hstat_sql_path <- function(path) {
   gsub("'", "''", gsub("\\\\", "/", path))
 }
+
+# Ce qui fait d'une chaine un GABARIT : un marqueur de sprintf.
+#
+# Le motif ne tolere PAS l'indicateur d'espace (« % d »), et c'est deliberé :
+# « 100 % de valeurs manquantes » n'est pas un gabarit, c'est un libellé où le
+# pour-cent est suivi du mot « de ». Un motif plus permissif y voyait un
+# marqueur, ecartait la phrase du dictionnaire du navigateur et la faisait
+# passer pour une traduction fautive. Une seule definition, partagee par le
+# filtre et par le test, pour que les deux ne divergent pas.
+HSTAT_I18N_MARQUEUR <- "%[-0-9.]*[sdfgeix%]"
 
 # -- Phrase COMPOSEE : on traduit le gabarit, jamais les arguments ------------
 # Les ~217 phrases construites par sprintf() n'existent nulle part dans le DOM

@@ -511,7 +511,7 @@ mod_descriptive_server <- function(id, values) {
         incProgress(1)
       })
       showNotification(
-        sprintf("Statistiques exactes calculées sur le jeu complet (%s lignes).",
+        trf("Statistiques exactes calculées sur le jeu complet (%s lignes).",
                 format(values$fullNrow %||% 0, big.mark = " ")),
         type = "message", duration = 6)
     }, error = function(e) {

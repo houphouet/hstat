@@ -265,16 +265,16 @@ hstat_q_nominal_univariate <- function(x, var_name = "Variable") {
     Interpretation = c(
       "Nombre total d'observations (valides + manquantes).",
       "Observations exploitables (hors valeurs manquantes).",
-      sprintf("%s%% des observations sont manquantes.",
+      trf("%s%% des observations sont manquantes.",
               round(100 * (n_total - n_valid) / max(n_total, 1), 1)),
       if (k <= 3) "Peu de modalités : variable simple à analyser."
         else if (k <= 10) "Nombre de modalités modéré." else "Nombreuses modalités : envisager un regroupement.",
-      if (n_modes == 1) sprintf("Modalité la plus fréquente (%.1f %% des réponses).", mode_pct)
-        else sprintf("%d modalités à égalité au sommet (%.1f %% chacune).", n_modes, mode_pct),
-      sprintf("Distribution %s : %d mode(s) détecté(s).", tolower(mode_type), n_modes),
+      if (n_modes == 1) trf("Modalité la plus fréquente (%.1f %% des réponses).", mode_pct)
+        else trf("%d modalités à égalité au sommet (%.1f %% chacune).", n_modes, mode_pct),
+      trf("Distribution %s : %d mode(s) détecté(s).", tolower(mode_type), n_modes),
       if (mode_pct > 50) "Le mode domine (> 50 %) : distribution déséquilibrée."
         else "Aucune modalité ne domine nettement.",
-      sprintf("Diversité de l'information (max possible = %.3f). Plus c'est élevé, plus c'est diversifié.", round(shannon_max, 3)),
+      trf("Diversité de l'information (max possible = %.3f). Plus c'est élevé, plus c'est diversifié.", round(shannon_max, 3)),
       if (is.na(evenness)) "Non définie." else if (evenness > 0.85) "Réponses très équilibrées entre modalités."
         else if (evenness < 0.5) "Réponses concentrées sur peu de modalités." else "Répartition modérément équilibrée.",
       "Probabilité que deux tirages au hasard diffèrent (0 = uniforme, 1 = très divers).",
@@ -283,17 +283,17 @@ hstat_q_nominal_univariate <- function(x, var_name = "Variable") {
 
   interp <- c(
     if (n_modes == 1)
-      sprintf("La modalité la plus fréquente (mode) est \"%s\" (%.1f %% des réponses valides).", mode_mod, mode_pct)
+      trf("La modalité la plus fréquente (mode) est \"%s\" (%.1f %% des réponses valides).", mode_mod, mode_pct)
     else
-      sprintf("Distribution %s : %d modalités à égalité au sommet (%s), chacune à %.1f %%.",
+      trf("Distribution %s : %d modalités à égalité au sommet (%s), chacune à %.1f %%.",
               tolower(mode_type), n_modes, mode_mod, mode_pct),
-    sprintf("La variable compte %d modalités distinctes sur %d réponses valides.", k, n_valid),
+    trf("La variable compte %d modalités distinctes sur %d réponses valides.", k, n_valid),
     if (!is.na(evenness)) {
       if (evenness > 0.85) "Les réponses sont très réparties (forte équitabilité) : aucune modalité n'ecrase les autres."
       else if (evenness < 0.5) "Les réponses sont concentrées sur peu de modalités (faible équitabilité)."
       else "Les réponses sont modérément réparties entre les modalités."
     } else NULL,
-    sprintf("Indice de Simpson = %.3f : probabilité que deux répondants au hasard donnent des réponses differentes.", simpson))
+    trf("Indice de Simpson = %.3f : probabilité que deux répondants au hasard donnent des réponses differentes.", simpson))
 
   # Graphiques
   plot_bar <- function() {
@@ -330,7 +330,7 @@ hstat_q_nominal_univariate <- function(x, var_name = "Variable") {
        tables = list("Tableau de fréquences" = freq_df),
        plotfns = list("Diagramme en barres" = plot_bar, "Diagramme circulaire" = plot_pie),
        interpretation = interp,
-       notes = sprintf("%d valeurs manquantes exclues.", n_total - n_valid))
+       notes = trf("%d valeurs manquantes exclues.", n_total - n_valid))
 }
 
 # ---------------------------------------------------------------------------
@@ -464,9 +464,9 @@ hstat_q_gof_stratified <- function(y, x, yname = "Y", xname = "X",
   # Interprétation stratifiée
   n_sig <- sum(synth$p_value < 0.05, na.rm = TRUE)
   interp <- c(
-    sprintf("Analyse stratifiée : distribution de « %s » testée dans chacune des %d modalités de « %s ».",
+    trf("Analyse stratifiée : distribution de « %s » testée dans chacune des %d modalités de « %s ».",
             yname, length(groups), xname),
-    sprintf("%d groupe(s) sur %d présentent une distribution significativement différente des proportions attendues.",
+    trf("%d groupe(s) sur %d présentent une distribution significativement différente des proportions attendues.",
             n_sig, length(groups)),
     glob$interpretation[[1]])
 
@@ -481,7 +481,7 @@ hstat_q_gof_stratified <- function(y, x, yname = "Y", xname = "X",
       ggplot2::theme_minimal(base_size = 12)
   }
 
-  console <- c(sprintf("=== Test d'adéquation stratifié : %s selon %s ===", yname, xname), "",
+  console <- c(trf("=== Test d'adéquation stratifié : %s selon %s ===", yname, xname), "",
                "Synthèse par groupe :",
                utils::capture.output(print(synth, row.names = FALSE)), "",
                "--- Test global ---", glob$console)
@@ -491,7 +491,7 @@ hstat_q_gof_stratified <- function(y, x, yname = "Y", xname = "X",
        tables = c(tables, glob$tables[setdiff(names(glob$tables), "Observé vs attendu")]),
        plotfns = c(list("Distribution de Y selon X" = plot_strat), glob$plotfns),
        interpretation = interp, console = console,
-       notes = sprintf("Analyse stratifiée : %d groupes de %s.", length(groups), xname))
+       notes = trf("Analyse stratifiée : %d groupes de %s.", length(groups), xname))
 }
 
 hstat_q_gof_analysis <- function(x, var_name = "Variable",
@@ -510,16 +510,16 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
   # Proportions attendues : equiprobables ou fournies (recyclees/normalisees)
   if (is.null(expected_props) || length(expected_props) == 0 || anyNA(expected_props)) {
     p0 <- rep(1 / k, k)
-    p0_lab <- "équiprobables"
+    p0_lab <- tr("équiprobables")
   } else {
     if (length(expected_props) != k)
-      return(list(ok = FALSE, notes = sprintf(
+      return(list(ok = FALSE, notes = trf(
         "Le nombre de proportions attendues (%d) doit égaler le nombre de modalités (%d : %s).",
         length(expected_props), k, paste(names(tab), collapse = ", "))))
     if (any(expected_props <= 0))
       return(list(ok = FALSE, notes = "Les proportions attendues doivent être strictement positives."))
     p0 <- expected_props / sum(expected_props)
-    p0_lab <- "personnalisées"
+    p0_lab <- tr("personnalisées")
   }
 
   obs <- as.integer(tab)
@@ -572,10 +572,10 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
                round(cohen_w, 3), round(v_gof, 3)),
     Interpretation = c(
       "Observations valides (valeurs manquantes exclues).",
-      sprintf("Modalités comparées : %s.", paste(names(tab), collapse = ", ")),
+      trf("Modalités comparées : %s.", paste(names(tab), collapse = ", ")),
       if (identical(p0_lab, "équiprobables"))
-        sprintf("H0 : chaque modalité a la même probabilité (1/%d = %.1f %%).", k, 100 / k)
-      else sprintf("H0 : les proportions valent %s.", paste(sprintf("%.1f%%", 100 * p0), collapse = ", ")),
+        trf("H0 : chaque modalité a la même probabilité (1/%d = %.1f %%).", k, 100 / k)
+      else trf("H0 : les proportions valent %s.", paste(sprintf("%.1f%%", 100 * p0), collapse = ", ")),
       "Écart global entre effectifs observés et effectifs attendus sous H0.",
       sprintf("k - 1 = %d.", as.integer(ddl)),
       if (!is.na(p_chi) && p_chi < 0.05)
@@ -583,12 +583,21 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
       else "p >= 0,05 : pas d'écart significatif aux proportions attendues.",
       "Version par simulation, fiable même si des effectifs attendus sont < 5.",
       if (method == "multinomial")
-        sprintf("Test exact (%s) : recommandé pour les petits effectifs.", multi_meth) else NULL,
+        trf("Test exact (%s) : recommandé pour les petits effectifs.", multi_meth) else NULL,
       if (expected_ok) "Tous les effectifs attendus >= 5 : le Khi-deux asymptotique est fiable."
       else "Effectifs attendus < 5 : se fier au Monte-Carlo ou au multinomial exact.",
-      sprintf("Taille d'effet : %s (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande).",
-              if (cohen_w < 0.1) "négligeable" else if (cohen_w < 0.3) "petite"
-              else if (cohen_w < 0.5) "moyenne" else "grande"),
+      # LA NUANCE EST PORTEE PAR LA PHRASE ENTIERE, pas par un mot isole.
+      # « moyenne » vaut *medium* pour une taille d'effet mais *mean* en
+      # statistique : une meme cle dans le dictionnaire corromprait l'autre
+      # sens. Quatre phrases completes lèvent l'ambiguite.
+      tr(if (cohen_w < 0.1)
+           "Taille d'effet : négligeable (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande)."
+         else if (cohen_w < 0.3)
+           "Taille d'effet : petite (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande)."
+         else if (cohen_w < 0.5)
+           "Taille d'effet : moyenne (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande)."
+         else
+           "Taille d'effet : grande (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande)."),
       "Ampleur de l'écart, normalisée entre 0 (conformité parfaite) et 1."),
     stringsAsFactors = FALSE)
 
@@ -644,17 +653,18 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
   # ---- Interprétation globale ----
   worst <- names(tab)[which.max(abs(resid_p))]
   interp <- c(
-    sprintf("Test %s des proportions %s de \"%s\" : p = %s -- %s.",
+    trf("Test %s des proportions %s de \"%s\" : p = %s -- %s.",
             if (method == "multinomial") "multinomial exact" else "du Khi-deux d'ajustement",
             p0_lab, var_name, format.pval(p_final, digits = 3),
             if (!is.na(p_final) && p_final < 0.05)
               "la répartition observée diffère significativement de la répartition attendue"
             else "la répartition observée est compatible avec la répartition attendue"),
-    sprintf("La modalité qui s'écarte le plus de l'attendu est \"%s\" (résidu = %.2f ; %.0f %% du Khi-deux).",
+    trf("La modalité qui s'écarte le plus de l'attendu est \"%s\" (résidu = %.2f ; %.0f %% du Khi-deux).",
             worst, resid_p[which.max(abs(resid_p))], contrib[which.max(abs(resid_p))]),
-    sprintf("Taille d'effet w de Cohen = %.3f : écart %s.", cohen_w,
-            if (cohen_w < 0.1) "négligeable" else if (cohen_w < 0.3) "petit"
-            else if (cohen_w < 0.5) "moyen" else "grand"),
+    trf(if (cohen_w < 0.1) "Taille d'effet w de Cohen = %.3f : écart négligeable."
+        else if (cohen_w < 0.3) "Taille d'effet w de Cohen = %.3f : écart petit."
+        else if (cohen_w < 0.5) "Taille d'effet w de Cohen = %.3f : écart moyen."
+        else "Taille d'effet w de Cohen = %.3f : écart grand.", cohen_w),
     if (!expected_ok)
       "Attention : des effectifs attendus sont < 5 ; privilégier la p-value Monte-Carlo ou le test multinomial exact." else NULL)
 
@@ -696,7 +706,7 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
     if (method == "multinomial") c("",
       sprintf("Test multinomial exact -- %s", multi_meth),
       sprintf("p-value = %s", format.pval(p_multi, digits = 4)),
-      sprintf("Hypothèse nulle : proportions %s", p0_lab)) else NULL)
+      trf("Hypothèse nulle : proportions %s", p0_lab)) else NULL)
 
   gof_tables <- list("Observé vs attendu" = gof_df)
   if (!is.null(posthoc_df))
@@ -725,7 +735,7 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
   if (!is.null(groups_letters)) {
     n_grp <- length(unique(groups_letters))
     interp <- c(interp,
-      sprintf("Post-hoc (%d comparaisons par paires, ajustement %s) : %d groupe(s) homogène(s) de modalités identifié(s). Les modalités partageant une lettre ne diffèrent pas significativement.",
+      trf("Post-hoc (%d comparaisons par paires, ajustement %s) : %d groupe(s) homogène(s) de modalités identifié(s). Les modalités partageant une lettre ne diffèrent pas significativement.",
               nrow(posthoc_df), posthoc_df$Ajustement[1], n_grp))
   }
   if (!is.null(posthoc_df)) {
@@ -739,7 +749,7 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
        tables = gof_tables,
        plotfns = gof_plotfns,
        interpretation = interp, console = console,
-       notes = sprintf("%d observations, %d modalités, proportions %s.", n, k, p0_lab))
+       notes = trf("%d observations, %d modalités, proportions %s.", n, k, p0_lab))
 }
 
 # ===========================================================================
@@ -831,7 +841,7 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y") {
                if (anyNA(v_ci)) "non calculé" else sprintf("[%.3f ; %.3f]", v_ci[1], v_ci[2]),
                round(contingency, 3)),
     Interpretation = c(
-      sprintf("%d observations appariées (paires complètes X, Y).", n),
+      trf("%d observations appariées (paires complètes X, Y).", n),
       "Mesure l'écart global entre effectifs observés et attendus sous indépendance.",
       sprintf("(lignes-1) x (colonnes-1) = %d.", as.integer(ddl)),
       if (!is.na(pval) && pval < 0.05)
@@ -843,7 +853,7 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y") {
       else if (fisher_p < 0.05) "Test exact : association significative (recommandé si petits effectifs)."
       else "Test exact : pas d'association significative.",
       "Force de l'association pour un tableau 2x2 (équivaut au r de Pearson).",
-      sprintf("Force de l'association : %s (0,1 faible ; 0,2 modérée ; 0,4 forte).",
+      trf("Force de l'association : %s (0,1 faible ; 0,2 modérée ; 0,4 forte).",
               if (is.na(cramer_v)) "indéterminée" else if (cramer_v < 0.1) "négligeable"
               else if (cramer_v < 0.2) "faible" else if (cramer_v < 0.4) "modérée"
               else if (cramer_v < 0.6) "relativement forte" else "forte"),
@@ -859,7 +869,7 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y") {
   interp <- c(
     sprintf("Association %s entre %s et %s (Khi-deux = %.2f, ddl = %d, p = %s).",
             sig, xname, yname, chi2, as.integer(ddl), format.pval(pval, digits = 3)),
-    sprintf("Force de l'association (V de Cramér = %.3f) : %s.", cramer_v, force),
+    trf("Force de l'association (V de Cramér = %.3f) : %s.", cramer_v, force),
     if (!isTRUE(expected_ok))
       "Certains effectifs théoriques sont < 5 : le test exact de Fisher est plus fiable ici." else
       "Les conditions d'application du Khi-deux sont respectées.",
@@ -953,7 +963,7 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y") {
                       "Carte des résidus" = plot_heat),
        interpretation = interp,
        console = console,
-       notes = sprintf("%d observations appariées analysées.", n))
+       notes = trf("%d observations appariées analysées.", n))
 }
 
 # ===========================================================================
@@ -1006,8 +1016,8 @@ hstat_q_multiple_choice <- function(df, cols = NULL, sep_col = NULL,
     stringsAsFactors = FALSE)
 
   interp <- c(
-    sprintf("L'option la plus citée est \"%s\" (%.1f %% des répondants).", names(counts)[1], freq_df$Pct_repondants[1]),
-    sprintf("En moyenne, chaque répondant a coché %.2f options.", mean_choices),
+    trf("L'option la plus citée est \"%s\" (%.1f %% des répondants).", names(counts)[1], freq_df$Pct_repondants[1]),
+    trf("En moyenne, chaque répondant a coché %.2f options.", mean_choices),
     "Le %% répondants peut dépasser 100 %% au total car chacun peut choisir plusieurs options.")
 
   plot_bar <- function() {
@@ -1044,7 +1054,7 @@ hstat_q_multiple_choice <- function(df, cols = NULL, sep_col = NULL,
        tables = list("Fréquences des options" = freq_df, "Matrice de co-occurrence" = cooc_df),
        plotfns = list("Barres (% répondants)" = plot_bar, "Co-occurrences" = plot_cooc),
        interpretation = interp,
-       notes = sprintf("%d répondants, format %s.", n_resp,
+       notes = trf("%d répondants, format %s.", n_resp,
                        if (!is.null(sep_col)) "valeurs séparées" else "colonnes binaires"))
 }
 
@@ -1104,13 +1114,13 @@ hstat_q_ordinal_univariate <- function(x, var_name = "Variable", levels_order = 
 
   pct_top <- round(100 * sum(ranks >= ceiling((k+1)/2 + 0.5)) / n_valid, 1)
   interp <- c(
-    sprintf("La réponse médiane est \"%s\" (niveau %d sur %d).", med_lab, med, k),
-    sprintf("La moitie centrale des réponses se situe entre \"%s\" et \"%s\".",
+    trf("La réponse médiane est \"%s\" (niveau %d sur %d).", med_lab, med, k),
+    trf("La moitie centrale des réponses se situe entre \"%s\" et \"%s\".",
             levels_order[as.integer(q1)], levels_order[as.integer(q3)]),
     if (consensus > 0.7) "Fort consensus entre les répondants (réponses peu dispersees)."
     else if (consensus < 0.45) "Réponses polarisées / dispersees : faible consensus."
     else "Consensus modéré entre les répondants.",
-    sprintf("Score moyen = %.2f sur une échelle de 1 a %d.", mean_score, k))
+    trf("Score moyen = %.2f sur une échelle de 1 a %d.", mean_score, k))
 
   # Graphiques
   plot_bar <- function() {
@@ -1193,11 +1203,11 @@ hstat_q_likert_scale <- function(items_df, levels_order = NULL, scale_name = "É
     if (alpha_val >= 0.8) "bonne" else if (alpha_val >= 0.7) "acceptable" else
     if (alpha_val >= 0.6) "discutable" else "insuffisante"
   interp <- c(
-    sprintf("Cohérence interne de l'échelle (alpha de Cronbach = %.3f) : %s.", alpha_val, fiab),
+    trf("Cohérence interne de l'échelle (alpha de Cronbach = %.3f) : %s.", alpha_val, fiab),
     if (!is.na(alpha_val) && alpha_val < 0.7)
       "Examinez la colonne \"Alpha si retiré\" : un item dont le retrait augmente nettement l'alpha peut être problématique." else
       "L'échelle peut être considérée comme mesurant un construit cohérent.",
-    sprintf("Le score total moyen est de %.1f (somme de %d items).", mean(scores), n_items))
+    trf("Le score total moyen est de %.1f (somme de %d items).", mean(scores), n_items))
 
   # Graphique de Likert empile par item
   plot_likert <- function() {
@@ -1228,7 +1238,7 @@ hstat_q_likert_scale <- function(items_df, levels_order = NULL, scale_name = "É
   list(ok = TRUE, metrics = metrics, tables = tables,
        plotfns = list("Profil Likert (empilé)" = plot_likert, "Scores totaux" = plot_score),
        interpretation = interp,
-       notes = sprintf("%d répondants complets sur %d.", n_resp, nrow(M)))
+       notes = trf("%d répondants complets sur %d.", n_resp, nrow(M)))
 }
 
 # ===========================================================================
@@ -1267,7 +1277,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     signif_sp <- !is.na(pval_sp) && pval_sp < 0.05
     # Interprétation de la p-value (seuils usuels)
     pval_interp <- if (is.na(pval_sp)) "p-value non calculable."
-      else if (pval_sp < 0.001) sprintf("p = %s < 0,001 : association très hautement significative.", format.pval(pval_sp, 3))
+      else if (pval_sp < 0.001) trf("p = %s < 0,001 : association très hautement significative.", format.pval(pval_sp, 3))
       else if (pval_sp < 0.01)  sprintf("p = %s < 0,01 : association hautement significative.", format.pval(pval_sp, 3))
       else if (pval_sp < 0.05)  sprintf("p = %s < 0,05 : association significative.", format.pval(pval_sp, 3))
       else if (pval_sp < 0.10)  sprintf("p = %s : tendance non significative au seuil de 5 %% (marginale).", format.pval(pval_sp, 3))
@@ -1275,23 +1285,23 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     r2 <- round(100 * rho^2, 1)
     interp <- if (signif_sp) c(
       # --- Cas SIGNIFICATIF ---
-      sprintf("Corrélation ordinale SIGNIFICATIVE entre « %s » et « %s » : rho de Spearman = %.3f (%s, %s).",
+      trf("Corrélation ordinale SIGNIFICATIVE entre « %s » et « %s » : rho de Spearman = %.3f (%s, %s).",
               xname, gname, rho, force, sens),
       pval_interp,
-      sprintf("On rejette l'hypothèse d'indépendance : lorsque « %s » augmente, « %s » tend à %s.",
+      trf("On rejette l'hypothèse d'indépendance : lorsque « %s » augmente, « %s » tend à %s.",
               xname, gname, if (rho > 0) "augmenter" else "diminuer"),
-      sprintf("Le rho² suggère qu'environ %.1f %% de la variation des rangs est partagée entre les deux variables.", r2),
-      sprintf("Le tau de Kendall (%.3f, p = %s) confirme la concordance des rangs ; il est plus robuste pour de petits échantillons.",
+      trf("Le rho² suggère qu'environ %.1f %% de la variation des rangs est partagée entre les deux variables.", r2),
+      trf("Le tau de Kendall (%.3f, p = %s) confirme la concordance des rangs ; il est plus robuste pour de petits échantillons.",
               tau, format.pval(kd$p.value, 3)))
     else c(
       # --- Cas NON SIGNIFICATIF ---
-      sprintf("Corrélation ordinale NON significative entre « %s » et « %s » : rho de Spearman = %.3f (%s, %s).",
+      trf("Corrélation ordinale NON significative entre « %s » et « %s » : rho de Spearman = %.3f (%s, %s).",
               xname, gname, rho, force, sens),
       pval_interp,
-      sprintf("On ne peut pas conclure à une association monotone entre « %s » et « %s » : la relation observée (rho = %.3f) est compatible avec le hasard.",
+      trf("On ne peut pas conclure à une association monotone entre « %s » et « %s » : la relation observée (rho = %.3f) est compatible avec le hasard.",
               xname, gname, rho),
       "Absence de significativité ne signifie pas absence de lien : un échantillon plus grand ou une relation non monotone pourraient changer la conclusion.",
-      sprintf("Le tau de Kendall (%.3f, p = %s) va dans le même sens.", tau, format.pval(kd$p.value, 3)))
+      trf("Le tau de Kendall (%.3f, p = %s) va dans le même sens.", tau, format.pval(kd$p.value, 3)))
     console <- c(utils::capture.output(print(sp)), "",
                  utils::capture.output(print(kd)))
     plot_fn <- function() {
@@ -1370,21 +1380,21 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     stringsAsFactors = FALSE)
   sig <- if (!is.na(pval) && pval < 0.05) "significative" else "non significative"
   pval_txt <- if (is.na(pval)) "non calculable"
-    else if (pval < 0.001) sprintf("p = %s < 0,001 : différence très hautement significative.", format.pval(pval, 3))
-    else if (pval < 0.01)  sprintf("p = %s < 0,01 : différence hautement significative.", format.pval(pval, 3))
-    else if (pval < 0.05)  sprintf("p = %s < 0,05 : différence significative.", format.pval(pval, 3))
-    else sprintf("p = %s >= 0,05 : différence non significative.", format.pval(pval, 3))
+    else if (pval < 0.001) trf("p = %s < 0,001 : différence très hautement significative.", format.pval(pval, 3))
+    else if (pval < 0.01)  trf("p = %s < 0,01 : différence hautement significative.", format.pval(pval, 3))
+    else if (pval < 0.05)  trf("p = %s < 0,05 : différence significative.", format.pval(pval, 3))
+    else trf("p = %s >= 0,05 : différence non significative.", format.pval(pval, 3))
   # Groupe aux rangs les plus élevés / faibles
   hi_g <- summary_df$Groupe[which.max(summary_df$Rang_moyen)]
   lo_g <- summary_df$Groupe[which.min(summary_df$Rang_moyen)]
   interp <- c(
-    sprintf("Différence %s de « %s » entre les %d groupes de « %s » (%s).",
+    trf("Différence %s de « %s » entre les %d groupes de « %s » (%s).",
             sig, xname, ng, gname, test_name),
     pval_txt,
     if (!is.na(pval) && pval < 0.05)
-      sprintf("Le groupe « %s » présente les rangs les plus élevés, « %s » les plus faibles.", hi_g, lo_g)
+      trf("Le groupe « %s » présente les rangs les plus élevés, « %s » les plus faibles.", hi_g, lo_g)
     else "Les rangs médians et moyens sont proches d'un groupe à l'autre.",
-    sprintf("Test de la médiane (Mood) : %s",
+    trf("Test de la médiane (Mood) : %s",
             if (is.na(mood_p)) "non calculé."
             else if (mood_p < 0.05) "les médianes diffèrent aussi significativement." else "les médianes ne diffèrent pas significativement."),
     "Analyses fondées sur les rangs et les médianes : adaptées aux données ordinales (aucune hypothèse de normalité).",
@@ -1405,7 +1415,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
        plotfns = list("Boîtes a moustaches (rangs)" = plot_box),
        interpretation = interp,
        console = console,
-       notes = sprintf("Comparaison de %d groupes (rangs et médianes).", ng))
+       notes = trf("Comparaison de %d groupes (rangs et médianes).", ng))
 }
 
 # ===========================================================================
@@ -1678,16 +1688,16 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
 
   # --- Interpretation ---
   interp <- c(
-    sprintf("Les mots les plus fréquents sont : %s.", paste(head(freq_df$Mot, 5), collapse = ", ")),
+    trf("Les mots les plus fréquents sont : %s.", paste(head(freq_df$Mot, 5), collapse = ", ")),
     sprintf("Richesse lexicale (TTR) = %.3f : %s.",
             length(unique(all_words)) / length(all_words),
             if (length(unique(all_words)) / length(all_words) > 0.6) "vocabulaire varie" else "vocabulaire repetitif / thèmes recurrents"),
-    sprintf("Tonalité dominante : %s (%.0f %% positif, %.0f %% négatif).",
+    trf("Tonalité dominante : %s (%.0f %% positif, %.0f %% négatif).",
             names(which.max(sent_tab)),
             sentiment_df$Pourcentage[sentiment_df$Tonalite=="Positif"],
             sentiment_df$Pourcentage[sentiment_df$Tonalite=="Négatif"]),
     if (!is.null(themes_df)) c(
-      sprintf("%d thèmes dégagés par analyse sémantique latente (SVD) puis regroupement k-means :", n_topics),
+      trf("%d thèmes dégagés par analyse sémantique latente (SVD) puis regroupement k-means :", n_topics),
       sprintf("  - Thème %d : %s", seq_len(nrow(themes_df)), themes_df$Mots_cles))
       else "Trop peu de données pour une analyse thématique robuste (corpus insuffisant).")
 
@@ -1730,15 +1740,15 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
               "5. Vectorisation (DTM / TF-IDF)", "6. Modélisation des thèmes",
               "7. Analyse de sentiment"),
     Detail = c(
-      sprintf("Découpage en mots : %d occurrences sur %d réponses.", length(all_words), n_doc),
-      sprintf("Minuscules, retrait des accents, de la ponctuation%s, mots < %d lettres.",
+      trf("Découpage en mots : %d occurrences sur %d réponses.", length(all_words), n_doc),
+      trf("Minuscules, retrait des accents, de la ponctuation%s, mots < %d lettres.",
               if (remove_numbers) " et des chiffres" else "", min_char),
-      sprintf("%d mots vides français retirés (+ %d personnalisés).",
+      trf("%d mots vides français retirés (+ %d personnalisés).",
               length(hstat_q_stopwords_fr()),
               length(extra_stopwords %||% character(0))),
       if (stem) "Activée : formes fléchies regroupées à leur racine." else "Désactivée (mots conservés tels quels).",
-      sprintf("Matrice document-terme : %d termes retenus ; pondération TF-IDF.", length(vocab)),
-      if (!is.null(themes_df)) sprintf("Analyse sémantique latente (SVD) + k-means : %d thèmes.", n_topics)
+      trf("Matrice document-terme : %d termes retenus ; pondération TF-IDF.", length(vocab)),
+      if (!is.null(themes_df)) trf("Analyse sémantique latente (SVD) + k-means : %d thèmes.", n_topics)
         else "Non réalisée (corpus trop restreint).",
       "Lexique français intégré (mots positifs / négatifs)."),
     stringsAsFactors = FALSE)
@@ -1799,7 +1809,7 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
 
   list(ok = TRUE, metrics = metrics, tables = tables, plotfns = plotfns,
        interpretation = interp,
-       notes = sprintf("%d réponses textuelles analysées.", n_doc),
+       notes = trf("%d réponses textuelles analysées.", n_doc),
        themes = themes_df, theme_assignment = theme_assign)
 }
 
@@ -1856,11 +1866,11 @@ hstat_q_list_modalities <- function(df, vars = NULL, max_modalites = 200) {
     stringsAsFactors = FALSE)
 
   interp <- c(
-    sprintf("%d variable(s) passée(s) en revue, totalisant %d modalités distinctes.",
+    trf("%d variable(s) passée(s) en revue, totalisant %d modalités distinctes.",
             length(vars), nrow(modal_df)),
     {
       vmax <- resume_df$Variable[which.max(resume_df$Nb_modalites)]
-      sprintf("La variable la plus diversifiée est \"%s\" (%d modalités).",
+      trf("La variable la plus diversifiée est \"%s\" (%d modalités).",
               vmax, max(resume_df$Nb_modalites))
     },
     "Une variable à très nombreuses modalités est souvent du texte libre ou un identifiant : envisagez un recodage.")
@@ -1883,7 +1893,7 @@ hstat_q_list_modalities <- function(df, vars = NULL, max_modalites = 200) {
        tables = list("Modalités détaillées" = modal_df, "Résumé par variable" = resume_df),
        plotfns = list("Modalités par variable" = plot_fn),
        interpretation = interp,
-       notes = sprintf("%d variable(s) analysée(s).", length(vars)))
+       notes = trf("%d variable(s) analysée(s).", length(vars)))
 }
 
 # ---------------------------------------------------------------------------
@@ -1932,10 +1942,10 @@ hstat_q_missing_summary <- function(df, vars = NULL, treat_blank_as_na = TRUE) {
 
   pires <- miss_df[miss_df$Pct_manquant >= 20, ]
   interp <- c(
-    sprintf("Le jeu de données contient %.2f %% de cellules manquantes au total.",
+    trf("Le jeu de données contient %.2f %% de cellules manquantes au total.",
             100 * tot_na / max(tot_cells, 1)),
     if (nrow(pires) > 0)
-      sprintf("%d variable(s) dépassent 20 %% de manquants : %s. Un recodage ou une imputation peut être nécessaire.",
+      trf("%d variable(s) dépassent 20 %% de manquants : %s. Un recodage ou une imputation peut être nécessaire.",
               nrow(pires), paste(pires$Variable, collapse = ", "))
     else "Aucune variable ne dépasse 20 %% de manquants : la complétude est satisfaisante.",
     if (treat_blank_as_na)
@@ -2053,7 +2063,7 @@ hstat_q_or_rr_analysis <- function(x, y, xname = "X", yname = "Y",
     or_sig <- !(rr$or_lo <= 1 && rr$or_hi >= 1)
     sens <- if (rr$or > 1) "facteur de risque" else if (rr$or < 1) "facteur protecteur" else "sans effet"
     interp_line <- if (or_sig)
-      sprintf("%s significatif (OR = %.2f) : être \"%s\" %s la cote de \"%s = %s\".",
+      trf("%s significatif (OR = %.2f) : être \"%s\" %s la cote de \"%s = %s\".",
               tools::toTitleCase(sens), rr$or, expo_lab,
               if (rr$or > 1) "augmente" else "diminue", yname, issue_lab)
     else
@@ -2078,12 +2088,12 @@ hstat_q_or_rr_analysis <- function(x, y, xname = "X", yname = "Y",
     # TOUTES les modalites : chaque modalite de X (vs reste) croisee avec
     # CHAQUE modalite de Y (vs reste). Couvre l'ensemble des combinaisons.
     for (xl in lx) for (yl in ly) rows[[length(rows) + 1]] <- build_one(xl, yl)
-    note <- sprintf("Toutes les modalités : %d exposition(s) x %d issue(s) = %d tableaux 2x2.",
+    note <- trf("Toutes les modalités : %d exposition(s) x %d issue(s) = %d tableaux 2x2.",
                     length(lx), length(ly), length(lx) * length(ly))
   } else {
     # Une issue fixee : chaque modalite de X (exposé vs reste)
     for (xl in lx) rows[[length(rows) + 1]] <- build_one(xl, yp)
-    note <- sprintf("Généralisation par paires : %d exposition(s) vs issue \"%s\".", length(lx), yp)
+    note <- trf("Généralisation par paires : %d exposition(s) vs issue \"%s\".", length(lx), yp)
   }
   res_df <- do.call(rbind, rows); rownames(res_df) <- NULL
 
@@ -2123,14 +2133,14 @@ hstat_q_or_rr_analysis <- function(x, y, xname = "X", yname = "Y",
   n_sig <- sum(sig_mask)
   interp <- c(
     if (nrow(res_df) > 1)
-      sprintf("Analyse de %d combinaison(s) de modalités : %d présente(nt) une association significative (IC de l'OR excluant 1), %d non significative(s).",
+      trf("Analyse de %d combinaison(s) de modalités : %d présente(nt) une association significative (IC de l'OR excluant 1), %d non significative(s).",
               nrow(res_df), n_sig, nrow(res_df) - n_sig)
     else NULL,
     # Une puce par combinaison (limitee a 12 pour rester lisible)
     utils::head(sprintf("%s vs %s -- %s", res_df$Exposition, res_df$Issue,
                         res_df$Interpretation), 12),
     if (nrow(res_df) > 12)
-      sprintf("... (%d autres combinaisons dans le tableau détaillé).", nrow(res_df) - 12)
+      trf("... (%d autres combinaisons dans le tableau détaillé).", nrow(res_df) - 12)
     else NULL,
     int_or$text, int_or$conclusion, int_rr$text, int_rr$conclusion,
     "Le RR s'interprète directement en termes de risque (cohortes) ; l'OR est préféré pour les études cas-témoins.",
@@ -2486,7 +2496,7 @@ mod_qualitative_server <- function(id, values) {
       lv <- sort(unique(as.character(stats::na.omit(d[[v]]))))
       shiny::tags$small(style = "color:#7f8c8d;",
         shiny::icon("info-circle"),
-        sprintf(" Ordre des modalités : %s (%d proportions attendues).",
+        trf(" Ordre des modalités : %s (%d proportions attendues).",
                 paste(lv, collapse = ", "), length(lv)))
     })
     output$multi_cols_ui <- shiny::renderUI(shiny::selectInput(ns("multi_cols"), "Colonnes binaires des options",
@@ -2565,7 +2575,7 @@ mod_qualitative_server <- function(id, values) {
       }
       n_new <- length(unique(unname(mapping)))
       recode_msg(list(ok = TRUE,
-        msg = sprintf("Recodage appliqué à « %s » : %d valeur(s) modifiée(s), %d modalité(s) après recodage.",
+        msg = trf("Recodage appliqué à « %s » : %d valeur(s) modifiée(s), %d modalité(s) après recodage.",
                       v, n_changed, n_new)))
     })
     output$recode_status <- shiny::renderUI({
@@ -2588,13 +2598,13 @@ mod_qualitative_server <- function(id, values) {
         # Tableau éditable : une zone de texte "ancienne = nouvelle" par ligne
         default_txt <- paste(sprintf("%s = %s", lv, lv), collapse = "\n")
         shiny::tagList(
-          shiny::tags$small(sprintf("%d modalités (mode tableau éditable). Format : ancienne = nouvelle, une par ligne.", length(lv))),
+          shiny::tags$small(trf("%d modalités (mode tableau éditable). Format : ancienne = nouvelle, une par ligne.", length(lv))),
           shiny::textAreaInput(ns("recode_table"), NULL, value = default_txt,
                                rows = min(20, length(lv) + 1), width = "100%"))
       } else {
         # Menus déroulants : nouvelle valeur libre par modalité
         shiny::tagList(
-          shiny::tags$small(sprintf("%d modalités (mode menus). Saisissez la nouvelle valeur de chaque modalité.", length(lv))),
+          shiny::tags$small(trf("%d modalités (mode menus). Saisissez la nouvelle valeur de chaque modalité.", length(lv))),
           lapply(seq_along(lv), function(i) {
             shiny::textInput(ns(paste0("recode_lvl_", i)),
                              label = sprintf("« %s » devient :", lv[i]), value = lv[i])
@@ -2625,7 +2635,7 @@ mod_qualitative_server <- function(id, values) {
                 numerique = "#2980b9", binaire = "#7f8c8d")
       shiny::div(style = sprintf("margin-top:8px;padding:8px 10px;border-radius:6px;background:%s;color:white;font-size:12px;",
                                  cols[tp] %||% "#7f8c8d"),
-        shiny::icon("magic"), sprintf(" Type détecté pour \"%s\" : %s", v, toupper(tp)))
+        shiny::icon("magic"), trf(" Type détecté pour \"%s\" : %s", v, toupper(tp)))
     })
 
     # ---- Calcul de l'analyse ----

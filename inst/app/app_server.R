@@ -191,7 +191,7 @@ server <- function(input, output, session) {
         style = "margin:4px 0 10px; padding:10px 14px; background:#eef7fb; border:1px solid #b6e0ef; border-radius:8px;",
         tags$summary(style = "cursor:pointer; font-weight:700; color:#1b6f8c; font-size:14px;",
           icon("layer-group"),
-          sprintf(" Ce classeur contient %d feuilles — les combiner en un seul jeu de donnees", length(sheets))),
+          trf(" Ce classeur contient %d feuilles — les combiner en un seul jeu de donnees", length(sheets))),
         div(style = "padding-top:12px;",
           p(style = "color:#5a6a7a; font-size:13px;",
             "Choisissez les feuilles a combiner. ",
@@ -350,7 +350,7 @@ server <- function(input, output, session) {
       })
       if (isTRUE(res$is_sampled)) {
         showNotification(
-          sprintf("Fichier volumineux (%s) : mode hors-mémoire activé. Analyse sur un échantillon de %s lignes (sur %s au total).",
+          trf("Fichier volumineux (%s) : mode hors-mémoire activé. Analyse sur un échantillon de %s lignes (sur %s au total).",
                   hstat_format_size(res$size),
                   format(nrow(res$data), big.mark = " "),
                   format(res$full_nrow, big.mark = " ")),
@@ -420,7 +420,7 @@ server <- function(input, output, session) {
     if (is.null(mf) || length(mf$cols) < 1 || is.null(mf$cols[[1]]))
       return(helpText("Importez au moins deux fichiers valides."))
     selectInput("mergeKeyLeft",
-      sprintf("Clé(s) du 1er fichier (%s)", mf$names[1]),
+      trf("Clé(s) du 1er fichier (%s)", mf$names[1]),
       choices = mf$cols[[1]], multiple = TRUE)
   })
   output$mergeKeyRightUI <- renderUI({
@@ -428,7 +428,7 @@ server <- function(input, output, session) {
     if (is.null(mf) || length(mf$cols) < 2 || is.null(mf$cols[[2]]))
       return(NULL)
     selectInput("mergeKeyRight",
-      sprintf("Clé(s) du 2e fichier (%s) — même nombre de colonnes", mf$names[2]),
+      trf("Clé(s) du 2e fichier (%s) — même nombre de colonnes", mf$names[2]),
       choices = mf$cols[[2]], multiple = TRUE)
   })
 
@@ -493,7 +493,7 @@ server <- function(input, output, session) {
         h4(style = "margin:0 0 5px 0; font-weight:600;",
            icon("database"), " Mode hors-mémoire (out-of-core)"),
         p(style = "margin:0; font-size:13px;",
-          HTML(sprintf(
+          HTML(trf(
             "Fichier de <b>%s</b> (%s lignes). Le jeu complet reste sur disque (DuckDB) ; les analyses portent sur un <b>échantillon représentatif de %s lignes</b>. Les compteurs ci-dessous reflètent le jeu complet.",
             hstat_format_size(values$sourceSize %||% 0),
             format(values$fullNrow %||% 0, big.mark = " "),
@@ -501,7 +501,7 @@ server <- function(input, output, session) {
     } else {
       div(class = "callout callout-success", style = "margin-bottom:16px;",
         p(style = "margin:0; font-size:13px;",
-          icon("memory"), HTML(sprintf(
+          icon("memory"), HTML(trf(
             " Mode en mémoire — jeu de données entièrement chargé (%s lignes).",
             format(values$fullNrow %||% nrow(values$data), big.mark = " ")))))
     }
@@ -569,7 +569,7 @@ server <- function(input, output, session) {
     div(style = "margin-top:8px; padding:8px 12px; background:#f4f6f8; border-radius:6px;",
       p(style = "margin:0; font-size:13px; color:#2c3e50;",
         icon("circle-info"),
-        HTML(sprintf(" Échantillon courant : <b>%s</b> lignes sur <b>%s</b> (%s %% du jeu complet).",
+        HTML(trf(" Échantillon courant : <b>%s</b> lignes sur <b>%s</b> (%s %% du jeu complet).",
                      format(cur, big.mark = " "), format(full, big.mark = " "), pct))))
   })
 
@@ -596,7 +596,7 @@ server <- function(input, output, session) {
         incProgress(1)
       })
       showNotification(
-        sprintf("Nouvel échantillon de %s lignes. Relancez vos analyses pour en tenir compte.",
+        trf("Nouvel échantillon de %s lignes. Relancez vos analyses pour en tenir compte.",
                 format(nrow(values$data), big.mark = " ")),
         type = "message", duration = 7)
     }, error = function(e) {
@@ -985,7 +985,7 @@ server <- function(input, output, session) {
             actionButton(
               "pcaAutoRemoveCollinear",
               tagList(icon("magic"),
-                      sprintf(" Supprimer automatiquement les %d variable(s) suggérée(s)",
+                      trf(" Supprimer automatiquement les %d variable(s) suggérée(s)",
                               length(suggest_remove))),
               class = "btn-sm btn-warning btn-block",
               style = "font-size: 11px; white-space: normal; text-align: left;"
@@ -1188,7 +1188,7 @@ server <- function(input, output, session) {
         quanti_sup_vars <- setdiff(intersect(input$pcaQuantiSup %||% character(0), names(fdata)),
                                    c(active_num, quali_sup_vars))
         if (length(auto_quali) > 0)
-          showNotification(sprintf("ACP : variable(s) non numérique(s) traitée(s) comme qualitative(s) supplémentaire(s) : %s.",
+          showNotification(trf("ACP : variable(s) non numérique(s) traitée(s) comme qualitative(s) supplémentaire(s) : %s.",
                                    paste(auto_quali, collapse = ", ")), type = "message", duration = 5)
 
         # Assemblage : actives (num) + quanti.sup (num) + quali.sup (cat)
@@ -1879,7 +1879,7 @@ server <- function(input, output, session) {
     for (ax in seq_len(n_axes)) {
       sat_ax <- saturations[, ax]
       best   <- names(which.max(abs(sat_ax)))
-      cat(sprintf("  Axe %d : variable la plus saturante = %s (saturation = %s)\n",
+      cat(trf("  Axe %d : variable la plus saturante = %s (saturation = %s)\n",
                   ax, best,
                   format(round(sat_ax[best], dec), nsmall = dec, scientific = FALSE)))
     }

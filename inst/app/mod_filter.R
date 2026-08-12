@@ -117,7 +117,7 @@ mod_filter_server <- function(id, values) {
     if (NROW(d) >= n0) return()
     dq <- tryCatch(hstat_data_quality(d), error = function(e) NULL)
     hstat_ai_capture(values, "Filtrage",
-      sprintf("Sous-echantillon filtre (%d observations sur %d)", NROW(d), n0),
+      trf("Sous-echantillon filtre (%d observations sur %d)", NROW(d), n0),
       tables = list("Diagnostic de qualite" = dq),
       meta = list(variables = names(d), `observations retenues` = NROW(d),
                   `observations initiales` = n0,
