@@ -22,6 +22,17 @@ server <- function(input, output, session) {
     session$userData$langue <- if (identical(input$hstat_langue, "en")) "en" else "fr"
   }, ignoreInit = FALSE)
 
+  # LES TERMES DU FICHIER DE L'UTILISATEUR NE SE TRADUISENT JAMAIS.
+  # On les envoie au navigateur a chaque changement de jeu de donnees : noms de
+  # colonnes et modalites qualitatives. Le traducteur refuse alors d'y toucher
+  # ou qu'ils apparaissent -- y compris dans un tableau ajoute plus tard, qui
+  # echapperait a toute annotation posee a la main.
+  observe({
+    d <- values$filteredData %||% values$data
+    j <- tryCatch(hstat_i18n_termes_json(d), error = function(e) "[]")
+    session$sendCustomMessage("hstat-termes-donnees", j)
+  })
+
   # Signal de maintien envoye par le navigateur. Il n'alimente aucun calcul :
   # sa seule fonction est d'empecher une coupure pour inactivite. On le lit
   # explicitement pour qu'il ne soit pas pris pour une entree oubliee.

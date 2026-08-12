@@ -341,3 +341,62 @@ Codeur A,Coder A
 Codeur B,Coder B
 Choisissez deux codeurs differents.,Choose two different coders.
 Aucun document code pour l'instant.,No document coded yet.
+%.0f %% de valeurs manquantes,%.0f %% missing values
+%.1f %% des observations sont bien classees (classe majoritaire seule : %.1f %% ; le modele %s).,%.1f %% of observations are correctly classified (majority class alone: %.1f %% ; the model %s).
+"%d groupes dont au moins un compte moins de 5 observations : la normalite n'y est pas verifiable, un test de rangs ne la suppose pas.","%d groups, at least one with fewer than 5 observations: normality cannot be checked there, and a rank test does not assume it."
+%d observations dans le jeu de donnees.,%d observations in the data set.
+%d test(s) d'équivalence : équivalence démontrée pour %d variable(s).,%d equivalence test(s): equivalence established for %d variable(s).
+%d test(s) de conformité : %d écart(s) significatif(s) à la norme.,%d conformity test(s): %d significant departure(s) from the reference.
+%d valeur(s) extreme(s) (au-dela de 3 ecarts interquartiles),%d extreme value(s) (beyond 3 interquartile ranges)
+%d valeur(s) hors bornes -> NA (élargissez les bornes si nécessaire).,%d value(s) outside the breaks -> NA (widen the breaks if needed).
+%d valeur(s) infinie(s) ou non numerique(s),%d infinite or non-numeric value(s)
+%d valeurs distinctes sur %d observations,%d distinct values across %d observations
+%d variables quantitatives : l'ACP resume leur structure commune et revele les redondances.,%d quantitative variables: PCA summarises their common structure and reveals redundancies.
+%s %% des valeurs observees sont nulles.,%s %% of the observed values are zero.
+%s : %d valeur(s) modifiée(s) sur %d colonne(s) partagée(s).,%s: %d value(s) changed across %d shared column(s).
+%s ne comporte aucune valeur observee : il n'y a rien a analyser.,%s holds no observed value: there is nothing to analyse.
+%s valeur(s) prise(s) en compte.,%s value(s) taken into account.
+- « %s » : distribution %s la normalite (%s%s).,- “%s”: distribution %s normality (%s%s).
+ANOVA à mesures répétées (%s) sur %d variable(s).,Repeated-measures ANOVA (%s) on %d variable(s).
+"Au vu du profil des variables, %s aurait ete le choix le plus direct. Cela ne disqualifie pas votre analyse : un objectif de recherche ou une contrainte de terrain peut la justifier. A vous de trancher.","Given the profile of the variables, %s would have been the most direct choice. That does not disqualify your analysis: a research aim or a field constraint may justify it. The decision is yours."
+"Au-dela de %d modalites, les tableaux croises deviennent illisibles et les effectifs trop faibles. Regrouper en categories plus larges.","Beyond %d categories, cross-tabulations become unreadable and counts too small. Group into broader categories."
+Aucun modele Ollama joignable sur %s.,No Ollama model reachable at %s.
+Aucun modele local joignable sur %s. %s,No local model reachable at %s. %s
+Clé(s) « %s » absente(s) du 1er fichier.,Key(s) “%s” missing from the 1st file.
+Clé(s) « %s » absente(s) du 2e fichier.,Key(s) “%s” missing from the 2nd file.
+Clé(s) « %s » absente(s) du fichier %d.,Key(s) “%s” missing from file %d.
+Corrélation : %d variable(s) parfaitement colinéaire(s) retirée(s).,Correlation: %d perfectly collinear variable(s) removed.
+Corrélation : variable(s) non numérique(s) ignorée(s) : %s.,Correlation: non-numeric variable(s) ignored: %s.
+"En moyenne, la prediction s'ecarte de %s unite(s) de la valeur reelle.",On average the prediction departs from the true value by %s unit(s).
+Erreur quadratique moyenne : %s unite(s) de la variable cible (ecart-type observe : %s). Penalise fortement les grosses erreurs.,Root mean squared error: %s unit(s) of the target variable (observed standard deviation: %s). It penalises large errors heavily.
+"Fonction non autorisée dans la formule : « %s ». Seuls les opérateurs arithmétiques/logiques et les fonctions statistiques usuelles (log, sqrt, ifelse, rowMeans, rowSums, mean, sum...) sont permis.","Function not allowed in the formula: “%s”. Only arithmetic/logical operators and the usual statistical functions (log, sqrt, ifelse, rowMeans, rowSums, mean, sum...) are permitted."
+"Graphique téléchargé (%s, %d DPI).","Plot downloaded (%s, %d DPI)."
+"Jointure croisée (produit cartésien) de %d fichiers : %d lignes, %d colonnes.","Cross join (Cartesian product) of %d files: %d rows, %d columns."
+Jointure croisée refusée : le produit cartésien générerait ~%.0f lignes (> 5 000 000). Réduisez le nombre ou la taille des fichiers.,"Cross join refused: the Cartesian product would generate about %.0f rows (> 5,000,000). Reduce the number or the size of the files."
+L'analyse que vous avez menee figure parmi celles que le profil de vos donnees appelle (%s).,The analysis you ran is among those the profile of your data calls for (%s).
+L'estimation n'a pas convergé en %d itérations.,Estimation did not converge in %d iterations.
+"La famille « %s » exige une réponse strictement positive%s, mais « %s » a un minimum de %.3g. Utilisez la Gaussienne pour des valeurs réelles, ou Tweedie si beaucoup de zéros.","The “%s” family requires a strictly positive response%s, but “%s” has a minimum of %.3g. Use Gaussian for real values, or Tweedie if there are many zeros."
+"La famille « Beta » exige une réponse strictement comprise entre 0 et 1 (exclus), mais « %s » varie de %.3g à %.3g. Pour des proportions incluant 0 ou 1, utilisez la binomiale ; pour du continu positif, la Gamma.","The “Beta” family requires a response strictly between 0 and 1 (exclusive), but “%s” ranges from %.3g to %.3g. For proportions including 0 or 1 use the binomial; for positive continuous data, the Gamma."
+"La famille « Binomiale négative » attend des nombres entiers (comptages), mais « %s » contient des valeurs décimales.","The “Negative binomial” family expects whole numbers (counts), but “%s” contains decimal values."
+"La famille « Binomiale négative » exige des comptages ≥ 0, mais « %s » contient des valeurs négatives (min = %.3g).","The “Negative binomial” family requires counts >= 0, but “%s” contains negative values (min = %.3g)."
+"La famille « Binomiale » exige une réponse entre 0 et 1 (binaire 0/1 ou proportion), mais « %s » varie de %.3g à %.3g. Utilisez une variable 0/1 ou une proportion, ou changez de famille (Poisson/nbinom pour des comptages, Gamma/Gaussienne pour du continu).","The “Binomial” family requires a response between 0 and 1 (binary 0/1 or a proportion), but “%s” ranges from %.3g to %.3g. Use a 0/1 variable or a proportion, or change family (Poisson/nbinom for counts, Gamma/Gaussian for continuous data)."
+"La famille « Poisson » attend des nombres entiers (comptages), mais « %s » contient des valeurs décimales. Utilisez Gamma ou Gaussienne pour du continu, ou nbinom si surdispersion.","The “Poisson” family expects whole numbers (counts), but “%s” contains decimal values. Use Gamma or Gaussian for continuous data, or nbinom under overdispersion."
+"La famille « Poisson » exige des comptages ≥ 0, mais « %s » contient des valeurs négatives (min = %.3g).","The “Poisson” family requires counts >= 0, but “%s” contains negative values (min = %.3g)."
+La variable '%s' a %d modalités distinctes -- trop pour un test d'ajustement. Vérifiez que vous avez bien choisi une variable catégorielle.,Variable '%s' has %d distinct categories -- too many for a goodness-of-fit test. Check that you picked a categorical variable.
+"Le modele %s a ete entraine sur %s observation(s) puis evalue sur %s observation(s) de test jamais vues pendant l'entrainement : les metriques ci-dessus refletent donc sa capacite de generalisation, pas sa memoire.","The %s model was trained on %s observation(s) then evaluated on %s test observation(s) never seen during training: the metrics above therefore reflect how well it generalises, not what it memorised."
+Les %d autres sont documentees en commentaire : leurs reglages etaient interactifs.,The other %d are documented as comments: their settings were interactive.
+"Modele local disponible sur %s (%d modele(s) installe(s)). Gratuit, hors ligne, aucune donnee ne quitte la machine.","Local model available at %s (%d model(s) installed). Free, offline, no data leaves the machine."
+"Modèle mixte ajusté (%s, famille %s) sur %d variable(s).","Mixed model fitted (%s, %s family) on %d variable(s)."
+"Moteur indisponible : le(s) paquet(s) %s manquent. Installez-les avec install.packages(c(%s)), ou basculez sur la thematisation automatique, qui n'en a pas besoin.","Engine unavailable: package(s) %s are missing. Install them with install.packages(c(%s)), or switch to automatic thematisation, which needs none."
+Nombre d'étiquettes (%d) différent du nombre de classes (%d).,Number of labels (%d) differs from the number of classes (%d).
+Post-hoc multivarié (facteur %s),Multivariate post-hoc (factor %s)
+Shapiro-Wilk dans chacun des %d groupes,Shapiro-Wilk within each of the %d groups
+Shapiro-Wilk normality test (sous-echantillon aleatoire de 5000 valeurs sur %s),Shapiro-Wilk normality test (random subsample of 5000 values out of %s)
+Test non paramétrique répété (%s) terminé.,Repeated non-parametric test (%s) completed.
+"Une quantitative comparee entre %d groupes, normalite intra-groupe et homogeneite des variances acceptables.","One quantitative variable compared across %d groups, with acceptable within-group normality and homogeneity of variances."
+la modalite « %s » couvre %.0f %% des reponses,category “%s” covers %.0f %% of the answers
+une seule valeur (« %s »),a single value (“%s”)
+« %s » compte %d modalité(s) (%s). Le test t en compare exactement deux. %s,“%s” has %d category/categories (%s). The t-test compares exactly two. %s
+"« %s » decrit vos donnees : c'est une etape preliminaire, pas un test, il n'y a donc rien a valider ici. Pour aller plus loin, le profil de vos variables appelle %s. A vous de decider si cette suite a du sens pour votre question de recherche.","“%s” describes your data: this is a preliminary step, not a test, so there is nothing to validate here. To go further, the profile of your variables calls for %s. It is for you to decide whether that next step makes sense for your research question."
+« %s » ne prend que deux valeurs : la regression logistique modelise sa probabilite a partir des autres variables.,“%s” takes only two values: logistic regression models its probability from the other variables.
+Écart-type de référence sigma = %s.,Reference standard deviation sigma = %s.

@@ -70,10 +70,38 @@ Translations live in `inst/app/i18n/fr-en.csv`: two columns, `fr` and `en`.
 Adding a language pair is a CSV edit, not a code change. `hstat_i18n_coverage()`
 reports what is covered and names what is missing.
 
-**Current coverage: the whole navigation, plus the most frequent labels,
-buttons, verdicts and messages.** The long written interpretations remain in
-French for now — they are generated sentences, not fixed strings, and need
-rewriting as templates rather than substitution.
+### Your data is never translated
+
+This is the rule everything else bends around. A column of your file holding
+`Oui` / `Non` — or `Total`, `Normal`, `Moyenne` — matches an interface label
+**word for word**. Early on, switching to English turned the `Oui` in the
+preview into `Yes`: the app was rewriting the data you had come to read. For a
+statistics tool that is the worst possible defect, because nothing breaks — it
+just quietly lies.
+
+Two barriers now stand in the way, one exact and one heuristic:
+
+- **The terms of your file are declared.** The server sends the browser the
+  column names and the categories of your qualitative variables. Nothing on
+  that list is ever translated, anywhere on the page — including in a table
+  added to the app later, which would have escaped any hand-placed annotation.
+  The price is accepted: if one of your columns is called `Total`, the
+  interface label *Total* stops being translated too.
+- **Inside a table cell, only sentences are translated** (over 25 characters).
+  A data value is almost never a whole sentence, whereas an interpretation
+  always is.
+
+The same rule holds for the sentences R composes itself. `trf()` translates the
+**template** — `"%s: %d value(s) changed"` — and then fills it in, so the
+arguments, which are precisely where your variable names and values live, pass
+through without ever being read. Here the guarantee comes from the construction
+rather than from a precaution.
+
+**Current coverage: the whole navigation, the most frequent labels, buttons,
+verdicts and messages, and the composed interpretations of the metrics, the
+recommendation engine and the statistical tests.** Sentences composed in the
+remaining modules still fall back to French, correctly filled in — adding them
+is a CSV edit now that the mechanism exists, not a code change.
 
 ---
 
@@ -439,7 +467,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.25.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.26.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -447,7 +475,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.25.0},
+  note   = {Version 0.26.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

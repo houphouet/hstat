@@ -4201,6 +4201,12 @@ var tMenu = add(menu, Txt("Chargement"));
 var table = add(body, equiper(El("TABLE")));
 var th = add(table, equiper(El("TH")));
 var tTh = add(th, Txt("Chargement"));
+// en-tete portant un NOM DE COLONNE du fichier de l'utilisateur
+var thCol = add(table, equiper(El("TH")));
+var tThCol = add(thCol, Txt("Total"));
+// libelle d'interface identique, hors tableau
+var spTot = add(body, equiper(El("SPAN")));
+var tTot = add(spTot, Txt("Total"));
 var td = add(table, equiper(El("TD")));
 var tTd = add(td, Txt("Oui"));
 var tdLong = add(table, equiper(El("TD")));
@@ -4228,14 +4234,27 @@ ctx.window = ctx;
 ctx.window.HSTAT_I18N = {
   "Chargement": "Loading", "Oui": "Yes",
   "Effectifs attendus >= 5 dans au moins 80 % des cases.": "Expected counts >= 5 in at least 80% of cells.",
-  "Prix": "$& remplace"
+  "Prix": "$& remplace", "Total": "Total (translated)"
 };
+// Termes venant du fichier charge : le serveur les annonce au traducteur.
+if (process.argv[3] === "avec-termes") {
+  ctx.window.__termes = ["Total", "Oui"];
+}
 vm.createContext(ctx);
+// Shiny simule : juste ce qu'il faut pour recevoir la liste des termes.
+var handlers = {};
+ctx.window.Shiny = {
+  addCustomMessageHandler: function (n, f) { handlers[n] = f; },
+  setInputValue: function () {}
+};
 vm.runInContext(fs.readFileSync(SRC, "utf8"), ctx);
+if (ctx.window.__termes && handlers["hstat-termes-donnees"])
+  handlers["hstat-termes-donnees"](JSON.stringify(ctx.window.__termes));
 
 ctx.window.hstatSetLangue("en");
 var apres = {
   menu: tMenu.nodeValue, th: tTh.nodeValue, cellule: tTd.nodeValue,
+  th_colonne: tThCol.nodeValue, libelle_total: tTot.nodeValue,
   cellule_longue: tLong.nodeValue, dollar: tDollar.nodeValue
 };
 ctx.window.hstatSetLangue("fr");
@@ -4246,12 +4265,18 @@ process.stdout.write(JSON.stringify(apres));
 )---", banc, useBytes = TRUE)
   js <- file.path(root, "inst", "app", "www", "hstat-i18n.js")
 
-  sortie <- suppressWarnings(system2(node, c(shQuote(banc), shQuote(js)),
-                                     stdout = TRUE, stderr = TRUE))
-  skip_if(length(sortie) == 0, "le banc d'essai n'a rien produit")
-  res <- tryCatch(jsonlite::fromJSON(paste(sortie, collapse = "")),
-                  error = function(e) NULL)
-  skip_if(is.null(res), paste("banc d'essai :", paste(sortie, collapse = " ")))
+  lancer <- function(...) {
+    s <- suppressWarnings(system2(node, c(shQuote(banc), shQuote(js), ...),
+                                  stdout = TRUE, stderr = TRUE))
+    if (!length(s)) return(NULL)
+    tryCatch(jsonlite::fromJSON(paste(s, collapse = "")), error = function(e) NULL)
+  }
+  res <- lancer()
+  skip_if(is.null(res), "le banc d'essai n'a rien produit d'exploitable")
+  # Deuxieme passe : le serveur a annonce les termes du fichier de
+  # l'utilisateur (« Total » est ici un NOM DE COLONNE).
+  avec <- lancer("avec-termes")
+  skip_if(is.null(avec), "le banc d'essai n'a rien produit d'exploitable")
 
   # 1. UNE VALEUR DE DONNEES DANS UNE CELLULE RESTE CE QU'ELLE EST.
   expect_equal(res$cellule, "Oui")
@@ -4269,6 +4294,139 @@ process.stdout.write(JSON.stringify(apres));
   expect_equal(res$retour_menu, "Chargement")
   expect_equal(res$retour_cellule, "Oui")
   expect_equal(res$retour_dollar, "Prix")
+
+  # 7. LE TROU QUE LA REGLE DE LONGUEUR LAISSAIT OUVERT. Un <th> est un
+  #    libelle... sauf quand c'est le NOM D'UNE COLONNE du fichier charge.
+  #    Sans la liste des termes, il etait traduit.
+  expect_equal(res$th_colonne, "Total (translated)")
+  # 8. Avec la liste, le nom de colonne est intact — et le libelle d'interface
+  #    homonyme cesse d'etre traduit lui aussi : c'est le prix assume, la
+  #    degradation douce. Alterer une donnee n'en serait pas une.
+  expect_equal(avec$th_colonne, "Total")
+  expect_equal(avec$libelle_total, "Total")
+  # 9. Le reste de l'interface continue de se traduire normalement.
+  expect_equal(avec$menu, "Loading")
+  expect_equal(avec$cellule, "Oui")
+  expect_equal(avec$dollar, "$& remplace")
+})
+
+test_that("une phrase composee traduit son gabarit, jamais ses arguments", {
+  # LES ARGUMENTS PORTENT LES DONNEES DE L'UTILISATEUR : un nom de variable,
+  # une modalite, un effectif. Ils traversent la traduction sans etre lus.
+  # C'est la meme regle que cote navigateur, obtenue ici PAR CONSTRUCTION
+  # plutot que par precaution : trf() ne traduit que l'armature.
+  f <- "%s : %d valeur(s) modifiee(s) sur %d colonne(s) partagee(s)."
+  fr <- trf("%s : %d valeur(s) modifiée(s) sur %d colonne(s) partagée(s).",
+            "Ma_Variable", 3, 2, lang = "fr")
+  en <- trf("%s : %d valeur(s) modifiée(s) sur %d colonne(s) partagée(s).",
+            "Ma_Variable", 3, 2, lang = "en")
+  expect_false(identical(fr, en))                       # le gabarit est traduit
+  expect_true(grepl("Ma_Variable", fr, fixed = TRUE))   # l'argument est intact
+  expect_true(grepl("Ma_Variable", en, fixed = TRUE))
+  expect_true(grepl("3", en, fixed = TRUE))
+
+  # Une valeur de donnees qui coincide mot pour mot avec un libelle
+  # d'interface passe elle aussi telle quelle.
+  t <- trf("Corrélation : variable(s) non numérique(s) ignorée(s) : %s.",
+           "Oui, Non, Total", lang = "en")
+  expect_true(grepl("Oui, Non, Total", t, fixed = TRUE))
+
+  # Degradation douce : un gabarit absent du dictionnaire ressort en francais,
+  # CORRECTEMENT REMPLI, au lieu de disparaitre ou d'afficher une cle.
+  inconnu <- trf("Gabarit inexistant portant %s.", "une valeur", lang = "en")
+  expect_equal(inconnu, "Gabarit inexistant portant une valeur.")
+
+  # Une traduction fautive peut avoir perdu un marqueur : sprintf leverait
+  # « too few arguments » et ferait tomber toute la sortie pour une erreur de
+  # dictionnaire. On retombe sur le francais, qui marche.
+  expect_silent(x <- trf("Deux marqueurs %s et %d.", "a", 2, lang = "en"))
+  expect_true(grepl("a", x, fixed = TRUE))
+})
+
+test_that("les gabarits ne partent pas au navigateur", {
+  # Une phrase composee est traduite DANS R, avant d'exister. Sa forme a
+  # marqueurs n'apparait jamais telle quelle dans le DOM : l'envoyer
+  # alourdirait la page sans rien pouvoir y remplacer.
+  j <- hstat_i18n_json("en")
+  expect_false(grepl("%s", j, fixed = TRUE))
+  expect_false(grepl("%d", j, fixed = TRUE))
+  # Mais l'interface simple, elle, part toujours.
+  expect_true(grepl("Chargement", j, fixed = TRUE))
+  # Le poids embarque reste la promesse de legerete.
+  expect_lt(nchar(j) / 1024, 60)
+
+  # Le motif vise les MARQUEURS de sprintf, pas le caractere « % » seul : un
+  # libelle d'interface comme « % colonne » doit continuer de partir.
+  motif <- "%[-0-9.]*[sdfgeix%]"
+  for (x in c("% colonne", "% ligne", "Taux de 50 % atteint"))
+    expect_false(grepl(motif, x), info = x)
+  for (x in c("%s : %d valeur(s)", "%.1f %% des observations", "%d groupes"))
+    expect_true(grepl(motif, x), info = x)
+})
+
+test_that("le journal de reproductibilite n'est jamais traduit", {
+  # `hstat_rlog_*` construit du CODE R. Traduire ses gabarits produirait un
+  # script que R refuserait d'analyser, alors que le journal a precisement
+  # pour promesse d'etre executable.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- readLines(file.path(root, "inst", "app", "mod_ai.R"), warn = FALSE,
+                   encoding = "UTF-8")
+  dans <- FALSE
+  fautifs <- character(0)
+  for (i in seq_along(src)) {
+    if (grepl("^\\.?hstat_rlog_[a-z_]* <- function", src[i])) dans <- TRUE
+    else if (dans && identical(src[i], "}")) dans <- FALSE
+    if (dans && grepl("\\btrf\\(", src[i]))
+      fautifs <- c(fautifs, paste0("mod_ai.R:", i))
+  }
+  expect_equal(fautifs, character(0),
+               info = paste("trf() dans le journal R :", paste(fautifs, collapse = ", ")))
+})
+
+test_that("les termes du fichier de l'utilisateur sont recenses et bornes", {
+  d <- data.frame(Total = c(1, 2), Reponse = c("Oui", "Non"),
+                  Normal = c("Moyenne", "Total"), stringsAsFactors = FALSE)
+  t <- hstat_i18n_termes_donnees(d)
+  # Noms de colonnes ET modalites qualitatives : les deux coincident avec des
+  # libelles d'interface, les deux doivent etre proteges.
+  for (x in c("Total", "Reponse", "Normal", "Oui", "Non", "Moyenne"))
+    expect_true(x %in% t, info = x)
+
+  # Une colonne de TEXTE LIBRE n'est pas une variable qualitative : envoyer ses
+  # milliers de modalites alourdirait la page sans rien proteger d'utile.
+  libre <- data.frame(txt = paste("reponse libre numero", 1:500),
+                      stringsAsFactors = FALSE)
+  expect_equal(hstat_i18n_termes_donnees(libre, max_modalites = 200L), "txt")
+
+  # La liste totale est bornee.
+  gros <- as.data.frame(matrix("", nrow = 1, ncol = 5000), stringsAsFactors = FALSE)
+  expect_lte(length(hstat_i18n_termes_donnees(gros, max_termes = 3000L)), 3000L)
+
+  # Entrees degenerees : jamais d'erreur, une liste vide.
+  for (x in list(NULL, data.frame(), "texte", 42))
+    expect_silent(hstat_i18n_termes_donnees(x))
+})
+
+test_that("les termes sont encodes en JSON sans casser sur la ponctuation", {
+  # Le terme vient du fichier : il peut contenir guillemet, barre oblique
+  # inverse, tabulation. `fixed = TRUE` est indispensable — une barre seule
+  # n'est pas une expression reguliere valide (« Trailing backslash »).
+  h <- data.frame(a = c('il dit "oui"', "c:\\chemin", "avec\ttab"),
+                  stringsAsFactors = FALSE)
+  j <- hstat_i18n_termes_json(h)
+  expect_true(grepl('\\\\"oui', j))
+  expect_equal(hstat_i18n_termes_json(NULL), "[]")
+  expect_equal(hstat_i18n_termes_json(data.frame()), "[]")
+
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  a <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                       warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("hstat-termes-donnees", a, fixed = TRUE))
+  js <- paste(readLines(file.path(root, "inst", "app", "www", "hstat-i18n.js"),
+                        warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("hstat-termes-donnees", js, fixed = TRUE))
 })
 
 

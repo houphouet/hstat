@@ -54,6 +54,23 @@
   // <th>, eux, restent traduits — ce sont des libelles, pas des donnees.
   var LONGUEUR_CELLULE = 25;
 
+  // LES TERMES DU FICHIER DE L'UTILISATEUR NE SE TRADUISENT JAMAIS.
+  // La regle de longueur ci-dessus est une heuristique : elle protege « Oui »
+  // dans une cellule, mais pas un EN-TETE de colonne (un <th> est un libelle,
+  // sauf quand c'est le nom d'une variable du fichier), et un tableau ajoute
+  // demain echapperait a toute annotation posee a la main.
+  //
+  // Le serveur envoie donc la liste des termes qui viennent du fichier -- noms
+  // de colonnes et modalites qualitatives. Rien de ce qui figure dans cette
+  // liste n'est traduit, ou que ce soit dans la page.
+  //
+  // Prix assume : si une colonne s'appelle « Total », le libelle d'interface
+  // « Total » cesse d'etre traduit lui aussi. C'est la degradation douce de la
+  // conception ; alterer une donnee n'en est pas une.
+  var TERMES = Object.create(null);
+
+  function estDonnee(net) { return TERMES[net] === true; }
+
   function dansCellule(el) {
     while (el && el.nodeType === 1) {
       if (el.tagName === "TD") return true;
@@ -90,7 +107,10 @@
         if (t.__hstatFr !== undefined) continue;   // deja traduit
         var cible = DICT[net];
         if (cible === undefined) continue;
-        // Protection des donnees de l'utilisateur : voir LONGUEUR_CELLULE.
+        // Protection des donnees de l'utilisateur, deux barrieres : le terme
+        // vient-il du fichier charge (exact), et la regle de longueur en
+        // cellule (heuristique, pour ce que le serveur n'a pas pu annoncer).
+        if (estDonnee(net)) continue;
         if (net.length <= LONGUEUR_CELLULE && dansCellule(t.parentNode)) continue;
         t.__hstatFr = brut;
         // Les espaces qui entourent le texte sont conserves : les retirer
@@ -120,7 +140,7 @@
           if (el[memo] !== undefined) continue;
           var v = el.getAttribute(nom).trim();
           var cible = DICT[v];
-          if (cible === undefined) continue;
+          if (cible === undefined || estDonnee(v)) continue;
           el[memo] = el.getAttribute(nom);
           el.setAttribute(nom, cible);
         } else if (el[memo] !== undefined) {
@@ -197,6 +217,42 @@
   }
 
   window.hstatSetLangue = definirLangue;
+
+  // Reception de la liste des termes du fichier. Shiny n'est pas forcement
+  // pret quand ce fichier s'execute : on reessaie, sinon le gestionnaire
+  // serait perdu en silence et les donnees ne seraient plus protegees.
+  function recevoirTermes() {
+    if (!(window.Shiny && Shiny.addCustomMessageHandler)) {
+      setTimeout(recevoirTermes, 200);
+      return;
+    }
+    Shiny.addCustomMessageHandler("hstat-termes-donnees", function (json) {
+      var liste;
+      try { liste = (typeof json === "string") ? JSON.parse(json) : json; }
+      catch (e) { return; }
+      if (!liste || !liste.length) { TERMES = Object.create(null); }
+      else {
+        var t = Object.create(null);
+        for (var i = 0; i < liste.length; i++) {
+          var s = String(liste[i]).trim();
+          if (s) t[s] = true;
+        }
+        TERMES = t;
+      }
+      // Un fichier charge ALORS QUE la page est deja en anglais aurait pu voir
+      // ses valeurs traduites avant l'arrivee de cette liste : on defait puis
+      // on refait la passe, sinon la protection n'agirait qu'a partir du
+      // prochain rendu.
+      if (langue === "en") {
+        enCours = true;
+        try {
+          langue = "fr"; traduireTexte(document.body); traduireAttributs(document.body);
+          langue = "en"; traduireTexte(document.body); traduireAttributs(document.body);
+        } catch (e) { langue = "en"; } finally { enCours = false; }
+      }
+    });
+  }
+  recevoirTermes();
 
   // Le temoin visuel doit suivre la langue reellement appliquee. Sans cela,
   // apres un rechargement, la page s'affichait en anglais avec le segment
