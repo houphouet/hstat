@@ -465,6 +465,35 @@ Même logique pour les paquets absents : `hstat_pkg_manquant()` donne la
 commande d'installation **et** une analyse de repli déjà disponible.
 « Package 'klaR' indisponible. » était une impasse.
 
+### `<<-` dans un gestionnaire d'erreur, sinon la ligne est perdue
+
+Six analyses (normalité, homogénéité, t-test, Wilcoxon, Kruskal-Wallis,
+Scheirer-Ray-Hare) construisaient une ligne de résultat portant
+`hstat_err_fr(e)` — puis la **jetaient** :
+
+```r
+results_list <- list()
+for (var in vars) tryCatch({ ... }, error = function(e) {
+  results_list[[var]] <- data.frame(...)      # affectation LOCALE au gestionnaire
+})
+```
+
+Le `<-` crée une copie dans le cadre du gestionnaire ; la liste de
+l'observateur n'est pas touchée. À l'écran, la variable en échec **disparaît
+du tableau sans un mot** — et si c'était la seule, l'utilisateur ne reçoit
+qu'un « Aucun résultat généré » qui masque la vraie cause (« toutes les
+observations portent la même valeur… »). Tout le travail de traduction des
+messages était annulé à l'endroit même où il devait servir.
+
+À ne pas confondre avec le cas légitime : `gdf[[fvar]] <- ...` dans les
+gestionnaires de comparaisons multiples porte sur une variable **créée dans le
+corps du gestionnaire**, que celui-ci renvoie. D'où la règle du balayage : dans
+un `error =`/`warning = function(e)`, une affectation à un nom que le
+gestionnaire n'a pas lui-même défini doit passer par `<<-`. Un test balaie le
+dépôt ; il a été vérifié comme signalant exactement les six sites et aucun des
+trois `gdf`. `values` est exclu — `reactiveValues` est un objet à référence,
+y écrire depuis un gestionnaire a bien un effet au dehors.
+
 ## Persistance de la session
 
 Un verrouillage d'écran ne doit pas fermer l'application. Trois pièces :

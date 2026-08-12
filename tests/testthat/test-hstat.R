@@ -4434,6 +4434,103 @@ test_that("la langue est propre a la session, jamais globale", {
 
 
 # ===========================================================================
+# UNE ERREUR CAPTUREE DOIT ARRIVER JUSQU'AU TABLEAU
+# ---------------------------------------------------------------------------
+# Six analyses (normalite, homogeneite, t-test, Wilcoxon, Kruskal-Wallis,
+# Scheirer-Ray-Hare) construisaient soigneusement une ligne de resultat portant
+# `hstat_err_fr(e)` — puis la JETAIENT. Dans
+#
+#     results_list <- list()
+#     for (var in vars) tryCatch({ ... }, error = function(e) {
+#       results_list[[var]] <- data.frame(...)      # <- affectation LOCALE
+#     })
+#
+# le `<-` cree une copie dans le cadre du gestionnaire ; la liste de
+# l'observateur n'est pas touchee. Consequence a l'ecran : la variable en echec
+# DISPARAIT du tableau sans un mot, et si c'etait la seule, l'utilisateur ne
+# recoit qu'un « Aucun resultat genere » qui masque la vraie cause (« variance
+# nulle : toutes les valeurs sont identiques, choisissez une autre variable »).
+#
+# Tout le travail de traduction des messages d'erreur etait annule a l'endroit
+# meme ou il devait servir. Le lapsus est atteste : ligne 2832, un `<<-`
+# correct precede de deux lignes le `<-` fautif.
+#
+# `gdf[[fvar]] <- ...` dans les gestionnaires de comparaisons multiples n'est
+# PAS le meme cas : `gdf` y est cree dans le corps du gestionnaire, qui le
+# RENVOIE. D'ou la regle du balayage : n'est fautive qu'une affectation a un
+# nom que le gestionnaire n'a pas lui-meme defini.
+# ===========================================================================
+
+test_that("le <<- est bien ce qui distingue les deux cas", {
+  # La semantique en cause, rendue executable : sans `<<-`, la ligne d'erreur
+  # n'existe tout simplement pas dans la liste de l'appelant.
+  collecte <- function(operateur) {
+    acc <- list()
+    for (v in c("bonne", "degeneree")) {
+      tryCatch({
+        if (v == "degeneree") stop("variance nulle")
+        acc[[v]] <- "ok"
+      }, error = function(e) {
+        if (identical(operateur, "local")) acc[[v]] <- "erreur traduite"
+        else acc[[v]] <<- "erreur traduite"
+      })
+    }
+    acc
+  }
+  expect_equal(names(collecte("local")), "bonne")          # la ligne est perdue
+  expect_equal(names(collecte("englobant")), c("bonne", "degeneree"))
+})
+
+test_that("aucun gestionnaire d'erreur ne jette la ligne qu'il vient de batir", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  fichiers <- list.files(file.path(root, "inst", "app"), pattern = "[.]R$",
+                         full.names = TRUE)
+  fautifs <- character(0)
+
+  for (f in fichiers) {
+    src <- readLines(f, warn = FALSE, encoding = "UTF-8")
+    txt <- paste(src, collapse = "\n")
+    debuts <- gregexpr("(error|warning)\\s*=\\s*function\\s*\\([^)]*\\)\\s*\\{",
+                       txt)[[1]]
+    if (debuts[1] == -1) next
+    car <- strsplit(txt, "")[[1]]
+    for (d in debuts) {
+      # fin du corps du gestionnaire, par equilibrage d'accolades
+      i <- d + attr(debuts, "match.length")[which(debuts == d)] - 1L
+      prof <- 0L; fin <- NA_integer_
+      while (i <= length(car)) {
+        if (car[i] == "{") prof <- prof + 1L
+        else if (car[i] == "}") {
+          prof <- prof - 1L
+          if (prof == 0L) { fin <- i; break }
+        }
+        i <- i + 1L
+      }
+      if (is.na(fin)) next
+      corps <- substr(txt, d, fin)
+      cibles <- regmatches(corps, gregexpr(
+        "(?m)^\\s*[A-Za-z_.][\\w.]*\\s*\\[\\[[^]]*\\]\\]\\s*<-(?!-)", corps,
+        perl = TRUE))[[1]]
+      for (cible in cibles) {
+        nom <- sub("^\\s*([A-Za-z_.][\\w.]*).*$", "\\1", cible, perl = TRUE)
+        # Defini DANS le gestionnaire (donc local et renvoye) : cas legitime.
+        pose <- grepl(paste0("(?m)^\\s*", nom, "\\s*<-[^-]"), corps, perl = TRUE)
+        # `values` et consorts sont des objets a REFERENCE (reactiveValues) :
+        # y ecrire depuis un gestionnaire a bien un effet au dehors.
+        if (!pose && !nom %in% c("values", "session", "input"))
+          fautifs <- c(fautifs, paste0(basename(f), " : ", nom, "[[...]] <-"))
+      }
+    }
+  }
+
+  expect_equal(fautifs, character(0),
+               info = paste("Affectation perdue dans un gestionnaire (utiliser <<-) :",
+                            paste(unique(fautifs), collapse = " | ")))
+})
+
+
+# ===========================================================================
 # INTERPRETATIONS TRADUITES
 # ---------------------------------------------------------------------------
 # Les phrases FIGEES passent par le dictionnaire, comme le reste de

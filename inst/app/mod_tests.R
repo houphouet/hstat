@@ -2213,7 +2213,7 @@ mod_tests_server <- function(id, values) {
           )
         }
       }, error = function(e) {
-        results_list[[var]] <- data.frame(
+        results_list[[var]] <<- data.frame(
           Test = "Normalité (données brutes)",
           Variable = var,
           Facteur = "Global",
@@ -2272,7 +2272,7 @@ mod_tests_server <- function(id, values) {
           stringsAsFactors = FALSE
         )
       }, error = function(e) {
-        results_list[[var]] <- data.frame(
+        results_list[[var]] <<- data.frame(
           Test = "Homogénéité (données brutes)",
           Variable = var,
           Facteur = fvar,
@@ -2385,7 +2385,7 @@ mod_tests_server <- function(id, values) {
         )
         
       }, error = function(e) {
-        results_list[[var]] <- data.frame(
+        results_list[[var]] <<- data.frame(
           Test = "t-test",
           Variable = var,
           Facteur = fvar,
@@ -2443,7 +2443,7 @@ mod_tests_server <- function(id, values) {
           stringsAsFactors = FALSE
         )
       }, error = function(e) {
-        results_list[[var]] <- data.frame(
+        results_list[[var]] <<- data.frame(
           Test = "Wilcoxon",
           Variable = var,
           Facteur = fvar,
@@ -2719,7 +2719,7 @@ mod_tests_server <- function(id, values) {
           stringsAsFactors = FALSE
         )
       }, error = function(e) {
-        results_list[[var]] <- data.frame(
+        results_list[[var]] <<- data.frame(
           Test = "Kruskal-Wallis",
           Variable = var,
           Facteur = fvar,
@@ -2838,7 +2838,7 @@ mod_tests_server <- function(id, values) {
         error_msg <- hstat_err_fr(e, var)
         error_messages <<- c(error_messages, error_msg)
         
-        results_list[[var]] <- data.frame(
+        results_list[[var]] <<- data.frame(
           Test = "Scheirer-Ray-Hare",
           Variable = var,
           Facteur = paste(input$factorVar, collapse = " + "),
