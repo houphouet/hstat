@@ -4462,6 +4462,193 @@ test_that("la langue est propre a la session, jamais globale", {
 # ===========================================================================
 
 # ===========================================================================
+# ATELIER DE CODAGE : REQUETE COMBINEE, CONCORDANCIER, PORTRAIT, ACCORD
+# ---------------------------------------------------------------------------
+# Les quatre analyses que MAXQDA propose et qui manquaient encore. Chacune a
+# un piege propre, et les trois premiers ont ete constates ici meme.
+# ===========================================================================
+
+.hstat_corpus_test <- function() {
+  docs <- data.frame(
+    doc_id = c("d1", "d2", "d3"), row = 1:3,
+    text = c("Le prix est trop cher mais la qualite du service est bonne.",
+             "Le service est lent. Vraiment lent.",
+             "Le prix me convient tout a fait."),
+    stringsAsFactors = FALSE)
+  cb <- hstat_code_add(hstat_code_add(hstat_code_new_codebook(), "Prix"), "Service")
+  idP <- cb$code_id[cb$label == "Prix"]; idS <- cb$code_id[cb$label == "Service"]
+  s <- hstat_code_new_segments()
+  s <- hstat_seg_add(s, "d1", idP,  3, 20, "prix est trop cher", "alice")
+  s <- hstat_seg_add(s, "d1", idS, 25, 50, "qualite du service", "alice")
+  s <- hstat_seg_add(s, "d2", idS,  3, 20, "service est lent",   "alice")
+  s <- hstat_seg_add(s, "d3", idP,  3, 15, "prix me convient",   "alice")
+  list(docs = docs, cb = cb, seg = s, P = idP, S = idS)
+}
+
+test_that("la portee change le sens de la requete, et elle est annoncee", {
+  x <- .hstat_corpus_test()
+  # « Meme document » : Prix et Service coexistent chez d1, meme a distance.
+  d <- hstat_code_query(x$seg, x$cb, x$docs, x$P, x$S, "et", "document")
+  expect_equal(unique(d$doc_id), "d1")
+  expect_equal(attr(d, "portee"), "document")
+
+  # « Meme passage » : aucun extrait ne porte les deux etiquettes ici.
+  o <- hstat_code_query(x$seg, x$cb, x$docs, x$P, x$S, "et", "overlap")
+  expect_equal(nrow(o), 0L)
+
+  # « A proximite » : 20 et 25 sont distants de 5 caracteres.
+  expect_equal(nrow(hstat_code_query(x$seg, x$cb, x$docs, x$P, x$S,
+                                     "et", "proximite", distance = 10)), 1L)
+  expect_equal(nrow(hstat_code_query(x$seg, x$cb, x$docs, x$P, x$S,
+                                     "et", "proximite", distance = 1)), 0L)
+
+  # Trois portees, trois effectifs pour la MEME question : d'ou l'attribut.
+  expect_false(identical(nrow(d), nrow(o)))
+})
+
+test_that("SAUF retranche, OU reunit, et OU n'a pas de portee", {
+  x <- .hstat_corpus_test()
+  sauf <- hstat_code_query(x$seg, x$cb, x$docs, x$P, x$S, "sauf", "document")
+  expect_equal(unique(sauf$doc_id), "d3")
+
+  ou <- hstat_code_query(x$seg, x$cb, x$docs, x$P, x$S, "ou")
+  expect_equal(nrow(ou), nrow(x$seg))
+  # « OU » ne croise rien : afficher une portee laisserait croire le contraire.
+  expect_true(is.na(attr(ou, "portee")))
+
+  # Sans second ensemble : « ET » ne peut rien confirmer, « SAUF » rien retirer.
+  expect_equal(nrow(hstat_code_query(x$seg, x$cb, x$docs, x$P, NULL, "et")), 0L)
+  expect_equal(nrow(hstat_code_query(x$seg, x$cb, x$docs, x$P, NULL, "sauf")), 2L)
+})
+
+test_that("le concordancier ne casse pas sur la ponctuation de l'utilisateur", {
+  d <- data.frame(doc_id = "d1", row = 1L,
+                  text = "Le prix (trop cher) reste un probleme. Le prix monte.",
+                  stringsAsFactors = FALSE)
+  # Par defaut le motif est ECHAPPE : taper une parenthese ne doit ni lever
+  # « unmatched parenthesis » ni chercher un groupe de capture.
+  k <- hstat_code_kwic(d, "prix (trop cher)")
+  expect_equal(nrow(k), 1L)
+  expect_equal(k$Motif, "prix (trop cher)")
+
+  expect_equal(nrow(hstat_code_kwic(d, "prix")), 2L)
+
+  # Une expression reguliere INVALIDE rend zero ligne, elle ne fait pas
+  # tomber le panneau.
+  expect_silent(bad <- hstat_code_kwic(d, "prix (", regex = TRUE))
+  expect_equal(nrow(bad), 0L)
+
+  # En mode regex, le motif est bien interprete.
+  expect_equal(nrow(hstat_code_kwic(d, "pri[xz]", regex = TRUE)), 2L)
+
+  # Casse
+  expect_equal(nrow(hstat_code_kwic(d, "PRIX")), 2L)
+  expect_equal(nrow(hstat_code_kwic(d, "PRIX", casse = TRUE)), 0L)
+
+  # Entrees vides : jamais d'erreur, un tableau vide.
+  for (m in list("", "   ", NA_character_, NULL))
+    expect_equal(nrow(hstat_code_kwic(d, m)), 0L)
+  expect_equal(nrow(hstat_code_kwic(NULL, "prix")), 0L)
+})
+
+test_that("le portrait du document est en pourcentage, pas en caracteres", {
+  x <- .hstat_corpus_test()
+  cl <- hstat_code_codeline(x$seg, x$cb, x$docs, "d1")
+  expect_equal(nrow(cl), 2L)
+  expect_true(all(cl$debut_pct >= 0 & cl$fin_pct <= 100))
+  # C'est tout l'interet : deux reponses de longueurs differentes deviennent
+  # comparables. Le meme segment sur un document deux fois plus court occupe
+  # deux fois plus de place.
+  court <- x$docs; court$text[1] <- substr(court$text[1], 1, 30)
+  cl2 <- hstat_code_codeline(x$seg, x$cb, x$docs, "d1")
+  cl3 <- hstat_code_codeline(x$seg, x$cb, court, "d1")
+  expect_gt(cl3$fin_pct[1], cl2$fin_pct[1])
+
+  # Un document introuvable ou vide ne doit pas produire d'Inf silencieux.
+  vide <- x$docs; vide$text[1] <- ""
+  cv <- hstat_code_codeline(x$seg, x$cb, vide, "d1")
+  expect_true(all(is.finite(cv$debut_pct)))
+  expect_equal(nrow(hstat_code_codeline(x$seg, x$cb, x$docs, "inconnu")), 0L)
+})
+
+test_that("deux codeurs peuvent etiqueter le meme passage", {
+  # LE CODEUR FAIT PARTIE DE L'IDENTITE DU SEGMENT. Sans lui dans le test de
+  # doublon, l'accord PARFAIT — le cas le plus courant — voyait le second
+  # codage silencieusement ecarte, et l'accord portait sur un corpus ampute.
+  cb <- hstat_code_add(hstat_code_new_codebook(), "Prix")
+  s <- hstat_code_new_segments()
+  s <- hstat_seg_add(s, "d1", cb$code_id[1], 1, 5, "x", "alice")
+  s <- hstat_seg_add(s, "d1", cb$code_id[1], 1, 5, "x", "alice")  # meme codeur
+  expect_equal(nrow(s), 1L)
+  s <- hstat_seg_add(s, "d1", cb$code_id[1], 1, 5, "x", "bob")    # autre codeur
+  expect_equal(nrow(s), 2L)
+})
+
+test_that("l'accord inter-codeurs rend un verdict, jamais un NaN branchable", {
+  x <- .hstat_corpus_test()
+  s <- x$seg
+  s <- hstat_seg_add(s, "d1", x$P,  4, 21, "prix",    "bob")   # accord
+  s <- hstat_seg_add(s, "d2", x$S,  2, 19, "service", "bob")   # accord
+  s <- hstat_seg_add(s, "d2", x$P,  2, 19, "faux",    "bob")   # desaccord
+
+  a <- hstat_code_accord(s, x$cb, "alice", "bob")
+  # Documents communs : d1 et d2 (d3 n'a ete vu que par alice). Quatre unites,
+  # deux accords — (d1,Prix) et (d2,Service) — et deux desaccords : bob n'a
+  # pas pose Service sur d1, et il a pose Prix sur d2.
+  expect_equal(a$n_unites, 4L)
+  expect_equal(a$accord, 0.5)
+  expect_true(is.finite(a$kappa))
+  expect_true(a$verdict %in% c("excellent", "acceptable", "faible"))
+
+  # ACCORD PARFAIT : pe vaut 1, kappa se derobe. Brancher sur un NaN leverait
+  # « missing value where TRUE/FALSE needed » ; on rend `indeterminable` et le
+  # pourcentage d'accord, qui lui reste lisible.
+  cb <- hstat_code_add(hstat_code_new_codebook(), "Prix")
+  p <- hstat_code_new_segments()
+  p <- hstat_seg_add(p, "d1", cb$code_id[1], 1, 5, "x", "alice")
+  p <- hstat_seg_add(p, "d1", cb$code_id[1], 1, 5, "x", "bob")
+  ap <- hstat_code_accord(p, cb, "alice", "bob")
+  expect_equal(ap$accord, 1)
+  expect_equal(ap$verdict, "indeterminable")
+  expect_true(grepl("hasard", ap$message))
+  expect_false(is.finite(ap$kappa))
+
+  # Deux fois le meme codeur, ou un codeur absent : refus explicite.
+  expect_equal(hstat_code_accord(s, x$cb, "alice", "alice")$verdict, "indeterminable")
+  expect_equal(hstat_code_accord(s, x$cb, "alice", "zoe")$n_unites, 0L)
+
+  # Seuls les documents que LES DEUX ont vus comptent : sinon l'absence de
+  # codage d'un document jamais ouvert passerait pour un desaccord.
+  solo <- hstat_seg_add(x$seg, "d9", x$P, 1, 5, "y", "bob")
+  expect_equal(hstat_code_accord(solo, x$cb, "alice", "bob")$n_unites, 0L)
+})
+
+test_that("les quatre analyses encaissent un atelier vide", {
+  cb <- hstat_code_new_codebook(); s <- hstat_code_new_segments()
+  d <- data.frame(doc_id = character(0), row = integer(0), text = character(0),
+                  stringsAsFactors = FALSE)
+  expect_equal(nrow(hstat_code_query(s, cb, d, NULL, NULL)), 0L)
+  expect_equal(nrow(hstat_code_kwic(d, "x")), 0L)
+  expect_equal(nrow(hstat_code_codeline(s, cb, d, "d1")), 0L)
+  expect_equal(hstat_code_accord(s, cb, "a", "b")$verdict, "indeterminable")
+  expect_silent(hstat_code_codeline_plot(NULL))
+})
+
+test_that("l'atelier expose bien les quatre analyses dans l'interface", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  m <- paste(readLines(file.path(root, "inst", "app", "mod_coding.R"),
+                       warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  for (f in c("hstat_code_query", "hstat_code_kwic", "hstat_code_codeline",
+              "hstat_code_accord"))
+    expect_true(grepl(paste0(f, "("), m, fixed = TRUE), info = f)
+  for (t in c("Requete combinee", "Concordancier", "Portrait du document",
+              "Accord inter-codeurs"))
+    expect_true(grepl(t, m, fixed = TRUE), info = t)
+})
+
+
+# ===========================================================================
 # VARIABLES A VALEURS NULLES
 # ---------------------------------------------------------------------------
 # Une colonne dont toutes les valeurs observees valent zero a une variance

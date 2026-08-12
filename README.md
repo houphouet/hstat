@@ -162,6 +162,30 @@ MAXQDA-style coding workbench:
 - **Retrieval and cross-tabulation** — click a code to list every excerpt it
   covers, and cross the coded text with respondent profiles (for instance, only
   the price complaints made by the "Moins de 25 ans" group).
+- **Complex coding query** — cross two sets of codes: *A AND B*, *A EXCEPT B*,
+  *A OR B*. The **scope changes the answer**, so it is stated alongside the
+  count: *same document* (both themes coexist in one respondent's answer, even
+  ten lines apart), *same passage* (one excerpt carries both labels), or
+  *within N characters* (the ideas follow one another without overlapping). On
+  the same corpus the three scopes returned 23, 16 and 3 excerpts — reporting a
+  figure without saying which one was used would be meaningless.
+- **Concordance (KWIC)** — every occurrence of a word with its left and right
+  context. This is the tool that *precedes* coding: you see how a word is
+  actually used before deciding which code it deserves. The search pattern is
+  escaped by default, so typing `prix (cher)` searches for that text instead of
+  raising an unmatched-parenthesis error.
+- **Document portrait (codeline)** — one document as a band where each code
+  occupies the stretch of text it labels, so the order of the discourse is
+  visible at a glance. Positions are given as a **percentage of the document**,
+  not in characters, so answers of very different lengths stay comparable.
+- **Intercoder agreement** — percentage agreement and Cohen's kappa between two
+  coders. The unit compared is the *document × code* pair: two coders never cut
+  at the same boundaries, and comparing segments would require an arbitrary
+  overlap threshold that moves the result more than the real disagreement does.
+  Kappa is undefined when both coders label everything (or nothing) the same
+  way — the expected chance agreement is already 1 — so the verdict has a
+  fourth state, *indeterminable*, and the percentage agreement is shown instead
+  of a `NaN`.
 - **Visualisation and reports** — word clouds, a concept map of code
   co-occurrences (the MAXMaps equivalent, laid out by classical MDS), cross
   matrices, and an Excel workbook gathering codebook, excerpts and matrices.
@@ -415,7 +439,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.24.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.25.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -423,7 +447,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.24.0},
+  note   = {Version 0.25.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

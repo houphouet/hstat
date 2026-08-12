@@ -453,8 +453,13 @@ hstat_code_new_segments <- function() {
 }
 
 # Ajout d'un segment. Renvoie le tableau inchange si la selection est vide ou
-# si le meme segment (meme document, meme code, memes bornes) existe deja :
-# un double-depot accidentel ne doit pas gonfler les effectifs.
+# si le MEME CODEUR a deja pose ce code sur ces bornes : un double-depot
+# accidentel ne doit pas gonfler les effectifs.
+#
+# LE CODEUR FAIT PARTIE DE L'IDENTITE DU SEGMENT. Sans lui dans le test de
+# doublon, deux codeurs qui etiquettent le meme passage a l'identique -- soit
+# l'accord parfait, le cas le plus courant -- voyaient le second codage
+# silencieusement ecarte, et l'accord inter-codeurs mesurait un corpus ampute.
 hstat_seg_add <- function(segments, doc_id, code_id, start, end, text = "",
                           source = "manuel") {
   if (is.null(segments)) segments <- hstat_code_new_segments()
@@ -463,8 +468,10 @@ hstat_seg_add <- function(segments, doc_id, code_id, start, end, text = "",
   if (is.na(start) || is.na(end) || end <= start) return(segments)
   doc_id  <- as.character(doc_id)[1]
   code_id <- as.character(code_id)[1]
+  source  <- as.character(source)[1]
   dup <- segments$doc_id == doc_id & segments$code_id == code_id &
-         segments$start == start & segments$end == end
+         segments$start == start & segments$end == end &
+         segments$source == source
   if (any(dup)) return(segments)
   n <- nrow(segments)
   rbind(segments, data.frame(
@@ -474,7 +481,7 @@ hstat_seg_add <- function(segments, doc_id, code_id, start, end, text = "",
     start   = start,
     end     = end,
     text    = as.character(text)[1],
-    source  = as.character(source)[1],
+    source  = source,
     created = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
     stringsAsFactors = FALSE))
 }
@@ -1289,6 +1296,300 @@ hstat_ai_parse_autocode <- function(parsed, docs, codebook) {
 }
 
 
+# ---------------------------------------------------------------------------
+# 12. REQUETE DE CODAGE COMBINEE
+# ---------------------------------------------------------------------------
+# MAXQDA appelle cela « Complex Coding Query » : croiser deux ensembles de
+# codes pour repondre a « qui dit A ET B ? », « A sans B ? », « ou A et B
+# etiquettent-ils LE MEME passage ? ».
+#
+# LA PORTEE CHANGE LE SENS, ET DOIT DONC ETRE EXPLICITE.
+#   "document"  -> A et B dans la meme reponse, meme a dix lignes d'ecart.
+#                  Lecture thematique : deux themes coexistent chez la personne.
+#   "overlap"   -> A et B recouvrent le MEME passage. Lecture stricte : le
+#                  meme extrait porte les deux etiquettes.
+#   "proximite" -> A a moins de `distance` caracteres d'un segment de B. Entre
+#                  les deux : les idees se suivent sans se superposer.
+# Confondre les trois donne des effectifs tres differents pour la meme
+# question ; le resultat porte donc la portee employee en attribut.
+#
+# Le resultat est un tableau de SEGMENTS DE A (ceux qui satisfont la
+# condition), reutilisable tel quel par hstat_code_retrieve().
+# ---------------------------------------------------------------------------
+hstat_code_query <- function(segments, codebook, docs, codes_a, codes_b = NULL,
+                             operateur = c("et", "ou", "sauf"),
+                             portee = c("document", "overlap", "proximite"),
+                             distance = 200, profile = NULL) {
+  operateur <- match.arg(operateur)
+  portee    <- match.arg(portee)
+  vide <- hstat_code_new_segments()
+  if (is.null(segments) || !nrow(segments) || is.null(codes_a) || !length(codes_a))
+    return(structure(vide, portee = portee, operateur = operateur))
+
+  a <- segments[segments$code_id %in% codes_a, , drop = FALSE]
+  b <- if (is.null(codes_b) || !length(codes_b)) vide
+       else segments[segments$code_id %in% codes_b, , drop = FALSE]
+
+  # « OU » ne croise rien : c'est la reunion des deux ensembles. La portee n'y
+  # a aucun sens et serait trompeuse si on la laissait paraitre.
+  if (operateur == "ou") {
+    out <- rbind(a, b)
+    out <- out[!duplicated(out$seg_id), , drop = FALSE]
+    return(structure(out[order(out$doc_id, out$start), , drop = FALSE],
+                     portee = NA_character_, operateur = operateur))
+  }
+
+  if (!nrow(a))
+    return(structure(vide, portee = portee, operateur = operateur))
+
+  # Sans second ensemble, « ET » ne peut rien confirmer et « SAUF » n'a rien a
+  # retrancher : on rend A tel quel pour « sauf », et rien pour « et ».
+  if (!nrow(b)) {
+    out <- if (operateur == "sauf") a else vide
+    return(structure(out, portee = portee, operateur = operateur))
+  }
+
+  d <- suppressWarnings(as.numeric(distance)[1])
+  if (!is.finite(d) || d < 0) d <- 0
+
+  satisfait <- vapply(seq_len(nrow(a)), function(i) {
+    bb <- b[b$doc_id == a$doc_id[i], , drop = FALSE]
+    if (!nrow(bb)) return(FALSE)
+    if (portee == "document") return(TRUE)
+    if (portee == "overlap")
+      return(any(bb$start < a$end[i] & bb$end > a$start[i]))
+    # proximite : bornes ecartees de `d` de part et d'autre
+    any(bb$start < a$end[i] + d & bb$end > a$start[i] - d)
+  }, logical(1))
+
+  garde <- if (operateur == "et") satisfait else !satisfait
+  out <- a[garde, , drop = FALSE]
+  structure(out[order(out$doc_id, out$start), , drop = FALSE],
+            portee = portee, operateur = operateur)
+}
+
+
+# ---------------------------------------------------------------------------
+# 13. CONCORDANCIER (KWIC -- Key Word In Context)
+# ---------------------------------------------------------------------------
+# Le mot recherche entoure de son contexte gauche et droit. C'est l'outil qui
+# precede le codage : on voit COMMENT un mot est employe avant de decider
+# quel code lui donner.
+#
+# DEUX PRECAUTIONS.
+#   1. Le motif de l'utilisateur est ECHAPPE par defaut (`regex = FALSE`) :
+#      taper « prix (cher) » ne doit pas lever « unmatched parenthesis » ni
+#      chercher un groupe de capture. Une regexp invalide en mode `regex =
+#      TRUE` rend zero ligne au lieu de faire tomber le panneau.
+#   2. Le contexte est coupe sur les BORNES DE MOTS quand c'est possible :
+#      trancher au milieu d'un mot rend la lecture penible.
+# ---------------------------------------------------------------------------
+hstat_code_kwic <- function(docs, motif, fenetre = 40, regex = FALSE,
+                            casse = FALSE, max_hits = 500) {
+  vide <- data.frame(Document = character(0), Gauche = character(0),
+                     Motif = character(0), Droite = character(0),
+                     Position = integer(0), stringsAsFactors = FALSE)
+  if (is.null(docs) || !NROW(docs) || is.null(motif)) return(vide)
+  motif <- as.character(motif)[1]
+  if (is.na(motif) || !nzchar(trimws(motif))) return(vide)
+  fenetre <- suppressWarnings(as.integer(fenetre)[1])
+  if (!is.finite(fenetre) || fenetre < 0) fenetre <- 40L
+  pat <- if (isTRUE(regex)) motif else .hstat_code_rx_escape(motif)
+
+  coupe_gauche <- function(s) {
+    if (!nzchar(s)) return(s)
+    i <- regexpr("\\s", s)
+    if (i > 0 && i < nchar(s) / 2) substring(s, i + 1L) else s
+  }
+  coupe_droite <- function(s) {
+    if (!nzchar(s)) return(s)
+    i <- max(c(0L, gregexpr("\\s", s)[[1]]))
+    if (i > nchar(s) / 2) substring(s, 1L, i - 1L) else s
+  }
+
+  lignes <- list()
+  for (k in seq_len(NROW(docs))) {
+    txt <- as.character(docs$text[k])
+    if (is.na(txt) || !nzchar(txt)) next
+    # Une expression reguliere invalide leve tantot une ERREUR, tantot un
+    # simple AVERTISSEMENT : ne rattraper que l'erreur laissait passer
+    # « unmatched parenthesis » dans la console de l'utilisateur.
+    m <- tryCatch(gregexpr(pat, txt, perl = TRUE, ignore.case = !isTRUE(casse))[[1]],
+                  error = function(e) -1L, warning = function(w) -1L)
+    if (m[1] < 0) next
+    lg <- attr(m, "match.length")
+    for (j in seq_along(m)) {
+      deb <- m[j]; lon <- lg[j]
+      g <- substring(txt, max(1L, deb - fenetre), deb - 1L)
+      dr <- substring(txt, deb + lon, min(nchar(txt), deb + lon - 1L + fenetre))
+      lignes[[length(lignes) + 1L]] <- data.frame(
+        Document = if (!is.null(docs$row)) paste("Ligne", docs$row[k]) else docs$doc_id[k],
+        Gauche   = coupe_gauche(g),
+        Motif    = substring(txt, deb, deb + lon - 1L),
+        Droite   = coupe_droite(dr),
+        Position = as.integer(deb),
+        stringsAsFactors = FALSE)
+      if (length(lignes) >= max_hits) break
+    }
+    if (length(lignes) >= max_hits) break
+  }
+  if (!length(lignes)) return(vide)
+  out <- do.call(rbind, lignes)
+  attr(out, "tronque") <- nrow(out) >= max_hits
+  out
+}
+
+
+# ---------------------------------------------------------------------------
+# 14. CODELINE -- portrait code d'un document
+# ---------------------------------------------------------------------------
+# MAXQDA montre un document comme une bande ou chaque code occupe la portion
+# de texte qu'il etiquette. On voit d'un coup d'oeil l'ordre du discours :
+# par quoi la personne commence, ce qui revient, ce qui ne vient qu'a la fin.
+#
+# La position est rendue en POURCENTAGE du document, pas en caracteres : deux
+# reponses de longueurs tres differentes deviennent comparables, ce qui est
+# tout l'interet de la representation.
+# ---------------------------------------------------------------------------
+hstat_code_codeline <- function(segments, codebook, docs, doc_id) {
+  vide <- data.frame(Code = character(0), Couleur = character(0),
+                     debut = numeric(0), fin = numeric(0),
+                     debut_pct = numeric(0), fin_pct = numeric(0),
+                     Extrait = character(0), stringsAsFactors = FALSE)
+  if (is.null(segments) || !nrow(segments) || is.null(docs) || !NROW(docs))
+    return(vide)
+  doc_id <- as.character(doc_id)[1]
+  s <- segments[segments$doc_id == doc_id, , drop = FALSE]
+  if (!nrow(s)) return(vide)
+  k <- match(doc_id, docs$doc_id)
+  n <- if (!is.na(k)) nchar(as.character(docs$text[k])) else 0L
+  # Un document vide ou introuvable ne peut pas etre mis a l'echelle : plutot
+  # que de diviser par zero (et de rendre des Inf silencieux), on garde les
+  # positions brutes et le pourcentage reste a zero.
+  ech <- if (is.finite(n) && n > 0) 100 / n else NA_real_
+  s <- s[order(s$start), , drop = FALSE]
+  out <- data.frame(
+    Code      = hstat_code_label(codebook, s$code_id),
+    Couleur   = hstat_code_color(codebook, s$code_id),
+    debut     = as.numeric(s$start),
+    fin       = as.numeric(s$end),
+    debut_pct = if (is.na(ech)) 0 else pmin(100, as.numeric(s$start) * ech),
+    fin_pct   = if (is.na(ech)) 0 else pmin(100, as.numeric(s$end) * ech),
+    Extrait   = s$text,
+    stringsAsFactors = FALSE)
+  attr(out, "n_char") <- n
+  out
+}
+
+# Trace du codeline. Une ligne par code, un rectangle par segment.
+hstat_code_codeline_plot <- function(cl, titre = "") {
+  if (is.null(cl) || !nrow(cl))
+    return(ggplot2::ggplot() + ggplot2::theme_void() +
+           ggplot2::annotate("text", x = 0, y = 0,
+                             label = "Aucun codage sur ce document."))
+  cl$Code <- factor(cl$Code, levels = rev(unique(cl$Code)))
+  couleurs <- stats::setNames(cl$Couleur[!duplicated(cl$Code)],
+                              as.character(cl$Code[!duplicated(cl$Code)]))
+  ggplot2::ggplot(cl) +
+    ggplot2::geom_rect(ggplot2::aes(xmin = debut_pct, xmax = pmax(fin_pct, debut_pct + 0.6),
+                                    ymin = as.numeric(Code) - 0.38,
+                                    ymax = as.numeric(Code) + 0.38,
+                                    fill = Code), colour = NA) +
+    ggplot2::scale_fill_manual(values = couleurs, guide = "none") +
+    ggplot2::scale_y_continuous(breaks = seq_along(levels(cl$Code)),
+                                labels = levels(cl$Code)) +
+    ggplot2::scale_x_continuous(limits = c(0, 100),
+                                labels = function(x) paste0(x, " %")) +
+    ggplot2::labs(x = "Position dans le document", y = NULL, title = titre) +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(panel.grid.minor = ggplot2::element_blank(),
+                   panel.grid.major.y = ggplot2::element_blank())
+}
+
+
+# ---------------------------------------------------------------------------
+# 15. ACCORD INTER-CODEURS
+# ---------------------------------------------------------------------------
+# Deux personnes codent le meme corpus ; on mesure leur accord. L'unite de
+# comparaison est le couple DOCUMENT x CODE : le codeur a-t-il, oui ou non,
+# pose ce code sur ce document ?
+#
+# POURQUOI PAS LE SEGMENT. Deux codeurs ne decoupent jamais aux memes bornes ;
+# comparer des segments exigerait un seuil de recouvrement arbitraire qui
+# ferait varier le resultat plus que le desaccord reel. Le couple
+# document x code est l'unite que MAXQDA propose par defaut, pour la meme
+# raison.
+#
+# KAPPA N'EST PAS TOUJOURS DEFINI, ET C'EST LE PIEGE. Si les deux codeurs
+# posent tout partout (ou rien nulle part), l'accord attendu par hasard vaut 1,
+# le denominateur 1 - pe s'annule et kappa rend NaN. Brancher dessus lèverait
+# « missing value where TRUE/FALSE needed ». On rend donc un VERDICT a quatre
+# etats, dont `indeterminable`, comme partout ailleurs dans l'application.
+#
+# Le pourcentage d'accord, lui, reste toujours calculable : c'est ce qu'on
+# affiche quand kappa se derobe.
+# ---------------------------------------------------------------------------
+hstat_code_accord <- function(segments, codebook, codeur_a, codeur_b,
+                              docs = NULL) {
+  res <- list(n_unites = 0L, accord = NA_real_, kappa = NA_real_,
+              verdict = "indeterminable", table = NULL,
+              a = as.character(codeur_a)[1], b = as.character(codeur_b)[1],
+              message = "Aucune unite comparable : les deux codeurs n'ont pas travaille sur les memes documents.")
+  if (is.null(segments) || !nrow(segments) || is.null(codebook) || !nrow(codebook))
+    return(res)
+  ca <- as.character(codeur_a)[1]; cb <- as.character(codeur_b)[1]
+  if (is.na(ca) || is.na(cb) || identical(ca, cb)) {
+    res$message <- "Choisissez deux codeurs differents."
+    return(res)
+  }
+  sa <- segments[segments$source == ca, , drop = FALSE]
+  sb <- segments[segments$source == cb, , drop = FALSE]
+  # Seuls les documents que LES DEUX ont vus sont comparables : compter un
+  # document qu'un seul codeur a ouvert ferait passer son absence de codage
+  # pour un desaccord.
+  communs <- intersect(unique(sa$doc_id), unique(sb$doc_id))
+  if (!length(communs)) return(res)
+  codes <- codebook$code_id
+  if (!length(codes)) return(res)
+
+  grille <- expand.grid(doc_id = communs, code_id = codes,
+                        KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)
+  cle <- function(s) paste(s$doc_id, s$code_id, sep = "\r")
+  ka <- unique(cle(sa)); kb <- unique(cle(sb))
+  k  <- paste(grille$doc_id, grille$code_id, sep = "\r")
+  va <- k %in% ka
+  vb <- k %in% kb
+
+  n <- length(k)
+  res$n_unites <- as.integer(n)
+  res$accord <- mean(va == vb)
+  tb <- table(factor(va, levels = c(FALSE, TRUE)),
+              factor(vb, levels = c(FALSE, TRUE)),
+              dnn = c(ca, cb))
+  res$table <- tb
+
+  po <- res$accord
+  pe <- (sum(va) / n) * (sum(vb) / n) + (sum(!va) / n) * (sum(!vb) / n)
+  if (is.finite(pe) && abs(1 - pe) > 1e-12) {
+    res$kappa <- (po - pe) / (1 - pe)
+    # Seuils de Landis & Koch, ramenes aux quatre etats de l'application.
+    res$verdict <- if (!is.finite(res$kappa)) "indeterminable"
+                   else if (res$kappa >= 0.8) "excellent"
+                   else if (res$kappa >= 0.6) "acceptable"
+                   else "faible"
+    res$message <- sprintf(
+      "%s unites comparees (%s document(s) x %s code(s)).",
+      n, length(communs), length(codes))
+  } else {
+    res$message <- paste0(
+      "Kappa n'est pas calculable ici : les deux codeurs ont pose (ou omis) ",
+      "les memes etiquettes partout, l'accord attendu par hasard vaut deja 1. ",
+      "Le pourcentage d'accord reste lisible.")
+  }
+  res
+}
+
+
 # ===========================================================================
 # INTERFACE
 # ===========================================================================
@@ -1552,6 +1853,70 @@ mod_coding_ui <- function(id) {
               shiny::column(3, shiny::downloadButton(ns("dl_ret_xlsx"), "Excel",
                                                      class = "btn-success btn-sm btn-block",
                                                      icon = shiny::icon("file-excel"))))),
+
+          # ---- Requete combinee ----
+          shiny::tabPanel(shiny::tagList(shiny::icon("code-branch"), " Requete combinee"),
+            shiny::br(),
+            shiny::fluidRow(
+              shiny::column(3, shiny::uiOutput(ns("qry_a_ui"))),
+              shiny::column(2, shiny::radioButtons(ns("qry_op"), "Operateur",
+                choices = c("A ET B" = "et", "A SAUF B" = "sauf", "A OU B" = "ou"),
+                selected = "et")),
+              shiny::column(3, shiny::uiOutput(ns("qry_b_ui"))),
+              shiny::column(2, shiny::radioButtons(ns("qry_portee"), "Portee",
+                choices = c("Meme document" = "document",
+                            "Meme passage" = "overlap",
+                            "A proximite" = "proximite"),
+                selected = "document")),
+              shiny::column(2, shiny::numericInput(ns("qry_dist"),
+                "Distance (caracteres)", value = 200, min = 0, step = 50))),
+            shiny::uiOutput(ns("qry_note")),
+            DT::DTOutput(ns("qry_table")),
+            shiny::br(),
+            shiny::fluidRow(
+              shiny::column(3, shiny::downloadButton(ns("dl_qry_csv"), "CSV",
+                                                     class = "btn-info btn-sm btn-block",
+                                                     icon = shiny::icon("file-csv"))))),
+
+          # ---- Concordancier ----
+          shiny::tabPanel(shiny::tagList(shiny::icon("magnifying-glass"), " Concordancier"),
+            shiny::br(),
+            shiny::fluidRow(
+              shiny::column(4, shiny::textInput(ns("kwic_motif"), "Mot ou expression",
+                                                placeholder = "ex. prix")),
+              shiny::column(2, shiny::numericInput(ns("kwic_fen"), "Contexte (caracteres)",
+                                                   value = 45, min = 10, max = 200, step = 5)),
+              shiny::column(3, shiny::checkboxInput(ns("kwic_regex"),
+                "Interpreter comme expression reguliere", value = FALSE)),
+              shiny::column(3, shiny::checkboxInput(ns("kwic_casse"),
+                "Respecter la casse", value = FALSE))),
+            shiny::uiOutput(ns("kwic_note")),
+            DT::DTOutput(ns("kwic_table")),
+            shiny::br(),
+            shiny::fluidRow(
+              shiny::column(3, shiny::downloadButton(ns("dl_kwic_csv"), "CSV",
+                                                     class = "btn-info btn-sm btn-block",
+                                                     icon = shiny::icon("file-csv"))))),
+
+          # ---- Portrait du document (codeline) ----
+          shiny::tabPanel(shiny::tagList(shiny::icon("chart-gantt"), " Portrait du document"),
+            shiny::br(),
+            shiny::fluidRow(
+              shiny::column(6, shiny::uiOutput(ns("cl_doc_ui")))),
+            shiny::uiOutput(ns("cl_note")),
+            shiny::plotOutput(ns("cl_plot"), height = "360px"),
+            shiny::br(),
+            DT::DTOutput(ns("cl_table"))),
+
+          # ---- Accord inter-codeurs ----
+          shiny::tabPanel(shiny::tagList(shiny::icon("user-group"), " Accord inter-codeurs"),
+            shiny::br(),
+            shiny::fluidRow(
+              shiny::column(4, shiny::uiOutput(ns("acc_a_ui"))),
+              shiny::column(4, shiny::uiOutput(ns("acc_b_ui")))),
+            shiny::uiOutput(ns("acc_resume")),
+            shiny::br(),
+            shiny::tableOutput(ns("acc_table"))),
 
           # ---- Matrice de croisement ----
           shiny::tabPanel(shiny::tagList(shiny::icon("table-cells"), " Matrice de croisement"),
@@ -2326,6 +2691,230 @@ mod_coding_server <- function(id, values) {
     })
 
     # ==================================================== RECUPERATION
+    # ================================================================
+    # REQUETE COMBINEE, CONCORDANCIER, PORTRAIT, ACCORD INTER-CODEURS
+    # ================================================================
+    output$qry_a_ui <- shiny::renderUI({
+      cb <- rv$codebook
+      shiny::selectInput(ns("qry_a"), "Ensemble A",
+        choices = stats::setNames(cb$code_id, cb$label),
+        selected = cb$code_id[1], multiple = TRUE, width = "100%")
+    })
+    output$qry_b_ui <- shiny::renderUI({
+      cb <- rv$codebook
+      shiny::selectInput(ns("qry_b"), "Ensemble B",
+        choices = stats::setNames(cb$code_id, cb$label),
+        selected = cb$code_id[min(2L, nrow(cb))], multiple = TRUE, width = "100%")
+    })
+
+    qry_res <- shiny::reactive({
+      hstat_code_query(rv$segments, rv$codebook, docs(),
+                       codes_a = input$qry_a, codes_b = input$qry_b,
+                       operateur = input$qry_op %||% "et",
+                       portee = input$qry_portee %||% "document",
+                       distance = hstat_finite(input$qry_dist, 200))
+    })
+
+    qry_df <- shiny::reactive({
+      s <- qry_res()
+      if (!nrow(s)) return(hstat_code_retrieve(NULL, rv$codebook, docs()))
+      hstat_code_retrieve(s, rv$codebook, docs(), code_ids = unique(s$code_id))
+    })
+
+    output$qry_note <- shiny::renderUI({
+      s <- qry_res()
+      op <- input$qry_op %||% "et"
+      # La portee change le SENS de la reponse : la taire laisserait croire
+      # qu'il n'y a qu'une facon de lire « A et B ».
+      quoi <- switch(attr(s, "portee") %||% "document",
+        document  = "presents dans la meme reponse",
+        overlap   = "etiquetant le meme passage",
+        proximite = sprintf("distants de moins de %s caracteres",
+                            hstat_finite(input$qry_dist, 200)),
+        "")
+      lib <- switch(op, et = "A ET B", sauf = "A SAUF B", ou = "A OU B")
+      shiny::div(class = "callout callout-info", style = "padding:8px 12px;",
+        shiny::icon("code-branch"),
+        sprintf(" %s : %d extrait(s)", lib, nrow(s)),
+        if (op != "ou" && nzchar(quoi)) sprintf(" %s.", quoi) else ".")
+    })
+
+    output$qry_table <- DT::renderDT({
+      df <- qry_df(); df$.seg_id <- NULL
+      DT::datatable(df, rownames = FALSE, filter = "top",
+                    options = list(pageLength = 15, scrollX = TRUE,
+                                   language = list(url = NULL)),
+                    escape = TRUE)
+    })
+
+    output$dl_qry_csv <- shiny::downloadHandler(
+      filename = function() sprintf("hstat_requete_%s.csv", format(Sys.Date(), "%Y%m%d")),
+      content = function(file) {
+        df <- qry_df(); df$.seg_id <- NULL
+        utils::write.csv(df, file, row.names = FALSE, fileEncoding = "UTF-8")
+      })
+
+    # ------------------------------------------------------ concordancier
+    kwic_df <- shiny::reactive({
+      hstat_code_kwic(docs(), input$kwic_motif,
+                      fenetre = hstat_finite(input$kwic_fen, 45),
+                      regex = isTRUE(input$kwic_regex),
+                      casse = isTRUE(input$kwic_casse))
+    })
+
+    output$kwic_note <- shiny::renderUI({
+      m <- trimws(input$kwic_motif %||% "")
+      if (!nzchar(m))
+        return(shiny::div(class = "callout callout-info", style = "padding:8px 12px;",
+          shiny::icon("magnifying-glass"),
+          " Entrez un mot pour voir tous ses emplois dans leur contexte.",
+          " C'est l'outil qui precede le codage : on voit COMMENT un mot est",
+          " employe avant de decider quel code lui donner."))
+      k <- kwic_df()
+      if (!nrow(k))
+        return(shiny::div(class = "callout callout-warning", style = "padding:8px 12px;",
+          shiny::icon("circle-exclamation"),
+          sprintf(" Aucune occurrence de « %s ».", m),
+          if (isTRUE(input$kwic_regex))
+            " Verifiez l'expression reguliere : une expression invalide ne rend aucune ligne." else ""))
+      shiny::div(class = "callout callout-info", style = "padding:8px 12px;",
+        shiny::icon("magnifying-glass"),
+        sprintf(" %d occurrence(s).", nrow(k)),
+        if (isTRUE(attr(k, "tronque")))
+          " Affichage limite aux premieres trouvees." else "")
+    })
+
+    output$kwic_table <- DT::renderDT({
+      k <- kwic_df()
+      DT::datatable(k, rownames = FALSE,
+                    options = list(pageLength = 20, scrollX = TRUE,
+                                   language = list(url = NULL),
+                                   columnDefs = list(
+                                     list(className = "dt-right", targets = 1),
+                                     list(className = "dt-center", targets = 2))),
+                    escape = TRUE)
+    })
+
+    output$dl_kwic_csv <- shiny::downloadHandler(
+      filename = function() sprintf("hstat_concordancier_%s.csv", format(Sys.Date(), "%Y%m%d")),
+      content = function(file)
+        utils::write.csv(kwic_df(), file, row.names = FALSE, fileEncoding = "UTF-8"))
+
+    # -------------------------------------------------- portrait du document
+    output$cl_doc_ui <- shiny::renderUI({
+      dd <- docs()
+      s <- rv$segments
+      # On ne propose que les documents REELLEMENT codes : offrir les autres
+      # menerait a un graphique vide sans que l'utilisateur sache pourquoi.
+      ids <- if (nrow(s)) intersect(dd$doc_id, unique(s$doc_id)) else character(0)
+      if (!length(ids))
+        return(shiny::div(class = "callout callout-warning", style = "padding:8px 12px;",
+          shiny::icon("info-circle"),
+          " Aucun document code pour l'instant."))
+      lab <- paste("Ligne", dd$row[match(ids, dd$doc_id)])
+      shiny::selectInput(ns("cl_doc"), "Document", choices = stats::setNames(ids, lab),
+                         selected = shiny::isolate(input$cl_doc) %||% ids[1])
+    })
+
+    cl_df <- shiny::reactive({
+      shiny::req(input$cl_doc)
+      hstat_code_codeline(rv$segments, rv$codebook, docs(), input$cl_doc)
+    })
+
+    output$cl_note <- shiny::renderUI({
+      cl <- tryCatch(cl_df(), error = function(e) NULL)
+      if (is.null(cl) || !nrow(cl)) return(NULL)
+      shiny::div(class = "callout callout-info", style = "padding:8px 12px;",
+        shiny::icon("chart-gantt"),
+        sprintf(" %d etiquette(s) sur %s caracteres. ", nrow(cl),
+                attr(cl, "n_char") %||% 0L),
+        "La position est en pourcentage du document : deux reponses de longueurs",
+        " differentes restent comparables.")
+    })
+
+    output$cl_plot <- shiny::renderPlot({
+      cl <- cl_df()
+      dd <- docs()
+      r <- dd$row[match(input$cl_doc, dd$doc_id)]
+      hstat_code_codeline_plot(cl, titre = if (!is.na(r)) paste("Ligne", r) else "")
+    })
+
+    output$cl_table <- DT::renderDT({
+      cl <- cl_df()
+      DT::datatable(cl[, c("Code", "debut", "fin", "Extrait"), drop = FALSE],
+                    rownames = FALSE, colnames = c("Code", "Debut", "Fin", "Extrait"),
+                    options = list(pageLength = 10, scrollX = TRUE,
+                                   language = list(url = NULL)),
+                    escape = TRUE)
+    })
+
+    # ---------------------------------------------------- accord inter-codeurs
+    codeurs <- shiny::reactive({
+      s <- rv$segments
+      if (!nrow(s)) return(character(0))
+      sort(unique(s$source[!is.na(s$source) & nzchar(s$source)]))
+    })
+
+    output$acc_a_ui <- shiny::renderUI({
+      cs <- codeurs()
+      if (length(cs) < 2)
+        return(shiny::div(class = "callout callout-warning", style = "padding:8px 12px;",
+          shiny::icon("info-circle"),
+          " L'accord se mesure entre DEUX codeurs. Un seul jeu de codages est",
+          " present pour l'instant (origine : ",
+          paste(cs, collapse = ", "), "). Importez le codage d'une autre",
+          " personne, ou comparez un codage manuel a un codage automatique."))
+      shiny::selectInput(ns("acc_a"), "Codeur A", choices = cs, selected = cs[1])
+    })
+    output$acc_b_ui <- shiny::renderUI({
+      cs <- codeurs()
+      if (length(cs) < 2) return(NULL)
+      shiny::selectInput(ns("acc_b"), "Codeur B", choices = cs, selected = cs[2])
+    })
+
+    acc_res <- shiny::reactive({
+      shiny::req(input$acc_a, input$acc_b)
+      hstat_code_accord(rv$segments, rv$codebook, input$acc_a, input$acc_b)
+    })
+
+    output$acc_resume <- shiny::renderUI({
+      if (length(codeurs()) < 2) return(NULL)
+      a <- acc_res()
+      # Kappa n'est pas toujours defini ; on traite le quatrieme etat
+      # explicitement plutot que d'afficher NaN ou de brancher dessus.
+      verdict <- switch(a$verdict,
+        excellent  = "accord excellent",
+        acceptable = "accord acceptable",
+        faible     = "accord faible : relisez ensemble le livre de codes",
+        "verdict indeterminable")
+      classe <- switch(a$verdict, excellent = "callout callout-success",
+                       acceptable = "callout callout-info",
+                       faible = "callout callout-warning", "callout callout-warning")
+      shiny::div(class = classe, style = "padding:10px 14px;",
+        shiny::tags$b(sprintf("Accord observe : %s %%",
+                              if (is.finite(a$accord)) round(a$accord * 100, 1) else "-")),
+        shiny::br(),
+        if (is.finite(a$kappa))
+          shiny::span(sprintf("Kappa de Cohen : %.3f - %s.", a$kappa, verdict))
+        else shiny::span(a$message),
+        shiny::br(),
+        shiny::tags$small(style = "color:#7f8c8d;",
+          if (is.finite(a$kappa)) a$message else "",
+          " L'unite comparee est le couple document x code : deux codeurs ne",
+          " decoupent jamais aux memes bornes, comparer des segments exigerait",
+          " un seuil de recouvrement arbitraire."))
+    })
+
+    output$acc_table <- shiny::renderTable({
+      if (length(codeurs()) < 2) return(NULL)
+      a <- acc_res()
+      if (is.null(a$table)) return(NULL)
+      m <- as.data.frame.matrix(a$table)
+      names(m) <- paste0(a$b, " : ", c("non", "oui"))
+      cbind(data.frame(` ` = paste0(a$a, " : ", c("non", "oui")),
+                       check.names = FALSE), m)
+    }, striped = TRUE, bordered = TRUE, spacing = "xs", width = "auto")
+
     output$ret_codes_ui <- shiny::renderUI({
       cb <- rv$codebook
       shiny::selectInput(ns("ret_codes"), "Codes a afficher",

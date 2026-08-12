@@ -201,6 +201,49 @@ Trois invariants, chacun testé :
 introuvable (remonté à la racine), et **cycle** (un fichier édité à la main peut
 en contenir un ; `hstat_code_tree()` boucrerait indéfiniment).
 
+### Les quatre analyses croisées : chacune a son piège
+
+**`hstat_code_query()` — la portée change le sens, elle doit être annoncée.**
+« Même document » (les deux thèmes coexistent chez la personne), « même
+passage » (le même extrait porte les deux étiquettes) et « à proximité » (les
+idées se suivent sans se superposer) donnent des effectifs très différents pour
+la même question — 23, 16 et 3 sur le corpus d'essai. Le résultat porte donc la
+portée employée en attribut, et l'interface l'affiche. `OU` ne croise rien : sa
+portée vaut `NA`, l'afficher laisserait croire le contraire.
+
+**`hstat_code_kwic()` — le motif de l'utilisateur est échappé par défaut.**
+Taper « prix (cher) » ne doit ni lever « unmatched parenthesis » ni chercher un
+groupe de capture. En mode `regex = TRUE`, une expression invalide rend zéro
+ligne : elle lève tantôt une **erreur**, tantôt un simple **avertissement**, et
+ne rattraper que l'erreur laissait passer le second dans la console.
+
+**`hstat_code_codeline()` — la position est en pourcentage, pas en caractères.**
+C'est tout l'intérêt : deux réponses de longueurs très différentes deviennent
+comparables. Un document vide garde des positions finies au lieu de produire
+des `Inf` silencieux par division par zéro.
+
+**`hstat_code_accord()` — l'unité est le couple document × code.** Deux codeurs
+ne découpent jamais aux mêmes bornes ; comparer des segments exigerait un seuil
+de recouvrement arbitraire qui ferait varier le résultat plus que le désaccord
+réel. Seuls les documents que **les deux** ont vus comptent — sinon l'absence
+de codage d'un document jamais ouvert passerait pour un désaccord.
+
+Kappa n'est **pas toujours défini** : si les deux codeurs posent (ou omettent)
+tout partout, l'accord attendu par hasard vaut 1, le dénominateur s'annule et
+kappa rend `NaN`. Brancher dessus lèverait « missing value where TRUE/FALSE
+needed ». D'où le quatrième état `indeterminable`, et l'affichage du
+pourcentage d'accord, lui toujours calculable.
+
+### Le codeur fait partie de l'identité d'un segment
+
+`hstat_seg_add()` refusait un doublon sur (document, code, bornes) **sans le
+codeur**. Deux codeurs qui étiquettent le même passage à l'identique — c'est-à-
+dire l'accord parfait, le cas le plus courant — voyaient le second codage
+silencieusement écarté, et l'accord inter-codeurs portait sur un corpus amputé.
+Le test de doublon inclut donc `source`, ce qui préserve l'intention d'origine :
+un double-dépôt accidentel du **même** codeur ne gonfle toujours pas les
+effectifs.
+
 **Les mémos** (`hstat_memo_*`) portent sur un code, un document, un segment, ou
 rien (mémo libre). C'est la pièce qui transforme un codage en analyse. Le mémo
 de code existait déjà comme colonne du livre de codes : il y reste, et

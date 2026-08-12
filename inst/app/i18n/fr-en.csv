@@ -321,3 +321,23 @@ Sélectionnez exactement une variable pour saisir ses valeurs.,Select exactly on
 La saisie une à une porte sur une seule variable à la fois.,Entering values one by one applies to a single variable at a time.
 Aucune variable sélectionnée : choisissez-en au moins une dans la liste.,No variable selected: pick at least one from the list.
 Toutes les valeurs sont nulles : la variable n'apporte aucune information.,Every value is zero: the variable carries no information.
+Requete combinee,Complex query
+Concordancier,Concordance
+Portrait du document,Document portrait
+Accord inter-codeurs,Intercoder agreement
+Ensemble A,Set A
+Ensemble B,Set B
+Operateur,Operator
+Portee,Scope
+Meme document,Same document
+Meme passage,Same passage
+A proximite,Nearby
+Distance (caracteres),Distance (characters)
+Mot ou expression,Word or phrase
+Contexte (caracteres),Context (characters)
+Interpreter comme expression reguliere,Treat as a regular expression
+Respecter la casse,Match case
+Codeur A,Coder A
+Codeur B,Coder B
+Choisissez deux codeurs differents.,Choose two different coders.
+Aucun document code pour l'instant.,No document coded yet.
