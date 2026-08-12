@@ -4461,6 +4461,135 @@ test_that("la langue est propre a la session, jamais globale", {
 # nom que le gestionnaire n'a pas lui-meme defini.
 # ===========================================================================
 
+# ===========================================================================
+# VARIABLES A VALEURS NULLES
+# ---------------------------------------------------------------------------
+# Une colonne dont toutes les valeurs observees valent zero a une variance
+# nulle : ni correlation, ni test. Elle vient presque toujours d'un export ou
+# le zero signifie « non mesure », d'ou les deux gestes offerts — corriger les
+# valeurs, ou retirer la variable.
+#
+# Les trois cas limites ci-dessous ont ete constates a l'ecran pendant la mise
+# au point, et chacun se trompait dans le sens SILENCIEUX : la colonne
+# disparaissait du diagnostic au lieu d'y figurer avec le bon libelle.
+# ===========================================================================
+
+test_that("seules les colonnes reellement nulles sont listees", {
+  d <- data.frame(
+    tout_zero  = c(0, 0, 0, 0),
+    zero_et_na = c(0, NA, 0, 0),
+    texte_zero = c("0", "0,0", "0", "0"),   # un CSV livre couramment des "0"
+    presque    = c(0, 0, 0, 5),
+    normale    = c(1, 2, 3, 4),
+    mot        = c("a", "b", "c", "d"),
+    stringsAsFactors = FALSE)
+  z <- hstat_vars_zero(d)
+  expect_equal(sort(z$Variable), c("texte_zero", "tout_zero", "zero_et_na"))
+
+  # Les manquants ne comptent pas comme des zeros : la colonne les annonce a
+  # cote, au lieu de melanger « mesure a zero » et « pas de mesure ».
+  l <- z[z$Variable == "zero_et_na", ]
+  expect_equal(l$Observations, 3L)
+  expect_equal(l$Zeros, 3L)
+  expect_equal(l$Manquants, 1L)
+  expect_true(grepl("non mesure", l$Constat))
+
+  # La virgule decimale francaise est comprise.
+  expect_equal(z[z$Variable == "texte_zero", ]$Zeros, 4L)
+})
+
+test_that("le seuil ouvre la liste aux variables quasi nulles", {
+  d <- data.frame(presque = c(0, 0, 0, 5), tout = c(0, 0, 0, 0))
+  expect_equal(hstat_vars_zero(d, seuil = 1)$Variable, "tout")
+  expect_equal(sort(hstat_vars_zero(d, seuil = 0.7)$Variable), c("presque", "tout"))
+  # Un seuil illisible ne doit pas faire tomber le diagnostic : on revient au
+  # cas strict plutot que d'echouer.
+  expect_equal(hstat_vars_zero(d, seuil = "abc")$Variable, "tout")
+})
+
+test_that("une colonne vide n'est pas une colonne de zeros, et elle est nommee", {
+  # Les trois formes sous lesquelles une colonne sans valeur se presente :
+  # typee LOGIQUE par les lecteurs de CSV, numerique tout-NA, ou remplie de
+  # chaines vides (Excel, exports SPSS). Les trois etaient perdues.
+  d <- data.frame(vide_logique = as.logical(c(NA, NA, NA)),
+                  vide_num     = as.numeric(c(NA, NA, NA)),
+                  vide_txt     = c("", " ", NA),
+                  zero         = c(0, 0, 0),
+                  stringsAsFactors = FALSE)
+  z <- hstat_vars_zero(d)
+  expect_equal(z$Variable, "zero")
+  expect_equal(sort(attr(z, "vides")),
+               c("vide_logique", "vide_num", "vide_txt"))
+})
+
+test_that("un booleen renseigne n'est pas une mesure a zero", {
+  # FALSE vaut bien 0 en arithmetique, mais une colonne de « non » est une
+  # reponse : la ranger ici ferait proposer d'en « corriger les valeurs ».
+  d <- data.frame(drapeau = c(FALSE, FALSE, FALSE), zero = c(0, 0, 0))
+  expect_equal(hstat_vars_zero(d)$Variable, "zero")
+})
+
+test_that("hstat_vars_zero encaisse les entrees degenerees", {
+  for (x in list(data.frame(), NULL, "texte", 42))
+    expect_silent(z <- hstat_vars_zero(x))
+  expect_equal(nrow(hstat_vars_zero(data.frame())), 0L)
+  expect_equal(attr(hstat_vars_zero(NULL), "vides"), character(0))
+})
+
+test_that("la saisie des valeurs refuse tout decompte qui decalerait les lignes", {
+  # Une liste plus courte ou plus longue que la colonne decalerait
+  # silencieusement toutes les observations : c'est pire que de refuser.
+  ok <- hstat_zero_valeurs_parse("1\n2\n3\n4", 4)
+  expect_true(ok$ok)
+  expect_equal(ok$valeurs, c(1, 2, 3, 4))
+
+  court <- hstat_zero_valeurs_parse("1;2;3", 4)
+  expect_false(court$ok)
+  expect_true(grepl("3 valeur", court$message))
+  expect_true(grepl("ajustez", court$message))       # cause PUIS geste
+
+  expect_false(hstat_zero_valeurs_parse("1\n2\n3\n4\n5", 4)$ok)
+
+  # Un retour a la ligne final ne compte pas pour une valeur de plus.
+  expect_true(hstat_zero_valeurs_parse("1\n2\n3\n4\n", 4)$ok)
+
+  # LA VIRGULE EST UNE DECIMALE, PAS UN SEPARATEUR. Elle ne peut pas etre les
+  # deux : « 2,5 » est la facon francaise d'ecrire deux et demi, et la traiter
+  # en separateur en faisait deux valeurs — donc un decompte faux, donc un
+  # refus incomprehensible. Separateurs : retour a la ligne et point-virgule.
+  na <- hstat_zero_valeurs_parse("1; 2,5; NA; 4", 4)
+  expect_true(na$ok)
+  expect_equal(na$valeurs, c(1, 2.5, NA, 4))
+  expect_equal(hstat_zero_valeurs_parse("0,5\n1,25", 2)$valeurs, c(0.5, 1.25))
+
+  mauvais <- hstat_zero_valeurs_parse("1\n2\nabc\n4", 4)
+  expect_false(mauvais$ok)
+  expect_true(grepl("position 3", mauvais$message))
+  expect_true(grepl("abc", mauvais$message))
+
+  expect_false(hstat_zero_valeurs_parse("", 4)$ok)
+  expect_false(hstat_zero_valeurs_parse("1", 0)$ok)
+  expect_false(hstat_zero_valeurs_parse(NULL, 3)$ok)
+})
+
+test_that("le module de nettoyage porte bien l'etape des variables nulles", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  m <- paste(readLines(file.path(root, "inst", "app", "mod_clean.R"),
+                       warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("hstat_vars_zero", m, fixed = TRUE))
+  expect_true(grepl("hstat_zero_valeurs_parse", m, fixed = TRUE))
+  # Les quatre gestes offerts a l'utilisateur
+  for (a in c('"na"', '"valeur"', '"saisie"', '"supprimer"'))
+    expect_true(grepl(a, m, fixed = TRUE), info = a)
+  # `transformationLog` est un registre TYPE, relu champ par champ pour
+  # inverser les transformations : y deposer une phrase casserait son
+  # affichage. Le geste passe par le registre d'analyses.
+  expect_false(grepl("transformationLog <- c(", m, fixed = TRUE))
+  expect_true(grepl("Variables a valeurs nulles", m, fixed = TRUE))
+})
+
+
 test_that("le <<- est bien ce qui distingue les deux cas", {
   # La semantique en cause, rendue executable : sans `<<-`, la ligne d'erreur
   # n'existe tout simplement pas dans la liste de l'appelant.

@@ -617,6 +617,64 @@ mod_clean_ui <- function(id) {
                 )
               ),
 
+              # Étape 7: Variables entièrement nulles
+              fluidRow(
+                box(
+                  title = tagList(
+                    tags$span(class = "badge bg-red",
+                              style = "font-size: 14px; margin-right: 10px;", "7"),
+                    icon("circle-notch"),
+                    "Variables à valeurs nulles"
+                  ),
+                  status = "primary", width = 12, solidHeader = TRUE,
+                  collapsible = TRUE, collapsed = TRUE,
+                  fluidRow(
+                    column(7,
+                      div(style = "background-color:#fdedec;padding:15px;border-radius:5px;",
+                        radioButtons(ns("zeroSeuil"), tagList(icon("filter"), " Variables à lister"),
+                          choiceNames = list(
+                            HTML("<b>Entièrement nulles</b> <small style='color:#7f8c8d;'>(toutes les valeurs observées valent 0)</small>"),
+                            HTML("<b>Quasi nulles</b> <small style='color:#7f8c8d;'>(au moins 90 % de zéros)</small>")),
+                          choiceValues = list("1", "0.9"), selected = "1"),
+                        uiOutput(ns("zeroVarsResume")),
+                        div(style = "overflow-x:auto;max-width:100%;",
+                            tableOutput(ns("zeroVarsTable"))),
+                        uiOutput(ns("zeroVarsVides")),
+                        p(style = "font-size:11px;color:#7f8c8d;font-style:italic;margin-top:6px;",
+                          icon("info-circle"),
+                          " Une variable dont toutes les valeurs valent 0 a une variance nulle : ",
+                          "aucune corrélation ni test statistique n'est calculable sur elle. ",
+                          "Les colonnes logiques (vrai/faux) ne sont pas listées : un « non » est une réponse, pas une mesure à zéro.")
+                      )
+                    ),
+                    column(5,
+                      div(style = "background-color:#fff;padding:15px;border-radius:5px;border:2px solid #c0392b;",
+                        h5(icon("wrench"), " Corriger ou retirer", style = "color:#c0392b;margin-top:0;"),
+                        uiOutput(ns("zeroVarsSelect")),
+                        radioButtons(ns("zeroAction"), tagList(icon("sliders-h"), " Que faire ?"),
+                          choiceNames = list(
+                            HTML("<b>Déclarer les 0 manquants</b> <small style='color:#7f8c8d;'>(remplacer par NA)</small>"),
+                            HTML("<b>Remplacer les 0 par une valeur</b>"),
+                            HTML("<b>Saisir les valeurs une à une</b> <small style='color:#7f8c8d;'>(une seule variable)</small>"),
+                            HTML("<b>Supprimer les variables</b> <small style='color:#7f8c8d;'>(définitif sur les données de travail)</small>")),
+                          choiceValues = list("na", "valeur", "saisie", "supprimer"),
+                          selected = "na"),
+                        conditionalPanel(
+                          condition = sprintf("input['%s'] == 'valeur'", ns("zeroAction")),
+                          numericInput(ns("zeroRemplacement"), "Valeur de remplacement :", value = NA)),
+                        conditionalPanel(
+                          condition = sprintf("input['%s'] == 'saisie'", ns("zeroAction")),
+                          uiOutput(ns("zeroSaisieUI"))),
+                        div(style = "margin-top:12px;",
+                          actionButton(ns("applyZero"), tagList(icon("check"), " Appliquer"),
+                                       class = "btn-primary")),
+                        uiOutput(ns("zeroMessage"))
+                      )
+                    )
+                  )
+                )
+              ),
+
               fluidRow(
                 box(
                   title = tagList(
@@ -1713,6 +1771,189 @@ mod_clean_server <- function(id, values) {
     showNotification(tagList(icon("check"),
       sprintf(" Traitement appliqué (%d valeur(s)/ligne(s) affectée(s)).", n_changed)),
       type = "message", duration = 4)
+  })
+
+  # =========================================================================
+  # VARIABLES A VALEURS NULLES
+  # -------------------------------------------------------------------------
+  # La liste se recalcule sur `values$cleanData` : elle dit l'etat REEL des
+  # donnees de travail apres chaque geste, sans bouton « rafraichir » qui
+  # pourrait afficher un diagnostic perime.
+  # =========================================================================
+  zero_message <- reactiveVal(NULL)
+
+  zero_table <- reactive({
+    d <- values$cleanData
+    if (is.null(d) || !NCOL(d)) return(NULL)
+    s <- suppressWarnings(as.numeric(input$zeroSeuil %||% "1"))
+    if (!is.finite(s)) s <- 1
+    tryCatch(hstat_vars_zero(d, seuil = s), error = function(e) NULL)
+  })
+
+  output$zeroVarsResume <- renderUI({
+    z <- zero_table()
+    if (is.null(z)) return(p(style = "color:#999;font-style:italic;",
+                             "Chargez des données pour lancer le diagnostic."))
+    if (!nrow(z))
+      return(div(class = "alert alert-success", style = "padding:8px;",
+                 icon("check-circle"),
+                 " Aucune variable concernée : toutes les variables numériques portent au moins une valeur non nulle."))
+    p(tags$b(nrow(z)), sprintf(" variable(s) sur %s concernée(s).", NCOL(values$cleanData)))
+  })
+
+  output$zeroVarsTable <- renderTable({
+    z <- zero_table()
+    if (is.null(z) || !nrow(z)) return(NULL)
+    z
+  }, striped = TRUE, bordered = TRUE, spacing = "xs", width = "auto",
+     align = "llrrrrl", digits = 2)
+
+  # Une colonne entierement vide n'est pas une colonne de zeros : la taire
+  # laisserait croire qu'elle va bien.
+  output$zeroVarsVides <- renderUI({
+    z <- zero_table()
+    v <- if (is.null(z)) character(0) else attr(z, "vides")
+    if (!length(v)) return(NULL)
+    div(class = "alert alert-warning", style = "padding:8px;margin-top:8px;",
+        icon("exclamation-triangle"),
+        sprintf(" %s variable(s) entièrement vide(s), sans aucune valeur observée : ", length(v)),
+        tags$b(paste(v, collapse = ", ")),
+        ". Ce ne sont pas des zéros : il n'y a rien à comparer à zéro.")
+  })
+
+  output$zeroVarsSelect <- renderUI({
+    z <- zero_table()
+    if (is.null(z) || !nrow(z))
+      return(p(style = "color:#999;font-style:italic;", "Rien à corriger."))
+    selectInput(ns("zeroVars"), "Variables à traiter :", choices = z$Variable,
+                selected = NULL, multiple = TRUE, selectize = TRUE)
+  })
+
+  # Saisie directe : la zone est PRE-REMPLIE avec les valeurs actuelles, pour
+  # que l'utilisateur corrige au lieu de tout retaper -- et pour que le nombre
+  # de lignes attendu soit visible d'emblee.
+  output$zeroSaisieUI <- renderUI({
+    v <- input$zeroVars
+    d <- values$cleanData
+    if (is.null(d) || length(v) != 1)
+      return(div(class = "alert alert-info", style = "padding:8px;",
+                 icon("info-circle"),
+                 " Sélectionnez exactement une variable pour saisir ses valeurs."))
+    if (NROW(d) > 500)
+      return(div(class = "alert alert-warning", style = "padding:8px;",
+                 icon("exclamation-triangle"),
+                 sprintf(" %s observations : la saisie une à une n'est pas praticable. ", NROW(d)),
+                 "Utilisez le remplacement par une valeur, ou corrigez le fichier source."))
+    x <- d[[v]]
+    txt <- paste(ifelse(is.na(x), "NA", as.character(x)), collapse = "\n")
+    tagList(
+      textAreaInput(ns("zeroSaisie"),
+                    sprintf("Valeurs (%s lignes attendues, une par ligne) :", NROW(d)),
+                    value = txt, rows = 10, width = "100%"),
+      tags$small(style = "color:#7f8c8d;",
+                 "Une valeur par ligne (ou séparées par des points-virgules). Écrivez NA pour une valeur manquante ; la virgule décimale est acceptée."))
+  })
+
+  output$zeroMessage <- renderUI({
+    m <- zero_message()
+    if (is.null(m)) return(NULL)
+    div(class = paste("alert", if (isTRUE(m$ok)) "alert-success" else "alert-danger"),
+        style = "padding:8px;margin-top:10px;",
+        icon(if (isTRUE(m$ok)) "check" else "exclamation-triangle"), " ", m$texte)
+  })
+
+  observeEvent(input$applyZero, {
+    d <- values$cleanData
+    if (is.null(d)) {
+      zero_message(list(ok = FALSE, texte = "Aucune donnée chargée.")); return()
+    }
+    vars <- intersect(input$zeroVars %||% character(0), names(d))
+    if (!length(vars)) {
+      zero_message(list(ok = FALSE,
+        texte = "Aucune variable sélectionnée : choisissez-en au moins une dans la liste."))
+      return()
+    }
+    action <- input$zeroAction %||% "na"
+    # Le tableau est preleve AVANT le geste : c'est le diagnostic qui l'a
+    # motive. Apres coup, les variables corrigees en ont disparu.
+    zt <- zero_table()
+
+    if (action == "saisie" && length(vars) != 1) {
+      zero_message(list(ok = FALSE,
+        texte = "La saisie une à une porte sur une seule variable à la fois."))
+      return()
+    }
+    # Les refus de saisie sont deja des phrases francaises actionnables : les
+    # faire passer par hstat_err_fr() les ferait annoncer « message renvoye par
+    # R (non traduit) », ce qui est faux et deroutant. hstat_err_fr reste pour
+    # les erreurs qui viennent REELLEMENT de R, plus bas.
+    val <- NA_real_; saisie <- NULL
+    if (action == "valeur") {
+      val <- suppressWarnings(as.numeric(input$zeroRemplacement)[1])
+      if (!is.finite(val)) {
+        zero_message(list(ok = FALSE,
+          texte = "Entrez une valeur de remplacement numérique."))
+        return()
+      }
+    } else if (action == "saisie") {
+      saisie <- hstat_zero_valeurs_parse(input$zeroSaisie, NROW(d))
+      if (!isTRUE(saisie$ok)) {
+        zero_message(list(ok = FALSE, texte = saisie$message)); return()
+      }
+    }
+
+    res <- tryCatch({
+      if (action == "supprimer") {
+        d <- d[, setdiff(names(d), vars), drop = FALSE]
+        list(ok = TRUE, texte = sprintf("%s variable(s) supprimée(s) : %s.",
+                                        length(vars), paste(vars, collapse = ", ")))
+      } else if (action == "na") {
+        n <- 0L
+        for (cn in vars) {
+          x <- hstat_as_numeric_fr(d[[cn]])
+          if (is.null(x)) next
+          idx <- which(!is.na(x) & x == 0)
+          n <- n + length(idx)
+          x[idx] <- NA_real_
+          d[[cn]] <- x
+        }
+        list(ok = TRUE, texte = sprintf("%s zéro(s) déclaré(s) manquant(s) sur %s variable(s).",
+                                        n, length(vars)))
+      } else if (action == "valeur") {
+        n <- 0L
+        for (cn in vars) {
+          x <- hstat_as_numeric_fr(d[[cn]])
+          if (is.null(x)) next
+          idx <- which(!is.na(x) & x == 0)
+          n <- n + length(idx)
+          x[idx] <- val
+          d[[cn]] <- x
+        }
+        list(ok = TRUE, texte = sprintf("%s zéro(s) remplacé(s) par %s sur %s variable(s).",
+                                        n, val, length(vars)))
+      } else {
+        d[[vars[1]]] <- saisie$valeurs
+        list(ok = TRUE, texte = sprintf("« %s » : %s valeur(s) enregistrée(s).",
+                                        vars[1], NROW(d)))
+      }
+    }, error = function(e) list(ok = FALSE, texte = hstat_err_fr(e)))
+
+    if (!isTRUE(res$ok)) { zero_message(res); return() }
+
+    values$cleanData <- d
+    values$filteredData <- d
+    # `transformationLog` est un registre TYPE : ses entrees sont relues champ
+    # par champ (methode, lambda) pour inverser les transformations. Y deposer
+    # une phrase casserait son affichage. Le geste est donc capture ici, la ou
+    # il a reellement eu lieu.
+    hstat_ai_capture(values, "Nettoyage", "Variables a valeurs nulles",
+      tables = list("Variables concernees" = zt),
+      text = res$texte,
+      meta = list(action = action, variables = paste(vars, collapse = ", "),
+                  observations = NROW(d)))
+    zero_message(res)
+    showNotification(tagList(icon("check"), " ", res$texte),
+                     type = "message", duration = 4)
   })
 
   # =========================================================================

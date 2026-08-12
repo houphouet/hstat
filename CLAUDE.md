@@ -297,6 +297,50 @@ de `HSTAT_REPORT_SECTIONS` (`"donnees"`, `"qualite"`…), pas ses noms, qui sont
 les libellés affichés. Passer les noms vidait le rapport **en silence** — seul
 l'en-tête sortait.
 
+## Variables à valeurs nulles : trois frontières, trois pièges
+
+`hstat_vars_zero()` liste les colonnes dont **toutes les valeurs observées**
+valent zéro — variance nulle, donc ni corrélation ni test. Le module de
+nettoyage (étape 7) en propose quatre gestes : déclarer les zéros manquants,
+les remplacer par une valeur, ressaisir les valeurs, supprimer les variables.
+
+Trois cas limites, chacun constaté à l'écran et chacun fautif **dans le sens
+silencieux** — la colonne disparaissait du diagnostic au lieu d'y figurer :
+
+1. **Une colonne vide n'est pas une colonne de zéros.** Sans observation, il
+   n'y a rien à comparer à zéro. Elle ressort dans `attr(res, "vides")`, que
+   l'interface nomme à part. Et elle se présente sous **trois** formes : typée
+   `logical` par les lecteurs de CSV, numérique tout-`NA`, ou remplie de
+   chaînes vides (Excel, exports SPSS). Tester `is.na()` seul en laissait
+   passer une, et placer l'exclusion des booléens avant en supprimait une
+   autre.
+2. **Les manquants ne comptent pas comme des zéros.** Une colonne `0/0/NA/0`
+   est nulle sur ce qu'elle montre ; la colonne `Manquants` le dit à côté,
+   plutôt que de mélanger « mesuré à zéro » et « pas de mesure ».
+3. **Un booléen renseigné est écarté.** `FALSE` vaut bien 0 en arithmétique,
+   mais une colonne de « non » est une réponse, pas une mesure : la ranger ici
+   ferait proposer d'en « corriger les valeurs ».
+
+### La virgule est une décimale, pas un séparateur
+
+`hstat_zero_valeurs_parse()` ne peut pas lui donner les deux rôles : dans une
+application française, « 2,5 » est la façon normale d'écrire deux et demi, et
+la traiter en séparateur en faisait **deux** valeurs — donc un décompte faux,
+donc un refus incompréhensible. Les séparateurs sont le retour à la ligne et
+le point-virgule, exactement la convention du CSV français, qui existe pour
+cette raison.
+
+Le décompte est **vérifié** : une liste plus courte ou plus longue que la
+colonne décalerait silencieusement toutes les observations. Refuser la saisie
+vaut mieux.
+
+### Ne pas écrire dans `transformationLog`
+
+C'est un registre **typé** : ses entrées sont relues champ par champ
+(`method`, `lambda`) pour inverser les transformations, et `entry$label` sur
+une chaîne lève « $ operator is invalid for atomic vectors ». Un geste de
+nettoyage se dépose donc par `hstat_ai_capture()`, pas là. Un test le garde.
+
 ## Réinitialisation : exhaustive par construction, jamais par énumération
 
 `hstat_valeurs_initiales()` (`Utils.R`) est la **source unique** de l'état de

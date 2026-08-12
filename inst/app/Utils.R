@@ -3301,6 +3301,138 @@ hstat_sql_path <- function(path) {
   gsub("'", "''", gsub("\\\\", "/", path))
 }
 
+# =============================================================================
+#  VARIABLES ENTIEREMENT NULLES
+# -----------------------------------------------------------------------------
+#  Une colonne dont TOUTES les valeurs observees valent zero ne porte aucune
+#  information : variance nulle, correlation indefinie, aucun test possible.
+#  Elle vient presque toujours d'un export ou d'un questionnaire ou le zero
+#  signifie « non mesure » plutot que « mesure a zero » -- d'ou les deux gestes
+#  offerts a l'utilisateur : corriger les valeurs, ou retirer la variable.
+#
+#  TROIS DECISIONS, CHACUNE TESTEE
+#
+#  1. LES MANQUANTS NE COMPTENT PAS COMME DES ZEROS. Une colonne 0/0/NA/0 est
+#     nulle sur ce qu'elle montre ; la colonne des manquants le dit a cote, au
+#     lieu de melanger « mesure a zero » et « pas de mesure ».
+#
+#  2. UNE COLONNE ENTIEREMENT VIDE N'EST PAS UNE COLONNE DE ZEROS. Sans
+#     observation, il n'y a rien a comparer a zero. L'annoncer comme nulle
+#     serait faux, et la taire serait trompeur : elle ressort dans l'attribut
+#     "vides", que l'interface nomme separement.
+#
+#  3. LES BOOLEENS SONT ECARTES. `FALSE` vaut bien 0 en arithmetique, mais une
+#     colonne de « non » est une reponse, pas une mesure a zero ; la ranger ici
+#     ferait proposer d'en « corriger les valeurs ».
+#
+#  Le texte lu comme nombre passe par hstat_as_numeric_fr() : un CSV importe
+#  livre couramment des "0" en chaine, et la virgule decimale francaise doit
+#  etre comprise ("0,0").
+# =============================================================================
+hstat_vars_zero <- function(df, seuil = 1) {
+  vide <- data.frame(Variable = character(0), Type = character(0),
+                     Observations = integer(0), Zeros = integer(0),
+                     `Zeros (%)` = numeric(0), Manquants = integer(0),
+                     Constat = character(0),
+                     check.names = FALSE, stringsAsFactors = FALSE)
+  if (!is.data.frame(df) || !ncol(df)) {
+    attr(vide, "vides") <- character(0)
+    return(vide)
+  }
+  seuil <- suppressWarnings(as.numeric(seuil)[1])
+  if (!is.finite(seuil)) seuil <- 1
+
+  lignes <- list(); vides <- character(0)
+  for (cn in names(df)) {
+    x <- df[[cn]]
+    # Decision 2 AVANT la 3, et sur le TEXTE VIDE autant que sur NA. Une
+    # colonne sans valeur arrive tantot typee LOGIQUE (lecteurs de CSV), tantot
+    # remplie de chaines vides (Excel, exports SPSS). Tester `is.na()` seul en
+    # laissait passer la moitie, et le test des booleens place avant faisait
+    # disparaitre l'autre : dans les deux cas, en silence.
+    plat <- if (is.character(x) || is.factor(x)) trimws(as.character(x)) else x
+    if (all(is.na(plat) | (is.character(plat) & !nzchar(plat)))) {
+      vides <- c(vides, cn); next
+    }
+    # Decision 3 : un booleen renseigne est une reponse, pas une mesure.
+    if (is.logical(x)) next
+    num <- if (is.numeric(x)) as.numeric(x) else hstat_as_numeric_fr(x)
+    if (is.null(num)) next                       # colonne non numerisable
+    n_na <- sum(is.na(num))
+    obs <- num[!is.na(num)]
+    if (!length(obs)) { vides <- c(vides, cn); next }
+    n_zero <- sum(obs == 0)
+    part <- n_zero / length(obs)
+    if (part < seuil) next
+    lignes[[length(lignes) + 1L]] <- data.frame(
+      Variable = cn,
+      Type = if (is.numeric(x)) "numerique" else class(x)[1],
+      Observations = length(obs),
+      Zeros = n_zero,
+      `Zeros (%)` = round(part * 100, 2),
+      Manquants = n_na,
+      Constat = if (part >= 1 && n_na == 0)
+        "Toutes les valeurs sont nulles : la variable n'apporte aucune information."
+      else if (part >= 1)
+        sprintf(paste0("Toutes les valeurs observees sont nulles ; %s valeur(s) ",
+                       "manquante(s). Verifiez si le zero signifie ici ",
+                       "« non mesure »."), n_na)
+      else
+        sprintf("%s %% des valeurs observees sont nulles.", round(part * 100, 2)),
+      check.names = FALSE, stringsAsFactors = FALSE)
+  }
+  res <- if (length(lignes)) do.call(rbind, lignes) else vide
+  attr(res, "vides") <- vides
+  res
+}
+
+# -- Saisie directe des valeurs d'une variable --------------------------------
+# « Editer les valeurs » d'une colonne entierement nulle, c'est le plus souvent
+# ressaisir les vraies mesures.
+#
+# LA VIRGULE EST UNE DECIMALE, PAS UN SEPARATEUR. Elle ne peut pas etre les
+# deux : dans une application francaise, « 2,5 » est la facon normale d'ecrire
+# deux et demi, et la traiter en separateur en faisait DEUX valeurs -- donc un
+# decompte faux, donc un refus incomprehensible. Les separateurs sont le retour
+# a la ligne et le point-virgule, exactement la convention du CSV francais, qui
+# existe pour cette raison.
+#
+# Le decompte est VERIFIE : une liste plus courte ou plus longue que la colonne
+# decalerait silencieusement toutes les observations, ce qui est pire que de
+# refuser la saisie. "NA" et une entree vide valent manquant.
+# Rend list(ok, valeurs, message).
+hstat_zero_valeurs_parse <- function(txt, n) {
+  n <- suppressWarnings(as.integer(n)[1])
+  if (!is.finite(n) || n < 1)
+    return(list(ok = FALSE, valeurs = NULL,
+                message = "Aucune ligne a remplir : chargez des donnees."))
+  if (is.null(txt) || !length(txt)) txt <- ""
+  brut <- unlist(strsplit(paste(txt, collapse = "\n"), "[\n;]"))
+  brut <- trimws(brut)
+  # Une saisie se termine souvent par un retour a la ligne : la case vide
+  # finale ne doit pas etre comptee comme une valeur manquante de plus.
+  while (length(brut) && !nzchar(brut[length(brut)])) brut <- brut[-length(brut)]
+  if (!length(brut))
+    return(list(ok = FALSE, valeurs = NULL,
+                message = "Saisie vide : entrez une valeur par ligne."))
+  if (length(brut) != n)
+    return(list(ok = FALSE, valeurs = NULL,
+                message = sprintf(paste0("%s valeur(s) saisie(s) pour %s ",
+                                         "observation(s) : ajustez la liste ",
+                                         "pour qu'elles correspondent une a une."),
+                                  length(brut), n)))
+  manquant <- !nzchar(brut) | toupper(brut) %in% c("NA", "N/A")
+  num <- suppressWarnings(as.numeric(gsub(",", ".", brut, fixed = TRUE)))
+  mauvais <- which(!manquant & is.na(num))
+  if (length(mauvais))
+    return(list(ok = FALSE, valeurs = NULL,
+                message = sprintf(paste0("Valeur non numerique en position %s ",
+                                         "(« %s ») : corrigez-la ou ecrivez NA."),
+                                  mauvais[1], brut[mauvais[1]])))
+  num[manquant] <- NA_real_
+  list(ok = TRUE, valeurs = num, message = sprintf("%s valeur(s) prise(s) en compte.", n))
+}
+
 # -- Creation de classes d'intervalles (discretisation) -----------------------
 # Transforme une variable numerique en classes (ex. classes d'age), sous forme
 # de facteur ORDONNE. Methodes : largeur egale, effectifs egaux (quantiles),

@@ -308,3 +308,16 @@ Test exact ou regression penalisee si les effectifs sont faibles.,Exact test or 
 "Test t de Welch si les variances different, Mann-Whitney sinon.","Welch's t-test if the variances differ, Mann-Whitney otherwise."
 A envisager,Worth considering
 A enchainer,Follow-up
+Variables à valeurs nulles,Zero-valued variables
+Variables à lister,Variables to list
+Corriger ou retirer,Fix or remove
+Variables à traiter :,Variables to handle:
+Que faire ?,What to do?
+Valeur de remplacement :,Replacement value:
+Rien à corriger.,Nothing to fix.
+Aucune donnée chargée.,No data loaded.
+Entrez une valeur de remplacement numérique.,Enter a numeric replacement value.
+Sélectionnez exactement une variable pour saisir ses valeurs.,Select exactly one variable to enter its values.
+La saisie une à une porte sur une seule variable à la fois.,Entering values one by one applies to a single variable at a time.
+Aucune variable sélectionnée : choisissez-en au moins une dans la liste.,No variable selected: pick at least one from the list.
+Toutes les valeurs sont nulles : la variable n'apporte aucune information.,Every value is zero: the variable carries no information.
