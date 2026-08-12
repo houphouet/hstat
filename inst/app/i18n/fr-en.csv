@@ -1175,3 +1175,22 @@ Tableau des données utilisées,Table of the data used
 Taille d'échantillon requise,Required sample size
 Visualisation des groupes,Cluster visualisation
 Visualisation Interactive des Données,Interactive data visualisation
+Calcul depuis un témoin,Computed from a control
+Efficacités calculées depuis le témoin,Efficacies computed from the control
+Valeur résumée par modalité,Summary value per category
+Variable des traitements,Treatment variable
+Modalité témoin,Control category
+Variable(s) mesurée(s),Measured variable(s)
+Grouper par (facultatif),Group by (optional)
+Calculer les efficacités,Compute the efficacies
+Utiliser comme jeu de données,Use as the data set
+Aucune autre modalité à comparer au témoin.,No other category to compare with the control.
+Aucune variable numérique à mesurer.,No numeric variable to measure.
+Calculez d'abord les efficacités.,Compute the efficacies first.
+(aucun groupement),(no grouping)
+Mediane,Median
+ %d modalité(s) seront comparées au témoin : , %d category/categories will be compared with the control: 
+%d ligne(s),%d row(s)
+" — témoin « %s », valeur résumée : %s."," — control “%s”, summary value: %s."
+ %d efficacité(s) non calculable(s) : le témoin y vaut zéro ou n'a aucune valeur mesurable.," %d efficacy value(s) cannot be computed: the control is zero there, or has no measurable value."
+" Jeu de données remplacé par le tableau des efficacités (%d lignes, %d colonnes). Les autres onglets travaillent maintenant dessus."," Data set replaced by the efficacy table (%d rows, %d columns). The other tabs now work on it."

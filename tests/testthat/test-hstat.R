@@ -4903,6 +4903,127 @@ test_that("l'atelier expose bien les quatre analyses dans l'interface", {
 
 
 # ===========================================================================
+# SEUILS D'EFFICACITE : CHAQUE MODALITE COMPAREE AU TEMOIN
+# ---------------------------------------------------------------------------
+# Formule d'Abbott : efficacite (%) = (temoin - traitement) x 100 / temoin.
+# Quatre decisions, et chacune se trompe dans un sens couteux si on l'omet.
+# ===========================================================================
+
+.hstat_essai <- function() data.frame(
+  bloc = rep(c("B1", "B2", "B3"), each = 4),
+  trt  = rep(c("Temoin", "T1", "T2", "T3"), 3),
+  degats = c(100, 40, 20, 10,  120, 48, 30, 12,  80, 32, 16, 8),
+  rdt    = c( 10, 20, 30, 40,   12, 22, 33, 44,  11, 21, 31, 41),
+  stringsAsFactors = FALSE)
+
+test_that("l'efficacite suit la formule, sur toutes les modalites", {
+  d <- .hstat_essai()
+  r <- hstat_efficacite(d, "trt", "degats", "Temoin")
+  expect_equal(nrow(r), 4L)                       # la boucle couvre TOUT
+  expect_equal(sort(r$Modalite), c("T1", "T2", "T3", "Temoin"))
+
+  # temoin = 100 ; T1 = 40  ->  (100 - 40) * 100 / 100 = 60
+  expect_equal(r$Efficacite[r$Modalite == "T1"], 60)
+  expect_equal(r$Efficacite[r$Modalite == "T2"], 78)
+  expect_equal(r$Efficacite[r$Modalite == "T3"], 90)
+
+  # LE TEMOIN VAUT ZERO PAR DEFINITION : il ne se compare pas a lui-meme.
+  expect_equal(r$Efficacite[r$Modalite == "Temoin"], 0)
+
+  # Les autres modalites, une fois le temoin choisi.
+  expect_equal(hstat_eff_modalites(d, "trt", "Temoin"), c("T1", "T2", "T3"))
+  expect_equal(length(hstat_eff_modalites(d, "trt")), 4L)
+})
+
+test_that("un temoin nul ne produit pas d'Inf silencieux", {
+  # Diviser par zero donnerait des Inf qui ressortiraient en graphique comme
+  # des barres demesurees, sans que rien ne signale l'anomalie.
+  d <- .hstat_essai(); d$degats[d$trt == "Temoin"] <- 0
+  r <- hstat_efficacite(d, "trt", "degats", "Temoin")
+  expect_true(all(is.na(r$Efficacite[r$Modalite != "Temoin"])))
+  expect_false(any(is.infinite(r$Efficacite)))
+  # Et on le DIT.
+  expect_true(grepl("temoin nul", attr(r, "message")))
+  # Le temoin, lui, reste a 0 : c'est une definition, pas un calcul.
+  expect_equal(r$Efficacite[r$Modalite == "Temoin"], 0)
+})
+
+test_that("une efficacite negative est un resultat, pas une erreur", {
+  # Elle signifie que la modalite fait MOINS BIEN que le temoin. La borner a
+  # zero masquerait precisement ce qu'il faut voir.
+  d <- .hstat_essai(); d$degats[d$trt == "T1"] <- 200
+  r <- hstat_efficacite(d, "trt", "degats", "Temoin")
+  expect_lt(r$Efficacite[r$Modalite == "T1"], 0)
+})
+
+test_that("le groupement rend l'efficacite analysable", {
+  # Sans groupement il n'y a qu'une ligne par modalite, donc plus rien a
+  # tester. Par bloc, on obtient une vraie variable.
+  d <- .hstat_essai()
+  sans <- hstat_efficacite(d, "trt", "degats", "Temoin")
+  avec <- hstat_efficacite(d, "trt", "degats", "Temoin", var_groupe = "bloc")
+  expect_equal(nrow(sans), 4L)
+  expect_equal(nrow(avec), 12L)                   # 3 blocs x 4 modalites
+  expect_true("Groupe" %in% names(avec))
+  expect_false("Groupe" %in% names(sans))         # colonne vide = information absente
+  # Dans chaque bloc, le temoin vaut toujours zero.
+  expect_true(all(avec$Efficacite[avec$Modalite == "Temoin"] == 0))
+})
+
+test_that("plusieurs variables mesurees, et les trois resumes", {
+  d <- .hstat_essai()
+  r <- hstat_efficacite(d, "trt", c("degats", "rdt"), "Temoin")
+  expect_equal(nrow(r), 8L)
+  expect_true("Variable" %in% names(r))
+  # Une seule variable : la colonne n'apprend rien, elle disparait.
+  expect_false("Variable" %in% names(hstat_efficacite(d, "trt", "degats", "Temoin")))
+
+  for (a in c("moyenne", "mediane", "somme")) {
+    x <- hstat_efficacite(d, "trt", "degats", "Temoin", agg = a)
+    expect_equal(nrow(x), 4L, info = a)
+    expect_equal(x$Efficacite[x$Modalite == "Temoin"], 0, info = a)
+  }
+  # La somme conserve le rapport quand les effectifs sont equilibres.
+  expect_equal(hstat_efficacite(d, "trt", "degats", "Temoin", agg = "somme")$Efficacite,
+               hstat_efficacite(d, "trt", "degats", "Temoin", agg = "moyenne")$Efficacite)
+})
+
+test_that("hstat_efficacite refuse clairement ce qu'elle ne peut pas faire", {
+  d <- .hstat_essai()
+  attendu <- function(x, motif) {
+    expect_equal(nrow(x), 0L)
+    expect_true(grepl(motif, attr(x, "message")), info = attr(x, "message"))
+  }
+  attendu(hstat_efficacite(NULL, "trt", "degats", "Temoin"), "Aucune donnee")
+  attendu(hstat_efficacite(data.frame(), "trt", "degats", "Temoin"), "Aucune donnee")
+  attendu(hstat_efficacite(d, "zzz", "degats", "Temoin"), "traitements")
+  attendu(hstat_efficacite(d, "trt", "zzz", "Temoin"), "au moins une variable")
+  attendu(hstat_efficacite(d, "trt", "degats", "Inexistant"), "n'existe pas")
+  # Chaque refus nomme le geste a faire : c'est la regle des messages d'erreur.
+  for (x in list(hstat_efficacite(d, "zzz", "degats", "Temoin"),
+                 hstat_efficacite(d, "trt", "degats", "Inexistant")))
+    expect_true(grepl("[Cc]hoisissez", attr(x, "message")))
+
+  expect_equal(hstat_eff_modalites(NULL, "trt"), character(0))
+  expect_equal(hstat_eff_modalites(d, "zzz"), character(0))
+})
+
+test_that("le module de seuils expose bien le calcul depuis un temoin", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  m <- paste(readLines(file.path(root, "inst", "app", "mod_threshold.R"),
+                       warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("hstat_efficacite(", m, fixed = TRUE))
+  expect_true(grepl("hstat_eff_modalites(", m, fixed = TRUE))
+  expect_true(grepl("Calcul depuis un t", m, fixed = TRUE))
+  # Le tableau doit pouvoir devenir le jeu de travail : c'est ce qui le rend
+  # utilisable par les autres onglets.
+  expect_true(grepl("effUseAsData", m, fixed = TRUE))
+  expect_true(grepl("values$filteredData <- x", m, fixed = TRUE))
+})
+
+
+# ===========================================================================
 # VARIABLES A VALEURS NULLES
 # ---------------------------------------------------------------------------
 # Une colonne dont toutes les valeurs observees valent zero a une variance

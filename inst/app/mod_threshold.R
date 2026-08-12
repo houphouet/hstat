@@ -320,6 +320,47 @@ mod_threshold_ui <- function(id) {
                         )
                     )
                         )
+                      ),
+
+                      # ---- Calcul de l'efficacite depuis un temoin ----
+                      tabPanel(tagList(icon("calculator"), " Calcul depuis un témoin"),
+                        div(style = "padding-top:14px;",
+
+                          div(style = "background-color:#e8f5e9;padding:12px 14px;border-radius:6px;border-left:4px solid #27ae60;font-size:13px;",
+                              icon("flask", style = "color:#27ae60;"),
+                              strong(" Formule d'Abbott. "),
+                              "L'efficacité de chaque modalité est calculée par rapport au témoin :",
+                              tags$div(style = "text-align:center;margin:8px 0;font-family:monospace;font-size:14px;",
+                                       "efficacité (%) = (témoin − traitement) × 100 / témoin"),
+                              "Le témoin ne se compare pas à lui-même : son efficacité vaut ",
+                              tags$b("0"), " par définition."),
+                          br(),
+
+                          uiOutput(ns("effFactorSelect")),
+                          uiOutput(ns("effControlSelect")),
+                          uiOutput(ns("effOtherLevels")),
+                          uiOutput(ns("effResponseSelect")),
+
+                          fluidRow(
+                            column(6,
+                              selectInput(ns("effAgg"), "Valeur résumée par modalité",
+                                          choices = HSTAT_EFF_AGG, selected = "moyenne")),
+                            column(6, uiOutput(ns("effGroupSelect")))),
+
+                          div(style = "background-color:#fff9e6;padding:10px 12px;border-radius:6px;border-left:4px solid #f39c12;font-size:12px;",
+                              icon("lightbulb", style = "color:#f39c12;"),
+                              em(" Grouper par répétition (bloc, essai, site) donne une efficacité ",
+                                 "par répétition — donc une vraie variable, analysable ensuite par ",
+                                 "ANOVA ou comparaisons multiples. Sans groupement, il n'y a qu'une ",
+                                 "ligne par modalité et plus rien à tester.")),
+                          br(),
+
+                          actionButton(ns("effCompute"),
+                                       tagList(icon("calculator"), " Calculer les efficacités"),
+                                       class = "btn-success btn-block"),
+                          br(),
+                          uiOutput(ns("effMessage"))
+                        )
                       )
                     )
                 ),
@@ -390,6 +431,33 @@ mod_threshold_ui <- function(id) {
                 )
               ),
               
+              fluidRow(
+                box(title = tagList(icon("calculator"), " Efficacités calculées depuis le témoin"),
+                    status = "success", width = 12, solidHeader = TRUE,
+                    collapsible = TRUE, collapsed = TRUE,
+
+                    uiOutput(ns("effResume")),
+                    DTOutput(ns("effTable")),
+                    br(),
+                    fluidRow(
+                      column(4, downloadButton(ns("effDownloadCsv"),
+                                               tagList(icon("file-csv"), " Télécharger (CSV)"),
+                                               class = "btn-info btn-block")),
+                      column(4, downloadButton(ns("effDownloadXlsx"),
+                                               tagList(icon("file-excel"), " Télécharger (Excel)"),
+                                               class = "btn-success btn-block")),
+                      column(4, actionButton(ns("effUseAsData"),
+                                             tagList(icon("right-left"), " Utiliser comme jeu de données"),
+                                             class = "btn-warning btn-block"))),
+                    br(),
+                    div(style = "background-color:#fdedec;padding:10px 12px;border-radius:6px;border-left:4px solid #c0392b;font-size:12px;",
+                        icon("triangle-exclamation", style = "color:#c0392b;"),
+                        em(" « Utiliser comme jeu de données » REMPLACE le jeu de travail par ce ",
+                           "tableau, pour l'analyser dans les autres onglets. Le fichier d'origine ",
+                           "n'est pas modifié : rechargez-le pour revenir en arrière."))
+                )
+              ),
+
               fluidRow(
                 box(title = tagList(icon("table"), " Tableau des données utilisées"), 
                     status = "info", width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = FALSE,
@@ -469,6 +537,185 @@ mod_threshold_server <- function(id, values) {
     updateCheckboxInput(session, "thresholdMultipleY", value = FALSE)
     tryCatch(shinyjs::reset("thresholdValue"), error = function(e) NULL)
   }, ignoreInit = TRUE)
+
+  # =========================================================================
+  # CALCUL DE L'EFFICACITE DEPUIS UN TEMOIN (formule d'Abbott)
+  # -------------------------------------------------------------------------
+  # Le module tracait des courbes a partir d'une variable d'efficacite DEJA
+  # calculee ailleurs. Ici, elle est calculee dans l'application : on choisit
+  # la modalite temoin, et toutes les autres lui sont comparees en boucle.
+  # =========================================================================
+  eff_res <- reactiveVal(NULL)
+
+  output$effFactorSelect <- renderUI({
+    d <- values$filteredData
+    validate(need(!is.null(d) && NROW(d), "Chargez d'abord un jeu de données."))
+    cand <- names(d)[vapply(d, function(x)
+      is.character(x) || is.factor(x) || length(unique(x[!is.na(x)])) <= 30,
+      logical(1))]
+    if (!length(cand)) cand <- names(d)
+    selectInput(ns("effFactor"), tagList(icon("layer-group"), " Variable des traitements"),
+                choices = cand, selected = isolate(input$effFactor) %||% cand[1])
+  })
+
+  output$effControlSelect <- renderUI({
+    d <- values$filteredData
+    req(d, input$effFactor)
+    m <- hstat_eff_modalites(d, input$effFactor)
+    validate(need(length(m) >= 2,
+      "Cette variable ne porte pas au moins deux modalités : le témoin ne pourrait être comparé à rien."))
+    selectInput(ns("effControl"), tagList(icon("vial"), " Modalité témoin"),
+                choices = m, selected = isolate(input$effControl) %||% m[1])
+  })
+
+  # « Une fois le temoin choisi, les autres modalites passent dans une
+  # variable » : on la MONTRE, pour que l'utilisateur verifie d'un coup d'oeil
+  # sur quoi la boucle va porter.
+  output$effOtherLevels <- renderUI({
+    d <- values$filteredData
+    req(d, input$effFactor, input$effControl)
+    autres <- hstat_eff_modalites(d, input$effFactor, input$effControl)
+    if (!length(autres))
+      return(div(class = "alert alert-warning", style = "padding:8px;",
+                 icon("triangle-exclamation"),
+                 " Aucune autre modalité à comparer au témoin."))
+    div(style = "background-color:#eef7fb;padding:9px 12px;border-radius:6px;border-left:4px solid #3c8dbc;font-size:12px;margin-bottom:12px;",
+        icon("arrow-right-arrow-left", style = "color:#3c8dbc;"),
+        trf(" %d modalité(s) seront comparées au témoin : ", length(autres)),
+        tags$b(paste(autres, collapse = ", ")))
+  })
+
+  output$effResponseSelect <- renderUI({
+    d <- values$filteredData
+    req(d)
+    num <- names(d)[vapply(d, is.numeric, logical(1))]
+    validate(need(length(num) > 0, "Aucune variable numérique à mesurer."))
+    selectInput(ns("effResponse"), tagList(icon("ruler"), " Variable(s) mesurée(s)"),
+                choices = num, selected = isolate(input$effResponse) %||% num[1],
+                multiple = TRUE)
+  })
+
+  output$effGroupSelect <- renderUI({
+    d <- values$filteredData
+    req(d, input$effFactor)
+    cand <- setdiff(names(d), input$effFactor)
+    selectInput(ns("effGroup"), tagList(icon("object-group"), " Grouper par (facultatif)"),
+                choices = c("(aucun groupement)" = "", cand),
+                selected = isolate(input$effGroup) %||% "")
+  })
+
+  observeEvent(input$effCompute, {
+    d <- values$filteredData
+    if (is.null(d) || !NROW(d)) {
+      showNotification("Chargez d'abord un jeu de données.", type = "warning")
+      return()
+    }
+    r <- tryCatch(
+      hstat_efficacite(d, input$effFactor, input$effResponse, input$effControl,
+                       agg = input$effAgg %||% "moyenne",
+                       var_groupe = input$effGroup),
+      error = function(e) {
+        showNotification(hstat_err_fr(e), type = "error", duration = 8)
+        NULL
+      })
+    if (is.null(r)) return()
+    eff_res(r)
+    if (!NROW(r)) {
+      showNotification(attr(r, "message") %||% "Calcul impossible.",
+                       type = "warning", duration = 8)
+      return()
+    }
+    showNotification(tagList(icon("check"), " ", attr(r, "message")),
+                     type = "message", duration = 5)
+    hstat_ai_capture(values, "Seuils d'efficacite",
+      "Efficacites calculees depuis le temoin (formule d'Abbott)",
+      tables = list("Efficacites" = utils::head(as.data.frame(r), 200)),
+      text = attr(r, "message"),
+      meta = list(temoin = attr(r, "temoin"), resume = attr(r, "agg"),
+                  variables = paste(input$effResponse, collapse = ", ")))
+  })
+
+  output$effMessage <- renderUI({
+    r <- eff_res()
+    if (is.null(r))
+      return(div(class = "callout callout-info", style = "padding:8px 12px;",
+                 icon("circle-info"),
+                 " Choisissez le témoin puis cliquez sur « Calculer ». Le tableau",
+                 " apparaît en bas de page."))
+    m <- attr(r, "message") %||% ""
+    alerte <- grepl("^Attention", m)
+    div(class = if (alerte) "callout callout-warning" else "callout callout-success",
+        style = "padding:8px 12px;",
+        icon(if (alerte) "triangle-exclamation" else "circle-check"), " ", m)
+  })
+
+  output$effResume <- renderUI({
+    r <- eff_res()
+    if (is.null(r) || !NROW(r))
+      return(p(style = "color:#999;font-style:italic;",
+               "Aucun calcul pour l'instant : rendez-vous dans « Calcul depuis un témoin »."))
+    ind <- sum(!is.finite(r$Efficacite))
+    tagList(
+      p(tags$b(trf("%d ligne(s)", NROW(r))),
+        trf(" — témoin « %s », valeur résumée : %s.",
+            attr(r, "temoin") %||% "", attr(r, "agg") %||% "")),
+      if (ind > 0)
+        div(class = "alert alert-warning", style = "padding:8px;",
+            icon("triangle-exclamation"),
+            trf(" %d efficacité(s) non calculable(s) : le témoin y vaut zéro ou n'a aucune valeur mesurable.", ind))
+      else NULL)
+  })
+
+  output$effTable <- renderDT({
+    r <- eff_res()
+    req(r, NROW(r) > 0)
+    x <- as.data.frame(r)
+    x$Efficacite <- round(x$Efficacite, 2)
+    datatable(x, rownames = FALSE, extensions = "Buttons",
+              options = list(pageLength = 15, scrollX = TRUE, dom = "Bfrtip",
+                             buttons = c("copy", "csv", "excel")),
+              class = "cell-border stripe hover")
+  })
+
+  output$effDownloadCsv <- downloadHandler(
+    filename = function() paste0("efficacites_", Sys.Date(), ".csv"),
+    content = function(file) {
+      r <- eff_res(); req(r)
+      utils::write.csv(as.data.frame(r), file, row.names = FALSE,
+                       fileEncoding = "UTF-8")
+    })
+
+  output$effDownloadXlsx <- downloadHandler(
+    filename = function() paste0("efficacites_", Sys.Date(), ".xlsx"),
+    content = function(file) {
+      r <- eff_res(); req(r)
+      if (requireNamespace("openxlsx", quietly = TRUE))
+        openxlsx::write.xlsx(as.data.frame(r), file)
+      else
+        utils::write.csv(as.data.frame(r), file, row.names = FALSE,
+                         fileEncoding = "UTF-8")
+    })
+
+  # « L'utilisateur doit pouvoir selectionner ce dataframe pour les autres
+  # operations » : le tableau devient le jeu de travail. On le dit clairement
+  # -- remplacer les donnees sans prevenir serait le pire des services.
+  observeEvent(input$effUseAsData, {
+    r <- eff_res()
+    if (is.null(r) || !NROW(r)) {
+      showNotification("Calculez d'abord les efficacités.", type = "warning")
+      return()
+    }
+    x <- as.data.frame(r)
+    attributes(x) <- attributes(x)[c("names", "class", "row.names")]
+    values$data <- x
+    values$cleanData <- x
+    values$filteredData <- x
+    showNotification(
+      tagList(icon("check"),
+              trf(" Jeu de données remplacé par le tableau des efficacités (%d lignes, %d colonnes). Les autres onglets travaillent maintenant dessus.",
+                  NROW(x), NCOL(x))),
+      type = "message", duration = 8)
+  })
 
   output$thresholdXVarSelect <- renderUI({
     req(values$filteredData)
