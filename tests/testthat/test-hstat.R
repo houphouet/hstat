@@ -4130,6 +4130,149 @@ test_that("la bascule cote navigateur est presente et branchee", {
 
 
 # ===========================================================================
+# LE TRADUCTEUR NE DOIT PAS TOUCHER AUX DONNEES DE L'UTILISATEUR
+# ---------------------------------------------------------------------------
+# Constate a l'ecran, et c'est le pire defaut possible pour un outil
+# statistique : une colonne valant « Oui »/« Non » dans le fichier charge
+# s'affichait « Yes »/« No » une fois l'anglais choisi. L'application
+# reecrivait les donnees que l'utilisateur etait venu lire.
+#
+# Second defaut du meme passage : le remplacement se faisait avec une CHAINE,
+# or String.replace interprete « $& » et « $\u0060 » comme des references au
+# texte trouve. Une traduction contenant ces suites ressortait corrompue.
+#
+# Les deux se prouvent en EXECUTANT le traducteur, pas en cherchant une chaine
+# dans le fichier : un test textuel passerait encore si le code changeait de
+# forme en gardant le defaut. Le banc d'essai ci-dessous fournit le minimum de
+# DOM necessaire (arbre de noeuds, TreeWalker, attributs) et a ete verifie
+# comme ECHOUANT sur la version d'avant correction.
+# ===========================================================================
+
+.hstat_node <- function() {
+  for (cmd in c("node", "nodejs", "/opt/node22/bin/node")) {
+    ok <- tryCatch(system2(cmd, "--version", stdout = TRUE, stderr = TRUE),
+                   error = function(e) NULL, warning = function(w) NULL)
+    if (!is.null(ok) && length(ok)) return(cmd)
+  }
+  NA_character_
+}
+
+test_that("la bascule laisse intactes les donnees de l'utilisateur", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  node <- .hstat_node()
+  skip_if(is.na(node), "node absent : le traducteur ne peut pas etre execute")
+
+  banc <- tempfile(fileext = ".js")
+  writeLines(r"---(// Banc d'essai minimal : assez de DOM pour executer hstat-i18n.js pour de vrai.
+var fs = require("fs"), vm = require("vm");
+var SRC = process.argv[2];
+
+function El(tag) {
+  return { nodeType: 1, tagName: tag, childNodes: [], parentNode: null, A: {},
+           hasAttribute: function (n) { return this.A[n] !== undefined; },
+           getAttribute: function (n) { return this.A[n]; },
+           setAttribute: function (n, v) { this.A[n] = v; },
+           classList: { add: function () {}, remove: function () {} } };
+}
+function Txt(v) { return { nodeType: 3, nodeValue: v, parentNode: null }; }
+function add(p, c) { c.parentNode = p; p.childNodes.push(c); return c; }
+function tous(n, out) {
+  out = out || [];
+  (n.childNodes || []).forEach(function (c) { out.push(c); tous(c, out); });
+  return out;
+}
+function equiper(el) {
+  el.querySelectorAll = function () {
+    return tous(this).filter(function (n) { return n.nodeType === 1; });
+  };
+  return el;
+}
+
+var html = equiper(El("HTML"));
+var body = equiper(El("BODY"));
+add(html, body);
+
+// --- interface : un libelle de menu hors tableau
+var menu = add(body, equiper(El("SPAN")));
+var tMenu = add(menu, Txt("Chargement"));
+
+// --- un tableau : en-tete (libelle) + cellules (DONNEES DE L'UTILISATEUR)
+var table = add(body, equiper(El("TABLE")));
+var th = add(table, equiper(El("TH")));
+var tTh = add(th, Txt("Chargement"));
+var td = add(table, equiper(El("TD")));
+var tTd = add(td, Txt("Oui"));
+var tdLong = add(table, equiper(El("TD")));
+var tLong = add(tdLong, Txt("Effectifs attendus >= 5 dans au moins 80 % des cases."));
+
+// --- le piege du remplacement : une traduction contenant « $& »
+var tdDollar = add(body, equiper(El("SPAN")));
+var tDollar = add(tdDollar, Txt("Prix"));
+
+var ctx = {
+  console: console, setTimeout: function () { return 0; }, clearTimeout: function () {},
+  localStorage: { getItem: function () { return null; }, setItem: function () {} },
+  NodeFilter: { SHOW_TEXT: 4 },
+  document: {
+    readyState: "complete", body: body, documentElement: html,
+    getElementById: function () { return null; },
+    addEventListener: function () {},
+    createTreeWalker: function (racine) {
+      var l = tous(racine).filter(function (n) { return n.nodeType === 3; }), i = -1;
+      return { nextNode: function () { return ++i < l.length ? l[i] : null; } };
+    }
+  }
+};
+ctx.window = ctx;
+ctx.window.HSTAT_I18N = {
+  "Chargement": "Loading", "Oui": "Yes",
+  "Effectifs attendus >= 5 dans au moins 80 % des cases.": "Expected counts >= 5 in at least 80% of cells.",
+  "Prix": "$& remplace"
+};
+vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(SRC, "utf8"), ctx);
+
+ctx.window.hstatSetLangue("en");
+var apres = {
+  menu: tMenu.nodeValue, th: tTh.nodeValue, cellule: tTd.nodeValue,
+  cellule_longue: tLong.nodeValue, dollar: tDollar.nodeValue
+};
+ctx.window.hstatSetLangue("fr");
+apres.retour_menu = tMenu.nodeValue;
+apres.retour_cellule = tTd.nodeValue;
+apres.retour_dollar = tDollar.nodeValue;
+process.stdout.write(JSON.stringify(apres));
+)---", banc, useBytes = TRUE)
+  js <- file.path(root, "inst", "app", "www", "hstat-i18n.js")
+
+  sortie <- suppressWarnings(system2(node, c(shQuote(banc), shQuote(js)),
+                                     stdout = TRUE, stderr = TRUE))
+  skip_if(length(sortie) == 0, "le banc d'essai n'a rien produit")
+  res <- tryCatch(jsonlite::fromJSON(paste(sortie, collapse = "")),
+                  error = function(e) NULL)
+  skip_if(is.null(res), paste("banc d'essai :", paste(sortie, collapse = " ")))
+
+  # 1. UNE VALEUR DE DONNEES DANS UNE CELLULE RESTE CE QU'ELLE EST.
+  expect_equal(res$cellule, "Oui")
+  # 2. Un libelle d'interface hors tableau se traduit.
+  expect_equal(res$menu, "Loading")
+  # 3. Un EN-TETE est un libelle, pas une donnee : il se traduit.
+  expect_equal(res$th, "Loading")
+  # 4. Une interpretation, elle, tient dans une cellule et doit passer : une
+  #    valeur de donnees n'est presque jamais une phrase entiere.
+  expect_equal(res$cellule_longue,
+               "Expected counts >= 5 in at least 80% of cells.")
+  # 5. « $& » dans une traduction sort tel quel, il n'est pas interprete.
+  expect_equal(res$dollar, "$& remplace")
+  # 6. Le retour au francais restitue le texte d'origine, exactement.
+  expect_equal(res$retour_menu, "Chargement")
+  expect_equal(res$retour_cellule, "Oui")
+  expect_equal(res$retour_dollar, "Prix")
+})
+
+
+# ===========================================================================
 # REINITIALISATION COMPLETE
 # ---------------------------------------------------------------------------
 # La remise a zero effacait une liste de champs ENUMEREE A LA MAIN, distincte
@@ -4287,6 +4430,232 @@ test_that("la langue est propre a la session, jamais globale", {
   # Shiny n'est pas pret quand ce fichier s'execute : sans reessai, la langue
   # choisie avant la connexion ne parviendrait jamais au serveur.
   expect_true(grepl("setTimeout(envoyer", js, fixed = TRUE))
+})
+
+
+# ===========================================================================
+# UNE ERREUR CAPTUREE DOIT ARRIVER JUSQU'AU TABLEAU
+# ---------------------------------------------------------------------------
+# Six analyses (normalite, homogeneite, t-test, Wilcoxon, Kruskal-Wallis,
+# Scheirer-Ray-Hare) construisaient soigneusement une ligne de resultat portant
+# `hstat_err_fr(e)` — puis la JETAIENT. Dans
+#
+#     results_list <- list()
+#     for (var in vars) tryCatch({ ... }, error = function(e) {
+#       results_list[[var]] <- data.frame(...)      # <- affectation LOCALE
+#     })
+#
+# le `<-` cree une copie dans le cadre du gestionnaire ; la liste de
+# l'observateur n'est pas touchee. Consequence a l'ecran : la variable en echec
+# DISPARAIT du tableau sans un mot, et si c'etait la seule, l'utilisateur ne
+# recoit qu'un « Aucun resultat genere » qui masque la vraie cause (« variance
+# nulle : toutes les valeurs sont identiques, choisissez une autre variable »).
+#
+# Tout le travail de traduction des messages d'erreur etait annule a l'endroit
+# meme ou il devait servir. Le lapsus est atteste : ligne 2832, un `<<-`
+# correct precede de deux lignes le `<-` fautif.
+#
+# `gdf[[fvar]] <- ...` dans les gestionnaires de comparaisons multiples n'est
+# PAS le meme cas : `gdf` y est cree dans le corps du gestionnaire, qui le
+# RENVOIE. D'ou la regle du balayage : n'est fautive qu'une affectation a un
+# nom que le gestionnaire n'a pas lui-meme defini.
+# ===========================================================================
+
+# ===========================================================================
+# VARIABLES A VALEURS NULLES
+# ---------------------------------------------------------------------------
+# Une colonne dont toutes les valeurs observees valent zero a une variance
+# nulle : ni correlation, ni test. Elle vient presque toujours d'un export ou
+# le zero signifie « non mesure », d'ou les deux gestes offerts — corriger les
+# valeurs, ou retirer la variable.
+#
+# Les trois cas limites ci-dessous ont ete constates a l'ecran pendant la mise
+# au point, et chacun se trompait dans le sens SILENCIEUX : la colonne
+# disparaissait du diagnostic au lieu d'y figurer avec le bon libelle.
+# ===========================================================================
+
+test_that("seules les colonnes reellement nulles sont listees", {
+  d <- data.frame(
+    tout_zero  = c(0, 0, 0, 0),
+    zero_et_na = c(0, NA, 0, 0),
+    texte_zero = c("0", "0,0", "0", "0"),   # un CSV livre couramment des "0"
+    presque    = c(0, 0, 0, 5),
+    normale    = c(1, 2, 3, 4),
+    mot        = c("a", "b", "c", "d"),
+    stringsAsFactors = FALSE)
+  z <- hstat_vars_zero(d)
+  expect_equal(sort(z$Variable), c("texte_zero", "tout_zero", "zero_et_na"))
+
+  # Les manquants ne comptent pas comme des zeros : la colonne les annonce a
+  # cote, au lieu de melanger « mesure a zero » et « pas de mesure ».
+  l <- z[z$Variable == "zero_et_na", ]
+  expect_equal(l$Observations, 3L)
+  expect_equal(l$Zeros, 3L)
+  expect_equal(l$Manquants, 1L)
+  expect_true(grepl("non mesure", l$Constat))
+
+  # La virgule decimale francaise est comprise.
+  expect_equal(z[z$Variable == "texte_zero", ]$Zeros, 4L)
+})
+
+test_that("le seuil ouvre la liste aux variables quasi nulles", {
+  d <- data.frame(presque = c(0, 0, 0, 5), tout = c(0, 0, 0, 0))
+  expect_equal(hstat_vars_zero(d, seuil = 1)$Variable, "tout")
+  expect_equal(sort(hstat_vars_zero(d, seuil = 0.7)$Variable), c("presque", "tout"))
+  # Un seuil illisible ne doit pas faire tomber le diagnostic : on revient au
+  # cas strict plutot que d'echouer.
+  expect_equal(hstat_vars_zero(d, seuil = "abc")$Variable, "tout")
+})
+
+test_that("une colonne vide n'est pas une colonne de zeros, et elle est nommee", {
+  # Les trois formes sous lesquelles une colonne sans valeur se presente :
+  # typee LOGIQUE par les lecteurs de CSV, numerique tout-NA, ou remplie de
+  # chaines vides (Excel, exports SPSS). Les trois etaient perdues.
+  d <- data.frame(vide_logique = as.logical(c(NA, NA, NA)),
+                  vide_num     = as.numeric(c(NA, NA, NA)),
+                  vide_txt     = c("", " ", NA),
+                  zero         = c(0, 0, 0),
+                  stringsAsFactors = FALSE)
+  z <- hstat_vars_zero(d)
+  expect_equal(z$Variable, "zero")
+  expect_equal(sort(attr(z, "vides")),
+               c("vide_logique", "vide_num", "vide_txt"))
+})
+
+test_that("un booleen renseigne n'est pas une mesure a zero", {
+  # FALSE vaut bien 0 en arithmetique, mais une colonne de « non » est une
+  # reponse : la ranger ici ferait proposer d'en « corriger les valeurs ».
+  d <- data.frame(drapeau = c(FALSE, FALSE, FALSE), zero = c(0, 0, 0))
+  expect_equal(hstat_vars_zero(d)$Variable, "zero")
+})
+
+test_that("hstat_vars_zero encaisse les entrees degenerees", {
+  for (x in list(data.frame(), NULL, "texte", 42))
+    expect_silent(z <- hstat_vars_zero(x))
+  expect_equal(nrow(hstat_vars_zero(data.frame())), 0L)
+  expect_equal(attr(hstat_vars_zero(NULL), "vides"), character(0))
+})
+
+test_that("la saisie des valeurs refuse tout decompte qui decalerait les lignes", {
+  # Une liste plus courte ou plus longue que la colonne decalerait
+  # silencieusement toutes les observations : c'est pire que de refuser.
+  ok <- hstat_zero_valeurs_parse("1\n2\n3\n4", 4)
+  expect_true(ok$ok)
+  expect_equal(ok$valeurs, c(1, 2, 3, 4))
+
+  court <- hstat_zero_valeurs_parse("1;2;3", 4)
+  expect_false(court$ok)
+  expect_true(grepl("3 valeur", court$message))
+  expect_true(grepl("ajustez", court$message))       # cause PUIS geste
+
+  expect_false(hstat_zero_valeurs_parse("1\n2\n3\n4\n5", 4)$ok)
+
+  # Un retour a la ligne final ne compte pas pour une valeur de plus.
+  expect_true(hstat_zero_valeurs_parse("1\n2\n3\n4\n", 4)$ok)
+
+  # LA VIRGULE EST UNE DECIMALE, PAS UN SEPARATEUR. Elle ne peut pas etre les
+  # deux : « 2,5 » est la facon francaise d'ecrire deux et demi, et la traiter
+  # en separateur en faisait deux valeurs — donc un decompte faux, donc un
+  # refus incomprehensible. Separateurs : retour a la ligne et point-virgule.
+  na <- hstat_zero_valeurs_parse("1; 2,5; NA; 4", 4)
+  expect_true(na$ok)
+  expect_equal(na$valeurs, c(1, 2.5, NA, 4))
+  expect_equal(hstat_zero_valeurs_parse("0,5\n1,25", 2)$valeurs, c(0.5, 1.25))
+
+  mauvais <- hstat_zero_valeurs_parse("1\n2\nabc\n4", 4)
+  expect_false(mauvais$ok)
+  expect_true(grepl("position 3", mauvais$message))
+  expect_true(grepl("abc", mauvais$message))
+
+  expect_false(hstat_zero_valeurs_parse("", 4)$ok)
+  expect_false(hstat_zero_valeurs_parse("1", 0)$ok)
+  expect_false(hstat_zero_valeurs_parse(NULL, 3)$ok)
+})
+
+test_that("le module de nettoyage porte bien l'etape des variables nulles", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  m <- paste(readLines(file.path(root, "inst", "app", "mod_clean.R"),
+                       warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("hstat_vars_zero", m, fixed = TRUE))
+  expect_true(grepl("hstat_zero_valeurs_parse", m, fixed = TRUE))
+  # Les quatre gestes offerts a l'utilisateur
+  for (a in c('"na"', '"valeur"', '"saisie"', '"supprimer"'))
+    expect_true(grepl(a, m, fixed = TRUE), info = a)
+  # `transformationLog` est un registre TYPE, relu champ par champ pour
+  # inverser les transformations : y deposer une phrase casserait son
+  # affichage. Le geste passe par le registre d'analyses.
+  expect_false(grepl("transformationLog <- c(", m, fixed = TRUE))
+  expect_true(grepl("Variables a valeurs nulles", m, fixed = TRUE))
+})
+
+
+test_that("le <<- est bien ce qui distingue les deux cas", {
+  # La semantique en cause, rendue executable : sans `<<-`, la ligne d'erreur
+  # n'existe tout simplement pas dans la liste de l'appelant.
+  collecte <- function(operateur) {
+    acc <- list()
+    for (v in c("bonne", "degeneree")) {
+      tryCatch({
+        if (v == "degeneree") stop("variance nulle")
+        acc[[v]] <- "ok"
+      }, error = function(e) {
+        if (identical(operateur, "local")) acc[[v]] <- "erreur traduite"
+        else acc[[v]] <<- "erreur traduite"
+      })
+    }
+    acc
+  }
+  expect_equal(names(collecte("local")), "bonne")          # la ligne est perdue
+  expect_equal(names(collecte("englobant")), c("bonne", "degeneree"))
+})
+
+test_that("aucun gestionnaire d'erreur ne jette la ligne qu'il vient de batir", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  fichiers <- list.files(file.path(root, "inst", "app"), pattern = "[.]R$",
+                         full.names = TRUE)
+  fautifs <- character(0)
+
+  for (f in fichiers) {
+    src <- readLines(f, warn = FALSE, encoding = "UTF-8")
+    txt <- paste(src, collapse = "\n")
+    debuts <- gregexpr("(error|warning)\\s*=\\s*function\\s*\\([^)]*\\)\\s*\\{",
+                       txt)[[1]]
+    if (debuts[1] == -1) next
+    car <- strsplit(txt, "")[[1]]
+    for (d in debuts) {
+      # fin du corps du gestionnaire, par equilibrage d'accolades
+      i <- d + attr(debuts, "match.length")[which(debuts == d)] - 1L
+      prof <- 0L; fin <- NA_integer_
+      while (i <= length(car)) {
+        if (car[i] == "{") prof <- prof + 1L
+        else if (car[i] == "}") {
+          prof <- prof - 1L
+          if (prof == 0L) { fin <- i; break }
+        }
+        i <- i + 1L
+      }
+      if (is.na(fin)) next
+      corps <- substr(txt, d, fin)
+      cibles <- regmatches(corps, gregexpr(
+        "(?m)^\\s*[A-Za-z_.][\\w.]*\\s*\\[\\[[^]]*\\]\\]\\s*<-(?!-)", corps,
+        perl = TRUE))[[1]]
+      for (cible in cibles) {
+        nom <- sub("^\\s*([A-Za-z_.][\\w.]*).*$", "\\1", cible, perl = TRUE)
+        # Defini DANS le gestionnaire (donc local et renvoye) : cas legitime.
+        pose <- grepl(paste0("(?m)^\\s*", nom, "\\s*<-[^-]"), corps, perl = TRUE)
+        # `values` et consorts sont des objets a REFERENCE (reactiveValues) :
+        # y ecrire depuis un gestionnaire a bien un effet au dehors.
+        if (!pose && !nom %in% c("values", "session", "input"))
+          fautifs <- c(fautifs, paste0(basename(f), " : ", nom, "[[...]] <-"))
+      }
+    }
+  }
+
+  expect_equal(fautifs, character(0),
+               info = paste("Affectation perdue dans un gestionnaire (utiliser <<-) :",
+                            paste(unique(fautifs), collapse = " | ")))
 })
 
 
