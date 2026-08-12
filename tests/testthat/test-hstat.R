@@ -4343,6 +4343,59 @@ test_that("une phrase composee traduit son gabarit, jamais ses arguments", {
   expect_true(grepl("a", x, fixed = TRUE))
 })
 
+test_that("les libelles de widgets et les titres d'onglets sont traduits", {
+  # C'est la surface que l'utilisateur LIT en premier : les libelles poses sur
+  # les widgets et les titres d'onglets. Ce test empeche la couverture de
+  # reculer en silence quand un module ajoute un controle.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  fichiers <- list.files(file.path(root, "inst", "app"), pattern = "[.]R$",
+                         full.names = TRUE)
+  widgets <- c("selectInput", "selectizeInput", "textInput", "textAreaInput",
+               "numericInput", "radioButtons", "checkboxInput",
+               "checkboxGroupInput", "sliderInput", "actionButton",
+               "downloadButton", "fileInput", "dateInput", "dateRangeInput")
+  lab <- character(0); ong <- character(0)
+  for (f in fichiers) {
+    src <- paste(readLines(f, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+    for (w in widgets) {
+      p <- sprintf('%s\\(\\s*(?:ns\\()?\\s*"[^"]*"\\)?\\s*,\\s*"([^"]{3,90})"', w)
+      m <- regmatches(src, gregexpr(p, src, perl = TRUE))[[1]]
+      if (length(m)) lab <- c(lab, sub('.*,\\s*"([^"]*)"$', "\\1", m))
+    }
+    m <- regmatches(src, gregexpr(
+      'tabPanel\\(\\s*(?:shiny::)?(?:tagList\\(\\s*(?:shiny::)?icon\\("[^"]*"\\)\\s*,\\s*)?"([^"]{2,60})"',
+      src, perl = TRUE))[[1]]
+    if (length(m)) ong <- c(ong, sub('.*"([^"]*)"$', "\\1", m))
+    # Troisieme forme, oubliee au premier balayage : `title = tagList(icon(..),
+    # " Titre")`. Elle porte 76 titres de boites — le module de nettoyage
+    # affichait encore « Supprimer Variable » en anglais.
+    m <- regmatches(src, gregexpr(
+      'title\\s*=\\s*(?:shiny::)?tagList\\(\\s*(?:shiny::)?icon\\("[^"]*"\\)\\s*,\\s*"\\s?([^"]{2,60})"',
+      src, perl = TRUE))[[1]]
+    if (length(m)) ong <- c(ong, trimws(sub('.*"\\s?([^"]*)"$', "\\1", m)))
+  }
+  nettoie <- function(x) {
+    x <- unique(trimws(x))
+    # Les chaines portant un echappement \\uXXXX litteral dans la source R sont
+    # un artefact de l'extraction textuelle : a l'ecran, R affiche le caractere
+    # (« α »), pas la sequence. Les compter ferait echouer le test sur une
+    # difference qui n'existe pas pour l'utilisateur.
+    x[nzchar(x) & !grepl("^[a-z_]+$", x) & !grepl("\\\\u[0-9a-f]{4}", x)]
+  }
+  lab <- nettoie(lab); ong <- nettoie(ong)
+
+  cv_ong <- hstat_i18n_coverage(ong)
+  expect_equal(cv_ong$manquantes, character(0),
+               info = paste("Titres d'onglets non traduits :",
+                            paste(cv_ong$manquantes, collapse = " | ")))
+
+  cv_lab <- hstat_i18n_coverage(lab)
+  expect_equal(cv_lab$manquantes, character(0),
+               info = paste("Libelles de widgets non traduits :",
+                            paste(utils::head(cv_lab$manquantes, 20), collapse = " | ")))
+})
+
 test_that("un mot ambigu n'entre pas seul au dictionnaire", {
   # « moyenne » vaut *medium* pour une taille d'effet mais *mean* en
   # statistique. La cle du dictionnaire etant la chaine francaise elle-meme,

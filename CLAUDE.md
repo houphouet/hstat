@@ -523,6 +523,23 @@ Une traduction fautive peut avoir perdu un marqueur : `sprintf` lèverait alors
 « too few arguments » et ferait tomber toute la sortie pour une simple erreur de
 dictionnaire. `trf()` retombe sur le français, qui marche.
 
+#### Un libellé se déclare de trois façons, le balayage doit les connaître
+
+Un titre d'onglet ou de boîte s'écrit `tabPanel("Titre", …)`,
+`tabPanel(tagList(icon(…), " Titre"), …)` **ou** `title = tagList(icon(…),
+" Titre")`. La troisième forme porte à elle seule 76 titres, et l'avoir
+oubliée laissait « Supprimer Variable » en français au milieu d'une interface
+anglaise — visible à l'écran, invisible à la mesure.
+
+`hstat_i18n_coverage()` ne dit la vérité que si l'on sait quoi lui donner : le
+test qui garde la couverture balaie donc les trois formes, plus les libellés
+posés sur les widgets (deuxième argument des `*Input`).
+
+Détail : une chaîne écrite `"\u03b1 (err prob)"` dans la source R ressort de
+l'extraction **textuelle** avec l'échappement littéral, alors que R affiche
+`α`. Le test les écarte — les compter le ferait échouer sur une différence qui
+n'existe pas pour l'utilisateur.
+
 #### Un mot ambigu n'entre pas seul au dictionnaire
 
 La clé étant la chaîne française elle-même, un mot qui a **deux sens** ne peut

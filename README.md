@@ -55,8 +55,9 @@ Three properties follow:
 - **Offline, always.** The dictionary ships inside the page. No request, ever.
   No translation API: it would need a connection, cost money per use, and
   mistranslate statistical vocabulary.
-- **Light.** A CSV of pairs, ~7 KB of JSON in the page — less than one of the
-  bundled fonts. Terms spelled the same in both languages are recorded as a
+- **Light.** A CSV of pairs, ~48 KB of JSON in the page — less than one of the
+  bundled fonts. Templates filled in by R never travel: translated before they
+  exist, they could never match anything in the page. Terms spelled the same in both languages are recorded as a
   translation decision but never sent, since replacing them would change
   nothing on screen.
 - **Graceful.** The key *is* the French string, so anything not yet translated
@@ -97,8 +98,8 @@ arguments, which are precisely where your variable names and values live, pass
 through without ever being read. Here the guarantee comes from the construction
 rather than from a precaution.
 
-**Current coverage: the whole navigation, labels, buttons, verdicts, error
-messages, and the 228 composed sentences of every module** — metrics,
+**Current coverage: every tab and box title, every widget label, the verdicts,
+the error messages, and the 228 composed sentences of every module** — metrics,
 recommendation engine, statistical tests, qualitative analyses, experimental
 design, machine learning, time series, cleaning and reports.
 
@@ -474,7 +475,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.27.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.28.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -482,7 +483,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.27.0},
+  note   = {Version 0.28.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

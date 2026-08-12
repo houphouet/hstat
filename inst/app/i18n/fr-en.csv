@@ -583,3 +583,595 @@ Taille d'effet w de Cohen = %.3f : écart négligeable.,Cohen's w effect size = 
 Taille d'effet w de Cohen = %.3f : écart petit.,Cohen's w effect size = %.3f: small departure.
 Taille d'effet w de Cohen = %.3f : écart moyen.,Cohen's w effect size = %.3f: medium departure.
 Taille d'effet w de Cohen = %.3f : écart grand.,Cohen's w effect size = %.3f: large departure.
+Analyse recommandee,Recommended analysis
+Apparence,Appearance
+Apparence & options,Appearance & options
+Autocorrélation,Autocorrelation
+Details (tableaux),Details (tables)
+Details techniques,Technical details
+Données & seuil,Data & threshold
+Enquête de terrain,Field survey
+Homogénéité,Homogeneity
+Interpretation,Interpretation
+Journal & reproductibilite,Log & reproducibility
+"LSTM (séquences, torch)","LSTM (sequences, torch)"
+Métriques,Metrics
+Non supervisé (clustering),Unsupervised (clustering)
+Normalité,Normality
+Plan expérimental,Experimental design
+Profil des donnees,Data profile
+Puissance statistique,Statistical power
+QQ-plot,QQ plot
+Qualite des donnees,Data quality
+Recuperation,Retrieval
+Réseau de neurones (MLP),Neural network (MLP)
+Résultats & métriques,Results & metrics
+Resultats captures,Captured results
+Summary,Summary
+Supervisé (prédiction),Supervised (prediction)
+Téléchargement,Download
+Tests (sortie R),Tests (R output)
+…ou fréquence libre,…or free frequency
+α (err prob),α (err prob)
+1. Proposer un livre de codes,1. Suggest a codebook
+2. Pre-coder les reponses,2. Pre-code the answers
+abs(),abs()
+exp(),exp()
+ifelse(),ifelse()
+is.na(),is.na()
+log(),log()
+log10(),log10()
+mean(),mean()
+round(),round()
+sqrt(),sqrt()
+sum(),sum()
+Activation,Activation
+Actualiser l'ACP,Refresh the PCA
+Actualiser l'AFD,Refresh the DFA
+Adresse du serveur,Server address
+Affichage,Display
+Afficher le texte,Show the text
+Afficher les labels des individus sur les branches,Show individual labels on the branches
+Afficher quand même,Show anyway
+Aide,Help
+Ajouter préfixe,Add prefix
+Ajouter suffixe,Add suffix
+Ajouter un facteur de blocage supplémentaire,Add another blocking factor
+Ajouter une colonne remplie avec le nom de chaque fichier,Add a column filled with each file's name
+Ajustement post-hoc :,Post-hoc adjustment:
+Angle (°):,Angle (°):
+Angle d'inclinaison:,Tilt angle:
+ANOVA,ANOVA
+ANOVA à mesures répétées,Repeated-measures ANOVA
+Apercu,Preview
+Appliquer (2 facteurs),Apply (2 factors)
+Appliquer (N facteurs),Apply (N factors)
+Appliquer la sélection de colonnes,Apply the column selection
+Appliquer la sélection de lignes,Apply the row selection
+Appliquer le dictionnaire a tout le corpus,Apply the dictionary to the whole corpus
+Appliquer le filtre par valeur,Apply the value filter
+Arrondir les résultats,Round the results
+Arrondir les résultats numériques,Round the numeric results
+Axe X,X axis
+Axe X:,X axis:
+Axe Y,Y axis
+Axe Y:,Y axis:
+Axes en noir,Axes in black
+Axes titres,Axis titles
+Barres d'erreur,Error bars
+Bornes (séparées par virgules),Breaks (comma separated)
+Calculer la taille,Compute the size
+Carte (PNG),Map (PNG)
+"Centrer sur (0,0)","Centre on (0,0)"
+Chi² de conformité (proportion),Chi-square conformity test (proportion)
+Chi² de conformité (variance),Chi-square conformity test (variance)
+Choisir plusieurs fichiers (ou un classeur Excel a plusieurs feuilles),Choose several files (or an Excel workbook with several sheets)
+Choisir un graphique,Choose a plot
+Choisir un tableau,Choose a table
+Choisir une palette:,Choose a palette:
+Codes a afficher,Codes to show
+Codes retenus (corpus code),Codes kept (coded corpus)
+Coefficient IQR (k):,IQR coefficient (k):
+Colonne :,Column:
+Colonne à filtrer :,Column to filter:
+Colonne a valeurs séparées,Column with separated values
+Colonne de dates (optionnelle),Date column (optional)
+"Colonne(s) cle, separees par une virgule","Key column(s), comma separated"
+Colonnes binaires des options,Binary columns of the options
+Composante à analyser:,Component to analyse:
+Compression TIFF:,TIFF compression:
+Compter aussi les chaînes vides / blancs comme manquants,Also count empty strings / blanks as missing
+Contenu de l'étiquette,Label content
+Contexte de l'enquete (facultatif),Survey context (optional)
+Contexte de l'etude (facultatif),Study context (optional)
+Cooccurrences minimales,Minimum co-occurrences
+Corpus,Corpus
+Correction (corrélations multiples),Correction (multiple correlations)
+Corréler pente et ordonnée à l'origine,Correlate slope and intercept
+Correspondance exacte,Exact match
+"Couches cachées (neurones, séparés par des virgules)","Hidden layers (neurons, comma separated)"
+Couleur des séparateurs de blocs,Colour of the block separators
+Croiser avec le profil,Cross with the profile
+CSV,CSV
+CSV (ZIP),CSV (ZIP)
+Décimales:,Decimals:
+Definition d'un lien,Definition of a link
+Degré de lissage:,Degree of smoothing:
+Degrés de liberté (df),Degrees of freedom (df)
+Deplacer,Move
+DLNM : décalage maximal (lags),DLNM: maximum lag
+"DLNM : variable d'exposition (ex. température, pollution)","DLNM: exposure variable (e.g. temperature, pollution)"
+Données (CSV),Data (CSV)
+Données (Excel),Data (Excel)
+DPI,DPI
+DPI:,DPI:
+Écart-type estimé (pilote / litterature),Estimated standard deviation (pilot / literature)
+Échantillons par parcelle élémentaire (n),Samples per elementary plot (n)
+Effet cible (pour le ddl),Target effect (for the df)
+"Effet de plan (design effect, 1 = sondage aleatoire simple ; 1.5-2 = grappes)",Design effect (1 = simple random sampling; 1.5-2 = clusters)
+Enregistrer le projet (.rds),Save the project (.rds)
+Enregistrer les mots-cles de ce code,Save this code's keywords
+Entraîner et comparer,Train and compare
+Entraîner le LSTM,Train the LSTM
+Entraîner le réseau,Train the network
+Épaisseur des lignes:,Line thickness:
+Épaisseur des traits de séparation des blocs,Thickness of the block separator lines
+Épaisseur des traits pointillés (sous-parcelles),Thickness of the dashed lines (sub-plots)
+Épaisseur:,Thickness:
+Époques,Epochs
+eps (rayon),eps (radius)
+Équivalence à la norme (TOST),Equivalence to the reference (TOST)
+Espacement légende,Legend spacing
+Étendue (parcelles),Extent (plots)
+"Étiquettes (une par classe, séparées par virgules)","Labels (one per class, comma separated)"
+Étiquettes des classes,Class labels
+Excel,Excel
+Exposition / duree moyenne,Exposure / mean duration
+Facteur A :,Factor A:
+Facteur B :,Factor B:
+"Facteur étudié (X, groupes)","Factor studied (X, groups)"
+Facteurs (>=2) :,Factors (>= 2):
+Facteurs à rotationner:,Factors to rotate:
+Famille :,Family:
+Famille d'analyse,Analysis family
+Famille de test,Test family
+Fenêtre (pas passés),Window (past steps)
+Feuilles a combiner,Sheets to combine
+Fonction d'agrégation:,Aggregation function:
+Fonction de lien :,Link function:
+Forêt : nb d'arbres,Forest: number of trees
+Format de téléchargement,Download format
+Format des choix multiples,Multiple-choice format
+Format:,Format:
+Formule de calcul:,Computation formula:
+Fréquence saisonnière,Seasonal frequency
+Garder niveaux de A présents pour tous les niveaux de B,Keep levels of A present for every level of B
+Garder niveaux de B présents pour tous les niveaux de A,Keep levels of B present for every level of A
+Générer le plan,Generate the design
+"glmnet : alpha (0=Ridge, 1=Lasso)","glmnet: alpha (0 = Ridge, 1 = Lasso)"
+Graduations,Ticks
+Graduations en noir,Ticks in black
+Graine (reproductibilité),Seed (reproducibility)
+Graine aléatoire,Random seed
+Grille de fond,Background grid
+Grouper par:,Group by:
+Hauteur (pixels):,Height (pixels):
+Hauteur (po),Height (in)
+Hauteur (px):,Height (px):
+Horizon à simuler (périodes futures),Horizon to simulate (future periods)
+Horizon futur (h),Future horizon (h)
+Hypothèse alternative,Alternative hypothesis
+Hypothèse alternative :,Alternative hypothesis:
+Icône légende,Legend icon
+Ignorer les chiffres,Ignore digits
+Inclure les interactions (ANOVA/Scheirer-Ray-Hare),Include interactions (ANOVA/Scheirer-Ray-Hare)
+"Individus supplémentaires (n° de ligne, séparés par virgule) :","Supplementary individuals (row numbers, comma separated):"
+Insérer colonne :,Insert column:
+Interpreter avec le modele,Interpret with the model
+Inverser,Invert
+Items de l'échelle,Scale items
+Itérations de randomisation,Randomisation iterations
+Itérations max,Max iterations
+kNN : nombre de voisins k,kNN: number of neighbours k
+Label axe X:,X axis label:
+Label axe Y:,Y axis label:
+Label X,X label
+Label X:,X label:
+Label Y,Y label
+Label Y:,Y label:
+Labels des axes:,Axis labels:
+Labels X à 45°,X labels at 45°
+Lancer le clustering,Run the clustering
+Largeur (pixels):,Width (pixels):
+Largeur (po),Width (in)
+Largeur (px):,Width (px):
+Largeur de séparation des parcelles,Plot separation width
+Largeur des barres:,Bar width:
+Largeur des flèches,Arrow width
+Largeur des tracés (flèches/axes),Stroke width (arrows/axes)
+Largeur:,Width:
+Lecture automatique (sans modele),Automatic reading (no model)
+Légende:,Legend:
+"Lettres (a,b,c)","Letters (a,b,c)"
+Longueur min. des mots,Min. word length
+MANOVA (>= 2 réponses),MANOVA (>= 2 responses)
+"Marge d'erreur (en proportion, ex. 0.05 = 5%)","Margin of error (as a proportion, e.g. 0.05 = 5%)"
+Marge d'erreur absolue (mêmes unités que la variable),Absolute margin of error (same units as the variable)
+Markdown,Markdown
+Matérialiser une zone à éviter (obstacle),Mark an area to avoid (obstacle)
+Matrice (Excel),Matrix (Excel)
+Maximum:,Maximum:
+Memo,Memo
+Mesures appariees (memes sujets),Paired measurements (same subjects)
+Méthode,Method
+Méthode de corrélation,Correlation method
+Méthode de rotation:,Rotation method:
+Méthode post-hoc non paramétrique,Non-parametric post-hoc method
+Méthode post-hoc paramétrique,Parametric post-hoc method
+Méthode:,Method:
+Minimum:,Minimum:
+minPts,minPts
+Modalité « exposé + »,Category “exposed +”
+Modalité « issue + »,Category “outcome +”
+Mode d'affichage,Display mode
+Mode de répartition vers le plan,Allocation mode for the design
+Modele,Model
+Modèle (généralisé) mixte,(Generalised) mixed model
+Modèle affiché,Model shown
+Modèles à comparer,Models to compare
+Moteur,Engine
+Moteur :,Engine:
+Moteur (paramétrique) :,Engine (parametric):
+Mots a exclure,Words to exclude
+"Mots à exclure (personnalisés, séparés par virgule ou espace)","Words to exclude (custom, separated by comma or space)"
+Mots-cles (separes par des points-virgules),Keywords (semicolon separated)
+Nettoyer espaces,Trim spaces
+Neurones LSTM,LSTM neurons
+Niveau de confiance,Confidence level
+Niveau de confiance :,Confidence level:
+Niveau de redaction,Level of writing
+nnet : neurones cachés,nnet: hidden neurons
+Nom de cette colonne,Name of this column
+Nom de l'axe Y2:,Name of the Y2 axis:
+Nom de l'objet de donnees,Name of the data object
+Nom de la nouvelle variable,Name of the new variable
+Nom de la variable calculée:,Name of the computed variable:
+Nom de la zone,Area name
+Nom du facteur,Factor name
+Nom:,Name:
+Nombre d'éléments (top N),Number of items (top N)
+Nombre d'imputations (m):,Number of imputations (m):
+Nombre de bandes,Number of strips
+Nombre de bins:,Number of bins:
+Nombre de classes,Number of classes
+Nombre de clusters:,Number of clusters:
+Nombre de codes a proposer,Number of codes to suggest
+Nombre de composantes:,Number of components:
+Nombre de covariables (0 si ANOVA),Number of covariates (0 for ANOVA)
+Nombre de décimales :,Number of decimals:
+Nombre de facteurs,Number of factors
+Nombre de facteurs (factoriel),Number of factors (factorial)
+Nombre de groupes (k),Number of groups (k)
+Nombre de groupes k,Number of groups k
+Nombre de mots,Number of words
+Nombre de strates (1 = pas de stratification),Number of strata (1 = no stratification)
+Nombre de thèmes,Number of themes
+Nombre de voisins (k):,Number of neighbours (k):
+Noms personnalisés des blocs / répliques (séparés par virgule),Custom names for blocks / replicates (comma separated)
+Non codee,Uncoded
+Non paramétrique répété,Repeated non-parametric
+Nouveau nom :,New name:
+Numérotation des blocs : numéro de départ,Block numbering: starting number
+Numéroter,Number
+Objectif d'estimation,Estimation objective
+Opérateur :,Operator:
+"Ordre des niveaux (du plus bas au plus haut, séparés par ;)","Level order (lowest to highest, separated by ;)"
+Orientation des bandes,Strip orientation
+Ou importer un fichier (CSV/Excel),Or import a file (CSV/Excel)
+Outil,Tool
+Palette,Palette
+Palette de couleurs,Colour palette
+Part d'entraînement (%),Training share (%)
+Pas X,X step
+Pas Y,Y step
+PERMANOVA (>= 2 réponses),PERMANOVA (>= 2 responses)
+Personnaliser l'ordre axe X,Customise the X axis order
+Personnaliser les graduations,Customise the ticks
+Personnaliser les limites des axes,Customise the axis limits
+Plan de base,Base design
+Police de base:,Base font:
+Police des axes / du titre,Axis / title font
+Position,Position
+Position de la légende,Legend position
+Position des aires :,Area position:
+Position des barres:,Bar position:
+Position légende:,Legend position:
+Position sous-titre,Subtitle position
+Position:,Position:
+Precedente,Previous
+Prédicteurs (sélection multiple) :,Predictors (multiple selection):
+Prédire ce cas,Predict this case
+Préfixe à ajouter:,Prefix to add:
+Préfixe des noms de bloc,Prefix for block names
+Probabilité de l'evenement chez les non-exposes / a la moyenne (p0),Probability of the event among the unexposed / at the mean (p0)
+Probabilités (p-values) sur le graphique,Probabilities (p-values) on the plot
+Proportion (ou taux) de référence :,Reference proportion (or rate):
+Proportion attendue p (0.5 = cas le plus prudent),Expected proportion p (0.5 = most conservative case)
+Proportion d'exposes,Proportion exposed
+"Proportions (une par modalité, ordre alphabétique, séparées par virgule)","Proportions (one per category, alphabetical order, comma separated)"
+Proportions attendues (H0),Expected proportions (H0)
+Puissance (1-β err prob),Power (1-β err prob)
+Qualité JPEG:,JPEG quality:
+Question ouverte a coder,Open-ended question to code
+Queue(s),Tail(s)
+R2 du prédicteur explique par les autres covariables,R2 of the predictor explained by the other covariates
+R2 explique par les autres covariables,R2 explained by the other covariates
+Racinisation (stemming),Stemming
+Recharger un projet (.rds),Reload a project (.rds)
+Recherche automatique des hyperparamètres (grille + validation) — recommandé,Automatic hyperparameter search (grid + validation) — recommended
+Rechercher dans les extraits,Search within the excerpts
+Réinitialiser l'ordre,Reset the order
+Réinitialiser tous les filtres,Reset every filter
+Répétitions / blocs,Replicates / blocks
+Réponse a expliquer :,Response to explain:
+Réponse a prédire :,Response to predict:
+Reponses envoyees au modele (max.),Answers sent to the model (max.)
+Résolution (DPI),Resolution (DPI)
+Resolution des figures,Figure resolution
+Rotation axe X (°),X axis rotation (°)
+rpart : complexité (cp),rpart: complexity (cp)
+Séparateur :,Separator:
+"Saisir de nouvelles valeurs (séparées par des virgules, espaces ou retours à la ligne)","Enter new values (separated by commas, spaces or line breaks)"
+Second coefficient r (r2),Second coefficient r (r2)
+Sections a inclure,Sections to include
+Sélection de lignes :,Row selection:
+Sélectionner l'effet simple:,Select the simple effect:
+Sélectionner les colonnes à conserver :,Select the columns to keep:
+Sélectionnez le type:,Select the type:
+Sélectionnez une variable:,Select a variable:
+Sensible à la casse,Case sensitive
+Séparateur (regex),Separator (regex)
+Série à prévoir (numérique),Series to forecast (numeric)
+Serveur d'inference,Inference server
+Seuil (|z|):,Threshold (|z|):
+Seuil de significativité (α),Significance threshold (α)
+Simuler les prévisions,Simulate the forecasts
+Source des labels pour individus (optionnel):,Source of individual labels (optional):
+Standardiser les variables,Standardise the variables
+Style axe X,X axis style
+Style axe Y,Y axis style
+"Style lettres (a,b,c)","Letter style (a,b,c)"
+Style sous-titre,Subtitle style
+Style texte légende,Legend text style
+Style titre,Title style
+Style titre légende,Legend title style
+Style titres axes,Axis title style
+Suffixe à ajouter:,Suffix to add:
+Suivante,Next
+Supprimer ce memo,Delete this memo
+Supprimer la sélection,Delete the selection
+Supprimer les codages automatiques,Delete the automatic codings
+Supprimer variable :,Delete variable:
+SVM : coût C,SVM: cost C
+SVM : noyau,SVM: kernel
+Taille de la population (0 ou vide = infinie),Population size (0 or empty = infinite)
+Taille de lot,Batch size
+Taille des entrées:,Input size:
+Taille des etiquettes (pt),Label size (pt)
+Taille des labels,Label size
+Taille des n-grammes,N-gram size
+Taille des p-values,p-value size
+Taille des points,Point size
+Taille des points (individus),Point size (individuals)
+Taille des points:,Point size:
+Taille des symboles:,Symbol size:
+Taille des valeurs,Value size
+Taille du bloc incomplet (k),Incomplete block size (k)
+Taille du jeu de test,Test set size
+Taille du texte,Text size
+Taille du titre:,Title size:
+Taille max. du texte,Max. text size
+Taille moyennes dans barres,Size of the means inside the bars
+Taille police des étiquettes,Label font size
+Taille texte axes,Axis text size
+Taille texte axes:,Axis text size:
+Taille texte des axes,Axis text size
+Taille texte légende:,Legend text size:
+Taille titre:,Title size:
+Taille titres axes:,Axis title size:
+Taille titres d'axes,Axis title size
+Taille:,Size:
+Taux d'apprentissage,Learning rate
+Taux de base moyen (exp(beta0)),Mean baseline rate (exp(beta0))
+Taux de réponse anticipé,Expected response rate
+Télécharger (CSV),Download (CSV)
+Télécharger (Excel),Download (Excel)
+Télécharger (PNG),Download (PNG)
+Télécharger Analyse Parallèle,Download parallel analysis
+Télécharger carte,Download map
+Télécharger contribution,Download contributions
+Télécharger dendrogramme,Download dendrogram
+Télécharger données (CSV),Download data (CSV)
+Télécharger données (Excel),Download data (Excel)
+Télécharger effets principaux (.xlsx),Download main effects (.xlsx)
+Télécharger effets simples (.xlsx),Download simple effects (.xlsx)
+Télécharger graphique,Download plot
+Télécharger Graphique CTR,Download CTR plot
+Télécharger hauteurs de fusion,Download merge heights
+Télécharger l'image,Download the image
+Télécharger la sortie (TXT),Download the output (TXT)
+Telecharger le diagnostic (CSV),Download the diagnostic (CSV)
+Télécharger le graphique,Download the plot
+Télécharger le Graphique,Download the plot
+Telecharger le nuage (PNG),Download the cloud (PNG)
+Telecharger le rapport (Excel),Download the report (Excel)
+Telecharger le script (.R),Download the script (.R)
+Télécharger les données filtrées,Download the filtered data
+Telecharger les memos (CSV),Download the memos (CSV)
+Télécharger les résultats (Excel),Download the results (Excel)
+Télécharger projection,Download projection
+Télécharger Scree Plot,Download scree plot
+Test binomial exact,Exact binomial test
+Test de Poisson (taux),Poisson test (rate)
+Test de Scheirer-Ray-Hare,Scheirer-Ray-Hare test
+Test du signe (médiane),Sign test (median)
+Test non paramétrique :,Non-parametric test:
+Test statistique,Statistical test
+Test t (1 échantillon),t-test (one sample)
+Test z (écart-type connu),z-test (known standard deviation)
+Tester la connexion et lister les modeles,Test the connection and list the models
+Texte axes,Axis text
+Texte brut,Plain text
+Texte des axes:,Axis text:
+Texte du gradient,Gradient text
+Texte en gras,Bold text
+Texte en italique,Italic text
+Texte légende,Legend text
+Titre (facultatif),Title (optional)
+Titre axe X,X axis title
+Titre axe Y,Y axis title
+Titre carte des clusters:,Cluster map title:
+Titre contribution variables:,Variable contribution title:
+Titre de la légende,Legend title
+Titre de la légende:,Legend title:
+Titre dendrogramme:,Dendrogram title:
+Titre du graphique,Plot title
+Titre du graphique:,Plot title:
+Titre en gras,Bold title
+Titre en italique,Italic title
+Titre légende,Legend title
+Titre personnalisé,Custom title
+Titre personnalisé:,Custom title:
+Titre principal:,Main title:
+Titre projection individus:,Individual projection title:
+Titre:,Title:
+Titres des axes,Axis titles
+Titres des axes:,Axis titles:
+Tri auto,Auto sort
+Type d'affichage,Display type
+Type d'analyse,Analysis type
+Type d'analyse de puissance,Power analysis type
+Type de coloration:,Colouring type:
+Type de comparaisons,Comparison type
+Type de ligne:,Line type:
+Type de plan,Design type
+Type de prédicteur,Predictor type
+Type de visualisation:,Visualisation type:
+Unite de comptage,Counting unit
+Utiliser les moyennes par groupe,Use the group means
+Valeur :,Value:
+Valeur à inscrire,Value to write
+Valeur de remplacement:,Replacement value:
+Valeur par défaut:,Default value:
+Valeur(s) à rechercher (une par ligne) :,Value(s) to search for (one per line):
+Variable 2 (croisement),Variable 2 (cross)
+Variable à prévoir (numérique),Variable to forecast (numeric)
+Variable à recoder,Variable to recode
+Variable à renommer :,Variable to rename:
+Variable à visualiser:,Variable to visualise:
+Variable cible (à prédire),Target variable (to predict)
+Variable couleur:,Colour variable:
+Variable d'exposition (X),Exposure variable (X)
+Variable d'issue (Y),Outcome variable (Y)
+Variable de groupement (ellipses):,Grouping variable (ellipses):
+Variable de groupement (moyennes) :,Grouping variable (means):
+Variable de groupement pour les moyennes:,Grouping variable for the means:
+Variable de pente (continue) :,Slope variable (continuous):
+Variable de profil (colonnes),Profile variable (columns)
+Variable facetting:,Facetting variable:
+Variable ordinale,Ordinal variable
+Variable ordinale 2,Ordinal variable 2
+Variable textuelle,Text variable
+Variable X (Traitements):,X variable (treatments):
+Variable X:,X variable:
+Variable Y (Efficacité):,Y variable (efficacy):
+Variable(s) Y:,Y variable(s):
+Variables (laisser vide = toutes),Variables (leave empty = all)
+Variables (numériques),Variables (numeric)
+Variables analysees,Variables analysed
+Variables de regroupement:,Grouping variables:
+Variables explicatives,Explanatory variables
+Variables numériques,Numeric variables
+Variables numériques (≥ 2),Numeric variables (>= 2)
+Variables numériques à analyser :,Numeric variables to analyse:
+Vider le livre de codes,Clear the codebook
+Wilcoxon signé (médiane),Signed Wilcoxon (median)
+X max,X max
+X min,X min
+xgboost : itérations,xgboost: iterations
+xgboost : profondeur,xgboost: depth
+xgboost : taux d'apprentissage,xgboost: learning rate
+Y max,Y max
+Y min,Y min
+1. Diagnostic & recommandation,1. Diagnosis & recommendation
+2. Details techniques,2. Technical details
+3. Décomposition des effets,3. Breakdown of the effects
+Aide a la decision,Decision support
+Ajouter Variable,Add variable
+Analyse a interpreter,Analysis to interpret
+Analyse des Valeurs Manquantes,Missing-value analysis
+Analyse multivariee assistee,Assisted multivariate analysis
+Analyse multivariee assistee (MANOVA / PERMANOVA),Assisted multivariate analysis (MANOVA / PERMANOVA)
+Analyse recommandee & field book,Recommended analysis & field book
+Analyse Saisonnière,Seasonal analysis
+"Analyse, croisement et rapports","Analysis, cross-tabulation and reports"
+Aperçu des Données Nettoyées,Preview of the cleaned data
+Architecture & apprentissage,Architecture & training
+Comparaison des modèles,Model comparison
+Configuration,Configuration
+Configuration de l'analyse,Analysis configuration
+Conventions (Cohen),Conventions (Cohen)
+Courbe d'apprentissage,Learning curve
+Courbe de puissance,Power curve
+Décomposition (STL),Decomposition (STL)
+Détail de la comparaison à la référence,Detail of the comparison with the reference
+Diagnostic du modèle sélectionné,Diagnostics of the selected model
+Diagnostic du réseau,Network diagnostics
+Diagnostics des résidus,Residual diagnostics
+Distribution des Variables,Variable distributions
+Échantillon de travail,Working sample
+Etiquettes de cette reponse,Labels on this answer
+Exporter le graphique,Export the plot
+Graphique des seuils d'efficacité,Plot of the efficacy thresholds
+Graphique du dispositif (randomisation),Plot of the design (randomisation)
+Groupes distincts (lettres),Distinct groups (letters)
+Importance des variables,Variable importance
+Interactif,Interactive
+Interaction (cellules croisées),Interaction (crossed cells)
+Lettres CLD,CLD letters
+Marge d'erreur selon la taille d'échantillon,Margin of error by sample size
+Matrice de confusion / résidus,Confusion matrix / residuals
+Matrice de Corrélation,Correlation matrix
+Métriques & interprétation,Metrics & interpretation
+"Métriques, prévisions & interprétation","Metrics, forecasts & interpretation"
+Moteur d'inference,Inference engine
+Options Avancées de Personnalisation,Advanced customisation options
+Options d'affichage des graphiques (optionnel),Plot display options (optional)
+Paires (emmeans),Pairs (emmeans)
+Paires (PERMANOVA Bonferroni),Pairs (PERMANOVA Bonferroni)
+Paramètres d'entree,Input parameters
+Paramètres de l'enquête,Survey parameters
+Paramètres de sortie,Output parameters
+Paramètres de Visualisation,Visualisation parameters
+Personnalisation Rapide,Quick customisation
+Personnaliser les labels de la légende,Customise the legend labels
+Prévision LSTM,LSTM forecast
+Prévisions du modèle sélectionné,Forecasts of the selected model
+Qualité : silhouette & coude,Quality: silhouette & elbow
+Recoder Classes,Recode categories
+Renommer Variable,Rename variable
+Reponse a coder,Answer to code
+Résultats & interprétation,Results & interpretation
+Résultats de l'ACP,PCA results
+Résultats des tests de corrélation,Correlation test results
+Résumé statistique,Statistical summary
+Saisie,Entry
+Simulateur de prédictions,Prediction simulator
+Simulateur de prévisions,Forecast simulator
+Structure des données,Data structure
+Supprimer Lignes,Delete rows
+Supprimer Variable,Delete variable
+Tableau des données utilisées,Table of the data used
+Taille d'échantillon requise,Required sample size
+Visualisation des groupes,Cluster visualisation
+Visualisation Interactive des Données,Interactive data visualisation
