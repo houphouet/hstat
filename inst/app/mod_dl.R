@@ -53,7 +53,7 @@ mod_dl_ui <- function(id) {
               actionButton(ns("dlRun"), "Entraîner le réseau",
                            icon = icon("play"), class = "btn-primary"),
               tags$small(style = "color:#6b7280; display:block; margin-top:8px;",
-                sprintf("Prédicteurs standardisés automatiquement (indispensable aux réseaux de neurones). Au-delà de %s lignes, entraînement sur échantillon (HSTAT_ML_MAX_N).",
+                trf("Prédicteurs standardisés automatiquement (indispensable aux réseaux de neurones). Au-delà de %s lignes, entraînement sur échantillon (HSTAT_ML_MAX_N).",
                         format(HSTAT_ML_MAX_N, big.mark = " ")))),
           box(title = tagList(icon("chart-area"), " Diagnostic du réseau"),
               status = "success", width = 8, solidHeader = TRUE,
@@ -444,7 +444,7 @@ mod_dl_server <- function(id, values) {
           ggplot2::geom_point(color = col, alpha = 0.55, size = 1.6) +
           ggplot2::geom_abline(slope = 1, intercept = 0, linetype = "dashed",
                                color = "#e74c3c") +
-          ggplot2::labs(title = sprintf("MLP (%s) — observé vs prédit (test)", f$fit$engine),
+          ggplot2::labs(title = trf("MLP (%s) — observé vs prédit (test)", f$fit$engine),
                         x = "Valeur observée", y = "Valeur prédite")
         # Courbe de prédiction : valeurs observées et prédites le long du test
         dc <- rbind(data.frame(i = seq_len(nrow(d)), v = d$obs, quoi = "Observé"),
@@ -492,7 +492,7 @@ mod_dl_server <- function(id, values) {
           icon("lightbulb"), strong(" Interprétation : "),
           hstat_model_interpretation(
             f$p$task, f$metrics,
-            sprintf("réseau de neurones %s (couches cachées : %s)",
+            trf("réseau de neurones %s (couches cachées : %s)",
                     f$fit$engine, paste(f$hidden, collapse = "-")),
             f$p$n_train, f$p$n_test,
             notes = "Un écart important entre performance d'entraînement et de test signale du surapprentissage : réduire les couches, augmenter les données ou la régularisation."))
@@ -503,7 +503,7 @@ mod_dl_server <- function(id, values) {
       f <- dlfit()
       div(class = "callout callout-info",
           icon("diagram-project"), strong(" Architecture : "),
-          sprintf("%d entrées → %s → %s ; %s paramètres entraînés (moteur %s).",
+          trf("%d entrées → %s → %s ; %s paramètres entraînés (moteur %s).",
                   ncol(f$p$x_train), paste(f$hidden, collapse = " → "),
                   if (f$p$task == "classification")
                     sprintf("%d sorties (classes)", nlevels(f$p$y_train))
@@ -557,7 +557,7 @@ mod_dl_server <- function(id, values) {
           sprintf(" (confiance : %.1f %%)", 100 * max(out$prob[1, ])) else ""
         div(class = "callout callout-info", style = "margin-top:10px;",
             icon("bullseye"),
-            strong(sprintf(" Prédiction de « %s » : %s%s.", f$p$target, val, conf)))
+            strong(trf(" Prédiction de « %s » : %s%s.", f$p$target, val, conf)))
       })
     })
 
@@ -593,9 +593,9 @@ mod_dl_server <- function(id, values) {
       pc <- d[[paste0("Prediction_", f$p$target)]]
       div(class = "callout callout-info", style = "margin-top:8px;", icon("lightbulb"),
           if (f$p$task == "regression")
-            sprintf(" %d cas prédits (moyenne = %s).", nrow(d),
+            trf(" %d cas prédits (moyenne = %s).", nrow(d),
                     format(round(mean(as.numeric(pc)), 3), big.mark = " "))
-          else sprintf(" %d cas prédits ; classe majoritaire : « %s ».",
+          else trf(" %d cas prédits ; classe majoritaire : « %s ».",
                        nrow(d), names(sort(table(pc), decreasing = TRUE))[1]))
     })
 
@@ -611,7 +611,7 @@ mod_dl_server <- function(id, values) {
       L <- as.integer(max(2, hstat_finite(input$lstmLook, 12)))
       n_test <- as.integer(max(2, hstat_finite(input$lstmTestN, 12)))
       validate(need(length(y) >= L + n_test + 10,
-        sprintf("Série trop courte : au moins %d observations requises.", L + n_test + 10)))
+        trf("Série trop courte : au moins %d observations requises.", L + n_test + 10)))
       ctr <- mean(y); scl <- max(stats::sd(y), 1e-9)
       z <- (y - ctr) / scl
       # Séquences glissantes (fenêtre L -> valeur suivante)
@@ -685,7 +685,7 @@ mod_dl_server <- function(id, values) {
         ggplot2::scale_color_manual(values = c("Série observée" = "#37474f",
                                                "Prédiction (test)" = "#e67e22",
                                                "Prévision future" = "#8e44ad")) +
-        ggplot2::labs(title = sprintf("LSTM (fenêtre %d, %d neurones) — test + futur",
+        ggplot2::labs(title = trf("LSTM (fenêtre %d, %d neurones) — test + futur",
                                       r$L, r$H),
                       x = "Temps", y = "Valeur", color = NULL) +
         ggplot2::theme_minimal(base_size = 13) +
@@ -732,7 +732,7 @@ mod_dl_server <- function(id, values) {
         utils::tail(r$losses, 1) < r$losses[1] * 0.9
       div(class = "callout callout-info", style = "margin-top:10px;",
           icon("lightbulb"), strong(" Interprétation : "),
-          sprintf("Le LSTM apprend à prédire chaque valeur à partir des %d précédentes. Sur le jeu de test, la MAPE vaut %s %% : %s ",
+          trf("Le LSTM apprend à prédire chaque valeur à partir des %d précédentes. Sur le jeu de test, la MAPE vaut %s %% : %s ",
                   r$L, v("MAPE (%)"), .hstat_interp_mape(v("MAPE (%)"))),
           if (converge) "La courbe d'apprentissage décroît nettement : l'entraînement a convergé. "
           else "La perte décroît peu : augmenter les époques, le taux d'apprentissage ou la fenêtre. ",

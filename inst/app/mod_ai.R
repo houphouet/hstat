@@ -132,7 +132,7 @@ hstat_ai_status <- function(engine = "local", backend = "ollama", url = NULL,
     miss <- c(if (!requireNamespace("httr", quietly = TRUE)) "{httr}",
               if (!requireNamespace("jsonlite", quietly = TRUE)) "{jsonlite}")
     return(list(ok = FALSE,
-                message = sprintf(
+                message = trf(
                   "Moteur indisponible : le(s) paquet(s) %s manquent. Installez-les avec install.packages(c(%s)), ou basculez sur la thematisation automatique, qui n'en a pas besoin.",
                   paste(miss, collapse = " et "),
                   paste(sprintf('"%s"', gsub("[{}]", "", miss)), collapse = ", "))))
@@ -161,14 +161,14 @@ hstat_ai_status <- function(engine = "local", backend = "ollama", url = NULL,
       paste0("Demarrez votre serveur d'inference (llama.cpp `llama-server`, ",
              "LM Studio, vLLM, Jan...) et verifiez son adresse ci-dessous.")
     return(list(ok = FALSE, models = character(0),
-                message = sprintf("Aucun modele local joignable sur %s. %s", u, aide)))
+                message = trf("Aucun modele local joignable sur %s. %s", u, aide)))
   }
   if (!is.null(model) && nzchar(model) && !(model %in% mods))
     return(list(ok = FALSE, models = mods,
                 message = sprintf("Le modele « %s » n'est pas installe sur %s. Modeles disponibles : %s.",
                                   model, u, paste(mods, collapse = ", "))))
   list(ok = TRUE, models = mods,
-       message = sprintf("Modele local disponible sur %s (%d modele(s) installe(s)). Gratuit, hors ligne, aucune donnee ne quitte la machine.",
+       message = trf("Modele local disponible sur %s (%d modele(s) installe(s)). Gratuit, hors ligne, aucune donnee ne quitte la machine.",
                          u, length(mods)))
 }
 
@@ -229,7 +229,7 @@ hstat_ai_available <- function(explicit = NULL) {
     mods <- hstat_ai_ollama_models(u)
     if (!length(mods))
       return(list(ok = FALSE, text = "",
-                  error = sprintf("Aucun modele Ollama joignable sur %s.", u)))
+                  error = trf("Aucun modele Ollama joignable sur %s.", u)))
     model <- mods[1]
   }
   body <- .hstat_ai_body_ollama(prompt, system, model, json)
@@ -564,7 +564,7 @@ hstat_ai_context_text <- function(ctx, max_rows = 25, max_chars = 6000) {
   }))
   testables <- !is.na(det$Normale)
   list(ok = if (!any(testables)) NA else all(det$Normale[testables]),
-       methode = sprintf("Shapiro-Wilk dans chacun des %d groupes", length(lev)),
+       methode = trf("Shapiro-Wilk dans chacun des %d groupes", length(lev)),
        p = if (any(testables)) min(det$p[testables], na.rm = TRUE) else NA_real_,
        portee = "par groupe",
        detail = det)
@@ -849,15 +849,15 @@ hstat_data_quality <- function(df, seuil_na = 0.20, seuil_modalite = 0.95,
     # --- Valeurs manquantes -------------------------------------------------
     if (taux_na >= 0.90)
       out <- c(out, list(.hstat_q_row(nm,
-        sprintf("%.0f %% de valeurs manquantes", 100 * taux_na), "bloquant",
+        trf("%.0f %% de valeurs manquantes", 100 * taux_na), "bloquant",
         "Variable quasi vide : l'exclure des analyses, ou retrouver la source des donnees manquantes.")))
     else if (taux_na >= 0.50)
       out <- c(out, list(.hstat_q_row(nm,
-        sprintf("%.0f %% de valeurs manquantes", 100 * taux_na), "important",
+        trf("%.0f %% de valeurs manquantes", 100 * taux_na), "important",
         "Au-dela de la moitie, l'imputation invente plus qu'elle ne restitue. Preferer l'exclusion, ou une analyse sur cas complets en le declarant.")))
     else if (taux_na >= seuil_na)
       out <- c(out, list(.hstat_q_row(nm,
-        sprintf("%.0f %% de valeurs manquantes", 100 * taux_na), "a surveiller",
+        trf("%.0f %% de valeurs manquantes", 100 * taux_na), "a surveiller",
         "Onglet Nettoyage : imputation par la mediane/le mode, ou par kNN / missForest si le mecanisme n'est pas aleatoire.")))
 
     vals <- x[!vide]
@@ -867,13 +867,13 @@ hstat_data_quality <- function(df, seuil_na = 0.20, seuil_modalite = 0.95,
     # --- Variables sans information ----------------------------------------
     if (u == 1L) {
       out <- c(out, list(.hstat_q_row(nm,
-        sprintf("une seule valeur (« %s »)", substr(as.character(vals[1]), 1, 30)), "important",
+        trf("une seule valeur (« %s »)", substr(as.character(vals[1]), 1, 30)), "important",
         "Variable constante : elle ne peut expliquer aucune variation. La retirer des modeles (elle fait aussi echouer l'ACP et la standardisation).")))
       next
     }
     if (chr && u >= 0.95 * length(vals) && u > 20)
       out <- c(out, list(.hstat_q_row(nm,
-        sprintf("%d valeurs distinctes sur %d observations", u, length(vals)), "a surveiller",
+        trf("%d valeurs distinctes sur %d observations", u, length(vals)), "a surveiller",
         "Ressemble a un identifiant ou a du texte libre. Comme identifiant : l'exclure des analyses. Comme texte : l'onglet Analyses qualitatives sait le coder et le thematiser.")))
 
     if (chr) {
@@ -881,7 +881,7 @@ hstat_data_quality <- function(df, seuil_na = 0.20, seuil_modalite = 0.95,
       # --- Modalite ecrasante ---------------------------------------------
       if (tb[1] / length(vals) >= seuil_modalite)
         out <- c(out, list(.hstat_q_row(nm,
-          sprintf("la modalite « %s » couvre %.0f %% des reponses", names(tb)[1],
+          trf("la modalite « %s » couvre %.0f %% des reponses", names(tb)[1],
                   100 * tb[1] / length(vals)), "important",
           "Variable quasi constante : aucun test ne detectera de difference. Regrouper les modalites, ou renoncer a l'utiliser comme facteur.")))
       # --- Modalites trop rares --------------------------------------------
@@ -894,7 +894,7 @@ hstat_data_quality <- function(df, seuil_na = 0.20, seuil_modalite = 0.95,
       if (u > max_modalites && u < 0.95 * length(vals))
         out <- c(out, list(.hstat_q_row(nm,
           sprintf("%d modalites distinctes", u), "a surveiller",
-          sprintf("Au-dela de %d modalites, les tableaux croises deviennent illisibles et les effectifs trop faibles. Regrouper en categories plus larges.", max_modalites))))
+          trf("Au-dela de %d modalites, les tableaux croises deviennent illisibles et les effectifs trop faibles. Regrouper en categories plus larges.", max_modalites))))
 
       # --- Nombres stockes en texte ----------------------------------------
       num <- suppressWarnings(as.numeric(gsub(",", ".", as.character(vals))))
@@ -911,12 +911,12 @@ hstat_data_quality <- function(df, seuil_na = 0.20, seuil_modalite = 0.95,
         ext <- sum(v < qs[1] - 3 * iqr | v > qs[2] + 3 * iqr)
         if (ext > 0)
           out <- c(out, list(.hstat_q_row(nm,
-            sprintf("%d valeur(s) extreme(s) (au-dela de 3 ecarts interquartiles)", ext), "a surveiller",
+            trf("%d valeur(s) extreme(s) (au-dela de 3 ecarts interquartiles)", ext), "a surveiller",
             "Verifier s'il s'agit d'erreurs de saisie ou de vraies observations. Si elles sont reelles, preferer les tests de rangs, qui n'en dependent pas.")))
       }
       if (any(!is.finite(v)))
         out <- c(out, list(.hstat_q_row(nm,
-          sprintf("%d valeur(s) infinie(s) ou non numerique(s)", sum(!is.finite(v))), "bloquant",
+          trf("%d valeur(s) infinie(s) ou non numerique(s)", sum(!is.finite(v))), "bloquant",
           "Ces valeurs font echouer la plupart des calculs. Les remplacer ou les retirer dans l'onglet Nettoyage.")))
     }
   }
@@ -1011,7 +1011,7 @@ hstat_reco_analyses <- function(profile) {
   if (length(vides)) {
     out <- c(out, list(.hstat_reco_row(
       "Aucune analyse possible en l'etat", "Bloquant",
-      sprintf("%s ne comporte aucune valeur observee : il n'y a rien a analyser.",
+      trf("%s ne comporte aucune valeur observee : il n'y a rien a analyser.",
               paste(sprintf("« %s »", vides), collapse = ", ")),
       "Au moins quelques observations non manquantes par variable.",
       paste("Verifiez l'import (separateur, colonne decalee) et les filtres",
@@ -1060,7 +1060,7 @@ hstat_reco_analyses <- function(profile) {
       out <- c(out, list(
         if (normal_tous && !isFALSE(homo) && !isTRUE(g$petits_effectifs))
           .hstat_reco_row("ANOVA a un facteur", "Recommandee",
-            sprintf("Une quantitative comparee entre %d groupes, normalite intra-groupe et homogeneite des variances acceptables.", g$k),
+            trf("Une quantitative comparee entre %d groupes, normalite intra-groupe et homogeneite des variances acceptables.", g$k),
             "Independance ; normalite des residus ; homogeneite des variances.",
             "ANOVA de Welch, ou Kruskal-Wallis.")
         else if (normal_tous && !isTRUE(g$petits_effectifs))
@@ -1070,7 +1070,7 @@ hstat_reco_analyses <- function(profile) {
             "Kruskal-Wallis.")
         else if (isTRUE(g$petits_effectifs))
           .hstat_reco_row("Kruskal-Wallis", "Recommandee",
-            sprintf("%d groupes dont au moins un compte moins de 5 observations : la normalite n'y est pas verifiable, un test de rangs ne la suppose pas.", g$k),
+            trf("%d groupes dont au moins un compte moins de 5 observations : la normalite n'y est pas verifiable, un test de rangs ne la suppose pas.", g$k),
             "Independance des observations.",
             "Test de permutation, si meme les rangs sont trop peu nombreux.")
         else
@@ -1112,7 +1112,7 @@ hstat_reco_analyses <- function(profile) {
     if (length(quanti) >= 3)
       out <- c(out, list(.hstat_reco_row(
         "ACP (analyse en composantes principales)", "A envisager",
-        sprintf("%d variables quantitatives : l'ACP resume leur structure commune et revele les redondances.", length(quanti)),
+        trf("%d variables quantitatives : l'ACP resume leur structure commune et revele les redondances.", length(quanti)),
         "Variables correlees entre elles ; effectif superieur au nombre de variables.",
         "Matrice de correlations seule si les variables sont independantes.")))
   }
@@ -1161,7 +1161,7 @@ hstat_reco_analyses <- function(profile) {
   if (length(bin) >= 1 && (length(quanti) >= 1 || length(quali) >= 1))
     out <- c(out, list(.hstat_reco_row(
       "Regression logistique", "A envisager",
-      sprintf("« %s » ne prend que deux valeurs : la regression logistique modelise sa probabilite a partir des autres variables.", bin[1]),
+      trf("« %s » ne prend que deux valeurs : la regression logistique modelise sa probabilite a partir des autres variables.", bin[1]),
       "Effectif suffisant par modalite (au moins 10 evenements par predicteur).",
       "Test exact ou regression penalisee si les effectifs sont faibles.")))
 
@@ -1189,7 +1189,7 @@ hstat_reco_verdict <- function(reco, titre_analyse, module = NULL) {
     reco_1 <- reco$Analyse[reco$Pertinence == "Recommandee"]
     return(list(
       coherent = TRUE, exploratoire = TRUE,
-      message = sprintf(
+      message = trf(
         "« %s » decrit vos donnees : c'est une etape preliminaire, pas un test, il n'y a donc rien a valider ici. Pour aller plus loin, le profil de vos variables appelle %s. A vous de decider si cette suite a du sens pour votre question de recherche.",
         titre_analyse,
         if (length(reco_1)) paste(reco_1, collapse = " ou ") else "une analyse inferentielle")))
@@ -1207,12 +1207,12 @@ hstat_reco_verdict <- function(reco, titre_analyse, module = NULL) {
   reco_1 <- reco$Analyse[reco$Pertinence == "Recommandee"]
   if (any(hit))
     list(coherent = TRUE, exploratoire = FALSE,
-         message = sprintf(
+         message = trf(
            "L'analyse que vous avez menee figure parmi celles que le profil de vos donnees appelle (%s).",
            paste(reco$Analyse[hit], collapse = ", ")))
   else
     list(coherent = FALSE, exploratoire = FALSE,
-         message = sprintf(
+         message = trf(
            "Au vu du profil des variables, %s aurait ete le choix le plus direct. Cela ne disqualifie pas votre analyse : un objectif de recherche ou une contrainte de terrain peut la justifier. A vous de trancher.",
            if (length(reco_1)) paste(reco_1, collapse = " ou ") else "une autre approche"))
 }
@@ -1260,7 +1260,7 @@ hstat_ai_interpret_offline <- function(ctx, profile = NULL, reco = NULL,
     for (nm in names(profile$variables)) {
       e <- profile$variables[[nm]]
       if (is.null(e$normale) || is.na(e$normale$ok)) next
-      L <- c(L, sprintf("- « %s » : distribution %s la normalite (%s%s).", nm,
+      L <- c(L, trf("- « %s » : distribution %s la normalite (%s%s).", nm,
                         if (isTRUE(e$normale$ok)) "compatible avec" else "incompatible avec",
                         e$normale$methode,
                         if (!is.na(e$normale$p)) sprintf(", p = %.4g", e$normale$p) else ""))
@@ -1939,7 +1939,7 @@ mod_ai_server <- function(id, values) {
     output$profile_notes <- shiny::renderUI({
       p <- profile()
       if (is.null(p)) return(NULL)
-      el <- list(shiny::tags$li(sprintf("%d observations dans le jeu de donnees.", p$n)))
+      el <- list(shiny::tags$li(trf("%d observations dans le jeu de donnees.", p$n)))
       if (!is.null(p$groupe)) {
         g <- p$groupe
         el <- c(el, list(shiny::tags$li(sprintf(
@@ -1998,7 +1998,7 @@ mod_ai_server <- function(id, values) {
                 length(h), reconstitues),
         if (reconstitues < length(h))
           shiny::tags$small(style = "display:block;color:#7f8c8d;",
-            sprintf("Les %d autres sont documentees en commentaire : leurs reglages etaient interactifs.",
+            trf("Les %d autres sont documentees en commentaire : leurs reglages etaient interactifs.",
                     length(h) - reconstitues)))
     })
 

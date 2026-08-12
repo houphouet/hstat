@@ -1706,7 +1706,7 @@ mod_correlation_server <- function(id, values) {
       if (!all(num_ok)) {
         dropped <- names(cor_data)[!num_ok]
         cor_data <- cor_data[, num_ok, drop = FALSE]
-        showNotification(sprintf("Corrélation : variable(s) non numérique(s) ignorée(s) : %s.",
+        showNotification(trf("Corrélation : variable(s) non numérique(s) ignorée(s) : %s.",
                                  paste(dropped, collapse = ", ")), type = "message", duration = 5)
       }
       cor_data <- remove_zero_var_cols(cor_data)
@@ -1726,7 +1726,7 @@ mod_correlation_server <- function(id, values) {
           if (any(abs(cm0[i, seq_len(i - 1)]) > 0.9999)) drop_idx <- c(drop_idx, i)
         }
         if (length(drop_idx) > 0) {
-          showNotification(sprintf("Corrélation : %d variable(s) parfaitement colinéaire(s) retirée(s).",
+          showNotification(trf("Corrélation : %d variable(s) parfaitement colinéaire(s) retirée(s).",
                                    length(drop_idx)), type = "message", duration = 5)
           cor_data <- cor_data[, -drop_idx, drop = FALSE]
         }
@@ -1942,7 +1942,7 @@ mod_correlation_server <- function(id, values) {
           grDevices::png(file, width = px, height = px, res = dpi, type = "cairo")
         }
         tryCatch(draw(), finally = grDevices::dev.off())
-        showNotification(sprintf("Graphique téléchargé (%s, %d DPI).", toupper(fmt), dpi),
+        showNotification(trf("Graphique téléchargé (%s, %d DPI).", toupper(fmt), dpi),
                          type = "message", duration = 3)
       })
   })
@@ -2320,7 +2320,7 @@ mod_tests_server <- function(id, values) {
           # `<-` et non `<<-` : l'expression d'un tryCatch est evaluee dans le
           # cadre de son appelant, donc ici meme. `<<-` sauterait ce cadre et
           # creerait une variable globale, laissant `motifs_refus` vide.
-          motifs_refus <- c(motifs_refus, sprintf(
+          motifs_refus <- c(motifs_refus, trf(
             "« %s » compte %d modalité(s) (%s). Le test t en compare exactement deux. %s",
             fvar, length(factor_levels),
             paste(utils::head(factor_levels, 5), collapse = ", "),
@@ -2577,10 +2577,10 @@ mod_tests_server <- function(id, values) {
                          fixed = TRUE))
     showNotification(
       if (is_tost)
-        sprintf("%d test(s) d'équivalence : équivalence démontrée pour %d variable(s).",
+        trf("%d test(s) d'équivalence : équivalence démontrée pour %d variable(s).",
                 length(rows), n_sig)
       else
-        sprintf("%d test(s) de conformité : %d écart(s) significatif(s) à la norme.",
+        trf("%d test(s) de conformité : %d écart(s) significatif(s) à la norme.",
                 length(rows), n_sig),
       type = "message", duration = 5)
   }
@@ -3367,26 +3367,26 @@ mod_tests_server <- function(id, values) {
       if (fam == "binomial") {
         # Tolere le 0/1 ; ou proportions dans [0,1] ; sinon erreur.
         if (rng[1] < 0 || rng[2] > 1)
-          msg <- sprintf("La famille « Binomiale » exige une réponse entre 0 et 1 (binaire 0/1 ou proportion), mais « %s » varie de %.3g à %.3g. Utilisez une variable 0/1 ou une proportion, ou changez de famille (Poisson/nbinom pour des comptages, Gamma/Gaussienne pour du continu).",
+          msg <- trf("La famille « Binomiale » exige une réponse entre 0 et 1 (binaire 0/1 ou proportion), mais « %s » varie de %.3g à %.3g. Utilisez une variable 0/1 ou une proportion, ou changez de famille (Poisson/nbinom pour des comptages, Gamma/Gaussienne pour du continu).",
                          var, rng[1], rng[2])
       } else if (fam == "beta_family") {
         if (rng[1] <= 0 || rng[2] >= 1)
-          msg <- sprintf("La famille « Beta » exige une réponse strictement comprise entre 0 et 1 (exclus), mais « %s » varie de %.3g à %.3g. Pour des proportions incluant 0 ou 1, utilisez la binomiale ; pour du continu positif, la Gamma.",
+          msg <- trf("La famille « Beta » exige une réponse strictement comprise entre 0 et 1 (exclus), mais « %s » varie de %.3g à %.3g. Pour des proportions incluant 0 ou 1, utilisez la binomiale ; pour du continu positif, la Gamma.",
                          var, rng[1], rng[2])
       } else if (fam == "poisson") {
         if (rng[1] < 0)
-          msg <- sprintf("La famille « Poisson » exige des comptages ≥ 0, mais « %s » contient des valeurs négatives (min = %.3g).", var, rng[1])
+          msg <- trf("La famille « Poisson » exige des comptages ≥ 0, mais « %s » contient des valeurs négatives (min = %.3g).", var, rng[1])
         else if (!is_int)
-          msg <- sprintf("La famille « Poisson » attend des nombres entiers (comptages), mais « %s » contient des valeurs décimales. Utilisez Gamma ou Gaussienne pour du continu, ou nbinom si surdispersion.", var)
+          msg <- trf("La famille « Poisson » attend des nombres entiers (comptages), mais « %s » contient des valeurs décimales. Utilisez Gamma ou Gaussienne pour du continu, ou nbinom si surdispersion.", var)
       } else if (fam == "nbinom") {
         if (rng[1] < 0)
-          msg <- sprintf("La famille « Binomiale négative » exige des comptages ≥ 0, mais « %s » contient des valeurs négatives (min = %.3g).", var, rng[1])
+          msg <- trf("La famille « Binomiale négative » exige des comptages ≥ 0, mais « %s » contient des valeurs négatives (min = %.3g).", var, rng[1])
         else if (!is_int)
-          msg <- sprintf("La famille « Binomiale négative » attend des nombres entiers (comptages), mais « %s » contient des valeurs décimales.", var)
+          msg <- trf("La famille « Binomiale négative » attend des nombres entiers (comptages), mais « %s » contient des valeurs décimales.", var)
       } else if (fam %in% c("Gamma", "inverse.gaussian", "tweedie")) {
         lo <- if (fam == "tweedie") -1e-9 else 0  # Tweedie tolere les zeros
         if (rng[1] < lo || (fam != "tweedie" && rng[1] <= 0))
-          msg <- sprintf("La famille « %s » exige une réponse strictement positive%s, mais « %s » a un minimum de %.3g. Utilisez la Gaussienne pour des valeurs réelles, ou Tweedie si beaucoup de zéros.",
+          msg <- trf("La famille « %s » exige une réponse strictement positive%s, mais « %s » a un minimum de %.3g. Utilisez la Gaussienne pour des valeurs réelles, ou Tweedie si beaucoup de zéros.",
                          fam, if (fam == "tweedie") " ou nulle" else "", var, rng[1])
       }
       msg
@@ -3477,7 +3477,7 @@ mod_tests_server <- function(id, values) {
           values$currentModelVar <- 1
           values$currentTestType <- "parametric"
           showNotification(
-            sprintf("Modèle mixte ajusté (%s, famille %s) sur %d variable(s).",
+            trf("Modèle mixte ajusté (%s, famille %s) sur %d variable(s).",
                     engine, fam, length(model_list)),
             type = "message", duration = 5
           )
@@ -3628,7 +3628,7 @@ mod_tests_server <- function(id, values) {
           }
           values$rmPostHocData <- if (length(posthoc_list) > 0) do.call(rbind, posthoc_list) else NULL
           values$rmPostHocMethod <- paste0("rmANOVA (", engine, "), ajustement ", adj)
-          showNotification(sprintf("ANOVA à mesures répétées (%s) sur %d variable(s).", engine, length(model_list)),
+          showNotification(trf("ANOVA à mesures répétées (%s) sur %d variable(s).", engine, length(model_list)),
                            type = "message", duration = 5)
         } else {
           showNotification("Aucun résultat rmANOVA généré.", type = "warning")
@@ -3771,7 +3771,7 @@ mod_tests_server <- function(id, values) {
           values$rmPostHocData <- if (length(posthoc_list) > 0) do.call(rbind, posthoc_list) else NULL
           values$rmPostHocMethod <- paste0(switch(method, friedman = "Friedman/Conover",
                                                   durbin = "Durbin", art = "ART"), ", ajustement ", adj)
-          showNotification(sprintf("Test non paramétrique répété (%s) terminé.", method),
+          showNotification(trf("Test non paramétrique répété (%s) terminé.", method),
                            type = "message", duration = 5)
         } else {
           showNotification("Aucun résultat généré.", type = "warning")
@@ -5614,7 +5614,7 @@ mod_tests_server <- function(id, values) {
     if (n < 2) { showNotification("Au moins 2 modalités requises.", type = "error"); return() }
     if (n > 100) {
       showNotification(
-        sprintf("La variable '%s' a %d modalités distinctes -- trop pour un test d'ajustement. Vérifiez que vous avez bien choisi une variable catégorielle.", col_cat, n),
+        trf("La variable '%s' a %d modalités distinctes -- trop pour un test d'ajustement. Vérifiez que vous avez bien choisi une variable catégorielle.", col_cat, n),
         type = "error", duration = 8
       )
       return()
@@ -7042,7 +7042,7 @@ mod_tests_server <- function(id, values) {
             n_levels       = nlevels(grp)
           )
         }, error = function(e) {
-          showNotification(hstat_err_fr(e, sprintf("Post-hoc multivarié (facteur %s)", fvar)),
+          showNotification(hstat_err_fr(e, trf("Post-hoc multivarié (facteur %s)", fvar)),
                            type = "warning", duration = 5)
         })
       }
@@ -8824,7 +8824,7 @@ mod_tests_server <- function(id, values) {
       })
 
       if (ok) {
-        showNotification(sprintf("Graphique téléchargé (%s, %d DPI).", toupper(fmt), as.integer(dpi)),
+        showNotification(trf("Graphique téléchargé (%s, %d DPI).", toupper(fmt), as.integer(dpi)),
                          type = "message", duration = 3)
       }
     }

@@ -70,10 +70,45 @@ Translations live in `inst/app/i18n/fr-en.csv`: two columns, `fr` and `en`.
 Adding a language pair is a CSV edit, not a code change. `hstat_i18n_coverage()`
 reports what is covered and names what is missing.
 
-**Current coverage: the whole navigation, plus the most frequent labels,
-buttons, verdicts and messages.** The long written interpretations remain in
-French for now — they are generated sentences, not fixed strings, and need
-rewriting as templates rather than substitution.
+### Your data is never translated
+
+This is the rule everything else bends around. A column of your file holding
+`Oui` / `Non` — or `Total`, `Normal`, `Moyenne` — matches an interface label
+**word for word**. Early on, switching to English turned the `Oui` in the
+preview into `Yes`: the app was rewriting the data you had come to read. For a
+statistics tool that is the worst possible defect, because nothing breaks — it
+just quietly lies.
+
+Two barriers now stand in the way, one exact and one heuristic:
+
+- **The terms of your file are declared.** The server sends the browser the
+  column names and the categories of your qualitative variables. Nothing on
+  that list is ever translated, anywhere on the page — including in a table
+  added to the app later, which would have escaped any hand-placed annotation.
+  The price is accepted: if one of your columns is called `Total`, the
+  interface label *Total* stops being translated too.
+- **Inside a table cell, only sentences are translated** (over 25 characters).
+  A data value is almost never a whole sentence, whereas an interpretation
+  always is.
+
+The same rule holds for the sentences R composes itself. `trf()` translates the
+**template** — `"%s: %d value(s) changed"` — and then fills it in, so the
+arguments, which are precisely where your variable names and values live, pass
+through without ever being read. Here the guarantee comes from the construction
+rather than from a precaution.
+
+**Current coverage: the whole navigation, labels, buttons, verdicts, error
+messages, and the 228 composed sentences of every module** — metrics,
+recommendation engine, statistical tests, qualitative analyses, experimental
+design, machine learning, time series, cleaning and reports.
+
+One rule shapes the dictionary: **an ambiguous word never goes in on its own.**
+*Moyenne* means *medium* for an effect size and *mean* in statistics; a single
+key would corrupt the other sense. The nuance is carried by the whole sentence
+instead — four complete sentences rather than a template and an adjective. A
+word chosen by the code that *isn't* ambiguous (*équiprobables*, *blocs égaux*)
+is opted in explicitly at the call site. `trf()` never translates its arguments
+by itself; that is what protects your values.
 
 ---
 
@@ -162,6 +197,30 @@ MAXQDA-style coding workbench:
 - **Retrieval and cross-tabulation** — click a code to list every excerpt it
   covers, and cross the coded text with respondent profiles (for instance, only
   the price complaints made by the "Moins de 25 ans" group).
+- **Complex coding query** — cross two sets of codes: *A AND B*, *A EXCEPT B*,
+  *A OR B*. The **scope changes the answer**, so it is stated alongside the
+  count: *same document* (both themes coexist in one respondent's answer, even
+  ten lines apart), *same passage* (one excerpt carries both labels), or
+  *within N characters* (the ideas follow one another without overlapping). On
+  the same corpus the three scopes returned 23, 16 and 3 excerpts — reporting a
+  figure without saying which one was used would be meaningless.
+- **Concordance (KWIC)** — every occurrence of a word with its left and right
+  context. This is the tool that *precedes* coding: you see how a word is
+  actually used before deciding which code it deserves. The search pattern is
+  escaped by default, so typing `prix (cher)` searches for that text instead of
+  raising an unmatched-parenthesis error.
+- **Document portrait (codeline)** — one document as a band where each code
+  occupies the stretch of text it labels, so the order of the discourse is
+  visible at a glance. Positions are given as a **percentage of the document**,
+  not in characters, so answers of very different lengths stay comparable.
+- **Intercoder agreement** — percentage agreement and Cohen's kappa between two
+  coders. The unit compared is the *document × code* pair: two coders never cut
+  at the same boundaries, and comparing segments would require an arbitrary
+  overlap threshold that moves the result more than the real disagreement does.
+  Kappa is undefined when both coders label everything (or nothing) the same
+  way — the expected chance agreement is already 1 — so the verdict has a
+  fourth state, *indeterminable*, and the percentage agreement is shown instead
+  of a `NaN`.
 - **Visualisation and reports** — word clouds, a concept map of code
   co-occurrences (the MAXMaps equivalent, laid out by classical MDS), cross
   matrices, and an Excel workbook gathering codebook, excerpts and matrices.
@@ -415,7 +474,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.24.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.27.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -423,7 +482,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.24.0},
+  note   = {Version 0.27.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

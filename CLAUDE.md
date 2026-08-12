@@ -201,6 +201,49 @@ Trois invariants, chacun testé :
 introuvable (remonté à la racine), et **cycle** (un fichier édité à la main peut
 en contenir un ; `hstat_code_tree()` boucrerait indéfiniment).
 
+### Les quatre analyses croisées : chacune a son piège
+
+**`hstat_code_query()` — la portée change le sens, elle doit être annoncée.**
+« Même document » (les deux thèmes coexistent chez la personne), « même
+passage » (le même extrait porte les deux étiquettes) et « à proximité » (les
+idées se suivent sans se superposer) donnent des effectifs très différents pour
+la même question — 23, 16 et 3 sur le corpus d'essai. Le résultat porte donc la
+portée employée en attribut, et l'interface l'affiche. `OU` ne croise rien : sa
+portée vaut `NA`, l'afficher laisserait croire le contraire.
+
+**`hstat_code_kwic()` — le motif de l'utilisateur est échappé par défaut.**
+Taper « prix (cher) » ne doit ni lever « unmatched parenthesis » ni chercher un
+groupe de capture. En mode `regex = TRUE`, une expression invalide rend zéro
+ligne : elle lève tantôt une **erreur**, tantôt un simple **avertissement**, et
+ne rattraper que l'erreur laissait passer le second dans la console.
+
+**`hstat_code_codeline()` — la position est en pourcentage, pas en caractères.**
+C'est tout l'intérêt : deux réponses de longueurs très différentes deviennent
+comparables. Un document vide garde des positions finies au lieu de produire
+des `Inf` silencieux par division par zéro.
+
+**`hstat_code_accord()` — l'unité est le couple document × code.** Deux codeurs
+ne découpent jamais aux mêmes bornes ; comparer des segments exigerait un seuil
+de recouvrement arbitraire qui ferait varier le résultat plus que le désaccord
+réel. Seuls les documents que **les deux** ont vus comptent — sinon l'absence
+de codage d'un document jamais ouvert passerait pour un désaccord.
+
+Kappa n'est **pas toujours défini** : si les deux codeurs posent (ou omettent)
+tout partout, l'accord attendu par hasard vaut 1, le dénominateur s'annule et
+kappa rend `NaN`. Brancher dessus lèverait « missing value where TRUE/FALSE
+needed ». D'où le quatrième état `indeterminable`, et l'affichage du
+pourcentage d'accord, lui toujours calculable.
+
+### Le codeur fait partie de l'identité d'un segment
+
+`hstat_seg_add()` refusait un doublon sur (document, code, bornes) **sans le
+codeur**. Deux codeurs qui étiquettent le même passage à l'identique — c'est-à-
+dire l'accord parfait, le cas le plus courant — voyaient le second codage
+silencieusement écarté, et l'accord inter-codeurs portait sur un corpus amputé.
+Le test de doublon inclut donc `source`, ce qui préserve l'intention d'origine :
+un double-dépôt accidentel du **même** codeur ne gonfle toujours pas les
+effectifs.
+
 **Les mémos** (`hstat_memo_*`) portent sur un code, un document, un segment, ou
 rien (mémo libre). C'est la pièce qui transforme un codage en analyse. Le mémo
 de code existait déjà comme colonne du livre de codes : il y reste, et
@@ -425,13 +468,96 @@ chaîne dans le fichier : un test textuel passerait encore si le code changeait
 de forme en gardant le défaut. Il a été vérifié comme échouant sur la version
 d'avant correction, sur les deux points à la fois.
 
+#### Les termes du fichier ne se traduisent jamais
+
+La règle de longueur ci-dessus est une **heuristique** : elle protège « Oui »
+dans une cellule, mais pas un **en-tête** — un `<th>` est un libellé, sauf
+quand c'est le nom d'une variable du fichier. Et un tableau ajouté demain
+échapperait à toute annotation posée à la main.
+
+On procède donc à l'envers. Le serveur **envoie au navigateur** la liste des
+termes qui viennent du fichier — noms de colonnes et modalités qualitatives
+(`hstat_i18n_termes_donnees()`, message `hstat-termes-donnees`). Rien de ce qui
+figure dans cette liste n'est traduit, où que ce soit dans la page. Un tableau
+ajouté plus tard est protégé sans qu'on y pense.
+
+Prix assumé : si une colonne s'appelle « Total », le libellé d'interface
+« Total » cesse d'être traduit lui aussi. C'est la dégradation douce ; altérer
+une donnée n'en est pas une.
+
+La liste est **bornée** : une colonne de texte libre porte autant de modalités
+que de lignes, l'envoyer entière alourdirait la page sans rien protéger d'utile
+(une phrase entière ne coïncide pas avec un libellé). D'où `max_modalites` par
+colonne et `max_termes` au total.
+
+Un fichier chargé **alors que** la page est déjà en anglais aurait pu voir ses
+valeurs traduites avant l'arrivée de la liste : la réception défait puis refait
+la passe, sinon la protection n'agirait qu'au rendu suivant.
+
+#### Phrases composées : traduire le gabarit, jamais les arguments
+
+Les ~217 phrases construites par `sprintf()` n'existent nulle part dans le DOM
+comme chaîne entière : le traducteur du navigateur, qui ne remplace que des
+correspondances complètes, ne peut rien en faire.
+
+`trf(fmt, ...)` (`Utils.R`) traduit **le gabarit** — « %s : %d valeur(s)
+modifiée(s) » entre au dictionnaire avec ses marqueurs intacts — puis applique
+`sprintf`. Conséquence voulue : **les arguments ne sont jamais traduits**. Ce
+sont eux qui portent les données de l'utilisateur. La règle de protection est
+ici obtenue **par construction**, pas par précaution.
+
+Deux garde-fous :
+
+- **Les gabarits ne partent pas au navigateur.** `hstat_i18n_json()` les écarte
+  (`%[-0-9.]*[sdfgeix%]`) : traduits dans R avant d'exister, ils ne pourraient
+  rien remplacer dans le DOM. 30,8 Ko retombent à 20,5. Le motif vise les
+  marqueurs de `sprintf`, pas le caractère `%` seul — « % colonne » part
+  toujours.
+- **Le journal de reproductibilité est exclu.** `hstat_rlog_*` construit du
+  **code R** ; traduire ses gabarits produirait un script que R refuserait
+  d'analyser, alors que le journal a précisément pour promesse d'être
+  exécutable. Un test balaie ses fonctions et échoue sur tout `trf()` qui s'y
+  glisserait.
+
+Une traduction fautive peut avoir perdu un marqueur : `sprintf` lèverait alors
+« too few arguments » et ferait tomber toute la sortie pour une simple erreur de
+dictionnaire. `trf()` retombe sur le français, qui marche.
+
+#### Un mot ambigu n'entre pas seul au dictionnaire
+
+La clé étant la chaîne française elle-même, un mot qui a **deux sens** ne peut
+pas y figurer : « moyenne » vaut *medium* pour une taille d'effet et *mean* en
+statistique. Une entrée pour l'un corromprait l'autre — le défaut symétrique de
+celui que la restitution du texte d'origine évite déjà.
+
+La nuance est donc portée par la **phrase entière** : quatre phrases complètes
+plutôt qu'un gabarit et un adjectif. Un test vérifie que les adjectifs nus
+(`moyenne`, `grande`, `petit`…) restent absents du dictionnaire.
+
+En revanche, un mot **non ambigu choisi par le code** (« équiprobables »,
+« blocs égaux ») passe explicitement par `tr()` au point d'appel. C'est la
+distinction qui compte : `trf()` ne traduit jamais ses arguments *de lui-même*
+— c'est ce qui protège les valeurs de l'utilisateur — mais le développeur peut
+déclarer qu'un argument est un libellé, pas une donnée.
+
+#### Une seule définition de ce qu'est un gabarit
+
+`HSTAT_I18N_MARQUEUR` sert au filtre du dictionnaire **et** au test. Deux motifs
+distincts finiraient par diverger, et l'un des deux mentirait.
+
+Il ne tolère pas l'indicateur d'espace (`% d`), délibérément : « 100 % **de**
+valeurs manquantes » n'est pas un gabarit, c'est un libellé où le pour-cent est
+suivi du mot « de ». Un motif plus permissif y voyait un marqueur, écartait la
+phrase du dictionnaire du navigateur, et la faisait passer pour une traduction
+fautive.
+
 Trois familles de texte, trois chemins :
 
 | Texte | Chemin | Pourquoi |
 |---|---|---|
 | Interface (libellés, onglets, boutons) | dictionnaire côté navigateur | chaîne entière présente dans le DOM |
 | Messages d'erreur, verdicts | `tr()` côté **serveur**, même CSV | composés phrase par phrase, donc absents du DOM comme chaîne entière |
-| Interprétations **composées** (`sprintf`) | non traduites à ce jour | demandent une réécriture par gabarit, pas une substitution |
+| Interprétations **composées** (`sprintf`) | `trf()` côté **serveur**, gabarit dans le même CSV | la chaîne entière n'existe jamais dans le DOM ; seule l'armature est traduite, les arguments passent intacts |
 
 `hstat_langue_session()` lit `session$userData` — **pas une option globale** :
 sur un serveur partagé, une option ferait basculer la langue de tous les

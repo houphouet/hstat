@@ -483,6 +483,14 @@ hstat_i18n_json <- function(lang = "en", path = hstat_i18n_path()) {
   # Les termes identiques dans les deux langues sont retires ICI : les envoyer
   # alourdirait la page pour un remplacement qui ne change rien a l'ecran.
   d <- d[names(d) != unname(d)]
+  # LES GABARITS NE PARTENT PAS AU NAVIGATEUR. Une phrase composee par trf()
+  # est traduite dans R, avant d'exister ; sa forme a marqueurs (« %s », « %d »)
+  # n'apparait jamais telle quelle dans le DOM et ne pourrait donc jamais y
+  # etre trouvee. L'envoyer alourdirait la page pour rien -- 30,8 Ko contre
+  # 19,7 -- et la legerete est une promesse du bilingue.
+  # Le motif vise les marqueurs de sprintf, pas le caractere « % » seul : le
+  # libelle d'interface « % colonne » doit continuer de partir.
+  d <- d[!grepl(HSTAT_I18N_MARQUEUR, names(d))]
   if (!length(d)) return("{}")
   esc <- function(s) {
     s <- gsub("\\", "\\\\", s, fixed = TRUE)
@@ -954,7 +962,7 @@ hstat_glm_note <- function(fit, warns = character(0), maxit = 100) {
   if (converged && !extreme && !huge && length(warns) == 0) return(NULL)
   msg <- character(0)
   if (!converged)
-    msg <- c(msg, sprintf("L'estimation n'a pas convergé en %d itérations.", maxit))
+    msg <- c(msg, trf("L'estimation n'a pas convergé en %d itérations.", maxit))
   if (extreme || huge)
     msg <- c(msg, paste0(
       "Séparation (quasi-)complète détectée : un ou plusieurs prédicteurs ",
@@ -2847,7 +2855,7 @@ hstat_shapiro <- function(x) {
   }, add = TRUE)
   set.seed(20260712L)
   res <- stats::shapiro.test(sample(x, 5000L))
-  res$method <- sprintf(
+  res$method <- trf(
     "Shapiro-Wilk normality test (sous-echantillon aleatoire de 5000 valeurs sur %s)",
     format(n, big.mark = " "))
   res
@@ -2962,7 +2970,7 @@ hstat_ref_test <- function(x, mu = 0, method = "ttest",
       "Test z (1 échantillon, sigma connu)", z, NA_real_, p, m, mu, ci,
       (m - mu) / sigma, "d de Cohen", alternative, n,
       .hstat_ref_interp("Test z à un échantillon", p, m, mu, alternative),
-      sprintf("Écart-type de référence sigma = %s.", format(sigma))))
+      trf("Écart-type de référence sigma = %s.", format(sigma))))
   }
 
   if (method == "wilcoxon") {
@@ -3301,6 +3309,102 @@ hstat_sql_path <- function(path) {
   gsub("'", "''", gsub("\\\\", "/", path))
 }
 
+# Ce qui fait d'une chaine un GABARIT : un marqueur de sprintf.
+#
+# Le motif ne tolere PAS l'indicateur d'espace (« % d »), et c'est deliberé :
+# « 100 % de valeurs manquantes » n'est pas un gabarit, c'est un libellé où le
+# pour-cent est suivi du mot « de ». Un motif plus permissif y voyait un
+# marqueur, ecartait la phrase du dictionnaire du navigateur et la faisait
+# passer pour une traduction fautive. Une seule definition, partagee par le
+# filtre et par le test, pour que les deux ne divergent pas.
+HSTAT_I18N_MARQUEUR <- "%[-0-9.]*[sdfgeix%]"
+
+# -- Phrase COMPOSEE : on traduit le gabarit, jamais les arguments ------------
+# Les ~217 phrases construites par sprintf() n'existent nulle part dans le DOM
+# comme chaine entiere : le traducteur du navigateur, qui ne remplace que des
+# correspondances completes, ne peut rien en faire. Elles restaient donc en
+# francais quelle que soit la langue choisie.
+#
+# LE GABARIT EST LA CLE. « %s : %d valeur(s) modifiee(s) » entre au dictionnaire
+# avec ses marqueurs intacts ; seule cette armature est traduite.
+#
+# CONSEQUENCE VOULUE : LES ARGUMENTS NE SONT JAMAIS TRADUITS. Ce sont eux qui
+# portent les donnees de l'utilisateur -- un nom de variable, une modalite, un
+# effectif. Ils traversent la traduction sans etre lus. C'est la meme regle que
+# cote navigateur, obtenue ici par construction plutot que par precaution.
+#
+# Degradation douce : un gabarit absent du dictionnaire ressort en francais,
+# correctement rempli, au lieu de disparaitre ou d'afficher une cle technique.
+trf <- function(fmt, ..., lang = hstat_langue_session()) {
+  g <- tr(fmt, lang)
+  # Une traduction fautive peut avoir perdu un marqueur : sprintf leverait
+  # alors « too few arguments » et ferait tomber toute la sortie pour une
+  # simple erreur de dictionnaire. On retombe sur le francais, qui marche.
+  out <- tryCatch(sprintf(g, ...), error = function(e) NULL)
+  if (is.null(out)) sprintf(fmt, ...) else out
+}
+
+# =============================================================================
+#  LES TERMES DU FICHIER DE L'UTILISATEUR NE SE TRADUISENT JAMAIS
+# -----------------------------------------------------------------------------
+#  La regle de longueur dans les cellules (LONGUEUR_CELLULE, cote navigateur)
+#  est une heuristique : elle protege « Oui » mais laisserait passer un
+#  en-tete de colonne, et un nouveau tableau ajoute demain echapperait a toute
+#  annotation posee a la main.
+#
+#  On procede donc a l'envers : le serveur ENVOIE au navigateur la liste des
+#  termes qui viennent du fichier -- noms de colonnes et modalites des
+#  variables qualitatives. Le traducteur ne touche jamais un texte qui figure
+#  dans cette liste, ou qu'il apparaisse. Un tableau ajoute plus tard est
+#  protege sans qu'on y pense.
+#
+#  Le prix est assume : si une colonne s'appelle « Total », le libelle
+#  d'interface « Total » cesse d'etre traduit lui aussi. C'est la degradation
+#  douce de la conception ; alterer une donnee n'en est pas une.
+#
+#  La liste est BORNEE. Une colonne de texte libre porte autant de modalites
+#  que de lignes ; l'envoyer entiere ferait grossir la page sans rien proteger
+#  d'utile (une phrase entiere ne coincide pas avec un libelle d'interface).
+#  D'ou `max_modalites` par colonne et `max_termes` au total.
+# =============================================================================
+hstat_i18n_termes_donnees <- function(df, max_modalites = 200L,
+                                      max_termes = 3000L, max_nchar = 60L) {
+  if (!is.data.frame(df) || !ncol(df)) return(character(0))
+  termes <- names(df)
+  for (cn in names(df)) {
+    if (length(termes) >= max_termes) break
+    x <- df[[cn]]
+    if (!(is.character(x) || is.factor(x) || is.logical(x))) next
+    v <- unique(trimws(as.character(x)))
+    v <- v[!is.na(v) & nzchar(v) & nchar(v) <= max_nchar]
+    # Une colonne a trop de modalites est du texte libre, pas une variable
+    # qualitative : ses valeurs ne risquent pas de coincider avec un libelle.
+    if (length(v) > max_modalites) next
+    termes <- c(termes, v)
+  }
+  termes <- unique(trimws(termes))
+  termes <- termes[!is.na(termes) & nzchar(termes)]
+  utils::head(termes, max_termes)
+}
+
+# JSON pret a envoyer au navigateur. Rend "[]" plutot qu'une erreur : cette
+# valeur alimente un message Shiny, ou une erreur couperait la bascule.
+hstat_i18n_termes_json <- function(df, ...) {
+  t <- tryCatch(hstat_i18n_termes_donnees(df, ...), error = function(e) character(0))
+  if (!length(t)) return("[]")
+  # Meme echappement que hstat_i18n_json(). `fixed = TRUE` est indispensable :
+  # une barre oblique inverse seule n'est pas une expression reguliere valide
+  # (« Trailing backslash »), et le terme vient du fichier de l'utilisateur.
+  esc <- function(s) {
+    s <- gsub("\\", "\\\\", s, fixed = TRUE)
+    s <- gsub("\"", "\\\"", s, fixed = TRUE)
+    s <- gsub("\r", "\\r", s, fixed = TRUE)
+    s <- gsub("\n", "\\n", s, fixed = TRUE)
+    gsub("\t", "\\t", s, fixed = TRUE)
+  }
+  paste0("[", paste(sprintf("\"%s\"", esc(t)), collapse = ","), "]")
+}
+
 # =============================================================================
 #  VARIABLES ENTIEREMENT NULLES
 # -----------------------------------------------------------------------------
@@ -3378,7 +3482,7 @@ hstat_vars_zero <- function(df, seuil = 1) {
                        "manquante(s). Verifiez si le zero signifie ici ",
                        "« non mesure »."), n_na)
       else
-        sprintf("%s %% des valeurs observees sont nulles.", round(part * 100, 2)),
+        trf("%s %% des valeurs observees sont nulles.", round(part * 100, 2)),
       check.names = FALSE, stringsAsFactors = FALSE)
   }
   res <- if (length(lignes)) do.call(rbind, lignes) else vide
@@ -3430,7 +3534,7 @@ hstat_zero_valeurs_parse <- function(txt, n) {
                                          "(« %s ») : corrigez-la ou ecrivez NA."),
                                   mauvais[1], brut[mauvais[1]])))
   num[manquant] <- NA_real_
-  list(ok = TRUE, valeurs = num, message = sprintf("%s valeur(s) prise(s) en compte.", n))
+  list(ok = TRUE, valeurs = num, message = trf("%s valeur(s) prise(s) en compte.", n))
 }
 
 # -- Creation de classes d'intervalles (discretisation) -----------------------
@@ -3512,7 +3616,7 @@ hstat_cut_intervals <- function(x, method = c("width", "quantile", "manual"),
     labels_custom <- trimws(as.character(labels_custom))
     labels_custom <- labels_custom[nzchar(labels_custom)]
     if (length(labels_custom) != nB - 1)
-      return(list(ok = FALSE, msg = sprintf(
+      return(list(ok = FALSE, msg = trf(
         "Nombre d'étiquettes (%d) différent du nombre de classes (%d).",
         length(labels_custom), nB - 1)))
     labels <- labels_custom
@@ -3545,7 +3649,7 @@ hstat_cut_intervals <- function(x, method = c("width", "quantile", "manual"),
 
   list(ok = TRUE, factor = f, breaks = breaks, counts = counts,
        n_na_created = n_na_created,
-       msg = if (n_na_created > 0) sprintf(
+       msg = if (n_na_created > 0) trf(
          "%d valeur(s) hors bornes -> NA (élargissez les bornes si nécessaire).",
          n_na_created) else NULL)
 }
@@ -4090,7 +4194,7 @@ hstat_merge_frames <- function(frames, type = "inner",
     total_rows <- prod(vapply(frames, nrow, numeric(1)))
     if (!is.finite(total_rows) || total_rows > 5e6)
       return(list(ok = FALSE, data = NULL,
-        msg = sprintf("Jointure croisée refusée : le produit cartésien générerait ~%.0f lignes (> 5 000 000). Réduisez le nombre ou la taille des fichiers.", total_rows)))
+        msg = trf("Jointure croisée refusée : le produit cartésien générerait ~%.0f lignes (> 5 000 000). Réduisez le nombre ou la taille des fichiers.", total_rows)))
     acc <- frames[[1]]
     for (i in 2:length(frames)) {
       d2 <- frames[[i]]
@@ -4099,7 +4203,7 @@ hstat_merge_frames <- function(frames, type = "inner",
       acc <- merge(acc, d2, by = character(0), all = TRUE)
     }
     return(list(ok = TRUE, data = acc,
-      msg = sprintf("Jointure croisée (produit cartésien) de %d fichiers : %d lignes, %d colonnes.",
+      msg = trf("Jointure croisée (produit cartésien) de %d fichiers : %d lignes, %d colonnes.",
                     length(frames), nrow(acc), ncol(acc))))
   }
 
@@ -4109,7 +4213,7 @@ hstat_merge_frames <- function(frames, type = "inner",
   acc <- frames[[1]]
   if (!all(kl %in% names(acc)))
     return(list(ok = FALSE, data = NULL,
-                msg = sprintf("Clé(s) « %s » absente(s) du 1er fichier.", paste(setdiff(kl, names(acc)), collapse = ", "))))
+                msg = trf("Clé(s) « %s » absente(s) du 1er fichier.", paste(setdiff(kl, names(acc)), collapse = ", "))))
 
   # ---- SEMI / ANTI jointures (filtrent le 1er ou le 2e, sans ajouter de colonnes) ----
   if (type %in% c("semi", "anti", "anti_right")) {
@@ -4117,7 +4221,7 @@ hstat_merge_frames <- function(frames, type = "inner",
     kr2 <- if (all(kr %in% names(b))) kr else kl
     if (!all(kr2 %in% names(b)))
       return(list(ok = FALSE, data = NULL,
-                  msg = sprintf("Clé(s) « %s » absente(s) du 2e fichier.", paste(setdiff(kr2, names(b)), collapse = ", "))))
+                  msg = trf("Clé(s) « %s » absente(s) du 2e fichier.", paste(setdiff(kr2, names(b)), collapse = ", "))))
     ka <- do.call(paste, c(acc[, kl, drop = FALSE], sep = "\r"))
     kb <- do.call(paste, c(b[, kr2, drop = FALSE], sep = "\r"))
     out <- switch(type,
@@ -4138,7 +4242,7 @@ hstat_merge_frames <- function(frames, type = "inner",
     kr2 <- if (all(kr %in% names(b))) kr else kl
     if (!all(kr2 %in% names(b)))
       return(list(ok = FALSE, data = NULL,
-                  msg = sprintf("Clé(s) « %s » absente(s) du 2e fichier.", paste(setdiff(kr2, names(b)), collapse = ", "))))
+                  msg = trf("Clé(s) « %s » absente(s) du 2e fichier.", paste(setdiff(kr2, names(b)), collapse = ", "))))
     ka <- do.call(paste, c(acc[, kl, drop = FALSE], sep = "\r"))
     kb <- do.call(paste, c(b[, kr2, drop = FALSE], sep = "\r"))
     idx <- match(ka, kb)               # ligne du 2e correspondant a chaque ligne du 1er
@@ -4155,7 +4259,7 @@ hstat_merge_frames <- function(frames, type = "inner",
     }
     lbl <- if (type == "patch") "Complétion des valeurs manquantes" else "Mise à jour des valeurs"
     return(list(ok = TRUE, data = acc,
-      msg = sprintf("%s : %d valeur(s) modifiée(s) sur %d colonne(s) partagée(s).",
+      msg = trf("%s : %d valeur(s) modifiée(s) sur %d colonne(s) partagée(s).",
                     lbl, n_upd, length(shared))))
   }
 
@@ -4167,7 +4271,7 @@ hstat_merge_frames <- function(frames, type = "inner",
     kr_i <- if (length(kr) == length(kl) && all(kr %in% names(d2))) kr else kl
     if (!all(kr_i %in% names(d2)))
       return(list(ok = FALSE, data = NULL,
-                  msg = sprintf("Clé(s) « %s » absente(s) du fichier %d.", paste(setdiff(kr_i, names(d2)), collapse = ", "), i)))
+                  msg = trf("Clé(s) « %s » absente(s) du fichier %d.", paste(setdiff(kr_i, names(d2)), collapse = ", "), i)))
     acc <- merge(acc, d2, by.x = kl, by.y = kr_i,
                  all.x = type %in% c("left", "full"),
                  all.y = type %in% c("right", "full"),
@@ -4528,7 +4632,7 @@ hstat_check_formula_ast <- function(expr) {
   if (is.call(expr)) {
     fn <- expr[[1]]
     if (!(is.name(fn) && as.character(fn) %in% HSTAT_FORMULA_FUNS)) {
-      stop(sprintf(
+      stop(trf(
         "Fonction non autorisée dans la formule : « %s ». Seuls les opérateurs arithmétiques/logiques et les fonctions statistiques usuelles (log, sqrt, ifelse, rowMeans, rowSums, mean, sum...) sont permis.",
         paste(deparse(fn), collapse = " ")), call. = FALSE)
     }
@@ -4616,9 +4720,9 @@ hstat_metrics_reg <- function(obs, pred) {
       "< 10 % excellent ; 10-20 % bon ; 20-50 % moyen ; > 50 % faible",
       "< 0,3 tres faible ; 0,3-0,5 faible ; 0,5-0,7 moyen ; 0,7-0,9 bon ; >= 0,9 excellent"),
     Interpretation = c(
-      sprintf("Erreur quadratique moyenne : %s unite(s) de la variable cible (ecart-type observe : %s). Penalise fortement les grosses erreurs.",
+      trf("Erreur quadratique moyenne : %s unite(s) de la variable cible (ecart-type observe : %s). Penalise fortement les grosses erreurs.",
               format(round(rmse, 3), big.mark = " "), format(round(sc, 3), big.mark = " ")),
-      sprintf("En moyenne, la prediction s'ecarte de %s unite(s) de la valeur reelle.",
+      trf("En moyenne, la prediction s'ecarte de %s unite(s) de la valeur reelle.",
               format(round(mae, 3), big.mark = " ")),
       .hstat_interp_mape(mape),
       .hstat_interp_r2(r2)),
@@ -4673,7 +4777,7 @@ hstat_metrics_cls <- function(obs, pred, prob = NULL) {
       ">= 0,9 excellent ; 0,8-0,9 bon ; 0,6-0,8 moyen ; < 0,6 faible",
       "0,5 = hasard ; 0,7-0,8 acceptable ; 0,8-0,9 bonne ; >= 0,9 excellente discrimination"),
     Interpretation = c(
-      sprintf("%.1f %% des observations sont bien classees (classe majoritaire seule : %.1f %% ; le modele %s).",
+      trf("%.1f %% des observations sont bien classees (classe majoritaire seule : %.1f %% ; le modele %s).",
               100 * acc, 100 * maj,
               if (is.finite(acc) && acc > maj) "fait mieux que ce niveau de reference"
               else "ne depasse pas ce niveau de reference"),
@@ -4700,7 +4804,7 @@ hstat_model_interpretation <- function(task, metrics_df, model_label,
     i <- match(m, metrics_df$Metrique)
     if (is.na(i)) NA_real_ else metrics_df$Valeur[i]
   }
-  head_txt <- sprintf(
+  head_txt <- trf(
     "Le modele %s a ete entraine sur %s observation(s) puis evalue sur %s observation(s) de test jamais vues pendant l'entrainement : les metriques ci-dessus refletent donc sa capacite de generalisation, pas sa memoire.",
     model_label, format(n_train, big.mark = " "), format(n_test, big.mark = " "))
   core <- if (identical(task, "regression")) {

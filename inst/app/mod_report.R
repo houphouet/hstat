@@ -282,7 +282,7 @@ hstat_report_markdown <- function(history, titre = "Rapport d'analyse",
         }
       } else {
         L <- c(L, "*Detail non conserve (analyse anterieure aux %d dernieres).*", "")
-        L[length(L) - 1L] <- sprintf(
+        L[length(L) - 1L] <- trf(
           "*Detail non conserve : seules les %d dernieres analyses gardent leurs tableaux.*",
           HSTAT_HIST_DETAIL)
       }
@@ -510,6 +510,6 @@ hstat_report_render <- function(markdown, fichier, format = "html",
   html <- hstat_report_render(markdown, fichier, "html", titre,
                               dispo = c(html = TRUE, docx = FALSE, pdf = FALSE))
   list(ok = TRUE, format = "html",
-       message = sprintf("La conversion en %s a echoue (%s). Le rapport est rendu en HTML.",
+       message = trf("La conversion en %s a echoue (%s). Le rapport est rendu en HTML.",
                          toupper(format), substr(res$message, 1, 200)))
 }

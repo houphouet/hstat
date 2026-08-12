@@ -155,7 +155,7 @@ hstat_gpower <- function(test, analysis, effect = NULL, effect2 = NULL,
       list(effect = res$effect, nper = NA, ntot = res$n, lambda = NA,
            crit = res$crit, crit_lab = "z critique", df_lab = res$extra,
            power = res$power,
-           note = sprintf("Regression logistique (Hsieh et al. 1998) : prédicteur %s ; OR par %s.",
+           note = trf("Regression logistique (Hsieh et al. 1998) : prédicteur %s ; OR par %s.",
                           if ((predictor %||% "continuous") == "binary") "binaire (expose/non-expose)" else "continu standardise",
                           if ((predictor %||% "continuous") == "binary") "exposition" else "écart-type"))
     } else if (test == "poisson") {
@@ -484,9 +484,10 @@ hstat_agri_design <- function(type, factors, r = 3, seed = 123, k = NULL,
     attr(book_ib, "design") <- "alpha"
     attr(book_ib, "used_k") <- kk2
     reste <- nt %% kk2
-    attr(book_ib, "alpha_generalized") <- sprintf(
+    attr(book_ib, "alpha_generalized") <- trf(
       "Alpha Lattice généralisé : %d traitements répartis en blocs incomplets de taille %d (%s). Plan résolvable valable pour tout nombre de traitements.",
-      nt, kk2, if (reste == 0) "blocs égaux" else sprintf("dernier bloc de %d", reste))
+      nt, kk2, if (reste == 0) tr("blocs égaux")
+               else trf("dernier bloc de %d", reste))
     book_ib
   }
 
@@ -589,7 +590,7 @@ hstat_agri_design <- function(type, factors, r = 3, seed = 123, k = NULL,
   # disponible pour la combinaison) au lieu d'un design -> message clair.
   .safe_book <- function(res, label) {
     if (is.null(res) || is.function(res) || is.null(res$book) || !is.data.frame(res$book))
-      stop(sprintf("%s : aucune configuration valide pour cette combinaison (nombre de traitements, taille de bloc k, répétitions). Essayez d'autres valeurs.", label))
+      stop(trf("%s : aucune configuration valide pour cette combinaison (nombre de traitements, taille de bloc k, répétitions). Essayez d'autres valeurs.", label))
     res$book
   }
   book <- switch(type,
@@ -1276,7 +1277,7 @@ hstat_design_analysis <- function(type, n_factors) {
       ggplot2::scale_y_continuous(expand = c(0, 0),
                                   limits = c(0.5, band_y0 + band_h + 0.01)) +
       ggplot2::labs(title = ttl,
-                    subtitle = sprintf("Grandes parcelles = %s (couleur) ; sous-parcelles = %s (bandeau) ; sous-sous-parcelles = %s (étiquette de cellule)", f1n, f2n, f3n),
+                    subtitle = trf("Grandes parcelles = %s (couleur) ; sous-parcelles = %s (bandeau) ; sous-sous-parcelles = %s (étiquette de cellule)", f1n, f2n, f3n),
                     x = NULL,
                     y = "Bloc", fill = lt %||% f1n) +
       ggplot2::theme_minimal(base_size = font_axis) +
@@ -2054,7 +2055,7 @@ mod_design_server <- function(id, values) {
       fd <- pow_factorial()
       div(class = "callout", style = "border-left:4px solid #27ae60;padding:8px 12px;background:#eafaf1;",
           icon("calculator"),
-          HTML(sprintf(" <b>ddl du numerateur calculé = %d</b> &nbsp;|&nbsp; Nombre de cellules (groupes) = %d",
+          HTML(trf(" <b>ddl du numerateur calculé = %d</b> &nbsp;|&nbsp; Nombre de cellules (groupes) = %d",
                        fd$df1, fd$cells)))
     })
 
@@ -2079,7 +2080,7 @@ mod_design_server <- function(id, values) {
                        min = 1, max = 4, step = 1)))
         for (i in seq_len(nf))
           els <- c(els, list(numericInput(ns(paste0("powLev", i)),
-            sprintf("Nombre de modalités du facteur %s", LETTERS[i]),
+            trf("Nombre de modalités du facteur %s", LETTERS[i]),
             value = if (i == 1) 2 else 3, min = 2, step = 1)))
         eff_choices <- c(setNames(paste0("main", seq_len(nf)),
                                   sprintf("Effet principal du facteur %s", LETTERS[seq_len(nf)])))
@@ -2233,7 +2234,7 @@ mod_design_server <- function(id, values) {
       req(!is.null(rp))
       div(class = "callout callout-info", style = "margin-top:10px;",
           icon("info-circle"),
-          sprintf(" Répartition proposée : %d répétition(s)/bloc(s) x %d échantillon(s) par parcelle = %d unités par traitement (total %d). Cliquez sur le bouton pour l'appliquer au plan.",
+          trf(" Répartition proposée : %d répétition(s)/bloc(s) x %d échantillon(s) par parcelle = %d unités par traitement (total %d). Cliquez sur le bouton pour l'appliquer au plan.",
                   rp$`répétitions`, rp$samples_per_plot, rp$per_treatment, rp$total))
     })
 
@@ -2244,7 +2245,7 @@ mod_design_server <- function(id, values) {
       updateNumericInput(session, "dsgN", value = rp$samples_per_plot)
       updateTabsetPanel(session, "designTabs", selected = "plan")
       showNotification(
-        sprintf("Taille transférée : %d répétitions x %d échantillon(s)/parcelle. Vérifiez l'onglet Plan expérimental.",
+        trf("Taille transférée : %d répétitions x %d échantillon(s)/parcelle. Vérifiez l'onglet Plan expérimental.",
                 rp$`répétitions`, rp$samples_per_plot),
         type = "message", duration = 6)
     })
@@ -2372,7 +2373,7 @@ mod_design_server <- function(id, values) {
                         value = paste(mods, collapse = ", "))
       }
       showNotification(
-        sprintf("Importe depuis Puissance : %d facteur(s) (%s modalités).",
+        trf("Importe depuis Puissance : %d facteur(s) (%s modalités).",
                 length(levs), paste(levs, collapse = " x ")),
         type = "message", duration = 5)
     })
@@ -2463,18 +2464,18 @@ mod_design_server <- function(id, values) {
         if (k_mode == "exact") {
           reste <- if (!is.null(kk) && kk >= 2) nt %% kk else 0
           if (reste != 0)
-            showNotification(sprintf(
+            showNotification(trf(
               "Alpha Lattice (k exact) : %d traitements en blocs de %d -> le dernier bloc de chaque réplique contient %d traitement(s).",
               nt, kk, reste), type = "message", duration = 7)
         } else {
           # mode auto
           if (length(valid_k) == 0) {
-            showNotification(sprintf(
+            showNotification(trf(
               "Alpha Lattice : aucun k parfait pour %d traitements -> plan en blocs incomplets généralisé.", nt),
               type = "message", duration = 7)
           } else if (is.null(kk) || !(kk %in% valid_k)) {
             new_k <- valid_k[which.min(abs(valid_k - (kk %||% valid_k[1])))]
-            showNotification(sprintf("Alpha Lattice : k=%s ajusté automatiquement à k=%d pour %d traitements (valeurs conseillées : %s).",
+            showNotification(trf("Alpha Lattice : k=%s ajusté automatiquement à k=%d pour %d traitements (valeurs conseillées : %s).",
                                      as.character(kk %||% "?"), new_k, nt, paste(valid_k, collapse=", ")),
                              type = "warning", duration = 7)
             kk <- new_k
@@ -2503,7 +2504,7 @@ mod_design_server <- function(id, values) {
         tags$p(tags$b("Modèle suggere : "), tags$code(info$modele)),
         div(class = "callout callout-info", icon("lightbulb"), " ", info$analyse),
         tags$p(tags$b("Répartition : "),
-               sprintf("%d traitement(s) x %d répétition(s) x %d échantillon(s)/parcelle = %d unités d'observation.",
+               trf("%d traitement(s) x %d répétition(s) x %d échantillon(s)/parcelle = %d unités d'observation.",
                        alloc$Valeur[1], alloc$Valeur[2], nplot, alloc$Valeur[4] * nplot)))
     })
 
@@ -2512,7 +2513,7 @@ mod_design_server <- function(id, values) {
       DT::datatable(b, rownames = FALSE, filter = "top", extensions = "Buttons",
         options = list(pageLength = 12, scrollX = TRUE, dom = "Bfrtip", buttons = .hstat_dt_buttons("plan_expérience")),
         caption = htmltools::tags$caption(style = "caption-side:top;font-weight:600;",
-          sprintf("Field book : %d unités expérimentales", nrow(b))))
+          trf("Field book : %d unités expérimentales", nrow(b))))
     })
 
     output$dsgTreatSummary <- DT::renderDT({
@@ -2525,7 +2526,7 @@ mod_design_server <- function(id, values) {
       DT::datatable(tab, rownames = FALSE,
         options = list(pageLength = 12, dom = "tp"),
         caption = htmltools::tags$caption(style = "caption-side:top;font-weight:600;",
-          sprintf("Taille par modalité (total = %d observations)", sum(tab$`Taille totale (n)`))))
+          trf("Taille par modalité (total = %d observations)", sum(tab$`Taille totale (n)`))))
     })
 
     output$dsgDownload <- downloadHandler(

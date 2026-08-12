@@ -3743,12 +3743,12 @@ mod_viz_server <- function(id, values) {
         return(div(class="alert alert-warning",
                    style="padding:10px;margin-bottom:10px;font-size:13px;",
                    icon("exclamation-triangle"), strong(" Valeurs X répétées"),
-                   sprintf(" (%d obs. -> %d valeurs uniques).", x_total, x_uniq), tags$br(),
+                   trf(" (%d obs. -> %d valeurs uniques).", x_total, x_uniq), tags$br(),
                    "Agrégation automatique par ", strong("moyenne"), " appliquée.",tags$br(),
                    "Pour une autre fonction, activez ", strong("l'agrégation manuelle"), "."))
       return(div(class="alert alert-success",
                  style="padding:8px 12px;margin-bottom:10px;font-size:12px;",
-                 icon("check-circle"), sprintf(" %d valeurs X uniques -- courbe directe.", x_uniq)))
+                 icon("check-circle"), trf(" %d valeurs X uniques -- courbe directe.", x_uniq)))
     }, error=function(e) NULL)
   })
   
