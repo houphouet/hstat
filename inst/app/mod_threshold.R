@@ -434,7 +434,7 @@ mod_threshold_ui <- function(id) {
                         div(style = "background-color: #e1f5fe; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #0288d1;",
                             icon("info-circle", style = "color: #01579b;"),
                             strong(" Aperçu : "),
-                            textOutput("exportSizeEstimate", inline = TRUE)
+                            textOutput(ns("exportSizeEstimate"), inline = TRUE)
                         )
                     ),
                     
@@ -1434,29 +1434,34 @@ mod_threshold_server <- function(id, values) {
                         color = guide_legend(ncol = 1, byrow = TRUE))
       }
       
+      # Mise en forme des etiquettes de l'axe X. Le style est retenu A PART
+      # (`x_label_styles`) : le graphique porte du plotmath, que ggsave rend
+      # correctement, mais que ggplotly DEPARSE -- l'axe affichait
+      # `bold("2SP(0,5)&2PV")` en toutes lettres a l'ecran. Le rendu
+      # interactif reprend donc les memes styles en HTML, que plotly comprend.
+      threshold_values$x_label_levels <- NULL
+      threshold_values$x_label_styles <- NULL
       if(!is.null(label_styles) && length(label_styles) > 0) {
         treatment_levels <- levels(plot_data$Treatment)
         
-        styled_labels <- sapply(seq_along(treatment_levels), function(i) {
+        styles_par_niveau <- vapply(seq_along(treatment_levels), function(i) {
           current_label <- as.character(treatment_levels[i])
-          
-          original_treatments <- names(threshold_values$label_mapping)
           idx <- which(threshold_values$label_mapping == current_label)
-          
-          if(length(idx) > 0) {
-            style <- label_styles[idx[1]]
-            
-            if(style == "bold") {
-              return(bquote(bold(.(current_label))))
-            } else if(style == "italic") {
-              return(bquote(italic(.(current_label))))
-            } else if(style == "bolditalic") {
-              return(bquote(bolditalic(.(current_label))))
-            }
-          }
-          return(current_label)
+          if(length(idx) > 0) as.character(label_styles[idx[1]]) else "plain"
+        }, character(1))
+        styles_par_niveau[is.na(styles_par_niveau)] <- "plain"
+        
+        styled_labels <- lapply(seq_along(treatment_levels), function(i) {
+          current_label <- as.character(treatment_levels[i])
+          switch(styles_par_niveau[i],
+                 "bold"       = bquote(bold(.(current_label))),
+                 "italic"     = bquote(italic(.(current_label))),
+                 "bolditalic" = bquote(bolditalic(.(current_label))),
+                 current_label)
         })
         
+        threshold_values$x_label_levels <- treatment_levels
+        threshold_values$x_label_styles <- styles_par_niveau
         p <- p + scale_x_discrete(labels = styled_labels)
       }
       
@@ -1514,12 +1519,25 @@ mod_threshold_server <- function(id, values) {
     mar <- list(l = 70, r = if (pos == "right") 60 else 30,
                 b = 140, t = 60, pad = 4)
 
-    ggplotly(p, tooltip = c("x", "y")) %>%
+    gp <- ggplotly(p, tooltip = c("x", "y")) %>%
       layout(showlegend = show_legend,
              legend = leg,
              margin = mar,
              autosize = TRUE) %>%
       config(responsive = TRUE)
+
+    # Gras et italique de l'axe X, en HTML : plotmath ne survit pas a la
+    # conversion. Les positions d'un axe discret valent 1..n.
+    lv <- threshold_values$x_label_levels
+    st <- threshold_values$x_label_styles
+    if (!is.null(lv) && length(lv) && length(st) == length(lv) &&
+        any(st != "plain")) {
+      gp <- gp %>% layout(xaxis = list(
+        tickmode = "array",
+        tickvals = seq_along(lv),
+        ticktext = hstat_html_style_label(lv, st)))
+    }
+    gp
   })
   
   output$thresholdDataTable <- renderDT({
@@ -1548,34 +1566,19 @@ mod_threshold_server <- function(id, values) {
     content = function(file) {
       req(threshold_values$current_plot)
       
-      width_px <- input$thresholdExportWidth %||% 1200
-      height_px <- input$thresholdExportHeight %||% 800
-      dpi <- input$thresholdExportDPI %||% 300
-      
-      # CORRECTION: Limiter le DPI max à 1200 pour éviter les problèmes
-      if(dpi > 20000) {
-        showNotification(
-          paste0("DPI réduit de ", dpi, " à 20000 pour assurer la compatibilité.\n",
-                 "Pour des résolutions supérieures, utilisez les formats vectoriels (SVG, PDF, EPS)."), 
-          type = "warning", 
-          duration = 6
-        )
-        dpi <- 20000
-      }
-      
-      width_in <- max(width_px / dpi, 1)
-      height_in <- max(height_px / dpi, 1)
-      
-      # Limiter les dimensions maximales en pouces pour éviter les erreurs
-      max_inches <- 200
-      if(width_in > max_inches) {
-        width_in <- max_inches
-        showNotification("Largeur limitée à 200 pouces", type = "warning", duration = 3)
-      }
-      if(height_in > max_inches) {
-        height_in <- max_inches
-        showNotification("Hauteur limitée à 200 pouces", type = "warning", duration = 3)
-      }
+      # Les pixels saisis fixent la MISE EN PAGE (lue a 96 ppp, la reference de
+      # l'ecran), le DPI la finesse du rendu. Diviser les pixels par le DPI,
+      # comme ici auparavant, donnait une toile de quatre pouces ou les onze
+      # etiquettes de traitement s'ecrasaient -- et monter le DPI la
+      # retrecissait encore. Voir hstat_export_dims() dans Utils.R.
+      dims <- hstat_export_dims(input$thresholdExportWidth,
+                                input$thresholdExportHeight,
+                                input$thresholdExportDPI)
+      width_in  <- dims$width_in
+      height_in <- dims$height_in
+      dpi       <- dims$dpi
+      if (!is.null(dims$note))
+        showNotification(dims$note, type = "warning", duration = 8)
       
       format <- input$thresholdExportFormat %||% "png"
       
@@ -1654,29 +1657,27 @@ mod_threshold_server <- function(id, values) {
     }
   )
   
+  # L'apercu annonce les DEUX tailles : la mise en page demandee et les pixels
+  # reellement produits. Ne montrer que la premiere laissait croire qu'un DPI
+  # plus eleve ne changeait rien au fichier.
   output$exportSizeEstimate <- renderText({
-    width <- input$thresholdExportWidth %||% 1200
-    height <- input$thresholdExportHeight %||% 800
-    dpi <- input$thresholdExportDPI %||% 300
     format <- input$thresholdExportFormat %||% "png"
+    d <- hstat_export_dims(input$thresholdExportWidth,
+                           input$thresholdExportHeight,
+                           input$thresholdExportDPI)
     
-    dpi_display <- min(dpi, 20000)
-    warning_text <- if(dpi > 20000) " (DPI sera limité à 1200)" else ""
+    if (format %in% c("svg", "pdf", "eps"))
+      return(trf("Mise en page %s × %s pouces. Format vectoriel : résolution illimitée, le DPI ne s'applique pas.",
+                 round(d$width_in, 2), round(d$height_in, 2)))
     
-    width_in <- round(width / dpi_display, 2)
-    height_in <- round(height / dpi_display, 2)
+    pixels <- d$width_out * d$height_out
+    size_mb <- if(format == "jpeg") (pixels * 0.3) / (1024 * 1024)
+               else (pixels * 3) / (1024 * 1024)
     
-    pixels <- width * height
-    size_mb <- if(format %in% c("png", "tiff", "bmp")) {
-      (pixels * 3) / (1024 * 1024)
-    } else if(format == "jpeg") {
-      (pixels * 0.3) / (1024 * 1024)
-    } else {
-      0.5
-    }
-    
-    paste0(width, "x", height, " pixels = ", width_in, "x", height_in, " pouces à ", dpi_display, " DPI",
-           warning_text, " | Taille estimée : ", round(size_mb, 2), " MB")
+    paste0(trf("Mise en page %s × %s pouces → fichier de %s × %s pixels à %s DPI",
+               round(d$width_in, 2), round(d$height_in, 2),
+               d$width_out, d$height_out, d$dpi),
+           " | ", trf("Taille estimée : %s Mo", round(size_mb, 2)))
   })
   
   output$downloadThresholdData <- downloadHandler(

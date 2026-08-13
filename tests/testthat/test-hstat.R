@@ -5477,3 +5477,100 @@ test_that("les sous-ensembles de lignes du module graphique gardent leur tableau
   # message de ggplot.
   expect_true(any(grepl("is.data.frame(data)", code, fixed = TRUE)))
 })
+
+test_that("les pixels d'export fixent la mise en page, le DPI la finesse", {
+  d <- hstat_export_dims(1200, 800, 300)
+  # 1200 px lus a 96 ppp = 12,5 pouces -- et non 4 pouces (1200 / 300)
+  expect_equal(d$width_in, 12.5)
+  expect_equal(round(d$height_in, 2), 8.33)
+  expect_equal(d$dpi, 300)
+  expect_equal(d$width_out, 3750)
+
+  # Le defaut corrige : monter le DPI RETRECISSAIT la figure, donc demander
+  # plus de qualite la rendait moins lisible. La mise en page doit desormais
+  # etre insensible au DPI, et les pixels produits croitre avec lui.
+  for (dpi in c(72, 150, 300, 600, 1200)) {
+    x <- hstat_export_dims(1200, 800, dpi)
+    expect_equal(x$width_in, 12.5, info = paste("dpi", dpi))
+  }
+  expect_gt(hstat_export_dims(1200, 800, 600)$width_out,
+            hstat_export_dims(1200, 800, 300)$width_out)
+
+  # Au-dela du bitmap tenable, le DPI est abaisse ET annonce
+  gros <- hstat_export_dims(4000, 3000, 20000)
+  expect_lt(gros$dpi, 20000)
+  expect_lte(max(gros$width_out, gros$height_out), HSTAT_EXPORT_MAX_PX)
+  expect_true(is.character(gros$note) && nzchar(gros$note))
+  expect_null(hstat_export_dims(1200, 800, 300)$note)
+
+  # Saisie vide ou absurde : on retombe sur des valeurs utilisables plutot que
+  # de faire echouer le telechargement
+  for (mauvais in list(NULL, NA, "", 0, -5))
+    expect_gte(hstat_export_dims(mauvais, mauvais, mauvais)$width_in, 1)
+})
+
+test_that("ggsave rend bien les pixels annonces", {
+  skip_if_not_installed("ggplot2")
+  d <- hstat_export_dims(1200, 800, 150)
+  f <- tempfile(fileext = ".png")
+  p <- ggplot2::ggplot(data.frame(x = 1:5, y = 1:5), ggplot2::aes(x, y)) +
+    ggplot2::geom_point()
+  ok <- tryCatch({
+    suppressWarnings(ggplot2::ggsave(f, p, width = d$width_in,
+                                     height = d$height_in, dpi = d$dpi))
+    TRUE
+  }, error = function(e) FALSE)
+  skip_if_not(ok, "ggsave indisponible dans cet environnement")
+  # Les pixels REELLEMENT produits, lus dans l'en-tete du PNG : un ggsave qui
+  # ignorerait la resolution passerait autrement inapercu.
+  px <- .hstat_png_dims(f)
+  expect_equal(unname(px[["largeur"]]), d$width_out)
+  expect_equal(unname(px[["hauteur"]]), d$height_out)
+})
+
+test_that("le style des etiquettes survit a la conversion plotly", {
+  # plotmath ne survit pas a ggplotly : l'axe affichait bold(\"...\") en
+  # toutes lettres. plotly comprend un sous-ensemble de HTML.
+  expect_equal(hstat_html_style_label("A", "bold"), "<b>A</b>")
+  expect_equal(hstat_html_style_label("A", "italic"), "<i>A</i>")
+  expect_equal(hstat_html_style_label("A", "bolditalic"), "<b><i>A</i></b>")
+  expect_equal(hstat_html_style_label("A", "plain"), "A")
+  # Un nom de traitement porte des caracteres qui casseraient la balise
+  expect_false(grepl("&(?!amp;)", hstat_html_style_label("2SP(0,5)&2PV", "bold"),
+                     perl = TRUE))
+  expect_true(grepl("<b>", hstat_html_style_label("2SP(0,5)&2PV", "bold"), fixed = TRUE))
+  # Vectorise, style par niveau
+  expect_equal(hstat_html_style_label(c("A", "B"), c("bold", "plain")),
+               c("<b>A</b>", "B"))
+})
+
+test_that("les Y d'un multi-courbes partagent un type, et l'axe X en est exclu", {
+  d <- data.frame(Semaine = as.Date("2026-01-01") + 0:4,
+                  ch_Hel = as.numeric(1:5), ch_Bis = as.numeric(5:1),
+                  note = letters[1:5], stringsAsFactors = FALSE)
+
+  # Le cas signale : la date choisie en X ET en Y levait
+  # « Can't combine `Semaine` <date> and `ch_Hel` <double> »
+  r <- hstat_y_multi_valides(d, c("Semaine", "ch_Hel", "ch_Bis"), "Semaine")
+  expect_setequal(r$gardees, c("ch_Hel", "ch_Bis"))
+  expect_equal(r$ecartees, "Semaine")
+  # et le pivot qui echouait passe desormais
+  expect_silent(tidyr::pivot_longer(d[, c("Semaine", r$gardees)],
+                                    cols = dplyr::any_of(r$gardees),
+                                    names_to = "Variable", values_to = "Value"))
+
+  # Types melanges : le quantitatif l'emporte, le reste est NOMME
+  r2 <- hstat_y_multi_valides(d, c("ch_Hel", "note"), "Semaine")
+  expect_equal(r2$gardees, "ch_Hel")
+  expect_equal(r2$ecartees, "note")
+  expect_true(nzchar(r2$motif))
+
+  # Homogenes : rien n'est retire
+  expect_setequal(hstat_y_multi_valides(d, c("ch_Hel", "ch_Bis"), "Semaine")$gardees,
+                  c("ch_Hel", "ch_Bis"))
+  # Une seule variable, qui est l'axe X : plus rien a tracer, dit clairement
+  expect_length(hstat_y_multi_valides(d, "Semaine", "Semaine")$gardees, 0L)
+  # Colonne inexistante ou entree vide
+  expect_length(hstat_y_multi_valides(d, "absente", "Semaine")$gardees, 0L)
+  expect_length(hstat_y_multi_valides(d, character(0), "Semaine")$gardees, 0L)
+})
