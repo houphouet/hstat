@@ -3477,13 +3477,25 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
   }
 
   niveaux <- sort(unique(modal[!is.na(modal)]))
-  lignes <- list(); alertes <- character(0)
+  lignes <- list(); alertes <- character(0); groupes_sans_temoin <- character(0)
   for (g in sort(unique(grp))) {
     dans_g <- grp == g
     for (v in vars_reponse) {
       y <- df[[v]]
-      ref <- resume(y[dans_g & !is.na(modal) & modal == temoin])
-      if (!is.finite(ref[["v"]]))
+      dans_temoin <- dans_g & !is.na(modal) & modal == temoin
+      ref <- resume(y[dans_temoin])
+      # DEUX CAUSES DIFFERENTES, DEUX MESSAGES. « Sans valeur mesurable »
+      # couvrait aussi le cas ou le temoin est simplement ABSENT du groupe --
+      # un defaut de plan, pas de mesure. Constate en groupant par une colonne
+      # qui compte une modalite par ligne : l'utilisateur lisait un message qui
+      # ne nommait pas sa vraie erreur.
+      # `<-` et NON `<<-` : la boucle `for` ne cree pas de cadre, on est dans le
+      # corps de la fonction. `<<-` y ecrirait dans l'environnement ENGLOBANT et
+      # sauterait la variable locale, qui resterait vide -- le miroir exact du
+      # defaut corrige dans mod_tests.R, ou c'est `<<-` qu'il fallait.
+      if (!any(dans_temoin))
+        groupes_sans_temoin <- c(groupes_sans_temoin, g)
+      else if (!is.finite(ref[["v"]]))
         alertes <- c(alertes, sprintf("temoin sans valeur mesurable pour « %s »", v))
       else if (ref[["v"]] == 0)
         alertes <- c(alertes, sprintf("temoin nul pour « %s » : l'efficacite n'est pas definissable", v))
@@ -3512,6 +3524,15 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
   rownames(out) <- NULL
   attr(out, "temoin") <- temoin
   attr(out, "agg") <- agg
+  gst <- unique(groupes_sans_temoin)
+  if (length(gst))
+    alertes <- c(sprintf(paste0("le temoin « %s » est absent de %s groupe(s) (%s) : ",
+                                "verifiez la variable de groupement, un groupe sans ",
+                                "temoin n'a rien a quoi se comparer"),
+                         temoin, length(gst),
+                         paste(utils::head(gst, 4), collapse = ", ")),
+                 alertes)
+  attr(out, "groupes_sans_temoin") <- gst
   msg(out, if (length(alertes))
     paste0("Attention : ", paste(unique(alertes), collapse = " ; "), ".")
     else sprintf("%s modalite(s) comparee(s) au temoin « %s » (%s).",

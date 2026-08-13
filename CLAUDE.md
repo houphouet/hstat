@@ -379,6 +379,26 @@ Le tableau peut remplacer le jeu de travail (`values$data` / `cleanData` /
 annoncé sans détour : remplacer les données de quelqu'un sans le prévenir
 serait le pire des services.
 
+### Un groupe sans témoin est un défaut de plan, pas de mesure
+
+« Témoin sans valeur mesurable » couvrait aussi le cas où le témoin est
+simplement **absent** du groupe. Les deux causes sont différentes et appellent
+des gestes différents ; le message nomme désormais le groupe fautif et renvoie
+à la variable de groupement.
+
+Constaté en groupant par une colonne qui compte une modalité par ligne — le cas
+qu'un utilisateur produit sans y penser en choisissant la mauvaise colonne.
+
+### `<-` ou `<<-` : le miroir du piège de `mod_tests.R`
+
+Dans le **corps** d'une fonction, une boucle `for` ne crée pas de cadre : `<<-`
+y écrit dans l'environnement **englobant** et saute la variable locale, qui
+reste vide. C'est l'exact opposé du cas des gestionnaires d'erreur, où `<<-`
+est indispensable.
+
+Le balayage du dépôt ne couvre que les gestionnaires ; celui-ci s'est vu parce
+que le message attendu ne sortait pas. Un test vérifie que la liste se remplit.
+
 ### Le graphique lit une source, pas `values$filteredData`
 
 Tracer les efficacités calculées obligeait à **remplacer** le jeu de travail

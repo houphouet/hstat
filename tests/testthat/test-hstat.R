@@ -5025,6 +5025,35 @@ test_that("une efficacite negative est un resultat, pas une erreur", {
   expect_lt(r$Efficacite[r$Modalite == "T1"], 0)
 })
 
+test_that("un groupe sans temoin est nomme, pas confondu avec une mesure manquante", {
+  # DEUX CAUSES DIFFERENTES, DEUX MESSAGES. « Temoin sans valeur mesurable »
+  # couvrait aussi le cas ou le temoin est simplement ABSENT du groupe -- un
+  # defaut de PLAN, pas de mesure. Constate en groupant par une colonne qui
+  # compte une modalite par ligne : l'utilisateur lisait un message qui ne
+  # nommait pas sa vraie erreur.
+  d <- data.frame(g = c("A", "A", "B", "B"), trt = c("Tem", "T1", "T1", "T2"),
+                  y = c(10, 5, 4, 3), stringsAsFactors = FALSE)
+  r <- hstat_efficacite(d, "trt", "y", "Tem", var_groupe = "g")
+  expect_equal(attr(r, "groupes_sans_temoin"), "B")
+  m <- attr(r, "message")
+  expect_true(grepl("absent de 1 groupe", m))
+  expect_true(grepl("\\bB\\b", m))
+  expect_true(grepl("verifiez", m))            # cause PUIS geste
+
+  # Un plan sain ne declenche rien.
+  ok <- data.frame(g = c("A", "A", "B", "B"), trt = c("Tem", "T1", "Tem", "T1"),
+                   y = c(10, 5, 8, 4), stringsAsFactors = FALSE)
+  r2 <- hstat_efficacite(ok, "trt", "y", "Tem", var_groupe = "g")
+  expect_equal(length(attr(r2, "groupes_sans_temoin")), 0L)
+  expect_false(grepl("absent", attr(r2, "message")))
+
+  # `<-` ET NON `<<-` : la boucle `for` ne cree pas de cadre. `<<-` ecrirait
+  # dans l'environnement ENGLOBANT et la liste resterait vide -- le miroir
+  # exact du defaut corrige dans mod_tests.R, ou c'est `<<-` qu'il fallait.
+  # Ce test echoue si l'operateur repart de travers.
+  expect_gt(length(attr(r, "groupes_sans_temoin")), 0L)
+})
+
 test_that("le groupement rend l'efficacite analysable", {
   # Sans groupement il n'y a qu'une ligne par modalite, donc plus rien a
   # tester. Par bloc, on obtient une vraie variable.
