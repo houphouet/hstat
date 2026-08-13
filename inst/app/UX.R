@@ -675,20 +675,16 @@ ui <- dashboardPage(
               mod_filter_ui("filter")
       ),
       # ---- Analyse descriptives ----
-      hstat_ai_with_hint(
-        tabItem(tabName = "descriptive",
-                mod_descriptive_ui("descriptive")),
-        "aihint_descriptive"),
+      tabItem(tabName = "descriptive",
+              mod_descriptive_ui("descriptive")),
       
       # ---- Visualisation des données ----
-      hstat_ai_with_hint(
-        tabItem(tabName = "visualization",
-                mod_viz_ui("visualization")),
-        "aihint_viz"),
+      tabItem(tabName = "visualization",
+              mod_viz_ui("visualization")),
       # ---- 3. Relations & inférence : Corrélations -> Tests -> Post-hoc -> Multivariées ----
-      hstat_ai_with_hint(mod_correlation_ui("corrélation"), "aihint_correlation"),
-      hstat_ai_with_hint(mod_tests_ui("tests"), "aihint_tests"),
-      hstat_ai_with_hint(mod_posthoc_ui("tests"), "aihint_multiple"),
+      mod_correlation_ui("corrélation"),
+      mod_tests_ui("tests"),
+      mod_posthoc_ui("tests"),
       # ---- Analyses multivariees ----
       
       tabItem(tabName = "multivariate",
@@ -1909,32 +1905,27 @@ ui <- dashboardPage(
     )
   )
                 )  # ferme mv-analyses-col
-              ),   # ferme mv-layout
-              hstat_ai_hint_slot("aihint_multivariate")
+              )    # ferme mv-layout
       ),
       # ---- 4. Planification & outils : Plan & Puissance -> Seuils ----
-      hstat_ai_with_hint(mod_design_ui("design"), "aihint_design"),
+      mod_design_ui("design"),
       # ---- Analyses qualitatives d'enquete ----
-      hstat_ai_with_hint(mod_qualitative_ui("qualitative"), "aihint_qualitative"),
+      mod_qualitative_ui("qualitative"),
 
       # ---- Interpretation des resultats et aide a la decision ----
       mod_ai_ui("aidecision"),
       # ---- Seuils d'efficacité ----
       tabItem(tabName = "timeseries",
-              mod_timeseries_ui("timeseries"),
-              hstat_ai_hint_slot("aihint_timeseries")
+              mod_timeseries_ui("timeseries")
       ),
       tabItem(tabName = "ml",
-              mod_ml_ui("ml"),
-              hstat_ai_hint_slot("aihint_ml")
+              mod_ml_ui("ml")
       ),
       tabItem(tabName = "dl",
-              mod_dl_ui("dl"),
-              hstat_ai_hint_slot("aihint_dl")
+              mod_dl_ui("dl")
       ),
       tabItem(tabName = "threshold",
-              mod_threshold_ui("threshold"),
-              hstat_ai_hint_slot("aihint_threshold")
+              mod_threshold_ui("threshold")
       ),
 
       # ---- Citer HStat ----

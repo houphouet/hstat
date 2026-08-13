@@ -1204,3 +1204,6 @@ Variable de répétition,Repetition variable
 (aucune répétition déclarée),(no repetition declared)
 Mettre les répétitions en commun,Pool the repetitions
 Une efficacité par répétition,One efficacy per repetition
+%s variable(s) listée(s).,%s variable(s) listed.
+Les données du graphique ne forment pas un tableau : resélectionnez les variables X et Y.,The plot data is not a table: reselect the X and Y variables.
+La variable X « %s » est absente des données préparées : resélectionnez-la.,"The X variable ""%s"" is missing from the prepared data: reselect it."

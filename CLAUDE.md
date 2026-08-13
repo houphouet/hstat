@@ -110,17 +110,24 @@ transformation n'a été appliquée. Sans cette réserve, trois modules se
 déclenchaient au chargement et s'écrasaient l'un l'autre, affichant un libellé
 faux.
 
-### Bandeau de guidage : greffé, pas inséré
+### Bandeau de guidage : retiré, et il ne revient pas
 
-Le bandeau de fin d'analyse (`aihint_*`) s'ajoute aux onglets **sans toucher
-aux modules** : `hstat_ai_with_hint()` ajoute un enfant au `tabItem` que le
-module a déjà construit. Les identifiants sont déclarés une seule fois dans
-`HSTAT_AI_HINT_IDS` ; un test vérifie que déclarés et posés coïncident
-exactement — un identifiant déclaré mais jamais posé ne s'afficherait nulle
-part, l'inverse ferait échouer `hstat_ai_hint_slot()` au démarrage.
+Un bandeau (`aihint_*`) greffé sur les douze onglets d'analyse et une
+notification annonçaient, **à chaque résultat déposé**, l'analyse que le profil
+des données appelle. La même recommandation vit en entier dans l'onglet
+« Interprétation & aide à la décision », où l'utilisateur va la chercher.
+Répétée à chaque calcul, elle recouvrait les résultats qu'on venait de
+demander au lieu de les éclairer — signalé à l'écran.
 
-Une sortie Shiny ne peut apparaître qu'une fois dans le DOM : chaque onglet a
-donc son propre identifiant, et `app_server.R` les rend en boucle.
+`HSTAT_AI_HINT_IDS`, `hstat_ai_hint_slot()`, `hstat_ai_with_hint()`,
+`hstat_ai_hint_ui()` et `hstat_ai_hint_text()` ont disparu avec elle. Un test
+balaie `inst/app/` et échoue sur leur réintroduction, identifiant `aihint_*`
+compris.
+
+Le registre de capture (`hstat_ai_capture()`) est **intact** : c'est lui qui
+alimente l'onglet d'interprétation, le journal de reproductibilité et le
+rapport. Ce qui a été supprimé, c'est l'affichage non sollicité, pas la
+collecte.
 
 ### Ne jamais brancher sur une statistique non calculable
 
@@ -158,6 +165,19 @@ courant, pas exotique : toute AFC croisant une variable **binaire** (sexe,
 oui/non, avant/après) produit une table dont la plus petite dimension vaut 2,
 donc un seul axe. Passer systématiquement par `hstat_coord_mat()` (`Utils.R`)
 avant d'indexer. Un test le vérifie sur l'ensemble du dépôt.
+
+### Un tableau à une colonne n'est plus un tableau après `df[cond, ]`
+
+`plotData()` (`mod_viz.R`) ne garde que les colonnes utiles au graphique : il
+n'en reste **qu'une** quand X et Y désignent la même variable, ou quand
+l'agrégation a renommé Y. Le premier filtrage de lignes ramenait alors le
+tableau à un vecteur — `[.data.frame` simplifie par défaut — et ggplot rendait
+« `dim(data)` must return an `<integer>` of length 2 », message que personne ne
+peut relier à son choix de variables.
+
+Tout sous-ensemble de lignes du chemin graphique porte donc `drop = FALSE`, et
+`createPlot()` nomme le cas restant (variable absente des données préparées)
+plutôt que de laisser passer le message de ggplot. Un test balaie `mod_viz.R`.
 
 ### Ne jamais appeler une fonction de rendu à la main
 

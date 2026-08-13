@@ -1373,89 +1373,18 @@ hstat_ai_interpret_prompt <- function(ctx, profile = NULL, reco = NULL,
 
 
 # ---------------------------------------------------------------------------
-# GUIDAGE A LA FIN DE L'ANALYSE
+# GUIDAGE A LA FIN DE L'ANALYSE : RETIRE
 # ---------------------------------------------------------------------------
-# Une recommandation qui n'arrive que si l'utilisateur pense a changer d'onglet
-# n'aide personne. Des qu'une analyse depose son resultat, un bandeau discret
-# annonce ce que le profil des donnees appelle, avec un lien vers le detail.
-# Le lien bascule d'onglet cote navigateur : pas d'aller-retour serveur, et
-# aucun couplage entre les modules d'analyse et l'assistance.
-# ---------------------------------------------------------------------------
-
-# Un identifiant de sortie par onglet d'analyse. Declares ici plutot que
-# disperses : ajouter un onglet, c'est ajouter une ligne a cette liste et poser
-# hstat_ai_hint_slot() dans son interface.
-HSTAT_AI_HINT_IDS <- c(
-  "aihint_descriptive", "aihint_viz", "aihint_correlation", "aihint_tests",
-  "aihint_multiple", "aihint_multivariate", "aihint_qualitative",
-  "aihint_timeseries", "aihint_ml", "aihint_dl", "aihint_design",
-  "aihint_threshold")
-
-# Emplacement a poser en bas d'un onglet d'analyse.
-hstat_ai_hint_slot <- function(id) {
-  stopifnot(id %in% HSTAT_AI_HINT_IDS)
-  shiny::uiOutput(id)
-}
-
-# Greffe l'emplacement a la fin d'un tabItem deja construit. Permet d'ajouter
-# le bandeau aux onglets dont l'interface est produite par un module, sans
-# toucher au module : `tabItem()` renvoie un simple div, on lui ajoute un
-# enfant. Un onglet introuvable ou d'une autre forme est renvoye tel quel
-# plutot que de casser la construction de l'interface.
-hstat_ai_with_hint <- function(tab, id) {
-  if (!inherits(tab, "shiny.tag") || is.null(tab$children)) return(tab)
-  tab$children <- c(tab$children, list(hstat_ai_hint_slot(id)))
-  tab
-}
-
-hstat_ai_hint_ui <- function(ctx, reco, verdict = NULL) {
-  if (is.null(ctx)) return(NULL)
-  top <- if (!is.null(reco) && nrow(reco))
-    reco$Analyse[reco$Pertinence == "Recommandee"] else character(0)
-  suite <- if (!is.null(reco) && nrow(reco))
-    reco$Analyse[reco$Pertinence == "A enchainer"] else character(0)
-
-  lien <- shiny::tags$a(
-    href = "#", style = "font-weight:bold;color:#1b6f8c;",
-    onclick = paste0(
-      "$('a[href=\"#shiny-tab-aidecision\"]').click();",
-      "$(window).scrollTop(0);return false;"),
-    shiny::icon("compass-drafting"), " Interpreter ces resultats")
-
-  shiny::div(
-    style = paste0("background:#eaf4fb;border-left:5px solid #2e86c1;",
-                   "padding:12px 16px;border-radius:6px;margin-top:14px;font-size:13px;"),
-    shiny::tags$strong(shiny::icon("lightbulb"), " Aide a la decision"),
-    shiny::tags$span(style = "color:#7f8c8d;", sprintf(" - a la suite de : %s", ctx$title)),
-    shiny::br(),
-    if (length(top))
-      shiny::tags$span("Le profil de vos donnees appelle ",
-                       shiny::tags$b(paste(top, collapse = " ou ")), ".")
-    else
-      shiny::tags$span("Choisissez les variables analysees dans l'onglet dedie pour obtenir une recommandation."),
-    if (length(suite))
-      shiny::tags$span(" A enchainer : ", shiny::tags$b(paste(suite, collapse = ", ")), "."),
-    if (!is.null(verdict) && !isTRUE(verdict$coherent))
-      shiny::tagList(shiny::br(), shiny::tags$span(style = "color:#b9770e;",
-        shiny::icon("circle-question"), " ", verdict$message)),
-    shiny::br(),
-    lien,
-    shiny::tags$span(style = "color:#7f8c8d;",
-      " - la methode reste votre choix : l'assistance eclaire, elle ne decide pas."))
-}
-
-# Notification a la fin d'une analyse. Volontairement breve : le detail vit
-# dans l'onglet, ceci n'est qu'un rappel que l'aide existe et qu'elle a
-# quelque chose a dire sur CE resultat.
-hstat_ai_hint_text <- function(ctx, reco) {
-  if (is.null(ctx)) return(NULL)
-  top <- if (!is.null(reco) && nrow(reco))
-    reco$Analyse[reco$Pertinence == "Recommandee"] else character(0)
-  if (!length(top)) return(NULL)
-  sprintf("%s enregistree. Le profil de vos donnees appelle %s.",
-          ctx$title, paste(top, collapse = " ou "))
-}
-
+# Un bandeau greffe sur les douze onglets d'analyse et une notification
+# repetaient a chaque resultat depose ce que le profil des donnees appelle.
+# La meme recommandation vit en entier dans l'onglet « Interpretation & aide a
+# la decision », ou l'utilisateur la demande. Repetee a chaque calcul, elle
+# recouvrait les resultats au lieu de les eclairer.
+#
+# Ont disparu avec elle : HSTAT_AI_HINT_IDS, hstat_ai_hint_slot(),
+# hstat_ai_with_hint(), hstat_ai_hint_ui() et hstat_ai_hint_text(). Le registre
+# de capture (hstat_ai_capture) est intact : c'est lui qui alimente l'onglet,
+# le journal de reproductibilite et le rapport.
 
 # ---------------------------------------------------------------------------
 # RENDU
