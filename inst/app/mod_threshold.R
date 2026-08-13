@@ -361,12 +361,29 @@ mod_threshold_ui <- function(id) {
                                           choices = HSTAT_EFF_AGG, selected = "moyenne")),
                             column(6, uiOutput(ns("effGroupSelect")))),
 
+                          radioButtons(ns("effMode"),
+                            tagList(icon("layer-group"), " Traitement des répétitions"),
+                            choiceNames = list(
+                              HTML("<b>Mettre les répétitions en commun</b> <small style='color:#7f8c8d;'>(une efficacité par modalité — le chiffre que l'on publie)</small>"),
+                              HTML("<b>Une efficacité par répétition</b> <small style='color:#7f8c8d;'>(autant de valeurs que de répétitions — analysable par ANOVA)</small>")),
+                            choiceValues = list("cumul", "par_repetition"),
+                            selected = "cumul"),
+
                           div(style = "background-color:#fff9e6;padding:10px 12px;border-radius:6px;border-left:4px solid #f39c12;font-size:12px;",
                               icon("lightbulb", style = "color:#f39c12;"),
-                              em(" Grouper par répétition (bloc, essai, site) donne une efficacité ",
-                                 "par répétition — donc une vraie variable, analysable ensuite par ",
-                                 "ANOVA ou comparaisons multiples. Sans groupement, il n'y a qu'une ",
-                                 "ligne par modalité et plus rien à tester.")),
+                              em(" Les deux modes ne répondent pas à la même question. ",
+                                 "En commun, la moyenne (ou la somme) de la modalité porte sur ",
+                                 "toutes ses répétitions : c'est le chiffre du rapport. ",
+                                 "Par répétition, on obtient une variable analysable ensuite par ",
+                                 "ANOVA ou comparaisons multiples.")),
+
+                          div(style = "background-color:#fdedec;padding:10px 12px;border-radius:6px;border-left:4px solid #c0392b;font-size:12px;",
+                              icon("triangle-exclamation", style = "color:#c0392b;"),
+                              em(" La ", tags$b("somme"), " n'est comparable que si les répétitions ",
+                                 "sont en nombre égal : la modalité la plus répétée accumule ",
+                                 "mécaniquement davantage et ressort artificiellement moins efficace. ",
+                                 "La moyenne n'en souffre pas. L'application le signale si le cas se ",
+                                 "présente.")),
                           br(),
 
                           actionButton(ns("effCompute"),
@@ -613,8 +630,8 @@ mod_threshold_server <- function(id, values) {
     d <- values$filteredData
     req(d, input$effFactor)
     cand <- setdiff(names(d), input$effFactor)
-    selectInput(ns("effGroup"), tagList(icon("object-group"), " Grouper par (facultatif)"),
-                choices = c("(aucun groupement)" = "", cand),
+    selectInput(ns("effGroup"), tagList(icon("object-group"), " Variable de répétition"),
+                choices = c("(aucune répétition déclarée)" = "", cand),
                 selected = isolate(input$effGroup) %||% "")
   })
 
@@ -627,7 +644,8 @@ mod_threshold_server <- function(id, values) {
     r <- tryCatch(
       hstat_efficacite(d, input$effFactor, input$effResponse, input$effControl,
                        agg = input$effAgg %||% "moyenne",
-                       var_groupe = input$effGroup),
+                       var_repetition = input$effGroup,
+                       mode = input$effMode %||% "cumul"),
       error = function(e) {
         showNotification(hstat_err_fr(e), type = "error", duration = 8)
         NULL

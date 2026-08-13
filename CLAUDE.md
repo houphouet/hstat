@@ -379,6 +379,40 @@ Le tableau peut remplacer le jeu de travail (`values$data` / `cleanData` /
 annoncé sans détour : remplacer les données de quelqu'un sans le prévenir
 serait le pire des services.
 
+### Deux façons de tenir compte des répétitions, deux questions
+
+- **« En commun »** (`mode = "cumul"`) — la moyenne ou la somme de la modalité
+  porte sur **toutes ses répétitions** : une efficacité par modalité. C'est le
+  chiffre du rapport.
+- **« Par répétition »** (`mode = "par_repetition"`) — l'efficacité est calculée
+  **dans** chaque répétition : autant de valeurs que de répétitions, donc une
+  variable analysable par ANOVA ou comparaisons multiples.
+
+La variable de répétition se déclare dans les deux cas ; c'est le `mode` qui dit
+ce qu'on en fait. Le décompte réel apparaît en colonne `Repetitions`.
+
+`var_groupe`, l'ancien argument, **garde son sens d'origine** (découpage par
+groupe) : lui donner le nouveau ferait passer un appel existant de 12 lignes à
+4, en silence.
+
+### La somme n'est comparable qu'à répétitions égales
+
+C'est le piège de ce module, et il est massif. Avec un nombre de répétitions
+inégal, la modalité la plus répétée accumule mécaniquement davantage et
+ressort **artificiellement moins efficace** — un artefact de plan pris pour un
+résultat. Constaté à l'écran sur un essai où T1 n'a qu'une répétition contre
+trois :
+
+| Résumé | Efficacité de T1 |
+|---|---|
+| moyenne | **60 %** (juste) |
+| somme | **86,7 %** (artefact) |
+
+La moyenne n'en souffre pas : le rapport est invariant par changement
+d'échelle, et à répétitions équilibrées les deux donnent exactement le même
+chiffre — un test le vérifie. L'application signale le déséquilibre plutôt que
+de laisser publier le second chiffre.
+
 ### Un groupe sans témoin est un défaut de plan, pas de mesure
 
 « Témoin sans valeur mesurable » couvrait aussi le cas où le témoin est

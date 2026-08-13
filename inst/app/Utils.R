@@ -3440,10 +3440,21 @@ HSTAT_EFF_AGG <- c("Moyenne" = "moyenne", "Mediane" = "mediane", "Somme" = "somm
 
 hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
                              agg = c("moyenne", "mediane", "somme"),
+                             var_repetition = NULL,
+                             mode = c("cumul", "par_repetition"),
                              var_groupe = NULL) {
-  agg <- match.arg(agg)
+  agg <- match.arg(agg); mode <- match.arg(mode)
+  # `var_groupe` est l'ancien argument. Il decoupait le calcul par groupe : on
+  # lui GARDE ce sens, sinon un appel existant changerait silencieusement de
+  # resultat -- 4 lignes la ou il en rendait 12. La repetition se declare
+  # desormais par `var_repetition`, avec un `mode` qui dit ce qu'on en fait.
+  if (is.null(var_repetition) && !is.null(var_groupe)) {
+    var_repetition <- var_groupe
+    mode <- "par_repetition"
+  }
   vide <- data.frame(Modalite = character(0), Variable = character(0),
-                     N = integer(0), Valeur = numeric(0), Temoin = numeric(0),
+                     Repetitions = integer(0), N = integer(0),
+                     Valeur = numeric(0), Temoin = numeric(0),
                      Efficacite = numeric(0),
                      check.names = FALSE, stringsAsFactors = FALSE)
   msg <- function(x, m) { attr(x, "message") <- m; x }
@@ -3464,10 +3475,24 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
     return(msg(vide, paste0("Le temoin choisi n'existe pas dans « ",
                             var_modalite[1], " » : choisissez une modalite presente.")))
 
-  grp <- if (!is.null(var_groupe) && nzchar(var_groupe[1]) &&
-             var_groupe[1] %in% names(df))
-    trimws(as.character(df[[var_groupe[1]]])) else rep("", NROW(df))
-  grp[is.na(grp)] <- "(manquant)"
+  a_rep <- !is.null(var_repetition) && nzchar(var_repetition[1]) &&
+           var_repetition[1] %in% names(df)
+  rep_v <- if (a_rep) trimws(as.character(df[[var_repetition[1]]]))
+           else rep("", NROW(df))
+  rep_v[is.na(rep_v)] <- "(manquant)"
+
+  # DEUX FACONS DE TENIR COMPTE DES REPETITIONS, ET ELLES NE REPONDENT PAS A LA
+  # MEME QUESTION.
+  #   "cumul"          -> les repetitions sont MISES EN COMMUN : la moyenne (ou
+  #                       la somme) de la modalite porte sur toutes ses
+  #                       repetitions, et l'on obtient UNE efficacite par
+  #                       modalite. C'est le chiffre que l'on publie.
+  #   "par_repetition" -> l'efficacite est calculee DANS chaque repetition, ce
+  #                       qui donne autant de valeurs que de repetitions --
+  #                       donc une variable, analysable par ANOVA ou
+  #                       comparaisons multiples.
+  # Le decoupage n'a lieu que dans le second cas.
+  grp <- if (identical(mode, "par_repetition")) rep_v else rep("", NROW(df))
 
   resume <- function(x) {
     x <- suppressWarnings(as.numeric(x)); x <- x[is.finite(x)]
@@ -3500,7 +3525,13 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
       else if (ref[["v"]] == 0)
         alertes <- c(alertes, sprintf("temoin nul pour « %s » : l'efficacite n'est pas definissable", v))
       for (m in niveaux) {
-        r <- resume(y[dans_g & !is.na(modal) & modal == m])
+        dans_m <- dans_g & !is.na(modal) & modal == m
+        r <- resume(y[dans_m])
+        # Nombre de repetitions REELLEMENT mesurees pour cette modalite : c'est
+        # lui qui decide si une somme est comparable a une autre.
+        nrep <- if (a_rep)
+          length(unique(rep_v[dans_m & is.finite(suppressWarnings(as.numeric(y)))]))
+          else NA_integer_
         # Decision 1 : le temoin ne se compare pas a lui-meme.
         eff <- if (identical(m, temoin)) 0
                # Decision 2 : jamais de division par zero silencieuse.
@@ -3508,6 +3539,7 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
                else (ref[["v"]] - r[["v"]]) * 100 / ref[["v"]]
         lignes[[length(lignes) + 1L]] <- data.frame(
           Groupe = g, Modalite = m, Variable = v,
+          Repetitions = as.integer(nrep),
           N = as.integer(r[["n"]]),
           Valeur = unname(r[["v"]]), Temoin = unname(ref[["v"]]),
           Efficacite = eff,
@@ -3521,9 +3553,28 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
   if (all(!nzchar(out$Groupe))) out$Groupe <- NULL
   # Une seule variable mesuree : la colonne « Variable » n'apprend rien.
   if (length(vars_reponse) == 1L) out$Variable <- NULL
+  # Sans variable de repetition declaree, la colonne ne porte que des NA.
+  if (all(is.na(out$Repetitions))) out$Repetitions <- NULL
+
+  # LA SOMME N'EST COMPARABLE QUE SI LES REPETITIONS SONT EQUILIBREES. Avec un
+  # nombre de repetitions inegal, la modalite la plus repetee accumule
+  # mecaniquement davantage et ressort artificiellement « moins efficace » --
+  # un artefact de plan pris pour un resultat. La moyenne, elle, n'en souffre
+  # pas. On le dit plutot que de laisser publier le chiffre.
+  if (a_rep && identical(agg, "somme") && !is.null(out$Repetitions)) {
+    nr <- out$Repetitions[!is.na(out$Repetitions) & out$Repetitions > 0]
+    if (length(unique(nr)) > 1)
+      alertes <- c(sprintf(paste0("repetitions inegales (%s) : une SOMME n'est pas ",
+                                  "comparable entre modalites inegalement repetees, ",
+                                  "choisissez la moyenne"),
+                           paste(sort(unique(nr)), collapse = " / ")),
+                   alertes)
+  }
   rownames(out) <- NULL
   attr(out, "temoin") <- temoin
   attr(out, "agg") <- agg
+  attr(out, "mode") <- mode
+  attr(out, "repetition") <- if (a_rep) var_repetition[1] else NA_character_
   gst <- unique(groupes_sans_temoin)
   if (length(gst))
     alertes <- c(sprintf(paste0("le temoin « %s » est absent de %s groupe(s) (%s) : ",

@@ -1199,3 +1199,8 @@ Jeu de données chargé,Loaded data set
 Efficacités calculées,Computed efficacies
 Aucune efficacité calculée : rendez-vous dans l'onglet,No efficacy computed yet: go to the tab
  Le graphique trace les efficacités calculées (%d lignes). Le jeu de données chargé n'est pas modifié., The plot shows the computed efficacies (%d rows). The loaded data set is left untouched.
+Traitement des répétitions,Handling of repetitions
+Variable de répétition,Repetition variable
+(aucune répétition déclarée),(no repetition declared)
+Mettre les répétitions en commun,Pool the repetitions
+Une efficacité par répétition,One efficacy per repetition
