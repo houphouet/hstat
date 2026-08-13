@@ -379,6 +379,52 @@ Le tableau peut remplacer le jeu de travail (`values$data` / `cleanData` /
 annoncé sans détour : remplacer les données de quelqu'un sans le prévenir
 serait le pire des services.
 
+### Un groupe sans témoin est un défaut de plan, pas de mesure
+
+« Témoin sans valeur mesurable » couvrait aussi le cas où le témoin est
+simplement **absent** du groupe. Les deux causes sont différentes et appellent
+des gestes différents ; le message nomme désormais le groupe fautif et renvoie
+à la variable de groupement.
+
+Constaté en groupant par une colonne qui compte une modalité par ligne — le cas
+qu'un utilisateur produit sans y penser en choisissant la mauvaise colonne.
+
+### `<-` ou `<<-` : le miroir du piège de `mod_tests.R`
+
+Dans le **corps** d'une fonction, une boucle `for` ne crée pas de cadre : `<<-`
+y écrit dans l'environnement **englobant** et saute la variable locale, qui
+reste vide. C'est l'exact opposé du cas des gestionnaires d'erreur, où `<<-`
+est indispensable.
+
+Le balayage du dépôt ne couvre que les gestionnaires ; celui-ci s'est vu parce
+que le message attendu ne sortait pas. Un test vérifie que la liste se remplit.
+
+### Le graphique lit une source, pas `values$filteredData`
+
+Tracer les efficacités calculées obligeait à **remplacer** le jeu de travail
+puis à re-choisir X et Y — un détour qui fait perdre le fichier d'origine pour
+un simple graphique. Le module passe donc par `source_data()`, qui rend soit le
+fichier chargé, soit le tableau d'efficacités. Le bouton « Utiliser comme jeu
+de données » reste, mais pour les **autres** onglets ; ici il n'est plus requis.
+
+Quand la source est le tableau calculé, `Modalite` et `Efficacite` sont
+présélectionnés : ses colonnes portent des noms connus, offrir la première
+colonne venue serait gratuit.
+
+### Un réactif ne s'appelle jamais lui-même
+
+La bascule ci-dessus a été posée par substitution mécanique de
+`values$filteredData` en `source_data()` — qui a touché **le corps de
+`source_data` lui-même**. R s'arrête alors sur « C stack usage is too close to
+the limit » et **l'application ne démarre plus du tout** : une panne totale
+pour une ligne, invisible à l'analyse syntaxique puisque le code est
+parfaitement valide.
+
+Un test balaie les `X <- reactive({...})` et échoue si le corps appelle `X()`.
+Il **retire les commentaires par l'analyseur de R**, pas par une heuristique :
+il s'était signalé lui-même sur le commentaire documentant la correction, et un
+faux positif permanent finit toujours par faire désactiver le test.
+
 ## Variables à valeurs nulles : trois frontières, trois pièges
 
 `hstat_vars_zero()` liste les colonnes dont **toutes les valeurs observées**

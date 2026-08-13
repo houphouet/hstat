@@ -24,6 +24,20 @@ mod_threshold_ui <- function(id) {
                            style = "color:#2b2b2b; font-weight:600; margin:0; font-size:13px;")
                     ),
                     
+                    # La source du graphique : le fichier charge, ou le tableau
+                    # d'efficacites calcule dans l'onglet « Calcul depuis un temoin ».
+                    # Sans ce choix, tracer les efficacites obligeait a REMPLACER le
+                    # jeu de travail puis a re-selectionner X et Y -- un detour qui
+                    # fait perdre le fichier d'origine pour un simple graphique.
+                    radioButtons(ns("thresholdSource"),
+                      tagList(icon("database"), " Source des données"),
+                      choiceNames = list(
+                        HTML("<b>Jeu de données chargé</b>"),
+                        HTML("<b>Efficacités calculées</b> <small style='color:#7f8c8d;'>(onglet « Calcul depuis un témoin »)</small>")),
+                      choiceValues = list("donnees", "calcul"),
+                      selected = "donnees"),
+                    uiOutput(ns("thresholdSourceNote")),
+
                     uiOutput(ns("thresholdXVarSelect")),
                     
                     h6(icon("chart-line"), " Variables Y (Efficacité)", 
@@ -717,22 +731,64 @@ mod_threshold_server <- function(id, values) {
       type = "message", duration = 8)
   })
 
+  # Source du graphique. Le tableau d'efficacites est utilisable SANS remplacer
+  # le jeu de travail : le fichier d'origine reste disponible pour le reste de
+  # l'application.
+  source_data <- reactive({
+    if (identical(input$thresholdSource %||% "donnees", "calcul")) {
+      r <- eff_res()
+      validate(need(!is.null(r) && NROW(r) > 0,
+        "Aucune efficacité calculée pour l'instant : passez par l'onglet « Calcul depuis un témoin »."))
+      x <- as.data.frame(r)
+      attributes(x) <- attributes(x)[c("names", "class", "row.names")]
+      x
+    } else {
+      # `values$filteredData`, PAS `source_data()` : la substitution mecanique
+      # avait touche le corps du reactif lui-meme, qui s'appelait donc
+      # recursivement. R s'arretait sur « C stack usage is too close to the
+      # limit » et l'application ne demarrait plus.
+      values$filteredData
+    }
+  })
+
+  output$thresholdSourceNote <- renderUI({
+    if (!identical(input$thresholdSource %||% "donnees", "calcul")) return(NULL)
+    r <- eff_res()
+    if (is.null(r) || !NROW(r))
+      return(div(class = "alert alert-warning", style = "padding:8px;",
+                 icon("triangle-exclamation"),
+                 " Aucune efficacité calculée : rendez-vous dans l'onglet",
+                 " « Calcul depuis un témoin »."))
+    div(class = "alert alert-success", style = "padding:8px;",
+        icon("circle-check"),
+        trf(" Le graphique trace les efficacités calculées (%d lignes). Le jeu de données chargé n'est pas modifié.",
+            NROW(r)))
+  })
+
+  # Quand la source est le tableau d'efficacites, ses colonnes portent des noms
+  # connus : on preselectionne le couple qui a du sens (Modalite / Efficacite)
+  # plutot que la premiere colonne venue.
+  .eff_defaut <- function(cols, souhait) {
+    if (identical(input$thresholdSource %||% "donnees", "calcul") &&
+        souhait %in% cols) souhait else if (length(cols)) cols[1] else NULL
+  }
+
   output$thresholdXVarSelect <- renderUI({
-    req(values$filteredData)
-    all_cols <- names(values$filteredData)
+    req(source_data())
+    all_cols <- names(source_data())
     selectInput(ns("thresholdXVar"), "Variable X (Traitements):", 
                 choices = all_cols,
-                selected = if(length(all_cols) > 0) all_cols[1] else NULL)
+                selected = .eff_defaut(all_cols, "Modalite"))
   })
   
   output$thresholdYVarSelect <- renderUI({
-    req(values$filteredData)
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+    req(source_data())
+    num_cols <- names(source_data())[sapply(source_data(), is.numeric)]
     
     if(input$thresholdMultipleY) {
       pickerInput(ns("thresholdYVar"), "Variables Y (Efficacité) - Sélection multiple:", 
                   choices = num_cols,
-                  selected = if(length(num_cols) > 0) num_cols[1] else NULL,
+                  selected = .eff_defaut(num_cols, "Efficacite"),
                   multiple = TRUE,
                   options = list(`actions-box` = TRUE,
                                  `selected-text-format` = "count > 2",
@@ -740,16 +796,16 @@ mod_threshold_server <- function(id, values) {
     } else {
       selectInput(ns("thresholdYVar"), "Variable Y (Efficacité):", 
                   choices = num_cols,
-                  selected = if(length(num_cols) > 0) num_cols[1] else NULL)
+                  selected = .eff_defaut(num_cols, "Efficacite"))
     }
   })
   
   output$thresholdFilterSelect <- renderUI({
-    req(values$filteredData, input$thresholdXVar)
+    req(source_data(), input$thresholdXVar)
     
     if(is.null(input$thresholdXVar)) return(NULL)
     
-    x_data <- values$filteredData[[input$thresholdXVar]]
+    x_data <- source_data()[[input$thresholdXVar]]
     unique_vals <- if(is.factor(x_data)) {
       levels(x_data)
     } else {
@@ -765,9 +821,9 @@ mod_threshold_server <- function(id, values) {
   
   # Éditeur de labels pour la variable X avec options de style
   output$thresholdLevelsEditor <- renderUI({
-    req(values$filteredData, input$thresholdXVar)
+    req(source_data(), input$thresholdXVar)
     
-    x_data <- values$filteredData[[input$thresholdXVar]]
+    x_data <- source_data()[[input$thresholdXVar]]
     unique_vals <- if(is.factor(x_data)) {
       levels(droplevels(x_data))
     } else {
@@ -823,7 +879,7 @@ mod_threshold_server <- function(id, values) {
   
   # Éditeur de labels pour la légende (Variables Y multiples)
   output$thresholdLegendEditor <- renderUI({
-    req(values$filteredData, input$thresholdXVar, input$thresholdYVar)
+    req(source_data(), input$thresholdXVar, input$thresholdYVar)
 
     multiple_y <- isTRUE(input$thresholdMultipleY) && length(input$thresholdYVar) > 1
 
@@ -843,7 +899,7 @@ mod_threshold_server <- function(id, values) {
         return(div(style = "font-size:12px; color:#888; font-style:italic; padding:6px;",
                    icon("info-circle"),
                    " La légende n'apparaît que lorsque les barres sont colorées par traitement (voir « Couleurs des barres »)."))
-      x_data <- values$filteredData[[input$thresholdXVar]]
+      x_data <- source_data()[[input$thresholdXVar]]
       legend_items <- if (is.factor(x_data)) levels(droplevels(x_data))
                       else sort(unique(as.character(x_data)))
       if (!is.null(input$thresholdFilter) && length(input$thresholdFilter) > 0)
@@ -900,9 +956,9 @@ mod_threshold_server <- function(id, values) {
   })
   
   observeEvent(input$resetThresholdLabels, {
-    req(values$filteredData, input$thresholdXVar)
+    req(source_data(), input$thresholdXVar)
     
-    x_data <- values$filteredData[[input$thresholdXVar]]
+    x_data <- source_data()[[input$thresholdXVar]]
     unique_vals <- if(is.factor(x_data)) {
       levels(droplevels(x_data))
     } else {
@@ -919,7 +975,7 @@ mod_threshold_server <- function(id, values) {
   })
   
   observeEvent(input$resetThresholdLegendLabels, {
-    req(values$filteredData, input$thresholdXVar)
+    req(source_data(), input$thresholdXVar)
     multiple_y <- isTRUE(input$thresholdMultipleY) && length(input$thresholdYVar) > 1
 
     if (multiple_y) {
@@ -929,7 +985,7 @@ mod_threshold_server <- function(id, values) {
         updateCheckboxInput(session, paste0("thresholdLegendLevelItalic_", make.names(var_name)), value = FALSE)
       }
     } else {
-      x_data <- values$filteredData[[input$thresholdXVar]]
+      x_data <- source_data()[[input$thresholdXVar]]
       items <- if (is.factor(x_data)) levels(droplevels(x_data))
                else sort(unique(as.character(x_data)))
       for(it in items) {
@@ -944,10 +1000,10 @@ mod_threshold_server <- function(id, values) {
   
   # Color pickers personnalisés pour les traitements (une seule variable Y)
   output$thresholdColorPickers <- renderUI({
-    req(values$filteredData, input$thresholdXVar)
+    req(source_data(), input$thresholdXVar)
     req(!input$thresholdMultipleY || length(input$thresholdYVar) == 1)
     
-    x_data <- values$filteredData[[input$thresholdXVar]]
+    x_data <- source_data()[[input$thresholdXVar]]
     unique_vals <- if(is.factor(x_data)) {
       levels(droplevels(x_data))
     } else {
@@ -971,11 +1027,11 @@ mod_threshold_server <- function(id, values) {
   })
   
   observe({
-    req(values$filteredData, input$thresholdXVar, input$thresholdYVar)
+    req(source_data(), input$thresholdXVar, input$thresholdYVar)
     
     tryCatch({
       if(length(input$thresholdYVar) == 1) {
-        plot_data <- values$filteredData[, c(input$thresholdXVar, input$thresholdYVar)]
+        plot_data <- source_data()[, c(input$thresholdXVar, input$thresholdYVar)]
         colnames(plot_data) <- c("Treatment", "Efficacy")
         plot_data <- na.omit(plot_data)
         
@@ -984,7 +1040,7 @@ mod_threshold_server <- function(id, values) {
         }
         
       } else {
-        plot_data <- values$filteredData[, c(input$thresholdXVar, input$thresholdYVar)]
+        plot_data <- source_data()[, c(input$thresholdXVar, input$thresholdYVar)]
         colnames(plot_data)[1] <- "Treatment"
         
         plot_data <- tidyr::pivot_longer(plot_data, 

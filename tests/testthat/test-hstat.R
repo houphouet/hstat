@@ -4903,6 +4903,75 @@ test_that("l'atelier expose bien les quatre analyses dans l'interface", {
 
 
 # ===========================================================================
+# UN REACTIF NE S'APPELLE PAS LUI-MEME
+# ---------------------------------------------------------------------------
+# Constate en ajoutant le selecteur de source du module de seuils : une
+# substitution mecanique avait remplace `values$filteredData` par
+# `source_data()` DANS LE CORPS de `source_data` lui-meme. R s'arrete alors sur
+# « C stack usage is too close to the limit » et l'application ne demarre plus
+# du tout -- une panne totale, pour une ligne.
+#
+# Le defaut ne se voit ni a l'analyse syntaxique ni a la lecture rapide : le
+# code est parfaitement valide. Seul un balayage le rattrape.
+# ===========================================================================
+
+test_that("aucun reactif ne s'appelle lui-meme", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # Les COMMENTAIRES sont retires par l'analyseur de R, pas par une heuristique :
+  # ce test s'est signale lui-meme sur le commentaire qui documente la
+  # correction (« PAS `source_data()` »). Un balayage textuel naif aurait
+  # produit un faux positif permanent, et on aurait fini par le desactiver.
+  sans_commentaires <- function(f) {
+    lignes <- readLines(f, warn = FALSE, encoding = "UTF-8")
+    pd <- tryCatch(utils::getParseData(parse(f, keep.source = TRUE)),
+                   error = function(e) NULL)
+    if (!is.null(pd)) {
+      com <- pd[pd$token == "COMMENT", , drop = FALSE]
+      for (i in seq_len(nrow(com))) {
+        l <- com$line1[i]
+        if (l >= 1 && l <= length(lignes))
+          lignes[l] <- substr(lignes[l], 1, max(0, com$col1[i] - 1))
+      }
+    }
+    paste(lignes, collapse = "\n")
+  }
+
+  fautifs <- character(0)
+  for (f in list.files(file.path(root, "inst", "app"), pattern = "[.]R$",
+                       full.names = TRUE)) {
+    txt <- sans_commentaires(f)
+    car <- strsplit(txt, "")[[1]]
+    debuts <- gregexpr("([A-Za-z_.][\\w.]*)\\s*<-\\s*(?:shiny::)?reactive\\(\\s*\\{",
+                       txt, perl = TRUE)[[1]]
+    if (debuts[1] == -1) next
+    lg <- attr(debuts, "match.length")
+    for (k in seq_along(debuts)) {
+      d <- debuts[k]
+      nom <- sub("\\s*<-.*$", "", substr(txt, d, d + lg[k] - 1))
+      # fin du corps, par equilibrage d'accolades
+      i <- d + lg[k] - 1L; prof <- 0L; fin <- NA_integer_
+      while (i <= length(car)) {
+        if (car[i] == "{") prof <- prof + 1L
+        else if (car[i] == "}") {
+          prof <- prof - 1L
+          if (prof == 0L) { fin <- i; break }
+        }
+        i <- i + 1L
+      }
+      if (is.na(fin)) next
+      corps <- substr(txt, d + lg[k], fin)
+      if (grepl(paste0("\\b", nom, "\\s*\\("), corps, perl = TRUE))
+        fautifs <- c(fautifs, paste0(basename(f), " : ", nom))
+    }
+  }
+  expect_equal(fautifs, character(0),
+               info = paste("Reactif recursif (l'application ne demarrerait pas) :",
+                            paste(fautifs, collapse = " | ")))
+})
+
+
+# ===========================================================================
 # SEUILS D'EFFICACITE : CHAQUE MODALITE COMPAREE AU TEMOIN
 # ---------------------------------------------------------------------------
 # Formule d'Abbott : efficacite (%) = (temoin - traitement) x 100 / temoin.
@@ -4954,6 +5023,35 @@ test_that("une efficacite negative est un resultat, pas une erreur", {
   d <- .hstat_essai(); d$degats[d$trt == "T1"] <- 200
   r <- hstat_efficacite(d, "trt", "degats", "Temoin")
   expect_lt(r$Efficacite[r$Modalite == "T1"], 0)
+})
+
+test_that("un groupe sans temoin est nomme, pas confondu avec une mesure manquante", {
+  # DEUX CAUSES DIFFERENTES, DEUX MESSAGES. « Temoin sans valeur mesurable »
+  # couvrait aussi le cas ou le temoin est simplement ABSENT du groupe -- un
+  # defaut de PLAN, pas de mesure. Constate en groupant par une colonne qui
+  # compte une modalite par ligne : l'utilisateur lisait un message qui ne
+  # nommait pas sa vraie erreur.
+  d <- data.frame(g = c("A", "A", "B", "B"), trt = c("Tem", "T1", "T1", "T2"),
+                  y = c(10, 5, 4, 3), stringsAsFactors = FALSE)
+  r <- hstat_efficacite(d, "trt", "y", "Tem", var_groupe = "g")
+  expect_equal(attr(r, "groupes_sans_temoin"), "B")
+  m <- attr(r, "message")
+  expect_true(grepl("absent de 1 groupe", m))
+  expect_true(grepl("\\bB\\b", m))
+  expect_true(grepl("verifiez", m))            # cause PUIS geste
+
+  # Un plan sain ne declenche rien.
+  ok <- data.frame(g = c("A", "A", "B", "B"), trt = c("Tem", "T1", "Tem", "T1"),
+                   y = c(10, 5, 8, 4), stringsAsFactors = FALSE)
+  r2 <- hstat_efficacite(ok, "trt", "y", "Tem", var_groupe = "g")
+  expect_equal(length(attr(r2, "groupes_sans_temoin")), 0L)
+  expect_false(grepl("absent", attr(r2, "message")))
+
+  # `<-` ET NON `<<-` : la boucle `for` ne cree pas de cadre. `<<-` ecrirait
+  # dans l'environnement ENGLOBANT et la liste resterait vide -- le miroir
+  # exact du defaut corrige dans mod_tests.R, ou c'est `<<-` qu'il fallait.
+  # Ce test echoue si l'operateur repart de travers.
+  expect_gt(length(attr(r, "groupes_sans_temoin")), 0L)
 })
 
 test_that("le groupement rend l'efficacite analysable", {
