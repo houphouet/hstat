@@ -4902,6 +4902,36 @@ test_that("l'atelier expose bien les quatre analyses dans l'interface", {
 })
 
 
+test_that("le tableau des valeurs aberrantes a une sortie dediee", {
+  # `renderTable()` appele depuis un renderUI ne produit qu'un conteneur vide,
+  # jamais alimente : le tableau des bornes ne s'affichait JAMAIS, et la note
+  # en dessous expliquait des « Bornes basse/haute » absentes de l'ecran.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  m <- paste(readLines(file.path(root, "inst", "app", "mod_clean.R"),
+                       warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl('tableOutput(ns("outlierTable"))', m, fixed = TRUE))
+  expect_true(grepl("output$outlierTable <- renderTable", m, fixed = TRUE))
+})
+
+test_that("les diagnostics d'ANOVA ne font pas tomber toute la sortie", {
+  # Le tryCatch y enveloppe TOUTE la boucle : une seule variable a residus
+  # constants emporterait l'ANOVA de toutes les autres. Shapiro leve « all 'x'
+  # values are identical », et leveneTest « contrasts can be applied only to
+  # factors with 2 or more levels ».
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  m <- paste(readLines(file.path(root, "inst", "app", "mod_tests.R"),
+                       warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("stats::sd(residuals_data) > 1e-10", m, fixed = TRUE))
+  expect_true(grepl("length(unique(stats::na.omit(fitted_factor))) >= 2", m, fixed = TRUE))
+
+  # Les deux echecs sont reels : on le verifie plutot que de le supposer.
+  expect_error(stats::shapiro.test(rep(3, 10)))
+  expect_error(car::leveneTest(r ~ g, data = data.frame(r = rnorm(10),
+                                                        g = factor(rep("A", 10)))))
+})
+
 # ===========================================================================
 # UN REACTIF NE S'APPELLE PAS LUI-MEME
 # ---------------------------------------------------------------------------
@@ -5126,6 +5156,20 @@ test_that("une somme sur des repetitions inegales est signalee", {
   # permet a l'utilisateur de verifier le desequilibre par lui-meme.
   expect_equal(som$Repetitions[som$Modalite == "T1"], 1L)
   expect_equal(som$Repetitions[som$Modalite == "T2"], 3L)
+})
+
+test_that("une variable de repetition introuvable est refusee, pas ignoree", {
+  # Elle etait ignoree EN SILENCE : l'utilisateur croyait ses repetitions
+  # prises en compte alors que le calcul les melangeait. Un chiffre faux rendu
+  # sans un mot est pire qu'un refus.
+  d <- .hstat_essai()
+  r <- hstat_efficacite(d, "trt", "degats", "Temoin", var_repetition = "zzz")
+  expect_equal(nrow(r), 0L)
+  expect_true(grepl("introuvable", attr(r, "message")))
+  expect_true(grepl("choisissez", attr(r, "message")))
+  # Ne pas declarer de repetition reste legitime.
+  expect_gt(nrow(hstat_efficacite(d, "trt", "degats", "Temoin")), 0L)
+  expect_gt(nrow(hstat_efficacite(d, "trt", "degats", "Temoin", var_repetition = "")), 0L)
 })
 
 test_that("l'ancien argument var_groupe garde son sens", {

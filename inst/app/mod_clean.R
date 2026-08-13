@@ -534,6 +534,14 @@ mod_clean_ui <- function(id) {
                       div(style = "background-color:#fff;padding:15px;border-radius:5px;border:2px solid #16a085;",
                         h5(icon("info-circle"), " Résumé de détection", style="color:#16a085;margin-top:0;"),
                         uiOutput(ns("outlierSummary")),
+                        # Sortie DEDIEE : `renderTable()` appele depuis un
+                        # renderUI ne produit qu'un conteneur vide, jamais
+                        # alimente. Le tableau des bornes ne s'affichait donc
+                        # jamais -- et la note en dessous expliquait des
+                        # « Bornes basse/haute » absentes de l'ecran.
+                        div(style = "overflow-x:auto; max-width:100%;",
+                            tableOutput(ns("outlierTable"))),
+                        uiOutput(ns("outlierNote")),
                         hr(),
                         tags$ul(style="font-size:12px;color:#7f8c8d;",
                           tags$li(tags$b("IQR"), " : robuste, standard pour distributions asymétriques."),
@@ -1701,14 +1709,23 @@ mod_clean_server <- function(id, values) {
     rep <- outlier_report()
     if (is.null(rep)) return(p(style="color:#999;font-style:italic;", "Cliquez sur Détecter pour analyser."))
     total <- sum(rep$`Aberrants (n)`)
-    tagList(
-      p(tags$b(total), " valeur(s) aberrante(s) détectée(s) au total."),
-      div(style = "overflow-x:auto; max-width:100%;",
-        renderTable(rep, striped = TRUE, bordered = TRUE, spacing = "xs",
-                    width = "auto", align = "lrrrr")),
-      p(style = "font-size:11px;color:#7f8c8d;font-style:italic;margin-top:6px;",
-        icon("info-circle"),
-        " Bornes basse/haute = valeurs réelles extrêmes non aberrantes observées dans les données (convention des moustaches du boxplot)."))
+    p(tags$b(total), " valeur(s) aberrante(s) détectée(s) au total.")
+  })
+
+  output$outlierTable <- renderTable({
+    rep <- outlier_report()
+    req(rep)
+    rep
+  }, striped = TRUE, bordered = TRUE, spacing = "xs", width = "auto",
+     align = "lrrrr")
+
+  # La note n'a de sens qu'avec le tableau : l'afficher seule expliquerait des
+  # colonnes que l'utilisateur ne voit pas.
+  output$outlierNote <- renderUI({
+    if (is.null(outlier_report())) return(NULL)
+    p(style = "font-size:11px;color:#7f8c8d;font-style:italic;margin-top:6px;",
+      icon("info-circle"),
+      " Bornes basse/haute = valeurs réelles extrêmes non aberrantes observées dans les données (convention des moustaches du boxplot).")
   })
 
   observeEvent(input$applyOutliers, {

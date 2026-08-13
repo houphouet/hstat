@@ -2928,15 +2928,30 @@ mod_tests_server <- function(id, values) {
           )
         }
         
+        # ICI LE tryCatch ENVELOPPE TOUTE LA BOUCLE : une seule variable
+        # degeneree emporterait l'ANOVA de TOUTES les autres. On garde donc
+        # chaque diagnostic separement, comme le fait deja l'onglet des
+        # residus (`sd(...) < 1e-10`), et l'ANOVA survit.
         residuals_data <- residuals(model)
-        if (length(residuals_data) > 3) {
-          normality_results[[var]] <- hstat_shapiro(residuals_data)
+        if (length(residuals_data) > 3 && stats::sd(residuals_data) > 1e-10) {
+          normality_results[[var]] <- tryCatch(hstat_shapiro(residuals_data),
+                                               error = function(e) NULL)
         }
         
         fitted_data <- fitted(model)
-        fitted_factor <- cut(fitted_data, breaks = 2, labels = c("Bas", "Haut"))
-        test_data <- data.frame(residuals = residuals_data, fitted_group = fitted_factor)
-        homogeneity_results[[var]] <- car::leveneTest(residuals ~ fitted_group, data = test_data)
+        # Deux ecueils : des valeurs ajustees constantes ne donnent qu'un seul
+        # niveau, et leveneTest exige au moins deux groupes (« contrasts can be
+        # applied only to factors with 2 or more levels »).
+        fitted_factor <- tryCatch(
+          cut(fitted_data, breaks = 2, labels = c("Bas", "Haut")),
+          error = function(e) NULL)
+        if (!is.null(fitted_factor) &&
+            length(unique(stats::na.omit(fitted_factor))) >= 2) {
+          test_data <- data.frame(residuals = residuals_data, fitted_group = fitted_factor)
+          homogeneity_results[[var]] <- tryCatch(
+            car::leveneTest(residuals ~ fitted_group, data = test_data),
+            error = function(e) NULL)
+        }
       }
       
       if (length(results_list) > 0) {

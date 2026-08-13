@@ -3477,6 +3477,13 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
 
   a_rep <- !is.null(var_repetition) && nzchar(var_repetition[1]) &&
            var_repetition[1] %in% names(df)
+  # Une variable de repetition demandee mais introuvable etait ignoree EN
+  # SILENCE : l'utilisateur croyait ses repetitions prises en compte alors que
+  # le calcul les melangeait. On refuse plutot que de rendre un chiffre faux.
+  if (!is.null(var_repetition) && nzchar(var_repetition[1]) && !a_rep)
+    return(msg(vide, sprintf(paste0("La variable de repetition « %s » est introuvable ",
+                                    "dans les donnees : choisissez-en une autre."),
+                             var_repetition[1])))
   rep_v <- if (a_rep) trimws(as.character(df[[var_repetition[1]]]))
            else rep("", NROW(df))
   rep_v[is.na(rep_v)] <- "(manquant)"
