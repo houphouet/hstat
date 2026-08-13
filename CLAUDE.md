@@ -132,6 +132,23 @@ sortie, pas seulement la ligne concernée. Passer par `hstat_p_verdict()`
 `indeterminable` — et traiter le troisième explicitement. Un test barre la
 route à toute nouvelle condition `if (... $p.value < ...)` non gardée.
 
+### Un `tryCatch` autour d'une boucle emporte toute la sortie
+
+Le principe est le même que pour les statistiques non calculables, mais la
+portée est plus large. Dans `mod_tests.R`, le `tryCatch` de l'ANOVA enveloppe
+**toute la boucle sur les variables** : une seule variable à résidus constants
+faisait tomber l'ANOVA de *toutes* les autres.
+
+Deux appels y étaient exposés — `shapiro.test()` lève « all 'x' values are
+identical », et `car::leveneTest()` « contrasts can be applied only to factors
+with 2 or more levels » quand les valeurs ajustées ne donnent qu'un niveau.
+Chaque diagnostic est donc gardé séparément, comme le fait déjà l'onglet des
+résidus (`sd(...) < 1e-10`) : l'ANOVA survit, seul le diagnostic manquant
+disparaît.
+
+Règle : quand un `tryCatch` couvre une boucle, tout ce qui peut lever à
+l'intérieur doit être gardé au niveau de l'itération.
+
 ### FactoMineR : les coordonnées peuvent n'être qu'un vecteur
 
 Dès qu'un résultat ne comporte qu'un seul axe, FactoMineR renvoie ses
@@ -378,6 +395,40 @@ Le tableau peut remplacer le jeu de travail (`values$data` / `cleanData` /
 `filteredData`), ce qui le rend analysable par les autres onglets. Le geste est
 annoncé sans détour : remplacer les données de quelqu'un sans le prévenir
 serait le pire des services.
+
+### Deux façons de tenir compte des répétitions, deux questions
+
+- **« En commun »** (`mode = "cumul"`) — la moyenne ou la somme de la modalité
+  porte sur **toutes ses répétitions** : une efficacité par modalité. C'est le
+  chiffre du rapport.
+- **« Par répétition »** (`mode = "par_repetition"`) — l'efficacité est calculée
+  **dans** chaque répétition : autant de valeurs que de répétitions, donc une
+  variable analysable par ANOVA ou comparaisons multiples.
+
+La variable de répétition se déclare dans les deux cas ; c'est le `mode` qui dit
+ce qu'on en fait. Le décompte réel apparaît en colonne `Repetitions`.
+
+`var_groupe`, l'ancien argument, **garde son sens d'origine** (découpage par
+groupe) : lui donner le nouveau ferait passer un appel existant de 12 lignes à
+4, en silence.
+
+### La somme n'est comparable qu'à répétitions égales
+
+C'est le piège de ce module, et il est massif. Avec un nombre de répétitions
+inégal, la modalité la plus répétée accumule mécaniquement davantage et
+ressort **artificiellement moins efficace** — un artefact de plan pris pour un
+résultat. Constaté à l'écran sur un essai où T1 n'a qu'une répétition contre
+trois :
+
+| Résumé | Efficacité de T1 |
+|---|---|
+| moyenne | **60 %** (juste) |
+| somme | **86,7 %** (artefact) |
+
+La moyenne n'en souffre pas : le rapport est invariant par changement
+d'échelle, et à répétitions équilibrées les deux donnent exactement le même
+chiffre — un test le vérifie. L'application signale le déséquilibre plutôt que
+de laisser publier le second chiffre.
 
 ### Un groupe sans témoin est un défaut de plan, pas de mesure
 

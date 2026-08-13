@@ -4902,6 +4902,36 @@ test_that("l'atelier expose bien les quatre analyses dans l'interface", {
 })
 
 
+test_that("le tableau des valeurs aberrantes a une sortie dediee", {
+  # `renderTable()` appele depuis un renderUI ne produit qu'un conteneur vide,
+  # jamais alimente : le tableau des bornes ne s'affichait JAMAIS, et la note
+  # en dessous expliquait des « Bornes basse/haute » absentes de l'ecran.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  m <- paste(readLines(file.path(root, "inst", "app", "mod_clean.R"),
+                       warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl('tableOutput(ns("outlierTable"))', m, fixed = TRUE))
+  expect_true(grepl("output$outlierTable <- renderTable", m, fixed = TRUE))
+})
+
+test_that("les diagnostics d'ANOVA ne font pas tomber toute la sortie", {
+  # Le tryCatch y enveloppe TOUTE la boucle : une seule variable a residus
+  # constants emporterait l'ANOVA de toutes les autres. Shapiro leve « all 'x'
+  # values are identical », et leveneTest « contrasts can be applied only to
+  # factors with 2 or more levels ».
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  m <- paste(readLines(file.path(root, "inst", "app", "mod_tests.R"),
+                       warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("stats::sd(residuals_data) > 1e-10", m, fixed = TRUE))
+  expect_true(grepl("length(unique(stats::na.omit(fitted_factor))) >= 2", m, fixed = TRUE))
+
+  # Les deux echecs sont reels : on le verifie plutot que de le supposer.
+  expect_error(stats::shapiro.test(rep(3, 10)))
+  expect_error(car::leveneTest(r ~ g, data = data.frame(r = rnorm(10),
+                                                        g = factor(rep("A", 10)))))
+})
+
 # ===========================================================================
 # UN REACTIF NE S'APPELLE PAS LUI-MEME
 # ---------------------------------------------------------------------------
@@ -5059,13 +5089,102 @@ test_that("le groupement rend l'efficacite analysable", {
   # tester. Par bloc, on obtient une vraie variable.
   d <- .hstat_essai()
   sans <- hstat_efficacite(d, "trt", "degats", "Temoin")
-  avec <- hstat_efficacite(d, "trt", "degats", "Temoin", var_groupe = "bloc")
+  avec <- hstat_efficacite(d, "trt", "degats", "Temoin",
+                           var_repetition = "bloc", mode = "par_repetition")
   expect_equal(nrow(sans), 4L)
   expect_equal(nrow(avec), 12L)                   # 3 blocs x 4 modalites
   expect_true("Groupe" %in% names(avec))
   expect_false("Groupe" %in% names(sans))         # colonne vide = information absente
   # Dans chaque bloc, le temoin vaut toujours zero.
   expect_true(all(avec$Efficacite[avec$Modalite == "Temoin"] == 0))
+})
+
+test_that("les deux modes de repetition ne repondent pas a la meme question", {
+  d <- .hstat_essai()
+  # « En commun » : les repetitions sont mises ensemble, une ligne par modalite.
+  # C'est le chiffre que l'on publie.
+  c1 <- hstat_efficacite(d, "trt", "degats", "Temoin", var_repetition = "bloc")
+  expect_equal(nrow(c1), 4L)
+  expect_equal(attr(c1, "mode"), "cumul")
+  expect_equal(unique(c1$Repetitions), 3L)      # 3 blocs par modalite
+
+  # « Par repetition » : autant de valeurs que de repetitions, donc une
+  # variable analysable ensuite.
+  c2 <- hstat_efficacite(d, "trt", "degats", "Temoin", var_repetition = "bloc",
+                         mode = "par_repetition")
+  expect_equal(nrow(c2), 12L)
+  expect_true("Groupe" %in% names(c2))
+
+  # A REPETITIONS EQUILIBREES, moyenne et somme donnent la MEME efficacite :
+  # le rapport est invariant par changement d'echelle.
+  moy <- hstat_efficacite(d, "trt", "degats", "Temoin", agg = "moyenne",
+                          var_repetition = "bloc")
+  som <- hstat_efficacite(d, "trt", "degats", "Temoin", agg = "somme",
+                          var_repetition = "bloc")
+  expect_equal(moy$Efficacite, som$Efficacite)
+  expect_false(grepl("inegales", attr(som, "message")))
+})
+
+test_that("une somme sur des repetitions inegales est signalee", {
+  # LE PIEGE. Avec un nombre de repetitions inegal, la modalite la plus
+  # repetee accumule mecaniquement davantage et ressort artificiellement
+  # « moins efficace » : un artefact de plan pris pour un resultat.
+  d <- .hstat_essai()
+  di <- d[!(d$trt == "T1" & d$bloc %in% c("B2", "B3")), ]   # T1 : 1 repetition
+
+  som <- hstat_efficacite(di, "trt", "degats", "Temoin", agg = "somme",
+                          var_repetition = "bloc")
+  moy <- hstat_efficacite(di, "trt", "degats", "Temoin", agg = "moyenne",
+                          var_repetition = "bloc")
+  eff_som <- som$Efficacite[som$Modalite == "T1"]
+  eff_moy <- moy$Efficacite[moy$Modalite == "T1"]
+
+  # L'ecart est massif, et c'est bien la SOMME qui ment. Temoin : 3 blocs,
+  # moyenne 100 et somme 300. T1 : un seul bloc, valeur 40.
+  #   moyenne -> (100 - 40) / 100 = 60 %   (juste)
+  #   somme   -> (300 - 40) / 300 = 86,7 % (artefact du desequilibre)
+  expect_equal(round(eff_moy), 60)
+  expect_equal(round(eff_som, 1), 86.7)
+  expect_gt(eff_som, eff_moy + 20)
+
+  # La somme le dit ; la moyenne n'a rien a signaler.
+  expect_true(grepl("inegales", attr(som, "message")))
+  expect_true(grepl("choisissez la moyenne", attr(som, "message")))
+  expect_false(grepl("inegales", attr(moy, "message")))
+
+  # Le decompte des repetitions est visible dans le tableau : c'est lui qui
+  # permet a l'utilisateur de verifier le desequilibre par lui-meme.
+  expect_equal(som$Repetitions[som$Modalite == "T1"], 1L)
+  expect_equal(som$Repetitions[som$Modalite == "T2"], 3L)
+})
+
+test_that("une variable de repetition introuvable est refusee, pas ignoree", {
+  # Elle etait ignoree EN SILENCE : l'utilisateur croyait ses repetitions
+  # prises en compte alors que le calcul les melangeait. Un chiffre faux rendu
+  # sans un mot est pire qu'un refus.
+  d <- .hstat_essai()
+  r <- hstat_efficacite(d, "trt", "degats", "Temoin", var_repetition = "zzz")
+  expect_equal(nrow(r), 0L)
+  expect_true(grepl("introuvable", attr(r, "message")))
+  expect_true(grepl("choisissez", attr(r, "message")))
+  # Ne pas declarer de repetition reste legitime.
+  expect_gt(nrow(hstat_efficacite(d, "trt", "degats", "Temoin")), 0L)
+  expect_gt(nrow(hstat_efficacite(d, "trt", "degats", "Temoin", var_repetition = "")), 0L)
+})
+
+test_that("l'ancien argument var_groupe garde son sens", {
+  # Il decoupait le calcul par groupe. Lui donner le nouveau sens ferait passer
+  # un appel existant de 12 lignes a 4, en silence.
+  d <- .hstat_essai()
+  o <- hstat_efficacite(d, "trt", "degats", "Temoin", var_groupe = "bloc")
+  expect_equal(nrow(o), 12L)
+  expect_equal(attr(o, "mode"), "par_repetition")
+})
+
+test_that("sans repetition declaree, la colonne ne s'affiche pas", {
+  # Une colonne de NA ferait croire a une information absente.
+  r <- hstat_efficacite(.hstat_essai(), "trt", "degats", "Temoin")
+  expect_false("Repetitions" %in% names(r))
 })
 
 test_that("plusieurs variables mesurees, et les trois resumes", {
