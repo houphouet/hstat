@@ -4903,6 +4903,75 @@ test_that("l'atelier expose bien les quatre analyses dans l'interface", {
 
 
 # ===========================================================================
+# UN REACTIF NE S'APPELLE PAS LUI-MEME
+# ---------------------------------------------------------------------------
+# Constate en ajoutant le selecteur de source du module de seuils : une
+# substitution mecanique avait remplace `values$filteredData` par
+# `source_data()` DANS LE CORPS de `source_data` lui-meme. R s'arrete alors sur
+# « C stack usage is too close to the limit » et l'application ne demarre plus
+# du tout -- une panne totale, pour une ligne.
+#
+# Le defaut ne se voit ni a l'analyse syntaxique ni a la lecture rapide : le
+# code est parfaitement valide. Seul un balayage le rattrape.
+# ===========================================================================
+
+test_that("aucun reactif ne s'appelle lui-meme", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # Les COMMENTAIRES sont retires par l'analyseur de R, pas par une heuristique :
+  # ce test s'est signale lui-meme sur le commentaire qui documente la
+  # correction (« PAS `source_data()` »). Un balayage textuel naif aurait
+  # produit un faux positif permanent, et on aurait fini par le desactiver.
+  sans_commentaires <- function(f) {
+    lignes <- readLines(f, warn = FALSE, encoding = "UTF-8")
+    pd <- tryCatch(utils::getParseData(parse(f, keep.source = TRUE)),
+                   error = function(e) NULL)
+    if (!is.null(pd)) {
+      com <- pd[pd$token == "COMMENT", , drop = FALSE]
+      for (i in seq_len(nrow(com))) {
+        l <- com$line1[i]
+        if (l >= 1 && l <= length(lignes))
+          lignes[l] <- substr(lignes[l], 1, max(0, com$col1[i] - 1))
+      }
+    }
+    paste(lignes, collapse = "\n")
+  }
+
+  fautifs <- character(0)
+  for (f in list.files(file.path(root, "inst", "app"), pattern = "[.]R$",
+                       full.names = TRUE)) {
+    txt <- sans_commentaires(f)
+    car <- strsplit(txt, "")[[1]]
+    debuts <- gregexpr("([A-Za-z_.][\\w.]*)\\s*<-\\s*(?:shiny::)?reactive\\(\\s*\\{",
+                       txt, perl = TRUE)[[1]]
+    if (debuts[1] == -1) next
+    lg <- attr(debuts, "match.length")
+    for (k in seq_along(debuts)) {
+      d <- debuts[k]
+      nom <- sub("\\s*<-.*$", "", substr(txt, d, d + lg[k] - 1))
+      # fin du corps, par equilibrage d'accolades
+      i <- d + lg[k] - 1L; prof <- 0L; fin <- NA_integer_
+      while (i <= length(car)) {
+        if (car[i] == "{") prof <- prof + 1L
+        else if (car[i] == "}") {
+          prof <- prof - 1L
+          if (prof == 0L) { fin <- i; break }
+        }
+        i <- i + 1L
+      }
+      if (is.na(fin)) next
+      corps <- substr(txt, d + lg[k], fin)
+      if (grepl(paste0("\\b", nom, "\\s*\\("), corps, perl = TRUE))
+        fautifs <- c(fautifs, paste0(basename(f), " : ", nom))
+    }
+  }
+  expect_equal(fautifs, character(0),
+               info = paste("Reactif recursif (l'application ne demarrerait pas) :",
+                            paste(fautifs, collapse = " | ")))
+})
+
+
+# ===========================================================================
 # SEUILS D'EFFICACITE : CHAQUE MODALITE COMPAREE AU TEMOIN
 # ---------------------------------------------------------------------------
 # Formule d'Abbott : efficacite (%) = (temoin - traitement) x 100 / temoin.
