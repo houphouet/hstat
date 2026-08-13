@@ -2027,10 +2027,26 @@ mod_viz_server <- function(id, values) {
         y2_vars   <- if (isTRUE(values$dualAxisActive) && !is.null(values$y2Vars))
           intersect(values$y2Vars, y_vars) else character(0)
         y1_vars   <- setdiff(y_vars, y2_vars)
-        valid_y1  <- y1_vars[y1_vars %in% names(data)]
-        
+
+        # pivot_longer empile les Y dans UNE colonne : elles doivent partager
+        # un type. La variable d'axe X choisie aussi en Y (une date, p. ex.)
+        # levait « Can't combine `Semaine` <date> and `ch_Hel` <double> », et
+        # l'erreur emportait tout le graphique. Ce qui est ecarte est nomme.
+        tri       <- hstat_y_multi_valides(data, y1_vars, x_var)
+        valid_y1  <- tri$gardees
+        # `id` : plotData() est relu par plusieurs sorties, le meme avertissement
+        # s'empilait deux fois. Un identifiant fixe le remplace au lieu de le
+        # repeter.
+        if (length(tri$ecartees))
+          showNotification(
+            trf("Variables Y ignorées (%s) : %s. Un graphique multi-courbes empile les Y dans une seule mesure, elles doivent être de même nature.",
+                tr(tri$motif %||% "type incompatible"), paste(tri$ecartees, collapse = ", ")),
+            type = "warning", duration = 6, id = session$ns("vizYEcartees"))
+
         if (length(valid_y1) == 0) {
-          showNotification("Erreur: Aucune variable Y1 disponible dans les données", type = "error")
+          showNotification(
+            "Aucune variable Y utilisable : choisissez au moins une variable quantitative différente de la variable X.",
+            type = "error", duration = 6)
           return(data)
         }
         if (!x_var %in% names(data)) {
@@ -2045,12 +2061,22 @@ mod_viz_server <- function(id, values) {
         
         data_wide <- data %>% dplyr::select(dplyr::any_of(cols_wide))
         
-        data_long <- data_wide %>%
-          tidyr::pivot_longer(
-            cols    = dplyr::any_of(valid_y1),
-            names_to  = "Variable",
-            values_to = "Value"
-          )
+        # Le tri ci-dessus couvre les types connus ; un type exotique (unites,
+        # facteurs ordonnes melanges) doit rendre un message, pas faire tomber
+        # l'observateur et avec lui tout l'onglet.
+        data_long <- tryCatch(
+          data_wide %>%
+            tidyr::pivot_longer(
+              cols    = dplyr::any_of(valid_y1),
+              names_to  = "Variable",
+              values_to = "Value"
+            ),
+          error = function(e) {
+            showNotification(hstat_err_fr(e, "Mise en forme des variables Y"),
+                             type = "error", duration = 8)
+            NULL
+          })
+        if (is.null(data_long)) return(data)
         
         values$y2VarsActive <- valid_y2
       }

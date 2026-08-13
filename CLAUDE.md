@@ -166,6 +166,54 @@ oui/non, avant/après) produit une table dont la plus petite dimension vaut 2,
 donc un seul axe. Passer systématiquement par `hstat_coord_mat()` (`Utils.R`)
 avant d'indexer. Un test le vérifie sur l'ensemble du dépôt.
 
+### Export d'image : les pixels saisis sont une mise en page, pas la sortie
+
+`ggsave` raisonne en **pouces** ; le fichier fait pouces × DPI. Diviser les
+pixels demandés par le DPI (1200 / 300 = 4 pouces) rendait bien 1200 px de
+large — mais sur une toile de **quatre pouces**, où onze étiquettes de
+traitement s'écrasent et où le texte, dimensionné en points, occupe une place
+énorme.
+
+Le défaut s'aggravait dans le sens même où l'utilisateur cherchait à
+l'éviter : 1200 px à 600 DPI font 2 pouces, donc **demander plus de qualité
+rétrécissait la figure**. Signalé à l'écran.
+
+`hstat_export_dims()` (`Utils.R`) lit les pixels saisis à la résolution de
+référence de l'écran (**96 ppp**, la convention CSS) : ils fixent la mise en
+page, celle que l'utilisateur voit. Le DPI multiplie ensuite la finesse.
+1200 × 800 à 300 DPI donnent 12,5 × 8,33 pouces rendus en 3750 × 2500 px.
+
+Au-delà de `HSTAT_EXPORT_MAX_PX` (20 000 px de côté), le DPI est abaissé **et
+annoncé** : `ggsave` échouerait sur l'allocation du bitmap, et un export
+silencieusement dégradé serait pire qu'un refus. Les tests lisent les pixels
+**réellement produits** (en-tête IHDR du PNG), et vérifient l'invariant qui
+manquait : monter le DPI ne change pas la mise en page et augmente les pixels.
+
+Même conversion pour l'export des analyses multivariées (`app_server.R`), qui
+portait le même calcul.
+
+### Plotmath ne survit pas à `ggplotly`
+
+Les étiquettes d'axe en gras passent par `bquote(bold(...))` : `ggsave` les
+rend, `ggplotly` les **déparse**, et l'axe affichait `bold("2SP(0,5)&2PV")` en
+toutes lettres. Le style est donc retenu à part (`x_label_styles`) et rejoué en
+HTML sur l'objet plotly (`hstat_html_style_label()`), que plotly comprend. Le
+texte est **échappé** avant d'entrer dans la balise — un « & » dans un nom de
+traitement la casserait.
+
+### Multi-courbes : les Y sont empilées, elles doivent partager un type
+
+`pivot_longer` met toutes les Y dans **une** colonne. Choisir la variable d'axe
+X aussi en Y — une date, sur un fichier de suivi — levait « Can't combine
+`Semaine` <date> and `ch_Hel` <double> », erreur qui tombait dans
+l'observateur et emportait **tout** le graphique.
+
+`hstat_y_multi_valides()` écarte l'axe X (l'empiler comme mesure n'a pas de
+sens) et, en cas de types mélangés, garde le quantitatif — c'est ce qu'une
+courbe représente. Ce qui est écarté est **nommé** ; le pivot reste malgré tout
+sous `tryCatch`, un type exotique devant rendre un message et non faire tomber
+l'onglet.
+
 ### Un tableau à une colonne n'est plus un tableau après `df[cond, ]`
 
 `plotData()` (`mod_viz.R`) ne garde que les colonnes utiles au graphique : il

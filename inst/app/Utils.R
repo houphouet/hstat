@@ -5408,3 +5408,110 @@ hstat_model_doc_ui <- function(id) {
       tags$p(strong("Objectif : "), f$objectif),
       tags$p(strong("Conditions d'application : "), f$conditions))
 }
+
+# ---------------------------------------------------------------------------
+# EXPORT D'IMAGE : les pixels saisis sont une MISE EN PAGE, pas la sortie
+# ---------------------------------------------------------------------------
+# `ggsave` raisonne en pouces : le fichier fait pouces x DPI. Diviser les pixels
+# demandes par le DPI (1200 / 300 = 4 pouces) rendait bien 1200 px de large,
+# mais sur une toile de QUATRE pouces : onze etiquettes de traitement s'y
+# ecrasent, et le texte, dimensionne en points, y occupe une place enorme.
+# Pire, le defaut s'aggravait dans le sens ou l'utilisateur cherchait a
+# l'eviter -- 1200 px a 600 DPI faisaient 2 pouces, donc demander plus de
+# qualite retrecissait la figure et la rendait illisible. Constate a l'ecran.
+#
+# Les pixels saisis sont donc lus a la resolution de reference de l'ecran
+# (96 ppp, la convention CSS) : ils fixent la MISE EN PAGE, celle que
+# l'utilisateur voit. Le DPI multiplie ensuite la finesse du rendu. 1200 x 800
+# a 300 DPI donne une figure de 12,5 x 8,33 pouces rendue en 3750 x 2500 px.
+HSTAT_EXPORT_REF_DPI <- 96
+
+# Borne de securite : au-dela, ggsave tente d'allouer un bitmap que la machine
+# ne peut pas tenir et l'export echoue au lieu de rendre une image un peu moins
+# fine. On abaisse le DPI et on le DIT -- un export silencieusement degrade
+# serait pire que le refus.
+HSTAT_EXPORT_MAX_PX <- 20000L
+
+hstat_export_dims <- function(width_px, height_px, dpi,
+                              ref = HSTAT_EXPORT_REF_DPI,
+                              max_in = 200, max_px = HSTAT_EXPORT_MAX_PX) {
+  num1 <- function(x, defaut) {
+    x <- suppressWarnings(as.numeric(x)[1])
+    if (length(x) == 0 || is.na(x) || x <= 0) defaut else x
+  }
+  width_px  <- num1(width_px, 1200)
+  height_px <- num1(height_px, 800)
+  dpi_dem   <- max(72, num1(dpi, 300))
+
+  w_in <- max(1, min(width_px  / ref, max_in))
+  h_in <- max(1, min(height_px / ref, max_in))
+
+  dpi_eff <- dpi_dem
+  cote <- max(w_in, h_in)
+  if (cote * dpi_eff > max_px) dpi_eff <- max(72, floor(max_px / cote))
+
+  note <- if (dpi_eff < dpi_dem)
+    trf("Résolution ramenée de %s à %s DPI : au-delà, l'image dépasse %s pixels de côté et l'export échoue. Passez au format SVG ou PDF, dont la résolution est illimitée.",
+        round(dpi_dem), round(dpi_eff), format(max_px, big.mark = " ")) else NULL
+
+  list(width_in = w_in, height_in = h_in, dpi = dpi_eff,
+       width_out = round(w_in * dpi_eff), height_out = round(h_in * dpi_eff),
+       note = note)
+}
+
+# Etiquette mise en forme pour plotly. Le graphique porte ses etiquettes en
+# plotmath (bold(), italic()) : ggsave les rend, mais ggplotly les DEPARSE et
+# l'axe affichait `bold("2SP(0,5)&2PV")` en toutes lettres. Signale a l'ecran.
+# plotly comprend un sous-ensemble de HTML ; le texte est echappe avant d'y
+# entrer, sinon un « & » ou un « < » dans un nom de traitement casserait la
+# balise.
+hstat_html_style_label <- function(x, style = "plain") {
+  x <- as.character(x)
+  style <- rep_len(as.character(style %||% "plain"), length(x))
+  style[is.na(style)] <- "plain"
+  vapply(seq_along(x), function(i) {
+    s <- hstat_html_escape(x[i])
+    switch(style[i],
+           "bold"       = paste0("<b>", s, "</b>"),
+           "italic"     = paste0("<i>", s, "</i>"),
+           "bolditalic" = paste0("<b><i>", s, "</i></b>"),
+           s)
+  }, character(1))
+}
+
+# Variables Y retenues pour un graphique multi-courbes. `pivot_longer` empile
+# les Y dans UNE colonne : elles doivent donc partager un type. Sur un fichier
+# de suivi, selectionner la date en X *et* en Y levait
+# « Can't combine `Semaine` <date> and `ch_Hel` <double> » -- erreur qui
+# tombait dans l'observateur et emportait tout le graphique. Signale a l'ecran.
+#
+# La variable d'axe X est ecartee (l'empiler comme mesure n'a pas de sens), et
+# en cas de types melanges le quantitatif l'emporte : c'est ce qu'une courbe
+# represente. Ce qui est ecarte est NOMME, jamais retire en silence.
+hstat_y_multi_valides <- function(data, y_vars, x_var = NULL) {
+  vide <- list(gardees = character(0), ecartees = character(0), motif = NULL)
+  if (is.null(data) || !length(y_vars)) return(vide)
+  cand <- unique(as.character(y_vars))
+  cand <- cand[cand %in% names(data)]
+  if (!length(cand)) return(vide)
+
+  ecart_x <- intersect(cand, as.character(x_var %||% character(0)))
+  cand    <- setdiff(cand, ecart_x)
+  if (!length(cand))
+    return(list(gardees = character(0), ecartees = ecart_x,
+                motif = "axe X"))
+
+  num <- cand[vapply(cand, function(v) is.numeric(data[[v]]), logical(1))]
+  if (length(num) && length(num) < length(cand))
+    return(list(gardees = num, ecartees = c(ecart_x, setdiff(cand, num)),
+                motif = "type non quantitatif"))
+  if (!length(num)) {
+    cl   <- vapply(cand, function(v) class(data[[v]])[1], character(1))
+    gard <- cand[cl == cl[1]]
+    if (length(gard) < length(cand))
+      return(list(gardees = gard, ecartees = c(ecart_x, setdiff(cand, gard)),
+                  motif = "type incompatible"))
+  }
+  list(gardees = cand, ecartees = ecart_x,
+       motif = if (length(ecart_x)) "axe X" else NULL)
+}

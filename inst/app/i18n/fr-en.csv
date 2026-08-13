@@ -1207,3 +1207,12 @@ Une efficacité par répétition,One efficacy per repetition
 %s variable(s) listée(s).,%s variable(s) listed.
 Les données du graphique ne forment pas un tableau : resélectionnez les variables X et Y.,The plot data is not a table: reselect the X and Y variables.
 La variable X « %s » est absente des données préparées : resélectionnez-la.,"The X variable ""%s"" is missing from the prepared data: reselect it."
+"Variables Y ignorées (%s) : %s. Un graphique multi-courbes empile les Y dans une seule mesure, elles doivent être de même nature.","Y variables ignored (%s): %s. A multi-series plot stacks the Y variables into one measure, so they must be of the same nature."
+Aucune variable Y utilisable : choisissez au moins une variable quantitative différente de la variable X.,No usable Y variable: pick at least one quantitative variable different from the X variable.
+Mise en forme des variables Y,Reshaping the Y variables
+type non quantitatif,non-quantitative type
+type incompatible,incompatible type
+"Résolution ramenée de %s à %s DPI : au-delà, l'image dépasse %s pixels de côté et l'export échoue. Passez au format SVG ou PDF, dont la résolution est illimitée.","Resolution reduced from %s to %s DPI: beyond that the image exceeds %s pixels per side and the export fails. Use SVG or PDF, whose resolution is unlimited."
+"Mise en page %s × %s pouces. Format vectoriel : résolution illimitée, le DPI ne s'applique pas.","Layout %s × %s inches. Vector format: unlimited resolution, DPI does not apply."
+Mise en page %s × %s pouces → fichier de %s × %s pixels à %s DPI,Layout %s × %s inches → file of %s × %s pixels at %s DPI
+Taille estimée : %s Mo,Estimated size: %s MB

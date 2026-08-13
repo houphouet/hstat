@@ -711,14 +711,18 @@ server <- function(input, output, session) {
         fmt <- switch(fmt, "jpg" = "jpeg", "htm" = "png", "html" = "png", fmt)
         if (!fmt %in% c("png","jpeg","tiff","bmp","svg","pdf","eps")) fmt <- "png"
         
-        dpi_val <- as.integer(input[[paste0(default_name, "_dpi")]] %||% 300)
-        if (is.na(dpi_val) || dpi_val < 72) dpi_val <- 300
-        
-        # Les inputs _width/_height sont en PIXELS -> conversion px -> cm
-        w_px <- as.numeric(input[[paste0(default_name, "_width")]]  %||% 0)
-        h_px <- as.numeric(input[[paste0(default_name, "_height")]] %||% 0)
-        w_cm <- if (!is.na(w_px) && w_px > 0) w_px / dpi_val * 2.54 else 25
-        h_cm <- if (!is.na(h_px) && h_px > 0) h_px / dpi_val * 2.54 else 20
+        # Les _width/_height sont saisis en PIXELS : ils fixent la mise en page
+        # (lue a 96 ppp), le DPI fixe la finesse. Diviser les pixels par le DPI
+        # donnait une figure de quatre pouces, illisible, que monter le DPI
+        # retrecissait encore. Voir hstat_export_dims() dans Utils.R.
+        dims <- hstat_export_dims(input[[paste0(default_name, "_width")]]  %||% 1200,
+                                  input[[paste0(default_name, "_height")]] %||% 800,
+                                  input[[paste0(default_name, "_dpi")]]    %||% 300)
+        dpi_val <- dims$dpi
+        w_cm <- dims$width_in  * 2.54
+        h_cm <- dims$height_in * 2.54
+        if (!is.null(dims$note))
+          showNotification(dims$note, type = "warning", duration = 8)
         
         p <- tryCatch(plot_func(), error = function(e) {
           showNotification(hstat_err_fr(e, "Graphique"),
