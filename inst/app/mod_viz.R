@@ -2306,7 +2306,7 @@ mod_viz_server <- function(id, values) {
     # Gros volumes : on limite le nombre de points AFFICHES (echantillon
     # reproductible) pour garder le navigateur reactif avec 1M+ lignes.
     data <- hstat_sample_rows(data)
-    data <- data[!is.na(data[[x_var]]) & !is.na(data[[y_var]]), ]
+    data <- data[!is.na(data[[x_var]]) & !is.na(data[[y_var]]), , drop = FALSE]
     p <- ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]]))
     if(!is.null(color_var)) {
       p <- p + geom_point(aes(color = .data[[color_var]]),
@@ -2344,11 +2344,11 @@ mod_viz_server <- function(id, values) {
     x_is_date    <- inherits(data[[x_var]], c("Date","POSIXct","POSIXlt"))
     x_is_numeric <- is.numeric(data[[x_var]])
     data <- tryCatch({
-      if (x_is_date || x_is_numeric) data[order(data[[x_var]], na.last=TRUE), ]
+      if (x_is_date || x_is_numeric) data[order(data[[x_var]], na.last=TRUE), , drop = FALSE]
       else data
     }, error=function(e) data)
-    data_line <- if (connect_na) data[!is.na(data[[y_var]]), ] else data
-    data_pts  <- data[!is.na(data[[y_var]]), ]
+    data_line <- if (connect_na) data[!is.na(data[[y_var]]), , drop = FALSE] else data
+    data_pts  <- data[!is.na(data[[y_var]]), , drop = FALSE]
     p <- ggplot(data_line, aes(x=.data[[x_var]], y=.data[[y_var]]))
     if (!is.null(color_var)) {
       p <- p + geom_line(aes(color=.data[[color_var]], group=.data[[color_var]]),
@@ -2365,7 +2365,7 @@ mod_viz_server <- function(id, values) {
                             color=fixed_color, size=ps, alpha=pa, na.rm=TRUE)
     }
     if (show_na_mk && !connect_na) {
-      data_na <- data[is.na(data[[y_var]]), ]
+      data_na <- data[is.na(data[[y_var]]), , drop = FALSE]
       if (nrow(data_na) > 0) {
         y_ref <- if (nrow(data_pts)>0) min(data_pts[[y_var]],na.rm=TRUE) else 0
         data_na[[y_var]] <- y_ref
@@ -2496,7 +2496,7 @@ mod_viz_server <- function(id, values) {
         )
       }
       
-      data <- data[data[[group_var]] %in% valid_groups, ]
+      data <- data[data[[group_var]] %in% valid_groups, , drop = FALSE]
       if(is.factor(data[[group_var]])) {
         data[[group_var]] <- droplevels(data[[group_var]])
       }
@@ -2549,9 +2549,9 @@ mod_viz_server <- function(id, values) {
       showNotification(paste0("Seasonal Smooth : agrégation auto par moyenne (",nrow(data)," pts)."),
                        type="message", duration=4)
     } else {
-      data <- data[!is.na(data[[y_var]]), ]
+      data <- data[!is.na(data[[y_var]]), , drop = FALSE]
     }
-    if (x_is_date || x_is_numeric) data <- data[order(data[[x_var]]), ]
+    if (x_is_date || x_is_numeric) data <- data[order(data[[x_var]]), , drop = FALSE]
     n_pts <- if (!is.null(color_var) && color_var %in% names(data)) min(table(data[[color_var]])) else nrow(data)
     smooth_method <- input$smoothMethod %||% "loess"
     if (n_pts < 4 && smooth_method=="loess") {
@@ -2644,7 +2644,7 @@ mod_viz_server <- function(id, values) {
                               nrow(data_valid)," pts uniques."), type="message", duration=5)
       data_plot <- data_valid; data_pts <- data_valid
     } else {
-      data_plot <- data[!is.na(data[[y_var]]), ]
+      data_plot <- data[!is.na(data[[y_var]]), , drop = FALSE]
       data_pts  <- data_plot
     }
     # Trier : dates et numériques par valeur, facteurs par ordre des niveaux
@@ -2654,12 +2654,12 @@ mod_viz_server <- function(id, values) {
                                  color="#e74c3c", size=5) + theme_void())
     }
     if (x_is_date || x_is_numeric) {
-      data_plot <- data_plot[order(data_plot[[x_var]]), ]
-      data_pts  <- data_pts[order(data_pts[[x_var]]),  ]
+      data_plot <- data_plot[order(data_plot[[x_var]]), , drop = FALSE]
+      data_pts  <- data_pts[order(data_pts[[x_var]]), , drop = FALSE]
     } else if (x_is_factor) {
       if (is.factor(data_plot[[x_var]])) {
-        data_plot <- data_plot[order(as.integer(data_plot[[x_var]])), ]
-        data_pts  <- data_pts[order(as.integer(data_pts[[x_var]])),  ]
+        data_plot <- data_plot[order(as.integer(data_plot[[x_var]])), , drop = FALSE]
+        data_pts  <- data_pts[order(as.integer(data_pts[[x_var]])), , drop = FALSE]
       }
     }
     # Pour le geom_line sur X catégoriel : nécessite group aesthetic
@@ -2775,10 +2775,10 @@ mod_viz_server <- function(id, values) {
   create_area_plot <- function(data, x_var, y_var, color_var = NULL) {
     data <- tryCatch({
       if (inherits(data[[x_var]], c("Date","POSIXct","POSIXlt")) ||
-          is.numeric(data[[x_var]])) data[order(data[[x_var]], na.last=TRUE), ]
+          is.numeric(data[[x_var]])) data[order(data[[x_var]], na.last=TRUE), , drop = FALSE]
       else data
     }, error=function(e) data)
-    data <- data[!is.na(data[[y_var]]), ]
+    data <- data[!is.na(data[[y_var]]), , drop = FALSE]
     lw <- input$lineWidth %||% 1
     p <- ggplot(data, aes(x=.data[[x_var]], y=.data[[y_var]]))
     if (!is.null(color_var)) {
@@ -2931,6 +2931,26 @@ mod_viz_server <- function(id, values) {
     data <- values$plotData
     x_var <- input$vizXVar
     viz_type <- input$vizType
+
+    # Filet de securite : le jeu prepare doit rester un tableau. Un tableau a
+    # une seule colonne (X et Y identiques, ou Y renommee par l'agregation)
+    # retombait en vecteur au premier filtrage de lignes, et ggplot rendait
+    # « dim(data) must return an <integer> of length 2 » -- message qui
+    # n'apprend rien a l'utilisateur. Les sous-ensembles passent desormais par
+    # drop = FALSE ; ce garde-fou nomme le cas restant (variable absente).
+    if (!is.data.frame(data)) {
+      showNotification(
+        "Les données du graphique ne forment pas un tableau : resélectionnez les variables X et Y.",
+        type = "error", duration = 6)
+      return(NULL)
+    }
+    if (is.null(x_var) || !x_var %in% names(data)) {
+      showNotification(
+        trf("La variable X « %s » est absente des données préparées : resélectionnez-la.",
+            x_var %||% ""),
+        type = "error", duration = 6)
+      return(NULL)
+    }
     
     if(!is.null(values$multipleY) && values$multipleY &&
        all(c("Value", "Variable") %in% names(data))) {
@@ -3734,7 +3754,7 @@ mod_viz_server <- function(id, values) {
       d  <- if (isTRUE(input$useAggregation)) aggregatedData() else values$filteredData
       xv <- input$vizXVar; yv <- input$vizYVar[1]
       if (!xv %in% names(d) || !yv %in% names(d)) return(NULL)
-      d_valid <- d[!is.na(d[[yv]]), ]
+      d_valid <- d[!is.na(d[[yv]]), , drop = FALSE]
       x_total <- nrow(d_valid); x_uniq <- length(unique(d_valid[[xv]]))
       if (x_total==0) return(div(class="alert alert-danger",
                                  style="padding:10px;margin-bottom:10px;font-size:13px;",

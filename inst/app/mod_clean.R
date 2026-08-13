@@ -1842,8 +1842,36 @@ mod_clean_server <- function(id, values) {
     z <- zero_table()
     if (is.null(z) || !nrow(z))
       return(p(style = "color:#999;font-style:italic;", "Rien à corriger."))
-    selectInput(ns("zeroVars"), "Variables à traiter :", choices = z$Variable,
-                selected = NULL, multiple = TRUE, selectize = TRUE)
+    tagList(
+      selectInput(ns("zeroVars"), "Variables à traiter :", choices = z$Variable,
+                  selected = NULL, multiple = TRUE, selectize = TRUE),
+      div(style = "margin-top:-8px;margin-bottom:12px;",
+          actionButton(ns("zeroSelectAll"), "Tout sélectionner",
+                       icon = icon("check-double"), class = "btn-xs btn-default"),
+          actionButton(ns("zeroSelectNone"), "Tout désélectionner",
+                       icon = icon("eraser"), class = "btn-xs btn-default",
+                       style = "margin-left:6px;"),
+          tags$small(style = "color:#7f8c8d;display:block;margin-top:4px;",
+                     trf("%s variable(s) listée(s).", nrow(z)))))
+  })
+
+  # Un fichier d'enquete peut porter vingt colonnes entierement nulles ; les
+  # cocher une a une est precisement le geste qu'on veut eviter.
+  observeEvent(input$zeroSelectAll, {
+    z <- zero_table()
+    if (is.null(z) || !nrow(z)) return()
+    updateSelectInput(session, "zeroVars", choices = z$Variable,
+                      selected = z$Variable)
+  })
+
+  # Les choix sont renvoyes avec la deselection : `selected = character(0)`
+  # seul est lu par Shiny comme « ne rien changer », et la liste resterait
+  # cochee -- l'utilisateur croirait le bouton sans effet.
+  observeEvent(input$zeroSelectNone, {
+    z <- zero_table()
+    if (is.null(z) || !nrow(z)) return()
+    updateSelectInput(session, "zeroVars", choices = z$Variable,
+                      selected = character(0))
   })
 
   # Saisie directe : la zone est PRE-REMPLIE avec les valeurs actuelles, pour

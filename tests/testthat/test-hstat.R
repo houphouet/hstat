@@ -2287,7 +2287,10 @@ test_that("mod_ai.R est source avant les modules qui s'en servent", {
   expect_true(any(grepl('tabName = "aidecision"', ux)))
   srv <- readLines(file.path(root, "inst", "app", "app_server.R"), warn = FALSE)
   expect_true(any(grepl('mod_ai_server\\("aidecision", values\\)', srv)))
-  expect_true(any(grepl("aiContext", srv)))
+  # Le serveur alimente le registre pour les analyses dont les selecteurs ne
+  # vivent pas dans un module namespace. `values$aiContext`, lui, n'est plus lu
+  # ici depuis le retrait du bandeau : c'est l'onglet qui le lit.
+  expect_true(any(grepl("hstat_ai_capture", srv, fixed = TRUE)))
 })
 
 test_that("une analyse descriptive n'est pas jugee comme un test", {
@@ -2332,67 +2335,24 @@ test_that("hstat_ai_as_table accepte tout ce que renvoient les modules", {
   expect_null(hstat_ai_as_table(list()))
 })
 
-test_that("le guidage de fin d'analyse annonce la recommandation", {
-  set.seed(12)
-  d <- data.frame(y = c(stats::rnorm(40), stats::rnorm(40, 2)),
-                  g = rep(c("A", "B"), each = 40), stringsAsFactors = FALSE)
-  r <- hstat_reco_analyses(hstat_data_profile(d, "y", "g"))
-  ctx <- list(title = "Statistiques descriptives", module = "Analyses descriptives",
-              tables = list(), text = NULL, meta = list(), time = Sys.time())
-
-  msg <- hstat_ai_hint_text(ctx, r)
-  expect_true(grepl("Statistiques descriptives", msg, fixed = TRUE))
-  expect_true(grepl("Student|Welch", msg))
-  # Sans recommandation calculable, pas de message plutot qu'un message creux
-  expect_null(hstat_ai_hint_text(ctx, NULL))
-  expect_null(hstat_ai_hint_text(NULL, r))
-
-  ui <- hstat_ai_hint_ui(ctx, r)
-  h <- paste(as.character(ui), collapse = "")
-  expect_true(grepl("Aide a la decision", h, fixed = TRUE))
-  expect_true(grepl("shiny-tab-aidecision", h, fixed = TRUE))   # le lien bascule d'onglet
-  # Le rappel de responsabilite accompagne chaque recommandation
-  expect_true(grepl("l'assistance eclaire, elle ne decide pas", h, fixed = TRUE))
-  expect_null(hstat_ai_hint_ui(NULL, r))
-})
-
-test_that("hstat_ai_with_hint greffe l'emplacement sans casser l'onglet", {
-  tab <- shinydashboard::tabItem(tabName = "essai", shiny::h3("contenu"))
-  n0 <- length(tab$children)
-  out <- hstat_ai_with_hint(tab, "aihint_tests")
-  expect_equal(length(out$children), n0 + 1L)
-  h <- paste(as.character(out), collapse = "")
-  expect_true(grepl("contenu", h, fixed = TRUE))       # le contenu d'origine survit
-  expect_true(grepl("aihint_tests", h, fixed = TRUE))
-  expect_true(grepl("shiny-tab-essai", h, fixed = TRUE))
-
-  # Un identifiant inconnu doit echouer bruyamment : un bandeau muet passerait
-  # inapercu jusqu'a ce qu'un utilisateur le signale.
-  expect_error(hstat_ai_hint_slot("aihint_inexistant"))
-  # Une entree qui n'est pas un tabItem est renvoyee telle quelle
-  expect_identical(hstat_ai_with_hint("pas un tag", "aihint_tests"), "pas un tag")
-})
-
-test_that("chaque onglet d'analyse porte un emplacement de guidage", {
+test_that("le bandeau de guidage ne revient nulle part", {
+  # Le bandeau greffe sur les onglets et sa notification repetaient a chaque
+  # resultat une recommandation que l'onglet dedie porte deja. Ils ont ete
+  # retires ; ce test barre leur reintroduction, y compris par un identifiant
+  # `aihint_*` reste dans une interface.
   root <- .hstat_repo_root()
-  ux <- readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE)
-  used <- unique(unlist(regmatches(ux, gregexpr("aihint_[a-z]+", ux))))
-  # Declares et poses doivent coincider exactement : un identifiant declare mais
-  # jamais pose ne s'afficherait nulle part, l'inverse planterait au demarrage.
-  expect_setequal(used, HSTAT_AI_HINT_IDS)
-  expect_equal(length(HSTAT_AI_HINT_IDS), 12L)
+  src  <- list.files(file.path(root, "inst", "app"), pattern = "\\.R$",
+                     full.names = TRUE)
+  txt  <- unlist(lapply(src, readLines, warn = FALSE))
+  code <- txt[!grepl("^\\s*#", txt)]           # les commentaires en parlent encore
+  for (motif in c("aihint_", "hstat_ai_hint_slot", "hstat_ai_with_hint",
+                  "hstat_ai_hint_ui", "hstat_ai_hint_text", "HSTAT_AI_HINT_IDS"))
+    expect_false(any(grepl(motif, code, fixed = TRUE)), label = motif)
 
-  # Tous les onglets d'analyse du menu doivent etre couverts
-  # Suffixes attendus : ils suivent le nom du MODULE (mod_viz -> viz), pas
-  # toujours celui de l'onglet (tabName = "visualization").
-  onglets <- c("descriptive", "viz", "correlation", "tests", "multiple",
-               "multivariate", "qualitative", "timeseries", "ml", "dl",
-               "design", "threshold")
-  expect_setequal(sub("^aihint_", "", HSTAT_AI_HINT_IDS), onglets)
-
-  # ... et le serveur doit rendre chacun d'eux
-  srv <- readLines(file.path(root, "inst", "app", "app_server.R"), warn = FALSE)
-  expect_true(any(grepl("HSTAT_AI_HINT_IDS", srv, fixed = TRUE)))
+  # Le registre de capture, lui, reste : c'est lui qui alimente l'onglet
+  # d'interpretation, le journal de reproductibilite et le rapport.
+  expect_true(any(grepl("hstat_ai_capture", code, fixed = TRUE)))
+  expect_true(is.function(hstat_ai_capture))
 })
 
 test_that("toutes les familles d'analyse deposent un contexte", {
@@ -5490,4 +5450,30 @@ test_that("le dictionnaire couvre desormais plus que la seule navigation", {
   expect_true("ANOVA a un facteur" %in% d$fr)                 # interpretations
   # Le poids embarque reste raisonnable : c'est la promesse de legerete.
   expect_lt(nchar(hstat_i18n_json("en")) / 1024, 60)
+})
+
+test_that("les sous-ensembles de lignes du module graphique gardent leur tableau", {
+  # Le jeu prepare par plotData() ne contient QUE les colonnes utiles : une
+  # seule quand X et Y designent la meme variable, ou quand l'agregation a
+  # renomme Y. Un `df[cond, ]` sans drop = FALSE le ramenait alors a un
+  # vecteur, et ggplot rendait « dim(data) must return an <integer> of
+  # length 2 » -- message que personne ne peut relier a son choix de
+  # variables. Constate a l'ecran.
+  d1 <- data.frame(a = c(1, NA, 3))
+  expect_false(is.data.frame(d1[!is.na(d1$a), ]))              # le piege
+  expect_true(is.data.frame(d1[!is.na(d1$a), , drop = FALSE])) # le remede
+
+  src <- readLines(file.path(.hstat_repo_root(), "inst", "app", "mod_viz.R"),
+                   warn = FALSE)
+  code <- src[!grepl("^\\s*#", src)]
+  # Aucune indexation de lignes de mod_viz.R ne doit laisser la simplification
+  # par defaut : un `[..., ]` nu est signale, y compris sur une matrice ou la
+  # chute vers un vecteur est un piege plus grand encore.
+  fautifs <- grep(",\\s*\\]", code, value = TRUE)
+  expect_equal(length(fautifs), 0L,
+               info = paste(trimws(fautifs), collapse = "\n"))
+
+  # Et le garde-fou nomme le cas restant plutot que de laisser passer le
+  # message de ggplot.
+  expect_true(any(grepl("is.data.frame(data)", code, fixed = TRUE)))
 })
