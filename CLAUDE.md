@@ -166,6 +166,52 @@ oui/non, avant/après) produit une table dont la plus petite dimension vaut 2,
 donc un seul axe. Passer systématiquement par `hstat_coord_mat()` (`Utils.R`)
 avant d'indexer. Un test le vérifie sur l'ensemble du dépôt.
 
+### Un réglage déclaré mais masqué n'existe pas
+
+Le panneau « Options du graphique » des comparaisons post-hoc portait **treize**
+réglages dans un `div(style = "display:none;")` : largeur et hauteur d'export,
+limites de l'axe X, taille et style du sous-titre et sa position, styles des
+graduations X et Y, styles de la légende, taille des clés. Le serveur les
+lisait, ils agissaient sur le graphique — et l'utilisateur ne pouvait pas les
+atteindre. Un test échoue désormais sur tout `display:none` dans `mod_tests.R`,
+et vérifie que chaque réglage lu par le serveur est bien déclaré dans
+l'interface.
+
+Un réglage était même déclaré **et** masqué **et** jamais lu (`legendKeySize`) :
+il est maintenant branché sur `legend.key.height`.
+
+Le panneau est organisé en sept cartes colorées (`.hstat_opt_section()`), une
+couleur par famille. Ce n'est pas de la décoration : quarante contrôles gris
+d'affilée ne se parcourent pas.
+
+**Les listes de choix sont déclarées une fois** — `HSTAT_FONT_STYLES`,
+`HSTAT_THEMES_GG`, `HSTAT_PALETTES_QUALI`, `HSTAT_PALETTES_DEGRADE`. La liste
+des styles était recopiée treize fois. Deux tests gardent ces listes : un thème
+absent du `switch` de `viz_get_theme()` retomberait en silence sur « minimal »,
+et un nom de palette inconnu de RColorBrewer ferait tomber **tout** le
+graphique — pour le seul utilisateur qui aurait choisi cette entrée.
+
+Les palettes qualitatives viennent en premier et sont vérifiées comme telles
+(`brewer.pal.info$category == "qual"`) : un dégradé sur des groupes sans ordre
+naturel suggère une progression qui n'existe pas.
+
+### Efficacités : une colonne par variable mesurée
+
+`hstat_efficacite()` empile les variables mesurées — quinze variables sur onze
+modalités font 165 lignes portant toutes la même colonne `Efficacite`. Le
+sélecteur « Variable Y » n'avait donc qu'un seul choix, et le graphique
+superposait quinze séries sur les mêmes onze positions : on croyait lire une
+variable, on en lisait quinze. Constaté à l'écran.
+
+`hstat_eff_large()` donne **une colonne d'efficacité par variable mesurée**,
+nommée d'après elle. C'est ce tableau qui alimente le graphique, le sélecteur Y
+et « Utiliser comme jeu de données » ; le tableau détaillé reste accessible
+(bouton de présentation, et deuxième feuille du classeur Excel).
+
+Le préfixe `Efficacite_` est délibéré : une colonne nommée comme la variable
+d'origine contiendrait des **pourcentages** et non la mesure, et se confondrait
+avec elle dès qu'on relit le tableau ou qu'on le réinjecte dans l'application.
+
 ### Export d'image : les pixels saisis sont une mise en page, pas la sortie
 
 `ggsave` raisonne en **pouces** ; le fichier fait pouces × DPI. Diviser les
