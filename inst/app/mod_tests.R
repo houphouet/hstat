@@ -1,20 +1,5 @@
 #  Module Shiny : Tests statistiques + Comparaisons post-hoc (combine)
 
-# Carte de reglages du panneau « Options du graphique ». Un panneau de quarante
-# controles gris se lit mal : chaque famille porte donc sa couleur, la meme sur
-# le liseré, l'icone et le titre. La teinte de fond reste tres pale -- ce sont
-# des reglages, pas des alertes.
-.hstat_opt_section <- function(titre, icone, couleur, fond, ...) {
-  shiny::div(
-    style = sprintf(paste0("background:%s;border-left:4px solid %s;border-radius:6px;",
-                           "padding:14px 16px;margin-bottom:14px;"), fond, couleur),
-    shiny::h6(shiny::icon(icone), " ", titre,
-              style = sprintf(paste0("font-weight:700;color:%s;margin:0 0 12px 0;",
-                                     "text-transform:uppercase;letter-spacing:.4px;font-size:12px;"),
-                              couleur)),
-    ...)
-}
-
 mod_tests_ui <- function(id) {
   ns <- NS(id)
       tabItem(tabName = "tests",

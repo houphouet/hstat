@@ -5684,3 +5684,110 @@ test_that("les themes proposes sont tous rendus par viz_get_theme", {
   expect_setequal(unname(HSTAT_FONT_STYLES),
                   c("plain", "bold", "italic", "bold.italic"))
 })
+
+test_that("l'habillage d'une barre ne fabrique pas de contour qu'on n'a pas demande", {
+  s <- hstat_barre_style()
+  expect_equal(s$alpha, 0.8)
+  # `colour = NA` n'est pas equivalent a l'absence d'argument : il EFFACE le
+  # contour. Sans contour demande, la cle ne doit donc pas exister du tout.
+  expect_null(s$colour)
+  expect_null(s$linewidth)
+
+  c1 <- hstat_barre_style(0.5, TRUE, "#000000", 1.2)
+  expect_equal(c1$alpha, 0.5)
+  expect_equal(c1$colour, "#000000")
+  expect_equal(c1$linewidth, 1.2)
+
+  # Saisies impossibles : on retombe sur des valeurs utilisables plutot que de
+  # faire tomber le graphique entier
+  for (mauvais in list(NULL, NA, "", 0, -1, 5))
+    expect_equal(hstat_barre_style(mauvais)$alpha, 0.8)
+  expect_equal(hstat_barre_style(0.7, TRUE, "#123456", 0)$linewidth, 0.5)
+  expect_equal(hstat_barre_style(0.7, TRUE, "", 1)$colour, "#2c3e50")
+})
+
+test_that("l'etiquette de valeur se place selon le signe de l'efficacite", {
+  y <- c(60, -20, 0)
+
+  # Une efficacite negative -- la modalite fait moins bien que le temoin --
+  # descend sous l'axe : un vjust fige ecrirait son etiquette du mauvais cote.
+  d <- hstat_valeur_pos(y, "dessus")
+  expect_equal(d$y, y)
+  expect_lt(d$vjust[1], 0)          # barre positive : au-dessus du sommet
+  expect_gt(d$vjust[2], 0)          # barre negative : sous le creux
+  expect_equal(d$vjust[1], d$vjust[3])   # zero se traite comme un positif
+
+  dd <- hstat_valeur_pos(y, "dedans")
+  expect_equal(dd$y, y)
+  expect_gt(dd$vjust[1], 0)         # a l'interieur, donc de l'autre cote
+  expect_lt(dd$vjust[2], 0)
+
+  # Au pied : l'ordonnee est ZERO, pas la valeur -- c'est ce qui garde
+  # l'etiquette visible quand la barre sort du cadre fixe par l'axe.
+  pd <- hstat_valeur_pos(y, "pied")
+  expect_equal(pd$y, c(0, 0, 0))
+  expect_equal(pd$vjust, d$vjust)
+
+  # Valeurs manquantes : pas d'erreur, et le NA est traite comme un positif
+  expect_length(hstat_valeur_pos(c(NA, 1), "dessus")$vjust, 2L)
+  expect_error(hstat_valeur_pos(y, "ailleurs"))
+})
+
+test_that("le module des seuils expose une mise en forme complete", {
+  root <- .hstat_repo_root()
+  txt  <- paste(readLines(file.path(root, "inst", "app", "mod_threshold.R"),
+                          warn = FALSE), collapse = "\n")
+
+  # Les familles de mise en forme qui manquaient : theme, sous-titre, style et
+  # position du titre, style des graduations, valeurs portees sur les barres,
+  # opacite et contour, pas des graduations Y, etiquette du seuil, taille du
+  # texte de legende distincte de celle du titre.
+  reglages <- c("thresholdTheme", "thresholdSubtitle", "thresholdTitleStyle",
+                "thresholdTitlePosition", "thresholdSubtitleStyle",
+                "thresholdSubtitlePosition", "thresholdAxisTextXStyle",
+                "thresholdAxisTextYStyle", "thresholdShowValues",
+                "thresholdValueDigits", "thresholdValueSize",
+                "thresholdValueStyle", "thresholdValuePosition",
+                "thresholdValueColor", "thresholdBarAlpha", "thresholdBarBorder",
+                "thresholdBarBorderColor", "thresholdBarBorderWidth",
+                "thresholdLegendTextSize", "thresholdValueLabelSize",
+                "thresholdYBreakStep", "thresholdShowLabel",
+                "thresholdLabelPos", "thresholdLabelStyle")
+  for (r in reglages) {
+    expect_true(grepl(sprintf('ns("%s")', r), txt, fixed = TRUE),
+                label = paste("declare :", r))
+    expect_true(grepl(sprintf("input$%s", r), txt, fixed = TRUE),
+                label = paste("lu :", r))
+    # Un reglage que le reactif du graphique n'observe pas ne redessine rien :
+    # l'utilisateur le change et l'image ne bouge pas.
+    expect_true(grepl(sprintf("input$%s\n", r), txt, fixed = TRUE) ||
+                grepl(sprintf("input$%s\r\n", r), txt, fixed = TRUE),
+                label = paste("observe par le reactif :", r))
+  }
+  expect_false(grepl("display *: *none", txt))
+  # L'opacite etait figee a 0,8 aux six endroits ou les barres sont tracees
+  expect_false(grepl("alpha = 0.8", txt, fixed = TRUE))
+})
+
+test_that("le sous-titre est remis dans le titre plotly", {
+  # ggplotly laisse simplement TOMBER le sous-titre. Sans reinjection,
+  # l'utilisateur en saisissait un, ne voyait rien a l'ecran, et le retrouvait
+  # dans le fichier telecharge -- le pire des deux mondes.
+  txt <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app",
+                                   "mod_threshold.R"), warn = FALSE),
+               collapse = "\n")
+  i_gg  <- regexpr("ggplotly(", txt, fixed = TRUE)
+  i_sub <- regexpr("<br><sup>", txt, fixed = TRUE)
+  expect_gt(i_sub, 0)
+  expect_gt(i_sub, i_gg)          # apres la conversion, pas avant
+  # Le texte vient de l'utilisateur : il est echappe avant d'entrer dans la
+  # balise, comme les etiquettes d'axe.
+  expect_true(grepl("hstat_html_escape(sous)", txt, fixed = TRUE))
+})
+
+test_that("les alignements de titre sont des hjust valides", {
+  v <- suppressWarnings(as.numeric(HSTAT_ALIGNEMENTS))
+  expect_false(any(is.na(v)))
+  expect_true(all(v >= 0 & v <= 1))
+  expect_true("0.5" %in% unname(HSTAT_ALIGNEMENTS))
+})

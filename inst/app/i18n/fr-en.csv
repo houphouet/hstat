@@ -1247,3 +1247,31 @@ Format et résolution se choisissent sous le graphique.,Format and resolution ar
 Personnaliser les limites,Customise the limits
 Texte,Text
 Espacement,Spacing
+Position du titre,Title position
+Style du sous-titre,Subtitle style
+Style graduations X,X tick style
+Style graduations Y,Y tick style
+Style,Style
+Position de l'étiquette,Label position
+Style de l'étiquette,Label style
+Sous-titre:,Subtitle:
+Décimales,Decimals
+Opacité des barres:,Bar opacity:
+Épaisseur,Thickness
+Texte de la légende:,Legend text:
+Étiquette du seuil:,Threshold label:
+Valeurs sur les barres,Values on the bars
+Étiquette de la ligne de seuil,Threshold line label
+Afficher la valeur de chaque barre,Show each bar's value
+Au-dessus de la barre,Above the bar
+"Dans la barre, en haut","Inside the bar, at the top"
+Au pied de la barre,At the foot of the bar
+Contour des barres,Bar outline
+Couleur du contour,Outline colour
+Pas des graduations Y,Y tick step
+À droite,On the right
+Au centre,In the centre
+À gauche,On the left
+Laisser vide pour laisser ggplot choisir.,Leave empty to let ggplot choose.
+Une efficacité négative se lit sous l'axe : la position « au pied » la garde visible.,A negative efficacy reads below the axis: the « at the foot » position keeps it visible.
+"%d valeur(s) hors des limites de l'axe Y (%s à %s) : elles n'apparaissent pas. Élargissez les limites dans « Apparence & options ».","%d value(s) outside the Y axis limits (%s to %s): they are not shown. Widen the limits under « Appearance & options »."
