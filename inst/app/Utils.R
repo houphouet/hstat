@@ -1399,6 +1399,21 @@ viz_detect_x_type <- function(x) {
 # Styles d'ecriture proposes partout ou un texte de graphique se met en forme.
 # Declares une fois : la meme liste etait recopiee treize fois dans le panneau
 # d'options, et une correction n'en touchait qu'une.
+# Carte de reglages du panneau « Options du graphique ». Un panneau de quarante
+# controles gris se lit mal : chaque famille porte donc sa couleur, la meme sur
+# le liseré, l'icone et le titre. La teinte de fond reste tres pale -- ce sont
+# des reglages, pas des alertes.
+.hstat_opt_section <- function(titre, icone, couleur, fond, ...) {
+  shiny::div(
+    style = sprintf(paste0("background:%s;border-left:4px solid %s;border-radius:6px;",
+                           "padding:14px 16px;margin-bottom:14px;"), fond, couleur),
+    shiny::h6(shiny::icon(icone), " ", titre,
+              style = sprintf(paste0("font-weight:700;color:%s;margin:0 0 12px 0;",
+                                     "text-transform:uppercase;letter-spacing:.4px;font-size:12px;"),
+                              couleur)),
+    ...)
+}
+
 HSTAT_FONT_STYLES <- c("Normal" = "plain", "Gras" = "bold",
                        "Italique" = "italic", "Gras + italique" = "bold.italic")
 
@@ -1423,6 +1438,51 @@ HSTAT_PALETTES_DEGRADE <- c("Bleus" = "Blues", "Verts" = "Greens",
                             "Bleu-vert" = "YlGnBu", "Mauve" = "BuPu",
                             "Spectral (froid -> chaud)" = "Spectral",
                             "Rouge-jaune-bleu" = "RdYlBu")
+
+# Alignements horizontaux d'un titre. Les valeurs sont les `hjust` de ggplot,
+# transmises en CHAINE par selectInput : le lecteur doit les convertir.
+# Habillage d'une barre : opacite, et contour seulement s'il est demande.
+# `colour = NA` n'est pas equivalent a l'absence d'argument -- il efface le
+# contour que certaines geometries dessinent d'elles-memes -- d'ou une LISTE
+# d'arguments montee a la demande plutot qu'un appel fige.
+hstat_barre_style <- function(alpha = 0.8, contour = FALSE,
+                              couleur = "#2c3e50", epaisseur = 0.5) {
+  a <- suppressWarnings(as.numeric(alpha)[1])
+  if (!isTRUE(is.finite(a)) || a <= 0 || a > 1) a <- 0.8
+  out <- list(alpha = a)
+  if (isTRUE(contour)) {
+    e <- suppressWarnings(as.numeric(epaisseur)[1])
+    if (!isTRUE(is.finite(e)) || e <= 0) e <- 0.5
+    out$colour <- if (is.character(couleur) && nzchar(couleur[1])) couleur[1] else "#2c3e50"
+    out$linewidth <- e
+  }
+  out
+}
+
+# Ou poser l'etiquette de valeur d'une barre : ordonnee ET calage vertical,
+# ensemble, parce qu'ils ne se choisissent pas separement.
+#
+# La regle depend du SIGNE. Une efficacite negative -- la modalite fait moins
+# bien que le temoin, c'est un resultat, pas une erreur -- descend sous l'axe :
+# un `vjust` fige ecrirait son etiquette du mauvais cote de la barre, tantot
+# dedans quand on la voulait dehors, tantot par-dessus le zero.
+#
+#   "dessus" : au bout de la barre, a l'exterieur
+#   "dedans" : au bout de la barre, a l'interieur
+#   "pied"   : au pied de la barre (y = 0), donc toujours visible meme quand la
+#              barre sort du cadre limite par l'axe
+hstat_valeur_pos <- function(y, position = c("dessus", "dedans", "pied")) {
+  position <- match.arg(position)
+  y <- suppressWarnings(as.numeric(y))
+  neg <- !is.na(y) & y < 0
+  if (identical(position, "pied"))
+    return(list(y = rep(0, length(y)), vjust = ifelse(neg, 1.4, -0.5)))
+  list(y = y,
+       vjust = if (identical(position, "dessus")) ifelse(neg, 1.4, -0.5)
+               else ifelse(neg, -0.4, 1.4))
+}
+
+HSTAT_ALIGNEMENTS <- c("Centré" = "0.5", "Gauche" = "0", "Droite" = "1")
 
 HSTAT_THEMES_GG <- c("Minimal" = "minimal", "Classique" = "classic",
                      "Noir et blanc" = "bw", "Clair" = "light",

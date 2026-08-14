@@ -145,7 +145,23 @@ mod_threshold_ui <- function(id) {
                         textInput(ns("thresholdXLabel"), "Label axe X:", 
                                   value = "", placeholder = "Par défaut: Traitements"),
                         textInput(ns("thresholdYLabel"), "Label axe Y:", 
-                                  value = "", placeholder = "Par défaut: Seuil d'efficacité (%)")
+                                  value = "", placeholder = "Par défaut: Seuil d'efficacité (%)"),
+                        textInput(ns("thresholdSubtitle"), "Sous-titre:",
+                                  value = "", placeholder = "Optionnel"),
+                        fluidRow(
+                          column(6, selectInput(ns("thresholdTitleStyle"), "Style du titre",
+                                                choices = HSTAT_FONT_STYLES, selected = "bold")),
+                          column(6, selectInput(ns("thresholdTitlePosition"), "Position du titre",
+                                                choices = HSTAT_ALIGNEMENTS, selected = "0.5"))
+                        ),
+                        fluidRow(
+                          column(6, selectInput(ns("thresholdSubtitleStyle"), "Style du sous-titre",
+                                                choices = HSTAT_FONT_STYLES, selected = "italic")),
+                          column(6, selectInput(ns("thresholdSubtitlePosition"), "Position du sous-titre",
+                                                choices = HSTAT_ALIGNEMENTS, selected = "0.5"))
+                        ),
+                        selectInput(ns("thresholdTheme"), "Thème du graphique",
+                                    choices = HSTAT_THEMES_GG, selected = "minimal")
                     ),
                     
                     div(style = "background-color: #fff8e1; padding: 12px; border-radius: 6px; margin-bottom: 12px; border: 1px solid #ffd54f;",
@@ -166,7 +182,46 @@ mod_threshold_ui <- function(id) {
                               checkboxInput(ns("thresholdYLabelBold"), "Gras", value = FALSE),
                               checkboxInput(ns("thresholdYLabelItalic"), "Italique", value = FALSE)
                           )
+                        ),
+                        # Les GRADUATIONS sont une famille a part : les titres
+                        # d'axes avaient leur style, les valeurs portees sur les
+                        # axes n'en avaient aucun.
+                        fluidRow(
+                          column(6, selectInput(ns("thresholdAxisTextXStyle"), "Style graduations X",
+                                                choices = HSTAT_FONT_STYLES, selected = "plain")),
+                          column(6, selectInput(ns("thresholdAxisTextYStyle"), "Style graduations Y",
+                                                choices = HSTAT_FONT_STYLES, selected = "plain"))
                         )
+                    ),
+
+                    # ---- Valeurs portees sur les barres ----
+                    .hstat_opt_section(
+                      "Valeurs sur les barres", "hashtag", "#8e44ad", "#f7f0fb",
+                      checkboxInput(ns("thresholdShowValues"),
+                                    tagList(icon("eye"), " Afficher la valeur de chaque barre"),
+                                    value = FALSE),
+                      conditionalPanel(
+                        ns = ns,
+                        condition = "input.thresholdShowValues",
+                        fluidRow(
+                          column(6, numericInput(ns("thresholdValueDigits"), "Décimales",
+                                                 value = 1, min = 0, max = 4, step = 1)),
+                          column(6, sliderInput(ns("thresholdValueSize"), "Taille",
+                                                min = 2, max = 12, value = 4, step = 0.5))
+                        ),
+                        fluidRow(
+                          column(6, selectInput(ns("thresholdValueStyle"), "Style",
+                                                choices = HSTAT_FONT_STYLES, selected = "plain")),
+                          column(6, selectInput(ns("thresholdValuePosition"), "Position",
+                                                choices = c("Au-dessus de la barre" = "dessus",
+                                                            "Dans la barre, en haut" = "dedans",
+                                                            "Au pied de la barre" = "pied"),
+                                                selected = "dessus"))
+                        ),
+                        colourInput(ns("thresholdValueColor"), "Couleur", value = "#2c3e50"),
+                        tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                   "Une efficacité négative se lit sous l'axe : la position « au pied » la garde visible.")
+                      )
                     ),
                     
                     conditionalPanel(
@@ -230,6 +285,23 @@ mod_threshold_ui <- function(id) {
                         
                         sliderInput(ns("thresholdBarWidth"), "Largeur des barres:", 
                                     min = 0.1, max = 1, value = 0.8, step = 0.05),
+                        # La transparence etait figee a 0,8 aux six endroits ou
+                        # les barres sont tracees.
+                        sliderInput(ns("thresholdBarAlpha"), "Opacité des barres:",
+                                    min = 0.2, max = 1, value = 0.8, step = 0.05),
+                        checkboxInput(ns("thresholdBarBorder"),
+                                      tagList(icon("border-style"), " Contour des barres"),
+                                      value = FALSE),
+                        conditionalPanel(
+                          ns = ns,
+                          condition = "input.thresholdBarBorder",
+                          fluidRow(
+                            column(6, colourInput(ns("thresholdBarBorderColor"), "Couleur du contour",
+                                                  value = "#2c3e50")),
+                            column(6, sliderInput(ns("thresholdBarBorderWidth"), "Épaisseur",
+                                                  min = 0.1, max = 3, value = 0.5, step = 0.1))
+                          )
+                        ),
                         
                         conditionalPanel(
               ns = ns,
@@ -314,8 +386,15 @@ mod_threshold_ui <- function(id) {
                                     min = 8, max = 24, value = 14, step = 1),
                         sliderInput(ns("thresholdAxisTextSize"), "Texte des axes:", 
                                     min = 6, max = 20, value = 12, step = 1),
-                        sliderInput(ns("thresholdLegendSize"), "Légende:", 
-                                    min = 6, max = 20, value = 10, step = 1)
+                        # Le titre de la legende et son texte partageaient un
+                        # seul reglage : on ne pouvait pas grossir le titre sans
+                        # grossir toutes les entrees.
+                        sliderInput(ns("thresholdLegendSize"), "Titre de la légende:", 
+                                    min = 6, max = 20, value = 10, step = 1),
+                        sliderInput(ns("thresholdLegendTextSize"), "Texte de la légende:",
+                                    min = 6, max = 20, value = 10, step = 1),
+                        sliderInput(ns("thresholdValueLabelSize"), "Étiquette du seuil:",
+                                    min = 2, max = 12, value = 4, step = 0.5)
                     ),
                     
                     div(style = "background-color: #e8f5e9; padding: 12px; border-radius: 6px; margin-bottom: 12px; border: 1px solid #81c784;",
@@ -331,7 +410,33 @@ mod_threshold_ui <- function(id) {
                                  numericInput(ns("thresholdYMax"), "Maximum:", 
                                               value = 100, min = 0, max = 200)
                           )
-                        )
+                        ),
+                        # Sans pas de graduation, l'axe ne portait que les
+                        # reperes choisis par ggplot -- rarement ceux qu'on veut
+                        # sur un pourcentage (0, 10, 20...).
+                        numericInput(ns("thresholdYBreakStep"),
+                                     tagList(icon("ruler-vertical"), " Pas des graduations Y"),
+                                     value = NA, min = 0.01, step = 5),
+                        tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                   "Laisser vide pour laisser ggplot choisir.")
+                    ),
+
+                    # ---- Ligne de seuil ----
+                    .hstat_opt_section(
+                      "Étiquette de la ligne de seuil", "bullseye", "#c0392b", "#fdeeec",
+                      checkboxInput(ns("thresholdShowLabel"),
+                                    tagList(icon("tag"), " Afficher « Seuil : x % » sur le graphique"),
+                                    value = TRUE),
+                      conditionalPanel(
+                        ns = ns,
+                        condition = "input.thresholdShowLabel",
+                        selectInput(ns("thresholdLabelPos"), "Position de l'étiquette",
+                                    choices = c("À droite" = "droite", "Au centre" = "centre",
+                                                "À gauche" = "gauche"),
+                                    selected = "droite"),
+                        selectInput(ns("thresholdLabelStyle"), "Style de l'étiquette",
+                                    choices = HSTAT_FONT_STYLES, selected = "bold")
+                      )
                     )
                         )
                       ),
@@ -1240,6 +1345,30 @@ mod_threshold_server <- function(id, values) {
     input$thresholdBarWidth
     input$thresholdBarSpacing
     input$thresholdBarPosition
+    input$thresholdTheme
+    input$thresholdSubtitle
+    input$thresholdTitleStyle
+    input$thresholdTitlePosition
+    input$thresholdSubtitleStyle
+    input$thresholdSubtitlePosition
+    input$thresholdAxisTextXStyle
+    input$thresholdAxisTextYStyle
+    input$thresholdShowValues
+    input$thresholdValueDigits
+    input$thresholdValueSize
+    input$thresholdValueStyle
+    input$thresholdValuePosition
+    input$thresholdValueColor
+    input$thresholdBarAlpha
+    input$thresholdBarBorder
+    input$thresholdBarBorderColor
+    input$thresholdBarBorderWidth
+    input$thresholdLegendTextSize
+    input$thresholdValueLabelSize
+    input$thresholdYBreakStep
+    input$thresholdShowLabel
+    input$thresholdLabelPos
+    input$thresholdLabelStyle
     
     lapply(names(threshold_values$label_mapping), function(lvl) {
       input[[paste0("thresholdLevel_", make.names(lvl))]]
@@ -1278,9 +1407,11 @@ mod_threshold_server <- function(id, values) {
           position_dodge(width = dodge_width)
         }
         
-        p <- p + geom_col(position = position, 
-                          width = bar_width,
-                          alpha = 0.8)
+        p <- p + do.call(geom_col, c(list(position = position, width = bar_width),
+                                     hstat_barre_style(input$thresholdBarAlpha,
+                                                       input$thresholdBarBorder,
+                                                       input$thresholdBarBorderColor,
+                                                       input$thresholdBarBorderWidth)))
         
         p <- p + labs(fill = input$thresholdLegendTitle %||% "Variables")
         
@@ -1288,6 +1419,10 @@ mod_threshold_server <- function(id, values) {
         p <- ggplot(plot_data, aes(x = Treatment, y = Efficacy))
         
         bar_width <- input$thresholdBarWidth %||% 0.8
+        sty_barre <- hstat_barre_style(input$thresholdBarAlpha,
+                                       input$thresholdBarBorder,
+                                       input$thresholdBarBorderColor,
+                                       input$thresholdBarBorderWidth)
 
         # Libelles de legende personnalises (mode Y simple) : la legende montre
         # les niveaux (traitements) ; on lit l'editeur thresholdLegendItem_* pour
@@ -1302,11 +1437,11 @@ mod_threshold_server <- function(id, values) {
         
         if(input$thresholdUseColor) {
           if(input$thresholdBarColor == "ggplot") {
-            p <- p + geom_col(aes(fill = Treatment), width = bar_width, alpha = 0.8) +
+            p <- p + do.call(geom_col, c(list(mapping = aes(fill = Treatment), width = bar_width), sty_barre)) +
               scale_fill_discrete(name = input$thresholdLegendTitle %||% "Traitements",
                                   labels = legend_labels)
           } else if(input$thresholdBarColor == "palette") {
-            p <- p + geom_col(aes(fill = Treatment), width = bar_width, alpha = 0.8) +
+            p <- p + do.call(geom_col, c(list(mapping = aes(fill = Treatment), width = bar_width), sty_barre)) +
               scale_fill_brewer(palette = input$thresholdPalette %||% "Set1",
                                 name = input$thresholdLegendTitle %||% "Traitements",
                                 labels = legend_labels)
@@ -1315,18 +1450,18 @@ mod_threshold_server <- function(id, values) {
               color_input <- input[[paste0("thresholdCustomColor_", i)]]
               if(is.null(color_input)) scales::hue_pal()(length(levels(plot_data$Treatment)))[i] else color_input
             })
-            p <- p + geom_col(aes(fill = Treatment), width = bar_width, alpha = 0.8) +
+            p <- p + do.call(geom_col, c(list(mapping = aes(fill = Treatment), width = bar_width), sty_barre)) +
               scale_fill_manual(values = custom_colors,
                                 name = input$thresholdLegendTitle %||% "Traitements",
                                 labels = legend_labels)
           } else if(input$thresholdBarColor == "black") {
-            p <- p + geom_col(fill = "#000000", width = bar_width, alpha = 0.8)
+            p <- p + do.call(geom_col, c(list(fill = "#000000", width = bar_width), sty_barre))
           } else if(input$thresholdBarColor == "single") {
-            p <- p + geom_col(fill = input$thresholdSingleBarColor %||% "#3498db", 
-                              width = bar_width, alpha = 0.8)
+            p <- p + do.call(geom_col, c(list(fill = input$thresholdSingleBarColor %||% "#3498db",
+                                              width = bar_width), sty_barre))
           }
         } else {
-          p <- p + geom_col(fill = "#3498db", width = bar_width, alpha = 0.8)
+          p <- p + do.call(geom_col, c(list(fill = "#3498db", width = bar_width), sty_barre))
         }
       }
       
@@ -1335,13 +1470,53 @@ mod_threshold_server <- function(id, values) {
                           linewidth = input$thresholdLineWidth %||% 1.5,
                           linetype = input$thresholdLineType %||% "solid")
       
-      p <- p + annotate("text", 
-                        x = length(levels(plot_data$Treatment)) * 0.9,
-                        y = (input$thresholdValue %||% 80) + 5,
-                        label = paste("Seuil:", input$thresholdValue %||% 80, "%"),
-                        color = input$thresholdColor %||% "#e74c3c",
-                        fontface = "bold",
-                        size = 4)
+      if (isTRUE(input$thresholdShowLabel %||% TRUE)) {
+        n_niv <- length(levels(plot_data$Treatment))
+        x_lab <- switch(input$thresholdLabelPos %||% "droite",
+                        "gauche" = max(1, n_niv * 0.15),
+                        "centre" = (n_niv + 1) / 2,
+                        n_niv * 0.9)
+        p <- p + annotate("text",
+                          x = x_lab,
+                          y = (input$thresholdValue %||% 80) + 5,
+                          label = paste("Seuil:", input$thresholdValue %||% 80, "%"),
+                          color = input$thresholdColor %||% "#e74c3c",
+                          fontface = input$thresholdLabelStyle %||% "bold",
+                          size = input$thresholdValueLabelSize %||% 4)
+      }
+
+      # ---- Valeur portee sur chaque barre ----
+      if (isTRUE(input$thresholdShowValues)) {
+        dec     <- max(0, .hstat_num1(input$thresholdValueDigits, 1))
+        empile  <- is_multiple_y &&
+                   identical(input$thresholdBarPosition %||% "dodge", "stack")
+        # Barres empilees : une etiquette posee a la valeur de la serie
+        # mentirait, puisque les segments s'additionnent. On la place AU MILIEU
+        # de son segment, seul endroit ou elle designe ce qu'elle annonce.
+        pos <- if (empile) list(y = plot_data$Efficacy, vjust = rep(0.5, NROW(plot_data)))
+               else hstat_valeur_pos(plot_data$Efficacy,
+                                     input$thresholdValuePosition %||% "dessus")
+        etiq <- plot_data
+        etiq$.y_lab <- pos$y
+        etiq$.vj    <- pos$vjust
+        etiq$.txt   <- ifelse(is.finite(plot_data$Efficacy),
+                              formatC(plot_data$Efficacy, format = "f", digits = dec), "")
+        map_lab <- if (is_multiple_y)
+          aes(x = Treatment, y = .data$.y_lab, label = .data$.txt,
+              vjust = .data$.vj, group = Variable)
+        else
+          aes(x = Treatment, y = .data$.y_lab, label = .data$.txt, vjust = .data$.vj)
+        pos_lab <- if (empile) position_stack(vjust = 0.5)
+                   else if (is_multiple_y)
+                     position_dodge(width = (input$thresholdBarWidth %||% 0.8) +
+                                            (input$thresholdBarSpacing %||% 0.1))
+                   else "identity"
+        p <- p + geom_text(data = etiq, mapping = map_lab, inherit.aes = FALSE,
+                           size = .hstat_num1(input$thresholdValueSize, 4),
+                           colour = input$thresholdValueColor %||% "#2c3e50",
+                           fontface = input$thresholdValueStyle %||% "plain",
+                           position = pos_lab, na.rm = TRUE)
+      }
       
       plot_title <- if(!is.null(input$thresholdPlotTitle) && input$thresholdPlotTitle != "") {
         input$thresholdPlotTitle
@@ -1423,12 +1598,47 @@ mod_threshold_server <- function(id, values) {
                                           input$thresholdBarColor %in% c("ggplot", "custom", "palette"))) &&
         (!is.character(legend_position) || legend_position != "none")
       
-      p <- p + labs(title = plot_title, x = x_label, y = y_label) +
-        scale_y_continuous(limits = c(input$thresholdYMin %||% 0, input$thresholdYMax %||% 100)) +
-        theme_minimal() +
+      # Graduations de l'axe Y : un pas demande, sinon le choix de ggplot.
+      pas_y <- suppressWarnings(as.numeric(input$thresholdYBreakStep %||% NA)[1])
+      y_min <- input$thresholdYMin %||% 0
+      y_max <- input$thresholdYMax %||% 100
+      ech_y <- if (isTRUE(is.finite(pas_y)) && pas_y > 0 && is.finite(y_max - y_min))
+        scale_y_continuous(limits = c(y_min, y_max),
+                           breaks = seq(y_min, y_max, by = pas_y))
+      else scale_y_continuous(limits = c(y_min, y_max))
+
+      # Une barre hors des limites de l'axe DISPARAIT, avec son etiquette. Le
+      # cas est courant ici : le minimum vaut 0 par defaut, or une efficacite
+      # negative -- la modalite fait moins bien que le temoin -- est un
+      # resultat, pas une anomalie. Elle sortait du graphique sans un mot.
+      hors <- sum(is.finite(plot_data$Efficacy) &
+                  (plot_data$Efficacy < y_min | plot_data$Efficacy > y_max))
+      if (hors > 0)
+        showNotification(
+          trf("%d valeur(s) hors des limites de l'axe Y (%s à %s) : elles n'apparaissent pas. Élargissez les limites dans « Apparence & options ».",
+              hors, y_min, y_max),
+          type = "warning", duration = 8, id = session$ns("seuilHorsAxe"))
+
+      sous_titre <- input$thresholdSubtitle %||% ""
+      hj <- function(x, defaut = 0.5) {
+        v <- suppressWarnings(as.numeric(x %||% defaut)[1])
+        if (isTRUE(is.finite(v))) v else defaut
+      }
+
+      p <- p + labs(title = plot_title, x = x_label, y = y_label,
+                    subtitle = if (nzchar(sous_titre)) sous_titre else NULL) +
+        ech_y +
+        viz_get_theme(input$thresholdTheme %||% "minimal") +
         theme(
           plot.title = element_markdown(size = input$thresholdTitleSize %||% 16, 
-                                        hjust = 0.5, face = "bold"),
+                                        hjust = hj(input$thresholdTitlePosition),
+                                        face = input$thresholdTitleStyle %||% "bold"),
+          plot.subtitle = if (nzchar(sous_titre))
+            element_markdown(size = max(6, (input$thresholdTitleSize %||% 16) - 4),
+                             hjust = hj(input$thresholdSubtitlePosition),
+                             face = input$thresholdSubtitleStyle %||% "italic",
+                             colour = "gray30")
+          else element_blank(),
           axis.title.x = element_markdown(size = input$thresholdAxisTitleSize %||% 14, 
                                           face = x_label_face,
                                           color = axis_color),
@@ -1436,13 +1646,15 @@ mod_threshold_server <- function(id, values) {
                                           face = y_label_face,
                                           color = axis_color),
           axis.text.y = element_text(size = input$thresholdAxisTextSize %||% 12,
-                                     color = axis_color),
+                                     color = axis_color,
+                                     face = input$thresholdAxisTextYStyle %||% "plain"),
           axis.text.x = {
             ang <- input$thresholdLabelAngle %||% 45
             element_text(angle = ang,
                          hjust = if (ang == 0) 0.5 else 1,
                          vjust = if (ang == 0) 1 else 1,
                          color = axis_color,
+                         face = input$thresholdAxisTextXStyle %||% "plain",
                          size = input$thresholdAxisTextSize %||% 12)
           },
           axis.line = if(input$thresholdShowAxisLines) {
@@ -1463,7 +1675,8 @@ mod_threshold_server <- function(id, values) {
             element_blank()
           },
           legend.title = element_markdown(size = input$thresholdLegendSize %||% 10, face = legend_title_face),
-          legend.text = element_text(size = input$thresholdLegendSize %||% 10),
+          legend.text = element_text(size = input$thresholdLegendTextSize %||%
+                                            input$thresholdLegendSize %||% 10),
           panel.grid.major = if(input$thresholdShowGrid) {
             element_line(color = "grey90")
           } else {
@@ -1577,6 +1790,22 @@ mod_threshold_server <- function(id, values) {
              margin = mar,
              autosize = TRUE) %>%
       config(responsive = TRUE)
+
+    # LE SOUS-TITRE NE SURVIT PAS A ggplotly : la conversion le laisse
+    # simplement tomber. L'utilisateur en saisissait un, ne voyait rien a
+    # l'ecran, et le retrouvait dans le fichier telecharge -- soit le pire des
+    # deux mondes. On le remet donc en seconde ligne du titre plotly. Le texte
+    # vient de l'utilisateur : il est echappe avant d'entrer dans la balise.
+    sous <- trimws(input$thresholdSubtitle %||% "")
+    if (nzchar(sous)) {
+      titre <- p$labels$title %||% ""
+      hj <- suppressWarnings(as.numeric(input$thresholdTitlePosition %||% 0.5)[1])
+      if (!isTRUE(is.finite(hj))) hj <- 0.5
+      gp <- gp %>% layout(title = list(
+        text = paste0("<b>", hstat_html_escape(titre), "</b><br><sup>",
+                      hstat_html_escape(sous), "</sup>"),
+        x = hj, xanchor = if (hj < 0.25) "left" else if (hj > 0.75) "right" else "center"))
+    }
 
     # Gras et italique de l'axe X, en HTML : plotmath ne survit pas a la
     # conversion. Les positions d'un axe discret valent 1..n.

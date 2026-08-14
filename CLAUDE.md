@@ -195,6 +195,42 @@ Les palettes qualitatives viennent en premier et sont vérifiées comme telles
 (`brewer.pal.info$category == "qual"`) : un dégradé sur des groupes sans ordre
 naturel suggère une progression qui n'existe pas.
 
+### Seuils d'efficacité : la mise en forme, au complet
+
+Le module traçait des barres avec un thème figé, une opacité figée à 0,8 en six
+endroits, aucun sous-titre, aucun style de titre ni de graduations, et **aucune
+valeur portée sur les barres** — sur un graphique en barres, c'est le premier
+manque qu'on remarque.
+
+Vingt-quatre réglages ont été ajoutés : thème (`viz_get_theme()`), sous-titre
+avec son style et sa position, style et position du titre, styles des
+graduations X et Y, valeurs sur les barres (affichage, décimales, taille,
+style, couleur, position), opacité et contour des barres, pas des graduations
+Y, étiquette de la ligne de seuil (affichage, position, style, taille), taille
+du texte de légende **distincte** de celle du titre. Un test vérifie que chacun
+est déclaré, lu, **et observé par le réactif du graphique** — un réglage que le
+réactif n'observe pas se change sans que l'image bouge.
+
+**L'étiquette d'une valeur dépend du signe.** Une efficacité négative — la
+modalité fait moins bien que le témoin, c'est un résultat — descend sous l'axe :
+un `vjust` figé écrirait son étiquette du mauvais côté de la barre.
+`hstat_valeur_pos()` rend l'ordonnée **et** le calage ensemble, parce qu'ils ne
+se choisissent pas séparément ; la position « au pied » ramène l'ordonnée à
+zéro, seul endroit toujours visible.
+
+**Une barre hors des limites de l'axe disparaît, avec son étiquette.** Le cas
+est courant : le minimum vaut 0 par défaut. Le module compte désormais les
+valeurs hors cadre et le dit, plutôt que de les escamoter.
+
+**`colour = NA` n'est pas l'absence d'argument** : il *efface* le contour que
+la géométrie dessinerait. `hstat_barre_style()` monte donc une **liste**
+d'arguments à la demande, et n'y met la couleur que si un contour est demandé.
+
+**Le sous-titre ne survit pas à `ggplotly`** — la conversion le laisse tomber.
+Il est réinjecté en seconde ligne du titre plotly, échappé comme les étiquettes
+d'axe. Même famille de piège que le plotmath : ce que ggplot sait rendre, la
+conversion interactive ne le sait pas toujours.
+
 ### Efficacités : une colonne par variable mesurée
 
 `hstat_efficacite()` empile les variables mesurées — quinze variables sur onze
