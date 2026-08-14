@@ -1,5 +1,19 @@
 #  Module Shiny : Tests statistiques + Comparaisons post-hoc (combine)
 
+# Carte de reglages du panneau « Options du graphique ». Un panneau de quarante
+# controles gris se lit mal : chaque famille porte donc sa couleur, la meme sur
+# le liseré, l'icone et le titre. La teinte de fond reste tres pale -- ce sont
+# des reglages, pas des alertes.
+.hstat_opt_section <- function(titre, icone, couleur, fond, ...) {
+  shiny::div(
+    style = sprintf(paste0("background:%s;border-left:4px solid %s;border-radius:6px;",
+                           "padding:14px 16px;margin-bottom:14px;"), fond, couleur),
+    shiny::h6(shiny::icon(icone), " ", titre,
+              style = sprintf(paste0("font-weight:700;color:%s;margin:0 0 12px 0;",
+                                     "text-transform:uppercase;letter-spacing:.4px;font-size:12px;"),
+                              couleur)),
+    ...)
+}
 
 mod_tests_ui <- function(id) {
   ns <- NS(id)
@@ -956,160 +970,170 @@ mod_posthoc_ui <- function(id) {
                                   
                                     br(),
                                   
-                                    div(style = "border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;",
+                                    div(style = "border:1px solid #dee2e6; border-radius:10px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,.06);",
                                         div(
                                           class = "panel-heading",
-                                          style = "background-color: #343a40; color: white; padding: 12px 18px; cursor: pointer; display: flex; align-items: center;",
+                                          style = paste0("background:linear-gradient(135deg,#3c8dbc 0%,#8e44ad 100%);",
+                                                         "color:white; padding:14px 18px; cursor:pointer;",
+                                                         "display:flex; align-items:center;"),
                                           `data-toggle` = "collapse",
                                           `data-target` = "#graphOptionsPanel",
-                                          icon("sliders-h", style = "margin-right: 8px;"),
+                                          icon("sliders-h", style = "margin-right: 10px;"),
                                           tags$strong("Options du graphique"),
-                                          tags$span(style = "margin-left: auto; font-size: 12px; opacity: 0.75;",
+                                          tags$span(style = "margin-left:12px; font-size:12px; opacity:.85;",
+                                                    "toute la mise en forme, de la palette a l'export"),
+                                          tags$span(style = "margin-left: auto; font-size: 12px; opacity: 0.85;",
                                                     icon("chevron-down"), " Développer / Réduire")
                                         ),
                                         div(id = "graphOptionsPanel", class = "collapse",
-                                            div(style = "padding: 20px; background-color: #fdfdfd;",
-                                              
+                                            div(style = "padding: 18px; background-color: #fbfcfd;",
+
                                                 fluidRow(
-                                                  # COL 1 : Type + Couleurs
-                                                  column(4,
-                                                         div(style = "padding-right: 15px; border-right: 1px solid #e9ecef;",
-                                                             h6(icon("palette"), " Type et couleurs",
-                                                                style = "font-weight: bold; color: #343a40; border-bottom: 1px solid #dee2e6; padding-bottom: 6px; margin-bottom: 12px;"),
-                                                             selectInput(ns("boxColor"), "Palette",
-                                                                         choices = c("Défaut" = "default", "Bleu" = "Blues",
-                                                                                     "Vert" = "Greens", "Rouge" = "Reds",
-                                                                                     "Set1" = "Set1", "Pastel" = "Pastel1",
-                                                                                     "Paired" = "Paired"),
-                                                                         selected = "Set1"),
-                                                             radioButtons(ns("plotType"), "Type de graphique",
-                                                                          choices = c("Boxplot" = "box", "Violon" = "violin",
-                                                                                      "Points + barres" = "point", "Barres" = "hist"),
-                                                                          selected = "box", inline = TRUE),
-                                                             radioButtons(ns("errorType"), "Barres d'erreur",
-                                                                          choices = c("SE" = "se", "SD" = "sd",
-                                                                                      "IC 95%" = "ci", "Aucune" = "none"),
-                                                                          selected = "se", inline = TRUE),
-                                                             checkboxInput(ns("colorByGroups"),
-                                                                           HTML("Colorer par groupes statistiques <small style='color:#6c757d;'>(a, b, c...)</small>"),
-                                                                           value = FALSE)
-                                                         )
+                                                  # ---- COL 1 : type, palette, barres d'erreur ----
+                                                  column(3,
+                                                    .hstat_opt_section(
+                                                      "Type et couleurs", "palette", "#8e44ad", "#f7f0fb",
+                                                      radioButtons(ns("plotType"), "Type de graphique",
+                                                                   choices = c("Boxplot" = "box", "Violon" = "violin",
+                                                                               "Points + barres" = "point", "Barres" = "hist"),
+                                                                   selected = "box"),
+                                                      selectInput(ns("boxColor"), "Palette de couleurs",
+                                                                  choices = list(
+                                                                    "Sans palette" = c("Défaut (gris)" = "default"),
+                                                                    "Teintes vives (groupes distincts)" = HSTAT_PALETTES_QUALI,
+                                                                    "Dégradés (valeurs ordonnées)" = HSTAT_PALETTES_DEGRADE),
+                                                                  selected = "Set2"),
+                                                      selectInput(ns("posthocTheme"), "Thème du graphique",
+                                                                  choices = HSTAT_THEMES_GG, selected = "minimal"),
+                                                      radioButtons(ns("errorType"), "Barres d'erreur",
+                                                                   choices = c("SE" = "se", "SD" = "sd",
+                                                                               "IC 95%" = "ci", "Aucune" = "none"),
+                                                                   selected = "se", inline = TRUE),
+                                                      checkboxInput(ns("colorByGroups"),
+                                                                    HTML("Colorer par groupes statistiques <small style='color:#6c757d;'>(a, b, c...)</small>"),
+                                                                    value = FALSE),
+                                                      tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                                                 "Un dégradé sur des groupes sans ordre naturel suggère une progression qui n'existe pas.")
+                                                    )
                                                   ),
-                                                
-                                                  # COL 2 : Titres + Tailles
-                                                  column(4,
-                                                         div(style = "padding-left: 15px; padding-right: 15px; border-right: 1px solid #e9ecef;",
-                                                             h6(icon("heading"), " Titres et tailles",
-                                                                style = "font-weight: bold; color: #343a40; border-bottom: 1px solid #dee2e6; padding-bottom: 6px; margin-bottom: 12px;"),
-                                                             textInput(ns("customTitle"), "Titre", placeholder = "Auto"),
-                                                             textInput(ns("customSubtitle"), "Sous-titre", placeholder = "Optionnel"),
-                                                             fluidRow(
-                                                               column(6, textInput(ns("customXLabel"), "Label X", placeholder = "Auto")),
-                                                               column(6, textInput(ns("customYLabel"), "Label Y", placeholder = "Auto"))
-                                                             ),
-                                                             textInput(ns("customLegendTitle"), "Titre légende", placeholder = "Auto"),
-                                                             fluidRow(
-                                                               column(6, sliderInput(ns("titleSize"), "Titre", min = 8, max = 32, value = 16, step = 1, ticks = FALSE)),
-                                                               column(6, sliderInput(ns("axisTitleSize"), "Axes titres", min = 8, max = 28, value = 14, step = 1, ticks = FALSE))
-                                                             ),
-                                                             fluidRow(
-                                                               column(6, sliderInput(ns("axisTextSize"), "Texte axes", min = 6, max = 24, value = 12, step = 1, ticks = FALSE)),
-                                                               column(6, sliderInput(ns("graphValueSize"), "Lettres (a,b,c)", min = 2, max = 20, value = 5, step = 0.5, ticks = FALSE))
-                                                             ),
-                                                             sliderInput(ns("meanValueSize"), "Taille moyennes dans barres",
-                                                                         min = 2, max = 12, value = 4, step = 0.5, ticks = FALSE),
-                                                             fluidRow(
-                                                               column(6,
-                                                                      selectInput(ns("titleFontStyle"), "Style titre",
-                                                                                  choices = c("Normal" = "plain", "Gras" = "bold",
-                                                                                              "Italique" = "italic", "Gras+Italique" = "bold.italic"),
-                                                                                  selected = "bold")
-                                                               ),
-                                                               column(6,
-                                                                      selectInput(ns("axisTitleFontStyle"), "Style titres axes",
-                                                                                  choices = c("Normal" = "plain", "Gras" = "bold",
-                                                                                              "Italique" = "italic", "Gras+Italique" = "bold.italic"),
-                                                                                  selected = "plain")
-                                                               )
-                                                             ),
-                                                             fluidRow(
-                                                               column(6,
-                                                                      selectInput(ns("graphValueFontStyle"), "Style lettres (a,b,c)",
-                                                                                  choices = c("Normal" = "plain", "Gras" = "bold",
-                                                                                              "Italique" = "italic", "Gras+Italique" = "bold.italic"),
-                                                                                  selected = "bold")
-                                                               ),
-                                                               column(6,
-                                                                      checkboxInput(ns("rotateXLabels"), "Labels X à 45°", value = TRUE)
-                                                               )
-                                                             )
-                                                         )
+
+                                                  # ---- COL 2 : textes ----
+                                                  column(3,
+                                                    .hstat_opt_section(
+                                                      "Titres et libellés", "heading", "#2980b9", "#eaf3fa",
+                                                      textInput(ns("customTitle"), "Titre", placeholder = "Auto"),
+                                                      textInput(ns("customSubtitle"), "Sous-titre", placeholder = "Optionnel"),
+                                                      fluidRow(
+                                                        column(6, textInput(ns("customXLabel"), "Libellé X", placeholder = "Auto")),
+                                                        column(6, textInput(ns("customYLabel"), "Libellé Y", placeholder = "Auto"))
+                                                      ),
+                                                      textInput(ns("customLegendTitle"), "Titre de la légende", placeholder = "Auto"),
+                                                      selectInput(ns("subtitlePosition"), "Position du sous-titre",
+                                                                  choices = list("Centré" = "0.5", "Gauche" = "0", "Droite" = "1"),
+                                                                  selected = "0.5"),
+                                                      tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                                                 "Le gras et l'italique s'écrivent aussi dans le texte : **gras**, *italique*.")
+                                                    )
                                                   ),
-                                                
-                                                  # COL 3 : Axes + Ordre
-                                                  column(4,
-                                                         div(style = "padding-left: 15px;",
-                                                             h6(icon("ruler-combined"), " Axes et ordre",
-                                                                style = "font-weight: bold; color: #343a40; border-bottom: 1px solid #dee2e6; padding-bottom: 6px; margin-bottom: 12px;"),
-                                                             checkboxInput(ns("customAxisLimits"), "Personnaliser les limites des axes", value = FALSE),
-                                                             conditionalPanel(
-                                                               ns = ns,
-                                                               condition = "input.customAxisLimits == true",
-                                                               fluidRow(
-                                                                 column(6, numericInput(ns("yAxisMin"), "Y min", value = NULL, step = 0.1)),
-                                                                 column(6, numericInput(ns("yAxisMax"), "Y max", value = NULL, step = 0.1))
-                                                               )
-                                                             ),
-                                                             checkboxInput(ns("customAxisBreaks"), "Personnaliser les graduations", value = FALSE),
-                                                             conditionalPanel(
-                                                               ns = ns,
-                                                               condition = "input.customAxisBreaks == true",
-                                                               fluidRow(
-                                                                 column(6, numericInput(ns("yAxisBreakStep"), "Pas Y", value = NULL, step = 0.1, min = 0.01)),
-                                                                 column(6, numericInput(ns("xAxisBreakStep"), "Pas X", value = NULL, step = 0.1, min = 0.01))
-                                                               )
-                                                             ),
-                                                             hr(style = "margin: 10px 0;"),
-                                                             checkboxInput(ns("customXOrder"), "Personnaliser l'ordre axe X", value = FALSE),
-                                                             conditionalPanel(
-                                                               ns = ns,
-                                                               condition = "input.customXOrder == true",
-                                                               uiOutput(ns("xAxisOrderUI"))
-                                                             ),
-                                                             hr(style = "margin: 10px 0;"),
-                                                             fluidRow(
-                                                               column(6, sliderInput(ns("legendTitleSize"), "Titre légende", min = 6, max = 24, value = 12, step = 1, ticks = FALSE)),
-                                                               column(6, sliderInput(ns("legendTextSize"), "Texte légende", min = 6, max = 20, value = 10, step = 1, ticks = FALSE))
-                                                             ),
-                                                             sliderInput(ns("legendSpacing"), "Espacement légende",
-                                                                         min = 0, max = 6, value = 0, step = 0.1, ticks = FALSE),
-                                                             tags$div(style = "display:none;",
-                                                                      numericInput(ns("plotWidth"),  "Largeur", value = 8,   min = 3, max = 20),
-                                                                      numericInput(ns("plotHeight"), "Hauteur", value = 6,   min = 3, max = 20),
-                                                                      numericInput(ns("plotDPI"),    "DPI",     value = 300, min = 72, max = 600),
-                                                                      numericInput(ns("xAxisMin"), "X min", value = NULL, step = 0.1),
-                                                                      numericInput(ns("xAxisMax"), "X max", value = NULL, step = 0.1),
-                                                                      sliderInput(ns("subtitleSize"), "Sous-titre", min = 6, max = 28, value = 12, step = 1),
-                                                                      selectInput(ns("subtitleFontStyle"), "Style sous-titre",
-                                                                                  choices = c("Normal"="plain","Gras"="bold","Italique"="italic","Gras+Italique"="bold.italic"),
-                                                                                  selected = "italic"),
-                                                                      selectInput(ns("axisTextXFontStyle"), "Style axe X",
-                                                                                  choices = c("Normal"="plain","Gras"="bold","Italique"="italic","Gras+Italique"="bold.italic"),
-                                                                                  selected = "plain"),
-                                                                      selectInput(ns("axisTextYFontStyle"), "Style axe Y",
-                                                                                  choices = c("Normal"="plain","Gras"="bold","Italique"="italic","Gras+Italique"="bold.italic"),
-                                                                                  selected = "plain"),
-                                                                      selectInput(ns("legendTitleFontStyle"), "Style titre légende",
-                                                                                  choices = c("Normal"="plain","Gras"="bold","Italique"="italic","Gras+Italique"="bold.italic"),
-                                                                                  selected = "bold"),
-                                                                      selectInput(ns("legendTextFontStyle"), "Style texte légende",
-                                                                                  choices = c("Normal"="plain","Gras"="bold","Italique"="italic","Gras+Italique"="bold.italic"),
-                                                                                  selected = "plain"),
-                                                                      selectInput(ns("subtitlePosition"), "Position sous-titre",
-                                                                                  choices = list("Centré"="0.5","Gauche"="0","Droite"="1"), selected="0.5"),
-                                                                      numericInput(ns("legendKeySize"), "Icône légende", value=0.5, min=0.1, max=3, step=0.1)
-                                                             )
-                                                         )
+
+                                                  # ---- COL 3 : tailles et styles ----
+                                                  column(3,
+                                                    .hstat_opt_section(
+                                                      "Tailles", "text-height", "#d35400", "#fdf2e9",
+                                                      fluidRow(
+                                                        column(6, sliderInput(ns("titleSize"), "Titre", min = 8, max = 32, value = 16, step = 1, ticks = FALSE)),
+                                                        column(6, sliderInput(ns("subtitleSize"), "Sous-titre", min = 6, max = 28, value = 12, step = 1, ticks = FALSE))
+                                                      ),
+                                                      fluidRow(
+                                                        column(6, sliderInput(ns("axisTitleSize"), "Titres des axes", min = 8, max = 28, value = 14, step = 1, ticks = FALSE)),
+                                                        column(6, sliderInput(ns("axisTextSize"), "Graduations", min = 6, max = 24, value = 12, step = 1, ticks = FALSE))
+                                                      ),
+                                                      fluidRow(
+                                                        column(6, sliderInput(ns("graphValueSize"), "Lettres (a, b, c)", min = 2, max = 20, value = 5, step = 0.5, ticks = FALSE)),
+                                                        column(6, sliderInput(ns("meanValueSize"), "Moyennes", min = 2, max = 12, value = 4, step = 0.5, ticks = FALSE))
+                                                      )
+                                                    ),
+                                                    .hstat_opt_section(
+                                                      "Styles d'écriture", "font", "#c0392b", "#fdeeec",
+                                                      # Un select par ligne : appairés, leurs libellés étaient
+                                                      # rognés dans une colonne de panneau.
+                                                      selectInput(ns("titleFontStyle"), "Titre",
+                                                                  choices = HSTAT_FONT_STYLES, selected = "bold"),
+                                                      selectInput(ns("subtitleFontStyle"), "Sous-titre",
+                                                                  choices = HSTAT_FONT_STYLES, selected = "italic"),
+                                                      selectInput(ns("axisTitleFontStyle"), "Titres des axes",
+                                                                  choices = HSTAT_FONT_STYLES, selected = "plain"),
+                                                      selectInput(ns("graphValueFontStyle"), "Lettres (a, b, c)",
+                                                                  choices = HSTAT_FONT_STYLES, selected = "bold"),
+                                                      selectInput(ns("axisTextXFontStyle"), "Graduations X",
+                                                                  choices = HSTAT_FONT_STYLES, selected = "plain"),
+                                                      selectInput(ns("axisTextYFontStyle"), "Graduations Y",
+                                                                  choices = HSTAT_FONT_STYLES, selected = "plain"),
+                                                      checkboxInput(ns("rotateXLabels"), "Libellés X inclinés à 45°", value = TRUE)
+                                                    )
+                                                  ),
+
+                                                  # ---- COL 4 : axes, legende, export ----
+                                                  column(3,
+                                                    .hstat_opt_section(
+                                                      "Axes et ordre", "ruler-combined", "#16a085", "#e8f8f4",
+                                                      checkboxInput(ns("customAxisLimits"), "Personnaliser les limites", value = FALSE),
+                                                      conditionalPanel(
+                                                        ns = ns,
+                                                        condition = "input.customAxisLimits == true",
+                                                        fluidRow(
+                                                          column(6, numericInput(ns("yAxisMin"), "Y min", value = NULL, step = 0.1)),
+                                                          column(6, numericInput(ns("yAxisMax"), "Y max", value = NULL, step = 0.1))
+                                                        ),
+                                                        fluidRow(
+                                                          column(6, numericInput(ns("xAxisMin"), "X min", value = NULL, step = 0.1)),
+                                                          column(6, numericInput(ns("xAxisMax"), "X max", value = NULL, step = 0.1))
+                                                        ),
+                                                        tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                                                   "Les limites X ne s'appliquent qu'à un axe numérique.")
+                                                      ),
+                                                      checkboxInput(ns("customAxisBreaks"), "Personnaliser les graduations", value = FALSE),
+                                                      conditionalPanel(
+                                                        ns = ns,
+                                                        condition = "input.customAxisBreaks == true",
+                                                        fluidRow(
+                                                          column(6, numericInput(ns("yAxisBreakStep"), "Pas Y", value = NULL, step = 0.1, min = 0.01)),
+                                                          column(6, numericInput(ns("xAxisBreakStep"), "Pas X", value = NULL, step = 0.1, min = 0.01))
+                                                        )
+                                                      ),
+                                                      checkboxInput(ns("customXOrder"), "Personnaliser l'ordre de l'axe X", value = FALSE),
+                                                      conditionalPanel(
+                                                        ns = ns,
+                                                        condition = "input.customXOrder == true",
+                                                        uiOutput(ns("xAxisOrderUI"))
+                                                      )
+                                                    ),
+                                                    .hstat_opt_section(
+                                                      "Légende", "list", "#7f8c8d", "#f4f6f7",
+                                                      fluidRow(
+                                                        column(6, sliderInput(ns("legendTitleSize"), "Titre", min = 6, max = 24, value = 12, step = 1, ticks = FALSE)),
+                                                        column(6, sliderInput(ns("legendTextSize"), "Texte", min = 6, max = 20, value = 10, step = 1, ticks = FALSE))
+                                                      ),
+                                                      selectInput(ns("legendTitleFontStyle"), "Style du titre",
+                                                                  choices = HSTAT_FONT_STYLES, selected = "bold"),
+                                                      selectInput(ns("legendTextFontStyle"), "Style du texte",
+                                                                  choices = HSTAT_FONT_STYLES, selected = "plain"),
+                                                      fluidRow(
+                                                        column(6, sliderInput(ns("legendSpacing"), "Espacement", min = 0, max = 6, value = 0, step = 0.1, ticks = FALSE)),
+                                                        column(6, sliderInput(ns("legendKeySize"), "Taille des clés", min = 0.4, max = 3, value = 1.2, step = 0.1, ticks = FALSE))
+                                                      ),
+                                                      tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                                                 "La légende n'apparaît qu'avec « Colorer par groupes statistiques ».")
+                                                    ),
+                                                    .hstat_opt_section(
+                                                      "Taille du fichier exporté", "download", "#2c3e50", "#eef1f4",
+                                                      fluidRow(
+                                                        column(6, numericInput(ns("plotWidth"), "Largeur (pouces)", value = 8, min = 3, max = 20, step = 0.5)),
+                                                        column(6, numericInput(ns("plotHeight"), "Hauteur (pouces)", value = 6, min = 3, max = 20, step = 0.5))
+                                                      ),
+                                                      tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                                                 "Format et résolution se choisissent sous le graphique.")
+                                                    )
                                                   )
                                                 )
                                             )
@@ -8174,6 +8198,7 @@ mod_tests_server <- function(id, values) {
     legend_title_size <- input$legendTitleSize
     legend_text_size <- input$legendTextSize
     legend_spacing <- input$legendSpacing
+    legend_key_size <- .hstat_num1(input$legendKeySize, 1.2)
     
     title_font_style <- input$titleFontStyle
     subtitle_font_style <- input$subtitleFontStyle
@@ -8318,7 +8343,9 @@ mod_tests_server <- function(id, values) {
     posthoc_plot_msg(NULL)
     
     
-    base_theme <- theme_minimal() +
+    # Theme de base choisi par l'utilisateur (viz_get_theme est le meme helper
+    # que le module de visualisation : un theme ajoute la profite aux deux).
+    base_theme <- viz_get_theme(input$posthocTheme %||% "minimal", base_size = 11) +
       theme(
         plot.title = element_markdown(
           size = title_size, 
@@ -8368,8 +8395,10 @@ mod_tests_server <- function(id, values) {
           size = legend_text_size, 
           face = legend_text_font_style
         ),
-        legend.key.height = unit(1.2, "lines"),  
-        legend.key.width = unit(1.5, "lines"),   
+        # `legendKeySize` etait declare dans l'interface mais jamais lu : le
+        # reglage existait a l'ecran et ne faisait rien.
+        legend.key.height = unit(legend_key_size, "lines"),
+        legend.key.width = unit(legend_key_size * 1.25, "lines"),
         legend.spacing.y = unit(legend_spacing, "lines"),  
         legend.key.spacing.y = unit(legend_spacing, "lines"),  
         legend.margin = margin(t = 5, r = 5, b = 5, l = 5),

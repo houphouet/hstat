@@ -5574,3 +5574,113 @@ test_that("les Y d'un multi-courbes partagent un type, et l'axe X en est exclu",
   expect_length(hstat_y_multi_valides(d, "absente", "Semaine")$gardees, 0L)
   expect_length(hstat_y_multi_valides(d, character(0), "Semaine")$gardees, 0L)
 })
+
+test_that("chaque variable mesuree recoit sa colonne d'efficacite", {
+  set.seed(3)
+  d <- data.frame(
+    Modalite = rep(c("Temoin", "A", "B"), each = 6),
+    Bloc     = rep(1:2, 9),
+    v1 = c(runif(6, 8, 10), runif(6, 4, 6),  runif(6, 2, 4)),
+    v2 = c(runif(6, 20, 22), runif(6, 15, 17), runif(6, 10, 12)),
+    stringsAsFactors = FALSE)
+
+  long <- hstat_efficacite(d, "Modalite", c("v1", "v2"), "Temoin")
+  expect_equal(nrow(long), 6L)                 # 3 modalites x 2 variables
+  large <- hstat_eff_large(long)
+
+  # Une ligne par modalite, une colonne d'efficacite par variable mesuree :
+  # sans cela le selecteur « Variable Y » n'avait qu'un seul choix et le
+  # graphique superposait toutes les variables sur les memes positions.
+  expect_equal(nrow(large), 3L)
+  expect_true(all(c("Efficacite_v1", "Efficacite_v2") %in% names(large)))
+  expect_equal(attr(large, "colonnes_efficacite"),
+               c("Efficacite_v1", "Efficacite_v2"))
+
+  # Les valeurs sont celles du tableau detaille, pas un recalcul
+  for (v in c("v1", "v2")) {
+    ref <- long$Efficacite[long$Variable == v][order(long$Modalite[long$Variable == v])]
+    obt <- large[[paste0("Efficacite_", v)]][order(large$Modalite)]
+    expect_equal(obt, ref, info = v)
+  }
+  # Le temoin vaut zero pour chaque variable
+  expect_true(all(unlist(large[large$Modalite == "Temoin",
+                               c("Efficacite_v1", "Efficacite_v2")]) == 0))
+  # Les attributs du calcul survivent : l'interface les affiche
+  expect_equal(attr(large, "temoin"), "Temoin")
+  expect_equal(attr(large, "agg"), "moyenne")
+
+  # Le prefixe distingue le pourcentage de la mesure d'origine : une colonne
+  # nommee « v1 » contiendrait des pourcentages et se confondrait avec elle.
+  expect_false("v1" %in% names(large))
+
+  # Une seule variable : le tableau est deja large, il n'est pas touche
+  seul <- hstat_efficacite(d, "Modalite", "v1", "Temoin")
+  expect_identical(names(hstat_eff_large(seul)), names(seul))
+
+  # Par repetition : la cle de groupe est conservee, une ligne par couple
+  parrep <- hstat_efficacite(d, "Modalite", c("v1", "v2"), "Temoin",
+                             var_repetition = "Bloc", mode = "par_repetition")
+  lp <- hstat_eff_large(parrep)
+  expect_true("Groupe" %in% names(lp))
+  expect_equal(nrow(lp), 6L)                   # 3 modalites x 2 blocs
+  expect_true(all(c("Efficacite_v1", "Efficacite_v2") %in% names(lp)))
+
+  # Entrees degenerees : rien ne casse
+  expect_null(hstat_eff_large(NULL))
+  expect_equal(nrow(hstat_eff_large(long[0, , drop = FALSE])), 0L)
+})
+
+test_that("le panneau d'options post-hoc expose toutes ses mises en forme", {
+  root <- .hstat_repo_root()
+  src  <- readLines(file.path(root, "inst", "app", "mod_tests.R"), warn = FALSE)
+  txt  <- paste(src, collapse = "\n")
+
+  # Treize reglages etaient declares dans un bloc `display:none` : ils
+  # existaient dans le code, agissaient sur le graphique, et l'utilisateur ne
+  # pouvait pas les atteindre. Signale a l'ecran.
+  expect_false(grepl("display *: *none", txt))
+
+  # Tout reglage lu par le serveur doit exister dans l'interface -- sinon il
+  # retombe en silence sur sa valeur par defaut.
+  reglages <- c("plotWidth", "plotHeight", "xAxisMin", "xAxisMax",
+                "subtitleSize", "subtitleFontStyle", "subtitlePosition",
+                "axisTextXFontStyle", "axisTextYFontStyle",
+                "legendTitleFontStyle", "legendTextFontStyle",
+                "legendKeySize", "posthocTheme")
+  for (r in reglages) {
+    expect_true(grepl(sprintf('ns("%s")', r), txt, fixed = TRUE),
+                label = paste("declare dans l'interface :", r))
+    expect_true(grepl(sprintf("input$%s", r), txt, fixed = TRUE),
+                label = paste("lu par le serveur :", r))
+  }
+})
+
+test_that("chaque palette proposee existe vraiment chez RColorBrewer", {
+  # scale_fill_brewer() leve une erreur sur un nom inconnu : une faute de
+  # frappe dans la liste de choix ferait tomber TOUT le graphique, et
+  # seulement pour l'utilisateur qui aurait choisi cette entree.
+  skip_if_not_installed("RColorBrewer")
+  connues <- rownames(RColorBrewer::brewer.pal.info)
+  for (p in c(unname(HSTAT_PALETTES_QUALI), unname(HSTAT_PALETTES_DEGRADE)))
+    expect_true(p %in% connues, label = p)
+  # Les qualitatives sont bien qualitatives : un degrade sur des groupes sans
+  # ordre naturel suggere une progression qui n'existe pas.
+  for (p in unname(HSTAT_PALETTES_QUALI))
+    expect_equal(as.character(RColorBrewer::brewer.pal.info[p, "category"]),
+                 "qual", info = p)
+  expect_false(any(unname(HSTAT_PALETTES_DEGRADE) %in% unname(HSTAT_PALETTES_QUALI)))
+})
+
+test_that("les themes proposes sont tous rendus par viz_get_theme", {
+  # Une entree de plus dans la liste sans le `switch` correspondant
+  # retomberait en silence sur « minimal » : l'utilisateur choisirait un theme
+  # et n'en verrait aucun changement.
+  skip_if_not_installed("ggplot2")
+  ref <- viz_get_theme("minimal")
+  for (v in setdiff(unname(HSTAT_THEMES_GG), "minimal"))
+    expect_false(identical(viz_get_theme(v), ref), label = v)
+  expect_true(all(nzchar(names(HSTAT_THEMES_GG))))
+  # Les styles d'ecriture sont ceux que ggplot accepte pour `face`
+  expect_setequal(unname(HSTAT_FONT_STYLES),
+                  c("plain", "bold", "italic", "bold.italic"))
+})

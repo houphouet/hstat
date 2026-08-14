@@ -1216,3 +1216,34 @@ type incompatible,incompatible type
 "Mise en page %s × %s pouces. Format vectoriel : résolution illimitée, le DPI ne s'applique pas.","Layout %s × %s inches. Vector format: unlimited resolution, DPI does not apply."
 Mise en page %s × %s pouces → fichier de %s × %s pixels à %s DPI,Layout %s × %s inches → file of %s × %s pixels at %s DPI
 Taille estimée : %s Mo,Estimated size: %s MB
+Thème du graphique,Plot theme
+Position du sous-titre,Subtitle position
+"Lettres (a, b, c)","Letters (a, b, c)"
+Graduations X,X ticks
+Graduations Y,Y ticks
+Style du titre,Title style
+Style du texte,Text style
+Libellé X,X label
+Libellé Y,Y label
+Largeur (pouces),Width (inches)
+Hauteur (pouces),Height (inches)
+Libellés X inclinés à 45°,X labels tilted 45°
+Personnaliser l'ordre de l'axe X,Customise the X axis order
+Moyennes,Means
+Taille des clés,Key size
+Type et couleurs,Type and colours
+Titres et libellés,Titles and labels
+Tailles,Sizes
+Styles d'écriture,Font styles
+Axes et ordre,Axes and order
+Taille du fichier exporté,Exported file size
+Présentation du tableau,Table layout
+"toute la mise en forme, de la palette a l'export","all the formatting, from palette to export"
+Un dégradé sur des groupes sans ordre naturel suggère une progression qui n'existe pas.,A gradient over groups with no natural order suggests a progression that does not exist.
+"Le gras et l'italique s'écrivent aussi dans le texte : **gras**, *italique*.","Bold and italic can also be written inline: **bold**, *italic*."
+Les limites X ne s'appliquent qu'à un axe numérique.,X limits only apply to a numeric axis.
+La légende n'apparaît qu'avec « Colorer par groupes statistiques ».,The legend only appears with « Colour by statistical groups ».
+Format et résolution se choisissent sous le graphique.,Format and resolution are chosen below the plot.
+Personnaliser les limites,Customise the limits
+Texte,Text
+Espacement,Spacing

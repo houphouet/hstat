@@ -468,6 +468,16 @@ mod_threshold_ui <- function(id) {
                     collapsible = TRUE, collapsed = TRUE,
 
                     uiOutput(ns("effResume")),
+                    # Deux lectures du meme calcul. « Une colonne par variable »
+                    # est le defaut : c'est elle qui alimente le selecteur
+                    # « Variable Y » et qui se reinjecte dans l'application.
+                    radioButtons(ns("effPresentation"),
+                                 tagList(icon("table-columns"), " Présentation du tableau"),
+                                 choiceNames = list(
+                                   HTML("<b>Une colonne par variable mesurée</b> <small style='color:#7f8c8d;'>(une ligne par modalité)</small>"),
+                                   HTML("<b>Détail</b> <small style='color:#7f8c8d;'>(une ligne par variable : effectif, témoin, valeur résumée)</small>")),
+                                 choiceValues = list("large", "long"),
+                                 selected = "large", inline = TRUE),
                     DTOutput(ns("effTable")),
                     br(),
                     fluidRow(
@@ -698,11 +708,30 @@ mod_threshold_server <- function(id, values) {
       else NULL)
   })
 
-  output$effTable <- renderDT({
+  # Une colonne d'efficacite par variable mesuree. Sans cela, quinze variables
+  # sur onze modalites faisaient 165 lignes portant toutes la meme colonne
+  # « Efficacite » : le selecteur Y n'avait qu'un choix, et le graphique
+  # superposait quinze series sur onze positions.
+  eff_large <- reactive({
     r <- eff_res()
+    if (is.null(r) || !NROW(r)) return(NULL)
+    hstat_eff_large(r)
+  })
+
+  # Tableau effectivement montre et telecharge : celui que l'utilisateur a sous
+  # les yeux. Deux boutons qui n'exportent pas ce qui est affiche seraient un
+  # piege.
+  eff_affiche <- reactive({
+    if (identical(input$effPresentation %||% "large", "long")) eff_res()
+    else eff_large()
+  })
+
+  output$effTable <- renderDT({
+    r <- eff_affiche()
     req(r, NROW(r) > 0)
     x <- as.data.frame(r)
-    x$Efficacite <- round(x$Efficacite, 2)
+    num <- names(x)[vapply(x, is.numeric, logical(1))]
+    for (k in num) x[[k]] <- round(x[[k]], 2)
     datatable(x, rownames = FALSE, extensions = "Buttons",
               options = list(pageLength = 15, scrollX = TRUE, dom = "Bfrtip",
                              buttons = c("copy", "csv", "excel")),
@@ -712,7 +741,7 @@ mod_threshold_server <- function(id, values) {
   output$effDownloadCsv <- downloadHandler(
     filename = function() paste0("efficacites_", Sys.Date(), ".csv"),
     content = function(file) {
-      r <- eff_res(); req(r)
+      r <- eff_affiche(); req(r)
       utils::write.csv(as.data.frame(r), file, row.names = FALSE,
                        fileEncoding = "UTF-8")
     })
@@ -720,10 +749,16 @@ mod_threshold_server <- function(id, values) {
   output$effDownloadXlsx <- downloadHandler(
     filename = function() paste0("efficacites_", Sys.Date(), ".xlsx"),
     content = function(file) {
-      r <- eff_res(); req(r)
-      if (requireNamespace("openxlsx", quietly = TRUE))
-        openxlsx::write.xlsx(as.data.frame(r), file)
-      else
+      r <- eff_affiche(); req(r)
+      if (requireNamespace("openxlsx", quietly = TRUE)) {
+        # Les deux lectures dans le meme classeur : le tableau large pour
+        # travailler, le detail pour verifier d'ou vient chaque pourcentage.
+        feuilles <- list(Efficacites = as.data.frame(r))
+        det <- eff_res()
+        if (!is.null(det) && !identical(NCOL(det), NCOL(r)))
+          feuilles[["Detail"]] <- as.data.frame(det)
+        openxlsx::write.xlsx(feuilles, file)
+      } else
         utils::write.csv(as.data.frame(r), file, row.names = FALSE,
                          fileEncoding = "UTF-8")
     })
@@ -732,7 +767,9 @@ mod_threshold_server <- function(id, values) {
   # operations » : le tableau devient le jeu de travail. On le dit clairement
   # -- remplacer les donnees sans prevenir serait le pire des services.
   observeEvent(input$effUseAsData, {
-    r <- eff_res()
+    # Le tableau LARGE : c'est celui qui porte une variable par colonne, donc
+    # le seul directement analysable par les autres onglets.
+    r <- eff_large()
     if (is.null(r) || !NROW(r)) {
       showNotification("Calculez d'abord les efficacités.", type = "warning")
       return()
@@ -754,7 +791,9 @@ mod_threshold_server <- function(id, values) {
   # l'application.
   source_data <- reactive({
     if (identical(input$thresholdSource %||% "donnees", "calcul")) {
-      r <- eff_res()
+      # Large : le selecteur « Variable Y » doit lister les variables mesurees,
+      # pas une unique colonne « Efficacite » ou quinze series se superposent.
+      r <- eff_large()
       validate(need(!is.null(r) && NROW(r) > 0,
         "Aucune efficacité calculée pour l'instant : passez par l'onglet « Calcul depuis un témoin »."))
       x <- as.data.frame(r)
@@ -771,24 +810,37 @@ mod_threshold_server <- function(id, values) {
 
   output$thresholdSourceNote <- renderUI({
     if (!identical(input$thresholdSource %||% "donnees", "calcul")) return(NULL)
-    r <- eff_res()
+    r <- eff_large()
     if (is.null(r) || !NROW(r))
       return(div(class = "alert alert-warning", style = "padding:8px;",
                  icon("triangle-exclamation"),
                  " Aucune efficacité calculée : rendez-vous dans l'onglet",
                  " « Calcul depuis un témoin »."))
+    vars <- attr(r, "variables")
     div(class = "alert alert-success", style = "padding:8px;",
         icon("circle-check"),
-        trf(" Le graphique trace les efficacités calculées (%d lignes). Le jeu de données chargé n'est pas modifié.",
-            NROW(r)))
+        trf(" Le graphique trace les efficacités calculées (%d modalité(s)). Le jeu de données chargé n'est pas modifié.",
+            NROW(r)),
+        if (length(vars) > 1)
+          tagList(tags$br(),
+                  trf("Une colonne par variable mesurée (%d) : choisissez celle à représenter dans « Variable Y ».",
+                      length(vars)))
+        else NULL)
   })
 
   # Quand la source est le tableau d'efficacites, ses colonnes portent des noms
   # connus : on preselectionne le couple qui a du sens (Modalite / Efficacite)
   # plutot que la premiere colonne venue.
   .eff_defaut <- function(cols, souhait) {
-    if (identical(input$thresholdSource %||% "donnees", "calcul") &&
-        souhait %in% cols) souhait else if (length(cols)) cols[1] else NULL
+    if (identical(input$thresholdSource %||% "donnees", "calcul")) {
+      if (souhait %in% cols) return(souhait)
+      # Plusieurs variables mesurees : les colonnes s'appellent
+      # « Efficacite_<variable> ». On propose la premiere plutot que la
+      # premiere colonne venue, qui serait le nombre de repetitions.
+      eff <- cols[startsWith(cols, HSTAT_EFF_PREFIXE)]
+      if (length(eff)) return(eff[1])
+    }
+    if (length(cols)) cols[1] else NULL
   }
 
   output$thresholdXVarSelect <- renderUI({

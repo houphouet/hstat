@@ -1396,6 +1396,39 @@ viz_detect_x_type <- function(x) {
   "text"
 }
 
+# Styles d'ecriture proposes partout ou un texte de graphique se met en forme.
+# Declares une fois : la meme liste etait recopiee treize fois dans le panneau
+# d'options, et une correction n'en touchait qu'une.
+HSTAT_FONT_STYLES <- c("Normal" = "plain", "Gras" = "bold",
+                       "Italique" = "italic", "Gras + italique" = "bold.italic")
+
+# Themes proposes a l'utilisateur, avec le libelle affiche. Les valeurs sont
+# celles que viz_get_theme() sait rendre -- une entree de plus ici sans le
+# switch correspondant retomberait en silence sur « minimal ».
+# Palettes proposees pour colorer les groupes. Les valeurs sont des noms de
+# palettes RColorBrewer : scale_fill_brewer() leve une erreur sur un nom
+# inconnu, et le graphique tomberait entierement pour une faute de frappe dans
+# une liste de choix. Un test verifie chaque nom contre le catalogue.
+# Les qualitatives d'abord : ce sont elles qui conviennent a des groupes sans
+# ordre naturel, et c'est le cas le plus frequent.
+HSTAT_PALETTES_QUALI <- c("Set1 - vive" = "Set1", "Set2 - douce" = "Set2",
+                          "Dark2 - soutenue" = "Dark2",
+                          "Accent - contrastee" = "Accent",
+                          "Paired - par paires" = "Paired",
+                          "Set3 - large (12)" = "Set3",
+                          "Pastel" = "Pastel1")
+
+HSTAT_PALETTES_DEGRADE <- c("Bleus" = "Blues", "Verts" = "Greens",
+                            "Rouges" = "Reds", "Violets" = "Purples",
+                            "Bleu-vert" = "YlGnBu", "Mauve" = "BuPu",
+                            "Spectral (froid -> chaud)" = "Spectral",
+                            "Rouge-jaune-bleu" = "RdYlBu")
+
+HSTAT_THEMES_GG <- c("Minimal" = "minimal", "Classique" = "classic",
+                     "Noir et blanc" = "bw", "Clair" = "light",
+                     "Gris" = "gray", "Sombre" = "dark",
+                     "Traits fins" = "linedraw", "Sans decor" = "void")
+
 viz_get_theme <- function(theme_name = "minimal", base_size = 12) {
   switch(theme_name,
          "minimal"  = ggplot2::theme_minimal( base_size = base_size),
@@ -3600,6 +3633,61 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
 # Modalites d'une colonne, temoin exclu : « une fois le temoin choisi, les
 # autres modalites passent dans une variable ». Sert a l'affichage et a la
 # verification, et rend character(0) plutot qu'une erreur sur une entree vide.
+# =============================================================================
+#  DU LONG AU LARGE : UNE COLONNE PAR VARIABLE MESUREE
+# -----------------------------------------------------------------------------
+#  hstat_efficacite() empile les variables mesurees : quinze variables sur onze
+#  modalites font 165 lignes, toutes portant la meme colonne « Efficacite ». Le
+#  selecteur « Variable Y » n'avait donc qu'un seul choix, et le graphique
+#  superposait quinze series sur les memes onze positions -- illisible, et
+#  surtout faux : on croyait lire une variable, on en lisait quinze.
+#
+#  Le tableau large donne UNE colonne d'efficacite PAR variable mesuree, nommee
+#  d'apres elle. Le selecteur Y liste alors les variables de l'utilisateur, qui
+#  choisit celle qu'il veut representer.
+#
+#  Le prefixe « Efficacite_ » est deliberé : une colonne nommee comme la
+#  variable d'origine contiendrait des pourcentages et non la mesure, et se
+#  confondrait avec elle des qu'on relit le tableau ou qu'on le reinjecte dans
+#  l'application.
+# =============================================================================
+HSTAT_EFF_PREFIXE <- "Efficacite_"
+
+hstat_eff_large <- function(res) {
+  if (is.null(res) || !is.data.frame(res) || !NROW(res)) return(res)
+  garder <- attributes(res)[setdiff(names(attributes(res)),
+                                    c("names", "class", "row.names", "dim", "dimnames"))]
+  # Sans colonne « Variable », une seule mesure a ete calculee : le tableau est
+  # deja large, la colonne « Efficacite » suffit.
+  if (!("Variable" %in% names(res)) || !("Efficacite" %in% names(res))) return(res)
+
+  cles <- intersect(c("Groupe", "Modalite"), names(res))
+  if (!length(cles)) return(res)
+
+  vars <- unique(as.character(res$Variable))
+  base <- unique(res[, cles, drop = FALSE])
+  rownames(base) <- NULL
+  ident <- function(d) do.call(paste, c(lapply(cles, function(k) as.character(d[[k]])),
+                                        list(sep = "\r")))
+  cle_base <- ident(base)
+
+  for (v in vars) {
+    sous <- res[as.character(res$Variable) == v, , drop = FALSE]
+    base[[paste0(HSTAT_EFF_PREFIXE, v)]] <-
+      sous$Efficacite[match(cle_base, ident(sous))]
+  }
+  # Le nombre de repetitions ne depend pas de la variable mesuree quand il est
+  # constant ; on le garde alors, il documente le plan.
+  if ("Repetitions" %in% names(res)) {
+    rp <- res$Repetitions[match(cle_base, ident(res))]
+    if (!all(is.na(rp))) base$Repetitions <- rp
+  }
+  for (a in names(garder)) attr(base, a) <- garder[[a]]
+  attr(base, "variables") <- vars
+  attr(base, "colonnes_efficacite") <- paste0(HSTAT_EFF_PREFIXE, vars)
+  base
+}
+
 hstat_eff_modalites <- function(df, var_modalite, temoin = NULL) {
   if (!is.data.frame(df) || is.null(var_modalite) || !length(var_modalite) ||
       !(var_modalite[1] %in% names(df))) return(character(0))
