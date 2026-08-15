@@ -5824,6 +5824,67 @@ test_that("les pixels d'export suivent la resolution a taille physique constante
   expect_gte(hstat_px_en_pouces(10, 300), 1)          # jamais moins d'un pouce
 })
 
+test_that("les pixels se recalculent depuis la taille physique, pas depuis les precedents", {
+  # La taille physique est l'etat ; les pixels n'en sont que l'affichage.
+  expect_equal(hstat_px_pour_dpi(10, 300), 3000)
+  expect_equal(hstat_px_pour_dpi(10, 600), 6000)
+  expect_equal(hstat_px_pour_dpi(7.5, 1200), 9000)
+
+  # Aller-retour : la taille physique survit a n'importe quelle resolution.
+  for (dpi in c(72, 96, 150, 300, 600, 1200)) {
+    px <- hstat_px_pour_dpi(10, dpi)
+    expect_equal(round(hstat_px_en_pouces(px, dpi), 6), 10)
+  }
+
+  # Et surtout : DEUX changements d'affilee donnent le meme resultat qu'un
+  # seul. C'est ce que la chaine « pixels precedents x neuf / ancien » ne
+  # garantissait pas -- il lui fallait l'aller-retour du navigateur entre les
+  # deux, faute de quoi elle repartait de pixels perimes.
+  direct <- hstat_px_pour_dpi(10, 1200)
+  perime <- hstat_px_apres_dpi(hstat_px_apres_dpi(3000, 300, 600), 600, 1200)
+  expect_equal(direct, perime)                      # chemin nominal : identiques
+  chaine_decrochee <- hstat_px_apres_dpi(3000, 600, 1200)   # pixels pas encore revenus
+  expect_false(identical(direct, chaine_decrochee)) # la chaine, elle, se trompe
+  expect_equal(hstat_px_pour_dpi(10, 1200), direct) # la taille physique, jamais
+
+  # Bornage et entrees inutilisables
+  expect_lte(hstat_px_pour_dpi(100, 1200), HSTAT_EXPORT_MAX_PX)
+  for (x in list(NULL, NA, 0, -1, "")) expect_null(hstat_px_pour_dpi(x, 300))
+  expect_null(hstat_px_pour_dpi(10, 0))
+  expect_null(hstat_px_pour_dpi(10, NA))
+})
+
+test_that("la liaison DPI part de la taille physique et l'annonce", {
+  srv <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app", "app_server.R"),
+                         warn = FALSE), collapse = "\n")
+  ux  <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app", "UX.R"),
+                         warn = FALSE), collapse = "\n")
+
+  # L'ancre en pouces remplace le chainage : le DPI precedent ne doit plus
+  # servir a recalculer quoi que ce soit.
+  expect_true(grepl(".mv_pouces", srv, fixed = TRUE))
+  expect_false(grepl(".mv_dpi_prec", srv, fixed = TRUE))
+  expect_true(grepl("hstat_px_pour_dpi", srv, fixed = TRUE))
+
+  # Nos propres ecritures ne doivent pas redefinir la taille physique : sans
+  # ce garde-fou, un echo arrive en retard divise d'anciens pixels par la
+  # resolution deja changee, et la figure retrecit a chaque cran.
+  expect_true(grepl(".mv_ecrit", srv, fixed = TRUE))
+
+  # L'export lit la taille physique retenue, pas les champs : le fichier fait
+  # pouces x DPI meme si l'affichage n'a pas suivi.
+  expect_true(grepl("mv_pouces_export", srv, fixed = TRUE))
+
+  # Et la note dit ce que le fichier contiendra, dans les 23 blocs d'export.
+  historiques <- c("pcaPlot", "pcaScree", "pcaParallel", "pcaCTR",
+                   "hcpcCluster", "hcpcDend", "hcpcHeights", "afdInd", "afdVar")
+  for (p in historiques)
+    expect_true(grepl(sprintf('hstat_mv_dim_note_ui("%s")', p), ux, fixed = TRUE),
+                label = paste("note de taille :", p))
+  expect_true(grepl("hstat_mv_dim_note_ui(prefix)", srv, fixed = TRUE))
+  expect_true(grepl('output[[paste0(pfx, "_dimnote")]]', srv, fixed = TRUE))
+})
+
 test_that("les graphiques multivaries partent des reglages de ggplot2", {
   # « S'afficher initialement avec les configurations d'origine de ggplot2 » :
   # les valeurs de depart doivent etre celles de ggplot2, pas des tailles

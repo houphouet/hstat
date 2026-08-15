@@ -707,22 +707,44 @@ server <- function(input, output, session) {
     p
   }
 
-  # Dimensions d'export d'un graphique multivarie, en POUCES, lues dans les
-  # champs de l'utilisateur.
+  # LA TAILLE PHYSIQUE EST L'ETAT, LES PIXELS N'EN SONT QUE L'AFFICHAGE
+  # ---------------------------------------------------------------------------
+  # Un bloc d'export porte trois champs : resolution, largeur et hauteur en
+  # pixels. Ce que l'utilisateur regle en realite, c'est la taille de la figure
+  # sur le papier ; les pixels s'en deduisent (pixels = pouces x DPI).
+  #
+  # Tenir la taille physique ici, plutot que de la relire dans les champs a
+  # chaque fois, a deux consequences voulues :
+  #
+  #   - le recalcul des champs ne depend plus de leur valeur precedente ni de
+  #     l'ancienne resolution (voir mv_lier_dpi et hstat_px_pour_dpi) ;
+  #   - l'export fait pouces x DPI MEME SI l'affichage n'a pas suivi. Monter la
+  #     resolution monte alors la finesse dans tous les cas, ce qui est la
+  #     promesse faite a l'utilisateur.
+  .mv_pouces <- new.env(parent = emptyenv())   # prefixe -> c(largeur, hauteur), en pouces
+  .mv_ecrit  <- new.env(parent = emptyenv())   # prefixe -> c(l, h) que NOUS venons d'ecrire
+
+  # Taille physique retenue pour un bloc d'export. Tant qu'elle n'a pas ete
+  # relevee (panneau jamais affiche), on la deduit des champs declares.
+  mv_pouces_export <- function(prefix, defaut_w_in = 10, defaut_h_in = 7.5) {
+    po <- .mv_pouces[[prefix]]
+    if (!is.null(po) && length(po) == 2L && all(is.finite(po)) && all(po > 0)) return(po)
+    dpi <- .hstat_num1(input[[paste0(prefix, "_dpi")]], 300)
+    c(hstat_px_en_pouces(input[[paste0(prefix, "_width")]],  dpi, defaut_w_in),
+      hstat_px_en_pouces(input[[paste0(prefix, "_height")]], dpi, defaut_h_in))
+  }
+
+  # Dimensions d'export d'un graphique multivarie, en POUCES.
   #
   # Ce qui existait ici derivait la taille du seul DPI, par paliers, et
   # IGNORAIT les champs de largeur/hauteur affiches a cote : les regler ne
   # faisait rien. Pire, le palier « > 300 DPI » REDUISAIT la figure de 10 % --
   # demander plus de finesse rendait l'image plus petite sur le papier.
-  #
-  # Les champs sont desormais lus, et ils se recalculent au changement de
-  # resolution (mv_lier_dpi) : pouces = pixels / DPI est ici exact, puisque ce
-  # sont les pixels qui derivent de la taille physique et non l'inverse.
   mv_dims_export <- function(prefix, defaut_w_in = 10, defaut_h_in = 7.5) {
-    dpi <- .hstat_num1(input[[paste0(prefix, "_dpi")]], 300)
-    list(dpi    = dpi,
-         width  = hstat_px_en_pouces(input[[paste0(prefix, "_width")]],  dpi, defaut_w_in),
-         height = hstat_px_en_pouces(input[[paste0(prefix, "_height")]], dpi, defaut_h_in))
+    po <- mv_pouces_export(prefix, defaut_w_in, defaut_h_in)
+    list(dpi    = .hstat_num1(input[[paste0(prefix, "_dpi")]], 300),
+         width  = po[1],
+         height = po[2])
   }
   
   # NOTE : `createPlotDownloadHandler()` vivait ici. Cette fabrique de
@@ -5703,6 +5725,7 @@ server <- function(input, output, session) {
                     selected = "png"),
         tags$small(style = "color:#6b7280;",
                    "La largeur et la hauteur se recalculent quand la résolution change : la taille physique de la figure reste la même, sa finesse augmente."),
+        hstat_mv_dim_note_ui(prefix),
         div(style = "text-align:center; margin-top:8px;",
             downloadButton(paste0(prefix, "_download"),
                            tagList(icon("download"), " Télécharger le graphique"),
@@ -6084,10 +6107,12 @@ server <- function(input, output, session) {
             return()
           }
           # La largeur et la hauteur demandees etaient IGNOREES : le fichier
-          # sortait toujours carre, 9 pouces de cote. Les champs existent, ils
-          # se recalculent au changement de resolution, ils sont desormais lus.
-          w_in <- hstat_px_en_pouces(input[[paste0("mv_", kk, "_width")]],  dpi, defaut = 10)
-          h_in <- hstat_px_en_pouces(input[[paste0("mv_", kk, "_height")]], dpi, defaut = 7.5)
+          # sortait toujours carre, 9 pouces de cote. La taille physique retenue
+          # est desormais lue -- et non recalculee depuis les champs, pour que
+          # le fichier fasse pouces x DPI meme si l'affichage n'a pas suivi.
+          po   <- mv_pouces_export(paste0("mv_", kk), 10, 7.5)
+          w_in <- po[1]
+          h_in <- po[2]
           mv_active_prefix(paste0("mv_", kk))
           on.exit(mv_active_prefix(NULL), add = TRUE)
           p <- tryCatch(mv_habille(r$plotfn()), error = function(e) NULL)
@@ -6109,30 +6134,78 @@ server <- function(input, output, session) {
   #  taille physique constante -- ils disent alors exactement ce que le fichier
   #  contiendra.
   #
-  #  Le DPI precedent est indispensable : sans lui, impossible de savoir a
-  #  quelle taille physique les pixels affiches correspondent. Il est retenu
-  #  par cle dans un environnement simple ; un reactiveValues serait relu par
-  #  l'observateur qu'il alimente, et boucrerait.
-  .mv_dpi_prec <- new.env(parent = emptyenv())
+  #  Le recalcul part de la TAILLE PHYSIQUE (.mv_pouces), jamais des pixels
+  #  affiches et d'une resolution precedente. La chaine « px x neuf / ancien »
+  #  qui vivait ici avait besoin de deux etats justes en meme temps : l'ancien
+  #  DPI retenu par le serveur, et les pixels tels que le navigateur les avait
+  #  deja renvoyes. Un panneau d'analyse reconstruit -- l'utilisateur revient
+  #  sur la fiche, recharge un fichier -- remet les champs a leur valeur
+  #  d'origine sans que l'ancien DPI change, et le maillon suivant repart d'une
+  #  valeur perimee. La taille physique ne depend ni de l'un ni de l'autre.
 
   mv_lier_dpi <- function(prefix) {
     local({
-      pfx <- prefix
-      # `ignoreInit = FALSE` : le PREMIER passage sert a retenir la resolution
-      # de depart. Sans lui, le premier changement n'avait pas de « avant » a
-      # comparer et ne recalculait rien -- l'utilisateur devait changer le DPI
-      # deux fois pour que les tailles suivent. Constate au navigateur.
-      observeEvent(input[[paste0(pfx, "_dpi")]], {
-        neuf <- .hstat_num1(input[[paste0(pfx, "_dpi")]], 300)
-        ancien <- .mv_dpi_prec[[pfx]]
-        .mv_dpi_prec[[pfx]] <- neuf
-        if (is.null(ancien) || identical(ancien, neuf)) return()
-        for (dim in c("width", "height")) {
-          id <- paste0(pfx, "_", dim)
-          px <- hstat_px_apres_dpi(input[[id]], ancien, neuf)
-          if (!is.null(px)) updateNumericInput(session, id, value = px)
-        }
+      pfx   <- prefix
+      idw   <- paste0(pfx, "_width")
+      idh   <- paste0(pfx, "_height")
+      iddpi <- paste0(pfx, "_dpi")
+
+      # 1. L'utilisateur redimensionne : c'est lui qui fixe la taille physique.
+      #    `ignoreInit = FALSE` la releve des le premier passage, sur les
+      #    valeurs declarees dans l'interface -- rien n'est code en dur ici, et
+      #    un bloc dont les champs changeraient de defaut suit tout seul.
+      #
+      #    Nos propres ecritures reviennent par ce meme chemin : les ignorer est
+      #    indispensable. Un echo arrive en retard redefinirait sinon la taille
+      #    physique en divisant d'anciens pixels par la resolution DEJA changee,
+      #    et la figure retrecirait a chaque cran.
+      observeEvent(list(input[[idw]], input[[idh]]), {
+        w   <- .hstat_num1(input[[idw]], NA)
+        h   <- .hstat_num1(input[[idh]], NA)
+        dpi <- .hstat_num1(input[[iddpi]], NA)
+        if (!isTRUE(is.finite(w)) || w <= 0) return()
+        if (!isTRUE(is.finite(h)) || h <= 0) return()
+        if (!isTRUE(is.finite(dpi)) || dpi <= 0) return()
+        att <- .mv_ecrit[[pfx]]
+        if (!is.null(att) && isTRUE(all(att == c(w, h)))) return()
+        .mv_pouces[[pfx]] <- c(w / dpi, h / dpi)
       }, ignoreInit = FALSE)
+
+      # 2. La resolution change : les champs disent les pixels produits.
+      observeEvent(input[[iddpi]], {
+        dpi <- .hstat_num1(input[[iddpi]], NA)
+        # Champ vide en cours de saisie : ne rien recalculer. Retomber sur une
+        # valeur par defaut redimensionnerait la figure a chaque effacement,
+        # sous les doigts de l'utilisateur.
+        if (!isTRUE(is.finite(dpi)) || dpi <= 0) return()
+        po <- .mv_pouces[[pfx]]
+        if (is.null(po)) return()
+        pw <- hstat_px_pour_dpi(po[1], dpi)
+        ph <- hstat_px_pour_dpi(po[2], dpi)
+        if (is.null(pw) || is.null(ph)) return()
+        .mv_ecrit[[pfx]] <- c(pw, ph)
+        updateNumericInput(session, idw, value = pw)
+        updateNumericInput(session, idh, value = ph)
+      }, ignoreInit = TRUE)
+
+      # 3. Ce que le fichier contiendra, ecrit sous les champs. Le lien entre la
+      #    resolution et la taille produite ne se voyait nulle part : il ne
+      #    restait qu'a le croire.
+      output[[paste0(pfx, "_dimnote")]] <- renderUI({
+        dpi <- .hstat_num1(input[[iddpi]], NA)
+        w   <- .hstat_num1(input[[idw]], NA)
+        h   <- .hstat_num1(input[[idh]], NA)
+        if (!isTRUE(is.finite(dpi)) || !isTRUE(is.finite(w)) || !isTRUE(is.finite(h)))
+          return(NULL)
+        cm <- function(px) format(round(px / dpi * 2.54, 1), decimal.mark = ",",
+                                  trim = TRUE, nsmall = 1)
+        div(style = paste0("margin-top:6px;padding:6px 10px;background:#eef1f4;",
+                           "border-left:3px solid #2c3e50;border-radius:4px;",
+                           "font-size:12px;color:#2c3e50;"),
+            icon("ruler-combined"), " ",
+            trf("Fichier produit : %s × %s px, soit %s × %s cm à %s DPI.",
+                round(w), round(h), cm(w), cm(h), round(dpi)))
+      })
     })
   }
 

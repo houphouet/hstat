@@ -369,6 +369,41 @@ manquait : monter le DPI ne change pas la mise en page et augmente les pixels.
 Même conversion pour l'export des analyses multivariées (`app_server.R`), qui
 portait le même calcul.
 
+### La taille physique est l'état, les pixels n'en sont que l'affichage
+
+Côté multivarié, les champs de largeur et de hauteur se recalculent quand la
+résolution change. Ils le faisaient **en chaînant les pixels** :
+`nouveaux = précédents × neuf / ancien`. C'est juste, et c'est fragile — il faut
+deux états exacts en même temps : l'ancien DPI retenu par le serveur, et les
+pixels **tels que le navigateur les a déjà renvoyés**. Un panneau d'analyse
+reconstruit remet les champs à leur valeur d'origine sans que l'ancien DPI
+bouge ; deux changements plus rapprochés que l'aller-retour font repartir le
+calcul de pixels périmés. Dans les deux cas la taille cesse de suivre la
+résolution — le défaut signalé, deux fois.
+
+La taille physique, elle, ne dépend d'aucun des deux. `.mv_pouces` la retient
+par bloc d'export ; `hstat_px_pour_dpi()` en déduit les pixels à chaque
+changement. Trois conséquences, chacune testée :
+
+1. **L'ancre est relevée sur l'interface, jamais codée en dur** : le premier
+   passage lit les champs déclarés, si bien qu'un bloc dont les valeurs par
+   défaut changeraient suit tout seul.
+2. **Nos propres écritures ne la redéfinissent pas** (`.mv_ecrit`). Sans ce
+   garde-fou, un écho arrivé en retard divise d'anciens pixels par la résolution
+   *déjà* changée, et la figure rétrécit à chaque cran.
+3. **L'export lit l'ancre, pas les champs** (`mv_pouces_export()`) : le fichier
+   fait pouces × DPI même si l'affichage n'a pas suivi. Monter la résolution
+   monte donc la finesse dans tous les cas, ce qui est la promesse faite.
+
+Un champ de DPI **vidé en cours de saisie** ne recalcule rien. Retomber sur une
+valeur par défaut redimensionnerait la figure sous les doigts de l'utilisateur.
+
+Enfin le lien ne se voyait nulle part : il ne restait qu'à le croire. Une note
+(`hstat_mv_dim_note_ui()`) écrit sous les trois champs ce que le fichier
+contiendra — « 6000 × 4500 px, soit 25,4 × 19,0 cm à 600 DPI ». Les centimètres
+sont l'invariant : ils ne bougent pas d'une résolution à l'autre, et c'est
+précisément ce qu'il faut comprendre.
+
 ### Plotmath ne survit pas à `ggplotly`
 
 Les étiquettes d'axe en gras passent par `bquote(bold(...))` : `ggsave` les

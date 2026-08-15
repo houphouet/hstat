@@ -1034,6 +1034,7 @@ ui <- dashboardPage(
                                                   column(3, numericInput("pcaPlot_width", "Largeur (px):", value = 1200, min = 400, max = 4000, step = 100)),
                                                   column(3, numericInput("pcaPlot_height", "Hauteur (px):", value = 900, min = 300, max = 4000, step = 100))
                                                 ),
+                                                hstat_mv_dim_note_ui("pcaPlot"),
                                                 div(style = "text-align:center;margin-top:8px;",
                                                     downloadButton("downloadPcaPlot", "Télécharger graphique", class = "btn-info", style = "margin:5px;"),
                                                     downloadButton("downloadPcaDataXlsx", "Données (Excel)", class = "btn-success", style = "margin:5px;"),
@@ -1064,6 +1065,7 @@ ui <- dashboardPage(
                                               column(4, numericInput("pcaScree_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
                                               column(4, numericInput("pcaScree_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
                                             ),
+                                            hstat_mv_dim_note_ui("pcaScree"),
                                             div(style = "text-align: center; margin-bottom: 10px;",
                                                 downloadButton("downloadPcaScreePlot", "Télécharger Scree Plot", class = "btn-info btn-sm")
                                             ),
@@ -1080,6 +1082,7 @@ ui <- dashboardPage(
                                               column(4, numericInput("pcaParallel_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
                                               column(4, numericInput("pcaParallel_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
                                             ),
+                                            hstat_mv_dim_note_ui("pcaParallel"),
                                             div(style = "text-align: center; margin-bottom: 10px;",
                                                 downloadButton("downloadPcaParallelPlot", "Télécharger Analyse Parallèle", class = "btn-info btn-sm")
                                             ),
@@ -1097,6 +1100,7 @@ ui <- dashboardPage(
                                               column(4, numericInput("pcaCTR_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
                                               column(4, numericInput("pcaCTR_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
                                             ),
+                                            hstat_mv_dim_note_ui("pcaCTR"),
                                             div(style = "text-align: center; margin-bottom: 10px;",
                                                 downloadButton("downloadPcaCTRPlot", "Télécharger Graphique CTR", class = "btn-info btn-sm")
                                             ),
@@ -1282,7 +1286,8 @@ ui <- dashboardPage(
                                                        column(6,
                                                               numericInput("hcpcCluster_height", "Hauteur (px):", value = 900, min = 300, max = 4000, step = 100)
                                                        )
-                                                     )
+                                                     ),
+                                                     hstat_mv_dim_note_ui("hcpcCluster")
                                               ),
                                               column(6,
                                                      textInput("hcpcDendTitle", "Titre dendrogramme:", 
@@ -1313,7 +1318,8 @@ ui <- dashboardPage(
                                                        column(6,
                                                               numericInput("hcpcDend_height", "Hauteur (px):", value = 900, min = 300, max = 4000, step = 100)
                                                        )
-                                                     )
+                                                     ),
+                                                     hstat_mv_dim_note_ui("hcpcDend")
                                               )
                                             ),
                                             hr(),
@@ -1370,6 +1376,7 @@ ui <- dashboardPage(
                                               column(4, numericInput("hcpcHeights_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
                                               column(4, numericInput("hcpcHeights_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
                                                     ),
+                                                    hstat_mv_dim_note_ui("hcpcHeights"),
                                                     div(style = "text-align: center; margin-top: 4px;",
                                                         downloadButton("downloadHcpcHeightsPlot",
                                                                        "Télécharger hauteurs de fusion",
@@ -1626,7 +1633,8 @@ ui <- dashboardPage(
                                                        column(6,
                                                               numericInput("afdInd_height", "Hauteur (px):", value = 900, min = 300, max = 4000, step = 100)
                                                        )
-                                                     )
+                                                     ),
+                                                     hstat_mv_dim_note_ui("afdInd")
                                               ),
                                               column(6,
                                                      textInput("afdVarTitle", "Titre contribution variables:", 
@@ -1653,7 +1661,8 @@ ui <- dashboardPage(
                                                        column(6,
                                                               numericInput("afdVar_height", "Hauteur (px):", value = 900, min = 300, max = 4000, step = 100)
                                                        )
-                                                     )
+                                                     ),
+                                                     hstat_mv_dim_note_ui("afdVar")
                                               )
                                             ),
                                             hr(),
