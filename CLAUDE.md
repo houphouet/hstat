@@ -195,6 +195,48 @@ Les palettes qualitatives viennent en premier et sont vérifiées comme telles
 (`brewer.pal.info$category == "qual"`) : un dégradé sur des groupes sans ordre
 naturel suggère une progression qui n'existe pas.
 
+### Un téléchargement d'image ne renvoie jamais de HTML
+
+Un `content =` de `downloadHandler` qui **lève**, ou qui se termine **sans
+avoir écrit** le fichier, fait renvoyer à Shiny sa page d'erreur HTML. Le
+navigateur l'enregistre sous le nom demandé : on croit tenir un PNG, on ouvre
+du HTML. Signalé à l'écran.
+
+Quatre causes réelles, toutes trouvées dans le dépôt :
+
+1. **Une fonction hors de portée.** `mod_descriptive.R` appelait
+   `calculate_dimensions_from_dpi()`, définie dans le corps de `server` — donc
+   **jamais visible depuis un module**. Le téléchargement du graphique
+   descriptif n'a jamais pu produire autre chose qu'une page d'erreur.
+2. **Un `return()` avant d'écrire** (export multivarié générique, sans analyse
+   lancée).
+3. **Un `validate(need(...))` dans le `content`** (nuage de mots, carte
+   conceptuelle) : il interrompt le contenu comme une erreur.
+4. **Un handler qui n'écrit rien du tout** (« rapport complet » des post-hoc).
+
+`hstat_ecrire_image()` (`Utils.R`) est le seul chemin d'écriture : elle ouvre
+le périphérique du format demandé, trace, et **garantit qu'un fichier valide
+existe au retour** — à défaut de graphique, une image portant le motif. Une
+image qui explique vaut mieux qu'un fichier qu'aucun logiciel n'ouvre.
+
+`hstat_img_fmt()` normalise le format (`jpg` → `jpeg`, `html` → `png`) et sert
+aussi à composer le **nom** du fichier : c'est son extension que Shiny traduit
+en type MIME. Ne pas fixer `contentType` à la main — il serait évalué à la
+construction du handler, hors contexte réactif.
+
+### Une ellipse de confiance suppose une covariance inversible
+
+`stat_conf_ellipse()` (ggpubr, appelé par `fviz_*` avec
+`ellipse.type = "confidence"`) s'arrête sur « valeur manquante là où
+TRUE/FALSE est requis » — un facteur d'échelle `NA` — dans trois cas, et tous
+se rencontrent : **moins de trois individus** dans le groupe, une **coordonnée
+constante**, ou des points **parfaitement alignés**. Le message ne nomme ni le
+groupe ni la cause.
+
+`hstat_ellipse_ok()` vérifie **avant** de demander les ellipses et **nomme** les
+groupes fautifs. Là où c'est possible (couche `stat_ellipse` maison), seuls les
+groupes exploitables sont tracés au lieu de perdre la couche entière.
+
 ### Analyses multivariées : ggplot2 d'abord, puis les réglages
 
 Les graphiques d'individus, de variables et les biplots imposaient leur propre

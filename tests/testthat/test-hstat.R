@@ -5897,3 +5897,95 @@ test_that("chaque export multivarie a sa liaison DPI et ses reglages de forme", 
   expect_false(grepl("size_in <- 9", srv, fixed = TRUE))
   expect_true(grepl("hstat_px_en_pouces", srv, fixed = TRUE))
 })
+
+test_that("un telechargement d'image ecrit toujours un fichier valide", {
+  skip_if_not_installed("ggplot2")
+  # Un `content =` qui leve, ou qui se termine sans avoir ecrit, fait renvoyer
+  # a Shiny sa page d'erreur HTML : le navigateur l'enregistre sous le nom
+  # demande, et l'on croit tenir un PNG. Signale a l'ecran.
+  entete <- function(f, n = 8) readBin(f, "raw", n)
+  est_png <- function(f) identical(as.integer(entete(f)[1:4]), c(137L, 80L, 78L, 71L))
+  est_pdf <- function(f) identical(rawToChar(entete(f, 4)), "%PDF")
+
+  p <- ggplot2::ggplot(data.frame(x = 1:5, y = 1:5), ggplot2::aes(x, y)) +
+    ggplot2::geom_point()
+
+  f1 <- tempfile(fileext = ".png")
+  expect_true(hstat_ecrire_image(f1, p, "png", 6, 4, 100))
+  expect_true(est_png(f1))
+
+  # Graphique absent : un fichier VALIDE portant le motif, jamais du HTML
+  f2 <- tempfile(fileext = ".png")
+  expect_false(hstat_ecrire_image(f2, NULL, "png", 6, 4, 100))
+  expect_true(est_png(f2))
+  expect_gt(file.size(f2), 1000)
+
+  # Le trace qui leve en cours de route laisse malgre tout un fichier lisible
+  f3 <- tempfile(fileext = ".pdf")
+  expect_false(hstat_ecrire_image(f3, function() stop("boum"), "pdf", 6, 4, 100))
+  expect_true(est_pdf(f3))
+
+  # Le format demande est respecte, alias compris
+  f4 <- tempfile(fileext = ".jpg")
+  expect_true(hstat_ecrire_image(f4, p, "jpg", 5, 4, 100))
+  expect_equal(as.integer(entete(f4, 2)), c(255L, 216L))     # marqueur JPEG
+
+  # Normalisation : c'est l'extension qui decide du type MIME servi par Shiny
+  expect_equal(hstat_img_fmt("JPG"), "jpeg")
+  expect_equal(hstat_img_fmt("TIF"), "tiff")
+  expect_equal(hstat_img_fmt("html"), "png")   # jamais du HTML
+  expect_equal(hstat_img_fmt(NULL), "png")
+  expect_equal(hstat_img_mime("svg"), "image/svg+xml")
+  expect_equal(hstat_img_mime("inconnu"), "image/png")
+})
+
+test_that("les ellipses ne sont demandees que sur des groupes qui peuvent en porter", {
+  set.seed(4)
+  # Trois causes d'echec de stat_conf_ellipse(), toutes rencontrees :
+  x <- c(stats::rnorm(12), stats::rnorm(12, 4))
+  y <- c(stats::rnorm(12), stats::rnorm(12, 4))
+  g <- rep(c("A", "B"), each = 12)
+  expect_true(hstat_ellipse_ok(g, x, y)$ok)
+  expect_null(hstat_ellipse_ok(g, x, y)$motif)
+
+  # 1. groupe trop petit
+  g2 <- c(rep("A", 22), rep("B", 2))
+  r2 <- hstat_ellipse_ok(g2, x, y)
+  expect_false(r2$ok)
+  expect_equal(r2$faibles, "B")
+  expect_true(grepl("B", r2$motif, fixed = TRUE))     # le groupe est NOMME
+
+  # 2. coordonnee constante
+  r3 <- hstat_ellipse_ok(g, c(stats::rnorm(12), rep(1, 12)),
+                            c(stats::rnorm(12), rep(2, 12)))
+  expect_false(r3$ok)
+  expect_equal(r3$faibles, "B")
+
+  # 3. points parfaitement alignes : covariance singuliere
+  r4 <- hstat_ellipse_ok(g, c(stats::rnorm(12), 1:12),
+                            c(stats::rnorm(12), 2 * (1:12)))
+  expect_false(r4$ok)
+  expect_equal(r4$faibles, "B")
+
+  # Les groupes sains restent utilisables : on n'ecarte que ce qui echouerait
+  expect_equal(r2$groupes, "A")
+
+  # Entrees degenerees : pas d'erreur, pas d'ellipse
+  expect_false(hstat_ellipse_ok(NULL, NULL, NULL)$ok)
+  expect_false(hstat_ellipse_ok("A", 1, 1)$ok)
+  expect_false(hstat_ellipse_ok(g, rep(NA_real_, 24), y)$ok)
+})
+
+test_that("aucun telechargement d'image ne peut se terminer sans ecrire", {
+  root <- .hstat_repo_root()
+  # `calculate_dimensions_from_dpi()` etait appelee dans mod_descriptive.R
+  # alors qu'elle vivait dans le corps de `server` : jamais visible depuis un
+  # module. L'appel levait, et le « PNG » telecharge etait la page d'erreur
+  # HTML de Shiny.
+  src <- unlist(lapply(list.files(file.path(root, "inst", "app"), pattern = "\\.R$",
+                                  full.names = TRUE), readLines, warn = FALSE))
+  code <- src[!grepl("^\\s*#", src)]
+  expect_false(any(grepl("calculate_dimensions_from_dpi", code, fixed = TRUE)))
+  # Le chemin d'ecriture garanti est bien celui employe
+  expect_true(sum(grepl("hstat_ecrire_image", code, fixed = TRUE)) >= 15)
+})

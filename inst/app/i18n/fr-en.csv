@@ -1295,3 +1295,10 @@ Largeur (px),Width (px)
 Hauteur (px),Height (px)
 "Laisser vide conserve les libellés calculés par l'analyse (axes, % de variance).","Leaving it empty keeps the labels computed by the analysis (axes, % of variance)."
 "La largeur et la hauteur se recalculent quand la résolution change : la taille physique de la figure reste la même, sa finesse augmente.",Width and height are recomputed when the resolution changes: the figure keeps its physical size and gains detail.
+Ellipses non tracées : %s. Un groupe doit compter au moins %d individus non alignés et de coordonnées variables.,"Ellipses not drawn: %s. A group needs at least %d individuals, not collinear and with varying coordinates."
+Graphique indisponible : le fichier téléchargé porte le motif.,Plot unavailable: the downloaded file carries the reason.
+Graphique indisponible.,Plot unavailable.
+"Graphique exporté : %s, %s × %s pouces, %s DPI.","Plot exported: %s, %s × %s inches, %s DPI."
+"Aucun graphique : lancez d'abord l'analyse, puis retelechargez.","No plot: run the analysis first, then download again."
+Plan indisponible : le fichier téléchargé porte le motif.,Design unavailable: the downloaded file carries the reason.
+Échec de l'export : le fichier téléchargé porte le motif.,Export failed: the downloaded file carries the reason.

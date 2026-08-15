@@ -1726,7 +1726,20 @@ server <- function(input, output, session) {
     if (isTRUE(input$pcaShowEllipses) && !is.null(input$pcaEllipseGroup) &&
         input$pcaPlotType %in% c("ind", "biplot")) {
       grp <- tryCatch(as.factor(values$filteredData[[input$pcaEllipseGroup]]), error = function(e) NULL)
-      if (!is.null(grp) && length(grp) == nrow(res.pca$ind$coord) && nlevels(grp) >= 2) {
+      # Une ellipse de confiance suppose une covariance inversible DANS chaque
+      # groupe. Sans ce controle, ggpubr s'arretait sur « Computation failed in
+      # stat_conf_ellipse() ... valeur manquante la ou TRUE/FALSE est requis »,
+      # message qui ne nomme ni le groupe ni la cause.
+      ell <- if (is.null(grp)) list(ok = FALSE, motif = NULL) else
+        tryCatch({
+          cm <- hstat_coord_mat(res.pca$ind$coord)
+          hstat_ellipse_ok(grp, cm[, min(axis_x, ncol(cm))], cm[, min(axis_y, ncol(cm))])
+        }, error = function(e) list(ok = FALSE, motif = NULL))
+      if (!isTRUE(ell$ok) && !is.null(ell$motif))
+        showNotification(ell$motif, type = "warning", duration = 8,
+                         id = "pcaEllipseImpossible")
+      if (isTRUE(ell$ok) && !is.null(grp) &&
+          length(grp) == nrow(res.pca$ind$coord) && nlevels(grp) >= 2) {
         if (input$pcaPlotType == "biplot") {
           p_ell <- tryCatch(
             fviz_pca_biplot(res.pca, axes = c(axis_x, axis_y),
@@ -2001,13 +2014,13 @@ server <- function(input, output, session) {
   }, res = 120)
   
   output$downloadPcaScreePlot <- downloadHandler(
-    filename = function() paste0("acp_screeplot_", Sys.Date(), ".", input$pcaScree_format),
+    filename = function() paste0("acp_screeplot_", Sys.Date(), ".", hstat_img_fmt(input$pcaScree_format)),
     content = function(file) {
       d <- mv_dims_export("pcaScree", 9.8, 7.1); dpi <- d$dpi
       auto_dims <- d
       p <- mv_legacy(createScreePlot(pcaResultReactive()), "pcaScree")
-      suppressWarnings(ggsave(file, plot = p, device = input$pcaScree_format,
-                              width = auto_dims$width, height = auto_dims$height, dpi = dpi, units = "in"))
+      hstat_ecrire_image(file, p, input$pcaScree_format,
+                         auto_dims$width, auto_dims$height, dpi)
     }
   )
   
@@ -2101,7 +2114,7 @@ server <- function(input, output, session) {
   }, res = 120)
   
   output$downloadPcaParallelPlot <- downloadHandler(
-    filename = function() paste0("acp_analyse_parallele_", Sys.Date(), ".", input$pcaParallel_format),
+    filename = function() paste0("acp_analyse_parallele_", Sys.Date(), ".", hstat_img_fmt(input$pcaParallel_format)),
     content = function(file) {
       pca_data_raw <- values$filteredData[, input$pcaVars, drop = FALSE]
       pca_data_raw <- pca_data_raw[, sapply(pca_data_raw, is.numeric), drop = FALSE]
@@ -2109,8 +2122,8 @@ server <- function(input, output, session) {
       d <- mv_dims_export("pcaParallel", 9.8, 7.1); dpi <- d$dpi
       auto <- d
       p    <- mv_legacy(createParallelPlot(pca_data_raw, pcaResultReactive()), "pcaParallel")
-      suppressWarnings(ggsave(file, plot = p, device = input$pcaParallel_format,
-                              width = auto$width, height = auto$height, dpi = dpi, units = "in"))
+      hstat_ecrire_image(file, p, input$pcaParallel_format,
+                         auto$width, auto$height, dpi)
     }
   )
   
@@ -2276,13 +2289,13 @@ server <- function(input, output, session) {
   }, res = 120)
   
   output$downloadPcaCTRPlot <- downloadHandler(
-    filename = function() paste0("acp_CTR_PC", input$pcaCTRAxis, "_", Sys.Date(), ".", input$pcaCTR_format),
+    filename = function() paste0("acp_CTR_PC", input$pcaCTRAxis, "_", Sys.Date(), ".", hstat_img_fmt(input$pcaCTR_format)),
     content = function(file) {
       d <- mv_dims_export("pcaCTR", 9.8, 7.1); dpi <- d$dpi
       auto <- d
       p    <- mv_legacy(createCTRPlot(pcaResultReactive(), as.numeric(input$pcaCTRAxis)), "pcaCTR")
-      suppressWarnings(ggsave(file, plot = p, device = input$pcaCTR_format,
-                              width = auto$width, height = auto$height, dpi = dpi, units = "in"))
+      hstat_ecrire_image(file, p, input$pcaCTR_format,
+                         auto$width, auto$height, dpi)
     }
   )
   
@@ -2629,7 +2642,7 @@ server <- function(input, output, session) {
   }
   
   output$downloadPcaPlot <- downloadHandler(
-    filename = function() paste0("acp_", Sys.Date(), ".", input$pcaPlot_format),
+    filename = function() paste0("acp_", Sys.Date(), ".", hstat_img_fmt(input$pcaPlot_format)),
     content = function(file) {
       d <- mv_dims_export("pcaPlot", 9.8, 7.9); dpi <- d$dpi
       auto_dims <- d
@@ -2639,14 +2652,8 @@ server <- function(input, output, session) {
           if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
         }
       )
-      withCallingHandlers(
-        suppressWarnings(ggsave(file, plot = p, device = input$pcaPlot_format,
-                                width = auto_dims$width, height = auto_dims$height,
-                                dpi = dpi, units = "in")),
-        warning = function(w) {
-          if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
-        }
-      )
+      hstat_ecrire_image(file, p, input$pcaPlot_format,
+                         auto_dims$width, auto_dims$height, dpi)
     }
   )
   
@@ -3386,13 +3393,13 @@ server <- function(input, output, session) {
   }, res = 120)
   
   output$downloadHcpcHeightsPlot <- downloadHandler(
-    filename = function() paste0("hcpc_hauteurs_fusion_", Sys.Date(), ".", input$hcpcHeights_format),
+    filename = function() paste0("hcpc_hauteurs_fusion_", Sys.Date(), ".", hstat_img_fmt(input$hcpcHeights_format)),
     content = function(file) {
       d <- mv_dims_export("hcpcHeights", 9.8, 7.1); dpi <- d$dpi
       auto <- d
       p    <- mv_legacy(createHcpcHeightsPlot(hcpcResultReactive()), "hcpcHeights")
-      suppressWarnings(ggsave(file, plot = p, device = input$hcpcHeights_format,
-                              width = auto$width, height = auto$height, dpi = dpi, units = "in"))
+      hstat_ecrire_image(file, p, input$hcpcHeights_format,
+                         auto$width, auto$height, dpi)
     }
   )
   
@@ -3607,7 +3614,7 @@ server <- function(input, output, session) {
   })
   
   output$downloadHcpcDendPlot <- downloadHandler(
-    filename = function() paste0("hcpc_dendrogramme_", Sys.Date(), ".", input$hcpcDend_format),
+    filename = function() paste0("hcpc_dendrogramme_", Sys.Date(), ".", hstat_img_fmt(input$hcpcDend_format)),
     content = function(file) {
       d <- mv_dims_export("hcpcDend", 11.8, 7.9); dpi <- d$dpi
       auto_dims <- d
@@ -3617,19 +3624,13 @@ server <- function(input, output, session) {
           if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
         }
       )
-      withCallingHandlers(
-        suppressWarnings(ggsave(file, plot = p, device = input$hcpcDend_format,
-                                width = auto_dims$width, height = auto_dims$height,
-                                dpi = dpi, units = "in")),
-        warning = function(w) {
-          if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
-        }
-      )
+      hstat_ecrire_image(file, p, input$hcpcDend_format,
+                         auto_dims$width, auto_dims$height, dpi)
     }
   )
   
   output$downloadHcpcClusterPlot <- downloadHandler(
-    filename = function() paste0("hcpc_clusters_", Sys.Date(), ".", input$hcpcCluster_format),
+    filename = function() paste0("hcpc_clusters_", Sys.Date(), ".", hstat_img_fmt(input$hcpcCluster_format)),
     content = function(file) {
       d <- mv_dims_export("hcpcCluster", 9.8, 7.9); dpi <- d$dpi
       auto_dims <- d
@@ -3639,14 +3640,8 @@ server <- function(input, output, session) {
           if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
         }
       )
-      withCallingHandlers(
-        suppressWarnings(ggsave(file, plot = p, device = input$hcpcCluster_format,
-                                width = auto_dims$width, height = auto_dims$height,
-                                dpi = dpi, units = "in")),
-        warning = function(w) {
-          if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
-        }
-      )
+      hstat_ecrire_image(file, p, input$hcpcCluster_format,
+                         auto_dims$width, auto_dims$height, dpi)
     }
   )
   
@@ -5142,7 +5137,7 @@ server <- function(input, output, session) {
   })
   
   output$downloadAfdIndPlot <- downloadHandler(
-    filename = function() paste0("afd_individus_", Sys.Date(), ".", input$afdInd_format),
+    filename = function() paste0("afd_individus_", Sys.Date(), ".", hstat_img_fmt(input$afdInd_format)),
     content = function(file) {
       d <- mv_dims_export("afdInd", 9.8, 7.9); dpi <- d$dpi
       auto_dims <- d
@@ -5152,19 +5147,13 @@ server <- function(input, output, session) {
           if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
         }
       )
-      withCallingHandlers(
-        suppressWarnings(ggsave(file, plot = p, device = input$afdInd_format,
-                                width = auto_dims$width, height = auto_dims$height,
-                                dpi = dpi, units = "in")),
-        warning = function(w) {
-          if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
-        }
-      )
+      hstat_ecrire_image(file, p, input$afdInd_format,
+                         auto_dims$width, auto_dims$height, dpi)
     }
   )
   
   output$downloadAfdVarPlot <- downloadHandler(
-    filename = function() paste0("afd_variables_", Sys.Date(), ".", input$afdVar_format),
+    filename = function() paste0("afd_variables_", Sys.Date(), ".", hstat_img_fmt(input$afdVar_format)),
     content = function(file) {
       d <- mv_dims_export("afdVar", 9.8, 7.9); dpi <- d$dpi
       auto_dims <- d
@@ -5174,14 +5163,8 @@ server <- function(input, output, session) {
           if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
         }
       )
-      withCallingHandlers(
-        suppressWarnings(ggsave(file, plot = p, device = input$afdVar_format,
-                                width = auto_dims$width, height = auto_dims$height,
-                                dpi = dpi, units = "in")),
-        warning = function(w) {
-          if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
-        }
-      )
+      hstat_ecrire_image(file, p, input$afdVar_format,
+                         auto_dims$width, auto_dims$height, dpi)
     }
   )
   
@@ -5427,7 +5410,21 @@ server <- function(input, output, session) {
     cv_ind <- if (!is.null(grp)) grp else cv
     # Ellipses automatiques par groupe uniquement sur le trace des individus
     # (le biplot melange individus et variables : addEllipses y est moins fiable).
-    use_ellipse <- !is.null(grp) && identical(plottype, "ind")
+    # Meme controle que pour l'ACP : sans lui, un groupe de moins de trois
+    # individus -- ou aux coordonnees constantes, ou parfaitement alignees --
+    # faisait echouer stat_conf_ellipse() et le graphique perdait sa couche
+    # d'ellipses sans que rien n'en dise la raison.
+    # hstat_coord_mat : FactoMineR rend un VECTEUR nu des qu'il n'y a qu'un axe,
+    # et `coord[, i]` echoue alors sur « incorrect number of dimensions ».
+    ell <- if (is.null(grp)) list(ok = FALSE, motif = NULL) else
+      tryCatch({
+        cm <- hstat_coord_mat(model$ind$coord)
+        hstat_ellipse_ok(grp, cm[, min(axes[1], ncol(cm))], cm[, min(axes[2], ncol(cm))])
+      }, error = function(e) list(ok = FALSE, motif = NULL))
+    if (!isTRUE(ell$ok) && !is.null(ell$motif))
+      showNotification(ell$motif, type = "warning", duration = 8,
+                       id = "mvEllipseImpossible")
+    use_ellipse <- isTRUE(ell$ok) && identical(plottype, "ind")
     p <- tryCatch({
       if (kind == "mca") {
         switch(plottype,
@@ -5549,6 +5546,20 @@ server <- function(input, output, session) {
         length(unique(stats::na.omit(group_values))) >= 2) {
       coord$.grp <- factor(group_values)
       coord <- coord[!is.na(coord$.grp), , drop = FALSE]
+      # Les groupes qui ne peuvent pas porter d'ellipse sont ecartes du CALQUE
+      # plutot que de faire echouer le calcul pour tous les autres.
+      ell <- hstat_ellipse_ok(coord$.grp, coord$Dim1, coord$Dim2)
+      if (!length(ell$groupes)) {
+        if (!is.null(ell$motif))
+          showNotification(ell$motif, type = "warning", duration = 8,
+                           id = paste0(prefix, "_ellipse_ko"))
+        return(p)
+      }
+      if (length(ell$faibles))
+        showNotification(ell$motif, type = "warning", duration = 8,
+                         id = paste0(prefix, "_ellipse_partiel"))
+      coord <- coord[as.character(coord$.grp) %in% ell$groupes, , drop = FALSE]
+      coord$.grp <- droplevels(coord$.grp)
       p <- p + ggplot2::stat_ellipse(data = coord,
                  ggplot2::aes(x = Dim1, y = Dim2, group = .grp, color = .grp),
                  inherit.aes = FALSE, type = "norm", level = lvl,
@@ -6055,36 +6066,36 @@ server <- function(input, output, session) {
       kk <- key
       output[[paste0("mv_", kk, "_download")]] <- downloadHandler(
         filename = function() {
-          fmt <- input[[paste0("mv_", kk, "_fmt")]] %||% "png"
+          fmt <- hstat_img_fmt(input[[paste0("mv_", kk, "_fmt")]])
           paste0("HStat_", kk, "_graphique_", Sys.Date(), ".", fmt)
         },
         content = function(file) {
+          fmt <- hstat_img_fmt(input[[paste0("mv_", kk, "_fmt")]])
+          dpi <- .hstat_num1(input[[paste0("mv_", kk, "_dpi")]], 300)
           r <- mv_res[[kk]]
+          # Un `return()` sans avoir ecrit le fichier faisait renvoyer a Shiny
+          # sa page d'erreur HTML, que le navigateur enregistrait sous le nom
+          # demande : on croyait tenir un PNG, on ouvrait du HTML.
           if (is.null(r) || isFALSE(r$ok) || is.null(r$plotfn)) {
             showNotification("Lancez d'abord l'analyse avant de télécharger le graphique.",
-                             type = "warning"); return()
+                             type = "warning")
+            hstat_image_secours(file, fmt,
+              "Aucun graphique : lancez d'abord l'analyse, puis retelechargez.")
+            return()
           }
-          fmt <- input[[paste0("mv_", kk, "_fmt")]] %||% "png"
-          dpi <- .hstat_num1(input[[paste0("mv_", kk, "_dpi")]], 300)
           # La largeur et la hauteur demandees etaient IGNOREES : le fichier
           # sortait toujours carre, 9 pouces de cote. Les champs existent, ils
           # se recalculent au changement de resolution, ils sont desormais lus.
           w_in <- hstat_px_en_pouces(input[[paste0("mv_", kk, "_width")]],  dpi, defaut = 10)
           h_in <- hstat_px_en_pouces(input[[paste0("mv_", kk, "_height")]], dpi, defaut = 7.5)
-          w_px <- round(w_in * dpi); h_px <- round(h_in * dpi)
           mv_active_prefix(paste0("mv_", kk))
           on.exit(mv_active_prefix(NULL), add = TRUE)
           p <- tryCatch(mv_habille(r$plotfn()), error = function(e) NULL)
-          if (is.null(p)) { showNotification("Graphique indisponible.", type = "error"); return() }
-          if (fmt == "pdf") grDevices::pdf(file, width = w_in, height = h_in)
-          else if (fmt == "svg") {
-            if (requireNamespace("svglite", quietly = TRUE)) svglite::svglite(file, width = w_in, height = h_in)
-            else grDevices::svg(file, width = w_in, height = h_in)
-          } else if (fmt == "jpeg") grDevices::jpeg(file, width = w_px, height = h_px, res = dpi, quality = 95, type = "cairo")
-          else if (fmt == "tiff") grDevices::tiff(file, width = w_px, height = h_px, res = dpi, type = "cairo", compression = "lzw")
-          else if (fmt == "bmp") grDevices::bmp(file, width = w_px, height = h_px, res = dpi, type = "cairo")
-          else grDevices::png(file, width = w_px, height = h_px, res = dpi, type = "cairo")
-          tryCatch(print(p), finally = grDevices::dev.off())
+          # hstat_ecrire_image garantit un fichier VALIDE du format demande,
+          # meme quand le graphique est indisponible.
+          if (!hstat_ecrire_image(file, p, fmt, w_in, h_in, dpi))
+            showNotification("Graphique indisponible : le fichier téléchargé porte le motif.",
+                             type = "error", duration = 6)
         })
     })
   }

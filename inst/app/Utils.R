@@ -1476,6 +1476,143 @@ HSTAT_PALETTES_DEGRADE <- c("Bleus" = "Blues", "Verts" = "Greens",
 
 # Alignements horizontaux d'un titre. Les valeurs sont les `hjust` de ggplot,
 # transmises en CHAINE par selectInput : le lecteur doit les convertir.
+# =============================================================================
+#  ELLIPSES DE CONCENTRATION : TOUS LES GROUPES NE PEUVENT PAS EN PORTER
+# -----------------------------------------------------------------------------
+#  Une ellipse de confiance suppose une covariance INVERSIBLE dans le groupe.
+#  Trois cas la rendent impossible, et tous se rencontrent :
+#
+#    - moins de trois individus dans le groupe ;
+#    - une coordonnee constante (variance nulle sur un axe) ;
+#    - des points parfaitement alignes (correlation de +/-1), la covariance est
+#      alors singuliere.
+#
+#  ggpubr calcule alors un facteur d'echelle NA et s'arrete sur
+#  « Computation failed in stat_conf_ellipse() ... valeur manquante la ou
+#  TRUE/FALSE est requis ». Le message ne nomme ni le groupe ni la cause.
+#  Signale a l'ecran.
+#
+#  On verifie donc AVANT de demander les ellipses, et l'on NOMME les groupes qui
+#  ne peuvent pas en porter.
+# =============================================================================
+hstat_ellipse_ok <- function(groupes, x, y, min_n = 3L) {
+  vide <- list(ok = FALSE, groupes = character(0), faibles = character(0),
+               motif = "Aucun groupe exploitable.")
+  if (is.null(groupes) || is.null(x) || is.null(y)) return(vide)
+  g <- as.character(groupes)
+  x <- suppressWarnings(as.numeric(x)); y <- suppressWarnings(as.numeric(y))
+  n <- min(length(g), length(x), length(y))
+  if (n < min_n) return(vide)
+  g <- g[seq_len(n)]; x <- x[seq_len(n)]; y <- y[seq_len(n)]
+  garde <- !is.na(g) & is.finite(x) & is.finite(y)
+  g <- g[garde]; x <- x[garde]; y <- y[garde]
+  if (!length(g)) return(vide)
+
+  bons <- character(0); faibles <- character(0)
+  for (lv in unique(g)) {
+    i <- g == lv
+    xi <- x[i]; yi <- y[i]
+    assez <- length(xi) >= min_n &&
+             stats::sd(xi) > 1e-9 && stats::sd(yi) > 1e-9 &&
+             abs(suppressWarnings(stats::cor(xi, yi))) < 1 - 1e-9
+    if (isTRUE(assez)) bons <- c(bons, lv) else faibles <- c(faibles, lv)
+  }
+  list(ok = length(bons) > 0 && !length(faibles),
+       groupes = bons, faibles = faibles,
+       motif = if (!length(faibles)) NULL
+               else trf("Ellipses non tracées : %s. Un groupe doit compter au moins %d individus non alignés et de coordonnées variables.",
+                        paste(faibles, collapse = ", "), min_n))
+}
+
+# =============================================================================
+#  TELECHARGEMENT D'IMAGE : NE JAMAIS RENVOYER UNE PAGE HTML
+# -----------------------------------------------------------------------------
+#  Un `content =` de downloadHandler qui leve une erreur -- ou qui se termine
+#  sans avoir ECRIT le fichier -- fait renvoyer a Shiny sa page d'erreur HTML.
+#  Le navigateur l'enregistre sous le nom demande : on croit tenir un PNG, on
+#  ouvre du HTML. Signale a l'ecran.
+#
+#  D'ou la regle : tout chemin de sortie ecrit un fichier VALIDE du format
+#  demande. Quand le graphique est indisponible, l'image porte le motif -- une
+#  image qui explique vaut mieux qu'un fichier qu'aucun logiciel n'ouvre.
+# =============================================================================
+HSTAT_IMG_MIME <- c(
+  png = "image/png", jpeg = "image/jpeg", jpg = "image/jpeg",
+  tiff = "image/tiff", tif = "image/tiff", bmp = "image/bmp",
+  svg = "image/svg+xml", pdf = "application/pdf",
+  eps = "application/postscript")
+
+# Format normalise (minuscules, alias resolus, repli sur PNG).
+hstat_img_fmt <- function(x, defaut = "png") {
+  f <- tolower(trimws(as.character(x)[1] %||% ""))
+  f <- switch(f, "jpg" = "jpeg", "tif" = "tiff", "htm" = defaut, "html" = defaut, f)
+  if (!nzchar(f) || !(f %in% names(HSTAT_IMG_MIME))) defaut else f
+}
+
+# Type MIME a annoncer au navigateur. Sans lui, un contenu inattendu est servi
+# en text/html et enregistre comme tel.
+hstat_img_mime <- function(fmt) unname(HSTAT_IMG_MIME[hstat_img_fmt(fmt)])
+
+# Ouvre le peripherique graphique du format demande.
+.hstat_img_device <- function(file, fmt, width, height, dpi) {
+  px_w <- max(1, round(width * dpi)); px_h <- max(1, round(height * dpi))
+  switch(fmt,
+    pdf  = grDevices::pdf(file, width = width, height = height),
+    eps  = grDevices::postscript(file, width = width, height = height,
+                                 paper = "special", horizontal = FALSE),
+    svg  = if (requireNamespace("svglite", quietly = TRUE))
+             svglite::svglite(file, width = width, height = height)
+           else grDevices::svg(file, width = width, height = height),
+    jpeg = grDevices::jpeg(file, width = px_w, height = px_h, res = dpi,
+                           quality = 95, type = "cairo"),
+    tiff = grDevices::tiff(file, width = px_w, height = px_h, res = dpi,
+                           type = "cairo", compression = "lzw"),
+    bmp  = grDevices::bmp(file, width = px_w, height = px_h, res = dpi,
+                          type = "cairo"),
+    grDevices::png(file, width = px_w, height = px_h, res = dpi, type = "cairo"))
+  invisible(TRUE)
+}
+
+# Image de secours : un fichier valide du bon format, portant le motif.
+hstat_image_secours <- function(file, fmt = "png", message = NULL,
+                                width = 10, height = 7.5, dpi = 150) {
+  fmt <- hstat_img_fmt(fmt)
+  msg <- message %||% "Graphique indisponible."
+  tryCatch({
+    .hstat_img_device(file, fmt, width, height, max(72, dpi))
+    on.exit(grDevices::dev.off(), add = TRUE)
+    graphics::par(mar = c(0, 0, 0, 0))
+    graphics::plot.new()
+    graphics::text(0.5, 0.5, paste(strwrap(msg, 60), collapse = "\n"),
+                   cex = 1.1, col = "#c0392b")
+    TRUE
+  }, error = function(e) FALSE)
+}
+
+# Ecrit `plot` dans `file`, au format demande, ET GARANTIT qu'un fichier valide
+# existe au retour. `plot` accepte un ggplot, un objet imprimable, ou une
+# FONCTION (graphiques base R, qui se tracent au lieu de se renvoyer).
+hstat_ecrire_image <- function(file, plot, fmt = "png", width = 10, height = 7.5,
+                               dpi = 300, echec = NULL) {
+  fmt <- hstat_img_fmt(fmt)
+  ok <- tryCatch({
+    if (is.null(plot)) stop("Aucun graphique a exporter.")
+    .hstat_img_device(file, fmt, width, height, dpi)
+    on.exit(grDevices::dev.off(), add = TRUE)
+    if (is.function(plot)) plot() else print(plot)
+    TRUE
+  }, error = function(e) {
+    hstat_image_secours(file, fmt,
+      echec %||% hstat_err_fr(e, "Export du graphique"), width, height, dpi)
+    FALSE
+  })
+  # Un fichier absent ou vide serait servi en HTML : dernier filet.
+  if (!file.exists(file) || file.size(file) == 0)
+    hstat_image_secours(file, fmt, echec %||% "Graphique indisponible.",
+                        width, height, dpi)
+  isTRUE(ok)
+}
+
 # Habillage d'une barre : opacite, et contour seulement s'il est demande.
 # `colour = NA` n'est pas equivalent a l'absence d'argument -- il efface le
 # contour que certaines geometries dessinent d'elles-memes -- d'ou une LISTE

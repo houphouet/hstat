@@ -1841,103 +1841,41 @@ mod_threshold_server <- function(id, values) {
   
   output$downloadThresholdPlot <- downloadHandler(
     filename = function() {
-      format <- input$thresholdExportFormat %||% "png"
-      paste0("seuils_efficacite_", Sys.Date(), ".", format)
+      paste0("seuils_efficacite_", Sys.Date(), ".",
+             hstat_img_fmt(input$thresholdExportFormat))
     },
     content = function(file) {
-      req(threshold_values$current_plot)
-      
       # Les pixels saisis fixent la MISE EN PAGE (lue a 96 ppp, la reference de
-      # l'ecran), le DPI la finesse du rendu. Diviser les pixels par le DPI,
-      # comme ici auparavant, donnait une toile de quatre pouces ou les onze
-      # etiquettes de traitement s'ecrasaient -- et monter le DPI la
-      # retrecissait encore. Voir hstat_export_dims() dans Utils.R.
+      # l'ecran), le DPI la finesse du rendu. Voir hstat_export_dims().
       dims <- hstat_export_dims(input$thresholdExportWidth,
                                 input$thresholdExportHeight,
                                 input$thresholdExportDPI)
-      width_in  <- dims$width_in
-      height_in <- dims$height_in
-      dpi       <- dims$dpi
       if (!is.null(dims$note))
         showNotification(dims$note, type = "warning", duration = 8)
-      
-      format <- input$thresholdExportFormat %||% "png"
-      
-      tryCatch({
-        if(format == "svg") {
-          ggsave(file, 
-                 plot = threshold_values$current_plot,
-                 width = width_in,
-                 height = height_in,
-                 device = "svg")
-        } else if(format == "pdf") {
-          ggsave(file, 
-                 plot = threshold_values$current_plot,
-                 width = width_in,
-                 height = height_in,
-                 device = "pdf")
-        } else if(format == "eps") {
-          ggsave(file, 
-                 plot = threshold_values$current_plot,
-                 width = width_in,
-                 height = height_in,
-                 device = "eps")
-        } else if(format == "tiff") {
-          ggsave(file, 
-                 plot = threshold_values$current_plot,
-                 width = width_in,
-                 height = height_in,
-                 dpi = dpi,
-                 device = "tiff",
-                 compression = "lzw")
-        } else if(format == "bmp") {
-          ggsave(file, 
-                 plot = threshold_values$current_plot,
-                 width = width_in,
-                 height = height_in,
-                 dpi = dpi,
-                 device = "bmp")
-        } else if(format == "jpeg") {
-          ggsave(file, 
-                 plot = threshold_values$current_plot,
-                 width = width_in,
-                 height = height_in,
-                 dpi = dpi,
-                 device = "jpeg",
-                 quality = 95)
-        } else {
-          ggsave(file, 
-                 plot = threshold_values$current_plot,
-                 width = width_in,
-                 height = height_in,
-                 dpi = dpi,
-                 device = "png",
-                 type = "cairo")
-        }
-        
+
+      # Un seul chemin d'ecriture, et il garantit un fichier VALIDE du format
+      # demande. Les sept branches de ggsave qui vivaient ici pouvaient lever
+      # sans rien ecrire : Shiny renvoyait alors sa page d'erreur HTML, que le
+      # navigateur enregistrait sous le nom demande -- on croyait tenir un PNG,
+      # on ouvrait du HTML.
+      fmt <- hstat_img_fmt(input$thresholdExportFormat)
+      ok  <- hstat_ecrire_image(file, threshold_values$current_plot, fmt,
+                                dims$width_in, dims$height_in, dims$dpi)
+      if (ok)
         showNotification(
-          paste0("Graphique exporté avec succès\n",
-                 "Format: ", toupper(format), "\n",
-                 "Dimensions: ", round(width_in, 2), "x", round(height_in, 2), " pouces\n",
-                 "Résolution: ", dpi, " DPI"), 
-          type = "message", 
-          duration = 5
-        )
-        
-      }, error = function(e) {
+          trf("Graphique exporté : %s, %s × %s pouces, %s DPI.",
+              toupper(fmt), round(dims$width_in, 2), round(dims$height_in, 2),
+              dims$dpi),
+          type = "message", duration = 5)
+      else
         showNotification(
-          paste0(hstat_err_fr(e, "Export"), " ",
-                 "\n\nConseils:",
-                 "\n- Réduisez les dimensions ou le DPI",
-                 "\n- Utilisez un format vectoriel (SVG, PDF) pour haute résolution",
-                 "\n- Maximum recommandé: 5000x5000 px à 600 DPI"), 
-          type = "error", 
-          duration = 10
-        )
-      })
+          paste0("Export impossible : le fichier téléchargé porte le motif. ",
+                 "Réduisez les dimensions ou le DPI, ou choisissez un format ",
+                 "vectoriel (SVG, PDF)."),
+          type = "error", duration = 10)
     }
   )
-  
+
   # L'apercu annonce les DEUX tailles : la mise en page demandee et les pixels
   # reellement produits. Ne montrer que la premiere laissait croire qu'un DPI
   # plus eleve ne changeait rien au fichier.

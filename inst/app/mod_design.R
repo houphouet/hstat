@@ -2984,24 +2984,18 @@ mod_design_server <- function(id, values) {
 
     output$dsgPlotDownload <- downloadHandler(
       filename = function() {
-        fmt <- input$dsgDownFormat %||% "png"
-        paste0("dispositif_", input$dsgType, "_", Sys.Date(), ".", fmt)
+        paste0("dispositif_", input$dsgType, "_", Sys.Date(), ".",
+               hstat_img_fmt(input$dsgDownFormat))
       },
       content = function(file) {
-        g <- build_design_plot()
-        fmt <- input$dsgDownFormat %||% "png"
-        dpi <- input$dsgDownDpi %||% 300
-        dpi <- max(300, min(20000, dpi))
-        # Pour de tres hauts DPI, limiter les dimensions pour eviter une image enorme
-        w <- 11; h <- 7
-        if (fmt == "pdf") {
-          ggplot2::ggsave(file, g, width = w, height = h, device = grDevices::cairo_pdf)
-        } else {
-          dev_fun <- switch(fmt,
-            "png" = "png", "jpeg" = "jpeg", "tiff" = "tiff", "bmp" = "bmp", "png")
-          ggplot2::ggsave(file, g, width = w, height = h, dpi = dpi, device = dev_fun,
-                          limitsize = FALSE)
-        }
+        g   <- tryCatch(build_design_plot(), error = function(e) NULL)
+        fmt <- hstat_img_fmt(input$dsgDownFormat)
+        dpi <- max(300, min(20000, .hstat_num1(input$dsgDownDpi, 300)))
+        # Un ggsave qui leve ne laisse aucun fichier : Shiny renvoie alors sa
+        # page d'erreur HTML sous le nom demande.
+        if (!hstat_ecrire_image(file, g, fmt, 11, 7, dpi))
+          showNotification("Plan indisponible : le fichier téléchargé porte le motif.",
+                           type = "error", duration = 6)
       })
 
     # ================= ENQUETE DE TERRAIN =================
