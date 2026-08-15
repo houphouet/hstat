@@ -22,57 +22,125 @@
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
-# 10. ASSISTANT DE CODAGE - TROIS MOTEURS
+# 10. ASSISTANT DE CODAGE - UNE TABLE DE FOURNISSEURS, TROIS PROTOCOLES
 # ---------------------------------------------------------------------------
-# L'assistance au codage doit pouvoir tourner GRATUITEMENT, EN LOCAL et SANS
-# CONNEXION INTERNET. Trois moteurs sont donc proposes, du plus autonome au
-# moins autonome :
+# L'assistance doit pouvoir tourner GRATUITEMENT et SANS CONNEXION : c'est la
+# raison d'etre du moteur "auto", et c'est pourquoi il reste le defaut. Les
+# services en ligne sont ensuite proposes sur un pied d'egalite, Claude n'ayant
+# aucun privilege.
 #
 #   "auto"   Thematisation statistique, sans aucun modele de langue. Tourne
 #            dans le processus R, instantanement, sans rien installer et sans
-#            reseau. C'est le seul moteur garanti disponible partout.
+#            reseau. Seul moteur garanti disponible partout, donc seul defaut
+#            acceptable : une fonctionnalite facturee a l'usage ne doit jamais
+#            devenir le chemin par defaut d'un utilisateur qui n'a rien demande.
 #
-#   "local"  Modele de langue execute SUR LA MACHINE de l'utilisateur, servi
-#            par Ollama ou par n'importe quel serveur d'inference compatible
-#            OpenAI (llama.cpp, LM Studio, vLLM, Jan...). Gratuit, hors ligne
-#            une fois le modele telecharge, et de loin le plus performant des
-#            trois sur la comprehension du sens. C'est le moteur par defaut.
+#   "local"  Serveur d'inference sur la machine de l'utilisateur (llama.cpp,
+#            LM Studio, vLLM, Jan...), parlant le protocole d'OpenAI. Gratuit,
+#            hors ligne, aucune donnee ne quitte la machine.
 #
-#   "claude" API Claude en ligne. Payante et necessitant une connexion : elle
-#            n'est proposee qu'en dernier recours, jamais par defaut.
+#   les API  Claude, ChatGPT, DeepSeek, Gemini, GitHub Models (Copilot), Kimi.
+#            Payantes, en ligne, et jamais choisies d'office.
 #
-# Les appels HTTP restent locaux dans les deux premiers cas (127.0.0.1) : rien
-# ne sort de la machine, ce qui compte aussi pour la confidentialite de donnees
-# d'enquete. R n'ayant de SDK ni pour Ollama ni pour Anthropic, tout passe par
-# {httr} + {jsonlite}, gardes en Suggests : sans eux, le moteur "auto" reste
-# pleinement fonctionnel.
+# TOUT le reste du code derive de HSTAT_AI_FOURNISSEURS : la liste de choix,
+# le diagnostic, l'aiguillage, l'interface. Ajouter un service, c'est ajouter
+# une ligne -- et un service qui parle le protocole d'OpenAI (la plupart) ne
+# demande aucun code.
+#
+# Le support d'Ollama a ete retire. Son protocole lui etait propre (/api/chat,
+# /api/tags, `format: "json"`), il portait son propre constructeur de corps de
+# requete et son propre lecteur de reponse ; un serveur local compatible OpenAI
+# rend le meme service par le chemin commun.
+#
+# R n'ayant de SDK pour aucun de ces services, tout passe par {httr} +
+# {jsonlite}, gardes en Suggests : sans eux, le moteur "auto" reste pleinement
+# fonctionnel.
+#
+# Les adresses et les modeles sont des VALEURS PAR DEFAUT, modifiables dans
+# l'interface : un service qui change d'adresse ou de modele ne doit pas
+# obliger a rouvrir le code.
 # ---------------------------------------------------------------------------
 
-HSTAT_AI_ENGINES <- c(
-  "Modele local (Ollama / llama.cpp) - gratuit, hors ligne" = "local",
-  "Thematisation automatique (statistique, sans modele)"    = "auto",
-  "API Claude (en ligne, payante)"                          = "claude")
+HSTAT_AI_FOURNISSEURS <- list(
+  auto = list(
+    label = "Thematisation automatique (statistique, sans modele)",
+    protocole = "auto", cle_env = "", url = "", modele = "", paye = FALSE),
+  local = list(
+    label = "Serveur local compatible OpenAI (llama.cpp, LM Studio, vLLM...)",
+    protocole = "openai", cle_env = "", url = "http://127.0.0.1:8080",
+    modele = "", paye = FALSE,
+    aide = "Demarrez votre serveur d'inference et verifiez son adresse ci-dessous."),
+  claude = list(
+    label = "API Claude (Anthropic)", protocole = "anthropic",
+    cle_env = "ANTHROPIC_API_KEY", url = "https://api.anthropic.com",
+    modele = "claude-opus-5", paye = TRUE, cle_url = "console.anthropic.com"),
+  chatgpt = list(
+    label = "API ChatGPT (OpenAI)", protocole = "openai",
+    cle_env = "OPENAI_API_KEY", url = "https://api.openai.com/v1",
+    modele = "gpt-4o", paye = TRUE, cle_url = "platform.openai.com/api-keys"),
+  deepseek = list(
+    label = "API DeepSeek", protocole = "openai",
+    cle_env = "DEEPSEEK_API_KEY", url = "https://api.deepseek.com/v1",
+    modele = "deepseek-chat", paye = TRUE, cle_url = "platform.deepseek.com"),
+  gemini = list(
+    label = "API Gemini (Google)", protocole = "gemini",
+    cle_env = "GEMINI_API_KEY",
+    url = "https://generativelanguage.googleapis.com/v1beta",
+    modele = "gemini-2.0-flash", paye = TRUE, cle_url = "aistudio.google.com/apikey"),
+  copilot = list(
+    # Variable DEDIEE, et surtout pas GITHUB_TOKEN : celle-ci est presente sur
+    # quantite de postes et dans toutes les integrations continues. La lire
+    # d'office enverrait un jeton ambiant chez un tiers sans que l'utilisateur
+    # l'ait voulu -- constate ici meme, ou le moteur s'annoncait « disponible »
+    # avec le jeton du conteneur. Une cle ne doit servir qu'a ce qu'on a
+    # explicitement demande.
+    label = "GitHub Models (Copilot)", protocole = "openai",
+    cle_env = "GITHUB_MODELS_TOKEN", url = "https://models.github.ai/inference",
+    modele = "openai/gpt-4o", paye = TRUE, cle_url = "github.com/settings/tokens"),
+  kimi = list(
+    label = "API Kimi (Moonshot)", protocole = "openai",
+    cle_env = "MOONSHOT_API_KEY", url = "https://api.moonshot.ai/v1",
+    modele = "moonshot-v1-8k", paye = TRUE, cle_url = "platform.moonshot.ai"))
 
-HSTAT_AI_BACKENDS <- c(
-  "Ollama"                                            = "ollama",
-  "Serveur compatible OpenAI (llama.cpp, LM Studio...)" = "openai")
+# Liste de choix, dans l'ordre de la table : le gratuit d'abord, le paye
+# ensuite. Un test garde cet ordre.
+HSTAT_AI_ENGINES <- stats::setNames(
+  names(HSTAT_AI_FOURNISSEURS),
+  vapply(HSTAT_AI_FOURNISSEURS, function(f) f$label, character(1)))
 
-HSTAT_AI_DEFAULT_URL <- c(ollama = "http://127.0.0.1:11434",
-                          openai = "http://127.0.0.1:8080")
-
-HSTAT_AI_MODEL <- "claude-opus-5"   # utilise uniquement par le moteur "claude"
-
-hstat_ai_key <- function(explicit = NULL) {
-  k <- if (is.null(explicit)) "" else trimws(as.character(explicit)[1])
-  if (is.na(k) || !nzchar(k)) k <- trimws(Sys.getenv("ANTHROPIC_API_KEY", ""))
-  k
+# Fournisseur d'un moteur. Un identifiant inconnu retombe sur "auto", qui
+# fonctionne toujours -- jamais sur une API payante.
+hstat_ai_fournisseur <- function(engine = "auto") {
+  id <- if (is.null(engine)) "" else as.character(engine)[1]
+  f <- HSTAT_AI_FOURNISSEURS[[id]]
+  if (is.null(f)) HSTAT_AI_FOURNISSEURS[["auto"]] else f
 }
 
-hstat_ai_url <- function(backend = "ollama", url = NULL) {
+HSTAT_AI_MODEL <- HSTAT_AI_FOURNISSEURS$claude$modele   # retro-compatibilite
+
+# Cle d'API : celle saisie dans l'interface, sinon la variable d'environnement
+# PROPRE AU SERVICE. Une cle OpenAI ne doit pas servir a appeler DeepSeek.
+hstat_ai_key <- function(engine = "claude", explicit = NULL) {
+  k <- if (is.null(explicit)) "" else trimws(as.character(explicit)[1])
+  if (is.na(k) || !nzchar(k)) {
+    env <- hstat_ai_fournisseur(engine)$cle_env
+    if (nzchar(env)) k <- trimws(Sys.getenv(env, ""))
+  }
+  if (is.na(k)) "" else k
+}
+
+# Adresse de base : celle saisie, sinon celle du fournisseur.
+hstat_ai_url <- function(engine = "local", url = NULL) {
   u <- if (is.null(url)) "" else trimws(as.character(url)[1])
-  if (is.na(u) || !nzchar(u))
-    u <- unname(HSTAT_AI_DEFAULT_URL[[match.arg(backend, c("ollama", "openai"))]])
+  if (is.na(u) || !nzchar(u)) u <- hstat_ai_fournisseur(engine)$url
   sub("/+$", "", u)
+}
+
+# Modele : celui saisi, sinon celui du fournisseur.
+hstat_ai_modele <- function(engine = "local", model = NULL) {
+  m <- if (is.null(model)) "" else trimws(as.character(model)[1])
+  if (is.na(m) || !nzchar(m)) m <- hstat_ai_fournisseur(engine)$modele
+  if (is.na(m)) "" else m
 }
 
 .hstat_ai_http_ok <- function() {
@@ -80,30 +148,17 @@ hstat_ai_url <- function(backend = "ollama", url = NULL) {
     requireNamespace("jsonlite", quietly = TRUE)
 }
 
-# Modeles reellement installes dans Ollama. Vecteur vide si le serveur n'est
-# pas joignable : l'interface saura alors dire quoi faire plutot que d'offrir
-# une liste vide sans explication.
-hstat_ai_ollama_models <- function(url = NULL, timeout = 5) {
+# Modeles annonces par un service parlant le protocole d'OpenAI (GET /models).
+# Vecteur vide si le serveur n'est pas joignable : l'interface saura alors dire
+# quoi faire plutot que d'offrir une liste vide sans explication.
+hstat_ai_openai_models <- function(url = NULL, api_key = NULL, timeout = 5,
+                                   engine = "local") {
   if (!.hstat_ai_http_ok()) return(character(0))
-  res <- tryCatch(
-    httr::GET(paste0(hstat_ai_url("ollama", url), "/api/tags"), httr::timeout(timeout)),
-    error = function(e) NULL)
-  if (is.null(res) || httr::status_code(res) >= 300) return(character(0))
-  p <- tryCatch(jsonlite::fromJSON(httr::content(res, as = "text", encoding = "UTF-8"),
-                                   simplifyVector = FALSE),
-                error = function(e) NULL)
-  if (is.null(p$models)) return(character(0))
-  nm <- vapply(p$models, function(m) if (is.null(m$name)) "" else as.character(m$name)[1],
-               character(1))
-  sort(nm[nzchar(nm)])
-}
-
-# Modeles annonces par un serveur compatible OpenAI (GET /v1/models).
-hstat_ai_openai_models <- function(url = NULL, timeout = 5) {
-  if (!.hstat_ai_http_ok()) return(character(0))
-  res <- tryCatch(
-    httr::GET(paste0(hstat_ai_url("openai", url), "/v1/models"), httr::timeout(timeout)),
-    error = function(e) NULL)
+  hdr <- if (!is.null(api_key) && nzchar(api_key))
+    httr::add_headers(Authorization = paste("Bearer", api_key)) else NULL
+  args <- list(paste0(hstat_ai_url(engine, url), "/models"), httr::timeout(timeout))
+  if (!is.null(hdr)) args <- append(args, list(hdr), after = 1)
+  res <- tryCatch(do.call(httr::GET, args), error = function(e) NULL)
   if (is.null(res) || httr::status_code(res) >= 300) return(character(0))
   p <- tryCatch(jsonlite::fromJSON(httr::content(res, as = "text", encoding = "UTF-8"),
                                    simplifyVector = FALSE),
@@ -114,16 +169,20 @@ hstat_ai_openai_models <- function(url = NULL, timeout = 5) {
   sort(nm[nzchar(nm)])
 }
 
-hstat_ai_models <- function(backend = "ollama", url = NULL, timeout = 5) {
-  if (identical(backend, "openai")) hstat_ai_openai_models(url, timeout)
-  else hstat_ai_ollama_models(url, timeout)
+hstat_ai_models <- function(engine = "local", url = NULL, api_key = NULL,
+                            timeout = 5) {
+  if (!identical(hstat_ai_fournisseur(engine)$protocole, "openai"))
+    return(character(0))
+  hstat_ai_openai_models(url, api_key, timeout, engine)
 }
 
 # Diagnostic lisible, propre a chaque moteur. Toujours actionnable : on dit ce
 # qui manque ET comment y remedier, plutot qu'un simple « indisponible ».
-hstat_ai_status <- function(engine = "local", backend = "ollama", url = NULL,
-                            model = NULL, api_key = NULL) {
-  if (identical(engine, "auto"))
+hstat_ai_status <- function(engine = "auto", url = NULL, model = NULL,
+                            api_key = NULL) {
+  f <- hstat_ai_fournisseur(engine)
+
+  if (identical(f$protocole, "auto"))
     return(list(ok = TRUE,
                 message = paste0("Thematisation automatique disponible : elle tourne ",
                                  "dans R, sans modele, sans installation et sans reseau.")))
@@ -138,38 +197,34 @@ hstat_ai_status <- function(engine = "local", backend = "ollama", url = NULL,
                   paste(sprintf('"%s"', gsub("[{}]", "", miss)), collapse = ", "))))
   }
 
-  if (identical(engine, "claude")) {
-    if (!nzchar(hstat_ai_key(api_key)))
+  # Un service en ligne exige une cle. On NOMME le service, sa variable
+  # d'environnement et l'endroit ou l'obtenir : « cle absente » tout court
+  # laisse l'utilisateur sans geste a faire.
+  if (nzchar(f$cle_env)) {
+    if (!nzchar(hstat_ai_key(engine, api_key)))
       return(list(ok = FALSE,
-                  message = paste0("API Claude indisponible : renseignez une cle d'API ",
-                                   "(champ ci-dessous ou variable ANTHROPIC_API_KEY). ",
-                                   "Cette option est payante et necessite une connexion ",
-                                   "Internet ; les deux autres moteurs sont gratuits et locaux.")))
-    return(list(ok = TRUE, message = sprintf("API Claude disponible (modele %s).",
-                                             HSTAT_AI_MODEL)))
+                  message = trf("%s indisponible : renseignez une cle d'API (champ ci-dessous ou variable %s). Cle a creer sur %s. Ce service est payant et necessite une connexion ; la thematisation automatique, elle, est gratuite et hors ligne.",
+                                f$label, f$cle_env, f$cle_url %||% "le site du fournisseur")))
+    return(list(ok = TRUE,
+                message = trf("%s disponible (modele %s).", f$label,
+                              hstat_ai_modele(engine, model))))
   }
 
-  # engine == "local"
-  u <- hstat_ai_url(backend, url)
-  mods <- hstat_ai_models(backend, u)
-  if (!length(mods)) {
-    aide <- if (identical(backend, "ollama"))
-      paste0("Installez Ollama (ollama.com, gratuit), lancez-le, puis telechargez ",
-             "un modele une seule fois : `ollama pull qwen2.5` par exemple. ",
-             "Le telechargement fait, tout fonctionne hors ligne.")
-    else
-      paste0("Demarrez votre serveur d'inference (llama.cpp `llama-server`, ",
-             "LM Studio, vLLM, Jan...) et verifiez son adresse ci-dessous.")
+  # Serveur local : pas de cle, mais il faut qu'il reponde.
+  u <- hstat_ai_url(engine, url)
+  mods <- hstat_ai_models(engine, u)
+  if (!length(mods))
     return(list(ok = FALSE, models = character(0),
-                message = trf("Aucun modele local joignable sur %s. %s", u, aide)))
-  }
-  if (!is.null(model) && nzchar(model) && !(model %in% mods))
+                message = trf("Aucun modele joignable sur %s. %s", u,
+                              f$aide %||% "Verifiez l'adresse ci-dessous.")))
+  m <- hstat_ai_modele(engine, model)
+  if (nzchar(m) && !(m %in% mods))
     return(list(ok = FALSE, models = mods,
-                message = sprintf("Le modele « %s » n'est pas installe sur %s. Modeles disponibles : %s.",
-                                  model, u, paste(mods, collapse = ", "))))
+                message = sprintf("Le modele « %s » n'est pas disponible sur %s. Modeles annonces : %s.",
+                                  m, u, paste(mods, collapse = ", "))))
   list(ok = TRUE, models = mods,
-       message = trf("Modele local disponible sur %s (%d modele(s) installe(s)). Gratuit, hors ligne, aucune donnee ne quitte la machine.",
-                         u, length(mods)))
+       message = trf("Serveur local disponible sur %s (%d modele(s)). Gratuit, hors ligne, aucune donnee ne quitte la machine.",
+                     u, length(mods)))
 }
 
 # Retro-compatibilite : l'ancienne signature ne connaissait que Claude.
@@ -199,19 +254,6 @@ hstat_ai_available <- function(explicit = NULL) {
   c(msgs, list(list(role = "user", content = prompt)))
 }
 
-.hstat_ai_body_ollama <- function(prompt, system = NULL, model = "", json = TRUE) {
-  body <- list(model = model,
-               messages = .hstat_ai_messages(prompt, system),
-               stream = FALSE,
-               # Temperature basse : on veut une thematisation stable et
-               # reproductible, pas de la creativite.
-               options = list(temperature = 0.2))
-  # `format: "json"` contraint Ollama a produire du JSON valide, ce qui evite
-  # l'essentiel des reponses inexploitables des petits modeles.
-  if (isTRUE(json)) body$format <- "json"
-  body
-}
-
 .hstat_ai_body_openai <- function(prompt, system = NULL, model = "",
                                   max_tokens = 4096L, json = TRUE) {
   body <- list(model = model,
@@ -222,42 +264,14 @@ hstat_ai_available <- function(explicit = NULL) {
   body
 }
 
-.hstat_ai_call_ollama <- function(prompt, system = NULL, url = NULL,
-                                  model = NULL, json = TRUE, timeout = 600) {
-  u <- hstat_ai_url("ollama", url)
-  if (is.null(model) || !nzchar(model)) {
-    mods <- hstat_ai_ollama_models(u)
-    if (!length(mods))
-      return(list(ok = FALSE, text = "",
-                  error = trf("Aucun modele Ollama joignable sur %s.", u)))
-    model <- mods[1]
-  }
-  body <- .hstat_ai_body_ollama(prompt, system, model, json)
-
-  res <- .hstat_ai_post(paste0(u, "/api/chat"), body, timeout = timeout)
-  if (inherits(res, "error"))
-    return(list(ok = FALSE, text = "",
-                error = sprintf("Serveur local injoignable sur %s (%s). Ollama est-il demarre ?",
-                                u, conditionMessage(res))))
-  raw <- httr::content(res, as = "text", encoding = "UTF-8")
-  p <- tryCatch(jsonlite::fromJSON(raw, simplifyVector = FALSE), error = function(e) NULL)
-  if (httr::status_code(res) >= 300)
-    return(list(ok = FALSE, text = "",
-                error = sprintf("Erreur du serveur local (HTTP %d) : %s",
-                                httr::status_code(res),
-                                substr(if (!is.null(p$error)) p$error else raw, 1, 400))))
-  txt <- if (!is.null(p$message$content)) p$message$content else p$response
-  if (is.null(txt))
-    return(list(ok = FALSE, text = "", error = "Reponse illisible du serveur local."))
-  list(ok = TRUE, text = as.character(txt)[1], error = NULL, model = model)
-}
-
 .hstat_ai_call_openai <- function(prompt, system = NULL, url = NULL, model = NULL,
                                   api_key = NULL, max_tokens = 4096L,
-                                  json = TRUE, timeout = 600) {
-  u <- hstat_ai_url("openai", url)
-  if (is.null(model) || !nzchar(model)) {
-    mods <- hstat_ai_openai_models(u)
+                                  json = TRUE, timeout = 600, engine = "local") {
+  f <- hstat_ai_fournisseur(engine)
+  u <- hstat_ai_url(engine, url)
+  model <- hstat_ai_modele(engine, model)
+  if (!nzchar(model)) {
+    mods <- hstat_ai_openai_models(u, api_key, engine = engine)
     model <- if (length(mods)) mods[1] else "local-model"
   }
   mk <- function(with_json)
@@ -265,38 +279,91 @@ hstat_ai_available <- function(explicit = NULL) {
   hdr <- if (!is.null(api_key) && nzchar(api_key))
     c(Authorization = paste("Bearer", api_key)) else NULL
 
+  # L'adresse porte deja le prefixe de version quand le service en a un
+  # (/v1 chez OpenAI, DeepSeek, Kimi ; rien chez GitHub Models). Le chemin
+  # ajoute ici est donc le seul point commun : /chat/completions.
   send <- function(with_json)
-    .hstat_ai_post(paste0(u, "/v1/chat/completions"), mk(with_json), hdr, timeout)
+    .hstat_ai_post(paste0(u, "/chat/completions"), mk(with_json), hdr, timeout)
 
   res <- send(isTRUE(json))
-  # Tous les serveurs locaux n'acceptent pas response_format : une requete
-  # rejetee pour ce seul motif est rejouee sans lui plutot que d'echouer.
+  # Tous les serveurs n'acceptent pas response_format : une requete rejetee
+  # pour ce seul motif est rejouee sans lui plutot que d'echouer.
   if (!inherits(res, "error") && isTRUE(json) && httr::status_code(res) == 400)
     res <- send(FALSE)
 
   if (inherits(res, "error"))
     return(list(ok = FALSE, text = "",
-                error = sprintf("Serveur local injoignable sur %s (%s).",
-                                u, conditionMessage(res))))
+                error = trf("%s injoignable sur %s (%s).", f$label, u,
+                            conditionMessage(res))))
   raw <- httr::content(res, as = "text", encoding = "UTF-8")
   p <- tryCatch(jsonlite::fromJSON(raw, simplifyVector = FALSE), error = function(e) NULL)
   if (httr::status_code(res) >= 300) {
     msg <- if (!is.null(p$error$message)) p$error$message else raw
     return(list(ok = FALSE, text = "",
-                error = sprintf("Erreur du serveur local (HTTP %d) : %s",
+                error = sprintf("Erreur de %s (HTTP %d) : %s", f$label,
                                 httr::status_code(res), substr(msg, 1, 400))))
   }
   txt <- tryCatch(p$choices[[1]]$message$content, error = function(e) NULL)
   if (is.null(txt))
-    return(list(ok = FALSE, text = "", error = "Reponse illisible du serveur local."))
+    return(list(ok = FALSE, text = "",
+                error = trf("Reponse illisible de %s.", f$label)))
   list(ok = TRUE, text = as.character(txt)[1], error = NULL, model = model)
 }
 
-.hstat_ai_call_claude <- function(prompt, system = NULL, api_key = NULL,
-                                  model = HSTAT_AI_MODEL, max_tokens = 8000L,
-                                  thinking = TRUE, timeout = 300) {
-  key <- hstat_ai_key(api_key)
+# --- Gemini : le seul service qui ne parle ni OpenAI ni Anthropic ------------
+# Le corps est construit a part, comme les deux autres : c'est la piece qui
+# casse en silence quand un champ est renomme, elle doit rester testable sans
+# serveur.
+.hstat_ai_body_gemini <- function(prompt, system = NULL, json = TRUE) {
+  body <- list(
+    contents = list(list(role = "user", parts = list(list(text = prompt)))),
+    generationConfig = list(temperature = 0.2))
+  if (!is.null(system) && nzchar(system))
+    body$systemInstruction <- list(parts = list(list(text = system)))
+  if (isTRUE(json)) body$generationConfig$responseMimeType <- "application/json"
+  body
+}
+
+.hstat_ai_call_gemini <- function(prompt, system = NULL, url = NULL, model = NULL,
+                                  api_key = NULL, json = TRUE, timeout = 300) {
+  f <- hstat_ai_fournisseur("gemini")
+  key <- hstat_ai_key("gemini", api_key)
   if (!nzchar(key)) return(list(ok = FALSE, text = "", error = "Cle d'API absente."))
+  u <- hstat_ai_url("gemini", url)
+  model <- hstat_ai_modele("gemini", model)
+
+  res <- .hstat_ai_post(sprintf("%s/models/%s:generateContent", u, model),
+                        .hstat_ai_body_gemini(prompt, system, json),
+                        c(`x-goog-api-key` = key), timeout)
+  if (inherits(res, "error"))
+    return(list(ok = FALSE, text = "",
+                error = trf("%s injoignable (%s).", f$label, conditionMessage(res))))
+  raw <- httr::content(res, as = "text", encoding = "UTF-8")
+  p <- tryCatch(jsonlite::fromJSON(raw, simplifyVector = FALSE), error = function(e) NULL)
+  if (httr::status_code(res) >= 300) {
+    msg <- if (!is.null(p$error$message)) p$error$message else raw
+    return(list(ok = FALSE, text = "",
+                error = sprintf("Erreur de %s (HTTP %d) : %s", f$label,
+                                httr::status_code(res), substr(msg, 1, 400))))
+  }
+  # Une reponse Gemini porte une liste de candidats, chacun une liste de parts.
+  txt <- tryCatch(
+    paste(vapply(p$candidates[[1]]$content$parts,
+                 function(x) if (is.null(x$text)) "" else as.character(x$text)[1],
+                 character(1)), collapse = ""),
+    error = function(e) NULL)
+  if (is.null(txt) || !nzchar(txt))
+    return(list(ok = FALSE, text = "",
+                error = trf("Reponse illisible de %s.", f$label)))
+  list(ok = TRUE, text = txt, error = NULL, model = model)
+}
+
+.hstat_ai_call_claude <- function(prompt, system = NULL, api_key = NULL,
+                                  model = NULL, max_tokens = 8000L,
+                                  thinking = TRUE, timeout = 300, url = NULL) {
+  key <- hstat_ai_key("claude", api_key)
+  if (!nzchar(key)) return(list(ok = FALSE, text = "", error = "Cle d'API absente."))
+  model <- hstat_ai_modele("claude", model)
 
   body <- list(model = model, max_tokens = as.integer(max_tokens),
                messages = list(list(role = "user", content = prompt)))
@@ -305,7 +372,7 @@ hstat_ai_available <- function(explicit = NULL) {
   # `budget_tokens` y est rejete, on ne l'envoie donc pas.
   if (isTRUE(thinking)) body$thinking <- list(type = "adaptive")
 
-  res <- .hstat_ai_post("https://api.anthropic.com/v1/messages", body,
+  res <- .hstat_ai_post(paste0(hstat_ai_url("claude", url), "/v1/messages"), body,
                         c(`x-api-key` = key, `anthropic-version` = "2023-06-01"),
                         timeout)
   if (inherits(res, "error"))
@@ -332,24 +399,77 @@ hstat_ai_available <- function(explicit = NULL) {
        model = model)
 }
 
-# Aiguillage. `engine = "local"` par defaut : gratuit et hors ligne.
-hstat_ai_call <- function(prompt, system = NULL, engine = "local",
-                          backend = "ollama", url = NULL, model = NULL,
+# Reglages du moteur choisi, construits a partir de la table : l'interface n'a
+# plus a connaitre les services un par un. Sept `conditionalPanel` en dur
+# devenaient faux des qu'on ajoutait une ligne a la table -- ce qui est
+# precisement ce qu'on veut pouvoir faire.
+#
+# Les identifiants sont prefixes parce que les deux onglets qui s'en servent
+# nomment leurs champs differemment (`url` ici, `ai_url` dans l'atelier de
+# codage) : le prefixe evite d'avoir a renommer les champs existants.
+hstat_ai_reglages_ui <- function(ns, engine, prefixe = "") {
+  f  <- hstat_ai_fournisseur(engine)
+  id <- function(x) ns(paste0(prefixe, x))
+  if (identical(f$protocole, "auto"))
+    return(shiny::div(
+      style = "background:#eafaf1;border-left:3px solid #27ae60;padding:8px 12px;font-size:12px;",
+      shiny::icon("circle-check"),
+      " Aucun reglage : la thematisation tourne dans R, sans modele, sans cle et sans reseau."))
+
+  shiny::tagList(
+    if (nzchar(f$cle_env))
+      shiny::tagList(
+        shiny::passwordInput(id("key"), trf("Cle d'API - %s", f$label),
+                             placeholder = trf("laisser vide pour utiliser %s", f$cle_env)),
+        shiny::tags$small(style = "color:#7f8c8d;display:block;margin-top:-8px;",
+          shiny::icon("key"), " ",
+          trf("Cle a creer sur %s. Service payant, en ligne.",
+              f$cle_url %||% "le site du fournisseur"))),
+    shiny::textInput(id("url"), "Adresse du service", value = f$url),
+    shiny::textInput(id("model"), "Modele",
+                     value = f$modele,
+                     placeholder = paste("ex.", .hstat_ai_ex(f))),
+    shiny::actionButton(id("ping"), "Tester la connexion",
+                        icon = shiny::icon("plug-circle-check"),
+                        class = "btn-default btn-sm btn-block"))
+}
+
+# Exemple de modele affiche en filigrane, quand le fournisseur n'en impose pas.
+.hstat_ai_ex <- function(f) if (nzchar(f$modele)) f$modele else "le nom du modele servi"
+
+# Aiguillage sur le PROTOCOLE, pas sur le nom du service : ajouter un service
+# qui parle celui d'OpenAI ne demande alors aucune ligne ici.
+#
+# `engine = "auto"` par defaut. C'est le seul moteur garanti disponible, et
+# surtout le seul gratuit : une API facturee a l'usage ne doit jamais devenir
+# le chemin par defaut d'un utilisateur qui n'a rien demande. Un test le garde.
+hstat_ai_call <- function(prompt, system = NULL, engine = "auto",
+                          url = NULL, model = NULL,
                           api_key = NULL, max_tokens = 8000L, json = TRUE,
                           timeout = NULL) {
+  f <- hstat_ai_fournisseur(engine)
+  if (identical(f$protocole, "auto"))
+    return(list(ok = FALSE, text = "",
+                error = paste0("La thematisation automatique ne passe pas par un ",
+                               "modele de langue : elle est calculee directement ",
+                               "dans R. Choisissez un service en ligne ou un ",
+                               "serveur local pour faire rediger un texte.")))
   if (!.hstat_ai_http_ok())
     return(list(ok = FALSE, text = "",
                 error = "Les paquets {httr} et {jsonlite} sont requis pour ce moteur."))
-  if (identical(engine, "claude"))
-    return(.hstat_ai_call_claude(prompt, system, api_key, HSTAT_AI_MODEL,
-                                 max_tokens, TRUE, timeout %||% 300))
-  # Les modeles locaux tournent sur le processeur de l'utilisateur : le delai
-  # d'attente par defaut est bien plus large que pour une API distante.
-  tmo <- timeout %||% 900
-  if (identical(backend, "openai"))
-    .hstat_ai_call_openai(prompt, system, url, model, api_key, max_tokens, json, tmo)
-  else
-    .hstat_ai_call_ollama(prompt, system, url, model, json, tmo)
+
+  if (identical(f$protocole, "anthropic"))
+    return(.hstat_ai_call_claude(prompt, system, api_key, model, max_tokens,
+                                 TRUE, timeout %||% 300, url))
+  if (identical(f$protocole, "gemini"))
+    return(.hstat_ai_call_gemini(prompt, system, url, model, api_key, json,
+                                 timeout %||% 300))
+  # Un modele qui tourne sur le processeur de l'utilisateur est bien plus lent
+  # qu'une API distante : le delai d'attente par defaut en tient compte.
+  tmo <- timeout %||% (if (nzchar(f$cle_env)) 300 else 900)
+  .hstat_ai_call_openai(prompt, system, url, model,
+                        hstat_ai_key(engine, api_key), max_tokens, json, tmo,
+                        engine = engine)
 }
 
 
@@ -1505,19 +1625,8 @@ mod_ai_ui <- function(id) {
           collapsible = TRUE, collapsed = TRUE,
           title = shiny::tagList(shiny::icon("microchip"), " Moteur d'inference"),
           shiny::radioButtons(ns("engine"), NULL, choices = HSTAT_AI_ENGINES,
-                              selected = "local"),
-          shiny::conditionalPanel(sprintf("input['%s'] == 'local'", ns("engine")),
-            shiny::radioButtons(ns("backend"), "Serveur", choices = HSTAT_AI_BACKENDS,
-                                selected = "ollama", inline = TRUE),
-            shiny::textInput(ns("url"), "Adresse",
-                             value = unname(HSTAT_AI_DEFAULT_URL[["ollama"]])),
-            shiny::uiOutput(ns("model_ui")),
-            shiny::actionButton(ns("ping"), "Tester la connexion",
-                                icon = shiny::icon("plug-circle-check"),
-                                class = "btn-default btn-sm btn-block")),
-          shiny::conditionalPanel(sprintf("input['%s'] == 'claude'", ns("engine")),
-            shiny::passwordInput(ns("key"), "Cle d'API Anthropic",
-                                 placeholder = "sk-ant-... (ou ANTHROPIC_API_KEY)")),
+                              selected = "auto"),
+          shiny::uiOutput(ns("reglages")),
           shiny::uiOutput(ns("status")))
       ),
       shiny::column(8,
@@ -1707,29 +1816,21 @@ mod_ai_server <- function(id, values) {
     })
 
     # ---------------------------------------------------- moteur
-    ai_models <- shiny::reactiveVal(character(0))
-    shiny::observeEvent(input$backend, {
-      shiny::updateTextInput(session, "url",
-                             value = unname(HSTAT_AI_DEFAULT_URL[[input$backend]]))
-    }, ignoreInit = TRUE)
+    # Les reglages suivent le moteur choisi : la table dit ce qu'il faut
+    # demander (cle ou non, adresse, modele).
+    output$reglages <- shiny::renderUI(
+      hstat_ai_reglages_ui(ns, input$engine %||% "auto"))
+
     shiny::observeEvent(input$ping, {
-      st <- hstat_ai_status("local", input$backend %||% "ollama", input$url)
-      ai_models(if (is.null(st$models)) character(0) else st$models)
+      st <- hstat_ai_status(input$engine %||% "auto", input$url, input$model,
+                            input$key)
       shiny::showNotification(st$message,
                               type = if (isTRUE(st$ok)) "message" else "warning",
                               duration = 10)
     })
-    output$model_ui <- shiny::renderUI({
-      m <- ai_models()
-      if (!length(m))
-        return(shiny::textInput(ns("model"), "Modele",
-                                placeholder = "ex. qwen2.5 - testez la connexion"))
-      shiny::selectInput(ns("model"), "Modele", choices = m,
-                         selected = shiny::isolate(input$model) %||% m[1])
-    })
     output$status <- shiny::renderUI({
-      st <- hstat_ai_status(input$engine %||% "local", input$backend %||% "ollama",
-                            input$url, input$model, input$key)
+      st <- hstat_ai_status(input$engine %||% "auto", input$url, input$model,
+                            input$key)
       shiny::div(class = if (isTRUE(st$ok)) "callout callout-success" else "callout callout-warning",
                  style = "padding:8px 12px;font-size:12px;",
                  shiny::icon(if (isTRUE(st$ok)) "circle-check" else "triangle-exclamation"),
@@ -1762,13 +1863,12 @@ mod_ai_server <- function(id, values) {
           "Aucune analyse enregistree : lancez d'abord une analyse dans un autre onglet.",
           type = "warning", duration = 7); return()
       }
-      eng <- input$engine %||% "local"
+      eng <- input$engine %||% "auto"
       if (identical(eng, "auto")) {
         # Le moteur « sans modele » de l'assistance, c'est la lecture automatique.
         .offline(); return()
       }
-      st <- hstat_ai_status(eng, input$backend %||% "ollama", input$url,
-                            input$model, input$key)
+      st <- hstat_ai_status(eng, input$url, input$model, input$key)
       if (!isTRUE(st$ok)) {
         shiny::showNotification(paste0(st$message,
           " La lecture automatique, elle, reste disponible."),
@@ -1786,7 +1886,7 @@ mod_ai_server <- function(id, values) {
           system = paste0("Tu es statisticien. Tu interpretes des resultats deja ",
                           "obtenus, sans jamais inventer de chiffre ni relancer ",
                           "d'analyse. Tu reponds en francais, en markdown."),
-          engine = eng, backend = input$backend %||% "ollama", url = input$url,
+          engine = eng, url = input$url,
           model = input$model, api_key = input$key, json = FALSE)
         shiny::incProgress(0.5)
         if (!isTRUE(res$ok)) {
@@ -1796,7 +1896,9 @@ mod_ai_server <- function(id, values) {
           .offline(); return()
         }
         rv$txt <- res$text
-        rv$source <- sprintf("%s%s", if (identical(eng, "claude")) "API Claude" else "Modele local",
+        # Le service employe est nomme tel quel : avec sept moteurs possibles,
+        # « Modele local » pour tout ce qui n'est pas Claude serait faux.
+        rv$source <- sprintf("%s%s", hstat_ai_fournisseur(eng)$label,
                              if (!is.null(res$model)) sprintf(" (%s)", res$model) else "")
         rv$err <- NULL
       })

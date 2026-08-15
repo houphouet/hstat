@@ -5652,7 +5652,7 @@ server <- function(input, output, session) {
           column(6, hstat_lbl_slider(paste0(prefix, "_lblszvar"),
                                      "Taille des labels des variables"))),
         tags$small(style = "color:#6b7280;", icon("info-circle"),
-          paste(" Tailles exprimées en points (12 à 24 pt). Le second curseur",
+          paste(" Tailles exprimées en points (8 à 24 pt). Le second curseur",
                 "s'applique aux noms de variables, modalités ou colonnes",
                 "affichés sur le graphique.")),
         checkboxInput(paste0(prefix, "_showlab"),
@@ -5755,7 +5755,7 @@ server <- function(input, output, session) {
           column(6, hstat_lbl_slider(paste0(prefix, "_lblszvar"),
                                      "Taille des labels des variables"))),
         tags$small(style = "color:#6b7280;", icon("info-circle"),
-          paste(" Tailles exprimées en points (12 à 24 pt). Le second curseur",
+          paste(" Tailles exprimées en points (8 à 24 pt). Le second curseur",
                 "s'applique aux noms de variables, modalités ou colonnes",
                 "affichés sur le graphique.")),
         fluidRow(

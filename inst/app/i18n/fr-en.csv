@@ -1308,3 +1308,13 @@ Afficher « Seuil : x % » sur le graphique,Show « Threshold: x % » on the plo
 L'étiquette reprend la couleur de la ligne de seuil.,The label takes the colour of the threshold line.
 
 "Fichier produit : %s × %s px, soit %s × %s cm à %s DPI.","Output file: %s × %s px, i.e. %s × %s cm at %s DPI."
+"%s indisponible : renseignez une cle d'API (champ ci-dessous ou variable %s). Cle a creer sur %s. Ce service est payant et necessite une connexion ; la thematisation automatique, elle, est gratuite et hors ligne.","%s unavailable: enter an API key (field below or %s variable). Create a key at %s. This service is paid and needs a connection; automatic theming is free and offline."
+"%s disponible (modele %s).","%s available (model %s)."
+"Aucun modele joignable sur %s. %s","No model reachable at %s. %s"
+"Serveur local disponible sur %s (%d modele(s)). Gratuit, hors ligne, aucune donnee ne quitte la machine.","Local server available at %s (%d model(s)). Free, offline, no data leaves the machine."
+"%s injoignable sur %s (%s).","%s unreachable at %s (%s)."
+"%s injoignable (%s).","%s unreachable (%s)."
+"Reponse illisible de %s.","Unreadable response from %s."
+"Cle d'API - %s","API key - %s"
+"laisser vide pour utiliser %s","leave empty to use %s"
+"Cle a creer sur %s. Service payant, en ligne.","Create a key at %s. Paid, online service."

@@ -1361,14 +1361,20 @@ test_that("les entrees invalides d'un test de conformite sont rejetees", {
 })
 
 test_that("la taille des labels part du defaut de ggplot2 et se convertit", {
-  # Le plancher etait a 12 pt : le defaut de ggplot2 (11 pt) etait alors
-  # INATTEIGNABLE, alors que c'est precisement l'etat d'origine qu'on veut
-  # pouvoir retrouver. Il descend donc a 11.
-  expect_equal(HSTAT_LBL_PT_MIN, HSTAT_GG_LABEL_PT)
+  # Le plancher etait a 12 pt, puis a 11 : le curseur commencait alors au
+  # defaut et ne permettait plus que d'AGRANDIR. Or sur un nuage de plusieurs
+  # dizaines d'individus, ce sont des etiquettes plus PETITES qu'il faut.
+  expect_equal(HSTAT_LBL_PT_MIN, 8)
+  expect_lt(HSTAT_LBL_PT_MIN, HSTAT_GG_LABEL_PT)
+  # Le defaut reste celui de ggplot2 : l'etat d'origine doit se retrouver sans
+  # le chercher, et il doit rester atteignable par le curseur.
   expect_equal(HSTAT_LBL_PT_DEFAULT, HSTAT_GG_LABEL_PT)
+  expect_gte(HSTAT_LBL_PT_DEFAULT, HSTAT_LBL_PT_MIN)
+  expect_lte(HSTAT_LBL_PT_DEFAULT, HSTAT_LBL_PT_MAX)
   expect_equal(HSTAT_LBL_PT_MAX, 24)
   # Bornage des saisies hors domaine, absentes ou invalides.
   expect_equal(hstat_lbl_pt(3), HSTAT_LBL_PT_MIN)
+  expect_equal(hstat_lbl_pt(8), 8)          # le plancher demande est atteignable
   expect_equal(hstat_lbl_pt(99), 24)
   expect_equal(hstat_lbl_pt(NULL), HSTAT_LBL_PT_DEFAULT)
   expect_equal(hstat_lbl_pt(NA), HSTAT_LBL_PT_DEFAULT)
@@ -1792,62 +1798,198 @@ test_that("le moteur hors ligne est toujours disponible, sans cle ni reseau", {
   expect_true(grepl("sans reseau", st$message, fixed = TRUE))
 })
 
-test_that("le moteur par defaut est local, jamais l'API payante", {
-  # Le premier choix propose a l'utilisateur et le defaut de hstat_ai_call()
-  # doivent rester le moteur local : gratuit et hors ligne.
-  expect_equal(unname(HSTAT_AI_ENGINES[1]), "local")
-  expect_equal(formals(hstat_ai_call)$engine, "local")
-  expect_equal(formals(hstat_ai_status)$engine, "local")
-  expect_true("claude" %in% HSTAT_AI_ENGINES)
+test_that("le moteur par defaut est gratuit, jamais une API payante", {
+  # Le premier choix propose et le defaut des deux fonctions doivent rester la
+  # thematisation automatique : gratuite, hors ligne, sans cle. Une
+  # fonctionnalite facturee a l'usage ne doit jamais devenir le chemin par
+  # defaut d'un utilisateur qui n'a rien demande.
+  expect_equal(unname(HSTAT_AI_ENGINES[1]), "auto")
+  expect_equal(formals(hstat_ai_call)$engine, "auto")
+  expect_equal(formals(hstat_ai_status)$engine, "auto")
+
+  # Les moteurs gratuits viennent AVANT les payants dans la liste de choix.
+  paye <- vapply(HSTAT_AI_FOURNISSEURS, function(f) isTRUE(f$paye), logical(1))
+  expect_false(any(paye[seq_len(sum(!paye))]))
+
+  # Les services demandes sont tous proposes, Claude compris et sans privilege.
+  for (id in c("claude", "chatgpt", "deepseek", "gemini", "copilot", "kimi"))
+    expect_true(id %in% HSTAT_AI_ENGINES, label = paste("fournisseur :", id))
+
+  # Ollama a ete retire : ni moteur, ni protocole, ni constructeur de corps.
+  #
+  # Le balayage porte sur le CODE, commentaires retires par l'analyseur de R :
+  # ce test s'est signale lui-meme sur le commentaire qui documente le retrait
+  # et qui cite les points d'entree disparus. Un faux positif permanent finit
+  # toujours par faire desactiver le test.
+  sans_com <- function(f) {
+    lignes <- readLines(f, warn = FALSE, encoding = "UTF-8")
+    pd <- tryCatch(utils::getParseData(parse(f, keep.source = TRUE)),
+                   error = function(e) NULL)
+    if (!is.null(pd)) {
+      com <- pd[pd$token == "COMMENT", , drop = FALSE]
+      for (i in seq_len(nrow(com))) {
+        l <- com$line1[i]
+        if (l >= 1 && l <= length(lignes))
+          lignes[l] <- substr(lignes[l], 1, max(0, com$col1[i] - 1))
+      }
+    }
+    paste(lignes, collapse = "\n")
+  }
+  src <- sans_com(file.path(.hstat_repo_root(), "inst", "app", "mod_ai.R"))
+  ui  <- sans_com(file.path(.hstat_repo_root(), "inst", "app", "mod_coding.R"))
+  expect_false(grepl("api/tags", src, fixed = TRUE))
+  expect_false(grepl(".hstat_ai_call_ollama", src, fixed = TRUE))
+  expect_false(grepl("HSTAT_AI_BACKENDS", paste(src, ui), fixed = TRUE))
+  expect_false(grepl("ollama pull", ui, fixed = TRUE))
+  expect_false(exists("hstat_ai_ollama_models"))
 })
 
-test_that("API Claude : degradation propre en l'absence de cle", {
-  old <- Sys.getenv("ANTHROPIC_API_KEY", unset = NA)
-  Sys.unsetenv("ANTHROPIC_API_KEY")
-  on.exit(if (!is.na(old)) Sys.setenv(ANTHROPIC_API_KEY = old), add = TRUE)
+test_that("chaque fournisseur est complet et son protocole implemente", {
+  for (id in names(HSTAT_AI_FOURNISSEURS)) {
+    f <- HSTAT_AI_FOURNISSEURS[[id]]
+    expect_true(nzchar(f$label), label = paste("libelle :", id))
+    expect_true(f$protocole %in% c("auto", "openai", "anthropic", "gemini"),
+                label = paste("protocole :", id))
+    # Un service en ligne se reconnait a sa variable d'environnement : il doit
+    # alors dire OU obtenir la cle, sinon le message n'est pas actionnable.
+    if (isTRUE(f$paye)) {
+      expect_true(nzchar(f$cle_env), label = paste("variable :", id))
+      expect_true(nzchar(f$cle_url %||% ""), label = paste("ou obtenir la cle :", id))
+      expect_true(nzchar(f$modele), label = paste("modele par defaut :", id))
+      expect_true(grepl("^https://", f$url), label = paste("adresse https :", id))
+    }
+    # L'adresse d'un moteur local reste sur la machine de l'utilisateur.
+    if (identical(id, "local"))
+      expect_true(grepl("^http://127\\.0\\.0\\.1:", f$url))
+  }
+  # Chaque cle d'environnement est propre au service : une cle OpenAI ne doit
+  # pas servir a appeler DeepSeek.
+  env <- vapply(HSTAT_AI_FOURNISSEURS, function(f) f$cle_env %||% "", character(1))
+  env <- env[nzchar(env)]
+  expect_equal(length(env), length(unique(env)))
 
-  expect_equal(hstat_ai_key(NULL), "")
-  expect_equal(hstat_ai_key("  sk-test  "), "sk-test")
+  # Et aucune variable d'environnement AMBIANTE : GITHUB_TOKEN existe sur
+  # quantite de postes et dans toutes les integrations continues. La lire
+  # d'office enverrait un jeton chez un tiers sans acte de l'utilisateur --
+  # constate a l'ecran, le moteur s'annoncait « disponible » tout seul.
+  expect_false("GITHUB_TOKEN" %in% env)
+})
+
+test_that("cle d'API : celle du service, jamais celle d'un autre", {
+  for (v in c("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY",
+              "GEMINI_API_KEY", "GITHUB_MODELS_TOKEN", "MOONSHOT_API_KEY"))
+    Sys.unsetenv(v)
+
+  expect_equal(hstat_ai_key("claude", NULL), "")
+  expect_equal(hstat_ai_key("claude", "  sk-test  "), "sk-test")
   expect_false(hstat_ai_available(NULL))
 
   st <- hstat_ai_status("claude")
   expect_false(st$ok)
   expect_true(grepl("cle d'API", st$message, fixed = TRUE))
-  # Le message doit orienter vers les moteurs gratuits
-  expect_true(grepl("gratuits et locaux", st$message, fixed = TRUE))
+  expect_true(grepl("ANTHROPIC_API_KEY", st$message, fixed = TRUE))
+  # Le message oriente vers le moteur gratuit
+  expect_true(grepl("gratuite et hors ligne", st$message, fixed = TRUE))
 
-  # Aucun appel reseau ne doit partir sans cle
-  r <- hstat_ai_call("bonjour", engine = "claude", api_key = NULL)
-  expect_false(r$ok)
-  expect_true(nzchar(r$error))
+  # Aucun appel reseau ne doit partir sans cle, quel que soit le service
+  for (id in c("claude", "chatgpt", "gemini")) {
+    r <- hstat_ai_call("bonjour", engine = id, api_key = NULL, timeout = 3)
+    expect_false(isTRUE(r$ok), label = paste("sans cle :", id))
+    expect_true(nzchar(r$error), label = paste("message :", id))
+  }
 
-  Sys.setenv(ANTHROPIC_API_KEY = "sk-depuis-l-environnement")
-  expect_equal(hstat_ai_key(NULL), "sk-depuis-l-environnement")
-  Sys.unsetenv("ANTHROPIC_API_KEY")
+  # La variable d'environnement du service est lue, et elle seule.
+  Sys.setenv(OPENAI_API_KEY = "sk-openai")
+  expect_equal(hstat_ai_key("chatgpt", NULL), "sk-openai")
+  expect_equal(hstat_ai_key("deepseek", NULL), "")     # pas de fuite d'un service a l'autre
+  expect_equal(hstat_ai_key("auto", NULL), "")
+  Sys.unsetenv("OPENAI_API_KEY")
 })
 
-test_that("adresses par defaut des serveurs d'inference locaux", {
+test_that("adresses et modeles par defaut, modifiables", {
   # 127.0.0.1 et non localhost : on veut que ce soit visiblement la machine
   # de l'utilisateur, et rien d'autre.
-  expect_true(grepl("^http://127\\.0\\.0\\.1:11434$", hstat_ai_url("ollama")))
-  expect_true(grepl("^http://127\\.0\\.0\\.1:8080$", hstat_ai_url("openai")))
-  expect_equal(hstat_ai_url("ollama", "http://192.168.1.5:11434/"),
-               "http://192.168.1.5:11434")
-  expect_equal(hstat_ai_url("ollama", "   "), "http://127.0.0.1:11434")
+  expect_true(grepl("^http://127\\.0\\.0\\.1:8080$", hstat_ai_url("local")))
+  expect_equal(hstat_ai_url("local", "http://192.168.1.5:8080/"),
+               "http://192.168.1.5:8080")
+  expect_equal(hstat_ai_url("local", "   "), "http://127.0.0.1:8080")
+  # Une adresse saisie l'emporte toujours : un service qui demenage ne doit pas
+  # obliger a rouvrir le code.
+  expect_equal(hstat_ai_url("chatgpt", "https://proxy.interne/v1"),
+               "https://proxy.interne/v1")
+  # Idem pour le modele.
+  expect_equal(hstat_ai_modele("chatgpt"), HSTAT_AI_FOURNISSEURS$chatgpt$modele)
+  expect_equal(hstat_ai_modele("chatgpt", "gpt-4o-mini"), "gpt-4o-mini")
+  expect_equal(hstat_ai_modele("chatgpt", "   "), HSTAT_AI_FOURNISSEURS$chatgpt$modele)
+  # Un identifiant inconnu retombe sur "auto", jamais sur une API payante.
+  expect_equal(hstat_ai_fournisseur("service-inexistant")$protocole, "auto")
+  expect_equal(hstat_ai_fournisseur(NULL)$protocole, "auto")
 })
 
 test_that("serveur local injoignable : message actionnable, jamais d'erreur", {
   skip_if_not(requireNamespace("httr", quietly = TRUE))
   # Port volontairement ferme
-  st <- hstat_ai_status("local", "ollama", "http://127.0.0.1:9")
+  st <- hstat_ai_status("local", "http://127.0.0.1:9")
   expect_false(st$ok)
-  expect_true(grepl("Ollama", st$message, fixed = TRUE))
-  expect_equal(hstat_ai_ollama_models("http://127.0.0.1:9", timeout = 2), character(0))
+  expect_true(grepl("Aucun modele joignable", st$message, fixed = TRUE))
+  expect_equal(hstat_ai_models("local", "http://127.0.0.1:9", timeout = 2),
+               character(0))
 
   r <- hstat_ai_call("bonjour", engine = "local", url = "http://127.0.0.1:9",
                      model = "inexistant", timeout = 3)
   expect_false(r$ok)
   expect_true(nzchar(r$error))
+})
+
+test_that("les reglages affiches suivent le moteur choisi", {
+  skip_if_not_installed("shiny")
+  # L'interface derive de la table : sept `conditionalPanel` ecrits a la main
+  # devenaient faux des qu'on ajoutait une ligne, ce qui est precisement ce
+  # qu'on veut pouvoir faire.
+  ids <- function(engine, prefixe = "") {
+    h <- as.character(hstat_ai_reglages_ui(identity, engine, prefixe))
+    regmatches(h, gregexpr('id="[^"]+"', h))[[1]]
+  }
+
+  # « auto » ne demande rien : ni cle, ni adresse, ni modele.
+  expect_length(ids("auto"), 0)
+
+  # Un serveur local : adresse et modele, mais AUCUN champ de cle -- il n'en
+  # faut pas, et en demander une laisserait croire le contraire.
+  loc <- ids("local")
+  expect_true(any(grepl('id="url"', loc, fixed = TRUE)))
+  expect_true(any(grepl('id="model"', loc, fixed = TRUE)))
+  expect_false(any(grepl('id="key"', loc, fixed = TRUE)))
+
+  # Chaque service en ligne : cle, adresse, modele.
+  for (id in c("claude", "chatgpt", "deepseek", "gemini", "copilot", "kimi")) {
+    x <- ids(id)
+    for (champ in c("key", "url", "model"))
+      expect_true(any(grepl(sprintf('id="%s"', champ), x, fixed = TRUE)),
+                  label = paste(id, champ))
+  }
+
+  # Le prefixe est indispensable : l'atelier de codage nomme ses champs
+  # `ai_url`, `ai_model`, `ai_key`, et ce sont ces noms que son serveur lit.
+  a <- ids("chatgpt", "ai_")
+  for (champ in c("ai_key", "ai_url", "ai_model"))
+    expect_true(any(grepl(sprintf('id="%s"', champ), a, fixed = TRUE)), label = champ)
+
+  # La valeur par defaut affichee est bien celle du fournisseur.
+  h <- as.character(hstat_ai_reglages_ui(identity, "kimi"))
+  expect_true(grepl(HSTAT_AI_FOURNISSEURS$kimi$url, h, fixed = TRUE))
+  expect_true(grepl(HSTAT_AI_FOURNISSEURS$kimi$modele, h, fixed = TRUE))
+  # Et la variable d'environnement est NOMMEE : sans elle, l'utilisateur ne
+  # sait pas comment eviter de ressaisir sa cle a chaque session.
+  expect_true(grepl(HSTAT_AI_FOURNISSEURS$kimi$cle_env, h, fixed = TRUE))
+})
+
+test_that("le moteur auto ne pretend pas rediger un texte", {
+  # « auto » n'est pas un modele de langue : le lui demander doit rendre un
+  # message qui dit quoi faire, pas partir en reseau ni tomber en erreur.
+  r <- hstat_ai_call("bonjour", engine = "auto")
+  expect_false(r$ok)
+  expect_true(grepl("thematisation automatique", r$error, ignore.case = TRUE))
 })
 
 test_that("le modele Claude declare est bien claude-opus-5", {
@@ -2055,35 +2197,43 @@ test_that("mod_coding.R est source par HStat.R avant mod_qualitative.R", {
 test_that("le corps des requetes locales a la forme attendue par les serveurs", {
   # Ces champs sont le contrat avec Ollama et avec les serveurs compatibles
   # OpenAI : un renommage silencieux casserait l'assistant sans erreur visible.
-  b <- .hstat_ai_body_ollama("code ce corpus", system = "tu reponds en JSON",
-                             model = "qwen2.5", json = TRUE)
-  expect_equal(b$model, "qwen2.5")
-  expect_false(b$stream)                    # sinon la reponse arrive par morceaux
-  expect_equal(b$format, "json")
-  expect_equal(b$options$temperature, 0.2)  # thematisation stable, pas creative
-  expect_equal(vapply(b$messages, function(m) m$role, character(1)),
-               c("system", "user"))
-  expect_equal(b$messages[[2]]$content, "code ce corpus")
-
-  # Sans consigne systeme, un seul message
-  b0 <- .hstat_ai_body_ollama("x", system = NULL, model = "m")
-  expect_equal(vapply(b0$messages, function(m) m$role, character(1)), "user")
-  expect_null(.hstat_ai_body_ollama("x", model = "m", json = FALSE)$format)
-
-  o <- .hstat_ai_body_openai("code ce corpus", system = "sys", model = "local-model",
+  o <- .hstat_ai_body_openai("code ce corpus", system = "sys", model = "gpt-4o",
                              max_tokens = 2048L, json = TRUE)
-  expect_equal(o$model, "local-model")
-  expect_false(o$stream)
+  expect_equal(o$model, "gpt-4o")
+  expect_false(o$stream)                    # sinon la reponse arrive par morceaux
   expect_equal(o$max_tokens, 2048L)
+  expect_equal(o$temperature, 0.2)          # thematisation stable, pas creative
   expect_equal(o$response_format$type, "json_object")
+  expect_equal(vapply(o$messages, function(m) m$role, character(1)),
+               c("system", "user"))
+  expect_equal(o$messages[[2]]$content, "code ce corpus")
+  # Sans consigne systeme, un seul message
+  expect_equal(vapply(.hstat_ai_body_openai("x", system = NULL, model = "m")$messages,
+                      function(m) m$role, character(1)), "user")
   # Le rejeu apres un refus du serveur passe par la meme fonction sans le champ
   expect_null(.hstat_ai_body_openai("x", model = "m", json = FALSE)$response_format)
 
+  # Gemini ne parle ni le protocole d'OpenAI ni celui d'Anthropic : la consigne
+  # systeme y est un champ a part (`systemInstruction`), et le texte est range
+  # en `parts`. C'est la piece qui casse en silence si un champ est renomme.
+  g <- .hstat_ai_body_gemini("code ce corpus", system = "sys", json = TRUE)
+  expect_equal(g$contents[[1]]$parts[[1]]$text, "code ce corpus")
+  expect_equal(g$contents[[1]]$role, "user")
+  expect_equal(g$systemInstruction$parts[[1]]$text, "sys")
+  expect_equal(g$generationConfig$temperature, 0.2)
+  expect_equal(g$generationConfig$responseMimeType, "application/json")
+  expect_null(.hstat_ai_body_gemini("x", system = NULL)$systemInstruction)
+  expect_null(.hstat_ai_body_gemini("x", json = FALSE)$generationConfig$responseMimeType)
+
   skip_if_not(requireNamespace("jsonlite", quietly = TRUE))
   # `messages` doit rester un TABLEAU JSON, meme avec un seul message
-  j <- jsonlite::toJSON(.hstat_ai_body_ollama("x", model = "m"), auto_unbox = TRUE)
+  j <- jsonlite::toJSON(.hstat_ai_body_openai("x", model = "m"), auto_unbox = TRUE)
   expect_true(grepl('"messages":[{', j, fixed = TRUE))
   expect_true(grepl('"stream":false', j, fixed = TRUE))
+  # Idem pour `contents` et `parts` chez Gemini
+  jg <- jsonlite::toJSON(.hstat_ai_body_gemini("x"), auto_unbox = TRUE)
+  expect_true(grepl('"contents":[{', jg, fixed = TRUE))
+  expect_true(grepl('"parts":[{', jg, fixed = TRUE))
 })
 
 # =============================================================================

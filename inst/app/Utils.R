@@ -996,9 +996,15 @@ HSTAT_GG_LINEWIDTH  <- 0.5    # geom_line/segment(linewidth = )
 HSTAT_GG_BASE_SIZE  <- 11     # theme_grey(base_size = ), en points
 HSTAT_GG_LABEL_PT   <- 11     # geom_text(size = 3.88 mm) ~ 11 pt
 
-# Le minimum descend a la taille de ggplot2 : le curseur doit pouvoir exprimer
-# le defaut, sinon « configuration d'origine » serait un etat inatteignable.
-HSTAT_LBL_PT_MIN     <- HSTAT_GG_LABEL_PT
+# Le minimum descend SOUS la taille de ggplot2. Un curseur qui commence au
+# defaut ne permet que d'agrandir, or c'est le plus souvent l'inverse qu'il
+# faut : sur un nuage de plusieurs dizaines d'individus, les etiquettes se
+# recouvrent a 11 pt et il n'y avait aucun moyen de les reduire. 8 pt reste
+# lisible sur une figure exportee a 300 DPI.
+#
+# Le DEFAUT, lui, ne bouge pas : c'est toujours celui de ggplot2, l'etat
+# d'origine qu'on doit pouvoir retrouver sans le chercher.
+HSTAT_LBL_PT_MIN     <- 8
 HSTAT_LBL_PT_MAX     <- 24
 HSTAT_LBL_PT_DEFAULT <- HSTAT_GG_LABEL_PT
 .HSTAT_PT_PER_MM     <- 72.27 / 25.4   # identique à ggplot2::.pt

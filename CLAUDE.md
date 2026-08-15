@@ -447,23 +447,57 @@ le nom de sortie que Shiny lui passe. Deux fois le piège dans ce dépôt. Il fa
 soit une sortie dédiée (`DTOutput` + `renderDT`), soit un composant statique
 (`.hstat_html_table()` dans `mod_ai.R`).
 
-### Assistance au codage : local et gratuit d'abord
+### Assistance IA : une table de fournisseurs, trois protocoles
 
-`mod_coding.R` propose trois moteurs d'assistance (`HSTAT_AI_ENGINES`). L'ordre
-n'est pas cosmétique : **le moteur local est le premier choix et le défaut de
-`hstat_ai_call()` / `hstat_ai_status()`**, l'API payante vient en dernier. Un
-test garde cet ordre — une fonctionnalité facturée à l'usage ne doit jamais
-devenir le chemin par défaut d'un utilisateur qui n'a rien demandé.
+`mod_ai.R` porte `HSTAT_AI_FOURNISSEURS` — **une ligne par service**. La liste
+de choix, le diagnostic, l'aiguillage et l'interface en dérivent tous. Ajouter
+un service, c'est ajouter une ligne ; et un service qui parle le protocole
+d'OpenAI (la plupart) ne demande **aucun code**.
 
-Le moteur `"auto"` (thématisation statistique) ne dépend d'aucun paquet
-optionnel : c'est le seul dont la disponibilité est garantie, et c'est vers lui
-que renvoient les messages d'erreur des deux autres. `httr` et `jsonlite`
-restent donc en **Suggests**, jamais en Imports.
+Trois protocoles seulement : `openai` (ChatGPT, DeepSeek, Kimi, GitHub Models,
+serveur local), `anthropic` (Claude), `gemini` (Google, seul à ne parler ni
+l'un ni l'autre). L'aiguillage se fait sur le **protocole**, jamais sur le nom
+du service.
 
-Les corps de requête sont construits par `.hstat_ai_body_ollama()` et
-`.hstat_ai_body_openai()`, séparés de l'envoi réseau : c'est la partie qui casse
-en silence quand un serveur renomme un champ, elle doit rester testable sans
-serveur.
+**Le défaut est `"auto"`**, la thématisation statistique : gratuite, hors ligne,
+sans clé, et le seul moteur garanti disponible partout. Une fonctionnalité
+facturée à l'usage ne doit jamais devenir le chemin par défaut d'un utilisateur
+qui n'a rien demandé — un test garde l'ordre de la liste (le gratuit avant le
+payant) et le défaut des deux fonctions.
+
+**Ollama a été retiré.** Son protocole lui était propre (`/api/chat`, la route
+des modèles installés, `format: "json"`) : il portait son constructeur de corps
+et son lecteur de réponse. Un serveur local compatible OpenAI (llama.cpp,
+LM Studio, vLLM, Jan) rend le même service par le chemin commun, et reste
+proposé — il ne dépend pas d'Ollama, il ne coûte rien, et rien n'obligeait à le
+supprimer avec lui.
+
+#### Une clé n'est jamais ambiante
+
+Chaque service lit **sa propre** variable d'environnement : une clé OpenAI ne
+doit pas servir à appeler DeepSeek. Et surtout, aucune variable **courante** :
+`GITHUB_TOKEN` existe sur quantité de postes et dans toutes les intégrations
+continues. La lire d'office enverrait un jeton chez un tiers sans acte de
+l'utilisateur — constaté à l'écran, le moteur GitHub Models s'annonçait
+« disponible » tout seul, avec le jeton du conteneur. D'où
+`GITHUB_MODELS_TOKEN`, que l'on ne pose que pour cela. Un test l'exige.
+
+#### Adresses et modèles sont des valeurs par défaut, pas des constantes
+
+Un service qui déménage ou renomme son modèle ne doit pas obliger à rouvrir le
+code : les deux sont éditables dans l'interface, et la valeur saisie l'emporte
+toujours.
+
+#### Les corps de requête restent testables sans serveur
+
+`.hstat_ai_body_openai()` et `.hstat_ai_body_gemini()` sont séparés de l'envoi
+réseau : c'est la partie qui casse **en silence** quand un fournisseur renomme
+un champ. Gemini range la consigne système dans `systemInstruction` et le texte
+dans `contents[].parts[]` — rien de commun avec les deux autres, donc un
+constructeur et un lecteur à lui.
+
+`httr` et `jsonlite` restent en **Suggests** : sans eux, `"auto"` fonctionne
+toujours.
 
 ### Modules imbriqués : l'ordre de `source()` compte
 
@@ -1223,6 +1257,18 @@ trop tôt et produisait un script que R refusait d'analyser, alors que le journa
 a précisément pour promesse d'être exécutable. R accepte l'accent grave échappé
 par une barre oblique inverse ; la barre elle-même doit donc être échappée
 d'abord. Un test balaie une batterie de noms hostiles.
+
+## Un curseur qui commence au défaut ne permet que d'agrandir
+
+`HSTAT_LBL_PT_MIN` valait 12, puis 11 — le défaut de ggplot2. Le curseur de
+taille des étiquettes partait donc **du** défaut : impossible de réduire. Or
+c'est le besoin le plus courant, un nuage de plusieurs dizaines d'individus
+voyant ses étiquettes se recouvrir. Le plancher est à **8 pt**, qui reste
+lisible sur une figure exportée à 300 DPI.
+
+Le **défaut**, lui, ne bouge pas : c'est toujours celui de ggplot2, l'état
+d'origine qu'on doit pouvoir retrouver sans le chercher — et il doit rester
+atteignable par le curseur. Un test vérifie les trois à la fois.
 
 ## Ne jamais recommander une analyse sur une variable vide
 
