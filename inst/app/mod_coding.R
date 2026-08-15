@@ -2011,34 +2011,17 @@ mod_coding_ui <- function(id) {
             shiny::fluidRow(
               shiny::column(5,
                 shiny::radioButtons(ns("ai_engine"), "Moteur",
-                  choices = HSTAT_AI_ENGINES, selected = "local"),
+                  choices = HSTAT_AI_ENGINES, selected = "auto"),
                 shiny::tags$small(style = "color:#7f8c8d;display:block;",
                   shiny::icon("circle-info"),
-                  " Le modele local est le plus performant sur le sens ; la ",
-                  "thematisation automatique ne demande aucune installation et ",
-                  "repond instantanement.")),
+                  " La thematisation automatique ne demande aucune installation, ",
+                  "aucune cle et aucune connexion : elle repond instantanement. ",
+                  "Les services en ligne comprennent mieux le sens, mais sont ",
+                  "payants et recoivent vos reponses.")),
 
-              # --- Reglages du modele local ---
+              # --- Reglages du moteur choisi, construits depuis la table ---
               shiny::column(7,
-                shiny::conditionalPanel(sprintf("input['%s'] == 'local'", ns("ai_engine")),
-                  shiny::fluidRow(
-                    shiny::column(5,
-                      shiny::radioButtons(ns("ai_backend"), "Serveur d'inference",
-                        choices = HSTAT_AI_BACKENDS, selected = "ollama")),
-                    shiny::column(7,
-                      shiny::textInput(ns("ai_url"), "Adresse du serveur",
-                                       value = unname(HSTAT_AI_DEFAULT_URL[["ollama"]])),
-                      shiny::uiOutput(ns("ai_model_ui")))),
-                  shiny::actionButton(ns("ai_ping"), "Tester la connexion et lister les modeles",
-                                      icon = shiny::icon("plug-circle-check"),
-                                      class = "btn-default btn-sm"),
-                  shiny::tags$small(style = "color:#7f8c8d;display:block;margin-top:6px;",
-                    shiny::icon("download"),
-                    " Une seule installation suffit : ", shiny::tags$b("ollama.com"),
-                    " (gratuit), puis ", shiny::tags$code("ollama pull qwen2.5"),
-                    " dans un terminal. Le modele telecharge, tout fonctionne ",
-                    "sans connexion Internet.")),
-
+                shiny::uiOutput(ns("ai_reglages")),
                 shiny::conditionalPanel(sprintf("input['%s'] == 'auto'", ns("ai_engine")),
                   shiny::div(style = "background:#f8f9fa;border:1px solid #e0e0e0;border-radius:6px;padding:10px 14px;font-size:13px;",
                     shiny::tags$b(shiny::icon("calculator"), " Comment ca marche"),
@@ -2049,15 +2032,10 @@ mod_coding_ui <- function(id) {
                       "Chaque theme arrive avec son ", shiny::tags$b("dictionnaire"),
                       " de mots-cles, editable ci-dessous, qui sert ensuite au ",
                       "pre-codage de ", shiny::tags$b("tout"), " le corpus."))),
-
-                shiny::conditionalPanel(sprintf("input['%s'] == 'claude'", ns("ai_engine")),
-                  shiny::passwordInput(ns("ai_key"), "Cle d'API Anthropic",
-                                       placeholder = "sk-ant-... (ou variable ANTHROPIC_API_KEY)"),
-                  shiny::tags$small(style = "color:#7f8c8d;",
-                    shiny::icon("lock"), " La cle n'est utilisee que pour cette session ",
-                    "et n'est ni enregistree, ni exportee avec vos resultats. ",
-                    shiny::tags$b("Cette option est payante"), " et envoie vos reponses ",
-                    "chez un tiers ; les deux autres moteurs ne le font pas.")))),
+                shiny::tags$small(style = "color:#7f8c8d;display:block;margin-top:6px;",
+                  shiny::icon("lock"),
+                  " Une cle saisie ici ne sert qu'a cette session : elle n'est ni ",
+                  "enregistree, ni exportee avec vos resultats."))),
 
             shiny::hr(),
             shiny::fluidRow(
@@ -3153,41 +3131,26 @@ mod_coding_server <- function(id, values) {
     # Les reglages du moteur, rassembles une fois pour toutes : les quatre
     # observateurs ci-dessous en dependent tous.
     ai_opts <- shiny::reactive(list(
-      engine  = input$ai_engine %||% "local",
-      backend = input$ai_backend %||% "ollama",
+      engine  = input$ai_engine %||% "auto",
       url     = input$ai_url,
       model   = input$ai_model,
       key     = input$ai_key))
 
-    # Changer de serveur d'inference remet l'adresse par defaut correspondante :
-    # 11434 pour Ollama, 8080 pour un serveur compatible OpenAI.
-    shiny::observeEvent(input$ai_backend, {
-      shiny::updateTextInput(session, "ai_url",
-                             value = unname(HSTAT_AI_DEFAULT_URL[[input$ai_backend]]))
-    }, ignoreInit = TRUE)
+    # Les reglages suivent le moteur : la table dit ce qu'il faut demander.
+    output$ai_reglages <- shiny::renderUI(
+      hstat_ai_reglages_ui(ns, input$ai_engine %||% "auto", "ai_"))
 
-    ai_models <- shiny::reactiveVal(character(0))
     shiny::observeEvent(input$ai_ping, {
       o <- ai_opts()
-      st <- hstat_ai_status("local", o$backend, o$url)
-      ai_models(if (is.null(st$models)) character(0) else st$models)
+      st <- hstat_ai_status(o$engine, o$url, o$model, o$key)
       shiny::showNotification(st$message,
                               type = if (isTRUE(st$ok)) "message" else "warning",
                               duration = 10)
     })
 
-    output$ai_model_ui <- shiny::renderUI({
-      m <- ai_models()
-      if (!length(m))
-        return(shiny::textInput(ns("ai_model"), "Modele",
-                                placeholder = "ex. qwen2.5 - « Tester la connexion » liste les modeles installes"))
-      shiny::selectInput(ns("ai_model"), "Modele", choices = m,
-                         selected = shiny::isolate(input$ai_model) %||% m[1])
-    })
-
     output$ai_status <- shiny::renderUI({
       o <- ai_opts()
-      st <- hstat_ai_status(o$engine, o$backend, o$url, o$model, o$key)
+      st <- hstat_ai_status(o$engine, o$url, o$model, o$key)
       shiny::div(class = if (isTRUE(st$ok)) "callout callout-success" else "callout callout-warning",
         style = "padding:8px 12px;",
         shiny::icon(if (isTRUE(st$ok)) "circle-check" else "triangle-exclamation"),
@@ -3201,7 +3164,7 @@ mod_coding_server <- function(id, values) {
     # ---- Etape 1 : proposer un livre de codes ----
     shiny::observeEvent(input$ai_codebook, {
       o <- ai_opts()
-      st <- hstat_ai_status(o$engine, o$backend, o$url, o$model, o$key)
+      st <- hstat_ai_status(o$engine, o$url, o$model, o$key)
       if (!isTRUE(st$ok)) { shiny::showNotification(st$message, type = "error", duration = 10); return() }
       tx <- docs()$text
       if (!length(tx)) { shiny::showNotification("Corpus vide.", type = "error"); return() }
@@ -3228,7 +3191,7 @@ mod_coding_server <- function(id, values) {
         res <- hstat_ai_call(
           hstat_ai_codebook_prompt(tx, input$ai_ncodes %||% 8, input$ai_context %||% ""),
           system = "Tu es un analyste qualitatif rigoureux. Tu reponds exclusivement en JSON valide.",
-          engine = o$engine, backend = o$backend, url = o$url, model = o$model,
+          engine = o$engine, url = o$url, model = o$model,
           api_key = o$key)
         shiny::incProgress(0.4)
         if (!isTRUE(res$ok)) {
@@ -3273,7 +3236,7 @@ mod_coding_server <- function(id, values) {
     # ---- Etape 2 : pre-coder les reponses ----
     shiny::observeEvent(input$ai_autocode, {
       o <- ai_opts()
-      st <- hstat_ai_status(o$engine, o$backend, o$url, o$model, o$key)
+      st <- hstat_ai_status(o$engine, o$url, o$model, o$key)
       if (!isTRUE(st$ok)) { shiny::showNotification(st$message, type = "error", duration = 10); return() }
       if (nrow(rv$codebook) == 0) {
         shiny::showNotification("Creez d'abord un livre de codes (etape 1, ou a la main).",
@@ -3294,7 +3257,7 @@ mod_coding_server <- function(id, values) {
         res <- hstat_ai_call(
           hstat_ai_autocode_prompt(sub, rv$codebook),
           system = "Tu es un analyste qualitatif rigoureux. Tu reponds exclusivement en JSON valide et tu cites les extraits mot pour mot.",
-          engine = o$engine, backend = o$backend, url = o$url, model = o$model,
+          engine = o$engine, url = o$url, model = o$model,
           api_key = o$key)
         shiny::incProgress(0.4)
         if (!isTRUE(res$ok)) {
