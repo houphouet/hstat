@@ -372,8 +372,16 @@ a { color: var(--accent); }
 .mv-analyses-col .box { width: 100%; }
 .mv-catalog .mv-cat-list { columns: 1; }
 @media (max-width: 1100px){
-  .mv-layout { flex-direction: column; }
-  .mv-catalog-col { position: static; width: 100%; flex-basis: auto; }
+  /* EMPILEMENT EN BLOCS, PAS EN COLONNE FLEX. `flex-direction: column` garde
+     `align-items: flex-start`, et les deux colonnes se reduisent alors a la
+     largeur de leur CONTENU : le catalogue tombait a 285 px dans une fenetre
+     de 800, et a 24 px sur telephone -- un mot par ligne, illisible. Constate
+     a l'ecran. Deux blocs empiles se comportent, eux, sans surprise. */
+  .mv-layout { display: block; }
+  .mv-catalog-col, .mv-analyses-col {
+    position: static; width: 100%; max-width: 100%; flex-basis: auto;
+  }
+  .mv-catalog-col { margin-bottom: 16px; }
   .mv-catalog .mv-cat-list { columns: 2; column-gap: 18px; }
 }
 
@@ -403,3 +411,131 @@ a { color: var(--accent); }
 .mv-grp-quali  .mv-grp-dot { background: #a76512; }
 .mv-grp-mixte  .mv-grp-dot { background: #1d8a5d; }
 .mv-grp-count { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--ink3); }
+
+/* =============================================================================
+   RESPONSIVE : DE L'IPHONE SE (375 px) AU GRAND ECRAN
+   -----------------------------------------------------------------------------
+   Une seule regle de conduite : rien ne disparait, rien n'est coupe. Ce qui ne
+   tient pas en largeur se REPLIE (colonnes empilees) ou DEFILE dans son propre
+   conteneur (tableaux larges) -- jamais hors de la page, ou il serait perdu
+   sans que rien ne le signale.
+
+   Ces regles vivaient dans un `tags$style()` de UX.R. Elles sont ici parce que
+   c'est la feuille de theme qui porte la mise en forme, et parce qu'une regle
+   responsive dispersee en deux endroits finit par se contredire.
+   ========================================================================== */
+
+/* --- Ce qui ne doit deborder a AUCUNE taille --- */
+img, .shiny-plot-output, .shiny-image-output { max-width: 100%; height: auto; }
+.shiny-plot-output > img { width: 100% !important; }
+.form-group, .selectize-control, .irs { max-width: 100%; }
+.sidebar-menu > li > a { white-space: normal; }
+
+/* Un tableau plus large que l'ecran defile DANS sa boite : la donnee reste
+   atteignable. Sans conteneur defilant, `.wrapper { overflow: hidden }` la
+   coupe purement et simplement -- on ne sait meme pas qu'il manque des
+   colonnes. */
+.box, .nav-tabs-custom { overflow-x: auto; }
+.dataTables_wrapper, .hstat-table-scroll, .table-responsive,
+pre, .shiny-table-output { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table.dataTable { width: 100% !important; }
+/* Tableaux post-hoc : table UNIQUE (pas de scrollX) qui s'ajuste au contenu ;
+   le conteneur gere le defilement. En-tete et corps partagent la meme grille,
+   aucun decalage possible. */
+.hstat-table-scroll { width: 100%; }
+table.dataTable.hstat-fixedcols { width: 100% !important; table-layout: auto; }
+table.dataTable.hstat-fixedcols th,
+table.dataTable.hstat-fixedcols td { vertical-align: middle; }
+
+/* --- Tablette et telephone : la barre laterale s'efface --- */
+@media (max-width: 991px) {
+  /* LA BARRE S'ESCAMOTE DE SA PROPRE LARGEUR.
+     `-230px` etait code en dur ici comme dans AdminLTE, alors que la barre de
+     HStat fait 300 px (`dashboardSidebar(width = 300)`) : 70 px restaient
+     poses SUR le contenu, dont le bord gauche etait coupe sur TOUS les
+     onglets -- « Charger donnees » s'affichait « er donnees ». Constate a
+     l'ecran sur un iPhone SE.
+     `-100%` ne depend d'aucun chiffre : la largeur de la barre peut changer,
+     l'escamotage suit. */
+  .main-sidebar, .left-side { transform: translate(-100%, 0) !important; }
+  .sidebar-open .main-sidebar, .sidebar-open .left-side {
+    transform: translate(0, 0) !important;
+    box-shadow: 0 0 24px rgba(0,0,0,.35);
+  }
+  .main-sidebar { width: min(300px, 86vw) !important; z-index: 1030; }
+
+  /* Ouverte, la barre se POSE sur le contenu au lieu de le pousser. Pousser de
+     230 px un contenu qu'elle recouvre sur 300 le decalait sans le degager :
+     on perdait le bord gauche ET le bord droit. */
+  .content-wrapper, .right-side, .main-footer {
+    margin-left: 0 !important; transform: none !important;
+  }
+  .sidebar-open .content-wrapper, .sidebar-open .right-side,
+  .sidebar-open .main-footer { transform: none !important; }
+
+  .col-sm-6, .col-sm-4, .col-sm-3,
+  .col-md-6, .col-md-4, .col-md-3 { width: 100%; }
+  .box { margin-bottom: 12px; }
+}
+
+@media (max-width: 1200px) and (min-width: 992px) {
+  .col-md-3 { width: 50%; }
+}
+
+/* --- Telephone : tout reste, tout se compacte --- */
+@media (max-width: 767px) {
+  /* L'en-tete occupait 300 px de haut sur 667 : la moitie de l'ecran avant le
+     premier reglage. Rien n'est masque -- ce sont des commandes, pas de la
+     decoration -- mais tout est resserre et se replie proprement. */
+  .main-header .logo {
+    width: 100% !important; float: none; height: 42px; line-height: 42px;
+    font-size: 16px;
+  }
+  .main-header .navbar { margin-left: 0 !important; min-height: 40px; }
+  .main-header .navbar .sidebar-toggle { padding: 10px 12px; }
+  .main-header .navbar .nav > li > .hstat-theme-toggle { margin: 2px 4px; }
+  .hstat-header-tools { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 6px; }
+  .hstat-header-tools .hstat-hdr-btn { font-size: 12px; padding: 4px 8px; }
+  .hstat-header-tools .hstat-seed .form-control { width: 62px !important; }
+  .hstat-theme-toggle .seg { font-size: 12px; padding: 3px 9px; }
+
+  /* Un libelle long se replie au lieu de sortir de l'ecran. Le bouton
+     « Telecharger le tableau des efficacites » faisait 385 px de large dans
+     une fenetre de 375. */
+  /* `white-space: normal` seul : le libelle se replie AUX ESPACES. Y ajouter
+     `word-break: break-word` cassait a l'interieur des mots, et le bouton
+     « Browse... » du selecteur de fichier s'ecrivait une lettre par ligne --
+     vu a l'ecran. */
+  .btn { white-space: normal; max-width: 100%; }
+  .btn.btn-file, .input-group-btn .btn { white-space: nowrap; }
+  .box-header > .box-title { white-space: normal; font-size: 15px; line-height: 1.3; }
+  .box-header { padding: 10px 12px; }
+  .box-body { padding: 10px; }
+  .content { padding: 8px; }
+  .nav-tabs > li > a { padding: 6px 9px; font-size: 12px; }
+  h2 { font-size: 20px; } h3 { font-size: 18px; } h4 { font-size: 16px; }
+
+  /* Le catalogue des analyses multivariees : deux colonnes de 170 px ne se
+     lisent pas. */
+  .mv-catalog .mv-cat-list { columns: 1; }
+  .mv-mh-title { font-size: 18px; }
+  .mv-mh-desc { font-size: 13px; }
+
+  /* Une modale plus large que l'ecran perd ses boutons de validation. */
+  .modal-dialog { width: auto !important; margin: 8px; }
+
+  /* Les marges NEGATIVES des `row` de Bootstrap (-15 px de chaque cote)
+     supposent un parent qui les rattrape par 15 px de rembourrage. Le
+     rembourrage resserre du telephone ne les rattrape plus : chaque rangee
+     depassait sa boite de 7 px, et la boite se mettait a defiler
+     horizontalement pour rien. Sur telephone les colonnes sont de toute facon
+     empilees : la gouttiere negative n'a plus d'objet. */
+  .row { margin-left: 0; margin-right: 0; }
+  [class*="col-xs-"], [class*="col-sm-"],
+  [class*="col-md-"], [class*="col-lg-"] { padding-left: 8px; padding-right: 8px; }
+
+  /* 16 px : en dessous, Safari iOS ZOOME sur le champ des qu'on y touche, et
+     la page reste zoomee -- l'utilisateur se retrouve avec une interface
+     coupee sans avoir rien demande. */
+  input, select, textarea, .form-control { font-size: 16px; }
+}

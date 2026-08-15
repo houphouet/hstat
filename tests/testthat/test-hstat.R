@@ -6050,3 +6050,57 @@ test_that("aucun telechargement d'image ne peut se terminer sans ecrire", {
   # Le chemin d'ecriture garanti est bien celui employe
   expect_true(sum(grepl("hstat_ecrire_image", code, fixed = TRUE)) >= 15)
 })
+
+test_that("la mise en page s'adapte aux petits ecrans sans rien couper", {
+  root <- .hstat_repo_root()
+  css  <- paste(readLines(file.path(root, "inst", "app", "www", "hstat-theme.css"),
+                          warn = FALSE), collapse = "\n")
+  ux   <- paste(readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE),
+                collapse = "\n")
+
+  # LE DEFAUT : l'escamotage de la barre laterale etait code en dur a 230 px
+  # (la valeur d'AdminLTE) alors que HStat declare une barre de 300 px. Les
+  # 70 px de difference restaient poses SUR le contenu, dont le bord gauche
+  # etait coupe sur tous les onglets. Aucun pixel en dur ne doit revenir : la
+  # largeur de la barre peut changer, l'escamotage doit suivre.
+  expect_false(grepl("translate(-230px", css, fixed = TRUE))
+  expect_false(grepl("translate(-230px", ux,  fixed = TRUE))
+  expect_true(grepl("translate(-100%, 0)", css, fixed = TRUE))
+
+  # La largeur declaree dans R reste la seule source : la feuille de style ne
+  # doit pas la recopier pour deplacer la barre.
+  expect_true(grepl("dashboardSidebar(", ux, fixed = TRUE))
+  expect_false(grepl("translate(-300px", css, fixed = TRUE))
+
+  # Les regles responsive vivent dans la feuille de theme, pas dispersees dans
+  # l'interface : deux endroits finissent par se contredire, et c'est
+  # exactement ce qui s'etait produit.
+  expect_false(grepl("@media", ux, fixed = TRUE))
+  expect_true(grepl("@media (max-width: 767px)", css, fixed = TRUE))
+  expect_true(grepl("@media (max-width: 991px)", css, fixed = TRUE))
+
+  # Ce qui est plus large que l'ecran doit DEFILER dans son conteneur, jamais
+  # etre coupe : `.wrapper { overflow: hidden }` fait disparaitre des colonnes
+  # entieres sans que rien ne le signale.
+  for (regle in c(".dataTables_wrapper", ".hstat-table-scroll"))
+    expect_true(grepl(regle, css, fixed = TRUE), label = regle)
+  expect_true(grepl("overflow-x: auto", css, fixed = TRUE))
+
+  # Le catalogue multivarie s'empile en BLOCS sous 1100 px. En colonne flex,
+  # `align-items: flex-start` reduit les deux colonnes a la largeur de leur
+  # contenu : les fiches tombaient a 24 px de large sur telephone.
+  i_media <- regexpr("@media (max-width: 1100px)", css, fixed = TRUE)
+  expect_gt(i_media, 0)
+  bloc <- substr(css, i_media, i_media + 700)
+  expect_true(grepl(".mv-layout { display: block; }", bloc, fixed = TRUE))
+
+  # 16 px sur les champs : en dessous, Safari iOS zoome des qu'on y touche et
+  # la page reste zoomee -- l'interface se retrouve coupee sans qu'on ait rien
+  # demande.
+  expect_true(grepl("input, select, textarea, .form-control { font-size: 16px; }",
+                    css, fixed = TRUE))
+
+  # Et la page declare bien qu'elle se rend a la largeur de l'appareil : sans
+  # cette balise, un telephone rend la page a 980 px et la reduit.
+  expect_true(grepl("width=device-width", ux, fixed = TRUE))
+})
