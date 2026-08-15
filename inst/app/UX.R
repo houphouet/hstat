@@ -986,7 +986,8 @@ ui <- dashboardPage(
                                                     textInput("pcaPlotTitle", "Titre du graphique:",
                                                               value = "ACP - Analyse en Composantes Principales"),
                                                     textInput("pcaXLabel", "Label axe X:", value = ""),
-                                                    textInput("pcaYLabel", "Label axe Y:", value = ""))
+                                                    textInput("pcaYLabel", "Label axe Y:", value = "")),
+                                                  hstat_mv_forme_ui("pcaPlot")
                                                 ),
                                                 fluidRow(
                                                   column(4, checkboxInput("pcaCenterAxes", "Centrer sur (0,0)", TRUE)),
@@ -999,19 +1000,19 @@ ui <- dashboardPage(
                                                   h5(style="color:#495057;margin-top:0;", icon("text-height"), " Style du texte, des points et des tracés"),
                                                   fluidRow(
                                                     column(3, sliderInput("pcaAxisTextSize", "Taille texte des axes",
-                                                                          min = 8, max = 24, value = 13, step = 1)),
+                                                                          min = 8, max = 24, value = HSTAT_GG_BASE_SIZE, step = 1)),
                                                     column(3, sliderInput("pcaAxisTitleSize", "Taille titres d'axes",
-                                                                          min = 8, max = 26, value = 14, step = 1)),
+                                                                          min = 8, max = 26, value = HSTAT_GG_BASE_SIZE, step = 1)),
                                                     column(3, hstat_lbl_slider("pcaLabelSize", "Taille des labels des individus")),
                                                     column(3, hstat_lbl_slider("pcaVarLabelSize", "Taille des labels des variables"))
                                                   ),
                                                   fluidRow(
                                                     column(3, sliderInput("pcaPointSize", "Taille des points (individus)",
-                                                                          min = 0.5, max = 8, value = 2, step = 0.5))
+                                                                          min = 0.5, max = 8, value = HSTAT_GG_POINT_SIZE, step = 0.5))
                                                   ),
                                                   fluidRow(
                                                     column(3, sliderInput("pcaLineWidth", "Largeur des tracés (flèches/axes)",
-                                                                          min = 0.3, max = 4, value = 0.8, step = 0.1)),
+                                                                          min = 0.3, max = 4, value = HSTAT_GG_LINEWIDTH, step = 0.1)),
                                                     column(3, div(style="margin-top:25px;",
                                                               checkboxInput("pcaBoldText", "Texte en gras", value = FALSE))),
                                                     column(3, div(style="margin-top:25px;",
@@ -1056,9 +1057,12 @@ ui <- dashboardPage(
                                             p(style = "font-size: 11px; color: #666; font-style: italic;",
                                               "Critère de Kaiser (valeur propre min. 1) : les composantes en vert sont retenues. Cherchez le 'coude' de la courbe."),
                                             plotOutput("pcaScreePlot", height = "320px"),
+                                            hstat_mv_forme_ui("pcaScree", "Apparence du graphique des éboulis"),
                                             fluidRow(
-                                              column(6, selectInput("pcaScree_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")),
-                                              column(6, numericInput("pcaScree_dpi", "DPI:", value = 300, min = 72, max = 1200))
+                                              column(12, selectInput("pcaScree_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")),
+                                              column(4, numericInput("pcaScree_dpi", "DPI:", value = 300, min = 72, max = 1200)),
+                                              column(4, numericInput("pcaScree_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
+                                              column(4, numericInput("pcaScree_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
                                             ),
                                             div(style = "text-align: center; margin-bottom: 10px;",
                                                 downloadButton("downloadPcaScreePlot", "Télécharger Scree Plot", class = "btn-info btn-sm")
@@ -1069,9 +1073,12 @@ ui <- dashboardPage(
                                             p(style = "font-size: 11px; color: #666; font-style: italic;",
                                               "Méthode plus rigoureuse que Kaiser : retenir les composantes dont la valeur propre observée dépasse le percentile 95 des simulations aléatoires."),
                                             plotOutput("pcaParallelPlot", height = "320px"),
+                                            hstat_mv_forme_ui("pcaParallel", "Apparence de l'analyse parallèle"),
                                             fluidRow(
-                                              column(6, selectInput("pcaParallel_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")),
-                                              column(6, numericInput("pcaParallel_dpi", "DPI:", value = 300, min = 72, max = 1200))
+                                              column(12, selectInput("pcaParallel_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")),
+                                              column(4, numericInput("pcaParallel_dpi", "DPI:", value = 300, min = 72, max = 1200)),
+                                              column(4, numericInput("pcaParallel_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
+                                              column(4, numericInput("pcaParallel_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
                                             ),
                                             div(style = "text-align: center; margin-bottom: 10px;",
                                                 downloadButton("downloadPcaParallelPlot", "Télécharger Analyse Parallèle", class = "btn-info btn-sm")
@@ -1083,9 +1090,12 @@ ui <- dashboardPage(
                                               "Seuil théorique = 100% / nb variables. Les variables au-dessus du seuil (en vert) structurent principalement l'axe."),
                                             uiOutput("pcaCTRAxisSelect"),
                                             plotOutput("pcaCTRPlot", height = "300px"),
+                                            hstat_mv_forme_ui("pcaCTR", "Apparence du graphique CTR"),
                                             fluidRow(
-                                              column(6, selectInput("pcaCTR_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")),
-                                              column(6, numericInput("pcaCTR_dpi", "DPI:", value = 300, min = 72, max = 1200))
+                                              column(12, selectInput("pcaCTR_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")),
+                                              column(4, numericInput("pcaCTR_dpi", "DPI:", value = 300, min = 72, max = 1200)),
+                                              column(4, numericInput("pcaCTR_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
+                                              column(4, numericInput("pcaCTR_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
                                             ),
                                             div(style = "text-align: center; margin-bottom: 10px;",
                                                 downloadButton("downloadPcaCTRPlot", "Télécharger Graphique CTR", class = "btn-info btn-sm")
@@ -1211,8 +1221,8 @@ ui <- dashboardPage(
                                               )
                                             ),
                                             fluidRow(
-                                              column(6, sliderInput("hcpcPointSize", "Taille des points", min = 0.5, max = 8, value = 2, step = 0.5)),
-                                              column(6, sliderInput("hcpcAxisTextSize", "Taille texte des axes", min = 8, max = 24, value = 13, step = 1))
+                                              column(6, sliderInput("hcpcPointSize", "Taille des points", min = 0.5, max = 8, value = HSTAT_GG_POINT_SIZE, step = 0.5)),
+                                              column(6, sliderInput("hcpcAxisTextSize", "Taille texte des axes", min = 8, max = 24, value = HSTAT_GG_BASE_SIZE, step = 1))
                                             ),
                                             p(style = "margin: 5px 0 0 0; font-size: 11px; color: #1b5e20; font-style: italic;",
                                               icon("info-circle"), " Les polygones colores entourent chaque cluster. Activez les étiquettes uniquement pour de petits jeux de données.")
@@ -1242,6 +1252,9 @@ ui <- dashboardPage(
                                             h5("Personnalisation graphique:", style = "font-weight: bold; color: #5cb85c;"),
                                             fluidRow(
                                               column(6,
+                                                     hstat_mv_forme_ui("hcpcCluster"),
+                                                     hstat_mv_forme_ui("hcpcDend", "Apparence du dendrogramme"),
+                                                     hstat_mv_forme_ui("hcpcHeights", "Apparence des hauteurs de fusion"),
                                                      textInput("hcpcClusterTitle", "Titre carte des clusters:", 
                                                                value = "Carte des clusters HCPC"),
                                                      textInput("hcpcClusterXLabel", "Label axe X:", value = ""),
@@ -1351,9 +1364,11 @@ ui <- dashboardPage(
                                                       "Un saut important entre deux fusions consécutives suggère la coupure optimale du dendrogramme (règle du coude). Ce graphique complète la lecture visuelle du dendrogramme."),
                                                     plotOutput("hcpcHeightsPlot", height = "320px"),
                                                     fluidRow(
-                                                      column(6, selectInput("hcpcHeights_format", "Format:",
+                                                      column(12, selectInput("hcpcHeights_format", "Format:",
                                                                             choices = c("png", "svg", "pdf", "tiff"), selected = "png")),
-                                                      column(6, numericInput("hcpcHeights_dpi", "DPI:", value = 300, min = 72, max = 1200))
+                                                      column(4, numericInput("hcpcHeights_dpi", "DPI:", value = 300, min = 72, max = 1200)),
+                                              column(4, numericInput("hcpcHeights_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
+                                              column(4, numericInput("hcpcHeights_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
                                                     ),
                                                     div(style = "text-align: center; margin-top: 4px;",
                                                         downloadButton("downloadHcpcHeightsPlot",
@@ -1573,18 +1588,20 @@ ui <- dashboardPage(
                                             div(style="background-color:#f4f6f8;border-left:4px solid #3c8dbc;padding:10px;margin-bottom:10px;",
                                               h5(style="margin-top:0;color:#495057;", icon("sliders-h"), " Taille des éléments"),
                                               fluidRow(
-                                                column(3, sliderInput("afdPointSize", "Taille des points", min = 0.5, max = 8, value = 3, step = 0.5)),
+                                                column(3, sliderInput("afdPointSize", "Taille des points", min = 0.5, max = 8, value = HSTAT_GG_POINT_SIZE, step = 0.5)),
                                                 column(3, hstat_lbl_slider("afdLabelSize", "Taille des labels des individus")),
                                                 column(3, hstat_lbl_slider("afdVarLabelSize", "Taille des labels des variables")),
-                                                column(3, sliderInput("afdLineWidth", "Largeur des flèches", min = 0.3, max = 4, value = 1.3, step = 0.1))
+                                                column(3, sliderInput("afdLineWidth", "Largeur des flèches", min = 0.3, max = 4, value = HSTAT_GG_LINEWIDTH, step = 0.1))
                                               ),
                                               fluidRow(
-                                                column(3, sliderInput("afdAxisTextSize", "Taille texte axes", min = 8, max = 22, value = 12, step = 1))
+                                                column(3, sliderInput("afdAxisTextSize", "Taille texte axes", min = 8, max = 22, value = HSTAT_GG_BASE_SIZE, step = 1))
                                               )
                                             ),
                                             h5("Personnalisation graphique:", style = "font-weight: bold; color: #495057;"),
                                             fluidRow(
                                               column(6,
+                                                     hstat_mv_forme_ui("afdInd", "Apparence — projection des individus"),
+                                                     hstat_mv_forme_ui("afdVar", "Apparence — contribution des variables"),
                                                      textInput("afdIndTitle", "Titre projection individus:", 
                                                                value = "AFD - Projection des individus"),
                                                      textInput("afdIndXLabel", "Label axe X:", value = ""),

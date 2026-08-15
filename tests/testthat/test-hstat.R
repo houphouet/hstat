@@ -1360,11 +1360,15 @@ test_that("les entrees invalides d'un test de conformite sont rejetees", {
   expect_equal(r$n, 15)
 })
 
-test_that("la taille des labels est bornee a 12-24 pt et convertie pour ggplot2", {
-  expect_equal(HSTAT_LBL_PT_MIN, 12)
+test_that("la taille des labels part du defaut de ggplot2 et se convertit", {
+  # Le plancher etait a 12 pt : le defaut de ggplot2 (11 pt) etait alors
+  # INATTEIGNABLE, alors que c'est precisement l'etat d'origine qu'on veut
+  # pouvoir retrouver. Il descend donc a 11.
+  expect_equal(HSTAT_LBL_PT_MIN, HSTAT_GG_LABEL_PT)
+  expect_equal(HSTAT_LBL_PT_DEFAULT, HSTAT_GG_LABEL_PT)
   expect_equal(HSTAT_LBL_PT_MAX, 24)
   # Bornage des saisies hors domaine, absentes ou invalides.
-  expect_equal(hstat_lbl_pt(3), 12)
+  expect_equal(hstat_lbl_pt(3), HSTAT_LBL_PT_MIN)
   expect_equal(hstat_lbl_pt(99), 24)
   expect_equal(hstat_lbl_pt(NULL), HSTAT_LBL_PT_DEFAULT)
   expect_equal(hstat_lbl_pt(NA), HSTAT_LBL_PT_DEFAULT)
@@ -5790,4 +5794,106 @@ test_that("les alignements de titre sont des hjust valides", {
   expect_false(any(is.na(v)))
   expect_true(all(v >= 0 & v <= 1))
   expect_true("0.5" %in% unname(HSTAT_ALIGNEMENTS))
+})
+
+test_that("les pixels d'export suivent la resolution a taille physique constante", {
+  # Modele des analyses multivariees : les champs de largeur/hauteur sont
+  # RECALCULES a chaque changement de DPI, ils affichent donc les pixels
+  # reellement produits. pouces = pixels / DPI est alors exact.
+  expect_equal(hstat_px_apres_dpi(3000, 300, 600), 6000)
+  expect_equal(hstat_px_apres_dpi(3000, 300, 150), 1500)
+  expect_equal(hstat_px_apres_dpi(3000, 300, 300), 3000)
+
+  # La taille physique est l'invariant : elle ne bouge pas d'un DPI a l'autre.
+  for (dpi in c(72, 150, 300, 600)) {
+    px <- hstat_px_apres_dpi(3000, 300, dpi)
+    expect_equal(round(hstat_px_en_pouces(px, dpi), 6), 10)
+  }
+  # Bornage : un bitmap demesure ferait echouer l'export
+  expect_lte(hstat_px_apres_dpi(19000, 72, 1200), HSTAT_EXPORT_MAX_PX)
+  # Entrees inutilisables : on ne propose rien plutot qu'un chiffre invente
+  for (x in list(NULL, NA, 0, -1, ""))
+    expect_null(hstat_px_apres_dpi(x, 300, 600))
+  expect_null(hstat_px_apres_dpi(3000, 0, 600))
+  expect_null(hstat_px_apres_dpi(3000, 300, NA))
+
+  # Pouces : repli explicite plutot qu'une valeur absurde
+  expect_equal(hstat_px_en_pouces(3000, 300), 10)
+  expect_equal(hstat_px_en_pouces(NULL, 300, defaut = 8), 8)
+  expect_equal(hstat_px_en_pouces(3000, NA, defaut = 8), 8)
+  expect_gte(hstat_px_en_pouces(10, 300), 1)          # jamais moins d'un pouce
+})
+
+test_that("les graphiques multivaries partent des reglages de ggplot2", {
+  # « S'afficher initialement avec les configurations d'origine de ggplot2 » :
+  # les valeurs de depart doivent etre celles de ggplot2, pas des tailles
+  # maison qu'il faudrait defaire.
+  expect_equal(HSTAT_GG_POINT_SIZE, 1.5)     # geom_point
+  expect_equal(HSTAT_GG_LINEWIDTH, 0.5)      # geom_line / segment
+  expect_equal(HSTAT_GG_BASE_SIZE, 11)       # theme_grey(base_size = )
+  expect_equal(HSTAT_GG_LABEL_PT, 11)        # geom_text ~ 3,88 mm
+
+  root <- .hstat_repo_root()
+  srv  <- paste(readLines(file.path(root, "inst", "app", "app_server.R"), warn = FALSE),
+                collapse = "\n")
+  ux   <- paste(readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE),
+                collapse = "\n")
+
+  # Le theme etait impose en dur a chaque graphique factoriel : le rendu
+  # d'origine de ggplot2 etait alors inatteignable. (Les commentaires en
+  # parlent encore, on ne balaie que le code.)
+  code <- readLines(file.path(root, "inst", "app", "app_server.R"), warn = FALSE)
+  code <- paste(code[!grepl("^\\s*#", code)], collapse = "\n")
+  expect_false(grepl("ggtheme = theme_minimal()", code, fixed = TRUE))
+  expect_true(grepl("mv_ggtheme(", code, fixed = TRUE))
+
+  # Aucune taille maison ne subsiste comme valeur de depart
+  for (motif in c("value = 2.4", "value = 0.7,"))
+    expect_false(grepl(motif, srv, fixed = TRUE), label = motif)
+
+  # Et le helper de telechargement mort a disparu : il portait un calcul de
+  # dimensions different de celui reellement employe.
+  expect_false(grepl("createPlotDownloadHandler <- function", srv, fixed = TRUE))
+  expect_false(grepl("calculate_dimensions_from_dpi", srv, fixed = TRUE))
+  expect_false(grepl("calculate_dimensions_from_dpi", ux, fixed = TRUE))
+})
+
+test_that("chaque export multivarie a sa liaison DPI et ses reglages de forme", {
+  root <- .hstat_repo_root()
+  srv  <- paste(readLines(file.path(root, "inst", "app", "app_server.R"), warn = FALSE),
+                collapse = "\n")
+  ux   <- paste(readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE),
+                collapse = "\n")
+  tout <- paste(srv, ux)
+
+  generiques <- paste0("mv_", c("kmeans","efa","cfa","mtmm","pls","regmult","afc","mca",
+                                "kmodes","lca","logit","famd","mfa","kproto"))
+  historiques <- c("pcaPlot", "pcaScree", "pcaParallel", "pcaCTR",
+                   "hcpcCluster", "hcpcDend", "hcpcHeights", "afdInd", "afdVar")
+
+  # « Sans exception » : la liste qui alimente l'observateur doit contenir les
+  # 23 exports. Une analyse ajoutee sans y figurer se comporterait autrement
+  # que ses voisines, et c'est precisement ce qu'on ne veut plus.
+  for (p in c(generiques, historiques))
+    expect_true(grepl(sprintf('"%s"', p), srv, fixed = TRUE), label = paste("liee au DPI :", p))
+  expect_true(grepl("MV_EXPORTS_DPI", srv, fixed = TRUE))
+  expect_true(grepl("mv_lier_dpi", srv, fixed = TRUE))
+
+  # Les analyses historiques recoivent le bloc de forme manquant (theme,
+  # sous-titre, legende, grille).
+  for (p in historiques)
+    expect_true(grepl(sprintf('hstat_mv_forme_ui("%s"', p), ux, fixed = TRUE),
+                label = paste("forme :", p))
+
+  # Les generiques passent par la boite commune, qui porte les memes reglages.
+  expect_true(grepl("mv_forme_box(prefix)", srv, fixed = TRUE))
+  for (suffixe in c("_title", "_subtitle", "_xlab", "_ylab", "_theme",
+                    "_legendpos", "_grid", "_width", "_height", "_dpi"))
+    expect_true(grepl(sprintf('paste0(prefix, "%s")', suffixe), srv, fixed = TRUE),
+                label = suffixe)
+
+  # La largeur et la hauteur demandees doivent etre LUES : l'export sortait
+  # toujours carre, neuf pouces de cote, quels que soient les champs.
+  expect_false(grepl("size_in <- 9", srv, fixed = TRUE))
+  expect_true(grepl("hstat_px_en_pouces", srv, fixed = TRUE))
 })

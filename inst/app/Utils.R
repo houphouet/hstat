@@ -986,9 +986,21 @@ hstat_glm_note <- function(fit, warns = character(0), maxit = 100) {
 #  dans geom_text(size = ) que dans l'argument labelsize de factoextra — d'où la
 #  conversion par le facteur .pt = 72,27 / 25,4.
 # =============================================================================
-HSTAT_LBL_PT_MIN     <- 12
+# Les valeurs par defaut de ggplot2 lui-meme. Un graphique doit s'afficher
+# D'ABORD tel que ggplot2 le dessine : c'est la reference que tout le monde
+# connait, celle des manuels et des exemples. Les reglages de l'application
+# partent donc de la, et l'utilisateur s'en ecarte s'il le souhaite -- l'inverse
+# (des tailles maison imposees d'entree) oblige a defaire avant de faire.
+HSTAT_GG_POINT_SIZE <- 1.5    # geom_point(size = )
+HSTAT_GG_LINEWIDTH  <- 0.5    # geom_line/segment(linewidth = )
+HSTAT_GG_BASE_SIZE  <- 11     # theme_grey(base_size = ), en points
+HSTAT_GG_LABEL_PT   <- 11     # geom_text(size = 3.88 mm) ~ 11 pt
+
+# Le minimum descend a la taille de ggplot2 : le curseur doit pouvoir exprimer
+# le defaut, sinon « configuration d'origine » serait un etat inatteignable.
+HSTAT_LBL_PT_MIN     <- HSTAT_GG_LABEL_PT
 HSTAT_LBL_PT_MAX     <- 24
-HSTAT_LBL_PT_DEFAULT <- 12
+HSTAT_LBL_PT_DEFAULT <- HSTAT_GG_LABEL_PT
 .HSTAT_PT_PER_MM     <- 72.27 / 25.4   # identique à ggplot2::.pt
 
 # Borne une taille saisie à l'intervalle autorisé, en retombant sur la valeur
@@ -1403,6 +1415,29 @@ viz_detect_x_type <- function(x) {
 # controles gris se lit mal : chaque famille porte donc sa couleur, la meme sur
 # le liseré, l'icone et le titre. La teinte de fond reste tres pale -- ce sont
 # des reglages, pas des alertes.
+# Reglages de forme communs aux analyses multivariees historiques (ACP, HCPC,
+# AFD). Elles avaient deja titre et libelles d'axes ; le theme, le sous-titre,
+# la position de la legende et la grille manquaient a toutes.
+hstat_mv_forme_ui <- function(prefix, titre = "Apparence du graphique") {
+  .hstat_opt_section(
+    titre, "brush", "#8e44ad", "#f7f0fb",
+    shiny::fluidRow(
+      shiny::column(6, shiny::selectInput(paste0(prefix, "_theme"), "Thème",
+        choices = c("Par défaut (ggplot2)" = "gg",
+                    "HStat (minimal)" = "hstat", HSTAT_THEMES_GG),
+        selected = "gg")),
+      shiny::column(6, shiny::textInput(paste0(prefix, "_subtitle"), "Sous-titre",
+                                        placeholder = "Optionnel"))),
+    shiny::fluidRow(
+      shiny::column(6, shiny::selectInput(paste0(prefix, "_legendpos"), "Légende",
+        choices = c("Par défaut (ggplot2)" = "gg", "À droite" = "right",
+                    "À gauche" = "left", "En haut" = "top", "En bas" = "bottom",
+                    "Masquée" = "none"), selected = "gg")),
+      shiny::column(6, shiny::selectInput(paste0(prefix, "_grid"), "Grille",
+        choices = c("Par défaut (ggplot2)" = "gg", "Principale seule" = "majeure",
+                    "Aucune" = "sans"), selected = "gg"))))
+}
+
 .hstat_opt_section <- function(titre, icone, couleur, fond, ...) {
   shiny::div(
     style = sprintf(paste0("background:%s;border-left:4px solid %s;border-radius:6px;",
@@ -5572,6 +5607,45 @@ hstat_model_doc_ui <- function(id) {
 # (96 ppp, la convention CSS) : ils fixent la MISE EN PAGE, celle que
 # l'utilisateur voit. Le DPI multiplie ensuite la finesse du rendu. 1200 x 800
 # a 300 DPI donne une figure de 12,5 x 8,33 pouces rendue en 3750 x 2500 px.
+
+# =============================================================================
+#  PIXELS ET RESOLUTION : DEUX MODELES, ET IL FAUT DIRE LEQUEL
+# -----------------------------------------------------------------------------
+#  Quand les champs de largeur/hauteur sont RECALCULES a chaque changement de
+#  DPI -- c'est le cas des analyses multivariees -- ils affichent les pixels
+#  reellement produits, et la taille physique est l'invariant :
+#
+#      pouces = pixels / DPI          (constant)
+#      pixels = pouces x DPI          (recalcule a chaque changement de DPI)
+#
+#  Le champ dit alors exactement ce que le fichier contiendra. C'est pour cela
+#  que la division par le DPI, faute a l'endroit ou l'utilisateur saisit des
+#  pixels a la main (voir hstat_export_dims), est ici la bonne operation :
+#  personne ne saisit ces pixels, ils sont derives.
+# =============================================================================
+
+# Nouvelle taille en pixels apres un changement de resolution, a taille
+# physique constante. Le DPI precedent est indispensable : sans lui on ne peut
+# pas savoir a quelle taille physique les pixels actuels correspondent.
+hstat_px_apres_dpi <- function(px, dpi_avant, dpi_apres, max_px = HSTAT_EXPORT_MAX_PX) {
+  n <- function(x) suppressWarnings(as.numeric(x)[1])
+  px <- n(px); a <- n(dpi_avant); b <- n(dpi_apres)
+  if (!isTRUE(is.finite(px)) || px <= 0) return(NULL)
+  if (!isTRUE(is.finite(a)) || a <= 0 || !isTRUE(is.finite(b)) || b <= 0) return(NULL)
+  round(min(px * b / a, max_px))
+}
+
+# Pouces correspondant a une taille en pixels rendue a une resolution donnee.
+# Bornee : une valeur absurde ferait echouer l'export au lieu de rendre une
+# image un peu differente de celle qu'on attendait.
+hstat_px_en_pouces <- function(px, dpi, defaut = 8, max_in = 200) {
+  n <- function(x) suppressWarnings(as.numeric(x)[1])
+  px <- n(px); d <- n(dpi)
+  if (!isTRUE(is.finite(px)) || px <= 0 ||
+      !isTRUE(is.finite(d))  || d  <= 0) return(defaut)
+  max(1, min(px / d, max_in))
+}
+
 HSTAT_EXPORT_REF_DPI <- 96
 
 # Borne de securite : au-dela, ggsave tente d'allouer un bitmap que la machine

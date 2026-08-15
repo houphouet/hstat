@@ -676,74 +676,62 @@ server <- function(input, output, session) {
     write.csv(data, file, row.names = FALSE, fileEncoding = "UTF-8", ...)
   }
   
-  # FONCTION POUR CALCULER LES DIMENSIONS AUTOMATIQUES SELON LE DPI
-  calculate_dimensions_from_dpi <- function(dpi, base_width_cm = 20, base_height_cm = 15) {
-    # Définir les dimensions standard pour différents usages selon le DPI
-    if (dpi <= 100) {
-      width <- base_width_cm * 1.2
-      height <- base_height_cm * 1.2
-    } else if (dpi <= 150) {
-      width <- base_width_cm
-      height <- base_height_cm
-    } else if (dpi <= 300) {
-      width <- base_width_cm
-      height <- base_height_cm
-    } else {
-      width <- base_width_cm * 0.9
-      height <- base_height_cm * 0.9
-    }
-    
-    return(list(width = width, height = height))
+  # Theme des graphiques multivaries HISTORIQUES (ACP, HCPC, AFD). Ils
+  # passaient tous `ggtheme = theme_minimal()` en dur : le graphique ne
+  # s'affichait donc JAMAIS tel que ggplot2 le dessine, quoi qu'on choisisse.
+  # Le defaut est desormais ggplot2 lui-meme.
+  mv_ggtheme <- function(prefix = NULL) {
+    choix <- (if (!is.null(prefix)) input[[paste0(prefix, "_theme")]] else NULL) %||%
+             input$mv_theme %||% "gg"
+    txt   <- .hstat_num1(input$mv_text_size, HSTAT_GG_BASE_SIZE)
+    if (identical(choix, "gg")) ggplot2::theme_grey(base_size = txt)
+    else if (identical(choix, "hstat")) ggplot2::theme_minimal(base_size = txt)
+    else viz_get_theme(choix, base_size = txt)
+  }
+
+  # Reglages de forme des analyses HISTORIQUES, greffes sur le graphique deja
+  # construit : sous-titre, position de la legende, grille. Le titre et les
+  # libelles d'axes existaient deja, ces trois-la manquaient partout.
+  # Un objet qui n'est pas un ggplot (dendrogramme trace en base R) ressort
+  # inchange plutot que de faire tomber la sortie.
+  mv_legacy <- function(p, prefix) {
+    if (!inherits(p, "ggplot")) return(p)
+    st <- trimws(as.character(input[[paste0(prefix, "_subtitle")]] %||% "")[1])
+    if (nzchar(st)) p <- p + ggplot2::labs(subtitle = st)
+    pos <- input[[paste0(prefix, "_legendpos")]] %||% "gg"
+    if (!identical(pos, "gg")) p <- p + ggplot2::theme(legend.position = pos)
+    gr <- input[[paste0(prefix, "_grid")]] %||% "gg"
+    if (identical(gr, "sans")) p <- p + ggplot2::theme(panel.grid = ggplot2::element_blank())
+    else if (identical(gr, "majeure"))
+      p <- p + ggplot2::theme(panel.grid.minor = ggplot2::element_blank())
+    p
+  }
+
+  # Dimensions d'export d'un graphique multivarie, en POUCES, lues dans les
+  # champs de l'utilisateur.
+  #
+  # Ce qui existait ici derivait la taille du seul DPI, par paliers, et
+  # IGNORAIT les champs de largeur/hauteur affiches a cote : les regler ne
+  # faisait rien. Pire, le palier « > 300 DPI » REDUISAIT la figure de 10 % --
+  # demander plus de finesse rendait l'image plus petite sur le papier.
+  #
+  # Les champs sont desormais lus, et ils se recalculent au changement de
+  # resolution (mv_lier_dpi) : pouces = pixels / DPI est ici exact, puisque ce
+  # sont les pixels qui derivent de la taille physique et non l'inverse.
+  mv_dims_export <- function(prefix, defaut_w_in = 10, defaut_h_in = 7.5) {
+    dpi <- .hstat_num1(input[[paste0(prefix, "_dpi")]], 300)
+    list(dpi    = dpi,
+         width  = hstat_px_en_pouces(input[[paste0(prefix, "_width")]],  dpi, defaut_w_in),
+         height = hstat_px_en_pouces(input[[paste0(prefix, "_height")]], dpi, defaut_h_in))
   }
   
-  # Fonction helper pour Télécharger les graphiques avec options avancees
-  createPlotDownloadHandler <- function(plot_func, default_name) {
-    downloadHandler(
-      filename = function() {
-        fmt <- tolower(trimws(input[[paste0(default_name, "_format")]] %||% "png"))
-        fmt <- switch(fmt, "jpg" = "jpeg", "htm" = "png", "html" = "png", fmt)
-        if (!fmt %in% c("png","jpeg","tiff","bmp","svg","pdf","eps")) fmt <- "png"
-        paste0(default_name, "_", Sys.Date(), ".", fmt)
-      },
-      contentType = "application/octet-stream",
-      content = function(file) {
-        fmt <- tolower(trimws(input[[paste0(default_name, "_format")]] %||% "png"))
-        fmt <- switch(fmt, "jpg" = "jpeg", "htm" = "png", "html" = "png", fmt)
-        if (!fmt %in% c("png","jpeg","tiff","bmp","svg","pdf","eps")) fmt <- "png"
-        
-        # Les _width/_height sont saisis en PIXELS : ils fixent la mise en page
-        # (lue a 96 ppp), le DPI fixe la finesse. Diviser les pixels par le DPI
-        # donnait une figure de quatre pouces, illisible, que monter le DPI
-        # retrecissait encore. Voir hstat_export_dims() dans Utils.R.
-        dims <- hstat_export_dims(input[[paste0(default_name, "_width")]]  %||% 1200,
-                                  input[[paste0(default_name, "_height")]] %||% 800,
-                                  input[[paste0(default_name, "_dpi")]]    %||% 300)
-        dpi_val <- dims$dpi
-        w_cm <- dims$width_in  * 2.54
-        h_cm <- dims$height_in * 2.54
-        if (!is.null(dims$note))
-          showNotification(dims$note, type = "warning", duration = 8)
-        
-        p <- tryCatch(plot_func(), error = function(e) {
-          showNotification(hstat_err_fr(e, "Graphique"),
-                           type = "error", duration = 5)
-          NULL
-        })
-        req(!is.null(p))
-        
-        tryCatch(
-          suppressWarnings(ggsave(
-            filename = file, plot = p, device = fmt,
-            width = w_cm, height = h_cm, dpi = dpi_val, units = "cm"
-          )),
-          error = function(e) {
-            showNotification(hstat_err_fr(e, paste("Export", toupper(fmt))),
-                             type = "error", duration = 10)
-          }
-        )
-      }
-    )
-  }
+  # NOTE : `createPlotDownloadHandler()` vivait ici. Cette fabrique de
+  # gestionnaires de telechargement n'etait appelee NULLE PART -- les exports
+  # multivaries passent par mv_dims_export() et par le gestionnaire generique
+  # de mv_register(). Un helper mort portant un calcul de dimensions DIFFERENT
+  # de celui reellement employe est pire qu'absent : on le corrige en croyant
+  # corriger l'export.
+
   
   
   output$pcaMeansGroupSelect <- renderUI({
@@ -1675,7 +1663,7 @@ server <- function(input, output, session) {
                         col.var = col_var,
                         gradient.cols = gradient_cols,
                         repel = TRUE, max.overlaps = Inf, labelsize = lbl_var,
-                        ggtheme = theme_minimal(),
+                        ggtheme = mv_ggtheme("pcaPlot"),
                         title = plot_title)
       # Les labels des variables heritaient du degrade de couleur (contrib/cos2),
       # rendant les noms clairs peu lisibles ("flous"). On force le TEXTE en noir
@@ -1688,7 +1676,7 @@ server <- function(input, output, session) {
                         col.ind = col_ind,
                         gradient.cols = gradient_cols,
                         repel = TRUE, labelsize = lbl_ind, pointsize = pt_sz,
-                        ggtheme = theme_minimal(),
+                        ggtheme = mv_ggtheme("pcaPlot"),
                         title = plot_title)
       p <- hstat_apply_label_sizes(p, lbl_ind)
     } else {
@@ -1701,7 +1689,7 @@ server <- function(input, output, session) {
                            col.var = "black",
                            col.ind = col_ind,
                            gradient.cols = gradient_cols,
-                           ggtheme = theme_minimal(),
+                           ggtheme = mv_ggtheme("pcaPlot"),
                            title = plot_title)
       # Le biplot melange les deux familles de labels : on retaille apres coup
       # les calques de texte des variables, factoextra n'exposant qu'un seul
@@ -1746,7 +1734,7 @@ server <- function(input, output, session) {
                             ellipse.type = "confidence", ellipse.level = 0.95,
                             col.var = "black", repel = TRUE,
                             labelsize = lbl_ind,
-                            ggtheme = theme_minimal(), title = plot_title),
+                            ggtheme = mv_ggtheme("pcaPlot"), title = plot_title),
             error = function(e) NULL)
           if (!is.null(p_ell))
             p_ell <- hstat_apply_label_sizes(p_ell, lbl_ind, lbl_var,
@@ -1757,7 +1745,7 @@ server <- function(input, output, session) {
                          geom = "point", habillage = grp, addEllipses = TRUE,
                          ellipse.type = "confidence", ellipse.level = 0.95,
                          labelsize = lbl_ind,
-                         repel = FALSE, ggtheme = theme_minimal(), title = plot_title),
+                         repel = FALSE, ggtheme = mv_ggtheme("pcaPlot"), title = plot_title),
             error = function(e) NULL)
           if (!is.null(p_ell)) p_ell <- hstat_apply_label_sizes(p_ell, lbl_ind)
         }
@@ -1795,7 +1783,7 @@ server <- function(input, output, session) {
   output$pcaPlot <- renderPlot({
     req(values$pcaResult)
     p <- tryCatch(
-      suppressWarnings(suppressMessages(createPcaPlot(pcaResultReactive()))),
+      suppressWarnings(suppressMessages(mv_legacy(createPcaPlot(pcaResultReactive()), "pcaPlot"))),
       error = function(e) {
         showNotification(hstat_err_fr(e, "Erreur graphique ACP"), type = "error", duration = 8)
         NULL
@@ -1996,7 +1984,7 @@ server <- function(input, output, session) {
         y        = "Valeur propre (\u03bb)",
         caption  = "Les composantes en vert ont une valeur propre \u2265 1 et sont retenues pour interpr\u00e9tation."
       ) +
-      theme_minimal(base_size = 12) +
+      mv_ggtheme("pcaScree") +
       theme(
         plot.title    = element_markdown(hjust = 0.5, face = "bold", size = 14, color = "#2c3e50"),
         plot.subtitle = element_text(hjust = 0.5, color = "#555", size = 11),
@@ -2009,17 +1997,17 @@ server <- function(input, output, session) {
   output$pcaScreePlot <- renderPlot({
     req(pcaResultReactive())
     res.pca <- pcaResultReactive()
-    createScreePlot(res.pca)
+    mv_legacy(createScreePlot(res.pca), "pcaScree")
   }, res = 120)
   
   output$downloadPcaScreePlot <- downloadHandler(
     filename = function() paste0("acp_screeplot_", Sys.Date(), ".", input$pcaScree_format),
     content = function(file) {
-      dpi <- input$pcaScree_dpi
-      auto_dims <- calculate_dimensions_from_dpi(dpi, 25, 18)
-      p <- createScreePlot(pcaResultReactive())
+      d <- mv_dims_export("pcaScree", 9.8, 7.1); dpi <- d$dpi
+      auto_dims <- d
+      p <- mv_legacy(createScreePlot(pcaResultReactive()), "pcaScree")
       suppressWarnings(ggsave(file, plot = p, device = input$pcaScree_format,
-                              width = auto_dims$width, height = auto_dims$height, dpi = dpi, units = "cm"))
+                              width = auto_dims$width, height = auto_dims$height, dpi = dpi, units = "in"))
     }
   )
   
@@ -2080,7 +2068,7 @@ server <- function(input, output, session) {
         y       = "Valeur propre",
         caption = "Les composantes dont la valeur propre observ\u00e9e d\u00e9passe la courbe rouge (p95 al\u00e9atoire) sont \u00e0 retenir."
       ) +
-      theme_minimal(base_size = 12) +
+      mv_ggtheme("pcaParallel") +
       theme(
         plot.title    = element_markdown(hjust = 0.5, face = "bold", size = 14, color = "#2c3e50"),
         plot.subtitle = element_text(hjust = 0.5, color = "#555", size = 11),
@@ -2103,7 +2091,7 @@ server <- function(input, output, session) {
         return()
       }
       
-      createParallelPlot(pca_data_raw, pcaResultReactive())
+      mv_legacy(createParallelPlot(pca_data_raw, pcaResultReactive()), "pcaParallel")
       
     }, error = function(e) {
       plot.new()
@@ -2118,11 +2106,11 @@ server <- function(input, output, session) {
       pca_data_raw <- values$filteredData[, input$pcaVars, drop = FALSE]
       pca_data_raw <- pca_data_raw[, sapply(pca_data_raw, is.numeric), drop = FALSE]
       pca_data_raw <- na.omit(pca_data_raw)
-      dpi  <- input$pcaParallel_dpi
-      auto <- calculate_dimensions_from_dpi(dpi, 25, 18)
-      p    <- createParallelPlot(pca_data_raw, pcaResultReactive())
+      d <- mv_dims_export("pcaParallel", 9.8, 7.1); dpi <- d$dpi
+      auto <- d
+      p    <- mv_legacy(createParallelPlot(pca_data_raw, pcaResultReactive()), "pcaParallel")
       suppressWarnings(ggsave(file, plot = p, device = input$pcaParallel_format,
-                              width = auto$width, height = auto$height, dpi = dpi, units = "cm"))
+                              width = auto$width, height = auto$height, dpi = dpi, units = "in"))
     }
   )
   
@@ -2273,7 +2261,7 @@ server <- function(input, output, session) {
         y       = "Contribution (%)",
         caption = "Une contribution sup\u00e9rieure au seuil th\u00e9orique indique que la variable influence significativement la composante."
       ) +
-      theme_minimal(base_size = 12) +
+      mv_ggtheme("pcaCTR") +
       theme(
         plot.title    = element_markdown(hjust = 0.5, face = "bold", size = 13, color = "#2c3e50"),
         plot.subtitle = element_text(hjust = 0.5, color = "#555", size = 10),
@@ -2284,17 +2272,17 @@ server <- function(input, output, session) {
   
   output$pcaCTRPlot <- renderPlot({
     req(pcaResultReactive(), input$pcaCTRAxis)
-    createCTRPlot(pcaResultReactive(), as.numeric(input$pcaCTRAxis))
+    mv_legacy(createCTRPlot(pcaResultReactive(), as.numeric(input$pcaCTRAxis)), "pcaCTR")
   }, res = 120)
   
   output$downloadPcaCTRPlot <- downloadHandler(
     filename = function() paste0("acp_CTR_PC", input$pcaCTRAxis, "_", Sys.Date(), ".", input$pcaCTR_format),
     content = function(file) {
-      dpi  <- input$pcaCTR_dpi
-      auto <- calculate_dimensions_from_dpi(dpi, 25, 18)
-      p    <- createCTRPlot(pcaResultReactive(), as.numeric(input$pcaCTRAxis))
+      d <- mv_dims_export("pcaCTR", 9.8, 7.1); dpi <- d$dpi
+      auto <- d
+      p    <- mv_legacy(createCTRPlot(pcaResultReactive(), as.numeric(input$pcaCTRAxis)), "pcaCTR")
       suppressWarnings(ggsave(file, plot = p, device = input$pcaCTR_format,
-                              width = auto$width, height = auto$height, dpi = dpi, units = "cm"))
+                              width = auto$width, height = auto$height, dpi = dpi, units = "in"))
     }
   )
   
@@ -2643,10 +2631,10 @@ server <- function(input, output, session) {
   output$downloadPcaPlot <- downloadHandler(
     filename = function() paste0("acp_", Sys.Date(), ".", input$pcaPlot_format),
     content = function(file) {
-      dpi       <- input$pcaPlot_dpi
-      auto_dims <- calculate_dimensions_from_dpi(dpi, 25, 20)
+      d <- mv_dims_export("pcaPlot", 9.8, 7.9); dpi <- d$dpi
+      auto_dims <- d
       p <- withCallingHandlers(
-        suppressMessages(createPcaPlot(pcaResultReactive())),
+        suppressMessages(mv_legacy(createPcaPlot(pcaResultReactive()), "pcaPlot")),
         warning = function(w) {
           if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
         }
@@ -2654,7 +2642,7 @@ server <- function(input, output, session) {
       withCallingHandlers(
         suppressWarnings(ggsave(file, plot = p, device = input$pcaPlot_format,
                                 width = auto_dims$width, height = auto_dims$height,
-                                dpi = dpi, units = "cm")),
+                                dpi = dpi, units = "in")),
         warning = function(w) {
           if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
         }
@@ -3084,7 +3072,7 @@ server <- function(input, output, session) {
                         sub = "",
                         show_labels = show_labels,
                         labels_track_height = track_h,
-                        ggtheme = theme_minimal())
+                        ggtheme = mv_ggtheme("hcpcDend"))
 
     # Supprime la legende parasite "lwd" (factoextra mappe parfois lwd sur une
     # echelle) ainsi que tout calque de texte dont l'etiquette vaut "lwd".
@@ -3221,8 +3209,8 @@ server <- function(input, output, session) {
     # individuelles sont masquees par defaut (illisibles au-dela de ~30 individus)
     # et activables via hcpcShowLabels.
     show_lab <- isTRUE(input$hcpcClusterShowLabels)
-    hcpc_pt   <- if (!is.null(input$hcpcPointSize)) input$hcpcPointSize else 2
-    hcpc_txt  <- if (!is.null(input$hcpcAxisTextSize)) input$hcpcAxisTextSize else 13
+    hcpc_pt   <- if (!is.null(input$hcpcPointSize)) input$hcpcPointSize else HSTAT_GG_POINT_SIZE
+    hcpc_txt  <- if (!is.null(input$hcpcAxisTextSize)) input$hcpcAxisTextSize else HSTAT_GG_BASE_SIZE
     p_cluster <- fviz_cluster(res.hcpc,
                               axes = c(axis_x, axis_y),
                               geom = if (show_lab) c("point", "text") else "point",
@@ -3234,7 +3222,7 @@ server <- function(input, output, session) {
                               pointsize = hcpc_pt,
                               labelsize = hstat_lbl_pt2gg(input$hcpcClusterLabelSize),
                               palette = cluster_colors,
-                              ggtheme = theme_minimal(),
+                              ggtheme = mv_ggtheme("hcpcCluster"),
                               main = cluster_title) +
       labs(x = x_label, y = y_label) +
       theme(legend.position = "right",
@@ -3260,12 +3248,12 @@ server <- function(input, output, session) {
   
   output$hcpcDendPlot <- renderPlot({
     req(values$pcaResult)
-    suppressWarnings(suppressMessages(createHcpcDendPlot(hcpcResultReactive())))
+    suppressWarnings(suppressMessages(mv_legacy(createHcpcDendPlot(hcpcResultReactive()), "hcpcDend")))
   }, res = 120)
   
   output$hcpcClusterPlot <- renderPlot({
     req(values$pcaResult)
-    suppressWarnings(suppressMessages(createHcpcClusterPlot(hcpcResultReactive(), pcaResultReactive())))
+    suppressWarnings(suppressMessages(mv_legacy(createHcpcClusterPlot(hcpcResultReactive(), pcaResultReactive()), "hcpcCluster")))
   }, res = 120)
   
   output$hcpcSummary <- renderPrint({
@@ -3377,7 +3365,7 @@ server <- function(input, output, session) {
         y        = "Hauteur d'agrégation",
         caption  = "La coupure optimale (point rouge) correspond au plus grand saut entre deux fusions successives."
       ) +
-      theme_minimal(base_size = 12) +
+      mv_ggtheme("hcpcHeights") +
       theme(
         plot.title       = element_markdown(hjust = 0.5, face = "bold", size = 13, color = "#2c3e50"),
         plot.subtitle    = element_text(hjust = 0.5, color = "#555", size = 10),
@@ -3389,7 +3377,7 @@ server <- function(input, output, session) {
   output$hcpcHeightsPlot <- renderPlot({
     req(hcpcResultReactive())
     tryCatch(
-      createHcpcHeightsPlot(hcpcResultReactive()),
+      mv_legacy(createHcpcHeightsPlot(hcpcResultReactive()), "hcpcHeights"),
       error = function(e) {
         plot.new()
         text(0.5, 0.5, paste(strwrap(hstat_err_fr(e), 55), collapse = "\n"), cex = 0.85, col = "#e74c3c")
@@ -3400,11 +3388,11 @@ server <- function(input, output, session) {
   output$downloadHcpcHeightsPlot <- downloadHandler(
     filename = function() paste0("hcpc_hauteurs_fusion_", Sys.Date(), ".", input$hcpcHeights_format),
     content = function(file) {
-      dpi  <- input$hcpcHeights_dpi
-      auto <- calculate_dimensions_from_dpi(dpi, base_width_cm = 25, base_height_cm = 18)
-      p    <- createHcpcHeightsPlot(hcpcResultReactive())
+      d <- mv_dims_export("hcpcHeights", 9.8, 7.1); dpi <- d$dpi
+      auto <- d
+      p    <- mv_legacy(createHcpcHeightsPlot(hcpcResultReactive()), "hcpcHeights")
       suppressWarnings(ggsave(file, plot = p, device = input$hcpcHeights_format,
-                              width = auto$width, height = auto$height, dpi = dpi, units = "cm"))
+                              width = auto$width, height = auto$height, dpi = dpi, units = "in"))
     }
   )
   
@@ -3621,10 +3609,10 @@ server <- function(input, output, session) {
   output$downloadHcpcDendPlot <- downloadHandler(
     filename = function() paste0("hcpc_dendrogramme_", Sys.Date(), ".", input$hcpcDend_format),
     content = function(file) {
-      dpi       <- input$hcpcDend_dpi
-      auto_dims <- calculate_dimensions_from_dpi(dpi, 30, 20)
+      d <- mv_dims_export("hcpcDend", 11.8, 7.9); dpi <- d$dpi
+      auto_dims <- d
       p <- withCallingHandlers(
-        suppressMessages(createHcpcDendPlot(hcpcResultReactive())),
+        suppressMessages(mv_legacy(createHcpcDendPlot(hcpcResultReactive()), "hcpcDend")),
         warning = function(w) {
           if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
         }
@@ -3632,7 +3620,7 @@ server <- function(input, output, session) {
       withCallingHandlers(
         suppressWarnings(ggsave(file, plot = p, device = input$hcpcDend_format,
                                 width = auto_dims$width, height = auto_dims$height,
-                                dpi = dpi, units = "cm")),
+                                dpi = dpi, units = "in")),
         warning = function(w) {
           if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
         }
@@ -3643,10 +3631,10 @@ server <- function(input, output, session) {
   output$downloadHcpcClusterPlot <- downloadHandler(
     filename = function() paste0("hcpc_clusters_", Sys.Date(), ".", input$hcpcCluster_format),
     content = function(file) {
-      dpi       <- input$hcpcCluster_dpi
-      auto_dims <- calculate_dimensions_from_dpi(dpi, 25, 20)
+      d <- mv_dims_export("hcpcCluster", 9.8, 7.9); dpi <- d$dpi
+      auto_dims <- d
       p <- withCallingHandlers(
-        suppressMessages(createHcpcClusterPlot(hcpcResultReactive(), pcaResultReactive())),
+        suppressMessages(mv_legacy(createHcpcClusterPlot(hcpcResultReactive(), pcaResultReactive()), "hcpcCluster")),
         warning = function(w) {
           if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
         }
@@ -3654,7 +3642,7 @@ server <- function(input, output, session) {
       withCallingHandlers(
         suppressWarnings(ggsave(file, plot = p, device = input$hcpcCluster_format,
                                 width = auto_dims$width, height = auto_dims$height,
-                                dpi = dpi, units = "cm")),
+                                dpi = dpi, units = "in")),
         warning = function(w) {
           if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
         }
@@ -4597,7 +4585,7 @@ server <- function(input, output, session) {
                                          color = "Groupe", label = "Individual")) +
         geom_point(size = afd_pt, alpha = 0.7) +
         geom_text(vjust = -0.5, hjust = 0.5, size = afd_lbl, check_overlap = TRUE) +
-        theme_minimal() +
+        mv_ggtheme("afdInd") +
         labs(title = ind_title, x = x_label, y = y_label) +
         scale_color_manual(values = group_colors) +
         theme(legend.position = "right",
@@ -4616,7 +4604,7 @@ server <- function(input, output, session) {
       
       p_ind <- ggplot(afd_df, aes_string(x = x_col, fill = "Groupe", color = "Groupe")) +
         geom_density(alpha = 0.5) +
-        theme_minimal() +
+        mv_ggtheme("afdInd") +
         labs(title = ind_title, x = x_label, y = y_label) +
         scale_color_manual(values = group_colors) +
         scale_fill_manual(values = group_colors) +
@@ -4716,7 +4704,7 @@ server <- function(input, output, session) {
         scale_size_continuous(range = c(2, 6), guide = "none") +
         geom_vline(xintercept = 0, linetype = "dashed", color = "grey60", linewidth = 0.5) +
         geom_hline(yintercept = 0, linetype = "dashed", color = "grey60", linewidth = 0.5) +
-        theme_minimal(base_size = 12) +
+        mv_ggtheme("afdVar") +
         labs(title = var_title,
              subtitle = "Couleur = importance discriminatoire globale (corrélation pondérée par la variance de chaque LD)",
              x = x_label, y = y_label) +
@@ -4760,7 +4748,7 @@ server <- function(input, output, session) {
         labs(title = var_title,
              subtitle = "Couleur = niveau d'importance discriminatoire (|corrélation| pondérée par la variance expliquée)",
              x = NULL, y = y_label) +
-        theme_minimal(base_size = 12) +
+        mv_ggtheme("afdVar") +
         theme(
           plot.title    = element_markdown(hjust = 0.5, face = "bold", size = 13),
           plot.subtitle = element_text(hjust = 0.5, color = "#555", size = 10),
@@ -4775,12 +4763,12 @@ server <- function(input, output, session) {
   
   output$afdIndPlot <- renderPlot({
     req(values$filteredData, input$afdFactor)
-    suppressWarnings(suppressMessages(createAfdIndPlot(afdResultReactive())))
+    suppressWarnings(suppressMessages(mv_legacy(createAfdIndPlot(afdResultReactive()), "afdInd")))
   }, res = 120)
   
   output$afdVarPlot <- renderPlot({
     req(values$filteredData, input$afdFactor)
-    suppressWarnings(suppressMessages(createAfdVarPlot(afdResultReactive())))
+    suppressWarnings(suppressMessages(mv_legacy(createAfdVarPlot(afdResultReactive()), "afdVar")))
   }, res = 120)
   
   output$afdSummary <- renderUI({
@@ -5156,10 +5144,10 @@ server <- function(input, output, session) {
   output$downloadAfdIndPlot <- downloadHandler(
     filename = function() paste0("afd_individus_", Sys.Date(), ".", input$afdInd_format),
     content = function(file) {
-      dpi       <- input$afdInd_dpi
-      auto_dims <- calculate_dimensions_from_dpi(dpi, 25, 20)
+      d <- mv_dims_export("afdInd", 9.8, 7.9); dpi <- d$dpi
+      auto_dims <- d
       p <- withCallingHandlers(
-        suppressMessages(createAfdIndPlot(afdResultReactive())),
+        suppressMessages(mv_legacy(createAfdIndPlot(afdResultReactive()), "afdInd")),
         warning = function(w) {
           if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
         }
@@ -5167,7 +5155,7 @@ server <- function(input, output, session) {
       withCallingHandlers(
         suppressWarnings(ggsave(file, plot = p, device = input$afdInd_format,
                                 width = auto_dims$width, height = auto_dims$height,
-                                dpi = dpi, units = "cm")),
+                                dpi = dpi, units = "in")),
         warning = function(w) {
           if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
         }
@@ -5178,10 +5166,10 @@ server <- function(input, output, session) {
   output$downloadAfdVarPlot <- downloadHandler(
     filename = function() paste0("afd_variables_", Sys.Date(), ".", input$afdVar_format),
     content = function(file) {
-      dpi       <- input$afdVar_dpi
-      auto_dims <- calculate_dimensions_from_dpi(dpi, 25, 20)
+      d <- mv_dims_export("afdVar", 9.8, 7.9); dpi <- d$dpi
+      auto_dims <- d
       p <- withCallingHandlers(
-        suppressMessages(createAfdVarPlot(afdResultReactive())),
+        suppressMessages(mv_legacy(createAfdVarPlot(afdResultReactive()), "afdVar")),
         warning = function(w) {
           if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
         }
@@ -5189,7 +5177,7 @@ server <- function(input, output, session) {
       withCallingHandlers(
         suppressWarnings(ggsave(file, plot = p, device = input$afdVar_format,
                                 width = auto_dims$width, height = auto_dims$height,
-                                dpi = dpi, units = "cm")),
+                                dpi = dpi, units = "in")),
         warning = function(w) {
           if (grepl("New names|name repair|^\\.\\.", conditionMessage(w))) invokeRestart("muffleWarning")
         }
@@ -5622,9 +5610,9 @@ server <- function(input, output, session) {
           selected = "default"),
         fluidRow(
           column(6, sliderInput(paste0(prefix, "_ptsz"), "Taille des points",
-                                min = 0.5, max = 8, value = 2.4, step = 0.5)),
+                                min = 0.5, max = 8, value = HSTAT_GG_POINT_SIZE, step = 0.5)),
           column(6, sliderInput(paste0(prefix, "_arrsz"), "Épaisseur des tracés",
-                                min = 0.3, max = 4, value = 0.7, step = 0.1))),
+                                min = 0.3, max = 4, value = HSTAT_GG_LINEWIDTH, step = 0.1))),
         fluidRow(
           column(6, hstat_lbl_slider(paste0(prefix, "_lblsz"),
                                      "Taille des labels des individus")),
@@ -5648,22 +5636,68 @@ server <- function(input, output, session) {
                         stats::setNames(mv_cat_cols(), mv_cat_cols()))),
           sliderInput(paste0(prefix, "_ellipselevel"), "Niveau de l'ellipse",
                       min = 0.5, max = 0.99, value = 0.95, step = 0.01))),
-      fluidRow(
-        column(6, numericInput(paste0(prefix, "_dpi"), tagList(icon("image"), " DPI export"),
-                               value = 300, min = 72, max = 1200, step = 50)),
-        column(6, selectInput(paste0(prefix, "_fmt"), tagList(icon("file-image"), " Format"),
-                              choices = c("PNG" = "png", "JPEG" = "jpeg", "TIFF" = "tiff",
-                                          "BMP" = "bmp", "PDF" = "pdf", "SVG" = "svg"),
-                              selected = "png"))),
-      div(style = "text-align:center; margin-top:6px;",
-        downloadButton(paste0(prefix, "_download"),
-          tagList(icon("download"), " Télécharger le graphique"), class = "btn-success")))
+      mv_forme_box(prefix))
   }
 
   # Boite "Options d'affichage des graphiques (optionnel)" GENERIQUE pour les
   # methodes non factorielles (k-means, AFE, regressions, LCA, k-modes, etc.).
   # Contient palette + tailles + texte gras + labels + export. Les inputs sont
   # locaux a la methode (prefixe) avec repli sur les reglages globaux.
+  # Bloc commun aux boites d'options : ce qui manquait dans TOUTES les analyses
+  # multivariees -- titre, sous-titre, libelles d'axes, theme, position de la
+  # legende, grille -- et la taille d'export, dont les champs se recalculent au
+  # changement de resolution.
+  mv_forme_box <- function(prefix, base_w_in = 10, base_h_in = 7.5) {
+    tagList(
+      .hstat_opt_section(
+        "Titres et axes", "heading", "#2980b9", "#eaf3fa",
+        textInput(paste0(prefix, "_title"), "Titre", placeholder = "Titre par défaut"),
+        textInput(paste0(prefix, "_subtitle"), "Sous-titre", placeholder = "Optionnel"),
+        fluidRow(
+          column(6, textInput(paste0(prefix, "_xlab"), "Libellé X", placeholder = "Auto")),
+          column(6, textInput(paste0(prefix, "_ylab"), "Libellé Y", placeholder = "Auto"))),
+        tags$small(style = "color:#6b7280;",
+                   "Laisser vide conserve les libellés calculés par l'analyse (axes, % de variance).")),
+      .hstat_opt_section(
+        "Thème, légende et grille", "brush", "#8e44ad", "#f7f0fb",
+        selectInput(paste0(prefix, "_theme"), "Thème",
+                    choices = c("Par défaut (ggplot2)" = "gg",
+                                "HStat (titre centré, légende en bas)" = "hstat",
+                                HSTAT_THEMES_GG),
+                    selected = "gg"),
+        fluidRow(
+          column(6, selectInput(paste0(prefix, "_legendpos"), "Légende",
+                                choices = c("Par défaut (ggplot2)" = "gg",
+                                            "À droite" = "right", "À gauche" = "left",
+                                            "En haut" = "top", "En bas" = "bottom",
+                                            "Masquée" = "none"),
+                                selected = "gg")),
+          column(6, selectInput(paste0(prefix, "_grid"), "Grille",
+                                choices = c("Par défaut (ggplot2)" = "gg",
+                                            "Principale seule" = "majeure",
+                                            "Aucune" = "sans"),
+                                selected = "gg")))),
+      .hstat_opt_section(
+        "Taille du fichier exporté", "download", "#2c3e50", "#eef1f4",
+        fluidRow(
+          column(4, numericInput(paste0(prefix, "_dpi"), tagList(icon("image"), " DPI"),
+                                 value = 300, min = 72, max = 1200, step = 50)),
+          column(4, numericInput(paste0(prefix, "_width"), "Largeur (px)",
+                                 value = round(base_w_in * 300), min = 200, max = 20000, step = 50)),
+          column(4, numericInput(paste0(prefix, "_height"), "Hauteur (px)",
+                                 value = round(base_h_in * 300), min = 200, max = 20000, step = 50))),
+        selectInput(paste0(prefix, "_fmt"), tagList(icon("file-image"), " Format"),
+                    choices = c("PNG" = "png", "JPEG" = "jpeg", "TIFF" = "tiff",
+                                "BMP" = "bmp", "PDF" = "pdf", "SVG" = "svg"),
+                    selected = "png"),
+        tags$small(style = "color:#6b7280;",
+                   "La largeur et la hauteur se recalculent quand la résolution change : la taille physique de la figure reste la même, sa finesse augmente."),
+        div(style = "text-align:center; margin-top:8px;",
+            downloadButton(paste0(prefix, "_download"),
+                           tagList(icon("download"), " Télécharger le graphique"),
+                           class = "btn-success"))))
+  }
+
   mv_disp_box <- function(prefix) {
     box(title = tagList(icon("sliders-h"), " Options d'affichage des graphiques (optionnel)"),
         status = "primary", width = 12, solidHeader = TRUE,
@@ -5678,9 +5712,9 @@ server <- function(input, output, session) {
           selected = "default"),
         fluidRow(
           column(6, sliderInput(paste0(prefix, "_ptsz"), "Taille des points",
-                                min = 0.5, max = 8, value = 2.4, step = 0.5)),
+                                min = 0.5, max = 8, value = HSTAT_GG_POINT_SIZE, step = 0.5)),
           column(6, sliderInput(paste0(prefix, "_arrsz"), "Épaisseur des tracés",
-                                min = 0.3, max = 4, value = 0.7, step = 0.1))),
+                                min = 0.3, max = 4, value = HSTAT_GG_LINEWIDTH, step = 0.1))),
         fluidRow(
           column(6, hstat_lbl_slider(paste0(prefix, "_lblsz"),
                                      "Taille des labels des individus")),
@@ -5692,21 +5726,12 @@ server <- function(input, output, session) {
                 "affichés sur le graphique.")),
         fluidRow(
           column(6, sliderInput(paste0(prefix, "_textsz"), "Taille texte axes",
-                                min = 8, max = 22, value = 12, step = 1)),
+                                min = 8, max = 22, value = HSTAT_GG_BASE_SIZE, step = 1)),
           column(6, div(style = "margin-top:24px;",
             checkboxInput(paste0(prefix, "_bold"), "Texte en gras", value = FALSE)))),
         checkboxInput(paste0(prefix, "_showlab"),
           tagList(icon("font"), " Afficher les labels"), value = FALSE)),
-      fluidRow(
-        column(6, numericInput(paste0(prefix, "_dpi"), tagList(icon("image"), " DPI export"),
-                               value = 300, min = 72, max = 1200, step = 50)),
-        column(6, selectInput(paste0(prefix, "_fmt"), tagList(icon("file-image"), " Format"),
-                              choices = c("PNG" = "png", "JPEG" = "jpeg", "TIFF" = "tiff",
-                                          "BMP" = "bmp", "PDF" = "pdf", "SVG" = "svg"),
-                              selected = "png"))),
-      div(style = "text-align:center; margin-top:6px;",
-        downloadButton(paste0(prefix, "_download"),
-          tagList(icon("download"), " Télécharger le graphique"), class = "btn-success")))
+      mv_forme_box(prefix))
   }
 
   mv_col <- function(st) switch(st,
@@ -5845,24 +5870,78 @@ server <- function(input, output, session) {
     global
   }
 
+  # THEME : ggplot2 D'ABORD.
+  # Le module imposait son propre habillage (theme_minimal, titre centre en
+  # gras colore, legende en bas, grille secondaire retiree, base 12 pt). Un
+  # graphique doit d'abord s'afficher tel que ggplot2 le dessine -- c'est la
+  # reference que tout le monde connait -- et l'utilisateur s'en ecarte s'il le
+  # veut. L'inverse oblige a defaire avant de faire.
+  #
+  # "gg" (defaut) : theme_grey(11), exactement ggplot2.
+  # "hstat"       : l'habillage precedent, conserve pour qui l'avait adopte.
+  # les autres    : les themes de HSTAT_THEMES_GG, partages avec les autres
+  #                 modules.
   mv_gg_theme <- function() {
-    txt_sz   <- .mv_loc("textsz", input$mv_text_size %||% 12)
+    choix    <- .mv_loc("theme", input$mv_theme %||% "gg")
+    txt_sz   <- .mv_loc("textsz", input$mv_text_size %||% HSTAT_GG_BASE_SIZE)
     face_txt <- if (isTRUE(.mv_loc("bold", input$mv_bold_text))) "bold" else "plain"
-    theme_minimal(base_size = txt_sz) +
-      theme(
-        plot.title    = element_text(hjust = 0.5, face = "bold", size = txt_sz + 2, color = "#2c3e50"),
-        plot.subtitle = element_text(hjust = 0.5, color = "#555", size = txt_sz - 1),
-        axis.title = element_text(size = txt_sz, face = face_txt),
-        axis.text  = element_text(size = txt_sz - 1, face = face_txt),
-        legend.text = element_text(size = txt_sz - 1),
-        legend.title = element_text(size = txt_sz, face = "bold"),
-        legend.position = "bottom",
-        panel.grid.minor = element_blank(),
-        axis.text.x = element_text(angle = 0, hjust = 0.5)
-      )
+    pos_leg  <- .mv_loc("legendpos", input$mv_legend_pos %||% "gg")
+    grille   <- .mv_loc("grid", input$mv_grid %||% "gg")
+
+    base <- if (identical(choix, "hstat"))
+      theme_minimal(base_size = txt_sz) +
+        theme(
+          plot.title    = element_text(hjust = 0.5, face = "bold", size = txt_sz + 2, color = "#2c3e50"),
+          plot.subtitle = element_text(hjust = 0.5, color = "#555", size = txt_sz - 1),
+          axis.title = element_text(size = txt_sz, face = face_txt),
+          axis.text  = element_text(size = txt_sz - 1, face = face_txt),
+          legend.text = element_text(size = txt_sz - 1),
+          legend.title = element_text(size = txt_sz, face = "bold"),
+          legend.position = "bottom",
+          panel.grid.minor = element_blank(),
+          axis.text.x = element_text(angle = 0, hjust = 0.5)
+        )
+    else if (identical(choix, "gg")) ggplot2::theme_grey(base_size = txt_sz)
+    else viz_get_theme(choix, base_size = txt_sz)
+
+    # Reglages surajoutes SEULEMENT s'ils ont ete demandes : sans cela, le
+    # theme choisi ne serait plus celui qu'on croit.
+    sur <- list()
+    if (isTRUE(.mv_loc("bold", input$mv_bold_text)))
+      sur <- c(sur, list(theme(axis.title = element_text(face = "bold"),
+                               axis.text  = element_text(face = "bold"))))
+    if (!identical(pos_leg, "gg"))
+      sur <- c(sur, list(theme(legend.position = pos_leg)))
+    if (identical(grille, "sans"))
+      sur <- c(sur, list(theme(panel.grid = element_blank())))
+    else if (identical(grille, "majeure"))
+      sur <- c(sur, list(theme(panel.grid.minor = element_blank())))
+
+    for (s in sur) base <- base + s
+    base
   }
+  # Titres et libelles d'axes demandes par l'utilisateur, greffes sur le
+  # graphique DEJA construit. Aucune analyse n'a a les connaitre : une methode
+  # ajoutee plus tard en beneficie sans une ligne de plus. Un champ vide laisse
+  # le libelle calcule par l'analyse (axes, % de variance) -- l'effacer serait
+  # perdre une information que l'utilisateur n'a pas demande a perdre.
+  mv_habille <- function(p) {
+    if (!inherits(p, "ggplot")) return(p)
+    txt <- function(suffix) {
+      v <- .mv_loc(suffix, NULL)
+      if (is.null(v)) return(NULL)
+      v <- trimws(as.character(v)[1])
+      if (nzchar(v)) v else NULL
+    }
+    lab <- list(title = txt("title"), subtitle = txt("subtitle"),
+                x = txt("xlab"), y = txt("ylab"))
+    lab <- lab[!vapply(lab, is.null, logical(1))]
+    if (length(lab)) p <- p + do.call(ggplot2::labs, lab)
+    p
+  }
+
   # Tailles accessibles aux plotfns (locales par methode, sinon globales)
-  mv_pt_size <- function() .mv_loc("ptsz", input$mv_point_size %||% 2.4)
+  mv_pt_size <- function() .mv_loc("ptsz", input$mv_point_size %||% HSTAT_GG_POINT_SIZE)
   # Tailles de labels : reglees en POINTS (12 a 24 pt) par l'utilisateur, une
   # valeur pour les INDIVIDUS et une pour les VARIABLES / modalites. Les
   # accesseurs renvoient directement l'unite ggplot2 (mm).
@@ -5870,7 +5949,7 @@ server <- function(input, output, session) {
   mv_lbl_pt_var  <- function() hstat_lbl_pt(.mv_loc("lblszvar", input$mv_label_size_var))
   mv_lbl_size     <- function() hstat_lbl_pt2gg(mv_lbl_pt_ind())
   mv_lbl_size_var <- function() hstat_lbl_pt2gg(mv_lbl_pt_var())
-  mv_ln_width <- function() .mv_loc("arrsz", input$mv_line_width %||% 0.7)
+  mv_ln_width <- function() .mv_loc("arrsz", input$mv_line_width %||% HSTAT_GG_LINEWIDTH)
   mv_show_labels <- function() isTRUE(.mv_loc("showlab", input$mv_show_labels))
   # Ajoute des etiquettes (repel) a un ggplot si l'option globale est active.
   # df doit contenir les colonnes x, y et une colonne 'label'.
@@ -5941,7 +6020,7 @@ server <- function(input, output, session) {
       if (is.null(r) || isFALSE(r$ok) || is.null(r$plotfn)) return(mv_empty_plot())
       mv_active_prefix(paste0("mv_", key))
       on.exit(mv_active_prefix(NULL), add = TRUE)
-      suppressWarnings(suppressMessages(print(r$plotfn())))
+      suppressWarnings(suppressMessages(print(mv_habille(r$plotfn()))))
     }, res = 120)
     output[[paste0("mv_", key, "_summary")]] <- renderPrint({
       r <- mv_res[[key]]
@@ -5986,24 +6065,77 @@ server <- function(input, output, session) {
                              type = "warning"); return()
           }
           fmt <- input[[paste0("mv_", kk, "_fmt")]] %||% "png"
-          dpi <- input[[paste0("mv_", kk, "_dpi")]] %||% 300
-          size_in <- 9; px <- round(size_in * dpi)
+          dpi <- .hstat_num1(input[[paste0("mv_", kk, "_dpi")]], 300)
+          # La largeur et la hauteur demandees etaient IGNOREES : le fichier
+          # sortait toujours carre, 9 pouces de cote. Les champs existent, ils
+          # se recalculent au changement de resolution, ils sont desormais lus.
+          w_in <- hstat_px_en_pouces(input[[paste0("mv_", kk, "_width")]],  dpi, defaut = 10)
+          h_in <- hstat_px_en_pouces(input[[paste0("mv_", kk, "_height")]], dpi, defaut = 7.5)
+          w_px <- round(w_in * dpi); h_px <- round(h_in * dpi)
           mv_active_prefix(paste0("mv_", kk))
           on.exit(mv_active_prefix(NULL), add = TRUE)
-          p <- tryCatch(r$plotfn(), error = function(e) NULL)
+          p <- tryCatch(mv_habille(r$plotfn()), error = function(e) NULL)
           if (is.null(p)) { showNotification("Graphique indisponible.", type = "error"); return() }
-          if (fmt == "pdf") grDevices::pdf(file, width = size_in, height = size_in)
+          if (fmt == "pdf") grDevices::pdf(file, width = w_in, height = h_in)
           else if (fmt == "svg") {
-            if (requireNamespace("svglite", quietly = TRUE)) svglite::svglite(file, width = size_in, height = size_in)
-            else grDevices::svg(file, width = size_in, height = size_in)
-          } else if (fmt == "jpeg") grDevices::jpeg(file, width = px, height = px, res = dpi, quality = 95, type = "cairo")
-          else if (fmt == "tiff") grDevices::tiff(file, width = px, height = px, res = dpi, type = "cairo", compression = "lzw")
-          else if (fmt == "bmp") grDevices::bmp(file, width = px, height = px, res = dpi, type = "cairo")
-          else grDevices::png(file, width = px, height = px, res = dpi, type = "cairo")
+            if (requireNamespace("svglite", quietly = TRUE)) svglite::svglite(file, width = w_in, height = h_in)
+            else grDevices::svg(file, width = w_in, height = h_in)
+          } else if (fmt == "jpeg") grDevices::jpeg(file, width = w_px, height = h_px, res = dpi, quality = 95, type = "cairo")
+          else if (fmt == "tiff") grDevices::tiff(file, width = w_px, height = h_px, res = dpi, type = "cairo", compression = "lzw")
+          else if (fmt == "bmp") grDevices::bmp(file, width = w_px, height = h_px, res = dpi, type = "cairo")
+          else grDevices::png(file, width = w_px, height = h_px, res = dpi, type = "cairo")
           tryCatch(print(p), finally = grDevices::dev.off())
         })
     })
   }
+  # =========================================================================
+  #  RESOLUTION : LA TAILLE SUIT, PARTOUT ET SANS EXCEPTION
+  # -------------------------------------------------------------------------
+  #  Choisir 600 DPI sans toucher aux pixels ne changeait rien a la finesse :
+  #  la figure gardait la meme taille physique divisee par une resolution plus
+  #  grande, donc une image plus petite sur le papier. Les champs de largeur et
+  #  de hauteur se recalculent desormais a CHAQUE changement de resolution, a
+  #  taille physique constante -- ils disent alors exactement ce que le fichier
+  #  contiendra.
+  #
+  #  Le DPI precedent est indispensable : sans lui, impossible de savoir a
+  #  quelle taille physique les pixels affiches correspondent. Il est retenu
+  #  par cle dans un environnement simple ; un reactiveValues serait relu par
+  #  l'observateur qu'il alimente, et boucrerait.
+  .mv_dpi_prec <- new.env(parent = emptyenv())
+
+  mv_lier_dpi <- function(prefix) {
+    local({
+      pfx <- prefix
+      # `ignoreInit = FALSE` : le PREMIER passage sert a retenir la resolution
+      # de depart. Sans lui, le premier changement n'avait pas de « avant » a
+      # comparer et ne recalculait rien -- l'utilisateur devait changer le DPI
+      # deux fois pour que les tailles suivent. Constate au navigateur.
+      observeEvent(input[[paste0(pfx, "_dpi")]], {
+        neuf <- .hstat_num1(input[[paste0(pfx, "_dpi")]], 300)
+        ancien <- .mv_dpi_prec[[pfx]]
+        .mv_dpi_prec[[pfx]] <- neuf
+        if (is.null(ancien) || identical(ancien, neuf)) return()
+        for (dim in c("width", "height")) {
+          id <- paste0(pfx, "_", dim)
+          px <- hstat_px_apres_dpi(input[[id]], ancien, neuf)
+          if (!is.null(px)) updateNumericInput(session, id, value = px)
+        }
+      }, ignoreInit = FALSE)
+    })
+  }
+
+  # Les 14 analyses generiques (boites mv_disp_box / mv_viz_options_ui) et les
+  # 9 exports historiques (ACP, HCPC, AFD), declares dans UX.R. Aucune
+  # exception : c'est la demande, et c'est aussi la seule facon de ne pas
+  # laisser une analyse se comporter autrement que ses voisines.
+  MV_EXPORTS_DPI <- c(
+    paste0("mv_", c("kmeans","efa","cfa","mtmm","pls","regmult","afc","mca",
+                    "kmodes","lca","logit","famd","mfa","kproto")),
+    "pcaPlot", "pcaScree", "pcaParallel", "pcaCTR",
+    "hcpcCluster", "hcpcDend", "hcpcHeights", "afdInd", "afdVar")
+  for (.pfx in MV_EXPORTS_DPI) mv_lier_dpi(.pfx)
+
   # Libelles des analyses multivariees, pour l'onglet d'aide a la decision.
   MV_LIBELLES <- c(
     kmeans = "Classification k-means", efa = "Analyse factorielle exploratoire",
