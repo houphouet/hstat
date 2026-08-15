@@ -87,6 +87,33 @@ mod_threshold_ui <- function(id) {
                                             "Tirets longs" = "longdash",
                                             "Deux tirets" = "twodash"),
                                 selected = "solid"),
+
+                    # L'etiquette qui porte la valeur du seuil se regle LA OU
+                    # la valeur se saisit. Sa taille vivait dans « Apparence &
+                    # options », deux onglets plus loin : on la cherchait ici.
+                    div(style = "background:#fdeeec; border-left:4px solid #c0392b; border-radius:6px; padding:12px 14px; margin-bottom:14px;",
+                        h6(icon("tag"), " Étiquette de la valeur sur le graphique",
+                           style = "font-weight:700; color:#c0392b; margin:0 0 10px 0; text-transform:uppercase; letter-spacing:.4px; font-size:12px;"),
+                        checkboxInput(ns("thresholdShowLabel"),
+                                      tagList(icon("eye"), " Afficher « Seuil : x % » sur le graphique"),
+                                      value = TRUE),
+                        conditionalPanel(
+                          ns = ns,
+                          condition = "input.thresholdShowLabel",
+                          sliderInput(ns("thresholdValueLabelSize"),
+                                      tagList(icon("text-height"), " Taille de l'étiquette"),
+                                      min = 2, max = 16, value = 4, step = 0.5),
+                          fluidRow(
+                            column(6, selectInput(ns("thresholdLabelPos"), "Position",
+                                                  choices = c("À droite" = "droite",
+                                                              "Au centre" = "centre",
+                                                              "À gauche" = "gauche"),
+                                                  selected = "droite")),
+                            column(6, selectInput(ns("thresholdLabelStyle"), "Style",
+                                                  choices = HSTAT_FONT_STYLES,
+                                                  selected = "bold"))),
+                          tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                     "L'étiquette reprend la couleur de la ligne de seuil."))),
                     
                     hr(style = "border-top: 2px solid #f39c12; margin: 20px 0;"),
                     
@@ -392,9 +419,7 @@ mod_threshold_ui <- function(id) {
                         sliderInput(ns("thresholdLegendSize"), "Titre de la légende:", 
                                     min = 6, max = 20, value = 10, step = 1),
                         sliderInput(ns("thresholdLegendTextSize"), "Texte de la légende:",
-                                    min = 6, max = 20, value = 10, step = 1),
-                        sliderInput(ns("thresholdValueLabelSize"), "Étiquette du seuil:",
-                                    min = 2, max = 12, value = 4, step = 0.5)
+                                    min = 6, max = 20, value = 10, step = 1)
                     ),
                     
                     div(style = "background-color: #e8f5e9; padding: 12px; border-radius: 6px; margin-bottom: 12px; border: 1px solid #81c784;",
@@ -421,23 +446,6 @@ mod_threshold_ui <- function(id) {
                                    "Laisser vide pour laisser ggplot choisir.")
                     ),
 
-                    # ---- Ligne de seuil ----
-                    .hstat_opt_section(
-                      "Étiquette de la ligne de seuil", "bullseye", "#c0392b", "#fdeeec",
-                      checkboxInput(ns("thresholdShowLabel"),
-                                    tagList(icon("tag"), " Afficher « Seuil : x % » sur le graphique"),
-                                    value = TRUE),
-                      conditionalPanel(
-                        ns = ns,
-                        condition = "input.thresholdShowLabel",
-                        selectInput(ns("thresholdLabelPos"), "Position de l'étiquette",
-                                    choices = c("À droite" = "droite", "Au centre" = "centre",
-                                                "À gauche" = "gauche"),
-                                    selected = "droite"),
-                        selectInput(ns("thresholdLabelStyle"), "Style de l'étiquette",
-                                    choices = HSTAT_FONT_STYLES, selected = "bold")
-                      )
-                    )
                         )
                       ),
 

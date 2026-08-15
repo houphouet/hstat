@@ -1302,3 +1302,7 @@ Graphique indisponible.,Plot unavailable.
 "Aucun graphique : lancez d'abord l'analyse, puis retelechargez.","No plot: run the analysis first, then download again."
 Plan indisponible : le fichier téléchargé porte le motif.,Design unavailable: the downloaded file carries the reason.
 Échec de l'export : le fichier téléchargé porte le motif.,Export failed: the downloaded file carries the reason.
+Étiquette de la valeur sur le graphique,Value label on the plot
+Taille de l'étiquette,Label size
+Afficher « Seuil : x % » sur le graphique,Show « Threshold: x % » on the plot
+L'étiquette reprend la couleur de la ligne de seuil.,The label takes the colour of the threshold line.
