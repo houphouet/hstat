@@ -1918,14 +1918,14 @@ mod_correlation_server <- function(id, values) {
 
     output$downloadCorrPlot <- downloadHandler(
       filename = function() {
-        fmt <- input$corrFormat %||% "png"
-        paste0("matrice_corrélation_", Sys.Date(), ".", fmt)
+        paste0("matrice_corrélation_", Sys.Date(), ".",
+               hstat_img_fmt(input$corrFormat))
       },
       content = function(file) {
         req(values$data, input$corrVars)
         p <- corr_params()
         fv <- if (isTRUE(input$corrFocusMode)) input$corrFocusVar else NULL
-        fmt <- input$corrFormat %||% "png"
+        fmt <- hstat_img_fmt(input$corrFormat)
         dpi <- .hstat_num1(input$corrDPI, 300)
         size_in <- .hstat_num1(input$corrSizeIn, 8)
         # La taille en pixels s'adapte au DPI choisi : pixels = pouces x DPI.
@@ -1934,23 +1934,11 @@ mod_correlation_server <- function(id, values) {
             p$type, p$label_size, p$text_size, p$title, p$pval_mode, p$sig_level,
             p$pval_size, p$reorder, p$palette, p$coef_color, p$pval_color_sig,
             p$pval_color_ns, p$white_on_dark, focus_var = fv)
-        if (fmt == "png") {
-          grDevices::png(file, width = px, height = px, res = dpi, type = "cairo")
-        } else if (fmt == "jpeg") {
-          grDevices::jpeg(file, width = px, height = px, res = dpi, quality = 95, type = "cairo")
-        } else if (fmt == "tiff") {
-          grDevices::tiff(file, width = px, height = px, res = dpi, type = "cairo", compression = "lzw")
-        } else if (fmt == "bmp") {
-          grDevices::bmp(file, width = px, height = px, res = dpi, type = "cairo")
-        } else if (fmt == "pdf") {
-          grDevices::pdf(file, width = size_in, height = size_in)
-        } else if (fmt == "svg") {
-          if (requireNamespace("svglite", quietly = TRUE)) svglite::svglite(file, width = size_in, height = size_in)
-          else grDevices::svg(file, width = size_in, height = size_in)
-        } else {
-          grDevices::png(file, width = px, height = px, res = dpi, type = "cairo")
-        }
-        tryCatch(draw(), finally = grDevices::dev.off())
+        # Un seul chemin d'ecriture, qui garantit un fichier valide du format
+        # demande : les sept branches de peripheriques qui vivaient ici
+        # laissaient un fichier vide quand le trace levait, et Shiny renvoyait
+        # alors sa page d'erreur HTML sous le nom demande.
+        hstat_ecrire_image(file, draw, fmt, size_in, size_in, dpi)
         showNotification(trf("Graphique téléchargé (%s, %d DPI).", toupper(fmt), dpi),
                          type = "message", duration = 3)
       })
@@ -5979,8 +5967,9 @@ mod_tests_server <- function(id, values) {
       req(values$chiSqPlotObj)
       w <- (input$chiSqGraphWidth  %||% 800) / 96
       h <- (input$chiSqGraphHeight %||% 500) / 96
-      ggsave(file, plot = creer_graphique_chi2(), width = w, height = h,
-             dpi = input$chiSqGraphDPI %||% 150, bg = "white")
+      # Sans fichier ecrit, Shiny renvoie sa page d'erreur HTML sous « .png ».
+      hstat_ecrire_image(file, tryCatch(creer_graphique_chi2(), error = function(e) NULL),
+                         "png", w, h, .hstat_num1(input$chiSqGraphDPI, 150))
     }
   )
   
@@ -6291,7 +6280,7 @@ mod_tests_server <- function(id, values) {
         lev_map = lev_map,
         p_val   = values$chiSqPGlobal   %||% NA
       ))
-      ggsave(file, plot = p, width = w_in, height = h_in, dpi = dpi, bg = "white")
+      hstat_ecrire_image(file, p, "png", w_in, h_in, dpi)
       showNotification(
         paste0("PNG exporté : ", round(w_in*dpi), "×", round(h_in*dpi),
                " px @", dpi, " DPI"),
@@ -8839,18 +8828,12 @@ mod_tests_server <- function(id, values) {
         function(filename, ...) grDevices::png(filename, type = "cairo",
                                                units = "in", res = dpi, ...))
 
-      ok <- tryCatch({
-        if (fmt %in% c("pdf", "svg")) {
-          ggplot2::ggsave(file, plot = p, width = w, height = h, units = "in", device = device)
-        } else {
-          ggplot2::ggsave(file, plot = p, width = w, height = h, units = "in",
-                          dpi = dpi, device = device)
-        }
-        TRUE
-      }, error = function(e) {
-        showNotification(hstat_err_fr(e, "Échec de l'export"), type = "error", duration = 8)
-        FALSE
-      })
+      # Le chemin d'echec ne laissait AUCUN fichier : Shiny renvoyait sa page
+      # d'erreur HTML, enregistree sous le nom demande.
+      ok <- hstat_ecrire_image(file, p, fmt, w, h, dpi)
+      if (!ok)
+        showNotification("Échec de l'export : le fichier téléchargé porte le motif.",
+                         type = "error", duration = 8)
 
       if (ok) {
         showNotification(trf("Graphique téléchargé (%s, %d DPI).", toupper(fmt), as.integer(dpi)),
@@ -8897,11 +8880,20 @@ mod_tests_server <- function(id, values) {
     }
   )
   
+  # Ce bouton n'ecrivait RIEN : Shiny renvoyait sa page d'erreur, enregistree
+  # sous « rapport_complet_....pdf ». On rend desormais un PDF valide qui dit
+  # ou se trouve le rapport -- un fichier qui explique vaut mieux qu'un fichier
+  # qu'aucun lecteur n'ouvre.
   output$downloadFullReport <- downloadHandler(
     filename = function() { paste0("rapport_complet_", Sys.Date(), ".pdf") },
     content = function(file) {
-      showNotification("Génération du PDF - Fonctionnalité nécessite rmarkdown", 
-                       type = "warning", duration = 5)
+      showNotification(
+        "Le rapport complet se compose dans l'onglet « Rapport » (Word, PDF ou HTML).",
+        type = "message", duration = 8)
+      hstat_image_secours(file, "pdf",
+        paste("Le rapport complet se compose dans l'onglet « Rapport » de",
+              "l'application, qui assemble les analyses de la session en Word,",
+              "PDF ou HTML."), width = 8.3, height = 11.7)
     }
   )
   })

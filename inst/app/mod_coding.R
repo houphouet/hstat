@@ -3100,8 +3100,13 @@ mod_coding_server <- function(id, values) {
     output$cloud_plot <- shiny::renderPlot(cloud_gg())
     output$dl_cloud <- shiny::downloadHandler(
       filename = function() sprintf("hstat_nuage_mots_%s.png", format(Sys.Date(), "%Y%m%d")),
+      # `validate(need(...))` dans un downloadHandler interrompt le contenu :
+      # Shiny renvoie sa page d'erreur HTML, enregistree en « .png ». On ecrit
+      # toujours une image valide, portant le motif s'il y en a un.
       content = function(file)
-        ggplot2::ggsave(file, cloud_gg(), width = 10, height = 7, dpi = 300, bg = "white"))
+        hstat_ecrire_image(file, tryCatch(cloud_gg(), error = function(e) NULL),
+                           "png", 10, 7, 300,
+                           echec = "Nuage indisponible : élargissez le corpus ou réduisez la taille du texte."))
 
     # ==================================================== CARTE CONCEPTUELLE
     cooc <- shiny::reactive({
@@ -3133,7 +3138,9 @@ mod_coding_server <- function(id, values) {
     output$dl_map <- shiny::downloadHandler(
       filename = function() sprintf("hstat_carte_conceptuelle_%s.png", format(Sys.Date(), "%Y%m%d")),
       content = function(file)
-        ggplot2::ggsave(file, map_gg(), width = 10, height = 8, dpi = 300, bg = "white"))
+        hstat_ecrire_image(file, tryCatch(map_gg(), error = function(e) NULL),
+                           "png", 10, 8, 300,
+                           echec = "Carte indisponible : il faut au moins deux codes co-occurrents."))
     output$dl_cooc_xlsx <- shiny::downloadHandler(
       filename = function() sprintf("hstat_cooccurrences_%s.xlsx", format(Sys.Date(), "%Y%m%d")),
       content = function(file) {

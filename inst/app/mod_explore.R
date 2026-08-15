@@ -440,10 +440,13 @@ mod_explore_server <- function(id, values) {
         return(NULL)
       })
       
-      if (!is.null(p)) {
-        ggsave(file, plot = p, width = 10, height = 8, dpi = dpi)
+      # Un fichier toujours valide, meme quand le graphique a echoue : sans
+      # cela Shiny renvoie sa page d'erreur HTML sous le nom « .png ».
+      if (hstat_ecrire_image(file, p, "png", 10, 8, dpi))
         showNotification("Graphique téléchargé avec succès!", type = "message", duration = 3)
-      }
+      else
+        showNotification("Graphique indisponible : le fichier téléchargé porte le motif.",
+                         type = "error", duration = 6)
     }
   )
   
@@ -551,10 +554,11 @@ mod_explore_server <- function(id, values) {
         return(NULL)
       })
       
-      if (!is.null(p)) {
-        ggsave(file, plot = p, width = 12, height = 8, dpi = dpi)
+      if (hstat_ecrire_image(file, p, "png", 12, 8, dpi))
         showNotification("Graphique téléchargé avec succès!", type = "message", duration = 3)
-      }
+      else
+        showNotification("Graphique indisponible : le fichier téléchargé porte le motif.",
+                         type = "error", duration = 6)
     }
   )
   })

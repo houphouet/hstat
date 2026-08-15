@@ -1360,11 +1360,15 @@ test_that("les entrees invalides d'un test de conformite sont rejetees", {
   expect_equal(r$n, 15)
 })
 
-test_that("la taille des labels est bornee a 12-24 pt et convertie pour ggplot2", {
-  expect_equal(HSTAT_LBL_PT_MIN, 12)
+test_that("la taille des labels part du defaut de ggplot2 et se convertit", {
+  # Le plancher etait a 12 pt : le defaut de ggplot2 (11 pt) etait alors
+  # INATTEIGNABLE, alors que c'est precisement l'etat d'origine qu'on veut
+  # pouvoir retrouver. Il descend donc a 11.
+  expect_equal(HSTAT_LBL_PT_MIN, HSTAT_GG_LABEL_PT)
+  expect_equal(HSTAT_LBL_PT_DEFAULT, HSTAT_GG_LABEL_PT)
   expect_equal(HSTAT_LBL_PT_MAX, 24)
   # Bornage des saisies hors domaine, absentes ou invalides.
-  expect_equal(hstat_lbl_pt(3), 12)
+  expect_equal(hstat_lbl_pt(3), HSTAT_LBL_PT_MIN)
   expect_equal(hstat_lbl_pt(99), 24)
   expect_equal(hstat_lbl_pt(NULL), HSTAT_LBL_PT_DEFAULT)
   expect_equal(hstat_lbl_pt(NA), HSTAT_LBL_PT_DEFAULT)
@@ -5790,4 +5794,198 @@ test_that("les alignements de titre sont des hjust valides", {
   expect_false(any(is.na(v)))
   expect_true(all(v >= 0 & v <= 1))
   expect_true("0.5" %in% unname(HSTAT_ALIGNEMENTS))
+})
+
+test_that("les pixels d'export suivent la resolution a taille physique constante", {
+  # Modele des analyses multivariees : les champs de largeur/hauteur sont
+  # RECALCULES a chaque changement de DPI, ils affichent donc les pixels
+  # reellement produits. pouces = pixels / DPI est alors exact.
+  expect_equal(hstat_px_apres_dpi(3000, 300, 600), 6000)
+  expect_equal(hstat_px_apres_dpi(3000, 300, 150), 1500)
+  expect_equal(hstat_px_apres_dpi(3000, 300, 300), 3000)
+
+  # La taille physique est l'invariant : elle ne bouge pas d'un DPI a l'autre.
+  for (dpi in c(72, 150, 300, 600)) {
+    px <- hstat_px_apres_dpi(3000, 300, dpi)
+    expect_equal(round(hstat_px_en_pouces(px, dpi), 6), 10)
+  }
+  # Bornage : un bitmap demesure ferait echouer l'export
+  expect_lte(hstat_px_apres_dpi(19000, 72, 1200), HSTAT_EXPORT_MAX_PX)
+  # Entrees inutilisables : on ne propose rien plutot qu'un chiffre invente
+  for (x in list(NULL, NA, 0, -1, ""))
+    expect_null(hstat_px_apres_dpi(x, 300, 600))
+  expect_null(hstat_px_apres_dpi(3000, 0, 600))
+  expect_null(hstat_px_apres_dpi(3000, 300, NA))
+
+  # Pouces : repli explicite plutot qu'une valeur absurde
+  expect_equal(hstat_px_en_pouces(3000, 300), 10)
+  expect_equal(hstat_px_en_pouces(NULL, 300, defaut = 8), 8)
+  expect_equal(hstat_px_en_pouces(3000, NA, defaut = 8), 8)
+  expect_gte(hstat_px_en_pouces(10, 300), 1)          # jamais moins d'un pouce
+})
+
+test_that("les graphiques multivaries partent des reglages de ggplot2", {
+  # « S'afficher initialement avec les configurations d'origine de ggplot2 » :
+  # les valeurs de depart doivent etre celles de ggplot2, pas des tailles
+  # maison qu'il faudrait defaire.
+  expect_equal(HSTAT_GG_POINT_SIZE, 1.5)     # geom_point
+  expect_equal(HSTAT_GG_LINEWIDTH, 0.5)      # geom_line / segment
+  expect_equal(HSTAT_GG_BASE_SIZE, 11)       # theme_grey(base_size = )
+  expect_equal(HSTAT_GG_LABEL_PT, 11)        # geom_text ~ 3,88 mm
+
+  root <- .hstat_repo_root()
+  srv  <- paste(readLines(file.path(root, "inst", "app", "app_server.R"), warn = FALSE),
+                collapse = "\n")
+  ux   <- paste(readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE),
+                collapse = "\n")
+
+  # Le theme etait impose en dur a chaque graphique factoriel : le rendu
+  # d'origine de ggplot2 etait alors inatteignable. (Les commentaires en
+  # parlent encore, on ne balaie que le code.)
+  code <- readLines(file.path(root, "inst", "app", "app_server.R"), warn = FALSE)
+  code <- paste(code[!grepl("^\\s*#", code)], collapse = "\n")
+  expect_false(grepl("ggtheme = theme_minimal()", code, fixed = TRUE))
+  expect_true(grepl("mv_ggtheme(", code, fixed = TRUE))
+
+  # Aucune taille maison ne subsiste comme valeur de depart
+  for (motif in c("value = 2.4", "value = 0.7,"))
+    expect_false(grepl(motif, srv, fixed = TRUE), label = motif)
+
+  # Et le helper de telechargement mort a disparu : il portait un calcul de
+  # dimensions different de celui reellement employe.
+  expect_false(grepl("createPlotDownloadHandler <- function", srv, fixed = TRUE))
+  expect_false(grepl("calculate_dimensions_from_dpi", srv, fixed = TRUE))
+  expect_false(grepl("calculate_dimensions_from_dpi", ux, fixed = TRUE))
+})
+
+test_that("chaque export multivarie a sa liaison DPI et ses reglages de forme", {
+  root <- .hstat_repo_root()
+  srv  <- paste(readLines(file.path(root, "inst", "app", "app_server.R"), warn = FALSE),
+                collapse = "\n")
+  ux   <- paste(readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE),
+                collapse = "\n")
+  tout <- paste(srv, ux)
+
+  generiques <- paste0("mv_", c("kmeans","efa","cfa","mtmm","pls","regmult","afc","mca",
+                                "kmodes","lca","logit","famd","mfa","kproto"))
+  historiques <- c("pcaPlot", "pcaScree", "pcaParallel", "pcaCTR",
+                   "hcpcCluster", "hcpcDend", "hcpcHeights", "afdInd", "afdVar")
+
+  # « Sans exception » : la liste qui alimente l'observateur doit contenir les
+  # 23 exports. Une analyse ajoutee sans y figurer se comporterait autrement
+  # que ses voisines, et c'est precisement ce qu'on ne veut plus.
+  for (p in c(generiques, historiques))
+    expect_true(grepl(sprintf('"%s"', p), srv, fixed = TRUE), label = paste("liee au DPI :", p))
+  expect_true(grepl("MV_EXPORTS_DPI", srv, fixed = TRUE))
+  expect_true(grepl("mv_lier_dpi", srv, fixed = TRUE))
+
+  # Les analyses historiques recoivent le bloc de forme manquant (theme,
+  # sous-titre, legende, grille).
+  for (p in historiques)
+    expect_true(grepl(sprintf('hstat_mv_forme_ui("%s"', p), ux, fixed = TRUE),
+                label = paste("forme :", p))
+
+  # Les generiques passent par la boite commune, qui porte les memes reglages.
+  expect_true(grepl("mv_forme_box(prefix)", srv, fixed = TRUE))
+  for (suffixe in c("_title", "_subtitle", "_xlab", "_ylab", "_theme",
+                    "_legendpos", "_grid", "_width", "_height", "_dpi"))
+    expect_true(grepl(sprintf('paste0(prefix, "%s")', suffixe), srv, fixed = TRUE),
+                label = suffixe)
+
+  # La largeur et la hauteur demandees doivent etre LUES : l'export sortait
+  # toujours carre, neuf pouces de cote, quels que soient les champs.
+  expect_false(grepl("size_in <- 9", srv, fixed = TRUE))
+  expect_true(grepl("hstat_px_en_pouces", srv, fixed = TRUE))
+})
+
+test_that("un telechargement d'image ecrit toujours un fichier valide", {
+  skip_if_not_installed("ggplot2")
+  # Un `content =` qui leve, ou qui se termine sans avoir ecrit, fait renvoyer
+  # a Shiny sa page d'erreur HTML : le navigateur l'enregistre sous le nom
+  # demande, et l'on croit tenir un PNG. Signale a l'ecran.
+  entete <- function(f, n = 8) readBin(f, "raw", n)
+  est_png <- function(f) identical(as.integer(entete(f)[1:4]), c(137L, 80L, 78L, 71L))
+  est_pdf <- function(f) identical(rawToChar(entete(f, 4)), "%PDF")
+
+  p <- ggplot2::ggplot(data.frame(x = 1:5, y = 1:5), ggplot2::aes(x, y)) +
+    ggplot2::geom_point()
+
+  f1 <- tempfile(fileext = ".png")
+  expect_true(hstat_ecrire_image(f1, p, "png", 6, 4, 100))
+  expect_true(est_png(f1))
+
+  # Graphique absent : un fichier VALIDE portant le motif, jamais du HTML
+  f2 <- tempfile(fileext = ".png")
+  expect_false(hstat_ecrire_image(f2, NULL, "png", 6, 4, 100))
+  expect_true(est_png(f2))
+  expect_gt(file.size(f2), 1000)
+
+  # Le trace qui leve en cours de route laisse malgre tout un fichier lisible
+  f3 <- tempfile(fileext = ".pdf")
+  expect_false(hstat_ecrire_image(f3, function() stop("boum"), "pdf", 6, 4, 100))
+  expect_true(est_pdf(f3))
+
+  # Le format demande est respecte, alias compris
+  f4 <- tempfile(fileext = ".jpg")
+  expect_true(hstat_ecrire_image(f4, p, "jpg", 5, 4, 100))
+  expect_equal(as.integer(entete(f4, 2)), c(255L, 216L))     # marqueur JPEG
+
+  # Normalisation : c'est l'extension qui decide du type MIME servi par Shiny
+  expect_equal(hstat_img_fmt("JPG"), "jpeg")
+  expect_equal(hstat_img_fmt("TIF"), "tiff")
+  expect_equal(hstat_img_fmt("html"), "png")   # jamais du HTML
+  expect_equal(hstat_img_fmt(NULL), "png")
+  expect_equal(hstat_img_mime("svg"), "image/svg+xml")
+  expect_equal(hstat_img_mime("inconnu"), "image/png")
+})
+
+test_that("les ellipses ne sont demandees que sur des groupes qui peuvent en porter", {
+  set.seed(4)
+  # Trois causes d'echec de stat_conf_ellipse(), toutes rencontrees :
+  x <- c(stats::rnorm(12), stats::rnorm(12, 4))
+  y <- c(stats::rnorm(12), stats::rnorm(12, 4))
+  g <- rep(c("A", "B"), each = 12)
+  expect_true(hstat_ellipse_ok(g, x, y)$ok)
+  expect_null(hstat_ellipse_ok(g, x, y)$motif)
+
+  # 1. groupe trop petit
+  g2 <- c(rep("A", 22), rep("B", 2))
+  r2 <- hstat_ellipse_ok(g2, x, y)
+  expect_false(r2$ok)
+  expect_equal(r2$faibles, "B")
+  expect_true(grepl("B", r2$motif, fixed = TRUE))     # le groupe est NOMME
+
+  # 2. coordonnee constante
+  r3 <- hstat_ellipse_ok(g, c(stats::rnorm(12), rep(1, 12)),
+                            c(stats::rnorm(12), rep(2, 12)))
+  expect_false(r3$ok)
+  expect_equal(r3$faibles, "B")
+
+  # 3. points parfaitement alignes : covariance singuliere
+  r4 <- hstat_ellipse_ok(g, c(stats::rnorm(12), 1:12),
+                            c(stats::rnorm(12), 2 * (1:12)))
+  expect_false(r4$ok)
+  expect_equal(r4$faibles, "B")
+
+  # Les groupes sains restent utilisables : on n'ecarte que ce qui echouerait
+  expect_equal(r2$groupes, "A")
+
+  # Entrees degenerees : pas d'erreur, pas d'ellipse
+  expect_false(hstat_ellipse_ok(NULL, NULL, NULL)$ok)
+  expect_false(hstat_ellipse_ok("A", 1, 1)$ok)
+  expect_false(hstat_ellipse_ok(g, rep(NA_real_, 24), y)$ok)
+})
+
+test_that("aucun telechargement d'image ne peut se terminer sans ecrire", {
+  root <- .hstat_repo_root()
+  # `calculate_dimensions_from_dpi()` etait appelee dans mod_descriptive.R
+  # alors qu'elle vivait dans le corps de `server` : jamais visible depuis un
+  # module. L'appel levait, et le « PNG » telecharge etait la page d'erreur
+  # HTML de Shiny.
+  src <- unlist(lapply(list.files(file.path(root, "inst", "app"), pattern = "\\.R$",
+                                  full.names = TRUE), readLines, warn = FALSE))
+  code <- src[!grepl("^\\s*#", src)]
+  expect_false(any(grepl("calculate_dimensions_from_dpi", code, fixed = TRUE)))
+  # Le chemin d'ecriture garanti est bien celui employe
+  expect_true(sum(grepl("hstat_ecrire_image", code, fixed = TRUE)) >= 15)
 })

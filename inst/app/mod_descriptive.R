@@ -841,14 +841,20 @@ mod_descriptive_server <- function(id, values) {
   }, res = 96)
   
   output$downloadDescPlot <- downloadHandler(
-    filename = function() paste0("graphique_descriptif_", Sys.Date(), ".", input$descPlot_format),
+    filename = function() paste0("graphique_descriptif_", Sys.Date(), ".",
+                                 hstat_img_fmt(input$descPlot_format)),
     content = function(file) {
-      dpi       <- input$descPlot_dpi
-      auto_dims <- calculate_dimensions_from_dpi(dpi, 25, 18)
-      p <- generate_desc_plot()
-      suppressWarnings(ggsave(file, plot = p, device = input$descPlot_format,
-                              width = auto_dims$width, height = auto_dims$height,
-                              dpi = dpi, units = "cm"))
+      # `calculate_dimensions_from_dpi()` etait appelee ici alors qu'elle n'a
+      # JAMAIS ete visible depuis ce module : elle vivait dans le corps de
+      # `server`. L'appel levait « impossible de trouver la fonction », Shiny
+      # renvoyait sa page d'erreur HTML, et le navigateur l'enregistrait en
+      # « .png ». C'est le telechargement d'image qui rendait du HTML.
+      dpi <- .hstat_num1(input$descPlot_dpi, 300)
+      p   <- tryCatch(generate_desc_plot(), error = function(e) NULL)
+      if (!hstat_ecrire_image(file, p, input$descPlot_format, 9.8, 7.1, dpi))
+        showNotification(
+          "Graphique indisponible : le fichier téléchargé porte le motif.",
+          type = "error", duration = 6)
     }
   )
   })

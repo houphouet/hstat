@@ -1275,3 +1275,30 @@ Au centre,In the centre
 Laisser vide pour laisser ggplot choisir.,Leave empty to let ggplot choose.
 Une efficacité négative se lit sous l'axe : la position « au pied » la garde visible.,A negative efficacy reads below the axis: the « at the foot » position keeps it visible.
 "%d valeur(s) hors des limites de l'axe Y (%s à %s) : elles n'apparaissent pas. Élargissez les limites dans « Apparence & options ».","%d value(s) outside the Y axis limits (%s to %s): they are not shown. Widen the limits under « Appearance & options »."
+Grille,Grid
+Par défaut (ggplot2),ggplot2 default
+HStat (minimal),HStat (minimal)
+"HStat (titre centré, légende en bas)","HStat (centred title, legend at bottom)"
+Principale seule,Major only
+Masquée,Hidden
+Apparence du graphique,Plot appearance
+Apparence du dendrogramme,Dendrogram appearance
+Apparence des hauteurs de fusion,Merge heights appearance
+Apparence du graphique des éboulis,Scree plot appearance
+Apparence de l'analyse parallèle,Parallel analysis appearance
+Apparence du graphique CTR,CTR plot appearance
+Apparence — projection des individus,Appearance — individuals projection
+Apparence — contribution des variables,Appearance — variables contribution
+Titres et axes,Titles and axes
+"Thème, légende et grille","Theme, legend and grid"
+Largeur (px),Width (px)
+Hauteur (px),Height (px)
+"Laisser vide conserve les libellés calculés par l'analyse (axes, % de variance).","Leaving it empty keeps the labels computed by the analysis (axes, % of variance)."
+"La largeur et la hauteur se recalculent quand la résolution change : la taille physique de la figure reste la même, sa finesse augmente.",Width and height are recomputed when the resolution changes: the figure keeps its physical size and gains detail.
+Ellipses non tracées : %s. Un groupe doit compter au moins %d individus non alignés et de coordonnées variables.,"Ellipses not drawn: %s. A group needs at least %d individuals, not collinear and with varying coordinates."
+Graphique indisponible : le fichier téléchargé porte le motif.,Plot unavailable: the downloaded file carries the reason.
+Graphique indisponible.,Plot unavailable.
+"Graphique exporté : %s, %s × %s pouces, %s DPI.","Plot exported: %s, %s × %s inches, %s DPI."
+"Aucun graphique : lancez d'abord l'analyse, puis retelechargez.","No plot: run the analysis first, then download again."
+Plan indisponible : le fichier téléchargé porte le motif.,Design unavailable: the downloaded file carries the reason.
+Échec de l'export : le fichier téléchargé porte le motif.,Export failed: the downloaded file carries the reason.

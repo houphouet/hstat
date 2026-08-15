@@ -195,6 +195,95 @@ Les palettes qualitatives viennent en premier et sont vérifiées comme telles
 (`brewer.pal.info$category == "qual"`) : un dégradé sur des groupes sans ordre
 naturel suggère une progression qui n'existe pas.
 
+### Un téléchargement d'image ne renvoie jamais de HTML
+
+Un `content =` de `downloadHandler` qui **lève**, ou qui se termine **sans
+avoir écrit** le fichier, fait renvoyer à Shiny sa page d'erreur HTML. Le
+navigateur l'enregistre sous le nom demandé : on croit tenir un PNG, on ouvre
+du HTML. Signalé à l'écran.
+
+Quatre causes réelles, toutes trouvées dans le dépôt :
+
+1. **Une fonction hors de portée.** `mod_descriptive.R` appelait
+   `calculate_dimensions_from_dpi()`, définie dans le corps de `server` — donc
+   **jamais visible depuis un module**. Le téléchargement du graphique
+   descriptif n'a jamais pu produire autre chose qu'une page d'erreur.
+2. **Un `return()` avant d'écrire** (export multivarié générique, sans analyse
+   lancée).
+3. **Un `validate(need(...))` dans le `content`** (nuage de mots, carte
+   conceptuelle) : il interrompt le contenu comme une erreur.
+4. **Un handler qui n'écrit rien du tout** (« rapport complet » des post-hoc).
+
+`hstat_ecrire_image()` (`Utils.R`) est le seul chemin d'écriture : elle ouvre
+le périphérique du format demandé, trace, et **garantit qu'un fichier valide
+existe au retour** — à défaut de graphique, une image portant le motif. Une
+image qui explique vaut mieux qu'un fichier qu'aucun logiciel n'ouvre.
+
+`hstat_img_fmt()` normalise le format (`jpg` → `jpeg`, `html` → `png`) et sert
+aussi à composer le **nom** du fichier : c'est son extension que Shiny traduit
+en type MIME. Ne pas fixer `contentType` à la main — il serait évalué à la
+construction du handler, hors contexte réactif.
+
+### Une ellipse de confiance suppose une covariance inversible
+
+`stat_conf_ellipse()` (ggpubr, appelé par `fviz_*` avec
+`ellipse.type = "confidence"`) s'arrête sur « valeur manquante là où
+TRUE/FALSE est requis » — un facteur d'échelle `NA` — dans trois cas, et tous
+se rencontrent : **moins de trois individus** dans le groupe, une **coordonnée
+constante**, ou des points **parfaitement alignés**. Le message ne nomme ni le
+groupe ni la cause.
+
+`hstat_ellipse_ok()` vérifie **avant** de demander les ellipses et **nomme** les
+groupes fautifs. Là où c'est possible (couche `stat_ellipse` maison), seuls les
+groupes exploitables sont tracés au lieu de perdre la couche entière.
+
+### Analyses multivariées : ggplot2 d'abord, puis les réglages
+
+Les graphiques d'individus, de variables et les biplots imposaient leur propre
+habillage — `ggtheme = theme_minimal()` en dur à chaque appel de `fviz_*`,
+`theme_minimal(base_size = 12)` dans les graphiques maison, points à 2,4,
+tracés à 0,7, texte à 12 — de sorte que **le rendu d'origine de ggplot2 était
+inatteignable**. On devait défaire avant de faire.
+
+Les valeurs de départ sont désormais celles de ggplot2 (`HSTAT_GG_POINT_SIZE`
+1,5 ; `HSTAT_GG_LINEWIDTH` 0,5 ; `HSTAT_GG_BASE_SIZE` 11 ; `HSTAT_GG_LABEL_PT`
+11), et le thème se choisit — `"gg"` par défaut, l'ancien habillage restant
+disponible sous `"hstat"`. Corollaire : `HSTAT_LBL_PT_MIN` descend de 12 à 11,
+sans quoi le défaut de ggplot2 serait hors du domaine du curseur.
+
+### La résolution commande la taille, et il faut dire dans quel sens
+
+Deux modèles cohabitent, et les confondre produit exactement le défaut que
+chacun évite :
+
+| Module | Les pixels saisis sont… | Effet du DPI |
+|---|---|---|
+| Seuils d'efficacité (`hstat_export_dims`) | une **mise en page**, lue à 96 ppp | multiplie la finesse, les champs ne bougent pas |
+| Multivarié (`hstat_px_apres_dpi`) | les **pixels produits**, recalculés | recalcule les champs, taille physique constante |
+
+Dans le second, `pouces = pixels / DPI` est **exact** — ce sont les pixels qui
+dérivent de la taille physique, pas l'inverse. C'est la même formule qui était
+fautive côté seuils, où l'utilisateur saisit les pixels à la main.
+
+`calculate_dimensions_from_dpi()` a disparu : elle dérivait la taille du seul
+DPI, par paliers, **ignorait** les champs de largeur/hauteur affichés à côté —
+les régler ne faisait rien — et son palier « au-delà de 300 DPI » *réduisait*
+la figure de 10 %.
+
+L'observateur `mv_lier_dpi()` doit tourner avec `ignoreInit = FALSE` : le
+premier passage sert à **retenir** la résolution de départ. Sans lui, le
+premier changement n'a pas de « avant » à comparer et ne recalcule rien —
+il fallait changer le DPI deux fois. Constaté à l'écran.
+
+Les **23 exports** (14 analyses génériques, 9 historiques) sont déclarés dans
+`MV_EXPORTS_DPI` ; un test échoue si l'un d'eux manque. L'export générique
+sortait par ailleurs toujours **carré, neuf pouces de côté**, quels que soient
+les champs.
+
+Enfin, `createPlotDownloadHandler()` a été supprimée : jamais appelée, elle
+portait un calcul de dimensions **différent** de celui réellement employé. Un
+helper mort qu'on corrige en croyant corriger l'export est pire qu'absent.
+
 ### Seuils d'efficacité : la mise en forme, au complet
 
 Le module traçait des barres avec un thème figé, une opacité figée à 0,8 en six
