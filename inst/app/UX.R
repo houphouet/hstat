@@ -216,7 +216,8 @@ ui <- dashboardPage(
     tags$head(
       tags$meta(name = "viewport", content = "width=device-width, initial-scale=1, shrink-to-fit=no"),
       # Feuille de theme HStat (polices IBM Plex LOCALES -> fonctionne hors-ligne).
-      tags$link(rel = "stylesheet", type = "text/css", href = "hstat-theme.css"),
+      tags$link(rel = "stylesheet", type = "text/css",
+                href = hstat_asset("hstat-theme.css")),
       # Theme clair par defaut ; la bascule ajoute/retire la classe hstat-dark.
       tags$script(HTML(
         "document.addEventListener('DOMContentLoaded',function(){if(!document.body.classList.contains('hstat-dark')){document.body.classList.add('hstat-light');}});")),
@@ -229,13 +230,13 @@ ui <- dashboardPage(
       # fermer l'application : seul l'utilisateur la ferme.
       tags$style(HTML(
         "#shiny-disconnected-overlay{display:none !important;}")),
-      tags$script(src = "hstat-session.js"),
+      tags$script(src = hstat_asset("hstat-session.js")),
       # Dictionnaire de traduction INCORPORE dans la page : aucune requete
       # reseau, le bilingue fonctionne hors ligne. La cle est la chaine
       # francaise elle-meme, donc une chaine non traduite reste en francais.
       tags$script(HTML(sprintf("window.HSTAT_I18N = %s;",
                                hstat_i18n_json("en")))),
-      tags$script(src = "hstat-i18n.js"),
+      tags$script(src = hstat_asset("hstat-i18n.js")),
       # Copie de la citation dans le presse-papiers (API moderne + repli execCommand).
       tags$script(HTML(
         "Shiny.addCustomMessageHandler('hstat_copy_clip', function(m){",

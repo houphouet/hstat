@@ -1077,6 +1077,23 @@ d'origine. Le message est retraduit en « feuilles » à l'affichage — lire
 « 3 fichiers » après avoir combiné trois feuilles d'un même classeur est
 déroutant.
 
+## Un fichier statique servi sous un nom inchangé reste en cache
+
+`hstat_asset()` estampille la feuille de style et les scripts de la version :
+`hstat-theme.css?v=0.36.1`. Sans cela, le navigateur garde la version qu'il a
+déjà — l'application est mise à jour sur le serveur, et l'utilisateur continue
+de voir **l'ancienne mise en page** sans qu'aucun message ne le lui dise. Le cas
+s'est présenté sur téléphone, où l'on ne sait même pas comment forcer un
+rechargement.
+
+L'estampille est la **version**, qui monte à chaque modification (règle du
+dépôt) : le fichier est donc retéléchargé exactement quand il le faut, et mis en
+cache le reste du temps. Un horodatage le ferait retélécharger à chaque
+démarrage ; une valeur figée, jamais.
+
+Un test barre tout appel direct à `"hstat-theme.css"`, `"hstat-session.js"` ou
+`"hstat-i18n.js"` : c'est celui qu'on oublie qui garde l'ancien fichier.
+
 ## Responsive : rien ne disparaît, rien n'est coupé
 
 Règle de conduite : ce qui ne tient pas en largeur se **replie** (colonnes

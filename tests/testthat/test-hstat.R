@@ -6254,3 +6254,32 @@ test_that("la mise en page s'adapte aux petits ecrans sans rien couper", {
   # cette balise, un telephone rend la page a 980 px et la reduit.
   expect_true(grepl("width=device-width", ux, fixed = TRUE))
 })
+
+test_that("les fichiers statiques portent la version, sinon le cache ment", {
+  # Servie sous un nom INCHANGE, la feuille de style reste en cache : le
+  # serveur est mis a jour et l'utilisateur voit toujours l'ancienne mise en
+  # page, sans qu'aucun message ne le lui dise. Constate sur telephone, ou
+  # l'on ne sait meme pas comment forcer un rechargement.
+  expect_equal(hstat_asset("hstat-theme.css"),
+               paste0("hstat-theme.css?v=", hstat_version()))
+  expect_true(grepl("?v=", hstat_asset("x.js"), fixed = TRUE))
+
+  ux <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app", "UX.R"),
+                        warn = FALSE), collapse = "\n")
+  # Aucun appel direct ne doit subsister : c'est celui qu'on oublie qui garde
+  # l'ancien fichier. On vise la forme NON estampillee (`href = "..."`,
+  # `src = "..."`) et non le nom du fichier, qui figure aussi -- legitimement --
+  # a l'interieur de hstat_asset().
+  for (f in c("hstat-theme.css", "hstat-session.js", "hstat-i18n.js")) {
+    for (attr in c("href", "src"))
+      expect_false(grepl(sprintf('%s = "%s"', attr, f), ux, fixed = TRUE),
+                   label = paste("appel direct :", attr, f))
+    expect_true(grepl(sprintf('hstat_asset("%s")', f), ux, fixed = TRUE),
+                label = paste("estampille :", f))
+  }
+
+  # L'estampille doit etre la VERSION, qui monte a chaque modification : une
+  # valeur figee ne ferait jamais retelecharger, un horodatage ferait
+  # retelecharger a chaque demarrage.
+  expect_false(grepl("?v=1\"", ux, fixed = TRUE))
+})

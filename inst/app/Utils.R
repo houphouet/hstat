@@ -4240,6 +4240,19 @@ hstat_version <- function(fallback = "0.0.0") {
   fallback
 }
 
+# Fichier statique estampille de la version : « hstat-theme.css?v=0.36.0 ».
+#
+# Sans cette estampille, le navigateur garde en cache une feuille de style
+# servie sous un nom INCHANGE : l'application est mise a jour sur le serveur,
+# et l'utilisateur continue de voir l'ancienne mise en page sans qu'aucun
+# message ne le lui dise. Le cas s'est presente sur telephone, ou l'on ne
+# sait meme pas comment forcer un rechargement.
+#
+# L'estampille change a chaque montee de version -- c'est-a-dire a chaque
+# modification, la regle du depot -- donc le fichier est retelecharge
+# exactement quand il le faut, et mis en cache le reste du temps.
+hstat_asset <- function(fichier) paste0(fichier, "?v=", hstat_version())
+
 # Annee a citer : date de construction du paquet, puis champ Date: de
 # DESCRIPTION, puis annee courante.
 hstat_pkg_year <- function() {
