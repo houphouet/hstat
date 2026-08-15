@@ -307,6 +307,12 @@ un `vjust` figé écrirait son étiquette du mauvais côté de la barre.
 se choisissent pas séparément ; la position « au pied » ramène l'ordonnée à
 zéro, seul endroit toujours visible.
 
+**Un réglage se place là où vit ce qu'il règle.** La taille de l'étiquette
+« Seuil : x % » vivait dans « Apparence & options », deux onglets plus loin que
+la valeur du seuil qu'elle affiche : on la cherchait à côté de la valeur.
+Affichage, taille, position et style de cette étiquette sont désormais dans
+« Paramètres du seuil », avec la valeur, la couleur et le type de ligne.
+
 **Une barre hors des limites de l'axe disparaît, avec son étiquette.** Le cas
 est courant : le minimum vaut 0 par défaut. Le module compte désormais les
 valeurs hors cadre et le dit, plutôt que de les escamoter.
