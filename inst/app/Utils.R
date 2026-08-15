@@ -5783,6 +5783,34 @@ hstat_px_en_pouces <- function(px, dpi, defaut = 8, max_in = 200) {
   max(1, min(px / d, max_in))
 }
 
+# Pixels a produire pour une taille physique et une resolution donnees --
+# l'operation inverse de la precedente, et celle qui doit piloter les champs.
+#
+# Recalculer les pixels a partir des PIXELS PRECEDENTS et de l'ANCIEN DPI
+# (px x nouveau / ancien) donne le meme resultat quand tout va bien, mais
+# suppose deux etats que rien ne garantit : que le serveur ait retenu l'ancien
+# DPI, et que le navigateur ait deja renvoye les pixels ecrits au changement
+# d'avant. Un panneau reconstruit remet les champs a leur valeur d'origine sans
+# que l'ancien DPI bouge ; deux changements plus rapproches que l'aller-retour
+# font repartir le calcul de pixels perimes. Dans les deux cas la taille cesse
+# de suivre la resolution -- le defaut signale.
+#
+# La taille physique, elle, ne depend d'aucun des deux.
+hstat_px_pour_dpi <- function(pouces, dpi, max_px = HSTAT_EXPORT_MAX_PX) {
+  n <- function(x) suppressWarnings(as.numeric(x)[1])
+  po <- n(pouces); d <- n(dpi)
+  if (!isTRUE(is.finite(po)) || po <= 0) return(NULL)
+  if (!isTRUE(is.finite(d))  || d  <= 0) return(NULL)
+  round(min(po * d, max_px))
+}
+
+# Emplacement de la note « ce que le fichier contiendra », posee sous les trois
+# champs d'export. L'utilisateur ne voyait nulle part le lien entre la
+# resolution et la taille produite : il ne restait qu'a le croire.
+hstat_mv_dim_note_ui <- function(prefix) {
+  shiny::uiOutput(paste0(prefix, "_dimnote"))
+}
+
 HSTAT_EXPORT_REF_DPI <- 96
 
 # Borne de securite : au-dela, ggsave tente d'allouer un bitmap que la machine

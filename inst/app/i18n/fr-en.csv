@@ -1306,3 +1306,5 @@ Plan indisponible : le fichier téléchargé porte le motif.,Design unavailable:
 Taille de l'étiquette,Label size
 Afficher « Seuil : x % » sur le graphique,Show « Threshold: x % » on the plot
 L'étiquette reprend la couleur de la ligne de seuil.,The label takes the colour of the threshold line.
+
+"Fichier produit : %s × %s px, soit %s × %s cm à %s DPI.","Output file: %s × %s px, i.e. %s × %s cm at %s DPI."
