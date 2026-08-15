@@ -278,34 +278,12 @@ ui <- dashboardPage(
           });
         })();
       ")),
-      tags$style(HTML("
-        /* --- Responsive : adaptation a tout type d'ecran --- */
-        img, .shiny-plot-output, .shiny-image-output { max-width: 100%; height: auto; }
-        .shiny-plot-output > img { width: 100% !important; }
-        .box, .nav-tabs-custom { overflow-x: auto; }
-        .dataTables_wrapper { overflow-x: auto; }
-        table.dataTable { width: 100% !important; }
-        /* Tableaux post-hoc : table UNIQUE (pas de scrollX) qui s'ajuste au
-           contenu ; le conteneur gere le defilement horizontal sur petit ecran.
-           En-tete et corps partagent la meme grille -> aucun decalage possible. */
-        .hstat-table-scroll { width: 100%; overflow-x: auto; }
-        table.dataTable.hstat-fixedcols { width: 100% !important; table-layout: auto; }
-        table.dataTable.hstat-fixedcols th,
-        table.dataTable.hstat-fixedcols td { vertical-align: middle; }
-        .sidebar-menu > li > a { white-space: normal; }
-        @media (max-width: 991px) {
-          .content-wrapper, .main-footer { margin-left: 0 !important; }
-          .main-sidebar { transform: translate(-230px, 0); }
-          .sidebar-open .main-sidebar { transform: translate(0, 0); }
-          .col-sm-6, .col-sm-4, .col-sm-3, .col-md-6, .col-md-4, .col-md-3 { width: 100%; }
-          .box { margin-bottom: 12px; }
-        }
-        @media (max-width: 1200px) and (min-width: 992px) {
-          .col-md-3 { width: 50%; }
-        }
-        /* Les sliders et selecteurs ne debordent jamais */
-        .form-group, .selectize-control, .irs { max-width: 100%; }
-      ")),
+      # Les regles responsive vivent dans www/hstat-theme.css, section
+      # « RESPONSIVE ». Elles etaient ici, et l'escamotage de la barre laterale
+      # y etait code en dur a -230 px alors que la barre fait 300 : 70 px
+      # restaient poses sur le contenu, coupe a gauche sur tous les onglets.
+      # Une regle responsive dispersee en deux endroits finit par se
+      # contredire ; il n'y en a plus qu'un.
       tags$script(HTML("
         Shiny.addCustomMessageHandler('expandBox', function(boxId) {
           var wrap = document.getElementById(boxId);

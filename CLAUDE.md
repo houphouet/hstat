@@ -1043,6 +1043,60 @@ d'origine. Le message est retraduit en « feuilles » à l'affichage — lire
 « 3 fichiers » après avoir combiné trois feuilles d'un même classeur est
 déroutant.
 
+## Responsive : rien ne disparaît, rien n'est coupé
+
+Règle de conduite : ce qui ne tient pas en largeur se **replie** (colonnes
+empilées) ou **défile dans son propre conteneur** (tableaux larges) — jamais
+hors de la page. `.wrapper { overflow: hidden }` fait qu'un débordement n'est
+pas rattrapable : la colonne est perdue, et **rien ne le signale**.
+
+Toutes les règles vivent dans `www/hstat-theme.css`, section « RESPONSIVE ».
+Elles étaient auparavant réparties entre la feuille de thème et un
+`tags$style()` de `UX.R` ; un test échoue désormais sur tout `@media` réintroduit
+dans `UX.R`, parce que deux endroits finissent par se contredire — et c'est
+exactement ce qui s'était produit.
+
+### Le défaut : 70 px de barre latérale posés sur le contenu
+
+L'escamotage de la barre était écrit `translate(-230px, 0)`, la valeur
+d'AdminLTE, alors que HStat déclare `dashboardSidebar(width = 300)`. Les 70 px
+de différence restaient **par-dessus** le contenu sur tout écran de moins de
+991 px : « Charger données » s'affichait « er données », sur **tous** les
+onglets. Constaté sur un iPhone SE.
+
+`translate(-100%, 0)` ne dépend d'aucun chiffre : la largeur peut changer,
+l'escamotage suit. Un test barre le retour de tout pixel en dur.
+
+Corollaire : ouverte, la barre se **pose** sur le contenu au lieu de le pousser.
+Pousser de 230 px un contenu qu'elle recouvre sur 300 le décalait sans le
+dégager — on perdait le bord gauche *et* le bord droit.
+
+### Un conteneur flex en colonne réduit ses enfants à leur contenu
+
+`.mv-layout` passait en `flex-direction: column` sous 1100 px, en gardant
+`align-items: flex-start` : les deux colonnes se réduisaient alors à la largeur
+de leur **contenu**. Le catalogue tombait à 285 px dans une fenêtre de 800, et à
+**24 px** sur téléphone — un mot par ligne. Sous 1100 px l'empilement se fait
+donc en **blocs**, dont la largeur ne se discute pas.
+
+### Trois détails qui ne se voient qu'à l'usage
+
+1. **`word-break: break-word` casse à l'intérieur des mots.** Posé sur `.btn`
+   pour éviter qu'un libellé long ne déborde, il écrivait « Browse… » **une
+   lettre par ligne**. `white-space: normal` seul suffit : le repli se fait aux
+   espaces.
+2. **Les marges négatives des `row` de Bootstrap** (−15 px) supposent un parent
+   qui les rattrape par 15 px de rembourrage. Le rembourrage resserré du
+   téléphone ne les rattrape plus : chaque rangée dépassait sa boîte de 7 px, et
+   la boîte se mettait à défiler pour rien. Sur téléphone les colonnes sont de
+   toute façon empilées : la gouttière négative n'a plus d'objet.
+3. **Les champs sont à 16 px sur téléphone.** En dessous, Safari iOS **zoome**
+   dès qu'on touche un champ, et la page reste zoomée : l'utilisateur se
+   retrouve avec une interface coupée sans avoir rien demandé.
+
+L'en-tête, lui, n'est pas amputé : ce sont des commandes, pas de la décoration.
+Il est resserré (100 px de haut au lieu de 300 sur 667), et tout y reste.
+
 ## Messages d'erreur : jamais du R brut
 
 `hstat_err_fr()` (`Utils.R`) traduit les erreurs de R en français. Toute erreur
