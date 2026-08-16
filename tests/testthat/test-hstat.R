@@ -6333,7 +6333,7 @@ test_that("la barre laterale est soit entiere, soit absente -- jamais entre les 
 
 test_that("les dispositifs de malherbologie sont complets et bien branches", {
   cat_mh <- hstat_malherbo_catalog()
-  expect_length(cat_mh, 5)
+  expect_length(cat_mh, 10)
 
   plans <- hstat_design_catalog()
   for (id in names(cat_mh)) {
@@ -6378,6 +6378,31 @@ test_that("les dispositifs de malherbologie sont complets et bien branches", {
   eff <- cat_mh$mh_efficacite$facteurs$Traitement
   expect_true(any(grepl("enherbe", eff)))    # denominateur de l'efficacite
   expect_true(any(grepl("propre",  eff)))    # reference de rendement et de selectivite
+
+  # Periode critique : les DEUX temoins permanents. Le propre porte le
+  # denominateur de toute perte de rendement, l'enherbe en borne le maximum ;
+  # sans eux, ni l'une ni l'autre des deux courbes n'est ancree.
+  pc <- cat_mh$mh_periode_critique$facteurs$Duree
+  expect_true(any(grepl("^PT ", pc)))
+  expect_true(any(grepl("^ET ", pc)))
+  expect_true(any(grepl("^E", pc)) && any(grepl("^P", pc)))   # les deux series
+
+  # Date et frequence : le temoin non desherbe et le temoin propre encadrent
+  # la reponse ; sans le propre, « aussi bien que le propre » ne se teste pas.
+  cal <- cat_mh$mh_date_frequence$facteurs$Calendrier
+  expect_true(any(grepl("^T0 ", cal)))
+  expect_true(any(grepl("^TP ", cal)))
+
+  # Parcelles appariees et bandes traitees : le temoin non traite.
+  expect_true(any(grepl("^T0 ", cat_mh$mh_paires$facteurs$Traitement)))
+  expect_true(any(grepl("^T0 ", cat_mh$mh_bandes_traitees$facteurs$Traitement)))
+
+  # Les deux dispositifs qui reposent sur un plan DEJA present n'en creent pas
+  # un nouveau : ils lui apportent le contenu de la specialite.
+  expect_equal(cat_mh$mh_paires$base, "paired")
+  expect_equal(cat_mh$mh_bandes_croisees$base, "strip")
+  # Le strip-plot exige deux facteurs : le preset doit les fournir.
+  expect_length(cat_mh$mh_bandes_croisees$facteurs, 2L)
 
   # Une dose-reponse doit ENCADRER la reponse : dose nulle et dose saturante.
   # Sans les deux, ED90 n'est pas estime mais extrapole.

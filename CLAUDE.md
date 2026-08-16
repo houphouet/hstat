@@ -1077,6 +1077,13 @@ propre question :
 | Dose-réponse | D0, dose nulle | la courbe n'est plus ancrée à l'origine |
 | Efficacité / sélectivité | enherbé **et** propre | l'efficacité n'a plus de dénominateur, ou la baisse de rendement ne se distingue plus de la concurrence résiduelle |
 | Désherbage intégré | T0 non désherbé | l'efficacité ne se mesure contre rien |
+| Période critique | ET **et** PT permanents | le propre porte le dénominateur de toute perte, l'enherbé en borne le maximum ; sans eux, aucune des deux courbes n'est ancrée |
+| Date et fréquence | T0 **et** TP | « aussi bien que le propre » ne se teste pas sans le propre |
+| Parcelles appariées, bandes traitées | T0 non traité | rien à quoi comparer |
+
+Trois dispositifs reposent sur un plan que HStat possédait déjà — parcelles
+appariées (`paired`) et bandes croisées (`strip`) — et n'en créent aucun : ils
+lui apportent le contenu de la spécialité. Un test le vérifie.
 
 Deux autres pièges sont écrits dans le catalogue et affichés à l'écran : une
 dose-réponse doit **encadrer** la réponse (dose nulle *et* dose saturante),
