@@ -6333,7 +6333,7 @@ test_that("la barre laterale est soit entiere, soit absente -- jamais entre les 
 
 test_that("les dispositifs de malherbologie sont complets et bien branches", {
   cat_mh <- hstat_malherbo_catalog()
-  expect_length(cat_mh, 10)
+  expect_length(cat_mh, 11)
 
   plans <- hstat_design_catalog()
   for (id in names(cat_mh)) {
@@ -6403,6 +6403,14 @@ test_that("les dispositifs de malherbologie sont complets et bien branches", {
   expect_equal(cat_mh$mh_bandes_croisees$base, "strip")
   # Le strip-plot exige deux facteurs : le preset doit les fournir.
   expect_length(cat_mh$mh_bandes_croisees$facteurs, 2L)
+
+  # Serie substitutive : les DEUX peuplements purs. Ce sont les denominateurs
+  # de RYc et de RYa -- sans eux, aucun rendement relatif ne se calcule, et RYT
+  # n'existe pas. C'est l'exigence la plus stricte du lot.
+  sub <- cat_mh$mh_serie_substitutive$facteurs$Proportion
+  expect_true(any(grepl("100% coton \\+ 0% adventice", sub)))
+  expect_true(any(grepl("0% coton \\+ 100% adventice", sub)))
+  expect_true(grepl("RYT", cat_mh$mh_serie_substitutive$modele, fixed = TRUE))
 
   # Une dose-reponse doit ENCADRER la reponse : dose nulle et dose saturante.
   # Sans les deux, ED90 n'est pas estime mais extrapole.

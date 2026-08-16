@@ -668,7 +668,35 @@ hstat_malherbo_catalog <- function() {
                     "repetition ; les effets principaux y sont mesures avec peu de",
                     "precision. Choisir ce plan pour comparer des modalites de A",
                     "entre elles serait un contresens."),
-      couleur = "#16a085")
+      couleur = "#16a085"),
+
+    mh_serie_substitutive = list(
+      label = "Malherbologie : serie substitutive (remplacement)",
+      base = "fisher", r = 4,
+      facteurs = list(
+        "Proportion" = c("S0 100% coton + 0% adventice", "S1 75% coton + 25% adventice",
+                         "S2 50% coton + 50% adventice", "S3 25% coton + 75% adventice",
+                         "S4 0% coton + 100% adventice")),
+      but = paste("Densite TOTALE constante, proportions complementaires : chaque",
+                  "plant d'une espece remplace un plant de l'autre. On compare les",
+                  "deux especes a armes egales, sans changer le peuplement."),
+      mesures = paste("Par ESPECE : biomasse seche, hauteur, surface foliaire.",
+                      "Culture : capsules, rendement. Adventice : biomasse et",
+                      "production de graines. Les peuplements purs fournissent les",
+                      "references Yc,pur et Ya,pur."),
+      modele = paste("y ~ Bloc + Proportion ; puis RYc = Yc,melange / Yc,pur,",
+                     "RYa = Ya,melange / Ya,pur, RYT = RYc + RYa"),
+      analyse = paste("ANOVA en blocs, puis rendements relatifs. RYT = 1 : les deux",
+                      "especes se disputent les MEMES ressources. RYT > 1 : leurs",
+                      "niches different et le melange produit plus que la somme",
+                      "attendue. RYT < 1 : antagonisme mutuel."),
+      piege = paste("Les deux peuplements PURS (S0 et S4) ne sont pas des modalites",
+                    "comme les autres : ce sont les denominateurs de RYc et de RYa.",
+                    "Sans eux, aucun rendement relatif ne se calcule. Et le",
+                    "resultat ne vaut QUE pour la densite totale choisie -- une",
+                    "serie substitutive ne dit rien de l'effet de la densite",
+                    "elle-meme, c'est la limite qui justifie la serie additive."),
+      couleur = "#5b2c6f")
   )
 }
 

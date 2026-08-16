@@ -1080,6 +1080,7 @@ propre question :
 | Période critique | ET **et** PT permanents | le propre porte le dénominateur de toute perte, l'enherbé en borne le maximum ; sans eux, aucune des deux courbes n'est ancrée |
 | Date et fréquence | T0 **et** TP | « aussi bien que le propre » ne se teste pas sans le propre |
 | Parcelles appariées, bandes traitées | T0 non traité | rien à quoi comparer |
+| Série substitutive | les deux peuplements **purs** | ils sont les dénominateurs de RY<sub>c</sub> et RY<sub>a</sub> ; sans eux, RYT n'existe pas |
 
 Trois dispositifs reposent sur un plan que HStat possédait déjà — parcelles
 appariées (`paired`) et bandes croisées (`strip`) — et n'en créent aucun : ils
