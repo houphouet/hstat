@@ -1122,6 +1122,37 @@ Corollaire : ouverte, la barre se **pose** sur le contenu au lieu de le pousser.
 Pousser de 230 px un contenu qu'elle recouvre sur 300 le décalait sans le
 dégager — on perdait le bord gauche *et* le bord droit.
 
+### Escamoter avec `transform` seul ne suffit pas
+
+Trois règles déplacent la barre latérale, chacune avec **sa** valeur : celle
+d'AdminLTE (−230 px, la largeur de *sa* barre), celle que shinydashboard injecte
+pour `width = 300`, et celle du mode replié. Il suffit qu'une seule l'emporte
+pour que la barre revienne **à moitié** sur le contenu — signalé à l'écran deux
+fois, dont une dans un contexte (iframe SyGNAR sur téléphone) que la mesure
+locale ne reproduisait pas.
+
+D'où **deux mécanismes indépendants** : `left: -100%` *et*
+`transform: translate(-100%, 0)`. `left` ne dépend d'aucun `transform` ; un
+`transform` résiduel ne peut alors qu'éloigner la barre davantage, jamais la
+ramener. Le défaut change de nature : au pire elle est trop cachée, jamais à
+moitié posée sur le texte.
+
+L'état **replié** (`sidebar-collapse`) vaut à **toute largeur**, hors de toute
+media query : le repli ne connaît pas de largeur. Et la variante `sidebar-mini`
+d'AdminLTE laisse un rail d'icônes de 50 px — le menu de HStat n'a pas d'icônes
+seules, ce rail poserait des puces muettes sur le texte.
+
+### Sur téléphone, le menu est un tiroir
+
+Ouvert, il recouvre le contenu — c'est le comportement voulu d'un tiroir. Encore
+faut-il qu'il se **referme** : on ouvre le menu, on choisit un onglet, et sans
+cela il reste posé sur les résultats qu'on venait lire, le bouton qui le
+fermerait étant lui-même recouvert. Il se referme donc au choix d'une entrée et
+au premier contact avec le contenu.
+
+Les événements passent par **jQuery** (`$(document).on`), jamais par
+`addEventListener` : c'est la règle déjà apprise sur les événements de Shiny.
+
 ### Un conteneur flex en colonne réduit ses enfants à leur contenu
 
 `.mv-layout` passait en `flex-direction: column` sous 1100 px, en gardant

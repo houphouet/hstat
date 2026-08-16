@@ -6283,3 +6283,43 @@ test_that("les fichiers statiques portent la version, sinon le cache ment", {
   # retelecharger a chaque demarrage.
   expect_false(grepl("?v=1\"", ux, fixed = TRUE))
 })
+
+test_that("la barre laterale est soit entiere, soit absente -- jamais entre les deux", {
+  root <- .hstat_repo_root()
+  css  <- paste(readLines(file.path(root, "inst", "app", "www", "hstat-theme.css"),
+                          warn = FALSE), collapse = "\n")
+  ux   <- paste(readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE),
+                collapse = "\n")
+
+  # DEUX mecanismes independants. `transform` seul ne suffit pas : AdminLTE, la
+  # CSS que shinydashboard injecte pour width = 300, et le mode replie en
+  # posent chacun un, a des valeurs differentes. Qu'un seul l'emporte, et la
+  # barre revient A MOITIE sur le contenu -- signale a l'ecran deux fois, dans
+  # un contexte que la mesure locale ne reproduisait pas. `left` ne depend
+  # d'aucun transform.
+  expect_true(grepl("left: -100% !important", css, fixed = TRUE))
+  expect_true(grepl("translate(-100%, 0) !important", css, fixed = TRUE))
+
+  # L'etat REPLIE doit valoir a toute largeur : AdminLTE l'escamote de 230 px
+  # en dur, la largeur de SA barre, pas de celle de HStat.
+  i <- regexpr(".sidebar-collapse .main-sidebar", css, fixed = TRUE)
+  expect_gt(i, 0)
+  # ... et hors de toute media query : le repli ne connait pas de largeur.
+  avant <- substr(css, 1, i)
+  expect_equal(length(gregexpr("@media", avant, fixed = TRUE)[[1]]),
+               length(gregexpr("\\}\\s*\\n\\}", avant)[[1]]),
+               info = "la regle de repli ne doit pas etre enfermee dans une media query")
+
+  # La variante « mini » d'AdminLTE laisse un rail de 50 px : le menu de HStat
+  # n'a pas d'icones seules, un rail y poserait des puces muettes sur le texte.
+  expect_true(grepl(".sidebar-mini.sidebar-collapse", css, fixed = TRUE))
+
+  # Sur telephone, le menu est un TIROIR : il se referme des qu'on choisit une
+  # entree ou qu'on touche le contenu. Sinon il reste ouvert par-dessus les
+  # resultats, et le bouton qui le refermerait est lui-meme recouvert.
+  expect_true(grepl("sidebar-open", ux, fixed = TRUE))
+  expect_true(grepl("$(document).on('click', '.sidebar-menu a'", ux, fixed = TRUE))
+  expect_true(grepl(".content-wrapper', fermer)", ux, fixed = TRUE))
+  # Les evenements passent par jQuery : addEventListener ne les voit jamais.
+  expect_false(grepl("addEventListener('click', fermer", ux, fixed = TRUE))
+})
