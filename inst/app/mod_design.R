@@ -431,6 +431,137 @@ hstat_power_poisson <- function(analysis = "apriori", base_rate = 1, RR = 1.3,
   x[order(key)]
 }
 
+# =============================================================================
+#  DISPOSITIFS DE MALHERBOLOGIE
+# -----------------------------------------------------------------------------
+#  Ce ne sont PAS de nouveaux plans : ce sont des structures de traitements
+#  pretes a l'emploi, posees sur les plans qui existent deja (factoriel, blocs
+#  de Fisher). La randomisation, la carte, l'export et les conseils d'analyse
+#  restent ceux du moteur commun -- ecrire un second moteur pour la
+#  malherbologie ferait diverger les deux a la premiere correction.
+#
+#  Ce que la specialite apporte, en revanche, c'est le CONTENU : les modalites
+#  usuelles, le modele a ajuster, et le piege propre a chaque dispositif. Un
+#  essai dose-reponse sans dose nulle ni dose saturante n'estime pas ED90, il
+#  l'extrapole ; une serie additive sans temoin sans adventice n'exprime aucune
+#  perte. C'est cela qu'un catalogue doit dire.
+# =============================================================================
+hstat_malherbo_catalog <- function() {
+  list(
+    mh_densite_croisee = list(
+      label = "Malherbologie : series de densites croisees (culture x adventice)",
+      base = "factorial", r = 4,
+      facteurs = list(
+        "Densite_culture"   = c("C1 50%", "C2 100%", "C3 150%"),
+        "Densite_adventice" = c("A0 0/m2", "A1 4/m2", "A2 8/m2", "A3 16/m2")),
+      but = paste("Faire varier SIMULTANEMENT les deux densites pour estimer",
+                  "leurs effets propres et surtout leur interaction."),
+      mesures = paste("Culture : peuplement, hauteur, biomasse, composantes du",
+                      "rendement, rendement. Adventice : densite, recouvrement,",
+                      "hauteur, biomasse seche. A 15, 30, 45 et 60 JAS, puis recolte."),
+      modele = "y ~ Bloc + C + A + C:A",
+      analyse = paste("ANOVA factorielle. L'INTERACTION se lit avant les effets",
+                      "principaux : si elle est significative, l'effet d'une densite",
+                      "depend de l'autre, et les moyennes marginales n'ont plus de",
+                      "sens -- passer aux effets simples."),
+      piege = paste("Les deux especes changent de densite en meme temps : la",
+                    "densite TOTALE varie aussi. Un effet attribue a la competition",
+                    "peut n'etre qu'un effet de peuplement ; c'est le prix de ce",
+                    "dispositif, et la raison d'etre de la serie additive."),
+      couleur = "#8e44ad"),
+
+    mh_serie_additive = list(
+      label = "Malherbologie : serie additive (adventice croissante)",
+      base = "fisher", r = 4,
+      facteurs = list(
+        "Densite_adventice" = c("A0 0/m2", "A1 2/m2", "A2 4/m2", "A3 8/m2",
+                                "A4 16/m2", "A5 32/m2")),
+      but = paste("Culture a densite CONSTANTE, adventice a densite croissante :",
+                  "quantifier la perte de rendement due a l'enherbement."),
+      mesures = paste("Culture : hauteur, biomasse, capsules, rendement.",
+                      "Adventice : densite, recouvrement, hauteur, biomasse seche.",
+                      "A 15, 30, 45 et 60 JAS, puis recolte."),
+      modele = "y ~ Bloc + A  ;  perte (%) ajustee par y = i*x / (1 + i*x/a)",
+      analyse = paste("ANOVA en blocs, puis ajustement d'une hyperbole de",
+                      "competition (Cousens) : i donne la perte par plante a",
+                      "faible densite, a la perte maximale asymptotique."),
+      piege = paste("Le temoin SANS adventice (A0) n'est pas une modalite comme",
+                    "les autres : c'est la reference a laquelle toutes les pertes",
+                    "sont rapportees. Sans lui, aucune perte n'est calculable."),
+      couleur = "#16a085"),
+
+    mh_desherbage = list(
+      label = "Malherbologie : methodes integrees de desherbage",
+      base = "fisher", r = 4,
+      facteurs = list(
+        "Strategie" = c("T0 temoin non desherbe", "T1 manuel 15+30+45 JAS",
+                        "T2 sarclage mecanique 15+30 JAS", "T3 herbicide prelevee J0",
+                        "T4 herbicide postlevee 20 JAS", "T5 paillage vegetal",
+                        "T6 herbicide 0.5R + sarclage 30 JAS",
+                        "T7 paillage + herbicide 0.5R + manuel 30 JAS")),
+      but = paste("Comparer des strategies qui combinent plusieurs leviers",
+                  "(preventif, cultural, manuel, mecanique, chimique)."),
+      mesures = paste("Efficacite sur les adventices (%), densite, recouvrement,",
+                      "biomasse ; phytotoxicite ; peuplement, hauteur, rendement.",
+                      "Et le volet economique : temps de travail, cout, nombre de",
+                      "passages, dose d'herbicide."),
+      modele = "y ~ Bloc + Strategie",
+      analyse = paste("ANOVA en blocs puis comparaison de moyennes. Le classement",
+                      "final est MULTICRITERE : une strategie tres efficace mais",
+                      "couteuse en travail peut etre inapplicable."),
+      piege = paste("Les strategies sont des COMBINAISONS, pas les modalites d'un",
+                    "facteur : ce plan ne separe pas la part de chaque levier. Pour",
+                    "cela il faut un factoriel croisant les leviers."),
+      couleur = "#2980b9"),
+
+    mh_dose_reponse = list(
+      label = "Malherbologie : essai dose-reponse (ED50 / ED90)",
+      base = "fisher", r = 4,
+      facteurs = list(
+        "Dose" = c("D0 0xR", "D1 0.25xR", "D2 0.5xR", "D3 1xR", "D4 2xR", "D5 4xR")),
+      but = "Estimer la dose efficace : ED50, ED90, et la dose reduite acceptable.",
+      mesures = paste("Efficacite visuelle (%), densite et biomasse des adventices,",
+                      "phytotoxicite, rendement. A 7, 14, 21 et 28 JAT, puis recolte."),
+      modele = "Ajustement log-logistique a 4 parametres (drc::drm, LL.4)",
+      analyse = paste("La courbe dose-reponse est ajustee sur l'echelle LOG de la",
+                      "dose ; ED50 et ED90 en sont deduits avec leur intervalle de",
+                      "confiance. L'ANOVA sur les doses ne remplace pas cet",
+                      "ajustement : elle compare des doses, elle n'en estime aucune."),
+      piege = paste("Il faut encadrer la reponse aux DEUX bouts : une dose nulle et",
+                    "une dose qui sature. Sans elles, ED90 n'est pas estime mais",
+                    "extrapole -- avec un intervalle que le modele ne dit pas."),
+      couleur = "#c0392b"),
+
+    mh_efficacite = list(
+      label = "Malherbologie : efficacite et selectivite d'un herbicide",
+      base = "fisher", r = 4,
+      facteurs = list(
+        "Traitement" = c("T0 temoin enherbe", "T1 temoin propre",
+                         "T2 reference 1xR", "T3 teste 0.5xR", "T4 teste 1xR",
+                         "T5 teste 2xR")),
+      but = paste("Mesurer d'un meme dispositif le controle des adventices ET la",
+                  "tolerance de la culture."),
+      mesures = paste("Efficacite : recouvrement, densite, controle visuel,",
+                      "biomasse seche, a 7, 14, 21 et 28 JAT. Selectivite :",
+                      "phytotoxicite, vigueur, peuplement, hauteur, rendement."),
+      modele = "y ~ Bloc + Traitement",
+      analyse = paste("ANOVA en blocs et comparaison aux deux temoins. L'efficacite",
+                      "se rapporte au temoin ENHERBE ; la selectivite et le potentiel",
+                      "de rendement, au temoin PROPRE."),
+      piege = paste("Les deux temoins sont indispensables et ne se remplacent pas.",
+                    "Sans temoin enherbe, aucune efficacite ne se calcule ; sans",
+                    "temoin propre, une baisse de rendement ne se distingue pas de",
+                    "la concurrence residuelle des adventices."),
+      couleur = "#27ae60")
+  )
+}
+
+# Plan de base sur lequel repose un dispositif de malherbologie ; le type
+# lui-meme pour tous les autres.
+hstat_design_base <- function(type) {
+  mh <- hstat_malherbo_catalog()[[type %||% ""]]
+  if (is.null(mh)) type else mh$base
+}
 hstat_design_catalog <- function() {
   c("Completement randomise (DCR/CRD)" = "crd",
     "Bloc de Fisher (RCBD)" = "fisher",
@@ -440,12 +571,18 @@ hstat_design_catalog <- function() {
     "Factoriel complet" = "factorial",
     "Split-plot (parcelles divisees)" = "split",
     "Split-split-plot (3 facteurs)" = "splitsplit",
-    "Criss-Cross / Strip-plot (bandes)" = "strip")
+    "Criss-Cross / Strip-plot (bandes)" = "strip",
+    stats::setNames(names(hstat_malherbo_catalog()),
+                    vapply(hstat_malherbo_catalog(), function(x) x$label, character(1))))
 }
 
 hstat_agri_design <- function(type, factors, r = 3, seed = 123, k = NULL,
                               base_design = "rcbd", k_mode = "exact") {
   `%||%` <- function(x, y) if (is.null(x) || length(x) == 0) y else x
+  # Un dispositif de malherbologie n'est pas un plan de plus : c'est une
+  # structure de traitements posee sur un plan existant. On le ramene donc
+  # ici, une seule fois, et tout le reste du moteur l'ignore.
+  type <- hstat_design_base(type)
   fnames <- names(factors)
   # NB : le check de disponibilite d'agricolae est place APRES le bloc alpha, car le
   # generateur alpha-lattice generalise n'utilise que du R de base (aucune dependance
@@ -875,6 +1012,10 @@ hstat_place_design <- function(book, type, fill_col, seed = 123, tries = 200) {
 }
 
 hstat_design_analysis <- function(type, n_factors) {
+  mh <- hstat_malherbo_catalog()[[type %||% ""]]
+  if (!is.null(mh))
+    return(list(nom = mh$label, modele = mh$modele,
+                analyse = paste(mh$analyse, "--", mh$piege)))
   switch(type,
     "crd" = list(nom = "Completement randomise (DCR/CRD)",
       modele = if (n_factors >= 2) "y ~ A * B (factoriel)" else "y ~ Traitement",
@@ -2289,8 +2430,34 @@ mod_design_server <- function(id, values) {
         ggplot2::theme_minimal(base_size = 13)
     })
 
+    # Le nombre de repetitions usuel du dispositif est propose des qu'on le
+    # choisit ; il reste modifiable, c'est une suggestion et non une contrainte.
+    observeEvent(input$dsgType, {
+      mh <- hstat_malherbo_catalog()[[input$dsgType %||% ""]]
+      if (!is.null(mh)) updateNumericInput(session, "dsgRep", value = mh$r)
+    }, ignoreInit = TRUE)
+
     output$dsgHint <- renderUI({
       t <- input$dsgType %||% "crd"
+      mh <- hstat_malherbo_catalog()[[t]]
+      if (!is.null(mh)) {
+        nb <- prod(vapply(mh$facteurs, length, integer(1)))
+        return(div(style = sprintf(paste0("border-left:4px solid %s;background:#faf7fd;",
+                                          "border-radius:0 6px 6px 0;padding:10px 14px;margin:8px 0;"),
+                                   mh$couleur),
+          tags$b(style = sprintf("color:%s;", mh$couleur), icon("seedling"), " ", mh$label),
+          tags$p(style = "margin:6px 0 0 0;font-size:13px;", tags$b("But : "), mh$but),
+          tags$p(style = "margin:4px 0 0 0;font-size:13px;", tags$b("Plan : "),
+                 trf("%d traitements x %d repetitions = %d parcelles, sur un plan %s.",
+                     nb, mh$r, nb * mh$r,
+                     names(which(hstat_design_catalog() == mh$base))[1] %||% mh$base)),
+          tags$p(style = "margin:4px 0 0 0;font-size:13px;", tags$b("A mesurer : "), mh$mesures),
+          tags$p(style = "margin:4px 0 0 0;font-size:13px;", tags$b("Modele : "),
+                 tags$code(mh$modele)),
+          div(style = "margin-top:8px;padding:8px 10px;background:#fff4e5;border-left:3px solid #e67e22;border-radius:0 4px 4px 0;",
+              tags$b(style = "color:#a04000;", icon("triangle-exclamation"), " Le piege : "),
+              tags$span(style = "font-size:13px;", mh$piege))))
+      }
       # Description structurelle precise de chaque dispositif (facteurs, gradients
       # d'heterogeneite, blocs, contraintes) selon les conventions agronomiques.
       info <- switch(t,
@@ -2380,10 +2547,24 @@ mod_design_server <- function(id, values) {
 
     output$dsgFactorInputs <- renderUI({
       t <- input$dsgType %||% "crd"
-      nf <- if (t == "splitsplit") 3 else if (t %in% c("split", "strip")) 2 else if (t == "factorial") max(2, input$dsgNFactors %||% 2) else 1
+      mh <- hstat_malherbo_catalog()[[t]]
+      nf <- if (!is.null(mh)) length(mh$facteurs)
+            else if (t == "splitsplit") 3 else if (t %in% c("split", "strip")) 2 else if (t == "factorial") max(2, input$dsgNFactors %||% 2) else 1
       lapply(seq_len(nf), function(i) {
         default_letter <- LETTERS[i]              # A, B, C...
         default_levels <- if (i == 1) "A0, A1, A2" else paste0(default_letter, 0:1, collapse = ", ")
+        # Dispositif de malherbologie : les modalites usuelles sont proposees
+        # d'emblee. Elles restent EDITABLES -- un essai se cale sur ses propres
+        # doses et ses propres densites, le catalogue ne fait que dispenser de
+        # les retaper.
+        if (!is.null(mh)) {
+          nom_i <- names(mh$facteurs)[i]
+          return(div(style = "border-left:3px solid #8e44ad;padding-left:8px;margin-bottom:8px;",
+            textInput(ns(paste0("dsgFName", i)), paste0("Nom du facteur ", i), value = nom_i),
+            textInput(ns(paste0("dsgFLevels", i)),
+                      paste0("Modalites de ", nom_i, " (separees par virgule)"),
+                      value = paste(mh$facteurs[[i]], collapse = ", "))))
+        }
         div(style = "border-left:3px solid #3c8dbc;padding-left:8px;margin-bottom:8px;",
           textInput(ns(paste0("dsgFName", i)), paste0("Nom du facteur ", i), value = paste0("Facteur", i)),
           # Generateur automatique de modalites : lettre + chiffre de debut + chiffre de fin.
@@ -2407,6 +2588,10 @@ mod_design_server <- function(id, values) {
     # ce champ manuellement s'il le souhaite. Le debut peut valoir 0 (ex : A0, A1, A2).
     observe({
       t <- input$dsgType %||% "crd"
+      # Un dispositif de malherbologie porte ses propres modalites (doses,
+      # densites, strategies) : le generateur automatique les ecraserait par
+      # « A0, A1, A2 » des le premier passage.
+      if (!is.null(hstat_malherbo_catalog()[[t]])) return()
       nf <- if (t == "splitsplit") 3 else if (t %in% c("split", "strip")) 2 else if (t == "factorial") max(2, input$dsgNFactors %||% 2) else 1
       for (i in seq_len(nf)) {
         raw_letter <- input[[paste0("dsgFLetter", i)]]
@@ -2433,7 +2618,9 @@ mod_design_server <- function(id, values) {
 
     get_factors <- reactive({
       t <- input$dsgType %||% "crd"
-      nf <- if (t == "splitsplit") 3 else if (t %in% c("split", "strip")) 2 else if (t == "factorial") max(2, input$dsgNFactors %||% 2) else 1
+      mh <- hstat_malherbo_catalog()[[t]]
+      nf <- if (!is.null(mh)) length(mh$facteurs)
+            else if (t == "splitsplit") 3 else if (t %in% c("split", "strip")) 2 else if (t == "factorial") max(2, input$dsgNFactors %||% 2) else 1
       fl <- list()
       for (i in seq_len(nf)) {
         nm <- input[[paste0("dsgFName", i)]] %||% paste0("Facteur", i)

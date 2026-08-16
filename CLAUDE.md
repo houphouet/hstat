@@ -1047,6 +1047,53 @@ démarrage.
 `hstat_i18n_coverage()` dit ce qui est couvert et nomme ce qui manque ; un test
 échoue si une entrée du menu latéral cesse d'être traduite.
 
+## Dispositifs de malherbologie : du contenu, pas un moteur de plus
+
+`hstat_malherbo_catalog()` (`mod_design.R`) porte cinq dispositifs de la
+spécialité — densités croisées, série additive, méthodes intégrées de
+désherbage, dose-réponse, efficacité et sélectivité d'un herbicide.
+
+**Ce ne sont pas de nouveaux plans.** Ce sont des **structures de traitements**
+posées sur les plans qui existent déjà (factoriel, blocs de Fisher) :
+`hstat_design_base()` ramène le dispositif à son plan de base *une seule fois*,
+en tête de `hstat_agri_design()`, et tout le reste du moteur l'ignore —
+randomisation, carte, export, conseils d'analyse. Écrire un second moteur pour
+la malherbologie ferait diverger les deux à la première correction, exactement
+comme un second moteur de fusion pour les feuilles Excel. Un test l'interdit.
+
+Ce que la spécialité apporte, c'est le **contenu** : les modalités usuelles, le
+modèle à ajuster, et surtout **le piège propre à chaque dispositif**. Un
+catalogue qui ne dirait que des noms n'apprendrait rien à qui sait déjà nommer
+son essai.
+
+### Le témoin est l'invariant, et il est testé
+
+Chaque dispositif doit porter sa référence, faute de quoi il ne répond pas à sa
+propre question :
+
+| Dispositif | Témoin exigé | Sans lui |
+|---|---|---|
+| Série additive | A0, sans adventice | aucune perte de rendement n'est calculable |
+| Dose-réponse | D0, dose nulle | la courbe n'est plus ancrée à l'origine |
+| Efficacité / sélectivité | enherbé **et** propre | l'efficacité n'a plus de dénominateur, ou la baisse de rendement ne se distingue plus de la concurrence résiduelle |
+| Désherbage intégré | T0 non désherbé | l'efficacité ne se mesure contre rien |
+
+Deux autres pièges sont écrits dans le catalogue et affichés à l'écran : une
+dose-réponse doit **encadrer** la réponse (dose nulle *et* dose saturante),
+sinon ED90 est extrapolé et non estimé ; et les densités croisées font varier
+la densité **totale**, si bien qu'un effet attribué à la compétition peut
+n'être qu'un effet de peuplement — c'est la raison d'être de la série additive.
+
+### Les modalités ne contiennent pas de virgule
+
+Le champ de saisie sépare les modalités par des virgules. Une virgule dans un
+libellé du catalogue scinderait silencieusement une modalité en deux, et le
+plan compterait un traitement de plus. Un test balaie les cinq dispositifs.
+
+Corollaire : le générateur automatique « lettre + début..fin » est **désactivé**
+sur ces dispositifs. Leurs modalités ne sont pas une suite (`A0, A1, A2`) mais
+des doses et des stratégies ; il les écrasait dès le premier passage.
+
 ## Classeur Excel : les feuilles sont des fichiers comme les autres
 
 Un classeur d'enquête porte souvent une feuille par année, par site ou par

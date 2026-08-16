@@ -1318,3 +1318,4 @@ L'étiquette reprend la couleur de la ligne de seuil.,The label takes the colour
 "Cle d'API - %s","API key - %s"
 "laisser vide pour utiliser %s","leave empty to use %s"
 "Cle a creer sur %s. Service payant, en ligne.","Create a key at %s. Paid, online service."
+"%d traitements x %d repetitions = %d parcelles, sur un plan %s.","%d treatments x %d replications = %d plots, on a %s design."

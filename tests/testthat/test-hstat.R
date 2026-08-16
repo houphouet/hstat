@@ -70,6 +70,13 @@ local({
   if (file.exists(cod_path))
     suppressWarnings(suppressMessages(
       sys.source(cod_path, envir = e, keep.source = FALSE)))
+  # Les plans experimentaux (hstat_design_*, hstat_malherbo_catalog,
+  # hstat_gpower_*) vivent dans mod_design.R : ce sont des fonctions de calcul
+  # pures, testables sans demarrer Shiny.
+  dsg_path <- file.path(dirname(utils_path), "mod_design.R")
+  if (file.exists(dsg_path))
+    suppressWarnings(suppressMessages(
+      sys.source(dsg_path, envir = e, keep.source = FALSE)))
   # Exporter TOUTES les fonctions (y compris cachees, ex. .hstat_sql_stat_exprs)
   for (nm in ls(e, all.names = TRUE))
     assign(nm, get(nm, envir = e), envir = globalenv())
@@ -6322,4 +6329,78 @@ test_that("la barre laterale est soit entiere, soit absente -- jamais entre les 
   expect_true(grepl(".content-wrapper', fermer)", ux, fixed = TRUE))
   # Les evenements passent par jQuery : addEventListener ne les voit jamais.
   expect_false(grepl("addEventListener('click', fermer", ux, fixed = TRUE))
+})
+
+test_that("les dispositifs de malherbologie sont complets et bien branches", {
+  cat_mh <- hstat_malherbo_catalog()
+  expect_length(cat_mh, 5)
+
+  plans <- hstat_design_catalog()
+  for (id in names(cat_mh)) {
+    d <- cat_mh[[id]]
+    # Chaque entree doit tout porter : sans le modele et le piege, le catalogue
+    # n'est qu'une liste de noms, et c'est justement ce qu'un experimentateur
+    # n'a pas besoin qu'on lui donne.
+    for (champ in c("label", "base", "r", "facteurs", "but", "mesures",
+                    "modele", "analyse", "piege", "couleur"))
+      expect_true(!is.null(d[[champ]]) && length(d[[champ]]) >= 1,
+                  label = paste(id, champ))
+    # Le dispositif figure dans le catalogue commun...
+    expect_true(id %in% plans, label = paste("au catalogue :", id))
+    # ... et repose sur un plan qui existe VRAIMENT.
+    expect_true(d$base %in% plans, label = paste("plan de base :", id))
+    expect_equal(hstat_design_base(id), d$base)
+    expect_gte(d$r, 3)          # moins de 3 repetitions ne donne pas d'erreur estimable
+
+    # Les modalites sont saisies dans un champ SEPARE PAR DES VIRGULES : une
+    # virgule dans un libelle scinderait silencieusement la modalite en deux.
+    for (f in d$facteurs)
+      expect_false(any(grepl(",", f, fixed = TRUE)),
+                  label = paste("virgule dans une modalite :", id))
+    expect_true(all(nzchar(names(d$facteurs))), label = paste("noms de facteurs :", id))
+  }
+
+  # Les plans classiques n'ont pas bouge, et un type ordinaire reste lui-meme.
+  for (id in c("crd", "fisher", "lsd", "factorial", "split", "strip"))
+    expect_equal(hstat_design_base(id), id)
+  expect_equal(hstat_design_base(NULL), NULL)
+
+  # LE TEMOIN. C'est l'invariant de la specialite : sans lui, la mesure n'a
+  # pas de reference et le dispositif ne repond pas a sa propre question.
+  #  - serie additive : le temoin sans adventice porte le rendement potentiel ;
+  #  - dose-reponse   : la dose nulle ancre la courbe a l'origine ;
+  #  - efficacite     : il en faut DEUX, enherbe pour l'efficacite, propre pour
+  #                     la selectivite -- ils ne se remplacent pas.
+  expect_true(any(grepl("^A0 ", cat_mh$mh_serie_additive$facteurs[[1]])))
+  expect_true(any(grepl("^A0 ", cat_mh$mh_densite_croisee$facteurs$Densite_adventice)))
+  expect_true(any(grepl("^D0 ", cat_mh$mh_dose_reponse$facteurs$Dose)))
+  expect_true(any(grepl("^T0 ", cat_mh$mh_desherbage$facteurs$Strategie)))
+  eff <- cat_mh$mh_efficacite$facteurs$Traitement
+  expect_true(any(grepl("enherbe", eff)))    # denominateur de l'efficacite
+  expect_true(any(grepl("propre",  eff)))    # reference de rendement et de selectivite
+
+  # Une dose-reponse doit ENCADRER la reponse : dose nulle et dose saturante.
+  # Sans les deux, ED90 n'est pas estime mais extrapole.
+  expect_gte(length(cat_mh$mh_dose_reponse$facteurs$Dose), 6)
+  expect_true(any(grepl("4xR", cat_mh$mh_dose_reponse$facteurs$Dose, fixed = TRUE)))
+
+  # Les conseils d'analyse passent par le catalogue, pas par le switch generique.
+  a <- hstat_design_analysis("mh_dose_reponse", 1)
+  expect_equal(a$modele, cat_mh$mh_dose_reponse$modele)
+  expect_true(grepl("extrapole", a$analyse, fixed = TRUE))
+  # ... et le switch generique repond toujours pour les plans classiques.
+  expect_equal(hstat_design_analysis("fisher", 1)$modele, "y ~ Traitement + block")
+})
+
+test_that("un dispositif de malherbologie ne fait pas un moteur de plan de plus", {
+  src <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app", "mod_design.R"),
+                         warn = FALSE), collapse = "\n")
+  # La structure de traitements est PRE-REMPLIE ; la randomisation, la carte et
+  # l'export restent ceux du moteur commun. Deux moteurs divergeraient a la
+  # premiere correction -- c'est la lecon deja tiree des feuilles Excel.
+  expect_true(grepl("type <- hstat_design_base(type)", src, fixed = TRUE))
+  expect_equal(length(gregexpr("hstat_agri_design <- function", src, fixed = TRUE)[[1]]), 1)
+  # Les modalites du catalogue ne doivent pas etre ecrasees par le generateur
+  # automatique « lettre + debut..fin ».
+  expect_true(grepl("if (!is.null(hstat_malherbo_catalog()[[t]])) return()", src, fixed = TRUE))
 })
