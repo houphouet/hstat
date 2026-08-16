@@ -6481,12 +6481,12 @@ test_that("l'export de l'onglet Visualisation ne retrecit plus la figure", {
     ggplot2::geom_point()
   px <- lapply(c(150, 300), function(dpi) {
     w <- 12; h <- 8
-    ech <- min(1, HSTAT_VIZ_MAX_PX / (w * dpi), HSTAT_VIZ_MAX_PX / (h * dpi))
+    eff <- hstat_dpi_effectif(w, h, dpi)
     f <- tempfile(fileext = ".png"); on.exit(unlink(f), add = TRUE)
-    suppressMessages(ggplot2::ggsave(f, p, device = "png", width = w * ech,
-                                     height = h * ech, units = "in", dpi = dpi,
+    suppressMessages(ggplot2::ggsave(f, p, device = "png", width = w,
+                                     height = h, units = "in", dpi = eff$dpi,
                                      bg = "white", limitsize = FALSE))
-    c(ihdr(f), pouces_l = w * ech)
+    c(ihdr(f), pouces_l = w)
   })
   expect_equal(px[[1]][["pouces_l"]], px[[2]][["pouces_l"]])   # mise en page constante
   expect_gt(px[[2]][["l"]], px[[1]][["l"]])                    # et plus de pixels
@@ -6494,8 +6494,8 @@ test_that("l'export de l'onglet Visualisation ne retrecit plus la figure", {
 
   # Le plafond ne joue qu'aux resolutions extremes, la ou ggsave echouerait sur
   # l'allocation du bitmap -- pas des 600 DPI comme l'escalier.
-  expect_equal(min(1, HSTAT_VIZ_MAX_PX / (12 * 1200)), 1)
-  expect_lt(min(1, HSTAT_VIZ_MAX_PX / (12 * 2400)), 1)
+  expect_false(hstat_viz_export_dims(1200)$plafonne)
+  expect_true(hstat_viz_export_dims(2400)$plafonne)
 })
 
 test_that("le code mort retire ne revient pas", {
@@ -6527,4 +6527,62 @@ test_that("le code mort retire ne revient pas", {
   for (n in c("is_categorical", "hstat_i18n_path", "interpret_manova_effect",
               "interpret_permanova_effect", ".hstat_code_breaks3"))
     expect_true(grepl(n, src, fixed = TRUE), label = paste("toujours definie :", n))
+})
+
+test_that("monter le DPI ne change ni la taille ni la mise en page, nulle part", {
+  # LA REGLE, demandee explicitement : l'augmentation de la resolution ne doit
+  # affecter ni la qualite, ni la longueur, ni la hauteur, ni la largeur.
+  # Deux exports faisaient l'inverse -- ils multipliaient les pouces par un
+  # facteur de reduction, si bien que demander plus de finesse rendait l'image
+  # plus PETITE sur le papier.
+  for (d in c(72, 300, 600, 1200, 2000, 5000, HSTAT_DPI_MAX)) {
+    v <- hstat_viz_export_dims(d)
+    expect_equal(v$width, 12)            # la taille physique ne bouge jamais
+    expect_equal(v$height, 8)
+  }
+
+  # ... et la finesse ne DECROIT jamais quand on demande davantage.
+  px <- vapply(c(72, 300, 600, 1200, 2000, 5000, HSTAT_DPI_MAX),
+               function(d) hstat_viz_export_dims(d)$px_w, numeric(1))
+  expect_false(is.unsorted(px))
+
+  # Le plafond porte sur la RESOLUTION, jamais sur la taille : au-dela du cote
+  # maximal d'un bitmap le peripherique echoue et l'utilisateur n'obtient rien.
+  e <- hstat_dpi_effectif(12, 8, HSTAT_DPI_MAX)
+  expect_lt(e$dpi, e$demande)
+  expect_true(e$plafonne)
+  expect_true(nzchar(e$note))
+  expect_lte(12 * e$dpi, HSTAT_RASTER_MAX_PX)
+  # ... et il est ANNONCE : un export silencieusement degrade est pire qu'un refus.
+  expect_true(grepl("inchang", e$note))
+
+  # En dessous du plafond, la resolution demandee est rendue telle quelle.
+  expect_equal(hstat_dpi_effectif(12, 8, 1200)$dpi, 1200)
+  expect_false(hstat_dpi_effectif(12, 8, 1200)$plafonne)
+  # Une petite figure va donc bien plus haut qu'une grande : c'est le cote en
+  # pixels qui compte, pas le DPI.
+  expect_gt(hstat_dpi_effectif(4, 3, 5000)$dpi, hstat_dpi_effectif(12, 8, 5000)$dpi)
+
+  # LE VECTORIEL n'est pas plafonne : sa resolution est infinie et le DPI n'y
+  # veut rien dire. C'est la reponse a « je veux 20 000 DPI sans rien perdre ».
+  ecr <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app", "Utils.R"),
+                         warn = FALSE), collapse = "\n")
+  i <- regexpr("hstat_ecrire_image <- function", ecr, fixed = TRUE)
+  corps <- substr(ecr, i, i + 1400)
+  expect_true(grepl('!fmt %in% c("pdf", "svg", "eps")', corps, fixed = TRUE))
+  expect_true(grepl("hstat_dpi_effectif", corps, fixed = TRUE))
+})
+
+test_that("le plafond du champ DPI est le meme partout", {
+  root <- .hstat_repo_root()
+  expect_equal(HSTAT_DPI_MAX, 20000L)
+  # Neuf champs plafonnaient a 1200 ou 2000 sans raison : l'utilisateur ne
+  # pouvait pas demander mieux la ou il en avait besoin. Un seul chiffre,
+  # declare une fois.
+  for (f in c("UX.R", "app_server.R", "mod_descriptive.R")) {
+    src <- paste(readLines(file.path(root, "inst", "app", f), warn = FALSE),
+                 collapse = "\n")
+    dpi_max <- regmatches(src, gregexpr("[Dd]pi\"[^)]*max = [0-9]+", src))[[1]]
+    expect_length(dpi_max, 0)
+  }
 })

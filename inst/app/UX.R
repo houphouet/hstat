@@ -1029,7 +1029,7 @@ ui <- dashboardPage(
                                                 ),
                                                 fluidRow(
                                                   column(3, selectInput("pcaPlot_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")),
-                                                  column(3, numericInput("pcaPlot_dpi", "DPI:", value = 300, min = 72, max = 1200)),
+                                                  column(3, numericInput("pcaPlot_dpi", "DPI:", value = 300, min = 72, max = HSTAT_DPI_MAX)),
                                                   column(3, numericInput("pcaPlot_width", "Largeur (px):", value = 1200, min = 400, max = 4000, step = 100)),
                                                   column(3, numericInput("pcaPlot_height", "Hauteur (px):", value = 900, min = 300, max = 4000, step = 100))
                                                 ),
@@ -1060,7 +1060,7 @@ ui <- dashboardPage(
                                             hstat_mv_forme_ui("pcaScree", "Apparence du graphique des éboulis"),
                                             fluidRow(
                                               column(12, selectInput("pcaScree_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")),
-                                              column(4, numericInput("pcaScree_dpi", "DPI:", value = 300, min = 72, max = 1200)),
+                                              column(4, numericInput("pcaScree_dpi", "DPI:", value = 300, min = 72, max = HSTAT_DPI_MAX)),
                                               column(4, numericInput("pcaScree_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
                                               column(4, numericInput("pcaScree_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
                                             ),
@@ -1077,7 +1077,7 @@ ui <- dashboardPage(
                                             hstat_mv_forme_ui("pcaParallel", "Apparence de l'analyse parallèle"),
                                             fluidRow(
                                               column(12, selectInput("pcaParallel_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")),
-                                              column(4, numericInput("pcaParallel_dpi", "DPI:", value = 300, min = 72, max = 1200)),
+                                              column(4, numericInput("pcaParallel_dpi", "DPI:", value = 300, min = 72, max = HSTAT_DPI_MAX)),
                                               column(4, numericInput("pcaParallel_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
                                               column(4, numericInput("pcaParallel_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
                                             ),
@@ -1095,7 +1095,7 @@ ui <- dashboardPage(
                                             hstat_mv_forme_ui("pcaCTR", "Apparence du graphique CTR"),
                                             fluidRow(
                                               column(12, selectInput("pcaCTR_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")),
-                                              column(4, numericInput("pcaCTR_dpi", "DPI:", value = 300, min = 72, max = 1200)),
+                                              column(4, numericInput("pcaCTR_dpi", "DPI:", value = 300, min = 72, max = HSTAT_DPI_MAX)),
                                               column(4, numericInput("pcaCTR_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
                                               column(4, numericInput("pcaCTR_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
                                             ),
@@ -1275,7 +1275,7 @@ ui <- dashboardPage(
                                                               selectInput("hcpcCluster_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")
                                                        ),
                                                        column(6,
-                                                              numericInput("hcpcCluster_dpi", "DPI:", value = 300, min = 72, max = 2000)
+                                                              numericInput("hcpcCluster_dpi", "DPI:", value = 300, min = 72, max = HSTAT_DPI_MAX)
                                                        )
                                                      ),
                                                      fluidRow(
@@ -1307,7 +1307,7 @@ ui <- dashboardPage(
                                                               selectInput("hcpcDend_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")
                                                        ),
                                                        column(6,
-                                                              numericInput("hcpcDend_dpi", "DPI:", value = 300, min = 72, max = 2000)
+                                                              numericInput("hcpcDend_dpi", "DPI:", value = 300, min = 72, max = HSTAT_DPI_MAX)
                                                        )
                                                      ),
                                                      fluidRow(
@@ -1371,7 +1371,7 @@ ui <- dashboardPage(
                                                     fluidRow(
                                                       column(12, selectInput("hcpcHeights_format", "Format:",
                                                                             choices = c("png", "svg", "pdf", "tiff"), selected = "png")),
-                                                      column(4, numericInput("hcpcHeights_dpi", "DPI:", value = 300, min = 72, max = 1200)),
+                                                      column(4, numericInput("hcpcHeights_dpi", "DPI:", value = 300, min = 72, max = HSTAT_DPI_MAX)),
                                               column(4, numericInput("hcpcHeights_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
                                               column(4, numericInput("hcpcHeights_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
                                                     ),
@@ -1622,7 +1622,7 @@ ui <- dashboardPage(
                                                               selectInput("afdInd_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")
                                                        ),
                                                        column(6,
-                                                              numericInput("afdInd_dpi", "DPI:", value = 300, min = 72, max = 2000)
+                                                              numericInput("afdInd_dpi", "DPI:", value = 300, min = 72, max = HSTAT_DPI_MAX)
                                                        )
                                                      ),
                                                      fluidRow(
@@ -1650,7 +1650,7 @@ ui <- dashboardPage(
                                                               selectInput("afdVar_format", "Format:", choices = c("png","svg","pdf","tiff"), selected = "png")
                                                        ),
                                                        column(6,
-                                                              numericInput("afdVar_dpi", "DPI:", value = 300, min = 72, max = 2000)
+                                                              numericInput("afdVar_dpi", "DPI:", value = 300, min = 72, max = HSTAT_DPI_MAX)
                                                        )
                                                      ),
                                                      fluidRow(

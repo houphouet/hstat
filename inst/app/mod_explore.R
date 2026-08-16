@@ -109,7 +109,7 @@ mod_explore_ui <- function(id) {
                                                  tagList(icon("wave-square"), " Afficher courbe densité"), 
                                                  value = TRUE),
                                    numericInput(ns("distDPI"), tagList(icon("image"), " DPI export:"), 
-                                                value = 300, min = 72, max = 600, step = 50)
+                                                value = 300, min = 72, max = HSTAT_DPI_MAX, step = 50)
                             )
                           )
                         )
@@ -200,7 +200,7 @@ mod_explore_ui <- function(id) {
                                                  tagList(icon("align-center"), " Centrer le titre"), 
                                                  value = TRUE),
                                    numericInput(ns("missingDPI"), tagList(icon("image"), " DPI export:"), 
-                                                value = 300, min = 72, max = 600, step = 50)
+                                                value = 300, min = 72, max = HSTAT_DPI_MAX, step = 50)
                             )
                           )
                         )

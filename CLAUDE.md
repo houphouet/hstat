@@ -404,6 +404,38 @@ contiendra — « 6000 × 4500 px, soit 25,4 × 19,0 cm à 600 DPI ». Les centi
 sont l'invariant : ils ne bougent pas d'une résolution à l'autre, et c'est
 précisément ce qu'il faut comprendre.
 
+### Le DPI monte jusqu'à 20 000, et ne touche jamais à la taille
+
+Une seule règle, pour toute l'application : **augmenter la résolution ne change
+ni la largeur, ni la hauteur, ni la mise en page**. Deux exports faisaient
+l'inverse — ils multipliaient les pouces par un facteur de réduction, si bien
+que demander plus de finesse rendait l'image plus *petite* sur le papier.
+
+`HSTAT_DPI_MAX` (20 000) est le plafond du **champ**, déclaré une fois : trente
+et un champs de DPI existent dans l'application, neuf plafonnaient à 1200 ou
+2000 et quatre à 600, sans raison. Quatre d'entre eux s'écrivent `DPI` en
+majuscules (`distDPI`, `missingDPI`, `corrDPI`, `plotDPIVisible`) et échappaient
+à toute recherche de `dpi` — c'est le décompte des champs **dans la page rendue**
+qui les a trouvés, pas la lecture du code.
+
+`HSTAT_RASTER_MAX_PX` (20 000 px de côté) est autre chose : la limite du
+**format**. Au-delà, le périphérique graphique échoue sur l'allocation du bitmap
+et l'utilisateur n'obtient aucun fichier. `hstat_dpi_effectif()` ramène alors la
+**résolution** — jamais la taille — et l'annonce, parce qu'un export
+silencieusement dégradé est pire qu'un refus.
+
+Conséquence assumée : sur une figure de 12 pouces, la finesse cesse de progresser
+vers 1666 DPI. C'est une limite physique du matriciel, pas un choix. **Les
+formats vectoriels (PDF, SVG, EPS) ne sont donc pas plafonnés** : leur résolution
+est infinie et le DPI n'y veut rien dire — c'est la vraie réponse à « je veux
+20 000 DPI sans rien perdre ».
+
+Le plafond vit chez `hstat_ecrire_image()`, l'écrivain commun : vingt exports en
+héritent sans que chacun ait à y penser, et aucun ne peut l'oublier.
+
+Deux invariants testés : la taille physique est **constante** quel que soit le
+DPI, et le nombre de pixels ne **décroît jamais** quand on demande davantage.
+
 ### Onglet Visualisation : la résolution ne rétrécit pas la figure
 
 Un escalier y réduisait la taille physique à mesure que le DPI montait — 12 × 8

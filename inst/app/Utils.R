@@ -1570,6 +1570,20 @@ hstat_image_secours <- function(file, fmt = "png", message = NULL,
 hstat_ecrire_image <- function(file, plot, fmt = "png", width = 10, height = 7.5,
                                dpi = 300, echec = NULL) {
   fmt <- hstat_img_fmt(fmt)
+  # LE PLAFOND EST ICI, chez l'ecrivain commun : vingt exports en heritent sans
+  # que chacun ait a y penser, et aucun ne peut l'oublier.
+  #
+  # Il porte sur la RESOLUTION, jamais sur la taille : la figure garde la
+  # largeur et la hauteur demandees, quel que soit le DPI. Au-dela du cote
+  # maximal d'un bitmap, le peripherique echoue et l'utilisateur n'obtient
+  # aucun fichier ; mieux vaut une finesse plafonnee qu'un export perdu.
+  #
+  # Les formats VECTORIELS n'ont pas cette limite : leur resolution est
+  # infinie et le DPI n'y veut rien dire. On ne les plafonne donc pas.
+  if (!fmt %in% c("pdf", "svg", "eps")) {
+    eff <- hstat_dpi_effectif(width, height, dpi)
+    dpi <- eff$dpi
+  }
   ok <- tryCatch({
     if (is.null(plot)) stop("Aucun graphique a exporter.")
     .hstat_img_device(file, fmt, width, height, dpi)
@@ -5057,7 +5071,7 @@ hstat_export_plot_ui <- function(ns, prefix, width = 10, height = 6) {
       column(3, numericInput(ns(paste0(prefix, "H")), "Hauteur (pouces)",
                              value = height, min = 3, max = 30, step = 0.5)),
       column(3, numericInput(ns(paste0(prefix, "Dpi")), "DPI (max 20 000)",
-                             value = 300, min = 72, max = 20000, step = 50))),
+                             value = 300, min = 72, max = HSTAT_DPI_MAX, step = 50))),
     tags$small(style = "color:#6b7280;",
       "PDF et SVG sont vectoriels (resolution infinie, DPI sans objet). ",
       "Pour les formats matriciels, au-dela d'un certain DPI les dimensions physiques ",
@@ -5091,10 +5105,15 @@ hstat_export_plot_handler <- function(input, prefix, plot_fun, fname = "graphiqu
         dev <- if (identical(fmt, "pdf")) grDevices::cairo_pdf else "svg"
         ggplot2::ggsave(file, g, width = w, height = h, device = dev, limitsize = FALSE)
       } else {
-        max_px <- 16000
-        scale  <- min(1, max_px / (w * dpi), max_px / (h * dpi))
-        args <- list(filename = file, plot = g, width = w * scale,
-                     height = h * scale, dpi = dpi, device = fmt, limitsize = FALSE)
+        # La taille demandee est RESPECTEE : c'est la resolution qui plie si le
+        # matriciel ne peut pas suivre. Multiplier les pouces par un facteur de
+        # reduction, comme ici auparavant, rendait la figure plus petite a
+        # mesure qu'on demandait plus de finesse.
+        eff <- hstat_dpi_effectif(w, h, dpi)
+        if (isTRUE(eff$plafonne))
+          shiny::showNotification(eff$note, type = "warning", duration = 10)
+        args <- list(filename = file, plot = g, width = w,
+                     height = h, dpi = eff$dpi, device = fmt, limitsize = FALSE)
         if (identical(fmt, "tiff")) args$compression <- "lzw"
         if (identical(fmt, "jpeg")) args$quality <- 95
         do.call(ggplot2::ggsave, args)
@@ -5517,7 +5536,40 @@ HSTAT_EXPORT_MAX_PX <- 20000L
 # Plafond propre a l'export de l'onglet Visualisation, ou la taille physique
 # est fixe et seul le DPI varie : au-dela, `ggsave` echoue sur l'allocation du
 # bitmap et l'utilisateur n'obtient AUCUN fichier.
-HSTAT_VIZ_MAX_PX <- 16000
+# Plafond du champ DPI, partout dans l'application. Un seul chiffre : neuf
+# champs plafonnaient a 1200 ou 2000 sans raison, et l'utilisateur ne pouvait
+# pas demander mieux la ou il en avait besoin.
+HSTAT_DPI_MAX <- 20000L
+
+# Cote maximal, en pixels, d'une image MATRICIELLE. Au-dela, le peripherique
+# graphique echoue sur l'allocation du bitmap et l'utilisateur n'obtient aucun
+# fichier. C'est une limite du format, pas un choix.
+HSTAT_RASTER_MAX_PX <- 20000L
+
+# Resolution reellement applicable a une taille physique DONNEE.
+#
+# Regle unique de toute l'application : monter le DPI ne change JAMAIS la
+# largeur, la hauteur ni la mise en page. Deux exports faisaient l'inverse --
+# ils multipliaient les pouces par un facteur de reduction, si bien que
+# demander plus de finesse rendait l'image plus petite sur le papier.
+#
+# Quand le matriciel ne peut plus suivre, c'est donc la RESOLUTION qui est
+# ramenee, jamais la taille ; et elle est annoncee, parce qu'un export
+# silencieusement degrade est pire qu'un refus. Le vecteur (PDF, SVG) n'a pas
+# cette limite : sa resolution est infinie et le DPI n'y veut rien dire.
+hstat_dpi_effectif <- function(w_in, h_in, dpi, max_px = HSTAT_RASTER_MAX_PX) {
+  n1 <- function(x, d) { x <- suppressWarnings(as.numeric(x)[1])
+                         if (length(x) == 0 || is.na(x) || x <= 0) d else x }
+  w <- n1(w_in, 10); h <- n1(h_in, 7)
+  dem <- max(72, min(HSTAT_DPI_MAX, n1(dpi, 300)))
+  cote <- max(w, h)
+  eff <- if (cote * dem > max_px) max(72, floor(max_px / cote)) else dem
+  list(dpi = eff, demande = dem, plafonne = eff < dem,
+       note = if (eff < dem)
+         trf("Résolution ramenée de %s à %s DPI : au-delà, l'image dépasse %s pixels de côté et l'export échoue. La taille de la figure, elle, est inchangée. Pour une finesse illimitée, choisissez SVG ou PDF.",
+             round(dem), round(eff), format(max_px, big.mark = " ")) else NULL)
+}
+
 
 # Dimensions d'export de l'onglet Visualisation, EN UN SEUL ENDROIT.
 #
@@ -5532,14 +5584,13 @@ HSTAT_VIZ_MAX_PX <- 16000
 # le papier. Seul le plafond de pixels peut encore la reduire, la ou l'export
 # echouerait sinon.
 hstat_viz_export_dims <- function(dpi, base_w = 12, base_h = 8,
-                                  max_px = HSTAT_VIZ_MAX_PX) {
+                                  max_px = HSTAT_RASTER_MAX_PX) {
   d <- suppressWarnings(as.numeric(dpi)[1])
   if (!isTRUE(is.finite(d)) || d <= 0) d <- 300
-  d <- max(72, min(20000, d))
-  ech <- min(1, max_px / (base_w * d), max_px / (base_h * d))
-  w <- base_w * ech; h <- base_h * ech
-  list(dpi = d, width = w, height = h,
-       px_w = round(w * d), px_h = round(h * d), plafonne = ech < 1)
+  eff <- hstat_dpi_effectif(base_w, base_h, d, max_px)
+  list(dpi = eff$dpi, width = base_w, height = base_h,
+       px_w = round(base_w * eff$dpi), px_h = round(base_h * eff$dpi),
+       plafonne = eff$plafonne, note = eff$note)
 }
 
 

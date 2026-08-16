@@ -1137,7 +1137,7 @@ mod_posthoc_ui <- function(id) {
                                               selected = "png", width = "100%")),
                                           column(5,
                                             numericInput(ns("plotDPIVisible"), tagList(icon("image"), " DPI"),
-                                                         value = 300, min = 72, max = 600, step = 50, width = "100%"))
+                                                         value = 300, min = 72, max = HSTAT_DPI_MAX, step = 50, width = "100%"))
                                         ),
                                         downloadButton(ns("downloadMultiPlot"),
                                                        tagList(icon("download"), " Télécharger le graphique"),
@@ -1495,7 +1495,7 @@ mod_correlation_ui <- function(id) {
               textInput(ns("corrTitle"), "Titre personnalisé",
                         placeholder = "Vide = titre auto"),
               numericInput(ns("corrDPI"), tagList(icon("image"), " DPI export"),
-                           value = 300, min = 72, max = 1200, step = 50),
+                           value = 300, min = 72, max = HSTAT_DPI_MAX, step = 50),
               selectInput(ns("corrFormat"), tagList(icon("file-image"), " Format d'export"),
                           choices = c("PNG" = "png", "JPEG" = "jpeg", "TIFF" = "tiff",
                                       "BMP" = "bmp", "PDF" = "pdf", "SVG" = "svg"),

@@ -162,7 +162,7 @@ mod_descriptive_ui <- function(id) {
                                                      choices = c("png", "svg", "pdf", "tiff"),
                                                      selected = "png")),
                                column(6, numericInput(ns("descPlot_dpi"), "DPI:",
-                                                      value = 300, min = 72, max = 1200))
+                                                      value = 300, min = 72, max = HSTAT_DPI_MAX))
                              ),
                              downloadButton(ns("downloadDescPlot"), "Télécharger le Graphique",
                                             class = "btn-info btn-sm")

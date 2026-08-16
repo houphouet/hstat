@@ -5714,7 +5714,7 @@ server <- function(input, output, session) {
         "Taille du fichier exporté", "download", "#2c3e50", "#eef1f4",
         fluidRow(
           column(4, numericInput(paste0(prefix, "_dpi"), tagList(icon("image"), " DPI"),
-                                 value = 300, min = 72, max = 1200, step = 50)),
+                                 value = 300, min = 72, max = HSTAT_DPI_MAX, step = 50)),
           column(4, numericInput(paste0(prefix, "_width"), "Largeur (px)",
                                  value = round(base_w_in * 300), min = 200, max = 20000, step = 50)),
           column(4, numericInput(paste0(prefix, "_height"), "Hauteur (px)",
