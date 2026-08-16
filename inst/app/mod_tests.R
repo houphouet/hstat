@@ -4561,36 +4561,6 @@ mod_tests_server <- function(id, values) {
   })
   
   
-  output$chiSqCatVarSelect <- renderUI({
-    req(values$filteredData)
-    cat_cols <- names(values$filteredData)[sapply(values$filteredData, function(x)
-      is.factor(x) || is.character(x) || (is.numeric(x) && length(unique(na.omit(x))) <= 20))]
-    pickerInput(ns("chiSqCatVar"), "Variable catégorielle (groupes) :",
-                choices = cat_cols, multiple = FALSE,
-                options = list(`live-search` = TRUE, `none-selected-text` = "Sélectionner..."))
-  })
-  
-  output$chiSqFreqVarSelect <- renderUI({
-    req(values$filteredData)
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
-    pickerInput(ns("chiSqFreqVar"), "Variable de valeurs (fréq. ou %) :",
-                choices = num_cols, multiple = FALSE,
-                options = list(`live-search` = TRUE, `none-selected-text` = "Sélectionner..."))
-  })
-  
-  output$chiSqExpectedInput <- renderUI({
-    req(input$chiSqCatVar, values$filteredData)
-    if (is.null(input$chiSqUniform) || isTRUE(input$chiSqUniform)) return(NULL)
-    df   <- values$filteredData
-    cats <- unique(na.omit(as.character(df[[input$chiSqCatVar]])))
-    tagList(
-      tags$p(tags$b("Probabilités attendues :"), tags$small(style="color:#777;"," (somme = 1)")),
-      lapply(seq_along(cats), function(i)
-        numericInput(paste0("chiSqP_", i), label = cats[i],
-                     value = round(1/length(cats), 4), min = 0, max = 1, step = 0.001))
-    )
-  })
-  
   observeEvent(input$testChiSq, {
     req(input$chiSqCatVar, input$chiSqFreqVar, values$filteredData)
     df      <- values$filteredData
@@ -4693,82 +4663,6 @@ mod_tests_server <- function(id, values) {
     showNotification(paste0("Post-hoc chi² terminé (",adj_method,")"),type="message",duration=3)
   })
   
-  output$chiSqPostHocTable <- renderDT({
-    req(values$chiSqPostHocData)
-    datatable(values$chiSqPostHocData, options=list(pageLength=15,scrollX=TRUE), rownames=FALSE) %>%
-      formatStyle("Significatif", color=styleEqual(c("OUI *","non"),c("#c62828","#555")),
-                  fontWeight=styleEqual(c("OUI *"),"bold"))
-  })
-  
-  output$chiSqFreqTable <- renderDT({
-    req(values$chiSqFreqData)
-    datatable(values$chiSqFreqData, options=list(pageLength=20,scrollX=TRUE), rownames=FALSE)
-  })
-  
-  output$chiSqPlot <- renderPlot({
-    req(values$chiSqFreqData)
-    chi_data  <- values$chiSqFreqData
-    plot_type <- input$chiSqPlotType %||% "bar"
-    show_vals <- isTRUE(input$chiSqShowValues)
-    show_grps <- isTRUE(input$chiSqShowGroups) && "Groupes" %in% names(chi_data)
-    show_pval <- isTRUE(input$chiSqShowPval)   && !is.null(values$chiSqResults)
-    use_pct   <- isTRUE(input$chiSqShowPct) || chi_data$Type_donnees[1] == "pct"
-    y_var     <- if (use_pct) "Pct_obs" else "Observés"
-    y_lab     <- if (use_pct) "Pourcentage (%)" else "Fréquence observée"
-    val_str   <- if (use_pct) paste0(round(chi_data$Pct_obs,1),"%") else as.character(chi_data$Observes)
-    grp_str   <- if (show_grps) paste0("(",chi_data$Groupes,")") else ""
-    chi_data$vlabel <- paste0(
-      if(show_vals) val_str else "",
-      if(show_vals && show_grps) "\n" else "",
-      if(show_grps) grp_str else "")
-    cap <- if (show_pval) {
-      pv <- values$chiSqResults$p.value
-      paste0("Chi²=",round(values$chiSqResults$statistic,3),
-             "  p=",formatC(pv,"g",digits=4),
-             if(pv<0.001)" ***" else if(pv<0.01)" **" else if(pv<0.05)" *" else " ns")
-    } else ""
-    base_t <- get_plot_theme()
-    p <- if (plot_type == "bar") {
-      gg <- ggplot(chi_data, aes(x=reorder(Categorie,-!!sym(y_var)), y=!!sym(y_var), fill=Categorie)) +
-        geom_col(color="white",width=0.7,alpha=0.88) + scale_fill_brewer(palette="Set2",guide="none") +
-        labs(x=NULL,y=y_lab,title="Distribution des catégories",caption=cap) + base_t
-      if(any(nzchar(chi_data$vlabel))) gg <- gg+geom_text(aes(label=vlabel),vjust=-0.4,size=3.5,fontface="bold",color="#333")
-      gg
-    } else if (plot_type == "pie") {
-      chi_data$frac <- chi_data[[y_var]] / sum(chi_data[[y_var]])
-      chi_data$ypos <- cumsum(chi_data$frac) - 0.5*chi_data$frac
-      gg <- ggplot(chi_data,aes(x="",y=frac,fill=Categorie)) +
-        geom_bar(stat="identity",width=1,color="white") + coord_polar("y",start=0) +
-        scale_fill_brewer(palette="Set2") +
-        labs(title="Distribution des catégories",fill=NULL,caption=cap) + theme_void(base_size=12) +
-        theme(legend.position="right",plot.title=element_text(hjust=0.5,face="bold"),
-              plot.caption=element_text(hjust=0.5,color="#555",size=10))
-      if(any(nzchar(chi_data$vlabel))) gg <- gg+geom_text(aes(y=ypos,label=vlabel),size=3.5,color="white",fontface="bold")
-      gg
-    } else if (plot_type == "lollipop") {
-      gg <- ggplot(chi_data,aes(x=reorder(Categorie,-!!sym(y_var)),y=!!sym(y_var))) +
-        geom_segment(aes(xend=reorder(Categorie,-!!sym(y_var)),yend=0),color="#b0bec5",linewidth=1.2) +
-        geom_point(aes(color=Categorie),size=7,alpha=0.9) + scale_color_brewer(palette="Set2",guide="none") +
-        labs(x=NULL,y=y_lab,title="Distribution des catégories",caption=cap) + base_t
-      if(any(nzchar(chi_data$vlabel))) gg <- gg+geom_text(aes(label=vlabel),vjust=-1.3,size=3.5,fontface="bold",color="#333")
-      gg
-    } else if (plot_type == "dot") {
-      gg <- ggplot(chi_data,aes(x=reorder(Categorie,!!sym(y_var)),y=!!sym(y_var),color=Categorie,size=!!sym(y_var))) +
-        geom_point(alpha=0.85) + scale_color_brewer(palette="Set2",guide="none") +
-        scale_size_continuous(range=c(4,14),guide="none") + coord_flip() +
-        labs(x=NULL,y=y_lab,title="Distribution des catégories",caption=cap) + base_t
-      if(any(nzchar(chi_data$vlabel))) gg <- gg+geom_text(aes(label=vlabel),hjust=-0.4,size=3.5,fontface="bold",color="#333")
-      gg
-    } else {
-      gg <- ggplot(chi_data,aes(x=Categorie,y=!!sym(y_var),fill=Categorie)) +
-        geom_bar(stat="identity",color="white",width=0.85) + scale_fill_brewer(palette="Set2",guide="none") +
-        labs(x=NULL,y=y_lab,title="Distribution des catégories",caption=cap) + base_t
-      if(any(nzchar(chi_data$vlabel))) gg <- gg+geom_text(aes(label=vlabel),vjust=-0.4,size=3.5,fontface="bold",color="#333")
-      gg
-    }
-    values$chiSqPlotObj <- p; p
-  })
-  
   # NB : les handlers downloadChiSqExcel / downloadChiSqCSV / downloadChiSqPlot
   # sont definis plus bas (versions completes avec mise en forme). Une premiere
   # version existait ici : les output$ Shiny etant uniques, elle etait ecrasee
@@ -4785,70 +4679,6 @@ mod_tests_server <- function(id, values) {
   outputOptions(output, "showChiSqResults", suspendWhenHidden = FALSE)
   
   # Graphique chi2 pour l'onglet PostHoc (même logique, inputs distincts)
-  output$chiSqPlotMultiple <- renderPlot({
-    req(values$chiSqFreqData)
-    chi_data  <- values$chiSqFreqData
-    plot_type <- input$chiSqPlotTypeMultiple %||% "bar"
-    show_vals <- isTRUE(input$chiSqShowValM)
-    show_grps <- isTRUE(input$chiSqShowGrpM)  && "Groupes" %in% names(chi_data)
-    show_pval <- isTRUE(input$chiSqShowPvalM) && !is.null(values$chiSqResults)
-    use_pct   <- isTRUE(input$chiSqShowPctM)  || chi_data$Type_donnees[1] == "pct"
-    y_var     <- if (use_pct) "Pct_obs" else "Observés"
-    y_lab     <- if (use_pct) "Pourcentage (%)" else "Fréquence observée"
-    val_str   <- if (use_pct) paste0(round(chi_data$Pct_obs,1),"%") else as.character(chi_data$Observes)
-    grp_str   <- if (show_grps) paste0("(",chi_data$Groupes,")") else ""
-    chi_data$vlabel <- paste0(
-      if(show_vals) val_str else "",
-      if(show_vals && show_grps) "\n" else "",
-      if(show_grps) grp_str else "")
-    cap <- if (show_pval) {
-      pv <- values$chiSqResults$p.value
-      paste0("Chi²=",round(values$chiSqResults$statistic,3),
-             "  p=",formatC(pv,"g",digits=4),
-             if(pv<0.001)" ***" else if(pv<0.01)" **" else if(pv<0.05)" *" else " ns")
-    } else ""
-    base_t <- get_plot_theme()
-    p <- if (plot_type == "bar") {
-      gg <- ggplot(chi_data, aes(x=reorder(Categorie,-!!sym(y_var)), y=!!sym(y_var), fill=Categorie)) +
-        geom_col(color="white",width=0.7,alpha=0.88) + scale_fill_brewer(palette="Set2",guide="none") +
-        labs(x=NULL,y=y_lab,title="Distribution des catégories",caption=cap) + base_t
-      if(any(nzchar(chi_data$vlabel))) gg <- gg+geom_text(aes(label=vlabel),vjust=-0.4,size=3.5,fontface="bold",color="#333")
-      gg
-    } else if (plot_type == "pie") {
-      chi_data$frac <- chi_data[[y_var]] / sum(chi_data[[y_var]])
-      chi_data$ypos <- cumsum(chi_data$frac) - 0.5*chi_data$frac
-      gg <- ggplot(chi_data,aes(x="",y=frac,fill=Categorie)) +
-        geom_bar(stat="identity",width=1,color="white") + coord_polar("y",start=0) +
-        scale_fill_brewer(palette="Set2") +
-        labs(title="Distribution des catégories",fill=NULL,caption=cap) + theme_void(base_size=12) +
-        theme(legend.position="right",plot.title=element_text(hjust=0.5,face="bold"),
-              plot.caption=element_text(hjust=0.5,color="#555",size=10))
-      if(any(nzchar(chi_data$vlabel))) gg <- gg+geom_text(aes(y=ypos,label=vlabel),size=3.5,color="white",fontface="bold")
-      gg
-    } else if (plot_type == "lollipop") {
-      gg <- ggplot(chi_data,aes(x=reorder(Categorie,-!!sym(y_var)),y=!!sym(y_var))) +
-        geom_segment(aes(xend=reorder(Categorie,-!!sym(y_var)),yend=0),color="#b0bec5",linewidth=1.2) +
-        geom_point(aes(color=Categorie),size=7,alpha=0.9) + scale_color_brewer(palette="Set2",guide="none") +
-        labs(x=NULL,y=y_lab,title="Distribution des catégories",caption=cap) + base_t
-      if(any(nzchar(chi_data$vlabel))) gg <- gg+geom_text(aes(label=vlabel),vjust=-1.3,size=3.5,fontface="bold",color="#333")
-      gg
-    } else if (plot_type == "dot") {
-      gg <- ggplot(chi_data,aes(x=reorder(Categorie,!!sym(y_var)),y=!!sym(y_var),color=Categorie,size=!!sym(y_var))) +
-        geom_point(alpha=0.85) + scale_color_brewer(palette="Set2",guide="none") +
-        scale_size_continuous(range=c(4,14),guide="none") + coord_flip() +
-        labs(x=NULL,y=y_lab,title="Distribution des catégories",caption=cap) + base_t
-      if(any(nzchar(chi_data$vlabel))) gg <- gg+geom_text(aes(label=vlabel),hjust=-0.4,size=3.5,fontface="bold",color="#333")
-      gg
-    } else {
-      gg <- ggplot(chi_data,aes(x=Categorie,y=!!sym(y_var),fill=Categorie)) +
-        geom_bar(stat="identity",color="white",width=0.85) + scale_fill_brewer(palette="Set2",guide="none") +
-        labs(x=NULL,y=y_lab,title="Distribution des catégories",caption=cap) + base_t
-      if(any(nzchar(chi_data$vlabel))) gg <- gg+geom_text(aes(label=vlabel),vjust=-0.4,size=3.5,fontface="bold",color="#333")
-      gg
-    }
-    values$chiSqPlotObj <- p; p
-  })
-  
   # runChiSqPostHoc2 : lien depuis l'onglet PostHoc (chiSqDataType2 + chiSqPostHocAdj2)
   observeEvent(input$runChiSqPostHoc2, {
     req(input$chiSqCatVar, input$chiSqFreqVar, values$filteredData)
@@ -5560,28 +5390,6 @@ mod_tests_server <- function(id, values) {
   }
   
   
-  output$chiSqVarCatSelect <- renderUI({
-    df <- values$filteredData %||% values$cleanData %||% values$data
-    req(df)
-    cats <- names(df)[sapply(df, function(x) is.factor(x) || is.character(x))]
-    if (length(cats) == 0) cats <- names(df)
-    selectInput(ns("chiSqVarCat"), tagList(icon("tag"), " Variable catégorielle (modalités)"),
-                choices = cats, selected = cats[1])
-  })
-  
-  output$chiSqVarNumSelect <- renderUI({
-    df <- values$filteredData %||% values$cleanData %||% values$data
-    req(df)
-    nums <- names(df)[sapply(df, is.numeric)]
-    if (length(nums) == 0) {
-      return(div(class = "alert alert-warning",
-                 icon("exclamation-triangle"), " Aucune variable numérique disponible."))
-    }
-    selectInput(ns("chiSqVarNum"), tagList(icon("hashtag"), " Variable numérique (effectifs/proportions)"),
-                choices = nums, selected = nums[1])
-  })
-  
-  
   observeEvent(input$runChiSqTest, {
     df <- values$filteredData %||% values$cleanData %||% values$data
     req(df)
@@ -5746,70 +5554,6 @@ mod_tests_server <- function(id, values) {
   })
   
   
-  output$chiSqGlobalResult <- renderDT({
-    req(values$chiSqResults)
-    df_display <- values$chiSqResults
-    # Formater la p-valeur pour l'affichage (éviter l'arrondi à 0)
-    df_display$p_valeur <- sapply(df_display$p_valeur, fmt_p)
-    datatable(df_display,
-              rownames = FALSE, options = list(dom = "t", scrollX = TRUE),
-              class = "table-bordered table-striped")
-  })
-  
-  output$chiSqResumeTable <- renderDT({
-    req(values$chiSqFreqData)
-    dt <- values$chiSqFreqData
-    datatable(dt, rownames = FALSE,
-              options = list(pageLength = 15, scrollX = TRUE, dom = "tip"),
-              class = "table-bordered table-striped") |>
-      formatStyle("Groupe", fontWeight = "bold", color = "#1565C0", fontSize = "14px") |>
-      formatStyle("Statut",
-                  backgroundColor = styleEqual(
-                    c("Sur-représenté", "Sous-représenté", "Conforme"),
-                    c("#C8E6C9",        "#FFCDD2",          "#FFF9C4")))
-  })
-  
-  output$chiSqPairesTable <- renderDT({
-    req(values$chiSqPostHocData)
-    df_p <- values$chiSqPostHocData
-    if ("p_brute"      %in% names(df_p)) df_p$p_brute      <- sapply(df_p$p_brute,      fmt_p)
-    if ("p_Bonferroni" %in% names(df_p)) df_p$p_Bonferroni <- sapply(df_p$p_Bonferroni, fmt_p)
-    datatable(df_p, rownames = FALSE,
-              options = list(pageLength = 20, scrollX = TRUE, dom = "tip"),
-              class = "table-bordered table-striped") |>
-      formatStyle("Decision",
-                  backgroundColor = styleEqual(c("Différent", "Similaire"), c("#C8E6C9", "#FFCDD2")),
-                  fontWeight = "bold")
-  })
-  
-  output$chiSqInterpretation <- renderUI({
-    req(values$chiSqResults, values$chiSqFreqData)
-    gdf   <- values$chiSqResults
-    p_val <- gdf$p_valeur[1]
-    fdf   <- values$chiSqFreqData
-    n_grp <- length(unique(fdf$Groupe))
-    
-    sig_color <- if (p_val < 0.05) "#1b5e20" else "#b71c1c"
-    sig_bg    <- if (p_val < 0.05) "#e8f5e9"  else "#ffebee"
-    
-    tagList(
-      div(style = paste0("background:", sig_bg, "; border-left: 5px solid ", sig_color,
-                         "; padding: 15px; border-radius: 6px; margin-bottom: 10px;"),
-          h4(icon("microscope"), " Interprétation globale", style = paste0("color:", sig_color, ";")),
-          p(strong(gdf$Interpretation[1])),
-          p(paste0("p = ", fmt_p(p_val), " | Test : ", gdf$Test[1])),
-          p(paste0("Variable : ", gdf$Variable_cat[1], " | Données : ", gdf$Type_donnee[1]))
-      ),
-      div(style = "background: #e3f2fd; border-left: 5px solid #1565C0; padding: 12px; border-radius: 6px;",
-          h5(icon("layer-group"), " Groupes identifiés", style = "color: #1565C0;"),
-          p(paste0(n_grp, " groupe(s) distinct(s) → ",
-                   paste(sort(unique(fdf$Groupe)), collapse = ", "))),
-          p("Même lettre = pas de différence significative après correction Bonferroni.")
-      )
-    )
-  })
-  
-  
   creer_graphique_chi2 <- reactive({
     req(values$chiSqFreqData)
     fdf       <- values$chiSqFreqData
@@ -5956,11 +5700,6 @@ mod_tests_server <- function(id, values) {
     g
   })
   
-  output$chiSqGraph <- renderPlot({
-    creer_graphique_chi2()
-  }, height = function() input$chiSqGraphHeight %||% 500)
-  
-  
   output$downloadChiSqPlot <- downloadHandler(
     filename = function() paste0("chi2_graphique_", Sys.Date(), ".png"),
     content  = function(file) {
@@ -6026,102 +5765,8 @@ mod_tests_server <- function(id, values) {
     }
   )
   
-  output$downloadChiSqCSVPaires <- downloadHandler(
-    filename = function() paste0("chi2_paires_", Sys.Date(), ".csv"),
-    content  = function(file) {
-      req(values$chiSqPostHocData)
-      write.csv(values$chiSqPostHocData, file, row.names = FALSE)
-    }
-  )
-  
-  
-  output$chiSqPostHocPairesTable <- renderDT({
-    req(values$chiSqPostHocData)
-    df_p <- values$chiSqPostHocData
-    if ("p_brute"      %in% names(df_p)) df_p$p_brute      <- sapply(df_p$p_brute,      fmt_p)
-    if ("p_Bonferroni" %in% names(df_p)) df_p$p_Bonferroni <- sapply(df_p$p_Bonferroni, fmt_p)
-    datatable(df_p, rownames = FALSE,
-              options = list(pageLength = 20, scrollX = TRUE),
-              class = "table-bordered table-striped") |>
-      formatStyle("Decision",
-                  backgroundColor = styleEqual(c("Différent", "Similaire"), c("#C8E6C9", "#FFCDD2")),
-                  fontWeight = "bold")
-  })
-  
-  output$chiSqPostHocGroupesTable <- renderDT({
-    req(values$chiSqFreqData)
-    fdf <- values$chiSqFreqData
-    # Afficher pourcentages au lieu de Valeur_originale
-    if (!"Pct" %in% names(fdf)) {
-      fdf$Pct <- round(fdf$Valeur_test / sum(fdf$Valeur_test) * 100, 2)
-    }
-    cols_show <- intersect(c("Modalité", "Pct", "Groupe", "Statut"), names(fdf))
-    df_g <- fdf[, cols_show, drop = FALSE]
-    names(df_g)[names(df_g) == "Pct"] <- "Pct (%)"
-    datatable(df_g, rownames = FALSE,
-              options = list(pageLength = 15, scrollX = TRUE),
-              class = "table-bordered table-striped") |>
-      formatStyle("Groupe", fontWeight = "bold", color = "#1565C0", fontSize = "14px") |>
-      formatStyle("Statut",
-                  backgroundColor = styleEqual(
-                    c("Sur-représenté", "Sous-représenté", "Conforme"),
-                    c("#C8E6C9",        "#FFCDD2",          "#FFF9C4")))
-  })
-  
-  output$chiSqPostHocInfo <- renderUI({
-    req(values$chiSqResults)
-    gdf <- values$chiSqResults
-    div(style = "background:#e8f5e9; border-left:5px solid #2e7d32; padding:12px; border-radius:6px;",
-        h5(icon("check-circle"), " Test chi² effectué", style = "color:#2e7d32; margin-top:0;"),
-        p(strong("Test : "), gdf$Test[1]),
-        p(strong("p-valeur : "), fmt_p(gdf$p_valeur[1])),
-        p(strong("Interprétation : "), gdf$Interpretation[1]),
-        p(strong("Type de données : "), gdf$Type_donnee[1])
-    )
-  })
-  
   # UI dynamique : renommage des modalités (labels niveaux X)
-  output$chiSqPHLevelLabels <- renderUI({
-    req(values$chiSqFreqData)
-    fdf  <- values$chiSqFreqData
-    levs <- fdf$Modalite
-    if (length(levs) == 0) return(NULL)
-    tagList(
-      tags$table(
-        style = "width:100%; border-collapse:collapse;",
-        tags$thead(tags$tr(
-          tags$th(style = "font-size:10px; color:#888; padding:2px 4px; text-align:left;", "Original"),
-          tags$th(style = "font-size:10px; color:#888; padding:2px 4px; text-align:left;", "Nouveau label")
-        )),
-        tags$tbody(lapply(seq_along(levs), function(i) {
-          tags$tr(
-            tags$td(style = "font-size:11px; padding:2px 4px; color:#444; vertical-align:middle; white-space:nowrap;",
-                    levs[i]),
-            tags$td(
-              textInput(paste0("chiSqPHLevel_", i), label = NULL,
-                        placeholder = levs[i], value = "",
-                        width = "100%")
-            )
-          )
-        }))
-      )
-    )
-  })
-  
   # UI info taille export (pixels calculés à partir de DPI x pouces)
-  output$chiSqPHExportSizeInfo <- renderUI({
-    w_in <- input$chiSqPHWidthIn  %||% 8
-    h_in <- input$chiSqPHHeightIn %||% 6
-    dpi  <- input$chiSqPHDPI      %||% 300
-    w_px <- round(w_in * dpi)
-    h_px <- round(h_in * dpi)
-    div(style = "background:#e3f2fd; padding:6px 10px; border-radius:4px; font-size:11px; margin-top:4px; border-left:3px solid #1565C0;",
-        icon("image", style = "color:#1565C0;"),
-        strong(" Export : "),
-        paste0(w_px, " x ", h_px, " px  @", dpi, " DPI")
-    )
-  })
-  
   # Helper : carte de renommage des modalités (niveaux X)
   chi2_ph_level_map <- function(fdf) {
     levs <- as.character(fdf$Modalite)
@@ -6234,80 +5879,6 @@ mod_tests_server <- function(id, values) {
     }
   }
   
-  
-  output$chiSqPostHocGraph <- renderPlot({
-    req(values$chiSqFreqData)
-    fdf     <- values$chiSqFreqData
-    lev_map <- chi2_ph_level_map(fdf)
-    build_chi2_ph_graph(fdf, list(
-      type_g  = input$chiSqPHGraphType %||% "bar_v",
-      show_g  = isTRUE(input$chiSqPHShowGroupes),
-      show_v  = isTRUE(input$chiSqPHShowValeurs),
-      show_p  = isTRUE(input$chiSqPHShowPval),
-      titre   = input$chiSqPHTitle    %||% "",
-      sous_t  = input$chiSqPHSubtitle %||% "",
-      x_lab   = input$chiSqPHXLabel   %||% "",
-      y_lab   = input$chiSqPHYLabel   %||% "",
-      leg_tit = input$chiSqPHLegTitle %||% "",
-      lev_map = lev_map,
-      p_val   = values$chiSqPGlobal   %||% NA
-    ))
-  }, height = function() {
-    h_in <- input$chiSqPHHeightIn %||% 6
-    # Aperçu écran : limiter à 150 DPI equivalent
-    max(300, min(900, round(h_in * 75)))
-  })
-  
-  output$downloadChiSqPHPlot <- downloadHandler(
-    filename = function() paste0("chi2_posthoc_", Sys.Date(), ".png"),
-    content  = function(file) {
-      req(values$chiSqFreqData)
-      fdf     <- values$chiSqFreqData
-      lev_map <- chi2_ph_level_map(fdf)
-      dpi     <- max(300, min(20000, input$chiSqPHDPI     %||% 300))
-      w_in    <- input$chiSqPHWidthIn  %||% 8
-      h_in    <- input$chiSqPHHeightIn %||% 6
-      p <- build_chi2_ph_graph(fdf, list(
-        type_g  = input$chiSqPHGraphType %||% "bar_v",
-        show_g  = isTRUE(input$chiSqPHShowGroupes),
-        show_v  = isTRUE(input$chiSqPHShowValeurs),
-        show_p  = isTRUE(input$chiSqPHShowPval),
-        titre   = input$chiSqPHTitle    %||% "",
-        sous_t  = input$chiSqPHSubtitle %||% "",
-        x_lab   = input$chiSqPHXLabel   %||% "",
-        y_lab   = input$chiSqPHYLabel   %||% "",
-        leg_tit = input$chiSqPHLegTitle %||% "",
-        lev_map = lev_map,
-        p_val   = values$chiSqPGlobal   %||% NA
-      ))
-      hstat_ecrire_image(file, p, "png", w_in, h_in, dpi)
-      showNotification(
-        paste0("PNG exporté : ", round(w_in*dpi), "×", round(h_in*dpi),
-               " px @", dpi, " DPI"),
-        type = "message", duration = 5
-      )
-    }
-  )
-  
-  output$downloadChiSqPHExcel <- downloadHandler(
-    filename = function() paste0("chi2_posthoc_", Sys.Date(), ".xlsx"),
-    content  = function(file) {
-      req(values$chiSqFreqData)
-      wb <- openxlsx::createWorkbook()
-      h_style <- openxlsx::createStyle(fontColour="#FFFFFF",fgFill="#1565C0",
-                                       halign="CENTER",textDecoration="Bold")
-      openxlsx::addWorksheet(wb, "Groupes")
-      openxlsx::writeData(wb, "Groupes", values$chiSqFreqData, headerStyle = h_style)
-      openxlsx::setColWidths(wb, "Groupes", cols=1:ncol(values$chiSqFreqData), widths="auto")
-      if (!is.null(values$chiSqPostHocData) && nrow(values$chiSqPostHocData) > 0) {
-        openxlsx::addWorksheet(wb, "Comparaisons paires")
-        openxlsx::writeData(wb, "Comparaisons paires", values$chiSqPostHocData, headerStyle = h_style)
-        openxlsx::setColWidths(wb, "Comparaisons paires", cols=1:5, widths="auto")
-      }
-      openxlsx::saveWorkbook(wb, file, overwrite=TRUE)
-      showNotification("Excel exporté.", type="message", duration=3)
-    }
-  )
   
   # ---- Comparaisons multiples PostHoc  ----
   

@@ -6437,3 +6437,94 @@ test_that("un dispositif de malherbologie ne fait pas un moteur de plan de plus"
   # automatique « lettre + debut..fin ».
   expect_true(grepl("if (!is.null(hstat_malherbo_catalog()[[t]])) return()", src, fixed = TRUE))
 })
+
+test_that("l'export de l'onglet Visualisation ne retrecit plus la figure", {
+  viz <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app", "mod_viz.R"),
+                         warn = FALSE), collapse = "\n")
+
+  # UN ESCALIER reduisait la taille physique a mesure que le DPI montait :
+  # 12 x 8 pouces jusqu'a 600 DPI, mais 6 x 4 au-dela de 5000. Demander plus de
+  # finesse rendait l'image plus PETITE sur le papier -- le defaut s'aggravait
+  # dans le sens ou l'utilisateur cherchait a l'eviter. Le meme escalier avait
+  # deja ete retire des analyses multivariees.
+  expect_false(grepl("if (dpi <= 600)", viz, fixed = TRUE))
+  expect_false(grepl("dpi <= 2400", viz, fixed = TRUE))
+
+  # La qualite JPEG et la compression TIFF etaient declarees dans l'interface
+  # et LUES nulle part : deux reglages que l'utilisateur deplacait sans effet.
+  expect_true(grepl("input$jpegQuality", viz, fixed = TRUE))
+  expect_true(grepl("input$tiffCompression", viz, fixed = TRUE))
+
+  # Le calcul ne doit exister qu'a UN endroit : le telechargement et le panneau
+  # qui l'annonce le partagent. Deux copies divergent -- ici, l'annonce aurait
+  # dit 6 x 4 pouces pour un fichier de 12 x 8.
+  expect_gte(length(gregexpr("hstat_viz_export_dims", viz, fixed = TRUE)[[1]]), 2)
+  d1 <- hstat_viz_export_dims(300); d2 <- hstat_viz_export_dims(1200)
+  expect_equal(d1$width, d2$width)              # meme mise en page
+  expect_equal(d2$px_w / d1$px_w, 4)            # quatre fois plus de pixels
+  expect_false(d2$plafonne)
+  expect_true(hstat_viz_export_dims(2400)$plafonne)
+  # Entrees inutilisables : un repli, jamais une erreur.
+  expect_equal(hstat_viz_export_dims(NULL)$dpi, 300)
+  expect_equal(hstat_viz_export_dims(NA)$dpi, 300)
+
+
+  skip_if_not_installed("ggplot2")
+  # L'INVARIANT, mesure sur les pixels reellement produits (en-tete IHDR) :
+  # monter le DPI ne change pas la mise en page et augmente les pixels.
+  ihdr <- function(f) {
+    b <- readBin(f, "raw", 33)
+    lire <- function(i) sum(as.integer(b[i:(i + 3)]) * c(16777216L, 65536L, 256L, 1L))
+    c(l = lire(17), h = lire(21))
+  }
+  p <- ggplot2::ggplot(data.frame(x = 1:9, y = (1:9)^2), ggplot2::aes(x, y)) +
+    ggplot2::geom_point()
+  px <- lapply(c(150, 300), function(dpi) {
+    w <- 12; h <- 8
+    ech <- min(1, HSTAT_VIZ_MAX_PX / (w * dpi), HSTAT_VIZ_MAX_PX / (h * dpi))
+    f <- tempfile(fileext = ".png"); on.exit(unlink(f), add = TRUE)
+    suppressMessages(ggplot2::ggsave(f, p, device = "png", width = w * ech,
+                                     height = h * ech, units = "in", dpi = dpi,
+                                     bg = "white", limitsize = FALSE))
+    c(ihdr(f), pouces_l = w * ech)
+  })
+  expect_equal(px[[1]][["pouces_l"]], px[[2]][["pouces_l"]])   # mise en page constante
+  expect_gt(px[[2]][["l"]], px[[1]][["l"]])                    # et plus de pixels
+  expect_equal(px[[2]][["l"]] / px[[1]][["l"]], 2, tolerance = 0.02)
+
+  # Le plafond ne joue qu'aux resolutions extremes, la ou ggsave echouerait sur
+  # l'allocation du bitmap -- pas des 600 DPI comme l'escalier.
+  expect_equal(min(1, HSTAT_VIZ_MAX_PX / (12 * 1200)), 1)
+  expect_lt(min(1, HSTAT_VIZ_MAX_PX / (12 * 2400)), 1)
+})
+
+test_that("le code mort retire ne revient pas", {
+  root <- .hstat_repo_root()
+  fs <- list.files(file.path(root, "inst", "app"), pattern = "[.]R$", full.names = TRUE)
+  src <- paste(unlist(lapply(fs, readLines, warn = FALSE)), collapse = "\n")
+
+  # UNE SECTION CHI-DEUX ENTIERE etait calculee sans etre affichee : vingt
+  # sorties et trois telechargements dont le nom n'apparaissait qu'une fois dans
+  # tout le depot. Le chi-deux reellement accessible vit ailleurs dans le meme
+  # fichier ; le risque etait de corriger la copie morte en croyant corriger
+  # l'analyse -- la lecon deja tiree de createPlotDownloadHandler.
+  for (n in c("chiSqGlobalResult", "chiSqPostHocTable", "chiSqPlotMultiple",
+              "chiSqVarCatSelect", "downloadChiSqPHPlot"))
+    expect_false(grepl(paste0("output$", n), src, fixed = TRUE), label = n)
+  # ... et le chi-deux VIVANT est toujours la.
+  expect_true(grepl("chisq.test(", src, fixed = TRUE))
+
+  # Douze fonctions globales n'etaient ni appelees, ni passees en valeur, ni
+  # utilisees comme argument par defaut, ni testees.
+  for (n in c(".hstat_palette_colors", "build_letters_df", "hstat_duckdb_count",
+              "lm_anova_table", "workflow_state", "manova_univariate_followup"))
+    expect_false(grepl(n, src, fixed = TRUE), label = n)
+
+  # Garde-fou inverse, et c'est le plus important : ces cinq-la ETAIENT vivantes,
+  # mais seulement passees en VALEUR (mapply, sapply, breaks =) ou en argument
+  # par defaut. Un balayage qui ne cherche que « nom( » les croit mortes et les
+  # supprime -- ce qui est arrive, et a casse quatre modules.
+  for (n in c("is_categorical", "hstat_i18n_path", "interpret_manova_effect",
+              "interpret_permanova_effect", ".hstat_code_breaks3"))
+    expect_true(grepl(n, src, fixed = TRUE), label = paste("toujours definie :", n))
+})

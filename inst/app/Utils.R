@@ -901,20 +901,6 @@ hstat_p_verdict <- function(p, alpha = 0.05) {
   if (p < alpha) "significatif" else "non significatif"
 }
 
-interpret_p_value <- function(p_value) {
-  if (is.na(p_value)) {
-    return("NA")
-  } else if (p_value < 0.001) {
-    return("Hautement significatif (p < 0.001)")
-  } else if (p_value < 0.01) {
-    return("Très significatif (p < 0.01)")
-  } else if (p_value < 0.05) {
-    return("Significatif (p < 0.05)")
-  } else {
-    return("Non significatif (p >= 0.05)")
-  }
-}
-
 interpret_test_results <- function(test_type, p_value, test_object = NULL) {
   if (is.na(p_value)) return("Résultat non disponible")
   significance <- ifelse(p_value < 0.05, "significative", "non significative")
@@ -1189,23 +1175,6 @@ get_transformation_formula <- function(method) {
          "yeojohnson" = "Yeo-Johnson(x)",
          "arcsin"     = "asin(sqrt(x))",
          "logit"      = "log(x / (1-x))",
-         method
-  )
-}
-
-#' Retourne les conditions d'application d'une transformation
-#' @param method character
-get_transformation_condition <- function(method) {
-  switch(method,
-         "log"        = "x > 0 (strictement positif)",
-         "log1p"      = "x >= 0 (positif ou nul)",
-         "log10"      = "x > 0 (strictement positif)",
-         "sqrt"       = "x >= 0 (positif ou nul)",
-         "cuberoot"   = "Toutes valeurs (accepte les négatifs)",
-         "boxcox"     = "x > 0 (strictement positif) — λ estimé par MV",
-         "yeojohnson" = "Toutes valeurs (accepte les négatifs)",
-         "arcsin"     = "0 <= x <= 1 (proportions)",
-         "logit"      = "0 < x < 1 (taux stricts)",
          method
   )
 }
@@ -2114,158 +2083,6 @@ pairwise_permanova <- function(Y, group, permutations = 999,
 }
 
 
-#' Décomposition univariée d'une MANOVA paramétrique
-#' Lance une ANOVA sur chaque Y (avec mêmes facteurs/interaction)
-#' Applique un ajustement Bonferroni cross-réponses sur les p-values
-#' @param df data.frame (déjà nettoyé)
-#' @param response character — variables réponses
-#' @param factors  character — facteurs
-#' @param interaction logical
-#' @param p_adjust "bonferroni" (défaut)
-#' @return data.frame : Reponse, Effet, ddl, F, p_value, p_adj, eta2_partial, Significatif
-manova_univariate_followup <- function(df, response, factors, interaction = FALSE,
-                                       p_adjust = "bonferroni") {
-  rhs <- paste(sapply(factors, function(x) paste0("`", x, "`")),
-               collapse = ifelse(isTRUE(interaction), "*", "+"))
-  res_all <- list()
-  for (v in response) {
-    fml <- stats::as.formula(paste0("`", v, "` ~ ", rhs))
-    fit <- tryCatch(stats::aov(fml, data = df), error = function(e) NULL)
-    if (is.null(fit)) next
-    tab <- summary(fit)[[1]]
-    eff <- rownames(tab); eff <- trimws(eff)
-    is_resid <- eff == "Residuals"
-    if (!any(is_resid)) next
-    ss_resid <- tab[is_resid, "Sum Sq"]
-    df_resid <- tab[is_resid, "Df"]
-    
-    for (i in which(!is_resid)) {
-      eta2 <- tab[i, "Sum Sq"] / (tab[i, "Sum Sq"] + ss_resid)
-      res_all[[paste(v, eff[i], sep = "_")]] <- data.frame(
-        Reponse  = v,
-        Effet    = eff[i],
-        ddl      = paste0(tab[i, "Df"], ", ", df_resid),
-        F_stat   = tab[i, "F value"],
-        p_value  = tab[i, "Pr(>F)"],
-        eta2_partial = eta2,
-        stringsAsFactors = FALSE
-      )
-    }
-  }
-  if (length(res_all) == 0) return(NULL)
-  out <- do.call(rbind, res_all); rownames(out) <- NULL
-  out$p_adj        <- stats::p.adjust(out$p_value, method = p_adjust)
-  out$Significatif <- ifelse(is.na(out$p_adj), "NA",
-                             ifelse(out$p_adj < 0.05, "Oui", "Non"))
-  out
-}
-
-
-#' Décomposition univariée non paramétrique (Kruskal-Wallis) pour PERMANOVA
-#' Lance KW sur chaque Y x facteur (effets simples, un facteur à la fois)
-#' Ajustement Bonferroni cross-réponses x facteurs
-manova_univariate_followup_np <- function(df, response, factors,
-                                          p_adjust = "bonferroni") {
-  res_all <- list()
-  for (v in response) {
-    for (f in factors) {
-      fml <- stats::as.formula(paste0("`", v, "` ~ `", f, "`"))
-      kw  <- tryCatch(stats::kruskal.test(fml, data = df), error = function(e) NULL)
-      if (is.null(kw)) next
-      n   <- nrow(df[stats::complete.cases(df[, c(v, f)]), , drop = FALSE])
-      eta2_kw <- (kw$statistic - length(unique(df[[f]])) + 1) / (n - length(unique(df[[f]])))
-      eta2_kw <- max(0, as.numeric(eta2_kw))
-      res_all[[paste(v, f, sep = "_")]] <- data.frame(
-        Reponse  = v,
-        Facteur  = f,
-        H_stat   = as.numeric(kw$statistic),
-        ddl      = as.numeric(kw$parameter),
-        p_value  = kw$p.value,
-        eta2_KW  = eta2_kw,
-        stringsAsFactors = FALSE
-      )
-    }
-  }
-  if (length(res_all) == 0) return(NULL)
-  out <- do.call(rbind, res_all); rownames(out) <- NULL
-  out$p_adj        <- stats::p.adjust(out$p_value, method = p_adjust)
-  out$Significatif <- ifelse(is.na(out$p_adj), "NA",
-                             ifelse(out$p_adj < 0.05, "Oui", "Non"))
-  out
-}
-
-
-#' Comparaisons par paires sur les niveaux d'un facteur — univarié paramétrique
-#' Tukey HSD appliqué à chaque variable réponse, ajustement Bonferroni cross-réponses
-#' @param df       data.frame nettoyé
-#' @param response character — variables réponses
-#' @param factor   character — UN facteur
-#' @return data.frame : Reponse, Comparaison, Diff, IC_inf, IC_sup, p_value, p_adj
-manova_pairwise_univariate <- function(df, response, factor_name,
-                                       p_adjust = "bonferroni") {
-  if (length(factor_name) != 1) return(NULL)
-  fvar <- factor_name
-  res_all <- list()
-  for (v in response) {
-    fml <- stats::as.formula(paste0("`", v, "` ~ `", fvar, "`"))
-    fit <- tryCatch(stats::aov(fml, data = df), error = function(e) NULL)
-    if (is.null(fit)) next
-    tk <- tryCatch(stats::TukeyHSD(fit, fvar), error = function(e) NULL)
-    if (is.null(tk)) next
-    tab <- tk[[1]]
-    res_all[[v]] <- data.frame(
-      Reponse     = v,
-      Comparaison = rownames(tab),
-      Diff        = tab[, "diff"],
-      IC_inf      = tab[, "lwr"],
-      IC_sup      = tab[, "upr"],
-      p_value     = tab[, "p adj"],
-      stringsAsFactors = FALSE
-    )
-  }
-  if (length(res_all) == 0) return(NULL)
-  out <- do.call(rbind, res_all); rownames(out) <- NULL
-  out$p_adj        <- stats::p.adjust(out$p_value, method = p_adjust)
-  out$Significatif <- ifelse(is.na(out$p_adj), "NA",
-                             ifelse(out$p_adj < 0.05, "Oui", "Non"))
-  out
-}
-
-
-manova_pairwise_univariate_np <- function(df, response, factor_name,
-                                          p_adjust = "bonferroni") {
-  if (length(factor_name) != 1) return(NULL)
-  fvar <- factor_name
-  res_all <- list()
-  for (v in response) {
-    sub <- df[stats::complete.cases(df[, c(v, fvar)]), c(v, fvar), drop = FALSE]
-    if (nrow(sub) < 4 || nlevels(droplevels(as.factor(sub[[fvar]]))) < 2) next
-    sub[[fvar]] <- droplevels(as.factor(sub[[fvar]]))
-    dn <- tryCatch(
-      FSA::dunnTest(sub[[v]], sub[[fvar]], method = "bonferroni"),
-      error = function(e) NULL
-    )
-    if (is.null(dn)) next
-    tab <- dn$res
-    res_all[[v]] <- data.frame(
-      Reponse     = v,
-      Comparaison = as.character(tab$Comparison),
-      Z_stat      = as.numeric(tab$Z),
-      p_value     = as.numeric(tab$P.unadj),
-      p_dunn_bonf = as.numeric(tab$P.adj),
-      stringsAsFactors = FALSE
-    )
-  }
-  if (length(res_all) == 0) return(NULL)
-  out <- do.call(rbind, res_all); rownames(out) <- NULL
-  # Ajustement cross-réponses (en plus du Dunn intra-réponse déjà bonferroni)
-  out$p_adj        <- stats::p.adjust(out$p_value, method = p_adjust)
-  out$Significatif <- ifelse(is.na(out$p_adj), "NA",
-                             ifelse(out$p_adj < 0.05, "Oui", "Non"))
-  out
-}
-
-
 #' Box's M par facteur (applique box_m_test à chaque facteur d'un design)
 #' @return data.frame : Facteur, Chi2, ddl, p_value, Conclusion (NULL si aucun)
 boxm_per_factor <- function(Y, df, factors) {
@@ -2318,46 +2135,6 @@ build_pvalue_matrix <- function(pairs_df, levels) {
   }
   diag(pmat) <- 1
   pmat
-}
-
-
-#' Construit le data.frame des lettres CLD pour un facteur
-#' Si Y est fourni, ajoute des colonnes Moyenne ± Ecart-type et Moyenne ± Erreur-type
-#' (calculees sur la norme multivariee : sqrt(sum(Yi^2)) pour chaque observation).
-#' @param pairs_df output de pairwise_permanova
-#' @param group    facteur
-#' @param Y        (optionnel) matrice des reponses pour calculer moyennes par groupe
-#' @param digits   nombre de decimales pour le formatage (defaut : 3)
-#' @return data.frame : Niveau, N, Groupes [, Moyenne_pm_SD, Moyenne_pm_SE]
-build_letters_df <- function(pairs_df, group, Y = NULL, digits = 3) {
-  group <- as.factor(group)
-  levs  <- levels(group)
-  if (is.null(pairs_df) || nrow(pairs_df) == 0) return(NULL)
-  pmat <- build_pvalue_matrix(pairs_df, levs)
-  cld <- tryCatch(multcompView::multcompLetters(pmat, threshold = 0.05)$Letters,
-                  error = function(e) stats::setNames(rep("a", length(levs)), levs))
-  n_per <- as.numeric(table(group))[match(levs, names(table(group)))]
-  out <- data.frame(
-    Niveau   = levs,
-    N        = n_per,
-    Groupes  = as.character(cld[levs]),
-    stringsAsFactors = FALSE
-  )
-  
-  if (!is.null(Y)) {
-    Y <- as.matrix(Y)
-    score <- sqrt(rowSums(Y^2))
-    means <- vapply(levs, function(lv) mean(score[group == lv], na.rm = TRUE), numeric(1))
-    sds   <- vapply(levs, function(lv) stats::sd(score[group == lv], na.rm = TRUE), numeric(1))
-    ses   <- sds / sqrt(pmax(n_per, 1))
-    fmt   <- function(m, s) ifelse(is.na(m) | is.na(s), "NA",
-                                   paste0(formatC(m, digits = digits, format = "f"),
-                                          " \u00b1 ",
-                                          formatC(s, digits = digits, format = "f")))
-    out$`Moyenne_pm_SD` <- paste0(fmt(means, sds), " ", out$Groupes)
-    out$`Moyenne_pm_SE` <- paste0(fmt(means, ses), " ", out$Groupes)
-  }
-  out
 }
 
 
@@ -2799,28 +2576,6 @@ permanova_simple_effects <- function(df, response, fixed, tested,
 }
 
 
-#' Resume l'etat actuel de l'analyse multivariee pour la frise de workflow
-#' @return liste de booleens decrivant chaque etape du workflow
-workflow_state <- function(values) {
-  detect_interaction <- function(df, effet_col, p_col) {
-    if (is.null(df)) return(FALSE)
-    inter <- grepl(":", df[[effet_col]])
-    any(inter) && any(df[[p_col]][inter] < 0.05, na.rm = TRUE)
-  }
-  list(
-    has_data        = !is.null(values$filteredData),
-    has_diagnostic  = !is.null(values$manovaMardia) || !is.null(values$manovaBoxM),
-    has_test        = !is.null(values$manovaParamResults) || !is.null(values$manovaPermanovaResults),
-    has_posthoc     = !is.null(values$manovaMultiPostHoc),
-    is_param        = !is.null(values$manovaParamResults),
-    is_nonparam     = !is.null(values$manovaPermanovaResults),
-    has_interaction = detect_interaction(values$manovaParamResults, "Effet", "p_Pillai") ||
-      detect_interaction(values$manovaPermanovaResults, "Effet", "p_value")
-  )
-}
-
-
-
 #' Identifie les predicteurs categoriels dans un modele lm/glm
 #' @param model modele lm ou glm ajuste
 #' @return character vector des noms des predicteurs categoriels
@@ -2927,31 +2682,6 @@ lm_cld_letters <- function(model, predictor, adjust = "tukey", digits = 3) {
   df_out
 }
 
-
-#' Test de Type II (ou Type III) pour un modele lm/glm
-#' @param model modele
-#' @param type 2 ou 3
-#' @return data.frame avec colonnes : Predicteur, Chi2|F, ddl, p_value
-lm_anova_table <- function(model, type = 2) {
-  if (!requireNamespace("car", quietly = TRUE)) {
-    res <- tryCatch(stats::anova(model), error = function(e) return(NULL))
-    if (is.null(res)) return(NULL)
-    df_out <- as.data.frame(res)
-    df_out$Predicteur <- rownames(df_out)
-    return(df_out)
-  }
-  res <- tryCatch(car::Anova(model, type = type), error = function(e) NULL)
-  if (is.null(res)) return(NULL)
-  df_out <- as.data.frame(res)
-  df_out$Predicteur <- rownames(df_out)
-  df_out <- df_out[df_out$Predicteur != "Residuals", , drop = FALSE]
-  pcol <- intersect(c("Pr(>F)", "Pr(>Chisq)"), names(df_out))
-  if (length(pcol) > 0) {
-    df_out$Significatif <- ifelse(is.na(df_out[[pcol[1]]]), "NA",
-                                  ifelse(df_out[[pcol[1]]] < 0.05, "Oui", "Non"))
-  }
-  df_out
-}
 
 # Helpers transverses : arrondi global et coloration des groupes posthoc
 
@@ -4409,51 +4139,6 @@ hstat_read_csv_mem <- function(path, header = TRUE, sep = ",") {
   hstat_df_to_utf8(df)
 }
 
-# -- Lecture des EN-TETES uniquement (pour peupler les menus de fusion) --------
-# Ne lit que les noms de colonnes, sans charger les donnees, afin d'eviter de
-# saturer la memoire quand l'utilisateur selectionne plusieurs gros fichiers.
-hstat_read_header_mem <- function(path, sep = ",") {
-  ext <- tolower(tools::file_ext(path))
-  tryCatch({
-    if (ext %in% c("csv", "txt", "tsv")) {
-      s <- if (ext == "tsv") "\t" else sep
-      # Lecture ultra-defensive de la 1re ligne. On lit en BINAIRE puis on convertit,
-      # ce qui evite a la fois les plantages et la TRONCATURE des fichiers Latin-1
-      # (une connexion UTF-8 s'arreterait au 1er octet invalide).
-      first <- tryCatch({
-        bytes <- readBin(path, "raw", n = 65536L)
-        nl <- which(bytes == as.raw(0x0A))[1]          # 1re fin de ligne
-        if (!is.na(nl)) bytes <- bytes[seq_len(nl - 1L)]
-        line <- rawToChar(bytes[bytes != as.raw(0x0D)]) # retire les \r
-        hstat_to_utf8(line)
-      }, error = function(e) "")
-      if (length(first) == 0 || !nzchar(first)) return(NULL)
-      first <- sub("^\ufeff", "", first)
-      parts <- strsplit(first, s, fixed = TRUE)[[1]]
-      parts <- trimws(gsub('^"|"$', '', parts))
-      parts <- parts[nzchar(parts)]
-      if (length(parts) == 0) return(NULL)
-      make.unique(hstat_to_utf8(parts))
-    } else if (ext %in% c("xlsx", "xls")) {
-      names(as.data.frame(readxl::read_excel(path, sheet = 1, n_max = 1)))
-    } else if (ext == "rds") {
-      names(as.data.frame(readRDS(path)))
-    } else if (ext == "sav") {
-      names(as.data.frame(haven::read_sav(path, n_max = 1)))
-    } else if (ext == "dta") {
-      names(as.data.frame(haven::read_dta(path, n_max = 1)))
-    } else {
-      con <- file(path, "r", encoding = "UTF-8")
-      on.exit(try(close(con), silent = TRUE), add = TRUE)
-      first <- readLines(con, n = 1, warn = FALSE)
-      if (length(first) == 0) return(NULL)
-      first <- sub("^\ufeff", "", first)
-      parts <- trimws(gsub('^"|"$', '', strsplit(first, sep, fixed = TRUE)[[1]]))
-      make.unique(parts[nzchar(parts)])
-    }
-  }, error = function(e) NULL)
-}
-
 # -- Assainissement d'encodage : garantit des chaines UTF-8 valides -----------
 # Les CSV generes sous Windows/Excel en francais sont souvent en Latin-1/CP1252.
 # Lus comme UTF-8, ils contiennent des octets invalides qui font planter nchar(),
@@ -5072,15 +4757,6 @@ hstat_duckdb_cor <- function(con, tbl, num_vars) {
   }
   m
 }
-
-# -- Comptage exact de lignes apres filtre SQL (optionnel) -------------------
-hstat_duckdb_count <- function(con, tbl, where = NULL) {
-  sql <- sprintf("SELECT COUNT(*) AS n FROM %s", hstat_sql_ident(tbl))
-  if (!is.null(where) && nzchar(where)) sql <- paste0(sql, " WHERE ", where)
-  as.numeric(DBI::dbGetQuery(con, sql)$n[1])
-}
-
-
 
 # Graine par defaut de l'application (modifiable par l'utilisateur dans l'UI).
 HSTAT_DEFAULT_SEED <- 123L
@@ -5837,6 +5513,35 @@ HSTAT_EXPORT_REF_DPI <- 96
 # fine. On abaisse le DPI et on le DIT -- un export silencieusement degrade
 # serait pire que le refus.
 HSTAT_EXPORT_MAX_PX <- 20000L
+
+# Plafond propre a l'export de l'onglet Visualisation, ou la taille physique
+# est fixe et seul le DPI varie : au-dela, `ggsave` echoue sur l'allocation du
+# bitmap et l'utilisateur n'obtient AUCUN fichier.
+HSTAT_VIZ_MAX_PX <- 16000
+
+# Dimensions d'export de l'onglet Visualisation, EN UN SEUL ENDROIT.
+#
+# Le calcul vivait en deux exemplaires : dans le telechargement, et dans le
+# panneau qui ANNONCE a l'utilisateur ce que le fichier contiendra. Deux copies
+# d'une meme regle finissent par diverger -- corriger l'une sans l'autre ferait
+# annoncer 6 x 4 pouces pour un fichier de 12 x 8.
+#
+# La taille physique est FIXE : le DPI ne multiplie que la finesse. Un escalier
+# la reduisait a mesure que le DPI montait (12 x 8 jusqu'a 600 DPI, 6 x 4
+# au-dela de 5000) : demander plus de finesse rendait l'image plus PETITE sur
+# le papier. Seul le plafond de pixels peut encore la reduire, la ou l'export
+# echouerait sinon.
+hstat_viz_export_dims <- function(dpi, base_w = 12, base_h = 8,
+                                  max_px = HSTAT_VIZ_MAX_PX) {
+  d <- suppressWarnings(as.numeric(dpi)[1])
+  if (!isTRUE(is.finite(d)) || d <= 0) d <- 300
+  d <- max(72, min(20000, d))
+  ech <- min(1, max_px / (base_w * d), max_px / (base_h * d))
+  w <- base_w * ech; h <- base_h * ech
+  list(dpi = d, width = w, height = h,
+       px_w = round(w * d), px_h = round(h * d), plafonne = ech < 1)
+}
+
 
 hstat_export_dims <- function(width_px, height_px, dpi,
                               ref = HSTAT_EXPORT_REF_DPI,

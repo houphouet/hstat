@@ -404,6 +404,59 @@ contiendra — « 6000 × 4500 px, soit 25,4 × 19,0 cm à 600 DPI ». Les centi
 sont l'invariant : ils ne bougent pas d'une résolution à l'autre, et c'est
 précisément ce qu'il faut comprendre.
 
+### Onglet Visualisation : la résolution ne rétrécit pas la figure
+
+Un escalier y réduisait la taille physique à mesure que le DPI montait — 12 × 8
+pouces jusqu'à 600 DPI, mais **6 × 4 au-delà de 5000**. Demander plus de finesse
+rendait donc l'image plus *petite* sur le papier : le défaut s'aggravait dans le
+sens où l'utilisateur cherchait à l'éviter. Le même escalier avait déjà été
+retiré des analyses multivariées (`calculate_dimensions_from_dpi`) ; il avait
+survécu ici, dans l'onglet le plus utilisé pour les graphiques.
+
+La taille physique est fixe, le DPI ne multiplie que la finesse. Mesuré sur les
+pixels réellement produits : 3600 × 2400 à 300 DPI, 7200 × 4800 à 600,
+14 400 × 9600 à 1200 — la mise en page ne bouge pas.
+
+Seul `HSTAT_VIZ_MAX_PX` (16 000 px de côté) peut encore la réduire, là où
+`ggsave` échouerait sur l'allocation du bitmap et où l'utilisateur n'obtiendrait
+**aucun** fichier. Cela ne joue qu'au-delà de 1200 DPI, quand l'escalier agissait
+dès 600.
+
+**Le calcul vivait en deux exemplaires** : le téléchargement, et le panneau qui
+*annonce* ce que le fichier contiendra. Corriger l'un sans l'autre aurait fait
+annoncer 6 × 4 pouces pour un fichier de 12 × 8 — c'est un test qui l'a
+rattrapé. `hstat_viz_export_dims()` est désormais la seule source, appelée des
+deux côtés.
+
+La **qualité JPEG** et la **compression TIFF** étaient déclarées dans l'interface
+et lues nulle part : deux réglages que l'utilisateur déplaçait sans effet. Ils
+sont branchés.
+
+### Chercher du code mort : `nom(` ne suffit pas
+
+Un balayage qui ne cherche que les *appels* croit mortes les fonctions passées
+**en valeur** (`sapply(df, is_categorical)`, `mapply(interpret_manova_effect, …)`,
+`breaks = .hstat_code_breaks3`) et celles utilisées comme **argument par défaut**
+(`path = hstat_i18n_path()`, qui vit sur la ligne de définition d'une *autre*
+fonction). Cinq modules ont été cassés ainsi avant que la vérification ne le
+signale.
+
+Le critère juste est celui du nom nu : une fonction est morte si son nom
+n'apparaît **qu'une seule fois** dans tout le dépôt — sa propre définition. Douze
+l'étaient, elles ont été retirées ; un test empêche leur retour **et** garde les
+cinq fausses mortes.
+
+Même critère pour les sorties : vingt sorties `chiSq*` et trois téléchargements
+étaient calculés sans être affichés nulle part, alors que le chi-deux réellement
+accessible vit ailleurs dans le même fichier. Le risque n'était pas le poids,
+c'était de corriger la copie morte en croyant corriger l'analyse — la leçon déjà
+tirée de `createPlotDownloadHandler`.
+
+Attention au faux positif symétrique : une sortie **placée dynamiquement**
+(`uiOutput(paste0("mv_", key, "_controls"))`) n'apparaît qu'une fois elle aussi.
+Il faut vérifier que le module ne construit aucun identifiant — c'est le cas de
+`mod_tests.R`, ce n'est pas celui de `UX.R`.
+
 ### Plotmath ne survit pas à `ggplotly`
 
 Les étiquettes d'axe en gras passent par `bquote(bold(...))` : `ggsave` les
