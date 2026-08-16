@@ -285,6 +285,26 @@ ui <- dashboardPage(
       # restaient poses sur le contenu, coupe a gauche sur tous les onglets.
       # Une regle responsive dispersee en deux endroits finit par se
       # contredire ; il n'y en a plus qu'un.
+      # Sur telephone, le menu est un TIROIR : il se referme des qu'on choisit
+      # une entree ou qu'on touche le contenu, comme partout ailleurs. Sans
+      # cela il reste ouvert PAR-DESSUS les resultats -- on ouvre le menu, on
+      # choisit un onglet, et l'on ne voit plus ce qu'on etait venu lire. Il
+      # faut alors retrouver le bouton, lui aussi recouvert.
+      #
+      # Les evenements de Shiny passent par jQuery : `$(document).on` et non
+      # `document.addEventListener`, qui ne les voit jamais.
+      tags$script(HTML("
+        (function(){
+          var TIROIR = 991;
+          function fermer(){
+            if (window.innerWidth <= TIROIR) {
+              document.body.classList.remove('sidebar-open');
+            }
+          }
+          $(document).on('click', '.sidebar-menu a', fermer);
+          $(document).on('click touchstart', '.content-wrapper', fermer);
+        })();
+      ")),
       tags$script(HTML("
         Shiny.addCustomMessageHandler('expandBox', function(boxId) {
           var wrap = document.getElementById(boxId);
