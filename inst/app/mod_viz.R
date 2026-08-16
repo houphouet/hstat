@@ -3898,14 +3898,12 @@ mod_viz_server <- function(id, values) {
     if (is.null(dpi) || is.na(dpi)) dpi <- 300
     dpi <- max(300, min(20000, dpi))
     
-    if (dpi <= 600) { w <- 12; h <- 8 }
-    else if (dpi <= 1200) { w <- 10; h <- 6.67 }
-    else if (dpi <= 2400) { w <- 8; h <- 5.33 }
-    else if (dpi <= 5000) { w <- 7; h <- 4.67 }
-    else { w <- 6; h <- 4 }
-    
-    px_w <- round(w * dpi)
-    px_h <- round(h * dpi)
+    # Meme calcul que le telechargement, par la meme fonction : ce panneau
+    # ANNONCE ce que le fichier contiendra, il ne doit pas le recalculer.
+    dims <- hstat_viz_export_dims(dpi)
+    w <- dims$width; h <- dims$height
+    px_w <- dims$px_w
+    px_h <- dims$px_h
     
     div(
       style = "padding: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
@@ -3959,12 +3957,13 @@ mod_viz_server <- function(id, values) {
       if (is.null(dpi) || is.na(dpi)) dpi <- 300
       dpi <- as.integer(max(300, min(20000, dpi)))
       
-      if (dpi <= 600) { w <- 12; h <- 8 }
-      else if (dpi <= 1200) { w <- 10; h <- 6.67 }
-      else if (dpi <= 2400) { w <- 8; h <- 5.33 }
-      else if (dpi <= 5000) { w <- 7; h <- 4.67 }
-      else { w <- 6; h <- 4 }
-      
+      # LA RESOLUTION NE DOIT PAS RETRECIR LA FIGURE : la taille physique est
+      # fixe, le DPI ne multiplie que la finesse. Le calcul est partage avec le
+      # panneau qui l'annonce (hstat_viz_export_dims), sans quoi les deux
+      # divergeraient a la premiere correction.
+      dims <- hstat_viz_export_dims(dpi)
+      w <- dims$width; h <- dims$height
+
       ext <- switch(fmt,
                     "jpeg" = "jpg",
                     "tiff" = "tif",
@@ -3974,16 +3973,18 @@ mod_viz_server <- function(id, values) {
       
       while(length(dev.list()) > 0) try(dev.off(), silent = TRUE)
       
-      ggplot2::ggsave(
-        filename = temp_file,
-        plot = p,
-        device = fmt,
-        width = w,
-        height = h,
-        units = "in",
-        dpi = dpi,
-        bg = "white"
-      )
+      # La qualite JPEG et la compression TIFF sont proposees a l'utilisateur :
+      # elles etaient declarees dans l'interface et n'etaient LUES nulle part.
+      # Un reglage qu'on deplace sans effet est pire qu'un reglage absent --
+      # on croit avoir agi.
+      args_ggsave <- list(filename = temp_file, plot = p, device = fmt,
+                          width = w, height = h, units = "in", dpi = dpi,
+                          bg = "white", limitsize = FALSE)
+      if (identical(fmt, "jpeg"))
+        args_ggsave$quality <- as.integer(hstat_finite(input$jpegQuality, 95))
+      if (identical(fmt, "tiff"))
+        args_ggsave$compression <- input$tiffCompression %||% "lzw"
+      do.call(ggplot2::ggsave, args_ggsave)
       
       if (!file.exists(temp_file)) {
         showNotification("Erreur: Le fichier n'a pas pu être créé", type = "error", duration = 5)

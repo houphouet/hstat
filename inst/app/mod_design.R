@@ -1308,28 +1308,6 @@ hstat_design_analysis <- function(type, n_factors) {
   g
 }
 
-# Convertit un nom de palette + un nombre de niveaux en vecteur de couleurs.
-# Reutilisable pour F1 (grandes parcelles), F2 (bandeau) et F3 (cellules).
-.hstat_palette_colors <- function(pal, n, levels_names = NULL) {
-  n <- max(1L, as.integer(n))
-  cols <- if (pal == "default") {
-    grDevices::hcl(h = seq(15, 375, length.out = n + 1)[seq_len(n)], c = 100, l = 65)
-  } else if (pal == "grey") {
-    grDevices::grey.colors(n, start = 0.3, end = 0.9)
-  } else if (pal == "viridis") {
-    grDevices::hcl.colors(n, "viridis")
-  } else {
-    maxc <- switch(pal, "Set2" = 8, "Dark2" = 8, "Paired" = 12, "Spectral" = 11,
-                   "Pastel1" = 9, 8)
-    base <- tryCatch(RColorBrewer::brewer.pal(min(maxc, max(3, n)), pal),
-                     error = function(e) grDevices::hcl.colors(max(3, n), "Set2"))
-    grDevices::colorRampPalette(base)(n)
-  }
-  if (!is.null(levels_names) && length(levels_names) == length(cols))
-    names(cols) <- levels_names
-  cols
-}
-
 # Construit les representations FACETTEES (un panneau par bloc/replique) pour les
 # dispositifs split-plot, strip-plot et alpha-lattice, conformes aux conventions
 # agronomiques de reference.
