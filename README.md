@@ -415,7 +415,6 @@ next" suggestion rather than a verdict.
 │   │   ├── mod_ml.R
 │   │   ├── mod_qualitative.R
 │   │   ├── mod_report.R            # automatic report (HTML / Word / PDF)
-│   │   ├── mod_tests.R
 │   │   ├── mod_threshold.R
 │   │   ├── mod_timeseries.R
 │   │   ├── mod_viz.R
@@ -455,6 +454,7 @@ next" suggestion rather than a verdict.
 ├── NAMESPACE
 ├── R
 │   ├── _disable_autoload.R         # stops Shiny sourcing R/ into the app environment
+│   ├── mod_tests.R                 # migrated module: UI + server, testable in isolation
 │   ├── run_hstat.R                 # run_hstat(): installs missing packages, then launches
 │   ├── utils.R                     # shared engine: definitions only, no side effect at load
 │   └── zzz.R                       # startup message with the citation
@@ -477,7 +477,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.41.1. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.41.2. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -485,7 +485,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.41.1},
+  note   = {Version 0.41.2},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

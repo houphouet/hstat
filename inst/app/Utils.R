@@ -31,7 +31,17 @@
   cands <- file.path(rel, "R", "utils.R")
   hit <- cands[file.exists(cands)]
   if (length(hit)) {
-    sys.source(hit[1], envir = envir, keep.source = FALSE)
+    dossier <- dirname(hit[1])
+    # `utils.R` d'abord -- non par dependance de chargement (les modules ne font
+    # que definir), mais parce que c'est le socle et que le lire en premier rend
+    # l'ordre lisible. LES AUTRES FICHIERS DU PAQUET SONT CHARGES SANS ORDRE :
+    # c'est precisement ce que la migration fait gagner. `run_hstat.R` et
+    # `zzz.R` restent dehors -- ils appartiennent au paquet, pas a
+    # l'application, et `_disable_autoload.R` n'existe que pour Shiny.
+    a_part <- c("utils.R", "run_hstat.R", "zzz.R", "_disable_autoload.R")
+    autres <- setdiff(basename(list.files(dossier, pattern = "[.][Rr]$")), a_part)
+    for (f in c("utils.R", sort(autres)))
+      sys.source(file.path(dossier, f), envir = envir, keep.source = FALSE)
     return(invisible("sources"))
   }
   # Paquet installe : la couche R n'existe plus sous forme de fichier, on
@@ -103,92 +113,8 @@ hstat_load_model_packages()
 em     <- shiny::em
 margin <- ggplot2::margin
 
-# shinycssloaders::withSpinner -> renvoie l'output tel quel si absent
-if (!exists("withSpinner") && !.hstat_has("shinycssloaders")) {
-  withSpinner <- function(ui_element, ...) ui_element
-}
-
-# plotly : sorties/rendu -> repli sur plotOutput/renderPlot statiques.
-
-if (!.hstat_has("plotly")) {
-  if (!exists("plotlyOutput"))
-    plotlyOutput <- function(outputId, width = "100%", height = "400px", ...)
-      shiny::plotOutput(outputId, width = width, height = height)
-  if (!exists("ggplotly")) ggplotly <- function(p, ...) p
-  # layout()/config() en no-op : renvoient l'objet graphique tel quel.
-
-  layout <- function(p, ...) p
-  config <- function(p, ...) p
-  # Ne PAS redefinir %>% si un vrai pipe (magrittr via dplyr) existe deja : un repli
-  # naif `rhs(lhs)` perdrait les arguments (p %>% layout(x=1) deviendrait layout(p)).
-  if (!exists("%>%")) {
-    if (.hstat_has("magrittr")) {
-      `%>%` <- magrittr::`%>%`
-    } else {
-      # Repli minimal correct : insere lhs comme 1er argument de l'appel rhs.
-      `%>%` <- function(lhs, rhs) {
-        rc <- substitute(rhs)
-        if (is.call(rc)) {
-          new <- as.call(c(rc[[1]], substitute(lhs), as.list(rc)[-1]))
-          eval(new, parent.frame())
-        } else rhs(lhs)
-      }
-    }
-  }
-  if (!exists("renderPlotly"))
-    renderPlotly <- function(expr, ...) {
-      q <- substitute(expr)
-      pf <- parent.frame()
-      shiny::renderPlot({
-        val <- eval(q, envir = pf)
-        if (inherits(val, c("ggplot", "gg"))) print(val)
-        else if (inherits(val, "grob")) grid::grid.draw(val)
-        else val
-      })
-    }
-}
-
-# colourpicker::colourInput -> textInput de repli 
-if (!.hstat_has("colourpicker")) {
-  colourInput <- function(inputId, label, value = "#000000", ...)
-    shiny::textInput(inputId, label, value = value)
-}
-
-# shinyWidgets : pickerInput / radioGroupButtons -> equivalents shiny de base
-if (!.hstat_has("shinyWidgets")) {
-  if (!exists("pickerInput"))
-    pickerInput <- function(inputId, label = NULL, choices, selected = NULL,
-                            multiple = FALSE, options = NULL, choicesOpt = NULL, ...)
-      shiny::selectInput(inputId, label, choices = choices, selected = selected,
-                         multiple = multiple)
-  if (!exists("radioGroupButtons"))
-    radioGroupButtons <- function(inputId, label = NULL, choices = NULL,
-                                  selected = NULL, ...)
-      shiny::radioButtons(inputId, label, choices = choices,
-                          selected = selected %||% NULL, inline = TRUE)
-  if (!exists("updatePickerInput"))
-    updatePickerInput <- function(session, inputId, ..., choices = NULL,
-                                  selected = NULL)
-      shiny::updateSelectInput(session, inputId, choices = choices,
-                               selected = selected)
-}
-
-# sortable::rank_list -> selecteur multiple ordonne de repli
-if (!.hstat_has("sortable") && !exists("rank_list")) {
-  rank_list <- function(text = NULL, labels = NULL, input_id, ...)
-    shiny::selectInput(input_id, label = text, choices = labels,
-                       selected = labels, multiple = TRUE)
-}
-
-# Le nettoyage est pose sur `renderPlotly` lui-meme plutot qu'a chacun des
-# appels : les corps de ces sorties comportent plusieurs `return()`, et un
-# habillage de l'expression serait purement et simplement saute par le premier
-# d'entre eux. `exprToFunction` transforme le bloc en fonction — le `return()`
-# en sort alors normalement, et la valeur passe bien par le nettoyage.
-if (.hstat_has("plotly")) {
-  renderPlotly <- function(expr, env = parent.frame(), quoted = FALSE) {
-    fn <- shiny::exprToFunction(expr, env, quoted)
-    plotly::renderPlotly(hstat_plotly_clean(fn()),
-                         env = environment(), quoted = FALSE)
-  }
-}
+# --- Replis des paquets d'interface optionnels -------------------------------
+# Leur DEFINITION vit dans le socle (`hstat_installer_replis_ui`) ; ce qui reste
+# ici, c'est la DECISION de les installer, qui depend de ce qui est present sur
+# cette machine-ci.
+hstat_installer_replis_ui()

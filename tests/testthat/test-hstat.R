@@ -20,6 +20,15 @@
 
 library(testthat)
 
+# `shiny` est ATTACHE explicitement. Le socle (`R/utils.R`) appelle des
+# fonctions de Shiny sans prefixe -- il vient de l'application, ou Shiny est
+# attache. Tant que les tests sourcaient l'ancien `Utils.R`, l'attachement
+# arrivait par effet de bord de `install_and_load()` ; le socle etant desormais
+# inerte, cet effet a disparu et un test dependait donc de l'ORDRE d'execution
+# des autres. Le dire ici vaut mieux que de le subir.
+if (isTRUE(requireNamespace("shiny", quietly = TRUE)))
+  suppressMessages(library(shiny))
+
 # -- Charger uniquement les fonctions utilitaires (sans demarrer l'app) -------
 # On source Utils.R dans un environnement isole. install_and_load() peut
 # tenter de charger des packages ; on neutralise cet effet pour les tests.
@@ -135,6 +144,39 @@ local({
 #
 # Ce decoupage etait recopie a l'identique dans deux balayages ; il n'existe
 # desormais qu'ici -- c'est la meme regle que celle appliquee a l'application.
+# -- Toutes les sources de l'application -------------------------------------
+# La migration vers le paquet deplace les modules un a un : le socle et les
+# modules migres vivent dans `R/`, les autres encore dans `inst/app/`. Un
+# balayage qui n'enumererait qu'un seul dossier CESSERAIT DE VOIR le code migre
+# -- et passerait au vert en ne regardant plus rien. Tous les balayages passent
+# donc par ici.
+.hstat_sources_app <- function() {
+  root <- .hstat_repo_root()
+  if (is.na(root)) return(character(0))
+  # `list.files()` et non `.hstat_sources_app()` : la substitution mecanique qui a
+  # recale les balayages avait touche CE CORPS, et la fonction s'appelait
+  # elle-meme -- « C stack usage is too close to the limit ». Meme piege que
+  # celui documente pour les reactifs de l'application.
+  c(list.files(file.path(root, "inst", "app"), pattern = "[.]R$", full.names = TRUE),
+    file.path(root, "R", "utils.R"),
+    list.files(file.path(root, "R"), pattern = "^mod_.*[.]R$", full.names = TRUE))
+}
+
+# -- Chemin d'un fichier de MODULE -------------------------------------------
+# La migration vers le paquet se fait module par module : `mod_tests.R` vit
+# desormais dans `R/`, les autres encore dans `inst/app/`. Les tests qui lisent
+# un module doivent donc le CHERCHER, pas presumer de son dossier -- sinon
+# chaque migration casserait une poignee de tests sans rapport avec elle.
+.hstat_module_path <- function(nom) {
+  root <- .hstat_repo_root()
+  if (is.na(root)) return(NA_character_)
+  cands <- c(file.path(root, "R", nom),
+             file.path(root, "R", tolower(nom)),
+             file.path(root, "inst", "app", nom))
+  hit <- cands[file.exists(cands)]
+  if (length(hit)) hit[1] else NA_character_
+}
+
 .hstat_code_lignes <- function(f) {
   lignes <- readLines(f, warn = FALSE, encoding = "UTF-8")
   pd <- tryCatch(utils::getParseData(parse(f, keep.source = TRUE)),
@@ -2549,8 +2591,7 @@ test_that("le bandeau de guidage ne revient nulle part", {
   # retires ; ce test barre leur reintroduction, y compris par un identifiant
   # `aihint_*` reste dans une interface.
   root <- .hstat_repo_root()
-  src  <- list.files(file.path(root, "inst", "app"), pattern = "\\.R$",
-                     full.names = TRUE)
+  src  <- .hstat_sources_app()
   txt  <- unlist(lapply(src, readLines, warn = FALSE))
   code <- txt[!grepl("^\\s*#", txt)]           # les commentaires en parlent encore
   for (motif in c("aihint_", "hstat_ai_hint_slot", "hstat_ai_with_hint",
@@ -2564,9 +2605,7 @@ test_that("le bandeau de guidage ne revient nulle part", {
 })
 
 test_that("toutes les familles d'analyse deposent un contexte", {
-  root <- file.path(.hstat_repo_root(), "inst", "app")
-  src <- unlist(lapply(list.files(root, pattern = "\\.R$", full.names = TRUE),
-                       readLines, warn = FALSE))
+  src <- unlist(lapply(.hstat_sources_app(), readLines, warn = FALSE))
   src <- src[!grepl("^\\s*#", src)]
   pose <- unique(unlist(regmatches(
     src, gregexpr('hstat_ai_capture\\(values, "[^"]+"', src))))
@@ -2608,16 +2647,16 @@ test_that("aucune installation de paquet ne part du corps du serveur", {
   #
   # L'installation appartient au demarrage : `install_and_load()` et
   # `hstat_load_model_packages()` (Utils.R), appeles une fois au source.
-  for (f in c("app_server.R", "UX.R", "mod_tests.R", "mod_viz.R", "mod_ml.R",
-              "mod_dl.R", "mod_timeseries.R", "mod_qualitative.R",
-              "mod_design.R", "mod_clean.R", "mod_explore.R", "mod_filter.R",
-              "mod_descriptive.R", "mod_threshold.R", "mod_coding.R",
-              "mod_ai.R", "mod_report.R")) {
+  # Le socle est ecarte : `install_and_load()` y vit, et c'est son domicile
+  # legitime. Ce que le test interdit, c'est une installation lancee par le CODE
+  # DE L'APPLICATION -- interface, serveur, modules.
+  fichiers <- setdiff(.hstat_sources_app(), file.path(root, "R", "utils.R"))
+  for (chemin in fichiers) {
+    f <- basename(chemin)
     # Le motif vise un APPEL, pas une mention : plusieurs messages indiquent a
     # l'utilisateur la commande d'installation, et les compter ferait echouer le
     # test sur une phrase d'aide. On passe donc par l'analyseur de R, qui
     # distingue un appel de fonction d'une chaine de caracteres.
-    chemin <- file.path(root, "inst", "app", f)
     pd <- utils::getParseData(parse(chemin, keep.source = TRUE))
     appels <- pd$text[pd$token == "SYMBOL_FUNCTION_CALL"]
     expect_false("install.packages" %in% appels, info = f)
@@ -2639,7 +2678,7 @@ test_that("une date est un facteur de periode valide, et il est chronologique", 
   # que facteurs, chaines et numeriques a peu de modalites : une colonne `Date`
   # n'est aucun des trois et n'apparaissait donc jamais dans la liste -- alors
   # que l'exemple affiche sous le champ annonce « date ».
-  l <- .hstat_code_lignes(file.path(root, "inst", "app", "mod_tests.R"))
+  l <- .hstat_code_lignes(.hstat_module_path("mod_tests.R"))
   i <- grep("fac_cols <- names\\(df\\)\\[sapply", l)
   expect_gt(length(i), 0L)
   fenetre <- paste(l[max(1L, i[1] - 6L):(i[1] + 3L)], collapse = " ")
@@ -2695,12 +2734,20 @@ test_that("aucun identifiant n'est declare deux fois dans la page", {
   ok <- tryCatch({
     suppressMessages(suppressWarnings({
       old <- setwd(app); on.exit(setwd(old), add = TRUE)
-      for (f in c("Utils.R", "mod_ai.R", "mod_report.R", "mod_coding.R",
+      # Le socle et les modules MIGRES viennent de `R/`, les autres de
+      # `inst/app/`. Enumerer les deux dossiers plutot qu'une liste de noms :
+      # sinon chaque migration ferait SKIPPER ce test au lieu de l'executer, et
+      # un test saute ressemble a un test qui passe.
+      socle <- file.path(root, "R")
+      for (f in c(file.path(socle, "utils.R"),
+                  list.files(socle, pattern = "^mod_.*[.]R$", full.names = TRUE)))
+        try(sys.source(f, e), silent = TRUE)
+      for (f in c("mod_ai.R", "mod_report.R", "mod_coding.R",
                   "mod_qualitative.R", "mod_clean.R", "mod_descriptive.R",
                   "mod_design.R", "mod_dl.R", "mod_explore.R", "mod_filter.R",
-                  "mod_ml.R", "mod_tests.R", "mod_threshold.R",
-                  "mod_timeseries.R", "mod_viz.R", "UX.R"))
-        try(sys.source(f, e), silent = TRUE)
+                  "mod_ml.R", "mod_threshold.R", "mod_timeseries.R",
+                  "mod_viz.R", "UX.R"))
+        if (file.exists(f)) try(sys.source(f, e), silent = TRUE)
     }))
     exists("ui", envir = e)
   }, error = function(err) FALSE)
@@ -2726,8 +2773,7 @@ test_that("aucune capture n'est branchee sur un champ que personne n'ecrit", {
   # reproductibilite et au rapport, sans que rien ne le signale.
   #
   # On verifie donc le DECLENCHEUR, pas la presence de l'appel.
-  fichiers <- list.files(file.path(root, "inst", "app"), pattern = "[.]R$",
-                         full.names = TRUE)
+  fichiers <- .hstat_sources_app()
   lignes <- lapply(fichiers, .hstat_code_lignes)
   tout <- unlist(lignes)
 
@@ -2958,9 +3004,7 @@ test_that("le resume compte correctement les gravites", {
 })
 
 test_that("TOUS les modules d'analyse deposent un contexte pour l'IA", {
-  root <- file.path(.hstat_repo_root(), "inst", "app")
-  src <- unlist(lapply(list.files(root, pattern = "\\.R$", full.names = TRUE),
-                       readLines, warn = FALSE))
+  src <- unlist(lapply(.hstat_sources_app(), readLines, warn = FALSE))
   src <- src[!grepl("^\\s*#", src)]
   pose <- gsub('.*"([^"]+)"$', "\\1", unique(unlist(regmatches(
     src, gregexpr('hstat_ai_capture\\(values, "[^"]+"', src)))))
@@ -3910,8 +3954,11 @@ test_that("le polyfill typedarray est retire des graphiques interactifs", {
 test_that("le nettoyage est pose sur renderPlotly, pas sur chaque appel", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))
-  src <- paste(readLines(file.path(root, "inst", "app", "Utils.R"),
-                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # Le repli `renderPlotly` a rejoint le socle : sa DEFINITION appartient au
+  # paquet, seule la decision de l'installer reste au pont.
+  skip_if(is.na(.hstat_socle_path()))
+  src <- paste(readLines(.hstat_socle_path(), warn = FALSE, encoding = "UTF-8"),
+               collapse = "\n")
   # Habiller chaque appel ne marcherait pas : leurs corps comportent des
   # `return()` qui sauteraient le nettoyage. C'est `exprToFunction` qui rend
   # l'interception correcte.
@@ -4692,8 +4739,7 @@ test_that("les libelles de widgets et les titres d'onglets sont traduits", {
   # reculer en silence quand un module ajoute un controle.
   root <- .hstat_repo_root()
   skip_if(is.na(root))
-  fichiers <- list.files(file.path(root, "inst", "app"), pattern = "[.]R$",
-                         full.names = TRUE)
+  fichiers <- .hstat_sources_app()
   widgets <- c("selectInput", "selectizeInput", "textInput", "textAreaInput",
                "numericInput", "radioButtons", "checkboxInput",
                "checkboxGroupInput", "sliderInput", "actionButton",
@@ -5266,7 +5312,7 @@ test_that("les diagnostics d'ANOVA ne font pas tomber toute la sortie", {
   # factors with 2 or more levels ».
   root <- .hstat_repo_root()
   skip_if(is.na(root))
-  m <- paste(readLines(file.path(root, "inst", "app", "mod_tests.R"),
+  m <- paste(readLines(.hstat_module_path("mod_tests.R"),
                        warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_true(grepl("stats::sd(residuals_data) > 1e-10", m, fixed = TRUE))
   expect_true(grepl("length(unique(stats::na.omit(fitted_factor))) >= 2", m, fixed = TRUE))
@@ -5302,8 +5348,7 @@ test_that("aucun reactif ne s'appelle lui-meme", {
   }
 
   fautifs <- character(0)
-  for (f in list.files(file.path(root, "inst", "app"), pattern = "[.]R$",
-                       full.names = TRUE)) {
+  for (f in .hstat_sources_app()) {
     txt <- sans_commentaires(f)
     car <- strsplit(txt, "")[[1]]
     debuts <- gregexpr("([A-Za-z_.][\\w.]*)\\s*<-\\s*(?:shiny::)?reactive\\(\\s*\\{",
@@ -5726,8 +5771,7 @@ test_that("le <<- est bien ce qui distingue les deux cas", {
 test_that("aucun gestionnaire d'erreur ne jette la ligne qu'il vient de batir", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))
-  fichiers <- list.files(file.path(root, "inst", "app"), pattern = "[.]R$",
-                         full.names = TRUE)
+  fichiers <- .hstat_sources_app()
   fautifs <- character(0)
 
   for (f in fichiers) {
@@ -6006,7 +6050,7 @@ test_that("chaque variable mesuree recoit sa colonne d'efficacite", {
 
 test_that("le panneau d'options post-hoc expose toutes ses mises en forme", {
   root <- .hstat_repo_root()
-  src  <- readLines(file.path(root, "inst", "app", "mod_tests.R"), warn = FALSE)
+  src  <- readLines(.hstat_module_path("mod_tests.R"), warn = FALSE)
   txt  <- paste(src, collapse = "\n")
 
   # Treize reglages etaient declares dans un bloc `display:none` : ils
@@ -6413,8 +6457,7 @@ test_that("aucun telechargement d'image ne peut se terminer sans ecrire", {
   # alors qu'elle vivait dans le corps de `server` : jamais visible depuis un
   # module. L'appel levait, et le « PNG » telecharge etait la page d'erreur
   # HTML de Shiny.
-  src <- unlist(lapply(list.files(file.path(root, "inst", "app"), pattern = "\\.R$",
-                                  full.names = TRUE), readLines, warn = FALSE))
+  src <- unlist(lapply(.hstat_sources_app(), readLines, warn = FALSE))
   code <- src[!grepl("^\\s*#", src)]
   expect_false(any(grepl("calculate_dimensions_from_dpi", code, fixed = TRUE)))
   # Le chemin d'ecriture garanti est bien celui employe
@@ -6438,8 +6481,7 @@ test_that("un seul endroit dans l'application ouvre un peripherique graphique", 
                 "grDevices::postscript(", "grDevices::svg(", "cairo_pdf",
                 "svglite::svglite(")
   fautifs <- character(0)
-  for (f in list.files(file.path(root, "inst", "app"), pattern = "[.]R$",
-                       full.names = TRUE)) {
+  for (f in .hstat_sources_app()) {
     lignes <- .hstat_code_lignes(f)
     # Fenetre autorisee : le corps de `.hstat_img_device` dans Utils.R.
     permis <- integer(0)
@@ -6464,8 +6506,7 @@ test_that("aucun bouton de telechargement n'est branche dans le vide", {
   # rien, et rien dans le code ne le signale.
   #
   # Le test refait donc la construction des deux cotes et compare.
-  src <- paste(vapply(list.files(file.path(root, "inst", "app"),
-                                 pattern = "[.]R$", full.names = TRUE),
+  src <- paste(vapply(.hstat_sources_app(),
                       function(f) paste(.hstat_code_lignes(f), collapse = "\n"),
                       character(1)), collapse = "\n")
   ext <- function(motif) {
@@ -6593,6 +6634,61 @@ test_that("le catalogue de formats ne promet que ce que l'ecrivain sait ecrire",
   }
 })
 
+test_that("le serveur du module de tests s'execute seul, hors application", {
+  skip_if_not_installed("shiny")
+  skip_if_not_installed("DT")
+  skip_if_not_installed("ggplot2")
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  mod <- .hstat_module_path("mod_tests.R")
+  skip_if(is.na(mod))
+
+  # VOICI CE QUE LA MIGRATION FAIT GAGNER. Jusqu'ici, un module n'existait que
+  # comme effet de bord d'un `source()` sequentiel : les tests ne pouvaient
+  # verifier que des balayages de texte -- « le code RESSEMBLE-t-il a ce qu'il
+  # faut ». Le module etant desormais dans le paquet, `shiny::testServer()`
+  # l'EXECUTE et l'on observe ce qu'il ecrit reellement.
+  # DT et ggplot2 sont ATTACHES : le module les appelle sans prefixe, comme tout
+  # le code venu de l'application. C'est le prochain chantier de la migration --
+  # qualifier ces appels -- et le dire ici vaut mieux que de le masquer.
+  suppressMessages({ library(DT); library(ggplot2) })
+  suppressWarnings(suppressMessages(sys.source(mod, envir = globalenv())))
+  skip_if_not(is.function(mod_tests_server))
+  # Les replis d'interface : sans eux, le module tombe sur « could not find
+  # function updatePickerInput ». C'est precisement pour cela que leur
+  # DEFINITION a rejoint le socle.
+  suppressMessages(hstat_installer_replis_ui())
+
+  set.seed(1)
+  d <- data.frame(
+    score = c(stats::rnorm(20, 10), stats::rnorm(20, 13), stats::rnorm(20, 16)),
+    groupe = rep(c("A", "B", "C"), each = 20), stringsAsFactors = FALSE)
+  v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d,
+                             aiHistory = list())
+
+  shiny::testServer(mod_tests_server, args = list(values = v), {
+    session$setInputs(responseVar = "score", factorVar = "groupe")
+
+    # 1. La normalite depose bien un tableau de resultats -- c'est ce tableau
+    #    qui declenche la capture « Tests statistiques ».
+    session$setInputs(testNormalityRaw = 1)
+    expect_false(is.null(v$testResultsDF))
+    expect_gt(NROW(v$testResultsDF), 0L)
+
+    # 2. L'ANOVA ecrit a son tour, et nomme le type de test retenu.
+    session$setInputs(testANOVA = 1)
+    expect_false(is.null(v$testResultsDF))
+    expect_true(nzchar(v$currentTestType %||% ""))
+
+    # 3. Le t de Student sur TROIS groupes doit REFUSER sans rien casser : le
+    #    test en compare exactement deux. Le tableau precedent survit.
+    avant <- v$testResultsDF
+    session$setInputs(testT = 1)
+    expect_false(is.null(v$testResultsDF))
+    expect_identical(v$testResultsDF, avant)
+  })
+})
+
 test_that("le socle ne fait rien : il ne fait que definir", {
   socle <- .hstat_socle_path()
   skip_if(is.na(socle))
@@ -6683,8 +6779,7 @@ test_that("le format et le DPI ne se declarent qu'au catalogue", {
   # en clair la ou les autres lisaient `HSTAT_DPI_MAX` -- une montee du plafond
   # en aurait laisse deux en arriere, ce qui etait deja arrive.
   faits <- character(0)
-  for (f in list.files(file.path(root, "inst", "app"), pattern = "[.]R$",
-                       full.names = TRUE)) {
+  for (f in .hstat_sources_app()) {
     lignes <- .hstat_code_lignes(f)
     # Une liste de formats d'image ecrite a la main.
     hit <- grep('choices *= *c\\( *"(PNG|png)"', lignes)
@@ -7063,7 +7158,7 @@ test_that("le code mort retire ne revient pas", {
   root <- .hstat_repo_root()
   # Le socle compte parmi les sources balayees : le code mort peut aussi y
   # revenir, et c'est meme la qu'il vivait.
-  fs <- c(list.files(file.path(root, "inst", "app"), pattern = "[.]R$", full.names = TRUE),
+  fs <- c(.hstat_sources_app(),
           list.files(file.path(root, "R"), pattern = "[.]R$", full.names = TRUE))
   src <- paste(unlist(lapply(fs, readLines, warn = FALSE)), collapse = "\n")
 

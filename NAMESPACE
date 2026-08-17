@@ -1,11 +1,95 @@
-# Genere par roxygen2, PLUS une ligne tenue a la main.
+# Genere par roxygen2, PLUS des lignes tenues a la main.
 #
-# `exportPattern(".")` exporte TOUT, aides internes `.hstat_*` comprises. Ce
-# n'est pas un oubli : l'application appelle directement ces aides, et un export
+# `exportPattern(".")` exporte TOUT, aides internes `.hstat_*` comprises : ce
+# n'est pas un oubli. L'application appelle directement ces aides, et un export
 # selectif obligerait a tenir une liste de ~240 noms qui divergerait au premier
-# ajout. La directive correspondante vit dans R/utils.R
-# (`@rawNamespace exportPattern(".")`), de sorte qu'un futur `document()` la
-# reproduise au lieu de l'effacer.
+# ajout. La directive vit aussi en roxygen dans R/utils.R.
+#
+# LES `importFrom` SONT LA PARCE QUE LE SOCLE APPELLE SANS PREFIXE. Le code
+# venait de l'application, ou shiny et ggplot2 sont ATTACHES ; dans un paquet,
+# rien ne l'est. Mesure : 75 symboles de 20 paquets etaient dans ce cas.
+#
+# `importFrom` et non `import()` : importer shiny, ggplot2, dplyr et tidyr en
+# entier ferait s'entre-masquer leurs exports (`count`, `layout`,
+# `dataTableOutput`...), avec un avertissement a l'installation et une
+# resolution dependant de l'ordre des directives.
 
 export(run_hstat)
 exportPattern(".")
+
+importFrom(DBI,dbConnect)
+importFrom(DBI,dbDisconnect)
+importFrom(DBI,dbExecute)
+importFrom(DBI,dbGetQuery)
+importFrom(DBI,dbListTables)
+importFrom(DT,formatStyle)
+importFrom(DT,styleEqual)
+importFrom(MASS,boxcox)
+importFrom(cluster,silhouette)
+importFrom(data.table,fread)
+importFrom(dplyr,across)
+importFrom(dplyr,all_of)
+importFrom(dplyr,count)
+importFrom(dplyr,ident)
+importFrom(dplyr,n)
+importFrom(emmeans,emmeans)
+importFrom(ggplot2,aes)
+importFrom(ggplot2,element_text)
+importFrom(ggplot2,guide_axis)
+importFrom(ggplot2,labs)
+importFrom(ggplot2,layer)
+importFrom(ggplot2,position_dodge)
+importFrom(ggplot2,scale_x_continuous)
+importFrom(ggplot2,scale_x_date)
+importFrom(ggplot2,scale_x_discrete)
+importFrom(ggplot2,syms)
+importFrom(ggplot2,theme)
+importFrom(ggplot2,theme_bw)
+importFrom(ggplot2,theme_classic)
+importFrom(ggplot2,theme_dark)
+importFrom(ggplot2,theme_gray)
+importFrom(ggplot2,theme_light)
+importFrom(ggplot2,theme_linedraw)
+importFrom(ggplot2,theme_minimal)
+importFrom(ggplot2,theme_void)
+importFrom(ggplot2,waiver)
+importFrom(haven,read_dta)
+importFrom(haven,read_sav)
+importFrom(multcomp,cld)
+importFrom(multcompView,multcompLetters)
+importFrom(openxlsx,addWorksheet)
+importFrom(openxlsx,createWorkbook)
+importFrom(openxlsx,saveWorkbook)
+importFrom(openxlsx,writeData)
+importFrom(pROC,auc)
+importFrom(pROC,roc)
+importFrom(plotly,plotly_build)
+importFrom(psych,mardia)
+importFrom(readxl,excel_sheets)
+importFrom(readxl,read_excel)
+importFrom(rlang,inject)
+importFrom(shiny,column)
+importFrom(shiny,div)
+importFrom(shiny,downloadButton)
+importFrom(shiny,downloadHandler)
+importFrom(shiny,fluidRow)
+importFrom(shiny,getDefaultReactiveDomain)
+importFrom(shiny,h6)
+importFrom(shiny,icon)
+importFrom(shiny,numericInput)
+importFrom(shiny,p)
+importFrom(shiny,selectInput)
+importFrom(shiny,showNotification)
+importFrom(shiny,sliderInput)
+importFrom(shiny,strong)
+importFrom(shiny,tagList)
+importFrom(shiny,textInput)
+importFrom(shiny,uiOutput)
+importFrom(shinyjs,colourInput)
+importFrom(svglite,svglite)
+importFrom(tidyr,complete)
+importFrom(tidyr,nesting)
+importFrom(vegan,adonis2)
+importFrom(vegan,betadisper)
+importFrom(vegan,permutest)
+importFrom(vegan,vegdist)

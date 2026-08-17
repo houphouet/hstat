@@ -22,7 +22,9 @@ source("mod_clean.R", local = FALSE, encoding = "UTF-8")
 source("mod_filter.R", local = FALSE, encoding = "UTF-8")
 source("mod_descriptive.R", local = FALSE, encoding = "UTF-8")
 source("mod_viz.R", local = FALSE, encoding = "UTF-8")
-source("mod_tests.R", local = FALSE, encoding = "UTF-8")
+# `mod_tests.R` a rejoint le paquet (R/mod_tests.R) : il est charge par le pont,
+# avec le socle. Un module migre n'a plus de ligne ici -- et plus de place dans
+# l'ordre de source(), qui etait la contrainte a lever.
 source("mod_design.R", local = FALSE, encoding = "UTF-8")
 source("mod_coding.R", local = FALSE, encoding = "UTF-8")
 source("mod_qualitative.R", local = FALSE, encoding = "UTF-8")

@@ -1858,6 +1858,54 @@ tests s'appuie désormais sur lui, et que l'application démarre et fonctionne
 inchangée par le pont — 19 analyses parcourues, aucune erreur. La validation de
 l'installation appartient à une machine disposant du réseau.
 
+### Étape 2 : un module dans le paquet, et il devient testable
+
+`mod_tests.R` est le module pilote : il vit désormais dans **`R/mod_tests.R`**.
+Sa ligne a disparu de `HStat.R` — un module migré n'a plus de place dans l'ordre
+de `source()`, qui était la contrainte à lever. Le pont charge `R/utils.R` puis
+**tous les `R/mod_*.R`**, sans ordre : les modules ne font que définir, mesuré
+sur les dix-sept fichiers (0 expression agissante).
+
+**Le gain n'est pas théorique, il est vérifié** : `shiny::testServer()` exécute
+`mod_tests_server` hors application. Le test lance la normalité, l'ANOVA, puis un
+t de Student sur trois groupes, et observe ce que le module **écrit** dans
+`values` — pas ce à quoi son code ressemble. Jusqu'ici c'était impossible : un
+module n'existait que comme effet de bord d'un `source()` séquentiel.
+
+Deux obstacles rencontrés, tous deux instructifs :
+
+1. **Les replis d'interface vivaient dans le pont.** Tester le module échouait
+   sur « could not find function `updatePickerInput` ». Leur **définition**
+   appartient au paquet ; seule la **décision de les installer** appartient au
+   démarrage. D'où `hstat_installer_replis_ui(envir)`, appelée par le pont — et
+   appelable par un test. Le bloc y est évalué **tel quel**
+   (`eval(quote({...}), envir)`) : une première tentative de le réécrire en
+   `assign()` avait coupé une définition dont le corps tenait sur la ligne
+   suivante.
+2. **Le socle appelle sans préfixe.** Il vient de l'application, où `shiny` et
+   `ggplot2` sont *attachés* ; dans un paquet, rien ne l'est. Mesure : **75
+   symboles de 20 paquets**. Ils sont désormais déclarés en `importFrom` exacts
+   — et non en `import()` entier, qui ferait s'entre-masquer `count`, `layout`
+   ou `dataTableOutput` avec une résolution dépendant de l'ordre des directives.
+
+Reste à faire, dit franchement : les **modules** appellent encore `renderDT`,
+`renderPlotly` et consorts sans préfixe. Le test du module attache donc `DT` et
+`ggplot2` explicitement. Qualifier ces appels est le chantier suivant, module par
+module — c'est la convention que le dépôt s'est déjà donnée pour le reste du
+code.
+
+### Les balayages doivent voir les deux dossiers
+
+Un test qui n'énumérerait que `inst/app/` **cesserait de voir** le code migré —
+et passerait au vert en ne regardant plus rien. Tous les balayages passent donc
+par `.hstat_sources_app()`, et la lecture d'un module par `.hstat_module_path()`.
+
+Piège rencontré en posant ce localisateur : la substitution mécanique qui a
+recalé les balayages a touché **le corps de la fonction elle-même**, qui s'est
+mise à s'appeler récursivement — « C stack usage is too close to the limit ».
+C'est exactement le défaut déjà documenté pour les réactifs de l'application ;
+il s'attrape à l'exécution, jamais à la lecture.
+
 ## Fins de ligne
 
 Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. Sont en
