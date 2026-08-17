@@ -476,6 +476,19 @@ ce qui précède.
 
 #### Un seul choisisseur de thème
 
+Le test qui garde cette règle a lui-même dû être corrigé, et l'erreur mérite
+d'être notée : il comparait deux propriétés **choisies à la main**
+(`panel.background`, `panel.grid.major`) pour décider si un thème « valait
+minimal ». Il passait en local et **échouait en intégration continue** sur
+« Sans décor » — selon la version de ggplot2, ces deux propriétés-là
+coïncident avec celles de `theme_minimal()` sans que les thèmes soient pour
+autant les mêmes.
+
+Un test ne doit pas dépendre de **la propriété par laquelle** deux objets se
+distinguent. La branche par défaut du `switch` rend exactement
+`theme_minimal(base_size)` : c'est donc l'**objet complet** qu'on compare, et
+un nom inconnu est vérifié comme retombant bien sur minimal.
+
 `hstat_apply_plot_opts()` portait un **second** `switch` sur le nom du thème,
 et il avait dérivé : cinq thèmes connus sur les huit du catalogue. « Gris »,
 « Traits fins » et « Sans décor » retombaient **en silence** sur « Minimal » —

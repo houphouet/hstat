@@ -6820,16 +6820,23 @@ test_that("un seul choisisseur de theme : viz_get_theme", {
     g <- viz_get_theme(th, base_size = 12)
     expect_s3_class(g, "theme")
   }
-  # Un theme du catalogue absent du `switch` retomberait sur minimal : on
-  # verifie que chacun donne bien un resultat DIFFERENT de « minimal », sauf
-  # minimal lui-meme.
+  # Un theme du catalogue absent du `switch` retombe sur la branche par defaut,
+  # qui rend EXACTEMENT `theme_minimal(base_size)` : l'objet complet est alors
+  # identique a celui de « minimal ». C'est donc l'objet COMPLET qu'on compare.
+  #
+  # Premiere version de ce test : elle comparait deux proprietes choisies a la
+  # main (`panel.background`, `panel.grid.major`). Elle passait en local et
+  # ECHOUAIT en integration continue sur « void » -- selon la version de
+  # ggplot2, ces deux proprietes-la coincident avec celles de `theme_minimal`
+  # sans que les themes soient pour autant les memes. Un test ne doit pas
+  # dependre de la propriete par laquelle deux themes se distinguent.
   ref <- viz_get_theme("minimal", base_size = 12)
   autres <- setdiff(unname(HSTAT_THEMES_GG), "minimal")
-  pareils <- autres[vapply(autres, function(th)
-    identical(viz_get_theme(th, 12)$panel.background, ref$panel.background) &&
-    identical(viz_get_theme(th, 12)$panel.grid.major, ref$panel.grid.major),
-    logical(1))]
+  pareils <- autres[vapply(autres,
+    function(th) identical(viz_get_theme(th, 12), ref), logical(1))]
   expect_equal(pareils, character(0))
+  # Et le contre-exemple : un nom absent du catalogue DOIT retomber sur minimal.
+  expect_identical(viz_get_theme("theme_inexistant", 12), ref)
 })
 
 test_that("aucun appel ne nomme un argument que la fonction n'accepte pas", {
