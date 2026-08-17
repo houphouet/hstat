@@ -1528,6 +1528,42 @@ hstat_img_fmt <- function(x, defaut = "png") {
 # en text/html et enregistre comme tel.
 hstat_img_mime <- function(fmt) unname(HSTAT_IMG_MIME[hstat_img_fmt(fmt)])
 
+# ---------------------------------------------------------------------------
+#  LES DEUX REGLAGES D'EXPORT NE SE DECLARENT QU'ICI
+# ---------------------------------------------------------------------------
+#  Le format et le DPI etaient reecrits a la main a chaque export : dix-sept
+#  listes de formats et vingt champs de DPI, qui avaient DIVERGE.
+#
+#  Les neuf exports des analyses multivariees n'offraient que quatre formats
+#  sur les sept que l'ecrivain sait produire, sans libelle ; deux modules
+#  ecrivaient `20000` en clair la ou les autres lisaient `HSTAT_DPI_MAX` -- une
+#  montee du plafond en aurait laisse deux en arriere, comme c'etait deja
+#  arrive.
+#
+#  La liste des formats est DERIVEE de ce que l'ecrivain sait ecrire : offrir
+#  un format qu'il ignore ferait retomber `hstat_img_fmt()` sur PNG, et
+#  l'utilisateur recevrait un PNG portant l'extension demandee.
+HSTAT_FORMATS_IMG <- c(
+  "PNG" = "png", "JPEG" = "jpeg", "TIFF" = "tiff", "BMP" = "bmp",
+  "PDF (vectoriel)" = "pdf", "SVG (vectoriel)" = "svg",
+  "EPS (vectoriel)" = "eps")
+
+# Selecteur de format d'export. Pas d'argument `choices` : c'est precisement
+# ce qui permettait a chaque appel d'inventer sa propre liste.
+hstat_format_input <- function(id, label = "Format", selected = "png",
+                               width = NULL) {
+  shiny::selectInput(id, label, choices = HSTAT_FORMATS_IMG,
+                     selected = selected, width = width)
+}
+
+# Champ de resolution. Pas d'argument `max` : le plafond est celui de
+# l'application, il ne se negocie pas au point d'appel.
+hstat_dpi_input <- function(id, label = "DPI", valeur = 300, min = 72,
+                            step = 50, width = NULL) {
+  shiny::numericInput(id, label, value = valeur, min = min,
+                      max = HSTAT_DPI_MAX, step = step, width = width)
+}
+
 # Ouvre le peripherique graphique du format demande.
 #
 # `qualite` (JPEG) et `compression` (TIFF) sont des reglages de FORMAT : ils
@@ -5098,16 +5134,12 @@ hstat_model_interpretation <- function(task, metrics_df, model_label,
 hstat_export_plot_ui <- function(ns, prefix, width = 10, height = 6) {
   tagList(
     fluidRow(
-      column(3, selectInput(ns(paste0(prefix, "Fmt")), "Format",
-               choices = c("PNG" = "png", "JPG" = "jpeg", "TIFF" = "tiff",
-                           "BMP" = "bmp", "PDF (vectoriel)" = "pdf",
-                           "SVG (vectoriel)" = "svg"), selected = "png")),
+      column(3, hstat_format_input(ns(paste0(prefix, "Fmt")), "Format")),
       column(3, numericInput(ns(paste0(prefix, "W")), "Largeur (pouces)",
                              value = width, min = 3, max = 30, step = 0.5)),
       column(3, numericInput(ns(paste0(prefix, "H")), "Hauteur (pouces)",
                              value = height, min = 3, max = 30, step = 0.5)),
-      column(3, numericInput(ns(paste0(prefix, "Dpi")), "DPI (max 20 000)",
-                             value = 300, min = 72, max = HSTAT_DPI_MAX, step = 50))),
+      column(3, hstat_dpi_input(ns(paste0(prefix, "Dpi")), "DPI (max 20 000)"))),
     tags$small(style = "color:#6b7280;",
       "PDF et SVG sont vectoriels (resolution infinie, DPI sans objet). ",
       "Pour les formats matriciels, au-dela d'un certain DPI les dimensions physiques ",
@@ -5172,9 +5204,7 @@ hstat_plot_opts_ui <- function(ns, prefix) {
       column(6, textInput(ns(paste0(prefix, "Ylab")), "Titre de l'axe Y", value = ""))),
     fluidRow(
       column(4, selectInput(ns(paste0(prefix, "Theme")), "Thème",
-               choices = c("Minimal" = "minimal", "Classique" = "classic",
-                           "Noir & blanc" = "bw", "Clair" = "light",
-                           "Sombre" = "dark"), selected = "minimal")),
+               choices = HSTAT_THEMES_GG, selected = "minimal")),
       column(4, numericInput(ns(paste0(prefix, "Base")), "Taille du texte",
                              value = 13, min = 7, max = 30, step = 1)),
       column(4, selectInput(ns(paste0(prefix, "Legend")), "Légende",

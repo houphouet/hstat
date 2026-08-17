@@ -397,23 +397,13 @@ mod_viz_ui <- function(id) {
                   # Ligne 1: Format et DPI
                   fluidRow(
                     column(4,
-                           selectInput(ns("exportFormat"), 
-                                       label = tagList(icon("file-image"), " Format:"),
-                                       choices = c(
-                                         "PNG" = "png",
-                                         "JPEG" = "jpeg",
-                                         "TIFF" = "tiff",
-                                         "BMP" = "bmp",
-                                         "PDF" = "pdf",
-                                         "SVG" = "svg",
-                                         "EPS" = "eps"
-                                       ),
-                                       selected = "png")
+                           hstat_format_input(ns("exportFormat"),
+                                       label = tagList(icon("file-image"), " Format:"))
                     ),
                     column(4,
-                           numericInput(ns("exportDPI"), 
+                           hstat_dpi_input(ns("exportDPI"),
                                         label = tagList(icon("sliders-h"), " DPI:"),
-                                        value = 300, min = 300, max = 20000, step = 50)
+                                        min = 300)
                     ),
                     column(4,
                            tags$label(tagList(icon("ruler-combined"), " Dimensions:")),

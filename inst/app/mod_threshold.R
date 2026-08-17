@@ -538,9 +538,8 @@ mod_threshold_ui <- function(id) {
                                               value = 800, min = 400, max = 20000, step = 100)
                           ),
                           column(4,
-                                 numericInput(ns("thresholdExportDPI"), 
-                                              tagList(icon("crosshairs"), " Résolution (DPI)"), 
-                                              value = 300, min = 72, max = 20000, step = 50)
+                                 hstat_dpi_input(ns("thresholdExportDPI"),
+                                               tagList(icon("crosshairs"), " Résolution (DPI)"))
                           )
                         ),
                         

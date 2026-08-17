@@ -2177,11 +2177,8 @@ mod_design_ui <- function(id) {
               # ============ EXPORT DE L'IMAGE =========================
               .sect("download", "Export de l'image"),
               fluidRow(
-                column(4, selectInput(ns("dsgDownFormat"), "Format de téléchargement",
-                  choices = c("PNG" = "png", "JPEG" = "jpeg", "TIFF" = "tiff",
-                              "BMP" = "bmp", "PDF" = "pdf"), selected = "png")),
-                column(4, numericInput(ns("dsgDownDpi"), "Résolution (DPI)",
-                                       value = 300, min = 300, max = 20000, step = 100)),
+                column(4, hstat_format_input(ns("dsgDownFormat"), "Format de téléchargement")),
+                column(4, hstat_dpi_input(ns("dsgDownDpi"), "Résolution (DPI)", min = 300, step = 100)),
                 column(4, div(style = "margin-top:25px;",
                   downloadButton(ns("dsgPlotDownload"), "Télécharger l'image",
                                  class = "btn-success btn-sm")))

@@ -6241,6 +6241,81 @@ test_that("un seul endroit dans l'application ouvre un peripherique graphique", 
   expect_equal(fautifs, character(0))
 })
 
+test_that("le catalogue de formats ne promet que ce que l'ecrivain sait ecrire", {
+  skip_if_not_installed("ggplot2")
+  # Offrir un format que l'ecrivain ignore ne leve rien : `hstat_img_fmt()`
+  # retombe sur PNG, et l'utilisateur recoit un PNG portant l'extension
+  # demandee. Le catalogue est donc verifie contre la table de l'ecrivain...
+  expect_true(all(HSTAT_FORMATS_IMG %in% names(HSTAT_IMG_MIME)))
+  expect_equal(unname(vapply(HSTAT_FORMATS_IMG, hstat_img_fmt, character(1))),
+               unname(HSTAT_FORMATS_IMG))
+
+  # ... et contre la realite : chaque format annonce produit un fichier dont
+  # les premiers octets sont bien ceux de ce format.
+  p <- ggplot2::ggplot(data.frame(x = 1:5, y = 1:5), ggplot2::aes(x, y)) +
+    ggplot2::geom_point()
+  signature <- list(
+    png  = as.raw(c(0x89, 0x50, 0x4e, 0x47)),
+    jpeg = as.raw(c(0xff, 0xd8, 0xff)),
+    bmp  = charToRaw("BM"),
+    pdf  = charToRaw("%PDF"))
+  for (fmt in unname(HSTAT_FORMATS_IMG)) {
+    f <- tempfile(fileext = paste0(".", fmt))
+    ok <- suppressWarnings(hstat_ecrire_image(f, p, fmt, 4, 3, 72))
+    expect_true(ok, info = fmt)
+    expect_gt(file.size(f), 0)
+    if (!is.null(signature[[fmt]])) {
+      tete <- readBin(f, "raw", length(signature[[fmt]]))
+      expect_identical(tete, signature[[fmt]], info = fmt)
+    } else {
+      # TIFF (II*/MM*), SVG et EPS : formats texte ou a boutisme variable.
+      expect_gt(file.size(f), 100)
+    }
+  }
+})
+
+test_that("le format et le DPI ne se declarent qu'au catalogue", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # Dix-sept listes de formats et vingt champs de DPI etaient ecrits a la main,
+  # et ils avaient DIVERGE : les neuf exports des analyses multivariees
+  # n'offraient que quatre formats sur sept, et deux modules ecrivaient `20000`
+  # en clair la ou les autres lisaient `HSTAT_DPI_MAX` -- une montee du plafond
+  # en aurait laisse deux en arriere, ce qui etait deja arrive.
+  faits <- character(0)
+  for (f in list.files(file.path(root, "inst", "app"), pattern = "[.]R$",
+                       full.names = TRUE)) {
+    lignes <- .hstat_code_lignes(f)
+    # Une liste de formats d'image ecrite a la main.
+    hit <- grep('choices *= *c\\( *"(PNG|png)"', lignes)
+    if (length(hit))
+      faits <- c(faits, sprintf("%s:%d liste de formats ecrite a la main",
+                                basename(f), hit))
+    # Un plafond de DPI pose ailleurs qu'au catalogue. Le motif vise le CHAMP
+    # DE DPI, pas le nombre 20 000 : les champs de largeur et de hauteur en
+    # PIXELS portent le meme plafond sans etre des resolutions, et les compter
+    # ferait echouer le test sur une coincidence de chiffre.
+    permis <- integer(0)
+    deb <- grep("hstat_dpi_input <- function", lignes, fixed = TRUE)
+    if (length(deb)) permis <- seq(deb[1], min(length(lignes), deb[1] + 6L))
+    hit <- setdiff(grep("max *= *(20000|HSTAT_DPI_MAX)", lignes), permis)
+    hit <- hit[vapply(hit, function(i) {
+      # Remonter jusqu'a la TETE de l'appel : c'est elle qui porte
+      # l'identifiant et le libelle, donc la nature du champ. Se contenter des
+      # lignes voisines confondait un champ de pixels avec le champ de DPI
+      # declare juste au-dessus.
+      j <- rev(grep("numericInput\\(", lignes[max(1L, i - 3L):i]))
+      if (!length(j)) return(TRUE)
+      tete <- lignes[max(1L, i - 3L) + j[1] - 1L]
+      grepl("[Dd][Pp][Ii]|[Rr]ésolution|[Rr]esolution", tete)
+    }, logical(1))]
+    if (length(hit))
+      faits <- c(faits, sprintf("%s:%d plafond de DPI hors catalogue",
+                                basename(f), hit))
+  }
+  expect_equal(faits, character(0))
+})
+
 test_that("l'ecrivain commun ferme son peripherique avant de conclure", {
   skip_if_not_installed("ggplot2")
   # LE DEFAUT : `on.exit()` s'accroche a un cadre de FONCTION, et le bloc d'un

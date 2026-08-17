@@ -1581,6 +1581,39 @@ module qui les propose que ce module gardait son propre `ggsave`. Un test vérif
 qu'ils **agissent** (qualité 5 pèse moins que qualité 100) et qu'une valeur
 aberrante retombe sur 95 au lieu de faire tomber l'export.
 
+### Le format et le DPI ne se déclarent qu'au catalogue
+
+Dix-sept listes de formats et vingt champs de DPI étaient écrits à la main, et
+ils avaient **divergé** : les neuf exports des analyses multivariées n'offraient
+que quatre formats sur les sept que l'écrivain sait produire — et sans libellé —
+tandis que deux modules écrivaient `20000` en clair là où les autres lisaient
+`HSTAT_DPI_MAX`. C'est exactement ce qui s'était déjà produit : une montée du
+plafond en avait laissé plusieurs en arrière.
+
+`HSTAT_FORMATS_IMG`, `hstat_format_input()` et `hstat_dpi_input()` (`Utils.R`)
+remplacent les trente-sept déclarations. Deux choix de construction :
+
+1. **`hstat_format_input()` n'a pas d'argument `choices`**, et
+   **`hstat_dpi_input()` n'a pas d'argument `max`.** C'est précisément ce qui
+   permettait à chaque appel d'inventer sa propre liste et son propre plafond.
+   Ce qui varie légitimement d'un site à l'autre — le libellé, le minimum, le
+   pas, la largeur — reste paramétrable.
+2. **Le catalogue est dérivé de ce que l'écrivain sait écrire.** Offrir un
+   format qu'il ignore ne lève rien : `hstat_img_fmt()` retombe sur PNG, et
+   l'utilisateur reçoit un PNG portant l'extension demandée. Un test vérifie
+   les deux sens — chaque valeur du catalogue traverse `hstat_img_fmt()` sans
+   changer, **et** produit un fichier dont les premiers octets sont ceux du
+   format annoncé.
+
+Mesuré dans la page rendue après correction : 31 champs de DPI, tous à 20 000 ;
+29 sélecteurs de format, tous offrant les 7 formats.
+
+Le balayage de garde vise le **champ de DPI**, pas le nombre 20 000 : les champs
+de largeur et de hauteur en **pixels** portent le même plafond sans être des
+résolutions. Il remonte donc à la tête de l'appel `numericInput(`, seule ligne
+qui porte l'identifiant et le libellé — s'arrêter aux lignes voisines confondait
+un champ de pixels avec le champ de DPI déclaré juste au-dessus.
+
 ## Fins de ligne
 
 Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. Sont en

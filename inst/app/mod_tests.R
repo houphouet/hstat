@@ -1130,14 +1130,11 @@ mod_posthoc_ui <- function(id) {
                                     div(style = "max-width: 400px; margin: 0 auto;",
                                         fluidRow(
                                           column(7,
-                                            selectInput(ns("multiPlotFormat"),
-                                              tagList(icon("file-image"), " Format d'export"),
-                                              choices = c("PNG" = "png", "PDF" = "pdf",
-                                                          "JPEG" = "jpeg", "TIFF" = "tiff", "SVG" = "svg"),
-                                              selected = "png", width = "100%")),
+                                            hstat_format_input(ns("multiPlotFormat"),
+                                              tagList(icon("file-image"), " Format d\'export"),
+                                              width = "100%")),
                                           column(5,
-                                            numericInput(ns("plotDPIVisible"), tagList(icon("image"), " DPI"),
-                                                         value = 300, min = 72, max = HSTAT_DPI_MAX, step = 50, width = "100%"))
+                                            hstat_dpi_input(ns("plotDPIVisible"), tagList(icon("image"), " DPI"), width = "100%"))
                                         ),
                                         downloadButton(ns("downloadMultiPlot"),
                                                        tagList(icon("download"), " Télécharger le graphique"),
@@ -1494,12 +1491,8 @@ mod_correlation_ui <- function(id) {
               h5(icon("heading"), " Titre & probabilités", style = "color:#27ae60;font-weight:bold;"),
               textInput(ns("corrTitle"), "Titre personnalisé",
                         placeholder = "Vide = titre auto"),
-              numericInput(ns("corrDPI"), tagList(icon("image"), " DPI export"),
-                           value = 300, min = 72, max = HSTAT_DPI_MAX, step = 50),
-              selectInput(ns("corrFormat"), tagList(icon("file-image"), " Format d'export"),
-                          choices = c("PNG" = "png", "JPEG" = "jpeg", "TIFF" = "tiff",
-                                      "BMP" = "bmp", "PDF" = "pdf", "SVG" = "svg"),
-                          selected = "png"),
+              hstat_dpi_input(ns("corrDPI"), tagList(icon("image"), " DPI export")),
+              hstat_format_input(ns("corrFormat"), tagList(icon("file-image"), " Format d\'export")),
               numericInput(ns("corrSizeIn"), tagList(icon("ruler-combined"), " Taille (pouces, carré)"),
                            value = 8, min = 3, max = 30, step = 1))
           ),

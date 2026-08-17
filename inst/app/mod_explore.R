@@ -108,8 +108,7 @@ mod_explore_ui <- function(id) {
                                    checkboxInput(ns("distShowDensity"), 
                                                  tagList(icon("wave-square"), " Afficher courbe densité"), 
                                                  value = TRUE),
-                                   numericInput(ns("distDPI"), tagList(icon("image"), " DPI export:"), 
-                                                value = 300, min = 72, max = HSTAT_DPI_MAX, step = 50)
+                                   hstat_dpi_input(ns("distDPI"), tagList(icon("image"), " DPI export:"))
                             )
                           )
                         )
@@ -199,8 +198,7 @@ mod_explore_ui <- function(id) {
                                    checkboxInput(ns("missingCenterTitle"), 
                                                  tagList(icon("align-center"), " Centrer le titre"), 
                                                  value = TRUE),
-                                   numericInput(ns("missingDPI"), tagList(icon("image"), " DPI export:"), 
-                                                value = 300, min = 72, max = HSTAT_DPI_MAX, step = 50)
+                                   hstat_dpi_input(ns("missingDPI"), tagList(icon("image"), " DPI export:"))
                             )
                           )
                         )
