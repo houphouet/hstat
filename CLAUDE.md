@@ -1766,6 +1766,31 @@ est désormais `x[sample.int(n)]`, qui tire sur les indices.
 - L'export Excel du Khi², les dimensions en pixels du module de seuils : des
   décisions documentées, pas des oublis.
 
+### Une période répétée est presque toujours une date
+
+Le sélecteur « Période (facteur intra-sujet, répété) » ne retenait que les
+facteurs, les chaînes et les numériques à peu de modalités. Une colonne `Date`
+n'est aucun des trois : elle n'apparaissait **jamais** dans la liste — alors que
+l'exemple affiché sous le champ annonce « Ex. : temps, date, stade… ». Les
+mesures répétées les plus courantes, celles datées, étaient donc inaccessibles.
+
+`Date`, `POSIXct` et `POSIXlt` sont désormais éligibles comme facteur intra- et
+inter-sujet.
+
+**L'ordre des niveaux est celui du temps, et c'est le vrai piège.** `factor()`
+appliqué à une `Date` classe sur la valeur sous-jacente, donc
+chronologiquement ; passer d'abord par `as.character()` ou par un format
+français trierait **alphabétiquement**, et le 5 avril viendrait avant le 19
+mars. L'écart ne se voit qu'en traversant un changement de mois — à l'intérieur
+d'un même mois les deux ordres coïncident, et un exemple mal choisi ferait
+croire que le piège n'existe pas. Le test le vérifie sur des dates qui changent
+de mois.
+
+Deux messages accompagnent les cas dégénérés, qu'une colonne de dates rend
+faciles à produire : un facteur à **une seule modalité** n'est pas répété, et un
+facteur comptant **autant de modalités que d'observations** ne répète rien du
+tout (le message invite alors à regrouper les dates par mois ou par stade).
+
 ## Fins de ligne
 
 Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. Sont en

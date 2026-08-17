@@ -2595,6 +2595,38 @@ test_that("aucune installation de paquet ne part du corps du serveur", {
     expect_true(grepl(paste0('"', p, '"'), bloc), info = p)
 })
 
+test_that("une date est un facteur de periode valide, et il est chronologique", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # UNE PERIODE REPETEE EST PRESQUE TOUJOURS UNE DATE. Le selecteur ne retenait
+  # que facteurs, chaines et numeriques a peu de modalites : une colonne `Date`
+  # n'est aucun des trois et n'apparaissait donc jamais dans la liste -- alors
+  # que l'exemple affiche sous le champ annonce « date ».
+  l <- .hstat_code_lignes(file.path(root, "inst", "app", "mod_tests.R"))
+  i <- grep("fac_cols <- names\\(df\\)\\[sapply", l)
+  expect_gt(length(i), 0L)
+  fenetre <- paste(l[max(1L, i[1] - 6L):(i[1] + 3L)], collapse = " ")
+  expect_true(grepl("Date", fenetre, fixed = TRUE))
+  expect_true(grepl("POSIXct", fenetre, fixed = TRUE))
+
+  # LE PIEGE : l'ordre des niveaux. `factor()` sur une `Date` classe sur la
+  # valeur sous-jacente, donc chronologiquement -- ce qui est indispensable a
+  # des mesures repetees et aux contrastes post-hoc.
+  d <- as.Date(c("2026-04-05", "2026-03-19", "2026-03-05"))
+  expect_equal(levels(factor(d)), c("2026-03-05", "2026-03-19", "2026-04-05"))
+
+  # La forme fautive, pour memoire : passer d'abord par une chaine au format
+  # francais fait trier par ordre ALPHABETIQUE. Les dates doivent traverser un
+  # changement de mois pour que l'ecart se voie -- a l'interieur d'un meme mois,
+  # les deux ordres coincident, et un exemple mal choisi ferait croire que le
+  # piege n'existe pas.
+  fr <- format(d, "%d/%m/%Y")
+  expect_equal(levels(factor(fr)),
+               c("05/03/2026", "05/04/2026", "19/03/2026"))   # le 5 avril AVANT le 19 mars
+  expect_false(identical(levels(factor(fr)),
+                         format(sort(unique(d)), "%d/%m/%Y")))
+})
+
 test_that("une randomisation ne tire jamais dans 1:x par accident", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))

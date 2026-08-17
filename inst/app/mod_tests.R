@@ -3175,7 +3175,18 @@ mod_tests_server <- function(id, values) {
     df <- values$filteredData %||% values$cleanData %||% values$data
     req(df)
     all_cols <- names(df)
+    # LES DATES SONT ELIGIBLES, et c'est le cas le plus courant : une periode
+    # repetee est presque toujours une date de mesure. Le filtre ne retenait que
+    # facteurs, chaines et numeriques a peu de modalites -- une colonne `Date`
+    # n'est aucun des trois, et n'apparaissait donc JAMAIS dans la liste, alors
+    # que l'exemple affiche sous le champ annonce « date ».
+    #
+    # L'ordre est celui du temps : `factor()` sur une `Date` classe ses niveaux
+    # par la valeur sous-jacente, donc chronologiquement, et les etiquette au
+    # format ISO. C'est ce que la suite de l'analyse attend.
+    est_date <- function(x) inherits(x, c("Date", "POSIXct", "POSIXlt"))
     fac_cols <- names(df)[sapply(df, function(x) is.factor(x) || is.character(x) ||
+                                   est_date(x) ||
                                    (is.numeric(x) && length(unique(x[!is.na(x)])) <= 20))]
     if (length(fac_cols) == 0) fac_cols <- all_cols
     updateSelectInput(session, "rmSubject", choices = all_cols,
@@ -3546,7 +3557,27 @@ mod_tests_server <- function(id, values) {
       tryCatch({
         # Facteurs en facteurs ; sujet en facteur.
         df[[subj]] <- factor(df[[subj]])
+        # Une date devient un facteur ORDONNE PAR LE TEMPS : `factor()` classe
+        # ses niveaux sur la valeur numerique sous-jacente. Passer par
+        # `as.character()` d'abord les classerait alphabetiquement, ce qui est
+        # juste en ISO et faux des qu'un fichier porte « 03/04/2026 ».
         for (f in all_fac) if (!is.factor(df[[f]])) df[[f]] <- factor(df[[f]])
+
+        # Un facteur intra-sujet a autant de niveaux que d'observations n'est
+        # pas repete : le modele ne peut pas separer le sujet de la periode. On
+        # le dit, plutot que de laisser lmer echouer sur un message obscur.
+        for (f in within) {
+          n_niv <- nlevels(droplevels(factor(df[[f]])))
+          if (n_niv < 2) {
+            showNotification(trf(
+              "« %s » ne compte qu'une seule modalité : ce n'est pas un facteur répété.", f),
+              type = "warning", duration = 8)
+          } else if (n_niv >= nrow(df)) {
+            showNotification(trf(
+              "« %s » compte autant de modalités que d'observations (%d) : aucune mesure n'est répétée. Regroupez les dates (par mois, par stade) avant l'analyse.",
+              f, n_niv), type = "warning", duration = 10)
+          }
+        }
         
         for (var in input$responseVar) {
           if (!is.numeric(df[[var]])) df[[var]] <- suppressWarnings(as.numeric(df[[var]]))
