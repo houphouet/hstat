@@ -2926,13 +2926,7 @@ mod_viz_server <- function(id, values) {
     input$enableDualAxis
     input$y2AxisMin
     input$y2AxisMax
-    input$y2AxisStep
     input$y2AxisBreakStep
-    input$y2TickBold
-    input$y2TickItalic
-    input$y2TickSize
-    input$y2AxisBold
-    input$y2AxisItalic
     input$y2CurveWidth
     input$vizY2Type
     input$plotMarginTop
@@ -3285,7 +3279,7 @@ mod_viz_server <- function(id, values) {
             input$y2AxisLabel else paste(y2_active_vars, collapse = " / ")
           
           user_y2_step <- {
-            s <- input$y2AxisBreakStep %||% input$y2AxisStep
+            s <- input$y2AxisBreakStep
             if (!is.null(s) && !is.na(s) && is.numeric(s) && s > 0) s else NULL
           }
           sec_breaks <- if (!is.null(user_y2_step))
@@ -4237,7 +4231,7 @@ mod_viz_server <- function(id, values) {
         ticklen = 5, tickwidth = 1, tickcolor = "black",
         showticklabels = TRUE, mirror = FALSE, layer = "above traces"
       )
-      step_val <- input$y2AxisBreakStep %||% input$y2AxisStep
+      step_val <- input$y2AxisBreakStep
       if (!is.null(step_val) && !is.na(step_val) && is.numeric(step_val) && step_val > 0) {
         ticks <- seq(real_mn, real_mx, by = step_val)
         y2_cfg$tickvals <- ticks

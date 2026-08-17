@@ -655,12 +655,25 @@ server <- function(input, output, session) {
                                  `type de test` = values$currentTestType))
   }, ignoreInit = TRUE)
 
-  observeEvent(values$multiResults, {
-    df <- values$multiResults
+  # LE DECLENCHEUR ETAIT UN CHAMP QUE PERSONNE N'ECRIT. `values$multiResults`
+  # n'existe que dans la liste initiale : les comparaisons post-hoc deposent
+  # leurs resultats dans `multiResultsMain` (mod_tests.R). L'observateur ne
+  # s'est donc JAMAIS declenche, et cette famille d'analyse manquait a
+  # l'onglet d'interpretation, au journal de reproductibilite et au rapport --
+  # alors que le test de couverture, qui cherche l'APPEL dans le source, la
+  # declarait couverte.
+  observeEvent(values$multiResultsMain, {
+    df <- values$multiResultsMain
     if (is.null(df) || !NROW(df)) return()
+    # Les variables comparees se lisent dans le tableau lui-meme : `multiGroups`
+    # n'est pas davantage ecrit, et une meta vide vaut moins que rien.
+    vars <- if ("Variable" %in% names(df))
+              unique(as.character(df$Variable)) else values$multiGroups
+    facteurs <- if ("Facteur" %in% names(df))
+                  unique(as.character(df$Facteur)) else NULL
     hstat_ai_capture(values, "Comparaisons multiples", "Comparaisons post-hoc",
       tables = list("Comparaisons" = df),
-      meta = list(variables = values$multiGroups))
+      meta = list(variables = vars, facteurs = facteurs))
   }, ignoreInit = TRUE)
   mod_timeseries_server("timeseries", values)
   mod_ml_server("ml", values)
@@ -4886,14 +4899,13 @@ server <- function(input, output, session) {
   })
   # ---- Analyses multivariees etendues (quanti / quali / mixtes) ----
 
-  local({
-    opt <- c("lavaan", "pls", "klaR", "poLCA", "clustMixType", "nnet")
-    inst <- tryCatch(rownames(installed.packages()), error = function(e) character(0))
-    miss <- opt[!opt %in% inst]
-    if (length(miss) > 0)
-      try(install.packages(miss, repos = "https://cran.r-project.org", quiet = TRUE),
-          silent = TRUE)
-  })
+  # L'INSTALLATION NE SE FAIT PAS DANS LE SERVEUR. Le bloc qui vivait ici
+  # tentait d'installer six paquets a CHAQUE session : hors ligne, chaque
+  # ouverture de l'application attendait l'expiration de la requete CRAN ; sur
+  # un serveur partage, la bibliotheque est le plus souvent en lecture seule, et
+  # deux sessions simultanees pouvaient y ecrire ensemble. Ces paquets sont
+  # desormais dans `hstat_model_packages` (Utils.R), installe une fois au
+  # demarrage.
   mv_has <- function(p) isTRUE(requireNamespace(p, quietly = TRUE))
 
   mv_res <- reactiveValues()

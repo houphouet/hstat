@@ -123,7 +123,13 @@ hstat_model_packages <- c(
   "forecast", "glmnet", "rpart", "randomForest", "xgboost", "e1071",
   "kknn", "pROC", "dbscan", "mclust", "neuralnet",
   "dlm", "dlnm",          # modeles lineaires dynamiques & retards distribues
-  "prophet", "torch"      # inclus (installes automatiquement)
+  "prophet", "torch",     # inclus (installes automatiquement)
+  # Analyses multivariees etendues. Ils etaient installes DEPUIS LE CORPS DU
+  # SERVEUR, donc a chaque nouvelle session : sur un poste hors ligne, chaque
+  # ouverture attendait l'expiration de la requete CRAN, et sur un serveur
+  # partage, plusieurs sessions pouvaient ecrire en meme temps dans la
+  # bibliotheque. L'installation appartient au demarrage, une fois pour toutes.
+  "lavaan", "pls", "klaR", "poLCA", "clustMixType", "nnet"
 )
 
 hstat_load_model_packages <- function(packages = hstat_model_packages) {

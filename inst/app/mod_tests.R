@@ -417,7 +417,15 @@ mod_tests_ui <- function(id) {
                                 " et ", strong("1 facteur"), " dans \'Paramètres des tests\'. ",
                                 "Puis cliquez sur le bouton ci-dessous pour un diagnostic complet et une recommandation automatique."),
                               br(),
-                              actionButton(ns("runManovaDiagnostic"),
+                              # DEUXIEME point d'entree du meme diagnostic, et non
+                              # un doublon : les deux boutons portaient le meme
+                              # identifiant, si bien que la page en contenait deux
+                              # exemplaires. Cela marche tant qu'on se contente de
+                              # cliquer -- la liaison de Shiny lit l'id de
+                              # l'element -- mais `updateActionButton()` ou
+                              # `shinyjs::disable()` n'en atteindraient qu'un seul,
+                              # et le HTML est invalide.
+                              actionButton(ns("runManovaDiagnostic2"),
                                            tagList(icon("magic"), " Diagnostiquer mes données"),
                                            class = "btn-primary btn-lg",
                                            style = "padding:10px 30px; font-weight:bold;")
@@ -3955,7 +3963,10 @@ mod_tests_server <- function(id, values) {
     })
   })
   
-  observeEvent(input$runManovaDiagnostic, {
+  # Les DEUX boutons de diagnostic declenchent le meme travail.
+  observeEvent(list(input$runManovaDiagnostic, input$runManovaDiagnostic2), {
+    if (((input$runManovaDiagnostic %||% 0) +
+         (input$runManovaDiagnostic2 %||% 0)) == 0) return()
     req(input$responseVar, input$factorVar)
     if (length(input$responseVar) < 2) {
       showNotification("Le diagnostic nécessite au moins 2 variables réponses.",

@@ -2542,6 +2542,148 @@ test_that("toutes les familles d'analyse deposent un contexte", {
     expect_true(m %in% pose, info = paste("aucune capture pour :", m))
 })
 
+test_that("les intervalles de prevision perdent leur classe `ts` avant ggplot", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # LE PIEGE, reproduit sans `forecast` : `as.matrix()` sur une serie MULTIPLE
+  # ne retire pas la classe `ts` des colonnes extraites.
+  m <- stats::ts(matrix(1:20, ncol = 2), frequency = 4)
+  expect_true(inherits(as.matrix(m)[, 1], "ts"))
+  expect_false(inherits(as.numeric(as.matrix(m)[, 1]), "ts"))
+
+  # Consequence dans l'application : ggplot ne sait pas choisir d'echelle pour
+  # ce type et le signalait a CHAQUE trace de prevision (« Don't know how to
+  # automatically pick scale for object of type <ts> »). Mesure faite dans le
+  # journal du serveur : 1 avertissement avant correction, 0 apres.
+  l <- .hstat_code_lignes(file.path(root, "inst", "app", "mod_timeseries.R"))
+  poses <- grep("fdf\\$(lo|hi)[0-9]+ *<-", l, value = TRUE)
+  expect_gt(length(poses), 0L)
+  expect_true(all(grepl("as.numeric", poses)))
+})
+
+test_that("aucune installation de paquet ne part du corps du serveur", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # `install.packages()` etait appele DANS `server` : sur un poste hors ligne,
+  # chaque ouverture de l'application attendait l'expiration de la requete CRAN
+  # (mesure : sept tentatives pour sept sessions d'essai) ; sur un serveur
+  # partage, la bibliotheque est le plus souvent en lecture seule, et deux
+  # sessions simultanees pouvaient y ecrire ensemble.
+  #
+  # L'installation appartient au demarrage : `install_and_load()` et
+  # `hstat_load_model_packages()` (Utils.R), appeles une fois au source.
+  for (f in c("app_server.R", "UX.R", "mod_tests.R", "mod_viz.R", "mod_ml.R",
+              "mod_dl.R", "mod_timeseries.R", "mod_qualitative.R",
+              "mod_design.R", "mod_clean.R", "mod_explore.R", "mod_filter.R",
+              "mod_descriptive.R", "mod_threshold.R", "mod_coding.R",
+              "mod_ai.R", "mod_report.R")) {
+    # Le motif vise un APPEL, pas une mention : plusieurs messages indiquent a
+    # l'utilisateur la commande d'installation, et les compter ferait echouer le
+    # test sur une phrase d'aide. On passe donc par l'analyseur de R, qui
+    # distingue un appel de fonction d'une chaine de caracteres.
+    chemin <- file.path(root, "inst", "app", f)
+    pd <- utils::getParseData(parse(chemin, keep.source = TRUE))
+    appels <- pd$text[pd$token == "SYMBOL_FUNCTION_CALL"]
+    expect_false("install.packages" %in% appels, info = f)
+  }
+  # Et la liste de demarrage porte bien les paquets qui y ont ete deplaces.
+  u <- paste(.hstat_code_lignes(file.path(root, "inst", "app", "Utils.R")),
+             collapse = "\n")
+  i <- regexpr("hstat_model_packages <- c\\(", u)
+  bloc <- substr(u, i, i + 900L)
+  for (p in c("lavaan", "pls", "klaR", "poLCA", "clustMixType", "nnet"))
+    expect_true(grepl(paste0('"', p, '"'), bloc), info = p)
+})
+
+test_that("une randomisation ne tire jamais dans 1:x par accident", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # `sample(x, n)` PIOCHE DANS 1:x QUAND x EST UN SEUL NOMBRE. Un plan a un
+  # seul traitement code numeriquement verrait apparaitre un traitement qui
+  # n'existe pas -- silencieusement, dans un plan d'experience.
+  expect_true(all(sample(c(7), 1) %in% 1:7))          # le piege, tel quel
+  expect_equal(c(7)[sample.int(1)], 7)                # la forme employee
+
+  l <- .hstat_code_lignes(file.path(root, "inst", "app", "mod_design.R"))
+  fautifs <- grep("sample\\([a-zA-Z_][A-Za-z0-9_.]*, *[a-zA-Z_]", l, value = TRUE)
+  expect_equal(fautifs, character(0))
+})
+
+test_that("aucun identifiant n'est declare deux fois dans la page", {
+  skip_if_not_installed("shinydashboard")
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # DEUX ELEMENTS, UN SEUL IDENTIFIANT : les deux boutons « Diagnostiquer mes
+  # données » portaient `runManovaDiagnostic`. Cliquer marchait -- la liaison de
+  # Shiny lit l'id de l'element clique -- mais `updateActionButton()` ou
+  # `shinyjs::disable()` n'en auraient atteint qu'un, et le HTML est invalide.
+  #
+  # La mesure porte sur la PAGE RENDUE, pas sur le source : un identifiant
+  # ecrit deux fois dans deux branches d'interface qui ne s'affichent jamais
+  # ensemble n'est pas un doublon, et le compter le ferait echouer a tort.
+  app <- file.path(root, "inst", "app")
+  e <- new.env(parent = globalenv())
+  ok <- tryCatch({
+    suppressMessages(suppressWarnings({
+      old <- setwd(app); on.exit(setwd(old), add = TRUE)
+      for (f in c("Utils.R", "mod_ai.R", "mod_report.R", "mod_coding.R",
+                  "mod_qualitative.R", "mod_clean.R", "mod_descriptive.R",
+                  "mod_design.R", "mod_dl.R", "mod_explore.R", "mod_filter.R",
+                  "mod_ml.R", "mod_tests.R", "mod_threshold.R",
+                  "mod_timeseries.R", "mod_viz.R", "UX.R"))
+        try(sys.source(f, e), silent = TRUE)
+    }))
+    exists("ui", envir = e)
+  }, error = function(err) FALSE)
+  skip_if_not(isTRUE(ok), "interface non constructible dans cet environnement")
+
+  html <- paste(as.character(htmltools::renderTags(get("ui", e))$html), collapse = "\n")
+  # L'espace avant `id=` est indispensable : sans lui, `data-grid="true"` est lu
+  # comme un identifiant valant « true », et la mesure annonce 108 doublons.
+  ids <- gsub("^ id=\"|\"$", "", regmatches(html, gregexpr(" id=\"[^\"]+\"", html))[[1]])
+  compte <- table(ids)
+  expect_gt(length(ids), 500L)
+  expect_equal(names(compte)[compte > 1], character(0))
+})
+
+test_that("aucune capture n'est branchee sur un champ que personne n'ecrit", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # CE QUE LE TEST CI-DESSUS NE VOIT PAS. Il cherche l'APPEL dans le source, et
+  # le declarait donc couvert ; mais l'observateur des comparaisons post-hoc
+  # guettait `values$multiResults`, un champ qui n'existe que dans la liste
+  # initiale -- personne ne l'ecrit. Il ne s'est jamais declenche, et cette
+  # famille manquait a l'onglet d'interpretation, au journal de
+  # reproductibilite et au rapport, sans que rien ne le signale.
+  #
+  # On verifie donc le DECLENCHEUR, pas la presence de l'appel.
+  fichiers <- list.files(file.path(root, "inst", "app"), pattern = "[.]R$",
+                         full.names = TRUE)
+  lignes <- lapply(fichiers, .hstat_code_lignes)
+  tout <- unlist(lignes)
+
+  ecrits <- unique(c(
+    gsub(".*values\\$([A-Za-z0-9_.]+)\\s*<<?-.*", "\\1",
+         grep("values\\$[A-Za-z0-9_.]+\\s*<<?-", tout, value = TRUE)),
+    gsub('.*values\\[\\["([A-Za-z0-9_.]+)"\\]\\].*', "\\1",
+         grep('values\\[\\["[A-Za-z0-9_.]+"\\]\\]\\s*<<?-', tout, value = TRUE))))
+
+  fautifs <- character(0)
+  for (k in seq_along(fichiers)) {
+    l <- lignes[[k]]
+    deb <- grep("observeEvent\\(\\s*values\\$[A-Za-z0-9_.]+", l)
+    for (i in deb) {
+      champ <- sub(".*observeEvent\\(\\s*values\\$([A-Za-z0-9_.]+).*", "\\1", l[i])
+      # Le corps de l'observateur : jusqu'a la prochaine declaration de meme
+      # niveau. Une fenetre de 40 lignes suffit et evite d'analyser le fichier.
+      corps <- paste(l[i:min(length(l), i + 40L)], collapse = " ")
+      if (grepl("hstat_ai_capture", corps) && !(champ %in% ecrits))
+        fautifs <- c(fautifs, sprintf("%s:%d values$%s", basename(fichiers[k]), i, champ))
+    }
+  }
+  expect_equal(fautifs, character(0))
+})
+
 # =============================================================================
 #  ROBUSTESSE AUX STATISTIQUES NON CALCULABLES
 # =============================================================================

@@ -745,7 +745,10 @@ hstat_agri_design <- function(type, factors, r = 3, seed = 123, k = NULL,
     set.seed(seed)
     rows <- list(); idx <- 1L; plot_id <- 1L
     for (rep_i in seq_len(rr)) {
-      ord <- sample(trts, nt)                      # randomisation dans la replique
+      # `sample(x, n)` PIOCHE DANS 1:x QUAND x EST UN SEUL NOMBRE : un essai a un
+      # seul traitement code numeriquement (« 1 », « 10 ») verrait apparaitre un
+      # traitement qui n'existe pas. On tire donc sur les INDICES.
+      ord <- trts[sample.int(nt)]                    # randomisation dans la replique
       nblocks <- ceiling(nt / kk2)
       blk_vec <- rep(seq_len(nblocks), each = kk2)[seq_len(nt)]
       for (j in seq_len(nt)) {
@@ -832,11 +835,11 @@ hstat_agri_design <- function(type, factors, r = 3, seed = 123, k = NULL,
     set.seed(seed)
     rows <- list(); idx <- 1L; plot_id <- 1L
     for (rep_i in seq_len(rr)) {
-      main_order <- sample(f1, n1)                     # ordre des parcelles principales
+      main_order <- f1[sample.int(n1)]                 # ordre des parcelles principales
       for (mp in seq_len(n1)) {
-        sub_order <- sample(f2, n2)                    # sous-parcelles randomisees
+        sub_order <- f2[sample.int(n2)]                # sous-parcelles randomisees
         for (sp in seq_len(n2)) {
-          subsub_order <- sample(f3, n3)               # sous-sous-parcelles randomisees
+          subsub_order <- f3[sample.int(n3)]           # sous-sous-parcelles randomisees
           for (ssp in seq_len(n3)) {
             rows[[idx]] <- data.frame(
               plots = plot_id,
