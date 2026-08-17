@@ -1615,6 +1615,61 @@ apt-get install -y r-cran-testthat r-cran-shiny r-cran-ggplot2 r-cran-dplyr \
 `svglite` est indispensable au test d'export image (`ggsave(device = "svg")`) :
 sans lui la suite tombe en erreur, alors que rien n'est cassé dans le code.
 
+## Le paquet s'installe, et c'est l'installation qui a trouvé les deux défauts
+
+`R CMD INSTALL` réussit, et `HStat::run_hstat()` sert l'application depuis le
+paquet installé — interface complète, `www/` servi, les 19 analyses parcourues
+sans une erreur, exactement comme depuis les sources.
+
+### `Imports` ou `Suggests` : la frontière se mesure
+
+`DESCRIPTION` déclarait **102 `Imports`** : `install.packages()` échouait si
+**un seul** manquait — alors que l'application est bâtie pour tourner sans, et
+le dit (`hstat_pkg_manquant()` donne la commande d'installation *et* une
+analyse de repli). Le fichier contredisait le code.
+
+> **`Imports`** = ce sans quoi l'espace de noms ne se charge pas ou l'interface
+> ne se construit pas. **`Suggests`** = ce dont une *analyse* a besoin, et dont
+> l'absence est déjà annoncée et surmontée.
+
+Mesure, pas estimation : on relève `loadedNamespaces()` en bâtissant `ui` **et
+les dix-sept UI de module** — 19 paquets. Réunis aux 22 que le socle importe
+par `importFrom` (sans eux la `library()` échoue) et à `stats`, cela fait
+**33 `Imports`** et **72 `Suggests`**. `run_hstat()` continue d'installer
+*tout* au démarrage : pour l'utilisateur ordinaire, rien ne change.
+
+### Un `importFrom` ne doit jamais nommer un aiguillage
+
+Un nom importé vit dans `imports:HStat`, **cherché avant l'environnement
+global** où `hstat_installer_replis_ui()` pose les aiguillages : l'aiguillage
+ne pouvait donc jamais gagner. `importFrom(shinyjs, colourInput)` traînait dans
+`NAMESPACE`, et shinyjs **ré-exporte** un ersatz devenu caduc — d'où
+« colourInput() has been moved to the 'colourpicker' package », qui faisait
+tomber **toute** la construction de l'interface.
+
+Le défaut n'existe **que dans le paquet installé** : depuis les sources il n'y
+a pas d'environnement d'imports, et l'aiguillage l'emportait. C'est la raison
+d'être de cette étape — aucun parcours depuis le dépôt ne pouvait le voir.
+
+### Le compilateur d'octets voit ce que la lecture ne voit pas
+
+`mod_coding.R` appelait `hstat_q_apply_palette(p, palette, low = , high = )`
+alors que les paramètres s'appellent `col_low` / `col_high`. R lève « unused
+arguments » **à l'appel** : le nuage de mots tombait entièrement dès qu'une
+palette autre que « default » était choisie. Jamais au chargement, jamais à la
+lecture — seulement sous les doigts de l'utilisateur.
+
+Un test balaie désormais tout appel à une fonction **maison** dont un argument
+nommé ne correspond à aucun paramètre (les fonctions à `...` sont hors de
+portée, elles absorbent tout). Il a été vérifié comme signalant exactement ce
+site avant correction.
+
+### Ce qui reste non prouvé
+
+`R CMD check` n'a pas pu être exécuté : il installe les `Suggests` pour les
+exemples et les tests, et 28 d'entre eux sont indisponibles hors ligne.
+L'installation, le chargement et l'exécution complète, eux, le sont.
+
 ## Déploiement : `app.R` à la racine
 
 `app.R` (racine) est le pont vers `inst/app/` pour shinyapps.io, Posit Connect

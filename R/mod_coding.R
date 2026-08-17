@@ -966,7 +966,7 @@ hstat_code_cloud_plot <- function(layout, palette = "default",
       y = range(layout$y) + c(-1, 1) * 0.12 * max(1, diff(range(layout$y))))
 
   if (exists("hstat_q_apply_palette") && !identical(palette, "default"))
-    p <- hstat_q_apply_palette(p, palette, low = low, high = high)
+    p <- hstat_q_apply_palette(p, palette, col_low = low, col_high = high)
   p
 }
 

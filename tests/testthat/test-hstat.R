@@ -6748,6 +6748,73 @@ test_that("aucun appel qualifie ne recouvre une fonction locale", {
   expect_equal(unique(trouves), character(0))
 })
 
+test_that("aucun appel ne nomme un argument que la fonction n'accepte pas", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # `hstat_q_apply_palette()` a pour parametres `col_low` / `col_high` ;
+  # `mod_coding.R` l'appelait avec `low =` / `high =`. R leve « unused
+  # arguments » A L'APPEL : le nuage de mots tombait entierement des qu'une
+  # palette autre que « default » etait choisie -- donc jamais au chargement,
+  # jamais a la lecture, seulement sous les doigts de l'utilisateur.
+  #
+  # Trouve par le compilateur d'octets a l'installation du paquet ; c'est un
+  # benefice direct de la conversion, et ce test le rend permanent.
+  fichiers <- .hstat_sources_app()
+  formels <- list()
+  for (f in fichiers) for (e in parse(f)) {
+    if (is.call(e) && as.character(e[[1]])[1] %in% c("<-", "=", "<<-") &&
+        is.name(e[[2]]) && is.call(e[[3]]) && is.name(e[[3]][[1]]) &&
+        as.character(e[[3]][[1]]) == "function")
+      formels[[as.character(e[[2]])]] <- names(as.list(e[[3]][[2]]))
+  }
+  expect_gte(length(formels), 300L)
+  vide <- function(l, i) identical(l[[i]], quote(expr = ))
+  trouves <- character(0)
+  visiter <- function(x, fichier) {
+    if (!is.call(x)) return(invisible())
+    tete <- x[[1]]
+    if (is.name(tete)) {
+      fm <- formels[[as.character(tete)]]
+      # `...` absorbe tout : la fonction ne peut pas se plaindre.
+      if (!is.null(fm) && !("..." %in% fm)) {
+        nommes <- names(as.list(x))
+        nommes <- if (is.null(nommes)) character(0) else nommes[-1]
+        inconnus <- setdiff(nommes[nzchar(nommes)], fm)
+        if (length(inconnus))
+          trouves <<- c(trouves, sprintf("%s : %s(%s)", fichier,
+                                         as.character(tete),
+                                         paste(inconnus, collapse = ", ")))
+      }
+    }
+    l <- as.list(x)
+    for (i in seq_along(l)) if (!vide(l, i)) visiter(l[[i]], fichier)
+  }
+  for (f in fichiers) for (e in parse(f)) visiter(e, basename(f))
+  expect_equal(unique(trouves), character(0))
+})
+
+test_that("aucun importFrom ne nomme un aiguillage", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # Un nom importe vit dans `imports:HStat`, CHERCHE AVANT l'environnement
+  # global ou `hstat_installer_replis_ui()` pose les aiguillages : l'aiguillage
+  # ne peut alors jamais gagner. `importFrom(shinyjs, colourInput)` -- shinyjs
+  # RE-EXPORTE un ersatz devenu caduc -- faisait tomber TOUTE la construction
+  # de l'interface sur « colourInput() has been moved to the 'colourpicker'
+  # package ».
+  #
+  # Le defaut n'existait QUE dans le paquet installe : depuis les sources il
+  # n'y a pas d'environnement d'imports. Aucun parcours de l'application depuis
+  # le depot ne pouvait le voir.
+  aiguillages <- c("withSpinner", "plotlyOutput", "ggplotly", "layout", "config",
+                   "renderPlotly", "colourInput", "pickerInput",
+                   "radioGroupButtons", "updatePickerInput", "rank_list")
+  n <- readLines(file.path(root, "NAMESPACE"), warn = FALSE)
+  imp <- grep("^importFrom\\(", n, value = TRUE)
+  noms <- sub("^importFrom\\([^,]+,\\s*([^)]+)\\)$", "\\1", imp)
+  expect_equal(intersect(trimws(noms), aiguillages), character(0))
+})
+
 test_that("un nom masque par un paquet d'interface est qualifie", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))

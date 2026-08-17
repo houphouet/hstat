@@ -9,6 +9,16 @@
 # venait de l'application, ou shiny et ggplot2 sont ATTACHES ; dans un paquet,
 # rien ne l'est. Mesure : 75 symboles de 20 paquets etaient dans ce cas.
 #
+# AUCUN `importFrom` NE DOIT NOMMER UN AIGUILLAGE (`colourInput`,
+# `withSpinner`, `plotlyOutput`, `renderPlotly`, `pickerInput`...). Un nom
+# importe vit dans `imports:HStat`, CHERCHE AVANT l'environnement global ou
+# `hstat_installer_replis_ui()` pose les aiguillages : l'aiguillage ne gagnait
+# donc jamais. `importFrom(shinyjs, colourInput)` -- shinyjs RE-EXPORTE un
+# ersatz devenu caduc -- faisait tomber toute la construction de l'interface
+# sur « colourInput() has been moved to the 'colourpicker' package », et
+# UNIQUEMENT depuis le paquet installe : depuis les sources il n'y a pas
+# d'environnement d'imports, et l'aiguillage l'emportait.
+#
 # `importFrom` et non `import()` : importer shiny, ggplot2, dplyr et tidyr en
 # entier ferait s'entre-masquer leurs exports (`count`, `layout`,
 # `dataTableOutput`...), avec un avertissement a l'installation et une
@@ -85,7 +95,6 @@ importFrom(shiny,strong)
 importFrom(shiny,tagList)
 importFrom(shiny,textInput)
 importFrom(shiny,uiOutput)
-importFrom(shinyjs,colourInput)
 importFrom(svglite,svglite)
 importFrom(tidyr,complete)
 importFrom(tidyr,nesting)
