@@ -1791,6 +1791,73 @@ faciles à produire : un facteur à **une seule modalité** n'est pas répété,
 facteur comptant **autant de modalités que d'observations** ne répète rien du
 tout (le message invite alors à regrouper les dates par mois ou par stade).
 
+## Le socle vit dans `R/`, l'application le charge par un pont
+
+Première étape de la conversion en vrai paquet R, et elle est structurelle :
+les ~5 700 lignes de définitions qui vivaient dans `inst/app/Utils.R` sont
+passées dans **`R/utils.R`**, où elles forment le code du paquet.
+`inst/app/Utils.R` reste en place — `HStat.R` le source toujours en premier —
+mais il n'a plus que deux rôles : **charger le socle**, puis **faire ce qui doit
+l'être au démarrage**.
+
+### Pourquoi ce partage précisément
+
+Dans un paquet R, le code de premier niveau est évalué **à l'installation**, pas
+au chargement. Trois familles d'expressions ne peuvent donc pas rejoindre `R/` :
+
+1. les **réglages de session** (`options(encoding=)`, `shiny.maxRequestSize`,
+   `shiny.plot.res`) et la **locale** — ils appartiennent au démarrage ;
+2. l'**installation des paquets** (`install_and_load(required_packages)`,
+   `hstat_load_model_packages()`) — la liste est une définition, l'appel non ;
+3. les **replis conditionnels** des paquets d'interface optionnels
+   (`withSpinner`, `plotlyOutput`, `colourInput`, `pickerInput`, `rank_list`,
+   `renderPlotly`). C'est le point le plus subtil : `if (!.hstat_has("plotly"))`
+   placé dans `R/` figerait sur la machine de **construction** une décision qui
+   appartient à la machine d'**exécution**.
+
+S'y ajoutent les deux alias anti-masquage (`em <- shiny::em`,
+`margin <- ggplot2::margin`) : ils protègent l'environnement de l'application,
+pas le paquet.
+
+Décompte réel du découpage : **256** expressions de premier niveau, dont **16**
+restent au pont (139 lignes) et **240** partent au socle (5 740 lignes).
+
+### Deux invariants, chacun testé
+
+- **Le socle ne fait rien** : aucune expression de premier niveau autre qu'une
+  affectation (`"_PACKAGE"`, support de la documentation, excepté). Un
+  `options()` qui s'y glisserait serait posé à l'installation.
+- **Le pont ne définit rien** d'autre que son chargeur : les seuls noms qu'il
+  affecte sont `.hstat_charger_socle`, `.hstat_max_mb`, `em` et `margin`. Une
+  fonction utilitaire qui y réapparaîtrait serait une **seconde source de
+  vérité** — celle que l'application verrait, sans que le paquet ni les tests en
+  sachent rien.
+
+### Les sources priment sur le paquet installé
+
+`.hstat_charger_socle()` cherche `R/utils.R` en remontant depuis le dossier de
+l'application **avant** de se rabattre sur l'espace de noms. Sur un poste où
+HStat est aussi installé, l'ordre inverse ferait travailler l'application sur une
+version antérieure à celle qu'on est en train d'éditer — défaut particulièrement
+pénible parce qu'il ne se voit pas. Un test vérifie l'ordre.
+
+Quand le paquet est installé (`run_hstat()` sur `system.file("app")`), il n'y a
+plus de fichier `R/utils.R` : le pont **recopie** alors les objets de l'espace de
+noms dans l'environnement de l'application. La recopie est nécessaire parce que
+l'application appelle aussi des aides internes `.hstat_*`, qu'un `library()` ne
+rendrait pas visibles — d'où `exportPattern(".")` dans `NAMESPACE`, tenu à la
+main et redéclaré en roxygen dans `R/utils.R` pour qu'un futur `document()` le
+reproduise au lieu de l'effacer.
+
+### Ce que cette étape ne prouve pas encore
+
+`R CMD check` et `pkgload::load_all()` **n'ont pas pu être exécutés** ici : 22
+des 107 `Imports` sont indisponibles hors ligne. Ce qui est vérifié, c'est que le
+socle se charge **seul** (241 objets, `sys.source()` suffit), que la suite de
+tests s'appuie désormais sur lui, et que l'application démarre et fonctionne
+inchangée par le pont — 19 analyses parcourues, aucune erreur. La validation de
+l'installation appartient à une machine disposant du réseau.
+
 ## Fins de ligne
 
 Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. Sont en

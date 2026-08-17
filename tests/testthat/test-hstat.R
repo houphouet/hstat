@@ -30,21 +30,45 @@ local({
   # Candidats couvrant toutes les facons de lancer les tests : depuis le
   # dossier de l'app, depuis tests/, depuis testthat/ (test_dir), ou avec le
   # package installe (R CMD check).
-  candidates <- c(
-    "Utils.R", file.path("..", "Utils.R"),
-    file.path("..", "..", "inst", "app", "Utils.R"),   # depuis tests/testthat/
-    file.path("..", "inst", "app", "Utils.R"),          # depuis tests/
-    file.path("inst", "app", "Utils.R"),                # depuis la racine du package
-    tryCatch(system.file("app", "Utils.R", package = "HStat"), error = function(e) "")
-  )
-  utils_path <- candidates[file.exists(candidates)][1]
-  if (is.na(utils_path))
-    stop("Impossible de localiser Utils.R depuis ", getwd())
+  # LE SOCLE VIT DANS `R/utils.R`, code du paquet. `inst/app/Utils.R` n'est plus
+  # qu'un pont : le sourcer ne definirait rien. Les deux chemins sont donc
+  # cherches separement -- le socle d'un cote, le dossier des modules de l'autre.
+  socle_cands <- c(
+    file.path("R", "utils.R"),                              # racine du depot
+    file.path("..", "R", "utils.R"),                        # depuis tests/
+    file.path("..", "..", "R", "utils.R"),                   # depuis tests/testthat/
+    file.path("..", "..", "..", "R", "utils.R"))
+  socle_path <- socle_cands[file.exists(socle_cands)][1]
+
+  app_cands <- c(
+    ".", "..",
+    file.path("..", "..", "inst", "app"),                   # depuis tests/testthat/
+    file.path("..", "inst", "app"),                          # depuis tests/
+    file.path("inst", "app"),                                # depuis la racine
+    tryCatch(system.file("app", package = "HStat"), error = function(e) ""))
+  app_cands <- app_cands[nzchar(app_cands) &
+                         file.exists(file.path(app_cands, "mod_qualitative.R"))]
+  app_dir <- if (length(app_cands)) app_cands[1] else NA_character_
+
   # Empeche install_and_load de bloquer si un package manque dans l'env de test
   e <- new.env()
   assign("install_and_load", function(...) invisible(NULL), envir = e)
-  suppressWarnings(suppressMessages(
-    sys.source(utils_path, envir = e, keep.source = FALSE)))
+  if (!is.na(socle_path)) {
+    suppressWarnings(suppressMessages(
+      sys.source(socle_path, envir = e, keep.source = FALSE)))
+  } else if (isTRUE(requireNamespace("HStat", quietly = TRUE))) {
+    # Paquet installe (R CMD check) : les definitions viennent de l'espace de
+    # noms, y compris les aides internes que les tests exercent directement.
+    ns <- asNamespace("HStat")
+    for (nm in setdiff(ls(ns, all.names = TRUE),
+                       c(".__NAMESPACE__.", ".__S3MethodsTable__.", ".packageName")))
+      assign(nm, get(nm, envir = ns), envir = e)
+  } else {
+    stop("Impossible de localiser le socle (R/utils.R) depuis ", getwd())
+  }
+  if (is.na(app_dir))
+    stop("Impossible de localiser inst/app depuis ", getwd())
+  utils_path <- file.path(app_dir, "Utils.R")
   # Les fonctions de calcul qualitatives (hstat_q_*) vivent dans
   # mod_qualitative.R, au meme endroit que Utils.R : le charger aussi, sinon
   # tous les tests qualitatifs echouent avec "could not find function".
@@ -90,6 +114,18 @@ local({
   hit <- cands[file.exists(file.path(cands, "DESCRIPTION")) &
                dir.exists(file.path(cands, "inst", "app"))]
   if (length(hit)) normalizePath(hit[1]) else NA_character_
+}
+
+# -- Chemin du SOCLE ---------------------------------------------------------
+# Les definitions ont quitte `inst/app/Utils.R` pour `R/utils.R`, ou elles
+# forment le code du paquet. Les tests qui lisent une definition doivent donc
+# viser le socle ; ceux qui lisent un effet de bord de demarrage visent le pont.
+# Un seul localisateur, sinon la distinction se perdra au prochain test ajoute.
+.hstat_socle_path <- function() {
+  root <- .hstat_repo_root()
+  if (is.na(root)) return(NA_character_)
+  p <- file.path(root, "R", "utils.R")
+  if (file.exists(p)) p else NA_character_
 }
 
 # Lignes de code d'un fichier R, COMMENTAIRES RETIRES par l'analyseur de R.
@@ -2587,8 +2623,9 @@ test_that("aucune installation de paquet ne part du corps du serveur", {
     expect_false("install.packages" %in% appels, info = f)
   }
   # Et la liste de demarrage porte bien les paquets qui y ont ete deplaces.
-  u <- paste(.hstat_code_lignes(file.path(root, "inst", "app", "Utils.R")),
-             collapse = "\n")
+  # Elle vit dans le SOCLE (`R/utils.R`) : c'est une definition. Ce qui reste au
+  # pont, c'est l'APPEL qui l'installe.
+  u <- paste(.hstat_code_lignes(file.path(root, "R", "utils.R")), collapse = "\n")
   i <- regexpr("hstat_model_packages <- c\\(", u)
   bloc <- substr(u, i, i + 900L)
   for (p in c("lavaan", "pls", "klaR", "poLCA", "clustMixType", "nnet"))
@@ -4972,7 +5009,9 @@ test_that("la langue est propre a la session, jamais globale", {
 
   root <- .hstat_repo_root()
   skip_if(is.na(root))
-  u <- paste(readLines(file.path(root, "inst", "app", "Utils.R"), warn = FALSE,
+  # `hstat_langue_session()` est une definition : elle vit dans le socle.
+  skip_if(is.na(.hstat_socle_path()))
+  u <- paste(readLines(.hstat_socle_path(), warn = FALSE,
                        encoding = "UTF-8"), collapse = "\n")
   # `session$userData` et non une option globale : sur un serveur partage, une
   # option ferait basculer la langue de TOUS les utilisateurs a la fois.
@@ -6554,6 +6593,87 @@ test_that("le catalogue de formats ne promet que ce que l'ecrivain sait ecrire",
   }
 })
 
+test_that("le socle ne fait rien : il ne fait que definir", {
+  socle <- .hstat_socle_path()
+  skip_if(is.na(socle))
+  # C'EST L'INVARIANT DU PAQUET. Dans un paquet R, le code de premier niveau est
+  # evalue A L'INSTALLATION, pas au chargement : un `options()` y serait pose sur
+  # la machine de construction, et un `if (!.hstat_has("plotly")) ...` y figerait
+  # une decision qui appartient a la machine d'execution.
+  ex <- parse(socle)
+  agit <- vapply(ex, function(e)
+    !(is.call(e) && as.character(e[[1]])[1] %in% c("<-", "<<-", "=")), logical(1))
+  # `"_PACKAGE"` est la seule expression non-affectation toleree : c'est le
+  # support de la documentation roxygen du paquet, il ne s'evalue pas.
+  agit <- agit & !vapply(ex, function(e) identical(e, "_PACKAGE"), logical(1))
+  coupables <- vapply(ex[agit], function(e)
+    substr(gsub("\\s+", " ", paste(deparse(e), collapse = " ")), 1, 70), character(1))
+  expect_equal(unname(coupables), character(0))
+})
+
+test_that("le pont ne definit rien d'autre que son chargeur", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # Le pont porte les effets de bord du demarrage, pas les definitions. Une
+  # fonction utilitaire qui reapparaitrait ici serait une SECONDE SOURCE DE
+  # VERITE : celle que l'application verrait, sans que le paquet ni les tests en
+  # sachent rien.
+  ex <- parse(file.path(root, "inst", "app", "Utils.R"))
+  noms <- unlist(lapply(ex, function(e) {
+    if (is.call(e) && as.character(e[[1]])[1] %in% c("<-", "<<-", "="))
+      as.character(e[[2]])[1] else NULL
+  }))
+  # Trois exceptions, chacune motivee : le chargeur lui-meme (il ne peut pas
+  # venir d'ailleurs), la taille d'upload (lue dans l'environnement au
+  # demarrage) et les deux alias anti-masquage (ils protegent l'environnement
+  # de l'application, pas le paquet).
+  expect_setequal(noms, c(".hstat_charger_socle", ".hstat_max_mb", "em", "margin"))
+})
+
+test_that("le socle se charge seul et rend l'application complete", {
+  socle <- .hstat_socle_path()
+  skip_if(is.na(socle))
+  # LE GAIN ANNONCE, mesure : le socle est chargeable sans demarrer quoi que ce
+  # soit. C'est ce qui rendra les modules testables un a un.
+  e <- new.env()
+  suppressWarnings(suppressMessages(sys.source(socle, envir = e, keep.source = FALSE)))
+  expect_gt(length(ls(e, all.names = TRUE)), 200L)
+  essentiels <- c("hstat_ecrire_image", "hstat_dpi_effectif", "hstat_valeurs_initiales",
+                  "hstat_err_fr", "trf", "tr", "%||%", "hstat_p_verdict",
+                  "hstat_efficacite", "hstat_export_plot_handler", "install_and_load",
+                  "required_packages", "hstat_model_packages", "HSTAT_FORMATS_IMG",
+                  ".hstat_num1", "hstat_feuille_nom", "viz_get_theme", "hstat_i18n_path")
+  expect_equal(setdiff(essentiels, ls(e, all.names = TRUE)), character(0))
+  # Et il fonctionne hors application : la version se lit sur le disque.
+  expect_match(get("hstat_version", envir = e)(), "^[0-9]+[.][0-9]+")
+})
+
+test_that("le pont prefere les sources au paquet installe", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # Sur un poste ou HStat est AUSSI installe, charger le paquet ferait travailler
+  # l'application sur une version anterieure a celle qu'on edite -- defaut
+  # particulierement penible parce qu'il ne se voit pas. L'ordre compte donc :
+  # `R/utils.R` d'abord, l'espace de noms ensuite.
+  l <- .hstat_code_lignes(file.path(root, "inst", "app", "Utils.R"))
+  i_src <- grep('file.path(rel, "R", "utils.R")', l, fixed = TRUE)
+  i_pkg <- grep('requireNamespace("HStat"', l, fixed = TRUE)
+  expect_length(i_src, 1L)
+  expect_length(i_pkg, 1L)
+  expect_lt(i_src, i_pkg)
+})
+
+test_that("le NAMESPACE expose le socle, aides internes comprises", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  ns <- readLines(file.path(root, "NAMESPACE"), warn = FALSE)
+  # `exportPattern("^[^.]")` laisserait les `.hstat_*` invisibles, et
+  # l'application les appelle directement : elle tomberait sur « could not find
+  # function » une fois installee, alors que tout marche depuis les sources.
+  expect_true(any(grepl('exportPattern(".")', ns, fixed = TRUE)))
+  expect_true(any(grepl("export(run_hstat)", ns, fixed = TRUE)))
+})
+
 test_that("le format et le DPI ne se declarent qu'au catalogue", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))
@@ -6941,7 +7061,10 @@ test_that("l'export de l'onglet Visualisation ne retrecit plus la figure", {
 
 test_that("le code mort retire ne revient pas", {
   root <- .hstat_repo_root()
-  fs <- list.files(file.path(root, "inst", "app"), pattern = "[.]R$", full.names = TRUE)
+  # Le socle compte parmi les sources balayees : le code mort peut aussi y
+  # revenir, et c'est meme la qu'il vivait.
+  fs <- c(list.files(file.path(root, "inst", "app"), pattern = "[.]R$", full.names = TRUE),
+          list.files(file.path(root, "R"), pattern = "[.]R$", full.names = TRUE))
   src <- paste(unlist(lapply(fs, readLines, warn = FALSE)), collapse = "\n")
 
   # UNE SECTION CHI-DEUX ENTIERE etait calculee sans etre affichee : vingt
@@ -7006,8 +7129,8 @@ test_that("monter le DPI ne change ni la taille ni la mise en page, nulle part",
 
   # LE VECTORIEL n'est pas plafonne : sa resolution est infinie et le DPI n'y
   # veut rien dire. C'est la reponse a « je veux 20 000 DPI sans rien perdre ».
-  ecr <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app", "Utils.R"),
-                         warn = FALSE), collapse = "\n")
+  skip_if(is.na(.hstat_socle_path()))
+  ecr <- paste(readLines(.hstat_socle_path(), warn = FALSE), collapse = "\n")
   i <- regexpr("hstat_ecrire_image <- function", ecr, fixed = TRUE)
   corps <- substr(ecr, i, i + 1400)
   expect_true(grepl('!fmt %in% c("pdf", "svg", "eps")', corps, fixed = TRUE))
