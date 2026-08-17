@@ -1,46 +1,46 @@
 #  Module Shiny : Tests statistiques + Comparaisons post-hoc (combine)
 
 mod_tests_ui <- function(id) {
-  ns <- NS(id)
-      tabItem(tabName = "tests",
+  ns <- shiny::NS(id)
+      shinydashboard::tabItem(tabName = "tests",
                 .hstat_scope_banner(exact = FALSE),
-                fluidRow(
+                shiny::fluidRow(
                   box(title = "Paramètres des tests", status = "danger", width = 12, solidHeader = TRUE,
-                      fluidRow(
-                        column(4,
-                               uiOutput(ns("responseVarSelect")),
-                               uiOutput(ns("factorVarSelect")),
-                               checkboxInput(ns("interaction"), "Inclure les interactions (ANOVA/Scheirer-Ray-Hare)", FALSE),
-                               hr(),
-                               div(style = "background-color: #e8f4f8; border-left: 4px solid #17a2b8; padding: 10px;",
-                                   fluidRow(
-                                     column(6,
-                                            checkboxInput(ns("testsRoundResults"), "Arrondir les résultats", value = FALSE)
+                      shiny::fluidRow(
+                        shiny::column(4,
+                               shiny::uiOutput(ns("responseVarSelect")),
+                               shiny::uiOutput(ns("factorVarSelect")),
+                               shiny::checkboxInput(ns("interaction"), "Inclure les interactions (ANOVA/Scheirer-Ray-Hare)", FALSE),
+                               shiny::hr(),
+                               shiny::div(style = "background-color: #e8f4f8; border-left: 4px solid #17a2b8; padding: 10px;",
+                                   shiny::fluidRow(
+                                     shiny::column(6,
+                                            shiny::checkboxInput(ns("testsRoundResults"), "Arrondir les résultats", value = FALSE)
                                      ),
-                                     column(6,
-                                            conditionalPanel(
+                                     shiny::column(6,
+                                            shiny::conditionalPanel(
                                               ns = ns,
                                               condition = "input.testsRoundResults == true",
-                                              numericInput(ns("testsDecimals"), "Décimales:", value = 2, min = 0, max = 8, step = 1)
+                                              shiny::numericInput(ns("testsDecimals"), "Décimales:", value = 2, min = 0, max = 8, step = 1)
                                             )
                                      )
                                    )
                                ),
                                # --- Configuration du modele (generalise) mixte ---
-                               div(style = "background-color:#e8f6f3; border-left:4px solid #16a085; padding:10px; margin-top:12px;",
-                                   h6(tagList(icon("sitemap"), " Modèle mixte (GLMM)"),
+                               shiny::div(style = "background-color:#e8f6f3; border-left:4px solid #16a085; padding:10px; margin-top:12px;",
+                                   shiny::h6(shiny::tagList(shiny::icon("sitemap"), " Modèle mixte (GLMM)"),
                                       style = "color:#6c3483; margin-top:0; font-weight:bold;"),
-                                   div(style = "font-size:11px; color:#6c3483; margin-bottom:8px;",
+                                   shiny::div(style = "font-size:11px; color:#6c3483; margin-bottom:8px;",
                                        "Paramètres utilisés par le bouton « Modèle (généralisé) mixte »."),
-                                   fluidRow(
-                                     column(6,
-                                            selectInput(ns("glmmEngine"), "Moteur :",
+                                   shiny::fluidRow(
+                                     shiny::column(6,
+                                            shiny::selectInput(ns("glmmEngine"), "Moteur :",
                                                         choices = c("lme4 (g/lmer)" = "lme4",
                                                                     "glmmTMB"       = "glmmTMB"),
                                                         selected = "lme4")
                                      ),
-                                     column(6,
-                                            selectInput(ns("glmmFamily"), "Famille :",
+                                     shiny::column(6,
+                                            shiny::selectInput(ns("glmmFamily"), "Famille :",
                                                         choices = c("Gaussienne"          = "gaussian",
                                                                     "Binomiale"           = "binomial",
                                                                     "Poisson"             = "poisson",
@@ -52,82 +52,82 @@ mod_tests_ui <- function(id) {
                                                         selected = "gaussian")
                                      )
                                    ),
-                                   selectInput(ns("glmmLink"), "Fonction de lien :",
+                                   shiny::selectInput(ns("glmmLink"), "Fonction de lien :",
                                                choices = c("Automatique (lien canonique)" = "auto",
                                                            "identity" = "identity", "log" = "log",
                                                            "logit"    = "logit",    "probit" = "probit",
                                                            "cloglog"  = "cloglog",  "inverse" = "inverse",
                                                            "sqrt"     = "sqrt"),
                                                selected = "auto"),
-                                   uiOutput(ns("glmmFamilyHelp")),
-                                   uiOutput(ns("glmmLinkHelp")),
-                                   uiOutput(ns("glmmRandomSelect")),
-                                   div(style = "font-size:10px; color:#7f8c8d; margin-top:4px;",
-                                       icon("circle-info"),
+                                   shiny::uiOutput(ns("glmmFamilyHelp")),
+                                   shiny::uiOutput(ns("glmmLinkHelp")),
+                                   shiny::uiOutput(ns("glmmRandomSelect")),
+                                   shiny::div(style = "font-size:10px; color:#7f8c8d; margin-top:4px;",
+                                       shiny::icon("circle-info"),
                                        " Effet aléatoire d'ordonnée à l'origine : ", tags$code("(1 | groupe)"), ".")
                                ),
                                # --- Configuration ANOVA a mesures repetees ---
-                               div(style = "background-color:#e0f2f1; border-left:4px solid #00897b; padding:10px; margin-top:12px;",
-                                   h6(tagList(icon("repeat"), " Mesures répétées (rmANOVA & non param.)"),
+                               shiny::div(style = "background-color:#e0f2f1; border-left:4px solid #00897b; padding:10px; margin-top:12px;",
+                                   shiny::h6(shiny::tagList(shiny::icon("repeat"), " Mesures répétées (rmANOVA & non param.)"),
                                       style = "color:#00695c; margin-top:0; font-weight:bold;"),
-                                   div(style = "font-size:11px; color:#00695c; margin-bottom:8px;",
+                                   shiny::div(style = "font-size:11px; color:#00695c; margin-bottom:8px;",
                                        "Paramètres des boutons « ANOVA à mesures répétées » et « Non paramétrique répété »."),
-                                   selectInput(ns("rmSubject"),
-                                               tagList(icon("user"), " Sujet / identifiant :"),
+                                   shiny::selectInput(ns("rmSubject"),
+                                               shiny::tagList(shiny::icon("user"), " Sujet / identifiant :"),
                                                choices = NULL),
-                                   selectizeInput(ns("rmWithin"),
-                                                  tagList(icon("clock"), HTML(" <b>Période</b> (facteur intra-sujet, répété) :")),
+                                   shiny::selectizeInput(ns("rmWithin"),
+                                                  shiny::tagList(shiny::icon("clock"), shiny::HTML(" <b>Période</b> (facteur intra-sujet, répété) :")),
                                                   choices = NULL, multiple = TRUE,
                                                   options = list(plugins = list("remove_button"),
                                                                  placeholder = "Ex. : temps, date, stade...")),
-                                   selectizeInput(ns("rmBetween"),
-                                                  tagList(icon("flask"), HTML(" <b>Traitement</b> (facteur inter-sujet, optionnel) :")),
+                                   shiny::selectizeInput(ns("rmBetween"),
+                                                  shiny::tagList(shiny::icon("flask"), shiny::HTML(" <b>Traitement</b> (facteur inter-sujet, optionnel) :")),
                                                   choices = NULL, multiple = TRUE,
                                                   options = list(plugins = list("remove_button"),
                                                                  placeholder = "Ex. : traitement, groupe...")),
-                                   div(style = "font-size:10px; color:#7f8c8d; margin:-2px 0 6px 0;",
-                                       icon("circle-info"),
-                                       HTML(" <b>Sujet</b> = unité mesurée plusieurs fois (ex. plante, parcelle). <b>Période</b> = facteur de temps répété sur le même sujet (intra-sujet). <b>Traitement</b> = facteur appliqué (souvent inter-sujet ; mettez-le en intra s'il varie au sein d'un même sujet).")),
-                                   selectInput(ns("rmEngine"), "Moteur (paramétrique) :",
+                                   shiny::div(style = "font-size:10px; color:#7f8c8d; margin:-2px 0 6px 0;",
+                                       shiny::icon("circle-info"),
+                                       shiny::HTML(" <b>Sujet</b> = unité mesurée plusieurs fois (ex. plante, parcelle). <b>Période</b> = facteur de temps répété sur le même sujet (intra-sujet). <b>Traitement</b> = facteur appliqué (souvent inter-sujet ; mettez-le en intra s'il varie au sein d'un même sujet).")),
+                                   shiny::selectInput(ns("rmEngine"), "Moteur (paramétrique) :",
                                                choices = c("Modèle mixte (lmer)" = "mixed",
                                                            "afex (aov classique)" = "afex"),
                                                selected = "mixed"),
-                                   selectInput(ns("rmNonParam"), "Test non paramétrique :",
+                                   shiny::selectInput(ns("rmNonParam"), "Test non paramétrique :",
                                                choices = c("Friedman (1 facteur intra)"      = "friedman",
                                                            "Durbin (plans incomplets)"       = "durbin",
                                                            "ART (rangs alignés, factoriel)"  = "art"),
                                                selected = "friedman"),
-                                   selectInput(ns("rmPostHocAdjust"), "Ajustement post-hoc :",
+                                   shiny::selectInput(ns("rmPostHocAdjust"), "Ajustement post-hoc :",
                                                choices = c("Holm" = "holm", "Bonferroni" = "bonferroni",
                                                            "BH (FDR)" = "BH", "Tukey" = "tukey", "Aucun" = "none"),
                                                selected = "holm")
                                )
                         ),
-                        column(4,
-                               h4("Tests sur données brutes", style = "color: #3c8dbc;"),
-                               div(style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;",
-                                   actionButton(ns("testNormalityRaw"),   "Test de normalité",     class = "btn-warning btn-block", icon = icon("chart-line")),
-                                   actionButton(ns("testHomogeneityRaw"), "Test d'homogénéité",    class = "btn-warning btn-block", icon = icon("balance-scale"))
+                        shiny::column(4,
+                               shiny::h4("Tests sur données brutes", style = "color: #3c8dbc;"),
+                               shiny::div(style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;",
+                                   shiny::actionButton(ns("testNormalityRaw"),   "Test de normalité",     class = "btn-warning btn-block", icon = shiny::icon("chart-line")),
+                                   shiny::actionButton(ns("testHomogeneityRaw"), "Test d'homogénéité",    class = "btn-warning btn-block", icon = shiny::icon("balance-scale"))
                                ),
-                               h4("Tests paramétriques", style = "color: #00a65a;"),
-                               div(style="display:flex; flex-direction:column; gap:8px;",
-                                   actionButton(ns("testT"),    "Test t de Student",           class = "btn-success btn-block", icon = icon("check")),
-                                   actionButton(ns("testANOVA"),"ANOVA",                        class = "btn-success btn-block", icon = icon("check")),
-                                   actionButton(ns("testMANOVA"),"MANOVA (>= 2 réponses)",     class = "btn-success btn-block", icon = icon("layer-group")),
-                                   actionButton(ns("testLM"),   "Régression linéaire",          class = "btn-success btn-block", icon = icon("check")),
-                                   actionButton(ns("testGLM"),  "Modèle linéaire généralisé",   class = "btn-success btn-block", icon = icon("check")),
-                                   actionButton(ns("testGLMM"), "Modèle (généralisé) mixte",    class = "btn-success btn-block", icon = icon("sitemap")),
-                                   actionButton(ns("testRMAnova"), "ANOVA à mesures répétées",   class = "btn-success btn-block", icon = icon("repeat"))
+                               shiny::h4("Tests paramétriques", style = "color: #00a65a;"),
+                               shiny::div(style="display:flex; flex-direction:column; gap:8px;",
+                                   shiny::actionButton(ns("testT"),    "Test t de Student",           class = "btn-success btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testANOVA"),"ANOVA",                        class = "btn-success btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testMANOVA"),"MANOVA (>= 2 réponses)",     class = "btn-success btn-block", icon = shiny::icon("layer-group")),
+                                   shiny::actionButton(ns("testLM"),   "Régression linéaire",          class = "btn-success btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testGLM"),  "Modèle linéaire généralisé",   class = "btn-success btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testGLMM"), "Modèle (généralisé) mixte",    class = "btn-success btn-block", icon = shiny::icon("sitemap")),
+                                   shiny::actionButton(ns("testRMAnova"), "ANOVA à mesures répétées",   class = "btn-success btn-block", icon = shiny::icon("repeat"))
                                )
                         ),
-                        column(4,
-                               h4("Tests non-paramétriques", style = "color: #f39c12;"),
-                               div(style="display:flex; flex-direction:column; gap:8px;",
-                                   actionButton(ns("testWilcox"),          "Test de Wilcoxon",          class = "btn-warning btn-block", icon = icon("check")),
-                                   actionButton(ns("testKruskal"),         "Test de Kruskal-Wallis",     class = "btn-warning btn-block", icon = icon("check")),
-                                   actionButton(ns("testScheirerRayHare"), "Test de Scheirer-Ray-Hare",  class = "btn-warning btn-block", icon = icon("check")),
-                                   actionButton(ns("testRMNonParam"), "Non paramétrique répété",  class = "btn-warning btn-block", icon = icon("repeat")),
-                                   actionButton(ns("testPERMANOVA"),       "PERMANOVA (>= 2 réponses)",  class = "btn-warning btn-block", icon = icon("layer-group"))
+                        shiny::column(4,
+                               shiny::h4("Tests non-paramétriques", style = "color: #f39c12;"),
+                               shiny::div(style="display:flex; flex-direction:column; gap:8px;",
+                                   shiny::actionButton(ns("testWilcox"),          "Test de Wilcoxon",          class = "btn-warning btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testKruskal"),         "Test de Kruskal-Wallis",     class = "btn-warning btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testScheirerRayHare"), "Test de Scheirer-Ray-Hare",  class = "btn-warning btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testRMNonParam"), "Non paramétrique répété",  class = "btn-warning btn-block", icon = shiny::icon("repeat")),
+                                   shiny::actionButton(ns("testPERMANOVA"),       "PERMANOVA (>= 2 réponses)",  class = "btn-warning btn-block", icon = shiny::icon("layer-group"))
                                ),
                                # Le Test Chi² / Multinomial a été déplacé dans
                                # « Analyses qualitatives » (famille Nominale) où
@@ -139,78 +139,78 @@ mod_tests_ui <- function(id) {
                                # La section entiere occupe le bas de cette colonne, dans son
                                # ordre de lecture : d'abord les tests offerts, puis les
                                # reglages qui les pilotent, puis le volet proportions.
-                               div(style = "border-left:4px solid #6a1b9a; padding-left:10px; margin-top:16px;",
-                                   h4(tagList(icon("bullseye"), " Comparaison à une norme"),
+                               shiny::div(style = "border-left:4px solid #6a1b9a; padding-left:10px; margin-top:16px;",
+                                   shiny::h4(shiny::tagList(shiny::icon("bullseye"), " Comparaison à une norme"),
                                       style = "color:#6a1b9a;"),
-                                   div(style = "font-size:11px; color:#7f8c8d; margin:-4px 0 8px 0;",
+                                   shiny::div(style = "font-size:11px; color:#7f8c8d; margin:-4px 0 8px 0;",
                                        "Confronte les variables réponse à une valeur de référence (réglages ci-dessous)."),
-                                   div(style = "display:flex; flex-direction:column; gap:8px;",
-                                       actionButton(ns("testRefT"), "Test t (1 échantillon)",
-                                                    class = "btn-block", icon = icon("bullseye"),
+                                   shiny::div(style = "display:flex; flex-direction:column; gap:8px;",
+                                       shiny::actionButton(ns("testRefT"), "Test t (1 échantillon)",
+                                                    class = "btn-block", icon = shiny::icon("bullseye"),
                                                     style = "background:#6a1b9a; color:#fff; border-color:#59167f;"),
-                                       actionButton(ns("testRefZ"), "Test z (écart-type connu)",
-                                                    class = "btn-block", icon = icon("bullseye"),
+                                       shiny::actionButton(ns("testRefZ"), "Test z (écart-type connu)",
+                                                    class = "btn-block", icon = shiny::icon("bullseye"),
                                                     style = "background:#6a1b9a; color:#fff; border-color:#59167f;"),
-                                       actionButton(ns("testRefTOST"), "Équivalence à la norme (TOST)",
-                                                    class = "btn-block", icon = icon("arrows-left-right"),
+                                       shiny::actionButton(ns("testRefTOST"), "Équivalence à la norme (TOST)",
+                                                    class = "btn-block", icon = shiny::icon("arrows-left-right"),
                                                     style = "background:#6a1b9a; color:#fff; border-color:#59167f;"),
-                                       actionButton(ns("testRefVar"), "Chi² de conformité (variance)",
-                                                    class = "btn-block", icon = icon("wave-square"),
+                                       shiny::actionButton(ns("testRefVar"), "Chi² de conformité (variance)",
+                                                    class = "btn-block", icon = shiny::icon("wave-square"),
                                                     style = "background:#6a1b9a; color:#fff; border-color:#59167f;"),
-                                       actionButton(ns("testRefWilcox"), "Wilcoxon signé (médiane)",
-                                                    class = "btn-block", icon = icon("bullseye"),
+                                       shiny::actionButton(ns("testRefWilcox"), "Wilcoxon signé (médiane)",
+                                                    class = "btn-block", icon = shiny::icon("bullseye"),
                                                     style = "background:#8e44ad; color:#fff; border-color:#76398f;"),
-                                       actionButton(ns("testRefSign"), "Test du signe (médiane)",
-                                                    class = "btn-block", icon = icon("bullseye"),
+                                       shiny::actionButton(ns("testRefSign"), "Test du signe (médiane)",
+                                                    class = "btn-block", icon = shiny::icon("bullseye"),
                                                     style = "background:#8e44ad; color:#fff; border-color:#76398f;"))),
 
                                # --- Reglages de la comparaison a une norme --------------------
                                # Places SOUS les boutons ci-dessus : meme accent violet, meme
                                # colonne, l'ensemble se lit d'un seul tenant.
-                               div(style = "border-left:4px solid #6a1b9a; padding-left:10px; margin-top:12px;",
-                                   h4(tagList(icon("sliders-h"), " Réglages de la norme"),
+                               shiny::div(style = "border-left:4px solid #6a1b9a; padding-left:10px; margin-top:12px;",
+                                   shiny::h4(shiny::tagList(shiny::icon("sliders-h"), " Réglages de la norme"),
                                       style = "color:#6a1b9a;"),
-                                   numericInput(ns("refValue"),
-                                                tagList(icon("bullseye"), " Valeur de référence :"),
+                                   shiny::numericInput(ns("refValue"),
+                                                shiny::tagList(shiny::icon("bullseye"), " Valeur de référence :"),
                                                 value = 0),
-                                   fluidRow(
-                                     column(6, numericInput(ns("refSigma"),
-                                                tagList(icon("wave-square"), " Écart-type (test z / variance)"),
+                                   shiny::fluidRow(
+                                     shiny::column(6, shiny::numericInput(ns("refSigma"),
+                                                shiny::tagList(shiny::icon("wave-square"), " Écart-type (test z / variance)"),
                                                 value = NULL, min = 0)),
-                                     column(6, numericInput(ns("refMargin"),
-                                                tagList(icon("arrows-left-right"), " Marge (TOST)"),
+                                     shiny::column(6, shiny::numericInput(ns("refMargin"),
+                                                shiny::tagList(shiny::icon("arrows-left-right"), " Marge (TOST)"),
                                                 value = NULL, min = 0))),
-                                   selectInput(ns("refAlt"), "Hypothèse alternative :",
+                                   shiny::selectInput(ns("refAlt"), "Hypothèse alternative :",
                                                choices = c("Bilatérale (différente de la norme)" = "two.sided",
                                                            "Unilatérale : supérieure à la norme" = "greater",
                                                            "Unilatérale : inférieure à la norme" = "less"),
                                                selected = "two.sided"),
-                                   sliderInput(ns("refConf"), "Niveau de confiance :",
+                                   shiny::sliderInput(ns("refConf"), "Niveau de confiance :",
                                                min = 0.80, max = 0.99, value = 0.95, step = 0.01),
-                                   div(style = "font-size:11px; color:#7f8c8d; margin-top:-4px;",
-                                       icon("circle-info"),
+                                   shiny::div(style = "font-size:11px; color:#7f8c8d; margin-top:-4px;",
+                                       shiny::icon("circle-info"),
                                        paste(" L'écart-type ne sert qu'au test z et au Chi² de variance ;",
                                              "la marge, qu'au test d'équivalence.")),
                                    tags$hr(style = "margin:10px 0;"),
-                                   h5(tagList(icon("percent"), " Proportion / taux vs norme"),
+                                   shiny::h5(shiny::tagList(shiny::icon("percent"), " Proportion / taux vs norme"),
                                       style = "color:#6a1b9a; font-weight:bold;"),
-                                   uiOutput(ns("refPropVarSelect")),
-                                   uiOutput(ns("refPropLevelSelect")),
-                                   numericInput(ns("refPropP0"),
+                                   shiny::uiOutput(ns("refPropVarSelect")),
+                                   shiny::uiOutput(ns("refPropLevelSelect")),
+                                   shiny::numericInput(ns("refPropP0"),
                                                 "Proportion (ou taux) de référence :",
                                                 value = 0.5, min = 0, step = 0.01),
-                                   div(style = "display:flex; flex-direction:column; gap:8px;",
-                                       actionButton(ns("testRefBinom"), "Test binomial exact",
-                                                    class = "btn-block", icon = icon("percent"),
+                                   shiny::div(style = "display:flex; flex-direction:column; gap:8px;",
+                                       shiny::actionButton(ns("testRefBinom"), "Test binomial exact",
+                                                    class = "btn-block", icon = shiny::icon("percent"),
                                                     style = "background:#8e44ad; color:#fff; border-color:#76398f;"),
-                                       actionButton(ns("testRefProp"), "Chi² de conformité (proportion)",
-                                                    class = "btn-block", icon = icon("percent"),
+                                       shiny::actionButton(ns("testRefProp"), "Chi² de conformité (proportion)",
+                                                    class = "btn-block", icon = shiny::icon("percent"),
                                                     style = "background:#8e44ad; color:#fff; border-color:#76398f;"),
-                                       actionButton(ns("testRefPoisson"), "Test de Poisson (taux)",
-                                                    class = "btn-block", icon = icon("percent"),
+                                       shiny::actionButton(ns("testRefPoisson"), "Test de Poisson (taux)",
+                                                    class = "btn-block", icon = shiny::icon("percent"),
                                                     style = "background:#8e44ad; color:#fff; border-color:#76398f;")),
-                                   div(style = "font-size:11px; color:#7f8c8d; margin-top:6px;",
-                                       icon("circle-info"),
+                                   shiny::div(style = "font-size:11px; color:#7f8c8d; margin-top:6px;",
+                                       shiny::icon("circle-info"),
                                        paste(" Pour Poisson, la référence est un taux d'événements",
                                              "par observation, non une proportion bornée à 1.")))
                         )
@@ -223,134 +223,134 @@ mod_tests_ui <- function(id) {
                 # « Parametres des tests » ; seul le detail du resultat
                 # (estimation, intervalle de confiance, taille d'effet) apparait
                 # ici, et uniquement apres execution d'un test de conformite.
-                conditionalPanel(
+                shiny::conditionalPanel(
                   ns = ns,
                   condition = "output.hasRefTest",
-                  fluidRow(
-                    box(title = tagList(icon("bullseye"),
+                  shiny::fluidRow(
+                    box(title = shiny::tagList(shiny::icon("bullseye"),
                                         " Détail de la comparaison à la référence"),
                         status = "primary", width = 12, solidHeader = TRUE,
                         collapsible = TRUE,
-                        DTOutput(ns("refTestDetails")),
-                        uiOutput(ns("refTestNote")))
+                        DT::DTOutput(ns("refTestDetails")),
+                        shiny::uiOutput(ns("refTestNote")))
                   )
                 ),
 
                 # BOX MANOVA / PERMANOVA -- Assistant guide visible apres execution
 
-                conditionalPanel(
+                shiny::conditionalPanel(
                   ns = ns,
                   condition = "output.showManovaWorkflow",
-                  fluidRow(
-                    div(id = "boxWrap_manovaAssist",
+                  shiny::fluidRow(
+                    shiny::div(id = "boxWrap_manovaAssist",
                         box(
-                          title = tagList(icon("layer-group"),
+                          title = shiny::tagList(shiny::icon("layer-group"),
                                           " Analyse multivariee assistee (MANOVA / PERMANOVA)"),
                           status = "success", width = 12, solidHeader = TRUE,
                           collapsible = TRUE, collapsed = TRUE,
                         
-                          tabsetPanel(id = "manovaAssistantTabs", type = "tabs",
+                          shiny::tabsetPanel(id = "manovaAssistantTabs", type = "tabs",
                                     
-                                      tabPanel(
-                                        title = tagList(icon("magic"), " 1. Diagnostic & recommandation"),
-                                        value = "manova_recommendation", br(),
+                                      shiny::tabPanel(
+                                        title = shiny::tagList(shiny::icon("magic"), " 1. Diagnostic & recommandation"),
+                                        value = "manova_recommendation", shiny::br(),
                                       
-                                        conditionalPanel(
+                                        shiny::conditionalPanel(
                                           ns = ns,
                                           condition = "output.hasManovaRecommendation",
-                                          uiOutput(ns("manovaRecommendationCard")),
-                                          uiOutput(ns("manovaOutliersCard")),
-                                          br()
+                                          shiny::uiOutput(ns("manovaRecommendationCard")),
+                                          shiny::uiOutput(ns("manovaOutliersCard")),
+                                          shiny::br()
                                         ),
-                                        conditionalPanel(
+                                        shiny::conditionalPanel(
                                           ns = ns,
                                           condition = "!output.hasManovaRecommendation",
-                                          div(style = "padding:30px; text-align:center; color:#888;",
-                                              icon("magic", style = "font-size:48px; opacity:0.3;"),
-                                              h4("Aucune recommandation calculée"),
-                                              p("Cliquez sur ", strong("'Diagnostiquer mes données'"),
+                                          shiny::div(style = "padding:30px; text-align:center; color:#888;",
+                                              shiny::icon("magic", style = "font-size:48px; opacity:0.3;"),
+                                              shiny::h4("Aucune recommandation calculée"),
+                                              shiny::p("Cliquez sur ", shiny::strong("'Diagnostiquer mes données'"),
                                                 " ci-dessous pour obtenir une recommandation automatique."))
                                         )
                                       ),
                                     
-                                      tabPanel(
-                                        title = tagList(icon("clipboard-check"), " 2. Details techniques"),
-                                        value = "manova_prereq", br(),
+                                      shiny::tabPanel(
+                                        title = shiny::tagList(shiny::icon("clipboard-check"), " 2. Details techniques"),
+                                        value = "manova_prereq", shiny::br(),
                                       
-                                        div(style = "background:#fff8e1; border-left:4px solid #fb8c00; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
-                                            icon("info-circle", style = "color:#e65100;"),
-                                            strong(" Pour les utilisateurs avances : "),
+                                        shiny::div(style = "background:#fff8e1; border-left:4px solid #fb8c00; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
+                                            shiny::icon("info-circle", style = "color:#e65100;"),
+                                            shiny::strong(" Pour les utilisateurs avances : "),
                                             "consultez les valeurs brutes des tests de prerequis. ",
                                             "L'assistant a déjà synthétisé ces résultats dans l'onglet 'Diagnostic & recommandation'."
                                         ),
                                       
-                                        conditionalPanel(
+                                        shiny::conditionalPanel(
                                           ns = ns,
                                           condition = "output.hasManovaParam",
-                                          h5(icon("table"), " 4 statistiques MANOVA",
+                                          shiny::h5(shiny::icon("table"), " 4 statistiques MANOVA",
                                              style = "color:#00a65a; margin-top:0;"),
-                                          withSpinner(DTOutput(ns("manovaParamTable")), color = "#00a65a"),
-                                          br()
+                                          withSpinner(DT::DTOutput(ns("manovaParamTable")), color = "#00a65a"),
+                                          shiny::br()
                                         ),
                                       
-                                        conditionalPanel(
+                                        shiny::conditionalPanel(
                                           ns = ns,
                                           condition = "output.hasManovaPermanova",
-                                          h5(icon("random"), " Résultats PERMANOVA (par permutations)",
+                                          shiny::h5(shiny::icon("random"), " Résultats PERMANOVA (par permutations)",
                                              style = "color:#f39c12; margin-top:0;"),
-                                          div(style = "font-size:11px; color:#6c757d; margin-bottom:6px;",
-                                              icon("info-circle"),
+                                          shiny::div(style = "font-size:11px; color:#6c757d; margin-bottom:6px;",
+                                              shiny::icon("info-circle"),
                                               " pseudo-F, R² (part de variance expliquée), p-value par permutations. Interactions incluses si l'option est cochée."),
-                                          withSpinner(DTOutput(ns("manovaPermanovaTable")), color = "#f39c12"),
-                                          br()
+                                          withSpinner(DT::DTOutput(ns("manovaPermanovaTable")), color = "#f39c12"),
+                                          shiny::br()
                                         ),
                                       
-                                        h5(icon("chart-area"), " Normalite multivariee (Mardia)",
+                                        shiny::h5(shiny::icon("chart-area"), " Normalite multivariee (Mardia)",
                                            style = "color:#1565C0; margin-top:0;"),
-                                        withSpinner(DTOutput(ns("manovaMardiaTable")), color = "#1565C0"),
-                                        uiOutput(ns("manovaMardiaInterpretation")),
-                                        br(),
+                                        withSpinner(DT::DTOutput(ns("manovaMardiaTable")), color = "#1565C0"),
+                                        shiny::uiOutput(ns("manovaMardiaInterpretation")),
+                                        shiny::br(),
                                       
-                                        h5(icon("balance-scale"), " Homogeneite des covariances (Box\'s M)",
+                                        shiny::h5(shiny::icon("balance-scale"), " Homogeneite des covariances (Box\'s M)",
                                            style = "color:#1565C0;"),
-                                        withSpinner(DTOutput(ns("manovaBoxMTable")), color = "#1565C0"),
-                                        uiOutput(ns("manovaBoxMInterpretation")),
-                                        br(),
+                                        withSpinner(DT::DTOutput(ns("manovaBoxMTable")), color = "#1565C0"),
+                                        shiny::uiOutput(ns("manovaBoxMInterpretation")),
+                                        shiny::br(),
                                       
-                                        h5(icon("project-diagram"), " Homogeneite des dispersions (PERMDISP)",
+                                        shiny::h5(shiny::icon("project-diagram"), " Homogeneite des dispersions (PERMDISP)",
                                            style = "color:#f39c12;"),
-                                        div(style = "font-size:11px; color:#6c757d; margin-bottom:6px;",
-                                            icon("info-circle"), " Equivalent multivarie non parametrique du test de Levene."),
-                                        withSpinner(DTOutput(ns("manovaPermDispTable")), color = "#f39c12"),
-                                        uiOutput(ns("manovaPermDispInterpretation"))
+                                        shiny::div(style = "font-size:11px; color:#6c757d; margin-bottom:6px;",
+                                            shiny::icon("info-circle"), " Equivalent multivarie non parametrique du test de Levene."),
+                                        withSpinner(DT::DTOutput(ns("manovaPermDispTable")), color = "#f39c12"),
+                                        shiny::uiOutput(ns("manovaPermDispInterpretation"))
                                       ),
                                     
-                                      tabPanel(
-                                        title = tagList(icon("brain"), " 3. Décomposition des effets"),
-                                        value = "manova_interprétation", br(),
+                                      shiny::tabPanel(
+                                        title = shiny::tagList(shiny::icon("brain"), " 3. Décomposition des effets"),
+                                        value = "manova_interprétation", shiny::br(),
                                       
-                                        uiOutput(ns("manovaInterpretationGuidance")),
+                                        shiny::uiOutput(ns("manovaInterpretationGuidance")),
                                       
-                                        conditionalPanel(
+                                        shiny::conditionalPanel(
                                           ns = ns,
                                           condition = "output.hasManovaInteraction",
-                                          br(),
-                                          div(style = "background:#fff3e0; border:2px solid #fb8c00; border-radius:8px; padding:14px 18px; margin-top:14px;",
-                                              h4(icon("project-diagram"),
+                                          shiny::br(),
+                                          shiny::div(style = "background:#fff3e0; border:2px solid #fb8c00; border-radius:8px; padding:14px 18px; margin-top:14px;",
+                                              shiny::h4(shiny::icon("project-diagram"),
                                                  " Decomposition de l\'interaction (effets simples)",
                                                  style = "color:#e65100; margin-top:0;"),
-                                              p(style = "color:#555; font-size:13px;",
+                                              shiny::p(style = "color:#555; font-size:13px;",
                                                 "Une interaction est significative : l\'effet d\'un facteur depend du niveau de l\'autre. ",
                                                 "Choisissez un facteur a ", em("fixer"), " et un facteur a ", em("tester"),
-                                                ", puis cliquez ", strong("Calculer"), "."),
-                                              uiOutput(ns("manovaSimpleEffectsSelectors")),
-                                              br(),
-                                              conditionalPanel(
+                                                ", puis cliquez ", shiny::strong("Calculer"), "."),
+                                              shiny::uiOutput(ns("manovaSimpleEffectsSelectors")),
+                                              shiny::br(),
+                                              shiny::conditionalPanel(
                                                 ns = ns,
                                                 condition = "output.hasManovaSimpleEffects",
-                                                withSpinner(DTOutput(ns("manovaSimpleEffectsTable")), color = "#fb8c00"),
-                                                div(style = "font-size:11px; color:#888; margin-top:8px;",
-                                                    icon("info-circle"),
+                                                withSpinner(DT::DTOutput(ns("manovaSimpleEffectsTable")), color = "#fb8c00"),
+                                                shiny::div(style = "font-size:11px; color:#888; margin-top:8px;",
+                                                    shiny::icon("info-circle"),
                                                     " Les p-valeurs sont ajustees par Bonferroni sur l\'ensemble des niveaux fixes.")
                                               )
                                           )
@@ -358,37 +358,37 @@ mod_tests_ui <- function(id) {
                                       )
                           ),
                         
-                          br(),
+                          shiny::br(),
                         
-                          fluidRow(
-                            column(4,
-                                   div(style = "background:#e3f2fd; padding:12px 14px; border-radius:8px;",
-                                       h6(icon("magic"), " Diagnostic automatique",
+                          shiny::fluidRow(
+                            shiny::column(4,
+                                   shiny::div(style = "background:#e3f2fd; padding:12px 14px; border-radius:8px;",
+                                       shiny::h6(shiny::icon("magic"), " Diagnostic automatique",
                                           style = "margin-top:0; color:#1565C0; font-weight:bold;"),
-                                       p(style = "font-size:11px; color:#555; margin-bottom:8px;",
+                                       shiny::p(style = "font-size:11px; color:#555; margin-bottom:8px;",
                                          "Verifie les prerequis et recommande le test optimal."),
-                                       actionButton(ns("runManovaDiagnostic"),
-                                                    tagList(icon("magic"), " Diagnostiquer mes données"),
+                                       shiny::actionButton(ns("runManovaDiagnostic"),
+                                                    shiny::tagList(shiny::icon("magic"), " Diagnostiquer mes données"),
                                                     class = "btn-primary btn-block",
                                                     style = "font-weight:bold;")
                                    )
                             ),
-                            column(4,
-                                   conditionalPanel(
+                            shiny::column(4,
+                                   shiny::conditionalPanel(
                                      ns = ns,
                                      condition = "output.hasManovaParam",
-                                     downloadButton(ns("downloadManovaParam"),
-                                                    tagList(icon("file-excel"), " Télécharger MANOVA (.xlsx)"),
+                                     shiny::downloadButton(ns("downloadManovaParam"),
+                                                    shiny::tagList(shiny::icon("file-excel"), " Télécharger MANOVA (.xlsx)"),
                                                     class = "btn-success btn-block",
                                                     style = "margin-top:42px;")
                                    )
                             ),
-                            column(4,
-                                   conditionalPanel(
+                            shiny::column(4,
+                                   shiny::conditionalPanel(
                                      ns = ns,
                                      condition = "output.hasManovaPermanova",
-                                     downloadButton(ns("downloadManovaPermanova"),
-                                                    tagList(icon("file-excel"), " Télécharger PERMANOVA (.xlsx)"),
+                                     shiny::downloadButton(ns("downloadManovaPermanova"),
+                                                    shiny::tagList(shiny::icon("file-excel"), " Télécharger PERMANOVA (.xlsx)"),
                                                     class = "btn-success btn-block",
                                                     style = "margin-top:42px;")
                                    )
@@ -399,24 +399,24 @@ mod_tests_ui <- function(id) {
                   )
                 ),
               
-                conditionalPanel(
+                shiny::conditionalPanel(
                   ns = ns,
                   condition = "!output.showManovaWorkflow",
-                  fluidRow(
-                    div(id = "boxWrap_manovaPlaceholder",
+                  shiny::fluidRow(
+                    shiny::div(id = "boxWrap_manovaPlaceholder",
                         box(
-                          title = tagList(icon("magic"), " Analyse multivariee assistee"),
+                          title = shiny::tagList(shiny::icon("magic"), " Analyse multivariee assistee"),
                           status = "info", width = 12, solidHeader = TRUE,
                           collapsible = TRUE, collapsed = TRUE,
-                          div(style = "padding:20px; text-align:center;",
-                              icon("magic", style = "font-size:48px; color:#1565C0; opacity:0.6;"),
-                              h4("Workflow pour debutants et experts",
+                          shiny::div(style = "padding:20px; text-align:center;",
+                              shiny::icon("magic", style = "font-size:48px; color:#1565C0; opacity:0.6;"),
+                              shiny::h4("Workflow pour debutants et experts",
                                  style = "color:#1565C0;"),
-                              p(style = "font-size:13px; color:#555; max-width:600px; margin:8px auto;",
-                                "Sélectionnez au moins ", strong("2 variables réponses numériques"),
-                                " et ", strong("1 facteur"), " dans \'Paramètres des tests\'. ",
+                              shiny::p(style = "font-size:13px; color:#555; max-width:600px; margin:8px auto;",
+                                "Sélectionnez au moins ", shiny::strong("2 variables réponses numériques"),
+                                " et ", shiny::strong("1 facteur"), " dans \'Paramètres des tests\'. ",
                                 "Puis cliquez sur le bouton ci-dessous pour un diagnostic complet et une recommandation automatique."),
-                              br(),
+                              shiny::br(),
                               # DEUXIEME point d'entree du meme diagnostic, et non
                               # un doublon : les deux boutons portaient le meme
                               # identifiant, si bien que la page en contenait deux
@@ -425,8 +425,8 @@ mod_tests_ui <- function(id) {
                               # l'element -- mais `updateActionButton()` ou
                               # `shinyjs::disable()` n'en atteindraient qu'un seul,
                               # et le HTML est invalide.
-                              actionButton(ns("runManovaDiagnostic2"),
-                                           tagList(icon("magic"), " Diagnostiquer mes données"),
+                              shiny::actionButton(ns("runManovaDiagnostic2"),
+                                           shiny::tagList(shiny::icon("magic"), " Diagnostiquer mes données"),
                                            class = "btn-primary btn-lg",
                                            style = "padding:10px 30px; font-weight:bold;")
                           )
@@ -436,10 +436,10 @@ mod_tests_ui <- function(id) {
                 ),
               
               
-                fluidRow(
+                shiny::fluidRow(
                   box(
-                    title = div(
-                      icon("magic", style = "color:#f57c00; margin-right:6px;"),
+                    title = shiny::div(
+                      shiny::icon("magic", style = "color:#f57c00; margin-right:6px;"),
                       tags$span("Transformation des variables",
                                 style = "font-size:14px; font-weight:bold;"),
                       tags$span(
@@ -452,11 +452,11 @@ mod_tests_ui <- function(id) {
                     status = "warning", width = 12,
                     solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
                   
-                    div(
+                    shiny::div(
                       style = paste0("padding:10px 14px;background:#fff3e0;",
                                      "border-left:4px solid #fb8c00;border-radius:4px;",
                                      "margin-bottom:14px;font-size:12px;"),
-                      icon("lightbulb", style = "color:#e65100;"),
+                      shiny::icon("lightbulb", style = "color:#e65100;"),
                       tags$b(style = "color:#bf360c;", " Quand utiliser ?"),
                       tags$br(),
                       tags$span(style = "color:#6d4c41;",
@@ -467,16 +467,16 @@ mod_tests_ui <- function(id) {
                       )
                     ),
                   
-                    fluidRow(
+                    shiny::fluidRow(
                     
                       # Col 1 : Sélection + méthode + bouton
-                      column(4,
-                             h5(icon("sliders-h"), " Variable & méthode",
+                      shiny::column(4,
+                             shiny::h5(shiny::icon("sliders-h"), " Variable & méthode",
                                 style = "color:#e65100;margin-top:0;border-bottom:2px solid #ffcc80;padding-bottom:6px;"),
-                             uiOutput(ns("transformVarSelect")),
-                             br(),
-                             selectInput(ns("transformMethod"),
-                               tags$span(icon("flask"), " Transformation :"),
+                             shiny::uiOutput(ns("transformVarSelect")),
+                             shiny::br(),
+                             shiny::selectInput(ns("transformMethod"),
+                               tags$span(shiny::icon("flask"), " Transformation :"),
                                choices = list(
                                  "─── Asymétrie positive (rendements, concentrations) ───" = list(
                                    "Logarithme naturel  log(x)  [x > 0]"          = "log",
@@ -498,26 +498,26 @@ mod_tests_ui <- function(id) {
                                ),
                                selected = "log"
                              ),
-                             uiOutput(ns("transformFeasibilityCheck")),
-                             br(),
-                             actionButton(ns("applyTransformation"),
-                               HTML("<i class='fa fa-magic'></i>&nbsp;<b>Appliquer la transformation</b>"),
+                             shiny::uiOutput(ns("transformFeasibilityCheck")),
+                             shiny::br(),
+                             shiny::actionButton(ns("applyTransformation"),
+                               shiny::HTML("<i class='fa fa-magic'></i>&nbsp;<b>Appliquer la transformation</b>"),
                                class = "btn-warning btn-lg btn-block",
                                style = "height:50px;box-shadow:0 3px 5px rgba(0,0,0,0.2);"
                              )
                       ),
                     
                       # Col 2 : Journal des transformations actives
-                      column(4,
-                             h5(icon("history"), " Transformations actives",
+                      shiny::column(4,
+                             shiny::h5(shiny::icon("history"), " Transformations actives",
                                 style = "color:#e65100;margin-top:0;border-bottom:2px solid #ffcc80;padding-bottom:6px;"),
-                             div(style = "min-height:120px;", uiOutput(ns("transformationLogDisplay"))),
-                             uiOutput(ns("removeTransformSelect"))
+                             shiny::div(style = "min-height:120px;", shiny::uiOutput(ns("transformationLogDisplay"))),
+                             shiny::uiOutput(ns("removeTransformSelect"))
                       ),
                     
                       # Col 3 : Guide de sélection
-                      column(4,
-                             h5(icon("book-open"), " Guide de sélection",
+                      shiny::column(4,
+                             shiny::h5(shiny::icon("book-open"), " Guide de sélection",
                                 style = "color:#e65100;margin-top:0;border-bottom:2px solid #ffcc80;padding-bottom:6px;"),
                              tags$table(
                                style = "width:100%;border-collapse:collapse;font-size:11px;",
@@ -533,42 +533,42 @@ mod_tests_ui <- function(id) {
                                  tags$tr(style="background:#fff8e1;",
                                          tags$td(style="padding:3px 6px;font-family:monospace;","log(x)"),
                                          tags$td(style="padding:3px 6px;","Très asym., rendements"),
-                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", icon("times"))),
+                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times"))),
                                  tags$tr(style="background:#fffff0;",
                                          tags$td(style="padding:3px 6px;font-family:monospace;","log(x+1)"),
                                          tags$td(style="padding:3px 6px;","Idem + zéros"),
-                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", icon("times"))),
+                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times"))),
                                  tags$tr(style="background:#fff8e1;",
                                          tags$td(style="padding:3px 6px;font-family:monospace;","sqrt(x)"),
                                          tags$td(style="padding:3px 6px;","Comptage, Poisson"),
-                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", icon("times"))),
+                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times"))),
                                  tags$tr(style="background:#fffff0;",
                                          tags$td(style="padding:3px 6px;font-family:monospace;","x^(1/3)"),
                                          tags$td(style="padding:3px 6px;","Toutes valeurs"),
-                                         tags$td(style="padding:3px 6px;text-align:center;color:#43a047;", icon("check"))),
+                                         tags$td(style="padding:3px 6px;text-align:center;color:#43a047;", shiny::icon("check"))),
                                  tags$tr(style="background:#fff8e1;",
                                          tags$td(style="padding:3px 6px;font-family:monospace;","Box-Cox"),
                                          tags$td(style="padding:3px 6px;","λ optimal (MV)"),
-                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", icon("times"))),
+                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times"))),
                                  tags$tr(style="background:#fffff0;",
                                          tags$td(style="padding:3px 6px;font-family:monospace;","Yeo-Johnson"),
                                          tags$td(style="padding:3px 6px;","Optimale généralisée"),
-                                         tags$td(style="padding:3px 6px;text-align:center;color:#43a047;", icon("check"))),
+                                         tags$td(style="padding:3px 6px;text-align:center;color:#43a047;", shiny::icon("check"))),
                                  tags$tr(style="background:#fff8e1;",
                                          tags$td(style="padding:3px 6px;font-family:monospace;","asin(√x)"),
                                          tags$td(style="padding:3px 6px;","Proportions [0,1]"),
-                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", icon("times"))),
+                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times"))),
                                  tags$tr(style="background:#fffff0;",
                                          tags$td(style="padding:3px 6px;font-family:monospace;","logit"),
                                          tags$td(style="padding:3px 6px;","Taux ]0,1["),
-                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", icon("times")))
+                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times")))
                                )
                              ),
-                             br(),
-                             div(
+                             shiny::br(),
+                             shiny::div(
                                style = paste0("padding:8px 10px;background:#e8f5e9;",
                                               "border-left:3px solid #43a047;border-radius:4px;font-size:11px;"),
-                               icon("route", style = "color:#2e7d32;"),
+                               shiny::icon("route", style = "color:#2e7d32;"),
                                tags$b(style = "color:#1b5e20;", " Workflow :"),
                                tags$ol(
                                  style = "margin:4px 0 0 0;padding-left:16px;color:#33691e;line-height:1.6;",
@@ -584,61 +584,61 @@ mod_tests_ui <- function(id) {
                   )  # fin box transformation
                 ),
               
-                fluidRow(
+                shiny::fluidRow(
                   box(title = "Résultats des tests", status = "danger", width = 12, solidHeader = TRUE,
-                      DTOutput(ns("testResultsDF")),
-                      br(),
-                      downloadButton(ns("downloadTestsExcel"), "Télécharger les résultats (Excel)", class = "btn-info"))
+                      DT::DTOutput(ns("testResultsDF")),
+                      shiny::br(),
+                      shiny::downloadButton(ns("downloadTestsExcel"), "Télécharger les résultats (Excel)", class = "btn-info"))
                 ),
-                conditionalPanel(
+                shiny::conditionalPanel(
                   ns = ns,
                   condition = "output.showParametricDiagnostics",
-                  fluidRow(
+                  shiny::fluidRow(
                     box(title = "Diagnostics des modèles", status = "info", width = 6, solidHeader = TRUE,
-                        conditionalPanel(
+                        shiny::conditionalPanel(
                           ns = ns,
                           condition = "output.showModelNavigation",
-                          wellPanel(
-                            h6("Navigation des modèles", style = "margin-top: 0; margin-bottom: 10px;"),
-                            div(style = "text-align: center;",
-                                uiOutput(ns("modelDiagNavigation"))
+                          shiny::wellPanel(
+                            shiny::h6("Navigation des modèles", style = "margin-top: 0; margin-bottom: 10px;"),
+                            shiny::div(style = "text-align: center;",
+                                shiny::uiOutput(ns("modelDiagNavigation"))
                             )
                           )
                         ),
-                        plotOutput(ns("modelDiagnostics"), height = "500px"),
-                        br(),
-                        downloadButton(ns("downloadModelDiagnostics"), "Télécharger (PNG)", class = "btn-success"),
-                        htmlOutput("modelDiagnosticsInterpretation")
+                        shiny::plotOutput(ns("modelDiagnostics"), height = "500px"),
+                        shiny::br(),
+                        shiny::downloadButton(ns("downloadModelDiagnostics"), "Télécharger (PNG)", class = "btn-success"),
+                        shiny::htmlOutput("modelDiagnosticsInterpretation")
                     ),
                     box(title = "Résidus et validation", status = "info", width = 6, solidHeader = TRUE,
-                        conditionalPanel(
+                        shiny::conditionalPanel(
                           ns = ns,
                           condition = "output.showResidNavigation",
-                          wellPanel(
-                            h6("Navigation des variables", style = "margin-top: 0; margin-bottom: 10px;"),
-                            div(style = "text-align: center;",
-                                uiOutput(ns("residNavigation"))
+                          shiny::wellPanel(
+                            shiny::h6("Navigation des variables", style = "margin-top: 0; margin-bottom: 10px;"),
+                            shiny::div(style = "text-align: center;",
+                                shiny::uiOutput(ns("residNavigation"))
                             )
                           )
                         ),
-                        tabBox(
+                        shinydashboard::tabBox(
                           title = "Analyses des résidus",
                           id = "residualTabs", width = 12,
-                          tabPanel("QQ-plot", 
-                                   plotOutput(ns("qqPlotResiduals"), height = "320px"),
-                                   br(),
-                                   downloadButton(ns("downloadQQPlot"), "Télécharger (PNG)", class = "btn-success"),
-                                   htmlOutput("qqPlotInterpretation")),
-                          tabPanel("Normalité", 
-                                   verbatimTextOutput(ns("normalityResult")),
-                                   htmlOutput("normalityResidInterpretation")),
-                          tabPanel("Homogénéité", 
-                                   verbatimTextOutput(ns("leveneResidResult")),
-                                   htmlOutput("homogeneityResidInterpretation")),
-                          tabPanel("Autocorrélation", 
-                                   verbatimTextOutput(ns("autocorrResult")),
-                                   htmlOutput("autocorrInterpretation")),
-                          tabPanel("Summary", verbatimTextOutput(ns("modelSummary")))
+                          shiny::tabPanel("QQ-plot", 
+                                   shiny::plotOutput(ns("qqPlotResiduals"), height = "320px"),
+                                   shiny::br(),
+                                   shiny::downloadButton(ns("downloadQQPlot"), "Télécharger (PNG)", class = "btn-success"),
+                                   shiny::htmlOutput("qqPlotInterpretation")),
+                          shiny::tabPanel("Normalité", 
+                                   shiny::verbatimTextOutput(ns("normalityResult")),
+                                   shiny::htmlOutput("normalityResidInterpretation")),
+                          shiny::tabPanel("Homogénéité", 
+                                   shiny::verbatimTextOutput(ns("leveneResidResult")),
+                                   shiny::htmlOutput("homogeneityResidInterpretation")),
+                          shiny::tabPanel("Autocorrélation", 
+                                   shiny::verbatimTextOutput(ns("autocorrResult")),
+                                   shiny::htmlOutput("autocorrInterpretation")),
+                          shiny::tabPanel("Summary", shiny::verbatimTextOutput(ns("modelSummary")))
                         )
                     )
                   )
@@ -647,53 +647,53 @@ mod_tests_ui <- function(id) {
 }
 
 mod_posthoc_ui <- function(id) {
-  ns <- NS(id)
-      tabItem(tabName = "multiple",
+  ns <- shiny::NS(id)
+      shinydashboard::tabItem(tabName = "multiple",
                 .hstat_scope_banner(exact = FALSE),
-                fluidRow(
+                shiny::fluidRow(
                 
                 
-                  box(title = div(icon("cog"), " Configuration de l'analyse"), 
+                  box(title = shiny::div(shiny::icon("cog"), " Configuration de l'analyse"), 
                       status = "primary", width = 4, solidHeader = TRUE,
                     
                     
-                      div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
-                          h4(style = "color: #2c3e50; margin-top: 0;", icon("chart-line"), " Sélection des variables"),
-                          uiOutput(ns("multiResponseSelect")),
-                          uiOutput(ns("multiFactorSelect")),
+                      shiny::div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
+                          shiny::h4(style = "color: #2c3e50; margin-top: 0;", shiny::icon("chart-line"), " Sélection des variables"),
+                          shiny::uiOutput(ns("multiResponseSelect")),
+                          shiny::uiOutput(ns("multiFactorSelect")),
                           # Bandeau info transformations actives (affiché si variables transformées sélectionnées)
-                          uiOutput(ns("postHocTransformInfo"))
+                          shiny::uiOutput(ns("postHocTransformInfo"))
                       ),
                     
                     
-                      div(style = "background-color: #fef9e7; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
-                          h4(style = "color: #2c3e50; margin-top: 0;", icon("hashtag"), " Affichage des résultats"),
-                          checkboxInput(ns("multiRoundResults"), "Arrondir les résultats numériques", value = FALSE),
-                          conditionalPanel(
+                      shiny::div(style = "background-color: #fef9e7; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
+                          shiny::h4(style = "color: #2c3e50; margin-top: 0;", shiny::icon("hashtag"), " Affichage des résultats"),
+                          shiny::checkboxInput(ns("multiRoundResults"), "Arrondir les résultats numériques", value = FALSE),
+                          shiny::conditionalPanel(
                             ns = ns,
                             condition = "input.multiRoundResults == true",
-                            numericInput(ns("multiDecimals"), "Nombre de décimales :",
+                            shiny::numericInput(ns("multiDecimals"), "Nombre de décimales :",
                                          value = 2, min = 0, max = 8, step = 1)
                           ),
-                          helpText(style = "font-size: 11px; color: #7f8c8d;",
+                          shiny::helpText(style = "font-size: 11px; color: #7f8c8d;",
                                    "Si décoché, les valeurs s'affichent sans arrondi.")
                       ),
                     
                     
-                      div(style = "background-color: #e8f4fd; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
-                          h4(style = "color: #2c3e50; margin-top: 0;", icon("vial"), " Tests statistiques"),
-                          radioButtons(ns("testType"), "Type de comparaisons",
+                      shiny::div(style = "background-color: #e8f4fd; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
+                          shiny::h4(style = "color: #2c3e50; margin-top: 0;", shiny::icon("vial"), " Tests statistiques"),
+                          shiny::radioButtons(ns("testType"), "Type de comparaisons",
                                        choiceNames = list(
-                                         HTML("<b>Paramétrique</b> <small style='color:#7f8c8d;'>- Données normales</small>"), 
-                                         HTML("<b>Non paramétrique</b> <small style='color:#7f8c8d;'>- Sans normalité</small>")
+                                         shiny::HTML("<b>Paramétrique</b> <small style='color:#7f8c8d;'>- Données normales</small>"), 
+                                         shiny::HTML("<b>Non paramétrique</b> <small style='color:#7f8c8d;'>- Sans normalité</small>")
                                        ),
                                        choiceValues = list("param", "nonparam"),
                                        selected = "param"
                           ),
-                          conditionalPanel(
+                          shiny::conditionalPanel(
                             ns = ns,
                             condition = "input.testType == 'param'",
-                            selectInput(ns("multiTest"), "Méthode post-hoc paramétrique",
+                            shiny::selectInput(ns("multiTest"), "Méthode post-hoc paramétrique",
                                         choices = list(
                                           "Tukey HSD (recommandé)" = "tukey", 
                                           "LSD (Fisher)" = "lsd", 
@@ -710,21 +710,21 @@ mod_posthoc_ui <- function(id) {
                                         ),
                                         selected = "tukey"
                             ),
-                            selectInput(ns("multiParamAdjust"),
-                                        tagList(icon("sliders-h"), " Ajustement des p-values (homogénéisation des groupes)"),
+                            shiny::selectInput(ns("multiParamAdjust"),
+                                        shiny::tagList(shiny::icon("sliders-h"), " Ajustement des p-values (homogénéisation des groupes)"),
                                         choices = c("Holm" = "holm", "Bonferroni" = "bonferroni",
                                                     "BH (FDR)" = "BH", "BY" = "BY",
                                                     "Hochberg" = "hochberg", "Hommel" = "hommel",
                                                     "Aucun" = "none"),
                                         selected = "holm"),
-                            div(style = "font-size:11px;color:#7f8c8d;margin-top:-6px;margin-bottom:8px;",
-                                icon("info-circle"),
-                                HTML(" S'applique aux méthodes par comparaisons de paires (LSD, Bonferroni, LM/GLM). Un ajustement plus strict (Bonferroni, Holm) rend les groupes plus homogènes ; les méthodes à contrôle intégré (Tukey, Duncan, SNK, Scheffé, Games-Howell) conservent le leur."))
+                            shiny::div(style = "font-size:11px;color:#7f8c8d;margin-top:-6px;margin-bottom:8px;",
+                                shiny::icon("info-circle"),
+                                shiny::HTML(" S'applique aux méthodes par comparaisons de paires (LSD, Bonferroni, LM/GLM). Un ajustement plus strict (Bonferroni, Holm) rend les groupes plus homogènes ; les méthodes à contrôle intégré (Tukey, Duncan, SNK, Scheffé, Games-Howell) conservent le leur."))
                           ),
-                          conditionalPanel(
+                          shiny::conditionalPanel(
                             ns = ns,
                             condition = "input.testType == 'nonparam'",
-                            selectInput(ns("multiTestNonParam"), "Méthode post-hoc non paramétrique",
+                            shiny::selectInput(ns("multiTestNonParam"), "Méthode post-hoc non paramétrique",
                                         choices = list(
                                           "Kruskal-Wallis (base)" = "kruskal",
                                           "Dunn" = "dunn",
@@ -734,8 +734,8 @@ mod_posthoc_ui <- function(id) {
                                         ),
                                         selected = "dunn"
                             ),
-                            selectInput(ns("multiNonParamAdjust"),
-                                        tagList(icon("sliders-h"), " Ajustement des p-values (homogénéisation des groupes)"),
+                            shiny::selectInput(ns("multiNonParamAdjust"),
+                                        shiny::tagList(shiny::icon("sliders-h"), " Ajustement des p-values (homogénéisation des groupes)"),
                                         choices = c("Holm" = "holm", "Bonferroni" = "bonferroni",
                                                     "BH (FDR)" = "BH", "BY" = "BY",
                                                     "Hochberg" = "hochberg", "Hommel" = "hommel",
@@ -744,15 +744,15 @@ mod_posthoc_ui <- function(id) {
                           ),
                           # Option retro-transformation -- visible uniquement si des variables
                           # transformées sont sélectionnées dans multiResponse
-                          conditionalPanel(
+                          shiny::conditionalPanel(
                             ns = ns,
                             condition = "output.hasTransformedVarsSelected",
-                            div(
+                            shiny::div(
                               style = paste0("margin-top:10px;padding:10px 12px;",
                                              "background:#fff8e1;border:1px solid #ffb300;",
                                              "border-radius:6px;"),
-                              checkboxInput(ns("showBackTransformed"),
-                                HTML(paste0(
+                              shiny::checkboxInput(ns("showBackTransformed"),
+                                shiny::HTML(paste0(
                                   "<b style='color:#e65100;'>",
                                   "<i class='fa fa-exchange-alt'></i>&nbsp;",
                                   "Retro-transformer les moyennes</b><br>",
@@ -768,86 +768,86 @@ mod_posthoc_ui <- function(id) {
                       ),
                     
                     
-                      div(style = "border: 3px solid #e74c3c; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 100%);",
-                          h4(style = "color: #c0392b; margin-top: 0;", 
-                             icon("project-diagram"), " Analyse des interactions"),
-                          checkboxInput(ns("posthocInteraction"), 
-                                        HTML("<strong style='color: #c0392b;'>Activer l'analyse des interactions</strong>"), 
+                      shiny::div(style = "border: 3px solid #e74c3c; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 100%);",
+                          shiny::h4(style = "color: #c0392b; margin-top: 0;", 
+                             shiny::icon("project-diagram"), " Analyse des interactions"),
+                          shiny::checkboxInput(ns("posthocInteraction"), 
+                                        shiny::HTML("<strong style='color: #c0392b;'>Activer l'analyse des interactions</strong>"), 
                                         value = FALSE),
-                          conditionalPanel(
+                          shiny::conditionalPanel(
                             ns = ns,
                             condition = "input.posthocInteraction == true",
-                            div(style = "margin-top: 8px; padding: 8px 10px; background:#fff3e0; border-left:3px solid #ff9800; border-radius:4px;",
+                            shiny::div(style = "margin-top: 8px; padding: 8px 10px; background:#fff3e0; border-left:3px solid #ff9800; border-radius:4px;",
                                 tags$small(style="color:#e65100;",
-                                           icon("info-circle"), " Sélectionnez >= 2 facteurs. Les effets simples s'affichent dans l'onglet 'Effets simples'."
+                                           shiny::icon("info-circle"), " Sélectionnez >= 2 facteurs. Les effets simples s'affichent dans l'onglet 'Effets simples'."
                                 )
                             )
                           )
                       ),
 
-                      div(style = "border: 2px solid #16a085; border-radius: 8px; padding: 12px 15px; margin-bottom: 15px; background:#eafaf3;",
-                          checkboxInput(ns("posthocMultivariate"),
-                                        HTML("<strong style='color:#0e6655;'>Calculer aussi le post-hoc multivarié (MANOVA / PERMANOVA)</strong>"),
+                      shiny::div(style = "border: 2px solid #16a085; border-radius: 8px; padding: 12px 15px; margin-bottom: 15px; background:#eafaf3;",
+                          shiny::checkboxInput(ns("posthocMultivariate"),
+                                        shiny::HTML("<strong style='color:#0e6655;'>Calculer aussi le post-hoc multivarié (MANOVA / PERMANOVA)</strong>"),
                                         value = FALSE),
                           tags$small(style = "color:#0e6655;",
-                                     icon("info-circle"),
+                                     shiny::icon("info-circle"),
                                      " Décoché par défaut. Cette analyse (permutations) ne se lance PAS automatiquement avec le post-hoc ANOVA ; cochez-la seulement si vous voulez les comparaisons multivariées (nécessite >= 2 variables réponses).")
                       ),
                     
-                      hr(),
+                      shiny::hr(),
                     
                     
-                      actionButton(ns("runMultiple"), 
-                                   HTML("<h5 style='margin: 5px 0;'><i class='fa fa-play'></i> LANCER L'ANALYSE</h5>"), 
+                      shiny::actionButton(ns("runMultiple"), 
+                                   shiny::HTML("<h5 style='margin: 5px 0;'><i class='fa fa-play'></i> LANCER L'ANALYSE</h5>"), 
                                    class = "btn-success btn-lg", 
                                    style = "width: 100%; height: 70px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.2);"),
                     
-                      br(), br(),
+                      shiny::br(), shiny::br(),
                     
                   ),
                 
                 
-                  box(title = div(icon("table"), " Résultats et visualisations"), 
+                  box(title = shiny::div(shiny::icon("table"), " Résultats et visualisations"), 
                       status = "primary", width = 8, solidHeader = TRUE,
                     
-                      tabsetPanel(id = "resultsTabs", type = "tabs",
+                      shiny::tabsetPanel(id = "resultsTabs", type = "tabs",
                                 
                                   # ONGLET 1 : Effets principaux 
                                 
-                                  tabPanel(
-                                    title = div(icon("layer-group"), " Effets principaux"),
+                                  shiny::tabPanel(
+                                    title = shiny::div(shiny::icon("layer-group"), " Effets principaux"),
                                     value = "mainEffects",
-                                    br(),
-                                    conditionalPanel(
+                                    shiny::br(),
+                                    shiny::conditionalPanel(
                                       ns = ns,
                                       condition = "output.showPosthocResults",
-                                      div(style = "margin-bottom: 15px;",
-                                          uiOutput(ns("analysisSummaryMain"))
+                                      shiny::div(style = "margin-bottom: 15px;",
+                                          shiny::uiOutput(ns("analysisSummaryMain"))
                                       ),
-                                      div(class = "hstat-table-scroll",
-                                          DTOutput(ns("mainEffectsTable"))),
-                                      br(),
-                                      downloadButton(ns("downloadMainEffects"), 
+                                      shiny::div(class = "hstat-table-scroll",
+                                          DT::DTOutput(ns("mainEffectsTable"))),
+                                      shiny::br(),
+                                      shiny::downloadButton(ns("downloadMainEffects"), 
                                                      "Télécharger effets principaux (.xlsx)", 
                                                      class = "btn-success", 
                                                      style = "width: 100%; height: 50px; font-weight: bold;",
-                                                     icon = icon("download"))
+                                                     icon = shiny::icon("download"))
                                     )
                                   ),
                                 
                                   # ONGLET 2 : Effets simples 
                                 
-                                  tabPanel(
-                                    title = div(icon("project-diagram"), " Effets simples"),
+                                  shiny::tabPanel(
+                                    title = shiny::div(shiny::icon("project-diagram"), " Effets simples"),
                                     value = "simpleEffects",
-                                    br(),
-                                    conditionalPanel(
+                                    shiny::br(),
+                                    shiny::conditionalPanel(
                                       ns = ns,
                                       condition = "output.showSimpleEffects",
-                                      div(style = "background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 100%); padding: 15px; border-radius: 8px; border-left: 5px solid #e74c3c; margin-bottom: 15px;",
-                                          h4(style = "color: #c0392b; margin-top: 0;", 
-                                             icon("info-circle"), " Interprétation des effets simples"),
-                                          HTML("<div style='color: #34495e;'>
+                                      shiny::div(style = "background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 100%); padding: 15px; border-radius: 8px; border-left: 5px solid #e74c3c; margin-bottom: 15px;",
+                                          shiny::h4(style = "color: #c0392b; margin-top: 0;", 
+                                             shiny::icon("info-circle"), " Interprétation des effets simples"),
+                                          shiny::HTML("<div style='color: #34495e;'>
                                          <p><b>Objectif :</b> Décomposer les interactions significatives en comparaisons plus simples.</p>
                                        
                                          <p><b>Lecture du format :</b><br/>
@@ -865,44 +865,44 @@ mod_posthoc_ui <- function(id) {
                                          </div>")
                                       ),
                                     
-                                      fluidRow(
-                                        column(6,
-                                               div(style = "background:#f8f9fa; padding:10px; border-radius:5px;",
-                                                   selectInput(ns("filterSimpleEffectVar"), 
-                                                               HTML("<b>Filtrer par variable</b>"),
+                                      shiny::fluidRow(
+                                        shiny::column(6,
+                                               shiny::div(style = "background:#f8f9fa; padding:10px; border-radius:5px;",
+                                                   shiny::selectInput(ns("filterSimpleEffectVar"), 
+                                                               shiny::HTML("<b>Filtrer par variable</b>"),
                                                                choices = NULL,
                                                                width = "100%")
                                                )
                                         ),
-                                        column(6,
-                                               div(style = "background:#f8f9fa; padding:10px; border-radius:5px;",
-                                                   selectInput(ns("filterSimpleEffectInteraction"), 
-                                                               HTML("<b>Filtrer par interaction</b>"),
+                                        shiny::column(6,
+                                               shiny::div(style = "background:#f8f9fa; padding:10px; border-radius:5px;",
+                                                   shiny::selectInput(ns("filterSimpleEffectInteraction"), 
+                                                               shiny::HTML("<b>Filtrer par interaction</b>"),
                                                                choices = NULL,
                                                                width = "100%")
                                                )
                                         )
                                       ),
                                     
-                                      br(),
-                                      uiOutput(ns("simpleEffectsSummary")),
-                                      div(class = "hstat-table-scroll",
-                                          DTOutput(ns("simpleEffectsTable"))),
-                                      br(),
+                                      shiny::br(),
+                                      shiny::uiOutput(ns("simpleEffectsSummary")),
+                                      shiny::div(class = "hstat-table-scroll",
+                                          DT::DTOutput(ns("simpleEffectsTable"))),
+                                      shiny::br(),
                                     
-                                      downloadButton(ns("downloadSimpleEffects"), 
+                                      shiny::downloadButton(ns("downloadSimpleEffects"), 
                                                      "Télécharger effets simples (.xlsx)", 
                                                      class = "btn-success",
                                                      style = "width: 100%; height: 50px; font-weight: bold;",
-                                                     icon = icon("download"))
+                                                     icon = shiny::icon("download"))
                                     ),
-                                    conditionalPanel(
+                                    shiny::conditionalPanel(
                                       ns = ns,
                                       condition = "!output.showSimpleEffects",
-                                      div(style = "text-align: center; padding: 50px; color: #95a5a6;",
-                                          icon("project-diagram", style = "font-size: 4em; opacity: 0.3;"),
-                                          h4("Aucun effet simple détecté"),
-                                          p("Les effets simples apparaissent uniquement quand :"),
+                                      shiny::div(style = "text-align: center; padding: 50px; color: #95a5a6;",
+                                          shiny::icon("project-diagram", style = "font-size: 4em; opacity: 0.3;"),
+                                          shiny::h4("Aucun effet simple détecté"),
+                                          shiny::p("Les effets simples apparaissent uniquement quand :"),
                                           tags$ul(style = "text-align: left; display: inline-block;",
                                                   tags$li("L'option 'Analyse des interactions' est activée"),
                                                   tags$li("Au moins 2 facteurs sont sélectionnés"),
@@ -914,26 +914,26 @@ mod_posthoc_ui <- function(id) {
                                 
                                   # ONGLET 3 : Visualisations 
                                 
-                                  tabPanel(
-                                    title = div(icon("chart-bar"), " Graphiques"),
+                                  shiny::tabPanel(
+                                    title = shiny::div(shiny::icon("chart-bar"), " Graphiques"),
                                     value = "plots",
-                                    br(),
+                                    shiny::br(),
                                   
-                                    conditionalPanel(
+                                    shiny::conditionalPanel(
                                       ns = ns,
                                       condition = "output.showVariableNavigation",
-                                      wellPanel(style = "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white;",
-                                                div(style = "display: flex; align-items: center; justify-content: center;",
-                                                    uiOutput(ns("variableNavigation"))
+                                      shiny::wellPanel(style = "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white;",
+                                                shiny::div(style = "display: flex; align-items: center; justify-content: center;",
+                                                    shiny::uiOutput(ns("variableNavigation"))
                                                 )
                                       )
                                     ),
                                   
-                                    fluidRow(
-                                      column(6,
-                                             div(style = "background:#e8f4fd; padding:15px; border-radius:8px;",
-                                                 h5(icon("layer-group"), " Type d'effet"),
-                                                 selectInput(ns("plotDisplayType"), 
+                                    shiny::fluidRow(
+                                      shiny::column(6,
+                                             shiny::div(style = "background:#e8f4fd; padding:15px; border-radius:8px;",
+                                                 shiny::h5(shiny::icon("layer-group"), " Type d'effet"),
+                                                 shiny::selectInput(ns("plotDisplayType"), 
                                                              NULL,
                                                              choices = list(
                                                                "Effets principaux" = "main",
@@ -942,68 +942,68 @@ mod_posthoc_ui <- function(id) {
                                                              selected = "main")
                                              )
                                       ),
-                                      column(6,
-                                             conditionalPanel(
+                                      shiny::column(6,
+                                             shiny::conditionalPanel(
                                                ns = ns,
                                                condition = "input.plotDisplayType == 'simple'",
-                                               div(style = "background:#fff5f5; padding:15px; border-radius:8px;",
-                                                   h5(icon("filter"), " Sélection effet simple"),
-                                                   uiOutput(ns("selectSimpleEffectPlot"))
+                                               shiny::div(style = "background:#fff5f5; padding:15px; border-radius:8px;",
+                                                   shiny::h5(shiny::icon("filter"), " Sélection effet simple"),
+                                                   shiny::uiOutput(ns("selectSimpleEffectPlot"))
                                                )
                                              )
                                       )
                                     ),
                                   
-                                    hr(),
+                                    shiny::hr(),
                                   
-                                    div(style = "background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);",
-                                        h4(uiOutput(ns("plotTitle")), style = "text-align: center; color: #2c3e50;"),
+                                    shiny::div(style = "background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);",
+                                        shiny::h4(shiny::uiOutput(ns("plotTitle")), style = "text-align: center; color: #2c3e50;"),
                                         plotlyOutput(ns("multiPlot"), height = "600px")
                                     ),
                                   
-                                    br(),
+                                    shiny::br(),
                                   
-                                    div(style = "border:1px solid #dee2e6; border-radius:10px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,.06);",
-                                        div(
+                                    shiny::div(style = "border:1px solid #dee2e6; border-radius:10px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,.06);",
+                                        shiny::div(
                                           class = "panel-heading",
                                           style = paste0("background:linear-gradient(135deg,#3c8dbc 0%,#8e44ad 100%);",
                                                          "color:white; padding:14px 18px; cursor:pointer;",
                                                          "display:flex; align-items:center;"),
                                           `data-toggle` = "collapse",
                                           `data-target` = "#graphOptionsPanel",
-                                          icon("sliders-h", style = "margin-right: 10px;"),
+                                          shiny::icon("sliders-h", style = "margin-right: 10px;"),
                                           tags$strong("Options du graphique"),
                                           tags$span(style = "margin-left:12px; font-size:12px; opacity:.85;",
                                                     "toute la mise en forme, de la palette a l'export"),
                                           tags$span(style = "margin-left: auto; font-size: 12px; opacity: 0.85;",
-                                                    icon("chevron-down"), " Développer / Réduire")
+                                                    shiny::icon("chevron-down"), " Développer / Réduire")
                                         ),
-                                        div(id = "graphOptionsPanel", class = "collapse",
-                                            div(style = "padding: 18px; background-color: #fbfcfd;",
+                                        shiny::div(id = "graphOptionsPanel", class = "collapse",
+                                            shiny::div(style = "padding: 18px; background-color: #fbfcfd;",
 
-                                                fluidRow(
+                                                shiny::fluidRow(
                                                   # ---- COL 1 : type, palette, barres d'erreur ----
-                                                  column(3,
+                                                  shiny::column(3,
                                                     .hstat_opt_section(
                                                       "Type et couleurs", "palette", "#8e44ad", "#f7f0fb",
-                                                      radioButtons(ns("plotType"), "Type de graphique",
+                                                      shiny::radioButtons(ns("plotType"), "Type de graphique",
                                                                    choices = c("Boxplot" = "box", "Violon" = "violin",
                                                                                "Points + barres" = "point", "Barres" = "hist"),
                                                                    selected = "box"),
-                                                      selectInput(ns("boxColor"), "Palette de couleurs",
+                                                      shiny::selectInput(ns("boxColor"), "Palette de couleurs",
                                                                   choices = list(
                                                                     "Sans palette" = c("Défaut (gris)" = "default"),
                                                                     "Teintes vives (groupes distincts)" = HSTAT_PALETTES_QUALI,
                                                                     "Dégradés (valeurs ordonnées)" = HSTAT_PALETTES_DEGRADE),
                                                                   selected = "Set2"),
-                                                      selectInput(ns("posthocTheme"), "Thème du graphique",
+                                                      shiny::selectInput(ns("posthocTheme"), "Thème du graphique",
                                                                   choices = HSTAT_THEMES_GG, selected = "minimal"),
-                                                      radioButtons(ns("errorType"), "Barres d'erreur",
+                                                      shiny::radioButtons(ns("errorType"), "Barres d'erreur",
                                                                    choices = c("SE" = "se", "SD" = "sd",
                                                                                "IC 95%" = "ci", "Aucune" = "none"),
                                                                    selected = "se", inline = TRUE),
-                                                      checkboxInput(ns("colorByGroups"),
-                                                                    HTML("Colorer par groupes statistiques <small style='color:#6c757d;'>(a, b, c...)</small>"),
+                                                      shiny::checkboxInput(ns("colorByGroups"),
+                                                                    shiny::HTML("Colorer par groupes statistiques <small style='color:#6c757d;'>(a, b, c...)</small>"),
                                                                     value = FALSE),
                                                       tags$small(style = "color:#7f8c8d;font-style:italic;",
                                                                  "Un dégradé sur des groupes sans ordre naturel suggère une progression qui n'existe pas.")
@@ -1011,17 +1011,17 @@ mod_posthoc_ui <- function(id) {
                                                   ),
 
                                                   # ---- COL 2 : textes ----
-                                                  column(3,
+                                                  shiny::column(3,
                                                     .hstat_opt_section(
                                                       "Titres et libellés", "heading", "#2980b9", "#eaf3fa",
-                                                      textInput(ns("customTitle"), "Titre", placeholder = "Auto"),
-                                                      textInput(ns("customSubtitle"), "Sous-titre", placeholder = "Optionnel"),
-                                                      fluidRow(
-                                                        column(6, textInput(ns("customXLabel"), "Libellé X", placeholder = "Auto")),
-                                                        column(6, textInput(ns("customYLabel"), "Libellé Y", placeholder = "Auto"))
+                                                      shiny::textInput(ns("customTitle"), "Titre", placeholder = "Auto"),
+                                                      shiny::textInput(ns("customSubtitle"), "Sous-titre", placeholder = "Optionnel"),
+                                                      shiny::fluidRow(
+                                                        shiny::column(6, shiny::textInput(ns("customXLabel"), "Libellé X", placeholder = "Auto")),
+                                                        shiny::column(6, shiny::textInput(ns("customYLabel"), "Libellé Y", placeholder = "Auto"))
                                                       ),
-                                                      textInput(ns("customLegendTitle"), "Titre de la légende", placeholder = "Auto"),
-                                                      selectInput(ns("subtitlePosition"), "Position du sous-titre",
+                                                      shiny::textInput(ns("customLegendTitle"), "Titre de la légende", placeholder = "Auto"),
+                                                      shiny::selectInput(ns("subtitlePosition"), "Position du sous-titre",
                                                                   choices = list("Centré" = "0.5", "Gauche" = "0", "Droite" = "1"),
                                                                   selected = "0.5"),
                                                       tags$small(style = "color:#7f8c8d;font-style:italic;",
@@ -1030,99 +1030,99 @@ mod_posthoc_ui <- function(id) {
                                                   ),
 
                                                   # ---- COL 3 : tailles et styles ----
-                                                  column(3,
+                                                  shiny::column(3,
                                                     .hstat_opt_section(
                                                       "Tailles", "text-height", "#d35400", "#fdf2e9",
-                                                      fluidRow(
-                                                        column(6, sliderInput(ns("titleSize"), "Titre", min = 8, max = 32, value = 16, step = 1, ticks = FALSE)),
-                                                        column(6, sliderInput(ns("subtitleSize"), "Sous-titre", min = 6, max = 28, value = 12, step = 1, ticks = FALSE))
+                                                      shiny::fluidRow(
+                                                        shiny::column(6, shiny::sliderInput(ns("titleSize"), "Titre", min = 8, max = 32, value = 16, step = 1, ticks = FALSE)),
+                                                        shiny::column(6, shiny::sliderInput(ns("subtitleSize"), "Sous-titre", min = 6, max = 28, value = 12, step = 1, ticks = FALSE))
                                                       ),
-                                                      fluidRow(
-                                                        column(6, sliderInput(ns("axisTitleSize"), "Titres des axes", min = 8, max = 28, value = 14, step = 1, ticks = FALSE)),
-                                                        column(6, sliderInput(ns("axisTextSize"), "Graduations", min = 6, max = 24, value = 12, step = 1, ticks = FALSE))
+                                                      shiny::fluidRow(
+                                                        shiny::column(6, shiny::sliderInput(ns("axisTitleSize"), "Titres des axes", min = 8, max = 28, value = 14, step = 1, ticks = FALSE)),
+                                                        shiny::column(6, shiny::sliderInput(ns("axisTextSize"), "Graduations", min = 6, max = 24, value = 12, step = 1, ticks = FALSE))
                                                       ),
-                                                      fluidRow(
-                                                        column(6, sliderInput(ns("graphValueSize"), "Lettres (a, b, c)", min = 2, max = 20, value = 5, step = 0.5, ticks = FALSE)),
-                                                        column(6, sliderInput(ns("meanValueSize"), "Moyennes", min = 2, max = 12, value = 4, step = 0.5, ticks = FALSE))
+                                                      shiny::fluidRow(
+                                                        shiny::column(6, shiny::sliderInput(ns("graphValueSize"), "Lettres (a, b, c)", min = 2, max = 20, value = 5, step = 0.5, ticks = FALSE)),
+                                                        shiny::column(6, shiny::sliderInput(ns("meanValueSize"), "Moyennes", min = 2, max = 12, value = 4, step = 0.5, ticks = FALSE))
                                                       )
                                                     ),
                                                     .hstat_opt_section(
                                                       "Styles d'écriture", "font", "#c0392b", "#fdeeec",
                                                       # Un select par ligne : appairés, leurs libellés étaient
                                                       # rognés dans une colonne de panneau.
-                                                      selectInput(ns("titleFontStyle"), "Titre",
+                                                      shiny::selectInput(ns("titleFontStyle"), "Titre",
                                                                   choices = HSTAT_FONT_STYLES, selected = "bold"),
-                                                      selectInput(ns("subtitleFontStyle"), "Sous-titre",
+                                                      shiny::selectInput(ns("subtitleFontStyle"), "Sous-titre",
                                                                   choices = HSTAT_FONT_STYLES, selected = "italic"),
-                                                      selectInput(ns("axisTitleFontStyle"), "Titres des axes",
+                                                      shiny::selectInput(ns("axisTitleFontStyle"), "Titres des axes",
                                                                   choices = HSTAT_FONT_STYLES, selected = "plain"),
-                                                      selectInput(ns("graphValueFontStyle"), "Lettres (a, b, c)",
+                                                      shiny::selectInput(ns("graphValueFontStyle"), "Lettres (a, b, c)",
                                                                   choices = HSTAT_FONT_STYLES, selected = "bold"),
-                                                      selectInput(ns("axisTextXFontStyle"), "Graduations X",
+                                                      shiny::selectInput(ns("axisTextXFontStyle"), "Graduations X",
                                                                   choices = HSTAT_FONT_STYLES, selected = "plain"),
-                                                      selectInput(ns("axisTextYFontStyle"), "Graduations Y",
+                                                      shiny::selectInput(ns("axisTextYFontStyle"), "Graduations Y",
                                                                   choices = HSTAT_FONT_STYLES, selected = "plain"),
-                                                      checkboxInput(ns("rotateXLabels"), "Libellés X inclinés à 45°", value = TRUE)
+                                                      shiny::checkboxInput(ns("rotateXLabels"), "Libellés X inclinés à 45°", value = TRUE)
                                                     )
                                                   ),
 
                                                   # ---- COL 4 : axes, legende, export ----
-                                                  column(3,
+                                                  shiny::column(3,
                                                     .hstat_opt_section(
                                                       "Axes et ordre", "ruler-combined", "#16a085", "#e8f8f4",
-                                                      checkboxInput(ns("customAxisLimits"), "Personnaliser les limites", value = FALSE),
-                                                      conditionalPanel(
+                                                      shiny::checkboxInput(ns("customAxisLimits"), "Personnaliser les limites", value = FALSE),
+                                                      shiny::conditionalPanel(
                                                         ns = ns,
                                                         condition = "input.customAxisLimits == true",
-                                                        fluidRow(
-                                                          column(6, numericInput(ns("yAxisMin"), "Y min", value = NULL, step = 0.1)),
-                                                          column(6, numericInput(ns("yAxisMax"), "Y max", value = NULL, step = 0.1))
+                                                        shiny::fluidRow(
+                                                          shiny::column(6, shiny::numericInput(ns("yAxisMin"), "Y min", value = NULL, step = 0.1)),
+                                                          shiny::column(6, shiny::numericInput(ns("yAxisMax"), "Y max", value = NULL, step = 0.1))
                                                         ),
-                                                        fluidRow(
-                                                          column(6, numericInput(ns("xAxisMin"), "X min", value = NULL, step = 0.1)),
-                                                          column(6, numericInput(ns("xAxisMax"), "X max", value = NULL, step = 0.1))
+                                                        shiny::fluidRow(
+                                                          shiny::column(6, shiny::numericInput(ns("xAxisMin"), "X min", value = NULL, step = 0.1)),
+                                                          shiny::column(6, shiny::numericInput(ns("xAxisMax"), "X max", value = NULL, step = 0.1))
                                                         ),
                                                         tags$small(style = "color:#7f8c8d;font-style:italic;",
                                                                    "Les limites X ne s'appliquent qu'à un axe numérique.")
                                                       ),
-                                                      checkboxInput(ns("customAxisBreaks"), "Personnaliser les graduations", value = FALSE),
-                                                      conditionalPanel(
+                                                      shiny::checkboxInput(ns("customAxisBreaks"), "Personnaliser les graduations", value = FALSE),
+                                                      shiny::conditionalPanel(
                                                         ns = ns,
                                                         condition = "input.customAxisBreaks == true",
-                                                        fluidRow(
-                                                          column(6, numericInput(ns("yAxisBreakStep"), "Pas Y", value = NULL, step = 0.1, min = 0.01)),
-                                                          column(6, numericInput(ns("xAxisBreakStep"), "Pas X", value = NULL, step = 0.1, min = 0.01))
+                                                        shiny::fluidRow(
+                                                          shiny::column(6, shiny::numericInput(ns("yAxisBreakStep"), "Pas Y", value = NULL, step = 0.1, min = 0.01)),
+                                                          shiny::column(6, shiny::numericInput(ns("xAxisBreakStep"), "Pas X", value = NULL, step = 0.1, min = 0.01))
                                                         )
                                                       ),
-                                                      checkboxInput(ns("customXOrder"), "Personnaliser l'ordre de l'axe X", value = FALSE),
-                                                      conditionalPanel(
+                                                      shiny::checkboxInput(ns("customXOrder"), "Personnaliser l'ordre de l'axe X", value = FALSE),
+                                                      shiny::conditionalPanel(
                                                         ns = ns,
                                                         condition = "input.customXOrder == true",
-                                                        uiOutput(ns("xAxisOrderUI"))
+                                                        shiny::uiOutput(ns("xAxisOrderUI"))
                                                       )
                                                     ),
                                                     .hstat_opt_section(
                                                       "Légende", "list", "#7f8c8d", "#f4f6f7",
-                                                      fluidRow(
-                                                        column(6, sliderInput(ns("legendTitleSize"), "Titre", min = 6, max = 24, value = 12, step = 1, ticks = FALSE)),
-                                                        column(6, sliderInput(ns("legendTextSize"), "Texte", min = 6, max = 20, value = 10, step = 1, ticks = FALSE))
+                                                      shiny::fluidRow(
+                                                        shiny::column(6, shiny::sliderInput(ns("legendTitleSize"), "Titre", min = 6, max = 24, value = 12, step = 1, ticks = FALSE)),
+                                                        shiny::column(6, shiny::sliderInput(ns("legendTextSize"), "Texte", min = 6, max = 20, value = 10, step = 1, ticks = FALSE))
                                                       ),
-                                                      selectInput(ns("legendTitleFontStyle"), "Style du titre",
+                                                      shiny::selectInput(ns("legendTitleFontStyle"), "Style du titre",
                                                                   choices = HSTAT_FONT_STYLES, selected = "bold"),
-                                                      selectInput(ns("legendTextFontStyle"), "Style du texte",
+                                                      shiny::selectInput(ns("legendTextFontStyle"), "Style du texte",
                                                                   choices = HSTAT_FONT_STYLES, selected = "plain"),
-                                                      fluidRow(
-                                                        column(6, sliderInput(ns("legendSpacing"), "Espacement", min = 0, max = 6, value = 0, step = 0.1, ticks = FALSE)),
-                                                        column(6, sliderInput(ns("legendKeySize"), "Taille des clés", min = 0.4, max = 3, value = 1.2, step = 0.1, ticks = FALSE))
+                                                      shiny::fluidRow(
+                                                        shiny::column(6, shiny::sliderInput(ns("legendSpacing"), "Espacement", min = 0, max = 6, value = 0, step = 0.1, ticks = FALSE)),
+                                                        shiny::column(6, shiny::sliderInput(ns("legendKeySize"), "Taille des clés", min = 0.4, max = 3, value = 1.2, step = 0.1, ticks = FALSE))
                                                       ),
                                                       tags$small(style = "color:#7f8c8d;font-style:italic;",
                                                                  "La légende n'apparaît qu'avec « Colorer par groupes statistiques ».")
                                                     ),
                                                     .hstat_opt_section(
                                                       "Taille du fichier exporté", "download", "#2c3e50", "#eef1f4",
-                                                      fluidRow(
-                                                        column(6, numericInput(ns("plotWidth"), "Largeur (pouces)", value = 8, min = 3, max = 20, step = 0.5)),
-                                                        column(6, numericInput(ns("plotHeight"), "Hauteur (pouces)", value = 6, min = 3, max = 20, step = 0.5))
+                                                      shiny::fluidRow(
+                                                        shiny::column(6, shiny::numericInput(ns("plotWidth"), "Largeur (pouces)", value = 8, min = 3, max = 20, step = 0.5)),
+                                                        shiny::column(6, shiny::numericInput(ns("plotHeight"), "Hauteur (pouces)", value = 6, min = 3, max = 20, step = 0.5))
                                                       ),
                                                       tags$small(style = "color:#7f8c8d;font-style:italic;",
                                                                  "Format et résolution se choisissent sous le graphique.")
@@ -1133,19 +1133,19 @@ mod_posthoc_ui <- function(id) {
                                         )
                                     ),
                                   
-                                    br(),
+                                    shiny::br(),
                                   
-                                    div(style = "max-width: 400px; margin: 0 auto;",
-                                        fluidRow(
-                                          column(7,
+                                    shiny::div(style = "max-width: 400px; margin: 0 auto;",
+                                        shiny::fluidRow(
+                                          shiny::column(7,
                                             hstat_format_input(ns("multiPlotFormat"),
-                                              tagList(icon("file-image"), " Format d\'export"),
+                                              shiny::tagList(shiny::icon("file-image"), " Format d\'export"),
                                               width = "100%")),
-                                          column(5,
-                                            hstat_dpi_input(ns("plotDPIVisible"), tagList(icon("image"), " DPI"), width = "100%"))
+                                          shiny::column(5,
+                                            hstat_dpi_input(ns("plotDPIVisible"), shiny::tagList(shiny::icon("image"), " DPI"), width = "100%"))
                                         ),
-                                        downloadButton(ns("downloadMultiPlot"),
-                                                       tagList(icon("download"), " Télécharger le graphique"),
+                                        shiny::downloadButton(ns("downloadMultiPlot"),
+                                                       shiny::tagList(shiny::icon("download"), " Télécharger le graphique"),
                                                        class = "btn-success",
                                                        style = "width: 100%; height: 50px; font-weight: bold;")
                                     )
@@ -1153,38 +1153,38 @@ mod_posthoc_ui <- function(id) {
                                 
                                   # ONGLET 4 : Rapport complet 
                                 
-                                  tabPanel(
-                                    title = div(icon("file-alt"), " Rapport"),
+                                  shiny::tabPanel(
+                                    title = shiny::div(shiny::icon("file-alt"), " Rapport"),
                                     value = "report",
-                                    br(),
+                                    shiny::br(),
                                   
-                                    div(style = "background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;",
-                                        h3(style = "color: #2c3e50;", icon("clipboard-check"), " Résumé de l'analyse"),
-                                        hr(),
-                                        uiOutput(ns("fullAnalysisReport"))
+                                    shiny::div(style = "background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;",
+                                        shiny::h3(style = "color: #2c3e50;", shiny::icon("clipboard-check"), " Résumé de l'analyse"),
+                                        shiny::hr(),
+                                        shiny::uiOutput(ns("fullAnalysisReport"))
                                     ),
                                   
-                                    div(style = "background: linear-gradient(135deg, #27ae60 0%, #229954 100%); padding: 20px; border-radius: 8px;",
-                                        h4(style = "color: white; margin-top: 0;", 
-                                           icon("download"), " Téléchargements"),
-                                        fluidRow(
-                                          column(4,
-                                                 downloadButton(ns("downloadAllResults"), 
-                                                                div(icon("file-excel", style = "font-size: 2em; display: block; margin-bottom: 10px;"), 
+                                    shiny::div(style = "background: linear-gradient(135deg, #27ae60 0%, #229954 100%); padding: 20px; border-radius: 8px;",
+                                        shiny::h4(style = "color: white; margin-top: 0;", 
+                                           shiny::icon("download"), " Téléchargements"),
+                                        shiny::fluidRow(
+                                          shiny::column(4,
+                                                 shiny::downloadButton(ns("downloadAllResults"), 
+                                                                shiny::div(shiny::icon("file-excel", style = "font-size: 2em; display: block; margin-bottom: 10px;"), 
                                                                     "Toutes les données"),
                                                                 class = "btn-light btn-lg",
                                                                 style = "width: 100%; height: 120px; font-weight: bold;")
                                           ),
-                                          column(4,
-                                                 downloadButton(ns("downloadSummaryStats"), 
-                                                                div(icon("chart-pie", style = "font-size: 2em; display: block; margin-bottom: 10px;"), 
+                                          shiny::column(4,
+                                                 shiny::downloadButton(ns("downloadSummaryStats"), 
+                                                                shiny::div(shiny::icon("chart-pie", style = "font-size: 2em; display: block; margin-bottom: 10px;"), 
                                                                     "Statistiques résumées"),
                                                                 class = "btn-light btn-lg",
                                                                 style = "width: 100%; height: 120px; font-weight: bold;")
                                           ),
-                                          column(4,
-                                                 downloadButton(ns("downloadFullReport"), 
-                                                                div(icon("file-pdf", style = "font-size: 2em; display: block; margin-bottom: 10px;"), 
+                                          shiny::column(4,
+                                                 shiny::downloadButton(ns("downloadFullReport"), 
+                                                                shiny::div(shiny::icon("file-pdf", style = "font-size: 2em; display: block; margin-bottom: 10px;"), 
                                                                     "Rapport PDF"),
                                                                 class = "btn-light btn-lg",
                                                                 style = "width: 100%; height: 120px; font-weight: bold;")
@@ -1196,71 +1196,71 @@ mod_posthoc_ui <- function(id) {
                   )
                 ),
               
-                fluidRow(
+                shiny::fluidRow(
                   box(
-                    title = tagList(icon("calculator"),
+                    title = shiny::tagList(shiny::icon("calculator"),
                                     " PostHoc Régression linéaire / GLM -- Comparaisons et lettres CLD"),
                     status = "primary", width = 12, solidHeader = TRUE,
                     collapsible = TRUE, collapsed = TRUE,
                   
-                    conditionalPanel(
+                    shiny::conditionalPanel(
                       ns = ns,
                       condition = "output.hasLMPostHoc",
-                      fluidRow(
-                        column(4,
-                               div(style = "background:#f8f9fa; padding:14px; border-radius:8px;",
-                                   h5(tagList(icon("filter"), " Sélection"),
+                      shiny::fluidRow(
+                        shiny::column(4,
+                               shiny::div(style = "background:#f8f9fa; padding:14px; border-radius:8px;",
+                                   shiny::h5(shiny::tagList(shiny::icon("filter"), " Sélection"),
                                       style = "font-weight:bold; margin-top:0; color:#1565C0;"),
-                                   uiOutput(ns("lmPostHocSelector")),
-                                   br(),
-                                   uiOutput(ns("lmPostHocInfo")),
-                                   br(),
-                                   downloadButton(ns("downloadLMPostHoc"),
-                                                  tagList(icon("file-excel"), " Télécharger Excel"),
+                                   shiny::uiOutput(ns("lmPostHocSelector")),
+                                   shiny::br(),
+                                   shiny::uiOutput(ns("lmPostHocInfo")),
+                                   shiny::br(),
+                                   shiny::downloadButton(ns("downloadLMPostHoc"),
+                                                  shiny::tagList(shiny::icon("file-excel"), " Télécharger Excel"),
                                                   class = "btn-success btn-block",
                                                   style = "height:50px; font-weight:bold;")
                                )
                         ),
-                        column(8,
-                               tabsetPanel(type = "tabs",
-                                           tabPanel(
-                                             title = tagList(icon("layer-group"), " Lettres CLD"),
-                                             br(),
-                                             div(style = "background:#e3f2fd; border-left:3px solid #1565C0; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:11px;",
-                                                 icon("info-circle"),
+                        shiny::column(8,
+                               shiny::tabsetPanel(type = "tabs",
+                                           shiny::tabPanel(
+                                             title = shiny::tagList(shiny::icon("layer-group"), " Lettres CLD"),
+                                             shiny::br(),
+                                             shiny::div(style = "background:#e3f2fd; border-left:3px solid #1565C0; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:11px;",
+                                                 shiny::icon("info-circle"),
                                                  " Niveaux partageant une même lettre = pas de différence significative (alpha = 0.05)."
                                              ),
-                                             withSpinner(DTOutput(ns("lmPostHocLettersTable")), color = "#1565C0")
+                                             withSpinner(DT::DTOutput(ns("lmPostHocLettersTable")), color = "#1565C0")
                                            ),
-                                           tabPanel(
-                                             title = tagList(icon("code-branch"), " Paires (emmeans)"),
-                                             br(),
-                                             div(style = "background:#fff3e0; border-left:3px solid #fb8c00; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:11px;",
-                                                 icon("info-circle"),
+                                           shiny::tabPanel(
+                                             title = shiny::tagList(shiny::icon("code-branch"), " Paires (emmeans)"),
+                                             shiny::br(),
+                                             shiny::div(style = "background:#fff3e0; border-left:3px solid #fb8c00; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:11px;",
+                                                 shiny::icon("info-circle"),
                                                  " Comparaisons par paires sur les moyennes marginales estimées (emmeans). ",
                                                  "Pour les GLM non-gaussiens, les valeurs sont sur l'échelle du lien."
                                              ),
-                                             withSpinner(DTOutput(ns("lmPostHocPairsTable")), color = "#fb8c00")
+                                             withSpinner(DT::DTOutput(ns("lmPostHocPairsTable")), color = "#fb8c00")
                                            )
                                )
                         )
                       )
                     ),
-                    conditionalPanel(
+                    shiny::conditionalPanel(
                       ns = ns,
                       condition = "!output.hasLMPostHoc",
-                      div(style = "text-align:center; padding:40px; color:#95a5a6;",
-                          icon("calculator", style = "font-size:4em; opacity:0.3;"),
-                          h4("Aucun PostHoc LM/GLM calculé"),
-                          p("Pour activer cette section :"),
+                      shiny::div(style = "text-align:center; padding:40px; color:#95a5a6;",
+                          shiny::icon("calculator", style = "font-size:4em; opacity:0.3;"),
+                          shiny::h4("Aucun PostHoc LM/GLM calculé"),
+                          shiny::p("Pour activer cette section :"),
                           tags$ul(style = "text-align:left; display:inline-block; color:#555;",
-                                  tags$li("Lancez d'abord une ", strong("Régression linéaire"),
-                                          " ou un ", strong("GLM"),
+                                  tags$li("Lancez d'abord une ", shiny::strong("Régression linéaire"),
+                                          " ou un ", shiny::strong("GLM"),
                                           " dans l'onglet 'Tests statistiques'"),
-                                  tags$li("Le modèle doit contenir au moins ", strong("un prédicteur catégoriel (factor)")),
-                                  tags$li("Revenez ici, sélectionnez ", strong("'LM / GLM (emmeans + lettres CLD)'"),
+                                  tags$li("Le modèle doit contenir au moins ", shiny::strong("un prédicteur catégoriel (factor)")),
+                                  tags$li("Revenez ici, sélectionnez ", shiny::strong("'LM / GLM (emmeans + lettres CLD)'"),
                                           " dans la liste 'Méthode post-hoc paramétrique'"),
-                                  tags$li("Cliquez sur ", strong("LANCER L'ANALYSE"))
+                                  tags$li("Cliquez sur ", shiny::strong("LANCER L'ANALYSE"))
                           )
                       )
                     )
@@ -1269,77 +1269,77 @@ mod_posthoc_ui <- function(id) {
               
                 # MANOVA / PERMANOVA POSTHOC -- Comparaisons multivariees par paires + lettres
               
-                fluidRow(
-                  div(id = "boxWrap_manovaPosthoc",
+                shiny::fluidRow(
+                  shiny::div(id = "boxWrap_manovaPosthoc",
                       box(
-                        title = tagList(icon("layer-group"),
+                        title = shiny::tagList(shiny::icon("layer-group"),
                                         " PostHoc MANOVA/PERMANOVA -- Comparaisons multivariées par paires et lettres de groupes"),
                         status = "success", width = 12, solidHeader = TRUE,
                         collapsible = TRUE, collapsed = TRUE,
                       
-                        conditionalPanel(
+                        shiny::conditionalPanel(
                           ns = ns,
                           condition = "output.hasMultivariatePosthoc",
                         
-                          fluidRow(
-                            column(4,
-                                   div(style = "background:#f8f9fa; padding:14px; border-radius:8px;",
-                                       h5(tagList(icon("filter"), " Sélection du facteur"),
+                          shiny::fluidRow(
+                            shiny::column(4,
+                                   shiny::div(style = "background:#f8f9fa; padding:14px; border-radius:8px;",
+                                       shiny::h5(shiny::tagList(shiny::icon("filter"), " Sélection du facteur"),
                                           style = "font-weight:bold; margin-top:0; color:#2e7d32;"),
-                                       uiOutput(ns("multivariatePosthocFactorSelect")),
-                                       br(),
-                                       uiOutput(ns("multivariatePosthocInfo")),
-                                       br(),
-                                       downloadButton(ns("downloadMultivariatePosthoc"),
-                                                      tagList(icon("file-excel"), " Télécharger Excel (lettres + paires)"),
+                                       shiny::uiOutput(ns("multivariatePosthocFactorSelect")),
+                                       shiny::br(),
+                                       shiny::uiOutput(ns("multivariatePosthocInfo")),
+                                       shiny::br(),
+                                       shiny::downloadButton(ns("downloadMultivariatePosthoc"),
+                                                      shiny::tagList(shiny::icon("file-excel"), " Télécharger Excel (lettres + paires)"),
                                                       class = "btn-success btn-block",
                                                       style = "height: 50px; font-weight: bold;")
                                    )
                             ),
-                            column(8,
-                                   tabsetPanel(type = "tabs",
-                                               tabPanel(
-                                                 title = tagList(icon("layer-group"), " Groupes distincts (lettres)"),
-                                                 br(),
-                                                 div(style = "background:#e3f2fd; border-left:3px solid #1565C0; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:11px;",
-                                                     icon("info-circle"),
+                            shiny::column(8,
+                                   shiny::tabsetPanel(type = "tabs",
+                                               shiny::tabPanel(
+                                                 title = shiny::tagList(shiny::icon("layer-group"), " Groupes distincts (lettres)"),
+                                                 shiny::br(),
+                                                 shiny::div(style = "background:#e3f2fd; border-left:3px solid #1565C0; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:11px;",
+                                                     shiny::icon("info-circle"),
                                                      " Les niveaux partageant une même lettre ne diffèrent pas significativement sur l'ensemble des réponses (test multivarié, alpha = 0.05)."
                                                  ),
-                                                 withSpinner(DTOutput(ns("multivariatePosthocLettersTable")), color = "#2e7d32")
+                                                 withSpinner(DT::DTOutput(ns("multivariatePosthocLettersTable")), color = "#2e7d32")
                                                ),
-                                               tabPanel(
-                                                 title = tagList(icon("code-branch"), " Paires (PERMANOVA Bonferroni)"),
-                                                 br(),
-                                                 div(style = "background:#fff3e0; border-left:3px solid #fb8c00; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:11px;",
-                                                     icon("info-circle"),
+                                               shiny::tabPanel(
+                                                 title = shiny::tagList(shiny::icon("code-branch"), " Paires (PERMANOVA Bonferroni)"),
+                                                 shiny::br(),
+                                                 shiny::div(style = "background:#fff3e0; border-left:3px solid #fb8c00; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:11px;",
+                                                     shiny::icon("info-circle"),
                                                      " Comparaisons par paires sur l'ensemble des variables réponses. ",
                                                      "Pour chaque paire : F (pseudo), R², p-value brute, p-value ajustée (Bonferroni)."
                                                  ),
-                                                 withSpinner(DTOutput(ns("multivariatePosthocPairsTable")), color = "#f39c12")
+                                                 withSpinner(DT::DTOutput(ns("multivariatePosthocPairsTable")), color = "#f39c12")
                                                ),
-                                               tabPanel(
-                                                 title = tagList(icon("project-diagram"), " Interaction (cellules croisées)"),
-                                                 br(),
-                                                 conditionalPanel(
+                                               shiny::tabPanel(
+                                                 title = shiny::tagList(shiny::icon("project-diagram"), " Interaction (cellules croisées)"),
+                                                 shiny::br(),
+                                                 shiny::conditionalPanel(
                                                    ns = ns,
                                                    condition = "output.hasManovaInteractionPostHoc",
-                                                   uiOutput(ns("manovaInteractionPostHocInfo")),
-                                                   h5(icon("layer-group"), " Lettres par cellule d'interaction",
+                                                   shiny::uiOutput(ns("manovaInteractionPostHocInfo")),
+                                                   shiny::h5(shiny::icon("layer-group"), " Lettres par cellule d'interaction",
                                                       style = "color:#2e7d32; margin-top:0;"),
-                                                   withSpinner(DTOutput(ns("manovaInteractionLettersTable")), color = "#2e7d32"),
-                                                   br(),
-                                                   h5(icon("code-branch"), " Comparaisons par paires des cellules",
+                                                   withSpinner(DT::DTOutput(ns("manovaInteractionLettersTable")), color = "#2e7d32"),
+                                                   shiny::br(),
+                                                   shiny::h5(shiny::icon("code-branch"), " Comparaisons par paires des cellules",
                                                       style = "color:#f39c12;"),
-                                                   withSpinner(DTOutput(ns("manovaInteractionPairsTable")), color = "#f39c12")
+                                                   withSpinner(DT::DTOutput(ns("manovaInteractionPairsTable")), color = "#f39c12")
                                                  ),
-                                                 conditionalPanel(
+                                                 shiny::conditionalPanel(
                                                    ns = ns,
                                                    condition = "!output.hasManovaInteractionPostHoc",
-                                                   div(style = "text-align:center; padding:30px; color:#95a5a6;",
-                                                       icon("project-diagram", style = "font-size:3em; opacity:0.3;"),
-                                                       h5("Aucun PostHoc d'interaction"),
-                                                       p(style = "font-size:12px;",
-                                                         "Cochez ", strong("'Activer l'analyse des interactions'"),
+                                                   shiny::div(style = "text-align:center; padding:30px; color:#95a5a6;",
+                                                       shiny::icon("project-diagram", style = "font-size:3em; opacity:0.3;"),
+                                                       shiny::h5("Aucun PostHoc d'interaction"),
+                                                       shiny::p(style = "font-size:12px;",
+                                                         "Cochez ", shiny::strong("'Activer l'analyse des interactions'"),
                                                          " et sélectionnez au moins 2 facteurs avant de lancer l'analyse."))
                                                  )
                                                )
@@ -1348,18 +1348,18 @@ mod_posthoc_ui <- function(id) {
                           )
                         ),
                       
-                        conditionalPanel(
+                        shiny::conditionalPanel(
                           ns = ns,
                           condition = "!output.hasMultivariatePosthoc",
-                          div(style = "text-align: center; padding: 40px; color: #95a5a6;",
-                              icon("layer-group", style = "font-size: 4em; opacity: 0.3;"),
-                              h4("Aucun PostHoc multivarié calculé"),
-                              p("Pour activer cette section :"),
+                          shiny::div(style = "text-align: center; padding: 40px; color: #95a5a6;",
+                              shiny::icon("layer-group", style = "font-size: 4em; opacity: 0.3;"),
+                              shiny::h4("Aucun PostHoc multivarié calculé"),
+                              shiny::p("Pour activer cette section :"),
                               tags$ul(style = "text-align: left; display: inline-block; color: #555;",
-                                      tags$li("Sélectionnez ", strong(">= 2 variables réponses"),
+                                      tags$li("Sélectionnez ", shiny::strong(">= 2 variables réponses"),
                                               " dans le panneau de configuration"),
-                                      tags$li("Sélectionnez au moins ", strong("1 facteur")),
-                                      tags$li("Cliquez sur ", strong("LANCER L'ANALYSE")),
+                                      tags$li("Sélectionnez au moins ", shiny::strong("1 facteur")),
+                                      tags$li("Cliquez sur ", shiny::strong("LANCER L'ANALYSE")),
                                       tags$li("Les comparaisons multivariées par paires et les lettres de groupes s'afficheront ici")
                               )
                           )
@@ -1369,31 +1369,31 @@ mod_posthoc_ui <- function(id) {
                 ),
               
               
-                fluidRow(
+                shiny::fluidRow(
                   box(
-                    title = tagList(icon("repeat"), " PostHoc Mesures répétées -- Comparaisons par paires (Période / Traitement)"),
+                    title = shiny::tagList(shiny::icon("repeat"), " PostHoc Mesures répétées -- Comparaisons par paires (Période / Traitement)"),
                     status = "success", width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
-                    conditionalPanel(
+                    shiny::conditionalPanel(
                       ns = ns,
                       condition = "output.hasRMPostHoc",
-                      div(style = "background:#e0f2f1; border-left:4px solid #00897b; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:12px;",
-                          icon("circle-info"),
-                          HTML(" Comparaisons par paires issues de la dernière <b>ANOVA à mesures répétées</b> ou du dernier <b>test non paramétrique répété</b>. Une ligne par paire de niveaux, avec p-value ajustée.")),
-                      uiOutput(ns("rmPostHocInfo")),
-                      withSpinner(DTOutput(ns("rmPostHocTable")), color = "#00897b"),
-                      br(),
-                      downloadButton(ns("downloadRMPostHoc"), "Télécharger (Excel)", class = "btn-success")
+                      shiny::div(style = "background:#e0f2f1; border-left:4px solid #00897b; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-size:12px;",
+                          shiny::icon("circle-info"),
+                          shiny::HTML(" Comparaisons par paires issues de la dernière <b>ANOVA à mesures répétées</b> ou du dernier <b>test non paramétrique répété</b>. Une ligne par paire de niveaux, avec p-value ajustée.")),
+                      shiny::uiOutput(ns("rmPostHocInfo")),
+                      withSpinner(DT::DTOutput(ns("rmPostHocTable")), color = "#00897b"),
+                      shiny::br(),
+                      shiny::downloadButton(ns("downloadRMPostHoc"), "Télécharger (Excel)", class = "btn-success")
                     ),
-                    conditionalPanel(
+                    shiny::conditionalPanel(
                       ns = ns,
                       condition = "!output.hasRMPostHoc",
-                      div(style = "text-align:center; padding:40px; color:#95a5a6;",
-                          icon("repeat", style = "font-size:4em; opacity:0.3;"),
-                          h4("Aucun post-hoc de mesures répétées calculé"),
-                          p("Pour activer cette section :"),
+                      shiny::div(style = "text-align:center; padding:40px; color:#95a5a6;",
+                          shiny::icon("repeat", style = "font-size:4em; opacity:0.3;"),
+                          shiny::h4("Aucun post-hoc de mesures répétées calculé"),
+                          shiny::p("Pour activer cette section :"),
                           tags$ul(style = "text-align:left; display:inline-block; color:#555;",
                                   tags$li("Renseignez Sujet, Période (et Traitement) dans le panneau « Mesures répétées »"),
-                                  tags$li(HTML("Lancez <b>ANOVA à mesures répétées</b> ou <b>Non paramétrique répété</b> dans l'onglet « Tests statistiques »")),
+                                  tags$li(shiny::HTML("Lancez <b>ANOVA à mesures répétées</b> ou <b>Non paramétrique répété</b> dans l'onglet « Tests statistiques »")),
                                   tags$li("Les comparaisons par paires s'afficheront ici")))
                     )
                   )
@@ -1409,31 +1409,31 @@ mod_posthoc_ui <- function(id) {
 # paires de variables numériques, avec correction pour comparaisons multiples.
 # Tous les résultats sont présentés dans un data.frame (DT).
 mod_correlation_ui <- function(id) {
-  ns <- NS(id)
-  tabItem(tabName = "corrélation",
+  ns <- shiny::NS(id)
+  shinydashboard::tabItem(tabName = "corrélation",
     .hstat_scope_banner(exact = FALSE),
-    fluidRow(
-      box(title = tagList(icon("cog"), " Configuration"),
+    shiny::fluidRow(
+      box(title = shiny::tagList(shiny::icon("cog"), " Configuration"),
           status = "primary", width = 4, solidHeader = TRUE, collapsible = TRUE,
-          uiOutput(ns("corTestVarSelect")),
-          checkboxInput(ns("corTestTargetMode"),
-            tagList(icon("crosshairs"), " Corréler une seule variable avec les autres"),
+          shiny::uiOutput(ns("corTestVarSelect")),
+          shiny::checkboxInput(ns("corTestTargetMode"),
+            shiny::tagList(shiny::icon("crosshairs"), " Corréler une seule variable avec les autres"),
             value = FALSE),
-          conditionalPanel(sprintf("input['%s'] == true", ns("corTestTargetMode")),
-            uiOutput(ns("corTestTargetSelect"))),
-          selectInput(ns("corTestMethod"), "Méthode de corrélation",
+          shiny::conditionalPanel(sprintf("input['%s'] == true", ns("corTestTargetMode")),
+            shiny::uiOutput(ns("corTestTargetSelect"))),
+          shiny::selectInput(ns("corTestMethod"), "Méthode de corrélation",
             choices = c("Pearson (linéaire)"            = "pearson",
                         "Spearman (rang, monotone)"     = "spearman",
                         "Kendall (rang, concordance)"   = "kendall"),
             selected = "pearson"),
-          selectInput(ns("corTestAlt"), "Hypothèse alternative",
+          shiny::selectInput(ns("corTestAlt"), "Hypothèse alternative",
             choices = c("Bilatérale (\u2260 0)"  = "two.sided",
                         "Unilatérale (> 0)"      = "greater",
                         "Unilatérale (< 0)"      = "less"),
             selected = "two.sided"),
-          sliderInput(ns("corTestConf"), "Niveau de confiance",
+          shiny::sliderInput(ns("corTestConf"), "Niveau de confiance",
             min = 0.80, max = 0.99, value = 0.95, step = 0.01),
-          selectInput(ns("corTestAdjust"), "Correction (corrélations multiples)",
+          shiny::selectInput(ns("corTestAdjust"), "Correction (corrélations multiples)",
             choices = c("Holm"                 = "holm",
                         "Bonferroni"           = "bonferroni",
                         "Benjamini-Hochberg (FDR)" = "BH",
@@ -1441,93 +1441,93 @@ mod_correlation_ui <- function(id) {
                         "Hochberg"             = "hochberg",
                         "Aucune"               = "none"),
             selected = "holm"),
-          checkboxInput(ns("corTestAllMethods"),
-            tagList(icon("layer-group"), " Comparer les 3 méthodes"), value = FALSE),
-          div(class = "callout callout-info", style = "margin-top:10px;",
-              icon("info-circle"),
+          shiny::checkboxInput(ns("corTestAllMethods"),
+            shiny::tagList(shiny::icon("layer-group"), " Comparer les 3 méthodes"), value = FALSE),
+          shiny::div(class = "callout callout-info", style = "margin-top:10px;",
+              shiny::icon("info-circle"),
               " Toutes les métriques (coefficient, statistique, ddl, p brute et ",
               "ajustée, IC, R², force, sens) figurent dans le tableau de résultats.")
       ),
-      box(title = tagList(icon("table"), " Résultats des tests de corrélation"),
+      box(title = shiny::tagList(shiny::icon("table"), " Résultats des tests de corrélation"),
           status = "success", width = 8, solidHeader = TRUE,
           DT::DTOutput(ns("corTestTable")),
-          br(),
-          downloadButton(ns("corTestDownload"), "Télécharger (CSV)",
+          shiny::br(),
+          shiny::downloadButton(ns("corTestDownload"), "Télécharger (CSV)",
                          class = "btn-success btn-sm"),
-          br(), br(),
-          uiOutput(ns("corTestInterpretation"))
+          shiny::br(), shiny::br(),
+          shiny::uiOutput(ns("corTestInterpretation"))
       )
     ),
-    fluidRow(
-      box(title = tagList(icon("project-diagram"), " Matrice de Corrélation"),
+    shiny::fluidRow(
+      box(title = shiny::tagList(shiny::icon("project-diagram"), " Matrice de Corrélation"),
           status = "success", width = 12, solidHeader = TRUE, collapsible = TRUE,
-          fluidRow(
-            column(12, div(style = "background:#f8f9fa;padding:15px;border-radius:5px;margin-bottom:15px;",
-                           uiOutput(ns("corrVarSelect")),
-                           checkboxInput(ns("corrFocusMode"),
-                             tagList(icon("crosshairs"), " Corréler une seule variable avec les autres"),
+          shiny::fluidRow(
+            shiny::column(12, shiny::div(style = "background:#f8f9fa;padding:15px;border-radius:5px;margin-bottom:15px;",
+                           shiny::uiOutput(ns("corrVarSelect")),
+                           shiny::checkboxInput(ns("corrFocusMode"),
+                             shiny::tagList(shiny::icon("crosshairs"), " Corréler une seule variable avec les autres"),
                              value = FALSE),
-                           conditionalPanel(sprintf("input['%s'] == true", ns("corrFocusMode")),
-                             uiOutput(ns("corrFocusSelect")))))
+                           shiny::conditionalPanel(sprintf("input['%s'] == true", ns("corrFocusMode")),
+                             shiny::uiOutput(ns("corrFocusSelect")))))
           ),
-          fluidRow(
-            column(3,
-              h5(icon("sliders-h"), " Méthode", style = "color:#27ae60;font-weight:bold;"),
-              selectInput(ns("corrMethod"), "Méthode de corrélation",
+          shiny::fluidRow(
+            shiny::column(3,
+              shiny::h5(shiny::icon("sliders-h"), " Méthode", style = "color:#27ae60;font-weight:bold;"),
+              shiny::selectInput(ns("corrMethod"), "Méthode de corrélation",
                 choices = c("Pearson (linéaire)" = "pearson",
                             "Spearman (monotone)" = "spearman",
                             "Kendall (robuste)" = "kendall"),
                 selected = "pearson")),
-            column(3,
-              h5(icon("palette"), " Affichage", style = "color:#27ae60;font-weight:bold;"),
-              selectInput(ns("corrDisplay"), "Mode d'affichage",
+            shiny::column(3,
+              shiny::h5(shiny::icon("palette"), " Affichage", style = "color:#27ae60;font-weight:bold;"),
+              shiny::selectInput(ns("corrDisplay"), "Mode d'affichage",
                 choices = c("Nombres" = "number", "Cercles" = "circle",
                             "Carrés" = "square", "Ellipses" = "ellipse",
                             "Couleurs" = "color", "Secteurs" = "pie"),
                 selected = "circle"),
-              selectInput(ns("corrType"), "Type d'affichage",
+              shiny::selectInput(ns("corrType"), "Type d'affichage",
                 choices = c("Complet" = "full", "Triangulaire supérieur" = "upper",
                             "Triangulaire inférieur" = "lower"),
                 selected = "upper")),
-            column(3,
-              h5(icon("text-height"), " Tailles", style = "color:#27ae60;font-weight:bold;"),
-              sliderInput(ns("corrTextSize"), "Taille des valeurs",
+            shiny::column(3,
+              shiny::h5(shiny::icon("text-height"), " Tailles", style = "color:#27ae60;font-weight:bold;"),
+              shiny::sliderInput(ns("corrTextSize"), "Taille des valeurs",
                           min = 0.3, max = 2, value = 0.8, step = 0.1, ticks = FALSE),
-              sliderInput(ns("corrLabelSize"), "Taille des labels",
+              shiny::sliderInput(ns("corrLabelSize"), "Taille des labels",
                           min = 0.3, max = 2, value = 0.9, step = 0.1, ticks = FALSE)),
-            column(3,
-              h5(icon("heading"), " Titre & probabilités", style = "color:#27ae60;font-weight:bold;"),
-              textInput(ns("corrTitle"), "Titre personnalisé",
+            shiny::column(3,
+              shiny::h5(shiny::icon("heading"), " Titre & probabilités", style = "color:#27ae60;font-weight:bold;"),
+              shiny::textInput(ns("corrTitle"), "Titre personnalisé",
                         placeholder = "Vide = titre auto"),
-              hstat_dpi_input(ns("corrDPI"), tagList(icon("image"), " DPI export")),
-              hstat_format_input(ns("corrFormat"), tagList(icon("file-image"), " Format d\'export")),
-              numericInput(ns("corrSizeIn"), tagList(icon("ruler-combined"), " Taille (pouces, carré)"),
+              hstat_dpi_input(ns("corrDPI"), shiny::tagList(shiny::icon("image"), " DPI export")),
+              hstat_format_input(ns("corrFormat"), shiny::tagList(shiny::icon("file-image"), " Format d\'export")),
+              shiny::numericInput(ns("corrSizeIn"), shiny::tagList(shiny::icon("ruler-combined"), " Taille (pouces, carré)"),
                            value = 8, min = 3, max = 30, step = 1))
           ),
-          fluidRow(
-            column(4,
-              selectInput(ns("corrPval"), "Probabilités (p-values) sur le graphique",
+          shiny::fluidRow(
+            shiny::column(4,
+              shiny::selectInput(ns("corrPval"), "Probabilités (p-values) sur le graphique",
                 choices = c("Coefficient + p-value (même cellule)" = "both",
                             "Afficher les p-values" = "show",
                             "Marquer le non-significatif d'une croix" = "mark",
                             "Masquer le non-significatif" = "blank",
                             "Ne rien afficher" = "none"),
                 selected = "both")),
-            column(3,
-              sliderInput(ns("corrSigLevel"), "Seuil de significativité (α)",
+            shiny::column(3,
+              shiny::sliderInput(ns("corrSigLevel"), "Seuil de significativité (α)",
                           min = 0.01, max = 0.10, value = 0.05, step = 0.01)),
-            column(2,
-              sliderInput(ns("corrPvalSize"), "Taille des p-values",
+            shiny::column(2,
+              shiny::sliderInput(ns("corrPvalSize"), "Taille des p-values",
                           min = 0.4, max = 2, value = 0.8, step = 0.1, ticks = FALSE)),
-            column(3,
-              div(style = "margin-top:25px;",
-                checkboxInput(ns("corrReorder"),
-                  tagList(icon("sort"), " Réordonner (regroupement hiérarchique)"),
+            shiny::column(3,
+              shiny::div(style = "margin-top:25px;",
+                shiny::checkboxInput(ns("corrReorder"),
+                  shiny::tagList(shiny::icon("sort"), " Réordonner (regroupement hiérarchique)"),
                   value = TRUE)))
           ),
-          fluidRow(
-            column(3,
-              selectInput(ns("corrPalette"), "Palette de couleurs",
+          shiny::fluidRow(
+            shiny::column(3,
+              shiny::selectInput(ns("corrPalette"), "Palette de couleurs",
                 choices = c("Par défaut (corrplot)" = "default",
                             "Rouge-Bleu (RdBu)" = "RdBu",
                             "Rouge-Jaune-Bleu (RdYlBu)" = "RdYlBu",
@@ -1535,30 +1535,30 @@ mod_correlation_ui <- function(id) {
                             "Spectral" = "spectral",
                             "Viridis" = "viridis"),
                 selected = "default")),
-            column(3,
-              div(style = "margin-top:25px;",
-                checkboxInput(ns("corrWhiteOnDark"),
-                  tagList(icon("adjust"), " Texte blanc sur cellules sombres"),
+            shiny::column(3,
+              shiny::div(style = "margin-top:25px;",
+                shiny::checkboxInput(ns("corrWhiteOnDark"),
+                  shiny::tagList(shiny::icon("adjust"), " Texte blanc sur cellules sombres"),
                   value = TRUE))),
-            column(2,
-              div(style = "margin-top:8px;",
+            shiny::column(2,
+              shiny::div(style = "margin-top:8px;",
                 colourInput(ns("corrCoefColor"), "Couleur coefficients",
                                           value = "#000000"))),
-            column(2,
-              div(style = "margin-top:8px;",
+            shiny::column(2,
+              shiny::div(style = "margin-top:8px;",
                 colourInput(ns("corrPvalColorSig"), "Couleur p-value (signif.)",
                                           value = "#1a7a1a"))),
-            column(2,
-              div(style = "margin-top:8px;",
+            shiny::column(2,
+              shiny::div(style = "margin-top:8px;",
                 colourInput(ns("corrPvalColorNs"), "Couleur p-value (non signif.)",
                                           value = "#999999")))
           ),
-          hr(),
-          div(style = "text-align:center;margin:15px 0;",
-            downloadButton(ns("downloadCorrPlot"),
-              tagList(icon("download"), " Télécharger l'image"), class = "btn-info")),
-          div(style = "background:white;padding:20px;border-radius:5px;box-shadow:0 2px 4px rgba(0,0,0,0.1);",
-            plotOutput(ns("corrPlot"), height = "620px"))
+          shiny::hr(),
+          shiny::div(style = "text-align:center;margin:15px 0;",
+            shiny::downloadButton(ns("downloadCorrPlot"),
+              shiny::tagList(shiny::icon("download"), " Télécharger l'image"), class = "btn-info")),
+          shiny::div(style = "background:white;padding:20px;border-radius:5px;box-shadow:0 2px 4px rgba(0,0,0,0.1);",
+            shiny::plotOutput(ns("corrPlot"), height = "620px"))
       )
     )
   )
@@ -1566,16 +1566,16 @@ mod_correlation_ui <- function(id) {
 
 # Serveur associé (appelé depuis le serveur principal sur le même id "corrélation")
 mod_correlation_server <- function(id, values) {
-  moduleServer(id, function(input, output, session) {
+  shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    output$corTestVarSelect <- renderUI({
-      req(values$data)
+    output$corTestVarSelect <- shiny::renderUI({
+      shiny::req(values$data)
       num_cols <- names(values$data)[vapply(values$data, is.numeric, logical(1))]
       if (length(num_cols) < 2)
-        return(div(class = "alert alert-warning", icon("exclamation-triangle"),
+        return(shiny::div(class = "alert alert-warning", shiny::icon("exclamation-triangle"),
                    " Au moins deux variables numériques sont nécessaires."))
-      tagList(
+      shiny::tagList(
         if (requireNamespace("shinyWidgets", quietly = TRUE))
           shinyWidgets::pickerInput(ns("corTestVars"),
             "Variables numériques (\u2265 2)", choices = num_cols,
@@ -1583,25 +1583,25 @@ mod_correlation_server <- function(id, values) {
             multiple = TRUE,
             options = list(`actions-box` = TRUE, `live-search` = TRUE))
         else
-          selectInput(ns("corTestVars"), "Variables numériques (\u2265 2)",
+          shiny::selectInput(ns("corTestVars"), "Variables numériques (\u2265 2)",
             choices = num_cols,
             selected = num_cols[seq_len(min(5, length(num_cols)))],
             multiple = TRUE)
       )
     })
 
-    output$corTestTargetSelect <- renderUI({
-      req(values$data, input$corTestVars)
+    output$corTestTargetSelect <- shiny::renderUI({
+      shiny::req(values$data, input$corTestVars)
       sel <- input$corTestVars
       if (length(sel) < 2) return(NULL)
-      selectInput(ns("corTestTarget"),
-        tagList(icon("bullseye"), " Variable cible (corrélée à toutes les autres)"),
+      shiny::selectInput(ns("corTestTarget"),
+        shiny::tagList(shiny::icon("bullseye"), " Variable cible (corrélée à toutes les autres)"),
         choices = sel, selected = sel[1])
     })
 
-    cor_results <- reactive({
-      req(values$data, input$corTestVars)
-      validate(need(length(input$corTestVars) >= 2,
+    cor_results <- shiny::reactive({
+      shiny::req(values$data, input$corTestVars)
+      shiny::validate(shiny::need(length(input$corTestVars) >= 2,
                     "Sélectionnez au moins deux variables."))
       tgt <- if (isTRUE(input$corTestTargetMode)) input$corTestTarget else NULL
       methods <- if (isTRUE(input$corTestAllMethods))
@@ -1617,7 +1617,7 @@ mod_correlation_server <- function(id, values) {
     })
 
     # Depot des tests de correlation pour l'aide a la decision.
-    observeEvent(cor_results(), {
+    shiny::observeEvent(cor_results(), {
       res <- tryCatch(cor_results(), error = function(e) NULL)
       if (is.null(res) || !NROW(res)) return()
       hstat_ai_capture(values, "Correlations",
@@ -1632,7 +1632,7 @@ mod_correlation_server <- function(id, values) {
 
     output$corTestTable <- DT::renderDT({
       res <- cor_results()
-      req(!is.null(res))
+      shiny::req(!is.null(res))
       fname <- paste0("corrélations_", Sys.Date())
       DT::datatable(res, rownames = FALSE, filter = "top",
         extensions = "Buttons",
@@ -1647,57 +1647,57 @@ mod_correlation_server <- function(id, values) {
             c("#c8e6c9", "#dcedc8", "#f0f4c3", "#ffffff")))
     })
 
-    output$corTestDownload <- downloadHandler(
+    output$corTestDownload <- shiny::downloadHandler(
       filename = function() paste0("corrélations_", Sys.Date(), ".csv"),
       content  = function(file) {
         res <- cor_results()
         utils::write.csv(res, file, row.names = FALSE, fileEncoding = "UTF-8")
       })
 
-    output$corTestInterpretation <- renderUI({
+    output$corTestInterpretation <- shiny::renderUI({
       res <- cor_results()
-      req(!is.null(res))
+      shiny::req(!is.null(res))
       sig <- res[!is.na(res$p_ajuste) & res$p_ajuste < 0.05, , drop = FALSE]
       if (nrow(sig) == 0)
-        return(div(class = "alert alert-info", icon("info-circle"),
+        return(shiny::div(class = "alert alert-info", shiny::icon("info-circle"),
                    " Aucune corrélation significative après correction."))
       items <- lapply(seq_len(nrow(sig)), function(i) {
         r <- sig[i, ]
-        tags$li(HTML(sprintf(
+        tags$li(shiny::HTML(sprintf(
           "<b>%s \u2013 %s</b> (%s) : r = %.3f, %s, %s (p<sub>ajust</sub> = %s)",
           r$Variable_X, r$Variable_Y, r$Methode, r$Coefficient,
           tolower(r$Force), tolower(r$Sens), format(r$p_ajuste))))
       })
-      div(class = "alert alert-success",
-          strong(icon("check-circle"), " Corrélations significatives :"),
+      shiny::div(class = "alert alert-success",
+          shiny::strong(shiny::icon("check-circle"), " Corrélations significatives :"),
           tags$ul(items))
     })
 
     # ---------- Matrice de Corrélation (deplacee depuis Exploration) ----------
-    output$corrVarSelect <- renderUI({
-      req(values$data)
+    output$corrVarSelect <- shiny::renderUI({
+      shiny::req(values$data)
       num_cols <- names(values$data)[vapply(values$data, is.numeric, logical(1))]
       if (length(num_cols) < 2)
-        return(div(class = "alert alert-warning", icon("exclamation-triangle"),
+        return(shiny::div(class = "alert alert-warning", shiny::icon("exclamation-triangle"),
                    " Au moins deux variables numériques sont nécessaires."))
-      tagList(
+      shiny::tagList(
         if (requireNamespace("shinyWidgets", quietly = TRUE))
           shinyWidgets::pickerInput(ns("corrVars"), "Variables numériques",
             choices = num_cols, multiple = TRUE,
             selected = num_cols[seq_len(min(6, length(num_cols)))],
             options = list(`actions-box` = TRUE, `live-search` = TRUE))
         else
-          selectInput(ns("corrVars"), "Variables numériques", choices = num_cols,
+          shiny::selectInput(ns("corrVars"), "Variables numériques", choices = num_cols,
             multiple = TRUE, selected = num_cols[seq_len(min(6, length(num_cols)))])
       )
     })
 
-    output$corrFocusSelect <- renderUI({
-      req(values$data, input$corrVars)
+    output$corrFocusSelect <- shiny::renderUI({
+      shiny::req(values$data, input$corrVars)
       sel <- input$corrVars
       if (length(sel) < 2) return(NULL)
-      selectInput(ns("corrFocusVar"),
-        tagList(icon("bullseye"), " Variable cible (corrélée à toutes les autres)"),
+      shiny::selectInput(ns("corrFocusVar"),
+        shiny::tagList(shiny::icon("bullseye"), " Variable cible (corrélée à toutes les autres)"),
         choices = sel, selected = sel[1])
     })
 
@@ -1716,12 +1716,12 @@ mod_correlation_server <- function(id, values) {
       if (!all(num_ok)) {
         dropped <- names(cor_data)[!num_ok]
         cor_data <- cor_data[, num_ok, drop = FALSE]
-        showNotification(trf("Corrélation : variable(s) non numérique(s) ignorée(s) : %s.",
+        shiny::showNotification(trf("Corrélation : variable(s) non numérique(s) ignorée(s) : %s.",
                                  paste(dropped, collapse = ", ")), type = "message", duration = 5)
       }
       cor_data <- remove_zero_var_cols(cor_data)
       if (ncol(cor_data) < 2) {
-        showNotification("Moins de 2 variables numériques à variance non nulle.", type = "warning")
+        shiny::showNotification("Moins de 2 variables numériques à variance non nulle.", type = "warning")
         return(invisible())
       }
       # Retire les colonnes parfaitement colineaires (|r| ~ 1) qui rendent la matrice
@@ -1736,13 +1736,13 @@ mod_correlation_server <- function(id, values) {
           if (any(abs(cm0[i, seq_len(i - 1)]) > 0.9999)) drop_idx <- c(drop_idx, i)
         }
         if (length(drop_idx) > 0) {
-          showNotification(trf("Corrélation : %d variable(s) parfaitement colinéaire(s) retirée(s).",
+          shiny::showNotification(trf("Corrélation : %d variable(s) parfaitement colinéaire(s) retirée(s).",
                                    length(drop_idx)), type = "message", duration = 5)
           cor_data <- cor_data[, -drop_idx, drop = FALSE]
         }
       }
       if (ncol(cor_data) < 2) {
-        showNotification("Moins de 2 variables non colinéaires.", type = "warning")
+        shiny::showNotification("Moins de 2 variables non colinéaires.", type = "warning")
         return(invisible())
       }
       if (identical(method, "kendall"))
@@ -1878,7 +1878,7 @@ mod_correlation_server <- function(id, values) {
       do.call(corrplot::corrplot, args)
     }
 
-    corr_params <- reactive({
+    corr_params <- shiny::reactive({
       list(method = input$corrMethod %||% "pearson",
            display = input$corrDisplay %||% "circle",
            type = input$corrType %||% "upper",
@@ -1896,8 +1896,8 @@ mod_correlation_server <- function(id, values) {
            white_on_dark = if (is.null(input$corrWhiteOnDark)) TRUE else input$corrWhiteOnDark)
     })
 
-    output$corrPlot <- renderPlot({
-      req(values$data, input$corrVars)
+    output$corrPlot <- shiny::renderPlot({
+      shiny::req(values$data, input$corrVars)
       p <- corr_params()
       fv <- if (isTRUE(input$corrFocusMode)) input$corrFocusVar else NULL
       tryCatch(
@@ -1905,7 +1905,7 @@ mod_correlation_server <- function(id, values) {
           p$type, p$label_size, p$text_size, p$title, p$pval_mode, p$sig_level,
           p$pval_size, p$reorder, p$palette, p$coef_color, p$pval_color_sig,
           p$pval_color_ns, p$white_on_dark, focus_var = fv),
-        error = function(e) showNotification(hstat_err_fr(e, "Erreur matrice"),
+        error = function(e) shiny::showNotification(hstat_err_fr(e, "Erreur matrice"),
                                              type = "error", duration = 5))
     },
     # Apercu a l'ecran : on rend a HAUTE RESOLUTION (res = 192 = 2x densite) pour un
@@ -1917,13 +1917,13 @@ mod_correlation_server <- function(id, values) {
     width = 1440,
     height = 1440)
 
-    output$downloadCorrPlot <- downloadHandler(
+    output$downloadCorrPlot <- shiny::downloadHandler(
       filename = function() {
         paste0("matrice_corrélation_", Sys.Date(), ".",
                hstat_img_fmt(input$corrFormat))
       },
       content = function(file) {
-        req(values$data, input$corrVars)
+        shiny::req(values$data, input$corrVars)
         p <- corr_params()
         fv <- if (isTRUE(input$corrFocusMode)) input$corrFocusVar else NULL
         fmt <- hstat_img_fmt(input$corrFormat)
@@ -1940,7 +1940,7 @@ mod_correlation_server <- function(id, values) {
         # laissaient un fichier vide quand le trace levait, et Shiny renvoyait
         # alors sa page d'erreur HTML sous le nom demande.
         hstat_ecrire_image(file, draw, fmt, size_in, size_in, dpi)
-        showNotification(trf("Graphique téléchargé (%s, %d DPI).", toupper(fmt), dpi),
+        shiny::showNotification(trf("Graphique téléchargé (%s, %d DPI).", toupper(fmt), dpi),
                          type = "message", duration = 3)
       })
   })
@@ -1948,7 +1948,7 @@ mod_correlation_server <- function(id, values) {
 
 
 mod_tests_server <- function(id, values) {
-  moduleServer(id, function(input, output, session) {
+  shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
   # Theme ggplot2 (utilise par les graphiques du Chi2). viz_get_theme est global.
@@ -1956,32 +1956,32 @@ mod_tests_server <- function(id, values) {
     viz_get_theme(input$plotTheme %||% "minimal", base_size = base_size)
   }
 
-  output$responseVarSelect <- renderUI({
-    req(values$filteredData)
+  output$responseVarSelect <- shiny::renderUI({
+    shiny::req(values$filteredData)
     num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
-    tagList(
+    shiny::tagList(
       pickerInput(ns("responseVar"), "Variable(s) réponse:", 
                   choices = num_cols, 
                   multiple = TRUE,
                   options = list(`actions-box` = TRUE)),
-      actionButton(ns("selectAllResponse"), "Tout sélectionner", class = "btn-success btn-sm"),
-      actionButton(ns("deselectAllResponse"), "Tout désélectionner", class = "btn-danger btn-sm")
+      shiny::actionButton(ns("selectAllResponse"), "Tout sélectionner", class = "btn-success btn-sm"),
+      shiny::actionButton(ns("deselectAllResponse"), "Tout désélectionner", class = "btn-danger btn-sm")
     )
   })
   
-  observeEvent(input$selectAllResponse, {
+  shiny::observeEvent(input$selectAllResponse, {
     num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
     updatePickerInput(session, "responseVar", selected = num_cols)
   })
   
-  observeEvent(input$deselectAllResponse, {
+  shiny::observeEvent(input$deselectAllResponse, {
     updatePickerInput(session, "responseVar", selected = character(0))
   })
   
   
   # Bloc 1 : Sélecteur de variables à transformer
-  output$transformVarSelect <- renderUI({
-    req(values$filteredData)
+  output$transformVarSelect <- shiny::renderUI({
+    shiny::req(values$filteredData)
     num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
     transform_suffixes <- c("_log$","_log1p$","_log10$","_sqrt$",
                             "_cuberoot$","_boxcox$","_yeojohnson$","_arcsin$","_logit$")
@@ -1996,16 +1996,16 @@ mod_tests_server <- function(id, values) {
   })
   
   # Bloc 2 : Vérification de faisabilité avant application
-  output$transformFeasibilityCheck <- renderUI({
-    req(input$transformVar, input$transformMethod, values$filteredData)
+  output$transformFeasibilityCheck <- shiny::renderUI({
+    shiny::req(input$transformVar, input$transformMethod, values$filteredData)
     checks <- lapply(input$transformVar, function(var) {
       x     <- values$filteredData[[var]]
       check <- check_transformation_feasibility(x, input$transformMethod)
-      icon_el <- if (check$ok) icon("check-circle", style = "color:#4caf50;")
-      else           icon("times-circle", style = "color:#e53935;")
+      icon_el <- if (check$ok) shiny::icon("check-circle", style = "color:#4caf50;")
+      else           shiny::icon("times-circle", style = "color:#e53935;")
       bg_col  <- if (check$ok) "#e8f5e9" else "#ffebee"
       txt_col <- if (check$ok) "#1b5e20" else "#b71c1c"
-      div(
+      shiny::div(
         style = paste0("display:flex;align-items:center;padding:4px 8px;",
                        "background:", bg_col, ";border-radius:4px;margin-bottom:3px;"),
         icon_el,
@@ -2013,18 +2013,18 @@ mod_tests_server <- function(id, values) {
                   tags$b(var), " — ", check$message)
       )
     })
-    tagList(
-      div(style = "font-size:11px;font-weight:bold;color:#555;margin-bottom:4px;",
-          icon("clipboard-check"), " Vérification de faisabilité :"),
-      tagList(checks)
+    shiny::tagList(
+      shiny::div(style = "font-size:11px;font-weight:bold;color:#555;margin-bottom:4px;",
+          shiny::icon("clipboard-check"), " Vérification de faisabilité :"),
+      shiny::tagList(checks)
     )
   })
   
   # Bloc 3 : Application de la transformation
-  observeEvent(input$applyTransformation, {
-    req(input$transformVar, input$transformMethod, values$filteredData)
+  shiny::observeEvent(input$applyTransformation, {
+    shiny::req(input$transformVar, input$transformMethod, values$filteredData)
     if (length(input$transformVar) == 0) {
-      showNotification("Sélectionnez au moins une variable à transformer.", type = "warning")
+      shiny::showNotification("Sélectionnez au moins une variable à transformer.", type = "warning")
       return()
     }
     df          <- values$filteredData
@@ -2053,16 +2053,16 @@ mod_tests_server <- function(id, values) {
       })
     }
     if (length(errors) > 0)
-      showNotification(HTML(paste0("<b>Erreur(s):</b><br>", paste(errors, collapse = "<br>"))),
+      shiny::showNotification(shiny::HTML(paste0("<b>Erreur(s):</b><br>", paste(errors, collapse = "<br>"))),
                        type = "error", duration = 12)
     if (length(skipped) > 0)
-      showNotification(paste0("Déjà existante(s): ", paste(skipped, collapse = ", ")),
+      shiny::showNotification(paste0("Déjà existante(s): ", paste(skipped, collapse = ", ")),
                        type = "warning", duration = 5)
     if (length(added) > 0) {
       values$filteredData      <- df
       values$transformationLog <- log_entries
-      showNotification(
-        HTML(paste0("<b>Transformation appliquée</b><br>",
+      shiny::showNotification(
+        shiny::HTML(paste0("<b>Transformation appliquée</b><br>",
                     length(added), " variable(s) créée(s): ",
                     paste0("<b>", added, "</b>", collapse = ", "))),
         type = "message", duration = 5)
@@ -2070,8 +2070,8 @@ mod_tests_server <- function(id, values) {
   })
   
   # Bloc 4 : Suppression d'une transformation
-  observeEvent(input$removeTransformation, {
-    req(input$removeTransformVar, values$filteredData)
+  shiny::observeEvent(input$removeTransformation, {
+    shiny::req(input$removeTransformVar, values$filteredData)
     df          <- values$filteredData
     log_entries <- values$transformationLog
     removed <- c()
@@ -2082,31 +2082,31 @@ mod_tests_server <- function(id, values) {
     if (length(removed) > 0) {
       values$filteredData      <- df
       values$transformationLog <- log_entries
-      showNotification(paste0("Supprimée(s): ", paste(removed, collapse = ", ")),
+      shiny::showNotification(paste0("Supprimée(s): ", paste(removed, collapse = ", ")),
                        type = "warning", duration = 3)
     }
   })
   
   # Bloc 5 : Journal des transformations actives
-  output$transformationLogDisplay <- renderUI({
+  output$transformationLogDisplay <- shiny::renderUI({
     log <- values$transformationLog
     if (is.null(log) || length(log) == 0) {
-      return(div(
+      return(shiny::div(
         style = paste0("padding:10px;background:#f5f5f5;border-radius:4px;",
                        "font-size:12px;color:#888;text-align:center;border:1px dashed #ccc;"),
-        icon("info-circle"), " Aucune transformation active"))
+        shiny::icon("info-circle"), " Aucune transformation active"))
     }
     entries <- lapply(names(log), function(vname) {
       entry <- log[[vname]]
       lambda_tag <- if (!is.null(entry$lambda))
         tags$span(style = "font-size:10px;color:#757575;margin-left:4px;",
                   paste0("λ = ", entry$lambda)) else NULL
-      div(
+      shiny::div(
         style = paste0("display:flex;flex-wrap:wrap;align-items:center;",
                        "padding:5px 8px;background:#e8f5e9;",
                        "border-left:3px solid #4caf50;border-radius:3px;margin-bottom:4px;"),
-        icon("check-circle", style = "color:#4caf50;flex-shrink:0;"),
-        div(style = "margin-left:6px;flex:1;",
+        shiny::icon("check-circle", style = "color:#4caf50;flex-shrink:0;"),
+        shiny::div(style = "margin-left:6px;flex:1;",
             tags$span(style = "font-size:12px;font-weight:bold;color:#2e7d32;",
                       entry$original, " → ", vname), tags$br(),
             tags$span(style = "font-size:11px;color:#555;font-family:monospace;",
@@ -2117,53 +2117,53 @@ mod_tests_server <- function(id, values) {
         )
       )
     })
-    tagList(
-      div(style = "margin-bottom:6px;",
+    shiny::tagList(
+      shiny::div(style = "margin-bottom:6px;",
           tags$b(style = "font-size:12px;color:#1b5e20;",
-                 icon("history"), " ", length(log), " transformation(s) active(s)")),
-      tagList(entries)
+                 shiny::icon("history"), " ", length(log), " transformation(s) active(s)")),
+      shiny::tagList(entries)
     )
   })
   
   # Bloc 6 : Sélecteur de suppression
-  output$removeTransformSelect <- renderUI({
+  output$removeTransformSelect <- shiny::renderUI({
     log <- values$transformationLog
     if (is.null(log) || length(log) == 0) return(NULL)
-    tagList(
-      hr(style = "margin:8px 0;"),
+    shiny::tagList(
+      shiny::hr(style = "margin:8px 0;"),
       pickerInput(ns("removeTransformVar"), "Supprimer des transformations :",
                   choices = names(log), multiple = TRUE,
                   options = list(`actions-box` = TRUE)),
-      actionButton(ns("removeTransformation"), "Supprimer la sélection",
-                   class = "btn-danger btn-sm btn-block", icon = icon("trash"))
+      shiny::actionButton(ns("removeTransformation"), "Supprimer la sélection",
+                   class = "btn-danger btn-sm btn-block", icon = shiny::icon("trash"))
     )
   })
   
-  output$factorVarSelect <- renderUI({
-    req(values$filteredData)
+  output$factorVarSelect <- shiny::renderUI({
+    shiny::req(values$filteredData)
     fac_cols <- get_all_factor_candidates(values$filteredData)
-    tagList(
+    shiny::tagList(
       pickerInput(ns("factorVar"), "Facteur(s):",
                   choices  = fac_cols,
                   multiple = TRUE,
                   options  = list(`actions-box` = TRUE)),
       tags$small(style = "color:#6c757d; font-size:11px;",
-                 icon("info-circle"), " Facteur, texte, date et numérique (<= 30 niveaux) acceptés"),
-      actionButton(ns("selectAllFactors"),   "Tout sélectionner",   class = "btn-success btn-sm"),
-      actionButton(ns("deselectAllFactors"), "Tout désélectionner", class = "btn-danger btn-sm")
+                 shiny::icon("info-circle"), " Facteur, texte, date et numérique (<= 30 niveaux) acceptés"),
+      shiny::actionButton(ns("selectAllFactors"),   "Tout sélectionner",   class = "btn-success btn-sm"),
+      shiny::actionButton(ns("deselectAllFactors"), "Tout désélectionner", class = "btn-danger btn-sm")
     )
   })
   
-  observeEvent(input$selectAllFactors, {
+  shiny::observeEvent(input$selectAllFactors, {
     updatePickerInput(session, "factorVar", selected = get_all_factor_candidates(values$filteredData))
   })
   
-  observeEvent(input$deselectAllFactors, {
+  shiny::observeEvent(input$deselectAllFactors, {
     updatePickerInput(session, "factorVar", selected = character(0))
   })
   
-  observeEvent(input$testNormalityRaw, {
-    req(input$responseVar)
+  shiny::observeEvent(input$testNormalityRaw, {
+    shiny::req(input$responseVar)
     
     results_list <- list()
     
@@ -2230,15 +2230,15 @@ mod_tests_server <- function(id, values) {
       values$homogeneityResults <- NULL
       values$currentTestType <- "non-parametric"
     } else {
-      showNotification("Aucun résultat de normalité généré", type = "warning")
+      shiny::showNotification("Aucun résultat de normalité généré", type = "warning")
     }
   })
   
-  observeEvent(input$testHomogeneityRaw, {
-    req(input$responseVar, input$factorVar)
+  shiny::observeEvent(input$testHomogeneityRaw, {
+    shiny::req(input$responseVar, input$factorVar)
     
     if (length(input$factorVar) != 1) {
-      showNotification("Le test d'homogénéité nécessite exactement un facteur", type = "warning")
+      shiny::showNotification("Le test d'homogénéité nécessite exactement un facteur", type = "warning")
       return()
     }
     
@@ -2289,14 +2289,14 @@ mod_tests_server <- function(id, values) {
       values$homogeneityResults <- NULL
       values$currentTestType <- "non-parametric"
     } else {
-      showNotification("Aucun résultat d'homogénéité généré", type = "warning")
+      shiny::showNotification("Aucun résultat d'homogénéité généré", type = "warning")
     }
   })
   
-  observeEvent(input$testT, {
-    req(input$responseVar, input$factorVar)
+  shiny::observeEvent(input$testT, {
+    shiny::req(input$responseVar, input$factorVar)
     if (length(input$factorVar) > 1) {
-      showNotification("Le test t nécessite un seul facteur", type = "warning")
+      shiny::showNotification("Le test t nécessite un seul facteur", type = "warning")
       return()
     }
     
@@ -2405,7 +2405,7 @@ mod_tests_server <- function(id, values) {
       values$currentModelVar <- 1
       values$currentTestType <- "parametric"
     } else {
-      showNotification(
+      shiny::showNotification(
         if (length(motifs_refus))
           paste("Test t impossible :", paste(unique(motifs_refus), collapse = " "))
         else
@@ -2415,10 +2415,10 @@ mod_tests_server <- function(id, values) {
     }
   })
   
-  observeEvent(input$testWilcox, {
-    req(input$responseVar, input$factorVar)
+  shiny::observeEvent(input$testWilcox, {
+    shiny::req(input$responseVar, input$factorVar)
     if (length(input$factorVar) > 1) {
-      showNotification("Le test de Wilcoxon nécessite un seul facteur", type = "warning")
+      shiny::showNotification("Le test de Wilcoxon nécessite un seul facteur", type = "warning")
       return()
     }
     
@@ -2460,7 +2460,7 @@ mod_tests_server <- function(id, values) {
       values$homogeneityResults <- NULL
       values$currentTestType <- "non-parametric"
     } else {
-      showNotification("Aucun résultat Wilcoxon généré", type = "warning")
+      shiny::showNotification("Aucun résultat Wilcoxon généré", type = "warning")
     }
   })
 
@@ -2491,23 +2491,23 @@ mod_tests_server <- function(id, values) {
   # Lance une methode quantitative sur toutes les variables reponse choisies.
   .run_ref_quanti <- function(method, need_sigma = FALSE, need_margin = FALSE) {
     if (is.null(input$responseVar) || length(input$responseVar) == 0) {
-      showNotification("Sélectionnez au moins une variable réponse.", type = "warning")
+      shiny::showNotification("Sélectionnez au moins une variable réponse.", type = "warning")
       return()
     }
     mu <- suppressWarnings(as.numeric(input$refValue))[1]
     if (is.na(mu)) {
-      showNotification("Renseignez une valeur de référence numérique.", type = "error")
+      shiny::showNotification("Renseignez une valeur de référence numérique.", type = "error")
       return()
     }
     sigma <- suppressWarnings(as.numeric(input$refSigma))[1]
     if (need_sigma && (is.na(sigma) || sigma <= 0)) {
-      showNotification(paste("Ce test exige un écart-type de référence",
+      shiny::showNotification(paste("Ce test exige un écart-type de référence",
                              "strictement positif."), type = "error")
       return()
     }
     margin <- suppressWarnings(as.numeric(input$refMargin))[1]
     if (need_margin && (is.na(margin) || margin <= 0)) {
-      showNotification(paste("Le test d'équivalence exige une marge",
+      shiny::showNotification(paste("Le test d'équivalence exige une marge",
                              "strictement positive."), type = "error")
       return()
     }
@@ -2558,7 +2558,7 @@ mod_tests_server <- function(id, values) {
   # Publie les résultats dans le tableau commun + le tableau de détail.
   .push_ref_results <- function(rows, details, notes) {
     if (length(rows) == 0) {
-      showNotification("Aucun résultat généré.", type = "warning")
+      shiny::showNotification("Aucun résultat généré.", type = "warning")
       return()
     }
     values$testResultsDF     <- do.call(rbind, rows)
@@ -2573,7 +2573,7 @@ mod_tests_server <- function(id, values) {
     # et non à un écart. Le message doit suivre.
     is_tost <- any(grepl("TOST", vapply(rows, function(r) r$Test[1], character(1)),
                          fixed = TRUE))
-    showNotification(
+    shiny::showNotification(
       if (is_tost)
         trf("%d test(s) d'équivalence : équivalence démontrée pour %d variable(s).",
                 length(rows), n_sig)
@@ -2583,47 +2583,47 @@ mod_tests_server <- function(id, values) {
       type = "message", duration = 5)
   }
 
-  observeEvent(input$testRefT,      .run_ref_quanti("ttest"))
-  observeEvent(input$testRefZ,      .run_ref_quanti("ztest", need_sigma = TRUE))
-  observeEvent(input$testRefWilcox, .run_ref_quanti("wilcoxon"))
-  observeEvent(input$testRefSign,   .run_ref_quanti("sign"))
-  observeEvent(input$testRefVar,    .run_ref_quanti("variance", need_sigma = TRUE))
-  observeEvent(input$testRefTOST,   .run_ref_quanti("tost", need_margin = TRUE))
+  shiny::observeEvent(input$testRefT,      .run_ref_quanti("ttest"))
+  shiny::observeEvent(input$testRefZ,      .run_ref_quanti("ztest", need_sigma = TRUE))
+  shiny::observeEvent(input$testRefWilcox, .run_ref_quanti("wilcoxon"))
+  shiny::observeEvent(input$testRefSign,   .run_ref_quanti("sign"))
+  shiny::observeEvent(input$testRefVar,    .run_ref_quanti("variance", need_sigma = TRUE))
+  shiny::observeEvent(input$testRefTOST,   .run_ref_quanti("tost", need_margin = TRUE))
 
   # --- Proportion / taux vs référence ---------------------------------------
-  output$refPropVarSelect <- renderUI({
-    req(values$filteredData)
+  output$refPropVarSelect <- shiny::renderUI({
+    shiny::req(values$filteredData)
     df <- values$filteredData
     cat_cols <- names(df)[sapply(df, function(x)
       is.factor(x) || is.character(x) || is.logical(x) ||
       (is.numeric(x) && length(unique(stats::na.omit(x))) <= 20))]
     if (length(cat_cols) == 0)
-      return(div(style = "color:#c0392b; font-size:12px;",
+      return(shiny::div(style = "color:#c0392b; font-size:12px;",
                  "Aucune variable catégorielle disponible."))
     pickerInput(ns("refPropVar"),
-                tagList(icon("tag"), " Variable catégorielle :"),
+                shiny::tagList(shiny::icon("tag"), " Variable catégorielle :"),
                 choices = cat_cols, multiple = FALSE,
                 options = list(`live-search` = TRUE))
   })
 
-  output$refPropLevelSelect <- renderUI({
-    req(values$filteredData, input$refPropVar)
+  output$refPropLevelSelect <- shiny::renderUI({
+    shiny::req(values$filteredData, input$refPropVar)
     lv <- unique(stats::na.omit(as.character(values$filteredData[[input$refPropVar]])))
     if (length(lv) == 0) return(NULL)
-    selectInput(ns("refPropLevel"),
-                tagList(icon("check"), " Modalité comptée (« succès ») :"),
+    shiny::selectInput(ns("refPropLevel"),
+                shiny::tagList(shiny::icon("check"), " Modalité comptée (« succès ») :"),
                 choices = sort(lv))
   })
 
   .run_ref_prop <- function(method) {
     if (is.null(input$refPropVar) || is.null(input$refPropLevel)) {
-      showNotification(paste("Choisissez une variable catégorielle et la",
+      shiny::showNotification(paste("Choisissez une variable catégorielle et la",
                              "modalité à compter."), type = "warning")
       return()
     }
     p0 <- suppressWarnings(as.numeric(input$refPropP0))[1]
     if (is.na(p0) || p0 <= 0) {
-      showNotification("Renseignez une proportion (ou un taux) de référence positive.",
+      shiny::showNotification("Renseignez une proportion (ou un taux) de référence positive.",
                        type = "error")
       return()
     }
@@ -2631,7 +2631,7 @@ mod_tests_server <- function(id, values) {
     v <- v[!is.na(v)]
     n <- length(v); k <- sum(v == input$refPropLevel)
     if (n == 0) {
-      showNotification("Aucune observation valide pour cette variable.", type = "error")
+      shiny::showNotification("Aucune observation valide pour cette variable.", type = "error")
       return()
     }
     res <- tryCatch(
@@ -2640,7 +2640,7 @@ mod_tests_server <- function(id, values) {
       error = function(e) hstat_err_fr(e))
     lbl <- paste0(input$refPropVar, " = ", input$refPropLevel)
     if (is.character(res)) {
-      showNotification(res, type = "error", duration = 12)
+      shiny::showNotification(res, type = "error", duration = 12)
       return()
     }
     row <- hstat_ref_result_row(res, lbl,
@@ -2652,38 +2652,38 @@ mod_tests_server <- function(id, values) {
                       if (is.na(res$note)) character(0) else res$note)
   }
 
-  observeEvent(input$testRefBinom,   .run_ref_prop("binom"))
-  observeEvent(input$testRefProp,    .run_ref_prop("prop"))
-  observeEvent(input$testRefPoisson, .run_ref_prop("poisson"))
+  shiny::observeEvent(input$testRefBinom,   .run_ref_prop("binom"))
+  shiny::observeEvent(input$testRefProp,    .run_ref_prop("prop"))
+  shiny::observeEvent(input$testRefPoisson, .run_ref_prop("poisson"))
 
   # Le détail ne s'affiche que tant que le dernier test lancé est bien un test
   # de conformité : sinon il resterait à l'écran après un autre test.
-  output$hasRefTest <- reactive(
+  output$hasRefTest <- shiny::reactive(
     !is.null(values$refTestDetails) &&
     identical(values$currentTestType, "reference"))
-  outputOptions(output, "hasRefTest", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "hasRefTest", suspendWhenHidden = FALSE)
 
-  output$refTestDetails <- renderDT({
-    req(values$refTestDetails, identical(values$currentTestType, "reference"))
+  output$refTestDetails <- DT::renderDT({
+    shiny::req(values$refTestDetails, identical(values$currentTestType, "reference"))
     d <- values$refTestDetails
     d$p_value <- sapply(d$p_value, function(p) if (is.na(p)) NA_character_ else fmt_p(p))
-    datatable(d, rownames = FALSE,
+    DT::datatable(d, rownames = FALSE,
               options = list(dom = "t", scrollX = TRUE, pageLength = 25))
   })
 
-  output$refTestNote <- renderUI({
+  output$refTestNote <- shiny::renderUI({
     n <- values$refTestNotes
     if (!identical(values$currentTestType, "reference")) return(NULL)
     if (is.null(n) || length(n) == 0) return(NULL)
-    div(class = "callout callout-info", style = "margin-top:8px;",
-        icon("circle-info"), strong(" À propos de ce test : "),
+    shiny::div(class = "callout callout-info", style = "margin-top:8px;",
+        shiny::icon("circle-info"), shiny::strong(" À propos de ce test : "),
         tags$ul(lapply(n, tags$li)))
   })
 
-  observeEvent(input$testKruskal, {
-    req(input$responseVar, input$factorVar)
+  shiny::observeEvent(input$testKruskal, {
+    shiny::req(input$responseVar, input$factorVar)
     if (length(input$factorVar) > 1) {
-      showNotification("Kruskal-Wallis nécessite un seul facteur", type = "warning")
+      shiny::showNotification("Kruskal-Wallis nécessite un seul facteur", type = "warning")
       return()
     }
     
@@ -2736,15 +2736,15 @@ mod_tests_server <- function(id, values) {
       values$homogeneityResults <- NULL
       values$currentTestType <- "non-parametric"
     } else {
-      showNotification("Aucun résultat Kruskal-Wallis généré", type = "warning")
+      shiny::showNotification("Aucun résultat Kruskal-Wallis généré", type = "warning")
     }
   })
   
-  observeEvent(input$testScheirerRayHare, {
-    req(input$responseVar, input$factorVar)
+  shiny::observeEvent(input$testScheirerRayHare, {
+    shiny::req(input$responseVar, input$factorVar)
     
     if (length(input$factorVar) < 2) {
-      showNotification("Scheirer-Ray-Hare nécessite au moins 2 facteurs", type = "warning")
+      shiny::showNotification("Scheirer-Ray-Hare nécessite au moins 2 facteurs", type = "warning")
       return()
     }
     
@@ -2850,7 +2850,7 @@ mod_tests_server <- function(id, values) {
     }
     
     if (length(error_messages) > 0) {
-      showNotification(
+      shiny::showNotification(
         paste("Problèmes détectés:\n", paste(error_messages, collapse = "\n")),
         type = "warning",
         duration = 10
@@ -2863,18 +2863,18 @@ mod_tests_server <- function(id, values) {
       values$homogeneityResults <- NULL
       values$currentTestType <- "non-parametric"
       
-      showNotification(
+      shiny::showNotification(
         paste("Test Scheirer-Ray-Hare terminé:", length(results_list), "résultat(s) généré(s)"),
         type = "message",
         duration = 3
       )
     } else {
-      showNotification("Aucun résultat Scheirer-Ray-Hare généré. Vérifiez vos données et facteurs.", type = "error", duration = 10)
+      shiny::showNotification("Aucun résultat Scheirer-Ray-Hare généré. Vérifiez vos données et facteurs.", type = "error", duration = 10)
     }
   })
   
-  observeEvent(input$testANOVA, {
-    req(input$responseVar, input$factorVar)
+  shiny::observeEvent(input$testANOVA, {
+    shiny::req(input$responseVar, input$factorVar)
     
     results_list <- list()
     normality_results <- list()
@@ -2890,12 +2890,12 @@ mod_tests_server <- function(id, values) {
       for (var in input$responseVar) {
         if (!is.numeric(df[[var]])) df[[var]] <- suppressWarnings(as.numeric(df[[var]]))
         if (all(is.na(df[[var]]))) {
-          showNotification(paste0("ANOVA : '", var, "' non numérique -- ignorée."), type = "warning", duration = 5)
+          shiny::showNotification(paste0("ANOVA : '", var, "' non numérique -- ignorée."), type = "warning", duration = 5)
           next
         }
         df_clean <- df[, c(var, input$factorVar), drop = FALSE]
         df_clean <- df_clean[complete.cases(df_clean), ]
-        if (nrow(df_clean) < 4) { showNotification(paste0("ANOVA : trop peu d'obs pour '", var, "'."), type = "warning", duration = 4); next }
+        if (nrow(df_clean) < 4) { shiny::showNotification(paste0("ANOVA : trop peu d'obs pour '", var, "'."), type = "warning", duration = 4); next }
         for (f in input$factorVar) {
           # Conversion universelle: tous les types vers facteur
           if (!is.factor(df_clean[[f]])) {
@@ -2963,16 +2963,16 @@ mod_tests_server <- function(id, values) {
         values$currentValidationVar <- 1
         values$currentTestType <- "parametric"
       } else {
-        showNotification("Aucun résultat ANOVA généré", type = "warning")
+        shiny::showNotification("Aucun résultat ANOVA généré", type = "warning")
       }
       
     }, error = function(e) {
-      showNotification(hstat_err_fr(e, "Erreur ANOVA"), type = "error")
+      shiny::showNotification(hstat_err_fr(e, "Erreur ANOVA"), type = "error")
     })
   })
   
-  observeEvent(input$testLM, {
-    req(input$responseVar, input$factorVar)
+  shiny::observeEvent(input$testLM, {
+    shiny::req(input$responseVar, input$factorVar)
     
     results_list <- list()
     model_list <- list()
@@ -3020,16 +3020,16 @@ mod_tests_server <- function(id, values) {
         values$currentModelVar <- 1
         values$currentTestType <- "parametric"
       } else {
-        showNotification("Aucun résultat de régression généré", type = "warning")
+        shiny::showNotification("Aucun résultat de régression généré", type = "warning")
       }
       
     }, error = function(e) {
-      showNotification(hstat_err_fr(e, "Erreur régression"), type = "error")
+      shiny::showNotification(hstat_err_fr(e, "Erreur régression"), type = "error")
     })
   })
   
-  observeEvent(input$testGLM, {
-    req(input$responseVar, input$factorVar)
+  shiny::observeEvent(input$testGLM, {
+    shiny::req(input$responseVar, input$factorVar)
     
     results_list <- list()
     model_list <- list()
@@ -3041,7 +3041,7 @@ mod_tests_server <- function(id, values) {
         gl <- hstat_glm_fit(as.formula(formula_str), data = df, family = gaussian())
         model <- gl$fit
         if (!is.null(gl$note))
-          showNotification(paste0("GLM (", var, ") : ", gl$note),
+          shiny::showNotification(paste0("GLM (", var, ") : ", gl$note),
                            type = "warning", duration = 12)
         summary_model <- summary(model)
 
@@ -3055,7 +3055,7 @@ mod_tests_server <- function(id, values) {
         df_null    <- model$df.null
         n_params   <- nrow(coef_table)
         if (nrow(coef_table) < 1) {
-          showNotification(
+          shiny::showNotification(
             paste0("GLM (", var, ") : le modèle est vide."),
             type = "warning"
           )
@@ -3087,16 +3087,16 @@ mod_tests_server <- function(id, values) {
         values$currentModelVar <- 1
         values$currentTestType <- "parametric"
       } else {
-        showNotification("Aucun résultat GLM généré", type = "warning")
+        shiny::showNotification("Aucun résultat GLM généré", type = "warning")
       }
       
     }, error = function(e) {
-      showNotification(hstat_err_fr(e, "Erreur GLM"), type = "error")
+      shiny::showNotification(hstat_err_fr(e, "Erreur GLM"), type = "error")
     })
   })
   
   # --- Infobulle dynamique : type de donnees correspondant a la famille choisie ---
-  output$glmmFamilyHelp <- renderUI({
+  output$glmmFamilyHelp <- shiny::renderUI({
     fam <- input$glmmFamily %||% "gaussian"
     info <- switch(fam,
       "gaussian" = list(
@@ -3125,14 +3125,14 @@ mod_tests_server <- function(id, values) {
         txt   = "Données continues positives avec excès de zéros exacts : biomasse souvent nulle puis continue, captures, précipitations. Interpole entre Poisson et Gamma."),
       list(titre = fam, txt = "")
     )
-    div(style = "background:#e8f4fd; border-left:4px solid #1565C0; border-radius:6px; padding:8px 10px; margin:6px 0 4px 0;",
-        div(style = "font-size:11px; font-weight:bold; color:#0d47a1; margin-bottom:2px;",
-            icon("circle-info"), " ", info$titre),
-        div(style = "font-size:11px; color:#37474f; line-height:1.4;", info$txt))
+    shiny::div(style = "background:#e8f4fd; border-left:4px solid #1565C0; border-radius:6px; padding:8px 10px; margin:6px 0 4px 0;",
+        shiny::div(style = "font-size:11px; font-weight:bold; color:#0d47a1; margin-bottom:2px;",
+            shiny::icon("circle-info"), " ", info$titre),
+        shiny::div(style = "font-size:11px; color:#37474f; line-height:1.4;", info$txt))
   })
   
   # --- Infobulle dynamique : quand utiliser la fonction de lien choisie ---
-  output$glmmLinkHelp <- renderUI({
+  output$glmmLinkHelp <- shiny::renderUI({
     lk  <- input$glmmLink %||% "auto"
     info <- switch(lk,
       "auto" = list(
@@ -3161,19 +3161,19 @@ mod_tests_server <- function(id, values) {
         txt   = "Stabilisateur de variance parfois utilisé avec Poisson (rapproche la variance d'une constante). Alternative au log pour comptages quand on veut une échelle additive ou que le log donne des effets trop extrêmes."),
       list(titre = lk, txt = "")
     )
-    div(style = "background:#fff8e1; border-left:4px solid #f9a825; border-radius:6px; padding:8px 10px; margin:4px 0 6px 0;",
-        div(style = "font-size:11px; font-weight:bold; color:#e65100; margin-bottom:2px;",
-            icon("link"), " ", info$titre),
-        div(style = "font-size:11px; color:#5d4037; line-height:1.4;", info$txt),
-        div(style = "font-size:10px; color:#9e9e9e; margin-top:4px; font-style:italic;",
-            icon("triangle-exclamation"),
+    shiny::div(style = "background:#fff8e1; border-left:4px solid #f9a825; border-radius:6px; padding:8px 10px; margin:4px 0 6px 0;",
+        shiny::div(style = "font-size:11px; font-weight:bold; color:#e65100; margin-bottom:2px;",
+            shiny::icon("link"), " ", info$titre),
+        shiny::div(style = "font-size:11px; color:#5d4037; line-height:1.4;", info$txt),
+        shiny::div(style = "font-size:10px; color:#9e9e9e; margin-top:4px; font-style:italic;",
+            shiny::icon("triangle-exclamation"),
             " Tous les liens ne sont pas compatibles avec toutes les familles (R renverra une erreur sinon)."))
   })
   
   # --- Mise a jour des choix des selecteurs de mesures repetees (UI statique) ---
-  observe({
+  shiny::observe({
     df <- values$filteredData %||% values$cleanData %||% values$data
-    req(df)
+    shiny::req(df)
     all_cols <- names(df)
     # LES DATES SONT ELIGIBLES, et c'est le cas le plus courant : une periode
     # repetee est presque toujours une date de mesure. Le filtre ne retenait que
@@ -3189,20 +3189,20 @@ mod_tests_server <- function(id, values) {
                                    est_date(x) ||
                                    (is.numeric(x) && length(unique(x[!is.na(x)])) <= 20))]
     if (length(fac_cols) == 0) fac_cols <- all_cols
-    updateSelectInput(session, "rmSubject", choices = all_cols,
-                      selected = isolate(input$rmSubject) %||% all_cols[1])
-    updateSelectizeInput(session, "rmWithin", choices = fac_cols,
-                         selected = isolate(input$rmWithin))
-    updateSelectizeInput(session, "rmBetween", choices = fac_cols,
-                         selected = isolate(input$rmBetween))
+    shiny::updateSelectInput(session, "rmSubject", choices = all_cols,
+                      selected = shiny::isolate(input$rmSubject) %||% all_cols[1])
+    shiny::updateSelectizeInput(session, "rmWithin", choices = fac_cols,
+                         selected = shiny::isolate(input$rmWithin))
+    shiny::updateSelectizeInput(session, "rmBetween", choices = fac_cols,
+                         selected = shiny::isolate(input$rmBetween))
   })
   
   # --- Selecteur COMPLET de la structure d'effets aleatoires du GLMM ---
   # Interface guidee : groupes croises, emboitement, pentes aleatoires,
   # + saisie libre prioritaire. Un apercu de la formule est affiche.
-  output$glmmRandomSelect <- renderUI({
+  output$glmmRandomSelect <- shiny::renderUI({
     df <- values$filteredData %||% values$cleanData %||% values$data
-    req(df)
+    shiny::req(df)
     cand <- tryCatch(get_all_factor_candidates(df), error = function(e) NULL)
     if (is.null(cand) || length(cand) == 0) {
       cand <- names(df)[sapply(df, function(x) is.factor(x) || is.character(x))]
@@ -3210,58 +3210,58 @@ mod_tests_server <- function(id, values) {
     if (length(cand) == 0) cand <- names(df)
     num_cols <- names(df)[sapply(df, is.numeric)]
     
-    tagList(
-      selectizeInput(ns("glmmRandom"),
-                     tagList(icon("layer-group"), " Variable(s) de groupement :"),
+    shiny::tagList(
+      shiny::selectizeInput(ns("glmmRandom"),
+                     shiny::tagList(shiny::icon("layer-group"), " Variable(s) de groupement :"),
                      choices = cand, selected = cand[1], multiple = TRUE,
                      options = list(plugins = list("remove_button"),
                                     placeholder = "Un ou plusieurs groupes...")),
       # 2) Emboitement (nested) au lieu de croise
-      conditionalPanel(
+      shiny::conditionalPanel(
         ns = ns,
         condition = "input.glmmRandom && input.glmmRandom.length > 1",
-        checkboxInput(ns("glmmNested"),
-                      tagList(icon("diagram-next"), " Emboîter les groupes (A/B/...) au lieu de croisés"),
+        shiny::checkboxInput(ns("glmmNested"),
+                      shiny::tagList(shiny::icon("diagram-next"), " Emboîter les groupes (A/B/...) au lieu de croisés"),
                       value = FALSE),
-        div(style = "font-size:10px; color:#7f8c8d; margin:-4px 0 6px 0;",
+        shiny::div(style = "font-size:10px; color:#7f8c8d; margin:-4px 0 6px 0;",
             "Croisés : ", tags$code("(1|A) + (1|B)"), " — Emboîtés : ", tags$code("(1|A/B)"), ".")
       ),
-      checkboxInput(ns("glmmUseSlope"),
-                    tagList(icon("chart-line"), " Ajouter une pente aléatoire"),
+      shiny::checkboxInput(ns("glmmUseSlope"),
+                    shiny::tagList(shiny::icon("chart-line"), " Ajouter une pente aléatoire"),
                     value = FALSE),
-      conditionalPanel(
+      shiny::conditionalPanel(
         ns = ns,
         condition = "input.glmmUseSlope == true",
         if (length(num_cols) > 0) {
-          selectInput(ns("glmmSlopeVar"), "Variable de pente (continue) :",
+          shiny::selectInput(ns("glmmSlopeVar"), "Variable de pente (continue) :",
                       choices = num_cols, selected = num_cols[1])
         } else {
-          div(class = "alert alert-warning", style = "padding:6px; font-size:11px;",
-              icon("exclamation-triangle"), " Aucune variable continue pour une pente.")
+          shiny::div(class = "alert alert-warning", style = "padding:6px; font-size:11px;",
+              shiny::icon("exclamation-triangle"), " Aucune variable continue pour une pente.")
         },
-        checkboxInput(ns("glmmCorrSlope"),
+        shiny::checkboxInput(ns("glmmCorrSlope"),
                       "Corréler pente et ordonnée à l'origine",
                       value = TRUE),
-        div(style = "font-size:10px; color:#7f8c8d; margin:-4px 0 6px 0;",
+        shiny::div(style = "font-size:10px; color:#7f8c8d; margin:-4px 0 6px 0;",
             "Corrélés : ", tags$code("(1+X|g)"), " — Indépendants : ", tags$code("(1|g) + (0+X|g)"), ".")
       ),
-      hr(style = "margin:8px 0;"),
-      textInput(ns("glmmRandomCustom"),
-                tagList(icon("pen"), " Formule libre (avancé, prioritaire) :"),
+      shiny::hr(style = "margin:8px 0;"),
+      shiny::textInput(ns("glmmRandomCustom"),
+                shiny::tagList(shiny::icon("pen"), " Formule libre (avancé, prioritaire) :"),
                 value = "", placeholder = "ex. (1|Bloc) + (1+Dose|Site)"),
-      div(style = "font-size:10px; color:#7f8c8d; margin-top:-4px;",
+      shiny::div(style = "font-size:10px; color:#7f8c8d; margin-top:-4px;",
           "Si renseigné, ce champ remplace l'interface guidée ci-dessus."),
       # 5) Apercu de la formule complete
-      div(style = "background:#ede7f6; border:1px solid #b39ddb; border-radius:6px; padding:8px 10px; margin-top:8px;",
-          div(style = "font-size:10px; color:#6c3483; font-weight:bold; margin-bottom:3px;",
-              icon("eye"), " Aperçu de la formule :"),
-          uiOutput(ns("glmmFormulaPreview")))
+      shiny::div(style = "background:#ede7f6; border:1px solid #b39ddb; border-radius:6px; padding:8px 10px; margin-top:8px;",
+          shiny::div(style = "font-size:10px; color:#6c3483; font-weight:bold; margin-bottom:3px;",
+              shiny::icon("eye"), " Aperçu de la formule :"),
+          shiny::uiOutput(ns("glmmFormulaPreview")))
     )
   })
   
   # Construit le terme d'effets aleatoires a partir de l'interface OU du champ libre.
   # Source unique de verite : utilisee par l'apercu ET par l'observer.
-  glmm_random_term <- reactive({
+  glmm_random_term <- shiny::reactive({
     custom <- input$glmmRandomCustom
     if (!is.null(custom) && nzchar(trimws(custom))) {
       return(trimws(custom))
@@ -3297,7 +3297,7 @@ mod_tests_server <- function(id, values) {
   })
   
   # Apercu en direct de la formule complete (fixe + aleatoire).
-  output$glmmFormulaPreview <- renderUI({
+  output$glmmFormulaPreview <- shiny::renderUI({
     rand <- glmm_random_term()
     resp <- if (!is.null(input$responseVar) && length(input$responseVar) > 0) input$responseVar[1] else "réponse"
     fixed <- if (!is.null(input$factorVar) && length(input$factorVar) > 0) {
@@ -3305,23 +3305,23 @@ mod_tests_server <- function(id, values) {
             collapse = if (isTRUE(input$interaction)) " * " else " + ")
     } else "facteur"
     if (is.null(rand) || !nzchar(rand)) {
-      return(div(style = "font-family:monospace; font-size:11px; color:#c0392b;",
-                 icon("triangle-exclamation"), " Sélectionnez au moins une variable de groupement."))
+      return(shiny::div(style = "font-family:monospace; font-size:11px; color:#c0392b;",
+                 shiny::icon("triangle-exclamation"), " Sélectionnez au moins une variable de groupement."))
     }
-    div(style = "font-family:monospace; font-size:12px; color:#4a235a; word-break:break-all;",
+    shiny::div(style = "font-family:monospace; font-size:12px; color:#4a235a; word-break:break-all;",
         paste0("`", resp, "` ~ ", fixed, " + ", rand))
   })
   
   # --- Modele lineaire (generalise) mixte : lme4 ou glmmTMB ---
-  observeEvent(input$testGLMM, {
-    req(input$responseVar, input$factorVar)
+  shiny::observeEvent(input$testGLMM, {
+    shiny::req(input$responseVar, input$factorVar)
     
     df <- values$filteredData %||% values$cleanData %||% values$data
-    if (is.null(df)) { showNotification("Aucune donnée disponible.", type = "error"); return() }
+    if (is.null(df)) { shiny::showNotification("Aucune donnée disponible.", type = "error"); return() }
     
     rand_term <- glmm_random_term()
     if (is.null(rand_term) || !nzchar(rand_term)) {
-      showNotification("Définissez la structure d'effets aléatoires (panneau « Modèle mixte ») : au moins une variable de groupement ou une formule libre.",
+      shiny::showNotification("Définissez la structure d'effets aléatoires (panneau « Modèle mixte ») : au moins une variable de groupement ou une formule libre.",
                        type = "warning", duration = 6)
       return()
     }
@@ -3331,7 +3331,7 @@ mod_tests_server <- function(id, values) {
     if (!custom_used) {
       missing_grp <- setdiff(input$glmmRandom, names(df))
       if (length(missing_grp) > 0) {
-        showNotification(paste("Variable(s) d'effet aléatoire introuvable(s) :",
+        shiny::showNotification(paste("Variable(s) d'effet aléatoire introuvable(s) :",
                                paste(missing_grp, collapse = ", ")), type = "error")
         return()
       }
@@ -3343,14 +3343,14 @@ mod_tests_server <- function(id, values) {
     
     # Verifier la disponibilite du moteur demande.
     if (engine == "lme4" && !requireNamespace("lme4", quietly = TRUE)) {
-      showNotification("Le package 'lme4' n'est pas installé.", type = "error"); return()
+      shiny::showNotification("Le package 'lme4' n'est pas installé.", type = "error"); return()
     }
     if (engine == "glmmTMB" && !requireNamespace("glmmTMB", quietly = TRUE)) {
-      showNotification("Le package 'glmmTMB' n'est pas installé.", type = "error"); return()
+      shiny::showNotification("Le package 'glmmTMB' n'est pas installé.", type = "error"); return()
     }
     # Certaines familles ne sont disponibles que via glmmTMB.
     if (engine == "lme4" && fam %in% c("nbinom", "beta_family", "tweedie")) {
-      showNotification(paste0("La famille « ", fam, " » nécessite le moteur glmmTMB. Changez de moteur."),
+      shiny::showNotification(paste0("La famille « ", fam, " » nécessite le moteur glmmTMB. Changez de moteur."),
                        type = "warning", duration = 7); return()
     }
     
@@ -3417,7 +3417,7 @@ mod_tests_server <- function(id, values) {
     }
     bad_msgs <- Filter(Negate(is.null), lapply(input$responseVar, fam_check))
     if (length(bad_msgs) > 0) {
-      showNotification(bad_msgs[[1]], type = "error", duration = 12)
+      shiny::showNotification(bad_msgs[[1]], type = "error", duration = 12)
       return()
     }
     
@@ -3425,7 +3425,7 @@ mod_tests_server <- function(id, values) {
     model_list   <- list()
     is_gaussian  <- (fam == "gaussian")
     
-    withProgress(message = "Ajustement du modèle mixte...", value = 0.2, {
+    shiny::withProgress(message = "Ajustement du modèle mixte...", value = 0.2, {
       tryCatch({
         fam_obj <- build_family(engine, fam, link)
         n_resp  <- length(input$responseVar)
@@ -3460,7 +3460,7 @@ mod_tests_server <- function(id, values) {
             summary(model)$coefficients
           }
           if (is.null(coef_table) || nrow(coef_table) < 1) {
-            showNotification(paste0("GLMM (", var, ") : aucun coefficient d'effet fixe."), type = "warning")
+            shiny::showNotification(paste0("GLMM (", var, ") : aucun coefficient d'effet fixe."), type = "warning")
             next
           }
           
@@ -3491,7 +3491,7 @@ mod_tests_server <- function(id, values) {
               stringsAsFactors = FALSE
             )
           }
-          incProgress(0.6 / max(n_resp, 1))
+          shiny::incProgress(0.6 / max(n_resp, 1))
         }
         
         if (length(results_list) > 0) {
@@ -3500,16 +3500,16 @@ mod_tests_server <- function(id, values) {
           values$modelList       <- model_list
           values$currentModelVar <- 1
           values$currentTestType <- "parametric"
-          showNotification(
+          shiny::showNotification(
             trf("Modèle mixte ajusté (%s, famille %s) sur %d variable(s).",
                     engine, fam, length(model_list)),
             type = "message", duration = 5
           )
         } else {
-          showNotification("Aucun résultat GLMM généré.", type = "warning")
+          shiny::showNotification("Aucun résultat GLMM généré.", type = "warning")
         }
       }, error = function(e) {
-        showNotification(hstat_err_fr(e, "Erreur modèle mixte"), type = "error", duration = 8)
+        shiny::showNotification(hstat_err_fr(e, "Erreur modèle mixte"), type = "error", duration = 8)
       })
     })
   })
@@ -3517,10 +3517,10 @@ mod_tests_server <- function(id, values) {
   
   #  ANOVA A MESURES REPETEES (parametrique) -- moteurs lmer (mixte) ou afex
   #  + post-hoc (emmeans, comparaisons par paires sur le facteur intra/inter)
-  observeEvent(input$testRMAnova, {
-    req(input$responseVar)
+  shiny::observeEvent(input$testRMAnova, {
+    shiny::req(input$responseVar)
     df <- values$filteredData %||% values$cleanData %||% values$data
-    if (is.null(df)) { showNotification("Aucune donnée disponible.", type = "error"); return() }
+    if (is.null(df)) { shiny::showNotification("Aucune donnée disponible.", type = "error"); return() }
     
     subj   <- input$rmSubject
     within <- input$rmWithin
@@ -3529,22 +3529,22 @@ mod_tests_server <- function(id, values) {
     adj    <- input$rmPostHocAdjust %||% "holm"
     
     if (is.null(subj) || !nzchar(subj) || !subj %in% names(df)) {
-      showNotification("Sélectionnez une variable « Sujet / identifiant » (panneau « Mesures répétées »).",
+      shiny::showNotification("Sélectionnez une variable « Sujet / identifiant » (panneau « Mesures répétées »).",
                        type = "warning", duration = 6); return()
     }
     if (is.null(within) || length(within) == 0) {
-      showNotification("Sélectionnez au moins un facteur « Période » (intra-sujet).", type = "warning", duration = 6); return()
+      shiny::showNotification("Sélectionnez au moins un facteur « Période » (intra-sujet).", type = "warning", duration = 6); return()
     }
     all_fac <- c(within, between)
     if (!all(all_fac %in% names(df))) {
-      showNotification("Facteur(s) « Période » / « Traitement » introuvable(s) dans les données.", type = "error"); return()
+      shiny::showNotification("Facteur(s) « Période » / « Traitement » introuvable(s) dans les données.", type = "error"); return()
     }
     if (engine == "mixed" && !requireNamespace("lmerTest", quietly = TRUE) &&
         !requireNamespace("lme4", quietly = TRUE)) {
-      showNotification("Le package 'lme4'/'lmerTest' est requis pour le moteur mixte.", type = "error"); return()
+      shiny::showNotification("Le package 'lme4'/'lmerTest' est requis pour le moteur mixte.", type = "error"); return()
     }
     if (engine == "afex" && !requireNamespace("afex", quietly = TRUE)) {
-      showNotification("Le package 'afex' n'est pas installé (moteur afex).", type = "error"); return()
+      shiny::showNotification("Le package 'afex' n'est pas installé (moteur afex).", type = "error"); return()
     }
     has_emm <- requireNamespace("emmeans", quietly = TRUE)
     
@@ -3553,7 +3553,7 @@ mod_tests_server <- function(id, values) {
     posthoc_list <- list()
     bt <- function(x) paste0("`", x, "`")
     
-    withProgress(message = "ANOVA à mesures répétées...", value = 0.2, {
+    shiny::withProgress(message = "ANOVA à mesures répétées...", value = 0.2, {
       tryCatch({
         # Facteurs en facteurs ; sujet en facteur.
         df[[subj]] <- factor(df[[subj]])
@@ -3569,11 +3569,11 @@ mod_tests_server <- function(id, values) {
         for (f in within) {
           n_niv <- nlevels(droplevels(factor(df[[f]])))
           if (n_niv < 2) {
-            showNotification(trf(
+            shiny::showNotification(trf(
               "« %s » ne compte qu'une seule modalité : ce n'est pas un facteur répété.", f),
               type = "warning", duration = 8)
           } else if (n_niv >= nrow(df)) {
-            showNotification(trf(
+            shiny::showNotification(trf(
               "« %s » compte autant de modalités que d'observations (%d) : aucune mesure n'est répétée. Regroupez les dates (par mois, par stade) avant l'analyse.",
               f, n_niv), type = "warning", duration = 10)
           }
@@ -3583,7 +3583,7 @@ mod_tests_server <- function(id, values) {
           if (!is.numeric(df[[var]])) df[[var]] <- suppressWarnings(as.numeric(df[[var]]))
           dsub <- df[, c(var, subj, all_fac), drop = FALSE]
           dsub <- dsub[stats::complete.cases(dsub), ]
-          if (nrow(dsub) < 3) { showNotification(paste0("rmANOVA (", var, ") : trop peu de données."), type = "warning"); next }
+          if (nrow(dsub) < 3) { shiny::showNotification(paste0("rmANOVA (", var, ") : trop peu de données."), type = "warning"); next }
           
           fixed <- paste(sapply(all_fac, bt), collapse = " * ")
           
@@ -3634,7 +3634,7 @@ mod_tests_server <- function(id, values) {
             model_list[[var]] <- mod
             emm_model <- mod
           }
-          incProgress(0.4 / max(length(input$responseVar), 1))
+          shiny::incProgress(0.4 / max(length(input$responseVar), 1))
           
           # --- Post-hoc : comparaisons par paires (emmeans) sur chaque facteur ---
           if (has_emm) {
@@ -3672,22 +3672,22 @@ mod_tests_server <- function(id, values) {
           }
           values$rmPostHocData <- if (length(posthoc_list) > 0) do.call(rbind, posthoc_list) else NULL
           values$rmPostHocMethod <- paste0("rmANOVA (", engine, "), ajustement ", adj)
-          showNotification(trf("ANOVA à mesures répétées (%s) sur %d variable(s).", engine, length(model_list)),
+          shiny::showNotification(trf("ANOVA à mesures répétées (%s) sur %d variable(s).", engine, length(model_list)),
                            type = "message", duration = 5)
         } else {
-          showNotification("Aucun résultat rmANOVA généré.", type = "warning")
+          shiny::showNotification("Aucun résultat rmANOVA généré.", type = "warning")
         }
       }, error = function(e) {
-        showNotification(hstat_err_fr(e, "Erreur rmANOVA"), type = "error", duration = 9)
+        shiny::showNotification(hstat_err_fr(e, "Erreur rmANOVA"), type = "error", duration = 9)
       })
     })
   })
   
   #  NON PARAMETRIQUE A MESURES REPETEES : Friedman / Durbin / ART (+ post-hoc)
-  observeEvent(input$testRMNonParam, {
-    req(input$responseVar)
+  shiny::observeEvent(input$testRMNonParam, {
+    shiny::req(input$responseVar)
     df <- values$filteredData %||% values$cleanData %||% values$data
-    if (is.null(df)) { showNotification("Aucune donnée disponible.", type = "error"); return() }
+    if (is.null(df)) { shiny::showNotification("Aucune donnée disponible.", type = "error"); return() }
     
     subj   <- input$rmSubject
     within <- input$rmWithin
@@ -3697,23 +3697,23 @@ mod_tests_server <- function(id, values) {
     if (adj == "tukey") adj <- "holm"  # Tukey non applicable ici
     
     if (is.null(subj) || !nzchar(subj) || !subj %in% names(df)) {
-      showNotification("Sélectionnez une variable « Sujet / identifiant ».", type = "warning", duration = 6); return()
+      shiny::showNotification("Sélectionnez une variable « Sujet / identifiant ».", type = "warning", duration = 6); return()
     }
     if (is.null(within) || length(within) == 0) {
-      showNotification("Sélectionnez au moins un facteur « Période » (intra-sujet).", type = "warning", duration = 6); return()
+      shiny::showNotification("Sélectionnez au moins un facteur « Période » (intra-sujet).", type = "warning", duration = 6); return()
     }
     if (method %in% c("friedman", "durbin") && !requireNamespace("PMCMRplus", quietly = TRUE)) {
-      showNotification("Le package 'PMCMRplus' est requis pour les post-hoc de Friedman/Durbin.", type = "warning")
+      shiny::showNotification("Le package 'PMCMRplus' est requis pour les post-hoc de Friedman/Durbin.", type = "warning")
     }
     if (method == "art" && !requireNamespace("ARTool", quietly = TRUE)) {
-      showNotification("Le package 'ARTool' n'est pas installé (méthode ART).", type = "error"); return()
+      shiny::showNotification("Le package 'ARTool' n'est pas installé (méthode ART).", type = "error"); return()
     }
     
     results_list <- list()
     posthoc_list <- list()
     bt <- function(x) paste0("`", x, "`")
     
-    withProgress(message = "Test non paramétrique répété...", value = 0.3, {
+    shiny::withProgress(message = "Test non paramétrique répété...", value = 0.3, {
       tryCatch({
         df[[subj]] <- factor(df[[subj]])
         for (f in c(within, between)) if (!is.factor(df[[f]])) df[[f]] <- factor(df[[f]])
@@ -3806,7 +3806,7 @@ mod_tests_server <- function(id, values) {
               }
             }
           }
-          incProgress(0.6 / max(length(input$responseVar), 1))
+          shiny::incProgress(0.6 / max(length(input$responseVar), 1))
         }
         
         if (length(results_list) > 0) {
@@ -3815,23 +3815,23 @@ mod_tests_server <- function(id, values) {
           values$rmPostHocData <- if (length(posthoc_list) > 0) do.call(rbind, posthoc_list) else NULL
           values$rmPostHocMethod <- paste0(switch(method, friedman = "Friedman/Conover",
                                                   durbin = "Durbin", art = "ART"), ", ajustement ", adj)
-          showNotification(trf("Test non paramétrique répété (%s) terminé.", method),
+          shiny::showNotification(trf("Test non paramétrique répété (%s) terminé.", method),
                            type = "message", duration = 5)
         } else {
-          showNotification("Aucun résultat généré.", type = "warning")
+          shiny::showNotification("Aucun résultat généré.", type = "warning")
         }
       }, error = function(e) {
-        showNotification(hstat_err_fr(e, "Erreur non paramétrique répété"), type = "error", duration = 9)
+        shiny::showNotification(hstat_err_fr(e, "Erreur non paramétrique répété"), type = "error", duration = 9)
       })
     })
   })
   
 
-  observeEvent(input$testMANOVA, {
-    req(input$responseVar, input$factorVar)
+  shiny::observeEvent(input$testMANOVA, {
+    shiny::req(input$responseVar, input$factorVar)
     
     if (length(input$responseVar) < 2) {
-      showNotification("MANOVA nécessite au moins 2 variables réponses numériques.",
+      shiny::showNotification("MANOVA nécessite au moins 2 variables réponses numériques.",
                        type = "warning", duration = 6)
       return()
     }
@@ -3839,7 +3839,7 @@ mod_tests_server <- function(id, values) {
     tryCatch({
       chk <- check_manova_data(values$filteredData, input$responseVar, input$factorVar)
       if (!isTRUE(chk$ok)) {
-        showNotification(chk$message, type = "error", duration = 8)
+        shiny::showNotification(chk$message, type = "error", duration = 8)
         return()
       }
       df_clean <- chk$df_clean
@@ -3895,32 +3895,32 @@ mod_tests_server <- function(id, values) {
       values$homogeneityResults     <- NULL
       values$modelList              <- NULL
       
-      showNotification(
+      shiny::showNotification(
         paste0("MANOVA terminée : ", nrow(stats_df), " effet(s) testé(s)."),
         type = "message", duration = 4
       )
     }, error = function(e) {
-      showNotification(hstat_err_fr(e, "Erreur MANOVA"), type = "error", duration = 10)
+      shiny::showNotification(hstat_err_fr(e, "Erreur MANOVA"), type = "error", duration = 10)
     })
   })
   
-  observeEvent(input$testPERMANOVA, {
-    req(input$responseVar, input$factorVar)
+  shiny::observeEvent(input$testPERMANOVA, {
+    shiny::req(input$responseVar, input$factorVar)
     
     if (length(input$responseVar) < 2) {
-      showNotification("PERMANOVA nécessite au moins 2 variables réponses numériques.",
+      shiny::showNotification("PERMANOVA nécessite au moins 2 variables réponses numériques.",
                        type = "warning", duration = 6)
       return()
     }
     
-    showNotification("PERMANOVA en cours (999 permutations)...",
+    shiny::showNotification("PERMANOVA en cours (999 permutations)...",
                      type = "message", duration = NULL, id = "permanovaProgress")
     
     tryCatch({
       chk <- check_manova_data(values$filteredData, input$responseVar, input$factorVar)
       if (!isTRUE(chk$ok)) {
-        removeNotification("permanovaProgress")
-        showNotification(chk$message, type = "error", duration = 8)
+        shiny::removeNotification("permanovaProgress")
+        shiny::showNotification(chk$message, type = "error", duration = 8)
         return()
       }
       df_clean <- chk$df_clean
@@ -3982,32 +3982,32 @@ mod_tests_server <- function(id, values) {
       values$homogeneityResults     <- NULL
       values$modelList              <- NULL
       
-      removeNotification("permanovaProgress")
-      showNotification(
+      shiny::removeNotification("permanovaProgress")
+      shiny::showNotification(
         paste0("PERMANOVA terminée : ", nrow(out), " effet(s) (", nperm,
                " permutations, distance ", dist_method, ")."),
         type = "message", duration = 4
       )
     }, error = function(e) {
-      removeNotification("permanovaProgress")
-      showNotification(hstat_err_fr(e, "Erreur PERMANOVA"), type = "error", duration = 10)
+      shiny::removeNotification("permanovaProgress")
+      shiny::showNotification(hstat_err_fr(e, "Erreur PERMANOVA"), type = "error", duration = 10)
     })
   })
   
   # Les DEUX boutons de diagnostic declenchent le meme travail.
-  observeEvent(list(input$runManovaDiagnostic, input$runManovaDiagnostic2), {
+  shiny::observeEvent(list(input$runManovaDiagnostic, input$runManovaDiagnostic2), {
     if (((input$runManovaDiagnostic %||% 0) +
          (input$runManovaDiagnostic2 %||% 0)) == 0) return()
-    req(input$responseVar, input$factorVar)
+    shiny::req(input$responseVar, input$factorVar)
     if (length(input$responseVar) < 2) {
-      showNotification("Le diagnostic nécessite au moins 2 variables réponses.",
+      shiny::showNotification("Le diagnostic nécessite au moins 2 variables réponses.",
                        type = "warning", duration = 6)
       return()
     }
     tryCatch({
       chk <- check_manova_data(values$filteredData, input$responseVar, input$factorVar)
       if (!isTRUE(chk$ok)) {
-        showNotification(chk$message, type = "error", duration = 8)
+        shiny::showNotification(chk$message, type = "error", duration = 8)
         return()
       }
       df_clean <- chk$df_clean
@@ -4038,31 +4038,31 @@ mod_tests_server <- function(id, values) {
       
       values$currentTestType <- "manova_diagnostic"
       
-      showNotification(
+      shiny::showNotification(
         paste0("Diagnostic terminé. Test recommandé : ", rec$test_recommande,
                " (confiance : ", rec$niveau_confiance, ")."),
         type = "message", duration = 6
       )
     }, error = function(e) {
-      showNotification(hstat_err_fr(e, "Erreur diagnostic"), type = "error", duration = 10)
+      shiny::showNotification(hstat_err_fr(e, "Erreur diagnostic"), type = "error", duration = 10)
     })
   })
   
-  observeEvent(input$runManovaSimpleEffects, {
-    req(input$responseVar, input$factorVar, input$manovaSimpleFixed, input$manovaSimpleTested)
+  shiny::observeEvent(input$runManovaSimpleEffects, {
+    shiny::req(input$responseVar, input$factorVar, input$manovaSimpleFixed, input$manovaSimpleTested)
     if (length(input$factorVar) < 2) {
-      showNotification("Les effets simples nécessitent au moins 2 facteurs.",
+      shiny::showNotification("Les effets simples nécessitent au moins 2 facteurs.",
                        type = "warning"); return()
     }
     if (input$manovaSimpleFixed == input$manovaSimpleTested) {
-      showNotification("Le facteur fixé et le facteur testé doivent être différents.",
+      shiny::showNotification("Le facteur fixé et le facteur testé doivent être différents.",
                        type = "warning"); return()
     }
     tryCatch({
       chk <- check_manova_data(values$filteredData, input$responseVar,
                                c(input$manovaSimpleFixed, input$manovaSimpleTested))
       if (!isTRUE(chk$ok)) {
-        showNotification(chk$message, type = "error"); return()
+        shiny::showNotification(chk$message, type = "error"); return()
       }
       
       want_param <- isTRUE(values$currentTestType == "manova")
@@ -4087,7 +4087,7 @@ mod_tests_server <- function(id, values) {
       }
       
       if (is.null(res)) {
-        showNotification(paste0("Effets simples non calculables : sous-groupes trop petits ",
+        shiny::showNotification(paste0("Effets simples non calculables : sous-groupes trop petits ",
                                 "ou variables réponses problématiques."),
                          type = "warning", duration = 7); return()
       }
@@ -4098,52 +4098,52 @@ mod_tests_server <- function(id, values) {
       values$manovaSimpleEffects <- res
       
       if (used_fallback) {
-        showNotification(paste0("La MANOVA conditionnelle n'est pas calculable ",
+        shiny::showNotification(paste0("La MANOVA conditionnelle n'est pas calculable ",
                                 "(variables réponses colinéaires) : bascule automatique ",
                                 "sur la PERMANOVA conditionnelle. ", nrow(res),
                                 " niveau(x) testé(s)."),
                          type = "warning", duration = 8)
       } else {
-        showNotification(paste0("Effets simples calculés : ", nrow(res),
+        shiny::showNotification(paste0("Effets simples calculés : ", nrow(res),
                                 " niveau(x) testé(s)."),
                          type = "message", duration = 4)
       }
     }, error = function(e) {
-      showNotification(hstat_err_fr(e, "Erreur effets simples"), type = "error")
+      shiny::showNotification(hstat_err_fr(e, "Erreur effets simples"), type = "error")
     })
   })
   
   
-  output$showManovaDiagnostics <- reactive({
+  output$showManovaDiagnostics <- shiny::reactive({
     ctt <- values$currentTestType
     isTRUE(!is.null(ctt) && ctt %in% c("manova", "permanova"))
   })
-  outputOptions(output, "showManovaDiagnostics", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "showManovaDiagnostics", suspendWhenHidden = FALSE)
   
-  output$hasManovaParam <- reactive({
+  output$hasManovaParam <- shiny::reactive({
     !is.null(values$manovaParamResults) && nrow(values$manovaParamResults) > 0
   })
-  outputOptions(output, "hasManovaParam", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "hasManovaParam", suspendWhenHidden = FALSE)
   
-  output$hasManovaPermanova <- reactive({
+  output$hasManovaPermanova <- shiny::reactive({
     !is.null(values$manovaPermanovaResults) && nrow(values$manovaPermanovaResults) > 0
   })
-  outputOptions(output, "hasManovaPermanova", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "hasManovaPermanova", suspendWhenHidden = FALSE)
   
-  output$hasManovaDispersion <- reactive({
+  output$hasManovaDispersion <- shiny::reactive({
     !is.null(values$manovaPermDisp) && nrow(values$manovaPermDisp) > 0
   })
-  outputOptions(output, "hasManovaDispersion", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "hasManovaDispersion", suspendWhenHidden = FALSE)
   
   # Détail MANOVA paramétrique : 4 statistiques
-  output$manovaParamTable <- renderDT({
-    req(values$manovaParamResults)
+  output$manovaParamTable <- DT::renderDT({
+    shiny::req(values$manovaParamResults)
     df <- values$manovaParamResults
     for (col in c("p_Pillai", "p_Wilks", "p_Hotelling", "p_Roy")) {
       if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
     }
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
-    dt <- datatable(df, options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
+    dt <- DT::datatable(df, options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
     
     # Colore les colonnes de la statistique recommandee par l'assistant
     rec <- values$manovaRecommendation
@@ -4160,7 +4160,7 @@ mod_tests_server <- function(id, values) {
           names(df)
         )
         if (length(cols_to_color) > 0)
-          dt <- dt %>% formatStyle(cols_to_color,
+          dt <- dt %>% DT::formatStyle(cols_to_color,
                                    backgroundColor = "#c8e6c9",
                                    fontWeight = "bold")
       }
@@ -4168,48 +4168,48 @@ mod_tests_server <- function(id, values) {
     dt
   })
   
-  output$manovaPermanovaTable <- renderDT({
-    req(values$manovaPermanovaResults)
+  output$manovaPermanovaTable <- DT::renderDT({
+    shiny::req(values$manovaPermanovaResults)
     df <- values$manovaPermanovaResults
     if ("p_value" %in% names(df))
       df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else fmt_p(p))
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
-    datatable(df, options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
+    DT::datatable(df, options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
   })
   
-  output$manovaMardiaTable <- renderDT({
-    req(values$manovaMardia)
+  output$manovaMardiaTable <- DT::renderDT({
+    shiny::req(values$manovaMardia)
     df <- values$manovaMardia
     for (col in c("p_Skewness", "p_Kurtosis")) {
       if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
     }
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
-    datatable(df, options = list(dom = "t", scrollX = TRUE), rownames = FALSE)
+    DT::datatable(df, options = list(dom = "t", scrollX = TRUE), rownames = FALSE)
   })
   
-  output$manovaMardiaInterpretation <- renderUI({
-    req(values$manovaMardia)
+  output$manovaMardiaInterpretation <- shiny::renderUI({
+    shiny::req(values$manovaMardia)
     conc <- values$manovaMardia$Conclusion[1]
     color <- if (grepl("plausible", conc)) "#2e7d32" else "#c62828"
     bg    <- if (grepl("plausible", conc)) "#e8f5e9" else "#ffebee"
-    div(style = paste0("padding:8px 12px; background:", bg,
+    shiny::div(style = paste0("padding:8px 12px; background:", bg,
                        "; border-left:4px solid ", color,
                        "; border-radius:4px; margin-top:6px; font-size:13px;"),
-        icon("info-circle", style = paste0("color:", color, ";")),
+        shiny::icon("info-circle", style = paste0("color:", color, ";")),
         tags$b(" Conclusion Mardia : "), conc)
   })
   
-  output$manovaBoxMTable <- renderDT({
-    req(values$manovaBoxM)
+  output$manovaBoxMTable <- DT::renderDT({
+    shiny::req(values$manovaBoxM)
     df <- values$manovaBoxM
     if ("p_value" %in% names(df))
       df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else fmt_p(p))
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
-    datatable(df, options = list(dom = "t", scrollX = TRUE), rownames = FALSE)
+    DT::datatable(df, options = list(dom = "t", scrollX = TRUE), rownames = FALSE)
   })
   
-  output$manovaBoxMInterpretation <- renderUI({
-    req(values$manovaBoxM)
+  output$manovaBoxMInterpretation <- shiny::renderUI({
+    shiny::req(values$manovaBoxM)
     conclusions <- values$manovaBoxM$Conclusion
     any_violation <- any(grepl("Violation", conclusions))
     any_singular  <- any(grepl("singuli|non applicable|trop petit|indisponible",
@@ -4233,24 +4233,24 @@ mod_tests_server <- function(id, values) {
       color <- "#2e7d32"; bg <- "#e8f5e9"
       msg <- "Homogénéité des matrices de covariance respectée pour tous les facteurs."
     }
-    div(style = paste0("padding:8px 12px; background:", bg,
+    shiny::div(style = paste0("padding:8px 12px; background:", bg,
                        "; border-left:4px solid ", color,
                        "; border-radius:4px; margin-top:6px; font-size:13px;"),
-        icon("info-circle", style = paste0("color:", color, ";")),
+        shiny::icon("info-circle", style = paste0("color:", color, ";")),
         tags$b(" Conclusion Box's M : "), msg)
   })
   
-  output$manovaPermDispTable <- renderDT({
-    req(values$manovaPermDisp)
+  output$manovaPermDispTable <- DT::renderDT({
+    shiny::req(values$manovaPermDisp)
     df <- values$manovaPermDisp
     if ("p_value" %in% names(df))
       df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else fmt_p(p))
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
-    datatable(df, options = list(dom = "t", scrollX = TRUE), rownames = FALSE)
+    DT::datatable(df, options = list(dom = "t", scrollX = TRUE), rownames = FALSE)
   })
   
-  output$manovaPermDispInterpretation <- renderUI({
-    req(values$manovaPermDisp)
+  output$manovaPermDispInterpretation <- shiny::renderUI({
+    shiny::req(values$manovaPermDisp)
     conclusions <- values$manovaPermDisp$Conclusion
     any_violation <- any(grepl("hétérogènes", conclusions))
     color <- if (!any_violation) "#2e7d32" else "#c62828"
@@ -4259,10 +4259,10 @@ mod_tests_server <- function(id, values) {
       "Dispersions multivariées homogènes -- analyse multivariée fiable."
     else
       "Dispersions hétérogènes -- la PERMANOVA peut confondre différences de localisation et de dispersion."
-    div(style = paste0("padding:8px 12px; background:", bg,
+    shiny::div(style = paste0("padding:8px 12px; background:", bg,
                        "; border-left:4px solid ", color,
                        "; border-radius:4px; margin-top:6px; font-size:13px;"),
-        icon("info-circle", style = paste0("color:", color, ";")),
+        shiny::icon("info-circle", style = paste0("color:", color, ";")),
         tags$b(" Conclusion PERMDISP : "), msg)
   })
   
@@ -4284,15 +4284,15 @@ mod_tests_server <- function(id, values) {
   }, "PERMANOVA", "PERMANOVA")
   
   
-  output$showManovaWorkflow <- reactive({
+  output$showManovaWorkflow <- shiny::reactive({
     ctt <- values$currentTestType
     test_done <- isTRUE(!is.null(ctt) && ctt %in% c("manova", "permanova", "manova_diagnostic"))
     enough_vars <- length(input$responseVar) >= 2
     test_done || enough_vars
   })
-  outputOptions(output, "showManovaWorkflow", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "showManovaWorkflow", suspendWhenHidden = FALSE)
   
-  observeEvent(input$responseVar, {
+  shiny::observeEvent(input$responseVar, {
     if (length(input$responseVar) >= 2) {
       session$sendCustomMessage("expandBox", "boxWrap_manovaAssist")
     }
@@ -4305,12 +4305,12 @@ mod_tests_server <- function(id, values) {
     session$sendCustomMessage("collapseBox", "boxWrap_manovaAssist")
   }, once = TRUE)
   
-  output$hasManovaRecommendation <- reactive({
+  output$hasManovaRecommendation <- shiny::reactive({
     !is.null(values$manovaRecommendation)
   })
-  outputOptions(output, "hasManovaRecommendation", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "hasManovaRecommendation", suspendWhenHidden = FALSE)
   
-  output$hasManovaInteraction <- reactive({
+  output$hasManovaInteraction <- shiny::reactive({
     param_res <- values$manovaParamResults
     perm_res  <- values$manovaPermanovaResults
     check_df <- function(df, effet_col, p_col) {
@@ -4321,22 +4321,22 @@ mod_tests_server <- function(id, values) {
     check_df(param_res, "Effet", "p_Pillai") ||
       check_df(perm_res, "Effet", "p_value")
   })
-  outputOptions(output, "hasManovaInteraction", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "hasManovaInteraction", suspendWhenHidden = FALSE)
   
-  output$hasManovaSimpleEffects <- reactive({
+  output$hasManovaSimpleEffects <- shiny::reactive({
     !is.null(values$manovaSimpleEffects) && nrow(values$manovaSimpleEffects) > 0
   })
-  outputOptions(output, "hasManovaSimpleEffects", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "hasManovaSimpleEffects", suspendWhenHidden = FALSE)
   
-  output$hasManovaOutliers <- reactive({
+  output$hasManovaOutliers <- shiny::reactive({
     !is.null(values$manovaOutliers)
   })
-  outputOptions(output, "hasManovaOutliers", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "hasManovaOutliers", suspendWhenHidden = FALSE)
   
   # Frise visuelle des etapes du workflow
   # Carte de recommandation du test
-  output$manovaRecommendationCard <- renderUI({
-    req(values$manovaRecommendation)
+  output$manovaRecommendationCard <- shiny::renderUI({
+    shiny::req(values$manovaRecommendation)
     rec <- values$manovaRecommendation
     
     bg_color <- switch(rec$niveau_confiance,
@@ -4353,37 +4353,37 @@ mod_tests_server <- function(id, values) {
     # On se contente d'orienter l'utilisateur vers le bon bouton.
     reco_name <- if (is_param) "MANOVA (paramétrique)" else "PERMANOVA"
     reco_loc  <- if (is_param) "Tests paramétriques" else "Tests non-paramétriques"
-    buttons <- div(
+    buttons <- shiny::div(
       style = "margin-top:12px; background:#eef7fb; border-left:4px solid #1b9fd0; padding:10px 14px; border-radius:0 6px 6px 0;",
-      div(style = "font-size:13px; color:#2c3e50;",
-        icon("hand-point-right"),
+      shiny::div(style = "font-size:13px; color:#2c3e50;",
+        shiny::icon("hand-point-right"),
         " Pour exécuter le test recommandé, cliquez sur le bouton ",
         tags$b(reco_name),
         " dans la colonne « ", tags$b(reco_loc), " » des ",
         tags$b("Paramètres des tests"), " (en haut).")
     )
     
-    div(style = paste0("background:", bg_color, "; border-left:6px solid ", border_color,
+    shiny::div(style = paste0("background:", bg_color, "; border-left:6px solid ", border_color,
                        "; padding:18px 22px; border-radius:8px;"),
-        div(style = "display:flex; align-items:center; gap:14px; margin-bottom:10px;",
-            icon("magic", style = paste0("font-size:32px; color:", border_color, ";")),
-            div(
-              div(style = "font-size:11px; color:#555; letter-spacing:1px;", "RECOMMANDATION AUTOMATIQUE"),
-              div(style = paste0("font-size:22px; font-weight:bold; color:", border_color, ";"),
+        shiny::div(style = "display:flex; align-items:center; gap:14px; margin-bottom:10px;",
+            shiny::icon("magic", style = paste0("font-size:32px; color:", border_color, ";")),
+            shiny::div(
+              shiny::div(style = "font-size:11px; color:#555; letter-spacing:1px;", "RECOMMANDATION AUTOMATIQUE"),
+              shiny::div(style = paste0("font-size:22px; font-weight:bold; color:", border_color, ";"),
                   rec$test_recommande),
-              div(style = "font-size:13px; color:#555; margin-top:2px;",
-                  "Statistique : ", strong(rec$statistique_recommandee),
-                  " | Confiance : ", strong(rec$niveau_confiance))
+              shiny::div(style = "font-size:13px; color:#555; margin-top:2px;",
+                  "Statistique : ", shiny::strong(rec$statistique_recommandee),
+                  " | Confiance : ", shiny::strong(rec$niveau_confiance))
             )
         ),
-        div(style = "background:white; padding:12px 16px; border-radius:6px; margin-top:10px;",
-            h5(icon("clipboard-list"), " Justification", style = "margin-top:0; color:#333;"),
+        shiny::div(style = "background:white; padding:12px 16px; border-radius:6px; margin-top:10px;",
+            shiny::h5(shiny::icon("clipboard-list"), " Justification", style = "margin-top:0; color:#333;"),
             tags$ul(style = "margin-bottom:0; padding-left:18px;",
                     lapply(rec$justifications, function(j) tags$li(style = "margin:4px 0;", j)))
         ),
         if (length(rec$alertes) > 0) {
-          div(style = "background:#fff3e0; border-left:4px solid #ff9800; padding:10px 14px; margin-top:10px; border-radius:4px;",
-              icon("exclamation-triangle", style = "color:#e65100;"),
+          shiny::div(style = "background:#fff3e0; border-left:4px solid #ff9800; padding:10px 14px; margin-top:10px; border-radius:4px;",
+              shiny::icon("exclamation-triangle", style = "color:#e65100;"),
               tags$strong(" Points de vigilance :"),
               tags$ul(style = "margin:6px 0 0 18px;",
                       lapply(rec$alertes, function(a) tags$li(style = "color:#bf360c;", a))))
@@ -4392,8 +4392,8 @@ mod_tests_server <- function(id, values) {
     )
   })
   
-  output$manovaOutliersCard <- renderUI({
-    req(values$manovaOutliers)
+  output$manovaOutliersCard <- shiny::renderUI({
+    shiny::req(values$manovaOutliers)
     out <- values$manovaOutliers
     n_out <- out$n_outliers
     has_issue <- !is.null(n_out) && !is.na(n_out) && n_out > 0
@@ -4402,29 +4402,29 @@ mod_tests_server <- function(id, values) {
     bg    <- if (has_issue) "#fff3e0" else "#e8f5e9"
     iconame <- if (has_issue) "exclamation-circle" else "check-circle"
     
-    div(style = paste0("background:", bg, "; border-left:4px solid ", color,
+    shiny::div(style = paste0("background:", bg, "; border-left:4px solid ", color,
                        "; padding:12px 16px; border-radius:6px; margin-top:10px;"),
-        icon(iconame, style = paste0("color:", color, ";")),
-        strong(" Détection d'outliers multivariés : "),
+        shiny::icon(iconame, style = paste0("color:", color, ";")),
+        shiny::strong(" Détection d'outliers multivariés : "),
         out$conclusion,
         if (has_issue && length(out$idx) > 0 && length(out$idx) <= 10) {
-          div(style = "font-size:11px; color:#666; margin-top:4px;",
+          shiny::div(style = "font-size:11px; color:#666; margin-top:4px;",
               "Index des lignes : ", paste(out$idx, collapse = ", "))
         } else NULL
     )
   })
   
-  output$manovaInterpretationGuidance <- renderUI({
+  output$manovaInterpretationGuidance <- shiny::renderUI({
     param_res <- values$manovaParamResults
     perm_res  <- values$manovaPermanovaResults
     
     # Cas 1 : aucun test lancé, seulement le diagnostic
     if (is.null(param_res) && is.null(perm_res)) {
-      return(div(style = "background:#e3f2fd; border-left:4px solid #1565C0; padding:14px 18px; border-radius:8px;",
-                 icon("info-circle", style = "color:#1565C0;"),
-                 strong(" En attente d'un test multivarié. "),
+      return(shiny::div(style = "background:#e3f2fd; border-left:4px solid #1565C0; padding:14px 18px; border-radius:8px;",
+                 shiny::icon("info-circle", style = "color:#1565C0;"),
+                 shiny::strong(" En attente d'un test multivarié. "),
                  "Lancez une MANOVA ou une PERMANOVA depuis l'onglet ",
-                 strong("'1. Diagnostic & recommandation'"),
+                 shiny::strong("'1. Diagnostic & recommandation'"),
                  " pour obtenir l'interprétation guidée de vos résultats."))
     }
     
@@ -4450,90 +4450,90 @@ mod_tests_server <- function(id, values) {
     if (length(sig_idx) > 0) {
       msg_lines <- c(msg_lines, list(
         tags$li(style = "color:#2e7d32;",
-                icon("check-circle"), " ",
-                strong(paste0(length(sig_idx), " effet(s) significatif(s)")),
+                shiny::icon("check-circle"), " ",
+                shiny::strong(paste0(length(sig_idx), " effet(s) significatif(s)")),
                 " détecté(s) : ", paste(effets[sig_idx], collapse = ", "))
       ))
     }
     if (length(insig_idx) > 0) {
       msg_lines <- c(msg_lines, list(
         tags$li(style = "color:#757575;",
-                icon("minus-circle"), " ",
+                shiny::icon("minus-circle"), " ",
                 paste0(length(insig_idx), " effet(s) non significatif(s)"),
                 " : ", paste(effets[insig_idx], collapse = ", "))
       ))
     }
     
     action_box <- if (has_interaction) {
-      div(style = "background:#fff3e0; border-left:4px solid #fb8c00; padding:10px 14px; margin-top:10px; border-radius:4px;",
-          icon("lightbulb", style = "color:#e65100;"),
-          strong(" Action recommandée : "),
+      shiny::div(style = "background:#fff3e0; border-left:4px solid #fb8c00; padding:10px 14px; margin-top:10px; border-radius:4px;",
+          shiny::icon("lightbulb", style = "color:#e65100;"),
+          shiny::strong(" Action recommandée : "),
           "Une interaction est significative. Calculez les ",
-          strong("effets simples"),
+          shiny::strong("effets simples"),
           " ci-dessous pour comprendre quel facteur agit dans quel contexte.")
     } else if (length(sig_idx) > 0) {
-      div(style = "background:#e3f2fd; border-left:4px solid #1565C0; padding:10px 14px; margin-top:10px; border-radius:4px;",
-          icon("lightbulb", style = "color:#0d47a1;"),
-          strong(" Action recommandée : "),
-          "Allez à la section ", strong("'PostHoc MANOVA/PERMANOVA'"),
+      shiny::div(style = "background:#e3f2fd; border-left:4px solid #1565C0; padding:10px 14px; margin-top:10px; border-radius:4px;",
+          shiny::icon("lightbulb", style = "color:#0d47a1;"),
+          shiny::strong(" Action recommandée : "),
+          "Allez à la section ", shiny::strong("'PostHoc MANOVA/PERMANOVA'"),
           " (onglet Comparaisons multiples) pour identifier quels niveaux diffèrent (lettres de groupes).")
     } else {
-      div(style = "background:#f5f5f5; border-left:4px solid #9e9e9e; padding:10px 14px; margin-top:10px; border-radius:4px;",
-          icon("info-circle"),
-          strong(" Aucun effet significatif. "),
+      shiny::div(style = "background:#f5f5f5; border-left:4px solid #9e9e9e; padding:10px 14px; margin-top:10px; border-radius:4px;",
+          shiny::icon("info-circle"),
+          shiny::strong(" Aucun effet significatif. "),
           "Vérifiez la taille d'effet, l'effectif par groupe, et la pertinence des facteurs.")
     }
     
-    div(style = "background:white; border:1px solid #cfd8dc; padding:14px 18px; border-radius:8px;",
-        h5(icon("brain"), " Ce que vos résultats signifient",
+    shiny::div(style = "background:white; border:1px solid #cfd8dc; padding:14px 18px; border-radius:8px;",
+        shiny::h5(shiny::icon("brain"), " Ce que vos résultats signifient",
            style = "margin-top:0; color:#1565C0;"),
-        div(style = "font-size:12px; color:#777; margin-bottom:8px;",
-            "Test analysé : ", strong(test_lbl)),
+        shiny::div(style = "font-size:12px; color:#777; margin-bottom:8px;",
+            "Test analysé : ", shiny::strong(test_lbl)),
         tags$ul(style = "margin-bottom:0; padding-left:18px;", msg_lines),
         action_box
     )
   })
   
   # Selecteurs pour effets simples (un facteur "fixe", un facteur "teste")
-  output$manovaSimpleEffectsSelectors <- renderUI({
-    req(input$factorVar)
+  output$manovaSimpleEffectsSelectors <- shiny::renderUI({
+    shiny::req(input$factorVar)
     if (length(input$factorVar) < 2) {
-      return(div(style = "color:#888; padding:10px;",
-                 icon("info-circle"), " Au moins 2 facteurs requis pour les effets simples."))
+      return(shiny::div(style = "color:#888; padding:10px;",
+                 shiny::icon("info-circle"), " Au moins 2 facteurs requis pour les effets simples."))
     }
-    fluidRow(
-      column(5, selectInput(ns("manovaSimpleFixed"),
-                            tagList(icon("anchor"), " Facteur à fixer :"),
+    shiny::fluidRow(
+      shiny::column(5, shiny::selectInput(ns("manovaSimpleFixed"),
+                            shiny::tagList(shiny::icon("anchor"), " Facteur à fixer :"),
                             choices = input$factorVar, selected = input$factorVar[1])),
-      column(5, selectInput(ns("manovaSimpleTested"),
-                            tagList(icon("crosshairs"), " Facteur à tester :"),
+      shiny::column(5, shiny::selectInput(ns("manovaSimpleTested"),
+                            shiny::tagList(shiny::icon("crosshairs"), " Facteur à tester :"),
                             choices = input$factorVar, selected = input$factorVar[2])),
-      column(2, div(style = "padding-top:25px;",
-                    actionButton(ns("runManovaSimpleEffects"),
-                                 tagList(icon("play"), " Calculer"),
+      shiny::column(2, shiny::div(style = "padding-top:25px;",
+                    shiny::actionButton(ns("runManovaSimpleEffects"),
+                                 shiny::tagList(shiny::icon("play"), " Calculer"),
                                  class = "btn-info btn-block")))
     )
   })
   
-  output$manovaSimpleEffectsTable <- renderDT({
-    req(values$manovaSimpleEffects)
+  output$manovaSimpleEffectsTable <- DT::renderDT({
+    shiny::req(values$manovaSimpleEffects)
     df <- values$manovaSimpleEffects
     for (col in c("p_value", "p_adj")) {
       if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
     }
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
-    dt <- datatable(df, options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
+    dt <- DT::datatable(df, options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
     if ("Significatif" %in% names(df)) {
-      dt <- dt %>% formatStyle("Significatif",
-                               backgroundColor = styleEqual(c("Oui", "Non"),
+      dt <- dt %>% DT::formatStyle("Significatif",
+                               backgroundColor = DT::styleEqual(c("Oui", "Non"),
                                                             c("#e8f5e9", "#f5f5f5")),
                                fontWeight = "bold")
     }
     dt
   })
   
-  output$testResultsDF <- renderDT({
-    req(values$testResultsDF)
+  output$testResultsDF <- DT::renderDT({
+    shiny::req(values$testResultsDF)
     
     df  <- values$testResultsDF
     log <- values$transformationLog %||% list()
@@ -4559,16 +4559,16 @@ mod_tests_server <- function(id, values) {
       })
     }
     
-    dt <- datatable(df,
+    dt <- DT::datatable(df,
                     options  = list(pageLength = 10, scrollX = TRUE),
                     rownames = FALSE)
     
     if (any(!is.na(df$Transformation))) {
       dt <- dt %>%
-        formatStyle(
+        DT::formatStyle(
           "Transformation",
           target          = "row",
-          backgroundColor = styleEqual(
+          backgroundColor = DT::styleEqual(
             levels = unique(na.omit(df$Transformation)),
             values = rep("#fff8e1", length(unique(na.omit(df$Transformation))))
           )
@@ -4578,8 +4578,8 @@ mod_tests_server <- function(id, values) {
   })
   
   
-  observeEvent(input$testChiSq, {
-    req(input$chiSqCatVar, input$chiSqFreqVar, values$filteredData)
+  shiny::observeEvent(input$testChiSq, {
+    shiny::req(input$chiSqCatVar, input$chiSqFreqVar, values$filteredData)
     df      <- values$filteredData
     cat_var <- input$chiSqCatVar
     frq_var <- input$chiSqFreqVar
@@ -4588,7 +4588,7 @@ mod_tests_server <- function(id, values) {
     vals    <- suppressWarnings(as.numeric(df[[frq_var]]))
     valid   <- !is.na(cats) & !is.na(vals)
     cats    <- cats[valid]; vals <- vals[valid]
-    if (length(vals) < 2) { showNotification("Pas assez de données.", type="error"); return() }
+    if (length(vals) < 2) { shiny::showNotification("Pas assez de données.", type="error"); return() }
     if (dtype == "pct") { pcts <- vals; obs <- round(vals / sum(vals) * 1000) } else {
       obs <- round(vals); pcts <- obs / sum(obs) * 100 }
     if (!is.null(input$chiSqUniform) && !input$chiSqUniform) {
@@ -4610,13 +4610,13 @@ mod_tests_server <- function(id, values) {
         stringsAsFactors = FALSE)
       values$chiSqResults   <- tr
       values$currentTestType <- "chisq"
-      showNotification(paste0("Chi²=",round(tr$statistic,3)," p=",formatC(tr$p.value,"g",digits=4)),
+      shiny::showNotification(paste0("Chi²=",round(tr$statistic,3)," p=",formatC(tr$p.value,"g",digits=4)),
                        type="message", duration=4)
-    }, error = function(e) showNotification(hstat_err_fr(e, "Erreur Chi²"), type="error"))
+    }, error = function(e) shiny::showNotification(hstat_err_fr(e, "Erreur Chi²"), type="error"))
   })
   
-  observeEvent(input$testMultinomial, {
-    req(input$chiSqCatVar, input$chiSqFreqVar, values$filteredData)
+  shiny::observeEvent(input$testMultinomial, {
+    shiny::req(input$chiSqCatVar, input$chiSqFreqVar, values$filteredData)
     df      <- values$filteredData
     cat_var <- input$chiSqCatVar; frq_var <- input$chiSqFreqVar
     dtype   <- input$chiSqDataType %||% "freq"
@@ -4624,7 +4624,7 @@ mod_tests_server <- function(id, values) {
     vals    <- suppressWarnings(as.numeric(df[[frq_var]]))
     valid   <- !is.na(cats) & !is.na(vals)
     cats    <- cats[valid]; vals <- vals[valid]
-    if (length(vals) < 2) { showNotification("Pas assez de données.", type="error"); return() }
+    if (length(vals) < 2) { shiny::showNotification("Pas assez de données.", type="error"); return() }
     if (dtype == "pct") { pcts <- vals; obs <- round(vals/sum(vals)*1000) } else {
       obs <- round(vals); pcts <- obs/sum(obs)*100 }
     tryCatch({
@@ -4641,19 +4641,19 @@ mod_tests_server <- function(id, values) {
         stringsAsFactors = FALSE)
       values$chiSqResults    <- tr
       values$currentTestType  <- "chisq"
-      showNotification(paste0("Multinomial p=",formatC(tr$p.value,"g",digits=4)),
+      shiny::showNotification(paste0("Multinomial p=",formatC(tr$p.value,"g",digits=4)),
                        type="message",duration=4)
-    }, error = function(e) showNotification(hstat_err_fr(e, "Erreur Multinomial"),type="error"))
+    }, error = function(e) shiny::showNotification(hstat_err_fr(e, "Erreur Multinomial"),type="error"))
   })
   
-  observeEvent(input$runChiSqPostHoc, {
-    req(values$chiSqFreqData)
+  shiny::observeEvent(input$runChiSqPostHoc, {
+    shiny::req(values$chiSqFreqData)
     chi_data   <- values$chiSqFreqData
     obs        <- chi_data$Observes
     cats       <- chi_data$Categorie
     n          <- length(obs)
     adj_method <- input$chiSqPostHocAdj %||% "bonferroni"
-    if (n < 2) { showNotification("Trop peu de catégories.", type="warning"); return() }
+    if (n < 2) { shiny::showNotification("Trop peu de catégories.", type="warning"); return() }
     N_total <- sum(obs); p_raw <- c(); chi2_v <- c(); comps <- c()
     for (i in 1:(n-1)) for (j in (i+1):n) {
       m <- matrix(c(obs[i], obs[j], N_total-obs[i], N_total-obs[j]), 2)
@@ -4677,7 +4677,7 @@ mod_tests_server <- function(id, values) {
       chi_data$Groupes <- gl[match(cats, names(gl))]
       values$chiSqFreqData <- chi_data
     }, error = function(e) NULL)
-    showNotification(paste0("Post-hoc chi² terminé (",adj_method,")"),type="message",duration=3)
+    shiny::showNotification(paste0("Post-hoc chi² terminé (",adj_method,")"),type="message",duration=3)
   })
   
   # NB : les handlers downloadChiSqExcel / downloadChiSqCSV / downloadChiSqPlot
@@ -4685,20 +4685,20 @@ mod_tests_server <- function(id, values) {
   # version existait ici : les output$ Shiny etant uniques, elle etait ecrasee
   # silencieusement -- code mort supprime.
 
-  output$showValidation <- reactive({
+  output$showValidation <- shiny::reactive({
     !is.null(values$normalityResults) || !is.null(values$homogeneityResults)
   })
-  outputOptions(output, "showValidation", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "showValidation", suspendWhenHidden = FALSE)
   
-  output$showChiSqResults <- reactive({
+  output$showChiSqResults <- shiny::reactive({
     !is.null(values$chiSqFreqData)
   })
-  outputOptions(output, "showChiSqResults", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "showChiSqResults", suspendWhenHidden = FALSE)
   
   # Graphique chi2 pour l'onglet PostHoc (même logique, inputs distincts)
   # runChiSqPostHoc2 : lien depuis l'onglet PostHoc (chiSqDataType2 + chiSqPostHocAdj2)
-  observeEvent(input$runChiSqPostHoc2, {
-    req(input$chiSqCatVar, input$chiSqFreqVar, values$filteredData)
+  shiny::observeEvent(input$runChiSqPostHoc2, {
+    shiny::req(input$chiSqCatVar, input$chiSqFreqVar, values$filteredData)
     df      <- values$filteredData
     cat_var <- input$chiSqCatVar; frq_var <- input$chiSqFreqVar
     dtype   <- input$chiSqDataType2 %||% input$chiSqDataType %||% "freq"
@@ -4706,7 +4706,7 @@ mod_tests_server <- function(id, values) {
     vals    <- suppressWarnings(as.numeric(df[[frq_var]]))
     valid   <- !is.na(cats) & !is.na(vals)
     cats    <- cats[valid]; vals <- vals[valid]
-    if (length(vals) < 2) { showNotification("Pas assez de données.", type="error"); return() }
+    if (length(vals) < 2) { shiny::showNotification("Pas assez de données.", type="error"); return() }
     if (dtype == "pct") { pcts <- vals; obs <- round(vals/sum(vals)*1000) } else {
       obs <- round(vals); pcts <- obs/sum(obs)*100 }
     tryCatch({
@@ -4746,124 +4746,124 @@ mod_tests_server <- function(id, values) {
         chi_data$Groupes <- gl[match(cats,names(gl))]
         values$chiSqFreqData <- chi_data
       }, error=function(e) NULL)
-      showNotification(
+      shiny::showNotification(
         paste0("Chi² + Post-hoc terminés (", adj_method, ")"),
         type="message", duration=4)
-    }, error=function(e) showNotification(hstat_err_fr(e, "Erreur"),type="error"))
+    }, error=function(e) shiny::showNotification(hstat_err_fr(e, "Erreur"),type="error"))
   })
   
-  output$showParametricDiagnostics <- reactive({
+  output$showParametricDiagnostics <- shiny::reactive({
     !is.null(values$currentTestType) && values$currentTestType == "parametric" && !is.null(values$modelList)
   })
-  outputOptions(output, "showParametricDiagnostics", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "showParametricDiagnostics", suspendWhenHidden = FALSE)
   
-  output$showValidationNavigation <- reactive({
+  output$showValidationNavigation <- shiny::reactive({
     length(input$responseVar) > 1 && !is.null(values$normalityResults)
   })
-  outputOptions(output, "showValidationNavigation", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "showValidationNavigation", suspendWhenHidden = FALSE)
   
-  output$validationNavigation <- renderUI({
-    req(input$responseVar, length(input$responseVar) > 1)
+  output$validationNavigation <- shiny::renderUI({
+    shiny::req(input$responseVar, length(input$responseVar) > 1)
     
     current_idx <- if (is.null(values$currentValidationVar)) 1 else values$currentValidationVar
     total_vars <- length(input$responseVar)
     
-    div(style = "display: inline-block;",
-        actionButton(ns("prevValidationVar"), "", icon = icon("chevron-left"), 
+    shiny::div(style = "display: inline-block;",
+        shiny::actionButton(ns("prevValidationVar"), "", icon = shiny::icon("chevron-left"), 
                      style = "margin-right: 10px;", class = "btn-sm"),
-        span(paste("Variable", current_idx, "sur", total_vars, ":", input$responseVar[current_idx]),
+        shiny::span(paste("Variable", current_idx, "sur", total_vars, ":", input$responseVar[current_idx]),
              style = "vertical-align: middle; margin: 0 15px; font-weight: bold;"),
-        actionButton(ns("nextValidationVar"), "", icon = icon("chevron-right"), 
+        shiny::actionButton(ns("nextValidationVar"), "", icon = shiny::icon("chevron-right"), 
                      style = "margin-left: 10px;", class = "btn-sm")
     )
   })
   
-  output$showModelNavigation <- reactive({
+  output$showModelNavigation <- shiny::reactive({
     !is.null(values$modelList) && length(values$modelList) > 1
   })
-  outputOptions(output, "showModelNavigation", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "showModelNavigation", suspendWhenHidden = FALSE)
   
-  output$modelDiagNavigation <- renderUI({
-    req(values$modelList, length(values$modelList) > 1)
+  output$modelDiagNavigation <- shiny::renderUI({
+    shiny::req(values$modelList, length(values$modelList) > 1)
     
     current_idx <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
     total_vars <- length(values$modelList)
     var_names <- names(values$modelList)
     
-    div(style = "display: inline-block; margin-bottom: 15px;",
-        actionButton(ns("prevModelVar"), "", icon = icon("chevron-left"), 
+    shiny::div(style = "display: inline-block; margin-bottom: 15px;",
+        shiny::actionButton(ns("prevModelVar"), "", icon = shiny::icon("chevron-left"), 
                      style = "margin-right: 10px;", class = "btn-sm"),
-        span(paste("Modèle", current_idx, "sur", total_vars, ":", var_names[current_idx]),
+        shiny::span(paste("Modèle", current_idx, "sur", total_vars, ":", var_names[current_idx]),
              style = "vertical-align: middle; margin: 0 15px; font-weight: bold;"),
-        actionButton(ns("nextModelVar"), "", icon = icon("chevron-right"), 
+        shiny::actionButton(ns("nextModelVar"), "", icon = shiny::icon("chevron-right"), 
                      style = "margin-left: 10px;", class = "btn-sm")
     )
   })
   
-  output$showResidNavigation <- reactive({
+  output$showResidNavigation <- shiny::reactive({
     !is.null(values$modelList) && length(values$modelList) > 1
   })
-  outputOptions(output, "showResidNavigation", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "showResidNavigation", suspendWhenHidden = FALSE)
   
-  output$residNavigation <- renderUI({
-    req(values$modelList, length(values$modelList) > 1)
+  output$residNavigation <- shiny::renderUI({
+    shiny::req(values$modelList, length(values$modelList) > 1)
     
     current_idx <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
     total_vars <- length(values$modelList)
     var_names <- names(values$modelList)
     
-    div(style = "display: inline-block; margin-bottom: 15px;",
-        actionButton(ns("prevResidVar"), "", icon = icon("chevron-left"), 
+    shiny::div(style = "display: inline-block; margin-bottom: 15px;",
+        shiny::actionButton(ns("prevResidVar"), "", icon = shiny::icon("chevron-left"), 
                      style = "margin-right: 10px;", class = "btn-sm"),
-        span(paste("Variable", current_idx, "sur", total_vars, ":", var_names[current_idx]),
+        shiny::span(paste("Variable", current_idx, "sur", total_vars, ":", var_names[current_idx]),
              style = "vertical-align: middle; margin: 0 15px; font-weight: bold;"),
-        actionButton(ns("nextResidVar"), "", icon = icon("chevron-right"), 
+        shiny::actionButton(ns("nextResidVar"), "", icon = shiny::icon("chevron-right"), 
                      style = "margin-left: 10px;", class = "btn-sm")
     )
   })
   
-  observeEvent(input$prevValidationVar, {
+  shiny::observeEvent(input$prevValidationVar, {
     current <- if (is.null(values$currentValidationVar)) 1 else values$currentValidationVar
     total <- length(input$responseVar)
     values$currentValidationVar <- if (current > 1) current - 1 else total
   })
   
-  observeEvent(input$nextValidationVar, {
+  shiny::observeEvent(input$nextValidationVar, {
     current <- if (is.null(values$currentValidationVar)) 1 else values$currentValidationVar
     total <- length(input$responseVar)
     values$currentValidationVar <- if (current < total) current + 1 else 1
   })
   
-  observeEvent(input$prevModelVar, {
+  shiny::observeEvent(input$prevModelVar, {
     current <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
     total <- length(values$modelList)
     values$currentModelVar <- if (current > 1) current - 1 else total
     values$currentModel <- values$modelList[[values$currentModelVar]]
   })
   
-  observeEvent(input$nextModelVar, {
+  shiny::observeEvent(input$nextModelVar, {
     current <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
     total <- length(values$modelList)
     values$currentModelVar <- if (current < total) current + 1 else 1
     values$currentModel <- values$modelList[[values$currentModelVar]]
   })
   
-  observeEvent(input$prevResidVar, {
+  shiny::observeEvent(input$prevResidVar, {
     current <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
     total <- length(values$modelList)
     values$currentModelVar <- if (current > 1) current - 1 else total
     values$currentModel <- values$modelList[[values$currentModelVar]]
   })
   
-  observeEvent(input$nextResidVar, {
+  shiny::observeEvent(input$nextResidVar, {
     current <- if (is.null(values$currentModelVar)) 1 else values$currentModelVar
     total <- length(values$modelList)
     values$currentModelVar <- if (current < total) current + 1 else 1
     values$currentModel <- values$modelList[[values$currentModelVar]]
   })
   
-  output$normalityResults <- renderPrint({
-    req(values$normalityResults, input$responseVar)
+  output$normalityResults <- shiny::renderPrint({
+    shiny::req(values$normalityResults, input$responseVar)
     current_var <- input$responseVar[values$currentValidationVar]
     norm <- values$normalityResults[[current_var]]
     
@@ -4877,8 +4877,8 @@ mod_tests_server <- function(id, values) {
     }
   })
   
-  output$normalityInterpretation <- renderUI({
-    req(values$normalityResults, input$responseVar)
+  output$normalityInterpretation <- shiny::renderUI({
+    shiny::req(values$normalityResults, input$responseVar)
     current_var <- input$responseVar[values$currentValidationVar]
     norm <- values$normalityResults[[current_var]]
     
@@ -4891,11 +4891,11 @@ mod_tests_server <- function(id, values) {
     } else {
       interp_text <- interpret_normality(norm$p.value)
     }
-    HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
+    shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
   })
   
-  output$homogeneityResults <- renderPrint({
-    req(values$homogeneityResults, input$responseVar)
+  output$homogeneityResults <- shiny::renderPrint({
+    shiny::req(values$homogeneityResults, input$responseVar)
     current_var <- input$responseVar[values$currentValidationVar]
     hom <- values$homogeneityResults[[current_var]]
     
@@ -4906,8 +4906,8 @@ mod_tests_server <- function(id, values) {
     }
   })
   
-  output$homogeneityInterpretation <- renderUI({
-    req(values$homogeneityResults, input$responseVar)
+  output$homogeneityInterpretation <- shiny::renderUI({
+    shiny::req(values$homogeneityResults, input$responseVar)
     current_var <- input$responseVar[values$currentValidationVar]
     hom <- values$homogeneityResults[[current_var]]
     
@@ -4916,11 +4916,11 @@ mod_tests_server <- function(id, values) {
     } else {
       interp_text <- interpret_homogeneity(hom$`Pr(>F)`[1])
     }
-    HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
+    shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
   })
   
-  output$modelDiagnostics <- renderPlot({
-    req(values$currentModel)
+  output$modelDiagnostics <- shiny::renderPlot({
+    shiny::req(values$currentModel)
     
     tryCatch({
       # Vérifier si le modèle a des problèmes de leverage
@@ -4949,8 +4949,8 @@ mod_tests_server <- function(id, values) {
     })
   })
   
-  output$modelDiagnosticsInterpretation <- renderUI({
-    req(values$currentModel)
+  output$modelDiagnosticsInterpretation <- shiny::renderUI({
+    shiny::req(values$currentModel)
     
     tryCatch({
       model <- values$currentModel
@@ -4973,14 +4973,14 @@ mod_tests_server <- function(id, values) {
       - <strong>Residuals vs Leverage :</strong> Identifie les points influents"
       }
       
-      HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
+      shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
       
     }, error = function(e) {
-      HTML("<div class='interprétation-box'><span style='color: red;'>Erreur dans l'interprétation des diagnostics</span></div>")
+      shiny::HTML("<div class='interprétation-box'><span style='color: red;'>Erreur dans l'interprétation des diagnostics</span></div>")
     })
   })
   
-  output$downloadModelDiagnostics <- downloadHandler(
+  output$downloadModelDiagnostics <- shiny::downloadHandler(
     filename = function() {
       paste0("diagnostics_modèle_", Sys.Date(), ".png")
     },
@@ -5006,7 +5006,7 @@ mod_tests_server <- function(id, values) {
     }
   )
   
-  output$downloadQQPlot <- downloadHandler(
+  output$downloadQQPlot <- shiny::downloadHandler(
     filename = function() {
       paste0("qqplot_residus_", Sys.Date(), ".png")
     },
@@ -5017,7 +5017,7 @@ mod_tests_server <- function(id, values) {
       # ouvert a la main dans chaque branche.
       motif <- NULL
       p <- tryCatch({
-        req(values$currentModel)
+        shiny::req(values$currentModel)
         residuals_data <- residuals(values$currentModel)
         residuals_data <- residuals_data[!is.na(residuals_data)]
 
@@ -5044,15 +5044,15 @@ mod_tests_server <- function(id, values) {
           lower = lower_band
         )
         
-        p <- ggplot(df, aes(x = theoretical, y = sample)) +
-          geom_ribbon(aes(ymin = lower, ymax = upper), fill = "grey80", alpha = 0.5) +
-          geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
-          geom_point(shape = 1, size = 2) +
-          theme_minimal() +
-          labs(title = "QQ-plot des résidus", 
+        p <- ggplot2::ggplot(df, ggplot2::aes(x = theoretical, y = sample)) +
+          ggplot2::geom_ribbon(ggplot2::aes(ymin = lower, ymax = upper), fill = "grey80", alpha = 0.5) +
+          ggplot2::geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+          ggplot2::geom_point(shape = 1, size = 2) +
+          ggplot2::theme_minimal() +
+          ggplot2::labs(title = "QQ-plot des résidus", 
                x = "Quantiles théoriques", 
                y = "Quantiles observés") +
-          theme(plot.title = element_markdown(hjust = 0.5))
+          ggplot2::theme(plot.title = ggtext::element_markdown(hjust = 0.5))
 
         p
       }, error = function(e) {
@@ -5063,8 +5063,8 @@ mod_tests_server <- function(id, values) {
     }
   )
   
-  output$qqPlotResiduals <- renderPlot({
-    req(values$currentModel)
+  output$qqPlotResiduals <- shiny::renderPlot({
+    shiny::req(values$currentModel)
     
     tryCatch({
       residuals_data <- residuals(values$currentModel)
@@ -5097,15 +5097,15 @@ mod_tests_server <- function(id, values) {
         lower = lower_band
       )
       
-      ggplot(df, aes(x = theoretical, y = sample)) +
-        geom_ribbon(aes(ymin = lower, ymax = upper), fill = "grey80", alpha = 0.5) +
-        geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
-        geom_point(shape = 1, size = 2) +
-        theme_minimal() +
-        labs(title = "QQ-plot des résidus", 
+      ggplot2::ggplot(df, ggplot2::aes(x = theoretical, y = sample)) +
+        ggplot2::geom_ribbon(ggplot2::aes(ymin = lower, ymax = upper), fill = "grey80", alpha = 0.5) +
+        ggplot2::geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+        ggplot2::geom_point(shape = 1, size = 2) +
+        ggplot2::theme_minimal() +
+        ggplot2::labs(title = "QQ-plot des résidus", 
              x = "Quantiles théoriques", 
              y = "Quantiles observés") +
-        theme(plot.title = element_markdown(hjust = 0.5))
+        ggplot2::theme(plot.title = ggtext::element_markdown(hjust = 0.5))
       
     }, error = function(e) {
       plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
@@ -5113,8 +5113,8 @@ mod_tests_server <- function(id, values) {
     })
   })
   
-  output$qqPlotInterpretation <- renderUI({
-    req(values$currentModel)
+  output$qqPlotInterpretation <- shiny::renderUI({
+    shiny::req(values$currentModel)
     
     tryCatch({
       residuals_data <- residuals(values$currentModel)
@@ -5130,15 +5130,15 @@ mod_tests_server <- function(id, values) {
       <strong>Problèmes :</strong> Courbure prononcée, points très éloignés de la ligne"
       }
       
-      HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
+      shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
       
     }, error = function(e) {
-      HTML("<div class='interprétation-box'><span style='color: red;'>Erreur dans l'interprétation du QQ-plot</span></div>")
+      shiny::HTML("<div class='interprétation-box'><span style='color: red;'>Erreur dans l'interprétation du QQ-plot</span></div>")
     })
   })
   
-  output$normalityResult <- renderPrint({
-    req(values$currentModel)
+  output$normalityResult <- shiny::renderPrint({
+    shiny::req(values$currentModel)
     
     tryCatch({
       residuals_data <- residuals(values$currentModel)
@@ -5160,8 +5160,8 @@ mod_tests_server <- function(id, values) {
     })
   })
   
-  output$normalityResidInterpretation <- renderUI({
-    req(values$currentModel)
+  output$normalityResidInterpretation <- shiny::renderUI({
+    shiny::req(values$currentModel)
     
     tryCatch({
       residuals_data <- residuals(values$currentModel)
@@ -5178,14 +5178,14 @@ mod_tests_server <- function(id, values) {
         interp_text <- interpret_normality_resid(norm_test$p.value)
       }
       
-      HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
+      shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
     }, error = function(e) {
-      HTML("<div class='interprétation-box'><span style='color: red;'>Erreur dans le test de normalité</span></div>")
+      shiny::HTML("<div class='interprétation-box'><span style='color: red;'>Erreur dans le test de normalité</span></div>")
     })
   })
   
-  output$leveneResidResult <- renderPrint({
-    req(values$currentModel)
+  output$leveneResidResult <- shiny::renderPrint({
+    shiny::req(values$currentModel)
     
     tryCatch({
       residuals_data <- residuals(values$currentModel)
@@ -5222,8 +5222,8 @@ mod_tests_server <- function(id, values) {
     })
   })
   
-  output$homogeneityResidInterpretation <- renderUI({
-    req(values$currentModel)
+  output$homogeneityResidInterpretation <- shiny::renderUI({
+    shiny::req(values$currentModel)
     
     tryCatch({
       residuals_data <- residuals(values$currentModel)
@@ -5231,35 +5231,35 @@ mod_tests_server <- function(id, values) {
       
       if (sd(fitted_data) < 1e-10) {
         interp_text <- "<span style='color: orange;'>Valeurs ajustées constantes (ajustement parfait). Test non applicable.</span>"
-        return(HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
+        return(shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
       }
       
       n_unique <- length(unique(fitted_data))
       if (n_unique < 2) {
         interp_text <- "<span style='color: orange;'>Pas assez de variation dans les prédictions. Test non applicable.</span>"
-        return(HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
+        return(shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
       }
       
       fitted_factor <- cut(fitted_data, breaks = 2, labels = c("Bas", "Haut"))
       
       if (length(levels(fitted_factor)) < 2 || any(table(fitted_factor) < 2)) {
         interp_text <- "<span style='color: orange;'>Impossible de créer deux groupes équilibrés. Test non applicable.</span>"
-        return(HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
+        return(shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
       }
       
       test_data <- data.frame(residuals = residuals_data, fitted_group = fitted_factor)
       hom_test <- car::leveneTest(residuals ~ fitted_group, data = test_data)
       interp_text <- interpret_homogeneity_resid(hom_test$`Pr(>F)`[1])
       
-      HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
+      shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
       
     }, error = function(e) {
-      HTML("<div class='interprétation-box'><span style='color: red;'>Erreur dans le test d'homogénéité</span></div>")
+      shiny::HTML("<div class='interprétation-box'><span style='color: red;'>Erreur dans le test d'homogénéité</span></div>")
     })
   })
   
-  output$autocorrResult <- renderPrint({
-    req(values$currentModel)
+  output$autocorrResult <- shiny::renderPrint({
+    shiny::req(values$currentModel)
     
     tryCatch({
       residuals_data <- residuals(values$currentModel)
@@ -5282,20 +5282,20 @@ mod_tests_server <- function(id, values) {
     })
   })
   
-  output$autocorrInterpretation <- renderUI({
-    req(values$currentModel)
+  output$autocorrInterpretation <- shiny::renderUI({
+    shiny::req(values$currentModel)
     
     tryCatch({
       residuals_data <- residuals(values$currentModel)
       
       if (length(residuals_data) < 3) {
         interp_text <- "Nombre d'observations insuffisant pour le test de Durbin-Watson."
-        return(HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
+        return(shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
       }
       
       if (sd(residuals_data) < 1e-10) {
         interp_text <- "<span style='color: orange;'>Résidus constants (ajustement parfait). Test non applicable.</span>"
-        return(HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
+        return(shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
       }
       
       dw_test <- lmtest::dwtest(values$currentModel)
@@ -5307,15 +5307,15 @@ mod_tests_server <- function(id, values) {
         "significatif" = "Autocorrélation significative des résidus (p < 0.05). Vérifiez l'indépendance des observations.",
         "Test de Durbin-Watson non calculable sur ce modèle (résidus dégénérés).")
       
-      HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
+      shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
       
     }, error = function(e) {
-      HTML("<div class='interprétation-box'><span style='color: red;'>Erreur dans le test d'autocorrélation</span></div>")
+      shiny::HTML("<div class='interprétation-box'><span style='color: red;'>Erreur dans le test d'autocorrélation</span></div>")
     })
   })
   
-  output$modelSummary <- renderPrint({
-    req(values$currentModel)
+  output$modelSummary <- shiny::renderPrint({
+    shiny::req(values$currentModel)
     summary(values$currentModel)
   })
   
@@ -5393,13 +5393,13 @@ mod_tests_server <- function(id, values) {
   }
   
   
-  observeEvent(input$runChiSqTest, {
+  shiny::observeEvent(input$runChiSqTest, {
     df <- values$filteredData %||% values$cleanData %||% values$data
-    req(df)
+    shiny::req(df)
     
     if (is.null(input$factorVar) || length(input$factorVar) == 0 ||
         is.null(input$responseVar) || length(input$responseVar) == 0) {
-      showNotification(
+      shiny::showNotification(
         "Veuillez sélectionner une variable réponse (numérique) et un facteur (catégoriel) dans 'Paramètres des tests'.",
         type = "warning", duration = 6
       )
@@ -5412,7 +5412,7 @@ mod_tests_server <- function(id, values) {
     methode  <- input$chiSqMethod    # "chisq" ou "multinomial"
     
     if (!col_cat %in% names(df) || !col_num %in% names(df)) {
-      showNotification("Variables introuvables dans les données.", type = "error"); return()
+      shiny::showNotification("Variables introuvables dans les données.", type = "error"); return()
     }
     
     modalites_brutes <- as.character(df[[col_cat]])
@@ -5420,7 +5420,7 @@ mod_tests_server <- function(id, values) {
     
     ok_na <- !is.na(valeurs_brutes) & !is.na(modalites_brutes)
     if (any(!ok_na)) {
-      showNotification("Valeurs manquantes détectées -- ignorées.", type = "warning")
+      shiny::showNotification("Valeurs manquantes détectées -- ignorées.", type = "warning")
     }
     modalites_brutes <- modalites_brutes[ok_na]
     valeurs_brutes   <- valeurs_brutes[ok_na]
@@ -5434,9 +5434,9 @@ mod_tests_server <- function(id, values) {
     valeurs_orig <- as.numeric(agg)
     
     n <- length(valeurs_orig)
-    if (n < 2) { showNotification("Au moins 2 modalités requises.", type = "error"); return() }
+    if (n < 2) { shiny::showNotification("Au moins 2 modalités requises.", type = "error"); return() }
     if (n > 100) {
-      showNotification(
+      shiny::showNotification(
         trf("La variable '%s' a %d modalités distinctes -- trop pour un test d'ajustement. Vérifiez que vous avez bien choisi une variable catégorielle.", col_cat, n),
         type = "error", duration = 8
       )
@@ -5451,16 +5451,16 @@ mod_tests_server <- function(id, values) {
       note_type <- "Pourcentages (utilisés directement)"
     }
     
-    withProgress(message = "Test chi² en cours...", value = 0.3, {
+    shiny::withProgress(message = "Test chi² en cours...", value = 0.3, {
       
       if (methode == "chisq") {
         res_test <- tryCatch(
           chisq.test(observed, p = rep(1/n, n)),
           warning = function(w) {
-            showNotification(hstat_err_fr(w, "Avertissement"), type = "warning", duration = 10)
+            shiny::showNotification(hstat_err_fr(w, "Avertissement"), type = "warning", duration = 10)
             suppressWarnings(chisq.test(observed, p = rep(1/n, n)))
           },
-          error = function(e) { showNotification(hstat_err_fr(e, "Erreur chi²"), type = "error"); NULL }
+          error = function(e) { shiny::showNotification(hstat_err_fr(e, "Erreur chi²"), type = "error"); NULL }
         )
         if (is.null(res_test)) return()
         stat_name <- "Chi2"
@@ -5471,7 +5471,7 @@ mod_tests_server <- function(id, values) {
       } else {
         res_test <- tryCatch(
           EMT::multinomial.test(observed, p = rep(1/n, n)),
-          error = function(e) { showNotification(hstat_err_fr(e, "Erreur multinomial"), type = "error"); NULL }
+          error = function(e) { shiny::showNotification(hstat_err_fr(e, "Erreur multinomial"), type = "error"); NULL }
         )
         if (is.null(res_test)) return()
         stat_name <- "Multinomial"
@@ -5481,13 +5481,13 @@ mod_tests_server <- function(id, values) {
         attendus  <- observed / sum(observed) * sum(observed)  # proportions égales
       }
       
-      incProgress(0.3)
+      shiny::incProgress(0.3)
       
       paires    <- combn(n, 2)
       nb_paires <- ncol(paires)
       ph        <- chi2_group_letters(modalites, observed, nb_paires, paires)
       
-      incProgress(0.3)
+      shiny::incProgress(0.3)
       
       resume <- data.frame(
         Modalite         = modalites,
@@ -5547,18 +5547,18 @@ mod_tests_server <- function(id, values) {
       }
     })
     
-    showNotification(
+    shiny::showNotification(
       paste0("Test ", toupper(methode), " terminé -- p = ", fmt_p(p_val)),
       type = if (p_val < 0.05) "message" else "warning",
       duration = 5
     )
     
-    updateTabsetPanel(session, "chiSqResultsTabs", selected = "chiSq_résumé")
+    shiny::updateTabsetPanel(session, "chiSqResultsTabs", selected = "chiSq_résumé")
   })
   
   
-  creer_graphique_chi2 <- reactive({
-    req(values$chiSqFreqData)
+  creer_graphique_chi2 <- shiny::reactive({
+    shiny::req(values$chiSqFreqData)
     fdf       <- values$chiSqFreqData
     type_g    <- input$chiSqGraphType    %||% "bar_v"
     palette_g <- input$chiSqPalette      %||% "default"
@@ -5596,24 +5596,24 @@ mod_tests_server <- function(id, values) {
     }
     
     if (type_g == "bar_v") {
-      g <- ggplot(df_plot, aes(x = modalite, y = valeur, fill = modalite)) +
-        geom_col(width = 0.65, color = "white", linewidth = 0.4) +
-        scale_fill_manual(values = pal) +
-        labs(subtitle = sous_titre, x = NULL, y = "Valeur") +
-        theme_minimal(base_size = 13) +
-        theme(legend.position = "none", axis.text.x = element_text(angle = 20, hjust = 1))
+      g <- ggplot2::ggplot(df_plot, ggplot2::aes(x = modalite, y = valeur, fill = modalite)) +
+        ggplot2::geom_col(width = 0.65, color = "white", linewidth = 0.4) +
+        ggplot2::scale_fill_manual(values = pal) +
+        ggplot2::labs(subtitle = sous_titre, x = NULL, y = "Valeur") +
+        ggplot2::theme_minimal(base_size = 13) +
+        ggplot2::theme(legend.position = "none", axis.text.x = ggplot2::element_text(angle = 20, hjust = 1))
       if (show_val)
-        g <- g + geom_text(aes(label = lbl_fn(valeur, groupe)), vjust = -0.4,
+        g <- g + ggplot2::geom_text(ggplot2::aes(label = lbl_fn(valeur, groupe)), vjust = -0.4,
                            size = 4, fontface = "bold")
       
     } else if (type_g == "bar_h") {
-      g <- ggplot(df_plot, aes(x = valeur, y = reorder(modalite, valeur), fill = modalite)) +
-        geom_col(width = 0.65, color = "white") +
-        scale_fill_manual(values = pal) +
-        labs(subtitle = sous_titre, x = "Valeur", y = NULL) +
-        theme_minimal(base_size = 13) + theme(legend.position = "none")
+      g <- ggplot2::ggplot(df_plot, ggplot2::aes(x = valeur, y = reorder(modalite, valeur), fill = modalite)) +
+        ggplot2::geom_col(width = 0.65, color = "white") +
+        ggplot2::scale_fill_manual(values = pal) +
+        ggplot2::labs(subtitle = sous_titre, x = "Valeur", y = NULL) +
+        ggplot2::theme_minimal(base_size = 13) + ggplot2::theme(legend.position = "none")
       if (show_val)
-        g <- g + geom_text(aes(label = lbl_fn(valeur, groupe)), hjust = -0.1,
+        g <- g + ggplot2::geom_text(ggplot2::aes(label = lbl_fn(valeur, groupe)), hjust = -0.1,
                            size = 4, fontface = "bold")
       
     } else if (type_g == "pie") {
@@ -5621,40 +5621,40 @@ mod_tests_server <- function(id, values) {
       lbl_pie <- paste0(df_plot$modalite,
                         if (show_val)  paste0("\n", round(df_plot$pct, 1), "%") else "",
                         if (show_grp) paste0("\n(", df_plot$groupe, ")") else "")
-      g <- ggplot(df_plot, aes(x = "", y = valeur, fill = modalite)) +
-        geom_col(width = 1, color = "white") + coord_polar("y") +
-        geom_text(aes(label = lbl_pie), position = position_stack(vjust = 0.5),
+      g <- ggplot2::ggplot(df_plot, ggplot2::aes(x = "", y = valeur, fill = modalite)) +
+        ggplot2::geom_col(width = 1, color = "white") + ggplot2::coord_polar("y") +
+        ggplot2::geom_text(ggplot2::aes(label = lbl_pie), position = ggplot2::position_stack(vjust = 0.5),
                   size = 4, fontface = "bold") +
-        scale_fill_manual(values = pal, name = NULL) +
-        labs(subtitle = sous_titre) +
-        theme_void(base_size = 13) + theme(plot.subtitle = element_text(hjust = 0.5))
+        ggplot2::scale_fill_manual(values = pal, name = NULL) +
+        ggplot2::labs(subtitle = sous_titre) +
+        ggplot2::theme_void(base_size = 13) + ggplot2::theme(plot.subtitle = ggplot2::element_text(hjust = 0.5))
       
     } else if (type_g == "donut") {
       df_plot$pct  <- df_plot$valeur / sum(df_plot$valeur) * 100
       df_plot$ymax <- cumsum(df_plot$pct)
       df_plot$ymin <- c(0, head(df_plot$ymax, -1))
       df_plot$mid  <- (df_plot$ymin + df_plot$ymax) / 2
-      g <- ggplot(df_plot, aes(ymax = ymax, ymin = ymin, xmax = 4, xmin = 2.5, fill = modalite)) +
-        geom_rect(color = "white", linewidth = 0.5) +
-        coord_polar(theta = "y") + xlim(0, 4) +
-        scale_fill_manual(values = pal, name = NULL) +
-        labs(subtitle = sous_titre) +
-        theme_void(base_size = 13) + theme(plot.subtitle = element_text(hjust = 0.5))
+      g <- ggplot2::ggplot(df_plot, ggplot2::aes(ymax = ymax, ymin = ymin, xmax = 4, xmin = 2.5, fill = modalite)) +
+        ggplot2::geom_rect(color = "white", linewidth = 0.5) +
+        ggplot2::coord_polar(theta = "y") + ggplot2::xlim(0, 4) +
+        ggplot2::scale_fill_manual(values = pal, name = NULL) +
+        ggplot2::labs(subtitle = sous_titre) +
+        ggplot2::theme_void(base_size = 13) + ggplot2::theme(plot.subtitle = ggplot2::element_text(hjust = 0.5))
       if (show_val)
-        g <- g + geom_text(aes(x = 3.25, y = mid,
+        g <- g + ggplot2::geom_text(ggplot2::aes(x = 3.25, y = mid,
                                label = paste0(round(pct, 1), "%",
                                               if (show_grp) paste0("\n(", groupe, ")") else "")),
                            size = 3.5, fontface = "bold")
       
     } else if (type_g == "lollipop") {
-      g <- ggplot(df_plot, aes(x = reorder(modalite, -valeur), y = valeur, color = modalite)) +
-        geom_segment(aes(xend = modalite, yend = 0), linewidth = 1.5) +
-        geom_point(size = 7) +
-        scale_color_manual(values = pal) +
-        labs(subtitle = sous_titre, x = NULL, y = "Valeur") +
-        theme_minimal(base_size = 13) + theme(legend.position = "none")
+      g <- ggplot2::ggplot(df_plot, ggplot2::aes(x = reorder(modalite, -valeur), y = valeur, color = modalite)) +
+        ggplot2::geom_segment(ggplot2::aes(xend = modalite, yend = 0), linewidth = 1.5) +
+        ggplot2::geom_point(size = 7) +
+        ggplot2::scale_color_manual(values = pal) +
+        ggplot2::labs(subtitle = sous_titre, x = NULL, y = "Valeur") +
+        ggplot2::theme_minimal(base_size = 13) + ggplot2::theme(legend.position = "none")
       if (show_val)
-        g <- g + geom_text(aes(label = lbl_fn(valeur, groupe)),
+        g <- g + ggplot2::geom_text(ggplot2::aes(label = lbl_fn(valeur, groupe)),
                            vjust = -1.2, size = 4, fontface = "bold")
       
     } else if (type_g == "residus") {
@@ -5664,30 +5664,30 @@ mod_tests_server <- function(id, values) {
         couleur  = ifelse(fdf$Residu_std > 1.96, "Sur-représenté",
                           ifelse(fdf$Residu_std < -1.96, "Sous-représenté", "Conforme"))
       )
-      g <- ggplot(df_r, aes(x = modalite, y = residu, fill = couleur)) +
-        geom_col(color = "white", width = 0.65) +
-        geom_hline(yintercept = c(-1.96, 1.96), linetype = "dashed",
+      g <- ggplot2::ggplot(df_r, ggplot2::aes(x = modalite, y = residu, fill = couleur)) +
+        ggplot2::geom_col(color = "white", width = 0.65) +
+        ggplot2::geom_hline(yintercept = c(-1.96, 1.96), linetype = "dashed",
                    color = "red", linewidth = 0.8) +
-        geom_hline(yintercept = 0, color = "black", linewidth = 0.5) +
-        scale_fill_manual(values = c("Sur-représenté" = "#1565C0",
+        ggplot2::geom_hline(yintercept = 0, color = "black", linewidth = 0.5) +
+        ggplot2::scale_fill_manual(values = c("Sur-représenté" = "#1565C0",
                                      "Sous-représenté" = "#C62828",
                                      "Conforme"        = "#9E9E9E")) +
-        labs(subtitle = sous_titre, x = NULL, y = "Résidu standardisé", fill = "Statut") +
-        theme_minimal(base_size = 13) +
-        theme(axis.text.x = element_text(angle = 20, hjust = 1))
+        ggplot2::labs(subtitle = sous_titre, x = NULL, y = "Résidu standardisé", fill = "Statut") +
+        ggplot2::theme_minimal(base_size = 13) +
+        ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 20, hjust = 1))
       if (show_grp)
-        g <- g + geom_text(aes(label = paste0("(", fdf$Groupe, ")")),
+        g <- g + ggplot2::geom_text(ggplot2::aes(label = paste0("(", fdf$Groupe, ")")),
                            vjust = ifelse(df_r$residu >= 0, -0.5, 1.2),
                            size = 4, fontface = "bold", color = "black")
       
     } else {  # histogramme classique
-      g <- ggplot(df_plot, aes(x = modalite, y = valeur, fill = modalite)) +
-        geom_col(width = 1, color = "white", linewidth = 0.3) +
-        scale_fill_manual(values = pal) +
-        labs(subtitle = sous_titre, x = NULL, y = "Valeur") +
-        theme_classic(base_size = 13) + theme(legend.position = "none")
+      g <- ggplot2::ggplot(df_plot, ggplot2::aes(x = modalite, y = valeur, fill = modalite)) +
+        ggplot2::geom_col(width = 1, color = "white", linewidth = 0.3) +
+        ggplot2::scale_fill_manual(values = pal) +
+        ggplot2::labs(subtitle = sous_titre, x = NULL, y = "Valeur") +
+        ggplot2::theme_classic(base_size = 13) + ggplot2::theme(legend.position = "none")
       if (show_val)
-        g <- g + geom_text(aes(label = lbl_fn(valeur, groupe)), vjust = -0.3,
+        g <- g + ggplot2::geom_text(ggplot2::aes(label = lbl_fn(valeur, groupe)), vjust = -0.3,
                            size = 4, fontface = "bold")
     }
     
@@ -5695,18 +5695,18 @@ mod_tests_server <- function(id, values) {
       input$chiSqGraphTitle else
         paste0("Distribution -- ", values$chiSqResults$Variable_cat[1])
     
-    g <- g + labs(title = titre) +
-      theme(plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
-            plot.subtitle = element_text(size = 11, hjust = 0.5, color = "#555"))
+    g <- g + ggplot2::labs(title = titre) +
+      ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", size = 15, hjust = 0.5),
+            plot.subtitle = ggplot2::element_text(size = 11, hjust = 0.5, color = "#555"))
     
     values$chiSqPlotObj <- g
     g
   })
   
-  output$downloadChiSqPlot <- downloadHandler(
+  output$downloadChiSqPlot <- shiny::downloadHandler(
     filename = function() paste0("chi2_graphique_", Sys.Date(), ".png"),
     content  = function(file) {
-      req(values$chiSqPlotObj)
+      shiny::req(values$chiSqPlotObj)
       w <- (input$chiSqGraphWidth  %||% 800) / 96
       h <- (input$chiSqGraphHeight %||% 500) / 96
       # Sans fichier ecrit, Shiny renvoie sa page d'erreur HTML sous « .png ».
@@ -5715,10 +5715,10 @@ mod_tests_server <- function(id, values) {
     }
   )
   
-  output$downloadChiSqExcel <- downloadHandler(
+  output$downloadChiSqExcel <- shiny::downloadHandler(
     filename = function() paste0("chi2_résultats_", Sys.Date(), ".xlsx"),
     content  = function(file) {
-      req(values$chiSqResults)
+      shiny::req(values$chiSqResults)
       wb <- openxlsx::createWorkbook()
       
       h_style <- openxlsx::createStyle(
@@ -5756,14 +5756,14 @@ mod_tests_server <- function(id, values) {
       }
       
       openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-      showNotification("Excel exporté avec succès.", type = "message", duration = 3)
+      shiny::showNotification("Excel exporté avec succès.", type = "message", duration = 3)
     }
   )
   
-  output$downloadChiSqCSV <- downloadHandler(
+  output$downloadChiSqCSV <- shiny::downloadHandler(
     filename = function() paste0("chi2_modalités_", Sys.Date(), ".csv"),
     content  = function(file) {
-      req(values$chiSqFreqData)
+      shiny::req(values$chiSqFreqData)
       write.csv(values$chiSqFreqData, file, row.names = FALSE)
     }
   )
@@ -5831,32 +5831,32 @@ mod_tests_server <- function(id, values) {
     }
     
     if (type_g == "bar_v") {
-      gg <- ggplot(df_plot, aes(x = modalite, y = pct, fill = modalite)) +
-        geom_col(width = 0.65, color = "white") +
-        labs(title = titre, subtitle = sous_t,
+      gg <- ggplot2::ggplot(df_plot, ggplot2::aes(x = modalite, y = pct, fill = modalite)) +
+        ggplot2::geom_col(width = 0.65, color = "white") +
+        ggplot2::labs(title = titre, subtitle = sous_t,
              x = x_lab, y = y_lab, fill = leg_tit) +
-        theme_minimal(base_size = 13) +
-        theme(legend.position  = if (!is.null(leg_tit)) "right" else "none",
-              axis.text.x      = element_text(angle = 20, hjust = 1),
-              plot.title       = element_text(face = "bold", hjust = 0.5),
-              plot.subtitle    = element_text(hjust = 0.5))
+        ggplot2::theme_minimal(base_size = 13) +
+        ggplot2::theme(legend.position  = if (!is.null(leg_tit)) "right" else "none",
+              axis.text.x      = ggplot2::element_text(angle = 20, hjust = 1),
+              plot.title       = ggplot2::element_text(face = "bold", hjust = 0.5),
+              plot.subtitle    = ggplot2::element_text(hjust = 0.5))
       if (show_v) gg <- gg +
-          geom_text(aes(label = lbl_fn(pct, groupe)), vjust = -0.4, size = 4, fontface = "bold")
+          ggplot2::geom_text(ggplot2::aes(label = lbl_fn(pct, groupe)), vjust = -0.4, size = 4, fontface = "bold")
       gg
       
     } else if (type_g == "pie") {
       lbl_pie <- paste0(df_plot$modalite,
                         if (show_v) paste0("\n", round(df_plot$pct, 1), "%") else "",
                         if (show_g) paste0("\n(", df_plot$groupe, ")") else "")
-      ggplot(df_plot, aes(x = "", y = pct, fill = modalite)) +
-        geom_col(width = 1, color = "white") + coord_polar("y") +
-        geom_text(aes(label = lbl_pie),
-                  position = position_stack(vjust = 0.5), size = 4, fontface = "bold") +
-        labs(title = titre, subtitle = sous_t, fill = leg_tit) +
-        theme_void(base_size = 13) +
-        theme(plot.title    = element_text(face = "bold", hjust = 0.5),
-              plot.subtitle = element_text(hjust = 0.5),
-              legend.title  = if (!is.null(leg_tit)) element_text(face = "bold") else element_blank())
+      ggplot2::ggplot(df_plot, ggplot2::aes(x = "", y = pct, fill = modalite)) +
+        ggplot2::geom_col(width = 1, color = "white") + ggplot2::coord_polar("y") +
+        ggplot2::geom_text(ggplot2::aes(label = lbl_pie),
+                  position = ggplot2::position_stack(vjust = 0.5), size = 4, fontface = "bold") +
+        ggplot2::labs(title = titre, subtitle = sous_t, fill = leg_tit) +
+        ggplot2::theme_void(base_size = 13) +
+        ggplot2::theme(plot.title    = ggplot2::element_text(face = "bold", hjust = 0.5),
+              plot.subtitle = ggplot2::element_text(hjust = 0.5),
+              legend.title  = if (!is.null(leg_tit)) ggplot2::element_text(face = "bold") else ggplot2::element_blank())
       
     } else {
       df_r <- data.frame(
@@ -5865,20 +5865,20 @@ mod_tests_server <- function(id, values) {
         couleur  = ifelse(fdf$Residu_std >  1.96, "Sur-représenté",
                           ifelse(fdf$Residu_std < -1.96, "Sous-représenté", "Conforme"))
       )
-      ggplot(df_r, aes(x = modalite, y = residu, fill = couleur)) +
-        geom_col(color = "white", width = 0.65) +
-        geom_hline(yintercept = c(-1.96, 1.96), linetype = "dashed",
+      ggplot2::ggplot(df_r, ggplot2::aes(x = modalite, y = residu, fill = couleur)) +
+        ggplot2::geom_col(color = "white", width = 0.65) +
+        ggplot2::geom_hline(yintercept = c(-1.96, 1.96), linetype = "dashed",
                    color = "red", linewidth = 0.8) +
-        geom_hline(yintercept = 0, color = "black", linewidth = 0.4) +
-        scale_fill_manual(values = c("Sur-représenté" = "#1565C0",
+        ggplot2::geom_hline(yintercept = 0, color = "black", linewidth = 0.4) +
+        ggplot2::scale_fill_manual(values = c("Sur-représenté" = "#1565C0",
                                      "Sous-représenté" = "#C62828",
                                      "Conforme"              = "#9E9E9E")) +
-        labs(title = titre, subtitle = sous_t,
+        ggplot2::labs(title = titre, subtitle = sous_t,
              x = x_lab, y = y_lab, fill = leg_tit %||% "Statut") +
-        theme_minimal(base_size = 13) +
-        theme(axis.text.x = element_text(angle = 20, hjust = 1),
-              plot.title    = element_text(face = "bold", hjust = 0.5),
-              plot.subtitle = element_text(hjust = 0.5))
+        ggplot2::theme_minimal(base_size = 13) +
+        ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 20, hjust = 1),
+              plot.title    = ggplot2::element_text(face = "bold", hjust = 0.5),
+              plot.subtitle = ggplot2::element_text(hjust = 0.5))
     }
   }
   
@@ -5999,11 +5999,11 @@ mod_tests_server <- function(id, values) {
       if (is.null(groups)) return(NULL)
       
       desc <- df_subset %>%
-        group_by(across(all_of(factor1))) %>%
-        summarise(
+        dplyr::group_by(dplyr::across(dplyr::all_of(factor1))) %>%
+        dplyr::summarise(
           Moyenne = mean(.data[[var]], na.rm = TRUE),
           Ecart_type = sd(.data[[var]], na.rm = TRUE),
-          N = n(),
+          N = dplyr::n(),
           Erreur_type = Ecart_type / sqrt(N),
           CV = calc_cv(.data[[var]]),
           .groups = "drop"
@@ -6021,19 +6021,19 @@ mod_tests_server <- function(id, values) {
   }
   
   
-  observeEvent(values$testResultsDF, {
-    req(values$testResultsDF)
+  shiny::observeEvent(values$testResultsDF, {
+    shiny::req(values$testResultsDF)
     
     if (!is.null(values$currentTestType)) {
       new_type <- if (values$currentTestType == "parametric") "param" else "nonparam"
-      updateRadioButtons(session, "testType", selected = new_type)
+      shiny::updateRadioButtons(session, "testType", selected = new_type)
     }
     
     values$postHocSyncTrigger <- runif(1)
     
-    showNotification(
-      tagList(
-        icon("link"), " PostHoc mis à jour avec les résultats des tests (",
+    shiny::showNotification(
+      shiny::tagList(
+        shiny::icon("link"), " PostHoc mis à jour avec les résultats des tests (",
         nrow(values$testResultsDF), " résultats)"
       ),
       type = "message", duration = 3
@@ -6041,11 +6041,11 @@ mod_tests_server <- function(id, values) {
   }, ignoreInit = TRUE)
   
   # - Tableau récapitulatif des p-values pour guider le PostHoc
-  output$testResultsSummaryForPostHoc <- renderUI({
+  output$testResultsSummaryForPostHoc <- shiny::renderUI({
     if (is.null(values$testResultsDF) || nrow(values$testResultsDF) == 0) {
-      return(div(
+      return(shiny::div(
         style = "padding:10px; background:#fff8e1; border-radius:4px; border-left:3px solid #ff9800; font-size:12px;",
-        icon("exclamation-triangle", style="color:#e65100;"),
+        shiny::icon("exclamation-triangle", style="color:#e65100;"),
         " Aucun résultat de test disponible.",
         tags$br(),
         tags$small(style="color:#bf360c;",
@@ -6079,17 +6079,17 @@ mod_tests_server <- function(id, values) {
     
     n_sig <- sum(!is.na(df$p_value) & df$p_value < 0.05)
     
-    tagList(
-      div(
+    shiny::tagList(
+      shiny::div(
         style = "margin-bottom:8px; padding:8px 10px; background:#e3f2fd; border-left:4px solid #1976d2; border-radius:4px;",
-        icon("table", style="color:#1565c0;"),
+        shiny::icon("table", style="color:#1565c0;"),
         tags$b(style="color:#0d47a1; font-size:12px;",
                paste0(" Résultats des tests -- ", n_sig, "/", nrow(df), " significatif(s)")),
         tags$br(),
         tags$small(style="color:#1976d2;",
                    "Les variables en vert (p < 0.05) sont pré-sélectionnées dans l'analyse PostHoc.")
       ),
-      div(
+      shiny::div(
         style = "max-height:200px; overflow-y:auto; border:1px solid #e0e0e0; border-radius:4px;",
         tags$table(
           style = "width:100%; border-collapse:collapse;",
@@ -6109,12 +6109,12 @@ mod_tests_server <- function(id, values) {
     )
   })
   
-  observeEvent(input$runMultiple, {
-    req(input$multiResponse, input$multiFactor)
+  shiny::observeEvent(input$runMultiple, {
+    shiny::req(input$multiResponse, input$multiFactor)
     
     if (isTRUE(input$testType == "param" && input$multiTest == "lm_emmeans")) {
       if (is.null(values$modelList) || length(values$modelList) == 0) {
-        showNotification(paste0("Aucun modèle LM/GLM disponible. Lancez d'abord ",
+        shiny::showNotification(paste0("Aucun modèle LM/GLM disponible. Lancez d'abord ",
                                 "une 'Régression linéaire' ou un 'GLM' dans l'onglet ",
                                 "'Tests statistiques' avant le PostHoc."),
                          type = "warning", duration = 8)
@@ -6142,29 +6142,29 @@ mod_tests_server <- function(id, values) {
         }
       }
       if (length(results) == 0) {
-        showNotification("Aucun prédicteur catégoriel détecté dans le(s) modèle(s).",
+        shiny::showNotification("Aucun prédicteur catégoriel détecté dans le(s) modèle(s).",
                          type = "warning")
         values$lmPostHocResults <- NULL
       } else {
         values$lmPostHocResults <- results
-        showNotification(paste0("PostHoc LM/GLM calculé : ", length(results),
+        shiny::showNotification(paste0("PostHoc LM/GLM calculé : ", length(results),
                                 " combinaison(s) Variable × Prédicteur."),
                          type = "message", duration = 4)
       }
       return()
     }
     
-    updateTabsetPanel(session, "resultsTabs", selected = "mainEffects")
+    shiny::updateTabsetPanel(session, "resultsTabs", selected = "mainEffects")
     
-    showNotification("Analyse en cours...", type = "message", duration = NULL, id = "loading")
+    shiny::showNotification("Analyse en cours...", type = "message", duration = NULL, id = "loading")
     
     multi_results_list <- list()
     simple_effects_list <- list()
     df <- values$filteredData
     
     if (is.null(df) || nrow(df) == 0) {
-      showNotification("Aucune donnée disponible pour l'analyse.", type="error", duration=5)
-      removeNotification("loading")
+      shiny::showNotification("Aucune donnée disponible pour l'analyse.", type="error", duration=5)
+      shiny::removeNotification("loading")
       return()
     }
     for (fv in input$multiFactor) {
@@ -6188,7 +6188,7 @@ mod_tests_server <- function(id, values) {
           if (!is.numeric(df[[var]])) {
             df[[var]] <- suppressWarnings(as.numeric(df[[var]]))
             if (all(is.na(df[[var]]))) {
-              showNotification(paste0("Variable '", var, "' non convertible en numérique."), type="warning", duration=4)
+              shiny::showNotification(paste0("Variable '", var, "' non convertible en numérique."), type="warning", duration=4)
               next
             }
           }
@@ -6196,7 +6196,7 @@ mod_tests_server <- function(id, values) {
           if (!is.factor(df_var[[fvar]])) df_var[[fvar]] <- factor(as.character(df_var[[fvar]]))
           df_var[[fvar]] <- droplevels(df_var[[fvar]])
           if (nlevels(df_var[[fvar]]) < 2) {
-            showNotification(paste0("PostHoc '", fvar, "': moins de 2 niveaux après nettoyage."), type="warning", duration=4)
+            shiny::showNotification(paste0("PostHoc '", fvar, "': moins de 2 niveaux après nettoyage."), type="warning", duration=4)
             next
           }
           if (nrow(df_var) < 4) { next }
@@ -6214,7 +6214,7 @@ mod_tests_server <- function(id, values) {
                                 "regw" = agricolae::REGW.test,
                                 "waller" = agricolae::waller.test)
               if (length(levels(df[[fvar]])) < 2) {
-                showNotification(paste0("PostHoc '", fvar, "': moins de 2 niveaux, test ignoré."), type="warning", duration=4)
+                shiny::showNotification(paste0("PostHoc '", fvar, "': moins de 2 niveaux, test ignoré."), type="warning", duration=4)
                 next
               }
               # Ajustement des p-values : LSD accepte p.adj ; les autres
@@ -6325,11 +6325,11 @@ mod_tests_server <- function(id, values) {
           # Utiliser df_var (sans NA dans var) pour les stats descriptives
           df_desc <- if (exists("df_var") && !is.null(df_var)) df_var else df
           desc <- df_desc %>%
-            group_by(across(all_of(fvar))) %>%
-            summarise(
+            dplyr::group_by(dplyr::across(dplyr::all_of(fvar))) %>%
+            dplyr::summarise(
               Moyenne    = mean(.data[[var]], na.rm = TRUE),
               Ecart_type = sd(.data[[var]], na.rm = TRUE),
-              N          = n(),
+              N          = dplyr::n(),
               Erreur_type = ifelse(N > 1, Ecart_type / sqrt(N), NA_real_),
               CV         = calc_cv(.data[[var]]),
               .groups    = "drop"
@@ -6338,7 +6338,7 @@ mod_tests_server <- function(id, values) {
           if (fvar %in% colnames(groups) && fvar %in% colnames(desc)) {
             res <- merge(desc, groups, by = fvar, all.x = TRUE)
             res <- res %>%
-              mutate(
+              dplyr::mutate(
                 Moyenne = round(Moyenne, 2),
                 Ecart_type = round(Ecart_type, 2),
                 Erreur_type = round(Erreur_type, 2),
@@ -6353,7 +6353,7 @@ mod_tests_server <- function(id, values) {
             multi_results_list[[paste(var, fvar, "main", sep = "_")]] <- res
           }
         }, error = function(e) {
-          showNotification(hstat_err_fr(e, sprintf("Effet principal %s x %s", var, fvar)),
+          shiny::showNotification(hstat_err_fr(e, sprintf("Effet principal %s x %s", var, fvar)),
                            type = "error", duration = 12)
         })
       }
@@ -6377,7 +6377,7 @@ mod_tests_server <- function(id, values) {
             }
             if (!is.numeric(df_temp[[var]])) df_temp[[var]] <- suppressWarnings(as.numeric(df_temp[[var]]))
             if (nrow(df_temp) < 4 || all(is.na(df_temp[[var]]))) {
-              showNotification(paste0("Interaction ", fvar1, ":", fvar2, " -- données insuffisantes."), type="warning", duration=4)
+              shiny::showNotification(paste0("Interaction ", fvar1, ":", fvar2, " -- données insuffisantes."), type="warning", duration=4)
               return(NULL)
             }
             interaction_pvalue <- NA
@@ -6401,7 +6401,7 @@ mod_tests_server <- function(id, values) {
               kw_interaction <- kruskal.test(df_temp[[var]] ~ df_temp$interaction_combined)
               interaction_pvalue <- kw_interaction$p.value
               
-              showNotification(
+              shiny::showNotification(
                 paste0("Test non-paramétrique (Kruskal-Wallis) pour ", fvar1, " x ", fvar2, 
                        ": p = ", round(interaction_pvalue, 4)),
                 type = "message", duration = 3
@@ -6410,7 +6410,7 @@ mod_tests_server <- function(id, values) {
             
             # SI INTERACTION SIGNIFICATIVE : DÉCOMPOSITION BIDIRECTIONNELLE 
             if (!is.na(interaction_pvalue) && interaction_pvalue < 0.05) {
-              showNotification(
+              shiny::showNotification(
                 paste0("[OK] Interaction significative détectée: ", fvar1, " x ", fvar2, 
                        " (p = ", round(interaction_pvalue, 4), ")\n",
                        "-> Décomposition bidirectionnelle en cours..."),
@@ -6435,7 +6435,7 @@ mod_tests_server <- function(id, values) {
                 )
                 if (!is.null(res) && nrow(res) > 0) {
                   res <- tryCatch(res %>%
-                                    mutate(
+                                    dplyr::mutate(
                                       Moyenne = round(as.numeric(Moyenne), 2),
                                       Ecart_type = round(as.numeric(Ecart_type), 2),
                                       Erreur_type = round(as.numeric(Erreur_type), 2),
@@ -6467,7 +6467,7 @@ mod_tests_server <- function(id, values) {
                 )
                 if (!is.null(res) && nrow(res) > 0) {
                   res <- tryCatch(res %>%
-                                    mutate(
+                                    dplyr::mutate(
                                       Moyenne = round(as.numeric(Moyenne), 2),
                                       Ecart_type = round(as.numeric(Ecart_type), 2),
                                       Erreur_type = round(as.numeric(Erreur_type), 2),
@@ -6486,26 +6486,26 @@ mod_tests_server <- function(id, values) {
                 }
               }
               
-              showNotification(
+              shiny::showNotification(
                 paste0("[OK] Décomposition complétée pour ", fvar1, " x ", fvar2),
                 type = "message", duration = 3
               )
             } else if (!is.na(interaction_pvalue)) {
-              showNotification(
+              shiny::showNotification(
                 paste0("[--] Interaction non significative: ", fvar1, " x ", fvar2, 
                        " (p = ", round(interaction_pvalue, 4), ")"),
                 type = "default", duration = 3
               )
             }
           }, error = function(e) {
-            showNotification(hstat_err_fr(e, paste("Interaction", interaction_term)),
+            shiny::showNotification(hstat_err_fr(e, paste("Interaction", interaction_term)),
                              type = "error", duration = 12)
           })
         }
       }
     }
     
-    removeNotification("loading")
+    shiny::removeNotification("loading")
     
     all_results <- c(multi_results_list, simple_effects_list)
     
@@ -6569,8 +6569,8 @@ mod_tests_server <- function(id, values) {
       n_simple <- sum(combined_results$Type == "simple_effect", na.rm = TRUE)
       n_interactions <- length(unique(combined_results$Interaction_base[!is.na(combined_results$Interaction_base)]))
       
-      showNotification(
-        HTML(paste0(
+      shiny::showNotification(
+        shiny::HTML(paste0(
           "<b>[OK] ANALYSE TERMINÉE</b><br/>",
           "- ", n_main, " effet(s) principal(aux)<br/>",
           "- ", n_simple, " effet(s) simple(s)<br/>",
@@ -6579,7 +6579,7 @@ mod_tests_server <- function(id, values) {
         type = "message", duration = 8
       )
     } else {
-      showNotification("Aucun résultat généré", type = "warning")
+      shiny::showNotification("Aucun résultat généré", type = "warning")
     }
     
     # PostHoc multivarié : pour chaque facteur, comparaisons par paires (PERMANOVA)
@@ -6629,7 +6629,7 @@ mod_tests_server <- function(id, values) {
             n_levels       = nlevels(grp)
           )
         }, error = function(e) {
-          showNotification(hstat_err_fr(e, trf("Post-hoc multivarié (facteur %s)", fvar)),
+          shiny::showNotification(hstat_err_fr(e, trf("Post-hoc multivarié (facteur %s)", fvar)),
                            type = "warning", duration = 5)
         })
       }
@@ -6670,10 +6670,10 @@ mod_tests_server <- function(id, values) {
     }
   })
   
-  observeEvent(input$runLMPostHoc, {
-    req(values$modelList)
+  shiny::observeEvent(input$runLMPostHoc, {
+    shiny::req(values$modelList)
     if (length(values$modelList) == 0) {
-      showNotification("Aucun modèle LM ou GLM à analyser.", type = "warning")
+      shiny::showNotification("Aucun modèle LM ou GLM à analyser.", type = "warning")
       return()
     }
     adjust  <- input$lmPostHocAdjust %||% "tukey"
@@ -6700,83 +6700,83 @@ mod_tests_server <- function(id, values) {
       }
     }
     if (length(results) == 0) {
-      showNotification(paste0("Aucun prédicteur catégoriel détecté dans le(s) modèle(s) ",
+      shiny::showNotification(paste0("Aucun prédicteur catégoriel détecté dans le(s) modèle(s) ",
                               "(les variables doivent être de type factor)."),
                        type = "warning", duration = 6)
       values$lmPostHocResults <- NULL
       return()
     }
     values$lmPostHocResults <- results
-    showNotification(
+    shiny::showNotification(
       paste0("PostHoc LM/GLM calculé : ", length(results), " combinaison(s) Variable × Prédicteur."),
       type = "message", duration = 4
     )
   })
   
-  output$hasLMPostHoc <- reactive({
+  output$hasLMPostHoc <- shiny::reactive({
     !is.null(values$lmPostHocResults) && length(values$lmPostHocResults) > 0
   })
-  outputOptions(output, "hasLMPostHoc", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "hasLMPostHoc", suspendWhenHidden = FALSE)
   
-  output$hasLMModel <- reactive({
+  output$hasLMModel <- shiny::reactive({
     !is.null(values$modelList) && length(values$modelList) > 0
   })
-  outputOptions(output, "hasLMModel", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "hasLMModel", suspendWhenHidden = FALSE)
   
-  output$lmPostHocSelector <- renderUI({
-    req(values$lmPostHocResults)
+  output$lmPostHocSelector <- shiny::renderUI({
+    shiny::req(values$lmPostHocResults)
     combos <- names(values$lmPostHocResults)
     labels <- vapply(values$lmPostHocResults, function(r)
       paste0(r$model_type, " : ", r$variable, " ~ ", r$predictor), character(1))
     named_choices <- setNames(combos, labels)
-    selectInput(ns("lmPostHocCombo"),
-                tagList(icon("filter"), " Choisir une combinaison Variable / Prédicteur :"),
+    shiny::selectInput(ns("lmPostHocCombo"),
+                shiny::tagList(shiny::icon("filter"), " Choisir une combinaison Variable / Prédicteur :"),
                 choices = named_choices, selected = combos[1], width = "100%")
   })
   
-  output$lmPostHocLettersTable <- renderDT({
-    req(values$lmPostHocResults, input$lmPostHocCombo)
+  output$lmPostHocLettersTable <- DT::renderDT({
+    shiny::req(values$lmPostHocResults, input$lmPostHocCombo)
     entry <- values$lmPostHocResults[[input$lmPostHocCombo]]
-    req(entry$letters)
+    shiny::req(entry$letters)
     df <- entry$letters
     if ("Moyenne_pm_SD" %in% names(df))
       names(df)[names(df) == "Moyenne_pm_SD"] <- "Moyenne \u00b1 Écart-type groupe"
     if ("Moyenne_pm_SE" %in% names(df))
       names(df)[names(df) == "Moyenne_pm_SE"] <- "Moyenne \u00b1 Erreur-type groupe"
     df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
-    dt <- datatable(df, options = list(scrollX = TRUE, pageLength = 15, dom = "tip"),
+    dt <- DT::datatable(df, options = list(scrollX = TRUE, pageLength = 15, dom = "tip"),
                     rownames = FALSE)
     if ("Groupes" %in% names(df))
       dt <- color_groups_dt(dt, df, "Groupes")
     dt
   })
   
-  output$lmPostHocPairsTable <- renderDT({
-    req(values$lmPostHocResults, input$lmPostHocCombo)
+  output$lmPostHocPairsTable <- DT::renderDT({
+    shiny::req(values$lmPostHocResults, input$lmPostHocCombo)
     entry <- values$lmPostHocResults[[input$lmPostHocCombo]]
-    req(entry$pairs)
+    shiny::req(entry$pairs)
     df <- entry$pairs
     for (col in c("p_value", "p_adj")) {
       if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
     }
     df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
-    dt <- datatable(df, options = list(scrollX = TRUE, pageLength = 15), rownames = FALSE)
+    dt <- DT::datatable(df, options = list(scrollX = TRUE, pageLength = 15), rownames = FALSE)
     if ("Significatif" %in% names(df))
-      dt <- dt %>% formatStyle("Significatif",
-                               backgroundColor = styleEqual(c("Oui","Non"), c("#ffebee","#f1f8e9")),
+      dt <- dt %>% DT::formatStyle("Significatif",
+                               backgroundColor = DT::styleEqual(c("Oui","Non"), c("#ffebee","#f1f8e9")),
                                fontWeight = "bold")
     dt
   })
   
-  output$lmPostHocInfo <- renderUI({
-    req(values$lmPostHocResults, input$lmPostHocCombo)
+  output$lmPostHocInfo <- shiny::renderUI({
+    shiny::req(values$lmPostHocResults, input$lmPostHocCombo)
     entry <- values$lmPostHocResults[[input$lmPostHocCombo]]
     n_pairs <- if (is.null(entry$pairs)) 0 else nrow(entry$pairs)
     n_sig   <- if (is.null(entry$pairs)) 0 else sum(entry$pairs$p_adj < 0.05, na.rm = TRUE)
     n_lev   <- if (is.null(entry$letters)) 0 else nrow(entry$letters)
-    div(style = "background:#e3f2fd; border-left:4px solid #1565C0; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
-        icon("info-circle", style = "color:#1565C0;"),
-        strong(paste0(" PostHoc ", entry$model_type, " : ", entry$variable, " ~ ", entry$predictor)),
+    shiny::div(style = "background:#e3f2fd; border-left:4px solid #1565C0; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
+        shiny::icon("info-circle", style = "color:#1565C0;"),
+        shiny::strong(paste0(" PostHoc ", entry$model_type, " : ", entry$variable, " ~ ", entry$predictor)),
         tags$ul(style = "margin:4px 0 0 18px;",
                 tags$li("Méthode : moyennes ajustées (emmeans) sur le prédicteur catégoriel"),
                 tags$li(paste0("Ajustement des p-values : ", entry$adjust)),
@@ -6802,41 +6802,41 @@ mod_tests_server <- function(id, values) {
   }, "PostHoc_LM_GLM", "Comparaisons post-hoc")
   
   
-  output$hasMultivariatePosthoc <- reactive({
+  output$hasMultivariatePosthoc <- shiny::reactive({
     !is.null(values$manovaMultiPostHoc) && length(values$manovaMultiPostHoc) > 0
   })
-  outputOptions(output, "hasMultivariatePosthoc", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "hasMultivariatePosthoc", suspendWhenHidden = FALSE)
   
   # --- PostHoc Mesures repetees : flag, info, tableau, telechargement ---
-  output$hasRMPostHoc <- reactive({
+  output$hasRMPostHoc <- shiny::reactive({
     !is.null(values$rmPostHocData) && nrow(values$rmPostHocData) > 0
   })
-  outputOptions(output, "hasRMPostHoc", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "hasRMPostHoc", suspendWhenHidden = FALSE)
   
-  output$rmPostHocInfo <- renderUI({
-    req(values$rmPostHocData)
+  output$rmPostHocInfo <- shiny::renderUI({
+    shiny::req(values$rmPostHocData)
     meth <- values$rmPostHocMethod %||% "—"
     n_sig <- sum(values$rmPostHocData$Significatif == "Oui", na.rm = TRUE)
-    div(style = "font-size:12px; color:#00695c; margin-bottom:8px;",
+    shiny::div(style = "font-size:12px; color:#00695c; margin-bottom:8px;",
         tags$b("Méthode : "), meth, " — ",
         tags$b(n_sig), " comparaison(s) significative(s) sur ", nrow(values$rmPostHocData), ".")
   })
   
-  output$rmPostHocTable <- renderDT({
-    req(values$rmPostHocData)
+  output$rmPostHocTable <- DT::renderDT({
+    shiny::req(values$rmPostHocData)
     d <- values$rmPostHocData
     # Retirer la colonne Estimation si entierement vide (cas non parametrique).
     if (all(is.na(d$Estimation))) d$Estimation <- NULL
-    datatable(d, options = list(pageLength = 15, scrollX = TRUE), rownames = FALSE) %>%
-      formatStyle("Significatif",
-                  backgroundColor = styleEqual(c("Oui", "n.s."), c("#c8e6c9", "#fff")),
-                  fontWeight = styleEqual("Oui", "bold"))
+    DT::datatable(d, options = list(pageLength = 15, scrollX = TRUE), rownames = FALSE) %>%
+      DT::formatStyle("Significatif",
+                  backgroundColor = DT::styleEqual(c("Oui", "n.s."), c("#c8e6c9", "#fff")),
+                  fontWeight = DT::styleEqual("Oui", "bold"))
   })
   
-  output$downloadRMPostHoc <- downloadHandler(
+  output$downloadRMPostHoc <- shiny::downloadHandler(
     filename = function() paste0("posthoc_mesures_repetees_", Sys.Date(), ".xlsx"),
     content = function(file) {
-      req(values$rmPostHocData)
+      shiny::req(values$rmPostHocData)
       if (requireNamespace("openxlsx", quietly = TRUE)) {
         openxlsx::write.xlsx(values$rmPostHocData, file)
       } else {
@@ -6846,28 +6846,28 @@ mod_tests_server <- function(id, values) {
   )
   
   # Selecteur de facteur (dynamique selon les facteurs disponibles dans manovaMultiPostHoc)
-  output$multivariatePosthocFactorSelect <- renderUI({
-    req(values$manovaMultiPostHoc)
+  output$multivariatePosthocFactorSelect <- shiny::renderUI({
+    shiny::req(values$manovaMultiPostHoc)
     fcts <- names(values$manovaMultiPostHoc)
     if (length(fcts) == 0) return(NULL)
-    selectInput(ns("multivariatePosthocFactor"),
+    shiny::selectInput(ns("multivariatePosthocFactor"),
                 label = NULL,
                 choices = fcts,
                 selected = fcts[1],
                 width = "100%")
   })
   
-  output$multivariatePosthocInfo <- renderUI({
-    req(values$manovaMultiPostHoc, input$multivariatePosthocFactor)
+  output$multivariatePosthocInfo <- shiny::renderUI({
+    shiny::req(values$manovaMultiPostHoc, input$multivariatePosthocFactor)
     entry <- values$manovaMultiPostHoc[[input$multivariatePosthocFactor]]
     if (is.null(entry)) return(NULL)
     
     n_sig <- sum(entry$pairs$p_adj < 0.05, na.rm = TRUE)
     n_pairs <- nrow(entry$pairs)
     
-    div(style = "background:#e8f5e9; border-left:4px solid #43a047; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
-        icon("info-circle", style = "color:#2e7d32;"),
-        strong(paste0(" PostHoc multivarié -- ", entry$test, " sur ", entry$response_label, " :")),
+    shiny::div(style = "background:#e8f5e9; border-left:4px solid #43a047; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
+        shiny::icon("info-circle", style = "color:#2e7d32;"),
+        shiny::strong(paste0(" PostHoc multivarié -- ", entry$test, " sur ", entry$response_label, " :")),
         tags$ul(style = "margin:4px 0 0 18px;",
                 tags$li("Méthode : pairwise PERMANOVA (vegan::adonis2), distance euclidienne, 999 permutations"),
                 tags$li("Ajustement des p-values : Bonferroni"),
@@ -6880,10 +6880,10 @@ mod_tests_server <- function(id, values) {
     )
   })
   
-  output$multivariatePosthocLettersTable <- renderDT({
-    req(values$manovaMultiPostHoc, input$multivariatePosthocFactor)
+  output$multivariatePosthocLettersTable <- DT::renderDT({
+    shiny::req(values$manovaMultiPostHoc, input$multivariatePosthocFactor)
     entry <- values$manovaMultiPostHoc[[input$multivariatePosthocFactor]]
-    req(entry$letters)
+    shiny::req(entry$letters)
     
     df <- entry$letters
     names(df)[names(df) == "Niveau"] <- input$multivariatePosthocFactor
@@ -6894,20 +6894,20 @@ mod_tests_server <- function(id, values) {
     
     df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
     
-    dt <- datatable(df,
+    dt <- DT::datatable(df,
                     options = list(pageLength = 25, scrollX = TRUE, dom = "tip"),
                     rownames = FALSE)
     dt <- color_groups_dt(dt, df, "Groupes")
     if ("Variable" %in% names(df))
-      dt <- dt %>% formatStyle("Variable", fontWeight = "bold",
+      dt <- dt %>% DT::formatStyle("Variable", fontWeight = "bold",
                                backgroundColor = "#e3f2fd")
     dt
   })
   
-  output$multivariatePosthocPairsTable <- renderDT({
-    req(values$manovaMultiPostHoc, input$multivariatePosthocFactor)
+  output$multivariatePosthocPairsTable <- DT::renderDT({
+    shiny::req(values$manovaMultiPostHoc, input$multivariatePosthocFactor)
     entry <- values$manovaMultiPostHoc[[input$multivariatePosthocFactor]]
-    req(entry$pairs)
+    shiny::req(entry$pairs)
     
     df <- entry$pairs
     for (col in c("p_value", "p_adj")) {
@@ -6916,13 +6916,13 @@ mod_tests_server <- function(id, values) {
     }
     df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
     
-    dt <- datatable(df,
+    dt <- DT::datatable(df,
                     options = list(pageLength = 25, scrollX = TRUE),
                     rownames = FALSE)
     
     if ("Significatif" %in% names(df)) {
-      dt <- dt %>% formatStyle("Significatif",
-                               backgroundColor = styleEqual(c("Oui", "Non"),
+      dt <- dt %>% DT::formatStyle("Significatif",
+                               backgroundColor = DT::styleEqual(c("Oui", "Non"),
                                                             c("#ffebee", "#f1f8e9")),
                                fontWeight = "bold")
     }
@@ -6942,69 +6942,69 @@ mod_tests_server <- function(id, values) {
     hstat_tables_non_vides(tb)
   }, "PostHoc_MANOVA_multivarie", "Post-hoc MANOVA")
   
-  output$hasManovaInteractionPostHoc <- reactive({
+  output$hasManovaInteractionPostHoc <- shiny::reactive({
     !is.null(values$manovaInteractionPostHoc) &&
       !is.null(values$manovaInteractionPostHoc$letters)
   })
-  outputOptions(output, "hasManovaInteractionPostHoc", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "hasManovaInteractionPostHoc", suspendWhenHidden = FALSE)
   
-  output$manovaInteractionPostHocInfo <- renderUI({
-    req(values$manovaInteractionPostHoc)
+  output$manovaInteractionPostHocInfo <- shiny::renderUI({
+    shiny::req(values$manovaInteractionPostHoc)
     ent <- values$manovaInteractionPostHoc
-    div(style = "background:#fff3e0; border-left:4px solid #fb8c00; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
-        icon("project-diagram", style = "color:#e65100;"),
-        strong(" Comparaison des cellules d'interaction : "),
-        "chaque cellule combine un niveau de ", strong(paste(ent$factors, collapse = " et de ")),
+    shiny::div(style = "background:#fff3e0; border-left:4px solid #fb8c00; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
+        shiny::icon("project-diagram", style = "color:#e65100;"),
+        shiny::strong(" Comparaison des cellules d'interaction : "),
+        "chaque cellule combine un niveau de ", shiny::strong(paste(ent$factors, collapse = " et de ")),
         ". Les lettres comparent simultanément l'effet du facteur fixé et du facteur évalué. ",
         "Deux cellules partageant une lettre ne diffèrent pas significativement (alpha = 0.05)."
     )
   })
   
-  output$manovaInteractionLettersTable <- renderDT({
-    req(values$manovaInteractionPostHoc)
+  output$manovaInteractionLettersTable <- DT::renderDT({
+    shiny::req(values$manovaInteractionPostHoc)
     df <- values$manovaInteractionPostHoc$letters
     if ("Moyenne_pm_SD" %in% names(df))
       names(df)[names(df) == "Moyenne_pm_SD"] <- "Moyenne \u00b1 Écart-type groupe"
     if ("Moyenne_pm_SE" %in% names(df))
       names(df)[names(df) == "Moyenne_pm_SE"] <- "Moyenne \u00b1 Erreur-type groupe"
     df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
-    dt <- datatable(df, options = list(pageLength = 25, scrollX = TRUE, dom = "tip"),
+    dt <- DT::datatable(df, options = list(pageLength = 25, scrollX = TRUE, dom = "tip"),
                     rownames = FALSE)
     dt <- color_groups_dt(dt, df, "Groupes")
     if ("Variable" %in% names(df))
-      dt <- dt %>% formatStyle("Variable", fontWeight = "bold", backgroundColor = "#e3f2fd")
+      dt <- dt %>% DT::formatStyle("Variable", fontWeight = "bold", backgroundColor = "#e3f2fd")
     dt
   })
   
-  output$manovaInteractionPairsTable <- renderDT({
-    req(values$manovaInteractionPostHoc)
+  output$manovaInteractionPairsTable <- DT::renderDT({
+    shiny::req(values$manovaInteractionPostHoc)
     df <- values$manovaInteractionPostHoc$pairs
     if (is.null(df))
-      return(datatable(data.frame(Information = "Comparaisons par paires indisponibles."),
+      return(DT::datatable(data.frame(Information = "Comparaisons par paires indisponibles."),
                        options = list(dom = "t"), rownames = FALSE))
     for (col in c("p_value", "p_adj")) {
       if (col %in% names(df))
         df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
     }
     df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
-    dt <- datatable(df, options = list(pageLength = 25, scrollX = TRUE), rownames = FALSE)
+    dt <- DT::datatable(df, options = list(pageLength = 25, scrollX = TRUE), rownames = FALSE)
     if ("Significatif" %in% names(df))
-      dt <- dt %>% formatStyle("Significatif",
-                               backgroundColor = styleEqual(c("Oui", "Non"),
+      dt <- dt %>% DT::formatStyle("Significatif",
+                               backgroundColor = DT::styleEqual(c("Oui", "Non"),
                                                             c("#ffebee", "#f1f8e9")),
                                fontWeight = "bold")
     dt
   })
   
-  output$multiResponseSelect <- renderUI({
-    req(values$filteredData)
+  output$multiResponseSelect <- shiny::renderUI({
+    shiny::req(values$filteredData)
     num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
     
     # Pré-sélection initiale : variables choisies dans "Paramètres des tests",
     # sinon repli sur les variables des résultats de tests.
-    pre_selected <- if (!is.null(isolate(input$responseVar)) &&
-                        length(isolate(input$responseVar)) > 0) {
-      isolate(input$responseVar)
+    pre_selected <- if (!is.null(shiny::isolate(input$responseVar)) &&
+                        length(shiny::isolate(input$responseVar)) > 0) {
+      shiny::isolate(input$responseVar)
     } else if (!is.null(values$testResultsDF) && "Variable" %in% names(values$testResultsDF)) {
       sig_vars <- unique(values$testResultsDF$Variable[
         !is.na(values$testResultsDF$p_value) & values$testResultsDF$p_value < 0.05
@@ -7013,89 +7013,89 @@ mod_tests_server <- function(id, values) {
     } else { character(0) }
     pre_selected <- intersect(pre_selected, num_cols)
     
-    tagList(
+    shiny::tagList(
       pickerInput(ns("multiResponse"), "Variable(s) réponse:",
                   choices  = num_cols,
                   selected = if (length(pre_selected) > 0) pre_selected else NULL,
                   multiple = TRUE,
                   options  = list(`actions-box` = TRUE, `selected-text-format` = "count > 3")),
-      div(style = "display: flex; gap: 10px;",
-          actionButton(ns("selectAllMultiResponse"), "Tout sélectionner",
+      shiny::div(style = "display: flex; gap: 10px;",
+          shiny::actionButton(ns("selectAllMultiResponse"), "Tout sélectionner",
                        class = "btn-success btn-sm", style = "flex: 1; height: 40px;"),
-          actionButton(ns("deselectAllMultiResponse"), "Tout désélectionner",
+          shiny::actionButton(ns("deselectAllMultiResponse"), "Tout désélectionner",
                        class = "btn-danger btn-sm", style = "flex: 1; height: 40px;")
       )
     )
   })
   
   # Synchronise multiResponse avec les variables choisies dans "Paramètres des tests"
-  observeEvent(input$responseVar, {
-    req(values$filteredData)
+  shiny::observeEvent(input$responseVar, {
+    shiny::req(values$filteredData)
     num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
     sel <- intersect(input$responseVar, num_cols)
     if (length(sel) > 0)
       updatePickerInput(session, "multiResponse", selected = sel)
   }, ignoreNULL = TRUE)
   
-  observeEvent(input$selectAllMultiResponse, {
+  shiny::observeEvent(input$selectAllMultiResponse, {
     num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
     updatePickerInput(session, "multiResponse", selected = num_cols)
   })
   
-  observeEvent(input$deselectAllMultiResponse, {
+  shiny::observeEvent(input$deselectAllMultiResponse, {
     updatePickerInput(session, "multiResponse", selected = character(0))
   })
   
-  output$multiFactorSelect <- renderUI({
-    req(values$filteredData)
+  output$multiFactorSelect <- shiny::renderUI({
+    shiny::req(values$filteredData)
     fac_cols <- get_all_factor_candidates(values$filteredData)
     
     # Pré-sélection initiale : facteurs choisis dans "Paramètres des tests",
     # sinon repli sur les facteurs des résultats de tests.
-    pre_fac <- if (!is.null(isolate(input$factorVar)) &&
-                   length(isolate(input$factorVar)) > 0) {
-      isolate(input$factorVar)
+    pre_fac <- if (!is.null(shiny::isolate(input$factorVar)) &&
+                   length(shiny::isolate(input$factorVar)) > 0) {
+      shiny::isolate(input$factorVar)
     } else if (!is.null(values$testResultsDF) && "Facteur" %in% names(values$testResultsDF)) {
       unique(values$testResultsDF$Facteur[!is.na(values$testResultsDF$Facteur)])
     } else { character(0) }
     pre_fac <- intersect(pre_fac, fac_cols)
     
-    tagList(
+    shiny::tagList(
       pickerInput(ns("multiFactor"), "Facteur(s):",
                   choices  = fac_cols,
                   selected = if (length(pre_fac) > 0) pre_fac else NULL,
                   multiple = TRUE,
                   options  = list(`actions-box` = TRUE, `selected-text-format` = "count > 3")),
       tags$small(style = "color:#6c757d; font-size:11px;",
-                 icon("info-circle"), " Facteur, texte, date et numérique (<= 30 niveaux) acceptés"),
-      div(style = "display: flex; gap: 10px;",
-          actionButton(ns("selectAllMultiFactors"),   "Tout sélectionner",
+                 shiny::icon("info-circle"), " Facteur, texte, date et numérique (<= 30 niveaux) acceptés"),
+      shiny::div(style = "display: flex; gap: 10px;",
+          shiny::actionButton(ns("selectAllMultiFactors"),   "Tout sélectionner",
                        class = "btn-success btn-sm", style = "flex: 1; height: 40px;"),
-          actionButton(ns("deselectAllMultiFactors"), "Tout désélectionner",
+          shiny::actionButton(ns("deselectAllMultiFactors"), "Tout désélectionner",
                        class = "btn-danger btn-sm",  style = "flex: 1; height: 40px;")
       )
     )
   })
   
   # Synchronise multiFactor avec les facteurs choisis dans "Paramètres des tests"
-  observeEvent(input$factorVar, {
-    req(values$filteredData)
+  shiny::observeEvent(input$factorVar, {
+    shiny::req(values$filteredData)
     fac_cols <- get_all_factor_candidates(values$filteredData)
     sel <- intersect(input$factorVar, fac_cols)
     if (length(sel) > 0)
       updatePickerInput(session, "multiFactor", selected = sel)
   }, ignoreNULL = TRUE)
   
-  observeEvent(input$selectAllMultiFactors, {
+  shiny::observeEvent(input$selectAllMultiFactors, {
     updatePickerInput(session, "multiFactor", selected = get_all_factor_candidates(values$filteredData))
   })
   
-  observeEvent(input$deselectAllMultiFactors, {
+  shiny::observeEvent(input$deselectAllMultiFactors, {
     updatePickerInput(session, "multiFactor", selected = character(0))
   })
   
   # - Bloc 8 : Info transformations dans le panel PostHoc -
-  output$postHocTransformInfo <- renderUI({
+  output$postHocTransformInfo <- shiny::renderUI({
     log           <- values$transformationLog %||% list()
     selected_vars <- input$multiResponse
     if (length(log) == 0 || is.null(selected_vars) || length(selected_vars) == 0) return(NULL)
@@ -7116,16 +7116,16 @@ mod_tests_server <- function(id, values) {
         )
       )
     })
-    div(
+    shiny::div(
       style = paste0("padding:10px 12px;background:#e3f2fd;",
                      "border-left:4px solid #1976d2;border-radius:4px;margin-bottom:10px;"),
-      div(style = "font-weight:bold;color:#0d47a1;font-size:12px;margin-bottom:6px;",
-          icon("flask"), " Variables transformées sélectionnées"),
-      tags$ul(style = "margin:0;padding-left:16px;", tagList(entries)),
-      div(
+      shiny::div(style = "font-weight:bold;color:#0d47a1;font-size:12px;margin-bottom:6px;",
+          shiny::icon("flask"), " Variables transformées sélectionnées"),
+      tags$ul(style = "margin:0;padding-left:16px;", shiny::tagList(entries)),
+      shiny::div(
         style = paste0("font-size:11px;color:#1565c0;margin-top:8px;",
                        "padding-top:6px;border-top:1px solid #90caf9;font-style:italic;"),
-        icon("info-circle"),
+        shiny::icon("info-circle"),
         " Le PostHoc est réalisé sur les données transformées.",
         " Les lettres de significativité s'appliquent à l'échelle transformée.",
         " Activez 'Retro-transformation' pour afficher les moyennes sur l'échelle originale."
@@ -7133,15 +7133,15 @@ mod_tests_server <- function(id, values) {
     )
   })
   
-  output$hasTransformedVarsSelected <- reactive({
+  output$hasTransformedVarsSelected <- shiny::reactive({
     log      <- values$transformationLog %||% list()
     selected <- input$multiResponse
     if (length(log) == 0 || is.null(selected)) return(FALSE)
     any(selected %in% names(log))
   })
-  outputOptions(output, "hasTransformedVarsSelected", suspendWhenHidden = FALSE) 
-  output$mainEffectsTable <- renderDT({
-    req(values$multiResultsMain)
+  shiny::outputOptions(output, "hasTransformedVarsSelected", suspendWhenHidden = FALSE) 
+  output$mainEffectsTable <- DT::renderDT({
+    shiny::req(values$multiResultsMain)
     
     main_data <- values$multiResultsMain[values$multiResultsMain$Type == "main", ]
     
@@ -7158,7 +7158,7 @@ mod_tests_server <- function(id, values) {
     cols_to_show <- unique(cols_to_show)
     cols_to_show <- cols_to_show[cols_to_show %in% colnames(main_data)]
     
-    dt <- datatable(
+    dt <- DT::datatable(
       main_data[, cols_to_show, drop = FALSE],
       options = list(
         # scrollX retire volontairement : avec scrollX, DataTables scinde
@@ -7182,12 +7182,12 @@ mod_tests_server <- function(id, values) {
       round_cols <- intersect(c("Moyenne", "Écart_type", "Erreur_type", "CV"),
                               cols_to_show)
       if (length(round_cols) > 0)
-        dt <- dt %>% formatRound(columns = round_cols, digits = dec)
+        dt <- dt %>% DT::formatRound(columns = round_cols, digits = dec)
     }
     dt %>%
-      formatStyle(
+      DT::formatStyle(
         'groups',
-        backgroundColor = styleEqual(
+        backgroundColor = DT::styleEqual(
           unique(main_data$groups),
           rainbow(length(unique(main_data$groups)), alpha = 0.3)
         ),
@@ -7195,8 +7195,8 @@ mod_tests_server <- function(id, values) {
       )
   })
   
-  output$simpleEffectsTable <- renderDT({
-    req(values$multiResultsMain)
+  output$simpleEffectsTable <- DT::renderDT({
+    shiny::req(values$multiResultsMain)
     
     simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
     
@@ -7222,7 +7222,7 @@ mod_tests_server <- function(id, values) {
     cols_to_show <- unique(cols_to_show)
     cols_to_show <- cols_to_show[cols_to_show %in% colnames(simple_data)]
     
-    dt <- datatable(
+    dt <- DT::datatable(
       simple_data[, cols_to_show, drop = FALSE],
       options = list(
         scrollX = FALSE,
@@ -7242,38 +7242,38 @@ mod_tests_server <- function(id, values) {
       round_cols <- intersect(c("Moyenne", "Écart_type", "Erreur_type", "CV", "P_interaction"),
                               cols_to_show)
       if (length(round_cols) > 0)
-        dt <- dt %>% formatRound(columns = round_cols, digits = dec)
+        dt <- dt %>% DT::formatRound(columns = round_cols, digits = dec)
     }
     dt %>%
-      formatStyle(
+      DT::formatStyle(
         'groups',
-        backgroundColor = styleEqual(
+        backgroundColor = DT::styleEqual(
           unique(simple_data$groups),
           rainbow(length(unique(simple_data$groups)), alpha = 0.3)
         ),
         fontWeight = 'bold'
       ) %>%
-      formatStyle(
+      DT::formatStyle(
         'P_interaction',
-        backgroundColor = styleInterval(c(0.01, 0.05), c('#e74c3c', '#f39c12', '#95a5a6')),
+        backgroundColor = DT::styleInterval(c(0.01, 0.05), c('#e74c3c', '#f39c12', '#95a5a6')),
         color = 'white',
         fontWeight = 'bold'
       )
   })
   
-  output$showPosthocResults <- reactive({
+  output$showPosthocResults <- shiny::reactive({
     !is.null(values$multiResultsMain) && nrow(values$multiResultsMain) > 0
   })
-  outputOptions(output, "showPosthocResults", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "showPosthocResults", suspendWhenHidden = FALSE)
   
-  output$showSimpleEffects <- reactive({
+  output$showSimpleEffects <- shiny::reactive({
     !is.null(values$multiResultsMain) && 
       any(values$multiResultsMain$Type == "simple_effect", na.rm = TRUE)
   })
-  outputOptions(output, "showSimpleEffects", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "showSimpleEffects", suspendWhenHidden = FALSE)
   
-  output$analysisSummaryMain <- renderUI({
-    req(values$multiResultsMain)
+  output$analysisSummaryMain <- shiny::renderUI({
+    shiny::req(values$multiResultsMain)
     
     main_data <- values$multiResultsMain[values$multiResultsMain$Type == "main", ]
     
@@ -7300,21 +7300,21 @@ mod_tests_server <- function(id, values) {
     # L'ajustement ne s'applique qu'aux méthodes par paires
     adj_applies <- (is_param && (input$multiTest %||% "") %in% c("lsd", "bonferroni", "lm_emmeans")) || !is_param
 
-    div(style = "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 8px;",
-        h5(icon("layer-group"), " Effets principaux", style = "margin-top: 0;"),
+    shiny::div(style = "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 8px;",
+        shiny::h5(shiny::icon("layer-group"), " Effets principaux", style = "margin-top: 0;"),
         tags$ul(
-          tags$li(strong(n_vars), " variable(s) analysée(s)"),
-          tags$li(strong(n_factors), " facteur(s) testé(s)"),
-          tags$li(strong(n_comparisons), " comparaison(s)"),
-          tags$li("Méthode : ", strong(meth_lab)),
+          tags$li(shiny::strong(n_vars), " variable(s) analysée(s)"),
+          tags$li(shiny::strong(n_factors), " facteur(s) testé(s)"),
+          tags$li(shiny::strong(n_comparisons), " comparaison(s)"),
+          tags$li("Méthode : ", shiny::strong(meth_lab)),
           tags$li("Ajustement des p-values : ",
-                  strong(if (adj_applies) adj_lab else "intégré à la méthode"))
+                  shiny::strong(if (adj_applies) adj_lab else "intégré à la méthode"))
         )
     )
   })
   
-  output$simpleEffectsSummary <- renderUI({
-    req(values$multiResultsMain)
+  output$simpleEffectsSummary <- shiny::renderUI({
+    shiny::req(values$multiResultsMain)
     
     simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
     
@@ -7324,18 +7324,18 @@ mod_tests_server <- function(id, values) {
     n_tests <- nrow(simple_data)
     n_directions <- length(unique(simple_data$Direction[!is.na(simple_data$Direction)]))
     
-    div(style = "background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
-        h5(icon("project-diagram"), " Décomposition des interactions", style = "margin-top: 0;"),
+    shiny::div(style = "background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
+        shiny::h5(shiny::icon("project-diagram"), " Décomposition des interactions", style = "margin-top: 0;"),
         tags$ul(
-          tags$li(strong(n_interactions), " interaction(s) significative(s)"),
-          tags$li(strong(n_tests), " test(s) d'effets simples"),
-          tags$li(strong(n_directions), " direction(s) d'analyse")
+          tags$li(shiny::strong(n_interactions), " interaction(s) significative(s)"),
+          tags$li(shiny::strong(n_tests), " test(s) d'effets simples"),
+          tags$li(shiny::strong(n_directions), " direction(s) d'analyse")
         )
     )
   })
   
-  observe({
-    req(values$multiResultsMain)
+  shiny::observe({
+    shiny::req(values$multiResultsMain)
     
     simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
     
@@ -7343,13 +7343,13 @@ mod_tests_server <- function(id, values) {
       vars <- c("Toutes", unique(simple_data$Variable))
       interactions <- c("Toutes", unique(simple_data$Interaction_base))
       
-      updateSelectInput(session, "filterSimpleEffectVar", choices = vars, selected = "Toutes")
-      updateSelectInput(session, "filterSimpleEffectInteraction", choices = interactions, selected = "Toutes")
+      shiny::updateSelectInput(session, "filterSimpleEffectVar", choices = vars, selected = "Toutes")
+      shiny::updateSelectInput(session, "filterSimpleEffectInteraction", choices = interactions, selected = "Toutes")
     }
   })
   
-  output$selectSimpleEffectPlot <- renderUI({
-    req(values$multiResultsMain)
+  output$selectSimpleEffectPlot <- shiny::renderUI({
+    shiny::req(values$multiResultsMain)
     
     simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
     
@@ -7360,7 +7360,7 @@ mod_tests_server <- function(id, values) {
     }
     
     if (is.null(input$multiResponse) || length(input$multiResponse) == 0) {
-      return(div(style = "color: #e74c3c; font-style: italic;", 
+      return(shiny::div(style = "color: #e74c3c; font-style: italic;", 
                  "Aucune variable sélectionnée"))
     }
     
@@ -7379,64 +7379,64 @@ mod_tests_server <- function(id, values) {
     })
     
     if (is.null(resp_var) || is.na(resp_var) || resp_var == "") {
-      return(div(style = "color: #e74c3c; font-style: italic;", 
+      return(shiny::div(style = "color: #e74c3c; font-style: italic;", 
                  "Erreur d'accès à la variable"))
     }
     
     simple_var_data <- simple_data[simple_data$Variable == resp_var, ]
     
     if (nrow(simple_var_data) == 0) {
-      return(div(style = "color: #e74c3c; font-style: italic;", 
+      return(shiny::div(style = "color: #e74c3c; font-style: italic;", 
                  paste("Aucun effet simple pour", resp_var)))
     }
     
     factors <- unique(simple_var_data$Facteur)
     
     if (length(factors) == 0) {
-      return(div(style = "color: #e74c3c; font-style: italic;", 
+      return(shiny::div(style = "color: #e74c3c; font-style: italic;", 
                  "Aucun facteur disponible"))
     }
     
-    selectInput(ns("selectedSimpleEffect"), 
+    shiny::selectInput(ns("selectedSimpleEffect"), 
                 "Sélectionner l'effet simple:",
                 choices = factors,
                 width = "100%")
   })
   
-  output$fullAnalysisReport <- renderUI({
-    req(values$multiResultsMain)
+  output$fullAnalysisReport <- shiny::renderUI({
+    shiny::req(values$multiResultsMain)
     
     main_data <- values$multiResultsMain[values$multiResultsMain$Type == "main", ]
     simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
     
-    tagList(
-      h4("Vue d'ensemble"),
-      fluidRow(
-        column(6,
-               div(style = "background-color: white; padding: 15px; border-radius: 5px; border-left: 4px solid #667eea;",
-                   h5(icon("layer-group"), " Effets principaux"),
-                   p(strong(nrow(main_data)), " comparaisons"),
-                   p(strong(length(unique(main_data$Variable))), " variables"),
-                   p(strong(length(unique(main_data$Facteur))), " facteurs")
+    shiny::tagList(
+      shiny::h4("Vue d'ensemble"),
+      shiny::fluidRow(
+        shiny::column(6,
+               shiny::div(style = "background-color: white; padding: 15px; border-radius: 5px; border-left: 4px solid #667eea;",
+                   shiny::h5(shiny::icon("layer-group"), " Effets principaux"),
+                   shiny::p(shiny::strong(nrow(main_data)), " comparaisons"),
+                   shiny::p(shiny::strong(length(unique(main_data$Variable))), " variables"),
+                   shiny::p(shiny::strong(length(unique(main_data$Facteur))), " facteurs")
                )
         ),
-        column(6,
-               div(style = "background-color: white; padding: 15px; border-radius: 5px; border-left: 4px solid #e74c3c;",
-                   h5(icon("project-diagram"), " Effets simples"),
-                   p(strong(nrow(simple_data)), " tests"),
-                   p(strong(length(unique(simple_data$Interaction_base))), " interactions décomposées"),
-                   p(strong(length(unique(simple_data$Direction[!is.na(simple_data$Direction)]))), " directions d'analyse")
+        shiny::column(6,
+               shiny::div(style = "background-color: white; padding: 15px; border-radius: 5px; border-left: 4px solid #e74c3c;",
+                   shiny::h5(shiny::icon("project-diagram"), " Effets simples"),
+                   shiny::p(shiny::strong(nrow(simple_data)), " tests"),
+                   shiny::p(shiny::strong(length(unique(simple_data$Interaction_base))), " interactions décomposées"),
+                   shiny::p(shiny::strong(length(unique(simple_data$Direction[!is.na(simple_data$Direction)]))), " directions d'analyse")
                )
         )
       ),
-      br(),
-      h4("Détails par variable"),
-      uiOutput(ns("variableDetailedReport"))
+      shiny::br(),
+      shiny::h4("Détails par variable"),
+      shiny::uiOutput(ns("variableDetailedReport"))
     )
   })
   
-  output$variableDetailedReport <- renderUI({
-    req(values$multiResultsMain)
+  output$variableDetailedReport <- shiny::renderUI({
+    shiny::req(values$multiResultsMain)
     
     vars <- unique(values$multiResultsMain$Variable)
     
@@ -7445,11 +7445,11 @@ mod_tests_server <- function(id, values) {
       main_count <- sum(var_data$Type == "main")
       simple_count <- sum(var_data$Type == "simple_effect")
       
-      div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 10px;",
-          strong(v),
-          br(),
+      shiny::div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 10px;",
+          shiny::strong(v),
+          shiny::br(),
           sprintf("- %d effet(s) principal(aux)", main_count),
-          br(),
+          shiny::br(),
           sprintf("- %d effet(s) simple(s)", simple_count)
       )
     })
@@ -7457,13 +7457,13 @@ mod_tests_server <- function(id, values) {
     do.call(tagList, reports)
   })
   
-  output$showVariableNavigation <- reactive({
+  output$showVariableNavigation <- shiny::reactive({
     length(input$multiResponse) > 1
   })
-  outputOptions(output, "showVariableNavigation", suspendWhenHidden = FALSE)
+  shiny::outputOptions(output, "showVariableNavigation", suspendWhenHidden = FALSE)
   
-  output$variableNavigation <- renderUI({
-    req(input$multiResponse)
+  output$variableNavigation <- shiny::renderUI({
+    shiny::req(input$multiResponse)
     if (is.null(input$multiResponse) || length(input$multiResponse) <= 1) {
       return(NULL)
     }
@@ -7491,24 +7491,24 @@ mod_tests_server <- function(id, values) {
       paste("Variable", current_idx)
     })
     
-    div(style = "display: flex; align-items: center; gap: 15px;",
-        actionButton(ns("prevMultiVar"), "", 
-                     icon = icon("chevron-left"), 
+    shiny::div(style = "display: flex; align-items: center; gap: 15px;",
+        shiny::actionButton(ns("prevMultiVar"), "", 
+                     icon = shiny::icon("chevron-left"), 
                      class = "btn-light btn-lg",
                      style = "font-size: 1.5em; padding: 10px 20px; height: 60px; width: 60px;"),
-        div(style = "color: white; font-size: 1.2em; font-weight: bold; text-align: center;",
-            span(style = "display: block; font-size: 0.8em; opacity: 0.8;", 
+        shiny::div(style = "color: white; font-size: 1.2em; font-weight: bold; text-align: center;",
+            shiny::span(style = "display: block; font-size: 0.8em; opacity: 0.8;", 
                  paste("Variable", current_idx, "/", total_vars)),
-            span(current_var_name)
+            shiny::span(current_var_name)
         ),
-        actionButton(ns("nextMultiVar"), "", 
-                     icon = icon("chevron-right"), 
+        shiny::actionButton(ns("nextMultiVar"), "", 
+                     icon = shiny::icon("chevron-right"), 
                      class = "btn-light btn-lg",
                      style = "font-size: 1.5em; padding: 10px 20px; height: 60px; width: 60px;")
     )
   })
   
-  observeEvent(input$prevMultiVar, {
+  shiny::observeEvent(input$prevMultiVar, {
     if (is.null(input$multiResponse) || length(input$multiResponse) == 0) {
       return(NULL)
     }
@@ -7532,7 +7532,7 @@ mod_tests_server <- function(id, values) {
     })
   })
   
-  observeEvent(input$nextMultiVar, {
+  shiny::observeEvent(input$nextMultiVar, {
     if (is.null(input$multiResponse) || length(input$multiResponse) == 0) {
       return(NULL)
     }
@@ -7557,8 +7557,8 @@ mod_tests_server <- function(id, values) {
   })
   
   
-  output$xAxisOrderUI <- renderUI({
-    req(input$multiResponse, input$multiFactor, values$filteredData)
+  output$xAxisOrderUI <- shiny::renderUI({
+    shiny::req(input$multiResponse, input$multiFactor, values$filteredData)
     
     fvar <- NULL
     if (input$plotDisplayType == "main") {
@@ -7588,31 +7588,31 @@ mod_tests_server <- function(id, values) {
     
     if (length(current_levels) == 0) return(NULL)
     
-    tagList(
-      h6("Ordre actuel des catégories :", style = "font-weight: bold; color: #27ae60;"),
-      div(style = "max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 5px;",
+    shiny::tagList(
+      shiny::h6("Ordre actuel des catégories :", style = "font-weight: bold; color: #27ae60;"),
+      shiny::div(style = "max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 5px;",
           lapply(seq_along(current_levels), function(i) {
             level_name <- current_levels[i]
-            div(style = "background-color: white; padding: 8px; margin-bottom: 5px; border-radius: 4px; border: 1px solid #e0e0e0;",
-                fluidRow(
-                  column(2, 
-                         strong(paste0(i, ".")),
+            shiny::div(style = "background-color: white; padding: 8px; margin-bottom: 5px; border-radius: 4px; border: 1px solid #e0e0e0;",
+                shiny::fluidRow(
+                  shiny::column(2, 
+                         shiny::strong(paste0(i, ".")),
                          style = "text-align: center; padding-top: 5px;"
                   ),
-                  column(6, 
-                         span(level_name, style = "font-weight: bold; color: #2c3e50;")
+                  shiny::column(6, 
+                         shiny::span(level_name, style = "font-weight: bold; color: #2c3e50;")
                   ),
-                  column(4,
-                         div(style = "text-align: right;",
+                  shiny::column(4,
+                         shiny::div(style = "text-align: right;",
                              if (i > 1) {
-                               actionButton(paste0("moveUp_", i), "", 
-                                            icon = icon("arrow-up"),
+                               shiny::actionButton(paste0("moveUp_", i), "", 
+                                            icon = shiny::icon("arrow-up"),
                                             class = "btn-sm btn-primary",
                                             style = "margin-right: 5px; padding: 2px 8px;")
                              },
                              if (i < length(current_levels)) {
-                               actionButton(paste0("moveDown_", i), "", 
-                                            icon = icon("arrow-down"),
+                               shiny::actionButton(paste0("moveDown_", i), "", 
+                                            icon = shiny::icon("arrow-down"),
                                             class = "btn-sm btn-primary",
                                             style = "padding: 2px 8px;")
                              }
@@ -7622,17 +7622,17 @@ mod_tests_server <- function(id, values) {
             )
           })
       ),
-      hr(),
-      actionButton(ns("resetXOrder"), "Réinitialiser l'ordre", 
+      shiny::hr(),
+      shiny::actionButton(ns("resetXOrder"), "Réinitialiser l'ordre", 
                    class = "btn-warning btn-sm", 
-                   icon = icon("undo"),
+                   icon = shiny::icon("undo"),
                    style = "width: 100%;")
     )
   })
   
   
-  observe({
-    req(input$multiResponse, input$multiFactor, values$filteredData)
+  shiny::observe({
+    shiny::req(input$multiResponse, input$multiFactor, values$filteredData)
     
     fvar <- NULL
     if (!is.null(input$plotDisplayType) && input$plotDisplayType == "main") {
@@ -7662,7 +7662,7 @@ mod_tests_server <- function(id, values) {
     if (length(current_levels) == 0) return(NULL)
     
     lapply(seq_along(current_levels), function(i) {
-      observeEvent(input[[paste0("moveUp_", i)]], {
+      shiny::observeEvent(input[[paste0("moveUp_", i)]], {
         if (i > 1) {
           new_order <- current_levels
           new_order[c(i-1, i)] <- new_order[c(i, i-1)]
@@ -7672,7 +7672,7 @@ mod_tests_server <- function(id, values) {
     })
     
     lapply(seq_along(current_levels), function(i) {
-      observeEvent(input[[paste0("moveDown_", i)]], {
+      shiny::observeEvent(input[[paste0("moveDown_", i)]], {
         if (i < length(current_levels)) {
           new_order <- current_levels
           new_order[c(i, i+1)] <- new_order[c(i+1, i)]
@@ -7683,9 +7683,9 @@ mod_tests_server <- function(id, values) {
   })
   
   
-  observeEvent(input$resetXOrder, {
+  shiny::observeEvent(input$resetXOrder, {
     values$customXLevels(NULL)
-    showNotification("Ordre des catégories réinitialisé", type = "message", duration = 2)
+    shiny::showNotification("Ordre des catégories réinitialisé", type = "message", duration = 2)
   })
   
   # Message expliquant pourquoi le graphique post-hoc est vide (le cas echeant).
@@ -7699,7 +7699,7 @@ mod_tests_server <- function(id, values) {
     invisible(x)
   }
 
-  create_posthoc_plot <- reactive({
+  create_posthoc_plot <- shiny::reactive({
     
     plot_type <- input$plotType
     error_type <- input$errorType
@@ -7747,7 +7747,7 @@ mod_tests_server <- function(id, values) {
     
     subtitle_position <- input$subtitlePosition
     
-    req(values$multiResultsMain, input$multiResponse, input$multiFactor, values$filteredData)
+    shiny::req(values$multiResultsMain, input$multiResponse, input$multiFactor, values$filteredData)
     
     if (nrow(values$multiResultsMain) == 0 || length(input$multiResponse) == 0 || length(input$multiFactor) == 0) {
       return(NULL)
@@ -7870,15 +7870,15 @@ mod_tests_server <- function(id, values) {
     # Theme de base choisi par l'utilisateur (viz_get_theme est le meme helper
     # que le module de visualisation : un theme ajoute la profite aux deux).
     base_theme <- viz_get_theme(input$posthocTheme %||% "minimal", base_size = 11) +
-      theme(
-        plot.title = element_markdown(
+      ggplot2::theme(
+        plot.title = ggtext::element_markdown(
           size = title_size, 
           face = title_font_style, 
           hjust = 0.5
         ),
         
         plot.subtitle = if (!is.null(custom_subtitle) && custom_subtitle != "") {
-          element_text(
+          ggplot2::element_text(
             size = if (!is.null(subtitle_size)) subtitle_size else 12,
             face = if (!is.null(subtitle_font_style)) subtitle_font_style else "italic",
             hjust = as.numeric(if (!is.null(subtitle_position)) subtitle_position else 0.5),
@@ -7886,50 +7886,50 @@ mod_tests_server <- function(id, values) {
             margin = margin(t = 5, b = 10)
           )
         } else {
-          element_blank()
+          ggplot2::element_blank()
         },
         
-        axis.title = element_markdown(
+        axis.title = ggtext::element_markdown(
           size = axis_title_size, 
           face = axis_title_font_style
         ),
         axis.text.x = if (rotate_labels) {
-          element_text(
+          ggplot2::element_text(
             angle = 45, 
             hjust = 1, 
             size = axis_text_size, 
             face = axis_text_x_font_style
           )
         } else {
-          element_text(
+          ggplot2::element_text(
             size = axis_text_size, 
             face = axis_text_x_font_style
           )
         },
-        axis.text.y = element_text(
+        axis.text.y = ggplot2::element_text(
           size = axis_text_size, 
           face = axis_text_y_font_style
         ),
         legend.position = if (color_by_groups) "right" else "none",
-        legend.title = element_markdown(
+        legend.title = ggtext::element_markdown(
           size = legend_title_size, 
           face = legend_title_font_style
         ),
-        legend.text = element_text(
+        legend.text = ggplot2::element_text(
           size = legend_text_size, 
           face = legend_text_font_style
         ),
         # `legendKeySize` etait declare dans l'interface mais jamais lu : le
         # reglage existait a l'ecran et ne faisait rien.
-        legend.key.height = unit(legend_key_size, "lines"),
-        legend.key.width = unit(legend_key_size * 1.25, "lines"),
-        legend.spacing.y = unit(legend_spacing, "lines"),  
-        legend.key.spacing.y = unit(legend_spacing, "lines"),  
+        legend.key.height = ggplot2::unit(legend_key_size, "lines"),
+        legend.key.width = ggplot2::unit(legend_key_size * 1.25, "lines"),
+        legend.spacing.y = ggplot2::unit(legend_spacing, "lines"),  
+        legend.key.spacing.y = ggplot2::unit(legend_spacing, "lines"),  
         legend.margin = margin(t = 5, r = 5, b = 5, l = 5),
-        legend.box.spacing = unit(0.5, "lines"),
-        panel.grid.major = element_line(color = "gray90"),
-        panel.grid.minor = element_blank(),
-        panel.background = element_rect(fill = "white", color = NA)
+        legend.box.spacing = ggplot2::unit(0.5, "lines"),
+        panel.grid.major = ggplot2::element_line(color = "gray90"),
+        panel.grid.minor = ggplot2::element_blank(),
+        panel.background = ggplot2::element_rect(fill = "white", color = NA)
       )
     
     
@@ -7943,7 +7943,7 @@ mod_tests_server <- function(id, values) {
       }
     }
     
-    base_labels <- labs(
+    base_labels <- ggplot2::labs(
       title = plot_title,
       subtitle = if (!is.null(custom_subtitle) && custom_subtitle != "") {
         custom_subtitle
@@ -8020,13 +8020,13 @@ mod_tests_server <- function(id, values) {
           names(agg_subset)[1] <- "x_var"
           plot_data_merged <- merge(plot_data, agg_subset, by = "x_var", all.x = TRUE)
           
-          p <- ggplot(plot_data_merged, aes(x = x_var, y = y_var, fill = groups)) +
-            geom_boxplot(alpha = 0.7) +
-            scale_fill_discrete(name = legend_title)
+          p <- ggplot2::ggplot(plot_data_merged, ggplot2::aes(x = x_var, y = y_var, fill = groups)) +
+            ggplot2::geom_boxplot(alpha = 0.7) +
+            ggplot2::scale_fill_discrete(name = legend_title)
         } else {
-          p <- ggplot(plot_data, aes(x = x_var, y = y_var, fill = x_var)) +
-            geom_boxplot(alpha = 0.7) +
-            annotate("text", 
+          p <- ggplot2::ggplot(plot_data, ggplot2::aes(x = x_var, y = y_var, fill = x_var)) +
+            ggplot2::geom_boxplot(alpha = 0.7) +
+            ggplot2::annotate("text", 
                      x = seq_len(nrow(agg)),   # seq_len : 1:0 rendrait c(1, 0)
                      y = y_max + y_range * 0.05, 
                      label = agg$groups, 
@@ -8041,15 +8041,15 @@ mod_tests_server <- function(id, values) {
           names(agg_subset)[1] <- "x_var"
           plot_data_merged <- merge(plot_data, agg_subset, by = "x_var", all.x = TRUE)
           
-          p <- ggplot(plot_data_merged, aes(x = x_var, y = y_var, fill = groups)) +
-            geom_violin(alpha = 0.7) +
-            geom_boxplot(width = 0.1, alpha = 0.5, fill = "white") +
-            scale_fill_discrete(name = legend_title)
+          p <- ggplot2::ggplot(plot_data_merged, ggplot2::aes(x = x_var, y = y_var, fill = groups)) +
+            ggplot2::geom_violin(alpha = 0.7) +
+            ggplot2::geom_boxplot(width = 0.1, alpha = 0.5, fill = "white") +
+            ggplot2::scale_fill_discrete(name = legend_title)
         } else {
-          p <- ggplot(plot_data, aes(x = x_var, y = y_var, fill = x_var)) +
-            geom_violin(alpha = 0.7) +
-            geom_boxplot(width = 0.1, alpha = 0.5, fill = "white") +
-            annotate("text", 
+          p <- ggplot2::ggplot(plot_data, ggplot2::aes(x = x_var, y = y_var, fill = x_var)) +
+            ggplot2::geom_violin(alpha = 0.7) +
+            ggplot2::geom_boxplot(width = 0.1, alpha = 0.5, fill = "white") +
+            ggplot2::annotate("text", 
                      x = seq_len(nrow(agg)),   # seq_len : 1:0 rendrait c(1, 0)
                      y = y_max + y_range * 0.05, 
                      label = agg$groups, 
@@ -8068,14 +8068,14 @@ mod_tests_server <- function(id, values) {
         y_text_pos <- max(agg$y_err_max, na.rm = TRUE) * 1.05
         
         if (color_by_groups) {
-          p <- ggplot(agg, aes(x = x_var, y = Moyenne, fill = groups, color = groups)) +
-            geom_point(size = 4, shape = 21, stroke = 2) +
-            scale_fill_discrete(name = legend_title) +
-            scale_color_discrete(name = legend_title)
+          p <- ggplot2::ggplot(agg, ggplot2::aes(x = x_var, y = Moyenne, fill = groups, color = groups)) +
+            ggplot2::geom_point(size = 4, shape = 21, stroke = 2) +
+            ggplot2::scale_fill_discrete(name = legend_title) +
+            ggplot2::scale_color_discrete(name = legend_title)
         } else {
-          p <- ggplot(agg, aes(x = x_var, y = Moyenne, fill = x_var, color = x_var)) +
-            geom_point(size = 4, shape = 21, stroke = 2) +
-            annotate("text", 
+          p <- ggplot2::ggplot(agg, ggplot2::aes(x = x_var, y = Moyenne, fill = x_var, color = x_var)) +
+            ggplot2::geom_point(size = 4, shape = 21, stroke = 2) +
+            ggplot2::annotate("text", 
                      x = seq_len(nrow(agg)),   # seq_len : 1:0 rendrait c(1, 0)
                      y = y_text_pos, 
                      label = agg$groups, 
@@ -8085,26 +8085,26 @@ mod_tests_server <- function(id, values) {
         }
         
         if (error_type == "se") {
-          p <- p + geom_errorbar(aes(ymin = Moyenne - Erreur_type, ymax = Moyenne + Erreur_type), 
+          p <- p + ggplot2::geom_errorbar(ggplot2::aes(ymin = Moyenne - Erreur_type, ymax = Moyenne + Erreur_type), 
                                  width = 0.2, color = "black")
         } else if (error_type == "sd") {
-          p <- p + geom_errorbar(aes(ymin = Moyenne - Ecart_type, ymax = Moyenne + Ecart_type), 
+          p <- p + ggplot2::geom_errorbar(ggplot2::aes(ymin = Moyenne - Ecart_type, ymax = Moyenne + Ecart_type), 
                                  width = 0.2, color = "black")
         } else if (error_type == "ci") {
           agg$ci_margin <- 1.96 * agg$Erreur_type
-          p <- p + geom_errorbar(aes(ymin = Moyenne - ci_margin, ymax = Moyenne + ci_margin), 
+          p <- p + ggplot2::geom_errorbar(ggplot2::aes(ymin = Moyenne - ci_margin, ymax = Moyenne + ci_margin), 
                                  width = 0.2, color = "black")
         }
         
       } else if (plot_type == "hist") {
         if (color_by_groups) {
-          p <- ggplot(agg, aes(x = x_var, y = Moyenne, fill = groups)) +
-            geom_col(alpha = 0.7, color = "black") +
-            scale_fill_discrete(name = legend_title)
+          p <- ggplot2::ggplot(agg, ggplot2::aes(x = x_var, y = Moyenne, fill = groups)) +
+            ggplot2::geom_col(alpha = 0.7, color = "black") +
+            ggplot2::scale_fill_discrete(name = legend_title)
         } else {
-          p <- ggplot(agg, aes(x = x_var, y = Moyenne, fill = x_var)) +
-            geom_col(alpha = 0.7, color = "black") +
-            annotate("text", 
+          p <- ggplot2::ggplot(agg, ggplot2::aes(x = x_var, y = Moyenne, fill = x_var)) +
+            ggplot2::geom_col(alpha = 0.7, color = "black") +
+            ggplot2::annotate("text", 
                      x = seq_len(nrow(agg)),   # seq_len : 1:0 rendrait c(1, 0)
                      y = agg$Moyenne * 0.8, 
                      label = agg$groups, 
@@ -8113,20 +8113,20 @@ mod_tests_server <- function(id, values) {
                      color = "red")
         }
         
-        p <- p + geom_text(aes(y = Moyenne/2, label = round(Moyenne, 2)),
+        p <- p + ggplot2::geom_text(ggplot2::aes(y = Moyenne/2, label = round(Moyenne, 2)),
                            size = safe_mean_value_size,  # Taille personnalisable
                            fontface = "bold", color = "white")
         
         if (error_type != "none") {
           if (error_type == "se") {
-            p <- p + geom_errorbar(aes(ymin = Moyenne, ymax = Moyenne + Erreur_type), 
+            p <- p + ggplot2::geom_errorbar(ggplot2::aes(ymin = Moyenne, ymax = Moyenne + Erreur_type), 
                                    width = 0.2, color = "black")
           } else if (error_type == "sd") {
-            p <- p + geom_errorbar(aes(ymin = Moyenne, ymax = Moyenne + Ecart_type), 
+            p <- p + ggplot2::geom_errorbar(ggplot2::aes(ymin = Moyenne, ymax = Moyenne + Ecart_type), 
                                    width = 0.2, color = "black")
           } else if (error_type == "ci") {
             agg$ci_margin <- 1.96 * agg$Erreur_type
-            p <- p + geom_errorbar(aes(ymin = Moyenne, ymax = Moyenne + ci_margin), 
+            p <- p + ggplot2::geom_errorbar(ggplot2::aes(ymin = Moyenne, ymax = Moyenne + ci_margin), 
                                    width = 0.2, color = "black")
           }
         }
@@ -8135,8 +8135,8 @@ mod_tests_server <- function(id, values) {
       p <- p + base_theme + base_labels
       
       if (!is.null(p) && box_color != "default" && !color_by_groups) {
-        p <- p + scale_fill_brewer(palette = box_color) +
-          scale_color_brewer(palette = box_color)
+        p <- p + ggplot2::scale_fill_brewer(palette = box_color) +
+          ggplot2::scale_color_brewer(palette = box_color)
       }
       
       
@@ -8147,7 +8147,7 @@ mod_tests_server <- function(id, values) {
         xlim_max <- if (!is.null(x_axis_max) && !is.na(x_axis_max)) x_axis_max else NA
         
         if (!is.na(ylim_min) || !is.na(ylim_max) || !is.na(xlim_min) || !is.na(xlim_max)) {
-          p <- p + coord_cartesian(
+          p <- p + ggplot2::coord_cartesian(
             xlim = if (!is.na(xlim_min) || !is.na(xlim_max)) c(xlim_min, xlim_max) else NULL,
             ylim = if (!is.na(ylim_min) || !is.na(ylim_max)) c(ylim_min, ylim_max) else NULL,
             expand = TRUE
@@ -8173,7 +8173,7 @@ mod_tests_server <- function(id, values) {
             by = y_axis_break_step
           )
           
-          p <- p + scale_y_continuous(breaks = y_breaks)
+          p <- p + ggplot2::scale_y_continuous(breaks = y_breaks)
         }
         
         if (!is.null(x_axis_break_step) && !is.na(x_axis_break_step) && x_axis_break_step > 0) {
@@ -8192,7 +8192,7 @@ mod_tests_server <- function(id, values) {
               by = x_axis_break_step
             )
             
-            p <- p + scale_x_continuous(breaks = x_breaks)
+            p <- p + ggplot2::scale_x_continuous(breaks = x_breaks)
           }
         }
       }
@@ -8203,7 +8203,7 @@ mod_tests_server <- function(id, values) {
       }
       
     }, error = function(e) {
-      showNotification(hstat_err_fr(e, "Erreur graphique"), type = "error", duration = 10)
+      shiny::showNotification(hstat_err_fr(e, "Erreur graphique"), type = "error", duration = 10)
       return(NULL)
     })
     
@@ -8211,7 +8211,7 @@ mod_tests_server <- function(id, values) {
   })
   
   output$multiPlot <- renderPlotly({
-    req(values$filteredData)
+    shiny::req(values$filteredData)
     p <- create_posthoc_plot()
 
     # Pas de graphique encore disponible : on affiche un message clair plutôt qu'une
@@ -8246,8 +8246,8 @@ mod_tests_server <- function(id, values) {
     })
   })
   
-  output$plotTitle <- renderUI({
-    req(values$filteredData)
+  output$plotTitle <- shiny::renderUI({
+    shiny::req(values$filteredData)
     if (is.null(input$multiResponse) || length(input$multiResponse) == 0) {
       return("Visualisations")
     }
@@ -8303,7 +8303,7 @@ mod_tests_server <- function(id, values) {
       "Effets_simples"    = d[d$Type == "simple_effect", ]))
   }, "analyse_complete", "Analyse complète")
   
-  output$downloadMultiPlot <- downloadHandler(
+  output$downloadMultiPlot <- shiny::downloadHandler(
     filename = function() {
       fmt <- input$multiPlotFormat %||% "png"
       paste0("graphique_posthoc_", Sys.Date(), ".", fmt)
@@ -8326,7 +8326,7 @@ mod_tests_server <- function(id, values) {
       dpi <- .hstat_num1(input$plotDPIVisible %||% input$plotDPI, 300)
 
       if (is.null(p)) {
-        showNotification(
+        shiny::showNotification(
           "Aucun graphique à exporter : lancez d'abord l'analyse, puis réessayez.",
           type = "warning", duration = 6)
         p <- ggplot2::ggplot() +
@@ -8344,25 +8344,25 @@ mod_tests_server <- function(id, values) {
       # d'erreur HTML, enregistree sous le nom demande.
       ok <- hstat_ecrire_image(file, p, fmt, w, h, dpi)
       if (!ok)
-        showNotification("Échec de l'export : le fichier téléchargé porte le motif.",
+        shiny::showNotification("Échec de l'export : le fichier téléchargé porte le motif.",
                          type = "error", duration = 8)
 
       if (ok) {
-        showNotification(trf("Graphique téléchargé (%s, %d DPI).", toupper(fmt), as.integer(dpi)),
+        shiny::showNotification(trf("Graphique téléchargé (%s, %d DPI).", toupper(fmt), as.integer(dpi)),
                          type = "message", duration = 3)
       }
     }
   )
   
-  output$downloadSummaryStats <- downloadHandler(
+  output$downloadSummaryStats <- shiny::downloadHandler(
     filename = function() { paste0("statistiques_resumees_", Sys.Date(), ".xlsx") },
     content = function(file) {
-      req(values$multiResultsMain)
+      shiny::req(values$multiResultsMain)
       
       summary_stats <- values$multiResultsMain %>%
-        group_by(Variable, Facteur, Type) %>%
-        summarise(
-          Nb_groupes = n(),
+        dplyr::group_by(Variable, Facteur, Type) %>%
+        dplyr::summarise(
+          Nb_groupes = dplyr::n(),
           Moyenne_generale = round(mean(Moyenne, na.rm = TRUE), 2),
           CV_moyen = round(mean(CV, na.rm = TRUE), 2),
           Ecart_type_moyen = round(mean(Ecart_type, na.rm = TRUE), 2),
@@ -8370,10 +8370,10 @@ mod_tests_server <- function(id, values) {
         )
       
       var_summary <- values$multiResultsMain %>%
-        group_by(Variable) %>%
-        summarise(
-          Nb_facteurs_testes = n_distinct(Facteur),
-          Nb_total_groupes = n(),
+        dplyr::group_by(Variable) %>%
+        dplyr::summarise(
+          Nb_facteurs_testes = dplyr::n_distinct(Facteur),
+          Nb_total_groupes = dplyr::n(),
           Moyenne_min = round(min(Moyenne, na.rm = TRUE), 2),
           Moyenne_max = round(max(Moyenne, na.rm = TRUE), 2),
           CV_min = round(min(CV, na.rm = TRUE), 2),
@@ -8396,10 +8396,10 @@ mod_tests_server <- function(id, values) {
   # sous « rapport_complet_....pdf ». On rend desormais un PDF valide qui dit
   # ou se trouve le rapport -- un fichier qui explique vaut mieux qu'un fichier
   # qu'aucun lecteur n'ouvre.
-  output$downloadFullReport <- downloadHandler(
+  output$downloadFullReport <- shiny::downloadHandler(
     filename = function() { paste0("rapport_complet_", Sys.Date(), ".pdf") },
     content = function(file) {
-      showNotification(
+      shiny::showNotification(
         "Le rapport complet se compose dans l'onglet « Rapport » (Word, PDF ou HTML).",
         type = "message", duration = 8)
       hstat_image_secours(file, "pdf",

@@ -3962,7 +3962,10 @@ test_that("le nettoyage est pose sur renderPlotly, pas sur chaque appel", {
   # Habiller chaque appel ne marcherait pas : leurs corps comportent des
   # `return()` qui sauteraient le nettoyage. C'est `exprToFunction` qui rend
   # l'interception correcte.
-  expect_true(grepl("renderPlotly <- function", src, fixed = TRUE))
+  # `renderPlotly` est desormais pose par un AIGUILLAGE (`poser(...)`) plutot
+  # que par une affectation directe : ce qui compte n'a pas change -- le
+  # nettoyage passe par `exprToFunction`, pas par un habillage de l'expression.
+  expect_true(grepl("poser(\"renderPlotly\"", src, fixed = TRUE))
   expect_true(grepl("exprToFunction", src, fixed = TRUE))
   expect_true(grepl("hstat_plotly_clean(fn())", src, fixed = TRUE))
 })
@@ -6634,10 +6637,62 @@ test_that("le catalogue de formats ne promet que ce que l'ecrivain sait ecrire",
   }
 })
 
+test_that("un module migre n'appelle plus rien sans prefixe", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  mod <- .hstat_module_path("mod_tests.R")
+  skip_if(is.na(mod))
+  skip_if(!startsWith(normalizePath(mod), normalizePath(file.path(root, "R"))),
+          "module pas encore migre")
+
+  # L'INVARIANT DU MODULE MIGRE : tout appel a une fonction d'un autre paquet
+  # est qualifie (`DT::renderDT`), ou passe par un AIGUILLAGE de l'application.
+  # Sans cela le module depend de ce que `library()` a attache -- et un paquet
+  # installe mais NON attache le fait tomber, ce qui s'est produit en
+  # integration continue.
+  aiguillages <- c("withSpinner", "plotlyOutput", "ggplotly", "layout", "config",
+                   "renderPlotly", "colourInput", "pickerInput",
+                   "radioGroupButtons", "updatePickerInput", "rank_list", "%>%")
+  socle <- new.env()
+  suppressWarnings(suppressMessages(
+    sys.source(.hstat_socle_path(), envir = socle, keep.source = FALSE)))
+  bases <- unlist(lapply(c("base", "stats", "utils", "graphics", "grDevices",
+                           "methods", "tools", "parallel", "compiler"),
+                         function(p) ls(asNamespace(p), all.names = TRUE)))
+  maison <- unlist(lapply(.hstat_sources_app(), function(f) {
+    ex <- tryCatch(parse(f), error = function(e) NULL)
+    if (is.null(ex)) return(character(0))
+    unlist(lapply(ex, function(e)
+      if (is.call(e) && as.character(e[[1]])[1] %in% c("<-", "<<-", "="))
+        as.character(e[[2]])[1] else NULL))
+  }))
+
+  pd <- utils::getParseData(parse(mod, keep.source = TRUE))
+  a <- pd[pd$token == "SYMBOL_FUNCTION_CALL", ]
+  # Deja « pris » : precede de `::`, `:::`, `$` ou `@`. Le cas `$` n'est pas
+  # theorique : `tags$code(...)` est etiquete comme un appel, et le qualifier
+  # produirait `tags$shiny::code(...)`, que R refuse d'analyser.
+  pris <- pd[pd$token %in% c("NS_GET", "NS_GET_INT", "'$'", "'@'"), ]
+  garde <- !vapply(seq_len(nrow(a)), function(i)
+    any(pris$line1 == a$line1[i] & pris$col2 == a$col1[i] - 1L), logical(1))
+  restants <- setdiff(unique(a$text[garde]),
+                      c(bases, ls(socle, all.names = TRUE), maison, aiguillages))
+
+  # Ce qui reste doit etre local au fichier (aides internes, variables portant
+  # une fonction) : aucun ne doit appartenir a un paquet declare en Imports.
+  d <- read.dcf(file.path(root, "DESCRIPTION"))
+  imports <- sub("\\s*\\(.*", "", trimws(unlist(strsplit(d[1, "Imports"], ","))))
+  fautifs <- character(0)
+  for (p in imports) {
+    if (!isTRUE(requireNamespace(p, quietly = TRUE))) next
+    h <- intersect(restants, getNamespaceExports(p))
+    if (length(h)) fautifs <- c(fautifs, paste0(p, "::", h))
+  }
+  expect_equal(fautifs, character(0))
+})
+
 test_that("le serveur du module de tests s'execute seul, hors application", {
   skip_if_not_installed("shiny")
-  skip_if_not_installed("DT")
-  skip_if_not_installed("ggplot2")
   root <- .hstat_repo_root()
   skip_if(is.na(root))
   mod <- .hstat_module_path("mod_tests.R")
@@ -6648,25 +6703,14 @@ test_that("le serveur du module de tests s'execute seul, hors application", {
   # verifier que des balayages de texte -- « le code RESSEMBLE-t-il a ce qu'il
   # faut ». Le module etant desormais dans le paquet, `shiny::testServer()`
   # l'EXECUTE et l'on observe ce qu'il ecrit reellement.
-  # DT et ggplot2 sont ATTACHES : le module les appelle sans prefixe, comme tout
-  # le code venu de l'application. C'est le prochain chantier de la migration --
-  # qualifier ces appels -- et le dire ici vaut mieux que de le masquer.
-  suppressMessages({ library(DT); library(ggplot2) })
   suppressWarnings(suppressMessages(sys.source(mod, envir = globalenv())))
   skip_if_not(is.function(mod_tests_server))
-  # LE CONTRAT DE DEMARRAGE, REPRODUIT. Le module appelle `updatePickerInput()`
-  # sans prefixe : au demarrage, `install_and_load()` ATTACHE shinyWidgets, et
-  # l'appel se resout par le chemin de recherche. Un paquet installe mais NON
-  # ATTACHE ne suffit donc pas -- et c'est exactement ce qui s'est produit en
-  # integration continue, ou le test echouait sur « could not find function
-  # updatePickerInput » alors qu'il passait en local.
-  #
-  # Les replis (`hstat_installer_replis_ui`) ne couvrent que les paquets
-  # ABSENTS ; il faut donc, en plus, attacher ceux qui sont la.
-  for (pkg in c("shinyWidgets", "shinyjs", "plotly", "shinycssloaders",
-                "sortable", "colourpicker"))
-    if (isTRUE(requireNamespace(pkg, quietly = TRUE)))
-      suppressMessages(library(pkg, character.only = TRUE))
+  # PLUS AUCUN `library()` ICI, et c'est la mesure du progres. Le module
+  # qualifie ses appels (`DT::renderDT`, `ggplot2::aes`...) et les noms
+  # optionnels passent par les aiguillages : il ne depend plus de ce que
+  # `library()` a attache. La version precedente de ce test devait reproduire
+  # le contrat de demarrage en attachant six paquets, faute de quoi il tombait
+  # en integration continue sur « could not find function updatePickerInput ».
   suppressMessages(hstat_installer_replis_ui())
 
   set.seed(1)

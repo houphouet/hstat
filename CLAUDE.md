@@ -1906,6 +1906,48 @@ mise à s'appeler récursivement — « C stack usage is too close to the limit 
 C'est exactement le défaut déjà documenté pour les réactifs de l'application ;
 il s'attrape à l'exécution, jamais à la lecture.
 
+### Étape 3 : un module migré n'appelle plus rien sans préfixe
+
+`mod_tests.R` qualifie désormais ses **1 888** appels de fonctions d'autres
+paquets (`shiny::`, `ggplot2::`, `DT::`, `dplyr::`, `shinydashboard::`,
+`ggtext::`). Preuve mesurée : son serveur s'exécute sous `testServer()` avec
+**shiny seul attaché** — plus de `library(DT)` ni `library(ggplot2)` dans le
+test, qui devait auparavant reproduire le contrat de démarrage.
+
+**Les replis deviennent des aiguillages permanents.**
+`hstat_installer_replis_ui()` ne définissait un nom que si le paquet était
+**absent** ; un paquet **installé mais non attaché** ne donnait donc ni l'un ni
+l'autre — l'échec constaté en intégration continue (« could not find function
+`updatePickerInput` »). Les onze noms concernés sont maintenant *toujours*
+définis : ils pointent sur la fonction du paquet quand il est là, sur
+l'équivalent de base sinon. L'application ne dépend plus de ce que `library()` a
+attaché.
+
+Ces onze noms ne se qualifient **jamais** : ce sont des fonctions de
+l'application. Qualifier `renderPlotly` ferait sauter le nettoyage du polyfill
+plotly ; qualifier `plotlyOutput` ferait sauter le repli quand plotly est
+absent.
+
+### Trois pièges de la réécriture mécanique, tous rencontrés
+
+1. **Les colonnes de `getParseData()` sont en OCTETS, `substr()` en
+   caractères.** Sur un fichier accentué, découper aux colonnes annoncées avec
+   `substr()` corrompt le texte. Le remplacement se fait donc en octets, avec
+   vérification systématique que les octets trouvés à la position sont bien le
+   nom attendu.
+2. **`tags$code(...)` est étiqueté `SYMBOL_FUNCTION_CALL`.** Une première passe
+   a produit `tags$shiny::code(...)`, que R refuse d'analyser. Il faut écarter
+   les appels précédés de `$` et `@`, pas seulement de `::`.
+3. **Un paquet qui en ré-exporte un autre fausse l'attribution.** `plotly`
+   ré-exporte `mutate`, `group_by`, `summarise` de dplyr, et `shinyjs`
+   ré-exporte `colourInput` de colourpicker : prendre « le premier paquet qui
+   exporte le symbole » donne une provenance vraie techniquement mais fausse
+   sur le fond.
+
+Un test garde l'invariant : dans un module **migré**, aucun appel non qualifié
+n'appartient à un paquet des `Imports`. Il ne s'applique qu'aux modules déjà
+dans `R/` — les autres l'atteindront à leur tour.
+
 ## Fins de ligne
 
 Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. Sont en

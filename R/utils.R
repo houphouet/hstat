@@ -5785,96 +5785,88 @@ hstat_y_multi_valides <- function(data, y_vars, x_var = NULL) {
 #  fonction. Tant que ces replis vivaient dans le pont, tester
 #  `mod_tests_server` echouait sur « could not find function updatePickerInput ».
 hstat_installer_replis_ui <- function(envir = globalenv()) {
-  eval(quote({
-    # shinycssloaders::withSpinner -> renvoie l'output tel quel si absent
-    if (!exists("withSpinner") && !.hstat_has("shinycssloaders")) {
-      withSpinner <- function(ui_element, ...) ui_element
-    }
+  has <- function(p) isTRUE(requireNamespace(p, quietly = TRUE))
+  # UN AIGUILLAGE, PAS UN REPLI CONDITIONNEL. Ces noms sont desormais TOUJOURS
+  # definis : soit ils pointent sur la fonction du paquet, soit sur un
+  # equivalent de base. La difference n'est pas cosmetique -- l'ancienne forme
+  # ne definissait le repli que si le paquet etait ABSENT, si bien qu'un paquet
+  # INSTALLE MAIS NON ATTACHE ne donnait ni l'un ni l'autre. Constate en
+  # integration continue : « could not find function updatePickerInput », alors
+  # que shinyWidgets etait bien installe sur la machine.
+  #
+  # Consequence voulue : l'application ne depend plus de ce que `library()` a
+  # attache. C'est ce qui rend un module testable seul.
+  poser <- function(nom, valeur) assign(nom, valeur, envir = envir)
 
-    # plotly : sorties/rendu -> repli sur plotOutput/renderPlot statiques.
+  # -- shinycssloaders ---------------------------------------------------------
+  poser("withSpinner", if (has("shinycssloaders")) shinycssloaders::withSpinner
+        else function(ui_element, ...) ui_element)
 
-    if (!.hstat_has("plotly")) {
-      if (!exists("plotlyOutput"))
-        plotlyOutput <- function(outputId, width = "100%", height = "400px", ...)
-          shiny::plotOutput(outputId, width = width, height = height)
-      if (!exists("ggplotly")) ggplotly <- function(p, ...) p
-      # layout()/config() en no-op : renvoient l'objet graphique tel quel.
+  # -- plotly ------------------------------------------------------------------
+  poser("plotlyOutput", if (has("plotly")) plotly::plotlyOutput
+        else function(outputId, width = "100%", height = "400px", ...)
+          shiny::plotOutput(outputId, width = width, height = height))
+  poser("ggplotly", if (has("plotly")) plotly::ggplotly else function(p, ...) p)
+  # `layout` et `config` : aucun usage en graphisme de base dans l'application
+  # (verifie), ils ne peuvent donc pas masquer `graphics::layout`.
+  poser("layout", if (has("plotly")) plotly::layout else function(p, ...) p)
+  poser("config", if (has("plotly")) plotly::config else function(p, ...) p)
 
-      layout <- function(p, ...) p
-      config <- function(p, ...) p
-      # Ne PAS redefinir %>% si un vrai pipe (magrittr via dplyr) existe deja : un repli
-      # naif `rhs(lhs)` perdrait les arguments (p %>% layout(x=1) deviendrait layout(p)).
-      if (!exists("%>%")) {
-        if (.hstat_has("magrittr")) {
-          `%>%` <- magrittr::`%>%`
-        } else {
-          # Repli minimal correct : insere lhs comme 1er argument de l'appel rhs.
-          `%>%` <- function(lhs, rhs) {
-            rc <- substitute(rhs)
-            if (is.call(rc)) {
-              new <- as.call(c(rc[[1]], substitute(lhs), as.list(rc)[-1]))
-              eval(new, parent.frame())
-            } else rhs(lhs)
-          }
-        }
-      }
-      if (!exists("renderPlotly"))
-        renderPlotly <- function(expr, ...) {
-          q <- substitute(expr)
-          pf <- parent.frame()
-          shiny::renderPlot({
-            val <- eval(q, envir = pf)
-            if (inherits(val, c("ggplot", "gg"))) print(val)
-            else if (inherits(val, "grob")) grid::grid.draw(val)
-            else val
-          })
-        }
-    }
+  # Le nettoyage du polyfill obsolete est pose sur `renderPlotly` LUI-MEME
+  # plutot qu'a chacun des appels : leurs corps comportent plusieurs `return()`,
+  # qu'un habillage de l'expression sauterait purement et simplement.
+  # `exprToFunction` transforme le bloc en fonction -- le `return()` en sort
+  # alors normalement, et la valeur passe bien par le nettoyage.
+  poser("renderPlotly", if (has("plotly"))
+    function(expr, env = parent.frame(), quoted = FALSE) {
+      fn <- shiny::exprToFunction(expr, env, quoted)
+      plotly::renderPlotly(hstat_plotly_clean(fn()),
+                           env = environment(), quoted = FALSE)
+    } else function(expr, ...) {
+      q <- substitute(expr); pf <- parent.frame()
+      shiny::renderPlot({
+        val <- eval(q, envir = pf)
+        if (inherits(val, c("ggplot", "gg"))) print(val)
+        else if (inherits(val, "grob")) grid::grid.draw(val)
+        else val
+      })
+    })
 
-    # colourpicker::colourInput -> textInput de repli 
-    if (!.hstat_has("colourpicker")) {
-      colourInput <- function(inputId, label, value = "#000000", ...)
-        shiny::textInput(inputId, label, value = value)
-    }
+  # Ne PAS ecraser un vrai pipe : un repli naif `rhs(lhs)` perdrait les
+  # arguments (`p %>% layout(x = 1)` deviendrait `layout(p)`).
+  if (!exists("%>%", envir = envir, inherits = TRUE))
+    poser("%>%", if (has("magrittr")) magrittr::`%>%` else function(lhs, rhs) {
+      rc <- substitute(rhs)
+      if (is.call(rc)) {
+        nouveau <- as.call(c(rc[[1]], substitute(lhs), as.list(rc)[-1]))
+        eval(nouveau, parent.frame())
+      } else rhs(lhs)
+    })
 
-    # shinyWidgets : pickerInput / radioGroupButtons -> equivalents shiny de base
-    if (!.hstat_has("shinyWidgets")) {
-      if (!exists("pickerInput"))
-        pickerInput <- function(inputId, label = NULL, choices, selected = NULL,
-                                multiple = FALSE, options = NULL, choicesOpt = NULL, ...)
-          shiny::selectInput(inputId, label, choices = choices, selected = selected,
-                             multiple = multiple)
-      if (!exists("radioGroupButtons"))
-        radioGroupButtons <- function(inputId, label = NULL, choices = NULL,
-                                      selected = NULL, ...)
+  # -- colourpicker ------------------------------------------------------------
+  poser("colourInput", if (has("colourpicker")) colourpicker::colourInput
+        else function(inputId, label, value = "#000000", ...)
+          shiny::textInput(inputId, label, value = value))
+
+  # -- shinyWidgets ------------------------------------------------------------
+  poser("pickerInput", if (has("shinyWidgets")) shinyWidgets::pickerInput
+        else function(inputId, label = NULL, choices, selected = NULL,
+                      multiple = FALSE, options = NULL, choicesOpt = NULL, ...)
+          shiny::selectInput(inputId, label, choices = choices,
+                             selected = selected, multiple = multiple))
+  poser("radioGroupButtons", if (has("shinyWidgets")) shinyWidgets::radioGroupButtons
+        else function(inputId, label = NULL, choices = NULL, selected = NULL, ...)
           shiny::radioButtons(inputId, label, choices = choices,
-                              selected = selected %||% NULL, inline = TRUE)
-      if (!exists("updatePickerInput"))
-        updatePickerInput <- function(session, inputId, ..., choices = NULL,
-                                      selected = NULL)
+                              selected = selected %||% NULL, inline = TRUE))
+  poser("updatePickerInput", if (has("shinyWidgets")) shinyWidgets::updatePickerInput
+        else function(session, inputId, ..., choices = NULL, selected = NULL)
           shiny::updateSelectInput(session, inputId, choices = choices,
-                                   selected = selected)
-    }
+                                   selected = selected))
 
-    # sortable::rank_list -> selecteur multiple ordonne de repli
-    if (!.hstat_has("sortable") && !exists("rank_list")) {
-      rank_list <- function(text = NULL, labels = NULL, input_id, ...)
-        shiny::selectInput(input_id, label = text, choices = labels,
-                           selected = labels, multiple = TRUE)
-    }
-
-    # Le nettoyage est pose sur `renderPlotly` lui-meme plutot qu'a chacun des
-    # appels : les corps de ces sorties comportent plusieurs `return()`, et un
-    # habillage de l'expression serait purement et simplement saute par le premier
-    # d'entre eux. `exprToFunction` transforme le bloc en fonction — le `return()`
-    # en sort alors normalement, et la valeur passe bien par le nettoyage.
-    if (.hstat_has("plotly")) {
-      renderPlotly <- function(expr, env = parent.frame(), quoted = FALSE) {
-        fn <- shiny::exprToFunction(expr, env, quoted)
-        plotly::renderPlotly(hstat_plotly_clean(fn()),
-                             env = environment(), quoted = FALSE)
-      }
-    }
-  }), envir)
+  # -- sortable ----------------------------------------------------------------
+  poser("rank_list", if (has("sortable")) sortable::rank_list
+        else function(text = NULL, labels = NULL, input_id, ...)
+          shiny::selectInput(input_id, label = text, choices = labels,
+                             selected = labels, multiple = TRUE))
   invisible(TRUE)
 }
