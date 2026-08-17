@@ -1651,6 +1651,46 @@ hstat_axe_titre <- function(size = 12, face = "plain", align = "0.5",
     margin = marges)
 }
 
+# Etendue d'un axe : les donnees, ET tout ce qu'on trace par-dessus.
+#
+# UNE LIGNE DE REFERENCE HORS DU CADRE N'EXISTE PAS. Avec des limites
+# automatiques, ggplot entraine bien son echelle sur les couches -- un
+# `geom_hline` etend la plage. Mais les GRADUATIONS calculees a la main
+# (`seq(min, max, pas)`) s'arretent, elles, a l'etendue des donnees : la ligne
+# est tracee et aucune graduation ne dit a quelle hauteur elle passe.
+#
+# `reperes` recoit donc les valeurs qu'on veut voir tenir dans le cadre :
+# valeur de seuil, zero, borne de reference. Les non finies sont ignorees --
+# un champ vide ne doit pas faire disparaitre l'etendue.
+# Les deux controles qui vont avec `hstat_axe_titre()`. Un helper plutot que
+# deux widgets recopies : c'est ce qui garantit que les modules offrent les
+# MEMES elements -- la recopie derive, on l'a vu sur les themes.
+hstat_axe_titre_ui <- function(ns, prefix, retour = TRUE, align = "0.5") {
+  tagList(
+    checkboxInput(ns(paste0(prefix, "TitreRetour")),
+                  "Titres d'axe sur plusieurs lignes si trop longs", retour),
+    selectInput(ns(paste0(prefix, "TitreAlign")), "Alignement des titres d'axe:",
+                choices = HSTAT_ALIGN_TITRE, selected = align))
+}
+
+# Lecture des deux reglages ci-dessus, rendue prete pour `theme()`.
+hstat_axe_titre_lire <- function(input, prefix, size = 12, face = "plain",
+                                 axe = c("x", "y"), colour = NULL) {
+  hstat_axe_titre(size = size, face = face,
+                  align = input[[paste0(prefix, "TitreAlign")]] %||% "0.5",
+                  axe = match.arg(axe),
+                  retour = isTRUE(input[[paste0(prefix, "TitreRetour")]] %||% TRUE),
+                  colour = colour)
+}
+
+hstat_etendue_axe <- function(valeurs, reperes = numeric(0)) {
+  v <- c(as.numeric(valeurs), as.numeric(reperes))
+  v <- v[is.finite(v)]
+  if (!length(v)) return(c(0, 1))
+  r <- range(v)
+  if (r[1] == r[2]) r + c(-0.5, 0.5) else r
+}
+
 hstat_pas_debut <- function(borne, pas) {
   if (!isTRUE(is.finite(borne)) || !isTRUE(is.finite(pas)) || pas <= 0) return(borne)
   floor(borne / pas) * pas

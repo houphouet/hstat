@@ -64,9 +64,14 @@ mod_threshold_ui <- function(id) {
                            style = "color:#2b2b2b; font-weight:600; margin:0; font-size:13px;")
                     ),
                     
+                    # AUCUNE BORNE. Le seuil etait bride a 0-100 : on ne pouvait
+                    # donc pas poser de repere sur une efficacite NEGATIVE (la
+                    # modalite fait moins bien que le temoin), ni au-dela de 100
+                    # sur un rapport qui le permet. Un repere qu'on ne peut pas
+                    # saisir est un repere qui n'existe pas.
                     shiny::numericInput(ns("thresholdValue"), 
                                  shiny::tagList(shiny::icon("percent"), " Valeur du seuil (%)"), 
-                                 value = 80, min = 0, max = 100, step = 1),
+                                 value = 80, step = 1),
                     
                     shiny::fluidRow(
                       shiny::column(6,
@@ -414,11 +419,7 @@ mod_threshold_ui <- function(id) {
                         # Un titre plus long que son axe deborde et se fait
                         # rogner a l'export : il revient donc a la ligne, a la
                         # largeur REELLE de l'axe.
-                        shiny::checkboxInput(ns("thresholdAxisTitleWrap"),
-                          "Titres d'axe sur plusieurs lignes si trop longs", TRUE),
-                        shiny::selectInput(ns("thresholdAxisTitleAlign"),
-                          "Alignement des titres d'axe:",
-                          choices = HSTAT_ALIGN_TITRE, selected = "0.5"),
+                        hstat_axe_titre_ui(ns, "threshold"),
                         shiny::sliderInput(ns("thresholdAxisTextSize"), "Texte des axes:", 
                                     min = 6, max = 20, value = 12, step = 1),
                         # Le titre de la legende et son texte partageaient un
@@ -443,11 +444,11 @@ mod_threshold_ui <- function(id) {
                         shiny::fluidRow(
                           shiny::column(6,
                                  shiny::numericInput(ns("thresholdYMin"), "Minimum (vide = auto) :",
-                                              value = NA, max = 100)
+                                              value = NA)
                           ),
                           shiny::column(6,
                                  shiny::numericInput(ns("thresholdYMax"), "Maximum (vide = auto) :",
-                                              value = NA, max = 200)
+                                              value = NA)
                           )
                         ),
                         shiny::checkboxInput(ns("thresholdZeroLine"),
@@ -1356,8 +1357,8 @@ mod_threshold_server <- function(id, values) {
     input$thresholdLabelAngle
     input$thresholdTitleSize
     input$thresholdAxisTitleSize
-    input$thresholdAxisTitleWrap
-    input$thresholdAxisTitleAlign
+    input$thresholdTitreRetour
+    input$thresholdTitreAlign
     input$thresholdAxisTextSize
     input$thresholdLegendSize
     input$thresholdYMin
@@ -1640,7 +1641,12 @@ mod_threshold_server <- function(id, values) {
       # graduations. Zero y est toujours inclus -- c'est la reference de la
       # formule d'Abbott, un cadre qui l'exclurait serait illisible.
       obs <- plot_data$Efficacy[is.finite(plot_data$Efficacy)]
-      etendue <- range(c(obs, 0))
+      # Le SEUIL entre dans l'etendue : c'est la ligne que ce module existe pour
+      # montrer. Sans lui, un seuil a 80 sur des efficacites allant de -60 a 45
+      # etait trace hors des graduations -- la ligne apparaissait, mais aucune
+      # graduation ne disait a quelle hauteur elle passait.
+      etendue <- hstat_etendue_axe(obs, c(0, suppressWarnings(
+        as.numeric(input$thresholdValue %||% NA)[1])))
       b_min <- if (is.na(y_min)) etendue[1] else y_min
       b_max <- if (is.na(y_max)) etendue[2] else y_max
       ech_y <- if (isTRUE(is.finite(pas_y)) && pas_y > 0 && is.finite(b_max - b_min))
@@ -1660,6 +1666,17 @@ mod_threshold_server <- function(id, values) {
               hors, if (is.na(y_min)) tr("auto") else y_min,
               if (is.na(y_max)) tr("auto") else y_max),
           type = "warning", duration = 8, id = session$ns("seuilHorsAxe"))
+
+      # LA LIGNE DE SEUIL AUSSI PEUT SORTIR DU CADRE, et son absence est plus
+      # trompeuse encore qu'une barre manquante : on croit lire un graphique
+      # sans seuil alors qu'on en a demande un.
+      seuil_v <- suppressWarnings(as.numeric(input$thresholdValue %||% NA)[1])
+      if (isTRUE(is.finite(seuil_v)) &&
+          ((!is.na(y_min) && seuil_v < y_min) || (!is.na(y_max) && seuil_v > y_max)))
+        shiny::showNotification(
+          trf("La ligne de seuil (%s) est hors des limites de l'axe Y : elle n'apparaît pas. Élargissez les limites, ou videz les champs.",
+              seuil_v),
+          type = "warning", duration = 8, id = session$ns("seuilLigneHorsAxe"))
 
       # Ligne de reference a zero : sans elle, une barre negative se lit comme
       # une barre courte vers le bas sans qu'on voie ou passe la frontiere.
@@ -1687,16 +1704,12 @@ mod_threshold_server <- function(id, values) {
                              face = input$thresholdSubtitleStyle %||% "italic",
                              colour = "gray30")
           else ggplot2::element_blank(),
-          axis.title.x = hstat_axe_titre(input$thresholdAxisTitleSize %||% 14,
-                                         x_label_face,
-                                         input$thresholdAxisTitleAlign %||% "0.5", "x",
-                                         retour = isTRUE(input$thresholdAxisTitleWrap %||% TRUE),
-                                         colour = axis_color),
-          axis.title.y = hstat_axe_titre(input$thresholdAxisTitleSize %||% 14,
-                                         y_label_face,
-                                         input$thresholdAxisTitleAlign %||% "0.5", "y",
-                                         retour = isTRUE(input$thresholdAxisTitleWrap %||% TRUE),
-                                         colour = axis_color),
+          axis.title.x = hstat_axe_titre_lire(input, "threshold",
+                                              input$thresholdAxisTitleSize %||% 14,
+                                              x_label_face, "x", colour = axis_color),
+          axis.title.y = hstat_axe_titre_lire(input, "threshold",
+                                              input$thresholdAxisTitleSize %||% 14,
+                                              y_label_face, "y", colour = axis_color),
           axis.text.y = ggplot2::element_text(size = input$thresholdAxisTextSize %||% 12,
                                      color = axis_color,
                                      face = input$thresholdAxisTextYStyle %||% "plain"),

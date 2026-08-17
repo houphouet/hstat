@@ -1041,6 +1041,10 @@ mod_posthoc_ui <- function(id) {
                                                         shiny::column(6, shiny::sliderInput(ns("axisTitleSize"), "Titres des axes", min = 8, max = 28, value = 14, step = 1, ticks = FALSE)),
                                                         shiny::column(6, shiny::sliderInput(ns("axisTextSize"), "Graduations", min = 6, max = 24, value = 12, step = 1, ticks = FALSE))
                                                       ),
+                                                      # Les noms de traitement sont longs par nature
+                                                      # ici (« 2SP(0,5)&2PV »...) : le titre d'axe
+                                                      # deborde des qu'on le nomme vraiment.
+                                                      hstat_axe_titre_ui(ns, "posthoc"),
                                                       shiny::fluidRow(
                                                         shiny::column(6, shiny::sliderInput(ns("graphValueSize"), "Lettres (a, b, c)", min = 2, max = 20, value = 5, step = 0.5, ticks = FALSE)),
                                                         shiny::column(6, shiny::sliderInput(ns("meanValueSize"), "Moyennes", min = 2, max = 12, value = 4, step = 0.5, ticks = FALSE))
@@ -7889,10 +7893,10 @@ mod_tests_server <- function(id, values) {
           ggplot2::element_blank()
         },
         
-        axis.title = ggtext::element_markdown(
-          size = axis_title_size, 
-          face = axis_title_font_style
-        ),
+        axis.title.x = hstat_axe_titre_lire(input, "posthoc", axis_title_size,
+                                            axis_title_font_style, "x"),
+        axis.title.y = hstat_axe_titre_lire(input, "posthoc", axis_title_size,
+                                            axis_title_font_style, "y"),
         axis.text.x = if (rotate_labels) {
           ggplot2::element_text(
             angle = 45, 

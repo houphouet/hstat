@@ -496,6 +496,32 @@ l'utilisateur changeait le réglage et l'image ne bougeait pas, sur treize blocs
 d'export. Il passe désormais par `viz_get_theme()`, et un test échoue sur tout
 nouveau `switch` dont les étiquettes sont des noms de thème.
 
+### Un repère qu'on ne peut pas saisir est un repère qui n'existe pas
+
+« Valeur du seuil (%) » portait `min = 0, max = 100`. On ne pouvait donc pas
+poser de repère sur une efficacité **négative** — la modalité fait moins bien
+que le témoin, c'est précisément le résultat qu'on cherche à lire — ni au-delà
+de 100. Les bornes de l'axe portaient de même un `max` arbitraire (100 et 200).
+Toutes ont sauté : un axe doit aller aussi loin dans le négatif que dans le
+positif.
+
+**L'étendue automatique inclut le seuil.** Avec des limites automatiques,
+ggplot entraîne bien son échelle sur les couches — un `geom_hline` étend la
+plage. Mais les **graduations** calculées à la main (`seq(min, max, pas)`)
+s'arrêtent, elles, à l'étendue des *données* : la ligne était tracée et aucune
+graduation ne disait à quelle hauteur elle passait. `hstat_etendue_axe()` prend
+donc les données **et** les repères à faire tenir dans le cadre.
+
+Et quand l'utilisateur fixe lui-même des limites qui excluent le seuil, on le
+dit : une ligne de seuil absente est plus trompeuse qu'une barre manquante — on
+croit lire un graphique sans seuil alors qu'on en a demandé un.
+
+Un test balaie les champs de bornes d'axe et de valeur de repère
+(`thresholdValue`, `thresholdYMin/Max`, `yAxisMin/Max`, `xAxisMin/Max`,
+`refValue`) et échoue sur toute borne `min`. Vérifié au passage :
+`refSigma` et `refMargin` gardent la leur, un écart-type et une marge
+d'équivalence étant positifs par définition.
+
 ### Un titre d'axe plus long que son axe doit revenir à la ligne
 
 `element_text()` et `element_markdown()` ne reviennent **jamais** à la ligne :
@@ -517,6 +543,23 @@ que ce dépôt traque ailleurs. Trois calages, tous les trois réels.
 Repli sur `element_markdown()` quand le retour à la ligne n'est pas demandé ou
 que ggtext manque : le style (gras, italique, taille, couleur) survit dans les
 deux cas.
+
+#### Les deux réglages passent par un helper, jamais par recopie
+
+`hstat_axe_titre_ui()` pose la case et le sélecteur, `hstat_axe_titre_lire()`
+les relit. **Sept** modules les portent désormais — Descriptives, Exploration
+(distribution et valeurs manquantes), Visualisation, Seuils d'efficacité,
+comparaisons post-hoc, Qualitatif.
+
+Les deux premiers modules équipés avaient leurs widgets **recopiés à la main**,
+avec des identifiants propres (`axisTitleWrap`, `thresholdAxisTitleWrap`). Ils
+sont passés au helper : deux copies d'un même réglage, c'est le point de départ
+de la dérive qu'on vient de corriger sur les thèmes.
+
+Dans `mod_explore.R`, le graphique est construit **ailleurs que là où `input`
+existe** (chemin du téléchargement) : les deux réglages y voyagent en
+paramètres, comme les tailles de police. Même contrainte que pour le thème de
+`mod_design.R`.
 
 ### Export d'image : les pixels saisis sont une mise en page, pas la sortie
 

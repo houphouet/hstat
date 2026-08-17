@@ -95,6 +95,7 @@ mod_explore_ui <- function(id) {
                                                min = 8, max = 20, value = 12, ticks = FALSE),
                                    shiny::sliderInput(ns("distAxisTextSize"), "Taille texte axes:", 
                                                min = 6, max = 16, value = 10, ticks = FALSE),
+                                   hstat_axe_titre_ui(ns, "dist"),
                                    shiny::sliderInput(ns("distLegendTextSize"), "Taille texte légende:",
                                                min = 6, max = 16, value = 10, ticks = FALSE)
                             ),
@@ -181,6 +182,7 @@ mod_explore_ui <- function(id) {
                                    shiny::h5(shiny::icon("palette"), "Affichage", style = "color: #f39c12; font-weight: bold;"),
                                    shiny::sliderInput(ns("missingAxisTextSize"), "Taille texte axes:", 
                                                min = 6, max = 16, value = 10, ticks = FALSE),
+                                   hstat_axe_titre_ui(ns, "miss"),
                                    shiny::checkboxInput(ns("missingRotateLabels"), 
                                                  shiny::tagList(shiny::icon("sync-alt"), " Incliner labels X"), 
                                                  value = TRUE)
@@ -319,7 +321,8 @@ mod_explore_server <- function(id, values) {
   generate_dist_plot <- function(data, var, show_density = TRUE, title = NULL, 
                                  center_title = TRUE, title_size = 14, 
                                  axis_title_size = 12, axis_text_size = 10,
-                                 legend_text_size = 10) {
+                                 legend_text_size = 10,
+                                 titre_retour = TRUE, titre_align = "0.5") {
     
     plot_title <- if (!is.null(title) && title != "") {
       title
@@ -354,7 +357,10 @@ mod_explore_server <- function(id, values) {
       ggplot2::labs(title = plot_title, x = var, y = "Densité") +
       ggplot2::theme(
         plot.title = ggtext::element_markdown(size = title_size, hjust = if (center_title) 0.5 else 0),
-        axis.title = ggtext::element_markdown(size = axis_title_size),
+        axis.title = hstat_axe_titre(axis_title_size, "plain", titre_align,
+                                     "x", retour = titre_retour),
+        axis.title.y = hstat_axe_titre(axis_title_size, "plain", titre_align,
+                                       "y", retour = titre_retour),
         axis.text = ggplot2::element_text(size = axis_text_size),
         legend.text = ggplot2::element_text(size = legend_text_size),
         legend.title = ggtext::element_markdown(size = legend_text_size)
@@ -371,7 +377,9 @@ mod_explore_server <- function(id, values) {
       title_size = input$distTitleSize %||% 14,
       axis_title_size = input$distAxisTitleSize %||% 12,
       axis_text_size = input$distAxisTextSize %||% 10,
-      legend_text_size = input$distLegendTextSize %||% 10
+      legend_text_size = input$distLegendTextSize %||% 10,
+      titre_retour = isTRUE(input$distTitreRetour %||% TRUE),
+      titre_align = input$distTitreAlign %||% "0.5"
     )
   }) %>% shiny::debounce(500)
   
@@ -391,7 +399,9 @@ mod_explore_server <- function(id, values) {
         title_size = params$title_size,
         axis_title_size = params$axis_title_size,
         axis_text_size = params$axis_text_size,
-        legend_text_size = params$legend_text_size
+        legend_text_size = params$legend_text_size,
+        titre_retour = params$titre_retour,
+        titre_align = params$titre_align
       )
     }, error = function(e) {
       shiny::showNotification(hstat_err_fr(e, "Erreur lors de la création du graphique"),
@@ -424,6 +434,7 @@ mod_explore_server <- function(id, values) {
   # Fonction réutilisable pour générer le plot des valeurs manquantes
   generate_missing_plot <- function(data, title = NULL, center_title = TRUE,
                                     title_size = 14, axis_title_size = 12,
+                                    titre_retour = TRUE, titre_align = "0.5",
                                     axis_text_size = 10, rotate_labels = TRUE) {
     
     missing_data <- generate_missing_data(data)
@@ -442,7 +453,10 @@ mod_explore_server <- function(id, values) {
       ggplot2::labs(title = plot_title, x = "Variable", y = "Nombre de valeurs manquantes") +
       ggplot2::theme(
         plot.title = ggtext::element_markdown(size = title_size, hjust = if (center_title) 0.5 else 0),
-        axis.title = ggtext::element_markdown(size = axis_title_size),
+        axis.title = hstat_axe_titre(axis_title_size, "plain", titre_align,
+                                     "x", retour = titre_retour),
+        axis.title.y = hstat_axe_titre(axis_title_size, "plain", titre_align,
+                                       "y", retour = titre_retour),
         axis.text = ggplot2::element_text(size = axis_text_size),
         axis.text.x = ggplot2::element_text(
           angle = if (rotate_labels) 45 else 0, 
@@ -460,7 +474,9 @@ mod_explore_server <- function(id, values) {
       title_size = input$missingTitleSize %||% 14,
       axis_title_size = input$missingAxisTitleSize %||% 12,
       axis_text_size = input$missingAxisTextSize %||% 10,
-      rotate_labels = if (is.null(input$missingRotateLabels)) TRUE else input$missingRotateLabels
+      rotate_labels = if (is.null(input$missingRotateLabels)) TRUE else input$missingRotateLabels,
+      titre_retour = isTRUE(input$missTitreRetour %||% TRUE),
+      titre_align = input$missTitreAlign %||% "0.5"
     )
   }) %>% shiny::debounce(500)
   
@@ -475,7 +491,9 @@ mod_explore_server <- function(id, values) {
         title_size = params$title_size,
         axis_title_size = params$axis_title_size,
         axis_text_size = params$axis_text_size,
-        rotate_labels = params$rotate_labels
+        rotate_labels = params$rotate_labels,
+        titre_retour = params$titre_retour,
+        titre_align = params$titre_align
       )
     }, error = function(e) {
       shiny::showNotification(hstat_err_fr(e, "Erreur lors de la création du graphique"),

@@ -6748,6 +6748,67 @@ test_that("aucun appel qualifie ne recouvre une fonction locale", {
   expect_equal(unique(trouves), character(0))
 })
 
+test_that("aucune borne d'axe ni valeur de repere n'est bridee au positif", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # « Valeur du seuil (%) » portait `min = 0, max = 100`. On ne pouvait donc pas
+  # poser de repere sur une efficacite NEGATIVE -- la modalite fait moins bien
+  # que le temoin, c'est le resultat que l'on cherche justement a lire -- ni
+  # au-dela de 100. Un repere qu'on ne peut pas saisir est un repere qui
+  # n'existe pas.
+  #
+  # Meme regle pour les bornes d'axe : elles doivent aller aussi loin dans le
+  # negatif que dans le positif.
+  champs <- c("thresholdValue", "thresholdYMin", "thresholdYMax",
+              "yAxisMin", "yAxisMax", "xAxisMin", "xAxisMax", "refValue")
+  fautifs <- character(0)
+  for (f in .hstat_sources_app()) {
+    pd <- utils::getParseData(parse(f, keep.source = TRUE))
+    for (e in parse(f)) {
+      rec <- function(x) {
+        if (!is.call(x)) return(invisible())
+        tete <- x[[1]]
+        nom <- if (is.call(tete) && is.name(tete[[1]]) &&
+                   as.character(tete[[1]]) %in% c("::", ":::"))
+                 as.character(tete[[3]])
+               else if (is.name(tete)) as.character(tete) else ""
+        if (nom == "numericInput") {
+          l <- as.list(x)
+          id <- if (length(l) > 1 && is.call(l[[2]])) l[[2]] else NULL
+          cible <- ""
+          if (!is.null(id) && length(id) > 1 && is.character(id[[2]]))
+            cible <- id[[2]]
+          if (cible %in% champs && "min" %in% names(l))
+            fautifs <<- c(fautifs, sprintf("%s : %s a une borne min",
+                                           basename(f), cible))
+        }
+        l <- as.list(x)
+        for (i in seq_along(l))
+          if (!identical(l[[i]], quote(expr = ))) rec(l[[i]])
+      }
+      rec(e)
+    }
+  }
+  expect_equal(unique(fautifs), character(0))
+})
+
+test_that("l'etendue d'un axe inclut ce qu'on trace par-dessus", {
+  # UNE LIGNE DE REFERENCE HORS DU CADRE N'EXISTE PAS. Avec des limites
+  # automatiques, ggplot entraine son echelle sur les couches ; mais les
+  # GRADUATIONS calculees a la main (`seq(min, max, pas)`) s'arretent, elles, a
+  # l'etendue des donnees. La ligne etait tracee et aucune graduation ne disait
+  # a quelle hauteur elle passait.
+  expect_equal(hstat_etendue_axe(c(-60, 45)), c(-60, 45))
+  expect_equal(hstat_etendue_axe(c(-60, 45), c(0, 80)), c(-60, 80))  # le seuil rentre
+  expect_equal(hstat_etendue_axe(c(-60, 45), c(-90)), c(-90, 45))    # et vers le bas
+  # Un champ vide ne doit pas faire disparaitre l'etendue.
+  expect_equal(hstat_etendue_axe(c(-60, 45), c(NA, NaN)), c(-60, 45))
+  # Etendue nulle : un axe de hauteur zero ne se trace pas.
+  expect_equal(hstat_etendue_axe(c(10, 10)), c(9.5, 10.5))
+  # Rien de finit : on rend un cadre par defaut plutot que `c(Inf, -Inf)`.
+  expect_equal(hstat_etendue_axe(c(NA, Inf)), c(0, 1))
+})
+
 test_that("chaque graphique exportable offre un choix de theme", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))

@@ -157,6 +157,8 @@ mod_descriptive_ui <- function(id) {
                                            min = 400, max = 2000, value = 600, step = 50, width = "100%")
                              ),
                              
+                             hstat_axe_titre_ui(ns, "desc"),
+
                              hstat_export_plot_ui(ns, "descPl", width = 9.8, height = 7.1)
                       ),
                       shiny::column(8,
@@ -709,8 +711,8 @@ mod_descriptive_server <- function(id, values) {
         ggplot2::theme(
           axis.line = ggplot2::element_line(color = "black", linewidth = 0.5),
           axis.ticks = ggplot2::element_line(color = "black", linewidth = 0.5),
-          axis.title.x = ggtext::element_markdown(face = x_label_font_face, size = 13, margin = margin(t = 10)),
-          axis.title.y = ggtext::element_markdown(face = y_label_font_face, size = 13, margin = margin(r = 10)),
+          axis.title.x = hstat_axe_titre_lire(input, "desc", 13, x_label_font_face, "x"),
+          axis.title.y = hstat_axe_titre_lire(input, "desc", 13, y_label_font_face, "y"),
           axis.text.x = ggplot2::element_text(
             face = x_tick_font_face, 
             angle = x_angle, 
@@ -774,8 +776,8 @@ mod_descriptive_server <- function(id, values) {
         ggplot2::theme(
           axis.line = ggplot2::element_line(color = "black", linewidth = 0.5),
           axis.ticks = ggplot2::element_line(color = "black", linewidth = 0.5),
-          axis.title.x = ggtext::element_markdown(face = x_label_font_face, size = 13, margin = margin(t = 10)),
-          axis.title.y = ggtext::element_markdown(face = y_label_font_face, size = 13, margin = margin(r = 10)),
+          axis.title.x = hstat_axe_titre_lire(input, "desc", 13, x_label_font_face, "x"),
+          axis.title.y = hstat_axe_titre_lire(input, "desc", 13, y_label_font_face, "y"),
           axis.text.x = ggplot2::element_text(
             face = x_tick_font_face, 
             angle = x_angle, 
