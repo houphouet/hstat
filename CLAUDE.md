@@ -1637,6 +1637,61 @@ Deux copies à tenir d'accord, et rien pour signaler qu'elles avaient divergé. 
 graphique passe donc par un `reactive()` unique, que `renderPlot` et l'export
 lisent tous deux — c'est ce que faisaient déjà les modules bâtis sur le kit.
 
+## Un seul écrivain de tableaux, comme il n'y a qu'un écrivain d'image
+
+Vingt téléchargements de tableaux montaient chacun leur classeur : même boucle
+sur les feuilles, même archive ZIP de CSV, même `tryCatch`, même notification.
+Ce qui leur appartenait vraiment, c'est la **liste nommée de tableaux**.
+
+`hstat_ecrire_classeur()`, `hstat_ecrire_csv_zip()`, `hstat_classeur_handler()`,
+`hstat_csv_handler()` et `hstat_export_tables_handlers()` (`Utils.R`) portent le
+reste. Bilan : −460 lignes dans `app_server.R`, −79 dans `mod_tests.R`.
+
+Ils partageaient aussi le défaut des images : **un `req()` ou un `return(NULL)`
+sans avoir écrit le fichier** fait renvoyer à Shiny sa page d'erreur HTML, que le
+navigateur enregistre en `.xlsx` — Excel refuse alors de l'ouvrir, sans dire
+pourquoi. Tout chemin écrit donc un classeur valide, portant le motif s'il n'y a
+rien à exporter.
+
+Trois pièges que la mise en commun a fermés :
+
+1. **Un nom de feuille vient parfois d'une variable de l'utilisateur.** Les
+   post-hoc nomment leurs feuilles `Lettres_<variable>_<facteur>`, tronqués à 31
+   caractères mais **jamais nettoyés** : `addWorksheet()` lève sur `[ ] : * ? / \`,
+   et l'export entier tombait pour un nom de colonne. `hstat_feuille_nom()`
+   nettoie et tronque ; deux noms devenus identiques après troncature sont
+   distingués, sinon Excel refuse le doublon.
+2. **Le ZIP de CSV vidait `tempdir()`** de tous ses `.csv` avant d'écrire — un
+   dossier partagé par toute la session. L'écriture se fait dans un sous-dossier
+   dédié, supprimé à la sortie, et `zip` est appelé en mode silencieux (chaque
+   téléchargement écrivait sa liste de fichiers dans la console du serveur).
+3. **Un tableau seul n'a pas besoin d'une archive.** `hstat_csv_handler()` rend
+   un `.csv` quand il n'y a qu'un tableau, un `.zip` au-delà — et l'extension
+   annoncée suit, parce qu'un `.zip` contenant un CSV nu ne s'ouvre pas comme on
+   s'y attend.
+
+**Ce qui n'a pas été migré, et pourquoi.** L'export Excel du Khi² applique des
+styles (en-têtes colorés, remplissage selon la significativité, largeurs
+automatiques) : ce n'est plus une liste de tableaux, et le faire entrer de force
+dans l'écrivain commun lui ferait perdre sa mise en forme. Le module de seuils
+garde de même son modèle de dimensions en **pixels** lus à 96 ppp, documenté
+plus haut : c'est une décision, pas un oubli.
+
+### Le prix du contrat par préfixe, et le garde-fou qui le paie
+
+Tant que chaque export déclarait son `output$<identifiant>`, une faute de frappe
+se voyait à la lecture. Avec un préfixe, l'identifiant est **construit**
+(`<préfixe>Xlsx`) : une lettre de travers débranche le bouton en silence — il
+reste affiché, il ne fait rien, et rien dans le code ne le signale.
+
+Un test refait donc la construction des deux côtés — boutons déclarés d'un côté,
+producteurs de l'autre, kits compris — et échoue sur tout bouton sans
+producteur. **108 boutons** sont couverts ; il a été vérifié comme signalant
+exactement les deux boutons orphelins d'un préfixe volontairement mal
+orthographié. Les identifiants construits en boucle (`paste0("mv_", key, …)`)
+sortent des deux listes à la fois : ils ne sont pas couverts, et le test ne
+prétend pas l'inverse.
+
 ## Fins de ligne
 
 Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. Sont en

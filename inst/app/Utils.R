@@ -5262,18 +5262,147 @@ hstat_export_table_ui <- function(ns, prefix) {
 }
 
 hstat_export_table_handlers <- function(output, prefix, data_fun, fname = "resultats") {
-  output[[paste0(prefix, "Csv")]] <- downloadHandler(
-    filename = function() paste0(fname, "_", Sys.Date(), ".csv"),
-    content  = function(file) {
-      d <- data_fun(); if (is.null(d)) stop("Aucun resultat a exporter.")
-      utils::write.csv(d, file, row.names = FALSE, fileEncoding = "UTF-8")
-    })
-  output[[paste0(prefix, "Xlsx")]] <- downloadHandler(
+  # Un tableau seul est une liste d'un element : meme chemin d'ecriture que les
+  # exports a plusieurs feuilles, donc meme garantie.
+  tables <- function() {
+    d <- data_fun()
+    if (is.null(d)) NULL else stats::setNames(list(as.data.frame(d)), fname)
+  }
+  output[[paste0(prefix, "Csv")]]  <- hstat_csv_handler(tables, fname)
+  output[[paste0(prefix, "Xlsx")]] <- hstat_classeur_handler(tables, fname)
+}
+
+# ---------------------------------------------------------------------------
+#  UN SEUL ECRIVAIN DE TABLEAUX, comme il n'y a qu'un ecrivain d'image
+# ---------------------------------------------------------------------------
+#  Vingt telechargements de tableaux montaient chacun leur classeur : meme
+#  boucle sur les feuilles, meme archive ZIP de CSV, meme `tryCatch`, meme
+#  notification. La seule chose qui leur appartenait vraiment, c'est la LISTE
+#  NOMMEE de tableaux a ecrire.
+#
+#  Ils partageaient aussi le meme defaut que les images : un `req()` ou un
+#  `return(NULL)` sans avoir ecrit le fichier fait renvoyer a Shiny sa page
+#  d'erreur HTML, que le navigateur enregistre en `.xlsx`. Excel refuse alors
+#  de l'ouvrir, sans dire pourquoi. Tout chemin ecrit donc un classeur valide,
+#  portant le motif s'il n'y a rien a exporter.
+
+HSTAT_MIME_XLSX <-
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+# Nom de feuille accepte par Excel : 31 caracteres, sans []:*?/\\ .
+# `addWorksheet()` LEVE sur un nom trop long -- et le nom vient parfois d'une
+# variable de l'utilisateur.
+hstat_feuille_nom <- function(x, defaut = "Feuille") {
+  s <- gsub("[^A-Za-z0-9_ .-]", "_", as.character(x)[1] %||% "")
+  s <- substr(trimws(s), 1, 31)
+  if (!nzchar(s)) defaut else s
+}
+
+# Liste nommee de tableaux -> classeur d'une feuille par element.
+hstat_ecrire_classeur <- function(file, tables) {
+  wb <- openxlsx::createWorkbook()
+  vus <- character(0)
+  for (i in seq_along(tables)) {
+    nm <- hstat_feuille_nom(names(tables)[i] %||% "", paste0("Feuille", i))
+    # Deux tableaux dont les noms se ressemblent a 31 caracteres pres donnent
+    # le meme nom de feuille, et `addWorksheet()` refuse le doublon.
+    if (nm %in% vus) nm <- hstat_feuille_nom(paste0(substr(nm, 1, 27), "_", i))
+    vus <- c(vus, nm)
+    openxlsx::addWorksheet(wb, nm)
+    openxlsx::writeData(wb, nm, as.data.frame(tables[[i]]))
+  }
+  openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+  length(tables)
+}
+
+# Liste nommee de tableaux -> archive ZIP d'un CSV par element.
+hstat_ecrire_csv_zip <- function(file, tables) {
+  dossier <- file.path(tempdir(), paste0("hstat_csv_", as.integer(Sys.time())))
+  dir.create(dossier, showWarnings = FALSE, recursive = TRUE)
+  on.exit(unlink(dossier, recursive = TRUE), add = TRUE)
+  noms <- character(0)
+  for (i in seq_along(tables)) {
+    nm <- hstat_feuille_nom(names(tables)[i] %||% "", paste0("tableau", i))
+    f  <- paste0(nm, ".csv")
+    utils::write.csv(as.data.frame(tables[[i]]), file.path(dossier, f),
+                     row.names = FALSE, fileEncoding = "UTF-8")
+    noms <- c(noms, f)
+  }
+  # `-q` : sans lui, chaque archive ecrit sa liste de fichiers dans la console
+  # du serveur, a chaque telechargement.
+  utils::zip(file, file.path(dossier, noms), flags = "-jq")
+  noms
+}
+
+# Ecarte les tableaux absents ou vides d'une liste nommee. Une feuille vide
+# n'apporte rien, et laisse croire a une information manquante -- c'est la meme
+# regle que pour les colonnes du module d'efficacite.
+hstat_tables_non_vides <- function(tables) {
+  garde <- vapply(tables, function(d) {
+    !is.null(d) && (is.data.frame(d) || is.matrix(d)) && NROW(d) > 0
+  }, logical(1))
+  tables[garde]
+}
+
+# Ce qu'on ecrit quand il n'y a rien a ecrire : un fichier valide qui le dit.
+.hstat_tables_secours <- function(motif) {
+  list(Info = data.frame(Message = motif %||% "Aucun résultat à exporter.",
+                         stringsAsFactors = FALSE))
+}
+
+.hstat_tables_ou_motif <- function(tables_fun, libelle) {
+  motif <- NULL
+  tb <- tryCatch(tables_fun(), error = function(e) {
+    motif <<- hstat_err_fr(e, libelle)
+    NULL
+  })
+  if (is.data.frame(tb)) tb <- list("Résultats" = tb)
+  if (is.null(tb) || !length(tb))
+    tb <- .hstat_tables_secours(motif %||% "Aucun résultat à exporter : lancez d'abord l'analyse.")
+  tb
+}
+
+# Telechargement d'un classeur Excel a partir d'une liste nommee de tableaux.
+hstat_classeur_handler <- function(tables_fun, fname = "resultats",
+                                   libelle = "Export Excel") {
+  downloadHandler(
     filename = function() paste0(fname, "_", Sys.Date(), ".xlsx"),
-    content  = function(file) {
-      d <- data_fun(); if (is.null(d)) stop("Aucun resultat a exporter.")
-      writexl::write_xlsx(as.data.frame(d), file)
+    contentType = HSTAT_MIME_XLSX,
+    content = function(file)
+      hstat_ecrire_classeur(file, .hstat_tables_ou_motif(tables_fun, libelle)))
+}
+
+# Telechargement CSV : un seul tableau sort en `.csv`, plusieurs en `.zip`.
+# Proposer une archive quand il n'y a qu'un tableau serait un detour ; en
+# livrer un seul quand il y en a plusieurs en perdrait.
+hstat_csv_handler <- function(tables_fun, fname = "resultats",
+                              libelle = "Export CSV") {
+  multiple <- function() length(.hstat_tables_ou_motif(tables_fun, libelle)) > 1
+  # PAS de `contentType` : Shiny ne l'EVALUE PAS quand c'est une fonction, il le
+  # passe tel quel dans l'en-tete HTTP (`download$contentType %||%
+  # getContentType(filename)`). Or le type depend ici du nombre de tableaux.
+  # L'omettre laisse Shiny le deduire de l'extension, qui est deja juste.
+  downloadHandler(
+    filename = function()
+      paste0(fname, "_", Sys.Date(), if (multiple()) ".zip" else ".csv"),
+    content = function(file) {
+      tb <- .hstat_tables_ou_motif(tables_fun, libelle)
+      if (length(tb) > 1) hstat_ecrire_csv_zip(file, tb)
+      else utils::write.csv(as.data.frame(tb[[1]]), file, row.names = FALSE,
+                            fileEncoding = "UTF-8")
     })
+}
+
+# Les deux telechargements d'un meme resultat, declares d'un seul appel.
+# Les identifiants suivent le prefixe (`<prefixe>Xlsx`, `<prefixe>Csv`) : c'est
+# le meme contrat que pour les graphiques.
+hstat_export_tables_handlers <- function(output, prefix, tables_fun,
+                                         fname = "resultats", libelle = NULL) {
+  lib <- libelle %||% fname
+  output[[paste0(prefix, "Xlsx")]] <-
+    hstat_classeur_handler(tables_fun, fname, paste("Export Excel", lib))
+  output[[paste0(prefix, "Csv")]] <-
+    hstat_csv_handler(tables_fun, fname, paste("Export CSV", lib))
 }
 
 # Formulaire dynamique : un champ par predicteur (numerique -> valeur mediane,

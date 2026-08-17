@@ -671,11 +671,6 @@ server <- function(input, output, session) {
   options(lifecycle_verbosity = "quiet")
   suppressMessages(suppressWarnings(library(ggplot2)))
   
-  # Fonction helper pour ecrire CSV avec encodage UTF-8
-  write_csv_utf8 <- function(data, file, ...) {
-    write.csv(data, file, row.names = FALSE, fileEncoding = "UTF-8", ...)
-  }
-  
   # Theme des graphiques multivaries HISTORIQUES (ACP, HCPC, AFD). Ils
   # passaient tous `ggtheme = theme_minimal()` en dur : le graphique ne
   # s'affichait donc JAMAIS tel que ggplot2 le dessine, quoi qu'on choisisse.
@@ -2323,161 +2318,44 @@ server <- function(input, output, session) {
   
   
   # ---- Helpers internes 
-  .write_xlsx_sheets <- function(wb, sheet_data_list) {
-    for (nm in names(sheet_data_list)) {
-      addWorksheet(wb, nm)
-      writeData(wb, nm, sheet_data_list[[nm]])
-    }
-  }
-  
-  .write_csv_zip <- function(file, named_df_list) {
-    temp_dir  <- tempdir()
-    csv_files <- character(0)
-    for (nm in names(named_df_list)) {
-      path <- file.path(temp_dir, paste0(nm, ".csv"))
-      write_csv_utf8(named_df_list[[nm]], path)
-      csv_files <- c(csv_files, paste0(nm, ".csv"))
-    }
-    zip(file, file.path(temp_dir, csv_files), flags = "-j")
-    csv_files
-  }
   
   
-  output$downloadPcaMetricsXlsx <- downloadHandler(
-    filename = function() paste0("acp_métriques_", Sys.Date(), ".xlsx"),
-    contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    content = function(file) {
-      tryCatch({
-        req(pcaResultReactive(), values$filteredData, input$pcaVars)
-        pca_data_raw <- values$filteredData[, input$pcaVars, drop = FALSE]
-        pca_data_raw <- pca_data_raw[, sapply(pca_data_raw, is.numeric), drop = FALSE]
-        pca_data_raw <- na.omit(pca_data_raw)
-        
-        dfs <- build_pca_metrics_df(pcaResultReactive(), pca_data_raw)
-        if (is.null(dfs)) { showNotification("Erreur : données ACP indisponibles.", type = "error"); return() }
-        
-        wb <- createWorkbook()
-        .write_xlsx_sheets(wb, list(
-          "Valeurs_propres"  = dfs$valeurs_propres,
-          "Bartlett_KMO"     = dfs$bartlett_kmo,
-          "CTR_variables"    = dfs$ctr_variables,
-          "Cos2_variables"   = dfs$cos2_variables
-        ))
-        saveWorkbook(wb, file, overwrite = TRUE)
-        showNotification("Export Excel ACP réussi !", type = "message", duration = 3)
-      }, error = function(e) showNotification(hstat_err_fr(e, "Erreur Excel ACP"), type = "error", duration = 8))
-    }
-  )
   
-  output$downloadPcaMetricsCsv <- downloadHandler(
-    filename = function() paste0("acp_métriques_", Sys.Date(), ".zip"),
-    contentType = "application/zip",
-    content = function(file) {
-      tryCatch({
-        req(pcaResultReactive(), values$filteredData, input$pcaVars)
-        pca_data_raw <- values$filteredData[, input$pcaVars, drop = FALSE]
-        pca_data_raw <- pca_data_raw[, sapply(pca_data_raw, is.numeric), drop = FALSE]
-        pca_data_raw <- na.omit(pca_data_raw)
-        
-        dfs <- build_pca_metrics_df(pcaResultReactive(), pca_data_raw)
-        if (is.null(dfs)) { showNotification("Erreur : données ACP indisponibles.", type = "error"); return() }
-        
-        n <- .write_csv_zip(file, list(
-          "acp_valeurs_propres" = dfs$valeurs_propres,
-          "acp_bartlett_kmo"    = dfs$bartlett_kmo,
-          "acp_ctr_variables"   = dfs$ctr_variables,
-          "acp_cos2_variables"  = dfs$cos2_variables
-        ))
-        showNotification(paste0("Export CSV ACP réussi (", length(n), " fichiers) !"), type = "message", duration = 3)
-      }, error = function(e) showNotification(hstat_err_fr(e, "Erreur CSV ACP"), type = "error", duration = 8))
-    }
-  )
+  # Les deux telechargements (classeur et archive CSV) d'un meme resultat sont
+  # declares d'un seul appel : ce qui appartient a l'analyse, c'est la LISTE
+  # NOMMEE de tableaux, pas la boucle sur les feuilles ni l'archive.
+  hstat_export_tables_handlers(output, "downloadPcaMetrics", function() {
+    if (is.null(pcaResultReactive()) || is.null(values$filteredData) ||
+        is.null(input$pcaVars)) return(NULL)
+    d <- values$filteredData[, input$pcaVars, drop = FALSE]
+    d <- na.omit(d[, sapply(d, is.numeric), drop = FALSE])
+    dfs <- build_pca_metrics_df(pcaResultReactive(), d)
+    if (is.null(dfs)) return(NULL)
+    list("Valeurs_propres" = dfs$valeurs_propres,
+         "Bartlett_KMO"    = dfs$bartlett_kmo,
+         "CTR_variables"   = dfs$ctr_variables,
+         "Cos2_variables"  = dfs$cos2_variables)
+  }, "acp_metriques", "ACP")
   
   
-  output$downloadHcpcMetricsXlsx <- downloadHandler(
-    filename = function() paste0("hcpc_métriques_", Sys.Date(), ".xlsx"),
-    contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    content = function(file) {
-      tryCatch({
-        vd <- hcpcValidationData()
-        if (is.null(vd)) { showNotification("Erreur : données HCPC indisponibles.", type = "error"); return() }
-        
-        dfs <- build_hcpc_metrics_df(vd)
-        if (is.null(dfs)) { showNotification("Erreur : calcul métriques HCPC échoué.", type = "error"); return() }
-        
-        wb <- createWorkbook()
-        .write_xlsx_sheets(wb, list(
-          "Indices_validation"   = dfs$indices_validation,
-          "Affectation_clusters" = dfs$affectation_clusters
-        ))
-        saveWorkbook(wb, file, overwrite = TRUE)
-        showNotification("Export Excel HCPC réussi !", type = "message", duration = 3)
-      }, error = function(e) showNotification(hstat_err_fr(e, "Erreur Excel HCPC"), type = "error", duration = 8))
-    }
-  )
-  
-  output$downloadHcpcMetricsCsv <- downloadHandler(
-    filename = function() paste0("hcpc_métriques_", Sys.Date(), ".zip"),
-    contentType = "application/zip",
-    content = function(file) {
-      tryCatch({
-        vd <- hcpcValidationData()
-        if (is.null(vd)) { showNotification("Erreur : données HCPC indisponibles.", type = "error"); return() }
-        
-        dfs <- build_hcpc_metrics_df(vd)
-        if (is.null(dfs)) { showNotification("Erreur : calcul métriques HCPC échoué.", type = "error"); return() }
-        
-        n <- .write_csv_zip(file, list(
-          "hcpc_indices_validation"   = dfs$indices_validation,
-          "hcpc_affectation_clusters" = dfs$affectation_clusters
-        ))
-        showNotification(paste0("Export CSV HCPC réussi (", length(n), " fichiers) !"), type = "message", duration = 3)
-      }, error = function(e) showNotification(hstat_err_fr(e, "Erreur CSV HCPC"), type = "error", duration = 8))
-    }
-  )
+  hstat_export_tables_handlers(output, "downloadHcpcMetrics", function() {
+    vd <- hcpcValidationData()
+    if (is.null(vd)) return(NULL)
+    dfs <- build_hcpc_metrics_df(vd)
+    if (is.null(dfs)) return(NULL)
+    list("Indices_validation"   = dfs$indices_validation,
+         "Affectation_clusters" = dfs$affectation_clusters)
+  }, "hcpc_metriques", "HCPC")
   
   
-  output$downloadAfdMetricsXlsx <- downloadHandler(
-    filename = function() paste0("afd_métriques_", Sys.Date(), ".xlsx"),
-    contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    content = function(file) {
-      tryCatch({
-        req(afdResultReactive())
-        dfs <- build_afd_metrics_df(afdResultReactive())
-        if (is.null(dfs)) { showNotification("Erreur : calcul métriques AFD échoué.", type = "error"); return() }
-        
-        wb <- createWorkbook()
-        .write_xlsx_sheets(wb, list(
-          "Variance_Eta2"         = dfs$variance_eta2,
-          "Classification_globale" = dfs$classification_globale,
-          "Classification_groupe"  = dfs$classification_groupe,
-          "Matrice_confusion"      = dfs$matrice_confusion
-        ))
-        saveWorkbook(wb, file, overwrite = TRUE)
-        showNotification("Export Excel AFD réussi !", type = "message", duration = 3)
-      }, error = function(e) showNotification(hstat_err_fr(e, "Erreur Excel AFD"), type = "error", duration = 8))
-    }
-  )
-  
-  output$downloadAfdMetricsCsv <- downloadHandler(
-    filename = function() paste0("afd_métriques_", Sys.Date(), ".zip"),
-    contentType = "application/zip",
-    content = function(file) {
-      tryCatch({
-        req(afdResultReactive())
-        dfs <- build_afd_metrics_df(afdResultReactive())
-        if (is.null(dfs)) { showNotification("Erreur : calcul métriques AFD échoué.", type = "error"); return() }
-        
-        n <- .write_csv_zip(file, list(
-          "afd_variance_eta2"           = dfs$variance_eta2,
-          "afd_classification_globale"  = dfs$classification_globale,
-          "afd_classification_groupe"   = dfs$classification_groupe,
-          "afd_matrice_confusion"       = dfs$matrice_confusion
-        ))
-        showNotification(paste0("Export CSV AFD réussi (", length(n), " fichiers) !"), type = "message", duration = 3)
-      }, error = function(e) showNotification(hstat_err_fr(e, "Erreur CSV AFD"), type = "error", duration = 8))
-    }
-  )
+  hstat_export_tables_handlers(output, "downloadAfdMetrics", function() {
+    dfs <- build_afd_metrics_df(afdResultReactive())
+    if (is.null(dfs)) return(NULL)
+    list("Variance_Eta2"          = dfs$variance_eta2,
+         "Classification_globale" = dfs$classification_globale,
+         "Classification_groupe"  = dfs$classification_groupe,
+         "Matrice_confusion"      = dfs$matrice_confusion)
+  }, "afd_metriques", "AFD")
   
   # Helper: construire le dataframe des métriques ACP
   build_pca_metrics_df <- function(res.pca, pca_data_raw) {
@@ -2679,115 +2557,18 @@ server <- function(input, output, session) {
     }
   )
   
-  output$downloadPcaDataXlsx <- downloadHandler(
-    filename = function() {
-      paste0("acp_résultats_", Sys.Date(), ".xlsx")
-    },
-    contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    content = function(file) {
-      dfs <- if (!is.null(values$pcaDataframes)) {
-        values$pcaDataframes
-      } else {
-        pcaDataframes()
-      }
-      
-      if (is.null(dfs)) {
-        showNotification("Erreur : aucune donnée ACP disponible pour le Téléchargement", type = "error")
-        return(NULL)
-      }
-      
-      tryCatch({
-        wb <- createWorkbook()
-        
-        addWorksheet(wb, "Valeurs_propres")
-        writeData(wb, "Valeurs_propres", dfs$eigenvalues)
-        
-        addWorksheet(wb, "Coordonnees_individus")
-        writeData(wb, "Coordonnees_individus", dfs$ind_coords)
-        
-        addWorksheet(wb, "Contributions_individus")
-        writeData(wb, "Contributions_individus", dfs$ind_contrib)
-        
-        addWorksheet(wb, "Cos2_individus")
-        writeData(wb, "Cos2_individus", dfs$ind_cos2)
-        
-        addWorksheet(wb, "Coordonnees_variables")
-        writeData(wb, "Coordonnees_variables", dfs$var_coords)
-        
-        addWorksheet(wb, "Contributions_variables")
-        writeData(wb, "Contributions_variables", dfs$var_contrib)
-        
-        addWorksheet(wb, "Cos2_variables")
-        writeData(wb, "Cos2_variables", dfs$var_cos2)
-        
-        addWorksheet(wb, "Corrélations_variables")
-        writeData(wb, "Corrélations_variables", dfs$var_cor)
-        
-        saveWorkbook(wb, file, overwrite = TRUE)
-        showNotification("Fichier Excel ACP telecharge avec succès!", type = "message")
-      }, error = function(e) {
-        showNotification(hstat_err_fr(e, "Erreur lors du Téléchargement Excel"), type = "error")
-      })
-    }
-  )
-  
-  output$downloadPcaDataCsv <- downloadHandler(
-    filename = function() {
-      paste0("acp_résultats_", Sys.Date(), ".zip")
-    },
-    contentType = "application/zip",
-    content = function(file) {
-      dfs <- if (!is.null(values$pcaDataframes)) {
-        values$pcaDataframes
-      } else {
-        pcaDataframes()
-      }
-      
-      if (is.null(dfs)) {
-        showNotification("Erreur : aucune donnée ACP disponible pour le Téléchargement", type = "error")
-        return(NULL)
-      }
-      
-      tryCatch({
-        temp_dir <- tempdir()
-        csv_files <- c()
-        
-        old_files <- list.files(temp_dir, pattern = "\\.csv$", full.names = TRUE)
-        if (length(old_files) > 0) {
-          file.remove(old_files)
-        }
-        
-        write_csv_utf8(dfs$eigenvalues, file.path(temp_dir, "valeurs_propres.csv"))
-        csv_files <- c(csv_files, "valeurs_propres.csv")
-        
-        write_csv_utf8(dfs$ind_coords, file.path(temp_dir, "coordonnees_individus.csv"))
-        csv_files <- c(csv_files, "coordonnees_individus.csv")
-        
-        write_csv_utf8(dfs$ind_contrib, file.path(temp_dir, "contributions_individus.csv"))
-        csv_files <- c(csv_files, "contributions_individus.csv")
-        
-        write_csv_utf8(dfs$ind_cos2, file.path(temp_dir, "cos2_individus.csv"))
-        csv_files <- c(csv_files, "cos2_individus.csv")
-        
-        write_csv_utf8(dfs$var_coords, file.path(temp_dir, "coordonnees_variables.csv"))
-        csv_files <- c(csv_files, "coordonnees_variables.csv")
-        
-        write_csv_utf8(dfs$var_contrib, file.path(temp_dir, "contributions_variables.csv"))
-        csv_files <- c(csv_files, "contributions_variables.csv")
-        
-        write_csv_utf8(dfs$var_cos2, file.path(temp_dir, "cos2_variables.csv"))
-        csv_files <- c(csv_files, "cos2_variables.csv")
-        
-        write_csv_utf8(dfs$var_cor, file.path(temp_dir, "corrélations_variables.csv"))
-        csv_files <- c(csv_files, "corrélations_variables.csv")
-        
-        zip(file, file.path(temp_dir, csv_files), flags = "-j")
-        showNotification("Fichiers CSV ACP telecharges avec succès!", type = "message")
-      }, error = function(e) {
-        showNotification(hstat_err_fr(e, "Erreur lors du Téléchargement CSV"), type = "error")
-      })
-    }
-  )
+  hstat_export_tables_handlers(output, "downloadPcaData", function() {
+    dfs <- values$pcaDataframes %||% pcaDataframes()
+    if (is.null(dfs)) return(NULL)
+    list("Valeurs_propres"         = dfs$eigenvalues,
+         "Coordonnees_individus"   = dfs$ind_coords,
+         "Contributions_individus" = dfs$ind_contrib,
+         "Cos2_individus"          = dfs$ind_cos2,
+         "Coordonnees_variables"   = dfs$var_coords,
+         "Contributions_variables" = dfs$var_contrib,
+         "Cos2_variables"          = dfs$var_cos2,
+         "Correlations_variables"  = dfs$var_cor)
+  }, "acp_resultats", "ACP")
   
   
   # Selecteurs HCPC : source des labels des individus (carte + dendrogramme) et
@@ -3667,149 +3448,19 @@ server <- function(input, output, session) {
     }
   )
   
-  output$downloadHcpcDataXlsx <- downloadHandler(
-    filename = function() {
-      paste0("hcpc_résultats_", Sys.Date(), ".xlsx")
-    },
-    content = function(file) {
-      # S'assurer que l'extension est .xlsx
-      if (!grepl("\\.xlsx$", file, ignore.case = TRUE)) {
-        file <- paste0(tools::file_path_sans_ext(file), ".xlsx")
-      }
-      
-      dfs <- if (!is.null(values$hcpcDataframes)) {
-        values$hcpcDataframes
-      } else {
-        hcpcDataframes()
-      }
-      
-      if (is.null(dfs)) {
-        showNotification("Erreur : aucune donnée HCPC disponible pour le Téléchargement", type = "error", duration = 10)
-        return(NULL)
-      }
-      
-      if (is.null(dfs$cluster_assignment) || nrow(dfs$cluster_assignment) == 0) {
-        showNotification("Erreur : données HCPC vides ou invalides", type = "error", duration = 10)
-        return(NULL)
-      }
-      
-      tryCatch({
-        wb <- createWorkbook()
-        
-        addWorksheet(wb, "Affectation_clusters")
-        writeData(wb, "Affectation_clusters", dfs$cluster_assignment)
-        
-        if (!is.null(dfs$desc_variables) && nrow(dfs$desc_variables) > 0) {
-          addWorksheet(wb, "Desc_variables")
-          writeData(wb, "Desc_variables", dfs$desc_variables)
-        }
-        
-        if (!is.null(dfs$desc_axes) && nrow(dfs$desc_axes) > 0) {
-          addWorksheet(wb, "Desc_axes")
-          writeData(wb, "Desc_axes", dfs$desc_axes)
-        }
-        
-        if (!is.null(dfs$parangons) && nrow(dfs$parangons) > 0) {
-          addWorksheet(wb, "Parangons")
-          writeData(wb, "Parangons", dfs$parangons)
-        }
-        
-        if (!is.null(dfs$distant_individuals) && nrow(dfs$distant_individuals) > 0) {
-          addWorksheet(wb, "Individus_eloignes")
-          writeData(wb, "Individus_eloignes", dfs$distant_individuals)
-        }
-        
-        saveWorkbook(wb, file, overwrite = TRUE)
-        
-        if (file.exists(file)) {
-          showNotification("Fichier Excel HCPC telecharge avec succès!", type = "message", duration = 3)
-        } else {
-          showNotification("Erreur : fichier non créé", type = "error", duration = 10)
-        }
-        
-      }, error = function(e) {
-        showNotification(hstat_err_fr(e, "Erreur lors du Téléchargement Excel"), type = "error", duration = 10)
-      })
-    }
-  )
-  
-  output$downloadHcpcDataCsv <- downloadHandler(
-    filename = function() {
-      paste0("hcpc_résultats_", Sys.Date(), ".zip")
-    },
-    content = function(file) {
-      # S'assurer que l'extension est .zip
-      if (!grepl("\\.zip$", file, ignore.case = TRUE)) {
-        file <- paste0(tools::file_path_sans_ext(file), ".zip")
-      }
-      
-      dfs <- if (!is.null(values$hcpcDataframes)) {
-        values$hcpcDataframes
-      } else {
-        hcpcDataframes()
-      }
-      
-      if (is.null(dfs)) {
-        showNotification("Erreur : aucune donnée HCPC disponible pour le Téléchargement", type = "error", duration = 10)
-        return(NULL)
-      }
-      
-      if (is.null(dfs$cluster_assignment) || nrow(dfs$cluster_assignment) == 0) {
-        showNotification("Erreur : données HCPC vides ou invalides", type = "error", duration = 10)
-        return(NULL)
-      }
-      
-      tryCatch({
-        temp_dir <- tempdir()
-        csv_files <- c()
-        
-        old_files <- list.files(temp_dir, pattern = "^(affectation|desc|parangons|individus).*\\.csv$", full.names = TRUE)
-        if (length(old_files) > 0) {
-          file.remove(old_files)
-        }
-        
-        csv_path <- file.path(temp_dir, "affectation_clusters.csv")
-        write_csv_utf8(dfs$cluster_assignment, csv_path)
-        csv_files <- c(csv_files, "affectation_clusters.csv")
-        
-        if (!is.null(dfs$desc_variables) && nrow(dfs$desc_variables) > 0) {
-          csv_path <- file.path(temp_dir, "desc_variables.csv")
-          write_csv_utf8(dfs$desc_variables, csv_path)
-          csv_files <- c(csv_files, "desc_variables.csv")
-        }
-        
-        if (!is.null(dfs$desc_axes) && nrow(dfs$desc_axes) > 0) {
-          csv_path <- file.path(temp_dir, "desc_axes.csv")
-          write_csv_utf8(dfs$desc_axes, csv_path)
-          csv_files <- c(csv_files, "desc_axes.csv")
-        }
-        
-        if (!is.null(dfs$parangons) && nrow(dfs$parangons) > 0) {
-          csv_path <- file.path(temp_dir, "parangons.csv")
-          write_csv_utf8(dfs$parangons, csv_path)
-          csv_files <- c(csv_files, "parangons.csv")
-        }
-        
-        if (!is.null(dfs$distant_individuals) && nrow(dfs$distant_individuals) > 0) {
-          csv_path <- file.path(temp_dir, "individus_eloignes.csv")
-          write_csv_utf8(dfs$distant_individuals, csv_path)
-          csv_files <- c(csv_files, "individus_eloignes.csv")
-        }
-        
-        zip(file, file.path(temp_dir, csv_files), flags = "-j")
-        
-        if (file.exists(file)) {
-          showNotification(paste0("Fichiers CSV HCPC (", length(csv_files), " fichiers) telecharges avec succès!"), 
-                           type = "message", duration = 3)
-        } else {
-          showNotification("Erreur : fichier ZIP non créé", type = "error", duration = 10)
-        }
-        
-      }, error = function(e) {
-        showNotification(hstat_err_fr(e, "Erreur lors du Téléchargement CSV"), type = "error", duration = 10)
-      })
-    }
-  )
+  hstat_export_tables_handlers(output, "downloadHcpcData", function() {
+    dfs <- values$hcpcDataframes %||% hcpcDataframes()
+    if (is.null(dfs) || is.null(dfs$cluster_assignment) ||
+        nrow(dfs$cluster_assignment) == 0) return(NULL)
+    # Une feuille vide n'apporte rien : les tableaux facultatifs ne sont
+    # ajoutes que s'ils portent au moins une ligne.
+    hstat_tables_non_vides(list(
+      "Affectation_clusters" = dfs$cluster_assignment,
+      "Desc_variables"       = dfs$desc_variables,
+      "Desc_axes"            = dfs$desc_axes,
+      "Parangons"            = dfs$parangons,
+      "Individus_eloignes"   = dfs$distant_individuals))
+  }, "hcpc_resultats", "HCPC")
   
   # SECTION 3: AFD (Analyse Factorielle Discriminante) 
   
@@ -5190,138 +4841,22 @@ server <- function(input, output, session) {
     }
   )
   
-  output$downloadAfdDataXlsx <- downloadHandler(
-    filename = function() {
-      "afd_résultats.xlsx"  # Nom fixe sans date pour éviter problèmes
-    },
-    contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    content = function(file) {
-      dfs <- if (!is.null(values$afdDataframes)) {
-        values$afdDataframes
-      } else {
-        afdDataframes()
-      }
-      
-      if (is.null(dfs) || is.null(dfs$ind_coords) || nrow(dfs$ind_coords) == 0) {
-        showNotification("Erreur : aucune donnée AFD disponible", type = "error", duration = 10)
-        return(NULL)
-      }
-      
-      tryCatch({
-        wb <- createWorkbook()
-        
-        addWorksheet(wb, "Coordonnees_individus")
-        writeData(wb, "Coordonnees_individus", dfs$ind_coords)
-        
-        addWorksheet(wb, "Coefficients_discriminants")
-        writeData(wb, "Coefficients_discriminants", dfs$coefficients)
-        
-        addWorksheet(wb, "Matrice_structure")
-        writeData(wb, "Matrice_structure", dfs$structure_matrix)
-        
-        addWorksheet(wb, "Tests_F")
-        writeData(wb, "Tests_F", dfs$f_tests)
-        
-        addWorksheet(wb, "Matrice_confusion")
-        writeData(wb, "Matrice_confusion", dfs$confusion_matrix)
-        
-        addWorksheet(wb, "Taux_classification")
-        writeData(wb, "Taux_classification", dfs$classification_rates)
-        
-        addWorksheet(wb, "Centroides")
-        writeData(wb, "Centroides", dfs$centroids)
-        
-        addWorksheet(wb, "Variance_expliquee")
-        writeData(wb, "Variance_expliquee", dfs$variance_explained)
-        
-        if (!is.null(dfs$cv_confusion) && nrow(dfs$cv_confusion) > 0) {
-          addWorksheet(wb, "CV_confusion")
-          writeData(wb, "CV_confusion", dfs$cv_confusion)
-          
-          if (!is.null(dfs$cv_accuracy)) {
-            addWorksheet(wb, "CV_taux")
-            writeData(wb, "CV_taux", dfs$cv_accuracy)
-          }
-        }
-        
-        saveWorkbook(wb, file, overwrite = TRUE)
-        
-        showNotification("Fichier Excel AFD telecharge avec succès!", type = "message", duration = 3)
-        
-      }, error = function(e) {
-        showNotification(hstat_err_fr(e, "Erreur Excel AFD"), type = "error", duration = 10)
-      })
-    }
-  )
-  
-  output$downloadAfdDataCsv <- downloadHandler(
-    filename = function() {
-      "afd_résultats.zip"  # Nom fixe sans date
-    },
-    contentType = "application/zip",
-    content = function(file) {
-      dfs <- if (!is.null(values$afdDataframes)) {
-        values$afdDataframes
-      } else {
-        afdDataframes()
-      }
-      
-      if (is.null(dfs) || is.null(dfs$ind_coords) || nrow(dfs$ind_coords) == 0) {
-        showNotification("Erreur : aucune donnée AFD disponible", type = "error", duration = 10)
-        return(NULL)
-      }
-      
-      tryCatch({
-        temp_dir <- tempdir()
-        csv_files <- c()
-        
-        old_files <- list.files(temp_dir, pattern = "^afd_.*\\.csv$", full.names = TRUE)
-        if (length(old_files) > 0) file.remove(old_files)
-        
-        write_csv_utf8(dfs$ind_coords, file.path(temp_dir, "afd_coordonnees_individus.csv"))
-        csv_files <- c(csv_files, "afd_coordonnees_individus.csv")
-        
-        write_csv_utf8(dfs$coefficients, file.path(temp_dir, "afd_coefficients_discriminants.csv"))
-        csv_files <- c(csv_files, "afd_coefficients_discriminants.csv")
-        
-        write_csv_utf8(dfs$structure_matrix, file.path(temp_dir, "afd_matrice_structure.csv"))
-        csv_files <- c(csv_files, "afd_matrice_structure.csv")
-        
-        write_csv_utf8(dfs$f_tests, file.path(temp_dir, "afd_tests_F.csv"))
-        csv_files <- c(csv_files, "afd_tests_F.csv")
-        
-        write_csv_utf8(dfs$confusion_matrix, file.path(temp_dir, "afd_matrice_confusion.csv"))
-        csv_files <- c(csv_files, "afd_matrice_confusion.csv")
-        
-        write_csv_utf8(dfs$classification_rates, file.path(temp_dir, "afd_taux_classification.csv"))
-        csv_files <- c(csv_files, "afd_taux_classification.csv")
-        
-        write_csv_utf8(dfs$centroids, file.path(temp_dir, "afd_centroides.csv"))
-        csv_files <- c(csv_files, "afd_centroides.csv")
-        
-        write_csv_utf8(dfs$variance_explained, file.path(temp_dir, "afd_variance_expliquee.csv"))
-        csv_files <- c(csv_files, "afd_variance_expliquee.csv")
-        
-        if (!is.null(dfs$cv_confusion) && nrow(dfs$cv_confusion) > 0) {
-          write_csv_utf8(dfs$cv_confusion, file.path(temp_dir, "afd_cv_confusion.csv"))
-          csv_files <- c(csv_files, "afd_cv_confusion.csv")
-          
-          if (!is.null(dfs$cv_accuracy)) {
-            write_csv_utf8(dfs$cv_accuracy, file.path(temp_dir, "afd_cv_taux.csv"))
-            csv_files <- c(csv_files, "afd_cv_taux.csv")
-          }
-        }
-        
-        zip(file, file.path(temp_dir, csv_files), flags = "-j")
-        
-        showNotification(paste0("CSV AFD telecharges (", length(csv_files), " fichiers)"), 
-                         type = "message", duration = 3)
-        
-      }, error = function(e) {
-        showNotification(hstat_err_fr(e, "Erreur CSV AFD"), type = "error", duration = 10)
-      })
-    }
-  )
+  hstat_export_tables_handlers(output, "downloadAfdData", function() {
+    dfs <- values$afdDataframes %||% afdDataframes()
+    if (is.null(dfs) || is.null(dfs$ind_coords) || nrow(dfs$ind_coords) == 0)
+      return(NULL)
+    hstat_tables_non_vides(list(
+      "Coordonnees_individus"      = dfs$ind_coords,
+      "Coefficients_discriminants" = dfs$coefficients,
+      "Matrice_structure"          = dfs$structure_matrix,
+      "Tests_F"                    = dfs$f_tests,
+      "Matrice_confusion"          = dfs$confusion_matrix,
+      "Taux_classification"        = dfs$classification_rates,
+      "Centroides"                 = dfs$centroids,
+      "Variance_expliquee"         = dfs$variance_explained,
+      "CV_confusion"               = dfs$cv_confusion,
+      "CV_taux"                    = dfs$cv_accuracy))
+  }, "afd_resultats", "AFD")
   # AFD - Selecteur de variables categorielles pour la prediction
   output$afdPredictVarsSelect <- renderUI({
     req(values$filteredData, input$afdFactor)

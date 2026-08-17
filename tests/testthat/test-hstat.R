@@ -6241,6 +6241,112 @@ test_that("un seul endroit dans l'application ouvre un peripherique graphique", 
   expect_equal(fautifs, character(0))
 })
 
+test_that("aucun bouton de telechargement n'est branche dans le vide", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # C'EST LE PRIX DU CONTRAT PAR PREFIXE. Tant que chaque export declarait son
+  # `output$<identifiant>`, une faute de frappe se voyait a la lecture. Avec un
+  # prefixe, l'identifiant est CONSTRUIT (`<prefixe>Xlsx`) : une lettre de
+  # travers debranche le bouton en silence -- il reste affiche, il ne fait
+  # rien, et rien dans le code ne le signale.
+  #
+  # Le test refait donc la construction des deux cotes et compare.
+  src <- paste(vapply(list.files(file.path(root, "inst", "app"),
+                                 pattern = "[.]R$", full.names = TRUE),
+                      function(f) paste(.hstat_code_lignes(f), collapse = "\n"),
+                      character(1)), collapse = "\n")
+  ext <- function(motif) {
+    m <- regmatches(src, gregexpr(motif, src, perl = TRUE))[[1]]
+    if (!length(m)) character(0) else unique(sub(motif, "\\1", m, perl = TRUE))
+  }
+  tb_ui <- ext('hstat_export_table_ui\\(ns, "([A-Za-z0-9_.]+)"')
+  boutons <- unique(c(
+    ext('download(?:Button|Link)\\(ns\\("([A-Za-z0-9_.]+)"'),
+    ext('download(?:Button|Link)\\("([A-Za-z0-9_.]+)"'),
+    paste0(ext('hstat_export_plot_ui\\(ns, "([A-Za-z0-9_.]+)"'), "Dl"),
+    paste0(tb_ui, "Csv"), paste0(tb_ui, "Xlsx")))
+  kit_tb <- ext('hstat_export_tables?_handlers\\(output, "([A-Za-z0-9_.]+)"')
+  producteurs <- unique(c(
+    ext('output\\$([A-Za-z0-9_.]+) *<-'),
+    ext('output\\[\\["([A-Za-z0-9_.]+)"\\]\\] *<-'),
+    paste0(ext('hstat_export_plot_handler\\(input, "([A-Za-z0-9_.]+)"'), "Dl"),
+    paste0(kit_tb, "Csv"), paste0(kit_tb, "Xlsx")))
+
+  # Les identifiants construits en boucle (`paste0("mv_", key, ...)`) ne sont
+  # litteraux d'aucun cote : ils sortent des deux listes a la fois, donc le
+  # test ne les invente pas -- il ne les couvre simplement pas.
+  expect_gt(length(boutons), 100L)
+  expect_equal(setdiff(boutons, producteurs), character(0))
+})
+
+test_that("les tableaux exportes passent par un ecrivain unique", {
+  skip_if_not_installed("openxlsx")
+  # Meme regle que pour les images : tout chemin ecrit un fichier VALIDE. Un
+  # `req()` ou un `return(NULL)` sans ecriture fait renvoyer a Shiny sa page
+  # d'erreur HTML, qu'Excel refuse ensuite d'ouvrir sans dire pourquoi.
+  tb <- list("Valeurs propres" = data.frame(axe = 1:3, val = c(2.1, 1.2, 0.7)),
+             "Un nom de feuille beaucoup trop long pour Excel" = data.frame(x = 1:2))
+  f <- tempfile(fileext = ".xlsx")
+  expect_equal(hstat_ecrire_classeur(f, tb), 2L)
+  # Le nom de feuille vient parfois d'une VARIABLE DE L'UTILISATEUR :
+  # `addWorksheet()` leve au-dela de 31 caracteres et sur []:*?/\\ .
+  noms <- openxlsx::getSheetNames(f)
+  expect_true(all(nchar(noms) <= 31))
+  expect_false(any(grepl("[\\[\\]:*?/\\\\]", noms, perl = TRUE)))
+  expect_equal(hstat_feuille_nom("a[b]:c*d?e/f"), "a_b__c_d_e_f")
+  expect_equal(hstat_feuille_nom(""), "Feuille")
+
+  # Deux noms identiques une fois tronques ne doivent pas faire echouer
+  # l'export entier : `addWorksheet()` refuse le doublon.
+  long <- paste0("Comparaisons multiples par variable ", c("A", "B"))
+  f2 <- tempfile(fileext = ".xlsx")
+  expect_equal(hstat_ecrire_classeur(f2, stats::setNames(
+    list(data.frame(x = 1), data.frame(x = 2)), long)), 2L)
+  expect_equal(length(openxlsx::getSheetNames(f2)), 2L)
+
+  # Une liste vide donne un classeur qui PORTE LE MOTIF, jamais rien.
+  vide <- .hstat_tables_ou_motif(function() NULL, "Test")
+  expect_equal(names(vide), "Info")
+  f3 <- tempfile(fileext = ".xlsx")
+  expect_equal(hstat_ecrire_classeur(f3, vide), 1L)
+  expect_gt(file.size(f3), 0)
+
+  # Les tableaux absents ou vides sont ecartes : une feuille vide fait croire
+  # a une information manquante.
+  expect_equal(names(hstat_tables_non_vides(
+    list(a = data.frame(x = 1), b = NULL, c = data.frame(x = numeric(0))))), "a")
+})
+
+test_that("un prefixe declare bien les deux sorties attendues", {
+  skip_if_not_installed("shiny")
+  # Le balayage du depot verifie que les NOMS concordent ; celui-ci verifie que
+  # la mecanique les produit vraiment.
+  #
+  # Le faux `output` est un ENVIRONNEMENT, pas une liste : le `output` de Shiny
+  # est un objet a reference, et une liste passee a une fonction y serait copiee
+  # -- le test ne verrait alors jamais ce que le kit a depose.
+  faux <- new.env()
+  hstat_export_tables_handlers(faux, "monExport",
+                               function() list(A = data.frame(x = 1)), "essai")
+  expect_setequal(ls(faux), c("monExportXlsx", "monExportCsv"))
+  expect_true(all(vapply(ls(faux), function(n) is.function(faux[[n]]), logical(1))))
+
+  faux2 <- new.env()
+  hstat_export_table_handlers(faux2, "autre", function() data.frame(x = 1), "essai")
+  expect_setequal(ls(faux2), c("autreCsv", "autreXlsx"))
+
+  # L'extension suit le nombre de tableaux : un `.zip` contenant un CSV nu ne
+  # s'ouvre pas comme l'utilisateur s'y attend, et livrer un seul CSV quand il y
+  # a plusieurs tableaux en perdrait. C'est la longueur de la liste qui tranche.
+  expect_equal(length(.hstat_tables_ou_motif(
+    function() list(A = data.frame(x = 1)), "essai")), 1L)
+  expect_equal(length(.hstat_tables_ou_motif(
+    function() list(A = data.frame(x = 1), B = data.frame(y = 2)), "essai")), 2L)
+  f3 <- tempfile(fileext = ".zip")
+  hstat_ecrire_csv_zip(f3, list(A = data.frame(x = 1), B = data.frame(y = 2)))
+  expect_equal(length(utils::unzip(f3, list = TRUE)$Name), 2L)
+})
+
 test_that("le catalogue de formats ne promet que ce que l'ecrivain sait ecrire", {
   skip_if_not_installed("ggplot2")
   # Offrir un format que l'ecrivain ignore ne leve rien : `hstat_img_fmt()`

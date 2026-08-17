@@ -4224,40 +4224,22 @@ mod_tests_server <- function(id, values) {
         tags$b(" Conclusion PERMDISP : "), msg)
   })
   
-  output$downloadManovaParam <- downloadHandler(
-    filename = function() paste0("MANOVA_parametrique_", format(Sys.Date(), "%Y%m%d"), ".xlsx"),
-    content = function(file) {
-      wb <- openxlsx::createWorkbook()
-      if (!is.null(values$manovaParamResults)) {
-        openxlsx::addWorksheet(wb, "MANOVA_stats")
-        openxlsx::writeData(wb, "MANOVA_stats", values$manovaParamResults)
-      }
-      if (!is.null(values$manovaMardia)) {
-        openxlsx::addWorksheet(wb, "Mardia"); openxlsx::writeData(wb, "Mardia", values$manovaMardia)
-      }
-      if (!is.null(values$manovaBoxM)) {
-        openxlsx::addWorksheet(wb, "BoxM"); openxlsx::writeData(wb, "BoxM", values$manovaBoxM)
-      }
-      if (!is.null(values$manovaPermDisp)) {
-        openxlsx::addWorksheet(wb, "PERMDISP"); openxlsx::writeData(wb, "PERMDISP", values$manovaPermDisp)
-      }
-      openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-    }
-  )
+  # Un classeur = une liste nommee de tableaux. La boucle sur les feuilles, le
+  # nom de feuille valide et le fichier toujours ecrit viennent de l'ecrivain
+  # commun ; le module ne dit plus que CE QU'IL exporte.
+  output$downloadManovaParam <- hstat_classeur_handler(function() {
+    hstat_tables_non_vides(list(
+      "MANOVA_stats" = values$manovaParamResults,
+      "Mardia"       = values$manovaMardia,
+      "BoxM"         = values$manovaBoxM,
+      "PERMDISP"     = values$manovaPermDisp))
+  }, "MANOVA_parametrique", "MANOVA paramétrique")
   
-  output$downloadManovaPermanova <- downloadHandler(
-    filename = function() paste0("PERMANOVA_", format(Sys.Date(), "%Y%m%d"), ".xlsx"),
-    content = function(file) {
-      wb <- openxlsx::createWorkbook()
-      if (!is.null(values$manovaPermanovaResults)) {
-        openxlsx::addWorksheet(wb, "PERMANOVA"); openxlsx::writeData(wb, "PERMANOVA", values$manovaPermanovaResults)
-      }
-      if (!is.null(values$manovaPermDisp)) {
-        openxlsx::addWorksheet(wb, "PERMDISP"); openxlsx::writeData(wb, "PERMDISP", values$manovaPermDisp)
-      }
-      openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-    }
-  )
+  output$downloadManovaPermanova <- hstat_classeur_handler(function() {
+    hstat_tables_non_vides(list(
+      "PERMANOVA" = values$manovaPermanovaResults,
+      "PERMDISP"  = values$manovaPermDisp))
+  }, "PERMANOVA", "PERMANOVA")
   
   
   output$showManovaWorkflow <- reactive({
@@ -5295,28 +5277,18 @@ mod_tests_server <- function(id, values) {
     summary(values$currentModel)
   })
   
-  output$downloadTestsExcel <- downloadHandler(
-    filename = function() {
-      paste0("résultats_tests_", Sys.Date(), ".xlsx")
-    },
-    content = function(file) {
-      wb <- openxlsx::createWorkbook()
-      
-      openxlsx::addWorksheet(wb, "Résultats")
-      openxlsx::writeData(wb, "Résultats", values$testResultsDF)
-      
-      if (!is.null(values$normalityResults)) {
-        validation_df <- data.frame(Variable = names(values$normalityResults))
-        validation_df$Normality_p <- sapply(values$normalityResults, function(x) x$p.value %||% NA)
-        validation_df$Homogeneity_p <- sapply(values$homogeneityResults, function(x) x$`Pr(>F)`[1] %||% NA)
-        
-        openxlsx::addWorksheet(wb, "Validation")
-        openxlsx::writeData(wb, "Validation", validation_df)
-      }
-      
-      openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+  output$downloadTestsExcel <- hstat_classeur_handler(function() {
+    validation <- NULL
+    if (!is.null(values$normalityResults)) {
+      validation <- data.frame(Variable = names(values$normalityResults))
+      validation$Normality_p <- sapply(values$normalityResults,
+                                       function(x) x$p.value %||% NA)
+      validation$Homogeneity_p <- sapply(values$homogeneityResults,
+                                         function(x) x$`Pr(>F)`[1] %||% NA)
     }
-  )
+    hstat_tables_non_vides(list("Résultats" = values$testResultsDF,
+                                "Validation" = validation))
+  }, "resultats_tests", "Tests statistiques")
   
   # Module Chi² / Multinomial -- Tests du Khi², comparaisons paires, graphiques
   
@@ -6773,26 +6745,19 @@ mod_tests_server <- function(id, values) {
     )
   })
   
-  output$downloadLMPostHoc <- downloadHandler(
-    filename = function() paste0("PostHoc_LM_GLM_", format(Sys.Date(), "%Y%m%d"), ".xlsx"),
-    content = function(file) {
-      wb <- openxlsx::createWorkbook()
-      for (key in names(values$lmPostHocResults)) {
-        entry <- values$lmPostHocResults[[key]]
-        sheet_l <- substr(paste0("Lettres_", entry$variable, "_", entry$predictor), 1, 31)
-        sheet_p <- substr(paste0("Paires_",  entry$variable, "_", entry$predictor), 1, 31)
-        if (!is.null(entry$letters)) {
-          openxlsx::addWorksheet(wb, sheet_l)
-          openxlsx::writeData(wb, sheet_l, entry$letters)
-        }
-        if (!is.null(entry$pairs)) {
-          openxlsx::addWorksheet(wb, sheet_p)
-          openxlsx::writeData(wb, sheet_p, entry$pairs)
-        }
-      }
-      openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+  output$downloadLMPostHoc <- hstat_classeur_handler(function() {
+    # LES NOMS DE FEUILLE VIENNENT DES VARIABLES DE L'UTILISATEUR : tronques a
+    # 31 caracteres mais jamais nettoyes, ils faisaient LEVER `addWorksheet()`
+    # des qu'une variable portait un caractere interdit par Excel ([]:*?/\).
+    # `hstat_feuille_nom()`, applique par l'ecrivain, s'en charge.
+    tb <- list()
+    for (key in names(values$lmPostHocResults)) {
+      e <- values$lmPostHocResults[[key]]
+      tb[[paste0("Lettres_", e$variable, "_", e$predictor)]] <- e$letters
+      tb[[paste0("Paires_",  e$variable, "_", e$predictor)]] <- e$pairs
     }
-  )
+    hstat_tables_non_vides(tb)
+  }, "PostHoc_LM_GLM", "Comparaisons post-hoc")
   
   
   output$hasMultivariatePosthoc <- reactive({
@@ -6923,34 +6888,17 @@ mod_tests_server <- function(id, values) {
   })
   
   # Telechargement Excel multi-feuilles (1 feuille de lettres + 1 feuille de paires par facteur)
-  output$downloadMultivariatePosthoc <- downloadHandler(
-    filename = function() paste0("PostHoc_MANOVA_multivarie_", format(Sys.Date(), "%Y%m%d"), ".xlsx"),
-    content = function(file) {
-      wb <- openxlsx::createWorkbook()
-      for (fname in names(values$manovaMultiPostHoc)) {
-        entry <- values$manovaMultiPostHoc[[fname]]
-        sheet_letters <- substr(paste0("Lettres_", fname), 1, 31)
-        sheet_pairs   <- substr(paste0("Paires_",  fname), 1, 31)
-        
-        letters_export <- entry$letters
-        names(letters_export)[names(letters_export) == "Niveau"] <- fname
-        openxlsx::addWorksheet(wb, sheet_letters)
-        openxlsx::writeData(wb, sheet_letters, letters_export)
-        
-        openxlsx::addWorksheet(wb, sheet_pairs)
-        openxlsx::writeData(wb, sheet_pairs, entry$pairs)
-      }
-      if (!is.null(values$manovaInteractionPostHoc)) {
-        openxlsx::addWorksheet(wb, "Interaction_lettres")
-        openxlsx::writeData(wb, "Interaction_lettres", values$manovaInteractionPostHoc$letters)
-        if (!is.null(values$manovaInteractionPostHoc$pairs)) {
-          openxlsx::addWorksheet(wb, "Interaction_paires")
-          openxlsx::writeData(wb, "Interaction_paires", values$manovaInteractionPostHoc$pairs)
-        }
-      }
-      openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+  output$downloadMultivariatePosthoc <- hstat_classeur_handler(function() {
+    tb <- list()
+    for (fn in names(values$manovaMultiPostHoc)) {
+      e <- values$manovaMultiPostHoc[[fn]]
+      lettres <- e$letters
+      names(lettres)[names(lettres) == "Niveau"] <- fn
+      tb[[paste0("Lettres_", fn)]] <- lettres
+      tb[[paste0("Paires_",  fn)]] <- e$pairs
     }
-  )
+    hstat_tables_non_vides(tb)
+  }, "PostHoc_MANOVA_multivarie", "Post-hoc MANOVA")
   
   output$hasManovaInteractionPostHoc <- reactive({
     !is.null(values$manovaInteractionPostHoc) &&
@@ -8293,52 +8241,25 @@ mod_tests_server <- function(id, values) {
     tags$span(type_text, " - ", current_var)
   })
   
-  output$downloadMainEffects <- downloadHandler(
-    filename = function() { paste0("effets_principaux_", Sys.Date(), ".xlsx") },
-    content = function(file) {
-      req(values$multiResultsMain)
-      main_data <- values$multiResultsMain[values$multiResultsMain$Type == "main", ]
-      wb <- openxlsx::createWorkbook()
-      openxlsx::addWorksheet(wb, "Effets_principaux")
-      openxlsx::writeData(wb, "Effets_principaux", main_data)
-      openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-    }
-  )
+  output$downloadMainEffects <- hstat_classeur_handler(function() {
+    d <- values$multiResultsMain
+    if (is.null(d)) return(NULL)
+    list("Effets_principaux" = d[d$Type == "main", ])
+  }, "effets_principaux", "Effets principaux")
   
-  output$downloadSimpleEffects <- downloadHandler(
-    filename = function() { paste0("effets_simples_", Sys.Date(), ".xlsx") },
-    content = function(file) {
-      req(values$multiResultsMain)
-      simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
-      wb <- openxlsx::createWorkbook()
-      openxlsx::addWorksheet(wb, "Effets_simples")
-      openxlsx::writeData(wb, "Effets_simples", simple_data)
-      openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-    }
-  )
+  output$downloadSimpleEffects <- hstat_classeur_handler(function() {
+    d <- values$multiResultsMain
+    if (is.null(d)) return(NULL)
+    list("Effets_simples" = d[d$Type == "simple_effect", ])
+  }, "effets_simples", "Effets simples")
   
-  output$downloadAllResults <- downloadHandler(
-    filename = function() { paste0("analyse_complete_", Sys.Date(), ".xlsx") },
-    content = function(file) {
-      req(values$multiResultsMain)
-      wb <- openxlsx::createWorkbook()
-      
-      main_data <- values$multiResultsMain[values$multiResultsMain$Type == "main", ]
-      simple_data <- values$multiResultsMain[values$multiResultsMain$Type == "simple_effect", ]
-      
-      if (nrow(main_data) > 0) {
-        openxlsx::addWorksheet(wb, "Effets_principaux")
-        openxlsx::writeData(wb, "Effets_principaux", main_data)
-      }
-      
-      if (nrow(simple_data) > 0) {
-        openxlsx::addWorksheet(wb, "Effets_simples")
-        openxlsx::writeData(wb, "Effets_simples", simple_data)
-      }
-      
-      openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-    }
-  )
+  output$downloadAllResults <- hstat_classeur_handler(function() {
+    d <- values$multiResultsMain
+    if (is.null(d)) return(NULL)
+    hstat_tables_non_vides(list(
+      "Effets_principaux" = d[d$Type == "main", ],
+      "Effets_simples"    = d[d$Type == "simple_effect", ]))
+  }, "analyse_complete", "Analyse complète")
   
   output$downloadMultiPlot <- downloadHandler(
     filename = function() {
