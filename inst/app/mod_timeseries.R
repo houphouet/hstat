@@ -489,9 +489,16 @@ mod_timeseries_server <- function(id, values) {
       fdf <- data.frame(t = tm, y = as.numeric(fc$mean))
       has_pi <- !is.null(fc$lower) && length(fc$lower) > 0
       if (has_pi) {
+        # `as.matrix()` sur les intervalles de `forecast` NE RETIRE PAS la classe
+        # `ts` des colonnes extraites : `class(lo[, 1])` vaut bien « ts ». ggplot
+        # ne sait pas choisir d'echelle pour ce type et le signalait a chaque
+        # trace de prevision (« Don't know how to automatically pick scale for
+        # object of type <ts> »). La courbe sortait quand meme, mais un
+        # avertissement permanent en console masque les vrais.
         lo <- as.matrix(fc$lower); up <- as.matrix(fc$upper)
-        fdf$lo80 <- lo[, 1]; fdf$hi80 <- up[, 1]
-        fdf$lo95 <- lo[, ncol(lo)]; fdf$hi95 <- up[, ncol(up)]
+        fdf$lo80 <- as.numeric(lo[, 1]); fdf$hi80 <- as.numeric(up[, 1])
+        fdf$lo95 <- as.numeric(lo[, ncol(lo)])
+        fdf$hi95 <- as.numeric(up[, ncol(up)])
       }
       g <- ggplot2::ggplot()
       if (has_pi) g <- g +

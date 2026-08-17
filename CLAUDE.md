@@ -1692,6 +1692,80 @@ orthographié. Les identifiants construits en boucle (`paste0("mv_", key, …)`)
 sortent des deux listes à la fois : ils ne sont pas couverts, et le test ne
 prétend pas l'inverse.
 
+## Audit : cinq défauts silencieux et les mesures qui les ont trouvés
+
+Aucun ne se voyait à la lecture du code, et aucun ne faisait tomber quoi que ce
+soit — c'est ce qui les rendait durables.
+
+### Un observateur branché sur un champ que personne n'écrit
+
+`observeEvent(values$multiResults, …)` déposait le contexte des **comparaisons
+post-hoc**. Or rien n'écrit `multiResults` : le module écrit
+`multiResultsMain`. L'observateur ne s'est donc jamais déclenché, et cette
+famille manquait à l'onglet d'interprétation, au journal de reproductibilité et
+au rapport.
+
+Le test de couverture des familles ne pouvait pas le voir : il cherche l'**appel**
+`hstat_ai_capture(values, "…")` dans le source, et le déclarait donc couvert. Un
+second test vérifie désormais le **déclencheur** — tout `observeEvent(values$X)`
+contenant une capture doit guetter un champ réellement écrit quelque part.
+
+Corollaire : les métadonnées de cette capture lisaient `values$multiGroups`, lui
+non plus jamais écrit. Les variables comparées se lisent dans le tableau
+lui-même.
+
+### Deux boutons, un seul identifiant
+
+Les deux boutons « Diagnostiquer mes données » portaient
+`runManovaDiagnostic`. Cliquer marchait — la liaison de Shiny lit l'id de
+l'élément cliqué — mais `updateActionButton()` ou `shinyjs::disable()` n'en
+auraient atteint qu'un, et le HTML était invalide.
+
+La mesure porte sur la **page rendue**, pas sur le source : un identifiant écrit
+deux fois dans deux branches qui ne s'affichent jamais ensemble n'est pas un
+doublon. Détail qui a failli fausser la mesure : chercher `id="…"` sans l'espace
+qui précède fait correspondre `data-grid="true"`, et annonce 108 doublons
+imaginaires.
+
+### `install.packages()` dans le corps du serveur
+
+Six paquets des analyses multivariées étaient installés **à chaque session**.
+Hors ligne, chaque ouverture attendait l'expiration de la requête CRAN (sept
+tentatives relevées pour sept sessions d'essai) ; sur un serveur partagé, la
+bibliothèque est le plus souvent en lecture seule, et deux sessions simultanées
+pouvaient y écrire ensemble.
+
+L'installation appartient au **démarrage** : `hstat_model_packages` (`Utils.R`),
+traité une fois au source. Un test balaie les dix-sept fichiers et échoue sur
+tout appel — en passant par l'analyseur de R, parce que plusieurs messages
+citent `install.packages(...)` comme **aide à l'utilisateur** et qu'un balayage
+textuel les compterait.
+
+### Les intervalles de prévision gardaient la classe `ts`
+
+`as.matrix()` sur une série multiple **ne retire pas** la classe `ts` des
+colonnes extraites : `class(lo[, 1])` vaut « ts ». ggplot ne sait pas choisir
+d'échelle pour ce type et le signalait à chaque tracé de prévision. La courbe
+sortait quand même — mais un avertissement permanent en console masque les
+vrais. Mesuré dans le journal du serveur : **1 avertissement avant, 0 après**.
+
+### `sample(x, n)` pioche dans `1:x` quand `x` est un seul nombre
+
+Quatre randomisations de plans d'expérience étaient dans ce cas. Un essai à un
+seul traitement codé numériquement aurait vu apparaître un traitement qui
+n'existe pas, **dans un plan d'expérience** et sans un mot. La forme employée
+est désormais `x[sample.int(n)]`, qui tire sur les indices.
+
+### Ce que l'audit a écarté, et pourquoi
+
+- Les cinq réglages de style du **second axe** de la visualisation étaient lus
+  dans la liste de dépendances du graphique mais déclarés nulle part. Ce n'est
+  pas un défaut fonctionnel : l'axe Y2 est **volontairement calqué** sur Y1 et
+  reprend ses styles. Les lectures mortes sont retirées — elles laissaient
+  croire à des réglages absents.
+- L'export Excel du Khi², les dimensions en pixels du module de seuils : des
+  décisions documentées, pas des oublis.
+
 ## Fins de ligne
 
 Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. Sont en
