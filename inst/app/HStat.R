@@ -14,23 +14,13 @@ local({
 })
 
 source("Utils.R",  local = FALSE, encoding = "UTF-8")
-source("mod_ai.R", local = FALSE, encoding = "UTF-8")
-source("mod_report.R", local = FALSE, encoding = "UTF-8")
-source("mod_threshold.R", local = FALSE, encoding = "UTF-8")
-source("mod_explore.R", local = FALSE, encoding = "UTF-8")
-source("mod_clean.R", local = FALSE, encoding = "UTF-8")
-source("mod_filter.R", local = FALSE, encoding = "UTF-8")
-source("mod_descriptive.R", local = FALSE, encoding = "UTF-8")
-source("mod_viz.R", local = FALSE, encoding = "UTF-8")
-# `mod_tests.R` a rejoint le paquet (R/mod_tests.R) : il est charge par le pont,
-# avec le socle. Un module migre n'a plus de ligne ici -- et plus de place dans
-# l'ordre de source(), qui etait la contrainte a lever.
-source("mod_design.R", local = FALSE, encoding = "UTF-8")
-source("mod_coding.R", local = FALSE, encoding = "UTF-8")
-source("mod_qualitative.R", local = FALSE, encoding = "UTF-8")
-source("mod_timeseries.R", local = FALSE, encoding = "UTF-8")
-source("mod_ml.R", local = FALSE, encoding = "UTF-8")
-source("mod_dl.R", local = FALSE, encoding = "UTF-8")
+
+# Les modules ont rejoint le paquet (R/mod_*.R) : le pont les charge avec le
+# socle, dans un ordre qui n'a plus a etre tenu a la main. C'etait la contrainte
+# a lever -- `mod_coding.R` devait etre source avant `mod_qualitative.R`, un
+# test le gardait, et rien n'empechait un module ajoute plus tard de se glisser
+# au mauvais endroit. Ne restent ici que les deux fichiers qui AGISSENT au
+# chargement : `UX.R` construit `ui`, `app_server.R` definit `server`.
 .hstat_ui_err <- NULL
 tryCatch(
   source("UX.R", local = FALSE, encoding = "UTF-8"),

@@ -1826,213 +1826,213 @@ hstat_design_analysis <- function(type, n_factors) {
 }
 
 mod_design_ui <- function(id) {
-  ns <- NS(id)
+  ns <- shiny::NS(id)
   # Petit sous-titre de categorie pour structurer visuellement le panneau
   # "Graphique du dispositif" en sections thematiques.
   .sect <- function(icon_name, label) {
-    tags$div(style = "margin:14px 0 6px;padding-bottom:3px;border-bottom:2px solid #d6dbdf;",
-      tags$span(style = "font-weight:700;color:#2c3e50;font-size:14px;",
-                icon(icon_name), " ", label))
+    shiny::tags$div(style = "margin:14px 0 6px;padding-bottom:3px;border-bottom:2px solid #d6dbdf;",
+      shiny::tags$span(style = "font-weight:700;color:#2c3e50;font-size:14px;",
+                shiny::icon(icon_name), " ", label))
   }
   banner <- if (exists(".hstat_scope_banner")) .hstat_scope_banner(exact = FALSE) else NULL
-  tabItem(tabName = "design",
+  shinydashboard::tabItem(tabName = "design",
     banner,
-    fluidRow(
-      box(width = 12, status = "primary", solidHeader = FALSE, background = "navy",
-          h3(icon("flask"), " Dispositifs experimentaux & Puissance statistique",
+    shiny::fluidRow(
+      shinydashboard::box(width = 12, status = "primary", solidHeader = FALSE, background = "navy",
+          shiny::h3(shiny::icon("flask"), " Dispositifs experimentaux & Puissance statistique",
              style = "margin:0;color:white;"))
     ),
-    tabsetPanel(id = ns("designTabs"),
-      tabPanel(tagList(icon("bolt"), " Puissance statistique"), value = "power", br(),
-        fluidRow(
-          box(title = tagList(icon("sliders"), " Paramètres d'entree"),
+    shiny::tabsetPanel(id = ns("designTabs"),
+      shiny::tabPanel(shiny::tagList(shiny::icon("bolt"), " Puissance statistique"), value = "power", shiny::br(),
+        shiny::fluidRow(
+          shinydashboard::box(title = shiny::tagList(shiny::icon("sliders"), " Paramètres d'entree"),
               status = "primary", width = 5, solidHeader = TRUE,
-              selectInput(ns("powFamily"), "Famille de test",
+              shiny::selectInput(ns("powFamily"), "Famille de test",
                 choices = c("Tests t" = "t", "Tests F" = "F",
                             "Tests chi-deux" = "chisq", "Tests z (proportions)" = "z")),
-              uiOutput(ns("powTestSelect")),
-              selectInput(ns("powAnalysis"), "Type d'analyse de puissance",
+              shiny::uiOutput(ns("powTestSelect")),
+              shiny::selectInput(ns("powAnalysis"), "Type d'analyse de puissance",
                 choices = c("A priori : calculer la taille d'échantillon (n) requise" = "apriori",
                             "Post hoc : taille connue -> calculer la puissance (1-\u03b2)" = "posthoc",
                             "Sensibilite : taille connue -> calculer l'effet detectable" = "sensitivity")),
-              div(style = "font-size:12px;color:#7f8c8d;margin-top:-8px;margin-bottom:8px;",
-                  icon("info-circle"),
+              shiny::div(style = "font-size:12px;color:#7f8c8d;margin-top:-8px;margin-bottom:8px;",
+                  shiny::icon("info-circle"),
                   " Si vous connaissez déjà votre taille d'échantillon et vos modalités, ",
                   "choisissez Post hoc (pour la puissance) ou Sensibilite (pour l'effet detectable)."),
-              hr(),
-              uiOutput(ns("powTailUI")),
-              numericInput(ns("powEffect"), "Taille d'effet", value = 0.25, min = 0.0001, step = 0.05),
-              uiOutput(ns("powEffectHint")),
-              conditionalPanel("input.powTest == 'cor_2indep' || input.powTest == 'cor_2dep'",
+              shiny::hr(),
+              shiny::uiOutput(ns("powTailUI")),
+              shiny::numericInput(ns("powEffect"), "Taille d'effet", value = 0.25, min = 0.0001, step = 0.05),
+              shiny::uiOutput(ns("powEffectHint")),
+              shiny::conditionalPanel("input.powTest == 'cor_2indep' || input.powTest == 'cor_2dep'",
                 ns = ns,
-                numericInput(ns("powEffect2"), "Second coefficient r (r2)",
+                shiny::numericInput(ns("powEffect2"), "Second coefficient r (r2)",
                              value = 0, min = -0.999, max = 0.999, step = 0.05)),
-              conditionalPanel("input.powTest == 'logistic'", ns = ns,
-                selectInput(ns("powPredictor"), "Type de prédicteur",
+              shiny::conditionalPanel("input.powTest == 'logistic'", ns = ns,
+                shiny::selectInput(ns("powPredictor"), "Type de prédicteur",
                             choices = c("Continu (OR par écart-type)" = "continuous",
                                         "Binaire (expose / non-expose)" = "binary")),
-                numericInput(ns("powP0"), "Probabilité de l'evenement chez les non-exposes / a la moyenne (p0)",
+                shiny::numericInput(ns("powP0"), "Probabilité de l'evenement chez les non-exposes / a la moyenne (p0)",
                              value = 0.2, min = 0.01, max = 0.99, step = 0.05),
-                conditionalPanel("input.powPredictor == 'binary'", ns = ns,
-                  sliderInput(ns("powPx"), "Proportion d'exposes",
+                shiny::conditionalPanel("input.powPredictor == 'binary'", ns = ns,
+                  shiny::sliderInput(ns("powPx"), "Proportion d'exposes",
                               min = 0.05, max = 0.95, value = 0.5, step = 0.05)),
-                numericInput(ns("powR2other"), "R2 du prédicteur explique par les autres covariables",
+                shiny::numericInput(ns("powR2other"), "R2 du prédicteur explique par les autres covariables",
                              value = 0, min = 0, max = 0.95, step = 0.05)),
-              conditionalPanel("input.powTest == 'poisson'", ns = ns,
-                numericInput(ns("powBaseRate"), "Taux de base moyen (exp(beta0))",
+              shiny::conditionalPanel("input.powTest == 'poisson'", ns = ns,
+                shiny::numericInput(ns("powBaseRate"), "Taux de base moyen (exp(beta0))",
                              value = 1, min = 0.01, step = 0.1),
-                numericInput(ns("powExposure"), "Exposition / duree moyenne",
+                shiny::numericInput(ns("powExposure"), "Exposition / duree moyenne",
                              value = 1, min = 0.01, step = 0.5),
-                numericInput(ns("powR2otherP"), "R2 explique par les autres covariables",
+                shiny::numericInput(ns("powR2otherP"), "R2 explique par les autres covariables",
                              value = 0, min = 0, max = 0.95, step = 0.05)),
-              numericInput(ns("powAlpha"), "\u03b1 (err prob)", value = 0.05, min = 0.0001, max = 0.5, step = 0.01),
-              numericInput(ns("powPower"), "Puissance (1-\u03b2 err prob)", value = 0.95, min = 0.5, max = 0.999, step = 0.01),
-              uiOutput(ns("powExtraUI")),
-              actionButton(ns("powCalc"), "Calculer", class = "btn-success", icon = icon("calculator"))
+              shiny::numericInput(ns("powAlpha"), "\u03b1 (err prob)", value = 0.05, min = 0.0001, max = 0.5, step = 0.01),
+              shiny::numericInput(ns("powPower"), "Puissance (1-\u03b2 err prob)", value = 0.95, min = 0.5, max = 0.999, step = 0.01),
+              shiny::uiOutput(ns("powExtraUI")),
+              shiny::actionButton(ns("powCalc"), "Calculer", class = "btn-success", icon = shiny::icon("calculator"))
           ),
-          box(title = tagList(icon("chart-area"), " Paramètres de sortie"),
+          shinydashboard::box(title = shiny::tagList(shiny::icon("chart-area"), " Paramètres de sortie"),
               status = "success", width = 7, solidHeader = TRUE,
-              DT::DTOutput(ns("powOutputTable")), br(),
-              uiOutput(ns("powVerdict")), hr(),
-              h4(icon("project-diagram"), " Répartition automatique de l'échantillon"),
-              uiOutput(ns("powAllocNote")), DT::DTOutput(ns("powAllocTable")),
-              br(),
-              fluidRow(
-                column(6, selectInput(ns("powRepartMode"), "Mode de répartition vers le plan",
+              DT::DTOutput(ns("powOutputTable")), shiny::br(),
+              shiny::uiOutput(ns("powVerdict")), shiny::hr(),
+              shiny::h4(shiny::icon("project-diagram"), " Répartition automatique de l'échantillon"),
+              shiny::uiOutput(ns("powAllocNote")), DT::DTOutput(ns("powAllocTable")),
+              shiny::br(),
+              shiny::fluidRow(
+                shiny::column(6, shiny::selectInput(ns("powRepartMode"), "Mode de répartition vers le plan",
                   choices = c("Répétitions (1 échantillon/parcelle)" = "blocks",
                               "Sous-échantillonnage (equilibre R x m)" = "subsampling"))),
-                column(6, div(style = "margin-top:25px;",
-                  actionButton(ns("powToDesign"),
-                    tagList(icon("arrow-right"), " Utiliser cette taille dans le plan"),
+                shiny::column(6, shiny::div(style = "margin-top:25px;",
+                  shiny::actionButton(ns("powToDesign"),
+                    shiny::tagList(shiny::icon("arrow-right"), " Utiliser cette taille dans le plan"),
                     class = "btn-primary")))
               ),
-              uiOutput(ns("powRepartPreview"))
+              shiny::uiOutput(ns("powRepartPreview"))
           )
         ),
-        fluidRow(
-          box(title = tagList(icon("chart-line"), " Courbe de puissance"),
+        shiny::fluidRow(
+          shinydashboard::box(title = shiny::tagList(shiny::icon("chart-line"), " Courbe de puissance"),
               status = "info", width = 8, solidHeader = TRUE,
-              plotOutput(ns("powCurve"), height = "340px")),
-          box(title = tagList(icon("info-circle"), " Conventions (Cohen)"),
+              shiny::plotOutput(ns("powCurve"), height = "340px")),
+          shinydashboard::box(title = shiny::tagList(shiny::icon("info-circle"), " Conventions (Cohen)"),
               status = "info", width = 4, solidHeader = TRUE,
               DT::DTOutput(ns("powConventions")))
         )
       ),
-      tabPanel(tagList(icon("th"), " Plan expérimental"), value = "plan", br(),
-        fluidRow(
-          box(title = tagList(icon("cog"), " Configuration"),
+      shiny::tabPanel(shiny::tagList(shiny::icon("th"), " Plan expérimental"), value = "plan", shiny::br(),
+        shiny::fluidRow(
+          shinydashboard::box(title = shiny::tagList(shiny::icon("cog"), " Configuration"),
               status = "primary", width = 4, solidHeader = TRUE,
-              selectInput(ns("dsgType"), "Type de plan", choices = hstat_design_catalog()),
-              uiOutput(ns("dsgHint")),
-              div(class = "callout callout-info", style = "padding:8px 10px;font-size:12px;",
-                icon("link"),
+              shiny::selectInput(ns("dsgType"), "Type de plan", choices = hstat_design_catalog()),
+              shiny::uiOutput(ns("dsgHint")),
+              shiny::div(class = "callout callout-info", style = "padding:8px 10px;font-size:12px;",
+                shiny::icon("link"),
                 " Vous avez defini des facteurs dans l'onglet Puissance statistique ? ",
-                actionLink(ns("dsgImportPower"),
-                  tagList(icon("download"), " Recuperer le nombre de facteurs et de modalités")),
+                shiny::actionLink(ns("dsgImportPower"),
+                  shiny::tagList(shiny::icon("download"), " Recuperer le nombre de facteurs et de modalités")),
                 "."),
-              numericInput(ns("dsgNFactors"), "Nombre de facteurs (factoriel)", value = 2, min = 1, max = 5, step = 1),
-              uiOutput(ns("dsgFactorInputs")),
-              conditionalPanel("input.dsgType!='lsd'", ns = ns,
-                numericInput(ns("dsgRep"), "Répétitions / blocs", value = 3, min = 1, step = 1)),
-              conditionalPanel("input.dsgType=='alpha'", ns = ns,
-                numericInput(ns("dsgK"), "Taille du bloc incomplet (k)", value = 3, min = 2, step = 1),
-                radioButtons(ns("dsgKMode"),
-                  tagList(icon("sliders-h"), " Gestion de la taille de bloc k"),
+              shiny::numericInput(ns("dsgNFactors"), "Nombre de facteurs (factoriel)", value = 2, min = 1, max = 5, step = 1),
+              shiny::uiOutput(ns("dsgFactorInputs")),
+              shiny::conditionalPanel("input.dsgType!='lsd'", ns = ns,
+                shiny::numericInput(ns("dsgRep"), "Répétitions / blocs", value = 3, min = 1, step = 1)),
+              shiny::conditionalPanel("input.dsgType=='alpha'", ns = ns,
+                shiny::numericInput(ns("dsgK"), "Taille du bloc incomplet (k)", value = 3, min = 2, step = 1),
+                shiny::radioButtons(ns("dsgKMode"),
+                  shiny::tagList(shiny::icon("sliders-h"), " Gestion de la taille de bloc k"),
                   choices = c(
                     "Respecter exactement le k saisi (dernier bloc plus petit si besoin)" = "exact",
                     "Ajuster automatiquement vers un k parfait (plan équilibré)" = "auto"),
                   selected = "exact")),
-              conditionalPanel("input.dsgType=='factorial' || input.dsgType=='split'", ns = ns,
-                selectInput(ns("dsgBase"), "Plan de base",
+              shiny::conditionalPanel("input.dsgType=='factorial' || input.dsgType=='split'", ns = ns,
+                shiny::selectInput(ns("dsgBase"), "Plan de base",
                             choices = c("Blocs randomises (RCBD)" = "rcbd",
                                         "Completement randomise (CRD)" = "crd",
                                         "Carre latin (LSD)" = "lsd"))),
-              numericInput(ns("dsgN"), "Échantillons par parcelle élémentaire (n)",
+              shiny::numericInput(ns("dsgN"), "Échantillons par parcelle élémentaire (n)",
                            value = 1, min = 1, step = 1),
-              numericInput(ns("dsgSeed"), "Graine (reproductibilité)", value = 123, min = 1, step = 1),
+              shiny::numericInput(ns("dsgSeed"), "Graine (reproductibilité)", value = 123, min = 1, step = 1),
 
               # --- Contraintes de terrain (optionnelles) -------------------------
-              div(style = "border:2px solid #d35400; border-radius:8px; padding:10px 12px; margin:10px 0; background:#fef5ec;",
-                tags$label(style = "color:#a04000; font-weight:700;",
-                           icon("triangle-exclamation"), " Contraintes de terrain (optionnel)"),
-                checkboxInput(ns("dsgObstacle"), "Matérialiser une zone à éviter (obstacle)", value = FALSE),
-                conditionalPanel("input.dsgObstacle == true", ns = ns,
-                  textInput(ns("dsgObstacleLabel"), "Nom de la zone", value = "Zone à éviter",
+              shiny::div(style = "border:2px solid #d35400; border-radius:8px; padding:10px 12px; margin:10px 0; background:#fef5ec;",
+                shiny::tags$label(style = "color:#a04000; font-weight:700;",
+                           shiny::icon("triangle-exclamation"), " Contraintes de terrain (optionnel)"),
+                shiny::checkboxInput(ns("dsgObstacle"), "Matérialiser une zone à éviter (obstacle)", value = FALSE),
+                shiny::conditionalPanel("input.dsgObstacle == true", ns = ns,
+                  shiny::textInput(ns("dsgObstacleLabel"), "Nom de la zone", value = "Zone à éviter",
                             placeholder = "ex : arbre, mare, talus"),
-                  fluidRow(
-                    column(6, selectInput(ns("dsgObstacleSide"), "Position",
+                  shiny::fluidRow(
+                    shiny::column(6, shiny::selectInput(ns("dsgObstacleSide"), "Position",
                       choices = c("Bord gauche" = "left", "Bord droit" = "right",
                                   "Bord haut" = "top", "Bord bas" = "bottom"),
                       selected = "left")),
-                    column(6, sliderInput(ns("dsgObstacleSpan"), "Étendue (parcelles)",
+                    shiny::column(6, shiny::sliderInput(ns("dsgObstacleSpan"), "Étendue (parcelles)",
                       min = 1, max = 10, value = 1, step = 1))),
-                  selectInput(ns("dsgObstacleColor"), "Couleur",
+                  shiny::selectInput(ns("dsgObstacleColor"), "Couleur",
                     choices = c("Rouge hachuré" = "#e74c3c", "Gris" = "#7f8c8d",
                                 "Brun" = "#8d6e63", "Noir" = "#2c3e50"),
                     selected = "#e74c3c")),
-                checkboxInput(ns("dsgConstraintFactor"), "Ajouter un facteur de blocage supplémentaire", value = FALSE),
-                conditionalPanel("input.dsgConstraintFactor == true", ns = ns,
-                  textInput(ns("dsgConstraintName"), "Nom du facteur", value = "Bande",
+                shiny::checkboxInput(ns("dsgConstraintFactor"), "Ajouter un facteur de blocage supplémentaire", value = FALSE),
+                shiny::conditionalPanel("input.dsgConstraintFactor == true", ns = ns,
+                  shiny::textInput(ns("dsgConstraintName"), "Nom du facteur", value = "Bande",
                             placeholder = "ex : irrigation, exposition"),
-                  sliderInput(ns("dsgConstraintBands"), "Nombre de bandes",
+                  shiny::sliderInput(ns("dsgConstraintBands"), "Nombre de bandes",
                     min = 2, max = 8, value = 2, step = 1),
-                  radioButtons(ns("dsgConstraintDir"), "Orientation des bandes",
+                  shiny::radioButtons(ns("dsgConstraintDir"), "Orientation des bandes",
                     choices = c("Verticales (colonnes)" = "vertical",
                                 "Horizontales (rangées)" = "horizontal"),
                     selected = "vertical", inline = TRUE))
               ),
 
-              actionButton(ns("dsgGenerate"), "Générer le plan", class = "btn-success",
-                           icon = icon("dice"),
+              shiny::actionButton(ns("dsgGenerate"), "Générer le plan", class = "btn-success",
+                           icon = shiny::icon("dice"),
                            style = "width:100%; font-weight:bold; background:#16a085; border-color:#138d75; color:#fff;")
           ),
-          box(title = tagList(icon("clipboard-list"), " Analyse recommandee & field book"),
+          shinydashboard::box(title = shiny::tagList(shiny::icon("clipboard-list"), " Analyse recommandee & field book"),
               status = "info", width = 8, solidHeader = TRUE,
-              uiOutput(ns("dsgAnalysisInfo")), hr(),
-              DT::DTOutput(ns("dsgTable")), br(),
-              h4(icon("list-ol"), " Taille d'échantillon par modalité / combinaison"),
-              DT::DTOutput(ns("dsgTreatSummary")), br(),
-              downloadButton(ns("dsgDownload"), "Télécharger (CSV)", class = "btn-success btn-sm")
+              shiny::uiOutput(ns("dsgAnalysisInfo")), shiny::hr(),
+              DT::DTOutput(ns("dsgTable")), shiny::br(),
+              shiny::h4(shiny::icon("list-ol"), " Taille d'échantillon par modalité / combinaison"),
+              DT::DTOutput(ns("dsgTreatSummary")), shiny::br(),
+              shiny::downloadButton(ns("dsgDownload"), "Télécharger (CSV)", class = "btn-success btn-sm")
           )
         ),
-        fluidRow(
-          box(title = tagList(icon("map"), " Graphique du dispositif (randomisation)"),
+        shiny::fluidRow(
+          shinydashboard::box(title = shiny::tagList(shiny::icon("map"), " Graphique du dispositif (randomisation)"),
               status = "success", width = 12, solidHeader = TRUE,
 
               # ===================== TITRES & AXES =====================
               .sect("heading", "Titres & axes"),
-              fluidRow(
-                column(4, textInput(ns("dsgPlotTitle"), "Titre du graphique", value = "")),
-                column(4, textInput(ns("dsgXlab"), "Titre axe X", value = "")),
-                column(4, textInput(ns("dsgYlab"), "Titre axe Y", value = ""))
+              shiny::fluidRow(
+                shiny::column(4, shiny::textInput(ns("dsgPlotTitle"), "Titre du graphique", value = "")),
+                shiny::column(4, shiny::textInput(ns("dsgXlab"), "Titre axe X", value = "")),
+                shiny::column(4, shiny::textInput(ns("dsgYlab"), "Titre axe Y", value = ""))
               ),
-              fluidRow(
-                column(6, sliderInput(ns("dsgFontAxis"), "Police des axes / du titre",
+              shiny::fluidRow(
+                shiny::column(6, shiny::sliderInput(ns("dsgFontAxis"), "Police des axes / du titre",
                                       min = 8, max = 24, value = 12, step = 1))
               ),
 
               # ================ ÉTIQUETTES DES CELLULES ================
               .sect("font", "Étiquettes des cellules (parcelles)"),
-              fluidRow(
-                column(4, selectInput(ns("dsgLabelMode"), "Contenu de l'étiquette",
+              shiny::fluidRow(
+                shiny::column(4, shiny::selectInput(ns("dsgLabelMode"), "Contenu de l'étiquette",
                   choices = c("Traitement + n" = "both", "Traitement seul" = "treat",
                               "n seul" = "n", "Aucune" = "none"))),
-                column(4, sliderInput(ns("dsgFontLabel"), "Taille police des étiquettes",
+                shiny::column(4, shiny::sliderInput(ns("dsgFontLabel"), "Taille police des étiquettes",
                                       min = 2, max = 8, value = 2.8, step = 0.2)),
-                column(4, div(style = "margin-top:25px;",
-                  checkboxInput(ns("dsgShowText"), "Afficher le texte", value = TRUE)))
+                shiny::column(4, shiny::div(style = "margin-top:25px;",
+                  shiny::checkboxInput(ns("dsgShowText"), "Afficher le texte", value = TRUE)))
               ),
-              fluidRow(
-                column(6, div(style = "margin-top:5px;",
-                  checkboxInput(ns("dsgBoldLabels"),
-                    tagList(icon("bold"), " Mettre toutes les étiquettes en gras"),
+              shiny::fluidRow(
+                shiny::column(6, shiny::div(style = "margin-top:5px;",
+                  shiny::checkboxInput(ns("dsgBoldLabels"),
+                    shiny::tagList(shiny::icon("bold"), " Mettre toutes les étiquettes en gras"),
                     value = FALSE)))
               ),
 
               # ===================== COULEURS =========================
               .sect("palette", "Couleurs"),
-              fluidRow(
-                column(6, selectInput(ns("dsgPalette"), "Palette de couleurs",
+              shiny::fluidRow(
+                shiny::column(6, shiny::selectInput(ns("dsgPalette"), "Palette de couleurs",
                   choices = c("Vif (défaut)" = "default", "Set2 (doux)" = "Set2",
                               "Dark2" = "Dark2", "Paired" = "Paired",
                               "Spectral" = "Spectral", "Niveaux de gris" = "grey",
@@ -2041,54 +2041,54 @@ mod_design_ui <- function(id) {
 
               # ===================== LÉGENDE ==========================
               .sect("tags", "Légende"),
-              fluidRow(
-                column(4, selectInput(ns("dsgLegendOrder"), tagList(icon("sort"), " Ordre de la légende"),
+              shiny::fluidRow(
+                shiny::column(4, shiny::selectInput(ns("dsgLegendOrder"), shiny::tagList(shiny::icon("sort"), " Ordre de la légende"),
                   choices = c("Alphabétique / croissant" = "alpha",
                               "Inverse / décroissant" = "rev",
                               "Ordre d'apparition" = "appear"),
                   selected = "alpha")),
-                column(4, selectInput(ns("dsgLegendPos"), "Position de la légende",
+                shiny::column(4, shiny::selectInput(ns("dsgLegendPos"), "Position de la légende",
                   choices = c("Droite" = "right", "Bas" = "bottom",
                               "Gauche" = "left", "Haut" = "top", "Aucune" = "none"),
                   selected = "right")),
-                column(4, textInput(ns("dsgLegendTitle"), "Titre de la légende", value = ""))
+                shiny::column(4, shiny::textInput(ns("dsgLegendTitle"), "Titre de la légende", value = ""))
               ),
-              fluidRow(
-                column(6, sliderInput(ns("dsgLegendTextSize"),
-                  tagList(icon("text-height"), " Taille police des modalités"),
+              shiny::fluidRow(
+                shiny::column(6, shiny::sliderInput(ns("dsgLegendTextSize"),
+                  shiny::tagList(shiny::icon("text-height"), " Taille police des modalités"),
                   min = 6, max = 30, value = 11, step = 1)),
-                column(6, sliderInput(ns("dsgLegendTitleSize"),
-                  tagList(icon("heading"), " Taille police du titre"),
+                shiny::column(6, shiny::sliderInput(ns("dsgLegendTitleSize"),
+                  shiny::tagList(shiny::icon("heading"), " Taille police du titre"),
                   min = 6, max = 30, value = 12, step = 1))
               ),
-              fluidRow(
-                column(6, div(style = "margin-top:5px;",
-                  checkboxInput(ns("dsgLegendTextBold"),
-                    tagList(icon("bold"), " Modalités en gras"),
+              shiny::fluidRow(
+                shiny::column(6, shiny::div(style = "margin-top:5px;",
+                  shiny::checkboxInput(ns("dsgLegendTextBold"),
+                    shiny::tagList(shiny::icon("bold"), " Modalités en gras"),
                     value = FALSE))),
-                column(6, div(style = "margin-top:5px;",
-                  checkboxInput(ns("dsgLegendTitleBold"),
-                    tagList(icon("bold"), " Titre en gras"),
+                shiny::column(6, shiny::div(style = "margin-top:5px;",
+                  shiny::checkboxInput(ns("dsgLegendTitleBold"),
+                    shiny::tagList(shiny::icon("bold"), " Titre en gras"),
                     value = FALSE)))
               ),
-              conditionalPanel("input.dsgType=='split' || input.dsgType=='strip'", ns = ns,
-                fluidRow(column(12, checkboxInput(ns("dsgShowF2Legend"),
-                  tagList(icon("tags"), " Afficher une légende séparée pour le Facteur 2"),
+              shiny::conditionalPanel("input.dsgType=='split' || input.dsgType=='strip'", ns = ns,
+                shiny::fluidRow(shiny::column(12, shiny::checkboxInput(ns("dsgShowF2Legend"),
+                  shiny::tagList(shiny::icon("tags"), " Afficher une légende séparée pour le Facteur 2"),
                   value = TRUE)))),
 
               # ============ GRADIENT D'HÉTÉROGÉNÉITÉ ==================
               .sect("arrows-alt", "Gradient d'hétérogénéité"),
-              fluidRow(
-                column(6, selectInput(ns("dsgGradient"),
-                            tagList(icon("arrows-alt"), " Sens du gradient"),
+              shiny::fluidRow(
+                shiny::column(6, shiny::selectInput(ns("dsgGradient"),
+                            shiny::tagList(shiny::icon("arrows-alt"), " Sens du gradient"),
                             choices = c("Automatique (perpendiculaire aux blocs)" = "auto",
                                         "Sens direct (haut->bas / gauche->droite)" = "vertical_down",
                                         "Sens inverse (bas->haut / droite->gauche)" = "vertical_up",
                                         "Aucun" = "none"),
                             selected = "auto")),
-                column(6, conditionalPanel("input.dsgType=='lsd'", ns = ns,
-                  selectInput(ns("dsgGradient2"),
-                            tagList(icon("arrows-alt-h"), " Orientation du 2e gradient"),
+                shiny::column(6, shiny::conditionalPanel("input.dsgType=='lsd'", ns = ns,
+                  shiny::selectInput(ns("dsgGradient2"),
+                            shiny::tagList(shiny::icon("arrows-alt-h"), " Orientation du 2e gradient"),
                             choices = c("Automatique" = "auto",
                                         "Horizontal : gauche -> droite" = "horizontal_right",
                                         "Horizontal : droite -> gauche" = "horizontal_left",
@@ -2097,143 +2097,143 @@ mod_design_ui <- function(id) {
                                         "Aucun" = "none"),
                             selected = "auto")))
               ),
-              conditionalPanel("input.dsgGradient != 'none'", ns = ns,
-                fluidRow(
-                  column(7, textInput(ns("dsgGradLabel"), "Texte du gradient", value = "Gradient")),
-                  column(5, sliderInput(ns("dsgGradSize"), "Taille du texte",
+              shiny::conditionalPanel("input.dsgGradient != 'none'", ns = ns,
+                shiny::fluidRow(
+                  shiny::column(7, shiny::textInput(ns("dsgGradLabel"), "Texte du gradient", value = "Gradient")),
+                  shiny::column(5, shiny::sliderInput(ns("dsgGradSize"), "Taille du texte",
                                         min = 2, max = 8, value = 3.5, step = 0.5)))),
 
               # ============ BLOCS & SÉPARATEURS =======================
               .sect("border-all", "Blocs & séparateurs"),
-              fluidRow(
-                column(4, sliderInput(ns("dsgCellSep"),
+              shiny::fluidRow(
+                shiny::column(4, shiny::sliderInput(ns("dsgCellSep"),
                   "Largeur de séparation des parcelles",
                   min = 0, max = 6, value = 1, step = 0.25)),
-                column(4, sliderInput(ns("dsgBlockLine"),
+                shiny::column(4, shiny::sliderInput(ns("dsgBlockLine"),
                   "Épaisseur des traits de séparation des blocs",
                   min = 0, max = 6, value = 2, step = 0.5)),
-                column(4, selectInput(ns("dsgBlockColor"), "Couleur des séparateurs de blocs",
+                shiny::column(4, shiny::selectInput(ns("dsgBlockColor"), "Couleur des séparateurs de blocs",
                   choices = c("Noir" = "black", "Gris foncé" = "grey20",
                               "Rouge" = "#c0392b", "Bleu foncé" = "#1a2980")))
               ),
-              fluidRow(
-                column(6, textInput(ns("dsgBlockPrefix"), "Préfixe des noms de bloc",
+              shiny::fluidRow(
+                shiny::column(6, shiny::textInput(ns("dsgBlockPrefix"), "Préfixe des noms de bloc",
                                     value = "Bloc")),
-                column(6, textInput(ns("dsgBlockNames"),
+                shiny::column(6, shiny::textInput(ns("dsgBlockNames"),
                   "Noms personnalisés des blocs / répliques (séparés par virgule)", value = "",
                   placeholder = "ex: Nord, Centre, Sud"))
               ),
               # -- Sous-parcelles (split / split-split) : traits pointillés & bandeau --
-              fluidRow(
-                column(4, sliderInput(ns("dsgSubLine"),
+              shiny::fluidRow(
+                shiny::column(4, shiny::sliderInput(ns("dsgSubLine"),
                   "Épaisseur des traits pointillés (sous-parcelles)",
                   min = 0, max = 3, value = 0.8, step = 0.1)),
-                column(4, colourInput(ns("dsgSubColor"),
+                shiny::column(4, colourInput(ns("dsgSubColor"),
                   "Couleur des traits pointillés", value = "#000000")),
-                column(4, colourInput(ns("dsgBandColor"),
+                shiny::column(4, colourInput(ns("dsgBandColor"),
                   "Couleur du bandeau (Facteur 2)", value = "#D6EAF8"))
               ),
-              fluidRow(
-                column(4, textInput(ns("dsgBlockStart"),
+              shiny::fluidRow(
+                shiny::column(4, shiny::textInput(ns("dsgBlockStart"),
                   "Numérotation des blocs : numéro de départ", value = "1"))
               ),
 
               # ============ RANDOMISATION =============================
               .sect("random", "Randomisation"),
-              fluidRow(
-                column(6, numericInput(ns("dsgRandTries"), "Itérations de randomisation",
+              shiny::fluidRow(
+                shiny::column(6, shiny::numericInput(ns("dsgRandTries"), "Itérations de randomisation",
                                        value = 200, min = 1, max = 2000, step = 50))
               ),
               # ============ APERÇU DU DISPOSITIF ======================
               .sect("map", "Aperçu du dispositif"),
-              plotOutput(ns("dsgPlot"), height = "540px"),
-              br(),
+              shiny::plotOutput(ns("dsgPlot"), height = "540px"),
+              shiny::br(),
               # ---- Réglages rapides de disposition (juste sous la figure) ----
-              fluidRow(
-                column(4, selectInput(ns("dsgBlockOrient"),
-                  tagList(icon("arrows-alt"), " Sens des blocs"),
+              shiny::fluidRow(
+                shiny::column(4, shiny::selectInput(ns("dsgBlockOrient"),
+                  shiny::tagList(shiny::icon("arrows-alt"), " Sens des blocs"),
                   choices = c("Haut -> bas" = "top_down",
                               "Bas -> haut" = "bottom_up",
                               "Gauche -> droite" = "left_right",
                               "Droite -> gauche" = "right_left"),
                   selected = "top_down")),
-                column(4,
-                  conditionalPanel("input.dsgType != 'paired'", ns = ns,
-                    selectInput(ns("dsgTreatOrient"),
-                      tagList(icon("grip-horizontal"), " Orientation des traitements dans le bloc"),
+                shiny::column(4,
+                  shiny::conditionalPanel("input.dsgType != 'paired'", ns = ns,
+                    shiny::selectInput(ns("dsgTreatOrient"),
+                      shiny::tagList(shiny::icon("grip-horizontal"), " Orientation des traitements dans le bloc"),
                       choices = c("Automatique (selon le gradient)" = "auto",
                                   "Horizontale (blocs empilés, parcelles en rangées)" = "horizontal",
                                   "Verticale (blocs côte à côte, parcelles en colonnes)" = "vertical"),
                       selected = "auto")),
-                  conditionalPanel("input.dsgType == 'paired'", ns = ns,
-                    selectInput(ns("dsgPairedLayout"),
-                      tagList(icon("grip-lines"), " Disposition des couples"),
+                  shiny::conditionalPanel("input.dsgType == 'paired'", ns = ns,
+                    shiny::selectInput(ns("dsgPairedLayout"),
+                      shiny::tagList(shiny::icon("grip-lines"), " Disposition des couples"),
                       choices = c("Diagonale (escalier)" = "diagonal",
                                   "Horizontale (couples en facettes)" = "horizontal",
                                   "Verticale (couples en facettes)" = "vertical"),
                       selected = "diagonal"))),
-                column(4, div(style = "margin-top:25px;",
-                  checkboxInput(ns("dsgFacetBlocks"),
-                    tagList(icon("th"), " Afficher chaque bloc en facette (avec son nom)"),
+                shiny::column(4, shiny::div(style = "margin-top:25px;",
+                  shiny::checkboxInput(ns("dsgFacetBlocks"),
+                    shiny::tagList(shiny::icon("th"), " Afficher chaque bloc en facette (avec son nom)"),
                     value = TRUE)))
               ),
               # ============ EXPORT DE L'IMAGE =========================
               .sect("download", "Export de l'image"),
               hstat_export_plot_ui(ns, "dsgPl", width = 11, height = 7),
-              footer = div(style = "font-size:12px;color:#7f8c8d;", icon("info-circle"),
+              footer = shiny::div(style = "font-size:12px;color:#7f8c8d;", shiny::icon("info-circle"),
                 " Chaque cellule = une unité expérimentale ; couleur = traitement randomise. ",
                 "Pour un CRD/factoriel, le placement minimise les voisins identiques."))
         )
       ),
 
       # ================= ONGLET ENQUETE DE TERRAIN =================
-      tabPanel(tagList(icon("clipboard-check"), " Enquête de terrain"), value = "survey", br(),
-        fluidRow(
-          box(title = tagList(icon("sliders"), " Paramètres de l'enquête"),
+      shiny::tabPanel(shiny::tagList(shiny::icon("clipboard-check"), " Enquête de terrain"), value = "survey", shiny::br(),
+        shiny::fluidRow(
+          shinydashboard::box(title = shiny::tagList(shiny::icon("sliders"), " Paramètres de l'enquête"),
               status = "primary", width = 5, solidHeader = TRUE,
-              selectInput(ns("svObjective"), "Objectif d'estimation",
+              shiny::selectInput(ns("svObjective"), "Objectif d'estimation",
                 choices = c("Une proportion (ex. taux d'adoption)" = "proportion",
                             "Une moyenne (variable quantitative)"  = "moyenne")),
-              sliderInput(ns("svConf"), "Niveau de confiance",
+              shiny::sliderInput(ns("svConf"), "Niveau de confiance",
                           min = 0.80, max = 0.99, value = 0.95, step = 0.01),
-              conditionalPanel("input.svObjective == 'proportion'", ns = ns,
-                numericInput(ns("svMargin"), "Marge d'erreur (en proportion, ex. 0.05 = 5%)",
+              shiny::conditionalPanel("input.svObjective == 'proportion'", ns = ns,
+                shiny::numericInput(ns("svMargin"), "Marge d'erreur (en proportion, ex. 0.05 = 5%)",
                              value = 0.05, min = 0.005, max = 0.5, step = 0.005),
-                sliderInput(ns("svP"), "Proportion attendue p (0.5 = cas le plus prudent)",
+                shiny::sliderInput(ns("svP"), "Proportion attendue p (0.5 = cas le plus prudent)",
                             min = 0.05, max = 0.95, value = 0.5, step = 0.05)),
-              conditionalPanel("input.svObjective == 'moyenne'", ns = ns,
-                numericInput(ns("svMarginM"), "Marge d'erreur absolue (mêmes unités que la variable)",
+              shiny::conditionalPanel("input.svObjective == 'moyenne'", ns = ns,
+                shiny::numericInput(ns("svMarginM"), "Marge d'erreur absolue (mêmes unités que la variable)",
                              value = 2, min = 0.01, step = 0.5),
-                numericInput(ns("svSd"), "Écart-type estimé (pilote / litterature)",
+                shiny::numericInput(ns("svSd"), "Écart-type estimé (pilote / litterature)",
                              value = 15, min = 0.01, step = 1)),
-              numericInput(ns("svPop"), "Taille de la population (0 ou vide = infinie)",
+              shiny::numericInput(ns("svPop"), "Taille de la population (0 ou vide = infinie)",
                            value = 0, min = 0, step = 100),
-              numericInput(ns("svDeff"), "Effet de plan (design effect, 1 = sondage aleatoire simple ; 1.5-2 = grappes)",
+              shiny::numericInput(ns("svDeff"), "Effet de plan (design effect, 1 = sondage aleatoire simple ; 1.5-2 = grappes)",
                            value = 1, min = 1, step = 0.1),
-              sliderInput(ns("svResp"), "Taux de réponse anticipé",
+              shiny::sliderInput(ns("svResp"), "Taux de réponse anticipé",
                           min = 0.3, max = 1, value = 0.8, step = 0.05),
-              numericInput(ns("svStrata"), "Nombre de strates (1 = pas de stratification)",
+              shiny::numericInput(ns("svStrata"), "Nombre de strates (1 = pas de stratification)",
                            value = 1, min = 1, step = 1),
-              actionButton(ns("svCalc"), "Calculer la taille", class = "btn-success",
-                           icon = icon("calculator"))
+              shiny::actionButton(ns("svCalc"), "Calculer la taille", class = "btn-success",
+                           icon = shiny::icon("calculator"))
           ),
-          box(title = tagList(icon("users"), " Taille d'échantillon requise"),
+          shinydashboard::box(title = shiny::tagList(shiny::icon("users"), " Taille d'échantillon requise"),
               status = "success", width = 7, solidHeader = TRUE,
-              uiOutput(ns("svResult")),
-              hr(),
+              shiny::uiOutput(ns("svResult")),
+              shiny::hr(),
               DT::DTOutput(ns("svTable")),
-              br(),
-              div(class = "callout callout-info", style = "font-size:12px;",
-                icon("info-circle"),
+              shiny::br(),
+              shiny::div(class = "callout callout-info", style = "font-size:12px;",
+                shiny::icon("info-circle"),
                 " La taille finale tient compte, dans l'ordre : taille de base, ",
                 "correction pour population finie, effet de plan, puis ajustement ",
                 "pour la non-réponse.")
           )
         ),
-        fluidRow(
-          box(title = tagList(icon("chart-line"), " Marge d'erreur selon la taille d'échantillon"),
+        shiny::fluidRow(
+          shinydashboard::box(title = shiny::tagList(shiny::icon("chart-line"), " Marge d'erreur selon la taille d'échantillon"),
               status = "info", width = 12, solidHeader = TRUE,
-              plotOutput(ns("svCurve"), height = "320px"))
+              shiny::plotOutput(ns("svCurve"), height = "320px"))
         )
       )
     )
@@ -2241,7 +2241,7 @@ mod_design_ui <- function(id) {
 }
 
 mod_design_server <- function(id, values) {
-  moduleServer(id, function(input, output, session) {
+  shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
     `%||%` <- function(x, y) if (is.null(x) || length(x) == 0) y else x
 
@@ -2252,52 +2252,52 @@ mod_design_server <- function(id, values) {
     # couples est selectionne, et reapparait pour tous les autres dispositifs.
     # On remet aussi sa valeur sur "Automatique" pour qu'aucun reglage residuel
     # n'influence le rendu du dispositif en couples.
-    observe({
+    shiny::observe({
       is_paired <- identical(input$dsgType, "paired")
       if (is_paired && !identical(input$dsgTreatOrient %||% "auto", "auto"))
-        updateSelectInput(session, "dsgTreatOrient", selected = "auto")
+        shiny::updateSelectInput(session, "dsgTreatOrient", selected = "auto")
     })
 
     # Reinitialisation globale : ramene les controles du module "Plan & Puissance"
     # (plan experimental + calcul de puissance) a leurs valeurs par defaut.
-    observeEvent(values$resetSignal, {
+    shiny::observeEvent(values$resetSignal, {
       if ((values$resetSignal %||% 0) == 0) return()
       # -- Plan experimental --
-      updateSelectInput(session, "dsgTreatOrient", selected = "auto")
-      updateSelectInput(session, "dsgPairedLayout", selected = "diagonal")
-      updateNumericInput(session, "dsgBlockLine", value = 2)
-      updateTextInput(session, "dsgBlockStart", value = "1")
-      updateTextInput(session, "dsgBlockPrefix", value = "Bloc")
-      updateTextInput(session, "dsgBlockNames", value = "")
-      updateCheckboxInput(session, "dsgBoldLabels", value = FALSE)
-      updateCheckboxInput(session, "dsgLegendTextBold", value = FALSE)
-      updateCheckboxInput(session, "dsgLegendTitleBold", value = FALSE)
+      shiny::updateSelectInput(session, "dsgTreatOrient", selected = "auto")
+      shiny::updateSelectInput(session, "dsgPairedLayout", selected = "diagonal")
+      shiny::updateNumericInput(session, "dsgBlockLine", value = 2)
+      shiny::updateTextInput(session, "dsgBlockStart", value = "1")
+      shiny::updateTextInput(session, "dsgBlockPrefix", value = "Bloc")
+      shiny::updateTextInput(session, "dsgBlockNames", value = "")
+      shiny::updateCheckboxInput(session, "dsgBoldLabels", value = FALSE)
+      shiny::updateCheckboxInput(session, "dsgLegendTextBold", value = FALSE)
+      shiny::updateCheckboxInput(session, "dsgLegendTitleBold", value = FALSE)
       # -- Calcul de puissance --
-      updateNumericInput(session, "powAlpha", value = 0.05)
-      updateNumericInput(session, "powPower", value = 0.95)
-      updateNumericInput(session, "powEffect", value = 0.25)
-      updateNumericInput(session, "powGroups", value = 5)
-      updateNumericInput(session, "powK", value = 1)
+      shiny::updateNumericInput(session, "powAlpha", value = 0.05)
+      shiny::updateNumericInput(session, "powPower", value = 0.95)
+      shiny::updateNumericInput(session, "powEffect", value = 0.25)
+      shiny::updateNumericInput(session, "powGroups", value = 5)
+      shiny::updateNumericInput(session, "powK", value = 1)
     }, ignoreInit = TRUE)
 
-    output$powTestSelect <- renderUI({
+    output$powTestSelect <- shiny::renderUI({
       fam <- input$powFamily %||% "t"
-      selectInput(ns("powTest"), "Test statistique", choices = hstat_power_families()[[fam]])
+      shiny::selectInput(ns("powTest"), "Test statistique", choices = hstat_power_families()[[fam]])
     })
 
-    output$powTailUI <- renderUI({
+    output$powTailUI <- shiny::renderUI({
       test <- input$powTest %||% "t_two"
       one_or_two <- c("t_two", "t_paired", "t_one", "mwu", "wilcox_paired",
                       "wilcox_one", "t_generic", "cor_pb", "cor_biv", "cor_tetra",
                       "cor_2indep", "cor_2dep", "logistic", "poisson", "reg_slope",
                       "prop2", "prop1", "mcnemar", "sign")
       if (test %in% one_or_two)
-        selectInput(ns("powAlt"), "Queue(s)",
+        shiny::selectInput(ns("powAlt"), "Queue(s)",
                     choices = c("Bilaterale" = "two.sided", "Unilaterale" = "greater"))
     })
 
     # ddl numerateur et nombre de cellules calcules a partir des modalites saisies
-    pow_factorial <- reactive({
+    pow_factorial <- shiny::reactive({
       nf <- input$powNFactors %||% 2
       levs <- vapply(seq_len(nf), function(i) {
         v <- input[[paste0("powLev", i)]]
@@ -2308,35 +2308,35 @@ mod_design_server <- function(id, values) {
       hstat_factorial_df(levs, input$powEffectTarget %||% "main1")
     })
 
-    output$powDfComputed <- renderUI({
+    output$powDfComputed <- shiny::renderUI({
       fd <- pow_factorial()
-      div(class = "callout", style = "border-left:4px solid #27ae60;padding:8px 12px;background:#eafaf1;",
-          icon("calculator"),
-          HTML(trf(" <b>ddl du numerateur calculé = %d</b> &nbsp;|&nbsp; Nombre de cellules (groupes) = %d",
+      shiny::div(class = "callout", style = "border-left:4px solid #27ae60;padding:8px 12px;background:#eafaf1;",
+          shiny::icon("calculator"),
+          shiny::HTML(trf(" <b>ddl du numerateur calculé = %d</b> &nbsp;|&nbsp; Nombre de cellules (groupes) = %d",
                        fd$df1, fd$cells)))
     })
 
-    output$powExtraUI <- renderUI({
+    output$powExtraUI <- shiny::renderUI({
       test <- input$powTest %||% "t_two"; analysis <- input$powAnalysis %||% "apriori"
       F_factorial <- c("anova_factorial", "rm_between", "rm_within", "rm_interaction",
                        "ancova", "manova_global", "reg_r2inc", "reg_r2dev", "f_generic")
       els <- list()
       if (test == "anova_oneway")
-        els <- c(els, list(numericInput(ns("powGroups"), "Nombre de groupes (k)", value = 5, min = 2, step = 1)))
+        els <- c(els, list(shiny::numericInput(ns("powGroups"), "Nombre de groupes (k)", value = 5, min = 2, step = 1)))
       if (test %in% F_factorial) {
         nf <- input$powNFactors %||% 2
         els <- c(els, list(
-          div(class = "callout callout-info", style = "padding:8px 10px;font-size:12px;",
-            icon("lightbulb"),
-            HTML(" <b>Aide ddl numerateur</b> : effet principal d'un facteur a <i>k</i> ",
+          shiny::div(class = "callout callout-info", style = "padding:8px 10px;font-size:12px;",
+            shiny::icon("lightbulb"),
+            shiny::HTML(" <b>Aide ddl numerateur</b> : effet principal d'un facteur a <i>k</i> ",
                  "modalités &rarr; ddl = <i>k</i>&minus;1 ; interaction A&times;B &rarr; ",
                  "ddl = (a&minus;1)(b&minus;1) ; interaction A&times;B&times;C &rarr; ",
                  "ddl = (a&minus;1)(b&minus;1)(c&minus;1). Nombre de cellules = produit des modalités. ",
                  "Renseignez les modalités ci-dessous : le ddl est calculé automatiquement.")),
-          numericInput(ns("powNFactors"), "Nombre de facteurs", value = nf,
+          shiny::numericInput(ns("powNFactors"), "Nombre de facteurs", value = nf,
                        min = 1, max = 4, step = 1)))
         for (i in seq_len(nf))
-          els <- c(els, list(numericInput(ns(paste0("powLev", i)),
+          els <- c(els, list(shiny::numericInput(ns(paste0("powLev", i)),
             trf("Nombre de modalités du facteur %s", LETTERS[i]),
             value = if (i == 1) 2 else 3, min = 2, step = 1)))
         eff_choices <- c(setNames(paste0("main", seq_len(nf)),
@@ -2351,26 +2351,26 @@ mod_design_server <- function(id, values) {
         cur_target <- input$powEffectTarget
         sel_target <- if (!is.null(cur_target) && cur_target %in% eff_choices) cur_target else eff_choices[[1]]
         els <- c(els, list(
-          selectInput(ns("powEffectTarget"), "Effet cible (pour le ddl)",
+          shiny::selectInput(ns("powEffectTarget"), "Effet cible (pour le ddl)",
                       choices = eff_choices, selected = sel_target),
-          uiOutput(ns("powDfComputed")),
-          numericInput(ns("powCovars"), "Nombre de covariables (0 si ANOVA)",
+          shiny::uiOutput(ns("powDfComputed")),
+          shiny::numericInput(ns("powCovars"), "Nombre de covariables (0 si ANOVA)",
                        value = 0, min = 0, step = 1)))
       }
       if (test %in% c("gof", "chisq_generic"))
-        els <- c(els, list(numericInput(ns("powK"), "Degrés de liberté (df)", value = 1, min = 1, step = 1)))
+        els <- c(els, list(shiny::numericInput(ns("powK"), "Degrés de liberté (df)", value = 1, min = 1, step = 1)))
       if (analysis != "apriori") {
         per_group <- test %in% c("anova_oneway", "t_two", "t_paired", "t_one",
                                  "mwu", "wilcox_paired", "wilcox_one", "t_generic",
                                  "prop2", "prop1", "mcnemar", "sign")
         is_F_total <- test %in% F_factorial
         lbl <- if (is_F_total) "Taille totale (N)" else if (per_group) "n par groupe" else "Taille (n / N total)"
-        els <- c(els, list(numericInput(ns("powN"), lbl, value = if (is_F_total) 60 else 30, min = 2, step = 1)))
+        els <- c(els, list(shiny::numericInput(ns("powN"), lbl, value = if (is_F_total) 60 else 30, min = 2, step = 1)))
       }
-      do.call(tagList, els)
+      do.call(shiny::tagList, els)
     })
 
-    output$powEffectHint <- renderUI({
+    output$powEffectHint <- shiny::renderUI({
       test <- input$powTest %||% "t_two"
       lab <- if (test %in% c("t_two", "t_paired", "t_one", "mwu", "wilcox_paired", "wilcox_one", "t_generic")) "d de Cohen"
              else if (test %in% c("cor_pb", "cor_biv", "cor_tetra", "reg_slope")) "coefficient r"
@@ -2383,8 +2383,8 @@ mod_design_server <- function(id, values) {
              else if (test %in% c("gof", "chisq_generic")) "w de Cohen"
              else if (test %in% c("prop2", "prop1", "mcnemar", "sign")) "h de Cohen"
              else ""
-      div(style = "font-size:12px;color:#7f8c8d;margin-top:-8px;margin-bottom:8px;",
-          "Mesure : ", tags$b(lab))
+      shiny::div(style = "font-size:12px;color:#7f8c8d;margin-top:-8px;margin-bottom:8px;",
+          "Mesure : ", shiny::tags$b(lab))
     })
 
     output$powConventions <- DT::renderDT({
@@ -2392,7 +2392,7 @@ mod_design_server <- function(id, values) {
     })
 
     # Depot du calcul de puissance pour l'aide a la decision.
-    observeEvent(pow_res(), {
+    shiny::observeEvent(pow_res(), {
       r <- tryCatch(pow_res(), error = function(e) NULL)
       tb <- hstat_ai_as_table(if (is.list(r) && !is.null(r$table)) r$table else r)
       if (is.null(tb) || !NROW(tb)) return()
@@ -2404,7 +2404,7 @@ mod_design_server <- function(id, values) {
                     alpha = input$powAlpha, puissance = input$powPower))
     }, ignoreInit = TRUE)
 
-    pow_res <- eventReactive(input$powCalc, {
+    pow_res <- shiny::eventReactive(input$powCalc, {
       test <- input$powTest %||% "t_two"
       F_factorial <- c("anova_factorial", "rm_between", "rm_within", "rm_interaction",
                        "ancova", "manova_global", "reg_r2inc", "reg_r2dev", "f_generic")
@@ -2424,7 +2424,7 @@ mod_design_server <- function(id, values) {
     })
 
     output$powOutputTable <- DT::renderDT({
-      r <- pow_res(); validate(need(is.null(r$err), r$err %||% ""))
+      r <- pow_res(); shiny::validate(shiny::need(is.null(r$err), r$err %||% ""))
       fmt <- function(x) if (is.null(x) || (length(x) == 1 && is.na(x))) "\u2014" else format(round(x, 4), nsmall = 0)
       tab <- data.frame(
         Parametre = c("Non-centralite \u03bb / \u03b4", r$crit_lab, "Degrés de liberté",
@@ -2436,27 +2436,27 @@ mod_design_server <- function(id, values) {
           "Paramètres de sortie (style G*Power)"))
     })
 
-    output$powVerdict <- renderUI({
-      r <- pow_res(); req(is.null(r$err)); pw <- r$power
+    output$powVerdict <- shiny::renderUI({
+      r <- pow_res(); shiny::req(is.null(r$err)); pw <- r$power
       if (is.null(pw) || is.na(pw)) return(NULL)
       col <- if (pw >= 0.80) "#27ae60" else if (pw >= 0.5) "#f39c12" else "#c0392b"
       msg <- if (pw >= 0.80) "Puissance adequate (\u2265 0.80)." else if (pw >= 0.5) "Puissance modérée." else "Puissance insuffisante."
-      div(class = "callout", style = sprintf("border-left:4px solid %s;padding:8px 12px;", col),
-          icon("info-circle"), sprintf(" %s  N total = %s.", msg, r$ntot))
+      shiny::div(class = "callout", style = sprintf("border-left:4px solid %s;padding:8px 12px;", col),
+          shiny::icon("info-circle"), sprintf(" %s  N total = %s.", msg, r$ntot))
     })
 
-    output$powAllocNote <- renderUI({
+    output$powAllocNote <- shiny::renderUI({
       r <- pow_res()
-      tagList(
-        div(style = "font-size:12px;color:#7f8c8d;",
+      shiny::tagList(
+        shiny::div(style = "font-size:12px;color:#7f8c8d;",
             "Répartition de la taille totale par groupe/traitement issue du calcul de puissance."),
         if (!is.null(r) && is.null(r$err) && !is.null(r$note))
-          div(class = "callout callout-warning", style = "padding:6px 10px;font-size:12px;margin-top:6px;",
-              icon("exclamation-triangle"), " ", r$note)
+          shiny::div(class = "callout callout-warning", style = "padding:6px 10px;font-size:12px;margin-top:6px;",
+              shiny::icon("exclamation-triangle"), " ", r$note)
       )
     })
     output$powAllocTable <- DT::renderDT({
-      r <- pow_res(); req(is.null(r$err)); nper <- r$nper
+      r <- pow_res(); shiny::req(is.null(r$err)); nper <- r$nper
       tab <- if (!is.null(nper) && !is.na(nper)) {
         ng <- input$powGroups %||% (if ((input$powTest %||% "") == "anova_oneway") 2 else 2)
         data.frame(Indicateur = c("Unités par groupe/traitement", "Nombre de groupes/cellules", "Taille totale (N)"),
@@ -2466,7 +2466,7 @@ mod_design_server <- function(id, values) {
     })
 
     # Nombre de traitements estime pour la repartition (selon le test)
-    pow_n_treatments <- reactive({
+    pow_n_treatments <- shiny::reactive({
       test <- input$powTest %||% "t_two"
       if (test == "anova_oneway") input$powGroups %||% 2
       else if (test %in% c("anova_factorial", "rm_between", "rm_within",
@@ -2475,8 +2475,8 @@ mod_design_server <- function(id, values) {
       else 2
     })
 
-    pow_repartition <- reactive({
-      r <- pow_res(); req(is.null(r$err))
+    pow_repartition <- shiny::reactive({
+      r <- pow_res(); shiny::req(is.null(r$err))
       nper <- r$nper
       if (is.null(nper) || is.na(nper)) {
         # tests sans n/groupe (correlation, regression...) : repartir la taille totale
@@ -2486,29 +2486,29 @@ mod_design_server <- function(id, values) {
                         mode = input$powRepartMode %||% "blocks")
     })
 
-    output$powRepartPreview <- renderUI({
+    output$powRepartPreview <- shiny::renderUI({
       rp <- tryCatch(pow_repartition(), error = function(e) NULL)
-      req(!is.null(rp))
-      div(class = "callout callout-info", style = "margin-top:10px;",
-          icon("info-circle"),
+      shiny::req(!is.null(rp))
+      shiny::div(class = "callout callout-info", style = "margin-top:10px;",
+          shiny::icon("info-circle"),
           trf(" Répartition proposée : %d répétition(s)/bloc(s) x %d échantillon(s) par parcelle = %d unités par traitement (total %d). Cliquez sur le bouton pour l'appliquer au plan.",
                   rp$`répétitions`, rp$samples_per_plot, rp$per_treatment, rp$total))
     })
 
-    observeEvent(input$powToDesign, {
+    shiny::observeEvent(input$powToDesign, {
       rp <- tryCatch(pow_repartition(), error = function(e) NULL)
-      req(!is.null(rp))
-      updateNumericInput(session, "dsgRep", value = rp$`répétitions`)
-      updateNumericInput(session, "dsgN", value = rp$samples_per_plot)
-      updateTabsetPanel(session, "designTabs", selected = "plan")
-      showNotification(
+      shiny::req(!is.null(rp))
+      shiny::updateNumericInput(session, "dsgRep", value = rp$`répétitions`)
+      shiny::updateNumericInput(session, "dsgN", value = rp$samples_per_plot)
+      shiny::updateTabsetPanel(session, "designTabs", selected = "plan")
+      shiny::showNotification(
         trf("Taille transférée : %d répétitions x %d échantillon(s)/parcelle. Vérifiez l'onglet Plan expérimental.",
                 rp$`répétitions`, rp$samples_per_plot),
         type = "message", duration = 6)
     })
 
-    output$powCurve <- renderPlot({
-      r <- pow_res(); req(is.null(r$err))
+    output$powCurve <- shiny::renderPlot({
+      r <- pow_res(); shiny::req(is.null(r$err))
       test <- input$powTest %||% "t_two"; alpha <- input$powAlpha %||% 0.05
       eff <- r$effect %||% input$powEffect; alt <- input$powAlt %||% "two.sided"
       k <- input$powK; df1 <- input$powDf1; groups <- input$powGroups; covars <- input$powCovars %||% 0
@@ -2532,7 +2532,7 @@ mod_design_server <- function(id, values) {
         if (is.null(res)) NA_real_ else res
       }, numeric(1))
       d <- data.frame(n = ns_seq, power = pw); d <- d[!is.na(d$power), ]
-      validate(need(nrow(d) > 0, "Courbe indisponible pour ce test."))
+      shiny::validate(shiny::need(nrow(d) > 0, "Courbe indisponible pour ce test."))
       xlab <- if (F_total) "Taille totale (N)" else "Taille par groupe (n)"
       if (!requireNamespace("ggplot2", quietly = TRUE)) {
         plot(d$n, d$power, type = "l", ylim = c(0, 1), xlab = xlab, ylab = "Puissance")
@@ -2548,31 +2548,31 @@ mod_design_server <- function(id, values) {
 
     # Le nombre de repetitions usuel du dispositif est propose des qu'on le
     # choisit ; il reste modifiable, c'est une suggestion et non une contrainte.
-    observeEvent(input$dsgType, {
+    shiny::observeEvent(input$dsgType, {
       mh <- hstat_malherbo_catalog()[[input$dsgType %||% ""]]
-      if (!is.null(mh)) updateNumericInput(session, "dsgRep", value = mh$r)
+      if (!is.null(mh)) shiny::updateNumericInput(session, "dsgRep", value = mh$r)
     }, ignoreInit = TRUE)
 
-    output$dsgHint <- renderUI({
+    output$dsgHint <- shiny::renderUI({
       t <- input$dsgType %||% "crd"
       mh <- hstat_malherbo_catalog()[[t]]
       if (!is.null(mh)) {
         nb <- prod(vapply(mh$facteurs, length, integer(1)))
-        return(div(style = sprintf(paste0("border-left:4px solid %s;background:#faf7fd;",
+        return(shiny::div(style = sprintf(paste0("border-left:4px solid %s;background:#faf7fd;",
                                           "border-radius:0 6px 6px 0;padding:10px 14px;margin:8px 0;"),
                                    mh$couleur),
-          tags$b(style = sprintf("color:%s;", mh$couleur), icon("seedling"), " ", mh$label),
-          tags$p(style = "margin:6px 0 0 0;font-size:13px;", tags$b("But : "), mh$but),
-          tags$p(style = "margin:4px 0 0 0;font-size:13px;", tags$b("Plan : "),
+          shiny::tags$b(style = sprintf("color:%s;", mh$couleur), shiny::icon("seedling"), " ", mh$label),
+          shiny::tags$p(style = "margin:6px 0 0 0;font-size:13px;", shiny::tags$b("But : "), mh$but),
+          shiny::tags$p(style = "margin:4px 0 0 0;font-size:13px;", shiny::tags$b("Plan : "),
                  trf("%d traitements x %d repetitions = %d parcelles, sur un plan %s.",
                      nb, mh$r, nb * mh$r,
                      names(which(hstat_design_catalog() == mh$base))[1] %||% mh$base)),
-          tags$p(style = "margin:4px 0 0 0;font-size:13px;", tags$b("A mesurer : "), mh$mesures),
-          tags$p(style = "margin:4px 0 0 0;font-size:13px;", tags$b("Modele : "),
-                 tags$code(mh$modele)),
-          div(style = "margin-top:8px;padding:8px 10px;background:#fff4e5;border-left:3px solid #e67e22;border-radius:0 4px 4px 0;",
-              tags$b(style = "color:#a04000;", icon("triangle-exclamation"), " Le piege : "),
-              tags$span(style = "font-size:13px;", mh$piege))))
+          shiny::tags$p(style = "margin:4px 0 0 0;font-size:13px;", shiny::tags$b("A mesurer : "), mh$mesures),
+          shiny::tags$p(style = "margin:4px 0 0 0;font-size:13px;", shiny::tags$b("Modele : "),
+                 shiny::tags$code(mh$modele)),
+          shiny::div(style = "margin-top:8px;padding:8px 10px;background:#fff4e5;border-left:3px solid #e67e22;border-radius:0 4px 4px 0;",
+              shiny::tags$b(style = "color:#a04000;", shiny::icon("triangle-exclamation"), " Le piege : "),
+              shiny::tags$span(style = "font-size:13px;", mh$piege))))
       }
       # Description structurelle precise de chaque dispositif (facteurs, gradients
       # d'heterogeneite, blocs, contraintes) selon les conventions agronomiques.
@@ -2623,18 +2623,18 @@ mod_design_server <- function(id, values) {
           structure = "Criss-Cross (bandes) : les deux facteurs sont appliques en BANDES perpendiculaires. Les combinaisons de traitements apparaissent aux INTERSECTIONS des bandes.",
           couleur = "#e67e22"),
         list(facteurs = "1 facteur", gradient = "-", structure = "-", couleur = "#3c8dbc"))
-      div(style = sprintf("border-left:4px solid %s;background:#f8f9fa;padding:10px 12px;margin:6px 0;font-size:12px;", info$couleur),
-        div(style = "font-weight:700;color:#2c3e50;margin-bottom:4px;",
-            icon("seedling"), " Structure du dispositif"),
-        tags$ul(style = "margin:0;padding-left:18px;",
-          tags$li(tags$b("Facteurs : "), info$facteurs),
-          tags$li(tags$b("Heterogeneite : "), info$gradient),
-          tags$li(info$structure)))
+      shiny::div(style = sprintf("border-left:4px solid %s;background:#f8f9fa;padding:10px 12px;margin:6px 0;font-size:12px;", info$couleur),
+        shiny::div(style = "font-weight:700;color:#2c3e50;margin-bottom:4px;",
+            shiny::icon("seedling"), " Structure du dispositif"),
+        shiny::tags$ul(style = "margin:0;padding-left:18px;",
+          shiny::tags$li(shiny::tags$b("Facteurs : "), info$facteurs),
+          shiny::tags$li(shiny::tags$b("Heterogeneite : "), info$gradient),
+          shiny::tags$li(info$structure)))
     })
 
     # Recupere le nombre de facteurs et de modalites definis dans l'onglet Puissance
     # statistique et pre-remplit le plan factoriel (rend le module interactif).
-    observeEvent(input$dsgImportPower, {
+    shiny::observeEvent(input$dsgImportPower, {
       nf <- input$powNFactors %||% 2
       levs <- vapply(seq_len(nf), function(i) {
         v <- input[[paste0("powLev", i)]]
@@ -2642,26 +2642,26 @@ mod_design_server <- function(id, values) {
       }, integer(1))
       levs <- levs[!is.na(levs)]
       if (length(levs) == 0) {
-        showNotification("Aucun facteur defini dans l'onglet Puissance statistique.",
+        shiny::showNotification("Aucun facteur defini dans l'onglet Puissance statistique.",
                          type = "warning"); return()
       }
       # Bascule sur un plan factoriel si plusieurs facteurs
-      if (length(levs) >= 2) updateSelectInput(session, "dsgType", selected = "factorial")
-      updateNumericInput(session, "dsgNFactors", value = length(levs))
+      if (length(levs) >= 2) shiny::updateSelectInput(session, "dsgType", selected = "factorial")
+      shiny::updateNumericInput(session, "dsgNFactors", value = length(levs))
       # Pre-remplir noms + modalites generees (F1_M1, F1_M2, ...)
       for (i in seq_along(levs)) {
-        updateTextInput(session, paste0("dsgFName", i), value = LETTERS[i])
+        shiny::updateTextInput(session, paste0("dsgFName", i), value = LETTERS[i])
         mods <- paste0(LETTERS[i], seq_len(levs[i]))
-        updateTextInput(session, paste0("dsgFLevels", i),
+        shiny::updateTextInput(session, paste0("dsgFLevels", i),
                         value = paste(mods, collapse = ", "))
       }
-      showNotification(
+      shiny::showNotification(
         trf("Importe depuis Puissance : %d facteur(s) (%s modalités).",
                 length(levs), paste(levs, collapse = " x ")),
         type = "message", duration = 5)
     })
 
-    output$dsgFactorInputs <- renderUI({
+    output$dsgFactorInputs <- shiny::renderUI({
       t <- input$dsgType %||% "crd"
       mh <- hstat_malherbo_catalog()[[t]]
       nf <- if (!is.null(mh)) length(mh$facteurs)
@@ -2675,25 +2675,25 @@ mod_design_server <- function(id, values) {
         # les retaper.
         if (!is.null(mh)) {
           nom_i <- names(mh$facteurs)[i]
-          return(div(style = "border-left:3px solid #8e44ad;padding-left:8px;margin-bottom:8px;",
-            textInput(ns(paste0("dsgFName", i)), paste0("Nom du facteur ", i), value = nom_i),
-            textInput(ns(paste0("dsgFLevels", i)),
+          return(shiny::div(style = "border-left:3px solid #8e44ad;padding-left:8px;margin-bottom:8px;",
+            shiny::textInput(ns(paste0("dsgFName", i)), paste0("Nom du facteur ", i), value = nom_i),
+            shiny::textInput(ns(paste0("dsgFLevels", i)),
                       paste0("Modalites de ", nom_i, " (separees par virgule)"),
                       value = paste(mh$facteurs[[i]], collapse = ", "))))
         }
-        div(style = "border-left:3px solid #3c8dbc;padding-left:8px;margin-bottom:8px;",
-          textInput(ns(paste0("dsgFName", i)), paste0("Nom du facteur ", i), value = paste0("Facteur", i)),
+        shiny::div(style = "border-left:3px solid #3c8dbc;padding-left:8px;margin-bottom:8px;",
+          shiny::textInput(ns(paste0("dsgFName", i)), paste0("Nom du facteur ", i), value = paste0("Facteur", i)),
           # Generateur automatique de modalites : lettre + chiffre de debut + chiffre de fin.
           # Ex : lettre = A, début = 0, fin = 2  ->  A0, A1, A2 (rempli automatiquement ci-dessous).
-          fluidRow(
-            column(4, textInput(ns(paste0("dsgFLetter", i)),
-                                tagList(icon("font"), " Lettre"), value = default_letter)),
-            column(4, numericInput(ns(paste0("dsgFStart", i)),
-                                   tagList(icon("play"), " Début"), value = 0, min = 0, step = 1)),
-            column(4, numericInput(ns(paste0("dsgFEnd", i)),
-                                   tagList(icon("stop"), " Fin"), value = if (i == 1) 2 else 1, min = 0, step = 1))
+          shiny::fluidRow(
+            shiny::column(4, shiny::textInput(ns(paste0("dsgFLetter", i)),
+                                shiny::tagList(shiny::icon("font"), " Lettre"), value = default_letter)),
+            shiny::column(4, shiny::numericInput(ns(paste0("dsgFStart", i)),
+                                   shiny::tagList(shiny::icon("play"), " Début"), value = 0, min = 0, step = 1)),
+            shiny::column(4, shiny::numericInput(ns(paste0("dsgFEnd", i)),
+                                   shiny::tagList(shiny::icon("stop"), " Fin"), value = if (i == 1) 2 else 1, min = 0, step = 1))
           ),
-          textInput(ns(paste0("dsgFLevels", i)),
+          shiny::textInput(ns(paste0("dsgFLevels", i)),
                     paste0("Modalités du facteur ", i, " (séparées par virgule)"),
                     value = default_levels))
       })
@@ -2702,7 +2702,7 @@ mod_design_server <- function(id, values) {
     # Generation automatique de la suite de modalites (lettre + debut..fin) qui
     # remplit le champ "separees par virgule". L'utilisateur peut ensuite editer
     # ce champ manuellement s'il le souhaite. Le debut peut valoir 0 (ex : A0, A1, A2).
-    observe({
+    shiny::observe({
       t <- input$dsgType %||% "crd"
       # Un dispositif de malherbologie porte ses propres modalites (doses,
       # densites, strategies) : le generateur automatique les ecraserait par
@@ -2727,12 +2727,12 @@ mod_design_server <- function(id, values) {
         if (end < start) end <- start
         seq_vals <- seq.int(start, end)
         mods <- if (nzchar(letter)) paste0(letter, seq_vals) else as.character(seq_vals)
-        updateTextInput(session, paste0("dsgFLevels", i),
+        shiny::updateTextInput(session, paste0("dsgFLevels", i),
                         value = paste(mods, collapse = ", "))
       }
     })
 
-    get_factors <- reactive({
+    get_factors <- shiny::reactive({
       t <- input$dsgType %||% "crd"
       mh <- hstat_malherbo_catalog()[[t]]
       nf <- if (!is.null(mh)) length(mh$facteurs)
@@ -2747,11 +2747,11 @@ mod_design_server <- function(id, values) {
       fl
     })
 
-    design_book <- eventReactive(input$dsgGenerate, {
+    design_book <- shiny::eventReactive(input$dsgGenerate, {
       fl <- get_factors(); t <- input$dsgType %||% "crd"
-      validate(need(length(fl) >= 1, "Definissez au moins un facteur avec ses modalités."))
-      if (t %in% c("split", "strip")) validate(need(length(fl) >= 2, "Ce plan nécessite 2 facteurs."))
-      if (t == "splitsplit") validate(need(length(fl) >= 3, "Le split-split-plot nécessite 3 facteurs (parcelle principale, sous-parcelle, sous-sous-parcelle)."))
+      shiny::validate(shiny::need(length(fl) >= 1, "Definissez au moins un facteur avec ses modalités."))
+      if (t %in% c("split", "strip")) shiny::validate(shiny::need(length(fl) >= 2, "Ce plan nécessite 2 facteurs."))
+      if (t == "splitsplit") shiny::validate(shiny::need(length(fl) >= 3, "Le split-split-plot nécessite 3 facteurs (parcelle principale, sous-parcelle, sous-sous-parcelle)."))
       kk <- input$dsgK
       k_mode <- input$dsgKMode %||% "exact"
       # Alpha Lattice : le dispositif reussit desormais dans TOUS les contextes.
@@ -2767,18 +2767,18 @@ mod_design_server <- function(id, values) {
         if (k_mode == "exact") {
           reste <- if (!is.null(kk) && kk >= 2) nt %% kk else 0
           if (reste != 0)
-            showNotification(trf(
+            shiny::showNotification(trf(
               "Alpha Lattice (k exact) : %d traitements en blocs de %d -> le dernier bloc de chaque réplique contient %d traitement(s).",
               nt, kk, reste), type = "message", duration = 7)
         } else {
           # mode auto
           if (length(valid_k) == 0) {
-            showNotification(trf(
+            shiny::showNotification(trf(
               "Alpha Lattice : aucun k parfait pour %d traitements -> plan en blocs incomplets généralisé.", nt),
               type = "message", duration = 7)
           } else if (is.null(kk) || !(kk %in% valid_k)) {
             new_k <- valid_k[which.min(abs(valid_k - (kk %||% valid_k[1])))]
-            showNotification(trf("Alpha Lattice : k=%s ajusté automatiquement à k=%d pour %d traitements (valeurs conseillées : %s).",
+            shiny::showNotification(trf("Alpha Lattice : k=%s ajusté automatiquement à k=%d pour %d traitements (valeurs conseillées : %s).",
                                      as.character(kk %||% "?"), new_k, nt, paste(valid_k, collapse=", ")),
                              type = "warning", duration = 7)
             kk <- new_k
@@ -2789,24 +2789,24 @@ mod_design_server <- function(id, values) {
           seed = input$dsgSeed %||% 123, k = kk, base_design = input$dsgBase %||% "rcbd",
           k_mode = k_mode),
         error = function(e) {
-          validate(need(FALSE, hstat_err_fr(e)))
+          shiny::validate(shiny::need(FALSE, hstat_err_fr(e)))
         })
       # Message si alpha-lattice generalise (blocs incomplets inegaux)
       if (!is.null(attr(b, "alpha_generalized")))
-        showNotification(attr(b, "alpha_generalized"), type = "message", duration = 8)
+        shiny::showNotification(attr(b, "alpha_generalized"), type = "message", duration = 8)
       b$n_echantillon <- input$dsgN %||% 1
       attr(b, "used_k") <- kk
       b
     })
 
-    output$dsgAnalysisInfo <- renderUI({
+    output$dsgAnalysisInfo <- shiny::renderUI({
       fl <- get_factors(); info <- hstat_design_analysis(input$dsgType %||% "crd", length(fl))
       alloc <- hstat_sample_allocation(fl, input$dsgRep %||% 3)
       nplot <- input$dsgN %||% 1
-      div(h4(info$nom, style = "color:#2c3e50;margin-top:0;"),
-        tags$p(tags$b("Modèle suggere : "), tags$code(info$modele)),
-        div(class = "callout callout-info", icon("lightbulb"), " ", info$analyse),
-        tags$p(tags$b("Répartition : "),
+      shiny::div(shiny::h4(info$nom, style = "color:#2c3e50;margin-top:0;"),
+        shiny::tags$p(shiny::tags$b("Modèle suggere : "), shiny::tags$code(info$modele)),
+        shiny::div(class = "callout callout-info", shiny::icon("lightbulb"), " ", info$analyse),
+        shiny::tags$p(shiny::tags$b("Répartition : "),
                trf("%d traitement(s) x %d répétition(s) x %d échantillon(s)/parcelle = %d unités d'observation.",
                        alloc$Valeur[1], alloc$Valeur[2], nplot, alloc$Valeur[4] * nplot)))
     })
@@ -2832,7 +2832,7 @@ mod_design_server <- function(id, values) {
           trf("Taille par modalité (total = %d observations)", sum(tab$`Taille totale (n)`))))
     })
 
-    output$dsgDownload <- downloadHandler(
+    output$dsgDownload <- shiny::downloadHandler(
       filename = function() paste0("plan_", input$dsgType, "_", Sys.Date(), ".csv"),
       content = function(file) utils::write.csv(design_book(), file, row.names = FALSE, fileEncoding = "UTF-8"))
 
@@ -2936,7 +2936,7 @@ mod_design_server <- function(id, values) {
       g
     }
 
-    build_design_plot <- reactive({
+    build_design_plot <- shiny::reactive({
       b <- design_book(); t <- attr(b, "design") %||% input$dsgType
       if (!requireNamespace("ggplot2", quietly = TRUE)) return(NULL)
       # Applique les tailles de police de la legende choisies par l'utilisateur
@@ -3279,7 +3279,7 @@ mod_design_server <- function(id, values) {
       g
     })
 
-    output$dsgPlot <- renderPlot({
+    output$dsgPlot <- shiny::renderPlot({
       g <- build_design_plot()
       if (is.null(g)) { plot.new(); text(.5, .5, "ggplot2 requis"); return(invisible()) }
       g
@@ -3292,7 +3292,7 @@ mod_design_server <- function(id, values) {
                         function() build_design_plot(), "dispositif")
 
     # ================= ENQUETE DE TERRAIN =================
-    sv_res <- eventReactive(input$svCalc, {
+    sv_res <- shiny::eventReactive(input$svCalc, {
       pop <- input$svPop %||% 0
       hstat_survey_size(
         objective = input$svObjective %||% "proportion",
@@ -3306,23 +3306,23 @@ mod_design_server <- function(id, values) {
         n_strata = input$svStrata %||% 1)
     })
 
-    output$svResult <- renderUI({
+    output$svResult <- shiny::renderUI({
       r <- sv_res()
-      validate(need(is.null(r$err), r$err %||% ""))
-      div(
-        div(style = "font-size:42px;font-weight:700;color:#27ae60;", r$n_final),
-        div(style = "font-size:14px;color:#7f8c8d;",
+      shiny::validate(shiny::need(is.null(r$err), r$err %||% ""))
+      shiny::div(
+        shiny::div(style = "font-size:42px;font-weight:700;color:#27ae60;", r$n_final),
+        shiny::div(style = "font-size:14px;color:#7f8c8d;",
             "personnes a enqueter (taille finale, non-réponse incluse)"),
         if (!is.na(r$per_stratum))
-          div(class = "callout callout-info", style = "margin-top:10px;",
-              icon("layer-group"),
+          shiny::div(class = "callout callout-info", style = "margin-top:10px;",
+              shiny::icon("layer-group"),
               sprintf(" Soit environ %d par strate (%d strates).",
                       r$per_stratum, input$svStrata %||% 1))
       )
     })
 
     output$svTable <- DT::renderDT({
-      r <- sv_res(); req(is.null(r$err))
+      r <- sv_res(); shiny::req(is.null(r$err))
       tab <- data.frame(
         Etape = c("1. Taille de base (population infinie)",
                   "2. Apres correction population finie",
@@ -3335,8 +3335,8 @@ mod_design_server <- function(id, values) {
           "Detail du calcul"))
     })
 
-    output$svCurve <- renderPlot({
-      r <- sv_res(); req(is.null(r$err))
+    output$svCurve <- shiny::renderPlot({
+      r <- sv_res(); shiny::req(is.null(r$err))
       obj <- input$svObjective %||% "proportion"
       pop <- input$svPop %||% 0; pop <- if (is.null(pop) || pop <= 0) Inf else pop
       ns_seq <- seq(20, max(1500, r$n_final * 1.5), by = 5)

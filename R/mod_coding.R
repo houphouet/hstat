@@ -1764,7 +1764,7 @@ mod_coding_ui <- function(id) {
           shiny::fluidRow(
             shiny::column(8, shiny::textInput(ns("new_code"), NULL,
                                               placeholder = "Ex. Prix trop eleve")),
-            shiny::column(4, colourpicker::colourInput(ns("new_color"), NULL,
+            shiny::column(4, colourInput(ns("new_color"), NULL,
                                                        value = HSTAT_CODE_PALETTE[1],
                                                        showColour = "background"))),
           # Code parent : c'est ce qui fait du livre de codes un ARBRE. Sans

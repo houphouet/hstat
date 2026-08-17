@@ -28,154 +28,154 @@
   "Prophet (nécessite des dates)"             = "prophet")
 
 mod_timeseries_ui <- function(id) {
-  ns <- NS(id)
-  tagList(
-    fluidRow(
-      box(title = tagList(icon("sliders"), " Configuration"), status = "primary",
+  ns <- shiny::NS(id)
+  shiny::tagList(
+    shiny::fluidRow(
+      shinydashboard::box(title = shiny::tagList(shiny::icon("sliders"), " Configuration"), status = "primary",
           width = 4, solidHeader = TRUE, collapsible = TRUE,
-          selectInput(ns("tsVar"), "Variable à prévoir (numérique)", choices = NULL),
-          selectInput(ns("tsDate"), "Colonne de dates (optionnelle)",
+          shiny::selectInput(ns("tsVar"), "Variable à prévoir (numérique)", choices = NULL),
+          shiny::selectInput(ns("tsDate"), "Colonne de dates (optionnelle)",
                       choices = c("— Aucune (ordre des lignes) —" = "")),
-          fluidRow(
-            column(6, selectInput(ns("tsFreq"), "Fréquence saisonnière",
+          shiny::fluidRow(
+            shiny::column(6, shiny::selectInput(ns("tsFreq"), "Fréquence saisonnière",
                      choices = c("Aucune (1)" = 1, "Trimestrielle (4)" = 4,
                                  "Mensuelle (12)" = 12, "Hebdo — jours (7)" = 7,
                                  "Journalière — heures (24)" = 24,
                                  "Annuelle — semaines (52)" = 52,
                                  "Annuelle — jours (365)" = 365),
                      selected = 12)),
-            column(6, numericInput(ns("tsFreqCustom"),
+            shiny::column(6, shiny::numericInput(ns("tsFreqCustom"),
                      "…ou fréquence libre", value = NA, min = 1, step = 1))),
-          fluidRow(
-            column(6, numericInput(ns("tsTestN"), "Taille du jeu de test",
+          shiny::fluidRow(
+            shiny::column(6, shiny::numericInput(ns("tsTestN"), "Taille du jeu de test",
                                    value = 12, min = 2, step = 1)),
-            column(6, numericInput(ns("tsHorizon"), "Horizon futur (h)",
+            shiny::column(6, shiny::numericInput(ns("tsHorizon"), "Horizon futur (h)",
                                    value = 12, min = 1, step = 1))),
-          checkboxGroupInput(ns("tsModels"), "Modèles à comparer",
+          shiny::checkboxGroupInput(ns("tsModels"), "Modèles à comparer",
             choices = .ts_catalog(),
             selected = c("naive", "ses", "ets", "arima", "theta")),
-          conditionalPanel(
+          shiny::conditionalPanel(
             condition = sprintf("input['%s'] && input['%s'].indexOf('dlnm') > -1",
                                 ns("tsModels"), ns("tsModels")),
-            selectInput(ns("dlnmExpo"),
+            shiny::selectInput(ns("dlnmExpo"),
                         "DLNM : variable d'exposition (ex. température, pollution)",
                         choices = NULL),
-            numericInput(ns("dlnmLag"), "DLNM : décalage maximal (lags)",
+            shiny::numericInput(ns("dlnmLag"), "DLNM : décalage maximal (lags)",
                          value = 14, min = 1, max = 60, step = 1),
-            tags$small(style = "color:#6b7280;",
+            shiny::tags$small(style = "color:#6b7280;",
               "Le DLNM modélise l'effet retardé et non linéaire de l'exposition ",
               "sur la série (usage classique en épidémiologie environnementale).")),
-          conditionalPanel(
+          shiny::conditionalPanel(
             condition = sprintf("input['%s'] && input['%s'].indexOf('sarima') > -1",
                                 ns("tsModels"), ns("tsModels")),
-            fluidRow(
-              column(4, numericInput(ns("sar_p"), "p", 1, min = 0, max = 5)),
-              column(4, numericInput(ns("sar_d"), "d", 1, min = 0, max = 2)),
-              column(4, numericInput(ns("sar_q"), "q", 1, min = 0, max = 5))),
-            fluidRow(
-              column(4, numericInput(ns("sar_P"), "P", 0, min = 0, max = 2)),
-              column(4, numericInput(ns("sar_D"), "D", 0, min = 0, max = 1)),
-              column(4, numericInput(ns("sar_Q"), "Q", 0, min = 0, max = 2)))),
-          actionButton(ns("tsRun"), "Entraîner et comparer",
-                       icon = icon("play"), class = "btn-primary"),
-          tags$small(style = "color:#6b7280; display:block; margin-top:8px;",
+            shiny::fluidRow(
+              shiny::column(4, shiny::numericInput(ns("sar_p"), "p", 1, min = 0, max = 5)),
+              shiny::column(4, shiny::numericInput(ns("sar_d"), "d", 1, min = 0, max = 2)),
+              shiny::column(4, shiny::numericInput(ns("sar_q"), "q", 1, min = 0, max = 5))),
+            shiny::fluidRow(
+              shiny::column(4, shiny::numericInput(ns("sar_P"), "P", 0, min = 0, max = 2)),
+              shiny::column(4, shiny::numericInput(ns("sar_D"), "D", 0, min = 0, max = 1)),
+              shiny::column(4, shiny::numericInput(ns("sar_Q"), "Q", 0, min = 0, max = 2)))),
+          shiny::actionButton(ns("tsRun"), "Entraîner et comparer",
+                       icon = shiny::icon("play"), class = "btn-primary"),
+          shiny::tags$small(style = "color:#6b7280; display:block; margin-top:8px;",
             "Les valeurs manquantes internes sont interpolées ; chaque modèle est ",
             "évalué sur les dernières observations mises de côté (jeu de test).")),
-      box(title = tagList(icon("trophy"), " Comparaison des modèles"),
+      shinydashboard::box(title = shiny::tagList(shiny::icon("trophy"), " Comparaison des modèles"),
           status = "success", width = 8, solidHeader = TRUE,
-          shinycssloaders::withSpinner(DT::dataTableOutput(ns("tsCompare"))),
+          withSpinner(DT::dataTableOutput(ns("tsCompare"))),
           hstat_export_table_ui(ns, "tsComp"),
-          uiOutput(ns("tsBest")))),
-    fluidRow(
-      box(title = tagList(icon("chart-line"), " Prévisions du modèle sélectionné"),
+          shiny::uiOutput(ns("tsBest")))),
+    shiny::fluidRow(
+      shinydashboard::box(title = shiny::tagList(shiny::icon("chart-line"), " Prévisions du modèle sélectionné"),
           status = "primary", width = 8, solidHeader = TRUE,
-          selectInput(ns("tsShow"), "Modèle affiché", choices = NULL),
-          uiOutput(ns("tsDoc")),
-          shinycssloaders::withSpinner(plotOutput(ns("tsPlot"), height = "430px")),
-          tabsetPanel(
-            tabPanel("Téléchargement", div(style = "padding-top:10px;",
+          shiny::selectInput(ns("tsShow"), "Modèle affiché", choices = NULL),
+          shiny::uiOutput(ns("tsDoc")),
+          withSpinner(shiny::plotOutput(ns("tsPlot"), height = "430px")),
+          shiny::tabsetPanel(
+            shiny::tabPanel("Téléchargement", shiny::div(style = "padding-top:10px;",
                      hstat_export_plot_ui(ns, "tsPl"))),
-            tabPanel("Apparence", div(style = "padding-top:10px;",
+            shiny::tabPanel("Apparence", shiny::div(style = "padding-top:10px;",
                      hstat_plot_opts_ui(ns, "tsO"))))),
-      box(title = tagList(icon("table"), " Métriques & interprétation"),
+      shinydashboard::box(title = shiny::tagList(shiny::icon("table"), " Métriques & interprétation"),
           status = "info", width = 4, solidHeader = TRUE,
           DT::dataTableOutput(ns("tsMetrics")),
           hstat_export_table_ui(ns, "tsMet"),
-          uiOutput(ns("tsInterp")))),
-    fluidRow(
-      box(title = tagList(icon("stethoscope"), " Diagnostics des résidus"),
+          shiny::uiOutput(ns("tsInterp")))),
+    shiny::fluidRow(
+      shinydashboard::box(title = shiny::tagList(shiny::icon("stethoscope"), " Diagnostics des résidus"),
           status = "warning", width = 6, solidHeader = TRUE,
-          plotOutput(ns("tsResid"), height = "330px"),
+          shiny::plotOutput(ns("tsResid"), height = "330px"),
           hstat_export_plot_ui(ns, "tsRe", width = 9, height = 5),
-          uiOutput(ns("tsLjung"))),
-      box(title = tagList(icon("layer-group"), " Décomposition (STL)"),
+          shiny::uiOutput(ns("tsLjung"))),
+      shinydashboard::box(title = shiny::tagList(shiny::icon("layer-group"), " Décomposition (STL)"),
           status = "warning", width = 6, solidHeader = TRUE,
-          plotOutput(ns("tsDecomp"), height = "330px"),
+          shiny::plotOutput(ns("tsDecomp"), height = "330px"),
           hstat_export_plot_ui(ns, "tsDe", width = 9, height = 6),
-          tags$small(style = "color:#6b7280; display:block; margin-top:8px;",
-            strong("Conditions : "), "la décomposition STL porte sur la série ",
+          shiny::tags$small(style = "color:#6b7280; display:block; margin-top:8px;",
+            shiny::strong("Conditions : "), "la décomposition STL porte sur la série ",
             "elle-même (quel que soit le modèle affiché) et n'est disponible que si ",
             "la fréquence saisonnière est > 1 avec au moins 2 saisons complètes ",
             "(ex. 24 points en mensuel). Elle éclaire directement les modèles ",
             "saisonniers : naïf saisonnier, Holt-Winters, SARIMA, TBATS et STL+ETS ",
             "(qui l'utilise en interne). Pour une série de fréquence 1 (naïf, ",
             "dérive, SES, Holt, Thêta, DLM sans saison, DLNM...), elle est sans objet."))),
-    fluidRow(
-      box(title = tagList(icon("magic"), " Simulateur de prévisions"),
+    shiny::fluidRow(
+      shinydashboard::box(title = shiny::tagList(shiny::icon("magic"), " Simulateur de prévisions"),
           status = "success", width = 12, solidHeader = TRUE,
-          fluidRow(
-            column(4,
-              numericInput(ns("simH"), "Horizon à simuler (périodes futures)",
+          shiny::fluidRow(
+            shiny::column(4,
+              shiny::numericInput(ns("simH"), "Horizon à simuler (périodes futures)",
                            value = 12, min = 1, step = 1),
-              textAreaInput(ns("simManual"),
+              shiny::textAreaInput(ns("simManual"),
                 "Saisir de nouvelles valeurs (séparées par des virgules, espaces ou retours à la ligne)",
                 placeholder = "ex. : 152,3  148,9  151,2  ou  152.3 148.9 151.2",
                 rows = 2),
-              fileInput(ns("simFile"),
+              shiny::fileInput(ns("simFile"),
                         "Ou importer un fichier (CSV/Excel)",
                         accept = c(".csv", ".xlsx")),
-              tags$small(style = "color:#6b7280; display:block;",
+              shiny::tags$small(style = "color:#6b7280; display:block;",
                 "Pour les modèles classiques, ces valeurs sont ajoutées à la fin de ",
                 "la série avant ré-entraînement. Pour le DLNM, elles sont interprétées ",
                 "comme les expositions futures. La saisie manuelle prime sur le fichier."),
-              tags$small(style = "color:#6b7280;",
+              shiny::tags$small(style = "color:#6b7280;",
                 "Le fichier doit contenir une colonne portant le même nom que la ",
                 "variable prévue ; ses valeurs sont ajoutées à la fin de la série ",
                 "avant ré-entraînement."),
-              actionButton(ns("simRun"), "Simuler les prévisions",
-                           icon = icon("forward"), class = "btn-success")),
-            column(8,
-              shinycssloaders::withSpinner(plotOutput(ns("simPlot"), height = "330px")),
+              shiny::actionButton(ns("simRun"), "Simuler les prévisions",
+                           icon = shiny::icon("forward"), class = "btn-success")),
+            shiny::column(8,
+              withSpinner(shiny::plotOutput(ns("simPlot"), height = "330px")),
               hstat_export_plot_ui(ns, "simPl"))),
-          fluidRow(column(12,
+          shiny::fluidRow(shiny::column(12,
             DT::dataTableOutput(ns("simTable")),
             hstat_export_table_ui(ns, "simTab"),
-            uiOutput(ns("simInterp"))))))
+            shiny::uiOutput(ns("simInterp"))))))
   )
 }
 
 mod_timeseries_server <- function(id, values) {
-  moduleServer(id, function(input, output, session) {
+  shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
     # ---- Choix de variables synchronisés avec les données -------------------
-    observe({
+    shiny::observe({
       df <- values$cleanData
-      req(df)
+      shiny::req(df)
       num <- names(df)[vapply(df, is.numeric, logical(1))]
-      updateSelectInput(session, "tsVar", choices = num,
+      shiny::updateSelectInput(session, "tsVar", choices = num,
                         selected = if (length(num)) num[1] else NULL)
       dt_like <- names(df)[vapply(df, function(x)
         inherits(x, c("Date", "POSIXct")) || is.character(x) || is.factor(x),
         logical(1))]
-      updateSelectInput(session, "tsDate",
+      shiny::updateSelectInput(session, "tsDate",
         choices = c("— Aucune (ordre des lignes) —" = "", dt_like))
-      updateSelectInput(session, "dlnmExpo", choices = num,
+      shiny::updateSelectInput(session, "dlnmExpo", choices = num,
                         selected = if (length(num) > 1) num[2] else NULL)
     })
 
     # ---- Construction de la série ts ----------------------------------------
-    ts_freq <- reactive({
+    ts_freq <- shiny::reactive({
       f <- hstat_finite(input$tsFreqCustom, NA)
       if (is.finite(f) && f >= 1) as.integer(round(f))
       else as.integer(input$tsFreq %||% 1)
@@ -338,7 +338,7 @@ mod_timeseries_server <- function(id, values) {
 
     # ---- Entraînement + comparaison ------------------------------------------
     # Depot du resultat de prevision pour l'aide a la decision.
-    observeEvent(fits(), {
+    shiny::observeEvent(fits(), {
       f <- tryCatch(fits(), error = function(e) NULL)
       if (is.null(f)) return()
       mets <- tryCatch(do.call(rbind, lapply(names(f), function(nm) {
@@ -353,12 +353,12 @@ mod_timeseries_server <- function(id, values) {
         meta = list(variables = input$tsVar, `horizon` = input$tsHorizon))
     }, ignoreInit = TRUE)
 
-    fits <- eventReactive(input$tsRun, {
+    fits <- shiny::eventReactive(input$tsRun, {
       df <- values$cleanData
-      validate(need(!is.null(df), "Chargez d'abord des données."),
-               need(nzchar(input$tsVar %||% ""), "Choisissez une variable numérique."))
+      shiny::validate(shiny::need(!is.null(df), "Chargez d'abord des données."),
+               shiny::need(nzchar(input$tsVar %||% ""), "Choisissez une variable numérique."))
       ser <- tryCatch(build_series(df), error = function(e) e)
-      validate(need(!inherits(ser, "error"),
+      shiny::validate(shiny::need(!inherits(ser, "error"),
                     if (inherits(ser, "error")) conditionMessage(ser) else ""))
       y <- ser$y
       n <- length(y)
@@ -368,25 +368,25 @@ mod_timeseries_server <- function(id, values) {
       dtr   <- if (!is.null(ser$dates)) utils::head(ser$dates, n - n_test) else NULL
       cat_all <- .ts_catalog()
       ids <- input$tsModels %||% character(0)
-      validate(need(length(ids) > 0, "Sélectionnez au moins un modèle."))
+      shiny::validate(shiny::need(length(ids) > 0, "Sélectionnez au moins un modèle."))
       expo_ser <- NULL
       if ("dlnm" %in% ids) {
-        validate(need(nzchar(input$dlnmExpo %||% ""),
+        shiny::validate(shiny::need(nzchar(input$dlnmExpo %||% ""),
                       "DLNM : choisissez la variable d'exposition."),
-                 need(!identical(input$dlnmExpo, input$tsVar),
+                 shiny::need(!identical(input$dlnmExpo, input$tsVar),
                       "DLNM : l'exposition doit différer de la variable prévue."))
         ex <- suppressWarnings(as.numeric(df[[input$dlnmExpo]]))[ser$row_idx]
         if (anyNA(ex))
           ex <- stats::approx(seq_along(ex), ex, xout = seq_along(ex), rule = 2)$y
-        validate(need(all(is.finite(ex)),
+        shiny::validate(shiny::need(all(is.finite(ex)),
                       "DLNM : exposition invalide sur la plage de la série."))
         expo_ser <- ex
       }
       res <- list()
-      withProgress(message = "Entraînement des modèles", value = 0, {
+      shiny::withProgress(message = "Entraînement des modèles", value = 0, {
         for (i in seq_along(ids)) {
           idm <- ids[i]
-          incProgress(1 / length(ids), detail = names(cat_all)[match(idm, cat_all)])
+          shiny::incProgress(1 / length(ids), detail = names(cat_all)[match(idm, cat_all)])
           res[[idm]] <- tryCatch({
             r <- fit_one(idm, train, h = n_test, dates_train = dtr,
                          expo = if (is.null(expo_ser)) NULL
@@ -411,8 +411,8 @@ mod_timeseries_server <- function(id, values) {
     })
 
     # Table comparative -------------------------------------------------------
-    comp_df <- reactive({
-      f <- fits(); req(f)
+    comp_df <- shiny::reactive({
+      f <- fits(); shiny::req(f)
       rows <- lapply(names(f$res), function(idm) {
         r <- f$res[[idm]]
         lab <- names(f$labels)[match(idm, f$labels)]
@@ -438,28 +438,28 @@ mod_timeseries_server <- function(id, values) {
     hstat_export_table_handlers(output, "tsComp", function() comp_df(),
                                 "series_temporelles_comparaison")
 
-    output$tsBest <- renderUI({
+    output$tsBest <- shiny::renderUI({
       d <- comp_df(); d <- d[d$Statut == "OK" & is.finite(d$RMSE), , drop = FALSE]
       if (nrow(d) == 0) return(NULL)
-      div(class = "callout callout-info", style = "margin-top:10px;",
-          icon("trophy"),
-          strong(trf(" Meilleur modèle sur le jeu de test : %s ", d$Modele[1])),
+      shiny::div(class = "callout callout-info", style = "margin-top:10px;",
+          shiny::icon("trophy"),
+          shiny::strong(trf(" Meilleur modèle sur le jeu de test : %s ", d$Modele[1])),
           sprintf("(RMSE = %s, MAPE = %s %%). Le classement repose sur l'erreur de ",
                   format(d$RMSE[1], big.mark = " "), d$`MAPE (%)`[1]),
           "prévision hors échantillon, le critère le plus honnête pour comparer des modèles.")
     })
 
-    observeEvent(fits(), {
+    shiny::observeEvent(fits(), {
       f <- fits()
       ok <- names(f$res)[vapply(f$res, function(r) isTRUE(r$ok), logical(1))]
       labs <- names(f$labels)[match(ok, f$labels)]
-      updateSelectInput(session, "tsShow",
+      shiny::updateSelectInput(session, "tsShow",
                         choices = stats::setNames(ok, labs),
                         selected = if (length(ok)) ok[1] else NULL)
     })
 
-    output$tsDoc <- renderUI({
-      req(nzchar(input$tsShow %||% ""))
+    output$tsDoc <- shiny::renderUI({
+      shiny::req(nzchar(input$tsShow %||% ""))
       hstat_model_doc_ui(input$tsShow)
     })
 
@@ -474,10 +474,10 @@ mod_timeseries_server <- function(id, values) {
       v[is.finite(v)]
     }
 
-    cur <- reactive({
-      f <- fits(); req(f, nzchar(input$tsShow %||% ""))
+    cur <- shiny::reactive({
+      f <- fits(); shiny::req(f, nzchar(input$tsShow %||% ""))
       r <- f$res[[input$tsShow]]
-      validate(need(isTRUE(r$ok), "Ce modèle a échoué sur ces données."))
+      shiny::validate(shiny::need(isTRUE(r$ok), "Ce modèle a échoué sur ces données."))
       list(r = r, f = f,
            label = names(f$labels)[match(input$tsShow, f$labels)])
     })
@@ -514,7 +514,7 @@ mod_timeseries_server <- function(id, values) {
         ggplot2::labs(title = title_def, x = "Temps", y = "Valeur")
     }
 
-    ts_plot_gg <- reactive({
+    ts_plot_gg <- shiny::reactive({
       c0 <- cur()
       g <- fc_plot(c0$r$fc, c0$f$y,
                    col = hstat_plot_opt(input, "tsO", "Col", "#2c7fb8"),
@@ -522,7 +522,7 @@ mod_timeseries_server <- function(id, values) {
                    title_def = trf("%s — prévision sur le jeu de test", c0$label))
       hstat_apply_plot_opts(g, input, "tsO")
     })
-    output$tsPlot <- renderPlot(ts_plot_gg())
+    output$tsPlot <- shiny::renderPlot(ts_plot_gg())
     output$tsPlDl <- hstat_export_plot_handler(input, "tsPl",
                        function() ts_plot_gg(), "prevision_serie")
 
@@ -534,7 +534,7 @@ mod_timeseries_server <- function(id, values) {
     hstat_export_table_handlers(output, "tsMet",
       function() cur()$r$metrics, "series_temporelles_metriques")
 
-    output$tsInterp <- renderUI({
+    output$tsInterp <- shiny::renderUI({
       c0 <- cur()
       txt <- hstat_model_interpretation(
         "regression", c0$r$metrics, c0$label,
@@ -544,15 +544,15 @@ mod_timeseries_server <- function(id, values) {
           if (!is.finite(c0$r$mase)) "non calculable."
           else if (c0$r$mase < 1) "le modèle bat la prévision naïve — il apporte une vraie valeur ajoutée."
           else "le modèle ne fait pas mieux qu'une prévision naïve — à reconsidérer."))
-      div(class = "callout callout-info", style = "margin-top:10px;",
-          icon("lightbulb"), strong(" Interprétation : "), txt)
+      shiny::div(class = "callout callout-info", style = "margin-top:10px;",
+          shiny::icon("lightbulb"), shiny::strong(" Interprétation : "), txt)
     })
 
     # Diagnostics des résidus ----------------------------------------------------
-    resid_gg <- reactive({
+    resid_gg <- shiny::reactive({
       c0 <- cur()
       res <- as.numeric(stats::residuals(c0$r$fc) %||% c0$r$fc$residuals)
-      validate(need(length(res[is.finite(res)]) > 5,
+      shiny::validate(shiny::need(length(res[is.finite(res)]) > 5,
                     "Résidus indisponibles pour ce modèle."))
       d <- data.frame(t = seq_along(res), r = res)
       acf_v <- stats::acf(res[is.finite(res)], plot = FALSE,
@@ -573,11 +573,11 @@ mod_timeseries_server <- function(id, values) {
         ggplot2::theme_minimal(base_size = 12)
       patchwork::wrap_plots(g1, g2, ncol = 2)
     })
-    output$tsResid <- renderPlot(resid_gg())
+    output$tsResid <- shiny::renderPlot(resid_gg())
     output$tsReDl <- hstat_export_plot_handler(input, "tsRe",
                        function() resid_gg(), "diagnostic_residus")
 
-    output$tsLjung <- renderUI({
+    output$tsLjung <- shiny::renderUI({
       c0 <- cur()
       res <- as.numeric(stats::residuals(c0$r$fc) %||% c0$r$fc$residuals)
       res <- res[is.finite(res)]
@@ -589,26 +589,26 @@ mod_timeseries_server <- function(id, values) {
       # TRUE/FALSE needed » et faisait disparaitre tout le bloc de diagnostic.
       verdict <- hstat_p_verdict(lb$p.value)
       if (identical(verdict, "indeterminable"))
-        return(div(class = "callout callout-warning", style = "margin-top:8px;",
-          icon("circle-question"), strong(" Test de Ljung-Box : "),
+        return(shiny::div(class = "callout callout-warning", style = "margin-top:8px;",
+          shiny::icon("circle-question"), shiny::strong(" Test de Ljung-Box : "),
           "non calculable — les résidus n'ont pas de variance exploitable ",
           "(le modèle reproduit la série d'apprentissage à l'identique). ",
           "L'absence d'autocorrélation résiduelle ne peut être ni confirmée ni infirmée."))
       ok <- identical(verdict, "non significatif")
-      div(class = paste("callout", if (ok) "callout-info" else "callout-warning"),
+      shiny::div(class = paste("callout", if (ok) "callout-info" else "callout-warning"),
           style = "margin-top:8px;",
-          icon(if (ok) "check-circle" else "exclamation-triangle"),
-          strong(" Test de Ljung-Box : "),
+          shiny::icon(if (ok) "check-circle" else "exclamation-triangle"),
+          shiny::strong(" Test de Ljung-Box : "),
           sprintf("p = %.4f. ", lb$p.value),
           if (ok) "Les résidus se comportent comme un bruit blanc : le modèle a capté la structure temporelle de la série."
           else "Il reste de l'autocorrélation dans les résidus : de l'information temporelle n'est pas captée (essayer ARIMA/SARIMA, augmenter les ordres, ou vérifier la fréquence saisonnière).")
     })
 
     # Décomposition STL -----------------------------------------------------------
-    decomp_gg <- reactive({
-      f <- fits(); req(f)
+    decomp_gg <- shiny::reactive({
+      f <- fits(); shiny::req(f)
       y <- f$y
-      validate(need(stats::frequency(y) > 1 && length(y) >= 2 * stats::frequency(y),
+      shiny::validate(shiny::need(stats::frequency(y) > 1 && length(y) >= 2 * stats::frequency(y),
         "Décomposition STL indisponible : série non saisonnière (fréquence = 1) ou trop courte."))
       st <- stats::stl(y, s.window = "periodic")
       d <- as.data.frame(st$time.series)
@@ -626,19 +626,19 @@ mod_timeseries_server <- function(id, values) {
         ggplot2::labs(title = "Décomposition STL", x = "Temps", y = NULL) +
         ggplot2::theme_minimal(base_size = 12)
     })
-    output$tsDecomp <- renderPlot(decomp_gg())
+    output$tsDecomp <- shiny::renderPlot(decomp_gg())
     output$tsDeDl <- hstat_export_plot_handler(input, "tsDe",
                        function() decomp_gg(), "decomposition_stl")
 
     # Simulateur ------------------------------------------------------------------
-    sim <- eventReactive(input$simRun, {
+    sim <- shiny::eventReactive(input$simRun, {
       c0 <- cur()
       y <- c0$f$y
       h <- max(1, hstat_finite(input$simH, 12))
       # --- Cas DLNM : le fichier importé fournit les EXPOSITIONS futures -----
       if (identical(input$tsShow, "dlnm")) {
         expo_full <- c0$f$expo
-        validate(need(!is.null(expo_full),
+        shiny::validate(shiny::need(!is.null(expo_full),
                       "DLNM : relancez l'entraînement avec une exposition."))
         L <- as.integer(max(1, hstat_finite(input$dlnmLag, 14)))
         note <- NULL
@@ -653,13 +653,13 @@ mod_timeseries_server <- function(id, values) {
               as.data.frame(readxl::read_excel(input$simFile$datapath))
             else utils::read.csv(input$simFile$datapath, check.names = FALSE)
           }, error = function(e) NULL)
-          validate(need(!is.null(nd), "Fichier importé illisible."),
-                   need(input$dlnmExpo %in% names(nd),
+          shiny::validate(shiny::need(!is.null(nd), "Fichier importé illisible."),
+                   shiny::need(input$dlnmExpo %in% names(nd),
                         trf("Pour le DLNM, le fichier doit contenir la colonne d'exposition '%s' (valeurs futures).",
                                 input$dlnmExpo)))
           ef <- suppressWarnings(as.numeric(nd[[input$dlnmExpo]]))
           ef <- ef[is.finite(ef)]
-          validate(need(length(ef) > 0, "Aucune exposition future valide dans le fichier."))
+          shiny::validate(shiny::need(length(ef) > 0, "Aucune exposition future valide dans le fichier."))
           if (length(ef) < h) h <- length(ef)
           ef <- ef[seq_len(h)]
         } else {
@@ -669,7 +669,7 @@ mod_timeseries_server <- function(id, values) {
         r <- tryCatch(fit_one("dlnm", y, h = h, expo = expo_full,
                               expo_future = ef),
                       error = function(e) e)
-        validate(need(!inherits(r, "error"),
+        shiny::validate(shiny::need(!inherits(r, "error"),
                       if (inherits(r, "error")) conditionMessage(r) else ""))
         return(list(fc = r$fc, y = y, h = h, appended = 0L,
                     label = c0$label, note = note))
@@ -686,26 +686,26 @@ mod_timeseries_server <- function(id, values) {
             as.data.frame(readxl::read_excel(input$simFile$datapath))
           else utils::read.csv(input$simFile$datapath, check.names = FALSE)
         }, error = function(e) NULL)
-        validate(need(!is.null(nd), "Fichier importé illisible."),
-                 need(input$tsVar %in% names(nd),
+        shiny::validate(shiny::need(!is.null(nd), "Fichier importé illisible."),
+                 shiny::need(input$tsVar %in% names(nd),
                       sprintf("Le fichier doit contenir une colonne '%s'.", input$tsVar)))
         add <- suppressWarnings(as.numeric(nd[[input$tsVar]]))
         add <- add[is.finite(add)]
-        validate(need(length(add) > 0, "Aucune valeur numérique valide dans le fichier."))
+        shiny::validate(shiny::need(length(add) > 0, "Aucune valeur numérique valide dans le fichier."))
         y <- stats::ts(c(as.numeric(y), add), frequency = stats::frequency(y))
         appended <- length(add)
       }
       r <- tryCatch(fit_one(input$tsShow, y, h = h,
                             dates_train = c0$f$dates),
                     error = function(e) e)
-      validate(need(!inherits(r, "error"),
+      shiny::validate(shiny::need(!inherits(r, "error"),
                     if (inherits(r, "error")) conditionMessage(r) else ""))
       list(fc = r$fc, y = y, h = h, appended = appended, label = c0$label,
            note = NULL)
     })
 
-    sim_table <- reactive({
-      s <- sim(); req(s)
+    sim_table <- shiny::reactive({
+      s <- sim(); shiny::req(s)
       fc <- s$fc
       d <- data.frame(Periode = seq_len(s$h),
                       Prevision = round(as.numeric(fc$mean), 4))
@@ -725,26 +725,26 @@ mod_timeseries_server <- function(id, values) {
     hstat_export_table_handlers(output, "simTab",
       function() sim_table(), "previsions_simulees")
 
-    sim_gg <- reactive({
-      s <- sim(); req(s)
+    sim_gg <- shiny::reactive({
+      s <- sim(); shiny::req(s)
       g <- fc_plot(s$fc, s$y,
                    col = hstat_plot_opt(input, "tsO", "Col", "#27ae60"),
                    lwd = hstat_finite(input$tsOLwd, 0.9),
                    title_def = trf("%s — prévisions futures (h = %d)", s$label, s$h))
       hstat_apply_plot_opts(g, input, "tsO")
     })
-    output$simPlot <- renderPlot(sim_gg())
+    output$simPlot <- shiny::renderPlot(sim_gg())
     output$simPlDl <- hstat_export_plot_handler(input, "simPl",
                         function() sim_gg(), "previsions_futures")
 
-    output$simInterp <- renderUI({
+    output$simInterp <- shiny::renderUI({
       s <- sim(); d <- sim_table()
       first <- d$Prevision[1]; last <- d$Prevision[nrow(d)]
       trend <- if (!is.finite(first) || !is.finite(last)) "indéterminée"
         else if (last > first * 1.02) "orientée à la hausse"
         else if (last < first * 0.98) "orientée à la baisse" else "globalement stable"
-      div(class = "callout callout-info", style = "margin-top:10px;",
-          icon("lightbulb"), strong(" Interprétation des prévisions : "),
+      shiny::div(class = "callout callout-info", style = "margin-top:10px;",
+          shiny::icon("lightbulb"), shiny::strong(" Interprétation des prévisions : "),
           trf("Le modèle %s, ré-entraîné sur l'intégralité de la série%s, projette une trajectoire %s sur les %d prochaines périodes (de %s à %s). ",
                   s$label,
                   if (s$appended > 0) trf(" (dont %d nouvelles observations importées)", s$appended) else "",
@@ -753,7 +753,7 @@ mod_timeseries_server <- function(id, values) {
           if (!is.null(d$`Borne haute 95%`))
             "Les bornes à 95 % encadrent la valeur future avec 95 % de confiance : plus elles s'écartent, plus l'incertitude croît avec l'horizon — les premières périodes sont toujours les plus fiables."
           else "Ce modèle ne fournit pas d'intervalles de prévision (point uniquement).",
-          if (!is.null(s$note)) tags$p(tags$em(s$note)))
+          if (!is.null(s$note)) shiny::tags$p(shiny::tags$em(s$note)))
     })
   })
 }

@@ -2,111 +2,111 @@
 
 
 mod_explore_ui <- function(id) {
-  ns <- NS(id)
-  tagList(
+  ns <- shiny::NS(id)
+  shiny::tagList(
               .hstat_scope_banner(exact = FALSE),
-              fluidRow(
-                box(
+              shiny::fluidRow(
+                shinydashboard::box(
                   width = 12,
                   status = "primary",
                   solidHeader = FALSE,
                   background = "light-blue",
-                  h3(icon("chart-line"), "Exploration des Données", style = "margin: 0; color: white;"),
-                  p("Analysez la structure, les corrélations et les distributions de vos données", 
+                  shiny::h3(shiny::icon("chart-line"), "Exploration des Données", style = "margin: 0; color: white;"),
+                  shiny::p("Analysez la structure, les corrélations et les distributions de vos données", 
                     style = "margin: 5px 0 0 0; color: white; opacity: 0.9;")
                 )
               ),
               
-              fluidRow(
-                box(
-                  title = tagList(icon("database"), "Structure des données"), 
+              shiny::fluidRow(
+                shinydashboard::box(
+                  title = shiny::tagList(shiny::icon("database"), "Structure des données"), 
                   status = "info", 
                   width = 6, 
                   solidHeader = TRUE,
                   collapsible = TRUE,
                   DT::DTOutput(ns("dataStructure")),
-                  footer = div(
+                  footer = shiny::div(
                     style = "font-size: 12px; color: #7f8c8d;",
-                    icon("info-circle"), 
+                    shiny::icon("info-circle"), 
                     " Visualisez les types de variables et leur structure"
                   )
                 ),
-                box(
-                  title = tagList(icon("calculator"), "Résumé statistique"), 
+                shinydashboard::box(
+                  title = shiny::tagList(shiny::icon("calculator"), "Résumé statistique"), 
                   status = "info", 
                   width = 6, 
                   solidHeader = TRUE,
                   collapsible = TRUE,
-                  div(style = "overflow-x:auto;",
-                    verbatimTextOutput(ns("dataSummary"))),
-                  footer = div(
+                  shiny::div(style = "overflow-x:auto;",
+                    shiny::verbatimTextOutput(ns("dataSummary"))),
+                  footer = shiny::div(
                     style = "font-size: 12px; color: #7f8c8d;",
-                    icon("info-circle"), 
+                    shiny::icon("info-circle"), 
                     " Statistiques descriptives pour chaque variable"
                   )
                 )
               ),
               
               
-              fluidRow(
-                box(
-                  title = tagList(icon("chart-area"), "Distribution des Variables"), 
+              shiny::fluidRow(
+                shinydashboard::box(
+                  title = shiny::tagList(shiny::icon("chart-area"), "Distribution des Variables"), 
                   status = "primary", 
                   width = 6, 
                   solidHeader = TRUE,
                   collapsible = TRUE,
                   
-                  uiOutput(ns("distVarSelect")),
+                  shiny::uiOutput(ns("distVarSelect")),
                   
-                  tags$div(
+                  shiny::tags$div(
                     class = "panel-group",
                     id = "distOptionsAccordion",
                     style = "margin-top: 15px;",
                     
-                    tags$div(
+                    shiny::tags$div(
                       class = "panel panel-default",
-                      tags$div(
+                      shiny::tags$div(
                         class = "panel-heading",
-                        tags$h4(
+                        shiny::tags$h4(
                           class = "panel-title",
-                          tags$a(
+                          shiny::tags$a(
                             `data-toggle` = "collapse",
                             `data-parent` = "#distOptionsAccordion",
                             href = "#distOptionsCollapse",
                             style = "text-decoration: none;",
-                            icon("cog"), " Options graphiques",
-                            tags$span(class = "pull-right", icon("chevron-down"))
+                            shiny::icon("cog"), " Options graphiques",
+                            shiny::tags$span(class = "pull-right", shiny::icon("chevron-down"))
                           )
                         )
                       ),
-                      tags$div(
+                      shiny::tags$div(
                         id = "distOptionsCollapse",
                         class = "panel-collapse collapse",
-                        tags$div(
+                        shiny::tags$div(
                           class = "panel-body",
                           style = "background-color: #f8f9fa;",
                           
-                          fluidRow(
-                            column(6,
-                                   h5(icon("text-height"), "Tailles", style = "color: #3498db; font-weight: bold;"),
-                                   sliderInput(ns("distTitleSize"), "Taille titre:", 
+                          shiny::fluidRow(
+                            shiny::column(6,
+                                   shiny::h5(shiny::icon("text-height"), "Tailles", style = "color: #3498db; font-weight: bold;"),
+                                   shiny::sliderInput(ns("distTitleSize"), "Taille titre:", 
                                                min = 8, max = 24, value = 14, ticks = FALSE),
-                                   sliderInput(ns("distAxisTitleSize"), "Taille titres axes:", 
+                                   shiny::sliderInput(ns("distAxisTitleSize"), "Taille titres axes:", 
                                                min = 8, max = 20, value = 12, ticks = FALSE),
-                                   sliderInput(ns("distAxisTextSize"), "Taille texte axes:", 
+                                   shiny::sliderInput(ns("distAxisTextSize"), "Taille texte axes:", 
                                                min = 6, max = 16, value = 10, ticks = FALSE),
-                                   sliderInput(ns("distLegendTextSize"), "Taille texte légende:",
+                                   shiny::sliderInput(ns("distLegendTextSize"), "Taille texte légende:",
                                                min = 6, max = 16, value = 10, ticks = FALSE)
                             ),
-                            column(6,
-                                   h5(icon("heading"), "Personnalisation", style = "color: #3498db; font-weight: bold;"),
-                                   textInput(ns("distTitle"), "Titre personnalisé:", 
+                            shiny::column(6,
+                                   shiny::h5(shiny::icon("heading"), "Personnalisation", style = "color: #3498db; font-weight: bold;"),
+                                   shiny::textInput(ns("distTitle"), "Titre personnalisé:", 
                                              placeholder = "Laisser vide pour titre auto"),
-                                   checkboxInput(ns("distCenterTitle"), 
-                                                 tagList(icon("align-center"), " Centrer le titre"), 
+                                   shiny::checkboxInput(ns("distCenterTitle"), 
+                                                 shiny::tagList(shiny::icon("align-center"), " Centrer le titre"), 
                                                  value = TRUE),
-                                   checkboxInput(ns("distShowDensity"), 
-                                                 tagList(icon("wave-square"), " Afficher courbe densité"), 
+                                   shiny::checkboxInput(ns("distShowDensity"), 
+                                                 shiny::tagList(shiny::icon("wave-square"), " Afficher courbe densité"), 
                                                  value = TRUE),
                             )
                           )
@@ -115,82 +115,82 @@ mod_explore_ui <- function(id) {
                     )
                   ),
                   
-                  hr(),
+                  shiny::hr(),
                   
                   hstat_export_plot_ui(ns, "distPl", width = 10, height = 8),
                   
-                  div(
+                  shiny::div(
                     style = "background-color: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
                     withSpinner(
-                      plotOutput(ns("distPlot"), height = "500px"),
+                      shiny::plotOutput(ns("distPlot"), height = "500px"),
                       type = 6,
                       color = "#3498db"
                     )
                   ),
                   
-                  footer = div(
+                  footer = shiny::div(
                     style = "font-size: 12px; color: #7f8c8d;",
-                    icon("info-circle"), 
+                    shiny::icon("info-circle"), 
                     " Analysez la normalité et la dispersion de vos variables"
                   )
                 ),
                 
-                box(
-                  title = tagList(icon("exclamation-triangle"), "Analyse des Valeurs Manquantes"), 
+                shinydashboard::box(
+                  title = shiny::tagList(shiny::icon("exclamation-triangle"), "Analyse des Valeurs Manquantes"), 
                   status = "warning", 
                   width = 6, 
                   solidHeader = TRUE,
                   collapsible = TRUE,
                   
-                  tags$div(
+                  shiny::tags$div(
                     class = "panel-group",
                     id = "missingOptionsAccordion",
                     
-                    tags$div(
+                    shiny::tags$div(
                       class = "panel panel-default",
-                      tags$div(
+                      shiny::tags$div(
                         class = "panel-heading",
-                        tags$h4(
+                        shiny::tags$h4(
                           class = "panel-title",
-                          tags$a(
+                          shiny::tags$a(
                             `data-toggle` = "collapse",
                             `data-parent` = "#missingOptionsAccordion",
                             href = "#missingOptionsCollapse",
                             style = "text-decoration: none;",
-                            icon("cog"), " Options graphiques",
-                            tags$span(class = "pull-right", icon("chevron-down"))
+                            shiny::icon("cog"), " Options graphiques",
+                            shiny::tags$span(class = "pull-right", shiny::icon("chevron-down"))
                           )
                         )
                       ),
-                      tags$div(
+                      shiny::tags$div(
                         id = "missingOptionsCollapse",
                         class = "panel-collapse collapse",
-                        tags$div(
+                        shiny::tags$div(
                           class = "panel-body",
                           style = "background-color: #fff8e1;",
                           
-                          fluidRow(
-                            column(4,
-                                   h5(icon("text-height"), "Tailles", style = "color: #f39c12; font-weight: bold;"),
-                                   sliderInput(ns("missingTitleSize"), "Taille titre:", 
+                          shiny::fluidRow(
+                            shiny::column(4,
+                                   shiny::h5(shiny::icon("text-height"), "Tailles", style = "color: #f39c12; font-weight: bold;"),
+                                   shiny::sliderInput(ns("missingTitleSize"), "Taille titre:", 
                                                min = 8, max = 24, value = 14, ticks = FALSE),
-                                   sliderInput(ns("missingAxisTitleSize"), "Taille titres axes:", 
+                                   shiny::sliderInput(ns("missingAxisTitleSize"), "Taille titres axes:", 
                                                min = 8, max = 20, value = 12, ticks = FALSE)
                             ),
-                            column(4,
-                                   h5(icon("palette"), "Affichage", style = "color: #f39c12; font-weight: bold;"),
-                                   sliderInput(ns("missingAxisTextSize"), "Taille texte axes:", 
+                            shiny::column(4,
+                                   shiny::h5(shiny::icon("palette"), "Affichage", style = "color: #f39c12; font-weight: bold;"),
+                                   shiny::sliderInput(ns("missingAxisTextSize"), "Taille texte axes:", 
                                                min = 6, max = 16, value = 10, ticks = FALSE),
-                                   checkboxInput(ns("missingRotateLabels"), 
-                                                 tagList(icon("sync-alt"), " Incliner labels X"), 
+                                   shiny::checkboxInput(ns("missingRotateLabels"), 
+                                                 shiny::tagList(shiny::icon("sync-alt"), " Incliner labels X"), 
                                                  value = TRUE)
                             ),
-                            column(4,
-                                   h5(icon("heading"), "Personnalisation", style = "color: #f39c12; font-weight: bold;"),
-                                   textInput(ns("missingTitle"), "Titre personnalisé:", 
+                            shiny::column(4,
+                                   shiny::h5(shiny::icon("heading"), "Personnalisation", style = "color: #f39c12; font-weight: bold;"),
+                                   shiny::textInput(ns("missingTitle"), "Titre personnalisé:", 
                                              placeholder = "Laisser vide pour titre auto"),
-                                   checkboxInput(ns("missingCenterTitle"), 
-                                                 tagList(icon("align-center"), " Centrer le titre"), 
+                                   shiny::checkboxInput(ns("missingCenterTitle"), 
+                                                 shiny::tagList(shiny::icon("align-center"), " Centrer le titre"), 
                                                  value = TRUE),
                             )
                           )
@@ -199,22 +199,22 @@ mod_explore_ui <- function(id) {
                     )
                   ),
                   
-                  hr(),
+                  shiny::hr(),
                   
                   hstat_export_plot_ui(ns, "missPl", width = 12, height = 8),
                   
-                  div(
+                  shiny::div(
                     style = "background-color: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
                     withSpinner(
-                      plotOutput(ns("missingPlot"), height = "400px"),
+                      shiny::plotOutput(ns("missingPlot"), height = "400px"),
                       type = 6,
                       color = "#f39c12"
                     )
                   ),
                   
-                  footer = div(
+                  footer = shiny::div(
                     style = "font-size: 12px; color: #7f8c8d;",
-                    icon("info-circle"), 
+                    shiny::icon("info-circle"), 
                     " Identifiez les variables nécessitant un traitement"
                   )
                 )
@@ -237,12 +237,12 @@ mod_explore_server <- function(id, values) {
                   observations = NROW(d), colonnes = NCOL(d)))
   }, ignoreInit = FALSE)
 
-  moduleServer(id, function(input, output, session) {
+  shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
   # ---- Exploration ----
   
   output$dataStructure <- DT::renderDT({
-    req(values$data)
+    shiny::req(values$data)
     df <- values$data
     n  <- nrow(df)
     structure_df <- do.call(rbind, lapply(names(df), function(nm) {
@@ -280,8 +280,8 @@ mod_explore_server <- function(id, values) {
     )
   })
 
-  output$dataSummary <- renderPrint({
-    req(values$data)
+  output$dataSummary <- shiny::renderPrint({
+    shiny::req(values$data)
     df <- as.data.frame(values$data)
     # Conversion texte/labelled/logique -> facteur pour obtenir le decompte des
     # modalites dans summary() (et non Length/Class/Mode).
@@ -302,17 +302,17 @@ mod_explore_server <- function(id, values) {
     }
   })
   
-  output$distVarSelect <- renderUI({
-    req(values$data)
+  output$distVarSelect <- shiny::renderUI({
+    shiny::req(values$data)
     num_cols <- unique(names(values$data)[sapply(values$data, is.numeric)])
 
     if (length(num_cols) == 0) {
-      return(div(class = "alert alert-warning", 
-                 icon("exclamation-triangle"), 
+      return(shiny::div(class = "alert alert-warning", 
+                 shiny::icon("exclamation-triangle"), 
                  " Aucune variable numérique disponible"))
     }
     
-    selectInput(ns("distVar"), "Sélectionnez une variable:", 
+    shiny::selectInput(ns("distVar"), "Sélectionnez une variable:", 
                 choices = num_cols, selected = num_cols[1])
   })
   
@@ -342,28 +342,28 @@ mod_explore_server <- function(id, values) {
     if (nrow(pdata) == 0)
       stop(trf("La variable « %s » ne contient aucune valeur numérique valide.", var))
 
-    p <- ggplot(pdata, aes(x = .x)) +
-      geom_histogram(aes(y = after_stat(density)), fill = "lightblue",
+    p <- ggplot2::ggplot(pdata, ggplot2::aes(x = .x)) +
+      ggplot2::geom_histogram(ggplot2::aes(y = ggplot2::after_stat(density)), fill = "lightblue",
                      color = "black", alpha = 0.7, bins = 30)
 
     if (show_density) {
-      p <- p + geom_density(color = "red", linewidth = 1.2)
+      p <- p + ggplot2::geom_density(color = "red", linewidth = 1.2)
     }
     
-    p <- p + theme_minimal() +
-      labs(title = plot_title, x = var, y = "Densité") +
-      theme(
-        plot.title = element_markdown(size = title_size, hjust = if (center_title) 0.5 else 0),
-        axis.title = element_markdown(size = axis_title_size),
-        axis.text = element_text(size = axis_text_size),
-        legend.text = element_text(size = legend_text_size),
-        legend.title = element_markdown(size = legend_text_size)
+    p <- p + ggplot2::theme_minimal() +
+      ggplot2::labs(title = plot_title, x = var, y = "Densité") +
+      ggplot2::theme(
+        plot.title = ggtext::element_markdown(size = title_size, hjust = if (center_title) 0.5 else 0),
+        axis.title = ggtext::element_markdown(size = axis_title_size),
+        axis.text = ggplot2::element_text(size = axis_text_size),
+        legend.text = ggplot2::element_text(size = legend_text_size),
+        legend.title = ggtext::element_markdown(size = legend_text_size)
       )
     
     return(p)
   }
   
-  distParams <- reactive({
+  distParams <- shiny::reactive({
     list(
       show_density = if (is.null(input$distShowDensity)) TRUE else input$distShowDensity,
       title = input$distTitle,
@@ -373,13 +373,13 @@ mod_explore_server <- function(id, values) {
       axis_text_size = input$distAxisTextSize %||% 10,
       legend_text_size = input$distLegendTextSize %||% 10
     )
-  }) %>% debounce(500)
+  }) %>% shiny::debounce(500)
   
   # LE GRAPHIQUE N'EST CONSTRUIT QU'UNE FOIS. L'apercu et le telechargement en
   # montaient chacun leur exemplaire, avec les memes huit arguments : deux
   # copies a tenir d'accord, et rien pour signaler qu'elles avaient diverge.
-  dist_gg <- reactive({
-    req(values$data, input$distVar)
+  dist_gg <- shiny::reactive({
+    shiny::req(values$data, input$distVar)
     params <- distParams()
     tryCatch({
       generate_dist_plot(
@@ -394,13 +394,13 @@ mod_explore_server <- function(id, values) {
         legend_text_size = params$legend_text_size
       )
     }, error = function(e) {
-      showNotification(hstat_err_fr(e, "Erreur lors de la création du graphique"),
+      shiny::showNotification(hstat_err_fr(e, "Erreur lors de la création du graphique"),
                        type = "error", duration = 5)
       NULL
     })
   })
 
-  output$distPlot <- renderPlot({ dist_gg() })
+  output$distPlot <- shiny::renderPlot({ dist_gg() })
 
   # L'export passe par le kit partage : format, dimensions, DPI et bouton sont
   # ceux de toute l'application, et le module n'ecrit plus une ligne de fichier.
@@ -434,17 +434,17 @@ mod_explore_server <- function(id, values) {
       "Analyse des valeurs manquantes"
     }
     
-    p <- ggplot(missing_data, aes(x = reorder(Variable, -Missing), y = Missing)) +
-      geom_bar(stat = "identity", fill = "steelblue", alpha = 0.8) +
-      geom_text(aes(label = paste0(round(PctMissing, 1), "%")), 
+    p <- ggplot2::ggplot(missing_data, ggplot2::aes(x = reorder(Variable, -Missing), y = Missing)) +
+      ggplot2::geom_bar(stat = "identity", fill = "steelblue", alpha = 0.8) +
+      ggplot2::geom_text(ggplot2::aes(label = paste0(round(PctMissing, 1), "%")), 
                 vjust = -0.5, size = 3.5) +
-      theme_minimal() +
-      labs(title = plot_title, x = "Variable", y = "Nombre de valeurs manquantes") +
-      theme(
-        plot.title = element_markdown(size = title_size, hjust = if (center_title) 0.5 else 0),
-        axis.title = element_markdown(size = axis_title_size),
-        axis.text = element_text(size = axis_text_size),
-        axis.text.x = element_text(
+      ggplot2::theme_minimal() +
+      ggplot2::labs(title = plot_title, x = "Variable", y = "Nombre de valeurs manquantes") +
+      ggplot2::theme(
+        plot.title = ggtext::element_markdown(size = title_size, hjust = if (center_title) 0.5 else 0),
+        axis.title = ggtext::element_markdown(size = axis_title_size),
+        axis.text = ggplot2::element_text(size = axis_text_size),
+        axis.text.x = ggplot2::element_text(
           angle = if (rotate_labels) 45 else 0, 
           hjust = if (rotate_labels) 1 else 0.5
         )
@@ -453,7 +453,7 @@ mod_explore_server <- function(id, values) {
     return(p)
   }
   
-  missingParams <- reactive({
+  missingParams <- shiny::reactive({
     list(
       title = input$missingTitle,
       center_title = if (is.null(input$missingCenterTitle)) TRUE else input$missingCenterTitle,
@@ -462,10 +462,10 @@ mod_explore_server <- function(id, values) {
       axis_text_size = input$missingAxisTextSize %||% 10,
       rotate_labels = if (is.null(input$missingRotateLabels)) TRUE else input$missingRotateLabels
     )
-  }) %>% debounce(500)
+  }) %>% shiny::debounce(500)
   
-  missing_gg <- reactive({
-    req(values$data)
+  missing_gg <- shiny::reactive({
+    shiny::req(values$data)
     params <- missingParams()
     tryCatch({
       generate_missing_plot(
@@ -478,13 +478,13 @@ mod_explore_server <- function(id, values) {
         rotate_labels = params$rotate_labels
       )
     }, error = function(e) {
-      showNotification(hstat_err_fr(e, "Erreur lors de la création du graphique"),
+      shiny::showNotification(hstat_err_fr(e, "Erreur lors de la création du graphique"),
                        type = "error", duration = 5)
       NULL
     })
   })
 
-  output$missingPlot <- renderPlot({ missing_gg() })
+  output$missingPlot <- shiny::renderPlot({ missing_gg() })
 
   output$missPlDl <- hstat_export_plot_handler(input, "missPl",
                        function() missing_gg(), "valeurs_manquantes")

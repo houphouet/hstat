@@ -5,7 +5,7 @@ mod_tests_ui <- function(id) {
       shinydashboard::tabItem(tabName = "tests",
                 .hstat_scope_banner(exact = FALSE),
                 shiny::fluidRow(
-                  box(title = "Paramètres des tests", status = "danger", width = 12, solidHeader = TRUE,
+                  shinydashboard::box(title = "Paramètres des tests", status = "danger", width = 12, solidHeader = TRUE,
                       shiny::fluidRow(
                         shiny::column(4,
                                shiny::uiOutput(ns("responseVarSelect")),
@@ -64,7 +64,7 @@ mod_tests_ui <- function(id) {
                                    shiny::uiOutput(ns("glmmRandomSelect")),
                                    shiny::div(style = "font-size:10px; color:#7f8c8d; margin-top:4px;",
                                        shiny::icon("circle-info"),
-                                       " Effet aléatoire d'ordonnée à l'origine : ", tags$code("(1 | groupe)"), ".")
+                                       " Effet aléatoire d'ordonnée à l'origine : ", shiny::tags$code("(1 | groupe)"), ".")
                                ),
                                # --- Configuration ANOVA a mesures repetees ---
                                shiny::div(style = "background-color:#e0f2f1; border-left:4px solid #00897b; padding:10px; margin-top:12px;",
@@ -191,7 +191,7 @@ mod_tests_ui <- function(id) {
                                        shiny::icon("circle-info"),
                                        paste(" L'écart-type ne sert qu'au test z et au Chi² de variance ;",
                                              "la marge, qu'au test d'équivalence.")),
-                                   tags$hr(style = "margin:10px 0;"),
+                                   shiny::tags$hr(style = "margin:10px 0;"),
                                    shiny::h5(shiny::tagList(shiny::icon("percent"), " Proportion / taux vs norme"),
                                       style = "color:#6a1b9a; font-weight:bold;"),
                                    shiny::uiOutput(ns("refPropVarSelect")),
@@ -227,7 +227,7 @@ mod_tests_ui <- function(id) {
                   ns = ns,
                   condition = "output.hasRefTest",
                   shiny::fluidRow(
-                    box(title = shiny::tagList(shiny::icon("bullseye"),
+                    shinydashboard::box(title = shiny::tagList(shiny::icon("bullseye"),
                                         " Détail de la comparaison à la référence"),
                         status = "primary", width = 12, solidHeader = TRUE,
                         collapsible = TRUE,
@@ -243,7 +243,7 @@ mod_tests_ui <- function(id) {
                   condition = "output.showManovaWorkflow",
                   shiny::fluidRow(
                     shiny::div(id = "boxWrap_manovaAssist",
-                        box(
+                        shinydashboard::box(
                           title = shiny::tagList(shiny::icon("layer-group"),
                                           " Analyse multivariee assistee (MANOVA / PERMANOVA)"),
                           status = "success", width = 12, solidHeader = TRUE,
@@ -404,7 +404,7 @@ mod_tests_ui <- function(id) {
                   condition = "!output.showManovaWorkflow",
                   shiny::fluidRow(
                     shiny::div(id = "boxWrap_manovaPlaceholder",
-                        box(
+                        shinydashboard::box(
                           title = shiny::tagList(shiny::icon("magic"), " Analyse multivariee assistee"),
                           status = "info", width = 12, solidHeader = TRUE,
                           collapsible = TRUE, collapsed = TRUE,
@@ -437,12 +437,12 @@ mod_tests_ui <- function(id) {
               
               
                 shiny::fluidRow(
-                  box(
+                  shinydashboard::box(
                     title = shiny::div(
                       shiny::icon("magic", style = "color:#f57c00; margin-right:6px;"),
-                      tags$span("Transformation des variables",
+                      shiny::tags$span("Transformation des variables",
                                 style = "font-size:14px; font-weight:bold;"),
-                      tags$span(
+                      shiny::tags$span(
                         style = paste0("font-size:10px; font-weight:normal; color:#fff;",
                                        "background:#ef6c00; padding:2px 7px;",
                                        "border-radius:10px; margin-left:8px;"),
@@ -457,11 +457,11 @@ mod_tests_ui <- function(id) {
                                      "border-left:4px solid #fb8c00;border-radius:4px;",
                                      "margin-bottom:14px;font-size:12px;"),
                       shiny::icon("lightbulb", style = "color:#e65100;"),
-                      tags$b(style = "color:#bf360c;", " Quand utiliser ?"),
-                      tags$br(),
-                      tags$span(style = "color:#6d4c41;",
+                      shiny::tags$b(style = "color:#bf360c;", " Quand utiliser ?"),
+                      shiny::tags$br(),
+                      shiny::tags$span(style = "color:#6d4c41;",
                                 "Après avoir testé la normalité/homogénéité -- si les conditions ne sont ",
-                                tags$b("pas"), " remplies, appliquez une transformation.",
+                                shiny::tags$b("pas"), " remplies, appliquez une transformation.",
                                 " La variable transformée apparaît dans les sélecteurs.",
                                 " Retestez ensuite les conditions sur la variable transformée."
                       )
@@ -476,7 +476,7 @@ mod_tests_ui <- function(id) {
                              shiny::uiOutput(ns("transformVarSelect")),
                              shiny::br(),
                              shiny::selectInput(ns("transformMethod"),
-                               tags$span(shiny::icon("flask"), " Transformation :"),
+                               shiny::tags$span(shiny::icon("flask"), " Transformation :"),
                                choices = list(
                                  "─── Asymétrie positive (rendements, concentrations) ───" = list(
                                    "Logarithme naturel  log(x)  [x > 0]"          = "log",
@@ -519,49 +519,49 @@ mod_tests_ui <- function(id) {
                       shiny::column(4,
                              shiny::h5(shiny::icon("book-open"), " Guide de sélection",
                                 style = "color:#e65100;margin-top:0;border-bottom:2px solid #ffcc80;padding-bottom:6px;"),
-                             tags$table(
+                             shiny::tags$table(
                                style = "width:100%;border-collapse:collapse;font-size:11px;",
-                               tags$thead(
-                                 tags$tr(
+                               shiny::tags$thead(
+                                 shiny::tags$tr(
                                    style = "background:#ef6c00;color:white;",
-                                   tags$th(style = "padding:4px 6px;", "Méthode"),
-                                   tags$th(style = "padding:4px 6px;", "Données"),
-                                   tags$th(style = "padding:4px 6px;text-align:center;", "Négatifs ?")
+                                   shiny::tags$th(style = "padding:4px 6px;", "Méthode"),
+                                   shiny::tags$th(style = "padding:4px 6px;", "Données"),
+                                   shiny::tags$th(style = "padding:4px 6px;text-align:center;", "Négatifs ?")
                                  )
                                ),
-                               tags$tbody(
-                                 tags$tr(style="background:#fff8e1;",
-                                         tags$td(style="padding:3px 6px;font-family:monospace;","log(x)"),
-                                         tags$td(style="padding:3px 6px;","Très asym., rendements"),
-                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times"))),
-                                 tags$tr(style="background:#fffff0;",
-                                         tags$td(style="padding:3px 6px;font-family:monospace;","log(x+1)"),
-                                         tags$td(style="padding:3px 6px;","Idem + zéros"),
-                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times"))),
-                                 tags$tr(style="background:#fff8e1;",
-                                         tags$td(style="padding:3px 6px;font-family:monospace;","sqrt(x)"),
-                                         tags$td(style="padding:3px 6px;","Comptage, Poisson"),
-                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times"))),
-                                 tags$tr(style="background:#fffff0;",
-                                         tags$td(style="padding:3px 6px;font-family:monospace;","x^(1/3)"),
-                                         tags$td(style="padding:3px 6px;","Toutes valeurs"),
-                                         tags$td(style="padding:3px 6px;text-align:center;color:#43a047;", shiny::icon("check"))),
-                                 tags$tr(style="background:#fff8e1;",
-                                         tags$td(style="padding:3px 6px;font-family:monospace;","Box-Cox"),
-                                         tags$td(style="padding:3px 6px;","λ optimal (MV)"),
-                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times"))),
-                                 tags$tr(style="background:#fffff0;",
-                                         tags$td(style="padding:3px 6px;font-family:monospace;","Yeo-Johnson"),
-                                         tags$td(style="padding:3px 6px;","Optimale généralisée"),
-                                         tags$td(style="padding:3px 6px;text-align:center;color:#43a047;", shiny::icon("check"))),
-                                 tags$tr(style="background:#fff8e1;",
-                                         tags$td(style="padding:3px 6px;font-family:monospace;","asin(√x)"),
-                                         tags$td(style="padding:3px 6px;","Proportions [0,1]"),
-                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times"))),
-                                 tags$tr(style="background:#fffff0;",
-                                         tags$td(style="padding:3px 6px;font-family:monospace;","logit"),
-                                         tags$td(style="padding:3px 6px;","Taux ]0,1["),
-                                         tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times")))
+                               shiny::tags$tbody(
+                                 shiny::tags$tr(style="background:#fff8e1;",
+                                         shiny::tags$td(style="padding:3px 6px;font-family:monospace;","log(x)"),
+                                         shiny::tags$td(style="padding:3px 6px;","Très asym., rendements"),
+                                         shiny::tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times"))),
+                                 shiny::tags$tr(style="background:#fffff0;",
+                                         shiny::tags$td(style="padding:3px 6px;font-family:monospace;","log(x+1)"),
+                                         shiny::tags$td(style="padding:3px 6px;","Idem + zéros"),
+                                         shiny::tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times"))),
+                                 shiny::tags$tr(style="background:#fff8e1;",
+                                         shiny::tags$td(style="padding:3px 6px;font-family:monospace;","sqrt(x)"),
+                                         shiny::tags$td(style="padding:3px 6px;","Comptage, Poisson"),
+                                         shiny::tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times"))),
+                                 shiny::tags$tr(style="background:#fffff0;",
+                                         shiny::tags$td(style="padding:3px 6px;font-family:monospace;","x^(1/3)"),
+                                         shiny::tags$td(style="padding:3px 6px;","Toutes valeurs"),
+                                         shiny::tags$td(style="padding:3px 6px;text-align:center;color:#43a047;", shiny::icon("check"))),
+                                 shiny::tags$tr(style="background:#fff8e1;",
+                                         shiny::tags$td(style="padding:3px 6px;font-family:monospace;","Box-Cox"),
+                                         shiny::tags$td(style="padding:3px 6px;","λ optimal (MV)"),
+                                         shiny::tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times"))),
+                                 shiny::tags$tr(style="background:#fffff0;",
+                                         shiny::tags$td(style="padding:3px 6px;font-family:monospace;","Yeo-Johnson"),
+                                         shiny::tags$td(style="padding:3px 6px;","Optimale généralisée"),
+                                         shiny::tags$td(style="padding:3px 6px;text-align:center;color:#43a047;", shiny::icon("check"))),
+                                 shiny::tags$tr(style="background:#fff8e1;",
+                                         shiny::tags$td(style="padding:3px 6px;font-family:monospace;","asin(√x)"),
+                                         shiny::tags$td(style="padding:3px 6px;","Proportions [0,1]"),
+                                         shiny::tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times"))),
+                                 shiny::tags$tr(style="background:#fffff0;",
+                                         shiny::tags$td(style="padding:3px 6px;font-family:monospace;","logit"),
+                                         shiny::tags$td(style="padding:3px 6px;","Taux ]0,1["),
+                                         shiny::tags$td(style="padding:3px 6px;text-align:center;color:#e53935;", shiny::icon("times")))
                                )
                              ),
                              shiny::br(),
@@ -569,14 +569,14 @@ mod_tests_ui <- function(id) {
                                style = paste0("padding:8px 10px;background:#e8f5e9;",
                                               "border-left:3px solid #43a047;border-radius:4px;font-size:11px;"),
                                shiny::icon("route", style = "color:#2e7d32;"),
-                               tags$b(style = "color:#1b5e20;", " Workflow :"),
-                               tags$ol(
+                               shiny::tags$b(style = "color:#1b5e20;", " Workflow :"),
+                               shiny::tags$ol(
                                  style = "margin:4px 0 0 0;padding-left:16px;color:#33691e;line-height:1.6;",
-                                 tags$li("Tester normalité (données brutes)"),
-                                 tags$li("Si p < 0.05 → transformer"),
-                                 tags$li("Retester sur var. transformée"),
-                                 tags$li("Lancer le test paramétrique"),
-                                 tags$li("PostHoc sur var. transformée")
+                                 shiny::tags$li("Tester normalité (données brutes)"),
+                                 shiny::tags$li("Si p < 0.05 → transformer"),
+                                 shiny::tags$li("Retester sur var. transformée"),
+                                 shiny::tags$li("Lancer le test paramétrique"),
+                                 shiny::tags$li("PostHoc sur var. transformée")
                                )
                              )
                       )
@@ -585,7 +585,7 @@ mod_tests_ui <- function(id) {
                 ),
               
                 shiny::fluidRow(
-                  box(title = "Résultats des tests", status = "danger", width = 12, solidHeader = TRUE,
+                  shinydashboard::box(title = "Résultats des tests", status = "danger", width = 12, solidHeader = TRUE,
                       DT::DTOutput(ns("testResultsDF")),
                       shiny::br(),
                       shiny::downloadButton(ns("downloadTestsExcel"), "Télécharger les résultats (Excel)", class = "btn-info"))
@@ -594,7 +594,7 @@ mod_tests_ui <- function(id) {
                   ns = ns,
                   condition = "output.showParametricDiagnostics",
                   shiny::fluidRow(
-                    box(title = "Diagnostics des modèles", status = "info", width = 6, solidHeader = TRUE,
+                    shinydashboard::box(title = "Diagnostics des modèles", status = "info", width = 6, solidHeader = TRUE,
                         shiny::conditionalPanel(
                           ns = ns,
                           condition = "output.showModelNavigation",
@@ -610,7 +610,7 @@ mod_tests_ui <- function(id) {
                         shiny::downloadButton(ns("downloadModelDiagnostics"), "Télécharger (PNG)", class = "btn-success"),
                         shiny::htmlOutput("modelDiagnosticsInterpretation")
                     ),
-                    box(title = "Résidus et validation", status = "info", width = 6, solidHeader = TRUE,
+                    shinydashboard::box(title = "Résidus et validation", status = "info", width = 6, solidHeader = TRUE,
                         shiny::conditionalPanel(
                           ns = ns,
                           condition = "output.showResidNavigation",
@@ -653,7 +653,7 @@ mod_posthoc_ui <- function(id) {
                 shiny::fluidRow(
                 
                 
-                  box(title = shiny::div(shiny::icon("cog"), " Configuration de l'analyse"), 
+                  shinydashboard::box(title = shiny::div(shiny::icon("cog"), " Configuration de l'analyse"), 
                       status = "primary", width = 4, solidHeader = TRUE,
                     
                     
@@ -778,7 +778,7 @@ mod_posthoc_ui <- function(id) {
                             ns = ns,
                             condition = "input.posthocInteraction == true",
                             shiny::div(style = "margin-top: 8px; padding: 8px 10px; background:#fff3e0; border-left:3px solid #ff9800; border-radius:4px;",
-                                tags$small(style="color:#e65100;",
+                                shiny::tags$small(style="color:#e65100;",
                                            shiny::icon("info-circle"), " Sélectionnez >= 2 facteurs. Les effets simples s'affichent dans l'onglet 'Effets simples'."
                                 )
                             )
@@ -789,7 +789,7 @@ mod_posthoc_ui <- function(id) {
                           shiny::checkboxInput(ns("posthocMultivariate"),
                                         shiny::HTML("<strong style='color:#0e6655;'>Calculer aussi le post-hoc multivarié (MANOVA / PERMANOVA)</strong>"),
                                         value = FALSE),
-                          tags$small(style = "color:#0e6655;",
+                          shiny::tags$small(style = "color:#0e6655;",
                                      shiny::icon("info-circle"),
                                      " Décoché par défaut. Cette analyse (permutations) ne se lance PAS automatiquement avec le post-hoc ANOVA ; cochez-la seulement si vous voulez les comparaisons multivariées (nécessite >= 2 variables réponses).")
                       ),
@@ -807,7 +807,7 @@ mod_posthoc_ui <- function(id) {
                   ),
                 
                 
-                  box(title = shiny::div(shiny::icon("table"), " Résultats et visualisations"), 
+                  shinydashboard::box(title = shiny::div(shiny::icon("table"), " Résultats et visualisations"), 
                       status = "primary", width = 8, solidHeader = TRUE,
                     
                       shiny::tabsetPanel(id = "resultsTabs", type = "tabs",
@@ -903,10 +903,10 @@ mod_posthoc_ui <- function(id) {
                                           shiny::icon("project-diagram", style = "font-size: 4em; opacity: 0.3;"),
                                           shiny::h4("Aucun effet simple détecté"),
                                           shiny::p("Les effets simples apparaissent uniquement quand :"),
-                                          tags$ul(style = "text-align: left; display: inline-block;",
-                                                  tags$li("L'option 'Analyse des interactions' est activée"),
-                                                  tags$li("Au moins 2 facteurs sont sélectionnés"),
-                                                  tags$li("Une interaction est significative (p < 0.05)")
+                                          shiny::tags$ul(style = "text-align: left; display: inline-block;",
+                                                  shiny::tags$li("L'option 'Analyse des interactions' est activée"),
+                                                  shiny::tags$li("Au moins 2 facteurs sont sélectionnés"),
+                                                  shiny::tags$li("Une interaction est significative (p < 0.05)")
                                           )
                                       )
                                     )
@@ -972,10 +972,10 @@ mod_posthoc_ui <- function(id) {
                                           `data-toggle` = "collapse",
                                           `data-target` = "#graphOptionsPanel",
                                           shiny::icon("sliders-h", style = "margin-right: 10px;"),
-                                          tags$strong("Options du graphique"),
-                                          tags$span(style = "margin-left:12px; font-size:12px; opacity:.85;",
+                                          shiny::tags$strong("Options du graphique"),
+                                          shiny::tags$span(style = "margin-left:12px; font-size:12px; opacity:.85;",
                                                     "toute la mise en forme, de la palette a l'export"),
-                                          tags$span(style = "margin-left: auto; font-size: 12px; opacity: 0.85;",
+                                          shiny::tags$span(style = "margin-left: auto; font-size: 12px; opacity: 0.85;",
                                                     shiny::icon("chevron-down"), " Développer / Réduire")
                                         ),
                                         shiny::div(id = "graphOptionsPanel", class = "collapse",
@@ -1005,7 +1005,7 @@ mod_posthoc_ui <- function(id) {
                                                       shiny::checkboxInput(ns("colorByGroups"),
                                                                     shiny::HTML("Colorer par groupes statistiques <small style='color:#6c757d;'>(a, b, c...)</small>"),
                                                                     value = FALSE),
-                                                      tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                                      shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
                                                                  "Un dégradé sur des groupes sans ordre naturel suggère une progression qui n'existe pas.")
                                                     )
                                                   ),
@@ -1024,7 +1024,7 @@ mod_posthoc_ui <- function(id) {
                                                       shiny::selectInput(ns("subtitlePosition"), "Position du sous-titre",
                                                                   choices = list("Centré" = "0.5", "Gauche" = "0", "Droite" = "1"),
                                                                   selected = "0.5"),
-                                                      tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                                      shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
                                                                  "Le gras et l'italique s'écrivent aussi dans le texte : **gras**, *italique*.")
                                                     )
                                                   ),
@@ -1082,7 +1082,7 @@ mod_posthoc_ui <- function(id) {
                                                           shiny::column(6, shiny::numericInput(ns("xAxisMin"), "X min", value = NULL, step = 0.1)),
                                                           shiny::column(6, shiny::numericInput(ns("xAxisMax"), "X max", value = NULL, step = 0.1))
                                                         ),
-                                                        tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                                        shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
                                                                    "Les limites X ne s'appliquent qu'à un axe numérique.")
                                                       ),
                                                       shiny::checkboxInput(ns("customAxisBreaks"), "Personnaliser les graduations", value = FALSE),
@@ -1115,7 +1115,7 @@ mod_posthoc_ui <- function(id) {
                                                         shiny::column(6, shiny::sliderInput(ns("legendSpacing"), "Espacement", min = 0, max = 6, value = 0, step = 0.1, ticks = FALSE)),
                                                         shiny::column(6, shiny::sliderInput(ns("legendKeySize"), "Taille des clés", min = 0.4, max = 3, value = 1.2, step = 0.1, ticks = FALSE))
                                                       ),
-                                                      tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                                      shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
                                                                  "La légende n'apparaît qu'avec « Colorer par groupes statistiques ».")
                                                     ),
                                                     .hstat_opt_section(
@@ -1124,7 +1124,7 @@ mod_posthoc_ui <- function(id) {
                                                         shiny::column(6, shiny::numericInput(ns("plotWidth"), "Largeur (pouces)", value = 8, min = 3, max = 20, step = 0.5)),
                                                         shiny::column(6, shiny::numericInput(ns("plotHeight"), "Hauteur (pouces)", value = 6, min = 3, max = 20, step = 0.5))
                                                       ),
-                                                      tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                                      shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
                                                                  "Format et résolution se choisissent sous le graphique.")
                                                     )
                                                   )
@@ -1197,7 +1197,7 @@ mod_posthoc_ui <- function(id) {
                 ),
               
                 shiny::fluidRow(
-                  box(
+                  shinydashboard::box(
                     title = shiny::tagList(shiny::icon("calculator"),
                                     " PostHoc Régression linéaire / GLM -- Comparaisons et lettres CLD"),
                     status = "primary", width = 12, solidHeader = TRUE,
@@ -1253,14 +1253,14 @@ mod_posthoc_ui <- function(id) {
                           shiny::icon("calculator", style = "font-size:4em; opacity:0.3;"),
                           shiny::h4("Aucun PostHoc LM/GLM calculé"),
                           shiny::p("Pour activer cette section :"),
-                          tags$ul(style = "text-align:left; display:inline-block; color:#555;",
-                                  tags$li("Lancez d'abord une ", shiny::strong("Régression linéaire"),
+                          shiny::tags$ul(style = "text-align:left; display:inline-block; color:#555;",
+                                  shiny::tags$li("Lancez d'abord une ", shiny::strong("Régression linéaire"),
                                           " ou un ", shiny::strong("GLM"),
                                           " dans l'onglet 'Tests statistiques'"),
-                                  tags$li("Le modèle doit contenir au moins ", shiny::strong("un prédicteur catégoriel (factor)")),
-                                  tags$li("Revenez ici, sélectionnez ", shiny::strong("'LM / GLM (emmeans + lettres CLD)'"),
+                                  shiny::tags$li("Le modèle doit contenir au moins ", shiny::strong("un prédicteur catégoriel (factor)")),
+                                  shiny::tags$li("Revenez ici, sélectionnez ", shiny::strong("'LM / GLM (emmeans + lettres CLD)'"),
                                           " dans la liste 'Méthode post-hoc paramétrique'"),
-                                  tags$li("Cliquez sur ", shiny::strong("LANCER L'ANALYSE"))
+                                  shiny::tags$li("Cliquez sur ", shiny::strong("LANCER L'ANALYSE"))
                           )
                       )
                     )
@@ -1271,7 +1271,7 @@ mod_posthoc_ui <- function(id) {
               
                 shiny::fluidRow(
                   shiny::div(id = "boxWrap_manovaPosthoc",
-                      box(
+                      shinydashboard::box(
                         title = shiny::tagList(shiny::icon("layer-group"),
                                         " PostHoc MANOVA/PERMANOVA -- Comparaisons multivariées par paires et lettres de groupes"),
                         status = "success", width = 12, solidHeader = TRUE,
@@ -1355,12 +1355,12 @@ mod_posthoc_ui <- function(id) {
                               shiny::icon("layer-group", style = "font-size: 4em; opacity: 0.3;"),
                               shiny::h4("Aucun PostHoc multivarié calculé"),
                               shiny::p("Pour activer cette section :"),
-                              tags$ul(style = "text-align: left; display: inline-block; color: #555;",
-                                      tags$li("Sélectionnez ", shiny::strong(">= 2 variables réponses"),
+                              shiny::tags$ul(style = "text-align: left; display: inline-block; color: #555;",
+                                      shiny::tags$li("Sélectionnez ", shiny::strong(">= 2 variables réponses"),
                                               " dans le panneau de configuration"),
-                                      tags$li("Sélectionnez au moins ", shiny::strong("1 facteur")),
-                                      tags$li("Cliquez sur ", shiny::strong("LANCER L'ANALYSE")),
-                                      tags$li("Les comparaisons multivariées par paires et les lettres de groupes s'afficheront ici")
+                                      shiny::tags$li("Sélectionnez au moins ", shiny::strong("1 facteur")),
+                                      shiny::tags$li("Cliquez sur ", shiny::strong("LANCER L'ANALYSE")),
+                                      shiny::tags$li("Les comparaisons multivariées par paires et les lettres de groupes s'afficheront ici")
                               )
                           )
                         )
@@ -1370,7 +1370,7 @@ mod_posthoc_ui <- function(id) {
               
               
                 shiny::fluidRow(
-                  box(
+                  shinydashboard::box(
                     title = shiny::tagList(shiny::icon("repeat"), " PostHoc Mesures répétées -- Comparaisons par paires (Période / Traitement)"),
                     status = "success", width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
                     shiny::conditionalPanel(
@@ -1391,10 +1391,10 @@ mod_posthoc_ui <- function(id) {
                           shiny::icon("repeat", style = "font-size:4em; opacity:0.3;"),
                           shiny::h4("Aucun post-hoc de mesures répétées calculé"),
                           shiny::p("Pour activer cette section :"),
-                          tags$ul(style = "text-align:left; display:inline-block; color:#555;",
-                                  tags$li("Renseignez Sujet, Période (et Traitement) dans le panneau « Mesures répétées »"),
-                                  tags$li(shiny::HTML("Lancez <b>ANOVA à mesures répétées</b> ou <b>Non paramétrique répété</b> dans l'onglet « Tests statistiques »")),
-                                  tags$li("Les comparaisons par paires s'afficheront ici")))
+                          shiny::tags$ul(style = "text-align:left; display:inline-block; color:#555;",
+                                  shiny::tags$li("Renseignez Sujet, Période (et Traitement) dans le panneau « Mesures répétées »"),
+                                  shiny::tags$li(shiny::HTML("Lancez <b>ANOVA à mesures répétées</b> ou <b>Non paramétrique répété</b> dans l'onglet « Tests statistiques »")),
+                                  shiny::tags$li("Les comparaisons par paires s'afficheront ici")))
                     )
                   )
                 )
@@ -1413,7 +1413,7 @@ mod_correlation_ui <- function(id) {
   shinydashboard::tabItem(tabName = "corrélation",
     .hstat_scope_banner(exact = FALSE),
     shiny::fluidRow(
-      box(title = shiny::tagList(shiny::icon("cog"), " Configuration"),
+      shinydashboard::box(title = shiny::tagList(shiny::icon("cog"), " Configuration"),
           status = "primary", width = 4, solidHeader = TRUE, collapsible = TRUE,
           shiny::uiOutput(ns("corTestVarSelect")),
           shiny::checkboxInput(ns("corTestTargetMode"),
@@ -1448,7 +1448,7 @@ mod_correlation_ui <- function(id) {
               " Toutes les métriques (coefficient, statistique, ddl, p brute et ",
               "ajustée, IC, R², force, sens) figurent dans le tableau de résultats.")
       ),
-      box(title = shiny::tagList(shiny::icon("table"), " Résultats des tests de corrélation"),
+      shinydashboard::box(title = shiny::tagList(shiny::icon("table"), " Résultats des tests de corrélation"),
           status = "success", width = 8, solidHeader = TRUE,
           DT::DTOutput(ns("corTestTable")),
           shiny::br(),
@@ -1459,7 +1459,7 @@ mod_correlation_ui <- function(id) {
       )
     ),
     shiny::fluidRow(
-      box(title = shiny::tagList(shiny::icon("project-diagram"), " Matrice de Corrélation"),
+      shinydashboard::box(title = shiny::tagList(shiny::icon("project-diagram"), " Matrice de Corrélation"),
           status = "success", width = 12, solidHeader = TRUE, collapsible = TRUE,
           shiny::fluidRow(
             shiny::column(12, shiny::div(style = "background:#f8f9fa;padding:15px;border-radius:5px;margin-bottom:15px;",
@@ -1577,7 +1577,7 @@ mod_correlation_server <- function(id, values) {
                    " Au moins deux variables numériques sont nécessaires."))
       shiny::tagList(
         if (requireNamespace("shinyWidgets", quietly = TRUE))
-          shinyWidgets::pickerInput(ns("corTestVars"),
+          pickerInput(ns("corTestVars"),
             "Variables numériques (\u2265 2)", choices = num_cols,
             selected = num_cols[seq_len(min(5, length(num_cols)))],
             multiple = TRUE,
@@ -1663,14 +1663,14 @@ mod_correlation_server <- function(id, values) {
                    " Aucune corrélation significative après correction."))
       items <- lapply(seq_len(nrow(sig)), function(i) {
         r <- sig[i, ]
-        tags$li(shiny::HTML(sprintf(
+        shiny::tags$li(shiny::HTML(sprintf(
           "<b>%s \u2013 %s</b> (%s) : r = %.3f, %s, %s (p<sub>ajust</sub> = %s)",
           r$Variable_X, r$Variable_Y, r$Methode, r$Coefficient,
           tolower(r$Force), tolower(r$Sens), format(r$p_ajuste))))
       })
       shiny::div(class = "alert alert-success",
           shiny::strong(shiny::icon("check-circle"), " Corrélations significatives :"),
-          tags$ul(items))
+          shiny::tags$ul(items))
     })
 
     # ---------- Matrice de Corrélation (deplacee depuis Exploration) ----------
@@ -1682,7 +1682,7 @@ mod_correlation_server <- function(id, values) {
                    " Au moins deux variables numériques sont nécessaires."))
       shiny::tagList(
         if (requireNamespace("shinyWidgets", quietly = TRUE))
-          shinyWidgets::pickerInput(ns("corrVars"), "Variables numériques",
+          pickerInput(ns("corrVars"), "Variables numériques",
             choices = num_cols, multiple = TRUE,
             selected = num_cols[seq_len(min(6, length(num_cols)))],
             options = list(`actions-box` = TRUE, `live-search` = TRUE))
@@ -2009,8 +2009,8 @@ mod_tests_server <- function(id, values) {
         style = paste0("display:flex;align-items:center;padding:4px 8px;",
                        "background:", bg_col, ";border-radius:4px;margin-bottom:3px;"),
         icon_el,
-        tags$span(style = paste0("font-size:12px;margin-left:6px;color:", txt_col, ";"),
-                  tags$b(var), " — ", check$message)
+        shiny::tags$span(style = paste0("font-size:12px;margin-left:6px;color:", txt_col, ";"),
+                  shiny::tags$b(var), " — ", check$message)
       )
     })
     shiny::tagList(
@@ -2099,7 +2099,7 @@ mod_tests_server <- function(id, values) {
     entries <- lapply(names(log), function(vname) {
       entry <- log[[vname]]
       lambda_tag <- if (!is.null(entry$lambda))
-        tags$span(style = "font-size:10px;color:#757575;margin-left:4px;",
+        shiny::tags$span(style = "font-size:10px;color:#757575;margin-left:4px;",
                   paste0("λ = ", entry$lambda)) else NULL
       shiny::div(
         style = paste0("display:flex;flex-wrap:wrap;align-items:center;",
@@ -2107,19 +2107,19 @@ mod_tests_server <- function(id, values) {
                        "border-left:3px solid #4caf50;border-radius:3px;margin-bottom:4px;"),
         shiny::icon("check-circle", style = "color:#4caf50;flex-shrink:0;"),
         shiny::div(style = "margin-left:6px;flex:1;",
-            tags$span(style = "font-size:12px;font-weight:bold;color:#2e7d32;",
-                      entry$original, " → ", vname), tags$br(),
-            tags$span(style = "font-size:11px;color:#555;font-family:monospace;",
+            shiny::tags$span(style = "font-size:12px;font-weight:bold;color:#2e7d32;",
+                      entry$original, " → ", vname), shiny::tags$br(),
+            shiny::tags$span(style = "font-size:11px;color:#555;font-family:monospace;",
                       entry$formula),
             lambda_tag,
-            tags$span(style = "font-size:10px;color:#9e9e9e;margin-left:6px;",
+            shiny::tags$span(style = "font-size:10px;color:#9e9e9e;margin-left:6px;",
                       paste0("@ ", entry$applied_at))
         )
       )
     })
     shiny::tagList(
       shiny::div(style = "margin-bottom:6px;",
-          tags$b(style = "font-size:12px;color:#1b5e20;",
+          shiny::tags$b(style = "font-size:12px;color:#1b5e20;",
                  shiny::icon("history"), " ", length(log), " transformation(s) active(s)")),
       shiny::tagList(entries)
     )
@@ -2147,7 +2147,7 @@ mod_tests_server <- function(id, values) {
                   choices  = fac_cols,
                   multiple = TRUE,
                   options  = list(`actions-box` = TRUE)),
-      tags$small(style = "color:#6c757d; font-size:11px;",
+      shiny::tags$small(style = "color:#6c757d; font-size:11px;",
                  shiny::icon("info-circle"), " Facteur, texte, date et numérique (<= 30 niveaux) acceptés"),
       shiny::actionButton(ns("selectAllFactors"),   "Tout sélectionner",   class = "btn-success btn-sm"),
       shiny::actionButton(ns("deselectAllFactors"), "Tout désélectionner", class = "btn-danger btn-sm")
@@ -2677,7 +2677,7 @@ mod_tests_server <- function(id, values) {
     if (is.null(n) || length(n) == 0) return(NULL)
     shiny::div(class = "callout callout-info", style = "margin-top:8px;",
         shiny::icon("circle-info"), shiny::strong(" À propos de ce test : "),
-        tags$ul(lapply(n, tags$li)))
+        shiny::tags$ul(lapply(n, shiny::tags$li)))
   })
 
   shiny::observeEvent(input$testKruskal, {
@@ -3224,7 +3224,7 @@ mod_tests_server <- function(id, values) {
                       shiny::tagList(shiny::icon("diagram-next"), " Emboîter les groupes (A/B/...) au lieu de croisés"),
                       value = FALSE),
         shiny::div(style = "font-size:10px; color:#7f8c8d; margin:-4px 0 6px 0;",
-            "Croisés : ", tags$code("(1|A) + (1|B)"), " — Emboîtés : ", tags$code("(1|A/B)"), ".")
+            "Croisés : ", shiny::tags$code("(1|A) + (1|B)"), " — Emboîtés : ", shiny::tags$code("(1|A/B)"), ".")
       ),
       shiny::checkboxInput(ns("glmmUseSlope"),
                     shiny::tagList(shiny::icon("chart-line"), " Ajouter une pente aléatoire"),
@@ -3243,7 +3243,7 @@ mod_tests_server <- function(id, values) {
                       "Corréler pente et ordonnée à l'origine",
                       value = TRUE),
         shiny::div(style = "font-size:10px; color:#7f8c8d; margin:-4px 0 6px 0;",
-            "Corrélés : ", tags$code("(1+X|g)"), " — Indépendants : ", tags$code("(1|g) + (0+X|g)"), ".")
+            "Corrélés : ", shiny::tags$code("(1+X|g)"), " — Indépendants : ", shiny::tags$code("(1|g) + (0+X|g)"), ".")
       ),
       shiny::hr(style = "margin:8px 0;"),
       shiny::textInput(ns("glmmRandomCustom"),
@@ -4196,7 +4196,7 @@ mod_tests_server <- function(id, values) {
                        "; border-left:4px solid ", color,
                        "; border-radius:4px; margin-top:6px; font-size:13px;"),
         shiny::icon("info-circle", style = paste0("color:", color, ";")),
-        tags$b(" Conclusion Mardia : "), conc)
+        shiny::tags$b(" Conclusion Mardia : "), conc)
   })
   
   output$manovaBoxMTable <- DT::renderDT({
@@ -4237,7 +4237,7 @@ mod_tests_server <- function(id, values) {
                        "; border-left:4px solid ", color,
                        "; border-radius:4px; margin-top:6px; font-size:13px;"),
         shiny::icon("info-circle", style = paste0("color:", color, ";")),
-        tags$b(" Conclusion Box's M : "), msg)
+        shiny::tags$b(" Conclusion Box's M : "), msg)
   })
   
   output$manovaPermDispTable <- DT::renderDT({
@@ -4263,7 +4263,7 @@ mod_tests_server <- function(id, values) {
                        "; border-left:4px solid ", color,
                        "; border-radius:4px; margin-top:6px; font-size:13px;"),
         shiny::icon("info-circle", style = paste0("color:", color, ";")),
-        tags$b(" Conclusion PERMDISP : "), msg)
+        shiny::tags$b(" Conclusion PERMDISP : "), msg)
   })
   
   # Un classeur = une liste nommee de tableaux. La boucle sur les feuilles, le
@@ -4358,9 +4358,9 @@ mod_tests_server <- function(id, values) {
       shiny::div(style = "font-size:13px; color:#2c3e50;",
         shiny::icon("hand-point-right"),
         " Pour exécuter le test recommandé, cliquez sur le bouton ",
-        tags$b(reco_name),
-        " dans la colonne « ", tags$b(reco_loc), " » des ",
-        tags$b("Paramètres des tests"), " (en haut).")
+        shiny::tags$b(reco_name),
+        " dans la colonne « ", shiny::tags$b(reco_loc), " » des ",
+        shiny::tags$b("Paramètres des tests"), " (en haut).")
     )
     
     shiny::div(style = paste0("background:", bg_color, "; border-left:6px solid ", border_color,
@@ -4378,15 +4378,15 @@ mod_tests_server <- function(id, values) {
         ),
         shiny::div(style = "background:white; padding:12px 16px; border-radius:6px; margin-top:10px;",
             shiny::h5(shiny::icon("clipboard-list"), " Justification", style = "margin-top:0; color:#333;"),
-            tags$ul(style = "margin-bottom:0; padding-left:18px;",
-                    lapply(rec$justifications, function(j) tags$li(style = "margin:4px 0;", j)))
+            shiny::tags$ul(style = "margin-bottom:0; padding-left:18px;",
+                    lapply(rec$justifications, function(j) shiny::tags$li(style = "margin:4px 0;", j)))
         ),
         if (length(rec$alertes) > 0) {
           shiny::div(style = "background:#fff3e0; border-left:4px solid #ff9800; padding:10px 14px; margin-top:10px; border-radius:4px;",
               shiny::icon("exclamation-triangle", style = "color:#e65100;"),
-              tags$strong(" Points de vigilance :"),
-              tags$ul(style = "margin:6px 0 0 18px;",
-                      lapply(rec$alertes, function(a) tags$li(style = "color:#bf360c;", a))))
+              shiny::tags$strong(" Points de vigilance :"),
+              shiny::tags$ul(style = "margin:6px 0 0 18px;",
+                      lapply(rec$alertes, function(a) shiny::tags$li(style = "color:#bf360c;", a))))
         } else NULL,
         buttons
     )
@@ -4449,7 +4449,7 @@ mod_tests_server <- function(id, values) {
     msg_lines <- list()
     if (length(sig_idx) > 0) {
       msg_lines <- c(msg_lines, list(
-        tags$li(style = "color:#2e7d32;",
+        shiny::tags$li(style = "color:#2e7d32;",
                 shiny::icon("check-circle"), " ",
                 shiny::strong(paste0(length(sig_idx), " effet(s) significatif(s)")),
                 " détecté(s) : ", paste(effets[sig_idx], collapse = ", "))
@@ -4457,7 +4457,7 @@ mod_tests_server <- function(id, values) {
     }
     if (length(insig_idx) > 0) {
       msg_lines <- c(msg_lines, list(
-        tags$li(style = "color:#757575;",
+        shiny::tags$li(style = "color:#757575;",
                 shiny::icon("minus-circle"), " ",
                 paste0(length(insig_idx), " effet(s) non significatif(s)"),
                 " : ", paste(effets[insig_idx], collapse = ", "))
@@ -4489,7 +4489,7 @@ mod_tests_server <- function(id, values) {
            style = "margin-top:0; color:#1565C0;"),
         shiny::div(style = "font-size:12px; color:#777; margin-bottom:8px;",
             "Test analysé : ", shiny::strong(test_lbl)),
-        tags$ul(style = "margin-bottom:0; padding-left:18px;", msg_lines),
+        shiny::tags$ul(style = "margin-bottom:0; padding-left:18px;", msg_lines),
         action_box
     )
   })
@@ -6047,8 +6047,8 @@ mod_tests_server <- function(id, values) {
         style = "padding:10px; background:#fff8e1; border-radius:4px; border-left:3px solid #ff9800; font-size:12px;",
         shiny::icon("exclamation-triangle", style="color:#e65100;"),
         " Aucun résultat de test disponible.",
-        tags$br(),
-        tags$small(style="color:#bf360c;",
+        shiny::tags$br(),
+        shiny::tags$small(style="color:#bf360c;",
                    "Allez dans 'Réalisation des tests statistiques' et lancez un test avant de faire le PostHoc.")
       ))
     }
@@ -6066,14 +6066,14 @@ mod_tests_server <- function(id, values) {
       bg_col <- if (!is.na(p_val) && p_val < 0.05) "#e8f5e9" else "#fafafa"
       p_col  <- if (!is.na(p_val) && p_val < 0.05) "#2e7d32" else "#666"
       
-      tags$tr(
+      shiny::tags$tr(
         style = paste0("background:", bg_col, "; border-bottom:1px solid #e0e0e0;"),
-        tags$td(style = "padding:4px 8px; font-size:11.5px; font-weight:600;", row$Variable),
-        tags$td(style = "padding:4px 8px; font-size:11.5px;", row$Facteur %||% "-"),
-        tags$td(style = "padding:4px 8px; font-size:11.5px;", row$Test),
-        tags$td(style = paste0("padding:4px 8px; font-size:12px; font-weight:bold; color:", p_col, ";"),
+        shiny::tags$td(style = "padding:4px 8px; font-size:11.5px; font-weight:600;", row$Variable),
+        shiny::tags$td(style = "padding:4px 8px; font-size:11.5px;", row$Facteur %||% "-"),
+        shiny::tags$td(style = "padding:4px 8px; font-size:11.5px;", row$Test),
+        shiny::tags$td(style = paste0("padding:4px 8px; font-size:12px; font-weight:bold; color:", p_col, ";"),
                 if (!is.na(p_val)) formatC(p_val, format="e", digits=3) else "NA"),
-        tags$td(style = paste0("padding:4px 8px; font-size:13px; font-weight:bold; color:", p_col, ";"), sig)
+        shiny::tags$td(style = paste0("padding:4px 8px; font-size:13px; font-weight:bold; color:", p_col, ";"), sig)
       )
     })
     
@@ -6083,27 +6083,27 @@ mod_tests_server <- function(id, values) {
       shiny::div(
         style = "margin-bottom:8px; padding:8px 10px; background:#e3f2fd; border-left:4px solid #1976d2; border-radius:4px;",
         shiny::icon("table", style="color:#1565c0;"),
-        tags$b(style="color:#0d47a1; font-size:12px;",
+        shiny::tags$b(style="color:#0d47a1; font-size:12px;",
                paste0(" Résultats des tests -- ", n_sig, "/", nrow(df), " significatif(s)")),
-        tags$br(),
-        tags$small(style="color:#1976d2;",
+        shiny::tags$br(),
+        shiny::tags$small(style="color:#1976d2;",
                    "Les variables en vert (p < 0.05) sont pré-sélectionnées dans l'analyse PostHoc.")
       ),
       shiny::div(
         style = "max-height:200px; overflow-y:auto; border:1px solid #e0e0e0; border-radius:4px;",
-        tags$table(
+        shiny::tags$table(
           style = "width:100%; border-collapse:collapse;",
-          tags$thead(
-            tags$tr(
+          shiny::tags$thead(
+            shiny::tags$tr(
               style = "background:#1976d2; color:white;",
-              tags$th(style="padding:5px 8px; font-size:11px;", "Variable"),
-              tags$th(style="padding:5px 8px; font-size:11px;", "Facteur"),
-              tags$th(style="padding:5px 8px; font-size:11px;", "Test"),
-              tags$th(style="padding:5px 8px; font-size:11px;", "p-value"),
-              tags$th(style="padding:5px 8px; font-size:11px;", "Sig.")
+              shiny::tags$th(style="padding:5px 8px; font-size:11px;", "Variable"),
+              shiny::tags$th(style="padding:5px 8px; font-size:11px;", "Facteur"),
+              shiny::tags$th(style="padding:5px 8px; font-size:11px;", "Test"),
+              shiny::tags$th(style="padding:5px 8px; font-size:11px;", "p-value"),
+              shiny::tags$th(style="padding:5px 8px; font-size:11px;", "Sig.")
             )
           ),
-          tags$tbody(rows)
+          shiny::tags$tbody(rows)
         )
       )
     )
@@ -6777,10 +6777,10 @@ mod_tests_server <- function(id, values) {
     shiny::div(style = "background:#e3f2fd; border-left:4px solid #1565C0; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
         shiny::icon("info-circle", style = "color:#1565C0;"),
         shiny::strong(paste0(" PostHoc ", entry$model_type, " : ", entry$variable, " ~ ", entry$predictor)),
-        tags$ul(style = "margin:4px 0 0 18px;",
-                tags$li("Méthode : moyennes ajustées (emmeans) sur le prédicteur catégoriel"),
-                tags$li(paste0("Ajustement des p-values : ", entry$adjust)),
-                tags$li(paste0("Niveaux comparés : ", n_lev, " -- Paires : ", n_pairs,
+        shiny::tags$ul(style = "margin:4px 0 0 18px;",
+                shiny::tags$li("Méthode : moyennes ajustées (emmeans) sur le prédicteur catégoriel"),
+                shiny::tags$li(paste0("Ajustement des p-values : ", entry$adjust)),
+                shiny::tags$li(paste0("Niveaux comparés : ", n_lev, " -- Paires : ", n_pairs,
                                " -- Paires significatives : ", n_sig))
         ),
         "Pour les modèles GLM non gaussiens, les comparaisons sont sur l'échelle du lien (logit, log...)."
@@ -6818,8 +6818,8 @@ mod_tests_server <- function(id, values) {
     meth <- values$rmPostHocMethod %||% "—"
     n_sig <- sum(values$rmPostHocData$Significatif == "Oui", na.rm = TRUE)
     shiny::div(style = "font-size:12px; color:#00695c; margin-bottom:8px;",
-        tags$b("Méthode : "), meth, " — ",
-        tags$b(n_sig), " comparaison(s) significative(s) sur ", nrow(values$rmPostHocData), ".")
+        shiny::tags$b("Méthode : "), meth, " — ",
+        shiny::tags$b(n_sig), " comparaison(s) significative(s) sur ", nrow(values$rmPostHocData), ".")
   })
   
   output$rmPostHocTable <- DT::renderDT({
@@ -6868,11 +6868,11 @@ mod_tests_server <- function(id, values) {
     shiny::div(style = "background:#e8f5e9; border-left:4px solid #43a047; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
         shiny::icon("info-circle", style = "color:#2e7d32;"),
         shiny::strong(paste0(" PostHoc multivarié -- ", entry$test, " sur ", entry$response_label, " :")),
-        tags$ul(style = "margin:4px 0 0 18px;",
-                tags$li("Méthode : pairwise PERMANOVA (vegan::adonis2), distance euclidienne, 999 permutations"),
-                tags$li("Ajustement des p-values : Bonferroni"),
-                tags$li("Lettres CLD générées par multcompView::multcompLetters sur la matrice de p-values ajustées"),
-                tags$li(paste0("Niveaux comparés : ", entry$n_levels,
+        shiny::tags$ul(style = "margin:4px 0 0 18px;",
+                shiny::tags$li("Méthode : pairwise PERMANOVA (vegan::adonis2), distance euclidienne, 999 permutations"),
+                shiny::tags$li("Ajustement des p-values : Bonferroni"),
+                shiny::tags$li("Lettres CLD générées par multcompView::multcompLetters sur la matrice de p-values ajustées"),
+                shiny::tags$li(paste0("Niveaux comparés : ", entry$n_levels,
                                " -- Paires : ", n_pairs,
                                " -- Paires significatives : ", n_sig))
         ),
@@ -7066,7 +7066,7 @@ mod_tests_server <- function(id, values) {
                   selected = if (length(pre_fac) > 0) pre_fac else NULL,
                   multiple = TRUE,
                   options  = list(`actions-box` = TRUE, `selected-text-format` = "count > 3")),
-      tags$small(style = "color:#6c757d; font-size:11px;",
+      shiny::tags$small(style = "color:#6c757d; font-size:11px;",
                  shiny::icon("info-circle"), " Facteur, texte, date et numérique (<= 30 niveaux) acceptés"),
       shiny::div(style = "display: flex; gap: 10px;",
           shiny::actionButton(ns("selectAllMultiFactors"),   "Tout sélectionner",
@@ -7104,12 +7104,12 @@ mod_tests_server <- function(id, values) {
     entries <- lapply(trans_selected, function(vname) {
       entry       <- log[[vname]]
       lambda_info <- if (!is.null(entry$lambda)) paste0(" (λ = ", entry$lambda, ")") else ""
-      tags$li(
+      shiny::tags$li(
         style = "font-size:11.5px;margin-bottom:4px;line-height:1.5;",
-        tags$b(style = "color:#1565c0;", vname),
-        tags$span(style = "color:#555;", " ← "),
-        tags$b(entry$original),
-        tags$code(
+        shiny::tags$b(style = "color:#1565c0;", vname),
+        shiny::tags$span(style = "color:#555;", " ← "),
+        shiny::tags$b(entry$original),
+        shiny::tags$code(
           style = paste0("font-size:10.5px;background:#e3f2fd;padding:1px 4px;",
                          "border-radius:3px;color:#0d47a1;margin-left:4px;"),
           paste0(entry$formula, lambda_info)
@@ -7121,7 +7121,7 @@ mod_tests_server <- function(id, values) {
                      "border-left:4px solid #1976d2;border-radius:4px;margin-bottom:10px;"),
       shiny::div(style = "font-weight:bold;color:#0d47a1;font-size:12px;margin-bottom:6px;",
           shiny::icon("flask"), " Variables transformées sélectionnées"),
-      tags$ul(style = "margin:0;padding-left:16px;", shiny::tagList(entries)),
+      shiny::tags$ul(style = "margin:0;padding-left:16px;", shiny::tagList(entries)),
       shiny::div(
         style = paste0("font-size:11px;color:#1565c0;margin-top:8px;",
                        "padding-top:6px;border-top:1px solid #90caf9;font-style:italic;"),
@@ -7302,12 +7302,12 @@ mod_tests_server <- function(id, values) {
 
     shiny::div(style = "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 8px;",
         shiny::h5(shiny::icon("layer-group"), " Effets principaux", style = "margin-top: 0;"),
-        tags$ul(
-          tags$li(shiny::strong(n_vars), " variable(s) analysée(s)"),
-          tags$li(shiny::strong(n_factors), " facteur(s) testé(s)"),
-          tags$li(shiny::strong(n_comparisons), " comparaison(s)"),
-          tags$li("Méthode : ", shiny::strong(meth_lab)),
-          tags$li("Ajustement des p-values : ",
+        shiny::tags$ul(
+          shiny::tags$li(shiny::strong(n_vars), " variable(s) analysée(s)"),
+          shiny::tags$li(shiny::strong(n_factors), " facteur(s) testé(s)"),
+          shiny::tags$li(shiny::strong(n_comparisons), " comparaison(s)"),
+          shiny::tags$li("Méthode : ", shiny::strong(meth_lab)),
+          shiny::tags$li("Ajustement des p-values : ",
                   shiny::strong(if (adj_applies) adj_lab else "intégré à la méthode"))
         )
     )
@@ -7326,10 +7326,10 @@ mod_tests_server <- function(id, values) {
     
     shiny::div(style = "background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
         shiny::h5(shiny::icon("project-diagram"), " Décomposition des interactions", style = "margin-top: 0;"),
-        tags$ul(
-          tags$li(shiny::strong(n_interactions), " interaction(s) significative(s)"),
-          tags$li(shiny::strong(n_tests), " test(s) d'effets simples"),
-          tags$li(shiny::strong(n_directions), " direction(s) d'analyse")
+        shiny::tags$ul(
+          shiny::tags$li(shiny::strong(n_interactions), " interaction(s) significative(s)"),
+          shiny::tags$li(shiny::strong(n_tests), " test(s) d'effets simples"),
+          shiny::tags$li(shiny::strong(n_directions), " direction(s) d'analyse")
         )
     )
   })
@@ -7454,7 +7454,7 @@ mod_tests_server <- function(id, values) {
       )
     })
     
-    do.call(tagList, reports)
+    do.call(shiny::tagList, reports)
   })
   
   output$showVariableNavigation <- shiny::reactive({
@@ -8280,7 +8280,7 @@ mod_tests_server <- function(id, values) {
       "Effets principaux"
     }
     
-    tags$span(type_text, " - ", current_var)
+    shiny::tags$span(type_text, " - ", current_var)
   })
   
   output$downloadMainEffects <- hstat_classeur_handler(function() {

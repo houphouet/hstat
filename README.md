@@ -401,23 +401,9 @@ next" suggestion rather than a verdict.
 │   ├── app
 │   │   ├── app.R                   # standard Shiny entry point; serves www/
 │   │   ├── app_server.R            # server(): shared state and multivariate analyses
-│   │   ├── HStat.R                 # sources the modules in order, then shinyApp(ui, server)
+│   │   ├── HStat.R                 # bridge, UX.R, app_server.R, then shinyApp(ui, server)
 │   │   ├── i18n
 │   │   │   └── fr-en.csv           # translation pairs; adding a language is a CSV edit
-│   │   ├── mod_ai.R                # inference engine, decision support, reproducibility journal
-│   │   ├── mod_clean.R
-│   │   ├── mod_coding.R            # CAQDAS coding workbench
-│   │   ├── mod_descriptive.R
-│   │   ├── mod_design.R
-│   │   ├── mod_dl.R
-│   │   ├── mod_explore.R
-│   │   ├── mod_filter.R
-│   │   ├── mod_ml.R
-│   │   ├── mod_qualitative.R
-│   │   ├── mod_report.R            # automatic report (HTML / Word / PDF)
-│   │   ├── mod_threshold.R
-│   │   ├── mod_timeseries.R
-│   │   ├── mod_viz.R
 │   │   ├── Utils.R                 # bridge to R/utils.R + start-up side effects
 │   │   ├── UX.R                    # ui: every tab
 │   │   └── www
@@ -454,7 +440,21 @@ next" suggestion rather than a verdict.
 ├── NAMESPACE
 ├── R
 │   ├── _disable_autoload.R         # stops Shiny sourcing R/ into the app environment
-│   ├── mod_tests.R                 # migrated module: UI + server, testable in isolation
+│   ├── mod_ai.R                    # inference engine, decision support, reproducibility journal
+│   ├── mod_clean.R
+│   ├── mod_coding.R                # CAQDAS coding workbench
+│   ├── mod_descriptive.R
+│   ├── mod_design.R
+│   ├── mod_dl.R
+│   ├── mod_explore.R
+│   ├── mod_filter.R
+│   ├── mod_ml.R
+│   ├── mod_qualitative.R
+│   ├── mod_report.R                # automatic report (HTML / Word / PDF)
+│   ├── mod_tests.R
+│   ├── mod_threshold.R
+│   ├── mod_timeseries.R
+│   ├── mod_viz.R                   # modules: no source() order left to hold
 │   ├── run_hstat.R                 # run_hstat(): installs missing packages, then launches
 │   ├── utils.R                     # shared engine: definitions only, no side effect at load
 │   └── zzz.R                       # startup message with the citation
@@ -477,7 +477,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.41.3. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.42.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -485,7 +485,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.41.3},
+  note   = {Version 0.42.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

@@ -2372,8 +2372,8 @@ mod_qualitative_ui <- function(id) {
               shiny::conditionalPanel(
                 condition = sprintf("input['%s'] == 'custom'", ns("plot_palette")),
                 shiny::fluidRow(
-                  shiny::column(3, colourpicker::colourInput(ns("plot_col_low"), "Couleur basse / 1re", value = "#aed6f1")),
-                  shiny::column(3, colourpicker::colourInput(ns("plot_col_high"), "Couleur haute / 2e", value = "#1f618d")))),
+                  shiny::column(3, colourInput(ns("plot_col_low"), "Couleur basse / 1re", value = "#aed6f1")),
+                  shiny::column(3, colourInput(ns("plot_col_high"), "Couleur haute / 2e", value = "#1f618d")))),
               shiny::plotOutput(ns("main_plot"), height = "440px"),
               shiny::br(),
               # ---- Mise en forme interactive du graphique (rapatriée des Tableaux croisés) ----

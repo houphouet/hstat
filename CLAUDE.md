@@ -53,23 +53,108 @@ Note : `packageVersion()` lève une **erreur** quand le paquet est absent, mais
 
 ## Structure
 
-L'application vit dans `inst/app/` :
+Le code vit dans `R/` — c'est le code du **paquet**. `inst/app/` ne garde que ce
+qui **agit** au démarrage :
 
-- `HStat.R` — point d'entrée : source les modules dans l'ordre, puis `shinyApp(ui, server)`
-- `Utils.R` — fonctions de calcul et utilitaires partagés ; **sourcé en premier**,
-  donc disponible pour l'UI comme pour le serveur
-- `UX.R` — définit `ui` (tous les onglets)
-- `app_server.R` — définit `server` ; contient les analyses multivariées
-- `mod_*.R` — modules Shiny (tests, visualisation, ML, DL, qualitatif, etc.)
+- `R/utils.R` — le socle : fonctions de calcul et utilitaires partagés
+- `R/mod_*.R` — les **17 modules** Shiny (tests, visualisation, ML, DL,
+  qualitatif, etc.), UI et serveur
+- `inst/app/Utils.R` — le pont : charge le socle, puis effets de bord de
+  démarrage (locale, installation des paquets, aiguillages d'interface)
+- `inst/app/UX.R` — définit `ui` (tous les onglets)
+- `inst/app/app_server.R` — définit `server` ; contient les analyses multivariées
+- `inst/app/HStat.R` — point d'entrée : le pont, `UX.R`, `app_server.R`, puis
+  `shinyApp(ui, server)`
 
 Corollaire : une fonction utilisée à la fois par l'UI et le serveur doit être
-définie dans `Utils.R`, pas dans le corps de `server`.
+définie dans `R/utils.R`, pas dans le corps de `server`.
+
+### L'ordre de `source()` n'existe plus, et c'était le but
+
+`HStat.R` sourçait quinze modules **dans un ordre qui devait être tenu à la
+main** : `mod_ai.R` avant ceux qui appellent `hstat_ai_*`, `mod_coding.R` avant
+`mod_qualitative.R` (dont l'UI appelle `mod_coding_ui()`). Deux tests gardaient
+ces rangs. Ils gardaient mal : rien n'empêchait un module ajouté plus tard de se
+glisser au mauvais endroit, et l'erreur — « could not find function
+mod_coding_ui » — serait tombée au démarrage, loin de sa cause.
+
+Les modules étant dans `R/`, ce sont des **définitions** : toutes en place avant
+qu'aucune ne soit appelée. Les deux tests gardent désormais l'inverse de ce
+qu'ils gardaient — qu'aucune ligne `source("mod_*.R")` ne revienne dans
+`HStat.R`. En réintroduire une remettrait la contrainte sans le garde-fou.
+
+Le chargeur (`.hstat_charger_socle`) **balaie le dossier** : `utils.R` d'abord
+par lisibilité, le reste par ordre alphabétique. Un module ajouté demain est
+chargé sans qu'on y pense — et le banc de tests, qui balaie le même dossier, le
+prend de même. Avant, il en nommait quatre ; un cinquième portant une fonction
+de calcul serait resté invisible, et ses tests auraient échoué sur « could not
+find function », loin de la cause.
+
+### Qualifier les appels : quatre pièges, tous constatés
+
+Le code du paquet appelle **toujours** `pkg::fn()`, ou passe par un
+**aiguillage** de l'application. Sans cela, il dépend de ce que `library()` a
+attaché — et un paquet installé mais **non attaché** le fait tomber (constaté en
+intégration continue sur « could not find function updatePickerInput »).
+
+La réécriture est mécanique, faite aux positions rendues par l'analyseur de R.
+Elle a produit quatre défauts, chacun d'une famille différente, chacun gardé par
+un test :
+
+1. **Un nom de paquet peut recouvrir une fonction locale.**
+   `hstat_ai_reglages_ui()` définit chez elle `id <- function(s) ns(...)`. Le
+   balayage n'a vu qu'un appel inconnu, l'a trouvé exporté par dplyr, et a écrit
+   `dplyr::id("url")`. Rien ne lève au chargement : le défaut n'apparaît qu'à
+   **l'affichage de l'onglet**, sur « id() is defunct ». Deux autres du même
+   genre (`VIM::prepare()`, `mclust::sim()`), tous deux des réactifs.
+   Le critère est la **portée**, pas la coïncidence de nom : `httr::timeout(timeout)`
+   est juste — la locale y porte une valeur, pas une fonction.
+
+2. **Un nom de paquet de base peut être masqué par un paquet d'interface.**
+   L'envers du précédent. `box` est dans `graphics` : tenu pour « connu », il
+   reste non qualifié, et sans `library(shinydashboard)` attaché
+   `box(title = ..., status = ...)` appelle `graphics::box` et lève « plot.new
+   has not been called yet ». **Toute** l'interface cesse de se construire, pour
+   un nom de trois lettres.
+
+3. **Un nom exporté n'est pas qualifiable pour autant.** `.data` est bien
+   exporté par ggplot2, mais c'est un **pronom**, remplacé par le masque de
+   données à l'évaluation. Écrit `ggplot2::.data[[x]]`, il est évalué tout de
+   suite et lève « Can't subset `.data` outside of a data mask context » — donc
+   tout graphique bâti sur un nom de colonne variable, c'est-à-dire le cas
+   général.
+
+4. **Une fonction passée en argument n'est pas un appel.**
+   `do.call(tagList, els)` porte un simple `SYMBOL` : la qualification des
+   appels ne le voit pas, et le nom résout par le chemin de recherche. Même
+   chose pour `tags$div(...)` — `tags` est un objet de shiny, pas une fonction.
+
+Bénéfice mesurable : `UX.R` construit désormais `ui` avec **shiny seul**
+attaché. Le test des identifiants dupliqués, qui se *skippait* depuis toujours
+faute de pouvoir bâtir l'interface, s'exécute enfin — et un test sauté ressemble
+à un test qui passe.
+
+### Un paquet optionnel s'appelle par son aiguillage, jamais par son nom
+
+`hstat_installer_replis_ui()` (`R/utils.R`) pose `withSpinner`, `plotlyOutput`,
+`ggplotly`, `layout`, `config`, `renderPlotly`, `colourInput`, `pickerInput`,
+`radioGroupButtons`, `updatePickerInput` et `rank_list` : **toujours définis**,
+soit vers le paquet, soit vers un équivalent de base.
+
+Treize appels écrivaient pourtant `shinycssloaders::withSpinner(...)`,
+`colourpicker::colourInput(...)` ou `shinyWidgets::pickerInput(...)` en dur. Ces
+paquets sont **optionnels** : absents, l'appel lève, l'UI du module ne se
+construit pas, et `HStat.R` remplace **toute** l'application par sa page de
+secours — pour un indicateur d'attente manquant. Le repli existait sous le même
+nom, à un préfixe près. Un test balaie le dépôt ; `R/utils.R` en est exclu,
+c'est lui qui **pose** les aiguillages.
 
 ### Assistance IA : deux roles, et deux seulement
 
-`mod_ai.R` porte le moteur d'inference **partagé par toute l'application**
-(c'est pourquoi `HStat.R` le source juste après `Utils.R` — un test garde cet
-ordre) et l'onglet d'aide à la décision.
+`R/mod_ai.R` porte le moteur d'inference **partagé par toute l'application**
+et l'onglet d'aide à la décision. Il n'a plus de rang à tenir dans un
+`source()` ; un test vérifie seulement qu'il est bien du côté paquet, l'y
+oublier ferait revenir la question de l'ordre par la fenêtre.
 
 L'assistance **interprète** des résultats et **recommande** une analyse. Elle ne
 choisit ni ne lance jamais une analyse : le choix de la méthode engage
@@ -584,12 +669,16 @@ constructeur et un lecteur à lui.
 `httr` et `jsonlite` restent en **Suggests** : sans eux, `"auto"` fonctionne
 toujours.
 
-### Modules imbriqués : l'ordre de `source()` compte
+### Modules imbriqués : la dépendance reste, la contrainte a disparu
 
 `mod_qualitative_ui()` appelle `mod_coding_ui()` (l'atelier de codage CAQDAS
 vit dans son propre fichier plutôt que d'alourdir les ~2900 lignes de
-`mod_qualitative.R`). `HStat.R` doit donc sourcer `mod_coding.R` **avant**
-`mod_qualitative.R` — un test garde cette contrainte.
+`mod_qualitative.R`). C'était la contrainte d'ordre la plus visible : `HStat.R`
+devait sourcer `mod_coding.R` avant `mod_qualitative.R`, et un test le gardait.
+
+Les deux fichiers étant dans `R/`, ce sont des définitions : l'appel n'a lieu
+qu'au rendu de l'onglet, bien après. La dépendance existe toujours ; elle est
+devenue **sans objet**.
 
 ### Atelier de codage : arbre de codes et mémos
 
@@ -1492,11 +1581,17 @@ l'expression. `shiny::exprToFunction()` transforme le bloc en fonction — le
 ## Tests
 
 `tests/testthat/test-hstat.R` est la suite de référence (celle qu'exécute
-`R CMD check` via `tests/testthat.R`). Elle source `Utils.R` et
-`mod_qualitative.R` dans un environnement isolé, sans démarrer Shiny : seules
-les **fonctions de calcul pures** y sont testables.
+`R CMD check` via `tests/testthat.R`). Elle **balaie `R/`** — le socle puis
+tous les modules — dans un environnement isolé, sans démarrer Shiny. Les
+fonctions de calcul pures y sont testables directement ; les serveurs de module
+le sont par `shiny::testServer()`, ce que la migration a rendu possible.
 
-Placer la logique statistique dans `Utils.R` plutôt que dans un `observeEvent`
+Le dossier est balayé, les fichiers ne sont **pas nommés un à un** : quatre
+modules l'étaient, et un cinquième portant une fonction de calcul serait resté
+invisible — ses tests auraient échoué sur « could not find function », loin de
+la cause.
+
+Placer la logique statistique dans `R/utils.R` plutôt que dans un `observeEvent`
 la rend testable — c'est le motif suivi par `hstat_ref_test()`,
 `hstat_metrics_*()`, `hstat_q_*()`, etc.
 
@@ -1950,13 +2045,16 @@ dans `R/` — les autres l'atteindront à leur tour.
 
 ## Fins de ligne
 
-Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. Sont en
-**CRLF** : `Utils.R`, `HStat.R`, `inst/app/app.R`, `mod_clean.R`,
-`mod_descriptive.R`, `mod_design.R`, `mod_explore.R`, `mod_filter.R`,
-`mod_qualitative.R`, `mod_tests.R`, `mod_threshold.R`, `mod_viz.R`, ainsi que
-`README.md` et le `app.R` racine. Sont en **LF** : `UX.R`, `app_server.R`,
-`mod_ai.R`, `mod_coding.R`, `mod_dl.R`, `mod_ml.R`, `mod_timeseries.R`, le
-dossier `R/`, `CLAUDE.md` et la suite de tests.
+Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. La fin de
+ligne suit le fichier, pas le dossier — le déplacement des modules dans `R/` ne
+l'a pas changée. Sont en **CRLF** : `R/utils.R`, `R/mod_clean.R`,
+`R/mod_descriptive.R`, `R/mod_design.R`, `R/mod_explore.R`, `R/mod_filter.R`,
+`R/mod_qualitative.R`, `R/mod_tests.R`, `R/mod_threshold.R`, `R/mod_viz.R`,
+`inst/app/Utils.R`, `inst/app/HStat.R`, `inst/app/app.R` et `README.md`.
+Sont en **LF** : `R/mod_ai.R`, `R/mod_coding.R`, `R/mod_dl.R`, `R/mod_ml.R`,
+`R/mod_report.R`, `R/mod_timeseries.R`, `R/run_hstat.R`, `R/zzz.R`,
+`R/_disable_autoload.R`, `inst/app/UX.R`, `inst/app/app_server.R`, le `app.R`
+racine, `CLAUDE.md` et la suite de tests.
 
 Préserver les fins de ligne existantes lors d'une édition — un fichier réécrit
 intégralement en LF produit un diff de plusieurs milliers de lignes qui masque

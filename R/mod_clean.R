@@ -2,30 +2,30 @@
 
 
 mod_clean_ui <- function(id) {
-  ns <- NS(id)
-  tagList(
-              fluidRow(
-                box(
+  ns <- shiny::NS(id)
+  shiny::tagList(
+              shiny::fluidRow(
+                shinydashboard::box(
                   width = 12,
                   status = "warning",
                   solidHeader = FALSE,
                   background = "yellow",
-                  h3(icon("broom"), "Nettoyage et Préparation des Données", style = "margin: 0;"),
-                  p("Transformez, nettoyez et préparez vos données pour l'analyse", 
+                  shiny::h3(shiny::icon("broom"), "Nettoyage et Préparation des Données", style = "margin: 0;"),
+                  shiny::p("Transformez, nettoyez et préparez vos données pour l'analyse", 
                     style = "margin: 5px 0 0 0; opacity: 0.9;")
                 )
               ),
               
               # Étape 1: Types des variables
-              fluidRow(
-                box(
-                  title = tagList(
-                    tags$span(
+              shiny::fluidRow(
+                shinydashboard::box(
+                  title = shiny::tagList(
+                    shiny::tags$span(
                       class = "badge bg-yellow",
                       style = "font-size: 14px; margin-right: 10px;",
                       "1"
                     ),
-                    icon("cogs"), 
+                    shiny::icon("cogs"), 
                     "Définition des Types de Variables"
                   ), 
                   status = "warning", 
@@ -34,18 +34,18 @@ mod_clean_ui <- function(id) {
                   collapsible = TRUE,
                   collapsed = FALSE,
                   
-                  fluidRow(
-                    column(9,
-                           div(
+                  shiny::fluidRow(
+                    shiny::column(9,
+                           shiny::div(
                              style = "max-height: 400px; overflow-y: auto; background-color: #fafafa; padding: 15px; border-radius: 5px;",
-                             uiOutput(ns("varTypeUI"))
+                             shiny::uiOutput(ns("varTypeUI"))
                            )
                     ),
-                    column(3,
-                           div(
+                    shiny::column(3,
+                           shiny::div(
                              style = "text-align: center; padding: 20px;",
-                             actionButton(ns("applyTypes"),
-                               tagList(icon("check-circle"), " Appliquer les Types"),
+                             shiny::actionButton(ns("applyTypes"),
+                               shiny::tagList(shiny::icon("check-circle"), " Appliquer les Types"),
                                class = "btn-warning btn-lg btn-block",
                                style = "font-size: 16px; padding: 12px 20px;"
                              )
@@ -56,15 +56,15 @@ mod_clean_ui <- function(id) {
               ),
               
               # Étape 2: Gestion des variables
-              fluidRow(
-                box(
-                  title = tagList(
-                    tags$span(
+              shiny::fluidRow(
+                shinydashboard::box(
+                  title = shiny::tagList(
+                    shiny::tags$span(
                       class = "badge bg-red",
                       style = "font-size: 14px; margin-right: 10px;",
                       "3"
                     ),
-                    icon("edit"),
+                    shiny::icon("edit"),
                     "Gestion des Variables et Lignes"
                   ),
                   status = "danger",
@@ -73,19 +73,19 @@ mod_clean_ui <- function(id) {
                   collapsible = TRUE,
                   collapsed = TRUE,
                   
-                  tabsetPanel(
+                  shiny::tabsetPanel(
                     type = "tabs",
                     
                     # Onglet 1 : Supprimer variable
-                    tabPanel(
-                      title = tagList(icon("columns"), " Supprimer Variable"),
-                      br(),
-                      div(
+                    shiny::tabPanel(
+                      title = shiny::tagList(shiny::icon("columns"), " Supprimer Variable"),
+                      shiny::br(),
+                      shiny::div(
                         style = "background-color: #ffebee; padding: 15px; border-radius: 5px;",
-                        h5(icon("trash-alt"), "Supprimer une Variable", style = "color: #e74c3c; margin-top: 0;"),
-                        uiOutput(ns("removeVarUI")),
-                        actionButton(ns("removeVar"),
-                          tagList(icon("trash"), " Supprimer"),
+                        shiny::h5(shiny::icon("trash-alt"), "Supprimer une Variable", style = "color: #e74c3c; margin-top: 0;"),
+                        shiny::uiOutput(ns("removeVarUI")),
+                        shiny::actionButton(ns("removeVar"),
+                          shiny::tagList(shiny::icon("trash"), " Supprimer"),
                           class = "btn-danger btn-block",
                           style = "margin-top: 10px;"
                         )
@@ -93,120 +93,120 @@ mod_clean_ui <- function(id) {
                     ),
                     
                     # Onglet 1b : Renommer une variable
-                    tabPanel(
-                      title = tagList(icon("i-cursor"), " Renommer Variable"),
-                      br(),
-                      div(
+                    shiny::tabPanel(
+                      title = shiny::tagList(shiny::icon("i-cursor"), " Renommer Variable"),
+                      shiny::br(),
+                      shiny::div(
                         style = "background-color: #e3f2fd; padding: 15px; border-radius: 5px;",
-                        h5(icon("i-cursor"), "Renommer une Variable", style = "color: #1565c0; margin-top: 0;"),
-                        tags$p(style = "font-size: 12px; color: #7f8c8d;",
+                        shiny::h5(shiny::icon("i-cursor"), "Renommer une Variable", style = "color: #1565c0; margin-top: 0;"),
+                        shiny::tags$p(style = "font-size: 12px; color: #7f8c8d;",
                                "Modifiez le nom d'une colonne. Le nouveau nom doit être unique et non vide."),
-                        uiOutput(ns("renameVarUI")),
-                        textInput(ns("renameVarNew"), "Nouveau nom :", placeholder = "ex : Age_années"),
-                        actionButton(ns("applyRenameVar"),
-                          tagList(icon("check"), " Renommer"),
+                        shiny::uiOutput(ns("renameVarUI")),
+                        shiny::textInput(ns("renameVarNew"), "Nouveau nom :", placeholder = "ex : Age_années"),
+                        shiny::actionButton(ns("applyRenameVar"),
+                          shiny::tagList(shiny::icon("check"), " Renommer"),
                           class = "btn-primary btn-block", style = "margin-top: 10px;"),
-                        uiOutput(ns("renameVarStatus"))
+                        shiny::uiOutput(ns("renameVarStatus"))
                       )
                     ),
 
                     # Onglet 1c : Recoder classes (catégorielles / ordinales)
-                    tabPanel(
-                      title = tagList(icon("wand-magic-sparkles"), " Recoder Classes"),
-                      br(),
-                      div(
+                    shiny::tabPanel(
+                      title = shiny::tagList(shiny::icon("wand-magic-sparkles"), " Recoder Classes"),
+                      shiny::br(),
+                      shiny::div(
                         style = "background-color: #fff3e0; padding: 15px; border-radius: 5px;",
-                        h5(icon("wand-magic-sparkles"), "Recoder une variable catégorielle ou ordinale",
+                        shiny::h5(shiny::icon("wand-magic-sparkles"), "Recoder une variable catégorielle ou ordinale",
                            style = "color: #e65100; margin-top: 0;"),
-                        uiOutput(ns("recodeVarSelect")),
-                        radioButtons(ns("recodeType"),
-                          tagList(icon("tags"), " Nature de la variable"),
+                        shiny::uiOutput(ns("recodeVarSelect")),
+                        shiny::radioButtons(ns("recodeType"),
+                          shiny::tagList(shiny::icon("tags"), " Nature de la variable"),
                           choices = c("Catégorielle (nominale)" = "nominal",
                                       "Ordinale (ordre des modalités)" = "ordinal"),
                           selected = "nominal"),
-                        helpText(icon("info-circle"),
+                        shiny::helpText(shiny::icon("info-circle"),
                           " Plus de 12 modalités : tableau éditable (ancienne = nouvelle). Sinon : un champ par modalité. En ordinal, l'ordre des lignes/champs définit l'ordre du facteur."),
-                        uiOutput(ns("recodeInterface")),
-                        div(style = "text-align:center; margin-top:10px;",
-                          actionButton(ns("applyRecode"),
-                            tagList(icon("check"), " Appliquer le recodage"),
+                        shiny::uiOutput(ns("recodeInterface")),
+                        shiny::div(style = "text-align:center; margin-top:10px;",
+                          shiny::actionButton(ns("applyRecode"),
+                            shiny::tagList(shiny::icon("check"), " Appliquer le recodage"),
                             class = "btn-warning btn-block")),
-                        uiOutput(ns("recodeStatus"))
+                        shiny::uiOutput(ns("recodeStatus"))
                       )
                     ),
 
                     # Onglet 2 : Supprimer lignes
-                    tabPanel(
-                      title = tagList(icon("trash-alt"), " Supprimer Lignes"),
-                      br(),
-                      tabsetPanel(
+                    shiny::tabPanel(
+                      title = shiny::tagList(shiny::icon("trash-alt"), " Supprimer Lignes"),
+                      shiny::br(),
+                      shiny::tabsetPanel(
                         type = "pills",
                         
-                        tabPanel(
-                          title = tagList(icon("keyboard"), " Saisie"),
-                          br(),
-                          div(
+                        shiny::tabPanel(
+                          title = shiny::tagList(shiny::icon("keyboard"), " Saisie"),
+                          shiny::br(),
+                          shiny::div(
                             style = "background-color: #ffebee; padding: 12px; border-radius: 5px;",
-                            tags$p(style = "font-size: 11px; color: #7f8c8d; margin-bottom: 8px;",
-                                   "Formats : ", tags$code("1,3,5"), " -- ", tags$code("10 à 20"), " -- ", tags$code("1,3,10 à 15")),
-                            textAreaInput(ns("deleteRowsInput"), NULL,
+                            shiny::tags$p(style = "font-size: 11px; color: #7f8c8d; margin-bottom: 8px;",
+                                   "Formats : ", shiny::tags$code("1,3,5"), " -- ", shiny::tags$code("10 à 20"), " -- ", shiny::tags$code("1,3,10 à 15")),
+                            shiny::textAreaInput(ns("deleteRowsInput"), NULL,
                                           placeholder = "1,3,5
 10 à 20
 1,3,5,10 à 15",
                                           rows = 3, width = "100%"),
-                            uiOutput(ns("deleteRowsPreview")),
-                            actionButton(ns("applyDeleteRows"),
-                                         tagList(icon("trash"), " Supprimer"),
+                            shiny::uiOutput(ns("deleteRowsPreview")),
+                            shiny::actionButton(ns("applyDeleteRows"),
+                                         shiny::tagList(shiny::icon("trash"), " Supprimer"),
                                          class = "btn-danger btn-block", style = "margin-top: 8px; font-weight: bold;")
                           )
                         ),
                         
-                        tabPanel(
-                          title = tagList(icon("mouse-pointer"), " Interactif"),
-                          br(),
-                          tags$p(style = "font-size: 11px; color: #555; margin-bottom: 8px;",
-                                 icon("hand-pointer"), " Cliquez sur les lignes (Ctrl = multiple)"),
-                          div(
+                        shiny::tabPanel(
+                          title = shiny::tagList(shiny::icon("mouse-pointer"), " Interactif"),
+                          shiny::br(),
+                          shiny::tags$p(style = "font-size: 11px; color: #555; margin-bottom: 8px;",
+                                 shiny::icon("hand-pointer"), " Cliquez sur les lignes (Ctrl = multiple)"),
+                          shiny::div(
                             style = "border: 1px solid #dee2e6; border-radius: 5px; overflow: hidden;",
                             DT::dataTableOutput(ns("deleteRowsTable"), height = "260px")
                           ),
-                          br(),
-                          uiOutput(ns("deleteRowsInteractivePreview")),
-                          br(),
-                          actionButton(ns("applyDeleteRowsInteractive"),
-                                       tagList(icon("trash"), " Supprimer la sélection"),
+                          shiny::br(),
+                          shiny::uiOutput(ns("deleteRowsInteractivePreview")),
+                          shiny::br(),
+                          shiny::actionButton(ns("applyDeleteRowsInteractive"),
+                                       shiny::tagList(shiny::icon("trash"), " Supprimer la sélection"),
                                        class = "btn-danger btn-block", style = "font-weight: bold;")
                         )
                       )
                     ),
                     
                     # Onglet 3 : Ajouter variable constante
-                    tabPanel(
-                      title = tagList(icon("plus-circle"), " Ajouter Variable"),
-                      br(),
-                      div(
+                    shiny::tabPanel(
+                      title = shiny::tagList(shiny::icon("plus-circle"), " Ajouter Variable"),
+                      shiny::br(),
+                      shiny::div(
                         style = "background-color: #e8f5e9; padding: 15px; border-radius: 5px;",
-                        h5(icon("plus-circle"), "Ajouter une Variable Constante", style = "color: #27ae60; margin-top: 0;"),
-                        tags$p(style = "font-size: 12px; color: #7f8c8d;",
+                        shiny::h5(shiny::icon("plus-circle"), "Ajouter une Variable Constante", style = "color: #27ae60; margin-top: 0;"),
+                        shiny::tags$p(style = "font-size: 12px; color: #7f8c8d;",
                                "Crée une nouvelle colonne avec une valeur identique pour toutes les lignes"),
-                        textInput(ns("newVarName"), "Nom:", placeholder = "ex: Catégorie"),
-                        numericInput(ns("newVarValue"), "Valeur par défaut:", 0),
-                        actionButton(ns("addVar"),
-                                     tagList(icon("plus"), " Ajouter"),
+                        shiny::textInput(ns("newVarName"), "Nom:", placeholder = "ex: Catégorie"),
+                        shiny::numericInput(ns("newVarValue"), "Valeur par défaut:", 0),
+                        shiny::actionButton(ns("addVar"),
+                                     shiny::tagList(shiny::icon("plus"), " Ajouter"),
                                      class = "btn-success btn-block")
                       )
                     )
                   )
                 ),
                 
-                box(
-                  title = tagList(
-                    tags$span(
+                shinydashboard::box(
+                  title = shiny::tagList(
+                    shiny::tags$span(
                       class = "badge bg-blue",
                       style = "font-size: 14px; margin-right: 10px;",
                       "4"
                     ),
-                    icon("calculator"), 
+                    shiny::icon("calculator"), 
                     "Créer une Variable Calculée"
                   ), 
                   status = "primary", 
@@ -215,70 +215,70 @@ mod_clean_ui <- function(id) {
                   collapsible = TRUE,
                   collapsed = TRUE,
                   
-                  div(
+                  shiny::div(
                     style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px;",
                     
-                    h5(icon("info-circle"), "Assistant de Formule", style = "color: #3498db; margin-top: 0;"),
-                    p(style = "font-size: 12px; color: #7f8c8d;", 
+                    shiny::h5(shiny::icon("info-circle"), "Assistant de Formule", style = "color: #3498db; margin-top: 0;"),
+                    shiny::p(style = "font-size: 12px; color: #7f8c8d;", 
                       "Créez des variables basées sur des calculs. Exemple: (Var1 + Var2) / 2"),
                     
-                    textInput(ns("calcVarName"), 
+                    shiny::textInput(ns("calcVarName"), 
                       "Nom de la variable calculée:",
                       placeholder = "ex: Moyenne_Score"
                     ),
                     
-                    fluidRow(
-                      column(6,
-                             div(
+                    shiny::fluidRow(
+                      shiny::column(6,
+                             shiny::div(
                                style = "background-color: #eef7ff; padding: 10px; border-radius: 5px;",
-                               h6(icon("columns"), " Colonnes", style = "margin-bottom: 6px; color: #2c5aa0;"),
-                               uiOutput(ns("colPicker")),
-                               tags$small(style = "color: #6c757d;",
-                                          icon("info-circle"), " Cliquez pour insérer dans la formule")
+                               shiny::h6(shiny::icon("columns"), " Colonnes", style = "margin-bottom: 6px; color: #2c5aa0;"),
+                               shiny::uiOutput(ns("colPicker")),
+                               shiny::tags$small(style = "color: #6c757d;",
+                                          shiny::icon("info-circle"), " Cliquez pour insérer dans la formule")
                              )
                       ),
-                      column(6,
-                             div(
+                      shiny::column(6,
+                             shiny::div(
                                style = "background-color: #f0fff4; padding: 10px; border-radius: 5px;",
-                               h6(icon("filter"), " Filtrer sur lignes (optionnel)", style = "margin-bottom: 6px; color: #1a6e2e;"),
-                               uiOutput(ns("rowCondPicker")),
-                               tags$small(style = "color: #6c757d;",
-                                          icon("info-circle"), " Génère ifelse() dans la formule")
+                               shiny::h6(shiny::icon("filter"), " Filtrer sur lignes (optionnel)", style = "margin-bottom: 6px; color: #1a6e2e;"),
+                               shiny::uiOutput(ns("rowCondPicker")),
+                               shiny::tags$small(style = "color: #6c757d;",
+                                          shiny::icon("info-circle"), " Génère ifelse() dans la formule")
                              )
                       )
                     ),
                     
-                    br(),
+                    shiny::br(),
                     
-                    fluidRow(
-                      column(12,
-                             div(
+                    shiny::fluidRow(
+                      shiny::column(12,
+                             shiny::div(
                                style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px;",
-                               fluidRow(
-                                 column(6,
-                                        h6("Opérateurs :", style = "margin-bottom: 5px; font-size: 11px; color: #555;"),
-                                        div(style = "display: flex; flex-wrap: wrap; gap: 4px;",
-                                            actionButton(ns("insertPlus"),  "+",  class = "btn-outline-secondary btn-sm"),
-                                            actionButton(ns("insertMoins"), "-",  class = "btn-outline-secondary btn-sm"),
-                                            actionButton(ns("insertMult"),  "x",  class = "btn-outline-secondary btn-sm"),
-                                            actionButton(ns("insertDiv"),   "÷",  class = "btn-outline-secondary btn-sm"),
-                                            actionButton(ns("insertPow"),   "^",  class = "btn-outline-secondary btn-sm"),
-                                            actionButton(ns("insertParen"), "()", class = "btn-outline-secondary btn-sm")
+                               shiny::fluidRow(
+                                 shiny::column(6,
+                                        shiny::h6("Opérateurs :", style = "margin-bottom: 5px; font-size: 11px; color: #555;"),
+                                        shiny::div(style = "display: flex; flex-wrap: wrap; gap: 4px;",
+                                            shiny::actionButton(ns("insertPlus"),  "+",  class = "btn-outline-secondary btn-sm"),
+                                            shiny::actionButton(ns("insertMoins"), "-",  class = "btn-outline-secondary btn-sm"),
+                                            shiny::actionButton(ns("insertMult"),  "x",  class = "btn-outline-secondary btn-sm"),
+                                            shiny::actionButton(ns("insertDiv"),   "÷",  class = "btn-outline-secondary btn-sm"),
+                                            shiny::actionButton(ns("insertPow"),   "^",  class = "btn-outline-secondary btn-sm"),
+                                            shiny::actionButton(ns("insertParen"), "()", class = "btn-outline-secondary btn-sm")
                                         )
                                  ),
-                                 column(6,
-                                        h6("Fonctions :", style = "margin-bottom: 5px; font-size: 11px; color: #555;"),
-                                        div(style = "display: flex; flex-wrap: wrap; gap: 4px;",
-                                            actionButton(ns("insertLog"),   "log()",    class = "btn-outline-info btn-sm"),
-                                            actionButton(ns("insertLog10"), "log10()",  class = "btn-outline-info btn-sm"),
-                                            actionButton(ns("insertSqrt"),  "sqrt()",   class = "btn-outline-info btn-sm"),
-                                            actionButton(ns("insertAbs"),   "abs()",    class = "btn-outline-info btn-sm"),
-                                            actionButton(ns("insertRound"), "round()",  class = "btn-outline-info btn-sm"),
-                                            actionButton(ns("insertExp"),   "exp()",    class = "btn-outline-info btn-sm"),
-                                            actionButton(ns("insertMean"),  "mean()",   class = "btn-outline-info btn-sm"),
-                                            actionButton(ns("insertSum"),   "sum()",    class = "btn-outline-info btn-sm"),
-                                            actionButton(ns("insertIfelse"),"ifelse()", class = "btn-outline-warning btn-sm"),
-                                            actionButton(ns("insertIsNA"),  "is.na()",  class = "btn-outline-warning btn-sm")
+                                 shiny::column(6,
+                                        shiny::h6("Fonctions :", style = "margin-bottom: 5px; font-size: 11px; color: #555;"),
+                                        shiny::div(style = "display: flex; flex-wrap: wrap; gap: 4px;",
+                                            shiny::actionButton(ns("insertLog"),   "log()",    class = "btn-outline-info btn-sm"),
+                                            shiny::actionButton(ns("insertLog10"), "log10()",  class = "btn-outline-info btn-sm"),
+                                            shiny::actionButton(ns("insertSqrt"),  "sqrt()",   class = "btn-outline-info btn-sm"),
+                                            shiny::actionButton(ns("insertAbs"),   "abs()",    class = "btn-outline-info btn-sm"),
+                                            shiny::actionButton(ns("insertRound"), "round()",  class = "btn-outline-info btn-sm"),
+                                            shiny::actionButton(ns("insertExp"),   "exp()",    class = "btn-outline-info btn-sm"),
+                                            shiny::actionButton(ns("insertMean"),  "mean()",   class = "btn-outline-info btn-sm"),
+                                            shiny::actionButton(ns("insertSum"),   "sum()",    class = "btn-outline-info btn-sm"),
+                                            shiny::actionButton(ns("insertIfelse"),"ifelse()", class = "btn-outline-warning btn-sm"),
+                                            shiny::actionButton(ns("insertIsNA"),  "is.na()",  class = "btn-outline-warning btn-sm")
                                         )
                                  )
                                )
@@ -286,117 +286,117 @@ mod_clean_ui <- function(id) {
                       )
                     ),
                     
-                    textInput(ns("calcFormula"), 
+                    shiny::textInput(ns("calcFormula"), 
                       "Formule de calcul:",
                       placeholder = "ex: (Rendement + Biomasse) / 2   |   sum(Poids, Hauteur)   |   sqrt(Var1 * Var2)"
                     ),
                     
-                    tags$div(
+                    shiny::tags$div(
                       style = "margin-top:4px; margin-bottom:12px; padding:10px 12px; background:#f0f7ff; border:1px solid #bee3f8; border-radius:6px; font-size:11.5px;",
-                      tags$b(style="color:#1a56db; font-size:12px;", icon("calculator"), " Exemples d'utilisation :"),
-                      tags$table(
+                      shiny::tags$b(style="color:#1a56db; font-size:12px;", shiny::icon("calculator"), " Exemples d'utilisation :"),
+                      shiny::tags$table(
                         style = "width:100%; margin-top:6px; border-collapse:collapse;",
-                        tags$tr(style="background:#dbeafe;",
-                                tags$td(colspan="2",style="padding:4px 8px;color:#1e40af;font-size:11px;font-weight:bold;",
-                                        icon("layer-group")," Opérations sur plusieurs variables")
+                        shiny::tags$tr(style="background:#dbeafe;",
+                                shiny::tags$td(colspan="2",style="padding:4px 8px;color:#1e40af;font-size:11px;font-weight:bold;",
+                                        shiny::icon("layer-group")," Opérations sur plusieurs variables")
                         ),
-                        tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                                tags$td(style="padding:3px 6px;color:#555;width:52%;",
-                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                        shiny::tags$tr(style="border-bottom:1px solid #d0e8ff;",
+                                shiny::tags$td(style="padding:3px 6px;color:#555;width:52%;",
+                                        shiny::tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "(Rendement + Biomasse) / 2")),
-                                tags$td(style="padding:3px 6px;color:#666;","-> Moyenne de 2 variables")
+                                shiny::tags$td(style="padding:3px 6px;color:#666;","-> Moyenne de 2 variables")
                         ),
-                        tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                                tags$td(style="padding:3px 6px;",
-                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                        shiny::tags$tr(style="border-bottom:1px solid #d0e8ff;",
+                                shiny::tags$td(style="padding:3px 6px;",
+                                        shiny::tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "mean(c(Rendement, Biomasse, Poids))")),
-                                tags$td(style="padding:3px 6px;color:#666;","-> Moyenne (n variables)")
+                                shiny::tags$td(style="padding:3px 6px;color:#666;","-> Moyenne (n variables)")
                         ),
-                        tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                                tags$td(style="padding:3px 6px;",
-                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                        shiny::tags$tr(style="border-bottom:1px solid #d0e8ff;",
+                                shiny::tags$td(style="padding:3px 6px;",
+                                        shiny::tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "Rendement + Biomasse + Poids")),
-                                tags$td(style="padding:3px 6px;color:#666;","-> Somme de variables")
+                                shiny::tags$td(style="padding:3px 6px;color:#666;","-> Somme de variables")
                         ),
-                        tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                                tags$td(style="padding:3px 6px;",
-                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                        shiny::tags$tr(style="border-bottom:1px solid #d0e8ff;",
+                                shiny::tags$td(style="padding:3px 6px;",
+                                        shiny::tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "Rendement / (Biomasse + Poids)")),
-                                tags$td(style="padding:3px 6px;color:#666;","-> Ratio entre variables")
+                                shiny::tags$td(style="padding:3px 6px;color:#666;","-> Ratio entre variables")
                         ),
-                        tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                                tags$td(style="padding:3px 6px;",
-                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                        shiny::tags$tr(style="border-bottom:1px solid #d0e8ff;",
+                                shiny::tags$td(style="padding:3px 6px;",
+                                        shiny::tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "sqrt(Rendement * Biomasse)")),
-                                tags$td(style="padding:3px 6px;color:#666;","-> Moyenne géométrique")
+                                shiny::tags$td(style="padding:3px 6px;color:#666;","-> Moyenne géométrique")
                         ),
-                        tags$tr(style="background:#dcfce7;",
-                                tags$td(colspan="2",style="padding:4px 8px;color:#166534;font-size:11px;font-weight:bold;",
-                                        icon("calculator")," Transformations classiques")
+                        shiny::tags$tr(style="background:#dcfce7;",
+                                shiny::tags$td(colspan="2",style="padding:4px 8px;color:#166534;font-size:11px;font-weight:bold;",
+                                        shiny::icon("calculator")," Transformations classiques")
                         ),
-                        tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                                tags$td(style="padding:3px 6px;",
-                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                        shiny::tags$tr(style="border-bottom:1px solid #d0e8ff;",
+                                shiny::tags$td(style="padding:3px 6px;",
+                                        shiny::tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "log(Rendement)")),
-                                tags$td(style="padding:3px 6px;color:#666;","-> Logarithme naturel")
+                                shiny::tags$td(style="padding:3px 6px;color:#666;","-> Logarithme naturel")
                         ),
-                        tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                                tags$td(style="padding:3px 6px;",
-                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                        shiny::tags$tr(style="border-bottom:1px solid #d0e8ff;",
+                                shiny::tags$td(style="padding:3px 6px;",
+                                        shiny::tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "log10(Rendement + 1)")),
-                                tags$td(style="padding:3px 6px;color:#666;","-> Log10 (si zéros présents)")
+                                shiny::tags$td(style="padding:3px 6px;color:#666;","-> Log10 (si zéros présents)")
                         ),
-                        tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                                tags$td(style="padding:3px 6px;",
-                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                        shiny::tags$tr(style="border-bottom:1px solid #d0e8ff;",
+                                shiny::tags$td(style="padding:3px 6px;",
+                                        shiny::tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "sqrt(Rendement)")),
-                                tags$td(style="padding:3px 6px;color:#666;","-> Racine carrée")
+                                shiny::tags$td(style="padding:3px 6px;color:#666;","-> Racine carrée")
                         ),
-                        tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                                tags$td(style="padding:3px 6px;",
-                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                        shiny::tags$tr(style="border-bottom:1px solid #d0e8ff;",
+                                shiny::tags$td(style="padding:3px 6px;",
+                                        shiny::tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "Rendement^2")),
-                                tags$td(style="padding:3px 6px;color:#666;","-> Mise au carré")
+                                shiny::tags$td(style="padding:3px 6px;color:#666;","-> Mise au carré")
                         ),
-                        tags$tr(style="border-bottom:1px solid #d0e8ff;",
-                                tags$td(style="padding:3px 6px;",
-                                        tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                        shiny::tags$tr(style="border-bottom:1px solid #d0e8ff;",
+                                shiny::tags$td(style="padding:3px 6px;",
+                                        shiny::tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                                   "round(Rendement / Biomasse, 3)")),
-                                tags$td(style="padding:3px 6px;color:#666;","-> Ratio arrondi à 3 déc.")
+                                shiny::tags$td(style="padding:3px 6px;color:#666;","-> Ratio arrondi à 3 déc.")
                         ),
-                        tags$tr(
-                          tags$td(style="padding:3px 6px;",
-                                  tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
+                        shiny::tags$tr(
+                          shiny::tags$td(style="padding:3px 6px;",
+                                  shiny::tags$code(style="background:#e8f0fe;padding:1px 4px;border-radius:3px;",
                                             "(Rendement - mean(Rendement)) / sd(Rendement)")),
-                          tags$td(style="padding:3px 6px;color:#666;","-> Z-score")
+                          shiny::tags$td(style="padding:3px 6px;color:#666;","-> Z-score")
                         )
                       )
                     ),
                     
-                    actionButton(ns("addCalcVar"), 
-                      tagList(icon("calculator"), " Créer Variable Calculée"), 
+                    shiny::actionButton(ns("addCalcVar"), 
+                      shiny::tagList(shiny::icon("calculator"), " Créer Variable Calculée"), 
                       class = "btn-primary btn-block btn-lg"
                     )
                   ),
                   
-                  footer = div(
+                  footer = shiny::div(
                     style = "font-size: 12px; color: #7f8c8d;",
-                    icon("lightbulb"), 
+                    shiny::icon("lightbulb"), 
                     " Astuce: Cliquez sur une colonne pour l'insérer dans la formule"
                   )
                 )
               ),
               
               # Étape 4: Valeurs manquantes
-              fluidRow(
-                box(
-                  title = tagList(
-                    tags$span(
+              shiny::fluidRow(
+                shinydashboard::box(
+                  title = shiny::tagList(
+                    shiny::tags$span(
                       class = "badge bg-aqua",
                       style = "font-size: 14px; margin-right: 10px;",
                       "2"
                     ),
-                    icon("band-aid"), 
+                    shiny::icon("band-aid"), 
                     "Traitement des Valeurs Manquantes"
                   ), 
                   status = "info", 
@@ -405,21 +405,21 @@ mod_clean_ui <- function(id) {
                   collapsible = TRUE,
                   collapsed = TRUE,
                   
-                  fluidRow(
-                    column(8,
-                           div(
+                  shiny::fluidRow(
+                    shiny::column(8,
+                           shiny::div(
                              style = "background-color: #e1f5fe; padding: 15px; border-radius: 5px;",
 
-                             h5(icon("percent"), "Pourcentage de valeurs manquantes", style = "color: #3498db; margin-top: 0;"),
+                             shiny::h5(shiny::icon("percent"), "Pourcentage de valeurs manquantes", style = "color: #3498db; margin-top: 0;"),
                              DT::DTOutput(ns("naSummaryTable")),
-                             div(style = "margin: 10px 0; padding: 10px; background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;",
-                                 uiOutput(ns("naRecommendation"))),
+                             shiny::div(style = "margin: 10px 0; padding: 10px; background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;",
+                                 shiny::uiOutput(ns("naRecommendation"))),
 
-                             uiOutput(ns("naVarSelect")),
+                             shiny::uiOutput(ns("naVarSelect")),
 
-                             h5(icon("tools"), "Méthode de Traitement", style = "color: #3498db; margin-top: 20px;"),
+                             shiny::h5(shiny::icon("tools"), "Méthode de Traitement", style = "color: #3498db; margin-top: 20px;"),
 
-                             radioButtons(ns("naMethod"), 
+                             shiny::radioButtons(ns("naMethod"), 
                                NULL,
                                choices = c(
                                  "Supprimer les lignes contenant des NA" = "remove", 
@@ -434,23 +434,23 @@ mod_clean_ui <- function(id) {
                                selected = "remove"
                              ),
 
-                             conditionalPanel(
+                             shiny::conditionalPanel(
               ns = ns,
                                condition = "input.naMethod == 'knn'",
-                               numericInput(ns("naKnnK"), "Nombre de voisins (k):", value = 5, min = 1, max = 30)),
-                             conditionalPanel(
+                               shiny::numericInput(ns("naKnnK"), "Nombre de voisins (k):", value = 5, min = 1, max = 30)),
+                             shiny::conditionalPanel(
               ns = ns,
                                condition = "input.naMethod == 'mice'",
-                               numericInput(ns("naMiceM"), "Nombre d'imputations (m):", value = 5, min = 1, max = 20),
-                               p(style="font-size:11px;color:#666;font-style:italic;",
+                               shiny::numericInput(ns("naMiceM"), "Nombre d'imputations (m):", value = 5, min = 1, max = 20),
+                               shiny::p(style="font-size:11px;color:#666;font-style:italic;",
                                  "PMM (prédictive mean matching) : robuste, conserve la distribution. Les m jeux sont agreges par la moyenne.")),
 
-                             conditionalPanel(
+                             shiny::conditionalPanel(
               ns = ns,
                                condition = "input.naMethod == 'value'",
-                               div(
+                               shiny::div(
                                  style = "margin-top: 15px; padding: 10px; background-color: white; border-radius: 5px;",
-                                 numericInput(ns("naValue"), 
+                                 shiny::numericInput(ns("naValue"), 
                                    "Valeur de remplacement:", 
                                    0
                                  )
@@ -458,21 +458,21 @@ mod_clean_ui <- function(id) {
                              )
                            )
                     ),
-                    column(4,
-                           div(
+                    shiny::column(4,
+                           shiny::div(
                              style = "background-color: #fff; padding: 20px; border-radius: 5px; border: 2px solid #3498db;",
-                             h5(icon("exclamation-triangle"), "Guide des méthodes", style = "color: #e74c3c; margin-top: 0;"),
-                             tags$ul(
+                             shiny::h5(shiny::icon("exclamation-triangle"), "Guide des méthodes", style = "color: #e74c3c; margin-top: 0;"),
+                             shiny::tags$ul(
                                style = "font-size: 12px; color: #7f8c8d;",
-                               tags$li(tags$b("Suppression"), " : si < 5% de NA et perte de lignes acceptable."),
-                               tags$li(tags$b("Moyenne/médiane"), " : rapide, mais sous-estimé la variance."),
-                               tags$li(tags$b("KNN"), " : exploite la similarité entre observations."),
-                               tags$li(tags$b("MICE/PMM"), " : imputation multiple, recommandée pour NA non négligeables (MAR)."),
-                               tags$li(tags$b("missForest"), " : non paramétrique, gère mixte numérique/catégoriel.")
+                               shiny::tags$li(shiny::tags$b("Suppression"), " : si < 5% de NA et perte de lignes acceptable."),
+                               shiny::tags$li(shiny::tags$b("Moyenne/médiane"), " : rapide, mais sous-estimé la variance."),
+                               shiny::tags$li(shiny::tags$b("KNN"), " : exploite la similarité entre observations."),
+                               shiny::tags$li(shiny::tags$b("MICE/PMM"), " : imputation multiple, recommandée pour NA non négligeables (MAR)."),
+                               shiny::tags$li(shiny::tags$b("missForest"), " : non paramétrique, gère mixte numérique/catégoriel.")
                              ),
-                             hr(),
-                             actionButton(ns("applyNA"), 
-                               tagList(icon("magic"), " Appliquer le Traitement"), 
+                             shiny::hr(),
+                             shiny::actionButton(ns("applyNA"), 
+                               shiny::tagList(shiny::icon("magic"), " Appliquer le Traitement"), 
                                class = "btn-info btn-block btn-lg",
                                style = "margin-top: 10px;"
                              )
@@ -483,71 +483,71 @@ mod_clean_ui <- function(id) {
               ),
 
               # Étape 5: Valeurs aberrantes (outliers) et winsorisation
-              fluidRow(
-                box(
-                  title = tagList(
-                    tags$span(class = "badge bg-yellow",
+              shiny::fluidRow(
+                shinydashboard::box(
+                  title = shiny::tagList(
+                    shiny::tags$span(class = "badge bg-yellow",
                               style = "font-size: 14px; margin-right: 10px;", "5"),
-                    icon("crosshairs"),
+                    shiny::icon("crosshairs"),
                     "Valeurs Aberrantes et Winsorisation"
                   ),
                   status = "primary", width = 12, solidHeader = TRUE,
                   collapsible = TRUE, collapsed = TRUE,
-                  fluidRow(
-                    column(6,
-                      div(style = "background-color:#e8f6f3;padding:15px;border-radius:5px;",
-                        uiOutput(ns("outlierVarSelect")),
-                        h5(icon("search"), " Méthode de détection", style = "color:#16a085;margin-top:15px;"),
-                        radioButtons(ns("outlierMethod"), NULL,
+                  shiny::fluidRow(
+                    shiny::column(6,
+                      shiny::div(style = "background-color:#e8f6f3;padding:15px;border-radius:5px;",
+                        shiny::uiOutput(ns("outlierVarSelect")),
+                        shiny::h5(shiny::icon("search"), " Méthode de détection", style = "color:#16a085;margin-top:15px;"),
+                        shiny::radioButtons(ns("outlierMethod"), NULL,
                           choices = c(
                             "Écart interquartile (IQR, k x 1,5)" = "iqr",
                             "Score Z (|z| > seuil)" = "zscore",
                             "Score Z robuste (MAD)" = "mad"),
                           selected = "iqr"),
-                        conditionalPanel(ns = ns,
+                        shiny::conditionalPanel(ns = ns,
                           condition = "input.outlierMethod == 'iqr'",
-                          numericInput(ns("outlierIqrK"), "Coefficient IQR (k):", value = 1.5, min = 0.5, max = 5, step = 0.1)),
-                        conditionalPanel(ns = ns,
+                          shiny::numericInput(ns("outlierIqrK"), "Coefficient IQR (k):", value = 1.5, min = 0.5, max = 5, step = 0.1)),
+                        shiny::conditionalPanel(ns = ns,
                           condition = "input.outlierMethod == 'zscore' || input.outlierMethod == 'mad'",
-                          numericInput(ns("outlierZThresh"), "Seuil (|z|):", value = 3, min = 1, max = 6, step = 0.5)),
-                        hr(),
-                        h5(icon("compress-arrows-alt"), " Traitement", style = "color:#16a085;"),
-                        radioButtons(ns("outlierAction"), NULL,
+                          shiny::numericInput(ns("outlierZThresh"), "Seuil (|z|):", value = 3, min = 1, max = 6, step = 0.5)),
+                        shiny::hr(),
+                        shiny::h5(shiny::icon("compress-arrows-alt"), " Traitement", style = "color:#16a085;"),
+                        shiny::radioButtons(ns("outlierAction"), NULL,
                           choices = c(
                             "Seulement détecter (aucune modification)" = "detect",
                             "Winsoriser (ramener aux quartiles Q1/Q3)" = "winsor",
                             "Remplacer par NA" = "tona",
                             "Supprimer les lignes aberrantes" = "remove"),
                           selected = "detect"),
-                        conditionalPanel(ns = ns,
+                        shiny::conditionalPanel(ns = ns,
                           condition = "input.outlierAction == 'winsor'",
-                          p(style="font-size:11px;color:#666;font-style:italic;",
+                          shiny::p(style="font-size:11px;color:#666;font-style:italic;",
                             "Winsorisation aux quartiles : les valeurs sous le 25e percentile (Q1) sont ramenées à Q1, celles au-dessus du 75e percentile (Q3) à Q3.")),
-                        div(style = "margin-top:12px;",
-                          actionButton(ns("detectOutliers"), tagList(icon("search"), " Détecter"),
+                        shiny::div(style = "margin-top:12px;",
+                          shiny::actionButton(ns("detectOutliers"), shiny::tagList(shiny::icon("search"), " Détecter"),
                                        class = "btn-default"),
-                          actionButton(ns("applyOutliers"), tagList(icon("magic"), " Appliquer le traitement"),
+                          shiny::actionButton(ns("applyOutliers"), shiny::tagList(shiny::icon("magic"), " Appliquer le traitement"),
                                        class = "btn-primary"))
                       )
                     ),
-                    column(6,
-                      div(style = "background-color:#fff;padding:15px;border-radius:5px;border:2px solid #16a085;",
-                        h5(icon("info-circle"), " Résumé de détection", style="color:#16a085;margin-top:0;"),
-                        uiOutput(ns("outlierSummary")),
+                    shiny::column(6,
+                      shiny::div(style = "background-color:#fff;padding:15px;border-radius:5px;border:2px solid #16a085;",
+                        shiny::h5(shiny::icon("info-circle"), " Résumé de détection", style="color:#16a085;margin-top:0;"),
+                        shiny::uiOutput(ns("outlierSummary")),
                         # Sortie DEDIEE : `renderTable()` appele depuis un
                         # renderUI ne produit qu'un conteneur vide, jamais
                         # alimente. Le tableau des bornes ne s'affichait donc
                         # jamais -- et la note en dessous expliquait des
                         # « Bornes basse/haute » absentes de l'ecran.
-                        div(style = "overflow-x:auto; max-width:100%;",
-                            tableOutput(ns("outlierTable"))),
-                        uiOutput(ns("outlierNote")),
-                        hr(),
-                        tags$ul(style="font-size:12px;color:#7f8c8d;",
-                          tags$li(tags$b("IQR"), " : robuste, standard pour distributions asymétriques."),
-                          tags$li(tags$b("Z"), " : suppose une distribution ~normale."),
-                          tags$li(tags$b("MAD"), " : version robuste du Z, résiste aux extrêmes."),
-                          tags$li(tags$b("Winsoriser"), " : conserve les lignes en limitant l'influence des extrêmes."))
+                        shiny::div(style = "overflow-x:auto; max-width:100%;",
+                            shiny::tableOutput(ns("outlierTable"))),
+                        shiny::uiOutput(ns("outlierNote")),
+                        shiny::hr(),
+                        shiny::tags$ul(style="font-size:12px;color:#7f8c8d;",
+                          shiny::tags$li(shiny::tags$b("IQR"), " : robuste, standard pour distributions asymétriques."),
+                          shiny::tags$li(shiny::tags$b("Z"), " : suppose une distribution ~normale."),
+                          shiny::tags$li(shiny::tags$b("MAD"), " : version robuste du Z, résiste aux extrêmes."),
+                          shiny::tags$li(shiny::tags$b("Winsoriser"), " : conserve les lignes en limitant l'influence des extrêmes."))
                       )
                     )
                   )
@@ -555,69 +555,69 @@ mod_clean_ui <- function(id) {
               ),
 
               # Étape 6: Classes d'intervalles (discrétisation)
-              fluidRow(
-                box(
-                  title = tagList(
-                    tags$span(class = "badge bg-purple",
+              shiny::fluidRow(
+                shinydashboard::box(
+                  title = shiny::tagList(
+                    shiny::tags$span(class = "badge bg-purple",
                               style = "font-size: 14px; margin-right: 10px;", "6"),
-                    icon("layer-group"),
+                    shiny::icon("layer-group"),
                     "Classes d'intervalles (discrétisation)"
                   ),
                   status = "primary", width = 12, solidHeader = TRUE,
                   collapsible = TRUE, collapsed = TRUE,
-                  fluidRow(
-                    column(6,
-                      div(style = "background-color:#f4ecf7;padding:15px;border-radius:5px;",
-                        uiOutput(ns("cutVarSelect")),
-                        radioButtons(ns("cutMethod"), tagList(icon("ruler"), " Méthode de découpage"),
+                  shiny::fluidRow(
+                    shiny::column(6,
+                      shiny::div(style = "background-color:#f4ecf7;padding:15px;border-radius:5px;",
+                        shiny::uiOutput(ns("cutVarSelect")),
+                        shiny::radioButtons(ns("cutMethod"), shiny::tagList(shiny::icon("ruler"), " Méthode de découpage"),
                           choiceNames = list(
-                            HTML("<b>Largeur égale</b> <small style='color:#7f8c8d;'>(intervalles de même amplitude)</small>"),
-                            HTML("<b>Effectifs égaux</b> <small style='color:#7f8c8d;'>(quantiles)</small>"),
-                            HTML("<b>Bornes personnalisées</b> <small style='color:#7f8c8d;'>(ex. classes d'âge)</small>")),
+                            shiny::HTML("<b>Largeur égale</b> <small style='color:#7f8c8d;'>(intervalles de même amplitude)</small>"),
+                            shiny::HTML("<b>Effectifs égaux</b> <small style='color:#7f8c8d;'>(quantiles)</small>"),
+                            shiny::HTML("<b>Bornes personnalisées</b> <small style='color:#7f8c8d;'>(ex. classes d'âge)</small>")),
                           choiceValues = list("width", "quantile", "manual"),
                           selected = "manual"),
-                        conditionalPanel(
+                        shiny::conditionalPanel(
                           condition = sprintf("input['%s'] != 'manual'", ns("cutMethod")),
-                          sliderInput(ns("cutNClasses"), "Nombre de classes", min = 2, max = 12, value = 4, step = 1)),
-                        conditionalPanel(
+                          shiny::sliderInput(ns("cutNClasses"), "Nombre de classes", min = 2, max = 12, value = 4, step = 1)),
+                        shiny::conditionalPanel(
                           condition = sprintf("input['%s'] == 'manual'", ns("cutMethod")),
-                          textInput(ns("cutBreaks"), "Bornes (séparées par virgules)",
+                          shiny::textInput(ns("cutBreaks"), "Bornes (séparées par virgules)",
                                     value = "0, 3, 15, 100",
                                     placeholder = "ex. 0, 3, 15, 100"),
-                          tags$small(style = "color:#7f8c8d;", icon("info-circle"),
+                          shiny::tags$small(style = "color:#7f8c8d;", shiny::icon("info-circle"),
                             " n bornes = n-1 classes. Les valeurs hors bornes deviendront NA.")),
-                        radioButtons(ns("cutStyle"), tagList(icon("grip-lines-vertical"), " Convention des bornes (étiquettes automatiques)"),
+                        shiny::radioButtons(ns("cutStyle"), shiny::tagList(shiny::icon("grip-lines-vertical"), " Convention des bornes (étiquettes automatiques)"),
                           choiceNames = list(
-                            HTML("<b>Standard</b> — <code>[a ; b[</code>, <code>[b ; c[</code>, …, <code>[y ; z]</code> <small style='color:#7f8c8d;'>(dernière fermée des deux côtés)</small>"),
-                            HTML("<b>Toutes ouvertes à droite</b> — <code>[a ; b[</code>, <code>[b ; c[</code>, …, <code>[y ; z[</code>"),
-                            HTML("<b>Milieu ouvert</b> — <code>[a ; b[</code>, <code>]b ; c[</code>, …, <code>]y ; z]</code>"),
-                            HTML("<b>Fermées à droite</b> — <code>[a ; b]</code>, <code>]b ; c]</code>, …, <code>]y ; z]</code> <small style='color:#7f8c8d;'>(la borne haute inclut la valeur)</small>"),
-                            HTML("<b>Toutes fermées</b> — <code>[a ; b]</code>, <code>[b ; c]</code>, …, <code>[y ; z]</code> <small style='color:#7f8c8d;'>(fermées des deux côtés)</small>")),
+                            shiny::HTML("<b>Standard</b> — <code>[a ; b[</code>, <code>[b ; c[</code>, …, <code>[y ; z]</code> <small style='color:#7f8c8d;'>(dernière fermée des deux côtés)</small>"),
+                            shiny::HTML("<b>Toutes ouvertes à droite</b> — <code>[a ; b[</code>, <code>[b ; c[</code>, …, <code>[y ; z[</code>"),
+                            shiny::HTML("<b>Milieu ouvert</b> — <code>[a ; b[</code>, <code>]b ; c[</code>, …, <code>]y ; z]</code>"),
+                            shiny::HTML("<b>Fermées à droite</b> — <code>[a ; b]</code>, <code>]b ; c]</code>, …, <code>]y ; z]</code> <small style='color:#7f8c8d;'>(la borne haute inclut la valeur)</small>"),
+                            shiny::HTML("<b>Toutes fermées</b> — <code>[a ; b]</code>, <code>[b ; c]</code>, …, <code>[y ; z]</code> <small style='color:#7f8c8d;'>(fermées des deux côtés)</small>")),
                           choiceValues = list("std_last_closed", "all_left_closed", "mixed_open",
                                               "all_right_closed", "all_closed"),
                           selected = "std_last_closed"),
-                        radioButtons(ns("cutLabels"), "Étiquettes des classes",
+                        shiny::radioButtons(ns("cutLabels"), "Étiquettes des classes",
                           choices = c("Automatiques (selon la convention)" = "auto",
                                       "Personnalisées" = "custom"),
                           selected = "auto", inline = TRUE),
-                        conditionalPanel(
+                        shiny::conditionalPanel(
                           condition = sprintf("input['%s'] == 'custom'", ns("cutLabels")),
-                          textInput(ns("cutLabelsTxt"), "Étiquettes (une par classe, séparées par virgules)",
+                          shiny::textInput(ns("cutLabelsTxt"), "Étiquettes (une par classe, séparées par virgules)",
                                     value = "0-3 ans, 4-15 ans, +15 ans",
                                     placeholder = "ex. 0-3 ans, 4-15 ans, +15 ans")),
-                        uiOutput(ns("cutNewNameUI")),
-                        actionButton(ns("applyCut"), tagList(icon("layer-group"), " Créer la variable de classes"),
+                        shiny::uiOutput(ns("cutNewNameUI")),
+                        shiny::actionButton(ns("applyCut"), shiny::tagList(shiny::icon("layer-group"), " Créer la variable de classes"),
                                      class = "btn-primary")
                       )
                     ),
-                    column(6,
-                      div(style = "background-color:#fff;padding:15px;border-radius:5px;border:2px solid #8e44ad;",
-                        h5(icon("eye"), " Aperçu en direct", style = "color:#8e44ad;margin-top:0;"),
-                        uiOutput(ns("cutPreviewMsg")),
-                        tableOutput(ns("cutPreviewTable")),
-                        plotOutput(ns("cutPreviewPlot"), height = "230px"),
-                        p(style = "font-size:11px;color:#7f8c8d;font-style:italic;margin-top:6px;",
-                          icon("info-circle"),
+                    shiny::column(6,
+                      shiny::div(style = "background-color:#fff;padding:15px;border-radius:5px;border:2px solid #8e44ad;",
+                        shiny::h5(shiny::icon("eye"), " Aperçu en direct", style = "color:#8e44ad;margin-top:0;"),
+                        shiny::uiOutput(ns("cutPreviewMsg")),
+                        shiny::tableOutput(ns("cutPreviewTable")),
+                        shiny::plotOutput(ns("cutPreviewPlot"), height = "230px"),
+                        shiny::p(style = "font-size:11px;color:#7f8c8d;font-style:italic;margin-top:6px;",
+                          shiny::icon("info-circle"),
                           " La variable créée est un facteur ORDONNÉ : les classes sont directement utilisables dans les analyses ordinales, tris et comparaisons.")
                       )
                     )
@@ -626,67 +626,67 @@ mod_clean_ui <- function(id) {
               ),
 
               # Étape 7: Variables entièrement nulles
-              fluidRow(
-                box(
-                  title = tagList(
-                    tags$span(class = "badge bg-red",
+              shiny::fluidRow(
+                shinydashboard::box(
+                  title = shiny::tagList(
+                    shiny::tags$span(class = "badge bg-red",
                               style = "font-size: 14px; margin-right: 10px;", "7"),
-                    icon("circle-notch"),
+                    shiny::icon("circle-notch"),
                     "Variables à valeurs nulles"
                   ),
                   status = "primary", width = 12, solidHeader = TRUE,
                   collapsible = TRUE, collapsed = TRUE,
-                  fluidRow(
-                    column(7,
-                      div(style = "background-color:#fdedec;padding:15px;border-radius:5px;",
-                        radioButtons(ns("zeroSeuil"), tagList(icon("filter"), " Variables à lister"),
+                  shiny::fluidRow(
+                    shiny::column(7,
+                      shiny::div(style = "background-color:#fdedec;padding:15px;border-radius:5px;",
+                        shiny::radioButtons(ns("zeroSeuil"), shiny::tagList(shiny::icon("filter"), " Variables à lister"),
                           choiceNames = list(
-                            HTML("<b>Entièrement nulles</b> <small style='color:#7f8c8d;'>(toutes les valeurs observées valent 0)</small>"),
-                            HTML("<b>Quasi nulles</b> <small style='color:#7f8c8d;'>(au moins 90 % de zéros)</small>")),
+                            shiny::HTML("<b>Entièrement nulles</b> <small style='color:#7f8c8d;'>(toutes les valeurs observées valent 0)</small>"),
+                            shiny::HTML("<b>Quasi nulles</b> <small style='color:#7f8c8d;'>(au moins 90 % de zéros)</small>")),
                           choiceValues = list("1", "0.9"), selected = "1"),
-                        uiOutput(ns("zeroVarsResume")),
-                        div(style = "overflow-x:auto;max-width:100%;",
-                            tableOutput(ns("zeroVarsTable"))),
-                        uiOutput(ns("zeroVarsVides")),
-                        p(style = "font-size:11px;color:#7f8c8d;font-style:italic;margin-top:6px;",
-                          icon("info-circle"),
+                        shiny::uiOutput(ns("zeroVarsResume")),
+                        shiny::div(style = "overflow-x:auto;max-width:100%;",
+                            shiny::tableOutput(ns("zeroVarsTable"))),
+                        shiny::uiOutput(ns("zeroVarsVides")),
+                        shiny::p(style = "font-size:11px;color:#7f8c8d;font-style:italic;margin-top:6px;",
+                          shiny::icon("info-circle"),
                           " Une variable dont toutes les valeurs valent 0 a une variance nulle : ",
                           "aucune corrélation ni test statistique n'est calculable sur elle. ",
                           "Les colonnes logiques (vrai/faux) ne sont pas listées : un « non » est une réponse, pas une mesure à zéro.")
                       )
                     ),
-                    column(5,
-                      div(style = "background-color:#fff;padding:15px;border-radius:5px;border:2px solid #c0392b;",
-                        h5(icon("wrench"), " Corriger ou retirer", style = "color:#c0392b;margin-top:0;"),
-                        uiOutput(ns("zeroVarsSelect")),
-                        radioButtons(ns("zeroAction"), tagList(icon("sliders-h"), " Que faire ?"),
+                    shiny::column(5,
+                      shiny::div(style = "background-color:#fff;padding:15px;border-radius:5px;border:2px solid #c0392b;",
+                        shiny::h5(shiny::icon("wrench"), " Corriger ou retirer", style = "color:#c0392b;margin-top:0;"),
+                        shiny::uiOutput(ns("zeroVarsSelect")),
+                        shiny::radioButtons(ns("zeroAction"), shiny::tagList(shiny::icon("sliders-h"), " Que faire ?"),
                           choiceNames = list(
-                            HTML("<b>Déclarer les 0 manquants</b> <small style='color:#7f8c8d;'>(remplacer par NA)</small>"),
-                            HTML("<b>Remplacer les 0 par une valeur</b>"),
-                            HTML("<b>Saisir les valeurs une à une</b> <small style='color:#7f8c8d;'>(une seule variable)</small>"),
-                            HTML("<b>Supprimer les variables</b> <small style='color:#7f8c8d;'>(définitif sur les données de travail)</small>")),
+                            shiny::HTML("<b>Déclarer les 0 manquants</b> <small style='color:#7f8c8d;'>(remplacer par NA)</small>"),
+                            shiny::HTML("<b>Remplacer les 0 par une valeur</b>"),
+                            shiny::HTML("<b>Saisir les valeurs une à une</b> <small style='color:#7f8c8d;'>(une seule variable)</small>"),
+                            shiny::HTML("<b>Supprimer les variables</b> <small style='color:#7f8c8d;'>(définitif sur les données de travail)</small>")),
                           choiceValues = list("na", "valeur", "saisie", "supprimer"),
                           selected = "na"),
-                        conditionalPanel(
+                        shiny::conditionalPanel(
                           condition = sprintf("input['%s'] == 'valeur'", ns("zeroAction")),
-                          numericInput(ns("zeroRemplacement"), "Valeur de remplacement :", value = NA)),
-                        conditionalPanel(
+                          shiny::numericInput(ns("zeroRemplacement"), "Valeur de remplacement :", value = NA)),
+                        shiny::conditionalPanel(
                           condition = sprintf("input['%s'] == 'saisie'", ns("zeroAction")),
-                          uiOutput(ns("zeroSaisieUI"))),
-                        div(style = "margin-top:12px;",
-                          actionButton(ns("applyZero"), tagList(icon("check"), " Appliquer"),
+                          shiny::uiOutput(ns("zeroSaisieUI"))),
+                        shiny::div(style = "margin-top:12px;",
+                          shiny::actionButton(ns("applyZero"), shiny::tagList(shiny::icon("check"), " Appliquer"),
                                        class = "btn-primary")),
-                        uiOutput(ns("zeroMessage"))
+                        shiny::uiOutput(ns("zeroMessage"))
                       )
                     )
                   )
                 )
               ),
 
-              fluidRow(
-                box(
-                  title = tagList(
-                    icon("table"),
+              shiny::fluidRow(
+                shinydashboard::box(
+                  title = shiny::tagList(
+                    shiny::icon("table"),
                     "Aperçu des Données Nettoyées"
                   ),
                   status = "success",
@@ -695,14 +695,14 @@ mod_clean_ui <- function(id) {
                   collapsible = TRUE,
                   
                   withSpinner(
-                    DTOutput(ns("cleanedData")),
+                    DT::DTOutput(ns("cleanedData")),
                     type = 6,
                     color = "#27ae60"
                   ),
                   
-                  footer = div(
+                  footer = shiny::div(
                     style = "font-size: 12px; color: #7f8c8d;",
-                    icon("info-circle"),
+                    shiny::icon("info-circle"),
                     " Vérifiez vos données avant de passer à l'analyse ou à la modélisation"
                   )
                 )
@@ -730,7 +730,7 @@ mod_clean_server <- function(id, values) {
                       length(values$transformationLog) else 0L))
   }, ignoreInit = TRUE)
 
-  moduleServer(id, function(input, output, session) {
+  shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
   # -- Helper : parser une selection de lignes (ex. "1-5, 8, 10-12") --
@@ -800,8 +800,8 @@ mod_clean_server <- function(id, values) {
   }
 
   
-  output$deleteRowsPreview <- renderUI({
-    req(values$cleanData)
+  output$deleteRowsPreview <- shiny::renderUI({
+    shiny::req(values$cleanData)
     txt <- input$deleteRowsInput %||% ""
     if (nchar(trimws(txt)) == 0) return(NULL)
     
@@ -811,10 +811,10 @@ mod_clean_server <- function(id, values) {
       error = function(e) NULL
     )
     if (is.null(rows)) {
-      return(div(
+      return(shiny::div(
         style = "margin-top: 8px; padding: 8px; background-color: #ffcdd2; border-radius: 4px;",
-        icon("times-circle", style = "color: #c62828;"),
-        tags$span(style = "color: #c62828; font-size: 12px; margin-left: 5px;",
+        shiny::icon("times-circle", style = "color: #c62828;"),
+        shiny::tags$span(style = "color: #c62828; font-size: 12px; margin-left: 5px;",
                   "Format invalide -- vérifiez votre saisie.")
       ))
     }
@@ -823,46 +823,46 @@ mod_clean_server <- function(id, values) {
     preview_str <- paste(preview_ids, collapse = ", ")
     if (n > 8) preview_str <- paste0(preview_str, " ... (", n - 8, " de plus)")
     
-    div(
+    shiny::div(
       style = "margin-top: 8px; padding: 10px; background-color: #fff3e0; border-radius: 4px; border-left: 3px solid #f57c00;",
-      icon("info-circle", style = "color: #f57c00;"),
-      tags$span(style = "color: #e65100; font-size: 12px; font-weight: bold; margin-left: 5px;",
+      shiny::icon("info-circle", style = "color: #f57c00;"),
+      shiny::tags$span(style = "color: #e65100; font-size: 12px; font-weight: bold; margin-left: 5px;",
                 paste0(n, " ligne(s) à supprimer : ")),
-      tags$code(style = "font-size: 11px;", preview_str)
+      shiny::tags$code(style = "font-size: 11px;", preview_str)
     )
   })
   
-  observeEvent(input$applyDeleteRows, {
-    req(values$cleanData, input$deleteRowsInput)
+  shiny::observeEvent(input$applyDeleteRows, {
+    shiny::req(values$cleanData, input$deleteRowsInput)
     tryCatch({
       max_rows <- nrow(values$cleanData)
       rows_to_delete <- parseRowSelection(input$deleteRowsInput, max_rows)
       
       if (length(rows_to_delete) == 0) {
-        showNotification("Aucune ligne sélectionnée.", type = "warning", duration = 4)
+        shiny::showNotification("Aucune ligne sélectionnée.", type = "warning", duration = 4)
         return()
       }
       if (length(rows_to_delete) >= max_rows) {
-        showNotification("Impossible de supprimer toutes les lignes.", type = "error", duration = 5)
+        shiny::showNotification("Impossible de supprimer toutes les lignes.", type = "error", duration = 5)
         return()
       }
       
       values$cleanData    <- values$cleanData[-rows_to_delete, ]
       values$filteredData <- values$cleanData
       
-      showNotification(
+      shiny::showNotification(
         paste0(length(rows_to_delete), " ligne(s) supprimée(s). ",
                nrow(values$cleanData), " lignes restantes."),
         type = "message", duration = 5
       )
     }, error = function(e) {
-      showNotification(hstat_err_fr(e, "Erreur suppression"), type = "error", duration = 8)
+      shiny::showNotification(hstat_err_fr(e, "Erreur suppression"), type = "error", duration = 8)
     })
   })
   
   # - Tableau interactif pour sélection des lignes à supprimer
   output$deleteRowsTable <- DT::renderDataTable({
-    req(values$cleanData)
+    shiny::req(values$cleanData)
     DT::datatable(
       head(values$cleanData, 500),   
       selection  = "multiple",
@@ -884,35 +884,35 @@ mod_clean_server <- function(id, values) {
     )
   })
   
-  output$deleteRowsInteractivePreview <- renderUI({
+  output$deleteRowsInteractivePreview <- shiny::renderUI({
     sel <- input$deleteRowsTable_rows_selected
     if (is.null(sel) || length(sel) == 0) {
-      return(div(style = "padding: 8px; color: #6c757d; font-size: 12px;",
-                 icon("info-circle"), " Aucune ligne sélectionnée -- cliquez sur des lignes dans le tableau."))
+      return(shiny::div(style = "padding: 8px; color: #6c757d; font-size: 12px;",
+                 shiny::icon("info-circle"), " Aucune ligne sélectionnée -- cliquez sur des lignes dans le tableau."))
     }
-    div(style = "padding: 10px; background-color: #fff3e0; border-radius: 4px; border-left: 3px solid #f57c00;",
-        icon("info-circle", style = "color: #f57c00;"),
-        tags$span(style = "color: #e65100; font-size: 12px; font-weight: bold; margin-left: 5px;",
+    shiny::div(style = "padding: 10px; background-color: #fff3e0; border-radius: 4px; border-left: 3px solid #f57c00;",
+        shiny::icon("info-circle", style = "color: #f57c00;"),
+        shiny::tags$span(style = "color: #e65100; font-size: 12px; font-weight: bold; margin-left: 5px;",
                   paste0(length(sel), " ligne(s) sélectionnée(s) : ")),
-        tags$code(style = "font-size: 11px;", paste(head(sel, 10), collapse = ", "),
+        shiny::tags$code(style = "font-size: 11px;", paste(head(sel, 10), collapse = ", "),
                   if (length(sel) > 10) paste0(" ... +", length(sel)-10, " autres") else "")
     )
   })
   
-  observeEvent(input$applyDeleteRowsInteractive, {
+  shiny::observeEvent(input$applyDeleteRowsInteractive, {
     sel <- input$deleteRowsTable_rows_selected
     if (is.null(sel) || length(sel) == 0) {
-      showNotification("Aucune ligne sélectionnée dans le tableau.", type = "warning", duration = 4)
+      shiny::showNotification("Aucune ligne sélectionnée dans le tableau.", type = "warning", duration = 4)
       return()
     }
-    req(values$cleanData)
+    shiny::req(values$cleanData)
     if (length(sel) >= nrow(values$cleanData)) {
-      showNotification("Impossible de supprimer toutes les lignes.", type = "error", duration = 5)
+      shiny::showNotification("Impossible de supprimer toutes les lignes.", type = "error", duration = 5)
       return()
     }
     values$cleanData    <- values$cleanData[-sel, ]
     values$filteredData <- values$cleanData
-    showNotification(
+    shiny::showNotification(
       paste0(length(sel), " ligne(s) supprimée(s). ", nrow(values$cleanData), " lignes restantes."),
       type = "message", duration = 5)
   })
@@ -920,15 +920,15 @@ mod_clean_server <- function(id, values) {
 
   # ---- Nettoyage ----
   
-  output$varTypeUI <- renderUI({
-    req(values$data)
+  output$varTypeUI <- shiny::renderUI({
+    shiny::req(values$data)
     cols <- names(values$data)
     # IDs surs : indexes et namespaces (ns). Les noms de colonnes contenant des
     # espaces ou des accents (ex. "Date de semis", "Société") produisaient sinon
     # des identifiants HTML invalides qui empechaient l'affichage du module.
-    tagList(
-      div(class = "alert alert-info", 
-          icon("info-circle"), 
+    shiny::tagList(
+      shiny::div(class = "alert alert-info", 
+          shiny::icon("info-circle"), 
           " Sélectionnez le type souhaité pour chaque variable"),
       lapply(seq_along(cols), function(i) {
         col <- cols[i]
@@ -945,11 +945,11 @@ mod_clean_server <- function(id, values) {
           sort(v)
         }
         too_many_lvls <- length(lvl_choices) > 100
-        tagList(
-          fluidRow(
-            column(6, strong(col)),
-            column(6, 
-                   selectInput(
+        shiny::tagList(
+          shiny::fluidRow(
+            shiny::column(6, shiny::strong(col)),
+            shiny::column(6, 
+                   shiny::selectInput(
                      ns(paste0("type_", i)), 
                      NULL,
                      choices = c("Numérique" = "numeric", 
@@ -963,21 +963,21 @@ mod_clean_server <- function(id, values) {
             )
           ),
           # Ordre des modalites, visible uniquement pour le type ordinal
-          conditionalPanel(
+          shiny::conditionalPanel(
             condition = sprintf("input.type_%d == 'ordered'", i),
             ns = ns,
-            div(
+            shiny::div(
               style = "background-color:#fff8e1;border-left:3px solid #ffb300;padding:8px 12px;margin:0 0 10px 0;border-radius:4px;",
               if (too_many_lvls) {
-                tags$small(style = "color:#e65100;",
-                  icon("exclamation-triangle"),
+                shiny::tags$small(style = "color:#e65100;",
+                  shiny::icon("exclamation-triangle"),
                   trf(" %d modalités distinctes : trop pour définir un ordre manuel. La variable sera ordonnée selon l'ordre alphabétique.", length(lvl_choices)))
               } else {
-                tagList(
-                  tags$small(style = "color:#8d6e63;",
-                    icon("sort-amount-up"),
+                shiny::tagList(
+                  shiny::tags$small(style = "color:#8d6e63;",
+                    shiny::icon("sort-amount-up"),
                     " Ordre des modalités, du plus petit au plus grand (glissez-déposez pour réordonner) :"),
-                  selectizeInput(
+                  shiny::selectizeInput(
                     ns(paste0("order_", i)), NULL,
                     choices = lvl_choices,
                     selected = if (is.ordered(x)) levels(x) else lvl_choices,
@@ -993,10 +993,10 @@ mod_clean_server <- function(id, values) {
     )
   })
   
-  observeEvent(input$applyTypes, {
-    req(values$cleanData)
+  shiny::observeEvent(input$applyTypes, {
+    shiny::req(values$cleanData)
     
-    withProgress(message = 'Application des types...', value = 0, {
+    shiny::withProgress(message = 'Application des types...', value = 0, {
       data_temp <- values$cleanData
       cols <- names(data_temp)
       n <- length(cols)
@@ -1029,12 +1029,12 @@ mod_clean_server <- function(id, values) {
               data_temp[[col]] <- as.Date(data_temp[[col]])
             }
           }, error = function(e) {
-            showNotification(hstat_err_fr(e, sprintf("Variable `%s`", col)), 
+            shiny::showNotification(hstat_err_fr(e, sprintf("Variable `%s`", col)), 
                              type = "warning", duration = 5)
           })
         }
         
-        incProgress(1/n, detail = paste("Variable", i, "sur", n))
+        shiny::incProgress(1/n, detail = paste("Variable", i, "sur", n))
       }
       
       values$cleanData <- data_temp
@@ -1042,42 +1042,42 @@ mod_clean_server <- function(id, values) {
       values$data <- data_temp
     })
     
-    showNotification(
-      ui = tagList(icon("check"), " Types de variables appliqués avec succès!"),
+    shiny::showNotification(
+      ui = shiny::tagList(shiny::icon("check"), " Types de variables appliqués avec succès!"),
       type = "message", 
       duration = 3
     )
   })
   
-  output$removeVarUI <- renderUI({
-    req(values$cleanData)
-    selectInput(ns("removeVarName"), "Supprimer variable :", 
+  output$removeVarUI <- shiny::renderUI({
+    shiny::req(values$cleanData)
+    shiny::selectInput(ns("removeVarName"), "Supprimer variable :", 
                 choices = names(values$cleanData))
   })
   
-  observeEvent(input$removeVar, {
-    req(input$removeVarName)
+  shiny::observeEvent(input$removeVar, {
+    shiny::req(input$removeVarName)
     
     var_name <- input$removeVarName
     values$cleanData <- values$cleanData[, !(names(values$cleanData) %in% var_name), drop = FALSE]
     values$filteredData <- values$cleanData
     
-    showNotification(
-      ui = tagList(icon("trash"), paste(" Variable `", var_name, "` supprimée avec succès")),
+    shiny::showNotification(
+      ui = shiny::tagList(shiny::icon("trash"), paste(" Variable `", var_name, "` supprimée avec succès")),
       type = "message", 
       duration = 3
     )
   })
 
   # ---- Renommer une variable (colonne) ----
-  output$renameVarUI <- renderUI({
-    req(values$cleanData)
-    selectInput(ns("renameVarOld"), "Variable à renommer :",
+  output$renameVarUI <- shiny::renderUI({
+    shiny::req(values$cleanData)
+    shiny::selectInput(ns("renameVarOld"), "Variable à renommer :",
                 choices = names(values$cleanData))
   })
 
-  rename_msg <- reactiveVal(NULL)
-  observeEvent(input$applyRenameVar, {
+  rename_msg <- shiny::reactiveVal(NULL)
+  shiny::observeEvent(input$applyRenameVar, {
     old <- input$renameVarOld
     new <- trimws(input$renameVarNew %||% "")
     if (is.null(old) || !nzchar(old) || !(old %in% names(values$cleanData))) {
@@ -1101,24 +1101,24 @@ mod_clean_server <- function(id, values) {
       }
     }
     rename_msg(list(ok = TRUE, msg = trf("Variable « %s » renommée en « %s ».", old, new)))
-    updateTextInput(session, "renameVarNew", value = "")
-    showNotification(
-      ui = tagList(icon("check"), trf(" « %s » renommée en « %s »", old, new)),
+    shiny::updateTextInput(session, "renameVarNew", value = "")
+    shiny::showNotification(
+      ui = shiny::tagList(shiny::icon("check"), trf(" « %s » renommée en « %s »", old, new)),
       type = "message", duration = 3)
   })
 
-  output$renameVarStatus <- renderUI({
+  output$renameVarStatus <- shiny::renderUI({
     m <- rename_msg(); if (is.null(m)) return(NULL)
     col <- if (isTRUE(m$ok)) "#27ae60" else "#c0392b"
     ic <- if (isTRUE(m$ok)) "check-circle" else "exclamation-triangle"
-    div(style = sprintf("margin-top:10px;padding:8px;border-radius:4px;background:%s22;color:%s;font-size:12px;", col, col),
-        icon(ic), " ", m$msg)
+    shiny::div(style = sprintf("margin-top:10px;padding:8px;border-radius:4px;background:%s22;color:%s;font-size:12px;", col, col),
+        shiny::icon(ic), " ", m$msg)
   })
 
   # ---- Recodage des variables catégorielles et ordinales ----
   RECODE_THRESHOLD <- 12L
-  recode_candidates <- reactive({
-    df <- values$cleanData; req(df)
+  recode_candidates <- shiny::reactive({
+    df <- values$cleanData; shiny::req(df)
     nm <- names(df)
     keep <- vapply(nm, function(v) {
       x <- df[[v]]
@@ -1128,41 +1128,41 @@ mod_clean_server <- function(id, values) {
     }, logical(1))
     nm[keep]
   })
-  output$recodeVarSelect <- renderUI({
+  output$recodeVarSelect <- shiny::renderUI({
     vars <- recode_candidates()
     if (length(vars) == 0)
-      return(helpText("Aucune variable catégorielle ou ordinale détectée."))
-    selectInput(ns("recodeVar"), tagList(icon("list"), " Variable à recoder"), choices = vars)
+      return(shiny::helpText("Aucune variable catégorielle ou ordinale détectée."))
+    shiny::selectInput(ns("recodeVar"), shiny::tagList(shiny::icon("list"), " Variable à recoder"), choices = vars)
   })
-  recode_levels <- reactive({
+  recode_levels <- shiny::reactive({
     df <- values$cleanData; v <- input$recodeVar
-    req(df, v %in% names(df))
+    shiny::req(df, v %in% names(df))
     sort(unique(as.character(stats::na.omit(df[[v]]))))
   })
-  output$recodeInterface <- renderUI({
+  output$recodeInterface <- shiny::renderUI({
     lv <- recode_levels()
-    if (length(lv) == 0) return(helpText("Aucune modalité à recoder."))
+    if (length(lv) == 0) return(shiny::helpText("Aucune modalité à recoder."))
     is_ordinal <- (input$recodeType %||% "nominal") == "ordinal"
     if (length(lv) > RECODE_THRESHOLD) {
       default_txt <- paste(sprintf("%s = %s", lv, lv), collapse = "\n")
-      tagList(
-        tags$small(trf("%d modalités (tableau éditable).%s", length(lv),
+      shiny::tagList(
+        shiny::tags$small(trf("%d modalités (tableau éditable).%s", length(lv),
           if (is_ordinal) " L'ordre des lignes = ordre du facteur ordinal." else "")),
-        textAreaInput(ns("recodeTable"), NULL, value = default_txt,
+        shiny::textAreaInput(ns("recodeTable"), NULL, value = default_txt,
                       rows = min(20, length(lv) + 1), width = "100%"))
     } else {
-      tagList(
-        tags$small(sprintf("%d modalités.%s", length(lv),
+      shiny::tagList(
+        shiny::tags$small(sprintf("%d modalités.%s", length(lv),
           if (is_ordinal) " L'ordre ci-dessous = ordre du facteur ordinal." else "")),
         lapply(seq_along(lv), function(i)
-          textInput(ns(paste0("recodeLvl_", i)),
+          shiny::textInput(ns(paste0("recodeLvl_", i)),
                     label = sprintf("%s« %s » devient :",
                                     if (is_ordinal) sprintf("(%d) ", i) else "", lv[i]),
                     value = lv[i])))
     }
   })
-  recode_msg <- reactiveVal(NULL)
-  observeEvent(input$applyRecode, {
+  recode_msg <- shiny::reactiveVal(NULL)
+  shiny::observeEvent(input$applyRecode, {
     df <- values$cleanData; v <- input$recodeVar
     if (is.null(v) || !(v %in% names(df))) {
       recode_msg(list(ok = FALSE, msg = "Choisissez une variable à recoder.")); return()
@@ -1210,46 +1210,46 @@ mod_clean_server <- function(id, values) {
                     if (is_ordinal) "ordinal" else "nominal", v, n_changed,
                     length(unique(new_order)), if (is_ordinal) " (ordre défini)" else "")))
   })
-  output$recodeStatus <- renderUI({
+  output$recodeStatus <- shiny::renderUI({
     m <- recode_msg(); if (is.null(m)) return(NULL)
     cls <- if (isTRUE(m$ok)) "#27ae60" else "#c0392b"
     ic <- if (isTRUE(m$ok)) "check-circle" else "exclamation-triangle"
-    div(style = sprintf("margin-top:10px; padding:8px; border-radius:4px; background:%s22; color:%s; font-size:12px;", cls, cls),
-        icon(ic), " ", m$msg)
+    shiny::div(style = sprintf("margin-top:10px; padding:8px; border-radius:4px; background:%s22; color:%s; font-size:12px;", cls, cls),
+        shiny::icon(ic), " ", m$msg)
   })
 
-  observeEvent(input$addVar, {
-    req(input$newVarName)
+  shiny::observeEvent(input$addVar, {
+    shiny::req(input$newVarName)
     
     if (input$newVarName %in% names(values$cleanData)) {
-      showNotification(
-        ui = tagList(icon("exclamation-triangle"), " Cette variable existe déjà!"),
+      shiny::showNotification(
+        ui = shiny::tagList(shiny::icon("exclamation-triangle"), " Cette variable existe déjà!"),
         type = "warning", 
         duration = 3
       )
     } else if (input$newVarName == "") {
-      showNotification("Le nom de la variable ne peut pas être vide", 
+      shiny::showNotification("Le nom de la variable ne peut pas être vide", 
                        type = "error", duration = 3)
     } else {
       values$cleanData[[input$newVarName]] <- rep(input$newVarValue, nrow(values$cleanData))
       values$filteredData <- values$cleanData
       
-      showNotification(
-        ui = tagList(icon("plus"), paste(" Variable `", input$newVarName, "` ajoutée avec succès")),
+      shiny::showNotification(
+        ui = shiny::tagList(shiny::icon("plus"), paste(" Variable `", input$newVarName, "` ajoutée avec succès")),
         type = "message", 
         duration = 3
       )
     }
   })
   
-  output$colPicker <- renderUI({
-    req(values$cleanData)
-    selectInput(ns("colInsert"), "Insérer colonne :", 
+  output$colPicker <- shiny::renderUI({
+    shiny::req(values$cleanData)
+    shiny::selectInput(ns("colInsert"), "Insérer colonne :", 
                 choices = c("", names(values$cleanData)))
   })
   
-  observeEvent(input$colInsert, {
-    req(input$colInsert != "")
+  shiny::observeEvent(input$colInsert, {
+    shiny::req(input$colInsert != "")
     current_formula <- input$calcFormula %||% ""
     # Backtick-quoting automatique si le nom contient des espaces ou caractères spéciaux
     col_safe <- if (grepl("[/+*^()%$@!? -]", input$colInsert, perl = TRUE) || grepl("^[0-9]", input$colInsert)) {
@@ -1260,71 +1260,71 @@ mod_clean_server <- function(id, values) {
     new_formula <- paste0(current_formula,
                           ifelse(nchar(current_formula) > 0, " ", ""),
                           col_safe)
-    updateTextInput(session, "calcFormula", value = new_formula)
+    shiny::updateTextInput(session, "calcFormula", value = new_formula)
   })
   
-  observeEvent(input$insertPlus, { 
-    updateTextInput(session, "calcFormula", 
+  shiny::observeEvent(input$insertPlus, { 
+    shiny::updateTextInput(session, "calcFormula", 
                     value = paste0(input$calcFormula %||% "", " + ")) 
   })
   
-  observeEvent(input$insertMoins, { 
-    updateTextInput(session, "calcFormula", 
+  shiny::observeEvent(input$insertMoins, { 
+    shiny::updateTextInput(session, "calcFormula", 
                     value = paste0(input$calcFormula %||% "", " - ")) 
   })
   
-  observeEvent(input$insertMult, { 
-    updateTextInput(session, "calcFormula", 
+  shiny::observeEvent(input$insertMult, { 
+    shiny::updateTextInput(session, "calcFormula", 
                     value = paste0(input$calcFormula %||% "", " * ")) 
   })
   
-  observeEvent(input$insertDiv, { 
-    updateTextInput(session, "calcFormula", 
+  shiny::observeEvent(input$insertDiv, { 
+    shiny::updateTextInput(session, "calcFormula", 
                     value = paste0(input$calcFormula %||% "", " / ")) 
   })
   
-  observeEvent(input$insertLog, { 
-    updateTextInput(session, "calcFormula", 
+  shiny::observeEvent(input$insertLog, { 
+    shiny::updateTextInput(session, "calcFormula", 
                     value = paste0(input$calcFormula %||% "", " log()")) 
   })
   
-  observeEvent(input$insertSqrt, { 
-    updateTextInput(session, "calcFormula", 
+  shiny::observeEvent(input$insertSqrt, { 
+    shiny::updateTextInput(session, "calcFormula", 
                     value = paste0(input$calcFormula %||% "", " sqrt()")) 
   })
-  observeEvent(input$insertLog10, { updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " log10()")) })
-  observeEvent(input$insertAbs,   { updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " abs()")) })
-  observeEvent(input$insertRound, { updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " round(,2)")) })
-  observeEvent(input$insertExp,   { updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " exp()")) })
-  observeEvent(input$insertMean,  { updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " mean()")) })
-  observeEvent(input$insertSum,   { updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " sum()")) })
-  observeEvent(input$insertPow,   { updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", "^")) })
-  observeEvent(input$insertParen, { updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", "()")) })
-  observeEvent(input$insertIfelse,{ updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " ifelse(, , )")) })
-  observeEvent(input$insertIsNA,  { updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " is.na()")) })
+  shiny::observeEvent(input$insertLog10, { shiny::updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " log10()")) })
+  shiny::observeEvent(input$insertAbs,   { shiny::updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " abs()")) })
+  shiny::observeEvent(input$insertRound, { shiny::updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " round(,2)")) })
+  shiny::observeEvent(input$insertExp,   { shiny::updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " exp()")) })
+  shiny::observeEvent(input$insertMean,  { shiny::updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " mean()")) })
+  shiny::observeEvent(input$insertSum,   { shiny::updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " sum()")) })
+  shiny::observeEvent(input$insertPow,   { shiny::updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", "^")) })
+  shiny::observeEvent(input$insertParen, { shiny::updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", "()")) })
+  shiny::observeEvent(input$insertIfelse,{ shiny::updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " ifelse(, , )")) })
+  shiny::observeEvent(input$insertIsNA,  { shiny::updateTextInput(session, "calcFormula", value = paste0(input$calcFormula %||% "", " is.na()")) })
   
   # Insérer une condition sur lignes dans la formule
-  output$rowCondPicker <- renderUI({
-    req(values$cleanData)
-    tagList(
-      selectInput(ns("rowCondCol"), "Colonne :", choices = c("", names(values$cleanData))),
-      conditionalPanel(
+  output$rowCondPicker <- shiny::renderUI({
+    shiny::req(values$cleanData)
+    shiny::tagList(
+      shiny::selectInput(ns("rowCondCol"), "Colonne :", choices = c("", names(values$cleanData))),
+      shiny::conditionalPanel(
         ns = ns,
         condition = "input.rowCondCol != ''",
-        fluidRow(
-          column(6, selectInput(ns("rowCondOp"), "Opérateur :",
+        shiny::fluidRow(
+          shiny::column(6, shiny::selectInput(ns("rowCondOp"), "Opérateur :",
                                 choices = c("==" = "==", "!=" = "!=", ">" = ">", ">=" = ">=", "<" = "<", "<=" = "<=", "is.na" = "is.na"),
                                 selected = "==")),
-          column(6, textInput(ns("rowCondVal"), "Valeur :", placeholder = "ex: 'A' ou 10"))
+          shiny::column(6, shiny::textInput(ns("rowCondVal"), "Valeur :", placeholder = "ex: 'A' ou 10"))
         ),
-        actionButton(ns("insertRowCond"), tagList(icon("filter"), " Insérer condition"),
+        shiny::actionButton(ns("insertRowCond"), shiny::tagList(shiny::icon("filter"), " Insérer condition"),
                      class = "btn-success btn-sm btn-block")
       )
     )
   })
   
-  observeEvent(input$insertRowCond, {
-    req(input$rowCondCol, input$rowCondCol != "")
+  shiny::observeEvent(input$insertRowCond, {
+    shiny::req(input$rowCondCol, input$rowCondCol != "")
     col_safe_cond <- if (grepl("[-/ +*^()%$@!?]|^[0-9]", input$rowCondCol, perl = TRUE)) {
       paste0("`", input$rowCondCol, "`")
     } else { input$rowCondCol }
@@ -1334,21 +1334,21 @@ mod_clean_server <- function(id, values) {
       paste0(col_safe_cond, " ", input$rowCondOp, " ", input$rowCondVal)
     }
     cur <- input$calcFormula %||% ""
-    updateTextInput(session, "calcFormula",
+    shiny::updateTextInput(session, "calcFormula",
                     value = paste0("ifelse(", cond, ", ", cur, ", NA)"))
   })
   
-  observeEvent(input$addCalcVar, {
-    req(input$calcVarName, input$calcFormula)
+  shiny::observeEvent(input$addCalcVar, {
+    shiny::req(input$calcVarName, input$calcFormula)
     
     if (input$calcVarName == "") {
-      showNotification("Le nom de la variable ne peut pas être vide", 
+      shiny::showNotification("Le nom de la variable ne peut pas être vide", 
                        type = "error", duration = 3)
       return()
     }
     
     if (input$calcFormula == "") {
-      showNotification("La formule ne peut pas être vide", 
+      shiny::showNotification("La formule ne peut pas être vide", 
                        type = "error", duration = 3)
       return()
     }
@@ -1365,13 +1365,13 @@ mod_clean_server <- function(id, values) {
       }
       
       if (length(new_col) != nrow(values$cleanData)) {
-        showNotification(
-          tagList(
-            icon("exclamation-triangle"),
+        shiny::showNotification(
+          shiny::tagList(
+            shiny::icon("exclamation-triangle"),
             " Formule incorrecte : le résultat a ", length(new_col), " valeur(s) ",
             "au lieu de ", nrow(values$cleanData), ". ",
-            tags$br(),
-            tags$small("Astuce : utilisez rowMeans(cbind(Var1, Var2)) pour la moyenne ligne par ligne.")
+            shiny::tags$br(),
+            shiny::tags$small("Astuce : utilisez rowMeans(cbind(Var1, Var2)) pour la moyenne ligne par ligne.")
           ),
           type = "error", duration = 8)
         return()
@@ -1380,24 +1380,24 @@ mod_clean_server <- function(id, values) {
       values$cleanData[[input$calcVarName]] <- new_col
       values$filteredData <- values$cleanData
       
-      showNotification(
-        ui = tagList(icon("calculator"), paste(" Variable `", input$calcVarName, "` créée avec succès!")),
+      shiny::showNotification(
+        ui = shiny::tagList(shiny::icon("calculator"), paste(" Variable `", input$calcVarName, "` créée avec succès!")),
         type = "message", 
         duration = 3
       )
       
-      updateTextInput(session, "calcVarName", value = "")
-      updateTextInput(session, "calcFormula", value = "")
+      shiny::updateTextInput(session, "calcVarName", value = "")
+      shiny::updateTextInput(session, "calcFormula", value = "")
       
     }, error = function(e) {
-      showNotification(hstat_err_fr(e, "Erreur dans la formule"), 
+      shiny::showNotification(hstat_err_fr(e, "Erreur dans la formule"), 
                        type = "error", duration = 5)
     })
   })
   
   # Tableau du pourcentage de valeurs manquantes par variable
-  na_summary_df <- reactive({
-    req(values$cleanData)
+  na_summary_df <- shiny::reactive({
+    shiny::req(values$cleanData)
     d <- values$cleanData
     n <- nrow(d)
     df <- data.frame(
@@ -1421,7 +1421,7 @@ mod_clean_server <- function(id, values) {
   })
 
   # Recommandation automatique de la methode d'imputation
-  output$naRecommendation <- renderUI({
+  output$naRecommendation <- shiny::renderUI({
     df <- na_summary_df()
     max_pct <- max(df$`NA (%)`, na.rm = TRUE)
     has_cat <- any(df$Type == "catégorielle" & df$`NA (%)` > 0)
@@ -1437,36 +1437,36 @@ mod_clean_server <- function(id, values) {
     } else {
       list(txt = "Plus de 30% de NA sur au moins une variable : envisagez de retirer la variable ; sinon MICE/PMM avec prudence.", m = "mice")
     }
-    tagList(
-      tags$b(icon("lightbulb"), " Recommandation : "),
-      span(rec$txt),
-      if (!is.null(rec$m)) div(style = "margin-top:6px;",
-        actionButton(ns("naApplyRecommend"),
-          tagList(icon("check"), " Adopter la méthode recommandée"),
+    shiny::tagList(
+      shiny::tags$b(shiny::icon("lightbulb"), " Recommandation : "),
+      shiny::span(rec$txt),
+      if (!is.null(rec$m)) shiny::div(style = "margin-top:6px;",
+        shiny::actionButton(ns("naApplyRecommend"),
+          shiny::tagList(shiny::icon("check"), " Adopter la méthode recommandée"),
           class = "btn-warning btn-sm")))
   })
 
-  observeEvent(input$naApplyRecommend, {
+  shiny::observeEvent(input$naApplyRecommend, {
     df <- na_summary_df()
     max_pct <- max(df$`NA (%)`, na.rm = TRUE)
     has_cat <- any(df$Type == "catégorielle" & df$`NA (%)` > 0)
     m <- if (max_pct < 5) "median" else if (max_pct <= 20 && has_cat) "rf" else "mice"
-    updateRadioButtons(session, "naMethod", selected = m)
-    showNotification(paste("Méthode recommandée sélectionnée :", m), type = "message", duration = 3)
+    shiny::updateRadioButtons(session, "naMethod", selected = m)
+    shiny::showNotification(paste("Méthode recommandée sélectionnée :", m), type = "message", duration = 3)
   })
 
-  output$naVarSelect <- renderUI({
-    req(values$cleanData)
+  output$naVarSelect <- shiny::renderUI({
+    shiny::req(values$cleanData)
     
     vars_with_na <- names(values$cleanData)[sapply(values$cleanData, function(x) any(is.na(x)))]
     
     if (length(vars_with_na) == 0) {
-      return(div(class = "alert alert-success", 
-                 icon("check-circle"), 
+      return(shiny::div(class = "alert alert-success", 
+                 shiny::icon("check-circle"), 
                  " Aucune valeur manquante détectée dans les données"))
     }
     
-    selectInput(
+    shiny::selectInput(
       inputId = ns("naVars"),
       label = paste0("Sélectionnez les variables à traiter (", 
                      length(vars_with_na), " variables avec NA) :"), 
@@ -1477,16 +1477,16 @@ mod_clean_server <- function(id, values) {
     )
   })
   
-  observeEvent(input$applyNA, {
-    req(values$cleanData, input$naVars)
+  shiny::observeEvent(input$applyNA, {
+    shiny::req(values$cleanData, input$naVars)
     
     if (length(input$naVars) == 0) {
-      showNotification("Veuillez sélectionner au moins une variable", 
+      shiny::showNotification("Veuillez sélectionner au moins une variable", 
                        type = "warning", duration = 3)
       return()
     }
     
-    withProgress(message = 'Traitement des valeurs manquantes...', value = 0, {
+    shiny::withProgress(message = 'Traitement des valeurs manquantes...', value = 0, {
       data_temp <- values$cleanData
       n <- length(input$naVars)
 
@@ -1497,12 +1497,12 @@ mod_clean_server <- function(id, values) {
         if (input$naMethod == "knn") {
           if (!requireNamespace("VIM", quietly = TRUE)) {
             ok <- FALSE
-            showNotification("Package 'VIM' indisponible. Installez-le pour l'imputation KNN.",
+            shiny::showNotification("Package 'VIM' indisponible. Installez-le pour l'imputation KNN.",
                              type = "error", duration = 6)
           } else if (nrow(data_temp) > HSTAT_IMPUTE_MAX_N) {
             # kNN est en O(n^2) : au-dela du seuil il gelerait l'application.
             ok <- FALSE
-            showNotification(sprintf(paste0(
+            shiny::showNotification(sprintf(paste0(
               "Imputation KNN impossible sur %s lignes (limite : %s, algorithme ",
               "en O(n^2)). Utilisez 'mice' ou la mediane/le mode, adaptes aux ",
               "grands jeux de donnees."),
@@ -1514,13 +1514,13 @@ mod_clean_server <- function(id, values) {
                                      k = input$naKnnK %||% 5, imp_var = FALSE),
                             error = function(e) { ok <<- FALSE; NULL })
             if (ok && !is.null(imp)) data_temp <- imp
-            if (!ok) showNotification("Echec de l'imputation KNN.",
+            if (!ok) shiny::showNotification("Echec de l'imputation KNN.",
                                       type = "error", duration = 6)
           }
         } else if (input$naMethod == "mice") {
           if (requireNamespace("mice", quietly = TRUE)) {
             if (nrow(data_temp) > 200000L)
-              showNotification(paste0("Imputation multiple (mice) sur ",
+              shiny::showNotification(paste0("Imputation multiple (mice) sur ",
                 format(nrow(data_temp), big.mark = " "),
                 " lignes : le calcul peut prendre plusieurs minutes."),
                 type = "message", duration = 10)
@@ -1540,16 +1540,16 @@ mod_clean_server <- function(id, values) {
               }
             }
           } else ok <- FALSE
-          if (!ok) showNotification("Package 'mice' indisponible. Installez-le pour l'imputation multiple.",
+          if (!ok) shiny::showNotification("Package 'mice' indisponible. Installez-le pour l'imputation multiple.",
                                     type = "error", duration = 6)
         } else if (input$naMethod == "rf") {
           if (!requireNamespace("missForest", quietly = TRUE)) {
             ok <- FALSE
-            showNotification("Package 'missForest' indisponible. Repli : médiane/mode.",
+            shiny::showNotification("Package 'missForest' indisponible. Repli : médiane/mode.",
                              type = "warning", duration = 6)
           } else if (nrow(data_temp) > HSTAT_IMPUTE_MAX_N) {
             ok <- FALSE
-            showNotification(sprintf(paste0(
+            shiny::showNotification(sprintf(paste0(
               "missForest est trop lent au-dela de %s lignes (%s ici). ",
               "Repli automatique : médiane/mode."),
               format(HSTAT_IMPUTE_MAX_N, big.mark = " "),
@@ -1561,7 +1561,7 @@ mod_clean_server <- function(id, values) {
             imp <- tryCatch(missForest::missForest(sub)$ximp,
                             error = function(e) { ok <<- FALSE; NULL })
             if (ok && !is.null(imp)) data_temp[, sel] <- imp
-            if (!ok) showNotification("Echec de missForest. Repli : médiane/mode.",
+            if (!ok) shiny::showNotification("Echec de missForest. Repli : médiane/mode.",
                                       type = "warning", duration = 6)
           }
           if (!ok) {
@@ -1572,10 +1572,10 @@ mod_clean_server <- function(id, values) {
             }
           }
         }
-        incProgress(1, detail = "Imputation multivariée")
+        shiny::incProgress(1, detail = "Imputation multivariée")
         values$cleanData <- data_temp
         values$filteredData <- values$cleanData
-        showNotification(tagList(icon("check"), " Imputation appliquée."),
+        shiny::showNotification(shiny::tagList(shiny::icon("check"), " Imputation appliquée."),
                          type = "message", duration = 3)
         return()
       }
@@ -1591,7 +1591,7 @@ mod_clean_server <- function(id, values) {
               mean_val <- mean(data_temp[[col]], na.rm = TRUE)
               data_temp[[col]][is.na(data_temp[[col]])] <- mean_val
             } else {
-              showNotification(paste("La variable `", col, "` n'est pas numérique. Moyenne impossible."), 
+              shiny::showNotification(paste("La variable `", col, "` n'est pas numérique. Moyenne impossible."), 
                                type = "warning", duration = 3)
             }
           } else if (input$naMethod == "median") {
@@ -1599,7 +1599,7 @@ mod_clean_server <- function(id, values) {
               median_val <- median(data_temp[[col]], na.rm = TRUE)
               data_temp[[col]][is.na(data_temp[[col]])] <- median_val
             } else {
-              showNotification(paste("La variable `", col, "` n'est pas numérique. Médiane impossible."), 
+              shiny::showNotification(paste("La variable `", col, "` n'est pas numérique. Médiane impossible."), 
                                type = "warning", duration = 3)
             }
           } else if (input$naMethod == "mode") {
@@ -1612,32 +1612,32 @@ mod_clean_server <- function(id, values) {
             data_temp[[col]][is.na(data_temp[[col]])] <- input$naValue
           }
         }, error = function(e) {
-          showNotification(hstat_err_fr(e, sprintf("Variable `%s`", col)), 
+          shiny::showNotification(hstat_err_fr(e, sprintf("Variable `%s`", col)), 
                            type = "error", duration = 5)
         })
         
-        incProgress(1/n, detail = paste("Variable", i, "sur", n))
+        shiny::incProgress(1/n, detail = paste("Variable", i, "sur", n))
       }
       
       values$cleanData <- data_temp
       values$filteredData <- values$cleanData
     })
     
-    showNotification(
-      ui = tagList(icon("check"), " Traitement des valeurs manquantes terminé avec succès!"),
+    shiny::showNotification(
+      ui = shiny::tagList(shiny::icon("check"), " Traitement des valeurs manquantes terminé avec succès!"),
       type = "message", 
       duration = 3
     )
   })
   
   # ---- Valeurs aberrantes et winsorisation ----
-  output$outlierVarSelect <- renderUI({
-    req(values$cleanData)
+  output$outlierVarSelect <- shiny::renderUI({
+    shiny::req(values$cleanData)
     num_cols <- names(values$cleanData)[sapply(values$cleanData, is.numeric)]
     if (length(num_cols) == 0)
-      return(div(class = "alert alert-warning", icon("exclamation-triangle"),
+      return(shiny::div(class = "alert alert-warning", shiny::icon("exclamation-triangle"),
                  " Aucune variable numérique disponible."))
-    selectInput(ns("outlierVars"), "Variables numériques à analyser :",
+    shiny::selectInput(ns("outlierVars"), "Variables numériques à analyser :",
                 choices = num_cols, selected = num_cols, multiple = TRUE, selectize = TRUE)
   })
 
@@ -1659,10 +1659,10 @@ mod_clean_server <- function(id, values) {
     }
   }
 
-  outlier_report <- reactiveVal(NULL)
+  outlier_report <- shiny::reactiveVal(NULL)
 
   compute_outliers <- function() {
-    req(values$cleanData, input$outlierVars)
+    shiny::req(values$cleanData, input$outlierVars)
     d <- values$cleanData
     method <- input$outlierMethod %||% "iqr"
     iqr_k <- input$outlierIqrK %||% 1.5
@@ -1698,43 +1698,43 @@ mod_clean_server <- function(id, values) {
     do.call(rbind, rows)
   }
 
-  observeEvent(input$detectOutliers, {
+  shiny::observeEvent(input$detectOutliers, {
     rep <- tryCatch(compute_outliers(), error = function(e) NULL)
     outlier_report(rep)
-    if (is.null(rep)) showNotification("Détection impossible.", type = "error", duration = 4)
-    else showNotification(tagList(icon("check"), " Détection terminée."), type = "message", duration = 3)
+    if (is.null(rep)) shiny::showNotification("Détection impossible.", type = "error", duration = 4)
+    else shiny::showNotification(shiny::tagList(shiny::icon("check"), " Détection terminée."), type = "message", duration = 3)
   })
 
-  output$outlierSummary <- renderUI({
+  output$outlierSummary <- shiny::renderUI({
     rep <- outlier_report()
-    if (is.null(rep)) return(p(style="color:#999;font-style:italic;", "Cliquez sur Détecter pour analyser."))
+    if (is.null(rep)) return(shiny::p(style="color:#999;font-style:italic;", "Cliquez sur Détecter pour analyser."))
     total <- sum(rep$`Aberrants (n)`)
-    p(tags$b(total), " valeur(s) aberrante(s) détectée(s) au total.")
+    shiny::p(shiny::tags$b(total), " valeur(s) aberrante(s) détectée(s) au total.")
   })
 
-  output$outlierTable <- renderTable({
+  output$outlierTable <- shiny::renderTable({
     rep <- outlier_report()
-    req(rep)
+    shiny::req(rep)
     rep
   }, striped = TRUE, bordered = TRUE, spacing = "xs", width = "auto",
      align = "lrrrr")
 
   # La note n'a de sens qu'avec le tableau : l'afficher seule expliquerait des
   # colonnes que l'utilisateur ne voit pas.
-  output$outlierNote <- renderUI({
+  output$outlierNote <- shiny::renderUI({
     if (is.null(outlier_report())) return(NULL)
-    p(style = "font-size:11px;color:#7f8c8d;font-style:italic;margin-top:6px;",
-      icon("info-circle"),
+    shiny::p(style = "font-size:11px;color:#7f8c8d;font-style:italic;margin-top:6px;",
+      shiny::icon("info-circle"),
       " Bornes basse/haute = valeurs réelles extrêmes non aberrantes observées dans les données (convention des moustaches du boxplot).")
   })
 
-  observeEvent(input$applyOutliers, {
-    req(values$cleanData, input$outlierVars)
+  shiny::observeEvent(input$applyOutliers, {
+    shiny::req(values$cleanData, input$outlierVars)
     action <- input$outlierAction %||% "detect"
     if (action == "detect") {
       rep <- tryCatch(compute_outliers(), error = function(e) NULL)
       outlier_report(rep)
-      showNotification("Mode détection : aucune donnée modifiée.", type = "message", duration = 3)
+      shiny::showNotification("Mode détection : aucune donnée modifiée.", type = "message", duration = 3)
       return()
     }
     method <- input$outlierMethod %||% "iqr"
@@ -1742,7 +1742,7 @@ mod_clean_server <- function(id, values) {
     z_thr <- input$outlierZThresh %||% 3
     d <- values$cleanData
     n_changed <- 0
-    withProgress(message = "Traitement des valeurs aberrantes...", value = 0, {
+    shiny::withProgress(message = "Traitement des valeurs aberrantes...", value = 0, {
       if (action == "winsor") {
         # Winsorisation aux quartiles : les valeurs sous le 25e percentile (Q1)
         # sont ramenées à Q1, celles au-dessus du 75e percentile (Q3) à Q3.
@@ -1780,12 +1780,12 @@ mod_clean_server <- function(id, values) {
           d <- d[keep, , drop = FALSE]
         }
       }
-      incProgress(1)
+      shiny::incProgress(1)
     })
     values$cleanData <- d
     values$filteredData <- d
     outlier_report(tryCatch(compute_outliers(), error = function(e) NULL))
-    showNotification(tagList(icon("check"),
+    shiny::showNotification(shiny::tagList(shiny::icon("check"),
       trf(" Traitement appliqué (%d valeur(s)/ligne(s) affectée(s)).", n_changed)),
       type = "message", duration = 4)
   })
@@ -1797,9 +1797,9 @@ mod_clean_server <- function(id, values) {
   # donnees de travail apres chaque geste, sans bouton « rafraichir » qui
   # pourrait afficher un diagnostic perime.
   # =========================================================================
-  zero_message <- reactiveVal(NULL)
+  zero_message <- shiny::reactiveVal(NULL)
 
-  zero_table <- reactive({
+  zero_table <- shiny::reactive({
     d <- values$cleanData
     if (is.null(d) || !NCOL(d)) return(NULL)
     s <- suppressWarnings(as.numeric(input$zeroSeuil %||% "1"))
@@ -1807,18 +1807,18 @@ mod_clean_server <- function(id, values) {
     tryCatch(hstat_vars_zero(d, seuil = s), error = function(e) NULL)
   })
 
-  output$zeroVarsResume <- renderUI({
+  output$zeroVarsResume <- shiny::renderUI({
     z <- zero_table()
-    if (is.null(z)) return(p(style = "color:#999;font-style:italic;",
+    if (is.null(z)) return(shiny::p(style = "color:#999;font-style:italic;",
                              "Chargez des données pour lancer le diagnostic."))
     if (!nrow(z))
-      return(div(class = "alert alert-success", style = "padding:8px;",
-                 icon("check-circle"),
+      return(shiny::div(class = "alert alert-success", style = "padding:8px;",
+                 shiny::icon("check-circle"),
                  " Aucune variable concernée : toutes les variables numériques portent au moins une valeur non nulle."))
-    p(tags$b(nrow(z)), trf(" variable(s) sur %s concernée(s).", NCOL(values$cleanData)))
+    shiny::p(shiny::tags$b(nrow(z)), trf(" variable(s) sur %s concernée(s).", NCOL(values$cleanData)))
   })
 
-  output$zeroVarsTable <- renderTable({
+  output$zeroVarsTable <- shiny::renderTable({
     z <- zero_table()
     if (is.null(z) || !nrow(z)) return(NULL)
     z
@@ -1827,87 +1827,87 @@ mod_clean_server <- function(id, values) {
 
   # Une colonne entierement vide n'est pas une colonne de zeros : la taire
   # laisserait croire qu'elle va bien.
-  output$zeroVarsVides <- renderUI({
+  output$zeroVarsVides <- shiny::renderUI({
     z <- zero_table()
     v <- if (is.null(z)) character(0) else attr(z, "vides")
     if (!length(v)) return(NULL)
-    div(class = "alert alert-warning", style = "padding:8px;margin-top:8px;",
-        icon("exclamation-triangle"),
+    shiny::div(class = "alert alert-warning", style = "padding:8px;margin-top:8px;",
+        shiny::icon("exclamation-triangle"),
         trf(" %s variable(s) entièrement vide(s), sans aucune valeur observée : ", length(v)),
-        tags$b(paste(v, collapse = ", ")),
+        shiny::tags$b(paste(v, collapse = ", ")),
         ". Ce ne sont pas des zéros : il n'y a rien à comparer à zéro.")
   })
 
-  output$zeroVarsSelect <- renderUI({
+  output$zeroVarsSelect <- shiny::renderUI({
     z <- zero_table()
     if (is.null(z) || !nrow(z))
-      return(p(style = "color:#999;font-style:italic;", "Rien à corriger."))
-    tagList(
-      selectInput(ns("zeroVars"), "Variables à traiter :", choices = z$Variable,
+      return(shiny::p(style = "color:#999;font-style:italic;", "Rien à corriger."))
+    shiny::tagList(
+      shiny::selectInput(ns("zeroVars"), "Variables à traiter :", choices = z$Variable,
                   selected = NULL, multiple = TRUE, selectize = TRUE),
-      div(style = "margin-top:-8px;margin-bottom:12px;",
-          actionButton(ns("zeroSelectAll"), "Tout sélectionner",
-                       icon = icon("check-double"), class = "btn-xs btn-default"),
-          actionButton(ns("zeroSelectNone"), "Tout désélectionner",
-                       icon = icon("eraser"), class = "btn-xs btn-default",
+      shiny::div(style = "margin-top:-8px;margin-bottom:12px;",
+          shiny::actionButton(ns("zeroSelectAll"), "Tout sélectionner",
+                       icon = shiny::icon("check-double"), class = "btn-xs btn-default"),
+          shiny::actionButton(ns("zeroSelectNone"), "Tout désélectionner",
+                       icon = shiny::icon("eraser"), class = "btn-xs btn-default",
                        style = "margin-left:6px;"),
-          tags$small(style = "color:#7f8c8d;display:block;margin-top:4px;",
+          shiny::tags$small(style = "color:#7f8c8d;display:block;margin-top:4px;",
                      trf("%s variable(s) listée(s).", nrow(z)))))
   })
 
   # Un fichier d'enquete peut porter vingt colonnes entierement nulles ; les
   # cocher une a une est precisement le geste qu'on veut eviter.
-  observeEvent(input$zeroSelectAll, {
+  shiny::observeEvent(input$zeroSelectAll, {
     z <- zero_table()
     if (is.null(z) || !nrow(z)) return()
-    updateSelectInput(session, "zeroVars", choices = z$Variable,
+    shiny::updateSelectInput(session, "zeroVars", choices = z$Variable,
                       selected = z$Variable)
   })
 
   # Les choix sont renvoyes avec la deselection : `selected = character(0)`
   # seul est lu par Shiny comme « ne rien changer », et la liste resterait
   # cochee -- l'utilisateur croirait le bouton sans effet.
-  observeEvent(input$zeroSelectNone, {
+  shiny::observeEvent(input$zeroSelectNone, {
     z <- zero_table()
     if (is.null(z) || !nrow(z)) return()
-    updateSelectInput(session, "zeroVars", choices = z$Variable,
+    shiny::updateSelectInput(session, "zeroVars", choices = z$Variable,
                       selected = character(0))
   })
 
   # Saisie directe : la zone est PRE-REMPLIE avec les valeurs actuelles, pour
   # que l'utilisateur corrige au lieu de tout retaper -- et pour que le nombre
   # de lignes attendu soit visible d'emblee.
-  output$zeroSaisieUI <- renderUI({
+  output$zeroSaisieUI <- shiny::renderUI({
     v <- input$zeroVars
     d <- values$cleanData
     if (is.null(d) || length(v) != 1)
-      return(div(class = "alert alert-info", style = "padding:8px;",
-                 icon("info-circle"),
+      return(shiny::div(class = "alert alert-info", style = "padding:8px;",
+                 shiny::icon("info-circle"),
                  " Sélectionnez exactement une variable pour saisir ses valeurs."))
     if (NROW(d) > 500)
-      return(div(class = "alert alert-warning", style = "padding:8px;",
-                 icon("exclamation-triangle"),
+      return(shiny::div(class = "alert alert-warning", style = "padding:8px;",
+                 shiny::icon("exclamation-triangle"),
                  trf(" %s observations : la saisie une à une n'est pas praticable. ", NROW(d)),
                  "Utilisez le remplacement par une valeur, ou corrigez le fichier source."))
     x <- d[[v]]
     txt <- paste(ifelse(is.na(x), "NA", as.character(x)), collapse = "\n")
-    tagList(
-      textAreaInput(ns("zeroSaisie"),
+    shiny::tagList(
+      shiny::textAreaInput(ns("zeroSaisie"),
                     sprintf("Valeurs (%s lignes attendues, une par ligne) :", NROW(d)),
                     value = txt, rows = 10, width = "100%"),
-      tags$small(style = "color:#7f8c8d;",
+      shiny::tags$small(style = "color:#7f8c8d;",
                  "Une valeur par ligne (ou séparées par des points-virgules). Écrivez NA pour une valeur manquante ; la virgule décimale est acceptée."))
   })
 
-  output$zeroMessage <- renderUI({
+  output$zeroMessage <- shiny::renderUI({
     m <- zero_message()
     if (is.null(m)) return(NULL)
-    div(class = paste("alert", if (isTRUE(m$ok)) "alert-success" else "alert-danger"),
+    shiny::div(class = paste("alert", if (isTRUE(m$ok)) "alert-success" else "alert-danger"),
         style = "padding:8px;margin-top:10px;",
-        icon(if (isTRUE(m$ok)) "check" else "exclamation-triangle"), " ", m$texte)
+        shiny::icon(if (isTRUE(m$ok)) "check" else "exclamation-triangle"), " ", m$texte)
   })
 
-  observeEvent(input$applyZero, {
+  shiny::observeEvent(input$applyZero, {
     d <- values$cleanData
     if (is.null(d)) {
       zero_message(list(ok = FALSE, texte = "Aucune donnée chargée.")); return()
@@ -1997,36 +1997,36 @@ mod_clean_server <- function(id, values) {
       meta = list(action = action, variables = paste(vars, collapse = ", "),
                   observations = NROW(d)))
     zero_message(res)
-    showNotification(tagList(icon("check"), " ", res$texte),
+    shiny::showNotification(shiny::tagList(shiny::icon("check"), " ", res$texte),
                      type = "message", duration = 4)
   })
 
   # =========================================================================
   # CLASSES D'INTERVALLES (discrétisation) -- ex. classes d'âge
   # =========================================================================
-  output$cutVarSelect <- renderUI({
-    req(values$cleanData)
+  output$cutVarSelect <- shiny::renderUI({
+    shiny::req(values$cleanData)
     d <- values$cleanData
     # candidates : numeriques + colonnes texte convertibles (format FR)
     is_cand <- vapply(d, function(col)
       is.numeric(col) || !is.null(hstat_as_numeric_fr(col)), logical(1))
     ch <- names(d)[is_cand]
     if (length(ch) == 0)
-      return(div(class = "alert alert-warning",
-                 icon("exclamation-triangle"), " Aucune variable numérique disponible."))
-    selectInput(ns("cutVar"), tagList(icon("hashtag"), " Variable numérique à découper"),
+      return(shiny::div(class = "alert alert-warning",
+                 shiny::icon("exclamation-triangle"), " Aucune variable numérique disponible."))
+    shiny::selectInput(ns("cutVar"), shiny::tagList(shiny::icon("hashtag"), " Variable numérique à découper"),
                 choices = ch, width = "100%")
   })
 
-  output$cutNewNameUI <- renderUI({
-    req(input$cutVar)
-    textInput(ns("cutNewName"), "Nom de la nouvelle variable",
+  output$cutNewNameUI <- shiny::renderUI({
+    shiny::req(input$cutVar)
+    shiny::textInput(ns("cutNewName"), "Nom de la nouvelle variable",
               value = paste0(input$cutVar, "_classes"), width = "100%")
   })
 
   # Calcul (partage par l'apercu et l'application)
-  cut_result <- reactive({
-    req(values$cleanData, input$cutVar, input$cutVar %in% names(values$cleanData))
+  cut_result <- shiny::reactive({
+    shiny::req(values$cleanData, input$cutVar, input$cutVar %in% names(values$cleanData))
     brks <- NULL
     if (identical(input$cutMethod, "manual")) {
       toks <- strsplit(trimws(input$cutBreaks %||% ""), "[;\\s]+")[[1]]
@@ -2048,29 +2048,29 @@ mod_clean_server <- function(id, values) {
                         interval_style = input$cutStyle %||% "std_last_closed")
   })
 
-  output$cutPreviewMsg <- renderUI({
+  output$cutPreviewMsg <- shiny::renderUI({
     r <- tryCatch(cut_result(), error = function(e) NULL)
     if (is.null(r)) return(NULL)
     if (!isTRUE(r$ok))
-      return(div(class = "alert alert-danger", style = "padding:8px;",
-                 icon("times-circle"), " ", r$msg))
-    tagList(
-      div(class = "alert alert-success", style = "padding:8px;",
-          icon("check-circle"),
+      return(shiny::div(class = "alert alert-danger", style = "padding:8px;",
+                 shiny::icon("times-circle"), " ", r$msg))
+    shiny::tagList(
+      shiny::div(class = "alert alert-success", style = "padding:8px;",
+          shiny::icon("check-circle"),
           sprintf(" %d classes -- bornes : %s", nlevels(r$factor),
                   paste(formatC(signif(r$breaks, 4), format = "g"), collapse = " | "))),
       if (!is.null(r$msg))
-        div(class = "alert alert-warning", style = "padding:8px;",
-            icon("exclamation-triangle"), " ", r$msg))
+        shiny::div(class = "alert alert-warning", style = "padding:8px;",
+            shiny::icon("exclamation-triangle"), " ", r$msg))
   })
 
-  output$cutPreviewTable <- renderTable({
+  output$cutPreviewTable <- shiny::renderTable({
     r <- tryCatch(cut_result(), error = function(e) NULL)
     if (is.null(r) || !isTRUE(r$ok)) return(NULL)
     r$counts
   }, striped = TRUE, bordered = TRUE, spacing = "xs", width = "100%")
 
-  output$cutPreviewPlot <- renderPlot({
+  output$cutPreviewPlot <- shiny::renderPlot({
     r <- tryCatch(cut_result(), error = function(e) NULL)
     if (is.null(r) || !isTRUE(r$ok)) return(NULL)
     d <- r$counts
@@ -2083,10 +2083,10 @@ mod_clean_server <- function(id, values) {
       ggplot2::theme_minimal(base_size = 12)
   })
 
-  observeEvent(input$applyCut, {
+  shiny::observeEvent(input$applyCut, {
     r <- tryCatch(cut_result(), error = function(e) NULL)
     if (is.null(r) || !isTRUE(r$ok)) {
-      showNotification(tagList(icon("times"), " ",
+      shiny::showNotification(shiny::tagList(shiny::icon("times"), " ",
         if (!is.null(r)) r$msg else "Paramètres incomplets."), type = "error", duration = 5)
       return()
     }
@@ -2098,15 +2098,15 @@ mod_clean_server <- function(id, values) {
     values$cleanData <- d
     values$filteredData <- d
     values$data <- d
-    showNotification(tagList(icon("check"),
+    shiny::showNotification(shiny::tagList(shiny::icon("check"),
       trf(" Variable « %s » créée (%d classes, facteur ordonné)%s.",
               new_name, nlevels(r$factor),
               if (overwrite) " -- ancienne colonne remplacée" else "")),
       type = "message", duration = 5)
   })
 
-  output$cleanedData <- renderDT({
-    req(values$cleanData)
+  output$cleanedData <- DT::renderDT({
+    shiny::req(values$cleanData)
     nsId <- session$ns("")
     # Rappel attache APRES initialisation (initComplete) et protege par try, pour
     # ne jamais interrompre le rendu du tableau ni le reste du module.
@@ -2127,7 +2127,7 @@ mod_clean_server <- function(id, values) {
       "    });",
       "  } catch(e) { console.log('rename header init skipped', e); }",
       "}")
-    datatable(
+    DT::datatable(
       values$cleanData, 
       extensions = "Buttons",
       options = list(
@@ -2143,16 +2143,16 @@ mod_clean_server <- function(id, values) {
   })
 
   # Renommage en place declenche par le double-clic sur l'en-tete.
-  observeEvent(input$renameColDirect, {
+  shiny::observeEvent(input$renameColDirect, {
     info <- input$renameColDirect
     if (is.null(info)) return()
     old <- info$old; new <- trimws(info$nw %||% "")
     if (is.null(old) || !nzchar(new)) return()
     if (!(old %in% names(values$cleanData))) {
-      showNotification(sprintf("Colonne « %s » introuvable.", old), type = "warning"); return()
+      shiny::showNotification(sprintf("Colonne « %s » introuvable.", old), type = "warning"); return()
     }
     if (new %in% setdiff(names(values$cleanData), old)) {
-      showNotification(trf("Le nom « %s » existe déjà.", new), type = "error"); return()
+      shiny::showNotification(trf("Le nom « %s » existe déjà.", new), type = "error"); return()
     }
     for (slot in c("data", "cleanData", "filteredData")) {
       dd <- values[[slot]]
@@ -2161,7 +2161,7 @@ mod_clean_server <- function(id, values) {
         values[[slot]] <- dd
       }
     }
-    showNotification(tagList(icon("check"), trf(" « %s » renommée en « %s »", old, new)),
+    shiny::showNotification(shiny::tagList(shiny::icon("check"), trf(" « %s » renommée en « %s »", old, new)),
                      type = "message", duration = 3)
   })
   })

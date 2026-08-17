@@ -5036,7 +5036,7 @@ hstat_export_plot_ui <- function(ns, prefix, width = 10, height = 6) {
       column(3, numericInput(ns(paste0(prefix, "H")), "Hauteur (pouces)",
                              value = height, min = 3, max = 30, step = 0.5)),
       column(3, hstat_dpi_input(ns(paste0(prefix, "Dpi")), "DPI (max 20 000)"))),
-    tags$small(style = "color:#6b7280;",
+    shiny::tags$small(style = "color:#6b7280;",
       "PDF et SVG sont vectoriels (resolution infinie, DPI sans objet). ",
       "Pour les formats matriciels, au-dela d'un certain DPI les dimensions physiques ",
       "sont automatiquement reduites afin de garder une image ouvrable (plafond de securite en pixels)."),
@@ -5317,7 +5317,7 @@ hstat_sim_inputs_ui <- function(ns, df, vars, prefix) {
       selectInput(ns(paste0(prefix, "_", v)), v, choices = lv)
     }
   })
-  do.call(tagList, lapply(seq_along(ctrls), function(i)
+  do.call(shiny::tagList, lapply(seq_along(ctrls), function(i)
     column(4, ctrls[[i]])))
 }
 
@@ -5527,10 +5527,10 @@ hstat_model_doc_ui <- function(id) {
   f <- hstat_model_doc(id)
   if (is.null(f)) return(NULL)
   div(class = "callout callout-info", style = "margin-top:8px;",
-      tags$p(icon("book"), strong(sprintf(" Fiche du modele — %s", f$nom))),
-      tags$p(strong("Principe : "), f$principe),
-      tags$p(strong("Objectif : "), f$objectif),
-      tags$p(strong("Conditions d'application : "), f$conditions))
+      shiny::tags$p(icon("book"), strong(sprintf(" Fiche du modele — %s", f$nom))),
+      shiny::tags$p(strong("Principe : "), f$principe),
+      shiny::tags$p(strong("Objectif : "), f$objectif),
+      shiny::tags$p(strong("Conditions d'application : "), f$conditions))
 }
 
 # ---------------------------------------------------------------------------

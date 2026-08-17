@@ -29,42 +29,39 @@ library(testthat)
 if (isTRUE(requireNamespace("shiny", quietly = TRUE)))
   suppressMessages(library(shiny))
 
-# -- Charger uniquement les fonctions utilitaires (sans demarrer l'app) -------
-# On source Utils.R dans un environnement isole. install_and_load() peut
-# tenter de charger des packages ; on neutralise cet effet pour les tests.
+# -- Charger le code du paquet (sans demarrer l'app) -------------------------
+# Le socle et TOUS les modules vivent dans `R/`. On les source dans un
+# environnement isole : ce sont des definitions, rien ne s'execute.
+#
+# Le dossier est balaye, les fichiers ne sont plus nommes un a un. C'est le
+# gain de la migration, et il vaut pour les tests comme pour l'application :
+# avant, quatre modules etaient charges par leur nom (mod_ai, mod_report,
+# mod_coding, mod_design) et un cinquieme qui aurait porte une fonction de
+# calcul serait reste invisible -- les tests le concernant auraient echoue sur
+# « could not find function », loin de la cause.
+#
+# install_and_load() est neutralise : il tenterait d'installer des paquets.
 local({
-  # Resolution robuste du chemin de Utils.R : que les tests soient lances depuis
-  # la racine de l'application (sys.source("Utils.R")) ou depuis tests/
-  # (testthat::test_dir, qui se place dans le dossier du fichier de test).
-  # Candidats couvrant toutes les facons de lancer les tests : depuis le
-  # dossier de l'app, depuis tests/, depuis testthat/ (test_dir), ou avec le
-  # package installe (R CMD check).
-  # LE SOCLE VIT DANS `R/utils.R`, code du paquet. `inst/app/Utils.R` n'est plus
-  # qu'un pont : le sourcer ne definirait rien. Les deux chemins sont donc
-  # cherches separement -- le socle d'un cote, le dossier des modules de l'autre.
   socle_cands <- c(
     file.path("R", "utils.R"),                              # racine du depot
     file.path("..", "R", "utils.R"),                        # depuis tests/
-    file.path("..", "..", "R", "utils.R"),                   # depuis tests/testthat/
+    file.path("..", "..", "R", "utils.R"),                  # depuis tests/testthat/
     file.path("..", "..", "..", "R", "utils.R"))
   socle_path <- socle_cands[file.exists(socle_cands)][1]
 
-  app_cands <- c(
-    ".", "..",
-    file.path("..", "..", "inst", "app"),                   # depuis tests/testthat/
-    file.path("..", "inst", "app"),                          # depuis tests/
-    file.path("inst", "app"),                                # depuis la racine
-    tryCatch(system.file("app", package = "HStat"), error = function(e) ""))
-  app_cands <- app_cands[nzchar(app_cands) &
-                         file.exists(file.path(app_cands, "mod_qualitative.R"))]
-  app_dir <- if (length(app_cands)) app_cands[1] else NA_character_
-
-  # Empeche install_and_load de bloquer si un package manque dans l'env de test
   e <- new.env()
   assign("install_and_load", function(...) invisible(NULL), envir = e)
   if (!is.na(socle_path)) {
-    suppressWarnings(suppressMessages(
-      sys.source(socle_path, envir = e, keep.source = FALSE)))
+    # `utils.R` d'abord, puis le reste par ordre alphabetique. L'ordre n'a plus
+    # d'importance de fond -- aucun module n'agit au chargement -- mais le fixer
+    # rend un echec reproductible. `run_hstat.R`, `zzz.R` et
+    # `_disable_autoload.R` appartiennent au paquet, pas a l'application.
+    dossier <- dirname(socle_path)
+    a_part <- c("utils.R", "run_hstat.R", "zzz.R", "_disable_autoload.R")
+    autres <- setdiff(basename(list.files(dossier, pattern = "[.][Rr]$")), a_part)
+    for (f in c("utils.R", sort(autres)))
+      suppressWarnings(suppressMessages(
+        sys.source(file.path(dossier, f), envir = e, keep.source = FALSE)))
   } else if (isTRUE(requireNamespace("HStat", quietly = TRUE))) {
     # Paquet installe (R CMD check) : les definitions viennent de l'espace de
     # noms, y compris les aides internes que les tests exercent directement.
@@ -75,41 +72,6 @@ local({
   } else {
     stop("Impossible de localiser le socle (R/utils.R) depuis ", getwd())
   }
-  if (is.na(app_dir))
-    stop("Impossible de localiser inst/app depuis ", getwd())
-  utils_path <- file.path(app_dir, "Utils.R")
-  # Les fonctions de calcul qualitatives (hstat_q_*) vivent dans
-  # mod_qualitative.R, au meme endroit que Utils.R : le charger aussi, sinon
-  # tous les tests qualitatifs echouent avec "could not find function".
-  qual_path <- file.path(dirname(utils_path), "mod_qualitative.R")
-  if (file.exists(qual_path))
-    suppressWarnings(suppressMessages(
-      sys.source(qual_path, envir = e, keep.source = FALSE)))
-  # Le moteur d'inference et l'aide a la decision (hstat_ai_*, hstat_reco_*,
-  # hstat_data_profile) vivent dans mod_ai.R : partages par tous les modules.
-  ai_path <- file.path(dirname(utils_path), "mod_ai.R")
-  if (file.exists(ai_path))
-    suppressWarnings(suppressMessages(
-      sys.source(ai_path, envir = e, keep.source = FALSE)))
-  # Le generateur de rapport (hstat_report_*) vit dans mod_report.R et
-  # s'appuie sur les helpers de mod_ai.R : le charger apres lui.
-  rep_path <- file.path(dirname(utils_path), "mod_report.R")
-  if (file.exists(rep_path))
-    suppressWarnings(suppressMessages(
-      sys.source(rep_path, envir = e, keep.source = FALSE)))
-  # Idem pour l'atelier de codage qualitatif (hstat_code_*, hstat_seg_*),
-  # qui vit dans mod_coding.R.
-  cod_path <- file.path(dirname(utils_path), "mod_coding.R")
-  if (file.exists(cod_path))
-    suppressWarnings(suppressMessages(
-      sys.source(cod_path, envir = e, keep.source = FALSE)))
-  # Les plans experimentaux (hstat_design_*, hstat_malherbo_catalog,
-  # hstat_gpower_*) vivent dans mod_design.R : ce sont des fonctions de calcul
-  # pures, testables sans demarrer Shiny.
-  dsg_path <- file.path(dirname(utils_path), "mod_design.R")
-  if (file.exists(dsg_path))
-    suppressWarnings(suppressMessages(
-      sys.source(dsg_path, envir = e, keep.source = FALSE)))
   # Exporter TOUTES les fonctions (y compris cachees, ex. .hstat_sql_stat_exprs)
   for (nm in ls(e, all.names = TRUE))
     assign(nm, get(nm, envir = e), envir = globalenv())
@@ -162,6 +124,32 @@ local({
     list.files(file.path(root, "R"), pattern = "^mod_.*[.]R$", full.names = TRUE))
 }
 
+# -- Tous les noms DEFINIS dans un fichier ------------------------------------
+# A n'importe quelle profondeur, parametres formels compris. Se limiter au
+# premier niveau (`ex[[i]][[2]]`) laissait passer les aides internes des
+# modules -- `id <- function(s) ns(...)` dans le corps d'une fonction d'UI --
+# et un balayage les prenait alors pour des fonctions de paquet.
+.hstat_noms_definis <- function(f) {
+  ex <- tryCatch(parse(f), error = function(e) NULL)
+  if (is.null(ex)) return(character(0))
+  acc <- character(0)
+  vide <- function(l, i) identical(l[[i]], quote(expr = ))
+  rec <- function(x) {
+    if (!is.call(x)) return(invisible())
+    tete <- x[[1]]
+    if (is.name(tete)) {
+      nm <- as.character(tete)
+      if (nm %in% c("<-", "=", "<<-") && is.name(x[[2]]))
+        acc <<- c(acc, as.character(x[[2]]))
+      if (nm == "function") acc <<- c(acc, names(as.list(x[[2]])))
+    }
+    l <- as.list(x)
+    for (i in seq_along(l)) if (!vide(l, i)) rec(l[[i]])
+  }
+  for (e in ex) rec(e)
+  unique(acc)
+}
+
 # -- Chemin d'un fichier de MODULE -------------------------------------------
 # La migration vers le paquet se fait module par module : `mod_tests.R` vit
 # desormais dans `R/`, les autres encore dans `inst/app/`. Les tests qui lisent
@@ -192,17 +180,11 @@ local({
   lignes
 }
 
-# -- Charger le module d'analyses qualitatives (fonctions de calcul) ---------
-local({
-  q_path <- "mod_qualitative.R"
-  if (!file.exists(q_path)) q_path <- file.path("..", "mod_qualitative.R")
-  if (file.exists(q_path)) {
-    eq <- new.env()
-    suppressWarnings(suppressMessages(sys.source(q_path, envir = eq, keep.source = FALSE)))
-    for (nm in ls(eq, all.names = TRUE))
-      assign(nm, get(nm, envir = eq), envir = globalenv())
-  }
-})
+# Le chargement separe de `mod_qualitative.R` a disparu : le balayage de `R/`
+# ci-dessus le prend comme les autres. Il cherchait le fichier a cote du
+# repertoire courant -- un chemin qui n'a plus de sens depuis que les modules
+# sont dans le paquet, et qui aurait laisse les hstat_q_* introuvables sans dire
+# pourquoi.
 
 
 # =============================================================================
@@ -1931,8 +1913,8 @@ test_that("le moteur par defaut est gratuit, jamais une API payante", {
   sans_com <- function(f) {
     paste(.hstat_code_lignes(f), collapse = "\n")
   }
-  src <- sans_com(file.path(.hstat_repo_root(), "inst", "app", "mod_ai.R"))
-  ui  <- sans_com(file.path(.hstat_repo_root(), "inst", "app", "mod_coding.R"))
+  src <- sans_com(.hstat_module_path("mod_ai.R"))
+  ui  <- sans_com(.hstat_module_path("mod_coding.R"))
   expect_false(grepl("api/tags", src, fixed = TRUE))
   expect_false(grepl(".hstat_ai_call_ollama", src, fixed = TRUE))
   expect_false(grepl("HSTAT_AI_BACKENDS", paste(src, ui), fixed = TRUE))
@@ -2278,16 +2260,28 @@ test_that("hstat_ai_parse_autocode n'accepte que les extraits reellement present
   expect_equal(attr(sg, "non_localises"), 2L)
 })
 
-test_that("mod_coding.R est source par HStat.R avant mod_qualitative.R", {
+test_that("HStat.R ne source plus aucun module : l'ordre n'est plus a tenir", {
+  # C'ETAIT LA CONTRAINTE A LEVER. `mod_qualitative_ui()` appelle
+  # `mod_coding_ui()`, et un test verifiait que `HStat.R` sourcait le second en
+  # premier. La contrainte etait reelle, mais elle ne se voyait pas : rien
+  # n'empechait un module ajoute plus tard de se glisser au mauvais rang, et
+  # l'erreur (« could not find function mod_coding_ui ») serait tombee au
+  # demarrage, loin de sa cause.
+  #
+  # Les modules etant dans `R/`, ils sont charges sans ordre. Le test garde
+  # donc l'inverse de ce qu'il gardait : qu'AUCUNE ligne de source() de module
+  # ne revienne dans `HStat.R`. En reintroduire une remettrait la contrainte
+  # sans remettre le garde-fou.
   root <- .hstat_repo_root()
-  h <- readLines(file.path(root, "inst", "app", "HStat.R"), warn = FALSE)
-  i_cod <- grep('source\\("mod_coding\\.R"', h)
-  i_qua <- grep('source\\("mod_qualitative\\.R"', h)
-  expect_length(i_cod, 1L)
-  expect_length(i_qua, 1L)
-  # mod_qualitative_ui() appelle mod_coding_ui() : l'ordre doit tenir
-  expect_true(i_cod < i_qua)
-  expect_true(file.exists(file.path(root, "inst", "app", "mod_coding.R")))
+  skip_if(is.na(root), "hors depot")
+  h <- .hstat_code_lignes(file.path(root, "inst", "app", "HStat.R"))
+  expect_length(grep('source\\("mod_[^"]*\\.R"', h), 0L)
+  # Les deux seuls fichiers qui AGISSENT au chargement restent sources.
+  expect_length(grep('source\\("UX\\.R"', h), 1L)
+  expect_length(grep('source\\("app_server\\.R"', h), 1L)
+  # Et tous les modules sont bien du cote paquet.
+  expect_length(list.files(file.path(root, "inst", "app"), pattern = "^mod_"), 0L)
+  expect_gte(length(list.files(file.path(root, "R"), pattern = "^mod_.*[.]R$")), 15L)
 })
 
 test_that("le corps des requetes locales a la forme attendue par les serveurs", {
@@ -2520,27 +2514,20 @@ test_that("le markdown du modele est converti sans pouvoir injecter de HTML", {
   expect_equal(.hstat_md_to_html(NULL), "")
 })
 
-test_that("mod_ai.R est source avant les modules qui s'en servent", {
+test_that("le moteur d'inference est charge avec le paquet, sans rang a tenir", {
+  # Ce test verifiait que `HStat.R` sourcait `mod_ai.R` avant les quatre modules
+  # qui appellent `hstat_ai_*`. La dependance existe toujours -- elle est juste
+  # devenue sans objet : dans un paquet, les definitions sont toutes en place
+  # avant qu'aucune ne soit appelee.
+  #
+  # Ce qui reste a garder, c'est que le moteur soit bien DU COTE PAQUET. L'y
+  # oublier ferait retomber la question de l'ordre par la fenetre.
   root <- .hstat_repo_root()
-  h <- readLines(file.path(root, "inst", "app", "HStat.R"), warn = FALSE)
-  i_ai <- grep('source\\("mod_ai\\.R"', h)
-  expect_length(i_ai, 1L)
-  # Le moteur est partage : il doit preceder tous les modules d'analyse
-  for (m in c("mod_coding.R", "mod_qualitative.R", "mod_ml.R", "mod_timeseries.R")) {
-    j <- grep(sprintf('source\\("%s"', gsub("\\.", "\\\\.", m)), h)
-    expect_length(j, 1L)
-    expect_true(i_ai < j, info = paste("mod_ai.R doit preceder", m))
-  }
-  # L'onglet est declare dans l'interface et branche cote serveur
-  ux <- readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE)
-  expect_true(any(grepl('mod_ai_ui\\("aidecision"\\)', ux)))
-  expect_true(any(grepl('tabName = "aidecision"', ux)))
-  srv <- readLines(file.path(root, "inst", "app", "app_server.R"), warn = FALSE)
-  expect_true(any(grepl('mod_ai_server\\("aidecision", values\\)', srv)))
-  # Le serveur alimente le registre pour les analyses dont les selecteurs ne
-  # vivent pas dans un module namespace. `values$aiContext`, lui, n'est plus lu
-  # ici depuis le retrait du bandeau : c'est l'onglet qui le lit.
-  expect_true(any(grepl("hstat_ai_capture", srv, fixed = TRUE)))
+  skip_if(is.na(root), "hors depot")
+  expect_true(file.exists(file.path(root, "R", "mod_ai.R")))
+  expect_false(file.exists(file.path(root, "inst", "app", "mod_ai.R")))
+  expect_true(is.function(hstat_ai_capture))
+  expect_true(is.function(hstat_reco_analyses))
 })
 
 test_that("une analyse descriptive n'est pas jugee comme un test", {
@@ -2630,7 +2617,7 @@ test_that("les intervalles de prevision perdent leur classe `ts` avant ggplot", 
   # ce type et le signalait a CHAQUE trace de prevision (« Don't know how to
   # automatically pick scale for object of type <ts> »). Mesure faite dans le
   # journal du serveur : 1 avertissement avant correction, 0 apres.
-  l <- .hstat_code_lignes(file.path(root, "inst", "app", "mod_timeseries.R"))
+  l <- .hstat_code_lignes(.hstat_module_path("mod_timeseries.R"))
   poses <- grep("fdf\\$(lo|hi)[0-9]+ *<-", l, value = TRUE)
   expect_gt(length(poses), 0L)
   expect_true(all(grepl("as.numeric", poses)))
@@ -2712,7 +2699,7 @@ test_that("une randomisation ne tire jamais dans 1:x par accident", {
   expect_true(all(sample(c(7), 1) %in% 1:7))          # le piege, tel quel
   expect_equal(c(7)[sample.int(1)], 7)                # la forme employee
 
-  l <- .hstat_code_lignes(file.path(root, "inst", "app", "mod_design.R"))
+  l <- .hstat_code_lignes(.hstat_module_path("mod_design.R"))
   fautifs <- grep("sample\\([a-zA-Z_][A-Za-z0-9_.]*, *[a-zA-Z_]", l, value = TRUE)
   expect_equal(fautifs, character(0))
 })
@@ -2734,20 +2721,16 @@ test_that("aucun identifiant n'est declare deux fois dans la page", {
   ok <- tryCatch({
     suppressMessages(suppressWarnings({
       old <- setwd(app); on.exit(setwd(old), add = TRUE)
-      # Le socle et les modules MIGRES viennent de `R/`, les autres de
-      # `inst/app/`. Enumerer les deux dossiers plutot qu'une liste de noms :
-      # sinon chaque migration ferait SKIPPER ce test au lieu de l'executer, et
-      # un test saute ressemble a un test qui passe.
+      # Le dossier est BALAYE, les modules ne sont plus nommes un a un : une
+      # liste de noms se serait videe a mesure des migrations, et le test
+      # aurait fini par construire une interface amputee -- donc sans doublon,
+      # donc au vert, en ne regardant plus rien.
       socle <- file.path(root, "R")
       for (f in c(file.path(socle, "utils.R"),
                   list.files(socle, pattern = "^mod_.*[.]R$", full.names = TRUE)))
         try(sys.source(f, e), silent = TRUE)
-      for (f in c("mod_ai.R", "mod_report.R", "mod_coding.R",
-                  "mod_qualitative.R", "mod_clean.R", "mod_descriptive.R",
-                  "mod_design.R", "mod_dl.R", "mod_explore.R", "mod_filter.R",
-                  "mod_ml.R", "mod_threshold.R", "mod_timeseries.R",
-                  "mod_viz.R", "UX.R"))
-        if (file.exists(f)) try(sys.source(f, e), silent = TRUE)
+      hstat_installer_replis_ui(e)
+      try(sys.source("UX.R", e), silent = TRUE)
     }))
     exists("ui", envir = e)
   }, error = function(err) FALSE)
@@ -3739,7 +3722,7 @@ test_that("la progression est rapportee figure par figure", {
 test_that("l'interface propose de choisir la resolution", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))
-  src <- paste(readLines(file.path(root, "inst", "app", "mod_ai.R"),
+  src <- paste(readLines(.hstat_module_path("mod_ai.R"),
                          warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_true(grepl("rep_dpi", src, fixed = TRUE))
   expect_true(grepl("HSTAT_REPORT_DPI", src, fixed = TRUE))
@@ -4858,7 +4841,7 @@ test_that("le journal de reproductibilite n'est jamais traduit", {
   # pour promesse d'etre executable.
   root <- .hstat_repo_root()
   skip_if(is.na(root))
-  src <- readLines(file.path(root, "inst", "app", "mod_ai.R"), warn = FALSE,
+  src <- readLines(.hstat_module_path("mod_ai.R"), warn = FALSE,
                    encoding = "UTF-8")
   dans <- FALSE
   fautifs <- character(0)
@@ -4951,14 +4934,14 @@ test_that("creation et reinitialisation partagent la meme liste", {
   src <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
                          warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   # `reactiveValues` est construit DEPUIS la liste, pas recopie a cote
-  expect_true(grepl("do.call(reactiveValues, hstat_valeurs_initiales())",
+  expect_true(grepl("do.call(shiny::reactiveValues, hstat_valeurs_initiales())",
                     src, fixed = TRUE))
   # La reinitialisation reparcourt la meme liste
   expect_true(grepl("init <- hstat_valeurs_initiales()", src, fixed = TRUE))
   expect_true(grepl("for (nm in names(init)) values[[nm]] <- init[[nm]]",
                     src, fixed = TRUE))
   # Et vide en plus ce qu'un module aurait cree en cours de session
-  expect_true(grepl("setdiff(names(reactiveValuesToList(values)), names(init))",
+  expect_true(grepl("setdiff(names(shiny::reactiveValuesToList(values)), names(init))",
                     src, fixed = TRUE))
   # L'ancienne enumeration a la main a bien disparu
   expect_false(grepl("values$chiSqPGlobal     <- NULL", src, fixed = TRUE))
@@ -4971,9 +4954,9 @@ test_that("le fichier reste neutralise apres la reinitialisation", {
                          warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   # shinyjs::reset() remet le WIDGET a blanc mais input$file garde sa valeur :
   # sans temoin, la feuille Excel et le bloc de combinaison survivaient.
-  expect_true(grepl("values$fichierNeutralise <- isolate(input$file$datapath)",
+  expect_true(grepl("values$fichierNeutralise <- shiny::isolate(input$file$datapath)",
                     src, fixed = TRUE))
-  expect_true(grepl("fichier_actif <- reactive", src, fixed = TRUE))
+  expect_true(grepl("fichier_actif <- shiny::reactive", src, fixed = TRUE))
   # Tout ce qui derive du fichier passe par cette porte, et une seule
   lignes <- strsplit(src, "\n", fixed = TRUE)[[1]]
   lignes <- lignes[!grepl("^\\s*#", lignes)]
@@ -4992,7 +4975,7 @@ test_that("la reinitialisation ne depend pas d'un paquet optionnel", {
   # shinyalert est optionnel : sans repli, shinyalert() levait une erreur
   # avalee par l'observateur et le bouton ne faisait RIEN, en silence.
   expect_true(grepl('requireNamespace("shinyalert"', src, fixed = TRUE))
-  expect_true(grepl("showModal(modalDialog(", src, fixed = TRUE))
+  expect_true(grepl("shiny::showModal(shiny::modalDialog(", src, fixed = TRUE))
   expect_true(grepl("resetConfirm", src, fixed = TRUE))
   # Les deux chemins de confirmation appellent la MEME remise a zero
   expect_true(grepl(".hstat_reinitialiser <- function()", src, fixed = TRUE))
@@ -5285,7 +5268,7 @@ test_that("les quatre analyses encaissent un atelier vide", {
 test_that("l'atelier expose bien les quatre analyses dans l'interface", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))
-  m <- paste(readLines(file.path(root, "inst", "app", "mod_coding.R"),
+  m <- paste(readLines(.hstat_module_path("mod_coding.R"),
                        warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   for (f in c("hstat_code_query", "hstat_code_kwic", "hstat_code_codeline",
               "hstat_code_accord"))
@@ -5302,10 +5285,10 @@ test_that("le tableau des valeurs aberrantes a une sortie dediee", {
   # en dessous expliquait des « Bornes basse/haute » absentes de l'ecran.
   root <- .hstat_repo_root()
   skip_if(is.na(root))
-  m <- paste(readLines(file.path(root, "inst", "app", "mod_clean.R"),
+  m <- paste(readLines(.hstat_module_path("mod_clean.R"),
                        warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_true(grepl('tableOutput(ns("outlierTable"))', m, fixed = TRUE))
-  expect_true(grepl("output$outlierTable <- renderTable", m, fixed = TRUE))
+  expect_true(grepl("output$outlierTable <- shiny::renderTable", m, fixed = TRUE))
 })
 
 test_that("les diagnostics d'ANOVA ne font pas tomber toute la sortie", {
@@ -5610,7 +5593,7 @@ test_that("hstat_efficacite refuse clairement ce qu'elle ne peut pas faire", {
 test_that("le module de seuils expose bien le calcul depuis un temoin", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))
-  m <- paste(readLines(file.path(root, "inst", "app", "mod_threshold.R"),
+  m <- paste(readLines(.hstat_module_path("mod_threshold.R"),
                        warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_true(grepl("hstat_efficacite(", m, fixed = TRUE))
   expect_true(grepl("hstat_eff_modalites(", m, fixed = TRUE))
@@ -5736,7 +5719,7 @@ test_that("la saisie des valeurs refuse tout decompte qui decalerait les lignes"
 test_that("le module de nettoyage porte bien l'etape des variables nulles", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))
-  m <- paste(readLines(file.path(root, "inst", "app", "mod_clean.R"),
+  m <- paste(readLines(.hstat_module_path("mod_clean.R"),
                        warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_true(grepl("hstat_vars_zero", m, fixed = TRUE))
   expect_true(grepl("hstat_zero_valeurs_parse", m, fixed = TRUE))
@@ -5884,7 +5867,7 @@ test_that("les sous-ensembles de lignes du module graphique gardent leur tableau
   expect_false(is.data.frame(d1[!is.na(d1$a), ]))              # le piege
   expect_true(is.data.frame(d1[!is.na(d1$a), , drop = FALSE])) # le remede
 
-  src <- readLines(file.path(.hstat_repo_root(), "inst", "app", "mod_viz.R"),
+  src <- readLines(.hstat_module_path("mod_viz.R"),
                    warn = FALSE)
   code <- src[!grepl("^\\s*#", src)]
   # Aucune indexation de lignes de mod_viz.R ne doit laisser la simplification
@@ -6156,7 +6139,7 @@ test_that("l'etiquette de valeur se place selon le signe de l'efficacite", {
 
 test_that("le module des seuils expose une mise en forme complete", {
   root <- .hstat_repo_root()
-  txt  <- paste(readLines(file.path(root, "inst", "app", "mod_threshold.R"),
+  txt  <- paste(readLines(.hstat_module_path("mod_threshold.R"),
                           warn = FALSE), collapse = "\n")
 
   # Les familles de mise en forme qui manquaient : theme, sous-titre, style et
@@ -6194,8 +6177,7 @@ test_that("le sous-titre est remis dans le titre plotly", {
   # ggplotly laisse simplement TOMBER le sous-titre. Sans reinjection,
   # l'utilisateur en saisissait un, ne voyait rien a l'ecran, et le retrouvait
   # dans le fichier telecharge -- le pire des deux mondes.
-  txt <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app",
-                                   "mod_threshold.R"), warn = FALSE),
+  txt <- paste(readLines(.hstat_module_path("mod_threshold.R"), warn = FALSE),
                collapse = "\n")
   i_gg  <- regexpr("ggplotly(", txt, fixed = TRUE)
   i_sub <- regexpr("<br><sup>", txt, fixed = TRUE)
@@ -6637,19 +6619,21 @@ test_that("le catalogue de formats ne promet que ce que l'ecrivain sait ecrire",
   }
 })
 
-test_that("un module migre n'appelle plus rien sans prefixe", {
+test_that("aucun module du paquet n'appelle un autre paquet sans prefixe", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))
-  mod <- .hstat_module_path("mod_tests.R")
-  skip_if(is.na(mod))
-  skip_if(!startsWith(normalizePath(mod), normalizePath(file.path(root, "R"))),
-          "module pas encore migre")
+  mods <- list.files(file.path(root, "R"), pattern = "^mod_.*[.]R$",
+                     full.names = TRUE)
+  expect_gte(length(mods), 15L)   # tous migres : plus aucun dans inst/app/
 
-  # L'INVARIANT DU MODULE MIGRE : tout appel a une fonction d'un autre paquet
+  # L'INVARIANT DU CODE DE PAQUET : tout appel a une fonction d'un autre paquet
   # est qualifie (`DT::renderDT`), ou passe par un AIGUILLAGE de l'application.
   # Sans cela le module depend de ce que `library()` a attache -- et un paquet
   # installe mais NON attache le fait tomber, ce qui s'est produit en
   # integration continue.
+  #
+  # Le test BALAIE le dossier : un module ajoute demain est couvert sans qu'on
+  # y pense, ce qui est exactement ce qu'une liste de noms ne fait pas.
   aiguillages <- c("withSpinner", "plotlyOutput", "ggplotly", "layout", "config",
                    "renderPlotly", "colourInput", "pickerInput",
                    "radioGroupButtons", "updatePickerInput", "rank_list", "%>%")
@@ -6666,28 +6650,230 @@ test_that("un module migre n'appelle plus rien sans prefixe", {
       if (is.call(e) && as.character(e[[1]])[1] %in% c("<-", "<<-", "="))
         as.character(e[[2]])[1] else NULL))
   }))
-
-  pd <- utils::getParseData(parse(mod, keep.source = TRUE))
-  a <- pd[pd$token == "SYMBOL_FUNCTION_CALL", ]
-  # Deja « pris » : precede de `::`, `:::`, `$` ou `@`. Le cas `$` n'est pas
-  # theorique : `tags$code(...)` est etiquete comme un appel, et le qualifier
-  # produirait `tags$shiny::code(...)`, que R refuse d'analyser.
-  pris <- pd[pd$token %in% c("NS_GET", "NS_GET_INT", "'$'", "'@'"), ]
-  garde <- !vapply(seq_len(nrow(a)), function(i)
-    any(pris$line1 == a$line1[i] & pris$col2 == a$col1[i] - 1L), logical(1))
-  restants <- setdiff(unique(a$text[garde]),
-                      c(bases, ls(socle, all.names = TRUE), maison, aiguillages))
-
-  # Ce qui reste doit etre local au fichier (aides internes, variables portant
-  # une fonction) : aucun ne doit appartenir a un paquet declare en Imports.
   d <- read.dcf(file.path(root, "DESCRIPTION"))
   imports <- sub("\\s*\\(.*", "", trimws(unlist(strsplit(d[1, "Imports"], ","))))
+  imports <- imports[vapply(imports, function(p)
+    isTRUE(requireNamespace(p, quietly = TRUE)), logical(1))]
+  exports <- lapply(imports, getNamespaceExports)
+
   fautifs <- character(0)
-  for (p in imports) {
-    if (!isTRUE(requireNamespace(p, quietly = TRUE))) next
-    h <- intersect(restants, getNamespaceExports(p))
-    if (length(h)) fautifs <- c(fautifs, paste0(p, "::", h))
+  for (mod in mods) {
+    pd <- utils::getParseData(parse(mod, keep.source = TRUE))
+    a <- pd[pd$token == "SYMBOL_FUNCTION_CALL", , drop = FALSE]
+    if (!nrow(a)) next
+    # Deja « pris » : precede de `::`, `:::`, `$` ou `@`. Le cas `$` n'est pas
+    # theorique : `tags$code(...)` est etiquete comme un appel, et le qualifier
+    # produirait `tags$shiny::code(...)`, que R refuse d'analyser.
+    pris <- pd[pd$token %in% c("NS_GET", "NS_GET_INT", "'$'", "'@'"), , drop = FALSE]
+    garde <- !vapply(seq_len(nrow(a)), function(i)
+      any(pris$line1 == a$line1[i] & pris$col2 == a$col1[i] - 1L), logical(1))
+    restants <- setdiff(unique(a$text[garde]),
+                        c(bases, ls(socle, all.names = TRUE), maison, aiguillages,
+                          .hstat_noms_definis(mod)))
+    if (!length(restants)) next
+    # Ce qui reste doit etre local au fichier (aides internes, variables portant
+    # une fonction) : aucun ne doit appartenir a un paquet declare en Imports.
+    for (i in seq_along(imports)) {
+      h <- intersect(restants, exports[[i]])
+      if (length(h))
+        fautifs <- c(fautifs, paste0(basename(mod), " : ", imports[i], "::", h))
+    }
   }
+  expect_equal(fautifs, character(0))
+})
+
+test_that("aucun appel qualifie ne recouvre une fonction locale", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # LE DEFAUT PROPRE AUX QUALIFICATIONS EN MASSE, constate trois fois.
+  # `hstat_ai_reglages_ui()` definit chez elle `id <- function(s) ns(...)` ;
+  # le balayage n'a vu qu'un appel inconnu, l'a trouve exporte par dplyr, et a
+  # ecrit `dplyr::id("url")`. L'interface ne levait rien AU CHARGEMENT -- le
+  # defaut n'apparait qu'a l'affichage de l'onglet, sur « id() was deprecated
+  # in dplyr 0.5.0 and is now defunct ». Deux autres : `VIM::prepare()` et
+  # `mclust::sim()`, tous deux des reactifs du module.
+  #
+  # Le critere est la PORTEE, pas la coincidence de nom : `httr::timeout(timeout)`
+  # ou `grDevices::rgb(rgb[1], ...)` sont justes -- la locale y porte une valeur,
+  # pas une fonction. Seule une liaison qui porte une FONCTION recouvre un appel.
+  est_fn <- function(x)
+    is.call(x) && is.name(x[[1]]) && as.character(x[[1]]) == "function"
+  vide <- function(l, i) identical(l[[i]], quote(expr = ))
+  fabriques <- c("function", "reactive", "eventReactive", "reactiveVal",
+                 "debounce", "throttle", "renderPlot", "Negate", "Vectorize")
+  porte_fonction <- function(x) {
+    if (!is.call(x)) return(FALSE)
+    tete <- x[[1]]
+    if (is.call(tete) && is.name(tete[[1]]) &&
+        as.character(tete[[1]]) %in% c("::", ":::")) tete <- tete[[3]]
+    is.name(tete) && as.character(tete) %in% fabriques
+  }
+  # Noms lies dans un corps, SANS descendre dans les fonctions imbriquees :
+  # c'est la portee de R, et l'ignorer attribuerait a `mod_viz_server` les
+  # locales de ses cent reactifs.
+  liaisons <- function(x) {
+    acc <- character(0)
+    rec <- function(y) {
+      if (!is.call(y) || est_fn(y)) return(invisible())
+      tete <- y[[1]]
+      if (is.name(tete) && as.character(tete) %in% c("<-", "=", "<<-") &&
+          is.name(y[[2]]) && porte_fonction(y[[3]]))
+        acc <<- c(acc, as.character(y[[2]]))
+      l <- as.list(y)
+      for (i in seq_along(l)) if (!vide(l, i)) rec(l[[i]])
+    }
+    rec(x); unique(acc)
+  }
+  trouves <- character(0)
+  visiter <- function(x, pile, fichier) {
+    if (!is.call(x)) return(invisible())
+    if (est_fn(x)) {
+      fm <- as.list(x[[2]])
+      pile <- c(pile, liaisons(x[[3]]))
+      for (i in seq_along(fm)) if (!vide(fm, i)) visiter(fm[[i]], pile, fichier)
+      visiter(x[[3]], pile, fichier)
+      return(invisible())
+    }
+    tete <- x[[1]]
+    if (is.call(tete) && is.name(tete[[1]]) &&
+        as.character(tete[[1]]) %in% c("::", ":::") &&
+        as.character(tete[[3]]) %in% pile)
+      trouves <<- c(trouves, sprintf("%s : %s::%s", fichier,
+                                     as.character(tete[[2]]), as.character(tete[[3]])))
+    l <- as.list(x)
+    for (i in seq_along(l)) if (!vide(l, i)) visiter(l[[i]], pile, fichier)
+  }
+  for (f in .hstat_sources_app())
+    for (e in parse(f)) visiter(e, character(0), basename(f))
+  expect_equal(unique(trouves), character(0))
+})
+
+test_that("un nom masque par un paquet d'interface est qualifie", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # `box` EST DANS graphics. Un balayage qui tient les paquets de base pour
+  # « connus » le laisse donc non qualifie -- et sans `library(shinydashboard)`
+  # attache, `box(title = ..., status = ...)` appelle `graphics::box` et leve
+  # « plot.new has not been called yet ». L'interface entiere ne se construit
+  # plus, pour un nom de trois lettres.
+  #
+  # C'est l'exact envers du piege precedent : la, un nom de paquet recouvrait
+  # une fonction locale ; ici, un nom de base recouvre une fonction de paquet.
+  fautifs <- character(0)
+  for (f in .hstat_sources_app()) {
+    pd <- utils::getParseData(parse(f, keep.source = TRUE))
+    a <- pd[pd$token == "SYMBOL_FUNCTION_CALL" & pd$text == "box", , drop = FALSE]
+    if (!nrow(a)) next
+    ns <- pd[pd$token %in% c("NS_GET", "NS_GET_INT"), , drop = FALSE]
+    nu <- !vapply(seq_len(nrow(a)), function(i)
+      any(ns$line1 == a$line1[i] & ns$col2 == a$col1[i] - 1L), logical(1))
+    if (any(nu))
+      fautifs <- c(fautifs, sprintf("%s:%d box()", basename(f), a$line1[nu]))
+  }
+  expect_equal(fautifs, character(0))
+})
+
+test_that("le pronom .data n'est jamais qualifie", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # LE CONTRE-EXEMPLE DE LA QUALIFICATION. `.data` est bien exporte par
+  # ggplot2, mais ce n'est pas une fonction : c'est un PRONOM, remplace par le
+  # masque de donnees au moment de l'evaluation. Ecrit `ggplot2::.data[[x]]`,
+  # il est evalue tout de suite et leve « Can't subset `.data` outside of a
+  # data mask context » -- donc tout graphique bati sur un nom de colonne
+  # variable, ce qui est le cas general ici.
+  #
+  # Un nom exporte par un paquet n'est donc pas qualifiable pour autant.
+  fautifs <- character(0)
+  for (f in .hstat_sources_app()) {
+    l <- .hstat_code_lignes(f)
+    j <- grep("::[.]data", l)
+    if (length(j)) fautifs <- c(fautifs, sprintf("%s:%d", basename(f), j))
+  }
+  expect_equal(fautifs, character(0))
+})
+
+test_that("une fonction passee en argument est qualifiee comme un appel", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # `do.call(tagList, els)` n'est PAS un appel a `tagList` : le jeton est un
+  # simple SYMBOL, la qualification des appels ne le voit pas, et le nom resout
+  # par le chemin de recherche. Meme chose pour `tags$div(...)` -- `tags` est un
+  # objet de shiny, pas une fonction.
+  noms <- c("tags", "tagList", "reactiveValues", "geom_col")
+  fautifs <- character(0)
+  for (f in .hstat_sources_app()) {
+    pd <- utils::getParseData(parse(f, keep.source = TRUE))
+    s <- pd[pd$token == "SYMBOL" & pd$text %in% noms, , drop = FALSE]
+    if (!nrow(s)) next
+    pris <- pd[pd$token %in% c("NS_GET", "NS_GET_INT", "'$'", "'@'"), , drop = FALSE]
+    nu <- !vapply(seq_len(nrow(s)), function(i)
+      any(pris$line1 == s$line1[i] & pris$col2 == s$col1[i] - 1L), logical(1))
+    if (any(nu))
+      fautifs <- c(fautifs, sprintf("%s:%d %s", basename(f), s$line1[nu], s$text[nu]))
+  }
+  expect_equal(fautifs, character(0))
+})
+
+test_that("l'interface se construit sans qu'aucun paquet soit attache", {
+  skip_if_not_installed("shiny")
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # LA MESURE DE CE QUE LA QUALIFICATION APPORTE. `UX.R` ne dependait plus que
+  # de `library(shinydashboard)`, pose par `install_and_load()` au demarrage :
+  # hors de l'application, l'interface ne se construisait pas, et le test des
+  # identifiants dupliques se SKIPPAIT depuis toujours -- un test saute
+  # ressemble a un test qui passe.
+  e <- new.env(parent = globalenv())
+  ok <- tryCatch({
+    suppressMessages(suppressWarnings({
+      socle <- file.path(root, "R")
+      for (f in c(file.path(socle, "utils.R"),
+                  list.files(socle, pattern = "^mod_.*[.]R$", full.names = TRUE)))
+        sys.source(f, e)
+      hstat_installer_replis_ui(e)
+      old <- setwd(file.path(root, "inst", "app")); on.exit(setwd(old), add = TRUE)
+      sys.source("UX.R", e)
+    }))
+    TRUE
+  }, error = function(err) conditionMessage(err))
+  expect_true(isTRUE(ok), info = if (!isTRUE(ok)) ok else "")
+  expect_true(exists("ui", envir = e))
+})
+
+test_that("un nom optionnel passe par son aiguillage, jamais par le paquet", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # LE DEFAUT QUE L'AIGUILLAGE EXISTE POUR EVITER, POSE A LA MAIN. Treize
+  # appels ecrivaient `shinycssloaders::withSpinner(...)`,
+  # `colourpicker::colourInput(...)` ou `shinyWidgets::pickerInput(...)` en
+  # dur. Ces paquets sont OPTIONNELS : absents, l'appel leve, l'interface du
+  # module ne se construit pas, et `HStat.R` remplace TOUTE l'application par
+  # sa page de secours -- pour un indicateur d'attente manquant.
+  #
+  # Le repli existait pourtant, sous le meme nom, a un prefixe pres.
+  optionnels <- c(shinycssloaders = "withSpinner",
+                  colourpicker    = "colourInput",
+                  shinyWidgets    = "pickerInput",
+                  shinyWidgets    = "radioGroupButtons",
+                  shinyWidgets    = "updatePickerInput",
+                  sortable        = "rank_list",
+                  plotly          = "plotlyOutput",
+                  plotly          = "renderPlotly",
+                  plotly          = "ggplotly")
+  fautifs <- character(0)
+  for (f in .hstat_sources_app()) {
+    l <- .hstat_code_lignes(f)
+    for (i in seq_along(optionnels)) {
+      motif <- paste0(names(optionnels)[i], "::", optionnels[[i]], "(")
+      j <- grep(motif, l, fixed = TRUE)
+      if (length(j))
+        fautifs <- c(fautifs, sprintf("%s:%d %s", basename(f), j, motif))
+    }
+  }
+  # `R/utils.R` est le seul endroit legitime : c'est lui qui POSE les
+  # aiguillages, il doit bien nommer le paquet vers lequel ils pointent.
+  fautifs <- fautifs[!startsWith(fautifs, "utils.R")]
   expect_equal(fautifs, character(0))
 })
 
@@ -7144,7 +7330,7 @@ test_that("les dispositifs de malherbologie sont complets et bien branches", {
 })
 
 test_that("un dispositif de malherbologie ne fait pas un moteur de plan de plus", {
-  src <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app", "mod_design.R"),
+  src <- paste(readLines(.hstat_module_path("mod_design.R"),
                          warn = FALSE), collapse = "\n")
   # La structure de traitements est PRE-REMPLIE ; la randomisation, la carte et
   # l'export restent ceux du moteur commun. Deux moteurs divergeraient a la
@@ -7157,7 +7343,7 @@ test_that("un dispositif de malherbologie ne fait pas un moteur de plan de plus"
 })
 
 test_that("l'export de l'onglet Visualisation ne retrecit plus la figure", {
-  viz <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app", "mod_viz.R"),
+  viz <- paste(readLines(.hstat_module_path("mod_viz.R"),
                          warn = FALSE), collapse = "\n")
 
   # UN ESCALIER reduisait la taille physique a mesure que le DPI montait :
@@ -7300,9 +7486,10 @@ test_that("le plafond du champ DPI est le meme partout", {
   # Neuf champs plafonnaient a 1200 ou 2000 sans raison : l'utilisateur ne
   # pouvait pas demander mieux la ou il en avait besoin. Un seul chiffre,
   # declare une fois.
-  for (f in c("UX.R", "app_server.R", "mod_descriptive.R")) {
-    src <- paste(readLines(file.path(root, "inst", "app", f), warn = FALSE),
-                 collapse = "\n")
+  for (f in c(file.path(root, "inst", "app", "UX.R"),
+              file.path(root, "inst", "app", "app_server.R"),
+              .hstat_module_path("mod_descriptive.R"))) {
+    src <- paste(readLines(f, warn = FALSE), collapse = "\n")
     dpi_max <- regmatches(src, gregexpr("[Dd]pi\"[^)]*max = [0-9]+", src))[[1]]
     expect_length(dpi_max, 0)
   }

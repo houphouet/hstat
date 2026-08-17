@@ -47,182 +47,182 @@
 }
 
 mod_ml_ui <- function(id) {
-  ns <- NS(id)
-  tagList(
-    tabsetPanel(id = ns("mlTabs"),
+  ns <- shiny::NS(id)
+  shiny::tagList(
+    shiny::tabsetPanel(id = ns("mlTabs"),
       # ================= APPRENTISSAGE SUPERVISÉ =================
-      tabPanel(tagList(icon("bullseye"), " Supervisé (prédiction)"),
-        div(style = "padding-top:12px;"),
-        fluidRow(
-          box(title = tagList(icon("sliders"), " Configuration"), status = "primary",
+      shiny::tabPanel(shiny::tagList(shiny::icon("bullseye"), " Supervisé (prédiction)"),
+        shiny::div(style = "padding-top:12px;"),
+        shiny::fluidRow(
+          shinydashboard::box(title = shiny::tagList(shiny::icon("sliders"), " Configuration"), status = "primary",
               width = 4, solidHeader = TRUE, collapsible = TRUE,
-              selectInput(ns("mlTarget"), "Variable cible (à prédire)", choices = NULL),
-              uiOutput(ns("mlTaskInfo")),
-              selectizeInput(ns("mlPreds"), "Variables explicatives", choices = NULL,
+              shiny::selectInput(ns("mlTarget"), "Variable cible (à prédire)", choices = NULL),
+              shiny::uiOutput(ns("mlTaskInfo")),
+              shiny::selectizeInput(ns("mlPreds"), "Variables explicatives", choices = NULL,
                              multiple = TRUE),
-              fluidRow(
-                column(6, sliderInput(ns("mlSplit"), "Part d'entraînement (%)",
+              shiny::fluidRow(
+                shiny::column(6, shiny::sliderInput(ns("mlSplit"), "Part d'entraînement (%)",
                                       min = 50, max = 90, value = 75, step = 5)),
-                column(6, numericInput(ns("mlSeed"), "Graine aléatoire",
+                shiny::column(6, shiny::numericInput(ns("mlSeed"), "Graine aléatoire",
                                        value = 123, min = 1, step = 1))),
-              checkboxGroupInput(ns("mlModels"), "Modèles à comparer",
+              shiny::checkboxGroupInput(ns("mlModels"), "Modèles à comparer",
                 choices = .ml_catalog(),
                 selected = c("lmglm", "rpart", "rf")),
-              tags$details(
-                tags$summary(style = "cursor:pointer; font-weight:600;",
-                             icon("gears"), " Hyperparamètres"),
-                checkboxInput(ns("hpAuto"),
+              shiny::tags$details(
+                shiny::tags$summary(style = "cursor:pointer; font-weight:600;",
+                             shiny::icon("gears"), " Hyperparamètres"),
+                shiny::checkboxInput(ns("hpAuto"),
                   "Recherche automatique des hyperparamètres (grille + validation) — recommandé",
                   value = TRUE),
-                tags$small(style = "color:#6b7280; display:block; margin-bottom:8px;",
+                shiny::tags$small(style = "color:#6b7280; display:block; margin-bottom:8px;",
                   "Pour chaque modèle, une grille de réglages est évaluée sur une ",
                   "validation interne au jeu d'entraînement ; le meilleur réglage est ",
                   "retenu puis le modèle final est réentraîné avec. Le jeu de test ",
                   "reste totalement à l'écart de cette recherche. Les valeurs ",
                   "ci-dessous ne servent que si la recherche automatique est décochée."),
-                fluidRow(
-                  column(6, numericInput(ns("hpAlpha"), "glmnet : alpha (0=Ridge, 1=Lasso)",
+                shiny::fluidRow(
+                  shiny::column(6, shiny::numericInput(ns("hpAlpha"), "glmnet : alpha (0=Ridge, 1=Lasso)",
                                          value = 0.5, min = 0, max = 1, step = 0.1)),
-                  column(6, numericInput(ns("hpCp"), "rpart : complexité (cp)",
+                  shiny::column(6, shiny::numericInput(ns("hpCp"), "rpart : complexité (cp)",
                                          value = 0.01, min = 0, max = 0.2, step = 0.005))),
-                fluidRow(
-                  column(6, numericInput(ns("hpTrees"), "Forêt : nb d'arbres",
+                shiny::fluidRow(
+                  shiny::column(6, shiny::numericInput(ns("hpTrees"), "Forêt : nb d'arbres",
                                          value = 300, min = 50, max = 2000, step = 50)),
-                  column(6, numericInput(ns("hpRounds"), "xgboost : itérations",
+                  shiny::column(6, shiny::numericInput(ns("hpRounds"), "xgboost : itérations",
                                          value = 150, min = 20, max = 2000, step = 10))),
-                fluidRow(
-                  column(6, numericInput(ns("hpDepth"), "xgboost : profondeur",
+                shiny::fluidRow(
+                  shiny::column(6, shiny::numericInput(ns("hpDepth"), "xgboost : profondeur",
                                          value = 4, min = 1, max = 12, step = 1)),
-                  column(6, numericInput(ns("hpEta"), "xgboost : taux d'apprentissage",
+                  shiny::column(6, shiny::numericInput(ns("hpEta"), "xgboost : taux d'apprentissage",
                                          value = 0.1, min = 0.01, max = 1, step = 0.01))),
-                fluidRow(
-                  column(6, selectInput(ns("hpKernel"), "SVM : noyau",
+                shiny::fluidRow(
+                  shiny::column(6, shiny::selectInput(ns("hpKernel"), "SVM : noyau",
                            choices = c("radial", "linear", "polynomial", "sigmoid"))),
-                  column(6, numericInput(ns("hpCost"), "SVM : coût C",
+                  shiny::column(6, shiny::numericInput(ns("hpCost"), "SVM : coût C",
                                          value = 1, min = 0.01, step = 0.5))),
-                fluidRow(
-                  column(6, numericInput(ns("hpK"), "kNN : nombre de voisins k",
+                shiny::fluidRow(
+                  shiny::column(6, shiny::numericInput(ns("hpK"), "kNN : nombre de voisins k",
                                          value = 7, min = 1, max = 100, step = 2)),
-                  column(6, numericInput(ns("hpSize"), "nnet : neurones cachés",
+                  shiny::column(6, shiny::numericInput(ns("hpSize"), "nnet : neurones cachés",
                                          value = 8, min = 1, max = 50, step = 1)))),
-              actionButton(ns("mlRun"), "Entraîner et comparer",
-                           icon = icon("play"), class = "btn-primary"),
-              tags$small(style = "color:#6b7280; display:block; margin-top:8px;",
+              shiny::actionButton(ns("mlRun"), "Entraîner et comparer",
+                           icon = shiny::icon("play"), class = "btn-primary"),
+              shiny::tags$small(style = "color:#6b7280; display:block; margin-top:8px;",
                 trf("Les lignes incomplètes sont écartées. Au-delà de %s lignes, l'entraînement porte sur un échantillon aléatoire (HSTAT_ML_MAX_N).",
                         format(HSTAT_ML_MAX_N, big.mark = " ")))),
-          box(title = tagList(icon("trophy"), " Comparaison des modèles"),
+          shinydashboard::box(title = shiny::tagList(shiny::icon("trophy"), " Comparaison des modèles"),
               status = "success", width = 8, solidHeader = TRUE,
-              shinycssloaders::withSpinner(DT::dataTableOutput(ns("mlCompare"))),
+              withSpinner(DT::dataTableOutput(ns("mlCompare"))),
               hstat_export_table_ui(ns, "mlComp"),
-              uiOutput(ns("mlBest")))),
-        fluidRow(
-          box(title = tagList(icon("chart-area"), " Diagnostic du modèle sélectionné"),
+              shiny::uiOutput(ns("mlBest")))),
+        shiny::fluidRow(
+          shinydashboard::box(title = shiny::tagList(shiny::icon("chart-area"), " Diagnostic du modèle sélectionné"),
               status = "primary", width = 8, solidHeader = TRUE,
-              selectInput(ns("mlShow"), "Modèle affiché", choices = NULL),
-              uiOutput(ns("mlDoc")),
-              uiOutput(ns("mlHp")),
-              shinycssloaders::withSpinner(plotOutput(ns("mlPlot"), height = "420px")),
-              tabsetPanel(
-                tabPanel("Téléchargement", div(style = "padding-top:10px;",
+              shiny::selectInput(ns("mlShow"), "Modèle affiché", choices = NULL),
+              shiny::uiOutput(ns("mlDoc")),
+              shiny::uiOutput(ns("mlHp")),
+              withSpinner(shiny::plotOutput(ns("mlPlot"), height = "420px")),
+              shiny::tabsetPanel(
+                shiny::tabPanel("Téléchargement", shiny::div(style = "padding-top:10px;",
                          hstat_export_plot_ui(ns, "mlPl"))),
-                tabPanel("Apparence", div(style = "padding-top:10px;",
+                shiny::tabPanel("Apparence", shiny::div(style = "padding-top:10px;",
                          hstat_plot_opts_ui(ns, "mlO"))))),
-          box(title = tagList(icon("table"), " Métriques & interprétation"),
+          shinydashboard::box(title = shiny::tagList(shiny::icon("table"), " Métriques & interprétation"),
               status = "info", width = 4, solidHeader = TRUE,
               DT::dataTableOutput(ns("mlMetrics")),
               hstat_export_table_ui(ns, "mlMet"),
-              uiOutput(ns("mlInterp")))),
-        fluidRow(
-          box(title = tagList(icon("ranking-star"), " Importance des variables"),
+              shiny::uiOutput(ns("mlInterp")))),
+        shiny::fluidRow(
+          shinydashboard::box(title = shiny::tagList(shiny::icon("ranking-star"), " Importance des variables"),
               status = "warning", width = 6, solidHeader = TRUE,
-              plotOutput(ns("mlImp"), height = "340px"),
+              shiny::plotOutput(ns("mlImp"), height = "340px"),
               hstat_export_plot_ui(ns, "mlIm", width = 9, height = 6),
-              uiOutput(ns("mlImpNote"))),
-          box(title = tagList(icon("border-all"), " Matrice de confusion / résidus"),
+              shiny::uiOutput(ns("mlImpNote"))),
+          shinydashboard::box(title = shiny::tagList(shiny::icon("border-all"), " Matrice de confusion / résidus"),
               status = "warning", width = 6, solidHeader = TRUE,
-              plotOutput(ns("mlPlot2"), height = "340px"),
+              shiny::plotOutput(ns("mlPlot2"), height = "340px"),
               hstat_export_plot_ui(ns, "mlP2", width = 9, height = 6))),
-        fluidRow(
-          box(title = tagList(icon("magic"), " Simulateur de prédictions"),
+        shiny::fluidRow(
+          shinydashboard::box(title = shiny::tagList(shiny::icon("magic"), " Simulateur de prédictions"),
               status = "success", width = 12, solidHeader = TRUE,
-              fluidRow(
-                column(5,
-                  h5(strong("1. Saisie manuelle d'un cas")),
-                  fluidRow(uiOutput(ns("simForm"))),
-                  actionButton(ns("simOne"), "Prédire ce cas",
-                               icon = icon("bullseye"), class = "btn-success"),
-                  uiOutput(ns("simOneOut"))),
-                column(7,
-                  h5(strong("2. Import d'un fichier de nouveaux cas (CSV/Excel)")),
-                  fileInput(ns("simFile"), NULL, accept = c(".csv", ".xlsx")),
-                  tags$small(style = "color:#6b7280;",
+              shiny::fluidRow(
+                shiny::column(5,
+                  shiny::h5(shiny::strong("1. Saisie manuelle d'un cas")),
+                  shiny::fluidRow(shiny::uiOutput(ns("simForm"))),
+                  shiny::actionButton(ns("simOne"), "Prédire ce cas",
+                               icon = shiny::icon("bullseye"), class = "btn-success"),
+                  shiny::uiOutput(ns("simOneOut"))),
+                shiny::column(7,
+                  shiny::h5(shiny::strong("2. Import d'un fichier de nouveaux cas (CSV/Excel)")),
+                  shiny::fileInput(ns("simFile"), NULL, accept = c(".csv", ".xlsx")),
+                  shiny::tags$small(style = "color:#6b7280;",
                     "Le fichier doit contenir les mêmes colonnes explicatives que ",
                     "le modèle ; la cible est inutile."),
                   DT::dataTableOutput(ns("simBatch")),
                   hstat_export_table_ui(ns, "simB"),
-                  uiOutput(ns("simBatchInterp")))))))
+                  shiny::uiOutput(ns("simBatchInterp")))))))
       ,
       # ================= NON SUPERVISÉ =================
-      tabPanel(tagList(icon("object-group"), " Non supervisé (clustering)"),
-        div(style = "padding-top:12px;"),
-        fluidRow(
-          box(title = tagList(icon("sliders"), " Configuration"), status = "primary",
+      shiny::tabPanel(shiny::tagList(shiny::icon("object-group"), " Non supervisé (clustering)"),
+        shiny::div(style = "padding-top:12px;"),
+        shiny::fluidRow(
+          shinydashboard::box(title = shiny::tagList(shiny::icon("sliders"), " Configuration"), status = "primary",
               width = 4, solidHeader = TRUE,
-              selectizeInput(ns("clVars"), "Variables (numériques)",
+              shiny::selectizeInput(ns("clVars"), "Variables (numériques)",
                              choices = NULL, multiple = TRUE),
-              selectInput(ns("clMethod"), "Méthode",
+              shiny::selectInput(ns("clMethod"), "Méthode",
                 choices = c("k-means" = "kmeans",
                             "Classification hiérarchique (CAH)" = "hclust",
                             "PAM (k-médoïdes)" = "pam",
                             "DBSCAN (densité)" = "dbscan",
                             "Mélanges gaussiens (mclust)" = "mclust")),
-              conditionalPanel(
+              shiny::conditionalPanel(
                 condition = sprintf("input['%s'] != 'dbscan'", ns("clMethod")),
-                numericInput(ns("clK"), "Nombre de groupes k",
+                shiny::numericInput(ns("clK"), "Nombre de groupes k",
                              value = 3, min = 2, max = 15, step = 1)),
-              conditionalPanel(
+              shiny::conditionalPanel(
                 condition = sprintf("input['%s'] == 'dbscan'", ns("clMethod")),
-                fluidRow(
-                  column(6, numericInput(ns("clEps"), "eps (rayon)",
+                shiny::fluidRow(
+                  shiny::column(6, shiny::numericInput(ns("clEps"), "eps (rayon)",
                                          value = 0.5, min = 0.01, step = 0.1)),
-                  column(6, numericInput(ns("clMinPts"), "minPts",
+                  shiny::column(6, shiny::numericInput(ns("clMinPts"), "minPts",
                                          value = 5, min = 2, step = 1)))),
-              checkboxInput(ns("clScale"), "Standardiser les variables", TRUE),
-              uiOutput(ns("clDoc")),
-              actionButton(ns("clRun"), "Lancer le clustering",
-                           icon = icon("play"), class = "btn-primary")),
-          box(title = tagList(icon("chart-area"), " Visualisation des groupes"),
+              shiny::checkboxInput(ns("clScale"), "Standardiser les variables", TRUE),
+              shiny::uiOutput(ns("clDoc")),
+              shiny::actionButton(ns("clRun"), "Lancer le clustering",
+                           icon = shiny::icon("play"), class = "btn-primary")),
+          shinydashboard::box(title = shiny::tagList(shiny::icon("chart-area"), " Visualisation des groupes"),
               status = "success", width = 8, solidHeader = TRUE,
-              shinycssloaders::withSpinner(plotOutput(ns("clPlot"), height = "420px")),
+              withSpinner(shiny::plotOutput(ns("clPlot"), height = "420px")),
               hstat_export_plot_ui(ns, "clPl"))),
-        fluidRow(
-          box(title = tagList(icon("chart-bar"), " Qualité : silhouette & coude"),
+        shiny::fluidRow(
+          shinydashboard::box(title = shiny::tagList(shiny::icon("chart-bar"), " Qualité : silhouette & coude"),
               status = "warning", width = 6, solidHeader = TRUE,
-              plotOutput(ns("clQual"), height = "330px"),
+              shiny::plotOutput(ns("clQual"), height = "330px"),
               hstat_export_plot_ui(ns, "clQu", width = 9, height = 5)),
-          box(title = tagList(icon("table"), " Résultats & interprétation"),
+          shinydashboard::box(title = shiny::tagList(shiny::icon("table"), " Résultats & interprétation"),
               status = "info", width = 6, solidHeader = TRUE,
               DT::dataTableOutput(ns("clTable")),
               hstat_export_table_ui(ns, "clTab"),
-              uiOutput(ns("clInterp"))))))
+              shiny::uiOutput(ns("clInterp"))))))
   )
 }
 
 mod_ml_server <- function(id, values) {
-  moduleServer(id, function(input, output, session) {
+  shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    observe({
+    shiny::observe({
       df <- values$cleanData
-      req(df)
-      updateSelectInput(session, "mlTarget", choices = names(df))
+      shiny::req(df)
+      shiny::updateSelectInput(session, "mlTarget", choices = names(df))
       num <- names(df)[vapply(df, is.numeric, logical(1))]
-      updateSelectizeInput(session, "clVars", choices = num,
+      shiny::updateSelectizeInput(session, "clVars", choices = num,
                            selected = utils::head(num, min(4, length(num))))
     })
-    observeEvent(input$mlTarget, {
-      df <- values$cleanData; req(df, nzchar(input$mlTarget %||% ""))
-      updateSelectizeInput(session, "mlPreds",
+    shiny::observeEvent(input$mlTarget, {
+      df <- values$cleanData; shiny::req(df, nzchar(input$mlTarget %||% ""))
+      shiny::updateSelectizeInput(session, "mlPreds",
         choices = setdiff(names(df), input$mlTarget),
         selected = setdiff(names(df), input$mlTarget))
     })
@@ -230,10 +230,10 @@ mod_ml_server <- function(id, values) {
     task_of <- function(x)
       if (is.numeric(x) && length(unique(x[!is.na(x)])) > 10) "regression" else "classification"
 
-    output$mlTaskInfo <- renderUI({
-      df <- values$cleanData; req(df, nzchar(input$mlTarget %||% ""))
+    output$mlTaskInfo <- shiny::renderUI({
+      df <- values$cleanData; shiny::req(df, nzchar(input$mlTarget %||% ""))
       tk <- task_of(df[[input$mlTarget]])
-      div(class = "callout callout-info", icon("circle-info"),
+      shiny::div(class = "callout callout-info", shiny::icon("circle-info"),
           if (tk == "regression")
             " Cible numérique continue : tâche de RÉGRESSION (prédire une valeur)."
           else " Cible catégorielle (ou peu de valeurs distinctes) : tâche de CLASSIFICATION (prédire une classe).")
@@ -242,21 +242,21 @@ mod_ml_server <- function(id, values) {
     # ---- Préparation commune --------------------------------------------------
     prepare <- function() {
       df <- values$cleanData
-      validate(need(!is.null(df), "Chargez d'abord des données."),
-               need(nzchar(input$mlTarget %||% ""), "Choisissez la variable cible."),
-               need(length(input$mlPreds %||% character(0)) > 0,
+      shiny::validate(shiny::need(!is.null(df), "Chargez d'abord des données."),
+               shiny::need(nzchar(input$mlTarget %||% ""), "Choisissez la variable cible."),
+               shiny::need(length(input$mlPreds %||% character(0)) > 0,
                     "Choisissez au moins une variable explicative."))
       target <- input$mlTarget
       preds  <- setdiff(input$mlPreds, target)
       d <- df[, c(target, preds), drop = FALSE]
       d <- d[stats::complete.cases(d), , drop = FALSE]
-      validate(need(nrow(d) >= 20, "Au moins 20 lignes complètes sont requises."))
+      shiny::validate(shiny::need(nrow(d) >= 20, "Au moins 20 lignes complètes sont requises."))
       d <- hstat_cap_df_rows(d, max_n = HSTAT_ML_MAX_N, what = "Machine learning")
       task <- task_of(d[[target]])
       if (task == "classification") {
         d[[target]] <- factor(d[[target]])
-        validate(need(nlevels(d[[target]]) >= 2, "La cible doit avoir au moins 2 classes."),
-                 need(min(table(d[[target]])) >= 2,
+        shiny::validate(shiny::need(nlevels(d[[target]]) >= 2, "La cible doit avoir au moins 2 classes."),
+                 shiny::need(min(table(d[[target]])) >= 2,
                       "Chaque classe doit compter au moins 2 observations."))
       } else d[[target]] <- as.numeric(d[[target]])
       for (v in preds) if (!is.numeric(d[[v]])) d[[v]] <- factor(d[[v]])
@@ -581,14 +581,14 @@ mod_ml_server <- function(id, values) {
            pred = out$pred, prob = out$prob, imp = imp, hp = hp, warn = warn)
     }
 
-    fits <- eventReactive(input$mlRun, {
+    fits <- shiny::eventReactive(input$mlRun, {
       p <- prepare()
       ids <- input$mlModels %||% character(0)
-      validate(need(length(ids) > 0, "Sélectionnez au moins un modèle."))
+      shiny::validate(shiny::need(length(ids) > 0, "Sélectionnez au moins un modèle."))
       res <- list()
-      withProgress(message = "Entraînement des modèles", value = 0, {
+      shiny::withProgress(message = "Entraînement des modèles", value = 0, {
         for (i in seq_along(ids)) {
-          incProgress(1 / length(ids),
+          shiny::incProgress(1 / length(ids),
                       detail = names(.ml_catalog())[match(ids[i], .ml_catalog())])
           res[[ids[i]]] <- tryCatch(fit_ml(ids[i], p),
             error = function(e) list(ok = FALSE, err = conditionMessage(e),
@@ -599,7 +599,7 @@ mod_ml_server <- function(id, values) {
     })
 
     # Depot de la comparaison de modeles pour l'aide a la decision.
-    observeEvent(comp_df(), {
+    shiny::observeEvent(comp_df(), {
       df <- tryCatch(comp_df(), error = function(e) NULL)
       if (is.null(df) || !NROW(df)) return()
       p <- tryCatch(fits()$p, error = function(e) NULL)
@@ -613,8 +613,8 @@ mod_ml_server <- function(id, values) {
                     `modeles compares` = input$mlModels))
     }, ignoreInit = TRUE)
 
-    comp_df <- reactive({
-      f <- fits(); req(f)
+    comp_df <- shiny::reactive({
+      f <- fits(); shiny::req(f)
       cls <- f$p$task == "classification"
       rows <- lapply(f$res, function(r) {
         if (!isTRUE(r$ok))
@@ -643,55 +643,55 @@ mod_ml_server <- function(id, values) {
     hstat_export_table_handlers(output, "mlComp", function() comp_df(),
                                 "ml_comparaison")
 
-    output$mlBest <- renderUI({
+    output$mlBest <- shiny::renderUI({
       d <- comp_df(); d <- d[d$Statut == "OK", , drop = FALSE]
       if (nrow(d) == 0) return(NULL)
       cls <- fits()$p$task == "classification"
-      div(class = "callout callout-info", style = "margin-top:10px;", icon("trophy"),
-          strong(sprintf(" Meilleur modèle : %s ", d[["Modèle"]][1])),
+      shiny::div(class = "callout callout-info", style = "margin-top:10px;", shiny::icon("trophy"),
+          shiny::strong(sprintf(" Meilleur modèle : %s ", d[["Modèle"]][1])),
           if (cls) sprintf("(exactitude = %.3f). ", d[[2]][1])
           else sprintf("(RMSE = %s). ", format(d[[2]][1], big.mark = " ")),
           "Classement établi sur le jeu de test, jamais vu à l'entraînement.")
     })
 
-    observeEvent(fits(), {
+    shiny::observeEvent(fits(), {
       f <- fits()
       ok <- names(f$res)[vapply(f$res, function(r) isTRUE(r$ok), logical(1))]
       labs <- vapply(f$res[ok], function(r) r$label, character(1))
-      updateSelectInput(session, "mlShow", choices = stats::setNames(ok, labs),
+      shiny::updateSelectInput(session, "mlShow", choices = stats::setNames(ok, labs),
                         selected = if (length(ok)) ok[1] else NULL)
     })
 
-    output$mlDoc <- renderUI({
-      req(nzchar(input$mlShow %||% ""))
+    output$mlDoc <- shiny::renderUI({
+      shiny::req(nzchar(input$mlShow %||% ""))
       hstat_model_doc_ui(input$mlShow)
     })
-    output$mlHp <- renderUI({
+    output$mlHp <- shiny::renderUI({
       c0 <- tryCatch(cur(), error = function(e) NULL)
       if (is.null(c0)) return(NULL)
-      tagList(
+      shiny::tagList(
         if (!is.null(c0$r$hp))
-          div(class = "callout callout-success", style = "margin-top:4px;",
-              icon("gears"), strong(" Hyperparamètres retenus : "), c0$r$hp,
+          shiny::div(class = "callout callout-success", style = "margin-top:4px;",
+              shiny::icon("gears"), shiny::strong(" Hyperparamètres retenus : "), c0$r$hp,
               " — les métriques et graphiques ci-dessous sont calculés avec ces réglages."),
         # Diagnostic d'ajustement (ex. non-convergence / séparation d'un GLM) :
         # affiché ici plutôt que laissé en avertissement dans la console.
         if (!is.null(c0$r$warn))
-          div(class = "callout callout-warning", style = "margin-top:4px;",
-              icon("triangle-exclamation"), strong(" Diagnostic d'ajustement : "),
+          shiny::div(class = "callout callout-warning", style = "margin-top:4px;",
+              shiny::icon("triangle-exclamation"), shiny::strong(" Diagnostic d'ajustement : "),
               c0$r$warn))
     })
-    output$clDoc <- renderUI(hstat_model_doc_ui(input$clMethod %||% "kmeans"))
+    output$clDoc <- shiny::renderUI(hstat_model_doc_ui(input$clMethod %||% "kmeans"))
 
-    cur <- reactive({
-      f <- fits(); req(f, nzchar(input$mlShow %||% ""))
+    cur <- shiny::reactive({
+      f <- fits(); shiny::req(f, nzchar(input$mlShow %||% ""))
       r <- f$res[[input$mlShow]]
-      validate(need(isTRUE(r$ok), "Ce modèle a échoué sur ces données."))
+      shiny::validate(shiny::need(isTRUE(r$ok), "Ce modèle a échoué sur ces données."))
       list(r = r, p = f$p)
     })
 
     # ---- Graphique principal : obs vs préd / ROC -------------------------------
-    main_gg <- reactive({
+    main_gg <- shiny::reactive({
       c0 <- cur(); r <- c0$r; p <- c0$p
       col <- hstat_plot_opt(input, "mlO", "Col", "#2c7fb8")
       g <- if (p$task == "regression") {
@@ -729,12 +729,12 @@ mod_ml_server <- function(id, values) {
       }
       hstat_apply_plot_opts(g, input, "mlO")
     })
-    output$mlPlot <- renderPlot(main_gg())
+    output$mlPlot <- shiny::renderPlot(main_gg())
     output$mlPlDl <- hstat_export_plot_handler(input, "mlPl",
                        function() main_gg(), "ml_diagnostic")
 
     # ---- Graphique secondaire : confusion / résidus ----------------------------
-    second_gg <- reactive({
+    second_gg <- shiny::reactive({
       c0 <- cur(); r <- c0$r; p <- c0$p
       col <- hstat_plot_opt(input, "mlO", "Col", "#2c7fb8")
       g <- if (p$task == "regression") {
@@ -758,14 +758,14 @@ mod_ml_server <- function(id, values) {
       }
       hstat_apply_plot_opts(g, input, "mlO")
     })
-    output$mlPlot2 <- renderPlot(second_gg())
+    output$mlPlot2 <- shiny::renderPlot(second_gg())
     output$mlP2Dl <- hstat_export_plot_handler(input, "mlP2",
                        function() second_gg(), "ml_confusion_ou_erreurs")
 
     # ---- Importance des variables ----------------------------------------------
-    imp_gg <- reactive({
+    imp_gg <- shiny::reactive({
       c0 <- cur()
-      validate(need(!is.null(c0$r$imp) && nrow(c0$r$imp) > 0,
+      shiny::validate(shiny::need(!is.null(c0$r$imp) && nrow(c0$r$imp) > 0,
         "Importance non disponible pour ce modèle (SVM, kNN, Naïve Bayes n'en fournissent pas nativement)."))
       d <- utils::head(c0$r$imp, 20)
       d$Variable <- factor(d$Variable, levels = rev(d$Variable))
@@ -775,13 +775,13 @@ mod_ml_server <- function(id, values) {
                       y = NULL)
       hstat_apply_plot_opts(g, input, "mlO")
     })
-    output$mlImp <- renderPlot(imp_gg())
+    output$mlImp <- shiny::renderPlot(imp_gg())
     output$mlImDl <- hstat_export_plot_handler(input, "mlIm",
                        function() imp_gg(), "importance_variables")
-    output$mlImpNote <- renderUI({
+    output$mlImpNote <- shiny::renderUI({
       c0 <- cur()
       if (is.null(c0$r$imp) || nrow(c0$r$imp) == 0) return(NULL)
-      div(class = "callout callout-info", style = "margin-top:8px;", icon("lightbulb"),
+      shiny::div(class = "callout callout-info", style = "margin-top:8px;", shiny::icon("lightbulb"),
           trf(" La variable la plus déterminante est « %s » : c'est elle que le modèle exploite le plus pour prédire « %s ». Les variables en bas de classement peuvent souvent être retirées sans perte de performance.",
                   c0$r$imp$Variable[1], c0$p$target))
     })
@@ -793,10 +793,10 @@ mod_ml_server <- function(id, values) {
     hstat_export_table_handlers(output, "mlMet",
       function() cur()$r$metrics, "ml_metriques")
 
-    output$mlInterp <- renderUI({
+    output$mlInterp <- shiny::renderUI({
       c0 <- cur()
-      div(class = "callout callout-info", style = "margin-top:10px;",
-          icon("lightbulb"), strong(" Interprétation : "),
+      shiny::div(class = "callout callout-info", style = "margin-top:10px;",
+          shiny::icon("lightbulb"), shiny::strong(" Interprétation : "),
           hstat_model_interpretation(c0$p$task, c0$r$metrics, c0$r$label,
                                      nrow(c0$p$train), nrow(c0$p$test),
             notes = if (!is.null(c0$r$hp) && !identical(c0$r$hp, "réglages manuels"))
@@ -805,20 +805,20 @@ mod_ml_server <- function(id, values) {
     })
 
     # ---- Simulateur ---------------------------------------------------------------
-    output$simForm <- renderUI({
+    output$simForm <- shiny::renderUI({
       c0 <- tryCatch(cur(), error = function(e) NULL)
-      if (is.null(c0)) return(tags$em("Entraînez d'abord un modèle."))
+      if (is.null(c0)) return(shiny::tags$em("Entraînez d'abord un modèle."))
       hstat_sim_inputs_ui(ns, c0$p$ref, c0$p$preds, "simv")
     })
 
-    observeEvent(input$simOne, {
-      output$simOneOut <- renderUI({
+    shiny::observeEvent(input$simOne, {
+      output$simOneOut <- shiny::renderUI({
         c0 <- cur()
         nd0 <- hstat_sim_collect(input, c0$p$ref, c0$p$preds, "simv")
         al <- to_internal(c0$p, nd0)
-        validate(need(!is.null(al$data), al$warn %||% "Saisie invalide."))
+        shiny::validate(shiny::need(!is.null(al$data), al$warn %||% "Saisie invalide."))
         out <- tryCatch(c0$r$predict_fun(al$data), error = function(e) e)
-        validate(need(!inherits(out, "error"),
+        shiny::validate(shiny::need(!inherits(out, "error"),
                       if (inherits(out, "error")) conditionMessage(out) else ""))
         val <- if (c0$p$task == "regression")
           format(round(as.numeric(out$pred)[1], 4), big.mark = " ")
@@ -828,30 +828,30 @@ mod_ml_server <- function(id, values) {
                 else max(out$prob[1], 1 - out$prob[1])
           sprintf(" (confiance : %.1f %%)", 100 * pm)
         } else ""
-        div(class = "callout callout-info", style = "margin-top:10px;",
-            icon("bullseye"),
-            strong(trf(" Prédiction de « %s » : %s%s. ", c0$p$target, val, conf)),
+        shiny::div(class = "callout callout-info", style = "margin-top:10px;",
+            shiny::icon("bullseye"),
+            shiny::strong(trf(" Prédiction de « %s » : %s%s. ", c0$p$target, val, conf)),
             if (c0$p$task == "regression")
               "Valeur estimée par le modèle pour le cas saisi ; sa fiabilité correspond aux métriques du jeu de test (voir RMSE/MAE)."
             else "Classe la plus probable selon le modèle pour le cas saisi.")
       })
     })
 
-    sim_batch <- reactive({
-      req(input$simFile$datapath)
+    sim_batch <- shiny::reactive({
+      shiny::req(input$simFile$datapath)
       c0 <- cur()
       nd0 <- tryCatch({
         if (grepl("\\.xlsx$", input$simFile$name, ignore.case = TRUE))
           as.data.frame(readxl::read_excel(input$simFile$datapath))
         else utils::read.csv(input$simFile$datapath, check.names = FALSE)
       }, error = function(e) NULL)
-      validate(need(!is.null(nd0), "Fichier importé illisible."))
+      shiny::validate(shiny::need(!is.null(nd0), "Fichier importé illisible."))
       al <- to_internal(c0$p, nd0)
-      validate(need(!is.null(al$data), al$warn %||% "Colonnes incompatibles."))
+      shiny::validate(shiny::need(!is.null(al$data), al$warn %||% "Colonnes incompatibles."))
       if (!is.null(al$warn))
-        showNotification(al$warn, type = "warning", duration = 8)
+        shiny::showNotification(al$warn, type = "warning", duration = 8)
       keep <- stats::complete.cases(al$data)
-      validate(need(any(keep), "Aucune ligne complète exploitable dans le fichier."))
+      shiny::validate(shiny::need(any(keep), "Aucune ligne complète exploitable dans le fichier."))
       out <- c0$r$predict_fun(al$data[keep, , drop = FALSE])
       res <- nd0[keep, , drop = FALSE]
       res[[paste0("Prediction_", c0$p$target)]] <-
@@ -870,12 +870,12 @@ mod_ml_server <- function(id, values) {
                     options = list(pageLength = 8, scrollX = TRUE)))
     hstat_export_table_handlers(output, "simB", function() sim_batch(),
                                 "predictions_nouveaux_cas")
-    output$simBatchInterp <- renderUI({
+    output$simBatchInterp <- shiny::renderUI({
       d <- tryCatch(sim_batch(), error = function(e) NULL)
       if (is.null(d)) return(NULL)
       c0 <- cur()
       pc <- d[[paste0("Prediction_", c0$p$target)]]
-      div(class = "callout callout-info", style = "margin-top:8px;", icon("lightbulb"),
+      shiny::div(class = "callout callout-info", style = "margin-top:8px;", shiny::icon("lightbulb"),
           if (c0$p$task == "regression")
             trf(" %d cas prédits. Valeurs prédites : moyenne = %s, min = %s, max = %s.",
                     nrow(d), format(round(mean(as.numeric(pc)), 3), big.mark = " "),
@@ -887,14 +887,14 @@ mod_ml_server <- function(id, values) {
     })
 
     # ================= NON SUPERVISÉ ============================================
-    clres <- eventReactive(input$clRun, {
+    clres <- shiny::eventReactive(input$clRun, {
       df <- values$cleanData
-      validate(need(!is.null(df), "Chargez d'abord des données."),
-               need(length(input$clVars %||% character(0)) >= 2,
+      shiny::validate(shiny::need(!is.null(df), "Chargez d'abord des données."),
+               shiny::need(length(input$clVars %||% character(0)) >= 2,
                     "Choisissez au moins 2 variables numériques."))
       d0 <- df[, input$clVars, drop = FALSE]
       d0 <- d0[stats::complete.cases(d0), , drop = FALSE]
-      validate(need(nrow(d0) >= 10, "Au moins 10 lignes complètes sont requises."))
+      shiny::validate(shiny::need(nrow(d0) >= 10, "Au moins 10 lignes complètes sont requises."))
       d0 <- hstat_cap_df_rows(d0, max_n = HSTAT_DIST_MAX_N, what = "Clustering")
       x <- as.matrix(d0)
       if (isTRUE(input$clScale)) x <- scale(x)
@@ -929,8 +929,8 @@ mod_ml_server <- function(id, values) {
       list(x = x, cl = cl, d0 = d0, sil = sil, meth = meth, k = k)
     })
 
-    cl_gg <- reactive({
-      r <- clres(); req(r)
+    cl_gg <- shiny::reactive({
+      r <- clres(); shiny::req(r)
       pc <- stats::prcomp(r$x)
       d <- data.frame(PC1 = pc$x[, 1], PC2 = pc$x[, 2],
                       Groupe = factor(ifelse(r$cl == 0, "Bruit", r$cl)))
@@ -943,12 +943,12 @@ mod_ml_server <- function(id, values) {
                       y = sprintf("Dim 2 (%.1f %%)", pv[2])) +
         ggplot2::theme_minimal(base_size = 13)
     })
-    output$clPlot <- renderPlot(cl_gg())
+    output$clPlot <- shiny::renderPlot(cl_gg())
     output$clPlDl <- hstat_export_plot_handler(input, "clPl",
                        function() cl_gg(), "clusters")
 
-    cl_qual_gg <- reactive({
-      r <- clres(); req(r)
+    cl_qual_gg <- shiny::reactive({
+      r <- clres(); shiny::req(r)
       ks <- 2:min(10, nrow(r$x) - 1)
       wss <- vapply(ks, function(k)
         stats::kmeans(r$x, centers = k, nstart = 10)$tot.withinss, numeric(1))
@@ -960,12 +960,12 @@ mod_ml_server <- function(id, values) {
                       x = "Nombre de groupes k", y = "Inertie intra-groupe") +
         ggplot2::theme_minimal(base_size = 13)
     })
-    output$clQual <- renderPlot(cl_qual_gg())
+    output$clQual <- shiny::renderPlot(cl_qual_gg())
     output$clQuDl <- hstat_export_plot_handler(input, "clQu",
                        function() cl_qual_gg(), "coude_clusters")
 
-    cl_table <- reactive({
-      r <- clres(); req(r)
+    cl_table <- shiny::reactive({
+      r <- clres(); shiny::req(r)
       d <- r$d0; d$Groupe <- r$cl
       ag <- stats::aggregate(d[, setdiff(names(d), "Groupe"), drop = FALSE],
                              by = list(Groupe = d$Groupe), FUN = mean)
@@ -980,10 +980,10 @@ mod_ml_server <- function(id, values) {
       r <- clres(); d <- r$d0; d$Groupe <- r$cl; d
     }, "affectations_clusters")
 
-    output$clInterp <- renderUI({
-      r <- clres(); req(r)
-      div(class = "callout callout-info", style = "margin-top:10px;",
-          icon("lightbulb"), strong(" Interprétation : "),
+    output$clInterp <- shiny::renderUI({
+      r <- clres(); shiny::req(r)
+      shiny::div(class = "callout callout-info", style = "margin-top:10px;",
+          shiny::icon("lightbulb"), shiny::strong(" Interprétation : "),
           trf("La méthode %s a identifié %d groupe(s)%s. ", r$meth,
                   length(unique(r$cl[r$cl > 0])),
                   if (any(r$cl == 0)) sprintf(" (+ %d points de bruit)", sum(r$cl == 0)) else ""),
