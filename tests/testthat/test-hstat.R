@@ -92,6 +92,28 @@ local({
   if (length(hit)) normalizePath(hit[1]) else NA_character_
 }
 
+# Lignes de code d'un fichier R, COMMENTAIRES RETIRES par l'analyseur de R.
+# Une heuristique (« tout ce qui suit un # ») se signalerait elle-meme sur les
+# commentaires qui documentent le defaut recherche, et un faux positif permanent
+# finit toujours par faire desactiver le test.
+#
+# Ce decoupage etait recopie a l'identique dans deux balayages ; il n'existe
+# desormais qu'ici -- c'est la meme regle que celle appliquee a l'application.
+.hstat_code_lignes <- function(f) {
+  lignes <- readLines(f, warn = FALSE, encoding = "UTF-8")
+  pd <- tryCatch(utils::getParseData(parse(f, keep.source = TRUE)),
+                 error = function(e) NULL)
+  if (!is.null(pd)) {
+    com <- pd[pd$token == "COMMENT", , drop = FALSE]
+    for (i in seq_len(nrow(com))) {
+      l <- com$line1[i]
+      if (l >= 1 && l <= length(lignes))
+        lignes[l] <- substr(lignes[l], 1, max(0, com$col1[i] - 1))
+    }
+  }
+  lignes
+}
+
 # -- Charger le module d'analyses qualitatives (fonctions de calcul) ---------
 local({
   q_path <- "mod_qualitative.R"
@@ -1829,18 +1851,7 @@ test_that("le moteur par defaut est gratuit, jamais une API payante", {
   # et qui cite les points d'entree disparus. Un faux positif permanent finit
   # toujours par faire desactiver le test.
   sans_com <- function(f) {
-    lignes <- readLines(f, warn = FALSE, encoding = "UTF-8")
-    pd <- tryCatch(utils::getParseData(parse(f, keep.source = TRUE)),
-                   error = function(e) NULL)
-    if (!is.null(pd)) {
-      com <- pd[pd$token == "COMMENT", , drop = FALSE]
-      for (i in seq_len(nrow(com))) {
-        l <- com$line1[i]
-        if (l >= 1 && l <= length(lignes))
-          lignes[l] <- substr(lignes[l], 1, max(0, com$col1[i] - 1))
-      }
-    }
-    paste(lignes, collapse = "\n")
+    paste(.hstat_code_lignes(f), collapse = "\n")
   }
   src <- sans_com(file.path(.hstat_repo_root(), "inst", "app", "mod_ai.R"))
   ui  <- sans_com(file.path(.hstat_repo_root(), "inst", "app", "mod_coding.R"))
@@ -5074,18 +5085,7 @@ test_that("aucun reactif ne s'appelle lui-meme", {
   # correction (« PAS `source_data()` »). Un balayage textuel naif aurait
   # produit un faux positif permanent, et on aurait fini par le desactiver.
   sans_commentaires <- function(f) {
-    lignes <- readLines(f, warn = FALSE, encoding = "UTF-8")
-    pd <- tryCatch(utils::getParseData(parse(f, keep.source = TRUE)),
-                   error = function(e) NULL)
-    if (!is.null(pd)) {
-      com <- pd[pd$token == "COMMENT", , drop = FALSE]
-      for (i in seq_len(nrow(com))) {
-        l <- com$line1[i]
-        if (l >= 1 && l <= length(lignes))
-          lignes[l] <- substr(lignes[l], 1, max(0, com$col1[i] - 1))
-      }
-    }
-    paste(lignes, collapse = "\n")
+    paste(.hstat_code_lignes(f), collapse = "\n")
   }
 
   fautifs <- character(0)
@@ -6206,6 +6206,92 @@ test_that("aucun telechargement d'image ne peut se terminer sans ecrire", {
   expect_false(any(grepl("calculate_dimensions_from_dpi", code, fixed = TRUE)))
   # Le chemin d'ecriture garanti est bien celui employe
   expect_true(sum(grepl("hstat_ecrire_image", code, fixed = TRUE)) >= 15)
+})
+
+test_that("un seul endroit dans l'application ouvre un peripherique graphique", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # L'INVARIANT : `.hstat_img_device()` est le SEUL ouvreur de peripherique, et
+  # `ggsave` n'est plus appele nulle part. Tout ce que l'ecrivain commun
+  # garantit -- plafond de resolution, format valide, image de secours portant
+  # le motif -- ne profite qu'aux exports qui passent par lui ; un module qui
+  # ouvre son propre peripherique se prive de tout, en silence.
+  #
+  # Douze ecritures brutes vivaient hors de l'ecrivain : deux dans le rapport,
+  # cinq dans les tests statistiques, une dans le module qualitatif, une dans la
+  # visualisation, et le kit d'export partage lui-meme.
+  ouvreurs <- c("ggsave(", "grDevices::png(", "grDevices::jpeg(",
+                "grDevices::tiff(", "grDevices::bmp(", "grDevices::pdf(",
+                "grDevices::postscript(", "grDevices::svg(", "cairo_pdf",
+                "svglite::svglite(")
+  fautifs <- character(0)
+  for (f in list.files(file.path(root, "inst", "app"), pattern = "[.]R$",
+                       full.names = TRUE)) {
+    lignes <- .hstat_code_lignes(f)
+    # Fenetre autorisee : le corps de `.hstat_img_device` dans Utils.R.
+    permis <- integer(0)
+    deb <- grep(".hstat_img_device <- function", lignes, fixed = TRUE)
+    if (length(deb)) permis <- seq(deb[1], min(length(lignes), deb[1] + 40L))
+    for (m in ouvreurs) {
+      hit <- setdiff(grep(m, lignes, fixed = TRUE), permis)
+      if (length(hit))
+        fautifs <- c(fautifs, sprintf("%s:%d (%s)", basename(f), hit, m))
+    }
+  }
+  expect_equal(fautifs, character(0))
+})
+
+test_that("l'ecrivain commun ferme son peripherique avant de conclure", {
+  skip_if_not_installed("ggplot2")
+  # LE DEFAUT : `on.exit()` s'accroche a un cadre de FONCTION, et le bloc d'un
+  # `tryCatch` n'en cree pas. La fermeture etait donc repoussee a la sortie de
+  # `hstat_ecrire_image()` -- apres le gestionnaire d'erreur et apres le
+  # controle final, qui lisait un fichier encore vide.
+  p <- ggplot2::ggplot(data.frame(x = 1:5, y = 1:5), ggplot2::aes(x, y)) +
+    ggplot2::geom_point()
+
+  # 1. Sans filet, un export REUSSI rend bien son fichier (le controle final
+  #    le declarait perdu et le supprimait).
+  f1 <- tempfile(fileext = ".png")
+  expect_true(hstat_ecrire_image(f1, p, "png", 6, 4, 100, secours = FALSE))
+  expect_gt(file.size(f1), 0)
+
+  # 2. Sans filet, un echec ne laisse AUCUN fichier : c'est ce que le rapport
+  #    attend, une figure indessinable doit disparaitre du document.
+  f2 <- tempfile(fileext = ".png")
+  expect_false(hstat_ecrire_image(f2, function() stop("boum"), "png", 6, 4, 100,
+                                  secours = FALSE))
+  expect_false(file.exists(f2))
+
+  # 3. Avec filet, l'image de secours SURVIT. Elle etait tracee sur un second
+  #    peripherique, puis ecrasee par la fermeture du premier : l'utilisateur
+  #    recevait une image vide au lieu du motif. On le mesure en octets, une
+  #    image blanche de meme taille pesant une fraction de celle qui porte du
+  #    texte.
+  f3 <- tempfile(fileext = ".png"); f4 <- tempfile(fileext = ".png")
+  expect_false(hstat_ecrire_image(f3, function() stop("boum"), "png", 6, 4, 100,
+                                  echec = "Motif attendu, lisible dans l'image."))
+  hstat_ecrire_image(f4, function() { graphics::par(mar = c(0, 0, 0, 0));
+                                      graphics::plot.new() }, "png", 6, 4, 100)
+  expect_gt(file.size(f3), file.size(f4) * 1.5)
+})
+
+test_that("les reglages de format sont ceux de l'ecrivain, et ils agissent", {
+  skip_if_not_installed("ggplot2")
+  # La qualite JPEG et la compression TIFF etaient portees par le seul module
+  # qui les propose, donc par son propre appel a `ggsave`. Passees a l'ecrivain,
+  # elles doivent AGIR -- un reglage deplace sans effet est pire qu'absent.
+  p <- ggplot2::ggplot(data.frame(x = runif(400), y = runif(400)),
+                       ggplot2::aes(x, y)) + ggplot2::geom_point()
+  bas <- tempfile(fileext = ".jpg"); haut <- tempfile(fileext = ".jpg")
+  hstat_ecrire_image(bas,  p, "jpeg", 6, 4, 100, qualite = 5)
+  hstat_ecrire_image(haut, p, "jpeg", 6, 4, 100, qualite = 100)
+  expect_lt(file.size(bas), file.size(haut))
+
+  # Une valeur aberrante ne fait pas tomber l'export : elle retombe sur 95.
+  ab <- tempfile(fileext = ".jpg")
+  expect_true(hstat_ecrire_image(ab, p, "jpeg", 6, 4, 100, qualite = "n'importe quoi"))
+  expect_gt(file.size(ab), 0)
 })
 
 test_that("la mise en page s'adapte aux petits ecrans sans rien couper", {

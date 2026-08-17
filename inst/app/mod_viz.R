@@ -3976,15 +3976,11 @@ mod_viz_server <- function(id, values) {
       # La qualite JPEG et la compression TIFF sont proposees a l'utilisateur :
       # elles etaient declarees dans l'interface et n'etaient LUES nulle part.
       # Un reglage qu'on deplace sans effet est pire qu'un reglage absent --
-      # on croit avoir agi.
-      args_ggsave <- list(filename = temp_file, plot = p, device = fmt,
-                          width = w, height = h, units = "in", dpi = dpi,
-                          bg = "white", limitsize = FALSE)
-      if (identical(fmt, "jpeg"))
-        args_ggsave$quality <- as.integer(hstat_finite(input$jpegQuality, 95))
-      if (identical(fmt, "tiff"))
-        args_ggsave$compression <- input$tiffCompression %||% "lzw"
-      do.call(ggplot2::ggsave, args_ggsave)
+      # on croit avoir agi. Ce sont des reglages de FORMAT : ils sont passes a
+      # l'ecrivain commun, qui seul ouvre un peripherique dans l'application.
+      hstat_ecrire_image(temp_file, p, fmt, w, h, dpi,
+                         qualite = as.integer(hstat_finite(input$jpegQuality, 95)),
+                         compression = input$tiffCompression %||% "lzw")
       
       if (!file.exists(temp_file)) {
         showNotification("Erreur: Le fichier n'a pas pu être créé", type = "error", duration = 5)

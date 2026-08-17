@@ -1540,6 +1540,47 @@ du paquet dans l'environnement de l'application (`run_hstat` y était injecté).
 Shiny cherche ce fichier dans `R/`, pas à la racine ; l'avertissement au
 démarrage subsiste car Shiny l'émet avant de tester le fichier.
 
+## Un seul écrivain d'image, et il est le seul à ouvrir un périphérique
+
+`hstat_ecrire_image()` (`Utils.R`) écrit **toutes** les images de l'application ;
+`.hstat_img_device()` est le **seul** endroit qui ouvre un périphérique
+graphique. Un test balaie `inst/app/` et échoue sur tout `ggsave()`, `png()`,
+`jpeg()`, `tiff()`, `bmp()`, `pdf()`, `postscript()`, `svg()` posé ailleurs.
+
+Ce n'est pas une préférence de style. Ce que l'écrivain garantit — plafond de
+résolution, fichier valide du format demandé, image de secours portant le motif
+— ne profite qu'à ce qui passe par lui. Douze écritures brutes vivaient dehors
+et n'en avaient rien : le rapport (deux), les tests statistiques (cinq), le
+module qualitatif, la visualisation, et **le kit d'export partagé lui-même**.
+
+Trois défauts en sont sortis, tous silencieux :
+
+1. **Un `stop()` dans un `content =` ne laisse aucun fichier**, et Shiny renvoie
+   sa page d'erreur HTML sous le nom `.png` demandé. Treize exports du kit
+   partagé et l'export qualitatif étaient dans ce cas — on croyait tenir une
+   image, on ouvrait du HTML.
+2. **`on.exit()` s'accroche à un cadre de fonction, pas au bloc d'un
+   `tryCatch`.** La fermeture du périphérique était donc repoussée à la sortie
+   de `hstat_ecrire_image()` : le contrôle final lisait un fichier encore vide
+   et croyait l'export perdu, et sur erreur l'image de secours était tracée sur
+   un second périphérique **puis écrasée** par la fermeture du premier —
+   l'utilisateur recevait une image vide au lieu du motif. D'où la fonction
+   anonyme qui enferme le tracé.
+3. **Le rapport plafonnait ses figures nulle part** : à 2400 dpi (choix proposé
+   dans son interface) une figure de 9 pouces demande 21 600 px de côté, que le
+   matriciel ne peut pas allouer.
+
+`secours = FALSE` est l'unique dérogation, et elle est réservée au **rapport** :
+là, une figure indessinable doit disparaître du document, une image d'erreur au
+milieu d'un rapport remis serait pire que son absence. Partout ailleurs le filet
+est indispensable — c'est lui qui empêche le HTML déguisé en PNG.
+
+**Les réglages de format appartiennent à l'écrivain.** `qualite` (JPEG) et
+`compression` (TIFF) y sont passés : c'est parce qu'ils vivaient dans le seul
+module qui les propose que ce module gardait son propre `ggsave`. Un test vérifie
+qu'ils **agissent** (qualité 5 pèse moins que qualité 100) et qu'une valeur
+aberrante retombe sur 95 au lieu de faire tomber l'export.
+
 ## Fins de ligne
 
 Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. Sont en

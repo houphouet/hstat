@@ -1529,8 +1529,17 @@ hstat_img_fmt <- function(x, defaut = "png") {
 hstat_img_mime <- function(fmt) unname(HSTAT_IMG_MIME[hstat_img_fmt(fmt)])
 
 # Ouvre le peripherique graphique du format demande.
-.hstat_img_device <- function(file, fmt, width, height, dpi) {
+#
+# `qualite` (JPEG) et `compression` (TIFF) sont des reglages de FORMAT : ils
+# appartiennent donc a l'ecrivain, pas aux modules. Les laisser dehors obligeait
+# le seul module qui les propose a ouvrir son propre peripherique -- et a se
+# priver de tout ce que l'ecrivain garantit.
+.hstat_img_device <- function(file, fmt, width, height, dpi,
+                              qualite = 95, compression = "lzw") {
   px_w <- max(1, round(width * dpi)); px_h <- max(1, round(height * dpi))
+  q <- suppressWarnings(as.integer(qualite)[1])
+  if (!isTRUE(is.finite(q)) || q < 1 || q > 100) q <- 95L
+  cmp <- if (is.character(compression) && nzchar(compression[1])) compression[1] else "lzw"
   switch(fmt,
     pdf  = grDevices::pdf(file, width = width, height = height),
     eps  = grDevices::postscript(file, width = width, height = height,
@@ -1539,9 +1548,9 @@ hstat_img_mime <- function(fmt) unname(HSTAT_IMG_MIME[hstat_img_fmt(fmt)])
              svglite::svglite(file, width = width, height = height)
            else grDevices::svg(file, width = width, height = height),
     jpeg = grDevices::jpeg(file, width = px_w, height = px_h, res = dpi,
-                           quality = 95, type = "cairo"),
+                           quality = q, type = "cairo"),
     tiff = grDevices::tiff(file, width = px_w, height = px_h, res = dpi,
-                           type = "cairo", compression = "lzw"),
+                           type = "cairo", compression = cmp),
     bmp  = grDevices::bmp(file, width = px_w, height = px_h, res = dpi,
                           type = "cairo"),
     grDevices::png(file, width = px_w, height = px_h, res = dpi, type = "cairo"))
@@ -1567,8 +1576,16 @@ hstat_image_secours <- function(file, fmt = "png", message = NULL,
 # Ecrit `plot` dans `file`, au format demande, ET GARANTIT qu'un fichier valide
 # existe au retour. `plot` accepte un ggplot, un objet imprimable, ou une
 # FONCTION (graphiques base R, qui se tracent au lieu de se renvoyer).
+#
+#  `secours = FALSE` supprime le filet : aucun fichier n'est laisse quand le
+#  trace echoue. C'est ce qu'il faut pour le RAPPORT, ou une figure devenue
+#  indessinable doit DISPARAITRE du document -- une image portant un message
+#  d'erreur au milieu d'un rapport remis serait pire que son absence. Partout
+#  ailleurs (telechargement direct), le filet reste indispensable : sans lui,
+#  Shiny renvoie sa page d'erreur HTML sous le nom `.png` demande.
 hstat_ecrire_image <- function(file, plot, fmt = "png", width = 10, height = 7.5,
-                               dpi = 300, echec = NULL) {
+                               dpi = 300, echec = NULL, secours = TRUE,
+                               qualite = 95, compression = "lzw") {
   fmt <- hstat_img_fmt(fmt)
   # LE PLAFOND EST ICI, chez l'ecrivain commun : vingt exports en heritent sans
   # que chacun ait a y penser, et aucun ne peut l'oublier.
@@ -1584,21 +1601,40 @@ hstat_ecrire_image <- function(file, plot, fmt = "png", width = 10, height = 7.5
     eff <- hstat_dpi_effectif(width, height, dpi)
     dpi <- eff$dpi
   }
+  # LE PERIPHERIQUE EST FERME AVANT TOUT LE RESTE, d'ou la fonction anonyme :
+  # `on.exit()` s'accroche a un CADRE DE FONCTION, et le bloc d'un `tryCatch`
+  # n'en cree pas -- la fermeture etait donc repoussee a la sortie de
+  # `hstat_ecrire_image()`, soit APRES le gestionnaire d'erreur et APRES le
+  # controle final. Deux consequences, toutes deux verifiees :
+  #
+  #   * le controle lisait un fichier encore vide (rien n'est ecrit tant que le
+  #     peripherique n'est pas ferme) et croyait l'export perdu ;
+  #   * sur erreur, l'image de secours etait tracee sur un SECOND peripherique,
+  #     puis ecrasee par la fermeture du premier -- l'utilisateur recevait une
+  #     image vide au lieu du motif.
   ok <- tryCatch({
     if (is.null(plot)) stop("Aucun graphique a exporter.")
-    .hstat_img_device(file, fmt, width, height, dpi)
-    on.exit(grDevices::dev.off(), add = TRUE)
-    if (is.function(plot)) plot() else print(plot)
+    (function() {
+      .hstat_img_device(file, fmt, width, height, dpi, qualite, compression)
+      on.exit(grDevices::dev.off(), add = TRUE)
+      if (is.function(plot)) plot() else print(plot)
+    })()
     TRUE
   }, error = function(e) {
-    hstat_image_secours(file, fmt,
-      echec %||% hstat_err_fr(e, "Export du graphique"), width, height, dpi)
+    if (isTRUE(secours))
+      hstat_image_secours(file, fmt,
+        echec %||% hstat_err_fr(e, "Export du graphique"), width, height, dpi)
     FALSE
   })
   # Un fichier absent ou vide serait servi en HTML : dernier filet.
-  if (!file.exists(file) || file.size(file) == 0)
+  if (!file.exists(file) || file.size(file) == 0) {
+    if (!isTRUE(secours)) {
+      unlink(file)
+      return(FALSE)
+    }
     hstat_image_secours(file, fmt, echec %||% "Graphique indisponible.",
                         width, height, dpi)
+  }
   isTRUE(ok)
 }
 
@@ -5083,41 +5119,40 @@ hstat_export_plot_ui <- function(ns, prefix, width = 10, height = 6) {
 }
 
 # Handler d'export associe. plot_fun() doit renvoyer un ggplot (ou NULL).
-# Garde-fou : plafonne chaque cote a 16 000 px (une image 16 000 x 16 000 en
-# RGBA occupe deja ~1 Go en memoire de trace) en reduisant la taille physique,
-# jamais le DPI demande (le fichier conserve la metadonnee DPI voulue).
+#
+# L'ECRITURE N'EST PAS REFAITE ICI : elle passe par `hstat_ecrire_image()`,
+# l'ecrivain commun. Ce qui reste au handler, c'est de LIRE les reglages du
+# prefixe et de nommer le fichier -- son seul travail propre.
+#
+# Ce que ce branchement corrige au passage : `stop()` sur un graphique absent
+# ne laissait AUCUN fichier, et Shiny renvoyait alors sa page d'erreur HTML,
+# que le navigateur enregistrait sous le nom `.png` demande. Treize exports
+# etaient dans ce cas -- on croyait tenir une image, on ouvrait du HTML.
 hstat_export_plot_handler <- function(input, prefix, plot_fun, fname = "graphique") {
+  reglages <- function() {
+    fmt <- hstat_img_fmt(input[[paste0(prefix, "Fmt")]] %||% "png")
+    w   <- hstat_finite(input[[paste0(prefix, "W")]], 10);  w <- max(3, min(30, w))
+    h   <- hstat_finite(input[[paste0(prefix, "H")]], 6);   h <- max(3, min(30, h))
+    dpi <- hstat_finite(input[[paste0(prefix, "Dpi")]], 300)
+    list(fmt = fmt, w = w, h = h, dpi = max(72, min(HSTAT_DPI_MAX, dpi)))
+  }
   downloadHandler(
     filename = function() {
-      fmt <- input[[paste0(prefix, "Fmt")]] %||% "png"
+      fmt <- reglages()$fmt
       ext <- if (identical(fmt, "jpeg")) "jpg" else fmt
       paste0(fname, "_", Sys.Date(), ".", ext)
     },
     content = function(file) {
-      g <- plot_fun()
-      if (is.null(g)) stop("Aucun graphique a exporter : lancez d'abord l'analyse.")
-      fmt <- input[[paste0(prefix, "Fmt")]] %||% "png"
-      w   <- hstat_finite(input[[paste0(prefix, "W")]], 10);  w <- max(3, min(30, w))
-      h   <- hstat_finite(input[[paste0(prefix, "H")]], 6);   h <- max(3, min(30, h))
-      dpi <- hstat_finite(input[[paste0(prefix, "Dpi")]], 300)
-      dpi <- max(72, min(20000, dpi))
-      if (fmt %in% c("pdf", "svg")) {
-        dev <- if (identical(fmt, "pdf")) grDevices::cairo_pdf else "svg"
-        ggplot2::ggsave(file, g, width = w, height = h, device = dev, limitsize = FALSE)
-      } else {
-        # La taille demandee est RESPECTEE : c'est la resolution qui plie si le
-        # matriciel ne peut pas suivre. Multiplier les pouces par un facteur de
-        # reduction, comme ici auparavant, rendait la figure plus petite a
-        # mesure qu'on demandait plus de finesse.
-        eff <- hstat_dpi_effectif(w, h, dpi)
-        if (isTRUE(eff$plafonne))
-          shiny::showNotification(eff$note, type = "warning", duration = 10)
-        args <- list(filename = file, plot = g, width = w,
-                     height = h, dpi = eff$dpi, device = fmt, limitsize = FALSE)
-        if (identical(fmt, "tiff")) args$compression <- "lzw"
-        if (identical(fmt, "jpeg")) args$quality <- 95
-        do.call(ggplot2::ggsave, args)
-      }
+      r <- reglages()
+      # La taille demandee est RESPECTEE : c'est la resolution qui plie si le
+      # matriciel ne peut pas suivre. L'utilisateur doit le savoir, d'ou
+      # l'annonce -- le plafonnement lui-meme vit chez l'ecrivain commun.
+      eff <- hstat_dpi_effectif(r$w, r$h, r$dpi)
+      if (isTRUE(eff$plafonne))
+        shiny::showNotification(eff$note, type = "warning", duration = 10)
+      g <- tryCatch(plot_fun(), error = function(e) NULL)
+      hstat_ecrire_image(file, g, r$fmt, r$w, r$h, r$dpi,
+        echec = "Aucun graphique a exporter : lancez d'abord l'analyse.")
     })
 }
 

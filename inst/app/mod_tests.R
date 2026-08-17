@@ -4968,30 +4968,24 @@ mod_tests_server <- function(id, values) {
       paste0("diagnostics_modèle_", Sys.Date(), ".png")
     },
     content = function(file) {
-      tryCatch({
-        model <- values$currentModel
+      # Le peripherique, le chemin d'echec et l'image portant le motif etaient
+      # ecrits ici a la main. Ils vivent desormais chez `hstat_ecrire_image()` :
+      # ne reste que le DESSIN, qui est le seul propre a cet export.
+      model <- values$currentModel
+      dessin <- function() {
         h <- hatvalues(model)
-        
-        png(file, width = 3200, height = 2400, res = 300, type = "cairo")
-        
         if (all(h < 1e-10) || sum(h > 0) < 3) {
           par(mfrow = c(1, 1))
           plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
-          text(1, 1, "Ajustement parfait détecté\nLes diagnostics graphiques ne sont pas disponibles", 
+          text(1, 1, "Ajustement parfait détecté\nLes diagnostics graphiques ne sont pas disponibles",
                cex = 1.5, col = "red")
         } else {
           par(mfrow = c(2, 2))
           plot(model, which = 1:4)
         }
-        
-        dev.off()
-      }, error = function(e) {
-        png(file, width = 3200, height = 2400, res = 300, type = "cairo")
-        par(mfrow = c(1, 1))
-        plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
-        text(1, 1, paste(strwrap(hstat_err_fr(e), 55), collapse = "\n"), cex = 0.85, col = "red")
-        dev.off()
-      })
+      }
+      # 10,67 x 8 pouces a 300 DPI : exactement les 3200 x 2400 px d'avant.
+      hstat_ecrire_image(file, dessin, "png", 10.67, 8, 300)
     }
   )
   
@@ -5000,20 +4994,24 @@ mod_tests_server <- function(id, values) {
       paste0("qqplot_residus_", Sys.Date(), ".png")
     },
     content = function(file) {
-      tryCatch({
+      # Meme principe que les diagnostics : le module construit le graphique,
+      # l'ecrivain commun se charge du fichier. Le motif d'indisponibilite est
+      # porte par `echec`, et sort en image valide au lieu d'un peripherique
+      # ouvert a la main dans chaque branche.
+      motif <- NULL
+      p <- tryCatch({
         req(values$currentModel)
         residuals_data <- residuals(values$currentModel)
         residuals_data <- residuals_data[!is.na(residuals_data)]
-        
+
         if (length(residuals_data) < 3 || sd(residuals_data) < 1e-10) {
-          png(file, width = 2000, height = 1600, res = 300, type = "cairo-png")
-          plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
-          text(1, 1, "QQ-plot non disponible\n(résidus constants ou insuffisants)", 
-               cex = 1.2, col = "orange")
-          dev.off()
-          return()
+          # `<-` et non `<<-` : l'expression d'un tryCatch s'evalue dans le
+          # cadre APPELANT, donc ici meme. C'est dans le GESTIONNAIRE, plus
+          # bas, que `<<-` est indispensable.
+          motif <- "QQ-plot non disponible : les résidus sont constants ou trop peu nombreux."
+          return(NULL)
         }
-        
+
         n <- length(residuals_data)
         theoretical_quantiles <- qnorm(ppoints(n))
         sample_quantiles <- sort(residuals_data)
@@ -5038,15 +5036,13 @@ mod_tests_server <- function(id, values) {
                x = "Quantiles théoriques", 
                y = "Quantiles observés") +
           theme(plot.title = element_markdown(hjust = 0.5))
-        
-        ggsave(file, plot = p, width = 10, height = 8, dpi = 300, type = "cairo-png")
-        
+
+        p
       }, error = function(e) {
-        png(file, width = 2000, height = 1600, res = 300, type = "cairo-png")
-        plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
-        text(1, 1, paste(strwrap(hstat_err_fr(e), 55), collapse = "\n"), cex = 0.85, col = "red")
-        dev.off()
+        motif <<- hstat_err_fr(e, "QQ-plot des résidus")
+        NULL
       })
+      hstat_ecrire_image(file, p, "png", 10, 8, 300, echec = motif)
     }
   )
   
@@ -8384,20 +8380,9 @@ mod_tests_server <- function(id, values) {
           ggplot2::theme_void()
       }
 
-      # Correction : avec un device PERSONNALISE, ggsave transmet width/height
-      # tels quels et png()/jpeg()/tiff() les interpretent en PIXELS par defaut
-      # (le fichier sortait en 8x6 px). On force units = "in" et res = dpi.
-      device <- switch(fmt,
-        png  = function(filename, ...) grDevices::png(filename, type = "cairo",
-                                                      units = "in", res = dpi, ...),
-        jpeg = function(filename, ...) grDevices::jpeg(filename, type = "cairo", quality = 95,
-                                                       units = "in", res = dpi, ...),
-        tiff = function(filename, ...) grDevices::tiff(filename, type = "cairo", compression = "lzw",
-                                                       units = "in", res = dpi, ...),
-        pdf  = grDevices::cairo_pdf,
-        svg  = grDevices::svg,
-        function(filename, ...) grDevices::png(filename, type = "cairo",
-                                               units = "in", res = dpi, ...))
+      # Le commutateur de peripheriques qui vivait ici etait CALCULE PUIS JAMAIS
+      # LU depuis le branchement sur l'ecrivain commun : quinze lignes qui
+      # decrivaient un comportement que le code n'avait plus.
 
       # Le chemin d'echec ne laissait AUCUN fichier : Shiny renvoyait sa page
       # d'erreur HTML, enregistree sous le nom demande.
