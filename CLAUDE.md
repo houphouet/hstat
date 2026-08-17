@@ -404,6 +404,38 @@ contiendra — « 6000 × 4500 px, soit 25,4 × 19,0 cm à 600 DPI ». Les centi
 sont l'invariant : ils ne bougent pas d'une résolution à l'autre, et c'est
 précisément ce qu'il faut comprendre.
 
+### Le DPI monte jusqu'à 20 000, et ne touche jamais à la taille
+
+Une seule règle, pour toute l'application : **augmenter la résolution ne change
+ni la largeur, ni la hauteur, ni la mise en page**. Deux exports faisaient
+l'inverse — ils multipliaient les pouces par un facteur de réduction, si bien
+que demander plus de finesse rendait l'image plus *petite* sur le papier.
+
+`HSTAT_DPI_MAX` (20 000) est le plafond du **champ**, déclaré une fois : trente
+et un champs de DPI existent dans l'application, neuf plafonnaient à 1200 ou
+2000 et quatre à 600, sans raison. Quatre d'entre eux s'écrivent `DPI` en
+majuscules (`distDPI`, `missingDPI`, `corrDPI`, `plotDPIVisible`) et échappaient
+à toute recherche de `dpi` — c'est le décompte des champs **dans la page rendue**
+qui les a trouvés, pas la lecture du code.
+
+`HSTAT_RASTER_MAX_PX` (20 000 px de côté) est autre chose : la limite du
+**format**. Au-delà, le périphérique graphique échoue sur l'allocation du bitmap
+et l'utilisateur n'obtient aucun fichier. `hstat_dpi_effectif()` ramène alors la
+**résolution** — jamais la taille — et l'annonce, parce qu'un export
+silencieusement dégradé est pire qu'un refus.
+
+Conséquence assumée : sur une figure de 12 pouces, la finesse cesse de progresser
+vers 1666 DPI. C'est une limite physique du matriciel, pas un choix. **Les
+formats vectoriels (PDF, SVG, EPS) ne sont donc pas plafonnés** : leur résolution
+est infinie et le DPI n'y veut rien dire — c'est la vraie réponse à « je veux
+20 000 DPI sans rien perdre ».
+
+Le plafond vit chez `hstat_ecrire_image()`, l'écrivain commun : vingt exports en
+héritent sans que chacun ait à y penser, et aucun ne peut l'oublier.
+
+Deux invariants testés : la taille physique est **constante** quel que soit le
+DPI, et le nombre de pixels ne **décroît jamais** quand on demande davantage.
+
 ### Onglet Visualisation : la résolution ne rétrécit pas la figure
 
 Un escalier y réduisait la taille physique à mesure que le DPI montait — 12 × 8
@@ -1507,6 +1539,158 @@ son thème ni le glisser-déposer. Un test de non-régression garde cette règle
 du paquet dans l'environnement de l'application (`run_hstat` y était injecté).
 Shiny cherche ce fichier dans `R/`, pas à la racine ; l'avertissement au
 démarrage subsiste car Shiny l'émet avant de tester le fichier.
+
+## Un seul écrivain d'image, et il est le seul à ouvrir un périphérique
+
+`hstat_ecrire_image()` (`Utils.R`) écrit **toutes** les images de l'application ;
+`.hstat_img_device()` est le **seul** endroit qui ouvre un périphérique
+graphique. Un test balaie `inst/app/` et échoue sur tout `ggsave()`, `png()`,
+`jpeg()`, `tiff()`, `bmp()`, `pdf()`, `postscript()`, `svg()` posé ailleurs.
+
+Ce n'est pas une préférence de style. Ce que l'écrivain garantit — plafond de
+résolution, fichier valide du format demandé, image de secours portant le motif
+— ne profite qu'à ce qui passe par lui. Douze écritures brutes vivaient dehors
+et n'en avaient rien : le rapport (deux), les tests statistiques (cinq), le
+module qualitatif, la visualisation, et **le kit d'export partagé lui-même**.
+
+Trois défauts en sont sortis, tous silencieux :
+
+1. **Un `stop()` dans un `content =` ne laisse aucun fichier**, et Shiny renvoie
+   sa page d'erreur HTML sous le nom `.png` demandé. Treize exports du kit
+   partagé et l'export qualitatif étaient dans ce cas — on croyait tenir une
+   image, on ouvrait du HTML.
+2. **`on.exit()` s'accroche à un cadre de fonction, pas au bloc d'un
+   `tryCatch`.** La fermeture du périphérique était donc repoussée à la sortie
+   de `hstat_ecrire_image()` : le contrôle final lisait un fichier encore vide
+   et croyait l'export perdu, et sur erreur l'image de secours était tracée sur
+   un second périphérique **puis écrasée** par la fermeture du premier —
+   l'utilisateur recevait une image vide au lieu du motif. D'où la fonction
+   anonyme qui enferme le tracé.
+3. **Le rapport plafonnait ses figures nulle part** : à 2400 dpi (choix proposé
+   dans son interface) une figure de 9 pouces demande 21 600 px de côté, que le
+   matriciel ne peut pas allouer.
+
+`secours = FALSE` est l'unique dérogation, et elle est réservée au **rapport** :
+là, une figure indessinable doit disparaître du document, une image d'erreur au
+milieu d'un rapport remis serait pire que son absence. Partout ailleurs le filet
+est indispensable — c'est lui qui empêche le HTML déguisé en PNG.
+
+**Les réglages de format appartiennent à l'écrivain.** `qualite` (JPEG) et
+`compression` (TIFF) y sont passés : c'est parce qu'ils vivaient dans le seul
+module qui les propose que ce module gardait son propre `ggsave`. Un test vérifie
+qu'ils **agissent** (qualité 5 pèse moins que qualité 100) et qu'une valeur
+aberrante retombe sur 95 au lieu de faire tomber l'export.
+
+### Le format et le DPI ne se déclarent qu'au catalogue
+
+Dix-sept listes de formats et vingt champs de DPI étaient écrits à la main, et
+ils avaient **divergé** : les neuf exports des analyses multivariées n'offraient
+que quatre formats sur les sept que l'écrivain sait produire — et sans libellé —
+tandis que deux modules écrivaient `20000` en clair là où les autres lisaient
+`HSTAT_DPI_MAX`. C'est exactement ce qui s'était déjà produit : une montée du
+plafond en avait laissé plusieurs en arrière.
+
+`HSTAT_FORMATS_IMG`, `hstat_format_input()` et `hstat_dpi_input()` (`Utils.R`)
+remplacent les trente-sept déclarations. Deux choix de construction :
+
+1. **`hstat_format_input()` n'a pas d'argument `choices`**, et
+   **`hstat_dpi_input()` n'a pas d'argument `max`.** C'est précisément ce qui
+   permettait à chaque appel d'inventer sa propre liste et son propre plafond.
+   Ce qui varie légitimement d'un site à l'autre — le libellé, le minimum, le
+   pas, la largeur — reste paramétrable.
+2. **Le catalogue est dérivé de ce que l'écrivain sait écrire.** Offrir un
+   format qu'il ignore ne lève rien : `hstat_img_fmt()` retombe sur PNG, et
+   l'utilisateur reçoit un PNG portant l'extension demandée. Un test vérifie
+   les deux sens — chaque valeur du catalogue traverse `hstat_img_fmt()` sans
+   changer, **et** produit un fichier dont les premiers octets sont ceux du
+   format annoncé.
+
+Mesuré dans la page rendue après correction : 31 champs de DPI, tous à 20 000 ;
+29 sélecteurs de format, tous offrant les 7 formats.
+
+Le balayage de garde vise le **champ de DPI**, pas le nombre 20 000 : les champs
+de largeur et de hauteur en **pixels** portent le même plafond sans être des
+résolutions. Il remonte donc à la tête de l'appel `numericInput(`, seule ligne
+qui porte l'identifiant et le libellé — s'arrêter aux lignes voisines confondait
+un champ de pixels avec le champ de DPI déclaré juste au-dessus.
+
+### Le préfixe est le contrat
+
+`hstat_export_plot_ui(ns, prefix)` déclare les quatre réglages et le bouton ;
+`hstat_export_plot_handler(input, prefix, plot_fun)` les lit et écrit. **Le
+module ne fournit plus que la fonction qui rend le graphique** — il n'écrit plus
+une ligne de fichier, ne nomme plus de format, ne borne plus de résolution.
+
+Quatre exports vivaient encore à côté du kit, et chacun y perdait quelque chose
+que l'utilisateur voyait :
+
+| Export | Ce qui manquait |
+|---|---|
+| Distribution (exploration) | PNG imposé, taille figée : ni format ni dimensions |
+| Valeurs manquantes (exploration) | idem |
+| Graphique descriptif | taille figée à 9,8 × 7,1 po — les curseurs voisins ne règlent que l'aperçu |
+| Plan expérimental | taille figée à 11 × 7 po ; un dispositif à vingt blocs y écrase ses étiquettes |
+
+Corollaire découvert en migrant : **l'aperçu et le téléchargement construisaient
+chacun leur exemplaire du graphique**, avec les mêmes huit arguments recopiés.
+Deux copies à tenir d'accord, et rien pour signaler qu'elles avaient divergé. Le
+graphique passe donc par un `reactive()` unique, que `renderPlot` et l'export
+lisent tous deux — c'est ce que faisaient déjà les modules bâtis sur le kit.
+
+## Un seul écrivain de tableaux, comme il n'y a qu'un écrivain d'image
+
+Vingt téléchargements de tableaux montaient chacun leur classeur : même boucle
+sur les feuilles, même archive ZIP de CSV, même `tryCatch`, même notification.
+Ce qui leur appartenait vraiment, c'est la **liste nommée de tableaux**.
+
+`hstat_ecrire_classeur()`, `hstat_ecrire_csv_zip()`, `hstat_classeur_handler()`,
+`hstat_csv_handler()` et `hstat_export_tables_handlers()` (`Utils.R`) portent le
+reste. Bilan : −460 lignes dans `app_server.R`, −79 dans `mod_tests.R`.
+
+Ils partageaient aussi le défaut des images : **un `req()` ou un `return(NULL)`
+sans avoir écrit le fichier** fait renvoyer à Shiny sa page d'erreur HTML, que le
+navigateur enregistre en `.xlsx` — Excel refuse alors de l'ouvrir, sans dire
+pourquoi. Tout chemin écrit donc un classeur valide, portant le motif s'il n'y a
+rien à exporter.
+
+Trois pièges que la mise en commun a fermés :
+
+1. **Un nom de feuille vient parfois d'une variable de l'utilisateur.** Les
+   post-hoc nomment leurs feuilles `Lettres_<variable>_<facteur>`, tronqués à 31
+   caractères mais **jamais nettoyés** : `addWorksheet()` lève sur `[ ] : * ? / \`,
+   et l'export entier tombait pour un nom de colonne. `hstat_feuille_nom()`
+   nettoie et tronque ; deux noms devenus identiques après troncature sont
+   distingués, sinon Excel refuse le doublon.
+2. **Le ZIP de CSV vidait `tempdir()`** de tous ses `.csv` avant d'écrire — un
+   dossier partagé par toute la session. L'écriture se fait dans un sous-dossier
+   dédié, supprimé à la sortie, et `zip` est appelé en mode silencieux (chaque
+   téléchargement écrivait sa liste de fichiers dans la console du serveur).
+3. **Un tableau seul n'a pas besoin d'une archive.** `hstat_csv_handler()` rend
+   un `.csv` quand il n'y a qu'un tableau, un `.zip` au-delà — et l'extension
+   annoncée suit, parce qu'un `.zip` contenant un CSV nu ne s'ouvre pas comme on
+   s'y attend.
+
+**Ce qui n'a pas été migré, et pourquoi.** L'export Excel du Khi² applique des
+styles (en-têtes colorés, remplissage selon la significativité, largeurs
+automatiques) : ce n'est plus une liste de tableaux, et le faire entrer de force
+dans l'écrivain commun lui ferait perdre sa mise en forme. Le module de seuils
+garde de même son modèle de dimensions en **pixels** lus à 96 ppp, documenté
+plus haut : c'est une décision, pas un oubli.
+
+### Le prix du contrat par préfixe, et le garde-fou qui le paie
+
+Tant que chaque export déclarait son `output$<identifiant>`, une faute de frappe
+se voyait à la lecture. Avec un préfixe, l'identifiant est **construit**
+(`<préfixe>Xlsx`) : une lettre de travers débranche le bouton en silence — il
+reste affiché, il ne fait rien, et rien dans le code ne le signale.
+
+Un test refait donc la construction des deux côtés — boutons déclarés d'un côté,
+producteurs de l'autre, kits compris — et échoue sur tout bouton sans
+producteur. **108 boutons** sont couverts ; il a été vérifié comme signalant
+exactement les deux boutons orphelins d'un préfixe volontairement mal
+orthographié. Les identifiants construits en boucle (`paste0("mv_", key, …)`)
+sortent des deux listes à la fois : ils ne sont pas couverts, et le test ne
+prétend pas l'inverse.
 
 ## Fins de ligne
 

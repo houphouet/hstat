@@ -1528,9 +1528,54 @@ hstat_img_fmt <- function(x, defaut = "png") {
 # en text/html et enregistre comme tel.
 hstat_img_mime <- function(fmt) unname(HSTAT_IMG_MIME[hstat_img_fmt(fmt)])
 
+# ---------------------------------------------------------------------------
+#  LES DEUX REGLAGES D'EXPORT NE SE DECLARENT QU'ICI
+# ---------------------------------------------------------------------------
+#  Le format et le DPI etaient reecrits a la main a chaque export : dix-sept
+#  listes de formats et vingt champs de DPI, qui avaient DIVERGE.
+#
+#  Les neuf exports des analyses multivariees n'offraient que quatre formats
+#  sur les sept que l'ecrivain sait produire, sans libelle ; deux modules
+#  ecrivaient `20000` en clair la ou les autres lisaient `HSTAT_DPI_MAX` -- une
+#  montee du plafond en aurait laisse deux en arriere, comme c'etait deja
+#  arrive.
+#
+#  La liste des formats est DERIVEE de ce que l'ecrivain sait ecrire : offrir
+#  un format qu'il ignore ferait retomber `hstat_img_fmt()` sur PNG, et
+#  l'utilisateur recevrait un PNG portant l'extension demandee.
+HSTAT_FORMATS_IMG <- c(
+  "PNG" = "png", "JPEG" = "jpeg", "TIFF" = "tiff", "BMP" = "bmp",
+  "PDF (vectoriel)" = "pdf", "SVG (vectoriel)" = "svg",
+  "EPS (vectoriel)" = "eps")
+
+# Selecteur de format d'export. Pas d'argument `choices` : c'est precisement
+# ce qui permettait a chaque appel d'inventer sa propre liste.
+hstat_format_input <- function(id, label = "Format", selected = "png",
+                               width = NULL) {
+  shiny::selectInput(id, label, choices = HSTAT_FORMATS_IMG,
+                     selected = selected, width = width)
+}
+
+# Champ de resolution. Pas d'argument `max` : le plafond est celui de
+# l'application, il ne se negocie pas au point d'appel.
+hstat_dpi_input <- function(id, label = "DPI", valeur = 300, min = 72,
+                            step = 50, width = NULL) {
+  shiny::numericInput(id, label, value = valeur, min = min,
+                      max = HSTAT_DPI_MAX, step = step, width = width)
+}
+
 # Ouvre le peripherique graphique du format demande.
-.hstat_img_device <- function(file, fmt, width, height, dpi) {
+#
+# `qualite` (JPEG) et `compression` (TIFF) sont des reglages de FORMAT : ils
+# appartiennent donc a l'ecrivain, pas aux modules. Les laisser dehors obligeait
+# le seul module qui les propose a ouvrir son propre peripherique -- et a se
+# priver de tout ce que l'ecrivain garantit.
+.hstat_img_device <- function(file, fmt, width, height, dpi,
+                              qualite = 95, compression = "lzw") {
   px_w <- max(1, round(width * dpi)); px_h <- max(1, round(height * dpi))
+  q <- suppressWarnings(as.integer(qualite)[1])
+  if (!isTRUE(is.finite(q)) || q < 1 || q > 100) q <- 95L
+  cmp <- if (is.character(compression) && nzchar(compression[1])) compression[1] else "lzw"
   switch(fmt,
     pdf  = grDevices::pdf(file, width = width, height = height),
     eps  = grDevices::postscript(file, width = width, height = height,
@@ -1539,9 +1584,9 @@ hstat_img_mime <- function(fmt) unname(HSTAT_IMG_MIME[hstat_img_fmt(fmt)])
              svglite::svglite(file, width = width, height = height)
            else grDevices::svg(file, width = width, height = height),
     jpeg = grDevices::jpeg(file, width = px_w, height = px_h, res = dpi,
-                           quality = 95, type = "cairo"),
+                           quality = q, type = "cairo"),
     tiff = grDevices::tiff(file, width = px_w, height = px_h, res = dpi,
-                           type = "cairo", compression = "lzw"),
+                           type = "cairo", compression = cmp),
     bmp  = grDevices::bmp(file, width = px_w, height = px_h, res = dpi,
                           type = "cairo"),
     grDevices::png(file, width = px_w, height = px_h, res = dpi, type = "cairo"))
@@ -1567,24 +1612,65 @@ hstat_image_secours <- function(file, fmt = "png", message = NULL,
 # Ecrit `plot` dans `file`, au format demande, ET GARANTIT qu'un fichier valide
 # existe au retour. `plot` accepte un ggplot, un objet imprimable, ou une
 # FONCTION (graphiques base R, qui se tracent au lieu de se renvoyer).
+#
+#  `secours = FALSE` supprime le filet : aucun fichier n'est laisse quand le
+#  trace echoue. C'est ce qu'il faut pour le RAPPORT, ou une figure devenue
+#  indessinable doit DISPARAITRE du document -- une image portant un message
+#  d'erreur au milieu d'un rapport remis serait pire que son absence. Partout
+#  ailleurs (telechargement direct), le filet reste indispensable : sans lui,
+#  Shiny renvoie sa page d'erreur HTML sous le nom `.png` demande.
 hstat_ecrire_image <- function(file, plot, fmt = "png", width = 10, height = 7.5,
-                               dpi = 300, echec = NULL) {
+                               dpi = 300, echec = NULL, secours = TRUE,
+                               qualite = 95, compression = "lzw") {
   fmt <- hstat_img_fmt(fmt)
+  # LE PLAFOND EST ICI, chez l'ecrivain commun : vingt exports en heritent sans
+  # que chacun ait a y penser, et aucun ne peut l'oublier.
+  #
+  # Il porte sur la RESOLUTION, jamais sur la taille : la figure garde la
+  # largeur et la hauteur demandees, quel que soit le DPI. Au-dela du cote
+  # maximal d'un bitmap, le peripherique echoue et l'utilisateur n'obtient
+  # aucun fichier ; mieux vaut une finesse plafonnee qu'un export perdu.
+  #
+  # Les formats VECTORIELS n'ont pas cette limite : leur resolution est
+  # infinie et le DPI n'y veut rien dire. On ne les plafonne donc pas.
+  if (!fmt %in% c("pdf", "svg", "eps")) {
+    eff <- hstat_dpi_effectif(width, height, dpi)
+    dpi <- eff$dpi
+  }
+  # LE PERIPHERIQUE EST FERME AVANT TOUT LE RESTE, d'ou la fonction anonyme :
+  # `on.exit()` s'accroche a un CADRE DE FONCTION, et le bloc d'un `tryCatch`
+  # n'en cree pas -- la fermeture etait donc repoussee a la sortie de
+  # `hstat_ecrire_image()`, soit APRES le gestionnaire d'erreur et APRES le
+  # controle final. Deux consequences, toutes deux verifiees :
+  #
+  #   * le controle lisait un fichier encore vide (rien n'est ecrit tant que le
+  #     peripherique n'est pas ferme) et croyait l'export perdu ;
+  #   * sur erreur, l'image de secours etait tracee sur un SECOND peripherique,
+  #     puis ecrasee par la fermeture du premier -- l'utilisateur recevait une
+  #     image vide au lieu du motif.
   ok <- tryCatch({
     if (is.null(plot)) stop("Aucun graphique a exporter.")
-    .hstat_img_device(file, fmt, width, height, dpi)
-    on.exit(grDevices::dev.off(), add = TRUE)
-    if (is.function(plot)) plot() else print(plot)
+    (function() {
+      .hstat_img_device(file, fmt, width, height, dpi, qualite, compression)
+      on.exit(grDevices::dev.off(), add = TRUE)
+      if (is.function(plot)) plot() else print(plot)
+    })()
     TRUE
   }, error = function(e) {
-    hstat_image_secours(file, fmt,
-      echec %||% hstat_err_fr(e, "Export du graphique"), width, height, dpi)
+    if (isTRUE(secours))
+      hstat_image_secours(file, fmt,
+        echec %||% hstat_err_fr(e, "Export du graphique"), width, height, dpi)
     FALSE
   })
   # Un fichier absent ou vide serait servi en HTML : dernier filet.
-  if (!file.exists(file) || file.size(file) == 0)
+  if (!file.exists(file) || file.size(file) == 0) {
+    if (!isTRUE(secours)) {
+      unlink(file)
+      return(FALSE)
+    }
     hstat_image_secours(file, fmt, echec %||% "Graphique indisponible.",
                         width, height, dpi)
+  }
   isTRUE(ok)
 }
 
@@ -5048,16 +5134,12 @@ hstat_model_interpretation <- function(task, metrics_df, model_label,
 hstat_export_plot_ui <- function(ns, prefix, width = 10, height = 6) {
   tagList(
     fluidRow(
-      column(3, selectInput(ns(paste0(prefix, "Fmt")), "Format",
-               choices = c("PNG" = "png", "JPG" = "jpeg", "TIFF" = "tiff",
-                           "BMP" = "bmp", "PDF (vectoriel)" = "pdf",
-                           "SVG (vectoriel)" = "svg"), selected = "png")),
+      column(3, hstat_format_input(ns(paste0(prefix, "Fmt")), "Format")),
       column(3, numericInput(ns(paste0(prefix, "W")), "Largeur (pouces)",
                              value = width, min = 3, max = 30, step = 0.5)),
       column(3, numericInput(ns(paste0(prefix, "H")), "Hauteur (pouces)",
                              value = height, min = 3, max = 30, step = 0.5)),
-      column(3, numericInput(ns(paste0(prefix, "Dpi")), "DPI (max 20 000)",
-                             value = 300, min = 72, max = 20000, step = 50))),
+      column(3, hstat_dpi_input(ns(paste0(prefix, "Dpi")), "DPI (max 20 000)"))),
     tags$small(style = "color:#6b7280;",
       "PDF et SVG sont vectoriels (resolution infinie, DPI sans objet). ",
       "Pour les formats matriciels, au-dela d'un certain DPI les dimensions physiques ",
@@ -5069,36 +5151,40 @@ hstat_export_plot_ui <- function(ns, prefix, width = 10, height = 6) {
 }
 
 # Handler d'export associe. plot_fun() doit renvoyer un ggplot (ou NULL).
-# Garde-fou : plafonne chaque cote a 16 000 px (une image 16 000 x 16 000 en
-# RGBA occupe deja ~1 Go en memoire de trace) en reduisant la taille physique,
-# jamais le DPI demande (le fichier conserve la metadonnee DPI voulue).
+#
+# L'ECRITURE N'EST PAS REFAITE ICI : elle passe par `hstat_ecrire_image()`,
+# l'ecrivain commun. Ce qui reste au handler, c'est de LIRE les reglages du
+# prefixe et de nommer le fichier -- son seul travail propre.
+#
+# Ce que ce branchement corrige au passage : `stop()` sur un graphique absent
+# ne laissait AUCUN fichier, et Shiny renvoyait alors sa page d'erreur HTML,
+# que le navigateur enregistrait sous le nom `.png` demande. Treize exports
+# etaient dans ce cas -- on croyait tenir une image, on ouvrait du HTML.
 hstat_export_plot_handler <- function(input, prefix, plot_fun, fname = "graphique") {
+  reglages <- function() {
+    fmt <- hstat_img_fmt(input[[paste0(prefix, "Fmt")]] %||% "png")
+    w   <- hstat_finite(input[[paste0(prefix, "W")]], 10);  w <- max(3, min(30, w))
+    h   <- hstat_finite(input[[paste0(prefix, "H")]], 6);   h <- max(3, min(30, h))
+    dpi <- hstat_finite(input[[paste0(prefix, "Dpi")]], 300)
+    list(fmt = fmt, w = w, h = h, dpi = max(72, min(HSTAT_DPI_MAX, dpi)))
+  }
   downloadHandler(
     filename = function() {
-      fmt <- input[[paste0(prefix, "Fmt")]] %||% "png"
+      fmt <- reglages()$fmt
       ext <- if (identical(fmt, "jpeg")) "jpg" else fmt
       paste0(fname, "_", Sys.Date(), ".", ext)
     },
     content = function(file) {
-      g <- plot_fun()
-      if (is.null(g)) stop("Aucun graphique a exporter : lancez d'abord l'analyse.")
-      fmt <- input[[paste0(prefix, "Fmt")]] %||% "png"
-      w   <- hstat_finite(input[[paste0(prefix, "W")]], 10);  w <- max(3, min(30, w))
-      h   <- hstat_finite(input[[paste0(prefix, "H")]], 6);   h <- max(3, min(30, h))
-      dpi <- hstat_finite(input[[paste0(prefix, "Dpi")]], 300)
-      dpi <- max(72, min(20000, dpi))
-      if (fmt %in% c("pdf", "svg")) {
-        dev <- if (identical(fmt, "pdf")) grDevices::cairo_pdf else "svg"
-        ggplot2::ggsave(file, g, width = w, height = h, device = dev, limitsize = FALSE)
-      } else {
-        max_px <- 16000
-        scale  <- min(1, max_px / (w * dpi), max_px / (h * dpi))
-        args <- list(filename = file, plot = g, width = w * scale,
-                     height = h * scale, dpi = dpi, device = fmt, limitsize = FALSE)
-        if (identical(fmt, "tiff")) args$compression <- "lzw"
-        if (identical(fmt, "jpeg")) args$quality <- 95
-        do.call(ggplot2::ggsave, args)
-      }
+      r <- reglages()
+      # La taille demandee est RESPECTEE : c'est la resolution qui plie si le
+      # matriciel ne peut pas suivre. L'utilisateur doit le savoir, d'ou
+      # l'annonce -- le plafonnement lui-meme vit chez l'ecrivain commun.
+      eff <- hstat_dpi_effectif(r$w, r$h, r$dpi)
+      if (isTRUE(eff$plafonne))
+        shiny::showNotification(eff$note, type = "warning", duration = 10)
+      g <- tryCatch(plot_fun(), error = function(e) NULL)
+      hstat_ecrire_image(file, g, r$fmt, r$w, r$h, r$dpi,
+        echec = "Aucun graphique a exporter : lancez d'abord l'analyse.")
     })
 }
 
@@ -5118,9 +5204,7 @@ hstat_plot_opts_ui <- function(ns, prefix) {
       column(6, textInput(ns(paste0(prefix, "Ylab")), "Titre de l'axe Y", value = ""))),
     fluidRow(
       column(4, selectInput(ns(paste0(prefix, "Theme")), "Thème",
-               choices = c("Minimal" = "minimal", "Classique" = "classic",
-                           "Noir & blanc" = "bw", "Clair" = "light",
-                           "Sombre" = "dark"), selected = "minimal")),
+               choices = HSTAT_THEMES_GG, selected = "minimal")),
       column(4, numericInput(ns(paste0(prefix, "Base")), "Taille du texte",
                              value = 13, min = 7, max = 30, step = 1)),
       column(4, selectInput(ns(paste0(prefix, "Legend")), "Légende",
@@ -5178,18 +5262,147 @@ hstat_export_table_ui <- function(ns, prefix) {
 }
 
 hstat_export_table_handlers <- function(output, prefix, data_fun, fname = "resultats") {
-  output[[paste0(prefix, "Csv")]] <- downloadHandler(
-    filename = function() paste0(fname, "_", Sys.Date(), ".csv"),
-    content  = function(file) {
-      d <- data_fun(); if (is.null(d)) stop("Aucun resultat a exporter.")
-      utils::write.csv(d, file, row.names = FALSE, fileEncoding = "UTF-8")
-    })
-  output[[paste0(prefix, "Xlsx")]] <- downloadHandler(
+  # Un tableau seul est une liste d'un element : meme chemin d'ecriture que les
+  # exports a plusieurs feuilles, donc meme garantie.
+  tables <- function() {
+    d <- data_fun()
+    if (is.null(d)) NULL else stats::setNames(list(as.data.frame(d)), fname)
+  }
+  output[[paste0(prefix, "Csv")]]  <- hstat_csv_handler(tables, fname)
+  output[[paste0(prefix, "Xlsx")]] <- hstat_classeur_handler(tables, fname)
+}
+
+# ---------------------------------------------------------------------------
+#  UN SEUL ECRIVAIN DE TABLEAUX, comme il n'y a qu'un ecrivain d'image
+# ---------------------------------------------------------------------------
+#  Vingt telechargements de tableaux montaient chacun leur classeur : meme
+#  boucle sur les feuilles, meme archive ZIP de CSV, meme `tryCatch`, meme
+#  notification. La seule chose qui leur appartenait vraiment, c'est la LISTE
+#  NOMMEE de tableaux a ecrire.
+#
+#  Ils partageaient aussi le meme defaut que les images : un `req()` ou un
+#  `return(NULL)` sans avoir ecrit le fichier fait renvoyer a Shiny sa page
+#  d'erreur HTML, que le navigateur enregistre en `.xlsx`. Excel refuse alors
+#  de l'ouvrir, sans dire pourquoi. Tout chemin ecrit donc un classeur valide,
+#  portant le motif s'il n'y a rien a exporter.
+
+HSTAT_MIME_XLSX <-
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+# Nom de feuille accepte par Excel : 31 caracteres, sans []:*?/\\ .
+# `addWorksheet()` LEVE sur un nom trop long -- et le nom vient parfois d'une
+# variable de l'utilisateur.
+hstat_feuille_nom <- function(x, defaut = "Feuille") {
+  s <- gsub("[^A-Za-z0-9_ .-]", "_", as.character(x)[1] %||% "")
+  s <- substr(trimws(s), 1, 31)
+  if (!nzchar(s)) defaut else s
+}
+
+# Liste nommee de tableaux -> classeur d'une feuille par element.
+hstat_ecrire_classeur <- function(file, tables) {
+  wb <- openxlsx::createWorkbook()
+  vus <- character(0)
+  for (i in seq_along(tables)) {
+    nm <- hstat_feuille_nom(names(tables)[i] %||% "", paste0("Feuille", i))
+    # Deux tableaux dont les noms se ressemblent a 31 caracteres pres donnent
+    # le meme nom de feuille, et `addWorksheet()` refuse le doublon.
+    if (nm %in% vus) nm <- hstat_feuille_nom(paste0(substr(nm, 1, 27), "_", i))
+    vus <- c(vus, nm)
+    openxlsx::addWorksheet(wb, nm)
+    openxlsx::writeData(wb, nm, as.data.frame(tables[[i]]))
+  }
+  openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+  length(tables)
+}
+
+# Liste nommee de tableaux -> archive ZIP d'un CSV par element.
+hstat_ecrire_csv_zip <- function(file, tables) {
+  dossier <- file.path(tempdir(), paste0("hstat_csv_", as.integer(Sys.time())))
+  dir.create(dossier, showWarnings = FALSE, recursive = TRUE)
+  on.exit(unlink(dossier, recursive = TRUE), add = TRUE)
+  noms <- character(0)
+  for (i in seq_along(tables)) {
+    nm <- hstat_feuille_nom(names(tables)[i] %||% "", paste0("tableau", i))
+    f  <- paste0(nm, ".csv")
+    utils::write.csv(as.data.frame(tables[[i]]), file.path(dossier, f),
+                     row.names = FALSE, fileEncoding = "UTF-8")
+    noms <- c(noms, f)
+  }
+  # `-q` : sans lui, chaque archive ecrit sa liste de fichiers dans la console
+  # du serveur, a chaque telechargement.
+  utils::zip(file, file.path(dossier, noms), flags = "-jq")
+  noms
+}
+
+# Ecarte les tableaux absents ou vides d'une liste nommee. Une feuille vide
+# n'apporte rien, et laisse croire a une information manquante -- c'est la meme
+# regle que pour les colonnes du module d'efficacite.
+hstat_tables_non_vides <- function(tables) {
+  garde <- vapply(tables, function(d) {
+    !is.null(d) && (is.data.frame(d) || is.matrix(d)) && NROW(d) > 0
+  }, logical(1))
+  tables[garde]
+}
+
+# Ce qu'on ecrit quand il n'y a rien a ecrire : un fichier valide qui le dit.
+.hstat_tables_secours <- function(motif) {
+  list(Info = data.frame(Message = motif %||% "Aucun résultat à exporter.",
+                         stringsAsFactors = FALSE))
+}
+
+.hstat_tables_ou_motif <- function(tables_fun, libelle) {
+  motif <- NULL
+  tb <- tryCatch(tables_fun(), error = function(e) {
+    motif <<- hstat_err_fr(e, libelle)
+    NULL
+  })
+  if (is.data.frame(tb)) tb <- list("Résultats" = tb)
+  if (is.null(tb) || !length(tb))
+    tb <- .hstat_tables_secours(motif %||% "Aucun résultat à exporter : lancez d'abord l'analyse.")
+  tb
+}
+
+# Telechargement d'un classeur Excel a partir d'une liste nommee de tableaux.
+hstat_classeur_handler <- function(tables_fun, fname = "resultats",
+                                   libelle = "Export Excel") {
+  downloadHandler(
     filename = function() paste0(fname, "_", Sys.Date(), ".xlsx"),
-    content  = function(file) {
-      d <- data_fun(); if (is.null(d)) stop("Aucun resultat a exporter.")
-      writexl::write_xlsx(as.data.frame(d), file)
+    contentType = HSTAT_MIME_XLSX,
+    content = function(file)
+      hstat_ecrire_classeur(file, .hstat_tables_ou_motif(tables_fun, libelle)))
+}
+
+# Telechargement CSV : un seul tableau sort en `.csv`, plusieurs en `.zip`.
+# Proposer une archive quand il n'y a qu'un tableau serait un detour ; en
+# livrer un seul quand il y en a plusieurs en perdrait.
+hstat_csv_handler <- function(tables_fun, fname = "resultats",
+                              libelle = "Export CSV") {
+  multiple <- function() length(.hstat_tables_ou_motif(tables_fun, libelle)) > 1
+  # PAS de `contentType` : Shiny ne l'EVALUE PAS quand c'est une fonction, il le
+  # passe tel quel dans l'en-tete HTTP (`download$contentType %||%
+  # getContentType(filename)`). Or le type depend ici du nombre de tableaux.
+  # L'omettre laisse Shiny le deduire de l'extension, qui est deja juste.
+  downloadHandler(
+    filename = function()
+      paste0(fname, "_", Sys.Date(), if (multiple()) ".zip" else ".csv"),
+    content = function(file) {
+      tb <- .hstat_tables_ou_motif(tables_fun, libelle)
+      if (length(tb) > 1) hstat_ecrire_csv_zip(file, tb)
+      else utils::write.csv(as.data.frame(tb[[1]]), file, row.names = FALSE,
+                            fileEncoding = "UTF-8")
     })
+}
+
+# Les deux telechargements d'un meme resultat, declares d'un seul appel.
+# Les identifiants suivent le prefixe (`<prefixe>Xlsx`, `<prefixe>Csv`) : c'est
+# le meme contrat que pour les graphiques.
+hstat_export_tables_handlers <- function(output, prefix, tables_fun,
+                                         fname = "resultats", libelle = NULL) {
+  lib <- libelle %||% fname
+  output[[paste0(prefix, "Xlsx")]] <-
+    hstat_classeur_handler(tables_fun, fname, paste("Export Excel", lib))
+  output[[paste0(prefix, "Csv")]] <-
+    hstat_csv_handler(tables_fun, fname, paste("Export CSV", lib))
 }
 
 # Formulaire dynamique : un champ par predicteur (numerique -> valeur mediane,
@@ -5517,7 +5730,40 @@ HSTAT_EXPORT_MAX_PX <- 20000L
 # Plafond propre a l'export de l'onglet Visualisation, ou la taille physique
 # est fixe et seul le DPI varie : au-dela, `ggsave` echoue sur l'allocation du
 # bitmap et l'utilisateur n'obtient AUCUN fichier.
-HSTAT_VIZ_MAX_PX <- 16000
+# Plafond du champ DPI, partout dans l'application. Un seul chiffre : neuf
+# champs plafonnaient a 1200 ou 2000 sans raison, et l'utilisateur ne pouvait
+# pas demander mieux la ou il en avait besoin.
+HSTAT_DPI_MAX <- 20000L
+
+# Cote maximal, en pixels, d'une image MATRICIELLE. Au-dela, le peripherique
+# graphique echoue sur l'allocation du bitmap et l'utilisateur n'obtient aucun
+# fichier. C'est une limite du format, pas un choix.
+HSTAT_RASTER_MAX_PX <- 20000L
+
+# Resolution reellement applicable a une taille physique DONNEE.
+#
+# Regle unique de toute l'application : monter le DPI ne change JAMAIS la
+# largeur, la hauteur ni la mise en page. Deux exports faisaient l'inverse --
+# ils multipliaient les pouces par un facteur de reduction, si bien que
+# demander plus de finesse rendait l'image plus petite sur le papier.
+#
+# Quand le matriciel ne peut plus suivre, c'est donc la RESOLUTION qui est
+# ramenee, jamais la taille ; et elle est annoncee, parce qu'un export
+# silencieusement degrade est pire qu'un refus. Le vecteur (PDF, SVG) n'a pas
+# cette limite : sa resolution est infinie et le DPI n'y veut rien dire.
+hstat_dpi_effectif <- function(w_in, h_in, dpi, max_px = HSTAT_RASTER_MAX_PX) {
+  n1 <- function(x, d) { x <- suppressWarnings(as.numeric(x)[1])
+                         if (length(x) == 0 || is.na(x) || x <= 0) d else x }
+  w <- n1(w_in, 10); h <- n1(h_in, 7)
+  dem <- max(72, min(HSTAT_DPI_MAX, n1(dpi, 300)))
+  cote <- max(w, h)
+  eff <- if (cote * dem > max_px) max(72, floor(max_px / cote)) else dem
+  list(dpi = eff, demande = dem, plafonne = eff < dem,
+       note = if (eff < dem)
+         trf("Résolution ramenée de %s à %s DPI : au-delà, l'image dépasse %s pixels de côté et l'export échoue. La taille de la figure, elle, est inchangée. Pour une finesse illimitée, choisissez SVG ou PDF.",
+             round(dem), round(eff), format(max_px, big.mark = " ")) else NULL)
+}
+
 
 # Dimensions d'export de l'onglet Visualisation, EN UN SEUL ENDROIT.
 #
@@ -5532,14 +5778,13 @@ HSTAT_VIZ_MAX_PX <- 16000
 # le papier. Seul le plafond de pixels peut encore la reduire, la ou l'export
 # echouerait sinon.
 hstat_viz_export_dims <- function(dpi, base_w = 12, base_h = 8,
-                                  max_px = HSTAT_VIZ_MAX_PX) {
+                                  max_px = HSTAT_RASTER_MAX_PX) {
   d <- suppressWarnings(as.numeric(dpi)[1])
   if (!isTRUE(is.finite(d)) || d <= 0) d <- 300
-  d <- max(72, min(20000, d))
-  ech <- min(1, max_px / (base_w * d), max_px / (base_h * d))
-  w <- base_w * ech; h <- base_h * ech
-  list(dpi = d, width = w, height = h,
-       px_w = round(w * d), px_h = round(h * d), plafonne = ech < 1)
+  eff <- hstat_dpi_effectif(base_w, base_h, d, max_px)
+  list(dpi = eff$dpi, width = base_w, height = base_h,
+       px_w = round(base_w * eff$dpi), px_h = round(base_h * eff$dpi),
+       plafonne = eff$plafonne, note = eff$note)
 }
 
 

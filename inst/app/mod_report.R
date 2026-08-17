@@ -125,23 +125,20 @@ HSTAT_REPORT_DPI <- c(
 .hstat_rep_dessine <- function(f, fichier, largeur, hauteur, dpi) {
   obj <- tryCatch(f(), error = function(e) NULL)
   if (is.null(obj)) return(FALSE)
-  if (inherits(obj, "ggplot")) {
-    return(isTRUE(tryCatch({
-      ggplot2::ggsave(fichier, plot = obj, width = largeur, height = hauteur,
-                      dpi = dpi, bg = "white")
-      TRUE
-    }, error = function(e) FALSE)))
-  }
-  # Graphique de base : soit un enregistrement (`recordedplot`), soit un objet
-  # qui sait s'imprimer. Le peripherique est ferme a la sortie de la fonction,
-  # donc avant que l'appelant ne verifie le fichier.
-  isTRUE(tryCatch({
-    grDevices::png(fichier, width = largeur * dpi, height = hauteur * dpi,
-                   res = dpi, bg = "white")
-    on.exit(grDevices::dev.off(), add = TRUE)
-    if (inherits(obj, "recordedplot")) grDevices::replayPlot(obj) else print(obj)
-    TRUE
-  }, error = function(e) FALSE))
+  # L'ECRITURE PASSE PAR L'ECRIVAIN COMMUN. Le rapport n'a pas de raison d'avoir
+  # son propre peripherique : il en heritait deux defauts. D'abord le plafond de
+  # pixels -- a 2400 dpi (choix propose dans l'interface) une figure de 9 pouces
+  # demande 21 600 px de cote, au-dela de ce qu'un bitmap peut allouer, et
+  # l'utilisateur n'obtenait rien. Ensuite la garantie de format.
+  #
+  # Un enregistrement de graphique de base (`recordedplot`) se rejoue ; comme
+  # l'ecrivain accepte une FONCTION, ce cas passe sans second peripherique.
+  dessin <- if (inherits(obj, "recordedplot"))
+              function() grDevices::replayPlot(obj) else obj
+  # `secours = FALSE` : ici, et ici SEULEMENT, une figure indessinable doit
+  # disparaitre du document plutot que d'y laisser une image d'erreur.
+  isTRUE(hstat_ecrire_image(fichier, dessin, "png", largeur, hauteur, dpi,
+                            secours = FALSE))
 }
 
 # Rend en PNG les figures de l'historique. Renvoie un data.frame (titre,

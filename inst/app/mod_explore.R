@@ -108,8 +108,6 @@ mod_explore_ui <- function(id) {
                                    checkboxInput(ns("distShowDensity"), 
                                                  tagList(icon("wave-square"), " Afficher courbe densité"), 
                                                  value = TRUE),
-                                   numericInput(ns("distDPI"), tagList(icon("image"), " DPI export:"), 
-                                                value = 300, min = 72, max = 600, step = 50)
                             )
                           )
                         )
@@ -119,12 +117,7 @@ mod_explore_ui <- function(id) {
                   
                   hr(),
                   
-                  div(
-                    style = "text-align: center; margin: 15px 0;",
-                    downloadButton(ns("downloadDistPlot"), 
-                                   tagList(icon("download"), " Télécharger PNG"), 
-                                   class = "btn-info")
-                  ),
+                  hstat_export_plot_ui(ns, "distPl", width = 10, height = 8),
                   
                   div(
                     style = "background-color: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
@@ -199,8 +192,6 @@ mod_explore_ui <- function(id) {
                                    checkboxInput(ns("missingCenterTitle"), 
                                                  tagList(icon("align-center"), " Centrer le titre"), 
                                                  value = TRUE),
-                                   numericInput(ns("missingDPI"), tagList(icon("image"), " DPI export:"), 
-                                                value = 300, min = 72, max = 600, step = 50)
                             )
                           )
                         )
@@ -210,12 +201,7 @@ mod_explore_ui <- function(id) {
                   
                   hr(),
                   
-                  div(
-                    style = "text-align: center; margin: 15px 0;",
-                    downloadButton(ns("downloadMissingPlot"), 
-                                   tagList(icon("download"), " Télécharger PNG"), 
-                                   class = "btn-info")
-                  ),
+                  hstat_export_plot_ui(ns, "missPl", width = 12, height = 8),
                   
                   div(
                     style = "background-color: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
@@ -389,11 +375,12 @@ mod_explore_server <- function(id, values) {
     )
   }) %>% debounce(500)
   
-  output$distPlot <- renderPlot({
+  # LE GRAPHIQUE N'EST CONSTRUIT QU'UNE FOIS. L'apercu et le telechargement en
+  # montaient chacun leur exemplaire, avec les memes huit arguments : deux
+  # copies a tenir d'accord, et rien pour signaler qu'elles avaient diverge.
+  dist_gg <- reactive({
     req(values$data, input$distVar)
-    
     params <- distParams()
-    
     tryCatch({
       generate_dist_plot(
         data = values$data,
@@ -407,49 +394,19 @@ mod_explore_server <- function(id, values) {
         legend_text_size = params$legend_text_size
       )
     }, error = function(e) {
-      showNotification(hstat_err_fr(e, "Erreur lors de la création du graphique"), 
+      showNotification(hstat_err_fr(e, "Erreur lors de la création du graphique"),
                        type = "error", duration = 5)
-      return(NULL)
+      NULL
     })
   })
-  
-  output$downloadDistPlot <- downloadHandler(
-    filename = function() {
-      paste0("distribution_", input$distVar, "_", Sys.Date(), ".png")
-    },
-    content = function(file) {
-      req(values$data, input$distVar)
-      
-      params <- distParams()
-      dpi <- input$distDPI %||% 300
-      
-      p <- tryCatch({
-        generate_dist_plot(
-          data = values$data,
-          var = input$distVar,
-          show_density = params$show_density,
-          title = params$title,
-          center_title = params$center_title,
-          title_size = params$title_size,
-          axis_title_size = params$axis_title_size,
-          axis_text_size = params$axis_text_size,
-          legend_text_size = params$legend_text_size
-        )
-      }, error = function(e) {
-        showNotification(hstat_err_fr(e, "Erreur téléchargement"), type = "error")
-        return(NULL)
-      })
-      
-      # Un fichier toujours valide, meme quand le graphique a echoue : sans
-      # cela Shiny renvoie sa page d'erreur HTML sous le nom « .png ».
-      if (hstat_ecrire_image(file, p, "png", 10, 8, dpi))
-        showNotification("Graphique téléchargé avec succès!", type = "message", duration = 3)
-      else
-        showNotification("Graphique indisponible : le fichier téléchargé porte le motif.",
-                         type = "error", duration = 6)
-    }
-  )
-  
+
+  output$distPlot <- renderPlot({ dist_gg() })
+
+  # L'export passe par le kit partage : format, dimensions, DPI et bouton sont
+  # ceux de toute l'application, et le module n'ecrit plus une ligne de fichier.
+  output$distPlDl <- hstat_export_plot_handler(input, "distPl",
+                       function() dist_gg(), "distribution")
+
   generate_missing_data <- function(data) {
     missing_counts <- sapply(data, function(x) sum(is.na(x)))
     
@@ -507,11 +464,9 @@ mod_explore_server <- function(id, values) {
     )
   }) %>% debounce(500)
   
-  output$missingPlot <- renderPlot({
+  missing_gg <- reactive({
     req(values$data)
-    
     params <- missingParams()
-    
     tryCatch({
       generate_missing_plot(
         data = values$data,
@@ -523,43 +478,15 @@ mod_explore_server <- function(id, values) {
         rotate_labels = params$rotate_labels
       )
     }, error = function(e) {
-      showNotification(hstat_err_fr(e, "Erreur lors de la création du graphique"), 
+      showNotification(hstat_err_fr(e, "Erreur lors de la création du graphique"),
                        type = "error", duration = 5)
-      return(NULL)
+      NULL
     })
   })
-  
-  output$downloadMissingPlot <- downloadHandler(
-    filename = function() {
-      paste0("valeurs_manquantes_", Sys.Date(), ".png")
-    },
-    content = function(file) {
-      req(values$data)
-      
-      params <- missingParams()
-      dpi <- input$missingDPI %||% 300
-      
-      p <- tryCatch({
-        generate_missing_plot(
-          data = values$data,
-          title = params$title,
-          center_title = params$center_title,
-          title_size = params$title_size,
-          axis_title_size = params$axis_title_size,
-          axis_text_size = params$axis_text_size,
-          rotate_labels = params$rotate_labels
-        )
-      }, error = function(e) {
-        showNotification(hstat_err_fr(e, "Erreur téléchargement"), type = "error")
-        return(NULL)
-      })
-      
-      if (hstat_ecrire_image(file, p, "png", 12, 8, dpi))
-        showNotification("Graphique téléchargé avec succès!", type = "message", duration = 3)
-      else
-        showNotification("Graphique indisponible : le fichier téléchargé porte le motif.",
-                         type = "error", duration = 6)
-    }
-  )
+
+  output$missingPlot <- renderPlot({ missing_gg() })
+
+  output$missPlDl <- hstat_export_plot_handler(input, "missPl",
+                       function() missing_gg(), "valeurs_manquantes")
   })
 }

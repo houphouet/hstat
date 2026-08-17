@@ -2412,13 +2412,10 @@ mod_qualitative_ui <- function(id) {
               shiny::div(style = "background:#fff8f0;border-left:4px solid #e67e22;padding:12px;border-radius:6px;",
                 shiny::tags$strong(shiny::icon("image"), " Paramètres d'exportation de l'image"),
                 shiny::fluidRow(
-                  shiny::column(3, shiny::selectInput(ns("dl_format"), "Format",
-                    choices = c("PNG" = "png", "JPEG" = "jpeg", "TIFF" = "tiff",
-                                "PDF (vectoriel)" = "pdf", "SVG (vectoriel)" = "svg"),
-                    selected = "png")),
+                  shiny::column(3, hstat_format_input(ns("dl_format"), "Format")),
                   shiny::column(3, shiny::numericInput(ns("dl_width"), "Largeur (po)", value = 9, min = 3, max = 30, step = 0.5)),
                   shiny::column(3, shiny::numericInput(ns("dl_height"), "Hauteur (po)", value = 6, min = 2, max = 24, step = 0.5)),
-                  shiny::column(3, shiny::numericInput(ns("dl_dpi"), "Résolution (DPI)", value = 300, min = 72, max = 20000, step = 50))),
+                  shiny::column(3, hstat_dpi_input(ns("dl_dpi"), "Résolution (DPI)"))),
                 shiny::tags$small(class = "text-muted", shiny::icon("info-circle"),
                   " PDF et SVG sont vectoriels (redimensionnables sans perte) ; le DPI ne s'y applique pas.")),
               shiny::br(),
@@ -2807,19 +2804,14 @@ mod_qualitative_server <- function(id, values) {
       filename = function() paste0("graphique_qualitatif_", Sys.Date(),
                                    ".", input$dl_format %||% "png"),
       content = function(file) {
-        p <- current_plot(); shiny::req(!is.null(p))
-        fmt <- input$dl_format %||% "png"
-        args <- list(filename = file, plot = p,
-                     width = input$dl_width %||% 9,
-                     height = input$dl_height %||% 6,
-                     units = "in", device = fmt)
-        # DPI + fond blanc uniquement pour les formats matriciels
-        if (fmt %in% c("png", "jpeg", "tiff")) {
-          args$dpi <- input$dl_dpi %||% 300
-          args$bg <- "white"
-        }
-        if (fmt == "jpeg") args$device <- grDevices::jpeg
-        do.call(ggplot2::ggsave, args)
+        # `req()` interrompait le telechargement SANS ecrire de fichier : Shiny
+        # renvoyait alors sa page d'erreur HTML sous le nom `.png`. L'ecrivain
+        # commun garantit un fichier valide, portant le motif le cas echeant.
+        p <- tryCatch(current_plot(), error = function(e) NULL)
+        hstat_ecrire_image(file, p, input$dl_format %||% "png",
+                           input$dl_width %||% 9, input$dl_height %||% 6,
+                           input$dl_dpi %||% 300,
+                           echec = "Aucun graphique à exporter : lancez d'abord l'analyse.")
       })
 
     # ---- Metriques ----

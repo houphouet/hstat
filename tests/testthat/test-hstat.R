@@ -92,6 +92,28 @@ local({
   if (length(hit)) normalizePath(hit[1]) else NA_character_
 }
 
+# Lignes de code d'un fichier R, COMMENTAIRES RETIRES par l'analyseur de R.
+# Une heuristique (« tout ce qui suit un # ») se signalerait elle-meme sur les
+# commentaires qui documentent le defaut recherche, et un faux positif permanent
+# finit toujours par faire desactiver le test.
+#
+# Ce decoupage etait recopie a l'identique dans deux balayages ; il n'existe
+# desormais qu'ici -- c'est la meme regle que celle appliquee a l'application.
+.hstat_code_lignes <- function(f) {
+  lignes <- readLines(f, warn = FALSE, encoding = "UTF-8")
+  pd <- tryCatch(utils::getParseData(parse(f, keep.source = TRUE)),
+                 error = function(e) NULL)
+  if (!is.null(pd)) {
+    com <- pd[pd$token == "COMMENT", , drop = FALSE]
+    for (i in seq_len(nrow(com))) {
+      l <- com$line1[i]
+      if (l >= 1 && l <= length(lignes))
+        lignes[l] <- substr(lignes[l], 1, max(0, com$col1[i] - 1))
+    }
+  }
+  lignes
+}
+
 # -- Charger le module d'analyses qualitatives (fonctions de calcul) ---------
 local({
   q_path <- "mod_qualitative.R"
@@ -1829,18 +1851,7 @@ test_that("le moteur par defaut est gratuit, jamais une API payante", {
   # et qui cite les points d'entree disparus. Un faux positif permanent finit
   # toujours par faire desactiver le test.
   sans_com <- function(f) {
-    lignes <- readLines(f, warn = FALSE, encoding = "UTF-8")
-    pd <- tryCatch(utils::getParseData(parse(f, keep.source = TRUE)),
-                   error = function(e) NULL)
-    if (!is.null(pd)) {
-      com <- pd[pd$token == "COMMENT", , drop = FALSE]
-      for (i in seq_len(nrow(com))) {
-        l <- com$line1[i]
-        if (l >= 1 && l <= length(lignes))
-          lignes[l] <- substr(lignes[l], 1, max(0, com$col1[i] - 1))
-      }
-    }
-    paste(lignes, collapse = "\n")
+    paste(.hstat_code_lignes(f), collapse = "\n")
   }
   src <- sans_com(file.path(.hstat_repo_root(), "inst", "app", "mod_ai.R"))
   ui  <- sans_com(file.path(.hstat_repo_root(), "inst", "app", "mod_coding.R"))
@@ -5074,18 +5085,7 @@ test_that("aucun reactif ne s'appelle lui-meme", {
   # correction (« PAS `source_data()` »). Un balayage textuel naif aurait
   # produit un faux positif permanent, et on aurait fini par le desactiver.
   sans_commentaires <- function(f) {
-    lignes <- readLines(f, warn = FALSE, encoding = "UTF-8")
-    pd <- tryCatch(utils::getParseData(parse(f, keep.source = TRUE)),
-                   error = function(e) NULL)
-    if (!is.null(pd)) {
-      com <- pd[pd$token == "COMMENT", , drop = FALSE]
-      for (i in seq_len(nrow(com))) {
-        l <- com$line1[i]
-        if (l >= 1 && l <= length(lignes))
-          lignes[l] <- substr(lignes[l], 1, max(0, com$col1[i] - 1))
-      }
-    }
-    paste(lignes, collapse = "\n")
+    paste(.hstat_code_lignes(f), collapse = "\n")
   }
 
   fautifs <- character(0)
@@ -6208,6 +6208,273 @@ test_that("aucun telechargement d'image ne peut se terminer sans ecrire", {
   expect_true(sum(grepl("hstat_ecrire_image", code, fixed = TRUE)) >= 15)
 })
 
+test_that("un seul endroit dans l'application ouvre un peripherique graphique", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # L'INVARIANT : `.hstat_img_device()` est le SEUL ouvreur de peripherique, et
+  # `ggsave` n'est plus appele nulle part. Tout ce que l'ecrivain commun
+  # garantit -- plafond de resolution, format valide, image de secours portant
+  # le motif -- ne profite qu'aux exports qui passent par lui ; un module qui
+  # ouvre son propre peripherique se prive de tout, en silence.
+  #
+  # Douze ecritures brutes vivaient hors de l'ecrivain : deux dans le rapport,
+  # cinq dans les tests statistiques, une dans le module qualitatif, une dans la
+  # visualisation, et le kit d'export partage lui-meme.
+  ouvreurs <- c("ggsave(", "grDevices::png(", "grDevices::jpeg(",
+                "grDevices::tiff(", "grDevices::bmp(", "grDevices::pdf(",
+                "grDevices::postscript(", "grDevices::svg(", "cairo_pdf",
+                "svglite::svglite(")
+  fautifs <- character(0)
+  for (f in list.files(file.path(root, "inst", "app"), pattern = "[.]R$",
+                       full.names = TRUE)) {
+    lignes <- .hstat_code_lignes(f)
+    # Fenetre autorisee : le corps de `.hstat_img_device` dans Utils.R.
+    permis <- integer(0)
+    deb <- grep(".hstat_img_device <- function", lignes, fixed = TRUE)
+    if (length(deb)) permis <- seq(deb[1], min(length(lignes), deb[1] + 40L))
+    for (m in ouvreurs) {
+      hit <- setdiff(grep(m, lignes, fixed = TRUE), permis)
+      if (length(hit))
+        fautifs <- c(fautifs, sprintf("%s:%d (%s)", basename(f), hit, m))
+    }
+  }
+  expect_equal(fautifs, character(0))
+})
+
+test_that("aucun bouton de telechargement n'est branche dans le vide", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # C'EST LE PRIX DU CONTRAT PAR PREFIXE. Tant que chaque export declarait son
+  # `output$<identifiant>`, une faute de frappe se voyait a la lecture. Avec un
+  # prefixe, l'identifiant est CONSTRUIT (`<prefixe>Xlsx`) : une lettre de
+  # travers debranche le bouton en silence -- il reste affiche, il ne fait
+  # rien, et rien dans le code ne le signale.
+  #
+  # Le test refait donc la construction des deux cotes et compare.
+  src <- paste(vapply(list.files(file.path(root, "inst", "app"),
+                                 pattern = "[.]R$", full.names = TRUE),
+                      function(f) paste(.hstat_code_lignes(f), collapse = "\n"),
+                      character(1)), collapse = "\n")
+  ext <- function(motif) {
+    m <- regmatches(src, gregexpr(motif, src, perl = TRUE))[[1]]
+    if (!length(m)) character(0) else unique(sub(motif, "\\1", m, perl = TRUE))
+  }
+  tb_ui <- ext('hstat_export_table_ui\\(ns, "([A-Za-z0-9_.]+)"')
+  boutons <- unique(c(
+    ext('download(?:Button|Link)\\(ns\\("([A-Za-z0-9_.]+)"'),
+    ext('download(?:Button|Link)\\("([A-Za-z0-9_.]+)"'),
+    paste0(ext('hstat_export_plot_ui\\(ns, "([A-Za-z0-9_.]+)"'), "Dl"),
+    paste0(tb_ui, "Csv"), paste0(tb_ui, "Xlsx")))
+  kit_tb <- ext('hstat_export_tables?_handlers\\(output, "([A-Za-z0-9_.]+)"')
+  producteurs <- unique(c(
+    ext('output\\$([A-Za-z0-9_.]+) *<-'),
+    ext('output\\[\\["([A-Za-z0-9_.]+)"\\]\\] *<-'),
+    paste0(ext('hstat_export_plot_handler\\(input, "([A-Za-z0-9_.]+)"'), "Dl"),
+    paste0(kit_tb, "Csv"), paste0(kit_tb, "Xlsx")))
+
+  # Les identifiants construits en boucle (`paste0("mv_", key, ...)`) ne sont
+  # litteraux d'aucun cote : ils sortent des deux listes a la fois, donc le
+  # test ne les invente pas -- il ne les couvre simplement pas.
+  expect_gt(length(boutons), 100L)
+  expect_equal(setdiff(boutons, producteurs), character(0))
+})
+
+test_that("les tableaux exportes passent par un ecrivain unique", {
+  skip_if_not_installed("openxlsx")
+  # Meme regle que pour les images : tout chemin ecrit un fichier VALIDE. Un
+  # `req()` ou un `return(NULL)` sans ecriture fait renvoyer a Shiny sa page
+  # d'erreur HTML, qu'Excel refuse ensuite d'ouvrir sans dire pourquoi.
+  tb <- list("Valeurs propres" = data.frame(axe = 1:3, val = c(2.1, 1.2, 0.7)),
+             "Un nom de feuille beaucoup trop long pour Excel" = data.frame(x = 1:2))
+  f <- tempfile(fileext = ".xlsx")
+  expect_equal(hstat_ecrire_classeur(f, tb), 2L)
+  # Le nom de feuille vient parfois d'une VARIABLE DE L'UTILISATEUR :
+  # `addWorksheet()` leve au-dela de 31 caracteres et sur []:*?/\\ .
+  noms <- openxlsx::getSheetNames(f)
+  expect_true(all(nchar(noms) <= 31))
+  expect_false(any(grepl("[\\[\\]:*?/\\\\]", noms, perl = TRUE)))
+  expect_equal(hstat_feuille_nom("a[b]:c*d?e/f"), "a_b__c_d_e_f")
+  expect_equal(hstat_feuille_nom(""), "Feuille")
+
+  # Deux noms identiques une fois tronques ne doivent pas faire echouer
+  # l'export entier : `addWorksheet()` refuse le doublon.
+  long <- paste0("Comparaisons multiples par variable ", c("A", "B"))
+  f2 <- tempfile(fileext = ".xlsx")
+  expect_equal(hstat_ecrire_classeur(f2, stats::setNames(
+    list(data.frame(x = 1), data.frame(x = 2)), long)), 2L)
+  expect_equal(length(openxlsx::getSheetNames(f2)), 2L)
+
+  # Une liste vide donne un classeur qui PORTE LE MOTIF, jamais rien.
+  vide <- .hstat_tables_ou_motif(function() NULL, "Test")
+  expect_equal(names(vide), "Info")
+  f3 <- tempfile(fileext = ".xlsx")
+  expect_equal(hstat_ecrire_classeur(f3, vide), 1L)
+  expect_gt(file.size(f3), 0)
+
+  # Les tableaux absents ou vides sont ecartes : une feuille vide fait croire
+  # a une information manquante.
+  expect_equal(names(hstat_tables_non_vides(
+    list(a = data.frame(x = 1), b = NULL, c = data.frame(x = numeric(0))))), "a")
+})
+
+test_that("un prefixe declare bien les deux sorties attendues", {
+  skip_if_not_installed("shiny")
+  # Le balayage du depot verifie que les NOMS concordent ; celui-ci verifie que
+  # la mecanique les produit vraiment.
+  #
+  # Le faux `output` est un ENVIRONNEMENT, pas une liste : le `output` de Shiny
+  # est un objet a reference, et une liste passee a une fonction y serait copiee
+  # -- le test ne verrait alors jamais ce que le kit a depose.
+  faux <- new.env()
+  hstat_export_tables_handlers(faux, "monExport",
+                               function() list(A = data.frame(x = 1)), "essai")
+  expect_setequal(ls(faux), c("monExportXlsx", "monExportCsv"))
+  expect_true(all(vapply(ls(faux), function(n) is.function(faux[[n]]), logical(1))))
+
+  faux2 <- new.env()
+  hstat_export_table_handlers(faux2, "autre", function() data.frame(x = 1), "essai")
+  expect_setequal(ls(faux2), c("autreCsv", "autreXlsx"))
+
+  # L'extension suit le nombre de tableaux : un `.zip` contenant un CSV nu ne
+  # s'ouvre pas comme l'utilisateur s'y attend, et livrer un seul CSV quand il y
+  # a plusieurs tableaux en perdrait. C'est la longueur de la liste qui tranche.
+  expect_equal(length(.hstat_tables_ou_motif(
+    function() list(A = data.frame(x = 1)), "essai")), 1L)
+  expect_equal(length(.hstat_tables_ou_motif(
+    function() list(A = data.frame(x = 1), B = data.frame(y = 2)), "essai")), 2L)
+  f3 <- tempfile(fileext = ".zip")
+  hstat_ecrire_csv_zip(f3, list(A = data.frame(x = 1), B = data.frame(y = 2)))
+  expect_equal(length(utils::unzip(f3, list = TRUE)$Name), 2L)
+})
+
+test_that("le catalogue de formats ne promet que ce que l'ecrivain sait ecrire", {
+  skip_if_not_installed("ggplot2")
+  # Offrir un format que l'ecrivain ignore ne leve rien : `hstat_img_fmt()`
+  # retombe sur PNG, et l'utilisateur recoit un PNG portant l'extension
+  # demandee. Le catalogue est donc verifie contre la table de l'ecrivain...
+  expect_true(all(HSTAT_FORMATS_IMG %in% names(HSTAT_IMG_MIME)))
+  expect_equal(unname(vapply(HSTAT_FORMATS_IMG, hstat_img_fmt, character(1))),
+               unname(HSTAT_FORMATS_IMG))
+
+  # ... et contre la realite : chaque format annonce produit un fichier dont
+  # les premiers octets sont bien ceux de ce format.
+  p <- ggplot2::ggplot(data.frame(x = 1:5, y = 1:5), ggplot2::aes(x, y)) +
+    ggplot2::geom_point()
+  signature <- list(
+    png  = as.raw(c(0x89, 0x50, 0x4e, 0x47)),
+    jpeg = as.raw(c(0xff, 0xd8, 0xff)),
+    bmp  = charToRaw("BM"),
+    pdf  = charToRaw("%PDF"))
+  for (fmt in unname(HSTAT_FORMATS_IMG)) {
+    f <- tempfile(fileext = paste0(".", fmt))
+    ok <- suppressWarnings(hstat_ecrire_image(f, p, fmt, 4, 3, 72))
+    expect_true(ok, info = fmt)
+    expect_gt(file.size(f), 0)
+    if (!is.null(signature[[fmt]])) {
+      tete <- readBin(f, "raw", length(signature[[fmt]]))
+      expect_identical(tete, signature[[fmt]], info = fmt)
+    } else {
+      # TIFF (II*/MM*), SVG et EPS : formats texte ou a boutisme variable.
+      expect_gt(file.size(f), 100)
+    }
+  }
+})
+
+test_that("le format et le DPI ne se declarent qu'au catalogue", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # Dix-sept listes de formats et vingt champs de DPI etaient ecrits a la main,
+  # et ils avaient DIVERGE : les neuf exports des analyses multivariees
+  # n'offraient que quatre formats sur sept, et deux modules ecrivaient `20000`
+  # en clair la ou les autres lisaient `HSTAT_DPI_MAX` -- une montee du plafond
+  # en aurait laisse deux en arriere, ce qui etait deja arrive.
+  faits <- character(0)
+  for (f in list.files(file.path(root, "inst", "app"), pattern = "[.]R$",
+                       full.names = TRUE)) {
+    lignes <- .hstat_code_lignes(f)
+    # Une liste de formats d'image ecrite a la main.
+    hit <- grep('choices *= *c\\( *"(PNG|png)"', lignes)
+    if (length(hit))
+      faits <- c(faits, sprintf("%s:%d liste de formats ecrite a la main",
+                                basename(f), hit))
+    # Un plafond de DPI pose ailleurs qu'au catalogue. Le motif vise le CHAMP
+    # DE DPI, pas le nombre 20 000 : les champs de largeur et de hauteur en
+    # PIXELS portent le meme plafond sans etre des resolutions, et les compter
+    # ferait echouer le test sur une coincidence de chiffre.
+    permis <- integer(0)
+    deb <- grep("hstat_dpi_input <- function", lignes, fixed = TRUE)
+    if (length(deb)) permis <- seq(deb[1], min(length(lignes), deb[1] + 6L))
+    hit <- setdiff(grep("max *= *(20000|HSTAT_DPI_MAX)", lignes), permis)
+    hit <- hit[vapply(hit, function(i) {
+      # Remonter jusqu'a la TETE de l'appel : c'est elle qui porte
+      # l'identifiant et le libelle, donc la nature du champ. Se contenter des
+      # lignes voisines confondait un champ de pixels avec le champ de DPI
+      # declare juste au-dessus.
+      j <- rev(grep("numericInput\\(", lignes[max(1L, i - 3L):i]))
+      if (!length(j)) return(TRUE)
+      tete <- lignes[max(1L, i - 3L) + j[1] - 1L]
+      grepl("[Dd][Pp][Ii]|[Rr]ésolution|[Rr]esolution", tete)
+    }, logical(1))]
+    if (length(hit))
+      faits <- c(faits, sprintf("%s:%d plafond de DPI hors catalogue",
+                                basename(f), hit))
+  }
+  expect_equal(faits, character(0))
+})
+
+test_that("l'ecrivain commun ferme son peripherique avant de conclure", {
+  skip_if_not_installed("ggplot2")
+  # LE DEFAUT : `on.exit()` s'accroche a un cadre de FONCTION, et le bloc d'un
+  # `tryCatch` n'en cree pas. La fermeture etait donc repoussee a la sortie de
+  # `hstat_ecrire_image()` -- apres le gestionnaire d'erreur et apres le
+  # controle final, qui lisait un fichier encore vide.
+  p <- ggplot2::ggplot(data.frame(x = 1:5, y = 1:5), ggplot2::aes(x, y)) +
+    ggplot2::geom_point()
+
+  # 1. Sans filet, un export REUSSI rend bien son fichier (le controle final
+  #    le declarait perdu et le supprimait).
+  f1 <- tempfile(fileext = ".png")
+  expect_true(hstat_ecrire_image(f1, p, "png", 6, 4, 100, secours = FALSE))
+  expect_gt(file.size(f1), 0)
+
+  # 2. Sans filet, un echec ne laisse AUCUN fichier : c'est ce que le rapport
+  #    attend, une figure indessinable doit disparaitre du document.
+  f2 <- tempfile(fileext = ".png")
+  expect_false(hstat_ecrire_image(f2, function() stop("boum"), "png", 6, 4, 100,
+                                  secours = FALSE))
+  expect_false(file.exists(f2))
+
+  # 3. Avec filet, l'image de secours SURVIT. Elle etait tracee sur un second
+  #    peripherique, puis ecrasee par la fermeture du premier : l'utilisateur
+  #    recevait une image vide au lieu du motif. On le mesure en octets, une
+  #    image blanche de meme taille pesant une fraction de celle qui porte du
+  #    texte.
+  f3 <- tempfile(fileext = ".png"); f4 <- tempfile(fileext = ".png")
+  expect_false(hstat_ecrire_image(f3, function() stop("boum"), "png", 6, 4, 100,
+                                  echec = "Motif attendu, lisible dans l'image."))
+  hstat_ecrire_image(f4, function() { graphics::par(mar = c(0, 0, 0, 0));
+                                      graphics::plot.new() }, "png", 6, 4, 100)
+  expect_gt(file.size(f3), file.size(f4) * 1.5)
+})
+
+test_that("les reglages de format sont ceux de l'ecrivain, et ils agissent", {
+  skip_if_not_installed("ggplot2")
+  # La qualite JPEG et la compression TIFF etaient portees par le seul module
+  # qui les propose, donc par son propre appel a `ggsave`. Passees a l'ecrivain,
+  # elles doivent AGIR -- un reglage deplace sans effet est pire qu'absent.
+  p <- ggplot2::ggplot(data.frame(x = runif(400), y = runif(400)),
+                       ggplot2::aes(x, y)) + ggplot2::geom_point()
+  bas <- tempfile(fileext = ".jpg"); haut <- tempfile(fileext = ".jpg")
+  hstat_ecrire_image(bas,  p, "jpeg", 6, 4, 100, qualite = 5)
+  hstat_ecrire_image(haut, p, "jpeg", 6, 4, 100, qualite = 100)
+  expect_lt(file.size(bas), file.size(haut))
+
+  # Une valeur aberrante ne fait pas tomber l'export : elle retombe sur 95.
+  ab <- tempfile(fileext = ".jpg")
+  expect_true(hstat_ecrire_image(ab, p, "jpeg", 6, 4, 100, qualite = "n'importe quoi"))
+  expect_gt(file.size(ab), 0)
+})
+
 test_that("la mise en page s'adapte aux petits ecrans sans rien couper", {
   root <- .hstat_repo_root()
   css  <- paste(readLines(file.path(root, "inst", "app", "www", "hstat-theme.css"),
@@ -6481,12 +6748,12 @@ test_that("l'export de l'onglet Visualisation ne retrecit plus la figure", {
     ggplot2::geom_point()
   px <- lapply(c(150, 300), function(dpi) {
     w <- 12; h <- 8
-    ech <- min(1, HSTAT_VIZ_MAX_PX / (w * dpi), HSTAT_VIZ_MAX_PX / (h * dpi))
+    eff <- hstat_dpi_effectif(w, h, dpi)
     f <- tempfile(fileext = ".png"); on.exit(unlink(f), add = TRUE)
-    suppressMessages(ggplot2::ggsave(f, p, device = "png", width = w * ech,
-                                     height = h * ech, units = "in", dpi = dpi,
+    suppressMessages(ggplot2::ggsave(f, p, device = "png", width = w,
+                                     height = h, units = "in", dpi = eff$dpi,
                                      bg = "white", limitsize = FALSE))
-    c(ihdr(f), pouces_l = w * ech)
+    c(ihdr(f), pouces_l = w)
   })
   expect_equal(px[[1]][["pouces_l"]], px[[2]][["pouces_l"]])   # mise en page constante
   expect_gt(px[[2]][["l"]], px[[1]][["l"]])                    # et plus de pixels
@@ -6494,8 +6761,8 @@ test_that("l'export de l'onglet Visualisation ne retrecit plus la figure", {
 
   # Le plafond ne joue qu'aux resolutions extremes, la ou ggsave echouerait sur
   # l'allocation du bitmap -- pas des 600 DPI comme l'escalier.
-  expect_equal(min(1, HSTAT_VIZ_MAX_PX / (12 * 1200)), 1)
-  expect_lt(min(1, HSTAT_VIZ_MAX_PX / (12 * 2400)), 1)
+  expect_false(hstat_viz_export_dims(1200)$plafonne)
+  expect_true(hstat_viz_export_dims(2400)$plafonne)
 })
 
 test_that("le code mort retire ne revient pas", {
@@ -6527,4 +6794,62 @@ test_that("le code mort retire ne revient pas", {
   for (n in c("is_categorical", "hstat_i18n_path", "interpret_manova_effect",
               "interpret_permanova_effect", ".hstat_code_breaks3"))
     expect_true(grepl(n, src, fixed = TRUE), label = paste("toujours definie :", n))
+})
+
+test_that("monter le DPI ne change ni la taille ni la mise en page, nulle part", {
+  # LA REGLE, demandee explicitement : l'augmentation de la resolution ne doit
+  # affecter ni la qualite, ni la longueur, ni la hauteur, ni la largeur.
+  # Deux exports faisaient l'inverse -- ils multipliaient les pouces par un
+  # facteur de reduction, si bien que demander plus de finesse rendait l'image
+  # plus PETITE sur le papier.
+  for (d in c(72, 300, 600, 1200, 2000, 5000, HSTAT_DPI_MAX)) {
+    v <- hstat_viz_export_dims(d)
+    expect_equal(v$width, 12)            # la taille physique ne bouge jamais
+    expect_equal(v$height, 8)
+  }
+
+  # ... et la finesse ne DECROIT jamais quand on demande davantage.
+  px <- vapply(c(72, 300, 600, 1200, 2000, 5000, HSTAT_DPI_MAX),
+               function(d) hstat_viz_export_dims(d)$px_w, numeric(1))
+  expect_false(is.unsorted(px))
+
+  # Le plafond porte sur la RESOLUTION, jamais sur la taille : au-dela du cote
+  # maximal d'un bitmap le peripherique echoue et l'utilisateur n'obtient rien.
+  e <- hstat_dpi_effectif(12, 8, HSTAT_DPI_MAX)
+  expect_lt(e$dpi, e$demande)
+  expect_true(e$plafonne)
+  expect_true(nzchar(e$note))
+  expect_lte(12 * e$dpi, HSTAT_RASTER_MAX_PX)
+  # ... et il est ANNONCE : un export silencieusement degrade est pire qu'un refus.
+  expect_true(grepl("inchang", e$note))
+
+  # En dessous du plafond, la resolution demandee est rendue telle quelle.
+  expect_equal(hstat_dpi_effectif(12, 8, 1200)$dpi, 1200)
+  expect_false(hstat_dpi_effectif(12, 8, 1200)$plafonne)
+  # Une petite figure va donc bien plus haut qu'une grande : c'est le cote en
+  # pixels qui compte, pas le DPI.
+  expect_gt(hstat_dpi_effectif(4, 3, 5000)$dpi, hstat_dpi_effectif(12, 8, 5000)$dpi)
+
+  # LE VECTORIEL n'est pas plafonne : sa resolution est infinie et le DPI n'y
+  # veut rien dire. C'est la reponse a « je veux 20 000 DPI sans rien perdre ».
+  ecr <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app", "Utils.R"),
+                         warn = FALSE), collapse = "\n")
+  i <- regexpr("hstat_ecrire_image <- function", ecr, fixed = TRUE)
+  corps <- substr(ecr, i, i + 1400)
+  expect_true(grepl('!fmt %in% c("pdf", "svg", "eps")', corps, fixed = TRUE))
+  expect_true(grepl("hstat_dpi_effectif", corps, fixed = TRUE))
+})
+
+test_that("le plafond du champ DPI est le meme partout", {
+  root <- .hstat_repo_root()
+  expect_equal(HSTAT_DPI_MAX, 20000L)
+  # Neuf champs plafonnaient a 1200 ou 2000 sans raison : l'utilisateur ne
+  # pouvait pas demander mieux la ou il en avait besoin. Un seul chiffre,
+  # declare une fois.
+  for (f in c("UX.R", "app_server.R", "mod_descriptive.R")) {
+    src <- paste(readLines(file.path(root, "inst", "app", f), warn = FALSE),
+                 collapse = "\n")
+    dpi_max <- regmatches(src, gregexpr("[Dd]pi\"[^)]*max = [0-9]+", src))[[1]]
+    expect_length(dpi_max, 0)
+  }
 })
