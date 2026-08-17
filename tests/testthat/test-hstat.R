@@ -6654,9 +6654,19 @@ test_that("le serveur du module de tests s'execute seul, hors application", {
   suppressMessages({ library(DT); library(ggplot2) })
   suppressWarnings(suppressMessages(sys.source(mod, envir = globalenv())))
   skip_if_not(is.function(mod_tests_server))
-  # Les replis d'interface : sans eux, le module tombe sur « could not find
-  # function updatePickerInput ». C'est precisement pour cela que leur
-  # DEFINITION a rejoint le socle.
+  # LE CONTRAT DE DEMARRAGE, REPRODUIT. Le module appelle `updatePickerInput()`
+  # sans prefixe : au demarrage, `install_and_load()` ATTACHE shinyWidgets, et
+  # l'appel se resout par le chemin de recherche. Un paquet installe mais NON
+  # ATTACHE ne suffit donc pas -- et c'est exactement ce qui s'est produit en
+  # integration continue, ou le test echouait sur « could not find function
+  # updatePickerInput » alors qu'il passait en local.
+  #
+  # Les replis (`hstat_installer_replis_ui`) ne couvrent que les paquets
+  # ABSENTS ; il faut donc, en plus, attacher ceux qui sont la.
+  for (pkg in c("shinyWidgets", "shinyjs", "plotly", "shinycssloaders",
+                "sortable", "colourpicker"))
+    if (isTRUE(requireNamespace(pkg, quietly = TRUE)))
+      suppressMessages(library(pkg, character.only = TRUE))
   suppressMessages(hstat_installer_replis_ui())
 
   set.seed(1)
