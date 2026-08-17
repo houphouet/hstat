@@ -53,23 +53,108 @@ Note : `packageVersion()` lève une **erreur** quand le paquet est absent, mais
 
 ## Structure
 
-L'application vit dans `inst/app/` :
+Le code vit dans `R/` — c'est le code du **paquet**. `inst/app/` ne garde que ce
+qui **agit** au démarrage :
 
-- `HStat.R` — point d'entrée : source les modules dans l'ordre, puis `shinyApp(ui, server)`
-- `Utils.R` — fonctions de calcul et utilitaires partagés ; **sourcé en premier**,
-  donc disponible pour l'UI comme pour le serveur
-- `UX.R` — définit `ui` (tous les onglets)
-- `app_server.R` — définit `server` ; contient les analyses multivariées
-- `mod_*.R` — modules Shiny (tests, visualisation, ML, DL, qualitatif, etc.)
+- `R/utils.R` — le socle : fonctions de calcul et utilitaires partagés
+- `R/mod_*.R` — les **17 modules** Shiny (tests, visualisation, ML, DL,
+  qualitatif, etc.), UI et serveur
+- `inst/app/Utils.R` — le pont : charge le socle, puis effets de bord de
+  démarrage (locale, installation des paquets, aiguillages d'interface)
+- `inst/app/UX.R` — définit `ui` (tous les onglets)
+- `inst/app/app_server.R` — définit `server` ; contient les analyses multivariées
+- `inst/app/HStat.R` — point d'entrée : le pont, `UX.R`, `app_server.R`, puis
+  `shinyApp(ui, server)`
 
 Corollaire : une fonction utilisée à la fois par l'UI et le serveur doit être
-définie dans `Utils.R`, pas dans le corps de `server`.
+définie dans `R/utils.R`, pas dans le corps de `server`.
+
+### L'ordre de `source()` n'existe plus, et c'était le but
+
+`HStat.R` sourçait quinze modules **dans un ordre qui devait être tenu à la
+main** : `mod_ai.R` avant ceux qui appellent `hstat_ai_*`, `mod_coding.R` avant
+`mod_qualitative.R` (dont l'UI appelle `mod_coding_ui()`). Deux tests gardaient
+ces rangs. Ils gardaient mal : rien n'empêchait un module ajouté plus tard de se
+glisser au mauvais endroit, et l'erreur — « could not find function
+mod_coding_ui » — serait tombée au démarrage, loin de sa cause.
+
+Les modules étant dans `R/`, ce sont des **définitions** : toutes en place avant
+qu'aucune ne soit appelée. Les deux tests gardent désormais l'inverse de ce
+qu'ils gardaient — qu'aucune ligne `source("mod_*.R")` ne revienne dans
+`HStat.R`. En réintroduire une remettrait la contrainte sans le garde-fou.
+
+Le chargeur (`.hstat_charger_socle`) **balaie le dossier** : `utils.R` d'abord
+par lisibilité, le reste par ordre alphabétique. Un module ajouté demain est
+chargé sans qu'on y pense — et le banc de tests, qui balaie le même dossier, le
+prend de même. Avant, il en nommait quatre ; un cinquième portant une fonction
+de calcul serait resté invisible, et ses tests auraient échoué sur « could not
+find function », loin de la cause.
+
+### Qualifier les appels : quatre pièges, tous constatés
+
+Le code du paquet appelle **toujours** `pkg::fn()`, ou passe par un
+**aiguillage** de l'application. Sans cela, il dépend de ce que `library()` a
+attaché — et un paquet installé mais **non attaché** le fait tomber (constaté en
+intégration continue sur « could not find function updatePickerInput »).
+
+La réécriture est mécanique, faite aux positions rendues par l'analyseur de R.
+Elle a produit quatre défauts, chacun d'une famille différente, chacun gardé par
+un test :
+
+1. **Un nom de paquet peut recouvrir une fonction locale.**
+   `hstat_ai_reglages_ui()` définit chez elle `id <- function(s) ns(...)`. Le
+   balayage n'a vu qu'un appel inconnu, l'a trouvé exporté par dplyr, et a écrit
+   `dplyr::id("url")`. Rien ne lève au chargement : le défaut n'apparaît qu'à
+   **l'affichage de l'onglet**, sur « id() is defunct ». Deux autres du même
+   genre (`VIM::prepare()`, `mclust::sim()`), tous deux des réactifs.
+   Le critère est la **portée**, pas la coïncidence de nom : `httr::timeout(timeout)`
+   est juste — la locale y porte une valeur, pas une fonction.
+
+2. **Un nom de paquet de base peut être masqué par un paquet d'interface.**
+   L'envers du précédent. `box` est dans `graphics` : tenu pour « connu », il
+   reste non qualifié, et sans `library(shinydashboard)` attaché
+   `box(title = ..., status = ...)` appelle `graphics::box` et lève « plot.new
+   has not been called yet ». **Toute** l'interface cesse de se construire, pour
+   un nom de trois lettres.
+
+3. **Un nom exporté n'est pas qualifiable pour autant.** `.data` est bien
+   exporté par ggplot2, mais c'est un **pronom**, remplacé par le masque de
+   données à l'évaluation. Écrit `ggplot2::.data[[x]]`, il est évalué tout de
+   suite et lève « Can't subset `.data` outside of a data mask context » — donc
+   tout graphique bâti sur un nom de colonne variable, c'est-à-dire le cas
+   général.
+
+4. **Une fonction passée en argument n'est pas un appel.**
+   `do.call(tagList, els)` porte un simple `SYMBOL` : la qualification des
+   appels ne le voit pas, et le nom résout par le chemin de recherche. Même
+   chose pour `tags$div(...)` — `tags` est un objet de shiny, pas une fonction.
+
+Bénéfice mesurable : `UX.R` construit désormais `ui` avec **shiny seul**
+attaché. Le test des identifiants dupliqués, qui se *skippait* depuis toujours
+faute de pouvoir bâtir l'interface, s'exécute enfin — et un test sauté ressemble
+à un test qui passe.
+
+### Un paquet optionnel s'appelle par son aiguillage, jamais par son nom
+
+`hstat_installer_replis_ui()` (`R/utils.R`) pose `withSpinner`, `plotlyOutput`,
+`ggplotly`, `layout`, `config`, `renderPlotly`, `colourInput`, `pickerInput`,
+`radioGroupButtons`, `updatePickerInput` et `rank_list` : **toujours définis**,
+soit vers le paquet, soit vers un équivalent de base.
+
+Treize appels écrivaient pourtant `shinycssloaders::withSpinner(...)`,
+`colourpicker::colourInput(...)` ou `shinyWidgets::pickerInput(...)` en dur. Ces
+paquets sont **optionnels** : absents, l'appel lève, l'UI du module ne se
+construit pas, et `HStat.R` remplace **toute** l'application par sa page de
+secours — pour un indicateur d'attente manquant. Le repli existait sous le même
+nom, à un préfixe près. Un test balaie le dépôt ; `R/utils.R` en est exclu,
+c'est lui qui **pose** les aiguillages.
 
 ### Assistance IA : deux roles, et deux seulement
 
-`mod_ai.R` porte le moteur d'inference **partagé par toute l'application**
-(c'est pourquoi `HStat.R` le source juste après `Utils.R` — un test garde cet
-ordre) et l'onglet d'aide à la décision.
+`R/mod_ai.R` porte le moteur d'inference **partagé par toute l'application**
+et l'onglet d'aide à la décision. Il n'a plus de rang à tenir dans un
+`source()` ; un test vérifie seulement qu'il est bien du côté paquet, l'y
+oublier ferait revenir la question de l'ordre par la fenêtre.
 
 L'assistance **interprète** des résultats et **recommande** une analyse. Elle ne
 choisit ni ne lance jamais une analyse : le choix de la méthode engage
@@ -326,6 +411,33 @@ Il est réinjecté en seconde ligne du titre plotly, échappé comme les étique
 d'axe. Même famille de piège que le plotmath : ce que ggplot sait rendre, la
 conversion interactive ne le sait pas toujours.
 
+### Une efficacité négative doit tenir dans le cadre
+
+L'axe Y valait **0 à 100 par défaut**, et son champ « Minimum » portait
+`min = 0`. Deux conséquences, dans le même sens :
+
+1. toute efficacité négative — la modalité fait **moins bien** que le témoin,
+   c'est un résultat — sortait du cadre et disparaissait, elle et son
+   étiquette ;
+2. l'utilisateur ne **pouvait pas** saisir la borne qui l'aurait ramenée.
+
+Mesuré sur un essai à cinq modalités dont deux négatives : **2 barres sur 5
+disparaissaient**, avec pour seule trace un « Removed 2 rows » dans la console.
+
+Les deux bornes sont désormais **vides par défaut** = automatiques (`NA` sur
+une borne, ggplot suit les données de ce côté), et le champ accepte le négatif.
+Zéro est **toujours** inclus dans l'étendue : c'est la référence de la formule
+d'Abbott, un cadre qui l'exclurait serait illisible.
+
+`hstat_pas_debut()` aligne les graduations sur le pas demandé : partir de la
+borne brute donnait −37, −17, **3**, 23… et **zéro n'était pas gradué**, alors
+que c'est la seule graduation qui compte quand des valeurs sont négatives.
+Une ligne de référence à zéro s'ajoute quand des négatives existent.
+
+Le décompte « hors des limites » ne porte plus que sur les bornes
+**réellement fixées** : une borne automatique ne peut, par construction, rien
+exclure.
+
 ### Efficacités : une colonne par variable mesurée
 
 `hstat_efficacite()` empile les variables mesurées — quinze variables sur onze
@@ -342,6 +454,112 @@ et « Utiliser comme jeu de données » ; le tableau détaillé reste accessible
 Le préfixe `Efficacite_` est délibéré : une colonne nommée comme la variable
 d'origine contiendrait des **pourcentages** et non la mesure, et se confondrait
 avec elle dès qu'on relit le tableau ou qu'on le réinjecte dans l'application.
+
+### Le thème se déclare au kit, comme le format et le DPI
+
+Quatre graphiques — descriptif, plan expérimental, distribution, valeurs
+manquantes — n'offraient **aucun** choix de thème, quand les treize autres en
+avaient un. Le thème rejoint donc le format et le DPI dans
+`hstat_export_plot_ui()` : un bloc d'export ajouté demain en hérite sans qu'on
+y pense.
+
+`theme = FALSE` reste légitime pour les modules qui portent déjà un sélecteur
+global (`hstat_plot_opts_ui()` — ML, DL, séries temporelles) : deux sélecteurs
+pour un même graphique, c'est un réglage qui en contredit un autre. Un test
+vérifie que `theme = FALSE` n'apparaît que là.
+
+Les constructeurs de `mod_design.R` vivent **hors** du `moduleServer` : `input`
+n'y est pas visible, le thème leur est donc **passé en argument**
+(`theme_gg`). Le lire depuis `input` y aurait été impossible, et l'appliquer
+après coup aurait effacé leurs réglages fins — un thème complet remplace tout
+ce qui précède.
+
+#### Un seul choisisseur de thème
+
+Le test qui garde cette règle a lui-même dû être corrigé, et l'erreur mérite
+d'être notée : il comparait deux propriétés **choisies à la main**
+(`panel.background`, `panel.grid.major`) pour décider si un thème « valait
+minimal ». Il passait en local et **échouait en intégration continue** sur
+« Sans décor » — selon la version de ggplot2, ces deux propriétés-là
+coïncident avec celles de `theme_minimal()` sans que les thèmes soient pour
+autant les mêmes.
+
+Un test ne doit pas dépendre de **la propriété par laquelle** deux objets se
+distinguent. La branche par défaut du `switch` rend exactement
+`theme_minimal(base_size)` : c'est donc l'**objet complet** qu'on compare, et
+un nom inconnu est vérifié comme retombant bien sur minimal.
+
+`hstat_apply_plot_opts()` portait un **second** `switch` sur le nom du thème,
+et il avait dérivé : cinq thèmes connus sur les huit du catalogue. « Gris »,
+« Traits fins » et « Sans décor » retombaient **en silence** sur « Minimal » —
+l'utilisateur changeait le réglage et l'image ne bougeait pas, sur treize blocs
+d'export. Il passe désormais par `viz_get_theme()`, et un test échoue sur tout
+nouveau `switch` dont les étiquettes sont des noms de thème.
+
+### Un repère qu'on ne peut pas saisir est un repère qui n'existe pas
+
+« Valeur du seuil (%) » portait `min = 0, max = 100`. On ne pouvait donc pas
+poser de repère sur une efficacité **négative** — la modalité fait moins bien
+que le témoin, c'est précisément le résultat qu'on cherche à lire — ni au-delà
+de 100. Les bornes de l'axe portaient de même un `max` arbitraire (100 et 200).
+Toutes ont sauté : un axe doit aller aussi loin dans le négatif que dans le
+positif.
+
+**L'étendue automatique inclut le seuil.** Avec des limites automatiques,
+ggplot entraîne bien son échelle sur les couches — un `geom_hline` étend la
+plage. Mais les **graduations** calculées à la main (`seq(min, max, pas)`)
+s'arrêtent, elles, à l'étendue des *données* : la ligne était tracée et aucune
+graduation ne disait à quelle hauteur elle passait. `hstat_etendue_axe()` prend
+donc les données **et** les repères à faire tenir dans le cadre.
+
+Et quand l'utilisateur fixe lui-même des limites qui excluent le seuil, on le
+dit : une ligne de seuil absente est plus trompeuse qu'une barre manquante — on
+croit lire un graphique sans seuil alors qu'on en a demandé un.
+
+Un test balaie les champs de bornes d'axe et de valeur de repère
+(`thresholdValue`, `thresholdYMin/Max`, `yAxisMin/Max`, `xAxisMin/Max`,
+`refValue`) et échoue sur toute borne `min`. Vérifié au passage :
+`refSigma` et `refMargin` gardent la leur, un écart-type et une marge
+d'équivalence étant positifs par définition.
+
+### Un titre d'axe plus long que son axe doit revenir à la ligne
+
+`element_text()` et `element_markdown()` ne reviennent **jamais** à la ligne :
+le titre sort du cadre et se fait rogner à l'export. Sur un intitulé explicite
+— « Rendement moyen par parcelle en t/ha » — c'est le cas normal, pas le cas
+rare.
+
+`hstat_axe_titre()` passe par `ggtext::element_textbox_simple()`, qui enveloppe
+le texte dans une boîte de la **largeur réelle de l'axe** : le retour à la
+ligne se fait tout seul, et non à un nombre de caractères deviné. `halign` cale
+les lignes **entre elles** — c'est ce que l'utilisateur appelle centrer ou
+aligner ; le `hjust` d'`element_text()` ne fait pas la même chose, il déplace
+un texte d'un seul tenant.
+
+**Pas d'entrée « Justifié »** : gridtext ne sait pas répartir le texte entre
+les marges. L'offrir donnerait un réglage que l'image ignore — le défaut même
+que ce dépôt traque ailleurs. Trois calages, tous les trois réels.
+
+Repli sur `element_markdown()` quand le retour à la ligne n'est pas demandé ou
+que ggtext manque : le style (gras, italique, taille, couleur) survit dans les
+deux cas.
+
+#### Les deux réglages passent par un helper, jamais par recopie
+
+`hstat_axe_titre_ui()` pose la case et le sélecteur, `hstat_axe_titre_lire()`
+les relit. **Sept** modules les portent désormais — Descriptives, Exploration
+(distribution et valeurs manquantes), Visualisation, Seuils d'efficacité,
+comparaisons post-hoc, Qualitatif.
+
+Les deux premiers modules équipés avaient leurs widgets **recopiés à la main**,
+avec des identifiants propres (`axisTitleWrap`, `thresholdAxisTitleWrap`). Ils
+sont passés au helper : deux copies d'un même réglage, c'est le point de départ
+de la dérive qu'on vient de corriger sur les thèmes.
+
+Dans `mod_explore.R`, le graphique est construit **ailleurs que là où `input`
+existe** (chemin du téléchargement) : les deux réglages y voyagent en
+paramètres, comme les tailles de police. Même contrainte que pour le thème de
+`mod_design.R`.
 
 ### Export d'image : les pixels saisis sont une mise en page, pas la sortie
 
@@ -584,12 +802,16 @@ constructeur et un lecteur à lui.
 `httr` et `jsonlite` restent en **Suggests** : sans eux, `"auto"` fonctionne
 toujours.
 
-### Modules imbriqués : l'ordre de `source()` compte
+### Modules imbriqués : la dépendance reste, la contrainte a disparu
 
 `mod_qualitative_ui()` appelle `mod_coding_ui()` (l'atelier de codage CAQDAS
 vit dans son propre fichier plutôt que d'alourdir les ~2900 lignes de
-`mod_qualitative.R`). `HStat.R` doit donc sourcer `mod_coding.R` **avant**
-`mod_qualitative.R` — un test garde cette contrainte.
+`mod_qualitative.R`). C'était la contrainte d'ordre la plus visible : `HStat.R`
+devait sourcer `mod_coding.R` avant `mod_qualitative.R`, et un test le gardait.
+
+Les deux fichiers étant dans `R/`, ce sont des définitions : l'appel n'a lieu
+qu'au rendu de l'onglet, bien après. La dépendance existe toujours ; elle est
+devenue **sans objet**.
 
 ### Atelier de codage : arbre de codes et mémos
 
@@ -1492,11 +1714,17 @@ l'expression. `shiny::exprToFunction()` transforme le bloc en fonction — le
 ## Tests
 
 `tests/testthat/test-hstat.R` est la suite de référence (celle qu'exécute
-`R CMD check` via `tests/testthat.R`). Elle source `Utils.R` et
-`mod_qualitative.R` dans un environnement isolé, sans démarrer Shiny : seules
-les **fonctions de calcul pures** y sont testables.
+`R CMD check` via `tests/testthat.R`). Elle **balaie `R/`** — le socle puis
+tous les modules — dans un environnement isolé, sans démarrer Shiny. Les
+fonctions de calcul pures y sont testables directement ; les serveurs de module
+le sont par `shiny::testServer()`, ce que la migration a rendu possible.
 
-Placer la logique statistique dans `Utils.R` plutôt que dans un `observeEvent`
+Le dossier est balayé, les fichiers ne sont **pas nommés un à un** : quatre
+modules l'étaient, et un cinquième portant une fonction de calcul serait resté
+invisible — ses tests auraient échoué sur « could not find function », loin de
+la cause.
+
+Placer la logique statistique dans `R/utils.R` plutôt que dans un `observeEvent`
 la rend testable — c'est le motif suivi par `hstat_ref_test()`,
 `hstat_metrics_*()`, `hstat_q_*()`, etc.
 
@@ -1519,6 +1747,61 @@ apt-get install -y r-cran-testthat r-cran-shiny r-cran-ggplot2 r-cran-dplyr \
 
 `svglite` est indispensable au test d'export image (`ggsave(device = "svg")`) :
 sans lui la suite tombe en erreur, alors que rien n'est cassé dans le code.
+
+## Le paquet s'installe, et c'est l'installation qui a trouvé les deux défauts
+
+`R CMD INSTALL` réussit, et `HStat::run_hstat()` sert l'application depuis le
+paquet installé — interface complète, `www/` servi, les 19 analyses parcourues
+sans une erreur, exactement comme depuis les sources.
+
+### `Imports` ou `Suggests` : la frontière se mesure
+
+`DESCRIPTION` déclarait **102 `Imports`** : `install.packages()` échouait si
+**un seul** manquait — alors que l'application est bâtie pour tourner sans, et
+le dit (`hstat_pkg_manquant()` donne la commande d'installation *et* une
+analyse de repli). Le fichier contredisait le code.
+
+> **`Imports`** = ce sans quoi l'espace de noms ne se charge pas ou l'interface
+> ne se construit pas. **`Suggests`** = ce dont une *analyse* a besoin, et dont
+> l'absence est déjà annoncée et surmontée.
+
+Mesure, pas estimation : on relève `loadedNamespaces()` en bâtissant `ui` **et
+les dix-sept UI de module** — 19 paquets. Réunis aux 22 que le socle importe
+par `importFrom` (sans eux la `library()` échoue) et à `stats`, cela fait
+**33 `Imports`** et **72 `Suggests`**. `run_hstat()` continue d'installer
+*tout* au démarrage : pour l'utilisateur ordinaire, rien ne change.
+
+### Un `importFrom` ne doit jamais nommer un aiguillage
+
+Un nom importé vit dans `imports:HStat`, **cherché avant l'environnement
+global** où `hstat_installer_replis_ui()` pose les aiguillages : l'aiguillage
+ne pouvait donc jamais gagner. `importFrom(shinyjs, colourInput)` traînait dans
+`NAMESPACE`, et shinyjs **ré-exporte** un ersatz devenu caduc — d'où
+« colourInput() has been moved to the 'colourpicker' package », qui faisait
+tomber **toute** la construction de l'interface.
+
+Le défaut n'existe **que dans le paquet installé** : depuis les sources il n'y
+a pas d'environnement d'imports, et l'aiguillage l'emportait. C'est la raison
+d'être de cette étape — aucun parcours depuis le dépôt ne pouvait le voir.
+
+### Le compilateur d'octets voit ce que la lecture ne voit pas
+
+`mod_coding.R` appelait `hstat_q_apply_palette(p, palette, low = , high = )`
+alors que les paramètres s'appellent `col_low` / `col_high`. R lève « unused
+arguments » **à l'appel** : le nuage de mots tombait entièrement dès qu'une
+palette autre que « default » était choisie. Jamais au chargement, jamais à la
+lecture — seulement sous les doigts de l'utilisateur.
+
+Un test balaie désormais tout appel à une fonction **maison** dont un argument
+nommé ne correspond à aucun paramètre (les fonctions à `...` sont hors de
+portée, elles absorbent tout). Il a été vérifié comme signalant exactement ce
+site avant correction.
+
+### Ce qui reste non prouvé
+
+`R CMD check` n'a pas pu être exécuté : il installe les `Suggests` pour les
+exemples et les tests, et 28 d'entre eux sont indisponibles hors ligne.
+L'installation, le chargement et l'exécution complète, eux, le sont.
 
 ## Déploiement : `app.R` à la racine
 
@@ -1766,15 +2049,200 @@ est désormais `x[sample.int(n)]`, qui tire sur les indices.
 - L'export Excel du Khi², les dimensions en pixels du module de seuils : des
   décisions documentées, pas des oublis.
 
+### Une période répétée est presque toujours une date
+
+Le sélecteur « Période (facteur intra-sujet, répété) » ne retenait que les
+facteurs, les chaînes et les numériques à peu de modalités. Une colonne `Date`
+n'est aucun des trois : elle n'apparaissait **jamais** dans la liste — alors que
+l'exemple affiché sous le champ annonce « Ex. : temps, date, stade… ». Les
+mesures répétées les plus courantes, celles datées, étaient donc inaccessibles.
+
+`Date`, `POSIXct` et `POSIXlt` sont désormais éligibles comme facteur intra- et
+inter-sujet.
+
+**L'ordre des niveaux est celui du temps, et c'est le vrai piège.** `factor()`
+appliqué à une `Date` classe sur la valeur sous-jacente, donc
+chronologiquement ; passer d'abord par `as.character()` ou par un format
+français trierait **alphabétiquement**, et le 5 avril viendrait avant le 19
+mars. L'écart ne se voit qu'en traversant un changement de mois — à l'intérieur
+d'un même mois les deux ordres coïncident, et un exemple mal choisi ferait
+croire que le piège n'existe pas. Le test le vérifie sur des dates qui changent
+de mois.
+
+Deux messages accompagnent les cas dégénérés, qu'une colonne de dates rend
+faciles à produire : un facteur à **une seule modalité** n'est pas répété, et un
+facteur comptant **autant de modalités que d'observations** ne répète rien du
+tout (le message invite alors à regrouper les dates par mois ou par stade).
+
+## Le socle vit dans `R/`, l'application le charge par un pont
+
+Première étape de la conversion en vrai paquet R, et elle est structurelle :
+les ~5 700 lignes de définitions qui vivaient dans `inst/app/Utils.R` sont
+passées dans **`R/utils.R`**, où elles forment le code du paquet.
+`inst/app/Utils.R` reste en place — `HStat.R` le source toujours en premier —
+mais il n'a plus que deux rôles : **charger le socle**, puis **faire ce qui doit
+l'être au démarrage**.
+
+### Pourquoi ce partage précisément
+
+Dans un paquet R, le code de premier niveau est évalué **à l'installation**, pas
+au chargement. Trois familles d'expressions ne peuvent donc pas rejoindre `R/` :
+
+1. les **réglages de session** (`options(encoding=)`, `shiny.maxRequestSize`,
+   `shiny.plot.res`) et la **locale** — ils appartiennent au démarrage ;
+2. l'**installation des paquets** (`install_and_load(required_packages)`,
+   `hstat_load_model_packages()`) — la liste est une définition, l'appel non ;
+3. les **replis conditionnels** des paquets d'interface optionnels
+   (`withSpinner`, `plotlyOutput`, `colourInput`, `pickerInput`, `rank_list`,
+   `renderPlotly`). C'est le point le plus subtil : `if (!.hstat_has("plotly"))`
+   placé dans `R/` figerait sur la machine de **construction** une décision qui
+   appartient à la machine d'**exécution**.
+
+S'y ajoutent les deux alias anti-masquage (`em <- shiny::em`,
+`margin <- ggplot2::margin`) : ils protègent l'environnement de l'application,
+pas le paquet.
+
+Décompte réel du découpage : **256** expressions de premier niveau, dont **16**
+restent au pont (139 lignes) et **240** partent au socle (5 740 lignes).
+
+### Deux invariants, chacun testé
+
+- **Le socle ne fait rien** : aucune expression de premier niveau autre qu'une
+  affectation (`"_PACKAGE"`, support de la documentation, excepté). Un
+  `options()` qui s'y glisserait serait posé à l'installation.
+- **Le pont ne définit rien** d'autre que son chargeur : les seuls noms qu'il
+  affecte sont `.hstat_charger_socle`, `.hstat_max_mb`, `em` et `margin`. Une
+  fonction utilitaire qui y réapparaîtrait serait une **seconde source de
+  vérité** — celle que l'application verrait, sans que le paquet ni les tests en
+  sachent rien.
+
+### Les sources priment sur le paquet installé
+
+`.hstat_charger_socle()` cherche `R/utils.R` en remontant depuis le dossier de
+l'application **avant** de se rabattre sur l'espace de noms. Sur un poste où
+HStat est aussi installé, l'ordre inverse ferait travailler l'application sur une
+version antérieure à celle qu'on est en train d'éditer — défaut particulièrement
+pénible parce qu'il ne se voit pas. Un test vérifie l'ordre.
+
+Quand le paquet est installé (`run_hstat()` sur `system.file("app")`), il n'y a
+plus de fichier `R/utils.R` : le pont **recopie** alors les objets de l'espace de
+noms dans l'environnement de l'application. La recopie est nécessaire parce que
+l'application appelle aussi des aides internes `.hstat_*`, qu'un `library()` ne
+rendrait pas visibles — d'où `exportPattern(".")` dans `NAMESPACE`, tenu à la
+main et redéclaré en roxygen dans `R/utils.R` pour qu'un futur `document()` le
+reproduise au lieu de l'effacer.
+
+### Ce que cette étape ne prouve pas encore
+
+`R CMD check` et `pkgload::load_all()` **n'ont pas pu être exécutés** ici : 22
+des 107 `Imports` sont indisponibles hors ligne. Ce qui est vérifié, c'est que le
+socle se charge **seul** (241 objets, `sys.source()` suffit), que la suite de
+tests s'appuie désormais sur lui, et que l'application démarre et fonctionne
+inchangée par le pont — 19 analyses parcourues, aucune erreur. La validation de
+l'installation appartient à une machine disposant du réseau.
+
+### Étape 2 : un module dans le paquet, et il devient testable
+
+`mod_tests.R` est le module pilote : il vit désormais dans **`R/mod_tests.R`**.
+Sa ligne a disparu de `HStat.R` — un module migré n'a plus de place dans l'ordre
+de `source()`, qui était la contrainte à lever. Le pont charge `R/utils.R` puis
+**tous les `R/mod_*.R`**, sans ordre : les modules ne font que définir, mesuré
+sur les dix-sept fichiers (0 expression agissante).
+
+**Le gain n'est pas théorique, il est vérifié** : `shiny::testServer()` exécute
+`mod_tests_server` hors application. Le test lance la normalité, l'ANOVA, puis un
+t de Student sur trois groupes, et observe ce que le module **écrit** dans
+`values` — pas ce à quoi son code ressemble. Jusqu'ici c'était impossible : un
+module n'existait que comme effet de bord d'un `source()` séquentiel.
+
+Deux obstacles rencontrés, tous deux instructifs :
+
+1. **Les replis d'interface vivaient dans le pont.** Tester le module échouait
+   sur « could not find function `updatePickerInput` ». Leur **définition**
+   appartient au paquet ; seule la **décision de les installer** appartient au
+   démarrage. D'où `hstat_installer_replis_ui(envir)`, appelée par le pont — et
+   appelable par un test. Le bloc y est évalué **tel quel**
+   (`eval(quote({...}), envir)`) : une première tentative de le réécrire en
+   `assign()` avait coupé une définition dont le corps tenait sur la ligne
+   suivante.
+2. **Le socle appelle sans préfixe.** Il vient de l'application, où `shiny` et
+   `ggplot2` sont *attachés* ; dans un paquet, rien ne l'est. Mesure : **75
+   symboles de 20 paquets**. Ils sont désormais déclarés en `importFrom` exacts
+   — et non en `import()` entier, qui ferait s'entre-masquer `count`, `layout`
+   ou `dataTableOutput` avec une résolution dépendant de l'ordre des directives.
+
+Reste à faire, dit franchement : les **modules** appellent encore `renderDT`,
+`renderPlotly` et consorts sans préfixe. Le test du module attache donc `DT` et
+`ggplot2` explicitement. Qualifier ces appels est le chantier suivant, module par
+module — c'est la convention que le dépôt s'est déjà donnée pour le reste du
+code.
+
+### Les balayages doivent voir les deux dossiers
+
+Un test qui n'énumérerait que `inst/app/` **cesserait de voir** le code migré —
+et passerait au vert en ne regardant plus rien. Tous les balayages passent donc
+par `.hstat_sources_app()`, et la lecture d'un module par `.hstat_module_path()`.
+
+Piège rencontré en posant ce localisateur : la substitution mécanique qui a
+recalé les balayages a touché **le corps de la fonction elle-même**, qui s'est
+mise à s'appeler récursivement — « C stack usage is too close to the limit ».
+C'est exactement le défaut déjà documenté pour les réactifs de l'application ;
+il s'attrape à l'exécution, jamais à la lecture.
+
+### Étape 3 : un module migré n'appelle plus rien sans préfixe
+
+`mod_tests.R` qualifie désormais ses **1 888** appels de fonctions d'autres
+paquets (`shiny::`, `ggplot2::`, `DT::`, `dplyr::`, `shinydashboard::`,
+`ggtext::`). Preuve mesurée : son serveur s'exécute sous `testServer()` avec
+**shiny seul attaché** — plus de `library(DT)` ni `library(ggplot2)` dans le
+test, qui devait auparavant reproduire le contrat de démarrage.
+
+**Les replis deviennent des aiguillages permanents.**
+`hstat_installer_replis_ui()` ne définissait un nom que si le paquet était
+**absent** ; un paquet **installé mais non attaché** ne donnait donc ni l'un ni
+l'autre — l'échec constaté en intégration continue (« could not find function
+`updatePickerInput` »). Les onze noms concernés sont maintenant *toujours*
+définis : ils pointent sur la fonction du paquet quand il est là, sur
+l'équivalent de base sinon. L'application ne dépend plus de ce que `library()` a
+attaché.
+
+Ces onze noms ne se qualifient **jamais** : ce sont des fonctions de
+l'application. Qualifier `renderPlotly` ferait sauter le nettoyage du polyfill
+plotly ; qualifier `plotlyOutput` ferait sauter le repli quand plotly est
+absent.
+
+### Trois pièges de la réécriture mécanique, tous rencontrés
+
+1. **Les colonnes de `getParseData()` sont en OCTETS, `substr()` en
+   caractères.** Sur un fichier accentué, découper aux colonnes annoncées avec
+   `substr()` corrompt le texte. Le remplacement se fait donc en octets, avec
+   vérification systématique que les octets trouvés à la position sont bien le
+   nom attendu.
+2. **`tags$code(...)` est étiqueté `SYMBOL_FUNCTION_CALL`.** Une première passe
+   a produit `tags$shiny::code(...)`, que R refuse d'analyser. Il faut écarter
+   les appels précédés de `$` et `@`, pas seulement de `::`.
+3. **Un paquet qui en ré-exporte un autre fausse l'attribution.** `plotly`
+   ré-exporte `mutate`, `group_by`, `summarise` de dplyr, et `shinyjs`
+   ré-exporte `colourInput` de colourpicker : prendre « le premier paquet qui
+   exporte le symbole » donne une provenance vraie techniquement mais fausse
+   sur le fond.
+
+Un test garde l'invariant : dans un module **migré**, aucun appel non qualifié
+n'appartient à un paquet des `Imports`. Il ne s'applique qu'aux modules déjà
+dans `R/` — les autres l'atteindront à leur tour.
+
 ## Fins de ligne
 
-Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. Sont en
-**CRLF** : `Utils.R`, `HStat.R`, `inst/app/app.R`, `mod_clean.R`,
-`mod_descriptive.R`, `mod_design.R`, `mod_explore.R`, `mod_filter.R`,
-`mod_qualitative.R`, `mod_tests.R`, `mod_threshold.R`, `mod_viz.R`, ainsi que
-`README.md` et le `app.R` racine. Sont en **LF** : `UX.R`, `app_server.R`,
-`mod_ai.R`, `mod_coding.R`, `mod_dl.R`, `mod_ml.R`, `mod_timeseries.R`, le
-dossier `R/`, `CLAUDE.md` et la suite de tests.
+Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. La fin de
+ligne suit le fichier, pas le dossier — le déplacement des modules dans `R/` ne
+l'a pas changée. Sont en **CRLF** : `R/utils.R`, `R/mod_clean.R`,
+`R/mod_descriptive.R`, `R/mod_design.R`, `R/mod_explore.R`, `R/mod_filter.R`,
+`R/mod_qualitative.R`, `R/mod_tests.R`, `R/mod_threshold.R`, `R/mod_viz.R`,
+`inst/app/Utils.R`, `inst/app/HStat.R`, `inst/app/app.R` et `README.md`.
+Sont en **LF** : `R/mod_ai.R`, `R/mod_coding.R`, `R/mod_dl.R`, `R/mod_ml.R`,
+`R/mod_report.R`, `R/mod_timeseries.R`, `R/run_hstat.R`, `R/zzz.R`,
+`R/_disable_autoload.R`, `inst/app/UX.R`, `inst/app/app_server.R`, le `app.R`
+racine, `CLAUDE.md` et la suite de tests.
 
 Préserver les fins de ligne existantes lors d'une édition — un fichier réécrit
 intégralement en LF produit un diff de plusieurs milliers de lignes qui masque

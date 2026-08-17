@@ -2,21 +2,21 @@
 
 
 mod_descriptive_ui <- function(id) {
-  ns <- NS(id)
-  tagList(
-              fluidRow(
-                box(title = tags$span(icon("chart-bar"), " Sélection des Variables"), 
+  ns <- shiny::NS(id)
+  shiny::tagList(
+              shiny::fluidRow(
+                shinydashboard::box(title = shiny::tags$span(shiny::icon("chart-bar"), " Sélection des Variables"), 
                     status = "success", width = 4, solidHeader = TRUE,
-                    uiOutput(ns("numVarSelect")),
-                    checkboxInput(ns("selectAllNum"), 
-                                  HTML("<span style='font-weight: 600;'><i class='fa fa-check-square'></i> Sélectionner toutes les variables numériques</span>"), 
+                    shiny::uiOutput(ns("numVarSelect")),
+                    shiny::checkboxInput(ns("selectAllNum"), 
+                                  shiny::HTML("<span style='font-weight: 600;'><i class='fa fa-check-square'></i> Sélectionner toutes les variables numériques</span>"), 
                                   FALSE),
-                    hr(style = "border-color: #ddd; margin: 20px 0;"),
-                    tags$div(
+                    shiny::hr(style = "border-color: #ddd; margin: 20px 0;"),
+                    shiny::tags$div(
                       style = "background-color: #f8f9fa; padding: 12px; border-radius: 6px; border-left: 4px solid #28a745;",
-                      tags$h6(icon("calculator"), " Statistiques à calculer", 
+                      shiny::tags$h6(shiny::icon("calculator"), " Statistiques à calculer", 
                               style = "font-weight: bold; color: #155724; margin-bottom: 12px;"),
-                      checkboxGroupInput(ns("descStats"), NULL,
+                      shiny::checkboxGroupInput(ns("descStats"), NULL,
                                          choices = list(
                                            "Moyenne" = "mean", 
                                            "Médiane" = "median", 
@@ -31,101 +31,101 @@ mod_descriptive_ui <- function(id) {
                                          selected = c("mean", "median", "sd", "cv")
                       )
                     ),
-                    hr(style = "border-color: #ddd; margin: 20px 0;"),
-                    uiOutput(ns("descFactorUI")),
-                    hr(style = "border-color: #ddd; margin: 15px 0;"),
-                    div(style = "background-color: #e8f4f8; border-left: 4px solid #17a2b8; padding: 10px; border-radius: 4px;",
-                        fluidRow(
-                          column(6,
-                                 checkboxInput(ns("descRoundResults"), "Arrondir les résultats", value = FALSE)
+                    shiny::hr(style = "border-color: #ddd; margin: 20px 0;"),
+                    shiny::uiOutput(ns("descFactorUI")),
+                    shiny::hr(style = "border-color: #ddd; margin: 15px 0;"),
+                    shiny::div(style = "background-color: #e8f4f8; border-left: 4px solid #17a2b8; padding: 10px; border-radius: 4px;",
+                        shiny::fluidRow(
+                          shiny::column(6,
+                                 shiny::checkboxInput(ns("descRoundResults"), "Arrondir les résultats", value = FALSE)
                           ),
-                          column(6,
-                                 conditionalPanel(
+                          shiny::column(6,
+                                 shiny::conditionalPanel(
               ns = ns,
                                    condition = "input.descRoundResults == true",
-                                   numericInput(ns("descDecimals"), "Décimales:", value = 2, min = 0, max = 8, step = 1)
+                                   shiny::numericInput(ns("descDecimals"), "Décimales:", value = 2, min = 0, max = 8, step = 1)
                                  )
                           )
                         )
                     ),
-                    br(),
-                    actionButton(ns("calcDesc"), 
-                                 HTML("<i class='fa fa-calculator'></i> Calculer les statistiques"), 
+                    shiny::br(),
+                    shiny::actionButton(ns("calcDesc"), 
+                                 shiny::HTML("<i class='fa fa-calculator'></i> Calculer les statistiques"), 
                                  class = "btn-success btn-block btn-lg", 
                                  style = "font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.3s;"),
                     # Bouton de calcul sur le jeu COMPLET -- visible uniquement
                     # quand l'application est en mode hors-memoire (DuckDB)
-                    conditionalPanel(
+                    shiny::conditionalPanel(
               ns = ns,
                       condition = "output.hstatBigData == true",
-                      div(style = "margin-top:10px; padding:10px; background:#fff4e5; border:1px solid #ed6c02; border-radius:8px;",
-                        tags$p(style = "margin:0 0 8px 0; font-size:12px; color:#7a4a1a;",
-                          icon("database"),
-                          HTML(" Les statistiques ci-dessus portent sur l'<b>échantillon</b>. Le bouton ci-dessous calculé les valeurs <b>exactes sur le jeu complet</b> (via DuckDB).")),
-                        actionButton(ns("calcDescFull"),
-                          HTML("<i class='fa fa-server'></i> Calculer sur le jeu complet"),
+                      shiny::div(style = "margin-top:10px; padding:10px; background:#fff4e5; border:1px solid #ed6c02; border-radius:8px;",
+                        shiny::tags$p(style = "margin:0 0 8px 0; font-size:12px; color:#7a4a1a;",
+                          shiny::icon("database"),
+                          shiny::HTML(" Les statistiques ci-dessus portent sur l'<b>échantillon</b>. Le bouton ci-dessous calculé les valeurs <b>exactes sur le jeu complet</b> (via DuckDB).")),
+                        shiny::actionButton(ns("calcDescFull"),
+                          shiny::HTML("<i class='fa fa-server'></i> Calculer sur le jeu complet"),
                           class = "btn-warning btn-block",
                           style = "font-weight:bold;"))
                     )
                 ),
-                box(title = tags$span(icon("table"), " Résultats des Analyses Descriptives"), 
+                shinydashboard::box(title = shiny::tags$span(shiny::icon("table"), " Résultats des Analyses Descriptives"), 
                     status = "success", width = 8, solidHeader = TRUE,
-                    tags$div(
+                    shiny::tags$div(
                       style = "background-color: #e8f5e9; padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #4caf50;",
-                      tags$p(tagList(icon("info-circle"), " Les résultats s'afficheront ici après le calcul. Vous pouvez trier, filtrer et rechercher dans le tableau."),
+                      shiny::tags$p(shiny::tagList(shiny::icon("info-circle"), " Les résultats s'afficheront ici après le calcul. Vous pouvez trier, filtrer et rechercher dans le tableau."),
                              style = "margin: 0; color: #2e7d32; font-size: 14px;")
                     ),
-                    DTOutput(ns("descResults")),
-                    br(),
-                    fluidRow(
-                      column(6,
-                             downloadButton(ns("downloadDesc"), 
-                                            HTML("<i class='fa fa-file-csv'></i> Télécharger CSV"), 
+                    DT::DTOutput(ns("descResults")),
+                    shiny::br(),
+                    shiny::fluidRow(
+                      shiny::column(6,
+                             shiny::downloadButton(ns("downloadDesc"), 
+                                            shiny::HTML("<i class='fa fa-file-csv'></i> Télécharger CSV"), 
                                             class = "btn-info btn-block", 
                                             style = "font-weight: 600; padding: 10px;")
                       ),
-                      column(6,
-                             downloadButton(ns("downloadDescExcel"), 
-                                            HTML("<i class='fa fa-file-excel'></i> Télécharger Excel"), 
+                      shiny::column(6,
+                             shiny::downloadButton(ns("downloadDescExcel"), 
+                                            shiny::HTML("<i class='fa fa-file-excel'></i> Télécharger Excel"), 
                                             class = "btn-success btn-block", 
                                             style = "font-weight: 600; padding: 10px;")
                       )
                     )
                 )
               ),
-              fluidRow(
-                box(title = tags$span(icon("chart-line"), " Visualisation des Données"), 
+              shiny::fluidRow(
+                shinydashboard::box(title = shiny::tags$span(shiny::icon("chart-line"), " Visualisation des Données"), 
                     status = "info", width = 12, solidHeader = TRUE, collapsible = TRUE,
-                    fluidRow(
-                      column(4,
-                             tags$div(
+                    shiny::fluidRow(
+                      shiny::column(4,
+                             shiny::tags$div(
                                style = "background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 15px; border-radius: 8px; margin-bottom: 15px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);",
-                               tags$h5(icon("chart-pie"), " Configuration du graphique", 
+                               shiny::tags$h5(shiny::icon("chart-pie"), " Configuration du graphique", 
                                        style = "margin: 0; font-weight: bold; text-align: center;")
                              ),
-                             uiOutput(ns("descPlotVarSelect")),
-                             uiOutput(ns("descPlotFactorSelect")),
-                             hr(style = "border-color: #ddd;"),
+                             shiny::uiOutput(ns("descPlotVarSelect")),
+                             shiny::uiOutput(ns("descPlotFactorSelect")),
+                             shiny::hr(style = "border-color: #ddd;"),
                              
-                             conditionalPanel(
+                             shiny::conditionalPanel(
               ns = ns,
                                condition = "input.descPlotFactor != 'Aucun'",
-                               tags$div(
+                               shiny::tags$div(
                                  style = "background-color: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);",
-                                 h6(icon("sliders-h"), " Options du Boxplot", 
+                                 shiny::h6(shiny::icon("sliders-h"), " Options du Boxplot", 
                                     style = "color: #856404; font-weight: bold; margin-bottom: 12px;"),
-                                 checkboxInput(ns("descPlotShowValues"), 
-                                               HTML("<span style='font-size: 14px;'><i class='fa fa-list-ol'></i> Afficher les valeurs extrêmes (min/max)</span>"), 
+                                 shiny::checkboxInput(ns("descPlotShowValues"), 
+                                               shiny::HTML("<span style='font-size: 14px;'><i class='fa fa-list-ol'></i> Afficher les valeurs extrêmes (min/max)</span>"), 
                                                value = FALSE)
                                ),
-                               hr(style = "border-color: #ddd;")
+                               shiny::hr(style = "border-color: #ddd;")
                              ),
                              
-                             tags$div(
+                             shiny::tags$div(
                                style = "background-color: #f3e5f5; padding: 15px; border-radius: 8px; border-left: 4px solid #9c27b0; margin-bottom: 15px;",
-                               h6(icon("palette"), " Palette de couleurs", 
+                               shiny::h6(shiny::icon("palette"), " Palette de couleurs", 
                                   style = "color: #6a1b9a; font-weight: bold; margin-bottom: 12px;"),
-                               selectInput(ns("descPlotColorPalette"), NULL,
+                               shiny::selectInput(ns("descPlotColorPalette"), NULL,
                                            choices = list(
                                              "Par défaut (ggplot2)" = "ggplot2",
                                              "--- Palettes RColorBrewer ---" = "",
@@ -147,94 +147,96 @@ mod_descriptive_ui <- function(id) {
                                            width = "100%")
                              ),
                              
-                             tags$div(
+                             shiny::tags$div(
                                style = "background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #6c757d; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);",
-                               h6(icon("expand-arrows-alt"), " Dimensions du Graphique", 
+                               shiny::h6(shiny::icon("expand-arrows-alt"), " Dimensions du Graphique", 
                                   style = "color: #343a40; font-weight: bold; margin-bottom: 12px;"),
-                               sliderInput(ns("descPlotWidth"), "Largeur (pixels):", 
+                               shiny::sliderInput(ns("descPlotWidth"), "Largeur (pixels):", 
                                            min = 400, max = 2000, value = 900, step = 50, width = "100%"),
-                               sliderInput(ns("descPlotHeight"), "Hauteur (pixels):", 
+                               shiny::sliderInput(ns("descPlotHeight"), "Hauteur (pixels):", 
                                            min = 400, max = 2000, value = 600, step = 50, width = "100%")
                              ),
                              
+                             hstat_axe_titre_ui(ns, "desc"),
+
                              hstat_export_plot_ui(ns, "descPl", width = 9.8, height = 7.1)
                       ),
-                      column(8,
-                             wellPanel(
+                      shiny::column(8,
+                             shiny::wellPanel(
                                style = "background: linear-gradient(to right, #f8f9fa 0%, #e9ecef 100%); border-left: 5px solid #3498db; box-shadow: 0 2px 8px rgba(0,0,0,0.1);",
-                               h5(icon("paint-brush"), " Personnalisation du Graphique", 
+                               shiny::h5(shiny::icon("paint-brush"), " Personnalisation du Graphique", 
                                   style = "font-weight: bold; color: #2c3e50; margin-bottom: 20px; text-align: center; font-size: 18px;"),
                                
-                               tags$div(
+                               shiny::tags$div(
                                  style = "background-color: white; padding: 20px; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 3px 6px rgba(0,0,0,0.08); border-top: 3px solid #3498db;",
-                                 h6(icon("heading"), " Titre du graphique", 
+                                 shiny::h6(shiny::icon("heading"), " Titre du graphique", 
                                     style = "font-weight: bold; color: #495057; margin-bottom: 15px; font-size: 15px;"),
-                                 textInput(ns("descPlotTitle"), NULL, 
+                                 shiny::textInput(ns("descPlotTitle"), NULL, 
                                            placeholder = "Ex: Distribution des rendements par traitement...",
                                            width = "100%"),
-                                 fluidRow(
-                                   column(4,
-                                          checkboxInput(ns("descPlotCenterTitle"), 
-                                                        HTML("<span style='font-size: 14px;'><i class='fa fa-align-center'></i> Centrer</span>"), 
+                                 shiny::fluidRow(
+                                   shiny::column(4,
+                                          shiny::checkboxInput(ns("descPlotCenterTitle"), 
+                                                        shiny::HTML("<span style='font-size: 14px;'><i class='fa fa-align-center'></i> Centrer</span>"), 
                                                         value = TRUE)
                                    ),
-                                   column(4,
-                                          checkboxInput(ns("descPlotTitleBold"), 
-                                                        HTML("<span style='font-size: 14px;'><strong>Gras</strong></span>"), 
+                                   shiny::column(4,
+                                          shiny::checkboxInput(ns("descPlotTitleBold"), 
+                                                        shiny::HTML("<span style='font-size: 14px;'><strong>Gras</strong></span>"), 
                                                         value = TRUE)
                                    ),
-                                   column(4,
-                                          checkboxInput(ns("descPlotTitleItalic"), 
-                                                        HTML("<span style='font-size: 14px;'><em>Italique</em></span>"), 
+                                   shiny::column(4,
+                                          shiny::checkboxInput(ns("descPlotTitleItalic"), 
+                                                        shiny::HTML("<span style='font-size: 14px;'><em>Italique</em></span>"), 
                                                         value = FALSE)
                                    )
                                  )
                                ),
                                
-                               tags$div(
+                               shiny::tags$div(
                                  style = "background-color: white; padding: 20px; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 3px 6px rgba(0,0,0,0.08); border-top: 3px solid #27ae60;",
-                                 h6(icon("arrows-alt-h"), " Labels des axes", 
+                                 shiny::h6(shiny::icon("arrows-alt-h"), " Labels des axes", 
                                     style = "font-weight: bold; color: #27ae60; margin-bottom: 15px; font-size: 15px;"),
-                                 fluidRow(
-                                   column(6,
-                                          tags$div(
+                                 shiny::fluidRow(
+                                   shiny::column(6,
+                                          shiny::tags$div(
                                             style = "background: linear-gradient(to bottom, #ebf8ff 0%, #bee3f8 100%); padding: 15px; border-radius: 8px; border-left: 4px solid #3498db;",
-                                            h6(icon("arrows-alt-h"), " Axe X", 
+                                            shiny::h6(shiny::icon("arrows-alt-h"), " Axe X", 
                                                style = "color: #2c5aa0; font-weight: bold; margin-bottom: 12px;"),
-                                            textInput(ns("descPlotXLabel"), NULL, 
+                                            shiny::textInput(ns("descPlotXLabel"), NULL, 
                                                       placeholder = "Label horizontal...",
                                                       width = "100%"),
-                                            fluidRow(
-                                              column(6,
-                                                     checkboxInput(ns("descPlotXBold"), 
-                                                                   HTML("<small><strong>Gras</strong></small>"), 
+                                            shiny::fluidRow(
+                                              shiny::column(6,
+                                                     shiny::checkboxInput(ns("descPlotXBold"), 
+                                                                   shiny::HTML("<small><strong>Gras</strong></small>"), 
                                                                    value = FALSE)
                                               ),
-                                              column(6,
-                                                     checkboxInput(ns("descPlotXItalic"), 
-                                                                   HTML("<small><em>Italique</em></small>"), 
+                                              shiny::column(6,
+                                                     shiny::checkboxInput(ns("descPlotXItalic"), 
+                                                                   shiny::HTML("<small><em>Italique</em></small>"), 
                                                                    value = FALSE)
                                               )
                                             )
                                           )
                                    ),
-                                   column(6,
-                                          tags$div(
+                                   shiny::column(6,
+                                          shiny::tags$div(
                                             style = "background: linear-gradient(to bottom, #f0fff4 0%, #c6f6d5 100%); padding: 15px; border-radius: 8px; border-left: 4px solid #27ae60;",
-                                            h6(icon("arrows-alt-v"), " Axe Y", 
+                                            shiny::h6(shiny::icon("arrows-alt-v"), " Axe Y", 
                                                style = "color: #22863a; font-weight: bold; margin-bottom: 12px;"),
-                                            textInput(ns("descPlotYLabel"), NULL, 
+                                            shiny::textInput(ns("descPlotYLabel"), NULL, 
                                                       placeholder = "Label vertical...",
                                                       width = "100%"),
-                                            fluidRow(
-                                              column(6,
-                                                     checkboxInput(ns("descPlotYBold"), 
-                                                                   HTML("<small><strong>Gras</strong></small>"), 
+                                            shiny::fluidRow(
+                                              shiny::column(6,
+                                                     shiny::checkboxInput(ns("descPlotYBold"), 
+                                                                   shiny::HTML("<small><strong>Gras</strong></small>"), 
                                                                    value = FALSE)
                                               ),
-                                              column(6,
-                                                     checkboxInput(ns("descPlotYItalic"), 
-                                                                   HTML("<small><em>Italique</em></small>"), 
+                                              shiny::column(6,
+                                                     shiny::checkboxInput(ns("descPlotYItalic"), 
+                                                                   shiny::HTML("<small><em>Italique</em></small>"), 
                                                                    value = FALSE)
                                               )
                                             )
@@ -243,55 +245,55 @@ mod_descriptive_ui <- function(id) {
                                  )
                                ),
                                
-                               tags$div(
+                               shiny::tags$div(
                                  style = "background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 3px 6px rgba(0,0,0,0.08); border-top: 3px solid #e74c3c;",
-                                 h6(icon("ruler-horizontal"), " Graduations des axes", 
+                                 shiny::h6(shiny::icon("ruler-horizontal"), " Graduations des axes", 
                                     style = "font-weight: bold; color: #e74c3c; margin-bottom: 15px; font-size: 15px;"),
-                                 fluidRow(
-                                   column(6,
-                                          tags$div(
+                                 shiny::fluidRow(
+                                   shiny::column(6,
+                                          shiny::tags$div(
                                             style = "background-color: #f0f8ff; padding: 15px; border-radius: 8px; border: 2px solid #b3d9ff;",
-                                            h6(icon("long-arrow-alt-right"), " Axe X", 
+                                            shiny::h6(shiny::icon("long-arrow-alt-right"), " Axe X", 
                                                style = "color: #3498db; font-weight: bold; margin-bottom: 12px; text-align: center;"),
-                                            sliderInput(ns("descPlotXAngle"), "Angle d'inclinaison:", 
+                                            shiny::sliderInput(ns("descPlotXAngle"), "Angle d'inclinaison:", 
                                                         min = 0, max = 90, value = 0, step = 15,
                                                         post = "°", width = "100%"),
-                                            tags$hr(style = "margin: 15px 0; border-color: #b3d9ff;"),
-                                            h6("Style du texte:", style = "font-size: 13px; color: #555; margin-bottom: 10px; font-weight: bold;"),
-                                            fluidRow(
-                                              column(6,
-                                                     checkboxInput(ns("descPlotXTickBold"), 
-                                                                   HTML("<small><strong>Gras</strong></small>"), 
+                                            shiny::tags$hr(style = "margin: 15px 0; border-color: #b3d9ff;"),
+                                            shiny::h6("Style du texte:", style = "font-size: 13px; color: #555; margin-bottom: 10px; font-weight: bold;"),
+                                            shiny::fluidRow(
+                                              shiny::column(6,
+                                                     shiny::checkboxInput(ns("descPlotXTickBold"), 
+                                                                   shiny::HTML("<small><strong>Gras</strong></small>"), 
                                                                    value = FALSE)
                                               ),
-                                              column(6,
-                                                     checkboxInput(ns("descPlotXTickItalic"), 
-                                                                   HTML("<small><em>Italique</em></small>"), 
+                                              shiny::column(6,
+                                                     shiny::checkboxInput(ns("descPlotXTickItalic"), 
+                                                                   shiny::HTML("<small><em>Italique</em></small>"), 
                                                                    value = FALSE)
                                               )
                                             )
                                           )
                                    ),
-                                   column(6,
-                                          tags$div(
+                                   shiny::column(6,
+                                          shiny::tags$div(
                                             style = "background-color: #f0fff4; padding: 15px; border-radius: 8px; border: 2px solid #b3e6cc;",
-                                            h6(icon("long-arrow-alt-up"), " Axe Y", 
+                                            shiny::h6(shiny::icon("long-arrow-alt-up"), " Axe Y", 
                                                style = "color: #27ae60; font-weight: bold; margin-bottom: 12px; text-align: center;"),
-                                            tags$div(
+                                            shiny::tags$div(
                                               style = "height: 78px; display: flex; align-items: center; justify-content: center; background-color: rgba(39,174,96,0.1); border-radius: 6px; color: #27ae60; font-size: 13px; font-style: italic; padding: 10px; text-align: center;", 
                                               "Les graduations Y restent toujours horizontales"
                                             ),
-                                            tags$hr(style = "margin: 15px 0; border-color: #b3e6cc;"),
-                                            h6("Style du texte:", style = "font-size: 13px; color: #555; margin-bottom: 10px; font-weight: bold;"),
-                                            fluidRow(
-                                              column(6,
-                                                     checkboxInput(ns("descPlotYTickBold"), 
-                                                                   HTML("<small><strong>Gras</strong></small>"), 
+                                            shiny::tags$hr(style = "margin: 15px 0; border-color: #b3e6cc;"),
+                                            shiny::h6("Style du texte:", style = "font-size: 13px; color: #555; margin-bottom: 10px; font-weight: bold;"),
+                                            shiny::fluidRow(
+                                              shiny::column(6,
+                                                     shiny::checkboxInput(ns("descPlotYTickBold"), 
+                                                                   shiny::HTML("<small><strong>Gras</strong></small>"), 
                                                                    value = FALSE)
                                               ),
-                                              column(6,
-                                                     checkboxInput(ns("descPlotYTickItalic"), 
-                                                                   HTML("<small><em>Italique</em></small>"), 
+                                              shiny::column(6,
+                                                     shiny::checkboxInput(ns("descPlotYTickItalic"), 
+                                                                   shiny::HTML("<small><em>Italique</em></small>"), 
                                                                    value = FALSE)
                                               )
                                             )
@@ -302,26 +304,26 @@ mod_descriptive_ui <- function(id) {
                              )
                       )
                     ),
-                    hr(style = "border-color: #ccc; margin: 30px 0;"),
-                    tags$div(
+                    shiny::hr(style = "border-color: #ccc; margin: 30px 0;"),
+                    shiny::tags$div(
                       style = "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 15px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.15);",
-                      h4(icon("chart-area"), " Aperçu du graphique", 
+                      shiny::h4(shiny::icon("chart-area"), " Aperçu du graphique", 
                          style = "color: white; margin: 0; text-align: center; font-weight: bold;")
                     ),
-                    uiOutput(ns("descPlotOutput"))
+                    shiny::uiOutput(ns("descPlotOutput"))
                 )
               )
   )
 }
 
 mod_descriptive_server <- function(id, values) {
-  moduleServer(id, function(input, output, session) {
+  shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
     # Depot des statistiques descriptives pour l'aide a la decision. Ici, et non
     # dans app_server.R : les selecteurs sont namespaces, `input$numVars`
     # n'existe qu'a l'interieur de ce module.
-    observeEvent(values$descStats, {
+    shiny::observeEvent(values$descStats, {
       df <- values$descStats
       if (is.null(df) || !NROW(df)) return()
       hstat_ai_capture(values, "Analyses descriptives",
@@ -332,12 +334,12 @@ mod_descriptive_server <- function(id, values) {
     }, ignoreInit = TRUE)
   # ---- Analyse descriptives ----
   
-  output$numVarSelect <- renderUI({
-    req(values$filteredData)
+  output$numVarSelect <- shiny::renderUI({
+    shiny::req(values$filteredData)
     num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
     if (length(num_cols) == 0) return(NULL)
     
-    tagList(
+    shiny::tagList(
       pickerInput(
         inputId = ns("numVars"),
         label = "Sélectionnez les variables numériques:", 
@@ -346,45 +348,45 @@ mod_descriptive_server <- function(id, values) {
         selected = num_cols[1:min(5, length(num_cols))],
         options = list(`actions-box` = TRUE, `live-search` = TRUE)
       ),
-      div(style = "margin-top: 10px;",
-          actionButton(ns("selectAllNumVars"), "Tout sélectionner", 
+      shiny::div(style = "margin-top: 10px;",
+          shiny::actionButton(ns("selectAllNumVars"), "Tout sélectionner", 
                        class = "btn-success btn-sm", 
-                       icon = icon("check-double")),
-          actionButton(ns("deselectAllNumVars"), "Tout désélectionner", 
+                       icon = shiny::icon("check-double")),
+          shiny::actionButton(ns("deselectAllNumVars"), "Tout désélectionner", 
                        class = "btn-warning btn-sm", 
-                       icon = icon("times"),
+                       icon = shiny::icon("times"),
                        style = "margin-left: 5px;")
       )
     )
   })
   
-  observeEvent(input$selectAllNumVars, {
+  shiny::observeEvent(input$selectAllNumVars, {
     num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
     updatePickerInput(session, "numVars", selected = num_cols)
-    showNotification("Toutes les variables sélectionnées", type = "message", duration = 2)
+    shiny::showNotification("Toutes les variables sélectionnées", type = "message", duration = 2)
   })
   
-  observeEvent(input$deselectAllNumVars, {
+  shiny::observeEvent(input$deselectAllNumVars, {
     updatePickerInput(session, "numVars", selected = character(0))
-    showNotification("Toutes les variables désélectionnées", type = "message", duration = 2)
+    shiny::showNotification("Toutes les variables désélectionnées", type = "message", duration = 2)
   })
   
-  output$descFactorUI <- renderUI({
-    req(values$filteredData)
+  output$descFactorUI <- shiny::renderUI({
+    shiny::req(values$filteredData)
     fac_cols <- get_all_factor_candidates(values$filteredData)
-    tagList(
+    shiny::tagList(
       pickerInput(ns("descFactors"), "Calcul par facteurs (optionnel)",
                   choices  = fac_cols,
                   multiple = TRUE,
                   options  = list(`actions-box` = TRUE, `live-search` = TRUE)),
-      helpText(icon("info-circle"),
+      shiny::helpText(shiny::icon("info-circle"),
                " Tous types acceptés (facteur, texte, date, numérique <=30 niveaux).",
                " Laissez vide pour des descriptives globales.")
     )
   })
   
-  observeEvent(input$selectAllNum, {
-    req(values$filteredData)
+  shiny::observeEvent(input$selectAllNum, {
+    shiny::req(values$filteredData)
     num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
     if (input$selectAllNum) {
       updatePickerInput(session, "numVars", selected = num_cols)
@@ -393,10 +395,10 @@ mod_descriptive_server <- function(id, values) {
     }
   })
   
-  observeEvent(input$calcDesc, {
-    req(input$numVars)
+  shiny::observeEvent(input$calcDesc, {
+    shiny::req(input$numVars)
     
-    showNotification("Calcul en cours...", type = "message", duration = NULL, id = "calcProgress")
+    shiny::showNotification("Calcul en cours...", type = "message", duration = NULL, id = "calcProgress")
     
     tryCatch({
       stats_sel <- input$descStats
@@ -423,8 +425,8 @@ mod_descriptive_server <- function(id, values) {
       make_summ_grouped <- function(df_in, group_vars, num_vars, stats_sel) {
         results_list <- lapply(num_vars, function(var_name) {
           var_results <- df_in %>%
-            group_by(!!!syms(group_vars)) %>%
-            summarise(
+            dplyr::group_by(!!!ggplot2::syms(group_vars)) %>%
+            dplyr::summarise(
               mean = if("mean" %in% stats_sel) mean(.data[[var_name]], na.rm = TRUE) else NA_real_,
               median = if("median" %in% stats_sel) median(.data[[var_name]], na.rm = TRUE) else NA_real_,
               sd = if("sd" %in% stats_sel) sd(.data[[var_name]], na.rm = TRUE) else NA_real_,
@@ -436,12 +438,12 @@ mod_descriptive_server <- function(id, values) {
               q3 = if("q3" %in% stats_sel) quantile(.data[[var_name]], 0.75, na.rm = TRUE) else NA_real_,
               .groups = "drop"
             ) %>%
-            mutate(Variable = var_name)
+            dplyr::mutate(Variable = var_name)
           
           return(var_results)
         })
         
-        df_combined <- bind_rows(results_list)
+        df_combined <- dplyr::bind_rows(results_list)
         
         selected_cols <- c(group_vars, "Variable", stats_sel)
         final_cols <- selected_cols[selected_cols %in% names(df_combined)]
@@ -456,12 +458,12 @@ mod_descriptive_server <- function(id, values) {
         values$descStats <- make_summ_global(values$filteredData, input$numVars, stats_sel)
       }
       
-      removeNotification("calcProgress")
-      showNotification("Statistiques calculées avec succès!", type = "message", duration = 3)
+      shiny::removeNotification("calcProgress")
+      shiny::showNotification("Statistiques calculées avec succès!", type = "message", duration = 3)
       
     }, error = function(e) {
-      removeNotification("calcProgress")
-      showNotification(hstat_err_fr(e, "Erreur"), type = "error", duration = 5)
+      shiny::removeNotification("calcProgress")
+      shiny::showNotification(hstat_err_fr(e, "Erreur"), type = "error", duration = 5)
     })
   })
 
@@ -470,23 +472,23 @@ mod_descriptive_server <- function(id, values) {
   # la premiere definition (les output$ Shiny doivent etre uniques).
 
   # Calcul des statistiques descriptives EXACTES sur le jeu complet (DuckDB)
-  observeEvent(input$calcDescFull, {
+  shiny::observeEvent(input$calcDescFull, {
     if (!identical(values$dataMode, "duckdb") || is.null(values$dbCon)) {
-      showNotification("Le calcul sur jeu complet n'est disponible qu'en mode hors-mémoire.",
+      shiny::showNotification("Le calcul sur jeu complet n'est disponible qu'en mode hors-mémoire.",
                        type = "warning")
       return(invisible(NULL))
     }
     if (is.null(input$numVars) || length(input$numVars) == 0) {
-      showNotification("Sélectionnez au moins une variable numérique.", type = "warning")
+      shiny::showNotification("Sélectionnez au moins une variable numérique.", type = "warning")
       return(invisible(NULL))
     }
     stats_sel <- input$descStats
     if (is.null(stats_sel) || length(stats_sel) == 0) {
-      showNotification("Sélectionnez au moins une statistique.", type = "warning")
+      shiny::showNotification("Sélectionnez au moins une statistique.", type = "warning")
       return(invisible(NULL))
     }
     tryCatch({
-      withProgress(message = "Calcul exact sur le jeu complet (DuckDB)", value = 0.4, {
+      shiny::withProgress(message = "Calcul exact sur le jeu complet (DuckDB)", value = 0.4, {
         if (!is.null(input$descFactors) && length(input$descFactors) > 0) {
           ck <- hstat_cache_key("desc_grouped", values$dbTable,
                                 input$descFactors, input$numVars, stats_sel)
@@ -500,25 +502,25 @@ mod_descriptive_server <- function(id, values) {
             hstat_duckdb_describe_global(
               values$dbCon, values$dbTable, input$numVars, stats_sel))
         }
-        incProgress(1)
+        shiny::incProgress(1)
       })
-      showNotification(
+      shiny::showNotification(
         trf("Statistiques exactes calculées sur le jeu complet (%s lignes).",
                 format(values$fullNrow %||% 0, big.mark = " ")),
         type = "message", duration = 6)
     }, error = function(e) {
-      showNotification(hstat_err_fr(e, "Calcul sur le jeu complet"),
+      shiny::showNotification(hstat_err_fr(e, "Calcul sur le jeu complet"),
                        type = "error", duration = 6)
     })
   })
   
-  output$descResults <- renderDT({
-    req(values$descStats)
+  output$descResults <- DT::renderDT({
+    shiny::req(values$descStats)
     
     use_round <- !is.null(input$descRoundResults) && input$descRoundResults
     dec <- if (use_round && !is.null(input$descDecimals)) input$descDecimals else 4
     
-    datatable(
+    DT::datatable(
       values$descStats, 
       options = list(
         scrollX = TRUE, 
@@ -536,20 +538,20 @@ mod_descriptive_server <- function(id, values) {
       class = 'cell-border stripe hover',
       filter = 'top'
     ) %>%
-      formatRound(columns = which(sapply(values$descStats, is.numeric)), digits = dec)
+      DT::formatRound(columns = which(sapply(values$descStats, is.numeric)), digits = dec)
   })
   
-  output$downloadDesc <- downloadHandler(
+  output$downloadDesc <- shiny::downloadHandler(
     filename = function() {
       paste0("descriptives_", Sys.Date(), ".csv")
     },
     content = function(file) {
       write.csv(values$descStats, file, row.names = FALSE)
-      showNotification("Fichier CSV téléchargé!", type = "message", duration = 3)
+      shiny::showNotification("Fichier CSV téléchargé!", type = "message", duration = 3)
     }
   )
   
-  output$downloadDescExcel <- downloadHandler(
+  output$downloadDescExcel <- shiny::downloadHandler(
     filename = function() {
       paste0("descriptives_", Sys.Date(), ".xlsx")
     },
@@ -557,52 +559,52 @@ mod_descriptive_server <- function(id, values) {
       # openxlsx fait partie des packages requis ; repli propre si indisponible.
       if (requireNamespace("openxlsx", quietly = TRUE)) {
         openxlsx::write.xlsx(values$descStats, file)
-        showNotification("Fichier Excel téléchargé!", type = "message", duration = 3)
+        shiny::showNotification("Fichier Excel téléchargé!", type = "message", duration = 3)
       } else if (requireNamespace("writexl", quietly = TRUE)) {
         writexl::write_xlsx(values$descStats, file)
-        showNotification("Fichier Excel téléchargé!", type = "message", duration = 3)
+        shiny::showNotification("Fichier Excel téléchargé!", type = "message", duration = 3)
       } else {
         utils::write.csv(values$descStats, file, row.names = FALSE)
-        showNotification("Package Excel absent : export CSV fourni à la place.",
+        shiny::showNotification("Package Excel absent : export CSV fourni à la place.",
                          type = "warning", duration = 5)
       }
     }
   )
   
-  output$descPlotVarSelect <- renderUI({
-    req(values$filteredData)
+  output$descPlotVarSelect <- shiny::renderUI({
+    shiny::req(values$filteredData)
     num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
-    selectInput(ns("descPlotVar"), "Variable à visualiser:", choices = num_cols, width = "100%")
+    shiny::selectInput(ns("descPlotVar"), "Variable à visualiser:", choices = num_cols, width = "100%")
   })
   
-  output$descPlotFactorSelect <- renderUI({
-    req(values$filteredData)
+  output$descPlotFactorSelect <- shiny::renderUI({
+    shiny::req(values$filteredData)
     fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
-    selectInput(ns("descPlotFactor"), "Grouper par:", choices = c("Aucun", fac_cols), width = "100%")
+    shiny::selectInput(ns("descPlotFactor"), "Grouper par:", choices = c("Aucun", fac_cols), width = "100%")
   })
   
-  observe({
-    req(input$descPlotVar)
+  shiny::observe({
+    shiny::req(input$descPlotVar)
     
     if (is.null(input$descPlotTitle) || input$descPlotTitle == "") {
-      updateTextInput(session, "descPlotTitle", value = paste("Distribution de", input$descPlotVar))
+      shiny::updateTextInput(session, "descPlotTitle", value = paste("Distribution de", input$descPlotVar))
     }
     
     if (is.null(input$descPlotXLabel) || input$descPlotXLabel == "") {
-      updateTextInput(session, "descPlotXLabel", value = input$descPlotVar)
+      shiny::updateTextInput(session, "descPlotXLabel", value = input$descPlotVar)
     }
     
     if (is.null(input$descPlotYLabel) || input$descPlotYLabel == "") {
       if (input$descPlotFactor == "Aucun") {
-        updateTextInput(session, "descPlotYLabel", value = "Densité")
+        shiny::updateTextInput(session, "descPlotYLabel", value = "Densité")
       } else {
-        updateTextInput(session, "descPlotYLabel", value = input$descPlotVar)
+        shiny::updateTextInput(session, "descPlotYLabel", value = input$descPlotVar)
       }
     }
   })
   
   generate_desc_plot <- function() {
-    req(values$filteredData, input$descPlotVar)
+    shiny::req(values$filteredData, input$descPlotVar)
     
     plot_title <- if(!is.null(input$descPlotTitle) && input$descPlotTitle != "") {
       input$descPlotTitle
@@ -701,66 +703,66 @@ mod_descriptive_server <- function(id, values) {
                               "mono_black" = "#000000",
                               "#e74c3c")
       
-      ggplot(values$filteredData, aes(x = .data[[input$descPlotVar]])) +
-        geom_histogram(aes(y = after_stat(density)), alpha = 0.7, fill = hist_color, bins = 30) +
-        geom_density(linewidth = 1.2, color = density_color) +
-        theme_minimal() +
-        labs(title = plot_title, x = x_label, y = y_label) +
-        theme(
-          axis.line = element_line(color = "black", linewidth = 0.5),
-          axis.ticks = element_line(color = "black", linewidth = 0.5),
-          axis.title.x = element_markdown(face = x_label_font_face, size = 13, margin = margin(t = 10)),
-          axis.title.y = element_markdown(face = y_label_font_face, size = 13, margin = margin(r = 10)),
-          axis.text.x = element_text(
+      ggplot2::ggplot(values$filteredData, ggplot2::aes(x = .data[[input$descPlotVar]])) +
+        ggplot2::geom_histogram(ggplot2::aes(y = ggplot2::after_stat(density)), alpha = 0.7, fill = hist_color, bins = 30) +
+        ggplot2::geom_density(linewidth = 1.2, color = density_color) +
+        (hstat_export_theme(input, "descPl") %||% ggplot2::theme_minimal()) +
+        ggplot2::labs(title = plot_title, x = x_label, y = y_label) +
+        ggplot2::theme(
+          axis.line = ggplot2::element_line(color = "black", linewidth = 0.5),
+          axis.ticks = ggplot2::element_line(color = "black", linewidth = 0.5),
+          axis.title.x = hstat_axe_titre_lire(input, "desc", 13, x_label_font_face, "x"),
+          axis.title.y = hstat_axe_titre_lire(input, "desc", 13, y_label_font_face, "y"),
+          axis.text.x = ggplot2::element_text(
             face = x_tick_font_face, 
             angle = x_angle, 
             hjust = x_hjust,
             vjust = x_vjust,
             size = 11
           ),
-          axis.text.y = element_text(face = y_tick_font_face, size = 11),
-          plot.title = element_markdown(
+          axis.text.y = ggplot2::element_text(face = y_tick_font_face, size = 11),
+          plot.title = ggtext::element_markdown(
             hjust = if(isTRUE(input$descPlotCenterTitle)) 0.5 else 0, 
             face = title_font_face, 
             size = 16,
             margin = margin(b = 15)
           ),
-          panel.grid.major = element_line(color = "grey90", linewidth = 0.3),
-          panel.grid.minor = element_line(color = "grey95", linewidth = 0.2)
+          panel.grid.major = ggplot2::element_line(color = "grey90", linewidth = 0.3),
+          panel.grid.minor = ggplot2::element_line(color = "grey95", linewidth = 0.2)
         )
     } else {
       
       
-      base_plot <- ggplot(values$filteredData, aes(
+      base_plot <- ggplot2::ggplot(values$filteredData, ggplot2::aes(
         x = .data[[input$descPlotFactor]], 
         y = .data[[input$descPlotVar]], 
         fill = .data[[input$descPlotFactor]]
       )) +
-        stat_boxplot(geom = "errorbar", width = 0.3) +
-        geom_boxplot(alpha = 0.7, outlier.shape = 16, outlier.size = 2)
+        ggplot2::stat_boxplot(geom = "errorbar", width = 0.3) +
+        ggplot2::geom_boxplot(alpha = 0.7, outlier.shape = 16, outlier.size = 2)
       
       if (isTRUE(input$descPlotShowValues)) {
         extreme_data <- values$filteredData %>%
-          group_by(.data[[input$descPlotFactor]]) %>%
-          summarise(
+          dplyr::group_by(.data[[input$descPlotFactor]]) %>%
+          dplyr::summarise(
             min_val = min(.data[[input$descPlotVar]], na.rm = TRUE),
             max_val = max(.data[[input$descPlotVar]], na.rm = TRUE),
             .groups = "drop"
           )
         
         base_plot <- base_plot +
-          geom_text(
+          ggplot2::geom_text(
             data = extreme_data,
-            aes(x = .data[[input$descPlotFactor]], y = min_val, label = round(min_val, 2)),
+            ggplot2::aes(x = .data[[input$descPlotFactor]], y = min_val, label = round(min_val, 2)),
             vjust = 1.5,
             size = 3.5,
             fontface = "bold",
             color = "#2c3e50",
             inherit.aes = FALSE
           ) +
-          geom_text(
+          ggplot2::geom_text(
             data = extreme_data,
-            aes(x = .data[[input$descPlotFactor]], y = max_val, label = round(max_val, 2)),
+            ggplot2::aes(x = .data[[input$descPlotFactor]], y = max_val, label = round(max_val, 2)),
             vjust = -0.5,
             size = 3.5,
             fontface = "bold",
@@ -770,31 +772,31 @@ mod_descriptive_server <- function(id, values) {
       }
       
       base_plot <- base_plot +
-        theme_minimal() +
-        theme(
-          axis.line = element_line(color = "black", linewidth = 0.5),
-          axis.ticks = element_line(color = "black", linewidth = 0.5),
-          axis.title.x = element_markdown(face = x_label_font_face, size = 13, margin = margin(t = 10)),
-          axis.title.y = element_markdown(face = y_label_font_face, size = 13, margin = margin(r = 10)),
-          axis.text.x = element_text(
+        (hstat_export_theme(input, "descPl") %||% ggplot2::theme_minimal()) +
+        ggplot2::theme(
+          axis.line = ggplot2::element_line(color = "black", linewidth = 0.5),
+          axis.ticks = ggplot2::element_line(color = "black", linewidth = 0.5),
+          axis.title.x = hstat_axe_titre_lire(input, "desc", 13, x_label_font_face, "x"),
+          axis.title.y = hstat_axe_titre_lire(input, "desc", 13, y_label_font_face, "y"),
+          axis.text.x = ggplot2::element_text(
             face = x_tick_font_face, 
             angle = x_angle, 
             hjust = x_hjust,
             vjust = x_vjust,
             size = 11
           ),
-          axis.text.y = element_text(face = y_tick_font_face, size = 11),
-          plot.title = element_markdown(
+          axis.text.y = ggplot2::element_text(face = y_tick_font_face, size = 11),
+          plot.title = ggtext::element_markdown(
             hjust = if(isTRUE(input$descPlotCenterTitle)) 0.5 else 0,
             face = title_font_face, 
             size = 16,
             margin = margin(b = 15)
           ),
           legend.position = "none",
-          panel.grid.major = element_line(color = "grey90", linewidth = 0.3),
-          panel.grid.minor = element_blank()
+          panel.grid.major = ggplot2::element_line(color = "grey90", linewidth = 0.3),
+          panel.grid.minor = ggplot2::element_blank()
         ) +
-        labs(title = plot_title, x = x_label, y = y_label)
+        ggplot2::labs(title = plot_title, x = x_label, y = y_label)
       
       if (color_palette == "ggplot2") {
         base_plot
@@ -808,26 +810,26 @@ mod_descriptive_server <- function(id, values) {
                              "mono_black" = "#2C3E50",
                              "#2E86AB")
         n_groups <- length(unique(values$filteredData[[input$descPlotFactor]]))
-        base_plot + scale_fill_manual(
+        base_plot + ggplot2::scale_fill_manual(
           values = colorRampPalette(c("#FFFFFF", mono_color))(n_groups + 2)[2:(n_groups + 1)]
         )
       } else if (color_palette == "viridis") {
-        base_plot + scale_fill_viridis_d(option = "D")
+        base_plot + ggplot2::scale_fill_viridis_d(option = "D")
       } else {
-        base_plot + scale_fill_brewer(palette = color_palette)
+        base_plot + ggplot2::scale_fill_brewer(palette = color_palette)
       }
     }
     
     return(p)
   }
   
-  output$descPlotOutput <- renderUI({
-    req(input$descPlotWidth, input$descPlotHeight)
-    plotOutput(ns("descPlot"), width = paste0(input$descPlotWidth, "px"), height = paste0(input$descPlotHeight, "px"))
+  output$descPlotOutput <- shiny::renderUI({
+    shiny::req(input$descPlotWidth, input$descPlotHeight)
+    shiny::plotOutput(ns("descPlot"), width = paste0(input$descPlotWidth, "px"), height = paste0(input$descPlotHeight, "px"))
   })
   
-  output$descPlot <- renderPlot({
-    req(values$filteredData)
+  output$descPlot <- shiny::renderPlot({
+    shiny::req(values$filteredData)
     p <- generate_desc_plot()
     print(p)
   }, res = 96)

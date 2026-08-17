@@ -966,7 +966,7 @@ hstat_code_cloud_plot <- function(layout, palette = "default",
       y = range(layout$y) + c(-1, 1) * 0.12 * max(1, diff(range(layout$y))))
 
   if (exists("hstat_q_apply_palette") && !identical(palette, "default"))
-    p <- hstat_q_apply_palette(p, palette, low = low, high = high)
+    p <- hstat_q_apply_palette(p, palette, col_low = low, col_high = high)
   p
 }
 
@@ -1764,7 +1764,7 @@ mod_coding_ui <- function(id) {
           shiny::fluidRow(
             shiny::column(8, shiny::textInput(ns("new_code"), NULL,
                                               placeholder = "Ex. Prix trop eleve")),
-            shiny::column(4, colourpicker::colourInput(ns("new_color"), NULL,
+            shiny::column(4, colourInput(ns("new_color"), NULL,
                                                        value = HSTAT_CODE_PALETTE[1],
                                                        showColour = "background"))),
           # Code parent : c'est ce qui fait du livre de codes un ARBRE. Sans
