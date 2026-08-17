@@ -2753,6 +2753,23 @@ test_that("aucun identifiant n'est declare deux fois dans la page", {
   # L'espace avant `id=` est indispensable : sans lui, `data-grid="true"` est lu
   # comme un identifiant valant « true », et la mesure annonce 108 doublons.
   ids <- gsub("^ id=\"|\"$", "", regmatches(html, gregexpr(" id=\"[^\"]+\"", html))[[1]])
+
+  # LES ANCRES D'ONGLET DE SHINY SONT ECARTEES, et ce n'est pas un renoncement.
+  # `tabsetPanel()` numerote ses onglets `tab-<entier au hasard>-<n>`, l'entier
+  # etant tire entre 1000 et 10000 A CHAQUE CONSTRUCTION. L'application en rend
+  # trente-quatre : la probabilite qu'au moins deux partagent le meme tirage est
+  # de 6,1 % PAR RENDU. Ce test echouait donc environ une fois sur seize, sur un
+  # code parfaitement correct -- constate en integration continue, jamais en
+  # local.
+  #
+  # Verifie : passer un `id` explicite a `tabsetPanel()` NE CHANGE PAS ces
+  # ancres (l'id nomme la liaison d'entree, pas les cibles). Le tirage est
+  # interne a Shiny, l'application ne peut pas s'en prevenir.
+  #
+  # Ce que le test cherche -- les identifiants que L'APPLICATION declare deux
+  # fois, comme les 108 boutons homonymes qu'il a trouves -- reste entierement
+  # couvert : aucun d'eux ne porte cette forme.
+  ids <- ids[!grepl("^tab-[0-9]+-[0-9]+$", ids)]
   compte <- table(ids)
   expect_gt(length(ids), 500L)
   expect_equal(names(compte)[compte > 1], character(0))

@@ -5974,7 +5974,7 @@ mod_tests_server <- function(id, values) {
           colnames(groups)[1:2] <- c("means", "groups")
           groups[[factor1]] <- rownames(groups)
         } else if (test_method == "dunn") {
-          mc <- PMCMRplus::dunnTest(df_subset[[var]], df_subset[[factor1]])
+          mc <- PMCMRplus::kwAllPairsDunnTest(df_subset[[var]], df_subset[[factor1]])
           pmat <- as.matrix(mc$p.value)
           pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
           diag(pmat) <- 1
@@ -6282,7 +6282,7 @@ mod_tests_server <- function(id, values) {
             } else if (input$multiTestNonParam == "dunn") {
               np_adj <- input$multiNonParamAdjust %||% "holm"
               groups <- tryCatch({
-                mc <- PMCMRplus::dunnTest(df_var[[var]], df_var[[fvar]], p.adjust.method = np_adj)
+                mc <- PMCMRplus::kwAllPairsDunnTest(df_var[[var]], df_var[[fvar]], p.adjust.method = np_adj)
                 pmat <- as.matrix(mc$p.value)
                 pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
                 diag(pmat) <- 1

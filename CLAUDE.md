@@ -1848,6 +1848,37 @@ est donc posé dans `.hstat_repo_root()` — **le localisateur, que tous
 traversent** — et non dans chacun d'eux : une liste tenue à la main aurait
 dérivé au premier test ajouté.
 
+#### Deux défauts que seule l'intégration continue pouvait voir
+
+**`PMCMRplus::dunnTest` n'existe pas.** `dunnTest` est le nom **de FSA**, et le
+socle l'appelle correctement ainsi ; deux sites de `mod_tests.R` l'attribuaient
+à PMCMRplus, dont la famille s'appelle `kwAllPairsDunnTest` — c'est d'ailleurs
+la forme qu'emploient ses voisines immédiates (Conover, Nemenyi), qui lisent
+comme elle `mc$p.value`. Le post-hoc de Dunn levait « is not an exported
+object ».
+
+Le test qui balaie les `pkg::objet` **saute les paquets absents de la machine**
+— sinon il échouerait sur l'environnement et non sur le code. PMCMRplus n'étant
+pas installé ici, seule la CI pouvait le voir. C'est le test qui fonctionne
+comme prévu, pas une lacune.
+
+**Le test des identifiants dupliqués était instable, à 6,1 % par rendu.**
+`tabsetPanel()` numérote ses onglets `tab-<entier au hasard>-<n>`, l'entier
+étant tiré entre 1000 et 10000 **à chaque construction**. L'application en rend
+trente-quatre : la probabilité qu'au moins deux partagent le même tirage est de
+6,1 %. Le test échouait donc environ une fois sur seize, sur un code
+parfaitement correct.
+
+Vérifié avant de conclure : passer un `id` explicite à `tabsetPanel()` **ne
+change pas** ces ancres — l'`id` nomme la liaison d'entrée, pas les cibles.
+J'avais commencé par ajouter huit identifiants sur cette hypothèse ; la mesure
+l'a démentie, et ils ont été retirés. Le tirage est interne à Shiny.
+
+Les ancres sont donc écartées du décompte. Ce que le test cherche — les
+identifiants que **l'application** déclare deux fois, comme les 108 boutons
+homonymes qu'il a trouvés — reste entièrement couvert : aucun d'eux ne porte
+cette forme.
+
 #### Ce qui reste, et pourquoi
 
 | Reste | Raison |
