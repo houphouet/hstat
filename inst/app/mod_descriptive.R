@@ -157,12 +157,7 @@ mod_descriptive_ui <- function(id) {
                                            min = 400, max = 2000, value = 600, step = 50, width = "100%")
                              ),
                              
-                             fluidRow(
-                               column(6, hstat_format_input(ns("descPlot_format"), "Format:")),
-                               column(6, hstat_dpi_input(ns("descPlot_dpi"), "DPI:"))
-                             ),
-                             downloadButton(ns("downloadDescPlot"), "Télécharger le Graphique",
-                                            class = "btn-info btn-sm")
+                             hstat_export_plot_ui(ns, "descPl", width = 9.8, height = 7.1)
                       ),
                       column(8,
                              wellPanel(
@@ -837,22 +832,10 @@ mod_descriptive_server <- function(id, values) {
     print(p)
   }, res = 96)
   
-  output$downloadDescPlot <- downloadHandler(
-    filename = function() paste0("graphique_descriptif_", Sys.Date(), ".",
-                                 hstat_img_fmt(input$descPlot_format)),
-    content = function(file) {
-      # `calculate_dimensions_from_dpi()` etait appelee ici alors qu'elle n'a
-      # JAMAIS ete visible depuis ce module : elle vivait dans le corps de
-      # `server`. L'appel levait « impossible de trouver la fonction », Shiny
-      # renvoyait sa page d'erreur HTML, et le navigateur l'enregistrait en
-      # « .png ». C'est le telechargement d'image qui rendait du HTML.
-      dpi <- .hstat_num1(input$descPlot_dpi, 300)
-      p   <- tryCatch(generate_desc_plot(), error = function(e) NULL)
-      if (!hstat_ecrire_image(file, p, input$descPlot_format, 9.8, 7.1, dpi))
-        showNotification(
-          "Graphique indisponible : le fichier téléchargé porte le motif.",
-          type = "error", duration = 6)
-    }
-  )
+  # L'export passe par le kit partage. La taille etait FIGEE a 9,8 x 7,1
+  # pouces : les curseurs voisins ne reglent que l'apercu a l'ecran, et rien
+  # n'agissait sur le fichier produit.
+  output$descPlDl <- hstat_export_plot_handler(input, "descPl",
+                       function() generate_desc_plot(), "graphique_descriptif")
   })
 }

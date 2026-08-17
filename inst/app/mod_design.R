@@ -2176,13 +2176,7 @@ mod_design_ui <- function(id) {
               ),
               # ============ EXPORT DE L'IMAGE =========================
               .sect("download", "Export de l'image"),
-              fluidRow(
-                column(4, hstat_format_input(ns("dsgDownFormat"), "Format de téléchargement")),
-                column(4, hstat_dpi_input(ns("dsgDownDpi"), "Résolution (DPI)", min = 300, step = 100)),
-                column(4, div(style = "margin-top:25px;",
-                  downloadButton(ns("dsgPlotDownload"), "Télécharger l'image",
-                                 class = "btn-success btn-sm")))
-              ),
+              hstat_export_plot_ui(ns, "dsgPl", width = 11, height = 7),
               footer = div(style = "font-size:12px;color:#7f8c8d;", icon("info-circle"),
                 " Chaque cellule = une unité expérimentale ; couleur = traitement randomise. ",
                 "Pour un CRD/factoriel, le placement minimise les voisins identiques."))
@@ -3288,21 +3282,11 @@ mod_design_server <- function(id, values) {
       g
     })
 
-    output$dsgPlotDownload <- downloadHandler(
-      filename = function() {
-        paste0("dispositif_", input$dsgType, "_", Sys.Date(), ".",
-               hstat_img_fmt(input$dsgDownFormat))
-      },
-      content = function(file) {
-        g   <- tryCatch(build_design_plot(), error = function(e) NULL)
-        fmt <- hstat_img_fmt(input$dsgDownFormat)
-        dpi <- max(300, min(20000, .hstat_num1(input$dsgDownDpi, 300)))
-        # Un ggsave qui leve ne laisse aucun fichier : Shiny renvoie alors sa
-        # page d'erreur HTML sous le nom demande.
-        if (!hstat_ecrire_image(file, g, fmt, 11, 7, dpi))
-          showNotification("Plan indisponible : le fichier téléchargé porte le motif.",
-                           type = "error", duration = 6)
-      })
+    # L'export passe par le kit partage. Le plan avait sa taille FIGEE a
+    # 11 x 7 pouces : un dispositif a vingt blocs y ecrasait ses etiquettes,
+    # sans que rien ne permette de l'agrandir.
+    output$dsgPlDl <- hstat_export_plot_handler(input, "dsgPl",
+                        function() build_design_plot(), "dispositif")
 
     # ================= ENQUETE DE TERRAIN =================
     sv_res <- eventReactive(input$svCalc, {

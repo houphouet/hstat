@@ -1614,6 +1614,29 @@ résolutions. Il remonte donc à la tête de l'appel `numericInput(`, seule lign
 qui porte l'identifiant et le libellé — s'arrêter aux lignes voisines confondait
 un champ de pixels avec le champ de DPI déclaré juste au-dessus.
 
+### Le préfixe est le contrat
+
+`hstat_export_plot_ui(ns, prefix)` déclare les quatre réglages et le bouton ;
+`hstat_export_plot_handler(input, prefix, plot_fun)` les lit et écrit. **Le
+module ne fournit plus que la fonction qui rend le graphique** — il n'écrit plus
+une ligne de fichier, ne nomme plus de format, ne borne plus de résolution.
+
+Quatre exports vivaient encore à côté du kit, et chacun y perdait quelque chose
+que l'utilisateur voyait :
+
+| Export | Ce qui manquait |
+|---|---|
+| Distribution (exploration) | PNG imposé, taille figée : ni format ni dimensions |
+| Valeurs manquantes (exploration) | idem |
+| Graphique descriptif | taille figée à 9,8 × 7,1 po — les curseurs voisins ne règlent que l'aperçu |
+| Plan expérimental | taille figée à 11 × 7 po ; un dispositif à vingt blocs y écrase ses étiquettes |
+
+Corollaire découvert en migrant : **l'aperçu et le téléchargement construisaient
+chacun leur exemplaire du graphique**, avec les mêmes huit arguments recopiés.
+Deux copies à tenir d'accord, et rien pour signaler qu'elles avaient divergé. Le
+graphique passe donc par un `reactive()` unique, que `renderPlot` et l'export
+lisent tous deux — c'est ce que faisaient déjà les modules bâtis sur le kit.
+
 ## Fins de ligne
 
 Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. Sont en
