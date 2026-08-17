@@ -494,7 +494,16 @@ mod_viz_ui <- function(id) {
                           shiny::sliderInput(ns("axisLabelSize"),
                             "Labels des axes:",
                             min = 8, max = 18, value = 11, step = 1
-                          )
+                          ),
+                          # UN TITRE PLUS LONG QUE SON AXE DEBORDE et se fait
+                          # rogner a l'export. Sur un intitule explicite --
+                          # « Rendement moyen par parcelle en t/ha » -- c'est le
+                          # cas normal, pas le cas rare.
+                          shiny::checkboxInput(ns("axisTitleWrap"),
+                            "Titres d'axe sur plusieurs lignes si trop longs", TRUE),
+                          shiny::selectInput(ns("axisTitleAlign"),
+                            "Alignement des titres d'axe:",
+                            choices = HSTAT_ALIGN_TITRE, selected = "0.5")
                         ),
                         
                         shiny::div(
@@ -2888,6 +2897,8 @@ mod_viz_server <- function(id, values) {
     input$barPosition
     input$titleSize
     input$axisLabelSize
+    input$axisTitleWrap
+    input$axisTitleAlign
     input$baseFontSize
     input$xAxisBold
     input$xAxisItalic
@@ -3433,8 +3444,12 @@ mod_viz_server <- function(id, values) {
       get_plot_theme(base_size = input$baseFontSize %||% 12) +
       ggplot2::theme(
         plot.title    = ggtext::element_markdown(hjust = 0.5, face = "bold", size = input$titleSize %||% 14),
-        axis.title.x  = ggtext::element_markdown(face = x_axis_face, size = input$axisLabelSize %||% 12),
-        axis.title.y  = ggtext::element_markdown(face = y_axis_face, size = input$axisLabelSize %||% 12),
+        axis.title.x  = hstat_axe_titre(input$axisLabelSize %||% 12, x_axis_face,
+                                        input$axisTitleAlign %||% "0.5", "x",
+                                        retour = isTRUE(input$axisTitleWrap %||% TRUE)),
+        axis.title.y  = hstat_axe_titre(input$axisLabelSize %||% 12, y_axis_face,
+                                        input$axisTitleAlign %||% "0.5", "y",
+                                        retour = isTRUE(input$axisTitleWrap %||% TRUE)),
         axis.text.x   = ggplot2::element_text(face = x_tick_face, size = x_tick_size, angle = x_angle, hjust = x_hjust, vjust = x_vjust),
         axis.text.y   = ggplot2::element_text(face = y_tick_face, size = y_tick_size),
         legend.position    = input$legendPosition %||% "right",

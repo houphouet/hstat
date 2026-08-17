@@ -350,7 +350,7 @@ mod_explore_server <- function(id, values) {
       p <- p + ggplot2::geom_density(color = "red", linewidth = 1.2)
     }
     
-    p <- p + ggplot2::theme_minimal() +
+    p <- p + (hstat_export_theme(input, "distPl") %||% ggplot2::theme_minimal()) +
       ggplot2::labs(title = plot_title, x = var, y = "Densité") +
       ggplot2::theme(
         plot.title = ggtext::element_markdown(size = title_size, hjust = if (center_title) 0.5 else 0),
@@ -438,7 +438,7 @@ mod_explore_server <- function(id, values) {
       ggplot2::geom_bar(stat = "identity", fill = "steelblue", alpha = 0.8) +
       ggplot2::geom_text(ggplot2::aes(label = paste0(round(PctMissing, 1), "%")), 
                 vjust = -0.5, size = 3.5) +
-      ggplot2::theme_minimal() +
+      (hstat_export_theme(input, "missPl") %||% ggplot2::theme_minimal()) +
       ggplot2::labs(title = plot_title, x = "Variable", y = "Nombre de valeurs manquantes") +
       ggplot2::theme(
         plot.title = ggtext::element_markdown(size = title_size, hjust = if (center_title) 0.5 else 0),

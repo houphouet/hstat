@@ -6748,6 +6748,90 @@ test_that("aucun appel qualifie ne recouvre une fonction locale", {
   expect_equal(unique(trouves), character(0))
 })
 
+test_that("chaque graphique exportable offre un choix de theme", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # Quatre graphiques -- descriptif, plan experimental, distribution, valeurs
+  # manquantes -- n'offraient AUCUN choix de theme, alors que les treize autres
+  # en avaient un. Le theme rejoint donc le format et le DPI : il se declare au
+  # KIT (`hstat_export_plot_ui()`), et un bloc ajoute demain en herite sans
+  # qu'on y pense.
+  #
+  # `theme = FALSE` reste legitime pour les modules qui portent deja un
+  # selecteur global (`hstat_plot_opts_ui()`) : deux selecteurs pour un meme
+  # graphique, c'est un reglage qui en contredit un autre.
+  manquants <- character(0)
+  for (f in .hstat_sources_app()) {
+    l <- .hstat_code_lignes(f)
+    blocs <- grep("hstat_export_plot_ui\\(ns, \"", l, value = TRUE)
+    if (!length(blocs)) next
+    sans <- grep("theme\\s*=\\s*FALSE", blocs, value = TRUE)
+    if (length(sans) && !any(grepl("hstat_plot_opts_ui\\(", l)))
+      manquants <- c(manquants, sprintf("%s : %d bloc(s) sans theme et sans hstat_plot_opts_ui",
+                                        basename(f), length(sans)))
+  }
+  expect_equal(manquants, character(0))
+
+  # Le kit declare bien le selecteur, et depuis le catalogue.
+  socle <- .hstat_code_lignes(.hstat_socle_path())
+  i <- grep("^hstat_export_plot_ui <- function", socle)
+  expect_length(i, 1L)
+  corps <- paste(socle[i:(i + 25)], collapse = "\n")
+  expect_true(grepl("HSTAT_THEMES_GG", corps, fixed = TRUE))
+  expect_true(grepl("Theme", corps, fixed = TRUE))
+})
+
+test_that("un seul choisisseur de theme : viz_get_theme", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # `hstat_apply_plot_opts()` portait un SECOND `switch` sur le nom du theme, et
+  # il avait derive : cinq themes connus sur les huit du catalogue. « Gris »,
+  # « Traits fins » et « Sans decor » retombaient EN SILENCE sur « Minimal » --
+  # l'utilisateur changeait le reglage et l'image ne bougeait pas.
+  #
+  # Le balayage cherche tout `switch` dont les etiquettes sont des noms de
+  # theme, hors de `viz_get_theme()` elle-meme.
+  noms <- unname(HSTAT_THEMES_GG)
+  fautifs <- character(0)
+  for (f in .hstat_sources_app()) {
+    for (e in parse(f)) {
+      nom_def <- if (is.call(e) && as.character(e[[1]])[1] %in% c("<-", "=") &&
+                     is.name(e[[2]])) as.character(e[[2]]) else ""
+      if (identical(nom_def, "viz_get_theme")) next
+      rec <- function(x) {
+        if (!is.call(x)) return(invisible())
+        if (is.name(x[[1]]) && as.character(x[[1]]) == "switch") {
+          et <- names(as.list(x))
+          et <- if (is.null(et)) character(0) else et[nzchar(et)]
+          if (length(intersect(et, noms)) >= 3L)
+            fautifs <<- c(fautifs, sprintf("%s : %s()", basename(f), nom_def))
+        }
+        l <- as.list(x)
+        for (i in seq_along(l))
+          if (!identical(l[[i]], quote(expr = ))) rec(l[[i]])
+      }
+      rec(e)
+    }
+  }
+  expect_equal(unique(fautifs), character(0))
+
+  # Et les huit themes du catalogue sont tous rendus par `viz_get_theme()`.
+  for (th in unname(HSTAT_THEMES_GG)) {
+    g <- viz_get_theme(th, base_size = 12)
+    expect_s3_class(g, "theme")
+  }
+  # Un theme du catalogue absent du `switch` retomberait sur minimal : on
+  # verifie que chacun donne bien un resultat DIFFERENT de « minimal », sauf
+  # minimal lui-meme.
+  ref <- viz_get_theme("minimal", base_size = 12)
+  autres <- setdiff(unname(HSTAT_THEMES_GG), "minimal")
+  pareils <- autres[vapply(autres, function(th)
+    identical(viz_get_theme(th, 12)$panel.background, ref$panel.background) &&
+    identical(viz_get_theme(th, 12)$panel.grid.major, ref$panel.grid.major),
+    logical(1))]
+  expect_equal(pareils, character(0))
+})
+
 test_that("aucun appel ne nomme un argument que la fonction n'accepte pas", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))

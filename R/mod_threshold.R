@@ -411,6 +411,14 @@ mod_threshold_ui <- function(id) {
                                     min = 8, max = 28, value = 16, step = 1),
                         shiny::sliderInput(ns("thresholdAxisTitleSize"), "Titres des axes:", 
                                     min = 8, max = 24, value = 14, step = 1),
+                        # Un titre plus long que son axe deborde et se fait
+                        # rogner a l'export : il revient donc a la ligne, a la
+                        # largeur REELLE de l'axe.
+                        shiny::checkboxInput(ns("thresholdAxisTitleWrap"),
+                          "Titres d'axe sur plusieurs lignes si trop longs", TRUE),
+                        shiny::selectInput(ns("thresholdAxisTitleAlign"),
+                          "Alignement des titres d'axe:",
+                          choices = HSTAT_ALIGN_TITRE, selected = "0.5"),
                         shiny::sliderInput(ns("thresholdAxisTextSize"), "Texte des axes:", 
                                     min = 6, max = 20, value = 12, step = 1),
                         # Le titre de la legende et son texte partageaient un
@@ -426,16 +434,24 @@ mod_threshold_ui <- function(id) {
                         shiny::h6(shiny::icon("arrows-alt-v"), " Limites de l'axe Y", 
                            style = "font-weight: bold; color: #2e7d32; margin-bottom: 10px;"),
                         
+                        # UNE EFFICACITE NEGATIVE EST UN RESULTAT -- la modalite fait
+                        # moins bien que le temoin. Le minimum valait 0 ET portait
+                        # `min = 0` : non seulement la barre negative sortait du
+                        # cadre, mais l'utilisateur ne POUVAIT PAS saisir la valeur
+                        # qui l'aurait ramenee. Le champ accepte donc le negatif,
+                        # et vide il laisse l'axe suivre les donnees.
                         shiny::fluidRow(
                           shiny::column(6,
-                                 shiny::numericInput(ns("thresholdYMin"), "Minimum:", 
-                                              value = 0, min = 0, max = 100)
+                                 shiny::numericInput(ns("thresholdYMin"), "Minimum (vide = auto) :",
+                                              value = NA, max = 100)
                           ),
                           shiny::column(6,
-                                 shiny::numericInput(ns("thresholdYMax"), "Maximum:", 
-                                              value = 100, min = 0, max = 200)
+                                 shiny::numericInput(ns("thresholdYMax"), "Maximum (vide = auto) :",
+                                              value = NA, max = 200)
                           )
                         ),
+                        shiny::checkboxInput(ns("thresholdZeroLine"),
+                          "Ligne de référence à zéro (sépare gains et pertes)", TRUE),
                         # Sans pas de graduation, l'axe ne portait que les
                         # reperes choisis par ggplot -- rarement ceux qu'on veut
                         # sur un pourcentage (0, 10, 20...).
@@ -1340,10 +1356,13 @@ mod_threshold_server <- function(id, values) {
     input$thresholdLabelAngle
     input$thresholdTitleSize
     input$thresholdAxisTitleSize
+    input$thresholdAxisTitleWrap
+    input$thresholdAxisTitleAlign
     input$thresholdAxisTextSize
     input$thresholdLegendSize
     input$thresholdYMin
     input$thresholdYMax
+    input$thresholdZeroLine
     input$thresholdShowLegend
     input$thresholdLegendPosition
     input$thresholdLegendTitle
@@ -1607,24 +1626,46 @@ mod_threshold_server <- function(id, values) {
       
       # Graduations de l'axe Y : un pas demande, sinon le choix de ggplot.
       pas_y <- suppressWarnings(as.numeric(input$thresholdYBreakStep %||% NA)[1])
-      y_min <- input$thresholdYMin %||% 0
-      y_max <- input$thresholdYMax %||% 100
-      ech_y <- if (isTRUE(is.finite(pas_y)) && pas_y > 0 && is.finite(y_max - y_min))
+      # `NA` sur une borne = « automatique » pour ggplot : ce cote suit alors les
+      # donnees. C'est le defaut, et c'est ce qui garantit qu'une efficacite
+      # NEGATIVE -- la modalite fait moins bien que le temoin, c'est un resultat
+      # -- reste visible. L'ancien defaut 0-100 la faisait sortir du cadre.
+      num1 <- function(x) {
+        v <- suppressWarnings(as.numeric(x %||% NA)[1])
+        if (isTRUE(is.finite(v))) v else NA_real_
+      }
+      y_min <- num1(input$thresholdYMin)
+      y_max <- num1(input$thresholdYMax)
+      # Etendue REELLE de l'axe, bornes automatiques resolues : elle sert aux
+      # graduations. Zero y est toujours inclus -- c'est la reference de la
+      # formule d'Abbott, un cadre qui l'exclurait serait illisible.
+      obs <- plot_data$Efficacy[is.finite(plot_data$Efficacy)]
+      etendue <- range(c(obs, 0))
+      b_min <- if (is.na(y_min)) etendue[1] else y_min
+      b_max <- if (is.na(y_max)) etendue[2] else y_max
+      ech_y <- if (isTRUE(is.finite(pas_y)) && pas_y > 0 && is.finite(b_max - b_min))
         ggplot2::scale_y_continuous(limits = c(y_min, y_max),
-                           breaks = seq(y_min, y_max, by = pas_y))
+                           breaks = seq(hstat_pas_debut(b_min, pas_y), b_max, by = pas_y))
       else ggplot2::scale_y_continuous(limits = c(y_min, y_max))
 
       # Une barre hors des limites de l'axe DISPARAIT, avec son etiquette. Le
-      # cas est courant ici : le minimum vaut 0 par defaut, or une efficacite
-      # negative -- la modalite fait moins bien que le temoin -- est un
-      # resultat, pas une anomalie. Elle sortait du graphique sans un mot.
+      # decompte ne porte que sur les bornes REELLEMENT fixees : une borne
+      # automatique ne peut, par construction, rien exclure.
       hors <- sum(is.finite(plot_data$Efficacy) &
-                  (plot_data$Efficacy < y_min | plot_data$Efficacy > y_max))
+                  ((!is.na(y_min) & plot_data$Efficacy < y_min) |
+                   (!is.na(y_max) & plot_data$Efficacy > y_max)))
       if (hors > 0)
         shiny::showNotification(
-          trf("%d valeur(s) hors des limites de l'axe Y (%s à %s) : elles n'apparaissent pas. Élargissez les limites dans « Apparence & options ».",
-              hors, y_min, y_max),
+          trf("%d valeur(s) hors des limites de l'axe Y (%s à %s) : elles n'apparaissent pas. Élargissez les limites, ou videz les champs pour laisser l'axe suivre les données.",
+              hors, if (is.na(y_min)) tr("auto") else y_min,
+              if (is.na(y_max)) tr("auto") else y_max),
           type = "warning", duration = 8, id = session$ns("seuilHorsAxe"))
+
+      # Ligne de reference a zero : sans elle, une barre negative se lit comme
+      # une barre courte vers le bas sans qu'on voie ou passe la frontiere.
+      if (isTRUE(input$thresholdZeroLine %||% TRUE) && any(obs < 0))
+        p <- p + ggplot2::geom_hline(yintercept = 0, linewidth = 0.4,
+                                     colour = "#374151")
 
       sous_titre <- input$thresholdSubtitle %||% ""
       hj <- function(x, defaut = 0.5) {
@@ -1646,12 +1687,16 @@ mod_threshold_server <- function(id, values) {
                              face = input$thresholdSubtitleStyle %||% "italic",
                              colour = "gray30")
           else ggplot2::element_blank(),
-          axis.title.x = ggtext::element_markdown(size = input$thresholdAxisTitleSize %||% 14, 
-                                          face = x_label_face,
-                                          color = axis_color),
-          axis.title.y = ggtext::element_markdown(size = input$thresholdAxisTitleSize %||% 14, 
-                                          face = y_label_face,
-                                          color = axis_color),
+          axis.title.x = hstat_axe_titre(input$thresholdAxisTitleSize %||% 14,
+                                         x_label_face,
+                                         input$thresholdAxisTitleAlign %||% "0.5", "x",
+                                         retour = isTRUE(input$thresholdAxisTitleWrap %||% TRUE),
+                                         colour = axis_color),
+          axis.title.y = hstat_axe_titre(input$thresholdAxisTitleSize %||% 14,
+                                         y_label_face,
+                                         input$thresholdAxisTitleAlign %||% "0.5", "y",
+                                         retour = isTRUE(input$thresholdAxisTitleWrap %||% TRUE),
+                                         colour = axis_color),
           axis.text.y = ggplot2::element_text(size = input$thresholdAxisTextSize %||% 12,
                                      color = axis_color,
                                      face = input$thresholdAxisTextYStyle %||% "plain"),

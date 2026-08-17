@@ -1215,7 +1215,7 @@ hstat_design_analysis <- function(type, n_factors) {
 # Rendu FACETTE des dispositifs en blocs simples (fisher, factorial) : un panneau
 # par bloc, le nom du bloc ecrit sur la bande de facette.
 .build_block_faceted <- function(b, fill_scale, ttl, show_text = TRUE, label_mode = "both", cell_sep = 1,
-                                  nplot = 1, font_label = 2.8, font_axis = 12,
+                                  nplot = 1, font_label = 2.8, font_axis = 12, theme_gg = NULL,
                                   legend_order = "alpha", legend_pos = "right",
                                   legend_title = "", grad = "vertical_down",
                                   grad_label = "Gradient", grad_size = 3.5,
@@ -1261,7 +1261,7 @@ hstat_design_analysis <- function(type, n_factors) {
       ggplot2::scale_x_continuous(expand = c(0, 0)) +
       ggplot2::scale_y_discrete(limits = rev, expand = ggplot2::expansion(mult = 0.01)) +
       ggplot2::labs(title = ttl, x = NULL, y = xlab, fill = lt) +
-      ggplot2::theme_minimal(base_size = font_axis) +
+      (theme_gg %||% ggplot2::theme_minimal(base_size = font_axis)) +
       ggplot2::theme(panel.grid = ggplot2::element_blank(),
                      axis.text.x = ggplot2::element_blank(),
                      axis.ticks.x = ggplot2::element_blank())
@@ -1276,7 +1276,7 @@ hstat_design_analysis <- function(type, n_factors) {
       ggplot2::scale_x_discrete(expand = ggplot2::expansion(mult = 0.01)) +
       ggplot2::scale_y_continuous(expand = c(0, 0)) +
       ggplot2::labs(title = ttl, x = xlab, y = NULL, fill = lt) +
-      ggplot2::theme_minimal(base_size = font_axis) +
+      (theme_gg %||% ggplot2::theme_minimal(base_size = font_axis)) +
       ggplot2::theme(panel.grid = ggplot2::element_blank(),
                      axis.text.y = ggplot2::element_blank(),
                      axis.ticks.y = ggplot2::element_blank())
@@ -1317,7 +1317,7 @@ hstat_design_analysis <- function(type, n_factors) {
 .build_faceted_design <- function(b, type, fill_col, fill_scale, ttl, cell_sep = 1,
                                   blk_line = 2, blk_color = "black",
                                   show_text = TRUE, label_mode = "both", nplot = 1,
-                                  font_label = 2.8, font_axis = 12,
+                                  font_label = 2.8, font_axis = 12, theme_gg = NULL,
                                   grad = "vertical_down", grad_label = "Gradient",
                                   grad_size = 3.5, legend_order = "alpha",
                                   legend_pos = "right", legend_title = "",
@@ -1397,7 +1397,7 @@ hstat_design_analysis <- function(type, n_factors) {
                     caption = paste0("Sous-parcelles (Facteur 2) : ",
                                      paste(sort(unique(as.character(b[[f2]]))), collapse = ", "),
                                      "  |  les lignes verticales épaisses séparent les grandes parcelles")) +
-      ggplot2::theme_minimal(base_size = font_axis) +
+      (theme_gg %||% ggplot2::theme_minimal(base_size = font_axis)) +
       ggplot2::theme(panel.grid = ggplot2::element_blank(),
                      plot.title = ggplot2::element_text(face = "bold"),
                      plot.subtitle = ggplot2::element_text(size = font_axis - 2, color = "#5d6d7e"),
@@ -1546,7 +1546,7 @@ hstat_design_analysis <- function(type, n_factors) {
                     subtitle = trf("Grandes parcelles = %s (couleur) ; sous-parcelles = %s (bandeau) ; sous-sous-parcelles = %s (étiquette de cellule)", f1n, f2n, f3n),
                     x = NULL,
                     y = "Bloc", fill = lt %||% f1n) +
-      ggplot2::theme_minimal(base_size = font_axis) +
+      (theme_gg %||% ggplot2::theme_minimal(base_size = font_axis)) +
       ggplot2::theme(panel.grid = ggplot2::element_blank(),
                      plot.title = ggplot2::element_text(face = "bold"),
                      plot.subtitle = ggplot2::element_text(size = font_axis - 2, color = "#5d6d7e"),
@@ -1585,7 +1585,7 @@ hstat_design_analysis <- function(type, n_factors) {
                     subtitle = "Bandes du Facteur 1 (colonnes) croisées avec les bandes du Facteur 2 (rangées)",
                     x = "Bandes du Facteur 1", y = "Bandes du Facteur 2",
                     fill = lt %||% "Traitement") +
-      ggplot2::theme_minimal(base_size = font_axis) +
+      (theme_gg %||% ggplot2::theme_minimal(base_size = font_axis)) +
       ggplot2::theme(panel.grid = ggplot2::element_blank(),
                      plot.title = ggplot2::element_text(face = "bold"),
                      plot.subtitle = ggplot2::element_text(size = font_axis - 2, color = "#5d6d7e"),
@@ -1623,7 +1623,7 @@ hstat_design_analysis <- function(type, n_factors) {
                           labeller = ggplot2::labeller(replication = function(x) { m <- .block_labeller(x, if (nzchar(blk_custom)) blk_prefix else "Replique", blk_custom); m[as.character(x)] })) } +
       fill_scale +
       ggplot2::labs(title = ttl, x = "Blocs incomplets (colonnes)", y = "Bloc incomplet", fill = lt %||% "Traitement") +
-      ggplot2::theme_minimal(base_size = font_axis) +
+      (theme_gg %||% ggplot2::theme_minimal(base_size = font_axis)) +
       ggplot2::theme(panel.grid = ggplot2::element_blank(),
                      strip.text = ggplot2::element_text(face = "bold", size = font_axis),
                      strip.background = ggplot2::element_rect(fill = "#ecf0f1", color = NA),
@@ -3015,6 +3015,8 @@ mod_design_server <- function(id, values) {
                                     label_mode = mode, nplot = nplot,
                                     font_label = input$dsgFontLabel %||% 2.8,
                                     font_axis = input$dsgFontAxis %||% 12,
+                                    theme_gg = hstat_export_theme(
+                                      input, "dsgPl", base_size = input$dsgFontAxis %||% 12),
                                     grad = { if (ug_f == "none") "none" else "on" },
                                     grad_label = input$dsgGradLabel %||% "Gradient",
                                     grad_size = input$dsgGradSize %||% 3.5,
@@ -3131,6 +3133,8 @@ mod_design_server <- function(id, values) {
                   cell_sep = input$dsgCellSep %||% 1,
                   show_text = isTRUE(input$dsgShowText), label_mode = mode, nplot = nplot,
                   font_label = input$dsgFontLabel %||% 2.8, font_axis = input$dsgFontAxis %||% 12,
+                  theme_gg = hstat_export_theme(
+                    input, "dsgPl", base_size = input$dsgFontAxis %||% 12),
                   legend_order = leg_order, legend_pos = leg_pos,
                   legend_title = input$dsgLegendTitle %||% "",
                   grad = grad_v, grad_label = input$dsgGradLabel %||% "Gradient",

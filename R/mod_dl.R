@@ -60,7 +60,7 @@ mod_dl_ui <- function(id) {
               withSpinner(shiny::plotOutput(ns("dlPlot"), height = "420px")),
               shiny::tabsetPanel(
                 shiny::tabPanel("Téléchargement", shiny::div(style = "padding-top:10px;",
-                         hstat_export_plot_ui(ns, "dlPl"))),
+                         hstat_export_plot_ui(ns, "dlPl", theme = FALSE))),
                 shiny::tabPanel("Apparence", shiny::div(style = "padding-top:10px;",
                          hstat_plot_opts_ui(ns, "dlO")))))),
         shiny::fluidRow(
@@ -73,7 +73,7 @@ mod_dl_ui <- function(id) {
               status = "warning", width = 6, solidHeader = TRUE,
               shiny::uiOutput(ns("dlArch")),
               shiny::plotOutput(ns("dlLoss"), height = "260px"),
-              hstat_export_plot_ui(ns, "dlLo", width = 9, height = 5))),
+              hstat_export_plot_ui(ns, "dlLo", width = 9, height = 5, theme = FALSE))),
         shiny::fluidRow(
           shinydashboard::box(title = shiny::tagList(shiny::icon("magic"), " Simulateur de prédictions"),
               status = "success", width = 12, solidHeader = TRUE,
@@ -121,7 +121,7 @@ mod_dl_ui <- function(id) {
           shinydashboard::box(title = shiny::tagList(shiny::icon("chart-line"), " Prévision LSTM"),
               status = "success", width = 8, solidHeader = TRUE,
               withSpinner(shiny::plotOutput(ns("lstmPlot"), height = "420px")),
-              hstat_export_plot_ui(ns, "lstmPl"))),
+              hstat_export_plot_ui(ns, "lstmPl", theme = FALSE))),
         shiny::fluidRow(
           shinydashboard::box(title = shiny::tagList(shiny::icon("table"), " Métriques, prévisions & interprétation"),
               status = "info", width = 8, solidHeader = TRUE,
@@ -133,7 +133,7 @@ mod_dl_ui <- function(id) {
           shinydashboard::box(title = shiny::tagList(shiny::icon("chart-area"), " Courbe d'apprentissage"),
               status = "warning", width = 4, solidHeader = TRUE,
               shiny::plotOutput(ns("lstmLoss"), height = "300px"),
-              hstat_export_plot_ui(ns, "lstmLo", width = 8, height = 5)))))
+              hstat_export_plot_ui(ns, "lstmLo", width = 8, height = 5, theme = FALSE)))))
   )
 }
 

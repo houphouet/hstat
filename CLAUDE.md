@@ -411,6 +411,33 @@ Il est réinjecté en seconde ligne du titre plotly, échappé comme les étique
 d'axe. Même famille de piège que le plotmath : ce que ggplot sait rendre, la
 conversion interactive ne le sait pas toujours.
 
+### Une efficacité négative doit tenir dans le cadre
+
+L'axe Y valait **0 à 100 par défaut**, et son champ « Minimum » portait
+`min = 0`. Deux conséquences, dans le même sens :
+
+1. toute efficacité négative — la modalité fait **moins bien** que le témoin,
+   c'est un résultat — sortait du cadre et disparaissait, elle et son
+   étiquette ;
+2. l'utilisateur ne **pouvait pas** saisir la borne qui l'aurait ramenée.
+
+Mesuré sur un essai à cinq modalités dont deux négatives : **2 barres sur 5
+disparaissaient**, avec pour seule trace un « Removed 2 rows » dans la console.
+
+Les deux bornes sont désormais **vides par défaut** = automatiques (`NA` sur
+une borne, ggplot suit les données de ce côté), et le champ accepte le négatif.
+Zéro est **toujours** inclus dans l'étendue : c'est la référence de la formule
+d'Abbott, un cadre qui l'exclurait serait illisible.
+
+`hstat_pas_debut()` aligne les graduations sur le pas demandé : partir de la
+borne brute donnait −37, −17, **3**, 23… et **zéro n'était pas gradué**, alors
+que c'est la seule graduation qui compte quand des valeurs sont négatives.
+Une ligne de référence à zéro s'ajoute quand des négatives existent.
+
+Le décompte « hors des limites » ne porte plus que sur les bornes
+**réellement fixées** : une borne automatique ne peut, par construction, rien
+exclure.
+
 ### Efficacités : une colonne par variable mesurée
 
 `hstat_efficacite()` empile les variables mesurées — quinze variables sur onze
@@ -427,6 +454,56 @@ et « Utiliser comme jeu de données » ; le tableau détaillé reste accessible
 Le préfixe `Efficacite_` est délibéré : une colonne nommée comme la variable
 d'origine contiendrait des **pourcentages** et non la mesure, et se confondrait
 avec elle dès qu'on relit le tableau ou qu'on le réinjecte dans l'application.
+
+### Le thème se déclare au kit, comme le format et le DPI
+
+Quatre graphiques — descriptif, plan expérimental, distribution, valeurs
+manquantes — n'offraient **aucun** choix de thème, quand les treize autres en
+avaient un. Le thème rejoint donc le format et le DPI dans
+`hstat_export_plot_ui()` : un bloc d'export ajouté demain en hérite sans qu'on
+y pense.
+
+`theme = FALSE` reste légitime pour les modules qui portent déjà un sélecteur
+global (`hstat_plot_opts_ui()` — ML, DL, séries temporelles) : deux sélecteurs
+pour un même graphique, c'est un réglage qui en contredit un autre. Un test
+vérifie que `theme = FALSE` n'apparaît que là.
+
+Les constructeurs de `mod_design.R` vivent **hors** du `moduleServer` : `input`
+n'y est pas visible, le thème leur est donc **passé en argument**
+(`theme_gg`). Le lire depuis `input` y aurait été impossible, et l'appliquer
+après coup aurait effacé leurs réglages fins — un thème complet remplace tout
+ce qui précède.
+
+#### Un seul choisisseur de thème
+
+`hstat_apply_plot_opts()` portait un **second** `switch` sur le nom du thème,
+et il avait dérivé : cinq thèmes connus sur les huit du catalogue. « Gris »,
+« Traits fins » et « Sans décor » retombaient **en silence** sur « Minimal » —
+l'utilisateur changeait le réglage et l'image ne bougeait pas, sur treize blocs
+d'export. Il passe désormais par `viz_get_theme()`, et un test échoue sur tout
+nouveau `switch` dont les étiquettes sont des noms de thème.
+
+### Un titre d'axe plus long que son axe doit revenir à la ligne
+
+`element_text()` et `element_markdown()` ne reviennent **jamais** à la ligne :
+le titre sort du cadre et se fait rogner à l'export. Sur un intitulé explicite
+— « Rendement moyen par parcelle en t/ha » — c'est le cas normal, pas le cas
+rare.
+
+`hstat_axe_titre()` passe par `ggtext::element_textbox_simple()`, qui enveloppe
+le texte dans une boîte de la **largeur réelle de l'axe** : le retour à la
+ligne se fait tout seul, et non à un nombre de caractères deviné. `halign` cale
+les lignes **entre elles** — c'est ce que l'utilisateur appelle centrer ou
+aligner ; le `hjust` d'`element_text()` ne fait pas la même chose, il déplace
+un texte d'un seul tenant.
+
+**Pas d'entrée « Justifié »** : gridtext ne sait pas répartir le texte entre
+les marges. L'offrir donnerait un réglage que l'image ignore — le défaut même
+que ce dépôt traque ailleurs. Trois calages, tous les trois réels.
+
+Repli sur `element_markdown()` quand le retour à la ligne n'est pas demandé ou
+que ggtext manque : le style (gras, italique, taille, couleur) survit dans les
+deux cas.
 
 ### Export d'image : les pixels saisis sont une mise en page, pas la sortie
 

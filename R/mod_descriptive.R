@@ -704,7 +704,7 @@ mod_descriptive_server <- function(id, values) {
       ggplot2::ggplot(values$filteredData, ggplot2::aes(x = .data[[input$descPlotVar]])) +
         ggplot2::geom_histogram(ggplot2::aes(y = ggplot2::after_stat(density)), alpha = 0.7, fill = hist_color, bins = 30) +
         ggplot2::geom_density(linewidth = 1.2, color = density_color) +
-        ggplot2::theme_minimal() +
+        (hstat_export_theme(input, "descPl") %||% ggplot2::theme_minimal()) +
         ggplot2::labs(title = plot_title, x = x_label, y = y_label) +
         ggplot2::theme(
           axis.line = ggplot2::element_line(color = "black", linewidth = 0.5),
@@ -770,7 +770,7 @@ mod_descriptive_server <- function(id, values) {
       }
       
       base_plot <- base_plot +
-        ggplot2::theme_minimal() +
+        (hstat_export_theme(input, "descPl") %||% ggplot2::theme_minimal()) +
         ggplot2::theme(
           axis.line = ggplot2::element_line(color = "black", linewidth = 0.5),
           axis.ticks = ggplot2::element_line(color = "black", linewidth = 0.5),

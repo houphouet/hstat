@@ -1600,6 +1600,62 @@ hstat_barre_style <- function(alpha = 0.8, contour = FALSE,
 #   "dedans" : au bout de la barre, a l'interieur
 #   "pied"   : au pied de la barre (y = 0), donc toujours visible meme quand la
 #              barre sort du cadre limite par l'axe
+# Debut d'une suite de graduations alignee sur le pas demande.
+#
+# `seq(borne, ...)` partant de la borne brute place les graduations n'importe
+# ou : avec un minimum a -37 et un pas de 20, on obtient -37, -17, 3, 23... et
+# ZERO N'EST PAS GRADUE. Or c'est la seule graduation qui compte quand des
+# efficacites sont negatives -- c'est elle qui separe le gain de la perte.
+# ---------------------------------------------------------------------------
+#  Titre d'axe : revenir a la ligne, et se caler ou l'utilisateur veut
+# ---------------------------------------------------------------------------
+#  UN TITRE PLUS LONG QUE SON AXE DEBORDE. `element_text()` et
+#  `element_markdown()` ne reviennent JAMAIS a la ligne : le titre sort du
+#  cadre, se fait rogner a l'export, et sur un nom de variable un peu explicite
+#  ("Rendement moyen par parcelle en tonnes par hectare") c'est le cas normal,
+#  pas le cas rare.
+#
+#  `element_textbox_simple()` (ggtext) enveloppe le texte dans une boite de la
+#  largeur de l'axe : le retour a la ligne se fait tout seul, a la largeur
+#  REELLE, et non a un nombre de caracteres devine.
+#
+#  `halign` cale le texte DANS la boite -- c'est ce que l'utilisateur appelle
+#  centrer ou justifier. `hjust` de `element_text()` ne fait pas la meme chose :
+#  il deplace un texte d'un seul tenant, il ne peut pas caler des lignes entre
+#  elles.
+#
+#  Repli sur `element_markdown()` quand ggtext est absent ou quand le retour a
+#  la ligne n'est pas demande : le style (gras, italique, taille) survit dans
+#  les deux cas.
+#  PAS D'ENTREE « JUSTIFIE » : gridtext ne sait pas repartir le texte entre les
+#  marges. L'offrir donnerait un reglage que l'image ignore -- le defaut meme
+#  que ce depot traque ailleurs (« un reglage declare mais masque n'existe
+#  pas »). Trois calages, tous les trois reels.
+HSTAT_ALIGN_TITRE <- c("Gauche" = "0", "Centré" = "0.5", "Droite" = "1")
+
+hstat_axe_titre <- function(size = 12, face = "plain", align = "0.5",
+                            axe = c("x", "y"), retour = TRUE,
+                            colour = NULL, marge = 6) {
+  axe <- match.arg(axe)
+  h <- suppressWarnings(as.numeric(align)[1])
+  if (!isTRUE(is.finite(h))) h <- 0
+  marges <- if (axe == "y") ggplot2::margin(r = marge) else ggplot2::margin(t = marge)
+  if (!isTRUE(retour) || !requireNamespace("ggtext", quietly = TRUE))
+    return(ggtext::element_markdown(size = size, face = face, hjust = h,
+                                    colour = colour, margin = marges))
+  ggtext::element_textbox_simple(
+    size = size, face = face, colour = colour,
+    halign = h, hjust = 0.5,
+    width = grid::unit(1, "npc"),
+    orientation = if (axe == "y") "left-rotated" else "upright",
+    margin = marges)
+}
+
+hstat_pas_debut <- function(borne, pas) {
+  if (!isTRUE(is.finite(borne)) || !isTRUE(is.finite(pas)) || pas <= 0) return(borne)
+  floor(borne / pas) * pas
+}
+
 hstat_valeur_pos <- function(y, position = c("dessus", "dedans", "pied")) {
   position <- match.arg(position)
   y <- suppressWarnings(as.numeric(y))
@@ -5027,8 +5083,20 @@ hstat_model_interpretation <- function(task, metrics_df, model_label,
 # ==============================================================================
 
 # Bloc UI reutilisable : format, dimensions, DPI (max 20 000) + bouton.
-hstat_export_plot_ui <- function(ns, prefix, width = 10, height = 6) {
+# `theme = FALSE` pour les modules qui portent DEJA un selecteur de theme
+# (mod_dl, mod_ml, mod_timeseries, via `hstat_plot_opts_ui()`) : deux
+# selecteurs pour un meme graphique, c'est un reglage qui en contredit un
+# autre. Partout ailleurs il vient AVEC l'export -- ainsi un bloc ajoute
+# demain herite du theme sans qu'on y pense, comme il herite deja du format et
+# du DPI. Quatre graphiques (descriptif, plan experimental, distribution,
+# valeurs manquantes) n'offraient AUCUN choix de theme.
+hstat_export_plot_ui <- function(ns, prefix, width = 10, height = 6,
+                                 theme = TRUE) {
   tagList(
+    if (isTRUE(theme))
+      fluidRow(column(6, selectInput(ns(paste0(prefix, "Theme")), "Thème",
+                                     choices = HSTAT_THEMES_GG,
+                                     selected = "minimal"))),
     fluidRow(
       column(3, hstat_format_input(ns(paste0(prefix, "Fmt")), "Format")),
       column(3, numericInput(ns(paste0(prefix, "W")), "Largeur (pouces)",
@@ -5044,6 +5112,16 @@ hstat_export_plot_ui <- function(ns, prefix, width = 10, height = 6) {
         downloadButton(ns(paste0(prefix, "Dl")), "Télécharger le graphique",
                        class = "btn-success"))
   )
+}
+
+# Theme choisi dans le bloc d'export, pret a etre ajoute a un ggplot.
+#
+# Rend `NULL` quand le bloc n'offre pas de selecteur (`theme = FALSE`) : ajouter
+# `NULL` a un ggplot est sans effet, l'appelant n'a donc pas a se garder.
+hstat_export_theme <- function(input, prefix, base_size = 12) {
+  v <- input[[paste0(prefix, "Theme")]]
+  if (is.null(v) || !nzchar(v)) return(NULL)
+  viz_get_theme(v, base_size = base_size)
 }
 
 # Handler d'export associe. plot_fun() doit renvoyer un ggplot (ou NULL).
@@ -5124,12 +5202,15 @@ hstat_plot_opts_ui <- function(ns, prefix) {
 # les fonctions de trace via hstat_plot_opt(input, prefix, "Col"/"Lwd").
 hstat_apply_plot_opts <- function(g, input, prefix) {
   if (is.null(g)) return(g)
-  th <- switch(input[[paste0(prefix, "Theme")]] %||% "minimal",
-               classic = ggplot2::theme_classic, bw = ggplot2::theme_bw,
-               light = ggplot2::theme_light, dark = ggplot2::theme_dark,
-               ggplot2::theme_minimal)
+  # UN SEUL CHOISISSEUR DE THEME. Ce `switch` etait un SECOND, et il avait
+  # derive : il connaissait cinq themes sur les huit du catalogue, si bien que
+  # « Gris », « Traits fins » et « Sans decor » retombaient EN SILENCE sur
+  # « Minimal ». L'utilisateur changeait le reglage et l'image ne bougeait pas
+  # -- treize blocs d'export etaient concernes. C'est exactement le defaut que
+  # `HSTAT_THEMES_GG` et `viz_get_theme()` existent pour empecher.
   base <- hstat_finite(input[[paste0(prefix, "Base")]], 13)
-  g <- g + th(base_size = max(7, min(30, base)))
+  g <- g + viz_get_theme(input[[paste0(prefix, "Theme")]] %||% "minimal",
+                         base_size = max(7, min(30, base)))
   lab <- function(x) { x <- input[[paste0(prefix, x)]]; if (is.null(x) || !nzchar(x)) NULL else x }
   if (!is.null(lab("Title"))) g <- g + ggplot2::labs(title = lab("Title"))
   if (!is.null(lab("Sub")))   g <- g + ggplot2::labs(subtitle = lab("Sub"))
