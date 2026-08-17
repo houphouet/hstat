@@ -80,11 +80,24 @@ local({
 # -- Racine du depot (pour les tests portant sur app.R et R/) ----------------
 # Renvoie NA quand les tests tournent depuis un paquet installe, ou app.R et le
 # dossier R/ n'existent plus : les tests concernes s'y skippent d'eux-memes.
-.hstat_repo_root <- function() {
+.hstat_repo_root <- function(requis = TRUE) {
   cands <- c(".", "..", file.path("..", ".."), file.path("..", "..", ".."))
   hit <- cands[file.exists(file.path(cands, "DESCRIPTION")) &
                dir.exists(file.path(cands, "inst", "app"))]
-  if (length(hit)) normalizePath(hit[1]) else NA_character_
+  if (length(hit)) return(normalizePath(hit[1]))
+  # HORS DU DEPOT -- typiquement sous `R CMD check`, qui travaille sur le
+  # paquet INSTALLE : `inst/app/` y est aplati en `app/` et `R/` a disparu.
+  # Les tests qui BALAIENT LES SOURCES n'ont alors rien a lire.
+  #
+  # Le saut est pose ICI, pas dans chacun d'eux. Vingt et un des quatre-vingts
+  # tests concernes n'avaient pas de garde : sous `R CMD check` ils ne
+  # trouvaient aucun fichier, concluaient a l'absence de ce qu'ils cherchaient,
+  # et ECHOUAIENT -- 48 echecs pour une seule cause, et pas une seule vraie.
+  # Garder la liste a jour a la main l'aurait fait deriver au premier test
+  # ajoute ; le localisateur, lui, est traverse par tous.
+  if (isTRUE(requis))
+    testthat::skip("hors du depot : les sources ne sont pas disponibles")
+  NA_character_
 }
 
 # -- Chemin du SOCLE ---------------------------------------------------------
@@ -6900,6 +6913,50 @@ test_that("un seul choisisseur de theme : viz_get_theme", {
   expect_identical(viz_get_theme("theme_inexistant", 12), ref)
 })
 
+test_that("tout appel qualifie designe un objet qui existe", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # SIX APPELS VERS DES FONCTIONS INEXISTANTES, tous invisibles a la lecture :
+  # `glmmTMB::gaussian()`, `binomial()`, `poisson()`, `Gamma()`,
+  # `inverse.gaussian()` -- glmmTMB porte ces noms dans son espace de noms sans
+  # les EXPORTER, si bien qu'un balayage par `getNamespaceExports()` pouvait les
+  # croire siens. Ce sont les familles de `stats`. Le selecteur de loi du GLMM
+  # levait « 'gaussian' is not an exported object ».
+  #
+  # Et `emmeans::cld`, qui n'existe pas non plus : enferme dans un `tryCatch`,
+  # il rendait NULL au lieu de lever -- un repli mort qui donnait l'illusion
+  # d'un filet de securite.
+  #
+  # Trouve par `R CMD check`, jamais par l'execution ni par la lecture.
+  vide <- function(l, i) identical(l[[i]], quote(expr = ))
+  paires <- list()
+  for (f in .hstat_sources_app()) {
+    for (e in parse(f)) {
+      rec <- function(x) {
+        if (!is.call(x)) return(invisible())
+        if (is.name(x[[1]]) && as.character(x[[1]]) %in% c("::", ":::") &&
+            length(x) == 3L && is.name(x[[2]]) && is.name(x[[3]]))
+          paires[[length(paires) + 1L]] <<- c(basename(f), as.character(x[[2]]),
+                                              as.character(x[[3]]))
+        l <- as.list(x)
+        for (i in seq_along(l)) if (!vide(l, i)) rec(l[[i]])
+      }
+      rec(e)
+    }
+  }
+  expect_gt(length(paires), 5000L)          # la qualification est bien en place
+  vus <- unique(vapply(paires, function(p) paste(p[2], p[3], sep = "::"), character(1)))
+  fautifs <- character(0)
+  for (v in vus) {
+    pk <- sub("::.*", "", v); ob <- sub(".*::", "", v)
+    # Un paquet absent de la machine n'est pas une faute : on ne peut rien en
+    # dire, et le dire quand meme ferait echouer le test sur l'ENVIRONNEMENT.
+    if (!isTRUE(requireNamespace(pk, quietly = TRUE))) next
+    if (!(ob %in% getNamespaceExports(pk))) fautifs <- c(fautifs, v)
+  }
+  expect_equal(fautifs, character(0))
+})
+
 test_that("aucun appel ne nomme un argument que la fonction n'accepte pas", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))
@@ -7226,15 +7283,27 @@ test_that("le pont prefere les sources au paquet installe", {
   expect_lt(i_src, i_pkg)
 })
 
-test_that("le NAMESPACE expose le socle, aides internes comprises", {
+test_that("le pont atteint le socle sans dependre des exports", {
   root <- .hstat_repo_root()
-  skip_if(is.na(root))
   ns <- readLines(file.path(root, "NAMESPACE"), warn = FALSE)
-  # `exportPattern("^[^.]")` laisserait les `.hstat_*` invisibles, et
-  # l'application les appelle directement : elle tomberait sur « could not find
-  # function » une fois installee, alors que tout marche depuis les sources.
-  expect_true(any(grepl('exportPattern(".")', ns, fixed = TRUE)))
-  expect_true(any(grepl("export(run_hstat)", ns, fixed = TRUE)))
+  # CE QUI COMPTE N'EST PAS L'EXPORT, C'EST LA RECOPIE. Le pont prend les
+  # objets dans l'ESPACE DE NOMS -- `ls(asNamespace("HStat"), all.names = TRUE)`
+  # atteint aussi bien les aides `.hstat_*`, exportees ou non. Le paquet
+  # portait donc un `exportPattern(".")` qui ne servait a rien et coutait une
+  # fiche de documentation par objet : ~240 fiches reclamees par `R CMD check`.
+  #
+  # Les DIRECTIVES seules comptent : la version precedente de ce test cherchait
+  # `exportPattern(".")` dans le fichier entier, commentaires compris. Elle
+  # aurait continue de passer sur un simple commentaire -- ce qui s'est
+  # exactement produit au moment de retirer la directive.
+  directives <- grep("^\\s*#", ns, value = TRUE, invert = TRUE)
+  expect_false(any(grepl("exportPattern", directives, fixed = TRUE)))
+  expect_true(any(grepl("export(run_hstat)", directives, fixed = TRUE)))
+
+  # Et le pont recopie bien depuis l'espace de noms, pas depuis les exports.
+  pont <- .hstat_code_lignes(file.path(root, "inst", "app", "Utils.R"))
+  expect_true(any(grepl("asNamespace(\"HStat\")", pont, fixed = TRUE)))
+  expect_true(any(grepl("all.names = TRUE", pont, fixed = TRUE)))
 })
 
 test_that("le format et le DPI ne se declarent qu'au catalogue", {

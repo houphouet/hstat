@@ -138,7 +138,7 @@ mod_threshold_ui <- function(id) {
                     
                     shiny::div(style = "background-color: #fff9e6; padding: 10px; border-radius: 6px; margin-bottom: 10px; border-left: 4px solid #f39c12;",
                         shiny::icon("lightbulb", style = "color: #f39c12;"),
-                        em(" Astuce : Modifiez les étiquettes des traitements et appliquez des styles (gras/italique) pour une meilleure présentation.")
+                        shiny::em(" Astuce : Modifiez les étiquettes des traitements et appliquez des styles (gras/italique) pour une meilleure présentation.")
                     ),
                     
                     shiny::uiOutput(ns("thresholdLevelsEditor")),
@@ -155,7 +155,7 @@ mod_threshold_ui <- function(id) {
                       
                       shiny::div(style = "background-color: #f3e5f5; padding: 10px; border-radius: 6px; margin-bottom: 10px; border-left: 4px solid #9b59b6;",
                           shiny::icon("info-circle", style = "color: #9b59b6;"),
-                          em(" Info : Personnalisez les étiquettes affichées dans la légende pour les variables Y sélectionnées.")
+                          shiny::em(" Info : Personnalisez les étiquettes affichées dans la légende pour les variables Y sélectionnées.")
                       ),
                       
                       shiny::uiOutput(ns("thresholdLegendEditor"))
@@ -501,7 +501,7 @@ mod_threshold_ui <- function(id) {
 
                           shiny::div(style = "background-color:#fff9e6;padding:10px 12px;border-radius:6px;border-left:4px solid #f39c12;font-size:12px;",
                               shiny::icon("lightbulb", style = "color:#f39c12;"),
-                              em(" Les deux modes ne répondent pas à la même question. ",
+                              shiny::em(" Les deux modes ne répondent pas à la même question. ",
                                  "En commun, la moyenne (ou la somme) de la modalité porte sur ",
                                  "toutes ses répétitions : c'est le chiffre du rapport. ",
                                  "Par répétition, on obtient une variable analysable ensuite par ",
@@ -509,7 +509,7 @@ mod_threshold_ui <- function(id) {
 
                           shiny::div(style = "background-color:#fdedec;padding:10px 12px;border-radius:6px;border-left:4px solid #c0392b;font-size:12px;",
                               shiny::icon("triangle-exclamation", style = "color:#c0392b;"),
-                              em(" La ", shiny::tags$b("somme"), " n'est comparable que si les répétitions ",
+                              shiny::em(" La ", shiny::tags$b("somme"), " n'est comparable que si les répétitions ",
                                  "sont en nombre égal : la modalité la plus répétée accumule ",
                                  "mécaniquement davantage et ressort artificiellement moins efficace. ",
                                  "La moyenne n'en souffre pas. L'application le signale si le cas se ",
@@ -622,7 +622,7 @@ mod_threshold_ui <- function(id) {
                     shiny::br(),
                     shiny::div(style = "background-color:#fdedec;padding:10px 12px;border-radius:6px;border-left:4px solid #c0392b;font-size:12px;",
                         shiny::icon("triangle-exclamation", style = "color:#c0392b;"),
-                        em(" « Utiliser comme jeu de données » REMPLACE le jeu de travail par ce ",
+                        shiny::em(" « Utiliser comme jeu de données » REMPLACE le jeu de travail par ce ",
                            "tableau, pour l'analyser dans les autres onglets. Le fichier d'origine ",
                            "n'est pas modifié : rechargez-le pour revenir en arrière."))
                 )
@@ -1232,7 +1232,7 @@ mod_threshold_server <- function(id, values) {
       if(length(input$thresholdYVar) == 1) {
         plot_data <- source_data()[, c(input$thresholdXVar, input$thresholdYVar)]
         colnames(plot_data) <- c("Treatment", "Efficacy")
-        plot_data <- na.omit(plot_data)
+        plot_data <- stats::na.omit(plot_data)
         
         if(!is.null(input$thresholdFilter) && length(input$thresholdFilter) > 0) {
           plot_data <- plot_data[!plot_data$Treatment %in% input$thresholdFilter, ]
@@ -1246,7 +1246,7 @@ mod_threshold_server <- function(id, values) {
                                          cols = -Treatment,
                                          names_to = "Variable",
                                          values_to = "Efficacy")
-        plot_data <- na.omit(plot_data)
+        plot_data <- stats::na.omit(plot_data)
         
         if(!is.null(input$thresholdFilter) && length(input$thresholdFilter) > 0) {
           plot_data <- plot_data[!plot_data$Treatment %in% input$thresholdFilter, ]

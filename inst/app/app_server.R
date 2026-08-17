@@ -547,7 +547,7 @@ server <- function(input, output, session) {
   
   output$preview <- DT::renderDT({
     shiny::req(values$data)
-    DT::datatable(head(values$data, 50), options = list(scrollX = TRUE))
+    DT::datatable(utils::head(values$data, 50), options = list(scrollX = TRUE))
   })
   
   # ---- Exploration (module Shiny) ----
@@ -855,7 +855,7 @@ server <- function(input, output, session) {
             y <- pca_data_nzv[[i]]
             x <- remove_zero_var_cols(pca_data_nzv[, -i, drop = FALSE])
             if (ncol(x) == 0) return(Inf)
-            r2 <- tryCatch(suppressWarnings(summary(lm(y ~ ., data = x))$r.squared), error = function(e) NA)
+            r2 <- tryCatch(suppressWarnings(summary(stats::lm(y ~ ., data = x))$r.squared), error = function(e) NA)
             if (is.na(r2) || r2 >= 1) Inf else 1 / (1 - r2)
           })
           stats::setNames(vv, names(pca_data_nzv))
@@ -1025,7 +1025,7 @@ server <- function(input, output, session) {
       vif_v <- sapply(seq_len(ncol(pca_nzv)), function(i) {
         y <- pca_nzv[[i]]; x <- remove_zero_var_cols(pca_nzv[,-i, drop=FALSE])
         if (ncol(x) == 0) return(Inf)
-        r2 <- tryCatch(suppressWarnings(summary(lm(y~., data=x))$r.squared), error=function(e) NA)
+        r2 <- tryCatch(suppressWarnings(summary(stats::lm(y~., data=x))$r.squared), error=function(e) NA)
         if (is.na(r2)||r2>=1) Inf else 1/(1-r2)
       })
       names(vif_v) <- names(pca_nzv)
@@ -1368,7 +1368,7 @@ server <- function(input, output, session) {
     res.pca <- pcaResultReactive()
     n_dims  <- ncol(res.pca$ind$coord)
     shiny::selectInput("pcaCTRAxis", "Composante à analyser:",
-                choices = setNames(1:n_dims, paste0("PC", 1:n_dims)),
+                choices = stats::setNames(1:n_dims, paste0("PC", 1:n_dims)),
                 selected = 1)
   })
   
@@ -1378,7 +1378,7 @@ server <- function(input, output, session) {
     n_dims <- ncol(hstat_coord_mat(res.pca$ind$coord))
     
     shiny::selectInput("pcaAxisX", "Axe X:",
-                choices = setNames(1:n_dims, paste0("PC", 1:n_dims)),
+                choices = stats::setNames(1:n_dims, paste0("PC", 1:n_dims)),
                 selected = 1)
   })
   
@@ -1388,7 +1388,7 @@ server <- function(input, output, session) {
     n_dims <- ncol(hstat_coord_mat(res.pca$ind$coord))
     
     shiny::selectInput("pcaAxisY", "Axe Y:",
-                choices = setNames(1:n_dims, paste0("PC", 1:n_dims)),
+                choices = stats::setNames(1:n_dims, paste0("PC", 1:n_dims)),
                 selected = min(2, n_dims))
   })
   
@@ -1550,7 +1550,7 @@ server <- function(input, output, session) {
     
     n_groups <- tryCatch({
       if (!is.null(input$afdFactor) && input$afdFactor %in% names(df)) {
-        length(unique(na.omit(df[[input$afdFactor]])))
+        length(unique(stats::na.omit(df[[input$afdFactor]])))
       } else NA_integer_
     }, error = function(e) NA_integer_)
     
@@ -1898,7 +1898,7 @@ server <- function(input, output, session) {
     tryCatch({
       pca_data_raw <- values$filteredData[, input$pcaVars, drop = FALSE]
       pca_data_raw <- pca_data_raw[, sapply(pca_data_raw, is.numeric), drop = FALSE]
-      pca_data_raw <- na.omit(pca_data_raw)
+      pca_data_raw <- stats::na.omit(pca_data_raw)
       pca_data_raw <- remove_zero_var_cols(pca_data_raw)
       pca_data_raw <- remove_zero_var_cols(pca_data_raw)
       pca_data_raw <- remove_zero_var_cols(pca_data_raw)
@@ -2125,10 +2125,10 @@ server <- function(input, output, session) {
     tryCatch({
       pca_data_raw <- values$filteredData[, input$pcaVars, drop = FALSE]
       pca_data_raw <- pca_data_raw[, sapply(pca_data_raw, is.numeric), drop = FALSE]
-      pca_data_raw <- na.omit(pca_data_raw)
+      pca_data_raw <- stats::na.omit(pca_data_raw)
       
       if (ncol(pca_data_raw) < 2 || nrow(pca_data_raw) < 10) {
-        plot.new()
+        graphics::plot.new()
         text(0.5, 0.5, "Données insuffisantes pour l'analyse parallèle\n(minimum 10 observations requises)",
              cex = 1.2, col = "#e74c3c", adj = c(0.5, 0.5))
         return()
@@ -2137,7 +2137,7 @@ server <- function(input, output, session) {
       mv_legacy(createParallelPlot(pca_data_raw, pcaResultReactive()), "pcaParallel")
       
     }, error = function(e) {
-      plot.new()
+      graphics::plot.new()
       text(0.5, 0.5, paste(strwrap(hstat_err_fr(e, "Analyse parallèle"), 55), collapse = "\n"),
            cex = 1, col = "#e74c3c", adj = c(0.5, 0.5))
     })
@@ -2148,7 +2148,7 @@ server <- function(input, output, session) {
     content = function(file) {
       pca_data_raw <- values$filteredData[, input$pcaVars, drop = FALSE]
       pca_data_raw <- pca_data_raw[, sapply(pca_data_raw, is.numeric), drop = FALSE]
-      pca_data_raw <- na.omit(pca_data_raw)
+      pca_data_raw <- stats::na.omit(pca_data_raw)
       d <- mv_dims_export("pcaParallel", 9.8, 7.1); dpi <- d$dpi
       auto <- d
       p    <- mv_legacy(createParallelPlot(pca_data_raw, pcaResultReactive()), "pcaParallel")
@@ -2163,7 +2163,7 @@ server <- function(input, output, session) {
     tryCatch({
       pca_data_raw <- values$filteredData[, input$pcaVars, drop = FALSE]
       pca_data_raw <- pca_data_raw[, sapply(pca_data_raw, is.numeric), drop = FALSE]
-      pca_data_raw <- na.omit(pca_data_raw)
+      pca_data_raw <- stats::na.omit(pca_data_raw)
       
       
       n_vars    <- ncol(pca_data_raw)
@@ -2341,7 +2341,7 @@ server <- function(input, output, session) {
     if (is.null(pcaResultReactive()) || is.null(values$filteredData) ||
         is.null(input$pcaVars)) return(NULL)
     d <- values$filteredData[, input$pcaVars, drop = FALSE]
-    d <- na.omit(d[, sapply(d, is.numeric), drop = FALSE])
+    d <- stats::na.omit(d[, sapply(d, is.numeric), drop = FALSE])
     dfs <- build_pca_metrics_df(pcaResultReactive(), d)
     if (is.null(dfs)) return(NULL)
     list("Valeurs_propres" = dfs$valeurs_propres,
@@ -2921,7 +2921,7 @@ server <- function(input, output, session) {
       ggplot2::theme(
         axis.text.x = ggplot2::element_blank(),   # l'axe X (index des feuilles) n'a pas de sens
         axis.ticks.x = ggplot2::element_blank(),
-        plot.margin = margin(10, 10, 50, 10),  # Marges : top, right, bottom, left
+        plot.margin = ggplot2::margin(10, 10, 50, 10),  # Marges : top, right, bottom, left
         axis.title.x = ggplot2::element_blank()
       )
     
@@ -2968,7 +2968,7 @@ server <- function(input, output, session) {
     n_dims <- ncol(hstat_coord_mat(res.pca$ind$coord))
     
     shiny::selectInput("hcpcAxisX", "Axe X:",
-                choices = setNames(1:n_dims, paste0("PC", 1:n_dims)),
+                choices = stats::setNames(1:n_dims, paste0("PC", 1:n_dims)),
                 selected = 1)
   })
   
@@ -2978,7 +2978,7 @@ server <- function(input, output, session) {
     n_dims <- ncol(hstat_coord_mat(res.pca$ind$coord))
     
     shiny::selectInput("hcpcAxisY", "Axe Y:",
-                choices = setNames(1:n_dims, paste0("PC", 1:n_dims)),
+                choices = stats::setNames(1:n_dims, paste0("PC", 1:n_dims)),
                 selected = min(2, n_dims))
   })
   
@@ -3202,7 +3202,7 @@ server <- function(input, output, session) {
     tryCatch(
       mv_legacy(createHcpcHeightsPlot(hcpcResultReactive()), "hcpcHeights"),
       error = function(e) {
-        plot.new()
+        graphics::plot.new()
         text(0.5, 0.5, paste(strwrap(hstat_err_fr(e), 55), collapse = "\n"), cex = 0.85, col = "#e74c3c")
       }
     )
@@ -3389,7 +3389,7 @@ server <- function(input, output, session) {
       }
       
       mean_rand <- round(mean(rand_indices), 3)
-      sd_rand   <- round(sd(rand_indices), 3)
+      sd_rand   <- round(stats::sd(rand_indices), 3)
       
       color_stab <- if (mean_rand >= 0.9) "#27ae60" else if (mean_rand >= 0.8) "#3498db" 
       else if (mean_rand >= 0.7) "#f39c12" else "#dc3545"
@@ -3488,7 +3488,7 @@ server <- function(input, output, session) {
       cols_date    <- names(df)[sapply(df, function(x) inherits(x, "Date") || inherits(x, "POSIXt"))]
       # Numériques avec <= 30 valeurs uniques -> utilisables comme groupes
       cols_num_few <- names(df)[sapply(df, function(x) {
-        is.numeric(x) && length(unique(na.omit(x))) <= 30
+        is.numeric(x) && length(unique(stats::na.omit(x))) <= 30
       })]
       cols_logi    <- names(df)[sapply(df, is.logical)]
       
@@ -3532,7 +3532,7 @@ server <- function(input, output, session) {
   output$afdFactorTypeHint <- shiny::renderUI({
     shiny::req(values$filteredData, input$afdFactor)
     col <- values$filteredData[[input$afdFactor]]
-    n_lvl <- length(unique(na.omit(col)))
+    n_lvl <- length(unique(stats::na.omit(col)))
     type_str <- if (is.factor(col))      paste0("Facteur -- ", n_lvl, " niveaux")
     else if (is.character(col)) paste0("Texte -- ", n_lvl, " valeurs uniques")
     else if (inherits(col,"Date") || inherits(col,"POSIXt")) paste0("Date -- ", n_lvl, " valeurs uniques")
@@ -3631,10 +3631,10 @@ server <- function(input, output, session) {
         v <- sapply(seq_len(ncol(afd_nzv)), function(i) {
           y <- afd_nzv[[i]]; x <- remove_zero_var_cols(afd_nzv[,-i, drop=FALSE])
           if (ncol(x) == 0) return(Inf)
-          r2 <- tryCatch(suppressWarnings(summary(lm(y~., data=x))$r.squared), error=function(e) NA)
+          r2 <- tryCatch(suppressWarnings(summary(stats::lm(y~., data=x))$r.squared), error=function(e) NA)
           if (is.na(r2)||r2>=1) Inf else 1/(1-r2)
         })
-        setNames(v, names(afd_nzv))
+        stats::setNames(v, names(afd_nzv))
       } else rep(NA, ncol(afd_data))
     }, error=function(e) rep(NA, ncol(afd_data)))
     
@@ -3700,7 +3700,7 @@ server <- function(input, output, session) {
       vif_v <- sapply(seq_len(ncol(afd_d_nzv)), function(i) {
         y <- afd_d_nzv[[i]]; x <- remove_zero_var_cols(afd_d_nzv[,-i,drop=FALSE])
         if (ncol(x)==0) return(Inf)
-        r2 <- tryCatch(suppressWarnings(summary(lm(y~.,data=x))$r.squared), error=function(e) NA)
+        r2 <- tryCatch(suppressWarnings(summary(stats::lm(y~.,data=x))$r.squared), error=function(e) NA)
         if(is.na(r2)||r2>=1) Inf else 1/(1-r2)
       })
       names(vif_v) <- names(afd_d_nzv)
@@ -3855,7 +3855,7 @@ server <- function(input, output, session) {
       for (var in input$afdVars) {
         var_by_group <- tapply(afd_data[[var]], afd_data[[input$afdFactor]], function(x) {
           if (length(x) < 2) return(0)
-          var(x, na.rm = TRUE)
+          stats::var(x, na.rm = TRUE)
         })
         # Si toutes les variances intra-groupe sont nulles ou NA, la variable est constante
         if (all(is.na(var_by_group) | var_by_group == 0)) {
@@ -3925,7 +3925,7 @@ server <- function(input, output, session) {
       
       factor_safe <- paste0("`", input$afdFactor, "`")
       vars_safe <- paste0("`", vars_to_use, "`", collapse = " + ")
-      afd_formula <- as.formula(paste(factor_safe, "~", vars_safe))
+      afd_formula <- stats::as.formula(paste(factor_safe, "~", vars_safe))
       
       afd_result <- withCallingHandlers(
         MASS::lda(afd_formula, data = afd_data),
@@ -3940,7 +3940,7 @@ server <- function(input, output, session) {
         }
       )
       afd_predict <- tryCatch(
-        predict(afd_result, afd_data[, vars_to_use, drop = FALSE]),
+        stats::predict(afd_result, afd_data[, vars_to_use, drop = FALSE]),
         error = function(e) {
           shiny::showNotification(hstat_err_fr(e, "AFD predict()"), type = "error", duration = 8)
           NULL
@@ -3961,7 +3961,7 @@ server <- function(input, output, session) {
               MASS::lda(afd_formula, data = train_data),
               warning = function(w) invokeRestart("muffleWarning")
             )
-            pred <- predict(cv_model, test_data)
+            pred <- stats::predict(cv_model, test_data)
             as.character(pred$class)
           }, error = function(e) NA_character_)
           cv_predictions[i] <- if (is.na(cv_pred_class)) "" else cv_pred_class
@@ -4037,7 +4037,7 @@ server <- function(input, output, session) {
       X_std[is.nan(X_std)] <- 0
       scaling_sub2 <- afd_result$scaling[rownames(afd_result$scaling) %in% afd_vars_nzv2, , drop=FALSE]
       scores <- tryCatch(as.matrix(X_std) %*% scaling_sub2, error=function(e) matrix(0, nrow(X_std), ncol(afd_result$scaling)))
-      structure_matrix <- tryCatch(suppressWarnings(cor(X_std, scores)), error=function(e) matrix(NA, ncol(X_std), ncol(scores)))
+      structure_matrix <- tryCatch(suppressWarnings(stats::cor(X_std, scores)), error=function(e) matrix(NA, ncol(X_std), ncol(scores)))
       structure_df <- as.data.frame(structure_matrix)
       structure_df <- cbind(Variable = rownames(structure_df), structure_df)
       rownames(structure_df) <- NULL
@@ -4051,7 +4051,7 @@ server <- function(input, output, session) {
         formula_str <- paste(var_safe, "~", factor_safe)
         
         tryCatch({
-          aov_result <- aov(as.formula(formula_str), data = afd_data)
+          aov_result <- stats::aov(stats::as.formula(formula_str), data = afd_data)
           f_stat <- summary(aov_result)[[1]][1, "F value"]
           p_val <- summary(aov_result)[[1]][1, "Pr(>F)"]
           f_tests_df[f_tests_df$Variable == var, "F_statistic"] <- round(f_stat, 4)
@@ -4194,7 +4194,7 @@ server <- function(input, output, session) {
     }
     
     shiny::selectInput("afdAxisX", "Axe X:",
-                choices = setNames(1:n_dims, paste0("LD", 1:n_dims)),
+                choices = stats::setNames(1:n_dims, paste0("LD", 1:n_dims)),
                 selected = 1)
   })
   
@@ -4210,7 +4210,7 @@ server <- function(input, output, session) {
     }
     
     shiny::selectInput("afdAxisY", "Axe Y:",
-                choices = setNames(1:n_dims, paste0("LD", 1:n_dims)),
+                choices = stats::setNames(1:n_dims, paste0("LD", 1:n_dims)),
                 selected = min(2, n_dims))
   })
   
@@ -4324,7 +4324,7 @@ server <- function(input, output, session) {
     
     X_std <- scale(afd_data[, vars_used, drop = FALSE])
     scores <- as.matrix(X_std) %*% afd_result$scaling
-    structure_matrix <- cor(X_std, scores)
+    structure_matrix <- stats::cor(X_std, scores)
     
     var_df <- as.data.frame(structure_matrix)
     var_df$Variable <- rownames(structure_matrix)
@@ -4476,7 +4476,7 @@ server <- function(input, output, session) {
       
       X_std            <- scale(afd_data[, vars_used, drop = FALSE])
       scores           <- as.matrix(X_std) %*% afd_result$scaling
-      structure_matrix <- cor(X_std, scores)
+      structure_matrix <- stats::cor(X_std, scores)
       
       card <- function(..., border_color = "#dee2e6", bg = "white") {
         shiny::div(style = paste0(
@@ -5064,11 +5064,51 @@ server <- function(input, output, session) {
           "ind"    = factoextra::fviz_mfa_ind(model, axes = axes, col.ind = cv_ind, gradient.cols = gc, addEllipses = use_ellipse, ellipse.type = "confidence",
                        repel = TRUE, max.overlaps = Inf, pointsize = ptsz, labelsize = lblsz,
                        label = ind_lab, ggtheme = th),
-          # Biplot AFM : individus colores + variables/groupes en NOIR
-          factoextra::fviz_mfa_biplot(model, axes = axes, col.ind = cv_ind, addEllipses = use_ellipse, col.var = "black",
+          # Biplot AFM : factoextra N'A PAS de `fviz_mfa_biplot` -- pas plus
+          # que de `fviz_famd_biplot`, traite juste au-dessus. L'appel etait
+          # enferme dans un `tryCatch(error = NULL)` : choisir « biplot » sur
+          # une AFM rendait un graphique VIDE, sans un message. Le defaut
+          # n'existait qu'a l'ecran, jamais a la lecture ni a l'execution des
+          # tests ; c'est `R CMD check` qui l'a nomme.
+          #
+          # On le compose donc comme le biplot AFDM : individus colores, puis
+          # variables quantitatives en fleches noires.
+          {
+            pind <- factoextra::fviz_mfa_ind(model, axes = axes, col.ind = cv_ind, gradient.cols = gc,
+                       addEllipses = use_ellipse, ellipse.type = "confidence",
                        repel = TRUE, max.overlaps = Inf, pointsize = ptsz, labelsize = lblsz,
-                       label = if (isTRUE(show_lab)) "all" else "var",
-                       arrowsize = arrsz, gradient.cols = gc, ggtheme = th))
+                       label = ind_lab, ggtheme = th)
+            qv <- tryCatch(as.data.frame(hstat_coord_mat(model$quanti.var$coord)),
+                           error = function(e) NULL)
+            # Le biplot superpose deux plans : il exige DEUX axes de chaque cote.
+            ind_co <- hstat_coord_mat(model$ind$coord)
+            if (!is.null(qv) && ncol(qv) >= 2 && !is.null(ind_co) && ncol(ind_co) >= 2) {
+              sc <- 0.9 * max(abs(range(c(ind_co[, 1], ind_co[, 2]))), na.rm = TRUE) /
+                    max(abs(range(c(qv[, 1], qv[, 2]))), na.rm = TRUE)
+              qv2 <- data.frame(x = qv[, 1] * sc, y = qv[, 2] * sc, lab = rownames(qv))
+              pind <- pind +
+                ggplot2::geom_segment(data = qv2,
+                  ggplot2::aes(x = 0, y = 0, xend = x, yend = y), inherit.aes = FALSE,
+                  arrow = ggplot2::arrow(length = ggplot2::unit(0.02 * (1 + arrsz), "npc")),
+                  color = "black", linewidth = arrsz) +
+                ggplot2::geom_text(data = qv2, ggplot2::aes(x = x, y = y, label = lab),
+                  inherit.aes = FALSE, color = "black", size = lblszvar, fontface = "bold",
+                  vjust = -0.4)
+            }
+            # Modalites des variables qualitatives, quand le plan en comporte.
+            ql <- tryCatch(as.data.frame(model$quali.var$coord), error = function(e) NULL)
+            if (!is.null(ql) && ncol(ql) >= 2 && nrow(ql) > 0) {
+              ql2 <- data.frame(x = ql[, axes[1]], y = ql[, axes[2]], lab = rownames(ql))
+              pind <- pind +
+                ggplot2::geom_point(data = ql2, ggplot2::aes(x = x, y = y),
+                  inherit.aes = FALSE, color = "#7b3fa0", shape = 17,
+                  size = ptsz + 0.6) +
+                ggplot2::geom_text(data = ql2, ggplot2::aes(x = x, y = y, label = lab),
+                  inherit.aes = FALSE, color = "#7b3fa0", size = lblszvar, fontface = "bold",
+                  vjust = 1.4)
+            }
+            pind
+          })
       }
     }, error = function(e) NULL)
     if (is.null(p)) return(NULL)
@@ -6590,7 +6630,7 @@ server <- function(input, output, session) {
                       plot.subtitle = ggplot2::element_text(color = "#7f8c8d"),
                       plot.caption = ggplot2::element_text(color = "#7f8c8d", size = 9),
                       legend.position = "bottom",
-                      plot.margin = margin(10, 20, 10, 20))
+                      plot.margin = ggplot2::margin(10, 20, 10, 20))
               return(g)
             }
             ggplot2::ggplot(ldl, ggplot2::aes(Facteur, Variable, fill = Saturation)) +
@@ -6994,7 +7034,7 @@ server <- function(input, output, session) {
           dat <- data.frame(Y = I(Ydum), X = I(scale(X)))
           hstat_set_seed(input$globalSeed)
           fit <- pls::plsr(Y ~ X, ncomp = ncomp, data = dat, validation = valid)
-          pred <- predict(fit, ncomp = ncomp)
+          pred <- stats::predict(fit, ncomp = ncomp)
           cls <- factor(levels(yf)[apply(pred[,,1], 1, which.max)], levels = levels(yf))
           acc <- mean(cls == yf)
           st_acc <- if (acc >= .80) "ok" else if (acc >= .60) "warn" else "err"
@@ -7056,7 +7096,7 @@ server <- function(input, output, session) {
                    st_g),
             mv_row("Composantes latentes", ncomp,
                    "Choisir le minimum optimisant Q2", "Modèle PLS", "info"))
-          pr <- predict(fit, ncomp = ncomp)[,1,1]
+          pr <- stats::predict(fit, ncomp = ncomp)[,1,1]
           pdf <- data.frame(Observe = y, Predit = pr)
           plotfn <- function() {
             ggplot2::ggplot(pdf, ggplot2::aes(Observe, Predit)) +

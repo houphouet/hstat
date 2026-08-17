@@ -1566,7 +1566,7 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
   freq_df <- data.frame(Mot = names(wf), Frequence = as.integer(wf),
                         Pct = round(100 * as.integer(wf) / length(all_words), 2),
                         stringsAsFactors = FALSE)
-  top_words <- head(freq_df, top_n)
+  top_words <- utils::head(freq_df, top_n)
 
   # --- Longueur des reponses ---
   lens <- vapply(toks, length, integer(1))
@@ -1589,14 +1589,14 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
     }))
     if (length(ngrams) > 0) {
       ng <- sort(table(ngrams), decreasing = TRUE)
-      ngram_df <- data.frame(Expression = names(head(ng, top_n)),
-                             Frequence = as.integer(head(ng, top_n)), stringsAsFactors = FALSE)
+      ngram_df <- data.frame(Expression = names(utils::head(ng, top_n)),
+                             Frequence = as.integer(utils::head(ng, top_n)), stringsAsFactors = FALSE)
     }
   }
 
   # --- Matrice terme-document + TF-IDF ---
   vocab <- names(wf)[wf >= max(2, ceiling(n_doc * 0.02))]   # termes pas trop rares
-  vocab <- head(vocab, 120)
+  vocab <- utils::head(vocab, 120)
   tdm <- sapply(toks, function(w) as.integer(vocab %in% w | vocab %in% unique(w)))
   if (is.null(dim(tdm))) tdm <- matrix(tdm, nrow = length(vocab))
   # comptage reel (frequence du terme dans le doc)
@@ -1608,8 +1608,8 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
   idf <- log(n_doc / (1 + df_count))
   tfidf <- tf * idf
   tfidf_scores <- sort(rowMeans(tfidf), decreasing = TRUE)
-  tfidf_df <- data.frame(Terme = names(head(tfidf_scores, top_n)),
-                         Score_TFIDF = round(as.numeric(head(tfidf_scores, top_n)), 3),
+  tfidf_df <- data.frame(Terme = names(utils::head(tfidf_scores, top_n)),
+                         Score_TFIDF = round(as.numeric(utils::head(tfidf_scores, top_n)), 3),
                          stringsAsFactors = FALSE)
 
   # --- Co-occurrences (termes apparaissant ensemble) ---
@@ -1622,7 +1622,7 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
     cooc_df <- data.frame(
       Terme_A = vocab[cooc_pairs[, 1]], Terme_B = vocab[cooc_pairs[, 2]],
       Cooccurrences = cooc[cooc_pairs], stringsAsFactors = FALSE)
-    cooc_df <- head(cooc_df[order(-cooc_df$Cooccurrences), ], top_n)
+    cooc_df <- utils::head(cooc_df[order(-cooc_df$Cooccurrences), ], top_n)
   }
 
   # --- ANALYSE THEMATIQUE (LSA + clustering, base R, sans topicmodels) ---
@@ -1692,7 +1692,7 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
 
   # --- Interpretation ---
   interp <- c(
-    trf("Les mots les plus fréquents sont : %s.", paste(head(freq_df$Mot, 5), collapse = ", ")),
+    trf("Les mots les plus fréquents sont : %s.", paste(utils::head(freq_df$Mot, 5), collapse = ", ")),
     sprintf("Richesse lexicale (TTR) = %.3f : %s.",
             length(unique(all_words)) / length(all_words),
             if (length(unique(all_words)) / length(all_words) > 0.6) "vocabulaire varie" else "vocabulaire repetitif / thèmes recurrents"),
@@ -1708,7 +1708,7 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
   # --- Graphiques ---
   plot_freq <- function() {
     if (!requireNamespace("ggplot2", quietly = TRUE)) return(NULL)
-    d <- head(top_words, 20); d$Mot <- factor(d$Mot, levels = rev(d$Mot))
+    d <- utils::head(top_words, 20); d$Mot <- factor(d$Mot, levels = rev(d$Mot))
     ggplot2::ggplot(d, ggplot2::aes(Mot, Frequence, fill = Frequence)) +
       ggplot2::geom_col(show.legend = FALSE) +
       ggplot2::coord_flip() +
@@ -1718,7 +1718,7 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
   plot_wordcloud <- function() {
     # nuage de mots "maison" via ggplot (taille = frequence, positions aleatoires)
     if (!requireNamespace("ggplot2", quietly = TRUE)) return(NULL)
-    d <- head(freq_df, 60)
+    d <- utils::head(freq_df, 60)
     set.seed(42)
     d$x <- stats::runif(nrow(d)); d$y <- stats::runif(nrow(d))
     ggplot2::ggplot(d, ggplot2::aes(x, y, label = Mot, size = Frequence, color = Frequence)) +
@@ -1760,12 +1760,12 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
   # --- Matrice Document-Terme (extrait : 15 premiers termes) pour consultation ---
   dtm_df <- NULL
   if (exists("tf") && !is.null(dim(tf))) {
-    show_terms <- head(vocab, 15)
+    show_terms <- utils::head(vocab, 15)
     dtm_show <- t(tf[show_terms, , drop = FALSE])
     dtm_df <- as.data.frame(dtm_show)
     dtm_df <- cbind(Reponse = paste0("R", seq_len(nrow(dtm_df))), dtm_df)
     rownames(dtm_df) <- NULL
-    dtm_df <- head(dtm_df, 40)
+    dtm_df <- utils::head(dtm_df, 40)
   }
 
   # --- Table d'assignation des reponses aux thèmes ---

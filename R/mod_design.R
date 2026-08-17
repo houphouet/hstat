@@ -310,14 +310,20 @@ hstat_power_logistic <- function(analysis = "apriori", p0 = 0.2, OR = 1.5,
            extra = sprintf("OR = %.3f ; p0 = %.3f ; p1 = %.3f ; expose = %.0f%%",
                            OR, p0, p1, 100 * px))
     } else if (analysis == "posthoc") {
-      f <- function(pw) n_from_power(pw) - n
-      pw <- tryCatch(stats::uniroot(f, c(0.0001, 0.9999))$root, error = function(e) NA)
+      # Deux fonctions objectif dans deux branches EXCLUSIVES portaient le meme
+      # nom `f`, avec des arguments differents. Elles ne coexistent jamais, mais
+      # le lecteur -- et l'analyseur de `R CMD check` -- ne peuvent le savoir
+      # qu'en suivant les branches. Les nommer par ce qu'elles resolvent coute
+      # deux mots et supprime la question.
+      f_puissance <- function(pw) n_from_power(pw) - n
+      pw <- tryCatch(stats::uniroot(f_puissance, c(0.0001, 0.9999))$root,
+                     error = function(e) NA)
       list(n = n, effect = OR, power = pw, crit = za,
            extra = sprintf("OR = %.3f ; p0 = %.3f ; p1 = %.3f ; expose = %.0f%%",
                            OR, p0, p1, 100 * px))
     } else {
       # sensibilite : resoudre OR (donc p1) pour la puissance cible au n fixe
-      f <- function(ORx) {
+      f_or <- function(ORx) {
         p1x <- p0 * ORx / (1 - p0 + p0 * ORx)
         pbarx <- (1 - px) * p0 + px * p1x
         zb <- stats::qnorm(power)
@@ -326,7 +332,7 @@ hstat_power_logistic <- function(analysis = "apriori", p0 = 0.2, OR = 1.5,
         den <- (p1x - p0)^2 * (1 - px)
         (num / den) / (1 - R2_other) - n
       }
-      ORs <- tryCatch(stats::uniroot(f, c(1.001, 50))$root, error = function(e) NA)
+      ORs <- tryCatch(stats::uniroot(f_or, c(1.001, 50))$root, error = function(e) NA)
       list(n = n, effect = ORs, power = power, crit = za,
            extra = if (is.na(ORs)) "OR non resolu"
                    else sprintf("OR detectable = %.3f ; p0 = %.3f ; expose = %.0f%%",
@@ -1372,7 +1378,7 @@ hstat_design_analysis <- function(type, n_factors) {
       }
     }
     b <- b[ord, , drop = FALSE]
-    b$.x <- ave(seq_len(nrow(b)), b$block, FUN = function(ix) seq_along(ix))
+    b$.x <- stats::ave(seq_len(nrow(b)), b$block, FUN = function(ix) seq_along(ix))
     b$.fill <- reorder_fill(b[[f1]])    # couleur = facteur principal (meme couleur par grande parcelle)
     b$.lab <- vapply(as.character(b[[f2]]), lab_of, character(1))
     main_breaks <- seq(nsub, by = nsub, length.out = length(main_levels) - 1) + 0.5
@@ -1427,7 +1433,7 @@ hstat_design_analysis <- function(type, n_factors) {
     # Position en x = ordre (mainplot, subplot, subsubplot) DANS le bloc.
     ord <- with(b, order(block, mainplot, subplot, subsubplot))
     b <- b[ord, , drop = FALSE]
-    b$.x <- ave(seq_len(nrow(b)), b$block, FUN = function(ix) seq_along(ix))
+    b$.x <- stats::ave(seq_len(nrow(b)), b$block, FUN = function(ix) seq_along(ix))
     # Couleur = Facteur 1 (grande parcelle). Etiquette de cellule = Facteur 3
     # UNIQUEMENT (le Facteur 2 est identifie par son bandeau au-dessus des
     # sous-parcelles et par les traits pointilles).
@@ -1599,14 +1605,14 @@ hstat_design_analysis <- function(type, n_factors) {
     # par un espace blanc epais. Chaque replique = panneau ; blocs incomplets en
     # rangees a l'intérieur.
     if (!all(c("replication", "block") %in% names(b))) return(NULL)
-    b$.row <- ave(seq_len(nrow(b)), interaction(b$replication, b$block, drop = TRUE),
+    b$.row <- stats::ave(seq_len(nrow(b)), interaction(b$replication, b$block, drop = TRUE),
                   FUN = function(ix) 1L) # placeholder
     # position : a l'intérieur de chaque (replique, bloc), les unités en colonnes
     b <- b[order(b$replication, b$block), , drop = FALSE]
-    b$.x <- ave(seq_len(nrow(b)), interaction(b$replication, b$block, drop = TRUE),
+    b$.x <- stats::ave(seq_len(nrow(b)), interaction(b$replication, b$block, drop = TRUE),
                 FUN = function(ix) seq_along(ix))
     # .y = rang du bloc DANS sa replique (remis a 1 pour chaque replique -> alignement)
-    b$.y <- as.integer(ave(as.integer(as.factor(b$block)), b$replication,
+    b$.y <- as.integer(stats::ave(as.integer(as.factor(b$block)), b$replication,
                 FUN = function(z) as.integer(as.factor(z))))
     b$.fill <- reorder_fill(b[[fill_col]])
     b$.lab <- vapply(as.character(b[[fill_col]]), lab_of, character(1))
@@ -1746,7 +1752,7 @@ hstat_design_analysis <- function(type, n_factors) {
     } else {
       base_levels <- levels(b$.fill)
       if (is.null(base_levels)) base_levels <- fill_levels
-      setNames(pal[seq_along(base_levels)], base_levels)[fill_levels]
+      stats::setNames(pal[seq_along(base_levels)], base_levels)[fill_levels]
     }
     f1_name <- if (nzchar(legend_title)) legend_title else {
       if (type == "splitsplit") setdiff(names(b), c("plots","block","mainplot","subplot","subsubplot","Traitement",".x",".y",".fill",".lab",".blocklab",".blockord"))[1]
@@ -2339,14 +2345,14 @@ mod_design_server <- function(id, values) {
           els <- c(els, list(shiny::numericInput(ns(paste0("powLev", i)),
             trf("Nombre de modalités du facteur %s", LETTERS[i]),
             value = if (i == 1) 2 else 3, min = 2, step = 1)))
-        eff_choices <- c(setNames(paste0("main", seq_len(nf)),
+        eff_choices <- c(stats::setNames(paste0("main", seq_len(nf)),
                                   sprintf("Effet principal du facteur %s", LETTERS[seq_len(nf)])))
         if (nf >= 2)
           eff_choices <- c(eff_choices,
-            setNames("inter2", "Interaction A x B"),
-            if (nf >= 3) setNames("inter3", "Interaction A x B x C"),
-            if (nf >= 4) setNames("inter4", "Interaction A x B x C x D"),
-            setNames("interAll", "Interaction de tous les facteurs"))
+            stats::setNames("inter2", "Interaction A x B"),
+            if (nf >= 3) stats::setNames("inter3", "Interaction A x B x C"),
+            if (nf >= 4) stats::setNames("inter4", "Interaction A x B x C x D"),
+            stats::setNames("interAll", "Interaction de tous les facteurs"))
         # Conserver le choix courant si toujours valide (evite la remise a main1)
         cur_target <- input$powEffectTarget
         sel_target <- if (!is.null(cur_target) && cur_target %in% eff_choices) cur_target else eff_choices[[1]]
@@ -2536,7 +2542,7 @@ mod_design_server <- function(id, values) {
       xlab <- if (F_total) "Taille totale (N)" else "Taille par groupe (n)"
       if (!requireNamespace("ggplot2", quietly = TRUE)) {
         plot(d$n, d$power, type = "l", ylim = c(0, 1), xlab = xlab, ylab = "Puissance")
-        abline(h = 0.8, lty = 2); return(invisible())
+        graphics::abline(h = 0.8, lty = 2); return(invisible())
       }
       ggplot2::ggplot(d, ggplot2::aes(n, power)) +
         ggplot2::geom_line(color = "#2980b9", linewidth = 1) +
@@ -3285,7 +3291,7 @@ mod_design_server <- function(id, values) {
 
     output$dsgPlot <- shiny::renderPlot({
       g <- build_design_plot()
-      if (is.null(g)) { plot.new(); text(.5, .5, "ggplot2 requis"); return(invisible()) }
+      if (is.null(g)) { graphics::plot.new(); graphics::text(.5, .5, "ggplot2 requis"); return(invisible()) }
       g
     })
 

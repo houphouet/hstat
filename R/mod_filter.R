@@ -462,7 +462,7 @@ mod_filter_server <- function(id, values) {
     },
     content = function(file) {
       shiny::req(values$filteredData)
-      write.csv(values$filteredData, file, row.names = FALSE)
+      utils::write.csv(values$filteredData, file, row.names = FALSE)
     }
   )
   })

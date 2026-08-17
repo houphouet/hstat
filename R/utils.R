@@ -19,11 +19,16 @@
 
 #' Socle partage de HStat
 #'
-#' Tout est exporte, aides internes `.hstat_*` comprises : l'application les
-#' appelle directement, et un export selectif imposerait de tenir une liste de
-#' ~240 noms qui divergerait au premier ajout.
+#' Definitions communes a toute l'application : calcul, mise en forme, export.
 #'
-#' @rawNamespace exportPattern(".")
+#' RIEN N'EST EXPORTE ICI, et ce n'est pas un oubli. Le pont
+#' (`inst/app/Utils.R`) recopie les objets depuis l'ESPACE DE NOMS
+#' (`ls(asNamespace("HStat"), all.names = TRUE)`), ce qui atteint aussi bien
+#' les aides internes `.hstat_*` -- les exports n'y changent rien. Un
+#' `exportPattern(".")` ne servait donc a rien, et coutait cher : `R CMD check`
+#' reclame une fiche de documentation par objet exporte, soit ~240 fiches
+#' impossibles a tenir a jour.
+#'
 #' @keywords internal
 "_PACKAGE"
 
@@ -42,7 +47,7 @@
 
 
 install_and_load <- function(packages) {
-  installed_packages <- rownames(installed.packages())
+  installed_packages <- rownames(utils::installed.packages())
   to_install <- packages[!packages %in% installed_packages]
 
   if (length(to_install) > 0) {
@@ -55,11 +60,11 @@ install_and_load <- function(packages) {
         is.na(repos["CRAN"]))
       repos <- c(CRAN = "https://cloud.r-project.org")
     ok <- tryCatch({
-      install.packages(to_install, repos = repos)
+      utils::install.packages(to_install, repos = repos)
       TRUE
     }, error = function(e) FALSE, warning = function(e) FALSE)
 
-    still_missing <- to_install[!to_install %in% rownames(installed.packages())]
+    still_missing <- to_install[!to_install %in% rownames(utils::installed.packages())]
     if (length(still_missing) > 0) {
       message("\n", strrep("=", 70),
               "\n  HStat -- certains paquets n'ont pas pu etre installes",
@@ -181,7 +186,7 @@ remove_zero_var_cols <- function(df) {
   if (is.null(df) || !is.data.frame(df) || ncol(df) == 0) return(df)
   keep <- sapply(df, function(x) {
     if (!is.numeric(x)) return(TRUE)
-    sd_val <- sd(x, na.rm = TRUE)
+    sd_val <- stats::sd(x, na.rm = TRUE)
     !is.na(sd_val) && sd_val > 0
   })
   df[, keep, drop = FALSE]
@@ -192,7 +197,7 @@ safe_cor <- function(df, use = "pairwise.complete.obs") {
   df <- df[, sapply(df, is.numeric), drop = FALSE]
   df <- remove_zero_var_cols(df)
   if (is.null(df) || ncol(df) < 2) return(NULL)
-  tryCatch(suppressWarnings(cor(df, use = use)), error = function(e) NULL)
+  tryCatch(suppressWarnings(stats::cor(df, use = use)), error = function(e) NULL)
 }
 
 # Tests de corrélation (Pearson / Kendall / Spearman) sur toutes les paires de
@@ -283,7 +288,7 @@ get_all_factor_candidates <- function(df, max_numeric_levels = 30) {
     x <- df[[col]]
     if (is.factor(x) || is.character(x) || is.logical(x)) return(TRUE)
     if (inherits(x, "Date") || inherits(x, "POSIXt"))    return(TRUE)
-    if (is.numeric(x)) return(length(unique(na.omit(x))) <= max_numeric_levels)
+    if (is.numeric(x)) return(length(unique(stats::na.omit(x))) <= max_numeric_levels)
     FALSE
   })
   nms[keep]
@@ -912,7 +917,7 @@ hstat_lbl_pt2cex <- function(pt, default = HSTAT_LBL_PT_DEFAULT) {
 
 # Curseur standard « taille des labels », toujours gradué en points.
 hstat_lbl_slider <- function(id, label, value = HSTAT_LBL_PT_DEFAULT) {
-  sliderInput(id, label, min = HSTAT_LBL_PT_MIN, max = HSTAT_LBL_PT_MAX,
+  shiny::sliderInput(id, label, min = HSTAT_LBL_PT_MIN, max = HSTAT_LBL_PT_MAX,
               value = value, step = 1, post = " pt")
 }
 
@@ -1036,7 +1041,7 @@ filter_complete_cross_n <- function(df, factors) {
   dfx
 }
 
-calc_cv <- function(x) sd(x, na.rm = TRUE) / mean(x, na.rm = TRUE) * 100
+calc_cv <- function(x) stats::sd(x, na.rm = TRUE) / mean(x, na.rm = TRUE) * 100
 
 
 
@@ -1149,7 +1154,7 @@ apply_variable_transformation <- function(x, method) {
                    "yeojohnson" = {
                      yj_obj  <- bestNormalize::yeojohnson(x_nona, standardize = FALSE)
                      x_trans <- rep(NA_real_, length(x))
-                     x_trans[!is.na(x)] <- predict(yj_obj, newdata = x_nona)
+                     x_trans[!is.na(x)] <- stats::predict(yj_obj, newdata = x_nona)
                      attr(x_trans, "yj_object") <- yj_obj
                      attr(x_trans, "lambda")    <- round(yj_obj$lambda, 4)
                      x_trans
@@ -1203,7 +1208,7 @@ back_transform_values <- function(x, method, lambda = NULL, yj_object = NULL) {
            },
            "yeojohnson" = {
              if (!is.null(yj_object)) {
-               predict(yj_object, newdata = x, inverse = TRUE)
+               stats::predict(yj_object, newdata = x, inverse = TRUE)
              } else {
                x  # fallback si l'objet n'est pas disponible
              }
@@ -1666,10 +1671,10 @@ hstat_axe_titre <- function(size = 12, face = "plain", align = "0.5",
 # deux widgets recopies : c'est ce qui garantit que les modules offrent les
 # MEMES elements -- la recopie derive, on l'a vu sur les themes.
 hstat_axe_titre_ui <- function(ns, prefix, retour = TRUE, align = "0.5") {
-  tagList(
-    checkboxInput(ns(paste0(prefix, "TitreRetour")),
+  shiny::tagList(
+    shiny::checkboxInput(ns(paste0(prefix, "TitreRetour")),
                   "Titres d'axe sur plusieurs lignes si trop longs", retour),
-    selectInput(ns(paste0(prefix, "TitreAlign")), "Alignement des titres d'axe:",
+    shiny::selectInput(ns(paste0(prefix, "TitreAlign")), "Alignement des titres d'axe:",
                 choices = HSTAT_ALIGN_TITRE, selected = align))
 }
 
@@ -1681,6 +1686,24 @@ hstat_axe_titre_lire <- function(input, prefix, size = 12, face = "plain",
                   axe = match.arg(axe),
                   retour = isTRUE(input[[paste0(prefix, "TitreRetour")]] %||% TRUE),
                   colour = colour)
+}
+
+# Bandeau "portee des données" : affiche sur chaque onglet d'analyse en mode
+# hors-memoire pour rappeler que l'analyse porte sur un echantillon, avec acces
+# rapide au reglage de l'echantillon. 'exact' = TRUE si l'onglet propose en plus
+# un calcul exact sur le jeu complet.
+.hstat_scope_banner <- function(exact = FALSE) {
+  shiny::conditionalPanel(
+    condition = "output.hstatBigData == true",
+    shiny::div(class = "callout callout-warning", style = "margin-bottom:16px;",
+      shiny::tags$p(style = "margin:0; font-size:13px;",
+        shiny::icon("database"),
+        if (exact)
+          shiny::HTML(" <b>Mode hors-mémoire.</b> Cette analyse s'exécute sur l'échantillon de travail ; l'option <b>« calculer sur le jeu complet »</b> ci-dessous fournit un résultat exact lorsque c'est applicable.")
+        else
+          shiny::HTML(" <b>Mode hors-mémoire.</b> Cette analyse ajuste un modèle et s'exécute donc sur l'<b>échantillon de travail</b>. Pour gagner en fidélité, agrandissez l'échantillon dans l'onglet « Chargement » &rarr; « Échantillon de travail »."))
+    )
+  )
 }
 
 hstat_etendue_axe <- function(valeurs, reperes = numeric(0)) {
@@ -2716,13 +2739,15 @@ lm_cld_letters <- function(model, predictor, adjust = "tukey", digits = 3) {
   em <- tryCatch(emmeans::emmeans(model, specs = predictor),
                  error = function(e) NULL)
   if (is.null(em)) return(NULL)
+  # `multcomp::cld` SUFFIT : c'est la generique, et emmeans enregistre sa
+  # methode pour les objets `emmGrid`. Le repli qui suivait appelait
+  # `emmeans::cld` -- qui N'EXISTE PAS (« 'cld' is not an exported object »).
+  # Enferme dans un `tryCatch`, il rendait NULL au lieu de lever : un repli
+  # mort, qui donnait l'illusion d'un filet de securite. Signale par
+  # `R CMD check`, jamais par l'execution.
   cld <- tryCatch(
     multcomp::cld(em, adjust = adjust, Letters = letters, decreasing = TRUE),
-    error = function(e) {
-      tryCatch(emmeans::cld(em, adjust = adjust, Letters = letters, decreasing = TRUE),
-               error = function(e2) NULL)
-    }
-  )
+    error = function(e) NULL)
   if (is.null(cld)) return(NULL)
   
   df_out <- as.data.frame(cld)
@@ -4210,7 +4235,7 @@ hstat_read_csv_mem <- function(path, header = TRUE, sep = ",") {
                             showProgress = FALSE, encoding = fenc))
   } else {
     fe <- if (identical(enc, "Latin-1")) "latin1" else "UTF-8"
-    read.csv(path, header = header, sep = sep, check.names = FALSE,
+    utils::read.csv(path, header = header, sep = sep, check.names = FALSE,
              stringsAsFactors = FALSE, fileEncoding = fe)
   }
   # Filet de securite : garantit des chaines UTF-8 valides en sortie.
@@ -5132,24 +5157,24 @@ hstat_model_interpretation <- function(task, metrics_df, model_label,
 # valeurs manquantes) n'offraient AUCUN choix de theme.
 hstat_export_plot_ui <- function(ns, prefix, width = 10, height = 6,
                                  theme = TRUE) {
-  tagList(
+  shiny::tagList(
     if (isTRUE(theme))
-      fluidRow(column(6, selectInput(ns(paste0(prefix, "Theme")), "Thème",
+      shiny::fluidRow(shiny::column(6, shiny::selectInput(ns(paste0(prefix, "Theme")), "Thème",
                                      choices = HSTAT_THEMES_GG,
                                      selected = "minimal"))),
-    fluidRow(
-      column(3, hstat_format_input(ns(paste0(prefix, "Fmt")), "Format")),
-      column(3, numericInput(ns(paste0(prefix, "W")), "Largeur (pouces)",
+    shiny::fluidRow(
+      shiny::column(3, hstat_format_input(ns(paste0(prefix, "Fmt")), "Format")),
+      shiny::column(3, shiny::numericInput(ns(paste0(prefix, "W")), "Largeur (pouces)",
                              value = width, min = 3, max = 30, step = 0.5)),
-      column(3, numericInput(ns(paste0(prefix, "H")), "Hauteur (pouces)",
+      shiny::column(3, shiny::numericInput(ns(paste0(prefix, "H")), "Hauteur (pouces)",
                              value = height, min = 3, max = 30, step = 0.5)),
-      column(3, hstat_dpi_input(ns(paste0(prefix, "Dpi")), "DPI (max 20 000)"))),
+      shiny::column(3, hstat_dpi_input(ns(paste0(prefix, "Dpi")), "DPI (max 20 000)"))),
     shiny::tags$small(style = "color:#6b7280;",
       "PDF et SVG sont vectoriels (resolution infinie, DPI sans objet). ",
       "Pour les formats matriciels, au-dela d'un certain DPI les dimensions physiques ",
       "sont automatiquement reduites afin de garder une image ouvrable (plafond de securite en pixels)."),
-    div(style = "margin-top:8px;",
-        downloadButton(ns(paste0(prefix, "Dl")), "Télécharger le graphique",
+    shiny::div(style = "margin-top:8px;",
+        shiny::downloadButton(ns(paste0(prefix, "Dl")), "Télécharger le graphique",
                        class = "btn-success"))
   )
 }
@@ -5182,7 +5207,7 @@ hstat_export_plot_handler <- function(input, prefix, plot_fun, fname = "graphiqu
     dpi <- hstat_finite(input[[paste0(prefix, "Dpi")]], 300)
     list(fmt = fmt, w = w, h = h, dpi = max(72, min(HSTAT_DPI_MAX, dpi)))
   }
-  downloadHandler(
+  shiny::downloadHandler(
     filename = function() {
       fmt <- reglages()$fmt
       ext <- if (identical(fmt, "jpeg")) "jpg" else fmt
@@ -5209,31 +5234,31 @@ hstat_export_plot_handler <- function(input, prefix, plot_fun, fname = "graphiqu
 # ==============================================================================
 
 hstat_plot_opts_ui <- function(ns, prefix) {
-  tagList(
-    fluidRow(
-      column(6, textInput(ns(paste0(prefix, "Title")), "Titre", value = "")),
-      column(6, textInput(ns(paste0(prefix, "Sub")), "Sous-titre", value = ""))),
-    fluidRow(
-      column(6, textInput(ns(paste0(prefix, "Xlab")), "Titre de l'axe X", value = "")),
-      column(6, textInput(ns(paste0(prefix, "Ylab")), "Titre de l'axe Y", value = ""))),
-    fluidRow(
-      column(4, selectInput(ns(paste0(prefix, "Theme")), "Thème",
+  shiny::tagList(
+    shiny::fluidRow(
+      shiny::column(6, shiny::textInput(ns(paste0(prefix, "Title")), "Titre", value = "")),
+      shiny::column(6, shiny::textInput(ns(paste0(prefix, "Sub")), "Sous-titre", value = ""))),
+    shiny::fluidRow(
+      shiny::column(6, shiny::textInput(ns(paste0(prefix, "Xlab")), "Titre de l'axe X", value = "")),
+      shiny::column(6, shiny::textInput(ns(paste0(prefix, "Ylab")), "Titre de l'axe Y", value = ""))),
+    shiny::fluidRow(
+      shiny::column(4, shiny::selectInput(ns(paste0(prefix, "Theme")), "Thème",
                choices = HSTAT_THEMES_GG, selected = "minimal")),
-      column(4, numericInput(ns(paste0(prefix, "Base")), "Taille du texte",
+      shiny::column(4, shiny::numericInput(ns(paste0(prefix, "Base")), "Taille du texte",
                              value = 13, min = 7, max = 30, step = 1)),
-      column(4, selectInput(ns(paste0(prefix, "Legend")), "Légende",
+      shiny::column(4, shiny::selectInput(ns(paste0(prefix, "Legend")), "Légende",
                choices = c("Droite" = "right", "Gauche" = "left", "Haut" = "top",
                            "Bas" = "bottom", "Masquée" = "none"),
                selected = "right"))),
-    fluidRow(
-      column(4, if (requireNamespace("colourpicker", quietly = TRUE))
+    shiny::fluidRow(
+      shiny::column(4, if (requireNamespace("colourpicker", quietly = TRUE))
                   colourpicker::colourInput(ns(paste0(prefix, "Col")),
                     "Couleur principale", value = "#2c7fb8")
-                else textInput(ns(paste0(prefix, "Col")),
+                else shiny::textInput(ns(paste0(prefix, "Col")),
                     "Couleur principale (hex)", value = "#2c7fb8")),
-      column(4, numericInput(ns(paste0(prefix, "Lwd")), "Épaisseur des lignes",
+      shiny::column(4, shiny::numericInput(ns(paste0(prefix, "Lwd")), "Épaisseur des lignes",
                              value = 0.9, min = 0.2, max = 4, step = 0.1)),
-      column(4, numericInput(ns(paste0(prefix, "Rot")), "Rotation des labels X (°)",
+      shiny::column(4, shiny::numericInput(ns(paste0(prefix, "Rot")), "Rotation des labels X (°)",
                              value = 0, min = 0, max = 90, step = 15)))
   )
 }
@@ -5273,9 +5298,9 @@ hstat_plot_opt <- function(input, prefix, what, default) {
 # ==============================================================================
 
 hstat_export_table_ui <- function(ns, prefix) {
-  div(style = "margin-top:6px;",
-      downloadButton(ns(paste0(prefix, "Csv")), "CSV", class = "btn-sm"),
-      downloadButton(ns(paste0(prefix, "Xlsx")), "Excel", class = "btn-sm"))
+  shiny::div(style = "margin-top:6px;",
+      shiny::downloadButton(ns(paste0(prefix, "Csv")), "CSV", class = "btn-sm"),
+      shiny::downloadButton(ns(paste0(prefix, "Xlsx")), "Excel", class = "btn-sm"))
 }
 
 hstat_export_table_handlers <- function(output, prefix, data_fun, fname = "resultats") {
@@ -5382,7 +5407,7 @@ hstat_tables_non_vides <- function(tables) {
 # Telechargement d'un classeur Excel a partir d'une liste nommee de tableaux.
 hstat_classeur_handler <- function(tables_fun, fname = "resultats",
                                    libelle = "Export Excel") {
-  downloadHandler(
+  shiny::downloadHandler(
     filename = function() paste0(fname, "_", Sys.Date(), ".xlsx"),
     contentType = HSTAT_MIME_XLSX,
     content = function(file)
@@ -5399,7 +5424,7 @@ hstat_csv_handler <- function(tables_fun, fname = "resultats",
   # passe tel quel dans l'en-tete HTTP (`download$contentType %||%
   # getContentType(filename)`). Or le type depend ici du nombre de tableaux.
   # L'omettre laisse Shiny le deduire de l'extension, qui est deja juste.
-  downloadHandler(
+  shiny::downloadHandler(
     filename = function()
       paste0(fname, "_", Sys.Date(), if (multiple()) ".zip" else ".csv"),
     content = function(file) {
@@ -5430,16 +5455,16 @@ hstat_sim_inputs_ui <- function(ns, df, vars, prefix) {
     x <- df[[v]]
     if (is.numeric(x)) {
       md <- suppressWarnings(stats::median(x, na.rm = TRUE))
-      numericInput(ns(paste0(prefix, "_", v)), v,
+      shiny::numericInput(ns(paste0(prefix, "_", v)), v,
                    value = round(hstat_finite(md, 0), 4))
     } else {
       lv <- sort(unique(as.character(x[!is.na(x)])))
       if (length(lv) == 0) lv <- ""
-      selectInput(ns(paste0(prefix, "_", v)), v, choices = lv)
+      shiny::selectInput(ns(paste0(prefix, "_", v)), v, choices = lv)
     }
   })
   do.call(shiny::tagList, lapply(seq_along(ctrls), function(i)
-    column(4, ctrls[[i]])))
+    shiny::column(4, ctrls[[i]])))
 }
 
 # Recompose une ligne de donnees typee a partir du formulaire.
@@ -5647,11 +5672,11 @@ hstat_model_doc <- function(id) {
 hstat_model_doc_ui <- function(id) {
   f <- hstat_model_doc(id)
   if (is.null(f)) return(NULL)
-  div(class = "callout callout-info", style = "margin-top:8px;",
-      shiny::tags$p(icon("book"), strong(sprintf(" Fiche du modele — %s", f$nom))),
-      shiny::tags$p(strong("Principe : "), f$principe),
-      shiny::tags$p(strong("Objectif : "), f$objectif),
-      shiny::tags$p(strong("Conditions d'application : "), f$conditions))
+  shiny::div(class = "callout callout-info", style = "margin-top:8px;",
+      shiny::tags$p(shiny::icon("book"), shiny::strong(sprintf(" Fiche du modele — %s", f$nom))),
+      shiny::tags$p(shiny::strong("Principe : "), f$principe),
+      shiny::tags$p(shiny::strong("Objectif : "), f$objectif),
+      shiny::tags$p(shiny::strong("Conditions d'application : "), f$conditions))
 }
 
 # ---------------------------------------------------------------------------
@@ -5905,6 +5930,25 @@ hstat_y_multi_valides <- function(data, y_vars, x_var = NULL) {
 #  teste desormais seul (`shiny::testServer`) apres un simple appel a cette
 #  fonction. Tant que ces replis vivaient dans le pont, tester
 #  `mod_tests_server` echouait sur « could not find function updatePickerInput ».
+# `layout` EST DEFINI ICI, au premier niveau, et pas seulement pose dans
+# l'environnement global par `hstat_installer_replis_ui()`.
+#
+# C'est le seul aiguillage dont le nom existe aussi dans un paquet DE BASE
+# (`graphics::layout`). Le compilateur d'octets, qui ne voit que le paquet,
+# resolvait donc `layout(showlegend = FALSE)` en `graphics::layout` et rendait
+# sept avertissements « unused argument » a l'installation. A l'execution
+# l'environnement global l'emportait -- l'avertissement etait faux, mais il
+# signalait une vraie fragilite : le code du paquet appele SANS l'application
+# (un module sous `testServer`, par exemple) serait bien tombe sur
+# `graphics::layout`. Les dix autres aiguillages n'ont pas d'homonyme de base :
+# le compilateur n'a rien a quoi les resoudre, et se tait.
+#
+# La decision est prise A CHAQUE APPEL, et non une fois pour toutes : c'est la
+# machine d'execution qui sait si plotly est la, pas celle de construction.
+layout <- function(p, ...) {
+  if (isTRUE(requireNamespace("plotly", quietly = TRUE))) plotly::layout(p, ...) else p
+}
+
 hstat_installer_replis_ui <- function(envir = globalenv()) {
   has <- function(p) isTRUE(requireNamespace(p, quietly = TRUE))
   # UN AIGUILLAGE, PAS UN REPLI CONDITIONNEL. Ces noms sont desormais TOUJOURS
@@ -5930,7 +5974,10 @@ hstat_installer_replis_ui <- function(envir = globalenv()) {
   poser("ggplotly", if (has("plotly")) plotly::ggplotly else function(p, ...) p)
   # `layout` et `config` : aucun usage en graphisme de base dans l'application
   # (verifie), ils ne peuvent donc pas masquer `graphics::layout`.
-  poser("layout", if (has("plotly")) plotly::layout else function(p, ...) p)
+  # `layout` n'est pas refabrique ici : il est defini au premier niveau (voir
+  # ci-dessus) et seulement RECOPIE. Deux definitions du meme aiguillage
+  # finiraient par diverger.
+  poser("layout", layout)
   poser("config", if (has("plotly")) plotly::config else function(p, ...) p)
 
   # Le nettoyage du polyfill obsolete est pose sur `renderPlotly` LUI-MEME
