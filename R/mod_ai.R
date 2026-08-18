@@ -1842,7 +1842,7 @@ mod_ai_server <- function(id, values) {
       c0 <- ctx()
       if (is.null(c0)) {
         shiny::showNotification(
-          "Aucune analyse enregistree : lancez d'abord une analyse dans un autre onglet.",
+          "Aucune analyse enregistrée : lancez d'abord une analyse dans un autre onglet.",
           type = "warning", duration = 7)
         return(invisible(NULL))
       }
@@ -1860,7 +1860,7 @@ mod_ai_server <- function(id, values) {
       c0 <- ctx()
       if (is.null(c0)) {
         shiny::showNotification(
-          "Aucune analyse enregistree : lancez d'abord une analyse dans un autre onglet.",
+          "Aucune analyse enregistrée : lancez d'abord une analyse dans un autre onglet.",
           type = "warning", duration = 7); return()
       }
       eng <- input$engine %||% "auto"

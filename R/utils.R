@@ -1444,6 +1444,10 @@ hstat_img_mime <- function(fmt) unname(HSTAT_IMG_MIME[hstat_img_fmt(fmt)])
 #  La liste des formats est DERIVEE de ce que l'ecrivain sait ecrire : offrir
 #  un format qu'il ignore ferait retomber `hstat_img_fmt()` sur PNG, et
 #  l'utilisateur recevrait un PNG portant l'extension demandee.
+# Compressions TIFF proposees. Declarees ici, comme les formats : la liste
+# etait ecrite en dur dans le seul onglet Visualisation.
+HSTAT_TIFF_COMPRESSION <- c("Aucune" = "none", "LZW" = "lzw", "ZIP" = "zip")
+
 HSTAT_FORMATS_IMG <- c(
   "PNG" = "png", "JPEG" = "jpeg", "TIFF" = "tiff", "BMP" = "bmp",
   "PDF (vectoriel)" = "pdf", "SVG (vectoriel)" = "svg",
@@ -3421,6 +3425,19 @@ hstat_sql_path <- function(path) {
 # marqueur, ecartait la phrase du dictionnaire du navigateur et la faisait
 # passer pour une traduction fautive. Une seule definition, partagee par le
 # filtre et par le test, pour que les deux ne divergent pas.
+# Plafond du dictionnaire EMBARQUE dans la page, en kilo-octets.
+#
+# Il tenait en dur dans DEUX tests, avec la meme valeur recopiee : deux chiffres
+# identiques qui ne se parlent pas finissent par diverger, et l'un des deux ment.
+#
+# 120 Ko et non 60 : la couverture des libelles atteignables est passee de 64 %
+# a 100 %, ce qui porte le dictionnaire de ~53 a 79 Ko -- 26 Ko une fois
+# compresse, ce qui est la taille reellement transmise. C'est le prix d'une
+# interface entierement bilingue, et il reste tres inferieur au moindre paquet
+# de scripts d'une page web ordinaire. Le plafond garde ce qu'il gardait : que
+# la croissance reste VUE, et decidee.
+HSTAT_I18N_KO_MAX <- 120
+
 HSTAT_I18N_MARQUEUR <- "%[-0-9.]*[sdfgeix%]"
 
 # -- Phrase COMPOSEE : on traduit le gabarit, jamais les arguments ------------
@@ -5169,6 +5186,24 @@ hstat_export_plot_ui <- function(ns, prefix, width = 10, height = 6,
       shiny::column(3, shiny::numericInput(ns(paste0(prefix, "H")), "Hauteur (pouces)",
                              value = height, min = 3, max = 30, step = 0.5)),
       shiny::column(3, hstat_dpi_input(ns(paste0(prefix, "Dpi")), "DPI (max 20 000)"))),
+    # REGLAGES PROPRES AU FORMAT. L'ecrivain commun (`hstat_ecrire_image`) sait
+    # depuis toujours honorer `qualite` et `compression` ; seul l'onglet
+    # Visualisation les DEMANDAIT. Les dix-sept autres blocs d'export ecrivaient
+    # donc leurs JPEG et leurs TIFF avec les valeurs par defaut, sans que
+    # l'utilisateur puisse y toucher -- une compression TIFF ne se choisit pas
+    # par hasard quand la figure part chez un editeur.
+    #
+    # Ils ne s'affichent que pour le format concerne : proposer une qualite JPEG
+    # devant un PDF ferait douter de ce que le reglage touche.
+    shiny::conditionalPanel(
+      condition = sprintf("input['%s'] == 'jpeg'", ns(paste0(prefix, "Fmt"))),
+      fluidRow(column(6, sliderInput(ns(paste0(prefix, "Qual")), "Qualité JPEG",
+                                     min = 50, max = 100, value = 95, step = 5)))),
+    shiny::conditionalPanel(
+      condition = sprintf("input['%s'] == 'tiff'", ns(paste0(prefix, "Fmt"))),
+      fluidRow(column(6, selectInput(ns(paste0(prefix, "Comp")), "Compression TIFF",
+                                     choices = HSTAT_TIFF_COMPRESSION,
+                                     selected = "lzw")))),
     shiny::tags$small(style = "color:#6b7280;",
       "PDF et SVG sont vectoriels (resolution infinie, DPI sans objet). ",
       "Pour les formats matriciels, au-dela d'un certain DPI les dimensions physiques ",
@@ -5205,7 +5240,10 @@ hstat_export_plot_handler <- function(input, prefix, plot_fun, fname = "graphiqu
     w   <- hstat_finite(input[[paste0(prefix, "W")]], 10);  w <- max(3, min(30, w))
     h   <- hstat_finite(input[[paste0(prefix, "H")]], 6);   h <- max(3, min(30, h))
     dpi <- hstat_finite(input[[paste0(prefix, "Dpi")]], 300)
-    list(fmt = fmt, w = w, h = h, dpi = max(72, min(HSTAT_DPI_MAX, dpi)))
+    qual <- hstat_finite(input[[paste0(prefix, "Qual")]], 95)
+    list(fmt = fmt, w = w, h = h, dpi = max(72, min(HSTAT_DPI_MAX, dpi)),
+         qualite = max(50, min(100, qual)),
+         compression = input[[paste0(prefix, "Comp")]] %||% "lzw")
   }
   shiny::downloadHandler(
     filename = function() {
@@ -5223,7 +5261,8 @@ hstat_export_plot_handler <- function(input, prefix, plot_fun, fname = "graphiqu
         shiny::showNotification(eff$note, type = "warning", duration = 10)
       g <- tryCatch(plot_fun(), error = function(e) NULL)
       hstat_ecrire_image(file, g, r$fmt, r$w, r$h, r$dpi,
-        echec = "Aucun graphique a exporter : lancez d'abord l'analyse.")
+        echec = "Aucun graphique a exporter : lancez d'abord l'analyse.",
+        qualite = r$qualite, compression = r$compression)
     })
 }
 

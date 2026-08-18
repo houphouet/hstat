@@ -1193,6 +1193,40 @@ Quatre points à ne pas défaire :
    élément portant `data-hstat-notranslate` est ignoré : les données de
    l'utilisateur ne doivent jamais être traduites par morceaux.
 
+#### Ce qui est traduisible, et ce qui ne l'est pas
+
+La couverture se mesure sur les **libellés atteignables** : ceux qui existent
+dans le DOM comme **texte entier d'un nœud** — libellé de widget, titre
+d'onglet, titre de boîte, bouton, notification. Ce sont les seuls que le
+traducteur du navigateur peut remplacer.
+
+**904 sur 904, soit 100 %** (contre 580 auparavant).
+
+Le dépôt compte par ailleurs ~3 300 autres chaînes françaises. Les traduire une
+à une serait du travail perdu : ce sont des **fragments assemblés à
+l'exécution**, qui n'apparaissent jamais comme chaîne complète dans la page. Ils
+relèvent de `tr()` et `trf()`, côté R. Mesurer la couverture sur eux donnerait
+un chiffre juste et sans signification.
+
+Le plafond de poids vit désormais dans `HSTAT_I18N_KO_MAX` : il était écrit en
+dur dans **deux** tests, même valeur recopiée — deux chiffres qui ne se parlent
+pas finissent par diverger. Il est passé de 60 à 120 Ko, la couverture complète
+portant le dictionnaire de ~53 à 79 Ko (26 Ko compressés, ce qui transite
+réellement).
+
+#### Corriger le français avant de le traduire
+
+Une faute traduite se fige : elle devient une clé du dictionnaire, et la
+corriger ensuite casse la correspondance. Les 55 corrections de français —
+accents manquants dans les modules récents (« Memo enregistre », « etiquettes
+deja posees »), et typographie (« Erreur: » pour « Erreur : », « succès! » pour
+« succès ! ») — ont donc précédé la traduction.
+
+Prudence nécessaire : le balayage des mots sans accent remonte aussi des
+**identifiants** (`acp_resultats`, `donnees mixtes|afdm`) et des commentaires du
+script de reproductibilité. Les corriger casserait des clés. Seuls les libellés
+**affichés** ont été touchés, un par un.
+
 #### Une cellule de tableau n'est pas un libellé
 
 La correspondance exacte ne suffisait pas : une colonne du fichier chargé

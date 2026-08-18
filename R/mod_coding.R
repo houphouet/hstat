@@ -2248,7 +2248,7 @@ mod_coding_server <- function(id, values) {
       rv$cur <- 1L
       if (nrow(rv$segments) > 0)
         shiny::showNotification(
-          "Changement de question : les etiquettes deja posees concernent la question precedente.",
+          "Changement de question : les étiquettes déjà posées concernent la question précédente.",
           type = "warning", duration = 8)
     }, ignoreInit = TRUE)
 
@@ -2285,9 +2285,9 @@ mod_coding_server <- function(id, values) {
       if (length(nxt)) rv$cur <- nxt[1]
       else if (length(free)) {
         rv$cur <- free[1]
-        shiny::showNotification("Retour au debut : premiere reponse non codee.",
+        shiny::showNotification("Retour au début : première réponse non codée.",
                                 type = "message", duration = 4)
-      } else shiny::showNotification("Toutes les reponses portent au moins une etiquette.",
+      } else shiny::showNotification("Toutes les réponses portent au moins une étiquette.",
                                      type = "message", duration = 4)
     })
 
@@ -2328,7 +2328,7 @@ mod_coding_server <- function(id, values) {
     shiny::observeEvent(input$add_code, {
       lab <- trimws(input$new_code %||% "")
       if (!nzchar(lab)) {
-        shiny::showNotification("Saisissez d'abord un libelle de code.",
+        shiny::showNotification("Saisissez d'abord un libellé de code.",
                                 type = "warning", duration = 4); return()
       }
       # La couleur n'est imposee que si l'utilisateur l'a lui-meme changee ;
@@ -2362,7 +2362,7 @@ mod_coding_server <- function(id, values) {
       rv$segments <- hstat_code_new_segments()
       rv$next_color <- HSTAT_CODE_PALETTE[1]
       colourpicker::updateColourInput(session, "new_color", value = rv$next_color)
-      shiny::showNotification("Livre de codes et etiquettes supprimes.",
+      shiny::showNotification("Livre de codes et étiquettes supprimés.",
                               type = "message", duration = 4)
     })
 
@@ -2409,12 +2409,12 @@ mod_coding_server <- function(id, values) {
                                  input$memo_titre %||% "", input$memo_texte %||% "")
       if (nrow(rv$memos) == avant) {
         shiny::showNotification(
-          "Un memo vide n'est pas enregistre : saisissez un titre ou un texte.",
+          "Un mémo vide n'est pas enregistré : saisissez un titre ou un texte.",
           type = "warning", duration = 5)
       } else {
         shiny::updateTextInput(session, "memo_titre", value = "")
         shiny::updateTextAreaInput(session, "memo_texte", value = "")
-        shiny::showNotification("Memo enregistre.", type = "message", duration = 3)
+        shiny::showNotification("Mémo enregistré.", type = "message", duration = 3)
       }
     })
 
@@ -2482,7 +2482,7 @@ mod_coding_server <- function(id, values) {
       m <- memos_vus()
       shiny::req(length(i), i <= nrow(m))
       rv$memos <- hstat_memo_remove(rv$memos, m$memo_id[i])
-      shiny::showNotification("Memo supprime.", type = "message", duration = 3)
+      shiny::showNotification("Mémo supprimé.", type = "message", duration = 3)
     })
 
     output$memo_resume <- shiny::renderUI({
@@ -2587,7 +2587,7 @@ mod_coding_server <- function(id, values) {
       d <- cur_doc()
       st <- as.numeric(ev$start); en <- as.numeric(ev$end)
       if (is.na(st) || is.na(en) || en <= st) {
-        shiny::showNotification("Selection vide : selectionnez d'abord un passage.",
+        shiny::showNotification("Sélection vide : sélectionnez d'abord un passage.",
                                 type = "warning", duration = 4); return()
       }
       # Le texte est relu dans le document (et non repris de la selection JS) :
@@ -2609,7 +2609,7 @@ mod_coding_server <- function(id, values) {
       rv$segments <- hstat_seg_add(rv$segments, d$doc_id, ev$code, st, en, txt)
       rv$sel <- NULL
       if (nrow(rv$segments) == before)
-        shiny::showNotification("Ce passage porte deja ce code.",
+        shiny::showNotification("Ce passage porte déjà ce code.",
                                 type = "warning", duration = 3)
       else
         shiny::showNotification(
@@ -3239,7 +3239,7 @@ mod_coding_server <- function(id, values) {
       st <- hstat_ai_status(o$engine, o$url, o$model, o$key)
       if (!isTRUE(st$ok)) { shiny::showNotification(st$message, type = "error", duration = 10); return() }
       if (nrow(rv$codebook) == 0) {
-        shiny::showNotification("Creez d'abord un livre de codes (etape 1, ou a la main).",
+        shiny::showNotification("Créez d'abord un livre de codes (étape 1, ou à la main).",
                                 type = "warning", duration = 6); return()
       }
       dd <- docs()

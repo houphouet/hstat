@@ -2648,7 +2648,7 @@ mod_design_server <- function(id, values) {
       }, integer(1))
       levs <- levs[!is.na(levs)]
       if (length(levs) == 0) {
-        shiny::showNotification("Aucun facteur defini dans l'onglet Puissance statistique.",
+        shiny::showNotification("Aucun facteur défini dans l'onglet Puissance statistique.",
                          type = "warning"); return()
       }
       # Bascule sur un plan factoriel si plusieurs facteurs

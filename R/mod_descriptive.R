@@ -259,7 +259,7 @@ mod_descriptive_ui <- function(id) {
                                                         min = 0, max = 90, value = 0, step = 15,
                                                         post = "°", width = "100%"),
                                             shiny::tags$hr(style = "margin: 15px 0; border-color: #b3d9ff;"),
-                                            shiny::h6("Style du texte:", style = "font-size: 13px; color: #555; margin-bottom: 10px; font-weight: bold;"),
+                                            shiny::h6("Style du texte :", style = "font-size: 13px; color: #555; margin-bottom: 10px; font-weight: bold;"),
                                             shiny::fluidRow(
                                               shiny::column(6,
                                                      shiny::checkboxInput(ns("descPlotXTickBold"), 
@@ -284,7 +284,7 @@ mod_descriptive_ui <- function(id) {
                                               "Les graduations Y restent toujours horizontales"
                                             ),
                                             shiny::tags$hr(style = "margin: 15px 0; border-color: #b3e6cc;"),
-                                            shiny::h6("Style du texte:", style = "font-size: 13px; color: #555; margin-bottom: 10px; font-weight: bold;"),
+                                            shiny::h6("Style du texte :", style = "font-size: 13px; color: #555; margin-bottom: 10px; font-weight: bold;"),
                                             shiny::fluidRow(
                                               shiny::column(6,
                                                      shiny::checkboxInput(ns("descPlotYTickBold"), 
@@ -342,7 +342,7 @@ mod_descriptive_server <- function(id, values) {
     shiny::tagList(
       pickerInput(
         inputId = ns("numVars"),
-        label = "Sélectionnez les variables numériques:", 
+        label = "Sélectionnez les variables numériques :", 
         choices = num_cols,
         multiple = TRUE,
         selected = num_cols[1:min(5, length(num_cols))],
@@ -459,7 +459,7 @@ mod_descriptive_server <- function(id, values) {
       }
       
       shiny::removeNotification("calcProgress")
-      shiny::showNotification("Statistiques calculées avec succès!", type = "message", duration = 3)
+      shiny::showNotification("Statistiques calculées avec succès !", type = "message", duration = 3)
       
     }, error = function(e) {
       shiny::removeNotification("calcProgress")
@@ -547,7 +547,7 @@ mod_descriptive_server <- function(id, values) {
     },
     content = function(file) {
       utils::write.csv(values$descStats, file, row.names = FALSE)
-      shiny::showNotification("Fichier CSV téléchargé!", type = "message", duration = 3)
+      shiny::showNotification("Fichier CSV téléchargé !", type = "message", duration = 3)
     }
   )
   
@@ -559,10 +559,10 @@ mod_descriptive_server <- function(id, values) {
       # openxlsx fait partie des packages requis ; repli propre si indisponible.
       if (requireNamespace("openxlsx", quietly = TRUE)) {
         openxlsx::write.xlsx(values$descStats, file)
-        shiny::showNotification("Fichier Excel téléchargé!", type = "message", duration = 3)
+        shiny::showNotification("Fichier Excel téléchargé !", type = "message", duration = 3)
       } else if (requireNamespace("writexl", quietly = TRUE)) {
         writexl::write_xlsx(values$descStats, file)
-        shiny::showNotification("Fichier Excel téléchargé!", type = "message", duration = 3)
+        shiny::showNotification("Fichier Excel téléchargé !", type = "message", duration = 3)
       } else {
         utils::write.csv(values$descStats, file, row.names = FALSE)
         shiny::showNotification("Package Excel absent : export CSV fourni à la place.",

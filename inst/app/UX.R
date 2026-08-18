@@ -1241,7 +1241,7 @@ ui <- shinydashboard::dashboardPage(
                         shiny::tagList(shiny::icon("chart-area"), " Graphiques"),
                         shiny::br(),
                                             shiny::hr(),
-                                            shiny::h5("Personnalisation graphique:", style = "font-weight: bold; color: #5cb85c;"),
+                                            shiny::h5("Personnalisation graphique :", style = "font-weight: bold; color: #5cb85c;"),
                                             shiny::fluidRow(
                                               shiny::column(6,
                                                      hstat_mv_forme_ui("hcpcCluster"),
@@ -1256,7 +1256,7 @@ ui <- shinydashboard::dashboardPage(
                                                        shiny::checkboxInput("hcpcClusterShowLabels", shiny::tagList(shiny::icon("font"), " Afficher les labels des individus sur la carte"), value = FALSE),
                                                        hstat_lbl_slider("hcpcClusterLabelSize", "Taille des labels des individus (carte)")),
                                                      shiny::hr(),
-                                                     shiny::h5("Options Téléchargement carte clusters:"),
+                                                     shiny::h5("Options de téléchargement — carte des clusters :"),
                                                      shiny::p(style = "font-size: 11px; color: #5cb85c; font-style: italic;",
                                                        shiny::icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                                                      shiny::fluidRow(
@@ -1288,7 +1288,7 @@ ui <- shinydashboard::dashboardPage(
                                                      shiny::p(style = "font-style: italic; color: #666;", 
                                                        "Le dendrogramme n'est pas centré sur (0,0)"),
                                                      shiny::hr(),
-                                                     shiny::h5("Options Téléchargement dendrogramme:"),
+                                                     shiny::h5("Options de téléchargement — dendrogramme :"),
                                                      shiny::p(style = "font-size: 11px; color: #5cb85c; font-style: italic;",
                                                        shiny::icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                                                      shiny::fluidRow(
@@ -1591,7 +1591,7 @@ ui <- shinydashboard::dashboardPage(
                                                 shiny::column(3, shiny::sliderInput("afdAxisTextSize", "Taille texte axes", min = 8, max = 22, value = HSTAT_GG_BASE_SIZE, step = 1))
                                               )
                                             ),
-                                            shiny::h5("Personnalisation graphique:", style = "font-weight: bold; color: #495057;"),
+                                            shiny::h5("Personnalisation graphique :", style = "font-weight: bold; color: #495057;"),
                                             shiny::fluidRow(
                                               shiny::column(6,
                                                      hstat_mv_forme_ui("afdInd", "Apparence — projection des individus"),
@@ -1602,7 +1602,7 @@ ui <- shinydashboard::dashboardPage(
                                                      shiny::textInput("afdIndYLabel", "Label axe Y:", value = ""),
                                                      shiny::checkboxInput("afdIndCenterAxes", "Centrer sur (0,0)", TRUE),
                                                      shiny::hr(),
-                                                     shiny::h5("Options Téléchargement projection individus:"),
+                                                     shiny::h5("Options de téléchargement — projection des individus :"),
                                                      shiny::p(style = "font-size: 11px; color: #495057; font-style: italic;",
                                                        shiny::icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                                                      shiny::fluidRow(
@@ -1630,7 +1630,7 @@ ui <- shinydashboard::dashboardPage(
                                                      shiny::textInput("afdVarYLabel", "Label axe Y:", value = ""),
                                                      shiny::checkboxInput("afdVarCenterAxes", "Centrer sur (0,0)", TRUE),
                                                      shiny::hr(),
-                                                     shiny::h5("Options Téléchargement contribution variables:"),
+                                                     shiny::h5("Options de téléchargement — contribution des variables :"),
                                                      shiny::p(style = "font-size: 11px; color: #495057; font-style: italic;",
                                                        shiny::icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                                                      shiny::fluidRow(

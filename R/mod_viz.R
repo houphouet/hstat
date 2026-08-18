@@ -900,7 +900,7 @@ mod_viz_ui <- function(id) {
                             shiny::h5(shiny::icon("chart-area"), " Options Histogramme",
                                style = "color: #0277bd; font-size: 13px; font-weight: bold; margin-top: 0;"),
                             shiny::sliderInput(ns("histBins"), "Nombre de bins:", min = 10, max = 100, value = 30, step = 5),
-                            colourInput(ns("histColor"), "Couleur:", value = "steelblue")
+                            colourInput(ns("histColor"), "Couleur :", value = "steelblue")
                           )
                         )
                       ),
@@ -929,7 +929,7 @@ mod_viz_ui <- function(id) {
                                           "A droite" = "right", "A gauche" = "left"),
                               selected = "above"
                             ),
-                            colourInput(ns("valueLabelColor"), "Couleur:", value = "#333333"),
+                            colourInput(ns("valueLabelColor"), "Couleur :", value = "#333333"),
                             shiny::div(
                               style = "display: flex; gap: 10px;",
                               shiny::checkboxInput(ns("valueLabelBold"),   shiny::tagList(shiny::icon("bold"),   " Gras"),    value = FALSE),
@@ -2045,7 +2045,7 @@ mod_viz_server <- function(id, values) {
           return(data)
         }
         if (!x_var %in% names(data)) {
-          shiny::showNotification("Erreur: Variable X non disponible", type = "error")
+          shiny::showNotification("Erreur : variable X non disponible", type = "error")
           return(data)
         }
         
@@ -2503,7 +2503,7 @@ mod_viz_server <- function(id, values) {
       
       if(length(valid_groups) == 0) {
         shiny::showNotification(
-          "Violin: aucun groupe ne contient au moins 2 observations. Passez en Boxplot.",
+          "Violon : aucun groupe ne contient au moins 2 observations. Passez en boîte à moustaches.",
           type = "warning", duration = 4
         )
         return(create_box_plot(data, x_var, y_var, color_var))
@@ -3976,7 +3976,7 @@ mod_viz_server <- function(id, values) {
                          compression = input$tiffCompression %||% "lzw")
       
       if (!file.exists(temp_file)) {
-        shiny::showNotification("Erreur: Le fichier n'a pas pu être créé", type = "error", duration = 5)
+        shiny::showNotification("Erreur : le fichier n'a pas pu être créé", type = "error", duration = 5)
         shinyjs::enable("downloadPlotBtn")
         return()
       }

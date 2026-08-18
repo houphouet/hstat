@@ -806,7 +806,7 @@ server <- function(input, output, session) {
     
     pickerInput(
       inputId = "pcaVars",
-      label = "Sélectionnez les variables pour l'ACP:",
+      label = "Sélectionnez les variables pour l'ACP :",
       choices = num_cols,
       multiple = TRUE,
       selected = num_cols,
@@ -1061,7 +1061,7 @@ server <- function(input, output, session) {
     
     pickerInput(
       inputId = "pcaQualiSup",
-      label = "Variables qualitatives supplémentaires:",
+      label = "Variables qualitatives supplémentaires :",
       choices = fac_cols,
       multiple = TRUE,
       options = list(`actions-box` = TRUE, `live-search` = TRUE)
@@ -1075,7 +1075,7 @@ server <- function(input, output, session) {
     avail <- setdiff(num_cols, input$pcaVars %||% character(0))
     pickerInput(
       inputId = "pcaQuantiSup",
-      label = "Variables quantitatives supplémentaires (optionnel):",
+      label = "Variables quantitatives supplémentaires (optionnel) :",
       choices = avail,
       multiple = TRUE,
       options = list(`actions-box` = TRUE, `live-search` = TRUE)
@@ -2797,10 +2797,10 @@ server <- function(input, output, session) {
             msg <- paste0("HCPC: ", n_individus, " individus classés en ", n_clusters, " clusters")
             shiny::showNotification(msg, type = "message", duration = 3)
           } else {
-            shiny::showNotification("Avertissement: HCPC dataframes créés mais vides", type = "warning", duration = 5)
+            shiny::showNotification("Avertissement : dataframes HCPC créés mais vides", type = "warning", duration = 5)
           }
         } else {
-          shiny::showNotification("Erreur: Impossible de créer les dataframes HCPC", type = "error", duration = 5)
+          shiny::showNotification("Erreur : impossible de créer les dataframes HCPC", type = "error", duration = 5)
         }
       }, error = function(e) {
         shiny::showNotification(hstat_err_fr(e, "Erreur stockage HCPC"), type = "error", duration = 5)
@@ -3562,7 +3562,7 @@ server <- function(input, output, session) {
     
     pickerInput(
       inputId = "afdVars",
-      label = "Variables quantitatives:",
+      label = "Variables quantitatives :",
       choices = num_cols,
       multiple = TRUE,
       selected = num_cols,
@@ -3592,7 +3592,7 @@ server <- function(input, output, session) {
     
     pickerInput(
       inputId = "afdQualiSup",
-      label = "Variables catégorielles supplémentaires (optionnel):",
+      label = "Variables catégorielles supplémentaires (optionnel) :",
       choices = fac_cols,
       multiple = TRUE,
       options = list(`actions-box` = TRUE)
@@ -3767,7 +3767,7 @@ server <- function(input, output, session) {
           # Calculer les moyennes par groupe - chaque groupe aura une seule ligne
           # L'AFD n'est pas possible avec une seule observation par groupe
           shiny::showNotification(
-            "Attention: Avec les moyennes par groupe, chaque groupe n'a qu'une observation. L'AFD sera effectuée sur les données individuelles.",
+            "Attention : avec les moyennes par groupe, chaque groupe n'a qu'une observation. L'AFD sera effectuée sur les données individuelles.",
             type = "warning",
             duration = 5
           )
@@ -3798,7 +3798,7 @@ server <- function(input, output, session) {
           group_counts <- table(afd_data[[input$afdFactor]])
           if (any(group_counts < 2)) {
             shiny::showNotification(
-              "Attention: Certains groupes ont moins de 2 observations. L'AFD sera effectuée sur les données individuelles.",
+              "Attention : certains groupes ont moins de 2 observations. L'AFD sera effectuée sur les données individuelles.",
               type = "warning",
               duration = 5
             )
@@ -3983,13 +3983,13 @@ server <- function(input, output, session) {
       err_msg <- e$message
       if (grepl("constant", err_msg, ignore.case = TRUE)) {
         shiny::showNotification(
-          "Erreur AFD: Certaines variables sont constantes à l'intérieur des groupes. Essayez de sélectionner d'autres variables ou vérifiez vos données.",
+          "Erreur AFD : certaines variables sont constantes à l'intérieur des groupes. Essayez de sélectionner d'autres variables ou vérifiez vos données.",
           type = "error",
           duration = 10
         )
       } else if (grepl("collinear", err_msg, ignore.case = TRUE)) {
         shiny::showNotification(
-          "Erreur AFD: Certaines variables sont colinéaires. Essayez de réduire le nombre de variables.",
+          "Erreur AFD : certaines variables sont colinéaires. Essayez de réduire le nombre de variables.",
           type = "error",
           duration = 10
         )
@@ -4149,10 +4149,10 @@ server <- function(input, output, session) {
             msg <- paste0("AFD: ", n_individus, " individus, ", n_groupes, " groupes")
             shiny::showNotification(msg, type = "message", duration = 3)
           } else {
-            shiny::showNotification("Avertissement: AFD dataframes créés mais vides", type = "warning", duration = 5)
+            shiny::showNotification("Avertissement : dataframes AFD créés mais vides", type = "warning", duration = 5)
           }
         } else {
-          shiny::showNotification("Erreur: Impossible de créer les dataframes AFD", type = "error", duration = 5)
+          shiny::showNotification("Erreur : impossible de créer les dataframes AFD", type = "error", duration = 5)
         }
       }, error = function(e) {
         shiny::showNotification(hstat_err_fr(e, "Erreur stockage AFD"), type = "error", duration = 5)
@@ -4891,7 +4891,7 @@ server <- function(input, output, session) {
     
     pickerInput(
       inputId = "afdPredictVars",
-      label = "Variables catégorielles pour la prédiction (optionnel):",
+      label = "Variables catégorielles pour la prédiction (optionnel) :",
       choices = fac_cols,
       multiple = TRUE,
       options = list(`actions-box` = TRUE)
@@ -5862,7 +5862,7 @@ server <- function(input, output, session) {
     shiny::req(mv_data())
     shiny::tagList(
       mv_opt_box(shiny::h5(shiny::icon("chart-line"), " Variables numériques"),
-        mv_pick_num("mv_kmeans_vars", "Variables a partitionner :")),
+        mv_pick_num("mv_kmeans_vars", "Variables à partitionner :")),
       shiny::fluidRow(
         shiny::column(4, shiny::numericInput("mv_kmeans_k", shiny::tagList(shiny::icon("object-group"), " Nombre de clusters k :"),
                                value = 3, min = 2, max = 15)),
@@ -6031,7 +6031,7 @@ server <- function(input, output, session) {
     shiny::req(mv_data())
     shiny::tagList(
       mv_opt_box(shiny::h5(shiny::icon("shapes"), " Variables qualitatives"),
-        mv_pick_cat("mv_mca_vars", "Variables a analyser :")),
+        mv_pick_cat("mv_mca_vars", "Variables à analyser :")),
       shiny::numericInput("mv_mca_ncp", shiny::tagList(shiny::icon("hashtag"), " Dimensions a retenir :"),
                    value = 5, min = 2, max = 15),
       mv_opt_box(shiny::h5(shiny::icon("plus-circle"), " Éléments supplémentaires (optionnel)"),
@@ -6050,7 +6050,7 @@ server <- function(input, output, session) {
     shiny::req(mv_data())
     shiny::tagList(
       mv_opt_box(shiny::h5(shiny::icon("shapes"), " Variables qualitatives"),
-        mv_pick_cat("mv_kmodes_vars", "Variables a partitionner :")),
+        mv_pick_cat("mv_kmodes_vars", "Variables à partitionner :")),
       shiny::fluidRow(
         shiny::column(6, shiny::numericInput("mv_kmodes_k", shiny::tagList(shiny::icon("object-group"), " Nombre de clusters k :"),
                                value = 3, min = 2, max = 15)),
@@ -6087,7 +6087,7 @@ server <- function(input, output, session) {
     shiny::req(mv_data())
     shiny::tagList(
       mv_opt_box(shiny::h5(shiny::icon("layer-group"), " Variables mixtes (quanti + quali)"),
-        pickerInput("mv_famd_vars", "Variables a analyser :",
+        pickerInput("mv_famd_vars", "Variables à analyser :",
                     choices = names(mv_data()), multiple = TRUE,
                     selected = names(mv_data()),
                     options = list(`actions-box` = TRUE, `live-search` = TRUE))),
@@ -6127,7 +6127,7 @@ server <- function(input, output, session) {
     shiny::req(mv_data())
     shiny::tagList(
       mv_opt_box(shiny::h5(shiny::icon("layer-group"), " Variables mixtes (quanti + quali)"),
-        pickerInput("mv_kproto_vars", "Variables a partitionner :",
+        pickerInput("mv_kproto_vars", "Variables à partitionner :",
                     choices = names(mv_data()), multiple = TRUE,
                     selected = names(mv_data()),
                     options = list(`actions-box` = TRUE, `live-search` = TRUE))),
@@ -6776,7 +6776,7 @@ server <- function(input, output, session) {
                                 labels = c("TRUE"=">= 0,70","FALSE"="< 0,70"),
                                 name = "Charge std") +
               ggplot2::coord_flip(ylim = c(0, 1.05)) +
-              labs(title = "AFC -- saturations standardisees",
+              labs(title = "AFC — saturations standardisées",
                    x = NULL, y = "Charge standardisee",
                    caption = "Lignes : seuils 0,50 (orange) et 0,70 (vert).") +
               mv_gg_theme()
@@ -7102,7 +7102,7 @@ server <- function(input, output, session) {
             ggplot2::ggplot(pdf, ggplot2::aes(Observe, Predit)) +
               ggplot2::geom_point(size = mv_pt_size(), alpha = .75, color = "#1565c0") +
               ggplot2::geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "#c0392b") +
-              labs(title = "PLS -- valeurs predites vs observées",
+              labs(title = "PLS — valeurs prédites vs observées",
                    subtitle = paste0("R2Y = ", round(r2y,3),
                      if (!is.na(q2)) paste0(" | Q2 = ", round(q2,3)) else ""),
                    x = "Y observé", y = "Y predit") +
@@ -7220,7 +7220,7 @@ server <- function(input, output, session) {
               ggplot2::geom_point(size = mv_pt_size(), alpha = .7, color = "#1565c0") +
               ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "#c0392b") +
               ggplot2::geom_smooth(method = "loess", se = FALSE, color = "#f39c12", linewidth = .8) +
-              labs(title = "Regression -- residus vs valeurs ajustees",
+              labs(title = "Régression — résidus vs valeurs ajustées",
                    subtitle = "Un nuage sans tendance confirme l'homoscedasticite",
                    x = "Valeurs ajustees", y = "Residus") +
               mv_gg_theme()
@@ -7689,7 +7689,7 @@ server <- function(input, output, session) {
             ggplot2::ggplot(roc_df, ggplot2::aes(FPR, TPR)) +
               ggplot2::geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "#999") +
               ggplot2::geom_line(color = "#6a1b9a", linewidth = 1.1) +
-              labs(title = "Regression logistique -- courbe ROC",
+              labs(title = "Régression logistique — courbe ROC",
                    subtitle = paste0("AUC = ", if (is.na(auc)) "n/d" else round(auc,3)),
                    x = "Taux de faux positifs", y = "Taux de vrais positifs") +
               mv_gg_theme()

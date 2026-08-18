@@ -279,7 +279,7 @@ mod_tests_ui <- function(id) {
                                       
                                         shiny::div(style = "background:#fff8e1; border-left:4px solid #fb8c00; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
                                             shiny::icon("info-circle", style = "color:#e65100;"),
-                                            shiny::strong(" Pour les utilisateurs avances : "),
+                                            shiny::strong(" Pour les utilisateurs avancés : "),
                                             "consultez les valeurs brutes des tests de prerequis. ",
                                             "L'assistant a déjà synthétisé ces résultats dans l'onglet 'Diagnostic & recommandation'."
                                         ),
@@ -410,7 +410,7 @@ mod_tests_ui <- function(id) {
                           collapsible = TRUE, collapsed = TRUE,
                           shiny::div(style = "padding:20px; text-align:center;",
                               shiny::icon("magic", style = "font-size:48px; color:#1565C0; opacity:0.6;"),
-                              shiny::h4("Workflow pour debutants et experts",
+                              shiny::h4("Parcours pour débutants et experts",
                                  style = "color:#1565C0;"),
                               shiny::p(style = "font-size:13px; color:#555; max-width:600px; margin:8px auto;",
                                 "Sélectionnez au moins ", shiny::strong("2 variables réponses numériques"),
@@ -1964,7 +1964,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$filteredData)
     num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
     shiny::tagList(
-      pickerInput(ns("responseVar"), "Variable(s) réponse:", 
+      pickerInput(ns("responseVar"), "Variable(s) réponse :", 
                   choices = num_cols, 
                   multiple = TRUE,
                   options = list(`actions-box` = TRUE)),
@@ -2147,7 +2147,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$filteredData)
     fac_cols <- get_all_factor_candidates(values$filteredData)
     shiny::tagList(
-      pickerInput(ns("factorVar"), "Facteur(s):",
+      pickerInput(ns("factorVar"), "Facteur(s) :",
                   choices  = fac_cols,
                   multiple = TRUE,
                   options  = list(`actions-box` = TRUE)),
@@ -4409,7 +4409,7 @@ mod_tests_server <- function(id, values) {
     shiny::div(style = paste0("background:", bg, "; border-left:4px solid ", color,
                        "; padding:12px 16px; border-radius:6px; margin-top:10px;"),
         shiny::icon(iconame, style = paste0("color:", color, ";")),
-        shiny::strong(" Détection d'outliers multivariés : "),
+        shiny::strong(" Détection des valeurs aberrantes multivariées : "),
         out$conclusion,
         if (has_issue && length(out$idx) > 0 && length(out$idx) <= 10) {
           shiny::div(style = "font-size:11px; color:#666; margin-top:4px;",
@@ -5404,7 +5404,7 @@ mod_tests_server <- function(id, values) {
     if (is.null(input$factorVar) || length(input$factorVar) == 0 ||
         is.null(input$responseVar) || length(input$responseVar) == 0) {
       shiny::showNotification(
-        "Veuillez sélectionner une variable réponse (numérique) et un facteur (catégoriel) dans 'Paramètres des tests'.",
+        "Veuillez sélectionner une variable réponse (numérique) et un facteur (catégoriel) dans « Paramètres des tests ».",
         type = "warning", duration = 6
       )
       return()
@@ -5424,7 +5424,7 @@ mod_tests_server <- function(id, values) {
     
     ok_na <- !is.na(valeurs_brutes) & !is.na(modalites_brutes)
     if (any(!ok_na)) {
-      shiny::showNotification("Valeurs manquantes détectées -- ignorées.", type = "warning")
+      shiny::showNotification("Valeurs manquantes détectées — ignorées.", type = "warning")
     }
     modalites_brutes <- modalites_brutes[ok_na]
     valeurs_brutes   <- valeurs_brutes[ok_na]
@@ -7018,7 +7018,7 @@ mod_tests_server <- function(id, values) {
     pre_selected <- intersect(pre_selected, num_cols)
     
     shiny::tagList(
-      pickerInput(ns("multiResponse"), "Variable(s) réponse:",
+      pickerInput(ns("multiResponse"), "Variable(s) réponse :",
                   choices  = num_cols,
                   selected = if (length(pre_selected) > 0) pre_selected else NULL,
                   multiple = TRUE,
@@ -7065,7 +7065,7 @@ mod_tests_server <- function(id, values) {
     pre_fac <- intersect(pre_fac, fac_cols)
     
     shiny::tagList(
-      pickerInput(ns("multiFactor"), "Facteur(s):",
+      pickerInput(ns("multiFactor"), "Facteur(s) :",
                   choices  = fac_cols,
                   selected = if (length(pre_fac) > 0) pre_fac else NULL,
                   multiple = TRUE,
