@@ -445,7 +445,7 @@ mod_explore_server <- function(id, values) {
       "Analyse des valeurs manquantes"
     }
     
-    p <- ggplot2::ggplot(missing_data, ggplot2::aes(x = reorder(Variable, -Missing), y = Missing)) +
+    p <- ggplot2::ggplot(missing_data, ggplot2::aes(x = stats::reorder(Variable, -Missing), y = Missing)) +
       ggplot2::geom_bar(stat = "identity", fill = "steelblue", alpha = 0.8) +
       ggplot2::geom_text(ggplot2::aes(label = paste0(round(PctMissing, 1), "%")), 
                 vjust = -0.5, size = 3.5) +

@@ -1340,7 +1340,7 @@ mod_viz_server <- function(id, values) {
     shiny::div(
       shiny::selectizeInput(ns("groupVars"),
         "Variables de regroupement:",
-        choices = c(setNames(x_default, paste0("Variable X (", x_default, ")")), cat_cols),
+        choices = c(stats::setNames(x_default, paste0("Variable X (", x_default, ")")), cat_cols),
         selected = x_default,
         multiple = TRUE,
         options = list(
@@ -1417,7 +1417,7 @@ mod_viz_server <- function(id, values) {
     values$currentXLevels <- unique_vals
     
     if (!is.null(input$vizXVar) && is.null(values$storedLevelLabels[[input$vizXVar]])) {
-      values$storedLevelLabels[[input$vizXVar]] <- setNames(unique_vals, unique_vals)
+      values$storedLevelLabels[[input$vizXVar]] <- stats::setNames(unique_vals, unique_vals)
     }
   })
   
@@ -1531,7 +1531,7 @@ mod_viz_server <- function(id, values) {
     values$storedLevelLabels[[input$vizXVar]] <- level_mapping
     
     if(!is.null(values$customXOrder) && length(values$customXOrder) > 0) {
-      inv_map <- setNames(names(level_mapping), as.character(level_mapping))
+      inv_map <- stats::setNames(names(level_mapping), as.character(level_mapping))
       values$customXOrder <- sapply(values$customXOrder, function(v) {
         new_v <- as.character(level_mapping[v])
         if(!is.na(new_v)) new_v else v
@@ -1541,7 +1541,7 @@ mod_viz_server <- function(id, values) {
       values$customXOrder <- as.character(level_mapping[values$currentXLevels])
     }
     
-    values$plotUpdateTrigger <- runif(1)
+    values$plotUpdateTrigger <- stats::runif(1)
     shiny::invalidateLater(80)
     
     shiny::showNotification(
@@ -1561,7 +1561,7 @@ mod_viz_server <- function(id, values) {
     
     values$customXOrder <- NULL
     
-    values$plotUpdateTrigger <- runif(1)
+    values$plotUpdateTrigger <- stats::runif(1)
     
     shiny::showNotification("Niveaux et ordre réinitialisés", type = "message", duration = 2)
   })
@@ -1748,7 +1748,7 @@ mod_viz_server <- function(id, values) {
       values$customXOrder <- sorted_levels
     }
     
-    values$plotUpdateTrigger <- runif(1)
+    values$plotUpdateTrigger <- stats::runif(1)
     
     shiny::showNotification("Ordre trié alphabétiquement", type = "message", duration = 2)
   })
@@ -1765,7 +1765,7 @@ mod_viz_server <- function(id, values) {
       values$customXOrder <- rev(values$currentXLevels)
     }
     
-    values$plotUpdateTrigger <- runif(1)
+    values$plotUpdateTrigger <- stats::runif(1)
     
     shiny::showNotification("Ordre inversé", type = "message", duration = 2)
   })
@@ -1773,7 +1773,7 @@ mod_viz_server <- function(id, values) {
   shiny::observeEvent(input$resetOrderX, {
     values$customXOrder <- NULL
     
-    values$plotUpdateTrigger <- runif(1)
+    values$plotUpdateTrigger <- stats::runif(1)
     
     shiny::showNotification("Ordre réinitialisé", type = "message", duration = 2)
   })
@@ -1781,7 +1781,7 @@ mod_viz_server <- function(id, values) {
   shiny::observeEvent(input$xLevelOrder, {
     if(!is.null(input$xLevelOrder) && length(input$xLevelOrder) > 0) {
       values$customXOrder <- input$xLevelOrder
-      values$plotUpdateTrigger <- runif(1)
+      values$plotUpdateTrigger <- stats::runif(1)
       shiny::invalidateLater(50)
     }
   })
@@ -1789,7 +1789,7 @@ mod_viz_server <- function(id, values) {
   shiny::observe({
     shiny::req(values$customXOrder)
     shiny::isolate({
-      values$plotUpdateTrigger <- runif(1)
+      values$plotUpdateTrigger <- stats::runif(1)
     })
   })
   
@@ -1838,12 +1838,12 @@ mod_viz_server <- function(id, values) {
       
       agg_func <- switch(effective_func,
                          "mean"   = function(x) mean(as.numeric(x), na.rm = TRUE),
-                         "median" = function(x) median(as.numeric(x), na.rm = TRUE),
+                         "median" = function(x) stats::median(as.numeric(x), na.rm = TRUE),
                          "sum"    = function(x) sum(as.numeric(x), na.rm = TRUE),
                          "count"  = function(x) sum(!is.na(x)),
                          "min"    = function(x) min(as.numeric(x), na.rm = TRUE),
                          "max"    = function(x) max(as.numeric(x), na.rm = TRUE),
-                         "sd"     = function(x) sd(as.numeric(x), na.rm = TRUE),
+                         "sd"     = function(x) stats::sd(as.numeric(x), na.rm = TRUE),
                          function(x) mean(as.numeric(x), na.rm = TRUE))
       
       # Variables à agréger : Y numériques, ou toutes les Y si on fait du count
@@ -2244,7 +2244,7 @@ mod_viz_server <- function(id, values) {
     
     values$legendLabels[[storage_key]] <- legend_mapping
     
-    values$plotUpdateTrigger <- runif(1)
+    values$plotUpdateTrigger <- stats::runif(1)
     
     shiny::removeModal()
     shiny::showNotification("Labels de légende appliqués", type = "message", duration = 2)
@@ -2273,7 +2273,7 @@ mod_viz_server <- function(id, values) {
     }, character(1))
     if (length(legend_mapping) == length(legend_levels)) names(legend_mapping) <- legend_levels
     values$legendLabels[[storage_key]] <- legend_mapping
-    values$plotUpdateTrigger <- runif(1)
+    values$plotUpdateTrigger <- stats::runif(1)
     shiny::showNotification("Prévisualisation appliquée au graphique", type = "message", duration = 2)
   })
   
@@ -2302,7 +2302,7 @@ mod_viz_server <- function(id, values) {
     
     values$legendLabels[[storage_key]] <- NULL
     
-    values$plotUpdateTrigger <- runif(1)
+    values$plotUpdateTrigger <- stats::runif(1)
     
     shiny::showNotification("Labels de légende réinitialisés", type = "message", duration = 2)
   })
@@ -2727,7 +2727,7 @@ mod_viz_server <- function(id, values) {
       panel.grid.major.x = ggplot2::element_blank(),
       panel.grid.minor   = ggplot2::element_blank(),
       legend.position    = "bottom",
-      legend.margin      = margin(t = 15)
+      legend.margin      = ggplot2::margin(t = 15)
     )
     if (!is.null(color_var) && color_var %in% names(data_plot))
       p <- p + ggplot2::guides(color = ggplot2::guide_legend(override.aes = list(size = 2), ncol = 2))
@@ -3027,12 +3027,12 @@ mod_viz_server <- function(id, values) {
         if (isTRUE(input$useAggregation) && !is.null(input$aggFunction)) {
           agg_func_y2 <- switch(input$aggFunction,
                                 "mean"   = function(x) mean(as.numeric(x),   na.rm = TRUE),
-                                "median" = function(x) median(as.numeric(x), na.rm = TRUE),
+                                "median" = function(x) stats::median(as.numeric(x), na.rm = TRUE),
                                 "sum"    = function(x) sum(as.numeric(x),    na.rm = TRUE),
                                 "count"  = function(x) sum(!is.na(x)),
                                 "min"    = function(x) min(as.numeric(x),    na.rm = TRUE),
                                 "max"    = function(x) max(as.numeric(x),    na.rm = TRUE),
-                                "sd"     = function(x) sd(as.numeric(x),     na.rm = TRUE),
+                                "sd"     = function(x) stats::sd(as.numeric(x),     na.rm = TRUE),
                                 function(x) mean(as.numeric(x), na.rm = TRUE))
         }
         grp_vars_y2 <- if (!is.null(input$groupVars) && length(input$groupVars) > 0)
@@ -3058,7 +3058,7 @@ mod_viz_server <- function(id, values) {
           default_colors[((idx - 1L) %% length(default_colors)) + 1L]
         }
         
-        y1_color_map <- setNames(
+        y1_color_map <- stats::setNames(
           vapply(seq_along(y1_vars), function(i) get_curve_color(y1_vars[i], i), character(1)),
           y1_vars
         )
@@ -3318,7 +3318,7 @@ mod_viz_server <- function(id, values) {
       facet_var_safe <- if (grepl("[/+*^()%$@!? -]|^[0-9]", input$vizFacetVar, perl = TRUE)) {
         paste0("`", input$vizFacetVar, "`")
       } else { input$vizFacetVar }
-      p <- p + ggplot2::facet_wrap(as.formula(paste("~", facet_var_safe)),
+      p <- p + ggplot2::facet_wrap(stats::as.formula(paste("~", facet_var_safe)),
                           scales = if(isTRUE(input$facetScalesFree)) "free" else "fixed")
     }
     
@@ -3337,14 +3337,14 @@ mod_viz_server <- function(id, values) {
         
         all_keys <- if (!is.null(unified_map)) unique(c(names(unified_map), current_levels))
         else current_levels
-        lm_full  <- setNames(all_keys, all_keys)
+        lm_full  <- stats::setNames(all_keys, all_keys)
         for (k in names(legend_map)) {
           if (k %in% all_keys) lm_full[[k]] <- as.character(legend_map[[k]])
         }
         
         default_pal <- c("#2196F3","#4CAF50","#9C27B0","#FF5722","#00BCD4",
                          "#FFC107","#E91E63","#607D8B","#795548","#009688")
-        color_vals  <- setNames(
+        color_vals  <- stats::setNames(
           vapply(seq_along(all_keys), function(i) {
             k <- all_keys[i]
             if (!is.null(unified_map) && k %in% names(unified_map))
@@ -3450,11 +3450,11 @@ mod_viz_server <- function(id, values) {
         legend.title       = ggtext::element_markdown(size = input$legendTitleSize %||% 12, face = "bold"),
         legend.text        = ggplot2::element_text(size = input$legendTextSize  %||% 12),
         legend.key.size    = ggplot2::unit(input$legendKeySize %||% 1, "lines"),
-        legend.margin      = margin(t = 6, r = 6, b = 6, l = 6),
-        legend.box.margin  = margin(t = 10, r = 0, b = 0, l = 0),
+        legend.margin      = ggplot2::margin(t = 6, r = 6, b = 6, l = 6),
+        legend.box.margin  = ggplot2::margin(t = 10, r = 0, b = 0, l = 0),
         axis.line   = ggplot2::element_line(color = "black", linewidth = axis_lw),
         axis.ticks  = ggplot2::element_line(color = "black", linewidth = axis_lw * 0.75),
-        plot.margin = margin(t = pm_top, r = pm_right, b = pm_bottom, l = pm_left, unit = "pt")
+        plot.margin = ggplot2::margin(t = pm_top, r = pm_right, b = pm_bottom, l = pm_left, unit = "pt")
       )
     
     if(!is.null(input$plotTitle) && input$plotTitle != "") {
@@ -3583,7 +3583,7 @@ mod_viz_server <- function(id, values) {
             size   = y2_lbl_sz,
             face   = y2_lbl_fce,
             color  = "black",
-            margin = margin(l = 8)
+            margin = ggplot2::margin(l = 8)
           ),
           axis.line.y.right  = ggplot2::element_line(
             color     = "black",
@@ -3676,7 +3676,7 @@ mod_viz_server <- function(id, values) {
       date_vars <- sum(sapply(data, function(x) inherits(x, "Date") || inherits(x, "POSIXt")))
       logical_vars <- sum(sapply(data, is.logical))
       missing_values <- sum(is.na(data))
-      complete_rows <- sum(complete.cases(data))
+      complete_rows <- sum(stats::complete.cases(data))
       
       base_stats <- paste0("Nombre d'observations: ", nrow(data), "\n",
                            "Variables totales: ", ncol(data), "\n",
@@ -3878,7 +3878,7 @@ mod_viz_server <- function(id, values) {
     shiny::updateSliderInput(session, "lineWidth", value = input$quickLineWidth)
     shiny::updateSelectInput(session, "legendPosition", selected = input$quickLegendPos)
     
-    values$plotUpdateTrigger <- runif(1)
+    values$plotUpdateTrigger <- stats::runif(1)
     
     shiny::removeModal()
     shiny::showNotification("Personnalisation appliquée", type = "message", duration = 2)
@@ -3964,7 +3964,7 @@ mod_viz_server <- function(id, values) {
       
       temp_file <- tempfile(fileext = paste0(".", ext))
       
-      while(length(dev.list()) > 0) try(dev.off(), silent = TRUE)
+      while(length(grDevices::dev.list()) > 0) try(grDevices::dev.off(), silent = TRUE)
       
       # La qualite JPEG et la compression TIFF sont proposees a l'utilisateur :
       # elles etaient declarees dans l'interface et n'etaient LUES nulle part.

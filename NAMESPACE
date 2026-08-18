@@ -1,9 +1,15 @@
 # Genere par roxygen2, PLUS des lignes tenues a la main.
 #
-# `exportPattern(".")` exporte TOUT, aides internes `.hstat_*` comprises : ce
-# n'est pas un oubli. L'application appelle directement ces aides, et un export
-# selectif obligerait a tenir une liste de ~240 noms qui divergerait au premier
-# ajout. La directive vit aussi en roxygen dans R/utils.R.
+# SEUL `run_hstat` EST EXPORTE. Le paquet portait un `exportPattern(".")` --
+# tout exporter, aides internes comprises -- au motif que l'application appelle
+# ces aides directement. C'etait inutile : le pont les recopie depuis l'ESPACE
+# DE NOMS (`ls(asNamespace("HStat"), all.names = TRUE)`), ce qui ne depend pas
+# des exports. En revanche le prix etait reel -- `R CMD check` reclamait une
+# fiche de documentation pour chacun des ~240 objets exportes, et une
+# documentation de 240 fiches ne se tient pas a jour.
+#
+# Ce qui reste vrai : rien n'est cache a l'application, seulement a
+# `library(HStat)`.
 #
 # LES `importFrom` SONT LA PARCE QUE LE SOCLE APPELLE SANS PREFIXE. Le code
 # venait de l'application, ou shiny et ggplot2 sont ATTACHES ; dans un paquet,
@@ -25,7 +31,6 @@
 # resolution dependant de l'ordre des directives.
 
 export(run_hstat)
-exportPattern(".")
 
 importFrom(DBI,dbConnect)
 importFrom(DBI,dbDisconnect)

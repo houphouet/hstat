@@ -1,7 +1,7 @@
 Package: HStat
 Type: Package
 Title: Interactive Shiny Application for Statistical Analysis
-Version: 0.44.0
+Version: 0.44.2
 Authors@R: person("Houphouet", "KOUADIO", email = "houphouet.kouadio@epitech.eu",
                    role = c("aut", "cre"),
                    comment = c(ORCID = "0000-0002-8238-1091"))
@@ -16,12 +16,10 @@ Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.3.1
 Imports:
-    bslib,
     cluster,
     colourpicker,
     data.table,
     DBI,
-    digest,
     dplyr,
     DT,
     emmeans,
@@ -36,7 +34,6 @@ Imports:
     plotly,
     pROC,
     psych,
-    purrr,
     readxl,
     rlang,
     scales,
@@ -46,11 +43,15 @@ Imports:
     shinyjs,
     stats,
     svglite,
-    tibble,
     tidyr,
     vegan
 Suggests:
     testthat (>= 3.0.0),
+    bslib,
+    digest,
+    purrr,
+    tibble,
+    tinytex,
     httr,
     jsonlite,
     afex,

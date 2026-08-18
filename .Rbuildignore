@@ -1,0 +1,8 @@
+^\.claude$
+^\.github$
+^CLAUDE\.md$
+^app\.R$
+^Hstat\.Rproj$
+^.*\.Rproj$
+^\.Rproj\.user$
+^HStat_.*\.tar\.gz$

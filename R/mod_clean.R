@@ -819,7 +819,7 @@ mod_clean_server <- function(id, values) {
       ))
     }
     n <- length(rows)
-    preview_ids <- head(rows, 8)
+    preview_ids <- utils::head(rows, 8)
     preview_str <- paste(preview_ids, collapse = ", ")
     if (n > 8) preview_str <- paste0(preview_str, " ... (", n - 8, " de plus)")
     
@@ -864,7 +864,7 @@ mod_clean_server <- function(id, values) {
   output$deleteRowsTable <- DT::renderDataTable({
     shiny::req(values$cleanData)
     DT::datatable(
-      head(values$cleanData, 500),   
+      utils::head(values$cleanData, 500),   
       selection  = "multiple",
       extensions = "Scroller",
       options    = list(
@@ -894,7 +894,7 @@ mod_clean_server <- function(id, values) {
         shiny::icon("info-circle", style = "color: #f57c00;"),
         shiny::tags$span(style = "color: #e65100; font-size: 12px; font-weight: bold; margin-left: 5px;",
                   paste0(length(sel), " ligne(s) sélectionnée(s) : ")),
-        shiny::tags$code(style = "font-size: 11px;", paste(head(sel, 10), collapse = ", "),
+        shiny::tags$code(style = "font-size: 11px;", paste(utils::head(sel, 10), collapse = ", "),
                   if (length(sel) > 10) paste0(" ... +", length(sel)-10, " autres") else "")
     )
   })
@@ -1567,7 +1567,7 @@ mod_clean_server <- function(id, values) {
           if (!ok) {
             for (col in sel) {
               x <- data_temp[[col]]
-              if (is.numeric(x)) data_temp[[col]][is.na(x)] <- median(x, na.rm = TRUE)
+              if (is.numeric(x)) data_temp[[col]][is.na(x)] <- stats::median(x, na.rm = TRUE)
               else { mv <- names(sort(table(x), decreasing = TRUE))[1]; data_temp[[col]][is.na(x)] <- mv }
             }
           }
@@ -1596,7 +1596,7 @@ mod_clean_server <- function(id, values) {
             }
           } else if (input$naMethod == "median") {
             if (is.numeric(data_temp[[col]])) {
-              median_val <- median(data_temp[[col]], na.rm = TRUE)
+              median_val <- stats::median(data_temp[[col]], na.rm = TRUE)
               data_temp[[col]][is.na(data_temp[[col]])] <- median_val
             } else {
               shiny::showNotification(paste("La variable `", col, "` n'est pas numérique. Médiane impossible."), 

@@ -3,3 +3,9 @@
 # Peripherique graphique par defaut de R : produit des qu'un trace part sans
 # peripherique ouvert. C'est un artefact d'execution, jamais du code.
 Rplots.pdf
+
+# Archives produites par `R CMD build` : un artefact de construction, jamais du
+# code. Elles portent le numero de version, donc une par montee -- le depot en
+# accumulerait autant que de checks.
+HStat_*.tar.gz
+*.Rcheck/

@@ -790,7 +790,7 @@ hstat_code_map_layout <- function(cooc, counts, seed = 42) {
   sim <- cooc / outer(sqrt(n), sqrt(n))
   sim[!is.finite(sim)] <- 0
   diag(sim) <- 1
-  d <- as.dist(1 - sim / max(1, max(sim)))
+  d <- stats::as.dist(1 - sim / max(1, max(sim)))
 
   xy <- NULL
   if (k >= 3 && sum(cooc) > 0) {

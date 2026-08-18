@@ -392,7 +392,8 @@ next" suggestion rather than a verdict.
 ├── .github
 │   └── workflows
 │       └── tests.yml               # CI: dependency-free syntax pass, then the testthat suite
-├── .gitignore                      # keeps R run artefacts (Rplots.pdf) out of the repository
+├── .Rbuildignore                   # keeps working files (.claude, CLAUDE.md) out of the tarball
+├── .gitignore                      # keeps R run artefacts and build tarballs out of the repository
 ├── app.R                           # deployment bridge to inst/app (shinyAppDir — never setwd)
 ├── CLAUDE.md                       # repository conventions
 ├── DESCRIPTION                     # single source of truth for the version number
@@ -477,7 +478,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.44.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.44.2. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -485,7 +486,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO},
   year   = {2026},
-  note   = {Version 0.44.0},
+  note   = {Version 0.44.2},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

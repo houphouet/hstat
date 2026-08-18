@@ -341,7 +341,7 @@ mod_tests_ui <- function(id) {
                                                  style = "color:#e65100; margin-top:0;"),
                                               shiny::p(style = "color:#555; font-size:13px;",
                                                 "Une interaction est significative : l\'effet d\'un facteur depend du niveau de l\'autre. ",
-                                                "Choisissez un facteur a ", em("fixer"), " et un facteur a ", em("tester"),
+                                                "Choisissez un facteur a ", shiny::em("fixer"), " et un facteur a ", shiny::em("tester"),
                                                 ", puis cliquez ", shiny::strong("Calculer"), "."),
                                               shiny::uiOutput(ns("manovaSimpleEffectsSelectors")),
                                               shiny::br(),
@@ -2260,7 +2260,7 @@ mod_tests_server <- function(id, values) {
           }
           data_hom[[fvar]] <- droplevels(data_hom[[fvar]])
         }
-        formula_str <- as.formula(paste0("`", var, "` ~ `", fvar, "`"))
+        formula_str <- stats::as.formula(paste0("`", var, "` ~ `", fvar, "`"))
         levene_test <- car::leveneTest(formula_str, data = data_hom)
         
         results_list[[var]] <- data.frame(
@@ -2369,10 +2369,10 @@ mod_tests_server <- function(id, values) {
         homogeneity_results[[var]] <- homogeneity_test
         
         # Exécuter le t-test et le modèle pour les diagnostics
-        formula_str <- as.formula(paste0("`", var, "` ~ `", fvar, "`"))
-        test_result <- t.test(formula_str, data = values$filteredData)
+        formula_str <- stats::as.formula(paste0("`", var, "` ~ `", fvar, "`"))
+        test_result <- stats::t.test(formula_str, data = values$filteredData)
         
-        lm_model <- lm(formula_str, data = values$filteredData)
+        lm_model <- stats::lm(formula_str, data = values$filteredData)
         model_list[[var]] <- lm_model
         
         results_list[[var]] <- data.frame(
@@ -2431,8 +2431,8 @@ mod_tests_server <- function(id, values) {
     for (var in input$responseVar) {
       tryCatch({
         fvar <- input$factorVar[1]
-        formula_str <- as.formula(paste0("`", var, "` ~ `", fvar, "`"))
-        test_result <- wilcox.test(formula_str, data = values$filteredData, exact = FALSE)
+        formula_str <- stats::as.formula(paste0("`", var, "` ~ `", fvar, "`"))
+        test_result <- stats::wilcox.test(formula_str, data = values$filteredData, exact = FALSE)
         
         results_list[[var]] <- data.frame(
           Test = "Wilcoxon",
@@ -2707,8 +2707,8 @@ mod_tests_server <- function(id, values) {
     for (var in input$responseVar) {
       tryCatch({
         fvar <- fvar_kw
-        formula_str <- as.formula(paste0("`", var, "` ~ `", fvar, "`"))
-        test_result <- kruskal.test(formula_str, data = df_kw)
+        formula_str <- stats::as.formula(paste0("`", var, "` ~ `", fvar, "`"))
+        test_result <- stats::kruskal.test(formula_str, data = df_kw)
         
         results_list[[var]] <- data.frame(
           Test = "Kruskal-Wallis",
@@ -2769,7 +2769,7 @@ mod_tests_server <- function(id, values) {
             test_data[[f]] <- droplevels(test_data[[f]])
           }
         }
-        test_data <- na.omit(test_data)
+        test_data <- stats::na.omit(test_data)
         
         if (nrow(test_data) < 3) {
           error_messages <- c(error_messages, paste(var, ": Pas assez de données après suppression des NA"))
@@ -2779,7 +2779,7 @@ mod_tests_server <- function(id, values) {
         safe_resp    <- "resp_var_srh"
         safe_factors <- paste0("factor_srh_", seq_along(input$factorVar))
         # Table de correspondance pour restaurer les noms dans les résultats
-        factor_label_map <- setNames(input$factorVar, safe_factors)
+        factor_label_map <- stats::setNames(input$factorVar, safe_factors)
         if (length(input$factorVar) == 2) {
           factor_label_map[paste0(safe_factors[1], ":", safe_factors[2])] <-
             paste0(input$factorVar[1], ":", input$factorVar[2])
@@ -2793,9 +2793,9 @@ mod_tests_server <- function(id, values) {
         
         # Préparer la formule avec noms sûrs
         if (isTRUE(input$interaction) && length(input$factorVar) == 2) {
-          formula_str <- as.formula(paste0(safe_resp, " ~ ", paste(safe_factors, collapse = "*")))
+          formula_str <- stats::as.formula(paste0(safe_resp, " ~ ", paste(safe_factors, collapse = "*")))
         } else {
-          formula_str <- as.formula(paste0(safe_resp, " ~ ", paste(safe_factors, collapse = "+")))
+          formula_str <- stats::as.formula(paste0(safe_resp, " ~ ", paste(safe_factors, collapse = "+")))
         }
         
         test_result <- rcompanion::scheirerRayHare(formula_str, data = safe_data)
@@ -2898,7 +2898,7 @@ mod_tests_server <- function(id, values) {
           next
         }
         df_clean <- df[, c(var, input$factorVar), drop = FALSE]
-        df_clean <- df_clean[complete.cases(df_clean), ]
+        df_clean <- df_clean[stats::complete.cases(df_clean), ]
         if (nrow(df_clean) < 4) { shiny::showNotification(paste0("ANOVA : trop peu d'obs pour '", var, "'."), type = "warning", duration = 4); next }
         for (f in input$factorVar) {
           # Conversion universelle: tous les types vers facteur
@@ -2911,7 +2911,7 @@ mod_tests_server <- function(id, values) {
           df_clean[[f]] <- droplevels(df_clean[[f]])
         }
         formula_str <- paste0("`", var, "` ~ ", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = ifelse(input$interaction, "*", "+")))
-        model <- aov(as.formula(formula_str), data = df_clean)
+        model <- stats::aov(stats::as.formula(formula_str), data = df_clean)
         anova_table <- summary(model)[[1]]
         
         model_list[[var]] <- model
@@ -2934,13 +2934,13 @@ mod_tests_server <- function(id, values) {
         # degeneree emporterait l'ANOVA de TOUTES les autres. On garde donc
         # chaque diagnostic separement, comme le fait deja l'onglet des
         # residus (`sd(...) < 1e-10`), et l'ANOVA survit.
-        residuals_data <- residuals(model)
+        residuals_data <- stats::residuals(model)
         if (length(residuals_data) > 3 && stats::sd(residuals_data) > 1e-10) {
           normality_results[[var]] <- tryCatch(hstat_shapiro(residuals_data),
                                                error = function(e) NULL)
         }
         
-        fitted_data <- fitted(model)
+        fitted_data <- stats::fitted(model)
         # Deux ecueils : des valeurs ajustees constantes ne donnent qu'un seul
         # niveau, et leveneTest exige au moins deux groupes (« contrasts can be
         # applied only to factors with 2 or more levels »).
@@ -2985,7 +2985,7 @@ mod_tests_server <- function(id, values) {
       df <- values$filteredData
       for (var in input$responseVar) {
         formula_str <- paste0("`", var, "` ~ ", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = "+"))
-        model <- lm(as.formula(formula_str), data = df)
+        model <- stats::lm(stats::as.formula(formula_str), data = df)
         summary_model <- summary(model)
         
         model_list[[var]] <- model
@@ -2996,7 +2996,7 @@ mod_tests_server <- function(id, values) {
           Facteur = "Modèle global",
           Statistique = round(summary_model$fstatistic[1], 4),
           ddl = paste(summary_model$fstatistic[2], ",", summary_model$fstatistic[3]),
-          p_value = pf(summary_model$fstatistic[1], summary_model$fstatistic[2], 
+          p_value = stats::pf(summary_model$fstatistic[1], summary_model$fstatistic[2], 
                        summary_model$fstatistic[3], lower.tail = FALSE),
           Interpretation = paste("R² =", round(summary_model$r.squared, 4)),
           stringsAsFactors = FALSE
@@ -3042,7 +3042,7 @@ mod_tests_server <- function(id, values) {
       df <- values$filteredData
       for (var in input$responseVar) {
         formula_str <- paste0("`", var, "` ~ ", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = "+"))
-        gl <- hstat_glm_fit(as.formula(formula_str), data = df, family = gaussian())
+        gl <- hstat_glm_fit(stats::as.formula(formula_str), data = df, family = stats::gaussian())
         model <- gl$fit
         if (!is.null(gl$note))
           shiny::showNotification(paste0("GLM (", var, ") : ", gl$note),
@@ -3363,23 +3363,23 @@ mod_tests_server <- function(id, values) {
       lk <- if (identical(link, "auto")) NULL else link
       if (engine == "glmmTMB") {
         switch(fam,
-          "gaussian"         = if (is.null(lk)) glmmTMB::gaussian()         else glmmTMB::gaussian(link = lk),
-          "binomial"         = if (is.null(lk)) glmmTMB::binomial()         else glmmTMB::binomial(link = lk),
-          "poisson"          = if (is.null(lk)) glmmTMB::poisson()          else glmmTMB::poisson(link = lk),
-          "Gamma"            = if (is.null(lk)) glmmTMB::Gamma(link = "log")else glmmTMB::Gamma(link = lk),
-          "inverse.gaussian" = if (is.null(lk)) glmmTMB::inverse.gaussian() else glmmTMB::inverse.gaussian(link = lk),
+          "gaussian"         = if (is.null(lk)) stats::gaussian()         else stats::gaussian(link = lk),
+          "binomial"         = if (is.null(lk)) stats::binomial()         else stats::binomial(link = lk),
+          "poisson"          = if (is.null(lk)) stats::poisson()          else stats::poisson(link = lk),
+          "Gamma"            = if (is.null(lk)) stats::Gamma(link = "log")else stats::Gamma(link = lk),
+          "inverse.gaussian" = if (is.null(lk)) stats::inverse.gaussian() else stats::inverse.gaussian(link = lk),
           "nbinom"           = if (is.null(lk)) glmmTMB::nbinom2()          else glmmTMB::nbinom2(link = lk),
           "beta_family"      = if (is.null(lk)) glmmTMB::beta_family()      else glmmTMB::beta_family(link = lk),
           "tweedie"          = if (is.null(lk)) glmmTMB::tweedie()          else glmmTMB::tweedie(link = lk),
-          glmmTMB::gaussian())
+          stats::gaussian())
       } else {
         switch(fam,
-          "gaussian"         = if (is.null(lk)) gaussian()         else gaussian(link = lk),
-          "binomial"         = if (is.null(lk)) binomial()         else binomial(link = lk),
-          "poisson"          = if (is.null(lk)) poisson()          else poisson(link = lk),
-          "Gamma"            = if (is.null(lk)) Gamma(link = "log")else Gamma(link = lk),
-          "inverse.gaussian" = if (is.null(lk)) inverse.gaussian() else inverse.gaussian(link = lk),
-          gaussian())
+          "gaussian"         = if (is.null(lk)) stats::gaussian()         else stats::gaussian(link = lk),
+          "binomial"         = if (is.null(lk)) stats::binomial()         else stats::binomial(link = lk),
+          "poisson"          = if (is.null(lk)) stats::poisson()          else stats::poisson(link = lk),
+          "Gamma"            = if (is.null(lk)) stats::Gamma(link = "log")else stats::Gamma(link = lk),
+          "inverse.gaussian" = if (is.null(lk)) stats::inverse.gaussian() else stats::inverse.gaussian(link = lk),
+          stats::gaussian())
       }
     }
     
@@ -3438,7 +3438,7 @@ mod_tests_server <- function(id, values) {
           fixed <- paste(sapply(input$factorVar, function(x) paste0("`", x, "`")),
                          collapse = if (isTRUE(input$interaction)) " * " else " + ")
           formula_str <- paste0("`", var, "` ~ ", fixed, " + ", rand_term)
-          form <- as.formula(formula_str)
+          form <- stats::as.formula(formula_str)
           
           # LMM gaussien -> lmer (lme4) ; sinon glmer / glmmTMB.
           model <- if (engine == "glmmTMB") {
@@ -3600,7 +3600,7 @@ mod_tests_server <- function(id, values) {
             atab <- as.data.frame(mod$anova_table)
             for (i in seq_len(nrow(atab))) {
               eff <- rownames(atab)[i]
-              pcol <- if ("Pr(>F)" %in% colnames(atab)) "Pr(>F)" else tail(colnames(atab), 1)
+              pcol <- if ("Pr(>F)" %in% colnames(atab)) "Pr(>F)" else utils::tail(colnames(atab), 1)
               fcol <- if ("F" %in% colnames(atab)) "F" else colnames(atab)[grep("^F", colnames(atab))[1]]
               pval <- atab[i, pcol]
               results_list[[paste(var, eff, sep = "_")]] <- data.frame(
@@ -3615,11 +3615,11 @@ mod_tests_server <- function(id, values) {
             emm_model <- mod  # afex object marche avec emmeans
           } else {
             # Moteur mixte : var ~ within*between + (1|sujet). lmerTest -> p-values.
-            form <- as.formula(paste0(bt(var), " ~ ", fixed, " + (1 | ", bt(subj), ")"))
+            form <- stats::as.formula(paste0(bt(var), " ~ ", fixed, " + (1 | ", bt(subj), ")"))
             mod <- if (requireNamespace("lmerTest", quietly = TRUE)) lmerTest::lmer(form, data = dsub)
                    else lme4::lmer(form, data = dsub)
             # Table d'ANOVA de type III (Satterthwaite) si lmerTest.
-            atab <- tryCatch(as.data.frame(anova(mod)), error = function(e) NULL)
+            atab <- tryCatch(as.data.frame(stats::anova(mod)), error = function(e) NULL)
             if (!is.null(atab) && nrow(atab) > 0) {
               for (i in seq_len(nrow(atab))) {
                 eff <- rownames(atab)[i]
@@ -3649,7 +3649,7 @@ mod_tests_server <- function(id, values) {
                 as.data.frame(pr)
               }, error = function(e) NULL)
               if (!is.null(ph) && nrow(ph) > 0) {
-                pcol <- if ("p.value" %in% colnames(ph)) "p.value" else tail(colnames(ph), 1)
+                pcol <- if ("p.value" %in% colnames(ph)) "p.value" else utils::tail(colnames(ph), 1)
                 ecol <- if ("estimate" %in% colnames(ph)) "estimate" else colnames(ph)[2]
                 role <- if (f %in% within) "Période" else "Traitement"
                 for (i in seq_len(nrow(ph))) {
@@ -3731,12 +3731,12 @@ mod_tests_server <- function(id, values) {
             dsub <- df[, c(var, subj, all_fac), drop = FALSE]
             dsub <- dsub[stats::complete.cases(dsub), ]
             fixed <- paste(sapply(all_fac, bt), collapse = " * ")
-            form  <- as.formula(paste0(bt(var), " ~ ", fixed, " + (1 | ", bt(subj), ")"))
+            form  <- stats::as.formula(paste0(bt(var), " ~ ", fixed, " + (1 | ", bt(subj), ")"))
             m <- ARTool::art(form, data = dsub)
-            atab <- as.data.frame(anova(m))
+            atab <- as.data.frame(stats::anova(m))
             for (i in seq_len(nrow(atab))) {
               eff  <- if ("Term" %in% colnames(atab)) atab[["Term"]][i] else rownames(atab)[i]
-              pcol <- if ("Pr(>F)" %in% colnames(atab)) "Pr(>F)" else tail(colnames(atab), 1)
+              pcol <- if ("Pr(>F)" %in% colnames(atab)) "Pr(>F)" else utils::tail(colnames(atab), 1)
               fcol <- if ("F" %in% colnames(atab)) "F" else colnames(atab)[grep("^F", colnames(atab))[1]]
               pval <- atab[i, pcol]
               results_list[[paste(var, eff, sep = "_")]] <- data.frame(
@@ -3751,7 +3751,7 @@ mod_tests_server <- function(id, values) {
             ph <- tryCatch(as.data.frame(ARTool::art.con(m, within[1], adjust = adj)),
                            error = function(e) NULL)
             if (!is.null(ph) && nrow(ph) > 0) {
-              pcol <- if ("p.value" %in% colnames(ph)) "p.value" else tail(colnames(ph), 1)
+              pcol <- if ("p.value" %in% colnames(ph)) "p.value" else utils::tail(colnames(ph), 1)
               for (i in seq_len(nrow(ph))) {
                 posthoc_list[[paste(var, "art", i, sep = "_")]] <- data.frame(
                   Variable = var, Role = "Période", Facteur = within[1],
@@ -4573,8 +4573,8 @@ mod_tests_server <- function(id, values) {
           "Transformation",
           target          = "row",
           backgroundColor = DT::styleEqual(
-            levels = unique(na.omit(df$Transformation)),
-            values = rep("#fff8e1", length(unique(na.omit(df$Transformation))))
+            levels = unique(stats::na.omit(df$Transformation)),
+            values = rep("#fff8e1", length(unique(stats::na.omit(df$Transformation))))
           )
         )
     }
@@ -4601,7 +4601,7 @@ mod_tests_server <- function(id, values) {
       if (abs(sum(p_exp)-1) > 0.01) p_exp <- p_exp / sum(p_exp)
     } else { p_exp <- rep(1/length(obs), length(obs)) }
     tryCatch({
-      tr <- chisq.test(obs, p = p_exp, rescale.p = TRUE)
+      tr <- stats::chisq.test(obs, p = p_exp, rescale.p = TRUE)
       values$chiSqFreqData <- data.frame(
         Categorie    = cats, Observes = obs, Pct_obs = round(pcts, 2),
         Attendus     = round(as.numeric(tr$expected), 2),
@@ -4632,7 +4632,7 @@ mod_tests_server <- function(id, values) {
     if (dtype == "pct") { pcts <- vals; obs <- round(vals/sum(vals)*1000) } else {
       obs <- round(vals); pcts <- obs/sum(obs)*100 }
     tryCatch({
-      tr <- chisq.test(obs, p = rep(1/length(obs),length(obs)), simulate.p.value = TRUE, B = 10000)
+      tr <- stats::chisq.test(obs, p = rep(1/length(obs),length(obs)), simulate.p.value = TRUE, B = 10000)
       values$chiSqFreqData <- data.frame(
         Categorie = cats, Observes = obs, Pct_obs = round(pcts,2),
         Attendus  = round(as.numeric(tr$expected),2),
@@ -4661,12 +4661,12 @@ mod_tests_server <- function(id, values) {
     N_total <- sum(obs); p_raw <- c(); chi2_v <- c(); comps <- c()
     for (i in 1:(n-1)) for (j in (i+1):n) {
       m <- matrix(c(obs[i], obs[j], N_total-obs[i], N_total-obs[j]), 2)
-      tryCatch({ t2 <- chisq.test(m, correct=(n==2))
+      tryCatch({ t2 <- stats::chisq.test(m, correct=(n==2))
       p_raw <<- c(p_raw, t2$p.value); chi2_v <<- c(chi2_v, round(t2$statistic,4))
       }, error = function(e) { p_raw <<- c(p_raw,NA); chi2_v <<- c(chi2_v,NA) })
       comps <- c(comps, paste0(cats[i]," — ",cats[j]))
     }
-    p_adj <- p.adjust(p_raw, method = adj_method)
+    p_adj <- stats::p.adjust(p_raw, method = adj_method)
     values$chiSqPostHocData <- data.frame(
       Comparaison        = comps, Chi2 = chi2_v,
       p_brut             = round(p_raw,6), p_ajuste = round(p_adj,6),
@@ -4715,7 +4715,7 @@ mod_tests_server <- function(id, values) {
       obs <- round(vals); pcts <- obs/sum(obs)*100 }
     tryCatch({
       p_exp <- rep(1/length(obs), length(obs))
-      tr <- chisq.test(obs, p = p_exp, rescale.p = TRUE)
+      tr <- stats::chisq.test(obs, p = p_exp, rescale.p = TRUE)
       values$chiSqFreqData <- data.frame(
         Categorie = cats, Observes = obs, Pct_obs = round(pcts,2),
         Attendus  = round(as.numeric(tr$expected),2),
@@ -4730,12 +4730,12 @@ mod_tests_server <- function(id, values) {
       p_raw <- c(); chi2_v <- c(); comps <- c()
       for (i in 1:(n-1)) for (j in (i+1):n) {
         m <- matrix(c(obs[i],obs[j],N_total-obs[i],N_total-obs[j]),2)
-        tryCatch({ t2 <- chisq.test(m, correct=(n==2))
+        tryCatch({ t2 <- stats::chisq.test(m, correct=(n==2))
         p_raw <<- c(p_raw,t2$p.value); chi2_v <<- c(chi2_v,round(t2$statistic,4))
         }, error=function(e){ p_raw <<- c(p_raw,NA); chi2_v <<- c(chi2_v,NA) })
         comps <- c(comps, paste0(cats[i]," — ",cats[j]))
       }
-      p_adj <- p.adjust(p_raw, method=adj_method)
+      p_adj <- stats::p.adjust(p_raw, method=adj_method)
       values$chiSqPostHocData <- data.frame(
         Comparaison=comps, Chi2=chi2_v, p_brut=round(p_raw,6),
         p_ajuste=round(p_adj,6),
@@ -4929,24 +4929,24 @@ mod_tests_server <- function(id, values) {
     tryCatch({
       # Vérifier si le modèle a des problèmes de leverage
       model <- values$currentModel
-      h <- hatvalues(model)
+      h <- stats::hatvalues(model)
       
       # Si tous les leverage sont 0 ou très proche de 0
       if (all(h < 1e-10) || sum(h > 0) < 3) {
-        par(mfrow = c(1, 1))
+        graphics::par(mfrow = c(1, 1))
         plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
-        text(1, 1, "Ajustement parfait détecté\nLes diagnostics graphiques standards ne sont pas disponibles\nVoir les tests numériques ci-dessous", 
+        graphics::text(1, 1, "Ajustement parfait détecté\nLes diagnostics graphiques standards ne sont pas disponibles\nVoir les tests numériques ci-dessous", 
              cex = 1.2, col = "red")
         return()
       }
       
-      par(mfrow = c(2, 2))
+      graphics::par(mfrow = c(2, 2))
       plot(model, which = 1:4)
       
     }, error = function(e) {
-      par(mfrow = c(1, 1))
+      graphics::par(mfrow = c(1, 1))
       plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
-      text(1, 1, paste("Erreur dans les diagnostics graphiques:\n", 
+      graphics::text(1, 1, paste("Erreur dans les diagnostics graphiques:\n", 
                        substr(e$message, 1, 100), 
                        "\n\nVoir les tests numériques ci-dessous"), 
            cex = 1, col = "red")
@@ -4958,7 +4958,7 @@ mod_tests_server <- function(id, values) {
     
     tryCatch({
       model <- values$currentModel
-      h <- hatvalues(model)
+      h <- stats::hatvalues(model)
       
       if (all(h < 1e-10) || sum(h > 0) < 3) {
         interp_text <- "<span style='color: orange;'><strong>Ajustement parfait ou quasi-parfait détecté.</strong></span><br>
@@ -4994,14 +4994,14 @@ mod_tests_server <- function(id, values) {
       # ne reste que le DESSIN, qui est le seul propre a cet export.
       model <- values$currentModel
       dessin <- function() {
-        h <- hatvalues(model)
+        h <- stats::hatvalues(model)
         if (all(h < 1e-10) || sum(h > 0) < 3) {
-          par(mfrow = c(1, 1))
+          graphics::par(mfrow = c(1, 1))
           plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
-          text(1, 1, "Ajustement parfait détecté\nLes diagnostics graphiques ne sont pas disponibles",
+          graphics::text(1, 1, "Ajustement parfait détecté\nLes diagnostics graphiques ne sont pas disponibles",
                cex = 1.5, col = "red")
         } else {
-          par(mfrow = c(2, 2))
+          graphics::par(mfrow = c(2, 2))
           plot(model, which = 1:4)
         }
       }
@@ -5022,10 +5022,10 @@ mod_tests_server <- function(id, values) {
       motif <- NULL
       p <- tryCatch({
         shiny::req(values$currentModel)
-        residuals_data <- residuals(values$currentModel)
+        residuals_data <- stats::residuals(values$currentModel)
         residuals_data <- residuals_data[!is.na(residuals_data)]
 
-        if (length(residuals_data) < 3 || sd(residuals_data) < 1e-10) {
+        if (length(residuals_data) < 3 || stats::sd(residuals_data) < 1e-10) {
           # `<-` et non `<<-` : l'expression d'un tryCatch s'evalue dans le
           # cadre APPELANT, donc ici meme. C'est dans le GESTIONNAIRE, plus
           # bas, que `<<-` est indispensable.
@@ -5034,10 +5034,10 @@ mod_tests_server <- function(id, values) {
         }
 
         n <- length(residuals_data)
-        theoretical_quantiles <- qnorm(ppoints(n))
+        theoretical_quantiles <- stats::qnorm(stats::ppoints(n))
         sample_quantiles <- sort(residuals_data)
         
-        se <- (sd(residuals_data) / sqrt(n)) * sqrt(theoretical_quantiles^2 + 1)
+        se <- (stats::sd(residuals_data) / sqrt(n)) * sqrt(theoretical_quantiles^2 + 1)
         upper_band <- theoretical_quantiles + 1.96 * se
         lower_band <- theoretical_quantiles - 1.96 * se
         
@@ -5071,26 +5071,26 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$currentModel)
     
     tryCatch({
-      residuals_data <- residuals(values$currentModel)
+      residuals_data <- stats::residuals(values$currentModel)
       residuals_data <- residuals_data[!is.na(residuals_data)]
       
       if (length(residuals_data) < 3) {
         plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
-        text(1, 1, "Pas assez de résidus pour le QQ-plot (n < 3)", cex = 1.2, col = "red")
+        graphics::text(1, 1, "Pas assez de résidus pour le QQ-plot (n < 3)", cex = 1.2, col = "red")
         return()
       }
       
-      if (sd(residuals_data) < 1e-10) {
+      if (stats::sd(residuals_data) < 1e-10) {
         plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
-        text(1, 1, "Résidus constants (ajustement parfait)\nQQ-plot non applicable", cex = 1.2, col = "orange")
+        graphics::text(1, 1, "Résidus constants (ajustement parfait)\nQQ-plot non applicable", cex = 1.2, col = "orange")
         return()
       }
       
       n <- length(residuals_data)
-      theoretical_quantiles <- qnorm(ppoints(n))
+      theoretical_quantiles <- stats::qnorm(stats::ppoints(n))
       sample_quantiles <- sort(residuals_data)
       
-      se <- (sd(residuals_data) / sqrt(n)) * sqrt(theoretical_quantiles^2 + 1)
+      se <- (stats::sd(residuals_data) / sqrt(n)) * sqrt(theoretical_quantiles^2 + 1)
       upper_band <- theoretical_quantiles + 1.96 * se
       lower_band <- theoretical_quantiles - 1.96 * se
       
@@ -5113,7 +5113,7 @@ mod_tests_server <- function(id, values) {
       
     }, error = function(e) {
       plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
-      text(1, 1, paste(strwrap(hstat_err_fr(e, "QQ-plot"), 55), collapse = "\n"), cex = 0.85, col = "red")
+      graphics::text(1, 1, paste(strwrap(hstat_err_fr(e, "QQ-plot"), 55), collapse = "\n"), cex = 0.85, col = "red")
     })
   })
   
@@ -5121,12 +5121,12 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$currentModel)
     
     tryCatch({
-      residuals_data <- residuals(values$currentModel)
+      residuals_data <- stats::residuals(values$currentModel)
       residuals_data <- residuals_data[!is.na(residuals_data)]
       
       if (length(residuals_data) < 3) {
         interp_text <- "<span style='color: red;'>Pas assez de résidus pour évaluer la normalité.</span>"
-      } else if (sd(residuals_data) < 1e-10) {
+      } else if (stats::sd(residuals_data) < 1e-10) {
         interp_text <- "<span style='color: orange;'>Résidus constants (ajustement parfait). Normalité non évaluable.</span>"
       } else {
         interp_text <- "Les points devraient suivre la ligne droite pour une normalité des résidus.<br>
@@ -5145,7 +5145,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$currentModel)
     
     tryCatch({
-      residuals_data <- residuals(values$currentModel)
+      residuals_data <- stats::residuals(values$currentModel)
       residuals_data <- residuals_data[!is.na(residuals_data)]
       
       if (length(residuals_data) < 3) {
@@ -5153,7 +5153,7 @@ mod_tests_server <- function(id, values) {
       } else if (length(residuals_data) > 5000) {
         cat("Trop d'observations pour le test de Shapiro-Wilk (n > 5000).\n")
         cat("Utilisez le QQ-plot ci-dessus pour évaluer visuellement la normalité.\n")
-      } else if (sd(residuals_data) < 1e-10) {
+      } else if (stats::sd(residuals_data) < 1e-10) {
         cat("Résidus constants ou quasi-constants (ajustement parfait).\n")
         cat("Le test de normalité n'est pas applicable.\n")
       } else {
@@ -5168,14 +5168,14 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$currentModel)
     
     tryCatch({
-      residuals_data <- residuals(values$currentModel)
+      residuals_data <- stats::residuals(values$currentModel)
       residuals_data <- residuals_data[!is.na(residuals_data)]
       
       if (length(residuals_data) < 3) {
         interp_text <- "Nombre d'observations insuffisant pour le test de Shapiro-Wilk."
       } else if (length(residuals_data) > 5000) {
         interp_text <- "Trop d'observations pour Shapiro-Wilk. Référez-vous au QQ-plot."
-      } else if (sd(residuals_data) < 1e-10) {
+      } else if (stats::sd(residuals_data) < 1e-10) {
         interp_text <- "<span style='color: orange;'>Résidus constants (ajustement parfait). Test non applicable.</span>"
       } else {
         norm_test <- hstat_shapiro(residuals_data)
@@ -5192,11 +5192,11 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$currentModel)
     
     tryCatch({
-      residuals_data <- residuals(values$currentModel)
-      fitted_data <- fitted(values$currentModel)
+      residuals_data <- stats::residuals(values$currentModel)
+      fitted_data <- stats::fitted(values$currentModel)
       
       # Vérifier s'il y a une variation dans les valeurs ajustées
-      if (sd(fitted_data) < 1e-10) {
+      if (stats::sd(fitted_data) < 1e-10) {
         cat("Les valeurs ajustées sont constantes (ajustement parfait).\n")
         cat("Le test d'homogénéité des résidus n'est pas applicable.\n")
         return()
@@ -5230,10 +5230,10 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$currentModel)
     
     tryCatch({
-      residuals_data <- residuals(values$currentModel)
-      fitted_data <- fitted(values$currentModel)
+      residuals_data <- stats::residuals(values$currentModel)
+      fitted_data <- stats::fitted(values$currentModel)
       
-      if (sd(fitted_data) < 1e-10) {
+      if (stats::sd(fitted_data) < 1e-10) {
         interp_text <- "<span style='color: orange;'>Valeurs ajustées constantes (ajustement parfait). Test non applicable.</span>"
         return(shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
       }
@@ -5266,14 +5266,14 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$currentModel)
     
     tryCatch({
-      residuals_data <- residuals(values$currentModel)
+      residuals_data <- stats::residuals(values$currentModel)
       
       if (length(residuals_data) < 3) {
         cat("Nombre d'observations insuffisant pour le test de Durbin-Watson (n < 3).\n")
         return()
       }
       
-      if (sd(residuals_data) < 1e-10) {
+      if (stats::sd(residuals_data) < 1e-10) {
         cat("Résidus constants (ajustement parfait).\n")
         cat("Le test d'autocorrélation n'est pas applicable.\n")
         return()
@@ -5290,14 +5290,14 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$currentModel)
     
     tryCatch({
-      residuals_data <- residuals(values$currentModel)
+      residuals_data <- stats::residuals(values$currentModel)
       
       if (length(residuals_data) < 3) {
         interp_text <- "Nombre d'observations insuffisant pour le test de Durbin-Watson."
         return(shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
       }
       
-      if (sd(residuals_data) < 1e-10) {
+      if (stats::sd(residuals_data) < 1e-10) {
         interp_text <- "<span style='color: orange;'>Résidus constants (ajustement parfait). Test non applicable.</span>"
         return(shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
       }
@@ -5343,7 +5343,7 @@ mod_tests_server <- function(id, values) {
     cols <- c("#1565C0","#2E7D32","#C62828","#6A1B9A","#E65100",
               "#00695C","#AD1457","#4E342E","#37474F","#F9A825")
     if (n <= length(cols)) return(cols[seq_len(n)])
-    colorRampPalette(cols)(n)
+    grDevices::colorRampPalette(cols)(n)
   }
   
   # Formater une p-valeur sans l'arrondir à 0 quand elle est très faible
@@ -5372,7 +5372,7 @@ mod_tests_server <- function(id, values) {
       i <- paires[1, k]; j <- paires[2, k]
       oi <- observed[i]; oj <- observed[j]
       if (is.na(oi) | is.na(oj) | oi < 0 | oj < 0 | (oi + oj) == 0) next
-      tt  <- tryCatch(binom.test(oi, oi + oj, p = 0.5), error = function(e) NULL)
+      tt  <- tryCatch(stats::binom.test(oi, oi + oj, p = 0.5), error = function(e) NULL)
       if (is.null(tt)) next
       p_adj <- min(tt$p.value * nb_paires, 1)
       res_paires <- rbind(res_paires, data.frame(
@@ -5459,10 +5459,10 @@ mod_tests_server <- function(id, values) {
       
       if (methode == "chisq") {
         res_test <- tryCatch(
-          chisq.test(observed, p = rep(1/n, n)),
+          stats::chisq.test(observed, p = rep(1/n, n)),
           warning = function(w) {
             shiny::showNotification(hstat_err_fr(w, "Avertissement"), type = "warning", duration = 10)
-            suppressWarnings(chisq.test(observed, p = rep(1/n, n)))
+            suppressWarnings(stats::chisq.test(observed, p = rep(1/n, n)))
           },
           error = function(e) { shiny::showNotification(hstat_err_fr(e, "Erreur chi²"), type = "error"); NULL }
         )
@@ -5487,7 +5487,7 @@ mod_tests_server <- function(id, values) {
       
       shiny::incProgress(0.3)
       
-      paires    <- combn(n, 2)
+      paires    <- utils::combn(n, 2)
       nb_paires <- ncol(paires)
       ph        <- chi2_group_letters(modalites, observed, nb_paires, paires)
       
@@ -5581,7 +5581,7 @@ mod_tests_server <- function(id, values) {
                   "Pastel1" = RColorBrewer::brewer.pal(max(3, n), "Pastel1")[seq_len(n)],
                   chi2_palette(n)
     )
-    if (n > length(pal)) pal <- colorRampPalette(pal)(n)
+    if (n > length(pal)) pal <- grDevices::colorRampPalette(pal)(n)
     
     df_plot <- data.frame(
       modalite = factor(fdf$Modalite, levels = fdf$Modalite),
@@ -5611,7 +5611,7 @@ mod_tests_server <- function(id, values) {
                            size = 4, fontface = "bold")
       
     } else if (type_g == "bar_h") {
-      g <- ggplot2::ggplot(df_plot, ggplot2::aes(x = valeur, y = reorder(modalite, valeur), fill = modalite)) +
+      g <- ggplot2::ggplot(df_plot, ggplot2::aes(x = valeur, y = stats::reorder(modalite, valeur), fill = modalite)) +
         ggplot2::geom_col(width = 0.65, color = "white") +
         ggplot2::scale_fill_manual(values = pal) +
         ggplot2::labs(subtitle = sous_titre, x = "Valeur", y = NULL) +
@@ -5636,7 +5636,7 @@ mod_tests_server <- function(id, values) {
     } else if (type_g == "donut") {
       df_plot$pct  <- df_plot$valeur / sum(df_plot$valeur) * 100
       df_plot$ymax <- cumsum(df_plot$pct)
-      df_plot$ymin <- c(0, head(df_plot$ymax, -1))
+      df_plot$ymin <- c(0, utils::head(df_plot$ymax, -1))
       df_plot$mid  <- (df_plot$ymin + df_plot$ymax) / 2
       g <- ggplot2::ggplot(df_plot, ggplot2::aes(ymax = ymax, ymin = ymin, xmax = 4, xmin = 2.5, fill = modalite)) +
         ggplot2::geom_rect(color = "white", linewidth = 0.5) +
@@ -5651,7 +5651,7 @@ mod_tests_server <- function(id, values) {
                            size = 3.5, fontface = "bold")
       
     } else if (type_g == "lollipop") {
-      g <- ggplot2::ggplot(df_plot, ggplot2::aes(x = reorder(modalite, -valeur), y = valeur, color = modalite)) +
+      g <- ggplot2::ggplot(df_plot, ggplot2::aes(x = stats::reorder(modalite, -valeur), y = valeur, color = modalite)) +
         ggplot2::geom_segment(ggplot2::aes(xend = modalite, yend = 0), linewidth = 1.5) +
         ggplot2::geom_point(size = 7) +
         ggplot2::scale_color_manual(values = pal) +
@@ -5768,7 +5768,7 @@ mod_tests_server <- function(id, values) {
     filename = function() paste0("chi2_modalités_", Sys.Date(), ".csv"),
     content  = function(file) {
       shiny::req(values$chiSqFreqData)
-      write.csv(values$chiSqFreqData, file, row.names = FALSE)
+      utils::write.csv(values$chiSqFreqData, file, row.names = FALSE)
     }
   )
   
@@ -5777,7 +5777,7 @@ mod_tests_server <- function(id, values) {
   # Helper : carte de renommage des modalités (niveaux X)
   chi2_ph_level_map <- function(fdf) {
     levs <- as.character(fdf$Modalite)
-    map  <- setNames(levs, levs)
+    map  <- stats::setNames(levs, levs)
     for (i in seq_along(levs)) {
       val <- input[[paste0("chiSqPHLevel_", i)]]
       if (!is.null(val) && nzchar(trimws(val))) map[levs[i]] <- trimws(val)
@@ -5890,8 +5890,8 @@ mod_tests_server <- function(id, values) {
   # ---- Comparaisons multiples PostHoc  ----
   
   calc_cv <- function(x) {
-    if (length(x) <= 1 || sd(x, na.rm = TRUE) == 0) return(0)
-    return((sd(x, na.rm = TRUE) / mean(x, na.rm = TRUE)) * 100)
+    if (length(x) <= 1 || stats::sd(x, na.rm = TRUE) == 0) return(0)
+    return((stats::sd(x, na.rm = TRUE) / mean(x, na.rm = TRUE)) * 100)
   }
   
   perform_simple_effect_posthoc <- function(df, var, factor1, factor2, level, test_type, test_method) {
@@ -5921,7 +5921,7 @@ mod_tests_server <- function(id, values) {
       
       if (test_type == "param") {
         bt <- function(x) paste0("`", x, "`")
-        model <- aov(as.formula(paste0(bt(var), " ~ ", bt(factor1))), data = df_subset)
+        model <- stats::aov(stats::as.formula(paste0(bt(var), " ~ ", bt(factor1))), data = df_subset)
         
         if (test_method %in% c("lsd", "tukey", "duncan", "snk", "scheffe", "regw", "waller")) {
           mc_func <- switch(test_method,
@@ -5937,8 +5937,8 @@ mod_tests_server <- function(id, values) {
           colnames(groups)[1:2] <- c("means", "groups")
           groups[[factor1]] <- rownames(groups)
         } else if (test_method == "bonferroni") {
-          emm <- emmeans::emmeans(model, as.formula(paste0("~ `", factor1, "`")))
-          mc <- pairs(emm, adjust = "bonferroni")
+          emm <- emmeans::emmeans(model, stats::as.formula(paste0("~ `", factor1, "`")))
+          mc <- graphics::pairs(emm, adjust = "bonferroni")
           pmat <- as.matrix(summary(mc)$p.value)
           if (is.null(dim(pmat))) {
             groups <- data.frame(groups = rep("a", length(unique(df_subset[[factor1]]))))
@@ -5951,7 +5951,7 @@ mod_tests_server <- function(id, values) {
             groups[[factor1]] <- names(groups_letters)
           }
         } else if (test_method == "dunnett") {
-          emm <- emmeans::emmeans(model, as.formula(paste0("~ `", factor1, "`")))
+          emm <- emmeans::emmeans(model, stats::as.formula(paste0("~ `", factor1, "`")))
           groups_cld <- multcomp::cld(emm, Letters = letters)
           groups <- as.data.frame(groups_cld)
           groups <- groups[, c(factor1, ".group")]
@@ -5959,7 +5959,7 @@ mod_tests_server <- function(id, values) {
           groups$groups <- trimws(groups$groups)
         } else if (test_method == "games") {
           bt_loc <- function(x) paste0("`", x, "`")
-          mc <- PMCMRplus::gamesHowellTest(as.formula(paste0(bt_loc(var), " ~ ", bt_loc(factor1))), data = df_subset)
+          mc <- PMCMRplus::gamesHowellTest(stats::as.formula(paste0(bt_loc(var), " ~ ", bt_loc(factor1))), data = df_subset)
           pmat <- as.matrix(mc$p.value)
           pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
           diag(pmat) <- 1
@@ -5974,7 +5974,7 @@ mod_tests_server <- function(id, values) {
           colnames(groups)[1:2] <- c("means", "groups")
           groups[[factor1]] <- rownames(groups)
         } else if (test_method == "dunn") {
-          mc <- PMCMRplus::dunnTest(df_subset[[var]], df_subset[[factor1]])
+          mc <- PMCMRplus::kwAllPairsDunnTest(df_subset[[var]], df_subset[[factor1]])
           pmat <- as.matrix(mc$p.value)
           pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
           diag(pmat) <- 1
@@ -6006,7 +6006,7 @@ mod_tests_server <- function(id, values) {
         dplyr::group_by(dplyr::across(dplyr::all_of(factor1))) %>%
         dplyr::summarise(
           Moyenne = mean(.data[[var]], na.rm = TRUE),
-          Ecart_type = sd(.data[[var]], na.rm = TRUE),
+          Ecart_type = stats::sd(.data[[var]], na.rm = TRUE),
           N = dplyr::n(),
           Erreur_type = Ecart_type / sqrt(N),
           CV = calc_cv(.data[[var]]),
@@ -6033,7 +6033,7 @@ mod_tests_server <- function(id, values) {
       shiny::updateRadioButtons(session, "testType", selected = new_type)
     }
     
-    values$postHocSyncTrigger <- runif(1)
+    values$postHocSyncTrigger <- stats::runif(1)
     
     shiny::showNotification(
       shiny::tagList(
@@ -6206,7 +6206,7 @@ mod_tests_server <- function(id, values) {
           if (nrow(df_var) < 4) { next }
           if (input$testType == "param") {
             bt <- function(x) paste0("`", x, "`")
-            model <- aov(as.formula(paste0(bt(var), " ~ ", bt(fvar))), data = df_var)
+            model <- stats::aov(stats::as.formula(paste0(bt(var), " ~ ", bt(fvar))), data = df_var)
             
             if (input$multiTest %in% c("lsd", "tukey", "duncan", "snk", "scheffe", "regw", "waller")) {
               mc_func <- switch(input$multiTest,
@@ -6237,10 +6237,10 @@ mod_tests_server <- function(id, values) {
               colnames(groups)[1:2] <- c("means", "groups")
               groups[[fvar]] <- rownames(groups)
             } else if (input$multiTest == "bonferroni") {
-              emm <- emmeans::emmeans(model, as.formula(paste0("~ `", fvar, "`")))
+              emm <- emmeans::emmeans(model, stats::as.formula(paste0("~ `", fvar, "`")))
               # emmeans accepte tukey/bonferroni/holm/BH/... ; "none" = brut
               pm_adj <- input$multiParamAdjust %||% "bonferroni"
-              mc <- pairs(emm, adjust = if (identical(pm_adj, "none")) "none" else pm_adj)
+              mc <- graphics::pairs(emm, adjust = if (identical(pm_adj, "none")) "none" else pm_adj)
               pmat <- as.matrix(summary(mc)$p.value)
               if (is.null(dim(pmat))) {
                 groups <- data.frame(groups = rep("a", length(levels(df[[fvar]]))))
@@ -6253,14 +6253,14 @@ mod_tests_server <- function(id, values) {
                 groups[[fvar]] <- names(groups_letters)
               }
             } else if (input$multiTest == "dunnett") {
-              emm <- emmeans::emmeans(model, as.formula(paste0("~ `", fvar, "`")))
+              emm <- emmeans::emmeans(model, stats::as.formula(paste0("~ `", fvar, "`")))
               groups_cld <- multcomp::cld(emm, Letters = letters)
               groups <- as.data.frame(groups_cld)
               groups <- groups[, c(fvar, ".group")]
               colnames(groups) <- c(fvar, "groups")
               groups$groups <- trimws(groups$groups)
             } else if (input$multiTest == "games") {
-              mc <- PMCMRplus::gamesHowellTest(as.formula(paste0("`", var, "` ~ `", fvar, "`")), data = df)
+              mc <- PMCMRplus::gamesHowellTest(stats::as.formula(paste0("`", var, "` ~ `", fvar, "`")), data = df)
               pmat <- as.matrix(mc$p.value)
               pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
               diag(pmat) <- 1
@@ -6282,7 +6282,7 @@ mod_tests_server <- function(id, values) {
             } else if (input$multiTestNonParam == "dunn") {
               np_adj <- input$multiNonParamAdjust %||% "holm"
               groups <- tryCatch({
-                mc <- PMCMRplus::dunnTest(df_var[[var]], df_var[[fvar]], p.adjust.method = np_adj)
+                mc <- PMCMRplus::kwAllPairsDunnTest(df_var[[var]], df_var[[fvar]], p.adjust.method = np_adj)
                 pmat <- as.matrix(mc$p.value)
                 pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
                 diag(pmat) <- 1
@@ -6332,7 +6332,7 @@ mod_tests_server <- function(id, values) {
             dplyr::group_by(dplyr::across(dplyr::all_of(fvar))) %>%
             dplyr::summarise(
               Moyenne    = mean(.data[[var]], na.rm = TRUE),
-              Ecart_type = sd(.data[[var]], na.rm = TRUE),
+              Ecart_type = stats::sd(.data[[var]], na.rm = TRUE),
               N          = dplyr::n(),
               Erreur_type = ifelse(N > 1, Ecart_type / sqrt(N), NA_real_),
               CV         = calc_cv(.data[[var]]),
@@ -6363,7 +6363,7 @@ mod_tests_server <- function(id, values) {
       }
       
       if (input$posthocInteraction && length(input$multiFactor) > 1) {
-        factor_combinations <- combn(input$multiFactor, 2, simplify = FALSE)
+        factor_combinations <- utils::combn(input$multiFactor, 2, simplify = FALSE)
         
         for (fcomb in factor_combinations) {
           fvar1 <- fcomb[1]
@@ -6374,7 +6374,7 @@ mod_tests_server <- function(id, values) {
           tryCatch({
             cols_inter <- c(var, fvar1, fvar2)
             df_temp <- df[, intersect(cols_inter, names(df)), drop = FALSE]
-            df_temp <- df_temp[complete.cases(df_temp), ]
+            df_temp <- df_temp[stats::complete.cases(df_temp), ]
             for (.f in c(fvar1, fvar2)) {
               if (!is.factor(df_temp[[.f]])) df_temp[[.f]] <- factor(df_temp[[.f]])
               df_temp[[.f]] <- droplevels(df_temp[[.f]])
@@ -6388,7 +6388,7 @@ mod_tests_server <- function(id, values) {
             
             if (input$testType == "param") {
               formula_inter <- paste0("`", var, "` ~ `", fvar1, "` * `", fvar2, "`")
-              model <- tryCatch(aov(as.formula(formula_inter), data = df_temp), error = function(e) NULL)
+              model <- tryCatch(stats::aov(stats::as.formula(formula_inter), data = df_temp), error = function(e) NULL)
               if (is.null(model)) return(NULL)
               anova_res <- tryCatch(summary(model)[[1]], error = function(e) NULL)
               if (!is.null(anova_res)) {
@@ -6402,7 +6402,7 @@ mod_tests_server <- function(id, values) {
               df_temp$interaction_combined <- interaction(df_temp[[fvar1]], df_temp[[fvar2]], 
                                                           drop = TRUE, sep = ":")
               
-              kw_interaction <- kruskal.test(df_temp[[var]] ~ df_temp$interaction_combined)
+              kw_interaction <- stats::kruskal.test(df_temp[[var]] ~ df_temp$interaction_combined)
               interaction_pvalue <- kw_interaction$p.value
               
               shiny::showNotification(
@@ -6732,7 +6732,7 @@ mod_tests_server <- function(id, values) {
     combos <- names(values$lmPostHocResults)
     labels <- vapply(values$lmPostHocResults, function(r)
       paste0(r$model_type, " : ", r$variable, " ~ ", r$predictor), character(1))
-    named_choices <- setNames(combos, labels)
+    named_choices <- stats::setNames(combos, labels)
     shiny::selectInput(ns("lmPostHocCombo"),
                 shiny::tagList(shiny::icon("filter"), " Choisir une combinaison Variable / Prédicteur :"),
                 choices = named_choices, selected = combos[1], width = "100%")
@@ -7193,7 +7193,7 @@ mod_tests_server <- function(id, values) {
         'groups',
         backgroundColor = DT::styleEqual(
           unique(main_data$groups),
-          rainbow(length(unique(main_data$groups)), alpha = 0.3)
+          grDevices::rainbow(length(unique(main_data$groups)), alpha = 0.3)
         ),
         fontWeight = 'bold'
       )
@@ -7253,7 +7253,7 @@ mod_tests_server <- function(id, values) {
         'groups',
         backgroundColor = DT::styleEqual(
           unique(simple_data$groups),
-          rainbow(length(unique(simple_data$groups)), alpha = 0.3)
+          grDevices::rainbow(length(unique(simple_data$groups)), alpha = 0.3)
         ),
         fontWeight = 'bold'
       ) %>%
@@ -7887,7 +7887,7 @@ mod_tests_server <- function(id, values) {
             face = if (!is.null(subtitle_font_style)) subtitle_font_style else "italic",
             hjust = as.numeric(if (!is.null(subtitle_position)) subtitle_position else 0.5),
             color = "gray30",
-            margin = margin(t = 5, b = 10)
+            margin = ggplot2::margin(t = 5, b = 10)
           )
         } else {
           ggplot2::element_blank()
@@ -7929,7 +7929,7 @@ mod_tests_server <- function(id, values) {
         legend.key.width = ggplot2::unit(legend_key_size * 1.25, "lines"),
         legend.spacing.y = ggplot2::unit(legend_spacing, "lines"),  
         legend.key.spacing.y = ggplot2::unit(legend_spacing, "lines"),  
-        legend.margin = margin(t = 5, r = 5, b = 5, l = 5),
+        legend.margin = ggplot2::margin(t = 5, r = 5, b = 5, l = 5),
         legend.box.spacing = ggplot2::unit(0.5, "lines"),
         panel.grid.major = ggplot2::element_line(color = "gray90"),
         panel.grid.minor = ggplot2::element_blank(),

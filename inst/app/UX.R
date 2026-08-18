@@ -1,22 +1,11 @@
 #  Helpers UI -- Analyses multivariees etendues
 
-# Bandeau "portee des données" : affiche sur chaque onglet d'analyse en mode
-# hors-memoire pour rappeler que l'analyse porte sur un echantillon, avec acces
-# rapide au reglage de l'echantillon. 'exact' = TRUE si l'onglet propose en plus
-# un calcul exact sur le jeu complet.
-.hstat_scope_banner <- function(exact = FALSE) {
-  shiny::conditionalPanel(
-    condition = "output.hstatBigData == true",
-    shiny::div(class = "callout callout-warning", style = "margin-bottom:16px;",
-      shiny::tags$p(style = "margin:0; font-size:13px;",
-        shiny::icon("database"),
-        if (exact)
-          shiny::HTML(" <b>Mode hors-mémoire.</b> Cette analyse s'exécute sur l'échantillon de travail ; l'option <b>« calculer sur le jeu complet »</b> ci-dessous fournit un résultat exact lorsque c'est applicable.")
-        else
-          shiny::HTML(" <b>Mode hors-mémoire.</b> Cette analyse ajuste un modèle et s'exécute donc sur l'<b>échantillon de travail</b>. Pour gagner en fidélité, agrandissez l'échantillon dans l'onglet « Chargement » &rarr; « Échantillon de travail »."))
-    )
-  )
-}
+# `.hstat_scope_banner()` a rejoint le socle (`R/utils.R`). Il etait defini ICI
+# et appele par les UI de MODULE -- donc par du code du paquet, qui ne peut pas
+# voir une definition de l'application. Cela ne cassait rien parce que `UX.R`
+# est source avant que la moindre UI ne soit CONSTRUITE, mais la dependance
+# allait a l'envers : le paquet ne doit rien attendre de l'application.
+
 
 .mv_theme <- function(cat) {
   switch(cat,

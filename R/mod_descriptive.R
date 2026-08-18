@@ -408,14 +408,14 @@ mod_descriptive_server <- function(id, values) {
           x <- df_in[[var]]
           stats <- list()
           if ("mean" %in% stats_sel) stats$mean <- mean(x, na.rm = TRUE)
-          if ("median" %in% stats_sel) stats$median <- median(x, na.rm = TRUE)
-          if ("sd" %in% stats_sel) stats$sd <- sd(x, na.rm = TRUE)
-          if ("var" %in% stats_sel) stats$var <- var(x, na.rm = TRUE)
+          if ("median" %in% stats_sel) stats$median <- stats::median(x, na.rm = TRUE)
+          if ("sd" %in% stats_sel) stats$sd <- stats::sd(x, na.rm = TRUE)
+          if ("var" %in% stats_sel) stats$var <- stats::var(x, na.rm = TRUE)
           if ("cv" %in% stats_sel) stats$cv <- calc_cv(x)
           if ("min" %in% stats_sel) stats$min <- min(x, na.rm = TRUE)
           if ("max" %in% stats_sel) stats$max <- max(x, na.rm = TRUE)
-          if ("q1" %in% stats_sel) stats$q1 <- quantile(x, 0.25, na.rm = TRUE)
-          if ("q3" %in% stats_sel) stats$q3 <- quantile(x, 0.75, na.rm = TRUE)
+          if ("q1" %in% stats_sel) stats$q1 <- stats::quantile(x, 0.25, na.rm = TRUE)
+          if ("q3" %in% stats_sel) stats$q3 <- stats::quantile(x, 0.75, na.rm = TRUE)
           
           data.frame(Facteurs = "Global", Variable = var, as.data.frame(stats), check.names = FALSE)
         })
@@ -428,14 +428,14 @@ mod_descriptive_server <- function(id, values) {
             dplyr::group_by(!!!ggplot2::syms(group_vars)) %>%
             dplyr::summarise(
               mean = if("mean" %in% stats_sel) mean(.data[[var_name]], na.rm = TRUE) else NA_real_,
-              median = if("median" %in% stats_sel) median(.data[[var_name]], na.rm = TRUE) else NA_real_,
-              sd = if("sd" %in% stats_sel) sd(.data[[var_name]], na.rm = TRUE) else NA_real_,
-              var = if("var" %in% stats_sel) var(.data[[var_name]], na.rm = TRUE) else NA_real_,
+              median = if("median" %in% stats_sel) stats::median(.data[[var_name]], na.rm = TRUE) else NA_real_,
+              sd = if("sd" %in% stats_sel) stats::sd(.data[[var_name]], na.rm = TRUE) else NA_real_,
+              var = if("var" %in% stats_sel) stats::var(.data[[var_name]], na.rm = TRUE) else NA_real_,
               cv = if("cv" %in% stats_sel) calc_cv(.data[[var_name]]) else NA_real_,
               min = if("min" %in% stats_sel) min(.data[[var_name]], na.rm = TRUE) else NA_real_,
               max = if("max" %in% stats_sel) max(.data[[var_name]], na.rm = TRUE) else NA_real_,
-              q1 = if("q1" %in% stats_sel) quantile(.data[[var_name]], 0.25, na.rm = TRUE) else NA_real_,
-              q3 = if("q3" %in% stats_sel) quantile(.data[[var_name]], 0.75, na.rm = TRUE) else NA_real_,
+              q1 = if("q1" %in% stats_sel) stats::quantile(.data[[var_name]], 0.25, na.rm = TRUE) else NA_real_,
+              q3 = if("q3" %in% stats_sel) stats::quantile(.data[[var_name]], 0.75, na.rm = TRUE) else NA_real_,
               .groups = "drop"
             ) %>%
             dplyr::mutate(Variable = var_name)
@@ -546,7 +546,7 @@ mod_descriptive_server <- function(id, values) {
       paste0("descriptives_", Sys.Date(), ".csv")
     },
     content = function(file) {
-      write.csv(values$descStats, file, row.names = FALSE)
+      utils::write.csv(values$descStats, file, row.names = FALSE)
       shiny::showNotification("Fichier CSV téléchargé!", type = "message", duration = 3)
     }
   )
@@ -725,7 +725,7 @@ mod_descriptive_server <- function(id, values) {
             hjust = if(isTRUE(input$descPlotCenterTitle)) 0.5 else 0, 
             face = title_font_face, 
             size = 16,
-            margin = margin(b = 15)
+            margin = ggplot2::margin(b = 15)
           ),
           panel.grid.major = ggplot2::element_line(color = "grey90", linewidth = 0.3),
           panel.grid.minor = ggplot2::element_line(color = "grey95", linewidth = 0.2)
@@ -790,7 +790,7 @@ mod_descriptive_server <- function(id, values) {
             hjust = if(isTRUE(input$descPlotCenterTitle)) 0.5 else 0,
             face = title_font_face, 
             size = 16,
-            margin = margin(b = 15)
+            margin = ggplot2::margin(b = 15)
           ),
           legend.position = "none",
           panel.grid.major = ggplot2::element_line(color = "grey90", linewidth = 0.3),
@@ -811,7 +811,7 @@ mod_descriptive_server <- function(id, values) {
                              "#2E86AB")
         n_groups <- length(unique(values$filteredData[[input$descPlotFactor]]))
         base_plot + ggplot2::scale_fill_manual(
-          values = colorRampPalette(c("#FFFFFF", mono_color))(n_groups + 2)[2:(n_groups + 1)]
+          values = grDevices::colorRampPalette(c("#FFFFFF", mono_color))(n_groups + 2)[2:(n_groups + 1)]
         )
       } else if (color_palette == "viridis") {
         base_plot + ggplot2::scale_fill_viridis_d(option = "D")

@@ -1797,11 +1797,117 @@ nommé ne correspond à aucun paramètre (les fonctions à `...` sont hors de
 portée, elles absorbent tout). Il a été vérifié comme signalant exactement ce
 site avant correction.
 
-### Ce qui reste non prouvé
+### `R CMD check` passe, et c'est lui qui a trouvé sept fonctions fantômes
 
-`R CMD check` n'a pas pu être exécuté : il installe les `Suggests` pour les
-exemples et les tests, et 28 d'entre eux sont indisponibles hors ligne.
-L'installation, le chargement et l'exécution complète, eux, le sont.
+Lancer, depuis la racine :
+
+```sh
+R CMD build --no-build-vignettes --no-manual .
+_R_CHECK_FORCE_SUGGESTS_=false R CMD check --no-manual HStat_<version>.tar.gz
+```
+
+**`_R_CHECK_FORCE_SUGGESTS_=false` est la clé** : sans lui, le check exige que
+les 72 `Suggests` soient installés et refuse de démarrer. C'est ce que font
+rhub et CRAN ; le croire bloquant a longtemps fait passer le check pour
+impossible ici.
+
+État : **1 avertissement, 2 notes**, tous les trois expliqués plus bas. Point de
+départ : 1 **erreur**, 5 avertissements, 3 notes.
+
+#### Sept appels vers des fonctions qui n'existent pas
+
+`glmmTMB::gaussian()`, `binomial()`, `poisson()`, `Gamma()`,
+`inverse.gaussian()` — glmmTMB porte ces noms dans son espace de noms **sans
+les exporter**, si bien qu'une attribution par `getNamespaceExports()` pouvait
+les croire siens. Ce sont les familles de `stats`. Le sélecteur de loi du GLMM
+levait « 'gaussian' is not an exported object ».
+
+`emmeans::cld` n'existe pas davantage : enfermé dans un `tryCatch`, il rendait
+`NULL` au lieu de lever — **un repli mort**, qui donnait l'illusion d'un filet
+de sécurité.
+
+`factoextra::fviz_mfa_biplot` n'existe pas non plus, et l'appel était dans un
+`tryCatch(error = NULL)` : **le biplot AFM n'a jamais rien affiché**, sans un
+message. Le module traitait pourtant déjà le cas pour l'AFDM — « factoextra n'a
+pas de `fviz_famd_biplot`, on superpose » ; l'AFM appelait une fonction
+fantôme. Il est composé de la même façon.
+
+Un test balaie désormais **tous** les `pkg::objet` du dépôt et vérifie que
+chacun existe. Un paquet absent de la machine est ignoré : le dire quand même
+ferait échouer le test sur l'environnement, pas sur le code.
+
+#### Un test qui ne trouve rien doit sauter, pas échouer
+
+48 échecs pour **une seule** cause : sous `R CMD check`, le paquet est
+*installé* — `inst/app/` y est aplati en `app/`, `R/` a disparu. Les tests qui
+**balaient les sources** n'avaient plus rien à lire, concluaient à l'absence de
+ce qu'ils cherchaient, et échouaient.
+
+Vingt et un des quatre-vingts tests concernés n'avaient pas de garde. Le saut
+est donc posé dans `.hstat_repo_root()` — **le localisateur, que tous
+traversent** — et non dans chacun d'eux : une liste tenue à la main aurait
+dérivé au premier test ajouté.
+
+#### Deux défauts que seule l'intégration continue pouvait voir
+
+**`PMCMRplus::dunnTest` n'existe pas.** `dunnTest` est le nom **de FSA**, et le
+socle l'appelle correctement ainsi ; deux sites de `mod_tests.R` l'attribuaient
+à PMCMRplus, dont la famille s'appelle `kwAllPairsDunnTest` — c'est d'ailleurs
+la forme qu'emploient ses voisines immédiates (Conover, Nemenyi), qui lisent
+comme elle `mc$p.value`. Le post-hoc de Dunn levait « is not an exported
+object ».
+
+Le test qui balaie les `pkg::objet` **saute les paquets absents de la machine**
+— sinon il échouerait sur l'environnement et non sur le code. PMCMRplus n'étant
+pas installé ici, seule la CI pouvait le voir. C'est le test qui fonctionne
+comme prévu, pas une lacune.
+
+**Le test des identifiants dupliqués était instable, à 6,1 % par rendu.**
+`tabsetPanel()` numérote ses onglets `tab-<entier au hasard>-<n>`, l'entier
+étant tiré entre 1000 et 10000 **à chaque construction**. L'application en rend
+trente-quatre : la probabilité qu'au moins deux partagent le même tirage est de
+6,1 %. Le test échouait donc environ une fois sur seize, sur un code
+parfaitement correct.
+
+Vérifié avant de conclure : passer un `id` explicite à `tabsetPanel()` **ne
+change pas** ces ancres — l'`id` nomme la liaison d'entrée, pas les cibles.
+J'avais commencé par ajouter huit identifiants sur cette hypothèse ; la mesure
+l'a démentie, et ils ont été retirés. Le tirage est interne à Shiny.
+
+Les ancres sont donc écartées du décompte. Ce que le test cherche — les
+identifiants que **l'application** déclare deux fois, comme les 108 boutons
+homonymes qu'il a trouvés — reste entièrement couvert : aucun d'eux ne porte
+cette forme.
+
+#### Ce qui reste, et pourquoi
+
+| Reste | Raison |
+|---|---|
+| **WARNING** caractères non-ASCII | L'interface est en français : ~9 700 chaînes accentuées. Les échapper en `\uxxxx` rendrait la source illisible. Compromis assumé, pas un défaut. |
+| **NOTE** `Suggests` indisponibles | Le conteneur est hors ligne ; 28 des 72 ne s'installent pas. Disparaît sur une machine reliée à CRAN. |
+| **NOTE** « no visible global function definition » | Exactement les **neuf aiguillages** (`%>%`, `withSpinner`, `colourInput`, `pickerInput`, `ggplotly`, `renderPlotly`, `plotlyOutput`, `config`, `updatePickerInput`). Ils vivent dans l'environnement global par contrat : le compilateur ne peut pas les y voir. |
+
+Le troisième point se supprimerait en définissant les neuf au premier niveau du
+paquet, comme `layout` l'a été. `layout` a dû l'être parce que son nom existe
+aussi dans `graphics` et que le compilateur le résolvait là — sept
+avertissements « unused argument ». Les autres n'ont pas d'homonyme de base :
+la note est cosmétique, la fragilité ne l'était pas.
+
+#### Trois nettoyages que le check a rendus visibles
+
+- **`exportPattern(".")` ne servait à rien.** Le pont recopie depuis l'**espace
+  de noms** (`ls(asNamespace("HStat"), all.names = TRUE)`), ce qui atteint les
+  aides `.hstat_*` exportées ou non. Le prix, lui, était réel : une fiche de
+  documentation réclamée pour chacun des ~240 objets exportés. Seul
+  `run_hstat` est exporté désormais — rien n'est caché à l'application,
+  seulement à `library(HStat)`.
+- **Le socle appelait shiny sans préfixe** et dépendait donc de `importFrom` —
+  or `checkboxInput` n'y figurait pas : `hstat_axe_titre_ui()` aurait échoué
+  dans le paquet installé sans shiny attaché. 57 appels qualifiés.
+- **`.hstat_scope_banner()` était défini dans `UX.R`** et appelé par des UI de
+  **module**, donc par du code du paquet. Cela ne cassait rien — `UX.R` est
+  sourcé avant qu'aucune UI ne soit construite — mais la dépendance allait à
+  l'envers. Il a rejoint le socle.
 
 ## Déploiement : `app.R` à la racine
 

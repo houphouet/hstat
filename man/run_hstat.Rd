@@ -4,18 +4,25 @@
 \alias{run_hstat}
 \title{Launch the HStat Shiny Application}
 \usage{
-run_hstat(...)
+run_hstat(..., install_missing = TRUE)
 }
 \arguments{
 \item{...}{Additional arguments passed to \code{\link[shiny]{runApp}}
 (e.g. \code{launch.browser}, \code{port}).}
+
+\item{install_missing}{Logical; if \code{TRUE} (default) missing package
+dependencies are installed before the app is launched. Set to \code{FALSE}
+to skip installation (e.g. on a managed server where packages are
+provisioned separately).}
 }
 \value{
 No return value. Called for its side effect of launching the app.
 }
 \description{
 Starts the HStat interactive statistical analysis application in your
-default web browser.
+default web browser. On first launch, any missing package dependencies are
+installed automatically (an internet connection is required the first time
+only).
 }
 \examples{
 if (interactive()) {
