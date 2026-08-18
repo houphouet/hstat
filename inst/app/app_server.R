@@ -191,7 +191,7 @@ server <- function(input, output, session) {
         style = "margin:4px 0 10px; padding:10px 14px; background:#eef7fb; border:1px solid #b6e0ef; border-radius:8px;",
         shiny::tags$summary(style = "cursor:pointer; font-weight:700; color:#1b6f8c; font-size:14px;",
           shiny::icon("layer-group"),
-          trf(" Ce classeur contient %d feuilles — les combiner en un seul jeu de donnees", length(sheets))),
+          trf(" Ce classeur contient %d feuilles — les combiner en un seul jeu de données", length(sheets))),
         shiny::div(style = "padding-top:12px;",
           p(style = "color:#5a6a7a; font-size:13px;",
             "Choisissez les feuilles a combiner. ",

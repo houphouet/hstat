@@ -1214,6 +1214,33 @@ pas finissent par diverger. Il est passé de 60 à 120 Ko, la couverture complè
 portant le dictionnaire de ~53 à 79 Ko (26 Ko compressés, ce qui transite
 réellement).
 
+#### Le dictionnaire élague ses clés — la recherche doit le faire aussi
+
+`hstat_i18n_load()` applique `trimws()` à ses clés, et c'est juste : une entrée
+de CSV ne doit pas dépendre d'un blanc invisible. Mais `tr()` cherchait la
+chaîne **telle quelle**. Conséquence non voulue : **toute chaîne bordée
+d'espaces était intraduisible**, sans un mot.
+
+Trente-huit gabarits étaient dans ce cas. Ce sont des fragments de phrase
+assemblés par `paste0` — l'espace y sépare deux morceaux, il relève de la mise
+en forme et jamais du texte. Ils restaient en français au milieu d'une interface
+anglaise, **et le dictionnaire les contenait pourtant**.
+
+`tr()` cherche donc sur la chaîne élaguée et rend l'espacement d'origine autour
+de la traduction. L'espacement est de la présentation : on le retire pour
+chercher, on le remet pour rendre. Un test vérifie qu'il ressort **à
+l'identique**, jamais normalisé, et qu'une chaîne inconnue ressort intacte.
+
+Détail d'implémentation : l'espacement **final** se prend par mesure
+(`nchar(sub("[[:space:]]+$", "", x))`), pas par expression régulière — un `sub`
+gourmand rendrait la chaîne entière.
+
+Corollaire sur la **mesure** : compter la couverture en comparant les chaînes
+brutes aux clés élaguées annonçait 38 manquantes que l'application traduit. Une
+métrique doit modéliser le mécanisme qu'elle mesure, sinon elle décrit un autre
+programme. Couverture réelle des chaînes passées à `tr()`/`trf()` : **263 sur
+263**.
+
 #### Corriger le français avant de le traduire
 
 Une faute traduite se fige : elle devient une clé du dictionnaire, et la

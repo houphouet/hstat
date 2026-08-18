@@ -77,7 +77,8 @@ reports what is covered and names what is missing.
 tab title, box title, button and notification — is 100 % (904 of 904).** The
 remaining French strings in the source are *fragments* assembled at run time;
 the browser only replaces the complete text of a node, so a fragment could
-never be matched. Those are handled in R instead, by `tr()` and `trf()`.
+never be matched. Those are handled in R instead, by `tr()` and `trf()` —
+**also at 100 % (263 of 263)**.
 
 ### Your data is never translated
 
@@ -486,7 +487,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.45.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.45.1. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -494,7 +495,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 0.45.0},
+  note   = {Version 0.45.1},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

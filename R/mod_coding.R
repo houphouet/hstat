@@ -2927,7 +2927,7 @@ mod_coding_server <- function(id, values) {
           " Aucun codage pour l'instant : commencez par etiqueter des passages ci-dessus."))
       shiny::div(class = "callout callout-info", style = "padding:8px 12px;",
         shiny::icon("quote-left"),
-        trf(" %d extrait(s) correspondant a la selection, sur %d etiquette(s) au total.",
+        trf(" %d extrait(s) correspondant à la sélection, sur %d étiquette(s) au total.",
                 n, nrow(rv$segments)))
     })
 
@@ -3289,7 +3289,7 @@ mod_coding_server <- function(id, values) {
                         "%d etiquette(s) ajoutee(s) sur %d reponse(s) analysee(s).%s",
                         added, nrow(sub),
                         if (!is.null(miss) && miss > 0)
-                          trf(" %d proposition(s) ecartee(s) : extrait introuvable dans le texte.", miss)
+                          trf(" %d proposition(s) écartée(s) : extrait introuvable dans le texte.", miss)
                         else ""),
                       table = data.frame(
                         Reponse = segs$doc_id,

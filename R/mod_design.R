@@ -2318,7 +2318,7 @@ mod_design_server <- function(id, values) {
       fd <- pow_factorial()
       shiny::div(class = "callout", style = "border-left:4px solid #27ae60;padding:8px 12px;background:#eafaf1;",
           shiny::icon("calculator"),
-          shiny::HTML(trf(" <b>ddl du numerateur calculé = %d</b> &nbsp;|&nbsp; Nombre de cellules (groupes) = %d",
+          shiny::HTML(trf(" <b>ddl du numérateur calculé = %d</b> &nbsp;|&nbsp; Nombre de cellules (groupes) = %d",
                        fd$df1, fd$cells)))
     })
 

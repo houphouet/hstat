@@ -384,8 +384,29 @@ tr <- function(x, lang = "fr", dict = NULL) {
   if (is.null(dict)) dict <- hstat_i18n_dict(lang)
   if (!length(dict)) return(x)
   out <- as.character(x)
-  hit <- match(out, names(dict))
-  out[!is.na(hit)] <- unname(dict[hit[!is.na(hit)]])
+  # LA RECHERCHE SE FAIT SUR LA CHAINE ELAGUEE, et l'espacement d'origine est
+  # rendu autour de la traduction.
+  #
+  # `hstat_i18n_load()` applique `trimws()` a ses cles -- une entree de CSV ne
+  # doit pas dependre d'un blanc invisible. Consequence non voulue : toute
+  # chaine BORDEE D'ESPACES devenait intraduisible, sans un mot. Trente-huit
+  # gabarits etaient dans ce cas -- ce sont des fragments de phrase assembles
+  # par `paste0`, ou l'espace separe deux morceaux et fait donc partie de la
+  # mise en forme, jamais du texte. Ils restaient en francais au milieu d'une
+  # interface anglaise, et le dictionnaire les contenait pourtant.
+  #
+  # L'espacement est de la PRESENTATION : on le retire pour chercher, on le
+  # remet pour rendre.
+  net <- trimws(out)
+  hit <- match(net, names(dict))
+  ok <- !is.na(hit)
+  if (any(ok)) {
+    avant <- sub("^([[:space:]]*).*$", "\\1", out[ok])
+    # L'espacement FINAL se prend par mesure, pas par expression reguliere : un
+    # `sub` gourmand rendrait la chaine entiere.
+    apres <- substring(out[ok], nchar(sub("[[:space:]]+$", "", out[ok])) + 1L)
+    out[ok] <- paste0(avant, unname(dict[hit[ok]]), apres)
+  }
   out
 }
 

@@ -4843,6 +4843,55 @@ test_that("chaque gabarit du dictionnaire porte les memes marqueurs dans les deu
                info = paste("Marqueurs divergents :", paste(fautifs, collapse = " | ")))
 })
 
+test_that("une chaine bordee d'espaces se traduit, et garde son espacement", {
+  # `hstat_i18n_load()` applique `trimws()` a ses cles -- une entree de CSV ne
+  # doit pas dependre d'un blanc invisible. Consequence NON VOULUE : toute
+  # chaine bordee d'espaces devenait intraduisible, sans un mot. Trente-huit
+  # gabarits etaient dans ce cas ; ce sont des fragments assembles par
+  # `paste0`, ou l'espace separe deux morceaux et releve de la mise en forme,
+  # jamais du texte. Ils restaient en francais au milieu d'une interface
+  # anglaise, et le dictionnaire les contenait pourtant.
+  d <- c("Aucune donnée" = "No data", "Chargement" = "Loading")
+  expect_equal(tr(" Aucune donnée ", "en", d), " No data ")
+  expect_equal(tr("Aucune donnée", "en", d), "No data")
+  expect_equal(tr("  Chargement", "en", d), "  Loading")
+  expect_equal(tr("Chargement\n", "en", d), "Loading\n")
+  # L'espacement est RENDU A L'IDENTIQUE, jamais normalise.
+  expect_equal(tr("\t Chargement  ", "en", d), "\t Loading  ")
+  # Une chaine inconnue ressort intacte, espaces compris.
+  expect_equal(tr(" Inconnu ", "en", d), " Inconnu ")
+  # Et le francais n'est jamais touche.
+  expect_equal(tr(" Aucune donnée ", "fr", d), " Aucune donnée ")
+
+  # `trf()` passe par `tr()` : le gabarit borde d'espaces en beneficie aussi.
+  d2 <- c("%d cas prédits (moyenne = %s)." = "%d cases predicted (mean = %s).")
+  expect_equal(trf(" %d cas prédits (moyenne = %s).", 12L, "3,4", lang = "en"),
+               " 12 cases predicted (mean = 3,4).")
+})
+
+test_that("toute chaine passee a tr()/trf() est au dictionnaire", {
+  root <- .hstat_repo_root()
+  # Ces chaines sont traduites DANS R : leur absence du dictionnaire n'est
+  # rattrapee par rien cote navigateur. La couverture doit donc y etre entiere.
+  dic <- hstat_i18n_load()
+  vide <- function(l, i) identical(l[[i]], quote(expr = ))
+  acc <- character(0)
+  for (f in .hstat_sources_app()) for (ex in parse(f)) {
+    rec <- function(x) {
+      if (!is.call(x)) return(invisible())
+      nm <- if (is.name(x[[1]])) as.character(x[[1]]) else ""
+      if (nm %in% c("tr", "trf") && length(x) >= 2 && is.character(x[[2]]))
+        acc <<- c(acc, x[[2]])
+      l <- as.list(x)
+      for (i in seq_along(l)) if (!vide(l, i)) rec(l[[i]])
+    }
+    rec(ex)
+  }
+  acc <- unique(trimws(acc))          # comme `tr()`, qui cherche sur l'elague
+  expect_gt(length(acc), 200L)
+  expect_equal(setdiff(acc, dic$fr), character(0))
+})
+
 test_that("les gabarits ne partent pas au navigateur", {
   # Une phrase composee est traduite DANS R, avant d'exister. Sa forme a
   # marqueurs n'apparait jamais telle quelle dans le DOM : l'envoyer
