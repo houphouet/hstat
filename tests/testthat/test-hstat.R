@@ -4843,6 +4843,55 @@ test_that("chaque gabarit du dictionnaire porte les memes marqueurs dans les deu
                info = paste("Marqueurs divergents :", paste(fautifs, collapse = " | ")))
 })
 
+test_that("une chaine bordee d'espaces se traduit, et garde son espacement", {
+  # `hstat_i18n_load()` applique `trimws()` a ses cles -- une entree de CSV ne
+  # doit pas dependre d'un blanc invisible. Consequence NON VOULUE : toute
+  # chaine bordee d'espaces devenait intraduisible, sans un mot. Trente-huit
+  # gabarits etaient dans ce cas ; ce sont des fragments assembles par
+  # `paste0`, ou l'espace separe deux morceaux et releve de la mise en forme,
+  # jamais du texte. Ils restaient en francais au milieu d'une interface
+  # anglaise, et le dictionnaire les contenait pourtant.
+  d <- c("Aucune donnée" = "No data", "Chargement" = "Loading")
+  expect_equal(tr(" Aucune donnée ", "en", d), " No data ")
+  expect_equal(tr("Aucune donnée", "en", d), "No data")
+  expect_equal(tr("  Chargement", "en", d), "  Loading")
+  expect_equal(tr("Chargement\n", "en", d), "Loading\n")
+  # L'espacement est RENDU A L'IDENTIQUE, jamais normalise.
+  expect_equal(tr("\t Chargement  ", "en", d), "\t Loading  ")
+  # Une chaine inconnue ressort intacte, espaces compris.
+  expect_equal(tr(" Inconnu ", "en", d), " Inconnu ")
+  # Et le francais n'est jamais touche.
+  expect_equal(tr(" Aucune donnée ", "fr", d), " Aucune donnée ")
+
+  # `trf()` passe par `tr()` : le gabarit borde d'espaces en beneficie aussi.
+  d2 <- c("%d cas prédits (moyenne = %s)." = "%d cases predicted (mean = %s).")
+  expect_equal(trf(" %d cas prédits (moyenne = %s).", 12L, "3,4", lang = "en"),
+               " 12 cases predicted (mean = 3,4).")
+})
+
+test_that("toute chaine passee a tr()/trf() est au dictionnaire", {
+  root <- .hstat_repo_root()
+  # Ces chaines sont traduites DANS R : leur absence du dictionnaire n'est
+  # rattrapee par rien cote navigateur. La couverture doit donc y etre entiere.
+  dic <- hstat_i18n_load()
+  vide <- function(l, i) identical(l[[i]], quote(expr = ))
+  acc <- character(0)
+  for (f in .hstat_sources_app()) for (ex in parse(f)) {
+    rec <- function(x) {
+      if (!is.call(x)) return(invisible())
+      nm <- if (is.name(x[[1]])) as.character(x[[1]]) else ""
+      if (nm %in% c("tr", "trf") && length(x) >= 2 && is.character(x[[2]]))
+        acc <<- c(acc, x[[2]])
+      l <- as.list(x)
+      for (i in seq_along(l)) if (!vide(l, i)) rec(l[[i]])
+    }
+    rec(ex)
+  }
+  acc <- unique(trimws(acc))          # comme `tr()`, qui cherche sur l'elague
+  expect_gt(length(acc), 200L)
+  expect_equal(setdiff(acc, dic$fr), character(0))
+})
+
 test_that("les gabarits ne partent pas au navigateur", {
   # Une phrase composee est traduite DANS R, avant d'exister. Sa forme a
   # marqueurs n'apparait jamais telle quelle dans le DOM : l'envoyer
@@ -4852,8 +4901,10 @@ test_that("les gabarits ne partent pas au navigateur", {
   expect_false(grepl("%d", j, fixed = TRUE))
   # Mais l'interface simple, elle, part toujours.
   expect_true(grepl("Chargement", j, fixed = TRUE))
-  # Le poids embarque reste la promesse de legerete.
-  expect_lt(nchar(j) / 1024, 60)
+  # Le poids embarque reste la promesse de legerete. Le plafond est declare
+  # DANS LE SOCLE : il vivait en dur ici ET dans un second test, meme valeur
+  # recopiee -- deux chiffres qui ne se parlent pas finissent par diverger.
+  expect_lt(nchar(j) / 1024, HSTAT_I18N_KO_MAX)
 
   # Le motif vise les MARQUEURS de sprintf, pas le caractere « % » seul : un
   # libelle d'interface comme « % colonne » doit continuer de partir.
@@ -5882,8 +5933,8 @@ test_that("le dictionnaire couvre desormais plus que la seule navigation", {
   expect_true("Tests statistiques" %in% d$fr)                 # interface
   expect_true("message R" %in% d$fr)                          # erreurs
   expect_true("ANOVA a un facteur" %in% d$fr)                 # interpretations
-  # Le poids embarque reste raisonnable : c'est la promesse de legerete.
-  expect_lt(nchar(hstat_i18n_json("en")) / 1024, 60)
+  # Meme plafond, meme source : voir HSTAT_I18N_KO_MAX dans le socle.
+  expect_lt(nchar(hstat_i18n_json("en")) / 1024, HSTAT_I18N_KO_MAX)
 })
 
 test_that("les sous-ensembles de lignes du module graphique gardent leur tableau", {
@@ -6837,6 +6888,38 @@ test_that("l'etendue d'un axe inclut ce qu'on trace par-dessus", {
   expect_equal(hstat_etendue_axe(c(10, 10)), c(9.5, 10.5))
   # Rien de finit : on rend un cadre par defaut plutot que `c(Inf, -Inf)`.
   expect_equal(hstat_etendue_axe(c(NA, Inf)), c(0, 1))
+})
+
+test_that("les reglages propres au format valent pour TOUS les exports", {
+  skip_if_not_installed("ggplot2")
+  # `hstat_ecrire_image()` sait depuis toujours honorer `qualite` (JPEG) et
+  # `compression` (TIFF) ; seul l'onglet Visualisation les DEMANDAIT. Les
+  # dix-sept autres blocs ecrivaient donc avec les valeurs par defaut, sans
+  # recours -- or une compression TIFF ne se choisit pas par hasard quand la
+  # figure part chez un editeur.
+  root <- .hstat_repo_root()
+  socle <- .hstat_code_lignes(.hstat_socle_path())
+  i <- grep("^hstat_export_plot_ui <- function", socle)
+  corps <- paste(socle[i:(i + 40)], collapse = "\n")
+  expect_true(grepl("Qual", corps, fixed = TRUE))
+  expect_true(grepl("HSTAT_TIFF_COMPRESSION", corps, fixed = TRUE))
+  # Ils ne s'affichent que pour le format concerne, et la condition vise bien le
+  # champ FORMAT -- l'avoir fait pointer sur le champ de compression lui-meme
+  # aurait rendu le panneau invisible pour toujours.
+  expect_equal(length(gregexpr('paste0(prefix, "Fmt")', corps, fixed = TRUE)[[1]]), 3L)
+
+  # ET ILS AGISSENT : un reglage qui ne change pas le fichier serait pire que
+  # son absence. On mesure les octets REELLEMENT produits.
+  p <- ggplot2::ggplot(data.frame(x = 1:200, y = sin(1:200 / 9)),
+                       ggplot2::aes(x, y)) + ggplot2::geom_point(size = 3)
+  taille <- function(...) {
+    f <- tempfile(); on.exit(unlink(f), add = TRUE)
+    suppressWarnings(hstat_ecrire_image(f, p, ...)); file.size(f)
+  }
+  expect_lt(taille("jpeg", 6, 4, 150, qualite = 50),
+            taille("jpeg", 6, 4, 150, qualite = 95))
+  expect_lt(taille("tiff", 6, 4, 150, compression = "lzw"),
+            taille("tiff", 6, 4, 150, compression = "none"))
 })
 
 test_that("chaque graphique exportable offre un choix de theme", {

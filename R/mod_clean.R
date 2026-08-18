@@ -1514,7 +1514,7 @@ mod_clean_server <- function(id, values) {
                                      k = input$naKnnK %||% 5, imp_var = FALSE),
                             error = function(e) { ok <<- FALSE; NULL })
             if (ok && !is.null(imp)) data_temp <- imp
-            if (!ok) shiny::showNotification("Echec de l'imputation KNN.",
+            if (!ok) shiny::showNotification("Échec de l'imputation KNN.",
                                       type = "error", duration = 6)
           }
         } else if (input$naMethod == "mice") {
@@ -1561,7 +1561,7 @@ mod_clean_server <- function(id, values) {
             imp <- tryCatch(missForest::missForest(sub)$ximp,
                             error = function(e) { ok <<- FALSE; NULL })
             if (ok && !is.null(imp)) data_temp[, sel] <- imp
-            if (!ok) shiny::showNotification("Echec de missForest. Repli : médiane/mode.",
+            if (!ok) shiny::showNotification("Échec de missForest. Repli : médiane/mode.",
                                       type = "warning", duration = 6)
           }
           if (!ok) {

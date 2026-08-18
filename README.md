@@ -55,11 +55,13 @@ Three properties follow:
 - **Offline, always.** The dictionary ships inside the page. No request, ever.
   No translation API: it would need a connection, cost money per use, and
   mistranslate statistical vocabulary.
-- **Light.** A CSV of pairs, ~48 KB of JSON in the page — less than one of the
+- **Light.** A CSV of pairs, ~79 KB of JSON in the page — 26 KB once
+  compressed, which is what actually travels, and still less than one of the
   bundled fonts. Templates filled in by R never travel: translated before they
-  exist, they could never match anything in the page. Terms spelled the same in both languages are recorded as a
-  translation decision but never sent, since replacing them would change
-  nothing on screen.
+  exist, they could never match anything in the page. Terms spelled the same in
+  both languages are recorded as a translation decision but never sent, since
+  replacing them would change nothing on screen. `HSTAT_I18N_KO_MAX` caps the
+  embedded weight so growth stays a decision, not a drift.
 - **Graceful.** The key *is* the French string, so anything not yet translated
   stays in French rather than showing a technical identifier. Partial coverage
   degrades quietly; it never breaks a screen.
@@ -70,6 +72,13 @@ not a reverse lookup, which would lose accents and collapse distinct terms.
 Translations live in `inst/app/i18n/fr-en.csv`: two columns, `fr` and `en`.
 Adding a language pair is a CSV edit, not a code change. `hstat_i18n_coverage()`
 reports what is covered and names what is missing.
+
+**Coverage of the labels the browser can actually reach — every widget label,
+tab title, box title, button and notification — is 100 % (904 of 904).** The
+remaining French strings in the source are *fragments* assembled at run time;
+the browser only replaces the complete text of a node, so a fragment could
+never be matched. Those are handled in R instead, by `tr()` and `trf()` —
+**also at 100 % (263 of 263)**.
 
 ### Your data is never translated
 
@@ -478,15 +487,15 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.44.2. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.45.1. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
 @Manual{hstat,
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
-  author = {Houphouet KOUADIO},
+  author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 0.44.2},
+  note   = {Version 0.45.1},
   url    = {https://github.com/houphouet/hstat},
 }
 ```
@@ -502,10 +511,14 @@ This project is licensed under the GPL-3.0 License.
 
 ---
 
-## Author
+## Authors
 
 **Houphouet KOUADIO**
 ORCID: [0000-0002-8238-1091](https://orcid.org/0000-0002-8238-1091)
+
+**Claude Code** — AI pair programmer (Anthropic)
+Contributed the package conversion, the test suite, the bilingual layer and a
+large share of the defect fixes recorded in `CLAUDE.md`.
 
 Development started on **17 September 2025** (développement débuté le 17 septembre 2025).
 

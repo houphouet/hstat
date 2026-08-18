@@ -29,14 +29,15 @@ if (is.null(year) || is.na(year) || !nzchar(year)) {
 bibentry(
   bibtype  = "Manual",
   title    = paste0("HStat : Application Shiny interactive pour l'analyse statistique"),
-  author   = person("Houphouet", "KOUADIO",
-                    comment = c(ORCID = "0000-0002-8238-1091")),
+  author   = c(person("Houphouet", "KOUADIO",
+                      comment = c(ORCID = "0000-0002-8238-1091")),
+               person("Claude Code")),
   year     = year,
   note     = paste0("Version ", vers),
   url      = "https://github.com/houphouet/hstat",
   key      = "hstat",
   textVersion = paste0(
-    "KOUADIO, Houphouet (", year, "). ",
+    "KOUADIO, Houphouet & Claude Code (", year, "). ",
     "HStat : Application Shiny interactive pour l'analyse statistique. ",
     "Version ", vers, ". https://github.com/houphouet/hstat"
   )

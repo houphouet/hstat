@@ -2318,7 +2318,7 @@ mod_design_server <- function(id, values) {
       fd <- pow_factorial()
       shiny::div(class = "callout", style = "border-left:4px solid #27ae60;padding:8px 12px;background:#eafaf1;",
           shiny::icon("calculator"),
-          shiny::HTML(trf(" <b>ddl du numerateur calculé = %d</b> &nbsp;|&nbsp; Nombre de cellules (groupes) = %d",
+          shiny::HTML(trf(" <b>ddl du numérateur calculé = %d</b> &nbsp;|&nbsp; Nombre de cellules (groupes) = %d",
                        fd$df1, fd$cells)))
     })
 
@@ -2648,7 +2648,7 @@ mod_design_server <- function(id, values) {
       }, integer(1))
       levs <- levs[!is.na(levs)]
       if (length(levs) == 0) {
-        shiny::showNotification("Aucun facteur defini dans l'onglet Puissance statistique.",
+        shiny::showNotification("Aucun facteur défini dans l'onglet Puissance statistique.",
                          type = "warning"); return()
       }
       # Bascule sur un plan factoriel si plusieurs facteurs

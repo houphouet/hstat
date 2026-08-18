@@ -1193,6 +1193,67 @@ Quatre points à ne pas défaire :
    élément portant `data-hstat-notranslate` est ignoré : les données de
    l'utilisateur ne doivent jamais être traduites par morceaux.
 
+#### Ce qui est traduisible, et ce qui ne l'est pas
+
+La couverture se mesure sur les **libellés atteignables** : ceux qui existent
+dans le DOM comme **texte entier d'un nœud** — libellé de widget, titre
+d'onglet, titre de boîte, bouton, notification. Ce sont les seuls que le
+traducteur du navigateur peut remplacer.
+
+**904 sur 904, soit 100 %** (contre 580 auparavant).
+
+Le dépôt compte par ailleurs ~3 300 autres chaînes françaises. Les traduire une
+à une serait du travail perdu : ce sont des **fragments assemblés à
+l'exécution**, qui n'apparaissent jamais comme chaîne complète dans la page. Ils
+relèvent de `tr()` et `trf()`, côté R. Mesurer la couverture sur eux donnerait
+un chiffre juste et sans signification.
+
+Le plafond de poids vit désormais dans `HSTAT_I18N_KO_MAX` : il était écrit en
+dur dans **deux** tests, même valeur recopiée — deux chiffres qui ne se parlent
+pas finissent par diverger. Il est passé de 60 à 120 Ko, la couverture complète
+portant le dictionnaire de ~53 à 79 Ko (26 Ko compressés, ce qui transite
+réellement).
+
+#### Le dictionnaire élague ses clés — la recherche doit le faire aussi
+
+`hstat_i18n_load()` applique `trimws()` à ses clés, et c'est juste : une entrée
+de CSV ne doit pas dépendre d'un blanc invisible. Mais `tr()` cherchait la
+chaîne **telle quelle**. Conséquence non voulue : **toute chaîne bordée
+d'espaces était intraduisible**, sans un mot.
+
+Trente-huit gabarits étaient dans ce cas. Ce sont des fragments de phrase
+assemblés par `paste0` — l'espace y sépare deux morceaux, il relève de la mise
+en forme et jamais du texte. Ils restaient en français au milieu d'une interface
+anglaise, **et le dictionnaire les contenait pourtant**.
+
+`tr()` cherche donc sur la chaîne élaguée et rend l'espacement d'origine autour
+de la traduction. L'espacement est de la présentation : on le retire pour
+chercher, on le remet pour rendre. Un test vérifie qu'il ressort **à
+l'identique**, jamais normalisé, et qu'une chaîne inconnue ressort intacte.
+
+Détail d'implémentation : l'espacement **final** se prend par mesure
+(`nchar(sub("[[:space:]]+$", "", x))`), pas par expression régulière — un `sub`
+gourmand rendrait la chaîne entière.
+
+Corollaire sur la **mesure** : compter la couverture en comparant les chaînes
+brutes aux clés élaguées annonçait 38 manquantes que l'application traduit. Une
+métrique doit modéliser le mécanisme qu'elle mesure, sinon elle décrit un autre
+programme. Couverture réelle des chaînes passées à `tr()`/`trf()` : **263 sur
+263**.
+
+#### Corriger le français avant de le traduire
+
+Une faute traduite se fige : elle devient une clé du dictionnaire, et la
+corriger ensuite casse la correspondance. Les 55 corrections de français —
+accents manquants dans les modules récents (« Memo enregistre », « etiquettes
+deja posees »), et typographie (« Erreur: » pour « Erreur : », « succès! » pour
+« succès ! ») — ont donc précédé la traduction.
+
+Prudence nécessaire : le balayage des mots sans accent remonte aussi des
+**identifiants** (`acp_resultats`, `donnees mixtes|afdm`) et des commentaires du
+script de reproductibilité. Les corriger casserait des clés. Seuls les libellés
+**affichés** ont été touchés, un par un.
+
 #### Une cellule de tableau n'est pas un libellé
 
 La correspondance exacte ne suffisait pas : une colonne du fichier chargé

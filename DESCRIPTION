@@ -1,10 +1,13 @@
 Package: HStat
 Type: Package
 Title: Interactive Shiny Application for Statistical Analysis
-Version: 0.44.2
-Authors@R: person("Houphouet", "KOUADIO", email = "houphouet.kouadio@epitech.eu",
-                   role = c("aut", "cre"),
-                   comment = c(ORCID = "0000-0002-8238-1091"))
+Version: 0.45.1
+Authors@R: c(
+    person("Houphouet", "KOUADIO", email = "houphouet.kouadio@epitech.eu",
+           role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-8238-1091")),
+    person("Claude Code", role = "aut",
+           comment = "AI pair programmer (Anthropic)"))
 Description: HStat is an interactive Shiny web application that provides
     a complete data analysis pipeline, from data import to advanced
     multivariate analyses, without writing a single line of code.

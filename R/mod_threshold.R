@@ -75,7 +75,7 @@ mod_threshold_ui <- function(id) {
                     
                     shiny::fluidRow(
                       shiny::column(6,
-                             colourInput(ns("thresholdColor"), "Couleur de la ligne:", 
+                             colourInput(ns("thresholdColor"), "Couleur de la ligne :", 
                                          value = "#e74c3c", showColour = "background")
                       ),
                       shiny::column(6,
@@ -304,7 +304,7 @@ mod_threshold_ui <- function(id) {
                             shiny::conditionalPanel(
               ns = ns,
                               condition = "input.thresholdBarColor == 'single'",
-                              colourInput(ns("thresholdSingleBarColor"), "Couleur des barres:", 
+                              colourInput(ns("thresholdSingleBarColor"), "Couleur des barres :", 
                                           value = "#3498db", showColour = "background")
                             )
                           )
@@ -985,7 +985,7 @@ mod_threshold_server <- function(id, values) {
     num_cols <- names(source_data())[sapply(source_data(), is.numeric)]
     
     if(input$thresholdMultipleY) {
-      pickerInput(ns("thresholdYVar"), "Variables Y (Efficacité) - Sélection multiple:", 
+      pickerInput(ns("thresholdYVar"), "Variables Y (efficacité) — sélection multiple :", 
                   choices = num_cols,
                   selected = .eff_defaut(num_cols, "Efficacite"),
                   multiple = TRUE,
@@ -1012,7 +1012,7 @@ mod_threshold_server <- function(id, values) {
     }
     
     pickerInput(ns("thresholdFilter"), 
-                "Exclure des traitements (optionnel):",
+                "Exclure des traitements (optionnel) :",
                 choices = unique_vals,
                 multiple = TRUE,
                 options = list(`actions-box` = TRUE))
@@ -2067,7 +2067,7 @@ mod_threshold_server <- function(id, values) {
       
       openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
       
-      shiny::showNotification("Données exportées avec succès!", type = "message", duration = 3)
+      shiny::showNotification("Données exportées avec succès !", type = "message", duration = 3)
     }
   )
   })
