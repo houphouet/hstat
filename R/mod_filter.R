@@ -379,7 +379,7 @@ mod_filter_server <- function(id, values) {
                                         reqA = isTRUE(input$requireA),
                                         reqB = isTRUE(input$requireB))
       values$filteredData <- filtered
-      shiny::showNotification(paste("Filtrage (2 facteurs) appliqué. Lignes:", nrow(filtered)), type = "message", duration = 5)
+      shiny::showNotification(paste("Filtrage (2 facteurs) appliqué. Lignes :", nrow(filtered)), type = "message", duration = 5)
     }, error = function(e) {
       shiny::showNotification(hstat_err_fr(e, "Erreur filtrage"), type = "error", duration = 10)
     })
@@ -397,7 +397,7 @@ mod_filter_server <- function(id, values) {
     tryCatch({
       filtered <- filter_complete_cross_n(values$cleanData, input$factorsN)
       values$filteredData <- filtered
-      shiny::showNotification(paste("Filtrage (N facteurs) appliqué. Lignes:", nrow(filtered)), type = "message", duration = 5)
+      shiny::showNotification(paste("Filtrage (N facteurs) appliqué. Lignes :", nrow(filtered)), type = "message", duration = 5)
     }, error = function(e) {
       shiny::showNotification(hstat_err_fr(e, "Erreur filtrage N facteurs"), type = "error", duration = 10)
     })

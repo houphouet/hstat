@@ -1367,7 +1367,7 @@ server <- function(input, output, session) {
     shiny::req(pcaResultReactive())
     res.pca <- pcaResultReactive()
     n_dims  <- ncol(res.pca$ind$coord)
-    shiny::selectInput("pcaCTRAxis", "Composante à analyser:",
+    shiny::selectInput("pcaCTRAxis", "Composante à analyser :",
                 choices = stats::setNames(1:n_dims, paste0("PC", 1:n_dims)),
                 selected = 1)
   })
@@ -1377,7 +1377,7 @@ server <- function(input, output, session) {
     res.pca <- pcaResultReactive()
     n_dims <- ncol(hstat_coord_mat(res.pca$ind$coord))
     
-    shiny::selectInput("pcaAxisX", "Axe X:",
+    shiny::selectInput("pcaAxisX", "Axe X :",
                 choices = stats::setNames(1:n_dims, paste0("PC", 1:n_dims)),
                 selected = 1)
   })
@@ -1387,7 +1387,7 @@ server <- function(input, output, session) {
     res.pca <- pcaResultReactive()
     n_dims <- ncol(hstat_coord_mat(res.pca$ind$coord))
     
-    shiny::selectInput("pcaAxisY", "Axe Y:",
+    shiny::selectInput("pcaAxisY", "Axe Y :",
                 choices = stats::setNames(1:n_dims, paste0("PC", 1:n_dims)),
                 selected = min(2, n_dims))
   })
@@ -2967,7 +2967,7 @@ server <- function(input, output, session) {
     res.pca <- pcaResultReactive()
     n_dims <- ncol(hstat_coord_mat(res.pca$ind$coord))
     
-    shiny::selectInput("hcpcAxisX", "Axe X:",
+    shiny::selectInput("hcpcAxisX", "Axe X :",
                 choices = stats::setNames(1:n_dims, paste0("PC", 1:n_dims)),
                 selected = 1)
   })
@@ -2977,7 +2977,7 @@ server <- function(input, output, session) {
     res.pca <- pcaResultReactive()
     n_dims <- ncol(hstat_coord_mat(res.pca$ind$coord))
     
-    shiny::selectInput("hcpcAxisY", "Axe Y:",
+    shiny::selectInput("hcpcAxisY", "Axe Y :",
                 choices = stats::setNames(1:n_dims, paste0("PC", 1:n_dims)),
                 selected = min(2, n_dims))
   })
@@ -3994,7 +3994,7 @@ server <- function(input, output, session) {
           duration = 10
         )
       } else {
-        shiny::showNotification(paste("Erreur AFD:", err_msg), type = "error", duration = 10)
+        shiny::showNotification(paste("Erreur AFD :", err_msg), type = "error", duration = 10)
       }
       return(NULL)
     })
@@ -4193,7 +4193,7 @@ server <- function(input, output, session) {
                    shiny::icon("info-circle"), " Une seule fonction discriminante disponible")))
     }
     
-    shiny::selectInput("afdAxisX", "Axe X:",
+    shiny::selectInput("afdAxisX", "Axe X :",
                 choices = stats::setNames(1:n_dims, paste0("LD", 1:n_dims)),
                 selected = 1)
   })
@@ -4209,7 +4209,7 @@ server <- function(input, output, session) {
                    shiny::icon("info-circle"), " Une seule fonction discriminante disponible")))
     }
     
-    shiny::selectInput("afdAxisY", "Axe Y:",
+    shiny::selectInput("afdAxisY", "Axe Y :",
                 choices = stats::setNames(1:n_dims, paste0("LD", 1:n_dims)),
                 selected = min(2, n_dims))
   })
@@ -6429,7 +6429,7 @@ server <- function(input, output, session) {
                  st_sil),
           mv_row("Calinski-Harabasz", round(ch,1),
                  "Plus élevé = meilleure séparation (comparatif)",
-                 "A maximiser entre solutions k", "info"),
+                 "À maximiser entre solutions k", "info"),
           mv_row("Équilibre des clusters", paste(km$size, collapse=" / "),
                  "Éviter clusters vides ou très minoritaires",
                  if (st_bal=="ok") "Répartition acceptable" else "Cluster très minoritaire",
@@ -7489,7 +7489,7 @@ server <- function(input, output, session) {
         metrics <- rbind(
           mv_row("Dissimilarité intra totale", tot_diff,
                  "Plus faible = clusters plus homogènes",
-                 "A minimiser entre solutions", "info"),
+                 "À minimiser entre solutions", "info"),
           mv_row("Pseudo-R2 (séparation)", if (is.na(pr2)) "n/d" else round(pr2,3),
                  ">= 0,50 nette ; 0,30-0,50 modérée ; < 0,30 faible",
                  switch(st_r2, ok = "Partition nette", warn = "Partition modérée",
@@ -8013,7 +8013,7 @@ server <- function(input, output, session) {
         metrics <- rbind(
           mv_row("Coût total intra (within SS)", round(tot_cost,1),
                  "Plus faible = clusters plus compacts",
-                 "A minimiser entre solutions k", "info"),
+                 "À minimiser entre solutions k", "info"),
           mv_row("Silhouette mixte", if (is.na(sil)) "n/d" else round(sil,3),
                  "> 0,50 forte ; 0,25-0,50 raisonnable ; < 0,25 faible",
                  if (st_sil=="ok") "Structure forte" else if (st_sil=="warn") "Structure raisonnable"

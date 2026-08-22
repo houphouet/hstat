@@ -73,7 +73,7 @@ mod_explore_ui <- function(id) {
                             `data-toggle` = "collapse",
                             `data-parent` = "#distOptionsAccordion",
                             href = "#distOptionsCollapse",
-                            style = "text-décoration: none;",
+                            style = "text-decoration: none;",
                             shiny::icon("cog"), " Options graphiques",
                             shiny::tags$span(class = "pull-right", shiny::icon("chevron-down"))
                           )
@@ -157,7 +157,7 @@ mod_explore_ui <- function(id) {
                             `data-toggle` = "collapse",
                             `data-parent` = "#missingOptionsAccordion",
                             href = "#missingOptionsCollapse",
-                            style = "text-décoration: none;",
+                            style = "text-decoration: none;",
                             shiny::icon("cog"), " Options graphiques",
                             shiny::tags$span(class = "pull-right", shiny::icon("chevron-down"))
                           )

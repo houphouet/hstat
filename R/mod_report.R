@@ -76,9 +76,9 @@ hstat_report_resume_donnees <- function(df, max_vars = 60L) {
   }, character(1))
   data.frame(
     Variable = vars, Type = unname(type),
-    `Renseignees` = vapply(vars, function(v) sum(!is.na(df[[v]])), integer(1)),
+    `Renseignées` = vapply(vars, function(v) sum(!is.na(df[[v]])), integer(1)),
     `Manquantes`  = vapply(vars, function(v) sum(is.na(df[[v]])), integer(1)),
-    `Modalites / etendue` = vapply(vars, function(v) {
+    `Modalités / étendue` = vapply(vars, function(v) {
       x <- df[[v]]
       if (is.numeric(x) && any(!is.na(x)))
         sprintf("%s a %s", format(signif(min(x, na.rm = TRUE), 4)),
@@ -321,7 +321,7 @@ hstat_report_markdown <- function(history, titre = "Rapport d'analyse",
   L <- c(L, "---", "",
          paste("*Document produit automatiquement par HStat. Les interprétations",
                "qu'il contient éclairent la lecture des résultats ; elles ne les",
-               "valident pas. A relire avant diffusion.*"))
+               "valident pas. À relire avant diffusion.*"))
   paste(L, collapse = "\n")
 }
 
@@ -477,7 +477,7 @@ hstat_report_render <- function(markdown, fichier, format = "html",
       "table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.92rem;}\n",
       "th,td{border:1px solid #ccd;padding:.42rem .6rem;text-align:left;}\n",
       "th{background:#eef4fa;}\ntr:nth-child(even) td{background:#fafbfc;}\n",
-      "code,pré{font-family:'IBM Plex Mono',Consolas,monospace;font-size:.86rem;}\n",
+      "code,pre{font-family:'IBM Plex Mono',Consolas,monospace;font-size:.86rem;}\n",
       "pre{background:#f6f8fa;border:1px solid #e1e4e8;border-radius:6px;padding:1rem;overflow-x:auto;}\n",
       "em{color:#666;}\nhr{border:none;border-top:1px solid #dde;margin:2rem 0;}\n",
       "</style></head><body>\n", corps, "\n</body></html>")

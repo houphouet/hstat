@@ -963,7 +963,7 @@ ui <- shinydashboard::dashboardPage(
                                                                 choices = c("Varimax" = "varimax", "Quartimax" = "quartimax",
                                                                             "Oblimin" = "oblimin", "Aucune" = "none"),
                                                                 selected = "varimax"),
-                                                    shiny::numericInput("pcaRotationNFactors", "Facteurs à rotationner:",
+                                                    shiny::numericInput("pcaRotationNFactors", "Facteurs à rotationner :",
                                                                  value = 2, min = 2, max = 10)),
                                                   shiny::column(4,
                                                     shiny::h5(style = "color:#495057;", shiny::icon("chart-line"), " Axes représentés"),
@@ -982,7 +982,7 @@ ui <- shinydashboard::dashboardPage(
                                                   shiny::column(4, shiny::checkboxInput("pcaRoundResults", "Arrondir les résultats", value = FALSE)),
                                                   shiny::column(4, shiny::conditionalPanel(
                                                     condition = "input.pcaRoundResults == true",
-                                                    shiny::numericInput("pcaDecimals", "Décimales:", value = 2, min = 0, max = 8, step = 1)))
+                                                    shiny::numericInput("pcaDecimals", "Décimales :", value = 2, min = 0, max = 8, step = 1)))
                                                 ),
                                                 shiny::div(style = "background-color:#f4f6f8;border-left:4px solid #6c757d;padding:10px;margin:6px 0;",
                                                   shiny::h5(style="color:#495057;margin-top:0;", shiny::icon("text-height"), " Style du texte, des points et des tracés"),
@@ -1017,10 +1017,10 @@ ui <- shinydashboard::dashboardPage(
                                                   )
                                                 ),
                                                 shiny::fluidRow(
-                                                  shiny::column(3, hstat_format_input("pcaPlot_format", "Format:")),
-                                                  shiny::column(3, hstat_dpi_input("pcaPlot_dpi", "DPI:")),
-                                                  shiny::column(3, shiny::numericInput("pcaPlot_width", "Largeur (px):", value = 1200, min = 400, max = 4000, step = 100)),
-                                                  shiny::column(3, shiny::numericInput("pcaPlot_height", "Hauteur (px):", value = 900, min = 300, max = 4000, step = 100))
+                                                  shiny::column(3, hstat_format_input("pcaPlot_format", "Format :")),
+                                                  shiny::column(3, hstat_dpi_input("pcaPlot_dpi", "DPI :")),
+                                                  shiny::column(3, shiny::numericInput("pcaPlot_width", "Largeur (px) :", value = 1200, min = 400, max = 4000, step = 100)),
+                                                  shiny::column(3, shiny::numericInput("pcaPlot_height", "Hauteur (px) :", value = 900, min = 300, max = 4000, step = 100))
                                                 ),
                                                 hstat_mv_dim_note_ui("pcaPlot"),
                                                 shiny::div(style = "text-align:center;margin-top:8px;",
@@ -1048,10 +1048,10 @@ ui <- shinydashboard::dashboardPage(
                                             shiny::plotOutput("pcaScreePlot", height = "320px"),
                                             hstat_mv_forme_ui("pcaScree", "Apparence du graphique des éboulis"),
                                             shiny::fluidRow(
-                                              shiny::column(12, hstat_format_input("pcaScree_format", "Format:")),
-                                              shiny::column(4, hstat_dpi_input("pcaScree_dpi", "DPI:")),
-                                              shiny::column(4, shiny::numericInput("pcaScree_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
-                                              shiny::column(4, shiny::numericInput("pcaScree_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
+                                              shiny::column(12, hstat_format_input("pcaScree_format", "Format :")),
+                                              shiny::column(4, hstat_dpi_input("pcaScree_dpi", "DPI :")),
+                                              shiny::column(4, shiny::numericInput("pcaScree_width", "Largeur (px) :", value = 2500, min = 200, max = 20000, step = 50)),
+                                              shiny::column(4, shiny::numericInput("pcaScree_height", "Hauteur (px) :", value = 1800, min = 200, max = 20000, step = 50))
                                             ),
                                             hstat_mv_dim_note_ui("pcaScree"),
                                             shiny::div(style = "text-align: center; margin-bottom: 10px;",
@@ -1065,10 +1065,10 @@ ui <- shinydashboard::dashboardPage(
                                             shiny::plotOutput("pcaParallelPlot", height = "320px"),
                                             hstat_mv_forme_ui("pcaParallel", "Apparence de l'analyse parallèle"),
                                             shiny::fluidRow(
-                                              shiny::column(12, hstat_format_input("pcaParallel_format", "Format:")),
-                                              shiny::column(4, hstat_dpi_input("pcaParallel_dpi", "DPI:")),
-                                              shiny::column(4, shiny::numericInput("pcaParallel_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
-                                              shiny::column(4, shiny::numericInput("pcaParallel_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
+                                              shiny::column(12, hstat_format_input("pcaParallel_format", "Format :")),
+                                              shiny::column(4, hstat_dpi_input("pcaParallel_dpi", "DPI :")),
+                                              shiny::column(4, shiny::numericInput("pcaParallel_width", "Largeur (px) :", value = 2500, min = 200, max = 20000, step = 50)),
+                                              shiny::column(4, shiny::numericInput("pcaParallel_height", "Hauteur (px) :", value = 1800, min = 200, max = 20000, step = 50))
                                             ),
                                             hstat_mv_dim_note_ui("pcaParallel"),
                                             shiny::div(style = "text-align: center; margin-bottom: 10px;",
@@ -1083,10 +1083,10 @@ ui <- shinydashboard::dashboardPage(
                                             shiny::plotOutput("pcaCTRPlot", height = "300px"),
                                             hstat_mv_forme_ui("pcaCTR", "Apparence du graphique CTR"),
                                             shiny::fluidRow(
-                                              shiny::column(12, hstat_format_input("pcaCTR_format", "Format:")),
-                                              shiny::column(4, hstat_dpi_input("pcaCTR_dpi", "DPI:")),
-                                              shiny::column(4, shiny::numericInput("pcaCTR_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
-                                              shiny::column(4, shiny::numericInput("pcaCTR_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
+                                              shiny::column(12, hstat_format_input("pcaCTR_format", "Format :")),
+                                              shiny::column(4, hstat_dpi_input("pcaCTR_dpi", "DPI :")),
+                                              shiny::column(4, shiny::numericInput("pcaCTR_width", "Largeur (px) :", value = 2500, min = 200, max = 20000, step = 50)),
+                                              shiny::column(4, shiny::numericInput("pcaCTR_height", "Hauteur (px) :", value = 1800, min = 200, max = 20000, step = 50))
                                             ),
                                             hstat_mv_dim_note_ui("pcaCTR"),
                                             shiny::div(style = "text-align: center; margin-bottom: 10px;",
@@ -1229,7 +1229,7 @@ ui <- shinydashboard::dashboardPage(
                                               shiny::column(6,
                                                      shiny::conditionalPanel(
                                                        condition = "input.hcpcRoundResults == true",
-                                                       shiny::numericInput("hcpcDecimals", "Décimales:", value = 2, min = 0, max = 8, step = 1)
+                                                       shiny::numericInput("hcpcDecimals", "Décimales :", value = 2, min = 0, max = 8, step = 1)
                                                      )
                                               )
                                             )
@@ -1261,18 +1261,18 @@ ui <- shinydashboard::dashboardPage(
                                                        shiny::icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                                                      shiny::fluidRow(
                                                        shiny::column(6,
-                                                              hstat_format_input("hcpcCluster_format", "Format:")
+                                                              hstat_format_input("hcpcCluster_format", "Format :")
                                                        ),
                                                        shiny::column(6,
-                                                              hstat_dpi_input("hcpcCluster_dpi", "DPI:")
+                                                              hstat_dpi_input("hcpcCluster_dpi", "DPI :")
                                                        )
                                                      ),
                                                      shiny::fluidRow(
                                                        shiny::column(6,
-                                                              shiny::numericInput("hcpcCluster_width", "Largeur (px):", value = 1200, min = 400, max = 4000, step = 100)
+                                                              shiny::numericInput("hcpcCluster_width", "Largeur (px) :", value = 1200, min = 400, max = 4000, step = 100)
                                                        ),
                                                        shiny::column(6,
-                                                              shiny::numericInput("hcpcCluster_height", "Hauteur (px):", value = 900, min = 300, max = 4000, step = 100)
+                                                              shiny::numericInput("hcpcCluster_height", "Hauteur (px) :", value = 900, min = 300, max = 4000, step = 100)
                                                        )
                                                      ),
                                                      hstat_mv_dim_note_ui("hcpcCluster")
@@ -1293,18 +1293,18 @@ ui <- shinydashboard::dashboardPage(
                                                        shiny::icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                                                      shiny::fluidRow(
                                                        shiny::column(6,
-                                                              hstat_format_input("hcpcDend_format", "Format:")
+                                                              hstat_format_input("hcpcDend_format", "Format :")
                                                        ),
                                                        shiny::column(6,
-                                                              hstat_dpi_input("hcpcDend_dpi", "DPI:")
+                                                              hstat_dpi_input("hcpcDend_dpi", "DPI :")
                                                        )
                                                      ),
                                                      shiny::fluidRow(
                                                        shiny::column(6,
-                                                              shiny::numericInput("hcpcDend_width", "Largeur (px):", value = 1200, min = 400, max = 4000, step = 100)
+                                                              shiny::numericInput("hcpcDend_width", "Largeur (px) :", value = 1200, min = 400, max = 4000, step = 100)
                                                        ),
                                                        shiny::column(6,
-                                                              shiny::numericInput("hcpcDend_height", "Hauteur (px):", value = 900, min = 300, max = 4000, step = 100)
+                                                              shiny::numericInput("hcpcDend_height", "Hauteur (px) :", value = 900, min = 300, max = 4000, step = 100)
                                                        )
                                                      ),
                                                      hstat_mv_dim_note_ui("hcpcDend")
@@ -1358,10 +1358,10 @@ ui <- shinydashboard::dashboardPage(
                                                       "Un saut important entre deux fusions consécutives suggère la coupure optimale du dendrogramme (règle du coude). Ce graphique complète la lecture visuelle du dendrogramme."),
                                                     shiny::plotOutput("hcpcHeightsPlot", height = "320px"),
                                                     shiny::fluidRow(
-                                                      shiny::column(12, hstat_format_input("hcpcHeights_format", "Format:")),
-                                                      shiny::column(4, hstat_dpi_input("hcpcHeights_dpi", "DPI:")),
-                                              shiny::column(4, shiny::numericInput("hcpcHeights_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
-                                              shiny::column(4, shiny::numericInput("hcpcHeights_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
+                                                      shiny::column(12, hstat_format_input("hcpcHeights_format", "Format :")),
+                                                      shiny::column(4, hstat_dpi_input("hcpcHeights_dpi", "DPI :")),
+                                              shiny::column(4, shiny::numericInput("hcpcHeights_width", "Largeur (px) :", value = 2500, min = 200, max = 20000, step = 50)),
+                                              shiny::column(4, shiny::numericInput("hcpcHeights_height", "Hauteur (px) :", value = 1800, min = 200, max = 20000, step = 50))
                                                     ),
                                                     hstat_mv_dim_note_ui("hcpcHeights"),
                                                     shiny::div(style = "text-align: center; margin-top: 4px;",
@@ -1568,7 +1568,7 @@ ui <- shinydashboard::dashboardPage(
                                               shiny::column(6,
                                                      shiny::conditionalPanel(
                                                        condition = "input.afdRoundResults == true",
-                                                       shiny::numericInput("afdDecimals", "Décimales:", value = 2, min = 0, max = 8, step = 1)
+                                                       shiny::numericInput("afdDecimals", "Décimales :", value = 2, min = 0, max = 8, step = 1)
                                                      )
                                               )
                                             )
@@ -1607,18 +1607,18 @@ ui <- shinydashboard::dashboardPage(
                                                        shiny::icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                                                      shiny::fluidRow(
                                                        shiny::column(6,
-                                                              hstat_format_input("afdInd_format", "Format:")
+                                                              hstat_format_input("afdInd_format", "Format :")
                                                        ),
                                                        shiny::column(6,
-                                                              hstat_dpi_input("afdInd_dpi", "DPI:")
+                                                              hstat_dpi_input("afdInd_dpi", "DPI :")
                                                        )
                                                      ),
                                                      shiny::fluidRow(
                                                        shiny::column(6,
-                                                              shiny::numericInput("afdInd_width", "Largeur (px):", value = 1200, min = 400, max = 4000, step = 100)
+                                                              shiny::numericInput("afdInd_width", "Largeur (px) :", value = 1200, min = 400, max = 4000, step = 100)
                                                        ),
                                                        shiny::column(6,
-                                                              shiny::numericInput("afdInd_height", "Hauteur (px):", value = 900, min = 300, max = 4000, step = 100)
+                                                              shiny::numericInput("afdInd_height", "Hauteur (px) :", value = 900, min = 300, max = 4000, step = 100)
                                                        )
                                                      ),
                                                      hstat_mv_dim_note_ui("afdInd")
@@ -1635,18 +1635,18 @@ ui <- shinydashboard::dashboardPage(
                                                        shiny::icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                                                      shiny::fluidRow(
                                                        shiny::column(6,
-                                                              hstat_format_input("afdVar_format", "Format:")
+                                                              hstat_format_input("afdVar_format", "Format :")
                                                        ),
                                                        shiny::column(6,
-                                                              hstat_dpi_input("afdVar_dpi", "DPI:")
+                                                              hstat_dpi_input("afdVar_dpi", "DPI :")
                                                        )
                                                      ),
                                                      shiny::fluidRow(
                                                        shiny::column(6,
-                                                              shiny::numericInput("afdVar_width", "Largeur (px):", value = 1200, min = 400, max = 4000, step = 100)
+                                                              shiny::numericInput("afdVar_width", "Largeur (px) :", value = 1200, min = 400, max = 4000, step = 100)
                                                        ),
                                                        shiny::column(6,
-                                                              shiny::numericInput("afdVar_height", "Hauteur (px):", value = 900, min = 300, max = 4000, step = 100)
+                                                              shiny::numericInput("afdVar_height", "Hauteur (px) :", value = 900, min = 300, max = 4000, step = 100)
                                                        )
                                                      ),
                                                      hstat_mv_dim_note_ui("afdVar")

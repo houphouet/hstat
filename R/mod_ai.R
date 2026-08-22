@@ -804,8 +804,8 @@ hstat_rlog_code <- function(ctx, donnees = "donnees") {
       c(sprintf("summary(%s[, %s, drop = FALSE])", donnees, .hstat_rlog_vec(v)),
         if (!is.null(fml)) sprintf("aggregate(%s, data = %s, FUN = mean)", fml, donnees)),
 
-    "Correlations" = if (length(v) >= 2)
-      c(sprintf('cor(%s[, %s], use = "pairwise.complète.obs")', donnees, .hstat_rlog_vec(v)),
+    "Corrélations" = if (length(v) >= 2)
+      c(sprintf('cor(%s[, %s], use = "pairwise.complete.obs")', donnees, .hstat_rlog_vec(v)),
         sprintf("cor.test(%s$%s, %s$%s)", donnees, .hstat_rlog_nom(v[1]),
                 donnees, .hstat_rlog_nom(v[2]))),
 
@@ -884,7 +884,7 @@ hstat_rlog_script <- function(history, source = NULL, version = NULL,
     "# -----------------------------------------------------------------------------",
     "# Script reconstitue à partir des analyses menées dans l'application.",
     "#",
-    "# A LIRE AVANT DE L'EXÉCUTER :",
+    "# À LIRE AVANT DE L'EXÉCUTER :",
     "#  - Vérifiez le chargement des données ci-dessous : le chemin, le séparateur",
     "#    et l'encodage dépendent de votre fichier.",
     "#  - Les étapes marquées « NON RECONSTITUE » ont été faites de façon",
@@ -1145,30 +1145,30 @@ hstat_reco_analyses <- function(profile) {
       if (profile$apparie) {
         out <- c(out, list(
           if (normal_tous)
-            .hstat_reco_row("Test t apparie", "Recommandee",
+            .hstat_reco_row("Test t apparie", "Recommandée",
               "Une variable quantitative mesurée deux fois sur les mêmes sujets, distribution compatible avec la normalité.",
               "Normalité des DIFFÉRENCES entre les deux mesures.",
               "Test des rangs signes de Wilcoxon.")
           else
-            .hstat_reco_row("Wilcoxon apparie (rangs signes)", "Recommandee",
+            .hstat_reco_row("Wilcoxon apparie (rangs signes)", "Recommandée",
               "Mesures appariées et distribution qui s'écarte de la normalité.",
               "Symétrie approximative des différences.",
               "Test des signes, qui ne suppose rien de plus.")))
       } else {
         out <- c(out, list(
           if (normal_tous && !isFALSE(homo) && !isTRUE(g$petits_effectifs))
-            .hstat_reco_row("Test t de Student (deux échantillons)", "Recommandee",
+            .hstat_reco_row("Test t de Student (deux échantillons)", "Recommandée",
               sprintf("Une quantitative comparée entre %d groupes indépendants, normalité intra-groupe acceptable%s.",
                       g$k, if (isTRUE(homo)) " et variances homogènes" else ""),
               "Indépendance des observations ; normalité dans chaque groupe.",
               "Test t de Welch si les variances différent, Mann-Whitney sinon.")
           else if (normal_tous && !isTRUE(g$petits_effectifs))
-            .hstat_reco_row("Test t de Welch", "Recommandee",
+            .hstat_reco_row("Test t de Welch", "Recommandée",
               "Normalité intra-groupe acceptable mais variances inégales entre les deux groupes : Welch ne les suppose pas égales.",
               "Indépendance des observations.",
               "Mann-Whitney.")
           else
-            .hstat_reco_row("Mann-Whitney (Wilcoxon)", "Recommandee",
+            .hstat_reco_row("Mann-Whitney (Wilcoxon)", "Recommandée",
               sprintf("Deux groupes indépendants%s.",
                       if (isTRUE(g$petits_effectifs))
                         " dont au moins un compte moins de 5 observations : la normalité n'y est pas vérifiable"
@@ -1179,34 +1179,34 @@ hstat_reco_analyses <- function(profile) {
     } else if (g$k > 2) {
       out <- c(out, list(
         if (normal_tous && !isFALSE(homo) && !isTRUE(g$petits_effectifs))
-          .hstat_reco_row("ANOVA à un facteur", "Recommandee",
+          .hstat_reco_row("ANOVA à un facteur", "Recommandée",
             trf("Une quantitative comparée entre %d groupes, normalité intra-groupe et homogénéité des variances acceptables.", g$k),
             "Indépendance ; normalité des résidus ; homogénéité des variances.",
             "ANOVA de Welch, ou Kruskal-Wallis.")
         else if (normal_tous && !isTRUE(g$petits_effectifs))
-          .hstat_reco_row("ANOVA de Welch", "Recommandee",
+          .hstat_reco_row("ANOVA de Welch", "Recommandée",
             "Normalité intra-groupe acceptable mais variances hétérogènes entre groupes.",
             "Indépendance des observations.",
             "Kruskal-Wallis.")
         else if (isTRUE(g$petits_effectifs))
-          .hstat_reco_row("Kruskal-Wallis", "Recommandee",
+          .hstat_reco_row("Kruskal-Wallis", "Recommandée",
             trf("%d groupes dont au moins un compte moins de 5 observations : la normalité n'y est pas vérifiable, un test de rangs ne la suppose pas.", g$k),
             "Indépendance des observations.",
             "Test de permutation, si même les rangs sont trop peu nombreux.")
         else
-          .hstat_reco_row("Kruskal-Wallis", "Recommandee",
+          .hstat_reco_row("Kruskal-Wallis", "Recommandée",
             sprintf("%d groupes indépendants et distribution non normale dans au moins un groupe.", g$k),
             "Indépendance ; formes comparables pour conclure sur les médianes.",
             "Comparaison des rangs seule.")))
       out <- c(out, list(.hstat_reco_row(
-        "Comparaisons post-hoc", "A enchaîner",
+        "Comparaisons post-hoc", "À enchaîner",
         "Un test global significatif dit qu'au moins deux groupes différent, jamais lesquels : le post-hoc le précise.",
         "Correction pour comparaisons multiples (Tukey, Holm, Bonferroni...).",
         "Sans correction, le risque d'erreur de première espèce s'accumule.")))
     }
     if (isTRUE(g$petits_effectifs))
       out <- c(out, list(.hstat_reco_row(
-        "Test exact / permutation", "A envisager",
+        "Test exact / permutation", "À envisager",
         "Au moins un groupe compte moins de 5 observations : les approximations asymptotiques deviennent peu fiables.",
         "-", "-")))
   }
@@ -1215,23 +1215,23 @@ hstat_reco_analyses <- function(profile) {
   if (length(quanti) >= 2 && is.null(g)) {
     out <- c(out, list(
       if (normal_tous)
-        .hstat_reco_row("Corrélation de Pearson", "Recommandee",
+        .hstat_reco_row("Corrélation de Pearson", "Recommandée",
           "Deux variables quantitatives dont les distributions sont compatibles avec la normalité.",
           "Relation linéaire ; absence de valeurs extrêmes influentes.",
           "Corrélation de Spearman, qui ne suppose que la monotonie.")
       else
-        .hstat_reco_row("Corrélation de Spearman", "Recommandee",
+        .hstat_reco_row("Corrélation de Spearman", "Recommandée",
           "Deux quantitatives dont au moins une s'écarte de la normalité : la corrélation des rangs ne la suppose pas.",
           "Relation monotone.",
           "Tau de Kendall, plus robuste sur petits effectifs.")))
     out <- c(out, list(.hstat_reco_row(
-      "Régression linéaire", "A envisager",
+      "Régression linéaire", "À envisager",
       "Si l'une des deux variables est expliquée par l'autre, la régression quantifie l'effet la ou la corrélation ne mesure que l'association.",
       "Linéarité, indépendance, homoscedasticite, normalité des résidus.",
       "Régression robuste, ou transformation de la réponse.")))
     if (length(quanti) >= 3)
       out <- c(out, list(.hstat_reco_row(
-        "ACP (analyse en composantes principales)", "A envisager",
+        "ACP (analyse en composantes principales)", "À envisager",
         trf("%d variables quantitatives : l'ACP résume leur structure commune et révèle les redondances.", length(quanti)),
         "Variables corrélées entre elles ; effectif supérieur au nombre de variables.",
         "Matrice de corrélations seule si les variables sont indépendantes.")))
@@ -1242,22 +1242,22 @@ hstat_reco_analyses <- function(profile) {
     petits <- isTRUE(g$petits_effectifs)
     out <- c(out, list(
       if (petits)
-        .hstat_reco_row("Test exact de Fisher", "Recommandee",
+        .hstat_reco_row("Test exact de Fisher", "Recommandée",
           "Tableau croise dont certains effectifs attendus sont faibles : le chi-deux n'y est plus valide.",
           "Effectifs attendus < 5 dans plus de 20 % des cases.",
           "Regroupement de modalités, puis chi-deux.")
       else
-        .hstat_reco_row("Test du chi-deux d'indépendance", "Recommandee",
+        .hstat_reco_row("Test du chi-deux d'indépendance", "Recommandée",
           "Deux variables catégorielles : le chi-deux teste leur indépendance.",
           "Effectifs attendus >= 5 dans au moins 80 % des cases.",
           "Test exact de Fisher.")))
     out <- c(out, list(.hstat_reco_row(
-      "V de Cramer / Odds Ratio", "A enchaîner",
+      "V de Cramer / Odds Ratio", "À enchaîner",
       "Un test dit s'il y a association, jamais sa force : la taille d'effet le dit.",
       "-", "-")))
     if (length(quali) >= 3)
       out <- c(out, list(.hstat_reco_row(
-        "ACM (analyse des correspondances multiples)", "A envisager",
+        "ACM (analyse des correspondances multiples)", "À envisager",
         sprintf("%d variables catégorielles : l'ACM positionne individus et modalités dans un même plan.", length(quali)),
         "Modalités suffisamment représentées (regrouper les plus rares).", "-")))
   }
@@ -1265,13 +1265,13 @@ hstat_reco_analyses <- function(profile) {
   # ---- Ordinales ----
   if (length(ordin) >= 1) {
     out <- c(out, list(.hstat_reco_row(
-      "Analyse ordinale (Likert, rangs)", if (length(ordin) >= 2) "Recommandee" else "A envisager",
+      "Analyse ordinale (Likert, rangs)", if (length(ordin) >= 2) "Recommandée" else "À envisager",
       "Variable à modalités ordonnées : la traiter comme quantitative suppose des écarts égaux entre échelons, ce qui est rarement vrai.",
       "Ordre des modalités correctement déclaré.",
       "Traitement catégoriel simple si l'ordre n'a pas de sens.")))
     if (length(ordin) >= 2)
       out <- c(out, list(.hstat_reco_row(
-        "Corrélation de Spearman / Kendall", "A envisager",
+        "Corrélation de Spearman / Kendall", "À envisager",
         "Deux variables ordinales : la corrélation des rangs respecte leur nature.",
         "Relation monotone.", "-")))
   }
@@ -1280,7 +1280,7 @@ hstat_reco_analyses <- function(profile) {
   bin <- names(types)[types == "binaire"]
   if (length(bin) >= 1 && (length(quanti) >= 1 || length(quali) >= 1))
     out <- c(out, list(.hstat_reco_row(
-      "Régression logistique", "A envisager",
+      "Régression logistique", "À envisager",
       trf("« %s » ne prend que deux valeurs : la régression logistique modélise sa probabilité à partir des autres variables.", bin[1]),
       "Effectif suffisant par modalité (au moins 10 événements par prédicteur).",
       "Test exact ou régression pénalisée si les effectifs sont faibles.")))
@@ -1288,7 +1288,7 @@ hstat_reco_analyses <- function(profile) {
   if (!length(out)) return(NULL)
   res <- do.call(rbind, out)
   # Le rang tient a la pertinence, pas a l'ordre d'ecriture des regles.
-  ordre <- c("Recommandee" = 1, "A enchaîner" = 2, "A envisager" = 3)
+  ordre <- c("Recommandée" = 1, "À enchaîner" = 2, "À envisager" = 3)
   res[order(ordre[res$Pertinence], seq_len(nrow(res))), , drop = FALSE]
 }
 
@@ -1306,11 +1306,11 @@ hstat_reco_verdict <- function(reco, titre_analyse, module = NULL) {
   if (is.null(reco) || !nrow(reco) || is.null(titre_analyse) || !nzchar(titre_analyse))
     return(NULL)
   if (!is.null(module) && module %in% HSTAT_RECO_EXPLORATOIRE) {
-    reco_1 <- reco$Analyse[reco$Pertinence == "Recommandee"]
+    reco_1 <- reco$Analyse[reco$Pertinence == "Recommandée"]
     return(list(
       coherent = TRUE, exploratoire = TRUE,
       message = trf(
-        "« %s » décrit vos données : c'est une étape préliminaire, pas un test, il n'y a donc rien à valider ici. Pour aller plus loin, le profil de vos variables appelle %s. A vous de décider si cette suite a du sens pour votre question de recherche.",
+        "« %s » décrit vos données : c'est une étape préliminaire, pas un test, il n'y a donc rien à valider ici. Pour aller plus loin, le profil de vos variables appelle %s. À vous de décider si cette suite a du sens pour votre question de recherche.",
         titre_analyse,
         if (length(reco_1)) paste(reco_1, collapse = " ou ") else "une analyse inférentielle")))
   }
@@ -1324,7 +1324,7 @@ hstat_reco_verdict <- function(reco, titre_analyse, module = NULL) {
     w <- w[nchar(w) >= 4]
     length(w) > 0 && any(vapply(w, function(z) grepl(z, t, fixed = TRUE), logical(1)))
   }, logical(1))
-  reco_1 <- reco$Analyse[reco$Pertinence == "Recommandee"]
+  reco_1 <- reco$Analyse[reco$Pertinence == "Recommandée"]
   if (any(hit))
     list(coherent = TRUE, exploratoire = FALSE,
          message = trf(
@@ -1333,7 +1333,7 @@ hstat_reco_verdict <- function(reco, titre_analyse, module = NULL) {
   else
     list(coherent = FALSE, exploratoire = FALSE,
          message = trf(
-           "Au vu du profil des variables, %s aurait été le choix le plus direct. Cela ne disqualifie pas votre analyse : un objectif de recherche ou une contrainte de terrain peut la justifier. A vous de trancher.",
+           "Au vu du profil des variables, %s aurait été le choix le plus direct. Cela ne disqualifie pas votre analyse : un objectif de recherche ou une contrainte de terrain peut la justifier. À vous de trancher.",
            if (length(reco_1)) paste(reco_1, collapse = " ou ") else "une autre approche"))
 }
 
@@ -1691,7 +1691,7 @@ mod_ai_ui <- function(id) {
                   "Vos analyses, vos figures et vos interprétations réunies en un ",
                   "rapport rédige. ",
                   shiny::tags$b("Le rapport ne calcule rien"),
-                  " : il met en forme ce que vous avez déjà obtenu. A relire avant ",
+                  " : il met en forme ce que vous avez déjà obtenu. À relire avant ",
                   "diffusion — les interprétations éclairent la lecture, elles ne la valident pas.")),
               shiny::br(),
               shiny::fluidRow(
@@ -1740,7 +1740,7 @@ mod_ai_ui <- function(id) {
                 " Chaque constat porte sa gravite et une suggestion concrète. ",
                 shiny::tags$b("Bloquant"), " : l'analyse échouera ou n'aura pas de sens en l'état. ",
                 shiny::tags$b("Important"), " : le résultat sera trompeur si rien n'est fait. ",
-                shiny::tags$b("A surveiller"), " : à connaître avant d'interpréter. ",
+                shiny::tags$b("À surveiller"), " : à connaître avant d'interpréter. ",
                 "Le diagnostic est calculé dans R, sans modèle et sans réseau ; ",
                 "au-delà de 20 000 lignes il porte sur un échantillon."),
               shiny::br(),

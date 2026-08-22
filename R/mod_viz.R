@@ -302,7 +302,7 @@ mod_viz_ui <- function(id) {
               ns = ns,
                       condition = "input.useAggregation == true",
                       shiny::selectInput(ns("aggFunction"),
-                        "Fonction d'agrégation:",
+                        "Fonction d'agrégation :",
                         choices = c(
                           "Moyenne" = "mean",
                           "Médiane" = "median",
@@ -417,7 +417,7 @@ mod_viz_ui <- function(id) {
                     condition = "input.exportFormat == 'jpeg'",
                     shiny::fluidRow(
                       shiny::column(6,
-                             shiny::sliderInput(ns("jpegQuality"), "Qualité JPEG:", 
+                             shiny::sliderInput(ns("jpegQuality"), "Qualité JPEG :", 
                                          min = 50, max = 100, value = 95, step = 5)
                       )
                     )
@@ -427,7 +427,7 @@ mod_viz_ui <- function(id) {
                     condition = "input.exportFormat == 'tiff'",
                     shiny::fluidRow(
                       shiny::column(6,
-                             shiny::selectInput(ns("tiffCompression"), "Compression TIFF:",
+                             shiny::selectInput(ns("tiffCompression"), "Compression TIFF :",
                                          choices = c("Aucune" = "none", "LZW" = "lzw", "ZIP" = "zip"),
                                          selected = "lzw")
                       )
@@ -540,7 +540,7 @@ mod_viz_ui <- function(id) {
                             min = 0.3, max = 3, value = 1, step = 0.1
                           ),
                           shiny::selectInput(ns("legendPosition"),
-                            "Position:",
+                            "Position :",
                             choices = c(
                               "Droite" = "right",
                               "Gauche" = "left",
@@ -613,8 +613,8 @@ mod_viz_ui <- function(id) {
                             shiny::checkboxInput(ns("xTickBold"),   shiny::tagList(shiny::icon("bold"),   " Gras"),    value = FALSE),
                             shiny::checkboxInput(ns("xTickItalic"), shiny::tagList(shiny::icon("italic"), " Italique"), value = FALSE)
                           ),
-                          shiny::sliderInput(ns("xTickSize"),  "Taille:",           min = 6, max = 20, value = 10, step = 1),
-                          shiny::sliderInput(ns("xAxisAngle"), "Angle (°):", min = 0, max = 90, value = 0, step = 15)
+                          shiny::sliderInput(ns("xTickSize"),  "Taille :",           min = 6, max = 20, value = 10, step = 1),
+                          shiny::sliderInput(ns("xAxisAngle"), "Angle (°) :", min = 0, max = 90, value = 0, step = 15)
                         ),
                         
                         shiny::div(
@@ -626,7 +626,7 @@ mod_viz_ui <- function(id) {
                             shiny::checkboxInput(ns("yTickBold"),   shiny::tagList(shiny::icon("bold"),   " Gras"),    value = FALSE),
                             shiny::checkboxInput(ns("yTickItalic"), shiny::tagList(shiny::icon("italic"), " Italique"), value = FALSE)
                           ),
-                          shiny::sliderInput(ns("yTickSize"), "Taille:", min = 6, max = 20, value = 10, step = 1)
+                          shiny::sliderInput(ns("yTickSize"), "Taille :", min = 6, max = 20, value = 10, step = 1)
                         ),
                         
                         shiny::div(
@@ -748,7 +748,7 @@ mod_viz_ui <- function(id) {
                               style = "margin-bottom:12px; padding:10px; background:#fff3e0; border-radius:6px;",
                               shiny::h6(shiny::icon("font"), " Nom du label axe Y2",
                                  style = "color:#e65100; font-size:12px; font-weight:bold; margin:0 0 8px 0;"),
-                              shiny::textInput(ns("y2AxisLabel"), "Nom de l'axe Y2:", placeholder = "ex: Température (°C)")
+                              shiny::textInput(ns("y2AxisLabel"), "Nom de l'axe Y2 :", placeholder = "ex: Température (°C)")
                             ),
                             
                             shiny::div(
@@ -865,8 +865,8 @@ mod_viz_ui <- function(id) {
                             style = "margin-top: 15px; padding: 10px; background-color: #e8f5e9; border-radius: 6px;",
                             shiny::h5(shiny::icon("chart-bar"), " Options Barres",
                                style = "color: #388e3c; font-size: 13px; font-weight: bold; margin-top: 0;"),
-                            shiny::sliderInput(ns("barWidth"),  "Largeur:", min = 0.3, max = 1, value = 0.8, step = 0.1),
-                            shiny::selectInput(ns("barPosition"), "Position:",
+                            shiny::sliderInput(ns("barWidth"),  "Largeur :", min = 0.3, max = 1, value = 0.8, step = 0.1),
+                            shiny::selectInput(ns("barPosition"), "Position :",
                               choices = c("Côte à côte" = "dodge", "Empilées" = "stack", "Remplissage" = "fill"),
                               selected = "dodge"
                             )
@@ -923,10 +923,10 @@ mod_viz_ui <- function(id) {
                             style = "margin-top: 8px; padding: 12px; background-color: #e8f4fd; border-radius: 6px; border-left: 3px solid #3498db;",
                             shiny::h6(shiny::icon("sliders-h"), " Options des valeurs",
                                style = "color: #343a40; font-weight: bold; margin-top: 0;"),
-                            shiny::sliderInput(ns("valueLabelSize"), "Taille:", min = 2, max = 10, value = 3, step = 0.5),
-                            shiny::selectInput(ns("valueLabelPosition"), "Position:",
+                            shiny::sliderInput(ns("valueLabelSize"), "Taille :", min = 2, max = 10, value = 3, step = 0.5),
+                            shiny::selectInput(ns("valueLabelPosition"), "Position :",
                               choices = c("Au-dessus" = "above", "En-dessous" = "below", "Au centre" = "center",
-                                          "A droite" = "right", "A gauche" = "left"),
+                                          "À droite" = "right", "A gauche" = "left"),
                               selected = "above"
                             ),
                             colourInput(ns("valueLabelColor"), "Couleur :", value = "#333333"),
@@ -935,7 +935,7 @@ mod_viz_ui <- function(id) {
                               shiny::checkboxInput(ns("valueLabelBold"),   shiny::tagList(shiny::icon("bold"),   " Gras"),    value = FALSE),
                               shiny::checkboxInput(ns("valueLabelItalic"), shiny::tagList(shiny::icon("italic"), " Italique"), value = FALSE)
                             ),
-                            shiny::numericInput(ns("valueLabelDigits"), "Décimales:", value = 2, min = 0, max = 6, step = 1)
+                            shiny::numericInput(ns("valueLabelDigits"), "Décimales :", value = 2, min = 0, max = 6, step = 1)
                           )
                         ),
                         
@@ -968,7 +968,7 @@ mod_viz_ui <- function(id) {
                           shiny::conditionalPanel(
               ns = ns,
                             condition = "input.showTrendLine == true",
-                            shiny::selectInput(ns("trendMethod"), "Méthode:",
+                            shiny::selectInput(ns("trendMethod"), "Méthode :",
                               choices = c("Linéaire" = "lm", "LOESS" = "loess", "GAM" = "gam"),
                               selected = "lm"
                             )
@@ -982,7 +982,7 @@ mod_viz_ui <- function(id) {
                           shiny::conditionalPanel(
               ns = ns,
                             condition = "input.showSmoothLine == true",
-                            shiny::selectInput(ns("smoothMethod"), "Méthode:",
+                            shiny::selectInput(ns("smoothMethod"), "Méthode :",
                               choices = c("LOESS" = "loess", "Linéaire" = "lm", "GAM" = "gam"),
                               selected = "loess"
                             ),
@@ -1163,7 +1163,7 @@ mod_viz_server <- function(id, values) {
     shiny::req(values$filteredData)
     all_cols <- names(values$filteredData)
     all_cols <- iconv(all_cols, to = "UTF-8", sub = "")
-    shiny::selectInput(ns("vizXVar"), "Variable X:", 
+    shiny::selectInput(ns("vizXVar"), "Variable X :", 
                 choices = all_cols,
                 selected = if(length(all_cols) > 0) all_cols[1] else NULL)
   })
@@ -1174,7 +1174,7 @@ mod_viz_server <- function(id, values) {
     all_cols <- iconv(all_cols, to = "UTF-8", sub = "")
     
     shiny::div(
-      shiny::selectizeInput(ns("vizYVar"), "Variable(s) Y:", 
+      shiny::selectizeInput(ns("vizYVar"), "Variable(s) Y :", 
                      choices = all_cols,
                      selected = if(length(all_cols) > 1) all_cols[2] else NULL,
                      multiple = TRUE,
@@ -1486,7 +1486,7 @@ mod_viz_server <- function(id, values) {
                     shiny::span(paste0(i, "."), style = "color: #999; font-weight: bold; min-width: 25px;"),
                     shiny::div(style = "flex: 1;",
                         shiny::div(style = "font-size: 11px; color: #666; margin-bottom: 2px;",
-                            paste("Original:", lvl)),
+                            paste("Original :", lvl)),
                         shiny::textInput(
                           inputId = paste0("xLevel_", make.names(lvl)),
                           label = NULL,
@@ -1571,7 +1571,7 @@ mod_viz_server <- function(id, values) {
     
     shiny::showModal(shiny::modalDialog(
       title = "Ajouter un préfixe",
-      shiny::textInput(ns("prefixText"), "Préfixe à ajouter:", value = ""),
+      shiny::textInput(ns("prefixText"), "Préfixe à ajouter :", value = ""),
       footer = shiny::tagList(
         shiny::actionButton(ns("applyPrefix"), "Appliquer", class = "btn-primary"),
         shiny::modalButton("Annuler")
@@ -1597,7 +1597,7 @@ mod_viz_server <- function(id, values) {
     
     shiny::showModal(shiny::modalDialog(
       title = "Ajouter un suffixe",
-      shiny::textInput(ns("suffixText"), "Suffixe à ajouter:", value = ""),
+      shiny::textInput(ns("suffixText"), "Suffixe à ajouter :", value = ""),
       footer = shiny::tagList(
         shiny::actionButton(ns("applySuffix"), "Appliquer", class = "btn-primary"),
         shiny::modalButton("Annuler")
@@ -3849,9 +3849,9 @@ mod_viz_server <- function(id, values) {
       shiny::fluidRow(
         shiny::column(6,
                shiny::h5("Titres", style = "color: #007bff; font-weight: bold;"),
-               shiny::textInput(ns("quickPlotTitle"), "Titre:", value = input$plotTitle %||% "", placeholder = "Titre du graphique"),
-               shiny::textInput(ns("quickXLabel"), "Label X:", value = input$xAxisLabel %||% "", placeholder = "Auto"),
-               shiny::textInput(ns("quickYLabel"), "Label Y:", value = input$yAxisLabel %||% "", placeholder = "Auto")
+               shiny::textInput(ns("quickPlotTitle"), "Titre :", value = input$plotTitle %||% "", placeholder = "Titre du graphique"),
+               shiny::textInput(ns("quickXLabel"), "Label X :", value = input$xAxisLabel %||% "", placeholder = "Auto"),
+               shiny::textInput(ns("quickYLabel"), "Label Y :", value = input$yAxisLabel %||% "", placeholder = "Auto")
         ),
         shiny::column(6,
                shiny::h5("Apparence", style = "color: #007bff; font-weight: bold;"),

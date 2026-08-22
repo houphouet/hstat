@@ -21,7 +21,7 @@ mod_tests_ui <- function(id) {
                                             shiny::conditionalPanel(
                                               ns = ns,
                                               condition = "input.testsRoundResults == true",
-                                              shiny::numericInput(ns("testsDecimals"), "Décimales:", value = 2, min = 0, max = 8, step = 1)
+                                              shiny::numericInput(ns("testsDecimals"), "Décimales :", value = 2, min = 0, max = 8, step = 1)
                                             )
                                      )
                                    )
@@ -1624,7 +1624,7 @@ mod_correlation_server <- function(id, values) {
     shiny::observeEvent(cor_results(), {
       res <- tryCatch(cor_results(), error = function(e) NULL)
       if (is.null(res) || !NROW(res)) return()
-      hstat_ai_capture(values, "Correlations",
+      hstat_ai_capture(values, "Corrélations",
         sprintf("Tests de corrélation (%s)",
                 paste(unique(if ("Methode" %in% names(res)) res$Methode
                              else input$corTestMethod %||% "pearson"), collapse = ", ")),

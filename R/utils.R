@@ -718,7 +718,7 @@ HSTAT_ERR_FR <- list(
              "mêmes observations.")),
   list("missing value where TRUE/FALSE needed",
        paste("Une statistique n'a pas pu être calculée (elle vaut NA) et une",
-             "décision en dépendait. C'est le signe de données degenerees :",
+             "décision en dépendait. C'est le signe de données dégénérées :",
              "vérifiez la variance et l'effectif de chaque groupe, ainsi que",
              "le taux de valeurs manquantes.")),
   list("0 \\(non-NA\\) cases|no complète élément|complète\\.cases",
@@ -731,7 +731,7 @@ HSTAT_ERR_FR <- list(
              "(imputation ou retrait) avant de relancer.")),
   list("undefined columns selected|subscript out of bounds",
        paste("Une variable attendue est absente du jeu de données. Elle a sans",
-             "doute été renommée ou retirée depuis le choix : reselectionnez",
+             "doute été renommée ou retirée depuis le choix : resélectionnez",
              "vos variables.")),
   list("there is no package called",
        paste("Un paquet R nécessaire à cette analyse n'est pas installé.",
@@ -2572,7 +2572,7 @@ recommend_manova_test <- function(mardia, boxm, permdisp, n) {
                  paste0("PERMDISP signale des dispersions multivariées inégales sur ",
                         permdisp_violations, " facteur(s). Une PERMANOVA significative pourrait ",
                         "refléter une différence de dispersion plutôt qu'une différence de localisation. ",
-                        "A interpréter avec prudence."))
+                        "À interpréter avec prudence."))
   }
   
   if (score_param >= 2) {
@@ -5143,7 +5143,7 @@ hstat_metrics_cls <- function(obs, pred, prob = NULL) {
                  "Rappel / sensibilité (macro)", "F1-score (macro)", "AUC (ROC)"),
     Valeur   = round(vals, 4),
     Seuils = c(
-      "A comparer à la part de la classe majoritaire : nettement au-dessus = modèle informatif",
+      "À comparer à la part de la classe majoritaire : nettement au-dessus = modèle informatif",
       "< 0,2 negligeable ; 0,2-0,4 faible ; 0,4-0,6 modere ; 0,6-0,8 substantiel ; > 0,8 quasi parfait (Landis & Koch)",
       ">= 0,9 excellente ; 0,7-0,9 bonne ; 0,5-0,7 moyenne ; < 0,5 faible",
       ">= 0,9 excellent ; 0,7-0,9 bon ; 0,5-0,7 moyen ; < 0,5 faible",
@@ -5178,7 +5178,7 @@ hstat_model_interpretation <- function(task, metrics_df, model_label,
     if (is.na(i)) NA_real_ else metrics_df$Valeur[i]
   }
   head_txt <- trf(
-    "Le modèle %s a été entraîné sur %s observation(s) puis évalue sur %s observation(s) de test jamais vues pendant l'entraînement : les métriques ci-dessus reflètent donc sa capacité de généralisation, pas sa mémoire.",
+    "Le modèle %s a été entraîné sur %s observation(s) puis évalué sur %s observation(s) de test jamais vues pendant l'entraînement : les métriques ci-dessus reflètent donc sa capacité de généralisation, pas sa mémoire.",
     model_label, format(n_train, big.mark = " "), format(n_test, big.mark = " "))
   core <- if (identical(task, "regression")) {
     r2 <- get_v("R2"); mape <- get_v("MAPE (%)")
@@ -5719,7 +5719,7 @@ hstat_model_doc <- function(id) {
       "Trouver des groupes de forme quelconque sans fixer k, et isoler les anomalies.",
       "Régler eps et minPts (sensibles) ; difficile si les densités varient beaucoup ; standardiser."),
     mclust = c("Mélanges gaussiens (mclust)",
-      "Modèle probabiliste : les données proviennent d'un mélange de lois normales estime par EM ; choix du modèle par BIC.",
+      "Modèle probabiliste : les données proviennent d'un mélange de lois normales estimé par EM ; choix du modèle par BIC.",
       "Clustering souple (appartenance probabiliste) et formes elliptiques.",
       "Hypothèse de normalité par composante ; effectifs suffisants par groupe."),
     # ---- Deep learning ----

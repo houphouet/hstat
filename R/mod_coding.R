@@ -1750,8 +1750,8 @@ mod_coding_ui <- function(id) {
       shiny::tags$strong(shiny::icon("highlighter"), " Atelier de codage (thématisation)"),
       shiny::tags$ol(style = "margin:6px 0 0 0;padding-left:20px;font-size:13px;",
         shiny::tags$li("Choisissez la question ouverte à coder, puis lisez les réponses une à une."),
-        shiny::tags$li(shiny::HTML("<b>Selectionnez</b> un mot, une phrase ou un paragraphe a la souris.")),
-        shiny::tags$li(shiny::HTML("<b>Glissez-deposez</b> la selection sur un code, a gauche (ou cliquez simplement sur le code).")),
+        shiny::tags$li(shiny::HTML("<b>Sélectionnez</b> un mot, une phrase ou un paragraphe à la souris.")),
+        shiny::tags$li(shiny::HTML("<b>Glissez-déposez</b> la sélection sur un code, à gauche (ou cliquez simplement sur le code).")),
         shiny::tags$li("Le segment reçoit une étiquette colorée ; cliquez sur un code pour retrouver tous ses extraits."))),
 
     shiny::fluidRow(
@@ -1864,7 +1864,7 @@ mod_coding_ui <- function(id) {
               shiny::column(2, shiny::radioButtons(ns("qry_portee"), "Portée",
                 choices = c("Même document" = "document",
                             "Même passage" = "overlap",
-                            "A proximité" = "proximite"),
+                            "À proximité" = "proximite"),
                 selected = "document")),
               shiny::column(2, shiny::numericInput(ns("qry_dist"),
                 "Distance (caractères)", value = 200, min = 0, step = 50))),
@@ -2703,7 +2703,7 @@ mod_coding_server <- function(id, values) {
       # La portee change le SENS de la reponse : la taire laisserait croire
       # qu'il n'y a qu'une facon de lire « A et B ».
       quoi <- switch(attr(s, "portee") %||% "document",
-        document  = "presents dans la meme reponse",
+        document  = "présents dans la même réponse",
         overlap   = "étiquetant le même passage",
         proximite = sprintf("distants de moins de %s caractères",
                             hstat_finite(input$qry_dist, 200)),

@@ -79,7 +79,7 @@ mod_threshold_ui <- function(id) {
                                          value = "#e74c3c", showColour = "background")
                       ),
                       shiny::column(6,
-                             shiny::numericInput(ns("thresholdLineWidth"), "Épaisseur:", 
+                             shiny::numericInput(ns("thresholdLineWidth"), "Épaisseur :", 
                                           value = 1.5, min = 0.5, max = 5, step = 0.5)
                       )
                     ),
@@ -178,7 +178,7 @@ mod_threshold_ui <- function(id) {
                                   value = "", placeholder = "Par défaut: Traitements"),
                         shiny::textInput(ns("thresholdYLabel"), "Label axe Y :", 
                                   value = "", placeholder = "Par défaut: Seuil d'efficacité (%)"),
-                        shiny::textInput(ns("thresholdSubtitle"), "Sous-titre:",
+                        shiny::textInput(ns("thresholdSubtitle"), "Sous-titre :",
                                   value = "", placeholder = "Optionnel"),
                         shiny::fluidRow(
                           shiny::column(6, shiny::selectInput(ns("thresholdTitleStyle"), "Style du titre",
@@ -369,7 +369,7 @@ mod_threshold_ui <- function(id) {
                           shiny::textInput(ns("thresholdLegendTitle"), "Titre de la légende :", 
                                     value = "", placeholder = "Laisser vide pour défaut"),
                           
-                          shiny::selectInput(ns("thresholdLegendPosition"), "Position:",
+                          shiny::selectInput(ns("thresholdLegendPosition"), "Position :",
                                       choices = c("En bas" = "bottom",
                                                   "En haut" = "top",
                                                   "À gauche" = "left",
@@ -412,7 +412,7 @@ mod_threshold_ui <- function(id) {
                         shiny::h6(shiny::icon("text-height"), " Tailles de texte", 
                            style = "font-weight: bold; color: #c2185b; margin-bottom: 10px;"),
                         
-                        shiny::sliderInput(ns("thresholdTitleSize"), "Titre:", 
+                        shiny::sliderInput(ns("thresholdTitleSize"), "Titre :", 
                                     min = 8, max = 28, value = 16, step = 1),
                         shiny::sliderInput(ns("thresholdAxisTitleSize"), "Titres des axes :", 
                                     min = 8, max = 24, value = 14, step = 1),
@@ -975,7 +975,7 @@ mod_threshold_server <- function(id, values) {
   output$thresholdXVarSelect <- shiny::renderUI({
     shiny::req(source_data())
     all_cols <- names(source_data())
-    shiny::selectInput(ns("thresholdXVar"), "Variable X (Traitements):", 
+    shiny::selectInput(ns("thresholdXVar"), "Variable X (Traitements) :", 
                 choices = all_cols,
                 selected = .eff_defaut(all_cols, "Modalite"))
   })
@@ -993,7 +993,7 @@ mod_threshold_server <- function(id, values) {
                                  `selected-text-format` = "count > 2",
                                  `count-selected-text` = "{0} variables sélectionnées"))
     } else {
-      shiny::selectInput(ns("thresholdYVar"), "Variable Y (Efficacité):", 
+      shiny::selectInput(ns("thresholdYVar"), "Variable Y (Efficacité) :", 
                   choices = num_cols,
                   selected = .eff_defaut(num_cols, "Efficacite"))
     }
@@ -1050,7 +1050,7 @@ mod_threshold_server <- function(id, values) {
                     shiny::span(paste0(i, "."), style = "color: #3498db; font-weight: bold; min-width: 25px; font-size: 14px;"),
                     shiny::div(style = "flex: 1;",
                         shiny::div(style = "font-size: 11px; color: #666; margin-bottom: 3px; font-style: italic;",
-                            paste("Original:", lvl)),
+                            paste("Original :", lvl)),
                         shiny::textInput(
                           inputId = ns(input_id),
                           label = NULL,
@@ -1128,7 +1128,7 @@ mod_threshold_server <- function(id, values) {
                     shiny::span(paste0(i, "."), style = "color: #9b59b6; font-weight: bold; min-width: 25px; font-size: 14px;"),
                     shiny::div(style = "flex: 1;",
                         shiny::div(style = "font-size: 11px; color: #666; margin-bottom: 3px; font-style: italic;",
-                            paste("Original:", var_name)),
+                            paste("Original :", var_name)),
                         shiny::textInput(
                           inputId = ns(input_id),
                           label = NULL,
@@ -1506,7 +1506,7 @@ mod_threshold_server <- function(id, values) {
         p <- p + ggplot2::annotate("text",
                           x = x_lab,
                           y = (input$thresholdValue %||% 80) + 5,
-                          label = paste("Seuil:", input$thresholdValue %||% 80, "%"),
+                          label = paste("Seuil :", input$thresholdValue %||% 80, "%"),
                           color = input$thresholdColor %||% "#e74c3c",
                           fontface = input$thresholdLabelStyle %||% "bold",
                           size = input$thresholdValueLabelSize %||% 4)
