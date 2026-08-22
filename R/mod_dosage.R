@@ -51,9 +51,13 @@ HSTAT_DOSE_FORMULES <- c(
   par_cuve   = "Produit par cuve = Dose (par ha) × (Volume de cuve (L) ÷ Volume de bouillie (L/ha))",
   nb_cuves   = "Nombre de cuves = Volume d'eau total (L) ÷ Volume de cuve (L)",
   surf_cuve  = "Surface par cuve (ha) = Volume de cuve (L) ÷ Volume de bouillie (L/ha)",
-  c_fille    = "Concentration fille = Concentration mère ÷ Coefficient de dilution",
-  v_preleve  = "Volume à prélever = Volume final ÷ Coefficient de dilution",
-  v_eau      = "Volume d'eau à ajouter = Volume final − Volume à prélever",
+  conservation = "Conservation de la matière : Vi × Ci = Vf × Cf  (Vi prélevé dans la mère, Ci = concentration mère)",
+  c_fille    = "Concentration de la fille n (Cf) = Concentration de la fille n−1 ÷ Coefficient de dilution",
+  c_fille_n  = "soit Concentration de la fille n = Concentration mère ÷ Coefficient^n",
+  v_preleve  = "Volume à prélever dans la mère (Vi) = Vf × Cf ÷ Concentration mère = Volume final ÷ Coefficient^n",
+  v_eau      = "Volume d'eau à ajouter = Volume final (Vf) − Volume prélevé (Vi)",
+  v_restant  = "Volume restant de la fille n (en cascade) = Volume final − Volume prélevé pour la fille n+1",
+  v_mere     = "Volume de solution mère requis = somme des volumes prélevés sur la mère",
   c_totale   = "Concentration totale de la fille = somme des concentrations filles de chaque matière active")
 
 # ---------------------------------------------------------------------------
@@ -213,13 +217,40 @@ hstat_dose_bilan <- function(sens = c("dose", "grammage"),
 #  detailler la concentration fille de CHAQUE matiere active tout en donnant
 #  la concentration totale de la solution -- la question posee.
 #
-#  Le coefficient de dilution et le volume final appartiennent au PRODUIT, pas
-#  a la matiere active : deux lignes du meme produit qui les contrediraient
-#  decriraient deux preparations differentes. On le refuse en nommant le
-#  produit, plutot que de retenir l'une des deux valeurs au hasard.
+#  Le coefficient de dilution, le volume final et le NOMBRE DE FILLES
+#  appartiennent au PRODUIT, pas a la matiere active : deux lignes du meme
+#  produit qui les contrediraient decriraient deux preparations differentes.
+#  On le refuse en nommant le produit, plutot que de retenir l'une des deux
+#  valeurs au hasard.
+#
+#  UNE GAMME, ET LE PRELEVEMENT SE FAIT TOUJOURS DANS LA MERE :
+#
+#    C_n = C_(n-1) / k = C_mere / k^n        (chaque fille depuis la precedente)
+#    V_preleve_n x C_mere = V_final x C_n    (conservation de la matiere)
+#      d'ou  V_preleve_n = V_final / k^n
+#
+#  Le volume final est celui que l'utilisateur declare : c'est le volume de
+#  CHAQUE fille, et le volume a prelever s'en deduit. Rien n'est preleve dans
+#  une fille -- on revient a la mere a chaque etage, ce qui evite qu'une
+#  erreur de pipetage se propage a toute la gamme.
+#
+#  Le piege de la methode est a l'autre bout : le volume a prelever est divise
+#  par k a chaque etage et devient vite impipetable (100 mL au 1/10 donnent
+#  0,001 mL au cinquieme etage). Le module le SIGNALE au lieu de rendre un
+#  nombre que personne ne peut mesurer.
 # ---------------------------------------------------------------------------
 HSTAT_DILUTION_COLS <- c("Produit", "Matiere_active", "Concentration_mere",
                          "Unite", "Coefficient", "Volume_final", "Unite_volume")
+
+# Le nombre de filles est FACULTATIF : absent, il vaut 1, ce qui redonne
+# exactement le comportement d'avant la gamme. Un appel existant continue
+# donc de rendre ce qu'il rendait.
+HSTAT_DILUTION_NB_MAX <- 50L
+
+# En dessous, le prelevement ne se mesure plus a la pipette. Ce n'est pas une
+# erreur de calcul : c'est un plan de gamme irrealisable, et il vaut mieux le
+# dire avant la paillasse qu'apres.
+HSTAT_DILUTION_MIN_ML <- 0.01
 
 hstat_dilution_table_vide <- function(n = 3) {
   data.frame(
@@ -228,6 +259,7 @@ hstat_dilution_table_vide <- function(n = 3) {
     Concentration_mere = rep(NA_real_, n),
     Unite              = rep("g/L", n),
     Coefficient        = rep(NA_real_, n),
+    Nb_filles          = rep(1, n),
     Volume_final       = rep(NA_real_, n),
     Unite_volume       = rep("L", n),
     stringsAsFactors   = FALSE)
@@ -252,6 +284,10 @@ hstat_dilution_calcul <- function(df) {
   d$Unite_volume   <- trimws(as.character(d$Unite_volume))
   for (k in c("Concentration_mere", "Coefficient", "Volume_final"))
     d[[k]] <- suppressWarnings(as.numeric(d[[k]]))
+  # Facultatif : absent, il vaut 1 -- le comportement d'avant la gamme.
+  d$Nb_filles <- if ("Nb_filles" %in% names(df))
+    suppressWarnings(as.numeric(df$Nb_filles)) else rep(1, nrow(d))
+  d$Nb_filles[!is.finite(d$Nb_filles)] <- 1
 
   # Une ligne entierement vide est un reste de saisie, pas une erreur : on la
   # retire en silence. Une ligne A MOITIE remplie, elle, se signale.
@@ -283,17 +319,25 @@ hstat_dilution_calcul <- function(df) {
     return(vide(trf("Volume final absent ou nul pour : %s. C'est le volume de solution fille à préparer.",
                     paste(unique(d$Produit[mauvais_v]), collapse = ", "))))
 
-  # Coefficient et volume final appartiennent au produit : deux valeurs
-  # differentes sous le meme nom decrivent deux preparations.
+  mauvais_n <- d$Nb_filles < 1 | d$Nb_filles != round(d$Nb_filles) |
+               d$Nb_filles > HSTAT_DILUTION_NB_MAX
+  if (any(mauvais_n))
+    return(vide(trf("Nombre de solutions filles invalide pour : %s. Attendu un entier compris entre 1 et %d.",
+                    paste(unique(d$Produit[mauvais_n]), collapse = ", "),
+                    HSTAT_DILUTION_NB_MAX)))
+  d$Nb_filles <- as.integer(d$Nb_filles)
+
+  # Coefficient, volume final et nombre de filles appartiennent au produit :
+  # deux valeurs differentes sous le meme nom decrivent deux preparations.
   incoherent <- character(0)
   for (p in unique(d$Produit)) {
     s <- d[d$Produit == p, , drop = FALSE]
     if (length(unique(s$Coefficient)) > 1 || length(unique(s$Volume_final)) > 1 ||
-        length(unique(s$Unite_volume)) > 1)
+        length(unique(s$Unite_volume)) > 1 || length(unique(s$Nb_filles)) > 1)
       incoherent <- c(incoherent, p)
   }
   if (length(incoherent))
-    return(vide(trf("Coefficient de dilution ou volume final contradictoire pour : %s. Ces deux valeurs décrivent la préparation : elles sont les mêmes pour toutes les matières actives d'un produit.",
+    return(vide(trf("Coefficient de dilution, nombre de filles ou volume final contradictoire pour : %s. Ces valeurs décrivent la préparation : elles sont les mêmes pour toutes les matières actives d'un produit.",
                     paste(incoherent, collapse = ", "))))
 
   fac <- vapply(d$Unite, function(u) .hstat_dose_facteur(u, HSTAT_CONC_UNITES),
@@ -303,33 +347,85 @@ hstat_dilution_calcul <- function(df) {
                     paste(unique(d$Unite[!is.finite(fac)]), collapse = ", "),
                     paste(names(HSTAT_CONC_UNITES), collapse = ", "))))
 
-  d$Concentration_fille <- d$Concentration_mere / d$Coefficient
+  fac_v <- vapply(d$Unite_volume, function(u) .hstat_dose_facteur(u, HSTAT_VOL_UNITES),
+                  numeric(1), USE.NAMES = FALSE)
+  if (any(!is.finite(fac_v)))
+    return(vide(trf("Unité de volume inconnue : %s. Choisissez parmi %s.",
+                    paste(unique(d$Unite_volume[!is.finite(fac_v)]), collapse = ", "),
+                    paste(names(HSTAT_VOL_UNITES), collapse = ", "))))
+
+  d$.fac   <- fac
+  d$.fac_v <- fac_v
+  d <- d[order(d$Produit, d$Matiere_active), , drop = FALSE]
+
+  # -- La gamme : une fille par rang, pour chaque matiere active ------------
+  #  C_n = C_(n-1) / k, et le prelevement se fait TOUJOURS dans la mere :
+  #  V_preleve_n x C_mere = V_final x C_n, donc V_preleve_n = V_final / k^n.
+  morceaux <- list()
+  for (p in unique(d$Produit)) {
+    sp <- d[d$Produit == p, , drop = FALSE]
+    k  <- sp$Coefficient[1]
+    n  <- sp$Nb_filles[1]
+    vf <- sp$Volume_final[1]
+
+    for (i in seq_len(n)) {
+      q <- sp
+      q$Rang <- i
+      q$Concentration_precedente <- q$Concentration_mere / k^(i - 1L)
+      q$Concentration_fille      <- q$Concentration_mere / k^i
+      q$Volume_a_prelever        <- vf / k^i
+      q$Volume_eau_a_ajouter     <- vf - q$Volume_a_prelever
+      morceaux[[length(morceaux) + 1L]] <- q
+    }
+  }
+  d <- do.call(rbind, morceaux)
+
   # La concentration ramenee a g/L rend les matieres actives ADDITIONNABLES :
   # sommer des pour-cent et des mg/L donnerait un total qui ne veut rien dire.
-  c_ref <- d$Concentration_fille * fac
-  totaux <- tapply(c_ref, d$Produit, sum, na.rm = TRUE)
+  cle <- paste(d$Produit, d$Rang, sep = "\u001f")
+  totaux <- tapply(d$Concentration_fille * d$.fac, cle, sum, na.rm = TRUE)
+  d$Concentration_totale_g_L <- unname(totaux[cle])
 
-  d$Volume_a_prelever    <- d$Volume_final / d$Coefficient
-  d$Volume_eau_a_ajouter <- d$Volume_final - d$Volume_a_prelever
-  d$Concentration_totale_g_L <- unname(totaux[d$Produit])
+  # Ce que la MERE doit fournir : la somme de tous les prelevements, puisqu'ils
+  # viennent tous d'elle. « Ai-je assez de solution mere ? » est la premiere
+  # question qu'on se pose devant une gamme, et la seule qu'on ne puisse pas
+  # rattraper une fois la paillasse installee.
+  v_mere <- tapply(ifelse(!duplicated(cle), d$Volume_a_prelever, 0),
+                   d$Produit, sum, na.rm = TRUE)
 
-  d <- d[order(d$Produit, d$Matiere_active), , drop = FALSE]
+  d <- d[order(d$Produit, d$Rang, d$Matiere_active), , drop = FALSE]
   # Le volume a prelever, l'eau a ajouter et la concentration totale
-  # appartiennent au PRODUIT : les repeter sur chaque matiere active ferait
-  # croire qu'il faut prelever autant de fois. Ils ne figurent donc que sur
-  # la premiere ligne -- apres le tri, sans quoi ce ne serait pas la bonne.
-  suivante <- duplicated(d$Produit)
-  d$Volume_a_prelever[suivante]        <- NA_real_
-  d$Volume_eau_a_ajouter[suivante]     <- NA_real_
-  d$Concentration_totale_g_L[suivante] <- NA_real_
+  # appartiennent au couple (PRODUIT, RANG) : les repeter sur chaque matiere
+  # active ferait croire qu'il faut prelever autant de fois. Ils ne figurent
+  # donc que sur la premiere ligne -- apres le tri, sans quoi ce ne serait
+  # pas la bonne.
+  cle <- paste(d$Produit, d$Rang, sep = "\u001f")
+  suivante <- duplicated(cle)
+  for (k2 in c("Volume_a_prelever", "Volume_eau_a_ajouter", "Concentration_totale_g_L"))
+    d[[k2]][suivante] <- NA_real_
+  # Le besoin en solution mere est propre au PRODUIT : une seule ligne.
+  d$Volume_mere_requis <- NA_real_
+  d$Volume_mere_requis[!duplicated(d$Produit)] <-
+    unname(v_mere[unique(d$Produit)])
 
   res <- d[, c("Produit", "Matiere_active", "Concentration_mere", "Unite",
-               "Coefficient", "Concentration_fille", "Volume_final",
-               "Unite_volume", "Volume_a_prelever", "Volume_eau_a_ajouter",
-               "Concentration_totale_g_L"), drop = FALSE]
+               "Coefficient", "Rang", "Concentration_precedente",
+               "Concentration_fille", "Volume_final", "Unite_volume",
+               "Volume_a_prelever", "Volume_eau_a_ajouter",
+               "Concentration_totale_g_L", "Volume_mere_requis"), drop = FALSE]
   rownames(res) <- NULL
-  attr(res, "formules") <- unname(
-    HSTAT_DOSE_FORMULES[c("c_fille", "v_preleve", "v_eau", "c_totale")])
+  attr(res, "formules") <- unname(HSTAT_DOSE_FORMULES[
+    c("conservation", "c_fille", "c_fille_n", "v_preleve", "v_eau",
+      "v_mere", "c_totale")])
+
+  # Un prelevement impipetable n'est pas un chiffre, c'est un plan a refaire :
+  # on nomme les produits concernes et on dit quoi changer.
+  ml <- d$Volume_a_prelever * d$.fac_v * 1000
+  minuscule <- unique(d$Produit[is.finite(ml) & ml < HSTAT_DILUTION_MIN_ML])
+  if (length(minuscule))
+    attr(res, "avertissement") <- trf(
+      "Volume à prélever inférieur à %s mL pour : %s. Un tel prélèvement ne se mesure pas à la pipette : augmentez le volume final, réduisez le coefficient de dilution ou préparez la gamme en plusieurs étapes.",
+      hstat_fmt_nb(HSTAT_DILUTION_MIN_ML, 3), paste(minuscule, collapse = ", "))
   res
 }
 
@@ -339,17 +435,21 @@ hstat_dilution_calcul <- function(df) {
 # l'export : les deux, sinon le fichier telecharge garde l'orthographe que
 # l'ecran vient de corriger.
 HSTAT_DILUTION_LIBELLES <- c(
-  Produit                  = "Produit",
-  Matiere_active           = "Matière active",
-  Concentration_mere       = "Concentration mère",
-  Unite                    = "Unité",
-  Coefficient              = "Coefficient de dilution",
-  Concentration_fille      = "Concentration fille",
-  Volume_final             = "Volume final",
-  Unite_volume             = "Unité de volume",
-  Volume_a_prelever        = "Volume à prélever",
-  Volume_eau_a_ajouter     = "Eau à ajouter",
-  Concentration_totale_g_L = "Concentration totale de la fille (g/L)")
+  Produit                   = "Produit",
+  Matiere_active            = "Matière active",
+  Concentration_mere        = "Concentration mère",
+  Unite                     = "Unité",
+  Coefficient               = "Coefficient de dilution",
+  Nb_filles                 = "Nombre de filles",
+  Rang                      = "Rang de la fille",
+  Concentration_precedente  = "Concentration précédente",
+  Concentration_fille       = "Concentration fille",
+  Volume_final              = "Volume final (Vf)",
+  Unite_volume              = "Unité de volume",
+  Volume_a_prelever         = "Volume à prélever dans la mère (Vi)",
+  Volume_eau_a_ajouter      = "Eau à ajouter (Vf − Vi)",
+  Concentration_totale_g_L  = "Concentration totale de la fille (g/L)",
+  Volume_mere_requis        = "Solution mère nécessaire (total)")
 
 hstat_dilution_affichage <- function(d) {
   if (!is.data.frame(d) || !nrow(d)) return(d)
@@ -461,35 +561,95 @@ mod_dosage_ui <- function(id) {
       shiny::tabPanel(
         shiny::tagList(shiny::icon("vials"), " Solutions filles (dilutions)"),
         shiny::div(style = "padding-top:14px;"),
+
         shiny::fluidRow(
           shinydashboard::box(
-            title = shiny::tagList(shiny::icon("table-list"), " Produits et solutions mères"),
-            status = "primary", width = 8, solidHeader = TRUE,
-            shiny::div(class = "callout callout-warning", style = "padding:8px 12px;",
-              shiny::icon("lightbulb"),
-              shiny::strong(" Une ligne par matière active. "),
-              "Un produit qui en compte plusieurs occupe donc plusieurs lignes,",
-              " sous le même nom commercial : le coefficient de dilution et le",
-              " volume final y sont identiques, puisqu'ils décrivent la même",
-              " préparation."),
+            title = shiny::tagList(shiny::icon("bottle-droplet"), " La solution mère"),
+            status = "primary", width = 5, solidHeader = TRUE,
+            shiny::textInput(ns("dilProduit"), "Nom commercial du produit",
+                             placeholder = "ex : Lambdacal P 212 EC"),
             shiny::fluidRow(
-              shiny::column(4, shiny::numericInput(ns("dilNlignes"),
-                "Nombre de lignes", value = 3, min = 1, max = 60, step = 1)),
-              shiny::column(8, shiny::div(style = "margin-top:26px;",
-                shiny::actionButton(ns("dilCalculer"),
-                  shiny::tagList(shiny::icon("calculator"), " Calculer les solutions filles"),
-                  class = "btn-primary")))),
-            shiny::br(),
-            DT::DTOutput(ns("dilSaisie"))),
+              shiny::column(6, shiny::numericInput(ns("dilNbMa"),
+                "Nombre de matières actives", value = 1, min = 1, max = 10, step = 1)),
+              shiny::column(6, shiny::selectInput(ns("dilUnite"),
+                "Unité de concentration", choices = names(HSTAT_CONC_UNITES),
+                selected = "g/L"))),
+            shiny::helpText("Une concentration mère par matière active : c'est ce qui",
+                            " permet de détailler chaque fille et d'en donner la",
+                            " concentration totale."),
+            shiny::uiOutput(ns("dilMaUi")),
+
+            shiny::hr(),
+            shiny::div(class = "callout callout-info", style = "padding:8px 12px;",
+              shiny::icon("arrow-down"), shiny::strong(" Reprendre le calcul de dose. "),
+              "L'onglet précédent a déjà déterminé le grammage et la concentration",
+              " de la bouillie : inutile de les ressaisir."),
+            shiny::fluidRow(
+              shiny::column(7, shiny::selectInput(ns("dilSource"), "Valeur à reprendre",
+                choices = c("Concentration du produit commercial" = "conc_produit",
+                            "Concentration de la bouillie (g m.a./L)" = "conc_bouillie",
+                            "Grammage à l'hectare (g m.a./ha)" = "grammage"),
+                selected = "conc_bouillie")),
+              shiny::column(5, shiny::div(style = "margin-top:26px;",
+                shiny::actionButton(ns("dilImport"),
+                  shiny::tagList(shiny::icon("file-import"), " Reprendre"),
+                  class = "btn-default btn-block"))))),
+
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("layer-group"), " La gamme à préparer"),
+            status = "info", width = 3, solidHeader = TRUE,
+            shiny::numericInput(ns("dilCoef"), "Coefficient de dilution",
+                                value = 10, min = 1, step = 1),
+            shiny::helpText("10 signifie une dilution au 1/10 : chaque fille est dix",
+                            " fois moins concentrée que la précédente."),
+            shiny::numericInput(ns("dilNb"), "Nombre de solutions filles",
+                                value = 3, min = 1, max = HSTAT_DILUTION_NB_MAX, step = 1),
+            shiny::fluidRow(
+              shiny::column(7, shiny::numericInput(ns("dilVf"),
+                "Volume final de chaque fille (Vf)", value = 100, min = 0, step = 10)),
+              shiny::column(5, shiny::selectInput(ns("dilVfUnite"), "Unité",
+                choices = names(HSTAT_VOL_UNITES), selected = "mL"))),
+            shiny::hr(),
+            shiny::actionButton(ns("dilAjouter"),
+              shiny::tagList(shiny::icon("plus"), " Ajouter ce produit"),
+              class = "btn-primary btn-block"),
+            shiny::helpText("Ajoutez autant de produits que nécessaire : chacun garde",
+                            " son propre coefficient et son propre nombre de filles.")),
 
           shinydashboard::box(
             title = shiny::tagList(shiny::icon("square-root-variable"), " Formules employées"),
             status = "warning", width = 4, solidHeader = TRUE, collapsible = TRUE,
             .hstat_dose_bloc_formule(unname(HSTAT_DOSE_FORMULES[
-              c("c_fille", "v_preleve", "v_eau", "c_totale")])),
+              c("conservation", "c_fille", "c_fille_n", "v_preleve", "v_eau",
+                "v_mere", "c_totale")])),
+            shiny::helpText("Le prélèvement se fait à chaque fois dans la solution",
+                            " mère : une erreur de pipetage ne se propage donc pas",
+                            " d'une fille à la suivante."),
             shiny::helpText("Le volume à prélever, l'eau à ajouter et la concentration",
-                            " totale appartiennent au produit : ils ne figurent que sur",
-                            " sa première ligne."))),
+                            " totale appartiennent au couple produit × fille : ils ne",
+                            " figurent que sur sa première ligne."))),
+
+        shiny::fluidRow(
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("table-list"), " Produits saisis"),
+            status = "primary", width = 12, solidHeader = TRUE,
+            shiny::div(class = "callout callout-warning", style = "padding:8px 12px;",
+              shiny::icon("lightbulb"),
+              shiny::strong(" Une ligne par matière active. "),
+              "Le tableau est modifiable case par case : un double-clic corrige",
+              " une valeur sans tout ressaisir. Le coefficient, le nombre de filles",
+              " et le volume final sont ceux du produit — ils sont donc identiques",
+              " sur toutes ses lignes."),
+            DT::DTOutput(ns("dilSaisie")),
+            shiny::br(),
+            shiny::actionButton(ns("dilCalculer"),
+              shiny::tagList(shiny::icon("calculator"), " Calculer les solutions filles"),
+              class = "btn-primary"),
+            shiny::actionButton(ns("dilLigne"),
+              shiny::tagList(shiny::icon("plus"), " Ligne vide"), class = "btn-sm"),
+            shiny::actionButton(ns("dilVider"),
+              shiny::tagList(shiny::icon("eraser"), " Vider le tableau"),
+              class = "btn-sm"))),
 
         shiny::fluidRow(
           shinydashboard::box(
@@ -576,22 +736,130 @@ mod_dosage_server <- function(id, values) {
     }, ignoreInit = TRUE)
 
     # ------------------------------------------------------------ dilution
-    saisie <- shiny::reactiveVal(hstat_dilution_table_vide(3))
+    # Le tableau part VIDE : les produits y sont deposes par le formulaire.
+    # Une ligne d'exemple prete a etre calculee ferait sortir un resultat que
+    # personne n'a demande.
+    saisie <- shiny::reactiveVal(hstat_dilution_table_vide(0))
 
-    shiny::observeEvent(input$dilNlignes, {
-      n <- max(1L, min(60L, as.integer(.hstat_num1(input$dilNlignes, 3))))
+    # -- Une paire de champs par matiere active ----------------------------
+    # Les valeurs deja saisies sont relues avant de reconstruire les champs :
+    # sans cela, passer de 2 a 3 matieres actives effacerait les deux
+    # premieres, ce qui est exactement le moment ou on ne veut pas ressaisir.
+    output$dilMaUi <- shiny::renderUI({
+      n <- max(1L, min(10L, as.integer(.hstat_num1(input$dilNbMa, 1))))
+      lapply(seq_len(n), function(i) {
+        nom <- shiny::isolate(input[[paste0("dilMaNom", i)]]) %||% ""
+        cnc <- shiny::isolate(input[[paste0("dilMaConc", i)]])
+        shiny::fluidRow(
+          shiny::column(7, shiny::textInput(ns(paste0("dilMaNom", i)),
+            if (i == 1L) "Matière active" else NULL, value = nom,
+            placeholder = if (i == 1L) "ex : Lambda-cyhalothrine" else NULL)),
+          shiny::column(5, shiny::numericInput(ns(paste0("dilMaConc", i)),
+            if (i == 1L) "Concentration mère" else NULL,
+            value = if (is.null(cnc)) NA_real_ else cnc, min = 0, step = 1)))
+      })
+    })
+
+    # -- Reprise du calcul de dose ----------------------------------------
+    # L'utilisateur a deja saisi son produit dans l'onglet precedent : lui
+    # faire retaper le nom, la matiere active et la concentration serait le
+    # meilleur moyen d'introduire un ecart entre les deux onglets.
+    shiny::observeEvent(input$dilImport, {
+      d <- dose_res()
+      if (!nrow(d)) {
+        shiny::showNotification(
+          tr("Le calcul de dose n'a rien produit : complétez l'onglet « Dose et grammage à l'hectare » avant de reprendre ses valeurs."),
+          type = "warning", duration = 8)
+        return()
+      }
+      src <- input$dilSource %||% "conc_bouillie"
+      vb  <- .hstat_num1(input$doseBouillie, NA_real_)
+      val <- switch(src,
+        conc_produit  = .hstat_num1(input$doseConc, NA_real_),
+        grammage      = attr(d, "grammage"),
+        conc_bouillie = if (isTRUE(is.finite(vb)) && vb > 0)
+                          attr(d, "grammage") / vb else NA_real_)
+      unite <- if (identical(src, "conc_produit")) (input$doseConcUnite %||% "g/L") else "g/L"
+      if (!isTRUE(is.finite(val))) {
+        shiny::showNotification(
+          tr("Valeur non calculable : renseignez le volume de bouillie dans l'onglet « Dose et grammage à l'hectare »."),
+          type = "warning", duration = 8)
+        return()
+      }
+      shiny::updateTextInput(session, "dilProduit", value = attr(d, "produit"))
+      shiny::updateSelectInput(session, "dilUnite", selected = unite)
+      shiny::updateNumericInput(session, "dilNbMa", value = 1)
+      shiny::updateTextInput(session, "dilMaNom1", value = attr(d, "matiere"))
+      shiny::updateNumericInput(session, "dilMaConc1", value = round(val, 6))
+      # Le grammage est une quantite A L'HECTARE, pas une concentration : le
+      # reprendre tel quel comme concentration mere est un choix de
+      # l'utilisateur, il doit savoir ce qu'il vient de faire.
+      shiny::showNotification(
+        if (identical(src, "grammage"))
+          trf("Grammage repris comme concentration mère : %s. Vérifiez l'unité — un grammage s'exprime par hectare, une concentration par litre.",
+              hstat_fmt_nb(val, 4))
+        else trf("Valeur reprise : %s %s.", hstat_fmt_nb(val, 4), unite),
+        type = "message", duration = 8)
+    })
+
+    # -- Ajout du produit au tableau ---------------------------------------
+    shiny::observeEvent(input$dilAjouter, {
+      nom <- trimws(input$dilProduit %||% "")
+      if (!nzchar(nom)) {
+        shiny::showNotification(
+          tr("Nommez le produit avant de l'ajouter : c'est le nom qui regroupe ses matières actives."),
+          type = "warning", duration = 6)
+        return()
+      }
+      n <- max(1L, min(10L, as.integer(.hstat_num1(input$dilNbMa, 1))))
+      mas <- vapply(seq_len(n), function(i)
+        trimws(input[[paste0("dilMaNom", i)]] %||% ""), character(1))
+      cnc <- vapply(seq_len(n), function(i)
+        .hstat_num1(input[[paste0("dilMaConc", i)]], NA_real_), numeric(1))
+      # Une matiere active sans nom se nomme d'elle-meme : « Matière active 2 »
+      # vaut mieux qu'une cellule vide qui ferait echouer le calcul.
+      vides <- !nzchar(mas)
+      mas[vides] <- trf("Matière active %d", seq_len(n))[vides]
+      if (all(!is.finite(cnc))) {
+        shiny::showNotification(
+          tr("Renseignez la concentration mère d'au moins une matière active."),
+          type = "warning", duration = 6)
+        return()
+      }
+      ajout <- data.frame(
+        Produit            = rep(nom, n),
+        Matiere_active     = mas,
+        Concentration_mere = cnc,
+        Unite              = rep(input$dilUnite %||% "g/L", n),
+        Coefficient        = rep(.hstat_num1(input$dilCoef, NA_real_), n),
+        Nb_filles          = rep(.hstat_num1(input$dilNb, 1), n),
+        Volume_final       = rep(.hstat_num1(input$dilVf, NA_real_), n),
+        Unite_volume       = rep(input$dilVfUnite %||% "mL", n),
+        stringsAsFactors   = FALSE)
       d <- saisie()
-      if (nrow(d) == n) return()
-      d <- if (nrow(d) > n) d[seq_len(n), , drop = FALSE]
-           else rbind(d, hstat_dilution_table_vide(n - nrow(d)))
+      # Ajouter deux fois le meme produit decrirait deux preparations sous un
+      # seul nom : on remplace ses lignes plutot que de les empiler.
+      d <- d[trimws(as.character(d$Produit)) != nom, , drop = FALSE]
+      d <- rbind(d, ajout)
       rownames(d) <- NULL
       saisie(d)
-    }, ignoreInit = TRUE)
+      shiny::showNotification(
+        trf("%s ajouté : %d matière(s) active(s).", nom, n),
+        type = "message", duration = 5)
+    })
+
+    shiny::observeEvent(input$dilLigne, {
+      d <- rbind(saisie(), hstat_dilution_table_vide(1))
+      rownames(d) <- NULL
+      saisie(d)
+    })
+
+    shiny::observeEvent(input$dilVider, saisie(hstat_dilution_table_vide(0)))
 
     output$dilSaisie <- DT::renderDT({
       DT::datatable(hstat_dilution_affichage(saisie()), rownames = FALSE,
                     editable = list(target = "cell"), selection = "none",
-                    options = list(dom = "t", pageLength = 60, ordering = FALSE,
+                    options = list(dom = "t", pageLength = 100, ordering = FALSE,
                                    scrollX = TRUE))
     })
 
@@ -608,7 +876,12 @@ mod_dosage_server <- function(id, values) {
 
     dilution <- shiny::eventReactive(input$dilCalculer, hstat_dilution_calcul(saisie()))
 
-    output$dilMessage <- shiny::renderUI(bandeau(attr(dilution(), "message")))
+    # Deux bandeaux distincts : l'echec (rien n'est calcule) et l'avertissement
+    # (le calcul tient, mais le plan de gamme ne se realise pas a la paillasse).
+    output$dilMessage <- shiny::renderUI({
+      shiny::tagList(bandeau(attr(dilution(), "message")),
+                     bandeau(attr(dilution(), "avertissement")))
+    })
 
     dil_affiche <- shiny::reactive({
       d <- dilution()
@@ -621,9 +894,9 @@ mod_dosage_server <- function(id, values) {
     output$dilTable <- DT::renderDT({
       d <- dil_affiche()
       shiny::validate(shiny::need(!is.null(d),
-        tr("Remplissez le tableau, puis cliquez sur « Calculer les solutions filles ».")))
+        tr("Ajoutez un produit, puis cliquez sur « Calculer les solutions filles ».")))
       DT::datatable(d, rownames = FALSE,
-                    options = list(dom = "t", pageLength = 60, ordering = FALSE,
+                    options = list(dom = "t", pageLength = 100, ordering = FALSE,
                                    scrollX = TRUE))
     })
 

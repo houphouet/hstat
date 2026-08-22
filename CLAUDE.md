@@ -1097,6 +1097,68 @@ Il **retire les commentaires par l'analyseur de R**, pas par une heuristique :
 il s'était signalé lui-même sur le commentaire documentant la correction, et un
 faux positif permanent finit toujours par faire désactiver le test.
 
+## Doses et dilutions : chaque résultat porte sa formule
+
+`mod_dosage.R` refait les trois calculs qu'un essai phytosanitaire pose sur un
+coin de table à chaque campagne. Ils reposent sur deux égalités, et sur rien
+d'autre :
+
+```
+grammage = dose × concentration              (conservation de la matière)
+Vi × Ci  = Vf × Cf                           (conservation du soluté)
+```
+
+Règle de conduite du fichier : **chaque résultat est accompagné de la formule
+qui l'a produit**, à l'écran comme dans le fichier exporté. Un chiffre de dose
+qu'on ne peut pas refaire à la main ne sera pas appliqué au champ — il sera
+recalculé, et c'est le recalcul qui fera foi. `HSTAT_DOSE_FORMULES` les écrit
+une seule fois : affichage et export lisent la même chaîne, elles ne peuvent
+donc pas diverger.
+
+### Une unité inconnue ne vaut jamais 1
+
+`.hstat_dose_facteur()` rend `NA`, jamais 1. C'est la faute la plus coûteuse
+que ce module puisse commettre : un facteur muet rendrait un résultat mille
+fois trop grand **sans le moindre signe**, et la dose serait appliquée telle
+quelle. Les deux sens (dose → grammage et grammage → dose) sont vérifiés comme
+exactement réciproques.
+
+### Le prélèvement se fait toujours dans la solution mère
+
+La gamme reste géométrique — `C_n = C_(n-1) / k`, donc `C_n = C_mère / k^n` —
+mais **Vi se lit sur la mère**, pas sur la fille précédente :
+
+```
+Vi_n × C_mère = Vf × C_n     d'où     Vi_n = Vf / k^n
+```
+
+Confondre les deux donne des volumes justes au premier étage et faux partout
+ensuite, ce qui ne se voit pas. Le volume final `Vf` est celui que
+l'utilisateur déclare, pour **chaque** fille ; l'eau à ajouter en est la
+différence, `Vf − Vi`, à chaque fois.
+
+Conséquence assumée : le prélèvement est divisé par `k` à chaque étage et
+devient vite impipetable — 100 mL au 1/10 demandent 0,001 mL au cinquième
+étage. Le module **le signale** (`attr(res, "avertissement")`) au lieu de
+rendre un nombre que personne ne peut mesurer, et il calcule quand même :
+c'est un plan de gamme à refaire, pas une erreur de calcul.
+
+### Ce qui appartient au produit ne se répète pas sur ses matières actives
+
+L'unité de saisie est le couple (produit, matière active) : c'est ce qui permet
+de détailler la concentration fille de **chaque** matière active tout en
+donnant la concentration totale de la solution. Mais le coefficient, le nombre
+de filles et le volume final décrivent la **préparation** : deux valeurs
+différentes sous le même nom de produit décrivent deux préparations, et le
+module le refuse en nommant le produit plutôt que d'en retenir une au hasard.
+
+De même, le volume à prélever, l'eau à ajouter et la concentration totale ne
+figurent que sur la **première ligne** du couple (produit, rang) : les répéter
+sur chaque matière active ferait croire qu'il faut prélever autant de fois.
+
+Les concentrations sont ramenées à g/L avant d'être sommées : additionner des
+pour-cent et des mg/L donnerait un total qui ne veut rien dire.
+
 ## Variables à valeurs nulles : trois frontières, trois pièges
 
 `hstat_vars_zero()` liste les colonnes dont **toutes les valeurs observées**

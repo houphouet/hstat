@@ -8237,9 +8237,95 @@ test_that("la dilution refuse une saisie contradictoire en nommant le produit", 
 
   # Une ligne ENTIEREMENT vide est un reste de saisie : elle se retire sans
   # un mot, sinon un tableau pre-rempli refuserait de calculer.
-  k4 <- rbind(base, hstat_dilution_table_vide(2))
+  k4 <- rbind(base, hstat_dilution_table_vide(2)[HSTAT_DILUTION_COLS])
   r4 <- hstat_dilution_calcul(k4)
   expect_equal(nrow(r4), 2L)
+})
+
+test_that("la gamme de filles se prend TOUJOURS dans la solution mere", {
+  # Le prelevement se fait dans la mere a chaque etage : une erreur de
+  # pipetage ne se propage donc pas d'une fille a la suivante. La gamme reste
+  # geometrique -- C_n = C_mere / k^n -- mais Vi se lit sur la MERE, jamais
+  # sur la fille precedente. Confondre les deux donne des volumes justes au
+  # premier etage et faux partout ensuite, ce qui ne se voit pas.
+  d <- data.frame(
+    Produit = "P", Matiere_active = c("a", "b"),
+    Concentration_mere = c(400, 50), Unite = "g/L",
+    Coefficient = 10, Nb_filles = 4,
+    Volume_final = 100, Unite_volume = "mL", stringsAsFactors = FALSE)
+  r <- hstat_dilution_calcul(d)
+  expect_equal(nrow(r), 8L)                       # 4 filles x 2 matieres actives
+  expect_equal(sort(unique(r$Rang)), 1:4)
+
+  a <- r[r$Matiere_active == "a", ]
+  a <- a[order(a$Rang), ]
+  expect_equal(a$Concentration_fille, 400 / 10^(1:4))
+  # Chaque fille est la precedente divisee par le coefficient.
+  expect_equal(a$Concentration_precedente, c(400, a$Concentration_fille[1:3]))
+
+  # Vi x C_mere = Vf x Cf, sur CHAQUE fille, avec Ci = concentration MERE.
+  p1 <- r[!is.na(r$Volume_a_prelever), ]
+  for (i in seq_len(nrow(p1)))
+    expect_equal(p1$Volume_a_prelever[i] * p1$Concentration_mere[i],
+                 p1$Volume_final[i] * p1$Concentration_fille[i])
+  # Donc Vi = Vf / k^n, et non Vf / k a tous les etages.
+  expect_equal(sort(p1$Volume_a_prelever, decreasing = TRUE), 100 / 10^(1:4))
+
+  # L'eau ajoutee est la difference Vf - Vi, a chaque fois.
+  expect_equal(p1$Volume_eau_a_ajouter, p1$Volume_final - p1$Volume_a_prelever)
+
+  # Ce que la mere doit fournir : la somme de tous les prelevements, puisqu'ils
+  # viennent tous d'elle. Une seule ligne le porte -- c'est un total.
+  expect_equal(sum(!is.na(r$Volume_mere_requis)), 1L)
+  expect_equal(sum(r$Volume_mere_requis, na.rm = TRUE), sum(100 / 10^(1:4)))
+
+  # Sans Nb_filles, le contrat d'avant la gamme tient : une fille par ligne.
+  d2 <- d[, setdiff(names(d), "Nb_filles")]
+  expect_equal(nrow(hstat_dilution_calcul(d2)), 2L)
+})
+
+test_that("un prelevement impipetable est nomme, pas rendu tel quel", {
+  # 100 mL au 1/10 sur six etages demandent 0,0001 mL au dernier : le calcul
+  # tient, la paillasse non. Un chiffre que personne ne peut mesurer serait
+  # applique quand meme, faute d'un mot pour dire qu'il ne se mesure pas.
+  d <- data.frame(
+    Produit = "P", Matiere_active = "a", Concentration_mere = 400,
+    Unite = "g/L", Coefficient = 10, Nb_filles = 6,
+    Volume_final = 100, Unite_volume = "mL", stringsAsFactors = FALSE)
+  r <- hstat_dilution_calcul(d)
+  expect_equal(nrow(r), 6L)                       # le calcul n'est PAS bloque
+  av <- attr(r, "avertissement")
+  expect_true(!is.null(av) && nzchar(av))
+  expect_true(grepl("P", av, fixed = TRUE))
+  expect_true(grepl("augmentez|réduisez", av))
+
+  # Une gamme realisable ne declenche rien : un avertissement permanent finit
+  # par ne plus etre lu.
+  d2 <- d; d2$Nb_filles <- 3
+  expect_null(attr(hstat_dilution_calcul(d2), "avertissement"))
+
+  # L'unite de volume compte : 100 L au meme rang restent pipetables.
+  d3 <- d; d3$Unite_volume <- "L"
+  expect_null(attr(hstat_dilution_calcul(d3), "avertissement"))
+})
+
+test_that("le nombre de filles est un entier borne, et il appartient au produit", {
+  base <- data.frame(
+    Produit = "P", Matiere_active = c("a", "b"),
+    Concentration_mere = c(10, 20), Unite = "g/L",
+    Coefficient = 10, Nb_filles = 3, Volume_final = 1, Unite_volume = "L",
+    stringsAsFactors = FALSE)
+  for (n in list(c(2.5, 2.5), c(0, 0), c(HSTAT_DILUTION_NB_MAX + 1, HSTAT_DILUTION_NB_MAX + 1))) {
+    k <- base; k$Nb_filles <- n
+    r <- hstat_dilution_calcul(k)
+    expect_equal(nrow(r), 0L)
+    expect_true(grepl("P", attr(r, "message"), fixed = TRUE))
+  }
+  # Deux nombres de filles sous le meme nom decrivent deux preparations.
+  k <- base; k$Nb_filles <- c(3, 4)
+  r <- hstat_dilution_calcul(k)
+  expect_equal(nrow(r), 0L)
+  expect_true(grepl("P", attr(r, "message"), fixed = TRUE))
 })
 
 test_that("le module de doses est branche et depose son contexte", {
