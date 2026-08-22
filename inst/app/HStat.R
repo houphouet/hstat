@@ -39,7 +39,7 @@ if (!exists("ui") || is.null(ui) ||
       inherits(ui, "shiny.tag.function") || is.function(ui))) {
   ui <- shiny::fluidPage(
     shiny::tags$h2("HStat - interface indisponible"),
-    shiny::tags$p("Certains paquets requis n'ont pas pu être charges, ",
+    shiny::tags$p("Certains paquets requis n'ont pas pu être chargés, ",
                   "l'interface n'a donc pas pu être construite."),
     if (!is.null(.hstat_ui_err))
       shiny::tags$pre(style = "background:#fbeaea;padding:8px;border-radius:4px;",
@@ -55,5 +55,9 @@ if (!exists("ui") || is.null(ui) ||
 if (!exists("server") || !is.function(server)) {
   server <- function(input, output, session) {}
 }
+
+# Une dependance web annoncee sous un nom de fichier qui n'existe pas rend
+# un 404 sur chaque page : on la repare avant de servir l'interface.
+ui <- hstat_reparer_deps(ui)
 
 shinyApp(ui, server)

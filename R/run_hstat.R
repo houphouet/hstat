@@ -54,7 +54,7 @@ run_hstat <- function(..., install_missing = TRUE) {
       tryCatch(
         utils::install.packages(missing_pkgs),
         error = function(e)
-          message("Certains paquets n'ont pas pu être installes : ",
+          message("Certains paquets n'ont pas pu être installés : ",
                   conditionMessage(e)))
     }
     # Verifier les paquets STRICTEMENT necessaires a l'interface
@@ -66,7 +66,7 @@ run_hstat <- function(..., install_missing = TRUE) {
     if (length(still) > 0) {
       stop(
         "HStat ne peut pas démarrer : ces paquets d'interface sont ",
-        "manquants et n'ont pas pu être installes :\n  ",
+        "manquants et n'ont pas pu être installés :\n  ",
         paste(still, collapse = ", "),
         "\n\nInstallez-les manuellement puis relancez run_hstat() :\n  ",
         "install.packages(c(",

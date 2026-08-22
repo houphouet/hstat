@@ -67,7 +67,7 @@ install_and_load <- function(packages) {
     still_missing <- to_install[!to_install %in% rownames(utils::installed.packages())]
     if (length(still_missing) > 0) {
       message("\n", strrep("=", 70),
-              "\n  HStat -- certains paquets n'ont pas pu être installes",
+              "\n  HStat -- certains paquets n'ont pas pu être installés",
               "\n  Manquants : ", paste(still_missing, collapse = ", "),
               "\n  Vérifiez votre connexion Internet, puis relancez l'application.",
               "\n  (Installation manuelle : install.packages(c(...)) )",
@@ -6020,6 +6020,41 @@ hstat_y_multi_valides <- function(data, y_vars, x_var = NULL) {
 # machine d'execution qui sait si plotly est la, pas celle de construction.
 layout <- function(p, ...) {
   if (isTRUE(requireNamespace("plotly", quietly = TRUE))) plotly::layout(p, ...) else p
+}
+
+# ---------------------------------------------------------------------------
+# Dependances web declarees mais introuvables
+# ---------------------------------------------------------------------------
+# `shiny::sliderInput()` attache la dependance « strftime » en annoncant
+# `strftime-min.js` -- alors que le paquet livre `strftime.min.js`. Le
+# navigateur recoit un 404 sur CHAQUE page, et une erreur permanente en
+# console masque les vraies. Meme famille que le polyfill `typedarray` de
+# plotly, meme remede : on repare la declaration au lieu de la subir.
+#
+# `resolveDependencies()` garde, a nom egal, la version la plus haute : il
+# suffit donc d'attacher la version corrigee au sommet de l'interface pour
+# qu'elle l'emporte sur celles posees par chaque curseur.
+hstat_reparer_deps <- function(ui) {
+  if (!requireNamespace("htmltools", quietly = TRUE)) return(ui)
+  deps <- tryCatch(htmltools::findDependencies(ui), error = function(e) NULL)
+  if (!length(deps)) return(ui)
+  corrigees <- list()
+  for (d in deps) {
+    rep <- d$src$file
+    if (is.null(rep) || !length(d$script)) next
+    base <- if (!is.null(d$package)) system.file(rep, package = d$package) else rep
+    if (!nzchar(base) || !dir.exists(base)) next
+    js <- unlist(d$script)
+    if (all(file.exists(file.path(base, js)))) next
+    # Le fichier annonce est absent : on cherche le SEUL .js du dossier.
+    reels <- list.files(base, pattern = "[.]js$")
+    if (length(reels) != 1L) next
+    d$script <- reels
+    d$version <- paste0(d$version, ".1")   # gagne a la resolution
+    corrigees[[length(corrigees) + 1L]] <- d
+  }
+  if (!length(corrigees)) return(ui)
+  htmltools::attachDependencies(ui, corrigees, append = TRUE)
 }
 
 hstat_installer_replis_ui <- function(envir = globalenv()) {
