@@ -8044,3 +8044,60 @@ test_that("la traduction anglaise est coherente et typographiee en anglais", {
   j <- d$en[grepl("jeu de donn[ée]es", d$fr, ignore.case = TRUE)]
   expect_equal(j[grepl("\\bdata sets?\\b", j, ignore.case = TRUE)], character(0))
 })
+
+test_that("un attribut interdit par le type de trace est retire avant la construction", {
+  skip_if_not_installed("plotly")
+  skip_if_not_installed("ggplot2")
+  # Une trace « bar » n'a pas de `mode` : c'est un attribut des nuages de
+  # points. Quand la conversion en depose un, `plotly_build()` avertit puis le
+  # jette -- le graphique est juste, mais l'avertissement revient a CHAQUE
+  # rendu et finit par masquer ceux qui comptent. Meme famille que le polyfill
+  # `typedarray`, meme remede : on supprime la cause, pas le symptome.
+  d <- data.frame(x = factor(c("a", "b")), y = c(1, 2))
+  g <- plotly::ggplotly(ggplot2::ggplot(d, ggplot2::aes(x, y)) + ggplot2::geom_col())
+  g$x$data[[1]]$mode <- "markers"
+
+  capte <- function(expr) {
+    w <- character(0)
+    withCallingHandlers(invisible(force(expr)),
+      warning = function(x) { w <<- c(w, conditionMessage(x)); invokeRestart("muffleWarning") })
+    w[grepl("attributes", w, fixed = TRUE)]
+  }
+  # Le defaut existe bel et bien sans le nettoyage : sans cette moitie, le
+  # test passerait meme si `hstat_plotly_clean()` ne faisait rien.
+  expect_gt(length(capte(plotly::plotly_build(g))), 0L)
+  expect_equal(capte(hstat_plotly_clean(g)), character(0))
+
+  # Un `mode` legitime sur un nuage de points n'est PAS touche.
+  s <- plotly::ggplotly(ggplot2::ggplot(d, ggplot2::aes(x, y)) + ggplot2::geom_point())
+  s$x$data[[1]]$mode <- "markers"
+  expect_equal(.hstat_plotly_attrs(s)$x$data[[1]]$mode, "markers")
+})
+
+test_that("une efficacite indeterminable est nommee, pas escamotee", {
+  # La formule d'Abbott rend NA des que le temoin vaut zero. La barre
+  # disparait alors du graphique, l'axe garde sa place vide, et le seul signal
+  # partait dans la console de R. L'utilisateur voyait un trou.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- paste(readLines(file.path(root, "R", "mod_threshold.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+
+  # Le decompte porte sur les valeurs NON FINIES, pas seulement sur celles qui
+  # sortent des bornes : c'est ce qui manquait.
+  expect_true(grepl("absentes <- !is.finite(plot_data$Efficacy)", src, fixed = TRUE))
+  expect_true(grepl("seuilSansValeur", src, fixed = TRUE))
+  # Le message nomme les modalites concernees : « une valeur manquante »
+  # n'aide pas a la retrouver dans un tableau de onze traitements.
+  expect_true(grepl("plot_data$Treatment[absentes]", src, fixed = TRUE))
+
+  # Et l'avertissement de ggplot devient redondant : chaque `geom_col` du
+  # module porte `na.rm = TRUE`, sinon la console repete ce que l'interface
+  # vient de dire.
+  cols <- gregexpr("geom_col, c\\(list\\(.{0,180}", src, perl = TRUE)
+  args <- regmatches(src, cols)[[1]]
+  expect_gt(length(args), 0L)
+  expect_true(all(grepl("na.rm = TRUE", args, fixed = TRUE)),
+              info = paste(args[!grepl("na.rm = TRUE", args, fixed = TRUE)],
+                           collapse = "\n"))
+})

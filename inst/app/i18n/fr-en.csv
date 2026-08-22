@@ -1635,3 +1635,4 @@
 "Hétéroscédasticité détectée","Heteroscedasticity detected"
 "Code","Code"
 "Sous-titre","Subtitle"
+"%d modalité(s) sans efficacité calculable : aucune barre n'est tracée pour %s. Vérifiez le témoin (une valeur nulle rend la formule indéfinie) et les valeurs manquantes.","%d category(ies) with no computable efficacy: no bar is drawn for %s. Check the control (a zero value makes the formula undefined) and the missing values."
