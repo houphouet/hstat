@@ -21,7 +21,7 @@ mod_tests_ui <- function(id) {
                                             shiny::conditionalPanel(
                                               ns = ns,
                                               condition = "input.testsRoundResults == true",
-                                              shiny::numericInput(ns("testsDecimals"), "Décimales:", value = 2, min = 0, max = 8, step = 1)
+                                              shiny::numericInput(ns("testsDecimals"), "Décimales :", value = 2, min = 0, max = 8, step = 1)
                                             )
                                      )
                                    )
@@ -47,7 +47,7 @@ mod_tests_ui <- function(id) {
                                                                     "Gamma"               = "Gamma",
                                                                     "Binomiale négative"  = "nbinom",
                                                                     "Inverse gaussienne"  = "inverse.gaussian",
-                                                                    "Beta (glmmTMB)"      = "beta_family",
+                                                                    "Bêta (glmmTMB)"      = "beta_family",
                                                                     "Tweedie (glmmTMB)"   = "tweedie"),
                                                         selected = "gaussian")
                                      )
@@ -245,7 +245,7 @@ mod_tests_ui <- function(id) {
                     shiny::div(id = "boxWrap_manovaAssist",
                         shinydashboard::box(
                           title = shiny::tagList(shiny::icon("layer-group"),
-                                          " Analyse multivariee assistee (MANOVA / PERMANOVA)"),
+                                          " Analyse multivariée assistée (MANOVA / PERMANOVA)"),
                           status = "success", width = 12, solidHeader = TRUE,
                           collapsible = TRUE, collapsed = TRUE,
                         
@@ -274,13 +274,13 @@ mod_tests_ui <- function(id) {
                                       ),
                                     
                                       shiny::tabPanel(
-                                        title = shiny::tagList(shiny::icon("clipboard-check"), " 2. Details techniques"),
+                                        title = shiny::tagList(shiny::icon("clipboard-check"), " 2. Détails techniques"),
                                         value = "manova_prereq", shiny::br(),
                                       
                                         shiny::div(style = "background:#fff8e1; border-left:4px solid #fb8c00; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
                                             shiny::icon("info-circle", style = "color:#e65100;"),
                                             shiny::strong(" Pour les utilisateurs avancés : "),
-                                            "consultez les valeurs brutes des tests de prerequis. ",
+                                            "consultez les valeurs brutes des tests de prérequis. ",
                                             "L'assistant a déjà synthétisé ces résultats dans l'onglet 'Diagnostic & recommandation'."
                                         ),
                                       
@@ -305,22 +305,22 @@ mod_tests_ui <- function(id) {
                                           shiny::br()
                                         ),
                                       
-                                        shiny::h5(shiny::icon("chart-area"), " Normalite multivariee (Mardia)",
+                                        shiny::h5(shiny::icon("chart-area"), " Normalité multivariée (Mardia)",
                                            style = "color:#1565C0; margin-top:0;"),
                                         withSpinner(DT::DTOutput(ns("manovaMardiaTable")), color = "#1565C0"),
                                         shiny::uiOutput(ns("manovaMardiaInterpretation")),
                                         shiny::br(),
                                       
-                                        shiny::h5(shiny::icon("balance-scale"), " Homogeneite des covariances (Box\'s M)",
+                                        shiny::h5(shiny::icon("balance-scale"), " Homogénéité des covariances (Box\'s M)",
                                            style = "color:#1565C0;"),
                                         withSpinner(DT::DTOutput(ns("manovaBoxMTable")), color = "#1565C0"),
                                         shiny::uiOutput(ns("manovaBoxMInterpretation")),
                                         shiny::br(),
                                       
-                                        shiny::h5(shiny::icon("project-diagram"), " Homogeneite des dispersions (PERMDISP)",
+                                        shiny::h5(shiny::icon("project-diagram"), " Homogénéité des dispersions (PERMDISP)",
                                            style = "color:#f39c12;"),
                                         shiny::div(style = "font-size:11px; color:#6c757d; margin-bottom:6px;",
-                                            shiny::icon("info-circle"), " Equivalent multivarie non parametrique du test de Levene."),
+                                            shiny::icon("info-circle"), " Équivalent multivarié non paramétrique du test de Levene."),
                                         withSpinner(DT::DTOutput(ns("manovaPermDispTable")), color = "#f39c12"),
                                         shiny::uiOutput(ns("manovaPermDispInterpretation"))
                                       ),
@@ -337,11 +337,11 @@ mod_tests_ui <- function(id) {
                                           shiny::br(),
                                           shiny::div(style = "background:#fff3e0; border:2px solid #fb8c00; border-radius:8px; padding:14px 18px; margin-top:14px;",
                                               shiny::h4(shiny::icon("project-diagram"),
-                                                 " Decomposition de l\'interaction (effets simples)",
+                                                 " Décomposition de l\'interaction (effets simples)",
                                                  style = "color:#e65100; margin-top:0;"),
                                               shiny::p(style = "color:#555; font-size:13px;",
-                                                "Une interaction est significative : l\'effet d\'un facteur depend du niveau de l\'autre. ",
-                                                "Choisissez un facteur a ", shiny::em("fixer"), " et un facteur a ", shiny::em("tester"),
+                                                "Une interaction est significative : l\'effet d\'un facteur dépend du niveau de l\'autre. ",
+                                                "Choisissez un facteur à ", shiny::em("fixer"), " et un facteur à ", shiny::em("tester"),
                                                 ", puis cliquez ", shiny::strong("Calculer"), "."),
                                               shiny::uiOutput(ns("manovaSimpleEffectsSelectors")),
                                               shiny::br(),
@@ -351,7 +351,7 @@ mod_tests_ui <- function(id) {
                                                 withSpinner(DT::DTOutput(ns("manovaSimpleEffectsTable")), color = "#fb8c00"),
                                                 shiny::div(style = "font-size:11px; color:#888; margin-top:8px;",
                                                     shiny::icon("info-circle"),
-                                                    " Les p-valeurs sont ajustees par Bonferroni sur l\'ensemble des niveaux fixes.")
+                                                    " Les p-valeurs sont ajustées par Bonferroni sur l\'ensemble des niveaux fixes.")
                                               )
                                           )
                                         )
@@ -366,7 +366,7 @@ mod_tests_ui <- function(id) {
                                        shiny::h6(shiny::icon("magic"), " Diagnostic automatique",
                                           style = "margin-top:0; color:#1565C0; font-weight:bold;"),
                                        shiny::p(style = "font-size:11px; color:#555; margin-bottom:8px;",
-                                         "Verifie les prerequis et recommande le test optimal."),
+                                         "Vérifie les prérequis et recommande le test optimal."),
                                        shiny::actionButton(ns("runManovaDiagnostic"),
                                                     shiny::tagList(shiny::icon("magic"), " Diagnostiquer mes données"),
                                                     class = "btn-primary btn-block",
@@ -405,7 +405,7 @@ mod_tests_ui <- function(id) {
                   shiny::fluidRow(
                     shiny::div(id = "boxWrap_manovaPlaceholder",
                         shinydashboard::box(
-                          title = shiny::tagList(shiny::icon("magic"), " Analyse multivariee assistee"),
+                          title = shiny::tagList(shiny::icon("magic"), " Analyse multivariée assistée"),
                           status = "info", width = 12, solidHeader = TRUE,
                           collapsible = TRUE, collapsed = TRUE,
                           shiny::div(style = "padding:20px; text-align:center;",
@@ -699,7 +699,7 @@ mod_posthoc_ui <- function(id) {
                                           "LSD (Fisher)" = "lsd", 
                                           "Duncan" = "duncan", 
                                           "SNK (Student-Newman-Keuls)" = "snk",
-                                          "Scheffe (conservateur)" = "scheffe",
+                                          "Scheffé (conservateur)" = "scheffe",
                                           "REGW" = "regw",
                                           "Waller-Duncan" = "waller",
                                           "Bonferroni" = "bonferroni",
@@ -974,7 +974,7 @@ mod_posthoc_ui <- function(id) {
                                           shiny::icon("sliders-h", style = "margin-right: 10px;"),
                                           shiny::tags$strong("Options du graphique"),
                                           shiny::tags$span(style = "margin-left:12px; font-size:12px; opacity:.85;",
-                                                    "toute la mise en forme, de la palette a l'export"),
+                                                    "toute la mise en forme, de la palette à l'export"),
                                           shiny::tags$span(style = "margin-left: auto; font-size: 12px; opacity: 0.85;",
                                                     shiny::icon("chevron-down"), " Développer / Réduire")
                                         ),
@@ -1624,11 +1624,11 @@ mod_correlation_server <- function(id, values) {
     shiny::observeEvent(cor_results(), {
       res <- tryCatch(cor_results(), error = function(e) NULL)
       if (is.null(res) || !NROW(res)) return()
-      hstat_ai_capture(values, "Correlations",
-        sprintf("Tests de correlation (%s)",
+      hstat_ai_capture(values, "Corrélations",
+        sprintf("Tests de corrélation (%s)",
                 paste(unique(if ("Methode" %in% names(res)) res$Methode
                              else input$corTestMethod %||% "pearson"), collapse = ", ")),
-        tables = list("Correlations par paire" = res),
+        tables = list("Corrélations par paire" = res),
         meta = list(variables = input$corTestVars,
                     `correction des p` = input$corTestAdjust,
                     `niveau de confiance` = input$corTestConf))
@@ -1731,7 +1731,7 @@ mod_correlation_server <- function(id, values) {
       # Retire les colonnes parfaitement colineaires (|r| ~ 1) qui rendent la matrice
       # singuliere et font echouer le reordonnancement hierarchique (solve()).
       if (identical(method, "kendall"))
-        cor_data <- hstat_cap_df_rows(cor_data, HSTAT_KENDALL_MAX_N, "Correlation de Kendall")
+        cor_data <- hstat_cap_df_rows(cor_data, HSTAT_KENDALL_MAX_N, "Corrélation de Kendall")
       cm0 <- suppressWarnings(stats::cor(cor_data, use = "pairwise.complete.obs", method = method))
       if (!is.null(cm0)) {
         cm0[is.na(cm0)] <- 0
@@ -1750,7 +1750,7 @@ mod_correlation_server <- function(id, values) {
         return(invisible())
       }
       if (identical(method, "kendall"))
-        cor_data <- hstat_cap_df_rows(cor_data, HSTAT_KENDALL_MAX_N, "Correlation de Kendall")
+        cor_data <- hstat_cap_df_rows(cor_data, HSTAT_KENDALL_MAX_N, "Corrélation de Kendall")
       cor_matrix <- suppressWarnings(stats::cor(cor_data, use = "complete.obs", method = method))
       p_matrix <- tryCatch(
         corrplot::cor.mtest(cor_data, conf.level = 1 - sig_level, method = method)$p,
@@ -2060,7 +2060,7 @@ mod_tests_server <- function(id, values) {
       shiny::showNotification(shiny::HTML(paste0("<b>Erreur(s):</b><br>", paste(errors, collapse = "<br>"))),
                        type = "error", duration = 12)
     if (length(skipped) > 0)
-      shiny::showNotification(paste0("Déjà existante(s): ", paste(skipped, collapse = ", ")),
+      shiny::showNotification(paste0("Déjà existante(s) : ", paste(skipped, collapse = ", ")),
                        type = "warning", duration = 5)
     if (length(added) > 0) {
       values$filteredData      <- df
@@ -2868,7 +2868,7 @@ mod_tests_server <- function(id, values) {
       values$currentTestType <- "non-parametric"
       
       shiny::showNotification(
-        paste("Test Scheirer-Ray-Hare terminé:", length(results_list), "résultat(s) généré(s)"),
+        paste("Test Scheirer-Ray-Hare terminé :", length(results_list), "résultat(s) généré(s)"),
         type = "message",
         duration = 3
       )
@@ -3122,7 +3122,7 @@ mod_tests_server <- function(id, values) {
         titre = "Inverse gaussienne",
         txt   = "Données continues positives très fortement asymétriques (queue à droite plus longue que Gamma). Cas plus rare. Lien canonique : 1/µ²."),
       "beta_family" = list(
-        titre = "Beta (glmmTMB)",
+        titre = "Bêta (glmmTMB)",
         txt   = "Proportions/taux continus strictement dans ]0,1[ (0 et 1 exclus), NON issus d'un comptage : taux de couverture, fraction de surface atteinte, indices bornés. Lien : logit."),
       "tweedie" = list(
         titre = "Tweedie (glmmTMB)",
@@ -3141,7 +3141,7 @@ mod_tests_server <- function(id, values) {
     info <- switch(lk,
       "auto" = list(
         titre = "Automatique (lien canonique)",
-        txt   = "À privilégier par défaut : applique le lien naturel de la famille (identity pour gaussienne, logit pour binomiale/Beta, log pour Poisson/Gamma/nbinom, 1/µ² pour inverse gaussienne). Estimation stable, interprétation cohérente."),
+        txt   = "À privilégier par défaut : applique le lien naturel de la famille (identity pour gaussienne, logit pour binomiale/Bêta, log pour Poisson/Gamma/nbinom, 1/µ² pour inverse gaussienne). Estimation stable, interprétation cohérente."),
       "identity" = list(
         titre = "identity (µ = prédicteur)",
         txt   = "Effets ADDITIFS, coefficients directement dans l'unité de Y. Lien naturel de la gaussienne. À éviter avec familles bornées (Poisson, binomiale) : peut prédire des valeurs impossibles."),
@@ -3150,7 +3150,7 @@ mod_tests_server <- function(id, values) {
         txt   = "Effets MULTIPLICATIFS : exp(coef) = ratio (facteur multiplicatif). Canonique pour Poisson, usuel pour Gamma et binomiale négative. Pour comptages/réponses positives ; garantit des prédictions > 0."),
       "logit" = list(
         titre = "logit (log-odds)",
-        txt   = "Pour probabilités/proportions : exp(coef) = odds ratio. Choix par défaut des données binaires (présence/absence) et taux dans ]0,1[. Courbe symétrique autour de p = 0,5. Canonique : binomiale, Beta."),
+        txt   = "Pour probabilités/proportions : exp(coef) = odds ratio. Choix par défaut des données binaires (présence/absence) et taux dans ]0,1[. Courbe symétrique autour de p = 0,5. Canonique : binomiale, Bêta."),
       "probit" = list(
         titre = "probit",
         txt   = "Alternative au logit pour données binaires/binomiales, basée sur la loi normale. Ajustement très proche du logit. Préféré en économétrie, psychométrie, toxicologie (dose-réponse) ou si variable latente gaussienne."),
@@ -3399,7 +3399,7 @@ mod_tests_server <- function(id, values) {
                          var, rng[1], rng[2])
       } else if (fam == "beta_family") {
         if (rng[1] <= 0 || rng[2] >= 1)
-          msg <- trf("La famille « Beta » exige une réponse strictement comprise entre 0 et 1 (exclus), mais « %s » varie de %.3g à %.3g. Pour des proportions incluant 0 ou 1, utilisez la binomiale ; pour du continu positif, la Gamma.",
+          msg <- trf("La famille « Bêta » exige une réponse strictement comprise entre 0 et 1 (exclus), mais « %s » varie de %.3g à %.3g. Pour des proportions incluant 0 ou 1, utilisez la binomiale ; pour du continu positif, la Gamma.",
                          var, rng[1], rng[2])
       } else if (fam == "poisson") {
         if (rng[1] < 0)
@@ -5160,7 +5160,7 @@ mod_tests_server <- function(id, values) {
         hstat_shapiro(residuals_data)
       }
     }, error = function(e) {
-      cat("Erreur dans le test de normalité:", e$message, "\n")
+      cat("Erreur dans le test de normalité :", e$message, "\n")
     })
   })
   
@@ -5222,7 +5222,7 @@ mod_tests_server <- function(id, values) {
       car::leveneTest(residuals ~ fitted_group, data = test_data)
       
     }, error = function(e) {
-      cat("Erreur dans le test d'homogénéité:", e$message, "\n")
+      cat("Erreur dans le test d'homogénéité :", e$message, "\n")
     })
   })
   
@@ -5282,7 +5282,7 @@ mod_tests_server <- function(id, values) {
       lmtest::dwtest(values$currentModel)
       
     }, error = function(e) {
-      cat("Erreur dans le test de Durbin-Watson:", e$message, "\n")
+      cat("Erreur dans le test de Durbin-Watson :", e$message, "\n")
     })
   })
   
@@ -6200,7 +6200,7 @@ mod_tests_server <- function(id, values) {
           if (!is.factor(df_var[[fvar]])) df_var[[fvar]] <- factor(as.character(df_var[[fvar]]))
           df_var[[fvar]] <- droplevels(df_var[[fvar]])
           if (nlevels(df_var[[fvar]]) < 2) {
-            shiny::showNotification(paste0("PostHoc '", fvar, "': moins de 2 niveaux après nettoyage."), type="warning", duration=4)
+            shiny::showNotification(paste0("PostHoc '", fvar, "' : moins de 2 niveaux après nettoyage."), type="warning", duration=4)
             next
           }
           if (nrow(df_var) < 4) { next }
@@ -6218,7 +6218,7 @@ mod_tests_server <- function(id, values) {
                                 "regw" = agricolae::REGW.test,
                                 "waller" = agricolae::waller.test)
               if (length(levels(df[[fvar]])) < 2) {
-                shiny::showNotification(paste0("PostHoc '", fvar, "': moins de 2 niveaux, test ignoré."), type="warning", duration=4)
+                shiny::showNotification(paste0("PostHoc '", fvar, "' : moins de 2 niveaux, test ignoré."), type="warning", duration=4)
                 next
               }
               # Ajustement des p-values : LSD accepte p.adj ; les autres
@@ -6415,7 +6415,7 @@ mod_tests_server <- function(id, values) {
             # SI INTERACTION SIGNIFICATIVE : DÉCOMPOSITION BIDIRECTIONNELLE 
             if (!is.na(interaction_pvalue) && interaction_pvalue < 0.05) {
               shiny::showNotification(
-                paste0("[OK] Interaction significative détectée: ", fvar1, " x ", fvar2, 
+                paste0("[OK] Interaction significative détectée : ", fvar1, " x ", fvar2, 
                        " (p = ", round(interaction_pvalue, 4), ")\n",
                        "-> Décomposition bidirectionnelle en cours..."),
                 type = "warning", duration = 5
@@ -6496,7 +6496,7 @@ mod_tests_server <- function(id, values) {
               )
             } else if (!is.na(interaction_pvalue)) {
               shiny::showNotification(
-                paste0("[--] Interaction non significative: ", fvar1, " x ", fvar2, 
+                paste0("[--] Interaction non significative : ", fvar1, " x ", fvar2, 
                        " (p = ", round(interaction_pvalue, 4), ")"),
                 type = "default", duration = 3
               )
@@ -6535,7 +6535,7 @@ mod_tests_server <- function(id, values) {
             if (vname %in% names(log_bt)) {
               entry  <- log_bt[[vname]]
               rows_v <- combined_results$Variable == vname
-              for (col in c("Moyenne", "Erreur_type", "Écart_type")) {
+              for (col in c("Moyenne", "Erreur_type", "Ecart_type")) {
                 if (col %in% names(combined_results)) {
                   vals_orig <- as.numeric(combined_results[rows_v, col])
                   combined_results[rows_v, col] <- round(
@@ -6545,10 +6545,10 @@ mod_tests_server <- function(id, values) {
                     ), 4)
                 }
               }
-              if (all(c("Moyenne","Écart_type","Erreur_type","groups") %in% names(combined_results))) {
-                combined_results[rows_v, "Moyenne±Écart_type"]  <- paste0(
+              if (all(c("Moyenne","Ecart_type","Erreur_type","groups") %in% names(combined_results))) {
+                combined_results[rows_v, "Moyenne±Ecart_type"]  <- paste0(
                   combined_results[rows_v,"Moyenne"], "±",
-                  combined_results[rows_v,"Écart_type"], " ",
+                  combined_results[rows_v,"Ecart_type"], " ",
                   combined_results[rows_v,"groups"])
                 combined_results[rows_v, "Moyenne±Erreur_type"] <- paste0(
                   combined_results[rows_v,"Moyenne"], "±",
@@ -7151,7 +7151,7 @@ mod_tests_server <- function(id, values) {
     
     if (nrow(main_data) == 0) return(NULL)
     
-    cols_to_show <- c("Variable", "Facteur", "Moyenne", "Écart_type", "Erreur_type", "CV", "groups", "N", "Moyenne±Écart_type", "Moyenne±Erreur_type")
+    cols_to_show <- c("Variable", "Facteur", "Moyenne", "Ecart_type", "Erreur_type", "CV", "groups", "N", "Moyenne±Ecart_type", "Moyenne±Erreur_type")
     
     for (fvar in input$multiFactor) {
       if (fvar %in% colnames(main_data)) {
@@ -7183,7 +7183,7 @@ mod_tests_server <- function(id, values) {
     if (isTRUE(input$multiRoundResults)) {
       dec <- if (is.null(input$multiDecimals) || is.na(input$multiDecimals)) 2
       else as.integer(input$multiDecimals)
-      round_cols <- intersect(c("Moyenne", "Écart_type", "Erreur_type", "CV"),
+      round_cols <- intersect(c("Moyenne", "Ecart_type", "Erreur_type", "CV"),
                               cols_to_show)
       if (length(round_cols) > 0)
         dt <- dt %>% DT::formatRound(columns = round_cols, digits = dec)
@@ -7215,7 +7215,7 @@ mod_tests_server <- function(id, values) {
     }
     
     cols_to_show <- c("Variable", "Facteur", "Direction", "Interaction_base", "P_interaction", 
-                      "Moyenne", "Écart_type", "Erreur_type", "CV", "groups", "N", "Moyenne±Écart_type", "Moyenne±Erreur_type")
+                      "Moyenne", "Ecart_type", "Erreur_type", "CV", "groups", "N", "Moyenne±Ecart_type", "Moyenne±Erreur_type")
     
     for (fvar in input$multiFactor) {
       if (fvar %in% colnames(simple_data)) {
@@ -7243,7 +7243,7 @@ mod_tests_server <- function(id, values) {
     if (isTRUE(input$multiRoundResults)) {
       dec <- if (is.null(input$multiDecimals) || is.na(input$multiDecimals)) 2
       else as.integer(input$multiDecimals)
-      round_cols <- intersect(c("Moyenne", "Écart_type", "Erreur_type", "CV", "P_interaction"),
+      round_cols <- intersect(c("Moyenne", "Ecart_type", "Erreur_type", "CV", "P_interaction"),
                               cols_to_show)
       if (length(round_cols) > 0)
         dt <- dt %>% DT::formatRound(columns = round_cols, digits = dec)
@@ -7402,7 +7402,7 @@ mod_tests_server <- function(id, values) {
     }
     
     shiny::selectInput(ns("selectedSimpleEffect"), 
-                "Sélectionner l'effet simple:",
+                "Sélectionner l'effet simple :",
                 choices = factors,
                 width = "100%")
   })
@@ -7852,7 +7852,7 @@ mod_tests_server <- function(id, values) {
 
     required_cols <- c(fvar, "Moyenne")
     if (!all(required_cols %in% colnames(agg))) {
-      missing <- setdiff(c(fvar, "Moyenne", "Écart_type", "Erreur_type", "groups"), colnames(agg))
+      missing <- setdiff(c(fvar, "Moyenne", "Ecart_type", "Erreur_type", "groups"), colnames(agg))
       posthoc_plot_msg(paste0(
         "Ce graphique ne peut pas être tracé : les résultats ne contiennent pas les colonnes attendues (",
         paste(missing, collapse = ", "),
@@ -7861,7 +7861,7 @@ mod_tests_server <- function(id, values) {
     }
     # Colonnes secondaires optionnelles : on les cree vides si absentes pour ne pas
     # bloquer le trace d'une ANOVA valide qui n'aurait pas tout fourni.
-    if (!"Écart_type" %in% colnames(agg))  agg[["Écart_type"]]  <- NA_real_
+    if (!"Ecart_type" %in% colnames(agg))  agg[["Ecart_type"]]  <- NA_real_
     if (!"Erreur_type" %in% colnames(agg)) agg[["Erreur_type"]] <- NA_real_
     if (!"groups" %in% colnames(agg))      agg[["groups"]]      <- ""
     if (!fvar %in% colnames(plot_data) || !resp_var %in% colnames(plot_data)) {
@@ -7941,9 +7941,9 @@ mod_tests_server <- function(id, values) {
       custom_title
     } else {
       if (input$plotDisplayType == "main") {
-        paste("Effet principal:", resp_var, "par", fvar)
+        paste("Effet principal :", resp_var, "par", fvar)
       } else {
-        paste("Effet simple:", resp_var, "-", input$selectedSimpleEffect)
+        paste("Effet simple :", resp_var, "-", input$selectedSimpleEffect)
       }
     }
     

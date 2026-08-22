@@ -19,35 +19,35 @@
 hstat_power_families <- function() {
   list(
     "t" = c("Corrélation : modèle point biserial"                       = "cor_pb",
-            "Regression bivariee : une pente"                           = "reg_slope",
-            "Moyennes : deux moyennes dependantes (paires appariées)"   = "t_paired",
-            "Moyennes : deux moyennes independantes (deux groupes)"     = "t_two",
-            "Moyennes : difference par rapport a une constante (1 ech.)" = "t_one",
+            "Régression bivariée : une pente"                           = "reg_slope",
+            "Moyennes : deux moyennes dépendantes (paires appariées)"   = "t_paired",
+            "Moyennes : deux moyennes indépendantes (deux groupes)"     = "t_two",
+            "Moyennes : différence par rapport à une constante (1 ech.)" = "t_one",
             "Moyennes : Wilcoxon signed-rank (paires)"                  = "wilcox_paired",
             "Moyennes : Wilcoxon signed-rank (un échantillon)"          = "wilcox_one",
             "Moyennes : Wilcoxon-Mann-Whitney (deux groupes)"           = "mwu",
-            "Test t generique"                                          = "t_generic"),
+            "Test t générique"                                          = "t_generic"),
     "F" = c("ANOVA : effets fixes, omnibus, un facteur"                 = "anova_oneway",
             "ANOVA : effets fixes, effets principaux et interactions"   = "anova_factorial",
-            "ANOVA : mesures repetees, entre facteurs"                  = "rm_between",
-            "ANOVA : mesures repetees, intra facteurs"                  = "rm_within",
-            "ANOVA : mesures repetees, interaction intra-entre"         = "rm_interaction",
+            "ANOVA : mesures répétées, entre facteurs"                  = "rm_between",
+            "ANOVA : mesures répétées, intra facteurs"                  = "rm_within",
+            "ANOVA : mesures répétées, interaction intra-entre"         = "rm_interaction",
             "ANCOVA : effets fixes, effets principaux et interactions"  = "ancova",
             "MANOVA : effets globaux"                                   = "manova_global",
-            "Regression multiple : increment de R2 (modèle fixe)"       = "reg_r2inc",
-            "Regression multiple : R2 écart a zero (modèle fixe)"       = "reg_r2dev",
-            "Test F generique"                                          = "f_generic"),
+            "Régression multiple : incrément de R2 (modèle fixe)"       = "reg_r2inc",
+            "Régression multiple : R2 écart à zéro (modèle fixe)"       = "reg_r2dev",
+            "Test F générique"                                          = "f_generic"),
     "chisq" = c("Ajustement / tables de contingence (GoF)"             = "gof",
-                "Test chi-deux generique"                              = "chisq_generic"),
-    "z" = c("Corrélation : modèle normal bivarie"                      = "cor_biv",
-            "Corrélation : modèle tetrachorique"                       = "cor_tetra",
-            "Corrélations : deux r independants (Pearson)"             = "cor_2indep",
-            "Corrélations : deux r dependants (Pearson)"               = "cor_2dep",
-            "Regression logistique (prédicteur continu)"               = "logistic",
-            "Regression de Poisson (prédicteur continu)"               = "poisson",
-            "Proportions : deux groupes independants"                  = "prop2",
-            "Proportions : difference vs constante (un échantillon)"   = "prop1",
-            "Proportions : McNemar (groupes dependants)"               = "mcnemar",
+                "Test chi-deux générique"                              = "chisq_generic"),
+    "z" = c("Corrélation : modèle normal bivarié"                      = "cor_biv",
+            "Corrélation : modèle tétrachorique"                       = "cor_tetra",
+            "Corrélations : deux r indépendants (Pearson)"             = "cor_2indep",
+            "Corrélations : deux r dépendants (Pearson)"               = "cor_2dep",
+            "Régression logistique (prédicteur continu)"               = "logistic",
+            "Régression de Poisson (prédicteur continu)"               = "poisson",
+            "Proportions : deux groupes indépendants"                  = "prop2",
+            "Proportions : différence vs constante (un échantillon)"   = "prop1",
+            "Proportions : McNemar (groupes dépendants)"               = "mcnemar",
             "Proportions : test du signe"                              = "sign")
   )
 }
@@ -59,17 +59,17 @@ hstat_power_families <- function() {
   if (solve_effect) {
     # Sensibilite : resoudre f pour atteindre 'power' a N fixe (n_total)
     N <- n_total; df2 <- N - groups - covars
-    if (df2 <= 0) return(list(err = "ddl denominateur <= 0 : augmentez la taille."))
+    if (df2 <= 0) return(list(err = "ddl dénominateur <= 0 : augmentez la taille."))
     fcrit <- stats::qf(1 - alpha, df1, df2)
     pw_for_f <- function(ff) 1 - stats::pf(fcrit, df1, df2, ncp = ff^2 * N)
     fsol <- tryCatch(stats::uniroot(function(ff) pw_for_f(ff) - power, c(1e-4, 10))$root,
                      error = function(e) NA)
-    if (is.na(fsol)) return(list(err = "Effet detectable non resolu."))
+    if (is.na(fsol)) return(list(err = "Effet détectable non résolu."))
     list(N = N, df1 = df1, df2 = df2, lambda = fsol^2 * N, crit = fcrit,
          power = power, f = fsol)
   } else if (!is.null(n_total)) {
     N <- n_total; df2 <- N - groups - covars
-    if (df2 <= 0) return(list(err = "ddl denominateur <= 0 : augmentez la taille."))
+    if (df2 <= 0) return(list(err = "ddl dénominateur <= 0 : augmentez la taille."))
     lambda <- f^2 * N
     list(N = N, df1 = df1, df2 = df2, lambda = lambda, f = f,
          crit = stats::qf(1 - alpha, df1, df2),
@@ -83,7 +83,7 @@ hstat_power_families <- function() {
         return(list(N = N, df1 = df1, df2 = df2, lambda = lambda, f = f,
                     crit = stats::qf(1 - alpha, df1, df2), power = pw))
     }
-    list(err = "Taille introuvable dans la plage exploree.")
+    list(err = "Taille introuvable dans la plage explorée.")
   }
 }
 
@@ -117,7 +117,7 @@ hstat_gpower <- function(test, analysis, effect = NULL, effect2 = NULL,
       list(effect = r$d, nper = nper, ntot = 2 * nper, lambda = r$d * sqrt(nn / 2),
            crit = tcrit_lab(df), crit_lab = "t critique",
            df_lab = sprintf("ddl = %d", df), power = r$power,
-           note = if (wil) "Mann-Whitney : n parametrique ajuste par l'efficacite relative asymptotique (~0.864)." else NULL)
+           note = if (wil) "Mann-Whitney : n paramétrique ajuste par l'efficacité relative asymptotique (~0.864)." else NULL)
     } else if (test %in% c("t_paired", "t_one", "wilcox_paired", "wilcox_one")) {
       typ <- if (grepl("paired", test)) "paired" else "one.sample"
       r <- pwr::pwr.t.test(n = na, d = ea, sig.level = alpha, power = pa,
@@ -127,14 +127,14 @@ hstat_gpower <- function(test, analysis, effect = NULL, effect2 = NULL,
       list(effect = r$d, nper = nper, ntot = nper, lambda = r$d * sqrt(nn),
            crit = tcrit_lab(df), crit_lab = "t critique",
            df_lab = sprintf("ddl = %d", df), power = r$power,
-           note = if (wil) "Wilcoxon : n parametrique ajuste par l'efficacite relative asymptotique (~0.864)." else NULL)
+           note = if (wil) "Wilcoxon : n paramétrique ajuste par l'efficacité relative asymptotique (~0.864)." else NULL)
     } else if (test %in% c("cor_pb", "cor_biv", "cor_tetra", "reg_slope")) {
       r <- pwr::pwr.r.test(n = na, r = ea, sig.level = alpha, power = pa, alternative = alt)
       nn <- ceiling(r$n)
       list(effect = r$r, nper = NA, ntot = nn, lambda = NA, crit = zcrit,
            crit_lab = "z critique", df_lab = sprintf("ddl = %d", nn - 2),
            power = r$power,
-           note = if (test == "cor_tetra") "Tetrachorique approxime par le modèle normal bivarie." else NULL)
+           note = if (test == "cor_tetra") "Tétrachorique approximé par le modèle normal bivarié." else NULL)
     } else if (test %in% c("cor_2indep", "cor_2dep")) {
       dep <- (test == "cor_2dep")
       r1 <- effect %||% 0.3; r2 <- effect2 %||% 0
@@ -143,7 +143,7 @@ hstat_gpower <- function(test, analysis, effect = NULL, effect2 = NULL,
       list(effect = abs(atanh(r1) - atanh(r2)), nper = res$nper, ntot = res$ntot,
            lambda = NA, crit = res$crit, crit_lab = "z critique",
            df_lab = sprintf("r1 = %.2f ; r2 = %.2f%s", r1, r2,
-                            if (dep) " (échantillon dependant)" else ""),
+                            if (dep) " (échantillon dépendant)" else ""),
            power = res$power,
            note = "Comparaison de deux coefficients via la transformation z de Fisher.")
     } else if (test == "logistic") {
@@ -155,7 +155,7 @@ hstat_gpower <- function(test, analysis, effect = NULL, effect2 = NULL,
       list(effect = res$effect, nper = NA, ntot = res$n, lambda = NA,
            crit = res$crit, crit_lab = "z critique", df_lab = res$extra,
            power = res$power,
-           note = trf("Regression logistique (Hsieh et al. 1998) : prédicteur %s ; OR par %s.",
+           note = trf("Régression logistique (Hsieh et al. 1998) : prédicteur %s ; OR par %s.",
                           if ((predictor %||% "continuous") == "binary") "binaire (expose/non-expose)" else "continu standardise",
                           if ((predictor %||% "continuous") == "binary") "exposition" else "écart-type"))
     } else if (test == "poisson") {
@@ -166,7 +166,7 @@ hstat_gpower <- function(test, analysis, effect = NULL, effect2 = NULL,
       list(effect = res$effect, nper = NA, ntot = res$n, lambda = NA,
            crit = res$crit, crit_lab = "z critique", df_lab = res$extra,
            power = res$power,
-           note = "Regression de Poisson (Signorini 1991) : prédicteur continu standardise ; RR par écart-type.")
+           note = "Régression de Poisson (Signorini 1991) : prédicteur continu standardise ; RR par écart-type.")
     # ---- Famille F (ANOVA / ANCOVA / MANOVA / mesures repetees / regression) ----
     } else if (test == "anova_oneway") {
       g <- groups %||% k %||% 2
@@ -294,9 +294,9 @@ hstat_power_logistic <- function(analysis = "apriori", p0 = 0.2, OR = 1.5,
 
   if (predictor == "binary") {
     # Hsieh, Bloch & Larsen (1998), eq.(2) : predicteur binaire (expose/non-expose)
-    if (px <= 0 || px >= 1) return(list(err = "La proportion exposee doit être dans ]0,1[."))
+    if (px <= 0 || px >= 1) return(list(err = "La proportion exposée doit être dans ]0,1[."))
     p1 <- p0 * OR / (1 - p0 + p0 * OR)         # prob de l'evenement chez les exposes
-    if (abs(p1 - p0) < 1e-9) return(list(err = "OR doit differer de 1."))
+    if (abs(p1 - p0) < 1e-9) return(list(err = "OR doit différer de 1."))
     pbar <- (1 - px) * p0 + px * p1
     n_from_power <- function(pw) {
       zb <- stats::qnorm(pw)
@@ -334,14 +334,14 @@ hstat_power_logistic <- function(analysis = "apriori", p0 = 0.2, OR = 1.5,
       }
       ORs <- tryCatch(stats::uniroot(f_or, c(1.001, 50))$root, error = function(e) NA)
       list(n = n, effect = ORs, power = power, crit = za,
-           extra = if (is.na(ORs)) "OR non resolu"
-                   else sprintf("OR detectable = %.3f ; p0 = %.3f ; expose = %.0f%%",
+           extra = if (is.na(ORs)) "OR non résolu"
+                   else sprintf("OR détectable = %.3f ; p0 = %.3f ; expose = %.0f%%",
                                 ORs, p0, 100 * px))
     }
   } else {
     # Predicteur continu N(0,1) : Hsieh (1998), forme standardisee
     base_var <- p0 * (1 - p0) * b^2
-    if (base_var <= 0) return(list(err = "OR doit differer de 1 et p0 dans ]0,1[."))
+    if (base_var <= 0) return(list(err = "OR doit différer de 1 et p0 dans ]0,1[."))
     if (analysis == "apriori") {
       zb <- stats::qnorm(power)
       nn <- ((za + zb)^2 / base_var) / (1 - R2_other)
@@ -356,7 +356,7 @@ hstat_power_logistic <- function(analysis = "apriori", p0 = 0.2, OR = 1.5,
       b2 <- (za + zb)^2 / (n * (1 - R2_other) * p0 * (1 - p0))
       OReff <- exp(sqrt(b2))
       list(n = n, effect = OReff, power = power, crit = za,
-           extra = sprintf("OR detectable = %.3f ; p0 = %.3f", OReff, p0))
+           extra = sprintf("OR détectable = %.3f ; p0 = %.3f", OReff, p0))
     }
   }
 }
@@ -369,7 +369,7 @@ hstat_power_poisson <- function(analysis = "apriori", base_rate = 1, RR = 1.3,
                                alt = "two.sided", mean_exposure = 1, R2_other = 0) {
   b <- log(RR); za <- stats::qnorm(1 - alpha / ifelse(alt == "two.sided", 2, 1))
   V1 <- exp(b^2); denom <- base_rate * mean_exposure * b^2
-  if (denom <= 0) return(list(err = "RR doit differer de 1 et le taux de base > 0."))
+  if (denom <= 0) return(list(err = "RR doit différer de 1 et le taux de base > 0."))
   if (analysis == "apriori") {
     zb <- stats::qnorm(power)
     nn <- ((za + zb * sqrt(V1))^2 / denom) / (1 - R2_other)
@@ -387,7 +387,7 @@ hstat_power_poisson <- function(analysis = "apriori", base_rate = 1, RR = 1.3,
     }
     bsol <- tryCatch(stats::uniroot(f, c(0.01, 2))$root, error = function(e) NA)
     list(n = n, effect = if (is.na(bsol)) NA else exp(bsol), power = power, crit = za,
-         extra = if (is.na(bsol)) "RR non resolu" else sprintf("RR detectable = %.3f", exp(bsol)))
+         extra = if (is.na(bsol)) "RR non résolu" else sprintf("RR détectable = %.3f", exp(bsol)))
   }
 }
 
@@ -455,113 +455,113 @@ hstat_power_poisson <- function(analysis = "apriori", base_rate = 1, RR = 1.3,
 hstat_malherbo_catalog <- function() {
   list(
     mh_densite_croisee = list(
-      label = "Malherbologie : series de densites croisees (culture x adventice)",
+      label = "Malherbologie : séries de densités croisées (culture x adventice)",
       base = "factorial", r = 4,
       facteurs = list(
         "Densite_culture"   = c("C1 50%", "C2 100%", "C3 150%"),
         "Densite_adventice" = c("A0 0/m2", "A1 4/m2", "A2 8/m2", "A3 16/m2")),
-      but = paste("Faire varier SIMULTANEMENT les deux densites pour estimer",
+      but = paste("Faire varier SIMULTANÉMENT les deux densités pour estimer",
                   "leurs effets propres et surtout leur interaction."),
       mesures = paste("Culture : peuplement, hauteur, biomasse, composantes du",
-                      "rendement, rendement. Adventice : densite, recouvrement,",
-                      "hauteur, biomasse seche. A 15, 30, 45 et 60 JAS, puis recolte."),
+                      "rendement, rendement. Adventice : densité, recouvrement,",
+                      "hauteur, biomasse sèche. À 15, 30, 45 et 60 JAS, puis récolte."),
       modele = "y ~ Bloc + C + A + C:A",
       analyse = paste("ANOVA factorielle. L'INTERACTION se lit avant les effets",
-                      "principaux : si elle est significative, l'effet d'une densite",
-                      "depend de l'autre, et les moyennes marginales n'ont plus de",
+                      "principaux : si elle est significative, l'effet d'une densité",
+                      "dépend de l'autre, et les moyennes marginales n'ont plus de",
                       "sens -- passer aux effets simples."),
-      piege = paste("Les deux especes changent de densite en meme temps : la",
-                    "densite TOTALE varie aussi. Un effet attribue a la competition",
-                    "peut n'etre qu'un effet de peuplement ; c'est le prix de ce",
-                    "dispositif, et la raison d'etre de la serie additive."),
+      piege = paste("Les deux espèces changent de densité en même temps : la",
+                    "densité TOTALE varie aussi. Un effet attribué à la compétition",
+                    "peut n'être qu'un effet de peuplement ; c'est le prix de ce",
+                    "dispositif, et la raison d'être de la série additive."),
       couleur = "#8e44ad"),
 
     mh_serie_additive = list(
-      label = "Malherbologie : serie additive (adventice croissante)",
+      label = "Malherbologie : série additive (adventice croissante)",
       base = "fisher", r = 4,
       facteurs = list(
         "Densite_adventice" = c("A0 0/m2", "A1 2/m2", "A2 4/m2", "A3 8/m2",
                                 "A4 16/m2", "A5 32/m2")),
-      but = paste("Culture a densite CONSTANTE, adventice a densite croissante :",
-                  "quantifier la perte de rendement due a l'enherbement."),
+      but = paste("Culture à densité CONSTANTE, adventice à densité croissante :",
+                  "quantifier la perte de rendement due à l'enherbement."),
       mesures = paste("Culture : hauteur, biomasse, capsules, rendement.",
-                      "Adventice : densite, recouvrement, hauteur, biomasse seche.",
-                      "A 15, 30, 45 et 60 JAS, puis recolte."),
+                      "Adventice : densité, recouvrement, hauteur, biomasse sèche.",
+                      "À 15, 30, 45 et 60 JAS, puis récolte."),
       modele = "y ~ Bloc + A  ;  perte (%) ajustee par y = i*x / (1 + i*x/a)",
       analyse = paste("ANOVA en blocs, puis ajustement d'une hyperbole de",
-                      "competition (Cousens) : i donne la perte par plante a",
-                      "faible densite, a la perte maximale asymptotique."),
-      piege = paste("Le temoin SANS adventice (A0) n'est pas une modalite comme",
-                    "les autres : c'est la reference a laquelle toutes les pertes",
-                    "sont rapportees. Sans lui, aucune perte n'est calculable."),
+                      "compétition (Cousens) : i donne la perte par plante à",
+                      "faible densité, à la perte maximale asymptotique."),
+      piege = paste("Le témoin SANS adventice (A0) n'est pas une modalité comme",
+                    "les autres : c'est la référence à laquelle toutes les pertes",
+                    "sont rapportées. Sans lui, aucune perte n'est calculable."),
       couleur = "#16a085"),
 
     mh_desherbage = list(
-      label = "Malherbologie : methodes integrees de desherbage",
+      label = "Malherbologie : méthodes intégrées de désherbage",
       base = "fisher", r = 4,
       facteurs = list(
-        "Strategie" = c("T0 temoin non desherbe", "T1 manuel 15+30+45 JAS",
-                        "T2 sarclage mecanique 15+30 JAS", "T3 herbicide prelevee J0",
-                        "T4 herbicide postlevee 20 JAS", "T5 paillage vegetal",
+        "Strategie" = c("T0 témoin non désherbé", "T1 manuel 15+30+45 JAS",
+                        "T2 sarclage mécanique 15+30 JAS", "T3 herbicide prélevée J0",
+                        "T4 herbicide postlevee 20 JAS", "T5 paillage végétal",
                         "T6 herbicide 0.5R + sarclage 30 JAS",
                         "T7 paillage + herbicide 0.5R + manuel 30 JAS")),
-      but = paste("Comparer des strategies qui combinent plusieurs leviers",
-                  "(preventif, cultural, manuel, mecanique, chimique)."),
-      mesures = paste("Efficacite sur les adventices (%), densite, recouvrement,",
-                      "biomasse ; phytotoxicite ; peuplement, hauteur, rendement.",
-                      "Et le volet economique : temps de travail, cout, nombre de",
+      but = paste("Comparer des stratégies qui combinent plusieurs leviers",
+                  "(préventif, cultural, manuel, mécanique, chimique)."),
+      mesures = paste("Efficacité sur les adventices (%), densité, recouvrement,",
+                      "biomasse ; phytotoxicité ; peuplement, hauteur, rendement.",
+                      "Et le volet économique : temps de travail, coût, nombre de",
                       "passages, dose d'herbicide."),
       modele = "y ~ Bloc + Strategie",
       analyse = paste("ANOVA en blocs puis comparaison de moyennes. Le classement",
-                      "final est MULTICRITERE : une strategie tres efficace mais",
-                      "couteuse en travail peut etre inapplicable."),
-      piege = paste("Les strategies sont des COMBINAISONS, pas les modalites d'un",
-                    "facteur : ce plan ne separe pas la part de chaque levier. Pour",
+                      "final est MULTICRITÈRE : une stratégie très efficace mais",
+                      "coûteuse en travail peut être inapplicable."),
+      piege = paste("Les stratégies sont des COMBINAISONS, pas les modalités d'un",
+                    "facteur : ce plan ne sépare pas la part de chaque levier. Pour",
                     "cela il faut un factoriel croisant les leviers."),
       couleur = "#2980b9"),
 
     mh_dose_reponse = list(
-      label = "Malherbologie : essai dose-reponse (ED50 / ED90)",
+      label = "Malherbologie : essai dose-réponse (ED50 / ED90)",
       base = "fisher", r = 4,
       facteurs = list(
         "Dose" = c("D0 0xR", "D1 0.25xR", "D2 0.5xR", "D3 1xR", "D4 2xR", "D5 4xR")),
-      but = "Estimer la dose efficace : ED50, ED90, et la dose reduite acceptable.",
-      mesures = paste("Efficacite visuelle (%), densite et biomasse des adventices,",
-                      "phytotoxicite, rendement. A 7, 14, 21 et 28 JAT, puis recolte."),
+      but = "Estimer la dose efficace : ED50, ED90, et la dose réduite acceptable.",
+      mesures = paste("Efficacité visuelle (%), densité et biomasse des adventices,",
+                      "phytotoxicité, rendement. À 7, 14, 21 et 28 JAT, puis récolte."),
       modele = "Ajustement log-logistique a 4 parametres (drc::drm, LL.4)",
-      analyse = paste("La courbe dose-reponse est ajustee sur l'echelle LOG de la",
-                      "dose ; ED50 et ED90 en sont deduits avec leur intervalle de",
+      analyse = paste("La courbe dose-réponse est ajustée sur l'échelle LOG de la",
+                      "dose ; ED50 et ED90 en sont déduits avec leur intervalle de",
                       "confiance. L'ANOVA sur les doses ne remplace pas cet",
                       "ajustement : elle compare des doses, elle n'en estime aucune."),
-      piege = paste("Il faut encadrer la reponse aux DEUX bouts : une dose nulle et",
-                    "une dose qui sature. Sans elles, ED90 n'est pas estime mais",
-                    "extrapole -- avec un intervalle que le modele ne dit pas."),
+      piege = paste("Il faut encadrer la réponse aux DEUX bouts : une dose nulle et",
+                    "une dose qui sature. Sans elles, ED90 n'est pas estimé mais",
+                    "extrapole -- avec un intervalle que le modèle ne dit pas."),
       couleur = "#c0392b"),
 
     mh_efficacite = list(
-      label = "Malherbologie : efficacite et selectivite d'un herbicide",
+      label = "Malherbologie : efficacité et sélectivité d'un herbicide",
       base = "fisher", r = 4,
       facteurs = list(
-        "Traitement" = c("T0 temoin enherbe", "T1 temoin propre",
-                         "T2 reference 1xR", "T3 teste 0.5xR", "T4 teste 1xR",
+        "Traitement" = c("T0 témoin enherbé", "T1 témoin propre",
+                         "T2 référence 1xR", "T3 teste 0.5xR", "T4 teste 1xR",
                          "T5 teste 2xR")),
-      but = paste("Mesurer d'un meme dispositif le controle des adventices ET la",
-                  "tolerance de la culture."),
-      mesures = paste("Efficacite : recouvrement, densite, controle visuel,",
-                      "biomasse seche, a 7, 14, 21 et 28 JAT. Selectivite :",
-                      "phytotoxicite, vigueur, peuplement, hauteur, rendement."),
+      but = paste("Mesurer d'un même dispositif le contrôle des adventices ET la",
+                  "tolérance de la culture."),
+      mesures = paste("Efficacité : recouvrement, densité, contrôle visuel,",
+                      "biomasse sèche, à 7, 14, 21 et 28 JAT. Sélectivité :",
+                      "phytotoxicité, vigueur, peuplement, hauteur, rendement."),
       modele = "y ~ Bloc + Traitement",
-      analyse = paste("ANOVA en blocs et comparaison aux deux temoins. L'efficacite",
-                      "se rapporte au temoin ENHERBE ; la selectivite et le potentiel",
-                      "de rendement, au temoin PROPRE."),
-      piege = paste("Les deux temoins sont indispensables et ne se remplacent pas.",
-                    "Sans temoin enherbe, aucune efficacite ne se calcule ; sans",
-                    "temoin propre, une baisse de rendement ne se distingue pas de",
-                    "la concurrence residuelle des adventices."),
+      analyse = paste("ANOVA en blocs et comparaison aux deux témoins. L'efficacité",
+                      "se rapporte au témoin ENHERBE ; la sélectivité et le potentiel",
+                      "de rendement, au témoin PROPRE."),
+      piege = paste("Les deux témoins sont indispensables et ne se remplacent pas.",
+                    "Sans témoin enherbé, aucune efficacité ne se calcule ; sans",
+                    "témoin propre, une baisse de rendement ne se distingue pas de",
+                    "la concurrence résiduelle des adventices."),
       couleur = "#27ae60"),
 
     mh_periode_critique = list(
-      label = "Malherbologie : duree de competition (periode critique)",
+      label = "Malherbologie : durée de compétition (période critique)",
       base = "fisher", r = 4,
       facteurs = list(
         "Duree" = c("ET enherbe permanent", "E15 enherbe jusqu'a 15 JAS",
@@ -569,139 +569,139 @@ hstat_malherbo_catalog <- function() {
                     "E60 enherbe jusqu'a 60 JAS", "P15 propre jusqu'a 15 JAS",
                     "P30 propre jusqu'a 30 JAS", "P45 propre jusqu'a 45 JAS",
                     "P60 propre jusqu'a 60 JAS", "PT propre permanent")),
-      but = paste("Deux series complementaires. E : enherbement initial croissant,",
-                  "puis desherbage definitif -- jusqu'a quand peut-on attendre.",
+      but = paste("Deux séries complémentaires. E : enherbement initial croissant,",
+                  "puis désherbage définitif -- jusqu'a quand peut-on attendre.",
                   "P : maintien propre initial croissant, puis re-enherbement --",
-                  "a partir de quand peut-on arreter. Leur croisement donne la",
-                  "PERIODE CRITIQUE de desherbage."),
-      mesures = paste("Adventices : densite, recouvrement, biomasse.",
+                  "à partir de quand peut-on arrêter. Leur croisement donne la",
+                  "PÉRIODE CRITIQUE de désherbage."),
+      mesures = paste("Adventices : densité, recouvrement, biomasse.",
                       "Culture : hauteur, biomasse, capsules, rendement.",
-                      "A 15, 30, 45 et 60 JAS, puis recolte. Perte de rendement",
+                      "À 15, 30, 45 et 60 JAS, puis récolte. Perte de rendement",
                       "PR (%) = 100 x (Y_propre - Y_traitement) / Y_propre."),
       modele = "y ~ Bloc + Duree ; puis 2 courbes ajustees (logistiques) E et P",
-      analyse = paste("ANOVA en blocs, puis ajustement d'une courbe par serie. La",
-                      "periode critique se lit a l'intersection des deux courbes",
+      analyse = paste("ANOVA en blocs, puis ajustement d'une courbe par série. La",
+                      "période critique se lit à l'intersection des deux courbes",
                       "avec le seuil de perte acceptable -- souvent 5 %."),
-      piege = paste("Les DEUX temoins permanents sont indispensables : le propre",
-                    "(PT) donne le denominateur Y_propre de toute perte, l'enherbe",
+      piege = paste("Les DEUX témoins permanents sont indispensables : le propre",
+                    "(PT) donne le dénominateur Y_propre de toute perte, l'enherbe",
                     "(ET) borne la perte maximale. Et le seuil de perte acceptable",
-                    "est une decision economique, pas un resultat statistique : il",
-                    "se declare avant de lire les courbes."),
+                    "est une décision économique, pas un résultat statistique : il",
+                    "se déclare avant de lire les courbes."),
       couleur = "#d35400"),
 
     mh_date_frequence = list(
-      label = "Malherbologie : date et frequence de desherbage",
+      label = "Malherbologie : date et fréquence de désherbage",
       base = "fisher", r = 4,
       facteurs = list(
-        "Calendrier" = c("T0 aucun desherbage", "TP propre tout le cycle",
-                         "F1D15 1 fois a 15 JAS", "F1D30 1 fois a 30 JAS",
-                         "F1D45 1 fois a 45 JAS", "F2D15 2 fois des 15 JAS",
+        "Calendrier" = c("T0 aucun désherbage", "TP propre tout le cycle",
+                         "F1D15 1 fois à 15 JAS", "F1D30 1 fois à 30 JAS",
+                         "F1D45 1 fois à 45 JAS", "F2D15 2 fois des 15 JAS",
                          "F2D30 2 fois des 30 JAS", "F2D45 2 fois des 45 JAS",
                          "F3D15 3 fois des 15 JAS", "F3D30 3 fois des 30 JAS")),
-      but = paste("Trouver la date de premiere intervention et la frequence",
-                  "MINIMALE qui preservent le rendement."),
-      mesures = paste("Adventices : densite, recouvrement, biomasse.",
+      but = paste("Trouver la date de première intervention et la fréquence",
+                  "MINIMALE qui préservent le rendement."),
+      mesures = paste("Adventices : densité, recouvrement, biomasse.",
                       "Culture : hauteur, vigueur, capsules, rendement.",
-                      "Et le cout du calendrier : temps de travail (h/ha) et",
-                      "depense (FCFA/ha) -- c'est ce qu'on cherche a reduire."),
+                      "Et le coût du calendrier : temps de travail (h/ha) et",
+                      "dépense (FCFA/ha) -- c'est ce qu'on cherche à réduire."),
       modele = "y ~ Bloc + Calendrier",
       analyse = paste("ANOVA en blocs et comparaison de moyennes. Le calendrier",
-                      "retenu est le moins couteux dont le rendement ne differe",
-                      "pas du temoin propre."),
-      piege = paste("Ce n'est PAS un factoriel date x frequence : les combinaisons",
-                    "tardives et frequentes sortiraient du cycle. Date et frequence",
+                      "retenu est le moins coûteux dont le rendement ne diffère",
+                      "pas du témoin propre."),
+      piege = paste("Ce n'est PAS un factoriel date x fréquence : les combinaisons",
+                    "tardives et fréquentes sortiraient du cycle. Date et fréquence",
                     "sont donc confondues -- on compare des calendriers entiers, pas",
                     "les effets propres de l'une et de l'autre."),
       couleur = "#7f8c8d"),
 
     mh_paires = list(
-      label = "Malherbologie : parcelles appariees (traite / temoin)",
+      label = "Malherbologie : parcelles appariées (traite / témoin)",
       base = "paired", r = 4,
-      facteurs = list("Traitement" = c("T0 temoin non traite", "T1 herbicide")),
-      but = paste("Comparer un traitement a son temoin dans des paires locales",
-                  "HOMOGENES, quand le terrain est trop heterogene pour des blocs",
+      facteurs = list("Traitement" = c("T0 témoin non traité", "T1 herbicide")),
+      but = paste("Comparer un traitement à son témoin dans des paires locales",
+                  "HOMOGÈNES, quand le terrain est trop hétérogène pour des blocs",
                   "complets."),
-      mesures = paste("Adventices : densite, recouvrement, biomasse, controle",
-                      "visuel. Culture : phytotoxicite, peuplement, rendement.",
-                      "Les quadrats se correspondent d'une parcelle a l'autre."),
-      modele = "D = Y(T1) - Y(T0) par paire ; test sur les differences",
+      mesures = paste("Adventices : densité, recouvrement, biomasse, contrôle",
+                      "visuel. Culture : phytotoxicité, peuplement, rendement.",
+                      "Les quadrats se correspondent d'une parcelle à l'autre."),
+      modele = "D = Y(T1) - Y(T0) par paire ; test sur les différences",
       analyse = paste("Analyse INTRAPAIRE : test t apparie, ou Wilcoxon signe si",
-                      "la normalite des differences n'est pas tenable. Comparer les",
+                      "la normalité des différences n'est pas tenable. Comparer les",
                       "deux groupes sans tenir compte de l'appariement gaspille",
-                      "toute la precision gagnee."),
-      piege = paste("L'appariement doit reposer sur une homogeneite REELLE (meme",
-                    "position sur le gradient, meme sol) : apparier au hasard",
+                      "toute la précision gagnée."),
+      piege = paste("L'appariement doit reposer sur une homogénéité RÉELLE (même",
+                    "position sur le gradient, même sol) : apparier au hasard",
                     "n'apporte rien. Et une paire dont une parcelle est perdue est",
-                    "perdue ENTIERE -- la difference n'existe plus."),
+                    "perdue ENTIÈRE -- la différence n'existe plus."),
       couleur = "#2c3e50"),
 
     mh_bandes_traitees = list(
-      label = "Malherbologie : bandes traitees (pulverisateur)",
+      label = "Malherbologie : bandes traitées (pulvérisateur)",
       base = "fisher", r = 4,
       facteurs = list(
-        "Traitement" = c("T0 temoin non traite", "T1 herbicide de reference",
+        "Traitement" = c("T0 témoin non traité", "T1 herbicide de référence",
                          "T2 teste dose 1", "T3 teste dose 2", "T4 teste dose 3")),
-      but = paste("Appliquer les traitements en BANDES longues, quand le materiel",
-                  "de pulverisation ne peut pas travailler sur de petites parcelles."),
-      mesures = paste("Efficacite : densite, recouvrement, biomasse, controle",
-                      "visuel. Culture : phytotoxicite, peuplement, rendement."),
+      but = paste("Appliquer les traitements en BANDES longues, quand le matériel",
+                  "de pulvérisation ne peut pas travailler sur de petites parcelles."),
+      mesures = paste("Efficacité : densité, recouvrement, biomasse, contrôle",
+                      "visuel. Culture : phytotoxicité, peuplement, rendement."),
       modele = "y ~ Bloc + Traitement",
-      analyse = "ANOVA en blocs ; la BANDE est l'unite experimentale.",
-      piege = paste("Les quadrats d'une meme bande ne sont pas des repetitions :",
-                    "les prendre pour telles multiplie artificiellement les degres",
-                    "de liberte et rend significatif ce qui ne l'est pas. Ils se",
-                    "moyennent par bande. Prevoir en outre des zones tampon entre",
-                    "bandes : la derive de pulverisation traite le voisin."),
+      analyse = "ANOVA en blocs ; la BANDE est l'unité expérimentale.",
+      piege = paste("Les quadrats d'une même bande ne sont pas des répétitions :",
+                    "les prendre pour telles multiplie artificiellement les degrés",
+                    "de liberté et rend significatif ce qui ne l'est pas. Ils se",
+                    "moyennent par bande. Prévoir en outre des zones tampon entre",
+                    "bandes : la dérive de pulvérisation traite le voisin."),
       couleur = "#9b59b6"),
 
     mh_bandes_croisees = list(
-      label = "Malherbologie : bandes croisees (strip-plot)",
+      label = "Malherbologie : bandes croisées (strip-plot)",
       base = "strip", r = 4,
       facteurs = list(
         "Facteur_A_bandes_verticales" = c("A1", "A2", "A3"),
         "Facteur_B_bandes_horizontales" = c("B1", "B2", "B3", "B4")),
       but = paste("Croiser deux facteurs qui exigent chacun des bandes -- un",
-                  "travail du sol et une pulverisation, par exemple. Les parcelles",
-                  "elementaires naissent a l'intersection."),
-      mesures = paste("Adventices et culture, aux dates habituelles ; l'unite de",
+                  "travail du sol et une pulvérisation, par exemple. Les parcelles",
+                  "élémentaires naissent à l'intersection."),
+      mesures = paste("Adventices et culture, aux dates habituelles ; l'unité de",
                       "mesure est l'intersection A x B."),
       modele = "y ~ A * B + Error(Bloc/A) + Error(Bloc/B)",
       analyse = paste("Trois termes d'erreur : bandes A, bandes B, et",
-                      "l'intersection. L'INTERACTION y est estimee plus",
-                      "precisement que les deux effets principaux -- l'inverse du",
+                      "l'intersection. L'INTERACTION y est estimée plus",
+                      "précisément que les deux effets principaux -- l'inverse du",
                       "split-plot, et c'est ce qui justifie ce plan."),
-      piege = paste("Les deux facteurs sont randomises INDEPENDAMMENT dans chaque",
-                    "repetition ; les effets principaux y sont mesures avec peu de",
-                    "precision. Choisir ce plan pour comparer des modalites de A",
+      piege = paste("Les deux facteurs sont randomisés INDÉPENDAMMENT dans chaque",
+                    "répétition ; les effets principaux y sont mesurés avec peu de",
+                    "précision. Choisir ce plan pour comparer des modalités de A",
                     "entre elles serait un contresens."),
       couleur = "#16a085"),
 
     mh_serie_substitutive = list(
-      label = "Malherbologie : serie substitutive (remplacement)",
+      label = "Malherbologie : série substitutive (remplacement)",
       base = "fisher", r = 4,
       facteurs = list(
         "Proportion" = c("S0 100% coton + 0% adventice", "S1 75% coton + 25% adventice",
                          "S2 50% coton + 50% adventice", "S3 25% coton + 75% adventice",
                          "S4 0% coton + 100% adventice")),
-      but = paste("Densite TOTALE constante, proportions complementaires : chaque",
-                  "plant d'une espece remplace un plant de l'autre. On compare les",
-                  "deux especes a armes egales, sans changer le peuplement."),
-      mesures = paste("Par ESPECE : biomasse seche, hauteur, surface foliaire.",
+      but = paste("Densité TOTALE constante, proportions complémentaires : chaque",
+                  "plant d'une espèce remplace un plant de l'autre. On compare les",
+                  "deux espèces à armes égales, sans changer le peuplement."),
+      mesures = paste("Par ESPÈCE : biomasse sèche, hauteur, surface foliaire.",
                       "Culture : capsules, rendement. Adventice : biomasse et",
                       "production de graines. Les peuplements purs fournissent les",
-                      "references Yc,pur et Ya,pur."),
+                      "références Yc,pur et Ya,pur."),
       modele = paste("y ~ Bloc + Proportion ; puis RYc = Yc,melange / Yc,pur,",
-                     "RYa = Ya,melange / Ya,pur, RYT = RYc + RYa"),
+                     "RYa = Ya,mélange / Ya,pur, RYT = RYc + RYa"),
       analyse = paste("ANOVA en blocs, puis rendements relatifs. RYT = 1 : les deux",
-                      "especes se disputent les MEMES ressources. RYT > 1 : leurs",
-                      "niches different et le melange produit plus que la somme",
+                      "espèces se disputent les MÊMES ressources. RYT > 1 : leurs",
+                      "niches différent et le mélange produit plus que la somme",
                       "attendue. RYT < 1 : antagonisme mutuel."),
-      piege = paste("Les deux peuplements PURS (S0 et S4) ne sont pas des modalites",
-                    "comme les autres : ce sont les denominateurs de RYc et de RYa.",
+      piege = paste("Les deux peuplements PURS (S0 et S4) ne sont pas des modalités",
+                    "comme les autres : ce sont les dénominateurs de RYc et de RYa.",
                     "Sans eux, aucun rendement relatif ne se calcule. Et le",
-                    "resultat ne vaut QUE pour la densite totale choisie -- une",
-                    "serie substitutive ne dit rien de l'effet de la densite",
-                    "elle-meme, c'est la limite qui justifie la serie additive."),
+                    "résultat ne vaut QUE pour la densité totale choisie -- une",
+                    "série substitutive ne dit rien de l'effet de la densité",
+                    "elle-même, c'est la limite qui justifie la série additive."),
       couleur = "#5b2c6f")
   )
 }
@@ -713,13 +713,13 @@ hstat_design_base <- function(type) {
   if (is.null(mh)) type else mh$base
 }
 hstat_design_catalog <- function() {
-  c("Completement randomise (DCR/CRD)" = "crd",
+  c("Complètement randomise (DCR/CRD)" = "crd",
     "Bloc de Fisher (RCBD)" = "fisher",
     "Couple apparie (BCR)" = "paired",
     "Carre latin (LSD)" = "lsd",
     "Alpha Lattice (alpha-design)" = "alpha",
     "Factoriel complet" = "factorial",
-    "Split-plot (parcelles divisees)" = "split",
+    "Split-plot (parcelles divisées)" = "split",
     "Split-split-plot (3 facteurs)" = "splitsplit",
     "Criss-Cross / Strip-plot (bandes)" = "strip",
     stats::setNames(names(hstat_malherbo_catalog()),
@@ -834,7 +834,7 @@ hstat_agri_design <- function(type, factors, r = 3, seed = 123, k = NULL,
   # Structure resolvable, valable pour tout nombre de modalites par facteur.
   if (type == "splitsplit") {
     if (length(factors) < 3)
-      stop("Le split-split-plot necessite 3 facteurs.")
+      stop("Le split-split-plot nécessite 3 facteurs.")
     f1 <- factors[[1]]; f2 <- factors[[2]]; f3 <- factors[[3]]
     n1 <- length(f1); n2 <- length(f2); n3 <- length(f3)
     rr <- r %||% 3
@@ -1080,7 +1080,7 @@ hstat_place_design <- function(book, type, fill_col, seed = 123, tries = 200) {
     pos_in_blk <- stats::ave(seq_len(nrow(b)), blk, FUN = seq_along)
     b$.y <- blk
     b$.x <- pos_in_blk + (blk - 1)
-    attr(b, "xlab") <- "Position (decalage diagonal par bloc)"
+    attr(b, "xlab") <- "Position (décalage diagonal par bloc)"
     attr(b, "ylab") <- "Bloc"
     attr(b, "gradient") <- "diagonal"
   } else if (type == "lsd" && all(c("row", "col") %in% names(b))) {
@@ -1101,12 +1101,12 @@ hstat_place_design <- function(book, type, fill_col, seed = 123, tries = 200) {
     } else {
       n <- nrow(b); nc <- ceiling(sqrt(n))
       b$.x <- ((seq_len(n)-1) %% nc) + 1; b$.y <- ((seq_len(n)-1) %/% nc) + 1
-      attr(b, "xlab") <- "Colonne"; attr(b, "ylab") <- "Rangee"
+      attr(b, "xlab") <- "Colonne"; attr(b, "ylab") <- "Rangée"
       attr(b, "gradient") <- "none"
     }
   } else if (type == "strip" && has_block) {
     fcols <- setdiff(names(b), c("plots","block","row","col","splots",".x",".y",
-                                 "Traitement","n_échantillon", fill_col))
+                                 "Traitement","n_echantillon", fill_col))
     f1 <- fcols[1]; f2 <- if (length(fcols) >= 2) fcols[2] else fcols[1]
     n_f1 <- length(unique(b[[f1]]))
     b$.x <- as.integer(as.factor(b[[f1]])) + (as.integer(as.factor(b$block)) - 1) * (n_f1 + 1)
@@ -1116,7 +1116,7 @@ hstat_place_design <- function(book, type, fill_col, seed = 123, tries = 200) {
     attr(b, "gradient") <- "both"
   } else if (type == "split" && has_block) {
     fcols <- setdiff(names(b), c("plots","block","row","col","splots",".x",".y",
-                                 "Traitement","n_échantillon", fill_col))
+                                 "Traitement","n_echantillon", fill_col))
     fmain <- fcols[1]; fsub <- if (length(fcols) >= 2) fcols[2] else fcols[1]
     b$.y <- as.integer(as.factor(b$block))
     b$.x <- stats::ave(seq_len(nrow(b)), b$.y, FUN = seq_along)
@@ -1139,7 +1139,7 @@ hstat_place_design <- function(book, type, fill_col, seed = 123, tries = 200) {
       pos_in_blk <- stats::ave(seq_len(nrow(b)), interaction(repi, blki, drop = TRUE), FUN = seq_along)
       n_rep <- max(repi)
       b$.x <- pos_in_blk + (repi - 1) * (kk + 1)   # decalage horizontal par replique
-      attr(b, "xlab") <- "Blocs incomplets (par réplique, decales horizontalement)"
+      attr(b, "xlab") <- "Blocs incomplets (par réplique, décalés horizontalement)"
       attr(b, "ylab") <- "Bloc incomplet"
       attr(b, "gradient") <- "vertical"
       attr(b, "alpha_rep") <- repi
@@ -1154,7 +1154,7 @@ hstat_place_design <- function(book, type, fill_col, seed = 123, tries = 200) {
     if (is.na(blk) || is.null(blk)) {
       n <- nrow(b); nc <- ceiling(sqrt(n))
       b$.x <- ((seq_len(n) - 1) %% nc) + 1; b$.y <- ((seq_len(n) - 1) %/% nc) + 1
-      attr(b, "xlab") <- "Colonne"; attr(b, "ylab") <- "Rangee"
+      attr(b, "xlab") <- "Colonne"; attr(b, "ylab") <- "Rangée"
     } else {
       b$.y <- as.integer(as.factor(b[[blk]]))
       b$.x <- stats::ave(seq_len(nrow(b)), b$.y, FUN = seq_along)
@@ -1170,21 +1170,21 @@ hstat_design_analysis <- function(type, n_factors) {
     return(list(nom = mh$label, modele = mh$modele,
                 analyse = paste(mh$analyse, "--", mh$piege)))
   switch(type,
-    "crd" = list(nom = "Completement randomise (DCR/CRD)",
+    "crd" = list(nom = "Complètement randomise (DCR/CRD)",
       modele = if (n_factors >= 2) "y ~ A * B (factoriel)" else "y ~ Traitement",
       analyse = "ANOVA a effets fixes ; post-hoc Tukey (agricolae::HSD.test). Vérifier normalité (Shapiro) et homogénéité (Levene/Bartlett). Non parametrique : Kruskal-Wallis."),
     "fisher" = list(nom = "Bloc de Fisher (RCBD)",
       modele = "y ~ Traitement + block",
-      analyse = "ANOVA avec le bloc en effet (blocs complets randomises). Post-hoc Tukey/LSD. Non parametrique : Friedman."),
+      analyse = "ANOVA avec le bloc en effet (blocs complets randomises). Post-hoc Tukey/LSD. Non paramétrique : Friedman."),
     "paired" = list(nom = "Couple apparie (BCR)",
       modele = "y ~ Traitement + block",
       analyse = "Comparaison appariée par bloc. Pour 2 traitements : test t apparie (ou Wilcoxon signe). Plus de 2 : ANOVA en blocs / Friedman."),
     "lsd" = list(nom = "Carre latin (LSD)",
       modele = "y ~ Traitement + row + col",
-      analyse = "ANOVA controlant deux sources de variation (ligne et colonne)."),
+      analyse = "ANOVA contrôlant deux sources de variation (ligne et colonne)."),
     "alpha" = list(nom = "Alpha Lattice",
       modele = "y ~ Traitement + replication + block:replication",
-      analyse = "Modèle mixte (bloc incomplet aleatoire). Recuperation inter-bloc ; plus efficace que RCBD pour beaucoup de traitements."),
+      analyse = "Modèle mixte (bloc incomplet aléatoire). Récupération inter-bloc ; plus efficace que RCBD pour beaucoup de traitements."),
     "factorial" = list(nom = "Factoriel complet",
       modele = "y ~ A * B * ... (effets principaux + interactions)",
       analyse = "ANOVA factorielle ; analyser les interactions avant les effets principaux ; effets simples si interaction significative."),
@@ -1623,10 +1623,10 @@ hstat_design_analysis <- function(type, n_factors) {
       ggplot2::scale_y_discrete(limits = rev, expand = c(0, 0)) +
       { if (blocks_axis == "horizontal")
           ggplot2::facet_wrap(~ replication, ncol = 1,
-                          labeller = ggplot2::labeller(replication = function(x) { m <- .block_labeller(x, if (nzchar(blk_custom)) blk_prefix else "Replique", blk_custom); m[as.character(x)] }))
+                          labeller = ggplot2::labeller(replication = function(x) { m <- .block_labeller(x, if (nzchar(blk_custom)) blk_prefix else "Réplique", blk_custom); m[as.character(x)] }))
         else
           ggplot2::facet_wrap(~ replication, nrow = 1,
-                          labeller = ggplot2::labeller(replication = function(x) { m <- .block_labeller(x, if (nzchar(blk_custom)) blk_prefix else "Replique", blk_custom); m[as.character(x)] })) } +
+                          labeller = ggplot2::labeller(replication = function(x) { m <- .block_labeller(x, if (nzchar(blk_custom)) blk_prefix else "Réplique", blk_custom); m[as.character(x)] })) } +
       fill_scale +
       ggplot2::labs(title = ttl, x = "Blocs incomplets (colonnes)", y = "Bloc incomplet", fill = lt %||% "Traitement") +
       (theme_gg %||% ggplot2::theme_minimal(base_size = font_axis)) +
@@ -1845,13 +1845,13 @@ mod_design_ui <- function(id) {
     banner,
     shiny::fluidRow(
       shinydashboard::box(width = 12, status = "primary", solidHeader = FALSE, background = "navy",
-          shiny::h3(shiny::icon("flask"), " Dispositifs experimentaux & Puissance statistique",
+          shiny::h3(shiny::icon("flask"), " Dispositifs expérimentaux & Puissance statistique",
              style = "margin:0;color:white;"))
     ),
     shiny::tabsetPanel(id = ns("designTabs"),
       shiny::tabPanel(shiny::tagList(shiny::icon("bolt"), " Puissance statistique"), value = "power", shiny::br(),
         shiny::fluidRow(
-          shinydashboard::box(title = shiny::tagList(shiny::icon("sliders"), " Paramètres d'entree"),
+          shinydashboard::box(title = shiny::tagList(shiny::icon("sliders"), " Paramètres d'entrée"),
               status = "primary", width = 5, solidHeader = TRUE,
               shiny::selectInput(ns("powFamily"), "Famille de test",
                 choices = c("Tests t" = "t", "Tests F" = "F",
@@ -1860,11 +1860,11 @@ mod_design_ui <- function(id) {
               shiny::selectInput(ns("powAnalysis"), "Type d'analyse de puissance",
                 choices = c("A priori : calculer la taille d'échantillon (n) requise" = "apriori",
                             "Post hoc : taille connue -> calculer la puissance (1-\u03b2)" = "posthoc",
-                            "Sensibilite : taille connue -> calculer l'effet detectable" = "sensitivity")),
+                            "Sensibilité : taille connue -> calculer l'effet détectable" = "sensitivity")),
               shiny::div(style = "font-size:12px;color:#7f8c8d;margin-top:-8px;margin-bottom:8px;",
                   shiny::icon("info-circle"),
                   " Si vous connaissez déjà votre taille d'échantillon et vos modalités, ",
-                  "choisissez Post hoc (pour la puissance) ou Sensibilite (pour l'effet detectable)."),
+                  "choisissez Post hoc (pour la puissance) ou Sensibilité (pour l'effet détectable)."),
               shiny::hr(),
               shiny::uiOutput(ns("powTailUI")),
               shiny::numericInput(ns("powEffect"), "Taille d'effet", value = 0.25, min = 0.0001, step = 0.05),
@@ -1877,7 +1877,7 @@ mod_design_ui <- function(id) {
                 shiny::selectInput(ns("powPredictor"), "Type de prédicteur",
                             choices = c("Continu (OR par écart-type)" = "continuous",
                                         "Binaire (expose / non-expose)" = "binary")),
-                shiny::numericInput(ns("powP0"), "Probabilité de l'evenement chez les non-exposes / a la moyenne (p0)",
+                shiny::numericInput(ns("powP0"), "Probabilité de l'événement chez les non-exposes / à la moyenne (p0)",
                              value = 0.2, min = 0.01, max = 0.99, step = 0.05),
                 shiny::conditionalPanel("input.powPredictor == 'binary'", ns = ns,
                   shiny::sliderInput(ns("powPx"), "Proportion d'exposes",
@@ -1887,7 +1887,7 @@ mod_design_ui <- function(id) {
               shiny::conditionalPanel("input.powTest == 'poisson'", ns = ns,
                 shiny::numericInput(ns("powBaseRate"), "Taux de base moyen (exp(beta0))",
                              value = 1, min = 0.01, step = 0.1),
-                shiny::numericInput(ns("powExposure"), "Exposition / duree moyenne",
+                shiny::numericInput(ns("powExposure"), "Exposition / durée moyenne",
                              value = 1, min = 0.01, step = 0.5),
                 shiny::numericInput(ns("powR2otherP"), "R2 explique par les autres covariables",
                              value = 0, min = 0, max = 0.95, step = 0.05)),
@@ -1906,7 +1906,7 @@ mod_design_ui <- function(id) {
               shiny::fluidRow(
                 shiny::column(6, shiny::selectInput(ns("powRepartMode"), "Mode de répartition vers le plan",
                   choices = c("Répétitions (1 échantillon/parcelle)" = "blocks",
-                              "Sous-échantillonnage (equilibre R x m)" = "subsampling"))),
+                              "Sous-échantillonnage (équilibre R x m)" = "subsampling"))),
                 shiny::column(6, shiny::div(style = "margin-top:25px;",
                   shiny::actionButton(ns("powToDesign"),
                     shiny::tagList(shiny::icon("arrow-right"), " Utiliser cette taille dans le plan"),
@@ -1932,9 +1932,9 @@ mod_design_ui <- function(id) {
               shiny::uiOutput(ns("dsgHint")),
               shiny::div(class = "callout callout-info", style = "padding:8px 10px;font-size:12px;",
                 shiny::icon("link"),
-                " Vous avez defini des facteurs dans l'onglet Puissance statistique ? ",
+                " Vous avez défini des facteurs dans l'onglet Puissance statistique ? ",
                 shiny::actionLink(ns("dsgImportPower"),
-                  shiny::tagList(shiny::icon("download"), " Recuperer le nombre de facteurs et de modalités")),
+                  shiny::tagList(shiny::icon("download"), " Récupérer le nombre de facteurs et de modalités")),
                 "."),
               shiny::numericInput(ns("dsgNFactors"), "Nombre de facteurs (factoriel)", value = 2, min = 1, max = 5, step = 1),
               shiny::uiOutput(ns("dsgFactorInputs")),
@@ -1951,7 +1951,7 @@ mod_design_ui <- function(id) {
               shiny::conditionalPanel("input.dsgType=='factorial' || input.dsgType=='split'", ns = ns,
                 shiny::selectInput(ns("dsgBase"), "Plan de base",
                             choices = c("Blocs randomises (RCBD)" = "rcbd",
-                                        "Completement randomise (CRD)" = "crd",
+                                        "Complètement randomise (CRD)" = "crd",
                                         "Carre latin (LSD)" = "lsd"))),
               shiny::numericInput(ns("dsgN"), "Échantillons par parcelle élémentaire (n)",
                            value = 1, min = 1, step = 1),
@@ -1992,7 +1992,7 @@ mod_design_ui <- function(id) {
                            icon = shiny::icon("dice"),
                            style = "width:100%; font-weight:bold; background:#16a085; border-color:#138d75; color:#fff;")
           ),
-          shinydashboard::box(title = shiny::tagList(shiny::icon("clipboard-list"), " Analyse recommandee & field book"),
+          shinydashboard::box(title = shiny::tagList(shiny::icon("clipboard-list"), " Analyse recommandée & field book"),
               status = "info", width = 8, solidHeader = TRUE,
               shiny::uiOutput(ns("dsgAnalysisInfo")), shiny::hr(),
               DT::DTOutput(ns("dsgTable")), shiny::br(),
@@ -2210,11 +2210,11 @@ mod_design_ui <- function(id) {
               shiny::conditionalPanel("input.svObjective == 'moyenne'", ns = ns,
                 shiny::numericInput(ns("svMarginM"), "Marge d'erreur absolue (mêmes unités que la variable)",
                              value = 2, min = 0.01, step = 0.5),
-                shiny::numericInput(ns("svSd"), "Écart-type estimé (pilote / litterature)",
+                shiny::numericInput(ns("svSd"), "Écart-type estimé (pilote / littérature)",
                              value = 15, min = 0.01, step = 1)),
               shiny::numericInput(ns("svPop"), "Taille de la population (0 ou vide = infinie)",
                            value = 0, min = 0, step = 100),
-              shiny::numericInput(ns("svDeff"), "Effet de plan (design effect, 1 = sondage aleatoire simple ; 1.5-2 = grappes)",
+              shiny::numericInput(ns("svDeff"), "Effet de plan (design effect, 1 = sondage aléatoire simple ; 1.5-2 = grappes)",
                            value = 1, min = 1, step = 0.1),
               shiny::sliderInput(ns("svResp"), "Taux de réponse anticipé",
                           min = 0.3, max = 1, value = 0.8, step = 0.05),
@@ -2299,7 +2299,7 @@ mod_design_server <- function(id, values) {
                       "prop2", "prop1", "mcnemar", "sign")
       if (test %in% one_or_two)
         shiny::selectInput(ns("powAlt"), "Queue(s)",
-                    choices = c("Bilaterale" = "two.sided", "Unilaterale" = "greater"))
+                    choices = c("Bilatérale" = "two.sided", "Unilatérale" = "greater"))
     })
 
     # ddl numerateur et nombre de cellules calcules a partir des modalites saisies
@@ -2334,7 +2334,7 @@ mod_design_server <- function(id, values) {
         els <- c(els, list(
           shiny::div(class = "callout callout-info", style = "padding:8px 10px;font-size:12px;",
             shiny::icon("lightbulb"),
-            shiny::HTML(" <b>Aide ddl numerateur</b> : effet principal d'un facteur a <i>k</i> ",
+            shiny::HTML(" <b>Aide ddl numérateur</b> : effet principal d'un facteur à <i>k</i> ",
                  "modalités &rarr; ddl = <i>k</i>&minus;1 ; interaction A&times;B &rarr; ",
                  "ddl = (a&minus;1)(b&minus;1) ; interaction A&times;B&times;C &rarr; ",
                  "ddl = (a&minus;1)(b&minus;1)(c&minus;1). Nombre de cellules = produit des modalités. ",
@@ -2404,7 +2404,7 @@ mod_design_server <- function(id, values) {
       if (is.null(tb) || !NROW(tb)) return()
       hstat_ai_capture(values, "Plan & Puissance",
         sprintf("Analyse de puissance (%s)", input$powTest %||% "t_two"),
-        tables = list("Resultat du calcul" = tb),
+        tables = list("Résultat du calcul" = tb),
         meta = list(`type d'analyse` = input$powAnalysis,
                     `taille d'effet` = input$powEffect,
                     alpha = input$powAlpha, puissance = input$powPower))
@@ -2433,8 +2433,8 @@ mod_design_server <- function(id, values) {
       r <- pow_res(); shiny::validate(shiny::need(is.null(r$err), r$err %||% ""))
       fmt <- function(x) if (is.null(x) || (length(x) == 1 && is.na(x))) "\u2014" else format(round(x, 4), nsmall = 0)
       tab <- data.frame(
-        Parametre = c("Non-centralite \u03bb / \u03b4", r$crit_lab, "Degrés de liberté",
-                      "Taille d'effet", "Taille totale (N)", "Puissance reelle (1-\u03b2)"),
+        Parametre = c("Non-centralité \u03bb / \u03b4", r$crit_lab, "Degrés de liberté",
+                      "Taille d'effet", "Taille totale (N)", "Puissance réelle (1-\u03b2)"),
         Valeur = c(fmt(r$lambda), fmt(r$crit), r$df_lab, fmt(r$effect), as.character(r$ntot), fmt(r$power)),
         stringsAsFactors = FALSE)
       DT::datatable(tab, rownames = FALSE, options = list(dom = "t", ordering = FALSE),
@@ -2446,7 +2446,7 @@ mod_design_server <- function(id, values) {
       r <- pow_res(); shiny::req(is.null(r$err)); pw <- r$power
       if (is.null(pw) || is.na(pw)) return(NULL)
       col <- if (pw >= 0.80) "#27ae60" else if (pw >= 0.5) "#f39c12" else "#c0392b"
-      msg <- if (pw >= 0.80) "Puissance adequate (\u2265 0.80)." else if (pw >= 0.5) "Puissance modérée." else "Puissance insuffisante."
+      msg <- if (pw >= 0.80) "Puissance adéquate (\u2265 0.80)." else if (pw >= 0.5) "Puissance modérée." else "Puissance insuffisante."
       shiny::div(class = "callout", style = sprintf("border-left:4px solid %s;padding:8px 12px;", col),
           shiny::icon("info-circle"), sprintf(" %s  N total = %s.", msg, r$ntot))
     })
@@ -2570,63 +2570,63 @@ mod_design_server <- function(id, values) {
           shiny::tags$b(style = sprintf("color:%s;", mh$couleur), shiny::icon("seedling"), " ", mh$label),
           shiny::tags$p(style = "margin:6px 0 0 0;font-size:13px;", shiny::tags$b("But : "), mh$but),
           shiny::tags$p(style = "margin:4px 0 0 0;font-size:13px;", shiny::tags$b("Plan : "),
-                 trf("%d traitements x %d repetitions = %d parcelles, sur un plan %s.",
+                 trf("%d traitements x %d répétitions = %d parcelles, sur un plan %s.",
                      nb, mh$r, nb * mh$r,
                      names(which(hstat_design_catalog() == mh$base))[1] %||% mh$base)),
-          shiny::tags$p(style = "margin:4px 0 0 0;font-size:13px;", shiny::tags$b("A mesurer : "), mh$mesures),
-          shiny::tags$p(style = "margin:4px 0 0 0;font-size:13px;", shiny::tags$b("Modele : "),
+          shiny::tags$p(style = "margin:4px 0 0 0;font-size:13px;", shiny::tags$b("À mesurer : "), mh$mesures),
+          shiny::tags$p(style = "margin:4px 0 0 0;font-size:13px;", shiny::tags$b("Modèle : "),
                  shiny::tags$code(mh$modele)),
           shiny::div(style = "margin-top:8px;padding:8px 10px;background:#fff4e5;border-left:3px solid #e67e22;border-radius:0 4px 4px 0;",
-              shiny::tags$b(style = "color:#a04000;", shiny::icon("triangle-exclamation"), " Le piege : "),
+              shiny::tags$b(style = "color:#a04000;", shiny::icon("triangle-exclamation"), " Le piège : "),
               shiny::tags$span(style = "font-size:13px;", mh$piege))))
       }
       # Description structurelle precise de chaque dispositif (facteurs, gradients
       # d'heterogeneite, blocs, contraintes) selon les conventions agronomiques.
       info <- switch(t,
         "crd" = list(
-          facteurs = "1 facteur etudie",
-          gradient = "0 gradient d'hétérogénéité (milieu suppose homogene)",
+          facteurs = "1 facteur étudié",
+          gradient = "0 gradient d'hétérogénéité (milieu suppose homogène)",
           structure = "Sans bloc, avec répétitions. Les traitements sont affectés totalement au hasard aux parcelles.",
           couleur = "#27ae60"),
         "fisher" = list(
-          facteurs = "1 facteur etudie",
+          facteurs = "1 facteur étudié",
           gradient = "1 gradient d'hétérogénéité",
-          structure = "Bloc de Fisher (RCBD) : chaque bloc (= 1 répétition) est une rangee complete contenant tous les traitements une fois, randomises a l'intérieur. Les blocs sont perpendiculaires au gradient. Nombre de blocs = nombre de répétitions.",
+          structure = "Bloc de Fisher (RCBD) : chaque bloc (= 1 répétition) est une rangée complète contenant tous les traitements une fois, randomises à l'intérieur. Les blocs sont perpendiculaires au gradient. Nombre de blocs = nombre de répétitions.",
           couleur = "#2980b9"),
         "paired" = list(
-          facteurs = "1 facteur etudie (souvent 2 traitements)",
+          facteurs = "1 facteur étudié (souvent 2 traitements)",
           gradient = "1 gradient d'hétérogénéité",
           structure = "Couple apparie (BCR) : chaque bloc contient une paire (ou un petit groupe) de traitements compares sur des unités très semblables. Représentation en escalier diagonal suivant le gradient.",
           couleur = "#16a085"),
         "lsd" = list(
-          facteurs = "1 facteur etudie",
+          facteurs = "1 facteur étudié",
           gradient = "2 gradients d'hétérogénéité (ligne et colonne)",
-          structure = "Carre latin : chaque traitement apparait exactement une fois par ligne ET une fois par colonne. Contrôle deux sources de variation orthogonales.",
+          structure = "Carre latin : chaque traitement apparaît exactement une fois par ligne ET une fois par colonne. Contrôle deux sources de variation orthogonales.",
           couleur = "#8e44ad"),
         "alpha" = list(
-          facteurs = "1 facteur etudie",
+          facteurs = "1 facteur étudié",
           gradient = "1 gradient d'hétérogénéité",
           structure = "Blocs incomplets resolvables (alpha-design) : permet de tester un grand nombre de traitements sans les placer tous dans chaque bloc. 1 contrainte expérimentale (taille de bloc < nombre de traitements).",
           couleur = "#2980b9"),
         "factorial" = list(
-          facteurs = "Au moins 2 facteurs etudies (croisés)",
+          facteurs = "Au moins 2 facteurs étudiés (croisés)",
           gradient = "1 gradient d'hétérogénéité",
-          structure = "Toutes les combinaisons des niveaux des facteurs sont testees, organisees en blocs perpendiculaires au gradient.",
+          structure = "Toutes les combinaisons des niveaux des facteurs sont testées, organisées en blocs perpendiculaires au gradient.",
           couleur = "#e67e22"),
         "split" = list(
-          facteurs = "2 facteurs etudies",
+          facteurs = "2 facteurs étudiés",
           gradient = "1 gradient d'hétérogénéité, 1 contrainte expérimentale",
-          structure = "Parcelles divisees : le facteur principal est applique sur de GRANDES parcelles, le facteur secondaire sur des SOUS-parcelles a l'intérieur. La contrainte porte sur l'application du facteur principal.",
+          structure = "Parcelles divisées : le facteur principal est appliqué sur de GRANDES parcelles, le facteur secondaire sur des SOUS-parcelles à l'intérieur. La contrainte porte sur l'application du facteur principal.",
           couleur = "#e67e22"),
         "splitsplit" = list(
-          facteurs = "3 facteurs etudies (parcelle principale, sous-parcelle, sous-sous-parcelle)",
+          facteurs = "3 facteurs étudiés (parcelle principale, sous-parcelle, sous-sous-parcelle)",
           gradient = "1 gradient d'hétérogénéité, 2 contraintes expérimentales emboîtées",
-          structure = "Split-split-plot : le facteur A (parcelle principale) est applique sur de GRANDES parcelles ; le facteur B (sous-parcelle) est randomise a l'intérieur de chaque grande parcelle ; le facteur C (sous-sous-parcelle) est randomise a l'intérieur de chaque sous-parcelle. Trois niveaux d'erreur emboîtés.",
+          structure = "Split-split-plot : le facteur A (parcelle principale) est appliqué sur de GRANDES parcelles ; le facteur B (sous-parcelle) est randomisé à l'intérieur de chaque grande parcelle ; le facteur C (sous-sous-parcelle) est randomisé à l'intérieur de chaque sous-parcelle. Trois niveaux d'erreur emboîtés.",
           couleur = "#e67e22"),
         "strip" = list(
-          facteurs = "2 facteurs etudies",
+          facteurs = "2 facteurs étudiés",
           gradient = "1 gradient d'hétérogénéité, contraintes expérimentales",
-          structure = "Criss-Cross (bandes) : les deux facteurs sont appliques en BANDES perpendiculaires. Les combinaisons de traitements apparaissent aux INTERSECTIONS des bandes.",
+          structure = "Criss-Cross (bandes) : les deux facteurs sont appliqués en BANDES perpendiculaires. Les combinaisons de traitements apparaissent aux INTERSECTIONS des bandes.",
           couleur = "#e67e22"),
         list(facteurs = "1 facteur", gradient = "-", structure = "-", couleur = "#3c8dbc"))
       shiny::div(style = sprintf("border-left:4px solid %s;background:#f8f9fa;padding:10px 12px;margin:6px 0;font-size:12px;", info$couleur),
@@ -2634,7 +2634,7 @@ mod_design_server <- function(id, values) {
             shiny::icon("seedling"), " Structure du dispositif"),
         shiny::tags$ul(style = "margin:0;padding-left:18px;",
           shiny::tags$li(shiny::tags$b("Facteurs : "), info$facteurs),
-          shiny::tags$li(shiny::tags$b("Heterogeneite : "), info$gradient),
+          shiny::tags$li(shiny::tags$b("Hétérogénéité : "), info$gradient),
           shiny::tags$li(info$structure)))
     })
 
@@ -2684,7 +2684,7 @@ mod_design_server <- function(id, values) {
           return(shiny::div(style = "border-left:3px solid #8e44ad;padding-left:8px;margin-bottom:8px;",
             shiny::textInput(ns(paste0("dsgFName", i)), paste0("Nom du facteur ", i), value = nom_i),
             shiny::textInput(ns(paste0("dsgFLevels", i)),
-                      paste0("Modalites de ", nom_i, " (separees par virgule)"),
+                      paste0("Modalités de ", nom_i, " (séparées par virgule)"),
                       value = paste(mh$facteurs[[i]], collapse = ", "))))
         }
         shiny::div(style = "border-left:3px solid #3c8dbc;padding-left:8px;margin-bottom:8px;",
@@ -2755,7 +2755,7 @@ mod_design_server <- function(id, values) {
 
     design_book <- shiny::eventReactive(input$dsgGenerate, {
       fl <- get_factors(); t <- input$dsgType %||% "crd"
-      shiny::validate(shiny::need(length(fl) >= 1, "Definissez au moins un facteur avec ses modalités."))
+      shiny::validate(shiny::need(length(fl) >= 1, "Définissez au moins un facteur avec ses modalités."))
       if (t %in% c("split", "strip")) shiny::validate(shiny::need(length(fl) >= 2, "Ce plan nécessite 2 facteurs."))
       if (t == "splitsplit") shiny::validate(shiny::need(length(fl) >= 3, "Le split-split-plot nécessite 3 facteurs (parcelle principale, sous-parcelle, sous-sous-parcelle)."))
       kk <- input$dsgK
@@ -2810,7 +2810,7 @@ mod_design_server <- function(id, values) {
       alloc <- hstat_sample_allocation(fl, input$dsgRep %||% 3)
       nplot <- input$dsgN %||% 1
       shiny::div(shiny::h4(info$nom, style = "color:#2c3e50;margin-top:0;"),
-        shiny::tags$p(shiny::tags$b("Modèle suggere : "), shiny::tags$code(info$modele)),
+        shiny::tags$p(shiny::tags$b("Modèle suggère : "), shiny::tags$code(info$modele)),
         shiny::div(class = "callout callout-info", shiny::icon("lightbulb"), " ", info$analyse),
         shiny::tags$p(shiny::tags$b("Répartition : "),
                trf("%d traitement(s) x %d répétition(s) x %d échantillon(s)/parcelle = %d unités d'observation.",
@@ -3322,7 +3322,7 @@ mod_design_server <- function(id, values) {
       shiny::div(
         shiny::div(style = "font-size:42px;font-weight:700;color:#27ae60;", r$n_final),
         shiny::div(style = "font-size:14px;color:#7f8c8d;",
-            "personnes a enqueter (taille finale, non-réponse incluse)"),
+            "personnes à enquêter (taille finale, non-réponse incluse)"),
         if (!is.na(r$per_stratum))
           shiny::div(class = "callout callout-info", style = "margin-top:10px;",
               shiny::icon("layer-group"),
@@ -3335,14 +3335,14 @@ mod_design_server <- function(id, values) {
       r <- sv_res(); shiny::req(is.null(r$err))
       tab <- data.frame(
         Etape = c("1. Taille de base (population infinie)",
-                  "2. Apres correction population finie",
-                  "3. Apres effet de plan (grappes)",
-                  "4. Taille finale (ajustee pour non-réponse)"),
+                  "2. Après correction population finie",
+                  "3. Après effet de plan (grappes)",
+                  "4. Taille finale (ajustée pour non-réponse)"),
         Taille = c(r$n0, r$n_fpc, r$n_deff, r$n_final),
         stringsAsFactors = FALSE)
       DT::datatable(tab, rownames = FALSE, options = list(dom = "t", ordering = FALSE),
         caption = htmltools::tags$caption(style = "caption-side:top;font-weight:600;",
-          "Detail du calcul"))
+          "Détail du calcul"))
     })
 
     output$svCurve <- shiny::renderPlot({

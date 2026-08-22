@@ -454,7 +454,7 @@ mod_ml_server <- function(id, values) {
           b <- which.min(sc)
           depth <- grid$depth[b]; eta <- grid$eta[b]
           nrounds <- max(nrounds, 300L)
-          hp <- sprintf("max_depth = %d, eta = %.2f (validation), nrounds = %d",
+          hp <- sprintf("max_depth = %d, êta = %.2f (validation), nrounds = %d",
                         depth, eta, nrounds)
         }
         pars <- list(objective = obj, max_depth = depth, eta = eta)
@@ -604,10 +604,10 @@ mod_ml_server <- function(id, values) {
       if (is.null(df) || !NROW(df)) return()
       p <- tryCatch(fits()$p, error = function(e) NULL)
       hstat_ai_capture(values, "Machine Learning",
-        sprintf("Comparaison de modeles (%s)",
+        sprintf("Comparaison de modèles (%s)",
                 if (!is.null(p) && identical(p$task, "classification"))
                   "classification" else "regression"),
-        tables = list("Comparaison des modeles" = df),
+        tables = list("Comparaison des modèles" = df),
         meta = list(variables = c(input$mlTarget, input$mlPredictors),
                     `variable cible` = input$mlTarget,
                     `modeles compares` = input$mlModels))

@@ -25,13 +25,13 @@ HSTAT_REPORT_FORMATS <- c(
   "PDF"                            = "pdf")
 
 HSTAT_REPORT_SECTIONS <- c(
-  "Resume du jeu de donnees"          = "donnees",
-  "Diagnostic de qualite"             = "qualite",
-  "Analyses menees (tableaux)"        = "analyses",
+  "Résume du jeu de données"          = "donnees",
+  "Diagnostic de qualité"             = "qualite",
+  "Analyses menées (tableaux)"        = "analyses",
   "Figures"                           = "figures",
-  "Interpretation redigee"            = "interpretation",
-  "Analyses recommandees"             = "reco",
-  "Script R de reproductibilite"      = "script")
+  "Interprétation rédigée"            = "interpretation",
+  "Analyses recommandées"             = "reco",
+  "Script R de reproductibilité"      = "script")
 
 # Disponibilite reelle de chaque format sur CETTE machine.
 hstat_report_formats_dispo <- function() {
@@ -68,23 +68,23 @@ hstat_report_resume_donnees <- function(df, max_vars = 60L) {
     # milieu d'un tableau francais, et ne disait pas ce qui compte : la colonne
     # est vide. Le repli final reste traduit pour la meme raison.
     if (all(is.na(x))) "vide (aucune valeur)"
-    else if (is.numeric(x)) "numerique"
-    else if (is.factor(x) || is.character(x)) "categorielle"
+    else if (is.numeric(x)) "numérique"
+    else if (is.factor(x) || is.character(x)) "catégorielle"
     else if (inherits(x, c("Date", "POSIXct"))) "date"
     else if (is.logical(x)) "binaire (vrai / faux)"
     else sprintf("autre (%s)", class(x)[1])
   }, character(1))
   data.frame(
     Variable = vars, Type = unname(type),
-    `Renseignees` = vapply(vars, function(v) sum(!is.na(df[[v]])), integer(1)),
+    `Renseignées` = vapply(vars, function(v) sum(!is.na(df[[v]])), integer(1)),
     `Manquantes`  = vapply(vars, function(v) sum(is.na(df[[v]])), integer(1)),
-    `Modalites / etendue` = vapply(vars, function(v) {
+    `Modalités / étendue` = vapply(vars, function(v) {
       x <- df[[v]]
       if (is.numeric(x) && any(!is.na(x)))
-        sprintf("%s a %s", format(signif(min(x, na.rm = TRUE), 4)),
+        sprintf("%s à %s", format(signif(min(x, na.rm = TRUE), 4)),
                 format(signif(max(x, na.rm = TRUE), 4)))
       else if (is.factor(x) || is.character(x))
-        sprintf("%d modalite(s)", length(unique(stats::na.omit(x))))
+        sprintf("%d modalité(s)", length(unique(stats::na.omit(x))))
       else ""
     }, character(1)),
     check.names = FALSE, stringsAsFactors = FALSE, row.names = NULL)
@@ -118,9 +118,9 @@ HSTAT_REPORT_DPI_MIN <- 1000L
 
 # Resolutions proposees a l'utilisateur. Toutes >= au plancher.
 HSTAT_REPORT_DPI <- c(
-  "1000 dpi — qualite d'impression (defaut)" = "1000",
-  "1200 dpi — exigences editoriales strictes" = "1200",
-  "2400 dpi — tres haute definition (fichiers lourds)" = "2400")
+  "1000 dpi — qualité d'impression (défaut)" = "1000",
+  "1200 dpi — exigences éditoriales strictes" = "1200",
+  "2400 dpi — très haute définition (fichiers lourds)" = "2400")
 
 .hstat_rep_dessine <- function(f, fichier, largeur, hauteur, dpi) {
   obj <- tryCatch(f(), error = function(e) NULL)
@@ -228,7 +228,7 @@ hstat_report_figures <- function(history, dossier = tempdir(),
     vapply(seq_len(nrow(df)), function(i)
       paste0("| ", paste(vapply(cellules, function(c) c[i], character(1)),
                          collapse = " | "), " |"), character(1)))
-  if (tronque) lignes <- c(lignes, "", sprintf("*(%d lignes au total, %d affichees)*",
+  if (tronque) lignes <- c(lignes, "", sprintf("*(%d lignes au total, %d affichées)*",
                                                n_total, max_lignes))
   paste(lignes, collapse = "\n")
 }
@@ -247,26 +247,26 @@ hstat_report_markdown <- function(history, titre = "Rapport d'analyse",
   if (nzchar(auteur))   L <- c(L, sprintf("**Auteur** : %s  ", auteur))
   L <- c(L, sprintf("**Date** : %s  ", format(Sys.Date(), "%d/%m/%Y")))
   if (!is.null(version)) L <- c(L, sprintf("**Produit avec** : HStat %s  ", version))
-  if (nzchar(contexte)) L <- c(L, "", sprintf("**Contexte de l'etude** : %s", contexte))
+  if (nzchar(contexte)) L <- c(L, "", sprintf("**Contexte de l'étude** : %s", contexte))
   L <- c(L, "", "---", "")
 
   if ("donnees" %in% sections && !is.null(donnees_resume)) {
-    L <- c(L, "## Donnees analysees", "", .hstat_rep_tableau_md(donnees_resume), "")
+    L <- c(L, "## Données analysées", "", .hstat_rep_tableau_md(donnees_resume), "")
   }
 
   if ("qualite" %in% sections && !is.null(qualite) && NROW(qualite)) {
-    L <- c(L, "## Diagnostic de qualite des donnees", "",
-           "Chaque constat porte sa gravite et une suggestion concrete.", "",
+    L <- c(L, "## Diagnostic de qualité des données", "",
+           "Chaque constat porte sa gravité et une suggestion concrète.", "",
            .hstat_rep_tableau_md(qualite), "")
   }
 
   if ("analyses" %in% sections && length(history)) {
-    L <- c(L, "## Analyses menees", "")
+    L <- c(L, "## Analyses menées", "")
     for (i in seq_along(history)) {
       h <- history[[i]]
       L <- c(L, sprintf("### %d. %s — %s", i, h$module %||% "", h$title %||% ""), "")
       if (!is.null(h$time))
-        L <- c(L, sprintf("*Realisee a %s.*", format(h$time, "%H:%M:%S")), "")
+        L <- c(L, sprintf("*Réalisée à %s.*", format(h$time, "%H:%M:%S")), "")
       par <- unlist(lapply(names(h$meta), function(k) {
         v <- h$meta[[k]]
         if (is.null(v) || !length(v)) return(NULL)
@@ -278,9 +278,9 @@ hstat_report_markdown <- function(history, titre = "Rapport d'analyse",
           L <- c(L, sprintf("**%s**", nm), "", .hstat_rep_tableau_md(h$tables[[nm]]), "")
         }
       } else {
-        L <- c(L, "*Detail non conserve (analyse anterieure aux %d dernieres).*", "")
+        L <- c(L, "*Détail non conservé (analyse antérieure aux %d dernières).*", "")
         L[length(L) - 1L] <- trf(
-          "*Detail non conserve : seules les %d dernieres analyses gardent leurs tableaux.*",
+          "*Détail non conservé : seules les %d dernières analyses gardent leurs tableaux.*",
           HSTAT_HIST_DETAIL)
       }
     }
@@ -302,26 +302,26 @@ hstat_report_markdown <- function(history, titre = "Rapport d'analyse",
 
   if ("interpretation" %in% sections && !is.null(interpretation) &&
       nzchar(interpretation)) {
-    L <- c(L, "## Interpretation", "", interpretation, "")
+    L <- c(L, "## Interprétation", "", interpretation, "")
   }
 
   if ("reco" %in% sections && !is.null(reco) && NROW(reco)) {
-    L <- c(L, "## Analyses appelees par le profil des donnees", "",
+    L <- c(L, "## Analyses appelées par le profil des données", "",
            .hstat_rep_tableau_md(reco), "",
-           paste("*Ces propositions decoulent du type des variables, de leurs",
-                 "effectifs et de tests de normalite et d'homogeneite. Le choix",
+           paste("*Ces propositions découlent du type des variables, de leurs",
+                 "effectifs et de tests de normalité et d'homogénéité. Le choix",
                  "de l'analyse reste celui de l'analyste.*"), "")
   }
 
   if ("script" %in% sections && !is.null(script) && nzchar(script)) {
-    L <- c(L, "## Annexe — script R de reproductibilite", "",
+    L <- c(L, "## Annexe — script R de reproductibilité", "",
            "```r", strsplit(script, "\n")[[1]], "```", "")
   }
 
   L <- c(L, "---", "",
-         paste("*Document produit automatiquement par HStat. Les interpretations",
-               "qu'il contient eclairent la lecture des resultats ; elles ne les",
-               "valident pas. A relire avant diffusion.*"))
+         paste("*Document produit automatiquement par HStat. Les interprétations",
+               "qu'il contient éclairent la lecture des résultats ; elles ne les",
+               "valident pas. À relire avant diffusion.*"))
   paste(L, collapse = "\n")
 }
 
@@ -507,6 +507,6 @@ hstat_report_render <- function(markdown, fichier, format = "html",
   html <- hstat_report_render(markdown, fichier, "html", titre,
                               dispo = c(html = TRUE, docx = FALSE, pdf = FALSE))
   list(ok = TRUE, format = "html",
-       message = trf("La conversion en %s a echoue (%s). Le rapport est rendu en HTML.",
+       message = trf("La conversion en %s a échoué (%s). Le rapport est rendu en HTML.",
                          toupper(format), substr(res$message, 1, 200)))
 }

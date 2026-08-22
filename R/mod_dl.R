@@ -407,10 +407,10 @@ mod_dl_server <- function(id, values) {
       f <- tryCatch(dlfit(), error = function(e) NULL)
       if (is.null(f) || is.null(f$metrics)) return()
       hstat_ai_capture(values, "Deep Learning",
-        sprintf("Reseau de neurones (%s)",
+        sprintf("Réseau de neurones (%s)",
                 if (!is.null(f$p) && identical(f$p$task, "classification"))
                   "classification" else "regression"),
-        tables = list("Metriques du modele" = hstat_ai_as_table(f$metrics)),
+        tables = list("Métriques du modèle" = hstat_ai_as_table(f$metrics)),
         meta = list(variables = c(input$dlTarget, input$dlPredictors),
                     `variable cible` = input$dlTarget,
                     `couches cachees` = f$hidden))
@@ -471,6 +471,7 @@ mod_dl_server <- function(id, values) {
                              color = "white", lineheight = 0.9) +
           ggplot2::scale_fill_gradient(low = "#90a4ae", high = col) +
           ggplot2::labs(title = sprintf("MLP (%s) — matrice de confusion (test)", f$fit$engine),
+                        x = "Prédit", y = "Observé", fill = "Effectif",
                         caption = "Pourcentages par ligne : part de chaque classe observée. Diagonale = bien classés.")
         hstat_apply_plot_opts(g, input, "dlO")
       }

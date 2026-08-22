@@ -89,19 +89,19 @@ mod_explore_ui <- function(id) {
                           shiny::fluidRow(
                             shiny::column(6,
                                    shiny::h5(shiny::icon("text-height"), "Tailles", style = "color: #3498db; font-weight: bold;"),
-                                   shiny::sliderInput(ns("distTitleSize"), "Taille titre:", 
+                                   shiny::sliderInput(ns("distTitleSize"), "Taille titre :", 
                                                min = 8, max = 24, value = 14, ticks = FALSE),
-                                   shiny::sliderInput(ns("distAxisTitleSize"), "Taille titres axes:", 
+                                   shiny::sliderInput(ns("distAxisTitleSize"), "Taille titres axes :", 
                                                min = 8, max = 20, value = 12, ticks = FALSE),
-                                   shiny::sliderInput(ns("distAxisTextSize"), "Taille texte axes:", 
+                                   shiny::sliderInput(ns("distAxisTextSize"), "Taille texte axes :", 
                                                min = 6, max = 16, value = 10, ticks = FALSE),
                                    hstat_axe_titre_ui(ns, "dist"),
-                                   shiny::sliderInput(ns("distLegendTextSize"), "Taille texte légende:",
+                                   shiny::sliderInput(ns("distLegendTextSize"), "Taille texte légende :",
                                                min = 6, max = 16, value = 10, ticks = FALSE)
                             ),
                             shiny::column(6,
                                    shiny::h5(shiny::icon("heading"), "Personnalisation", style = "color: #3498db; font-weight: bold;"),
-                                   shiny::textInput(ns("distTitle"), "Titre personnalisé:", 
+                                   shiny::textInput(ns("distTitle"), "Titre personnalisé :", 
                                              placeholder = "Laisser vide pour titre auto"),
                                    shiny::checkboxInput(ns("distCenterTitle"), 
                                                  shiny::tagList(shiny::icon("align-center"), " Centrer le titre"), 
@@ -173,14 +173,14 @@ mod_explore_ui <- function(id) {
                           shiny::fluidRow(
                             shiny::column(4,
                                    shiny::h5(shiny::icon("text-height"), "Tailles", style = "color: #f39c12; font-weight: bold;"),
-                                   shiny::sliderInput(ns("missingTitleSize"), "Taille titre:", 
+                                   shiny::sliderInput(ns("missingTitleSize"), "Taille titre :", 
                                                min = 8, max = 24, value = 14, ticks = FALSE),
-                                   shiny::sliderInput(ns("missingAxisTitleSize"), "Taille titres axes:", 
+                                   shiny::sliderInput(ns("missingAxisTitleSize"), "Taille titres axes :", 
                                                min = 8, max = 20, value = 12, ticks = FALSE)
                             ),
                             shiny::column(4,
                                    shiny::h5(shiny::icon("palette"), "Affichage", style = "color: #f39c12; font-weight: bold;"),
-                                   shiny::sliderInput(ns("missingAxisTextSize"), "Taille texte axes:", 
+                                   shiny::sliderInput(ns("missingAxisTextSize"), "Taille texte axes :", 
                                                min = 6, max = 16, value = 10, ticks = FALSE),
                                    hstat_axe_titre_ui(ns, "miss"),
                                    shiny::checkboxInput(ns("missingRotateLabels"), 
@@ -189,7 +189,7 @@ mod_explore_ui <- function(id) {
                             ),
                             shiny::column(4,
                                    shiny::h5(shiny::icon("heading"), "Personnalisation", style = "color: #f39c12; font-weight: bold;"),
-                                   shiny::textInput(ns("missingTitle"), "Titre personnalisé:", 
+                                   shiny::textInput(ns("missingTitle"), "Titre personnalisé :", 
                                              placeholder = "Laisser vide pour titre auto"),
                                    shiny::checkboxInput(ns("missingCenterTitle"), 
                                                  shiny::tagList(shiny::icon("align-center"), " Centrer le titre"), 
@@ -233,8 +233,8 @@ mod_explore_server <- function(id, values) {
     if (is.null(d) || !NROW(d)) return()
     dq <- tryCatch(hstat_data_quality(d), error = function(e) NULL)
     hstat_ai_capture(values, "Exploration",
-      "Structure et qualite du jeu de donnees",
-      tables = list("Diagnostic de qualite" = dq),
+      "Structure et qualité du jeu de données",
+      tables = list("Diagnostic de qualité" = dq),
       meta = list(variables = names(d),
                   observations = NROW(d), colonnes = NCOL(d)))
   }, ignoreInit = FALSE)
@@ -314,7 +314,7 @@ mod_explore_server <- function(id, values) {
                  " Aucune variable numérique disponible"))
     }
     
-    shiny::selectInput(ns("distVar"), "Sélectionnez une variable:", 
+    shiny::selectInput(ns("distVar"), "Sélectionnez une variable :", 
                 choices = num_cols, selected = num_cols[1])
   })
   

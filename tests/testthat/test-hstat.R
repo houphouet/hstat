@@ -1272,7 +1272,7 @@ test_that("hstat_model_interpretation produit un texte substantiel", {
   m <- hstat_metrics_reg(1:50, (1:50) + rnorm(50, 0, 2))
   txt <- hstat_model_interpretation("regression", m, "test", 100, 50)
   expect_true(is.character(txt) && nchar(txt) > 80)
-  expect_match(txt, "generalisation")
+  expect_match(txt, "généralisation")
 })
 
 test_that("hstat_align_newdata convertit types, niveaux et colonnes manquantes", {
@@ -1897,7 +1897,7 @@ test_that("le moteur hors ligne est toujours disponible, sans cle ni reseau", {
   # C'est la garantie centrale : le moteur « auto » ne depend de rien.
   st <- hstat_ai_status("auto")
   expect_true(st$ok)
-  expect_true(grepl("sans reseau", st$message, fixed = TRUE))
+  expect_true(grepl("sans réseau", st$message, fixed = TRUE))
 })
 
 test_that("le moteur par defaut est gratuit, jamais une API payante", {
@@ -1966,7 +1966,7 @@ test_that("chaque fournisseur est complet et son protocole implemente", {
   expect_false("GITHUB_TOKEN" %in% env)
 })
 
-test_that("cle d'API : celle du service, jamais celle d'un autre", {
+test_that("clé d'API : celle du service, jamais celle d'un autre", {
   for (v in c("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY",
               "GEMINI_API_KEY", "GITHUB_MODELS_TOKEN", "MOONSHOT_API_KEY"))
     Sys.unsetenv(v)
@@ -1977,7 +1977,7 @@ test_that("cle d'API : celle du service, jamais celle d'un autre", {
 
   st <- hstat_ai_status("claude")
   expect_false(st$ok)
-  expect_true(grepl("cle d'API", st$message, fixed = TRUE))
+  expect_true(grepl("clé d'API", st$message, fixed = TRUE))
   expect_true(grepl("ANTHROPIC_API_KEY", st$message, fixed = TRUE))
   # Le message oriente vers le moteur gratuit
   expect_true(grepl("gratuite et hors ligne", st$message, fixed = TRUE))
@@ -2022,7 +2022,7 @@ test_that("serveur local injoignable : message actionnable, jamais d'erreur", {
   # Port volontairement ferme
   st <- hstat_ai_status("local", "http://127.0.0.1:9")
   expect_false(st$ok)
-  expect_true(grepl("Aucun modele joignable", st$message, fixed = TRUE))
+  expect_true(grepl("Aucun modèle joignable", st$message, fixed = TRUE))
   expect_equal(hstat_ai_models("local", "http://127.0.0.1:9", timeout = 2),
                character(0))
 
@@ -2080,7 +2080,7 @@ test_that("le moteur auto ne pretend pas rediger un texte", {
   # message qui dit quoi faire, pas partir en reseau ni tomber en erreur.
   r <- hstat_ai_call("bonjour", engine = "auto")
   expect_false(r$ok)
-  expect_true(grepl("thematisation automatique", r$error, ignore.case = TRUE))
+  expect_true(grepl("thématisation automatique", r$error, ignore.case = TRUE))
 })
 
 test_that("le modele Claude declare est bien claude-opus-5", {
@@ -2359,7 +2359,7 @@ test_that("la normalite est evaluee DANS chaque groupe, pas sur le melange", {
   expect_true(all(p$variables$y$normale$detail$Normale))
 
   r <- hstat_reco_analyses(p)
-  expect_true(grepl("t de Student|Welch", r$Analyse[r$Pertinence == "Recommandee"][1]))
+  expect_true(grepl("t de Student|Welch", r$Analyse[r$Pertinence == "Recommandée"][1]))
 
   # Sans facteur, la normalite est bien evaluee globalement
   p0 <- hstat_data_profile(d, "y")
@@ -2388,7 +2388,7 @@ test_that("le profil identifie correctement le type des variables", {
 test_that("le recommandateur suit les regles statistiques classiques", {
   set.seed(4)
   reco1 <- function(p) hstat_reco_analyses(p)$Analyse[
-    hstat_reco_analyses(p)$Pertinence == "Recommandee"][1]
+    hstat_reco_analyses(p)$Pertinence == "Recommandée"][1]
 
   # Deux groupes, normalite intra-groupe, variances homogenes -> t de Student
   d <- data.frame(y = c(stats::rnorm(40, 0, 1), stats::rnorm(40, 1, 1)),
@@ -2408,14 +2408,14 @@ test_that("le recommandateur suit les regles statistiques classiques", {
                    g = rep(c("A", "B", "C", "D"), c(3, 3, 3, 11)),
                    stringsAsFactors = FALSE)
   rp <- hstat_reco_analyses(hstat_data_profile(dp, "y", "g"))
-  expect_equal(rp$Analyse[rp$Pertinence == "Recommandee"][1], "Kruskal-Wallis")
+  expect_equal(rp$Analyse[rp$Pertinence == "Recommandée"][1], "Kruskal-Wallis")
   expect_true("Test exact / permutation" %in% rp$Analyse)
 
   # Deux qualitatives -> chi-deux, et la taille d'effet a enchainer
   dq <- data.frame(a = sample(c("x", "y"), 120, TRUE),
                    b = sample(c("u", "v", "w"), 120, TRUE), stringsAsFactors = FALSE)
   rq <- hstat_reco_analyses(hstat_data_profile(dq, c("a", "b"), "a"))
-  expect_match(rq$Analyse[rq$Pertinence == "Recommandee"][1], "chi-deux")
+  expect_match(rq$Analyse[rq$Pertinence == "Recommandée"][1], "chi-deux")
   expect_true(any(grepl("Cramer", rq$Analyse)))
 
   # Mesures appariees -> version appariee du test
@@ -2435,12 +2435,12 @@ test_that("le verdict signale un ecart sans jamais desavouer l'utilisateur", {
   v_ok <- hstat_reco_verdict(r, "Kruskal-Wallis sur 3 groupes")
   expect_true(v_ok$coherent)
 
-  v_no <- hstat_reco_verdict(r, "ANOVA a un facteur")
+  v_no <- hstat_reco_verdict(r, "ANOVA à un facteur")
   expect_false(v_no$coherent)
   expect_true(grepl("Kruskal-Wallis", v_no$message, fixed = TRUE))
   # Le ton compte autant que le fond : on informe, on ne condamne pas.
   expect_true(grepl("ne disqualifie pas", v_no$message, fixed = TRUE))
-  expect_true(grepl("A vous de trancher", v_no$message, fixed = TRUE))
+  expect_true(grepl("À vous de trancher", v_no$message, fixed = TRUE))
   expect_false(grepl("erreur|faux|incorrect", tolower(v_no$message)))
 
   expect_null(hstat_reco_verdict(NULL, "x"))
@@ -2485,7 +2485,7 @@ test_that("la lecture automatique relit les p-values sans modele ni reseau", {
   expect_true(grepl("0.0031", out, fixed = TRUE))
   expect_true(grepl("significatif", out, fixed = TRUE))
   expect_true(grepl("non significatif", out, fixed = TRUE))
-  expect_true(grepl("Analyses appelees par vos donnees", out, fixed = TRUE))
+  expect_true(grepl("Analyses appelées par vos données", out, fixed = TRUE))
   # Le rappel de responsabilite ne doit jamais disparaitre
   expect_true(grepl("vous appartient", out, fixed = TRUE))
 
@@ -2504,8 +2504,8 @@ test_that("l'invite d'interpretation interdit d'inventer et de decider", {
   pr <- hstat_ai_interpret_prompt(ctx, NULL, NULL, NULL, "scientifique")
   expect_true(grepl("N'invente aucun chiffre", pr, fixed = TRUE))
   expect_true(grepl("Ne recalcule rien", pr, fixed = TRUE))
-  expect_true(grepl("appartient a l'utilisateur", pr, fixed = TRUE))
-  expect_true(grepl("## Analyse recommandee pour la suite", pr, fixed = TRUE))
+  expect_true(grepl("appartient à l'utilisateur", pr, fixed = TRUE))
+  expect_true(grepl("## Analyse recommandée pour la suite", pr, fixed = TRUE))
   # Les trois niveaux de redaction produisent bien des consignes differentes
   n <- vapply(c("scientifique", "vulgarise", "detaille"),
               function(k) hstat_ai_interpret_prompt(ctx, niveau = k), character(1))
@@ -2558,12 +2558,12 @@ test_that("une analyse descriptive n'est pas jugee comme un test", {
   v <- hstat_reco_verdict(r, "Statistiques descriptives", "Analyses descriptives")
   expect_true(v$coherent)
   expect_true(v$exploratoire)
-  expect_true(grepl("etape preliminaire", v$message, fixed = TRUE))
+  expect_true(grepl("étape préliminaire", v$message, fixed = TRUE))
   expect_true(grepl("pas un test", v$message, fixed = TRUE))
-  expect_true(grepl("A vous de decider", v$message, fixed = TRUE))
+  expect_true(grepl("À vous de décider", v$message, fixed = TRUE))
 
   # Un module de tests reste evalue normalement
-  vt <- hstat_reco_verdict(r, "ANOVA a un facteur", "Tests statistiques")
+  vt <- hstat_reco_verdict(r, "ANOVA à un facteur", "Tests statistiques")
   expect_false(vt$exploratoire)
 })
 
@@ -2610,9 +2610,9 @@ test_that("toutes les familles d'analyse deposent un contexte", {
   pose <- unique(unlist(regmatches(
     src, gregexpr('hstat_ai_capture\\(values, "[^"]+"', src))))
   pose <- gsub('.*"([^"]+)"$', "\\1", pose)
-  attendu <- c("Tests statistiques", "Comparaisons multiples", "Analyses multivariees",
+  attendu <- c("Tests statistiques", "Comparaisons multiples", "Analyses multivariées",
                "Analyses descriptives", "Machine Learning", "Analyses qualitatives",
-               "Series temporelles", "Correlations", "Deep Learning", "Plan & Puissance")
+               "Séries temporelles", "Corrélations", "Deep Learning", "Plan & Puissance")
   for (m in attendu)
     expect_true(m %in% pose, info = paste("aucune capture pour :", m))
 })
@@ -2976,7 +2976,7 @@ test_that("hstat_data_quality detecte redondance, doublons et effectif insuffisa
   d <- data.frame(a = x, b = x * 2 + 1e-9, c = rnorm(50))  # a et b colineaires
   d <- rbind(d, d[1:3, ])                                   # 3 doublons
   dq <- hstat_data_quality(d)
-  expect_true(any(grepl("correlation", dq$Constat)))
+  expect_true(any(grepl("corrélation", dq$Constat)))
   expect_true(any(grepl("identique", dq$Constat)))
 
   # Peu d'observations pour beaucoup de variables
@@ -2995,8 +2995,8 @@ test_that("un jeu de donnees sain ne genere aucune fausse alerte", {
     stringsAsFactors = FALSE)
   dq <- hstat_data_quality(d)
   expect_equal(nrow(dq), 1L)
-  expect_true(grepl("aucun probleme", dq$Constat[1]))
-  expect_true(grepl("Aucun probleme", hstat_data_quality_resume(dq)))
+  expect_true(grepl("aucun problème", dq$Constat[1]))
+  expect_true(grepl("Aucun problème", hstat_data_quality_resume(dq)))
 
   expect_null(hstat_data_quality(NULL))
   expect_null(hstat_data_quality(data.frame()))
@@ -3008,12 +3008,12 @@ test_that("le resume compte correctement les gravites", {
     .hstat_q_row("a", "x", "bloquant", "s"),
     .hstat_q_row("b", "y", "important", "s"),
     .hstat_q_row("c", "z", "important", "s"),
-    .hstat_q_row("d", "w", "a surveiller", "s"))
+    .hstat_q_row("d", "w", "à surveiller", "s"))
   r <- hstat_data_quality_resume(dq)
   expect_true(grepl("4 constat", r, fixed = TRUE))
   expect_true(grepl("1 bloquant", r, fixed = TRUE))
   expect_true(grepl("2 important", r, fixed = TRUE))
-  expect_true(grepl("1 a surveiller", r, fixed = TRUE))
+  expect_true(grepl("1 à surveiller", r, fixed = TRUE))
 })
 
 test_that("TOUS les modules d'analyse deposent un contexte pour l'IA", {
@@ -3024,10 +3024,10 @@ test_that("TOUS les modules d'analyse deposent un contexte pour l'IA", {
 
   # La liste complete : aucun module ne doit rester muet.
   attendu <- c("Exploration", "Nettoyage", "Filtrage", "Analyses descriptives",
-               "Visualisation", "Correlations", "Tests statistiques",
-               "Comparaisons multiples", "Analyses multivariees",
-               "Analyses qualitatives", "Series temporelles", "Machine Learning",
-               "Deep Learning", "Plan & Puissance", "Seuils d'efficacite")
+               "Visualisation", "Corrélations", "Tests statistiques",
+               "Comparaisons multiples", "Analyses multivariées",
+               "Analyses qualitatives", "Séries temporelles", "Machine Learning",
+               "Deep Learning", "Plan & Puissance", "Seuils d'efficacité")
   for (m in attendu)
     expect_true(m %in% pose, info = paste("aucune capture pour le module :", m))
   expect_gte(length(pose), length(attendu))
@@ -3056,11 +3056,11 @@ test_that("hstat_rlog_code produit le code R attendu par famille d'analyse", {
   expect_match(cas("Tests statistiques", "Régression linéaire", "y", "x")[1],
                "lm\\(y ~ x", perl = TRUE)
 
-  expect_match(cas("Correlations", "Tests de correlation", c("a", "b"))[2],
+  expect_match(cas("Corrélations", "Tests de correlation", c("a", "b"))[2],
                "cor.test\\(donnees\\$a, donnees\\$b\\)", perl = TRUE)
-  expect_match(cas("Analyses multivariees", "Analyse en Composantes Principales (ACP)",
+  expect_match(cas("Analyses multivariées", "Analyse en Composantes Principales (ACP)",
                    c("a", "b"))[1], "FactoMineR::PCA", fixed = TRUE)
-  expect_match(cas("Analyses multivariees", "Classification k-means", c("a", "b")),
+  expect_match(cas("Analyses multivariées", "Classification k-means", c("a", "b")),
                "stats::kmeans", fixed = TRUE)
   expect_match(cas("Analyses qualitatives", "Tableau croise", c("sexe", "avis")),
                "chisq.test\\(table\\(", perl = TRUE)
@@ -3089,7 +3089,7 @@ test_that("le script de session est du R valide et executable", {
          meta = list(variables = c("score", "groupe")), time = Sys.time()),
     list(module = "Tests statistiques", title = "ANOVA",
          meta = list(variables = "score", groupe = "groupe"), time = Sys.time()),
-    list(module = "Correlations", title = "Correlations",
+    list(module = "Corrélations", title = "Corrélations",
          meta = list(variables = c("score", "age")), time = Sys.time()),
     list(module = "Machine Learning", title = "Comparaison",
          meta = list(variables = "score"), time = Sys.time()))
@@ -3123,7 +3123,7 @@ test_that("le script de session est du R valide et executable", {
 
   # Session vide : un script utilisable quand meme
   vide <- hstat_rlog_script(NULL)
-  expect_true(grepl("Aucune analyse enregistree", vide, fixed = TRUE))
+  expect_true(grepl("Aucune analyse enregistrée", vide, fixed = TRUE))
   expect_silent(parse(text = vide))
 })
 
@@ -3207,9 +3207,9 @@ test_that("le markdown du rapport respecte les sections demandees", {
   expect_true(grepl("A. B.", md, fixed = TRUE))
   expect_true(grepl("HStat 9.9.9", md, fixed = TRUE))
   expect_true(grepl("essai clinique", md, fixed = TRUE))
-  for (titre in c("## Donnees analysees", "## Diagnostic de qualite",
-                  "## Analyses menees", "## Interpretation",
-                  "## Analyses appelees", "## Annexe"))
+  for (titre in c("## Données analysées", "## Diagnostic de qualité",
+                  "## Analyses menées", "## Interprétation",
+                  "## Analyses appelées", "## Annexe"))
     expect_true(grepl(titre, md, fixed = TRUE), info = titre)
   # Le contenu des analyses y est, pas seulement leur titre
   expect_true(grepl("Test t de Student", md, fixed = TRUE))
@@ -3220,7 +3220,7 @@ test_that("le markdown du rapport respecte les sections demandees", {
   md2 <- hstat_report_markdown(h, sections = c("analyses"),
                                qualite = data.frame(V = 1),
                                script = "x <- 1")
-  expect_true(grepl("## Analyses menees", md2, fixed = TRUE))
+  expect_true(grepl("## Analyses menées", md2, fixed = TRUE))
   expect_false(grepl("## Diagnostic", md2, fixed = TRUE))
   expect_false(grepl("## Annexe", md2, fixed = TRUE))
 })
@@ -3269,11 +3269,11 @@ test_that("le resume du jeu de donnees decrit chaque variable", {
                   stringsAsFactors = FALSE)
   r <- hstat_report_resume_donnees(d)
   expect_equal(nrow(r), 2L)
-  expect_equal(r$Type, c("numerique", "categorielle"))
-  expect_equal(r$Renseignees, c(2L, 3L))
+  expect_equal(r$Type, c("numérique", "catégorielle"))
+  expect_equal(r$`Renseignées`, c(2L, 3L))
   expect_equal(r$Manquantes, c(1L, 0L))
-  expect_true(grepl("60", r[["Modalites / etendue"]][1]))
-  expect_true(grepl("2 modalite", r[["Modalites / etendue"]][2]))
+  expect_true(grepl("60", r[["Modalités / étendue"]][1]))
+  expect_true(grepl("2 modalité", r[["Modalités / étendue"]][2]))
   expect_null(hstat_report_resume_donnees(NULL))
 })
 
@@ -3394,13 +3394,13 @@ test_that("les erreurs R courantes deviennent des consignes en francais", {
     list("incorrect number of dimensions",             "un seul axe"),
     list("system is computationally singular: reciprocal condition number",
                                                        "redondantes"),
-    list("missing value where TRUE/FALSE needed",      "degenerees"),
+    list("missing value where TRUE/FALSE needed",      "dégénérées"),
     list("0 (non-NA) cases",                           "Aucune observation"),
     list("NA/NaN/Inf in foreign function call (arg 1)", "manquantes ou infinies"),
-    list("undefined columns selected",                 "absente du jeu de donnees"),
-    list("there is no package called 'poLCA'",         "pas installe"),
+    list("undefined columns selected",                 "absente du jeu de données"),
+    list("there is no package called 'poLCA'",         "pas installé"),
     list("contrasts can be applied only to factors with 2 or more levels",
-                                                       "une seule modalite"),
+                                                       "une seule modalité"),
     list("sample size must be between 3 and 5000",     "Shapiro-Wilk"),
     list("figure margins too large",                   "trop petite"))
   for (c0 in cas) {
@@ -3417,9 +3417,9 @@ test_that("les erreurs R courantes deviennent des consignes en francais", {
 test_that("chaque traduction dit quoi faire, pas seulement ce qui s'est passe", {
   # Une traduction qui se contente de nommer la panne ne sert a rien. On exige
   # au moins un verbe d'action dans chacune.
-  gestes <- paste("Choisissez|Verifiez|Retirez|Convertissez|Installez|Traitez",
-                  "|Simplifiez|Croisez|Augmentez|Agrandissez|Reduisez|Utilisez",
-                  "|reselectionnez|Signalez|Installez", sep = "")
+  gestes <- paste("Choisissez|V\u00e9rifiez|Retirez|Convertissez|Installez|Traitez",
+                  "|Simplifiez|Croisez|Augmentez|Agrandissez|R\u00e9duisez|Utilisez",
+                  "|res\u00e9lectionnez|Signalez|Installez", sep = "")
   for (r in HSTAT_ERR_FR)
     expect_true(grepl(gestes, r[[2]], perl = TRUE, ignore.case = TRUE),
                 info = substr(r[[2]], 1, 70))
@@ -3929,7 +3929,7 @@ test_that("le resume du rapport ne montre aucun nom de classe R en anglais", {
   expect_equal(r$Type[r$Variable == "vide"], "vide (aucune valeur)")
   expect_equal(r$Type[r$Variable == "b"], "binaire (vrai / faux)")
   expect_equal(r$Type[r$Variable == "d"], "date")
-  expect_equal(r$Type[r$Variable == "x"], "numerique")
+  expect_equal(r$Type[r$Variable == "x"], "numérique")
 })
 
 
@@ -4328,7 +4328,7 @@ test_that("une feuille vide est ecartee et nommee, sans bloquer les autres", {
   # Sur un classeur de douze feuilles, une seule mal formee ne doit pas tout
   # bloquer — mais l'utilisateur doit savoir laquelle a saute.
   expect_true(grepl("Notes", r$msg, fixed = TRUE))
-  expect_true(grepl("ecartee", r$msg, fixed = TRUE))
+  expect_true(grepl("écartée", r$msg, fixed = TRUE))
 
   # Sans precision, toutes les feuilles sont lues
   expect_equal(hstat_excel_read_sheets(f)$names, c("2023", "2024", "Referentiel"))
@@ -4360,7 +4360,7 @@ test_that("le diagnostic conseille l'empilement ou la jointure selon la structur
   # Aucune colonne commune : ni l'un ni l'autre n'a de sens, et on le dit
   c0 <- hstat_excel_compat(list(data.frame(a = 1), data.frame(b = 2)))
   expect_true(grepl("AUCUNE colonne en commun", c0$msg, fixed = TRUE))
-  expect_true(grepl("en-tetes", c0$msg, fixed = TRUE))
+  expect_true(grepl("en-têtes", c0$msg, fixed = TRUE))
   # Aucune feuille : pas d'erreur
   expect_false(hstat_excel_compat(list())$identiques)
 })
@@ -5488,7 +5488,7 @@ test_that("un temoin nul ne produit pas d'Inf silencieux", {
   expect_true(all(is.na(r$Efficacite[r$Modalite != "Temoin"])))
   expect_false(any(is.infinite(r$Efficacite)))
   # Et on le DIT.
-  expect_true(grepl("temoin nul", attr(r, "message")))
+  expect_true(grepl("témoin nul", attr(r, "message")))
   # Le temoin, lui, reste a 0 : c'est une definition, pas un calcul.
   expect_equal(r$Efficacite[r$Modalite == "Temoin"], 0)
 })
@@ -5514,7 +5514,7 @@ test_that("un groupe sans temoin est nomme, pas confondu avec une mesure manquan
   m <- attr(r, "message")
   expect_true(grepl("absent de 1 groupe", m))
   expect_true(grepl("\\bB\\b", m))
-  expect_true(grepl("verifiez", m))            # cause PUIS geste
+  expect_true(grepl("vérifiez", m))            # cause PUIS geste
 
   # Un plan sain ne declenche rien.
   ok <- data.frame(g = c("A", "A", "B", "B"), trt = c("Tem", "T1", "Tem", "T1"),
@@ -5568,7 +5568,7 @@ test_that("les deux modes de repetition ne repondent pas a la meme question", {
   som <- hstat_efficacite(d, "trt", "degats", "Temoin", agg = "somme",
                           var_repetition = "bloc")
   expect_equal(moy$Efficacite, som$Efficacite)
-  expect_false(grepl("inegales", attr(som, "message")))
+  expect_false(grepl("inégales", attr(som, "message")))
 })
 
 test_that("une somme sur des repetitions inegales est signalee", {
@@ -5594,9 +5594,9 @@ test_that("une somme sur des repetitions inegales est signalee", {
   expect_gt(eff_som, eff_moy + 20)
 
   # La somme le dit ; la moyenne n'a rien a signaler.
-  expect_true(grepl("inegales", attr(som, "message")))
+  expect_true(grepl("inégales", attr(som, "message")))
   expect_true(grepl("choisissez la moyenne", attr(som, "message")))
-  expect_false(grepl("inegales", attr(moy, "message")))
+  expect_false(grepl("inégales", attr(moy, "message")))
 
   # Le decompte des repetitions est visible dans le tableau : c'est lui qui
   # permet a l'utilisateur de verifier le desequilibre par lui-meme.
@@ -5657,8 +5657,8 @@ test_that("hstat_efficacite refuse clairement ce qu'elle ne peut pas faire", {
     expect_equal(nrow(x), 0L)
     expect_true(grepl(motif, attr(x, "message")), info = attr(x, "message"))
   }
-  attendu(hstat_efficacite(NULL, "trt", "degats", "Temoin"), "Aucune donnee")
-  attendu(hstat_efficacite(data.frame(), "trt", "degats", "Temoin"), "Aucune donnee")
+  attendu(hstat_efficacite(NULL, "trt", "degats", "Temoin"), "Aucune donnée")
+  attendu(hstat_efficacite(data.frame(), "trt", "degats", "Temoin"), "Aucune donnée")
   attendu(hstat_efficacite(d, "zzz", "degats", "Temoin"), "traitements")
   attendu(hstat_efficacite(d, "trt", "zzz", "Temoin"), "au moins une variable")
   attendu(hstat_efficacite(d, "trt", "degats", "Inexistant"), "n'existe pas")
@@ -5717,7 +5717,7 @@ test_that("seules les colonnes reellement nulles sont listees", {
   expect_equal(l$Observations, 3L)
   expect_equal(l$Zeros, 3L)
   expect_equal(l$Manquants, 1L)
-  expect_true(grepl("non mesure", l$Constat))
+  expect_true(grepl("non mesuré", l$Constat))
 
   # La virgule decimale francaise est comprise.
   expect_equal(z[z$Variable == "texte_zero", ]$Zeros, 4L)
@@ -5811,7 +5811,7 @@ test_that("le module de nettoyage porte bien l'etape des variables nulles", {
   # inverser les transformations : y deposer une phrase casserait son
   # affichage. Le geste passe par le registre d'analyses.
   expect_false(grepl("transformationLog <- c(", m, fixed = TRUE))
-  expect_true(grepl("Variables a valeurs nulles", m, fixed = TRUE))
+  expect_true(grepl("Variables à valeurs nulles", m, fixed = TRUE))
 })
 
 
@@ -5894,33 +5894,33 @@ test_that("aucun gestionnaire d'erreur ne jette la ligne qu'il vient de batir", 
 # ===========================================================================
 
 test_that("les analyses recommandees sont nommees en anglais", {
-  for (a in c("Test t de Student (deux echantillons)", "ANOVA a un facteur",
-              "Correlation de Pearson", "Regression lineaire",
-              "Test du chi-deux d'independance", "Comparaisons post-hoc",
-              "Aucune analyse possible en l'etat")) {
+  for (a in c("Test t de Student (deux échantillons)", "ANOVA à un facteur",
+              "Corrélation de Pearson", "Régression linéaire",
+              "Test du chi-deux d'indépendance", "Comparaisons post-hoc",
+              "Aucune analyse possible en l'état")) {
     t <- tr(a, "en")
     expect_false(identical(t, a), info = a)
     expect_true(nzchar(t))
   }
-  expect_equal(tr("ANOVA a un facteur", "en"), "One-way ANOVA")
-  expect_equal(tr("Test du chi-deux d'independance", "en"),
+  expect_equal(tr("ANOVA à un facteur", "en"), "One-way ANOVA")
+  expect_equal(tr("Test du chi-deux d'indépendance", "en"),
                "Chi-square test of independence")
 })
 
 test_that("les conditions et alternatives des recommandations sont traduites", {
-  for (x in c("Independance des observations ; normalite dans chaque groupe.",
+  for (x in c("Indépendance des observations ; normalité dans chaque groupe.",
               "Effectifs attendus >= 5 dans au moins 80 % des cases.",
               "Test exact de Fisher.",
-              "Correlation de Spearman, qui ne suppose que la monotonie."))
+              "Corrélation de Spearman, qui ne suppose que la monotonie."))
     expect_false(identical(tr(x, "en"), x), info = substr(x, 1, 40))
   # La ponctuation anglaise ne garde pas l'espace avant le point-virgule
-  expect_false(grepl(" ;", tr("Independance des observations ; normalite dans chaque groupe.",
+  expect_false(grepl(" ;", tr("Indépendance des observations ; normalité dans chaque groupe.",
                               "en"), fixed = TRUE))
 })
 
 test_that("les suggestions de qualite les plus frequentes sont traduites", {
-  for (x in c("Ces valeurs font echouer la plupart des calculs. Les remplacer ou les retirer dans l'onglet Nettoyage.",
-              "Variable quasi vide : l'exclure des analyses, ou retrouver la source des donnees manquantes.",
+  for (x in c("Ces valeurs font échouer la plupart des calculs. Les remplacer ou les retirer dans l'onglet Nettoyage.",
+              "Variable quasi vide : l'exclure des analyses, ou retrouver la source des données manquantes.",
               "Convertir en numerique (onglet Nettoyage). En l'etat, moyennes, correlations et tests quantitatifs sont impossibles."))
     expect_false(identical(tr(x, "en"), x), info = substr(x, 1, 40))
 })
@@ -5932,7 +5932,7 @@ test_that("le dictionnaire couvre desormais plus que la seule navigation", {
   # d'erreur, interpretations.
   expect_true("Tests statistiques" %in% d$fr)                 # interface
   expect_true("message R" %in% d$fr)                          # erreurs
-  expect_true("ANOVA a un facteur" %in% d$fr)                 # interpretations
+  expect_true("ANOVA à un facteur" %in% d$fr)                 # interpretations
   # Meme plafond, meme source : voir HSTAT_I18N_KO_MAX dans le socle.
   expect_lt(nchar(hstat_i18n_json("en")) / 1024, HSTAT_I18N_KO_MAX)
 })
@@ -7668,7 +7668,7 @@ test_that("les dispositifs de malherbologie sont complets et bien branches", {
   expect_true(any(grepl("^D0 ", cat_mh$mh_dose_reponse$facteurs$Dose)))
   expect_true(any(grepl("^T0 ", cat_mh$mh_desherbage$facteurs$Strategie)))
   eff <- cat_mh$mh_efficacite$facteurs$Traitement
-  expect_true(any(grepl("enherbe", eff)))    # denominateur de l'efficacite
+  expect_true(any(grepl("enherbé", eff)))    # denominateur de l'efficacite
   expect_true(any(grepl("propre",  eff)))    # reference de rendement et de selectivite
 
   # Periode critique : les DEUX temoins permanents. Le propre porte le
@@ -7881,4 +7881,166 @@ test_that("le plafond du champ DPI est le meme partout", {
     dpi_max <- regmatches(src, gregexpr("[Dd]pi\"[^)]*max = [0-9]+", src))[[1]]
     expect_length(dpi_max, 0)
   }
+})
+
+test_that("aucun mot francais affiche ne perd ses accents", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # Le francais SANS ACCENT est une faute, et elle etait partout : « modele »,
+  # « donnees », « temoin », « parametres »... Le correcteur (hunspell,
+  # dictionnaire fr_FR) les a tous trouves ; ce test garde le resultat sans
+  # exiger hunspell, en balayant la liste exacte des mots corriges.
+  #
+  # Il ne porte QUE sur le TEXTE AFFICHE. Trois familles sont ecartees PAR
+  # CONSTRUCTION, jamais par une liste d'exceptions :
+  #
+  #  1. un identifiant (« Modalite », « hstat-termes-donnees ») ne porte pas
+  #     d'espace -- un libelle francais en porte toujours ;
+  #  2. du code engendre par le journal de reproductibilite, du CSS ou du
+  #     JavaScript : accentuer « text-decoration » ou « event » casse la page.
+  #     Le premier balayage l'avait fait, trois fois ;
+  #  3. le premier argument d'une fonction d'expression reguliere : c'est un
+  #     MOTIF, compare a du texte deja deplie par `hstat_sans_accents()`.
+  fautifs <- character(0)
+  mots <- c("modele", "donnees", "temoin", "etiquette", "methode", "normalite",
+            "densite", "reponse", "lineaire", "resultat", "reference",
+            "modalite", "decision", "parametrique", "aleatoire", "qualite",
+            "telecharger", "selectionnez", "apercu", "portee", "precedente",
+            "deplacer", "operateur", "definition", "sensibilite", "detail",
+            "interpreter", "regression", "serie", "deja", "categorielle",
+            "numerique", "efficacite", "repetition", "verifiez", "echec",
+            "eloignes", "representatifs", "parametres", "probleme")
+  motif <- paste0("\\b(", paste(mots, collapse = "|"), ")\\b")
+  REGEX <- c("grepl", "sub", "gsub", "grep", "regexpr", "gregexpr", "regmatches",
+             "strsplit", "startsWith", "endsWith", "switch")
+  CODE <- paste0("function\\s*\\(|=>|document[.]|window[.]|Shiny[.]|<-|::|",
+                 "[a-z-]+\\s*:\\s*[^;]+;|priority|classList|\\$\\(")
+  vide <- function(l, i) identical(l[[i]], quote(expr = ))
+  for (f in .hstat_sources_app()) {
+    ex <- parse(f, keep.source = TRUE)
+    visiter <- function(x) {
+      if (is.character(x) && length(x) == 1L && !is.na(x)) {
+        if (!grepl("[[:space:]]", x)) return(invisible())
+        if (grepl(CODE, x, perl = TRUE)) return(invisible())
+        if (grepl(motif, x, ignore.case = TRUE))
+          fautifs <<- c(fautifs, sprintf("%s : %s", basename(f), substr(x, 1, 60)))
+        return(invisible())
+      }
+      if (!is.call(x)) return(invisible())
+      tete <- x[[1]]
+      nm <- if (is.name(tete)) as.character(tete) else ""
+      l <- as.list(x)
+      deb <- if (nm %in% REGEX && length(l) >= 3) 3L else 2L
+      for (i in seq_along(l)) if (i >= deb && !vide(l, i)) visiter(l[[i]])
+      invisible()
+    }
+    for (e in ex) visiter(e)
+  }
+  expect_equal(fautifs, character(0))
+})
+
+test_that("un motif compare a du texte deplie reste sans accent", {
+  # `hstat_sans_accents()` retire les accents du texte AVANT comparaison :
+  # un motif accentue ne peut alors JAMAIS correspondre. Le journal de
+  # reproductibilite est reste muet sur la regression lineaire pour cette
+  # raison exacte -- sans erreur, sans avertissement, sans code.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  fautifs <- character(0)
+  for (f in .hstat_sources_app()) {
+    ex <- parse(f, keep.source = TRUE)
+    deplies <- character(0)
+    reperer <- function(x) {
+      if (!is.call(x)) return(invisible())
+      if (identical(x[[1]], quote(`<-`)) && length(x) == 3L && is.name(x[[2]]) &&
+          grepl("hstat_sans_accents", paste(deparse(x[[3]]), collapse = " "),
+                fixed = TRUE))
+        deplies <<- c(deplies, as.character(x[[2]]))
+      l <- as.list(x)
+      for (i in seq_along(l))
+        if (!identical(l[[i]], quote(expr = ))) reperer(l[[i]])
+      invisible()
+    }
+    for (e in ex) reperer(e)
+    if (!length(deplies)) next
+    verifier <- function(x) {
+      if (!is.call(x)) return(invisible())
+      nm <- if (is.name(x[[1]])) as.character(x[[1]]) else ""
+      if (nm %in% c("grepl", "sub", "gsub", "grep", "regexpr") &&
+          length(x) >= 3 && is.character(x[[2]]) && is.name(x[[3]]) &&
+          as.character(x[[3]]) %in% deplies &&
+          any(utf8ToInt(x[[2]]) > 127L))
+        fautifs <<- c(fautifs, sprintf("%s : motif accentue %s",
+                                       basename(f), x[[2]]))
+      l <- as.list(x)
+      for (i in seq_along(l))
+        if (!identical(l[[i]], quote(expr = ))) verifier(l[[i]])
+      invisible()
+    }
+    for (e in ex) verifier(e)
+  }
+  expect_equal(fautifs, character(0))
+})
+
+test_that("une colonne creee et une colonne lue portent le meme nom", {
+  # `Ecart_type` etait cree sans accent et relu sous « Écart_type » a quatorze
+  # endroits : la colonne existait, la lecture rendait NULL, et la sortie
+  # partait sans un mot. Le balayage rapproche les chaines accentuees des
+  # SYMBOLES du meme fichier.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  fautifs <- character(0)
+  for (f in .hstat_sources_app()) {
+    pd <- utils::getParseData(parse(f, keep.source = TRUE))
+    chn <- unique(gsub('^"|"$', "", pd$text[pd$token == "STR_CONST"]))
+    chn <- chn[grepl("^[A-Za-z_.][A-Za-z0-9_.]*$",
+                     iconv(chn, "UTF-8", "ASCII//TRANSLIT")) &
+               grepl("[^\\x01-\\x7f]", chn, perl = TRUE)]
+    sym <- unique(pd$text[pd$token %in% c("SYMBOL", "SYMBOL_FUNCTION_CALL")])
+    for (s in chn) {
+      nu <- iconv(s, "UTF-8", "ASCII//TRANSLIT")
+      if (!is.na(nu) && nu != s && nu %in% sym)
+        fautifs <- c(fautifs, sprintf("%s : chaine %s mais symbole %s",
+                                      basename(f), s, nu))
+    }
+  }
+  # Les couples legitimes : un nom de colonne ASCII et son LIBELLE accentue,
+  # verifies un par un (« Modalite » la colonne, « Modalité » l'etiquette).
+  connus <- c("Observé", "Prédit", "Modalité", "Résidu", "Thème", "Fréquence",
+              "Méthode", "Interprétation", "Métrique")
+  fautifs <- fautifs[!grepl(paste0("chaine (", paste(connus, collapse = "|"),
+                                   ") "), fautifs)]
+  expect_equal(fautifs, character(0))
+})
+
+test_that("la traduction anglaise est coherente et typographiee en anglais", {
+  d <- hstat_i18n_load()
+  skip_if(is.null(d) || !nrow(d))
+
+  # 1. Les marqueurs de sprintf survivent : une traduction qui en perd un
+  #    ferait tomber toute la sortie sur « too few arguments ».
+  marq <- function(x) vapply(regmatches(x, gregexpr("%[-0-9.]*[sdfgeix]", x)),
+                             paste, character(1), collapse = "")
+  expect_equal(marq(d$fr), marq(d$en))
+
+  # 2. La ponctuation francaise ne passe pas la frontiere : l'anglais ne met
+  #    pas d'espace avant « : ; ! ? », ni avant le pour-cent.
+  expect_equal(d$en[grepl("[^ [:punct:]] [:;!?][^\")]", d$en)], character(0))
+  expect_equal(d$en[grepl("[0-9] %[^%s]", d$en)], character(0))
+
+  # 3. Les deux-points annoncent un champ : ils ne disparaissent pas a la
+  #    traduction. « Seuil : » rendu « Threshold » perd le signe.
+  fr2p <- grepl("[[:space:]]*:[[:space:]]*$", d$fr)
+  expect_equal(d$en[fr2p & !grepl(":[[:space:]]*$", d$en)], character(0))
+
+  # 4. Un terme, un mot. « graphique » etait rendu tantot « chart », tantot
+  #    « plot » : le lecteur croit lire deux notions.
+  g <- d$en[grepl("graphique", d$fr, ignore.case = TRUE)]
+  expect_equal(g[grepl("\\bcharts?\\b", g, ignore.case = TRUE)], character(0))
+  # « repetition » n'est pas le mot du plan d'experience : c'est « replicate ».
+  r <- d$en[grepl("r[ée]p[ée]tition", d$fr, ignore.case = TRUE)]
+  expect_equal(r[grepl("\\brepetitions?\\b", r, ignore.case = TRUE)], character(0))
+  # « jeu de donnees » : un seul mot anglais.
+  j <- d$en[grepl("jeu de donn[ée]es", d$fr, ignore.case = TRUE)]
+  expect_equal(j[grepl("\\bdata sets?\\b", j, ignore.case = TRUE)], character(0))
 })

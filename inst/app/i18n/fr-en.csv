@@ -1,1331 +1,1282 @@
-fr,en
-Chargement,Loading
-Exploration,Exploration
-Nettoyage,Cleaning
-Filtrage,Filtering
-Analyses descriptives,Descriptive statistics
-Visualisation des données,Data visualisation
-Corrélations,Correlations
-Tests statistiques,Statistical tests
-Comparaisons post-hoc,Post-hoc comparisons
-Analyses multivariées,Multivariate analyses
-Analyses qualitatives,Qualitative analyses
-Interprétation & aide à la décision,Interpretation & decision support
-Séries temporelles,Time series
-Machine Learning,Machine learning
-Deep Learning,Deep learning
-Plan & Puissance,Design & power
-Seuils d'efficacité,Efficacy thresholds
-Citer HStat,Cite HStat
-Charger données,Load data
-Choisir un fichier,Choose a file
-Aperçu des données,Data preview
-Charger,Load
-Séparateur (CSV/TXT),Separator (CSV/TXT)
-Avec en-têtes,With headers
-Virgule,Comma
-Point-virgule,Semicolon
-Feuille Excel :,Excel sheet:
-Feuilles à combiner,Sheets to combine
-Comment les combiner,How to combine them
-Combiner ces feuilles,Combine these sheets
-Empiler les lignes,Stack the rows
-Empiler et supprimer les doublons,Stack and drop duplicates
-Jointure interne (lignes présentes partout),Inner join (rows present everywhere)
-Jointure à gauche (garde toute la 1re feuille),Left join (keeps the whole first sheet)
-Jointure complète (garde tout),Full join (keeps everything)
-Colonne d'origine,Source column
-Valeur inscrite,Value recorded
-Nom de la feuille,Sheet name
-Nombre extrait du nom,Number extracted from the name
-Options avancées (gros fichiers),Advanced options (large files)
-Seuil hors-mémoire (Mo),Out-of-memory threshold (MB)
-Taille de l'échantillon (lignes),Sample size (rows)
-Type de fusion,Merge type
-Fusionner les fichiers,Merge the files
-Lignes,Rows
-Colonnes,Columns
-Variable,Variable
-Variables,Variables
-Valeur,Value
-Valeurs,Values
-Effectif,Count
-Effectifs,Counts
-Fréquence,Frequency
-Pourcentage,Percentage
-Moyenne,Mean
-Médiane,Median
-Écart-type,Standard deviation
-Variance,Variance
-Minimum,Minimum
-Maximum,Maximum
-Étendue,Range
-Quartile,Quartile
-Somme,Sum
-Total,Total
-Groupe,Group
-Groupes,Groups
-Facteur,Factor
-Facteurs,Factors
-Modalité,Category
-Modalités,Categories
-Observation,Observation
-Observations,Observations
-Manquants,Missing
-Valeurs manquantes,Missing values
-Aucun,None
-Aucune,None
-Oui,Yes
-Non,No
-Tous,All
-Toutes,All
-Date,Date
-Test,Test
-Tests,Tests
-Résultat,Result
-Résultats,Results
-Résumé,Summary
-Détails,Details
-Interprétation,Interpretation
-Statistique,Statistic
-Seuil,Threshold
-Intervalle de confiance,Confidence interval
-Taille d'effet,Effect size
-Puissance,Power
-Corrélation,Correlation
-Coefficient,Coefficient
-Écart,Difference
-Différence,Difference
-Erreur standard,Standard error
-Degrés de liberté,Degrees of freedom
-significatif,significant
-non significatif,not significant
-indeterminable,undeterminable
-Significatif,Significant
-Non significatif,Not significant
-Recommandee,Recommended
-Recommandée,Recommended
-À envisager,Worth considering
-À enchaîner,Follow-up
-Bloquant,Blocking
-Important,Important
-À surveiller,Worth watching
-Gravité,Severity
-Constat,Finding
-Suggestion,Suggestion
-Calculer,Compute
-Calculer les statistiques,Compute the statistics
-Lancer,Run
-Lancer l'analyse,Run the analysis
-Appliquer,Apply
-Réinitialiser,Reset
-Annuler,Cancel
-Valider,Confirm
-Enregistrer,Save
-Supprimer,Delete
-Ajouter,Add
-Modifier,Edit
-Rechercher,Search
-Exporter,Export
-Télécharger,Download
-Importer,Import
-Aperçu,Preview
-Fermer,Close
-Retour,Back
-Suivant,Next
-Précédent,Previous
-Tout sélectionner,Select all
-Tout désélectionner,Deselect all
-Graphique,Chart
-Graphiques,Charts
-Titre,Title
-Sous-titre,Subtitle
-Légende,Legend
-Couleur,Colour
-Couleurs,Colours
-Taille,Size
-Largeur,Width
-Hauteur,Height
-Résolution,Resolution
-Police,Font
-Gras,Bold
-Italique,Italic
-Normal,Normal
-Thème,Theme
-Axe des X,X axis
-Axe des Y,Y axis
-Type de graphique,Chart type
-Nuage de points,Scatter plot
-Histogramme,Histogram
-Boîte à moustaches,Box plot
-Diagramme en barres,Bar chart
-Camembert,Pie chart
-Courbe,Line
-Densité,Density
-Violon,Violin
-Test de normalité,Normality test
-Test d'homogénéité,Homogeneity test
-Test t de Student,Student's t-test
-Régression linéaire,Linear regression
-Modèle linéaire généralisé,Generalised linear model
-Test de Wilcoxon,Wilcoxon test
-Test de Kruskal-Wallis,Kruskal-Wallis test
-Comparaison à une norme,Comparison with a reference value
-Réglages de la norme,Reference value settings
-Tests paramétriques,Parametric tests
-Tests non-paramétriques,Non-parametric tests
-Tests sur données brutes,Tests on raw data
-Variable réponse,Response variable
-Variable de groupe,Grouping variable
-Variable explicative,Explanatory variable
-Analyse en Composantes Principales (ACP),Principal Component Analysis (PCA)
-Analyse Factorielle Discriminante (AFD),Discriminant Factor Analysis
-Analyse factorielle des correspondances (AFC),Correspondence Analysis (CA)
-Analyse des correspondances multiples (ACM),Multiple Correspondence Analysis (MCA)
-Classification k-modes,k-modes clustering
-Analyse en classes latentes,Latent class analysis
-Classification k-prototypes,k-prototypes clustering
-Régression logistique,Logistic regression
-Nombre de clusters,Number of clusters
-Qualité de la partition,Partition quality
-Livre de codes,Codebook
-Ajouter le code,Add the code
-Déplacer un code,Move a code
-Récupération,Retrieval
-Matrice de croisement,Cross matrix
-Nuage de mots,Word cloud
-Carte conceptuelle,Concept map
-Assistant de codage,Coding assistant
-Export & sauvegarde,Export & save
-Memos,Memos
-Mémos,Memos
-Porte sur,Applies to
-Code,Code
-Codes,Codes
-Document,Document
-Documents,Documents
-Segment,Segment
-Segments,Segments
-Libre,Free-standing
-Cible,Target
-Enregistrer le memo,Save the memo
-Rapport,Report
-Titre du rapport,Report title
-Auteur (facultatif),Author (optional)
-Format,Format
-Sections à inclure,Sections to include
-Produire le rapport,Produce the report
-Résolution des figures,Figure resolution
-Journal & reproductibilité,Journal & reproducibility
-Qualité des données,Data quality
-Profil des données,Data profile
-Analyse recommandée,Recommended analysis
-Résultats capturés,Captured results
-Moteur d'inférence,Inference engine
-Serveur,Server
-Adresse,Address
-Tester la connexion,Test the connection
-Niveau de rédaction,Writing level
-Contexte de l'étude (facultatif),Study context (optional)
-Seuil de signification,Significance level
-Mesures appariées (mêmes sujets),Paired measurements (same subjects)
-Variables analysées,Variables analysed
-Variable de groupe (facteur),Grouping variable (factor)
-Analyse à interpréter,Analysis to interpret
-Aide à la décision,Decision support
-Erreur,Error
-Avertissement,Warning
-Attention,Warning
-Information,Information
-Chargement en cours...,Loading...
-Aucune donnée,No data
-Aucun résultat,No result
-Connexion interrompue,Connection interrupted
-Connexion rétablie,Connection restored
-Reprendre maintenant,Resume now
-"La variable ne varie pas : toutes ses valeurs sont identiques (ou presque). Aucun test ne peut comparer ce qui ne varie pas. Choisissez une autre variable, ou verifiez que le filtre actif n'a pas reduit vos donnees a un seul cas de figure.","The variable does not vary: all its values are identical (or nearly so). No test can compare what does not vary. Choose another variable, or check that the active filter has not reduced your data to a single case."
-Toutes les observations portent la meme valeur. Le test n'a rien a comparer. Verifiez la variable choisie et les filtres actifs.,Every observation carries the same value. The test has nothing to compare. Check the chosen variable and the active filters.
-"Le test de Shapiro-Wilk exige entre 3 et 5000 observations. Au-dela, utilisez un graphique quantile-quantile plutot qu'un test : sur de tels effectifs, il rejetterait le moindre ecart.","The Shapiro-Wilk test requires between 3 and 5000 observations. Beyond that, use a quantile-quantile plot rather than a test: at such sample sizes it would reject the slightest departure."
-Effectif insuffisant pour ce test. Verifiez le nombre d'observations non manquantes dans chaque groupe : un groupe vide ou reduit a une seule observation suffit a bloquer le calcul.,"Too few observations for this test. Check the number of non-missing observations in each group: one empty group, or a group reduced to a single observation, is enough to block the computation."
-"Ce test compare exactement deux groupes, or le facteur choisi n'en distingue pas deux. Pour plus de deux groupes, utilisez l'ANOVA — ou Kruskal-Wallis si la normalite n'est pas acquise.","This test compares exactly two groups, and the chosen factor does not distinguish two. For more than two groups, use ANOVA — or Kruskal-Wallis if normality is not established."
-"Il faut au moins deux groupes comportant des observations, et l'un d'eux est vide apres retrait des valeurs manquantes. Verifiez les effectifs par groupe, et les filtres actifs.","At least two groups with observations are needed, and one of them is empty once missing values are removed. Check the group sizes and the active filters."
-"Une des variables explicatives ne prend qu'une seule modalite dans les donnees analysees : elle n'apporte aucune information au modele. Retirez-la, ou verifiez les filtres actifs.","One of the explanatory variables takes a single category in the analysed data: it brings no information to the model. Remove it, or check the active filters."
-"Le resultat ne comporte qu'un seul axe factoriel : il ne peut pas etre represente dans un plan. C'est le cas courant d'une AFC croisant une variable binaire (sexe, oui/non, avant/apres). Croisez des variables comportant davantage de modalites.","The result has only one factorial axis: it cannot be drawn in a plane. This is the usual case of a correspondence analysis crossing a binary variable (sex, yes/no, before/after). Cross variables with more categories."
-"La matrice n'est pas inversible : au moins deux variables sont redondantes (l'une se deduit des autres), ou il y a moins d'observations que de variables. Retirez une des variables correlees, ou augmentez l'effectif.","The matrix is not invertible: at least two variables are redundant (one follows from the others), or there are fewer observations than variables. Remove one of the correlated variables, or increase the sample size."
-Les dimensions des tableaux combines ne correspondent pas. Verifiez que toutes les variables retenues portent bien sur les memes observations.,The dimensions of the combined tables do not match. Check that every selected variable refers to the same observations.
-"Une statistique n'a pas pu etre calculee (elle vaut NA) et une decision en dependait. C'est le signe de donnees degenerees : verifiez la variance et l'effectif de chaque groupe, ainsi que le taux de valeurs manquantes.","A statistic could not be computed (it is NA) and a decision depended on it. This points to degenerate data: check the variance and size of each group, and the proportion of missing values."
-"Aucune observation ne renseigne toutes les variables choisies a la fois. Retirez la variable la plus lacunaire, ou traitez les valeurs manquantes dans l'onglet Nettoyage.","No observation has a value for all the chosen variables at once. Remove the sparsest variable, or handle the missing values in the Cleaning tab."
-Les donnees contiennent des valeurs manquantes ou infinies que ce calcul n'accepte pas. Traitez-les dans l'onglet Nettoyage (imputation ou retrait) avant de relancer.,The data contain missing or infinite values that this computation does not accept. Handle them in the Cleaning tab (imputation or removal) before running it again.
-Une variable attendue est absente du jeu de donnees. Elle a sans doute ete renommee ou retiree depuis le choix : reselectionnez vos variables.,An expected variable is absent from the dataset. It was probably renamed or removed since you chose it: select your variables again.
-"Un paquet R necessaire a cette analyse n'est pas installe. Installez-le, puis relancez l'application ; cette analyse restera indisponible en attendant, les autres continuent de fonctionner.","An R package required by this analysis is not installed. Install it, then restart the application; this analysis stays unavailable meanwhile, the others keep working."
-"Une fonction attendue est introuvable : le paquet qui la fournit n'est pas installe ou n'a pas pu etre charge. Installez-le, puis relancez l'application.","An expected function cannot be found: the package providing it is not installed, or could not be loaded. Install it, then restart the application."
-"Le fichier n'a pas pu etre ouvert. Verifiez le chemin, que le fichier n'a pas ete deplace, et vos droits d'acces.","The file could not be opened. Check the path, that the file has not been moved, and your access rights."
-Les colonnes assemblees n'ont pas le meme nombre de lignes. Verifiez que les jeux de donnees fusionnes portent bien sur les memes observations.,The assembled columns do not have the same number of rows. Check that the merged datasets refer to the same observations.
-"Certains effectifs theoriques sont inferieurs a 5 : l'approximation du khi-deux devient douteuse. Utilisez le test exact de Fisher, ou regroupez les modalites les moins frequentes.","Some expected counts are below 5: the chi-square approximation becomes unreliable. Use Fisher's exact test, or merge the least frequent categories."
-"La zone de trace est trop petite pour le graphique demande. Agrandissez la fenetre, ou reduisez la taille des etiquettes.","The plotting area is too small for the requested chart. Enlarge the window, or reduce the label size."
-"Erreur interne d'affichage. Signalez-la : elle vient du code de l'application, pas de vos donnees.","Internal display error. Please report it: it comes from the application's code, not from your data."
-"Ce calcul attend une variable numerique et a recu du texte ou une categorie. Convertissez la variable dans l'onglet Nettoyage, ou choisissez une variable numerique.","This computation expects a numeric variable and received text or a category. Convert the variable in the Cleaning tab, or choose a numeric variable."
-"Le modele n'a pas converge. Les groupes sont probablement parfaitement separes, ou l'effectif est trop faible pour le nombre de parametres estimes. Simplifiez le modele.","The model did not converge. The groups are probably perfectly separated, or the sample is too small for the number of estimated parameters. Simplify the model."
-message R,R message
-L'analyse a echoue. Message renvoye par R (non traduit),The analysis failed. Message returned by R (untranslated)
-erreur sans message,error with no message
-100 % de valeurs manquantes,100 % missing values
-des nombres stockes comme du texte,numbers stored as text
-Ces valeurs font echouer la plupart des calculs. Les remplacer ou les retirer dans l'onglet Nettoyage.,These values make most computations fail. Replace or remove them in the Cleaning tab.
-"Variable quasi vide : l'exclure des analyses, ou retrouver la source des donnees manquantes.","Nearly empty variable: exclude it from the analyses, or trace the source of the missing data."
-Variable constante : elle ne peut expliquer aucune variation. La retirer des modeles (elle fait aussi echouer plusieurs tests).,Constant variable: it cannot explain any variation. Remove it from the models (it also makes several tests fail).
+"fr","en"
+"Chargement","Loading"
+"Exploration","Exploration"
+"Nettoyage","Cleaning"
+"Filtrage","Filtering"
+"Analyses descriptives","Descriptive statistics"
+"Visualisation des données","Data visualisation"
+"Corrélations","Correlations"
+"Tests statistiques","Statistical tests"
+"Comparaisons post-hoc","Post-hoc comparisons"
+"Analyses multivariées","Multivariate analyses"
+"Analyses qualitatives","Qualitative analyses"
+"Interprétation & aide à la décision","Interpretation & decision support"
+"Séries temporelles","Time series"
+"Machine Learning","Machine learning"
+"Deep Learning","Deep learning"
+"Plan & Puissance","Design & power"
+"Seuils d'efficacité","Efficacy thresholds"
+"Citer HStat","Cite HStat"
+"Charger données","Load data"
+"Choisir un fichier","Choose a file"
+"Aperçu des données","Data preview"
+"Charger","Load"
+"Séparateur (CSV/TXT)","Separator (CSV/TXT)"
+"Avec en-têtes","With headers"
+"Virgule","Comma"
+"Point-virgule","Semicolon"
+"Feuille Excel :","Excel sheet:"
+"Feuilles à combiner","Sheets to combine"
+"Comment les combiner","How to combine them"
+"Combiner ces feuilles","Combine these sheets"
+"Empiler les lignes","Stack the rows"
+"Empiler et supprimer les doublons","Stack and drop duplicates"
+"Jointure interne (lignes présentes partout)","Inner join (rows present everywhere)"
+"Jointure à gauche (garde toute la 1re feuille)","Left join (keeps the whole first sheet)"
+"Jointure complète (garde tout)","Full join (keeps everything)"
+"Colonne d'origine","Source column"
+"Valeur inscrite","Value recorded"
+"Nom de la feuille","Sheet name"
+"Nombre extrait du nom","Number extracted from the name"
+"Options avancées (gros fichiers)","Advanced options (large files)"
+"Seuil hors-mémoire (Mo)","Out-of-memory threshold (MB)"
+"Taille de l'échantillon (lignes)","Sample size (rows)"
+"Type de fusion","Merge type"
+"Fusionner les fichiers","Merge the files"
+"Lignes","Rows"
+"Colonnes","Columns"
+"Variable","Variable"
+"Variables","Variables"
+"Valeur","Value"
+"Valeurs","Values"
+"Effectif","Count"
+"Effectifs","Counts"
+"Fréquence","Frequency"
+"Pourcentage","Percentage"
+"Moyenne","Mean"
+"Médiane","Median"
+"Écart-type","Standard deviation"
+"Variance","Variance"
+"Minimum","Minimum"
+"Maximum","Maximum"
+"Étendue","Range"
+"Quartile","Quartile"
+"Somme","Sum"
+"Total","Total"
+"Groupe","Group"
+"Groupes","Groups"
+"Facteur","Factor"
+"facteurs","Factors"
+"Modalité","Category"
+"modalités.","Categories."
+"Observation","Observation"
+"observations","Observations"
+"Manquants :","Missing:"
+"Valeurs manquantes","Missing values"
+"Aucun","None"
+"Aucune","None"
+"Oui","Yes"
+"Non","No"
+"tous","All"
+"Toutes","All"
+"Date","Date"
+"Test","Test"
+"tests","Tests"
+"resultat","Result"
+"Résultats","Results"
+"Résumé","Summary"
+"Détails","Details"
+"Interprétation","Interpretation"
+"Statistique","Statistic"
+"Seuil :","Threshold:"
+"Intervalle de confiance","Confidence interval"
+"Taille d'effet","Effect size"
+"Puissance","Power"
+"Corrélation","Correlation"
+"Coefficient","Coefficient"
+"Écart","Difference"
+"Différence","Difference"
+"Erreur standard","Standard error"
+"Degrés de liberté","Degrees of freedom"
+"significatif","significant"
+"non significatif","not significant"
+"indeterminable","undeterminable"
+"Significatif","Significant"
+"Recommandée","Recommended"
+"À envisager","Worth considering"
+"À enchaîner","Follow-up"
+"Bloquant","Blocking"
+"Important","Important"
+"à surveiller","Worth watching"
+"Gravite","Severity"
+"Constat","Finding"
+"Suggestion","Suggestion"
+"Calculer","Compute"
+"Calculer les statistiques","Compute the statistics"
+"Lancer","Run"
+"Lancer l'analyse","Run the analysis"
+"Appliquer","Apply"
+"Réinitialiser","Reset"
+"Annuler","Cancel"
+"Valider","Confirm"
+"Enregistrer","Save"
+"Supprimer","Delete"
+"Ajouter","Add"
+"Modifier","Edit"
+"Rechercher :","Search:"
+"Exporter","Export"
+"Télécharger","Download"
+"Importer","Import"
+"Aperçu","Preview"
+"Fermer","Close"
+"Retour","Back"
+"Suivant","Next"
+"Précédent","Previous"
+"Tout sélectionner","Select all"
+"Tout désélectionner","Deselect all"
+"Graphique","Plot"
+"Graphiques","Plots"
+"Titre","Title"
+"Sous-titre :","Subtitle:"
+"Légende","Legend"
+"Couleur","Colour"
+"Couleurs","Colours"
+"Taille","Size"
+"Largeur :","Width:"
+"Hauteur","Height"
+"Résolution","Resolution"
+"Police","Font"
+"Gras","Bold"
+"Italique","Italic"
+"Normal","Normal"
+"Thème","Theme"
+"Axe des X","X axis"
+"Axe des Y","Y axis"
+"Type de graphique","Plot type"
+"Nuage de points","Scatter plot"
+"Histogramme","Histogram"
+"Boîte à moustaches","Box plot"
+"Diagramme en barres","Bar chart"
+"Camembert","Pie chart"
+"Courbe","Line"
+"Densité","Density"
+"Violon","Violin"
+"Test de normalité","Normality test"
+"Test d'homogénéité","Homogeneity test"
+"Test t de Student","Student's t-test"
+"Régression linéaire","Linear regression"
+"Modèle linéaire généralisé","Generalised linear model"
+"Test de Wilcoxon","Wilcoxon test"
+"Test de Kruskal-Wallis","Kruskal-Wallis test"
+"Comparaison à une norme","Comparison with a reference value"
+"Réglages de la norme","Reference value settings"
+"Tests paramétriques","Parametric tests"
+"Tests non-paramétriques","Non-parametric tests"
+"Tests sur données brutes","Tests on raw data"
+"Variable réponse","Response variable"
+"Variable de groupe","Grouping variable"
+"Variable explicative","Explanatory variable"
+"Analyse en Composantes Principales (ACP)","Principal Component Analysis (PCA)"
+"Analyse Factorielle Discriminante (AFD)","Discriminant Factor Analysis (DFA)"
+"Analyse factorielle des correspondances (AFC)","Correspondence Analysis (CA)"
+"Analyse des correspondances multiples (ACM)","Multiple Correspondence Analysis (MCA)"
+"Classification k-modes","k-modes clustering"
+"Analyse en classes latentes","Latent class analysis"
+"Classification k-prototypes","k-prototypes clustering"
+"Régression logistique","Logistic regression"
+"Nombre de clusters","Number of clusters"
+"Qualité de la partition","Partition quality"
+"Livre de codes","Codebook"
+"Ajouter le code","Add the code"
+"Déplacer un code","Move a code"
+"Récupération","Retrieval"
+"Matrice de croisement","Cross matrix"
+"Nuage de mots","Word cloud"
+"Carte conceptuelle","Concept map"
+"Assistant de codage","Coding assistant"
+"Export & sauvegarde","Export & save"
+"Mémos","Memos"
+"Porte sur","Applies to"
+"code","Code"
+"Codes","Codes"
+"Document","Document"
+"documents","Documents"
+"Segment","Segment"
+"segments","Segments"
+"Libre","Free-standing"
+"Cible","Target"
+"Enregistrer le mémo","Save the memo"
+"Rapport","Report"
+"Titre du rapport","Report title"
+"Auteur (facultatif)","Author (optional)"
+"Format","Format"
+"Sections à inclure","Sections to include"
+"Produire le rapport","Produce the report"
+"Résolution des figures","Figure resolution"
+"Journal & reproductibilité","Journal & reproducibility"
+"Qualité des données","Data quality"
+"Profil des données","Data profile"
+"Analyse recommandée","Recommended analysis"
+"Résultats captures","Captured results"
+"Moteur d'inférence","Inference engine"
+"Serveur","Server"
+"Adresse","Address"
+"Tester la connexion","Test the connection"
+"Niveau de rédaction","Level of detail"
+"Contexte de l'étude (facultatif)","Study context (optional)"
+"Seuil de signification","Significance level"
+"Mesures appariées (mêmes sujets)","Paired measurements (same subjects)"
+"Variables analysées","Variables analysed"
+"Variable de groupe (facteur)","Grouping variable (factor)"
+"Analyse à interpréter","Analysis to interpret"
+"Aide à la décision","Decision support"
+"Erreur","Error"
+"Avertissement","Warning"
+"^Attention","Warning"
+"Information :","Information:"
+"Chargement en cours...","Loading..."
+"Aucune donnée","No data"
+"Aucun résultat","No result"
+"Connexion interrompue","Connection interrupted"
+"Connexion rétablie","Connection restored"
+"Reprendre maintenant","Resume now"
+"La variable ne varie pas : toutes ses valeurs sont identiques (ou presque). Aucun test ne peut comparer ce qui ne varie pas. Choisissez une autre variable, ou vérifiez que le filtre actif n'a pas réduit vos données à un seul cas de figure.","The variable does not vary: all its values are identical (or nearly so). No test can compare what does not vary. Choose another variable, or check that the active filter has not reduced your data to a single case."
+"Toutes les observations portent la même valeur. Le test n'a rien à comparer. Vérifiez la variable choisie et les filtres actifs.","Every observation carries the same value. The test has nothing to compare. Check the chosen variable and the active filters."
+"Le test de Shapiro-Wilk exige entre 3 et 5000 observations. Au-delà, utilisez un graphique quantile-quantile plutôt qu'un test : sur de tels effectifs, il rejetterait le moindre écart.","The Shapiro-Wilk test requires between 3 and 5000 observations. Beyond that, use a quantile-quantile plot rather than a test: at such sample sizes it would reject the slightest departure."
+"Effectif insuffisant pour ce test. Vérifiez le nombre d'observations non manquantes dans chaque groupe : un groupe vide ou réduit à une seule observation suffit à bloquer le calcul.","Too few observations for this test. Check the number of non-missing observations in each group: one empty group, or a group reduced to a single observation, is enough to block the computation."
+"Ce test compare exactement deux groupes, or le facteur choisi n'en distingue pas deux. Pour plus de deux groupes, utilisez l'ANOVA — ou Kruskal-Wallis si la normalité n'est pas acquise.","This test compares exactly two groups, and the chosen factor does not distinguish two. For more than two groups, use ANOVA — or Kruskal-Wallis if normality is not established."
+"Il faut au moins deux groupes comportant des observations, et l'un d'eux est vide après retrait des valeurs manquantes. Vérifiez les effectifs par groupe, et les filtres actifs.","At least two groups with observations are needed, and one of them is empty once missing values are removed. Check the group sizes and the active filters."
+"Une des variables explicatives ne prend qu'une seule modalité dans les données analysées : elle n'apporte aucune information au modèle. Retirez-la, ou vérifiez les filtres actifs.","One of the explanatory variables takes a single category in the analysed data: it brings no information to the model. Remove it, or check the active filters."
+"Le résultat ne comporte qu'un seul axe factoriel : il ne peut pas être représente dans un plan. C'est le cas courant d'une AFC croisant une variable binaire (sexe, oui/non, avant/après). Croisez des variables comportant davantage de modalités.","The result has only one factorial axis: it cannot be drawn in a plane. This is the usual case of a correspondence analysis crossing a binary variable (sex, yes/no, before/after). Cross variables with more categories."
+"La matrice n'est pas inversible : au moins deux variables sont redondantes (l'une se déduit des autres), ou il y a moins d'observations que de variables. Retirez une des variables corrélées, ou augmentez l'effectif.","The matrix is not invertible: at least two variables are redundant (one follows from the others), or there are fewer observations than variables. Remove one of the correlated variables, or increase the sample size."
+"Les dimensions des tableaux combines ne correspondent pas. Vérifiez que toutes les variables retenues portent bien sur les mêmes observations.","The dimensions of the combined tables do not match. Check that every selected variable refers to the same observations."
+"Une statistique n'a pas pu être calculée (elle vaut NA) et une décision en dépendait. C'est le signe de données dégénérées : vérifiez la variance et l'effectif de chaque groupe, ainsi que le taux de valeurs manquantes.","A statistic could not be computed (it is NA) and a decision depended on it. This points to degenerate data: check the variance and size of each group, and the proportion of missing values."
+"Aucune observation ne renseigne toutes les variables choisies à la fois. Retirez la variable la plus lacunaire, ou traitez les valeurs manquantes dans l'onglet Nettoyage.","No observation has a value for all the chosen variables at once. Remove the sparsest variable, or handle the missing values in the Cleaning tab."
+"Les données contiennent des valeurs manquantes ou infinies que ce calcul n'accepte pas. Traitez-les dans l'onglet Nettoyage (imputation ou retrait) avant de relancer.","The data contain missing or infinite values that this computation does not accept. Handle them in the Cleaning tab (imputation or removal) before running it again."
+"Une variable attendue est absente du jeu de données. Elle a sans doute été renommée ou retirée depuis le choix : resélectionnez vos variables.","An expected variable is absent from the dataset. It was probably renamed or removed since you chose it: select your variables again."
+"Un paquet R nécessaire à cette analyse n'est pas installé. Installez-le, puis relancez l'application ; cette analyse restera indisponible en attendant, les autres continuent de fonctionner.","An R package required by this analysis is not installed. Install it, then restart the application; this analysis stays unavailable meanwhile, the others keep working."
+"Une fonction attendue est introuvable : le paquet qui la fournit n'est pas installé ou n'a pas pu être charge. Installez-le, puis relancez l'application.","An expected function cannot be found: the package providing it is not installed, or could not be loaded. Install it, then restart the application."
+"Le fichier n'a pas pu être ouvert. Vérifiez le chemin, que le fichier n'a pas été déplacé, et vos droits d'accès.","The file could not be opened. Check the path, that the file has not been moved, and your access rights."
+"Les colonnes assemblées n'ont pas le même nombre de lignes. Vérifiez que les jeux de données fusionnes portent bien sur les mêmes observations.","The assembled columns do not have the same number of rows. Check that the merged datasets refer to the same observations."
+"Certains effectifs théoriques sont inférieurs à 5 : l'approximation du khi-deux devient douteuse. Utilisez le test exact de Fisher, ou regroupez les modalités les moins frequentes.","Some expected counts are below 5: the chi-square approximation becomes unreliable. Use Fisher's exact test, or merge the least frequent categories."
+"La zone de trace est trop petite pour le graphique demandé. Agrandissez la fenêtre, ou réduisez la taille des étiquettes.","The plotting area is too small for the requested plot. Enlarge the window, or reduce the label size."
+"Erreur interne d'affichage. Signalez-la : elle vient du code de l'application, pas de vos données.","Internal display error. Please report it: it comes from the application's code, not from your data."
+"Ce calcul attend une variable numérique et a reçu du texte ou une catégorie. Convertissez la variable dans l'onglet Nettoyage, ou choisissez une variable numérique.","This computation expects a numeric variable and received text or a category. Convert the variable in the Cleaning tab, or choose a numeric variable."
+"Le modèle n'a pas convergé. Les groupes sont probablement parfaitement sépares, ou l'effectif est trop faible pour le nombre de paramètres estimes. Simplifiez le modèle.","The model did not converge. The groups are probably perfectly separated, or the sample is too small for the number of estimated parameters. Simplify the model."
+"message R","R message"
+"L'analyse a échoué. Message renvoyé par R (non traduit)","The analysis failed. Message returned by R (untranslated)"
+"erreur sans message","error with no message"
+"100 % de valeurs manquantes","100% missing values"
+"des nombres stockes comme du texte","numbers stored as text"
+"Ces valeurs font échouer la plupart des calculs. Les remplacer ou les retirer dans l'onglet Nettoyage.","These values make most computations fail. Replace or remove them in the Cleaning tab."
+"Variable quasi vide : l'exclure des analyses, ou retrouver la source des données manquantes.","Nearly empty variable: exclude it from the analyses, or trace the source of the missing data."
+"Variable constante : elle ne peut expliquer aucune variation. La retirer des modeles (elle fait aussi echouer plusieurs tests).","Constant variable: it cannot explain any variation. Remove it from the models (it also makes several tests fail)."
 "Convertir en numerique (onglet Nettoyage). En l'etat, moyennes, correlations et tests quantitatifs sont impossibles.","Convert to numeric (Cleaning tab). As it stands, means, correlations and quantitative tests are impossible."
-Test t de Student (deux echantillons),Student's t-test (two samples)
-Test t de Welch,Welch's t-test
-Mann-Whitney (Wilcoxon),Mann-Whitney (Wilcoxon)
-ANOVA a un facteur,One-way ANOVA
-Correlation de Pearson,Pearson correlation
-Correlation de Spearman,Spearman correlation
-Regression lineaire,Linear regression
-Regression logistique,Logistic regression
-Test du chi-deux d'independance,Chi-square test of independence
-V de Cramer / Odds Ratio,Cramer's V / odds ratio
-Aucune analyse possible en l'etat,No analysis possible as things stand
-Deux variables categorielles : le chi-deux teste leur independance.,Two categorical variables: the chi-square tests their independence.
-Deux variables quantitatives dont les distributions sont compatibles avec la normalite.,Two quantitative variables whose distributions are compatible with normality.
-"Si l'une des deux variables est expliquee par l'autre, la regression quantifie l'effet la ou la correlation ne mesure que l'association.","If one of the two variables is explained by the other, regression quantifies the effect where correlation only measures association."
+"Test t de Student (deux échantillons)","Student's t-test (two samples)"
+"Test t de Welch","Welch's t-test"
+"Mann-Whitney (Wilcoxon)","Mann-Whitney (Wilcoxon)"
+"ANOVA à un facteur","One-way ANOVA"
+"Corrélation de Pearson","Pearson correlation"
+"Corrélation de Spearman","Spearman correlation"
+"regression lineaire","Linear regression"
+"Test du chi-deux d'indépendance","Chi-square test of independence"
+"V de Cramer / Odds Ratio","Cramer's V / odds ratio"
+"Aucune analyse possible en l'état","No analysis possible as things stand"
+"Deux variables catégorielles : le chi-deux teste leur indépendance.","Two categorical variables: the chi-square tests their independence."
+"Deux variables quantitatives dont les distributions sont compatibles avec la normalité.","Two quantitative variables whose distributions are compatible with normality."
+"Si l'une des deux variables est expliquée par l'autre, la régression quantifie l'effet la ou la corrélation ne mesure que l'association.","If one of the two variables is explained by the other, regression quantifies the effect where correlation only measures association."
 "Un test dit s'il y a association, jamais sa force : la taille d'effet le dit.","A test says whether there is an association, never how strong: the effect size does."
-"Un test global significatif dit qu'au moins deux groupes different, jamais lesquels : le post-hoc le precise.","A significant global test says at least two groups differ, never which ones: the post-hoc pins it down."
-Independance ; normalite des residus ; homogeneite des variances.,Independence; normality of residuals; homogeneity of variances.
-Independance des observations ; normalite dans chaque groupe.,Independence of observations; normality within each group.
-"Linearite, independance, homoscedasticite, normalite des residus.","Linearity, independence, homoscedasticity, normality of residuals."
-Relation lineaire ; absence de valeurs extremes influentes.,Linear relationship; no influential outliers.
-Effectifs attendus >= 5 dans au moins 80 % des cases.,Expected counts >= 5 in at least 80 % of the cells.
-Effectif suffisant par modalite (au moins 10 evenements par predicteur).,Enough observations per category (at least 10 events per predictor).
+"Un test global significatif dit qu'au moins deux groupes différent, jamais lesquels : le post-hoc le précise.","A significant global test says at least two groups differ, never which ones: the post-hoc pins it down."
+"Indépendance ; normalité des résidus ; homogénéité des variances.","Independence; normality of residuals; homogeneity of variances."
+"Indépendance des observations ; normalité dans chaque groupe.","Independence of observations; normality within each group."
+"Linéarité, indépendance, homoscédasticité, normalité des résidus.","Linearity, independence, homoscedasticity, normality of residuals."
+"Relation linéaire ; absence de valeurs extrêmes influentes.","Linear relationship; no influential outliers."
+"Effectifs attendus >= 5 dans au moins 80 % des cases.","Expected counts >= 5 in at least 80% of the cells."
+"Effectif suffisant par modalité (au moins 10 événements par prédicteur).","Enough observations per category (at least 10 events per predictor)."
 "Correction pour comparaisons multiples (Tukey, Holm, Bonferroni...).","Correction for multiple comparisons (Tukey, Holm, Bonferroni...)."
-Au moins quelques observations non manquantes par variable.,At least a few non-missing observations per variable.
+"Au moins quelques observations non manquantes par variable.","At least a few non-missing observations per variable."
 "ANOVA de Welch, ou Kruskal-Wallis.","Welch's ANOVA, or Kruskal-Wallis."
-"Correlation de Spearman, qui ne suppose que la monotonie.","Spearman correlation, which only assumes monotonicity."
-"Regression robuste, ou transformation de la reponse.","Robust regression, or transformation of the response."
-"Sans correction, le risque d'erreur de premiere espece s'accumule.","Without correction, the type I error rate accumulates."
-Test exact de Fisher.,Fisher's exact test.
-Test exact ou regression penalisee si les effectifs sont faibles.,Exact test or penalised regression if counts are small.
-"Test t de Welch si les variances different, Mann-Whitney sinon.","Welch's t-test if the variances differ, Mann-Whitney otherwise."
-A envisager,Worth considering
-A enchainer,Follow-up
-Variables à valeurs nulles,Zero-valued variables
-Variables à lister,Variables to list
-Corriger ou retirer,Fix or remove
-Variables à traiter :,Variables to handle:
-Que faire ?,What to do?
-Valeur de remplacement :,Replacement value:
-Rien à corriger.,Nothing to fix.
-Aucune donnée chargée.,No data loaded.
-Entrez une valeur de remplacement numérique.,Enter a numeric replacement value.
-Sélectionnez exactement une variable pour saisir ses valeurs.,Select exactly one variable to enter its values.
-La saisie une à une porte sur une seule variable à la fois.,Entering values one by one applies to a single variable at a time.
-Aucune variable sélectionnée : choisissez-en au moins une dans la liste.,No variable selected: pick at least one from the list.
-Toutes les valeurs sont nulles : la variable n'apporte aucune information.,Every value is zero: the variable carries no information.
-Requete combinee,Complex query
-Concordancier,Concordance
-Portrait du document,Document portrait
-Accord inter-codeurs,Intercoder agreement
-Ensemble A,Set A
-Ensemble B,Set B
-Operateur,Operator
-Portee,Scope
-Meme document,Same document
-Meme passage,Same passage
-A proximite,Nearby
-Distance (caracteres),Distance (characters)
-Mot ou expression,Word or phrase
-Contexte (caracteres),Context (characters)
-Interpreter comme expression reguliere,Treat as a regular expression
-Respecter la casse,Match case
-Codeur A,Coder A
-Codeur B,Coder B
-Choisissez deux codeurs differents.,Choose two different coders.
-Aucun document code pour l'instant.,No document coded yet.
-%.0f %% de valeurs manquantes,%.0f %% missing values
-%.1f %% des observations sont bien classees (classe majoritaire seule : %.1f %% ; le modele %s).,%.1f %% of observations are correctly classified (majority class alone: %.1f %% ; the model %s).
-"%d groupes dont au moins un compte moins de 5 observations : la normalite n'y est pas verifiable, un test de rangs ne la suppose pas.","%d groups, at least one with fewer than 5 observations: normality cannot be checked there, and a rank test does not assume it."
-%d observations dans le jeu de donnees.,%d observations in the data set.
-%d test(s) d'équivalence : équivalence démontrée pour %d variable(s).,%d equivalence test(s): equivalence established for %d variable(s).
-%d test(s) de conformité : %d écart(s) significatif(s) à la norme.,%d conformity test(s): %d significant departure(s) from the reference.
-%d valeur(s) extreme(s) (au-dela de 3 ecarts interquartiles),%d extreme value(s) (beyond 3 interquartile ranges)
-%d valeur(s) hors bornes -> NA (élargissez les bornes si nécessaire).,%d value(s) outside the breaks -> NA (widen the breaks if needed).
-%d valeur(s) infinie(s) ou non numerique(s),%d infinite or non-numeric value(s)
-%d valeurs distinctes sur %d observations,%d distinct values across %d observations
-%d variables quantitatives : l'ACP resume leur structure commune et revele les redondances.,%d quantitative variables: PCA summarises their common structure and reveals redundancies.
-%s %% des valeurs observees sont nulles.,%s %% of the observed values are zero.
-%s : %d valeur(s) modifiée(s) sur %d colonne(s) partagée(s).,%s: %d value(s) changed across %d shared column(s).
-%s ne comporte aucune valeur observee : il n'y a rien a analyser.,%s holds no observed value: there is nothing to analyse.
-%s valeur(s) prise(s) en compte.,%s value(s) taken into account.
-- « %s » : distribution %s la normalite (%s%s).,- “%s”: distribution %s normality (%s%s).
-ANOVA à mesures répétées (%s) sur %d variable(s).,Repeated-measures ANOVA (%s) on %d variable(s).
-"Au vu du profil des variables, %s aurait ete le choix le plus direct. Cela ne disqualifie pas votre analyse : un objectif de recherche ou une contrainte de terrain peut la justifier. A vous de trancher.","Given the profile of the variables, %s would have been the most direct choice. That does not disqualify your analysis: a research aim or a field constraint may justify it. The decision is yours."
-"Au-dela de %d modalites, les tableaux croises deviennent illisibles et les effectifs trop faibles. Regrouper en categories plus larges.","Beyond %d categories, cross-tabulations become unreadable and counts too small. Group into broader categories."
-Aucun modele Ollama joignable sur %s.,No Ollama model reachable at %s.
-Aucun modele local joignable sur %s. %s,No local model reachable at %s. %s
-Clé(s) « %s » absente(s) du 1er fichier.,Key(s) “%s” missing from the 1st file.
-Clé(s) « %s » absente(s) du 2e fichier.,Key(s) “%s” missing from the 2nd file.
-Clé(s) « %s » absente(s) du fichier %d.,Key(s) “%s” missing from file %d.
-Corrélation : %d variable(s) parfaitement colinéaire(s) retirée(s).,Correlation: %d perfectly collinear variable(s) removed.
-Corrélation : variable(s) non numérique(s) ignorée(s) : %s.,Correlation: non-numeric variable(s) ignored: %s.
-"En moyenne, la prediction s'ecarte de %s unite(s) de la valeur reelle.",On average the prediction departs from the true value by %s unit(s).
-Erreur quadratique moyenne : %s unite(s) de la variable cible (ecart-type observe : %s). Penalise fortement les grosses erreurs.,Root mean squared error: %s unit(s) of the target variable (observed standard deviation: %s). It penalises large errors heavily.
+"Corrélation de Spearman, qui ne suppose que la monotonie.","Spearman correlation, which only assumes monotonicity."
+"Régression robuste, ou transformation de la réponse.","Robust regression, or transformation of the response."
+"Sans correction, le risque d'erreur de première espèce s'accumule.","Without correction, the type I error rate accumulates."
+"Test exact de Fisher.","Fisher's exact test."
+"Test exact ou régression pénalisée si les effectifs sont faibles.","Exact test or penalised regression if counts are small."
+"Test t de Welch si les variances différent, Mann-Whitney sinon.","Welch's t-test if the variances differ, Mann-Whitney otherwise."
+"Variables à valeurs nulles","Zero-valued variables"
+"Variables à lister","Variables to list"
+"Corriger ou retirer","Fix or remove"
+"Variables à traiter :","Variables to handle:"
+"Que faire ?","What to do?"
+"Valeur de remplacement :","Replacement value:"
+"Rien à corriger.","Nothing to fix."
+"Aucune donnée chargée.","No data loaded."
+"Entrez une valeur de remplacement numérique.","Enter a numeric replacement value."
+"Sélectionnez exactement une variable pour saisir ses valeurs.","Select exactly one variable to enter its values."
+"La saisie une à une porte sur une seule variable à la fois.","Entering values one by one applies to a single variable at a time."
+"Aucune variable sélectionnée : choisissez-en au moins une dans la liste.","No variable selected: pick at least one from the list."
+"Toutes les valeurs sont nulles : la variable n'apporte aucune information.","Every value is zero: the variable carries no information."
+"Requête combinée","Complex query"
+"Concordancier","Concordance"
+"Portrait du document","Document portrait"
+"Accord inter-codeurs","Intercoder agreement"
+"Ensemble A","Set A"
+"Ensemble B","Set B"
+"Opérateur","Operator"
+"Portée","Scope"
+"Même document","Same document"
+"Même passage","Same passage"
+"À proximité","Nearby"
+"Distance (caractères)","Distance (characters)"
+"Mot ou expression","Word or phrase"
+"Contexte (caractères)","Context (characters)"
+"Interpréter comme expression régulière","Treat as a regular expression"
+"Respecter la casse","Match case"
+"Codeur A","Coder A"
+"Codeur B","Coder B"
+"Choisissez deux codeurs différents.","Choose two different coders."
+"Aucun document code pour l'instant.","No document coded yet."
+"%.0f %% de valeurs manquantes","%.0f%% missing values"
+"%.1f %% des observations sont bien classées (classe majoritaire seule : %.1f %% ; le modèle %s).","%.1f%% of observations are correctly classified (majority class alone: %.1f%%; the model %s)."
+"%d groupes dont au moins un compte moins de 5 observations : la normalité n'y est pas vérifiable, un test de rangs ne la suppose pas.","%d groups, at least one with fewer than 5 observations: normality cannot be checked there, and a rank test does not assume it."
+"%d observations dans le jeu de données.","%d observations in the dataset."
+"%d test(s) d'équivalence : équivalence démontrée pour %d variable(s).","%d equivalence test(s): equivalence established for %d variable(s)."
+"%d test(s) de conformité : %d écart(s) significatif(s) à la norme.","%d conformity test(s): %d significant departure(s) from the reference."
+"%d valeur(s) extrême(s) (au-delà de 3 écarts interquartiles)","%d extreme value(s) (beyond 3 interquartile ranges)"
+"%d valeur(s) hors bornes -> NA (élargissez les bornes si nécessaire).","%d value(s) outside the breaks -> NA (widen the breaks if needed)."
+"%d valeur(s) infinie(s) ou non numérique(s)","%d infinite or non-numeric value(s)"
+"%d valeurs distinctes sur %d observations","%d distinct values across %d observations"
+"%d variables quantitatives : l'ACP résume leur structure commune et révèle les redondances.","%d quantitative variables: PCA summarises their common structure and reveals redundancies."
+"%s %% des valeurs observées sont nulles.","%s%% of the observed values are zero."
+"%s : %d valeur(s) modifiée(s) sur %d colonne(s) partagée(s).","%s: %d value(s) changed across %d shared column(s)."
+"%s ne comporte aucune valeur observée : il n'y a rien à analyser.","%s holds no observed value: there is nothing to analyse."
+"%s valeur(s) prise(s) en compte.","%s value(s) taken into account."
+"- « %s » : distribution %s la normalité (%s%s).","- “%s”: distribution %s normality (%s%s)."
+"ANOVA à mesures répétées (%s) sur %d variable(s).","Repeated-measures ANOVA (%s) on %d variable(s)."
+"Au vu du profil des variables, %s aurait été le choix le plus direct. Cela ne disqualifie pas votre analyse : un objectif de recherche ou une contrainte de terrain peut la justifier. À vous de trancher.","Given the profile of the variables, %s would have been the most direct choice. That does not disqualify your analysis: a research aim or a field constraint may justify it. The decision is yours."
+"Au-delà de %d modalités, les tableaux croises deviennent illisibles et les effectifs trop faibles. Regrouper en catégories plus larges.","Beyond %d categories, cross-tabulations become unreadable and counts too small. Group into broader categories."
+"Aucun modele Ollama joignable sur %s.","No Ollama model reachable at %s."
+"Aucun modele local joignable sur %s. %s","No local model reachable at %s. %s"
+"Clé(s) « %s » absente(s) du 1er fichier.","Key(s) “%s” missing from the 1st file."
+"Clé(s) « %s » absente(s) du 2e fichier.","Key(s) “%s” missing from the 2nd file."
+"Clé(s) « %s » absente(s) du fichier %d.","Key(s) “%s” missing from file %d."
+"Corrélation : %d variable(s) parfaitement colinéaire(s) retirée(s).","Correlation: %d perfectly collinear variable(s) removed."
+"Corrélation : variable(s) non numérique(s) ignorée(s) : %s.","Correlation: non-numeric variable(s) ignored: %s."
+"En moyenne, la prédiction s'écarte de %s unité(s) de la valeur réelle.","On average the prediction departs from the true value by %s unit(s)."
+"Erreur quadratique moyenne : %s unité(s) de la variable cible (écart-type observé : %s). Pénalise fortement les grosses erreurs.","Root mean squared error: %s unit(s) of the target variable (observed standard deviation: %s). It penalises large errors heavily."
 "Fonction non autorisée dans la formule : « %s ». Seuls les opérateurs arithmétiques/logiques et les fonctions statistiques usuelles (log, sqrt, ifelse, rowMeans, rowSums, mean, sum...) sont permis.","Function not allowed in the formula: “%s”. Only arithmetic/logical operators and the usual statistical functions (log, sqrt, ifelse, rowMeans, rowSums, mean, sum...) are permitted."
 "Graphique téléchargé (%s, %d DPI).","Plot downloaded (%s, %d DPI)."
 "Jointure croisée (produit cartésien) de %d fichiers : %d lignes, %d colonnes.","Cross join (Cartesian product) of %d files: %d rows, %d columns."
-Jointure croisée refusée : le produit cartésien générerait ~%.0f lignes (> 5 000 000). Réduisez le nombre ou la taille des fichiers.,"Cross join refused: the Cartesian product would generate about %.0f rows (> 5,000,000). Reduce the number or the size of the files."
-L'analyse que vous avez menee figure parmi celles que le profil de vos donnees appelle (%s).,The analysis you ran is among those the profile of your data calls for (%s).
-L'estimation n'a pas convergé en %d itérations.,Estimation did not converge in %d iterations.
+"Jointure croisée refusée : le produit cartésien générerait ~%.0f lignes (> 5 000 000). Réduisez le nombre ou la taille des fichiers.","Cross join refused: the Cartesian product would generate about %.0f rows (> 5,000,000). Reduce the number or the size of the files."
+"L'analyse que vous avez menée figure parmi celles que le profil de vos données appelle (%s).","The analysis you ran is among those the profile of your data calls for (%s)."
+"L'estimation n'a pas convergé en %d itérations.","Estimation did not converge in %d iterations."
 "La famille « %s » exige une réponse strictement positive%s, mais « %s » a un minimum de %.3g. Utilisez la Gaussienne pour des valeurs réelles, ou Tweedie si beaucoup de zéros.","The “%s” family requires a strictly positive response%s, but “%s” has a minimum of %.3g. Use Gaussian for real values, or Tweedie if there are many zeros."
-"La famille « Beta » exige une réponse strictement comprise entre 0 et 1 (exclus), mais « %s » varie de %.3g à %.3g. Pour des proportions incluant 0 ou 1, utilisez la binomiale ; pour du continu positif, la Gamma.","The “Beta” family requires a response strictly between 0 and 1 (exclusive), but “%s” ranges from %.3g to %.3g. For proportions including 0 or 1 use the binomial; for positive continuous data, the Gamma."
+"La famille « Bêta » exige une réponse strictement comprise entre 0 et 1 (exclus), mais « %s » varie de %.3g à %.3g. Pour des proportions incluant 0 ou 1, utilisez la binomiale ; pour du continu positif, la Gamma.","The “Beta” family requires a response strictly between 0 and 1 (exclusive), but “%s” ranges from %.3g to %.3g. For proportions including 0 or 1 use the binomial; for positive continuous data, the Gamma."
 "La famille « Binomiale négative » attend des nombres entiers (comptages), mais « %s » contient des valeurs décimales.","The “Negative binomial” family expects whole numbers (counts), but “%s” contains decimal values."
 "La famille « Binomiale négative » exige des comptages ≥ 0, mais « %s » contient des valeurs négatives (min = %.3g).","The “Negative binomial” family requires counts >= 0, but “%s” contains negative values (min = %.3g)."
 "La famille « Binomiale » exige une réponse entre 0 et 1 (binaire 0/1 ou proportion), mais « %s » varie de %.3g à %.3g. Utilisez une variable 0/1 ou une proportion, ou changez de famille (Poisson/nbinom pour des comptages, Gamma/Gaussienne pour du continu).","The “Binomial” family requires a response between 0 and 1 (binary 0/1 or a proportion), but “%s” ranges from %.3g to %.3g. Use a 0/1 variable or a proportion, or change family (Poisson/nbinom for counts, Gamma/Gaussian for continuous data)."
 "La famille « Poisson » attend des nombres entiers (comptages), mais « %s » contient des valeurs décimales. Utilisez Gamma ou Gaussienne pour du continu, ou nbinom si surdispersion.","The “Poisson” family expects whole numbers (counts), but “%s” contains decimal values. Use Gamma or Gaussian for continuous data, or nbinom under overdispersion."
 "La famille « Poisson » exige des comptages ≥ 0, mais « %s » contient des valeurs négatives (min = %.3g).","The “Poisson” family requires counts >= 0, but “%s” contains negative values (min = %.3g)."
-La variable '%s' a %d modalités distinctes -- trop pour un test d'ajustement. Vérifiez que vous avez bien choisi une variable catégorielle.,Variable '%s' has %d distinct categories -- too many for a goodness-of-fit test. Check that you picked a categorical variable.
-"Le modele %s a ete entraine sur %s observation(s) puis evalue sur %s observation(s) de test jamais vues pendant l'entrainement : les metriques ci-dessus refletent donc sa capacite de generalisation, pas sa memoire.","The %s model was trained on %s observation(s) then evaluated on %s test observation(s) never seen during training: the metrics above therefore reflect how well it generalises, not what it memorised."
-Les %d autres sont documentees en commentaire : leurs reglages etaient interactifs.,The other %d are documented as comments: their settings were interactive.
+"La variable '%s' a %d modalités distinctes -- trop pour un test d'ajustement. Vérifiez que vous avez bien choisi une variable catégorielle.","Variable '%s' has %d distinct categories -- too many for a goodness-of-fit test. Check that you picked a categorical variable."
+"Le modèle %s a été entraîné sur %s observation(s) puis évalué sur %s observation(s) de test jamais vues pendant l'entraînement : les métriques ci-dessus reflètent donc sa capacité de généralisation, pas sa mémoire.","The %s model was trained on %s observation(s) then evaluated on %s test observation(s) never seen during training: the metrics above therefore reflect how well it generalises, not what it memorised."
+"Les %d autres sont documentées en commentaire : leurs réglages étaient interactifs.","The other %d are documented as comments: their settings were interactive."
 "Modele local disponible sur %s (%d modele(s) installe(s)). Gratuit, hors ligne, aucune donnee ne quitte la machine.","Local model available at %s (%d model(s) installed). Free, offline, no data leaves the machine."
 "Modèle mixte ajusté (%s, famille %s) sur %d variable(s).","Mixed model fitted (%s, %s family) on %d variable(s)."
-"Moteur indisponible : le(s) paquet(s) %s manquent. Installez-les avec install.packages(c(%s)), ou basculez sur la thematisation automatique, qui n'en a pas besoin.","Engine unavailable: package(s) %s are missing. Install them with install.packages(c(%s)), or switch to automatic thematisation, which needs none."
-Nombre d'étiquettes (%d) différent du nombre de classes (%d).,Number of labels (%d) differs from the number of classes (%d).
-Post-hoc multivarié (facteur %s),Multivariate post-hoc (factor %s)
-Shapiro-Wilk dans chacun des %d groupes,Shapiro-Wilk within each of the %d groups
-Shapiro-Wilk normality test (sous-echantillon aleatoire de 5000 valeurs sur %s),Shapiro-Wilk normality test (random subsample of 5000 values out of %s)
-Test non paramétrique répété (%s) terminé.,Repeated non-parametric test (%s) completed.
-"Une quantitative comparee entre %d groupes, normalite intra-groupe et homogeneite des variances acceptables.","One quantitative variable compared across %d groups, with acceptable within-group normality and homogeneity of variances."
-la modalite « %s » couvre %.0f %% des reponses,category “%s” covers %.0f %% of the answers
-une seule valeur (« %s »),a single value (“%s”)
-« %s » compte %d modalité(s) (%s). Le test t en compare exactement deux. %s,“%s” has %d category/categories (%s). The t-test compares exactly two. %s
-"« %s » decrit vos donnees : c'est une etape preliminaire, pas un test, il n'y a donc rien a valider ici. Pour aller plus loin, le profil de vos variables appelle %s. A vous de decider si cette suite a du sens pour votre question de recherche.","“%s” describes your data: this is a preliminary step, not a test, so there is nothing to validate here. To go further, the profile of your variables calls for %s. It is for you to decide whether that next step makes sense for your research question."
-« %s » ne prend que deux valeurs : la regression logistique modelise sa probabilite a partir des autres variables.,“%s” takes only two values: logistic regression models its probability from the other variables.
-Écart-type de référence sigma = %s.,Reference standard deviation sigma = %s.
-"  Axe %d : variable la plus saturante = %s (saturation = %s)
-","  Axis %d: most heavily loading variable = %s (loading = %s)
+"Moteur indisponible : le(s) paquet(s) %s manquent. Installez-les avec install.packages(c(%s)), ou basculez sur la thématisation automatique, qui n'en a pas besoin.","Engine unavailable: package(s) %s are missing. Install them with install.packages(c(%s)), or switch to automatic thematisation, which needs none."
+"Nombre d'étiquettes (%d) différent du nombre de classes (%d).","Number of labels (%d) differs from the number of classes (%d)."
+"Post-hoc multivarié (facteur %s)","Multivariate post-hoc (factor %s)"
+"Shapiro-Wilk dans chacun des %d groupes","Shapiro-Wilk within each of the %d groups"
+"Shapiro-Wilk normality test (sous-échantillon aléatoire de 5000 valeurs sur %s)","Shapiro-Wilk normality test (random subsample of 5000 values out of %s)"
+"Test non paramétrique répété (%s) terminé.","Repeated non-parametric test (%s) completed."
+"Une quantitative comparée entre %d groupes, normalité intra-groupe et homogénéité des variances acceptables.","One quantitative variable compared across %d groups, with acceptable within-group normality and homogeneity of variances."
+"la modalité « %s » couvre %.0f %% des réponses","category “%s” covers %.0f%% of the answers"
+"une seule valeur (« %s »)","a single value (“%s”)"
+"« %s » compte %d modalité(s) (%s). Le test t en compare exactement deux. %s","“%s” has %d category/categories (%s). The t-test compares exactly two. %s"
+"« %s » décrit vos données : c'est une étape préliminaire, pas un test, il n'y a donc rien à valider ici. Pour aller plus loin, le profil de vos variables appelle %s. À vous de décider si cette suite a du sens pour votre question de recherche.","“%s” describes your data: this is a preliminary step, not a test, so there is nothing to validate here. To go further, the profile of your variables calls for %s. It is for you to decide whether that next step makes sense for your research question."
+"« %s » ne prend que deux valeurs : la régression logistique modélise sa probabilité à partir des autres variables.","“%s” takes only two values: logistic regression models its probability from the other variables."
+"Écart-type de référence sigma = %s.","Reference standard deviation sigma = %s."
+"Axe %d : variable la plus saturante = %s (saturation = %s)","  Axis %d: most heavily loading variable = %s (loading = %s)
 "
- %d cas prédits (moyenne = %s)., %d cases predicted (mean = %s).
- %d cas prédits ; classe majoritaire : « %s »., %d cases predicted; majority class: “%s”.
- %d cas prédits. Classe la plus fréquente : « %s » (%d cas)., %d cases predicted. Most frequent class: “%s” (%d cases).
-" %d cas prédits. Valeurs prédites : moyenne = %s, min = %s, max = %s."," %d cases predicted. Predicted values: mean = %s, min = %s, max = %s."
-" %d extrait(s) correspondant a la selection, sur %d etiquette(s) au total."," %d excerpt(s) matching the selection, out of %d label(s) in total."
- %d modalités distinctes : trop pour définir un ordre manuel. La variable sera ordonnée selon l'ordre alphabétique., %d distinct categories: too many to order by hand. The variable will be ordered alphabetically.
- %d proposition(s) ecartee(s) : extrait introuvable dans le texte., %d suggestion(s) discarded: excerpt not found in the text.
- %d valeurs X uniques -- courbe directe., %d unique X values -- direct curve.
- %s observations : la saisie une à une n'est pas praticable. , %s observations: entering values one by one is not practical. 
-" %s variable(s) entièrement vide(s), sans aucune valeur observée : "," %s entirely empty variable(s), with no observed value at all: "
- (%d obs. -> %d valeurs uniques)., (%d obs. -> %d unique values).
- (dont %d nouvelles observations importées), (including %d newly imported observations)
- <b>ddl du numerateur calculé = %d</b> &nbsp;|&nbsp; Nombre de cellules (groupes) = %d, <b>Numerator df computed = %d</b> &nbsp;|&nbsp; Number of cells (groups) = %d
- Aucune occurrence de « %s »., No occurrence of “%s”.
- Ce classeur contient %d feuilles — les combiner en un seul jeu de donnees, This workbook holds %d sheets — combine them into a single data set
- La variable la plus déterminante est « %s » : c'est elle que le modèle exploite le plus pour prédire « %s ». Les variables en bas de classement peuvent souvent être retirées sans perte de performance., The most decisive variable is “%s”: it is the one the model relies on most to predict “%s”. Variables at the bottom of the ranking can often be removed without losing performance.
- Meilleur modèle sur le jeu de test : %s , Best model on the test set: %s 
- Mode en mémoire — jeu de données entièrement chargé (%s lignes)., In-memory mode — data set fully loaded (%s rows).
- Ordre des modalités : %s (%d proportions attendues)., Category order: %s (%d expected proportions).
- Prédiction de « %s » : %s%s., Prediction of “%s”: %s%s.
- Prédiction de « %s » : %s%s. , Prediction of “%s”: %s%s. 
- Répartition proposée : %d répétition(s)/bloc(s) x %d échantillon(s) par parcelle = %d unités par traitement (total %d). Cliquez sur le bouton pour l'appliquer au plan., Suggested allocation: %d replicate(s)/block(s) x %d sample(s) per plot = %d units per treatment (total %d). Click the button to apply it to the design.
- Supprimer automatiquement les %d variable(s) suggérée(s), Automatically remove the %d suggested variable(s)
- Traitement appliqué (%d valeur(s)/ligne(s) affectée(s))., Treatment applied (%d value(s)/row(s) affected).
-" Type détecté pour ""%s"" : %s"," Type detected for ""%s"": %s"
-" Variable « %s » créée (%d classes, facteur ordonné)%s."," Variable “%s” created (%d classes, ordered factor)%s."
- variable(s) sur %s concernée(s)., variable(s) out of %s affected.
- « %s » renommée en « %s », “%s” renamed to “%s”
- Échantillon courant : <b>%s</b> lignes sur <b>%s</b> (%s %% du jeu complet)., Current sample: <b>%s</b> rows out of <b>%s</b> (%s %% of the full data set).
-%d entrées → %s → %s ; %s paramètres entraînés (moteur %s).,%d inputs → %s → %s ; %s trained parameters (engine %s).
-%d groupe(s) sur %d présentent une distribution significativement différente des proportions attendues.,%d group(s) out of %d show a distribution significantly different from the expected proportions.
-%d modalités (mode menus). Saisissez la nouvelle valeur de chaque modalité.,%d categories (menu mode). Enter the new value for each category.
+"%d cas prédits (moyenne = %s)."," %d cases predicted (mean = %s)."
+"%d cas prédits ; classe majoritaire : « %s »."," %d cases predicted; majority class: “%s”."
+"%d cas prédits. Classe la plus fréquente : « %s » (%d cas)."," %d cases predicted. Most frequent class: “%s” (%d cases)."
+"%d cas prédits. Valeurs prédites : moyenne = %s, min = %s, max = %s."," %d cases predicted. Predicted values: mean = %s, min = %s, max = %s."
+"%d extrait(s) correspondant à la sélection, sur %d étiquette(s) au total."," %d excerpt(s) matching the selection, out of %d label(s) in total."
+"%d modalités distinctes : trop pour définir un ordre manuel. La variable sera ordonnée selon l'ordre alphabétique."," %d distinct categories: too many to order by hand. The variable will be ordered alphabetically."
+"%d proposition(s) écartée(s) : extrait introuvable dans le texte."," %d suggestion(s) discarded: excerpt not found in the text."
+"%d valeurs X uniques -- courbe directe."," %d unique X values -- direct curve."
+"%s observations : la saisie une à une n'est pas praticable."," %s observations: entering values one by one is not practical. ."
+"%s variable(s) entièrement vide(s), sans aucune valeur observée :"," %s entirely empty variable(s), with no observed value at all: "
+"(%d obs. -> %d valeurs uniques)."," (%d obs. -> %d unique values)."
+"(dont %d nouvelles observations importées)"," (including %d newly imported observations)"
+"<b>ddl du numérateur calculé = %d</b> &nbsp;|&nbsp; Nombre de cellules (groupes) = %d"," <b>Numerator df computed = %d</b> &nbsp;|&nbsp; Number of cells (groups) = %d"
+"Aucune occurrence de « %s »."," No occurrence of “%s”."
+"Ce classeur contient %d feuilles — les combiner en un seul jeu de données"," This workbook holds %d sheets — combine them into a single dataset"
+"La variable la plus déterminante est « %s » : c'est elle que le modèle exploite le plus pour prédire « %s ». Les variables en bas de classement peuvent souvent être retirées sans perte de performance."," The most decisive variable is “%s”: it is the one the model relies on most to predict “%s”. Variables at the bottom of the ranking can often be removed without losing performance."
+"Meilleur modèle sur le jeu de test : %s"," Best model on the test set: %s "
+"Mode en mémoire — jeu de données entièrement chargé (%s lignes)."," In-memory mode — dataset fully loaded (%s rows)."
+"Ordre des modalités : %s (%d proportions attendues)."," Category order: %s (%d expected proportions)."
+"Prédiction de « %s » : %s%s."," Prediction of “%s”: %s%s."
+"Répartition proposée : %d répétition(s)/bloc(s) x %d échantillon(s) par parcelle = %d unités par traitement (total %d). Cliquez sur le bouton pour l'appliquer au plan."," Suggested allocation: %d replicate(s)/block(s) x %d sample(s) per plot = %d units per treatment (total %d). Click the button to apply it to the design."
+"Supprimer automatiquement les %d variable(s) suggérée(s)"," Automatically remove the %d suggested variable(s)"
+"Traitement appliqué (%d valeur(s)/ligne(s) affectée(s))."," Treatment applied (%d value(s)/row(s) affected)."
+"Type détecté pour ""%s"" : %s"," Type detected for ""%s"": %s"
+"Variable « %s » créée (%d classes, facteur ordonné)%s."," Variable “%s” created (%d classes, ordered factor)%s."
+"variable(s) sur %s concernée(s)."," variable(s) out of %s affected."
+"« %s » renommée en « %s »"," “%s” renamed to “%s”"
+"Échantillon courant : <b>%s</b> lignes sur <b>%s</b> (%s %% du jeu complet)."," Current sample: <b>%s</b> rows out of <b>%s</b> (%s%% of the full dataset)."
+"%d entrées → %s → %s ; %s paramètres entraînés (moteur %s).","%d inputs → %s → %s; %s trained parameters (engine %s)."
+"%d groupe(s) sur %d présentent une distribution significativement différente des proportions attendues.","%d group(s) out of %d show a distribution significantly different from the expected proportions."
+"%d modalités (mode menus). Saisissez la nouvelle valeur de chaque modalité.","%d categories (menu mode). Enter the new value for each category."
 "%d modalités (mode tableau éditable). Format : ancienne = nouvelle, une par ligne.","%d categories (editable-table mode). Format: old = new, one per line."
-%d modalités (tableau éditable).%s,%d categories (editable table).%s
-%d modalités à égalité au sommet (%.1f %% chacune).,%d categories tied at the top (%.1f %% each).
-%d mots vides français retirés (+ %d personnalisés).,%d French stop words removed (+ %d custom ones).
+"%d modalités (tableau éditable).%s","%d categories (editable table).%s"
+"%d modalités à égalité au sommet (%.1f %% chacune).","%d categories tied at the top (%.1f%% each)."
+"%d mots vides français retirés (+ %d personnalisés).","%d French stop words removed (+ %d custom ones)."
 "%d neurones cachés, decay = %.4g (validation)","%d hidden neurons, decay = %.4g (validation)"
 "%d observations appariées (paires complètes X, Y).","%d paired observations (complete X, Y pairs)."
-%d observations appariées analysées.,%d paired observations analysed.
+"%d observations appariées analysées.","%d paired observations analysed."
 "%d observations, %d modalités, proportions %s.","%d observations, %d categories, %s proportions."
-%d répondants complets sur %d.,%d complete respondents out of %d.
+"%d répondants complets sur %d.","%d complete respondents out of %d."
 "%d répondants, format %s.","%d respondents, %s format."
-%d réponses textuelles analysées.,%d text answers analysed.
-%d thèmes dégagés par analyse sémantique latente (SVD) puis regroupement k-means :,%d themes extracted by latent semantic analysis (SVD) then k-means clustering:
-%d traitement(s) x %d répétition(s) x %d échantillon(s)/parcelle = %d unités d'observation.,%d treatment(s) x %d replicate(s) x %d sample(s)/plot = %d observation units.
-%d valeurs manquantes exclues.,%d missing values excluded.
-%d variable(s) analysée(s).,%d variable(s) analysed.
-%d variable(s) dépassent 20 %% de manquants : %s. Un recodage ou une imputation peut être nécessaire.,%d variable(s) exceed 20 %% missing: %s. Recoding or imputation may be needed.
+"%d réponses textuelles analysées.","%d text answers analysed."
+"%d thèmes dégagés par analyse sémantique latente (SVD) puis regroupement k-means :","%d themes extracted by latent semantic analysis (SVD) then k-means clustering:"
+"%d traitement(s) x %d répétition(s) x %d échantillon(s)/parcelle = %d unités d'observation.","%d treatment(s) x %d replicate(s) x %d sample(s)/plot = %d observation units."
+"%d valeurs manquantes exclues.","%d missing values excluded."
+"%d variable(s) analysée(s).","%d variable(s) analysed."
+"%d variable(s) dépassent 20 %% de manquants : %s. Un recodage ou une imputation peut être nécessaire.","%d variable(s) exceed 20%% missing: %s. Recoding or imputation may be needed."
 "%d variable(s) passée(s) en revue, totalisant %d modalités distinctes.","%d variable(s) reviewed, totalling %d distinct categories."
-%s : %d etiquette(s) posee(s) sur %d reponse(s) analysee(s) (tout le corpus).%s,%s: %d label(s) applied across %d answer(s) analysed (whole corpus).%s
+"%s : %d étiquette(s) posée(s) sur %d réponse(s) analysée(s) (tout le corpus).%s","%s: %d label(s) applied across %d answer(s) analysed (whole corpus).%s"
 "%s : aucune configuration valide pour cette combinaison (nombre de traitements, taille de bloc k, répétitions). Essayez d'autres valeurs.","%s: no valid configuration for this combination (number of treatments, block size k, replicates). Try other values."
 "%s significatif (OR = %.2f) : être ""%s"" %s la cote de ""%s = %s"".","%s significant (OR = %.2f): being ""%s"" %s the odds of ""%s = %s""."
-%s variable(s) supprimée(s) : %s.,%s variable(s) removed: %s.
-%s zéro(s) déclaré(s) manquant(s) sur %s variable(s).,%s zero(s) declared missing across %s variable(s).
-%s zéro(s) remplacé(s) par %s sur %s variable(s).,%s zero(s) replaced by %s across %s variable(s).
-%s — observé vs prédit (test),%s — observed vs predicted (test)
-%s — prévision sur le jeu de test,%s — forecast on the test set
-%s — prévisions futures (h = %d),%s — future forecasts (h = %d)
-%s%% des observations sont manquantes.,%s%% of the observations are missing.
-*Detail non conserve : seules les %d dernieres analyses gardent leurs tableaux.*,*Detail not kept: only the last %d analyses retain their tables.*
-... (%d autres combinaisons dans le tableau détaillé).,... (%d further combinations in the detailed table).
-=== Test d'adéquation stratifié : %s selon %s ===,=== Stratified goodness-of-fit test: %s by %s ===
-ACP : variable(s) non numérique(s) traitée(s) comme qualitative(s) supplémentaire(s) : %s.,PCA: non-numeric variable(s) treated as supplementary qualitative variable(s): %s.
-Alpha Lattice (k exact) : %d traitements en blocs de %d -> le dernier bloc de chaque réplique contient %d traitement(s).,Alpha Lattice (exact k): %d treatments in blocks of %d -> the last block of each replicate holds %d treatment(s).
-Alpha Lattice : aucun k parfait pour %d traitements -> plan en blocs incomplets généralisé.,Alpha Lattice: no perfect k for %d treatments -> generalised incomplete-block design.
-Alpha Lattice : k=%s ajusté automatiquement à k=%d pour %d traitements (valeurs conseillées : %s).,Alpha Lattice: k=%s adjusted automatically to k=%d for %d treatments (recommended values: %s).
-Alpha Lattice généralisé : %d traitements répartis en blocs incomplets de taille %d (%s). Plan résolvable valable pour tout nombre de traitements.,Generalised Alpha Lattice: %d treatments spread over incomplete blocks of size %d (%s). A resolvable design valid for any number of treatments.
+"%s variable(s) supprimée(s) : %s.","%s variable(s) removed: %s."
+"%s zéro(s) déclaré(s) manquant(s) sur %s variable(s).","%s zero(s) declared missing across %s variable(s)."
+"%s zéro(s) remplacé(s) par %s sur %s variable(s).","%s zero(s) replaced by %s across %s variable(s)."
+"%s — observé vs prédit (test)","%s — observed vs predicted (test)"
+"%s — prévision sur le jeu de test","%s — forecast on the test set"
+"%s — prévisions futures (h = %d)","%s — future forecasts (h = %d)"
+"%s%% des observations sont manquantes.","%s%% of the observations are missing."
+"*Détail non conservé : seules les %d dernières analyses gardent leurs tableaux.*","*Detail not kept: only the last %d analyses retain their tables.*"
+"... (%d autres combinaisons dans le tableau détaillé).","... (%d further combinations in the detailed table)."
+"=== Test d'adéquation stratifié : %s selon %s ===","=== Stratified goodness-of-fit test: %s by %s ==="
+"ACP : variable(s) non numérique(s) traitée(s) comme qualitative(s) supplémentaire(s) : %s.","PCA: non-numeric variable(s) treated as supplementary qualitative variable(s): %s."
+"Alpha Lattice (k exact) : %d traitements en blocs de %d -> le dernier bloc de chaque réplique contient %d traitement(s).","Alpha Lattice (exact k): %d treatments in blocks of %d -> the last block of each replicate holds %d treatment(s)."
+"Alpha Lattice : aucun k parfait pour %d traitements -> plan en blocs incomplets généralisé.","Alpha Lattice: no perfect k for %d treatments -> generalised incomplete-block design."
+"Alpha Lattice : k=%s ajusté automatiquement à k=%d pour %d traitements (valeurs conseillées : %s).","Alpha Lattice: k=%s adjusted automatically to k=%d for %d treatments (recommended values: %s)."
+"Alpha Lattice généralisé : %d traitements répartis en blocs incomplets de taille %d (%s). Plan résolvable valable pour tout nombre de traitements.","Generalised Alpha Lattice: %d treatments spread over incomplete blocks of size %d (%s). A resolvable design valid for any number of treatments."
 "Analyse de %d combinaison(s) de modalités : %d présente(nt) une association significative (IC de l'OR excluant 1), %d non significative(s).","Analysis of %d category combination(s): %d show a significant association (OR confidence interval excluding 1), %d not significant."
-Analyse stratifiée : %d groupes de %s.,Stratified analysis: %d groups of %s.
-Analyse stratifiée : distribution de « %s » testée dans chacune des %d modalités de « %s ».,Stratified analysis: the distribution of “%s” tested within each of the %d categories of “%s”.
-Analyse sémantique latente (SVD) + k-means : %d thèmes.,Latent semantic analysis (SVD) + k-means: %d themes.
-Clé(s) du 1er fichier (%s),Key(s) of the 1st file (%s)
-Clé(s) du 2e fichier (%s) — même nombre de colonnes,Key(s) of the 2nd file (%s) — same number of columns
-Cohérence interne de l'échelle (alpha de Cronbach = %.3f) : %s.,Internal consistency of the scale (Cronbach's alpha = %.3f): %s.
-Comparaison de %d groupes (rangs et médianes).,Comparison of %d groups (ranks and medians).
-"Corrélation ordinale NON significative entre « %s » et « %s » : rho de Spearman = %.3f (%s, %s).","Ordinal correlation NOT significant between “%s” and “%s”: Spearman's rho = %.3f (%s, %s)."
-"Corrélation ordinale SIGNIFICATIVE entre « %s » et « %s » : rho de Spearman = %.3f (%s, %s).","Ordinal correlation SIGNIFICANT between “%s” and “%s”: Spearman's rho = %.3f (%s, %s)."
-"Cree le %s, modifie le %s.","Created on %s, modified on %s."
-Différence %s de « %s » entre les %d groupes de « %s » (%s).,%s difference in “%s” across the %d groups of “%s” (%s).
-"Distribution %s : %d modalités à égalité au sommet (%s), chacune à %.1f %%.","%s distribution: %d categories tied at the top (%s), each at %.1f %%."
-Distribution %s : %d mode(s) détecté(s).,%s distribution: %d mode(s) detected.
+"Analyse stratifiée : %d groupes de %s.","Stratified analysis: %d groups of %s."
+"Analyse stratifiée : distribution de « %s » testée dans chacune des %d modalités de « %s ».","Stratified analysis: the distribution of “%s” tested within each of the %d categories of “%s”."
+"Analyse sémantique latente (SVD) + k-means : %d thèmes.","Latent semantic analysis (SVD) + k-means: %d themes."
+"Clé(s) du 1er fichier (%s)","Key(s) of the 1st file (%s)"
+"Clé(s) du 2e fichier (%s) — même nombre de colonnes","Key(s) of the 2nd file (%s) — same number of columns"
+"Cohérence interne de l'échelle (alpha de Cronbach = %.3f) : %s.","Internal consistency of the scale (Cronbach's alpha = %.3f): %s."
+"Comparaison de %d groupes (rangs et médianes).","Comparison of %d groups (ranks and medians)."
+"Corrélation ordinale NON significative entre « %s » et « %s » : rhô de Spearman = %.3f (%s, %s).","Ordinal correlation NOT significant between “%s” and “%s”: Spearman's rho = %.3f (%s, %s)."
+"Corrélation ordinale SIGNIFICATIVE entre « %s » et « %s » : rhô de Spearman = %.3f (%s, %s).","Ordinal correlation SIGNIFICANT between “%s” and “%s”: Spearman's rho = %.3f (%s, %s)."
+"Créé le %s, modifie le %s.","Created on %s, modified on %s."
+"Différence %s de « %s » entre les %d groupes de « %s » (%s).","%s difference in “%s” across the %d groups of “%s” (%s)."
+"Distribution %s : %d modalités à égalité au sommet (%s), chacune à %.1f %%.","%s distribution: %d categories tied at the top (%s), each at %.1f%%."
+"Distribution %s : %d mode(s) détecté(s).","%s distribution: %d mode(s) detected."
 "Diversité de l'information (max possible = %.3f). Plus c'est élevé, plus c'est diversifié.","Information diversity (maximum possible = %.3f). The higher it is, the more diverse."
-Découpage en mots : %d occurrences sur %d réponses.,Tokenisation: %d occurrences across %d answers.
-"En moyenne, chaque répondant a coché %.2f options.",On average each respondent ticked %.2f options.
-Expositions futures saisies manuellement (%d valeur(s)).,Future exposures entered by hand (%d value(s)).
-Fichier de <b>%s</b> (%s lignes). Le jeu complet reste sur disque (DuckDB) ; les analyses portent sur un <b>échantillon représentatif de %s lignes</b>. Les compteurs ci-dessous reflètent le jeu complet.,File of <b>%s</b> (%s rows). The full data set stays on disk (DuckDB); the analyses run on a <b>representative sample of %s rows</b>. The counters below reflect the full data set.
-Fichier volumineux (%s) : mode hors-mémoire activé. Analyse sur un échantillon de %s lignes (sur %s au total).,Large file (%s): out-of-memory mode enabled. Analysis on a sample of %s rows (out of %s in total).
-Field book : %d unités expérimentales,Field book: %d experimental units
-Force de l'association (V de Cramér = %.3f) : %s.,Strength of the association (Cramér's V = %.3f): %s.
-"Force de l'association : %s (0,1 faible ; 0,2 modérée ; 0,4 forte).",Strength of the association: %s (0.1 weak; 0.2 moderate; 0.4 strong).
-Grandes parcelles = %s (couleur) ; sous-parcelles = %s (bandeau) ; sous-sous-parcelles = %s (étiquette de cellule),Main plots = %s (colour); sub-plots = %s (strip); sub-sub-plots = %s (cell label)
-Groupes projetés sur le plan principal (%s),Clusters projected on the principal plane (%s)
+"Découpage en mots : %d occurrences sur %d réponses.","Tokenisation: %d occurrences across %d answers."
+"En moyenne, chaque répondant a coché %.2f options.","On average each respondent ticked %.2f options."
+"Expositions futures saisies manuellement (%d valeur(s)).","Future exposures entered by hand (%d value(s))."
+"Fichier de <b>%s</b> (%s lignes). Le jeu complet reste sur disque (DuckDB) ; les analyses portent sur un <b>échantillon représentatif de %s lignes</b>. Les compteurs ci-dessous reflètent le jeu complet.","File of <b>%s</b> (%s rows). The full dataset stays on disk (DuckDB); the analyses run on a <b>representative sample of %s rows</b>. The counters below reflect the full dataset."
+"Fichier volumineux (%s) : mode hors-mémoire activé. Analyse sur un échantillon de %s lignes (sur %s au total).","Large file (%s): out-of-memory mode enabled. Analysis on a sample of %s rows (out of %s in total)."
+"Field book : %d unités expérimentales","Field book: %d experimental units"
+"Force de l'association (V de Cramér = %.3f) : %s.","Strength of the association (Cramér's V = %.3f): %s."
+"Force de l'association : %s (0,1 faible ; 0,2 modérée ; 0,4 forte).","Strength of the association: %s (0.1 weak; 0.2 moderate; 0.4 strong)."
+"Grandes parcelles = %s (couleur) ; sous-parcelles = %s (bandeau) ; sous-sous-parcelles = %s (étiquette de cellule)","Main plots = %s (colour); sub-plots = %s (strip); sub-sub-plots = %s (cell label)"
+"Groupes projetés sur le plan principal (%s)","Clusters projected on the principal plane (%s)"
 "Généralisation par paires : %d exposition(s) vs issue ""%s"".","Pairwise generalisation: %d exposure(s) vs outcome ""%s""."
-H0 : chaque modalité a la même probabilité (1/%d = %.1f %%).,H0: every category has the same probability (1/%d = %.1f %%).
-H0 : les proportions valent %s.,H0: the proportions are %s.
-Hyperparamètres retenus par la recherche automatique : %s.,Hyperparameters selected by the automatic search: %s.
-Hypothèse nulle : proportions %s,Null hypothesis: %s proportions
-Importance des variables — %s,Variable importance — %s
-Importe depuis Puissance : %d facteur(s) (%s modalités).,Imported from Power: %d factor(s) (%s categories).
-Indice de Simpson = %.3f : probabilité que deux répondants au hasard donnent des réponses differentes.,Simpson index = %.3f: the probability that two respondents drawn at random give different answers.
-"L'option la plus citée est ""%s"" (%.1f %% des répondants).","The most frequently cited option is ""%s"" (%.1f %% of respondents)."
+"H0 : chaque modalité a la même probabilité (1/%d = %.1f %%).","H0: every category has the same probability (1/%d = %.1f%%)."
+"H0 : les proportions valent %s.","H0: the proportions are %s."
+"Hyperparamètres retenus par la recherche automatique : %s.","Hyperparameters selected by the automatic search: %s."
+"Hypothèse nulle : proportions %s","Null hypothesis: %s proportions"
+"Importance des variables — %s","Variable importance — %s"
+"Importe depuis Puissance : %d facteur(s) (%s modalités).","Imported from Power: %d factor(s) (%s categories)."
+"Indice de Simpson = %.3f : probabilité que deux répondants au hasard donnent des réponses différentes.","Simpson index = %.3f: the probability that two respondents drawn at random give different answers."
+"L'option la plus citée est ""%s"" (%.1f %% des répondants).","The most frequently cited option is ""%s"" (%.1f%% of respondents)."
 "LSTM (fenêtre %d, %d neurones) — test + futur","LSTM (window %d, %d neurons) — test + future"
-La conversion en %s a echoue (%s). Le rapport est rendu en HTML.,Conversion to %s failed (%s). The report is rendered as HTML.
-"La modalité la plus fréquente (mode) est ""%s"" (%.1f %% des réponses valides).","The most frequent category (mode) is ""%s"" (%.1f %% of valid answers)."
-"La modalité qui s'écarte le plus de l'attendu est ""%s"" (résidu = %.2f ; %.0f %% du Khi-deux).","The category departing most from expectation is ""%s"" (residual = %.2f; %.0f %% of the chi-square)."
+"La conversion en %s a échoué (%s). Le rapport est rendu en HTML.","Conversion to %s failed (%s). The report is rendered as HTML."
+"La modalité la plus fréquente (mode) est ""%s"" (%.1f %% des réponses valides).","The most frequent category (mode) is ""%s"" (%.1f%% of valid answers)."
+"La modalité qui s'écarte le plus de l'attendu est ""%s"" (résidu = %.2f ; %.0f %% du Khi-deux).","The category departing most from expectation is ""%s"" (residual = %.2f; %.0f%% of the chi-square)."
 "La moitie centrale des réponses se situe entre ""%s"" et ""%s"".","The middle half of the answers lies between ""%s"" and ""%s""."
-La méthode %s a identifié %d groupe(s)%s. ,The %s method identified %d cluster(s)%s. 
+"La méthode %s a identifié %d groupe(s)%s.","The %s method identified %d cluster(s)%s. ."
 "La réponse médiane est ""%s"" (niveau %d sur %d).","The median answer is ""%s"" (level %d of %d)."
-La variable compte %d modalités distinctes sur %d réponses valides.,The variable has %d distinct categories across %d valid answers.
+"La variable compte %d modalités distinctes sur %d réponses valides.","The variable has %d distinct categories across %d valid answers."
 "La variable la plus diversifiée est ""%s"" (%d modalités).","The most diverse variable is ""%s"" (%d categories)."
-La variable « %s » est introuvable.,Variable “%s” cannot be found.
-La variable « %s » n'est pas numérique : l'histogramme requiert une variable numérique.,Variable “%s” is not numeric: the histogram requires a numeric variable.
-La variable « %s » ne contient aucune valeur numérique valide.,Variable “%s” holds no valid numeric value.
-"Le LSTM apprend à prédire chaque valeur à partir des %d précédentes. Sur le jeu de test, la MAPE vaut %s %% : %s ",The LSTM learns to predict each value from the %d preceding ones. On the test set the MAPE is %s %% : %s 
-Le code « %s » existe deja a la racine.,Code “%s” already exists at the root.
+"La variable « %s » est introuvable.","Variable “%s” cannot be found."
+"La variable « %s » n'est pas numérique : l'histogramme requiert une variable numérique.","Variable “%s” is not numeric: the histogram requires a numeric variable."
+"La variable « %s » ne contient aucune valeur numérique valide.","Variable “%s” holds no valid numeric value."
+"Le LSTM apprend à prédire chaque valeur à partir des %d précédentes. Sur le jeu de test, la MAPE vaut %s %% : %s","The LSTM learns to predict each value from the %d preceding ones. On the test set the MAPE is %s%%: %s "
+"Le code « %s » existe déjà à la racine.","Code “%s” already exists at the root."
 "Le groupe « %s » présente les rangs les plus élevés, « %s » les plus faibles.","Group “%s” shows the highest ranks, “%s” the lowest."
-Le jeu de données contient %.2f %% de cellules manquantes au total.,The data set holds %.2f %% missing cells in total.
-"Le modèle %s, ré-entraîné sur l'intégralité de la série%s, projette une trajectoire %s sur les %d prochaines périodes (de %s à %s). ","The %s model, refitted on the whole series%s, projects a %s trajectory over the next %d periods (from %s to %s). "
-Le nom « %s » existe déjà.,The name “%s” already exists.
-Le nom « %s » existe déjà. Choisissez un nom unique.,The name “%s” already exists. Choose a unique name.
-Le nombre de proportions attendues (%d) doit égaler le nombre de modalités (%d : %s).,The number of expected proportions (%d) must equal the number of categories (%d: %s).
+"Le jeu de données contient %.2f %% de cellules manquantes au total.","The dataset holds %.2f%% missing cells in total."
+"Le modèle %s, ré-entraîné sur l'intégralité de la série%s, projette une trajectoire %s sur les %d prochaines périodes (de %s à %s).","The %s model, refitted on the whole series%s, projects a %s trajectory over the next %d periods (from %s to %s). ."
+"Le nom « %s » existe déjà.","The name “%s” already exists."
+"Le nom « %s » existe déjà. Choisissez un nom unique.","The name “%s” already exists. Choose a unique name."
+"Le nombre de proportions attendues (%d) doit égaler le nombre de modalités (%d : %s).","The number of expected proportions (%d) must equal the number of categories (%d: %s)."
 "Le package '%s' est requis (install.packages(""%s"")).","Package '%s' is required (install.packages(""%s""))."
-Le rho² suggère qu'environ %.1f %% de la variation des rangs est partagée entre les deux variables.,The rho squared suggests that about %.1f %% of the variation in ranks is shared between the two variables.
-Le score total moyen est de %.1f (somme de %d items).,The mean total score is %.1f (sum of %d items).
+"Le rho² suggère qu'environ %.1f %% de la variation des rangs est partagée entre les deux variables.","The rho squared suggests that about %.1f%% of the variation in ranks is shared between the two variables."
+"Le score total moyen est de %.1f (somme de %d items).","The mean total score is %.1f (sum of %d items)."
 "Le tau de Kendall (%.3f, p = %s) confirme la concordance des rangs ; il est plus robuste pour de petits échantillons.","Kendall's tau (%.3f, p = %s) confirms the concordance of ranks; it is more robust for small samples."
 "Le tau de Kendall (%.3f, p = %s) va dans le même sens.","Kendall's tau (%.3f, p = %s) points the same way."
 "Les lignes incomplètes sont écartées. Au-delà de %s lignes, l'entraînement porte sur un échantillon aléatoire (HSTAT_ML_MAX_N).","Incomplete rows are discarded. Beyond %s rows, training runs on a random sample (HSTAT_ML_MAX_N)."
-Les mots les plus fréquents sont : %s.,The most frequent words are: %s.
-MLP (%s) — observé vs prédit (test),MLP (%s) — observed vs predicted (test)
-Matrice document-terme : %d termes retenus ; pondération TF-IDF.,Document-term matrix: %d terms kept; TF-IDF weighting.
+"Les mots les plus fréquents sont : %s.","The most frequent words are: %s."
+"MLP (%s) — observé vs prédit (test)","MLP (%s) — observed vs predicted (test)"
+"Matrice document-terme : %d termes retenus ; pondération TF-IDF.","Document-term matrix: %d terms kept; TF-IDF weighting."
 "Minuscules, retrait des accents, de la ponctuation%s, mots < %d lettres.","Lower case, accents and punctuation removed%s, words shorter than %d letters."
-Modalité la plus fréquente (%.1f %% des réponses).,Most frequent category (%.1f %% of the answers).
-Modalités comparées : %s.,Categories compared: %s.
-Nombre de modalités du facteur %s,Number of categories of factor %s
-Nouvel échantillon de %s lignes. Relancez vos analyses pour en tenir compte.,New sample of %s rows. Re-run your analyses to take it into account.
-On ne peut pas conclure à une association monotone entre « %s » et « %s » : la relation observée (rho = %.3f) est compatible avec le hasard.,No monotonic association can be concluded between “%s” and “%s”: the observed relationship (rho = %.3f) is compatible with chance.
+"Modalité la plus fréquente (%.1f %% des réponses).","Most frequent category (%.1f%% of the answers)."
+"Modalités comparées : %s.","Categories compared: %s."
+"Nombre de modalités du facteur %s","Number of categories of factor %s"
+"Nouvel échantillon de %s lignes. Relancez vos analyses pour en tenir compte.","New sample of %s rows. Re-run your analyses to take it into account."
+"On ne peut pas conclure à une association monotone entre « %s » et « %s » : la relation observée (rhô = %.3f) est compatible avec le hasard.","No monotonic association can be concluded between “%s” and “%s”: the observed relationship (rho = %.3f) is compatible with chance."
 "On rejette l'hypothèse d'indépendance : lorsque « %s » augmente, « %s » tend à %s.","The independence hypothesis is rejected: as “%s” increases, “%s” tends to %s."
 "Post-hoc (%d comparaisons par paires, ajustement %s) : %d groupe(s) homogène(s) de modalités identifié(s). Les modalités partageant une lettre ne diffèrent pas significativement.","Post-hoc (%d pairwise comparisons, %s adjustment): %d homogeneous group(s) of categories identified. Categories sharing a letter do not differ significantly."
 "Pour le DLNM, le fichier doit contenir la colonne d'exposition '%s' (valeurs futures).","For the DLNM, the file must hold the exposure column '%s' (future values)."
 "Prédicteurs standardisés automatiquement (indispensable aux réseaux de neurones). Au-delà de %s lignes, entraînement sur échantillon (HSTAT_ML_MAX_N).","Predictors standardised automatically (essential for neural networks). Beyond %s rows, training runs on a sample (HSTAT_ML_MAX_N)."
 "Recodage %s appliqué à « %s » : %d valeur(s) modifiée(s), %d modalité(s)%s.","%s recoding applied to “%s”: %d value(s) changed, %d category/categories%s."
 "Recodage appliqué à « %s » : %d valeur(s) modifiée(s), %d modalité(s) après recodage.","Recoding applied to “%s”: %d value(s) changed, %d category/categories after recoding."
-Regression logistique (Hsieh et al. 1998) : prédicteur %s ; OR par %s.,Logistic regression (Hsieh et al. 1998): %s predictor; OR per %s.
-Score moyen = %.2f sur une échelle de 1 a %d.,Mean score = %.2f on a scale from 1 to %d.
-Silhouette moyenne = %.3f : %s Le tableau des moyennes par groupe (export CSV/Excel) sert de carte d'identité de chaque groupe : comparez les colonnes pour nommer les profils.,Mean silhouette = %.3f: %s The table of group means (CSV/Excel export) acts as an identity card for each cluster: compare the columns to name the profiles.
-Sous-echantillon filtre (%d observations sur %d),Filtered subsample (%d observations out of %d)
-Statistiques exactes calculées sur le jeu complet (%s lignes).,Exact statistics computed on the full data set (%s rows).
+"Régression logistique (Hsieh et al. 1998) : prédicteur %s ; OR par %s.","Logistic regression (Hsieh et al. 1998): %s predictor; OR per %s."
+"Score moyen = %.2f sur une échelle de 1 à %d.","Mean score = %.2f on a scale from 1 to %d."
+"Silhouette moyenne = %.3f : %s Le tableau des moyennes par groupe (export CSV/Excel) sert de carte d'identité de chaque groupe : comparez les colonnes pour nommer les profils.","Mean silhouette = %.3f: %s The table of group means (CSV/Excel export) acts as an identity card for each cluster: compare the columns to name the profiles."
+"Sous-échantillon filtre (%d observations sur %d)","Filtered subsample (%d observations out of %d)"
+"Statistiques exactes calculées sur le jeu complet (%s lignes).","Exact statistics computed on the full dataset (%s rows)."
 "Structure : %d variables, %d observations","Structure: %d variables, %d observations"
-Série trop courte : au moins %d observations requises.,Series too short: at least %d observations are required.
-"Taille d'effet : %s (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande).",Effect size: %s (benchmarks: 0.1 small; 0.3 medium; 0.5 large).
-Taille d'effet w de Cohen = %.3f : écart %s.,Cohen's w effect size = %.3f: %s departure.
-Taille par modalité (total = %d observations),Size per category (total = %d observations)
-Taille transférée : %d répétitions x %d échantillon(s)/parcelle. Vérifiez l'onglet Plan expérimental.,Size transferred: %d replicates x %d sample(s)/plot. Check the Experimental design tab.
+"Série trop courte : au moins %d observations requises.","Series too short: at least %d observations are required."
+"Taille d'effet : %s (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande).","Effect size: %s (benchmarks: 0.1 small; 0.3 medium; 0.5 large)."
+"Taille d'effet w de Cohen = %.3f : écart %s.","Cohen's w effect size = %.3f: %s departure."
+"Taille par modalité (total = %d observations)","Size per category (total = %d observations)"
+"Taille transférée : %d répétitions x %d échantillon(s)/parcelle. Vérifiez l'onglet Plan expérimental.","Size transferred: %d replicates x %d sample(s)/plot. Check the Experimental design tab."
 "Test %s des proportions %s de ""%s"" : p = %s -- %s.","%s test of the %s proportions of ""%s"": p = %s -- %s."
-Test de la médiane (Mood) : %s,Median test (Mood): %s
-Test exact (%s) : recommandé pour les petits effectifs.,Exact test (%s): recommended for small counts.
-"Tonalité dominante : %s (%.0f %% positif, %.0f %% négatif).","Dominant tone: %s (%.0f %% positive, %.0f %% negative)."
-Toutes les modalités : %d exposition(s) x %d issue(s) = %d tableaux 2x2.,All categories: %d exposure(s) x %d outcome(s) = %d 2x2 tables.
-Variable « %s » renommée en « %s ».,Variable “%s” renamed to “%s”.
+"Test de la médiane (Mood) : %s","Median test (Mood): %s"
+"Test exact (%s) : recommandé pour les petits effectifs.","Exact test (%s): recommended for small counts."
+"Tonalité dominante : %s (%.0f %% positif, %.0f %% négatif).","Dominant tone: %s (%.0f%% positive, %.0f%% negative)."
+"Toutes les modalités : %d exposition(s) x %d issue(s) = %d tableaux 2x2.","All categories: %d exposure(s) x %d outcome(s) = %d 2x2 tables."
+"Variable « %s » renommée en « %s ».","Variable “%s” renamed to “%s”."
 "alpha = %.2f (%s), lambda par validation croisée","alpha = %.2f (%s), lambda by cross-validation"
 "cp = %.4g (élagage au minimum d'erreur de validation croisée, %d feuille(s))","cp = %.4g (pruned at the minimum cross-validation error, %d leaf/leaves)"
-"p = %s < 0,001 : association très hautement significative.",p = %s < 0.001: very highly significant association.
-"p = %s < 0,001 : différence très hautement significative.",p = %s < 0.001: very highly significant difference.
-"p = %s < 0,01 : différence hautement significative.",p = %s < 0.01: highly significant difference.
-"p = %s < 0,05 : différence significative.",p = %s < 0.05: significant difference.
-"p = %s >= 0,05 : différence non significative.",p = %s >= 0.05: non-significant difference.
-réseau de neurones %s (couches cachées : %s),%s neural network (hidden layers: %s)
-« %s » : %s valeur(s) enregistrée(s).,“%s”: %s value(s) recorded.
-équiprobables,equiprobable
-personnalisées,custom
-blocs égaux,equal blocks
-dernier bloc de %d,last block of %d
-"Taille d'effet : négligeable (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande).",Effect size: negligible (benchmarks: 0.1 small; 0.3 medium; 0.5 large).
-"Taille d'effet : petite (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande).",Effect size: small (benchmarks: 0.1 small; 0.3 medium; 0.5 large).
-"Taille d'effet : moyenne (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande).",Effect size: medium (benchmarks: 0.1 small; 0.3 medium; 0.5 large).
-"Taille d'effet : grande (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande).",Effect size: large (benchmarks: 0.1 small; 0.3 medium; 0.5 large).
-Taille d'effet w de Cohen = %.3f : écart négligeable.,Cohen's w effect size = %.3f: negligible departure.
-Taille d'effet w de Cohen = %.3f : écart petit.,Cohen's w effect size = %.3f: small departure.
-Taille d'effet w de Cohen = %.3f : écart moyen.,Cohen's w effect size = %.3f: medium departure.
-Taille d'effet w de Cohen = %.3f : écart grand.,Cohen's w effect size = %.3f: large departure.
-Analyse recommandee,Recommended analysis
-Apparence,Appearance
-Apparence & options,Appearance & options
-Autocorrélation,Autocorrelation
-Details (tableaux),Details (tables)
-Details techniques,Technical details
-Données & seuil,Data & threshold
-Enquête de terrain,Field survey
-Homogénéité,Homogeneity
-Interpretation,Interpretation
-Journal & reproductibilite,Log & reproducibility
+"p = %s < 0,001 : association très hautement significative.","p = %s < 0.001: very highly significant association."
+"p = %s < 0,001 : différence très hautement significative.","p = %s < 0.001: very highly significant difference."
+"p = %s < 0,01 : différence hautement significative.","p = %s < 0.01: highly significant difference."
+"p = %s < 0,05 : différence significative.","p = %s < 0.05: significant difference."
+"p = %s >= 0,05 : différence non significative.","p = %s >= 0.05: non-significant difference."
+"réseau de neurones %s (couches cachées : %s)","%s neural network (hidden layers: %s)"
+"« %s » : %s valeur(s) enregistrée(s).","“%s”: %s value(s) recorded."
+"équiprobables","equiprobable"
+"personnalisées","custom"
+"blocs égaux","equal blocks"
+"dernier bloc de %d","last block of %d"
+"Taille d'effet : négligeable (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande).","Effect size: negligible (benchmarks: 0.1 small; 0.3 medium; 0.5 large)."
+"Taille d'effet : petite (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande).","Effect size: small (benchmarks: 0.1 small; 0.3 medium; 0.5 large)."
+"Taille d'effet : moyenne (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande).","Effect size: medium (benchmarks: 0.1 small; 0.3 medium; 0.5 large)."
+"Taille d'effet : grande (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande).","Effect size: large (benchmarks: 0.1 small; 0.3 medium; 0.5 large)."
+"Taille d'effet w de Cohen = %.3f : écart négligeable.","Cohen's w effect size = %.3f: negligible departure."
+"Taille d'effet w de Cohen = %.3f : écart petit.","Cohen's w effect size = %.3f: small departure."
+"Taille d'effet w de Cohen = %.3f : écart moyen.","Cohen's w effect size = %.3f: medium departure."
+"Taille d'effet w de Cohen = %.3f : écart grand.","Cohen's w effect size = %.3f: large departure."
+"Apparence","Appearance"
+"Apparence & options","Appearance & options"
+"Autocorrélation","Autocorrelation"
+"Détails (tableaux)","Details (tables)"
+"Détails techniques","Technical details"
+"Données & seuil","Data & threshold"
+"Enquête de terrain","Field survey"
+"Homogénéité","Homogeneity"
 "LSTM (séquences, torch)","LSTM (sequences, torch)"
-Métriques,Metrics
-Non supervisé (clustering),Unsupervised (clustering)
-Normalité,Normality
-Plan expérimental,Experimental design
-Profil des donnees,Data profile
-Puissance statistique,Statistical power
-QQ-plot,QQ plot
-Qualite des donnees,Data quality
-Recuperation,Retrieval
-Réseau de neurones (MLP),Neural network (MLP)
-Résultats & métriques,Results & metrics
-Resultats captures,Captured results
-Summary,Summary
-Supervisé (prédiction),Supervised (prediction)
-Téléchargement,Download
-Tests (sortie R),Tests (R output)
-…ou fréquence libre,…or free frequency
-α (err prob),α (err prob)
-1. Proposer un livre de codes,1. Suggest a codebook
-2. Pre-coder les reponses,2. Pre-code the answers
-abs(),abs()
-exp(),exp()
-ifelse(),ifelse()
-is.na(),is.na()
-log(),log()
-log10(),log10()
-mean(),mean()
-round(),round()
-sqrt(),sqrt()
-sum(),sum()
-Activation,Activation
-Actualiser l'ACP,Refresh the PCA
-Actualiser l'AFD,Refresh the DFA
-Adresse du serveur,Server address
-Affichage,Display
-Afficher le texte,Show the text
-Afficher les labels des individus sur les branches,Show individual labels on the branches
-Afficher quand même,Show anyway
-Aide,Help
-Ajouter préfixe,Add prefix
-Ajouter suffixe,Add suffix
-Ajouter un facteur de blocage supplémentaire,Add another blocking factor
-Ajouter une colonne remplie avec le nom de chaque fichier,Add a column filled with each file's name
-Ajustement post-hoc :,Post-hoc adjustment:
-Angle (°):,Angle (°):
-Angle d'inclinaison:,Tilt angle:
-ANOVA,ANOVA
-ANOVA à mesures répétées,Repeated-measures ANOVA
-Apercu,Preview
-Appliquer (2 facteurs),Apply (2 factors)
-Appliquer (N facteurs),Apply (N factors)
-Appliquer la sélection de colonnes,Apply the column selection
-Appliquer la sélection de lignes,Apply the row selection
-Appliquer le dictionnaire a tout le corpus,Apply the dictionary to the whole corpus
-Appliquer le filtre par valeur,Apply the value filter
-Arrondir les résultats,Round the results
-Arrondir les résultats numériques,Round the numeric results
-Axe X,X axis
-Axe X:,X axis:
-Axe Y,Y axis
-Axe Y:,Y axis:
-Axes en noir,Axes in black
-Axes titres,Axis titles
-Barres d'erreur,Error bars
-Bornes (séparées par virgules),Breaks (comma separated)
-Calculer la taille,Compute the size
-Carte (PNG),Map (PNG)
+"Métriques","Metrics"
+"Non supervisé (clustering)","Unsupervised (clustering)"
+"Normalité","Normality"
+"Plan expérimental","Experimental design"
+"Puissance statistique","Statistical power"
+"QQ-plot","QQ plot"
+"Réseau de neurones (MLP)","Neural network (MLP)"
+"Résultats & métriques","Results & metrics"
+"Summary","Summary"
+"Supervisé (prédiction)","Supervised (prediction)"
+"Téléchargement","Download"
+"Tests (sortie R)","Tests (R output)"
+"…ou fréquence libre","…or free frequency"
+"α (err prob)","α (err prob)"
+"1. Proposer un livre de codes","1. Suggest a codebook"
+"2. Pre-coder les réponses","2. Pre-code the answers"
+"abs()","abs()"
+"exp()","exp()"
+"ifelse()","ifelse()"
+"is.na()","is.na()"
+"log()","log()"
+"log10()","log10()"
+"mean()","mean()"
+"round()","round()"
+"sqrt()","sqrt()"
+"sum()","sum()"
+"Activation","Activation"
+"Actualiser l'ACP","Refresh the PCA"
+"Actualiser l'AFD","Refresh the DFA"
+"Adresse du serveur","Server address"
+"Affichage","Display"
+"Afficher le texte","Show the text"
+"Afficher les labels des individus sur les branches","Show individual labels on the branches"
+"Afficher quand même","Show anyway"
+"Aide","Help"
+"Ajouter préfixe","Add prefix"
+"Ajouter suffixe","Add suffix"
+"Ajouter un facteur de blocage supplémentaire","Add another blocking factor"
+"Ajouter une colonne remplie avec le nom de chaque fichier","Add a column filled with each file's name"
+"Ajustement post-hoc :","Post-hoc adjustment:"
+"Angle (°) :","Angle (°):"
+"Angle d'inclinaison :","Tilt angle:"
+"ANOVA","ANOVA"
+"ANOVA à mesures répétées","Repeated-measures ANOVA"
+"Appliquer (2 facteurs)","Apply (2 factors)"
+"Appliquer (N facteurs)","Apply (N factors)"
+"Appliquer la sélection de colonnes","Apply the column selection"
+"Appliquer la sélection de lignes","Apply the row selection"
+"Appliquer le dictionnaire à tout le corpus","Apply the dictionary to the whole corpus"
+"Appliquer le filtre par valeur","Apply the value filter"
+"Arrondir les résultats","Round the results"
+"Arrondir les résultats numériques","Round the numeric results"
+"Axe X","X axis"
+"Axe Y","Y axis"
+"Axes en noir","Axes in black"
+"Axes titres","Axis titles"
+"Barres d'erreur","Error bars"
+"Bornes (séparées par virgules)","Breaks (comma separated)"
+"Calculer la taille","Compute the size"
+"Carte (PNG)","Map (PNG)"
 "Centrer sur (0,0)","Centre on (0,0)"
-Chi² de conformité (proportion),Chi-square conformity test (proportion)
-Chi² de conformité (variance),Chi-square conformity test (variance)
-Choisir plusieurs fichiers (ou un classeur Excel a plusieurs feuilles),Choose several files (or an Excel workbook with several sheets)
-Choisir un graphique,Choose a plot
-Choisir un tableau,Choose a table
-Choisir une palette:,Choose a palette:
-Codes a afficher,Codes to show
-Codes retenus (corpus code),Codes kept (coded corpus)
-Coefficient IQR (k):,IQR coefficient (k):
-Colonne :,Column:
-Colonne à filtrer :,Column to filter:
-Colonne a valeurs séparées,Column with separated values
-Colonne de dates (optionnelle),Date column (optional)
-"Colonne(s) cle, separees par une virgule","Key column(s), comma separated"
-Colonnes binaires des options,Binary columns of the options
-Composante à analyser:,Component to analyse:
-Compression TIFF:,TIFF compression:
-Compter aussi les chaînes vides / blancs comme manquants,Also count empty strings / blanks as missing
-Contenu de l'étiquette,Label content
-Contexte de l'enquete (facultatif),Survey context (optional)
-Contexte de l'etude (facultatif),Study context (optional)
-Cooccurrences minimales,Minimum co-occurrences
-Corpus,Corpus
-Correction (corrélations multiples),Correction (multiple correlations)
-Corréler pente et ordonnée à l'origine,Correlate slope and intercept
-Correspondance exacte,Exact match
+"Chi² de conformité (proportion)","Chi-square conformity test (proportion)"
+"Chi² de conformité (variance)","Chi-square conformity test (variance)"
+"Choisir plusieurs fichiers (ou un classeur Excel à plusieurs feuilles)","Choose several files (or an Excel workbook with several sheets)"
+"Choisir un graphique","Choose a plot"
+"Choisir un tableau","Choose a table"
+"Choisir une palette :","Choose a palette:"
+"Codes à afficher","Codes to show"
+"Codes retenus (corpus code)","Codes kept (coded corpus)"
+"Coefficient IQR (k) :","IQR coefficient (k):"
+"Colonne :","Column:"
+"Colonne à filtrer :","Column to filter:"
+"Colonne à valeurs séparées","Column with separated values"
+"Colonne de dates (optionnelle)","Date column (optional)"
+"Colonne(s) clé, séparées par une virgule","Key column(s), comma separated"
+"Colonnes binaires des options","Binary columns of the options"
+"Composante à analyser :","Component to analyse:"
+"Compression TIFF :","TIFF compression:"
+"Compter aussi les chaînes vides / blancs comme manquants","Also count empty strings / blanks as missing"
+"Contenu de l'étiquette","Label content"
+"Contexte de l'enquête (facultatif)","Survey context (optional)"
+"Cooccurrences minimales","Minimum co-occurrences"
+"Corpus","Corpus"
+"Correction (corrélations multiples)","Correction (multiple correlations)"
+"Corréler pente et ordonnée à l'origine","Correlate slope and intercept"
+"Correspondance exacte","Exact match"
 "Couches cachées (neurones, séparés par des virgules)","Hidden layers (neurons, comma separated)"
-Couleur des séparateurs de blocs,Colour of the block separators
-Croiser avec le profil,Cross with the profile
-CSV,CSV
-CSV (ZIP),CSV (ZIP)
-Décimales:,Decimals:
-Definition d'un lien,Definition of a link
-Degré de lissage:,Degree of smoothing:
-Degrés de liberté (df),Degrees of freedom (df)
-Deplacer,Move
-DLNM : décalage maximal (lags),DLNM: maximum lag
+"Couleur des séparateurs de blocs","Colour of the block separators"
+"Croiser avec le profil","Cross with the profile"
+"CSV","CSV"
+"CSV (ZIP)","CSV (ZIP)"
+"Décimales :","Decimals:"
+"Définition d'un lien","Definition of a link"
+"Degré de lissage :","Degree of smoothing:"
+"Degrés de liberté (df)","Degrees of freedom (df)"
+"Déplacer","Move"
+"DLNM : décalage maximal (lags)","DLNM: maximum lag"
 "DLNM : variable d'exposition (ex. température, pollution)","DLNM: exposure variable (e.g. temperature, pollution)"
-Données (CSV),Data (CSV)
-Données (Excel),Data (Excel)
-DPI,DPI
-DPI:,DPI:
-Écart-type estimé (pilote / litterature),Estimated standard deviation (pilot / literature)
-Échantillons par parcelle élémentaire (n),Samples per elementary plot (n)
-Effet cible (pour le ddl),Target effect (for the df)
-"Effet de plan (design effect, 1 = sondage aleatoire simple ; 1.5-2 = grappes)",Design effect (1 = simple random sampling; 1.5-2 = clusters)
-Enregistrer le projet (.rds),Save the project (.rds)
-Enregistrer les mots-cles de ce code,Save this code's keywords
-Entraîner et comparer,Train and compare
-Entraîner le LSTM,Train the LSTM
-Entraîner le réseau,Train the network
-Épaisseur des lignes:,Line thickness:
-Épaisseur des traits de séparation des blocs,Thickness of the block separator lines
-Épaisseur des traits pointillés (sous-parcelles),Thickness of the dashed lines (sub-plots)
-Épaisseur:,Thickness:
-Époques,Epochs
-eps (rayon),eps (radius)
-Équivalence à la norme (TOST),Equivalence to the reference (TOST)
-Espacement légende,Legend spacing
-Étendue (parcelles),Extent (plots)
+"Données (CSV)","Data (CSV)"
+"Données (Excel)","Data (Excel)"
+"DPI","DPI"
+"DPI:","DPI:"
+"Écart-type estimé (pilote / littérature)","Estimated standard deviation (pilot / literature)"
+"Échantillons par parcelle élémentaire (n)","Samples per elementary plot (n)"
+"Effet cible (pour le ddl)","Target effect (for the df)"
+"Effet de plan (design effect, 1 = sondage aléatoire simple ; 1.5-2 = grappes)","Design effect (1 = simple random sampling; 1.5-2 = clusters)"
+"Enregistrer le projet (.rds)","Save the project (.rds)"
+"Enregistrer les mots-clés de ce code","Save this code's keywords"
+"Entraîner et comparer","Train and compare"
+"Entraîner le LSTM","Train the LSTM"
+"Entraîner le réseau","Train the network"
+"Épaisseur des lignes :","Line thickness:"
+"Épaisseur des traits de séparation des blocs","Thickness of the block separator lines"
+"Épaisseur des traits pointillés (sous-parcelles)","Thickness of the dashed lines (sub-plots)"
+"Épaisseur :","Thickness:"
+"Époques","Epochs"
+"eps (rayon)","eps (radius)"
+"Équivalence à la norme (TOST)","Equivalence to the reference (TOST)"
+"Espacement légende","Legend spacing"
+"Étendue (parcelles)","Extent (plots)"
 "Étiquettes (une par classe, séparées par virgules)","Labels (one per class, comma separated)"
-Étiquettes des classes,Class labels
-Excel,Excel
-Exposition / duree moyenne,Exposure / mean duration
-Facteur A :,Factor A:
-Facteur B :,Factor B:
+"Étiquettes des classes","Class labels"
+"Excel","Excel"
+"Exposition / durée moyenne","Exposure / mean duration"
+"Facteur A :","Factor A:"
+"Facteur B :","Factor B:"
 "Facteur étudié (X, groupes)","Factor studied (X, groups)"
-Facteurs (>=2) :,Factors (>= 2):
-Facteurs à rotationner:,Factors to rotate:
-Famille :,Family:
-Famille d'analyse,Analysis family
-Famille de test,Test family
-Fenêtre (pas passés),Window (past steps)
-Feuilles a combiner,Sheets to combine
-Fonction d'agrégation:,Aggregation function:
-Fonction de lien :,Link function:
-Forêt : nb d'arbres,Forest: number of trees
-Format de téléchargement,Download format
-Format des choix multiples,Multiple-choice format
-Format:,Format:
-Formule de calcul:,Computation formula:
-Fréquence saisonnière,Seasonal frequency
-Garder niveaux de A présents pour tous les niveaux de B,Keep levels of A present for every level of B
-Garder niveaux de B présents pour tous les niveaux de A,Keep levels of B present for every level of A
-Générer le plan,Generate the design
+"Facteurs (>=2) :","Factors (>= 2):"
+"Facteurs à rotationner :","Factors to rotate:"
+"Famille :","Family:"
+"Famille d'analyse","Analysis family"
+"Famille de test","Test family"
+"Fenêtre (pas passés)","Window (past steps)"
+"Fonction d'agrégation :","Aggregation function:"
+"Fonction de lien :","Link function:"
+"Forêt : nb d'arbres","Forest: number of trees"
+"Format de téléchargement","Download format"
+"Format des choix multiples","Multiple-choice format"
+"Format:","Format:"
+"Formule de calcul :","Computation formula:"
+"Fréquence saisonnière","Seasonal frequency"
+"Garder niveaux de A présents pour tous les niveaux de B","Keep levels of A present for every level of B"
+"Garder niveaux de B présents pour tous les niveaux de A","Keep levels of B present for every level of A"
+"Générer le plan","Generate the design"
 "glmnet : alpha (0=Ridge, 1=Lasso)","glmnet: alpha (0 = Ridge, 1 = Lasso)"
-Graduations,Ticks
-Graduations en noir,Ticks in black
-Graine (reproductibilité),Seed (reproducibility)
-Graine aléatoire,Random seed
-Grille de fond,Background grid
-Grouper par:,Group by:
-Hauteur (pixels):,Height (pixels):
-Hauteur (po),Height (in)
-Hauteur (px):,Height (px):
-Horizon à simuler (périodes futures),Horizon to simulate (future periods)
-Horizon futur (h),Future horizon (h)
-Hypothèse alternative,Alternative hypothesis
-Hypothèse alternative :,Alternative hypothesis:
-Icône légende,Legend icon
-Ignorer les chiffres,Ignore digits
-Inclure les interactions (ANOVA/Scheirer-Ray-Hare),Include interactions (ANOVA/Scheirer-Ray-Hare)
+"Graduations","Ticks"
+"Graduations en noir","Ticks in black"
+"Graine (reproductibilité)","Seed (reproducibility)"
+"Graine aléatoire","Random seed"
+"Grille de fond","Background grid"
+"Grouper par :","Group by:"
+"Hauteur (pixels) :","Height (pixels):"
+"Hauteur (po)","Height (in)"
+"Hauteur (px)","Height (px)"
+"Horizon à simuler (périodes futures)","Horizon to simulate (future periods)"
+"Horizon futur (h)","Future horizon (h)"
+"Hypothèse alternative","Alternative hypothesis"
+"Hypothèse alternative :","Alternative hypothesis:"
+"Icône légende","Legend icon"
+"Ignorer les chiffres","Ignore digits"
+"Inclure les interactions (ANOVA/Scheirer-Ray-Hare)","Include interactions (ANOVA/Scheirer-Ray-Hare)"
 "Individus supplémentaires (n° de ligne, séparés par virgule) :","Supplementary individuals (row numbers, comma separated):"
-Insérer colonne :,Insert column:
-Interpreter avec le modele,Interpret with the model
-Inverser,Invert
-Items de l'échelle,Scale items
-Itérations de randomisation,Randomisation iterations
-Itérations max,Max iterations
-kNN : nombre de voisins k,kNN: number of neighbours k
-Label axe X:,X axis label:
-Label axe Y:,Y axis label:
-Label X,X label
-Label X:,X label:
-Label Y,Y label
-Label Y:,Y label:
-Labels des axes:,Axis labels:
-Labels X à 45°,X labels at 45°
-Lancer le clustering,Run the clustering
-Largeur (pixels):,Width (pixels):
-Largeur (po),Width (in)
-Largeur (px):,Width (px):
-Largeur de séparation des parcelles,Plot separation width
-Largeur des barres:,Bar width:
-Largeur des flèches,Arrow width
-Largeur des tracés (flèches/axes),Stroke width (arrows/axes)
-Largeur:,Width:
-Lecture automatique (sans modele),Automatic reading (no model)
-Légende:,Legend:
-"Lettres (a,b,c)","Letters (a,b,c)"
-Longueur min. des mots,Min. word length
-MANOVA (>= 2 réponses),MANOVA (>= 2 responses)
+"Insérer colonne :","Insert column:"
+"Interpréter avec le modèle","Interpret with the model"
+"Inverser","Invert"
+"Items de l'échelle","Scale items"
+"Itérations de randomisation","Randomisation iterations"
+"Itérations max","Max iterations"
+"kNN : nombre de voisins k","kNN: number of neighbours k"
+"Label axe X :","X axis label:"
+"Label axe Y :","Y axis label:"
+"Label X :","X label:"
+"Label Y :","Y label:"
+"Labels des axes","Axis labels"
+"Labels X à 45°","X labels at 45°"
+"Lancer le clustering","Run the clustering"
+"Largeur (pixels) :","Width (pixels):"
+"Largeur (po)","Width (in)"
+"Largeur (px)","Width (px)"
+"Largeur de séparation des parcelles","Plot separation width"
+"Largeur des barres :","Bar width:"
+"Largeur des flèches","Arrow width"
+"Largeur des tracés (flèches/axes)","Stroke width (arrows/axes)"
+"Lecture automatique (sans modèle)","Automatic reading (no model)"
+"Lettres (a, b, c)","Letters (a,b,c)"
+"Longueur min. des mots","Min. word length"
+"MANOVA (>= 2 réponses)","MANOVA (>= 2 responses)"
 "Marge d'erreur (en proportion, ex. 0.05 = 5%)","Margin of error (as a proportion, e.g. 0.05 = 5%)"
-Marge d'erreur absolue (mêmes unités que la variable),Absolute margin of error (same units as the variable)
-Markdown,Markdown
-Matérialiser une zone à éviter (obstacle),Mark an area to avoid (obstacle)
-Matrice (Excel),Matrix (Excel)
-Maximum:,Maximum:
-Memo,Memo
-Mesures appariees (memes sujets),Paired measurements (same subjects)
-Méthode,Method
-Méthode de corrélation,Correlation method
-Méthode de rotation:,Rotation method:
-Méthode post-hoc non paramétrique,Non-parametric post-hoc method
-Méthode post-hoc paramétrique,Parametric post-hoc method
-Méthode:,Method:
-Minimum:,Minimum:
-minPts,minPts
-Modalité « exposé + »,Category “exposed +”
-Modalité « issue + »,Category “outcome +”
-Mode d'affichage,Display mode
-Mode de répartition vers le plan,Allocation mode for the design
-Modele,Model
-Modèle (généralisé) mixte,(Generalised) mixed model
-Modèle affiché,Model shown
-Modèles à comparer,Models to compare
-Moteur,Engine
-Moteur :,Engine:
-Moteur (paramétrique) :,Engine (parametric):
-Mots a exclure,Words to exclude
+"Marge d'erreur absolue (mêmes unités que la variable)","Absolute margin of error (same units as the variable)"
+"Markdown","Markdown"
+"Matérialiser une zone à éviter (obstacle)","Mark an area to avoid (obstacle)"
+"Matrice (Excel)","Matrix (Excel)"
+"memo","Memo"
+"Méthode","Method"
+"Méthode de corrélation","Correlation method"
+"Méthode de rotation :","Rotation method:"
+"Méthode post-hoc non paramétrique","Non-parametric post-hoc method"
+"Méthode post-hoc paramétrique","Parametric post-hoc method"
+"minPts","minPts"
+"Modalité « exposé + »","Category “exposed +”"
+"Modalité « issue + »","Category “outcome +”"
+"Mode d'affichage","Display mode"
+"Mode de répartition vers le plan","Allocation mode for the design"
+"Modèle","Model"
+"Modèle (généralisé) mixte","(Generalised) mixed model"
+"Modèle affiché","Model shown"
+"Modèles à comparer","Models to compare"
+"Moteur","Engine"
+"Moteur :","Engine:"
+"Moteur (paramétrique) :","Engine (parametric):"
+"Mots à exclure","Words to exclude"
 "Mots à exclure (personnalisés, séparés par virgule ou espace)","Words to exclude (custom, separated by comma or space)"
-Mots-cles (separes par des points-virgules),Keywords (semicolon separated)
-Nettoyer espaces,Trim spaces
-Neurones LSTM,LSTM neurons
-Niveau de confiance,Confidence level
-Niveau de confiance :,Confidence level:
-Niveau de redaction,Level of writing
-nnet : neurones cachés,nnet: hidden neurons
-Nom de cette colonne,Name of this column
-Nom de l'axe Y2:,Name of the Y2 axis:
-Nom de l'objet de donnees,Name of the data object
-Nom de la nouvelle variable,Name of the new variable
-Nom de la variable calculée:,Name of the computed variable:
-Nom de la zone,Area name
-Nom du facteur,Factor name
-Nom:,Name:
-Nombre d'éléments (top N),Number of items (top N)
-Nombre d'imputations (m):,Number of imputations (m):
-Nombre de bandes,Number of strips
-Nombre de bins:,Number of bins:
-Nombre de classes,Number of classes
-Nombre de clusters:,Number of clusters:
-Nombre de codes a proposer,Number of codes to suggest
-Nombre de composantes:,Number of components:
-Nombre de covariables (0 si ANOVA),Number of covariates (0 for ANOVA)
-Nombre de décimales :,Number of decimals:
-Nombre de facteurs,Number of factors
-Nombre de facteurs (factoriel),Number of factors (factorial)
-Nombre de groupes (k),Number of groups (k)
-Nombre de groupes k,Number of groups k
-Nombre de mots,Number of words
-Nombre de strates (1 = pas de stratification),Number of strata (1 = no stratification)
-Nombre de thèmes,Number of themes
-Nombre de voisins (k):,Number of neighbours (k):
-Noms personnalisés des blocs / répliques (séparés par virgule),Custom names for blocks / replicates (comma separated)
-Non codee,Uncoded
-Non paramétrique répété,Repeated non-parametric
-Nouveau nom :,New name:
-Numérotation des blocs : numéro de départ,Block numbering: starting number
-Numéroter,Number
-Objectif d'estimation,Estimation objective
-Opérateur :,Operator:
+"Mots-clés (sépares par des points-virgules)","Keywords (semicolon separated)"
+"Nettoyer espaces","Trim spaces"
+"Neurones LSTM","LSTM neurons"
+"Niveau de confiance","Confidence level"
+"Niveau de confiance :","Confidence level:"
+"nnet : neurones cachés","nnet: hidden neurons"
+"Nom de cette colonne","Name of this column"
+"Nom de l'axe Y2 :","Name of the Y2 axis:"
+"Nom de l'objet de données","Name of the data object"
+"Nom de la nouvelle variable","Name of the new variable"
+"Nom de la variable calculée :","Name of the computed variable:"
+"Nom de la zone","Area name"
+"Nom du facteur","Factor name"
+"Nom :","Name:"
+"Nombre d'éléments (top N)","Number of items (top N)"
+"Nombre d'imputations (m) :","Number of imputations (m):"
+"Nombre de bandes","Number of strips"
+"Nombre de bins :","Number of bins:"
+"Nombre de classes","Number of classes"
+"Nombre de clusters :","Number of clusters:"
+"Nombre de codes à proposer","Number of codes to suggest"
+"Nombre de composantes :","Number of components:"
+"Nombre de covariables (0 si ANOVA)","Number of covariates (0 for ANOVA)"
+"Nombre de décimales :","Number of decimals:"
+"Nombre de facteurs","Number of factors"
+"Nombre de facteurs (factoriel)","Number of factors (factorial)"
+"Nombre de groupes (k)","Number of groups (k)"
+"Nombre de groupes k","Number of groups k"
+"Nombre de mots","Number of words"
+"Nombre de strates (1 = pas de stratification)","Number of strata (1 = no stratification)"
+"Nombre de thèmes","Number of themes"
+"Nombre de voisins (k) :","Number of neighbours (k):"
+"Noms personnalisés des blocs / répliques (séparés par virgule)","Custom names for blocks / replicates (comma separated)"
+"Non codée","Uncoded"
+"Non paramétrique répété","Repeated non-parametric"
+"Nouveau nom :","New name:"
+"Numérotation des blocs : numéro de départ","Block numbering: starting number"
+"Numéroter","Number"
+"Objectif d'estimation","Estimation objective"
+"Opérateur :","Operator:"
 "Ordre des niveaux (du plus bas au plus haut, séparés par ;)","Level order (lowest to highest, separated by ;)"
-Orientation des bandes,Strip orientation
-Ou importer un fichier (CSV/Excel),Or import a file (CSV/Excel)
-Outil,Tool
-Palette,Palette
-Palette de couleurs,Colour palette
-Part d'entraînement (%),Training share (%)
-Pas X,X step
-Pas Y,Y step
-PERMANOVA (>= 2 réponses),PERMANOVA (>= 2 responses)
-Personnaliser l'ordre axe X,Customise the X axis order
-Personnaliser les graduations,Customise the ticks
-Personnaliser les limites des axes,Customise the axis limits
-Plan de base,Base design
-Police de base:,Base font:
-Police des axes / du titre,Axis / title font
-Position,Position
-Position de la légende,Legend position
-Position des aires :,Area position:
-Position des barres:,Bar position:
-Position légende:,Legend position:
-Position sous-titre,Subtitle position
-Position:,Position:
-Precedente,Previous
-Prédicteurs (sélection multiple) :,Predictors (multiple selection):
-Prédire ce cas,Predict this case
-Préfixe à ajouter:,Prefix to add:
-Préfixe des noms de bloc,Prefix for block names
-Probabilité de l'evenement chez les non-exposes / a la moyenne (p0),Probability of the event among the unexposed / at the mean (p0)
-Probabilités (p-values) sur le graphique,Probabilities (p-values) on the plot
-Proportion (ou taux) de référence :,Reference proportion (or rate):
-Proportion attendue p (0.5 = cas le plus prudent),Expected proportion p (0.5 = most conservative case)
-Proportion d'exposes,Proportion exposed
+"Orientation des bandes","Strip orientation"
+"Ou importer un fichier (CSV/Excel)","Or import a file (CSV/Excel)"
+"Outil","Tool"
+"palette","Palette"
+"Palette de couleurs","Colour palette"
+"Part d'entraînement (%)","Training share (%)"
+"Pas X","X step"
+"Pas Y","Y step"
+"PERMANOVA (>= 2 réponses)","PERMANOVA (>= 2 responses)"
+"Personnaliser l'ordre axe X","Customise the X axis order"
+"Personnaliser les graduations","Customise the ticks"
+"Personnaliser les limites des axes","Customise the axis limits"
+"Plan de base","Base design"
+"Police de base :","Base font:"
+"Police des axes / du titre","Axis / title font"
+"Position","Position"
+"Position de la légende","Legend position"
+"Position des aires :","Area position:"
+"Position des barres :","Bar position:"
+"Position légende :","Legend position:"
+"Position sous-titre","Subtitle position"
+"Précédente","Previous"
+"Prédicteurs (sélection multiple) :","Predictors (multiple selection):"
+"Prédire ce cas","Predict this case"
+"Préfixe à ajouter :","Prefix to add:"
+"Préfixe des noms de bloc","Prefix for block names"
+"Probabilité de l'événement chez les non-exposes / à la moyenne (p0)","Probability of the event among the unexposed / at the mean (p0)"
+"Probabilités (p-values) sur le graphique","Probabilities (p-values) on the plot"
+"Proportion (ou taux) de référence :","Reference proportion (or rate):"
+"Proportion attendue p (0.5 = cas le plus prudent)","Expected proportion p (0.5 = most conservative case)"
+"Proportion d'exposes","Proportion exposed"
 "Proportions (une par modalité, ordre alphabétique, séparées par virgule)","Proportions (one per category, alphabetical order, comma separated)"
-Proportions attendues (H0),Expected proportions (H0)
-Puissance (1-β err prob),Power (1-β err prob)
-Qualité JPEG:,JPEG quality:
-Question ouverte a coder,Open-ended question to code
-Queue(s),Tail(s)
-R2 du prédicteur explique par les autres covariables,R2 of the predictor explained by the other covariates
-R2 explique par les autres covariables,R2 explained by the other covariates
-Racinisation (stemming),Stemming
-Recharger un projet (.rds),Reload a project (.rds)
-Recherche automatique des hyperparamètres (grille + validation) — recommandé,Automatic hyperparameter search (grid + validation) — recommended
-Rechercher dans les extraits,Search within the excerpts
-Réinitialiser l'ordre,Reset the order
-Réinitialiser tous les filtres,Reset every filter
-Répétitions / blocs,Replicates / blocks
-Réponse a expliquer :,Response to explain:
-Réponse a prédire :,Response to predict:
-Reponses envoyees au modele (max.),Answers sent to the model (max.)
-Résolution (DPI),Resolution (DPI)
-Resolution des figures,Figure resolution
-Rotation axe X (°),X axis rotation (°)
-rpart : complexité (cp),rpart: complexity (cp)
-Séparateur :,Separator:
+"Proportions attendues (H0)","Expected proportions (H0)"
+"Puissance (1-β err prob)","Power (1-β err prob)"
+"Qualité JPEG :","JPEG quality:"
+"Question ouverte à coder","Open-ended question to code"
+"Queue(s)","Tail(s)"
+"R2 du prédicteur explique par les autres covariables","R2 of the predictor explained by the other covariates"
+"R2 explique par les autres covariables","R2 explained by the other covariates"
+"Racinisation (stemming)","Stemming"
+"Recharger un projet (.rds)","Reload a project (.rds)"
+"Recherche automatique des hyperparamètres (grille + validation) — recommandé","Automatic hyperparameter search (grid + validation) — recommended"
+"Rechercher dans les extraits","Search within the excerpts"
+"Réinitialiser l'ordre","Reset the order"
+"Réinitialiser tous les filtres","Reset every filter"
+"Répétitions / blocs","Replicates / blocks"
+"Réponse à expliquer :","Response to explain:"
+"Réponse à prédire :","Response to predict:"
+"Réponses envoyées au modèle (max.)","Answers sent to the model (max.)"
+"Résolution (DPI)","Resolution (DPI)"
+"Rotation axe X (°)","X axis rotation (°)"
+"rpart : complexité (cp)","rpart: complexity (cp)"
+"Séparateur :","Separator:"
 "Saisir de nouvelles valeurs (séparées par des virgules, espaces ou retours à la ligne)","Enter new values (separated by commas, spaces or line breaks)"
-Second coefficient r (r2),Second coefficient r (r2)
-Sections a inclure,Sections to include
-Sélection de lignes :,Row selection:
-Sélectionner l'effet simple:,Select the simple effect:
-Sélectionner les colonnes à conserver :,Select the columns to keep:
-Sélectionnez le type:,Select the type:
-Sélectionnez une variable:,Select a variable:
-Sensible à la casse,Case sensitive
-Séparateur (regex),Separator (regex)
-Série à prévoir (numérique),Series to forecast (numeric)
-Serveur d'inference,Inference server
-Seuil (|z|):,Threshold (|z|):
-Seuil de significativité (α),Significance threshold (α)
-Simuler les prévisions,Simulate the forecasts
-Source des labels pour individus (optionnel):,Source of individual labels (optional):
-Standardiser les variables,Standardise the variables
-Style axe X,X axis style
-Style axe Y,Y axis style
+"Second coefficient r (r2)","Second coefficient r (r2)"
+"Sélection de lignes :","Row selection:"
+"Sélectionner l'effet simple :","Select the simple effect:"
+"Sélectionner les colonnes à conserver :","Select the columns to keep:"
+"Sélectionnez le type :","Select the type:"
+"Sélectionnez une variable :","Select a variable:"
+"Sensible à la casse","Case sensitive"
+"Séparateur (regex)","Separator (regex)"
+"Série à prévoir (numérique)","Series to forecast (numeric)"
+"Serveur d'inference","Inference server"
+"Seuil (|z|) :","Threshold (|z|):"
+"Seuil de significativité (α)","Significance level (α)"
+"Simuler les prévisions","Simulate the forecasts"
+"Source des labels pour individus (optionnel) :","Source of individual labels (optional):"
+"Standardiser les variables","Standardise the variables"
+"Style axe X","X axis style"
+"Style axe Y","Y axis style"
 "Style lettres (a,b,c)","Letter style (a,b,c)"
-Style sous-titre,Subtitle style
-Style texte légende,Legend text style
-Style titre,Title style
-Style titre légende,Legend title style
-Style titres axes,Axis title style
-Suffixe à ajouter:,Suffix to add:
-Suivante,Next
-Supprimer ce memo,Delete this memo
-Supprimer la sélection,Delete the selection
-Supprimer les codages automatiques,Delete the automatic codings
-Supprimer variable :,Delete variable:
-SVM : coût C,SVM: cost C
-SVM : noyau,SVM: kernel
-Taille de la population (0 ou vide = infinie),Population size (0 or empty = infinite)
-Taille de lot,Batch size
-Taille des entrées:,Input size:
-Taille des etiquettes (pt),Label size (pt)
-Taille des labels,Label size
-Taille des n-grammes,N-gram size
-Taille des p-values,p-value size
-Taille des points,Point size
-Taille des points (individus),Point size (individuals)
-Taille des points:,Point size:
-Taille des symboles:,Symbol size:
-Taille des valeurs,Value size
-Taille du bloc incomplet (k),Incomplete block size (k)
-Taille du jeu de test,Test set size
-Taille du texte,Text size
-Taille du titre:,Title size:
-Taille max. du texte,Max. text size
-Taille moyennes dans barres,Size of the means inside the bars
-Taille police des étiquettes,Label font size
-Taille texte axes,Axis text size
-Taille texte axes:,Axis text size:
-Taille texte des axes,Axis text size
-Taille texte légende:,Legend text size:
-Taille titre:,Title size:
-Taille titres axes:,Axis title size:
-Taille titres d'axes,Axis title size
-Taille:,Size:
-Taux d'apprentissage,Learning rate
-Taux de base moyen (exp(beta0)),Mean baseline rate (exp(beta0))
-Taux de réponse anticipé,Expected response rate
-Télécharger (CSV),Download (CSV)
-Télécharger (Excel),Download (Excel)
-Télécharger (PNG),Download (PNG)
-Télécharger Analyse Parallèle,Download parallel analysis
-Télécharger carte,Download map
-Télécharger contribution,Download contributions
-Télécharger dendrogramme,Download dendrogram
-Télécharger données (CSV),Download data (CSV)
-Télécharger données (Excel),Download data (Excel)
-Télécharger effets principaux (.xlsx),Download main effects (.xlsx)
-Télécharger effets simples (.xlsx),Download simple effects (.xlsx)
-Télécharger graphique,Download plot
-Télécharger Graphique CTR,Download CTR plot
-Télécharger hauteurs de fusion,Download merge heights
-Télécharger l'image,Download the image
-Télécharger la sortie (TXT),Download the output (TXT)
-Telecharger le diagnostic (CSV),Download the diagnostic (CSV)
-Télécharger le graphique,Download the plot
-Télécharger le Graphique,Download the plot
-Telecharger le nuage (PNG),Download the cloud (PNG)
-Telecharger le rapport (Excel),Download the report (Excel)
-Telecharger le script (.R),Download the script (.R)
-Télécharger les données filtrées,Download the filtered data
-Telecharger les memos (CSV),Download the memos (CSV)
-Télécharger les résultats (Excel),Download the results (Excel)
-Télécharger projection,Download projection
-Télécharger Scree Plot,Download scree plot
-Test binomial exact,Exact binomial test
-Test de Poisson (taux),Poisson test (rate)
-Test de Scheirer-Ray-Hare,Scheirer-Ray-Hare test
-Test du signe (médiane),Sign test (median)
-Test non paramétrique :,Non-parametric test:
-Test statistique,Statistical test
-Test t (1 échantillon),t-test (one sample)
-Test z (écart-type connu),z-test (known standard deviation)
-Tester la connexion et lister les modeles,Test the connection and list the models
-Texte axes,Axis text
-Texte brut,Plain text
-Texte des axes:,Axis text:
-Texte du gradient,Gradient text
-Texte en gras,Bold text
-Texte en italique,Italic text
-Texte légende,Legend text
-Titre (facultatif),Title (optional)
-Titre axe X,X axis title
-Titre axe Y,Y axis title
-Titre carte des clusters:,Cluster map title:
-Titre contribution variables:,Variable contribution title:
-Titre de la légende,Legend title
-Titre de la légende:,Legend title:
-Titre dendrogramme:,Dendrogram title:
-Titre du graphique,Plot title
-Titre du graphique:,Plot title:
-Titre en gras,Bold title
-Titre en italique,Italic title
-Titre légende,Legend title
-Titre personnalisé,Custom title
-Titre personnalisé:,Custom title:
-Titre principal:,Main title:
-Titre projection individus:,Individual projection title:
-Titre:,Title:
-Titres des axes,Axis titles
-Titres des axes:,Axis titles:
-Tri auto,Auto sort
-Type d'affichage,Display type
-Type d'analyse,Analysis type
-Type d'analyse de puissance,Power analysis type
-Type de coloration:,Colouring type:
-Type de comparaisons,Comparison type
-Type de ligne:,Line type:
-Type de plan,Design type
-Type de prédicteur,Predictor type
-Type de visualisation:,Visualisation type:
-Unite de comptage,Counting unit
-Utiliser les moyennes par groupe,Use the group means
-Valeur :,Value:
-Valeur à inscrire,Value to write
-Valeur de remplacement:,Replacement value:
-Valeur par défaut:,Default value:
-Valeur(s) à rechercher (une par ligne) :,Value(s) to search for (one per line):
-Variable 2 (croisement),Variable 2 (cross)
-Variable à prévoir (numérique),Variable to forecast (numeric)
-Variable à recoder,Variable to recode
-Variable à renommer :,Variable to rename:
-Variable à visualiser:,Variable to visualise:
-Variable cible (à prédire),Target variable (to predict)
-Variable couleur:,Colour variable:
-Variable d'exposition (X),Exposure variable (X)
-Variable d'issue (Y),Outcome variable (Y)
-Variable de groupement (ellipses):,Grouping variable (ellipses):
-Variable de groupement (moyennes) :,Grouping variable (means):
-Variable de groupement pour les moyennes:,Grouping variable for the means:
-Variable de pente (continue) :,Slope variable (continuous):
-Variable de profil (colonnes),Profile variable (columns)
-Variable facetting:,Facetting variable:
-Variable ordinale,Ordinal variable
-Variable ordinale 2,Ordinal variable 2
-Variable textuelle,Text variable
-Variable X (Traitements):,X variable (treatments):
-Variable X:,X variable:
-Variable Y (Efficacité):,Y variable (efficacy):
-Variable(s) Y:,Y variable(s):
-Variables (laisser vide = toutes),Variables (leave empty = all)
-Variables (numériques),Variables (numeric)
-Variables analysees,Variables analysed
-Variables de regroupement:,Grouping variables:
-Variables explicatives,Explanatory variables
-Variables numériques,Numeric variables
-Variables numériques (≥ 2),Numeric variables (>= 2)
-Variables numériques à analyser :,Numeric variables to analyse:
-Vider le livre de codes,Clear the codebook
-Wilcoxon signé (médiane),Signed Wilcoxon (median)
-X max,X max
-X min,X min
-xgboost : itérations,xgboost: iterations
-xgboost : profondeur,xgboost: depth
-xgboost : taux d'apprentissage,xgboost: learning rate
-Y max,Y max
-Y min,Y min
-1. Diagnostic & recommandation,1. Diagnosis & recommendation
-2. Details techniques,2. Technical details
-3. Décomposition des effets,3. Breakdown of the effects
-Aide a la decision,Decision support
-Ajouter Variable,Add variable
-Analyse a interpreter,Analysis to interpret
-Analyse des Valeurs Manquantes,Missing-value analysis
-Analyse multivariee assistee,Assisted multivariate analysis
-Analyse multivariee assistee (MANOVA / PERMANOVA),Assisted multivariate analysis (MANOVA / PERMANOVA)
-Analyse recommandee & field book,Recommended analysis & field book
-Analyse Saisonnière,Seasonal analysis
+"Style sous-titre","Subtitle style"
+"Style texte légende","Legend text style"
+"Style titre","Title style"
+"Style titre légende","Legend title style"
+"Style titres axes","Axis title style"
+"Suffixe à ajouter :","Suffix to add:"
+"Suivante","Next"
+"Supprimer ce mémo","Delete this memo"
+"Supprimer la sélection","Delete the selection"
+"Supprimer les codages automatiques","Delete the automatic codings"
+"Supprimer variable :","Delete variable:"
+"SVM : coût C","SVM: cost C"
+"SVM : noyau","SVM: kernel"
+"Taille de la population (0 ou vide = infinie)","Population size (0 or empty = infinite)"
+"Taille de lot","Batch size"
+"Taille des entrées :","Input size:"
+"Taille des étiquettes (pt)","Label size (pt)"
+"Taille des labels","Label size"
+"Taille des n-grammes","N-gram size"
+"Taille des p-values","p-value size"
+"Taille des points","Point size"
+"Taille des points (individus)","Point size (individuals)"
+"Taille des points :","Point size:"
+"Taille des symboles :","Symbol size:"
+"Taille des valeurs","Value size"
+"Taille du bloc incomplet (k)","Incomplete block size (k)"
+"Taille du jeu de test","Test set size"
+"Taille du texte","Text size"
+"Taille du titre :","Title size:"
+"Taille max. du texte","Max. text size"
+"Taille moyennes dans barres","Size of the means inside the bars"
+"Taille police des étiquettes","Label font size"
+"Taille texte axes","Axis text size"
+"Taille texte axes :","Axis text size:"
+"Taille texte des axes","Axis text size"
+"Taille texte légende :","Legend text size:"
+"Taille titre :","Title size:"
+"Taille titres axes :","Axis title size:"
+"Taille titres d'axes","Axis title size"
+"Taux d'apprentissage","Learning rate"
+"Taux de base moyen (exp(beta0))","Mean baseline rate (exp(beta0))"
+"Taux de réponse anticipé","Expected response rate"
+"Télécharger (CSV)","Download (CSV)"
+"Télécharger (Excel)","Download (Excel)"
+"Télécharger (PNG)","Download (PNG)"
+"Télécharger Analyse Parallèle","Download parallel analysis"
+"Télécharger carte","Download map"
+"Télécharger contribution","Download contributions"
+"Télécharger dendrogramme","Download dendrogram"
+"Télécharger données (CSV)","Download data (CSV)"
+"Télécharger données (Excel)","Download data (Excel)"
+"Télécharger effets principaux (.xlsx)","Download main effects (.xlsx)"
+"Télécharger effets simples (.xlsx)","Download simple effects (.xlsx)"
+"Télécharger graphique","Download plot"
+"Télécharger Graphique CTR","Download CTR plot"
+"Télécharger hauteurs de fusion","Download merge heights"
+"Télécharger l'image","Download the image"
+"Télécharger la sortie (TXT)","Download the output (TXT)"
+"Télécharger le diagnostic (CSV)","Download the diagnostic (CSV)"
+"Télécharger le graphique","Download the plot"
+"Télécharger le nuage (PNG)","Download the cloud (PNG)"
+"Télécharger le rapport (Excel)","Download the report (Excel)"
+"Télécharger le script (.R)","Download the script (.R)"
+"Télécharger les données filtrées","Download the filtered data"
+"Télécharger les mémos (CSV)","Download the memos (CSV)"
+"Télécharger les résultats (Excel)","Download the results (Excel)"
+"Télécharger projection","Download projection"
+"Télécharger Scree Plot","Download scree plot"
+"Test binomial exact","Exact binomial test"
+"Test de Poisson (taux)","Poisson test (rate)"
+"Test de Scheirer-Ray-Hare","Scheirer-Ray-Hare test"
+"Test du signe (médiane)","Sign test (median)"
+"Test non paramétrique :","Non-parametric test:"
+"Test statistique","Statistical test"
+"Test t (1 échantillon)","t-test (one sample)"
+"Test z (écart-type connu)","z-test (known standard deviation)"
+"Tester la connexion et lister les modeles","Test the connection and list the models"
+"Texte axes","Axis text"
+"Texte brut","Plain text"
+"Texte des axes :","Axis text:"
+"Texte du gradient","Gradient text"
+"Texte en gras","Bold text"
+"Texte en italique","Italic text"
+"Texte légende","Legend text"
+"Titre (facultatif)","Title (optional)"
+"Titre axe X","X axis title"
+"Titre axe Y","Y axis title"
+"Titre carte des clusters :","Cluster map title:"
+"Titre contribution variables :","Variable contribution title:"
+"Titre de la légende","Legend title"
+"Titre dendrogramme :","Dendrogram title:"
+"Titre du graphique","Plot title"
+"Titre en gras","Bold title"
+"Titre en italique","Italic title"
+"Titre légende","Legend title"
+"Titre personnalisé","Custom title"
+"Titre personnalisé :","Custom title:"
+"Titre principal :","Main title:"
+"Titre projection individus :","Individual projection title:"
+"Titres des axes","Axis titles"
+"Tri auto","Auto sort"
+"Type d'affichage","Display type"
+"Type d'analyse","Analysis type"
+"Type d'analyse de puissance","Power analysis type"
+"Type de coloration :","Colouring type:"
+"Type de comparaisons","Comparison type"
+"Type de ligne :","Line type:"
+"Type de plan","Design type"
+"Type de prédicteur","Predictor type"
+"Type de visualisation :","Visualisation type:"
+"Unité de comptage","Counting unit"
+"Utiliser les moyennes par groupe","Use the group means"
+"Valeur :","Value:"
+"Valeur à inscrire","Value to write"
+"Valeur par défaut :","Default value:"
+"Valeur(s) à rechercher (une par ligne) :","Value(s) to search for (one per line):"
+"Variable 2 (croisement)","Variable 2 (cross)"
+"Variable à prévoir (numérique)","Variable to forecast (numeric)"
+"Variable à recoder","Variable to recode"
+"Variable à renommer :","Variable to rename:"
+"Variable à visualiser :","Variable to visualise:"
+"Variable cible (à prédire)","Target variable (to predict)"
+"Variable couleur :","Colour variable:"
+"Variable d'exposition (X)","Exposure variable (X)"
+"Variable d'issue (Y)","Outcome variable (Y)"
+"Variable de groupement (ellipses) :","Grouping variable (ellipses):"
+"Variable de groupement (moyennes) :","Grouping variable (means):"
+"Variable de groupement pour les moyennes :","Grouping variable for the means:"
+"Variable de pente (continue) :","Slope variable (continuous):"
+"Variable de profil (colonnes)","Profile variable (columns)"
+"Variable facetting :","Facetting variable:"
+"Variable ordinale","Ordinal variable"
+"Variable ordinale 2","Ordinal variable 2"
+"Variable textuelle","Text variable"
+"Variable X (Traitements) :","X variable (treatments):"
+"Variable X:","X variable:"
+"Variable Y (Efficacité) :","Y variable (efficacy):"
+"Variable(s) Y","Y variable(s)"
+"Variables (laisser vide = toutes)","Variables (leave empty = all)"
+"Variables (numériques)","Variables (numeric)"
+"Variables de regroupement :","Grouping variables:"
+"Variables explicatives","Explanatory variables"
+"Variables numériques","Numeric variables"
+"Variables numériques (≥ 2)","Numeric variables (>= 2)"
+"Variables numériques à analyser :","Numeric variables to analyse:"
+"Vider le livre de codes","Clear the codebook"
+"Wilcoxon signé (médiane)","Signed Wilcoxon (median)"
+"X max","X max"
+"X min","X min"
+"xgboost : itérations","xgboost: iterations"
+"xgboost : profondeur","xgboost: depth"
+"xgboost : taux d'apprentissage","xgboost: learning rate"
+"Y max","Y max"
+"Y min","Y min"
+"1. Diagnostic & recommandation","1. Diagnosis & recommendation"
+"2. Détails techniques","2. Technical details"
+"3. Décomposition des effets","3. Breakdown of the effects"
+"Ajouter Variable","Add variable"
+"Analyse des Valeurs Manquantes","Missing-value analysis"
+"Analyse multivariée assistée","Assisted multivariate analysis"
+"Analyse multivariée assistée (MANOVA / PERMANOVA)","Assisted multivariate analysis (MANOVA / PERMANOVA)"
+"Analyse recommandée & field book","Recommended analysis & field book"
+"Analyse Saisonnière","Seasonal analysis"
 "Analyse, croisement et rapports","Analysis, cross-tabulation and reports"
-Aperçu des Données Nettoyées,Preview of the cleaned data
-Architecture & apprentissage,Architecture & training
-Comparaison des modèles,Model comparison
-Configuration,Configuration
-Configuration de l'analyse,Analysis configuration
-Conventions (Cohen),Conventions (Cohen)
-Courbe d'apprentissage,Learning curve
-Courbe de puissance,Power curve
-Décomposition (STL),Decomposition (STL)
-Détail de la comparaison à la référence,Detail of the comparison with the reference
-Diagnostic du modèle sélectionné,Diagnostics of the selected model
-Diagnostic du réseau,Network diagnostics
-Diagnostics des résidus,Residual diagnostics
-Distribution des Variables,Variable distributions
-Échantillon de travail,Working sample
-Etiquettes de cette reponse,Labels on this answer
-Exporter le graphique,Export the plot
-Graphique des seuils d'efficacité,Plot of the efficacy thresholds
-Graphique du dispositif (randomisation),Plot of the design (randomisation)
-Groupes distincts (lettres),Distinct groups (letters)
-Importance des variables,Variable importance
-Interactif,Interactive
-Interaction (cellules croisées),Interaction (crossed cells)
-Lettres CLD,CLD letters
-Marge d'erreur selon la taille d'échantillon,Margin of error by sample size
-Matrice de confusion / résidus,Confusion matrix / residuals
-Matrice de Corrélation,Correlation matrix
-Métriques & interprétation,Metrics & interpretation
+"Aperçu des Données Nettoyées","Preview of the cleaned data"
+"Architecture & apprentissage","Architecture & training"
+"Comparaison des modèles","Model comparison"
+"Configuration","Configuration"
+"Configuration de l'analyse","Analysis configuration"
+"Conventions (Cohen)","Conventions (Cohen)"
+"Courbe d'apprentissage","Learning curve"
+"Courbe de puissance","Power curve"
+"Décomposition (STL)","Decomposition (STL)"
+"Détail de la comparaison à la référence","Detail of the comparison with the reference"
+"Diagnostic du modèle sélectionné","Diagnostics of the selected model"
+"Diagnostic du réseau","Network diagnostics"
+"Diagnostics des résidus","Residual diagnostics"
+"Distribution des Variables","Variable distributions"
+"Échantillon de travail","Working sample"
+"Étiquettes de cette réponse","Labels on this answer"
+"Exporter le graphique","Export the plot"
+"Graphique des seuils d'efficacité","Plot of the efficacy thresholds"
+"Graphique du dispositif (randomisation)","Plot of the design (randomisation)"
+"Groupes distincts (lettres)","Distinct groups (letters)"
+"Importance des variables","Variable importance"
+"Interactif","Interactive"
+"Interaction (cellules croisées)","Interaction (crossed cells)"
+"Lettres CLD","CLD letters"
+"Marge d'erreur selon la taille d'échantillon","Margin of error by sample size"
+"Matrice de confusion / résidus","Confusion matrix / residuals"
+"Matrice de Corrélation","Correlation matrix"
+"Métriques & interprétation","Metrics & interpretation"
 "Métriques, prévisions & interprétation","Metrics, forecasts & interpretation"
-Moteur d'inference,Inference engine
-Options Avancées de Personnalisation,Advanced customisation options
-Options d'affichage des graphiques (optionnel),Plot display options (optional)
-Paires (emmeans),Pairs (emmeans)
-Paires (PERMANOVA Bonferroni),Pairs (PERMANOVA Bonferroni)
-Paramètres d'entree,Input parameters
-Paramètres de l'enquête,Survey parameters
-Paramètres de sortie,Output parameters
-Paramètres de Visualisation,Visualisation parameters
-Personnalisation Rapide,Quick customisation
-Personnaliser les labels de la légende,Customise the legend labels
-Prévision LSTM,LSTM forecast
-Prévisions du modèle sélectionné,Forecasts of the selected model
-Qualité : silhouette & coude,Quality: silhouette & elbow
-Recoder Classes,Recode categories
-Renommer Variable,Rename variable
-Reponse a coder,Answer to code
-Résultats & interprétation,Results & interpretation
-Résultats de l'ACP,PCA results
-Résultats des tests de corrélation,Correlation test results
-Résumé statistique,Statistical summary
-Saisie,Entry
-Simulateur de prédictions,Prediction simulator
-Simulateur de prévisions,Forecast simulator
-Structure des données,Data structure
-Supprimer Lignes,Delete rows
-Supprimer Variable,Delete variable
-Tableau des données utilisées,Table of the data used
-Taille d'échantillon requise,Required sample size
-Visualisation des groupes,Cluster visualisation
-Visualisation Interactive des Données,Interactive data visualisation
-Calcul depuis un témoin,Computed from a control
-Efficacités calculées depuis le témoin,Efficacies computed from the control
-Valeur résumée par modalité,Summary value per category
-Variable des traitements,Treatment variable
-Modalité témoin,Control category
-Variable(s) mesurée(s),Measured variable(s)
-Grouper par (facultatif),Group by (optional)
-Calculer les efficacités,Compute the efficacies
-Utiliser comme jeu de données,Use as the data set
-Aucune autre modalité à comparer au témoin.,No other category to compare with the control.
-Aucune variable numérique à mesurer.,No numeric variable to measure.
-Calculez d'abord les efficacités.,Compute the efficacies first.
-(aucun groupement),(no grouping)
-Mediane,Median
- %d modalité(s) seront comparées au témoin : , %d category/categories will be compared with the control: 
-%d ligne(s),%d row(s)
-" — témoin « %s », valeur résumée : %s."," — control “%s”, summary value: %s."
- %d efficacité(s) non calculable(s) : le témoin y vaut zéro ou n'a aucune valeur mesurable.," %d efficacy value(s) cannot be computed: the control is zero there, or has no measurable value."
-" Jeu de données remplacé par le tableau des efficacités (%d lignes, %d colonnes). Les autres onglets travaillent maintenant dessus."," Data set replaced by the efficacy table (%d rows, %d columns). The other tabs now work on it."
-Source des données,Data source
-Jeu de données chargé,Loaded data set
-Efficacités calculées,Computed efficacies
-Aucune efficacité calculée : rendez-vous dans l'onglet,No efficacy computed yet: go to the tab
- Le graphique trace les efficacités calculées (%d lignes). Le jeu de données chargé n'est pas modifié., The plot shows the computed efficacies (%d rows). The loaded data set is left untouched.
-Traitement des répétitions,Handling of repetitions
-Variable de répétition,Repetition variable
-(aucune répétition déclarée),(no repetition declared)
-Mettre les répétitions en commun,Pool the repetitions
-Une efficacité par répétition,One efficacy per repetition
-%s variable(s) listée(s).,%s variable(s) listed.
-Les données du graphique ne forment pas un tableau : resélectionnez les variables X et Y.,The plot data is not a table: reselect the X and Y variables.
-La variable X « %s » est absente des données préparées : resélectionnez-la.,"The X variable ""%s"" is missing from the prepared data: reselect it."
+"Options Avancées de Personnalisation","Advanced customisation options"
+"Options d'affichage des graphiques (optionnel)","Plot display options (optional)"
+"Paires (emmeans)","Pairs (emmeans)"
+"Paires (PERMANOVA Bonferroni)","Pairs (PERMANOVA Bonferroni)"
+"Paramètres d'entrée","Input parameters"
+"Paramètres de l'enquête","Survey parameters"
+"Paramètres de sortie","Output parameters"
+"Paramètres de Visualisation","Visualisation parameters"
+"Personnalisation Rapide","Quick customisation"
+"Personnaliser les labels de la légende","Customise the legend labels"
+"Prévision LSTM","LSTM forecast"
+"Prévisions du modèle sélectionné","Forecasts of the selected model"
+"Qualité : silhouette & coude","Quality: silhouette & elbow"
+"Recoder Classes","Recode categories"
+"Renommer Variable","Rename variable"
+"Réponse à coder","Answer to code"
+"Résultats & interprétation","Results & interpretation"
+"Résultats de l'ACP","PCA results"
+"Résultats des tests de corrélation","Correlation test results"
+"Résumé statistique","Statistical summary"
+"Saisie","Entry"
+"Simulateur de prédictions","Prediction simulator"
+"Simulateur de prévisions","Forecast simulator"
+"Structure des données","Data structure"
+"Supprimer Lignes","Delete rows"
+"Supprimer Variable","Delete variable"
+"Tableau des données utilisées","Table of the data used"
+"Taille d'échantillon requise","Required sample size"
+"Visualisation des groupes","Cluster visualisation"
+"Visualisation Interactive des Données","Interactive data visualisation"
+"Calcul depuis un témoin","Computed from a control"
+"Efficacités calculées depuis le témoin","Efficacies computed from the control"
+"Valeur résumée par modalité","Summary value per category"
+"Variable des traitements","Treatment variable"
+"Modalité témoin","Control category"
+"Variable(s) mesurée(s)","Measured variable(s)"
+"Grouper par (facultatif)","Group by (optional)"
+"Calculer les efficacités","Compute the efficacies"
+"Utiliser comme jeu de données","Use as the dataset"
+"Aucune autre modalité à comparer au témoin.","No other category to compare with the control."
+"Aucune variable numérique à mesurer.","No numeric variable to measure."
+"Calculez d'abord les efficacités.","Compute the efficacies first."
+"(aucun groupement)","(no grouping)"
+"%d modalité(s) seront comparées au témoin :"," %d category/categories will be compared with the control: "
+"%d ligne(s)","%d row(s)"
+"— témoin « %s », valeur résumée : %s."," — control “%s”, summary value: %s."
+"%d efficacité(s) non calculable(s) : le témoin y vaut zéro ou n'a aucune valeur mesurable."," %d efficacy value(s) cannot be computed: the control is zero there, or has no measurable value."
+"Jeu de données remplacé par le tableau des efficacités (%d lignes, %d colonnes). Les autres onglets travaillent maintenant dessus."," Dataset replaced by the efficacy table (%d rows, %d columns). The other tabs now work on it."
+"Source des données","Data source"
+"Jeu de données chargé","Loaded dataset"
+"Efficacités calculées","Computed efficacies"
+"Aucune efficacité calculée : rendez-vous dans l'onglet","No efficacy computed yet: go to the tab"
+" Le graphique trace les efficacités calculées (%d lignes). Le jeu de données chargé n'est pas modifié."," The plot shows the computed efficacies (%d rows). The loaded dataset is left untouched."
+"Traitement des répétitions","Handling of replicates"
+"Variable de répétition","Replicate variable"
+"(aucune répétition déclarée)","(no replicate declared)"
+"Mettre les répétitions en commun","Pool the replicates"
+"Une efficacité par répétition","One efficacy per replicate"
+"%s variable(s) listée(s).","%s variable(s) listed."
+"Les données du graphique ne forment pas un tableau : resélectionnez les variables X et Y.","The plot data is not a table: reselect the X and Y variables."
+"La variable X « %s » est absente des données préparées : resélectionnez-la.","The X variable ""%s"" is missing from the prepared data: reselect it."
 "Variables Y ignorées (%s) : %s. Un graphique multi-courbes empile les Y dans une seule mesure, elles doivent être de même nature.","Y variables ignored (%s): %s. A multi-series plot stacks the Y variables into one measure, so they must be of the same nature."
-Aucune variable Y utilisable : choisissez au moins une variable quantitative différente de la variable X.,No usable Y variable: pick at least one quantitative variable different from the X variable.
-Mise en forme des variables Y,Reshaping the Y variables
-type non quantitatif,non-quantitative type
-type incompatible,incompatible type
+"Aucune variable Y utilisable : choisissez au moins une variable quantitative différente de la variable X.","No usable Y variable: pick at least one quantitative variable different from the X variable."
+"Mise en forme des variables Y","Reshaping the Y variables"
+"type non quantitatif","non-quantitative type"
+"type incompatible","incompatible type"
 "Résolution ramenée de %s à %s DPI : au-delà, l'image dépasse %s pixels de côté et l'export échoue. Passez au format SVG ou PDF, dont la résolution est illimitée.","Resolution reduced from %s to %s DPI: beyond that the image exceeds %s pixels per side and the export fails. Use SVG or PDF, whose resolution is unlimited."
 "Mise en page %s × %s pouces. Format vectoriel : résolution illimitée, le DPI ne s'applique pas.","Layout %s × %s inches. Vector format: unlimited resolution, DPI does not apply."
-Mise en page %s × %s pouces → fichier de %s × %s pixels à %s DPI,Layout %s × %s inches → file of %s × %s pixels at %s DPI
-Taille estimée : %s Mo,Estimated size: %s MB
-Thème du graphique,Plot theme
-Position du sous-titre,Subtitle position
-"Lettres (a, b, c)","Letters (a, b, c)"
-Graduations X,X ticks
-Graduations Y,Y ticks
-Style du titre,Title style
-Style du texte,Text style
-Libellé X,X label
-Libellé Y,Y label
-Largeur (pouces),Width (inches)
-Hauteur (pouces),Height (inches)
-Libellés X inclinés à 45°,X labels tilted 45°
-Personnaliser l'ordre de l'axe X,Customise the X axis order
-Moyennes,Means
-Taille des clés,Key size
-Type et couleurs,Type and colours
-Titres et libellés,Titles and labels
-Tailles,Sizes
-Styles d'écriture,Font styles
-Axes et ordre,Axes and order
-Taille du fichier exporté,Exported file size
-Présentation du tableau,Table layout
-"toute la mise en forme, de la palette a l'export","all the formatting, from palette to export"
-Un dégradé sur des groupes sans ordre naturel suggère une progression qui n'existe pas.,A gradient over groups with no natural order suggests a progression that does not exist.
+"Mise en page %s × %s pouces → fichier de %s × %s pixels à %s DPI","Layout %s × %s inches → file of %s × %s pixels at %s DPI"
+"Taille estimée : %s Mo","Estimated size: %s MB"
+"Thème du graphique","Plot theme"
+"Position du sous-titre","Subtitle position"
+"Graduations X","X ticks"
+"Graduations Y","Y ticks"
+"Style du titre","Title style"
+"Style du texte","Text style"
+"Libellé X","X label"
+"Libellé Y","Y label"
+"Largeur (pouces)","Width (inches)"
+"Hauteur (pouces)","Height (inches)"
+"Libellés X inclinés à 45°","X labels tilted 45°"
+"Personnaliser l'ordre de l'axe X","Customise the X axis order"
+"Moyennes","Means"
+"Taille des clés","Key size"
+"Type et couleurs","Type and colours"
+"Titres et libellés","Titles and labels"
+"Tailles","Sizes"
+"Styles d'écriture","Font styles"
+"Axes et ordre","Axes and order"
+"Taille du fichier exporté","Exported file size"
+"Présentation du tableau","Table layout"
+"toute la mise en forme, de la palette à l'export","all the formatting, from palette to export"
+"Un dégradé sur des groupes sans ordre naturel suggère une progression qui n'existe pas.","A gradient over groups with no natural order suggests a progression that does not exist."
 "Le gras et l'italique s'écrivent aussi dans le texte : **gras**, *italique*.","Bold and italic can also be written inline: **bold**, *italic*."
-Les limites X ne s'appliquent qu'à un axe numérique.,X limits only apply to a numeric axis.
-La légende n'apparaît qu'avec « Colorer par groupes statistiques ».,The legend only appears with « Colour by statistical groups ».
-Format et résolution se choisissent sous le graphique.,Format and resolution are chosen below the plot.
-Personnaliser les limites,Customise the limits
-Texte,Text
-Espacement,Spacing
-Position du titre,Title position
-Style du sous-titre,Subtitle style
-Style graduations X,X tick style
-Style graduations Y,Y tick style
-Style,Style
-Position de l'étiquette,Label position
-Style de l'étiquette,Label style
-Sous-titre:,Subtitle:
-Décimales,Decimals
-Opacité des barres:,Bar opacity:
-Épaisseur,Thickness
-Texte de la légende:,Legend text:
-Étiquette du seuil:,Threshold label:
-Valeurs sur les barres,Values on the bars
-Étiquette de la ligne de seuil,Threshold line label
-Afficher la valeur de chaque barre,Show each bar's value
-Au-dessus de la barre,Above the bar
+"Les limites X ne s'appliquent qu'à un axe numérique.","X limits only apply to a numeric axis."
+"La légende n'apparaît qu'avec « Colorer par groupes statistiques ».","The legend only appears with « Colour by statistical groups »."
+"Format et résolution se choisissent sous le graphique.","Format and resolution are chosen below the plot."
+"Personnaliser les limites","Customise the limits"
+"Texte","Text"
+"Espacement","Spacing"
+"Position du titre","Title position"
+"Style du sous-titre","Subtitle style"
+"Style graduations X","X tick style"
+"Style graduations Y","Y tick style"
+"Style","Style"
+"Position de l'étiquette","Label position"
+"Style de l'étiquette","Label style"
+"Décimales","Decimals"
+"Opacité des barres :","Bar opacity:"
+"Épaisseur","Thickness"
+"Texte de la légende :","Legend text:"
+"Étiquette du seuil:","Threshold label:"
+"Valeurs sur les barres","Values on the bars"
+"Étiquette de la ligne de seuil","Threshold line label"
+"Afficher la valeur de chaque barre","Show each bar's value"
+"Au-dessus de la barre","Above the bar"
 "Dans la barre, en haut","Inside the bar, at the top"
-Au pied de la barre,At the foot of the bar
-Contour des barres,Bar outline
-Couleur du contour,Outline colour
-Pas des graduations Y,Y tick step
-À droite,On the right
-Au centre,In the centre
-À gauche,On the left
-Laisser vide pour laisser ggplot choisir.,Leave empty to let ggplot choose.
-Une efficacité négative se lit sous l'axe : la position « au pied » la garde visible.,A negative efficacy reads below the axis: the « at the foot » position keeps it visible.
+"Au pied de la barre","At the foot of the bar"
+"Contour des barres","Bar outline"
+"Couleur du contour","Outline colour"
+"Pas des graduations Y","Y tick step"
+"À droite","On the right"
+"Au centre","In the centre"
+"À gauche","On the left"
+"Laisser vide pour laisser ggplot choisir.","Leave empty to let ggplot choose."
+"Une efficacité négative se lit sous l'axe : la position « au pied » la garde visible.","A negative efficacy reads below the axis: the « at the foot » position keeps it visible."
 "%d valeur(s) hors des limites de l'axe Y (%s à %s) : elles n'apparaissent pas. Élargissez les limites dans « Apparence & options ».","%d value(s) outside the Y axis limits (%s to %s): they are not shown. Widen the limits under « Appearance & options »."
-Grille,Grid
-Par défaut (ggplot2),ggplot2 default
-HStat (minimal),HStat (minimal)
+"Grille","Grid"
+"Par défaut (ggplot2)","ggplot2 default"
+"HStat (minimal)","HStat (minimal)"
 "HStat (titre centré, légende en bas)","HStat (centred title, legend at bottom)"
-Principale seule,Major only
-Masquée,Hidden
-Apparence du graphique,Plot appearance
-Apparence du dendrogramme,Dendrogram appearance
-Apparence des hauteurs de fusion,Merge heights appearance
-Apparence du graphique des éboulis,Scree plot appearance
-Apparence de l'analyse parallèle,Parallel analysis appearance
-Apparence du graphique CTR,CTR plot appearance
-Apparence — projection des individus,Appearance — individuals projection
-Apparence — contribution des variables,Appearance — variables contribution
-Titres et axes,Titles and axes
+"Principale seule","Major only"
+"Masquée","Hidden"
+"Apparence du graphique","Plot appearance"
+"Apparence du dendrogramme","Dendrogram appearance"
+"Apparence des hauteurs de fusion","Merge heights appearance"
+"Apparence du graphique des éboulis","Scree plot appearance"
+"Apparence de l'analyse parallèle","Parallel analysis appearance"
+"Apparence du graphique CTR","CTR plot appearance"
+"Apparence — projection des individus","Appearance — individuals projection"
+"Apparence — contribution des variables","Appearance — variables contribution"
+"Titres et axes","Titles and axes"
 "Thème, légende et grille","Theme, legend and grid"
-Largeur (px),Width (px)
-Hauteur (px),Height (px)
 "Laisser vide conserve les libellés calculés par l'analyse (axes, % de variance).","Leaving it empty keeps the labels computed by the analysis (axes, % of variance)."
-"La largeur et la hauteur se recalculent quand la résolution change : la taille physique de la figure reste la même, sa finesse augmente.",Width and height are recomputed when the resolution changes: the figure keeps its physical size and gains detail.
-Ellipses non tracées : %s. Un groupe doit compter au moins %d individus non alignés et de coordonnées variables.,"Ellipses not drawn: %s. A group needs at least %d individuals, not collinear and with varying coordinates."
-Graphique indisponible : le fichier téléchargé porte le motif.,Plot unavailable: the downloaded file carries the reason.
-Graphique indisponible.,Plot unavailable.
+"La largeur et la hauteur se recalculent quand la résolution change : la taille physique de la figure reste la même, sa finesse augmente.","Width and height are recomputed when the resolution changes: the figure keeps its physical size and gains detail."
+"Ellipses non tracées : %s. Un groupe doit compter au moins %d individus non alignés et de coordonnées variables.","Ellipses not drawn: %s. A group needs at least %d individuals, not collinear and with varying coordinates."
+"Graphique indisponible : le fichier téléchargé porte le motif.","Plot unavailable: the downloaded file carries the reason."
+"Graphique indisponible.","Plot unavailable."
 "Graphique exporté : %s, %s × %s pouces, %s DPI.","Plot exported: %s, %s × %s inches, %s DPI."
 "Aucun graphique : lancez d'abord l'analyse, puis retelechargez.","No plot: run the analysis first, then download again."
-Plan indisponible : le fichier téléchargé porte le motif.,Design unavailable: the downloaded file carries the reason.
-Échec de l'export : le fichier téléchargé porte le motif.,Export failed: the downloaded file carries the reason.
-Étiquette de la valeur sur le graphique,Value label on the plot
-Taille de l'étiquette,Label size
-Afficher « Seuil : x % » sur le graphique,Show « Threshold: x % » on the plot
-L'étiquette reprend la couleur de la ligne de seuil.,The label takes the colour of the threshold line.
-
+"Plan indisponible : le fichier téléchargé porte le motif.","Design unavailable: the downloaded file carries the reason."
+"Échec de l'export : le fichier téléchargé porte le motif.","Export failed: the downloaded file carries the reason."
+"Étiquette de la valeur sur le graphique","Value label on the plot"
+"Taille de l'étiquette","Label size"
+"Afficher « Seuil : x % » sur le graphique","Show « Threshold: x % » on the plot"
+"L'étiquette reprend la couleur de la ligne de seuil.","The label takes the colour of the threshold line."
 "Fichier produit : %s × %s px, soit %s × %s cm à %s DPI.","Output file: %s × %s px, i.e. %s × %s cm at %s DPI."
-"%s indisponible : renseignez une cle d'API (champ ci-dessous ou variable %s). Cle a creer sur %s. Ce service est payant et necessite une connexion ; la thematisation automatique, elle, est gratuite et hors ligne.","%s unavailable: enter an API key (field below or %s variable). Create a key at %s. This service is paid and needs a connection; automatic theming is free and offline."
-"%s disponible (modele %s).","%s available (model %s)."
-"Aucun modele joignable sur %s. %s","No model reachable at %s. %s"
-"Serveur local disponible sur %s (%d modele(s)). Gratuit, hors ligne, aucune donnee ne quitte la machine.","Local server available at %s (%d model(s)). Free, offline, no data leaves the machine."
+"%s indisponible : renseignez une clé d'API (champ ci-dessous ou variable %s). Clé à créer sur %s. Ce service est payant et nécessite une connexion ; la thématisation automatique, elle, est gratuite et hors ligne.","%s unavailable: enter an API key (field below or %s variable). Create a key at %s. This service is paid and needs a connection; automatic theming is free and offline."
+"%s disponible (modèle %s).","%s available (model %s)."
+"Aucun modèle joignable sur %s. %s","No model reachable at %s. %s"
+"Serveur local disponible sur %s (%d modèle(s)). Gratuit, hors ligne, aucune donnée ne quitte la machine.","Local server available at %s (%d model(s)). Free, offline, no data leaves the machine."
 "%s injoignable sur %s (%s).","%s unreachable at %s (%s)."
 "%s injoignable (%s).","%s unreachable (%s)."
-"Reponse illisible de %s.","Unreadable response from %s."
-"Cle d'API - %s","API key - %s"
+"Réponse illisible de %s.","Unreadable response from %s."
+"Clé d'API - %s","API key - %s"
 "laisser vide pour utiliser %s","leave empty to use %s"
-"Cle a creer sur %s. Service payant, en ligne.","Create a key at %s. Paid, online service."
-"%d traitements x %d repetitions = %d parcelles, sur un plan %s.","%d treatments x %d replications = %d plots, on a %s design."
-« %s » ne compte qu'une seule modalité : ce n'est pas un facteur répété.,"""%s"" has only one level: it is not a repeated factor."
+"Clé à créer sur %s. Service payant, en ligne.","Create a key at %s. Paid, online service."
+"%d traitements x %d répétitions = %d parcelles, sur un plan %s.","%d treatments x %d replications = %d plots, on a %s design."
+"« %s » ne compte qu'une seule modalité : ce n'est pas un facteur répété.","""%s"" has only one level: it is not a repeated factor."
 "« %s » compte autant de modalités que d'observations (%d) : aucune mesure n'est répétée. Regroupez les dates (par mois, par stade) avant l'analyse.","""%s"" has as many levels as observations (%d): nothing is repeated. Group the dates (by month, by stage) before running the analysis."
 "Minimum (vide = auto) :","Minimum (blank = auto):"
 "Maximum (vide = auto) :","Maximum (blank = auto):"
 "Ligne de référence à zéro (sépare gains et pertes)","Zero reference line (separates gains from losses)"
 "Titres d'axe sur plusieurs lignes si trop longs","Wrap axis titles onto several lines when too long"
-"Alignement des titres d'axe:","Axis title alignment:"
+"Alignement des titres d'axe :","Axis title alignment:"
 "Gauche","Left"
 "Centré","Centred"
 "Droite","Right"
@@ -1504,7 +1455,6 @@ L'étiquette reprend la couleur de la ligne de seuil.,The label takes the colour
 "Impossible de supprimer toutes les variables (minimum 1 requis).","Cannot remove all the variables (minimum of 1 required)."
 "Individus supplémentaires (optionnel) — par n° de ligne :","Supplementary individuals (optional) — by row number:"
 "Info :","Info:"
-"Information :","Information:"
 "Interprétation :","Interpretation:"
 "Interprétation des prévisions :","Interpretation of the forecasts:"
 "k-modes -- effectifs par cluster","k-modes — counts per cluster"
@@ -1657,13 +1607,31 @@ L'étiquette reprend la couleur de la ligne de seuil.,The label takes the colour
 "Violon : aucun groupe ne contient au moins 2 observations. Passez en boîte à moustaches.","Violin: no group contains at least 2 observations. Switch to a box plot."
 "Vue d'ensemble","Overview"
 "Parcours pour débutants et experts","A path for beginners and experts"
-" %d extrait(s) correspondant à la sélection, sur %d étiquette(s) au total."," %d excerpt(s) match the selection, out of %d label(s) in total."
-" %d proposition(s) écartée(s) : extrait introuvable dans le texte."," %d suggestion(s) discarded: excerpt not found in the text."
-" <b>ddl du numérateur calculé = %d</b> &nbsp;|&nbsp; Nombre de cellules (groupes) = %d"," <b>computed numerator df = %d</b> &nbsp;|&nbsp; Number of cells (groups) = %d"
-" Ce classeur contient %d feuilles — les combiner en un seul jeu de données"," This workbook has %d sheets — combine them into a single dataset"
-" Le graphique trace les efficacités calculées (%d modalité(s)). Le jeu de données chargé n'est pas modifié."," The plot shows the computed efficacy values (%d category(ies)). The loaded dataset is left untouched."
+"Le graphique trace les efficacités calculées (%d modalité(s)). Le jeu de données chargé n'est pas modifié."," The plot shows the computed efficacy values (%d category(ies)). The loaded dataset is left untouched."
 "%d valeur(s) hors des limites de l'axe Y (%s à %s) : elles n'apparaissent pas. Élargissez les limites, ou videz les champs pour laisser l'axe suivre les données.","%d value(s) outside the Y axis limits (%s to %s): they are not shown. Widen the limits, or clear the fields to let the axis follow the data."
 "auto","auto"
 "La ligne de seuil (%s) est hors des limites de l'axe Y : elle n'apparaît pas. Élargissez les limites, ou videz les champs.","The threshold line (%s) lies outside the Y axis limits: it is not shown. Widen the limits, or clear the fields."
 "Résolution ramenée de %s à %s DPI : au-delà, l'image dépasse %s pixels de côté et l'export échoue. La taille de la figure, elle, est inchangée. Pour une finesse illimitée, choisissez SVG ou PDF.","Resolution reduced from %s to %s DPI: beyond that the image exceeds %s pixels per side and the export fails. The figure size itself is unchanged. For unlimited sharpness, choose SVG or PDF."
 "Une colonne par variable mesurée (%d) : choisissez celle à représenter dans « Variable Y ».","One column per measured variable (%d): choose the one to plot in “Y variable”."
+"Mémo","Memo"
+"Position :","Position:"
+"Titre du graphique :","Plot title:"
+"Titre de la légende :","Legend title:"
+"Titre :","Title:"
+"Titres des axes :","Axis titles:"
+"Méthode :","Method:"
+"Variable X :","X variable:"
+"Variable(s) Y :","Y variable(s):"
+"Labels des axes :","Axis labels:"
+"Taille :","Size:"
+"Axe X :","X axis:"
+"Axe Y :","Y axis:"
+"Largeur (px) :","Width (px):"
+"Hauteur (px) :","Height (px):"
+"Gravité","Severity"
+"Hétérogénéité : ","Heterogeneity: "
+"Centroïdes","Centroids"
+"Prédictivité limitée","Limited predictivity"
+"Hétéroscédasticité détectée","Heteroscedasticity detected"
+"Code","Code"
+"Sous-titre","Subtitle"

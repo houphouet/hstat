@@ -117,8 +117,8 @@ mod_filter_server <- function(id, values) {
     if (NROW(d) >= n0) return()
     dq <- tryCatch(hstat_data_quality(d), error = function(e) NULL)
     hstat_ai_capture(values, "Filtrage",
-      trf("Sous-echantillon filtre (%d observations sur %d)", NROW(d), n0),
-      tables = list("Diagnostic de qualite" = dq),
+      trf("Sous-échantillon filtre (%d observations sur %d)", NROW(d), n0),
+      tables = list("Diagnostic de qualité" = dq),
       meta = list(variables = names(d), `observations retenues` = NROW(d),
                   `observations initiales` = n0,
                   `part conservee` = sprintf("%.1f %%", 100 * NROW(d) / max(1, n0))))
@@ -239,7 +239,7 @@ mod_filter_server <- function(id, values) {
       shiny::selectInput(ns("valueFilterCol"), "Colonne à filtrer :",
                   choices = col_names, selected = col_names[1]),
       shiny::textAreaInput(ns("valueFilterText"), "Valeur(s) à rechercher (une par ligne) :",
-                    placeholder = "Aout 04-10\nSeptembre 01-07\nJuillet 28-03",
+                    placeholder = "Août 04-10\nSeptembre 01-07\nJuillet 28-03",
                     rows = 4),
       shiny::checkboxInput(ns("valueFilterExact"), "Correspondance exacte", FALSE),
       shiny::checkboxInput(ns("valueFilterCaseSensitive"), "Sensible à la casse", FALSE),
@@ -288,7 +288,7 @@ mod_filter_server <- function(id, values) {
       values$filteredData <- filtered
       
       shiny::showNotification(
-        paste("Filtre par valeur appliqué:", nrow(filtered), "lignes trouvées avec", length(search_values), "valeur(s)"),
+        paste("Filtre par valeur appliqué :", nrow(filtered), "lignes trouvées avec", length(search_values), "valeur(s)"),
         type = "message",
         duration = 5
       )
@@ -340,7 +340,7 @@ mod_filter_server <- function(id, values) {
       values$filteredData <- filtered
       
       shiny::showNotification(
-        paste("Filtre par colonnes appliqué:", length(input$selectedColumns), "colonnes sélectionnées"),
+        paste("Filtre par colonnes appliqué :", length(input$selectedColumns), "colonnes sélectionnées"),
         type = "message",
         duration = 5
       )
@@ -379,7 +379,7 @@ mod_filter_server <- function(id, values) {
                                         reqA = isTRUE(input$requireA),
                                         reqB = isTRUE(input$requireB))
       values$filteredData <- filtered
-      shiny::showNotification(paste("Filtrage (2 facteurs) appliqué. Lignes:", nrow(filtered)), type = "message", duration = 5)
+      shiny::showNotification(paste("Filtrage (2 facteurs) appliqué. Lignes :", nrow(filtered)), type = "message", duration = 5)
     }, error = function(e) {
       shiny::showNotification(hstat_err_fr(e, "Erreur filtrage"), type = "error", duration = 10)
     })
@@ -397,7 +397,7 @@ mod_filter_server <- function(id, values) {
     tryCatch({
       filtered <- filter_complete_cross_n(values$cleanData, input$factorsN)
       values$filteredData <- filtered
-      shiny::showNotification(paste("Filtrage (N facteurs) appliqué. Lignes:", nrow(filtered)), type = "message", duration = 5)
+      shiny::showNotification(paste("Filtrage (N facteurs) appliqué. Lignes :", nrow(filtered)), type = "message", duration = 5)
     }, error = function(e) {
       shiny::showNotification(hstat_err_fr(e, "Erreur filtrage N facteurs"), type = "error", duration = 10)
     })

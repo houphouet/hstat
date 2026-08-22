@@ -8,8 +8,7 @@
 # Nom de fichier sûr (accents retirés, non-alphanumériques -> underscore)
 .safe_name <- function(x) {
   x <- as.character(x)[1]
-  x <- chartr("\u00e0\u00e2\u00e4\u00e9\u00e8\u00ea\u00eb\u00ee\u00ef\u00f4\u00f6\u00f9\u00fb\u00fc\u00e7",
-              "aaaeeeeiioouuuc", tolower(x))
+  x <- hstat_sans_accents(tolower(x))
   x <- gsub("[^a-z0-9]+", "_", x)
   x <- gsub("^_+|_+$", "", x)
   if (!nzchar(x)) x <- "tableau"
@@ -186,13 +185,17 @@ hstat_q_detect_type <- function(x, ordinal_hint = NULL) {
   prop_unique <- length(unique(xc)) / length(xc)
   if (mean_words >= 4 && prop_unique > 0.6) return("textuelle")
   # Detection ordinale par mots-cles d'echelle
-  lv <- tolower(unique(xc))
-  ord_patterns <- c("jamais", "rarement", "parfois", "souvent", "toujours",
-                    "pas du tout", "peu", "moyennement", "beaucoup", "enormement",
+  # Les libelles ET les motifs sont deplies : la liste melangeait « élevé »
+  # et « enormement », donc « énormément » n'etait jamais reconnu -- une
+  # echelle de Likert accentuee passait pour nominale.
+  lv <- hstat_sans_accents(tolower(unique(xc)))
+  ord_patterns <- hstat_sans_accents(c(
+                    "jamais", "rarement", "parfois", "souvent", "toujours",
+                    "pas du tout", "peu", "moyennement", "beaucoup", "énormément",
                     "très insatisfait", "insatisfait", "neutre", "satisfait", "très satisfait",
                     "pas d'accord", "d'accord", "totalement",
                     "faible", "moyen", "élevé", "fort",
-                    "bas", "haut", "mauvais", "passable", "bon", "excellent")
+                    "bas", "haut", "mauvais", "passable", "bon", "excellent"))
   if (sum(vapply(ord_patterns, function(p) any(grepl(p, lv, fixed = TRUE)), logical(1))) >= 2)
     return("ordinale")
   "nominale"
@@ -203,10 +206,10 @@ hstat_q_ordinal_levels <- function(x) {
   lv <- unique(as.character(stats::na.omit(x)))
   scales <- list(
     c("Jamais","Rarement","Parfois","Souvent","Toujours"),
-    c("Pas du tout","Un peu","Moyennement","Beaucoup","Enormement"),
-    c("Tres insatisfait","Insatisfait","Neutre","Satisfait","Tres satisfait"),
-    c("Pas du tout d'accord","Plutot pas d'accord","Neutre","Plutot d'accord","Tout a fait d'accord"),
-    c("Tres faible","Faible","Moyen","Élevé","Tres élevé"),
+    c("Pas du tout","Un peu","Moyennement","Beaucoup","Énormément"),
+    c("Très insatisfait","Insatisfait","Neutre","Satisfait","Très satisfait"),
+    c("Pas du tout d'accord","Plutôt pas d'accord","Neutre","Plutôt d'accord","Tout à fait d'accord"),
+    c("Très faible","Faible","Moyen","Élevé","Très élevé"),
     c("Mauvais","Passable","Moyen","Bon","Excellent"))
   norm <- function(s) tolower(trimws(s))
   for (sc in scales) {
@@ -293,11 +296,11 @@ hstat_q_nominal_univariate <- function(x, var_name = "Variable") {
               tolower(mode_type), n_modes, mode_mod, mode_pct),
     trf("La variable compte %d modalités distinctes sur %d réponses valides.", k, n_valid),
     if (!is.na(evenness)) {
-      if (evenness > 0.85) "Les réponses sont très réparties (forte équitabilité) : aucune modalité n'ecrase les autres."
+      if (evenness > 0.85) "Les réponses sont très réparties (forte équitabilité) : aucune modalité n'écrase les autres."
       else if (evenness < 0.5) "Les réponses sont concentrées sur peu de modalités (faible équitabilité)."
       else "Les réponses sont modérément réparties entre les modalités."
     } else NULL,
-    trf("Indice de Simpson = %.3f : probabilité que deux répondants au hasard donnent des réponses differentes.", simpson))
+    trf("Indice de Simpson = %.3f : probabilité que deux répondants au hasard donnent des réponses différentes.", simpson))
 
   # Graphiques
   plot_bar <- function() {
@@ -997,7 +1000,7 @@ hstat_q_multiple_choice <- function(df, cols = NULL, sep_col = NULL,
     bin <- bin[keep, , drop = FALSE]
     n_resp <- nrow(bin)
   } else {
-    return(list(ok = FALSE, notes = "Indiquez soit des colonnes binaires, soit une colonne a valeurs séparées."))
+    return(list(ok = FALSE, notes = "Indiquez soit des colonnes binaires, soit une colonne à valeurs séparées."))
   }
   if (n_resp == 0 || ncol(bin) == 0)
     return(list(ok = FALSE, notes = "Aucune réponse exploitable."))
@@ -1121,10 +1124,10 @@ hstat_q_ordinal_univariate <- function(x, var_name = "Variable", levels_order = 
     trf("La réponse médiane est \"%s\" (niveau %d sur %d).", med_lab, med, k),
     trf("La moitie centrale des réponses se situe entre \"%s\" et \"%s\".",
             levels_order[as.integer(q1)], levels_order[as.integer(q3)]),
-    if (consensus > 0.7) "Fort consensus entre les répondants (réponses peu dispersees)."
-    else if (consensus < 0.45) "Réponses polarisées / dispersees : faible consensus."
+    if (consensus > 0.7) "Fort consensus entre les répondants (réponses peu dispersées)."
+    else if (consensus < 0.45) "Réponses polarisées / dispersées : faible consensus."
     else "Consensus modéré entre les répondants.",
-    trf("Score moyen = %.2f sur une échelle de 1 a %d.", mean_score, k))
+    trf("Score moyen = %.2f sur une échelle de 1 à %d.", mean_score, k))
 
   # Graphiques
   plot_bar <- function() {
@@ -1269,7 +1272,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     sp <- suppressWarnings(stats::cor.test(rx, ry, method = "spearman"))
     kd <- suppressWarnings(hstat_kendall_test(rx, ry))
     metrics <- data.frame(
-      Metrique = c("Paires valides", "Rho de Spearman", "p-value (Spearman)",
+      Metrique = c("Paires valides", "Rhô de Spearman", "p-value (Spearman)",
                    "Tau de Kendall", "p-value (Kendall)"),
       Valeur = c(length(rx), round(unname(sp$estimate), 3), format.pval(sp$p.value, 3),
                  round(unname(kd$estimate), 3), format.pval(kd$p.value, 3)),
@@ -1289,7 +1292,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     r2 <- round(100 * rho^2, 1)
     interp <- if (signif_sp) c(
       # --- Cas SIGNIFICATIF ---
-      trf("Corrélation ordinale SIGNIFICATIVE entre « %s » et « %s » : rho de Spearman = %.3f (%s, %s).",
+      trf("Corrélation ordinale SIGNIFICATIVE entre « %s » et « %s » : rhô de Spearman = %.3f (%s, %s).",
               xname, gname, rho, force, sens),
       pval_interp,
       trf("On rejette l'hypothèse d'indépendance : lorsque « %s » augmente, « %s » tend à %s.",
@@ -1299,10 +1302,10 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
               tau, format.pval(kd$p.value, 3)))
     else c(
       # --- Cas NON SIGNIFICATIF ---
-      trf("Corrélation ordinale NON significative entre « %s » et « %s » : rho de Spearman = %.3f (%s, %s).",
+      trf("Corrélation ordinale NON significative entre « %s » et « %s » : rhô de Spearman = %.3f (%s, %s).",
               xname, gname, rho, force, sens),
       pval_interp,
-      trf("On ne peut pas conclure à une association monotone entre « %s » et « %s » : la relation observée (rho = %.3f) est compatible avec le hasard.",
+      trf("On ne peut pas conclure à une association monotone entre « %s » et « %s » : la relation observée (rhô = %.3f) est compatible avec le hasard.",
               xname, gname, rho),
       "Absence de significativité ne signifie pas absence de lien : un échantillon plus grand ou une relation non monotone pourraient changer la conclusion.",
       trf("Le tau de Kendall (%.3f, p = %s) va dans le même sens.", tau, format.pval(kd$p.value, 3)))
@@ -1416,7 +1419,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
 
   list(ok = TRUE, metrics = metrics,
        tables = list("Médianes et rangs par groupe" = summary_df),
-       plotfns = list("Boîtes a moustaches (rangs)" = plot_box),
+       plotfns = list("Boîtes à moustaches (rangs)" = plot_box),
        interpretation = interp,
        console = console,
        notes = trf("Comparaison de %d groupes (rangs et médianes).", ng))
@@ -1448,7 +1451,7 @@ hstat_q_stopwords_fr <- function() {
     # prepositions
     "a","dans","sur","sous","avec","sans","pour","par","entre","vers","chez",
     "depuis","pendant","avant","apres","jusque","jusqu","selon","malgre","hors",
-    "parmi","contre","envers","outre","via","dès","des","concernant",
+    "parmi","contre","envers","outre","via","des","concernant",
     # verbes tres frequents (etre, avoir, faire, aller, pouvoir, falloir, dire)
     "est","sont","etre","ete","suis","es","sommes","etes","etait","etaient",
     "sera","seront","serai","serais","serait","soit","soient","fut","furent",
@@ -1518,8 +1521,7 @@ hstat_q_tokenize <- function(texts, min_char = 3, stopwords = NULL,
   if (is.null(stopwords)) stopwords <- hstat_q_stopwords_fr()
   if (!is.null(extra_stopwords)) {
     ex <- tolower(trimws(as.character(extra_stopwords)))
-    ex <- chartr("\u00e0\u00e2\u00e4\u00e9\u00e8\u00ea\u00eb\u00ee\u00ef\u00f4\u00f6\u00f9\u00fb\u00fc\u00e7",
-                 "aaaeeeeiioouuuc", ex)
+    ex <- hstat_sans_accents(ex)
     stopwords <- unique(c(stopwords, ex[nzchar(ex)]))
   }
   texts <- as.character(texts)
@@ -1527,8 +1529,7 @@ hstat_q_tokenize <- function(texts, min_char = 3, stopwords = NULL,
   clean <- function(s) {
     if (lowercase) s <- tolower(s)
     # 1) Nettoyage : retrait des accents pour un matching robuste
-    s <- chartr("\u00e0\u00e2\u00e4\u00e9\u00e8\u00ea\u00eb\u00ee\u00ef\u00f4\u00f6\u00f9\u00fb\u00fc\u00e7",
-                "aaaeeeeiioouuuc", s)
+    s <- hstat_sans_accents(s)
     # 2) Retrait ponctuation ; chiffres retires si demande
     s <- if (remove_numbers) gsub("[^a-z ]", " ", s) else gsub("[^a-z0-9 ]", " ", s)
     s <- gsub("\\s+", " ", trimws(s))
@@ -1573,7 +1574,7 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
   char_lens <- nchar(texts)
   len_df <- data.frame(
     Metrique = c("Réponses", "Mots totaux", "Mots uniques", "Mots/réponse (moyenne)",
-                 "Mots/réponse (médiane)", "Caracteres/réponse (moyenne)", "Richesse lexicale (TTR)"),
+                 "Mots/réponse (médiane)", "Caractères/réponse (moyenne)", "Richesse lexicale (TTR)"),
     Valeur = c(n_doc, length(all_words), length(unique(all_words)),
                round(mean(lens), 1), stats::median(lens), round(mean(char_lens), 1),
                round(length(unique(all_words)) / length(all_words), 3)),
@@ -1671,10 +1672,10 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
   # --- SENTIMENT (lexique francais integre simple) ---
   pos_words <- c("bon","bien","excellent","super","genial","parfait","agreable",
                  "satisfait","content","heureux","rapide","efficace","competent",
-                 "aimable","professionnel","qualité","recommande","apprecie","merci",
+                 "aimable","professionnel","qualite","recommande","apprecie","merci",
                  "formidable","top","ravi","plaisir","facile","clair","utile","fiable")
   neg_words <- c("mauvais","mal","nul","horrible","decevant","decu","lent","cher",
-                 "problème","difficile","complique","incompetent","desagreable",
+                 "probleme","difficile","complique","incompetent","desagreable",
                  "insatisfait","mecontent","retard","attente","echec","panne","bug",
                  "impossible","jamais","aucun","pire","catastrophe","arnaque","honte")
   sent_scores <- vapply(toks, function(w) {
@@ -1695,7 +1696,7 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
     trf("Les mots les plus fréquents sont : %s.", paste(utils::head(freq_df$Mot, 5), collapse = ", ")),
     sprintf("Richesse lexicale (TTR) = %.3f : %s.",
             length(unique(all_words)) / length(all_words),
-            if (length(unique(all_words)) / length(all_words) > 0.6) "vocabulaire varie" else "vocabulaire repetitif / thèmes recurrents"),
+            if (length(unique(all_words)) / length(all_words) > 0.6) "vocabulaire varie" else "vocabulaire répétitif / thèmes récurrents"),
     trf("Tonalité dominante : %s (%.0f %% positif, %.0f %% négatif).",
             names(which.max(sent_tab)),
             sentiment_df$Pourcentage[sentiment_df$Tonalite=="Positif"],
@@ -2158,9 +2159,9 @@ hstat_q_or_rr_analysis <- function(x, y, xname = "X", yname = "Y",
     y_bin <- ifelse(d$y == iss, iss, if (length(ly) == 2) setdiff(ly, iss) else "Autres")
     y_lvl <- c(setdiff(unique(y_bin), iss), iss)      # issue en 2e colonne
     tab2 <- table(factor(d$x, levels = lx), factor(y_bin, levels = y_lvl))
-    c(sprintf("== ODDS RATIO -- reference : %s = %s ; issue : %s = %s ==", xname, lx[1], yname, iss),
+    c(sprintf("== ODDS RATIO -- référence : %s = %s ; issue : %s = %s ==", xname, lx[1], yname, iss),
       "", hstat_q_epitools_block(tab2, "OR", conf), "",
-      sprintf("== RISQUE RELATIF -- reference : %s = %s ; issue : %s = %s ==", xname, lx[1], yname, iss),
+      sprintf("== RISQUE RELATIF -- référence : %s = %s ; issue : %s = %s ==", xname, lx[1], yname, iss),
       "", hstat_q_epitools_block(tab2, "RR", conf), "", "")
   }))
 
@@ -2318,7 +2319,7 @@ mod_qualitative_ui <- function(id) {
             shiny::textAreaInput(ns("txt_stopwords"),
               "Mots à exclure (personnalisés, séparés par virgule ou espace)",
               value = "", rows = 2,
-              placeholder = "ex. enquete, question, reponse")),
+              placeholder = "ex. enquête, question, réponse")),
 
           # ---- OUTILS (modalités, manquants, OR/RR) ----
           shiny::conditionalPanel(sprintf("input['%s'] == 'tools'", ns("family")),
@@ -2432,7 +2433,7 @@ mod_qualitative_ui <- function(id) {
               shiny::div(class = "callout callout-info",
                 shiny::strong(shiny::icon("lightbulb"), " Interprétation"),
                 shiny::uiOutput(ns("interpretation")))),
-            shiny::tabPanel(shiny::tagList(shiny::icon("table"), " Details (tableaux)"), shiny::br(),
+            shiny::tabPanel(shiny::tagList(shiny::icon("table"), " Détails (tableaux)"), shiny::br(),
               shiny::uiOutput(ns("tables_selector")),
               DT::DTOutput(ns("detail_table")),
               shiny::br(),
@@ -2503,7 +2504,7 @@ mod_qualitative_server <- function(id, values) {
     })
     output$multi_cols_ui <- shiny::renderUI(shiny::selectInput(ns("multi_cols"), "Colonnes binaires des options",
                                                               choices = col_names(), multiple = TRUE))
-    output$multi_sepcol_ui <- shiny::renderUI(shiny::selectInput(ns("multi_sepcol"), "Colonne a valeurs séparées", choices = col_names()))
+    output$multi_sepcol_ui <- shiny::renderUI(shiny::selectInput(ns("multi_sepcol"), "Colonne à valeurs séparées", choices = col_names()))
     output$ord_var1_ui <- shiny::renderUI(shiny::selectInput(ns("ord_var1"), "Variable ordinale", choices = col_names()))
     output$ord_var2_ui <- shiny::renderUI(shiny::selectInput(ns("ord_var2"), "Variable ordinale 2", choices = col_names()))
     output$ord_group_ui <- shiny::renderUI(shiny::selectInput(ns("ord_group"), "Variable de groupe", choices = col_names()))
@@ -2646,7 +2647,7 @@ mod_qualitative_server <- function(id, values) {
       r <- tryCatch(result(), error = function(e) NULL)
       if (is.null(r) || isFALSE(r$ok)) return()
       tabs <- if (!is.null(r$tables)) r$tables else list()
-      if (!is.null(r$metrics)) tabs <- c(list("Metriques" = r$metrics), tabs)
+      if (!is.null(r$metrics)) tabs <- c(list("Métriques" = r$metrics), tabs)
       vars <- unique(unlist(lapply(
         c("nom_var1", "nom_var2", "ord_var1", "ord_var2", "txt_var",
           "orrr_expo", "orrr_issue", "tools_vars"),

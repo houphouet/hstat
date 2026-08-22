@@ -16,12 +16,12 @@
   "Holt amorti (tendance amortie)"            = "holtd",
   "Holt-Winters additif"                      = "hwadd",
   "Holt-Winters multiplicatif"                = "hwmul",
-  "ETS (sélection automatique)"               = "ets",
+  "ÉTS (sélection automatique)"               = "ets",
   "ARIMA automatique (auto.arima)"            = "arima",
   "SARIMA manuel (p,d,q)(P,D,Q)"              = "sarima",
   "TBATS (saisonnalités complexes)"           = "tbats",
   "Méthode Thêta"                             = "theta",
-  "STL + ETS (décomposition)"                 = "stlf",
+  "STL + ÉTS (décomposition)"                 = "stlf",
   "NNAR (réseau de neurones AR)"              = "nnetar",
   "DLM — modèle linéaire dynamique (Kalman)"  = "dlmts",
   "DLNM — retards distribués non linéaires"   = "dlnm",
@@ -117,7 +117,7 @@ mod_timeseries_ui <- function(id) {
             "elle-même (quel que soit le modèle affiché) et n'est disponible que si ",
             "la fréquence saisonnière est > 1 avec au moins 2 saisons complètes ",
             "(ex. 24 points en mensuel). Elle éclaire directement les modèles ",
-            "saisonniers : naïf saisonnier, Holt-Winters, SARIMA, TBATS et STL+ETS ",
+            "saisonniers : naïf saisonnier, Holt-Winters, SARIMA, TBATS et STL+ÉTS ",
             "(qui l'utilise en interne). Pour une série de fréquence 1 (naïf, ",
             "dérive, SES, Holt, Thêta, DLM sans saison, DLNM...), elle est sans objet."))),
     shiny::fluidRow(
@@ -275,7 +275,7 @@ mod_timeseries_server <- function(id, values) {
           npar <- if (seas) 4L else 3L
           est <- dlm::dlmMLE(as.numeric(train), parm = rep(-2, npar), build = build)
           if (!est$convergence %in% c(0L, 1L))
-            stop("DLM : l'estimation du maximum de vraisemblance n'a pas converge.")
+            stop("DLM : l'estimation du maximum de vraisemblance n'a pas convergé.")
           filt <- dlm::dlmFilter(as.numeric(train), build(est$par))
           fc0 <- dlm::dlmForecast(filt, nAhead = h)
           mu <- as.numeric(fc0$f)
@@ -290,7 +290,7 @@ mod_timeseries_server <- function(id, values) {
           L <- as.integer(max(1, min(60, hstat_finite(input$dlnmLag, 14))))
           x_all <- c(expo, expo_future)
           if (length(train) <= L + 10)
-            stop("DLNM : serie trop courte pour ce decalage maximal (reduire les lags).")
+            stop("DLNM : série trop courte pour ce décalage maximal (réduire les lags).")
           cb <- dlnm::crossbasis(x_all, lag = L,
                                  argvar = list(fun = "ns", df = 3),
                                  arglag = list(fun = "ns", df = 3))
@@ -347,9 +347,9 @@ mod_timeseries_server <- function(id, values) {
         cbind(Modele = nm, r$metrics)
       })), error = function(e) NULL)
       if (is.null(mets) || !NROW(mets)) return()
-      hstat_ai_capture(values, "Series temporelles",
-        "Prevision et comparaison de modeles",
-        tables = list("Qualite de prevision" = as.data.frame(mets)),
+      hstat_ai_capture(values, "Séries temporelles",
+        "Prévision et comparaison de modèles",
+        tables = list("Qualité de prévision" = as.data.frame(mets)),
         meta = list(variables = input$tsVar, `horizon` = input$tsHorizon))
     }, ignoreInit = TRUE)
 

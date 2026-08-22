@@ -2432,3 +2432,117 @@ git diff --numstat   # le nombre de lignes doit correspondre au changement réel
 Interface, messages, commentaires de code et interprétations statistiques sont
 en **français**. Les identifiants (noms de fonctions, d'inputs, de variables)
 restent en anglais ou en abrégé technique.
+
+
+### Orthographe : corriger en masse sans rien casser
+
+Le français sans accent est une faute, et elle était partout. La correction se
+fait **à la position exacte donnée par l'analyseur de R** (`getParseData`,
+positions en **octets** — `substr()` compte en caractères), sur les seules
+chaînes de prose, à partir des mots que hunspell rejette et dont **une seule**
+variante accentuée est un mot français.
+
+Trois garde-fous, appliqués par construction. Chacun répare un dégât constaté :
+
+1. **Une chaîne sans espace n'est pas corrigée.** C'est peut-être un nom de
+   colonne (`Modalite`), une valeur de `switch` (`indeterminable`) ou une
+   classe CSS : un accent l'y rend introuvable. Les cas sont examinés un par un.
+2. **Une chaîne qui sert de motif à `grepl`/`sub`/`gsub` n'est corrigée nulle
+   part.** Ces motifs se comparent à du texte déjà déplié par
+   `hstat_sans_accents()`.
+3. **Ni CSS, ni JavaScript, ni code R engendré.** Le premier balayage a produit
+   `text-décoration` (propriété inexistante), `{priority: 'évent'}` (le message
+   change de nature) et `use = "pairwise.complète.obs"` (le script du journal
+   ne s'exécutait plus). Aucun des trois ne se voit à l'analyse syntaxique.
+
+Quand plusieurs formes accentuées sont valides, **la finale est conservée** :
+« separe » donne « sépare », jamais « séparé ». Le participe passé se rétablit
+ensuite sur le contexte grammatical (auxiliaire, négation, nom qui précède) ;
+l'inverse ne serait pas rattrapable, un verbe conjugué n'offrant aucun indice.
+
+Le correcteur ne peut pas tout : « traite », « installe », « demande » sont des
+mots valides, et « homoscedasticite » n'existe ni nu ni accentué dans son
+dictionnaire. Ces deux familles se traitent à part, par le contexte et à la
+main.
+
+### Un motif comparé à du texte déplié reste sans accent
+
+`hstat_sans_accents()` (`Utils.R`) est la **seule** définition du repli : le
+même `chartr` était recopié sept fois, et une copie oubliée c'est un
+rapprochement qui échoue en silence.
+
+Corollaire, et c'est le piège : `.hstat_rlog_code()` compare un titre **déplié**
+à ses motifs. Accentuer `grepl("regression lineaire", t)` en
+`grepl("régression linéaire", t)` fait que la condition n'est **plus jamais**
+vraie — le journal de reproductibilité restait vide pour la régression
+linéaire, l'AFDM et les tests à une référence, sans erreur ni avertissement.
+Un test balaie les variables affectées depuis `hstat_sans_accents()` et refuse
+tout motif accentué qui les vise.
+
+Même famille, trouvée du même coup : le détecteur d'échelle ordinale comparait
+des libellés **non dépliés** à une liste où « énormément » côtoyait
+« enormement » ; et le lexique de sentiment contenait « qualité » et
+« problème », qui ne peuvent jamais correspondre à un jeton déjà déplié.
+
+### Un nom de colonne se relabellise, il ne s'accentue pas
+
+`dq$Gravite` casserait sur une machine dont la locale n'est pas UTF-8 : le nom
+interne reste sans accent. Mais un tableau rendu tel quel affiche ses **noms de
+colonne**, et « Gravite » est une faute à l'écran. D'où `hstat_dq_affichage()`,
+appelée au rendu **et** à la construction du rapport — les deux, sinon le
+document exporté garde l'orthographe fautive que l'écran a corrigée.
+
+Le piège symétrique est plus grave : la colonne créée s'appelait `Ecart_type`
+et quatorze lectures la demandaient sous `Écart_type`. La colonne existait, la
+lecture rendait `NULL`, la sortie partait sans un mot. Un test rapproche les
+chaînes accentuées des **symboles** du même fichier.
+
+### Traduction anglaise : un terme, un mot
+
+- « graphique » se dit **plot** — celui de R et de ggplot2 — jamais « chart ».
+- Une répétition de bloc est un **replicate** ; « repetition » désigne la redite.
+- **dataset**, en un mot.
+- Le seuil alpha est un **significance level**.
+- L'anglais ne met pas d'espace avant « : ; ! ? » ni avant le pour-cent, mais
+  **les deux-points ne disparaissent pas** : « Seuil : » rendu « Threshold »
+  perd le signe qui annonce le champ.
+
+Un test garde ces règles, plus l'égalité des marqueurs de `sprintf` des deux
+côtés — une traduction qui en perd un fait tomber toute la sortie.
+
+### Le recalage du dictionnaire ne fusionne jamais deux clés
+
+La clé **est** la chaîne française : corriger une faute dans le code sans
+corriger la clé rend l'entrée inutile, en silence. Le recalage rapproche donc
+les clés orphelines des chaînes réellement produites — y compris celles qui
+sont **assemblées à l'exécution** (`HSTAT_ERR_FR`, les recommandations), et qui
+n'existent nulle part comme chaîne entière dans le code.
+
+Mais deux clés distinctes ne doivent jamais converger vers la même : « Code »
+absorbé par « code », et l'une des deux traductions disparaît.
+
+### Une dépendance web annoncée sous un nom qui n'existe pas
+
+`shiny::sliderInput()` attache la dépendance « strftime » en annonçant
+`strftime-min.js`, alors que le paquet livre `strftime.min.js` : 404 sur
+**chaque** page. Rien ne casse, mais une erreur permanente en console masque
+les vraies — exactement le polyfill `typedarray` de plotly.
+
+`hstat_reparer_deps()` republie la dépendance corrigée sous une version
+supérieure : `resolveDependencies()` garde la plus haute, la déclaration
+réparée l'emporte donc sur celles que chaque curseur pose de son côté.
+
+### Ce que la suite de tests ne peut pas voir
+
+Elle ne démarre jamais Shiny. Les défauts d'interface — un onglet qui ne se
+rend pas, une exception JavaScript, un rapport vide — se trouvent en **lançant
+l'application** et en la pilotant dans un navigateur, sur un jeu normal *et* sur
+un jeu hostile (colonne vide, colonne constante, valeurs manquantes, retour à
+la ligne dans une cellule, barre verticale et accent grave dans un nom de
+colonne).
+
+Note d'environnement, à ne pas confondre avec un défaut d'HStat : sur les
+paquets R de Debian, `jquery.nouislider.min.js` est un lien vers la version
+autonome de noUiSlider, qui n'installe pas le greffon jQuery. Les filtres
+numériques de DT y sont donc inertes et la console affiche
+`$x.noUiSlider is not a function`. Le paquet CRAN n'a pas ce défaut.

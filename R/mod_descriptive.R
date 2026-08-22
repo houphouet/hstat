@@ -43,7 +43,7 @@ mod_descriptive_ui <- function(id) {
                                  shiny::conditionalPanel(
               ns = ns,
                                    condition = "input.descRoundResults == true",
-                                   shiny::numericInput(ns("descDecimals"), "Décimales:", value = 2, min = 0, max = 8, step = 1)
+                                   shiny::numericInput(ns("descDecimals"), "Décimales :", value = 2, min = 0, max = 8, step = 1)
                                  )
                           )
                         )
@@ -151,9 +151,9 @@ mod_descriptive_ui <- function(id) {
                                style = "background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #6c757d; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);",
                                shiny::h6(shiny::icon("expand-arrows-alt"), " Dimensions du Graphique", 
                                   style = "color: #343a40; font-weight: bold; margin-bottom: 12px;"),
-                               shiny::sliderInput(ns("descPlotWidth"), "Largeur (pixels):", 
+                               shiny::sliderInput(ns("descPlotWidth"), "Largeur (pixels) :", 
                                            min = 400, max = 2000, value = 900, step = 50, width = "100%"),
-                               shiny::sliderInput(ns("descPlotHeight"), "Hauteur (pixels):", 
+                               shiny::sliderInput(ns("descPlotHeight"), "Hauteur (pixels) :", 
                                            min = 400, max = 2000, value = 600, step = 50, width = "100%")
                              ),
                              
@@ -172,7 +172,7 @@ mod_descriptive_ui <- function(id) {
                                  shiny::h6(shiny::icon("heading"), " Titre du graphique", 
                                     style = "font-weight: bold; color: #495057; margin-bottom: 15px; font-size: 15px;"),
                                  shiny::textInput(ns("descPlotTitle"), NULL, 
-                                           placeholder = "Ex: Distribution des rendements par traitement...",
+                                           placeholder = "Ex : Distribution des rendements par traitement...",
                                            width = "100%"),
                                  shiny::fluidRow(
                                    shiny::column(4,
@@ -255,7 +255,7 @@ mod_descriptive_ui <- function(id) {
                                             style = "background-color: #f0f8ff; padding: 15px; border-radius: 8px; border: 2px solid #b3d9ff;",
                                             shiny::h6(shiny::icon("long-arrow-alt-right"), " Axe X", 
                                                style = "color: #3498db; font-weight: bold; margin-bottom: 12px; text-align: center;"),
-                                            shiny::sliderInput(ns("descPlotXAngle"), "Angle d'inclinaison:", 
+                                            shiny::sliderInput(ns("descPlotXAngle"), "Angle d'inclinaison :", 
                                                         min = 0, max = 90, value = 0, step = 15,
                                                         post = "°", width = "100%"),
                                             shiny::tags$hr(style = "margin: 15px 0; border-color: #b3d9ff;"),
@@ -528,7 +528,7 @@ mod_descriptive_server <- function(id, values) {
         dom = 'Bfrtip',
         buttons = c('copy', 'csv', 'excel'),
         language = list(
-          search = "Rechercher:",
+          search = "Rechercher :",
           lengthMenu = "Afficher _MENU_ lignes",
           info = "Affichage de _START_ à _END_ sur _TOTAL_ lignes",
           paginate = list(previous = "Précédent", `next` = "Suivant")
@@ -574,13 +574,13 @@ mod_descriptive_server <- function(id, values) {
   output$descPlotVarSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
     num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
-    shiny::selectInput(ns("descPlotVar"), "Variable à visualiser:", choices = num_cols, width = "100%")
+    shiny::selectInput(ns("descPlotVar"), "Variable à visualiser :", choices = num_cols, width = "100%")
   })
   
   output$descPlotFactorSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
     fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
-    shiny::selectInput(ns("descPlotFactor"), "Grouper par:", choices = c("Aucun", fac_cols), width = "100%")
+    shiny::selectInput(ns("descPlotFactor"), "Grouper par :", choices = c("Aucun", fac_cols), width = "100%")
   })
   
   shiny::observe({

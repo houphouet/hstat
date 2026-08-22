@@ -50,7 +50,7 @@ server <- function(input, output, session) {
 
   options(shiny.error = function() {
     msg <- tryCatch(conditionMessage(sys.call()), error = function(e) "Erreur inconnue")
-    shinyjs::logjs(paste("[HStat] Erreur non capturée:", msg))
+    shinyjs::logjs(paste("[HStat] Erreur non capturée :", msg))
   })
   
   # L'etat initial vit dans Utils.R : la creation et la reinitialisation
@@ -194,10 +194,10 @@ server <- function(input, output, session) {
           trf(" Ce classeur contient %d feuilles — les combiner en un seul jeu de données", length(sheets))),
         shiny::div(style = "padding-top:12px;",
           p(style = "color:#5a6a7a; font-size:13px;",
-            "Choisissez les feuilles a combiner. ",
-            shiny::tags$b("Le resultat remplace les donnees de travail actuelles"),
+            "Choisissez les feuilles à combiner. ",
+            shiny::tags$b("Le résultat remplace les données de travail actuelles"),
             " et devient le jeu sur lequel portent toutes les analyses."),
-          shiny::checkboxGroupInput("sheetPick", "Feuilles a combiner",
+          shiny::checkboxGroupInput("sheetPick", "Feuilles à combiner",
                              choices = sheets, selected = sheets),
           # Le conseil est calcule sur les feuilles reellement choisies : c'est
           # la structure des donnees qui dit si elles s'empilent ou se joignent,
@@ -205,18 +205,18 @@ server <- function(input, output, session) {
           shiny::uiOutput("sheetAdvice"),
           shiny::selectInput("sheetMergeType", "Comment les combiner",
             choices = list(
-              "Mettre bout a bout (meme structure)" = c(
+              "Mettre bout à bout (même structure)" = c(
                 "Empiler les lignes" = "rows",
                 "Empiler et supprimer les doublons" = "union_distinct"),
-              "Rapprocher par une cle (structures differentes)" = c(
-                "Jointure interne (lignes presentes partout)" = "inner",
-                "Jointure a gauche (garde toute la 1re feuille)" = "left",
-                "Jointure complete (garde tout)" = "full")),
+              "Rapprocher par une clé (structures différentes)" = c(
+                "Jointure interne (lignes présentes partout)" = "inner",
+                "Jointure à gauche (garde toute la 1re feuille)" = "left",
+                "Jointure complète (garde tout)" = "full")),
             selected = "rows"),
           shiny::conditionalPanel(
             condition = "['inner','left','full'].indexOf(input.sheetMergeType) >= 0",
-            shiny::textInput("sheetKey", "Colonne(s) cle, separees par une virgule",
-                      placeholder = "Ex. id, ou site, annee")),
+            shiny::textInput("sheetKey", "Colonne(s) clé, séparées par une virgule",
+                      placeholder = "Ex. id, ou site, année")),
           shiny::conditionalPanel(
             condition = "input.sheetMergeType == 'rows'",
             shiny::fluidRow(
@@ -228,8 +228,8 @@ server <- function(input, output, session) {
                        selected = "name"))),
             shiny::tags$small(style = "color:#6b7280;", shiny::icon("info-circle"),
               " Chaque ligne garde la trace de sa feuille d'origine. Avec ",
-              shiny::tags$b("Nombre extrait"), ", une feuille nommee « 2024 » donne 2024 : ",
-              "la colonne devient une vraie variable d'annee, utilisable en analyse.")),
+              shiny::tags$b("Nombre extrait"), ", une feuille nommée « 2024 » donne 2024 : ",
+              "la colonne devient une vraie variable d'année, utilisable en analyse.")),
           shiny::actionButton("applySheetMerge",
                        shiny::tagList(shiny::icon("object-group"), " Combiner ces feuilles"),
                        class = "btn-info"),
@@ -240,7 +240,7 @@ server <- function(input, output, session) {
     sel <- input$sheetPick
     if (is.null(sel) || length(sel) < 2) return(
       shiny::tags$small(style = "color:#b9770e;", shiny::icon("circle-info"),
-                 " Selectionnez au moins deux feuilles."))
+                 " Sélectionnez au moins deux feuilles."))
     r <- hstat_excel_read_sheets(fichier_actif()$datapath, sel)
     if (!length(r$frames)) return(
       shiny::div(class = "callout callout-warning", style = "padding:8px 12px;font-size:12px;", r$msg))
@@ -249,7 +249,7 @@ server <- function(input, output, session) {
         style = "padding:8px 12px;font-size:12px;margin-bottom:8px;",
         shiny::icon("lightbulb"), " ", a$msg,
         if (length(r$ignorees))
-          shiny::tags$div(style = "margin-top:4px;", shiny::tags$b("Ecartees : "),
+          shiny::tags$div(style = "margin-top:4px;", shiny::tags$b("Écartées : "),
                    paste(r$ignorees, collapse = ", "), " (vides ou illisibles)."))
   })
 
@@ -260,12 +260,12 @@ server <- function(input, output, session) {
       sel <- input$sheetPick
       if (is.null(sel) || length(sel) < 2) {
         sheet_merge_msg(list(ok = FALSE,
-          msg = "Choisissez au moins deux feuilles a combiner.")); return()
+          msg = "Choisissez au moins deux feuilles à combiner.")); return()
       }
       r <- hstat_excel_read_sheets(fichier_actif()$datapath, sel)
       if (length(r$frames) < 2) {
         sheet_merge_msg(list(ok = FALSE, msg = paste(
-          "Au moins deux feuilles exploitables sont necessaires.", r$msg))); return()
+          "Au moins deux feuilles exploitables sont nécessaires.", r$msg))); return()
       }
       # Meme moteur que la fusion de plusieurs fichiers : les feuilles n'ont
       # aucune raison d'avoir leur propre logique de jointure.
@@ -285,7 +285,7 @@ server <- function(input, output, session) {
       # laisser « 3 fichiers » sous les yeux de quelqu'un qui vient d'en
       # combiner trois d'un meme classeur serait deroutant.
       msg <- paste(gsub("fichiers", "feuilles", gsub("fichier", "feuille", res$msg)),
-                   sprintf("Feuilles combinees : %s.",
+                   sprintf("Feuilles combinées : %s.",
                            paste(r$names, collapse = ", ")))
       sheet_merge_msg(list(ok = TRUE, msg = msg))
       shiny::showNotification(shiny::tagList(shiny::icon("check"), " ", msg), type = "message", duration = 8)
@@ -359,7 +359,7 @@ server <- function(input, output, session) {
         shiny::showNotification("Données chargées avec succès.", type = "message")
       }
     }, error = function(e) {
-      shiny::showNotification(hstat_err_fr(e, "Chargement des donnees"), type = "error",
+      shiny::showNotification(hstat_err_fr(e, "Chargement des données"), type = "error",
                        duration = 15)
     })
   })
@@ -646,9 +646,9 @@ server <- function(input, output, session) {
     grp  <- if ("Facteur" %in% names(df)) {
       g <- unique(as.character(df$Facteur)); g[!is.na(g) & nzchar(g)]
     } else NULL
-    tabs <- list("Resultats des tests" = df)
-    if (!is.null(values$normalityResults)) tabs[["Normalite"]] <- values$normalityResults
-    if (!is.null(values$homogeneityResults)) tabs[["Homogeneite des variances"]] <- values$homogeneityResults
+    tabs <- list("Résultats des tests" = df)
+    if (!is.null(values$normalityResults)) tabs[["Normalité"]] <- values$normalityResults
+    if (!is.null(values$homogeneityResults)) tabs[["Homogénéité des variances"]] <- values$homogeneityResults
     if (!is.null(values$chiSqFreqData)) tabs[["Effectifs observes / attendus"]] <- values$chiSqFreqData
     hstat_ai_capture(values, "Tests statistiques", titre, tables = tabs,
                      meta = list(variables = vars, groupe = grp,
@@ -778,7 +778,7 @@ server <- function(input, output, session) {
     }
     
     shiny::tagList(
-      shiny::selectInput("pcaMeansGroup", "Variable de groupement pour les moyennes:", 
+      shiny::selectInput("pcaMeansGroup", "Variable de groupement pour les moyennes :", 
                   choices = fac_cols,
                   selected = fac_cols[1]),
       p(style = "margin: 5px 0 10px 0; font-size: 11px; color: #6c757d;",
@@ -795,7 +795,7 @@ server <- function(input, output, session) {
                shiny::icon("exclamation-triangle"),
                " Aucune variable catégorielle disponible pour grouper les individus."))
     }
-    shiny::selectInput("pcaEllipseGroup", "Variable de groupement (ellipses):",
+    shiny::selectInput("pcaEllipseGroup", "Variable de groupement (ellipses) :",
                 choices = fac_cols, selected = fac_cols[1])
   })
 
@@ -1109,7 +1109,7 @@ server <- function(input, output, session) {
   output$pcaLabelSourceSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
     all_cols <- names(values$filteredData)
-    shiny::selectInput("pcaLabelSource", "Source des labels pour individus (optionnel):",
+    shiny::selectInput("pcaLabelSource", "Source des labels pour individus (optionnel) :",
                 choices = c("Rownames" = "rownames", all_cols), selected = "rownames")
   })
   
@@ -1148,7 +1148,7 @@ server <- function(input, output, session) {
         pca_data <- calculate_group_means(values$filteredData, input$pcaVars, input$pcaMeansGroup)
         n_groups <- nrow(pca_data)
         shiny::showNotification(
-          paste0("ACP sur moyennes: ", n_groups, " groupes (", input$pcaMeansGroup, ")"), 
+          paste0("ACP sur moyennes : ", n_groups, " groupes (", input$pcaMeansGroup, ")"), 
           type = "message", 
           duration = 3,
           id = "pca_means_notif"
@@ -1367,7 +1367,7 @@ server <- function(input, output, session) {
     shiny::req(pcaResultReactive())
     res.pca <- pcaResultReactive()
     n_dims  <- ncol(res.pca$ind$coord)
-    shiny::selectInput("pcaCTRAxis", "Composante à analyser:",
+    shiny::selectInput("pcaCTRAxis", "Composante à analyser :",
                 choices = stats::setNames(1:n_dims, paste0("PC", 1:n_dims)),
                 selected = 1)
   })
@@ -1377,7 +1377,7 @@ server <- function(input, output, session) {
     res.pca <- pcaResultReactive()
     n_dims <- ncol(hstat_coord_mat(res.pca$ind$coord))
     
-    shiny::selectInput("pcaAxisX", "Axe X:",
+    shiny::selectInput("pcaAxisX", "Axe X :",
                 choices = stats::setNames(1:n_dims, paste0("PC", 1:n_dims)),
                 selected = 1)
   })
@@ -1387,7 +1387,7 @@ server <- function(input, output, session) {
     res.pca <- pcaResultReactive()
     n_dims <- ncol(hstat_coord_mat(res.pca$ind$coord))
     
-    shiny::selectInput("pcaAxisY", "Axe Y:",
+    shiny::selectInput("pcaAxisY", "Axe Y :",
                 choices = stats::setNames(1:n_dims, paste0("PC", 1:n_dims)),
                 selected = min(2, n_dims))
   })
@@ -1578,7 +1578,7 @@ server <- function(input, output, session) {
     ratio_warn<- !ratio_ok && n_obs >= cond_ratio / 2
     
     msgs <- list()
-    if (n_err)  msgs <- c(msgs, list(shiny::tagList(shiny::icon("times-circle", style="color:#c0392b;"), paste0(" Effectif insuffisant : n=", n_obs, " inferieur ou egal a p+g=", cond_n_abs, ". L'AFD nécessite n > p + g - 1."))))
+    if (n_err)  msgs <- c(msgs, list(shiny::tagList(shiny::icon("times-circle", style="color:#c0392b;"), paste0(" Effectif insuffisant : n=", n_obs, " inférieur ou égal à p+g=", cond_n_abs, ". L'AFD nécessite n > p + g - 1."))))
     else if (!n_ok_rec) msgs <- c(msgs, list(shiny::tagList(shiny::icon("exclamation-triangle", style="color:#b7770d;"), paste0(" Effectif faible par groupe : n=", n_obs, " pour ", g, " groupes (recommande min. 20 obs/groupe = ", cond_n_grp, " au total)."))))
     if (!is.na(n_groups) && n_groups < 2) msgs <- c(msgs, list(shiny::tagList(shiny::icon("times-circle", style="color:#c0392b;"), " Variable discriminante : moins de 2 groupes détectés. L'AFD requiert g min. 2 groupes distincts.")))
     if (!ratio_ok && !n_err) msgs <- c(msgs, list(shiny::tagList(shiny::icon("exclamation-triangle", style="color:#b7770d;"), paste0(" Ratio n/p faible : n/p = ", round(n_obs/max(p_vars,1),1), " (recommande min. 10). Risque de sur-ajustement."))))
@@ -1606,7 +1606,7 @@ server <- function(input, output, session) {
                 style = paste0("margin-top:6px; padding:5px 10px; border-radius:4px; background:", if (any_err) "rgba(231,76,60,0.1);" else "rgba(243,156,18,0.1);"),
                 p(style = paste0("margin:0; font-size:11px; font-weight:bold; color:", if(any_err) "#c0392b;" else "#856404;"),
                   shiny::icon("exclamation-triangle"),
-                  " Conditions non remplies -- vous pouvez tout de même lancer l'AFD, mais les résultats sont a interpreter avec grande prudence.")
+                  " Conditions non remplies -- vous pouvez tout de même lancer l'AFD, mais les résultats sont à interpréter avec grande prudence.")
               )
             )
       )
@@ -1856,7 +1856,7 @@ server <- function(input, output, session) {
     cat("=== ANALYSE EN COMPOSANTES PRINCIPALES (ACP) ===\n\n")
     
     eigenvals <- factoextra::get_eigenvalue(res.pca)
-    cat("Variance expliquee par les composantes principales:\n")
+    cat("Variance expliquée par les composantes principales:\n")
     print_fixed(eigenvals, dec)
     cat("\n")
     
@@ -1868,8 +1868,8 @@ server <- function(input, output, session) {
     cat("------------------------------------------------------------\n")
     cat("Corrélation de chaque variable avec chaque axe principal.\n")
     cat("Seuils de lecture (en valeur absolue) :\n")
-    cat("  - |saturation| >= 0.70 : variable fortement liee a l'axe\n")
-    cat("  - |saturation| 0.50 a 0.70 : liaison modérée\n")
+    cat("  - |saturation| >= 0.70 : variable fortement liée à l'axe\n")
+    cat("  - |saturation| 0.50 à 0.70 : liaison modérée\n")
     cat("  - |saturation| < 0.50 : liaison faible\n")
     cat("------------------------------------------------------------\n\n")
     saturations <- res.pca$var$coord
@@ -1887,7 +1887,7 @@ server <- function(input, output, session) {
     }
     cat("\n")
     
-    cat("Qualite de représentation (cos2) des variables:\n")
+    cat("Qualité de représentation (cos2) des variables:\n")
     print_fixed(res.pca$var$cos2, dec)
   })
   
@@ -2459,7 +2459,7 @@ server <- function(input, output, session) {
       else "Faible"
       
       df_classif <- data.frame(
-        Metrique       = c("Accuracy globale (%)", "Kappa de Cohen", "Appreciation Kappa"),
+        Metrique       = c("Accuracy globale (%)", "Kappa de Cohen", "Appréciation Kappa"),
         Valeur         = c(round(accuracy * 100, 2), round(kappa_val, 3), kappa_interp)
       )
       
@@ -2640,7 +2640,7 @@ server <- function(input, output, session) {
       # FactoMineR pour les grands jeux de donnees.
       n_ind <- nrow(res.pca$ind$coord)
       res.hcpc <- if (n_ind > HSTAT_DIST_MAX_N) {
-        hstat_bigdata_note("Classification (HCPC, pre-partition k-means)",
+        hstat_bigdata_note("Classification (HCPC, pré-partition k-means)",
                            min(1000L, n_ind), n_ind)
         FactoMineR::HCPC(res.pca, nb.clust = nbclust, graph = FALSE,
              kk = min(1000L, n_ind))
@@ -2773,7 +2773,7 @@ server <- function(input, output, session) {
       return(result)
       
     }, error = function(e) {
-      shiny::showNotification(hstat_err_fr(e, "Erreur creation dataframes HCPC"), type = "error", duration = 10)
+      shiny::showNotification(hstat_err_fr(e, "Erreur création dataframes HCPC"), type = "error", duration = 10)
       return(NULL)
     })
   })
@@ -2967,7 +2967,7 @@ server <- function(input, output, session) {
     res.pca <- pcaResultReactive()
     n_dims <- ncol(hstat_coord_mat(res.pca$ind$coord))
     
-    shiny::selectInput("hcpcAxisX", "Axe X:",
+    shiny::selectInput("hcpcAxisX", "Axe X :",
                 choices = stats::setNames(1:n_dims, paste0("PC", 1:n_dims)),
                 selected = 1)
   })
@@ -2977,7 +2977,7 @@ server <- function(input, output, session) {
     res.pca <- pcaResultReactive()
     n_dims <- ncol(hstat_coord_mat(res.pca$ind$coord))
     
-    shiny::selectInput("hcpcAxisY", "Axe Y:",
+    shiny::selectInput("hcpcAxisY", "Axe Y :",
                 choices = stats::setNames(1:n_dims, paste0("PC", 1:n_dims)),
                 selected = min(2, n_dims))
   })
@@ -3088,7 +3088,7 @@ server <- function(input, output, session) {
     dec <- if (use_round && !is.null(input$hcpcDecimals)) input$hcpcDecimals else 4
     
     cat("=== CLASSIFICATION HIÉRARCHIQUE SUR COMPOSANTES PRINCIPALES (HCPC) ===\n\n")
-    cat("Nombre de clusters:", length(unique(res.hcpc$data.clust$clust)), "\n\n")
+    cat("Nombre de clusters :", length(unique(res.hcpc$data.clust$clust)), "\n\n")
     
     cluster_results <- data.frame(
       Individual = rownames(res.hcpc$data.clust),
@@ -3119,7 +3119,7 @@ server <- function(input, output, session) {
     }
     
     if (!is.null(res.hcpc$desc.ind$para)) {
-      cat("\n=== INDIVIDUS LES PLUS REPRESENTATIFS (PARANGONS) ===\n")
+      cat("\n=== INDIVIDUS LES PLUS REPRÉSENTATIFS (PARANGONS) ===\n")
       for (i in seq_along(res.hcpc$desc.ind$para)) {
         if (!is.null(res.hcpc$desc.ind$para[[i]])) {
           cat("\n--- CLUSTER", i, " - PARANGONS ---\n")
@@ -3129,10 +3129,10 @@ server <- function(input, output, session) {
     }
     
     if (!is.null(res.hcpc$desc.ind$dist)) {
-      cat("\n=== INDIVIDUS LES PLUS ELOIGNES DU CENTRE ===\n")
+      cat("\n=== INDIVIDUS LES PLUS ÉLOIGNÉS DU CENTRE ===\n")
       for (i in seq_along(res.hcpc$desc.ind$dist)) {
         if (!is.null(res.hcpc$desc.ind$dist[[i]])) {
-          cat("\n--- CLUSTER", i, " - INDIVIDUS ELOIGNES ---\n")
+          cat("\n--- CLUSTER", i, " - INDIVIDUS ÉLOIGNÉS ---\n")
           print(res.hcpc$desc.ind$dist[[i]])
         }
       }
@@ -3365,7 +3365,7 @@ server <- function(input, output, session) {
       # au-dela du seuil, la stabilite est evaluee sur un echantillon.
       if (n > HSTAT_DIST_MAX_N) {
         idx_cap  <- hstat_cap_indices(n, HSTAT_DIST_MAX_N)
-        hstat_bigdata_note("Stabilite du clustering (bootstrap)", length(idx_cap), n)
+        hstat_bigdata_note("Stabilité du clustering (bootstrap)", length(idx_cap), n)
         coords   <- coords[idx_cap, , drop = FALSE]
         clusters <- clusters[idx_cap]
         n        <- nrow(coords)
@@ -3741,7 +3741,7 @@ server <- function(input, output, session) {
     }
     
     shiny::selectInput("afdMeansGroup", 
-                "Variable de groupement pour les moyennes:", 
+                "Variable de groupement pour les moyennes :", 
                 choices = fac_cols,
                 selected = selected_val)
   })
@@ -3808,7 +3808,7 @@ server <- function(input, output, session) {
           } else {
             n_groups <- nrow(afd_data)
             shiny::showNotification(
-              paste0("AFD sur moyennes: ", n_groups, " groupes (", input$afdMeansGroup, ")"), 
+              paste0("AFD sur moyennes : ", n_groups, " groupes (", input$afdMeansGroup, ")"), 
               type = "message", 
               duration = 3,
               id = "afd_means_notif"
@@ -3840,7 +3840,7 @@ server <- function(input, output, session) {
       if (any(group_counts < 2)) {
         groups_with_one <- names(group_counts)[group_counts < 2]
         shiny::showNotification(
-          paste0("Certains groupes n'ont qu'une observation: ", 
+          paste0("Certains groupes n'ont qu'une observation : ", 
                  paste(groups_with_one, collapse = ", "), 
                  ". L'AFD nécessite au moins 2 observations par groupe."),
           type = "error",
@@ -3876,7 +3876,7 @@ server <- function(input, output, session) {
       vars_to_use <- setdiff(input$afdVars, constant_vars)
       if (length(constant_vars) > 0) {
         shiny::showNotification(
-          paste0("Variables exclues (constantes dans les groupes): ", 
+          paste0("Variables exclues (constantes dans les groupes) : ", 
                  paste(constant_vars, collapse = ", ")),
           type = "warning",
           duration = 8
@@ -3994,7 +3994,7 @@ server <- function(input, output, session) {
           duration = 10
         )
       } else {
-        shiny::showNotification(paste("Erreur AFD:", err_msg), type = "error", duration = 10)
+        shiny::showNotification(paste("Erreur AFD :", err_msg), type = "error", duration = 10)
       }
       return(NULL)
     })
@@ -4193,7 +4193,7 @@ server <- function(input, output, session) {
                    shiny::icon("info-circle"), " Une seule fonction discriminante disponible")))
     }
     
-    shiny::selectInput("afdAxisX", "Axe X:",
+    shiny::selectInput("afdAxisX", "Axe X :",
                 choices = stats::setNames(1:n_dims, paste0("LD", 1:n_dims)),
                 selected = 1)
   })
@@ -4209,7 +4209,7 @@ server <- function(input, output, session) {
                    shiny::icon("info-circle"), " Une seule fonction discriminante disponible")))
     }
     
-    shiny::selectInput("afdAxisY", "Axe Y:",
+    shiny::selectInput("afdAxisY", "Axe Y :",
                 choices = stats::setNames(1:n_dims, paste0("LD", 1:n_dims)),
                 selected = min(2, n_dims))
   })
@@ -4529,7 +4529,7 @@ server <- function(input, output, session) {
       else "Faible -- le modèle discrimine mal les groupes."
       
       kappa_color <- if (kappa_val >= .8) "#3a7d5c" else if (kappa_val >= .6) "#4a7fa5" else if (kappa_val >= .4) "#b07d2a" else "#c0392b"
-      kappa_interp <- if (kappa_val >= .8) "Quasi-parfait (>= 0,80) -- accord excellent au-dela du hasard."
+      kappa_interp <- if (kappa_val >= .8) "Quasi-parfait (>= 0,80) -- accord excellent au-delà du hasard."
       else if (kappa_val >= .6) "Substantiel (0,60 - 0,80) -- bon accord."
       else if (kappa_val >= .4) "Modéré (0,40 - 0,60) -- accord partiel."
       else if (kappa_val >= .2) "Passable (0,20 - 0,40) -- accord faible."
@@ -4746,7 +4746,7 @@ server <- function(input, output, session) {
                  info_note("La LOO exclut un individu à la fois pour tester la prédiction. Elle évalue la capacité généralisatrice du modèle."),
                  shiny::fluidRow(
                    shiny::column(4, badge(paste0(round(cv_acc * 100, 1), "%"), "Accuracy LOO", cv_col)),
-                   shiny::column(4, badge(paste0(round(accuracy * 100, 1), "%"), "Accuracy entrainement", acc_color)),
+                   shiny::column(4, badge(paste0(round(accuracy * 100, 1), "%"), "Accuracy entraînement", acc_color)),
                    shiny::column(4, badge(paste0(if (bias > 0) "+" else "", round(bias * 100, 1), "%"), "Biais (train - LOO)",
                                    if (abs(bias) < 0.03) "#3a7d5c" else if (abs(bias) < 0.08) "#b07d2a" else "#c0392b"))
                  ),
@@ -4767,7 +4767,7 @@ server <- function(input, output, session) {
         ),
         
         card(border_color = "#2c3e50",
-             section_header("6", "Centroides des groupes & Probabilités a priori", "#2c3e50", "map-marker-alt"),
+             section_header("6", "Centroïdes des groupes & Probabilités a priori", "#2c3e50", "map-marker-alt"),
              info_note("Les centroïdes sont les moyennes des variables par groupe dans l'espace original. Les probabilités a priori reflètent les proportions de chaque groupe."),
              shiny::fluidRow(
                shiny::column(8,
@@ -4865,7 +4865,7 @@ server <- function(input, output, session) {
       "Tests_F"                    = dfs$f_tests,
       "Matrice_confusion"          = dfs$confusion_matrix,
       "Taux_classification"        = dfs$classification_rates,
-      "Centroides"                 = dfs$centroids,
+      "Centroïdes"                 = dfs$centroids,
       "Variance_expliquee"         = dfs$variance_explained,
       "CV_confusion"               = dfs$cv_confusion,
       "CV_taux"                    = dfs$cv_accuracy))
@@ -5459,7 +5459,7 @@ server <- function(input, output, session) {
               shiny::div(style = "margin-top:6px; padding:5px 10px; background:rgba(231,76,60,0.1); border-radius:4px;",
                   p(style = "margin:0; font-size:11px; color:#c0392b; font-weight:bold;",
                     shiny::icon("exclamation-triangle"),
-                    " Conditions non remplies -- résultats a interpreter avec prudence."))))
+                    " Conditions non remplies -- résultats à interpréter avec prudence."))))
     )
   }
 
@@ -5623,7 +5623,7 @@ server <- function(input, output, session) {
       if (is.null(r)) return(mv_status_box("info",
         "Configurez les paramètres puis cliquez sur 'Lancer l'analyse'."))
       if (isFALSE(r$ok)) return(mv_status_box("err", r$error))
-      mv_status_box("info", if (!is.null(r$note)) r$note else "Analyse realisee avec succès.")
+      mv_status_box("info", if (!is.null(r$note)) r$note else "Analyse réalisée avec succès.")
     })
     output[[paste0("mv_", key, "_metrics")]] <- shiny::renderUI({
       r <- mv_res[[key]]
@@ -5808,11 +5808,11 @@ server <- function(input, output, session) {
   MV_LIBELLES <- c(
     kmeans = "Classification k-means", efa = "Analyse factorielle exploratoire",
     cfa = "Analyse factorielle confirmatoire", mtmm = "Matrice multitrait-multimethode",
-    pls = "Regression PLS", regmult = "Regression multiple",
+    pls = "Régression PLS", regmult = "Régression multiple",
     afc = "Analyse factorielle des correspondances (AFC)",
     mca = "Analyse des correspondances multiples (ACM)",
     kmodes = "Classification k-modes", lca = "Analyse en classes latentes",
-    logit = "Regression logistique", famd = "Analyse factorielle de donnees mixtes (AFDM)",
+    logit = "Régression logistique", famd = "Analyse factorielle de données mixtes (AFDM)",
     mfa = "Analyse factorielle multiple (AFM)", kproto = "Classification k-prototypes")
 
   for (k in c("kmeans","efa","cfa","mtmm","pls","regmult","afc","mca",
@@ -5833,9 +5833,9 @@ server <- function(input, output, session) {
                               function(id) input[[id]]))
         grp <- unlist(lapply(paste0("mv_", key, c("_group", "_cat", "_quali", "_facteur")),
                              function(id) input[[id]]))
-        hstat_ai_capture(values, "Analyses multivariees",
+        hstat_ai_capture(values, "Analyses multivariées",
           MV_LIBELLES[[key]] %||% key,
-          tables = list("Metriques" = r$metrics),
+          tables = list("Métriques" = r$metrics),
           text = if (!is.null(r$summary)) paste(r$summary, collapse = "\n") else NULL,
           meta = list(variables = unique(vars), groupe = unique(grp)))
       }, ignoreInit = TRUE)
@@ -5989,7 +5989,7 @@ server <- function(input, output, session) {
     shiny::tagList(
       mv_opt_box(
         shiny::h5(shiny::icon("bullseye"), " Variable réponse Y"),
-        shiny::selectInput("mv_pls_y", "Réponse a prédire :", choices = names(mv_data())),
+        shiny::selectInput("mv_pls_y", "Réponse à prédire :", choices = names(mv_data())),
         p(style = "font-size:11px; color:#555;",
           "Y numérique => PLS | Y catégorielle => PLS-DA (détection automatique)")),
       mv_opt_box(shiny::h5(shiny::icon("chart-line"), " Prédicteurs X"),
@@ -6005,7 +6005,7 @@ server <- function(input, output, session) {
     shiny::req(mv_data())
     shiny::tagList(
       mv_opt_box(shiny::h5(shiny::icon("bullseye"), " Variable réponse Y (numérique)"),
-        shiny::selectInput("mv_regmult_y", "Réponse a expliquer :", choices = mv_num_cols())),
+        shiny::selectInput("mv_regmult_y", "Réponse à expliquer :", choices = mv_num_cols())),
       mv_opt_box(shiny::h5(shiny::icon("chart-line"), " Prédicteurs X"),
         shiny::selectInput("mv_regmult_x", "Prédicteurs (sélection multiple) :",
                     choices = names(mv_data()), multiple = TRUE,
@@ -6032,7 +6032,7 @@ server <- function(input, output, session) {
     shiny::tagList(
       mv_opt_box(shiny::h5(shiny::icon("shapes"), " Variables qualitatives"),
         mv_pick_cat("mv_mca_vars", "Variables à analyser :")),
-      shiny::numericInput("mv_mca_ncp", shiny::tagList(shiny::icon("hashtag"), " Dimensions a retenir :"),
+      shiny::numericInput("mv_mca_ncp", shiny::tagList(shiny::icon("hashtag"), " Dimensions à retenir :"),
                    value = 5, min = 2, max = 15),
       mv_opt_box(shiny::h5(shiny::icon("plus-circle"), " Éléments supplémentaires (optionnel)"),
         pickerInput("mv_mca_quali_sup", "Variables qualitatives supplémentaires :",
@@ -6054,7 +6054,7 @@ server <- function(input, output, session) {
       shiny::fluidRow(
         shiny::column(6, shiny::numericInput("mv_kmodes_k", shiny::tagList(shiny::icon("object-group"), " Nombre de clusters k :"),
                                value = 3, min = 2, max = 15)),
-        shiny::column(6, shiny::numericInput("mv_kmodes_iter", shiny::tagList(shiny::icon("redo"), " Iterations max :"),
+        shiny::column(6, shiny::numericInput("mv_kmodes_iter", shiny::tagList(shiny::icon("redo"), " Itérations max :"),
                                value = 20, min = 5, max = 100))), mv_disp_box("mv_kmodes"))
   })
 
@@ -6066,7 +6066,7 @@ server <- function(input, output, session) {
       shiny::fluidRow(
         shiny::column(6, shiny::numericInput("mv_lca_nclass", shiny::tagList(shiny::icon("object-group"), " Nombre de classes :"),
                                value = 2, min = 2, max = 10)),
-        shiny::column(6, shiny::numericInput("mv_lca_rep", shiny::tagList(shiny::icon("redo"), " Repetitions EM :"),
+        shiny::column(6, shiny::numericInput("mv_lca_rep", shiny::tagList(shiny::icon("redo"), " Répétitions EM :"),
                                value = 5, min = 1, max = 30))), mv_disp_box("mv_lca"))
   })
 
@@ -6074,7 +6074,7 @@ server <- function(input, output, session) {
     shiny::req(mv_data())
     shiny::tagList(
       mv_opt_box(shiny::h5(shiny::icon("bullseye"), " Variable réponse Y (catégorielle)"),
-        shiny::selectInput("mv_logit_y", "Réponse a prédire :", choices = mv_cat_cols()),
+        shiny::selectInput("mv_logit_y", "Réponse à prédire :", choices = mv_cat_cols()),
         p(style = "font-size:11px; color:#555;",
           "2 modalités => logistique binaire | >2 => logistique multinomiale")),
       mv_opt_box(shiny::h5(shiny::icon("chart-line"), " Prédicteurs X"),
@@ -6091,7 +6091,7 @@ server <- function(input, output, session) {
                     choices = names(mv_data()), multiple = TRUE,
                     selected = names(mv_data()),
                     options = list(`actions-box` = TRUE, `live-search` = TRUE))),
-      shiny::numericInput("mv_famd_ncp", shiny::tagList(shiny::icon("hashtag"), " Dimensions a retenir :"),
+      shiny::numericInput("mv_famd_ncp", shiny::tagList(shiny::icon("hashtag"), " Dimensions à retenir :"),
                    value = 5, min = 2, max = 15),
       mv_opt_box(shiny::h5(shiny::icon("plus-circle"), " Éléments supplémentaires (optionnel)"),
         pickerInput("mv_famd_quali_sup", "Variables qualitatives supplémentaires :",
@@ -6112,7 +6112,7 @@ server <- function(input, output, session) {
         mv_pick_num("mv_mfa_quanti", "Variables numériques :")),
       mv_opt_box(shiny::h5(shiny::icon("shapes"), " Bloc QUALITATIF"),
         mv_pick_cat("mv_mfa_quali", "Variables qualitatives :")),
-      shiny::numericInput("mv_mfa_ncp", shiny::tagList(shiny::icon("hashtag"), " Dimensions a retenir :"),
+      shiny::numericInput("mv_mfa_ncp", shiny::tagList(shiny::icon("hashtag"), " Dimensions à retenir :"),
                    value = 5, min = 2, max = 15),
       mv_opt_box(shiny::h5(shiny::icon("plus-circle"), " Éléments supplémentaires (optionnel)"),
         pickerInput("mv_mfa_quali_sup", "Variables qualitatives supplémentaires :",
@@ -6134,7 +6134,7 @@ server <- function(input, output, session) {
       shiny::fluidRow(
         shiny::column(6, shiny::numericInput("mv_kproto_k", shiny::tagList(shiny::icon("object-group"), " Nombre de clusters k :"),
                                value = 3, min = 2, max = 15)),
-        shiny::column(6, shiny::numericInput("mv_kproto_iter", shiny::tagList(shiny::icon("redo"), " Iterations max :"),
+        shiny::column(6, shiny::numericInput("mv_kproto_iter", shiny::tagList(shiny::icon("redo"), " Itérations max :"),
                                value = 20, min = 5, max = 100))), mv_disp_box("mv_kproto"))
   })
 
@@ -6163,14 +6163,14 @@ server <- function(input, output, session) {
     n_st <- if (n >= 200) "ok" else if (n >= 100 || n >= 5*p) "warn" else "err"
     p_st <- if (p >= 3) "ok" else "err"
     msgs <- list()
-    if (n_st == "err") msgs <- c(msgs, paste0("Effectif insuffisant : n=", n, " (min. 100, ideal 200)."))
-    else if (n_st == "warn") msgs <- c(msgs, paste0("Effectif modéré : n=", n, " (ideal n>=200, >=10 ind./var.)."))
+    if (n_st == "err") msgs <- c(msgs, paste0("Effectif insuffisant : n=", n, " (min. 100, idéal 200)."))
+    else if (n_st == "warn") msgs <- c(msgs, paste0("Effectif modéré : n=", n, " (idéal n>=200, >=10 ind./var.)."))
     if (p_st == "err") msgs <- c(msgs, "L'AFE requiert au moins 3 variables observées.")
     lvl <- if ("err" %in% c(n_st,p_st)) "err" else if ("warn" %in% c(n_st,p_st)) "warn" else "ok"
     .mv_cond_render("Conditions -- AFE",
       shiny::tagList(.mv_badge(n_st, paste0("n = ", n)),
               .mv_badge(p_st, paste0("p = ", p, " var.")),
-              .mv_badge("info", "KMO & Bartlett verifies au lancement")), msgs, lvl)
+              .mv_badge("info", "KMO & Bartlett vérifies au lancement")), msgs, lvl)
   })
 
   # ---- AFC confirmatoire ---------------------------------------------------
@@ -6195,7 +6195,7 @@ server <- function(input, output, session) {
     n_st <- if (n >= 20) "ok" else "warn"
     p_st <- if (p >= 2) "ok" else "err"
     msgs <- list()
-    if (n_st == "warn") msgs <- c(msgs, paste0("Effectif faible : n=", n, " (PLS reste valide mais validation croisée conseillee)."))
+    if (n_st == "warn") msgs <- c(msgs, paste0("Effectif faible : n=", n, " (PLS reste valide mais validation croisée conseillée)."))
     if (p_st == "err") msgs <- c(msgs, "Sélectionnez au moins 2 prédicteurs numériques.")
     if (!mv_has("pls")) msgs <- c(msgs, "Package 'pls' indisponible -- installation requise.")
     lvl <- if (p_st == "err" || !mv_has("pls")) "err" else if (n_st == "warn") "warn" else "ok"
@@ -6214,10 +6214,10 @@ server <- function(input, output, session) {
     p_st <- if (p >= 1) "ok" else "err"
     msgs <- list()
     if (p_st == "err") msgs <- c(msgs, "Sélectionnez au moins 1 prédicteur.")
-    else if (n_st == "err") msgs <- c(msgs, paste0("Ratio n/p faible : ", round(ratio,1), " (recommande >=10, ideal >=20)."))
-    else if (n_st == "warn") msgs <- c(msgs, paste0("Ratio n/p modéré : ", round(ratio,1), " (ideal >=20)."))
+    else if (n_st == "err") msgs <- c(msgs, paste0("Ratio n/p faible : ", round(ratio,1), " (recommande >=10, idéal >=20)."))
+    else if (n_st == "warn") msgs <- c(msgs, paste0("Ratio n/p modéré : ", round(ratio,1), " (idéal >=20)."))
     lvl <- if ("err" %in% c(n_st,p_st)) "err" else if ("warn" %in% c(n_st,p_st)) "warn" else "ok"
-    .mv_cond_render("Conditions -- Regression linéaire multiple",
+    .mv_cond_render("Conditions -- Régression linéaire multiple",
       shiny::tagList(.mv_badge(n_st, paste0("n = ", n)),
               .mv_badge(p_st, paste0("p = ", p, " prédicteurs")),
               .mv_badge(n_st, paste0("n/p = ", if (is.na(ratio)) "-" else round(ratio,1)))), msgs, lvl)
@@ -6232,7 +6232,7 @@ server <- function(input, output, session) {
     n_st <- if (n >= 50) "ok" else "warn"
     v_st <- if (diff_ok) "ok" else "err"
     msgs <- list()
-    if (!diff_ok) msgs <- c(msgs, "Choisissez deux variables qualitatives DIFFERENTES.")
+    if (!diff_ok) msgs <- c(msgs, "Choisissez deux variables qualitatives DIFFÉRENTES.")
     if (n_st == "warn") msgs <- c(msgs, paste0("Effectif faible : n=", n, " (recommande >=50, effectifs théoriques >=5)."))
     lvl <- if (v_st == "err") "err" else if (n_st == "warn") "warn" else "ok"
     .mv_cond_render("Conditions -- AFC",
@@ -6304,10 +6304,10 @@ server <- function(input, output, session) {
     p_st <- if (p >= 1) "ok" else "err"
     msgs <- list()
     if (p_st == "err") msgs <- c(msgs, "Sélectionnez au moins 1 prédicteur.")
-    else if (n_st == "err") msgs <- c(msgs, paste0("Effectif faible vs nb prédicteurs (regle : >=10 evenements/prédicteur)."))
-    else if (n_st == "warn") msgs <- c(msgs, paste0("Effectif limite (regle des 10 evenements/prédicteur a surveiller)."))
+    else if (n_st == "err") msgs <- c(msgs, paste0("Effectif faible vs nb prédicteurs (règle : >=10 événements/prédicteur)."))
+    else if (n_st == "warn") msgs <- c(msgs, paste0("Effectif limite (règle des 10 événements/prédicteur à surveiller)."))
     lvl <- if ("err" %in% c(n_st,p_st)) "err" else if ("warn" %in% c(n_st,p_st)) "warn" else "ok"
-    .mv_cond_render("Conditions -- Regression logistique",
+    .mv_cond_render("Conditions -- Régression logistique",
       shiny::tagList(.mv_badge(n_st, paste0("n = ", n)),
               .mv_badge(p_st, paste0("p = ", p, " prédicteurs"))), msgs, lvl)
   })
@@ -6343,7 +6343,7 @@ server <- function(input, output, session) {
     msgs <- list()
     if (n_st == "err") msgs <- c(msgs, paste0("Effectif insuffisant : n=", n, " (min. 50)."))
     else if (n_st == "warn") msgs <- c(msgs, paste0("Effectif modéré : n=", n, " (recommande >=100)."))
-    if (b_st == "err") msgs <- c(msgs, "Definissez au moins 1 variable dans chaque bloc (quanti et quali).")
+    if (b_st == "err") msgs <- c(msgs, "Définissez au moins 1 variable dans chaque bloc (quanti et quali).")
     lvl <- if ("err" %in% c(n_st,b_st)) "err" else if (n_st == "warn") "warn" else "ok"
     .mv_cond_render("Conditions -- AFM",
       shiny::tagList(.mv_badge(n_st, paste0("n = ", n)),
@@ -6393,9 +6393,9 @@ server <- function(input, output, session) {
         # Retirer les colonnes a variance nulle (sinon scale() -> NaN -> erreur kmeans)
         keep <- vapply(X, function(x) stats::var(x) > 0, logical(1))
         if (sum(keep) < 2)
-          return(list(ok = FALSE, error = "Moins de 2 variables numériques a variance non nulle après nettoyage."))
+          return(list(ok = FALSE, error = "Moins de 2 variables numériques à variance non nulle après nettoyage."))
         if (any(!keep)) {
-          shiny::showNotification(paste("Variables a variance nulle ignorees :",
+          shiny::showNotification(paste("Variables à variance nulle ignorées :",
             paste(names(X)[!keep], collapse = ", ")), type = "warning", duration = 5)
           X <- X[, keep, drop = FALSE]; vars <- names(X)
         }
@@ -6428,10 +6428,10 @@ server <- function(input, output, session) {
                    else if (st_sil=="err") "Structure faible" else "Non calculée (n>5000)",
                  st_sil),
           mv_row("Calinski-Harabasz", round(ch,1),
-                 "Plus élevé = meilleure separation (comparatif)",
-                 "A maximiser entre solutions k", "info"),
-          mv_row("Equilibre des clusters", paste(km$size, collapse=" / "),
-                 "Eviter clusters vides ou très minoritaires",
+                 "Plus élevé = meilleure séparation (comparatif)",
+                 "À maximiser entre solutions k", "info"),
+          mv_row("Équilibre des clusters", paste(km$size, collapse=" / "),
+                 "Éviter clusters vides ou très minoritaires",
                  if (st_bal=="ok") "Répartition acceptable" else "Cluster très minoritaire",
                  st_bal))
         pc <- stats::prcomp(Xc)
@@ -6444,10 +6444,10 @@ server <- function(input, output, session) {
         var_pc <- round(100*pc$sdev^2/sum(pc$sdev^2), 1)
         render <- shiny::tagList(
           mv_card(border_color = "#4a7fa5",
-            mv_section_header("Qualite de la partition", "#4a7fa5", "object-group"),
-            mv_info_note("Chaque métrique de separation des clusters est confrontee a son seuil de référence."),
+            mv_section_header("Qualité de la partition", "#4a7fa5", "object-group"),
+            mv_info_note("Chaque métrique de séparation des clusters est confrontée à son seuil de référence."),
             mv_metrics_table(metrics, "#4a7fa5"),
-            mv_interp_bar(paste0("Solution a ", k, " clusters sur ", nrow(Xc),
+            mv_interp_bar(paste0("Solution à ", k, " clusters sur ", nrow(Xc),
               " individus. Inertie inter-classes = ", round(100*bss,1), " %."),
               mv_col(st_bss))),
           mv_card(border_color = "#6c757d",
@@ -6496,7 +6496,7 @@ server <- function(input, output, session) {
         if (sum(keep) < 3)
           return(list(ok = FALSE, error = "Moins de 3 variables numériques exploitables (variance non nulle, sans NA)."))
         if (any(!keep)) {
-          shiny::showNotification(paste("Variables ignorees (variance nulle ou NA) :",
+          shiny::showNotification(paste("Variables ignorées (variance nulle ou NA) :",
             paste(names(X)[!keep], collapse = ", ")), type = "warning", duration = 5)
           X <- X[, keep, drop = FALSE]
         }
@@ -6523,20 +6523,20 @@ server <- function(input, output, session) {
         st_cro <- if (cross == 0) "ok" else "warn"
         metrics <- rbind(
           mv_row("Indice KMO", round(kmo,3),
-                 "> 0,80 très bon ; 0,60-0,80 acceptable ; < 0,60 inadequat",
-                 if (st_kmo=="ok") "Données très adaptees" else if (st_kmo=="warn") "Adequation acceptable" else "Données peu factorisables",
+                 "> 0,80 très bon ; 0,60-0,80 acceptable ; < 0,60 inadéquat",
+                 if (st_kmo=="ok") "Données très adaptées" else if (st_kmo=="warn") "Adéquation acceptable" else "Données peu factorisables",
                  st_kmo),
           mv_row("Test de Bartlett (p)", format.pval(bart$p.value, digits=3),
                  "p < 0,05 : corrélations exploitables",
-                 if (st_bar=="ok") "Factorisation justifiee" else "Matrice proche de l'identite",
+                 if (st_bar=="ok") "Factorisation justifiée" else "Matrice proche de l'identité",
                  st_bar),
-          mv_row("Variance cumulee expliquee", paste0(round(100*var_exp,1)," %"),
+          mv_row("Variance cumulée expliquée", paste0(round(100*var_exp,1)," %"),
                  ">= 60 % bon ; 50-60 % acceptable ; < 50 % faible",
                  if (st_var=="ok") "Bonne restitution" else if (st_var=="warn") "Restitution acceptable" else "Restitution insuffisante",
                  st_var),
-          mv_row("Communautes < 0,40", n_low,
-                 "0 ideal : chaque variable communaute >= 0,40",
-                 if (st_com=="ok") "Variables bien restituees" else paste0(n_low, " variable(s) mal restituee(s)"),
+          mv_row("Communautés < 0,40", n_low,
+                 "0 idéal : chaque variable communauté >= 0,40",
+                 if (st_com=="ok") "Variables bien restituées" else paste0(n_low, " variable(s) mal restituée(s)"),
                  st_com),
           mv_row("Cross-loadings (|charge|>0,30)", cross,
                  "0 souhaite : structure simple",
@@ -6549,24 +6549,24 @@ server <- function(input, output, session) {
         comm_df <- data.frame(Variable = names(comm), Communaute = round(comm,3))
         render <- shiny::tagList(
           mv_card(border_color = "#1565c0",
-            mv_section_header("Adequation & qualité factorielle", "#1565c0", "sliders"),
-            mv_info_note("Vérification de la factorisabilite (KMO, Bartlett) et de la qualité de restitution."),
+            mv_section_header("Adéquation & qualité factorielle", "#1565c0", "sliders"),
+            mv_info_note("Vérification de la factorisabilité (KMO, Bartlett) et de la qualité de restitution."),
             mv_metrics_table(metrics, "#1565c0"),
             mv_interp_bar(paste0(nf, " facteurs extraits, rotation ", input$mv_efa_rot,
-              ". Variance expliquee = ", round(100*var_exp,1), " %."), mv_col(st_var))),
+              ". Variance expliquée = ", round(100*var_exp,1), " %."), mv_col(st_var))),
           mv_card(border_color = "#6c757d",
             mv_section_header("Saturations (loadings)", "#6c757d", "table"),
             mv_data_table(data.frame(Variable = rownames(load), round(load,3),
                                      check.names = FALSE), "#6c757d")),
           mv_card(border_color = "#6c757d",
-            mv_section_header("Communautes", "#6c757d", "percentage"),
+            mv_section_header("Communautés", "#6c757d", "percentage"),
             mv_data_table(comm_df, "#6c757d")))
         list(ok = TRUE, render = render, metrics = metrics,
           note = paste0("AFE : ", nf, " facteurs, rotation ", input$mv_efa_rot, "."),
           summary = c("=== Analyse Factorielle Exploratoire ===",
             paste0("KMO = ", round(kmo,3), " | Bartlett p = ", format.pval(bart$p.value,digits=3)),
             "", "Saturations :", paste(utils::capture.output(round(load,3)), collapse="\n"),
-            "", "Communautes :", paste(utils::capture.output(round(comm,3)), collapse="\n")),
+            "", "Communautés :", paste(utils::capture.output(round(comm,3)), collapse="\n")),
           plotfn = function() {
             if (identical(input$mv_efa_plot %||% "heat", "path")) {
               # ---- Diagramme des variables latentes (path diagram) ----
@@ -6622,9 +6622,9 @@ server <- function(input, output, session) {
                 ggplot2::scale_x_continuous(limits = c(-0.65, 1.25)) +
                 labs(title = "AFE -- diagramme des variables latentes",
                      subtitle = paste0(nf, " facteurs | rotation ", input$mv_efa_rot),
-                     caption = paste0("Fleches : saturations |x| >= ", format(thr, decimal.mark = ","),
-                                      " ; epaisseur proportionnelle a |saturation| ; ",
-                                      "bleu = positive, rouge = negative.")) +
+                     caption = paste0("Flèches : saturations |x| >= ", format(thr, decimal.mark = ","),
+                                      " ; épaisseur proportionnelle à |saturation| ; ",
+                                      "bleu = positive, rouge = négative.")) +
                 ggplot2::theme_void(base_size = 13) +
                 ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", size = 15),
                       plot.subtitle = ggplot2::element_text(color = "#7f8c8d"),
@@ -6726,7 +6726,7 @@ server <- function(input, output, session) {
         metrics <- rbind(
           mv_row("Chi2 / ddl", if (is.na(ratio)) "n/d" else round(ratio,2),
                  "< 2 bon ; < 3 acceptable ; >= 3 mediocre",
-                 if (st_r=="ok") "Tres bon ajustement" else if (st_r=="warn") "Ajustement acceptable" else "Ajustement mediocre",
+                 if (st_r=="ok") "Très bon ajustement" else if (st_r=="warn") "Ajustement acceptable" else "Ajustement médiocre",
                  st_r),
           mv_row("CFI", round(cfi,3),
                  "> 0,95 bon ; 0,90-0,95 acceptable ; < 0,90 insuffisant",
@@ -6739,7 +6739,7 @@ server <- function(input, output, session) {
                  if (st_m=="ok") "Erreur d'approximation faible" else if (st_m=="warn") "Erreur acceptable" else "Erreur trop élevée",
                  st_m),
           mv_row("SRMR", round(srmr,3), "< 0,08 ajustement acceptable",
-                 if (st_s=="ok") "Residus standardises faibles" else "Residus élevés", st_s))
+                 if (st_s=="ok") "Résidus standardises faibles" else "Résidus élevés", st_s))
         std <- lavaan::standardizedSolution(fit)
         lt <- std[std$op == "=~", c("lhs","rhs","est.std","pvalue")]
         names(lt) <- c("Facteur","Indicateur","Charge_std","p_value")
@@ -6751,13 +6751,13 @@ server <- function(input, output, session) {
         render <- shiny::tagList(
           mv_card(border_color = "#1565c0",
             mv_section_header("Indices d'ajustement du modèle", "#1565c0", "check-double"),
-            mv_info_note("Le modèle de mesure pre-specifie est confronte aux seuils d'ajustement usuels."),
+            mv_info_note("Le modèle de mesure pré-spécifié est confronté aux seuils d'ajustement usuels."),
             mv_metrics_table(metrics, "#1565c0"),
             mv_interp_bar(paste0("Estimateur ", input$mv_cfa_est,
               ". CFI = ", round(cfi,3), " | RMSEA = ", round(rmsea,3), "."),
               mv_col(st_c))),
           mv_card(border_color = "#6c757d",
-            mv_section_header("Saturations standardisees", "#6c757d", "table"),
+            mv_section_header("Saturations standardisées", "#6c757d", "table"),
             mv_data_table(data.frame(Facteur = lt$Facteur, Indicateur = lt$Indicateur,
               Charge_std = round(lt$Charge_std,3), p_value = round(lt$p_value,4)), "#6c757d")))
         list(ok = TRUE, render = render, metrics = metrics,
@@ -6777,7 +6777,7 @@ server <- function(input, output, session) {
                                 name = "Charge std") +
               ggplot2::coord_flip(ylim = c(0, 1.05)) +
               labs(title = "AFC — saturations standardisées",
-                   x = NULL, y = "Charge standardisee",
+                   x = NULL, y = "Charge standardisée",
                    caption = "Lignes : seuils 0,50 (orange) et 0,70 (vert).") +
               mv_gg_theme()
           },
@@ -7006,7 +7006,7 @@ server <- function(input, output, session) {
           return(list(ok = FALSE, error = "Package 'pls' indisponible."))
         d <- mv_data(); yv <- input$mv_pls_y; xv <- input$mv_pls_x
         if (is.null(yv) || is.null(xv) || length(xv) < 2)
-          return(list(ok = FALSE, error = "Definissez Y et au moins 2 prédicteurs X."))
+          return(list(ok = FALSE, error = "Définissez Y et au moins 2 prédicteurs X."))
         sub <- d[, c(yv, xv), drop = FALSE]
         # Predicteurs numeriques uniquement, sans Inf
         num_x <- xv[vapply(xv, function(v) is.numeric(sub[[v]]), logical(1))]
@@ -7047,7 +7047,7 @@ server <- function(input, output, session) {
                    "Choisir le minimum optimisant la prédiction",
                    "Modèle PLS-DA", "info"),
             mv_row("Classes de Y", paste(levels(yf), collapse=" / "),
-                   "Vérifier l'equilibre des effectifs", "Réponse catégorielle", "info"))
+                   "Vérifier l'équilibre des effectifs", "Réponse catégorielle", "info"))
           sc <- as.data.frame(fit$scores[, 1:min(2,ncomp), drop = FALSE])
           if (ncol(sc) < 2) sc$Comp2 <- 0
           names(sc)[1:2] <- c("Comp1","Comp2"); sc$Classe <- yf
@@ -7081,18 +7081,18 @@ server <- function(input, output, session) {
           gap <- if (!is.na(q2)) abs(r2y-q2) else NA
           st_g <- if (is.na(gap)) "info" else if (gap < .3) "ok" else "warn"
           metrics <- rbind(
-            mv_row("R2Y (variance Y expliquee)", round(r2y,3),
+            mv_row("R2Y (variance Y expliquée)", round(r2y,3),
                    ">= 0,50 bon ; 0,30-0,50 modéré ; < 0,30 faible",
                    if (st_r2=="ok") "Bonne explication" else if (st_r2=="warn") "Explication modérée" else "Explication faible",
                    st_r2),
-            mv_row("Q2 (predictivite, CV)", if (is.na(q2)) "n/d" else round(q2,3),
+            mv_row("Q2 (prédictivité, CV)", if (is.na(q2)) "n/d" else round(q2,3),
                    "> 0,50 bon ; > 0 acceptable ; < 0 nul",
-                   if (st_q2=="ok") "Bon pouvoir prédictif" else if (st_q2=="warn") "Predictivite limitee"
-                     else if (st_q2=="err") "Aucun pouvoir prédictif" else "Validation croisée desactivee",
+                   if (st_q2=="ok") "Bon pouvoir prédictif" else if (st_q2=="warn") "Prédictivité limitée"
+                     else if (st_q2=="err") "Aucun pouvoir prédictif" else "Validation croisée désactivée",
                    st_q2),
             mv_row("Écart R2Y - Q2", if (is.na(gap)) "n/d" else round(gap,3),
                    "< 0,30 : pas de sur-ajustement",
-                   if (st_g=="ok") "Modèle non sur-ajuste" else if (st_g=="warn") "Risque de sur-ajustement" else "Validation croisée desactivee",
+                   if (st_g=="ok") "Modèle non sur-ajuste" else if (st_g=="warn") "Risque de sur-ajustement" else "Validation croisée désactivée",
                    st_g),
             mv_row("Composantes latentes", ncomp,
                    "Choisir le minimum optimisant Q2", "Modèle PLS", "info"))
@@ -7105,7 +7105,7 @@ server <- function(input, output, session) {
               labs(title = "PLS — valeurs prédites vs observées",
                    subtitle = paste0("R2Y = ", round(r2y,3),
                      if (!is.na(q2)) paste0(" | Q2 = ", round(q2,3)) else ""),
-                   x = "Y observé", y = "Y predit") +
+                   x = "Y observé", y = "Y prédit") +
               mv_gg_theme()
           }
           exports <- list(Metriques = metrics)
@@ -7131,13 +7131,13 @@ server <- function(input, output, session) {
         }
         render <- shiny::tagList(
           mv_card(border_color = "#1565c0",
-            mv_section_header("Qualite du modèle PLS", "#1565c0", "diagram-project"),
-            mv_info_note("Pouvoir explicatif (R2Y) et prédictif (Q2) du modèle a composantes latentes."),
+            mv_section_header("Qualité du modèle PLS", "#1565c0", "diagram-project"),
+            mv_info_note("Pouvoir explicatif (R2Y) et prédictif (Q2) du modèle à composantes latentes."),
             mv_metrics_table(metrics, "#1565c0"),
             mv_interp_bar(note, "#1565c0")),
           extra_card)
         list(ok = TRUE, render = render, metrics = metrics, note = note,
-          summary = c("=== Regression PLS ===",
+          summary = c("=== Régression PLS ===",
             paste(utils::capture.output(summary(fit)), collapse="\n")),
           plotfn = plotfn, exports = exports)
       }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
@@ -7150,7 +7150,7 @@ server <- function(input, output, session) {
       tryCatch({
         d <- mv_data(); yv <- input$mv_regmult_y; xv <- input$mv_regmult_x
         if (is.null(yv) || is.null(xv) || length(xv) < 1)
-          return(list(ok = FALSE, error = "Definissez Y et au moins 1 prédicteur X."))
+          return(list(ok = FALSE, error = "Définissez Y et au moins 1 prédicteur X."))
         sub <- d[, c(yv, xv), drop = FALSE]
         sub <- sub[stats::complete.cases(sub), , drop = FALSE]
         fml <- stats::as.formula(paste0("`", yv, "` ~ ",
@@ -7183,18 +7183,18 @@ server <- function(input, output, session) {
           mv_row("VIF maximal", if (is.na(vif_max)) "n/d" else round(vif_max,2),
                  "< 5 OK ; 5-10 a surveiller ; > 10 multicolinéarité forte",
                  if (st_v=="ok") "Pas de multicolinéarité" else if (st_v=="warn") "Multicolinéarité modérée"
-                   else if (st_v=="err") "Multicolinéarité problematique" else "Non applicable (1 prédicteur)",
+                   else if (st_v=="err") "Multicolinéarité problématique" else "Non applicable (1 prédicteur)",
                  st_v),
           mv_row("Breusch-Pagan (p)", if (is.na(bp)) "n/d" else format.pval(bp,digits=3),
-                 "p > 0,05 : homoscedasticite respectee",
-                 if (st_bp=="ok") "Variance des residus constante" else "Heteroscedasticite détectée",
+                 "p > 0,05 : homoscédasticité respectée",
+                 if (st_bp=="ok") "Variance des résidus constante" else "Hétéroscédasticité détectée",
                  st_bp),
-          mv_row("Shapiro-Wilk residus (p)", if (is.na(sw)) "n/d" else format.pval(sw,digits=3),
-                 "p > 0,05 : normalité des residus",
-                 if (st_sw=="ok") "Residus normaux" else "Écart a la normalité", st_sw),
+          mv_row("Shapiro-Wilk résidus (p)", if (is.na(sw)) "n/d" else format.pval(sw,digits=3),
+                 "p > 0,05 : normalité des résidus",
+                 if (st_sw=="ok") "Résidus normaux" else "Écart à la normalité", st_sw),
           mv_row("Durbin-Watson", if (is.na(dw)) "n/d" else round(dw,2),
-                 "Proche de 2 : indépendance des residus",
-                 if (st_dw=="ok") "Residus independants" else "Autocorrelation possible", st_dw))
+                 "Proche de 2 : indépendance des résidus",
+                 if (st_dw=="ok") "Résidus indépendants" else "Autocorrelation possible", st_dw))
         coefs <- as.data.frame(s$coefficients)
         coef_df <- data.frame(Terme = rownames(coefs),
           Estimation = round(coefs[,1],4), Err_std = round(coefs[,2],4),
@@ -7202,8 +7202,8 @@ server <- function(input, output, session) {
         res_df <- data.frame(Ajuste = stats::fitted(fit), Residu = stats::residuals(fit))
         render <- shiny::tagList(
           mv_card(border_color = "#1565c0",
-            mv_section_header("Qualite d'ajustement & validite", "#1565c0", "chart-line"),
-            mv_info_note("Pouvoir explicatif du modèle et vérification des hypotheses sur les residus."),
+            mv_section_header("Qualité d'ajustement & validité", "#1565c0", "chart-line"),
+            mv_info_note("Pouvoir explicatif du modèle et vérification des hypothèses sur les résidus."),
             mv_metrics_table(metrics, "#1565c0"),
             mv_interp_bar(paste0("R2 ajuste = ", round(r2a,3),
               ". Modèle ", if (fp < .05) "globalement significatif." else "non significatif."),
@@ -7212,8 +7212,8 @@ server <- function(input, output, session) {
             mv_section_header("Coefficients estimes", "#6c757d", "table"),
             mv_data_table(coef_df, "#6c757d", digits = 4)))
         list(ok = TRUE, render = render, metrics = metrics,
-          note = paste0("Regression linéaire : R2 ajuste = ", round(r2a,3), "."),
-          summary = c("=== Regression linéaire multiple ===",
+          note = paste0("Régression linéaire : R2 ajuste = ", round(r2a,3), "."),
+          summary = c("=== Régression linéaire multiple ===",
             paste(utils::capture.output(s), collapse = "\n")),
           plotfn = function() {
             ggplot2::ggplot(res_df, ggplot2::aes(Ajuste, Residu)) +
@@ -7221,8 +7221,8 @@ server <- function(input, output, session) {
               ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "#c0392b") +
               ggplot2::geom_smooth(method = "loess", se = FALSE, color = "#f39c12", linewidth = .8) +
               labs(title = "Régression — résidus vs valeurs ajustées",
-                   subtitle = "Un nuage sans tendance confirme l'homoscedasticite",
-                   x = "Valeurs ajustees", y = "Residus") +
+                   subtitle = "Un nuage sans tendance confirme l'homoscédasticité",
+                   x = "Valeurs ajustées", y = "Résidus") +
               mv_gg_theme()
           },
           exports = list(Metriques = metrics, Coefficients = coef_df))
@@ -7239,7 +7239,7 @@ server <- function(input, output, session) {
       tryCatch({
         d <- mv_data(); rv <- input$mv_afc_row; cv <- input$mv_afc_col
         if (is.null(rv) || is.null(cv) || rv == cv)
-          return(list(ok = FALSE, error = "Choisissez deux variables qualitatives differentes."))
+          return(list(ok = FALSE, error = "Choisissez deux variables qualitatives différentes."))
         tab <- table(d[[rv]], d[[cv]])
         tab <- tab[rowSums(tab) > 0, colSums(tab) > 0, drop = FALSE]
         if (nrow(tab) < 2 || ncol(tab) < 2)
@@ -7264,18 +7264,18 @@ server <- function(input, output, session) {
                  st_chi),
           mv_row("Inertie totale (Chi2/n)", round(inertia,4),
                  "Mesure l'intensité globale d'association",
-                 "Intensite de l'association lignes/colonnes", "info"),
+                 "Intensité de l'association lignes/colonnes", "info"),
           mv_row("V de Cramér", round(cramer,3),
                  ">= 0,30 forte ; 0,10-0,30 modérée ; < 0,10 faible",
                  if (st_cr=="ok") "Association forte" else if (st_cr=="warn") "Association modérée" else "Association faible",
                  st_cr),
           mv_row("Inertie axes 1-2", paste0(round(dim12,1)," %"),
                  ">= 70 % bonne restitution ; 50-70 % acceptable",
-                 if (st_dim=="ok") "Plan factoriel representatif" else if (st_dim=="warn") "Restitution acceptable" else "Restitution limitee",
+                 if (st_dim=="ok") "Plan factoriel représentatif" else if (st_dim=="warn") "Restitution acceptable" else "Restitution limitée",
                  st_dim),
           mv_row("Cases effectif théorique < 5", paste0(round(exp_low,1)," %"),
                  "<= 20 % conseille pour la validite du Chi2",
-                 if (st_exp=="ok") "Validite du Chi2 satisfaisante" else "Trop de cases a faible effectif",
+                 if (st_exp=="ok") "Validité du Chi2 satisfaisante" else "Trop de cases à faible effectif",
                  st_exp))
         row_co <- hstat_coord_mat(ca$row$coord); col_co <- hstat_coord_mat(ca$col$coord)
         rc <- as.data.frame(row_co[, 1:min(2, ncol(row_co)), drop = FALSE])
@@ -7290,7 +7290,7 @@ server <- function(input, output, session) {
         render <- shiny::tagList(
           mv_card(border_color = "#6a1b9a",
             mv_section_header("Association & qualité factorielle", "#6a1b9a", "shapes"),
-            mv_info_note("Significativite et intensité de l'association entre les deux variables qualitatives."),
+            mv_info_note("Significativité et intensité de l'association entre les deux variables qualitatives."),
             mv_metrics_table(metrics, "#6a1b9a"),
             mv_interp_bar(paste0("Table ", nrow(tab), "x", ncol(tab),
               ". V de Cramér = ", round(cramer,3), "."), mv_col(st_cr))),
@@ -7366,18 +7366,18 @@ server <- function(input, output, session) {
         st_dim <- if (dim12_adj >= 70) "ok" else if (dim12_adj >= 50) "warn" else "err"
         metrics <- rbind(
           mv_row("Inertie brute axes 1-2", paste0(round(dim12_raw,1)," %"),
-                 "Sous-estimé la structure (a corriger)",
-                 "Valeur brute -- privilegier l'inertie ajustee", "info"),
-          mv_row("Inertie ajustee axes 1-2 (Benzecri)", paste0(round(dim12_adj,1)," %"),
+                 "Sous-estimé la structure (à corriger)",
+                 "Valeur brute -- privilégier l'inertie ajustée", "info"),
+          mv_row("Inertie ajustée axes 1-2 (Benzecri)", paste0(round(dim12_adj,1)," %"),
                  ">= 70 % bonne restitution ; 50-70 % acceptable",
-                 if (st_dim=="ok") "Plan factoriel representatif" else if (st_dim=="warn") "Restitution acceptable" else "Restitution limitee",
+                 if (st_dim=="ok") "Plan factoriel représentatif" else if (st_dim=="warn") "Restitution acceptable" else "Restitution limitée",
                  st_dim),
           mv_row("Nombre de modalités", n_mod,
                  "Regrouper les modalités rares (< 5 %)",
                  "Total des modalités actives", "info"),
           mv_row("Seuil de contribution moyen", paste0(round(seuil_ctr,2)," %"),
                  "Une modalité contribue si CTR > 100/nb modalités",
-                 "Référence pour reperer les modalités structurantes", "info"))
+                 "Référence pour repérer les modalités structurantes", "info"))
         vc <- as.data.frame(hstat_coord_mat(mca$var$coord)[, 1:min(2, ncol(hstat_coord_mat(mca$var$coord))), drop = FALSE])
         if (ncol(vc) < 2) vc$D2 <- 0
         names(vc)[1:2] <- c("Dim1","Dim2"); vc$Modalite <- rownames(mca$var$coord)
@@ -7386,10 +7386,10 @@ server <- function(input, output, session) {
         render <- shiny::tagList(
           mv_card(border_color = "#6a1b9a",
             mv_section_header("Structure factorielle", "#6a1b9a", "shapes"),
-            mv_info_note("L'inertie ajustee de Benzecri corrige la sous-estimation de l'inertie brute en ACM."),
+            mv_info_note("L'inertie ajustée de Benzecri corrige la sous-estimation de l'inertie brute en ACM."),
             mv_metrics_table(metrics, "#6a1b9a"),
             mv_interp_bar(paste0(length(vars), " variables, ", n_mod,
-              " modalités. Inertie ajustee axes 1-2 = ", round(dim12_adj,1), " %."),
+              " modalités. Inertie ajustée axes 1-2 = ", round(dim12_adj,1), " %."),
               mv_col(st_dim))),
           mv_card(border_color = "#6c757d",
             mv_section_header("Valeurs propres par axe", "#6c757d", "layer-group"),
@@ -7399,7 +7399,7 @@ server <- function(input, output, session) {
           summary = c("=== Analyse des Correspondances Multiples ===",
             "Valeurs propres :", paste(utils::capture.output(round(eig,4)), collapse="\n")),
           plotfn = function() {
-            sub_t <- paste0("Inertie ajustee axes 1-2 = ", round(dim12_adj,1), " %")
+            sub_t <- paste0("Inertie ajustée axes 1-2 = ", round(dim12_adj,1), " %")
             pt <- input$mv_mca_plottype %||% "biplot"
             # Coloration par groupe (variable qualitative) facon 'explor'
             gvar <- input$mv_mca_groupvar %||% "__none__"
@@ -7487,17 +7487,17 @@ server <- function(input, output, session) {
         st_r2 <- q$verdict
         st_bal <- hstat_part_equilibre(sizes)$verdict
         metrics <- rbind(
-          mv_row("Dissimilarite intra totale", tot_diff,
-                 "Plus faible = clusters plus homogenes",
-                 "A minimiser entre solutions", "info"),
-          mv_row("Pseudo-R2 (separation)", if (is.na(pr2)) "n/d" else round(pr2,3),
+          mv_row("Dissimilarité intra totale", tot_diff,
+                 "Plus faible = clusters plus homogènes",
+                 "À minimiser entre solutions", "info"),
+          mv_row("Pseudo-R2 (séparation)", if (is.na(pr2)) "n/d" else round(pr2,3),
                  ">= 0,50 nette ; 0,30-0,50 modérée ; < 0,30 faible",
                  switch(st_r2, ok = "Partition nette", warn = "Partition modérée",
                         err = "Partition peu séparée",
                         "Non calculable : les variables retenues ne varient pas"),
                  st_r2),
-          mv_row("Equilibre des clusters", paste(sizes, collapse=" / "),
-                 "Eviter clusters vides ou très minoritaires",
+          mv_row("Équilibre des clusters", paste(sizes, collapse=" / "),
+                 "Éviter clusters vides ou très minoritaires",
                  switch(st_bal, ok = "Répartition acceptable",
                         warn = "Cluster très minoritaire", "Effectifs non calculables"),
                  st_bal),
@@ -7507,10 +7507,10 @@ server <- function(input, output, session) {
         sz_df <- data.frame(Cluster = factor(seq_len(k)), Effectif = sizes)
         render <- shiny::tagList(
           mv_card(border_color = "#6a1b9a",
-            mv_section_header("Qualite de la partition", "#6a1b9a", "object-group"),
-            mv_info_note("Separation des clusters catégoriels evaluee par le pseudo-R2."),
+            mv_section_header("Qualité de la partition", "#6a1b9a", "object-group"),
+            mv_info_note("Séparation des clusters catégoriels évaluée par le pseudo-R2."),
             mv_metrics_table(metrics, "#6a1b9a"),
-            mv_interp_bar(paste0("Solution a ", k, " clusters sur ", nrow(sub), " individus."),
+            mv_interp_bar(paste0("Solution à ", k, " clusters sur ", nrow(sub), " individus."),
               mv_col(st_r2))),
           mv_card(border_color = "#6c757d",
             mv_section_header("Modes (centres) des clusters", "#6c757d", "crosshairs"),
@@ -7571,21 +7571,21 @@ server <- function(input, output, session) {
         metrics <- rbind(
           mv_row("BIC", round(fit$bic,1),
                  "Plus bas = meilleur (comparer entre nb de classes)",
-                 "Critere de sélection du nombre de classes", "info"),
+                 "Critère de sélection du nombre de classes", "info"),
           mv_row("AIC", round(fit$aic,1),
-                 "Plus bas = meilleur (penalise moins que le BIC)",
-                 "Critere complementaire de sélection", "info"),
+                 "Plus bas = meilleur (pénalise moins que le BIC)",
+                 "Critère complémentaire de sélection", "info"),
           mv_row("Entropie relative", round(ent_rel,3),
-                 ">= 0,80 bonne separation ; 0,60-0,80 modérée ; < 0,60 faible",
-                 switch(st_ent, ok = "Classes bien séparées", warn = "Separation modérée",
+                 ">= 0,80 bonne séparation ; 0,60-0,80 modérée ; < 0,60 faible",
+                 switch(st_ent, ok = "Classes bien séparées", warn = "Séparation modérée",
                         err = "Classes mal séparées",
                         "Non calculable : une seule classe estimée"),
                  st_ent),
           mv_row("G2 (rapport de vraisemblance)", round(fit$Gsq,1),
                  "Plus faible = meilleur ajustement du modèle",
-                 "Qualite d'ajustement", "info"),
+                 "Qualité d'ajustement", "info"),
           mv_row("Plus petite classe", paste0(round(100*min_sz,1)," %"),
-                 ">= 5 % conseille pour une classe interpretable",
+                 ">= 5 % conseille pour une classe interprétable",
                  switch(st_sz, ok = "Classes de taille suffisante",
                         warn = "Classe très minoritaire", "Effectifs non calculables"),
                  st_sz))
@@ -7594,7 +7594,7 @@ server <- function(input, output, session) {
         render <- shiny::tagList(
           mv_card(border_color = "#6a1b9a",
             mv_section_header("Sélection & qualité du modèle", "#6a1b9a", "shapes"),
-            mv_info_note("Criteres d'information (AIC/BIC) et separation des classes latentes (entropie)."),
+            mv_info_note("Critères d'information (AIC/BIC) et séparation des classes latentes (entropie)."),
             mv_metrics_table(metrics, "#6a1b9a"),
             mv_interp_bar(paste0(nclass, " classes latentes. Entropie = ", round(ent_rel,3), "."),
               mv_col(st_ent))),
@@ -7625,7 +7625,7 @@ server <- function(input, output, session) {
       tryCatch({
         d <- mv_data(); yv <- input$mv_logit_y; xv <- input$mv_logit_x
         if (is.null(yv) || is.null(xv) || length(xv) < 1)
-          return(list(ok = FALSE, error = "Definissez Y et au moins 1 prédicteur X."))
+          return(list(ok = FALSE, error = "Définissez Y et au moins 1 prédicteur X."))
         sub <- d[, c(yv, xv), drop = FALSE]
         sub <- sub[stats::complete.cases(sub), , drop = FALSE]
         sub[[yv]] <- droplevels(factor(sub[[yv]]))
@@ -7664,21 +7664,21 @@ server <- function(input, output, session) {
           metrics <- rbind(
             mv_row("Pseudo-R2 McFadden", round(mcf,3),
                    "0,20-0,40 bon ajustement (échelle propre)",
-                   if (st_m=="ok") "Bon ajustement" else if (st_m=="warn") "Ajustement a nuancer" else "Ajustement faible",
+                   if (st_m=="ok") "Bon ajustement" else if (st_m=="warn") "Ajustement à nuancer" else "Ajustement faible",
                    st_m),
             mv_row("AUC (courbe ROC)", if (is.na(auc)) "n/d" else round(auc,3),
                    ">= 0,80 bon ; 0,70-0,80 acceptable ; < 0,70 faible",
                    if (st_a=="ok") "Bon pouvoir discriminant" else if (st_a=="warn") "Discrimination acceptable" else "Discrimination faible",
                    st_a),
             mv_row("Taux de bon classement", paste0(round(100*acc,1)," %"),
-                   "Plus élevé = meilleur (a comparer au hasard)",
-                   "Precision globale du modèle", "info"),
+                   "Plus élevé = meilleur (à comparer au hasard)",
+                   "Précision globale du modèle", "info"),
             mv_row("Hosmer-Lemeshow (p)", if (is.na(hl_p)) "n/d" else format.pval(hl_p,digits=3),
                    "p > 0,05 : ajustement acceptable",
                    if (st_h=="ok") "Calibration acceptable" else "Mauvaise calibration", st_h),
             mv_row("AIC", round(aic,1),
                    "Plus bas = meilleur (comparaison de modèles)",
-                   "Critere de comparaison", "info"))
+                   "Critère de comparaison", "info"))
           ors <- exp(stats::coef(fit))
           or_df <- data.frame(Terme = names(ors), Odds_ratio = round(ors,4))
           o <- order(pp); yo <- yb[o]
@@ -7702,8 +7702,8 @@ server <- function(input, output, session) {
           # Non-convergence / separation : on remonte le diagnostic dans la
           # note affichee plutot que de laisser l'avertissement en console.
           note <- if (!is.null(gl$note))
-            paste("Regression logistique binaire estimée. ATTENTION :", gl$note)
-          else "Regression logistique binaire estimée."
+            paste("Régression logistique binaire estimée. ATTENTION :", gl$note)
+          else "Régression logistique binaire estimée."
         } else {
           if (!mv_has("nnet"))
             return(list(ok = FALSE, error = "Package 'nnet' requis pour la logistique multinomiale."))
@@ -7719,7 +7719,7 @@ server <- function(input, output, session) {
           metrics <- rbind(
             mv_row("Pseudo-R2 McFadden", round(mcf,3),
                    "0,20-0,40 bon ajustement (échelle propre)",
-                   if (st_m=="ok") "Bon ajustement" else if (st_m=="warn") "Ajustement a nuancer" else "Ajustement faible",
+                   if (st_m=="ok") "Bon ajustement" else if (st_m=="warn") "Ajustement à nuancer" else "Ajustement faible",
                    st_m),
             mv_row("Taux de bon classement", paste0(round(100*acc,1)," %"),
                    ">= 70 % bon ; 50-70 % modéré",
@@ -7727,9 +7727,9 @@ server <- function(input, output, session) {
                    st_a),
             mv_row("AIC", round(aic,1),
                    "Plus bas = meilleur (comparaison de modèles)",
-                   "Critere de comparaison", "info"),
+                   "Critère de comparaison", "info"),
             mv_row("Modalités de Y", paste(levels(sub[[yv]]), collapse=" / "),
-                   "Vérifier l'equilibre des effectifs", "Réponse multinomiale", "info"))
+                   "Vérifier l'équilibre des effectifs", "Réponse multinomiale", "info"))
           cm <- as.data.frame(table(Observe = sub[[yv]], Predit = pc))
           plotfn <- function() {
             ggplot2::ggplot(cm, ggplot2::aes(Predit, Observe, fill = Freq)) +
@@ -7739,23 +7739,23 @@ server <- function(input, output, session) {
               ggplot2::scale_fill_gradient(low = "#f3e5f5", high = "#6a1b9a") +
               labs(title = "Logistique multinomiale -- matrice de confusion",
                    subtitle = paste0("Taux de bon classement = ", round(100*acc,1), " %"),
-                   x = "Classe predite", y = "Classe observée") +
+                   x = "Classe prédite", y = "Classe observée") +
               mv_gg_theme()
           }
           exports <- list(Metriques = metrics)
           extra <- NULL
           summ <- utils::capture.output(summary(fit))
-          note <- "Regression logistique multinomiale estimée."
+          note <- "Régression logistique multinomiale estimée."
         }
         render <- shiny::tagList(
           mv_card(border_color = "#6a1b9a",
-            mv_section_header("Qualite d'ajustement & discrimination", "#6a1b9a", "shapes"),
+            mv_section_header("Qualité d'ajustement & discrimination", "#6a1b9a", "shapes"),
             mv_info_note("Ajustement (pseudo-R2), discrimination (AUC) et calibration du modèle logistique."),
             mv_metrics_table(metrics, "#6a1b9a"),
             mv_interp_bar(note, "#6a1b9a")),
           extra)
         list(ok = TRUE, render = render, metrics = metrics, note = note,
-          summary = c("=== Regression logistique ===", summ),
+          summary = c("=== Régression logistique ===", summ),
           plotfn = plotfn, exports = exports)
       }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
     })
@@ -7802,17 +7802,17 @@ server <- function(input, output, session) {
         metrics <- rbind(
           mv_row("Inertie axes 1-2", paste0(round(dim12,1)," %"),
                  ">= 70 % bonne restitution ; 50-70 % acceptable",
-                 if (st_dim=="ok") "Plan factoriel representatif" else if (st_dim=="warn") "Restitution acceptable" else "Restitution limitee",
+                 if (st_dim=="ok") "Plan factoriel représentatif" else if (st_dim=="warn") "Restitution acceptable" else "Restitution limitée",
                  st_dim),
-          mv_row("Axes a valeur propre > 1", kaiser,
-                 "Critere de Kaiser : axes informatifs",
+          mv_row("Axes à valeur propre > 1", kaiser,
+                 "Critère de Kaiser : axes informatifs",
                  paste0(kaiser, " axe(s) informatif(s)"), "info"),
           mv_row("Composition du tableau", paste0(nq, " quanti / ", nc, " quali"),
-                 "Les deux types doivent être presents",
-                 "Tableau mixte equilibre par l'AFDM", "info"),
-          mv_row("Inertie cumulee (ncp axes)", paste0(round(cum_ncp,1)," %"),
+                 "Les deux types doivent être présents",
+                 "Tableau mixte équilibre par l'AFDM", "info"),
+          mv_row("Inertie cumulée (ncp axes)", paste0(round(cum_ncp,1)," %"),
                  ">= 70-80 % conseille",
-                 if (st_cum=="ok") "Bonne restitution cumulee" else "Restitution cumulee limitee",
+                 if (st_cum=="ok") "Bonne restitution cumulée" else "Restitution cumulée limitée",
                  st_cum))
         ic <- as.data.frame(hstat_coord_mat(famd$ind$coord)[, 1:min(2, ncol(hstat_coord_mat(famd$ind$coord))), drop = FALSE])
         if (ncol(ic) < 2) ic$D2 <- 0
@@ -7823,7 +7823,7 @@ server <- function(input, output, session) {
         render <- shiny::tagList(
           mv_card(border_color = "#00695c",
             mv_section_header("Structure factorielle (données mixtes)", "#00695c", "layer-group"),
-            mv_info_note("L'AFDM equilibre l'influence des variables quantitatives et qualitatives."),
+            mv_info_note("L'AFDM équilibre l'influence des variables quantitatives et qualitatives."),
             mv_metrics_table(metrics, "#00695c"),
             mv_interp_bar(paste0(nq, " quanti + ", nc, " quali. Inertie axes 1-2 = ",
               round(dim12,1), " %."), mv_col(st_dim))),
@@ -7885,7 +7885,7 @@ server <- function(input, output, session) {
       tryCatch({
         d <- mv_data(); qv <- input$mv_mfa_quanti; cv <- input$mv_mfa_quali
         if (is.null(qv) || length(qv) < 1 || is.null(cv) || length(cv) < 1)
-          return(list(ok = FALSE, error = "Definissez au moins 1 variable dans chaque bloc."))
+          return(list(ok = FALSE, error = "Définissez au moins 1 variable dans chaque bloc."))
         # Bloc supplémentaire qualitatif (optionnel) -> 3e groupe marqué supplémentaire
         quali_sup <- setdiff(intersect(input$mv_mfa_quali_sup %||% character(0), names(d)), c(qv, cv))
         cols <- c(qv, cv, quali_sup)
@@ -7917,15 +7917,15 @@ server <- function(input, output, session) {
         metrics <- rbind(
           mv_row("Inertie axes 1-2", paste0(round(dim12,1)," %"),
                  ">= 70 % bonne restitution ; 50-70 % acceptable",
-                 if (st_dim=="ok") "Plan factoriel representatif" else if (st_dim=="warn") "Restitution acceptable" else "Restitution limitee",
+                 if (st_dim=="ok") "Plan factoriel représentatif" else if (st_dim=="warn") "Restitution acceptable" else "Restitution limitée",
                  st_dim),
           mv_row("Coefficient RV entre blocs", if (is.na(rv)) "n/d" else round(rv,3),
                  ">= 0,50 forte concordance ; 0,30-0,50 modérée ; < 0,30 faible",
                  if (st_rv=="ok") "Blocs très concordants" else if (st_rv=="warn") "Concordance modérée"
                    else if (st_rv=="err") "Blocs peu concordants" else "Non disponible",
                  st_rv),
-          mv_row("Blocs definis", paste0(length(qv), " quanti / ", length(cv), " quali"),
-                 "Chaque bloc equilibre par sa 1re valeur propre",
+          mv_row("Blocs définis", paste0(length(qv), " quanti / ", length(cv), " quali"),
+                 "Chaque bloc équilibre par sa 1re valeur propre",
                  "Structure en groupes de variables", "info"))
         ic <- as.data.frame(hstat_coord_mat(mfa$ind$coord)[, 1:min(2, ncol(hstat_coord_mat(mfa$ind$coord))), drop = FALSE])
         if (ncol(ic) < 2) ic$D2 <- 0
@@ -7935,7 +7935,7 @@ server <- function(input, output, session) {
                              Variance = round(eig[,2],2), Cumul = round(eig[,3],2))
         render <- shiny::tagList(
           mv_card(border_color = "#00695c",
-            mv_section_header("Integration des blocs de variables", "#00695c", "layer-group"),
+            mv_section_header("Intégration des blocs de variables", "#00695c", "layer-group"),
             mv_info_note("L'AFM compare un bloc quantitatif et un bloc qualitatif sur un même plan."),
             mv_metrics_table(metrics, "#00695c"),
             mv_interp_bar(paste0("Bloc quanti (", length(qv), ") + bloc quali (", length(cv),
@@ -8011,29 +8011,29 @@ server <- function(input, output, session) {
         st_sil <- if (is.na(sil)) "info" else if (sil >= .5) "ok" else if (sil >= .25) "warn" else "err"
         st_bal <- hstat_part_equilibre(sizes)$verdict
         metrics <- rbind(
-          mv_row("Cout total intra (within SS)", round(tot_cost,1),
+          mv_row("Coût total intra (within SS)", round(tot_cost,1),
                  "Plus faible = clusters plus compacts",
-                 "A minimiser entre solutions k", "info"),
+                 "À minimiser entre solutions k", "info"),
           mv_row("Silhouette mixte", if (is.na(sil)) "n/d" else round(sil,3),
                  "> 0,50 forte ; 0,25-0,50 raisonnable ; < 0,25 faible",
                  if (st_sil=="ok") "Structure forte" else if (st_sil=="warn") "Structure raisonnable"
                    else if (st_sil=="err") "Structure faible" else "Non calculée",
                  st_sil),
-          mv_row("Equilibre des clusters", paste(sizes, collapse=" / "),
-                 "Eviter clusters vides ou très minoritaires",
+          mv_row("Équilibre des clusters", paste(sizes, collapse=" / "),
+                 "Éviter clusters vides ou très minoritaires",
                  switch(st_bal, ok = "Répartition acceptable",
                         warn = "Cluster très minoritaire", "Effectifs non calculables"),
                  st_bal),
           mv_row("Composition du tableau", paste0(nq, " quanti / ", nc, " quali"),
-                 "Les deux types doivent être presents",
+                 "Les deux types doivent être présents",
                  "Partitionnement mixte", "info"))
         sz_df <- data.frame(Cluster = factor(seq_len(k)), Effectif = sizes)
         render <- shiny::tagList(
           mv_card(border_color = "#00695c",
-            mv_section_header("Qualite de la partition mixte", "#00695c", "object-group"),
+            mv_section_header("Qualité de la partition mixte", "#00695c", "object-group"),
             mv_info_note("k-prototypes combine distance euclidienne (quanti) et appariement (quali)."),
             mv_metrics_table(metrics, "#00695c"),
-            mv_interp_bar(paste0("Solution a ", k, " clusters sur ", nrow(sub), " individus."),
+            mv_interp_bar(paste0("Solution à ", k, " clusters sur ", nrow(sub), " individus."),
               if (is.na(sil)) "#2980b9" else mv_col(st_sil))),
           mv_card(border_color = "#6c757d",
             mv_section_header("Prototypes des clusters", "#6c757d", "crosshairs"),

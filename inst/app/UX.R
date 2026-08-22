@@ -99,7 +99,7 @@
         shiny::div(style = "max-width:860px; margin:0 auto; width:100%;",
           withSpinner(shiny::plotOutput(paste0("mv_", key, "_plot"), height = "560px"), color = th$main))
       ),
-      shiny::tabPanel(shiny::tagList(shiny::icon("file-alt"), " Details techniques"),
+      shiny::tabPanel(shiny::tagList(shiny::icon("file-alt"), " Détails techniques"),
         shiny::div(style = "max-height:520px; overflow-y:auto; font-family:'Courier New',monospace; font-size:12px; background:#fff; padding:14px; border-radius:5px;",
             shiny::verbatimTextOutput(paste0("mv_", key, "_summary")))
       )
@@ -542,7 +542,7 @@ ui <- shinydashboard::dashboardPage(
                       shiny::tags$b("Un classeur Excel est déplié en ses feuilles"),
                       " : un seul classeur à plusieurs feuilles suffit donc ici."),
                     shiny::fileInput("mergeFiles",
-                              "Choisir plusieurs fichiers (ou un classeur Excel a plusieurs feuilles)",
+                              "Choisir plusieurs fichiers (ou un classeur Excel à plusieurs feuilles)",
                               multiple = TRUE,
                               accept = c(".csv", ".xlsx", ".xls", ".txt", ".tsv", ".sav", ".dta", ".rds")),
                     shiny::radioButtons("mergeSep", "Séparateur (CSV/TXT)",
@@ -682,7 +682,7 @@ ui <- shinydashboard::dashboardPage(
                 #multivariate h4 { font-size: 18px; }
                 #multivariate h5 { font-size: 15px; }
                 #multivariate .nav-tabs > li > a { font-size: 15px; font-weight: 600; }
-                #multivariate pre { font-size: 13px; }
+                #multivariate pré { font-size: 13px; }
               ")),
               .hstat_scope_banner(exact = FALSE),
               shiny::tags$div(class = "mv-layout",
@@ -701,8 +701,8 @@ ui <- shinydashboard::dashboardPage(
                         .mv_cat_item("Analyse Factorielle Exploratoire (AFE)", "Découvre les facteurs latents sous-jacents aux variables."),
                         .mv_cat_item("Analyse Factorielle Confirmatoire (AFC-c)", "Teste un modèle de mesure facteurs ↔ items pré-spécifié."),
                         .mv_cat_item("Multi-Trait Multi-Method (MTMM)", "Valide la convergence et la discrimination traits × méthodes."),
-                        .mv_cat_item("Regression PLS / PLS-DA", "Prédit en grande dimension via composantes latentes."),
-                        .mv_cat_item("Regression linéaire multiple", "Explique une réponse continue par plusieurs prédicteurs.")
+                        .mv_cat_item("Régression PLS / PLS-DA", "Prédit en grande dimension via composantes latentes."),
+                        .mv_cat_item("Régression linéaire multiple", "Explique une réponse continue par plusieurs prédicteurs.")
                       ),
                       shiny::div(class = "mv-cat-group mv-grp-quali", shiny::tags$span(class="mv-grp-dot"), "Qualitatives / catégorielles", shiny::tags$span(class="mv-grp-count", "5")),
                       shiny::div(class = "mv-cat-list",
@@ -710,7 +710,7 @@ ui <- shinydashboard::dashboardPage(
                         .mv_cat_item("Analyse des Correspondances Multiples (ACM)", "Généralise l'AFC à plusieurs variables qualitatives.", "quali"),
                         .mv_cat_item("Classification k-modes (partitionnement)", "k-means pour données qualitatives (modes, Hamming).", "quali"),
                         .mv_cat_item("Analyse en Classes Latentes (LCA)", "Identifie des sous-populations latentes (mélange EM).", "quali"),
-                        .mv_cat_item("Regression logistique / multinomiale", "Prédit une réponse catégorielle, odds ratios.", "quali")
+                        .mv_cat_item("Régression logistique / multinomiale", "Prédit une réponse catégorielle, odds ratios.", "quali")
                       ),
                       shiny::div(class = "mv-cat-group mv-grp-mixte", shiny::tags$span(class="mv-grp-dot"), "Mixtes (quanti + quali)", shiny::tags$span(class="mv-grp-count", "3")),
                       shiny::div(class = "mv-cat-list",
@@ -916,7 +916,7 @@ ui <- shinydashboard::dashboardPage(
                     shiny::uiOutput("pcaIndSupSelect"),
                     shiny::uiOutput("pcaLabelSourceSelect"),
                     shiny::hr(),
-                    shiny::radioButtons("pcaPlotType", "Type de visualisation:",
+                    shiny::radioButtons("pcaPlotType", "Type de visualisation :",
                                  choices = c("Variables" = "var", "Individus" = "ind", "Biplot" = "biplot"),
                                  selected = "var", inline = TRUE),
                     
@@ -931,7 +931,7 @@ ui <- shinydashboard::dashboardPage(
                                     selected = "contrib"),
                         shiny::uiOutput("pcaColorByLegend")
                     ),
-                    shiny::numericInput("pcaComponents", "Nombre de composantes:", value = 5, min = 2, max = 10),
+                    shiny::numericInput("pcaComponents", "Nombre de composantes :", value = 5, min = 2, max = 10),
                     
                     shiny::div(style = "text-align:center;margin:12px 0;",
                         shiny::actionButton("pcaRun", shiny::tagList(shiny::icon("play"), " Lancer l'ACP"),
@@ -959,11 +959,11 @@ ui <- shinydashboard::dashboardPage(
                                                 shiny::fluidRow(
                                                   shiny::column(4,
                                                     shiny::h5(style = "color:#495057;", shiny::icon("sync-alt"), " Rotation orthogonale"),
-                                                    shiny::selectInput("pcaRotationMethod", "Méthode de rotation:",
+                                                    shiny::selectInput("pcaRotationMethod", "Méthode de rotation :",
                                                                 choices = c("Varimax" = "varimax", "Quartimax" = "quartimax",
                                                                             "Oblimin" = "oblimin", "Aucune" = "none"),
                                                                 selected = "varimax"),
-                                                    shiny::numericInput("pcaRotationNFactors", "Facteurs à rotationner:",
+                                                    shiny::numericInput("pcaRotationNFactors", "Facteurs à rotationner :",
                                                                  value = 2, min = 2, max = 10)),
                                                   shiny::column(4,
                                                     shiny::h5(style = "color:#495057;", shiny::icon("chart-line"), " Axes représentés"),
@@ -971,10 +971,10 @@ ui <- shinydashboard::dashboardPage(
                                                     shiny::uiOutput("pcaAxisYSelect")),
                                                   shiny::column(4,
                                                     shiny::h5(style = "color:#495057;", shiny::icon("font"), " Titres & libellés"),
-                                                    shiny::textInput("pcaPlotTitle", "Titre du graphique:",
+                                                    shiny::textInput("pcaPlotTitle", "Titre du graphique :",
                                                               value = "ACP - Analyse en Composantes Principales"),
-                                                    shiny::textInput("pcaXLabel", "Label axe X:", value = ""),
-                                                    shiny::textInput("pcaYLabel", "Label axe Y:", value = "")),
+                                                    shiny::textInput("pcaXLabel", "Label axe X :", value = ""),
+                                                    shiny::textInput("pcaYLabel", "Label axe Y :", value = "")),
                                                   hstat_mv_forme_ui("pcaPlot")
                                                 ),
                                                 shiny::fluidRow(
@@ -982,7 +982,7 @@ ui <- shinydashboard::dashboardPage(
                                                   shiny::column(4, shiny::checkboxInput("pcaRoundResults", "Arrondir les résultats", value = FALSE)),
                                                   shiny::column(4, shiny::conditionalPanel(
                                                     condition = "input.pcaRoundResults == true",
-                                                    shiny::numericInput("pcaDecimals", "Décimales:", value = 2, min = 0, max = 8, step = 1)))
+                                                    shiny::numericInput("pcaDecimals", "Décimales :", value = 2, min = 0, max = 8, step = 1)))
                                                 ),
                                                 shiny::div(style = "background-color:#f4f6f8;border-left:4px solid #6c757d;padding:10px;margin:6px 0;",
                                                   shiny::h5(style="color:#495057;margin-top:0;", shiny::icon("text-height"), " Style du texte, des points et des tracés"),
@@ -1017,10 +1017,10 @@ ui <- shinydashboard::dashboardPage(
                                                   )
                                                 ),
                                                 shiny::fluidRow(
-                                                  shiny::column(3, hstat_format_input("pcaPlot_format", "Format:")),
-                                                  shiny::column(3, hstat_dpi_input("pcaPlot_dpi", "DPI:")),
-                                                  shiny::column(3, shiny::numericInput("pcaPlot_width", "Largeur (px):", value = 1200, min = 400, max = 4000, step = 100)),
-                                                  shiny::column(3, shiny::numericInput("pcaPlot_height", "Hauteur (px):", value = 900, min = 300, max = 4000, step = 100))
+                                                  shiny::column(3, hstat_format_input("pcaPlot_format", "Format :")),
+                                                  shiny::column(3, hstat_dpi_input("pcaPlot_dpi", "DPI :")),
+                                                  shiny::column(3, shiny::numericInput("pcaPlot_width", "Largeur (px) :", value = 1200, min = 400, max = 4000, step = 100)),
+                                                  shiny::column(3, shiny::numericInput("pcaPlot_height", "Hauteur (px) :", value = 900, min = 300, max = 4000, step = 100))
                                                 ),
                                                 hstat_mv_dim_note_ui("pcaPlot"),
                                                 shiny::div(style = "text-align:center;margin-top:8px;",
@@ -1036,9 +1036,9 @@ ui <- shinydashboard::dashboardPage(
                             shiny::h4(style = "color: #343a40; font-weight: bold; margin-top: 0;",
                                shiny::icon("clipboard-check"), " Métriques de validation de l'ACP"),
                             shiny::p(style = "font-size: 12px; color: #555; margin-bottom: 0;",
-                              "Evaluez ces métriques avant d'interpreter le graphique.")),
+                              "Évaluez ces métriques avant d'interpréter le graphique.")),
                         shiny::h5(style = "color: #2c3e50; font-weight: bold;",
-                           shiny::icon("check-circle"), " Adequation des données a l'ACP"),
+                           shiny::icon("check-circle"), " Adéquation des données à l'ACP"),
                         shiny::uiOutput("pcaBartlettKMO"),
                         shiny::hr(),
                                             shiny::h5(style = "color: #2c3e50; font-weight: bold; margin-top: 15px;",
@@ -1048,10 +1048,10 @@ ui <- shinydashboard::dashboardPage(
                                             shiny::plotOutput("pcaScreePlot", height = "320px"),
                                             hstat_mv_forme_ui("pcaScree", "Apparence du graphique des éboulis"),
                                             shiny::fluidRow(
-                                              shiny::column(12, hstat_format_input("pcaScree_format", "Format:")),
-                                              shiny::column(4, hstat_dpi_input("pcaScree_dpi", "DPI:")),
-                                              shiny::column(4, shiny::numericInput("pcaScree_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
-                                              shiny::column(4, shiny::numericInput("pcaScree_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
+                                              shiny::column(12, hstat_format_input("pcaScree_format", "Format :")),
+                                              shiny::column(4, hstat_dpi_input("pcaScree_dpi", "DPI :")),
+                                              shiny::column(4, shiny::numericInput("pcaScree_width", "Largeur (px) :", value = 2500, min = 200, max = 20000, step = 50)),
+                                              shiny::column(4, shiny::numericInput("pcaScree_height", "Hauteur (px) :", value = 1800, min = 200, max = 20000, step = 50))
                                             ),
                                             hstat_mv_dim_note_ui("pcaScree"),
                                             shiny::div(style = "text-align: center; margin-bottom: 10px;",
@@ -1065,10 +1065,10 @@ ui <- shinydashboard::dashboardPage(
                                             shiny::plotOutput("pcaParallelPlot", height = "320px"),
                                             hstat_mv_forme_ui("pcaParallel", "Apparence de l'analyse parallèle"),
                                             shiny::fluidRow(
-                                              shiny::column(12, hstat_format_input("pcaParallel_format", "Format:")),
-                                              shiny::column(4, hstat_dpi_input("pcaParallel_dpi", "DPI:")),
-                                              shiny::column(4, shiny::numericInput("pcaParallel_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
-                                              shiny::column(4, shiny::numericInput("pcaParallel_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
+                                              shiny::column(12, hstat_format_input("pcaParallel_format", "Format :")),
+                                              shiny::column(4, hstat_dpi_input("pcaParallel_dpi", "DPI :")),
+                                              shiny::column(4, shiny::numericInput("pcaParallel_width", "Largeur (px) :", value = 2500, min = 200, max = 20000, step = 50)),
+                                              shiny::column(4, shiny::numericInput("pcaParallel_height", "Hauteur (px) :", value = 1800, min = 200, max = 20000, step = 50))
                                             ),
                                             hstat_mv_dim_note_ui("pcaParallel"),
                                             shiny::div(style = "text-align: center; margin-bottom: 10px;",
@@ -1083,10 +1083,10 @@ ui <- shinydashboard::dashboardPage(
                                             shiny::plotOutput("pcaCTRPlot", height = "300px"),
                                             hstat_mv_forme_ui("pcaCTR", "Apparence du graphique CTR"),
                                             shiny::fluidRow(
-                                              shiny::column(12, hstat_format_input("pcaCTR_format", "Format:")),
-                                              shiny::column(4, hstat_dpi_input("pcaCTR_dpi", "DPI:")),
-                                              shiny::column(4, shiny::numericInput("pcaCTR_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
-                                              shiny::column(4, shiny::numericInput("pcaCTR_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
+                                              shiny::column(12, hstat_format_input("pcaCTR_format", "Format :")),
+                                              shiny::column(4, hstat_dpi_input("pcaCTR_dpi", "DPI :")),
+                                              shiny::column(4, shiny::numericInput("pcaCTR_width", "Largeur (px) :", value = 2500, min = 200, max = 20000, step = 50)),
+                                              shiny::column(4, shiny::numericInput("pcaCTR_height", "Hauteur (px) :", value = 1800, min = 200, max = 20000, step = 50))
                                             ),
                                             hstat_mv_dim_note_ui("pcaCTR"),
                                             shiny::div(style = "text-align: center; margin-bottom: 10px;",
@@ -1095,7 +1095,7 @@ ui <- shinydashboard::dashboardPage(
                     
                       ),
                       shiny::tabPanel(
-                        shiny::tagList(shiny::icon("cogs"), " Details techniques"),
+                        shiny::tagList(shiny::icon("cogs"), " Détails techniques"),
                         shiny::br(),
                                             shiny::h5(style = "color: #2c3e50; font-weight: bold; margin-top: 15px;", 
                                                shiny::icon("sync-alt"), " Résultats de la rotation orthogonale"),
@@ -1176,7 +1176,7 @@ ui <- shinydashboard::dashboardPage(
                     
                                         shiny::fluidRow(
                                           shiny::column(4,
-                                                 shiny::numericInput("hcpcClusters", "Nombre de clusters:", value = 3, min = 2, max = 10)
+                                                 shiny::numericInput("hcpcClusters", "Nombre de clusters :", value = 3, min = 2, max = 10)
                                           ),
                                           shiny::column(4,
                                                  shiny::checkboxInput("hcpcUseMeans", shiny::tagList(shiny::icon("layer-group"), " Classer les moyennes par groupe"), value = FALSE),
@@ -1229,7 +1229,7 @@ ui <- shinydashboard::dashboardPage(
                                               shiny::column(6,
                                                      shiny::conditionalPanel(
                                                        condition = "input.hcpcRoundResults == true",
-                                                       shiny::numericInput("hcpcDecimals", "Décimales:", value = 2, min = 0, max = 8, step = 1)
+                                                       shiny::numericInput("hcpcDecimals", "Décimales :", value = 2, min = 0, max = 8, step = 1)
                                                      )
                                               )
                                             )
@@ -1247,10 +1247,10 @@ ui <- shinydashboard::dashboardPage(
                                                      hstat_mv_forme_ui("hcpcCluster"),
                                                      hstat_mv_forme_ui("hcpcDend", "Apparence du dendrogramme"),
                                                      hstat_mv_forme_ui("hcpcHeights", "Apparence des hauteurs de fusion"),
-                                                     shiny::textInput("hcpcClusterTitle", "Titre carte des clusters:", 
+                                                     shiny::textInput("hcpcClusterTitle", "Titre carte des clusters :", 
                                                                value = "Carte des clusters HCPC"),
-                                                     shiny::textInput("hcpcClusterXLabel", "Label axe X:", value = ""),
-                                                     shiny::textInput("hcpcClusterYLabel", "Label axe Y:", value = ""),
+                                                     shiny::textInput("hcpcClusterXLabel", "Label axe X :", value = ""),
+                                                     shiny::textInput("hcpcClusterYLabel", "Label axe Y :", value = ""),
                                                      shiny::checkboxInput("hcpcCenterAxes", "Centrer sur (0,0)", TRUE),
                                                      shiny::div(style = "background:#eafaf3; border-left:3px solid #16a085; padding:8px 12px; border-radius:0 4px 4px 0; margin:6px 0;",
                                                        shiny::checkboxInput("hcpcClusterShowLabels", shiny::tagList(shiny::icon("font"), " Afficher les labels des individus sur la carte"), value = FALSE),
@@ -1261,24 +1261,24 @@ ui <- shinydashboard::dashboardPage(
                                                        shiny::icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                                                      shiny::fluidRow(
                                                        shiny::column(6,
-                                                              hstat_format_input("hcpcCluster_format", "Format:")
+                                                              hstat_format_input("hcpcCluster_format", "Format :")
                                                        ),
                                                        shiny::column(6,
-                                                              hstat_dpi_input("hcpcCluster_dpi", "DPI:")
+                                                              hstat_dpi_input("hcpcCluster_dpi", "DPI :")
                                                        )
                                                      ),
                                                      shiny::fluidRow(
                                                        shiny::column(6,
-                                                              shiny::numericInput("hcpcCluster_width", "Largeur (px):", value = 1200, min = 400, max = 4000, step = 100)
+                                                              shiny::numericInput("hcpcCluster_width", "Largeur (px) :", value = 1200, min = 400, max = 4000, step = 100)
                                                        ),
                                                        shiny::column(6,
-                                                              shiny::numericInput("hcpcCluster_height", "Hauteur (px):", value = 900, min = 300, max = 4000, step = 100)
+                                                              shiny::numericInput("hcpcCluster_height", "Hauteur (px) :", value = 900, min = 300, max = 4000, step = 100)
                                                        )
                                                      ),
                                                      hstat_mv_dim_note_ui("hcpcCluster")
                                               ),
                                               shiny::column(6,
-                                                     shiny::textInput("hcpcDendTitle", "Titre dendrogramme:", 
+                                                     shiny::textInput("hcpcDendTitle", "Titre dendrogramme :", 
                                                                value = "Dendrogramme HCPC"),
                                                      shiny::div(style = "background:#eafaf3; border-left:3px solid #16a085; padding:8px 12px; border-radius:0 4px 4px 0; margin:6px 0;",
                                                        shiny::sliderInput("hcpcBranchWidth", shiny::tagList(shiny::icon("grip-lines"), " Largeur des branches"),
@@ -1293,18 +1293,18 @@ ui <- shinydashboard::dashboardPage(
                                                        shiny::icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                                                      shiny::fluidRow(
                                                        shiny::column(6,
-                                                              hstat_format_input("hcpcDend_format", "Format:")
+                                                              hstat_format_input("hcpcDend_format", "Format :")
                                                        ),
                                                        shiny::column(6,
-                                                              hstat_dpi_input("hcpcDend_dpi", "DPI:")
+                                                              hstat_dpi_input("hcpcDend_dpi", "DPI :")
                                                        )
                                                      ),
                                                      shiny::fluidRow(
                                                        shiny::column(6,
-                                                              shiny::numericInput("hcpcDend_width", "Largeur (px):", value = 1200, min = 400, max = 4000, step = 100)
+                                                              shiny::numericInput("hcpcDend_width", "Largeur (px) :", value = 1200, min = 400, max = 4000, step = 100)
                                                        ),
                                                        shiny::column(6,
-                                                              shiny::numericInput("hcpcDend_height", "Hauteur (px):", value = 900, min = 300, max = 4000, step = 100)
+                                                              shiny::numericInput("hcpcDend_height", "Hauteur (px) :", value = 900, min = 300, max = 4000, step = 100)
                                                        )
                                                      ),
                                                      hstat_mv_dim_note_ui("hcpcDend")
@@ -1358,10 +1358,10 @@ ui <- shinydashboard::dashboardPage(
                                                       "Un saut important entre deux fusions consécutives suggère la coupure optimale du dendrogramme (règle du coude). Ce graphique complète la lecture visuelle du dendrogramme."),
                                                     shiny::plotOutput("hcpcHeightsPlot", height = "320px"),
                                                     shiny::fluidRow(
-                                                      shiny::column(12, hstat_format_input("hcpcHeights_format", "Format:")),
-                                                      shiny::column(4, hstat_dpi_input("hcpcHeights_dpi", "DPI:")),
-                                              shiny::column(4, shiny::numericInput("hcpcHeights_width", "Largeur (px):", value = 2500, min = 200, max = 20000, step = 50)),
-                                              shiny::column(4, shiny::numericInput("hcpcHeights_height", "Hauteur (px):", value = 1800, min = 200, max = 20000, step = 50))
+                                                      shiny::column(12, hstat_format_input("hcpcHeights_format", "Format :")),
+                                                      shiny::column(4, hstat_dpi_input("hcpcHeights_dpi", "DPI :")),
+                                              shiny::column(4, shiny::numericInput("hcpcHeights_width", "Largeur (px) :", value = 2500, min = 200, max = 20000, step = 50)),
+                                              shiny::column(4, shiny::numericInput("hcpcHeights_height", "Hauteur (px) :", value = 1800, min = 200, max = 20000, step = 50))
                                                     ),
                                                     hstat_mv_dim_note_ui("hcpcHeights"),
                                                     shiny::div(style = "text-align: center; margin-top: 4px;",
@@ -1398,11 +1398,11 @@ ui <- shinydashboard::dashboardPage(
                                             ),
                       ),
                       shiny::tabPanel(
-                        shiny::tagList(shiny::icon("cogs"), " Details techniques"),
+                        shiny::tagList(shiny::icon("cogs"), " Détails techniques"),
                         shiny::br(),
                                             shiny::div(class = "box box-solid",
                                                 shiny::div(class = "box-header with-border", style = "background-color: #5cb85c; color: white;",
-                                                    shiny::h4(class = "box-title", "Résultats detailles HCPC", style = "color: white; font-weight: bold;")
+                                                    shiny::h4(class = "box-title", "Résultats détaillés HCPC", style = "color: white; font-weight: bold;")
                                                 ),
                                                 shiny::div(class = "box-body", style = "background-color: #f9f9f9;",
                                                     shiny::div(style = "max-height: 500px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 11px; background-color: white; padding: 15px; border-radius: 5px;",
@@ -1504,7 +1504,7 @@ ui <- shinydashboard::dashboardPage(
                                           shiny::uiOutput("afdMeansGroupSelect"),
                                           shiny::p(style = "margin: 5px 0 10px 0; font-size: 11px; color: #6c757d;",
                                             shiny::icon("lightbulb"), 
-                                            " Conseil: Utilisez la même variable que le facteur de discrimination pour une AFD sur moyennes de groupes."),
+                                            " Conseil : Utilisez la même variable que le facteur de discrimination pour une AFD sur moyennes de groupes."),
                                           shiny::actionButton("afdRefresh", "Actualiser l'AFD", 
                                                        icon = shiny::icon("sync"), 
                                                        class = "btn-info btn-sm",
@@ -1548,7 +1548,7 @@ ui <- shinydashboard::dashboardPage(
                                                             FALSE),
                                               shiny::p(style = "margin: 5px 0 0 25px; font-size: 12px; color: #856404;",
                                                 shiny::icon("exclamation-triangle"), 
-                                                " ATTENTION: La validation croisée peut être très longue sur de grands jeux de données.")
+                                                " ATTENTION : La validation croisée peut être très longue sur de grands jeux de données.")
                                           )
                                         ),
                                         shiny::conditionalPanel(
@@ -1568,7 +1568,7 @@ ui <- shinydashboard::dashboardPage(
                                               shiny::column(6,
                                                      shiny::conditionalPanel(
                                                        condition = "input.afdRoundResults == true",
-                                                       shiny::numericInput("afdDecimals", "Décimales:", value = 2, min = 0, max = 8, step = 1)
+                                                       shiny::numericInput("afdDecimals", "Décimales :", value = 2, min = 0, max = 8, step = 1)
                                                      )
                                               )
                                             )
@@ -1596,10 +1596,10 @@ ui <- shinydashboard::dashboardPage(
                                               shiny::column(6,
                                                      hstat_mv_forme_ui("afdInd", "Apparence — projection des individus"),
                                                      hstat_mv_forme_ui("afdVar", "Apparence — contribution des variables"),
-                                                     shiny::textInput("afdIndTitle", "Titre projection individus:", 
+                                                     shiny::textInput("afdIndTitle", "Titre projection individus :", 
                                                                value = "AFD - Projection des individus"),
-                                                     shiny::textInput("afdIndXLabel", "Label axe X:", value = ""),
-                                                     shiny::textInput("afdIndYLabel", "Label axe Y:", value = ""),
+                                                     shiny::textInput("afdIndXLabel", "Label axe X :", value = ""),
+                                                     shiny::textInput("afdIndYLabel", "Label axe Y :", value = ""),
                                                      shiny::checkboxInput("afdIndCenterAxes", "Centrer sur (0,0)", TRUE),
                                                      shiny::hr(),
                                                      shiny::h5("Options de téléchargement — projection des individus :"),
@@ -1607,27 +1607,27 @@ ui <- shinydashboard::dashboardPage(
                                                        shiny::icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                                                      shiny::fluidRow(
                                                        shiny::column(6,
-                                                              hstat_format_input("afdInd_format", "Format:")
+                                                              hstat_format_input("afdInd_format", "Format :")
                                                        ),
                                                        shiny::column(6,
-                                                              hstat_dpi_input("afdInd_dpi", "DPI:")
+                                                              hstat_dpi_input("afdInd_dpi", "DPI :")
                                                        )
                                                      ),
                                                      shiny::fluidRow(
                                                        shiny::column(6,
-                                                              shiny::numericInput("afdInd_width", "Largeur (px):", value = 1200, min = 400, max = 4000, step = 100)
+                                                              shiny::numericInput("afdInd_width", "Largeur (px) :", value = 1200, min = 400, max = 4000, step = 100)
                                                        ),
                                                        shiny::column(6,
-                                                              shiny::numericInput("afdInd_height", "Hauteur (px):", value = 900, min = 300, max = 4000, step = 100)
+                                                              shiny::numericInput("afdInd_height", "Hauteur (px) :", value = 900, min = 300, max = 4000, step = 100)
                                                        )
                                                      ),
                                                      hstat_mv_dim_note_ui("afdInd")
                                               ),
                                               shiny::column(6,
-                                                     shiny::textInput("afdVarTitle", "Titre contribution variables:", 
+                                                     shiny::textInput("afdVarTitle", "Titre contribution variables :", 
                                                                value = "AFD - Contribution des variables"),
-                                                     shiny::textInput("afdVarXLabel", "Label axe X:", value = ""),
-                                                     shiny::textInput("afdVarYLabel", "Label axe Y:", value = ""),
+                                                     shiny::textInput("afdVarXLabel", "Label axe X :", value = ""),
+                                                     shiny::textInput("afdVarYLabel", "Label axe Y :", value = ""),
                                                      shiny::checkboxInput("afdVarCenterAxes", "Centrer sur (0,0)", TRUE),
                                                      shiny::hr(),
                                                      shiny::h5("Options de téléchargement — contribution des variables :"),
@@ -1635,18 +1635,18 @@ ui <- shinydashboard::dashboardPage(
                                                        shiny::icon("magic"), " Dimensions calculées automatiquement selon le DPI"),
                                                      shiny::fluidRow(
                                                        shiny::column(6,
-                                                              hstat_format_input("afdVar_format", "Format:")
+                                                              hstat_format_input("afdVar_format", "Format :")
                                                        ),
                                                        shiny::column(6,
-                                                              hstat_dpi_input("afdVar_dpi", "DPI:")
+                                                              hstat_dpi_input("afdVar_dpi", "DPI :")
                                                        )
                                                      ),
                                                      shiny::fluidRow(
                                                        shiny::column(6,
-                                                              shiny::numericInput("afdVar_width", "Largeur (px):", value = 1200, min = 400, max = 4000, step = 100)
+                                                              shiny::numericInput("afdVar_width", "Largeur (px) :", value = 1200, min = 400, max = 4000, step = 100)
                                                        ),
                                                        shiny::column(6,
-                                                              shiny::numericInput("afdVar_height", "Hauteur (px):", value = 900, min = 300, max = 4000, step = 100)
+                                                              shiny::numericInput("afdVar_height", "Hauteur (px) :", value = 900, min = 300, max = 4000, step = 100)
                                                        )
                                                      ),
                                                      hstat_mv_dim_note_ui("afdVar")
@@ -1705,7 +1705,7 @@ ui <- shinydashboard::dashboardPage(
                                             ),
                       ),
                       shiny::tabPanel(
-                        shiny::tagList(shiny::icon("cogs"), " Details techniques"),
+                        shiny::tagList(shiny::icon("cogs"), " Détails techniques"),
                         shiny::br(),
                                             # ---- Export métriques AFD 
                                             shiny::div(style = "background: linear-gradient(135deg, #641e16 0%, #922b21 100%); border-radius: 10px; padding: 18px; margin-top: 10px;",
@@ -1759,37 +1759,37 @@ ui <- shinydashboard::dashboardPage(
     # =================== CATEGORIE QUANTITATIVES ===================
     shiny::conditionalPanel(
       condition = "input.mv_category == 'quanti'",
-      .mv_category_header("Analyses multivariees QUANTITATIVES",
+      .mv_category_header("Analyses multivariées QUANTITATIVES",
                           "ruler-combined", "#3c8dbc"),
       shiny::fluidRow(.mv_analysis_box(
         "kmeans", "Classification k-means (partitionnement)", "quanti",
-        principes  = "Partitionne n individus en k groupes en minimisant iterativement l'inertie intra-classe (somme des carres aux centroides). Algorithme de Lloyd/Hartigan-Wong.",
-        objectifs  = "Construire une typologie d'individus, segmenter une population, identifier des profils homogenes sur variables quantitatives.",
+        principes  = "Partitionne n individus en k groupes en minimisant itérativement l'inertie intra-classe (somme des carrés aux centroides). Algorithme de Lloyd/Hartigan-Wong.",
+        objectifs  = "Construire une typologie d'individus, segmenter une population, identifier des profils homogènes sur variables quantitatives.",
         taille     = c("Minimum : n &ge; 2&times;k", "Recommande : n &ge; 10&times;k",
-                       "Ideal : n &ge; 30&times;k pour des centroides stables"),
+                       "Idéal : n &ge; 30&times;k pour des centroïdes stables"),
         variables  = c("Minimum : p &ge; 2 variables numériques", "Recommande : p &ge; 3",
-                       "Standardisation conseillee si échelles heterogenes"),
-        intro = "Partitionnement non hiérarchique : le nombre de clusters est fixe a priori."
+                       "Standardisation conseillée si échelles hétérogènes"),
+        intro = "Partitionnement non hiérarchique : le nombre de clusters est fixé a priori."
       )),
       shiny::fluidRow(.mv_analysis_box(
         "efa", "Analyse Factorielle Exploratoire (AFE)", "quanti",
-        principes  = "Modèle a facteurs communs separant variance commune et variance spécifique. Extraction (ML, axes principaux) puis rotation (varimax/oblimin) pour simplifier la structure.",
-        objectifs  = "Decouvrir les facteurs latents sous-jacents a un ensemble de variables, valider la structure d'un questionnaire, reduire la dimension.",
+        principes  = "Modèle à facteurs communs séparant variance commune et variance spécifique. Extraction (ML, axes principaux) puis rotation (varimax/oblimin) pour simplifier la structure.",
+        objectifs  = "Découvrir les facteurs latents sous-jacents à un ensemble de variables, valider la structure d'un questionnaire, réduire la dimension.",
         taille     = c("Minimum : n &ge; 5&times;p", "Recommande : n &ge; 100",
-                       "Ideal : n &ge; 200 et &ge; 10 individus / variable"),
+                       "Idéal : n &ge; 200 et &ge; 10 individus / variable"),
         variables  = c("Minimum : p &ge; 3 variables numériques", "KMO &ge; 0,60 requis",
                        "Test de Bartlett significatif (p &lt; 0,05)"),
-        intro = "Cherche une structure latente sans hypothese imposee (exploratoire)."
+        intro = "Cherche une structure latente sans hypothèse imposée (exploratoire)."
       )),
       shiny::fluidRow(.mv_analysis_box(
         "cfa", "Analyse Factorielle Confirmatoire (AFC-c)", "quanti",
         principes  = "Modèle d'equations structurelles : la structure facteurs <-> items est imposee a priori, puis estimée et evaluee par des indices d'ajustement.",
-        objectifs  = "Tester un modèle de mesure théorique, confirmer la validite convergente et discriminante d'un instrument.",
+        objectifs  = "Tester un modèle de mesure théorique, confirmer la validité convergente et discriminante d'un instrument.",
         taille     = c("Minimum : n &ge; 100", "Recommande : n &ge; 200",
-                       "Ideal : &ge; 10 individus par paramètre estimé"),
-        variables  = c("Modèle specifie en syntaxe lavaan", "&ge; 3 indicateurs par facteur conseille",
+                       "Idéal : &ge; 10 individus par paramètre estimé"),
+        variables  = c("Modèle spécifie en syntaxe lavaan", "&ge; 3 indicateurs par facteur conseillé",
                        "Variables numériques (estimateurs robustes sinon)"),
-        intro = "Confirme un modèle de mesure pre-specifie. Renseignez la syntaxe du modèle."
+        intro = "Confirme un modèle de mesure pré-spécifie. Renseignez la syntaxe du modèle."
       )),
       shiny::fluidRow(.mv_analysis_box(
         "mtmm", "Multi-Trait Multi-Method (MTMM)", "quanti",
@@ -1799,26 +1799,26 @@ ui <- shinydashboard::dashboardPage(
                        "Idéal : n &ge; 200 pour des corrélations stables"),
         variables  = c("&ge; 2 traits &times; &ge; 2 méthodes", "1 variable numérique par combinaison trait &times; méthode",
                        "Nommage Trait_Méthode conseillé pour l'affectation automatique"),
-        intro = "Chaque variable mesure UN trait par UNE méthode. Affectez trait et méthode a chaque variable (ou utilisez le nommage Trait_Méthode)."
+        intro = "Chaque variable mesure UN trait par UNE méthode. Affectez trait et méthode à chaque variable (ou utilisez le nommage Trait_Méthode)."
       )),
       shiny::fluidRow(.mv_analysis_box(
-        "pls", "Regression PLS / PLS-DA", "quanti",
+        "pls", "Régression PLS / PLS-DA", "quanti",
         principes  = "Construit des composantes latentes maximisant la covariance entre les prédicteurs X et la réponse Y. Adaptée aux cas p &gt;&gt; n et forte multicolinéarité.",
         objectifs  = "Prédire une réponse (quantitative = PLS, catégorielle = PLS-DA) en grande dimension, identifier les variables influentes (VIP).",
         taille     = c("Fonctionne même si n &lt; p", "Recommande : n &ge; 20",
-                       "Validation croisée conseillee"),
+                       "Validation croisée conseillée"),
         variables  = c("1 variable réponse Y", "p &ge; 2 prédicteurs numériques X",
-                       "Prédicteurs correles : aucun probleme"),
-        intro = "Regression sur composantes latentes, robuste a la colinearite."
+                       "Prédicteurs corrélés : aucun problème"),
+        intro = "Régression sur composantes latentes, robuste à la colinéarité."
       )),
       shiny::fluidRow(.mv_analysis_box(
-        "regmult", "Regression linéaire multiple", "quanti",
+        "regmult", "Régression linéaire multiple", "quanti",
         principes  = "Estimé par moindres carres ordinaires une réponse quantitative comme combinaison linéaire de plusieurs prédicteurs.",
-        objectifs  = "Expliquer et prédire une variable continue, quantifier l'effet de chaque prédicteur, controler des facteurs de confusion.",
+        objectifs  = "Expliquer et prédire une variable continue, quantifier l'effet de chaque prédicteur, contrôler des facteurs de confusion.",
         taille     = c("Minimum : n &ge; 10&times;p", "Recommande : n &ge; 15&times;p",
-                       "Ideal : n &ge; 20&times;p"),
+                       "Idéal : n &ge; 20&times;p"),
         variables  = c("1 réponse Y numérique", "p &ge; 1 prédicteur (numérique ou facteur)",
-                       "Residus : normalité, homoscedasticite, indépendance"),
+                       "Résidus : normalité, homoscédasticité, indépendance"),
         intro = "Modèle explicatif/prédictif de référence pour une réponse continue."
       ))
     ),
@@ -1826,21 +1826,21 @@ ui <- shinydashboard::dashboardPage(
     # =================== CATEGORIE QUALITATIVES ===================
     shiny::conditionalPanel(
       condition = "input.mv_category == 'quali'",
-      .mv_category_header("Analyses multivariees QUALITATIVES / CATÉGORIELLES",
+      .mv_category_header("Analyses multivariées QUALITATIVES / CATÉGORIELLES",
                           "shapes", "#e67e22"),
       shiny::fluidRow(.mv_analysis_box(
         "afc", "Analyse Factorielle des Correspondances (AFC)", "quali",
-        principes  = "Decompose l'inertie du khi-deux d'une table de contingence ; compare les profils-lignes et profils-colonnes via la distance du khi-deux.",
-        objectifs  = "Analyser et visualiser l'association entre DEUX variables qualitatives, reperer les modalités attractives ou repulsives.",
+        principes  = "Décompose l'inertie du khi-deux d'une table de contingence ; compare les profils-lignes et profils-colonnes via la distance du khi-deux.",
+        objectifs  = "Analyser et visualiser l'association entre DEUX variables qualitatives, repérer les modalités attractives ou répulsives.",
         taille     = c("Effectifs théoriques &ge; 5 par case conseille",
-                       "Recommande : n &ge; 50", "Eviter cases vides"),
+                       "Recommande : n &ge; 50", "Éviter cases vides"),
         variables  = c("Exactement 2 variables qualitatives", "Variable-ligne + variable-colonne",
-                       "Modalités a effectif suffisant"),
+                       "Modalités à effectif suffisant"),
         intro = "Association entre deux variables catégorielles (table croisée)."
       )),
       shiny::fluidRow(.mv_analysis_box(
         "mca", "Analyse des Correspondances Multiples (ACM)", "quali",
-        principes  = "Generalise l'AFC a plus de deux variables qualitatives via le tableau disjonctif complet (ou tableau de Burt).",
+        principes  = "Généralise l'AFC à plus de deux variables qualitatives via le tableau disjonctif complet (ou tableau de Burt).",
         objectifs  = "Explorer la structure d'associations entre plusieurs variables qualitatives, positionner individus et modalités.",
         taille     = c("Minimum : n &ge; 50", "Recommande : n &ge; 100",
                        "Regrouper les modalités rares (&lt; 5 %)"),
@@ -1850,18 +1850,18 @@ ui <- shinydashboard::dashboardPage(
       )),
       shiny::fluidRow(.mv_analysis_box(
         "kmodes", "Classification k-modes (partitionnement)", "quali",
-        principes  = "Equivalent du k-means pour données qualitatives : dissimilarite d'appariement simple (Hamming), les centres sont des modes.",
+        principes  = "Équivalent du k-means pour données qualitatives : dissimilarité d'appariement simple (Hamming), les centres sont des modes.",
         objectifs  = "Segmenter une population décrite par des variables catégorielles, construire une typologie qualitative.",
         taille     = c("Minimum : n &ge; 2&times;k", "Recommande : n &ge; 10&times;k",
-                       "Ideal : n &ge; 30&times;k"),
+                       "Idéal : n &ge; 30&times;k"),
         variables  = c("Minimum : p &ge; 2 variables qualitatives", "Recommande : p &ge; 3",
-                       "Modalités a effectif suffisant"),
+                       "Modalités à effectif suffisant"),
         intro = "Partitionnement non hiérarchique pour variables catégorielles."
       )),
       shiny::fluidRow(.mv_analysis_box(
         "lca", "Analyse en Classes Latentes (LCA)", "quali",
-        principes  = "Modèle de melange probabiliste : sous hypothese d'indépendance locale conditionnelle, estimé des classes latentes par maximum de vraisemblance (EM).",
-        objectifs  = "Identifier des sous-populations non observées a partir de variables catégorielles, clustering base sur un modèle.",
+        principes  = "Modèle de mélange probabiliste : sous hypothèse d'indépendance locale conditionnelle, estimé des classes latentes par maximum de vraisemblance (EM).",
+        objectifs  = "Identifier des sous-populations non observées à partir de variables catégorielles, clustering base sur un modèle.",
         taille     = c("Minimum : n &ge; 100", "Recommande : n &ge; 300",
                        "Plus de classes => plus d'effectif"),
         variables  = c("Minimum : p &ge; 3 variables qualitatives", "Variables catégorielles",
@@ -1869,11 +1869,11 @@ ui <- shinydashboard::dashboardPage(
         intro = "Clustering probabiliste : classes latentes derrière des réponses catégorielles."
       )),
       shiny::fluidRow(.mv_analysis_box(
-        "logit", "Regression logistique / multinomiale", "quali",
-        principes  = "Modèle linéaire generalise a lien logit estimé par maximum de vraisemblance ; produit des rapports de cotes (odds ratios).",
+        "logit", "Régression logistique / multinomiale", "quali",
+        principes  = "Modèle linéaire généralise à lien logit estimé par maximum de vraisemblance ; produit des rapports de cotes (odds ratios).",
         objectifs  = "Prédire une réponse catégorielle (binaire ou multinomiale), quantifier l'effet des prédicteurs.",
-        taille     = c("Regle : &ge; 10 evenements par prédicteur",
-                       "Recommande : n &ge; 100", "Eviter la separation parfaite"),
+        taille     = c("Règle : &ge; 10 événements par prédicteur",
+                       "Recommande : n &ge; 100", "Éviter la séparation parfaite"),
         variables  = c("1 réponse Y catégorielle", "p &ge; 1 prédicteur (numérique ou facteur)",
                        "Indépendance des observations"),
         intro = "Modèle explicatif/prédictif pour une réponse catégorielle."
@@ -1883,34 +1883,34 @@ ui <- shinydashboard::dashboardPage(
     # =================== CATEGORIE MIXTES ===================
     shiny::conditionalPanel(
       condition = "input.mv_category == 'mixte'",
-      .mv_category_header("Analyses multivariees MIXTES (quanti + quali)",
+      .mv_category_header("Analyses multivariées MIXTES (quanti + quali)",
                           "layer-group", "#00a65a"),
       shiny::fluidRow(.mv_analysis_box(
         "famd", "Analyse Factorielle de Données Mixtes (AFDM)", "mixte",
-        principes  = "Combine ACP (variables quantitatives standardisees) et ACM (variables qualitatives), avec une ponderation equilibrant les deux types.",
-        objectifs  = "Reduire la dimension d'un tableau melant variables quantitatives et qualitatives, visualiser individus et modalités.",
+        principes  = "Combine ACP (variables quantitatives standardisées) et ACM (variables qualitatives), avec une pondération équilibrant les deux types.",
+        objectifs  = "Réduire la dimension d'un tableau mêlant variables quantitatives et qualitatives, visualiser individus et modalités.",
         taille     = c("Minimum : n &ge; 50", "Recommande : n &ge; 100",
-                       "Ideal : n &ge; 5&times;p"),
+                       "Idéal : n &ge; 5&times;p"),
         variables  = c("Au moins 1 variable quantitative", "Au moins 1 variable qualitative",
                        "p &ge; 3 au total conseille"),
-        intro = "Reduction de dimension pour un tableau de variables mixtes."
+        intro = "Réduction de dimension pour un tableau de variables mixtes."
       )),
       shiny::fluidRow(.mv_analysis_box(
         "mfa", "Analyse Factorielle Multiple (AFM)", "mixte",
-        principes  = "Analyse des données structurees en groupes de variables ; chaque groupe est equilibre par sa premiere valeur propre afin qu'aucun ne domine.",
-        objectifs  = "Comparer et integrer plusieurs groupes de variables (bloc quantitatif et bloc qualitatif), etudier leur coherence.",
+        principes  = "Analyse des données structurées en groupes de variables ; chaque groupe est équilibré par sa première valeur propre afin qu'aucun ne domine.",
+        objectifs  = "Comparer et intégrer plusieurs groupes de variables (bloc quantitatif et bloc qualitatif), étudier leur cohérence.",
         taille     = c("Minimum : n &ge; 50", "Recommande : n &ge; 100",
-                       "Ideal : n &ge; 5&times;p"),
+                       "Idéal : n &ge; 5&times;p"),
         variables  = c("Bloc quantitatif : &ge; 1 variable", "Bloc qualitatif : &ge; 1 variable",
-                       "Definir explicitement les deux blocs"),
-        intro = "Integration de blocs de variables (bloc quanti + bloc quali)."
+                       "Définir explicitement les deux blocs"),
+        intro = "Intégration de blocs de variables (bloc quanti + bloc quali)."
       )),
       shiny::fluidRow(.mv_analysis_box(
         "kproto", "Classification k-prototypes (partitionnement mixte)", "mixte",
-        principes  = "Combine k-means (distance euclidienne sur le quantitatif) et k-modes (appariement sur le qualitatif), ponderes par un paramètre gamma.",
-        objectifs  = "Segmenter une population décrite par des variables a la fois quantitatives et qualitatives.",
+        principes  = "Combine k-means (distance euclidienne sur le quantitatif) et k-modes (appariement sur le qualitatif), pondérés par un paramètre gamma.",
+        objectifs  = "Segmenter une population décrite par des variables à la fois quantitatives et qualitatives.",
         taille     = c("Minimum : n &ge; 2&times;k", "Recommande : n &ge; 10&times;k",
-                       "Ideal : n &ge; 30&times;k"),
+                       "Idéal : n &ge; 30&times;k"),
         variables  = c("Au moins 1 variable quantitative", "Au moins 1 variable qualitative",
                        "Standardisation du quantitatif appliquée"),
         intro = "Partitionnement non hiérarchique pour données mixtes."

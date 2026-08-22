@@ -25,7 +25,7 @@ run_hstat <- function(..., install_missing = TRUE) {
 
   if (app_dir == "") {
     stop(
-      "Could not find the HStat app directory. ",
+      "Could not find thé HStat app directory. ",
       "Try re-installing the package with remotes::install_github('houphouet/hstat').",
       call. = FALSE
     )
@@ -33,7 +33,7 @@ run_hstat <- function(..., install_missing = TRUE) {
 
   app_file <- file.path(app_dir, "app.R")
   if (!file.exists(app_file)) {
-    stop("Could not find app.R inside the installed package (expected at: ",
+    stop("Could not find app.R inside thé installed package (expected at : ",
          app_file, ").", call. = FALSE)
   }
 
@@ -54,7 +54,7 @@ run_hstat <- function(..., install_missing = TRUE) {
       tryCatch(
         utils::install.packages(missing_pkgs),
         error = function(e)
-          message("Certains paquets n'ont pas pu etre installes : ",
+          message("Certains paquets n'ont pas pu être installés : ",
                   conditionMessage(e)))
     }
     # Verifier les paquets STRICTEMENT necessaires a l'interface
@@ -65,8 +65,8 @@ run_hstat <- function(..., install_missing = TRUE) {
       logical(1))]
     if (length(still) > 0) {
       stop(
-        "HStat ne peut pas demarrer : ces paquets d'interface sont ",
-        "manquants et n'ont pas pu etre installes :\n  ",
+        "HStat ne peut pas démarrer : ces paquets d'interface sont ",
+        "manquants et n'ont pas pu être installés :\n  ",
         paste(still, collapse = ", "),
         "\n\nInstallez-les manuellement puis relancez run_hstat() :\n  ",
         "install.packages(c(",

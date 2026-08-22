@@ -70,8 +70,7 @@ HSTAT_CODE_PALETTE <- c(
 # Identifiant technique stable derive du libelle, unicise contre l'existant.
 hstat_code_slug <- function(label, existing = character(0)) {
   s <- tolower(trimws(as.character(label)[1]))
-  s <- chartr("àâäéèêëîïôöùûüç",
-              "aaaeeeeiioouuuc", s)
+  s <- hstat_sans_accents(s)
   s <- gsub("[^a-z0-9]+", "_", s)
   s <- gsub("^_+|_+$", "", s)
   if (!nzchar(s)) s <- "code"
@@ -865,8 +864,8 @@ hstat_code_map_plot <- function(cooc, codebook, counts_df, min_weight = 1,
   }
 
   sub <- if (identical(mode_label, "overlap"))
-    "Lien = les deux codes etiquettent un meme passage" else
-    "Lien = les deux codes apparaissent dans une meme reponse"
+    "Lien = les deux codes étiquettent un même passage" else
+    "Lien = les deux codes apparaissent dans une même réponse"
 
   # Marge autour des noeuds : sans elle, un code place en peripherie voit son
   # etiquette tronquee par le bord du graphique.
@@ -957,7 +956,7 @@ hstat_code_cloud_plot <- function(layout, palette = "default",
                                             label = .data$word, colour = .data$freq)) +
     ggplot2::geom_text(size = layout$size * f, fontface = "bold",
                        show.legend = TRUE) +
-    ggplot2::scale_colour_gradient(low = low, high = high, name = "Frequence") +
+    ggplot2::scale_colour_gradient(low = low, high = high, name = "Fréquence") +
     ggplot2::labs(title = "Nuage de mots") +
     ggplot2::theme_void(base_size = 12) +
     ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", hjust = 0.5, size = 16)) +
@@ -999,8 +998,7 @@ hstat_code_cloud_plot <- function(layout, palette = "default",
 # tout en gardant des positions de segment valides.
 .hstat_code_fold <- function(x) {
   x <- tolower(as.character(x))
-  chartr("àâäéèêëîïôöùûüç",
-         "aaaeeeeiioouuuc", x)
+  hstat_sans_accents(x)
 }
 
 # Echappement pour une expression reguliere : tout ce qui n'est ni alphanumerique
@@ -1076,7 +1074,7 @@ hstat_code_auto_codebook <- function(texts, n_codes = 8, min_char = 4,
     kw <- unique(unlist(forms[st]))
     list(label = best[[st[1]]],
          n = sum(freq[st]),
-         memo = sprintf("Theme construit automatiquement a partir de : %s.",
+         memo = sprintf("Thème construit automatiquement à partir de : %s.",
                         paste(utils::head(vapply(st, function(z) best[[z]], character(1)), 6),
                               collapse = ", ")),
          keywords = paste(kw, collapse = "; "))
@@ -1188,16 +1186,16 @@ hstat_ai_codebook_prompt <- function(texts, n_codes = 8, context = "") {
   if (length(texts) > 150) texts <- texts[round(seq(1, length(texts), length.out = 150))]
   corpus <- paste(sprintf("- %s", substr(texts, 1, 600)), collapse = "\n")
   paste0(
-    "Tu es analyste qualitatif. Voici un corpus de reponses libres a une ",
-    "question d'enquete.\n",
-    if (nzchar(trimws(context))) paste0("Contexte de l'enquete : ", context, "\n") else "",
+    "Tu es analyste qualitatif. Voici un corpus de réponses libres à une ",
+    "question d'enquête.\n",
+    if (nzchar(trimws(context))) paste0("Contexte de l'enquête : ", context, "\n") else "",
     "\nCORPUS :\n", corpus,
-    "\n\nConstruis un livre de codes (grille de thematisation) de ", as.integer(n_codes),
-    " codes au maximum, exhaustif et mutuellement lisible, couvrant les themes ",
-    "reellement presents dans ce corpus.\n",
-    "Reponds UNIQUEMENT par un objet JSON, sans texte autour, de la forme :\n",
-    '{"codes":[{"label":"Prix trop eleve","memo":"Definition du code en une phrase"}]}\n',
-    "Les libelles doivent etre courts (1 a 4 mots), en francais, et distincts.")
+    "\n\nConstruis un livre de codes (grille de thématisation) de ", as.integer(n_codes),
+    " codes au maximum, exhaustif et mutuellement lisible, couvrant les thèmes ",
+    "réellement présents dans ce corpus.\n",
+    "Réponds UNIQUEMENT par un objet JSON, sans texte autour, de la forme :\n",
+    '{"codes":[{"label":"Prix trop élevé","mémo":"Définition du code en une phrase"}]}\n',
+    "Les libelles doivent être courts (1 à 4 mots), en français, et distincts.")
 }
 
 hstat_ai_parse_codebook <- function(parsed) {
@@ -1222,20 +1220,20 @@ hstat_ai_parse_codebook <- function(parsed) {
 
 hstat_ai_autocode_prompt <- function(docs, codebook) {
   cb <- paste(sprintf("- %s : %s", codebook$label,
-                      ifelse(nzchar(codebook$memo), codebook$memo, "(pas de definition)")),
+                      ifelse(nzchar(codebook$memo), codebook$memo, "(pas de définition)")),
               collapse = "\n")
   corp <- paste(sprintf("[%s] %s", docs$doc_id, substr(docs$text, 1, 1500)),
                 collapse = "\n")
   paste0(
     "Tu es analyste qualitatif. Applique le livre de codes ci-dessous aux ",
-    "reponses fournies.\n\nLIVRE DE CODES :\n", cb,
+    "réponses fournies.\n\nLIVRE DE CODES :\n", cb,
     "\n\nREPONSES :\n", corp,
-    "\n\nPour chaque reponse, identifie les passages qui relevent d'un code. ",
-    "Un passage doit etre un extrait VERBATIM, copie caractere pour caractere ",
-    "depuis la reponse (sans reformulation, sans guillemets ajoutes, sans ",
-    "points de suspension). Une reponse peut ne relever d'aucun code.\n",
-    "Reponds UNIQUEMENT par un objet JSON, sans texte autour, de la forme :\n",
-    '{"codages":[{"doc":"D00001","code":"Prix trop eleve","extrait":"c est beaucoup trop cher"}]}')
+    "\n\nPour chaque réponse, identifie les passages qui relèvent d'un code. ",
+    "Un passage doit être un extrait VERBATIM, copie caractère pour caractère ",
+    "depuis la réponse (sans reformulation, sans guillemets ajoutes, sans ",
+    "points de suspension). Une réponse peut ne relever d'aucun code.\n",
+    "Réponds UNIQUEMENT par un objet JSON, sans texte autour, de la forme :\n",
+    '{"codages":[{"doc":"D00001","code":"Prix trop élevé","extrait":"c est beaucoup trop cher"}]}')
 }
 
 # Localisation d'un extrait dans un document. Trois passes, de la plus stricte
@@ -1534,12 +1532,12 @@ hstat_code_accord <- function(segments, codebook, codeur_a, codeur_b,
   res <- list(n_unites = 0L, accord = NA_real_, kappa = NA_real_,
               verdict = "indeterminable", table = NULL,
               a = as.character(codeur_a)[1], b = as.character(codeur_b)[1],
-              message = "Aucune unite comparable : les deux codeurs n'ont pas travaille sur les memes documents.")
+              message = "Aucune unité comparable : les deux codeurs n'ont pas travaillé sur les mêmes documents.")
   if (is.null(segments) || !nrow(segments) || is.null(codebook) || !nrow(codebook))
     return(res)
   ca <- as.character(codeur_a)[1]; cb <- as.character(codeur_b)[1]
   if (is.na(ca) || is.na(cb) || identical(ca, cb)) {
-    res$message <- "Choisissez deux codeurs differents."
+    res$message <- "Choisissez deux codeurs différents."
     return(res)
   }
   sa <- segments[segments$source == ca, , drop = FALSE]
@@ -1578,12 +1576,12 @@ hstat_code_accord <- function(segments, codebook, codeur_a, codeur_b,
                    else if (res$kappa >= 0.6) "acceptable"
                    else "faible"
     res$message <- sprintf(
-      "%s unites comparees (%s document(s) x %s code(s)).",
+      "%s unités comparées (%s document(s) x %s code(s)).",
       n, length(communs), length(codes))
   } else {
     res$message <- paste0(
-      "Kappa n'est pas calculable ici : les deux codeurs ont pose (ou omis) ",
-      "les memes etiquettes partout, l'accord attendu par hasard vaut deja 1. ",
+      "Kappa n'est pas calculable ici : les deux codeurs ont posé (ou omis) ",
+      "les mêmes étiquettes partout, l'accord attendu par hasard vaut déjà 1. ",
       "Le pourcentage d'accord reste lisible.")
   }
   res
@@ -1749,12 +1747,12 @@ mod_coding_ui <- function(id) {
 
     # ---- Bandeau d'aide ----
     shiny::div(style = "background:#fdf3e3;border-left:5px solid #e67e22;padding:12px 16px;border-radius:6px;margin-bottom:12px;",
-      shiny::tags$strong(shiny::icon("highlighter"), " Atelier de codage (thematisation)"),
+      shiny::tags$strong(shiny::icon("highlighter"), " Atelier de codage (thématisation)"),
       shiny::tags$ol(style = "margin:6px 0 0 0;padding-left:20px;font-size:13px;",
-        shiny::tags$li("Choisissez la question ouverte a coder, puis lisez les reponses une a une."),
-        shiny::tags$li(shiny::HTML("<b>Selectionnez</b> un mot, une phrase ou un paragraphe a la souris.")),
-        shiny::tags$li(shiny::HTML("<b>Glissez-deposez</b> la selection sur un code, a gauche (ou cliquez simplement sur le code).")),
-        shiny::tags$li("Le segment recoit une etiquette coloree ; cliquez sur un code pour retrouver tous ses extraits."))),
+        shiny::tags$li("Choisissez la question ouverte à coder, puis lisez les réponses une à une."),
+        shiny::tags$li(shiny::HTML("<b>Sélectionnez</b> un mot, une phrase ou un paragraphe à la souris.")),
+        shiny::tags$li(shiny::HTML("<b>Glissez-déposez</b> la sélection sur un code, à gauche (ou cliquez simplement sur le code).")),
+        shiny::tags$li("Le segment reçoit une étiquette colorée ; cliquez sur un code pour retrouver tous ses extraits."))),
 
     shiny::fluidRow(
       # ------------------------------------------------ Livre de codes
@@ -1763,7 +1761,7 @@ mod_coding_ui <- function(id) {
           title = shiny::tagList(shiny::icon("tags"), " Livre de codes"),
           shiny::fluidRow(
             shiny::column(8, shiny::textInput(ns("new_code"), NULL,
-                                              placeholder = "Ex. Prix trop eleve")),
+                                              placeholder = "Ex. Prix trop élevé")),
             shiny::column(4, colourInput(ns("new_color"), NULL,
                                                        value = HSTAT_CODE_PALETTE[1],
                                                        showColour = "background"))),
@@ -1779,9 +1777,9 @@ mod_coding_ui <- function(id) {
           shiny::uiOutput(ns("move_code_ui")),
           shiny::hr(style = "margin:10px 0;"),
           shiny::tags$small(style = "color:#7f8c8d;", shiny::icon("info-circle"),
-            " Deposez une selection sur un code, ou cliquez dessus. Le ",
+            " Déposez une sélection sur un code, ou cliquez dessus. Le ",
             shiny::tags$b("x"), " supprime le code ; ses sous-codes remontent ",
-            "d'un niveau plutot que d'etre emportes avec lui."),
+            "d'un niveau plutôt que d'être emportes avec lui."),
           shiny::br(), shiny::br(),
           shiny::actionButton(ns("clear_codes"), "Vider le livre de codes",
                               icon = shiny::icon("trash"), class = "btn-danger btn-xs btn-block"))
@@ -1790,7 +1788,7 @@ mod_coding_ui <- function(id) {
       # ------------------------------------------------ Document
       shiny::column(6,
         shinydashboard::box(width = 12, status = "warning", solidHeader = TRUE,
-          title = shiny::tagList(shiny::icon("file-lines"), " Reponse a coder"),
+          title = shiny::tagList(shiny::icon("file-lines"), " Réponse à coder"),
           shiny::fluidRow(
             shiny::column(6, shiny::uiOutput(ns("doc_var_ui"))),
             shiny::column(6, shiny::uiOutput(ns("nav_ui")))),
@@ -1805,13 +1803,13 @@ mod_coding_ui <- function(id) {
           shiny::div(class = "hstat-sel-box", shiny::uiOutput(ns("sel_info"))),
           shiny::br(),
           shiny::fluidRow(
-            shiny::column(4, shiny::actionButton(ns("prev_doc"), "Precedente",
+            shiny::column(4, shiny::actionButton(ns("prev_doc"), "Précédente",
                                                  icon = shiny::icon("chevron-left"),
                                                  class = "btn-default btn-sm btn-block")),
             shiny::column(4, shiny::actionButton(ns("next_doc"), "Suivante",
                                                  icon = shiny::icon("chevron-right"),
                                                  class = "btn-primary btn-sm btn-block")),
-            shiny::column(4, shiny::actionButton(ns("next_uncoded"), "Non codee",
+            shiny::column(4, shiny::actionButton(ns("next_uncoded"), "Non codée",
                                                  icon = shiny::icon("forward"),
                                                  class = "btn-default btn-sm btn-block"))),
           shiny::tags$script(shiny::HTML(js)))
@@ -1820,7 +1818,7 @@ mod_coding_ui <- function(id) {
       # ------------------------------------------------ Segments du document
       shiny::column(3,
         shinydashboard::box(width = 12, status = "warning", solidHeader = TRUE,
-          title = shiny::tagList(shiny::icon("list-check"), " Etiquettes de cette reponse"),
+          title = shiny::tagList(shiny::icon("list-check"), " Étiquettes de cette réponse"),
           shiny::uiOutput(ns("doc_segments")),
           shiny::hr(style = "margin:10px 0;"),
           shiny::uiOutput(ns("progress_box")))
@@ -1835,7 +1833,7 @@ mod_coding_ui <- function(id) {
         shiny::tabsetPanel(id = ns("codeTabs"),
 
           # ---- Recuperation ----
-          shiny::tabPanel(shiny::tagList(shiny::icon("quote-left"), " Recuperation"),
+          shiny::tabPanel(shiny::tagList(shiny::icon("quote-left"), " Récupération"),
             shiny::br(),
             shiny::fluidRow(
               shiny::column(4, shiny::uiOutput(ns("ret_codes_ui"))),
@@ -1855,21 +1853,21 @@ mod_coding_ui <- function(id) {
                                                      icon = shiny::icon("file-excel"))))),
 
           # ---- Requete combinee ----
-          shiny::tabPanel(shiny::tagList(shiny::icon("code-branch"), " Requete combinee"),
+          shiny::tabPanel(shiny::tagList(shiny::icon("code-branch"), " Requête combinée"),
             shiny::br(),
             shiny::fluidRow(
               shiny::column(3, shiny::uiOutput(ns("qry_a_ui"))),
-              shiny::column(2, shiny::radioButtons(ns("qry_op"), "Operateur",
+              shiny::column(2, shiny::radioButtons(ns("qry_op"), "Opérateur",
                 choices = c("A ET B" = "et", "A SAUF B" = "sauf", "A OU B" = "ou"),
                 selected = "et")),
               shiny::column(3, shiny::uiOutput(ns("qry_b_ui"))),
-              shiny::column(2, shiny::radioButtons(ns("qry_portee"), "Portee",
-                choices = c("Meme document" = "document",
-                            "Meme passage" = "overlap",
-                            "A proximite" = "proximite"),
+              shiny::column(2, shiny::radioButtons(ns("qry_portee"), "Portée",
+                choices = c("Même document" = "document",
+                            "Même passage" = "overlap",
+                            "À proximité" = "proximite"),
                 selected = "document")),
               shiny::column(2, shiny::numericInput(ns("qry_dist"),
-                "Distance (caracteres)", value = 200, min = 0, step = 50))),
+                "Distance (caractères)", value = 200, min = 0, step = 50))),
             shiny::uiOutput(ns("qry_note")),
             DT::DTOutput(ns("qry_table")),
             shiny::br(),
@@ -1884,10 +1882,10 @@ mod_coding_ui <- function(id) {
             shiny::fluidRow(
               shiny::column(4, shiny::textInput(ns("kwic_motif"), "Mot ou expression",
                                                 placeholder = "ex. prix")),
-              shiny::column(2, shiny::numericInput(ns("kwic_fen"), "Contexte (caracteres)",
+              shiny::column(2, shiny::numericInput(ns("kwic_fen"), "Contexte (caractères)",
                                                    value = 45, min = 10, max = 200, step = 5)),
               shiny::column(3, shiny::checkboxInput(ns("kwic_regex"),
-                "Interpreter comme expression reguliere", value = FALSE)),
+                "Interpréter comme expression régulière", value = FALSE)),
               shiny::column(3, shiny::checkboxInput(ns("kwic_casse"),
                 "Respecter la casse", value = FALSE))),
             shiny::uiOutput(ns("kwic_note")),
@@ -1923,9 +1921,9 @@ mod_coding_ui <- function(id) {
             shiny::br(),
             shiny::fluidRow(
               shiny::column(4, shiny::uiOutput(ns("mat_var_ui"))),
-              shiny::column(4, shiny::radioButtons(ns("mat_count"), "Unite de comptage",
+              shiny::column(4, shiny::radioButtons(ns("mat_count"), "Unité de comptage",
                 choices = c("Segments codes" = "segments",
-                            "Repondants distincts" = "documents"),
+                            "Répondants distincts" = "documents"),
                 selected = "segments", inline = TRUE)),
               shiny::column(4, shiny::radioButtons(ns("mat_disp"), "Affichage",
                 choices = c("Effectifs" = "n", "% colonne" = "col", "% ligne" = "row"),
@@ -1947,7 +1945,7 @@ mod_coding_ui <- function(id) {
             shiny::br(),
             shiny::fluidRow(
               shiny::column(3, shiny::radioButtons(ns("cloud_src"), "Corpus",
-                choices = c("Toutes les reponses" = "all",
+                choices = c("Toutes les réponses" = "all",
                             "Segments codes seulement" = "coded"),
                 selected = "all")),
               shiny::column(3, shiny::sliderInput(ns("cloud_max"), "Nombre de mots",
@@ -1960,24 +1958,24 @@ mod_coding_ui <- function(id) {
               shiny::column(4, shiny::uiOutput(ns("cloud_code_ui"))),
               shiny::column(4, shiny::checkboxInput(ns("cloud_stem"),
                                                     "Racinisation (stemming)", value = TRUE)),
-              shiny::column(4, shiny::textInput(ns("cloud_stop"), "Mots a exclure",
-                                                placeholder = "separes par une virgule"))),
+              shiny::column(4, shiny::textInput(ns("cloud_stop"), "Mots à exclure",
+                                                placeholder = "sépares par une virgule"))),
             shiny::plotOutput(ns("cloud_plot"), height = "520px"),
             shiny::br(),
-            shiny::downloadButton(ns("dl_cloud"), "Telecharger le nuage (PNG)",
+            shiny::downloadButton(ns("dl_cloud"), "Télécharger le nuage (PNG)",
                                   class = "btn-success btn-sm")),
 
           # ---- Carte conceptuelle ----
           shiny::tabPanel(shiny::tagList(shiny::icon("diagram-project"), " Carte conceptuelle"),
             shiny::br(),
             shiny::fluidRow(
-              shiny::column(4, shiny::radioButtons(ns("map_mode"), "Definition d'un lien",
-                choices = c("Meme reponse" = "document",
-                            "Meme passage (chevauchement)" = "overlap"),
+              shiny::column(4, shiny::radioButtons(ns("map_mode"), "Définition d'un lien",
+                choices = c("Même réponse" = "document",
+                            "Même passage (chevauchement)" = "overlap"),
                 selected = "document")),
               shiny::column(4, shiny::sliderInput(ns("map_min"), "Cooccurrences minimales",
                                                   min = 1, max = 20, value = 1, step = 1)),
-              shiny::column(4, shiny::sliderInput(ns("map_lbl"), "Taille des etiquettes (pt)",
+              shiny::column(4, shiny::sliderInput(ns("map_lbl"), "Taille des étiquettes (pt)",
                                                   min = 8, max = 24, value = 12, step = 1))),
             shiny::plotOutput(ns("map_plot"), height = "560px"),
             shiny::br(),
@@ -1996,15 +1994,15 @@ mod_coding_ui <- function(id) {
             shiny::br(),
             shiny::div(style = "background:#eafaf1;border-left:5px solid #27ae60;padding:12px 16px;border-radius:6px;",
               shiny::tags$strong(shiny::icon("shield-halved"),
-                                 " Gratuit, local et hors ligne par defaut"),
+                                 " Gratuit, local et hors ligne par défaut"),
               shiny::tags$p(style = "margin:6px 0 0 0;font-size:13px;",
-                "L'assistant propose un livre de codes a partir de votre corpus, puis ",
-                "pre-code les reponses. Il tourne ",
-                shiny::tags$b("sur votre machine"), " : aucune donnee d'enquete ne part ",
-                "sur Internet et il n'y a rien a payer. ",
+                "L'assistant propose un livre de codes à partir de votre corpus, puis ",
+                "pré-code les réponses. Il tourne ",
+                shiny::tags$b("sur votre machine"), " : aucune donnée d'enquête ne part ",
+                "sur Internet et il n'y a rien à payer. ",
                 shiny::tags$b("Ses propositions restent des propositions"),
-                " : elles arrivent etiquetees et vous pouvez les corriger ou les ",
-                "supprimer une a une.")),
+                " : elles arrivent étiquetées et vous pouvez les corriger ou les ",
+                "supprimer une à une.")),
             shiny::br(),
 
             # ---- Choix du moteur ----
@@ -2014,10 +2012,10 @@ mod_coding_ui <- function(id) {
                   choices = HSTAT_AI_ENGINES, selected = "auto"),
                 shiny::tags$small(style = "color:#7f8c8d;display:block;",
                   shiny::icon("circle-info"),
-                  " La thematisation automatique ne demande aucune installation, ",
-                  "aucune cle et aucune connexion : elle repond instantanement. ",
+                  " La thématisation automatique ne demande aucune installation, ",
+                  "aucune clé et aucune connexion : elle répond instantanément. ",
                   "Les services en ligne comprennent mieux le sens, mais sont ",
-                  "payants et recoivent vos reponses.")),
+                  "payants et reçoivent vos réponses.")),
 
               # --- Reglages du moteur choisi, construits depuis la table ---
               shiny::column(7,
@@ -2026,37 +2024,37 @@ mod_coding_ui <- function(id) {
                   shiny::div(style = "background:#f8f9fa;border:1px solid #e0e0e0;border-radius:6px;padding:10px 14px;font-size:13px;",
                     shiny::tags$b(shiny::icon("calculator"), " Comment ca marche"),
                     shiny::tags$p(style = "margin:6px 0 0 0;",
-                      "Les termes du corpus sont regroupes par classification ",
-                      "hierarchique sur leurs cooccurrences dans les reponses : deux ",
-                      "mots qui reviennent dans les memes reponses forment un theme. ",
-                      "Chaque theme arrive avec son ", shiny::tags$b("dictionnaire"),
-                      " de mots-cles, editable ci-dessous, qui sert ensuite au ",
-                      "pre-codage de ", shiny::tags$b("tout"), " le corpus."))),
+                      "Les termes du corpus sont regroupés par classification ",
+                      "hiérarchique sur leurs cooccurrences dans les réponses : deux ",
+                      "mots qui reviennent dans les mêmes réponses forment un thème. ",
+                      "Chaque thème arrive avec son ", shiny::tags$b("dictionnaire"),
+                      " de mots-clés, éditable ci-dessous, qui sert ensuite au ",
+                      "pré-codage de ", shiny::tags$b("tout"), " le corpus."))),
                 shiny::tags$small(style = "color:#7f8c8d;display:block;margin-top:6px;",
                   shiny::icon("lock"),
-                  " Une cle saisie ici ne sert qu'a cette session : elle n'est ni ",
-                  "enregistree, ni exportee avec vos resultats."))),
+                  " Une clé saisie ici ne sert qu'a cette session : elle n'est ni ",
+                  "enregistrée, ni exportée avec vos résultats."))),
 
             shiny::hr(),
             shiny::fluidRow(
               shiny::column(3,
-                shiny::sliderInput(ns("ai_ncodes"), "Nombre de codes a proposer",
+                shiny::sliderInput(ns("ai_ncodes"), "Nombre de codes à proposer",
                                    min = 3, max = 20, value = 8, step = 1)),
               shiny::column(3,
                 shiny::sliderInput(ns("ai_minchar"), "Longueur min. des mots",
                                    min = 3, max = 8, value = 4, step = 1),
                 shiny::tags$small(style = "color:#7f8c8d;",
-                                  "Thematisation automatique uniquement.")),
+                                  "Thématisation automatique uniquement.")),
               shiny::column(3,
-                shiny::numericInput(ns("ai_maxdoc"), "Reponses envoyees au modele (max.)",
+                shiny::numericInput(ns("ai_maxdoc"), "Réponses envoyées au modèle (max.)",
                                     value = 60, min = 5, max = 300, step = 5),
                 shiny::tags$small(style = "color:#7f8c8d;",
-                  "Sans effet sur la thematisation automatique et le dictionnaire, ",
+                  "Sans effet sur la thématisation automatique et le dictionnaire, ",
                   "qui traitent tout le corpus.")),
               shiny::column(3,
-                shiny::textAreaInput(ns("ai_context"), "Contexte de l'enquete (facultatif)",
+                shiny::textAreaInput(ns("ai_context"), "Contexte de l'enquête (facultatif)",
                                      rows = 3,
-                                     placeholder = "Ex. enquete de satisfaction clients, secteur telecom"))),
+                                     placeholder = "Ex. enquête de satisfaction clients, secteur telecom"))),
 
             shiny::uiOutput(ns("ai_status")),
             shiny::br(),
@@ -2065,7 +2063,7 @@ mod_coding_ui <- function(id) {
                 "1. Proposer un livre de codes", icon = shiny::icon("lightbulb"),
                 class = "btn-primary btn-block")),
               shiny::column(4, shiny::actionButton(ns("ai_autocode"),
-                "2. Pre-coder les reponses", icon = shiny::icon("highlighter"),
+                "2. Pre-coder les réponses", icon = shiny::icon("highlighter"),
                 class = "btn-warning btn-block")),
               shiny::column(4, shiny::actionButton(ns("ai_drop"),
                 "Supprimer les codages automatiques", icon = shiny::icon("eraser"),
@@ -2079,26 +2077,26 @@ mod_coding_ui <- function(id) {
             shiny::div(style = "background:#fef9e7;border-left:5px solid #d4ac0d;padding:12px 16px;border-radius:6px;",
               shiny::tags$strong(shiny::icon("book"), " Dictionnaire des codes"),
               shiny::tags$p(style = "margin:6px 0 0 0;font-size:13px;",
-                "Chaque code peut porter une liste de mots-cles. Le pre-codage par ",
-                "dictionnaire etiquette alors, dans tout le corpus, la phrase qui ",
-                "contient l'un d'eux — sans modele, sans reseau et en un instant. ",
-                "Les accents et la casse sont ignores a la recherche.")),
+                "Chaque code peut porter une liste de mots-clés. Le pré-codage par ",
+                "dictionnaire étiquette alors, dans tout le corpus, la phrase qui ",
+                "contient l'un d'eux — sans modèle, sans réseau et en un instant. ",
+                "Les accents et la casse sont ignorés à la recherche.")),
             shiny::br(),
             shiny::fluidRow(
               shiny::column(4, shiny::uiOutput(ns("dict_code_ui"))),
               shiny::column(8, shiny::textAreaInput(ns("dict_words"),
-                "Mots-cles (separes par des points-virgules)", rows = 2,
-                placeholder = "prix; tarif; cher; couteux; excessif"))),
+                "Mots-clés (sépares par des points-virgules)", rows = 2,
+                placeholder = "prix; tarif; cher; coûteux; excessif"))),
             shiny::fluidRow(
               shiny::column(4, shiny::actionButton(ns("dict_save"),
-                "Enregistrer les mots-cles de ce code", icon = shiny::icon("floppy-disk"),
+                "Enregistrer les mots-clés de ce code", icon = shiny::icon("floppy-disk"),
                 class = "btn-default btn-block btn-sm")),
               shiny::column(4, shiny::radioButtons(ns("dict_scope"), NULL,
-                choices = c("Etiqueter la phrase entiere" = "phrase",
-                            "Etiqueter le mot seul" = "mot"),
+                choices = c("Étiqueter la phrase entière" = "phrase",
+                            "Étiqueter le mot seul" = "mot"),
                 selected = "phrase", inline = FALSE)),
               shiny::column(4, shiny::actionButton(ns("dict_apply"),
-                "Appliquer le dictionnaire a tout le corpus",
+                "Appliquer le dictionnaire à tout le corpus",
                 icon = shiny::icon("wand-magic"), class = "btn-success btn-block btn-sm"))),
             shiny::br(),
             DT::DTOutput(ns("dict_table"))),
@@ -2108,13 +2106,13 @@ mod_coding_ui <- function(id) {
           # code existe, ou passe sa frontiere, ce qu'un entretien a
           # d'atypique. C'est aussi ce qu'un relecteur demande pour comprendre
           # comment on est arrive la.
-          shiny::tabPanel(shiny::tagList(shiny::icon("note-sticky"), " Memos"),
+          shiny::tabPanel(shiny::tagList(shiny::icon("note-sticky"), " Mémos"),
             shiny::br(),
             shiny::div(style = "background:#eafaf1;border-left:5px solid #27ae60;padding:12px 16px;border-radius:6px;font-size:13px;",
               shiny::tags$strong(shiny::icon("pen-to-square"), " Le carnet de bord de votre analyse"),
               shiny::tags$p(style = "margin:6px 0 0 0;",
-                "Notez pourquoi un code existe, ou passe sa frontiere, ce qu'un ",
-                "entretien a de particulier, l'hypothese qui se dessine. ",
+                "Notez pourquoi un code existe, ou passe sa frontière, ce qu'un ",
+                "entretien a de particulier, l'hypothèse qui se dessine. ",
                 shiny::tags$b("Rien de tout cela ne se retrouve dans les tableaux"),
                 " — et c'est pourtant ce qu'on vous demandera pour justifier vos ",
                 "conclusions.")),
@@ -2125,10 +2123,10 @@ mod_coding_ui <- function(id) {
                                    choices = HSTAT_MEMO_CIBLES, selected = "libre"),
                 shiny::uiOutput(ns("memo_cible_ui")),
                 shiny::textInput(ns("memo_titre"), "Titre (facultatif)",
-                                 placeholder = "Deduit du texte s'il est vide"),
-                shiny::textAreaInput(ns("memo_texte"), "Memo", rows = 6,
+                                 placeholder = "Déduit du texte s'il est vide"),
+                shiny::textAreaInput(ns("memo_texte"), "Mémo", rows = 6,
                                      placeholder = "Ce que vous voulez retrouver dans six mois."),
-                shiny::actionButton(ns("memo_add"), "Enregistrer le memo",
+                shiny::actionButton(ns("memo_add"), "Enregistrer le mémo",
                                     icon = shiny::icon("plus"),
                                     class = "btn-success btn-block"),
                 shiny::br(),
@@ -2136,13 +2134,13 @@ mod_coding_ui <- function(id) {
               shiny::column(8,
                 shiny::fluidRow(
                   shiny::column(7, shiny::textInput(ns("memo_q"), NULL,
-                    placeholder = "Rechercher dans les memos (accents ignores)")),
+                    placeholder = "Rechercher dans les mémos (accents ignores)")),
                   shiny::column(5, shiny::selectInput(ns("memo_filtre"), NULL,
-                    choices = c("Tous les memos" = "", HSTAT_MEMO_CIBLES)))),
+                    choices = c("Tous les mémos" = "", HSTAT_MEMO_CIBLES)))),
                 DT::DTOutput(ns("memo_table")),
                 shiny::br(),
                 shiny::uiOutput(ns("memo_detail")),
-                shiny::downloadButton(ns("dl_memos"), "Telecharger les memos (CSV)",
+                shiny::downloadButton(ns("dl_memos"), "Télécharger les mémos (CSV)",
                                       class = "btn-info btn-sm")))),
 
           # ---- Export / sauvegarde ----
@@ -2152,15 +2150,15 @@ mod_coding_ui <- function(id) {
               shiny::column(6,
                 shiny::tags$strong(shiny::icon("file-excel"), " Rapport complet"),
                 shiny::tags$p(style = "font-size:13px;color:#7f8c8d;",
-                  "Un classeur Excel reunissant le livre de codes, tous les segments ",
+                  "Un classeur Excel réunissant le livre de codes, tous les segments ",
                   "codes, la matrice de croisement et la matrice de cooccurrences."),
-                shiny::downloadButton(ns("dl_report"), "Telecharger le rapport (Excel)",
+                shiny::downloadButton(ns("dl_report"), "Télécharger le rapport (Excel)",
                                       class = "btn-success btn-block")),
               shiny::column(6,
                 shiny::tags$strong(shiny::icon("floppy-disk"), " Projet de codage"),
                 shiny::tags$p(style = "font-size:13px;color:#7f8c8d;",
                   "Sauvegarde du livre de codes et des segments au format RDS, pour ",
-                  "reprendre le codage plus tard sur le meme jeu de donnees."),
+                  "reprendre le codage plus tard sur le même jeu de données."),
                 shiny::downloadButton(ns("dl_project"), "Enregistrer le projet (.rds)",
                                       class = "btn-info btn-block"),
                 shiny::br(), shiny::br(),
@@ -2195,7 +2193,7 @@ mod_coding_server <- function(id, values) {
     get_data <- shiny::reactive({
       d <- values$data
       shiny::validate(shiny::need(!is.null(d) && nrow(d) > 0,
-        "Chargez d'abord un jeu de donnees dans l'onglet Chargement."))
+        "Chargez d'abord un jeu de données dans l'onglet Chargement."))
       as.data.frame(d)
     })
 
@@ -2220,8 +2218,8 @@ mod_coding_server <- function(id, values) {
     output$doc_var_ui <- shiny::renderUI({
       v <- text_vars()
       shiny::validate(shiny::need(length(v) > 0,
-        "Aucune colonne textuelle dans ce jeu de donnees."))
-      shiny::selectInput(ns("doc_var"), "Question ouverte a coder",
+        "Aucune colonne textuelle dans ce jeu de données."))
+      shiny::selectInput(ns("doc_var"), "Question ouverte à coder",
                          choices = v, selected = shiny::isolate(input$doc_var) %||% v[1])
     })
 
@@ -2263,7 +2261,7 @@ mod_coding_server <- function(id, values) {
     output$nav_ui <- shiny::renderUI({
       dd <- docs()
       shiny::req(nrow(dd) > 0)
-      shiny::sliderInput(ns("doc_idx"), sprintf("Reponse (%d au total)", nrow(dd)),
+      shiny::sliderInput(ns("doc_idx"), sprintf("Réponse (%d au total)", nrow(dd)),
                          min = 1, max = nrow(dd), value = min(rv$cur, nrow(dd)),
                          step = 1, ticks = FALSE, width = "100%")
     })
@@ -2294,9 +2292,9 @@ mod_coding_server <- function(id, values) {
     output$doc_header <- shiny::renderUI({
       dd <- docs(); d <- cur_doc()
       shiny::div(style = "margin-bottom:6px;font-size:12px;color:#7f8c8d;",
-        shiny::icon("hashtag"), sprintf(" Reponse %d / %d ", rv$cur, nrow(dd)),
-        shiny::tags$b(sprintf("(ligne %d du jeu de donnees)", d$row)),
-        sprintf(" - %d caracteres", nchar(d$text)))
+        shiny::icon("hashtag"), sprintf(" Réponse %d / %d ", rv$cur, nrow(dd)),
+        shiny::tags$b(sprintf("(ligne %d du jeu de données)", d$row)),
+        sprintf(" - %d caractères", nchar(d$text)))
     })
 
     # ------------------------------------------------- affichage du document
@@ -2316,9 +2314,9 @@ mod_coding_server <- function(id, values) {
       if (is.null(s) || is.null(s$text) || !nzchar(s$text))
         return(shiny::HTML(paste0(
           "<span style='color:#7f8c8d;'>", as.character(shiny::icon("mouse-pointer")),
-          " Selectionnez un passage du texte ci-dessus, puis deposez-le (ou cliquez) sur un code.</span>")))
+          " Sélectionnez un passage du texte ci-dessus, puis déposez-le (ou cliquez) sur un code.</span>")))
       shiny::HTML(sprintf(
-        "%s <b>Selection</b> (%d caracteres, positions %d-%d) : <i>&laquo;&nbsp;%s&nbsp;&raquo;</i>",
+        "%s <b>Sélection</b> (%d caractères, positions %d-%d) : <i>&laquo;&nbsp;%s&nbsp;&raquo;</i>",
         as.character(shiny::icon("i-cursor")), nchar(s$text),
         as.integer(s$start), as.integer(s$end),
         .hstat_code_esc(substr(s$text, 1, 220))))
@@ -2345,8 +2343,8 @@ mod_coding_server <- function(id, values) {
       if (nrow(rv$codebook) == before) {
         shiny::showNotification(
           if (nzchar(parent))
-            sprintf("Le code « %s » existe deja sous ce parent. Sous un autre parent, il serait accepte.", lab)
-          else trf("Le code « %s » existe deja a la racine.", lab),
+            sprintf("Le code « %s » existe déjà sous ce parent. Sous un autre parent, il serait accepte.", lab)
+          else trf("Le code « %s » existe déjà à la racine.", lab),
           type = "warning", duration = 6)
       } else {
         shiny::updateTextInput(session, "new_code", value = "")
@@ -2374,7 +2372,7 @@ mod_coding_server <- function(id, values) {
       rv$segments <- hstat_seg_drop_code(rv$segments, cid)
       rv$codebook <- hstat_code_remove(rv$codebook, cid)
       shiny::showNotification(
-        sprintf("Code « %s » supprime (%d etiquette(s) retiree(s)).", lab, n),
+        sprintf("Code « %s » supprime (%d étiquette(s) retirée(s)).", lab, n),
         type = "message", duration = 5)
     })
 
@@ -2398,7 +2396,7 @@ mod_coding_server <- function(id, values) {
       if (!length(ch))
         return(shiny::tags$small(style = "color:#b9770e;",
           shiny::icon("circle-info"),
-          " Rien a quoi rattacher ce memo pour l'instant."))
+          " Rien à quoi rattacher ce mémo pour l'instant."))
       shiny::selectInput(ns("memo_cible"), "Cible", choices = ch)
     })
 
@@ -2434,7 +2432,7 @@ mod_coding_server <- function(id, values) {
     output$memo_table <- DT::renderDT({
       m <- memos_vus()
       shiny::validate(shiny::need(nrow(m) > 0,
-        "Aucun memo. Le premier est souvent le plus utile : pourquoi ce code."))
+        "Aucun mémo. Le premier est souvent le plus utile : pourquoi ce code."))
       # Le libelle de la cible plutot que son identifiant : « prix-trop-eleve »
       # ne dit rien a la relecture.
       cible <- vapply(seq_len(nrow(m)), function(i) {
@@ -2463,7 +2461,7 @@ mod_coding_server <- function(id, values) {
       m <- memos_vus()
       if (!length(i) || i > nrow(m))
         return(shiny::tags$em(style = "color:#95a5a6;",
-          "Selectionnez un memo pour le lire en entier."))
+          "Sélectionnez un mémo pour le lire en entier."))
       shiny::div(style = "background:#fffdf5;border:1px solid #f0e2c0;border-radius:6px;padding:14px 18px;",
         shiny::h4(style = "margin-top:0;", m$titre[i]),
         # Le texte est ECHAPPE : un memo reste du contenu saisi par
@@ -2471,9 +2469,9 @@ mod_coding_server <- function(id, values) {
         shiny::HTML(gsub("\n", "<br>", hstat_html_escape(m$texte[i]))),
         shiny::hr(style = "margin:10px 0;"),
         shiny::tags$small(style = "color:#7f8c8d;",
-          trf("Cree le %s, modifie le %s.", m$created[i], m$modified[i])),
+          trf("Créé le %s, modifie le %s.", m$created[i], m$modified[i])),
         shiny::br(),
-        shiny::actionButton(ns("memo_del"), "Supprimer ce memo",
+        shiny::actionButton(ns("memo_del"), "Supprimer ce mémo",
                             icon = shiny::icon("trash"), class = "btn-danger btn-xs"))
     })
 
@@ -2489,9 +2487,9 @@ mod_coding_server <- function(id, values) {
       r <- hstat_memo_resume(rv$memos)
       if (!sum(r$Memos))
         return(shiny::tags$small(style = "color:#7f8c8d;",
-          shiny::icon("circle-info"), " Aucun memo pour l'instant."))
+          shiny::icon("circle-info"), " Aucun mémo pour l'instant."))
       shiny::div(style = "font-size:12px;color:#566573;",
-        shiny::tags$b("Memos enregistres"), shiny::br(),
+        shiny::tags$b("Mémos enregistres"), shiny::br(),
         shiny::HTML(paste(sprintf("%s : %d", r$Cible, r$Memos), collapse = "<br>")))
     })
 
@@ -2504,7 +2502,7 @@ mod_coding_server <- function(id, values) {
       cb <- rv$codebook
       if (nrow(cb) == 0)
         return(shiny::div(style = "color:#7f8c8d;font-size:13px;font-style:italic;",
-          "Aucun code pour l'instant. Creez-en un ci-dessus, ou laissez ",
+          "Aucun code pour l'instant. Créez-en un ci-dessus, ou laissez ",
           "l'assistant IA vous en proposer."))
       cnt <- hstat_code_counts(cb, rv$segments)
       # Les codes sont affiches dans l'ORDRE DE L'ARBRE, chaque enfant sous son
@@ -2555,12 +2553,12 @@ mod_coding_server <- function(id, values) {
       ch <- stats::setNames(arbre$code_id, arbre$chemin)
       shiny::tagList(
         shiny::tags$small(style = "color:#7f8c8d;font-weight:bold;",
-                          shiny::icon("sitemap"), " Deplacer un code"),
+                          shiny::icon("sitemap"), " Déplacer un code"),
         shiny::selectInput(ns("move_code"), NULL, choices = ch),
         shiny::selectInput(ns("move_to"), "sous",
                            choices = stats::setNames(c("", arbre$code_id),
                                                      c("(racine)", arbre$chemin))),
-        shiny::actionButton(ns("do_move"), "Deplacer",
+        shiny::actionButton(ns("do_move"), "Déplacer",
                             icon = shiny::icon("arrows-up-down-left-right"),
                             class = "btn-default btn-xs btn-block"))
     })
@@ -2573,9 +2571,9 @@ mod_coding_server <- function(id, values) {
       apres <- rv$codebook$parent_id[rv$codebook$code_id == input$move_code]
       if (identical(avant, apres) && !identical(avant, input$move_to %||% ""))
         shiny::showNotification(
-          paste("Deplacement refuse : un code ne peut pas devenir enfant de",
-                "lui-meme ni d'un de ses propres sous-codes — sa branche se",
-                "detacherait de l'arbre."),
+          paste("Déplacement refuse : un code ne peut pas devenir enfant de",
+                "lui-même ni d'un de ses propres sous-codes — sa branche se",
+                "détacherait de l'arbre."),
           type = "warning", duration = 8)
     })
 
@@ -2613,7 +2611,7 @@ mod_coding_server <- function(id, values) {
                                 type = "warning", duration = 3)
       else
         shiny::showNotification(
-          sprintf("« %s » applique a : %s",
+          sprintf("« %s » applique à : %s",
                   hstat_code_label(rv$codebook, ev$code),
                   substr(txt, 1, 60)), type = "message", duration = 3)
     })
@@ -2624,7 +2622,7 @@ mod_coding_server <- function(id, values) {
       s <- hstat_seg_for_doc(rv$segments, d$doc_id)
       if (nrow(s) == 0)
         return(shiny::div(style = "color:#7f8c8d;font-size:13px;font-style:italic;",
-                          "Aucune etiquette sur cette reponse."))
+                          "Aucune étiquette sur cette réponse."))
       s <- s[order(s$start), , drop = FALSE]
       shiny::tagList(lapply(seq_len(nrow(s)), function(i) {
         col <- hstat_code_color(rv$codebook, s$code_id[i])
@@ -2650,7 +2648,7 @@ mod_coding_server <- function(id, values) {
       if (!(sid %in% rv$segments$seg_id)) return()
       lab <- hstat_code_label(rv$codebook, rv$segments$code_id[rv$segments$seg_id == sid])
       rv$segments <- hstat_seg_remove(rv$segments, sid)
-      shiny::showNotification(sprintf("Etiquette « %s » retiree.", lab),
+      shiny::showNotification(sprintf("Étiquette « %s » retirée.", lab),
                               type = "message", duration = 3)
     })
 
@@ -2663,9 +2661,9 @@ mod_coding_server <- function(id, values) {
         shiny::tags$b(shiny::icon("chart-simple"), " Avancement du codage"),
         shiny::div(style = "background:#ecf0f1;border-radius:8px;height:16px;margin:6px 0;overflow:hidden;",
           shiny::div(style = sprintf("background:#27ae60;height:100%%;width:%d%%;", pct))),
-        sprintf("%d / %d reponses codees (%d%%)", n_coded, n_doc, pct),
+        sprintf("%d / %d réponses codées (%d%%)", n_coded, n_doc, pct),
         shiny::br(),
-        sprintf("%d etiquette(s), %d code(s)", nrow(rv$segments), nrow(rv$codebook)))
+        sprintf("%d étiquette(s), %d code(s)", nrow(rv$segments), nrow(rv$codebook)))
     })
 
     # ==================================================== RECUPERATION
@@ -2705,9 +2703,9 @@ mod_coding_server <- function(id, values) {
       # La portee change le SENS de la reponse : la taire laisserait croire
       # qu'il n'y a qu'une facon de lire « A et B ».
       quoi <- switch(attr(s, "portee") %||% "document",
-        document  = "presents dans la meme reponse",
-        overlap   = "etiquetant le meme passage",
-        proximite = sprintf("distants de moins de %s caracteres",
+        document  = "présents dans la même réponse",
+        overlap   = "étiquetant le même passage",
+        proximite = sprintf("distants de moins de %s caractères",
                             hstat_finite(input$qry_dist, 200)),
         "")
       lib <- switch(op, et = "A ET B", sauf = "A SAUF B", ou = "A OU B")
@@ -2746,20 +2744,20 @@ mod_coding_server <- function(id, values) {
         return(shiny::div(class = "callout callout-info", style = "padding:8px 12px;",
           shiny::icon("magnifying-glass"),
           " Entrez un mot pour voir tous ses emplois dans leur contexte.",
-          " C'est l'outil qui precede le codage : on voit COMMENT un mot est",
-          " employe avant de decider quel code lui donner."))
+          " C'est l'outil qui précède le codage : on voit COMMENT un mot est",
+          " employé avant de décider quel code lui donner."))
       k <- kwic_df()
       if (!nrow(k))
         return(shiny::div(class = "callout callout-warning", style = "padding:8px 12px;",
           shiny::icon("circle-exclamation"),
           trf(" Aucune occurrence de « %s ».", m),
           if (isTRUE(input$kwic_regex))
-            " Verifiez l'expression reguliere : une expression invalide ne rend aucune ligne." else ""))
+            " Vérifiez l'expression régulière : une expression invalide ne rend aucune ligne." else ""))
       shiny::div(class = "callout callout-info", style = "padding:8px 12px;",
         shiny::icon("magnifying-glass"),
         sprintf(" %d occurrence(s).", nrow(k)),
         if (isTRUE(attr(k, "tronque")))
-          " Affichage limite aux premieres trouvees." else "")
+          " Affichage limite aux premières trouvées." else "")
     })
 
     output$kwic_table <- DT::renderDT({
@@ -2804,10 +2802,10 @@ mod_coding_server <- function(id, values) {
       if (is.null(cl) || !nrow(cl)) return(NULL)
       shiny::div(class = "callout callout-info", style = "padding:8px 12px;",
         shiny::icon("chart-gantt"),
-        sprintf(" %d etiquette(s) sur %s caracteres. ", nrow(cl),
+        sprintf(" %d étiquette(s) sur %s caractères. ", nrow(cl),
                 attr(cl, "n_char") %||% 0L),
-        "La position est en pourcentage du document : deux reponses de longueurs",
-        " differentes restent comparables.")
+        "La position est en pourcentage du document : deux réponses de longueurs",
+        " différentes restent comparables.")
     })
 
     output$cl_plot <- shiny::renderPlot({
@@ -2820,7 +2818,7 @@ mod_coding_server <- function(id, values) {
     output$cl_table <- DT::renderDT({
       cl <- cl_df()
       DT::datatable(cl[, c("Code", "debut", "fin", "Extrait"), drop = FALSE],
-                    rownames = FALSE, colnames = c("Code", "Debut", "Fin", "Extrait"),
+                    rownames = FALSE, colnames = c("Code", "Début", "Fin", "Extrait"),
                     options = list(pageLength = 10, scrollX = TRUE,
                                    language = list(url = NULL)),
                     escape = TRUE)
@@ -2839,9 +2837,9 @@ mod_coding_server <- function(id, values) {
         return(shiny::div(class = "callout callout-warning", style = "padding:8px 12px;",
           shiny::icon("info-circle"),
           " L'accord se mesure entre DEUX codeurs. Un seul jeu de codages est",
-          " present pour l'instant (origine : ",
+          " présent pour l'instant (origine : ",
           paste(cs, collapse = ", "), "). Importez le codage d'une autre",
-          " personne, ou comparez un codage manuel a un codage automatique."))
+          " personne, ou comparez un codage manuel à un codage automatique."))
       shiny::selectInput(ns("acc_a"), "Codeur A", choices = cs, selected = cs[1])
     })
     output$acc_b_ui <- shiny::renderUI({
@@ -2864,7 +2862,7 @@ mod_coding_server <- function(id, values) {
         excellent  = "accord excellent",
         acceptable = "accord acceptable",
         faible     = "accord faible : relisez ensemble le livre de codes",
-        "verdict indeterminable")
+        "verdict indéterminable")
       classe <- switch(a$verdict, excellent = "callout callout-success",
                        acceptable = "callout callout-info",
                        faible = "callout callout-warning", "callout callout-warning")
@@ -2878,8 +2876,8 @@ mod_coding_server <- function(id, values) {
         shiny::br(),
         shiny::tags$small(style = "color:#7f8c8d;",
           if (is.finite(a$kappa)) a$message else "",
-          " L'unite comparee est le couple document x code : deux codeurs ne",
-          " decoupent jamais aux memes bornes, comparer des segments exigerait",
+          " L'unité comparée est le couple document x code : deux codeurs ne",
+          " découpent jamais aux mêmes bornes, comparer des segments exigerait",
           " un seuil de recouvrement arbitraire."))
     })
 
@@ -2895,7 +2893,7 @@ mod_coding_server <- function(id, values) {
 
     output$ret_codes_ui <- shiny::renderUI({
       cb <- rv$codebook
-      shiny::selectInput(ns("ret_codes"), "Codes a afficher",
+      shiny::selectInput(ns("ret_codes"), "Codes à afficher",
         choices = stats::setNames(cb$code_id, cb$label),
         selected = cb$code_id, multiple = TRUE, width = "100%")
     })
@@ -2908,7 +2906,7 @@ mod_coding_server <- function(id, values) {
       if (is.null(v) || !nzchar(v)) return(NULL)
       p <- profile()
       lv <- sort(unique(p[[v]][!is.na(p[[v]]) & nzchar(p[[v]])]))
-      shiny::selectInput(ns("ret_lvl"), sprintf("Modalites de %s", v),
+      shiny::selectInput(ns("ret_lvl"), sprintf("Modalités de %s", v),
                          choices = lv, selected = lv, multiple = TRUE)
     })
 
@@ -2924,7 +2922,7 @@ mod_coding_server <- function(id, values) {
       if (nrow(rv$segments) == 0)
         return(shiny::div(class = "callout callout-warning",
           shiny::icon("info-circle"),
-          " Aucun codage pour l'instant : commencez par etiqueter des passages ci-dessus."))
+          " Aucun codage pour l'instant : commencez par étiqueter des passages ci-dessus."))
       shiny::div(class = "callout callout-info", style = "padding:8px 12px;",
         shiny::icon("quote-left"),
         trf(" %d extrait(s) correspondant à la sélection, sur %d étiquette(s) au total.",
@@ -2991,7 +2989,7 @@ mod_coding_server <- function(id, values) {
     output$mat_table <- DT::renderDT({
       m <- mat_df()
       shiny::validate(shiny::need(!is.null(m) && nrow(m) > 0,
-        "Creez des codes et etiquetez des passages pour obtenir une matrice."))
+        "Créez des codes et étiquetez des passages pour obtenir une matrice."))
       DT::datatable(m, rownames = FALSE,
                     options = list(pageLength = 20, scrollX = TRUE, dom = "tip"))
     })
@@ -2999,9 +2997,9 @@ mod_coding_server <- function(id, values) {
     output$mat_plot <- shiny::renderPlot({
       m <- mat_raw()
       shiny::validate(shiny::need(!is.null(m) && nrow(m) > 0 && ncol(m) >= 2,
-        "Aucune donnee a representer."))
+        "Aucune donnée à représenter."))
       num <- setdiff(names(m), c("Code", "Total"))
-      shiny::validate(shiny::need(length(num) >= 1, "Aucune donnee a representer."))
+      shiny::validate(shiny::need(length(num) >= 1, "Aucune donnée à représenter."))
       long <- do.call(rbind, lapply(num, function(v)
         data.frame(Code = m$Code, Modalite = v, n = m[[v]], stringsAsFactors = FALSE)))
       long$Code <- factor(long$Code, levels = rev(m$Code[order(m$Total)]))
@@ -3048,7 +3046,7 @@ mod_coding_server <- function(id, values) {
 
     cloud_layout <- shiny::reactive({
       tx <- cloud_texts()
-      shiny::validate(shiny::need(length(tx) > 0, "Aucun texte a representer."))
+      shiny::validate(shiny::need(length(tx) > 0, "Aucun texte à représenter."))
       extra <- input$cloud_stop
       extra <- if (is.null(extra) || !nzchar(trimws(extra))) NULL
                else trimws(strsplit(extra, "[,;[:space:]]+")[[1]])
@@ -3057,7 +3055,7 @@ mod_coding_server <- function(id, values) {
                                remove_numbers = TRUE, extra_stopwords = extra)
       w <- unlist(toks)
       shiny::validate(shiny::need(length(w) > 0,
-        "Aucun mot exploitable apres nettoyage (assouplissez la longueur minimale)."))
+        "Aucun mot exploitable après nettoyage (assouplissez la longueur minimale)."))
       tb <- sort(table(w), decreasing = TRUE)
       # La taille minimale suit la taille maximale : a 3 pt fixes, les mots les
       # plus rares devenaient des points illisibles des que l'echelle du
@@ -3071,7 +3069,7 @@ mod_coding_server <- function(id, values) {
     cloud_gg <- shiny::reactive({
       lay <- cloud_layout()
       shiny::validate(shiny::need(!is.null(lay) && nrow(lay) > 0,
-        "Nuage vide : elargissez le corpus ou reduisez la taille du texte."))
+        "Nuage vide : élargissez le corpus ou réduisez la taille du texte."))
       hstat_code_cloud_plot(lay)
     })
 
@@ -3157,7 +3155,7 @@ mod_coding_server <- function(id, values) {
         " ", st$message,
         if (!isTRUE(st$ok) && !identical(o$engine, "auto"))
           shiny::tags$small(style = "display:block;color:#7f8c8d;margin-top:4px;",
-            "En attendant, le moteur « Thematisation automatique » fonctionne sans ",
+            "En attendant, le moteur « Thématisation automatique » fonctionne sans ",
             "rien installer, et tout le reste de l'atelier de codage est utilisable."))
     })
 
@@ -3170,27 +3168,27 @@ mod_coding_server <- function(id, values) {
       if (!length(tx)) { shiny::showNotification("Corpus vide.", type = "error"); return() }
 
       if (identical(o$engine, "auto")) {
-        shiny::withProgress(message = "Thematisation du corpus...", value = 0.5, {
+        shiny::withProgress(message = "Thématisation du corpus...", value = 0.5, {
           cb <- hstat_code_auto_codebook(tx, n_codes = input$ai_ncodes %||% 8,
                                          min_char = input$ai_minchar %||% 4)
           if (is.null(cb)) {
             rv$ai <- list(ok = FALSE,
-                          msg = paste0("Corpus trop court ou trop homogene pour en degager ",
-                                       "des themes. Reduisez la longueur minimale des mots, ",
-                                       "ou creez les codes a la main."))
+                          msg = paste0("Corpus trop court ou trop homogène pour en dégager ",
+                                       "des thèmes. Réduisez la longueur minimale des mots, ",
+                                       "ou créez les codes à la main."))
             shiny::showNotification(rv$ai$msg, type = "warning", duration = 8); return()
           }
-          .push_codebook(cb, "Thematisation automatique")
+          .push_codebook(cb, "Thématisation automatique")
         })
         return()
       }
 
       n_max <- max(5L, as.integer(input$ai_maxdoc %||% 60))
       if (length(tx) > n_max) tx <- tx[round(seq(1, length(tx), length.out = n_max))]
-      shiny::withProgress(message = "Le modele analyse le corpus...", value = 0.4, {
+      shiny::withProgress(message = "Le modèle analyse le corpus...", value = 0.4, {
         res <- hstat_ai_call(
           hstat_ai_codebook_prompt(tx, input$ai_ncodes %||% 8, input$ai_context %||% ""),
-          system = "Tu es un analyste qualitatif rigoureux. Tu reponds exclusivement en JSON valide.",
+          system = "Tu es un analyste qualitatif rigoureux. Tu réponds exclusivement en JSON valide.",
           engine = o$engine, url = o$url, model = o$model,
           api_key = o$key)
         shiny::incProgress(0.4)
@@ -3201,15 +3199,15 @@ mod_coding_server <- function(id, values) {
         cb <- hstat_ai_parse_codebook(hstat_ai_extract_json(res$text))
         if (is.null(cb)) {
           rv$ai <- list(ok = FALSE,
-                        msg = paste0("Reponse du modele non exploitable. Un modele local ",
+                        msg = paste0("Réponse du modèle non exploitable. Un modèle local ",
                                      "trop petit peut ne pas tenir le format JSON : ",
-                                     "essayez un modele plus grand, ou le moteur ",
-                                     "« Thematisation automatique »."),
+                                     "essayez un modèle plus grand, ou le moteur ",
+                                     "« Thématisation automatique »."),
                         raw = substr(res$text, 1, 1500))
           shiny::showNotification(rv$ai$msg, type = "error", duration = 10); return()
         }
         .push_codebook(cb, if (identical(o$engine, "claude")) "API Claude"
-                           else sprintf("Modele local%s",
+                           else sprintf("Modèle local%s",
                                         if (!is.null(res$model)) paste0(" (", res$model, ")") else ""))
       })
     })
@@ -3247,16 +3245,16 @@ mod_coding_server <- function(id, values) {
       if (identical(o$engine, "auto")) {
         # Sans modele, le pre-codage est celui du dictionnaire : il porte sur
         # TOUT le corpus, pas sur un echantillon.
-        .apply_dictionary(dd, "Thematisation automatique")
+        .apply_dictionary(dd, "Thématisation automatique")
         return()
       }
 
       n_max <- max(5L, as.integer(input$ai_maxdoc %||% 60))
       sub <- if (nrow(dd) > n_max) dd[round(seq(1, nrow(dd), length.out = n_max)), , drop = FALSE] else dd
-      shiny::withProgress(message = "Le modele pre-code les reponses...", value = 0.4, {
+      shiny::withProgress(message = "Le modèle pré-code les réponses...", value = 0.4, {
         res <- hstat_ai_call(
           hstat_ai_autocode_prompt(sub, rv$codebook),
-          system = "Tu es un analyste qualitatif rigoureux. Tu reponds exclusivement en JSON valide et tu cites les extraits mot pour mot.",
+          system = "Tu es un analyste qualitatif rigoureux. Tu réponds exclusivement en JSON valide et tu cites les extraits mot pour mot.",
           engine = o$engine, url = o$url, model = o$model,
           api_key = o$key)
         shiny::incProgress(0.4)
@@ -3267,10 +3265,10 @@ mod_coding_server <- function(id, values) {
         segs <- hstat_ai_parse_autocode(hstat_ai_extract_json(res$text), sub, rv$codebook)
         if (is.null(segs) || nrow(segs) == 0) {
           rv$ai <- list(ok = FALSE,
-                        msg = paste0("Aucun codage exploitable n'a pu etre localise dans le ",
-                                     "texte. Les extraits cites par le modele doivent etre ",
-                                     "mot pour mot ; un modele local trop petit les reformule ",
-                                     "souvent. Le pre-codage par dictionnaire, lui, ne peut ",
+                        msg = paste0("Aucun codage exploitable n'a pu être localise dans le ",
+                                     "texte. Les extraits cites par le modèle doivent être ",
+                                     "mot pour mot ; un modèle local trop petit les reformule ",
+                                     "souvent. Le pré-codage par dictionnaire, lui, ne peut ",
                                      "pas se tromper de passage."),
                         raw = substr(res$text, 1, 1500))
           shiny::showNotification(rv$ai$msg, type = "warning", duration = 10); return()
@@ -3286,7 +3284,7 @@ mod_coding_server <- function(id, values) {
         miss <- attr(segs, "non_localises")
         rv$ai <- list(ok = TRUE,
                       msg = sprintf(
-                        "%d etiquette(s) ajoutee(s) sur %d reponse(s) analysee(s).%s",
+                        "%d étiquette(s) ajoutée(s) sur %d réponse(s) analysée(s).%s",
                         added, nrow(sub),
                         if (!is.null(miss) && miss > 0)
                           trf(" %d proposition(s) écartée(s) : extrait introuvable dans le texte.", miss)
@@ -3303,7 +3301,7 @@ mod_coding_server <- function(id, values) {
       auto <- rv$segments$source %in% c("IA", "auto")
       n <- sum(auto)
       rv$segments <- rv$segments[!auto, , drop = FALSE]
-      shiny::showNotification(sprintf("%d etiquette(s) posee(s) automatiquement supprimee(s).", n),
+      shiny::showNotification(sprintf("%d étiquette(s) posée(s) automatiquement supprimée(s).", n),
                               type = "message", duration = 5)
     })
 
@@ -3332,7 +3330,7 @@ mod_coding_server <- function(id, values) {
       # Les colonnes techniques du contrat interne deviennent des intitules
       # lisibles a l'ecran.
       names(tb) <- vapply(names(tb), function(n) switch(
-        n, label = "Code", memo = "Definition", keywords = "Mots-cles", n),
+        n, label = "Code", memo = "Définition", keywords = "Mots-cles", n),
         character(1))
       DT::datatable(tb, rownames = FALSE,
                     options = list(pageLength = 10, scrollX = TRUE, dom = "tip"))
@@ -3358,7 +3356,7 @@ mod_coding_server <- function(id, values) {
       kw <- paste(unique(trimws(strsplit(kw, "[;,\n]")[[1]])), collapse = "; ")
       rv$codebook <- hstat_code_update(rv$codebook, input$dict_code, keywords = kw)
       shiny::showNotification(
-        sprintf("Mots-cles enregistres pour « %s ».",
+        sprintf("Mots-clés enregistres pour « %s ».",
                 hstat_code_label(rv$codebook, input$dict_code)),
         type = "message", duration = 4)
     })
@@ -3366,8 +3364,8 @@ mod_coding_server <- function(id, values) {
     .apply_dictionary <- function(dd, source_label) {
       if (!any(nzchar(trimws(rv$codebook$keywords)))) {
         rv$ai <- list(ok = FALSE,
-                      msg = paste0("Aucun code ne porte de mots-cles. Renseignez-en ",
-                                   "ci-dessous, ou lancez d'abord la thematisation ",
+                      msg = paste0("Aucun code ne porte de mots-clés. Renseignez-en ",
+                                   "ci-dessous, ou lancez d'abord la thématisation ",
                                    "automatique, qui en propose."))
         shiny::showNotification(rv$ai$msg, type = "warning", duration = 8)
         return(invisible(NULL))
@@ -3386,10 +3384,10 @@ mod_coding_server <- function(id, values) {
         sans <- attr(segs, "codes_sans_mots_cles")
         rv$ai <- list(
           ok = TRUE,
-          msg = trf("%s : %d etiquette(s) posee(s) sur %d reponse(s) analysee(s) (tout le corpus).%s",
+          msg = trf("%s : %d étiquette(s) posée(s) sur %d réponse(s) analysée(s) (tout le corpus).%s",
                         source_label, added, nrow(dd),
                         if (!is.null(sans) && sans > 0)
-                          sprintf(" %d code(s) sans mots-cles ont ete ignore(s).", sans) else ""),
+                          sprintf(" %d code(s) sans mots-clés ont été ignoré(s).", sans) else ""),
           table = if (nrow(segs)) utils::head(data.frame(
             Reponse = segs$doc_id,
             Code = hstat_code_label(rv$codebook, segs$code_id),
@@ -3403,7 +3401,7 @@ mod_coding_server <- function(id, values) {
     output$dict_table <- DT::renderDT({
       cb <- rv$codebook
       shiny::validate(shiny::need(nrow(cb) > 0,
-        "Aucun code : creez-en a la main, ou faites-en proposer par l'assistant."))
+        "Aucun code : créez-en à la main, ou faites-en proposer par l'assistant."))
       cnt <- hstat_code_counts(cb, rv$segments)
       DT::datatable(
         data.frame(Code = cb$label,
@@ -3464,7 +3462,7 @@ mod_coding_server <- function(id, values) {
       if (!is.null(obj$doc_var) && obj$doc_var %in% names(get_data()))
         shiny::updateSelectInput(session, "doc_var", selected = obj$doc_var)
       shiny::showNotification(
-        sprintf("Projet recharge : %d code(s), %d etiquette(s).",
+        sprintf("Projet recharge : %d code(s), %d étiquette(s).",
                 nrow(rv$codebook), nrow(rv$segments)),
         type = "message", duration = 6)
     })
