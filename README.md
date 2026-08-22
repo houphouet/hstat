@@ -37,6 +37,7 @@ Requires **R ≥ 4.4**.
 | **Model** | Machine learning, deep learning, time series and forecasting |
 | **Qualitative** | Frequency and cross-tabulation, Likert scales, text analysis, CAQDAS coding workbench |
 | **Plan** | Experimental designs, sample size and statistical power |
+| **Dose** | Product dose and active-ingredient rate per hectare, spray mix, tank loads, and serial dilutions (working solutions) |
 | **Report** | Interpretation, reproducibility journal, automatic report (HTML / Word / PDF) |
 
 Every analysis states its **assumptions**, gives an **interpretation in plain
@@ -224,6 +225,7 @@ consistency check, then the full suite.
 │   ├── mod_descriptive.R
 │   ├── mod_design.R
 │   ├── mod_dl.R
+│   ├── mod_dosage.R                # doses à l'hectare et solutions filles
 │   ├── mod_explore.R
 │   ├── mod_filter.R
 │   ├── mod_ml.R
@@ -255,7 +257,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.46.4. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.47.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -263,7 +265,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 0.46.4},
+  note   = {Version 0.47.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

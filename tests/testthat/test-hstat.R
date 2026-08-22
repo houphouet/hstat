@@ -8007,7 +8007,7 @@ test_that("une colonne creee et une colonne lue portent le meme nom", {
   # Les couples legitimes : un nom de colonne ASCII et son LIBELLE accentue,
   # verifies un par un (« Modalite » la colonne, « Modalité » l'etiquette).
   connus <- c("Observé", "Prédit", "Modalité", "Résidu", "Thème", "Fréquence",
-              "Méthode", "Interprétation", "Métrique")
+              "Méthode", "Interprétation", "Métrique", "Unité")
   fautifs <- fautifs[!grepl(paste0("chaine (", paste(connus, collapse = "|"),
                                    ") "), fautifs)]
   expect_equal(fautifs, character(0))
@@ -8100,4 +8100,161 @@ test_that("une efficacite indeterminable est nommee, pas escamotee", {
   expect_true(all(grepl("na.rm = TRUE", args, fixed = TRUE)),
               info = paste(args[!grepl("na.rm = TRUE", args, fixed = TRUE)],
                            collapse = "\n"))
+})
+
+# =============================================================================
+#  DOSES ET DILUTIONS
+# =============================================================================
+
+test_that("dose et grammage sont exactement reciproques", {
+  # Le cas de terrain : 250 mL/ha d'un produit a 400 g/L, bouillie de 60 L/ha.
+  # Les deux sens doivent rendre le MEME tableau -- sinon l'un des deux ment,
+  # et rien a l'ecran ne dirait lequel.
+  a <- hstat_dose_bilan("dose", 250, "mL/ha", 400, "g/L",
+                        volume_bouillie = 60, superficie = 2, volume_cuve = 15)
+  b <- hstat_dose_bilan("grammage", 100, "g/ha", 400, "g/L",
+                        volume_bouillie = 60, superficie = 2, volume_cuve = 15)
+  expect_equal(a$Valeur, b$Valeur)
+
+  v <- stats::setNames(a$Valeur, c("dose", "grammage", "conc_bouillie", "dose_bouillie",
+                                   "prod_total", "ma_total", "eau_total",
+                                   "par_cuve", "nb_cuves", "surf_cuve"))
+  expect_equal(unname(v[["grammage"]]), 100)          # 0,25 L x 400 g/L
+  expect_equal(unname(v[["conc_bouillie"]]), 100 / 60)
+  expect_equal(unname(v[["dose_bouillie"]]), 250 / 60)
+  expect_equal(unname(v[["prod_total"]]), 0.5)        # 0,25 L/ha x 2 ha
+  expect_equal(unname(v[["ma_total"]]), 200)
+  expect_equal(unname(v[["eau_total"]]), 120)
+  expect_equal(unname(v[["surf_cuve"]]), 0.25)        # 15 L / 60 L/ha
+  expect_equal(unname(v[["par_cuve"]]), 62.5)         # 250 mL/ha x 0,25 ha
+  expect_equal(unname(v[["nb_cuves"]]), 8)
+
+  # CHAQUE ligne porte sa formule : un chiffre de dose qu'on ne peut pas
+  # refaire a la main sera recalcule, et c'est le recalcul qui fera foi.
+  expect_equal(sum(nzchar(a$Formule)), nrow(a))
+})
+
+test_that("une unite inconnue ne vaut jamais 1 par defaut", {
+  # Un facteur muet rendrait un resultat mille fois trop grand sans le moindre
+  # signe : c'est la faute la plus couteuse que ce module puisse commettre.
+  expect_true(is.na(hstat_conc_vers_ref(400, "g/hL")))
+  expect_true(is.na(hstat_dose_vers_ref(250, "mL")))
+  expect_true(is.na(hstat_dose_depuis_ref(1, "inconnue")))
+  # Et les conversions connues sont justes.
+  expect_equal(hstat_conc_vers_ref(5, "%"), 50)       # 5 g/100 mL = 50 g/L
+  expect_equal(hstat_conc_vers_ref(1000, "ppm"), 1)
+  expect_equal(hstat_dose_vers_ref(250, "mL/ha"), 0.25)
+})
+
+test_that("le bilan de dose refuse ce qu'il ne peut pas calculer, en le nommant", {
+  for (cas in list(list(400 * 0, "g/L"), list(NA, "g/L"), list(400, "g/hL"))) {
+    r <- hstat_dose_bilan("dose", 250, "mL/ha", cas[[1]], cas[[2]])
+    expect_equal(nrow(r), 0L)
+    expect_true(nzchar(attr(r, "message")))
+    expect_true(grepl("[Rr]enseignez|[Vv]érifiez|[Cc]hoisissez", attr(r, "message")))
+  }
+  r <- hstat_dose_bilan("dose", 0, "mL/ha", 400, "g/L")
+  expect_equal(nrow(r), 0L)
+  expect_true(grepl("saisissez", attr(r, "message"), fixed = TRUE))
+})
+
+test_that("les solutions filles suivent la conservation du solute", {
+  d <- data.frame(
+    Produit            = c("A", "B", "B"),
+    Matiere_active     = c("ma1", "ma1", "ma2"),
+    Concentration_mere = c(50, 25, 20),
+    Unite              = "g/L",
+    Coefficient        = c(10, 5, 5),
+    Volume_final       = c(1, 2, 2),
+    Unite_volume       = "L", stringsAsFactors = FALSE)
+  r <- hstat_dilution_calcul(d)
+  expect_equal(nrow(r), 3L)
+
+  # C_mere x V_preleve = C_fille x V_final, pour chaque ligne.
+  for (i in seq_len(nrow(r))) {
+    vp <- r$Volume_final[i] / r$Coefficient[i]
+    expect_equal(r$Concentration_mere[i] * vp,
+                 r$Concentration_fille[i] * r$Volume_final[i])
+  }
+  a <- r[r$Produit == "A", ]
+  expect_equal(a$Concentration_fille, 5)
+  expect_equal(a$Volume_a_prelever, 0.1)
+  expect_equal(a$Volume_eau_a_ajouter, 0.9)
+
+  # Un produit a DEUX matieres actives : chacune a sa concentration fille, et
+  # la solution porte leur somme -- c'est la question posee.
+  bb <- r[r$Produit == "B", ]
+  expect_setequal(bb$Concentration_fille, c(5, 4))
+  expect_equal(sum(bb$Concentration_totale_g_L, na.rm = TRUE), 9)
+
+  # Le volume a prelever appartient au PRODUIT, pas a la matiere active : le
+  # repeter ferait croire qu'il faut prelever deux fois.
+  expect_equal(sum(!is.na(bb$Volume_a_prelever)), 1L)
+  expect_equal(sum(bb$Volume_a_prelever, na.rm = TRUE), 0.4)
+  expect_equal(sum(bb$Volume_eau_a_ajouter, na.rm = TRUE), 1.6)
+
+  expect_true(length(attr(r, "formules")) >= 3L)
+})
+
+test_that("les concentrations filles sont additionnees dans une unite commune", {
+  # Sommer des pour-cent et des mg/L donnerait un total qui ne veut rien dire.
+  d <- data.frame(
+    Produit            = "P", Matiere_active = c("a", "b"),
+    Concentration_mere = c(1, 5000),        # 1 % = 10 g/L ; 5000 mg/L = 5 g/L
+    Unite              = c("%", "mg/L"),
+    Coefficient        = 10, Volume_final = 1, Unite_volume = "L",
+    stringsAsFactors = FALSE)
+  r <- hstat_dilution_calcul(d)
+  # filles : 0,1 % = 1 g/L, et 500 mg/L = 0,5 g/L -> 1,5 g/L au total
+  expect_equal(sum(r$Concentration_totale_g_L, na.rm = TRUE), 1.5)
+})
+
+test_that("la dilution refuse une saisie contradictoire en nommant le produit", {
+  base <- data.frame(
+    Produit = c("Alpha", "Alpha"), Matiere_active = c("a", "b"),
+    Concentration_mere = c(10, 20), Unite = "g/L",
+    Coefficient = c(10, 10), Volume_final = c(1, 1), Unite_volume = "L",
+    stringsAsFactors = FALSE)
+
+  # Coefficient inferieur a 1 : c'est une CONCENTRATION, presque toujours une
+  # inversion de saisie (0,1 pour 10).
+  k <- base; k$Coefficient <- c(0.1, 0.1)
+  r <- hstat_dilution_calcul(k)
+  expect_equal(nrow(r), 0L)
+  expect_true(grepl("Alpha", attr(r, "message"), fixed = TRUE))
+
+  # Deux coefficients sous le meme nom decrivent deux preparations.
+  k2 <- base; k2$Coefficient <- c(10, 8)
+  r2 <- hstat_dilution_calcul(k2)
+  expect_equal(nrow(r2), 0L)
+  expect_true(grepl("Alpha", attr(r2, "message"), fixed = TRUE))
+
+  # Une ligne sans nom de produit ne peut etre rattachee a aucune preparation.
+  k3 <- base; k3$Produit <- c("Alpha", "")
+  r3 <- hstat_dilution_calcul(k3)
+  expect_equal(nrow(r3), 0L)
+  expect_true(grepl("nommez-les", attr(r3, "message"), fixed = TRUE))
+
+  # Une ligne ENTIEREMENT vide est un reste de saisie : elle se retire sans
+  # un mot, sinon un tableau pre-rempli refuserait de calculer.
+  k4 <- rbind(base, hstat_dilution_table_vide(2))
+  r4 <- hstat_dilution_calcul(k4)
+  expect_equal(nrow(r4), 2L)
+})
+
+test_that("le module de doses est branche et depose son contexte", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  ux  <- paste(readLines(file.path(root, "inst", "app", "UX.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  srv <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # Un module non appele est un fichier mort : l'onglet existe, il reste vide.
+  expect_true(grepl('tabName = "dosage"', ux, fixed = TRUE))
+  expect_true(grepl('mod_dosage_ui("dosage")', ux, fixed = TRUE))
+  expect_true(grepl('mod_dosage_server("dosage", values)', srv, fixed = TRUE))
+
+  mod <- paste(readLines(file.path(root, "R", "mod_dosage.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl('hstat_ai_capture(values, "Doses & dilutions"', mod, fixed = TRUE))
 })
