@@ -1772,6 +1772,34 @@ comportent des `return()` qui sauteraient purement et simplement un habillage de
 l'expression. `shiny::exprToFunction()` transforme le bloc en fonction — le
 `return()` en sort alors normalement, et la valeur passe bien par le nettoyage.
 
+### Un attribut que le type de trace refuse
+
+Même famille, même point de passage. Une trace `bar` n'a pas de `mode` — c'est
+un attribut des nuages de points. Quand la conversion en dépose un,
+`plotly_build()` avertit puis le jette : le graphique est juste, mais
+l'avertissement revient à **chaque** rendu.
+
+`HSTAT_PLOTLY_INTERDITS` liste les couples type → attribut refusé, et
+`.hstat_plotly_attrs()` les retire **avant** la construction. C'est la
+différence qui compte : un `suppressWarnings()` global étoufferait aussi les
+avertissements qui signalent de vrais défauts. Un `mode` légitime, sur un nuage
+de points, n'est pas touché — un test le vérifie, et vérifie aussi que
+l'avertissement apparaît bien **sans** le nettoyage.
+
+### Une barre absente se nomme
+
+Une efficacité vaut `NA` dès que le témoin est nul : la formule d'Abbott n'est
+pas définie. `geom_col()` retire alors la ligne, l'axe garde la place de la
+modalité — vide — et le seul signal partait dans la console de R (« Removed 1
+row containing missing values »). L'utilisateur voyait un trou.
+
+Le décompte des valeurs hors cadre ne suffisait pas : il ne portait que sur les
+valeurs **finies** sortant de bornes fixées à la main. Les modalités sans
+valeur calculable sont donc comptées à part et **nommées** — « une valeur
+manquante » n'aide pas à la retrouver parmi onze traitements. Chaque `geom_col`
+du module porte en conséquence `na.rm = TRUE` : l'interface le dit déjà, la
+console n'a pas à le répéter.
+
 ## Tests
 
 `tests/testthat/test-hstat.R` est la suite de référence (celle qu'exécute

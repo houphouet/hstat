@@ -1434,7 +1434,7 @@ mod_threshold_server <- function(id, values) {
           ggplot2::position_dodge(width = dodge_width)
         }
         
-        p <- p + do.call(ggplot2::geom_col, c(list(position = position, width = bar_width),
+        p <- p + do.call(ggplot2::geom_col, c(list(position = position, width = bar_width, na.rm = TRUE),
                                      hstat_barre_style(input$thresholdBarAlpha,
                                                        input$thresholdBarBorder,
                                                        input$thresholdBarBorderColor,
@@ -1464,11 +1464,11 @@ mod_threshold_server <- function(id, values) {
         
         if(input$thresholdUseColor) {
           if(input$thresholdBarColor == "ggplot") {
-            p <- p + do.call(ggplot2::geom_col, c(list(mapping = ggplot2::aes(fill = Treatment), width = bar_width), sty_barre)) +
+            p <- p + do.call(ggplot2::geom_col, c(list(mapping = ggplot2::aes(fill = Treatment), width = bar_width, na.rm = TRUE), sty_barre)) +
               ggplot2::scale_fill_discrete(name = input$thresholdLegendTitle %||% "Traitements",
                                   labels = legend_labels)
           } else if(input$thresholdBarColor == "palette") {
-            p <- p + do.call(ggplot2::geom_col, c(list(mapping = ggplot2::aes(fill = Treatment), width = bar_width), sty_barre)) +
+            p <- p + do.call(ggplot2::geom_col, c(list(mapping = ggplot2::aes(fill = Treatment), width = bar_width, na.rm = TRUE), sty_barre)) +
               ggplot2::scale_fill_brewer(palette = input$thresholdPalette %||% "Set1",
                                 name = input$thresholdLegendTitle %||% "Traitements",
                                 labels = legend_labels)
@@ -1477,18 +1477,18 @@ mod_threshold_server <- function(id, values) {
               color_input <- input[[paste0("thresholdCustomColor_", i)]]
               if(is.null(color_input)) scales::hue_pal()(length(levels(plot_data$Treatment)))[i] else color_input
             })
-            p <- p + do.call(ggplot2::geom_col, c(list(mapping = ggplot2::aes(fill = Treatment), width = bar_width), sty_barre)) +
+            p <- p + do.call(ggplot2::geom_col, c(list(mapping = ggplot2::aes(fill = Treatment), width = bar_width, na.rm = TRUE), sty_barre)) +
               ggplot2::scale_fill_manual(values = custom_colors,
                                 name = input$thresholdLegendTitle %||% "Traitements",
                                 labels = legend_labels)
           } else if(input$thresholdBarColor == "black") {
-            p <- p + do.call(ggplot2::geom_col, c(list(fill = "#000000", width = bar_width), sty_barre))
+            p <- p + do.call(ggplot2::geom_col, c(list(fill = "#000000", width = bar_width, na.rm = TRUE), sty_barre))
           } else if(input$thresholdBarColor == "single") {
-            p <- p + do.call(ggplot2::geom_col, c(list(fill = input$thresholdSingleBarColor %||% "#3498db",
+            p <- p + do.call(ggplot2::geom_col, c(list(fill = input$thresholdSingleBarColor %||% "#3498db", na.rm = TRUE,
                                               width = bar_width), sty_barre))
           }
         } else {
-          p <- p + do.call(ggplot2::geom_col, c(list(fill = "#3498db", width = bar_width), sty_barre))
+          p <- p + do.call(ggplot2::geom_col, c(list(fill = "#3498db", width = bar_width, na.rm = TRUE), sty_barre))
         }
       }
       
@@ -1653,6 +1653,21 @@ mod_threshold_server <- function(id, values) {
         ggplot2::scale_y_continuous(limits = c(y_min, y_max),
                            breaks = seq(hstat_pas_debut(b_min, pas_y), b_max, by = pas_y))
       else ggplot2::scale_y_continuous(limits = c(y_min, y_max))
+
+      # UNE EFFICACITE INDETERMINABLE NE TRACE AUCUNE BARRE, et rien ne le
+      # disait : l'axe gardait la place de la modalite, vide, et le seul
+      # signal partait dans la console de R (« Removed 1 row containing
+      # missing values »). L'utilisateur voyait un trou. La formule d'Abbott
+      # rend NA des que le temoin vaut zero -- c'est un cas normal, il se
+      # nomme.
+      absentes <- !is.finite(plot_data$Efficacy)
+      if (any(absentes)) {
+        qui <- unique(as.character(plot_data$Treatment[absentes]))
+        shiny::showNotification(
+          trf("%d modalité(s) sans efficacité calculable : aucune barre n'est tracée pour %s. Vérifiez le témoin (une valeur nulle rend la formule indéfinie) et les valeurs manquantes.",
+              length(qui), paste(utils::head(qui, 5), collapse = ", ")),
+          type = "warning", duration = 10, id = session$ns("seuilSansValeur"))
+      }
 
       # Une barre hors des limites de l'axe DISPARAIT, avec son etiquette. Le
       # decompte ne porte que sur les bornes REELLEMENT fixees : une borne

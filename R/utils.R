@@ -538,8 +538,32 @@ hstat_html_escape <- function(x) {
 # la construction ; le rendu l'appellerait de toute facon, le cout ne fait que
 # changer de place.
 # ===========================================================================
+# Second nettoyage, meme famille : un attribut qu'un type de trace REFUSE.
+# Une trace « bar » n'a pas de `mode` -- c'est un attribut des nuages de
+# points. Quand la conversion en depose un, `plotly_build()` avertit puis le
+# jette : le graphique est correct, mais l'avertissement revient a chaque
+# rendu et finit par masquer ceux qui comptent. On retire donc l'attribut
+# AVANT la construction, ce qui supprime la cause au lieu de taire le
+# symptome -- un `suppressWarnings()` global etoufferait aussi les vrais.
+HSTAT_PLOTLY_INTERDITS <- list(bar = c("mode"), pie = c("mode"),
+                               treemap = c("mode"), heatmap = c("mode"))
+
+.hstat_plotly_attrs <- function(p) {
+  d <- p$x$data
+  if (!length(d)) return(p)
+  p$x$data <- lapply(d, function(tr) {
+    ty <- tr$type
+    if (is.null(ty) || !nzchar(ty) || is.null(HSTAT_PLOTLY_INTERDITS[[ty]]))
+      return(tr)
+    for (a in HSTAT_PLOTLY_INTERDITS[[ty]]) tr[[a]] <- NULL
+    tr
+  })
+  p
+}
+
 hstat_plotly_clean <- function(p) {
   if (is.null(p)) return(p)
+  p <- tryCatch(.hstat_plotly_attrs(p), error = function(e) p)
   b <- tryCatch(plotly::plotly_build(p), error = function(e) NULL)
   if (is.null(b)) return(p)
   if (!is.null(b$dependencies))
