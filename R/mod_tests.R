@@ -699,7 +699,7 @@ mod_posthoc_ui <- function(id) {
                                           "LSD (Fisher)" = "lsd", 
                                           "Duncan" = "duncan", 
                                           "SNK (Student-Newman-Keuls)" = "snk",
-                                          "Scheffe (conservateur)" = "scheffe",
+                                          "Scheffé (conservateur)" = "scheffe",
                                           "REGW" = "regw",
                                           "Waller-Duncan" = "waller",
                                           "Bonferroni" = "bonferroni",

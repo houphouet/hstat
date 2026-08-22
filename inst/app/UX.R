@@ -1763,10 +1763,10 @@ ui <- shinydashboard::dashboardPage(
                           "ruler-combined", "#3c8dbc"),
       shiny::fluidRow(.mv_analysis_box(
         "kmeans", "Classification k-means (partitionnement)", "quanti",
-        principes  = "Partitionne n individus en k groupes en minimisant itérativement l'inertie intra-classe (somme des carres aux centroides). Algorithme de Lloyd/Hartigan-Wong.",
+        principes  = "Partitionne n individus en k groupes en minimisant itérativement l'inertie intra-classe (somme des carrés aux centroides). Algorithme de Lloyd/Hartigan-Wong.",
         objectifs  = "Construire une typologie d'individus, segmenter une population, identifier des profils homogènes sur variables quantitatives.",
         taille     = c("Minimum : n &ge; 2&times;k", "Recommande : n &ge; 10&times;k",
-                       "Idéal : n &ge; 30&times;k pour des centroides stables"),
+                       "Idéal : n &ge; 30&times;k pour des centroïdes stables"),
         variables  = c("Minimum : p &ge; 2 variables numériques", "Recommande : p &ge; 3",
                        "Standardisation conseillée si échelles hétérogènes"),
         intro = "Partitionnement non hiérarchique : le nombre de clusters est fixé a priori."
@@ -1818,7 +1818,7 @@ ui <- shinydashboard::dashboardPage(
         taille     = c("Minimum : n &ge; 10&times;p", "Recommande : n &ge; 15&times;p",
                        "Idéal : n &ge; 20&times;p"),
         variables  = c("1 réponse Y numérique", "p &ge; 1 prédicteur (numérique ou facteur)",
-                       "Résidus : normalité, homoscedasticite, indépendance"),
+                       "Résidus : normalité, homoscédasticité, indépendance"),
         intro = "Modèle explicatif/prédictif de référence pour une réponse continue."
       ))
     ),

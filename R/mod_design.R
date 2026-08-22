@@ -19,7 +19,7 @@
 hstat_power_families <- function() {
   list(
     "t" = c("Corrélation : modèle point biserial"                       = "cor_pb",
-            "Régression bivariee : une pente"                           = "reg_slope",
+            "Régression bivariée : une pente"                           = "reg_slope",
             "Moyennes : deux moyennes dépendantes (paires appariées)"   = "t_paired",
             "Moyennes : deux moyennes indépendantes (deux groupes)"     = "t_two",
             "Moyennes : différence par rapport à une constante (1 ech.)" = "t_one",
@@ -39,8 +39,8 @@ hstat_power_families <- function() {
             "Test F générique"                                          = "f_generic"),
     "chisq" = c("Ajustement / tables de contingence (GoF)"             = "gof",
                 "Test chi-deux générique"                              = "chisq_generic"),
-    "z" = c("Corrélation : modèle normal bivarie"                      = "cor_biv",
-            "Corrélation : modèle tetrachorique"                       = "cor_tetra",
+    "z" = c("Corrélation : modèle normal bivarié"                      = "cor_biv",
+            "Corrélation : modèle tétrachorique"                       = "cor_tetra",
             "Corrélations : deux r indépendants (Pearson)"             = "cor_2indep",
             "Corrélations : deux r dépendants (Pearson)"               = "cor_2dep",
             "Régression logistique (prédicteur continu)"               = "logistic",
@@ -134,7 +134,7 @@ hstat_gpower <- function(test, analysis, effect = NULL, effect2 = NULL,
       list(effect = r$r, nper = NA, ntot = nn, lambda = NA, crit = zcrit,
            crit_lab = "z critique", df_lab = sprintf("ddl = %d", nn - 2),
            power = r$power,
-           note = if (test == "cor_tetra") "Tetrachorique approxime par le modèle normal bivarie." else NULL)
+           note = if (test == "cor_tetra") "Tétrachorique approximé par le modèle normal bivarié." else NULL)
     } else if (test %in% c("cor_2indep", "cor_2dep")) {
       dep <- (test == "cor_2dep")
       r1 <- effect %||% 0.3; r2 <- effect2 %||% 0
@@ -2634,7 +2634,7 @@ mod_design_server <- function(id, values) {
             shiny::icon("seedling"), " Structure du dispositif"),
         shiny::tags$ul(style = "margin:0;padding-left:18px;",
           shiny::tags$li(shiny::tags$b("Facteurs : "), info$facteurs),
-          shiny::tags$li(shiny::tags$b("Heterogeneite : "), info$gradient),
+          shiny::tags$li(shiny::tags$b("Hétérogénéité : "), info$gradient),
           shiny::tags$li(info$structure)))
     })
 

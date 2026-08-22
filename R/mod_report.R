@@ -81,7 +81,7 @@ hstat_report_resume_donnees <- function(df, max_vars = 60L) {
     `Modalités / étendue` = vapply(vars, function(v) {
       x <- df[[v]]
       if (is.numeric(x) && any(!is.na(x)))
-        sprintf("%s a %s", format(signif(min(x, na.rm = TRUE), 4)),
+        sprintf("%s à %s", format(signif(min(x, na.rm = TRUE), 4)),
                 format(signif(max(x, na.rm = TRUE), 4)))
       else if (is.factor(x) || is.character(x))
         sprintf("%d modalité(s)", length(unique(stats::na.omit(x))))
@@ -256,7 +256,7 @@ hstat_report_markdown <- function(history, titre = "Rapport d'analyse",
 
   if ("qualite" %in% sections && !is.null(qualite) && NROW(qualite)) {
     L <- c(L, "## Diagnostic de qualité des données", "",
-           "Chaque constat porte sa gravite et une suggestion concrète.", "",
+           "Chaque constat porte sa gravité et une suggestion concrète.", "",
            .hstat_rep_tableau_md(qualite), "")
   }
 

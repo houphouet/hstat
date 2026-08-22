@@ -3381,7 +3381,7 @@ hstat_cophenetic_corr <- function(coords, tree, hc_method = "ward.D2",
     }
   }
   idx <- hstat_cap_indices(n0, max_n)
-  if (n0 > max_n) hstat_bigdata_note("Corrélation cophenetique", length(idx), n0)
+  if (n0 > max_n) hstat_bigdata_note("Corrélation cophénétique", length(idx), n0)
   tryCatch({
     d  <- stats::dist(coords[idx, , drop = FALSE])
     hc <- stats::hclust(d, method = hc_method)
@@ -5663,12 +5663,12 @@ hstat_model_doc <- function(id) {
     prophet = c("Prophet",
       "Modèle additif décomposable : tendance par morceaux + saisonnalités de Fourier + jours fériés, estime par optimisation bayésienne approchée.",
       "Séries d'activité (journalières/hebdomadaires) avec changements de tendance et effets calendaires.",
-      "Nécessite une colonne de dates ; au moins plusieurs mois d'historique ; moins adapte aux séries très courtes ou hautement autocorrelees."),
+      "Nécessite une colonne de dates ; au moins plusieurs mois d'historique ; moins adapté aux séries très courtes ou hautement autocorrelees."),
     # ---- Machine learning supervise ----
     lmglm = c("Modèle linéaire / logistique",
       "Combinaison linéaire des variables ; en classification, la probabilité passe par une fonction logistique.",
       "Référence interprétable : effets marginaux lisibles (coefficients).",
-      "Relations approximativement linéaires ; peu de colinéarité ; résidus homoscedastiques (régression)."),
+      "Relations approximativement linéaires ; peu de colinéarité ; résidus homoscédastiques (régression)."),
     glmnet = c("Ridge / Lasso / Elastic-Net",
       "Modèle linéaire pénalise : la pénalité rétrécit les coefficients (Ridge) ou en annule (Lasso), dosée par validation croisée.",
       "Stabiliser le modèle avec beaucoup de variables corrélées et sélectionner les plus utiles.",
@@ -5684,7 +5684,7 @@ hstat_model_doc <- function(id) {
     xgb = c("Gradient boosting (xgboost)",
       "Ajoute séquentiellement de petits arbres corrigeant les erreurs résiduelles des précédents.",
       "État de l'art sur données tabulaires quand il est bien règle.",
-      "Sensible aux hyperparametres (profondeur, taux d'apprentissage, itérations) ; activer la recherche automatique."),
+      "Sensible aux hyperparamètres (profondeur, taux d'apprentissage, itérations) ; activer la recherche automatique."),
     svm = c("SVM (machine à vecteurs de support)",
       "Cherche la frontière de marge maximale, rendue non linéaire par un noyau (radial, polynomial...).",
       "Frontières complexes sur échantillons petits à moyens.",
@@ -5710,8 +5710,8 @@ hstat_model_doc <- function(id) {
       "Fusionne progressivement les paires de groupes les plus proches (Ward) en un dendrogramme.",
       "Explorer la structure à plusieurs niveaux de regroupement.",
       "Matrice de distances en O(n^2) : réserver aux effectifs modérés ; standardiser."),
-    pam = c("PAM (k-medoides)",
-      "Comme k-means mais les centres sont des observations réelles (medoides), avec une distance quelconque.",
+    pam = c("PAM (k-médoïdes)",
+      "Comme k-means mais les centres sont des observations réelles (médoïdes), avec une distance quelconque.",
       "Clustering robuste aux valeurs atypiques.",
       "Plus coûteux que k-means ; k fixe à l'avance."),
     dbscan = c("DBSCAN",

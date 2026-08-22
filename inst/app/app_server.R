@@ -4767,7 +4767,7 @@ server <- function(input, output, session) {
         ),
         
         card(border_color = "#2c3e50",
-             section_header("6", "Centroides des groupes & Probabilités a priori", "#2c3e50", "map-marker-alt"),
+             section_header("6", "Centroïdes des groupes & Probabilités a priori", "#2c3e50", "map-marker-alt"),
              info_note("Les centroïdes sont les moyennes des variables par groupe dans l'espace original. Les probabilités a priori reflètent les proportions de chaque groupe."),
              shiny::fluidRow(
                shiny::column(8,
@@ -4865,7 +4865,7 @@ server <- function(input, output, session) {
       "Tests_F"                    = dfs$f_tests,
       "Matrice_confusion"          = dfs$confusion_matrix,
       "Taux_classification"        = dfs$classification_rates,
-      "Centroides"                 = dfs$centroids,
+      "Centroïdes"                 = dfs$centroids,
       "Variance_expliquee"         = dfs$variance_explained,
       "CV_confusion"               = dfs$cv_confusion,
       "CV_taux"                    = dfs$cv_accuracy))
@@ -6550,7 +6550,7 @@ server <- function(input, output, session) {
         render <- shiny::tagList(
           mv_card(border_color = "#1565c0",
             mv_section_header("Adéquation & qualité factorielle", "#1565c0", "sliders"),
-            mv_info_note("Vérification de la factorisabilite (KMO, Bartlett) et de la qualité de restitution."),
+            mv_info_note("Vérification de la factorisabilité (KMO, Bartlett) et de la qualité de restitution."),
             mv_metrics_table(metrics, "#1565c0"),
             mv_interp_bar(paste0(nf, " facteurs extraits, rotation ", input$mv_efa_rot,
               ". Variance expliquée = ", round(100*var_exp,1), " %."), mv_col(st_var))),
@@ -7085,9 +7085,9 @@ server <- function(input, output, session) {
                    ">= 0,50 bon ; 0,30-0,50 modéré ; < 0,30 faible",
                    if (st_r2=="ok") "Bonne explication" else if (st_r2=="warn") "Explication modérée" else "Explication faible",
                    st_r2),
-            mv_row("Q2 (predictivite, CV)", if (is.na(q2)) "n/d" else round(q2,3),
+            mv_row("Q2 (prédictivité, CV)", if (is.na(q2)) "n/d" else round(q2,3),
                    "> 0,50 bon ; > 0 acceptable ; < 0 nul",
-                   if (st_q2=="ok") "Bon pouvoir prédictif" else if (st_q2=="warn") "Predictivite limitée"
+                   if (st_q2=="ok") "Bon pouvoir prédictif" else if (st_q2=="warn") "Prédictivité limitée"
                      else if (st_q2=="err") "Aucun pouvoir prédictif" else "Validation croisée désactivée",
                    st_q2),
             mv_row("Écart R2Y - Q2", if (is.na(gap)) "n/d" else round(gap,3),
@@ -7186,8 +7186,8 @@ server <- function(input, output, session) {
                    else if (st_v=="err") "Multicolinéarité problématique" else "Non applicable (1 prédicteur)",
                  st_v),
           mv_row("Breusch-Pagan (p)", if (is.na(bp)) "n/d" else format.pval(bp,digits=3),
-                 "p > 0,05 : homoscedasticite respectée",
-                 if (st_bp=="ok") "Variance des résidus constante" else "Heteroscedasticite détectée",
+                 "p > 0,05 : homoscédasticité respectée",
+                 if (st_bp=="ok") "Variance des résidus constante" else "Hétéroscédasticité détectée",
                  st_bp),
           mv_row("Shapiro-Wilk résidus (p)", if (is.na(sw)) "n/d" else format.pval(sw,digits=3),
                  "p > 0,05 : normalité des résidus",
@@ -7221,7 +7221,7 @@ server <- function(input, output, session) {
               ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "#c0392b") +
               ggplot2::geom_smooth(method = "loess", se = FALSE, color = "#f39c12", linewidth = .8) +
               labs(title = "Régression — résidus vs valeurs ajustées",
-                   subtitle = "Un nuage sans tendance confirme l'homoscedasticite",
+                   subtitle = "Un nuage sans tendance confirme l'homoscédasticité",
                    x = "Valeurs ajustées", y = "Résidus") +
               mv_gg_theme()
           },

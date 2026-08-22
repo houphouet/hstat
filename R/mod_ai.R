@@ -942,6 +942,22 @@ hstat_rlog_script <- function(history, source = NULL, version = NULL,
 
 HSTAT_QUALITE_GRAVITES <- c("bloquant", "important", "à surveiller")
 
+# Le tableau de qualite est rendu tel quel : ses NOMS DE COLONNE sont donc
+# ce que l'utilisateur lit. Ils restent sans accent -- le code y accede par
+# `dq$Gravite`, et un nom accentue casserait cet acces sur une machine dont
+# la locale n'est pas UTF-8. On relabellise donc a l'AFFICHAGE seulement.
+HSTAT_QUALITE_LIBELLES <- c(Variable = "Variable", Constat = "Constat",
+                            Gravite = "Gravit\u00e9", Suggestion = "Suggestion")
+
+hstat_dq_affichage <- function(dq) {
+  if (!is.data.frame(dq) || !nrow(dq)) return(dq)
+  nm <- names(dq)
+  vus <- nm %in% names(HSTAT_QUALITE_LIBELLES)
+  nm[vus] <- unname(HSTAT_QUALITE_LIBELLES[nm[vus]])
+  names(dq) <- nm
+  dq
+}
+
 .hstat_q_row <- function(variable, constat, gravite, suggestion) {
   data.frame(Variable = variable, Constat = constat, Gravite = gravite,
              Suggestion = suggestion, stringsAsFactors = FALSE)
@@ -1066,7 +1082,7 @@ hstat_data_quality <- function(df, seuil_na = 0.20, seuil_modalite = 0.95,
   if (n < 5 * p)
     out <- c(out, list(.hstat_q_row("(jeu de données)",
       sprintf("%d observations pour %d variables", n, p), "important",
-      "Trop peu d'observations par variable : les modèles multivariés surapprendront. Réduire le nombre de variables, ou se limiter à des analyses bivariees.")))
+      "Trop peu d'observations par variable : les modèles multivariés surapprendront. Réduire le nombre de variables, ou se limiter à des analyses bivariées.")))
   if (n < 30)
     out <- c(out, list(.hstat_q_row("(jeu de données)",
       sprintf("effectif total de %d observations", n), "à surveiller",
@@ -1227,7 +1243,7 @@ hstat_reco_analyses <- function(profile) {
     out <- c(out, list(.hstat_reco_row(
       "Régression linéaire", "À envisager",
       "Si l'une des deux variables est expliquée par l'autre, la régression quantifie l'effet la ou la corrélation ne mesure que l'association.",
-      "Linéarité, indépendance, homoscedasticite, normalité des résidus.",
+      "Linéarité, indépendance, homoscédasticité, normalité des résidus.",
       "Régression robuste, ou transformation de la réponse.")))
     if (length(quanti) >= 3)
       out <- c(out, list(.hstat_reco_row(
@@ -2076,9 +2092,9 @@ mod_ai_server <- function(id, values) {
     output$dq_table <- DT::renderDT({
       dq <- data_quality()
       shiny::validate(shiny::need(!is.null(dq) && nrow(dq) > 0, "Aucun constat."))
-      DT::datatable(dq, rownames = FALSE, filter = "top",
+      DT::datatable(hstat_dq_affichage(dq), rownames = FALSE, filter = "top",
                     options = list(pageLength = 15, scrollX = TRUE)) |>
-        DT::formatStyle("Gravite", target = "row",
+        DT::formatStyle(HSTAT_QUALITE_LIBELLES[["Gravite"]], target = "row",
           backgroundColor = DT::styleEqual(HSTAT_QUALITE_GRAVITES,
                                            c("#fdecea", "#fef5e7", "#f4f6f7")))
     })
@@ -2141,7 +2157,8 @@ mod_ai_server <- function(id, values) {
         donnees_resume = if ("donnees" %in% sections)
                            tryCatch(hstat_report_resume_donnees(d), error = function(e) NULL),
         qualite        = if ("qualite" %in% sections)
-                           tryCatch(data_quality(), error = function(e) NULL),
+                           tryCatch(hstat_dq_affichage(data_quality()),
+                                    error = function(e) NULL),
         interpretation = rv$txt,
         reco           = if ("reco" %in% sections)
                            tryCatch(reco(), error = function(e) NULL),
