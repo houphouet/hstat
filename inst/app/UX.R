@@ -99,7 +99,7 @@
         shiny::div(style = "max-width:860px; margin:0 auto; width:100%;",
           withSpinner(shiny::plotOutput(paste0("mv_", key, "_plot"), height = "560px"), color = th$main))
       ),
-      shiny::tabPanel(shiny::tagList(shiny::icon("file-alt"), " Details techniques"),
+      shiny::tabPanel(shiny::tagList(shiny::icon("file-alt"), " Détails techniques"),
         shiny::div(style = "max-height:520px; overflow-y:auto; font-family:'Courier New',monospace; font-size:12px; background:#fff; padding:14px; border-radius:5px;",
             shiny::verbatimTextOutput(paste0("mv_", key, "_summary")))
       )
@@ -682,7 +682,7 @@ ui <- shinydashboard::dashboardPage(
                 #multivariate h4 { font-size: 18px; }
                 #multivariate h5 { font-size: 15px; }
                 #multivariate .nav-tabs > li > a { font-size: 15px; font-weight: 600; }
-                #multivariate pre { font-size: 13px; }
+                #multivariate pré { font-size: 13px; }
               ")),
               .hstat_scope_banner(exact = FALSE),
               shiny::tags$div(class = "mv-layout",
@@ -701,8 +701,8 @@ ui <- shinydashboard::dashboardPage(
                         .mv_cat_item("Analyse Factorielle Exploratoire (AFE)", "Découvre les facteurs latents sous-jacents aux variables."),
                         .mv_cat_item("Analyse Factorielle Confirmatoire (AFC-c)", "Teste un modèle de mesure facteurs ↔ items pré-spécifié."),
                         .mv_cat_item("Multi-Trait Multi-Method (MTMM)", "Valide la convergence et la discrimination traits × méthodes."),
-                        .mv_cat_item("Regression PLS / PLS-DA", "Prédit en grande dimension via composantes latentes."),
-                        .mv_cat_item("Regression linéaire multiple", "Explique une réponse continue par plusieurs prédicteurs.")
+                        .mv_cat_item("Régression PLS / PLS-DA", "Prédit en grande dimension via composantes latentes."),
+                        .mv_cat_item("Régression linéaire multiple", "Explique une réponse continue par plusieurs prédicteurs.")
                       ),
                       shiny::div(class = "mv-cat-group mv-grp-quali", shiny::tags$span(class="mv-grp-dot"), "Qualitatives / catégorielles", shiny::tags$span(class="mv-grp-count", "5")),
                       shiny::div(class = "mv-cat-list",
@@ -710,7 +710,7 @@ ui <- shinydashboard::dashboardPage(
                         .mv_cat_item("Analyse des Correspondances Multiples (ACM)", "Généralise l'AFC à plusieurs variables qualitatives.", "quali"),
                         .mv_cat_item("Classification k-modes (partitionnement)", "k-means pour données qualitatives (modes, Hamming).", "quali"),
                         .mv_cat_item("Analyse en Classes Latentes (LCA)", "Identifie des sous-populations latentes (mélange EM).", "quali"),
-                        .mv_cat_item("Regression logistique / multinomiale", "Prédit une réponse catégorielle, odds ratios.", "quali")
+                        .mv_cat_item("Régression logistique / multinomiale", "Prédit une réponse catégorielle, odds ratios.", "quali")
                       ),
                       shiny::div(class = "mv-cat-group mv-grp-mixte", shiny::tags$span(class="mv-grp-dot"), "Mixtes (quanti + quali)", shiny::tags$span(class="mv-grp-count", "3")),
                       shiny::div(class = "mv-cat-list",
@@ -1036,9 +1036,9 @@ ui <- shinydashboard::dashboardPage(
                             shiny::h4(style = "color: #343a40; font-weight: bold; margin-top: 0;",
                                shiny::icon("clipboard-check"), " Métriques de validation de l'ACP"),
                             shiny::p(style = "font-size: 12px; color: #555; margin-bottom: 0;",
-                              "Evaluez ces métriques avant d'interpreter le graphique.")),
+                              "Évaluez ces métriques avant d'interpréter le graphique.")),
                         shiny::h5(style = "color: #2c3e50; font-weight: bold;",
-                           shiny::icon("check-circle"), " Adequation des données a l'ACP"),
+                           shiny::icon("check-circle"), " Adéquation des données a l'ACP"),
                         shiny::uiOutput("pcaBartlettKMO"),
                         shiny::hr(),
                                             shiny::h5(style = "color: #2c3e50; font-weight: bold; margin-top: 15px;",
@@ -1095,7 +1095,7 @@ ui <- shinydashboard::dashboardPage(
                     
                       ),
                       shiny::tabPanel(
-                        shiny::tagList(shiny::icon("cogs"), " Details techniques"),
+                        shiny::tagList(shiny::icon("cogs"), " Détails techniques"),
                         shiny::br(),
                                             shiny::h5(style = "color: #2c3e50; font-weight: bold; margin-top: 15px;", 
                                                shiny::icon("sync-alt"), " Résultats de la rotation orthogonale"),
@@ -1398,11 +1398,11 @@ ui <- shinydashboard::dashboardPage(
                                             ),
                       ),
                       shiny::tabPanel(
-                        shiny::tagList(shiny::icon("cogs"), " Details techniques"),
+                        shiny::tagList(shiny::icon("cogs"), " Détails techniques"),
                         shiny::br(),
                                             shiny::div(class = "box box-solid",
                                                 shiny::div(class = "box-header with-border", style = "background-color: #5cb85c; color: white;",
-                                                    shiny::h4(class = "box-title", "Résultats detailles HCPC", style = "color: white; font-weight: bold;")
+                                                    shiny::h4(class = "box-title", "Résultats détaillés HCPC", style = "color: white; font-weight: bold;")
                                                 ),
                                                 shiny::div(class = "box-body", style = "background-color: #f9f9f9;",
                                                     shiny::div(style = "max-height: 500px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 11px; background-color: white; padding: 15px; border-radius: 5px;",
@@ -1705,7 +1705,7 @@ ui <- shinydashboard::dashboardPage(
                                             ),
                       ),
                       shiny::tabPanel(
-                        shiny::tagList(shiny::icon("cogs"), " Details techniques"),
+                        shiny::tagList(shiny::icon("cogs"), " Détails techniques"),
                         shiny::br(),
                                             # ---- Export métriques AFD 
                                             shiny::div(style = "background: linear-gradient(135deg, #641e16 0%, #922b21 100%); border-radius: 10px; padding: 18px; margin-top: 10px;",
@@ -1759,37 +1759,37 @@ ui <- shinydashboard::dashboardPage(
     # =================== CATEGORIE QUANTITATIVES ===================
     shiny::conditionalPanel(
       condition = "input.mv_category == 'quanti'",
-      .mv_category_header("Analyses multivariees QUANTITATIVES",
+      .mv_category_header("Analyses multivariées QUANTITATIVES",
                           "ruler-combined", "#3c8dbc"),
       shiny::fluidRow(.mv_analysis_box(
         "kmeans", "Classification k-means (partitionnement)", "quanti",
-        principes  = "Partitionne n individus en k groupes en minimisant iterativement l'inertie intra-classe (somme des carres aux centroides). Algorithme de Lloyd/Hartigan-Wong.",
-        objectifs  = "Construire une typologie d'individus, segmenter une population, identifier des profils homogenes sur variables quantitatives.",
+        principes  = "Partitionne n individus en k groupes en minimisant itérativement l'inertie intra-classe (somme des carres aux centroides). Algorithme de Lloyd/Hartigan-Wong.",
+        objectifs  = "Construire une typologie d'individus, segmenter une population, identifier des profils homogènes sur variables quantitatives.",
         taille     = c("Minimum : n &ge; 2&times;k", "Recommande : n &ge; 10&times;k",
-                       "Ideal : n &ge; 30&times;k pour des centroides stables"),
+                       "Idéal : n &ge; 30&times;k pour des centroides stables"),
         variables  = c("Minimum : p &ge; 2 variables numériques", "Recommande : p &ge; 3",
-                       "Standardisation conseillee si échelles heterogenes"),
+                       "Standardisation conseillée si échelles hétérogènes"),
         intro = "Partitionnement non hiérarchique : le nombre de clusters est fixe a priori."
       )),
       shiny::fluidRow(.mv_analysis_box(
         "efa", "Analyse Factorielle Exploratoire (AFE)", "quanti",
-        principes  = "Modèle a facteurs communs separant variance commune et variance spécifique. Extraction (ML, axes principaux) puis rotation (varimax/oblimin) pour simplifier la structure.",
-        objectifs  = "Decouvrir les facteurs latents sous-jacents a un ensemble de variables, valider la structure d'un questionnaire, reduire la dimension.",
+        principes  = "Modèle a facteurs communs séparant variance commune et variance spécifique. Extraction (ML, axes principaux) puis rotation (varimax/oblimin) pour simplifier la structure.",
+        objectifs  = "Découvrir les facteurs latents sous-jacents a un ensemble de variables, valider la structure d'un questionnaire, réduire la dimension.",
         taille     = c("Minimum : n &ge; 5&times;p", "Recommande : n &ge; 100",
-                       "Ideal : n &ge; 200 et &ge; 10 individus / variable"),
+                       "Idéal : n &ge; 200 et &ge; 10 individus / variable"),
         variables  = c("Minimum : p &ge; 3 variables numériques", "KMO &ge; 0,60 requis",
                        "Test de Bartlett significatif (p &lt; 0,05)"),
-        intro = "Cherche une structure latente sans hypothese imposee (exploratoire)."
+        intro = "Cherche une structure latente sans hypothèse imposée (exploratoire)."
       )),
       shiny::fluidRow(.mv_analysis_box(
         "cfa", "Analyse Factorielle Confirmatoire (AFC-c)", "quanti",
         principes  = "Modèle d'equations structurelles : la structure facteurs <-> items est imposee a priori, puis estimée et evaluee par des indices d'ajustement.",
-        objectifs  = "Tester un modèle de mesure théorique, confirmer la validite convergente et discriminante d'un instrument.",
+        objectifs  = "Tester un modèle de mesure théorique, confirmer la validité convergente et discriminante d'un instrument.",
         taille     = c("Minimum : n &ge; 100", "Recommande : n &ge; 200",
-                       "Ideal : &ge; 10 individus par paramètre estimé"),
-        variables  = c("Modèle specifie en syntaxe lavaan", "&ge; 3 indicateurs par facteur conseille",
+                       "Idéal : &ge; 10 individus par paramètre estimé"),
+        variables  = c("Modèle spécifie en syntaxe lavaan", "&ge; 3 indicateurs par facteur conseille",
                        "Variables numériques (estimateurs robustes sinon)"),
-        intro = "Confirme un modèle de mesure pre-specifie. Renseignez la syntaxe du modèle."
+        intro = "Confirme un modèle de mesure pré-spécifie. Renseignez la syntaxe du modèle."
       )),
       shiny::fluidRow(.mv_analysis_box(
         "mtmm", "Multi-Trait Multi-Method (MTMM)", "quanti",
@@ -1802,23 +1802,23 @@ ui <- shinydashboard::dashboardPage(
         intro = "Chaque variable mesure UN trait par UNE méthode. Affectez trait et méthode a chaque variable (ou utilisez le nommage Trait_Méthode)."
       )),
       shiny::fluidRow(.mv_analysis_box(
-        "pls", "Regression PLS / PLS-DA", "quanti",
+        "pls", "Régression PLS / PLS-DA", "quanti",
         principes  = "Construit des composantes latentes maximisant la covariance entre les prédicteurs X et la réponse Y. Adaptée aux cas p &gt;&gt; n et forte multicolinéarité.",
         objectifs  = "Prédire une réponse (quantitative = PLS, catégorielle = PLS-DA) en grande dimension, identifier les variables influentes (VIP).",
         taille     = c("Fonctionne même si n &lt; p", "Recommande : n &ge; 20",
-                       "Validation croisée conseillee"),
+                       "Validation croisée conseillée"),
         variables  = c("1 variable réponse Y", "p &ge; 2 prédicteurs numériques X",
-                       "Prédicteurs correles : aucun probleme"),
-        intro = "Regression sur composantes latentes, robuste a la colinearite."
+                       "Prédicteurs corrélés : aucun problème"),
+        intro = "Régression sur composantes latentes, robuste a la colinéarité."
       )),
       shiny::fluidRow(.mv_analysis_box(
-        "regmult", "Regression linéaire multiple", "quanti",
+        "regmult", "Régression linéaire multiple", "quanti",
         principes  = "Estimé par moindres carres ordinaires une réponse quantitative comme combinaison linéaire de plusieurs prédicteurs.",
-        objectifs  = "Expliquer et prédire une variable continue, quantifier l'effet de chaque prédicteur, controler des facteurs de confusion.",
+        objectifs  = "Expliquer et prédire une variable continue, quantifier l'effet de chaque prédicteur, contrôler des facteurs de confusion.",
         taille     = c("Minimum : n &ge; 10&times;p", "Recommande : n &ge; 15&times;p",
-                       "Ideal : n &ge; 20&times;p"),
+                       "Idéal : n &ge; 20&times;p"),
         variables  = c("1 réponse Y numérique", "p &ge; 1 prédicteur (numérique ou facteur)",
-                       "Residus : normalité, homoscedasticite, indépendance"),
+                       "Résidus : normalité, homoscedasticite, indépendance"),
         intro = "Modèle explicatif/prédictif de référence pour une réponse continue."
       ))
     ),
@@ -1826,21 +1826,21 @@ ui <- shinydashboard::dashboardPage(
     # =================== CATEGORIE QUALITATIVES ===================
     shiny::conditionalPanel(
       condition = "input.mv_category == 'quali'",
-      .mv_category_header("Analyses multivariees QUALITATIVES / CATÉGORIELLES",
+      .mv_category_header("Analyses multivariées QUALITATIVES / CATÉGORIELLES",
                           "shapes", "#e67e22"),
       shiny::fluidRow(.mv_analysis_box(
         "afc", "Analyse Factorielle des Correspondances (AFC)", "quali",
-        principes  = "Decompose l'inertie du khi-deux d'une table de contingence ; compare les profils-lignes et profils-colonnes via la distance du khi-deux.",
-        objectifs  = "Analyser et visualiser l'association entre DEUX variables qualitatives, reperer les modalités attractives ou repulsives.",
+        principes  = "Décompose l'inertie du khi-deux d'une table de contingence ; compare les profils-lignes et profils-colonnes via la distance du khi-deux.",
+        objectifs  = "Analyser et visualiser l'association entre DEUX variables qualitatives, repérer les modalités attractives ou répulsives.",
         taille     = c("Effectifs théoriques &ge; 5 par case conseille",
-                       "Recommande : n &ge; 50", "Eviter cases vides"),
+                       "Recommande : n &ge; 50", "Éviter cases vides"),
         variables  = c("Exactement 2 variables qualitatives", "Variable-ligne + variable-colonne",
                        "Modalités a effectif suffisant"),
         intro = "Association entre deux variables catégorielles (table croisée)."
       )),
       shiny::fluidRow(.mv_analysis_box(
         "mca", "Analyse des Correspondances Multiples (ACM)", "quali",
-        principes  = "Generalise l'AFC a plus de deux variables qualitatives via le tableau disjonctif complet (ou tableau de Burt).",
+        principes  = "Généralise l'AFC a plus de deux variables qualitatives via le tableau disjonctif complet (ou tableau de Burt).",
         objectifs  = "Explorer la structure d'associations entre plusieurs variables qualitatives, positionner individus et modalités.",
         taille     = c("Minimum : n &ge; 50", "Recommande : n &ge; 100",
                        "Regrouper les modalités rares (&lt; 5 %)"),
@@ -1850,17 +1850,17 @@ ui <- shinydashboard::dashboardPage(
       )),
       shiny::fluidRow(.mv_analysis_box(
         "kmodes", "Classification k-modes (partitionnement)", "quali",
-        principes  = "Equivalent du k-means pour données qualitatives : dissimilarite d'appariement simple (Hamming), les centres sont des modes.",
+        principes  = "Équivalent du k-means pour données qualitatives : dissimilarité d'appariement simple (Hamming), les centres sont des modes.",
         objectifs  = "Segmenter une population décrite par des variables catégorielles, construire une typologie qualitative.",
         taille     = c("Minimum : n &ge; 2&times;k", "Recommande : n &ge; 10&times;k",
-                       "Ideal : n &ge; 30&times;k"),
+                       "Idéal : n &ge; 30&times;k"),
         variables  = c("Minimum : p &ge; 2 variables qualitatives", "Recommande : p &ge; 3",
                        "Modalités a effectif suffisant"),
         intro = "Partitionnement non hiérarchique pour variables catégorielles."
       )),
       shiny::fluidRow(.mv_analysis_box(
         "lca", "Analyse en Classes Latentes (LCA)", "quali",
-        principes  = "Modèle de melange probabiliste : sous hypothese d'indépendance locale conditionnelle, estimé des classes latentes par maximum de vraisemblance (EM).",
+        principes  = "Modèle de mélange probabiliste : sous hypothèse d'indépendance locale conditionnelle, estimé des classes latentes par maximum de vraisemblance (EM).",
         objectifs  = "Identifier des sous-populations non observées a partir de variables catégorielles, clustering base sur un modèle.",
         taille     = c("Minimum : n &ge; 100", "Recommande : n &ge; 300",
                        "Plus de classes => plus d'effectif"),
@@ -1869,11 +1869,11 @@ ui <- shinydashboard::dashboardPage(
         intro = "Clustering probabiliste : classes latentes derrière des réponses catégorielles."
       )),
       shiny::fluidRow(.mv_analysis_box(
-        "logit", "Regression logistique / multinomiale", "quali",
-        principes  = "Modèle linéaire generalise a lien logit estimé par maximum de vraisemblance ; produit des rapports de cotes (odds ratios).",
+        "logit", "Régression logistique / multinomiale", "quali",
+        principes  = "Modèle linéaire généralise a lien logit estimé par maximum de vraisemblance ; produit des rapports de cotes (odds ratios).",
         objectifs  = "Prédire une réponse catégorielle (binaire ou multinomiale), quantifier l'effet des prédicteurs.",
-        taille     = c("Regle : &ge; 10 evenements par prédicteur",
-                       "Recommande : n &ge; 100", "Eviter la separation parfaite"),
+        taille     = c("Règle : &ge; 10 événements par prédicteur",
+                       "Recommande : n &ge; 100", "Éviter la séparation parfaite"),
         variables  = c("1 réponse Y catégorielle", "p &ge; 1 prédicteur (numérique ou facteur)",
                        "Indépendance des observations"),
         intro = "Modèle explicatif/prédictif pour une réponse catégorielle."
@@ -1883,34 +1883,34 @@ ui <- shinydashboard::dashboardPage(
     # =================== CATEGORIE MIXTES ===================
     shiny::conditionalPanel(
       condition = "input.mv_category == 'mixte'",
-      .mv_category_header("Analyses multivariees MIXTES (quanti + quali)",
+      .mv_category_header("Analyses multivariées MIXTES (quanti + quali)",
                           "layer-group", "#00a65a"),
       shiny::fluidRow(.mv_analysis_box(
         "famd", "Analyse Factorielle de Données Mixtes (AFDM)", "mixte",
-        principes  = "Combine ACP (variables quantitatives standardisees) et ACM (variables qualitatives), avec une ponderation equilibrant les deux types.",
-        objectifs  = "Reduire la dimension d'un tableau melant variables quantitatives et qualitatives, visualiser individus et modalités.",
+        principes  = "Combine ACP (variables quantitatives standardisées) et ACM (variables qualitatives), avec une pondération équilibrant les deux types.",
+        objectifs  = "Réduire la dimension d'un tableau mêlant variables quantitatives et qualitatives, visualiser individus et modalités.",
         taille     = c("Minimum : n &ge; 50", "Recommande : n &ge; 100",
-                       "Ideal : n &ge; 5&times;p"),
+                       "Idéal : n &ge; 5&times;p"),
         variables  = c("Au moins 1 variable quantitative", "Au moins 1 variable qualitative",
                        "p &ge; 3 au total conseille"),
-        intro = "Reduction de dimension pour un tableau de variables mixtes."
+        intro = "Réduction de dimension pour un tableau de variables mixtes."
       )),
       shiny::fluidRow(.mv_analysis_box(
         "mfa", "Analyse Factorielle Multiple (AFM)", "mixte",
-        principes  = "Analyse des données structurees en groupes de variables ; chaque groupe est equilibre par sa premiere valeur propre afin qu'aucun ne domine.",
-        objectifs  = "Comparer et integrer plusieurs groupes de variables (bloc quantitatif et bloc qualitatif), etudier leur coherence.",
+        principes  = "Analyse des données structurées en groupes de variables ; chaque groupe est équilibre par sa première valeur propre afin qu'aucun ne domine.",
+        objectifs  = "Comparer et intégrer plusieurs groupes de variables (bloc quantitatif et bloc qualitatif), étudier leur cohérence.",
         taille     = c("Minimum : n &ge; 50", "Recommande : n &ge; 100",
-                       "Ideal : n &ge; 5&times;p"),
+                       "Idéal : n &ge; 5&times;p"),
         variables  = c("Bloc quantitatif : &ge; 1 variable", "Bloc qualitatif : &ge; 1 variable",
-                       "Definir explicitement les deux blocs"),
-        intro = "Integration de blocs de variables (bloc quanti + bloc quali)."
+                       "Définir explicitement les deux blocs"),
+        intro = "Intégration de blocs de variables (bloc quanti + bloc quali)."
       )),
       shiny::fluidRow(.mv_analysis_box(
         "kproto", "Classification k-prototypes (partitionnement mixte)", "mixte",
-        principes  = "Combine k-means (distance euclidienne sur le quantitatif) et k-modes (appariement sur le qualitatif), ponderes par un paramètre gamma.",
+        principes  = "Combine k-means (distance euclidienne sur le quantitatif) et k-modes (appariement sur le qualitatif), pondérés par un paramètre gamma.",
         objectifs  = "Segmenter une population décrite par des variables a la fois quantitatives et qualitatives.",
         taille     = c("Minimum : n &ge; 2&times;k", "Recommande : n &ge; 10&times;k",
-                       "Ideal : n &ge; 30&times;k"),
+                       "Idéal : n &ge; 30&times;k"),
         variables  = c("Au moins 1 variable quantitative", "Au moins 1 variable qualitative",
                        "Standardisation du quantitatif appliquée"),
         intro = "Partitionnement non hiérarchique pour données mixtes."

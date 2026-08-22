@@ -256,7 +256,7 @@ mod_viz_ui <- function(id) {
                       choices = c(
                         "Nuage de points (Scatter)" = "scatter",
                         "Courbe avec lissage (Seasonal Smooth)" = "seasonal_smooth",
-                        "Courbe d'évolution (Seasonal Evolution)" = "seasonal_evolution",
+                        "Courbe d'évolution (Seasonal Évolution)" = "seasonal_evolution",
                         "Boîte à moustaches (Boxplot)" = "box",
                         "Graphique en violon (Violin)" = "violin",
                         "Diagramme en barres (Bar)" = "bar",
@@ -663,7 +663,7 @@ mod_viz_ui <- function(id) {
                           shiny::h5(shiny::icon("minus"), " Traits des axes",
                              style = "color: #c62828; font-size: 13px; font-weight: bold; margin-top: 0; margin-bottom: 8px;"),
                           shiny::sliderInput(ns("axisLineSize"),
-                            shiny::tagList(shiny::icon("ruler-horizontal"), " Epaisseur des axes:"),
+                            shiny::tagList(shiny::icon("ruler-horizontal"), " Épaisseur des axes:"),
                             min = 0, max = 3, value = 0.8, step = 0.1
                           ),
                           shiny::helpText(shiny::icon("info-circle"), "0 = axes invisibles. Les traits sont toujours noirs.",
@@ -715,8 +715,8 @@ mod_viz_ui <- function(id) {
                                   "Courbe (Line)"                            = "line",
                                   "Points (Scatter)"                         = "scatter",
                                   "Points + Courbe"                          = "points_line",
-                                  "Courbe d'évolution (Seasonal Evolution)"  = "seasonal_evolution",
-                                  "Courbe lissee (Smooth)"                   = "smooth",
+                                  "Courbe d'évolution (Seasonal Évolution)"  = "seasonal_evolution",
+                                  "Courbe lissée (Smooth)"                   = "smooth",
                                   "Aires (Area)"                             = "area",
                                   "Barres (Bar)"                             = "bar",
                                   "Boxplot"                                  = "box",
@@ -726,7 +726,7 @@ mod_viz_ui <- function(id) {
                                 selected = "line"
                               ),
                               shiny::helpText(shiny::icon("info-circle"),
-                                       " Y2 utilise la même agregation que Y1.",
+                                       " Y2 utilise la même agrégation que Y1.",
                                        style = "font-size:11px; color:#888;")
                             ),
                             

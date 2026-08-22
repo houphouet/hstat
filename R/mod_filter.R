@@ -117,8 +117,8 @@ mod_filter_server <- function(id, values) {
     if (NROW(d) >= n0) return()
     dq <- tryCatch(hstat_data_quality(d), error = function(e) NULL)
     hstat_ai_capture(values, "Filtrage",
-      trf("Sous-echantillon filtre (%d observations sur %d)", NROW(d), n0),
-      tables = list("Diagnostic de qualite" = dq),
+      trf("Sous-échantillon filtre (%d observations sur %d)", NROW(d), n0),
+      tables = list("Diagnostic de qualité" = dq),
       meta = list(variables = names(d), `observations retenues` = NROW(d),
                   `observations initiales` = n0,
                   `part conservee` = sprintf("%.1f %%", 100 * NROW(d) / max(1, n0))))
@@ -239,7 +239,7 @@ mod_filter_server <- function(id, values) {
       shiny::selectInput(ns("valueFilterCol"), "Colonne à filtrer :",
                   choices = col_names, selected = col_names[1]),
       shiny::textAreaInput(ns("valueFilterText"), "Valeur(s) à rechercher (une par ligne) :",
-                    placeholder = "Aout 04-10\nSeptembre 01-07\nJuillet 28-03",
+                    placeholder = "Août 04-10\nSeptembre 01-07\nJuillet 28-03",
                     rows = 4),
       shiny::checkboxInput(ns("valueFilterExact"), "Correspondance exacte", FALSE),
       shiny::checkboxInput(ns("valueFilterCaseSensitive"), "Sensible à la casse", FALSE),

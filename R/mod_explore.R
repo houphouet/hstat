@@ -73,7 +73,7 @@ mod_explore_ui <- function(id) {
                             `data-toggle` = "collapse",
                             `data-parent` = "#distOptionsAccordion",
                             href = "#distOptionsCollapse",
-                            style = "text-decoration: none;",
+                            style = "text-décoration: none;",
                             shiny::icon("cog"), " Options graphiques",
                             shiny::tags$span(class = "pull-right", shiny::icon("chevron-down"))
                           )
@@ -157,7 +157,7 @@ mod_explore_ui <- function(id) {
                             `data-toggle` = "collapse",
                             `data-parent` = "#missingOptionsAccordion",
                             href = "#missingOptionsCollapse",
-                            style = "text-decoration: none;",
+                            style = "text-décoration: none;",
                             shiny::icon("cog"), " Options graphiques",
                             shiny::tags$span(class = "pull-right", shiny::icon("chevron-down"))
                           )
@@ -233,8 +233,8 @@ mod_explore_server <- function(id, values) {
     if (is.null(d) || !NROW(d)) return()
     dq <- tryCatch(hstat_data_quality(d), error = function(e) NULL)
     hstat_ai_capture(values, "Exploration",
-      "Structure et qualite du jeu de donnees",
-      tables = list("Diagnostic de qualite" = dq),
+      "Structure et qualité du jeu de données",
+      tables = list("Diagnostic de qualité" = dq),
       meta = list(variables = names(d),
                   observations = NROW(d), colonnes = NCOL(d)))
   }, ignoreInit = FALSE)

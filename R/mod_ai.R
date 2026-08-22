@@ -63,13 +63,13 @@
 
 HSTAT_AI_FOURNISSEURS <- list(
   auto = list(
-    label = "Thematisation automatique (statistique, sans modele)",
+    label = "Thématisation automatique (statistique, sans modèle)",
     protocole = "auto", cle_env = "", url = "", modele = "", paye = FALSE),
   local = list(
     label = "Serveur local compatible OpenAI (llama.cpp, LM Studio, vLLM...)",
     protocole = "openai", cle_env = "", url = "http://127.0.0.1:8080",
     modele = "", paye = FALSE,
-    aide = "Demarrez votre serveur d'inference et verifiez son adresse ci-dessous."),
+    aide = "Démarrez votre serveur d'inférence et vérifiez son adresse ci-dessous."),
   claude = list(
     label = "API Claude (Anthropic)", protocole = "anthropic",
     cle_env = "ANTHROPIC_API_KEY", url = "https://api.anthropic.com",
@@ -184,15 +184,15 @@ hstat_ai_status <- function(engine = "auto", url = NULL, model = NULL,
 
   if (identical(f$protocole, "auto"))
     return(list(ok = TRUE,
-                message = paste0("Thematisation automatique disponible : elle tourne ",
-                                 "dans R, sans modele, sans installation et sans reseau.")))
+                message = paste0("Thématisation automatique disponible : elle tourne ",
+                                 "dans R, sans modèle, sans installation et sans réseau.")))
 
   if (!.hstat_ai_http_ok()) {
     miss <- c(if (!requireNamespace("httr", quietly = TRUE)) "{httr}",
               if (!requireNamespace("jsonlite", quietly = TRUE)) "{jsonlite}")
     return(list(ok = FALSE,
                 message = trf(
-                  "Moteur indisponible : le(s) paquet(s) %s manquent. Installez-les avec install.packages(c(%s)), ou basculez sur la thematisation automatique, qui n'en a pas besoin.",
+                  "Moteur indisponible : le(s) paquet(s) %s manquent. Installez-les avec install.packages(c(%s)), ou basculez sur la thématisation automatique, qui n'en a pas besoin.",
                   paste(miss, collapse = " et "),
                   paste(sprintf('"%s"', gsub("[{}]", "", miss)), collapse = ", "))))
   }
@@ -203,10 +203,10 @@ hstat_ai_status <- function(engine = "auto", url = NULL, model = NULL,
   if (nzchar(f$cle_env)) {
     if (!nzchar(hstat_ai_key(engine, api_key)))
       return(list(ok = FALSE,
-                  message = trf("%s indisponible : renseignez une cle d'API (champ ci-dessous ou variable %s). Cle a creer sur %s. Ce service est payant et necessite une connexion ; la thematisation automatique, elle, est gratuite et hors ligne.",
+                  message = trf("%s indisponible : renseignez une clé d'API (champ ci-dessous ou variable %s). Clé a créer sur %s. Ce service est payant et nécessite une connexion ; la thématisation automatique, elle, est gratuite et hors ligne.",
                                 f$label, f$cle_env, f$cle_url %||% "le site du fournisseur")))
     return(list(ok = TRUE,
-                message = trf("%s disponible (modele %s).", f$label,
+                message = trf("%s disponible (modèle %s).", f$label,
                               hstat_ai_modele(engine, model))))
   }
 
@@ -215,15 +215,15 @@ hstat_ai_status <- function(engine = "auto", url = NULL, model = NULL,
   mods <- hstat_ai_models(engine, u)
   if (!length(mods))
     return(list(ok = FALSE, models = character(0),
-                message = trf("Aucun modele joignable sur %s. %s", u,
-                              f$aide %||% "Verifiez l'adresse ci-dessous.")))
+                message = trf("Aucun modèle joignable sur %s. %s", u,
+                              f$aide %||% "Vérifiez l'adresse ci-dessous.")))
   m <- hstat_ai_modele(engine, model)
   if (nzchar(m) && !(m %in% mods))
     return(list(ok = FALSE, models = mods,
-                message = sprintf("Le modele « %s » n'est pas disponible sur %s. Modeles annonces : %s.",
+                message = sprintf("Le modèle « %s » n'est pas disponible sur %s. Modèles annonces : %s.",
                                   m, u, paste(mods, collapse = ", "))))
   list(ok = TRUE, models = mods,
-       message = trf("Serveur local disponible sur %s (%d modele(s)). Gratuit, hors ligne, aucune donnee ne quitte la machine.",
+       message = trf("Serveur local disponible sur %s (%d modèle(s)). Gratuit, hors ligne, aucune donnée ne quitte la machine.",
                      u, length(mods)))
 }
 
@@ -306,7 +306,7 @@ hstat_ai_available <- function(explicit = NULL) {
   txt <- tryCatch(p$choices[[1]]$message$content, error = function(e) NULL)
   if (is.null(txt))
     return(list(ok = FALSE, text = "",
-                error = trf("Reponse illisible de %s.", f$label)))
+                error = trf("Réponse illisible de %s.", f$label)))
   list(ok = TRUE, text = as.character(txt)[1], error = NULL, model = model)
 }
 
@@ -328,7 +328,7 @@ hstat_ai_available <- function(explicit = NULL) {
                                   api_key = NULL, json = TRUE, timeout = 300) {
   f <- hstat_ai_fournisseur("gemini")
   key <- hstat_ai_key("gemini", api_key)
-  if (!nzchar(key)) return(list(ok = FALSE, text = "", error = "Cle d'API absente."))
+  if (!nzchar(key)) return(list(ok = FALSE, text = "", error = "Clé d'API absente."))
   u <- hstat_ai_url("gemini", url)
   model <- hstat_ai_modele("gemini", model)
 
@@ -354,7 +354,7 @@ hstat_ai_available <- function(explicit = NULL) {
     error = function(e) NULL)
   if (is.null(txt) || !nzchar(txt))
     return(list(ok = FALSE, text = "",
-                error = trf("Reponse illisible de %s.", f$label)))
+                error = trf("Réponse illisible de %s.", f$label)))
   list(ok = TRUE, text = txt, error = NULL, model = model)
 }
 
@@ -362,7 +362,7 @@ hstat_ai_available <- function(explicit = NULL) {
                                   model = NULL, max_tokens = 8000L,
                                   thinking = TRUE, timeout = 300, url = NULL) {
   key <- hstat_ai_key("claude", api_key)
-  if (!nzchar(key)) return(list(ok = FALSE, text = "", error = "Cle d'API absente."))
+  if (!nzchar(key)) return(list(ok = FALSE, text = "", error = "Clé d'API absente."))
   model <- hstat_ai_modele("claude", model)
 
   body <- list(model = model, max_tokens = as.integer(max_tokens),
@@ -377,7 +377,7 @@ hstat_ai_available <- function(explicit = NULL) {
                         timeout)
   if (inherits(res, "error"))
     return(list(ok = FALSE, text = "",
-                error = paste("Echec de la connexion :", conditionMessage(res))))
+                error = paste("Échec de la connexion :", conditionMessage(res))))
 
   raw <- httr::content(res, as = "text", encoding = "UTF-8")
   parsed <- tryCatch(jsonlite::fromJSON(raw, simplifyVector = FALSE),
@@ -389,7 +389,7 @@ hstat_ai_available <- function(explicit = NULL) {
                                 httr::status_code(res), substr(msg, 1, 500))))
   }
   if (is.null(parsed) || is.null(parsed$content))
-    return(list(ok = FALSE, text = "", error = "Reponse illisible de l'API."))
+    return(list(ok = FALSE, text = "", error = "Réponse illisible de l'API."))
 
   # Le contenu est une liste de blocs ; avec la reflexion adaptative, les blocs
   # `thinking` precedent le bloc `text` : on ne garde que le texte.
@@ -414,16 +414,16 @@ hstat_ai_reglages_ui <- function(ns, engine, prefixe = "") {
     return(shiny::div(
       style = "background:#eafaf1;border-left:3px solid #27ae60;padding:8px 12px;font-size:12px;",
       shiny::icon("circle-check"),
-      " Aucun reglage : la thematisation tourne dans R, sans modele, sans cle et sans reseau."))
+      " Aucun réglage : la thématisation tourne dans R, sans modèle, sans clé et sans réseau."))
 
   shiny::tagList(
     if (nzchar(f$cle_env))
       shiny::tagList(
-        shiny::passwordInput(id("key"), trf("Cle d'API - %s", f$label),
+        shiny::passwordInput(id("key"), trf("Clé d'API - %s", f$label),
                              placeholder = trf("laisser vide pour utiliser %s", f$cle_env)),
         shiny::tags$small(style = "color:#7f8c8d;display:block;margin-top:-8px;",
           shiny::icon("key"), " ",
-          trf("Cle a creer sur %s. Service payant, en ligne.",
+          trf("Clé a créer sur %s. Service payant, en ligne.",
               f$cle_url %||% "le site du fournisseur"))),
     shiny::textInput(id("url"), "Adresse du service", value = f$url),
     shiny::textInput(id("model"), "Modele",
@@ -435,7 +435,7 @@ hstat_ai_reglages_ui <- function(ns, engine, prefixe = "") {
 }
 
 # Exemple de modele affiche en filigrane, quand le fournisseur n'en impose pas.
-.hstat_ai_ex <- function(f) if (nzchar(f$modele)) f$modele else "le nom du modele servi"
+.hstat_ai_ex <- function(f) if (nzchar(f$modele)) f$modele else "le nom du modèle servi"
 
 # Aiguillage sur le PROTOCOLE, pas sur le nom du service : ajouter un service
 # qui parle celui d'OpenAI ne demande alors aucune ligne ici.
@@ -450,10 +450,10 @@ hstat_ai_call <- function(prompt, system = NULL, engine = "auto",
   f <- hstat_ai_fournisseur(engine)
   if (identical(f$protocole, "auto"))
     return(list(ok = FALSE, text = "",
-                error = paste0("La thematisation automatique ne passe pas par un ",
-                               "modele de langue : elle est calculee directement ",
+                error = paste0("La thématisation automatique ne passe pas par un ",
+                               "modèle de langue : elle est calculée directement ",
                                "dans R. Choisissez un service en ligne ou un ",
-                               "serveur local pour faire rediger un texte.")))
+                               "serveur local pour faire rédiger un texte.")))
   if (!.hstat_ai_http_ok())
     return(list(ok = FALSE, text = "",
                 error = "Les paquets {httr} et {jsonlite} sont requis pour ce moteur."))
@@ -589,7 +589,7 @@ hstat_ai_as_table <- function(x) {
 # modele local bien plus qu'elle ne l'informe.
 hstat_ai_context_text <- function(ctx, max_rows = 25, max_chars = 6000) {
   if (is.null(ctx)) return("")
-  out <- c(sprintf("ANALYSE REALISEE : %s", ctx$title))
+  out <- c(sprintf("ANALYSE RÉALISÉE : %s", ctx$title))
   if (length(ctx$meta)) {
     m <- vapply(names(ctx$meta), function(k) {
       v <- ctx$meta[[k]]
@@ -597,7 +597,7 @@ hstat_ai_context_text <- function(ctx, max_rows = 25, max_chars = 6000) {
       sprintf("- %s : %s", k, paste(utils::head(as.character(v), 12), collapse = ", "))
     }, character(1))
     m <- m[nzchar(m)]
-    if (length(m)) out <- c(out, "", "PARAMETRES :", m)
+    if (length(m)) out <- c(out, "", "PARAMÈTRES :", m)
   }
   for (nm in names(ctx$tables)) {
     tb <- ctx$tables[[nm]]
@@ -661,7 +661,7 @@ hstat_ai_context_text <- function(ctx, max_rows = 25, max_chars = 6000) {
   skew <- mean(((x - m) / s)^3)
   kurt <- mean(((x - m) / s)^4) - 3
   list(ok = abs(skew) < 1 && abs(kurt) < 2,
-       methode = sprintf("asymetrie %.2f / aplatissement %.2f (n > 5000)", skew, kurt),
+       methode = sprintf("asymétrie %.2f / aplatissement %.2f (n > 5000)", skew, kurt),
        p = NA_real_)
 }
 
@@ -675,7 +675,7 @@ hstat_ai_context_text <- function(ctx, max_rows = 25, max_chars = 6000) {
   ok <- stats::complete.cases(x, g)
   x <- as.numeric(x)[ok]; g <- as.character(g)[ok]
   lev <- unique(g)
-  if (!length(lev)) return(list(ok = NA, methode = "aucune observation complete",
+  if (!length(lev)) return(list(ok = NA, methode = "aucune observation complète",
                                 p = NA_real_, portee = "par groupe"))
   det <- do.call(rbind, lapply(lev, function(l) {
     r <- .hstat_reco_normal(x[g == l])
@@ -805,7 +805,7 @@ hstat_rlog_code <- function(ctx, donnees = "donnees") {
         if (!is.null(fml)) sprintf("aggregate(%s, data = %s, FUN = mean)", fml, donnees)),
 
     "Correlations" = if (length(v) >= 2)
-      c(sprintf('cor(%s[, %s], use = "pairwise.complete.obs")', donnees, .hstat_rlog_vec(v)),
+      c(sprintf('cor(%s[, %s], use = "pairwise.complète.obs")', donnees, .hstat_rlog_vec(v)),
         sprintf("cor.test(%s$%s, %s$%s)", donnees, .hstat_rlog_nom(v[1]),
                 donnees, .hstat_rlog_nom(v[2]))),
 
@@ -823,13 +823,13 @@ hstat_rlog_code <- function(ctx, donnees = "donnees") {
                              "summary(modele)") else NULL
       } else if (grepl("test t|student|welch", t)) {
         if (!is.null(fml)) sprintf("t.test(%s, data = %s)", fml, donnees) else NULL
-      } else if (grepl("regression lineaire", t)) {
+      } else if (grepl("régression linéaire", t)) {
         if (!is.null(fml)) c(sprintf("modele <- lm(%s, data = %s)", fml, donnees),
                              "summary(modele)") else NULL
       } else if (grepl("chi", t)) {
         if (length(v) >= 1 && !is.null(f))
           sprintf("chisq.test(table(%s$%s, %s$%s))", donnees, y, donnees, f) else NULL
-      } else if (grepl("1 echantillon|conformite|norme|equivalence|signe", t)) {
+      } else if (grepl("1 échantillon|conformité|norme|équivalence|signe", t)) {
         # Les tests a une reference dependent de la valeur cible saisie :
         # elle figure dans les parametres, on la reporte telle quelle.
         NULL
@@ -839,7 +839,7 @@ hstat_rlog_code <- function(ctx, donnees = "donnees") {
     "Comparaisons multiples" = if (!is.null(fml))
       c(sprintf("modele <- aov(%s, data = %s)", fml, donnees), "TukeyHSD(modele)"),
 
-    "Analyses multivariees" = {
+    "Analyses multivariées" = {
       if (grepl("composantes principales|\\bacp\\b", t) && length(v))
         c(sprintf("acp <- FactoMineR::PCA(%s[, %s], graph = FALSE)", donnees, .hstat_rlog_vec(v)),
           "summary(acp)")
@@ -850,12 +850,12 @@ hstat_rlog_code <- function(ctx, donnees = "donnees") {
       else if (grepl("correspondances", t) && length(v) >= 2)
         sprintf("FactoMineR::CA(table(%s$%s, %s$%s), graph = FALSE)",
                 donnees, .hstat_rlog_nom(v[1]), donnees, .hstat_rlog_nom(v[2]))
-      else if (grepl("donnees mixtes|afdm", t) && length(v))
+      else if (grepl("données mixtes|afdm", t) && length(v))
         sprintf("FactoMineR::FAMD(%s[, %s], graph = FALSE)", donnees, .hstat_rlog_vec(v))
       else if (grepl("factorielle exploratoire|\\bafe\\b", t) && length(v))
         sprintf("psych::fa(%s[, %s], nfactors = 2, rotate = \"varimax\")",
                 donnees, .hstat_rlog_vec(v))
-      else if (grepl("regression lineaire multiple", t) && !is.null(fml))
+      else if (grepl("régression linéaire multiple", t) && !is.null(fml))
         c(sprintf("modele <- lm(%s, data = %s)", fml, donnees), "summary(modele)")
       else NULL
     },
@@ -865,7 +865,7 @@ hstat_rlog_code <- function(ctx, donnees = "donnees") {
               donnees, .hstat_rlog_nom(v[2]))
       else if (length(v) == 1) sprintf("table(%s$%s)", donnees, y),
 
-    "Series temporelles" = if (length(v))
+    "Séries temporelles" = if (length(v))
       c(sprintf("serie <- ts(%s$%s)", donnees, y),
         "modele <- forecast::auto.arima(serie)",
         "forecast::forecast(modele, h = 12)"),
@@ -880,23 +880,23 @@ hstat_rlog_script <- function(history, source = NULL, version = NULL,
     "# =============================================================================",
     sprintf("# Journal de session HStat%s",
             if (!is.null(version)) paste0(" ", version) else ""),
-    sprintf("# Genere le %s", format(Sys.time(), "%Y-%m-%d a %H:%M:%S")),
+    sprintf("# Généré le %s", format(Sys.time(), "%Y-%m-%d a %H:%M:%S")),
     "# -----------------------------------------------------------------------------",
-    "# Script reconstitue a partir des analyses menees dans l'application.",
+    "# Script reconstitue a partir des analyses menées dans l'application.",
     "#",
-    "# A LIRE AVANT DE L'EXECUTER :",
-    "#  - Verifiez le chargement des donnees ci-dessous : le chemin, le separateur",
-    "#    et l'encodage dependent de votre fichier.",
-    "#  - Les etapes marquees « NON RECONSTITUE » ont ete faites de facon",
-    "#    interactive. Leurs parametres sont rappeles en commentaire, mais le code",
-    "#    n'est pas ecrit : mieux vaut une lacune signalee qu'un code plausible et",
-    "#    faux, qui donnerait un resultat different de celui que vous avez lu.",
-    "#  - Les analyses apparaissent dans l'ordre ou vous les avez menees.",
+    "# A LIRE AVANT DE L'EXÉCUTER :",
+    "#  - Vérifiez le chargement des données ci-dessous : le chemin, le séparateur",
+    "#    et l'encodage dépendent de votre fichier.",
+    "#  - Les étapes marquées « NON RECONSTITUE » ont été faites de façon",
+    "#    interactive. Leurs paramètres sont rappelés en commentaire, mais le code",
+    "#    n'est pas écrit : mieux vaut une lacune signalée qu'un code plausible et",
+    "#    faux, qui donnerait un résultat différent de celui que vous avez lu.",
+    "#  - Les analyses apparaissent dans l'ordre ou vous les avez menées.",
     "# =============================================================================",
     "")
 
   chargement <- c(
-    "# ---- Donnees ----------------------------------------------------------------",
+    "# ---- Données ----------------------------------------------------------------",
     if (!is.null(source) && nzchar(source))
       sprintf('# Fichier d\'origine : %s', source) else NULL,
     sprintf('%s <- read.csv("mon_fichier.csv", stringsAsFactors = FALSE)', donnees),
@@ -904,7 +904,7 @@ hstat_rlog_script <- function(history, source = NULL, version = NULL,
 
   if (is.null(history) || !length(history))
     return(paste(c(entete, chargement,
-                   "# Aucune analyse enregistree pour cette session."),
+                   "# Aucune analyse enregistrée pour cette session."),
                  collapse = "\n"))
 
   corps <- unlist(lapply(seq_along(history), function(i) {
@@ -920,7 +920,7 @@ hstat_rlog_script <- function(history, source = NULL, version = NULL,
       if (!is.null(ctx$time)) sprintf("#   (%s)", format(ctx$time, "%H:%M:%S")),
       params,
       if (is.null(code))
-        c("#   NON RECONSTITUE : etape realisee de facon interactive.", "")
+        c("#   NON RECONSTITUE : étape réalisée de façon interactive.", "")
       else c(code, ""))
   }))
 
@@ -970,15 +970,15 @@ hstat_data_quality <- function(df, seuil_na = 0.20, seuil_modalite = 0.95,
     if (taux_na >= 0.90)
       out <- c(out, list(.hstat_q_row(nm,
         trf("%.0f %% de valeurs manquantes", 100 * taux_na), "bloquant",
-        "Variable quasi vide : l'exclure des analyses, ou retrouver la source des donnees manquantes.")))
+        "Variable quasi vide : l'exclure des analyses, ou retrouver la source des données manquantes.")))
     else if (taux_na >= 0.50)
       out <- c(out, list(.hstat_q_row(nm,
         trf("%.0f %% de valeurs manquantes", 100 * taux_na), "important",
-        "Au-dela de la moitie, l'imputation invente plus qu'elle ne restitue. Preferer l'exclusion, ou une analyse sur cas complets en le declarant.")))
+        "Au-delà de la moitie, l'imputation invente plus qu'elle ne restitue. Préférer l'exclusion, ou une analyse sur cas complets en le déclarant.")))
     else if (taux_na >= seuil_na)
       out <- c(out, list(.hstat_q_row(nm,
         trf("%.0f %% de valeurs manquantes", 100 * taux_na), "a surveiller",
-        "Onglet Nettoyage : imputation par la mediane/le mode, ou par kNN / missForest si le mecanisme n'est pas aleatoire.")))
+        "Onglet Nettoyage : imputation par la médiane/le mode, ou par kNN / missForest si le mécanisme n'est pas aléatoire.")))
 
     vals <- x[!vide]
     if (!length(vals)) next
@@ -988,40 +988,40 @@ hstat_data_quality <- function(df, seuil_na = 0.20, seuil_modalite = 0.95,
     if (u == 1L) {
       out <- c(out, list(.hstat_q_row(nm,
         trf("une seule valeur (« %s »)", substr(as.character(vals[1]), 1, 30)), "important",
-        "Variable constante : elle ne peut expliquer aucune variation. La retirer des modeles (elle fait aussi echouer l'ACP et la standardisation).")))
+        "Variable constante : elle ne peut expliquer aucune variation. La retirer des modèles (elle fait aussi échouer l'ACP et la standardisation).")))
       next
     }
     if (chr && u >= 0.95 * length(vals) && u > 20)
       out <- c(out, list(.hstat_q_row(nm,
         trf("%d valeurs distinctes sur %d observations", u, length(vals)), "a surveiller",
-        "Ressemble a un identifiant ou a du texte libre. Comme identifiant : l'exclure des analyses. Comme texte : l'onglet Analyses qualitatives sait le coder et le thematiser.")))
+        "Ressemble a un identifiant ou a du texte libre. Comme identifiant : l'exclure des analyses. Comme texte : l'onglet Analyses qualitatives sait le coder et le thématiser.")))
 
     if (chr) {
       tb <- sort(table(as.character(vals)), decreasing = TRUE)
       # --- Modalite ecrasante ---------------------------------------------
       if (tb[1] / length(vals) >= seuil_modalite)
         out <- c(out, list(.hstat_q_row(nm,
-          trf("la modalite « %s » couvre %.0f %% des reponses", names(tb)[1],
+          trf("la modalité « %s » couvre %.0f %% des réponses", names(tb)[1],
                   100 * tb[1] / length(vals)), "important",
-          "Variable quasi constante : aucun test ne detectera de difference. Regrouper les modalites, ou renoncer a l'utiliser comme facteur.")))
+          "Variable quasi constante : aucun test ne détectera de différence. Regrouper les modalités, ou renoncer a l'utiliser comme facteur.")))
       # --- Modalites trop rares --------------------------------------------
       rares <- names(tb)[tb < 5]
       if (length(rares) && u <= max_modalites)
         out <- c(out, list(.hstat_q_row(nm,
-          sprintf("%d modalite(s) sous 5 observations (%s)", length(rares),
+          sprintf("%d modalité(s) sous 5 observations (%s)", length(rares),
                   paste(utils::head(rares, 4), collapse = ", ")), "a surveiller",
-          "Les tests du Chi2 et les approximations asymptotiques y perdent leur validite. Regrouper ces modalites, ou passer au test exact de Fisher.")))
+          "Les tests du Chi2 et les approximations asymptotiques y perdent leur validité. Regrouper ces modalités, ou passer au test exact de Fisher.")))
       if (u > max_modalites && u < 0.95 * length(vals))
         out <- c(out, list(.hstat_q_row(nm,
-          sprintf("%d modalites distinctes", u), "a surveiller",
-          trf("Au-dela de %d modalites, les tableaux croises deviennent illisibles et les effectifs trop faibles. Regrouper en categories plus larges.", max_modalites))))
+          sprintf("%d modalités distinctes", u), "a surveiller",
+          trf("Au-delà de %d modalités, les tableaux croises deviennent illisibles et les effectifs trop faibles. Regrouper en catégories plus larges.", max_modalites))))
 
       # --- Nombres stockes en texte ----------------------------------------
       num <- suppressWarnings(as.numeric(gsub(",", ".", as.character(vals))))
       if (mean(!is.na(num)) >= 0.95 && u > 10)
         out <- c(out, list(.hstat_q_row(nm,
           "des nombres stockes comme du texte", "important",
-          "Convertir en numerique (onglet Nettoyage). En l'etat, moyennes, correlations et tests quantitatifs sont impossibles sur cette variable.")))
+          "Convertir en numérique (onglet Nettoyage). En l'état, moyennes, corrélations et tests quantitatifs sont impossibles sur cette variable.")))
     } else if (is.numeric(vals)) {
       v <- as.numeric(vals)
       # --- Valeurs extremes -------------------------------------------------
@@ -1031,13 +1031,13 @@ hstat_data_quality <- function(df, seuil_na = 0.20, seuil_modalite = 0.95,
         ext <- sum(v < qs[1] - 3 * iqr | v > qs[2] + 3 * iqr)
         if (ext > 0)
           out <- c(out, list(.hstat_q_row(nm,
-            trf("%d valeur(s) extreme(s) (au-dela de 3 ecarts interquartiles)", ext), "a surveiller",
-            "Verifier s'il s'agit d'erreurs de saisie ou de vraies observations. Si elles sont reelles, preferer les tests de rangs, qui n'en dependent pas.")))
+            trf("%d valeur(s) extrême(s) (au-delà de 3 écarts interquartiles)", ext), "a surveiller",
+            "Vérifier s'il s'agit d'erreurs de saisie ou de vraies observations. Si elles sont réelles, préférer les tests de rangs, qui n'en dépendent pas.")))
       }
       if (any(!is.finite(v)))
         out <- c(out, list(.hstat_q_row(nm,
-          trf("%d valeur(s) infinie(s) ou non numerique(s)", sum(!is.finite(v))), "bloquant",
-          "Ces valeurs font echouer la plupart des calculs. Les remplacer ou les retirer dans l'onglet Nettoyage.")))
+          trf("%d valeur(s) infinie(s) ou non numérique(s)", sum(!is.finite(v))), "bloquant",
+          "Ces valeurs font échouer la plupart des calculs. Les remplacer ou les retirer dans l'onglet Nettoyage.")))
     }
   }
 
@@ -1051,30 +1051,30 @@ hstat_data_quality <- function(df, seuil_na = 0.20, seuil_modalite = 0.95,
       for (k in seq_len(min(nrow(idx), 8L)))
         out <- c(out, list(.hstat_q_row(
           paste(quanti[idx[k, 1]], "/", quanti[idx[k, 2]]),
-          sprintf("correlation de %.2f entre ces deux variables", M[idx[k, 1], idx[k, 2]]), "important",
-          "Redondance quasi parfaite : en garder une seule. Ensemble, elles rendent une regression instable (colinearite) et faussent la lecture des coefficients.")))
+          sprintf("corrélation de %.2f entre ces deux variables", M[idx[k, 1], idx[k, 2]]), "important",
+          "Redondance quasi parfaite : en garder une seule. Ensemble, elles rendent une régression instable (colinéarité) et faussent la lecture des coefficients.")))
   }
 
   # --- Lignes en double -------------------------------------------------------
   dup <- sum(duplicated(df))
   if (dup > 0)
-    out <- c(out, list(.hstat_q_row("(jeu de donnees)",
+    out <- c(out, list(.hstat_q_row("(jeu de données)",
       sprintf("%d ligne(s) strictement identique(s)", dup), "important",
       "Doublons probables de saisie ou d'import. Les supprimer, sinon ils gonflent artificiellement les effectifs et resserrent a tort les intervalles de confiance.")))
 
   # --- Effectif au regard du nombre de variables -------------------------------
   if (n < 5 * p)
-    out <- c(out, list(.hstat_q_row("(jeu de donnees)",
+    out <- c(out, list(.hstat_q_row("(jeu de données)",
       sprintf("%d observations pour %d variables", n, p), "important",
-      "Trop peu d'observations par variable : les modeles multivaries surapprendront. Reduire le nombre de variables, ou se limiter a des analyses bivariees.")))
+      "Trop peu d'observations par variable : les modèles multivariés surapprendront. Réduire le nombre de variables, ou se limiter a des analyses bivariees.")))
   if (n < 30)
-    out <- c(out, list(.hstat_q_row("(jeu de donnees)",
+    out <- c(out, list(.hstat_q_row("(jeu de données)",
       sprintf("effectif total de %d observations", n), "a surveiller",
-      "Sous 30 observations, les approximations normales sont fragiles : preferer les tests exacts et les tests de rangs.")))
+      "Sous 30 observations, les approximations normales sont fragiles : préférer les tests exacts et les tests de rangs.")))
 
-  if (!length(out)) return(.hstat_q_row("(jeu de donnees)",
-    "aucun probleme detecte", "a surveiller",
-    "Structure saine : valeurs manquantes, modalites, valeurs extremes et redondances sont dans les clous."))
+  if (!length(out)) return(.hstat_q_row("(jeu de données)",
+    "aucun problème détecte", "a surveiller",
+    "Structure saine : valeurs manquantes, modalités, valeurs extrêmes et redondances sont dans les clous."))
 
   res <- do.call(rbind, out)
   rang <- c("bloquant" = 1, "important" = 2, "a surveiller" = 3)
@@ -1084,13 +1084,13 @@ hstat_data_quality <- function(df, seuil_na = 0.20, seuil_modalite = 0.95,
 # Resume d'une ligne, pour un bandeau ou une notification.
 hstat_data_quality_resume <- function(dq) {
   if (is.null(dq) || !nrow(dq)) return(NULL)
-  if (nrow(dq) == 1L && grepl("aucun probleme", dq$Constat[1]))
-    return("Aucun probleme de qualite detecte sur ce jeu de donnees.")
+  if (nrow(dq) == 1L && grepl("aucun problème", dq$Constat[1]))
+    return("Aucun problème de qualité détecte sur ce jeu de données.")
   n <- table(factor(dq$Gravite, levels = HSTAT_QUALITE_GRAVITES))
   parts <- c(if (n[["bloquant"]]) sprintf("%d bloquant(s)", n[["bloquant"]]),
              if (n[["important"]]) sprintf("%d important(s)", n[["important"]]),
              if (n[["a surveiller"]]) sprintf("%d a surveiller", n[["a surveiller"]]))
-  sprintf("%d constat(s) de qualite : %s.", nrow(dq), paste(parts, collapse = ", "))
+  sprintf("%d constat(s) de qualité : %s.", nrow(dq), paste(parts, collapse = ", "))
 }
 
 
@@ -1130,11 +1130,11 @@ hstat_reco_analyses <- function(profile) {
   vides <- names(types)[types == "indeterminable"]
   if (length(vides)) {
     out <- c(out, list(.hstat_reco_row(
-      "Aucune analyse possible en l'etat", "Bloquant",
-      trf("%s ne comporte aucune valeur observee : il n'y a rien a analyser.",
+      "Aucune analyse possible en l'état", "Bloquant",
+      trf("%s ne comporte aucune valeur observée : il n'y a rien a analyser.",
               paste(sprintf("« %s »", vides), collapse = ", ")),
       "Au moins quelques observations non manquantes par variable.",
-      paste("Verifiez l'import (separateur, colonne decalee) et les filtres",
+      paste("Vérifiez l'import (séparateur, colonne décalée) et les filtres",
             "actifs, ou traitez les valeurs manquantes dans l'onglet Nettoyage."))))
   }
 
@@ -1146,63 +1146,63 @@ hstat_reco_analyses <- function(profile) {
         out <- c(out, list(
           if (normal_tous)
             .hstat_reco_row("Test t apparie", "Recommandee",
-              "Une variable quantitative mesuree deux fois sur les memes sujets, distribution compatible avec la normalite.",
-              "Normalite des DIFFERENCES entre les deux mesures.",
+              "Une variable quantitative mesurée deux fois sur les mêmes sujets, distribution compatible avec la normalité.",
+              "Normalité des DIFFÉRENCES entre les deux mesures.",
               "Test des rangs signes de Wilcoxon.")
           else
             .hstat_reco_row("Wilcoxon apparie (rangs signes)", "Recommandee",
-              "Mesures appariees et distribution qui s'ecarte de la normalite.",
-              "Symetrie approximative des differences.",
+              "Mesures appariées et distribution qui s'écarte de la normalité.",
+              "Symétrie approximative des différences.",
               "Test des signes, qui ne suppose rien de plus.")))
       } else {
         out <- c(out, list(
           if (normal_tous && !isFALSE(homo) && !isTRUE(g$petits_effectifs))
-            .hstat_reco_row("Test t de Student (deux echantillons)", "Recommandee",
-              sprintf("Une quantitative comparee entre %d groupes independants, normalite intra-groupe acceptable%s.",
-                      g$k, if (isTRUE(homo)) " et variances homogenes" else ""),
-              "Independance des observations ; normalite dans chaque groupe.",
-              "Test t de Welch si les variances different, Mann-Whitney sinon.")
+            .hstat_reco_row("Test t de Student (deux échantillons)", "Recommandee",
+              sprintf("Une quantitative comparée entre %d groupes indépendants, normalité intra-groupe acceptable%s.",
+                      g$k, if (isTRUE(homo)) " et variances homogènes" else ""),
+              "Indépendance des observations ; normalité dans chaque groupe.",
+              "Test t de Welch si les variances différent, Mann-Whitney sinon.")
           else if (normal_tous && !isTRUE(g$petits_effectifs))
             .hstat_reco_row("Test t de Welch", "Recommandee",
-              "Normalite intra-groupe acceptable mais variances inegales entre les deux groupes : Welch ne les suppose pas egales.",
-              "Independance des observations.",
+              "Normalité intra-groupe acceptable mais variances inégales entre les deux groupes : Welch ne les suppose pas égales.",
+              "Indépendance des observations.",
               "Mann-Whitney.")
           else
             .hstat_reco_row("Mann-Whitney (Wilcoxon)", "Recommandee",
-              sprintf("Deux groupes independants%s.",
+              sprintf("Deux groupes indépendants%s.",
                       if (isTRUE(g$petits_effectifs))
-                        " dont au moins un compte moins de 5 observations : la normalite n'y est pas verifiable"
+                        " dont au moins un compte moins de 5 observations : la normalité n'y est pas vérifiable"
                       else " et distribution non normale dans au moins un groupe"),
-              "Independance ; formes de distribution comparables si l'on conclut sur les medianes.",
-              "Comparaison des rangs seule, sans conclure sur la mediane.")))
+              "Indépendance ; formes de distribution comparables si l'on conclut sur les médianes.",
+              "Comparaison des rangs seule, sans conclure sur la médiane.")))
       }
     } else if (g$k > 2) {
       out <- c(out, list(
         if (normal_tous && !isFALSE(homo) && !isTRUE(g$petits_effectifs))
           .hstat_reco_row("ANOVA a un facteur", "Recommandee",
-            trf("Une quantitative comparee entre %d groupes, normalite intra-groupe et homogeneite des variances acceptables.", g$k),
-            "Independance ; normalite des residus ; homogeneite des variances.",
+            trf("Une quantitative comparée entre %d groupes, normalité intra-groupe et homogénéité des variances acceptables.", g$k),
+            "Indépendance ; normalité des résidus ; homogénéité des variances.",
             "ANOVA de Welch, ou Kruskal-Wallis.")
         else if (normal_tous && !isTRUE(g$petits_effectifs))
           .hstat_reco_row("ANOVA de Welch", "Recommandee",
-            "Normalite intra-groupe acceptable mais variances heterogenes entre groupes.",
-            "Independance des observations.",
+            "Normalité intra-groupe acceptable mais variances hétérogènes entre groupes.",
+            "Indépendance des observations.",
             "Kruskal-Wallis.")
         else if (isTRUE(g$petits_effectifs))
           .hstat_reco_row("Kruskal-Wallis", "Recommandee",
-            trf("%d groupes dont au moins un compte moins de 5 observations : la normalite n'y est pas verifiable, un test de rangs ne la suppose pas.", g$k),
-            "Independance des observations.",
-            "Test de permutation, si meme les rangs sont trop peu nombreux.")
+            trf("%d groupes dont au moins un compte moins de 5 observations : la normalité n'y est pas vérifiable, un test de rangs ne la suppose pas.", g$k),
+            "Indépendance des observations.",
+            "Test de permutation, si même les rangs sont trop peu nombreux.")
         else
           .hstat_reco_row("Kruskal-Wallis", "Recommandee",
-            sprintf("%d groupes independants et distribution non normale dans au moins un groupe.", g$k),
-            "Independance ; formes comparables pour conclure sur les medianes.",
+            sprintf("%d groupes indépendants et distribution non normale dans au moins un groupe.", g$k),
+            "Indépendance ; formes comparables pour conclure sur les médianes.",
             "Comparaison des rangs seule.")))
       out <- c(out, list(.hstat_reco_row(
-        "Comparaisons post-hoc", "A enchainer",
-        "Un test global significatif dit qu'au moins deux groupes different, jamais lesquels : le post-hoc le precise.",
+        "Comparaisons post-hoc", "A enchaîner",
+        "Un test global significatif dit qu'au moins deux groupes différent, jamais lesquels : le post-hoc le précise.",
         "Correction pour comparaisons multiples (Tukey, Holm, Bonferroni...).",
-        "Sans correction, le risque d'erreur de premiere espece s'accumule.")))
+        "Sans correction, le risque d'erreur de première espèce s'accumule.")))
     }
     if (isTRUE(g$petits_effectifs))
       out <- c(out, list(.hstat_reco_row(
@@ -1215,26 +1215,26 @@ hstat_reco_analyses <- function(profile) {
   if (length(quanti) >= 2 && is.null(g)) {
     out <- c(out, list(
       if (normal_tous)
-        .hstat_reco_row("Correlation de Pearson", "Recommandee",
-          "Deux variables quantitatives dont les distributions sont compatibles avec la normalite.",
-          "Relation lineaire ; absence de valeurs extremes influentes.",
-          "Correlation de Spearman, qui ne suppose que la monotonie.")
+        .hstat_reco_row("Corrélation de Pearson", "Recommandee",
+          "Deux variables quantitatives dont les distributions sont compatibles avec la normalité.",
+          "Relation linéaire ; absence de valeurs extrêmes influentes.",
+          "Corrélation de Spearman, qui ne suppose que la monotonie.")
       else
-        .hstat_reco_row("Correlation de Spearman", "Recommandee",
-          "Deux quantitatives dont au moins une s'ecarte de la normalite : la correlation des rangs ne la suppose pas.",
+        .hstat_reco_row("Corrélation de Spearman", "Recommandee",
+          "Deux quantitatives dont au moins une s'écarte de la normalité : la corrélation des rangs ne la suppose pas.",
           "Relation monotone.",
           "Tau de Kendall, plus robuste sur petits effectifs.")))
     out <- c(out, list(.hstat_reco_row(
-      "Regression lineaire", "A envisager",
-      "Si l'une des deux variables est expliquee par l'autre, la regression quantifie l'effet la ou la correlation ne mesure que l'association.",
-      "Linearite, independance, homoscedasticite, normalite des residus.",
-      "Regression robuste, ou transformation de la reponse.")))
+      "Régression linéaire", "A envisager",
+      "Si l'une des deux variables est expliquée par l'autre, la régression quantifie l'effet la ou la corrélation ne mesure que l'association.",
+      "Linéarité, indépendance, homoscedasticite, normalité des résidus.",
+      "Régression robuste, ou transformation de la réponse.")))
     if (length(quanti) >= 3)
       out <- c(out, list(.hstat_reco_row(
         "ACP (analyse en composantes principales)", "A envisager",
-        trf("%d variables quantitatives : l'ACP resume leur structure commune et revele les redondances.", length(quanti)),
-        "Variables correlees entre elles ; effectif superieur au nombre de variables.",
-        "Matrice de correlations seule si les variables sont independantes.")))
+        trf("%d variables quantitatives : l'ACP résume leur structure commune et révèle les redondances.", length(quanti)),
+        "Variables corrélées entre elles ; effectif supérieur au nombre de variables.",
+        "Matrice de corrélations seule si les variables sont indépendantes.")))
   }
 
   # ---- Deux qualitatives ----
@@ -1245,34 +1245,34 @@ hstat_reco_analyses <- function(profile) {
         .hstat_reco_row("Test exact de Fisher", "Recommandee",
           "Tableau croise dont certains effectifs attendus sont faibles : le chi-deux n'y est plus valide.",
           "Effectifs attendus < 5 dans plus de 20 % des cases.",
-          "Regroupement de modalites, puis chi-deux.")
+          "Regroupement de modalités, puis chi-deux.")
       else
-        .hstat_reco_row("Test du chi-deux d'independance", "Recommandee",
-          "Deux variables categorielles : le chi-deux teste leur independance.",
+        .hstat_reco_row("Test du chi-deux d'indépendance", "Recommandee",
+          "Deux variables catégorielles : le chi-deux teste leur indépendance.",
           "Effectifs attendus >= 5 dans au moins 80 % des cases.",
           "Test exact de Fisher.")))
     out <- c(out, list(.hstat_reco_row(
-      "V de Cramer / Odds Ratio", "A enchainer",
+      "V de Cramer / Odds Ratio", "A enchaîner",
       "Un test dit s'il y a association, jamais sa force : la taille d'effet le dit.",
       "-", "-")))
     if (length(quali) >= 3)
       out <- c(out, list(.hstat_reco_row(
         "ACM (analyse des correspondances multiples)", "A envisager",
-        sprintf("%d variables categorielles : l'ACM positionne individus et modalites dans un meme plan.", length(quali)),
-        "Modalites suffisamment representees (regrouper les plus rares).", "-")))
+        sprintf("%d variables catégorielles : l'ACM positionne individus et modalités dans un même plan.", length(quali)),
+        "Modalités suffisamment représentées (regrouper les plus rares).", "-")))
   }
 
   # ---- Ordinales ----
   if (length(ordin) >= 1) {
     out <- c(out, list(.hstat_reco_row(
       "Analyse ordinale (Likert, rangs)", if (length(ordin) >= 2) "Recommandee" else "A envisager",
-      "Variable a modalites ordonnees : la traiter comme quantitative suppose des ecarts egaux entre echelons, ce qui est rarement vrai.",
-      "Ordre des modalites correctement declare.",
-      "Traitement categoriel simple si l'ordre n'a pas de sens.")))
+      "Variable a modalités ordonnées : la traiter comme quantitative suppose des écarts égaux entre échelons, ce qui est rarement vrai.",
+      "Ordre des modalités correctement déclare.",
+      "Traitement catégoriel simple si l'ordre n'a pas de sens.")))
     if (length(ordin) >= 2)
       out <- c(out, list(.hstat_reco_row(
-        "Correlation de Spearman / Kendall", "A envisager",
-        "Deux variables ordinales : la correlation des rangs respecte leur nature.",
+        "Corrélation de Spearman / Kendall", "A envisager",
+        "Deux variables ordinales : la corrélation des rangs respecte leur nature.",
         "Relation monotone.", "-")))
   }
 
@@ -1280,15 +1280,15 @@ hstat_reco_analyses <- function(profile) {
   bin <- names(types)[types == "binaire"]
   if (length(bin) >= 1 && (length(quanti) >= 1 || length(quali) >= 1))
     out <- c(out, list(.hstat_reco_row(
-      "Regression logistique", "A envisager",
-      trf("« %s » ne prend que deux valeurs : la regression logistique modelise sa probabilite a partir des autres variables.", bin[1]),
-      "Effectif suffisant par modalite (au moins 10 evenements par predicteur).",
-      "Test exact ou regression penalisee si les effectifs sont faibles.")))
+      "Régression logistique", "A envisager",
+      trf("« %s » ne prend que deux valeurs : la régression logistique modélise sa probabilité a partir des autres variables.", bin[1]),
+      "Effectif suffisant par modalité (au moins 10 événements par prédicteur).",
+      "Test exact ou régression pénalisée si les effectifs sont faibles.")))
 
   if (!length(out)) return(NULL)
   res <- do.call(rbind, out)
   # Le rang tient a la pertinence, pas a l'ordre d'ecriture des regles.
-  ordre <- c("Recommandee" = 1, "A enchainer" = 2, "A envisager" = 3)
+  ordre <- c("Recommandee" = 1, "A enchaîner" = 2, "A envisager" = 3)
   res[order(ordre[res$Pertinence], seq_len(nrow(res))), , drop = FALSE]
 }
 
@@ -1300,7 +1300,7 @@ hstat_reco_analyses <- function(profile) {
 # c'est une etape anterieure. On y propose la suite plutot qu'un verdict.
 HSTAT_RECO_EXPLORATOIRE <- c("Analyses descriptives", "Visualisation",
                              "Exploration", "Analyses qualitatives",
-                             "Nettoyage", "Filtrage", "Seuils d'efficacite")
+                             "Nettoyage", "Filtrage", "Seuils d'efficacité")
 
 hstat_reco_verdict <- function(reco, titre_analyse, module = NULL) {
   if (is.null(reco) || !nrow(reco) || is.null(titre_analyse) || !nzchar(titre_analyse))
@@ -1310,9 +1310,9 @@ hstat_reco_verdict <- function(reco, titre_analyse, module = NULL) {
     return(list(
       coherent = TRUE, exploratoire = TRUE,
       message = trf(
-        "« %s » decrit vos donnees : c'est une etape preliminaire, pas un test, il n'y a donc rien a valider ici. Pour aller plus loin, le profil de vos variables appelle %s. A vous de decider si cette suite a du sens pour votre question de recherche.",
+        "« %s » décrit vos données : c'est une étape préliminaire, pas un test, il n'y a donc rien a valider ici. Pour aller plus loin, le profil de vos variables appelle %s. A vous de décider si cette suite a du sens pour votre question de recherche.",
         titre_analyse,
-        if (length(reco_1)) paste(reco_1, collapse = " ou ") else "une analyse inferentielle")))
+        if (length(reco_1)) paste(reco_1, collapse = " ou ") else "une analyse inférentielle")))
   }
   cle <- function(x) {
     x <- tolower(chartr("àâäéèêëîïôöùûüç", "aaaeeeeiioouuuc", x))
@@ -1328,12 +1328,12 @@ hstat_reco_verdict <- function(reco, titre_analyse, module = NULL) {
   if (any(hit))
     list(coherent = TRUE, exploratoire = FALSE,
          message = trf(
-           "L'analyse que vous avez menee figure parmi celles que le profil de vos donnees appelle (%s).",
+           "L'analyse que vous avez menée figure parmi celles que le profil de vos données appelle (%s).",
            paste(reco$Analyse[hit], collapse = ", ")))
   else
     list(coherent = FALSE, exploratoire = FALSE,
          message = trf(
-           "Au vu du profil des variables, %s aurait ete le choix le plus direct. Cela ne disqualifie pas votre analyse : un objectif de recherche ou une contrainte de terrain peut la justifier. A vous de trancher.",
+           "Au vu du profil des variables, %s aurait été le choix le plus direct. Cela ne disqualifie pas votre analyse : un objectif de recherche ou une contrainte de terrain peut la justifier. A vous de trancher.",
            if (length(reco_1)) paste(reco_1, collapse = " ou ") else "une autre approche"))
 }
 
@@ -1367,12 +1367,12 @@ hstat_ai_interpret_offline <- function(ctx, profile = NULL, reco = NULL,
 
   if (!is.null(profile)) {
     ty <- vapply(profile$variables, function(e) e$type, character(1))
-    L <- c(L, "### Donnees analysees", "",
+    L <- c(L, "### Données analysées", "",
            sprintf("- %d observations ; %s.", profile$n,
                    paste(sprintf("%d variable(s) %s", table(ty), names(table(ty))),
                          collapse = ", ")))
     if (!is.null(profile$groupe))
-      L <- c(L, sprintf("- Facteur « %s » a %d modalites (effectifs : %s)%s.",
+      L <- c(L, sprintf("- Facteur « %s » a %d modalités (effectifs : %s)%s.",
                         profile$groupe$nom, profile$groupe$k,
                         paste(profile$groupe$effectifs, collapse = ", "),
                         if (isTRUE(profile$groupe$petits_effectifs))
@@ -1380,7 +1380,7 @@ hstat_ai_interpret_offline <- function(ctx, profile = NULL, reco = NULL,
     for (nm in names(profile$variables)) {
       e <- profile$variables[[nm]]
       if (is.null(e$normale) || is.na(e$normale$ok)) next
-      L <- c(L, trf("- « %s » : distribution %s la normalite (%s%s).", nm,
+      L <- c(L, trf("- « %s » : distribution %s la normalité (%s%s).", nm,
                         if (isTRUE(e$normale$ok)) "compatible avec" else "incompatible avec",
                         e$normale$methode,
                         if (!is.na(e$normale$p)) sprintf(", p = %.4g", e$normale$p) else ""))
@@ -1405,25 +1405,25 @@ hstat_ai_interpret_offline <- function(ctx, profile = NULL, reco = NULL,
                         .hstat_ai_signif(p, alpha), 100 * alpha))
       lues <- lues + 1L
     }
-    if (nrow(tb) > 20L) L <- c(L, sprintf("- (... %d lignes supplementaires)", nrow(tb) - 20L))
+    if (nrow(tb) > 20L) L <- c(L, sprintf("- (... %d lignes supplémentaires)", nrow(tb) - 20L))
   }
   if (lues == 0L)
-    L <- c(L, "### Resultats", "",
-           "Aucune p-value reperee automatiquement dans les tableaux : reportez-vous au detail ci-dessous.")
+    L <- c(L, "### Résultats", "",
+           "Aucune p-value repérée automatiquement dans les tableaux : reportez-vous au détail ci-dessous.")
   L <- c(L, "")
 
   if (!is.null(verdict))
-    L <- c(L, "### Coherence du choix d'analyse", "", verdict$message, "")
+    L <- c(L, "### Cohérence du choix d'analyse", "", verdict$message, "")
 
   if (!is.null(reco) && nrow(reco)) {
-    L <- c(L, "### Analyses appelees par vos donnees", "")
+    L <- c(L, "### Analyses appelées par vos données", "")
     for (i in seq_len(nrow(reco)))
       L <- c(L, sprintf("- **%s** *(%s)* — %s", reco$Analyse[i], reco$Pertinence[i],
                         reco$Pourquoi[i]))
     L <- c(L, "",
-           paste0("*Ces propositions decoulent du profil de vos variables. ",
+           paste0("*Ces propositions découlent du profil de vos variables. ",
                   "Le choix de l'analyse, lui, vous appartient : lui seul engage ",
-                  "l'interpretation scientifique de votre travail.*"))
+                  "l'interprétation scientifique de votre travail.*"))
   }
   paste(L, collapse = "\n")
 }
@@ -1431,64 +1431,64 @@ hstat_ai_interpret_offline <- function(ctx, profile = NULL, reco = NULL,
 HSTAT_AI_NIVEAUX <- c(
   "Rapport scientifique (concis, normalise)" = "scientifique",
   "Vulgarise (sans jargon)"                  = "vulgarise",
-  "Detaille (methode + limites)"             = "detaille")
+  "Détaille (méthode + limites)"             = "detaille")
 
 hstat_ai_interpret_prompt <- function(ctx, profile = NULL, reco = NULL,
                                       verdict = NULL, niveau = "scientifique",
                                       contexte = "", alpha = 0.05) {
   style <- switch(niveau,
-    vulgarise = paste0("Ecris pour un lecteur sans formation statistique : pas de jargon, ",
-                       "pas de symboles, des phrases courtes. Explique ce que le resultat ",
-                       "signifie concretement."),
-    detaille  = paste0("Redige un texte complet : rappel de la methode et de ses conditions ",
-                       "d'application, resultats chiffres, taille d'effet, limites de ",
-                       "l'analyse et portee des conclusions."),
-    paste0("Redige comme une section « Resultats » d'article scientifique : concis, ",
-           "impersonnel, chiffres entre parentheses selon l'usage (statistique, ddl, ",
+    vulgarise = paste0("Écris pour un lecteur sans formation statistique : pas de jargon, ",
+                       "pas de symboles, des phrases courtes. Explique ce que le résultat ",
+                       "signifie concrètement."),
+    detaille  = paste0("Rédige un texte complet : rappel de la méthode et de ses conditions ",
+                       "d'application, résultats chiffres, taille d'effet, limites de ",
+                       "l'analyse et portée des conclusions."),
+    paste0("Rédige comme une section « Résultats » d'article scientifique : concis, ",
+           "impersonnel, chiffres entre parenthèses selon l'usage (statistique, ddl, ",
            "p, taille d'effet)."))
 
   bloc_reco <- if (!is.null(reco) && nrow(reco))
-    paste0("\n\nANALYSES QUE LE PROFIL DES DONNEES APPELLE (calculees par HStat, ",
-           "deterministes — reprends-les telles quelles, n'en invente pas d'autres) :\n",
+    paste0("\n\nANALYSES QUE LE PROFIL DES DONNÉES APPELLE (calculées par HStat, ",
+           "déterministes — reprends-les telles quelles, n'en invente pas d'autres) :\n",
            paste(sprintf("- %s (%s) : %s", reco$Analyse, reco$Pertinence, reco$Pourquoi),
                  collapse = "\n")) else ""
 
   bloc_profil <- if (!is.null(profile)) {
     ty <- vapply(profile$variables, function(e) e$type, character(1))
     nrm <- vapply(profile$variables, function(e)
-      if (is.null(e$normale) || is.na(e$normale$ok)) "non evaluee"
-      else if (isTRUE(e$normale$ok)) "compatible avec la normalite"
+      if (is.null(e$normale) || is.na(e$normale$ok)) "non évaluée"
+      else if (isTRUE(e$normale$ok)) "compatible avec la normalité"
       else "non normale", character(1))
-    paste0("\n\nPROFIL DES DONNEES :\n",
+    paste0("\n\nPROFIL DES DONNÉES :\n",
            sprintf("- %d observations\n", profile$n),
            paste(sprintf("- %s : %s (%s)", names(ty), ty, nrm), collapse = "\n"),
            if (!is.null(profile$groupe))
-             sprintf("\n- Facteur %s : %d modalites, effectifs %s",
+             sprintf("\n- Facteur %s : %d modalités, effectifs %s",
                      profile$groupe$nom, profile$groupe$k,
                      paste(profile$groupe$effectifs, collapse = "/")) else "")
   } else ""
 
   paste0(
-    "Tu es statisticien. On te donne les RESULTATS d'une analyse deja realisee ",
-    "par l'utilisateur. Ta mission est de les INTERPRETER, en francais.\n\n",
-    "REGLES ABSOLUES :\n",
-    "1. N'invente aucun chiffre. N'utilise que les valeurs presentes ci-dessous. ",
+    "Tu es statisticien. On te donne les RÉSULTATS d'une analyse déjà réalisée ",
+    "par l'utilisateur. Ta mission est de les INTERPRÉTER, en français.\n\n",
+    "RÈGLES ABSOLUES :\n",
+    "1. N'invente aucun chiffre. N'utilise que les valeurs présentes ci-dessous. ",
     "Si une valeur manque, dis-le au lieu de la deviner.\n",
-    "2. Ne recalcule rien et ne propose pas de relancer l'analyse a ta facon.\n",
+    "2. Ne recalcule rien et ne propose pas de relancer l'analyse a ta façon.\n",
     "3. Le choix de l'analyse appartient a l'utilisateur : tu peux signaler ",
-    "qu'une autre methode aurait mieux convenu, jamais affirmer qu'il a eu tort.\n",
+    "qu'une autre méthode aurait mieux convenu, jamais affirmer qu'il a eu tort.\n",
     sprintf("4. Seuil de signification retenu : %.0f %%.\n", 100 * alpha),
     "\nSTYLE : ", style,
-    if (nzchar(trimws(contexte))) paste0("\n\nCONTEXTE DE L'ETUDE : ", contexte) else "",
+    if (nzchar(trimws(contexte))) paste0("\n\nCONTEXTE DE L'ÉTUDE : ", contexte) else "",
     bloc_profil, bloc_reco,
     "\n\n", hstat_ai_context_text(ctx),
-    "\n\nStructure ta reponse en markdown avec exactement ces sections :\n",
-    "## Lecture des resultats\n",
+    "\n\nStructure ta réponse en markdown avec exactement ces sections :\n",
+    "## Lecture des résultats\n",
     "## Ce que cela signifie\n",
-    "## Precautions et limites\n",
-    "## Analyse recommandee pour la suite\n",
-    "Dans la derniere section, appuie-toi sur les analyses appelees par le profil ",
-    "des donnees, et rappelle que la decision revient a l'utilisateur.")
+    "## Précautions et limites\n",
+    "## Analyse recommandée pour la suite\n",
+    "Dans la dernière section, appuie-toi sur les analyses appelées par le profil ",
+    "des données, et rappelle que la décision revient a l'utilisateur.")
 }
 
 
@@ -1579,51 +1579,51 @@ mod_ai_ui <- function(id) {
       shinydashboard::box(width = 12, status = "primary", solidHeader = FALSE,
         background = "navy",
         shiny::h3(shiny::icon("compass-drafting"),
-                  " Interpretation des resultats & aide a la decision",
+                  " Interprétation des résultats & aide a la décision",
                   style = "margin:0;color:white;"),
         shiny::p(style = "margin:8px 0 0 0;color:#d6e4f0;font-size:13px;",
-          "L'assistance interprete les resultats que vous venez d'obtenir et vous ",
-          "indique quelles analyses le profil de vos donnees appelle. ",
+          "L'assistance interprète les résultats que vous venez d'obtenir et vous ",
+          "indique quelles analyses le profil de vos données appelle. ",
           shiny::tags$b("Elle ne choisit ni ne lance aucune analyse"),
-          " : la methode reste votre decision, et votre responsabilite."))
+          " : la méthode reste votre décision, et votre responsabilité."))
     ),
     shiny::fluidRow(
       shiny::column(4,
         shinydashboard::box(width = 12, status = "primary", solidHeader = TRUE,
-          title = shiny::tagList(shiny::icon("clipboard-check"), " Analyse a interpreter"),
+          title = shiny::tagList(shiny::icon("clipboard-check"), " Analyse a interpréter"),
           shiny::uiOutput(ns("ctx_box")),
           shiny::hr(style = "margin:10px 0;"),
-          shiny::h5(shiny::icon("table-columns"), " Profil des donnees"),
+          shiny::h5(shiny::icon("table-columns"), " Profil des données"),
           shiny::tags$small(style = "color:#7f8c8d;display:block;margin-bottom:8px;",
-            "Sert a la recommandation. Pre-rempli depuis la derniere analyse ; ",
+            "Sert a la recommandation. Pre-rempli depuis la dernière analyse ; ",
             "ajustez-le si vous voulez explorer un autre scenario."),
           shiny::uiOutput(ns("vars_ui")),
           shiny::uiOutput(ns("group_ui")),
-          shiny::checkboxInput(ns("paired"), "Mesures appariees (memes sujets)", FALSE),
+          shiny::checkboxInput(ns("paired"), "Mesures appariées (mêmes sujets)", FALSE),
           shiny::sliderInput(ns("alpha"), "Seuil de signification", min = 0.001,
                              max = 0.10, value = 0.05, step = 0.001),
           shiny::hr(style = "margin:10px 0;"),
-          shiny::selectInput(ns("niveau"), "Niveau de redaction",
+          shiny::selectInput(ns("niveau"), "Niveau de rédaction",
                              choices = HSTAT_AI_NIVEAUX, selected = "scientifique"),
-          shiny::textAreaInput(ns("contexte"), "Contexte de l'etude (facultatif)",
+          shiny::textAreaInput(ns("contexte"), "Contexte de l'étude (facultatif)",
                                rows = 2,
-                               placeholder = "Ex. essai clinique, 3 bras, critere principal"),
+                               placeholder = "Ex. essai clinique, 3 bras, critère principal"),
           shiny::hr(style = "margin:10px 0;"),
-          shiny::actionButton(ns("go"), "Interpreter avec le modele",
+          shiny::actionButton(ns("go"), "Interpréter avec le modèle",
                               icon = shiny::icon("wand-magic-sparkles"),
                               class = "btn-primary btn-block"),
           shiny::br(),
-          shiny::actionButton(ns("go_offline"), "Lecture automatique (sans modele)",
+          shiny::actionButton(ns("go_offline"), "Lecture automatique (sans modèle)",
                               icon = shiny::icon("calculator"),
                               class = "btn-default btn-block btn-sm"),
           shiny::tags$small(style = "color:#7f8c8d;display:block;margin-top:8px;",
             shiny::icon("circle-info"),
-            " La lecture automatique ne genere rien : elle relit vos tableaux et ",
-            "en enonce les p-values. Elle fonctionne toujours, sans modele.")
+            " La lecture automatique ne génère rien : elle relit vos tableaux et ",
+            "en énonce les p-values. Elle fonctionne toujours, sans modèle.")
         ),
         shinydashboard::box(width = 12, status = "warning", solidHeader = TRUE,
           collapsible = TRUE, collapsed = TRUE,
-          title = shiny::tagList(shiny::icon("microchip"), " Moteur d'inference"),
+          title = shiny::tagList(shiny::icon("microchip"), " Moteur d'inférence"),
           shiny::radioButtons(ns("engine"), NULL, choices = HSTAT_AI_ENGINES,
                               selected = "auto"),
           shiny::uiOutput(ns("reglages")),
@@ -1631,7 +1631,7 @@ mod_ai_ui <- function(id) {
       ),
       shiny::column(8,
         shinydashboard::box(width = 12, status = "primary", solidHeader = TRUE,
-          title = shiny::tagList(shiny::icon("lightbulb"), " Aide a la decision"),
+          title = shiny::tagList(shiny::icon("lightbulb"), " Aide a la décision"),
           shiny::tabsetPanel(id = ns("tabs"),
             shiny::tabPanel(shiny::tagList(shiny::icon("file-lines"), " Interpretation"),
               shiny::br(),
@@ -1644,40 +1644,40 @@ mod_ai_ui <- function(id) {
                                                        class = "btn-info btn-sm btn-block")),
                 shiny::column(4, shiny::downloadButton(ns("dl_txt"), "Texte brut",
                                                        class = "btn-info btn-sm btn-block")))),
-            shiny::tabPanel(shiny::tagList(shiny::icon("route"), " Analyse recommandee"),
+            shiny::tabPanel(shiny::tagList(shiny::icon("route"), " Analyse recommandée"),
               shiny::br(),
               shiny::uiOutput(ns("verdict")),
               DT::DTOutput(ns("reco_table")),
               shiny::br(),
               shiny::div(style = "background:#fdf3e3;border-left:5px solid #e67e22;padding:12px 16px;border-radius:6px;font-size:13px;",
                 shiny::icon("triangle-exclamation"),
-                shiny::tags$b(" Ces propositions ne decident pas a votre place."),
-                " Elles decoulent mecaniquement du type de vos variables, de leurs ",
-                "effectifs et de tests de normalite et d'homogeneite. Une question de ",
-                "recherche, un plan d'experience ou une contrainte de terrain peuvent ",
-                "justifier un autre choix — que vous seul etes en mesure de faire.")),
-            shiny::tabPanel(shiny::tagList(shiny::icon("magnifying-glass-chart"), " Profil des donnees"),
+                shiny::tags$b(" Ces propositions ne décident pas a votre place."),
+                " Elles découlent mécaniquement du type de vos variables, de leurs ",
+                "effectifs et de tests de normalité et d'homogénéité. Une question de ",
+                "recherche, un plan d'expérience ou une contrainte de terrain peuvent ",
+                "justifier un autre choix — que vous seul êtes en mesure de faire.")),
+            shiny::tabPanel(shiny::tagList(shiny::icon("magnifying-glass-chart"), " Profil des données"),
               shiny::br(),
               DT::DTOutput(ns("profile_table")),
               shiny::br(),
               shiny::uiOutput(ns("profile_notes"))),
-            shiny::tabPanel(shiny::tagList(shiny::icon("code"), " Journal & reproductibilite"),
+            shiny::tabPanel(shiny::tagList(shiny::icon("code"), " Journal & reproductibilité"),
               shiny::br(),
               shiny::div(style = "background:#eafaf1;border-left:5px solid #27ae60;padding:12px 16px;border-radius:6px;font-size:13px;",
                 shiny::tags$strong(shiny::icon("scroll"), " Script R de votre session"),
                 shiny::tags$p(style = "margin:6px 0 0 0;",
-                  "Les analyses que vous avez menees, dans l'ordre, sous forme de code R ",
-                  "executable. C'est ce qu'un relecteur attend pour refaire le chemin. ",
-                  shiny::tags$b("Les etapes purement interactives sont signalees, pas inventees"),
-                  " : un script qui differerait en silence de ce que vous avez lu serait ",
+                  "Les analyses que vous avez menées, dans l'ordre, sous forme de code R ",
+                  "exécutable. C'est ce qu'un relecteur attend pour refaire le chemin. ",
+                  shiny::tags$b("Les étapes purement interactives sont signalées, pas inventées"),
+                  " : un script qui différerait en silence de ce que vous avez lu serait ",
                   "pire que pas de script.")),
               shiny::br(),
               shiny::fluidRow(
                 shiny::column(6, shiny::uiOutput(ns("rlog_resume"))),
-                shiny::column(3, shiny::textInput(ns("rlog_objet"), "Nom de l'objet de donnees",
+                shiny::column(3, shiny::textInput(ns("rlog_objet"), "Nom de l'objet de données",
                                                   value = "donnees")),
                 shiny::column(3, shiny::br(),
-                  shiny::downloadButton(ns("dl_rlog"), "Telecharger le script (.R)",
+                  shiny::downloadButton(ns("dl_rlog"), "Télécharger le script (.R)",
                                         class = "btn-success btn-block"))),
               shiny::tags$pre(style = "background:#f8f9fa;border:1px solid #e0e0e0;border-radius:6px;padding:14px;max-height:560px;overflow:auto;font-size:12px;line-height:1.5;",
                               shiny::textOutput(ns("rlog_script"), container = shiny::tags$code)),
@@ -1688,11 +1688,11 @@ mod_ai_ui <- function(id) {
               shiny::div(style = "background:#eaf4fb;border-left:5px solid #2e86c1;padding:12px 16px;border-radius:6px;font-size:13px;",
                 shiny::tags$strong(shiny::icon("file-lines"), " Un document, transmissible tel quel"),
                 shiny::tags$p(style = "margin:6px 0 0 0;",
-                  "Vos analyses, vos figures et vos interpretations reunies en un ",
-                  "rapport redige. ",
+                  "Vos analyses, vos figures et vos interprétations réunies en un ",
+                  "rapport rédige. ",
                   shiny::tags$b("Le rapport ne calcule rien"),
-                  " : il met en forme ce que vous avez deja obtenu. A relire avant ",
-                  "diffusion — les interpretations eclairent la lecture, elles ne la valident pas.")),
+                  " : il met en forme ce que vous avez déjà obtenu. A relire avant ",
+                  "diffusion — les interprétations éclairent la lecture, elles ne la valident pas.")),
               shiny::br(),
               shiny::fluidRow(
                 shiny::column(5,
@@ -1703,14 +1703,14 @@ mod_ai_ui <- function(id) {
                   shiny::radioButtons(ns("rep_format"), "Format",
                                       choices = HSTAT_REPORT_FORMATS,
                                       selected = "html"),
-                  shiny::selectInput(ns("rep_dpi"), "Resolution des figures",
+                  shiny::selectInput(ns("rep_dpi"), "Résolution des figures",
                                      choices = HSTAT_REPORT_DPI,
                                      selected = "1000"),
                   shiny::tags$small(style = "color:#7f8c8d;display:block;margin-top:-8px;",
                     shiny::icon("circle-info"),
-                    " Les figures sont tracees pour l'impression, pas pour l'ecran : ",
+                    " Les figures sont tracées pour l'impression, pas pour l'écran : ",
                     "a 150 dpi elles paraissent nettes a l'affichage et sortent ",
-                    "floues sur papier, et le defaut ne se voit qu'une fois le ",
+                    "floues sur papier, et le défaut ne se voit qu'une fois le ",
                     "document remis. Comptez quelques secondes par figure."),
                   shiny::uiOutput(ns("rep_dispo"))),
                 shiny::column(4,
@@ -1729,7 +1729,7 @@ mod_ai_ui <- function(id) {
               shiny::hr(),
               shiny::div(style = "background:#ffffff;border:1px solid #e0e0e0;border-radius:6px;padding:16px 20px;max-height:620px;overflow:auto;",
                          shiny::uiOutput(ns("rep_apercu")))),
-            shiny::tabPanel(shiny::tagList(shiny::icon("stethoscope"), " Qualite des donnees"),
+            shiny::tabPanel(shiny::tagList(shiny::icon("stethoscope"), " Qualité des données"),
               shiny::br(),
               shiny::uiOutput(ns("dq_resume")),
               DT::DTOutput(ns("dq_table")),
@@ -1737,16 +1737,16 @@ mod_ai_ui <- function(id) {
               shiny::div(style = "background:#eaf4fb;border-left:5px solid #2e86c1;padding:12px 16px;border-radius:6px;font-size:13px;",
                 shiny::icon("circle-info"),
                 shiny::tags$b(" Comment lire ce diagnostic."),
-                " Chaque constat porte sa gravite et une suggestion concrete. ",
-                shiny::tags$b("Bloquant"), " : l'analyse echouera ou n'aura pas de sens en l'etat. ",
-                shiny::tags$b("Important"), " : le resultat sera trompeur si rien n'est fait. ",
-                shiny::tags$b("A surveiller"), " : a connaitre avant d'interpreter. ",
-                "Le diagnostic est calcule dans R, sans modele et sans reseau ; ",
-                "au-dela de 20 000 lignes il porte sur un echantillon."),
+                " Chaque constat porte sa gravite et une suggestion concrète. ",
+                shiny::tags$b("Bloquant"), " : l'analyse échouera ou n'aura pas de sens en l'état. ",
+                shiny::tags$b("Important"), " : le résultat sera trompeur si rien n'est fait. ",
+                shiny::tags$b("A surveiller"), " : a connaître avant d'interpréter. ",
+                "Le diagnostic est calcule dans R, sans modèle et sans réseau ; ",
+                "au-delà de 20 000 lignes il porte sur un échantillon."),
               shiny::br(),
-              shiny::downloadButton(ns("dl_dq"), "Telecharger le diagnostic (CSV)",
+              shiny::downloadButton(ns("dl_dq"), "Télécharger le diagnostic (CSV)",
                                     class = "btn-info btn-sm")),
-            shiny::tabPanel(shiny::tagList(shiny::icon("table"), " Resultats captures"),
+            shiny::tabPanel(shiny::tagList(shiny::icon("table"), " Résultats captures"),
               shiny::br(),
               shiny::uiOutput(ns("ctx_tables")))
           ))
@@ -1765,7 +1765,7 @@ mod_ai_server <- function(id, values) {
     get_data <- shiny::reactive({
       d <- values$data
       shiny::validate(shiny::need(!is.null(d) && nrow(d) > 0,
-        "Chargez d'abord un jeu de donnees dans l'onglet Chargement."))
+        "Chargez d'abord un jeu de données dans l'onglet Chargement."))
       as.data.frame(d)
     })
 
@@ -1774,11 +1774,11 @@ mod_ai_server <- function(id, values) {
       if (is.null(c0))
         return(shiny::div(class = "callout callout-warning", style = "padding:10px 14px;",
           shiny::icon("circle-info"),
-          shiny::tags$b(" Aucune analyse enregistree."),
+          shiny::tags$b(" Aucune analyse enregistrée."),
           shiny::br(),
           "Lancez une analyse dans l'un des onglets (tests, descriptives, ",
-          "correlations, multivariees, qualitatives...), puis revenez ici. ",
-          "Vous pouvez deja obtenir une recommandation en choisissant vos ",
+          "corrélations, multivariées, qualitatives...), puis revenez ici. ",
+          "Vous pouvez déjà obtenir une recommandation en choisissant vos ",
           "variables ci-dessous."))
       shiny::div(class = "callout callout-success", style = "padding:10px 14px;",
         shiny::icon("circle-check"), shiny::tags$b(" ", c0$title), shiny::br(),
@@ -1792,7 +1792,7 @@ mod_ai_server <- function(id, values) {
     output$vars_ui <- shiny::renderUI({
       d <- get_data()
       pre <- intersect(ctx()$meta$variables %||% character(0), names(d))
-      shiny::selectInput(ns("vars"), "Variables analysees", choices = names(d),
+      shiny::selectInput(ns("vars"), "Variables analysées", choices = names(d),
                          selected = if (length(pre)) pre else NULL, multiple = TRUE)
     })
     output$group_ui <- shiny::renderUI({
@@ -1850,7 +1850,7 @@ mod_ai_server <- function(id, values) {
       rv$txt <- hstat_ai_interpret_offline(c0, pr, tryCatch(reco(), error = function(e) NULL),
                                            tryCatch(verdict(), error = function(e) NULL),
                                            input$alpha %||% 0.05)
-      rv$source <- "Lecture automatique (aucun modele, aucun reseau)"
+      rv$source <- "Lecture automatique (aucun modèle, aucun réseau)"
       rv$err <- NULL
     }
 
@@ -1879,13 +1879,13 @@ mod_ai_server <- function(id, values) {
       rc <- tryCatch(reco(), error = function(e) NULL)
       vd <- tryCatch(verdict(), error = function(e) NULL)
 
-      shiny::withProgress(message = "Redaction de l'interpretation...", value = 0.4, {
+      shiny::withProgress(message = "Rédaction de l'interprétation...", value = 0.4, {
         res <- hstat_ai_call(
           hstat_ai_interpret_prompt(c0, pr, rc, vd, input$niveau %||% "scientifique",
                                     input$contexte %||% "", input$alpha %||% 0.05),
-          system = paste0("Tu es statisticien. Tu interpretes des resultats deja ",
+          system = paste0("Tu es statisticien. Tu interprètes des résultats déjà ",
                           "obtenus, sans jamais inventer de chiffre ni relancer ",
-                          "d'analyse. Tu reponds en francais, en markdown."),
+                          "d'analyse. Tu réponds en français, en markdown."),
           engine = eng, url = input$url,
           model = input$model, api_key = input$key, json = FALSE)
         shiny::incProgress(0.5)
@@ -1908,17 +1908,17 @@ mod_ai_server <- function(id, values) {
       if (is.null(rv$txt))
         return(shiny::div(class = "callout callout-info", style = "padding:10px 14px;",
           shiny::icon("circle-info"),
-          " Lancez une analyse dans un autre onglet, puis demandez son interpretation ici."))
+          " Lancez une analyse dans un autre onglet, puis demandez son interprétation ici."))
       shiny::div(class = "callout callout-success", style = "padding:8px 12px;font-size:12px;",
         shiny::icon("pen-nib"), shiny::tags$b(" Source : "), rv$source,
         shiny::br(),
         shiny::tags$small(
-          "Texte a relire avant publication : l'assistance interprete, elle ne valide pas."))
+          "Texte a relire avant publication : l'assistance interprète, elle ne valide pas."))
     })
 
     output$interp <- shiny::renderUI({
       if (is.null(rv$txt))
-        return(shiny::tags$em(style = "color:#95a5a6;", "Aucune interpretation pour l'instant."))
+        return(shiny::tags$em(style = "color:#95a5a6;", "Aucune interprétation pour l'instant."))
       shiny::HTML(.hstat_md_to_html(rv$txt))
     })
 
@@ -1946,7 +1946,7 @@ mod_ai_server <- function(id, values) {
     output$reco_table <- DT::renderDT({
       r <- reco()
       shiny::validate(shiny::need(!is.null(r) && nrow(r) > 0,
-        "Choisissez au moins une variable analysee, a gauche."))
+        "Choisissez au moins une variable analysée, a gauche."))
       DT::datatable(r, rownames = FALSE,
                     options = list(pageLength = 10, scrollX = TRUE, dom = "t"))
     })
@@ -1958,8 +1958,8 @@ mod_ai_server <- function(id, values) {
         Variable = e$nom, Type = e$type, `n valide` = e$n, Manquants = e$n_manquant,
         Modalites = e$modalites,
         Normalite = if (is.null(e$normale)) "-"
-                    else if (is.na(e$normale$ok)) "non evaluable"
-                    else if (isTRUE(e$normale$ok)) "compatible" else "ecart a la normalite",
+                    else if (is.na(e$normale$ok)) "non évaluable"
+                    else if (isTRUE(e$normale$ok)) "compatible" else "écart a la normalité",
         `Test de normalite` = if (is.null(e$normale)) "-" else e$normale$methode,
         p = if (is.null(e$normale) || is.na(e$normale$p)) NA_real_
             else signif(e$normale$p, 4),
@@ -1970,11 +1970,11 @@ mod_ai_server <- function(id, values) {
     output$profile_notes <- shiny::renderUI({
       p <- profile()
       if (is.null(p)) return(NULL)
-      el <- list(shiny::tags$li(trf("%d observations dans le jeu de donnees.", p$n)))
+      el <- list(shiny::tags$li(trf("%d observations dans le jeu de données.", p$n)))
       if (!is.null(p$groupe)) {
         g <- p$groupe
         el <- c(el, list(shiny::tags$li(sprintf(
-          "Facteur « %s » : %d modalites (%s), effectifs %s.", g$nom, g$k,
+          "Facteur « %s » : %d modalités (%s), effectifs %s.", g$nom, g$k,
           paste(g$modalites, collapse = ", "), paste(g$effectifs, collapse = " / ")))))
         if (isTRUE(g$petits_effectifs))
           el <- c(el, list(shiny::tags$li(shiny::tags$b("Au moins un groupe compte moins de 5 observations"),
@@ -1983,7 +1983,7 @@ mod_ai_server <- function(id, values) {
           el <- c(el, list(shiny::tags$li(sprintf("Variances %s entre groupes.",
             if (isTRUE(g$variances_homogenes)) "homogenes" else "heterogenes"))))
         if (!is.na(g$equilibre) && !isTRUE(g$equilibre))
-          el <- c(el, list(shiny::tags$li("Groupes desequilibres (rapport des effectifs > 1,5).")))
+          el <- c(el, list(shiny::tags$li("Groupes déséquilibres (rapport des effectifs > 1,5).")))
       }
       # Le detail par groupe justifie la recommandation : sans lui, on demande
       # a l'utilisateur de croire sur parole.
@@ -1992,7 +1992,7 @@ mod_ai_server <- function(id, values) {
         if (is.null(e$normale) || is.null(e$normale$detail)) next
         d <- e$normale$detail
         el <- c(el, list(shiny::tags$li(sprintf(
-          "Normalite de « %s » testee DANS CHAQUE GROUPE : %s.", nm,
+          "Normalité de « %s » testée DANS CHAQUE GROUPE : %s.", nm,
           paste(sprintf("%s (n=%d, p=%s)", d$Groupe, d$n,
                         ifelse(is.na(d$p), "n.d.", format(signif(d$p, 3)))),
                 collapse = " ; ")))))
@@ -2020,16 +2020,16 @@ mod_ai_server <- function(id, values) {
       if (is.null(h) || !length(h))
         return(shiny::div(class = "callout callout-info", style = "padding:10px 14px;",
           shiny::icon("circle-info"),
-          " Aucune analyse enregistree. Le journal se remplit a mesure que vous travaillez."))
+          " Aucune analyse enregistrée. Le journal se remplit a mesure que vous travaillez."))
       reconstitues <- sum(vapply(h, function(c0)
         !is.null(hstat_rlog_code(c0)), logical(1)))
       shiny::div(class = "callout callout-success", style = "padding:10px 14px;",
         shiny::icon("circle-check"),
-        sprintf(" %d analyse(s) enregistree(s), dont %d avec leur code R.",
+        sprintf(" %d analyse(s) enregistrée(s), dont %d avec leur code R.",
                 length(h), reconstitues),
         if (reconstitues < length(h))
           shiny::tags$small(style = "display:block;color:#7f8c8d;",
-            trf("Les %d autres sont documentees en commentaire : leurs reglages etaient interactifs.",
+            trf("Les %d autres sont documentées en commentaire : leurs réglages étaient interactifs.",
                     length(h) - reconstitues)))
     })
 
@@ -2056,7 +2056,7 @@ mod_ai_server <- function(id, values) {
     data_quality <- shiny::reactive({
       d <- values$filteredData %||% values$cleanData %||% values$data
       shiny::validate(shiny::need(!is.null(d) && NROW(d) > 0,
-        "Chargez d'abord un jeu de donnees dans l'onglet Chargement."))
+        "Chargez d'abord un jeu de données dans l'onglet Chargement."))
       hstat_data_quality(as.data.frame(d))
     })
 
@@ -2158,9 +2158,9 @@ mod_ai_server <- function(id, values) {
         shiny::icon("list-check"), shiny::tags$b(" Le rapport contiendra"), shiny::br(),
         sprintf("%d analyse(s)", length(h)), shiny::br(),
         sprintf("%d figure(s) disponible(s)", nfig), shiny::br(),
-        if (!is.null(rv$txt) && nzchar(rv$txt)) "une interpretation redigee"
+        if (!is.null(rv$txt) && nzchar(rv$txt)) "une interprétation rédigée"
         else shiny::tags$span(style = "color:#b9770e;",
-          "aucune interpretation (lancez-en une dans l'onglet Interpretation)"))
+          "aucune interprétation (lancez-en une dans l'onglet Interprétation)"))
     })
 
     rep_apercu <- shiny::eventReactive(input$rep_apercu_go, {
@@ -2172,7 +2172,7 @@ mod_ai_server <- function(id, values) {
     output$rep_apercu <- shiny::renderUI({
       if (is.null(input$rep_apercu_go) || input$rep_apercu_go == 0)
         return(shiny::tags$em(style = "color:#95a5a6;",
-          "Cliquez sur « Apercu » pour voir le rapport avant de le produire."))
+          "Cliquez sur « Aperçu » pour voir le rapport avant de le produire."))
       shiny::HTML(rep_apercu())
     })
 
@@ -2201,7 +2201,7 @@ mod_ai_server <- function(id, values) {
     output$ctx_tables <- shiny::renderUI({
       c0 <- ctx()
       if (is.null(c0)) return(shiny::tags$em(style = "color:#95a5a6;",
-        "Aucune analyse enregistree."))
+        "Aucune analyse enregistrée."))
       shiny::tagList(
         lapply(names(c0$tables), function(nm) shiny::tagList(
           shiny::h5(shiny::icon("table"), " ", nm),

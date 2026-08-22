@@ -47,7 +47,7 @@ mod_tests_ui <- function(id) {
                                                                     "Gamma"               = "Gamma",
                                                                     "Binomiale négative"  = "nbinom",
                                                                     "Inverse gaussienne"  = "inverse.gaussian",
-                                                                    "Beta (glmmTMB)"      = "beta_family",
+                                                                    "Bêta (glmmTMB)"      = "beta_family",
                                                                     "Tweedie (glmmTMB)"   = "tweedie"),
                                                         selected = "gaussian")
                                      )
@@ -245,7 +245,7 @@ mod_tests_ui <- function(id) {
                     shiny::div(id = "boxWrap_manovaAssist",
                         shinydashboard::box(
                           title = shiny::tagList(shiny::icon("layer-group"),
-                                          " Analyse multivariee assistee (MANOVA / PERMANOVA)"),
+                                          " Analyse multivariée assistée (MANOVA / PERMANOVA)"),
                           status = "success", width = 12, solidHeader = TRUE,
                           collapsible = TRUE, collapsed = TRUE,
                         
@@ -274,13 +274,13 @@ mod_tests_ui <- function(id) {
                                       ),
                                     
                                       shiny::tabPanel(
-                                        title = shiny::tagList(shiny::icon("clipboard-check"), " 2. Details techniques"),
+                                        title = shiny::tagList(shiny::icon("clipboard-check"), " 2. Détails techniques"),
                                         value = "manova_prereq", shiny::br(),
                                       
                                         shiny::div(style = "background:#fff8e1; border-left:4px solid #fb8c00; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
                                             shiny::icon("info-circle", style = "color:#e65100;"),
                                             shiny::strong(" Pour les utilisateurs avancés : "),
-                                            "consultez les valeurs brutes des tests de prerequis. ",
+                                            "consultez les valeurs brutes des tests de prérequis. ",
                                             "L'assistant a déjà synthétisé ces résultats dans l'onglet 'Diagnostic & recommandation'."
                                         ),
                                       
@@ -305,22 +305,22 @@ mod_tests_ui <- function(id) {
                                           shiny::br()
                                         ),
                                       
-                                        shiny::h5(shiny::icon("chart-area"), " Normalite multivariee (Mardia)",
+                                        shiny::h5(shiny::icon("chart-area"), " Normalité multivariée (Mardia)",
                                            style = "color:#1565C0; margin-top:0;"),
                                         withSpinner(DT::DTOutput(ns("manovaMardiaTable")), color = "#1565C0"),
                                         shiny::uiOutput(ns("manovaMardiaInterpretation")),
                                         shiny::br(),
                                       
-                                        shiny::h5(shiny::icon("balance-scale"), " Homogeneite des covariances (Box\'s M)",
+                                        shiny::h5(shiny::icon("balance-scale"), " Homogénéité des covariances (Box\'s M)",
                                            style = "color:#1565C0;"),
                                         withSpinner(DT::DTOutput(ns("manovaBoxMTable")), color = "#1565C0"),
                                         shiny::uiOutput(ns("manovaBoxMInterpretation")),
                                         shiny::br(),
                                       
-                                        shiny::h5(shiny::icon("project-diagram"), " Homogeneite des dispersions (PERMDISP)",
+                                        shiny::h5(shiny::icon("project-diagram"), " Homogénéité des dispersions (PERMDISP)",
                                            style = "color:#f39c12;"),
                                         shiny::div(style = "font-size:11px; color:#6c757d; margin-bottom:6px;",
-                                            shiny::icon("info-circle"), " Equivalent multivarie non parametrique du test de Levene."),
+                                            shiny::icon("info-circle"), " Équivalent multivarié non paramétrique du test de Levene."),
                                         withSpinner(DT::DTOutput(ns("manovaPermDispTable")), color = "#f39c12"),
                                         shiny::uiOutput(ns("manovaPermDispInterpretation"))
                                       ),
@@ -337,10 +337,10 @@ mod_tests_ui <- function(id) {
                                           shiny::br(),
                                           shiny::div(style = "background:#fff3e0; border:2px solid #fb8c00; border-radius:8px; padding:14px 18px; margin-top:14px;",
                                               shiny::h4(shiny::icon("project-diagram"),
-                                                 " Decomposition de l\'interaction (effets simples)",
+                                                 " Décomposition de l\'interaction (effets simples)",
                                                  style = "color:#e65100; margin-top:0;"),
                                               shiny::p(style = "color:#555; font-size:13px;",
-                                                "Une interaction est significative : l\'effet d\'un facteur depend du niveau de l\'autre. ",
+                                                "Une interaction est significative : l\'effet d\'un facteur dépend du niveau de l\'autre. ",
                                                 "Choisissez un facteur a ", shiny::em("fixer"), " et un facteur a ", shiny::em("tester"),
                                                 ", puis cliquez ", shiny::strong("Calculer"), "."),
                                               shiny::uiOutput(ns("manovaSimpleEffectsSelectors")),
@@ -351,7 +351,7 @@ mod_tests_ui <- function(id) {
                                                 withSpinner(DT::DTOutput(ns("manovaSimpleEffectsTable")), color = "#fb8c00"),
                                                 shiny::div(style = "font-size:11px; color:#888; margin-top:8px;",
                                                     shiny::icon("info-circle"),
-                                                    " Les p-valeurs sont ajustees par Bonferroni sur l\'ensemble des niveaux fixes.")
+                                                    " Les p-valeurs sont ajustées par Bonferroni sur l\'ensemble des niveaux fixes.")
                                               )
                                           )
                                         )
@@ -366,7 +366,7 @@ mod_tests_ui <- function(id) {
                                        shiny::h6(shiny::icon("magic"), " Diagnostic automatique",
                                           style = "margin-top:0; color:#1565C0; font-weight:bold;"),
                                        shiny::p(style = "font-size:11px; color:#555; margin-bottom:8px;",
-                                         "Verifie les prerequis et recommande le test optimal."),
+                                         "Vérifie les prérequis et recommande le test optimal."),
                                        shiny::actionButton(ns("runManovaDiagnostic"),
                                                     shiny::tagList(shiny::icon("magic"), " Diagnostiquer mes données"),
                                                     class = "btn-primary btn-block",
@@ -405,7 +405,7 @@ mod_tests_ui <- function(id) {
                   shiny::fluidRow(
                     shiny::div(id = "boxWrap_manovaPlaceholder",
                         shinydashboard::box(
-                          title = shiny::tagList(shiny::icon("magic"), " Analyse multivariee assistee"),
+                          title = shiny::tagList(shiny::icon("magic"), " Analyse multivariée assistée"),
                           status = "info", width = 12, solidHeader = TRUE,
                           collapsible = TRUE, collapsed = TRUE,
                           shiny::div(style = "padding:20px; text-align:center;",
@@ -1625,10 +1625,10 @@ mod_correlation_server <- function(id, values) {
       res <- tryCatch(cor_results(), error = function(e) NULL)
       if (is.null(res) || !NROW(res)) return()
       hstat_ai_capture(values, "Correlations",
-        sprintf("Tests de correlation (%s)",
+        sprintf("Tests de corrélation (%s)",
                 paste(unique(if ("Methode" %in% names(res)) res$Methode
                              else input$corTestMethod %||% "pearson"), collapse = ", ")),
-        tables = list("Correlations par paire" = res),
+        tables = list("Corrélations par paire" = res),
         meta = list(variables = input$corTestVars,
                     `correction des p` = input$corTestAdjust,
                     `niveau de confiance` = input$corTestConf))
@@ -1731,7 +1731,7 @@ mod_correlation_server <- function(id, values) {
       # Retire les colonnes parfaitement colineaires (|r| ~ 1) qui rendent la matrice
       # singuliere et font echouer le reordonnancement hierarchique (solve()).
       if (identical(method, "kendall"))
-        cor_data <- hstat_cap_df_rows(cor_data, HSTAT_KENDALL_MAX_N, "Correlation de Kendall")
+        cor_data <- hstat_cap_df_rows(cor_data, HSTAT_KENDALL_MAX_N, "Corrélation de Kendall")
       cm0 <- suppressWarnings(stats::cor(cor_data, use = "pairwise.complete.obs", method = method))
       if (!is.null(cm0)) {
         cm0[is.na(cm0)] <- 0
@@ -1750,7 +1750,7 @@ mod_correlation_server <- function(id, values) {
         return(invisible())
       }
       if (identical(method, "kendall"))
-        cor_data <- hstat_cap_df_rows(cor_data, HSTAT_KENDALL_MAX_N, "Correlation de Kendall")
+        cor_data <- hstat_cap_df_rows(cor_data, HSTAT_KENDALL_MAX_N, "Corrélation de Kendall")
       cor_matrix <- suppressWarnings(stats::cor(cor_data, use = "complete.obs", method = method))
       p_matrix <- tryCatch(
         corrplot::cor.mtest(cor_data, conf.level = 1 - sig_level, method = method)$p,
@@ -3122,7 +3122,7 @@ mod_tests_server <- function(id, values) {
         titre = "Inverse gaussienne",
         txt   = "Données continues positives très fortement asymétriques (queue à droite plus longue que Gamma). Cas plus rare. Lien canonique : 1/µ²."),
       "beta_family" = list(
-        titre = "Beta (glmmTMB)",
+        titre = "Bêta (glmmTMB)",
         txt   = "Proportions/taux continus strictement dans ]0,1[ (0 et 1 exclus), NON issus d'un comptage : taux de couverture, fraction de surface atteinte, indices bornés. Lien : logit."),
       "tweedie" = list(
         titre = "Tweedie (glmmTMB)",
@@ -3141,7 +3141,7 @@ mod_tests_server <- function(id, values) {
     info <- switch(lk,
       "auto" = list(
         titre = "Automatique (lien canonique)",
-        txt   = "À privilégier par défaut : applique le lien naturel de la famille (identity pour gaussienne, logit pour binomiale/Beta, log pour Poisson/Gamma/nbinom, 1/µ² pour inverse gaussienne). Estimation stable, interprétation cohérente."),
+        txt   = "À privilégier par défaut : applique le lien naturel de la famille (identity pour gaussienne, logit pour binomiale/Bêta, log pour Poisson/Gamma/nbinom, 1/µ² pour inverse gaussienne). Estimation stable, interprétation cohérente."),
       "identity" = list(
         titre = "identity (µ = prédicteur)",
         txt   = "Effets ADDITIFS, coefficients directement dans l'unité de Y. Lien naturel de la gaussienne. À éviter avec familles bornées (Poisson, binomiale) : peut prédire des valeurs impossibles."),
@@ -3150,7 +3150,7 @@ mod_tests_server <- function(id, values) {
         txt   = "Effets MULTIPLICATIFS : exp(coef) = ratio (facteur multiplicatif). Canonique pour Poisson, usuel pour Gamma et binomiale négative. Pour comptages/réponses positives ; garantit des prédictions > 0."),
       "logit" = list(
         titre = "logit (log-odds)",
-        txt   = "Pour probabilités/proportions : exp(coef) = odds ratio. Choix par défaut des données binaires (présence/absence) et taux dans ]0,1[. Courbe symétrique autour de p = 0,5. Canonique : binomiale, Beta."),
+        txt   = "Pour probabilités/proportions : exp(coef) = odds ratio. Choix par défaut des données binaires (présence/absence) et taux dans ]0,1[. Courbe symétrique autour de p = 0,5. Canonique : binomiale, Bêta."),
       "probit" = list(
         titre = "probit",
         txt   = "Alternative au logit pour données binaires/binomiales, basée sur la loi normale. Ajustement très proche du logit. Préféré en économétrie, psychométrie, toxicologie (dose-réponse) ou si variable latente gaussienne."),
@@ -3399,7 +3399,7 @@ mod_tests_server <- function(id, values) {
                          var, rng[1], rng[2])
       } else if (fam == "beta_family") {
         if (rng[1] <= 0 || rng[2] >= 1)
-          msg <- trf("La famille « Beta » exige une réponse strictement comprise entre 0 et 1 (exclus), mais « %s » varie de %.3g à %.3g. Pour des proportions incluant 0 ou 1, utilisez la binomiale ; pour du continu positif, la Gamma.",
+          msg <- trf("La famille « Bêta » exige une réponse strictement comprise entre 0 et 1 (exclus), mais « %s » varie de %.3g à %.3g. Pour des proportions incluant 0 ou 1, utilisez la binomiale ; pour du continu positif, la Gamma.",
                          var, rng[1], rng[2])
       } else if (fam == "poisson") {
         if (rng[1] < 0)

@@ -427,8 +427,8 @@ mod_clean_ui <- function(id) {
                                  "Remplacer par la médiane (numériques)" = "median",
                                  "Remplacer par le mode (catégorielles)" = "mode",
                                  "Imputation par k plus proches voisins (KNN)" = "knn",
-                                 "Imputation multiple par equations chainees (MICE/PMM)" = "mice",
-                                 "Imputation par forets aleatoires (missForest)" = "rf",
+                                 "Imputation multiple par équations chaînées (MICE/PMM)" = "mice",
+                                 "Imputation par forets aléatoires (missForest)" = "rf",
                                  "Remplacer par une valeur spécifique" = "value"
                                ),
                                selected = "remove"
@@ -443,7 +443,7 @@ mod_clean_ui <- function(id) {
                                condition = "input.naMethod == 'mice'",
                                shiny::numericInput(ns("naMiceM"), "Nombre d'imputations (m):", value = 5, min = 1, max = 20),
                                shiny::p(style="font-size:11px;color:#666;font-style:italic;",
-                                 "PMM (prédictive mean matching) : robuste, conserve la distribution. Les m jeux sont agreges par la moyenne.")),
+                                 "PMM (prédictive mean matching) : robuste, conserve la distribution. Les m jeux sont agrégés par la moyenne.")),
 
                              shiny::conditionalPanel(
               ns = ns,
@@ -722,8 +722,8 @@ mod_clean_server <- function(id, values) {
         identical(dim(d), dim(values$data))) return()
     dq <- tryCatch(hstat_data_quality(d), error = function(e) NULL)
     hstat_ai_capture(values, "Nettoyage",
-      "Etat des donnees apres nettoyage",
-      tables = list("Diagnostic de qualite" = dq),
+      "État des données après nettoyage",
+      tables = list("Diagnostic de qualité" = dq),
       meta = list(variables = names(d), observations = NROW(d),
                   `transformations appliquees` =
                     if (length(values$transformationLog))
@@ -1504,8 +1504,8 @@ mod_clean_server <- function(id, values) {
             ok <- FALSE
             shiny::showNotification(sprintf(paste0(
               "Imputation KNN impossible sur %s lignes (limite : %s, algorithme ",
-              "en O(n^2)). Utilisez 'mice' ou la mediane/le mode, adaptes aux ",
-              "grands jeux de donnees."),
+              "en O(n^2)). Utilisez 'mice' ou la médiane/le mode, adaptes aux ",
+              "grands jeux de données."),
               format(nrow(data_temp), big.mark = " "),
               format(HSTAT_IMPUTE_MAX_N, big.mark = " ")),
               type = "warning", duration = 12)
@@ -1550,7 +1550,7 @@ mod_clean_server <- function(id, values) {
           } else if (nrow(data_temp) > HSTAT_IMPUTE_MAX_N) {
             ok <- FALSE
             shiny::showNotification(sprintf(paste0(
-              "missForest est trop lent au-dela de %s lignes (%s ici). ",
+              "missForest est trop lent au-delà de %s lignes (%s ici). ",
               "Repli automatique : médiane/mode."),
               format(HSTAT_IMPUTE_MAX_N, big.mark = " "),
               format(nrow(data_temp), big.mark = " ")),
@@ -1992,7 +1992,7 @@ mod_clean_server <- function(id, values) {
     # une phrase casserait son affichage. Le geste est donc capture ici, la ou
     # il a reellement eu lieu.
     hstat_ai_capture(values, "Nettoyage", "Variables a valeurs nulles",
-      tables = list("Variables concernees" = zt),
+      tables = list("Variables concernées" = zt),
       text = res$texte,
       meta = list(action = action, variables = paste(vars, collapse = ", "),
                   observations = NROW(d)))
@@ -2122,7 +2122,7 @@ mod_clean_server <- function(id, values) {
       "        var nv = window.prompt('Nouveau nom pour la colonne : ' + current, current);",
       "        if (nv !== null && nv.trim() !== '' && nv.trim() !== current) {",
       "          Shiny.setInputValue(nsId + 'renameColDirect',",
-      "            {old: current, nw: nv.trim(), nonce: Math.random()}, {priority: 'event'});",
+      "            {old: current, nw: nv.trim(), nonce: Math.random()}, {priority: 'évent'});",
       "        }",
       "    });",
       "  } catch(e) { console.log('rename header init skipped', e); }",
