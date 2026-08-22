@@ -43,7 +43,7 @@ mod_viz_ui <- function(id) {
                     
                     # Iddentiquer le type de variable X avec détection automatique
                     shiny::selectInput(ns("xVarType"),
-                      shiny::tagList(shiny::icon("magic"), " Type de la variable X:"),
+                      shiny::tagList(shiny::icon("magic"), " Type de la variable X :"),
                       choices = c(
                         "Auto (détection automatique)" = "auto",
                         "Date/Temporelle" = "date",
@@ -252,7 +252,7 @@ mod_viz_ui <- function(id) {
                       style = "color: #0288d1; font-weight: bold; margin-top: 0; font-size: 15px;"
                     ),
                     shiny::selectInput(ns("vizType"),
-                      "Sélectionnez le type:",
+                      "Sélectionnez le type :",
                       choices = c(
                         "Nuage de points (Scatter)" = "scatter",
                         "Courbe avec lissage (Seasonal Smooth)" = "seasonal_smooth",
@@ -377,7 +377,7 @@ mod_viz_ui <- function(id) {
                         shiny::div(
                           id = "lastUpdateTime",
                           style = "font-size: 12px; color: #666;",
-                          paste("Dernière mise à jour:", format(Sys.time(), "%H:%M:%S"))
+                          paste("Dernière mise à jour :", format(Sys.time(), "%H:%M:%S"))
                         )
                       )
                     )
@@ -473,7 +473,7 @@ mod_viz_ui <- function(id) {
                           shiny::h5(shiny::icon("heading"), " Titre",
                              style = "color: #6a1b9a; font-size: 13px; font-weight: bold; margin-top: 0; margin-bottom: 10px;"),
                           shiny::textInput(ns("plotTitle"),
-                            "Titre principal:",
+                            "Titre principal :",
                             value = "",
                             placeholder = "Titre du graphique..."
                           )
@@ -484,15 +484,15 @@ mod_viz_ui <- function(id) {
                           shiny::h5(shiny::icon("text-width"), " Tailles de police",
                              style = "color: #4a148c; font-size: 13px; font-weight: bold; margin-top: 0; margin-bottom: 10px;"),
                           shiny::sliderInput(ns("baseFontSize"),
-                            "Police de base:",
+                            "Police de base :",
                             min = 8, max = 20, value = 12, step = 1
                           ),
                           shiny::sliderInput(ns("titleSize"),
-                            "Titre du graphique:",
+                            "Titre du graphique :",
                             min = 10, max = 24, value = 14, step = 1
                           ),
                           shiny::sliderInput(ns("axisLabelSize"),
-                            "Labels des axes:",
+                            "Labels des axes :",
                             min = 8, max = 18, value = 11, step = 1
                           ),
                           # UN TITRE PLUS LONG QUE SON AXE DEBORDE et se fait
@@ -507,12 +507,12 @@ mod_viz_ui <- function(id) {
                           shiny::h5(shiny::icon("arrows-alt-h"), " Labels des axes",
                              style = "color: #283593; font-size: 13px; font-weight: bold; margin-top: 0; margin-bottom: 10px;"),
                           shiny::textInput(ns("xAxisLabel"),
-                            "Label axe X:",
+                            "Label axe X :",
                             value = "",
                             placeholder = "Auto"
                           ),
                           shiny::textInput(ns("yAxisLabel"),
-                            "Label axe Y:",
+                            "Label axe Y :",
                             value = "",
                             placeholder = "Auto"
                           )
@@ -523,20 +523,20 @@ mod_viz_ui <- function(id) {
                           shiny::h5(shiny::icon("list"), " Légende",
                              style = "color: #880e4f; font-size: 13px; font-weight: bold; margin-top: 0; margin-bottom: 10px;"),
                           shiny::textInput(ns("legendTitle"),
-                            "Titre de la légende:",
+                            "Titre de la légende :",
                             value = "",
                             placeholder = "Auto"
                           ),
                           shiny::sliderInput(ns("legendTitleSize"),
-                            "Taille du titre:",
+                            "Taille du titre :",
                             min = 8, max = 22, value = 12, step = 1
                           ),
                           shiny::sliderInput(ns("legendTextSize"),
-                            "Taille des entrées:",
+                            "Taille des entrées :",
                             min = 6, max = 20, value = 10, step = 1
                           ),
                           shiny::sliderInput(ns("legendKeySize"),
-                            "Taille des symboles:",
+                            "Taille des symboles :",
                             min = 0.3, max = 3, value = 1, step = 0.1
                           ),
                           shiny::selectInput(ns("legendPosition"),
@@ -663,7 +663,7 @@ mod_viz_ui <- function(id) {
                           shiny::h5(shiny::icon("minus"), " Traits des axes",
                              style = "color: #c62828; font-size: 13px; font-weight: bold; margin-top: 0; margin-bottom: 8px;"),
                           shiny::sliderInput(ns("axisLineSize"),
-                            shiny::tagList(shiny::icon("ruler-horizontal"), " Épaisseur des axes:"),
+                            shiny::tagList(shiny::icon("ruler-horizontal"), " Épaisseur des axes :"),
                             min = 0, max = 3, value = 0.8, step = 0.1
                           ),
                           shiny::helpText(shiny::icon("info-circle"), "0 = axes invisibles. Les traits sont toujours noirs.",
@@ -804,15 +804,15 @@ mod_viz_ui <- function(id) {
                            style = "color: #ff9800; font-weight: bold; border-bottom: 3px solid #ff9800; padding-bottom: 10px; margin-top: 0;"),
                         
                         shiny::sliderInput(ns("pointSize"),
-                          shiny::tagList(shiny::icon("circle"), " Taille des points:"),
+                          shiny::tagList(shiny::icon("circle"), " Taille des points :"),
                           min = 1, max = 10, value = 3, step = 0.5
                         ),
                         shiny::sliderInput(ns("pointAlpha"),
-                          shiny::tagList(shiny::icon("adjust"), " Transparence des points:"),
+                          shiny::tagList(shiny::icon("adjust"), " Transparence des points :"),
                           min = 0, max = 1, value = 0.7, step = 0.1
                         ),
                         shiny::sliderInput(ns("lineWidth"),
-                          shiny::tagList(shiny::icon("minus"), " Épaisseur des lignes:"),
+                          shiny::tagList(shiny::icon("minus"), " Épaisseur des lignes :"),
                           min = 0.5, max = 5, value = 1, step = 0.5
                         ),
                         
@@ -899,7 +899,7 @@ mod_viz_ui <- function(id) {
                             style = "margin-top: 15px; padding: 10px; background-color: #e1f5fe; border-radius: 6px;",
                             shiny::h5(shiny::icon("chart-area"), " Options Histogramme",
                                style = "color: #0277bd; font-size: 13px; font-weight: bold; margin-top: 0;"),
-                            shiny::sliderInput(ns("histBins"), "Nombre de bins:", min = 10, max = 100, value = 30, step = 5),
+                            shiny::sliderInput(ns("histBins"), "Nombre de bins :", min = 10, max = 100, value = 30, step = 5),
                             colourInput(ns("histColor"), "Couleur :", value = "steelblue")
                           )
                         )
@@ -986,7 +986,7 @@ mod_viz_ui <- function(id) {
                               choices = c("LOESS" = "loess", "Linéaire" = "lm", "GAM" = "gam"),
                               selected = "loess"
                             ),
-                            shiny::sliderInput(ns("smoothSpan"), "Degré de lissage:", min = 0.1, max = 2, value = 0.75, step = 0.05)
+                            shiny::sliderInput(ns("smoothSpan"), "Degré de lissage :", min = 0.1, max = 2, value = 0.75, step = 0.05)
                           )
                         ),
                         
@@ -1195,7 +1195,7 @@ mod_viz_server <- function(id, values) {
       all_cols <- setdiff(all_cols, input$vizYVar)
     }
     
-    shiny::selectInput(ns("vizColorVar"), "Variable couleur:",
+    shiny::selectInput(ns("vizColorVar"), "Variable couleur :",
                 choices = c("Aucun" = "Aucun", all_cols),
                 selected = "Aucun")
   })
@@ -1307,7 +1307,7 @@ mod_viz_server <- function(id, values) {
       is.factor(x) || is.character(x) || (is.numeric(x) && length(unique(x)) <= 20)
     })]
     
-    shiny::selectInput(ns("vizFacetVar"), "Variable facetting:",
+    shiny::selectInput(ns("vizFacetVar"), "Variable facetting :",
                 choices = c("Aucun" = "Aucun", cat_cols),
                 selected = "Aucun")
   })
@@ -1339,7 +1339,7 @@ mod_viz_server <- function(id, values) {
     
     shiny::div(
       shiny::selectizeInput(ns("groupVars"),
-        "Variables de regroupement:",
+        "Variables de regroupement :",
         choices = c(stats::setNames(x_default, paste0("Variable X (", x_default, ")")), cat_cols),
         selected = x_default,
         multiple = TRUE,
@@ -1881,7 +1881,7 @@ mod_viz_server <- function(id, values) {
       }
       
       shiny::showNotification(
-        paste("Données agrégées:", nrow(data), "observations"),
+        paste("Données agrégées :", nrow(data), "observations"),
         type = "message",
         duration = 2
       )
@@ -3616,12 +3616,12 @@ mod_viz_server <- function(id, values) {
       info_text <- paste0("Fonction: ", agg_names[[input$aggFunction]] %||% "Inconnue", "\n")
       
       if(!is.null(input$groupVars) && length(input$groupVars) > 0) {
-        info_text <- paste0(info_text, "Groupement par: ", 
+        info_text <- paste0(info_text, "Groupement par : ", 
                             paste(input$groupVars, collapse = ", "), "\n")
       }
       
       if(values$multipleY) {
-        info_text <- paste0(info_text, "\n\nMode multi-Y: Agrégation par variable")
+        info_text <- paste0(info_text, "\n\nMode multi-Y : Agrégation par variable")
       }
       
       return(info_text)
@@ -3637,9 +3637,9 @@ mod_viz_server <- function(id, values) {
       x_type <- if(input$xVarType == "auto") values$detectedXType else input$xVarType
       
       info_text <- if(input$vizType == "seasonal_evolution") {
-        "Type: Courbe d'évolution temporelle\n"
+        "Type : Courbe d'évolution temporelle\n"
       } else {
-        "Type: Courbe avec lissage\n"
+        "Type : Courbe avec lissage\n"
       }
       
       info_text <- paste0(info_text, "Variable X: ", x_type, "\n")
@@ -3647,7 +3647,7 @@ mod_viz_server <- function(id, values) {
       if(x_type %in% c("factor", "categorical", "text")) {
         info_text <- paste0(info_text, 
                             "Mode catégoriel activé\n",
-                            "Ordre personnalisé: ",
+                            "Ordre personnalisé : ",
                             if(!is.null(input$xLevelOrder)) "Oui" else "Par défaut")
       }
       
@@ -3679,13 +3679,13 @@ mod_viz_server <- function(id, values) {
       complete_rows <- sum(stats::complete.cases(data))
       
       base_stats <- paste0("Nombre d'observations: ", nrow(data), "\n",
-                           "Variables totales: ", ncol(data), "\n",
-                           "Variables numériques: ", num_vars, "\n",
-                           "Variables catégorielles: ", cat_vars, "\n",
-                           "Variables temporelles: ", date_vars, "\n",
-                           "Variables logiques: ", logical_vars, "\n",
-                           "Valeurs manquantes: ", missing_values, "\n",
-                           "Lignes complètes: ", complete_rows, " (", round(complete_rows/nrow(data)*100, 1), "%)")
+                           "Variables totales : ", ncol(data), "\n",
+                           "Variables numériques : ", num_vars, "\n",
+                           "Variables catégorielles : ", cat_vars, "\n",
+                           "Variables temporelles : ", date_vars, "\n",
+                           "Variables logiques : ", logical_vars, "\n",
+                           "Valeurs manquantes : ", missing_values, "\n",
+                           "Lignes complètes : ", complete_rows, " (", round(complete_rows/nrow(data)*100, 1), "%)")
       
       if(!is.null(values$multipleY) && values$multipleY) {
         base_stats <- paste0(base_stats, "\n\n",
@@ -3736,10 +3736,10 @@ mod_viz_server <- function(id, values) {
       
       if(is.null(values$multipleY) || !values$multipleY) {
         if (!is.null(input$vizColorVar) && input$vizColorVar != "Aucun") {
-          plot_info <- paste0(plot_info, "\nVariable couleur: ", input$vizColorVar)
+          plot_info <- paste0(plot_info, "\nVariable couleur : ", input$vizColorVar)
         }
       } else {
-        plot_info <- paste0(plot_info, "\nCouleurs: Distinguent les variables Y")
+        plot_info <- paste0(plot_info, "\nCouleurs : Distinguent les variables Y")
       }
       
       if (!is.null(input$vizFacetVar) && input$vizFacetVar != "Aucun") {
@@ -3758,7 +3758,7 @@ mod_viz_server <- function(id, values) {
         }
       }
       
-      plot_info <- paste0(plot_info, "\nObservations utilisées: ", nrow(values$plotData))
+      plot_info <- paste0(plot_info, "\nObservations utilisées : ", nrow(values$plotData))
       return(plot_info)
     }, error = function(e) {
       shiny::showNotification("Erreur dans le calcul des statistiques du graphique", type = "error", duration = 5)
@@ -3816,7 +3816,7 @@ mod_viz_server <- function(id, values) {
       }
       
       if(!is.null(values$multipleY) && values$multipleY) {
-        summary_text <- paste0(summary_text, "\nMode Y multiple: Comparaison de ", 
+        summary_text <- paste0(summary_text, "\nMode Y multiple : Comparaison de ", 
                                length(values$yVarNames), " séries temporelles")
       }
       
@@ -3855,9 +3855,9 @@ mod_viz_server <- function(id, values) {
         ),
         shiny::column(6,
                shiny::h5("Apparence", style = "color: #007bff; font-weight: bold;"),
-               shiny::sliderInput(ns("quickPointSize"), "Taille des points:", min = 1, max = 10, value = input$pointSize %||% 3, step = 0.5),
-               shiny::sliderInput(ns("quickLineWidth"), "Épaisseur des lignes:", min = 0.5, max = 5, value = input$lineWidth %||% 1, step = 0.5),
-               shiny::selectInput(ns("quickLegendPos"), "Position légende:", 
+               shiny::sliderInput(ns("quickPointSize"), "Taille des points :", min = 1, max = 10, value = input$pointSize %||% 3, step = 0.5),
+               shiny::sliderInput(ns("quickLineWidth"), "Épaisseur des lignes :", min = 0.5, max = 5, value = input$lineWidth %||% 1, step = 0.5),
+               shiny::selectInput(ns("quickLegendPos"), "Position légende :", 
                            choices = c("Droite" = "right", "Gauche" = "left", "Haut" = "top", "Bas" = "bottom", "Aucune" = "none"),
                            selected = input$legendPosition %||% "right")
         )
@@ -4019,7 +4019,7 @@ mod_viz_server <- function(id, values) {
       
       shiny::removeNotification(id = "download_notif")
       shiny::showNotification(
-        paste("Téléchargement réussi:", filename), 
+        paste("Téléchargement réussi :", filename), 
         type = "message", 
         duration = 4
       )

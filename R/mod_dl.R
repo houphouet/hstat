@@ -471,6 +471,7 @@ mod_dl_server <- function(id, values) {
                              color = "white", lineheight = 0.9) +
           ggplot2::scale_fill_gradient(low = "#90a4ae", high = col) +
           ggplot2::labs(title = sprintf("MLP (%s) — matrice de confusion (test)", f$fit$engine),
+                        x = "Prédit", y = "Observé", fill = "Effectif",
                         caption = "Pourcentages par ligne : part de chaque classe observée. Diagonale = bien classés.")
         hstat_apply_plot_opts(g, input, "dlO")
       }

@@ -22,7 +22,7 @@ hstat_power_families <- function() {
             "Régression bivariee : une pente"                           = "reg_slope",
             "Moyennes : deux moyennes dépendantes (paires appariées)"   = "t_paired",
             "Moyennes : deux moyennes indépendantes (deux groupes)"     = "t_two",
-            "Moyennes : différence par rapport a une constante (1 ech.)" = "t_one",
+            "Moyennes : différence par rapport à une constante (1 ech.)" = "t_one",
             "Moyennes : Wilcoxon signed-rank (paires)"                  = "wilcox_paired",
             "Moyennes : Wilcoxon signed-rank (un échantillon)"          = "wilcox_one",
             "Moyennes : Wilcoxon-Mann-Whitney (deux groupes)"           = "mwu",
@@ -35,7 +35,7 @@ hstat_power_families <- function() {
             "ANCOVA : effets fixes, effets principaux et interactions"  = "ancova",
             "MANOVA : effets globaux"                                   = "manova_global",
             "Régression multiple : incrément de R2 (modèle fixe)"       = "reg_r2inc",
-            "Régression multiple : R2 écart a zéro (modèle fixe)"       = "reg_r2dev",
+            "Régression multiple : R2 écart à zéro (modèle fixe)"       = "reg_r2dev",
             "Test F générique"                                          = "f_generic"),
     "chisq" = c("Ajustement / tables de contingence (GoF)"             = "gof",
                 "Test chi-deux générique"                              = "chisq_generic"),
@@ -471,7 +471,7 @@ hstat_malherbo_catalog <- function() {
                       "dépend de l'autre, et les moyennes marginales n'ont plus de",
                       "sens -- passer aux effets simples."),
       piege = paste("Les deux espèces changent de densité en même temps : la",
-                    "densité TOTALE varie aussi. Un effet attribue a la compétition",
+                    "densité TOTALE varie aussi. Un effet attribué à la compétition",
                     "peut n'être qu'un effet de peuplement ; c'est le prix de ce",
                     "dispositif, et la raison d'être de la série additive."),
       couleur = "#8e44ad"),
@@ -482,17 +482,17 @@ hstat_malherbo_catalog <- function() {
       facteurs = list(
         "Densite_adventice" = c("A0 0/m2", "A1 2/m2", "A2 4/m2", "A3 8/m2",
                                 "A4 16/m2", "A5 32/m2")),
-      but = paste("Culture a densité CONSTANTE, adventice a densité croissante :",
-                  "quantifier la perte de rendement due a l'enherbement."),
+      but = paste("Culture à densité CONSTANTE, adventice à densité croissante :",
+                  "quantifier la perte de rendement due à l'enherbement."),
       mesures = paste("Culture : hauteur, biomasse, capsules, rendement.",
                       "Adventice : densité, recouvrement, hauteur, biomasse sèche.",
                       "A 15, 30, 45 et 60 JAS, puis récolte."),
       modele = "y ~ Bloc + A  ;  perte (%) ajustee par y = i*x / (1 + i*x/a)",
       analyse = paste("ANOVA en blocs, puis ajustement d'une hyperbole de",
-                      "compétition (Cousens) : i donne la perte par plante a",
-                      "faible densité, a la perte maximale asymptotique."),
+                      "compétition (Cousens) : i donne la perte par plante à",
+                      "faible densité, à la perte maximale asymptotique."),
       piege = paste("Le témoin SANS adventice (A0) n'est pas une modalité comme",
-                    "les autres : c'est la référence a laquelle toutes les pertes",
+                    "les autres : c'est la référence à laquelle toutes les pertes",
                     "sont rapportées. Sans lui, aucune perte n'est calculable."),
       couleur = "#16a085"),
 
@@ -500,7 +500,7 @@ hstat_malherbo_catalog <- function() {
       label = "Malherbologie : méthodes intégrées de désherbage",
       base = "fisher", r = 4,
       facteurs = list(
-        "Strategie" = c("T0 témoin non désherbe", "T1 manuel 15+30+45 JAS",
+        "Strategie" = c("T0 témoin non désherbé", "T1 manuel 15+30+45 JAS",
                         "T2 sarclage mécanique 15+30 JAS", "T3 herbicide prélevée J0",
                         "T4 herbicide postlevee 20 JAS", "T5 paillage végétal",
                         "T6 herbicide 0.5R + sarclage 30 JAS",
@@ -534,7 +534,7 @@ hstat_malherbo_catalog <- function() {
                       "confiance. L'ANOVA sur les doses ne remplace pas cet",
                       "ajustement : elle compare des doses, elle n'en estime aucune."),
       piege = paste("Il faut encadrer la réponse aux DEUX bouts : une dose nulle et",
-                    "une dose qui sature. Sans elles, ED90 n'est pas estime mais",
+                    "une dose qui sature. Sans elles, ED90 n'est pas estimé mais",
                     "extrapole -- avec un intervalle que le modèle ne dit pas."),
       couleur = "#c0392b"),
 
@@ -542,20 +542,20 @@ hstat_malherbo_catalog <- function() {
       label = "Malherbologie : efficacité et sélectivité d'un herbicide",
       base = "fisher", r = 4,
       facteurs = list(
-        "Traitement" = c("T0 témoin enherbe", "T1 témoin propre",
+        "Traitement" = c("T0 témoin enherbé", "T1 témoin propre",
                          "T2 référence 1xR", "T3 teste 0.5xR", "T4 teste 1xR",
                          "T5 teste 2xR")),
       but = paste("Mesurer d'un même dispositif le contrôle des adventices ET la",
                   "tolérance de la culture."),
       mesures = paste("Efficacité : recouvrement, densité, contrôle visuel,",
-                      "biomasse sèche, a 7, 14, 21 et 28 JAT. Sélectivité :",
+                      "biomasse sèche, à 7, 14, 21 et 28 JAT. Sélectivité :",
                       "phytotoxicité, vigueur, peuplement, hauteur, rendement."),
       modele = "y ~ Bloc + Traitement",
       analyse = paste("ANOVA en blocs et comparaison aux deux témoins. L'efficacité",
                       "se rapporte au témoin ENHERBE ; la sélectivité et le potentiel",
                       "de rendement, au témoin PROPRE."),
       piege = paste("Les deux témoins sont indispensables et ne se remplacent pas.",
-                    "Sans témoin enherbe, aucune efficacité ne se calcule ; sans",
+                    "Sans témoin enherbé, aucune efficacité ne se calcule ; sans",
                     "témoin propre, une baisse de rendement ne se distingue pas de",
                     "la concurrence résiduelle des adventices."),
       couleur = "#27ae60"),
@@ -572,7 +572,7 @@ hstat_malherbo_catalog <- function() {
       but = paste("Deux séries complémentaires. E : enherbement initial croissant,",
                   "puis désherbage définitif -- jusqu'a quand peut-on attendre.",
                   "P : maintien propre initial croissant, puis re-enherbement --",
-                  "a partir de quand peut-on arrêter. Leur croisement donne la",
+                  "à partir de quand peut-on arrêter. Leur croisement donne la",
                   "PÉRIODE CRITIQUE de désherbage."),
       mesures = paste("Adventices : densité, recouvrement, biomasse.",
                       "Culture : hauteur, biomasse, capsules, rendement.",
@@ -580,7 +580,7 @@ hstat_malherbo_catalog <- function() {
                       "PR (%) = 100 x (Y_propre - Y_traitement) / Y_propre."),
       modele = "y ~ Bloc + Duree ; puis 2 courbes ajustees (logistiques) E et P",
       analyse = paste("ANOVA en blocs, puis ajustement d'une courbe par série. La",
-                      "période critique se lit a l'intersection des deux courbes",
+                      "période critique se lit à l'intersection des deux courbes",
                       "avec le seuil de perte acceptable -- souvent 5 %."),
       piege = paste("Les DEUX témoins permanents sont indispensables : le propre",
                     "(PT) donne le dénominateur Y_propre de toute perte, l'enherbe",
@@ -594,8 +594,8 @@ hstat_malherbo_catalog <- function() {
       base = "fisher", r = 4,
       facteurs = list(
         "Calendrier" = c("T0 aucun désherbage", "TP propre tout le cycle",
-                         "F1D15 1 fois a 15 JAS", "F1D30 1 fois a 30 JAS",
-                         "F1D45 1 fois a 45 JAS", "F2D15 2 fois des 15 JAS",
+                         "F1D15 1 fois à 15 JAS", "F1D30 1 fois à 30 JAS",
+                         "F1D45 1 fois à 45 JAS", "F2D15 2 fois des 15 JAS",
                          "F2D30 2 fois des 30 JAS", "F2D45 2 fois des 45 JAS",
                          "F3D15 3 fois des 15 JAS", "F3D30 3 fois des 30 JAS")),
       but = paste("Trouver la date de première intervention et la fréquence",
@@ -603,7 +603,7 @@ hstat_malherbo_catalog <- function() {
       mesures = paste("Adventices : densité, recouvrement, biomasse.",
                       "Culture : hauteur, vigueur, capsules, rendement.",
                       "Et le coût du calendrier : temps de travail (h/ha) et",
-                      "dépense (FCFA/ha) -- c'est ce qu'on cherche a réduire."),
+                      "dépense (FCFA/ha) -- c'est ce qu'on cherche à réduire."),
       modele = "y ~ Bloc + Calendrier",
       analyse = paste("ANOVA en blocs et comparaison de moyennes. Le calendrier",
                       "retenu est le moins coûteux dont le rendement ne diffère",
@@ -617,13 +617,13 @@ hstat_malherbo_catalog <- function() {
     mh_paires = list(
       label = "Malherbologie : parcelles appariées (traite / témoin)",
       base = "paired", r = 4,
-      facteurs = list("Traitement" = c("T0 témoin non traite", "T1 herbicide")),
-      but = paste("Comparer un traitement a son témoin dans des paires locales",
+      facteurs = list("Traitement" = c("T0 témoin non traité", "T1 herbicide")),
+      but = paste("Comparer un traitement à son témoin dans des paires locales",
                   "HOMOGÈNES, quand le terrain est trop hétérogène pour des blocs",
                   "complets."),
       mesures = paste("Adventices : densité, recouvrement, biomasse, contrôle",
                       "visuel. Culture : phytotoxicité, peuplement, rendement.",
-                      "Les quadrats se correspondent d'une parcelle a l'autre."),
+                      "Les quadrats se correspondent d'une parcelle à l'autre."),
       modele = "D = Y(T1) - Y(T0) par paire ; test sur les différences",
       analyse = paste("Analyse INTRAPAIRE : test t apparie, ou Wilcoxon signe si",
                       "la normalité des différences n'est pas tenable. Comparer les",
@@ -639,7 +639,7 @@ hstat_malherbo_catalog <- function() {
       label = "Malherbologie : bandes traitées (pulvérisateur)",
       base = "fisher", r = 4,
       facteurs = list(
-        "Traitement" = c("T0 témoin non traite", "T1 herbicide de référence",
+        "Traitement" = c("T0 témoin non traité", "T1 herbicide de référence",
                          "T2 teste dose 1", "T3 teste dose 2", "T4 teste dose 3")),
       but = paste("Appliquer les traitements en BANDES longues, quand le matériel",
                   "de pulvérisation ne peut pas travailler sur de petites parcelles."),
@@ -662,7 +662,7 @@ hstat_malherbo_catalog <- function() {
         "Facteur_B_bandes_horizontales" = c("B1", "B2", "B3", "B4")),
       but = paste("Croiser deux facteurs qui exigent chacun des bandes -- un",
                   "travail du sol et une pulvérisation, par exemple. Les parcelles",
-                  "élémentaires naissent a l'intersection."),
+                  "élémentaires naissent à l'intersection."),
       mesures = paste("Adventices et culture, aux dates habituelles ; l'unité de",
                       "mesure est l'intersection A x B."),
       modele = "y ~ A * B + Error(Bloc/A) + Error(Bloc/B)",
@@ -670,8 +670,8 @@ hstat_malherbo_catalog <- function() {
                       "l'intersection. L'INTERACTION y est estimée plus",
                       "précisément que les deux effets principaux -- l'inverse du",
                       "split-plot, et c'est ce qui justifie ce plan."),
-      piege = paste("Les deux facteurs sont randomises INDÉPENDAMMENT dans chaque",
-                    "répétition ; les effets principaux y sont mesures avec peu de",
+      piege = paste("Les deux facteurs sont randomisés INDÉPENDAMMENT dans chaque",
+                    "répétition ; les effets principaux y sont mesurés avec peu de",
                     "précision. Choisir ce plan pour comparer des modalités de A",
                     "entre elles serait un contresens."),
       couleur = "#16a085"),
@@ -685,7 +685,7 @@ hstat_malherbo_catalog <- function() {
                          "S4 0% coton + 100% adventice")),
       but = paste("Densité TOTALE constante, proportions complémentaires : chaque",
                   "plant d'une espèce remplace un plant de l'autre. On compare les",
-                  "deux espèces a armes égales, sans changer le peuplement."),
+                  "deux espèces à armes égales, sans changer le peuplement."),
       mesures = paste("Par ESPÈCE : biomasse sèche, hauteur, surface foliaire.",
                       "Culture : capsules, rendement. Adventice : biomasse et",
                       "production de graines. Les peuplements purs fournissent les",
@@ -1101,12 +1101,12 @@ hstat_place_design <- function(book, type, fill_col, seed = 123, tries = 200) {
     } else {
       n <- nrow(b); nc <- ceiling(sqrt(n))
       b$.x <- ((seq_len(n)-1) %% nc) + 1; b$.y <- ((seq_len(n)-1) %/% nc) + 1
-      attr(b, "xlab") <- "Colonne"; attr(b, "ylab") <- "Rangee"
+      attr(b, "xlab") <- "Colonne"; attr(b, "ylab") <- "Rangée"
       attr(b, "gradient") <- "none"
     }
   } else if (type == "strip" && has_block) {
     fcols <- setdiff(names(b), c("plots","block","row","col","splots",".x",".y",
-                                 "Traitement","n_échantillon", fill_col))
+                                 "Traitement","n_echantillon", fill_col))
     f1 <- fcols[1]; f2 <- if (length(fcols) >= 2) fcols[2] else fcols[1]
     n_f1 <- length(unique(b[[f1]]))
     b$.x <- as.integer(as.factor(b[[f1]])) + (as.integer(as.factor(b$block)) - 1) * (n_f1 + 1)
@@ -1116,7 +1116,7 @@ hstat_place_design <- function(book, type, fill_col, seed = 123, tries = 200) {
     attr(b, "gradient") <- "both"
   } else if (type == "split" && has_block) {
     fcols <- setdiff(names(b), c("plots","block","row","col","splots",".x",".y",
-                                 "Traitement","n_échantillon", fill_col))
+                                 "Traitement","n_echantillon", fill_col))
     fmain <- fcols[1]; fsub <- if (length(fcols) >= 2) fcols[2] else fcols[1]
     b$.y <- as.integer(as.factor(b$block))
     b$.x <- stats::ave(seq_len(nrow(b)), b$.y, FUN = seq_along)
@@ -1154,7 +1154,7 @@ hstat_place_design <- function(book, type, fill_col, seed = 123, tries = 200) {
     if (is.na(blk) || is.null(blk)) {
       n <- nrow(b); nc <- ceiling(sqrt(n))
       b$.x <- ((seq_len(n) - 1) %% nc) + 1; b$.y <- ((seq_len(n) - 1) %/% nc) + 1
-      attr(b, "xlab") <- "Colonne"; attr(b, "ylab") <- "Rangee"
+      attr(b, "xlab") <- "Colonne"; attr(b, "ylab") <- "Rangée"
     } else {
       b$.y <- as.integer(as.factor(b[[blk]]))
       b$.x <- stats::ave(seq_len(nrow(b)), b$.y, FUN = seq_along)
@@ -1623,10 +1623,10 @@ hstat_design_analysis <- function(type, n_factors) {
       ggplot2::scale_y_discrete(limits = rev, expand = c(0, 0)) +
       { if (blocks_axis == "horizontal")
           ggplot2::facet_wrap(~ replication, ncol = 1,
-                          labeller = ggplot2::labeller(replication = function(x) { m <- .block_labeller(x, if (nzchar(blk_custom)) blk_prefix else "Replique", blk_custom); m[as.character(x)] }))
+                          labeller = ggplot2::labeller(replication = function(x) { m <- .block_labeller(x, if (nzchar(blk_custom)) blk_prefix else "Réplique", blk_custom); m[as.character(x)] }))
         else
           ggplot2::facet_wrap(~ replication, nrow = 1,
-                          labeller = ggplot2::labeller(replication = function(x) { m <- .block_labeller(x, if (nzchar(blk_custom)) blk_prefix else "Replique", blk_custom); m[as.character(x)] })) } +
+                          labeller = ggplot2::labeller(replication = function(x) { m <- .block_labeller(x, if (nzchar(blk_custom)) blk_prefix else "Réplique", blk_custom); m[as.character(x)] })) } +
       fill_scale +
       ggplot2::labs(title = ttl, x = "Blocs incomplets (colonnes)", y = "Bloc incomplet", fill = lt %||% "Traitement") +
       (theme_gg %||% ggplot2::theme_minimal(base_size = font_axis)) +
@@ -1877,7 +1877,7 @@ mod_design_ui <- function(id) {
                 shiny::selectInput(ns("powPredictor"), "Type de prédicteur",
                             choices = c("Continu (OR par écart-type)" = "continuous",
                                         "Binaire (expose / non-expose)" = "binary")),
-                shiny::numericInput(ns("powP0"), "Probabilité de l'événement chez les non-exposes / a la moyenne (p0)",
+                shiny::numericInput(ns("powP0"), "Probabilité de l'événement chez les non-exposes / à la moyenne (p0)",
                              value = 0.2, min = 0.01, max = 0.99, step = 0.05),
                 shiny::conditionalPanel("input.powPredictor == 'binary'", ns = ns,
                   shiny::sliderInput(ns("powPx"), "Proportion d'exposes",
@@ -2299,7 +2299,7 @@ mod_design_server <- function(id, values) {
                       "prop2", "prop1", "mcnemar", "sign")
       if (test %in% one_or_two)
         shiny::selectInput(ns("powAlt"), "Queue(s)",
-                    choices = c("Bilaterale" = "two.sided", "Unilaterale" = "greater"))
+                    choices = c("Bilatérale" = "two.sided", "Unilatérale" = "greater"))
     })
 
     # ddl numerateur et nombre de cellules calcules a partir des modalites saisies
@@ -2334,7 +2334,7 @@ mod_design_server <- function(id, values) {
         els <- c(els, list(
           shiny::div(class = "callout callout-info", style = "padding:8px 10px;font-size:12px;",
             shiny::icon("lightbulb"),
-            shiny::HTML(" <b>Aide ddl numérateur</b> : effet principal d'un facteur a <i>k</i> ",
+            shiny::HTML(" <b>Aide ddl numérateur</b> : effet principal d'un facteur à <i>k</i> ",
                  "modalités &rarr; ddl = <i>k</i>&minus;1 ; interaction A&times;B &rarr; ",
                  "ddl = (a&minus;1)(b&minus;1) ; interaction A&times;B&times;C &rarr; ",
                  "ddl = (a&minus;1)(b&minus;1)(c&minus;1). Nombre de cellules = produit des modalités. ",
@@ -2584,49 +2584,49 @@ mod_design_server <- function(id, values) {
       # d'heterogeneite, blocs, contraintes) selon les conventions agronomiques.
       info <- switch(t,
         "crd" = list(
-          facteurs = "1 facteur étudie",
+          facteurs = "1 facteur étudié",
           gradient = "0 gradient d'hétérogénéité (milieu suppose homogène)",
           structure = "Sans bloc, avec répétitions. Les traitements sont affectés totalement au hasard aux parcelles.",
           couleur = "#27ae60"),
         "fisher" = list(
-          facteurs = "1 facteur étudie",
+          facteurs = "1 facteur étudié",
           gradient = "1 gradient d'hétérogénéité",
-          structure = "Bloc de Fisher (RCBD) : chaque bloc (= 1 répétition) est une rangée complète contenant tous les traitements une fois, randomises a l'intérieur. Les blocs sont perpendiculaires au gradient. Nombre de blocs = nombre de répétitions.",
+          structure = "Bloc de Fisher (RCBD) : chaque bloc (= 1 répétition) est une rangée complète contenant tous les traitements une fois, randomises à l'intérieur. Les blocs sont perpendiculaires au gradient. Nombre de blocs = nombre de répétitions.",
           couleur = "#2980b9"),
         "paired" = list(
-          facteurs = "1 facteur étudie (souvent 2 traitements)",
+          facteurs = "1 facteur étudié (souvent 2 traitements)",
           gradient = "1 gradient d'hétérogénéité",
           structure = "Couple apparie (BCR) : chaque bloc contient une paire (ou un petit groupe) de traitements compares sur des unités très semblables. Représentation en escalier diagonal suivant le gradient.",
           couleur = "#16a085"),
         "lsd" = list(
-          facteurs = "1 facteur étudie",
+          facteurs = "1 facteur étudié",
           gradient = "2 gradients d'hétérogénéité (ligne et colonne)",
           structure = "Carre latin : chaque traitement apparaît exactement une fois par ligne ET une fois par colonne. Contrôle deux sources de variation orthogonales.",
           couleur = "#8e44ad"),
         "alpha" = list(
-          facteurs = "1 facteur étudie",
+          facteurs = "1 facteur étudié",
           gradient = "1 gradient d'hétérogénéité",
           structure = "Blocs incomplets resolvables (alpha-design) : permet de tester un grand nombre de traitements sans les placer tous dans chaque bloc. 1 contrainte expérimentale (taille de bloc < nombre de traitements).",
           couleur = "#2980b9"),
         "factorial" = list(
-          facteurs = "Au moins 2 facteurs étudies (croisés)",
+          facteurs = "Au moins 2 facteurs étudiés (croisés)",
           gradient = "1 gradient d'hétérogénéité",
           structure = "Toutes les combinaisons des niveaux des facteurs sont testées, organisées en blocs perpendiculaires au gradient.",
           couleur = "#e67e22"),
         "split" = list(
-          facteurs = "2 facteurs étudies",
+          facteurs = "2 facteurs étudiés",
           gradient = "1 gradient d'hétérogénéité, 1 contrainte expérimentale",
-          structure = "Parcelles divisées : le facteur principal est applique sur de GRANDES parcelles, le facteur secondaire sur des SOUS-parcelles a l'intérieur. La contrainte porte sur l'application du facteur principal.",
+          structure = "Parcelles divisées : le facteur principal est appliqué sur de GRANDES parcelles, le facteur secondaire sur des SOUS-parcelles à l'intérieur. La contrainte porte sur l'application du facteur principal.",
           couleur = "#e67e22"),
         "splitsplit" = list(
-          facteurs = "3 facteurs étudies (parcelle principale, sous-parcelle, sous-sous-parcelle)",
+          facteurs = "3 facteurs étudiés (parcelle principale, sous-parcelle, sous-sous-parcelle)",
           gradient = "1 gradient d'hétérogénéité, 2 contraintes expérimentales emboîtées",
-          structure = "Split-split-plot : le facteur A (parcelle principale) est applique sur de GRANDES parcelles ; le facteur B (sous-parcelle) est randomise a l'intérieur de chaque grande parcelle ; le facteur C (sous-sous-parcelle) est randomise a l'intérieur de chaque sous-parcelle. Trois niveaux d'erreur emboîtés.",
+          structure = "Split-split-plot : le facteur A (parcelle principale) est appliqué sur de GRANDES parcelles ; le facteur B (sous-parcelle) est randomisé à l'intérieur de chaque grande parcelle ; le facteur C (sous-sous-parcelle) est randomisé à l'intérieur de chaque sous-parcelle. Trois niveaux d'erreur emboîtés.",
           couleur = "#e67e22"),
         "strip" = list(
-          facteurs = "2 facteurs étudies",
+          facteurs = "2 facteurs étudiés",
           gradient = "1 gradient d'hétérogénéité, contraintes expérimentales",
-          structure = "Criss-Cross (bandes) : les deux facteurs sont appliques en BANDES perpendiculaires. Les combinaisons de traitements apparaissent aux INTERSECTIONS des bandes.",
+          structure = "Criss-Cross (bandes) : les deux facteurs sont appliqués en BANDES perpendiculaires. Les combinaisons de traitements apparaissent aux INTERSECTIONS des bandes.",
           couleur = "#e67e22"),
         list(facteurs = "1 facteur", gradient = "-", structure = "-", couleur = "#3c8dbc"))
       shiny::div(style = sprintf("border-left:4px solid %s;background:#f8f9fa;padding:10px 12px;margin:6px 0;font-size:12px;", info$couleur),
@@ -3322,7 +3322,7 @@ mod_design_server <- function(id, values) {
       shiny::div(
         shiny::div(style = "font-size:42px;font-weight:700;color:#27ae60;", r$n_final),
         shiny::div(style = "font-size:14px;color:#7f8c8d;",
-            "personnes a enquêter (taille finale, non-réponse incluse)"),
+            "personnes à enquêter (taille finale, non-réponse incluse)"),
         if (!is.na(r$per_stratum))
           shiny::div(class = "callout callout-info", style = "margin-top:10px;",
               shiny::icon("layer-group"),

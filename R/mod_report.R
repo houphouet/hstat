@@ -68,8 +68,8 @@ hstat_report_resume_donnees <- function(df, max_vars = 60L) {
     # milieu d'un tableau francais, et ne disait pas ce qui compte : la colonne
     # est vide. Le repli final reste traduit pour la meme raison.
     if (all(is.na(x))) "vide (aucune valeur)"
-    else if (is.numeric(x)) "numerique"
-    else if (is.factor(x) || is.character(x)) "categorielle"
+    else if (is.numeric(x)) "numérique"
+    else if (is.factor(x) || is.character(x)) "catégorielle"
     else if (inherits(x, c("Date", "POSIXct"))) "date"
     else if (is.logical(x)) "binaire (vrai / faux)"
     else sprintf("autre (%s)", class(x)[1])
@@ -266,7 +266,7 @@ hstat_report_markdown <- function(history, titre = "Rapport d'analyse",
       h <- history[[i]]
       L <- c(L, sprintf("### %d. %s — %s", i, h$module %||% "", h$title %||% ""), "")
       if (!is.null(h$time))
-        L <- c(L, sprintf("*Réalisée a %s.*", format(h$time, "%H:%M:%S")), "")
+        L <- c(L, sprintf("*Réalisée à %s.*", format(h$time, "%H:%M:%S")), "")
       par <- unlist(lapply(names(h$meta), function(k) {
         v <- h$meta[[k]]
         if (is.null(v) || !length(v)) return(NULL)
@@ -278,9 +278,9 @@ hstat_report_markdown <- function(history, titre = "Rapport d'analyse",
           L <- c(L, sprintf("**%s**", nm), "", .hstat_rep_tableau_md(h$tables[[nm]]), "")
         }
       } else {
-        L <- c(L, "*Détail non conserve (analyse antérieure aux %d dernières).*", "")
+        L <- c(L, "*Détail non conservé (analyse antérieure aux %d dernières).*", "")
         L[length(L) - 1L] <- trf(
-          "*Détail non conserve : seules les %d dernières analyses gardent leurs tableaux.*",
+          "*Détail non conservé : seules les %d dernières analyses gardent leurs tableaux.*",
           HSTAT_HIST_DETAIL)
       }
     }
@@ -507,6 +507,6 @@ hstat_report_render <- function(markdown, fichier, format = "html",
   html <- hstat_report_render(markdown, fichier, "html", titre,
                               dispo = c(html = TRUE, docx = FALSE, pdf = FALSE))
   list(ok = TRUE, format = "html",
-       message = trf("La conversion en %s a échoue (%s). Le rapport est rendu en HTML.",
+       message = trf("La conversion en %s a échoué (%s). Le rapport est rendu en HTML.",
                          toupper(format), substr(res$message, 1, 200)))
 }

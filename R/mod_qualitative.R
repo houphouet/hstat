@@ -8,8 +8,7 @@
 # Nom de fichier sûr (accents retirés, non-alphanumériques -> underscore)
 .safe_name <- function(x) {
   x <- as.character(x)[1]
-  x <- chartr("\u00e0\u00e2\u00e4\u00e9\u00e8\u00ea\u00eb\u00ee\u00ef\u00f4\u00f6\u00f9\u00fb\u00fc\u00e7",
-              "aaaeeeeiioouuuc", tolower(x))
+  x <- hstat_sans_accents(tolower(x))
   x <- gsub("[^a-z0-9]+", "_", x)
   x <- gsub("^_+|_+$", "", x)
   if (!nzchar(x)) x <- "tableau"
@@ -186,13 +185,17 @@ hstat_q_detect_type <- function(x, ordinal_hint = NULL) {
   prop_unique <- length(unique(xc)) / length(xc)
   if (mean_words >= 4 && prop_unique > 0.6) return("textuelle")
   # Detection ordinale par mots-cles d'echelle
-  lv <- tolower(unique(xc))
-  ord_patterns <- c("jamais", "rarement", "parfois", "souvent", "toujours",
-                    "pas du tout", "peu", "moyennement", "beaucoup", "enormement",
+  # Les libelles ET les motifs sont deplies : la liste melangeait « élevé »
+  # et « enormement », donc « énormément » n'etait jamais reconnu -- une
+  # echelle de Likert accentuee passait pour nominale.
+  lv <- hstat_sans_accents(tolower(unique(xc)))
+  ord_patterns <- hstat_sans_accents(c(
+                    "jamais", "rarement", "parfois", "souvent", "toujours",
+                    "pas du tout", "peu", "moyennement", "beaucoup", "énormément",
                     "très insatisfait", "insatisfait", "neutre", "satisfait", "très satisfait",
                     "pas d'accord", "d'accord", "totalement",
                     "faible", "moyen", "élevé", "fort",
-                    "bas", "haut", "mauvais", "passable", "bon", "excellent")
+                    "bas", "haut", "mauvais", "passable", "bon", "excellent"))
   if (sum(vapply(ord_patterns, function(p) any(grepl(p, lv, fixed = TRUE)), logical(1))) >= 2)
     return("ordinale")
   "nominale"
@@ -203,9 +206,9 @@ hstat_q_ordinal_levels <- function(x) {
   lv <- unique(as.character(stats::na.omit(x)))
   scales <- list(
     c("Jamais","Rarement","Parfois","Souvent","Toujours"),
-    c("Pas du tout","Un peu","Moyennement","Beaucoup","Enormement"),
+    c("Pas du tout","Un peu","Moyennement","Beaucoup","Énormément"),
     c("Très insatisfait","Insatisfait","Neutre","Satisfait","Très satisfait"),
-    c("Pas du tout d'accord","Plutôt pas d'accord","Neutre","Plutôt d'accord","Tout a fait d'accord"),
+    c("Pas du tout d'accord","Plutôt pas d'accord","Neutre","Plutôt d'accord","Tout à fait d'accord"),
     c("Très faible","Faible","Moyen","Élevé","Très élevé"),
     c("Mauvais","Passable","Moyen","Bon","Excellent"))
   norm <- function(s) tolower(trimws(s))
@@ -997,7 +1000,7 @@ hstat_q_multiple_choice <- function(df, cols = NULL, sep_col = NULL,
     bin <- bin[keep, , drop = FALSE]
     n_resp <- nrow(bin)
   } else {
-    return(list(ok = FALSE, notes = "Indiquez soit des colonnes binaires, soit une colonne a valeurs séparées."))
+    return(list(ok = FALSE, notes = "Indiquez soit des colonnes binaires, soit une colonne à valeurs séparées."))
   }
   if (n_resp == 0 || ncol(bin) == 0)
     return(list(ok = FALSE, notes = "Aucune réponse exploitable."))
@@ -1124,7 +1127,7 @@ hstat_q_ordinal_univariate <- function(x, var_name = "Variable", levels_order = 
     if (consensus > 0.7) "Fort consensus entre les répondants (réponses peu dispersées)."
     else if (consensus < 0.45) "Réponses polarisées / dispersées : faible consensus."
     else "Consensus modéré entre les répondants.",
-    trf("Score moyen = %.2f sur une échelle de 1 a %d.", mean_score, k))
+    trf("Score moyen = %.2f sur une échelle de 1 à %d.", mean_score, k))
 
   # Graphiques
   plot_bar <- function() {
@@ -1416,7 +1419,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
 
   list(ok = TRUE, metrics = metrics,
        tables = list("Médianes et rangs par groupe" = summary_df),
-       plotfns = list("Boîtes a moustaches (rangs)" = plot_box),
+       plotfns = list("Boîtes à moustaches (rangs)" = plot_box),
        interpretation = interp,
        console = console,
        notes = trf("Comparaison de %d groupes (rangs et médianes).", ng))
@@ -1448,7 +1451,7 @@ hstat_q_stopwords_fr <- function() {
     # prepositions
     "a","dans","sur","sous","avec","sans","pour","par","entre","vers","chez",
     "depuis","pendant","avant","apres","jusque","jusqu","selon","malgre","hors",
-    "parmi","contre","envers","outre","via","dès","des","concernant",
+    "parmi","contre","envers","outre","via","des","concernant",
     # verbes tres frequents (etre, avoir, faire, aller, pouvoir, falloir, dire)
     "est","sont","etre","ete","suis","es","sommes","etes","etait","etaient",
     "sera","seront","serai","serais","serait","soit","soient","fut","furent",
@@ -1518,8 +1521,7 @@ hstat_q_tokenize <- function(texts, min_char = 3, stopwords = NULL,
   if (is.null(stopwords)) stopwords <- hstat_q_stopwords_fr()
   if (!is.null(extra_stopwords)) {
     ex <- tolower(trimws(as.character(extra_stopwords)))
-    ex <- chartr("\u00e0\u00e2\u00e4\u00e9\u00e8\u00ea\u00eb\u00ee\u00ef\u00f4\u00f6\u00f9\u00fb\u00fc\u00e7",
-                 "aaaeeeeiioouuuc", ex)
+    ex <- hstat_sans_accents(ex)
     stopwords <- unique(c(stopwords, ex[nzchar(ex)]))
   }
   texts <- as.character(texts)
@@ -1527,8 +1529,7 @@ hstat_q_tokenize <- function(texts, min_char = 3, stopwords = NULL,
   clean <- function(s) {
     if (lowercase) s <- tolower(s)
     # 1) Nettoyage : retrait des accents pour un matching robuste
-    s <- chartr("\u00e0\u00e2\u00e4\u00e9\u00e8\u00ea\u00eb\u00ee\u00ef\u00f4\u00f6\u00f9\u00fb\u00fc\u00e7",
-                "aaaeeeeiioouuuc", s)
+    s <- hstat_sans_accents(s)
     # 2) Retrait ponctuation ; chiffres retires si demande
     s <- if (remove_numbers) gsub("[^a-z ]", " ", s) else gsub("[^a-z0-9 ]", " ", s)
     s <- gsub("\\s+", " ", trimws(s))
@@ -1671,10 +1672,10 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
   # --- SENTIMENT (lexique francais integre simple) ---
   pos_words <- c("bon","bien","excellent","super","genial","parfait","agreable",
                  "satisfait","content","heureux","rapide","efficace","competent",
-                 "aimable","professionnel","qualité","recommande","apprecie","merci",
+                 "aimable","professionnel","qualite","recommande","apprecie","merci",
                  "formidable","top","ravi","plaisir","facile","clair","utile","fiable")
   neg_words <- c("mauvais","mal","nul","horrible","decevant","decu","lent","cher",
-                 "problème","difficile","complique","incompetent","desagreable",
+                 "probleme","difficile","complique","incompetent","desagreable",
                  "insatisfait","mecontent","retard","attente","echec","panne","bug",
                  "impossible","jamais","aucun","pire","catastrophe","arnaque","honte")
   sent_scores <- vapply(toks, function(w) {
@@ -2503,7 +2504,7 @@ mod_qualitative_server <- function(id, values) {
     })
     output$multi_cols_ui <- shiny::renderUI(shiny::selectInput(ns("multi_cols"), "Colonnes binaires des options",
                                                               choices = col_names(), multiple = TRUE))
-    output$multi_sepcol_ui <- shiny::renderUI(shiny::selectInput(ns("multi_sepcol"), "Colonne a valeurs séparées", choices = col_names()))
+    output$multi_sepcol_ui <- shiny::renderUI(shiny::selectInput(ns("multi_sepcol"), "Colonne à valeurs séparées", choices = col_names()))
     output$ord_var1_ui <- shiny::renderUI(shiny::selectInput(ns("ord_var1"), "Variable ordinale", choices = col_names()))
     output$ord_var2_ui <- shiny::renderUI(shiny::selectInput(ns("ord_var2"), "Variable ordinale 2", choices = col_names()))
     output$ord_group_ui <- shiny::renderUI(shiny::selectInput(ns("ord_group"), "Variable de groupe", choices = col_names()))
@@ -2646,7 +2647,7 @@ mod_qualitative_server <- function(id, values) {
       r <- tryCatch(result(), error = function(e) NULL)
       if (is.null(r) || isFALSE(r$ok)) return()
       tabs <- if (!is.null(r$tables)) r$tables else list()
-      if (!is.null(r$metrics)) tabs <- c(list("Metriques" = r$metrics), tabs)
+      if (!is.null(r$metrics)) tabs <- c(list("Métriques" = r$metrics), tabs)
       vars <- unique(unlist(lapply(
         c("nom_var1", "nom_var2", "ord_var1", "ord_var2", "txt_var",
           "orrr_expo", "orrr_issue", "tools_vars"),

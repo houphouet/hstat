@@ -33,7 +33,7 @@ run_hstat <- function(..., install_missing = TRUE) {
 
   app_file <- file.path(app_dir, "app.R")
   if (!file.exists(app_file)) {
-    stop("Could not find app.R inside thé installed package (expected at: ",
+    stop("Could not find app.R inside thé installed package (expected at : ",
          app_file, ").", call. = FALSE)
   }
 

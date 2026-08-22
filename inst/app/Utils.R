@@ -56,7 +56,7 @@
       assign(nm, get(nm, envir = ns), envir = envir)
     return(invisible("paquet"))
   }
-  stop("HStat : socle introuvable. Attendu R/utils.R a la racine du dépôt, ",
+  stop("HStat : socle introuvable. Attendu R/utils.R à la racine du dépôt, ",
        "ou le paquet HStat installe.", call. = FALSE)
 }
 .hstat_charger_socle()

@@ -164,7 +164,7 @@ hstat_load_model_packages <- function(packages = hstat_model_packages) {
   }
   if (length(missing_after) > 0)
     message("HStat : packages de modélisation indisponibles ",
-            "(les modèles correspondants seront limites) : ",
+            "(les modèles correspondants seront limités) : ",
             paste(missing_after, collapse = ", "))
   invisible(missing_after)
 }
@@ -323,7 +323,7 @@ get_all_factor_candidates <- function(df, max_numeric_levels = 30) {
 # elle ne casse rien.
 # ===========================================================================
 
-HSTAT_LANGUES <- c("Francais" = "fr", "English" = "en")
+HSTAT_LANGUES <- c("Français" = "fr", "English" = "en")
 
 # Le dictionnaire est cherche depuis le dossier de l'application, depuis la
 # racine du depot, et en remontant : la suite de tests tourne depuis
@@ -501,6 +501,18 @@ hstat_valeurs_initiales <- function() {
   )
 }
 
+# ---------------------------------------------------------------------------
+# Retrait des accents : UNE seule definition
+# ---------------------------------------------------------------------------
+# Le meme `chartr` etait recopie sept fois (nettoyage de texte, tokenisation,
+# noms de fichiers, recherche dans les memos, reconnaissance des familles
+# d'analyse). Une copie oubliee, c'est un rapprochement qui echoue en silence :
+# « energie » ne rejoint pas « energie », et le mot compte pour deux.
+hstat_sans_accents <- function(x) {
+  chartr("\u00e0\u00e2\u00e4\u00e3\u00e9\u00e8\u00ea\u00eb\u00ee\u00ef\u00f4\u00f6\u00f5\u00f9\u00fb\u00fc\u00e7",
+         "aaaaeeeeiiooouuuc", as.character(x))
+}
+
 hstat_html_escape <- function(x) {
   x <- as.character(x)
   x[is.na(x)] <- ""
@@ -556,7 +568,7 @@ HSTAT_PKG_REPLI <- list(
                "analyses sont disponibles dans cet onglet."),
   poLCA = paste("En attendant, une ACM suivie d'une CAH dégage des profils",
                 "comparables. Elle ne fournit pas les probabilités",
-                "d'appartenance ni les critères AIC/BIC, mais elle répond a la",
+                "d'appartenance ni les critères AIC/BIC, mais elle répond à la",
                 "même question : quels groupes d'individus se ressemblent ?"),
   clustMixType = paste("En attendant, une AFDM (analyse factorielle de données",
                        "mixtes) suivie d'une CAH traite également un mélange de",
@@ -566,7 +578,7 @@ HSTAT_PKG_REPLI <- list(
 hstat_pkg_manquant <- function(pkg, analyse = NULL) {
   paste0(
     if (!is.null(analyse)) paste0(analyse, " : ") else "",
-    sprintf("le paquet R « %s » n'est pas installe sur cette machine, ", pkg),
+    sprintf("le paquet R « %s » n'est pas installé sur cette machine, ", pkg),
     "cette analyse ne peut donc pas être lancée. ",
     sprintf("Pour l'ajouter : install.packages(\"%s\"), puis relancez ", pkg),
     "HStat. ",
@@ -666,10 +678,10 @@ HSTAT_ERR_FR <- list(
        paste("La variable ne varie pas : toutes ses valeurs sont identiques (ou",
              "presque). Aucun test ne peut comparer ce qui ne varie pas.",
              "Choisissez une autre variable, ou vérifiez que le filtre actif",
-             "n'a pas réduit vos données a un seul cas de figure.")),
+             "n'a pas réduit vos données à un seul cas de figure.")),
   list("all 'x' values are identical|values are identical",
        paste("Toutes les observations portent la même valeur. Le test n'a rien",
-             "a comparer. Vérifiez la variable choisie et les filtres actifs.")),
+             "à comparer. Vérifiez la variable choisie et les filtres actifs.")),
   list("sample size must be between 3 and 5000",
        paste("Le test de Shapiro-Wilk exige entre 3 et 5000 observations.",
              "Au-delà, utilisez un graphique quantile-quantile plutôt qu'un",
@@ -677,7 +689,7 @@ HSTAT_ERR_FR <- list(
   list("not enough .?(x|y|finite)?.? observations|not enough observations",
        paste("Effectif insuffisant pour ce test. Vérifiez le nombre",
              "d'observations non manquantes dans chaque groupe : un groupe vide",
-             "ou réduit a une seule observation suffit a bloquer le calcul.")),
+             "ou réduit à une seule observation suffit à bloquer le calcul.")),
   list("grouping factor must have exactly 2 levels",
        paste("Ce test compare exactement deux groupes, or le facteur choisi",
              "n'en distingue pas deux. Pour plus de deux groupes, utilisez",
@@ -710,7 +722,7 @@ HSTAT_ERR_FR <- list(
              "vérifiez la variance et l'effectif de chaque groupe, ainsi que",
              "le taux de valeurs manquantes.")),
   list("0 \\(non-NA\\) cases|no complète élément|complète\\.cases",
-       paste("Aucune observation ne renseigne toutes les variables choisies a",
+       paste("Aucune observation ne renseigne toutes les variables choisies à",
              "la fois. Retirez la variable la plus lacunaire, ou traitez les",
              "valeurs manquantes dans l'onglet Nettoyage.")),
   list("NA/NaN/Inf in foreign function call|infinité or missing values",
@@ -722,27 +734,27 @@ HSTAT_ERR_FR <- list(
              "doute été renommée ou retirée depuis le choix : reselectionnez",
              "vos variables.")),
   list("there is no package called",
-       paste("Un paquet R nécessaire a cette analyse n'est pas installe.",
+       paste("Un paquet R nécessaire à cette analyse n'est pas installé.",
              "Installez-le, puis relancez l'application ; cette analyse restera",
              "indisponible en attendant, les autres continuent de fonctionner.")),
   list("could not find function",
        paste("Une fonction attendue est introuvable : le paquet qui la fournit",
-             "n'est pas installe ou n'a pas pu être charge. Installez-le, puis",
+             "n'est pas installé ou n'a pas pu être charge. Installez-le, puis",
              "relancez l'application.")),
   list("cannot open file|No such file or directory|impossible d'ouvrir",
        paste("Le fichier n'a pas pu être ouvert. Vérifiez le chemin, que le",
-             "fichier n'a pas été déplace, et vos droits d'accès.")),
+             "fichier n'a pas été déplacé, et vos droits d'accès.")),
   list("arguments imply differing number of rows|replacement has .* rows",
        paste("Les colonnes assemblées n'ont pas le même nombre de lignes.",
              "Vérifiez que les jeux de données fusionnes portent bien sur les",
              "mêmes observations.")),
   list("approximation may be incorrect|approximation incorrecte",
-       paste("Certains effectifs théoriques sont inférieurs a 5 :",
+       paste("Certains effectifs théoriques sont inférieurs à 5 :",
              "l'approximation du khi-deux devient douteuse. Utilisez le test",
              "exact de Fisher, ou regroupez les modalités les moins",
              "frequentes.")),
   list("figure margins too large",
-       paste("La zone de trace est trop petite pour le graphique demande.",
+       paste("La zone de trace est trop petite pour le graphique demandé.",
              "Agrandissez la fenêtre, ou réduisez la taille des étiquettes.")),
   list("argument \"name\" is missing",
        paste("Erreur interne d'affichage. Signalez-la : elle vient du code de",
@@ -752,7 +764,7 @@ HSTAT_ERR_FR <- list(
              "catégorie. Convertissez la variable dans l'onglet Nettoyage, ou",
              "choisissez une variable numérique.")),
   list("system is exactly singular|did not converge|ne converge pas",
-       paste("Le modèle n'a pas converge. Les groupes sont probablement",
+       paste("Le modèle n'a pas convergé. Les groupes sont probablement",
              "parfaitement sépares, ou l'effectif est trop faible pour le",
              "nombre de paramètres estimes. Simplifiez le modèle.")))
 
@@ -794,7 +806,7 @@ hstat_err_fr <- function(e, contexte = NULL, lang = hstat_langue_session()) {
   # Rien de connu : on ne masque pas, on annonce. Presenter un message anglais
   # comme une phrase francaise serait pire que de dire qu'il ne l'est pas.
   sprintf("%s%s%s%s", prefixe,
-          tr("L'analyse a échoue. Message renvoyé par R (non traduit)", lang),
+          tr("L'analyse a échoué. Message renvoyé par R (non traduit)", lang),
           dp, msg)
 }
 
@@ -1575,7 +1587,7 @@ hstat_ecrire_image <- function(file, plot, fmt = "png", width = 10, height = 7.5
   #     puis ecrasee par la fermeture du premier -- l'utilisateur recevait une
   #     image vide au lieu du motif.
   ok <- tryCatch({
-    if (is.null(plot)) stop("Aucun graphique a exporter.")
+    if (is.null(plot)) stop("Aucun graphique à exporter.")
     (function() {
       .hstat_img_device(file, fmt, width, height, dpi, qualite, compression)
       on.exit(grDevices::dev.off(), add = TRUE)
@@ -1699,7 +1711,7 @@ hstat_axe_titre_ui <- function(ns, prefix, retour = TRUE, align = "0.5") {
   shiny::tagList(
     shiny::checkboxInput(ns(paste0(prefix, "TitreRetour")),
                   "Titres d'axe sur plusieurs lignes si trop longs", retour),
-    shiny::selectInput(ns(paste0(prefix, "TitreAlign")), "Alignement des titres d'axe:",
+    shiny::selectInput(ns(paste0(prefix, "TitreAlign")), "Alignement des titres d'axe :",
                 choices = HSTAT_ALIGN_TITRE, selected = align))
 }
 
@@ -2475,7 +2487,7 @@ detect_multivariate_outliers <- function(Y, alpha = 0.001) {
   pct <- round(100 * length(idx) / n, 1)
   
   concl <- if (length(idx) == 0)
-    paste0("Aucun outlier multivarié détecté (seuil chi2(", p, ") a alpha = ", alpha, ").")
+    paste0("Aucun outlier multivarié détecté (seuil chi2(", p, ") à alpha = ", alpha, ").")
   else if (pct < 5)
     paste0(length(idx), " outlier(s) multivarié(s) détecté(s) (", pct,
            "% des observations). Inspectez-les avant d'analyser.")
@@ -2549,7 +2561,7 @@ recommend_manova_test <- function(mardia, boxm, permdisp, n) {
     justifications <- c(justifications,
                         paste0("Violation d'homogénéité des covariances sur ", boxm_violations,
                                " facteur(s) (Box's M significatif). La statistique de Pillai est ",
-                               "recommandée car plus robuste a cette violation."))
+                               "recommandée car plus robuste à cette violation."))
     score_param <- score_param + 0L  # neutre car Pillai compense
   }
   
@@ -2736,7 +2748,7 @@ lm_pairwise_emmeans <- function(model, predictor, adjust = "tukey") {
   
   df_out <- as.data.frame(pr)
   rename_map <- c(contrast    = "Comparaison",
-                  estimate    = "Difference",
+                  estimate    = "Différence",
                   t.ratio     = "t",
                   z.ratio     = "z",
                   p.value     = "p_value")
@@ -2850,7 +2862,7 @@ round_numeric_df <- function(df, round_on, decimals = 2) {
   }
   grp_vec <- if ("Groupes" %in% names(df)) as.character(df$Groupes) else NULL
   
-  if (!is.na(sd_col) && all(c("Moyenne", "Écart_type") %in% names(df))) {
+  if (!is.na(sd_col) && all(c("Moyenne", "Ecart_type") %in% names(df))) {
     df[[sd_col]] <- fmt_pair(df$Moyenne, df$Ecart_type, grp_vec)
   }
   if (!is.na(se_col) && all(c("Moyenne", "Erreur_type") %in% names(df))) {
@@ -3578,7 +3590,7 @@ hstat_i18n_termes_json <- function(df, ...) {
 #  `agg` : "moyenne" (defaut), "mediane" ou "somme" -- la valeur resumee de
 #  chaque modalite avant comparaison.
 # =============================================================================
-HSTAT_EFF_AGG <- c("Moyenne" = "moyenne", "Mediane" = "mediane", "Somme" = "somme")
+HSTAT_EFF_AGG <- c("Moyenne" = "moyenne", "Médiane" = "mediane", "Somme" = "somme")
 
 hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
                              agg = c("moyenne", "mediane", "somme"),
@@ -3608,7 +3620,7 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
     return(msg(vide, "Choisissez la variable qui porte les traitements."))
   vars_reponse <- intersect(as.character(vars_reponse), names(df))
   if (!length(vars_reponse))
-    return(msg(vide, "Choisissez au moins une variable a mesurer."))
+    return(msg(vide, "Choisissez au moins une variable à mesurer."))
 
   modal <- trimws(as.character(df[[var_modalite[1]]]))
   modal[is.na(modal) | !nzchar(modal)] <- NA_character_
@@ -3728,7 +3740,7 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
   if (length(gst))
     alertes <- c(sprintf(paste0("le témoin « %s » est absent de %s groupe(s) (%s) : ",
                                 "vérifiez la variable de groupement, un groupe sans ",
-                                "témoin n'a rien a quoi se comparer"),
+                                "témoin n'a rien à quoi se comparer"),
                          temoin, length(gst),
                          paste(utils::head(gst, 4), collapse = ", ")),
                  alertes)
@@ -3871,7 +3883,8 @@ hstat_vars_zero <- function(df, seuil = 1) {
     if (part < seuil) next
     lignes[[length(lignes) + 1L]] <- data.frame(
       Variable = cn,
-      Type = if (is.numeric(x)) "numerique" else class(x)[1],
+      Type = if (is.numeric(x)) "numérique"
+             else if (is.character(x) || is.factor(x)) "texte" else class(x)[1],
       Observations = length(obs),
       Zeros = n_zero,
       `Zeros (%)` = round(part * 100, 2),
@@ -3881,7 +3894,7 @@ hstat_vars_zero <- function(df, seuil = 1) {
       else if (part >= 1)
         sprintf(paste0("Toutes les valeurs observées sont nulles ; %s valeur(s) ",
                        "manquante(s). Vérifiez si le zéro signifie ici ",
-                       "« non mesure »."), n_na)
+                       "« non mesuré »."), n_na)
       else
         trf("%s %% des valeurs observées sont nulles.", round(part * 100, 2)),
       check.names = FALSE, stringsAsFactors = FALSE)
@@ -3910,7 +3923,7 @@ hstat_zero_valeurs_parse <- function(txt, n) {
   n <- suppressWarnings(as.integer(n)[1])
   if (!is.finite(n) || n < 1)
     return(list(ok = FALSE, valeurs = NULL,
-                message = "Aucune ligne a remplir : chargez des données."))
+                message = "Aucune ligne à remplir : chargez des données."))
   if (is.null(txt) || !length(txt)) txt <- ""
   brut <- unlist(strsplit(paste(txt, collapse = "\n"), "[\n;]"))
   brut <- trimws(brut)
@@ -3924,7 +3937,7 @@ hstat_zero_valeurs_parse <- function(txt, n) {
     return(list(ok = FALSE, valeurs = NULL,
                 message = sprintf(paste0("%s valeur(s) saisie(s) pour %s ",
                                          "observation(s) : ajustez la liste ",
-                                         "pour qu'elles correspondent une a une."),
+                                         "pour qu'elles correspondent une à une."),
                                   length(brut), n)))
   manquant <- !nzchar(brut) | toupper(brut) %in% c("NA", "N/A")
   num <- suppressWarnings(as.numeric(gsub(",", ".", brut, fixed = TRUE)))
@@ -4413,7 +4426,7 @@ hstat_excel_read_sheets <- function(path, sheets = NULL) {
 hstat_excel_compat <- function(frames, names_ = NULL) {
   if (!length(frames))
     return(list(identiques = FALSE, communes = character(0),
-                suggestion = "rows", msg = "Aucune feuille a comparer."))
+                suggestion = "rows", msg = "Aucune feuille à comparer."))
   cols <- lapply(frames, names)
   communes <- Reduce(intersect, cols)
   toutes <- unique(unlist(cols))
@@ -4421,12 +4434,12 @@ hstat_excel_compat <- function(frames, names_ = NULL) {
                 all(vapply(cols, function(c0) length(c0) == length(toutes), logical(1)))
   msg <- if (identiques)
     sprintf(paste("Les %d feuilles portent exactement les mêmes %d colonnes :",
-                  "l'empilement les met bout a bout, une ligne par observation."),
+                  "l'empilement les met bout à bout, une ligne par observation."),
             length(frames), length(toutes))
   else if (length(communes))
     sprintf(paste("Les feuilles ont %d colonne(s) en commun (%s) et %d colonne(s)",
                   "propres. Une jointure par clé rapproche les lignes qui se",
-                  "correspondent ; l'empilement les mettrait bout a bout en",
+                  "correspondent ; l'empilement les mettrait bout à bout en",
                   "laissant des vides."),
             length(communes), paste(utils::head(communes, 6), collapse = ", "),
             length(setdiff(toutes, communes)))
@@ -5075,12 +5088,12 @@ hstat_metrics_reg <- function(obs, pred) {
     Metrique = c("RMSE", "MAE", "MAPE (%)", "R2"),
     Valeur   = round(c(rmse, mae, mape, r2), 4),
     Seuils = c(
-      "Pas de seuil universel : a comparer a l'écart-type de la cible (excellent si RMSE << sigma) et entre modèles",
+      "Pas de seuil universel : à comparer à l'écart-type de la cible (excellent si RMSE << sigma) et entre modèles",
       "Pas de seuil universel : exprimée dans l'unité de la cible ; plus petite = meilleure",
       "< 10 % excellent ; 10-20 % bon ; 20-50 % moyen ; > 50 % faible",
       "< 0,3 tres faible ; 0,3-0,5 faible ; 0,5-0,7 moyen ; 0,7-0,9 bon ; >= 0,9 excellent"),
     Interpretation = c(
-      trf("Erreur quadratique moyenne : %s unité(s) de la variable cible (écart-type observe : %s). Pénalise fortement les grosses erreurs.",
+      trf("Erreur quadratique moyenne : %s unité(s) de la variable cible (écart-type observé : %s). Pénalise fortement les grosses erreurs.",
               format(round(rmse, 3), big.mark = " "), format(round(sc, 3), big.mark = " ")),
       trf("En moyenne, la prédiction s'écarte de %s unité(s) de la valeur réelle.",
               format(round(mae, 3), big.mark = " ")),
@@ -5130,7 +5143,7 @@ hstat_metrics_cls <- function(obs, pred, prob = NULL) {
                  "Rappel / sensibilité (macro)", "F1-score (macro)", "AUC (ROC)"),
     Valeur   = round(vals, 4),
     Seuils = c(
-      "A comparer a la part de la classe majoritaire : nettement au-dessus = modèle informatif",
+      "A comparer à la part de la classe majoritaire : nettement au-dessus = modèle informatif",
       "< 0,2 negligeable ; 0,2-0,4 faible ; 0,4-0,6 modere ; 0,6-0,8 substantiel ; > 0,8 quasi parfait (Landis & Koch)",
       ">= 0,9 excellente ; 0,7-0,9 bonne ; 0,5-0,7 moyenne ; < 0,5 faible",
       ">= 0,9 excellent ; 0,7-0,9 bon ; 0,5-0,7 moyen ; < 0,5 faible",
@@ -5144,7 +5157,7 @@ hstat_metrics_cls <- function(obs, pred, prob = NULL) {
       if (!is.finite(kap)) "Non calculable." else if (kap >= 0.8) "Accord quasi parfait au-delà du hasard."
       else if (kap >= 0.6) "Accord substantiel au-delà du hasard."
       else if (kap >= 0.4) "Accord modéré au-delà du hasard."
-      else if (kap >= 0.2) "Accord faible : a peine mieux que le hasard."
+      else if (kap >= 0.2) "Accord faible : à peine mieux que le hasard."
       else "Accord négligeable : équivalent au hasard.",
       "Parmi les prédictions d'une classe, part réellement correcte (moyenne des classes).",
       "Parmi les cas réels d'une classe, part correctement retrouvée (moyenne des classes).",
@@ -5165,7 +5178,7 @@ hstat_model_interpretation <- function(task, metrics_df, model_label,
     if (is.na(i)) NA_real_ else metrics_df$Valeur[i]
   }
   head_txt <- trf(
-    "Le modèle %s a été entraîne sur %s observation(s) puis évalue sur %s observation(s) de test jamais vues pendant l'entraînement : les métriques ci-dessus reflètent donc sa capacité de généralisation, pas sa mémoire.",
+    "Le modèle %s a été entraîné sur %s observation(s) puis évalue sur %s observation(s) de test jamais vues pendant l'entraînement : les métriques ci-dessus reflètent donc sa capacité de généralisation, pas sa mémoire.",
     model_label, format(n_train, big.mark = " "), format(n_test, big.mark = " "))
   core <- if (identical(task, "regression")) {
     r2 <- get_v("R2"); mape <- get_v("MAPE (%)")
@@ -5282,7 +5295,7 @@ hstat_export_plot_handler <- function(input, prefix, plot_fun, fname = "graphiqu
         shiny::showNotification(eff$note, type = "warning", duration = 10)
       g <- tryCatch(plot_fun(), error = function(e) NULL)
       hstat_ecrire_image(file, g, r$fmt, r$w, r$h, r$dpi,
-        echec = "Aucun graphique a exporter : lancez d'abord l'analyse.",
+        echec = "Aucun graphique à exporter : lancez d'abord l'analyse.",
         qualite = r$qualite, compression = r$compression)
     })
 }
@@ -5548,7 +5561,7 @@ hstat_align_newdata <- function(newdf, ref, vars) {
   miss <- setdiff(vars, names(newdf))
   if (length(miss) > 0)
     return(list(data = NULL,
-                warn = paste0("Colonnes manquantes dans le fichier importe : ",
+                warn = paste0("Colonnes manquantes dans le fichier importé : ",
                               paste(miss, collapse = ", "))))
   out <- newdf[, vars, drop = FALSE]
   warns <- character(0)
@@ -5580,7 +5593,7 @@ hstat_model_doc <- function(id) {
       "Servir de niveau de référence : tout modèle utile doit faire mieux.",
       "Aucune ; pertinent quand la série est une marche aléatoire sans tendance ni saison."),
     snaive = c("Naïf saisonnier",
-      "Chaque prévision reprend la valeur observée a la même période de la saison précédente.",
+      "Chaque prévision reprend la valeur observée à la même période de la saison précédente.",
       "Référence pour les séries saisonnières.",
       "Fréquence saisonnière > 1 et au moins 2 saisons complètes."),
     meanf  = c("Moyenne historique",
@@ -5618,17 +5631,17 @@ hstat_model_doc <- function(id) {
     arima  = c("ARIMA automatique",
       "Modélise la série par ses propres retards (AR), la différenciation (I) et les erreurs passées (MA) ; les ordres sont choisis automatiquement.",
       "Capturer l'autocorrelation, la tendance stochastique et la saisonnalité.",
-      "Série rendue stationnaire par différenciation ; résidus a vérifier (Ljung-Box) ; au moins ~30 observations."),
+      "Série rendue stationnaire par différenciation ; résidus à vérifier (Ljung-Box) ; au moins ~30 observations."),
     sarima = c("SARIMA manuel",
       "ARIMA avec ordres saisonniers (P,D,Q) fixes par l'utilisateur.",
       "Contrôler finement la structure quand l'automatique ne convient pas.",
       "Bien lire l'ACF/PACF des résidus pour choisir les ordres ; fréquence > 1 pour la partie saisonnière."),
     tbats  = c("TBATS",
       "Combinaison de transformations Box-Cox, tendance amortie, erreurs ARMA et saisonnalités trigonométriques multiples.",
-      "Séries a saisonnalités complexes ou multiples (ex. journalière + hebdomadaire).",
+      "Séries à saisonnalités complexes ou multiples (ex. journalière + hebdomadaire).",
       "Séries suffisamment longues ; calcul plus lent que ÉTS/ARIMA."),
     theta  = c("Méthode Thêta",
-      "Décompose la série en droites de courbure modifiée puis les recombine (équivalent a un SES avec dérive).",
+      "Décompose la série en droites de courbure modifiée puis les recombine (équivalent à un SES avec dérive).",
       "Prévision robuste et rapide, très performante dans les compétitions (M3).",
       "Série de préférence désaisonnalisée ou peu saisonnière ; peu de réglages."),
     stlf   = c("STL + ÉTS",
@@ -5636,7 +5649,7 @@ hstat_model_doc <- function(id) {
       "Séries saisonnières au motif stable, avec robustesse aux valeurs atypiques.",
       "Fréquence > 1 et au moins 2 saisons complètes."),
     nnetar = c("NNAR (réseau de neurones autoregressif)",
-      "Perceptron a une couche cachée nourri par les retards de la série (et les retards saisonniers).",
+      "Perceptron à une couche cachée nourri par les retards de la série (et les retards saisonniers).",
       "Capturer des dynamiques non linéaires ignorées par ARIMA/ÉTS.",
       "Séries assez longues ; pas d'intervalles de prévision analytiques ; risque de surapprentissage sur séries courtes."),
     dlmts  = c("DLM (modèle linéaire dynamique)",
@@ -5645,7 +5658,7 @@ hstat_model_doc <- function(id) {
       "Série approximativement gaussienne ; au moins ~30 observations ; l'optimisation peut échouer sur séries très courtes."),
     dlnm   = c("DLNM (retards distribues non linéaires)",
       "Régression ou la réponse dépend d'une exposition via une surface exposition-retard (splines croisées) : l'effet peut être non linéaire ET étale dans le temps.",
-      "Quantifier et exploiter l'effet retarde d'une exposition (température, pollution...) sur un résultat, usage classique en épidémiologie environnementale.",
+      "Quantifier et exploiter l'effet retardé d'une exposition (température, pollution...) sur un résultat, usage classique en épidémiologie environnementale.",
       "Choisir une variable d'exposition et un décalage maximal ; série nettement plus longue que le décalage ; famille quasi-Poisson automatique pour les comptages ; les prévisions exigent des expositions futures."),
     prophet = c("Prophet",
       "Modèle additif décomposable : tendance par morceaux + saisonnalités de Fourier + jours fériés, estime par optimisation bayésienne approchée.",
@@ -5672,35 +5685,35 @@ hstat_model_doc <- function(id) {
       "Ajoute séquentiellement de petits arbres corrigeant les erreurs résiduelles des précédents.",
       "État de l'art sur données tabulaires quand il est bien règle.",
       "Sensible aux hyperparametres (profondeur, taux d'apprentissage, itérations) ; activer la recherche automatique."),
-    svm = c("SVM (machine a vecteurs de support)",
+    svm = c("SVM (machine à vecteurs de support)",
       "Cherche la frontière de marge maximale, rendue non linéaire par un noyau (radial, polynomial...).",
-      "Frontières complexes sur échantillons petits a moyens.",
-      "Variables a standardiser (fait en interne par e1071) ; coût élevé au-delà de ~10 000 lignes ; régler C (et le noyau)."),
+      "Frontières complexes sur échantillons petits à moyens.",
+      "Variables à standardiser (fait en interne par e1071) ; coût élevé au-delà de ~10 000 lignes ; régler C (et le noyau)."),
     knn = c("k plus proches voisins",
       "Prédit par vote (ou moyenne) des k observations les plus proches.",
       "Méthode locale sans hypothèse de forme.",
-      "Sensible a l'échelle des variables et a la dimension ; choisir k (impair en binaire) ; coûteux en prédiction sur gros volumes."),
+      "Sensible à l'échelle des variables et à la dimension ; choisir k (impair en binaire) ; coûteux en prédiction sur gros volumes."),
     nb = c("Naïve Bayes",
-      "Applique la règle de Bayes en supposant les variables indépendantes conditionnellement a la classe.",
+      "Applique la règle de Bayes en supposant les variables indépendantes conditionnellement à la classe.",
       "Classifieur rapide et étonnamment efficace, notamment sur variables catégorielles.",
       "Classification uniquement ; l'hypothèse d'indépendance doit rester raisonnable."),
     nnet = c("Réseau de neurones (1 couche)",
-      "Perceptron a une couche cachée : combinaisons non linéaires apprises des variables.",
+      "Perceptron à une couche cachée : combinaisons non linéaires apprises des variables.",
       "Capturer des interactions non linéaires simples.",
       "Variables standardisées (fait en interne) ; régler taille et decay ; risque de minima locaux."),
     # ---- Clustering ----
     kmeans = c("k-means",
       "Alterne affectation de chaque point au centre le plus proche et recalcul des centres.",
       "Partitionner rapidement en k groupes compacts.",
-      "k fixe a l'avance ; groupes sphériques de tailles comparables ; standardiser les variables."),
+      "k fixe à l'avance ; groupes sphériques de tailles comparables ; standardiser les variables."),
     hclust = c("Classification hiérarchique (CAH)",
       "Fusionne progressivement les paires de groupes les plus proches (Ward) en un dendrogramme.",
-      "Explorer la structure a plusieurs niveaux de regroupement.",
+      "Explorer la structure à plusieurs niveaux de regroupement.",
       "Matrice de distances en O(n^2) : réserver aux effectifs modérés ; standardiser."),
     pam = c("PAM (k-medoides)",
       "Comme k-means mais les centres sont des observations réelles (medoides), avec une distance quelconque.",
       "Clustering robuste aux valeurs atypiques.",
-      "Plus coûteux que k-means ; k fixe a l'avance."),
+      "Plus coûteux que k-means ; k fixe à l'avance."),
     dbscan = c("DBSCAN",
       "Regroupe les points densément connectes ; les points isoles deviennent du bruit.",
       "Trouver des groupes de forme quelconque sans fixer k, et isoler les anomalies.",
@@ -5717,9 +5730,9 @@ hstat_model_doc <- function(id) {
     dl_torch = c("MLP (torch)",
       "Perceptron multi-couches (ReLU) entraîne par Adam et mini-lots via libtorch, avec courbe de perte par époque.",
       "Architectures plus profondes, contrôle fin (époques, taux d'apprentissage, lots).",
-      "Bibliothèques natives a télécharger une fois (~600 Mo, bouton dédie) ; surveiller la courbe de perte (surapprentissage)."),
+      "Bibliothèques natives à télécharger une fois (~600 Mo, bouton dédié) ; surveiller la courbe de perte (surapprentissage)."),
     lstm = c("LSTM (torch)",
-      "Réseau récurrent a mémoire longue : apprend a prédire chaque valeur a partir d'une fenêtre glissante du passe.",
+      "Réseau récurrent à mémoire longue : apprend à prédire chaque valeur à partir d'une fenêtre glissante du passe.",
       "Prévision de séquences aux dépendances longues et non linéaires.",
       "Séries longues (>> fenêtre) ; prévisions futures récursives dont l'incertitude croit avec l'horizon ; torch requis.")
   )

@@ -190,7 +190,7 @@ mod_clean_ui <- function(id) {
                         shiny::tags$p(style = "font-size: 12px; color: #7f8c8d;",
                                "Crée une nouvelle colonne avec une valeur identique pour toutes les lignes"),
                         shiny::textInput(ns("newVarName"), "Nom:", placeholder = "ex: Catégorie"),
-                        shiny::numericInput(ns("newVarValue"), "Valeur par défaut:", 0),
+                        shiny::numericInput(ns("newVarValue"), "Valeur par défaut :", 0),
                         shiny::actionButton(ns("addVar"),
                                      shiny::tagList(shiny::icon("plus"), " Ajouter"),
                                      class = "btn-success btn-block")
@@ -220,10 +220,10 @@ mod_clean_ui <- function(id) {
                     
                     shiny::h5(shiny::icon("info-circle"), "Assistant de Formule", style = "color: #3498db; margin-top: 0;"),
                     shiny::p(style = "font-size: 12px; color: #7f8c8d;", 
-                      "Créez des variables basées sur des calculs. Exemple: (Var1 + Var2) / 2"),
+                      "Créez des variables basées sur des calculs. Exemple : (Var1 + Var2) / 2"),
                     
                     shiny::textInput(ns("calcVarName"), 
-                      "Nom de la variable calculée:",
+                      "Nom de la variable calculée :",
                       placeholder = "ex: Moyenne_Score"
                     ),
                     
@@ -287,7 +287,7 @@ mod_clean_ui <- function(id) {
                     ),
                     
                     shiny::textInput(ns("calcFormula"), 
-                      "Formule de calcul:",
+                      "Formule de calcul :",
                       placeholder = "ex: (Rendement + Biomasse) / 2   |   sum(Poids, Hauteur)   |   sqrt(Var1 * Var2)"
                     ),
                     
@@ -382,7 +382,7 @@ mod_clean_ui <- function(id) {
                   footer = shiny::div(
                     style = "font-size: 12px; color: #7f8c8d;",
                     shiny::icon("lightbulb"), 
-                    " Astuce: Cliquez sur une colonne pour l'insérer dans la formule"
+                    " Astuce : Cliquez sur une colonne pour l'insérer dans la formule"
                   )
                 )
               ),
@@ -437,7 +437,7 @@ mod_clean_ui <- function(id) {
                              shiny::conditionalPanel(
               ns = ns,
                                condition = "input.naMethod == 'knn'",
-                               shiny::numericInput(ns("naKnnK"), "Nombre de voisins (k):", value = 5, min = 1, max = 30)),
+                               shiny::numericInput(ns("naKnnK"), "Nombre de voisins (k) :", value = 5, min = 1, max = 30)),
                              shiny::conditionalPanel(
               ns = ns,
                                condition = "input.naMethod == 'mice'",
@@ -451,7 +451,7 @@ mod_clean_ui <- function(id) {
                                shiny::div(
                                  style = "margin-top: 15px; padding: 10px; background-color: white; border-radius: 5px;",
                                  shiny::numericInput(ns("naValue"), 
-                                   "Valeur de remplacement:", 
+                                   "Valeur de remplacement :", 
                                    0
                                  )
                                )
@@ -650,7 +650,7 @@ mod_clean_ui <- function(id) {
                         shiny::uiOutput(ns("zeroVarsVides")),
                         shiny::p(style = "font-size:11px;color:#7f8c8d;font-style:italic;margin-top:6px;",
                           shiny::icon("info-circle"),
-                          " Une variable dont toutes les valeurs valent 0 a une variance nulle : ",
+                          " Une variable dont toutes les valeurs valent 0 à une variance nulle : ",
                           "aucune corrélation ni test statistique n'est calculable sur elle. ",
                           "Les colonnes logiques (vrai/faux) ne sont pas listées : un « non » est une réponse, pas une mesure à zéro.")
                       )
@@ -1043,7 +1043,7 @@ mod_clean_server <- function(id, values) {
     })
     
     shiny::showNotification(
-      ui = shiny::tagList(shiny::icon("check"), " Types de variables appliqués avec succès!"),
+      ui = shiny::tagList(shiny::icon("check"), " Types de variables appliqués avec succès !"),
       type = "message", 
       duration = 3
     )
@@ -1223,7 +1223,7 @@ mod_clean_server <- function(id, values) {
     
     if (input$newVarName %in% names(values$cleanData)) {
       shiny::showNotification(
-        ui = shiny::tagList(shiny::icon("exclamation-triangle"), " Cette variable existe déjà!"),
+        ui = shiny::tagList(shiny::icon("exclamation-triangle"), " Cette variable existe déjà !"),
         type = "warning", 
         duration = 3
       )
@@ -1368,7 +1368,7 @@ mod_clean_server <- function(id, values) {
         shiny::showNotification(
           shiny::tagList(
             shiny::icon("exclamation-triangle"),
-            " Formule incorrecte : le résultat a ", length(new_col), " valeur(s) ",
+            " Formule incorrecte : le résultat à ", length(new_col), " valeur(s) ",
             "au lieu de ", nrow(values$cleanData), ". ",
             shiny::tags$br(),
             shiny::tags$small("Astuce : utilisez rowMeans(cbind(Var1, Var2)) pour la moyenne ligne par ligne.")
@@ -1381,7 +1381,7 @@ mod_clean_server <- function(id, values) {
       values$filteredData <- values$cleanData
       
       shiny::showNotification(
-        ui = shiny::tagList(shiny::icon("calculator"), paste(" Variable `", input$calcVarName, "` créée avec succès!")),
+        ui = shiny::tagList(shiny::icon("calculator"), paste(" Variable `", input$calcVarName, "` créée avec succès !")),
         type = "message", 
         duration = 3
       )
@@ -1624,7 +1624,7 @@ mod_clean_server <- function(id, values) {
     })
     
     shiny::showNotification(
-      ui = shiny::tagList(shiny::icon("check"), " Traitement des valeurs manquantes terminé avec succès!"),
+      ui = shiny::tagList(shiny::icon("check"), " Traitement des valeurs manquantes terminé avec succès !"),
       type = "message", 
       duration = 3
     )
@@ -1991,7 +1991,7 @@ mod_clean_server <- function(id, values) {
     # par champ (methode, lambda) pour inverser les transformations. Y deposer
     # une phrase casserait son affichage. Le geste est donc capture ici, la ou
     # il a reellement eu lieu.
-    hstat_ai_capture(values, "Nettoyage", "Variables a valeurs nulles",
+    hstat_ai_capture(values, "Nettoyage", "Variables à valeurs nulles",
       tables = list("Variables concernées" = zt),
       text = res$texte,
       meta = list(action = action, variables = paste(vars, collapse = ", "),

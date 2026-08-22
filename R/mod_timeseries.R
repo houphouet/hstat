@@ -275,7 +275,7 @@ mod_timeseries_server <- function(id, values) {
           npar <- if (seas) 4L else 3L
           est <- dlm::dlmMLE(as.numeric(train), parm = rep(-2, npar), build = build)
           if (!est$convergence %in% c(0L, 1L))
-            stop("DLM : l'estimation du maximum de vraisemblance n'a pas converge.")
+            stop("DLM : l'estimation du maximum de vraisemblance n'a pas convergé.")
           filt <- dlm::dlmFilter(as.numeric(train), build(est$par))
           fc0 <- dlm::dlmForecast(filt, nAhead = h)
           mu <- as.numeric(fc0$f)

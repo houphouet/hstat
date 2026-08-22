@@ -172,7 +172,7 @@ mod_descriptive_ui <- function(id) {
                                  shiny::h6(shiny::icon("heading"), " Titre du graphique", 
                                     style = "font-weight: bold; color: #495057; margin-bottom: 15px; font-size: 15px;"),
                                  shiny::textInput(ns("descPlotTitle"), NULL, 
-                                           placeholder = "Ex: Distribution des rendements par traitement...",
+                                           placeholder = "Ex : Distribution des rendements par traitement...",
                                            width = "100%"),
                                  shiny::fluidRow(
                                    shiny::column(4,
@@ -580,7 +580,7 @@ mod_descriptive_server <- function(id, values) {
   output$descPlotFactorSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
     fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
-    shiny::selectInput(ns("descPlotFactor"), "Grouper par:", choices = c("Aucun", fac_cols), width = "100%")
+    shiny::selectInput(ns("descPlotFactor"), "Grouper par :", choices = c("Aucun", fac_cols), width = "100%")
   })
   
   shiny::observe({

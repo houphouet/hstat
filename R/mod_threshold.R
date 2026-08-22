@@ -84,7 +84,7 @@ mod_threshold_ui <- function(id) {
                       )
                     ),
                     
-                    shiny::selectInput(ns("thresholdLineType"), "Type de ligne:",
+                    shiny::selectInput(ns("thresholdLineType"), "Type de ligne :",
                                 choices = c("Solide" = "solid",
                                             "Pointillé" = "dotted",
                                             "Tirets" = "dashed",
@@ -172,11 +172,11 @@ mod_threshold_ui <- function(id) {
                     shiny::div(style = "background-color: #f9f9f9; padding: 12px; border-radius: 6px; margin-bottom: 12px; border: 1px solid #e0e0e0;",
                         shiny::h6(shiny::icon("heading"), " Titres et étiquettes", 
                            style = "font-weight: bold; color: #34495e; margin-bottom: 10px;"),
-                        shiny::textInput(ns("thresholdPlotTitle"), "Titre du graphique:", 
+                        shiny::textInput(ns("thresholdPlotTitle"), "Titre du graphique :", 
                                   value = "Analyse des seuils d'efficacité"),
-                        shiny::textInput(ns("thresholdXLabel"), "Label axe X:", 
+                        shiny::textInput(ns("thresholdXLabel"), "Label axe X :", 
                                   value = "", placeholder = "Par défaut: Traitements"),
-                        shiny::textInput(ns("thresholdYLabel"), "Label axe Y:", 
+                        shiny::textInput(ns("thresholdYLabel"), "Label axe Y :", 
                                   value = "", placeholder = "Par défaut: Seuil d'efficacité (%)"),
                         shiny::textInput(ns("thresholdSubtitle"), "Sous-titre:",
                                   value = "", placeholder = "Optionnel"),
@@ -201,7 +201,7 @@ mod_threshold_ui <- function(id) {
                            style = "font-weight: bold; color: #f57f17; margin-bottom: 10px;"),
                         
                         shiny::div(style = "margin-bottom: 10px;",
-                            shiny::strong("Label axe X:"),
+                            shiny::strong("Label axe X :"),
                             shiny::div(style = "margin-left: 15px; margin-top: 5px; display: flex; gap: 15px;",
                                 shiny::checkboxInput(ns("thresholdXLabelBold"), "Gras", value = FALSE),
                                 shiny::checkboxInput(ns("thresholdXLabelItalic"), "Italique", value = FALSE)
@@ -209,7 +209,7 @@ mod_threshold_ui <- function(id) {
                         ),
                         
                         shiny::div(
-                          shiny::strong("Label axe Y:"),
+                          shiny::strong("Label axe Y :"),
                           shiny::div(style = "margin-left: 15px; margin-top: 5px; display: flex; gap: 15px;",
                               shiny::checkboxInput(ns("thresholdYLabelBold"), "Gras", value = FALSE),
                               shiny::checkboxInput(ns("thresholdYLabelItalic"), "Italique", value = FALSE)
@@ -270,7 +270,7 @@ mod_threshold_ui <- function(id) {
                           shiny::conditionalPanel(
               ns = ns,
                             condition = "input.thresholdUseColor",
-                            shiny::radioButtons(ns("thresholdBarColor"), "Type de coloration:",
+                            shiny::radioButtons(ns("thresholdBarColor"), "Type de coloration :",
                                          choices = c("ggplot2 (défaut)" = "ggplot",
                                                      "Palette prédéfinie" = "palette",
                                                      "Personnalisé par traitement" = "custom",
@@ -281,7 +281,7 @@ mod_threshold_ui <- function(id) {
                             shiny::conditionalPanel(
               ns = ns,
                               condition = "input.thresholdBarColor == 'palette'",
-                              shiny::selectInput(ns("thresholdPalette"), "Choisir une palette:",
+                              shiny::selectInput(ns("thresholdPalette"), "Choisir une palette :",
                                           choices = list(
                                             "Palettes qualitatives" = c("Set1" = "Set1", "Set2" = "Set2", "Set3" = "Set3",
                                                                         "Pastel1" = "Pastel1", "Pastel2" = "Pastel2",
@@ -315,11 +315,11 @@ mod_threshold_ui <- function(id) {
                         shiny::h6(shiny::icon("arrows-alt-h"), " Dimensions et espacement des barres", 
                            style = "font-weight: bold; color: #1e3a8a; margin-bottom: 10px;"),
                         
-                        shiny::sliderInput(ns("thresholdBarWidth"), "Largeur des barres:", 
+                        shiny::sliderInput(ns("thresholdBarWidth"), "Largeur des barres :", 
                                     min = 0.1, max = 1, value = 0.8, step = 0.05),
                         # La transparence etait figee a 0,8 aux six endroits ou
                         # les barres sont tracees.
-                        shiny::sliderInput(ns("thresholdBarAlpha"), "Opacité des barres:",
+                        shiny::sliderInput(ns("thresholdBarAlpha"), "Opacité des barres :",
                                     min = 0.2, max = 1, value = 0.8, step = 0.05),
                         shiny::checkboxInput(ns("thresholdBarBorder"),
                                       shiny::tagList(shiny::icon("border-style"), " Contour des barres"),
@@ -340,7 +340,7 @@ mod_threshold_ui <- function(id) {
                           condition = "input.thresholdMultipleY && input.thresholdYVar && input.thresholdYVar.length > 1",
                           
                           shiny::sliderInput(ns("thresholdBarSpacing"), 
-                                      shiny::tagList(shiny::icon("arrows-alt-h"), " Espacement entre barres:"), 
+                                      shiny::tagList(shiny::icon("arrows-alt-h"), " Espacement entre barres :"), 
                                       min = 0, max = 0.5, value = 0.1, step = 0.05),
                           
                           shiny::div(style = "background-color: #e8f5e9; padding: 8px; border-radius: 4px; margin-top: 10px; border-left: 3px solid #4caf50;",
@@ -348,7 +348,7 @@ mod_threshold_ui <- function(id) {
                               shiny::tags$small(" Plus l'espacement est élevé, plus les groupes de barres sont espacés.")
                           ),
                           
-                          shiny::radioButtons(ns("thresholdBarPosition"), "Position des barres:",
+                          shiny::radioButtons(ns("thresholdBarPosition"), "Position des barres :",
                                        choices = c("Côte à côte" = "dodge",
                                                    "Empilées" = "stack"),
                                        selected = "dodge", inline = TRUE)
@@ -366,7 +366,7 @@ mod_threshold_ui <- function(id) {
                         shiny::conditionalPanel(
               ns = ns,
                           condition = "input.thresholdShowLegend",
-                          shiny::textInput(ns("thresholdLegendTitle"), "Titre de la légende:", 
+                          shiny::textInput(ns("thresholdLegendTitle"), "Titre de la légende :", 
                                     value = "", placeholder = "Laisser vide pour défaut"),
                           
                           shiny::selectInput(ns("thresholdLegendPosition"), "Position:",
@@ -414,20 +414,20 @@ mod_threshold_ui <- function(id) {
                         
                         shiny::sliderInput(ns("thresholdTitleSize"), "Titre:", 
                                     min = 8, max = 28, value = 16, step = 1),
-                        shiny::sliderInput(ns("thresholdAxisTitleSize"), "Titres des axes:", 
+                        shiny::sliderInput(ns("thresholdAxisTitleSize"), "Titres des axes :", 
                                     min = 8, max = 24, value = 14, step = 1),
                         # Un titre plus long que son axe deborde et se fait
                         # rogner a l'export : il revient donc a la ligne, a la
                         # largeur REELLE de l'axe.
                         hstat_axe_titre_ui(ns, "threshold"),
-                        shiny::sliderInput(ns("thresholdAxisTextSize"), "Texte des axes:", 
+                        shiny::sliderInput(ns("thresholdAxisTextSize"), "Texte des axes :", 
                                     min = 6, max = 20, value = 12, step = 1),
                         # Le titre de la legende et son texte partageaient un
                         # seul reglage : on ne pouvait pas grossir le titre sans
                         # grossir toutes les entrees.
-                        shiny::sliderInput(ns("thresholdLegendSize"), "Titre de la légende:", 
+                        shiny::sliderInput(ns("thresholdLegendSize"), "Titre de la légende :", 
                                     min = 6, max = 20, value = 10, step = 1),
-                        shiny::sliderInput(ns("thresholdLegendTextSize"), "Texte de la légende:",
+                        shiny::sliderInput(ns("thresholdLegendTextSize"), "Texte de la légende :",
                                     min = 6, max = 20, value = 10, step = 1)
                     ),
                     
@@ -800,7 +800,7 @@ mod_threshold_server <- function(id, values) {
                      type = "message", duration = 5)
     hstat_ai_capture(values, "Seuils d'efficacité",
       "Efficacités calculées depuis le témoin (formule d'Abbott)",
-      tables = list("Efficacites" = utils::head(as.data.frame(r), 200)),
+      tables = list("Efficacités" = utils::head(as.data.frame(r), 200)),
       text = attr(r, "message"),
       meta = list(temoin = attr(r, "temoin"), resume = attr(r, "agg"),
                   variables = paste(input$effResponse, collapse = ", ")))
@@ -885,7 +885,7 @@ mod_threshold_server <- function(id, values) {
         feuilles <- list(Efficacites = as.data.frame(r))
         det <- eff_res()
         if (!is.null(det) && !identical(NCOL(det), NCOL(r)))
-          feuilles[["Detail"]] <- as.data.frame(det)
+          feuilles[["Détail"]] <- as.data.frame(det)
         openxlsx::write.xlsx(feuilles, file)
       } else
         utils::write.csv(as.data.frame(r), file, row.names = FALSE,

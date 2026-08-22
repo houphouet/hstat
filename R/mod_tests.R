@@ -341,7 +341,7 @@ mod_tests_ui <- function(id) {
                                                  style = "color:#e65100; margin-top:0;"),
                                               shiny::p(style = "color:#555; font-size:13px;",
                                                 "Une interaction est significative : l\'effet d\'un facteur dépend du niveau de l\'autre. ",
-                                                "Choisissez un facteur a ", shiny::em("fixer"), " et un facteur a ", shiny::em("tester"),
+                                                "Choisissez un facteur à ", shiny::em("fixer"), " et un facteur à ", shiny::em("tester"),
                                                 ", puis cliquez ", shiny::strong("Calculer"), "."),
                                               shiny::uiOutput(ns("manovaSimpleEffectsSelectors")),
                                               shiny::br(),
@@ -974,7 +974,7 @@ mod_posthoc_ui <- function(id) {
                                           shiny::icon("sliders-h", style = "margin-right: 10px;"),
                                           shiny::tags$strong("Options du graphique"),
                                           shiny::tags$span(style = "margin-left:12px; font-size:12px; opacity:.85;",
-                                                    "toute la mise en forme, de la palette a l'export"),
+                                                    "toute la mise en forme, de la palette à l'export"),
                                           shiny::tags$span(style = "margin-left: auto; font-size: 12px; opacity: 0.85;",
                                                     shiny::icon("chevron-down"), " Développer / Réduire")
                                         ),
@@ -2060,7 +2060,7 @@ mod_tests_server <- function(id, values) {
       shiny::showNotification(shiny::HTML(paste0("<b>Erreur(s):</b><br>", paste(errors, collapse = "<br>"))),
                        type = "error", duration = 12)
     if (length(skipped) > 0)
-      shiny::showNotification(paste0("Déjà existante(s): ", paste(skipped, collapse = ", ")),
+      shiny::showNotification(paste0("Déjà existante(s) : ", paste(skipped, collapse = ", ")),
                        type = "warning", duration = 5)
     if (length(added) > 0) {
       values$filteredData      <- df
@@ -2868,7 +2868,7 @@ mod_tests_server <- function(id, values) {
       values$currentTestType <- "non-parametric"
       
       shiny::showNotification(
-        paste("Test Scheirer-Ray-Hare terminé:", length(results_list), "résultat(s) généré(s)"),
+        paste("Test Scheirer-Ray-Hare terminé :", length(results_list), "résultat(s) généré(s)"),
         type = "message",
         duration = 3
       )
@@ -5160,7 +5160,7 @@ mod_tests_server <- function(id, values) {
         hstat_shapiro(residuals_data)
       }
     }, error = function(e) {
-      cat("Erreur dans le test de normalité:", e$message, "\n")
+      cat("Erreur dans le test de normalité :", e$message, "\n")
     })
   })
   
@@ -5222,7 +5222,7 @@ mod_tests_server <- function(id, values) {
       car::leveneTest(residuals ~ fitted_group, data = test_data)
       
     }, error = function(e) {
-      cat("Erreur dans le test d'homogénéité:", e$message, "\n")
+      cat("Erreur dans le test d'homogénéité :", e$message, "\n")
     })
   })
   
@@ -5282,7 +5282,7 @@ mod_tests_server <- function(id, values) {
       lmtest::dwtest(values$currentModel)
       
     }, error = function(e) {
-      cat("Erreur dans le test de Durbin-Watson:", e$message, "\n")
+      cat("Erreur dans le test de Durbin-Watson :", e$message, "\n")
     })
   })
   
@@ -6200,7 +6200,7 @@ mod_tests_server <- function(id, values) {
           if (!is.factor(df_var[[fvar]])) df_var[[fvar]] <- factor(as.character(df_var[[fvar]]))
           df_var[[fvar]] <- droplevels(df_var[[fvar]])
           if (nlevels(df_var[[fvar]]) < 2) {
-            shiny::showNotification(paste0("PostHoc '", fvar, "': moins de 2 niveaux après nettoyage."), type="warning", duration=4)
+            shiny::showNotification(paste0("PostHoc '", fvar, "' : moins de 2 niveaux après nettoyage."), type="warning", duration=4)
             next
           }
           if (nrow(df_var) < 4) { next }
@@ -6218,7 +6218,7 @@ mod_tests_server <- function(id, values) {
                                 "regw" = agricolae::REGW.test,
                                 "waller" = agricolae::waller.test)
               if (length(levels(df[[fvar]])) < 2) {
-                shiny::showNotification(paste0("PostHoc '", fvar, "': moins de 2 niveaux, test ignoré."), type="warning", duration=4)
+                shiny::showNotification(paste0("PostHoc '", fvar, "' : moins de 2 niveaux, test ignoré."), type="warning", duration=4)
                 next
               }
               # Ajustement des p-values : LSD accepte p.adj ; les autres
@@ -6415,7 +6415,7 @@ mod_tests_server <- function(id, values) {
             # SI INTERACTION SIGNIFICATIVE : DÉCOMPOSITION BIDIRECTIONNELLE 
             if (!is.na(interaction_pvalue) && interaction_pvalue < 0.05) {
               shiny::showNotification(
-                paste0("[OK] Interaction significative détectée: ", fvar1, " x ", fvar2, 
+                paste0("[OK] Interaction significative détectée : ", fvar1, " x ", fvar2, 
                        " (p = ", round(interaction_pvalue, 4), ")\n",
                        "-> Décomposition bidirectionnelle en cours..."),
                 type = "warning", duration = 5
@@ -6496,7 +6496,7 @@ mod_tests_server <- function(id, values) {
               )
             } else if (!is.na(interaction_pvalue)) {
               shiny::showNotification(
-                paste0("[--] Interaction non significative: ", fvar1, " x ", fvar2, 
+                paste0("[--] Interaction non significative : ", fvar1, " x ", fvar2, 
                        " (p = ", round(interaction_pvalue, 4), ")"),
                 type = "default", duration = 3
               )
@@ -6535,7 +6535,7 @@ mod_tests_server <- function(id, values) {
             if (vname %in% names(log_bt)) {
               entry  <- log_bt[[vname]]
               rows_v <- combined_results$Variable == vname
-              for (col in c("Moyenne", "Erreur_type", "Écart_type")) {
+              for (col in c("Moyenne", "Erreur_type", "Ecart_type")) {
                 if (col %in% names(combined_results)) {
                   vals_orig <- as.numeric(combined_results[rows_v, col])
                   combined_results[rows_v, col] <- round(
@@ -6545,10 +6545,10 @@ mod_tests_server <- function(id, values) {
                     ), 4)
                 }
               }
-              if (all(c("Moyenne","Écart_type","Erreur_type","groups") %in% names(combined_results))) {
-                combined_results[rows_v, "Moyenne±Écart_type"]  <- paste0(
+              if (all(c("Moyenne","Ecart_type","Erreur_type","groups") %in% names(combined_results))) {
+                combined_results[rows_v, "Moyenne±Ecart_type"]  <- paste0(
                   combined_results[rows_v,"Moyenne"], "±",
-                  combined_results[rows_v,"Écart_type"], " ",
+                  combined_results[rows_v,"Ecart_type"], " ",
                   combined_results[rows_v,"groups"])
                 combined_results[rows_v, "Moyenne±Erreur_type"] <- paste0(
                   combined_results[rows_v,"Moyenne"], "±",
@@ -7151,7 +7151,7 @@ mod_tests_server <- function(id, values) {
     
     if (nrow(main_data) == 0) return(NULL)
     
-    cols_to_show <- c("Variable", "Facteur", "Moyenne", "Écart_type", "Erreur_type", "CV", "groups", "N", "Moyenne±Écart_type", "Moyenne±Erreur_type")
+    cols_to_show <- c("Variable", "Facteur", "Moyenne", "Ecart_type", "Erreur_type", "CV", "groups", "N", "Moyenne±Ecart_type", "Moyenne±Erreur_type")
     
     for (fvar in input$multiFactor) {
       if (fvar %in% colnames(main_data)) {
@@ -7183,7 +7183,7 @@ mod_tests_server <- function(id, values) {
     if (isTRUE(input$multiRoundResults)) {
       dec <- if (is.null(input$multiDecimals) || is.na(input$multiDecimals)) 2
       else as.integer(input$multiDecimals)
-      round_cols <- intersect(c("Moyenne", "Écart_type", "Erreur_type", "CV"),
+      round_cols <- intersect(c("Moyenne", "Ecart_type", "Erreur_type", "CV"),
                               cols_to_show)
       if (length(round_cols) > 0)
         dt <- dt %>% DT::formatRound(columns = round_cols, digits = dec)
@@ -7215,7 +7215,7 @@ mod_tests_server <- function(id, values) {
     }
     
     cols_to_show <- c("Variable", "Facteur", "Direction", "Interaction_base", "P_interaction", 
-                      "Moyenne", "Écart_type", "Erreur_type", "CV", "groups", "N", "Moyenne±Écart_type", "Moyenne±Erreur_type")
+                      "Moyenne", "Ecart_type", "Erreur_type", "CV", "groups", "N", "Moyenne±Ecart_type", "Moyenne±Erreur_type")
     
     for (fvar in input$multiFactor) {
       if (fvar %in% colnames(simple_data)) {
@@ -7243,7 +7243,7 @@ mod_tests_server <- function(id, values) {
     if (isTRUE(input$multiRoundResults)) {
       dec <- if (is.null(input$multiDecimals) || is.na(input$multiDecimals)) 2
       else as.integer(input$multiDecimals)
-      round_cols <- intersect(c("Moyenne", "Écart_type", "Erreur_type", "CV", "P_interaction"),
+      round_cols <- intersect(c("Moyenne", "Ecart_type", "Erreur_type", "CV", "P_interaction"),
                               cols_to_show)
       if (length(round_cols) > 0)
         dt <- dt %>% DT::formatRound(columns = round_cols, digits = dec)
@@ -7402,7 +7402,7 @@ mod_tests_server <- function(id, values) {
     }
     
     shiny::selectInput(ns("selectedSimpleEffect"), 
-                "Sélectionner l'effet simple:",
+                "Sélectionner l'effet simple :",
                 choices = factors,
                 width = "100%")
   })
@@ -7852,7 +7852,7 @@ mod_tests_server <- function(id, values) {
 
     required_cols <- c(fvar, "Moyenne")
     if (!all(required_cols %in% colnames(agg))) {
-      missing <- setdiff(c(fvar, "Moyenne", "Écart_type", "Erreur_type", "groups"), colnames(agg))
+      missing <- setdiff(c(fvar, "Moyenne", "Ecart_type", "Erreur_type", "groups"), colnames(agg))
       posthoc_plot_msg(paste0(
         "Ce graphique ne peut pas être tracé : les résultats ne contiennent pas les colonnes attendues (",
         paste(missing, collapse = ", "),
@@ -7861,7 +7861,7 @@ mod_tests_server <- function(id, values) {
     }
     # Colonnes secondaires optionnelles : on les cree vides si absentes pour ne pas
     # bloquer le trace d'une ANOVA valide qui n'aurait pas tout fourni.
-    if (!"Écart_type" %in% colnames(agg))  agg[["Écart_type"]]  <- NA_real_
+    if (!"Ecart_type" %in% colnames(agg))  agg[["Ecart_type"]]  <- NA_real_
     if (!"Erreur_type" %in% colnames(agg)) agg[["Erreur_type"]] <- NA_real_
     if (!"groups" %in% colnames(agg))      agg[["groups"]]      <- ""
     if (!fvar %in% colnames(plot_data) || !resp_var %in% colnames(plot_data)) {
@@ -7941,9 +7941,9 @@ mod_tests_server <- function(id, values) {
       custom_title
     } else {
       if (input$plotDisplayType == "main") {
-        paste("Effet principal:", resp_var, "par", fvar)
+        paste("Effet principal :", resp_var, "par", fvar)
       } else {
-        paste("Effet simple:", resp_var, "-", input$selectedSimpleEffect)
+        paste("Effet simple :", resp_var, "-", input$selectedSimpleEffect)
       }
     }
     

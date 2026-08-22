@@ -288,7 +288,7 @@ mod_filter_server <- function(id, values) {
       values$filteredData <- filtered
       
       shiny::showNotification(
-        paste("Filtre par valeur appliqué:", nrow(filtered), "lignes trouvées avec", length(search_values), "valeur(s)"),
+        paste("Filtre par valeur appliqué :", nrow(filtered), "lignes trouvées avec", length(search_values), "valeur(s)"),
         type = "message",
         duration = 5
       )
@@ -340,7 +340,7 @@ mod_filter_server <- function(id, values) {
       values$filteredData <- filtered
       
       shiny::showNotification(
-        paste("Filtre par colonnes appliqué:", length(input$selectedColumns), "colonnes sélectionnées"),
+        paste("Filtre par colonnes appliqué :", length(input$selectedColumns), "colonnes sélectionnées"),
         type = "message",
         duration = 5
       )
