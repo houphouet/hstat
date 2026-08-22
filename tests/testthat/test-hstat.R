@@ -8012,3 +8012,35 @@ test_that("une colonne creee et une colonne lue portent le meme nom", {
                                    ") "), fautifs)]
   expect_equal(fautifs, character(0))
 })
+
+test_that("la traduction anglaise est coherente et typographiee en anglais", {
+  d <- hstat_i18n_load()
+  skip_if(is.null(d) || !nrow(d))
+
+  # 1. Les marqueurs de sprintf survivent : une traduction qui en perd un
+  #    ferait tomber toute la sortie sur « too few arguments ».
+  marq <- function(x) vapply(regmatches(x, gregexpr("%[-0-9.]*[sdfgeix]", x)),
+                             paste, character(1), collapse = "")
+  expect_equal(marq(d$fr), marq(d$en))
+
+  # 2. La ponctuation francaise ne passe pas la frontiere : l'anglais ne met
+  #    pas d'espace avant « : ; ! ? », ni avant le pour-cent.
+  expect_equal(d$en[grepl("[^ [:punct:]] [:;!?][^\")]", d$en)], character(0))
+  expect_equal(d$en[grepl("[0-9] %[^%s]", d$en)], character(0))
+
+  # 3. Les deux-points annoncent un champ : ils ne disparaissent pas a la
+  #    traduction. « Seuil : » rendu « Threshold » perd le signe.
+  fr2p <- grepl("[[:space:]]*:[[:space:]]*$", d$fr)
+  expect_equal(d$en[fr2p & !grepl(":[[:space:]]*$", d$en)], character(0))
+
+  # 4. Un terme, un mot. « graphique » etait rendu tantot « chart », tantot
+  #    « plot » : le lecteur croit lire deux notions.
+  g <- d$en[grepl("graphique", d$fr, ignore.case = TRUE)]
+  expect_equal(g[grepl("\\bcharts?\\b", g, ignore.case = TRUE)], character(0))
+  # « repetition » n'est pas le mot du plan d'experience : c'est « replicate ».
+  r <- d$en[grepl("r[ée]p[ée]tition", d$fr, ignore.case = TRUE)]
+  expect_equal(r[grepl("\\brepetitions?\\b", r, ignore.case = TRUE)], character(0))
+  # « jeu de donnees » : un seul mot anglais.
+  j <- d$en[grepl("jeu de donn[ée]es", d$fr, ignore.case = TRUE)]
+  expect_equal(j[grepl("\\bdata sets?\\b", j, ignore.case = TRUE)], character(0))
+})
