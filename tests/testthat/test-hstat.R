@@ -4051,6 +4051,51 @@ test_that("le script du journal reste executable quel que soit le nom de colonne
   expect_equal(.hstat_rlog_nom(c("x", "a b")), c("x", "`a b`"))
 })
 
+test_that("la taille d'effet MANOVA ne s'invente pas un effet total", {
+  # eta² partiel = 1 - Wilks^(1/s), s = min(p, ddl du numerateur).
+  # Valeurs posees a la main : Wilks = 0,5 et s = 2 donnent 1 - sqrt(0,5).
+  d <- data.frame(Wilks = c(0.5, 0.9, 1.0), Pillai = c(0.5, 0.1, 0.0),
+                  ddl_num = c(2, 2, 2))
+  r <- manova_effect_sizes(d, p = 3)
+  expect_equal(r$eta2_partial[1], 1 - sqrt(0.5))
+  expect_equal(r$eta2_pillai[1], 0.25)
+  # Wilks = 1 : aucune variance expliquee, eta² nul. La borne basse.
+  expect_equal(r$eta2_partial[3], 0)
+  # s = min(p, ddl) : avec p = 1, s vaut 1 quel que soit le ddl.
+  expect_equal(manova_effect_sizes(d, p = 1)$eta2_partial[1], 0.5)
+
+  # UN DEGRE DE LIBERTE DEGENERE NE DOIT PAS PRODUIRE UN EFFET MAXIMAL.
+  # s = 0 donne Wilks^(1/0) = Wilks^Inf = 0, donc eta² = 1 -- la taille
+  # d'effet la plus forte possible, tiree d'une statistique non calculable,
+  # et qu'`interpret_manova_effect()` qualifierait d'« important ». Et
+  # Pillai / 0 rend Inf. NA se voit ; 1,00 se croit.
+  z <- manova_effect_sizes(
+         data.frame(Wilks = 0.5, Pillai = 0.5, ddl_num = 0), p = 3)
+  expect_true(is.na(z$eta2_partial))
+  expect_true(is.na(z$eta2_pillai))
+  expect_false(any(is.infinite(c(z$eta2_partial, z$eta2_pillai))))
+  # Un ddl manquant se comporte pareil.
+  na <- manova_effect_sizes(
+          data.frame(Wilks = 0.5, Pillai = 0.5, ddl_num = NA_real_), p = 3)
+  expect_true(is.na(na$eta2_partial))
+})
+
+test_that("l'interpretation d'un effet MANOVA change de palier aux bons seuils", {
+  # Seuils de Cohen : 0,01 / 0,06 / 0,14. Un palier deplace laisse une phrase
+  # parfaitement lisible -- seule la paire (juste avant / juste apres) le voit.
+  expect_match(interpret_manova_effect(0.01, 0.009), "négligeable")
+  expect_match(interpret_manova_effect(0.01, 0.010), "faible")
+  expect_match(interpret_manova_effect(0.01, 0.059), "faible")
+  expect_match(interpret_manova_effect(0.01, 0.060), "modéré")
+  expect_match(interpret_manova_effect(0.01, 0.139), "modéré")
+  expect_match(interpret_manova_effect(0.01, 0.140), "important")
+  # La significativite est portee a part de la taille d'effet.
+  expect_match(interpret_manova_effect(0.049), "significatif")
+  expect_match(interpret_manova_effect(0.050), "non significatif")
+  # Et une p-value absente ne fait pas tomber la ligne.
+  expect_match(interpret_manova_effect(NA), "non disponible")
+})
+
 test_that("l'accord entre partitions ne depend pas du nom des groupes", {
   # C'EST TOUT L'INTERET DE L'INDICE DE RAND, et la raison pour laquelle il
   # est employe ici : les etiquettes de classe sont ARBITRAIRES -- un k-means

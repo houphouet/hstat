@@ -2155,6 +2155,14 @@ manova_format_all_stats <- function(fit) {
 #' @param p nombre de réponses
 manova_effect_sizes <- function(df, p) {
   s <- pmin(p, df$ddl_num)
+  # s = 0 -- un degré de liberté dégénéré -- donnerait Wilks^(1/0), soit
+  # Wilks^Inf, donc eta² = 1 : la taille d'effet MAXIMALE, produite par une
+  # statistique non calculable, et que `interpret_manova_effect()` qualifierait
+  # d'« important ». Pillai / 0 rendrait `Inf` dans le tableau de résultats.
+  # Le cas ne se présente pas par `manova_format_all_stats()`, qui écarte la
+  # ligne « Residuals » et ne rend donc que des effets à ddl >= 1 ; la garde
+  # est là parce qu'un chiffre faux et péremptoire est le pire des retours.
+  s[!is.finite(s) | s <= 0] <- NA_real_
   df$eta2_partial <- 1 - df$Wilks^(1 / s)
   df$eta2_pillai  <- df$Pillai / s   # eta² partiel basé sur Pillai
   df

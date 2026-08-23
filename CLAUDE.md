@@ -1556,7 +1556,22 @@ Sur 116 des 211 fonctions de `R/utils.R`, **aucun test n'appelle la fonction
 directement**. Beaucoup sont des aides d'interface, mais pas toutes :
 `multivariate_normality_mardia`, `box_m_test`, `permdisp_test`,
 `hstat_silhouette_mean`, `hstat_cophenetic_corr` portent de vraies statistiques.
-C'est le prochain gisement.
+
+#### Une taille d'effet de 1,00 tirée d'un degré de liberté nul
+
+Première prise dans ce gisement. `manova_effect_sizes()` calcule
+`eta² = 1 - Wilks^(1/s)` avec `s = min(p, ddl_num)`, sans garde sur `s`. À
+`s = 0`, `Wilks^(1/0)` vaut `Wilks^Inf`, donc **0**, donc `eta² = 1` — la taille
+d'effet **maximale**, que `interpret_manova_effect()` qualifie d'« important ».
+`Pillai / 0` sort en `Inf` dans la même ligne.
+
+Le cas n'est **pas atteignable** par le chemin de l'application :
+`manova_format_all_stats()` écarte la ligne « Residuals » et ne rend que des
+effets à `ddl >= 1`. Le défaut est donc latent — et corrigé quand même, parce
+que le mode de défaillance est le pire qui soit : pas une erreur, pas un vide,
+mais **le chiffre le plus péremptoire possible**. C'est la même famille que le
+témoin nul à `−Inf` et que le kappa à `NaN` ; la règle « ne jamais brancher sur
+une statistique non calculable » vaut aussi pour ce qu'on affiche.
 
 ### Trois défauts trouvés par l'audit, tous du même genre
 
