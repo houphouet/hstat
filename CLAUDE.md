@@ -1321,20 +1321,75 @@ qu'un affichage est vide, vérifier le DOM avant de conclure.** Un champ de
 saisie, un `<svg>`, un pseudo-élément CSS ne rendent rien à `innerText` et sont
 pourtant parfaitement visibles.
 
+### Le chemin de convergence de l'EM est un choix, et il a été mesuré
+
+HStat part de la mortalité du témoin. Quand celle-ci vaut **zéro** — le cas de
+l'essai de référence — l'étape [E] rend des poids nuls et `c` ne bouge plus :
+l'ajustement converge en **trois** boucles, sur la vraisemblance la plus haute.
+
+WIN DL, lui, en annonce **75**. La cause est identifiée : son `c` de départ
+n'est pas nul, l'EM rampe alors vers la borne, et **il s'arrête avant le
+maximum** — sa log-vraisemblance imprimée (−105,63592) est plus basse que celle
+que HStat atteint (−105,63582).
+
+Reproduire ce chemin **rapproche** de WIN DL. Sur les 26 grandeurs publiées il
+gagne sur **18**, divise l'écart médian par **3,2** (1,3 × 10⁻⁵ → 4,1 × 10⁻⁶),
+et `a` sort à 2,19760 comme le logiciel l'imprime au lieu de 2,19759.
+
+Mais il **coûte** : sur un essai à réponse plate, il ne converge plus en cent
+itérations là où le départ nul aboutit en trois. C'est pourquoi il est
+**proposé, et non imposé** — le défaut reste le chemin rapide, qui atteint un
+optimum meilleur sur tous les essais essayés. Le réglage « Chemin de
+convergence » ouvre l'autre à qui veut comparer chiffre pour chiffre.
+
+Les deux restent d'ailleurs dans l'enveloppe de conformité : l'écart porte sur
+le sixième chiffre, pas sur un résultat.
+
 ### Le plafond d'itérations est un réglage, pas une constante
 
 Il valait 500 sans que personne puisse le voir ni le changer. Il vaut désormais
 **100 par défaut** et se règle à l'écran — l'essai de référence converge en trois
 boucles, et un plafond qu'on peut lever est ce qu'il faut le jour où un essai
-difficile n'aboutit pas : mieux vaut le lever en connaissance de cause que lire
-« convergence non atteinte » sans pouvoir agir. Un garde-fou le borne à 5 000, et
-toute saisie aberrante (vide, zéro, négative, texte) retombe sur le défaut.
+difficile n'aboutit pas. Un garde-fou le borne à 5 000, et toute saisie aberrante
+(vide, zéro, négative, texte) retombe sur le défaut.
 
 Le plafond de **Newton-Raphson emboîté** dans l'EM reste à **50**, la valeur du
-manuel (« avec 50 itérations maximum ») : c'est une convention du logiciel, pas
-un réglage de confort. Quand Newton-Raphson est l'ajustement lui-même — Abbott,
-mortalité nulle — c'est le plafond choisi par l'utilisateur qui s'applique,
-puisque c'est lui la boucle qu'il regarde converger.
+manuel : c'est une convention du logiciel, pas un réglage de confort. Quand
+Newton-Raphson est l'ajustement lui-même — Abbott, mortalité nulle — c'est le
+plafond choisi par l'utilisateur qui s'applique.
+
+### Les chiffres significatifs sont un réglage d'affichage, et rien de plus
+
+Ils valaient 5 ou 6 selon les tables, en dur. Un seul réglage les gouverne
+désormais toutes, borné entre 1 et 15. **Les exports Excel et CSV gardent la
+précision complète** : arrondir une donnée exportée la ferait diverger du calcul
+dont elle sort.
+
+### Trois défauts trouvés par l'audit, tous du même genre
+
+Aucun ne lève, aucun ne laisse un vide : tous les trois rendent un résultat
+**plausible et faux**, ce qui est la forme la plus coûteuse.
+
+1. **Un seuil de dose létale hors de `]0 ; 100[`** rendait une ligne de `NaN`.
+   Une dose létale à 0 % ou à 100 % n'existe pas — l'inverse normale y vaut
+   l'infini — et au-delà de 100 % c'est une faute de frappe. Les seuils écartés
+   sont maintenant **nommés** sous le tableau.
+2. **Une liste de seuils vide levait** « invalid argument to unary operator » :
+   le champ qu'on efface pour le retaper faisait tomber tout le tableau.
+   L'interface filtrait avant d'appeler — mais elle n'est pas le seul appelant,
+   et c'est justement ce filtre qui empêchait de nommer ce qui était écarté. Le
+   filtre est descendu dans la fonction, où il appartient.
+3. **Un essai de référence hors bornes retombait sur le premier.** Demander le
+   rapport de puissance par rapport à l'essai 99 sur un jeu qui en compte deux
+   rendait le tableau du premier, sa colonne « Référence » cochée sur lui.
+   C'est le défaut le plus difficile à voir : rien n'est vide, rien ne lève.
+   Un test **exigeait** ce repli — je l'avais écrit ainsi, et c'était un mauvais
+   choix ; il exige désormais le refus.
+
+Plus une gêne : une **palette inconnue** de RColorBrewer faisait avertir ggplot
+à chaque tracé et rendait un graphique gris. L'interface n'offre que des noms
+valides, mais la fonction est publique et un avertissement par tracé s'accumule
+dans la console d'un serveur partagé.
 
 ### Le mode guidé, et les limites héritées
 
