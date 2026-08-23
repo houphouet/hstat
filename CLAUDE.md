@@ -1250,6 +1250,43 @@ l'écarter en silence perdrait la **mortalité naturelle** de l'essai — celle 
 change toute la courbe de réponse. `hstat_dl50_depuis_donnees()` l'extrait et
 en fait le témoin.
 
+### Erreur-type et écart-type ne mesurent pas la même chose
+
+Les confondre est l'erreur classique du bioessai, et elle change la conclusion :
+
+- l'**erreur-type** mesure la **précision de l'estimation**. Elle diminue quand
+  on teste plus d'individus ; c'est elle qui fonde les intervalles de
+  confiance, et c'est elle que WIN DL imprime sous le nom « Écart-type ».
+- l'**écart-type** mesure la **dispersion des sensibilités** dans la
+  population. Dans le modèle probit, les log-tolérances suivent une loi normale
+  de moyenne `−a/b` et d'écart-type `1/b` (Finney, 1971) : il vaut donc `1/b`,
+  il est **le même pour toutes les doses létales**, et il ne diminue **pas**
+  quand on teste plus d'individus. Une population hétérogène garde un grand
+  écart-type même mesurée parfaitement.
+
+La vérification qui les sépare, et que le test porte : `10^(log DL50 ± 1/b)`
+rend exactement la **DL84** et la **DL16**. L'écart-type décrit la courbe, pas
+l'essai.
+
+Piège posé par intuition, et faux : l'erreur-type **n'est pas minimale à la
+DL50**. `var(m)` est un polynôme du second degré en `m`, minimal en
+`m* = −Vab/Vbb`, qui ne coïncide avec la DL50 que si la covariance de `a` et
+`b` l'y met. Sur l'essai de référence, la DL90 est estimée plus précisément que
+la DL50.
+
+### Un tableau de résultats se recopie, un paragraphe non
+
+Les paramètres statistiques vivent dans **un tableau**, pas seulement dans le
+résumé en prose : un chiffre lu dans un paragraphe ne se recopie pas dans un
+rapport et ne s'exporte pas. Le résumé reste au-dessus pour la lecture rapide ;
+le tableau porte les vingt valeurs, et c'est lui qui part en CSV et en Excel.
+
+Détail de mise en forme qui a son importance : le tableau mêle des grandeurs
+(2,19759), des probabilités (0,05) et des **entiers** (5 degrés de liberté).
+Un format à décimales fixes écrivait « 5.00000 » degrés de liberté — on doute
+d'un chiffre affiché comme s'il avait cinq décimales. La mise en forme est donc
+faite à l'affichage seulement ; le tableau exporté reste numérique.
+
 ### Les listes existent pour que la sélection fonctionne
 
 Ce sont deux pièces de WIN DL qui n'ont l'air de rien et qui se tiennent l'une

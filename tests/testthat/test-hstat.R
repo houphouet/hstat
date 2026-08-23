@@ -8382,10 +8382,142 @@ test_that("l'ajustement probit reproduit les resultats de WIN DL", {
   dl <- hstat_dl50_doses_letales(f)
   expect_equal(dl$Seuil, c(90, 50, 10))
   expect_equal(dl$Log_dose, c(-9.41099e-01, -2.25814e+00, -3.57517e+00), tolerance = 1e-3)
-  expect_equal(dl$Ecart_type, c(2.92820e-01, 6.71583e-01, 1.45538e+00), tolerance = 1e-3)
+  # Ce que WIN DL imprime sous le nom « Ecart-type » est l'ERREUR-TYPE de
+  # l'estimation : c'est elle qui fonde les intervalles de confiance, et elle
+  # diminue quand on teste plus d'individus.
+  expect_equal(dl$Erreur_type, c(2.92820e-01, 6.71583e-01, 1.45538e+00), tolerance = 1e-3)
   expect_equal(dl$Dose, c(1.14525e-01, 5.51905e-03, 2.65967e-04), tolerance = 1e-3)
   expect_equal(dl$Limite_inf, c(3.05474e-02, 2.66417e-04, 3.73502e-07), tolerance = 1e-2)
   expect_equal(dl$Limite_sup, c(4.29366e-01, 1.14332e-01, 1.89393e-01), tolerance = 1e-2)
+})
+
+test_that("erreur-type et ecart-type ne mesurent pas la meme chose", {
+  # Les confondre est l'erreur classique du bioessai, et elle change la
+  # conclusion : l'erreur-type mesure la PRECISION DE L'ESTIMATION et diminue
+  # quand on teste plus d'individus ; l'ecart-type mesure la DISPERSION DES
+  # SENSIBILITES dans la population et ne diminue pas.
+  f <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  dl <- hstat_dl50_doses_letales(f)
+
+  # L'ecart-type des tolerances vaut 1/b : il est le MEME pour toutes les
+  # doses letales, parce qu'il est une propriete de la pente, pas du seuil.
+  expect_equal(unique(dl$Ecart_type), 1 / abs(f$b))
+  expect_equal(length(unique(dl$Ecart_type)), 1L)
+  # L'erreur-type, elle, change d'un seuil a l'autre. Elle n'est PAS minimale a
+  # la DL50 -- on le croit, et c'est faux : var(m) est un polynome du second
+  # degre en m, minimal en m* = -Vab/Vbb, qui ne coincide avec la DL50 que si
+  # la covariance de a et b l'y met. Sur l'essai de reference, la DL90 est plus
+  # precise que la DL50.
+  expect_gt(length(unique(dl$Erreur_type)), 1L)
+  m_etoile <- -f$Vh[1, 2] / f$Vh[2, 2]
+  expect_equal(which.min(dl$Erreur_type),
+               which.min(abs(dl$Log_dose - m_etoile)))
+  expect_gt(abs(dl$Log_dose[dl$Seuil == 50] - m_etoile), 0.5)
+
+  # La verification qui les separe : 10^(log DL50 +/- 1/b) rend exactement la
+  # DL84 et la DL16 -- l'ecart-type decrit la courbe, pas l'essai.
+  m50 <- dl$Log_dose[dl$Seuil == 50]
+  s <- dl$Ecart_type[1]
+  attendu <- hstat_dl50_doses_letales(f, seuils = c(pnorm(1) * 100, pnorm(-1) * 100))
+  expect_equal(10^(m50 + s), attendu$Dose[1], tolerance = 1e-8)
+  expect_equal(10^(m50 - s), attendu$Dose[2], tolerance = 1e-8)
+
+  # Et l'erreur-type SEULE diminue quand on double les effectifs : c'est ce qui
+  # distingue une estimation plus precise d'une population plus homogene.
+  e2 <- hstat_dl50_essai(c(0.00063, 0.00125, 0.0025, 0.005, 0.01, 0.02, 0.03),
+                         rep(250, 7), c(50, 70, 90, 110, 140, 180, 200), 250, 0)
+  d2 <- hstat_dl50_doses_letales(hstat_dl50_ajuste(e2, "em"))
+  expect_lt(d2$Erreur_type[d2$Seuil == 50], dl$Erreur_type[dl$Seuil == 50])
+  expect_equal(d2$Ecart_type[1], dl$Ecart_type[1], tolerance = 0.05)
+
+  # Les deux colonnes « ± » encadrent la dose, et celle de l'erreur-type est
+  # la plus etroite des deux ici (l'essai est petit mais la pente est faible).
+  expect_true(all(nzchar(dl$DL_ecart_type)))
+  expect_true(all(nzchar(dl$DL_erreur_type)))
+  expect_true(all(grepl("–", dl$DL_ecart_type, fixed = TRUE)))
+})
+
+test_that("le tableau des parametres porte toutes les statistiques", {
+  # Un chiffre lu dans un paragraphe ne se recopie pas dans un rapport et ne
+  # s'exporte pas : le tableau doit les porter tous.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  mod <- paste(readLines(file.path(root, "R", "mod_dl50.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  for (cle in c("Terme constant (a)", "Pente (b)", "Mortalité naturelle (c)",
+                "Écart-type des tolérances (1/b)", "Covariance a-b (Vab)",
+                "Log-vraisemblance du modèle (H0)", "Log-vraisemblance saturée (H1)",
+                "Chi-2 d'ajustement", "Degrés de liberté",
+                "Probabilité de dépassement du Chi-2", "Facteur d'hétérogénéité",
+                "Quantile employé pour les intervalles", "Risque α",
+                "Nombre de doses", "Itérations"))
+    expect_true(grepl(cle, mod, fixed = TRUE), info = cle)
+})
+
+test_that("chaque reglage du graphique est declare, lu et observe", {
+  # Un reglage que le reactif n'observe pas se change sans que l'image bouge.
+  # Le balayage exige les trois : declare dans l'interface, lu dans le reactif
+  # d'options, et pris en compte par la fonction de trace.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- paste(readLines(file.path(root, "R", "mod_dl50.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  ui <- regmatches(src, gregexpr('ns\\("(g[A-Za-z0-9]+)"\\)', src, perl = TRUE))[[1]]
+  ui <- unique(sub('.*ns\\("([^"]+)"\\).*', "\\1", ui))
+  # Les identifiants d'export et la sortie du graphique ne sont pas des
+  # reglages de trace : ils ont leur propre chemin.
+  ui <- setdiff(ui, c("graphe", "gDl", "gTaille", "gFmt", "gLargeur",
+                      "gHauteur", "gDpi", "gQualite", "gCompression", "gTous"))
+  # Le reactif d'options est le SEUL endroit ou les reglages sont lus : c'est
+  # donc lui qu'on balaie. Chercher « input$<id> » ne suffirait pas -- la
+  # plupart passent par `nb("<id>", defaut)`, donc par `input[[id]]`.
+  deb <- regexpr("graphe_opt <- shiny::reactive({", src, fixed = TRUE)
+  expect_gt(deb, 0)
+  # La fin se cherche APRES le debut, et sur une chaine que rien d'autre ne
+  # contient : « graphe <- shiny::reactive({ » est un morceau de
+  # « fits_graphe <- shiny::reactive({ », et le decoupage rendait un bloc VIDE
+  # -- un test qui ne balaie rien passe toujours, sauf quand il tombe a
+  # l'envers.
+  reste <- substr(src, deb, nchar(src))
+  fin <- regexpr("\n    graphe <- shiny::reactive({", reste, fixed = TRUE)
+  expect_gt(fin, 0)
+  corps <- substr(reste, 1, fin)
+  expect_gt(nchar(corps), 1000)
+  lus <- vapply(ui, function(id)
+    grepl(paste0('"', id, '"'), corps, fixed = TRUE) ||
+    grepl(paste0("input$", id), corps, fixed = TRUE), logical(1))
+  expect_equal(ui[!lus], character(0),
+               info = paste("Réglages déclarés mais jamais lus par le réactif :",
+                            paste(ui[!lus], collapse = ", ")))
+  # Chaque cle de la liste d'options a une valeur par defaut declaree, et la
+  # fonction de trace s'en sert : une cle absente du defaut serait NULL.
+  expect_true(all(names(HSTAT_DL50_OPT_DEFAUT) %in% names(.hstat_dl50_opt())))
+  o <- .hstat_dl50_opt(list(titre = "Essai", point_taille = 9))
+  expect_equal(o$titre, "Essai")
+  expect_equal(o$point_taille, 9)
+  expect_equal(o$theme, HSTAT_DL50_OPT_DEFAUT$theme)
+})
+
+test_that("le graphique se trace avec les reglages, et les limites sont en doses", {
+  skip_if_not_installed("ggplot2")
+  f <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  p <- hstat_dl50_graphique(list(f))
+  expect_s3_class(p, "ggplot")
+  # Les limites de l'axe des doses se saisissent EN DOSES : personne ne
+  # raisonne en log10 devant un plan d'essai.
+  p2 <- hstat_dl50_graphique(list(f), list(x_min = 0.001, x_max = 0.1))
+  expect_s3_class(p2, "ggplot")
+  expect_equal(p2$coordinates$limits$x, log10(c(0.001, 0.1)), tolerance = 1e-9)
+  # Une fenetre vide ne rend pas un graphique faux : elle ne rend rien.
+  expect_null(hstat_dl50_graphique(list(f), list(x_min = 1, x_max = 0.001)))
+  expect_null(hstat_dl50_graphique(list()))
+  # Chaque famille de reglages se pose sans lever.
+  for (o in list(list(points = FALSE, droite = FALSE, bande = FALSE),
+                 list(courbe = TRUE, reperes = FALSE, axe2 = FALSE),
+                 list(grille = FALSE, legende_pos = "none", theme = "classic"),
+                 list(point_forme = "17", droite_type = "dashed",
+                      grad_x_angle = 45, titre = "T", sous_titre = "S")))
+    expect_s3_class(hstat_dl50_graphique(list(f), o), "ggplot")
 })
 
 test_that("la matrice d'information est assemblee sur les doses seules", {
