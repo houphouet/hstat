@@ -8381,14 +8381,125 @@ test_that("l'ajustement probit reproduit les resultats de WIN DL", {
 
   dl <- hstat_dl50_doses_letales(f)
   expect_equal(dl$Seuil, c(90, 50, 10))
-  expect_equal(dl$Log_dose, c(-9.41099e-01, -2.25814e+00, -3.57517e+00), tolerance = 1e-3)
+  # LES TOLERANCES SONT SERREES A DESSEIN. Elles valaient 1e-3 sur les doses
+  # letales et 1e-2 sur leurs bornes tant que HStat inversait la normale
+  # EXACTEMENT alors que WIN DL emploie l'approximation de HASTINGS : l'ecart
+  # etait de 1,8e-4 en probit, soit 2e-4 en relatif sur la DL90. Depuis que
+  # `.hstat_dl50_qnorm()` reprend l'approximation du logiciel, tout est retrouve
+  # a 5e-5 pres -- c'est-a-dire aux six chiffres que WIN DL imprime.
+  #
+  # Relacher ces tolerances laisserait revenir `stats::qnorm` sans que rien ne
+  # le signale, et le module cesserait d'etre comparable au logiciel qu'il
+  # existe pour reproduire.
+  expect_equal(dl$Log_dose, c(-9.41099e-01, -2.25814e+00, -3.57517e+00), tolerance = 3e-5)
   # Ce que WIN DL imprime sous le nom « Ecart-type » est l'ERREUR-TYPE de
   # l'estimation : c'est elle qui fonde les intervalles de confiance, et elle
   # diminue quand on teste plus d'individus.
-  expect_equal(dl$Erreur_type, c(2.92820e-01, 6.71583e-01, 1.45538e+00), tolerance = 1e-3)
-  expect_equal(dl$Dose, c(1.14525e-01, 5.51905e-03, 2.65967e-04), tolerance = 1e-3)
-  expect_equal(dl$Limite_inf, c(3.05474e-02, 2.66417e-04, 3.73502e-07), tolerance = 1e-2)
-  expect_equal(dl$Limite_sup, c(4.29366e-01, 1.14332e-01, 1.89393e-01), tolerance = 1e-2)
+  expect_equal(dl$Erreur_type, c(2.92820e-01, 6.71583e-01, 1.45538e+00), tolerance = 2e-4)
+  expect_equal(dl$Dose, c(1.14525e-01, 5.51905e-03, 2.65967e-04), tolerance = 2e-4)
+  expect_equal(dl$Limite_inf, c(3.05474e-02, 2.66417e-04, 3.73502e-07), tolerance = 2e-4)
+  expect_equal(dl$Limite_sup, c(4.29366e-01, 1.14332e-01, 1.89393e-01), tolerance = 2e-4)
+
+  # Le probit corrige de chaque dose, tel que le logiciel l'imprime -- compare
+  # en ECART ABSOLU : le .PRN n'en donne que quatre decimales, une comparaison
+  # relative se briserait sur la derniere, qui n'est qu'un arrondi.
+  expect_lt(max(abs(f$table$Probit_corrige -
+    c(-0.8415, -0.5825, -0.3580, -0.1507, 0.1506, 0.5825, 0.8415))), 1e-3)
+})
+
+test_that("l'inverse normale est celle de WIN DL, l'approximation de Hastings", {
+  # Le manuel du logiciel l'ecrit : « algorithme d'approximation polynomiale de
+  # la distribution normale inverse de HASTINGS ». C'est la formule 26.2.23
+  # d'Abramowitz & Stegun, d'erreur bornee par 4,5e-4 -- et cette erreur EST
+  # visible a la precision d'impression du logiciel.
+  expect_equal(.hstat_dl50_qnorm(0.5), 0, tolerance = 1e-6)
+  expect_equal(.hstat_dl50_qnorm(0.9), 1.2817288, tolerance = 1e-6)
+  expect_equal(.hstat_dl50_qnorm(0.1), -1.2817288, tolerance = 1e-6)
+  # Symetrique, et croissante.
+  expect_equal(.hstat_dl50_qnorm(0.3), -.hstat_dl50_qnorm(0.7), tolerance = 1e-12)
+  pp <- seq(0.001, 0.999, by = 0.001)
+  expect_true(all(diff(.hstat_dl50_qnorm(pp)) > 0))
+  # Elle reste dans la borne d'erreur annoncee par Abramowitz & Stegun.
+  expect_lt(max(abs(.hstat_dl50_qnorm(pp) - stats::qnorm(pp))), 4.5e-4)
+  # ET ELLE EST DIFFERENTE de la normale exacte la ou cela compte : c'est
+  # precisement cet ecart qui rapproche la DL90 de la valeur publiee.
+  expect_gt(abs(.hstat_dl50_qnorm(0.9) - stats::qnorm(0.9)), 1e-4)
+
+  # LES VALEURS EXTREMES SONT AFFECTEES, pas calculees : le manuel pose
+  # « 6 pour 100 % de mortalite et -6 pour 0 % ». La borne a 1e-12 employee
+  # auparavant rendait +/- 7,0345, un nombre qui ne dependait que d'elle.
+  expect_equal(hstat_dl50_probit(0), -6)
+  expect_equal(hstat_dl50_probit(1), 6)
+  expect_equal(hstat_dl50_probit(-0.2), -6)
+  expect_equal(hstat_dl50_probit(0.5), 0, tolerance = 1e-6)
+  expect_true(is.na(hstat_dl50_probit(NA)))
+
+  # Le quantile de CONFIANCE, lui, reste exact -- et c'est mesure, pas suppose.
+  # Les bornes publiees de la DL50 rendent t = 1,95999 ; la normale exacte donne
+  # 1,959964 et Hastings 1,960395. C'est la premiere qui colle.
+  f <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  expect_equal(f$t, stats::qnorm(0.975), tolerance = 1e-9)
+})
+
+test_that("les essais livres avec WIN DL sont reproduits", {
+  # Le logiciel est livre avec six essais d'exemple qui portent, en fin de
+  # fichier, LES RESULTATS QU'IL A CALCULES : terme constant, pente, DL50 et
+  # ses bornes. Ils couvrent deux cas que le fichier de reference ne couvre
+  # pas -- un essai dont une dose tue TOUT (CL94AEN) et un essai dont le
+  # TEMOIN COMPTE DES MORTS (CL97CY03), donc la correction d'Abbott.
+  #
+  # Ces resultats-la datent du moteur MS-DOS : leurs intervalles sont ceux de
+  # la DELTA-METHODE seule, Fieller n'ayant ete ajoute qu'avec la version
+  # Windows. On confronte donc les estimations ponctuelles et l'ERREUR-TYPE,
+  # qui ne dependent pas de ce choix.
+  ref <- list(
+    list(nom = "CL94ACY", d = c(0.02, 0.01, 0.005, 0.0025, 0.00125, 0.00063),
+         n = rep(25, 6), x = c(18, 14, 11, 9, 7, 5), n0 = 25, x0 = 0,
+         a = 2.01915, b = 0.90698, dl = 0.00594, lo = 0.00336, hi = 0.01051),
+    list(nom = "CL95DEL", d = c(0.00012, 0.00025, 0.0005, 0.001, 0.00215),
+         n = rep(25, 5), x = c(10, 12, 16, 20, 22), n0 = 25, x0 = 0,
+         a = 4.36366, b = 1.19857, dl = 0.00023, lo = 0.00014, hi = 0.0004,
+         # Bornes stockees a DEUX chiffres significatifs : l'erreur-type qu'on
+         # en deduirait porterait leur arrondi, pas le calcul. On ne la
+         # confronte pas ici -- une tolerance assez large pour l'absorber ne
+         # verifierait plus rien.
+         se_verifiable = FALSE),
+    list(nom = "CL94AEN", d = c(10, 4, 2, 1, 0.5, 0.25),
+         n = rep(30, 6), x = c(30, 28, 22, 15, 10, 4), n0 = 25, x0 = 0,
+         a = 0.11299, b = 2.12526, dl = 0.88477, lo = 0.69046, hi = 1.13378),
+    list(nom = "CL97CY03", d = c(0.08476, 0.05053, 0.03423, 0.0163, 0.00848),
+         n = rep(90, 5), x = c(82, 75, 62, 43, 30), n0 = 90, x0 = 4,
+         a = 3.28559, b = 1.87104, dl = 0.01754, lo = 0.01456, hi = 0.02113))
+
+  for (r in ref) {
+    f <- hstat_dl50_ajuste(hstat_dl50_essai(r$d, r$n, r$x, r$n0, r$x0), "abbott")
+    expect_true(isTRUE(f$ok), info = r$nom)
+    expect_equal(f$a, r$a, tolerance = 3e-4, info = r$nom)
+    expect_equal(f$b, r$b, tolerance = 3e-4, info = r$nom)
+    dl <- hstat_dl50_doses_letales(f, 50)
+    # Les DL50 stockees ne portent que deux a trois chiffres significatifs.
+    expect_equal(dl$Dose[1], r$dl, tolerance = 6e-3, info = r$nom)
+
+    # L'ERREUR-TYPE EST LA VERIFICATION QUI COMPTE. Les bornes stockees sont
+    # symetriques en log -- donc issues de la delta-methode -- et l'ecart-type
+    # s'en deduit : (log hi - log lo) / (2 t). Il doit valoir celui de HStat.
+    # C'est cette quantite, et elle seule, qui distingue l'inversion a DEUX
+    # parametres de l'inversion a TROIS : sous Abbott, `c` est declaree, et le
+    # logiciel ne lui fait pas payer d'incertitude -- son manuel le dit
+    # (« ce que la formule d'ABBOTT ne fait pas »), ses chiffres le confirment.
+    if (!identical(r$se_verifiable, FALSE)) {
+      se_ref <- (log10(r$hi) - log10(r$lo)) / (2 * f$t)
+      expect_equal(dl$Erreur_type[1], se_ref, tolerance = 5e-3, info = r$nom)
+    }
+  }
+
+  # ET L'INVERSION A TROIS PARAMETRES EN EST LOIN. Sur l'essai a temoin non nul,
+  # elle gonfle l'erreur-type d'un facteur qui se compte, pas qui se discute.
+  f <- hstat_dl50_ajuste(hstat_dl50_essai(
+    c(0.08476, 0.05053, 0.03423, 0.0163, 0.00848), rep(90, 5),
+    c(82, 75, 62, 43, 30), 90, 4), "abbott")
+  I <- .hstat_dl50_fisher(log10(f$essai$doses$dose), f$essai$doses$n, f$a, f$b, f$c)
+  expect_gt(solve(I)[2, 2] / f$V[2, 2], 5)
 })
 
 test_that("erreur-type et ecart-type ne mesurent pas la meme chose", {
@@ -8419,8 +8530,12 @@ test_that("erreur-type et ecart-type ne mesurent pas la meme chose", {
   m50 <- dl$Log_dose[dl$Seuil == 50]
   s <- dl$Ecart_type[1]
   attendu <- hstat_dl50_doses_letales(f, seuils = c(pnorm(1) * 100, pnorm(-1) * 100))
-  expect_equal(10^(m50 + s), attendu$Dose[1], tolerance = 1e-8)
-  expect_equal(10^(m50 - s), attendu$Dose[2], tolerance = 1e-8)
+  # L'identite est EXACTE dans le modele, et retrouvee ici a la precision de
+  # l'inverse normale employee : `1/b` est calcule exactement, le seuil passe
+  # par l'approximation de Hastings, celle de WIN DL. L'ecart residuel est de
+  # 7e-5 en relatif -- c'est le prix, mesure, de la conformite au logiciel.
+  expect_equal(10^(m50 + s), attendu$Dose[1], tolerance = 1e-3)
+  expect_equal(10^(m50 - s), attendu$Dose[2], tolerance = 1e-3)
 
   # Et l'erreur-type SEULE diminue quand on double les effectifs : c'est ce qui
   # distingue une estimation plus precise d'une population plus homogene.
@@ -8579,7 +8694,9 @@ test_that("la courbe dose-reponse porte la mortalite observee, bornee par 0 et 1
   #    coincident -- l'erreur serait invisible sur les essais les plus propres.
   dl50 <- hstat_dl50_doses_letales(f, 50)$Dose[1]
   attendu <- 100 * hstat_dl50_mortalite(f, dl50)$Mortalite
-  expect_equal(attendu, 100 * (f$c + (1 - f$c) * 0.5), tolerance = 1e-8)
+  # Tolerance a la precision de l'inverse normale de WIN DL : la DL50 passe par
+  # l'approximation de Hastings, la mortalite attendue par `pnorm` exact.
+  expect_equal(attendu, 100 * (f$c + (1 - f$c) * 0.5), tolerance = 1e-4)
   expect_gt(attendu, 50)   # le temoin meurt : le repere est AU-DESSUS de 50 %
 
   # 5. Les bornes de l'axe se saisissent en pourcentage dans les deux cas.
@@ -8683,11 +8800,16 @@ test_that("le journal reconstitue le bioessai, et seulement quand c'est fidele",
   expect_silent(eval(parse(text = paste(code, collapse = "\n")), envir = env))
   m <- get("dl50_modele", envir = env)
   expect_equal(unname(stats::coef(m)), unname(c(f0$a, f0$b)), tolerance = 1e-5)
-  if (requireNamespace("MASS", quietly = TRUE)) {
-    dl <- hstat_dl50_doses_letales(f0, c(10, 50, 90))
-    expect_equal(10^as.numeric(MASS::dose.p(m, p = c(0.1, 0.5, 0.9))),
-                 rev(dl$Dose), tolerance = 1e-5)
-  }
+  # LE SCRIPT PORTE LA MEME INVERSE NORMALE QUE L'APPLICATION. `qnorm()` exact
+  # rendrait des doses letales differentes des le quatrieme chiffre : le script
+  # cesserait de refaire ce que HStat a calcule, ce qui est toute sa raison
+  # d'etre. C'est pourquoi il emet la fonction de Hastings.
+  ab <- stats::coef(m)
+  qh <- get("dl50_qnorm", envir = env)
+  dl <- hstat_dl50_doses_letales(f0, c(10, 50, 90))
+  expect_equal(10^((qh(c(0.1, 0.5, 0.9)) - ab[1]) / ab[2]), rev(dl$Dose),
+               tolerance = 1e-5, ignore_attr = TRUE)
+  expect_equal(qh(0.9), .hstat_dl50_qnorm(0.9), tolerance = 1e-12)
 
   # LES DEUX AUTRES NE SONT PAS RECONSTITUABLES, et on l'ecrit plutot que
   # d'ecrire un glm() plausible : `glm()` ne sait pas ajuster c dans
@@ -8729,7 +8851,10 @@ test_that("Fieller est exact, et cede a la delta-methode quand il n'est plus bor
   # l'estimation -- c'est le premier symptome, et le seul si l'on ne regarde
   # pas le tableau.
   racines <- function(a, b, V, t, p) {
-    y <- stats::qnorm(p)
+    # MEME inverse normale des deux cotes : le module emploie celle de WIN DL
+    # (Hastings), et une racine calculee avec `qnorm` exact comparerait deux
+    # polynomes differents.
+    y <- .hstat_dl50_qnorm(p)
     A <- b^2 - t^2 * V[2, 2]
     B <- -2 * (b * (y - a) + t^2 * V[1, 2])
     C <- (y - a)^2 - t^2 * V[1, 1]

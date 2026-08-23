@@ -915,8 +915,20 @@ hstat_rlog_code <- function(ctx, donnees = "donnees") {
           "dl50_modele <- glm(cbind(dl50_morts, dl50_n - dl50_morts) ~ log10(dl50_dose),",
           "                   family = binomial(link = \"probit\"))",
           "summary(dl50_modele)",
-          "# Doses létales : dose.p rend des log10, d'où la puissance de dix.",
-          "10^as.numeric(MASS::dose.p(dl50_modele, p = c(0.1, 0.5, 0.9)))")
+          "# L'inverse normale est celle de WIN DL — l'approximation polynomiale",
+          "# de Hastings (Abramowitz & Stegun 26.2.23), que le logiciel emploie.",
+          "# `qnorm()` exact donnerait des doses létales différentes dès le",
+          "# quatrième chiffre : le script cesserait de refaire ce que HStat a",
+          "# calculé, ce qui est toute sa raison d'être.",
+          "dl50_qnorm <- function(p) {",
+          "  q <- pmin(pmax(ifelse(p > 0.5, 1 - p, p), 1e-300), 0.5)",
+          "  t <- sqrt(log(1 / q^2))",
+          "  v <- t - (2.515517 + 0.802853 * t + 0.010328 * t^2) /",
+          "           (1 + 1.432788 * t + 0.189269 * t^2 + 0.001308 * t^3)",
+          "  ifelse(p > 0.5, v, -v)",
+          "}",
+          "dl50_ab <- coef(dl50_modele)",
+          "10^((dl50_qnorm(c(0.1, 0.5, 0.9)) - dl50_ab[1]) / dl50_ab[2])")
       else
         c("# NON RECONSTITUÉ : la mortalité naturelle n'est pas nulle dans cet",
           "# ajustement, et le modèle de Finney n'est alors pas un GLM binomial --",

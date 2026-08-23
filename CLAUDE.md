@@ -1199,6 +1199,84 @@ dur dans la suite de tests** : elles ne dépendent d'aucun fichier extérieur,
 sans quoi le test qui garde le noyau ne tournerait pas en intégration
 continue.
 
+### L'inverse normale de WIN DL est celle de Hastings, pas celle de R
+
+C'est la troisième convention, et la plus coûteuse à ignorer. Le manuel l'écrit
+— « algorithme d'approximation polynomiale de la distribution normale inverse de
+HASTINGS » — et les chiffres publiés le confirment. C'est la formule 26.2.23
+d'Abramowitz & Stegun, dont l'erreur absolue est bornée par **4,5 × 10⁻⁴** :
+
+```
+F⁻¹(p) ≈ t − (c₀ + c₁t + c₂t²) / (1 + d₁t + d₂t² + d₃t³),   t = √(ln(1/q²))
+```
+
+Cette erreur **est visible à la précision d'impression du logiciel**. Sur l'essai
+de référence, la DL90 en log-dose :
+
+| normale exacte | Hastings | WIN DL imprime |
+|---|---|---|
+| −0,9412818 | **−0,9410997** | −9,41099e-01 |
+
+L'écart passe de 1,8 × 10⁻⁴ à 7 × 10⁻⁷. C'est ce qui obligeait la suite de tests
+à tolérer 1 % sur des bornes que le logiciel imprime à six chiffres.
+
+**Le prix est nul, et il a été mesuré** : 1,8 × 10⁻⁴ en probit fait 0,04 % sur la
+dose — quatre ordres de grandeur sous l'intervalle de confiance de la DL50
+elle-même, qui couvre un facteur 20 sur cet essai. On ne perd aucune précision
+utile, et on gagne la comparabilité chiffre pour chiffre, qui est la promesse du
+module.
+
+**La réciproque n'est pas reprise.** L'approximation de Hastings pour `F` a une
+erreur de 7,5 × 10⁻⁸, invisible à la précision d'impression : l'employer
+dégraderait la vraisemblance sans rien rapprocher. Le **quantile de confiance**
+non plus — les bornes publiées de la DL50 donnent t = 1,95999, contre 1,959964
+pour la normale exacte et 1,960395 pour Hastings. C'est la première qui colle.
+La frontière est mesurée, pas choisie.
+
+Corollaire pour le journal de reproductibilité : le script émet **la fonction de
+Hastings**, pas `qnorm()`. Un script qui rendrait des doses létales différentes
+dès le quatrième chiffre cesserait de refaire ce que l'application a calculé.
+
+#### Les valeurs extrêmes sont affectées, pas calculées
+
+Le manuel pose « **6 pour 100 % de mortalité et −6 pour 0 %** ». Une mortalité
+corrigée de 0 ou de 1 n'a pas de probit ; la borne à `1e-12` employée jusqu'ici
+rendait ±7,0345, un nombre qui ne dépendait que d'elle.
+
+### Le bilan de la confrontation
+
+Sur le fichier de résultats du logiciel (`CL94AC1.PRN`, méthode EM) :
+**27 grandeurs, écart relatif maximal 2,5 × 10⁻⁴** — et cette valeur-là est le
+Chi-2, que WIN DL n'imprime qu'à trois décimales. Sur les vingt-six autres :
+**5,3 × 10⁻⁵**.
+
+Les six essais livrés avec le logiciel portent en fin de fichier les résultats
+qu'il a calculés. Ils couvrent deux cas que le fichier de référence ne couvre
+pas : un essai dont une dose **tue tout** (CL94AEN) et un essai dont le **témoin
+compte des morts** (CL97CY03), donc la correction d'Abbott. Terme constant,
+pente et DL50 sont retrouvés à 10⁻⁶–2 × 10⁻⁴ près.
+
+**Ces résultats-là datent du moteur MS-DOS** : leurs bornes sont symétriques en
+log, donc issues de la delta-méthode seule — Fieller n'est arrivé qu'avec la
+version Windows, et le manuel le décrit. On confronte donc les estimations
+ponctuelles et l'**erreur-type**, qui n'en dépendent pas.
+
+Et c'est cette erreur-type qui tranche la question laissée ouverte plus haut :
+sous Abbott, elle vaut celle du logiciel **à 0,1 % près** avec l'inversion à deux
+paramètres, et s'en écarte d'un facteur 5 avec celle à trois. Le manuel le disait
+déjà en toutes lettres — l'estimation par EM « permet de prendre en compte
+l'incertitude sur l'estimation de cette mortalité, **ce que la formule d'ABBOTT
+ne fait pas** » — les chiffres du logiciel le confirment.
+
+### « Mortalité nulle » n'est pas une méthode de WIN DL
+
+Le logiciel n'en propose que **deux** pour un essai isolé : Newton-Raphson avec
+Abbott, et EM. La mortalité naturelle fixée à zéro n'y existe que comme l'un des
+trois **scénarios de comparaison** entre essais. C'est donc un ajout de HStat,
+utile — il donne l'ajustement probit nu, celui que `glm(binomial(probit))`
+produit — mais il n'y a rien à comparer côté WIN DL. Le dire évite qu'on cherche
+un désaccord là où il n'y a pas de vis-à-vis.
+
 ### Deux conventions du logiciel, qu'il a fallu retrouver
 
 Aucune des deux ne se devine, et chacune se voit sur les nombres publiés.
