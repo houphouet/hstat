@@ -1367,49 +1367,60 @@ dont elle sort.
 
 ### Relire des assertions ne suffit pas : il faut les faire mordre
 
-Une assertion peut figer un mauvais comportement au lieu de garder un bon —
-c'était le cas du repli sur le premier essai — et cela ne se voit pas à la
-lecture, parce qu'une assertion qui fige une tolérance ressemble exactement à
-une assertion qui garde une règle.
+Une assertion peut figer un mauvais comportement au lieu de garder un bon — le
+repli sur le premier essai en était un — et cela ne se voit pas à la lecture,
+parce qu'une assertion qui fige une tolérance ressemble **exactement** à une
+assertion qui garde une règle.
 
-La méthode qui le voit est la **mutation** : on abîme le module d'une régression
-plausible, et on regarde si la suite s'en aperçoit. Dix-sept mutations ont été
-passées sur le module — inverse normale exacte au lieu de Hastings, probit
-extrême à 7, variances toujours en 3×3, témoin toujours dans la vraisemblance,
-ddl à *n* − 1, Chi-2 de Pearson, Fieller sans son test, arrondi bancaire, seuils
-non filtrés, référence hors bornes tolérée, doses non regroupées, total de doses
-non borné, chemin de WIN DL par défaut, facteur d'hétérogénéité jamais appliqué,
-plafond d'itérations ignoré, pente négative acceptée.
+La méthode qui le voit est la **mutation** : on abîme le code d'une régression
+plausible, et on regarde si la suite s'en aperçoit. **Une mutation qui passe est
+un trou.** `tools/mutation.R` est le banc ; il prend un filtre sur les noms de
+tests, ce qui ramène une passe à une vingtaine de secondes au lieu de trois
+minutes — c'est ce qui rend la méthode praticable, puisqu'il en faut une par
+mutation.
 
-**Seize sur dix-sept étaient attrapées. La dix-septième a livré un défaut.**
+Le banc **source la vraie suite**, il ne réimplémente rien. Une première version
+qui refaisait le chargement rapportait 24 échecs sur du code sain : un banc de
+mesure qui ment est pire que pas de banc.
 
-#### Le refus de pente négative portait sur la mauvaise valeur
+Trois pièges de la méthode, tous rencontrés :
 
-Désactiver le refus sur la pente **initiale** ne faisait échouer aucune
-assertion. La raison : le refus existait en double — sur la valeur de départ et
-sur la valeur ajustée — et aucun test ne les distinguait, si bien qu'en retirer
-un laissait l'autre attraper le cas d'essai.
+1. **Un filtre trop étroit fabrique de faux trous.** Deux mutations sont
+   ressorties « non attrapées » parce que le filtre excluait les tests qui les
+   gardaient. Avant d'annoncer un trou, **relancer sans filtre**.
+2. **Un mutant équivalent n'est pas un trou** — mais il faut le prouver. Retirer
+   la garde de `hstat_coord_mat()` laisse `as.matrix()` rendre la même matrice…
+   à une différence près : la colonne perd son nom. Là, c'était bien un trou.
+3. **Une mutation peut interrompre le chargement** et faire chuter le nombre
+   d'assertions jouées. Un décompte anormalement bas se vérifie avant d'être lu
+   comme un succès.
 
-En regardant ce que ce contrôle gardait, il s'est avéré qu'il **refusait à
-tort**. La valeur de départ vient d'une régression *non pondérée* sur les seules
-doses de mortalité intermédiaire : sur un essai bruité elle sort négative alors
-que l'ajustement rend une pente franchement positive. Mesuré sur quatre mille
-essais tirés au sort, **23 étaient refusés à tort** — et l'un d'eux passait de
-−0,36 au départ à **+2,49** ajusté, avec un message qui accusait l'utilisateur
-d'avoir inversé ses colonnes.
+#### Ce que la méthode a trouvé
 
-Mortalités 0, 5, 7, 5 sur dix individus : 0 %, 50 %, 70 %, 50 %. Bruitée, mais
-croissante. Refusée.
+**Le refus de pente négative portait sur la mauvaise valeur.** Il existait en
+double — valeur de départ et valeur ajustée — et aucun test ne les distinguait,
+si bien qu'en retirer un laissait l'autre attraper le cas d'essai. Le contrôle
+sur la valeur de départ **refusait à tort** : elle vient d'une régression *non
+pondérée* sur les seules doses de mortalité intermédiaire, et sur un essai
+bruité elle sort négative alors que l'ajustement rend une pente franchement
+positive. Mesuré sur quatre mille essais tirés au sort, **23 étaient refusés à
+tort** — l'un d'eux passait de −0,36 au départ à **+2,49** ajusté, avec un
+message qui accusait l'utilisateur d'avoir inversé ses colonnes.
 
-Le refus porte désormais sur la **pente ajustée** seule. Itérer « pour rien »
-coûte cinquante itérations d'une régression pondérée sur quelques doses : rien
-du tout. Un refus à tort, lui, coûte un essai. Deux essais distincts couvrent
-maintenant les deux cas séparément — l'un doit passer, l'autre non.
+**Un témoin nul rendait `−Inf`, et rien ne le voyait.** La règle est écrite ici
+même — « on rend `NA` et on le dit » — et le **message** était bien vérifié.
+Les **valeurs** ne l'étaient pas : retirer le garde-fou ne faisait échouer
+aucune assertion des 987 de la suite, et les efficacités sortaient à `−Inf`
+avec l'alerte affichée à côté. C'est la forme la plus coûteuse : le tableau
+paraît sain parce que le message est là.
 
-Le banc de mutation vit dans le bac à sable, pas dans le dépôt : il substitue
-`test_that` pour n'exécuter que les tests du module, ce qui ramène une passe à
-vingt secondes au lieu de trois minutes. C'est ce qui rend la méthode praticable
-— dix-sept passes en cinq minutes.
+**La colonne d'une coordonnée réduite à un vecteur perdait son nom.** La
+branche « matrice » du test vérifiait `colnames`, la branche « vecteur » l'avait
+oublié — or c'est ce nom qui étiquette l'axe du graphique.
+
+Vingt-trois mutations passées en tout, sur le module DL50 et sur le socle.
+Vingt étaient attrapées ; les trois ci-dessus ne l'étaient pas, et toutes le
+sont désormais.
 
 ### Trois défauts trouvés par l'audit, tous du même genre
 
