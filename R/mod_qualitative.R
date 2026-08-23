@@ -2017,7 +2017,14 @@ hstat_q_or_rr_2x2 <- function(a, b, c, d, conf = 0.95,
 }
 
 # Interprétation textuelle d'un OR ou d'un RR (sens + force + signification via IC)
-hstat_q_interpret_ratio <- function(value, lo, hi, kind = c("OR", "RR")) {
+# `conf` n'est pas cosmétique : le niveau de confiance est RÉGLABLE (curseur de
+# 0,80 à 0,99) et il était écrit en dur à 95 % dans cette phrase. Un intervalle
+# calculé à 99 % ressortait donc annoncé « IC99% » par le tableau des mesures
+# et « IC95% » par la phrase d'interprétation, sur les MÊMES bornes. Deux
+# étiquettes contradictoires pour un seul intervalle, dans la phrase faite
+# précisément pour être recopiée dans un rapport.
+hstat_q_interpret_ratio <- function(value, lo, hi, kind = c("OR", "RR"),
+                                   conf = 0.95) {
   kind <- match.arg(kind)
   signif <- !(lo <= 1 && hi >= 1)          # IC excluant 1 => association significative
   sens <- if (value > 1) "augmente" else if (value < 1) "diminue" else "n'affecte pas"
@@ -2028,7 +2035,7 @@ hstat_q_interpret_ratio <- function(value, lo, hi, kind = c("OR", "RR")) {
   libelle <- if (kind == "OR") "L'odds ratio" else "Le risque relatif"
   facteur <- if (kind == "OR") "la cote (odds) de l'issue" else "le risque de l'issue"
   txt <- sprintf("%s = %.2f [IC%.0f%% : %.2f - %.2f] : l'exposition %s %s d'un facteur %.2f (association %s).",
-                 libelle, value, 100 * 0.95, lo, hi, sens, facteur,
+                 libelle, value, 100 * conf, lo, hi, sens, facteur,
                  if (value >= 1) value else 1 / value, force)
   concl <- if (signif)
     "L'intervalle de confiance n'inclut pas 1 : l'association est statistiquement significative."
@@ -2104,8 +2111,8 @@ hstat_q_or_rr_analysis <- function(x, y, xname = "X", yname = "Y",
 
   # Métriques + interprétation sur la (première) ligne de référence
   ref <- res_df[1, ]
-  int_or <- hstat_q_interpret_ratio(ref$OR, ref$OR_IC_bas, ref$OR_IC_haut, "OR")
-  int_rr <- hstat_q_interpret_ratio(ref$RR, ref$RR_IC_bas, ref$RR_IC_haut, "RR")
+  int_or <- hstat_q_interpret_ratio(ref$OR, ref$OR_IC_bas, ref$OR_IC_haut, "OR", conf)
+  int_rr <- hstat_q_interpret_ratio(ref$RR, ref$RR_IC_bas, ref$RR_IC_haut, "RR", conf)
 
   metrics <- data.frame(
     Metrique = c("Exposition de référence", "Issue de référence",
