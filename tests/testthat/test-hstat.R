@@ -1316,6 +1316,62 @@ test_that("hstat_metrics_reg calcule et interprete les 4 metriques", {
   expect_s3_class(hstat_metrics_reg(c(1, NA, 3), c(1, 2, 3)), "data.frame")
 })
 
+test_that("les quatre metriques valent ce qu'elles annoncent, pas seulement leur nom", {
+  # LES NOMS ETAIENT VERIFIES, LES VALEURS NON. Remplacer RMSE par MAE dans le
+  # calcul ne faisait echouer aucune assertion : le tableau gardait ses quatre
+  # lignes, ses quatre libelles et ses quatre interpretations non vides, et
+  # affichait un chiffre faux sous le bon nom. Meme famille que le temoin nul
+  # qui rendait -Inf avec son alerte affichee a cote. Trouve par mutation.
+  obs  <- c(10, 20, 30, 40)
+  pred <- c(12, 18, 33, 36)          # erreurs : -2, +2, -3, +4
+  m <- hstat_metrics_reg(obs, pred)
+  v <- function(nom) m$Valeur[m$Metrique == nom]
+
+  expect_equal(v("RMSE"), round(sqrt(mean(c(2, 2, 3, 4)^2)), 4))   # 2,8723
+  expect_equal(v("MAE"),  round(mean(c(2, 2, 3, 4)), 4))           # 2,75
+  expect_equal(v("MAPE (%)"), 12.5)
+  expect_equal(v("R2"), 0.934)
+
+  # RMSE ET MAE NE SONT PAS INTERCHANGEABLES : la premiere penalise les grosses
+  # erreurs, et lui vaut donc strictement plus des que les erreurs sont
+  # inegales. C'est l'assertion qui distingue les deux formules.
+  expect_gt(v("RMSE"), v("MAE"))
+  # A erreurs EGALES, les deux coincident -- sinon on figerait un ecart plutot
+  # qu'une regle.
+  e <- hstat_metrics_reg(c(0, 10, 20), c(3, 13, 23))
+  expect_equal(e$Valeur[e$Metrique == "RMSE"], e$Valeur[e$Metrique == "MAE"])
+
+  # Un R2 parfait, et une prediction sans erreur.
+  p <- hstat_metrics_reg(obs, obs)
+  expect_equal(p$Valeur[p$Metrique == "R2"], 1)
+  expect_equal(p$Valeur[p$Metrique == "RMSE"], 0)
+})
+
+test_that("les echelons d'interpretation changent bien de palier", {
+  # Un seuil deplace ne se voit pas : le texte reste une phrase francaise
+  # plausible, et « toutes les interpretations sont non vides » passe toujours.
+  # On verifie donc de part et d'autre de CHAQUE frontiere annoncee.
+  # R2 : 0,3 / 0,5 / 0,7 / 0,9
+  expect_match(.hstat_interp_r2(0.90), "Excellent")
+  expect_match(.hstat_interp_r2(0.89), "Bon")
+  expect_match(.hstat_interp_r2(0.70), "Bon")
+  expect_match(.hstat_interp_r2(0.69), "Moyen")
+  expect_match(.hstat_interp_r2(0.50), "Moyen")
+  expect_match(.hstat_interp_r2(0.49), "Faible")
+  expect_match(.hstat_interp_r2(0.30), "Faible")
+  expect_match(.hstat_interp_r2(0.29), "Très faible")
+  expect_match(.hstat_interp_r2(NaN),  "Non calculable")
+
+  # MAPE : 10 / 20 / 50, bornes STRICTES dans l'autre sens.
+  expect_match(.hstat_interp_mape(9.99), "Excellente")
+  expect_match(.hstat_interp_mape(10),   "Bonne")
+  expect_match(.hstat_interp_mape(19.99), "Bonne")
+  expect_match(.hstat_interp_mape(20),   "moyenne")
+  expect_match(.hstat_interp_mape(49.99), "moyenne")
+  expect_match(.hstat_interp_mape(50),   "faible")
+  expect_match(.hstat_interp_mape(NA_real_), "non calculable")
+})
+
 test_that("hstat_metrics_cls gere binaire, multiclasse et matrice de confusion", {
   set.seed(2)
   y  <- factor(sample(c("A", "B"), 300, TRUE))
@@ -1330,6 +1386,54 @@ test_that("hstat_metrics_cls gere binaire, multiclasse et matrice de confusion",
   expect_equal(mc3$Valeur[mc3$Metrique == "Exactitude (accuracy)"], 1)
   cm <- hstat_confusion_df(y, py)
   expect_equal(sum(as.matrix(cm)), 300)
+})
+
+test_that("precision, rappel, F1 et kappa valent chacun leur propre formule", {
+  # MEME FAMILLE QUE LES METRIQUES DE REGRESSION : les libelles etaient
+  # verifies, les valeurs non. Echanger precision et rappel, remplacer la
+  # moyenne HARMONIQUE du F1 par une moyenne arithmetique, ou retirer la garde
+  # de kappa ne faisait echouer aucune assertion. Trouve par mutation.
+  #
+  # La matrice est volontairement ASYMETRIQUE -- sur une matrice equilibree,
+  # precision et rappel coincident et l'echange ne se verrait pas.
+  #        pred
+  #   obs   A  B      colonnes : 13 et 7
+  #     A   8  2      lignes   : 10 et 10
+  #     B   5  5
+  obs  <- factor(c(rep("A", 10), rep("B", 10)))
+  pred <- factor(c(rep("A", 8), rep("B", 2), rep("A", 5), rep("B", 5)))
+  m <- hstat_metrics_cls(obs, pred)
+  v <- function(nom) m$Valeur[m$Metrique == nom]
+
+  # PRECISION = diagonale / COLONNE (parmi les predits A, combien le sont).
+  prec <- mean(c(8 / 13, 5 / 7))
+  # RAPPEL = diagonale / LIGNE (parmi les vrais A, combien sont retrouves).
+  rec  <- mean(c(8 / 10, 5 / 10))
+  expect_equal(v("Précision (macro)"), round(prec, 4))
+  expect_equal(v("Rappel / sensibilité (macro)"), round(rec, 4))
+  # Et les deux DIFFERENT ici : c'est ce qui rend l'echange visible.
+  expect_false(isTRUE(all.equal(v("Précision (macro)"),
+                                v("Rappel / sensibilité (macro)"))))
+
+  # F1 = moyenne HARMONIQUE par classe, puis moyenne des classes. La moyenne
+  # arithmetique donnerait 0,6574 : plausible, et faux.
+  f1 <- mean(c(2 * (8/13) * (8/10) / ((8/13) + (8/10)),
+               2 * (5/7)  * (5/10) / ((5/7)  + (5/10))))
+  expect_equal(v("F1-score (macro)"), round(f1, 4))
+
+  expect_equal(v("Exactitude (accuracy)"), 0.65)
+  # kappa = (acc - pe) / (1 - pe), pe = (10*13 + 10*7) / 20^2 = 0,5
+  expect_equal(v("Kappa de Cohen"), round((0.65 - 0.5) / 0.5, 4))
+
+  # KAPPA N'EST PAS TOUJOURS DEFINI. Si les deux cotes ne portent qu'une seule
+  # classe, l'accord attendu par hasard vaut 1, le denominateur s'annule et la
+  # division rend NaN. Meme regle que pour l'accord inter-codeurs : on rend NA,
+  # et l'exactitude, elle, reste calculable.
+  u <- hstat_metrics_cls(factor(rep("A", 6)), factor(rep("A", 6)))
+  k <- u$Valeur[u$Metrique == "Kappa de Cohen"]
+  expect_true(is.na(k))
+  expect_false(is.nan(k))
+  expect_equal(u$Valeur[u$Metrique == "Exactitude (accuracy)"], 1)
 })
 
 test_that("hstat_model_interpretation produit un texte substantiel", {
@@ -3945,6 +4049,282 @@ test_that("le script du journal reste executable quel que soit le nom de colonne
   expect_equal(.hstat_rlog_nom("simple"), "simple")
   # Vectorise : un appel porte souvent plusieurs variables
   expect_equal(.hstat_rlog_nom(c("x", "a b")), c("x", "`a b`"))
+})
+
+test_that("un nom de colonne prefixe d'un autre ne casse plus la formule", {
+  # LE TRI PAR LONGUEUR NE SUFFISAIT PAS. Quand un nom est le PREFIXE d'un
+  # autre et que les deux demandent des accents graves, le court se reinserait
+  # DANS les accents du long : « A-1 » et « A-1-bis » donnaient ``A-1`-bis`,
+  # que R refuse d'analyser (« attempt to use zero-length variable name »).
+  # Le garde-fou qui existait cherchait la forme citee EXACTE -- « `A-1` » ne
+  # figure pas dans « `A-1-bis` », il ne se declenchait donc jamais.
+  # Des noms comme « Rdt-2023 » / « Rdt-2023-corrige » suffisent a le produire.
+  analysable <- function(txt)
+    !inherits(tryCatch(parse(text = txt), error = function(e) e), "error")
+
+  f <- auto_quote_colnames("A-1-bis + A-1", c("A-1", "A-1-bis"))
+  expect_equal(f, "`A-1-bis` + `A-1`")
+  expect_true(analysable(f))
+  # L'ordre de DECLARATION des colonnes ne doit rien changer.
+  expect_equal(auto_quote_colnames("A-1-bis + A-1", c("A-1-bis", "A-1")), f)
+  expect_true(analysable(
+    auto_quote_colnames("Rdt-2023-corrige / Rdt-2023",
+                        c("Rdt-2023", "Rdt-2023-corrige"))))
+
+  # Ce qui marchait doit continuer a marcher.
+  expect_equal(auto_quote_colnames("a + b", c("a", "b")), "a + b")
+  expect_equal(auto_quote_colnames("2024 + 1", c("2024")), "`2024` + 1")
+  # Un nom SANS caractere special n'est pas cite -- meme a cote d'un nom cite.
+  expect_equal(auto_quote_colnames("Rdt-t/ha + Rdt", c("Rdt", "Rdt-t/ha")),
+               "`Rdt-t/ha` + Rdt")
+  # Une citation posee par l'utilisateur n'est pas redoublee.
+  expect_equal(auto_quote_colnames("`Rdt-t/ha` * 2", c("Rdt-t/ha")),
+               "`Rdt-t/ha` * 2")
+  # mean() et sum() deviennent des operations LIGNE A LIGNE : `mean(a, b)` en R
+  # ignorerait purement et simplement `b` (c'est l'argument `trim`).
+  expect_equal(auto_quote_colnames("mean(c(a, b))", c("a", "b")),
+               "rowMeans(cbind(a, b), na.rm=TRUE)")
+  expect_equal(auto_quote_colnames("sum(a, b)", c("a", "b")),
+               "rowSums(cbind(a, b), na.rm=TRUE)")
+  # Et la reecriture survit a la citation : les deux passes se composent.
+  g <- auto_quote_colnames("mean(c(A-1, A-1-bis))", c("A-1", "A-1-bis"))
+  expect_true(analysable(g))
+  expect_match(g, "rowMeans", fixed = TRUE)
+  expect_match(g, "`A-1-bis`", fixed = TRUE)
+})
+
+test_that("la matrice de p-values est symetrique et diagonale a 1", {
+  pd <- data.frame(Niveau1 = c("A", "A", "B"), Niveau2 = c("B", "C", "C"),
+                   p_adj = c(0.01, 0.20, 0.75), stringsAsFactors = FALSE)
+  m <- build_pvalue_matrix(pd, c("A", "B", "C"))
+  # Une comparaison n'a pas de sens : A vs B et B vs A sont le meme test.
+  expect_equal(m, t(m))
+  expect_equal(m["A", "B"], 0.01)
+  expect_equal(m["C", "A"], 0.20)
+  # La diagonale vaut 1, pas NA : un niveau compare a lui-meme n'est jamais
+  # different, et un NA sur la diagonale ferait echouer les lettres de groupes.
+  expect_equal(unname(diag(m)), rep(1, 3))
+  # Un niveau sans aucune paire reste present, en NA hors diagonale.
+  m4 <- build_pvalue_matrix(pd, c("A", "B", "C", "D"))
+  expect_equal(dim(m4), c(4L, 4L))
+  expect_true(all(is.na(m4["D", c("A", "B", "C")])))
+  expect_equal(unname(m4["D", "D"]), 1)
+})
+
+test_that("chaque transformation revient exactement sur ses pas", {
+  # L'ALLER-RETOUR EST L'INVARIANT FORT de cette famille. Les comparaisons
+  # post-hoc affichent des moyennes RETRO-TRANSFORMEES : une inverse fausse ne
+  # leve pas, elle rend des nombres dans la bonne unite et du mauvais ordre de
+  # grandeur. Ni `apply_variable_transformation()` ni `back_transform_values()`
+  # n'etaient appelees par un test.
+  cas <- list(
+    log      = c(1, 2, 5, 10),
+    log1p    = c(0, 1, 4, 9),
+    log10    = c(1, 10, 100),
+    sqrt     = c(0, 1, 4, 9),
+    cuberoot = c(-8, -1, 0, 1, 8),
+    arcsin   = c(0, 0.25, 0.5, 1),
+    logit    = c(0.1, 0.5, 0.9))
+  for (m in names(cas)) {
+    v <- cas[[m]]
+    t <- as.numeric(apply_variable_transformation(v, m))
+    expect_equal(back_transform_values(t, m), v, tolerance = 1e-10,
+                 info = paste("aller-retour :", m))
+  }
+
+  # Quelques valeurs POSEES, pour que l'aller-retour ne puisse pas etre
+  # satisfait par deux fonctions fausses qui s'annulent.
+  expect_equal(as.numeric(apply_variable_transformation(c(1, 10, 100), "log10")),
+               c(0, 1, 2))
+  expect_equal(as.numeric(apply_variable_transformation(c(0, 1, 4), "sqrt")),
+               c(0, 1, 2))
+  expect_equal(as.numeric(apply_variable_transformation(0.5, "logit")), 0)
+
+  # LA RACINE CUBIQUE DOIT ACCEPTER LES NEGATIFS -- c'est sa raison d'etre,
+  # et le message de `sqrt` y renvoie explicitement. `x^(1/3)` nu rendrait NaN.
+  cr <- apply_variable_transformation(c(-8, 8), "cuberoot")
+  expect_equal(as.numeric(cr), c(-2, 2))
+  expect_false(any(is.nan(cr)))
+
+  # Les NA traversent sans etre comptes comme des valeurs fautives.
+  expect_true(is.na(apply_variable_transformation(c(1, NA, 4), "sqrt")[2]))
+  # Une methode inconnue est refusee, pas appliquee au hasard.
+  expect_error(apply_variable_transformation(1:3, "racine_quatrieme"))
+  # Retro-transformer par une methode inconnue rend l'entree inchangee.
+  expect_equal(back_transform_values(c(1, 2), "inconnue"), c(1, 2))
+})
+
+test_that("le controle de faisabilite dit exactement ce que l'application fera", {
+  # DEUX LISTES DE CONDITIONS QUI DOIVENT S'ACCORDER : le controle annonce, et
+  # l'application leve. Elles vivent dans deux `switch()` distincts, donc elles
+  # peuvent deriver -- et une derive laisserait soit un bouton actif qui fait
+  # tomber la sortie, soit un refus incomprehensible sur des donnees valides.
+  meth <- c("log", "log1p", "log10", "sqrt", "cuberoot", "arcsin", "logit")
+  cas <- list(negatifs   = c(-1, 2, 3),
+              zeros      = c(0, 1, 2),
+              hors_01    = c(0.5, 1.5),
+              bornes_01  = c(0, 0.5, 1),
+              positifs   = c(1, 2, 3))
+  for (nm in names(cas)) for (m in meth) {
+    ok   <- isTRUE(check_transformation_feasibility(cas[[nm]], m)$ok)
+    leve <- inherits(try(apply_variable_transformation(cas[[nm]], m),
+                         silent = TRUE), "try-error")
+    expect_false(ok == leve, info = paste(nm, "/", m,
+                 ": controle =", ok, ", application leve =", leve))
+  }
+  # Un vecteur entierement manquant est refuse, et pour cette raison-la.
+  vide <- check_transformation_feasibility(c(NA_real_, NA_real_), "log")
+  expect_false(vide$ok)
+  expect_match(vide$message, "non-NA")
+  # Un refus NOMME le nombre d'observations fautives : « 2 valeurs <= 0 » se
+  # corrige, « impossible » ne se corrige pas.
+  expect_match(check_transformation_feasibility(c(-1, 0, 5), "log")$message, "^2 ")
+  # Et une acceptation annonce l'effectif retenu.
+  expect_match(check_transformation_feasibility(c(1, 2, NA), "log")$message, "n = 2")
+})
+
+test_that("Box's M refuse poliment ce qu'il ne peut pas tester", {
+  # QUATRE GARDE-FOUS, et aucun n'etait teste. Ils protegent l'appel a
+  # `heplots::boxM()`, qui leve ou rend des NaN sur des donnees degenerees --
+  # et l'onglet MANOVA tombe avec lui. Ils rendent tous NA et une PHRASE :
+  # « Test impossible » se lit, un NA nu ne se lit pas.
+  set.seed(11)
+  Y <- matrix(rnorm(60), ncol = 3)
+  g <- factor(rep(c("a", "b"), each = 10))
+  nul <- function(r) is.na(r$chi2) && is.na(r$df) && is.na(r$p.value)
+
+  # 1. Moins de deux groupes, trop peu d'observations, moins de deux colonnes.
+  for (cas in list(list(Y, factor(rep("a", 20))),
+                   list(Y[1:4, ], factor(rep(c("a", "b"), each = 2))),
+                   list(Y[, 1, drop = FALSE], g))) {
+    r <- do.call(box_m_test, cas)
+    expect_true(nul(r))
+    expect_match(r$conclusion, "impossible")
+  }
+
+  # 2. Un groupe plus petit que p+1 : sa covariance ne peut pas etre estimee.
+  #    Le message NOMME les deux nombres -- sans eux, l'utilisateur ne sait pas
+  #    de combien il manque.
+  r <- box_m_test(Y[1:8, ], factor(c(rep("a", 6), rep("b", 2))))
+  expect_true(nul(r))
+  expect_match(r$conclusion, "min n=2")
+  expect_match(r$conclusion, "p\\+1=4")
+
+  # 3. Colonnes colineaires : covariance singuliere.
+  col <- box_m_test(cbind(Y[, 1], Y[, 1] * 2, Y[, 2]), g)
+  expect_true(nul(col))
+  expect_match(col$conclusion, "singuli")
+
+  # 4. LE RANG, PAS LE DETERMINANT. C'est la decision documentee dans le corps
+  #    de la fonction, et elle se verifie : a l'echelle 1e-6, le determinant de
+  #    la covariance vaut ~2e-37 -- tout seuil sur le determinant crierait a la
+  #    singularite -- alors que le rang reste plein. Des variables mesurees en
+  #    microgrammes ne sont pas colineaires pour autant.
+  petit <- Y * 1e-6
+  expect_lt(det(stats::cov(petit[1:10, ])), 1e-30)     # le piege
+  expect_equal(qr(stats::cov(petit[1:10, ]))$rank, 3)  # la realite
+  expect_false(grepl("singuli", box_m_test(petit, g)$conclusion))
+})
+
+test_that("PERMDISP, Mardia et la silhouette refusent aussi sans faire tomber la sortie", {
+  set.seed(12)
+  Y <- matrix(rnorm(60), ncol = 3)
+
+  # PERMDISP : moins de deux groupes, ou moins de cinq observations.
+  for (cas in list(list(Y, factor(rep("a", 20))),
+                   list(Y[1:4, ], factor(rep(c("a", "b"), each = 2))))) {
+    r <- do.call(permdisp_test, cas)
+    expect_true(is.na(r$F) && is.na(r$p.value))
+    expect_match(r$conclusion, "impossible")
+  }
+
+  # Mardia exige n >= 8 ET p >= 2 : l'asymetrie et l'aplatissement
+  # multivaries n'ont pas de sens sur une seule variable.
+  m6 <- multivariate_normality_mardia(Y[1:6, ])
+  expect_true(is.na(m6$skewness) && is.na(m6$kurtosis))
+  expect_match(m6$conclusion, "trop petit")
+  expect_equal(m6$n, 6L); expect_equal(m6$p, 3L)
+  expect_match(multivariate_normality_mardia(Y[, 1, drop = FALSE])$conclusion,
+               "trop petit")
+
+  # La silhouette n'existe pas avec un seul groupe : il n'y a aucun voisin
+  # auquel se comparer. NA, et surtout pas zero -- zero se lirait comme
+  # « partition indifferente », ce qui est un resultat.
+  sil <- hstat_silhouette_mean(Y, rep(1, 20))
+  expect_true(is.na(sil))
+  expect_false(isTRUE(sil == 0))
+})
+
+test_that("la taille d'effet MANOVA ne s'invente pas un effet total", {
+  # eta² partiel = 1 - Wilks^(1/s), s = min(p, ddl du numerateur).
+  # Valeurs posees a la main : Wilks = 0,5 et s = 2 donnent 1 - sqrt(0,5).
+  d <- data.frame(Wilks = c(0.5, 0.9, 1.0), Pillai = c(0.5, 0.1, 0.0),
+                  ddl_num = c(2, 2, 2))
+  r <- manova_effect_sizes(d, p = 3)
+  expect_equal(r$eta2_partial[1], 1 - sqrt(0.5))
+  expect_equal(r$eta2_pillai[1], 0.25)
+  # Wilks = 1 : aucune variance expliquee, eta² nul. La borne basse.
+  expect_equal(r$eta2_partial[3], 0)
+  # s = min(p, ddl) : avec p = 1, s vaut 1 quel que soit le ddl.
+  expect_equal(manova_effect_sizes(d, p = 1)$eta2_partial[1], 0.5)
+
+  # UN DEGRE DE LIBERTE DEGENERE NE DOIT PAS PRODUIRE UN EFFET MAXIMAL.
+  # s = 0 donne Wilks^(1/0) = Wilks^Inf = 0, donc eta² = 1 -- la taille
+  # d'effet la plus forte possible, tiree d'une statistique non calculable,
+  # et qu'`interpret_manova_effect()` qualifierait d'« important ». Et
+  # Pillai / 0 rend Inf. NA se voit ; 1,00 se croit.
+  z <- manova_effect_sizes(
+         data.frame(Wilks = 0.5, Pillai = 0.5, ddl_num = 0), p = 3)
+  expect_true(is.na(z$eta2_partial))
+  expect_true(is.na(z$eta2_pillai))
+  expect_false(any(is.infinite(c(z$eta2_partial, z$eta2_pillai))))
+  # Un ddl manquant se comporte pareil.
+  na <- manova_effect_sizes(
+          data.frame(Wilks = 0.5, Pillai = 0.5, ddl_num = NA_real_), p = 3)
+  expect_true(is.na(na$eta2_partial))
+})
+
+test_that("l'interpretation d'un effet MANOVA change de palier aux bons seuils", {
+  # Seuils de Cohen : 0,01 / 0,06 / 0,14. Un palier deplace laisse une phrase
+  # parfaitement lisible -- seule la paire (juste avant / juste apres) le voit.
+  expect_match(interpret_manova_effect(0.01, 0.009), "négligeable")
+  expect_match(interpret_manova_effect(0.01, 0.010), "faible")
+  expect_match(interpret_manova_effect(0.01, 0.059), "faible")
+  expect_match(interpret_manova_effect(0.01, 0.060), "modéré")
+  expect_match(interpret_manova_effect(0.01, 0.139), "modéré")
+  expect_match(interpret_manova_effect(0.01, 0.140), "important")
+  # La significativite est portee a part de la taille d'effet.
+  expect_match(interpret_manova_effect(0.049), "significatif")
+  expect_match(interpret_manova_effect(0.050), "non significatif")
+  # Et une p-value absente ne fait pas tomber la ligne.
+  expect_match(interpret_manova_effect(NA), "non disponible")
+})
+
+test_that("l'accord entre partitions ne depend pas du nom des groupes", {
+  # C'EST TOUT L'INTERET DE L'INDICE DE RAND, et la raison pour laquelle il
+  # est employe ici : les etiquettes de classe sont ARBITRAIRES -- un k-means
+  # relance rend les memes groupes sous d'autres numeros. Comparer les
+  # etiquettes une a une donnerait un accord effondre sur deux partitions
+  # identiques. L'indice compare des PAIRES : deux individus sont-ils
+  # ensemble des deux cotes, oui ou non.
+  #
+  # La fonction alimente le chiffre de stabilite par bootstrap de la CAH
+  # (app_server.R) et n'etait couverte par aucun test.
+  a <- c(1, 1, 2, 2)
+  expect_equal(hstat_pair_agreement(a, a), 1)
+  expect_equal(hstat_pair_agreement(a, c(2, 2, 1, 1)), 1)        # renumerotees
+  expect_equal(hstat_pair_agreement(a, c("x", "x", "y", "y")), 1) # renommees
+
+  # Partition croisee : sur 6 paires, 2 s'accordent.
+  #   (1,4) et (2,3) : separes des deux cotes. Les quatre autres divergent.
+  expect_equal(hstat_pair_agreement(a, c(1, 2, 1, 2)), 2 / 6)
+  # Tout dans un seul groupe : les 3 paires reunies chez `a` s'accordent...
+  expect_equal(hstat_pair_agreement(a, rep(1, 4)), 2 / 6)
+  # ... et l'accord n'est jamais hors de [0 ; 1].
+  for (b in list(a, c(2, 2, 1, 1), c(1, 2, 1, 2), rep(1, 4), 1:4)) {
+    r <- hstat_pair_agreement(a, b)
+    expect_true(is.finite(r) && r >= 0 && r <= 1)
+  }
 })
 
 test_that("hstat_part_equilibre rend un verdict, jamais une erreur", {

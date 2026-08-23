@@ -2155,6 +2155,14 @@ manova_format_all_stats <- function(fit) {
 #' @param p nombre de réponses
 manova_effect_sizes <- function(df, p) {
   s <- pmin(p, df$ddl_num)
+  # s = 0 -- un degré de liberté dégénéré -- donnerait Wilks^(1/0), soit
+  # Wilks^Inf, donc eta² = 1 : la taille d'effet MAXIMALE, produite par une
+  # statistique non calculable, et que `interpret_manova_effect()` qualifierait
+  # d'« important ». Pillai / 0 rendrait `Inf` dans le tableau de résultats.
+  # Le cas ne se présente pas par `manova_format_all_stats()`, qui écarte la
+  # ligne « Residuals » et ne rend donc que des effets à ddl >= 1 ; la garde
+  # est là parce qu'un chiffre faux et péremptoire est le pire des retours.
+  s[!is.finite(s) | s <= 0] <- NA_real_
   df$eta2_partial <- 1 - df$Wilks^(1 / s)
   df$eta2_pillai  <- df$Pillai / s   # eta² partiel basé sur Pillai
   df
@@ -4983,14 +4991,33 @@ hstat_cache_key <- function(...) {
 # de calcul, et convertit mean()/sum() en rowMeans()/rowSums() sur plusieurs
 # colonnes. Defini globalement (utilise par mod_clean et par le serveur).
 auto_quote_colnames <- function(formula_str, col_names) {
+  # CE QUI EST CITE SORT DU JEU. Le tri par longueur ne suffisait pas : quand un
+  # nom est le PREFIXE d'un autre et que les deux demandent des accents graves,
+  # le court se reinserait DANS les accents du long. « A-1 » et « A-1-bis »
+  # donnaient ``A-1`-bis`, et R refuse de l'analyser (« attempt to use
+  # zero-length variable name »). Le garde-fou qui existait cherchait la forme
+  # citee exacte -- « `A-1` » ne figure pas dans « `A-1-bis` », il ne se
+  # declenchait donc jamais. Des noms comme « Rdt-2023 » et
+  # « Rdt-2023-corrige » suffisent : le calculateur de variables tombait alors
+  # sur un message que personne ne peut relier a ses colonnes.
+  jetons <- character(0)
+  poser <- function(txt) {
+    jetons[[length(jetons) + 1L]] <<- txt
+    paste0("\001", length(jetons), "\002")
+  }
+  # 1. Ce que l'utilisateur a DEJA cite lui-meme : on n'y touche plus.
+  repeat {
+    m <- regexpr("`[^`]*`", formula_str)
+    if (m == -1L) break
+    regmatches(formula_str, m) <- poser(regmatches(formula_str, m))
+  }
+  # 2. Les noms a citer, du plus long au plus court, chacun mis a l'abri.
   cols_sorted <- col_names[order(nchar(col_names), decreasing = TRUE)]
   for (col in cols_sorted) {
-    if (grepl("[-/ +*^()%$@!?]|^[0-9]", col, perl = TRUE)) {
-      backtick_col <- paste0("`", col, "`")
-      if (!grepl(backtick_col, formula_str, fixed = TRUE)) {
-        formula_str <- gsub(col, backtick_col, formula_str, fixed = TRUE)
-      }
-    }
+    if (!nzchar(col) || !grepl("[-/ +*^()%$@!?]|^[0-9]", col, perl = TRUE)) next
+    while (grepl(col, formula_str, fixed = TRUE))
+      formula_str <- sub(col, poser(paste0("`", col, "`")), formula_str,
+                         fixed = TRUE)
   }
   formula_str <- gsub("\\bmean\\s*\\(\\s*c\\s*\\(([^)]+)\\)\\s*\\)",
     "rowMeans(cbind(\\1), na.rm=TRUE)", formula_str, perl = TRUE)
@@ -5000,6 +5027,10 @@ auto_quote_colnames <- function(formula_str, col_names) {
     "rowSums(cbind(\\1), na.rm=TRUE)", formula_str, perl = TRUE)
   formula_str <- gsub("\\bsum\\s*\\(([^)]+,[^)]+)\\)",
     "rowSums(cbind(\\1), na.rm=TRUE)", formula_str, perl = TRUE)
+  # 3. Restitution, dans l'ordre inverse de la pose.
+  for (i in rev(seq_along(jetons)))
+    formula_str <- gsub(paste0("\001", i, "\002"), jetons[[i]],
+                        formula_str, fixed = TRUE)
   formula_str
 }
 

@@ -1492,6 +1492,168 @@ dans les serveurs. Le banc ne peut donc pas le muter directement, et ce sont ses
 balayages qui le gardent. C'est une raison de plus de placer la logique dans
 `R/utils.R`.
 
+`mod_viz.R`, `mod_clean.R` et `mod_explore.R` sont dans le même cas — **aucune**
+fonction de calcul au premier niveau. La surface réellement mutable de
+l'application, c'est `R/utils.R`.
+
+#### Les métriques de modélisation : les noms étaient gardés, pas les nombres
+
+Neuf mutations sur `hstat_metrics_reg()`, `hstat_metrics_cls()` et
+`hstat_pair_agreement()`. **Six passaient.** C'est le plus gros gisement trouvé
+jusqu'ici, et toujours la même forme : le tableau garde ses lignes, ses libellés
+et ses interprétations non vides, et affiche un chiffre faux sous le bon nom.
+
+L'assertion existante vérifiait `expect_setequal(m$Metrique, c("RMSE", "MAE",
+"MAPE (%)", "R2"))`, le R² au-dessus d'un seuil, et
+`all(nzchar(m$Interpretation))`. Rien sur les trois autres valeurs. Donc :
+
+| Mutation | Ce qui sortait |
+|---|---|
+| `rmse <- mean(abs(err))` | RMSE = MAE, sous l'étiquette RMSE |
+| précision ↔ rappel | les deux échangés, invisible sur matrice équilibrée |
+| F1 en moyenne **arithmétique** | 0,657 au lieu de 0,642 — plausible |
+| garde de kappa retirée | `NaN` là où `NA` était rendu |
+| seuils de `.hstat_interp_r2` déplacés | une phrase française plausible, et fausse |
+| seuils de `.hstat_interp_mape` déplacés | idem |
+
+Trois règles en sont sorties :
+
+1. **Vérifier la valeur, jamais seulement le nom.** C'est le même défaut que le
+   témoin nul qui rendait `−Inf` avec son alerte affichée à côté : ce qui est
+   contrôlé est le décor, pas le chiffre.
+2. **La donnée d'essai doit rendre les formules discernables.** Précision et
+   rappel coïncident sur une matrice équilibrée : l'échange y est invisible. Le
+   test pose donc une matrice **asymétrique**, et vérifie en plus que les deux
+   diffèrent — sinon l'assertion se viderait de son sens au premier
+   réajustement des données.
+3. **Un seuil se teste des deux côtés de sa frontière.** Un palier déplacé
+   laisse une phrase parfaitement lisible ; seule la paire (juste avant / juste
+   après) le voit.
+
+`hstat_pair_agreement()` — l'indice de Rand qui porte le chiffre de stabilité
+par bootstrap de la CAH — n'était appelé par **aucun** test. Sa propriété
+essentielle est l'invariance au **renommage des classes** : un k-means relancé
+rend les mêmes groupes sous d'autres numéros, et c'est précisément pourquoi on
+compare des paires plutôt que des étiquettes. Elle est désormais testée comme
+telle.
+
+#### Deux mutants équivalents, et pourquoi ils le sont
+
+Le piège 2 s'est présenté deux fois, et dans les deux cas la garde s'est révélée
+**redondante**, non pas mal testée :
+
+- `if (is.logical(x)) next` dans `hstat_vars_zero()` — une colonne booléenne est
+  de toute façon écartée en aval, `as.numeric("FALSE")` valant `NA` ;
+- `if (n < min_n)` en tête de `hstat_ellipse_ok()` — le contrôle par groupe
+  couvre déjà le cas, et le message du mutant **nomme** le groupe trop petit là
+  où la garde rend « Aucun groupe exploitable ».
+
+Les deux gardes restent : elles disent l'intention. Mais aucun test n'a été
+écrit pour elles — figer un comportement qu'aucune règle n'exige, c'est
+exactement l'assertion-tolérance que la méthode cherche à éviter.
+
+Sur 116 des 211 fonctions de `R/utils.R`, **aucun test n'appelle la fonction
+directement**. Beaucoup sont des aides d'interface, mais pas toutes :
+`multivariate_normality_mardia`, `box_m_test`, `permdisp_test`,
+`hstat_silhouette_mean`, `hstat_cophenetic_corr` portent de vraies statistiques.
+
+#### Une taille d'effet de 1,00 tirée d'un degré de liberté nul
+
+Première prise dans ce gisement. `manova_effect_sizes()` calcule
+`eta² = 1 - Wilks^(1/s)` avec `s = min(p, ddl_num)`, sans garde sur `s`. À
+`s = 0`, `Wilks^(1/0)` vaut `Wilks^Inf`, donc **0**, donc `eta² = 1` — la taille
+d'effet **maximale**, que `interpret_manova_effect()` qualifie d'« important ».
+`Pillai / 0` sort en `Inf` dans la même ligne.
+
+Le cas n'est **pas atteignable** par le chemin de l'application :
+`manova_format_all_stats()` écarte la ligne « Residuals » et ne rend que des
+effets à `ddl >= 1`. Le défaut est donc latent — et corrigé quand même, parce
+que le mode de défaillance est le pire qui soit : pas une erreur, pas un vide,
+mais **le chiffre le plus péremptoire possible**. C'est la même famille que le
+témoin nul à `−Inf` et que le kappa à `NaN` ; la règle « ne jamais brancher sur
+une statistique non calculable » vaut aussi pour ce qu'on affiche.
+
+#### Les garde-fous des tests multivariés
+
+`box_m_test()`, `permdisp_test()`, `multivariate_normality_mardia()` et
+`hstat_silhouette_mean()` portent **onze** sorties anticipées, et aucune
+n'était testée. Elles protègent les appels à `heplots`, `vegan`, `psych` et
+`cluster`, qui lèvent ou rendent des `NaN` sur données dégénérées — et
+l'onglet tombe avec eux. Toutes rendent `NA` **et une phrase** : « Test
+impossible » se lit, un `NA` nu ne se lit pas.
+
+Deux détails qui valaient d'être figés :
+
+- **Le message de Box's M nomme les deux nombres** (`min n=2 < p+1=4`). Sans
+  eux, l'utilisateur sait que c'est refusé mais pas de combien il manque.
+- **Le rang, pas le déterminant.** La décision est écrite dans le corps de la
+  fonction ; elle se vérifie. À l'échelle `1e-6`, le déterminant de la
+  covariance vaut ~2e-37 — tout seuil sur le déterminant crierait à la
+  singularité — alors que le rang reste plein. Des variables mesurées en
+  microgrammes ne sont pas colinéaires pour autant.
+
+Et la silhouette d'un groupe unique rend `NA`, **pas zéro** : zéro se lirait
+comme « partition indifférente », ce qui est un résultat.
+
+Ces tests ne demandent **aucun** paquet optionnel : chaque garde retourne avant
+l'appel au paquet. C'est ce qui les rend réels en CI plutôt que sautés.
+
+#### Le filtre du banc : sous-inclure fabrique de faux trous
+
+Deux fautes du même genre dans le pilote, toutes deux découvertes en lisant un
+« aucun test ne l'appelle » invraisemblable :
+
+1. `\b` ne colle pas devant un point — `.hstat_interp_r2` ressortait sans
+   couverture ;
+2. exiger la parenthèse ouvrante rate `do.call(permdisp_test, cas)`.
+
+Le risque est **asymétrique** : un filtre trop large ne fait que jouer des
+tests en trop, un filtre trop étroit annonce un trou qui n'existe pas. Le choix
+se fait de ce côté-là.
+
+#### Un nom de colonne préfixe d'un autre cassait la formule
+
+`auto_quote_colnames()` cite entre accents graves les noms portant un caractère
+spécial. Le tri par longueur devait suffire — il ne suffit pas. Quand un nom est
+le **préfixe** d'un autre et que les deux demandent des accents graves, le court
+se réinsère **dans** les accents du long :
+
+```
+"A-1-bis + A-1"  →  ``A-1`-bis` + `A-1`
+```
+
+R refuse de l'analyser : « attempt to use zero-length variable name ». Le
+garde-fou existant cherchait la forme citée **exacte** — `` `A-1` `` ne figure
+pas dans `` `A-1-bis` ``, il ne se déclenchait donc jamais.
+
+Le cas n'a rien d'exotique : `Rdt-2023` et `Rdt-2023-corrigé` suffisent, et le
+calculateur de variables tombait alors sur un message que personne ne peut
+relier à ses colonnes.
+
+Règle : **ce qui est cité sort du jeu.** La fonction masque par un jeton ce que
+l'utilisateur a déjà cité *et* chaque citation qu'elle vient de poser, puis
+restitue en fin de passe. La réécriture `mean()` → `rowMeans()` opère sur la
+chaîne masquée, donc les deux passes se composent sans se gêner.
+
+#### Les transformations : l'aller-retour est l'invariant fort
+
+`apply_variable_transformation()` et `back_transform_values()` n'étaient
+appelées par aucun test, alors que les comparaisons post-hoc **affichent des
+moyennes rétro-transformées** : une inverse fausse ne lève pas, elle rend des
+nombres dans la bonne unité et du mauvais ordre de grandeur.
+
+Sept méthodes, sept allers-retours vérifiés à 1e-10 — plus quelques valeurs
+posées, pour que la propriété ne puisse pas être satisfaite par deux fonctions
+fausses qui s'annulent. La racine cubique doit accepter les négatifs (c'est sa
+raison d'être, et le message d'erreur de `sqrt` y renvoie) : `x^(1/3)` nu rendrait
+`NaN`.
+
+Second invariant, entre deux fonctions : **le contrôle de faisabilité doit dire
+exactement ce que l'application fera.** Les deux listes de conditions vivent
+dans des `switch()` distincts et peuvent donc diverger — une dérive laisserait
+soit un bouton actif qui fait tomber la sortie, soit un refus incompréhensible
+sur des données valides. Le test croise cinq jeux de données et sept méthodes.
+
 ### Trois défauts trouvés par l'audit, tous du même genre
 
 Aucun ne lève, aucun ne laisse un vide : tous les trois rendent un résultat
