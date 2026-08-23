@@ -4051,6 +4051,78 @@ test_that("le script du journal reste executable quel que soit le nom de colonne
   expect_equal(.hstat_rlog_nom(c("x", "a b")), c("x", "`a b`"))
 })
 
+test_that("Box's M refuse poliment ce qu'il ne peut pas tester", {
+  # QUATRE GARDE-FOUS, et aucun n'etait teste. Ils protegent l'appel a
+  # `heplots::boxM()`, qui leve ou rend des NaN sur des donnees degenerees --
+  # et l'onglet MANOVA tombe avec lui. Ils rendent tous NA et une PHRASE :
+  # « Test impossible » se lit, un NA nu ne se lit pas.
+  set.seed(11)
+  Y <- matrix(rnorm(60), ncol = 3)
+  g <- factor(rep(c("a", "b"), each = 10))
+  nul <- function(r) is.na(r$chi2) && is.na(r$df) && is.na(r$p.value)
+
+  # 1. Moins de deux groupes, trop peu d'observations, moins de deux colonnes.
+  for (cas in list(list(Y, factor(rep("a", 20))),
+                   list(Y[1:4, ], factor(rep(c("a", "b"), each = 2))),
+                   list(Y[, 1, drop = FALSE], g))) {
+    r <- do.call(box_m_test, cas)
+    expect_true(nul(r))
+    expect_match(r$conclusion, "impossible")
+  }
+
+  # 2. Un groupe plus petit que p+1 : sa covariance ne peut pas etre estimee.
+  #    Le message NOMME les deux nombres -- sans eux, l'utilisateur ne sait pas
+  #    de combien il manque.
+  r <- box_m_test(Y[1:8, ], factor(c(rep("a", 6), rep("b", 2))))
+  expect_true(nul(r))
+  expect_match(r$conclusion, "min n=2")
+  expect_match(r$conclusion, "p\\+1=4")
+
+  # 3. Colonnes colineaires : covariance singuliere.
+  col <- box_m_test(cbind(Y[, 1], Y[, 1] * 2, Y[, 2]), g)
+  expect_true(nul(col))
+  expect_match(col$conclusion, "singuli")
+
+  # 4. LE RANG, PAS LE DETERMINANT. C'est la decision documentee dans le corps
+  #    de la fonction, et elle se verifie : a l'echelle 1e-6, le determinant de
+  #    la covariance vaut ~2e-37 -- tout seuil sur le determinant crierait a la
+  #    singularite -- alors que le rang reste plein. Des variables mesurees en
+  #    microgrammes ne sont pas colineaires pour autant.
+  petit <- Y * 1e-6
+  expect_lt(det(stats::cov(petit[1:10, ])), 1e-30)     # le piege
+  expect_equal(qr(stats::cov(petit[1:10, ]))$rank, 3)  # la realite
+  expect_false(grepl("singuli", box_m_test(petit, g)$conclusion))
+})
+
+test_that("PERMDISP, Mardia et la silhouette refusent aussi sans faire tomber la sortie", {
+  set.seed(12)
+  Y <- matrix(rnorm(60), ncol = 3)
+
+  # PERMDISP : moins de deux groupes, ou moins de cinq observations.
+  for (cas in list(list(Y, factor(rep("a", 20))),
+                   list(Y[1:4, ], factor(rep(c("a", "b"), each = 2))))) {
+    r <- do.call(permdisp_test, cas)
+    expect_true(is.na(r$F) && is.na(r$p.value))
+    expect_match(r$conclusion, "impossible")
+  }
+
+  # Mardia exige n >= 8 ET p >= 2 : l'asymetrie et l'aplatissement
+  # multivaries n'ont pas de sens sur une seule variable.
+  m6 <- multivariate_normality_mardia(Y[1:6, ])
+  expect_true(is.na(m6$skewness) && is.na(m6$kurtosis))
+  expect_match(m6$conclusion, "trop petit")
+  expect_equal(m6$n, 6L); expect_equal(m6$p, 3L)
+  expect_match(multivariate_normality_mardia(Y[, 1, drop = FALSE])$conclusion,
+               "trop petit")
+
+  # La silhouette n'existe pas avec un seul groupe : il n'y a aucun voisin
+  # auquel se comparer. NA, et surtout pas zero -- zero se lirait comme
+  # « partition indifferente », ce qui est un resultat.
+  sil <- hstat_silhouette_mean(Y, rep(1, 20))
+  expect_true(is.na(sil))
+  expect_false(isTRUE(sil == 0))
+})
+
 test_that("la taille d'effet MANOVA ne s'invente pas un effet total", {
   # eta² partiel = 1 - Wilks^(1/s), s = min(p, ddl du numerateur).
   # Valeurs posees a la main : Wilks = 0,5 et s = 2 donnent 1 - sqrt(0,5).

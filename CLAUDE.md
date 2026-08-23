@@ -1573,6 +1573,44 @@ mais **le chiffre le plus péremptoire possible**. C'est la même famille que le
 témoin nul à `−Inf` et que le kappa à `NaN` ; la règle « ne jamais brancher sur
 une statistique non calculable » vaut aussi pour ce qu'on affiche.
 
+#### Les garde-fous des tests multivariés
+
+`box_m_test()`, `permdisp_test()`, `multivariate_normality_mardia()` et
+`hstat_silhouette_mean()` portent **onze** sorties anticipées, et aucune
+n'était testée. Elles protègent les appels à `heplots`, `vegan`, `psych` et
+`cluster`, qui lèvent ou rendent des `NaN` sur données dégénérées — et
+l'onglet tombe avec eux. Toutes rendent `NA` **et une phrase** : « Test
+impossible » se lit, un `NA` nu ne se lit pas.
+
+Deux détails qui valaient d'être figés :
+
+- **Le message de Box's M nomme les deux nombres** (`min n=2 < p+1=4`). Sans
+  eux, l'utilisateur sait que c'est refusé mais pas de combien il manque.
+- **Le rang, pas le déterminant.** La décision est écrite dans le corps de la
+  fonction ; elle se vérifie. À l'échelle `1e-6`, le déterminant de la
+  covariance vaut ~2e-37 — tout seuil sur le déterminant crierait à la
+  singularité — alors que le rang reste plein. Des variables mesurées en
+  microgrammes ne sont pas colinéaires pour autant.
+
+Et la silhouette d'un groupe unique rend `NA`, **pas zéro** : zéro se lirait
+comme « partition indifférente », ce qui est un résultat.
+
+Ces tests ne demandent **aucun** paquet optionnel : chaque garde retourne avant
+l'appel au paquet. C'est ce qui les rend réels en CI plutôt que sautés.
+
+#### Le filtre du banc : sous-inclure fabrique de faux trous
+
+Deux fautes du même genre dans le pilote, toutes deux découvertes en lisant un
+« aucun test ne l'appelle » invraisemblable :
+
+1. `\b` ne colle pas devant un point — `.hstat_interp_r2` ressortait sans
+   couverture ;
+2. exiger la parenthèse ouvrante rate `do.call(permdisp_test, cas)`.
+
+Le risque est **asymétrique** : un filtre trop large ne fait que jouer des
+tests en trop, un filtre trop étroit annonce un trou qui n'existe pas. Le choix
+se fait de ce côté-là.
+
 ### Trois défauts trouvés par l'audit, tous du même genre
 
 Aucun ne lève, aucun ne laisse un vide : tous les trois rendent un résultat
