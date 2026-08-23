@@ -687,8 +687,14 @@ hstat_dl50_test_abbott_em <- function(essai) {
   }
   lo <- c(rep(-Inf, na + nb), rep(0, nc))
   hi <- c(rep(Inf, na + nb), rep(0.999, nc))
+  # Le HESSIEN sert au rapport de puissance : c'est lui qui donne les variances
+  # et les covariances de (a_i, b) sous le modele a pente commune, dont
+  # l'intervalle de FIELLER du rapport a besoin. Le demander ici coute une
+  # evaluation de plus et evite de reecrire l'information de Fisher pour le cas
+  # multi-essais.
   op <- tryCatch(stats::optim(par0, nll, method = "L-BFGS-B", lower = lo,
-                              upper = hi, control = list(maxit = 1000, factr = 1e5)),
+                              upper = hi, hessian = TRUE,
+                              control = list(maxit = 1000, factr = 1e5)),
                  error = function(e) NULL)
   # LE CODE DE CONVERGENCE SE LIT. Une optimisation qui n'aboutit pas rendait
   # malgre tout `ok = TRUE` : si le modele contraint ressortait alors au-dessus
@@ -699,7 +705,15 @@ hstat_dl50_test_abbott_em <- function(essai) {
   if (is.null(op) || !is.finite(op$value) || op$value >= 1e99 ||
       !identical(as.integer(op$convergence), 0L))
     return(list(ok = FALSE, ll = NA_real_, npar = na + nb + nc))
-  list(ok = TRUE, ll = -op$value, npar = na + nb + nc, par = decoupe(op$par))
+  # `nll` est l'OPPOSE de la log-vraisemblance : son hessien est donc
+  # directement la matrice d'information observee, et son inverse la matrice
+  # de variances. Une inversion qui echoue ne rend pas un objet a moitie
+  # valide -- elle rend NULL, et l'appelant s'en garde.
+  V <- tryCatch(solve(op$hessian), error = function(e) NULL)
+  if (!is.null(V) && any(!is.finite(V))) V <- NULL
+  list(ok = TRUE, ll = -op$value, npar = na + nb + nc, par = decoupe(op$par),
+       V = V, na = na, nb = nb, nc = nc, k = k,
+       a_commun = a_commun, b_commun = b_commun)
 }
 
 .hstat_dl50_ll_sature <- function(essais) {
@@ -813,6 +827,134 @@ hstat_dl50_comparaison <- function(essais,
   attr(res, "scenario") <- scenario
   attr(res, "essais") <- length(essais)
   attr(res, "avertissement") <- tr("Les quatre tests sont indépendants les uns des autres : deux tests non significatifs pris séparément ne permettent pas de conclure sur leur conjonction. Vérifiez que le scénario retenu ne crée pas de conflit entre les conclusions.")
+  res
+}
+
+# ---------------------------------------------------------------------------
+#  RAPPORT DE PUISSANCE -- le ratio de resistance
+# ---------------------------------------------------------------------------
+#  C'est le chiffre que publie la surveillance des resistances : combien de
+#  fois faut-il plus de produit pour tuer la souche etudiee que la souche de
+#  reference. Toutes les pieces etaient la ; il manquait de les assembler.
+#
+#      R = DL50(essai) / DL50(reference) = 10^((a_ref - a_essai) / b)
+#
+#  IL N'EXISTE QU'A PENTE COMMUNE, et c'est tout le sujet. Si les droites ne
+#  sont pas paralleles, le rapport change avec le niveau de mortalite : il vaut
+#  3 a la DL50 et 12 a la DL90, et publier « R = 3 » revient alors a choisir un
+#  chiffre parmi d'autres sans le dire. Le test de parallelisme est donc
+#  calcule AVANT et rendu AVEC -- pas en option, pas plus bas dans la page.
+#
+#  L'intervalle passe par FIELLER, comme celui des doses letales, parce que
+#  c'est encore un rapport de deux estimateurs normaux : le numerateur
+#  a_ref - a_essai, le denominateur b, tous deux tires du MEME ajustement a
+#  pente commune -- d'ou la covariance, qu'un calcul essai par essai ignorerait.
+hstat_dl50_puissance <- function(essais, reference = 1,
+                                 scenario = c("heterogene", "homogene", "nulle"),
+                                 alpha = 0.05) {
+  scenario <- match.arg(scenario)
+  vide <- function(motif) {
+    r <- data.frame()
+    attr(r, "message") <- motif
+    r
+  }
+  if (length(essais) < 2L)
+    return(vide(tr("Le rapport de puissance demande au moins deux essais : c'est un rapport.")))
+  if (length(essais) > HSTAT_DL50_ESSAIS_MAX)
+    return(vide(trf("Comparaison limitée à %d essais, comme dans WIN DL.",
+                    HSTAT_DL50_ESSAIS_MAX)))
+  for (e in essais) {
+    m <- .hstat_dl50_valide(e)
+    if (!is.null(m)) return(vide(m))
+  }
+  k <- length(essais)
+  ref <- suppressWarnings(as.integer(reference)[1])
+  if (!isTRUE(is.finite(ref)) || ref < 1L || ref > k) ref <- 1L
+  cm <- switch(scenario, heterogene = "libre", homogene = "commun", nulle = "nul")
+  if (identical(scenario, "nulle") &&
+      any(vapply(essais, function(e) e$n0 > 0 && e$x0 > 0, logical(1))))
+    return(vide(tr("Au moins un essai présente une mortalité naturelle observée : le scénario à mortalité nulle n'est pas applicable.")))
+
+  # Le modele a PENTE COMMUNE : c'est lui qui definit le rapport.
+  m_par <- .hstat_dl50_fit_multi(essais, FALSE, TRUE, cm)
+  # Et le modele a pentes libres, pour tester le parallelisme.
+  m_lib <- .hstat_dl50_fit_multi(essais, FALSE, FALSE, cm)
+  if (!isTRUE(m_par$ok))
+    return(vide(tr("L'ajustement à pente commune a échoué : le rapport de puissance n'est pas calculable.")))
+  if (is.null(m_par$V))
+    return(vide(tr("Matrice de variances non inversible sous le modèle à pente commune : le rapport se calcule, pas son intervalle. Augmentez les effectifs ou le nombre de doses.")))
+
+  para <- .hstat_dl50_ligne_test(
+    tr("Parallélisme des droites (b identiques)"), m_par, m_lib,
+    m_lib$npar - m_par$npar, alpha,
+    tr("Test significatif : les droites ne sont pas parallèles."),
+    tr("Test non significatif : les droites peuvent être considérées comme parallèles."))
+
+  # `unname()` : ordonnees et pente sortent du vecteur de parametres, ou elles
+  # portent un nom. Ce nom se propage silencieusement au rapport, a ses bornes
+  # et a l'attribut `pente_commune`, ou il ne veut plus rien dire -- et il suffit
+  # a faire echouer toute comparaison qui compare aussi les noms.
+  a <- unname(m_par$par$a)
+  b <- unname(m_par$par$b[1])
+  V <- m_par$V
+  # Ordre des parametres dans `optim` : les a_i (k valeurs), puis b, puis les c.
+  ib <- k + 1L
+  tq <- stats::qnorm(1 - alpha / 2)
+  nom <- names(essais) %||% vapply(essais, function(e)
+    if (nzchar(e$titre)) e$titre else tr("Essai"), character(1))
+  nom <- make.unique(nom, sep = " ")
+
+  lig <- lapply(seq_len(k), function(i) {
+    if (i == ref)
+      return(data.frame(Essai = nom[i], Reference = TRUE,
+                        Rapport = 1, Limite_inf = NA_real_, Limite_sup = NA_real_,
+                        Intervalle = NA_character_, stringsAsFactors = FALSE))
+    # log10(R) = (a_ref - a_i) / b
+    N <- a[ref] - a[i]
+    vN <- V[ref, ref] + V[i, i] - 2 * V[ref, i]
+    vD <- V[ib, ib]
+    cND <- V[ref, ib] - V[i, ib]
+    m <- N / b
+    v <- (vN + m^2 * vD - 2 * m * cND) / b^2
+    se <- sqrt(max(v, 0))
+    g <- tq^2 * vD / b^2
+    dis <- b^2 * v - g * (vN - cND^2 / vD)
+    if (is.finite(g) && g < 1 && is.finite(dis) && dis >= 0) {
+      centre <- (m - g * cND / vD) / (1 - g)
+      demi <- (tq / (abs(b) * (1 - g))) * sqrt(dis)
+      lo <- centre - demi; hi <- centre + demi; meth <- "Fieller"
+    } else {
+      lo <- m - tq * se; hi <- m + tq * se; meth <- "delta"
+    }
+    data.frame(Essai = nom[i], Reference = FALSE,
+               Rapport = 10^m, Limite_inf = 10^lo, Limite_sup = 10^hi,
+               Intervalle = meth, stringsAsFactors = FALSE)
+  })
+  res <- do.call(rbind, lig)
+
+  # La DL50 propre a chaque essai, pour situer le rapport. Elle vient de
+  # l'ajustement INDIVIDUEL : le rapport, lui, vient du modele a pente commune.
+  # Les deux ne coincident que si les droites sont effectivement paralleles --
+  # c'est encore une facon de voir ce que le test dit.
+  res$DL50 <- vapply(essais, function(e) {
+    f <- hstat_dl50_ajuste(e, if (identical(cm, "nul")) "nulle" else "em")
+    if (!isTRUE(f$ok)) return(NA_real_)
+    d <- hstat_dl50_doses_letales(f, 50)
+    if (is.null(d) || !nrow(d)) NA_real_ else d$Dose[1]
+  }, numeric(1))
+  res <- res[, c("Essai", "Reference", "DL50", "Rapport", "Limite_inf",
+                 "Limite_sup", "Intervalle")]
+  rownames(res) <- NULL
+
+  attr(res, "reference") <- nom[ref]
+  attr(res, "parallelisme") <- para
+  attr(res, "scenario") <- scenario
+  attr(res, "pente_commune") <- b
+  v_para <- if (is.na(para$p)) "indeterminable" else hstat_p_verdict(para$p, alpha)
+  attr(res, "avertissement") <- switch(v_para,
+    significatif = tr("Les droites ne sont pas parallèles : le rapport de puissance change avec le niveau de mortalité, et le chiffre ci-dessous ne vaut qu'à la DL50. Comparez les doses létales seuil par seuil plutôt que par un rapport unique."),
+    `non significatif` = NULL,
+    tr("Le test de parallélisme n'est pas calculable : le rapport ci-dessous suppose des droites parallèles sans que rien ne le confirme."))
   res
 }
 
@@ -1929,7 +2071,32 @@ mod_dl50_ui <- function(id) {
             DT::DTOutput(ns("tableComp")),
             shiny::br(),
             shiny::downloadButton(ns("compCsv"), " Télécharger (CSV)", class = "btn-sm"),
-            shiny::downloadButton(ns("compXlsx"), " Télécharger (Excel)", class = "btn-sm")))),
+            shiny::downloadButton(ns("compXlsx"), " Télécharger (Excel)", class = "btn-sm"))),
+
+        shiny::fluidRow(
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("scale-unbalanced"),
+                                   " Rapport de puissance (ratio de résistance)"),
+            status = "warning", width = 12, solidHeader = TRUE,
+            shiny::div(class = "callout callout-warning", style = "padding:8px 12px;",
+              shiny::icon("lightbulb"),
+              shiny::strong(" Combien de fois plus de produit ? "),
+              "Le rapport des DL50 dit combien de fois il en faut davantage pour",
+              " tuer l'essai comparé que l'essai de référence. Il n'existe qu'à",
+              " pente commune : si les droites ne sont pas parallèles, il change",
+              " avec le niveau de mortalité, et le test de parallélisme le dit."),
+            shiny::fluidRow(
+              shiny::column(5, shiny::selectInput(ns("puiRef"), "Essai de référence",
+                                                  choices = NULL)),
+              shiny::column(4, shiny::div(style = "margin-top:26px;",
+                shiny::actionButton(ns("puiGo"),
+                  shiny::tagList(shiny::icon("divide"), " Calculer le rapport"),
+                  class = "btn-primary")))),
+            shiny::uiOutput(ns("messagePui")),
+            DT::DTOutput(ns("tablePui")),
+            shiny::br(),
+            shiny::downloadButton(ns("puiCsv"), " Télécharger (CSV)", class = "btn-sm"),
+            shiny::downloadButton(ns("puiXlsx"), " Télécharger (Excel)", class = "btn-sm")))),
 
       # ------------------------------------------------------------------
       shiny::tabPanel(
@@ -2829,6 +2996,61 @@ mod_dl50_server <- function(id, values) {
     }
     output$compCsv  <- hstat_csv_handler(comp_tables, "dl50_comparaison")
     output$compXlsx <- hstat_classeur_handler(comp_tables, "dl50_comparaison")
+
+    # -- Rapport de puissance ------------------------------------------------
+    shiny::observe({
+      nm <- names(essais_retenus())
+      shiny::updateSelectInput(session, "puiRef", choices = nm,
+        selected = if (length(nm)) {
+          a <- shiny::isolate(input$puiRef)
+          if (!is.null(a) && a %in% nm) a else nm[1]
+        } else NULL)
+    })
+
+    puissance <- shiny::eventReactive(input$puiGo, {
+      cur <- essais_retenus()
+      i <- match(input$puiRef %||% "", names(cur))
+      hstat_dl50_puissance(unname(cur), reference = if (is.na(i)) 1L else i,
+                           scenario = input$scenario %||% "heterogene",
+                           alpha = min(max(.hstat_num1(input$alpha, 0.05), 0.001), 0.2))
+    })
+
+    output$messagePui <- shiny::renderUI({
+      r <- puissance()
+      if (!nrow(r)) return(bandeau(attr(r, "message")))
+      pa <- attr(r, "parallelisme")
+      shiny::tagList(
+        bandeau(attr(r, "avertissement")),
+        shiny::div(style = "margin:8px 0;font-size:14px;color:#4b5563;",
+          shiny::strong(trf("Référence : %s.", attr(r, "reference"))), " ",
+          trf("Pente commune : %.4f.", attr(r, "pente_commune")), " ",
+          if (!is.na(pa$Chi2))
+            trf("Parallélisme : Chi-2 = %.3f, ddl = %d, p = %.4f — %s",
+                pa$Chi2, pa$DDL, pa$p, pa$Conclusion)
+          else pa$Conclusion))
+    })
+
+    output$tablePui <- DT::renderDT({
+      r <- puissance()
+      shiny::validate(shiny::need(nrow(r) > 0,
+        tr("Chargez au moins deux essais, choisissez la référence, puis lancez le calcul.")))
+      DT::datatable(as.data.frame(r), rownames = FALSE,
+        colnames = c(tr("Essai"), tr("Référence"), tr("DL50"), tr("Rapport"),
+                     tr("Limite inférieure"), tr("Limite supérieure"),
+                     tr("Type d'intervalle")),
+        options = list(dom = "t", pageLength = 10, ordering = FALSE,
+                       scrollX = TRUE)) |>
+        DT::formatSignif(c("DL50", "Rapport", "Limite_inf", "Limite_sup"), 5)
+    })
+
+    pui_tables <- function() {
+      r <- puissance()
+      if (!nrow(r)) return(NULL)
+      list("Rapport_de_puissance" = as.data.frame(r),
+           "Parallelisme" = as.data.frame(attr(r, "parallelisme")))
+    }
+    output$puiCsv  <- hstat_csv_handler(pui_tables, "dl50_puissance")
+    output$puiXlsx <- hstat_classeur_handler(pui_tables, "dl50_puissance")
 
     shiny::observeEvent(input$fusionner, {
       cur <- essais_retenus()

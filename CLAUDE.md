@@ -1250,6 +1250,43 @@ l'écarter en silence perdrait la **mortalité naturelle** de l'essai — celle 
 change toute la courbe de réponse. `hstat_dl50_depuis_donnees()` l'extrait et
 en fait le témoin.
 
+### Le rapport de puissance n'existe qu'à pente commune
+
+C'est le chiffre que publie la surveillance des résistances : combien de fois
+faut-il plus de produit pour tuer la souche étudiée que la souche de référence.
+
+```
+R = DL50(essai) / DL50(référence) = 10^((a_réf − a_essai) / b)
+```
+
+**Et c'est tout le sujet : ce rapport n'a de sens que si les droites sont
+parallèles.** Sinon il change avec le niveau de mortalité — il vaut 3 à la DL50
+et 12 à la DL90 — et publier « R = 3 » revient à choisir un chiffre parmi
+d'autres sans le dire. Le test de parallélisme est donc calculé **avant** et
+rendu **avec** : pas en option, pas plus bas dans la page. Quand il est rejeté,
+`hstat_dl50_puissance()` renvoie l'avertissement qui dit de comparer les doses
+létales seuil par seuil plutôt que par un rapport unique.
+
+Le numérateur et le dénominateur viennent du **même** ajustement à pente
+commune, d'où leur covariance — qu'un calcul essai par essai ignorerait. C'est
+encore un rapport de deux estimateurs normaux : l'intervalle passe par Fieller,
+avec le même repli sur la delta-méthode quand `g ≥ 1`.
+
+La matrice de variances vient du **hessien** rendu par `optim(hessian = TRUE)` :
+`nll` étant l'opposé de la log-vraisemblance, son hessien est directement
+l'information observée. La demander coûte une évaluation de plus et évite de
+réécrire l'information de Fisher pour le cas multi-essais.
+
+Deux vérifications que le test porte, parce qu'elles attrapent des fautes
+plausibles :
+
+1. **Sur deux droites parallèles simulées de rapport connu 5**, l'estimation
+   rend 5,09 avec un intervalle qui contient 5, et la pente commune retrouve la
+   pente simulée.
+2. **Inverser la référence inverse le rapport.** C'est la vérification qui
+   attrape un signe pris à l'envers dans `(a_réf − a_i) / b` — une erreur qui
+   rendrait un ratio de résistance parfaitement plausible, et faux.
+
 ### Les quatre silences du bioessai
 
 Un audit du module a trouvé quatre situations où il rendait un chiffre faux ou

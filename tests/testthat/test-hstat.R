@@ -9142,6 +9142,93 @@ test_that("coller trois colonnes d'un tableur : la virgule a un seul role", {
   expect_true(isTRUE(hstat_dl50_ajuste(es, "em")$ok))
 })
 
+test_that("le rapport de puissance retrouve un ratio de resistance connu", {
+  # C'est le chiffre que publie la surveillance des resistances : combien de
+  # fois faut-il plus de produit pour tuer la souche etudiee. On le verifie sur
+  # deux droites PARALLELES par construction, dont le rapport vrai vaut 5.
+  set.seed(7)
+  simule <- function(dl50, b, doses, n = 400) {
+    a <- -b * log10(dl50)
+    stats::rbinom(length(doses), n, stats::pnorm(a + b * log10(doses)))
+  }
+  d <- c(0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10)
+  sens <- hstat_dl50_essai(d, rep(400, 8), simule(0.5, 2, d), 400, 0, titre = "sensible")
+  resi <- hstat_dl50_essai(d, rep(400, 8), simule(2.5, 2, d), 400, 0, titre = "résistante")
+
+  r <- hstat_dl50_puissance(list(sensible = sens, resistante = resi),
+                            reference = 1, scenario = "nulle")
+  expect_equal(nrow(r), 2L)
+  expect_true(r$Reference[1])
+  expect_equal(r$Rapport[1], 1)
+  # Le rapport vrai vaut 5, et son intervalle doit le contenir.
+  expect_equal(r$Rapport[2], 5, tolerance = 0.15)
+  expect_lt(r$Limite_inf[2], 5)
+  expect_gt(r$Limite_sup[2], 5)
+  expect_equal(r$Intervalle[2], "Fieller")
+  # La pente commune retrouve la pente simulee. Et elle sort NUE : le vecteur de
+  # parametres nomme ses elements, et ce nom se propagerait au rapport et a ses
+  # bornes, ou il ne designerait plus rien.
+  expect_null(names(attr(r, "pente_commune")))
+  expect_equal(attr(r, "pente_commune"), 2, tolerance = 0.1)
+  # Et le rapport reste coherent avec les DL50 ajustees essai par essai.
+  expect_equal(r$Rapport[2], r$DL50[2] / r$DL50[1], tolerance = 0.05)
+
+  # Le parallelisme est teste, et il passe : aucun avertissement.
+  pa <- attr(r, "parallelisme")
+  expect_equal(nrow(pa), 1L)
+  expect_gt(pa$p, 0.05)
+  expect_null(attr(r, "avertissement"))
+
+  # INVERSER LA REFERENCE INVERSE LE RAPPORT. C'est la verification qui attrape
+  # un signe pris a l'envers dans (a_ref - a_i) / b -- une erreur qui rendrait
+  # un ratio de resistance parfaitement plausible, et faux.
+  r2 <- hstat_dl50_puissance(list(sensible = sens, resistante = resi),
+                             reference = 2, scenario = "nulle")
+  expect_equal(r2$Rapport[1], 1 / r$Rapport[2], tolerance = 0.02)
+  expect_true(r2$Reference[2])
+})
+
+test_that("un rapport de puissance sans parallelisme est annonce comme tel", {
+  # Le rapport n'existe qu'a pente commune. Si les droites ne sont pas
+  # paralleles, il change avec le niveau de mortalite : il vaut 3 a la DL50 et
+  # 12 a la DL90, et publier « R = 3 » revient a choisir un chiffre parmi
+  # d'autres sans le dire.
+  set.seed(11)
+  simule <- function(dl50, b, doses, n = 400) {
+    a <- -b * log10(dl50)
+    stats::rbinom(length(doses), n, stats::pnorm(a + b * log10(doses)))
+  }
+  d <- c(0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10)
+  s1 <- hstat_dl50_essai(d, rep(400, 8), simule(0.5, 2, d), 400, 0, titre = "a")
+  s2 <- hstat_dl50_essai(d, rep(400, 8), simule(2.5, 4.5, d), 400, 0, titre = "b")
+  r <- hstat_dl50_puissance(list(a = s1, b = s2), 1, "nulle")
+  expect_equal(nrow(r), 2L)
+  expect_lt(attr(r, "parallelisme")$p, 0.05)
+  av <- attr(r, "avertissement")
+  expect_true(!is.null(av) && nzchar(av))
+  expect_true(grepl("pas parallèles", av, fixed = TRUE))
+  expect_true(grepl("seuil par seuil", av, fixed = TRUE))
+})
+
+test_that("le rapport de puissance refuse ce qu'il ne peut pas calculer", {
+  a <- .hstat_dl50_essai_ref()
+  expect_equal(nrow(hstat_dl50_puissance(list(a))), 0L)
+  expect_true(grepl("au moins deux essais",
+                    attr(hstat_dl50_puissance(list(a)), "message"), fixed = TRUE))
+  # Une saisie invalide est nommee, pas contournee.
+  mauvais <- hstat_dl50_essai(c(1, 2, 3), rep(20, 3), c(1, 25, 9))
+  expect_equal(nrow(hstat_dl50_puissance(list(a, mauvais))), 0L)
+  # Le scenario a mortalite nulle reste refuse devant un temoin qui compte des
+  # morts, comme pour la comparaison.
+  t <- hstat_dl50_essai(a$doses$dose, a$doses$n, a$doses$x, 25, 3)
+  r <- hstat_dl50_puissance(list(a, t), 1, "nulle")
+  expect_equal(nrow(r), 0L)
+  expect_true(grepl("mortalité naturelle", attr(r, "message")))
+  # Une reference hors bornes retombe sur le premier essai plutot que de lever.
+  r2 <- hstat_dl50_puissance(list(a = a, b = t), reference = 99, "heterogene")
+  expect_true(r2$Reference[1])
+})
+
 test_that("le module DL50 est branche et depose son contexte", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))
