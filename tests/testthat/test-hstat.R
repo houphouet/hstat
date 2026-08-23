@@ -2866,6 +2866,34 @@ test_that("aucune condition ne branche directement sur une p-value non gardee", 
                info = paste("conditions non gardees :", paste(trouve, collapse = " | ")))
 })
 
+test_that("un temoin nul rend NA, jamais un infini", {
+  # CLAUDE.md pose la regle : « diviser par zero produirait des Inf silencieux,
+  # qui ressortiraient en graphique comme des barres demesurees. On rend NA et
+  # on le dit. » Le MESSAGE etait verifie, les VALEURS ne l'etaient pas --
+  # retirer le garde-fou ne faisait echouer aucune assertion de la suite
+  # entiere, et les efficacites sortaient a -Inf avec l'alerte toujours
+  # affichee a cote. Trouve par mutation.
+  d <- data.frame(Mod = c("T", "A", "B"), Y = c(0, 5, 12))
+  r <- hstat_efficacite(d, "Mod", "Y", "T")
+
+  # 1. AUCUN INFINI, nulle part. C'est l'assertion qui manquait.
+  expect_false(any(is.infinite(r$Efficacite)))
+  # 2. Les modalites comparees au temoin nul valent NA -- pas zero, pas -Inf :
+  #    l'efficacite n'est pas definissable, et NA le dit.
+  expect_true(all(is.na(r$Efficacite[r$Modalite != "T"])))
+  # 3. Le temoin, lui, garde son zero par definition.
+  expect_equal(r$Efficacite[r$Modalite == "T"], 0)
+  # 4. Et le message accompagne les valeurs, il ne les remplace pas.
+  expect_true(grepl("nul", attr(r, "message"), fixed = TRUE))
+
+  # Le meme essai avec un temoin NON nul reste normal : le garde-fou ne doit
+  # pas se declencher a tort.
+  d2 <- data.frame(Mod = c("T", "A", "B"), Y = c(20, 5, 12))
+  r2 <- hstat_efficacite(d2, "Mod", "Y", "T")
+  expect_true(all(is.finite(r2$Efficacite)))
+  expect_equal(r2$Efficacite[r2$Modalite == "A"], 75)
+})
+
 test_that("hstat_coord_mat protege des coordonnees reduites a un vecteur", {
   # Cas nominal : une matrice reste une matrice
   m <- matrix(1:6, ncol = 3, dimnames = list(c("a","b"), paste("Dim", 1:3)))
@@ -2879,6 +2907,12 @@ test_that("hstat_coord_mat protege des coordonnees reduites a un vecteur", {
   expect_equal(dim(out), c(3L, 1L))
   expect_equal(rownames(out), c("a","b","c"))
   expect_equal(unname(out[, 1]), unname(v))
+  # LA COLONNE EST NOMMEE, et cela se verifie. Sans la garde, `as.matrix()` rend
+  # bien une matrice 3x1 aux bonnes lignes -- la mutation SURVIVAIT -- mais sa
+  # colonne n'a PAS de nom, la ou la garde la baptise « Dim 1 ». C'est ce nom
+  # qui etiquette l'axe du graphique ; la branche « matrice » de ce test le
+  # verifiait deja, la branche « vecteur » l'avait oublie.
+  expect_equal(colnames(out), "Dim 1")
   # ... et l'indexation qui echouait passe desormais
   expect_error(v[, 1:min(2, ncol(v)), drop = FALSE])                    # avant
   expect_silent(out[, 1:min(2, ncol(out)), drop = FALSE])               # apres
