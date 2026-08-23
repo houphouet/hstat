@@ -53,6 +53,11 @@ HSTAT_DL50_DOSES_MAX  <- 100L    # limite de WIN DL
 HSTAT_DL50_ESSAIS_MAX <- 6L      # limite de WIN DL
 HSTAT_DL50_MIN_UTILES <- 3L      # doses a mortalite corrigee strictement entre 0 et 1
 
+# Au-dela, la correction d'ABBOTT devient peu fiable et l'usage veut qu'on
+# refasse l'essai (FINNEY, 1971). Ce n'est pas une erreur de saisie : c'est un
+# defaut de conduite d'essai, et le dire suffit -- le calcul continue.
+HSTAT_DL50_TEMOIN_MAX <- 0.20
+
 HSTAT_DL50_METHODES <- c(
   "Maximum de vraisemblance sur tout l'essai (EM)"     = "em",
   "Mortalité naturelle du seul témoin (Abbott)"        = "abbott",
@@ -248,6 +253,11 @@ hstat_dl50_essai <- function(dose, effectif, morts, temoin_n = 0, temoin_morts =
     champs = champs), class = "hstat_dl50_essai")
 }
 
+# Le message de la pente negative, ecrit UNE fois : il est rendu depuis deux
+# endroits, et deux formulations du meme refus finiraient par diverger.
+.hstat_dl50_msg_pente <- function()
+  tr("La mortalité décroît quand la dose augmente : la droite de Henry n'a pas de sens ici. Vérifiez que les colonnes « effectif testé » et « morts » ne sont pas inversées, et que les doses correspondent bien aux mortalités.")
+
 .hstat_dl50_valide <- function(essai) {
   d <- essai$doses
   if (!nrow(d))
@@ -292,6 +302,17 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
     return(echec(trf("Moins de %d doses donnent une mortalité corrigée strictement comprise entre 0 %% et 100 %% : la droite de régression n'est pas déterminée. Ajoutez des doses intermédiaires.",
                      HSTAT_DL50_MIN_UTILES)))
 
+  # UNE PENTE NEGATIVE N'EST PAS UN AJUSTEMENT, C'EST UNE SAISIE A L'ENVERS.
+  # Sans ce refus, deux colonnes inversees produisaient un rapport COMPLET --
+  # equation, intervalles de confiance, graphique -- ou la DL10 valait mille
+  # fois la DL90. Rien a l'ecran ne le signalait : c'est le resultat faux le
+  # plus facile a publier de bonne foi.
+  #
+  # Le refus porte sur la valeur INITIALE et sur la valeur finale : la
+  # premiere evite d'iterer pour rien, la seconde attrape le cas ou
+  # l'algorithme y arrive en cours de route.
+  if (ini$b <= 0) return(echec(.hstat_dl50_msg_pente()))
+
   fit <- if (identical(methode, "em")) {
     .hstat_dl50_em(z, n, x, n0, x0, ini$a, ini$b)
   } else {
@@ -300,6 +321,7 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
   }
   if (!is.finite(fit$a) || !is.finite(fit$b))
     return(echec(tr("L'estimation n'a pas convergé : vérifiez que la mortalité croît avec la dose.")))
+  if (fit$b <= 0) return(echec(.hstat_dl50_msg_pente()))
 
   a <- fit$a; b <- fit$b; cc <- fit$c
   eta <- a + b * z
@@ -318,6 +340,15 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
   ddl <- max(1L, nrow(d) - 2L)
   p_chi2 <- stats::pchisq(chi2, ddl, lower.tail = FALSE)
 
+  # MAIS UN TEST SANS DEGRE DE LIBERTE RESIDUEL NE TESTE RIEN. Avec autant de
+  # doses que de parametres estimes, le modele passe exactement par les points :
+  # le Chi-2 vaut zero par construction, et le plancher `max(1L, ...)` -- qui
+  # existe pour eviter une division par zero -- le transformait en « p = 1,0000,
+  # ajustement probit legitime ». Un verdict rassurant sur un test qui n'a pas
+  # eu lieu est pire qu'un silence.
+  npar <- if (identical(methode, "em")) 3L else 2L
+  informatif <- nrow(d) > npar
+
   V <- tryCatch(solve(.hstat_dl50_fisher(z, n, a, b, cc)), error = function(e) NULL)
   if (is.null(V) || any(!is.finite(V)))
     return(echec(tr("Matrice d'information singulière : les variances des paramètres ne peuvent pas être calculées. Ajoutez des doses ou augmentez les effectifs.")))
@@ -327,7 +358,7 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
   # Chi2/ddl et le quantile devient celui de STUDENT. Ne pas le faire
   # publierait des intervalles trop etroits precisement quand le modele est
   # douteux.
-  hetero <- isTRUE(p_chi2 < alpha)
+  hetero <- isTRUE(informatif && p_chi2 < alpha)
   facteur <- if (hetero) chi2 / ddl else 1
   Vh <- V * facteur
   tq <- if (hetero) stats::qt(1 - alpha / 2, ddl) else stats::qnorm(1 - alpha / 2)
@@ -350,6 +381,8 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
     iterations = fit$iterations, converge = isTRUE(fit$converge),
     ll0 = ll0, ll1 = ll1, chi2 = chi2, ddl = ddl, p_chi2 = p_chi2,
     heterogene = hetero, facteur = facteur, t = tq, alpha = alpha,
+    informatif = informatif, npar = npar,
+    temoin_eleve = isTRUE(c_temoin > HSTAT_DL50_TEMOIN_MAX),
     V = V, Vh = Vh, table = table,
     n_doses = nrow(d), n_zero = sum(p_cor <= 0), n_cent = sum(p_cor >= 1)),
     class = "hstat_dl50_fit")
@@ -386,8 +419,32 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
 #
 #  Verification qui les separe : 10^(log DL50 +/- 1/b) rend exactement la DL84
 #  et la DL16 -- l'ecart-type est une propriete de la courbe, pas de l'essai.
+# L'unite de dose saisie dans la fiche. Elle etait DEMANDEE puis jamais
+# reaffichee : on lisait « DL50 = 0,00552 » sans savoir si c'etait des
+# microgrammes par insecte ou des grammes par litre. Une dose sans unite n'est
+# pas un resultat.
+hstat_dl50_unite <- function(fit_ou_essai) {
+  e <- if (inherits(fit_ou_essai, "hstat_dl50_fit")) fit_ou_essai$essai else fit_ou_essai
+  u <- trimws(as.character(e$champs$unite %||% ""))
+  if (length(u) && !is.na(u) && nzchar(u)) u else ""
+}
+
+# « Dose » ou « Dose (µg/insecte) » : le libelle porte l'unite des qu'elle est
+# connue, et reste nu sinon.
+hstat_dl50_libelle_dose <- function(fit, base = tr("Dose")) {
+  u <- hstat_dl50_unite(fit)
+  if (nzchar(u)) trf("%s (%s)", base, u) else base
+}
+
 hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
   if (!isTRUE(fit$ok)) return(NULL)
+  # L'ETENDUE REELLEMENT TESTEE. La droite de Henry se prolonge a l'infini, la
+  # population testee non : une DL90 quatre fois au-dessus de la plus forte
+  # dose appliquee repose entierement sur l'hypothese de linearite du probit,
+  # la ou plus aucune observation ne vient la contraindre. Sur l'essai de
+  # reference, DEUX des trois doses letales publiees sont dans ce cas -- et
+  # rien ne les distinguait de la DL50, seule interpolee.
+  etendue <- range(fit$essai$doses$dose, finite = TRUE)
   V <- fit$Vh; a <- fit$a; b <- fit$b; tq <- fit$t
   vaa <- V[1, 1]; vbb <- V[2, 2]; vab <- V[1, 2]
   g <- tq^2 * vbb / b^2
@@ -424,12 +481,27 @@ hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
                DL_erreur_type = bornes(m, se),
                DL_ecart_type = bornes(m, sigma),
                Limite_inf = 10^lo, Limite_sup = 10^hi,
-               Intervalle = meth, stringsAsFactors = FALSE)
+               Intervalle = meth,
+               Position = if (!is.finite(10^m)) NA_character_
+                          else if (10^m < etendue[1] || 10^m > etendue[2])
+                            tr("extrapolée") else tr("interpolée"),
+               stringsAsFactors = FALSE)
   })
   res <- do.call(rbind, out)
   res <- res[order(-res$Seuil), , drop = FALSE]
   rownames(res) <- NULL
   attr(res, "g") <- g
+  attr(res, "etendue") <- etendue
+  hors <- res$Seuil[!is.na(res$Position) & res$Position == tr("extrapolée")]
+  if (length(hors))
+    # `formatC` aligne sur une largeur commune et laisse des espaces de tete :
+    # « 0.00063 à  0.03 » se lit comme une coquille. Et chaque seuil porte son
+    # propre « DL » -- « DL90, 10 » se lit comme une dose de 10.
+    attr(res, "avertissement") <- trf(
+      "Dose(s) létale(s) hors de l'étendue testée (%s à %s) : %s. Elles reposent sur le prolongement de la droite, là où aucune observation ne vient plus la contraindre.",
+      trimws(formatC(etendue[1], format = "g", digits = 4)),
+      trimws(formatC(etendue[2], format = "g", digits = 4)),
+      paste0("DL", hors, collapse = ", "))
   res
 }
 
@@ -449,10 +521,13 @@ hstat_dl50_mortalite <- function(fit, dose) {
   eta <- fit$a + fit$b * z
   se <- sqrt(pmax(V[1, 1] + z^2 * V[2, 2] + 2 * z * V[1, 2], 0))
   vers_p <- function(e) cc + (1 - cc) * stats::pnorm(e)
+  etendue <- range(fit$essai$doses$dose, finite = TRUE)
   data.frame(Dose = d, Log_dose = z, Probit_attendu = eta, Erreur_type = se,
              Mortalite = vers_p(eta),
              Limite_inf = vers_p(eta - tq * se),
              Limite_sup = vers_p(eta + tq * se),
+             Position = ifelse(d < etendue[1] | d > etendue[2],
+                               tr("extrapolée"), tr("interpolée")),
              stringsAsFactors = FALSE)
 }
 
@@ -481,6 +556,53 @@ hstat_dl50_dose_pour <- function(fit, mortalite) {
   res <- res[order(res$Mortalite_demandee), , drop = FALSE]
   rownames(res) <- NULL
   res
+}
+
+# ---------------------------------------------------------------------------
+#  Le verdict : la phrase que l'on vient chercher
+# ---------------------------------------------------------------------------
+#  Le bloc de resume annoncait l'equation, la mortalite naturelle, le test
+#  d'ajustement et le nombre d'iterations -- mais PAS la dose letale. Le chiffre
+#  pour lequel le module existe se trouvait plus bas, dans un tableau de dix
+#  colonnes, sans son unite. On ouvre un module de DL50 pour lire une DL50.
+#
+#  Le seuil retenu est la DL50 quand elle est demandee, sinon la premiere des
+#  doses letales calculees : demander « DL20, DL80 » et se voir repondre sur un
+#  seuil qu'on n'a pas demande serait pire que ne rien dire.
+hstat_dl50_verdict <- function(fit, seuils = HSTAT_DL50_SEUILS) {
+  if (!isTRUE(fit$ok)) return(NULL)
+  dl <- hstat_dl50_doses_letales(fit, seuils)
+  if (is.null(dl) || !nrow(dl)) return(NULL)
+  i <- which(dl$Seuil == 50)
+  if (!length(i)) i <- 1L else i <- i[1]
+  u <- hstat_dl50_unite(fit)
+  nb <- function(v) trimws(formatC(v, format = "g", digits = 4))
+  list(
+    seuil = dl$Seuil[i],
+    libelle = trf("DL%g", dl$Seuil[i]),
+    dose = dl$Dose[i], unite = u,
+    limite_inf = dl$Limite_inf[i], limite_sup = dl$Limite_sup[i],
+    intervalle = dl$Intervalle[i], position = dl$Position[i],
+    extrapolee = identical(dl$Position[i], tr("extrapolée")),
+    texte = trf("DL%g = %s%s   [%s ; %s]", dl$Seuil[i], nb(dl$Dose[i]),
+                if (nzchar(u)) paste0(" ", u) else "",
+                nb(dl$Limite_inf[i]), nb(dl$Limite_sup[i])),
+    ajustement = if (!isTRUE(fit$informatif))
+        tr("Ajustement non testable : autant de doses que de paramètres estimés, il ne reste aucun degré de liberté résiduel.")
+      else switch(hstat_p_verdict(fit$p_chi2),
+        significatif = trf("Ajustement rejeté à 5 %% (Chi-2 = %.3f, ddl = %d, p = %.4f) : facteur d'hétérogénéité %.3f appliqué aux variances.",
+                           fit$chi2, fit$ddl, fit$p_chi2, fit$facteur),
+        `non significatif` = trf("Ajustement probit légitime (Chi-2 = %.3f, ddl = %d, p = %.4f).",
+                                 fit$chi2, fit$ddl, fit$p_chi2),
+        tr("Test d'ajustement non calculable.")),
+    alertes = c(
+      if (isTRUE(fit$temoin_eleve))
+        trf("Mortalité du témoin élevée (%.1f %%) : au-delà de %.0f %%, la correction d'Abbott devient peu fiable et l'usage veut qu'on refasse l'essai.",
+            100 * fit$c_temoin, 100 * HSTAT_DL50_TEMOIN_MAX),
+      if (identical(dl$Position[i], tr("extrapolée")))
+        trf("Cette dose est hors de l'étendue testée (%s à %s) : elle repose sur le prolongement de la droite.",
+            nb(attr(dl, "etendue")[1]), nb(attr(dl, "etendue")[2])),
+      attr(dl, "avertissement")))
 }
 
 # ---------------------------------------------------------------------------
@@ -568,7 +690,14 @@ hstat_dl50_test_abbott_em <- function(essai) {
   op <- tryCatch(stats::optim(par0, nll, method = "L-BFGS-B", lower = lo,
                               upper = hi, control = list(maxit = 1000, factr = 1e5)),
                  error = function(e) NULL)
-  if (is.null(op) || !is.finite(op$value) || op$value >= 1e99)
+  # LE CODE DE CONVERGENCE SE LIT. Une optimisation qui n'aboutit pas rendait
+  # malgre tout `ok = TRUE` : si le modele contraint ressortait alors au-dessus
+  # du modele libre -- impossible pour des modeles emboites -- le Chi-2 negatif
+  # etait ecrase a zero et le test concluait « non significatif ». L'echec se
+  # presentait comme une absence de difference, ce qui est exactement la
+  # conclusion inverse.
+  if (is.null(op) || !is.finite(op$value) || op$value >= 1e99 ||
+      !identical(as.integer(op$convergence), 0L))
     return(list(ok = FALSE, ll = NA_real_, npar = na + nb + nc))
   list(ok = TRUE, ll = -op$value, npar = na + nb + nc, par = decoupe(op$par))
 }
@@ -588,7 +717,14 @@ hstat_dl50_test_abbott_em <- function(essai) {
 
 .hstat_dl50_ligne_test <- function(libelle, m0, m1, ddl, alpha = 0.05,
                                    concl_oui, concl_non) {
-  if (!isTRUE(m0$ok) || !isTRUE(m1$ok) || ddl <= 0)
+  # L'INVARIANT D'EMBOITEMENT : le modele contraint ne peut pas mieux ajuster
+  # que le modele libre. S'il le fait, c'est l'optimisation qui a echoue, et le
+  # `max(0, ...)` d'en dessous transformerait cet echec en « non significatif ».
+  # On refuse le test plutot que de le rendre rassurant.
+  emboite <- isTRUE(m0$ok) && isTRUE(m1$ok) &&
+             is.finite(m0$ll) && is.finite(m1$ll) &&
+             m0$ll <= m1$ll + 1e-6
+  if (!isTRUE(m0$ok) || !isTRUE(m1$ok) || ddl <= 0 || !emboite)
     return(data.frame(Hypothese = libelle, Chi2 = NA_real_, DDL = as.integer(ddl),
                       p = NA_real_,
                       Conclusion = tr("Estimation impossible ou hypothèses confondues : le test n'est pas effectué."),
@@ -950,6 +1086,63 @@ hstat_dl50_prn <- function(fit, nom_fichier = "") {
       nb(tb$Log_dose[i], 4), nb(tb$Mortalite_corrigee[i], 4),
       nb(tb$Probit_corrige[i], 4), nb(tb$Mortalite_attendue[i], 4),
       nb(tb$Probit_attendu[i], 4)), collapse = "\t"), character(1)))
+}
+
+# ---------------------------------------------------------------------------
+#  Coller trois colonnes venues d'un tableur
+# ---------------------------------------------------------------------------
+#  Les comptages existent deja dans un classeur : les retaper cellule par
+#  cellule dans une table qui ne dit meme pas qu'elle est modifiable est la
+#  friction la plus quotidienne du module.
+#
+#  LE PIEGE EST LA VIRGULE, et il est le meme que dans le module de nettoyage.
+#  Un tableur francais copie « 0,00063 » avec des TABULATIONS entre colonnes :
+#  la virgule y est une decimale. Un CSV anglais copie « 0.00063,25,5 » : la
+#  virgule y est un separateur. On ne peut pas lui donner les deux roles, alors
+#  on regarde d'abord s'il existe un separateur NON ambigu -- tabulation ou
+#  point-virgule. S'il y en a un, la virgule est une decimale. Sinon seulement,
+#  elle separe.
+#
+#  Une ligne d'en-tete est reconnue a ce qu'elle ne contient aucun nombre : la
+#  jeter en silence vaut mieux que de rendre une premiere dose absurde, et la
+#  garder obligerait a demander « votre collage a-t-il un en-tete ? » pour un
+#  fait que le texte porte deja.
+hstat_dl50_coller <- function(txt) {
+  echec <- function(motif) list(ok = FALSE, message = motif)
+  if (is.null(txt) || !length(txt) || !nzchar(trimws(paste(txt, collapse = "")))) 
+    return(echec(tr("Rien à coller : copiez trois colonnes (dose, effectif testé, morts) depuis votre tableur.")))
+  lignes <- unlist(strsplit(paste(txt, collapse = "\n"), "[\r\n]+"))
+  lignes <- trimws(lignes)
+  lignes <- lignes[nzchar(lignes)]
+  if (!length(lignes)) return(echec(tr("Rien à coller : copiez trois colonnes (dose, effectif testé, morts) depuis votre tableur.")))
+
+  franc <- any(grepl("[\t;]", lignes))
+  motif <- if (franc) "[\t;]+" else "[\t;,[:space:]]+"
+  decoupe <- function(li) {
+    v <- trimws(strsplit(li, motif)[[1]])
+    v <- v[nzchar(v)]
+    if (franc) v <- gsub(",", ".", v, fixed = TRUE)
+    suppressWarnings(as.numeric(v))
+  }
+  # L'en-tete ne porte aucun nombre : c'est a cela qu'on le reconnait.
+  if (length(lignes) && all(!is.finite(decoupe(lignes[1])))) lignes <- lignes[-1]
+  if (!length(lignes))
+    return(echec(tr("Le collage ne contient que des en-têtes : il manque les lignes de données.")))
+
+  mat <- lapply(lignes, decoupe)
+  larg <- vapply(mat, length, integer(1))
+  if (any(larg < 3L))
+    return(echec(trf("Ligne(s) à moins de trois colonnes : %s. Il faut la dose, l'effectif testé et le nombre de morts.",
+                     paste(which(larg < 3L), collapse = ", "))))
+  d <- data.frame(
+    Dose     = vapply(mat, `[`, numeric(1), 1),
+    Effectif = vapply(mat, `[`, numeric(1), 2),
+    Morts    = vapply(mat, `[`, numeric(1), 3),
+    stringsAsFactors = FALSE)
+  if (any(!is.finite(as.matrix(d))))
+    return(echec(tr("Valeur illisible dans le collage : vérifiez qu'il n'y a ni texte ni cellule vide dans les trois premières colonnes.")))
+  list(ok = TRUE, table = d, lignes = nrow(d),
+       decimale = if (franc) "," else ".")
 }
 
 # ---------------------------------------------------------------------------
@@ -1321,7 +1514,14 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
   p <- p +
     ggplot2::coord_cartesian(xlim = rg, ylim = ylim) +
     ggplot2::scale_x_continuous(
-      name = if (nzchar(o$xlab)) o$xlab else tr("Dose (échelle logarithmique)"),
+      name = if (nzchar(o$xlab)) o$xlab else {
+        # L'unite vient de l'essai, pas d'un reglage : la retaper dans le titre
+        # d'axe alors qu'elle figure deja dans la fiche serait une deuxieme
+        # saisie du meme fait, donc une occasion de divergence.
+        u <- hstat_dl50_unite(fits[[1]])
+        if (nzchar(u)) trf("Dose en %s (échelle logarithmique)", u)
+        else tr("Dose (échelle logarithmique)")
+      },
       labels = function(v) formatC(10^v, format = "g", digits = 3)) +
     axe_y +
     ggplot2::labs(title = if (nzchar(o$titre)) o$titre else NULL,
@@ -1464,6 +1664,7 @@ mod_dl50_ui <- function(id) {
                   shiny::tagList(shiny::icon("plus"), " Ligne"), class = "btn-sm"),
                 shiny::actionButton(ns("vider"),
                   shiny::tagList(shiny::icon("eraser"), " Vider"), class = "btn-sm")))),
+            shiny::helpText("Double-cliquez une cellule pour la modifier."),
             DT::DTOutput(ns("saisie")),
             shiny::br(),
             shiny::actionButton(ns("enregistrer"),
@@ -1471,7 +1672,22 @@ mod_dl50_ui <- function(id) {
               class = "btn-primary"),
             shiny::helpText("Les doses identiques sont regroupées et les doses triées,",
                             " comme dans WIN DL : deux lignes à la même dose sont deux",
-                            " répétitions du même point.")),
+                            " répétitions du même point."),
+            shiny::hr(),
+            .hstat_opt_section("Coller depuis un tableur", "clipboard", "#16a085", "#e8f6f3",
+              shiny::helpText("Copiez trois colonnes — dose, effectif testé, morts —",
+                              " et collez-les ici. La ligne d'en-tête est reconnue et",
+                              " ignorée ; la virgule décimale d'un tableur français",
+                              " aussi."),
+              shiny::textAreaInput(ns("collage"), NULL, rows = 5,
+                placeholder = "0,00063\t25\t5\n0,00125\t25\t7\n0,0025\t25\t9",
+                width = "100%"),
+              shiny::actionButton(ns("collerGo"),
+                shiny::tagList(shiny::icon("paste"), " Remplir le tableau"),
+                class = "btn-primary"),
+              shiny::actionButton(ns("collerAjout"),
+                shiny::tagList(shiny::icon("plus"), " Ajouter à la suite"),
+                class = "btn-sm"))),
 
           shinydashboard::box(
             title = shiny::tagList(shiny::icon("layer-group"), " Essais en mémoire"),
@@ -1505,6 +1721,7 @@ mod_dl50_ui <- function(id) {
             title = shiny::tagList(shiny::icon("chart-line"), " Paramètres de la régression"),
             status = "success", width = 8, solidHeader = TRUE,
             shiny::uiOutput(ns("messageFit")),
+            shiny::uiOutput(ns("verdict")),
             shiny::uiOutput(ns("resume")),
             DT::DTOutput(ns("parametres")))),
 
@@ -1898,6 +2115,31 @@ mod_dl50_server <- function(id, values) {
       rownames(d) <- NULL
       saisie(d)
     })
+    .coller <- function(ajouter) {
+      r <- hstat_dl50_coller(input$collage)
+      if (!isTRUE(r$ok)) {
+        shiny::showNotification(r$message, type = "warning", duration = 10)
+        return()
+      }
+      d <- if (isTRUE(ajouter)) {
+        cur <- saisie()
+        # Les lignes entierement vides du tableau de depart ne sont pas des
+        # donnees : les garder devant le collage ferait un tableau a trous.
+        cur <- cur[rowSums(!is.na(cur)) > 0, , drop = FALSE]
+        rbind(cur, r$table)
+      } else r$table
+      rownames(d) <- NULL
+      saisie(d)
+      shiny::updateTextAreaInput(session, "collage", value = "")
+      shiny::showNotification(
+        trf("%d ligne(s) collée(s) ; la virgule y a été lue comme %s.",
+            r$lignes, if (identical(r$decimale, ","))
+              tr("une décimale") else tr("un séparateur")),
+        type = "message", duration = 7)
+    }
+    shiny::observeEvent(input$collerGo, .coller(FALSE))
+    shiny::observeEvent(input$collerAjout, .coller(TRUE))
+
     shiny::observeEvent(input$vider, saisie(
       data.frame(Dose = rep(NA_real_, 5), Effectif = rep(NA_real_, 5),
                  Morts = rep(NA_real_, 5), stringsAsFactors = FALSE)))
@@ -2229,6 +2471,31 @@ mod_dl50_server <- function(id, values) {
       NULL
     })
 
+    # LE CHIFFRE QU'ON VIENT CHERCHER, EN PREMIER ET EN GRAND. Il vivait au bas
+    # d'un tableau de dix colonnes, sans son unite : on ouvre un module de DL50
+    # pour lire une DL50.
+    output$verdict <- shiny::renderUI({
+      f <- fit()
+      if (is.null(f) || !isTRUE(f$ok)) return(NULL)
+      v <- hstat_dl50_verdict(f, seuils_demandes())
+      if (is.null(v)) return(NULL)
+      shiny::div(
+        style = paste0("background:", if (length(v$alertes)) "#fdf6e3" else "#eaf6ec",
+                       ";border-left:5px solid ",
+                       if (length(v$alertes)) "#b8860b" else "#2e7d43",
+                       ";border-radius:6px;padding:14px 18px;margin-bottom:16px;"),
+        shiny::div(style = paste0("font-family:'IBM Plex Mono',Consolas,monospace;",
+                                  "font-size:19px;font-weight:600;color:#1b4332;",
+                                  "letter-spacing:-.01em;"),
+                   v$texte),
+        shiny::div(style = "margin-top:6px;font-size:13.5px;color:#4b5563;",
+                   v$ajustement),
+        if (length(v$alertes))
+          shiny::div(style = "margin-top:8px;font-size:13px;color:#8a6d1f;",
+                     lapply(v$alertes, function(a)
+                       shiny::div(shiny::icon("triangle-exclamation"), " ", a))))
+    })
+
     output$resume <- shiny::renderUI({
       f <- fit()
       if (is.null(f) || !isTRUE(f$ok)) return(NULL)
@@ -2322,11 +2589,11 @@ mod_dl50_server <- function(id, values) {
       d <- doses_letales()
       shiny::validate(shiny::need(!is.null(d), tr("Aucun résultat à afficher.")))
       DT::datatable(d, rownames = FALSE,
-        colnames = c(tr("Seuil (%)"), tr("log10(dose)"), tr("Dose"),
+        colnames = c(tr("Seuil (%)"), tr("log10(dose)"), hstat_dl50_libelle_dose(fit()),
                      tr("Erreur-type"), tr("Écart-type"),
                      tr("DL ± erreur-type"), tr("DL ± écart-type"),
                      tr("Limite inférieure"), tr("Limite supérieure"),
-                     tr("Type d'intervalle")),
+                     tr("Type d'intervalle"), tr("Position")),
         options = list(dom = "t", pageLength = 20, ordering = FALSE,
                        scrollX = TRUE)) |>
         DT::formatSignif(c("Log_dose", "Dose", "Erreur_type", "Ecart_type",
@@ -2338,7 +2605,7 @@ mod_dl50_server <- function(id, values) {
       shiny::validate(shiny::need(!is.null(f) && isTRUE(f$ok),
                                   tr("Aucun résultat à afficher.")))
       DT::datatable(f$table, rownames = FALSE,
-        colnames = c("N", tr("Dose"), tr("Effectif testé"), tr("Morts"),
+        colnames = c("N", hstat_dl50_libelle_dose(f), tr("Effectif testé"), tr("Morts"),
                      tr("log10(dose)"), tr("Mortalité observée"),
                      tr("Mortalité corrigée"), tr("Probit corrigé"),
                      tr("Mortalité attendue"), tr("Probit attendu")),
@@ -2592,9 +2859,10 @@ mod_dl50_server <- function(id, values) {
       d <- table_mort()
       shiny::validate(shiny::need(!is.null(d), tr("Saisissez au moins une dose strictement positive.")))
       DT::datatable(d, rownames = FALSE,
-        colnames = c(tr("Dose"), tr("log10(dose)"), tr("Probit attendu"),
-                     tr("Erreur-type"), tr("Mortalité"), tr("Limite inférieure"),
-                     tr("Limite supérieure")),
+        colnames = c(hstat_dl50_libelle_dose(fit()), tr("log10(dose)"),
+                     tr("Probit attendu"), tr("Erreur-type"), tr("Mortalité"),
+                     tr("Limite inférieure"), tr("Limite supérieure"),
+                     tr("Position")),
         options = list(dom = "t", pageLength = 20, ordering = FALSE,
                        scrollX = TRUE)) |>
         DT::formatSignif(c("Dose", "Log_dose", "Probit_attendu", "Erreur_type",
@@ -2608,18 +2876,19 @@ mod_dl50_server <- function(id, values) {
       if (is.null(d)) return(NULL)
       d[c("Mortalite_demandee", "Log_dose", "Dose", "Erreur_type", "Ecart_type",
           "DL_erreur_type", "DL_ecart_type", "Limite_inf", "Limite_sup",
-          "Intervalle")]
+          "Intervalle", "Position")]
     })
     output$tableDose <- DT::renderDT({
       d <- table_dose()
       shiny::validate(shiny::need(!is.null(d),
         tr("Aucune mortalité exploitable : elle doit dépasser la mortalité naturelle et rester sous 100 %.")))
       DT::datatable(d, rownames = FALSE,
-        colnames = c(tr("Mortalité visée (%)"), tr("log10(dose)"), tr("Dose"),
-                     tr("Erreur-type"), tr("Écart-type"),
-                     tr("DL ± erreur-type"), tr("DL ± écart-type"),
-                     tr("Limite inférieure"), tr("Limite supérieure"),
-                     tr("Type d'intervalle")),
+        colnames = c(tr("Mortalité visée (%)"), tr("log10(dose)"),
+                     hstat_dl50_libelle_dose(fit()), tr("Erreur-type"),
+                     tr("Écart-type"), tr("DL ± erreur-type"),
+                     tr("DL ± écart-type"), tr("Limite inférieure"),
+                     tr("Limite supérieure"), tr("Type d'intervalle"),
+                     tr("Position")),
         options = list(dom = "t", pageLength = 20, ordering = FALSE,
                        scrollX = TRUE)) |>
         DT::formatSignif(c("Log_dose", "Dose", "Erreur_type", "Ecart_type",
