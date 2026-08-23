@@ -9708,20 +9708,46 @@ test_that("la selection multi-criteres filtre sans jamais tout ecarter a vide", 
 })
 
 test_that("une pente negative est refusee, en nommant la cause probable", {
-  # Deux colonnes inversees a la saisie, et la mortalite decroit avec la dose.
-  # Sans ce refus, le module ajustait, convergeait et rendait un rapport
-  # COMPLET -- equation, intervalles, graphique -- ou la DL10 valait mille fois
-  # la DL90. C'est le resultat faux le plus facile a publier de bonne foi.
-  neg <- hstat_dl50_essai(c(0.001, 0.01, 0.1, 1), rep(50, 4), c(45, 30, 15, 5), 50, 0)
-  f <- hstat_dl50_ajuste(neg, "em")
+  # Sans ce refus, deux colonnes inversees produisent un rapport COMPLET --
+  # equation, intervalles, graphique -- ou la DL10 vaut mille fois la DL90.
+  # Rien a l'ecran ne le signale : c'est le resultat faux le plus facile a
+  # publier de bonne foi.
+  inv <- hstat_dl50_essai(c(0.1, 0.5, 1, 5, 10), rep(40, 5), c(36, 30, 20, 10, 3), 40, 0)
+  f <- hstat_dl50_ajuste(inv, "em")
   expect_false(isTRUE(f$ok))
   expect_true(grepl("décroît", f$message, fixed = TRUE))
+  # Le message NOMME la cause probable : c'est ce qui le rend actionnable.
   expect_true(grepl("inversées", f$message, fixed = TRUE))
-  # Les trois methodes refusent : ce n'est pas un artefact de l'EM.
-  for (m in c("em", "abbott", "nulle"))
-    expect_false(isTRUE(hstat_dl50_ajuste(neg, m)$ok), info = m)
-  # Et un essai croissant passe toujours.
-  expect_true(isTRUE(hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")$ok))
+  expect_true(grepl("effectif testé", f$message, fixed = TRUE))
+  # Et il ne rend rien d'exploitable par la suite.
+  expect_null(hstat_dl50_doses_letales(f))
+
+  # LE REFUS PORTE SUR LA PENTE AJUSTEE, PAS SUR LA VALEUR DE DEPART.
+  #
+  # Il portait sur les deux. La valeur de depart vient d'une regression NON
+  # PONDEREE sur les seules doses de mortalite intermediaire : sur un essai
+  # bruite elle sort negative alors que l'ajustement rend une pente franchement
+  # positive. Mesure sur quatre mille essais tires au sort, 23 etaient refuses
+  # a tort -- avec un message qui accusait l'utilisateur d'avoir inverse ses
+  # colonnes.
+  #
+  # Cet essai-la EST le cas : mortalites 0, 5, 7, 5 sur dix individus, donc
+  # 0 %, 50 %, 70 %, 50 % -- bruitee, mais croissante. Depart -0,356, ajuste
+  # +2,49.
+  bruite <- hstat_dl50_essai(c(2.105, 3.363, 4.332, 7.586), rep(10, 4), c(0, 5, 7, 5), 20, 0)
+  z <- log10(bruite$doses$dose)
+  ini <- .hstat_dl50_init(z, bruite$doses$n, bruite$doses$x, 0)
+  expect_lt(ini$b, 0)                       # le depart est bien negatif
+  fb <- hstat_dl50_ajuste(bruite, "nulle")
+  expect_true(isTRUE(fb$ok))                # et l'essai est accepte
+  expect_gt(fb$b, 0)
+
+  # LES DEUX GARDES SE TESTENT SEPAREMENT. Tant qu'elles etaient deux, retirer
+  # l'une laissait l'autre attraper le cas d'essai : aucune assertion ne les
+  # distinguait, et le refus a tort a vecu la. Ces deux essais-ci les separent
+  # -- l'un doit passer, l'autre non, et un seul controle subsiste.
+  expect_false(isTRUE(hstat_dl50_ajuste(inv, "nulle")$ok))
+  expect_true(isTRUE(hstat_dl50_ajuste(bruite, "em")$ok))
 })
 
 test_that("une dose letale hors de l'etendue testee est marquee", {

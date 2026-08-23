@@ -513,10 +513,20 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
   # fois la DL90. Rien a l'ecran ne le signalait : c'est le resultat faux le
   # plus facile a publier de bonne foi.
   #
-  # Le refus porte sur la valeur INITIALE et sur la valeur finale : la
-  # premiere evite d'iterer pour rien, la seconde attrape le cas ou
-  # l'algorithme y arrive en cours de route.
-  if (ini$b <= 0) return(echec(.hstat_dl50_msg_pente()))
+  # LE REFUS PORTE SUR LA PENTE AJUSTEE, PAS SUR LA VALEUR DE DEPART.
+  #
+  # Il portait sur les deux, « la premiere pour eviter d'iterer pour rien ».
+  # Mais la valeur de depart vient d'une regression NON PONDEREE sur les seules
+  # doses de mortalite intermediaire : sur un essai bruite elle sort negative
+  # alors que l'ajustement, lui, rend une pente franchement positive. Mesure
+  # sur quatre mille essais tires au sort : 23 etaient refuses a tort, et l'un
+  # d'eux passait de -0,36 au depart a +2,49 ajuste -- avec un message qui
+  # accusait l'utilisateur d'avoir inverse ses colonnes.
+  #
+  # Iterer « pour rien » coute cinquante iterations d'une regression ponderee
+  # sur quelques doses : rien du tout. Un refus a tort, lui, coute un essai.
+  # Le defaut a ete trouve par MUTATION : desactiver ce controle ne faisait
+  # echouer aucune assertion, ce qui a mene a regarder ce qu'il gardait.
 
   fit <- if (identical(methode, "em")) {
     .hstat_dl50_em(z, n, x, n0, x0, ini$a, ini$b, itmax = itmax, chemin = chemin)
