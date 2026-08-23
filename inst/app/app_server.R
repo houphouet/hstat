@@ -8064,6 +8064,7 @@ server <- function(input, output, session) {
   # ---- Seuils d'efficacite (module Shiny) ----
   mod_threshold_server("threshold", values)
   mod_dosage_server("dosage", values)
+  mod_dl50_server("dl50", values)
 
   # ---- Citer HStat ----
   cite_text <- shiny::reactive({

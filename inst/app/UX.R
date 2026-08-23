@@ -194,6 +194,7 @@ ui <- shinydashboard::dashboardPage(
       shinydashboard::menuItem("Plan & Puissance", tabName = "design", icon = shiny::icon("flask")),
       shinydashboard::menuItem("Seuils d'efficacité", tabName = "threshold", icon = shiny::icon("gauge-high")),
       shinydashboard::menuItem("Doses & dilutions", tabName = "dosage", icon = shiny::icon("flask-vial")),
+      shinydashboard::menuItem("DL50 / CL50", tabName = "dl50", icon = shiny::icon("skull-crossbones")),
       shiny::tags$li(class = "header", "6. À propos"),
       shinydashboard::menuItem("Citer HStat", tabName = "cite", icon = shiny::icon("quote-right"))
     )
@@ -1943,6 +1944,10 @@ ui <- shinydashboard::dashboardPage(
       ),
       shinydashboard::tabItem(tabName = "dosage",
               mod_dosage_ui("dosage")
+      ),
+
+      shinydashboard::tabItem(tabName = "dl50",
+              mod_dl50_ui("dl50")
       ),
 
       # ---- Citer HStat ----

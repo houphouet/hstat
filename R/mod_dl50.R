@@ -1031,3 +1031,773 @@ hstat_dl50_graphique <- function(fits, points = TRUE, courbe = FALSE,
              ggplot2::scale_fill_brewer(palette = palette)
   p
 }
+
+# =============================================================================
+#  INTERFACE
+# =============================================================================
+#  Cinq onglets, qui reprennent les fenetres de WIN DL : la fiche d'essai, les
+#  deux pages de resultats reunies (elles se lisent ensemble), le graphique, la
+#  comparaison d'essais, et l'outil dose <-> mortalite.
+
+.hstat_dl50_champ_ui <- function(ns, nm, largeur = 6) {
+  shiny::column(largeur, shiny::textInput(ns(paste0("ch_", nm)),
+                                          HSTAT_DL50_CHAMPS[[nm]]))
+}
+
+mod_dl50_ui <- function(id) {
+  ns <- shiny::NS(id)
+  shiny::tagList(
+    shiny::fluidRow(
+      shiny::div(class = "callout callout-info", style = "margin-bottom:14px;",
+        shiny::icon("skull-crossbones"), shiny::strong(" DL50 / CL50. "),
+        "Régression probit dose-mortalité (droite de Henry), doses létales et",
+        " intervalles, d'après le modèle de Finney tel que le logiciel WIN DL",
+        " du CIRAD l'applique. La mortalité naturelle est estimée par maximum",
+        " de vraisemblance sur l'ensemble de l'essai, ou par la formule",
+        " d'Abbott sur le seul témoin.")),
+
+    shiny::tabsetPanel(
+      id = ns("dl50Tabs"),
+
+      # ------------------------------------------------------------------
+      shiny::tabPanel(
+        shiny::tagList(shiny::icon("clipboard-list"), " L'essai"),
+        shiny::div(style = "padding-top:14px;"),
+        shiny::fluidRow(
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("file-import"), " D'où viennent les données"),
+            status = "primary", width = 4, solidHeader = TRUE,
+            shiny::radioButtons(ns("source"), "Source des données",
+              choiceNames = list(
+                shiny::HTML("<b>Saisie directe</b> <small style='color:#7f8c8d;'>(doses, effectifs, morts)</small>"),
+                shiny::HTML("<b>Jeu de données chargé</b> <small style='color:#7f8c8d;'>(CSV, Excel, SPSS…)</small>"),
+                shiny::HTML("<b>Fichier WIN DL</b> <small style='color:#7f8c8d;'>(.TXT natif)</small>")),
+              choiceValues = list("saisie", "donnees", "windl"), selected = "saisie"),
+
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s'] == 'donnees'", ns("source")),
+              shiny::helpText("Les colonnes viennent du jeu de travail : tout ce que",
+                              " l'onglet Chargement sait lire est donc utilisable ici."),
+              shiny::selectInput(ns("colDose"), "Colonne des doses", choices = NULL),
+              shiny::selectInput(ns("colN"), "Colonne des effectifs testés", choices = NULL),
+              shiny::selectInput(ns("colMorts"), "Colonne des morts", choices = NULL),
+              shiny::selectInput(ns("colEssai"), "Colonne de regroupement (facultatif)",
+                                 choices = NULL),
+              shiny::helpText("Une ligne à la dose 0 est lue comme le témoin :",
+                              " son logarithme n'existe pas, elle ne peut pas entrer",
+                              " dans la régression."),
+              shiny::actionButton(ns("importerDonnees"),
+                shiny::tagList(shiny::icon("table"), " Charger depuis le jeu de données"),
+                class = "btn-primary btn-block")),
+
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s'] == 'windl'", ns("source")),
+              shiny::fileInput(ns("fichierWindl"), "Fichier d'essai WIN DL",
+                               multiple = TRUE, accept = c(".txt", ".TXT", ".dat")),
+              shiny::helpText("Les fichiers de la version DOS comme de la version",
+                              " Windows se lisent : encodage CP437, séparateurs de",
+                              " champ invisibles, marqueur de fin de fichier."))),
+
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("vial"), " Fiche de l'essai"),
+            status = "info", width = 8, solidHeader = TRUE, collapsible = TRUE,
+            shiny::textInput(ns("titre"), "Titre de l'essai",
+                             placeholder = "ex : C. leucotreta référence cyperméthrine"),
+            shiny::fluidRow(
+              .hstat_dl50_champ_ui(ns, "date", 4),
+              .hstat_dl50_champ_ui(ns, "auteur", 4),
+              .hstat_dl50_champ_ui(ns, "espece", 4)),
+            shiny::fluidRow(
+              .hstat_dl50_champ_ui(ns, "stade", 4),
+              .hstat_dl50_champ_ui(ns, "duree", 4),
+              .hstat_dl50_champ_ui(ns, "temperature", 4)),
+            shiny::fluidRow(
+              .hstat_dl50_champ_ui(ns, "matiere1", 4),
+              .hstat_dl50_champ_ui(ns, "matiere2", 4),
+              .hstat_dl50_champ_ui(ns, "ratio", 4)),
+            shiny::fluidRow(
+              .hstat_dl50_champ_ui(ns, "methode", 6),
+              .hstat_dl50_champ_ui(ns, "unite", 6)),
+            shiny::helpText("Ces champs ne changent aucun calcul : ils identifient",
+                            " l'essai, et ce sont eux que la fusion compare avant",
+                            " d'assembler deux répétitions."))),
+
+        shiny::fluidRow(
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("table-list"), " Doses et mortalités"),
+            status = "primary", width = 8, solidHeader = TRUE,
+            shiny::fluidRow(
+              shiny::column(4, shiny::numericInput(ns("temoinN"),
+                "Témoin : individus testés", value = 0, min = 0, step = 1)),
+              shiny::column(4, shiny::numericInput(ns("temoinX"),
+                "Témoin : individus morts", value = 0, min = 0, step = 1)),
+              shiny::column(4, shiny::div(style = "margin-top:26px;",
+                shiny::actionButton(ns("ligne"),
+                  shiny::tagList(shiny::icon("plus"), " Ligne"), class = "btn-sm"),
+                shiny::actionButton(ns("vider"),
+                  shiny::tagList(shiny::icon("eraser"), " Vider"), class = "btn-sm")))),
+            DT::DTOutput(ns("saisie")),
+            shiny::br(),
+            shiny::actionButton(ns("enregistrer"),
+              shiny::tagList(shiny::icon("floppy-disk"), " Enregistrer cet essai"),
+              class = "btn-primary"),
+            shiny::helpText("Les doses identiques sont regroupées et les doses triées,",
+                            " comme dans WIN DL : deux lignes à la même dose sont deux",
+                            " répétitions du même point.")),
+
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("layer-group"), " Essais en mémoire"),
+            status = "success", width = 4, solidHeader = TRUE,
+            shiny::uiOutput(ns("listeEssais")),
+            shiny::hr(),
+            shiny::selectInput(ns("essaiActif"), "Essai analysé", choices = NULL),
+            shiny::actionButton(ns("retirer"),
+              shiny::tagList(shiny::icon("trash"), " Retirer cet essai"),
+              class = "btn-sm btn-danger"),
+            shiny::helpText("Six essais au maximum, la limite de WIN DL.")))),
+
+      # ------------------------------------------------------------------
+      shiny::tabPanel(
+        shiny::tagList(shiny::icon("square-root-variable"), " Résultats"),
+        shiny::div(style = "padding-top:14px;"),
+        shiny::fluidRow(
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("sliders"), " Estimation"),
+            status = "primary", width = 4, solidHeader = TRUE,
+            shiny::radioButtons(ns("methode"), "Mortalité naturelle",
+                                choices = HSTAT_DL50_METHODES, selected = "em"),
+            shiny::numericInput(ns("alpha"), "Risque α (intervalles)",
+                                value = 0.05, min = 0.001, max = 0.2, step = 0.01),
+            shiny::actionButton(ns("testAbbott"),
+              shiny::tagList(shiny::icon("scale-balanced"), " Abbott ou EM ?"),
+              class = "btn-default btn-block"),
+            shiny::uiOutput(ns("resTestAbbott"))),
+
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("chart-line"), " Paramètres de la régression"),
+            status = "success", width = 8, solidHeader = TRUE,
+            shiny::uiOutput(ns("messageFit")),
+            shiny::uiOutput(ns("resume")),
+            DT::DTOutput(ns("parametres")))),
+
+        shiny::fluidRow(
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("crosshairs"), " Doses létales"),
+            status = "warning", width = 12, solidHeader = TRUE,
+            shiny::textInput(ns("seuils"), "Seuils de mortalité (%)",
+                             value = "10, 50, 90"),
+            shiny::helpText("Séparés par des virgules ou des points-virgules.",
+                            " DL10, DL50 et DL90 sont celles que les rapports de",
+                            " bioessai portent."),
+            DT::DTOutput(ns("dosesLetales")))),
+
+        shiny::fluidRow(
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("table"), " Détail par dose"),
+            status = "info", width = 12, solidHeader = TRUE,
+            DT::DTOutput(ns("detail")),
+            shiny::br(),
+            shiny::downloadButton(ns("dlCsv"), " Télécharger (CSV)", class = "btn-sm"),
+            shiny::downloadButton(ns("dlXlsx"), " Télécharger (Excel)", class = "btn-sm"),
+            shiny::downloadButton(ns("dlPrn"), " Rapport .PRN (format WIN DL)",
+                                  class = "btn-sm"),
+            shiny::downloadButton(ns("dlTxt"), " Essai .TXT (format WIN DL)",
+                                  class = "btn-sm")))),
+
+      # ------------------------------------------------------------------
+      shiny::tabPanel(
+        shiny::tagList(shiny::icon("chart-simple"), " Graphique"),
+        shiny::div(style = "padding-top:14px;"),
+        shiny::fluidRow(
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("eye"), " Ce qui est tracé"),
+            status = "primary", width = 3, solidHeader = TRUE,
+            shiny::checkboxInput(ns("gPoints"), "Points de l'essai (PE)", TRUE),
+            shiny::checkboxInput(ns("gCourbe"), "Courbe de l'essai (CE)", FALSE),
+            shiny::checkboxInput(ns("gDroite"), "Droite de régression (DR)", TRUE),
+            shiny::checkboxInput(ns("gBande"), "Intervalles (IF ou IC)", TRUE),
+            shiny::checkboxInput(ns("gReperes"), "Repères DL10 / DL50 / DL90", TRUE),
+            shiny::checkboxInput(ns("gTous"), "Tous les essais en mémoire", FALSE),
+            shiny::textInput(ns("gTitre"), "Titre du graphique"),
+            shiny::textInput(ns("gXlab"), "Titre de l'axe des doses"),
+            shiny::textInput(ns("gYlab"), "Titre de l'axe des probits"),
+            shiny::selectInput(ns("gPalette"), "Palette (plusieurs essais)",
+                               choices = HSTAT_PALETTES_QUALI, selected = "Set1")),
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("chart-simple"), " Droite de Henry"),
+            status = "success", width = 9, solidHeader = TRUE,
+            shiny::plotOutput(ns("graphe"), height = "560px"),
+            shiny::br(),
+            hstat_export_plot_ui(ns, "gExp", width = 10, height = 7)))),
+
+      # ------------------------------------------------------------------
+      shiny::tabPanel(
+        shiny::tagList(shiny::icon("code-compare"), " Comparaison d'essais"),
+        shiny::div(style = "padding-top:14px;"),
+        shiny::fluidRow(
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("sliders"), " Scénario sur la mortalité naturelle"),
+            status = "primary", width = 4, solidHeader = TRUE,
+            shiny::radioButtons(ns("scenario"), "Mortalité naturelle",
+                                choices = HSTAT_DL50_SCENARIOS, selected = "heterogene"),
+            shiny::actionButton(ns("comparer"),
+              shiny::tagList(shiny::icon("play"), " Comparer les essais"),
+              class = "btn-primary btn-block"),
+            shiny::hr(),
+            shiny::actionButton(ns("fusionner"),
+              shiny::tagList(shiny::icon("object-group"), " Fusionner les essais"),
+              class = "btn-default btn-block"),
+            shiny::helpText("La fusion regroupe les répétitions d'une même",
+                            " expérimentation. Elle exige des champs identiques et",
+                            " un test d'identité non significatif.")),
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("vials"), " Tests du rapport de vraisemblance"),
+            status = "success", width = 8, solidHeader = TRUE,
+            shiny::uiOutput(ns("messageComp")),
+            DT::DTOutput(ns("tableComp")),
+            shiny::br(),
+            shiny::downloadButton(ns("compCsv"), " Télécharger (CSV)", class = "btn-sm"),
+            shiny::downloadButton(ns("compXlsx"), " Télécharger (Excel)", class = "btn-sm")))),
+
+      # ------------------------------------------------------------------
+      shiny::tabPanel(
+        shiny::tagList(shiny::icon("calculator"), " Dose ⇄ mortalité"),
+        shiny::div(style = "padding-top:14px;"),
+        shiny::fluidRow(
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("arrow-right"), " Une dose, quelle mortalité ?"),
+            status = "primary", width = 6, solidHeader = TRUE,
+            shiny::textInput(ns("dosesCalc"), "Doses à évaluer", value = "0.01, 0.05"),
+            shiny::helpText("Intervalle de prédiction, construit sur le probit puis",
+                            " ramené en pourcentage : les bornes restent donc entre",
+                            " 0 et 100 %."),
+            DT::DTOutput(ns("tableMort"))),
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("arrow-left"), " Une mortalité, quelle dose ?"),
+            status = "info", width = 6, solidHeader = TRUE,
+            shiny::textInput(ns("mortsCalc"), "Mortalités visées (%)", value = "25, 50, 95"),
+            shiny::helpText("Mortalité observée, témoin compris : elle est ramenée",
+                            " par Abbott avant l'inversion de la droite."),
+            DT::DTOutput(ns("tableDose")))))
+    ))
+}
+
+# =============================================================================
+#  SERVEUR
+# =============================================================================
+mod_dl50_server <- function(id, values) {
+  shiny::moduleServer(id, function(input, output, session) {
+    ns <- session$ns
+
+    bandeau <- function(motif, type = "warning") {
+      if (is.null(motif) || !length(motif) || !nzchar(motif)) return(NULL)
+      shiny::div(class = paste0("callout callout-", type),
+                 style = "padding:10px 14px;",
+                 shiny::icon(if (identical(type, "warning"))
+                   "triangle-exclamation" else "circle-info"), " ", motif)
+    }
+
+    # Une liste de nombres saisie au clavier. La virgule y est un SEPARATEUR --
+    # a la difference de la saisie d'une valeur unique, ou elle serait la
+    # decimale. On l'accepte donc comme separateur seulement quand elle
+    # separe deux nombres, ce que le point-virgule et l'espace font sans
+    # ambiguite.
+    .nombres <- function(txt) {
+      if (is.null(txt) || !nzchar(txt)) return(numeric(0))
+      v <- suppressWarnings(as.numeric(strsplit(txt, "[;,[:space:]]+")[[1]]))
+      v[is.finite(v)]
+    }
+
+    # -- Le magasin d'essais ------------------------------------------------
+    essais <- shiny::reactiveVal(list())
+    saisie <- shiny::reactiveVal(
+      data.frame(Dose = rep(NA_real_, 5), Effectif = rep(NA_real_, 5),
+                 Morts = rep(NA_real_, 5), stringsAsFactors = FALSE))
+
+    champs_saisis <- function() {
+      st <- stats::setNames(lapply(names(HSTAT_DL50_CHAMPS), function(nm)
+        trimws(input[[paste0("ch_", nm)]] %||% "")), names(HSTAT_DL50_CHAMPS))
+      st
+    }
+
+    # LA TABLE N'EST CONSTRUITE QU'UNE FOIS, et mise a jour ensuite par son
+    # proxy. Relire `saisie()` dans le rendu la reconstruirait a CHAQUE cellule
+    # modifiee : la cellule en cours d'edition est alors detruite sous le
+    # curseur, et deux saisies rapprochees se perdent l'une l'autre. C'est
+    # l'idiome prevu par DT, et le seul qui rende la saisie utilisable.
+    output$saisie <- DT::renderDT({
+      DT::datatable(shiny::isolate(saisie()), rownames = FALSE,
+                    editable = list(target = "cell"), selection = "none",
+                    colnames = c(tr("Dose"), tr("Effectif testé"), tr("Morts")),
+                    options = list(dom = "t", pageLength = 100, ordering = FALSE))
+    })
+    proxy_saisie <- DT::dataTableProxy("saisie")
+    shiny::observeEvent(saisie(), {
+      DT::replaceData(proxy_saisie, saisie(), resetPaging = FALSE, rownames = FALSE)
+    }, ignoreInit = TRUE)
+
+    shiny::observeEvent(input$saisie_cell_edit, {
+      info <- input$saisie_cell_edit
+      d <- saisie()
+      j <- info$col + 1L
+      if (j < 1L || j > ncol(d)) return()
+      d[info$row, j] <- suppressWarnings(
+        as.numeric(gsub(",", ".", info$value, fixed = TRUE)))
+      saisie(d)
+    })
+
+    shiny::observeEvent(input$ligne, {
+      d <- rbind(saisie(), data.frame(Dose = NA_real_, Effectif = NA_real_,
+                                      Morts = NA_real_))
+      rownames(d) <- NULL
+      saisie(d)
+    })
+    shiny::observeEvent(input$vider, saisie(
+      data.frame(Dose = rep(NA_real_, 5), Effectif = rep(NA_real_, 5),
+                 Morts = rep(NA_real_, 5), stringsAsFactors = FALSE)))
+
+    # -- Les colonnes du jeu de travail ------------------------------------
+    donnees <- shiny::reactive({
+      values$filteredData %||% values$cleanData %||% values$data
+    })
+    shiny::observe({
+      d <- donnees()
+      shiny::req(is.data.frame(d))
+      num <- names(d)[vapply(d, is.numeric, logical(1))]
+      for (id2 in c("colDose", "colN", "colMorts"))
+        shiny::updateSelectInput(session, id2, choices = num,
+                                 selected = shiny::isolate(input[[id2]]))
+      shiny::updateSelectInput(session, "colEssai",
+        choices = c(stats::setNames("", tr("(aucune)")), names(d)),
+        selected = shiny::isolate(input$colEssai))
+    })
+
+    .ajouter <- function(nouveaux) {
+      cur <- essais()
+      libre <- HSTAT_DL50_ESSAIS_MAX - length(cur)
+      if (libre <= 0) {
+        shiny::showNotification(
+          trf("Six essais sont déjà en mémoire : retirez-en un avant d'en ajouter (limite de WIN DL, %d).",
+              HSTAT_DL50_ESSAIS_MAX), type = "warning", duration = 8)
+        return(invisible(FALSE))
+      }
+      if (length(nouveaux) > libre) {
+        shiny::showNotification(
+          trf("%d essais retenus sur %d : la mémoire n'accepte que %d essais au total.",
+              libre, length(nouveaux), HSTAT_DL50_ESSAIS_MAX),
+          type = "warning", duration = 8)
+        nouveaux <- nouveaux[seq_len(libre)]
+      }
+      nom <- vapply(nouveaux, function(e)
+        if (nzchar(e$titre)) e$titre else tr("Essai"), character(1))
+      names(nouveaux) <- make.unique(c(names(cur), nom), sep = " ")[
+        length(cur) + seq_along(nouveaux)]
+      essais(c(cur, nouveaux))
+      invisible(TRUE)
+    }
+
+    shiny::observeEvent(input$enregistrer, {
+      d <- saisie()
+      e <- hstat_dl50_essai(d$Dose, d$Effectif, d$Morts,
+                            temoin_n = .hstat_num1(input$temoinN, 0),
+                            temoin_morts = .hstat_num1(input$temoinX, 0),
+                            titre = trimws(input$titre %||% ""),
+                            champs = champs_saisis())
+      msg <- .hstat_dl50_valide(e)
+      if (!is.null(msg)) {
+        shiny::showNotification(msg, type = "warning", duration = 10)
+        return()
+      }
+      if (isTRUE(.ajouter(list(e))))
+        shiny::showNotification(
+          trf("Essai enregistré : %d dose(s), témoin %g/%g.",
+              nrow(e$doses), e$x0, e$n0), type = "message", duration = 5)
+    })
+
+    shiny::observeEvent(input$importerDonnees, {
+      r <- hstat_dl50_depuis_donnees(
+        donnees(), input$colDose, input$colN, input$colMorts,
+        col_essai = input$colEssai,
+        titre = trimws(input$titre %||% "") , champs = champs_saisis())
+      if (!isTRUE(r$ok)) {
+        shiny::showNotification(r$message, type = "warning", duration = 10)
+        return()
+      }
+      bons <- Filter(function(e) is.null(.hstat_dl50_valide(e)), r$essais)
+      ecartes <- length(r$essais) - length(bons)
+      if (!length(bons)) {
+        shiny::showNotification(
+          .hstat_dl50_valide(r$essais[[1]]) %||%
+            tr("Aucun essai exploitable dans les colonnes choisies."),
+          type = "warning", duration = 10)
+        return()
+      }
+      if (isTRUE(.ajouter(bons)))
+        shiny::showNotification(
+          trf("%d essai(s) importé(s) du jeu de données%s.", length(bons),
+              if (ecartes > 0) trf(" ; %d écarté(s), faute de doses exploitables", ecartes)
+              else ""),
+          type = "message", duration = 8)
+    })
+
+    shiny::observeEvent(input$fichierWindl, {
+      f <- input$fichierWindl
+      shiny::req(f)
+      lus <- list(); refus <- character(0)
+      for (i in seq_len(nrow(f))) {
+        r <- hstat_dl50_lire_windl(f$datapath[i])
+        # Le nom du fichier est celui de l'utilisateur, pas le chemin temporaire
+        # de Shiny : afficher `0a1b2c.txt` ne lui dirait rien.
+        if (isTRUE(r$ok)) {
+          e <- r$essai
+          if (!nzchar(e$titre)) e$titre <- f$name[i]
+          lus[[length(lus) + 1L]] <- e
+        } else refus <- c(refus, trf("%s : %s", f$name[i], r$message))
+      }
+      if (length(lus)) .ajouter(lus)
+      if (length(refus))
+        shiny::showNotification(paste(refus, collapse = " — "),
+                                type = "warning", duration = 12)
+      if (length(lus))
+        shiny::showNotification(trf("%d fichier(s) WIN DL lu(s).", length(lus)),
+                                type = "message", duration = 6)
+    })
+
+    shiny::observeEvent(input$retirer, {
+      cur <- essais(); nm <- input$essaiActif
+      if (!length(cur) || is.null(nm) || !(nm %in% names(cur))) return()
+      essais(cur[setdiff(names(cur), nm)])
+    })
+
+    shiny::observe({
+      nm <- names(essais())
+      shiny::updateSelectInput(session, "essaiActif", choices = nm,
+        selected = if (length(nm)) {
+          a <- shiny::isolate(input$essaiActif)
+          if (!is.null(a) && a %in% nm) a else nm[1]
+        } else NULL)
+    })
+
+    output$listeEssais <- shiny::renderUI({
+      cur <- essais()
+      if (!length(cur))
+        return(shiny::helpText(tr("Aucun essai en mémoire. Saisissez des doses, importez le jeu de données ou ouvrez un fichier WIN DL.")))
+      shiny::tags$ul(style = "padding-left:18px;margin-bottom:0;",
+        lapply(seq_along(cur), function(i) {
+          e <- cur[[i]]
+          shiny::tags$li(shiny::strong(names(cur)[i]), " — ",
+                         trf("%d doses, témoin %g/%g", nrow(e$doses), e$x0, e$n0))
+        }))
+    })
+
+    # -- L'ajustement -------------------------------------------------------
+    essai_actif <- shiny::reactive({
+      cur <- essais(); nm <- input$essaiActif
+      if (!length(cur)) return(NULL)
+      if (is.null(nm) || !(nm %in% names(cur))) return(cur[[1]])
+      cur[[nm]]
+    })
+
+    fit <- shiny::reactive({
+      e <- essai_actif()
+      if (is.null(e)) return(NULL)
+      al <- .hstat_num1(input$alpha, 0.05)
+      al <- min(max(al, 0.001), 0.2)
+      hstat_dl50_ajuste(e, input$methode %||% "em", alpha = al)
+    })
+
+    output$messageFit <- shiny::renderUI({
+      f <- fit()
+      if (is.null(f))
+        return(bandeau(tr("Aucun essai en mémoire : commencez par l'onglet « L'essai »."), "info"))
+      if (!isTRUE(f$ok)) return(bandeau(f$message))
+      if (!isTRUE(f$converge))
+        return(bandeau(trf("L'estimation n'a pas convergé en %d itérations : les résultats ci-dessous sont ceux de la dernière itération.",
+                           f$iterations)))
+      NULL
+    })
+
+    output$resume <- shiny::renderUI({
+      f <- fit()
+      if (is.null(f) || !isTRUE(f$ok)) return(NULL)
+      v <- hstat_p_verdict(f$p_chi2)
+      shiny::tagList(
+        shiny::p(shiny::strong(tr("Équation :")), " ",
+                 sprintf("Y = %.5f + %.5f × log10(dose)", f$a, f$b)),
+        shiny::p(shiny::strong(tr("Mortalité naturelle estimée :")), " ",
+                 sprintf("%.2f %%", 100 * f$c),
+                 sprintf(" (témoin : %.2f %%)", 100 * f$c_temoin)),
+        shiny::p(shiny::strong(tr("Test d'ajustement :")), " ",
+                 sprintf("Chi-2 = %.3f, ddl = %d, p = %.4f", f$chi2, f$ddl, f$p_chi2),
+                 " — ", switch(v,
+                   significatif = trf("ajustement rejeté à 5 %% : facteur d'hétérogénéité %.3f appliqué aux variances, quantile de Student retenu.",
+                                      f$facteur),
+                   `non significatif` = tr("ajustement probit légitime."),
+                   tr("test non calculable."))),
+        shiny::p(shiny::strong(tr("Convergence :")), " ",
+                 trf("%d itérations", f$iterations)))
+    })
+
+    parametres <- shiny::reactive({
+      f <- fit()
+      if (is.null(f) || !isTRUE(f$ok)) return(NULL)
+      data.frame(
+        Parametre = c("a", "b", "c", "Log-vrais. (H0)", "Log-vrais. (H1)",
+                      "Vab", "Vac", "Vbc"),
+        Estimation = c(f$a, f$b, f$c, f$ll0, f$ll1,
+                       f$Vh[1, 2], f$Vh[1, 3], f$Vh[2, 3]),
+        Ecart_type = c(sqrt(f$Vh[1, 1]), sqrt(f$Vh[2, 2]), sqrt(f$Vh[3, 3]),
+                       NA_real_, NA_real_, NA_real_, NA_real_, NA_real_),
+        stringsAsFactors = FALSE)
+    })
+
+    output$parametres <- DT::renderDT({
+      d <- parametres()
+      shiny::validate(shiny::need(!is.null(d), tr("Aucun résultat à afficher.")))
+      DT::datatable(d, rownames = FALSE,
+        colnames = c(tr("Paramètre"), tr("Estimation"), tr("Écart-type")),
+        options = list(dom = "t", pageLength = 10, ordering = FALSE)) |>
+        DT::formatSignif(c("Estimation", "Ecart_type"), 6)
+    })
+
+    seuils_demandes <- shiny::reactive({
+      v <- .nombres(input$seuils)
+      v <- v[v > 0 & v < 100]
+      if (!length(v)) HSTAT_DL50_SEUILS else v
+    })
+
+    doses_letales <- shiny::reactive({
+      f <- fit()
+      if (is.null(f) || !isTRUE(f$ok)) return(NULL)
+      hstat_dl50_doses_letales(f, seuils_demandes())
+    })
+
+    output$dosesLetales <- DT::renderDT({
+      d <- doses_letales()
+      shiny::validate(shiny::need(!is.null(d), tr("Aucun résultat à afficher.")))
+      DT::datatable(d, rownames = FALSE,
+        colnames = c(tr("Seuil (%)"), tr("log10(dose)"), tr("Écart-type"),
+                     tr("Dose"), tr("Limite inférieure"), tr("Limite supérieure"),
+                     tr("Type d'intervalle")),
+        options = list(dom = "t", pageLength = 20, ordering = FALSE,
+                       scrollX = TRUE)) |>
+        DT::formatSignif(c("Log_dose", "Ecart_type", "Dose", "Limite_inf",
+                           "Limite_sup"), 5)
+    })
+
+    output$detail <- DT::renderDT({
+      f <- fit()
+      shiny::validate(shiny::need(!is.null(f) && isTRUE(f$ok),
+                                  tr("Aucun résultat à afficher.")))
+      DT::datatable(f$table, rownames = FALSE,
+        colnames = c("N", tr("Dose"), tr("Effectif testé"), tr("Morts"),
+                     tr("log10(dose)"), tr("Mortalité observée"),
+                     tr("Mortalité corrigée"), tr("Probit corrigé"),
+                     tr("Mortalité attendue"), tr("Probit attendu")),
+        options = list(dom = "tp", pageLength = 25, ordering = FALSE,
+                       scrollX = TRUE)) |>
+        DT::formatSignif(c("Dose", "Log_dose", "Mortalite_observee",
+                           "Mortalite_corrigee", "Probit_corrige",
+                           "Mortalite_attendue", "Probit_attendu"), 5)
+    })
+
+    tables_export <- function() {
+      f <- fit()
+      if (is.null(f) || !isTRUE(f$ok)) return(NULL)
+      list("Parametres" = parametres(),
+           "Doses_letales" = doses_letales(),
+           "Detail_par_dose" = f$table)
+    }
+    output$dlCsv  <- hstat_csv_handler(tables_export, "dl50")
+    output$dlXlsx <- hstat_classeur_handler(tables_export, "dl50")
+
+    output$dlPrn <- shiny::downloadHandler(
+      filename = function() paste0("dl50_", Sys.Date(), ".prn"),
+      content = function(file) {
+        f <- fit()
+        # Un `stop()` ici ne laisserait AUCUN fichier, et le navigateur
+        # enregistrerait la page d'erreur de Shiny sous le nom demande : on
+        # ecrit le motif dans le fichier plutot que de faire croire a un
+        # rapport.
+        lignes <- if (is.null(f) || !isTRUE(f$ok))
+          tr("Aucun résultat : l'ajustement n'a pas abouti.")
+        else hstat_dl50_prn(f, nom_fichier = input$essaiActif %||% "")
+        writeLines(lignes, file, useBytes = TRUE)
+      })
+
+    output$dlTxt <- shiny::downloadHandler(
+      filename = function() paste0("essai_", Sys.Date(), ".txt"),
+      content = function(file) {
+        e <- essai_actif()
+        if (is.null(e)) {
+          writeLines(tr("Aucun essai en mémoire."), file)
+          return(invisible(NULL))
+        }
+        hstat_dl50_ecrire_windl(e, file)
+      })
+
+    # -- Abbott ou EM ? -----------------------------------------------------
+    test_ae <- shiny::eventReactive(input$testAbbott, {
+      e <- essai_actif()
+      if (is.null(e)) return(list(ok = FALSE, message = tr("Aucun essai en mémoire.")))
+      hstat_dl50_test_abbott_em(e)
+    })
+
+    output$resTestAbbott <- shiny::renderUI({
+      r <- test_ae()
+      if (!isTRUE(r$ok)) return(bandeau(r$message))
+      shiny::div(style = "margin-top:10px;",
+        shiny::p(sprintf("c (EM) = %.4f — c (Abbott) = %.4f", r$c_em, r$c_abbott)),
+        shiny::p(sprintf("Chi-2 = %.4f, ddl = %d, p = %.4f", r$chi2, r$ddl, r$p)),
+        bandeau(r$conseil, if (identical(r$verdict, "significatif"))
+          "warning" else "info"))
+    })
+
+    # -- Graphique ----------------------------------------------------------
+    fits_graphe <- shiny::reactive({
+      cur <- essais()
+      if (!length(cur)) return(list())
+      al <- min(max(.hstat_num1(input$alpha, 0.05), 0.001), 0.2)
+      m <- input$methode %||% "em"
+      choisis <- if (isTRUE(input$gTous)) cur else {
+        e <- essai_actif()
+        if (is.null(e)) list() else list(e)
+      }
+      lapply(choisis, function(e) hstat_dl50_ajuste(e, m, alpha = al))
+    })
+
+    graphe <- shiny::reactive({
+      fs <- fits_graphe()
+      if (!length(fs)) return(NULL)
+      hstat_dl50_graphique(
+        fs,
+        points = isTRUE(input$gPoints), courbe = isTRUE(input$gCourbe),
+        droite = isTRUE(input$gDroite), bande = isTRUE(input$gBande),
+        reperes = isTRUE(input$gReperes),
+        titre = input$gTitre %||% "",
+        xlab = if (nzchar(input$gXlab %||% "")) input$gXlab else NULL,
+        ylab = if (nzchar(input$gYlab %||% "")) input$gYlab else NULL,
+        theme = hstat_export_theme(input, "gExp"),
+        palette = input$gPalette %||% "Set1")
+    })
+
+    output$graphe <- shiny::renderPlot({
+      p <- graphe()
+      shiny::validate(shiny::need(!is.null(p),
+        tr("Aucun essai ajustable : vérifiez les doses et les effectifs.")))
+      p
+    })
+    hstat_export_plot_handler(input, "gExp", graphe, "dl50_henry")
+
+    # -- Comparaison et fusion ---------------------------------------------
+    comparaison <- shiny::eventReactive(input$comparer, {
+      cur <- essais()
+      hstat_dl50_comparaison(unname(cur), input$scenario %||% "heterogene",
+                             alpha = min(max(.hstat_num1(input$alpha, 0.05), 0.001), 0.2))
+    })
+
+    output$messageComp <- shiny::renderUI({
+      r <- comparaison()
+      shiny::tagList(
+        bandeau(attr(r, "message")),
+        if (nrow(r)) bandeau(attr(r, "avertissement"), "info"))
+    })
+
+    output$tableComp <- DT::renderDT({
+      r <- comparaison()
+      shiny::validate(shiny::need(nrow(r) > 0,
+        tr("Chargez au moins deux essais, puis lancez la comparaison.")))
+      DT::datatable(r, rownames = FALSE,
+        colnames = c(tr("Hypothèse testée"), tr("Chi-2"), tr("ddl"), tr("p"),
+                     tr("Conclusion")),
+        options = list(dom = "t", pageLength = 10, ordering = FALSE,
+                       scrollX = TRUE,
+                       columnDefs = list(list(width = "38%", targets = 4)))) |>
+        DT::formatSignif(c("Chi2", "p"), 4)
+    })
+
+    comp_tables <- function() {
+      r <- comparaison()
+      if (!nrow(r)) return(NULL)
+      list("Comparaison" = as.data.frame(r))
+    }
+    output$compCsv  <- hstat_csv_handler(comp_tables, "dl50_comparaison")
+    output$compXlsx <- hstat_classeur_handler(comp_tables, "dl50_comparaison")
+
+    shiny::observeEvent(input$fusionner, {
+      cur <- essais()
+      if (length(cur) < 2L) {
+        shiny::showNotification(tr("La fusion demande au moins deux essais."),
+                                type = "warning", duration = 6)
+        return()
+      }
+      r <- hstat_dl50_fusion(unname(cur),
+                             alpha = min(max(.hstat_num1(input$alpha, 0.05), 0.001), 0.2))
+      if (!isTRUE(r$ok)) {
+        shiny::showNotification(r$message, type = "warning", duration = 12)
+        return()
+      }
+      # La fusion REMPLACE les essais qu'elle assemble : les garder a cote
+      # ferait comparer un essai a ses propres composantes.
+      essais(stats::setNames(list(r$essai), r$essai$titre))
+      shiny::showNotification(r$message, type = "message", duration = 12)
+    })
+
+    # -- Dose <-> mortalite -------------------------------------------------
+    table_mort <- shiny::reactive({
+      f <- fit()
+      if (is.null(f) || !isTRUE(f$ok)) return(NULL)
+      hstat_dl50_mortalite(f, .nombres(input$dosesCalc))
+    })
+    output$tableMort <- DT::renderDT({
+      d <- table_mort()
+      shiny::validate(shiny::need(!is.null(d), tr("Saisissez au moins une dose strictement positive.")))
+      DT::datatable(d, rownames = FALSE,
+        colnames = c(tr("Dose"), tr("log10(dose)"), tr("Probit attendu"),
+                     tr("Écart-type"), tr("Mortalité"), tr("Limite inférieure"),
+                     tr("Limite supérieure")),
+        options = list(dom = "t", pageLength = 20, ordering = FALSE,
+                       scrollX = TRUE)) |>
+        DT::formatSignif(c("Dose", "Log_dose", "Probit_attendu", "Ecart_type",
+                           "Mortalite", "Limite_inf", "Limite_sup"), 5)
+    })
+
+    table_dose <- shiny::reactive({
+      f <- fit()
+      if (is.null(f) || !isTRUE(f$ok)) return(NULL)
+      d <- hstat_dl50_dose_pour(f, .nombres(input$mortsCalc))
+      if (is.null(d)) return(NULL)
+      d[c("Mortalite_demandee", "Log_dose", "Ecart_type", "Dose",
+          "Limite_inf", "Limite_sup", "Intervalle")]
+    })
+    output$tableDose <- DT::renderDT({
+      d <- table_dose()
+      shiny::validate(shiny::need(!is.null(d),
+        tr("Aucune mortalité exploitable : elle doit dépasser la mortalité naturelle et rester sous 100 %.")))
+      DT::datatable(d, rownames = FALSE,
+        colnames = c(tr("Mortalité visée (%)"), tr("log10(dose)"), tr("Écart-type"),
+                     tr("Dose"), tr("Limite inférieure"), tr("Limite supérieure"),
+                     tr("Type d'intervalle")),
+        options = list(dom = "t", pageLength = 20, ordering = FALSE,
+                       scrollX = TRUE)) |>
+        DT::formatSignif(c("Log_dose", "Ecart_type", "Dose", "Limite_inf",
+                           "Limite_sup"), 5)
+    })
+
+    # -- L'assistance observe, elle n'instrumente pas -----------------------
+    shiny::observeEvent(fit(), {
+      f <- fit()
+      if (is.null(f) || !isTRUE(f$ok)) return()
+      dl <- doses_letales()
+      hstat_ai_capture(values, "DL50 / CL50",
+        trf("Régression probit%s", {
+          t <- f$essai$titre
+          if (length(t) && nzchar(t)) paste0(" -- ", t) else ""
+        }),
+        tables = list("Doses_letales" = dl, "Detail_par_dose" = f$table),
+        plot = function() shiny::isolate(graphe()),
+        meta = list(a = f$a, b = f$b, c = f$c, methode = f$methode,
+                    chi2 = f$chi2, ddl = f$ddl, p = f$p_chi2))
+    }, ignoreInit = TRUE)
+  })
+}
