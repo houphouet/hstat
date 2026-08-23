@@ -1492,6 +1492,72 @@ dans les serveurs. Le banc ne peut donc pas le muter directement, et ce sont ses
 balayages qui le gardent. C'est une raison de plus de placer la logique dans
 `R/utils.R`.
 
+`mod_viz.R`, `mod_clean.R` et `mod_explore.R` sont dans le même cas — **aucune**
+fonction de calcul au premier niveau. La surface réellement mutable de
+l'application, c'est `R/utils.R`.
+
+#### Les métriques de modélisation : les noms étaient gardés, pas les nombres
+
+Neuf mutations sur `hstat_metrics_reg()`, `hstat_metrics_cls()` et
+`hstat_pair_agreement()`. **Six passaient.** C'est le plus gros gisement trouvé
+jusqu'ici, et toujours la même forme : le tableau garde ses lignes, ses libellés
+et ses interprétations non vides, et affiche un chiffre faux sous le bon nom.
+
+L'assertion existante vérifiait `expect_setequal(m$Metrique, c("RMSE", "MAE",
+"MAPE (%)", "R2"))`, le R² au-dessus d'un seuil, et
+`all(nzchar(m$Interpretation))`. Rien sur les trois autres valeurs. Donc :
+
+| Mutation | Ce qui sortait |
+|---|---|
+| `rmse <- mean(abs(err))` | RMSE = MAE, sous l'étiquette RMSE |
+| précision ↔ rappel | les deux échangés, invisible sur matrice équilibrée |
+| F1 en moyenne **arithmétique** | 0,657 au lieu de 0,642 — plausible |
+| garde de kappa retirée | `NaN` là où `NA` était rendu |
+| seuils de `.hstat_interp_r2` déplacés | une phrase française plausible, et fausse |
+| seuils de `.hstat_interp_mape` déplacés | idem |
+
+Trois règles en sont sorties :
+
+1. **Vérifier la valeur, jamais seulement le nom.** C'est le même défaut que le
+   témoin nul qui rendait `−Inf` avec son alerte affichée à côté : ce qui est
+   contrôlé est le décor, pas le chiffre.
+2. **La donnée d'essai doit rendre les formules discernables.** Précision et
+   rappel coïncident sur une matrice équilibrée : l'échange y est invisible. Le
+   test pose donc une matrice **asymétrique**, et vérifie en plus que les deux
+   diffèrent — sinon l'assertion se viderait de son sens au premier
+   réajustement des données.
+3. **Un seuil se teste des deux côtés de sa frontière.** Un palier déplacé
+   laisse une phrase parfaitement lisible ; seule la paire (juste avant / juste
+   après) le voit.
+
+`hstat_pair_agreement()` — l'indice de Rand qui porte le chiffre de stabilité
+par bootstrap de la CAH — n'était appelé par **aucun** test. Sa propriété
+essentielle est l'invariance au **renommage des classes** : un k-means relancé
+rend les mêmes groupes sous d'autres numéros, et c'est précisément pourquoi on
+compare des paires plutôt que des étiquettes. Elle est désormais testée comme
+telle.
+
+#### Deux mutants équivalents, et pourquoi ils le sont
+
+Le piège 2 s'est présenté deux fois, et dans les deux cas la garde s'est révélée
+**redondante**, non pas mal testée :
+
+- `if (is.logical(x)) next` dans `hstat_vars_zero()` — une colonne booléenne est
+  de toute façon écartée en aval, `as.numeric("FALSE")` valant `NA` ;
+- `if (n < min_n)` en tête de `hstat_ellipse_ok()` — le contrôle par groupe
+  couvre déjà le cas, et le message du mutant **nomme** le groupe trop petit là
+  où la garde rend « Aucun groupe exploitable ».
+
+Les deux gardes restent : elles disent l'intention. Mais aucun test n'a été
+écrit pour elles — figer un comportement qu'aucune règle n'exige, c'est
+exactement l'assertion-tolérance que la méthode cherche à éviter.
+
+Sur 116 des 211 fonctions de `R/utils.R`, **aucun test n'appelle la fonction
+directement**. Beaucoup sont des aides d'interface, mais pas toutes :
+`multivariate_normality_mardia`, `box_m_test`, `permdisp_test`,
+`hstat_silhouette_mean`, `hstat_cophenetic_corr` portent de vraies statistiques.
+C'est le prochain gisement.
+
 ### Trois défauts trouvés par l'audit, tous du même genre
 
 Aucun ne lève, aucun ne laisse un vide : tous les trois rendent un résultat

@@ -1316,6 +1316,62 @@ test_that("hstat_metrics_reg calcule et interprete les 4 metriques", {
   expect_s3_class(hstat_metrics_reg(c(1, NA, 3), c(1, 2, 3)), "data.frame")
 })
 
+test_that("les quatre metriques valent ce qu'elles annoncent, pas seulement leur nom", {
+  # LES NOMS ETAIENT VERIFIES, LES VALEURS NON. Remplacer RMSE par MAE dans le
+  # calcul ne faisait echouer aucune assertion : le tableau gardait ses quatre
+  # lignes, ses quatre libelles et ses quatre interpretations non vides, et
+  # affichait un chiffre faux sous le bon nom. Meme famille que le temoin nul
+  # qui rendait -Inf avec son alerte affichee a cote. Trouve par mutation.
+  obs  <- c(10, 20, 30, 40)
+  pred <- c(12, 18, 33, 36)          # erreurs : -2, +2, -3, +4
+  m <- hstat_metrics_reg(obs, pred)
+  v <- function(nom) m$Valeur[m$Metrique == nom]
+
+  expect_equal(v("RMSE"), round(sqrt(mean(c(2, 2, 3, 4)^2)), 4))   # 2,8723
+  expect_equal(v("MAE"),  round(mean(c(2, 2, 3, 4)), 4))           # 2,75
+  expect_equal(v("MAPE (%)"), 12.5)
+  expect_equal(v("R2"), 0.934)
+
+  # RMSE ET MAE NE SONT PAS INTERCHANGEABLES : la premiere penalise les grosses
+  # erreurs, et lui vaut donc strictement plus des que les erreurs sont
+  # inegales. C'est l'assertion qui distingue les deux formules.
+  expect_gt(v("RMSE"), v("MAE"))
+  # A erreurs EGALES, les deux coincident -- sinon on figerait un ecart plutot
+  # qu'une regle.
+  e <- hstat_metrics_reg(c(0, 10, 20), c(3, 13, 23))
+  expect_equal(e$Valeur[e$Metrique == "RMSE"], e$Valeur[e$Metrique == "MAE"])
+
+  # Un R2 parfait, et une prediction sans erreur.
+  p <- hstat_metrics_reg(obs, obs)
+  expect_equal(p$Valeur[p$Metrique == "R2"], 1)
+  expect_equal(p$Valeur[p$Metrique == "RMSE"], 0)
+})
+
+test_that("les echelons d'interpretation changent bien de palier", {
+  # Un seuil deplace ne se voit pas : le texte reste une phrase francaise
+  # plausible, et « toutes les interpretations sont non vides » passe toujours.
+  # On verifie donc de part et d'autre de CHAQUE frontiere annoncee.
+  # R2 : 0,3 / 0,5 / 0,7 / 0,9
+  expect_match(.hstat_interp_r2(0.90), "Excellent")
+  expect_match(.hstat_interp_r2(0.89), "Bon")
+  expect_match(.hstat_interp_r2(0.70), "Bon")
+  expect_match(.hstat_interp_r2(0.69), "Moyen")
+  expect_match(.hstat_interp_r2(0.50), "Moyen")
+  expect_match(.hstat_interp_r2(0.49), "Faible")
+  expect_match(.hstat_interp_r2(0.30), "Faible")
+  expect_match(.hstat_interp_r2(0.29), "Très faible")
+  expect_match(.hstat_interp_r2(NaN),  "Non calculable")
+
+  # MAPE : 10 / 20 / 50, bornes STRICTES dans l'autre sens.
+  expect_match(.hstat_interp_mape(9.99), "Excellente")
+  expect_match(.hstat_interp_mape(10),   "Bonne")
+  expect_match(.hstat_interp_mape(19.99), "Bonne")
+  expect_match(.hstat_interp_mape(20),   "moyenne")
+  expect_match(.hstat_interp_mape(49.99), "moyenne")
+  expect_match(.hstat_interp_mape(50),   "faible")
+  expect_match(.hstat_interp_mape(NA_real_), "non calculable")
+})
+
 test_that("hstat_metrics_cls gere binaire, multiclasse et matrice de confusion", {
   set.seed(2)
   y  <- factor(sample(c("A", "B"), 300, TRUE))
@@ -1330,6 +1386,54 @@ test_that("hstat_metrics_cls gere binaire, multiclasse et matrice de confusion",
   expect_equal(mc3$Valeur[mc3$Metrique == "Exactitude (accuracy)"], 1)
   cm <- hstat_confusion_df(y, py)
   expect_equal(sum(as.matrix(cm)), 300)
+})
+
+test_that("precision, rappel, F1 et kappa valent chacun leur propre formule", {
+  # MEME FAMILLE QUE LES METRIQUES DE REGRESSION : les libelles etaient
+  # verifies, les valeurs non. Echanger precision et rappel, remplacer la
+  # moyenne HARMONIQUE du F1 par une moyenne arithmetique, ou retirer la garde
+  # de kappa ne faisait echouer aucune assertion. Trouve par mutation.
+  #
+  # La matrice est volontairement ASYMETRIQUE -- sur une matrice equilibree,
+  # precision et rappel coincident et l'echange ne se verrait pas.
+  #        pred
+  #   obs   A  B      colonnes : 13 et 7
+  #     A   8  2      lignes   : 10 et 10
+  #     B   5  5
+  obs  <- factor(c(rep("A", 10), rep("B", 10)))
+  pred <- factor(c(rep("A", 8), rep("B", 2), rep("A", 5), rep("B", 5)))
+  m <- hstat_metrics_cls(obs, pred)
+  v <- function(nom) m$Valeur[m$Metrique == nom]
+
+  # PRECISION = diagonale / COLONNE (parmi les predits A, combien le sont).
+  prec <- mean(c(8 / 13, 5 / 7))
+  # RAPPEL = diagonale / LIGNE (parmi les vrais A, combien sont retrouves).
+  rec  <- mean(c(8 / 10, 5 / 10))
+  expect_equal(v("Précision (macro)"), round(prec, 4))
+  expect_equal(v("Rappel / sensibilité (macro)"), round(rec, 4))
+  # Et les deux DIFFERENT ici : c'est ce qui rend l'echange visible.
+  expect_false(isTRUE(all.equal(v("Précision (macro)"),
+                                v("Rappel / sensibilité (macro)"))))
+
+  # F1 = moyenne HARMONIQUE par classe, puis moyenne des classes. La moyenne
+  # arithmetique donnerait 0,6574 : plausible, et faux.
+  f1 <- mean(c(2 * (8/13) * (8/10) / ((8/13) + (8/10)),
+               2 * (5/7)  * (5/10) / ((5/7)  + (5/10))))
+  expect_equal(v("F1-score (macro)"), round(f1, 4))
+
+  expect_equal(v("Exactitude (accuracy)"), 0.65)
+  # kappa = (acc - pe) / (1 - pe), pe = (10*13 + 10*7) / 20^2 = 0,5
+  expect_equal(v("Kappa de Cohen"), round((0.65 - 0.5) / 0.5, 4))
+
+  # KAPPA N'EST PAS TOUJOURS DEFINI. Si les deux cotes ne portent qu'une seule
+  # classe, l'accord attendu par hasard vaut 1, le denominateur s'annule et la
+  # division rend NaN. Meme regle que pour l'accord inter-codeurs : on rend NA,
+  # et l'exactitude, elle, reste calculable.
+  u <- hstat_metrics_cls(factor(rep("A", 6)), factor(rep("A", 6)))
+  k <- u$Valeur[u$Metrique == "Kappa de Cohen"]
+  expect_true(is.na(k))
+  expect_false(is.nan(k))
+  expect_equal(u$Valeur[u$Metrique == "Exactitude (accuracy)"], 1)
 })
 
 test_that("hstat_model_interpretation produit un texte substantiel", {
@@ -3945,6 +4049,33 @@ test_that("le script du journal reste executable quel que soit le nom de colonne
   expect_equal(.hstat_rlog_nom("simple"), "simple")
   # Vectorise : un appel porte souvent plusieurs variables
   expect_equal(.hstat_rlog_nom(c("x", "a b")), c("x", "`a b`"))
+})
+
+test_that("l'accord entre partitions ne depend pas du nom des groupes", {
+  # C'EST TOUT L'INTERET DE L'INDICE DE RAND, et la raison pour laquelle il
+  # est employe ici : les etiquettes de classe sont ARBITRAIRES -- un k-means
+  # relance rend les memes groupes sous d'autres numeros. Comparer les
+  # etiquettes une a une donnerait un accord effondre sur deux partitions
+  # identiques. L'indice compare des PAIRES : deux individus sont-ils
+  # ensemble des deux cotes, oui ou non.
+  #
+  # La fonction alimente le chiffre de stabilite par bootstrap de la CAH
+  # (app_server.R) et n'etait couverte par aucun test.
+  a <- c(1, 1, 2, 2)
+  expect_equal(hstat_pair_agreement(a, a), 1)
+  expect_equal(hstat_pair_agreement(a, c(2, 2, 1, 1)), 1)        # renumerotees
+  expect_equal(hstat_pair_agreement(a, c("x", "x", "y", "y")), 1) # renommees
+
+  # Partition croisee : sur 6 paires, 2 s'accordent.
+  #   (1,4) et (2,3) : separes des deux cotes. Les quatre autres divergent.
+  expect_equal(hstat_pair_agreement(a, c(1, 2, 1, 2)), 2 / 6)
+  # Tout dans un seul groupe : les 3 paires reunies chez `a` s'accordent...
+  expect_equal(hstat_pair_agreement(a, rep(1, 4)), 2 / 6)
+  # ... et l'accord n'est jamais hors de [0 ; 1].
+  for (b in list(a, c(2, 2, 1, 1), c(1, 2, 1, 2), rep(1, 4), 1:4)) {
+    r <- hstat_pair_agreement(a, b)
+    expect_true(is.finite(r) && r >= 0 && r <= 1)
+  }
 })
 
 test_that("hstat_part_equilibre rend un verdict, jamais une erreur", {
