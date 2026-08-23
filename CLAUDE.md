@@ -1268,6 +1268,143 @@ déjà en toutes lettres — l'estimation par EM « permet de prendre en compte
 l'incertitude sur l'estimation de cette mortalité, **ce que la formule d'ABBOTT
 ne fait pas** » — les chiffres du logiciel le confirment.
 
+### Saisie en pourcentage : l'arrondi est le sujet, pas la conversion
+
+Beaucoup d'opérateurs notent « 40 % » plutôt que « 12 sur 30 ». La conversion
+est triviale ; ce qui ne l'est pas, c'est que le modèle binomial a besoin d'un
+**entier**. Trois pièges, tous silencieux, tous testés :
+
+1. **L'arrondi change le pourcentage, et il faut le dire.** 40 % de 7 individus
+   font 2,8 : on enregistre 3, soit 42,86 %. Rendre la valeur sans le signaler
+   laisse croire que l'essai porte le chiffre saisi.
+2. **Deux pourcentages différents donnent le même effectif.** Sur n = 7, 40 % et
+   43 % rendent tous deux 3 morts. Une saisie plus fine que l'essai ne
+   l'autorise n'ajoute pas d'information, elle en promet une qui n'existe pas.
+3. **`round()` arrondit au pair en R** : `round(2.5)` vaut 2, pas 3. « 50 % de 5
+   individus » rendrait donc 2, ce que personne n'attend — et le défaut ne se
+   verrait que sur les effectifs impairs. On arrondit moitiés vers le haut.
+
+**C'est l'effectif qui est conservé**, le pourcentage n'en est qu'une lecture :
+garder le pourcentage comme source obligerait à reconvertir à chaque calcul,
+donc à arrondir plusieurs fois, ce qui ne rend pas toujours le même nombre.
+
+Piège d'implémentation attrapé par le test : **les opérateurs vectoriels
+recyclent, l'indexation non.** `n[ok]` sur un effectif de longueur 1 et un
+masque de longueur 4 rend `20 NA NA NA` — trois lignes sur quatre ressortaient
+vides, et seulement quand un seul effectif sert à plusieurs doses, c'est-à-dire
+dans le cas le plus courant. D'où le `rep_len()` explicite.
+
+### Deux artefacts de repeinture de DT, connus et laissés en l'état
+
+Après une édition **venue de la table**, deux choses restent sur l'état
+précédent jusqu'au redessin suivant : la cellule modifiée s'affiche **vide**, et
+la note d'arrondi garde l'ancien texte. DT tient une copie des données côté
+navigateur, et `replaceData` réécrit le corps pendant que DT croit encore éditer
+la cellule.
+
+Les deux **précèdent** la saisie en pourcentage — la cellule blanche se voit
+déjà sur la colonne des morts. Vérifié à la sonde : le serveur range la bonne
+valeur et recalcule bien la note ; c'est l'affichage qui traîne. Coller, ajouter
+une ligne ou basculer l'unité remet tout d'aplomb.
+
+`DT::editData()` corrige la cellule blanche mais **ne reconstruit pas** la
+table : essayé, le tableau restait vide après un collage et la bascule d'unité
+n'affichait plus les pourcentages — bien pire que ce qu'on corrigeait. Un
+aiguillage sur le nombre de lignes n'a pas suffi non plus. On garde donc
+`replaceData`, qui fonctionne dans tous les cas.
+
+### Le mode guidé, et les limites héritées
+
+La **fiche de l'essai** est repliée par défaut : vingt champs d'identification
+s'ouvraient au-dessus du tableau de doses alors qu'aucun ne change un calcul, et
+poussaient hors de l'écran la seule chose qu'il faut vraiment saisir. Un encart
+dit désormais le minimum — doses, effectifs, morts, témoin, et **trois doses au
+moins** de mortalité corrigée intermédiaire — avant la saisie plutôt qu'en refus
+après coup.
+
+Les deux limites (**6 essais**, **100 doses**) sont celles de WIN DL, reprises
+pour rester comparable. Elles étaient appliquées en silence : on les rencontrait
+sous forme de refus, sans savoir d'où elles venaient ni si elles tenaient à
+HStat. Elles sont maintenant nommées et attribuées.
+
+### Le compte d'itérations ne se compare pas
+
+Les deux algorithmes atteignent le même optimum — a, b et c coïncident à six
+chiffres — mais pas au même rythme : sur l'essai de référence, HStat converge en
+**3 boucles EM** (6 itérations de Newton-Raphson cumulées) là où le logiciel en
+annonce **75**.
+
+La cause est mesurée : la mortalité naturelle y vaut exactement zéro, et HStat
+part de la valeur du témoin — ici 0/25, donc zéro. L'étape [E] rend alors des
+poids nuls et `c` ne bouge plus. WIN DL, lui, rampe vers cette borne.
+Reproduire son compte demanderait de **ralentir délibérément** l'algorithme pour
+une valeur d'affichage. Le libellé dit donc de qui est le compte, plutôt que de
+laisser croire à un désaccord.
+
+### Les quatre tests de comparaison : confrontés au manuel, pas à des chiffres
+
+Le manuel donne **H0 et H1 de chacun des quatre tests, sous chacun des trois
+scénarios** — douze couples de modèles, écrits en toutes lettres. HStat les
+reproduit exactement, et un test le vérifie en reconstruisant les douze couples
+à la main puis en exigeant que le Chi-2 rendu vaille `2·(ll(H1) − ll(H0))` sur
+ces couples-là.
+
+C'est la seule confrontation possible : **aucun fichier de sortie livré avec le
+logiciel n'exerce ces tests.** Elle porte donc sur la structure — quels modèles
+sont opposés — et non sur des chiffres publiés. Une inversion de couple serait
+invisible autrement : le test rendrait un Chi-2 parfaitement plausible, et faux.
+
+Le point le plus délicat est le **troisième test**, dont l'hypothèse nulle change
+avec le scénario : « c commun » contre « c libres » sous les deux premiers,
+« c = 0 » contre « c libres » sous le troisième. Prendre le modèle de base dans
+les trois cas comparerait un modèle à lui-même sous l'hétérogène — zéro degré de
+liberté, un test qui ne teste rien.
+
+Deux règles du manuel étaient déjà en place et se trouvent confirmées : le
+scénario 3 n'est **pas effectué** si un essai a une mortalité observée dans son
+témoin, et les quatre tests sont **indépendants** — deux non-significatifs pris
+séparément ne concluent pas sur leur conjonction.
+
+### Le Chi-2 est la déviance, et les fichiers d'exemple disent le contraire
+
+Le choix se tranche sur le seul fichier de sortie du logiciel Windows, qui
+imprime « Chi2 calculé : 0.672 ». La **déviance** vaut 0,67217 et s'arrondit à
+0,672 ; le Chi-2 de **Pearson** vaut 0,66768 et s'arrondirait à 0,668. Le `.PRN`
+décide.
+
+Mais les six essais livrés stockent, eux, un **Pearson** — et c'est la même
+explication que pour leurs bornes sans Fieller : ces valeurs viennent du moteur
+MS-DOS. La différence crève les yeux sur l'essai dont une dose tue **tout** :
+
+| CL94AEN | déviance | Pearson | stocké |
+|---|---|---|---|
+| Chi-2 | 1,579 | **1,212** | 1,20967 |
+
+Aligner HStat sur ces fichiers-là le désalignerait du logiciel Windows, qui est
+celui auquel on se compare. Un test épingle les deux valeurs pour que le choix
+ne se reprenne pas par inadvertance.
+
+### La limite de cent doses vaut aussi pour le total
+
+Le manuel l'écrit à part de la limite par essai : « dans le module de
+comparaison, le regroupement de doses ne peut pas excéder 100 au total ». Six
+essais de quatre-vingts doses passaient donc un à un et dépassaient ensemble
+sans un mot — la comparaison partait, et elle n'aurait eu aucun équivalent dans
+le logiciel.
+
+### Ce que le manuel confirme sans qu'il y ait rien à changer
+
+- La **fusion** exige neuf champs strictement identiques (espèce, stade, durée,
+  température, matières actives 1 et 2, ratio, méthode, unité), bloque sur un
+  test significatif ou une estimation impossible, et **retombe sur `c = 0`**
+  quand l'estimation échoue et que la mortalité naturelle globale est nulle.
+  Les quatre règles étaient déjà en place.
+- Le **degré de liberté** vaut le nombre de doses moins deux, le facteur
+  d'hétérogénéité est `Chi2/ddl`, et le quantile devient celui de Student.
+- La méthode par défaut à l'ouverture d'un fichier est **EM**.
+- Le refus sous trois doses de mortalité corrigée intermédiaire est bien celui
+  du logiciel.
+
 ### « Mortalité nulle » n'est pas une méthode de WIN DL
 
 Le logiciel n'en propose que **deux** pour un essai isolé : Newton-Raphson avec
