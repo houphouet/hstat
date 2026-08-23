@@ -46,8 +46,22 @@
 #  les DOSES SEULES.
 # =============================================================================
 
-HSTAT_DL50_ITMAX      <- 500L    # iterations EM
-HSTAT_DL50_ITMAX_NR   <- 50L     # iterations Newton-Raphson (WIN DL : 50)
+# LE PLAFOND D'ITERATIONS EST UN REGLAGE, PAS UNE CONSTANTE.
+#
+# Il valait 500 sans que personne puisse le voir ni le changer. Cent suffit
+# tres largement -- l'essai de reference converge en trois boucles -- et un
+# plafond qu'on peut lever est ce qu'il faut le jour ou un essai difficile
+# n'aboutit pas : mieux vaut lever le plafond en connaissance de cause que
+# lire « convergence NON atteinte » sans pouvoir agir.
+#
+# Le plafond de NEWTON-RAPHSON EMBOITE dans l'EM reste a 50, la valeur du
+# manuel (« avec 50 iterations maximum ») : c'est une convention du logiciel,
+# pas un reglage de confort. Quand Newton-Raphson est l'ajustement lui-meme
+# -- Abbott, mortalite nulle -- c'est le plafond choisi par l'utilisateur qui
+# s'applique, puisque c'est lui la boucle qu'il regarde converger.
+HSTAT_DL50_ITMAX      <- 100L    # plafond par defaut, modifiable a l'ecran
+HSTAT_DL50_ITMAX_MAX  <- 5000L   # garde-fou : au-dela, c'est le modele qui cloche
+HSTAT_DL50_ITMAX_NR   <- 50L     # Newton-Raphson emboite (WIN DL : 50)
 HSTAT_DL50_TOL        <- 1e-5    # ecart absolu sur la log-vraisemblance
 HSTAT_DL50_DOSES_MAX  <- 100L    # limite de WIN DL
 HSTAT_DL50_ESSAIS_MAX <- 6L      # limite de WIN DL
@@ -430,8 +444,13 @@ hstat_dl50_essai <- function(dose, effectif, morts, temoin_n = 0, temoin_morts =
 #  L'AJUSTEMENT
 # ---------------------------------------------------------------------------
 hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
-                              alpha = 0.05) {
+                              alpha = 0.05, itmax = HSTAT_DL50_ITMAX) {
   methode <- match.arg(methode)
+  # Le plafond vient de l'interface : on le borne ici plutot que de faire
+  # confiance a un champ numerique, ou l'on peut taper zero ou du texte.
+  itmax <- suppressWarnings(as.integer(itmax)[1])
+  if (!length(itmax) || is.na(itmax) || itmax < 1L) itmax <- HSTAT_DL50_ITMAX
+  itmax <- min(itmax, HSTAT_DL50_ITMAX_MAX)
   echec <- function(motif)
     structure(list(ok = FALSE, message = motif, methode = methode),
               class = "hstat_dl50_fit")
@@ -464,9 +483,11 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
   if (ini$b <= 0) return(echec(.hstat_dl50_msg_pente()))
 
   fit <- if (identical(methode, "em")) {
-    .hstat_dl50_em(z, n, x, n0, x0, ini$a, ini$b)
+    .hstat_dl50_em(z, n, x, n0, x0, ini$a, ini$b, itmax = itmax)
   } else {
-    f <- .hstat_dl50_nr(z, n, x, c_depart, ini$a, ini$b)
+    # Ici Newton-Raphson EST l'ajustement : c'est la boucle que l'utilisateur
+    # regarde converger, donc c'est son plafond qui s'applique.
+    f <- .hstat_dl50_nr(z, n, x, c_depart, ini$a, ini$b, itmax = itmax)
     c(f, list(c = c_depart))
   }
   if (!is.finite(fit$a) || !is.finite(fit$b))
@@ -558,6 +579,7 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
     ok = TRUE, methode = methode, essai = essai,
     a = a, b = b, c = cc, c_temoin = c_temoin,
     iterations = fit$iterations, converge = isTRUE(fit$converge),
+    itmax = itmax,
     ll0 = ll0, ll1 = ll1, chi2 = chi2, ddl = ddl, p_chi2 = p_chi2,
     heterogene = hetero, facteur = facteur, t = tq, alpha = alpha,
     informatif = informatif, npar = npar,
@@ -2214,6 +2236,15 @@ mod_dl50_ui <- function(id) {
                                 choices = HSTAT_DL50_METHODES, selected = "em"),
             shiny::numericInput(ns("alpha"), "Risque α (intervalles)",
                                 value = 0.05, min = 0.001, max = 0.2, step = 0.01),
+            shiny::numericInput(ns("itmax"), "Itérations maximum",
+                                value = HSTAT_DL50_ITMAX, min = 1,
+                                max = HSTAT_DL50_ITMAX_MAX, step = 10),
+            shiny::helpText("Le calcul s'arrête dès que la log-vraisemblance ne",
+                            " bouge plus de 1e-5 : cent itérations suffisent très",
+                            " largement, l'essai de référence en demande trois.",
+                            " Relevez ce plafond seulement si un essai difficile",
+                            " annonce « convergence non atteinte » — et méfiez-vous",
+                            " alors du résultat plutôt que du plafond."),
             shiny::actionButton(ns("testAbbott"),
               shiny::tagList(shiny::icon("scale-balanced"), " Abbott ou EM ?"),
               class = "btn-default btn-block"),
@@ -2660,20 +2691,22 @@ mod_dl50_server <- function(id, values) {
                     options = list(dom = "t", pageLength = 100, ordering = FALSE))
     })
     proxy_saisie <- DT::dataTableProxy("saisie")
-    # DEFAUT CONNU, LAISSE EN L'ETAT SCIEMMENT : la cellule que l'on vient de
-    # modifier s'affiche VIDE jusqu'au redessin suivant. Il precede la saisie
-    # en pourcentage -- il se voit deja sur la colonne des morts. DT tient une
-    # copie des donnees cote navigateur, et quand la modification VIENT de la
-    # table, `replaceData` reecrit le corps pendant que DT croit encore editer
-    # la cellule.
+    # LA TABLE EST RAFRAICHIE PAR SON PROXY, SANS EXCEPTION -- et c'est bien.
     #
-    # Rien n'est perdu : la valeur est bien rangee, la note d'arrondi et la
-    # bascule d'unite la montrent aussitot. `DT::editData()` corrige la cellule
-    # blanche mais NE RECONSTRUIT PAS la table : essaye, le tableau restait
-    # vide apres un collage et la bascule d'unite n'affichait plus les
-    # pourcentages -- bien pire que ce qu'on corrigeait. Un aiguillage sur le
-    # nombre de lignes n'a pas suffi non plus. On garde donc l'appel qui
-    # fonctionne dans tous les cas.
+    # J'ai cru pendant deux passages qu'une cellule fraichement modifiee
+    # s'affichait VIDE, et j'ai construit un contournement pour l'eviter :
+    # sauter la mise a jour du proxy quand le changement naissait dans la
+    # table. Le defaut n'existe pas.
+    #
+    # `innerText` d'une cellule en cours d'edition rend la chaine vide, parce
+    # que DT y a place son editeur `<input type="number">` et que le texte d'un
+    # champ de saisie n'est pas du texte de noeud. La mesure etait fausse, pas
+    # l'affichage : des que le focus quitte la cellule, elle montre la valeur.
+    #
+    # Le contournement, lui, apportait une vraie regression : en pourcentage,
+    # la cellule aurait garde le chiffre TAPE (« 50 ») alors que l'arrondi
+    # range 4 morts sur 7, soit 57,14 % -- l'ecran aurait cesse de dire la
+    # verite pour eviter un defaut inexistant. Ne pas le reintroduire.
     shiny::observeEvent(saisie_affichee(), {
       DT::replaceData(proxy_saisie, saisie_affichee(), resetPaging = FALSE,
                       rownames = FALSE)
@@ -2709,13 +2742,18 @@ mod_dl50_server <- function(id, values) {
       d <- saisie()
       ok <- is.finite(d$Effectif) & d$Effectif > 0 & is.finite(d$Morts)
       if (!any(ok)) return(NULL)
-      shiny::div(class = "callout callout-info",
+      reel <- 100 * d$Morts[ok] / d$Effectif[ok]
+      # LA NOTE PASSE EN AVERTISSEMENT des que le pourcentage reellement
+      # atteignable n'est pas un nombre rond -- 4 morts sur 7 font 57,142857 %,
+      # que personne n'a tape. Quand il tombe juste (12 sur 30 = 40 %), la
+      # saisie a ete respectee a l'unite pres et une alerte serait du bruit.
+      cls <- if (any(abs(reel - round(reel)) > 1e-9)) "callout-warning" else "callout-info"
+      shiny::div(class = paste("callout", cls),
                  style = "margin-top:8px;padding:8px 12px;font-size:0.92em;",
         shiny::icon("circle-info"), " ",
         trf("Les pourcentages sont enregistrés en effectifs : %s. C'est l'effectif qui fait foi — un pourcentage plus fin que %d individus ne l'autorisent n'ajoute rien.",
             paste(sprintf("%s %% → %d/%d",
-                          trimws(formatC(100 * d$Morts[ok] / d$Effectif[ok],
-                                         format = "g", digits = 4)),
+                          trimws(formatC(reel, format = "g", digits = 4)),
                           as.integer(d$Morts[ok]), as.integer(d$Effectif[ok])),
                   collapse = " ; "),
             as.integer(max(d$Effectif[ok]))))
@@ -3076,7 +3114,8 @@ mod_dl50_server <- function(id, values) {
       if (is.null(e)) return(NULL)
       al <- .hstat_num1(input$alpha, 0.05)
       al <- min(max(al, 0.001), 0.2)
-      hstat_dl50_ajuste(e, input$methode %||% "em", alpha = al)
+      hstat_dl50_ajuste(e, input$methode %||% "em", alpha = al,
+                        itmax = .hstat_num1(input$itmax, HSTAT_DL50_ITMAX))
     })
 
     output$messageFit <- shiny::renderUI({
@@ -3180,7 +3219,8 @@ mod_dl50_server <- function(id, values) {
         # [E] rend alors des poids nuls et c ne bouge plus. WIN DL, lui, rampe
         # vers cette borne. Reproduire son compte demanderait de ralentir
         # deliberement l'algorithme pour une valeur d'affichage.
-        lig(tr("Itérations (boucles EM de HStat)"), f$iterations)))
+        lig(tr("Itérations (boucles EM de HStat)"), f$iterations),
+        lig(tr("Plafond d'itérations"), f$itmax)))
     })
 
     output$parametres <- DT::renderDT({
@@ -3309,7 +3349,8 @@ mod_dl50_server <- function(id, values) {
         e <- essai_actif()
         if (is.null(e)) list() else list(e)
       }
-      lapply(choisis, function(e) hstat_dl50_ajuste(e, m, alpha = al))
+      lapply(choisis, function(e) hstat_dl50_ajuste(
+        e, m, alpha = al, itmax = .hstat_num1(input$itmax, HSTAT_DL50_ITMAX)))
     })
 
     # TOUS les reglages sont lus ICI, dans le reactif qui construit l'image :

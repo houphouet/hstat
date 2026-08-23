@@ -8904,6 +8904,69 @@ test_that("la saisie en pourcentage arrondit, et le dit", {
   expect_equal(f1$a, f2$a); expect_equal(f1$b, f2$b)
 })
 
+test_that("le plafond d'iterations est un reglage, borne et respecte", {
+  ref <- .hstat_dl50_essai_ref()
+  # Le defaut vaut cent, et il suffit tres largement : l'essai de reference
+  # converge en trois boucles.
+  expect_equal(HSTAT_DL50_ITMAX, 100L)
+  f <- hstat_dl50_ajuste(ref, "em")
+  expect_equal(f$itmax, 100L)
+  expect_lt(f$iterations, 10L)
+  expect_true(f$converge)
+
+  # UN PLAFOND TROP BAS ARRETE LE CALCUL, ET LE DIT. Sans quoi on publierait un
+  # ajustement interrompu comme s'il avait converge.
+  f1 <- hstat_dl50_ajuste(ref, "em", itmax = 1)
+  expect_equal(f1$itmax, 1L)
+  expect_equal(f1$iterations, 1L)
+  expect_false(f1$converge)
+
+  # Le releve donne le meme resultat que le defaut : le plafond ne change rien
+  # tant qu'il n'est pas atteint.
+  f2 <- hstat_dl50_ajuste(ref, "em", itmax = 1000)
+  expect_equal(f2$a, f$a); expect_equal(f2$b, f$b)
+
+  # LES SAISIES ABERRANTES SONT BORNEES, pas propagees : un champ numerique
+  # accepte le vide, le zero, le negatif et le texte.
+  for (v in list(NA, 0, -5, "", "abc", NULL))
+    expect_equal(hstat_dl50_ajuste(ref, "em", itmax = v)$itmax, HSTAT_DL50_ITMAX)
+  expect_equal(hstat_dl50_ajuste(ref, "em", itmax = 1e9)$itmax, HSTAT_DL50_ITMAX_MAX)
+
+  # Le plafond vaut AUSSI pour Newton-Raphson quand c'est lui l'ajustement --
+  # Abbott, mortalite nulle. Emboite dans l'EM il garde les 50 du manuel.
+  expect_equal(HSTAT_DL50_ITMAX_NR, 50L)
+  fa <- hstat_dl50_ajuste(ref, "nulle", itmax = 2)
+  expect_lte(fa$iterations, 2L)
+})
+
+test_that("la table de saisie est rafraichie par son proxy, sans exception", {
+  # J'AI CRU DEUX FOIS A UN DEFAUT QUI N'EXISTE PAS. Une cellule fraichement
+  # modifiee semblait s'afficher VIDE, et j'ai construit un contournement :
+  # sauter la mise a jour du proxy quand le changement naissait dans la table.
+  #
+  # `innerText` d'une cellule en cours d'edition rend la chaine vide, parce que
+  # DT y a place son editeur `<input type="number">` et que le texte d'un champ
+  # de saisie n'est pas du texte de noeud. La MESURE etait fausse, pas
+  # l'affichage : des que le focus quitte la cellule, elle montre la valeur.
+  #
+  # Le contournement apportait, lui, une vraie regression : en pourcentage la
+  # cellule aurait garde le chiffre TAPE (« 50 ») alors que l'arrondi range 4
+  # morts sur 7, soit 57,14 %. L'ecran aurait cesse de dire la verite pour
+  # eviter un defaut inexistant. Ce test barre la route au retour du drapeau.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  mod <- paste(readLines(file.path(root, "R", "mod_dl50.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  prox <- regmatches(mod, regexpr(
+    "(?s)shiny::observeEvent\\(saisie_affichee\\(\\).*?ignoreInit = TRUE\\)", mod, perl = TRUE))
+  expect_equal(length(prox), 1L)
+  expect_true(grepl("DT::replaceData(proxy_saisie", prox, fixed = TRUE))
+  # AUCUNE SORTIE ANTICIPEE : le rafraichissement vaut pour tous les
+  # changements, y compris ceux nes dans la table.
+  expect_false(grepl("return()", prox, fixed = TRUE))
+  expect_false(grepl("depuis_table", mod, fixed = TRUE))
+})
+
 test_that("les quatre tests de comparaison sont ceux du manuel de WIN DL", {
   # Le manuel enumere QUATRE tests de rapport de vraisemblance -- ajustement
   # lineaire, identite des droites, mortalite naturelle, parallelisme -- selon
