@@ -8464,10 +8464,20 @@ test_that("chaque reglage du graphique est declare, lu et observe", {
                          warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   ui <- regmatches(src, gregexpr('ns\\("(g[A-Za-z0-9]+)"\\)', src, perl = TRUE))[[1]]
   ui <- unique(sub('.*ns\\("([^"]+)"\\).*', "\\1", ui))
-  # Les identifiants d'export et la sortie du graphique ne sont pas des
-  # reglages de trace : ils ont leur propre chemin.
-  ui <- setdiff(ui, c("graphe", "gDl", "gTaille", "gFmt", "gLargeur",
-                      "gHauteur", "gDpi", "gQualite", "gCompression", "gTous"))
+  # UNE SORTIE N'EST PAS UN REGLAGE, et elle se reconnait a son constructeur.
+  # La liste etait tenue a la main : elle a derive des qu'une note et un titre
+  # dynamique se sont ajoutes sous le graphique, et le test a signale deux
+  # sorties comme des reglages morts. On la derive donc de la source -- un
+  # affichage ajoute demain sort tout seul du decompte.
+  sorties <- regmatches(src, gregexpr(
+    '(?:uiOutput|textOutput|verbatimTextOutput|plotOutput|DTOutput|downloadButton)\\(\\s*ns\\("(g[A-Za-z0-9]*|graphe)"\\)',
+    src, perl = TRUE))[[1]]
+  sorties <- unique(sub('.*ns\\("([^"]+)"\\).*', "\\1", sorties))
+  expect_true(all(c("graphe", "gNote", "gTaille") %in% sorties))
+  # Les reglages d'EXPORT sont bien des entrees, mais ils ne passent pas par le
+  # reactif de trace : ils ont leur propre chemin, celui du telechargement.
+  ui <- setdiff(ui, c(sorties, "gFmt", "gLargeur", "gHauteur", "gDpi",
+                      "gQualite", "gCompression", "gTous"))
   # Le reactif d'options est le SEUL endroit ou les reglages sont lus : c'est
   # donc lui qu'on balaie. Chercher « input$<id> » ne suffirait pas -- la
   # plupart passent par `nb("<id>", defaut)`, donc par `input[[id]]`.
@@ -8518,6 +8528,64 @@ test_that("le graphique se trace avec les reglages, et les limites sont en doses
                  list(point_forme = "17", droite_type = "dashed",
                       grad_x_angle = 45, titre = "T", sous_titre = "S")))
     expect_s3_class(hstat_dl50_graphique(list(f), o), "ggplot")
+})
+
+test_that("la courbe dose-reponse porte la mortalite observee, bornee par 0 et 100", {
+  skip_if_not_installed("ggplot2")
+  # Un essai avec une dose a 0 mort et une dose ou tout meurt : c'est le cas
+  # normal d'un bioessai bien concu, qui ENCADRE la reponse.
+  d <- c(0.1, 0.2, 0.5, 1, 2, 5)
+  f <- hstat_dl50_ajuste(
+    hstat_dl50_essai(d, rep(30, 6), c(0, 4, 12, 20, 27, 30), 30, 3), "em")
+  expect_true(isTRUE(f$ok))
+
+  couche <- function(ty, champ) {
+    b <- ggplot2::ggplot_build(hstat_dl50_graphique(list(f), list(type = ty)))
+    k <- which(vapply(b$data, function(z) champ %in% names(z), logical(1)))[1]
+    list(d = b$data[[k]], y = b$layout$panel_params[[1]]$y.range)
+  }
+
+  # 1. LES DOSES EXTREMES. Une mortalite corrigee de 0 % ou de 100 % n'a pas de
+  #    probit : `hstat_dl50_probit()` la ramene a +/- 7,03, une valeur qui ne
+  #    mesure rien -- elle depend de l'epsilon de troncature. Elle est donc
+  #    ecartee de la droite de Henry, et NOMMEE. La courbe dose-reponse, elle,
+  #    les porte toutes les six.
+  pr <- couche("probit", "shape"); rp <- couche("reponse", "shape")
+  expect_equal(nrow(pr$d), 4L)
+  expect_equal(nrow(rp$d), 6L)
+  ec <- attr(hstat_dl50_graphique(list(f), list(type = "probit")), "ecartes")
+  expect_true(length(ec) == 1L && grepl("0.1", ec, fixed = TRUE) &&
+              grepl("5", ec, fixed = TRUE))
+  expect_null(attr(hstat_dl50_graphique(list(f), list(type = "reponse")), "ecartes"))
+
+  # 2. L'AXE N'EST PLUS ETIRE PAR DEUX ARTEFACTS. Avant, l'etendue se calculait
+  #    sur les points tronques et allait de -7,7 a +7,7 : les quatre points
+  #    reels tenaient dans 17 % de la hauteur.
+  expect_lt(diff(pr$y), 8)
+  expect_equal(rp$y, c(-5, 105), tolerance = 1e-6)
+
+  # 3. LA BANDE RESTE DANS [0 ; 100]. Elle est construite sur le probit puis
+  #    transportee par F, qui est monotone. La batir directement sur le
+  #    pourcentage la ferait sortir du cadre aux extremes, la ou l'on lit.
+  rb <- couche("reponse", "ymin")$d
+  expect_gte(min(rb$ymin), 0)
+  expect_lte(max(rb$ymax), 100)
+  # Et elle ne descend jamais sous la mortalite naturelle : la courbe part de c.
+  expect_gte(min(rb$ymin), 100 * f$c - 1e-8)
+
+  # 4. LA DL50 N'EST PAS A 50 % DE MORTALITE OBSERVEE. Elle est definie sur la
+  #    mortalite CORRIGEE ; le repere doit donc passer la ou la courbe ajustee
+  #    coupe la DL50, soit c + (1 - c)/2. Avec un temoin nul les deux
+  #    coincident -- l'erreur serait invisible sur les essais les plus propres.
+  dl50 <- hstat_dl50_doses_letales(f, 50)$Dose[1]
+  attendu <- 100 * hstat_dl50_mortalite(f, dl50)$Mortalite
+  expect_equal(attendu, 100 * (f$c + (1 - f$c) * 0.5), tolerance = 1e-8)
+  expect_gt(attendu, 50)   # le temoin meurt : le repere est AU-DESSUS de 50 %
+
+  # 5. Les bornes de l'axe se saisissent en pourcentage dans les deux cas.
+  b <- ggplot2::ggplot_build(hstat_dl50_graphique(list(f),
+         list(type = "reponse", y_min = 20, y_max = 80)))
+  expect_equal(b$plot$coordinates$limits$y, c(20, 80), tolerance = 1e-9)
 })
 
 test_that("la matrice d'information est assemblee sur les doses seules", {

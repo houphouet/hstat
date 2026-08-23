@@ -1382,6 +1382,53 @@ DL50**. `var(m)` est un polynôme du second degré en `m`, minimal en
 `b` l'y met. Sur l'essai de référence, la DL90 est estimée plus précisément que
 la DL50.
 
+### Deux graphiques, parce qu'ils ne montrent pas la même chose
+
+La **droite de Henry** montre le *modèle* : le probit de la mortalité corrigée
+est linéaire en log-dose, et c'est ce qui se vérifie à l'œil. La **courbe
+dose-réponse** montre la *réponse mesurée* — une sigmoïde qui part de la
+mortalité naturelle et monte vers 100 %. C'est celle qu'un rapport d'essai
+publie, parce qu'elle se lit sans savoir ce qu'est un probit.
+
+Trois pièges, tous silencieux, tous testés.
+
+**Le point tracé n'est pas le même.** La droite porte le probit de la mortalité
+**corrigée** ; la courbe porte la mortalité **observée**, parce que la courbe
+ajustée inclut déjà `c`. Y poser les points corrigés les descendrait tous de la
+valeur de `c`, et l'écart passerait pour un défaut d'ajustement.
+
+**Une mortalité corrigée de 0 % ou de 100 % n'a pas de probit.**
+`hstat_dl50_probit()` ramène la proportion dans `[1e-12 ; 1 − 1e-12]` pour ne
+pas rendre l'infini : le point ressort à **±7,03**, une valeur qui ne mesure
+rien — elle dépend de l'epsilon. Et comme l'étendue de l'axe se calcule sur les
+points, **deux artefacts suffisent à étirer l'axe de −7,7 à +7,7** : mesuré sur
+un essai à six doses dont une à 0 % et une à 100 %, les quatre points réels
+occupaient **17 %** de la hauteur, la droite et sa bande écrasées au milieu.
+
+Ces points sont donc écartés de la droite de Henry — et **nommés**, un point
+qui disparaît sans un mot étant le défaut que ce dépôt traque ailleurs. La
+courbe dose-réponse les porte tous : 0 % et 100 % sont des observations comme
+les autres, et ce sont les doses qui **bornent** l'essai.
+
+**La DL50 n'est pas à 50 % de mortalité observée.** Elle est définie sur la
+mortalité corrigée : la dose à laquelle le produit tue la moitié des individus
+que le témoin aurait laissés vivants. Sur une courbe de mortalités observées, le
+repère passe donc à `c + (1 − c)·s`, pas à `s`. Avec un témoin nul les deux
+coïncident — ce qui rend l'erreur invisible précisément sur les essais les plus
+propres. Mesuré sur un témoin à 10 % : le repère DL50 est à **52,8 %**.
+
+Deux conséquences de construction. L'intervalle se bâtit **sur le probit puis se
+transporte** par F, qui est monotone : les bornes restent dans `[0 ; 100]` et
+l'asymétrie de la sigmoïde est respectée — le bâtir sur le pourcentage le ferait
+sortir du cadre aux extrêmes, là où l'on veut justement lire. Et le **second axe
+en probit est masqué** sur la courbe dose-réponse : il placerait l'infini à 0 %
+et à 100 %, c'est-à-dire aux deux graduations que cette courbe existe pour
+montrer. Masqué côté interface, pas ignoré en silence.
+
+Plusieurs essais de mortalités naturelles différentes n'ont pas de repère
+commun : un seul trait serait faux pour tous sauf un. On s'abstient plutôt que
+d'en tracer un au hasard.
+
 ### Un tableau de résultats se recopie, un paragraphe non
 
 Les paramètres statistiques vivent dans **un tableau**, pas seulement dans le
