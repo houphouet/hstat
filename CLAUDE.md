@@ -1294,24 +1294,47 @@ masque de longueur 4 rend `20 NA NA NA` — trois lignes sur quatre ressortaient
 vides, et seulement quand un seul effectif sert à plusieurs doses, c'est-à-dire
 dans le cas le plus courant. D'où le `rep_len()` explicite.
 
-### Deux artefacts de repeinture de DT, connus et laissés en l'état
+### `innerText` d'une cellule en édition ment, et j'ai construit dessus
 
-Après une édition **venue de la table**, deux choses restent sur l'état
-précédent jusqu'au redessin suivant : la cellule modifiée s'affiche **vide**, et
-la note d'arrondi garde l'ancien texte. DT tient une copie des données côté
-navigateur, et `replaceData` réécrit le corps pendant que DT croit encore éditer
-la cellule.
+J'ai cru **deux fois** qu'une cellule fraîchement modifiée s'affichait **vide**,
+et que la note d'arrondi restait sur l'état précédent. Les deux constats étaient
+faux, et j'ai fini par bâtir un contournement — sauter la mise à jour du proxy
+quand le changement naissait dans la table — pour un défaut qui n'existe pas.
 
-Les deux **précèdent** la saisie en pourcentage — la cellule blanche se voit
-déjà sur la colonne des morts. Vérifié à la sonde : le serveur range la bonne
-valeur et recalcule bien la note ; c'est l'affichage qui traîne. Coller, ajouter
-une ligne ou basculer l'unité remet tout d'aplomb.
+**La mesure était fausse, pas l'affichage.** `innerText` d'une cellule en cours
+d'édition rend la chaîne vide, parce que DT y a placé son éditeur
+`<input type="number">` et que le texte d'un champ de saisie n'est pas du texte
+de nœud. Le pilote Playwright pressait Entrée sans quitter la cellule ; dès que
+le focus en sort, elle montre sa valeur. Même chose pour la note : elle se
+rafraîchit, on la lisait pendant que l'éditeur tenait encore le focus.
 
-`DT::editData()` corrige la cellule blanche mais **ne reconstruit pas** la
-table : essayé, le tableau restait vide après un collage et la bascule d'unité
-n'affichait plus les pourcentages — bien pire que ce qu'on corrigeait. Un
-aiguillage sur le nombre de lignes n'a pas suffi non plus. On garde donc
-`replaceData`, qui fonctionne dans tous les cas.
+Vérifié en lisant l'`innerHTML` : avant `"3"`, pendant
+`"<input type=\"number\">"`, après le blur `"5"`.
+
+**Et le contournement apportait, lui, une vraie régression.** En pourcentage, la
+cellule aurait gardé le chiffre **tapé** (« 50 ») alors que l'arrondi range 4
+morts sur 7, soit 57,14 % : l'écran aurait cessé de dire la vérité pour éviter
+un défaut inexistant. Un test barre désormais la route au retour du drapeau.
+
+Leçon générale, qui vaut au-delà de DT : **quand une mesure automatisée dit
+qu'un affichage est vide, vérifier le DOM avant de conclure.** Un champ de
+saisie, un `<svg>`, un pseudo-élément CSS ne rendent rien à `innerText` et sont
+pourtant parfaitement visibles.
+
+### Le plafond d'itérations est un réglage, pas une constante
+
+Il valait 500 sans que personne puisse le voir ni le changer. Il vaut désormais
+**100 par défaut** et se règle à l'écran — l'essai de référence converge en trois
+boucles, et un plafond qu'on peut lever est ce qu'il faut le jour où un essai
+difficile n'aboutit pas : mieux vaut le lever en connaissance de cause que lire
+« convergence non atteinte » sans pouvoir agir. Un garde-fou le borne à 5 000, et
+toute saisie aberrante (vide, zéro, négative, texte) retombe sur le défaut.
+
+Le plafond de **Newton-Raphson emboîté** dans l'EM reste à **50**, la valeur du
+manuel (« avec 50 itérations maximum ») : c'est une convention du logiciel, pas
+un réglage de confort. Quand Newton-Raphson est l'ajustement lui-même — Abbott,
+mortalité nulle — c'est le plafond choisi par l'utilisateur qui s'applique,
+puisque c'est lui la boucle qu'il regarde converger.
 
 ### Le mode guidé, et les limites héritées
 
