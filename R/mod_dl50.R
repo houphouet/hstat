@@ -977,6 +977,16 @@ hstat_dl50_comparaison <- function(essais,
     m <- .hstat_dl50_valide(e)
     if (!is.null(m)) return(vide(m))
   }
+  # LA LIMITE DE CENT DOSES VAUT AUSSI POUR LE TOTAL. Le manuel l'ecrit a part
+  # de la limite par essai : « dans le module de comparaison, le regroupement
+  # de doses ne peut pas exceder 100 au total ». Six essais de quatre-vingts
+  # doses passaient donc un a un et depassaient ensemble sans que rien ne le
+  # dise -- la comparaison partait, et elle n'aurait eu aucun equivalent dans
+  # le logiciel.
+  total <- sum(vapply(essais, function(e) nrow(e$doses), integer(1)))
+  if (total > HSTAT_DL50_DOSES_MAX)
+    return(vide(trf("Les %d essais totalisent %d doses : la limite du module de comparaison est de %d, comme dans WIN DL.",
+                    length(essais), total, HSTAT_DL50_DOSES_MAX)))
   # Le scenario a mortalite nulle n'a de sens que si AUCUN essai n'a observe de
   # mortalite dans son temoin : le manuel l'ecrit, et fixer c a zero devant un
   # temoin qui compte des morts ferait porter cette mortalite par la pente.

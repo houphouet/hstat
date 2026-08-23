@@ -8917,6 +8917,90 @@ test_that("les quatre tests de comparaison sont ceux du manuel de WIN DL", {
   # renommage ou une disparition se voie.
   expect_equal(unname(HSTAT_DL50_SCENARIOS), c("heterogene", "homogene", "nulle"))
 
+  # LES DOUZE COUPLES DE MODELES SONT CEUX DU MANUEL, qui donne H0 et H1 de
+  # chaque test sous chaque scenario. On les reconstruit ici a la main, a
+  # partir de l'ajusteur general, et on exige que le Chi-2 rendu par le module
+  # soit EXACTEMENT 2 (ll(H1) - ll(H0)) sur ces couples-la.
+  #
+  # C'est la seule confrontation possible sur ces tests : aucun fichier de
+  # sortie livre avec le logiciel ne les exerce. Elle porte donc sur la
+  # STRUCTURE -- quels modeles sont opposes -- et non sur des chiffres publies.
+  # Une inversion de couple y serait invisible autrement : le test rendrait un
+  # Chi-2 parfaitement plausible, et faux.
+  ez1 <- hstat_dl50_essai(c(0.05, 0.1, 0.25, 0.5, 1, 2), rep(120, 6),
+                          c(18, 33, 58, 80, 101, 113), 120, 5)
+  ez2 <- hstat_dl50_essai(c(0.05, 0.1, 0.25, 0.5, 1, 2), rep(120, 6),
+                          c(9, 19, 38, 60, 85, 105), 120, 8)
+  jeu <- list(A = ez1, B = ez2)
+  for (sc in c("heterogene", "homogene")) {
+    cm <- if (identical(sc, "heterogene")) "libre" else "commun"
+    base  <- .hstat_dl50_fit_multi(jeu, FALSE, FALSE, cm)   # a_i, b_i
+    ident <- .hstat_dl50_fit_multi(jeu, TRUE,  TRUE,  cm)   # a,  b
+    paral <- .hstat_dl50_fit_multi(jeu, FALSE, TRUE,  cm)   # a_i, b
+    libre <- .hstat_dl50_fit_multi(jeu, FALSE, FALSE, "libre")
+    commun <- .hstat_dl50_fit_multi(jeu, FALSE, FALSE, "commun")
+    sat <- .hstat_dl50_ll_sature(jeu)
+    r <- hstat_dl50_comparaison(jeu, scenario = sc)
+    attendu <- c(2 * (sat$ll - base$ll),      # T1 : ajustement contre sature
+                 2 * (base$ll - ident$ll),    # T2 : a et b communs
+                 2 * (libre$ll - commun$ll),  # T3 : c communs contre c libres
+                 2 * (base$ll - paral$ll))    # T4 : b commun
+    expect_equal(r$Chi2, pmax(0, attendu), tolerance = 1e-4, info = sc)
+  }
+  # Sous le scenario a mortalite nulle, le TROISIEME test change d'hypothese
+  # nulle : le manuel oppose « c = 0 » a « c_i libres », la ou les deux autres
+  # scenarios opposent « c commun » a « c_i libres ». Prendre le modele de base
+  # dans les trois cas comparerait un modele a lui-meme sous l'hetero.
+  jz <- list(A = hstat_dl50_essai(c(0.05, 0.1, 0.25, 0.5, 1, 2), rep(120, 6),
+                                  c(15, 30, 55, 78, 100, 113), 120, 0),
+             B = hstat_dl50_essai(c(0.05, 0.1, 0.25, 0.5, 1, 2), rep(120, 6),
+                                  c(6, 16, 35, 58, 84, 105), 120, 0))
+  rz <- hstat_dl50_comparaison(jz, scenario = "nulle")
+  nul <- .hstat_dl50_fit_multi(jz, FALSE, FALSE, "nul")
+  lib <- .hstat_dl50_fit_multi(jz, FALSE, FALSE, "libre")
+  expect_equal(rz$Chi2[3], max(0, 2 * (lib$ll - nul$ll)), tolerance = 1e-4)
+
+  # LA LIMITE DE CENT DOSES VAUT AUSSI POUR LE TOTAL -- le manuel l'ecrit a
+  # part de la limite par essai. Deux essais de soixante doses passaient un a
+  # un et depassaient ensemble, sans un mot.
+  gros <- function(k) {
+    d <- seq(0.01, 10, length.out = k)
+    hstat_dl50_essai(d, rep(200, k), round(200 * stats::pnorm(0.5 + 1.2 * log10(d))),
+                     200, 0)
+  }
+  r60 <- hstat_dl50_comparaison(list(A = gros(60), B = gros(60)), scenario = "nulle")
+  expect_equal(nrow(r60), 0L)
+  expect_true(grepl("120", attr(r60, "message"), fixed = TRUE))
+  expect_true(grepl("100", attr(r60, "message"), fixed = TRUE))
+  # Et le total juste en dessous passe.
+  expect_gt(nrow(hstat_dl50_comparaison(list(A = gros(40), B = gros(40)),
+                                        scenario = "nulle")), 0L)
+})
+
+test_that("le Chi-2 d'ajustement est la DEVIANCE, celle qu'imprime WIN DL", {
+  # Le choix se tranche sur le seul fichier de sortie du logiciel : il imprime
+  # « Chi2 calcule : 0.672 ». La deviance vaut 0,67217 et s'arrondit a 0,672 ;
+  # le Chi-2 de PEARSON vaut 0,66768 et s'arrondirait a 0,668. Le .PRN decide.
+  f <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  P <- f$table$Mortalite_attendue; O <- f$table$Morts; N <- f$table$Effectif
+  pearson <- sum((O - N * P)^2 / (N * P * (1 - P)))
+  expect_equal(round(f$chi2, 3), 0.672)
+  expect_false(identical(round(pearson, 3), 0.672))
+  expect_equal(round(pearson, 3), 0.668)
+
+  # LES SIX ESSAIS LIVRES, EUX, STOCKENT UN PEARSON -- et c'est la meme
+  # explication que pour leurs bornes sans Fieller : ces valeurs viennent du
+  # moteur MS-DOS. La difference creve les yeux sur l'essai dont une dose tue
+  # TOUT : la deviance y vaut 1,579 et Pearson 1,212, pour 1,20967 stocke.
+  # Aligner HStat sur ces fichiers-la le desalignerait du logiciel Windows,
+  # qui est celui auquel on se compare.
+  en <- hstat_dl50_ajuste(hstat_dl50_essai(c(10, 4, 2, 1, 0.5, 0.25), rep(30, 6),
+                                           c(30, 28, 22, 15, 10, 4), 25, 0), "abbott")
+  Pe <- en$table$Mortalite_attendue; Oe <- en$table$Morts; Ne <- en$table$Effectif
+  pearson_en <- sum((Oe - Ne * Pe)^2 / (Ne * Pe * (1 - Pe)))
+  expect_equal(pearson_en, 1.20967, tolerance = 5e-3)
+  expect_gt(en$chi2 / pearson_en, 1.2)
+
   # DEUX JEUX, parce que le scenario a mortalite nulle REFUSE des essais dont
   # le temoin compte des morts -- et c'est juste : poser c = 0 devant un temoin
   # qui en montre serait une contradiction de saisie, pas une hypothese.

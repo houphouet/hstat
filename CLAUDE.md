@@ -1341,14 +1341,69 @@ Reproduire son compte demanderait de **ralentir délibérément** l'algorithme p
 une valeur d'affichage. Le libellé dit donc de qui est le compte, plutôt que de
 laisser croire à un désaccord.
 
-### Les quatre tests de comparaison ne sont pas confrontés
+### Les quatre tests de comparaison : confrontés au manuel, pas à des chiffres
 
-Le manuel les énumère — ajustement linéaire, identité des droites, mortalité
-naturelle, parallélisme — selon l'un des trois scénarios, et HStat les
-implémente ainsi. Mais **aucun fichier de sortie livré avec le logiciel ne les
-exerce** : à la différence de l'ajustement, ils ne sont pas confrontés chiffre à
-chiffre. Un test épingle au moins leur structure, pour qu'un renommage ou une
-disparition se voie.
+Le manuel donne **H0 et H1 de chacun des quatre tests, sous chacun des trois
+scénarios** — douze couples de modèles, écrits en toutes lettres. HStat les
+reproduit exactement, et un test le vérifie en reconstruisant les douze couples
+à la main puis en exigeant que le Chi-2 rendu vaille `2·(ll(H1) − ll(H0))` sur
+ces couples-là.
+
+C'est la seule confrontation possible : **aucun fichier de sortie livré avec le
+logiciel n'exerce ces tests.** Elle porte donc sur la structure — quels modèles
+sont opposés — et non sur des chiffres publiés. Une inversion de couple serait
+invisible autrement : le test rendrait un Chi-2 parfaitement plausible, et faux.
+
+Le point le plus délicat est le **troisième test**, dont l'hypothèse nulle change
+avec le scénario : « c commun » contre « c libres » sous les deux premiers,
+« c = 0 » contre « c libres » sous le troisième. Prendre le modèle de base dans
+les trois cas comparerait un modèle à lui-même sous l'hétérogène — zéro degré de
+liberté, un test qui ne teste rien.
+
+Deux règles du manuel étaient déjà en place et se trouvent confirmées : le
+scénario 3 n'est **pas effectué** si un essai a une mortalité observée dans son
+témoin, et les quatre tests sont **indépendants** — deux non-significatifs pris
+séparément ne concluent pas sur leur conjonction.
+
+### Le Chi-2 est la déviance, et les fichiers d'exemple disent le contraire
+
+Le choix se tranche sur le seul fichier de sortie du logiciel Windows, qui
+imprime « Chi2 calculé : 0.672 ». La **déviance** vaut 0,67217 et s'arrondit à
+0,672 ; le Chi-2 de **Pearson** vaut 0,66768 et s'arrondirait à 0,668. Le `.PRN`
+décide.
+
+Mais les six essais livrés stockent, eux, un **Pearson** — et c'est la même
+explication que pour leurs bornes sans Fieller : ces valeurs viennent du moteur
+MS-DOS. La différence crève les yeux sur l'essai dont une dose tue **tout** :
+
+| CL94AEN | déviance | Pearson | stocké |
+|---|---|---|---|
+| Chi-2 | 1,579 | **1,212** | 1,20967 |
+
+Aligner HStat sur ces fichiers-là le désalignerait du logiciel Windows, qui est
+celui auquel on se compare. Un test épingle les deux valeurs pour que le choix
+ne se reprenne pas par inadvertance.
+
+### La limite de cent doses vaut aussi pour le total
+
+Le manuel l'écrit à part de la limite par essai : « dans le module de
+comparaison, le regroupement de doses ne peut pas excéder 100 au total ». Six
+essais de quatre-vingts doses passaient donc un à un et dépassaient ensemble
+sans un mot — la comparaison partait, et elle n'aurait eu aucun équivalent dans
+le logiciel.
+
+### Ce que le manuel confirme sans qu'il y ait rien à changer
+
+- La **fusion** exige neuf champs strictement identiques (espèce, stade, durée,
+  température, matières actives 1 et 2, ratio, méthode, unité), bloque sur un
+  test significatif ou une estimation impossible, et **retombe sur `c = 0`**
+  quand l'estimation échoue et que la mortalité naturelle globale est nulle.
+  Les quatre règles étaient déjà en place.
+- Le **degré de liberté** vaut le nombre de doses moins deux, le facteur
+  d'hétérogénéité est `Chi2/ddl`, et le quantile devient celui de Student.
+- La méthode par défaut à l'ouverture d'un fichier est **EM**.
+- Le refus sous trois doses de mortalité corrigée intermédiaire est bien celui
+  du logiciel.
 
 ### « Mortalité nulle » n'est pas une méthode de WIN DL
 

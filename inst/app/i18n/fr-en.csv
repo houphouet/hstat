@@ -2050,3 +2050,4 @@
 "Itérations (boucles EM de HStat)","Iterations (HStat EM loops)"
 "** Convergence atteinte après %d itérations de HStat (écart absolu sur log-vraisemblance < 1e-5 ; le compte dépend de l'algorithme et ne se compare pas à celui de WIN DL)","** Convergence reached after %d HStat iterations (absolute change in log-likelihood < 1e-5; the count depends on the algorithm and is not comparable with WIN DL's)"
 "Les pourcentages sont enregistrés en effectifs : %s. C'est l'effectif qui fait foi — un pourcentage plus fin que %d individus ne l'autorisent n'ajoute rien.","Percentages are stored as counts: %s. The count is what governs — a percentage finer than %d individuals allow adds nothing."
+"Les %d essais totalisent %d doses : la limite du module de comparaison est de %d, comme dans WIN DL.","The %d assays total %d doses: the comparison module's limit is %d, as in WIN DL."
