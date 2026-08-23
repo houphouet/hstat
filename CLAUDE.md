@@ -1611,6 +1611,49 @@ Le risque est **asymétrique** : un filtre trop large ne fait que jouer des
 tests en trop, un filtre trop étroit annonce un trou qui n'existe pas. Le choix
 se fait de ce côté-là.
 
+#### Un nom de colonne préfixe d'un autre cassait la formule
+
+`auto_quote_colnames()` cite entre accents graves les noms portant un caractère
+spécial. Le tri par longueur devait suffire — il ne suffit pas. Quand un nom est
+le **préfixe** d'un autre et que les deux demandent des accents graves, le court
+se réinsère **dans** les accents du long :
+
+```
+"A-1-bis + A-1"  →  ``A-1`-bis` + `A-1`
+```
+
+R refuse de l'analyser : « attempt to use zero-length variable name ». Le
+garde-fou existant cherchait la forme citée **exacte** — `` `A-1` `` ne figure
+pas dans `` `A-1-bis` ``, il ne se déclenchait donc jamais.
+
+Le cas n'a rien d'exotique : `Rdt-2023` et `Rdt-2023-corrigé` suffisent, et le
+calculateur de variables tombait alors sur un message que personne ne peut
+relier à ses colonnes.
+
+Règle : **ce qui est cité sort du jeu.** La fonction masque par un jeton ce que
+l'utilisateur a déjà cité *et* chaque citation qu'elle vient de poser, puis
+restitue en fin de passe. La réécriture `mean()` → `rowMeans()` opère sur la
+chaîne masquée, donc les deux passes se composent sans se gêner.
+
+#### Les transformations : l'aller-retour est l'invariant fort
+
+`apply_variable_transformation()` et `back_transform_values()` n'étaient
+appelées par aucun test, alors que les comparaisons post-hoc **affichent des
+moyennes rétro-transformées** : une inverse fausse ne lève pas, elle rend des
+nombres dans la bonne unité et du mauvais ordre de grandeur.
+
+Sept méthodes, sept allers-retours vérifiés à 1e-10 — plus quelques valeurs
+posées, pour que la propriété ne puisse pas être satisfaite par deux fonctions
+fausses qui s'annulent. La racine cubique doit accepter les négatifs (c'est sa
+raison d'être, et le message d'erreur de `sqrt` y renvoie) : `x^(1/3)` nu rendrait
+`NaN`.
+
+Second invariant, entre deux fonctions : **le contrôle de faisabilité doit dire
+exactement ce que l'application fera.** Les deux listes de conditions vivent
+dans des `switch()` distincts et peuvent donc diverger — une dérive laisserait
+soit un bouton actif qui fait tomber la sortie, soit un refus incompréhensible
+sur des données valides. Le test croise cinq jeux de données et sept méthodes.
+
 ### Trois défauts trouvés par l'audit, tous du même genre
 
 Aucun ne lève, aucun ne laisse un vide : tous les trois rendent un résultat

@@ -4051,6 +4051,138 @@ test_that("le script du journal reste executable quel que soit le nom de colonne
   expect_equal(.hstat_rlog_nom(c("x", "a b")), c("x", "`a b`"))
 })
 
+test_that("un nom de colonne prefixe d'un autre ne casse plus la formule", {
+  # LE TRI PAR LONGUEUR NE SUFFISAIT PAS. Quand un nom est le PREFIXE d'un
+  # autre et que les deux demandent des accents graves, le court se reinserait
+  # DANS les accents du long : « A-1 » et « A-1-bis » donnaient ``A-1`-bis`,
+  # que R refuse d'analyser (« attempt to use zero-length variable name »).
+  # Le garde-fou qui existait cherchait la forme citee EXACTE -- « `A-1` » ne
+  # figure pas dans « `A-1-bis` », il ne se declenchait donc jamais.
+  # Des noms comme « Rdt-2023 » / « Rdt-2023-corrige » suffisent a le produire.
+  analysable <- function(txt)
+    !inherits(tryCatch(parse(text = txt), error = function(e) e), "error")
+
+  f <- auto_quote_colnames("A-1-bis + A-1", c("A-1", "A-1-bis"))
+  expect_equal(f, "`A-1-bis` + `A-1`")
+  expect_true(analysable(f))
+  # L'ordre de DECLARATION des colonnes ne doit rien changer.
+  expect_equal(auto_quote_colnames("A-1-bis + A-1", c("A-1-bis", "A-1")), f)
+  expect_true(analysable(
+    auto_quote_colnames("Rdt-2023-corrige / Rdt-2023",
+                        c("Rdt-2023", "Rdt-2023-corrige"))))
+
+  # Ce qui marchait doit continuer a marcher.
+  expect_equal(auto_quote_colnames("a + b", c("a", "b")), "a + b")
+  expect_equal(auto_quote_colnames("2024 + 1", c("2024")), "`2024` + 1")
+  # Un nom SANS caractere special n'est pas cite -- meme a cote d'un nom cite.
+  expect_equal(auto_quote_colnames("Rdt-t/ha + Rdt", c("Rdt", "Rdt-t/ha")),
+               "`Rdt-t/ha` + Rdt")
+  # Une citation posee par l'utilisateur n'est pas redoublee.
+  expect_equal(auto_quote_colnames("`Rdt-t/ha` * 2", c("Rdt-t/ha")),
+               "`Rdt-t/ha` * 2")
+  # mean() et sum() deviennent des operations LIGNE A LIGNE : `mean(a, b)` en R
+  # ignorerait purement et simplement `b` (c'est l'argument `trim`).
+  expect_equal(auto_quote_colnames("mean(c(a, b))", c("a", "b")),
+               "rowMeans(cbind(a, b), na.rm=TRUE)")
+  expect_equal(auto_quote_colnames("sum(a, b)", c("a", "b")),
+               "rowSums(cbind(a, b), na.rm=TRUE)")
+  # Et la reecriture survit a la citation : les deux passes se composent.
+  g <- auto_quote_colnames("mean(c(A-1, A-1-bis))", c("A-1", "A-1-bis"))
+  expect_true(analysable(g))
+  expect_match(g, "rowMeans", fixed = TRUE)
+  expect_match(g, "`A-1-bis`", fixed = TRUE)
+})
+
+test_that("la matrice de p-values est symetrique et diagonale a 1", {
+  pd <- data.frame(Niveau1 = c("A", "A", "B"), Niveau2 = c("B", "C", "C"),
+                   p_adj = c(0.01, 0.20, 0.75), stringsAsFactors = FALSE)
+  m <- build_pvalue_matrix(pd, c("A", "B", "C"))
+  # Une comparaison n'a pas de sens : A vs B et B vs A sont le meme test.
+  expect_equal(m, t(m))
+  expect_equal(m["A", "B"], 0.01)
+  expect_equal(m["C", "A"], 0.20)
+  # La diagonale vaut 1, pas NA : un niveau compare a lui-meme n'est jamais
+  # different, et un NA sur la diagonale ferait echouer les lettres de groupes.
+  expect_equal(unname(diag(m)), rep(1, 3))
+  # Un niveau sans aucune paire reste present, en NA hors diagonale.
+  m4 <- build_pvalue_matrix(pd, c("A", "B", "C", "D"))
+  expect_equal(dim(m4), c(4L, 4L))
+  expect_true(all(is.na(m4["D", c("A", "B", "C")])))
+  expect_equal(unname(m4["D", "D"]), 1)
+})
+
+test_that("chaque transformation revient exactement sur ses pas", {
+  # L'ALLER-RETOUR EST L'INVARIANT FORT de cette famille. Les comparaisons
+  # post-hoc affichent des moyennes RETRO-TRANSFORMEES : une inverse fausse ne
+  # leve pas, elle rend des nombres dans la bonne unite et du mauvais ordre de
+  # grandeur. Ni `apply_variable_transformation()` ni `back_transform_values()`
+  # n'etaient appelees par un test.
+  cas <- list(
+    log      = c(1, 2, 5, 10),
+    log1p    = c(0, 1, 4, 9),
+    log10    = c(1, 10, 100),
+    sqrt     = c(0, 1, 4, 9),
+    cuberoot = c(-8, -1, 0, 1, 8),
+    arcsin   = c(0, 0.25, 0.5, 1),
+    logit    = c(0.1, 0.5, 0.9))
+  for (m in names(cas)) {
+    v <- cas[[m]]
+    t <- as.numeric(apply_variable_transformation(v, m))
+    expect_equal(back_transform_values(t, m), v, tolerance = 1e-10,
+                 info = paste("aller-retour :", m))
+  }
+
+  # Quelques valeurs POSEES, pour que l'aller-retour ne puisse pas etre
+  # satisfait par deux fonctions fausses qui s'annulent.
+  expect_equal(as.numeric(apply_variable_transformation(c(1, 10, 100), "log10")),
+               c(0, 1, 2))
+  expect_equal(as.numeric(apply_variable_transformation(c(0, 1, 4), "sqrt")),
+               c(0, 1, 2))
+  expect_equal(as.numeric(apply_variable_transformation(0.5, "logit")), 0)
+
+  # LA RACINE CUBIQUE DOIT ACCEPTER LES NEGATIFS -- c'est sa raison d'etre,
+  # et le message de `sqrt` y renvoie explicitement. `x^(1/3)` nu rendrait NaN.
+  cr <- apply_variable_transformation(c(-8, 8), "cuberoot")
+  expect_equal(as.numeric(cr), c(-2, 2))
+  expect_false(any(is.nan(cr)))
+
+  # Les NA traversent sans etre comptes comme des valeurs fautives.
+  expect_true(is.na(apply_variable_transformation(c(1, NA, 4), "sqrt")[2]))
+  # Une methode inconnue est refusee, pas appliquee au hasard.
+  expect_error(apply_variable_transformation(1:3, "racine_quatrieme"))
+  # Retro-transformer par une methode inconnue rend l'entree inchangee.
+  expect_equal(back_transform_values(c(1, 2), "inconnue"), c(1, 2))
+})
+
+test_that("le controle de faisabilite dit exactement ce que l'application fera", {
+  # DEUX LISTES DE CONDITIONS QUI DOIVENT S'ACCORDER : le controle annonce, et
+  # l'application leve. Elles vivent dans deux `switch()` distincts, donc elles
+  # peuvent deriver -- et une derive laisserait soit un bouton actif qui fait
+  # tomber la sortie, soit un refus incomprehensible sur des donnees valides.
+  meth <- c("log", "log1p", "log10", "sqrt", "cuberoot", "arcsin", "logit")
+  cas <- list(negatifs   = c(-1, 2, 3),
+              zeros      = c(0, 1, 2),
+              hors_01    = c(0.5, 1.5),
+              bornes_01  = c(0, 0.5, 1),
+              positifs   = c(1, 2, 3))
+  for (nm in names(cas)) for (m in meth) {
+    ok   <- isTRUE(check_transformation_feasibility(cas[[nm]], m)$ok)
+    leve <- inherits(try(apply_variable_transformation(cas[[nm]], m),
+                         silent = TRUE), "try-error")
+    expect_false(ok == leve, info = paste(nm, "/", m,
+                 ": controle =", ok, ", application leve =", leve))
+  }
+  # Un vecteur entierement manquant est refuse, et pour cette raison-la.
+  vide <- check_transformation_feasibility(c(NA_real_, NA_real_), "log")
+  expect_false(vide$ok)
+  expect_match(vide$message, "non-NA")
+  # Un refus NOMME le nombre d'observations fautives : « 2 valeurs <= 0 » se
+  # corrige, « impossible » ne se corrige pas.
+  expect_match(check_transformation_feasibility(c(-1, 0, 5), "log")$message, "^2 ")
+  # Et une acceptation annonce l'effectif retenu.
+  expect_match(check_transformation_feasibility(c(1, 2, NA), "log")$message, "n = 2")
+})
+
 test_that("Box's M refuse poliment ce qu'il ne peut pas tester", {
   # QUATRE GARDE-FOUS, et aucun n'etait teste. Ils protegent l'appel a
   # `heplots::boxM()`, qui leve ou rend des NaN sur des donnees degenerees --
