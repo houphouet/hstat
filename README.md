@@ -38,7 +38,7 @@ Requires **R ≥ 4.4**.
 | **Qualitative** | Frequency and cross-tabulation, Likert scales, text analysis, CAQDAS coding workbench |
 | **Plan** | Experimental designs, sample size and statistical power |
 | **Dose** | Product dose and active-ingredient rate per hectare, spray mix, tank loads, and serial dilutions (working solutions) |
-| **DL50 / CL50** | Dose-mortality probit regression (Henry line), natural mortality by Abbott or EM, lethal doses with standard error and tolerance standard deviation, Fieller intervals, trial comparison and merging, native WIN DL file import/export |
+| **DL50 / CL50** | Dose-mortality probit regression (Henry line), natural mortality by Abbott or EM, lethal doses with standard error and tolerance standard deviation, Fieller intervals, potency ratio (resistance ratio), trial comparison and merging, native WIN DL file import/export |
 | **Report** | Interpretation, reproducibility journal, automatic report (HTML / Word / PDF) |
 
 Every analysis states its **assumptions**, gives an **interpretation in plain
@@ -259,7 +259,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.51.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.52.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -267,7 +267,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 0.51.0},
+  note   = {Version 0.52.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```
