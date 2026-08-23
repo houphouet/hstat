@@ -1250,6 +1250,77 @@ l'écarter en silence perdrait la **mortalité naturelle** de l'essai — celle 
 change toute la courbe de réponse. `hstat_dl50_depuis_donnees()` l'extrait et
 en fait le témoin.
 
+### Les quatre silences du bioessai
+
+Un audit du module a trouvé quatre situations où il rendait un chiffre faux ou
+trompeur **sans un mot**. Chacune est maintenant refusée ou nommée ; aucune ne
+se devine à la lecture des résultats.
+
+1. **Une pente négative n'est pas un ajustement, c'est une saisie à l'envers.**
+   Deux colonnes inversées, et le module ajustait, convergeait et rendait un
+   rapport complet — équation, intervalles, graphique — où la DL10 valait mille
+   fois la DL90. C'est le résultat faux le plus facile à publier de bonne foi.
+   Le refus porte sur la valeur **initiale** (pour ne pas itérer en vain) et
+   sur la valeur **finale** (si l'algorithme y arrive en route).
+
+2. **Une dose létale extrapolée n'est pas une dose létale mesurée.** La droite
+   de Henry se prolonge à l'infini, la population testée non. Sur l'essai de
+   référence lui-même, *deux des trois* doses létales publiées tombent hors de
+   l'étendue testée — la DL90 vaut près de quatre fois la dose la plus forte
+   appliquée. La colonne `Position` les nomme, et l'avertissement porte le
+   `DL` de chaque seuil : la liste brute « DL90, 10 » se lisait comme une dose
+   de 10.
+
+3. **Un Chi-2 sans degré de liberté résiduel ne teste rien.** Avec autant de
+   doses que de paramètres estimés, le modèle passe exactement par les points
+   et le Chi-2 vaut zéro par construction. Le plancher `max(1L, …)` — qui
+   existe pour éviter une division par zéro — le transformait en « p = 1,0000,
+   ajustement probit légitime ». `informatif` distingue les deux, et le facteur
+   d'hétérogénéité ne s'applique plus à un test qui n'a pas eu lieu.
+
+4. **Un modèle contraint ne peut pas dépasser le modèle libre.** `optim()`
+   rendait `ok = TRUE` sans qu'on lise son code de convergence. Si le modèle
+   emboîté ressortait au-dessus, le Chi-2 négatif était écrasé à zéro par
+   `max(0, …)` et le test concluait « non significatif » : **l'échec se
+   présentait comme une absence de différence**, la conclusion inverse.
+
+Cinquième point, moins grave et de même nature : au-delà de
+`HSTAT_DL50_TEMOIN_MAX` (20 %) de mortalité dans le témoin, la correction
+d'Abbott devient peu fiable. C'est un défaut de conduite d'essai, pas de
+saisie — on le dit, on ne bloque pas.
+
+### On ouvre un module de DL50 pour lire une DL50
+
+Le bloc de résumé annonçait l'équation, la mortalité naturelle, le test
+d'ajustement et le nombre d'itérations. **Pas la dose létale.** Elle vivait au
+bas d'un tableau de dix colonnes, et **sans son unité** — pourtant demandée
+dans la fiche d'essai, donc connue. Une dose sans unité n'est pas un résultat.
+
+`hstat_dl50_verdict()` rend la phrase qu'on vient chercher, et
+`hstat_dl50_unite()` est la porte unique de l'unité : elle suit la dose dans
+les tableaux, sur l'axe du graphique et dans les exports. Le titre d'axe reste
+réglable — mais son **défaut** porte l'unité, plutôt que d'obliger à la retaper
+là où elle figure déjà.
+
+### La virgule a un seul rôle, et c'est le collage qui le décide
+
+`hstat_dl50_coller()` accepte trois colonnes venues d'un tableur — les
+comptages y existent déjà, les retaper cellule par cellule est la friction la
+plus quotidienne du module.
+
+Le piège est le même que dans le module de nettoyage, mais il se tranche
+autrement : un tableur français copie `0,00063` séparé par des **tabulations**
+(la virgule est une décimale) ; un CSV anglais copie `0.00063,25,5` (la virgule
+sépare). On ne peut pas lui donner les deux rôles, alors **le texte décide** :
+s'il existe un séparateur non ambigu — tabulation ou point-virgule — la virgule
+est une décimale ; sinon seulement, elle sépare. Le rôle retenu est annoncé
+après le collage.
+
+Une ligne d'en-tête se reconnaît à ce qu'elle **ne porte aucun nombre**. La
+jeter en silence vaut mieux que de rendre une première dose absurde ; demander
+« votre collage a-t-il un en-tête ? » serait poser une question dont le texte
+porte déjà la réponse.
+
 ### Erreur-type et écart-type ne mesurent pas la même chose
 
 Les confondre est l'erreur classique du bioessai, et elle change la conclusion :

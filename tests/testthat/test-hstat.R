@@ -8955,6 +8955,193 @@ test_that("la selection multi-criteres filtre sans jamais tout ecarter a vide", 
   expect_equal(hstat_dl50_selection(list(), list(espece = "A")), character(0))
 })
 
+test_that("une pente negative est refusee, en nommant la cause probable", {
+  # Deux colonnes inversees a la saisie, et la mortalite decroit avec la dose.
+  # Sans ce refus, le module ajustait, convergeait et rendait un rapport
+  # COMPLET -- equation, intervalles, graphique -- ou la DL10 valait mille fois
+  # la DL90. C'est le resultat faux le plus facile a publier de bonne foi.
+  neg <- hstat_dl50_essai(c(0.001, 0.01, 0.1, 1), rep(50, 4), c(45, 30, 15, 5), 50, 0)
+  f <- hstat_dl50_ajuste(neg, "em")
+  expect_false(isTRUE(f$ok))
+  expect_true(grepl("décroît", f$message, fixed = TRUE))
+  expect_true(grepl("inversées", f$message, fixed = TRUE))
+  # Les trois methodes refusent : ce n'est pas un artefact de l'EM.
+  for (m in c("em", "abbott", "nulle"))
+    expect_false(isTRUE(hstat_dl50_ajuste(neg, m)$ok), info = m)
+  # Et un essai croissant passe toujours.
+  expect_true(isTRUE(hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")$ok))
+})
+
+test_that("une dose letale hors de l'etendue testee est marquee", {
+  # Sur l'essai de reference lui-meme, DEUX des trois doses letales publiees
+  # tombent hors de l'etendue reellement testee : la DL90 vaut pres de quatre
+  # fois la dose la plus forte appliquee. Rien ne les distinguait de la DL50,
+  # seule interpolee.
+  f <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  d <- hstat_dl50_doses_letales(f)
+  etendue <- range(f$essai$doses$dose)
+  expect_equal(attr(d, "etendue"), etendue)
+  attendu <- ifelse(d$Dose < etendue[1] | d$Dose > etendue[2],
+                    tr("extrapolée"), tr("interpolée"))
+  expect_equal(d$Position, attendu)
+  expect_equal(d$Position[d$Seuil == 50], tr("interpolée"))
+  expect_equal(sum(d$Position == tr("extrapolée")), 2L)
+  # L'avertissement NOMME les seuils concernes, chacun avec son « DL » : la
+  # liste brute « DL90, 10 » se lisait comme une dose de 10.
+  av <- attr(d, "avertissement")
+  expect_true(nzchar(av))
+  expect_true(grepl("DL90", av, fixed = TRUE))
+  expect_true(grepl("DL10", av, fixed = TRUE))
+  expect_false(grepl("  ", av, fixed = TRUE))
+
+  # Un essai dont les trois seuils tombent dans l'etendue ne declenche rien :
+  # un avertissement permanent finit par ne plus etre lu.
+  large <- hstat_dl50_essai(c(0.05, 0.25, 0.5, 1, 2, 4, 20), rep(200, 7),
+                            c(4, 40, 80, 100, 130, 170, 198), 200, 0)
+  dl <- hstat_dl50_doses_letales(hstat_dl50_ajuste(large, "em"))
+  expect_true(all(dl$Position == tr("interpolée")))
+  expect_null(attr(dl, "avertissement"))
+
+  # La mortalite a une dose donnee porte la meme colonne.
+  m <- hstat_dl50_mortalite(f, c(1e-9, 0.005, 1e9))
+  expect_equal(m$Position, c(tr("extrapolée"), tr("interpolée"), tr("extrapolée")))
+})
+
+test_that("un Chi-2 sans degre de liberte residuel ne se presente pas comme un bon ajustement", {
+  # Avec autant de doses que de parametres estimes, le modele passe exactement
+  # par les points : le Chi-2 vaut zero PAR CONSTRUCTION. Le plancher
+  # `max(1L, ...)`, qui existe pour eviter une division par zero, le
+  # transformait en « p = 1,0000 -- ajustement probit legitime ». Un verdict
+  # rassurant sur un test qui n'a pas eu lieu est pire qu'un silence.
+  m <- hstat_dl50_essai(c(1, 2, 4), rep(20, 3), c(4, 10, 16), 20, 0)
+  em <- hstat_dl50_ajuste(m, "em")          # 3 parametres, 3 doses
+  expect_true(isTRUE(em$ok))
+  expect_false(em$informatif)
+  expect_equal(em$npar, 3L)
+  expect_equal(em$chi2, 0)
+  expect_true(grepl("non testable", hstat_dl50_verdict(em)$ajustement, fixed = TRUE))
+  # Le facteur d'heterogeneite ne s'applique pas sur un test qui n'a pas eu lieu.
+  expect_equal(em$facteur, 1)
+  expect_false(em$heterogene)
+
+  # La meme saisie avec deux parametres laisse un degre de liberte : le test
+  # redevient informatif.
+  ab <- hstat_dl50_ajuste(m, "abbott")
+  expect_equal(ab$npar, 2L)
+  expect_true(ab$informatif)
+
+  # L'essai de reference, lui, n'est pas concerne.
+  f <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  expect_true(f$informatif)
+  expect_true(grepl("légitime", hstat_dl50_verdict(f)$ajustement, fixed = TRUE))
+})
+
+test_that("un modele contraint ne peut pas depasser le modele libre", {
+  # L'invariant d'emboitement. S'il est viole, c'est l'optimisation qui a
+  # echoue -- et le `max(0, ...)` transformerait cet echec en Chi-2 nul, donc
+  # en « non significatif » : la conclusion inverse de la verite.
+  m1 <- list(ok = TRUE, ll = -100, npar = 6)
+  m0 <- list(ok = TRUE, ll = -98,  npar = 4)      # contraint MEILLEUR : impossible
+  r <- .hstat_dl50_ligne_test("test", m0, m1, 2, 0.05, "oui", "non")
+  expect_true(is.na(r$Chi2))
+  expect_true(grepl("pas effectué", r$Conclusion, fixed = TRUE))
+  # Le cas normal passe.
+  r2 <- .hstat_dl50_ligne_test("test", list(ok = TRUE, ll = -104, npar = 4), m1,
+                               2, 0.05, "oui", "non")
+  expect_equal(r2$Chi2, 8)
+  # Et une estimation en echec ne rend pas un test rassurant.
+  r3 <- .hstat_dl50_ligne_test("test", list(ok = FALSE, ll = NA_real_), m1,
+                               2, 0.05, "oui", "non")
+  expect_true(is.na(r3$Chi2))
+})
+
+test_that("une mortalite temoin elevee est signalee, sans bloquer le calcul", {
+  # Au-dela d'environ 20 %, la correction d'Abbott devient peu fiable et
+  # l'usage veut qu'on refasse l'essai (Finney). C'est un defaut de conduite
+  # d'essai, pas de saisie : le dire suffit.
+  haut <- hstat_dl50_essai(c(0.00848, 0.0163, 0.03423, 0.05053, 0.08476),
+                           rep(90, 5), c(30, 43, 62, 75, 82), 90, 25)
+  f <- hstat_dl50_ajuste(haut, "em")
+  expect_true(isTRUE(f$ok))                 # le calcul continue
+  expect_true(f$temoin_eleve)
+  expect_gt(f$c_temoin, HSTAT_DL50_TEMOIN_MAX)
+  al <- hstat_dl50_verdict(f)$alertes
+  expect_true(any(grepl("témoin élevée", al, fixed = TRUE)))
+
+  bas <- hstat_dl50_essai(haut$doses$dose, haut$doses$n, haut$doses$x, 90, 4)
+  expect_false(hstat_dl50_ajuste(bas, "em")$temoin_eleve)
+})
+
+test_that("le verdict porte la dose letale, son unite et son intervalle", {
+  # Le bloc de resume annoncait l'equation, la mortalite naturelle et le test
+  # d'ajustement -- mais PAS la dose letale, et jamais son unite. On ouvre un
+  # module de DL50 pour lire une DL50.
+  e <- .hstat_dl50_essai_ref()
+  e$champs <- list(unite = "µg / insecte")
+  f <- hstat_dl50_ajuste(e, "em")
+  v <- hstat_dl50_verdict(f)
+  expect_equal(v$seuil, 50)
+  expect_equal(v$unite, "µg / insecte")
+  expect_true(grepl("DL50 = ", v$texte, fixed = TRUE))
+  expect_true(grepl("µg / insecte", v$texte, fixed = TRUE))
+  expect_true(grepl("[", v$texte, fixed = TRUE))
+  expect_equal(hstat_dl50_libelle_dose(f), "Dose (µg / insecte)")
+
+  # Sans unite renseignee, le libelle reste nu -- pas de parenthese vide.
+  f2 <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  expect_equal(hstat_dl50_unite(f2), "")
+  expect_equal(hstat_dl50_libelle_dose(f2), tr("Dose"))
+  expect_false(grepl("()", hstat_dl50_verdict(f2)$texte, fixed = TRUE))
+
+  # Des seuils qui ne comprennent pas 50 : on repond sur le premier demande,
+  # pas sur un seuil que personne n'a demande.
+  v3 <- hstat_dl50_verdict(f, seuils = c(20, 80))
+  expect_true(v3$seuil %in% c(20, 80))
+  expect_true(grepl(sprintf("DL%g = ", v3$seuil), v3$texte, fixed = TRUE))
+})
+
+test_that("coller trois colonnes d'un tableur : la virgule a un seul role", {
+  # Un tableur francais copie « 0,00063 » avec des TABULATIONS : la virgule y
+  # est une decimale. Un CSV anglais copie « 0.00063,25,5 » : elle y est un
+  # separateur. On ne peut pas lui donner les deux roles a la fois.
+  fr <- hstat_dl50_coller("Dose\tEffectif\tMorts\n0,00063\t25\t5\n0,00125\t25\t7\n0,0025\t25\t9")
+  expect_true(fr$ok)
+  expect_equal(fr$lignes, 3L)
+  expect_equal(fr$decimale, ",")
+  expect_equal(fr$table$Dose, c(0.00063, 0.00125, 0.0025))
+  expect_equal(fr$table$Morts, c(5, 7, 9))
+
+  en <- hstat_dl50_coller("0.00063,25,5\n0.00125,25,7\n0.0025,25,9")
+  expect_true(en$ok)
+  expect_equal(en$decimale, ".")
+  expect_equal(en$table$Dose, c(0.00063, 0.00125, 0.0025))
+
+  pv <- hstat_dl50_coller("0,00063;25;5\n0,00125;25;7\n0,0025;25;9")
+  expect_equal(pv$table$Dose, c(0.00063, 0.00125, 0.0025))
+  expect_equal(pv$decimale, ",")
+
+  esp <- hstat_dl50_coller("0.00063 25 5\n0.00125 25 7\n0.0025 25 9")
+  expect_equal(esp$table$Effectif, rep(25, 3))
+
+  # L'en-tete se reconnait a ce qu'il ne porte AUCUN nombre.
+  expect_equal(nrow(hstat_dl50_coller("dose;n;morts\n1;20;5\n2;20;9")$table), 2L)
+  expect_equal(nrow(hstat_dl50_coller("1;20;5\n2;20;9")$table), 2L)
+
+  # Ce qui ne se lit pas se refuse, en disant quoi corriger.
+  for (mauvais in list("", "   ", "dose\tn\tmorts",
+                       "0.001\t25\n0.002\t25\t7", "0.001\t25\t5\n0.002\tabc\t7")) {
+    r <- hstat_dl50_coller(mauvais)
+    expect_false(isTRUE(r$ok))
+    expect_true(nzchar(r$message))
+    expect_true(grepl("[Cc]opiez|[Ii]l faut|[Vv]érifiez|manque", r$message))
+  }
+
+  # Le collage alimente reellement un essai analysable.
+  cl <- hstat_dl50_coller("0,00063\t25\t5\n0,00125\t25\t7\n0,0025\t25\t9\n0,005\t25\t11\n0,01\t25\t14")
+  es <- hstat_dl50_essai(cl$table$Dose, cl$table$Effectif, cl$table$Morts, 25, 0)
+  expect_true(isTRUE(hstat_dl50_ajuste(es, "em")$ok))
+})
+
 test_that("le module DL50 est branche et depose son contexte", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))
