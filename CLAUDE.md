@@ -1250,6 +1250,34 @@ l'écarter en silence perdrait la **mortalité naturelle** de l'essai — celle 
 change toute la courbe de réponse. `hstat_dl50_depuis_donnees()` l'extrait et
 en fait le témoin.
 
+### Les listes existent pour que la sélection fonctionne
+
+Ce sont deux pièces de WIN DL qui n'ont l'air de rien et qui se tiennent l'une
+l'autre. Le manuel le dit sans détour : « il est conseillé pour les ajouts dans
+les listes de ne pas utiliser des orthographes différentes pour décrire un même
+élément **car la sélection de fichiers serait inefficace** ». Deux essais notés
+« Cyfluthrine » et « cyfluthrine » ne se retrouvent jamais ensemble ; le
+vocabulaire contrôlé est ce qui l'évite.
+
+D'où trois décisions :
+
+1. **Le doublon est refusé casse comprise**, et il est *annoncé*. Le taire
+   ferait croire à un ajout.
+2. **Un critère vide ne filtre pas.** C'est la différence entre « je ne demande
+   rien sur l'espèce » et « je demande une espèce qui n'existe pas » : traiter
+   le premier comme le second ne rendrait jamais aucun essai, et l'utilisateur
+   conclurait que son fonds est vide. `selection()` distingue donc `NULL`
+   (aucune sélection active) de `character(0)` (sélection vide) — et l'écran
+   les distingue aussi.
+3. **La seconde matière active et le ratio ne servent que si l'on trie sur les
+   deux**, la case « (MA1) ou (MA1 et MA2) » du logiciel. Sans elle, un essai à
+   une seule matière active serait écarté par un critère qui ne le concerne
+   pas.
+
+La température suit le manuel : une valeur → égalité, deux → intervalle. Les
+bornes sont **remises dans l'ordre** plutôt que de rendre zéro essai sur une
+inversion de saisie, qui n'apprendrait rien à personne.
+
 ### Les fichiers natifs se lisent en octets, pas en lignes
 
 Les séparateurs de champ de la première ligne d'un fichier WIN DL sont les

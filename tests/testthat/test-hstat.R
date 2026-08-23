@@ -8707,6 +8707,122 @@ test_that("le facteur d'heterogeneite s'applique quand l'ajustement est rejete",
   expect_equal(f2$Vh, f2$V)
 })
 
+test_that("une liste deroulante refuse les doublons, casse comprise", {
+  # « Si l'element existe deja dans la liste, il ne sera pas ajoute afin
+  # d'eviter les doublons. » La comparaison ignore la casse et les espaces de
+  # bord : « Cyfluthrine » et « cyfluthrine  » sont le meme produit, et les
+  # garder tous deux rendrait la selection inefficace -- ce que la liste
+  # existe precisement pour eviter.
+  l <- character(0)
+  l <- hstat_dl50_liste_ajouter(l, "Cyfluthrine")
+  l <- hstat_dl50_liste_ajouter(l, "cyfluthrine ")
+  l <- hstat_dl50_liste_ajouter(l, "  CYFLUTHRINE")
+  expect_equal(l, "Cyfluthrine")
+  l <- hstat_dl50_liste_ajouter(l, c("Endosulfan", "", "  ", "Deltaméthrine"))
+  expect_equal(l, sort(c("Cyfluthrine", "Endosulfan", "Deltaméthrine")))
+  expect_equal(hstat_dl50_liste_retirer(l, "ENDOSULFAN"),
+               sort(c("Cyfluthrine", "Deltaméthrine")))
+  # Retirer ce qui n'y est pas ne retire rien.
+  expect_equal(hstat_dl50_liste_retirer(l, "Zzz"), l)
+})
+
+test_that("un fichier de liste se relit sans son marqueur de fin", {
+  # Le marqueur de fin est l'OCTET 0xDB. Le manuel l'ecrit « Û » -- c'est son
+  # rendu en CP1252 ; en CP437, celui du fichier, c'est « █ ». Le retirer par
+  # son apparence textuelle ne marche donc pas : la liste relue portait un
+  # element de plus, un carre plein, invisible a la lecture du code.
+  f <- tempfile(fileext = ".TXT")
+  on.exit(unlink(f), add = TRUE)
+  v <- c("Cryptophlebia leucotreta", "Helicoverpa armigera", "Aphis gossypii")
+  hstat_dl50_liste_ecrire(v, f)
+  oct <- readBin(f, "raw", n = file.size(f))
+  expect_true(any(oct == as.raw(219L)))
+  relu <- hstat_dl50_liste_lire(f)
+  expect_equal(relu, v)
+  expect_false(any(grepl("█", relu)))
+
+  # Une liste vide s'ecrit et se relit vide, sans lever.
+  g <- tempfile(fileext = ".TXT")
+  on.exit(unlink(g), add = TRUE)
+  hstat_dl50_liste_ecrire(character(0), g)
+  expect_equal(hstat_dl50_liste_lire(g), character(0))
+  expect_equal(hstat_dl50_liste_lire(tempfile()), character(0))
+})
+
+test_that("regenerer les listes reprend le vocabulaire des essais", {
+  ch <- function(esp, ma) list(auteur = "Vassal", espece = esp, stade = "Adulte",
+                               duree = "48 h", temperature = "25", matiere1 = ma,
+                               matiere2 = "", ratio = "",
+                               methode = "Application topique", unite = "µg/insecte")
+  es <- list(
+    A = hstat_dl50_essai(c(1, 2, 4), rep(20, 3), c(3, 9, 16), 20, 0,
+                         champs = ch("C. leucotreta", "Cyfluthrine")),
+    B = hstat_dl50_essai(c(1, 2, 4), rep(20, 3), c(2, 8, 15), 20, 0,
+                         champs = ch("H. armigera", "Endosulfan")))
+  L <- hstat_dl50_regenerer(hstat_dl50_listes_vides(), es)
+  expect_equal(L$espece, sort(c("C. leucotreta", "H. armigera")))
+  expect_equal(L$matiere, sort(c("Cyfluthrine", "Endosulfan")))
+  expect_equal(L$auteur, "Vassal")
+  expect_equal(L$unite, "µg/insecte")
+  # Idempotent : regenerer deux fois ne duplique rien.
+  expect_equal(hstat_dl50_regenerer(L, es), L)
+  # Sans essai, les listes ne changent pas.
+  expect_equal(hstat_dl50_regenerer(L, list()), L)
+})
+
+test_that("la selection multi-criteres filtre sans jamais tout ecarter a vide", {
+  # Un critere VIDE ne filtre pas. C'est la difference entre « je ne demande
+  # rien sur l'espece » et « je demande une espece qui n'existe pas » : traiter
+  # le premier comme le second ne rendrait jamais aucun essai, et l'on
+  # conclurait que le fonds est vide.
+  ch <- function(esp, ma, meth, tp, ma2 = "", rat = "")
+    list(auteur = "Vassal", espece = esp, stade = "Adulte", duree = "48 h",
+         temperature = tp, matiere1 = ma, matiere2 = ma2, ratio = rat,
+         methode = meth, unite = "ug/insecte")
+  mk <- function(...) hstat_dl50_essai(c(1, 2, 4), rep(20, 3), c(3, 9, 16), 20, 0,
+                                       champs = ch(...))
+  es <- list(
+    A = mk("C. leucotreta", "Cyfluthrine", "Application topique", "25"),
+    B = mk("C. leucotreta", "Endosulfan",  "Application topique", "30"),
+    C = mk("H. armigera",   "Cyfluthrine", "Ingestion",           "25"),
+    D = mk("C. leucotreta", "Cyfluthrine", "Application topique", "27",
+           ma2 = "Profénofos", rat = "1:2"))
+
+  expect_equal(hstat_dl50_selection(es, list()), c("A", "B", "C", "D"))
+  expect_equal(hstat_dl50_selection(es, list(espece = "")), c("A", "B", "C", "D"))
+  expect_equal(hstat_dl50_selection(es, list(espece = "C. leucotreta")), c("A", "B", "D"))
+  # La casse ne separe pas deux essais du meme produit.
+  expect_equal(hstat_dl50_selection(es, list(matiere1 = "cyfluthrine")), c("A", "C", "D"))
+  # Plusieurs valeurs pour un critere : l'une OU l'autre.
+  expect_equal(hstat_dl50_selection(es, list(methode = c("Ingestion", "Application topique"))),
+               c("A", "B", "C", "D"))
+  # Les criteres se cumulent : l'un ET l'autre.
+  expect_equal(hstat_dl50_selection(es, list(espece = "C. leucotreta",
+                                             matiere1 = "Cyfluthrine")), c("A", "D"))
+  # Une espece absente rend zero essai -- et c'est bien ce qu'on a demande.
+  expect_equal(hstat_dl50_selection(es, list(espece = "Zzz")), character(0))
+
+  # Temperature : une valeur -> egalite, deux -> intervalle. Les bornes sont
+  # remises dans l'ordre plutot que de rendre zero essai sur une inversion de
+  # saisie, qui n'apprendrait rien a personne.
+  expect_equal(hstat_dl50_selection(es, list(temperature = 25)), c("A", "C"))
+  expect_equal(hstat_dl50_selection(es, list(temperature = c(25, 27))), c("A", "C", "D"))
+  expect_equal(hstat_dl50_selection(es, list(temperature = c(27, 25))), c("A", "C", "D"))
+
+  # La seconde matiere active et le ratio ne servent QUE si l'on trie sur les
+  # deux : sans la case cochee, un essai a une seule matiere active serait
+  # ecarte par un critere qui ne le concerne pas.
+  expect_equal(hstat_dl50_selection(es, list(matiere1 = "Cyfluthrine",
+                                             matiere2 = "Profénofos")),
+               c("A", "C", "D"))
+  expect_equal(hstat_dl50_selection(es, list(matiere1 = "Cyfluthrine",
+                                             matiere2 = "Profénofos",
+                                             avec_ma2 = TRUE)), "D")
+  expect_equal(hstat_dl50_selection(es, list(avec_ma2 = TRUE, ratio = "1:2")), "D")
+
+  expect_equal(hstat_dl50_selection(list(), list(espece = "A")), character(0))
+})
+
 test_that("le module DL50 est branche et depose son contexte", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))

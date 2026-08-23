@@ -38,7 +38,7 @@ Requires **R ≥ 4.4**.
 | **Qualitative** | Frequency and cross-tabulation, Likert scales, text analysis, CAQDAS coding workbench |
 | **Plan** | Experimental designs, sample size and statistical power |
 | **Dose** | Product dose and active-ingredient rate per hectare, spray mix, tank loads, and serial dilutions (working solutions) |
-| **DL50 / CL50** | Dose-mortality probit regression (Henry line), natural mortality by Abbott or EM, lethal doses with Fieller intervals, trial comparison and merging |
+| **DL50 / CL50** | Dose-mortality probit regression (Henry line), natural mortality by Abbott or EM, lethal doses with Fieller intervals, trial comparison and merging, native WIN DL file import/export |
 | **Report** | Interpretation, reproducibility journal, automatic report (HTML / Word / PDF) |
 
 Every analysis states its **assumptions**, gives an **interpretation in plain

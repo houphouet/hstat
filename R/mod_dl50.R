@@ -735,19 +735,32 @@ hstat_dl50_fusion <- function(essais, alpha = 0.05) {
   iconv(brut, from = "CP437", to = "UTF-8", sub = "?")
 }
 
-#  LE FICHIER SE LIT EN OCTETS, PAS EN LIGNES DE TEXTE. Les separateurs de la
-#  premiere ligne sont les octets 0x00 a 0x09 : `readLines()` s'arrete sur le
-#  premier zero (« nul character not allowed ») et perdrait l'en-tete entier.
-#  Le decoupage en lignes se fait donc AUSSI sur les octets -- `rawToChar()`
-#  sur l'ensemble rendrait une chaine invalide dans la locale courante, les
-#  accents du CP437 n'etant pas de l'UTF-8, et `strsplit()` refuserait.
-hstat_dl50_lire_windl <- function(chemin) {
-  echec <- function(motif) list(ok = FALSE, message = motif)
+#  UN FICHIER DE WIN DL SE LIT EN OCTETS, PAS EN LIGNES DE TEXTE.
+#
+#  Trois raisons, et chacune casse une lecture naive :
+#
+#  1. les separateurs de champ de la premiere ligne sont les octets 0x00 a
+#     0x09 -- `readLines()` s'arrete sur le premier zero (« nul character not
+#     allowed ») et perdrait l'en-tete entier ;
+#  2. `rawToChar()` sur l'ensemble rendrait une chaine invalide dans la locale
+#     courante (les accents du CP437 ne sont pas de l'UTF-8) et `strsplit()`
+#     refuserait de travailler dessus : le decoupage en lignes se fait donc
+#     aussi sur les octets ;
+#  3. le marqueur de fin de fichier est l'OCTET 0xDB. Le manuel l'ecrit « Û »
+#     -- c'est son rendu en CP1252 ; en CP437, celui du fichier, c'est « █ ».
+#     Le retirer par son apparence textuelle ne marche donc pas, et la liste
+#     relue portait un element de plus, invisible a la lecture du code. On
+#     tronque l'octet.
+.hstat_dl50_lignes <- function(chemin) {
   taille <- tryCatch(file.size(chemin), error = function(e) NA_real_)
-  if (!isTRUE(is.finite(taille)) || taille <= 0)
-    return(echec(tr("Fichier vide ou illisible.")))
+  if (!isTRUE(is.finite(taille)) || taille <= 0) return(character(0))
   oct <- tryCatch(readBin(chemin, "raw", n = taille), error = function(e) NULL)
-  if (is.null(oct) || !length(oct)) return(echec(tr("Fichier vide ou illisible.")))
+  if (is.null(oct) || !length(oct)) return(character(0))
+  fin_fichier <- which(oct == as.raw(219L))
+  if (length(fin_fichier)) {
+    if (fin_fichier[1] == 1L) return(character(0))
+    oct <- oct[seq_len(fin_fichier[1] - 1L)]
+  }
   garde_lf <- oct == as.raw(10L)
   oct[oct <= as.raw(9L)] <- as.raw(31L)          # 0x00 à 0x09 -> séparateur
   oct[oct == as.raw(13L)] <- as.raw(32L)         # CR -> espace
@@ -757,9 +770,13 @@ hstat_dl50_lire_windl <- function(chemin) {
   brut <- vapply(seq_along(deb), function(i) {
     if (fin[i] < deb[i] || deb[i] > length(oct)) "" else rawToChar(oct[deb[i]:fin[i]])
   }, character(1))
-  L <- .hstat_dl50_decode(brut)
-  L <- sub("Û\\s*$", "", L)                      # marqueur de fin de fichier
-  L <- trimws(L, which = "right")
+  trimws(.hstat_dl50_decode(brut), which = "right")
+}
+
+hstat_dl50_lire_windl <- function(chemin) {
+  echec <- function(motif) list(ok = FALSE, message = motif)
+  L <- .hstat_dl50_lignes(chemin)
+  if (!length(L)) return(echec(tr("Fichier vide ou illisible.")))
   if (length(L) < 6L)
     return(echec(tr("Fichier trop court pour être un essai WIN DL : il faut l'en-tête, le titre, l'unité, le témoin et au moins une dose.")))
 
@@ -946,6 +963,150 @@ hstat_dl50_depuis_donnees <- function(df, col_dose, col_effectif, col_morts,
   list(ok = TRUE, essais = essais)
 }
 
+# =============================================================================
+#  LISTES DEROULANTES ET SELECTION MULTI-CRITERES
+# =============================================================================
+#  Deux pieces de WIN DL qui n'ont l'air de rien et qui se tiennent l'une
+#  l'autre : les listes existent POUR que la selection fonctionne.
+#
+#  Le manuel le dit sans detour : « il est conseille pour les ajouts dans les
+#  listes de ne pas utiliser des orthographes differentes pour decrire un meme
+#  element car la selection de fichiers serait inefficace ». Deux essais notes
+#  « Cyfluthrine » et « cyfluthrine » ne se retrouvent jamais ensemble ; le
+#  vocabulaire controle est ce qui l'evite.
+# =============================================================================
+
+HSTAT_DL50_LISTES <- c(
+  auteur   = "Auteur", espece = "Espèce", stade = "Stade", duree = "Durée",
+  matiere  = "Matière active", methode = "Méthode de traitement",
+  unite    = "Unité de dose")
+
+# Les champs de la fiche alimentes par une liste. La date, la temperature et
+# le ratio restent libres : ce sont des valeurs, pas un vocabulaire.
+HSTAT_DL50_CHAMPS_LISTE <- c(auteur = "auteur", espece = "espece",
+                             stade = "stade", duree = "duree",
+                             matiere1 = "matiere", matiere2 = "matiere",
+                             methode = "methode", unite = "unite")
+
+# Lecture d'un fichier de liste (AUTEUR.TXT, ESPECE.TXT, MATACT.TXT...).
+# Meme encodage et meme marqueur de fin que les fichiers d'essai. Le manuel
+# avertit de ne pas les editer a la main pour cette raison precise : sans le
+# marqueur, WIN DL ne sait plus ou la liste s'arrete.
+hstat_dl50_liste_lire <- function(chemin) {
+  v <- trimws(.hstat_dl50_lignes(chemin))
+  unique(v[nzchar(v)])
+}
+
+hstat_dl50_liste_ecrire <- function(valeurs, chemin) {
+  v <- iconv(as.character(valeurs), "UTF-8", "CP437", sub = "?")
+  con <- file(chemin, open = "wb")
+  on.exit(close(con))
+  if (length(v))
+    writeBin(charToRaw(paste0(paste(v, collapse = "\r\n"), "\r\n")), con)
+  writeBin(c(as.raw(219L), charToRaw("\r\n")), con)   # 0xDB : fin de liste
+  invisible(chemin)
+}
+
+# « Si l'element existe deja dans la liste, il ne sera pas ajoute afin d'eviter
+# les doublons. » La comparaison ignore la casse et les espaces de bord :
+# « Cyfluthrine » et « cyfluthrine  » sont le meme produit, et les garder tous
+# deux rendrait la selection inefficace -- exactement ce que la liste evite.
+hstat_dl50_liste_ajouter <- function(liste, valeur) {
+  v <- trimws(as.character(valeur))
+  v <- v[nzchar(v)]
+  if (!length(v)) return(liste)
+  for (x in v)
+    if (!(tolower(x) %in% tolower(liste))) liste <- c(liste, x)
+  sort(liste)
+}
+
+hstat_dl50_liste_retirer <- function(liste, valeur) {
+  v <- tolower(trimws(as.character(valeur)))
+  liste[!(tolower(liste) %in% v)]
+}
+
+# « Regenerer » : le programme parcourt les essais disponibles et ajoute les
+# elements nouveaux. C'est ce qui permet de reprendre un fonds d'essais deja
+# constitue sans ressaisir son vocabulaire.
+hstat_dl50_regenerer <- function(listes, essais) {
+  if (!length(essais)) return(listes)
+  for (nm in names(HSTAT_DL50_LISTES)) {
+    champs <- names(HSTAT_DL50_CHAMPS_LISTE)[HSTAT_DL50_CHAMPS_LISTE == nm]
+    vals <- unlist(lapply(essais, function(e)
+      vapply(champs, function(cn) trimws(as.character(e$champs[[cn]] %||% "")),
+             character(1))), use.names = FALSE)
+    listes[[nm]] <- hstat_dl50_liste_ajouter(listes[[nm]] %||% character(0), vals)
+  }
+  listes
+}
+
+hstat_dl50_listes_vides <- function()
+  stats::setNames(rep(list(character(0)), length(HSTAT_DL50_LISTES)),
+                  names(HSTAT_DL50_LISTES))
+
+# ---------------------------------------------------------------------------
+#  Selection multi-criteres
+# ---------------------------------------------------------------------------
+#  Un critere VIDE ne filtre pas. C'est la difference entre « je ne demande
+#  rien sur l'espece » et « je demande une espece qui n'existe pas » : traiter
+#  le premier comme le second ne rendrait jamais aucun essai, et l'utilisateur
+#  conclurait que son fonds est vide.
+#
+#  La temperature suit le manuel : une valeur -> egalite, deux valeurs ->
+#  intervalle. Les bornes sont remises dans l'ordre plutot que de rendre zero
+#  essai sur une inversion de saisie, qui n'apprend rien a personne.
+hstat_dl50_selection <- function(essais, criteres = list()) {
+  if (!length(essais)) return(character(0))
+  nom <- names(essais) %||% as.character(seq_along(essais))
+  garde <- rep(TRUE, length(essais))
+
+  txt <- function(e, champ) trimws(as.character(e$champs[[champ]] %||% ""))
+  for (champ in c("auteur", "espece", "stade", "duree", "methode", "unite")) {
+    ref <- trimws(as.character(criteres[[champ]] %||% character(0)))
+    ref <- ref[nzchar(ref)]
+    if (!length(ref)) next
+    garde <- garde & vapply(essais, function(e)
+      tolower(txt(e, champ)) %in% tolower(ref), logical(1))
+  }
+
+  ma1 <- trimws(as.character(criteres$matiere1 %||% character(0)))
+  ma1 <- ma1[nzchar(ma1)]
+  if (length(ma1))
+    garde <- garde & vapply(essais, function(e)
+      tolower(txt(e, "matiere1")) %in% tolower(ma1), logical(1))
+
+  # La seconde matiere active et le ratio ne servent QUE si l'on trie sur les
+  # deux : c'est la case « (MA1) ou (MA1 et MA2) » du logiciel. Sans elle, un
+  # essai a une seule matiere active serait ecarte par un critere qui ne le
+  # concerne pas.
+  if (isTRUE(criteres$avec_ma2)) {
+    ma2 <- trimws(as.character(criteres$matiere2 %||% character(0)))
+    ma2 <- ma2[nzchar(ma2)]
+    if (length(ma2))
+      garde <- garde & vapply(essais, function(e)
+        tolower(txt(e, "matiere2")) %in% tolower(ma2), logical(1))
+    rat <- trimws(as.character(criteres$ratio %||% ""))[1]
+    if (length(rat) && !is.na(rat) && nzchar(rat))
+      garde <- garde & vapply(essais, function(e)
+        identical(txt(e, "ratio"), rat), logical(1))
+  }
+
+  tp <- suppressWarnings(as.numeric(criteres$temperature %||% numeric(0)))
+  tp <- tp[is.finite(tp)]
+  if (length(tp)) {
+    val <- vapply(essais, function(e)
+      suppressWarnings(as.numeric(gsub(",", ".", txt(e, "temperature"),
+                                       fixed = TRUE))), numeric(1))
+    garde <- garde & if (length(tp) == 1L) {
+      !is.na(val) & val == tp
+    } else {
+      b <- sort(tp[1:2])
+      !is.na(val) & val >= b[1] & val <= b[2]
+    }
+  }
+  nom[garde]
+}
+
 # ---------------------------------------------------------------------------
 #  Le graphique : log-dose en abscisse, probit ET pourcentage en ordonnee
 # ---------------------------------------------------------------------------
@@ -1039,9 +1200,19 @@ hstat_dl50_graphique <- function(fits, points = TRUE, courbe = FALSE,
 #  deux pages de resultats reunies (elles se lisent ensemble), le graphique, la
 #  comparaison d'essais, et l'outil dose <-> mortalite.
 
+#  Un champ adosse a une liste se saisit au CHOIX ou au clavier : `create =
+#  TRUE` accepte une valeur nouvelle sans passer par l'editeur, ce qui evite le
+#  detour du logiciel d'origine (« il faut cliquer sur le bouton comportant le
+#  dessin d'un losange... pour mettre a jour leur contenu »). La valeur tapee
+#  rejoint la liste au moment de l'enregistrement.
 .hstat_dl50_champ_ui <- function(ns, nm, largeur = 6) {
-  shiny::column(largeur, shiny::textInput(ns(paste0("ch_", nm)),
-                                          HSTAT_DL50_CHAMPS[[nm]]))
+  shiny::column(largeur,
+    if (nm %in% names(HSTAT_DL50_CHAMPS_LISTE))
+      shiny::selectizeInput(ns(paste0("ch_", nm)), HSTAT_DL50_CHAMPS[[nm]],
+                            choices = NULL, selected = NULL, multiple = FALSE,
+                            options = list(create = TRUE, persist = FALSE,
+                                           placeholder = ""))
+    else shiny::textInput(ns(paste0("ch_", nm)), HSTAT_DL50_CHAMPS[[nm]]))
 }
 
 mod_dl50_ui <- function(id) {
@@ -1261,6 +1432,91 @@ mod_dl50_ui <- function(id) {
 
       # ------------------------------------------------------------------
       shiny::tabPanel(
+        shiny::tagList(shiny::icon("list-check"), " Vocabulaire & sélection"),
+        shiny::div(style = "padding-top:14px;"),
+        shiny::fluidRow(
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("rectangle-list"), " Listes déroulantes"),
+            status = "primary", width = 5, solidHeader = TRUE,
+            shiny::div(class = "callout callout-info", style = "padding:8px 12px;",
+              shiny::icon("lightbulb"),
+              " Les listes existent pour que la sélection fonctionne : deux",
+              " essais notés « Cyfluthrine » et « cyfluthrine » ne se",
+              " retrouveraient jamais ensemble."),
+            shiny::selectInput(ns("listeNom"), "Liste à modifier",
+                               choices = HSTAT_DL50_LISTES),
+            shiny::fluidRow(
+              shiny::column(8, shiny::textInput(ns("listeValeur"), "Valeur à ajouter")),
+              shiny::column(4, shiny::div(style = "margin-top:26px;",
+                shiny::actionButton(ns("listeAjouter"),
+                  shiny::tagList(shiny::icon("plus"), " Ajouter"),
+                  class = "btn-primary btn-block")))),
+            shiny::selectInput(ns("listeSupprimer"), "Valeur à supprimer",
+                               choices = NULL),
+            shiny::actionButton(ns("listeRetirer"),
+              shiny::tagList(shiny::icon("trash"), " Supprimer"), class = "btn-sm"),
+            shiny::actionButton(ns("listeRegenerer"),
+              shiny::tagList(shiny::icon("rotate"), " Régénérer depuis les essais"),
+              class = "btn-sm"),
+            shiny::hr(),
+            shiny::fileInput(ns("listeFichier"), "Importer une liste (.TXT)",
+                             accept = c(".txt", ".TXT")),
+            shiny::downloadButton(ns("listeDl"), " Exporter la liste (.TXT)",
+                                  class = "btn-sm"),
+            shiny::helpText("Format de WIN DL : une valeur par ligne, marqueur de",
+                            " fin de fichier compris.")),
+
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("filter"), " Sélection multi-critères"),
+            status = "info", width = 7, solidHeader = TRUE,
+            shiny::helpText("Un critère laissé vide ne filtre pas. La sélection",
+                            " restreint les essais analysés, comparés et fusionnés."),
+            shiny::fluidRow(
+              shiny::column(6, shiny::selectizeInput(ns("selAuteur"), "Auteur",
+                choices = NULL, multiple = TRUE)),
+              shiny::column(6, shiny::selectizeInput(ns("selEspece"), "Espèce",
+                choices = NULL, multiple = TRUE))),
+            shiny::fluidRow(
+              shiny::column(6, shiny::selectizeInput(ns("selStade"), "Stade",
+                choices = NULL, multiple = TRUE)),
+              shiny::column(6, shiny::selectizeInput(ns("selDuree"), "Durée",
+                choices = NULL, multiple = TRUE))),
+            shiny::fluidRow(
+              shiny::column(6, shiny::selectizeInput(ns("selMethode"),
+                "Méthode de traitement", choices = NULL, multiple = TRUE)),
+              shiny::column(6, shiny::selectizeInput(ns("selUnite"), "Unité de dose",
+                choices = NULL, multiple = TRUE))),
+            shiny::fluidRow(
+              shiny::column(6, shiny::selectizeInput(ns("selMa1"), "Matière active n°1",
+                choices = NULL, multiple = TRUE)),
+              shiny::column(6, shiny::div(style = "margin-top:26px;",
+                shiny::checkboxInput(ns("selAvecMa2"),
+                  "Trier aussi sur la matière active n°2 et le ratio", FALSE)))),
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s']", ns("selAvecMa2")),
+              shiny::fluidRow(
+                shiny::column(6, shiny::selectizeInput(ns("selMa2"),
+                  "Matière active n°2", choices = NULL, multiple = TRUE)),
+                shiny::column(6, shiny::textInput(ns("selRatio"), "Ratio",
+                                                  placeholder = "ex : 1:2")))),
+            shiny::fluidRow(
+              shiny::column(4, shiny::numericInput(ns("selTempMin"),
+                "Température minimale", value = NA, step = 1)),
+              shiny::column(4, shiny::numericInput(ns("selTempMax"),
+                "Température maximale", value = NA, step = 1)),
+              shiny::column(4, shiny::div(style = "margin-top:26px;",
+                shiny::actionButton(ns("selValider"),
+                  shiny::tagList(shiny::icon("filter"), " Sélectionner"),
+                  class = "btn-primary"),
+                shiny::actionButton(ns("selAnnuler"),
+                  shiny::tagList(shiny::icon("xmark"), " Annuler"),
+                  class = "btn-sm")))),
+            shiny::helpText("Une seule température : égalité. Deux : intervalle."),
+            shiny::hr(),
+            shiny::uiOutput(ns("selResultat")),
+            DT::DTOutput(ns("selTable"))))),
+
+      shiny::tabPanel(
         shiny::tagList(shiny::icon("calculator"), " Dose ⇄ mortalité"),
         shiny::div(style = "padding-top:14px;"),
         shiny::fluidRow(
@@ -1408,6 +1664,10 @@ mod_dl50_server <- function(id, values) {
         shiny::showNotification(msg, type = "warning", duration = 10)
         return()
       }
+      # Ce qui a ete tape dans la fiche rejoint le vocabulaire : sans cela, la
+      # valeur nouvelle serait absente de la liste au prochain essai, et deux
+      # orthographes finiraient par cohabiter.
+      listes(hstat_dl50_regenerer(listes(), list(e)))
       if (isTRUE(.ajouter(list(e))))
         shiny::showNotification(
           trf("Essai enregistré : %d dose(s), témoin %g/%g.",
@@ -1470,7 +1730,7 @@ mod_dl50_server <- function(id, values) {
     })
 
     shiny::observe({
-      nm <- names(essais())
+      nm <- names(essais_retenus())
       shiny::updateSelectInput(session, "essaiActif", choices = nm,
         selected = if (length(nm)) {
           a <- shiny::isolate(input$essaiActif)
@@ -1490,9 +1750,171 @@ mod_dl50_server <- function(id, values) {
         }))
     })
 
+    # -- Listes deroulantes -------------------------------------------------
+    listes <- shiny::reactiveVal(hstat_dl50_listes_vides())
+
+    # Les champs de la fiche puisent dans les listes, sans perdre ce qui y est
+    # deja tape : `create = TRUE` accepte une valeur nouvelle, et la relire
+    # avant de reconstruire les choix evite de l'effacer sous le curseur.
+    shiny::observe({
+      L <- listes()
+      for (nm in names(HSTAT_DL50_CHAMPS_LISTE)) {
+        id <- paste0("ch_", nm)
+        cur <- shiny::isolate(input[[id]]) %||% ""
+        ch <- unique(c(L[[HSTAT_DL50_CHAMPS_LISTE[[nm]]]], cur))
+        ch <- ch[nzchar(ch)]
+        shiny::updateSelectizeInput(session, id, choices = ch, selected = cur,
+                                    server = FALSE)
+      }
+    })
+
+    shiny::observe({
+      L <- listes()
+      shiny::updateSelectInput(session, "listeSupprimer",
+        choices = L[[input$listeNom %||% "auteur"]] %||% character(0))
+    })
+
+    shiny::observeEvent(input$listeAjouter, {
+      nm <- input$listeNom %||% "auteur"
+      v <- trimws(input$listeValeur %||% "")
+      if (!nzchar(v)) return()
+      L <- listes()
+      avant <- length(L[[nm]])
+      L[[nm]] <- hstat_dl50_liste_ajouter(L[[nm]], v)
+      listes(L)
+      shiny::updateTextInput(session, "listeValeur", value = "")
+      # Le doublon n'est pas une erreur, mais le taire ferait croire a un ajout.
+      shiny::showNotification(
+        if (length(L[[nm]]) > avant) trf("« %s » ajouté à la liste.", v)
+        else trf("« %s » figure déjà dans la liste : rien n'a été ajouté.", v),
+        type = "message", duration = 5)
+    })
+
+    shiny::observeEvent(input$listeRetirer, {
+      nm <- input$listeNom %||% "auteur"
+      v <- input$listeSupprimer
+      if (is.null(v) || !nzchar(v)) return()
+      L <- listes()
+      L[[nm]] <- hstat_dl50_liste_retirer(L[[nm]], v)
+      listes(L)
+    })
+
+    shiny::observeEvent(input$listeRegenerer, {
+      cur <- essais()
+      if (!length(cur)) {
+        shiny::showNotification(
+          tr("Aucun essai en mémoire : il n'y a rien d'où régénérer les listes."),
+          type = "warning", duration = 6)
+        return()
+      }
+      L <- hstat_dl50_regenerer(listes(), cur)
+      listes(L)
+      shiny::showNotification(
+        trf("Listes régénérées depuis %d essai(s). Vérifiez leur contenu : deux orthographes d'un même terme y figureraient toutes les deux.",
+            length(cur)), type = "message", duration = 10)
+    })
+
+    shiny::observeEvent(input$listeFichier, {
+      f <- input$listeFichier
+      shiny::req(f)
+      v <- hstat_dl50_liste_lire(f$datapath[1])
+      if (!length(v)) {
+        shiny::showNotification(tr("Fichier de liste vide ou illisible."),
+                                type = "warning", duration = 8)
+        return()
+      }
+      nm <- input$listeNom %||% "auteur"
+      L <- listes()
+      L[[nm]] <- hstat_dl50_liste_ajouter(L[[nm]], v)
+      listes(L)
+      shiny::showNotification(trf("%d valeur(s) lue(s) dans le fichier.", length(v)),
+                              type = "message", duration = 6)
+    })
+
+    output$listeDl <- shiny::downloadHandler(
+      filename = function() paste0(toupper(input$listeNom %||% "liste"), ".TXT"),
+      content = function(file)
+        hstat_dl50_liste_ecrire(listes()[[input$listeNom %||% "auteur"]] %||%
+                                  character(0), file))
+
+    # -- Selection multi-criteres -------------------------------------------
+    # NULL = aucune selection active, ce qui n'est PAS la meme chose qu'une
+    # selection vide : la premiere laisse tous les essais, la seconde n'en
+    # laisse aucun, et l'ecran doit distinguer les deux.
+    selection <- shiny::reactiveVal(NULL)
+
+    # Les criteres proposes sont ceux qui EXISTENT dans les essais charges,
+    # pas le vocabulaire entier : offrir une espece absente du fonds ne peut
+    # que rendre zero essai.
+    shiny::observe({
+      cur <- essais()
+      val <- function(champ) sort(unique(Filter(nzchar, vapply(cur, function(e)
+        trimws(as.character(e$champs[[champ]] %||% "")), character(1)))))
+      for (p in list(c("selAuteur", "auteur"), c("selEspece", "espece"),
+                     c("selStade", "stade"), c("selDuree", "duree"),
+                     c("selMethode", "methode"), c("selUnite", "unite"),
+                     c("selMa1", "matiere1"), c("selMa2", "matiere2")))
+        shiny::updateSelectizeInput(session, p[1], choices = val(p[2]),
+          selected = shiny::isolate(input[[p[1]]]), server = FALSE)
+    })
+
+    shiny::observeEvent(input$selValider, {
+      cur <- essais()
+      if (!length(cur)) return()
+      tp <- c(.hstat_num1(input$selTempMin, NA_real_),
+              .hstat_num1(input$selTempMax, NA_real_))
+      tp <- tp[is.finite(tp)]
+      selection(hstat_dl50_selection(cur, list(
+        auteur = input$selAuteur, espece = input$selEspece,
+        stade = input$selStade, duree = input$selDuree,
+        methode = input$selMethode, unite = input$selUnite,
+        matiere1 = input$selMa1, matiere2 = input$selMa2,
+        ratio = input$selRatio, avec_ma2 = isTRUE(input$selAvecMa2),
+        temperature = tp)))
+    })
+    shiny::observeEvent(input$selAnnuler, selection(NULL))
+
+    # La selection s'applique aux essais RETENUS : c'est elle qui decide de ce
+    # qui est analyse, compare et fusionne.
+    essais_retenus <- shiny::reactive({
+      cur <- essais(); s <- selection()
+      if (is.null(s)) return(cur)
+      cur[intersect(names(cur), s)]
+    })
+
+    output$selResultat <- shiny::renderUI({
+      s <- selection()
+      if (is.null(s))
+        return(bandeau(trf("Aucune sélection active : les %d essai(s) en mémoire sont analysés.",
+                           length(essais())), "info"))
+      if (!length(s))
+        return(bandeau(tr("Aucun essai ne correspond aux critères : la sélection est vide. Élargissez les critères ou annulez-la.")))
+      bandeau(trf("%d essai(s) retenu(s) sur %d.", length(s), length(essais())), "info")
+    })
+
+    output$selTable <- DT::renderDT({
+      cur <- essais_retenus()
+      shiny::validate(shiny::need(length(cur) > 0,
+        tr("Aucun essai retenu.")))
+      d <- do.call(rbind, lapply(seq_along(cur), function(i) {
+        e <- cur[[i]]
+        g <- function(nm) trimws(as.character(e$champs[[nm]] %||% ""))
+        data.frame(Essai = names(cur)[i], Espece = g("espece"),
+                   Matiere = g("matiere1"), Methode = g("methode"),
+                   Temperature = g("temperature"), Doses = nrow(e$doses),
+                   stringsAsFactors = FALSE)
+      }))
+      DT::datatable(d, rownames = FALSE,
+        colnames = c(tr("Essai"), tr("Espèce"), tr("Matière active"),
+                     tr("Méthode de traitement"), tr("Température (°C)"),
+                     tr("Doses")),
+        options = list(dom = "t", pageLength = 10, ordering = FALSE,
+                       scrollX = TRUE))
+    })
+
     # -- L'ajustement -------------------------------------------------------
     essai_actif <- shiny::reactive({
-      cur <- essais(); nm <- input$essaiActif
+      cur <- essais_retenus(); nm <- input$essaiActif
       if (!length(cur)) return(NULL)
       if (is.null(nm) || !(nm %in% names(cur))) return(cur[[1]])
       cur[[nm]]
@@ -1655,11 +2077,11 @@ mod_dl50_server <- function(id, values) {
 
     # -- Graphique ----------------------------------------------------------
     fits_graphe <- shiny::reactive({
-      cur <- essais()
+      cur <- essais_retenus()
       if (!length(cur)) return(list())
       al <- min(max(.hstat_num1(input$alpha, 0.05), 0.001), 0.2)
       m <- input$methode %||% "em"
-      choisis <- if (isTRUE(input$gTous)) cur else {
+      choisis <- if (isTRUE(input$gTous)) essais_retenus() else {
         e <- essai_actif()
         if (is.null(e)) list() else list(e)
       }
@@ -1691,7 +2113,7 @@ mod_dl50_server <- function(id, values) {
 
     # -- Comparaison et fusion ---------------------------------------------
     comparaison <- shiny::eventReactive(input$comparer, {
-      cur <- essais()
+      cur <- essais_retenus()
       hstat_dl50_comparaison(unname(cur), input$scenario %||% "heterogene",
                              alpha = min(max(.hstat_num1(input$alpha, 0.05), 0.001), 0.2))
     })
@@ -1725,7 +2147,7 @@ mod_dl50_server <- function(id, values) {
     output$compXlsx <- hstat_classeur_handler(comp_tables, "dl50_comparaison")
 
     shiny::observeEvent(input$fusionner, {
-      cur <- essais()
+      cur <- essais_retenus()
       if (length(cur) < 2L) {
         shiny::showNotification(tr("La fusion demande au moins deux essais."),
                                 type = "warning", duration = 6)
