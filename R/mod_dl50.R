@@ -59,6 +59,33 @@
 # pas un reglage de confort. Quand Newton-Raphson est l'ajustement lui-meme
 # -- Abbott, mortalite nulle -- c'est le plafond choisi par l'utilisateur qui
 # s'applique, puisque c'est lui la boucle qu'il regarde converger.
+# LE CHEMIN DE CONVERGENCE DE L'EM EST UN CHOIX, ET IL A ETE MESURE.
+#
+# HStat part de la mortalite du temoin. Quand celle-ci vaut ZERO -- le cas de
+# l'essai de reference -- l'etape [E] rend des poids nuls et `c` ne bouge plus :
+# l'ajustement converge en TROIS boucles, sur la vraisemblance la plus haute.
+#
+# WIN DL, lui, en annonce 75. La cause est identifiee : son `c` de depart n'est
+# pas nul, l'EM rampe alors vers la borne, et il s'arrete AVANT le maximum --
+# sa log-vraisemblance imprimee (-105,63592) est plus basse que celle que HStat
+# atteint (-105,63582).
+#
+# Reproduire ce chemin RAPPROCHE de WIN DL : sur les 26 grandeurs publiees, il
+# gagne sur 18 et divise l'ecart median par 3,2 (1,3e-5 -> 4,1e-6) ; `a` sort a
+# 2,19760 comme le logiciel l'imprime, au lieu de 2,19759.
+#
+# Mais il COUTE : sur un essai a reponse plate, il ne converge plus en cent
+# iterations la ou le depart nul aboutit en trois. C'est pourquoi il est
+# propose, et non impose -- le defaut reste le chemin rapide, qui atteint un
+# optimum meilleur sur tous les essais essayes.
+HSTAT_DL50_CONVERGENCE <- c(
+  "Rapide — la vraisemblance la plus haute (défaut)" = "rapide",
+  "Chemin de WIN DL — comparaison chiffre pour chiffre" = "windl")
+
+# Chiffres significatifs A L'AFFICHAGE. Les exports gardent la precision
+# complete : arrondir une donnee exportee la ferait diverger du calcul.
+HSTAT_DL50_CHIFFRES   <- 5L
+
 HSTAT_DL50_ITMAX      <- 100L    # plafond par defaut, modifiable a l'ecran
 HSTAT_DL50_ITMAX_MAX  <- 5000L   # garde-fou : au-dela, c'est le modele qui cloche
 HSTAT_DL50_ITMAX_NR   <- 50L     # Newton-Raphson emboite (WIN DL : 50)
@@ -245,9 +272,16 @@ hstat_dl50_probit <- function(p) {
 #  de c sur un unique lot, alors que l'information sur la mortalite naturelle
 #  est presente dans TOUTES les doses faibles.
 .hstat_dl50_em <- function(z, n, x, n0, x0, a0, b0,
-                           itmax = HSTAT_DL50_ITMAX, tol = HSTAT_DL50_TOL) {
+                           itmax = HSTAT_DL50_ITMAX, tol = HSTAT_DL50_TOL,
+                           chemin = "rapide") {
   a <- a0; b <- b0
-  cc <- if (n0 > 0) x0 / n0 else 0
+  # LE DEPART DECIDE DU CHEMIN. A `c = 0`, l'etape [E] rend des poids nuls et
+  # `c` ne bouge plus : trois boucles, la vraisemblance la plus haute. Le
+  # depart LISSE -- la regle de Laplace sur le temoin -- laisse `c` explorer,
+  # l'EM rampe vers la borne et suit le chemin de WIN DL.
+  cc <- if (identical(chemin, "windl")) {
+    if (n0 > 0) (x0 + 0.5) / (n0 + 1) else 0.5 / (sum(n) + 1)
+  } else if (n0 > 0) x0 / n0 else 0
   ll_prec <- NA_real_; it <- 0L; conv <- FALSE
   for (i in seq_len(itmax)) {
     it <- i
@@ -444,8 +478,10 @@ hstat_dl50_essai <- function(dose, effectif, morts, temoin_n = 0, temoin_morts =
 #  L'AJUSTEMENT
 # ---------------------------------------------------------------------------
 hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
-                              alpha = 0.05, itmax = HSTAT_DL50_ITMAX) {
+                              alpha = 0.05, itmax = HSTAT_DL50_ITMAX,
+                              chemin = c("rapide", "windl")) {
   methode <- match.arg(methode)
+  chemin <- match.arg(chemin)
   # Le plafond vient de l'interface : on le borne ici plutot que de faire
   # confiance a un champ numerique, ou l'on peut taper zero ou du texte.
   itmax <- suppressWarnings(as.integer(itmax)[1])
@@ -483,7 +519,7 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
   if (ini$b <= 0) return(echec(.hstat_dl50_msg_pente()))
 
   fit <- if (identical(methode, "em")) {
-    .hstat_dl50_em(z, n, x, n0, x0, ini$a, ini$b, itmax = itmax)
+    .hstat_dl50_em(z, n, x, n0, x0, ini$a, ini$b, itmax = itmax, chemin = chemin)
   } else {
     # Ici Newton-Raphson EST l'ajustement : c'est la boucle que l'utilisateur
     # regarde converger, donc c'est son plafond qui s'applique.
@@ -579,7 +615,7 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
     ok = TRUE, methode = methode, essai = essai,
     a = a, b = b, c = cc, c_temoin = c_temoin,
     iterations = fit$iterations, converge = isTRUE(fit$converge),
-    itmax = itmax,
+    itmax = itmax, chemin = chemin,
     ll0 = ll0, ll1 = ll1, chi2 = chi2, ddl = ddl, p_chi2 = p_chi2,
     heterogene = hetero, facteur = facteur, t = tq, alpha = alpha,
     informatif = informatif, npar = npar,
@@ -644,6 +680,34 @@ hstat_dl50_libelle_dose <- function(fit, base = tr("Dose")) {
 
 hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
   if (!isTRUE(fit$ok)) return(NULL)
+  # UN SEUIL SE FILTRE ICI, PAS CHEZ L'APPELANT.
+  #
+  # Une dose letale a 0 % ou a 100 % n'existe pas : l'inverse normale y vaut
+  # l'infini, et la fonction rendait une ligne de `NaN` -- un tableau de
+  # resultats qui affiche NaN sans rien dire. Au-dela de 100 % ou en dessous de
+  # zero, c'est une faute de frappe, pas une demande.
+  #
+  # Et une liste VIDE levait « invalid argument to unary operator » : le champ
+  # des seuils qu'on efface pour le retaper faisait tomber tout le tableau.
+  # L'interface filtrait bien avant d'appeler, mais elle n'est pas le seul
+  # appelant -- l'onglet dose/mortalite, le rapport et les tests passent aussi
+  # par ici.
+  s <- suppressWarnings(as.numeric(seuils))
+  garde <- is.finite(s) & s > 0 & s < 100
+  ecartes <- s[!garde]
+  s <- s[garde]
+  if (!length(s)) {
+    vide <- data.frame(
+      Seuil = numeric(0), Log_dose = numeric(0), Dose = numeric(0),
+      Erreur_type = numeric(0), Ecart_type = numeric(0),
+      DL_erreur_type = character(0), DL_ecart_type = character(0),
+      Limite_inf = numeric(0), Limite_sup = numeric(0),
+      Intervalle = character(0), Position = character(0),
+      stringsAsFactors = FALSE)
+    attr(vide, "message") <- tr("Aucun seuil exploitable : une dose létale se demande strictement entre 0 % et 100 % de mortalité.")
+    return(vide)
+  }
+  seuils <- s
   # L'ETENDUE REELLEMENT TESTEE. La droite de Henry se prolonge a l'infini, la
   # population testee non : une DL90 quatre fois au-dessus de la plus forte
   # dose appliquee repose entierement sur l'hypothese de linearite du probit,
@@ -697,6 +761,10 @@ hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
   res <- do.call(rbind, out)
   res <- res[order(-res$Seuil), , drop = FALSE]
   rownames(res) <- NULL
+  if (length(ecartes))
+    attr(res, "ecartes") <- trf("Seuil(s) écarté(s) : %s. Une dose létale se demande strictement entre 0 %% et 100 %% de mortalité.",
+                                paste(trimws(formatC(ecartes, format = "g", digits = 4)),
+                                      collapse = ", "))
   attr(res, "g") <- g
   attr(res, "etendue") <- etendue
   hors <- res$Seuil[!is.na(res$Position) & res$Position == tr("extrapolée")]
@@ -1106,8 +1174,16 @@ hstat_dl50_puissance <- function(essais, reference = 1,
     if (!is.null(m)) return(vide(m))
   }
   k <- length(essais)
+  # UNE REFERENCE HORS BORNES SE REFUSE, ELLE NE SE REMPLACE PAS. Elle
+  # retombait sur le premier essai : demander le rapport par rapport a l'essai
+  # 9 sur un jeu qui en compte deux rendait le tableau du premier, avec sa
+  # colonne « Reference » cochee sur lui -- un resultat plausible, et pas celui
+  # qu'on avait demande. C'est le defaut le plus difficile a voir, parce que
+  # rien n'est vide et rien ne leve.
   ref <- suppressWarnings(as.integer(reference)[1])
-  if (!isTRUE(is.finite(ref)) || ref < 1L || ref > k) ref <- 1L
+  if (!isTRUE(is.finite(ref)) || ref < 1L || ref > k)
+    return(vide(trf("Essai de référence hors bornes (%s) : il y en a %d.",
+                    paste(as.character(reference)[1]), k)))
   cm <- switch(scenario, heterogene = "libre", homogene = "commun", nulle = "nul")
   if (identical(scenario, "nulle") &&
       any(vapply(essais, function(e) e$n0 > 0 && e$x0 > 0, logical(1))))
@@ -2027,9 +2103,16 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
       legend.title = .hstat_dl50_txt(o$legende_titre_taille, "bold"),
       panel.grid = if (isTRUE(o$grille)) ggplot2::element_line()
                    else ggplot2::element_blank())
-  if (multiple)
-    p <- p + ggplot2::scale_colour_brewer(palette = o$palette) +
-             ggplot2::scale_fill_brewer(palette = o$palette)
+  if (multiple) {
+    # Une palette inconnue de RColorBrewer fait AVERTIR ggplot a chaque trace et
+    # rend un graphique gris. L'interface n'offre que des noms valides, mais la
+    # fonction est publique : on retombe sur le defaut plutot que de laisser
+    # un avertissement s'accumuler dans la console d'un serveur partage.
+    pal <- if (o$palette %in% c(HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE))
+      o$palette else HSTAT_DL50_OPT_DEFAUT$palette
+    p <- p + ggplot2::scale_colour_brewer(palette = pal) +
+             ggplot2::scale_fill_brewer(palette = pal)
+  }
   # Pose EN DERNIER : un `p + couche` reconstruit l'objet et emporterait
   # l'attribut avec lui.
   if (length(ecartes)) attr(p, "ecartes") <- ecartes
@@ -2236,6 +2319,18 @@ mod_dl50_ui <- function(id) {
                                 choices = HSTAT_DL50_METHODES, selected = "em"),
             shiny::numericInput(ns("alpha"), "Risque α (intervalles)",
                                 value = 0.05, min = 0.001, max = 0.2, step = 0.01),
+            shiny::radioButtons(ns("chemin"), "Chemin de convergence",
+                                choices = HSTAT_DL50_CONVERGENCE, selected = "rapide"),
+            shiny::helpText("Le chemin de WIN DL part d'une mortalité naturelle",
+                            " non nulle et rampe vers l'optimum : il rapproche des",
+                            " chiffres publiés par le logiciel (écart médian divisé",
+                            " par 3), mais s'arrête avant le maximum de",
+                            " vraisemblance et demande beaucoup plus d'itérations —",
+                            " sur un essai à réponse plate, cent n'y suffisent pas."),
+            shiny::numericInput(ns("chiffres"), "Chiffres significatifs affichés",
+                                value = HSTAT_DL50_CHIFFRES, min = 1, max = 15, step = 1),
+            shiny::helpText("Ne change que l'affichage : les calculs, les exports",
+                            " Excel et CSV gardent toute leur précision."),
             shiny::numericInput(ns("itmax"), "Itérations maximum",
                                 value = HSTAT_DL50_ITMAX, min = 1,
                                 max = HSTAT_DL50_ITMAX_MAX, step = 10),
@@ -2267,6 +2362,7 @@ mod_dl50_ui <- function(id) {
             shiny::helpText("Séparés par des virgules ou des points-virgules.",
                             " DL10, DL50 et DL90 sont celles que les rapports de",
                             " bioessai portent."),
+            shiny::uiOutput(ns("noteSeuils")),
             DT::DTOutput(ns("dosesLetales")))),
 
         shiny::fluidRow(
@@ -2667,6 +2763,15 @@ mod_dl50_server <- function(id, values) {
     # pourcentage comme source obligerait a le reconvertir a chaque calcul --
     # donc a arrondir plusieurs fois, ce qui ne rend pas toujours le meme
     # nombre.
+    # Chiffres significatifs A L'AFFICHAGE : borne ici, une fois, plutot que
+    # dans chacune des six tables. Un champ numerique accepte le vide et le
+    # zero, et `formatSignif(0)` leve.
+    chiffres <- shiny::reactive({
+      v <- suppressWarnings(as.integer(.hstat_num1(input$chiffres, HSTAT_DL50_CHIFFRES)))
+      if (!length(v) || is.na(v)) v <- HSTAT_DL50_CHIFFRES
+      min(max(v, 1L), 15L)
+    })
+
     en_pct <- function() identical(input$saisieUnite %||% "morts", "pct")
     saisie_affichee <- shiny::reactive({
       d <- saisie()
@@ -3115,7 +3220,8 @@ mod_dl50_server <- function(id, values) {
       al <- .hstat_num1(input$alpha, 0.05)
       al <- min(max(al, 0.001), 0.2)
       hstat_dl50_ajuste(e, input$methode %||% "em", alpha = al,
-                        itmax = .hstat_num1(input$itmax, HSTAT_DL50_ITMAX))
+                        itmax = .hstat_num1(input$itmax, HSTAT_DL50_ITMAX),
+                        chemin = input$chemin %||% "rapide")
     })
 
     output$messageFit <- shiny::renderUI({
@@ -3234,8 +3340,8 @@ mod_dl50_server <- function(id, values) {
       aff <- d
       for (k in c("Valeur", "Erreur_type"))
         aff[[k]] <- ifelse(is.finite(d[[k]]),
-                           trimws(formatC(signif(d[[k]], 6), format = "g",
-                                          digits = 6)), "")
+                           trimws(formatC(signif(d[[k]], chiffres()), format = "g",
+                                          digits = chiffres())), "")
       DT::datatable(aff, rownames = FALSE,
         colnames = c(tr("Paramètre"), tr("Valeur"), tr("Erreur-type"), tr("Unité")),
         options = list(dom = "tp", pageLength = 20, ordering = FALSE,
@@ -3244,9 +3350,14 @@ mod_dl50_server <- function(id, values) {
                                               targets = c(1, 2)))))
     })
 
+    # LES SEUILS PARTENT TELS QUE SAISIS. Les filtrer ici privait
+    # `hstat_dl50_doses_letales()` de la possibilite de NOMMER ce qu'elle
+    # ecarte : taper « 0, 50, 120 » rendait une seule ligne, sans un mot sur
+    # les deux autres. Le champ VIDE, lui, reste un cas normal -- on retombe
+    # sur les trois seuils d'usage plutot que d'annoncer un refus a quelqu'un
+    # qui n'a rien demande.
     seuils_demandes <- shiny::reactive({
       v <- .nombres(input$seuils)
-      v <- v[v > 0 & v < 100]
       if (!length(v)) HSTAT_DL50_SEUILS else v
     })
 
@@ -3254,6 +3365,18 @@ mod_dl50_server <- function(id, values) {
       f <- fit()
       if (is.null(f) || !isTRUE(f$ok)) return(NULL)
       hstat_dl50_doses_letales(f, seuils_demandes())
+    })
+
+    # Un seuil ecarte, ou une liste vide, se dit : le tableau se contenterait
+    # de rendre moins de lignes qu'on en a demande.
+    output$noteSeuils <- shiny::renderUI({
+      d <- doses_letales()
+      msg <- c(attr(d, "message"), attr(d, "ecartes"))
+      msg <- msg[!is.na(msg) & nzchar(msg)]
+      if (!length(msg)) return(NULL)
+      shiny::div(class = "callout callout-warning",
+                 style = "margin-bottom:8px;padding:8px 12px;font-size:0.92em;",
+        shiny::icon("triangle-exclamation"), " ", paste(msg, collapse = " "))
     })
 
     output$dosesLetales <- DT::renderDT({
@@ -3268,7 +3391,7 @@ mod_dl50_server <- function(id, values) {
         options = list(dom = "t", pageLength = 20, ordering = FALSE,
                        scrollX = TRUE)) |>
         DT::formatSignif(c("Log_dose", "Dose", "Erreur_type", "Ecart_type",
-                           "Limite_inf", "Limite_sup"), 5)
+                           "Limite_inf", "Limite_sup"), chiffres())
     })
 
     output$detail <- DT::renderDT({
@@ -3284,7 +3407,7 @@ mod_dl50_server <- function(id, values) {
                        scrollX = TRUE)) |>
         DT::formatSignif(c("Dose", "Log_dose", "Mortalite_observee",
                            "Mortalite_corrigee", "Probit_corrige",
-                           "Mortalite_attendue", "Probit_attendu"), 5)
+                           "Mortalite_attendue", "Probit_attendu"), chiffres())
     })
 
     tables_export <- function() {
@@ -3350,7 +3473,8 @@ mod_dl50_server <- function(id, values) {
         if (is.null(e)) list() else list(e)
       }
       lapply(choisis, function(e) hstat_dl50_ajuste(
-        e, m, alpha = al, itmax = .hstat_num1(input$itmax, HSTAT_DL50_ITMAX)))
+        e, m, alpha = al, itmax = .hstat_num1(input$itmax, HSTAT_DL50_ITMAX),
+        chemin = input$chemin %||% "rapide"))
     })
 
     # TOUS les reglages sont lus ICI, dans le reactif qui construit l'image :
@@ -3516,7 +3640,7 @@ mod_dl50_server <- function(id, values) {
         options = list(dom = "t", pageLength = 10, ordering = FALSE,
                        scrollX = TRUE,
                        columnDefs = list(list(width = "38%", targets = 4)))) |>
-        DT::formatSignif(c("Chi2", "p"), 4)
+        DT::formatSignif(c("Chi2", "p"), chiffres())
     })
 
     comp_tables <- function() {
@@ -3570,7 +3694,7 @@ mod_dl50_server <- function(id, values) {
                      tr("Type d'intervalle")),
         options = list(dom = "t", pageLength = 10, ordering = FALSE,
                        scrollX = TRUE)) |>
-        DT::formatSignif(c("DL50", "Rapport", "Limite_inf", "Limite_sup"), 5)
+        DT::formatSignif(c("DL50", "Rapport", "Limite_inf", "Limite_sup"), chiffres())
     })
 
     pui_tables <- function() {
@@ -3618,7 +3742,7 @@ mod_dl50_server <- function(id, values) {
         options = list(dom = "t", pageLength = 20, ordering = FALSE,
                        scrollX = TRUE)) |>
         DT::formatSignif(c("Dose", "Log_dose", "Probit_attendu", "Erreur_type",
-                           "Mortalite", "Limite_inf", "Limite_sup"), 5)
+                           "Mortalite", "Limite_inf", "Limite_sup"), chiffres())
     })
 
     table_dose <- shiny::reactive({
@@ -3644,7 +3768,7 @@ mod_dl50_server <- function(id, values) {
         options = list(dom = "t", pageLength = 20, ordering = FALSE,
                        scrollX = TRUE)) |>
         DT::formatSignif(c("Log_dose", "Dose", "Erreur_type", "Ecart_type",
-                           "Limite_inf", "Limite_sup"), 5)
+                           "Limite_inf", "Limite_sup"), chiffres())
     })
 
     # Chaque tableau de resultats s'exporte : un chiffre qu'on ne peut pas

@@ -8967,6 +8967,136 @@ test_that("la table de saisie est rafraichie par son proxy, sans exception", {
   expect_false(grepl("depuis_table", mod, fixed = TRUE))
 })
 
+test_that("un seuil de dose letale se filtre dans la fonction, pas chez l'appelant", {
+  f <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+
+  # UNE DOSE LETALE A 0 % OU A 100 % N'EXISTE PAS : l'inverse normale y vaut
+  # l'infini. La fonction rendait une ligne de `NaN` -- un tableau de resultats
+  # qui affiche NaN sans rien dire.
+  for (s in list(0, 100, 150, -10, NA)) {
+    d <- hstat_dl50_doses_letales(f, s)
+    expect_equal(nrow(d), 0L, info = paste(s))
+    expect_true(nzchar(attr(d, "message") %||% ""), info = paste(s))
+  }
+
+  # UNE LISTE VIDE LEVAIT « invalid argument to unary operator » : le champ des
+  # seuils qu'on efface pour le retaper faisait tomber tout le tableau.
+  # L'interface filtrait avant d'appeler, mais elle n'est pas le seul appelant.
+  expect_silent(d0 <- hstat_dl50_doses_letales(f, numeric(0)))
+  expect_equal(nrow(d0), 0L)
+  # Les colonnes restent celles du tableau plein : un appelant qui les nomme ne
+  # doit pas casser sur un resultat vide.
+  expect_true(all(c("Seuil", "Dose", "Erreur_type", "Limite_inf", "Intervalle")
+                  %in% names(d0)))
+
+  # LES SEUILS VALIDES SURVIVENT, LES AUTRES SONT NOMMES.
+  d <- hstat_dl50_doses_letales(f, c(10, 0, 50, 120, 90))
+  expect_equal(nrow(d), 3L)
+  expect_equal(sort(d$Seuil), c(10, 50, 90))
+  expect_true(grepl("0", attr(d, "ecartes"), fixed = TRUE))
+  expect_true(grepl("120", attr(d, "ecartes"), fixed = TRUE))
+})
+
+test_that("un essai de reference hors bornes est refuse, pas remplace", {
+  A <- .hstat_dl50_essai_ref()
+  B <- hstat_dl50_essai(c(0.001, 0.002, 0.005, 0.01, 0.02), rep(30, 5),
+                        c(4, 9, 15, 22, 27), 30, 1)
+  # C'EST LE DEFAUT LE PLUS DIFFICILE A VOIR : rien n'est vide, rien ne leve.
+  # L'indice retombait sur le premier essai, et demander le rapport par rapport
+  # a l'essai 9 sur un jeu qui en compte deux rendait le tableau du premier,
+  # sa colonne « Reference » cochee sur lui. Un resultat plausible, et pas
+  # celui qu'on avait demande.
+  for (rf in list(0, 9, NA, -1, "x")) {
+    r <- hstat_dl50_puissance(list(A = A, B = B), reference = rf)
+    expect_equal(nrow(r), 0L, info = paste(rf))
+    expect_true(nzchar(attr(r, "message") %||% ""), info = paste(rf))
+  }
+  # Les references valides passent, et designent bien l'essai demande.
+  r1 <- hstat_dl50_puissance(list(A = A, B = B), reference = 1)
+  r2 <- hstat_dl50_puissance(list(A = A, B = B), reference = 2)
+  expect_true(r1$Reference[1]); expect_true(r2$Reference[2])
+  expect_equal(r1$Rapport[2], 1 / r2$Rapport[1], tolerance = 1e-6)
+})
+
+test_that("une palette inconnue ne fait pas avertir le graphique", {
+  skip_if_not_installed("ggplot2")
+  # Une palette absente de RColorBrewer fait AVERTIR ggplot a chaque trace et
+  # rend un graphique gris. L'interface n'offre que des noms valides, mais la
+  # fonction est publique -- et un avertissement par trace s'accumule dans la
+  # console d'un serveur partage.
+  f1 <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  f2 <- hstat_dl50_ajuste(hstat_dl50_essai(c(0.001, 0.002, 0.005, 0.01, 0.02),
+                                           rep(30, 5), c(4, 9, 15, 22, 27), 30, 1), "em")
+  expect_silent(p <- ggplot2::ggplot_build(
+    hstat_dl50_graphique(list(f1, f2), list(palette = "ZZZ"))))
+  # Et une palette valide reste employee telle quelle.
+  expect_silent(ggplot2::ggplot_build(
+    hstat_dl50_graphique(list(f1, f2), list(palette = "Dark2"))))
+})
+
+test_that("les chiffres significatifs affiches sont un reglage borne", {
+  # Ils ne changent QUE l'affichage -- les exports gardent la precision
+  # complete, arrondir une donnee exportee la ferait diverger du calcul.
+  expect_equal(HSTAT_DL50_CHIFFRES, 5L)
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  mod <- paste(readLines(file.path(root, "R", "mod_dl50.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # Chaque table d'affichage suit le reglage : aucune ne garde un nombre fige.
+  fs <- regmatches(mod, gregexpr("DT::formatSignif\\([^;]*?\\)\\n", mod, perl = TRUE))[[1]]
+  expect_gt(length(gregexpr("chiffres()", mod, fixed = TRUE)[[1]]), 5L)
+  expect_false(grepl("DT::formatSignif(c(\"Chi2\", \"p\"), 4)", mod, fixed = TRUE))
+  # Le reglage est declare dans l'interface et lu par un reactif borne.
+  expect_true(grepl('ns("chiffres")', mod, fixed = TRUE))
+  expect_true(grepl("min(max(v, 1L), 15L)", mod, fixed = TRUE))
+})
+
+test_that("le chemin de convergence de WIN DL est reproductible, et couteux", {
+  ref <- .hstat_dl50_essai_ref()
+  # LE DEFAUT RESTE LE CHEMIN RAPIDE. `c` part de la mortalite du temoin --
+  # zero ici -- l'etape [E] rend des poids nuls, `c` ne bouge plus, et
+  # l'ajustement converge en trois boucles.
+  r <- hstat_dl50_ajuste(ref, "em")
+  expect_equal(r$chemin, "rapide")
+  expect_lt(r$iterations, 10L)
+
+  # LE CHEMIN DE WIN DL part d'une mortalite naturelle NON NULLE : `c` explore,
+  # l'EM rampe vers la borne, et le compte passe de 3 a plusieurs dizaines --
+  # l'ordre de grandeur des 75 qu'annonce le logiciel.
+  w <- hstat_dl50_ajuste(ref, "em", chemin = "windl", itmax = 500)
+  expect_equal(w$chemin, "windl")
+  expect_gt(w$iterations, 40L)
+  expect_true(w$converge)
+
+  # IL RAPPROCHE DES CHIFFRES PUBLIES. `a` sort a 2,19760 comme le logiciel
+  # l'imprime, la ou le chemin rapide donne 2,19759.
+  expect_equal(round(w$a, 5), 2.19760)
+  expect_equal(round(r$a, 5), 2.19759)
+  expect_equal(round(w$b, 5), 0.97319)
+
+  # ET IL S'ARRETE AVANT LE MAXIMUM. C'est le fait qui interdit d'en faire le
+  # defaut : la vraisemblance du chemin rapide est PLUS HAUTE. WIN DL imprime
+  # -105,63592, plus bas encore que les deux.
+  expect_gt(r$ll0, w$ll0)
+  expect_lt(abs(r$ll0 - (-105.63582)), 1e-4)
+
+  # LES DEUX RESTENT DANS L'ENVELOPPE DE CONFORMITE : l'ecart porte sur le
+  # sixieme chiffre, pas sur un resultat.
+  expect_equal(w$a, r$a, tolerance = 1e-5)
+  expect_equal(w$b, r$b, tolerance = 1e-5)
+  d1 <- hstat_dl50_doses_letales(r, 50)$Dose[1]
+  d2 <- hstat_dl50_doses_letales(w, 50)$Dose[1]
+  expect_equal(d1, d2, tolerance = 1e-4)
+
+  # LE COUT EST REEL, et c'est pourquoi le chemin est propose et non impose :
+  # sur un essai a reponse plate, cent iterations n'y suffisent plus, la ou le
+  # chemin rapide aboutit en trois.
+  plat <- hstat_dl50_essai(c(0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1), rep(200, 7),
+                           c(30, 30, 30, 31, 33, 42, 57), 25, 0)
+  expect_true(hstat_dl50_ajuste(plat, "em")$converge)
+  expect_false(hstat_dl50_ajuste(plat, "em", chemin = "windl", itmax = 100)$converge)
+})
+
 test_that("les quatre tests de comparaison sont ceux du manuel de WIN DL", {
   # Le manuel enumere QUATRE tests de rapport de vraisemblance -- ajustement
   # lineaire, identite des droites, mortalite naturelle, parallelisme -- selon
@@ -9846,9 +9976,15 @@ test_that("le rapport de puissance refuse ce qu'il ne peut pas calculer", {
   r <- hstat_dl50_puissance(list(a, t), 1, "nulle")
   expect_equal(nrow(r), 0L)
   expect_true(grepl("mortalité naturelle", attr(r, "message")))
-  # Une reference hors bornes retombe sur le premier essai plutot que de lever.
+  # UNE REFERENCE HORS BORNES EST REFUSEE. Ce test exigeait l'inverse -- qu'elle
+  # retombe sur le premier essai -- et c'etait un mauvais choix de ma part :
+  # demander le rapport par rapport a l'essai 99 sur un jeu qui en compte deux
+  # rendait le tableau du premier, sa colonne « Reference » cochee sur lui. Un
+  # resultat plausible, et pas celui qu'on avait demande ; c'est le defaut que
+  # ce depot traque partout ailleurs.
   r2 <- hstat_dl50_puissance(list(a = a, b = t), reference = 99, "heterogene")
-  expect_true(r2$Reference[1])
+  expect_equal(nrow(r2), 0L)
+  expect_true(grepl("hors bornes", attr(r2, "message"), fixed = TRUE))
 })
 
 test_that("le module DL50 est branche et depose son contexte", {
