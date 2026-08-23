@@ -450,6 +450,45 @@ test_that("Détection de type qualitatif", {
   expect_equal(hstat_q_detect_type(factor(c("Bas","Moyen","Haut"), ordered=TRUE)), "ordinale")
 })
 
+test_that("l'échelle accentuée est reconnue, la coïncidence de mot ne l'est pas", {
+  # LES ACCENTS SONT DEPLIES DES DEUX COTES. Les motifs l'etaient, pas les
+  # modalites : une echelle ecrite « Élevé / Énormément » -- soit le francais
+  # correct -- ne rencontrait aucun motif et passait pour NOMINALE. Elle
+  # perdait alors son ordre, donc la mediane, les quartiles et tout test de
+  # tendance. La regression est silencieuse : rien ne signale un type qui
+  # aurait pu etre meilleur.
+  expect_equal(hstat_q_detect_type(rep(c("Nul", "Élevé", "Énormément"), 4)),
+               "ordinale")
+
+  # LE SEUIL EST DE DEUX MOTS-CLES, et c'est ce qui rend la detection sure.
+  # Le depliage des accents rapproche « Élève » (l'ecolier) de « eleve »
+  # (le niveau) : une colonne de PROFESSIONS rencontre donc un motif, et un
+  # seul. A un seul mot-cle, elle serait declaree ordinale et l'application
+  # ordonnerait des metiers.
+  expect_equal(hstat_q_detect_type(
+                 rep(c("Agriculteur", "Commerçant", "Fonctionnaire", "Élève"), 4)),
+               "nominale")
+  expect_equal(hstat_q_detect_type(rep(c("Rouge", "Vert", "Bleu"), 4)), "nominale")
+})
+
+test_that("une case nulle est corrigée, jamais laissée produire un OR de zéro", {
+  # Sans la correction de Haldane-Anscombe (+0,5), une case a zero donne
+  # 1/0 = Inf sous la racine : l'OR tombe a 0 et sa borne HAUTE devient NaN.
+  # Un intervalle a moitie indefini est pire qu'un refus -- il s'affiche.
+  r <- hstat_q_or_rr_2x2(0, 12, 9, 11)
+  expect_true(r$corrected)
+  expect_true(all(is.finite(c(r$or, r$or_lo, r$or_hi))))
+  expect_gt(r$or, 0)
+  expect_true(all(is.finite(c(r$rr, r$rr_lo, r$rr_hi))))
+  # `corrected` doit dire ce qui a REELLEMENT ete fait : il annoncait la
+  # correction meme quand elle n'etait plus appliquee.
+  expect_equal(unname(r$cells), c(0.5, 12.5, 9.5, 11.5))
+  # Aucune case nulle : rien n'est ajoute, et on ne l'annonce pas.
+  s <- hstat_q_or_rr_2x2(5, 12, 9, 11)
+  expect_false(s$corrected)
+  expect_equal(unname(s$cells), c(5, 12, 9, 11))
+})
+
 test_that("Analyse nominale univariee", {
   set.seed(1); x <- sample(c("A","B","C"), 60, replace=TRUE)
   r <- hstat_q_nominal_univariate(x, "Var")
@@ -684,6 +723,31 @@ test_that("le mode 'une issue' et le 2x2 strict restent inchangés", {
   y2 <- sample(c("H", "F"), 400, replace = TRUE)
   r2 <- hstat_q_or_rr_analysis(x, y2, "X", "Sexe")
   expect_equal(nrow(r2$tables[["OR / RR par paire"]]), 1)     # 2x2 strict
+})
+
+test_that("le niveau de confiance annoncé est celui qui a été calculé", {
+  # LE CURSEUR VA DE 0,80 A 0,99. La phrase d'interpretation ecrivait « IC95% »
+  # en dur : a 99 %, elle annoncait donc 95 % a cote de bornes plus larges,
+  # pendant que le tableau des mesures affichait « IC99% » sur les MEMES
+  # bornes. C'est la phrase que l'utilisateur recopie dans son rapport.
+  x <- c(rep("1", 100), rep("0", 100))
+  y <- c(rep("oui", 90), rep("non", 10), rep("oui", 10), rep("non", 90))
+  bornes <- list()
+  for (cf in c(0.80, 0.95, 0.99)) {
+    r <- hstat_q_or_rr_analysis(x, y, "Expo", "Issue", conf = cf)
+    phrase <- r$interpretation[grepl("odds ratio", r$interpretation)][1]
+    expect_true(grepl(sprintf("IC%d%%", round(100 * cf)), phrase, fixed = TRUE),
+                info = paste("conf =", cf, "->", phrase))
+    expect_true(any(grepl(sprintf("IC%d%%", round(100 * cf)),
+                          r$metrics$Metrique, fixed = TRUE)),
+                info = paste("tableau des mesures, conf =", cf))
+    bornes[[as.character(cf)]] <- as.numeric(
+      regmatches(phrase, gregexpr("[0-9]+\\.[0-9]+", phrase))[[1]])
+  }
+  # Et l'etiquette suit bien un calcul REEL : un intervalle a 99 % est plus
+  # large qu'a 95 %, lui-meme plus large qu'a 80 %.
+  larg <- vapply(bornes, function(b) diff(range(utils::tail(b, 2))), numeric(1))
+  expect_true(larg[["0.8"]] < larg[["0.95"]] && larg[["0.95"]] < larg[["0.99"]])
 })
 
 test_that("l'interprétation par ligne détecte le sens de l'association", {
@@ -2851,10 +2915,16 @@ test_that("le verdict rend l'ancien piege impossible", {
 })
 
 test_that("aucune condition ne branche directement sur une p-value non gardee", {
-  root <- file.path(.hstat_repo_root(), "inst", "app")
+  # `.hstat_sources_app()` et NON `list.files(inst/app)` : les vingt et un
+  # modules ont demenage dans `R/`, et trois balayages -- celui-ci, celui des
+  # coordonnees FactoMineR et celui des messages R bruts -- etaient restes
+  # pointes sur `inst/app/`. Ils lisaient CINQ fichiers au lieu de vingt-trois,
+  # donc plus aucun module. Verifie par mutation : les trois defauts glisses
+  # ensemble dans `R/mod_tests.R` passaient tous les trois.
+  skip_if(is.na(.hstat_repo_root()))
   motif <- "if\\s*\\([^)]*\\$p\\.value\\s*[<>]"
   trouve <- character(0)
-  for (f in list.files(root, pattern = "\\.R$", full.names = TRUE)) {
+  for (f in .hstat_sources_app()) {
     l <- readLines(f, warn = FALSE)
     l <- l[!grepl("^\\s*#", l)]
     hit <- grep(motif, l, value = TRUE)
@@ -2950,9 +3020,9 @@ test_that("une AFC croisant une variable binaire ne casse plus", {
 })
 
 test_that("aucune coordonnee FactoMineR n'est indexee sans passer par le garde-fou", {
-  root <- file.path(.hstat_repo_root(), "inst", "app")
+  skip_if(is.na(.hstat_repo_root()))
   fautes <- character(0)
-  for (f in list.files(root, pattern = "\\.R$", full.names = TRUE)) {
+  for (f in .hstat_sources_app()) {
     l <- readLines(f, warn = FALSE)
     l <- l[!grepl("^\\s*#", l)]
     # `<objet>$<champ>$coord[` sans hstat_coord_mat() sur la meme ligne
@@ -3477,10 +3547,9 @@ test_that("une erreur inconnue est annoncee comme non traduite, pas maquillee", 
 })
 
 test_that("aucun message R brut n'est affiche a l'utilisateur", {
-  root <- file.path(.hstat_repo_root(), "inst", "app")
   skip_if(is.na(.hstat_repo_root()))
   fautes <- character(0)
-  for (f in list.files(root, pattern = "\\.R$", full.names = TRUE)) {
+  for (f in .hstat_sources_app()) {
     if (basename(f) %in% c("HStat.R")) next   # secours de demarrage, hors Shiny
     l <- readLines(f, warn = FALSE, encoding = "UTF-8")
     l <- l[!grepl("^\\s*#", l)]
@@ -5314,6 +5383,15 @@ test_that("le portrait du document est en pourcentage, pas en caracteres", {
   vide <- x$docs; vide$text[1] <- ""
   cv <- hstat_code_codeline(x$seg, x$cb, vide, "d1")
   expect_true(all(is.finite(cv$debut_pct)))
+  # « FINI » NE SUFFIT PAS : 100 / 0 vaut Inf, que pmin(100, .) ramene a 100.
+  # Le segment ressortait alors comme occupant TOUT le document -- un resultat
+  # faux et parfaitement fini, que la seule verification de finitude laissait
+  # passer. Sur un document sans texte il n'y a rien a mettre a l'echelle : la
+  # position reste a zero.
+  expect_true(all(cv$debut_pct == 0 & cv$fin_pct == 0))
+  # Et un segment demarrant a zero donnerait 0 * Inf, donc NaN.
+  s0 <- hstat_seg_add(x$seg, "d1", x$P, 0, 4, "", "alice")
+  expect_false(any(is.nan(hstat_code_codeline(s0, x$cb, vide, "d1")$debut_pct)))
   expect_equal(nrow(hstat_code_codeline(x$seg, x$cb, x$docs, "inconnu")), 0L)
 })
 
@@ -10105,4 +10183,62 @@ test_that("le module de doses est branche et depose son contexte", {
   mod <- paste(readLines(file.path(root, "R", "mod_dosage.R"),
                          warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_true(grepl('hstat_ai_capture(values, "Doses & dilutions"', mod, fixed = TRUE))
+})
+
+
+# =============================================================================
+#  LE BANC DE MUTATION SE GARDE LUI-MEME
+# -----------------------------------------------------------------------------
+#  `tools/mutation.R` est l'outil qui mesure si les assertions gardent quelque
+#  chose. Quand il se trompe, il se trompe TOUJOURS DANS LE SENS RASSURANT : un
+#  test non joue ne peut pas echouer, la mutation passe, et le rapport annonce
+#  un trou dans les assertions la ou il n'y a qu'un trou dans le banc. Trois
+#  fausses pistes ont ete suivies avant que la cause soit vue.
+# =============================================================================
+
+test_that("le banc de mutation ne se laisse pas ecraser par le code qu'il joue", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  banc <- file.path(root, "tools", "mutation.R")
+  skip_if_not(file.exists(banc))
+  rscript <- file.path(R.home("bin"), "Rscript")
+  skip_if_not(file.exists(rscript))
+
+  # Une suite MINIATURE, pas la vraie : on mesure le banc, pas le depot.
+  # Le premier test ecrit une variable nommee `motif` -- ce que fait le
+  # balayage des p-values. Le banc rangeait SON motif sous ce nom dans
+  # `globalenv()`, et `test_that()` evalue le corps du test dans le cadre de
+  # son appelant : le filtre se retrouvait a comparer les descriptions
+  # suivantes a une expression reguliere de code R, qui ne colle a aucune.
+  # TOUS LES TESTS D'APRES ETAIENT SAUTES EN SILENCE.
+  d <- file.path(tempdir(), paste0("hstat_banc_", as.integer(runif(1, 1e6, 1e7))))
+  dir.create(d, showWarnings = FALSE, recursive = TRUE)
+  on.exit(unlink(d, recursive = TRUE), add = TRUE)
+  faux <- file.path(d, "test-faux.R")
+  writeLines(c(
+    'test_that("premier test, qui ecrit une variable nommee motif", {',
+    '  motif <- "if\\\\s*\\\\([^)]*\\\\$p\\\\.value"',
+    '  expect_true(nzchar(motif))',
+    '})',
+    'test_that("second test, qui doit encore etre joue", {',
+    '  expect_true(TRUE)',
+    '})'), faux)
+
+  sortie <- suppressWarnings(system2(rscript, c(shQuote(banc),
+                                                shQuote("premier test|second test"),
+                                                shQuote(faux)),
+                                     stdout = TRUE, stderr = TRUE))
+  txt <- paste(sortie, collapse = "\n")
+  # LES DEUX tests doivent avoir ete retenus ET joues.
+  expect_true(grepl("TESTS: 2 / 2", txt, fixed = TRUE), info = txt)
+  expect_true(grepl("ASSERTIONS: 2", txt, fixed = TRUE), info = txt)
+
+  # ET un filtre qui ne retient rien est une ERREUR, pas un « 0 echec ».
+  # Sans ce refus, une faute de frappe dans le motif se lit exactement comme
+  # une mutation non detectee.
+  st <- suppressWarnings(system2(rscript, c(shQuote(banc),
+                                            shQuote("aucun test ne porte ce nom"),
+                                            shQuote(faux)),
+                                 stdout = TRUE, stderr = TRUE))
+  expect_true(any(grepl("ne retient aucun", st)), info = paste(st, collapse = "\n"))
 })

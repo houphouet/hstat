@@ -1385,15 +1385,42 @@ mesure qui ment est pire que pas de banc.
 
 Trois pièges de la méthode, tous rencontrés :
 
-1. **Un filtre trop étroit fabrique de faux trous.** Deux mutations sont
+1. **Un filtre trop étroit fabrique de faux trous.** Des mutations sont
    ressorties « non attrapées » parce que le filtre excluait les tests qui les
-   gardaient. Avant d'annoncer un trou, **relancer sans filtre**.
+   gardaient. Le banc annonce donc `TESTS: n / total` : un `n` plus petit que
+   prévu se voit **avant** d'être lu comme un résultat, et un filtre qui ne
+   retient **rien** lève désormais une erreur au lieu de rendre « 0 échec » —
+   une faute de frappe dans le motif se lit sinon exactement comme une mutation
+   non détectée.
 2. **Un mutant équivalent n'est pas un trou** — mais il faut le prouver. Retirer
    la garde de `hstat_coord_mat()` laisse `as.matrix()` rendre la même matrice…
    à une différence près : la colonne perd son nom. Là, c'était bien un trou.
 3. **Une mutation peut interrompre le chargement** et faire chuter le nombre
    d'assertions jouées. Un décompte anormalement bas se vérifie avant d'être lu
    comme un succès.
+
+#### Le banc se gardait mal lui-même, et il mentait dans le sens rassurant
+
+Le piège 1 avait une **cause**, pas seulement des manifestations.
+`testthat::test_that()` évalue le corps du test **dans le cadre de son
+appelant** — ici le filtre du banc, dont l'environnement englobant était
+`globalenv()`. Le banc y rangeait son motif sous le nom `motif` ; le balayage
+des p-values écrit `motif <- "if\\s*\\([^)]*\\$p\\.value…"` dans son corps,
+et **l'écrasait en cours de passe**. Le filtre comparait alors les descriptions
+suivantes à une expression régulière de code R, qui ne colle à aucune : tous les
+tests d'après étaient **sautés en silence**.
+
+Une passe filtrée pouvait donc rendre « 0 échec » sans avoir joué le test qui
+gardait la règle — le résultat exact d'une mutation non détectée. Le banc
+annonçait un trou dans les assertions là où il n'y avait qu'un trou dans le
+banc, et c'est arrivé trois fois avant d'être compris. **Une erreur d'outil de
+mesure va toujours dans ce sens** : un test non joué ne peut pas échouer.
+
+L'état du banc vit désormais dans `.banc`, un environnement que le code testé ne
+peut pas nommer. Un test le garde — il fait tourner le banc sur une suite
+**miniature** dont le premier test écrit une variable nommée `motif`, et exige
+que le second soit quand même joué. Vérifié comme échouant sur les trois
+assertions contre la version d'avant correction.
 
 #### Ce que la méthode a trouvé
 
@@ -1421,6 +1448,49 @@ oublié — or c'est ce nom qui étiquette l'axe du graphique.
 Vingt-trois mutations passées en tout, sur le module DL50 et sur le socle.
 Vingt étaient attrapées ; les trois ci-dessus ne l'étaient pas, et toutes le
 sont désormais.
+
+#### La méthode appliquée aux modules
+
+Quinze mutations de plus, sur `mod_coding.R`, `mod_report.R`,
+`mod_qualitative.R` et `mod_tests.R`. `mod_report.R` les a **toutes** attrapées.
+Les autres ont livré cinq trous, et un défaut.
+
+**Le défaut : le niveau de confiance annoncé n'était pas celui qui était
+calculé.** Le curseur d'OR/RR va de 0,80 à 0,99 ; la phrase d'interprétation
+écrivait `100 * 0.95` en dur. À 99 %, le tableau des mesures affichait
+« IC99% » et la phrase juste en dessous « IC95% » — **sur les mêmes bornes**.
+C'est la phrase faite pour être recopiée dans un rapport.
+
+**Les échelles accentuées perdaient leur ordre.** Les motifs de détection
+étaient dépliés d'accents, pas les modalités : « Élevé / Énormément » — le
+français correct — ne rencontrait aucun motif et la variable passait pour
+**nominale**, donc sans médiane, sans quartiles et sans test de tendance. Rien
+ne signale un type qui aurait pu être meilleur. Le seuil de **deux** mots-clés
+est ce qui rend l'inverse sûr : le dépliage rapproche « Élève » (l'écolier) de
+« eleve » (le niveau), et une colonne de professions rencontre donc un motif —
+un seul. À un seul, l'application ordonnerait des métiers.
+
+**Une case nulle sans correction de Haldane** donnait un OR de 0 et une borne
+haute `NaN` — et `corrected` annonçait quand même la correction.
+
+**Un document vide donnait 100 %.** L'assertion existante vérifiait que les
+positions restent **finies** ; `100 / 0` vaut `Inf`, que `pmin(100, .)` ramène
+à 100. Le segment ressortait donc comme occupant tout le document : fini, et
+faux. « Fini » ne suffisait pas.
+
+**Et trois balayages ne lisaient plus aucun module.** Ceux des p-values non
+gardées, des coordonnées FactoMineR et des messages R bruts étaient restés
+pointés sur `inst/app/` après le déménagement des vingt et un modules dans
+`R/` : **cinq fichiers balayés au lieu de vingt-trois**. Les trois défauts
+glissés ensemble dans `R/mod_tests.R` passaient tous les trois. Ils passent
+désormais par `.hstat_sources_app()`, qui est traversé par tous — et les
+modules se sont révélés propres sur les trois comptes, l'élargissement n'est
+donc que du gain.
+
+`mod_tests.R` n'a **pas** de fonction de calcul au premier niveau : tout y vit
+dans les serveurs. Le banc ne peut donc pas le muter directement, et ce sont ses
+balayages qui le gardent. C'est une raison de plus de placer la logique dans
+`R/utils.R`.
 
 ### Trois défauts trouvés par l'audit, tous du même genre
 
