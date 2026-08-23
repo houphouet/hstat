@@ -783,6 +783,24 @@ hstat_data_profile <- function(df, vars = NULL, group = NULL, paired = FALSE) {
   paste0("c(", paste(sprintf('"%s"', x), collapse = ", "), ")")
 }
 
+# Un NOMBRE dans du code R engendre : quinze chiffres significatifs, jamais la
+# mise en forme de l'affichage. `format()` respecte `options(digits)` et
+# `OutDec` : une locale francaise ecrirait « 0,00063 », que R refuserait
+# d'analyser -- le journal a precisement pour promesse d'etre executable.
+.hstat_rlog_num <- function(x) {
+  x <- suppressWarnings(as.numeric(x)[1])
+  # `trimws` : formatC aligne sur une largeur commune, ce qui semait le code
+  # engendre de colonnes d'espaces.
+  if (!length(x) || !is.finite(x)) "NA"
+  else trimws(formatC(x, digits = 15, format = "g"))
+}
+
+.hstat_rlog_vec_num <- function(x) {
+  x <- suppressWarnings(as.numeric(x))
+  if (!length(x)) return("numeric(0)")
+  paste0("c(", paste(vapply(x, .hstat_rlog_num, character(1)), collapse = ", "), ")")
+}
+
 # Code R correspondant a UNE analyse capturee. NULL si rien de fidele n'est
 # reconstituable — l'appelant ecrira alors un commentaire.
 hstat_rlog_code <- function(ctx, donnees = "donnees") {
@@ -864,6 +882,50 @@ hstat_rlog_code <- function(ctx, donnees = "donnees") {
       sprintf("chisq.test(table(%s$%s, %s$%s))", donnees, .hstat_rlog_nom(v[1]),
               donnees, .hstat_rlog_nom(v[2]))
       else if (length(v) == 1) sprintf("table(%s$%s)", donnees, y),
+
+    # LE BIOESSAI EST LA SEULE ANALYSE DONT LES DONNEES NE VIENNENT PAS DU
+    # FICHIER : elles sont saisies dans le module, ou lues d'un fichier WIN DL.
+    # Le script les REPORTE donc, ce qui le rend autonome -- il s'execute sans
+    # `mon_fichier.csv`, et il est exactement reproductible.
+    #
+    # Et il n'est ecrit QUE quand il est fidele. A mortalite naturelle declaree
+    # nulle, le modele de Finney EST un GLM binomial a lien probit sur le
+    # log10 de la dose : les deux ajustements coincident a 1e-7, c'est verifie
+    # par un test. Des que `c` est estimee (EM) ou fixee par Abbott, ce n'est
+    # plus un GLM -- `glm()` ne sait pas ajuster c dans
+    # p = c + (1 - c).F(a + b.log d) -- et un `glm()` ecrit la quand meme
+    # rendrait un script plausible qui ne refait PAS ce que l'application a
+    # calcule. On ecrit alors le commentaire, et les parametres obtenus.
+    "DL50 / CL50" = {
+      m <- ctx$meta %||% list()
+      dz <- suppressWarnings(as.numeric(m$doses %||% numeric(0)))
+      dn <- suppressWarnings(as.numeric(m$effectifs %||% numeric(0)))
+      dx <- suppressWarnings(as.numeric(m$morts %||% numeric(0)))
+      ok <- length(dz) >= 3L && length(dn) == length(dz) && length(dx) == length(dz)
+      temoin <- if (length(m$temoin_n) && is.finite(m$temoin_n) && m$temoin_n > 0)
+        sprintf("# Témoin : %s individus, %s mort(s).",
+                .hstat_rlog_num(m$temoin_n), .hstat_rlog_num(m$temoin_x %||% 0))
+      if (!ok) NULL
+      else if (identical(m$methode %||% "", "nulle"))
+        c("# Bioessai : les doses sont saisies dans le module, le script les reporte.",
+          temoin,
+          sprintf("dl50_dose  <- %s", .hstat_rlog_vec_num(dz)),
+          sprintf("dl50_n     <- %s", .hstat_rlog_vec_num(dn)),
+          sprintf("dl50_morts <- %s", .hstat_rlog_vec_num(dx)),
+          "dl50_modele <- glm(cbind(dl50_morts, dl50_n - dl50_morts) ~ log10(dl50_dose),",
+          "                   family = binomial(link = \"probit\"))",
+          "summary(dl50_modele)",
+          "# Doses létales : dose.p rend des log10, d'où la puissance de dix.",
+          "10^as.numeric(MASS::dose.p(dl50_modele, p = c(0.1, 0.5, 0.9)))")
+      else
+        c("# NON RECONSTITUÉ : la mortalité naturelle n'est pas nulle dans cet",
+          "# ajustement, et le modèle de Finney n'est alors pas un GLM binomial --",
+          "# glm() ne sait pas ajuster c dans p = c + (1 - c) . F(a + b . log d).",
+          "# Écrire un glm() ici rendrait un script plausible et faux.",
+          sprintf("# Paramètres obtenus par HStat : a = %s, b = %s, c = %s.",
+                  .hstat_rlog_num(m$a), .hstat_rlog_num(m$b), .hstat_rlog_num(m$c)),
+          temoin)
+    },
 
     "Séries temporelles" = if (length(v))
       c(sprintf("serie <- ts(%s$%s)", donnees, y),

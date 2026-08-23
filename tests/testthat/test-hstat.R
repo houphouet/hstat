@@ -8603,6 +8603,124 @@ test_that("la matrice d'information est assemblee sur les doses seules", {
   expect_lt(sqrt(solve(I)[3, 3]), 1e-3)
 })
 
+test_that("une mortalite naturelle DECLAREE n'est pas un parametre estime", {
+  # C'est la faute la plus couteuse que ce module ait portee, et elle etait
+  # entierement silencieuse. Sous « Abbott » et « mortalite nulle », c est
+  # DECLAREE -- lue sur le temoin, ou posee a zero. La matrice d'information a
+  # trois lignes etait pourtant inversee comme si c avait ete estimee : le bloc
+  # (a, b) payait alors une incertitude sur c que l'hypothese exclut.
+  ref <- .hstat_dl50_essai_ref()
+  d <- ref$doses$dose; n <- ref$doses$n; x <- ref$doses$x
+
+  # LA VERIFICATION QUI TRANCHE : a c = 0, le modele est EXACTEMENT un GLM
+  # binomial a lien probit sur le log10 de la dose. `glm()` est la reference
+  # universelle, et les deux doivent coincider -- pas approcher.
+  f0 <- hstat_dl50_ajuste(ref, "nulle")
+  g <- stats::glm(cbind(x, n - x) ~ log10(d), family = stats::binomial(link = "probit"))
+  expect_equal(unname(c(f0$a, f0$b)), unname(stats::coef(g)), tolerance = 1e-5)
+  expect_equal(unname(f0$V[1:2, 1:2]), unname(stats::vcov(g)), tolerance = 1e-5)
+
+  # Et l'erreur-type de la DL50 rejoint celle de MASS::dose.p, qui applique la
+  # delta-methode au meme ajustement.
+  if (requireNamespace("MASS", quietly = TRUE)) {
+    dp <- MASS::dose.p(g, p = 0.5)
+    dl0 <- hstat_dl50_doses_letales(f0, 50)
+    expect_equal(dl0$Log_dose[1], as.numeric(dp), tolerance = 1e-6)
+    expect_equal(dl0$Erreur_type[1], as.numeric(attr(dp, "SE")), tolerance = 1e-6)
+  }
+
+  # L'ampleur de la faute, pour qu'elle ne revienne pas sans se voir : inverser
+  # les trois lignes rendait var(a) = 0,589 au lieu de 0,184, et une
+  # erreur-type de DL50 6,5 fois trop grande.
+  I <- .hstat_dl50_fisher(log10(d), n, f0$a, f0$b, 0)
+  expect_gt(solve(I)[1, 1] / f0$V[1, 1], 3)
+
+  # c n'etant pas estimee, son ecart-type et ses covariances N'EXISTENT PAS.
+  # `NA` dit « sans objet » ; zero dirait « connue exactement », ce qui n'est
+  # pas la question posee.
+  expect_true(is.na(f0$V[3, 3]) && is.na(f0$V[1, 3]) && is.na(f0$V[2, 3]))
+  expect_true(all(is.finite(f0$V[1:2, 1:2])))
+
+  # Abbott : c fixee a la valeur du temoin, meme regle. On la controle contre
+  # le hessien OBSERVE de la log-vraisemblance a c fixee -- information
+  # attendue contre observee, elles ne coincident qu'a la taille d'echantillon
+  # pres, d'ou la tolerance large ; ce qui est verifie ici, c'est la DIMENSION.
+  ab <- hstat_dl50_ajuste(hstat_dl50_essai(d, n, x, 25, 3), "abbott")
+  Iab <- .hstat_dl50_fisher(log10(d), n, ab$a, ab$b, ab$c)
+  expect_equal(unname(ab$V[1:2, 1:2]), unname(solve(Iab[1:2, 1:2])), tolerance = 1e-9)
+  expect_gt(solve(Iab)[1, 1] / ab$V[1, 1], 2)
+
+  # L'INCOHERENCE ETAIT INTERNE : `npar` vaut deja 2 pour ces methodes -- c'est
+  # lui qui decide si le Chi-2 garde un degre de liberte residuel. Le meme
+  # ajustement comptait deux parametres pour le test et trois pour les
+  # variances.
+  expect_equal(f0$npar, 2L)
+  expect_equal(hstat_dl50_ajuste(ref, "em")$npar, 3L)
+
+  # EM : c EST estimee, les trois lignes restent -- et c'est le cas verifie
+  # contre WIN DL, qui ne doit pas bouger d'un chiffre.
+  fem <- hstat_dl50_ajuste(ref, "em")
+  expect_true(all(is.finite(fem$V)))
+  expect_equal(sqrt(fem$V[3, 3]), 4.38675e-01, tolerance = 1e-4)
+})
+
+test_that("le journal reconstitue le bioessai, et seulement quand c'est fidele", {
+  ref <- .hstat_dl50_essai_ref()
+  ctx <- function(f) list(module = "DL50 / CL50", title = "probit",
+    meta = list(a = f$a, b = f$b, c = f$c, methode = f$methode,
+                doses = f$essai$doses$dose, effectifs = f$essai$doses$n,
+                morts = f$essai$doses$x,
+                temoin_n = f$essai$n0, temoin_x = f$essai$x0))
+
+  # LE SEUL CAS FIDELE : a mortalite naturelle nulle, le modele de Finney EST
+  # un GLM binomial a lien probit. Le script est ecrit, et il doit RENDRE LES
+  # MEMES CHIFFRES -- c'est la seule verification qui vaille, un script qui
+  # s'execute sans rendre le bon resultat serait pire que pas de script.
+  f0 <- hstat_dl50_ajuste(ref, "nulle")
+  code <- hstat_rlog_code(ctx(f0))
+  expect_true(length(code) > 0)
+  env <- new.env()
+  expect_silent(eval(parse(text = paste(code, collapse = "\n")), envir = env))
+  m <- get("dl50_modele", envir = env)
+  expect_equal(unname(stats::coef(m)), unname(c(f0$a, f0$b)), tolerance = 1e-5)
+  if (requireNamespace("MASS", quietly = TRUE)) {
+    dl <- hstat_dl50_doses_letales(f0, c(10, 50, 90))
+    expect_equal(10^as.numeric(MASS::dose.p(m, p = c(0.1, 0.5, 0.9))),
+                 rev(dl$Dose), tolerance = 1e-5)
+  }
+
+  # LES DEUX AUTRES NE SONT PAS RECONSTITUABLES, et on l'ecrit plutot que
+  # d'ecrire un glm() plausible : `glm()` ne sait pas ajuster c dans
+  # p = c + (1 - c).F(a + b.log d). Un script qui differerait en silence de ce
+  # que l'application a calcule serait pire que pas de script.
+  for (meth in c("em", "abbott")) {
+    cd <- hstat_rlog_code(ctx(hstat_dl50_ajuste(ref, meth)))
+    expect_true(any(grepl("NON RECONSTITU", cd)))
+    # Aucune ligne EXECUTABLE : le commentaire, lui, nomme `glm()` -- il
+    # explique justement pourquoi on ne l'ecrit pas. Chercher la chaine sans
+    # ecarter les commentaires ferait echouer le test sur son propre texte.
+    expect_equal(cd[!grepl("^\\s*#", cd)], character(0))
+    # Les parametres obtenus figurent quand meme : sans eux le commentaire ne
+    # dit rien d'utile.
+    expect_true(any(grepl("a = 2.19", cd, fixed = TRUE)))
+  }
+
+  # Sans les doses, rien : le journal ne devine pas.
+  c2 <- ctx(f0); c2$meta$doses <- NULL
+  expect_null(hstat_rlog_code(c2))
+
+  # LES NOMBRES SONT ECRITS EN CODE R, PAS EN AFFICHAGE. Un separateur decimal
+  # francais rendrait le script inanalysable, et c'est exactement ce que
+  # `format()` produirait sous une locale francaise.
+  expect_equal(.hstat_rlog_num(0.00063), "0.00063")
+  expect_equal(.hstat_rlog_vec_num(c(1, 2.5)), "c(1, 2.5)")
+  expect_equal(.hstat_rlog_num(NA), "NA")
+  expect_false(any(grepl(",", strsplit(.hstat_rlog_num(1234.5), "")[[1]], fixed = TRUE)))
+
+  # Et le script COMPLET de session s'analyse.
+  expect_silent(parse(text = hstat_rlog_script(list(ctx(f0)))))
+})
+
 test_that("Fieller est exact, et cede a la delta-methode quand il n'est plus borne", {
   # FIELLER par definition : l'ensemble des m tels que
   #   (y - a - b m)^2 <= t^2 (Vaa + m^2 Vbb + 2 m Vab)
@@ -8657,11 +8775,38 @@ test_that("les trois methodes d'estimation de la mortalite naturelle se distingu
   expect_equal(ab$c, 4 / 90)
   expect_equal(nu$c, 0)
   expect_gt(em$c, 0)
-  # Forcer c a zero devant un temoin qui compte des morts fait porter cette
-  # mortalite par la pente : l'ajustement s'effondre, et ca doit se voir.
-  expect_true(nu$heterogene)
   expect_false(em$heterogene)
-  expect_gt(nu$facteur, 1)
+
+  # FORCER c A ZERO DEVANT UN TEMOIN QUI COMPTE DES MORTS EST UNE
+  # CONTRADICTION DE SAISIE, ET ELLE SE DIT PAR SON NOM.
+  #
+  # Ce test affirmait auparavant que l'ajustement « s'effondre » --
+  # `nu$heterogene` vrai, facteur superieur a 1. C'etait un ARTEFACT : le
+  # modele affirme p = 0 la ou le temoin montre des deces, la vraisemblance
+  # vaut moins l'infini, et `hstat_dl50_logvrais()` la bornait a 1e-12. Le
+  # Chi-2 ressortait fini mais entierement determine par cette borne (119,8 a
+  # 1e-10 ; 258,0 a 1e-20). Il pilotait le facteur d'heterogeneite, donc la
+  # largeur de tous les intervalles.
+  #
+  # Le temoin ne fait plus partie de la vraisemblance quand c est DECLAREE :
+  # l'ajustement se juge sur la serie de doses, comme le degre de liberte
+  # (doses - 2) et la matrice d'information le font deja. Ici cette serie
+  # s'ajuste bien, et c'est la verite -- ses mortalites vont de 33 % a 91 %,
+  # une droite les traverse sans peine avec ou sans correction.
+  expect_true(nu$temoin_contredit)
+  expect_false(isTRUE(em$temoin_contredit))
+  expect_false(isTRUE(ab$temoin_contredit))
+  al <- hstat_dl50_verdict(nu, 50)$alertes
+  expect_true(any(grepl("déclarée nulle", al)))
+
+  # ET LE CHI-2 NE DEPEND PLUS D'UNE CONSTANTE D'IMPLEMENTATION. C'est la
+  # verification qui compte : il ne porte plus que sur les doses, dont aucune
+  # probabilite ajustee n'approche la borne.
+  expect_equal(nu$chi2, 2 * (hstat_dl50_logvrais(e$doses$x, e$doses$n,
+                                                 e$doses$x / e$doses$n) -
+                             hstat_dl50_logvrais(e$doses$x, e$doses$n,
+                                                 nu$table$Mortalite_attendue)),
+               tolerance = 1e-10)
 
   # Le test Abbott/EM oppose c libre a c fixee au temoin : 1 degre de liberte.
   t <- hstat_dl50_test_abbott_em(e)
@@ -8669,6 +8814,33 @@ test_that("les trois methodes d'estimation de la mortalite naturelle se distingu
   expect_equal(t$ddl, 1L)
   expect_equal(t$c_abbott, 4 / 90)
   expect_true(nzchar(t$conseil))
+
+  # LES DEUX VRAISEMBLANCES PORTENT SUR LES MEMES DONNEES, temoin compris.
+  # C'est lui qui separe les deux modeles -- il dit ou est la mortalite
+  # naturelle. Prendre `ll0`, qui ne le contient plus quand c est declaree,
+  # chargeait la difference du terme du temoin : elle ressortait negative,
+  # `max(0, .)` la ramenait a zero, et le verdict devenait « les deux
+  # concordent » QUELLES QUE SOIENT LES DONNEES.
+  llc <- function(f) {
+    dd <- f$essai$doses
+    hstat_dl50_logvrais(dd$x, dd$n, f$table$Mortalite_attendue) +
+      hstat_dl50_logvrais(f$essai$x0, f$essai$n0, f$c)
+  }
+  expect_equal(t$chi2, 2 * (llc(em) - llc(ab)), tolerance = 1e-8)
+  # Abbott est EM contraint a c = x0/n0 : la difference est positive par
+  # construction, EM maximisant exactement cet objectif. Un test qui buterait
+  # sur le plancher a zero serait un test qui ne teste plus rien.
+  expect_gt(t$chi2, 0)
+
+  # Et il DISTINGUE : sur un essai ou le temoin contredit les doses, la
+  # statistique doit decoller. Temoin a 30 %, doses tres mortelles des la plus
+  # faible : EM ne peut pas placer c la ou Abbott l'impose.
+  e2 <- hstat_dl50_essai(c(0.01, 0.02, 0.05, 0.1, 0.2), rep(200, 5),
+                         c(20, 44, 96, 150, 186), 200, 60)
+  t2 <- hstat_dl50_test_abbott_em(e2)
+  expect_true(t2$ok)
+  expect_gt(t2$chi2, t$chi2)
+  expect_lt(t2$p, 0.05)
 })
 
 test_that("moins de trois doses exploitables : le calcul est refuse, en le disant", {
