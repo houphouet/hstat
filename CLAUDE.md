@@ -1159,6 +1159,137 @@ sur chaque matière active ferait croire qu'il faut prélever autant de fois.
 Les concentrations sont ramenées à g/L avant d'être sommées : additionner des
 pour-cent et des mg/L donnerait un total qui ne veut rien dire.
 
+## DL50 / CL50 : reproduire WIN DL, au chiffre près
+
+`mod_dl50.R` refait ce que faisait **WIN DL** (CIRAD — Giner & Joly 1993 pour
+la version DOS, MABIS et le Programme Coton pour la version Windows) :
+régression probit dose-mortalité, doses létales, intervalles, comparaison
+d'essais.
+
+Le modèle est celui de Finney (1971), et rien d'autre :
+
+```
+P'(d) = c + (1 − c) · F(a + b · log10(d))        DLp = 10^((F⁻¹(p) − a) / b)
+```
+
+**La conformité numérique est vérifiée contre le logiciel lui-même**, pas
+contre une réimplémentation. Le fichier de résultats `CL94AC1.PRN` (7 doses,
+25 insectes, témoin 25/0) est reproduit à 5 ou 6 chiffres significatifs sur
+`a`, `b`, `c`, les deux log-vraisemblances, le Chi-2, les six termes de
+variance et les DL10/50/90 avec leurs bornes. Ces valeurs sont **inscrites en
+dur dans la suite de tests** : elles ne dépendent d'aucun fichier extérieur,
+sans quoi le test qui garde le noyau ne tournerait pas en intégration
+continue.
+
+### Deux conventions du logiciel, qu'il a fallu retrouver
+
+Aucune des deux ne se devine, et chacune se voit sur les nombres publiés.
+
+1. **La log-vraisemblance est écrite sans les coefficients binomiaux.** WIN DL
+   rend −105,636 là où R rend −12,559 : l'écart vaut exactement
+   `sum(log(choose(n, x)))`. Il ne dépend pas des paramètres, donc tout
+   *rapport* de vraisemblance est identique — mais la valeur affichée, elle,
+   ne l'est pas, et c'est elle que les rapports de bioessai recopient.
+2. **La matrice d'information de Fisher est assemblée sur les doses seules.**
+   Le lot témoin apporte pourtant de l'information sur `c` — mais sa
+   contribution vaut `n0/(c(1−c))`, donc **infinie dès que c vaut 0**, ce qui
+   rendrait un écart-type nul sur la mortalité naturelle. WIN DL affiche
+   ET(c) = 0,4387 sur un essai où `c` vaut exactement zéro : le témoin n'y est
+   pas. C'est aussi le choix prudent — l'incertitude sur `c` y est plus grande,
+   jamais plus petite.
+
+Même remarque pour le **degré de liberté** du test d'ajustement : le manuel
+écrit `nombre de doses − 2`, et le fichier de référence le confirme (7 doses,
+ddl = 5) **y compris quand `c` est estimée**, où la théorie voudrait retirer un
+paramètre de plus. C'est ce ddl qui fixe le seuil au-delà duquel le facteur
+d'hétérogénéité s'applique : le changer déplacerait ce seuil.
+
+### Fieller cède la place à la delta-méthode, et cela se voit
+
+L'intervalle d'une dose létale est un rapport, `(F⁻¹(p) − a) / b`. Le théorème
+de Fieller le donne exactement tant que
+
+```
+g = t² · var(b) / b²  <  1
+```
+
+Au-delà, l'ensemble des valeurs compatibles n'est plus borné. **Ce n'est pas un
+détail d'implémentation** : l'essai de référence est à g = 1,44, et WIN DL y
+publie bien des bornes *symétriques* en log-dose, celles de la delta-méthode
+(Morgan, 1992).
+
+Piège corrigé, à ne pas réintroduire : une écriture approchée du terme sous la
+racine — `v(1−g) + g(...)` au lieu de `b²v − g(V_aa − V_ab²/V_bb)` — rendait
+des bornes qui **n'encadraient même pas l'estimation** (DL50 = 0,0176 pour un
+intervalle [0,00055 ; 0,0071]). Le test compare désormais le résultat aux
+**racines du polynôme** qui définit Fieller, à 1e-8 ; et il vérifie la limite
+qui trahit la faute : quand `g` tend vers 0, la demi-largeur doit tendre vers
+`t · ET(m)`, celle de la delta-méthode.
+
+### `doses_letales()` trie ses lignes — n'y recollez rien dans l'ordre de saisie
+
+La fonction rend ses seuils par ordre **décroissant**. `hstat_dl50_dose_pour()`
+y recollait la mortalité demandée dans l'ordre de saisie : toutes les colonnes
+se décalaient, et l'on lisait la dose de la DL25 sur la ligne de la DL95 — un
+tableau parfaitement plausible, entièrement faux. Le calcul se fait donc **une
+ligne à la fois**.
+
+### La table de saisie passe par un proxy DT
+
+Relire `saisie()` dans `renderDT` reconstruit la table à **chaque cellule
+modifiée** : celle qu'on est en train d'éditer est détruite sous le curseur, et
+deux saisies rapprochées se perdent l'une l'autre. La table n'est donc
+construite qu'une fois (`isolate()`), puis mise à jour par
+`DT::replaceData()` sur son proxy. C'est l'idiome prévu par DT, et le seul qui
+rende la saisie utilisable.
+
+### La dose zéro est le témoin, elle n'est pas écartée
+
+Son logarithme n'existe pas : elle ne peut pas entrer dans la régression. Mais
+l'écarter en silence perdrait la **mortalité naturelle** de l'essai — celle qui
+change toute la courbe de réponse. `hstat_dl50_depuis_donnees()` l'extrait et
+en fait le témoin.
+
+### Les listes existent pour que la sélection fonctionne
+
+Ce sont deux pièces de WIN DL qui n'ont l'air de rien et qui se tiennent l'une
+l'autre. Le manuel le dit sans détour : « il est conseillé pour les ajouts dans
+les listes de ne pas utiliser des orthographes différentes pour décrire un même
+élément **car la sélection de fichiers serait inefficace** ». Deux essais notés
+« Cyfluthrine » et « cyfluthrine » ne se retrouvent jamais ensemble ; le
+vocabulaire contrôlé est ce qui l'évite.
+
+D'où trois décisions :
+
+1. **Le doublon est refusé casse comprise**, et il est *annoncé*. Le taire
+   ferait croire à un ajout.
+2. **Un critère vide ne filtre pas.** C'est la différence entre « je ne demande
+   rien sur l'espèce » et « je demande une espèce qui n'existe pas » : traiter
+   le premier comme le second ne rendrait jamais aucun essai, et l'utilisateur
+   conclurait que son fonds est vide. `selection()` distingue donc `NULL`
+   (aucune sélection active) de `character(0)` (sélection vide) — et l'écran
+   les distingue aussi.
+3. **La seconde matière active et le ratio ne servent que si l'on trie sur les
+   deux**, la case « (MA1) ou (MA1 et MA2) » du logiciel. Sans elle, un essai à
+   une seule matière active serait écarté par un critère qui ne le concerne
+   pas.
+
+La température suit le manuel : une valeur → égalité, deux → intervalle. Les
+bornes sont **remises dans l'ordre** plutôt que de rendre zéro essai sur une
+inversion de saisie, qui n'apprendrait rien à personne.
+
+### Les fichiers natifs se lisent en octets, pas en lignes
+
+Les séparateurs de champ de la première ligne d'un fichier WIN DL sont les
+octets **0x00 à 0x09**. `readLines()` s'arrête sur le premier zéro
+(« nul character not allowed ») et perdrait l'en-tête entier. Le découpage en
+lignes se fait donc aussi sur les octets : `rawToChar()` sur l'ensemble
+rendrait une chaîne invalide dans la locale courante — les accents du CP437 ne
+sont pas de l'UTF-8 — et `strsplit()` refuserait de travailler dessus.
+
+L'écriture est symétrique, et pour la même raison : le zéro ne peut pas exister
+dans une chaîne de R, l'en-tête se monte donc en `raw`.
+
 ## Variables à valeurs nulles : trois frontières, trois pièges
 
 `hstat_vars_zero()` liste les colonnes dont **toutes les valeurs observées**
