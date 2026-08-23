@@ -8843,6 +8843,116 @@ test_that("le journal reconstitue le bioessai, et seulement quand c'est fidele",
   expect_silent(parse(text = hstat_rlog_script(list(ctx(f0)))))
 })
 
+test_that("la saisie en pourcentage arrondit, et le dit", {
+  # Beaucoup d'operateurs notent « 40 % » plutot que « 12 sur 30 ». La
+  # conversion est triviale ; ce qui ne l'est pas, c'est que le modele binomial
+  # a besoin d'un ENTIER.
+
+  # 1. LE CAS EXACT ne signale rien.
+  r <- hstat_dl50_pct_vers_morts(c(30, 30), c(40, 50))
+  expect_equal(as.numeric(r), c(12, 15))
+  expect_equal(attr(r, "arrondies"), integer(0))
+
+  # 2. L'ARRONDI CHANGE LE POURCENTAGE, et il est nomme. 40 % de 7 font 2,8 :
+  #    on enregistre 3, soit 42,857 %.
+  r <- hstat_dl50_pct_vers_morts(7, 40)
+  expect_equal(as.numeric(r), 3)
+  expect_equal(attr(r, "arrondies"), 1L)
+  expect_equal(attr(r, "ecart"), 100 * 3 / 7 - 40, tolerance = 1e-9)
+
+  # 3. DEUX POURCENTAGES DIFFERENTS DONNENT LE MEME EFFECTIF. C'est la raison
+  #    de fond de l'avertissement : une saisie plus fine que l'essai ne
+  #    l'autorise promet une precision qui n'existe pas.
+  expect_equal(as.numeric(hstat_dl50_pct_vers_morts(7, 40)),
+               as.numeric(hstat_dl50_pct_vers_morts(7, 43)))
+
+  # 4. LES MOITIES VONT VERS LE HAUT. `round()` arrondit au PAIR en R :
+  #    `round(2.5)` vaut 2. « 50 % de 5 individus » rendrait donc 2, ce que
+  #    personne n'attend -- et le defaut serait invisible sauf sur les
+  #    effectifs impairs.
+  expect_equal(as.numeric(hstat_dl50_pct_vers_morts(5, 50)), 3)
+  expect_equal(as.numeric(hstat_dl50_pct_vers_morts(5, 30)), 2)
+  expect_false(identical(as.numeric(hstat_dl50_pct_vers_morts(5, 50)),
+                         as.numeric(round(5 * 0.5))))
+
+  # 5. LES BORNES SONT TENUES : jamais moins de zero mort, jamais plus que
+  #    l'effectif -- une saisie a 120 % est une faute de frappe, pas un essai.
+  expect_equal(as.numeric(hstat_dl50_pct_vers_morts(20, c(-5, 0, 100, 120))),
+               c(0, 0, 20, 20))
+
+  # 6. UN POURCENTAGE SANS EFFECTIF NE DONNE RIEN, et les lignes sont comptees.
+  r <- hstat_dl50_pct_vers_morts(c(NA, 0, 25), c(50, 50, 50))
+  expect_true(all(is.na(as.numeric(r)[1:2])))
+  expect_equal(as.numeric(r)[3], 12.5 + 0.5)
+  expect_equal(attr(r, "sans_effectif"), c(1L, 2L))
+
+  # 7. LE CHEMIN INVERSE est une simple lecture, et il ne perd rien.
+  expect_equal(hstat_dl50_morts_vers_pct(c(30, 7, NA, 0), c(12, 3, 5, 5)),
+               c(40, 100 * 3 / 7, NA, NA))
+  n <- c(25, 30, 90); x <- c(5, 12, 43)
+  expect_equal(as.numeric(hstat_dl50_pct_vers_morts(
+                 n, hstat_dl50_morts_vers_pct(n, x))), x)
+
+  # Et l'ajustement ne voit aucune difference : ce sont les memes effectifs.
+  d <- c(0.00063, 0.00125, 0.0025, 0.005, 0.01, 0.02, 0.03)
+  xx <- c(5, 7, 9, 11, 14, 18, 20)
+  pct <- hstat_dl50_morts_vers_pct(rep(25, 7), xx)
+  f1 <- hstat_dl50_ajuste(hstat_dl50_essai(d, rep(25, 7), xx, 25, 0), "em")
+  f2 <- hstat_dl50_ajuste(hstat_dl50_essai(
+    d, rep(25, 7), as.numeric(hstat_dl50_pct_vers_morts(rep(25, 7), pct)),
+    25, 0), "em")
+  expect_equal(f1$a, f2$a); expect_equal(f1$b, f2$b)
+})
+
+test_that("les quatre tests de comparaison sont ceux du manuel de WIN DL", {
+  # Le manuel enumere QUATRE tests de rapport de vraisemblance -- ajustement
+  # lineaire, identite des droites, mortalite naturelle, parallelisme -- selon
+  # l'un de TROIS scenarios de definition de la mortalite naturelle :
+  # heterogene (propre a chaque essai, estimee), homogene (commune, estimee),
+  # ou fixee a zero.
+  #
+  # Aucun fichier de sortie livre avec le logiciel n'exerce ces tests : ils ne
+  # sont donc PAS confrontes chiffre a chiffre, a la difference de
+  # l'ajustement. Ce test epingle au moins leur STRUCTURE, pour qu'un
+  # renommage ou une disparition se voie.
+  expect_equal(unname(HSTAT_DL50_SCENARIOS), c("heterogene", "homogene", "nulle"))
+
+  # DEUX JEUX, parce que le scenario a mortalite nulle REFUSE des essais dont
+  # le temoin compte des morts -- et c'est juste : poser c = 0 devant un temoin
+  # qui en montre serait une contradiction de saisie, pas une hypothese.
+  e1 <- hstat_dl50_essai(c(0.05, 0.1, 0.25, 0.5, 1, 2), rep(120, 6),
+                         c(18, 33, 58, 80, 101, 113), 120, 3)
+  e2 <- hstat_dl50_essai(c(0.05, 0.1, 0.25, 0.5, 1, 2), rep(120, 6),
+                         c(9, 19, 38, 60, 85, 105), 120, 4)
+  z1 <- hstat_dl50_essai(c(0.05, 0.1, 0.25, 0.5, 1, 2), rep(120, 6),
+                         c(15, 30, 55, 78, 100, 113), 120, 0)
+  z2 <- hstat_dl50_essai(c(0.05, 0.1, 0.25, 0.5, 1, 2), rep(120, 6),
+                         c(6, 16, 35, 58, 84, 105), 120, 0)
+
+  # Le refus est explicite et il porte un motif -- pas un tableau vide.
+  ref <- hstat_dl50_comparaison(list(A = e1, B = e2), scenario = "nulle")
+  expect_equal(nrow(ref), 0L)
+  expect_true(nzchar(attr(ref, "message") %||% ""))
+
+  for (sc in unname(HSTAT_DL50_SCENARIOS)) {
+    jeu <- if (identical(sc, "nulle")) list(A = z1, B = z2) else list(A = e1, B = e2)
+    r <- hstat_dl50_comparaison(jeu, scenario = sc)
+    expect_equal(nrow(r), 4L, info = sc)
+    expect_equal(attr(r, "scenario"), sc)
+    expect_true(any(grepl("[Aa]justement", r$Hypothese)), info = sc)
+    expect_true(any(grepl("Identit", r$Hypothese)), info = sc)
+    expect_true(any(grepl("[Pp]arall", r$Hypothese)), info = sc)
+    # Le troisieme porte sur la mortalite naturelle, et son libelle SUIT le
+    # scenario : sous « nulle » on teste que c vaut zero, sinon qu'elles sont
+    # egales. Un libelle fige annoncerait le mauvais test.
+    expect_true(any(grepl(if (identical(sc, "nulle")) "[Nn]ullit" else "galit",
+                          r$Hypothese)), info = sc)
+    # AUCUN TEST SANS DEGRE DE LIBERTE : c'est le defaut qui avait ete corrige
+    # sur le troisieme, ou comparer le modele de base a lui-meme donnait ddl 0.
+    expect_true(all(is.na(r$DDL) | r$DDL > 0), info = sc)
+  }
+})
+
 test_that("Fieller est exact, et cede a la delta-methode quand il n'est plus borne", {
   # FIELLER par definition : l'ensemble des m tels que
   #   (y - a - b m)^2 <= t^2 (Vaa + m^2 Vbb + 2 m Vab)
@@ -9613,7 +9723,28 @@ test_that("le module DL50 est branche et depose son contexte", {
   # que l'on est en train d'editer.
   expect_true(grepl("DT::dataTableProxy(\"saisie\")", mod, fixed = TRUE))
   expect_true(grepl("DT::replaceData(proxy_saisie", mod, fixed = TRUE))
-  expect_true(grepl("shiny::isolate(saisie())", mod, fixed = TRUE))
+  # Le corps du rendu lit la table SOUS `isolate` -- le nom du reactif a
+  # change quand la saisie en pourcentage est arrivee (`saisie_affichee()`),
+  # et epingler la chaine exacte faisait echouer le test sur un renommage
+  # alors que la propriete gardee, elle, tenait toujours.
+  # `(?s)` : sans le mode « point-mange-la-ligne », le motif ne franchit pas le
+  # premier retour a la ligne et ne ramene RIEN. Un bloc vide fait passer les
+  # verifications suivantes sans rien lire -- le test qui ne balaie rien.
+  bloc <- regmatches(mod, regexpr(
+    "(?s)output\\$saisie <- DT::renderDT\\(\\{.*?\\n    \\}\\)", mod, perl = TRUE))
+  expect_equal(length(bloc), 1L)
+  expect_gt(nchar(bloc), 200)
+  expect_true(grepl("shiny::isolate(", bloc, fixed = TRUE))
+  # ET LA TABLE N'EST LUE QUE LA. On retire du bloc les appels a `isolate()`,
+  # puis on exige qu'il ne reste plus aucune lecture du reactif de saisie : une
+  # lecture nue rendrait le rendu dependant de chaque cellule modifiee, et
+  # ramenerait exactement le defaut que le proxy existe pour eviter.
+  reste <- gsub("shiny::isolate\\([^)]*\\)", "", bloc)
+  expect_false(grepl("saisie_affichee()", reste, fixed = TRUE))
+  expect_false(grepl("saisie()", reste, fixed = TRUE))
+  # Le choix d'unite, lui, DOIT y etre lu nu : l'en-tete de colonne le suit, et
+  # la table doit donc etre reconstruite quand il change.
+  expect_true(grepl("input$saisieUnite", reste, fixed = TRUE))
 })
 
 test_that("le module de doses est branche et depose son contexte", {

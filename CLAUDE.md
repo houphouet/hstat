@@ -1268,6 +1268,88 @@ déjà en toutes lettres — l'estimation par EM « permet de prendre en compte
 l'incertitude sur l'estimation de cette mortalité, **ce que la formule d'ABBOTT
 ne fait pas** » — les chiffres du logiciel le confirment.
 
+### Saisie en pourcentage : l'arrondi est le sujet, pas la conversion
+
+Beaucoup d'opérateurs notent « 40 % » plutôt que « 12 sur 30 ». La conversion
+est triviale ; ce qui ne l'est pas, c'est que le modèle binomial a besoin d'un
+**entier**. Trois pièges, tous silencieux, tous testés :
+
+1. **L'arrondi change le pourcentage, et il faut le dire.** 40 % de 7 individus
+   font 2,8 : on enregistre 3, soit 42,86 %. Rendre la valeur sans le signaler
+   laisse croire que l'essai porte le chiffre saisi.
+2. **Deux pourcentages différents donnent le même effectif.** Sur n = 7, 40 % et
+   43 % rendent tous deux 3 morts. Une saisie plus fine que l'essai ne
+   l'autorise n'ajoute pas d'information, elle en promet une qui n'existe pas.
+3. **`round()` arrondit au pair en R** : `round(2.5)` vaut 2, pas 3. « 50 % de 5
+   individus » rendrait donc 2, ce que personne n'attend — et le défaut ne se
+   verrait que sur les effectifs impairs. On arrondit moitiés vers le haut.
+
+**C'est l'effectif qui est conservé**, le pourcentage n'en est qu'une lecture :
+garder le pourcentage comme source obligerait à reconvertir à chaque calcul,
+donc à arrondir plusieurs fois, ce qui ne rend pas toujours le même nombre.
+
+Piège d'implémentation attrapé par le test : **les opérateurs vectoriels
+recyclent, l'indexation non.** `n[ok]` sur un effectif de longueur 1 et un
+masque de longueur 4 rend `20 NA NA NA` — trois lignes sur quatre ressortaient
+vides, et seulement quand un seul effectif sert à plusieurs doses, c'est-à-dire
+dans le cas le plus courant. D'où le `rep_len()` explicite.
+
+### Deux artefacts de repeinture de DT, connus et laissés en l'état
+
+Après une édition **venue de la table**, deux choses restent sur l'état
+précédent jusqu'au redessin suivant : la cellule modifiée s'affiche **vide**, et
+la note d'arrondi garde l'ancien texte. DT tient une copie des données côté
+navigateur, et `replaceData` réécrit le corps pendant que DT croit encore éditer
+la cellule.
+
+Les deux **précèdent** la saisie en pourcentage — la cellule blanche se voit
+déjà sur la colonne des morts. Vérifié à la sonde : le serveur range la bonne
+valeur et recalcule bien la note ; c'est l'affichage qui traîne. Coller, ajouter
+une ligne ou basculer l'unité remet tout d'aplomb.
+
+`DT::editData()` corrige la cellule blanche mais **ne reconstruit pas** la
+table : essayé, le tableau restait vide après un collage et la bascule d'unité
+n'affichait plus les pourcentages — bien pire que ce qu'on corrigeait. Un
+aiguillage sur le nombre de lignes n'a pas suffi non plus. On garde donc
+`replaceData`, qui fonctionne dans tous les cas.
+
+### Le mode guidé, et les limites héritées
+
+La **fiche de l'essai** est repliée par défaut : vingt champs d'identification
+s'ouvraient au-dessus du tableau de doses alors qu'aucun ne change un calcul, et
+poussaient hors de l'écran la seule chose qu'il faut vraiment saisir. Un encart
+dit désormais le minimum — doses, effectifs, morts, témoin, et **trois doses au
+moins** de mortalité corrigée intermédiaire — avant la saisie plutôt qu'en refus
+après coup.
+
+Les deux limites (**6 essais**, **100 doses**) sont celles de WIN DL, reprises
+pour rester comparable. Elles étaient appliquées en silence : on les rencontrait
+sous forme de refus, sans savoir d'où elles venaient ni si elles tenaient à
+HStat. Elles sont maintenant nommées et attribuées.
+
+### Le compte d'itérations ne se compare pas
+
+Les deux algorithmes atteignent le même optimum — a, b et c coïncident à six
+chiffres — mais pas au même rythme : sur l'essai de référence, HStat converge en
+**3 boucles EM** (6 itérations de Newton-Raphson cumulées) là où le logiciel en
+annonce **75**.
+
+La cause est mesurée : la mortalité naturelle y vaut exactement zéro, et HStat
+part de la valeur du témoin — ici 0/25, donc zéro. L'étape [E] rend alors des
+poids nuls et `c` ne bouge plus. WIN DL, lui, rampe vers cette borne.
+Reproduire son compte demanderait de **ralentir délibérément** l'algorithme pour
+une valeur d'affichage. Le libellé dit donc de qui est le compte, plutôt que de
+laisser croire à un désaccord.
+
+### Les quatre tests de comparaison ne sont pas confrontés
+
+Le manuel les énumère — ajustement linéaire, identité des droites, mortalité
+naturelle, parallélisme — selon l'un des trois scénarios, et HStat les
+implémente ainsi. Mais **aucun fichier de sortie livré avec le logiciel ne les
+exerce** : à la différence de l'ajustement, ils ne sont pas confrontés chiffre à
+chiffre. Un test épingle au moins leur structure, pour qu'un renommage ou une
+disparition se voie.
+
 ### « Mortalité nulle » n'est pas une méthode de WIN DL
 
 Le logiciel n'en propose que **deux** pour un essai isolé : Newton-Raphson avec

@@ -324,6 +324,58 @@ hstat_dl50_probit <- function(p) {
 }
 
 # ---------------------------------------------------------------------------
+#  SAISIE EN POURCENTAGE : l'arrondi est le sujet, pas la conversion
+# ---------------------------------------------------------------------------
+#  Beaucoup d'operateurs notent « 40 % » plutot que « 12 sur 30 ». La
+#  conversion est triviale ; ce qui ne l'est pas, c'est que le modele binomial
+#  a besoin d'un ENTIER. Trois pieges, tous silencieux :
+#
+#  1. L'ARRONDI CHANGE LE POURCENTAGE, et il faut le dire. 40 % de 7 individus
+#     font 2,8 : on enregistre 3, soit 42,86 %. Rendre la valeur sans le
+#     signaler laisse croire que l'essai porte le chiffre saisi.
+#  2. DEUX POURCENTAGES DIFFERENTS DONNENT LE MEME EFFECTIF. Sur n = 7, 40 % et
+#     43 % rendent tous deux 3 morts. Une saisie plus fine que l'essai ne
+#     l'autorise n'ajoute pas d'information, elle en promet une qui n'existe
+#     pas.
+#  3. `round()` ARRONDIT AU PAIR EN R : `round(2.5)` vaut 2, pas 3. « 50 % de
+#     5 individus » rendrait donc 2, ce que personne n'attend. On arrondit au
+#     plus proche, moities vers le haut -- la convention de l'operateur.
+#
+#  Un pourcentage sans effectif ne donne rien : il reste `NA`, et le compte des
+#  lignes concernees est rendu a part.
+hstat_dl50_pct_vers_morts <- function(effectif, pct) {
+  p <- suppressWarnings(as.numeric(pct))
+  # `n` EST RECYCLE EXPLICITEMENT. Les operateurs vectoriels le recyclent tout
+  # seuls, mais l'INDEXATION non : `n[ok]` sur un effectif de longueur 1 et un
+  # masque de longueur 4 rend `20 NA NA NA`, et trois lignes sur quatre
+  # ressortaient vides. Le defaut ne se voit que lorsqu'un seul effectif sert a
+  # plusieurs doses -- c'est-a-dire dans le cas le plus courant.
+  n <- rep_len(suppressWarnings(as.numeric(effectif)), length(p))
+  ok <- is.finite(n) & n > 0 & is.finite(p)
+  x <- rep(NA_real_, length(p))
+  brut <- n * p / 100
+  x[ok] <- floor(brut[ok] + 0.5)
+  x[ok] <- pmin(pmax(x[ok], 0), n[ok])
+  ecart <- rep(NA_real_, length(p))
+  ecart[ok] <- 100 * x[ok] / n[ok] - p[ok]
+  structure(x, ecart = ecart,
+            arrondies = which(ok & abs(ecart) > 1e-9),
+            sans_effectif = which(!ok & is.finite(p)))
+}
+
+# Le chemin inverse, pour l'affichage. Il ne perd rien : c'est l'effectif qui
+# fait foi, le pourcentage n'en est qu'une lecture.
+hstat_dl50_morts_vers_pct <- function(effectif, morts) {
+  n <- suppressWarnings(as.numeric(effectif))
+  x <- suppressWarnings(as.numeric(morts))
+  ifelse(is.finite(n) & n > 0 & is.finite(x), 100 * x / n, NA_real_)
+}
+
+HSTAT_DL50_UNITES_SAISIE <- c(
+  "Morts (effectif)"  = "morts",
+  "Mortalité (%)"     = "pct")
+
+# ---------------------------------------------------------------------------
 #  Un essai : la structure d'entree
 # ---------------------------------------------------------------------------
 hstat_dl50_essai <- function(dose, effectif, morts, temoin_n = 0, temoin_morts = 0,
@@ -1344,7 +1396,7 @@ hstat_dl50_prn <- function(fit, nom_fichier = "") {
         names(HSTAT_DL50_METHODES)[match(fit$methode, HSTAT_DL50_METHODES)]),
     tr("Résultats de la régression :"),
     if (fit$converge)
-      trf("  ** Convergence atteinte après %d itérations (écart absolu sur log-vraisemblance < 1e-5)",
+      trf("  ** Convergence atteinte après %d itérations de HStat (écart absolu sur log-vraisemblance < 1e-5 ; le compte dépend de l'algorithme et ne se compare pas à celui de WIN DL)",
           fit$iterations)
     else trf("  ** Convergence NON atteinte après %d itérations", fit$iterations),
     tr("Paramètres statistiques de la régression :"),
@@ -2004,6 +2056,19 @@ mod_dl50_ui <- function(id) {
                 shiny::HTML("<b>Fichier WIN DL</b> <small style='color:#7f8c8d;'>(.TXT natif)</small>")),
               choiceValues = list("manual", "dataset", "windl"), selected = "manual"),
 
+            # CE QU'IL FAUT POUR CALCULER, dit avant de saisir plutot qu'en
+            # refus apres coup. Le seuil des trois doses utiles est la regle de
+            # WIN DL, et c'est le refus que l'on rencontre le plus souvent sans
+            # comprendre pourquoi.
+            shiny::div(class = "callout callout-success",
+                       style = "margin:10px 0;padding:8px 12px;font-size:0.92em;",
+              shiny::strong("Le minimum pour calculer :"),
+              shiny::tags$ul(style = "margin:6px 0 0 0;padding-left:18px;",
+                shiny::tags$li("les doses, l'effectif testé et les morts de chaque dose ;"),
+                shiny::tags$li("l'effectif et les morts du lot témoin (0 et 0 s'il n'y en a pas) ;"),
+                shiny::tags$li(shiny::HTML("<b>trois doses au moins</b> dont la mortalité corrigée ne soit ni 0 % ni 100 % — en deçà, la droite n'est pas déterminée et le calcul est refusé, comme dans WIN DL."))),
+              shiny::HTML("La <i>fiche de l'essai</i> ci-contre est facultative : elle identifie l'essai, elle ne change aucun calcul.")),
+
             shiny::conditionalPanel(
               condition = sprintf("input['%s'] == 'dataset'", ns("source")),
               shiny::helpText("Les colonnes viennent du jeu de travail : tout ce que",
@@ -2029,8 +2094,14 @@ mod_dl50_ui <- function(id) {
                               " champ invisibles, marqueur de fin de fichier."))),
 
           shinydashboard::box(
-            title = shiny::tagList(shiny::icon("vial"), " Fiche de l'essai"),
-            status = "info", width = 8, solidHeader = TRUE, collapsible = TRUE,
+            title = shiny::tagList(shiny::icon("vial"), " Fiche de l'essai (facultative)"),
+            # REPLIEE PAR DEFAUT. Vingt champs d'identification s'ouvraient
+            # au-dessus du tableau de doses, alors qu'aucun ne change un
+            # calcul -- ils poussaient hors de l'ecran la seule chose qu'il
+            # faut vraiment saisir. Qui en a besoin ouvre la boite ; qui veut
+            # trois doses et un temoin ne la voit plus.
+            status = "info", width = 8, solidHeader = TRUE,
+            collapsible = TRUE, collapsed = TRUE,
             shiny::textInput(ns("titre"), "Titre de l'essai",
                              placeholder = "ex : C. leucotreta référence cyperméthrine"),
             shiny::fluidRow(
@@ -2066,8 +2137,16 @@ mod_dl50_ui <- function(id) {
                   shiny::tagList(shiny::icon("plus"), " Ligne"), class = "btn-sm"),
                 shiny::actionButton(ns("vider"),
                   shiny::tagList(shiny::icon("eraser"), " Vider"), class = "btn-sm")))),
+            # LA TROISIEME COLONNE SE SAISIT DANS L'UNE OU L'AUTRE UNITE.
+            # Beaucoup d'operateurs notent « 40 % » plutot que « 12 sur 30 » ;
+            # c'est l'effectif qui est conserve, le pourcentage n'en est qu'une
+            # lecture -- le modele binomial a besoin d'un entier.
+            shiny::radioButtons(ns("saisieUnite"), "Troisième colonne",
+              choices = HSTAT_DL50_UNITES_SAISIE, selected = "morts",
+              inline = TRUE),
             shiny::helpText("Double-cliquez une cellule pour la modifier."),
             DT::DTOutput(ns("saisie")),
+            shiny::uiOutput(ns("noteArrondi")),
             shiny::br(),
             shiny::actionButton(ns("enregistrer"),
               shiny::tagList(shiny::icon("floppy-disk"), " Enregistrer cet essai"),
@@ -2100,7 +2179,18 @@ mod_dl50_ui <- function(id) {
             shiny::actionButton(ns("retirer"),
               shiny::tagList(shiny::icon("trash"), " Retirer cet essai"),
               class = "btn-sm btn-danger"),
-            shiny::helpText("Six essais au maximum, la limite de WIN DL.")))),
+            # LES DEUX LIMITES SONT CELLES DE WIN DL, ET ELLES SE DISENT.
+            # Elles etaient appliquees en silence : on les rencontrait sous
+            # forme de refus, sans savoir d'ou elles venaient ni si elles
+            # tenaient a HStat.
+            shiny::helpText(
+              trf(paste("Deux limites héritées de WIN DL, reprises pour rester",
+                        "comparable avec lui : %d essais en mémoire au plus —",
+                        "c'est ce que sa fenêtre de comparaison accepte — et %d",
+                        "doses par essai. Aucune ne tient à HStat ; elles ne",
+                        "gênent pas un bioessai courant, qui compte cinq à huit",
+                        "doses."),
+                  HSTAT_DL50_ESSAIS_MAX, HSTAT_DL50_DOSES_MAX))))),
 
       # ------------------------------------------------------------------
       shiny::tabPanel(
@@ -2531,20 +2621,52 @@ mod_dl50_server <- function(id, values) {
       st
     }
 
-    # LA TABLE N'EST CONSTRUITE QU'UNE FOIS, et mise a jour ensuite par son
-    # proxy. Relire `saisie()` dans le rendu la reconstruirait a CHAQUE cellule
-    # modifiee : la cellule en cours d'edition est alors detruite sous le
-    # curseur, et deux saisies rapprochees se perdent l'une l'autre. C'est
-    # l'idiome prevu par DT, et le seul qui rende la saisie utilisable.
+    # L'EFFECTIF EST CE QUI EST CONSERVE ; le pourcentage n'en est qu'une
+    # lecture. Le modele binomial a besoin d'un entier, et garder le
+    # pourcentage comme source obligerait a le reconvertir a chaque calcul --
+    # donc a arrondir plusieurs fois, ce qui ne rend pas toujours le meme
+    # nombre.
+    en_pct <- function() identical(input$saisieUnite %||% "morts", "pct")
+    saisie_affichee <- shiny::reactive({
+      d <- saisie()
+      if (en_pct())
+        d$Morts <- round(hstat_dl50_morts_vers_pct(d$Effectif, d$Morts), 4)
+      d
+    })
+
+    # LA TABLE N'EST RECONSTRUITE QUE SUR CHANGEMENT D'UNITE, et mise a jour
+    # ensuite par son proxy. Relire `saisie()` dans le rendu la reconstruirait
+    # a CHAQUE cellule modifiee : la cellule en cours d'edition est alors
+    # detruite sous le curseur, et deux saisies rapprochees se perdent l'une
+    # l'autre. C'est l'idiome prevu par DT, et le seul qui rende la saisie
+    # utilisable. L'en-tete, lui, doit suivre l'unite -- d'ou la dependance
+    # explicite a `input$saisieUnite`, la seule du bloc.
     output$saisie <- DT::renderDT({
-      DT::datatable(shiny::isolate(saisie()), rownames = FALSE,
+      pct <- identical(input$saisieUnite %||% "morts", "pct")
+      DT::datatable(shiny::isolate(saisie_affichee()), rownames = FALSE,
                     editable = list(target = "cell"), selection = "none",
-                    colnames = c(tr("Dose"), tr("Effectif testé"), tr("Morts")),
+                    colnames = c(tr("Dose"), tr("Effectif testé"),
+                                 if (pct) tr("Mortalité (%)") else tr("Morts")),
                     options = list(dom = "t", pageLength = 100, ordering = FALSE))
     })
     proxy_saisie <- DT::dataTableProxy("saisie")
-    shiny::observeEvent(saisie(), {
-      DT::replaceData(proxy_saisie, saisie(), resetPaging = FALSE, rownames = FALSE)
+    # DEFAUT CONNU, LAISSE EN L'ETAT SCIEMMENT : la cellule que l'on vient de
+    # modifier s'affiche VIDE jusqu'au redessin suivant. Il precede la saisie
+    # en pourcentage -- il se voit deja sur la colonne des morts. DT tient une
+    # copie des donnees cote navigateur, et quand la modification VIENT de la
+    # table, `replaceData` reecrit le corps pendant que DT croit encore editer
+    # la cellule.
+    #
+    # Rien n'est perdu : la valeur est bien rangee, la note d'arrondi et la
+    # bascule d'unite la montrent aussitot. `DT::editData()` corrige la cellule
+    # blanche mais NE RECONSTRUIT PAS la table : essaye, le tableau restait
+    # vide apres un collage et la bascule d'unite n'affichait plus les
+    # pourcentages -- bien pire que ce qu'on corrigeait. Un aiguillage sur le
+    # nombre de lignes n'a pas suffi non plus. On garde donc l'appel qui
+    # fonctionne dans tous les cas.
+    shiny::observeEvent(saisie_affichee(), {
+      DT::replaceData(proxy_saisie, saisie_affichee(), resetPaging = FALSE,
+                      rownames = FALSE)
     }, ignoreInit = TRUE)
 
     shiny::observeEvent(input$saisie_cell_edit, {
@@ -2552,9 +2674,41 @@ mod_dl50_server <- function(id, values) {
       d <- saisie()
       j <- info$col + 1L
       if (j < 1L || j > ncol(d)) return()
-      d[info$row, j] <- suppressWarnings(
-        as.numeric(gsub(",", ".", info$value, fixed = TRUE)))
+      v <- suppressWarnings(as.numeric(gsub(",", ".", info$value, fixed = TRUE)))
+      # La colonne des morts saisie en POURCENTAGE est convertie tout de suite :
+      # ce qui est range est toujours un effectif.
+      d[info$row, j] <- if (j == 3L && en_pct())
+        as.numeric(hstat_dl50_pct_vers_morts(d$Effectif[info$row], v)) else v
       saisie(d)
+    })
+
+    # L'ARRONDI SE DIT. « 40 % » de 7 individus font 2,8 : on enregistre 3,
+    # soit 42,86 %. Rendre la valeur sans le signaler laisserait croire que
+    # l'essai porte le chiffre saisi -- et deux pourcentages differents
+    # donnent souvent le meme effectif, une precision que l'essai n'autorise
+    # pas.
+    #
+    # Meme artefact de repeinture que la cellule blanche ci-dessus, et meme
+    # cause : apres une edition VENUE DE LA TABLE, la note reste sur l'etat
+    # precedent jusqu'au redessin suivant. Verifie a la sonde -- le serveur la
+    # recalcule bien, c'est l'affichage qui traine. La valeur rangee, elle, est
+    # juste : la bascule d'unite la montre aussitot. Coller, ajouter une ligne
+    # ou basculer l'unite remet tout d'aplomb.
+    output$noteArrondi <- shiny::renderUI({
+      if (!en_pct()) return(NULL)
+      d <- saisie()
+      ok <- is.finite(d$Effectif) & d$Effectif > 0 & is.finite(d$Morts)
+      if (!any(ok)) return(NULL)
+      shiny::div(class = "callout callout-info",
+                 style = "margin-top:8px;padding:8px 12px;font-size:0.92em;",
+        shiny::icon("circle-info"), " ",
+        trf("Les pourcentages sont enregistrés en effectifs : %s. C'est l'effectif qui fait foi — un pourcentage plus fin que %d individus ne l'autorisent n'ajoute rien.",
+            paste(sprintf("%s %% → %d/%d",
+                          trimws(formatC(100 * d$Morts[ok] / d$Effectif[ok],
+                                         format = "g", digits = 4)),
+                          as.integer(d$Morts[ok]), as.integer(d$Effectif[ok])),
+                  collapse = " ; "),
+            as.integer(max(d$Effectif[ok]))))
     })
 
     shiny::observeEvent(input$ligne, {
@@ -2569,6 +2723,13 @@ mod_dl50_server <- function(id, values) {
         shiny::showNotification(r$message, type = "warning", duration = 10)
         return()
       }
+      # LE COLLAGE SUIT L'UNITE CHOISIE. Coller une colonne de pourcentages
+      # pendant que le tableau est en « morts » enregistrerait « 40 » morts sur
+      # 30 individus -- refuse plus loin, mais pour une raison qui n'aurait
+      # aucun rapport avec la cause.
+      if (en_pct())
+        r$table$Morts <- as.numeric(
+          hstat_dl50_pct_vers_morts(r$table$Effectif, r$table$Morts))
       d <- if (isTRUE(ajouter)) {
         cur <- saisie()
         # Les lignes entierement vides du tableau de depart ne sont pas des
@@ -2997,7 +3158,19 @@ mod_dl50_server <- function(id, values) {
         lig(tr("Nombre de doses"), f$n_doses),
         lig(tr("Doses à 0 % après correction"), f$n_zero),
         lig(tr("Doses à 100 % après correction"), f$n_cent),
-        lig(tr("Itérations"), f$iterations)))
+        # LE COMPTE D'ITERATIONS N'EST PAS COMPARABLE A CELUI DE WIN DL, et
+        # le libelle le dit plutot que de laisser croire a un desaccord. Les
+        # deux algorithmes atteignent le meme optimum -- a, b et c coincident
+        # a six chiffres -- mais pas au meme rythme : sur l'essai de reference,
+        # HStat converge en 3 boucles EM (6 iterations de Newton-Raphson
+        # cumulees) la ou le logiciel en annonce 75.
+        #
+        # La cause est mesuree : la mortalite naturelle y vaut exactement zero,
+        # et HStat part de la valeur du temoin -- ici 0/25, donc zero. L'etape
+        # [E] rend alors des poids nuls et c ne bouge plus. WIN DL, lui, rampe
+        # vers cette borne. Reproduire son compte demanderait de ralentir
+        # deliberement l'algorithme pour une valeur d'affichage.
+        lig(tr("Itérations (boucles EM de HStat)"), f$iterations)))
     })
 
     output$parametres <- DT::renderDT({
