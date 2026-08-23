@@ -369,11 +369,34 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
 #  bornes SYMETRIQUES en log-dose, celles de la delta-methode (MORGAN, 1992).
 #  Le basculement n'est donc pas un detail d'implementation : il est visible
 #  sur les nombres publies.
+#  DEUX DISPERSIONS, ET ELLES NE DISENT PAS LA MEME CHOSE
+#  -------------------------------------------------------
+#  Les confondre est l'erreur classique du bioessai, et elle change la
+#  conclusion :
+#
+#   - l'ERREUR-TYPE mesure la PRECISION DE L'ESTIMATION. Elle diminue quand on
+#     teste plus d'individus : c'est elle qui fonde les intervalles de
+#     confiance, et c'est elle que WIN DL imprime sous le nom « Ecart-type ».
+#   - l'ECART-TYPE mesure la DISPERSION DES SENSIBILITES dans la population.
+#     Dans le modele probit, les log-tolerances suivent une loi normale de
+#     moyenne -a/b et d'ecart-type 1/b (FINNEY, 1971) : il vaut donc 1/b, il
+#     est le meme pour toutes les doses letales, et il ne diminue PAS quand on
+#     teste plus d'individus. Une population heterogene garde un grand
+#     ecart-type meme mesuree parfaitement.
+#
+#  Verification qui les separe : 10^(log DL50 +/- 1/b) rend exactement la DL84
+#  et la DL16 -- l'ecart-type est une propriete de la courbe, pas de l'essai.
 hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
   if (!isTRUE(fit$ok)) return(NULL)
   V <- fit$Vh; a <- fit$a; b <- fit$b; tq <- fit$t
   vaa <- V[1, 1]; vbb <- V[2, 2]; vab <- V[1, 2]
   g <- tq^2 * vbb / b^2
+  sigma <- if (is.finite(b) && b != 0) 1 / abs(b) else NA_real_
+  bornes <- function(m, d) {
+    if (!is.finite(d)) return(NA_character_)
+    sprintf("%s – %s", formatC(10^(m - d), format = "g", digits = 4),
+            formatC(10^(m + d), format = "g", digits = 4))
+  }
   out <- lapply(seuils, function(s) {
     y <- stats::qnorm(s / 100)
     m <- (y - a) / b
@@ -396,7 +419,10 @@ hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
     } else {
       lo <- m - tq * se; hi <- m + tq * se; meth <- "delta"
     }
-    data.frame(Seuil = s, Log_dose = m, Ecart_type = se, Dose = 10^m,
+    data.frame(Seuil = s, Log_dose = m, Dose = 10^m,
+               Erreur_type = se, Ecart_type = sigma,
+               DL_erreur_type = bornes(m, se),
+               DL_ecart_type = bornes(m, sigma),
                Limite_inf = 10^lo, Limite_sup = 10^hi,
                Intervalle = meth, stringsAsFactors = FALSE)
   })
@@ -423,7 +449,7 @@ hstat_dl50_mortalite <- function(fit, dose) {
   eta <- fit$a + fit$b * z
   se <- sqrt(pmax(V[1, 1] + z^2 * V[2, 2] + 2 * z * V[1, 2], 0))
   vers_p <- function(e) cc + (1 - cc) * stats::pnorm(e)
-  data.frame(Dose = d, Log_dose = z, Probit_attendu = eta, Ecart_type = se,
+  data.frame(Dose = d, Log_dose = z, Probit_attendu = eta, Erreur_type = se,
              Mortalite = vers_p(eta),
              Limite_inf = vers_p(eta - tq * se),
              Limite_sup = vers_p(eta + tq * se),
@@ -906,11 +932,14 @@ hstat_dl50_prn <- function(fit, nom_fichier = "") {
           fit$facteur, fit$ddl)
     else tr("** Test du Chi-2 non significatif à 5 % : bon ajustement du modèle."),
     trf("Doses létales et intervalles à %d %% :", round(100 * (1 - fit$alpha))),
-    paste(c("", tr("log.Dose"), tr("Écart-type"), tr("Dose"), tr("Limite inf."),
+    paste(c("", tr("log.Dose"), tr("Dose"), tr("Erreur-type"), tr("Écart-type"),
+            tr("DL ± erreur-type"), tr("DL ± écart-type"), tr("Limite inf."),
             tr("Limite sup."), tr("Intervalle")), collapse = "\t"),
     vapply(seq_len(nrow(dl)), function(i) paste(c(
-      trf("DL %g", dl$Seuil[i]), sc(dl$Log_dose[i]), sc(dl$Ecart_type[i]),
-      sc(dl$Dose[i]), sc(dl$Limite_inf[i]), sc(dl$Limite_sup[i]),
+      trf("DL %g", dl$Seuil[i]), sc(dl$Log_dose[i]), sc(dl$Dose[i]),
+      sc(dl$Erreur_type[i]), sc(dl$Ecart_type[i]),
+      dl$DL_erreur_type[i], dl$DL_ecart_type[i],
+      sc(dl$Limite_inf[i]), sc(dl$Limite_sup[i]),
       dl$Intervalle[i]), collapse = "\t"), character(1)),
     paste(c("N", tr("Dose"), tr("Pop.test"), tr("Mort."), tr("log.dose"),
             tr("Mort.corrigée"), tr("Probit corr."), tr("Mort.attendue"),
@@ -1118,10 +1147,67 @@ hstat_dl50_selection <- function(essais, criteres = list()) {
 #  L'axe des ordonnees porte DEUX graduations : le probit, qui est l'echelle du
 #  modele, et le pourcentage, qui est celle de la question posee. Une seule des
 #  deux obligerait a convertir de tete.
-hstat_dl50_graphique <- function(fits, points = TRUE, courbe = FALSE,
-                                 droite = TRUE, bande = TRUE, reperes = TRUE,
-                                 titre = "", xlab = NULL, ylab = NULL,
-                                 theme = NULL, palette = "Set1") {
+#
+#  TOUS LES REGLAGES PASSENT PAR `opt`, une liste nommee. Un argument par
+#  reglage ferait une signature de quarante lignes ou personne ne verrait
+#  qu'il en manque un ; une liste se complete, se transmet et se teste d'un
+#  bloc. `.hstat_dl50_opt()` donne la valeur par defaut de chaque cle : un
+#  appel qui n'en passe aucune rend le meme graphique qu'avant.
+# ---------------------------------------------------------------------------
+
+HSTAT_DL50_FORMES <- c("Cercle plein" = "16", "Carré plein" = "15",
+                       "Triangle plein" = "17", "Losange plein" = "18",
+                       "Cercle vide" = "1", "Carré vide" = "0",
+                       "Triangle vide" = "2", "Croix" = "4")
+
+HSTAT_DL50_TRAITS <- c("Continu" = "solid", "Tirets" = "dashed",
+                       "Pointillé" = "dotted", "Tiret-point" = "dotdash",
+                       "Tirets longs" = "longdash", "Deux tirets" = "twodash")
+
+HSTAT_DL50_LEGENDE <- c("À droite" = "right", "À gauche" = "left",
+                        "En haut" = "top", "En bas" = "bottom",
+                        "Aucune" = "none")
+
+HSTAT_DL50_POS <- c("À gauche" = "0", "Au centre" = "0.5", "À droite" = "1")
+
+HSTAT_DL50_OPT_DEFAUT <- list(
+  points = TRUE, courbe = FALSE, droite = TRUE, bande = TRUE, reperes = TRUE,
+  titre = "", sous_titre = "", xlab = "", ylab = "", ylab2 = "",
+  titre_taille = 15, titre_style = "bold", titre_pos = 0.5,
+  sous_titre_taille = 12, sous_titre_style = "italic", sous_titre_pos = 0.5,
+  axe_titre_taille = 12, axe_titre_style = "plain",
+  grad_x_taille = 10, grad_x_style = "plain", grad_x_angle = 0,
+  grad_y_taille = 10, grad_y_style = "plain",
+  legende_pos = "right", legende_taille = 10, legende_titre_taille = 11,
+  legende_titre = "",
+  point_taille = 2.4, point_forme = "16", point_opacite = 1,
+  droite_epaisseur = 0.9, droite_type = "solid",
+  courbe_epaisseur = 0.6, courbe_type = "dashed",
+  bande_opacite = 0.12,
+  repere_couleur = "#6b7280", repere_type = "dotted", repere_epaisseur = 0.5,
+  repere_etiquette = TRUE,
+  theme = "minimal", base_size = 12, palette = "Set1",
+  couleur = "#2e86c1", grille = TRUE, axe2 = TRUE,
+  x_min = NA_real_, x_max = NA_real_, y_min = NA_real_, y_max = NA_real_)
+
+.hstat_dl50_opt <- function(opt = list()) {
+  o <- HSTAT_DL50_OPT_DEFAUT
+  for (nm in intersect(names(opt), names(o)))
+    if (!is.null(opt[[nm]])) o[[nm]] <- opt[[nm]]
+  o
+}
+
+.hstat_dl50_txt <- function(taille, style, angle = 0, hjust = NULL, couleur = NULL) {
+  st <- as.character(style %||% "plain")
+  ggplot2::element_text(
+    size = max(4, suppressWarnings(as.numeric(taille)[1]) %||% 10),
+    face = if (st %in% c("plain", "bold", "italic", "bold.italic")) st else "plain",
+    angle = suppressWarnings(as.numeric(angle)[1]) %||% 0,
+    hjust = hjust, colour = couleur)
+}
+
+hstat_dl50_graphique <- function(fits, opt = list()) {
+  o <- .hstat_dl50_opt(opt)
   fits <- Filter(function(f) isTRUE(f$ok), fits)
   if (!length(fits)) return(NULL)
   nom <- vapply(fits, function(f) {
@@ -1141,55 +1227,126 @@ hstat_dl50_graphique <- function(fits, points = TRUE, courbe = FALSE,
   if (!all(is.finite(rg))) return(NULL)
   if (diff(rg) <= 0) rg <- rg + c(-1, 1)
   rg <- rg + c(-1, 1) * diff(rg) * 0.08
-  grille <- seq(rg[1], rg[2], length.out = 200)
+  # Les limites de l'axe des doses se saisissent EN DOSES, pas en logarithmes :
+  # personne ne raisonne en log10 devant un plan d'essai.
+  if (is.finite(o$x_min) && o$x_min > 0) rg[1] <- log10(o$x_min)
+  if (is.finite(o$x_max) && o$x_max > 0) rg[2] <- log10(o$x_max)
+  if (diff(rg) <= 0) return(NULL)
+  grille_x <- seq(rg[1], rg[2], length.out = 200)
 
   lig <- do.call(rbind, lapply(seq_along(fits), function(i) {
     f <- fits[[i]]
-    eta <- f$a + f$b * grille
-    se <- sqrt(pmax(f$Vh[1, 1] + grille^2 * f$Vh[2, 2] + 2 * grille * f$Vh[1, 2], 0))
-    data.frame(Essai = nom[i], x = grille, y = eta,
+    eta <- f$a + f$b * grille_x
+    se <- sqrt(pmax(f$Vh[1, 1] + grille_x^2 * f$Vh[2, 2] +
+                      2 * grille_x * f$Vh[1, 2], 0))
+    data.frame(Essai = nom[i], x = grille_x, y = eta,
                lo = eta - f$t * se, hi = eta + f$t * se, stringsAsFactors = FALSE)
   }))
+
   # La bande d'intervalle n'a de sens que dans la fenetre lisible : sur deux
   # decades, elle atteint des probits de +/- 20 et ecrase tout le reste.
   ylim <- range(c(pts$y, stats::qnorm(c(0.001, 0.999))), finite = TRUE)
+  if (is.finite(o$y_min) && o$y_min > 0 && o$y_min < 100)
+    ylim[1] <- stats::qnorm(o$y_min / 100)
+  if (is.finite(o$y_max) && o$y_max > 0 && o$y_max < 100)
+    ylim[2] <- stats::qnorm(o$y_max / 100)
+  if (diff(ylim) <= 0) ylim <- range(pts$y, finite = TRUE)
 
   pc <- c(1, 5, 10, 25, 50, 75, 90, 95, 99)
-  brk <- stats::qnorm(pc / 100)
+  multiple <- length(fits) > 1L
+  aes_col <- if (multiple) ggplot2::aes(colour = .data$Essai) else NULL
+
   p <- ggplot2::ggplot()
-  if (isTRUE(bande))
-    p <- p + ggplot2::geom_ribbon(
-      data = lig, ggplot2::aes(x = .data$x, ymin = .data$lo, ymax = .data$hi,
-                               fill = .data$Essai), alpha = 0.12, colour = NA)
-  if (isTRUE(droite))
-    p <- p + ggplot2::geom_line(
-      data = lig, ggplot2::aes(x = .data$x, y = .data$y, colour = .data$Essai),
-      linewidth = 0.9)
-  if (isTRUE(courbe) && nrow(pts))
-    p <- p + ggplot2::geom_line(
-      data = pts, ggplot2::aes(x = .data$x, y = .data$y, colour = .data$Essai),
-      linetype = "dashed", linewidth = 0.6)
-  if (isTRUE(points) && nrow(pts))
-    p <- p + ggplot2::geom_point(
-      data = pts, ggplot2::aes(x = .data$x, y = .data$y, colour = .data$Essai),
-      size = 2.4)
-  if (isTRUE(reperes))
-    p <- p + ggplot2::geom_hline(yintercept = stats::qnorm(HSTAT_DL50_SEUILS / 100),
-                                 linetype = "dotted", colour = "grey45")
+  if (isTRUE(o$bande)) {
+    p <- p + if (multiple)
+      ggplot2::geom_ribbon(data = lig,
+        ggplot2::aes(x = .data$x, ymin = .data$lo, ymax = .data$hi,
+                     fill = .data$Essai), alpha = o$bande_opacite, colour = NA)
+    else ggplot2::geom_ribbon(data = lig,
+        ggplot2::aes(x = .data$x, ymin = .data$lo, ymax = .data$hi),
+        alpha = o$bande_opacite, fill = o$couleur, colour = NA)
+  }
+  if (isTRUE(o$droite)) {
+    p <- p + if (multiple)
+      ggplot2::geom_line(data = lig,
+        ggplot2::aes(x = .data$x, y = .data$y, colour = .data$Essai),
+        linewidth = o$droite_epaisseur, linetype = o$droite_type)
+    else ggplot2::geom_line(data = lig, ggplot2::aes(x = .data$x, y = .data$y),
+        linewidth = o$droite_epaisseur, linetype = o$droite_type,
+        colour = o$couleur)
+  }
+  if (isTRUE(o$courbe) && nrow(pts)) {
+    p <- p + if (multiple)
+      ggplot2::geom_line(data = pts,
+        ggplot2::aes(x = .data$x, y = .data$y, colour = .data$Essai),
+        linetype = o$courbe_type, linewidth = o$courbe_epaisseur)
+    else ggplot2::geom_line(data = pts, ggplot2::aes(x = .data$x, y = .data$y),
+        linetype = o$courbe_type, linewidth = o$courbe_epaisseur,
+        colour = o$couleur)
+  }
+  if (isTRUE(o$points) && nrow(pts)) {
+    forme <- suppressWarnings(as.integer(o$point_forme))
+    if (!isTRUE(is.finite(forme))) forme <- 16L
+    p <- p + if (multiple)
+      ggplot2::geom_point(data = pts,
+        ggplot2::aes(x = .data$x, y = .data$y, colour = .data$Essai),
+        size = o$point_taille, shape = forme, alpha = o$point_opacite)
+    else ggplot2::geom_point(data = pts, ggplot2::aes(x = .data$x, y = .data$y),
+        size = o$point_taille, shape = forme, alpha = o$point_opacite,
+        colour = o$couleur)
+  }
+  if (isTRUE(o$reperes)) {
+    yr <- stats::qnorm(HSTAT_DL50_SEUILS / 100)
+    p <- p + ggplot2::geom_hline(yintercept = yr, linetype = o$repere_type,
+                                 colour = o$repere_couleur,
+                                 linewidth = o$repere_epaisseur)
+    # L'etiquette est ce qui rend le repere lisible : trois traits horizontaux
+    # sans nom obligent a compter les graduations pour savoir lequel est la
+    # DL50.
+    if (isTRUE(o$repere_etiquette))
+      p <- p + ggplot2::annotate(
+        "text", x = rg[1], y = yr, label = paste0("DL", HSTAT_DL50_SEUILS),
+        hjust = -0.1, vjust = -0.4, size = max(2, o$grad_y_taille / 3),
+        colour = o$repere_couleur)
+  }
+
+  axe_y <- ggplot2::scale_y_continuous(
+    name = if (nzchar(o$ylab)) o$ylab else tr("Mortalité (probit)"),
+    sec.axis = if (isTRUE(o$axe2))
+      ggplot2::sec_axis(~ ., breaks = stats::qnorm(pc / 100),
+                        labels = paste0(pc, " %"),
+                        name = if (nzchar(o$ylab2)) o$ylab2 else tr("Mortalité (%)"))
+    else ggplot2::waiver())
+
   p <- p +
-    ggplot2::coord_cartesian(ylim = ylim) +
+    ggplot2::coord_cartesian(xlim = rg, ylim = ylim) +
     ggplot2::scale_x_continuous(
-      name = xlab %||% tr("Dose (échelle logarithmique)"),
+      name = if (nzchar(o$xlab)) o$xlab else tr("Dose (échelle logarithmique)"),
       labels = function(v) formatC(10^v, format = "g", digits = 3)) +
-    ggplot2::scale_y_continuous(
-      name = ylab %||% tr("Mortalité (probit)"),
-      sec.axis = ggplot2::sec_axis(~ ., breaks = brk, labels = paste0(pc, " %"),
-                                   name = tr("Mortalité (%)"))) +
-    ggplot2::labs(title = titre, colour = tr("Essai"), fill = tr("Essai")) +
-    (theme %||% viz_get_theme("minimal"))
-  if (length(fits) > 1L)
-    p <- p + ggplot2::scale_colour_brewer(palette = palette) +
-             ggplot2::scale_fill_brewer(palette = palette)
+    axe_y +
+    ggplot2::labs(title = if (nzchar(o$titre)) o$titre else NULL,
+                  subtitle = if (nzchar(o$sous_titre)) o$sous_titre else NULL,
+                  colour = if (nzchar(o$legende_titre)) o$legende_titre else tr("Essai"),
+                  fill = if (nzchar(o$legende_titre)) o$legende_titre else tr("Essai")) +
+    (viz_get_theme(o$theme, base_size = o$base_size)) +
+    ggplot2::theme(
+      plot.title = .hstat_dl50_txt(o$titre_taille, o$titre_style,
+                                   hjust = o$titre_pos),
+      plot.subtitle = .hstat_dl50_txt(o$sous_titre_taille, o$sous_titre_style,
+                                      hjust = o$sous_titre_pos),
+      axis.title = .hstat_dl50_txt(o$axe_titre_taille, o$axe_titre_style),
+      axis.text.x = .hstat_dl50_txt(o$grad_x_taille, o$grad_x_style,
+                                    angle = o$grad_x_angle,
+                                    hjust = if (o$grad_x_angle != 0) 1 else NULL),
+      axis.text.y = .hstat_dl50_txt(o$grad_y_taille, o$grad_y_style),
+      legend.position = o$legende_pos,
+      legend.text = .hstat_dl50_txt(o$legende_taille, "plain"),
+      legend.title = .hstat_dl50_txt(o$legende_titre_taille, "bold"),
+      panel.grid = if (isTRUE(o$grille)) ggplot2::element_line()
+                   else ggplot2::element_blank())
+  if (multiple)
+    p <- p + ggplot2::scale_colour_brewer(palette = o$palette) +
+             ggplot2::scale_fill_brewer(palette = o$palette)
   p
 }
 
@@ -1381,27 +1538,154 @@ mod_dl50_ui <- function(id) {
         shiny::div(style = "padding-top:14px;"),
         shiny::fluidRow(
           shinydashboard::box(
-            title = shiny::tagList(shiny::icon("eye"), " Ce qui est tracé"),
-            status = "primary", width = 3, solidHeader = TRUE,
-            shiny::checkboxInput(ns("gPoints"), "Points de l'essai (PE)", TRUE),
-            shiny::checkboxInput(ns("gCourbe"), "Courbe de l'essai (CE)", FALSE),
-            shiny::checkboxInput(ns("gDroite"), "Droite de régression (DR)", TRUE),
-            shiny::checkboxInput(ns("gBande"), "Intervalles (IF ou IC)", TRUE),
-            shiny::checkboxInput(ns("gReperes"), "Repères DL10 / DL50 / DL90", TRUE),
-            shiny::checkboxInput(ns("gTous"), "Tous les essais en mémoire", FALSE),
-            shiny::textInput(ns("gTitre"), "Titre du graphique"),
-            shiny::textInput(ns("gXlab"), "Titre de l'axe des doses"),
-            shiny::textInput(ns("gYlab"), "Titre de l'axe des probits"),
-            shiny::selectInput(ns("gPalette"), "Palette (plusieurs essais)",
-                               choices = HSTAT_PALETTES_QUALI, selected = "Set1")),
+            title = shiny::tagList(shiny::icon("sliders"), " Options du graphique"),
+            status = "primary", width = 4, solidHeader = TRUE, collapsible = TRUE,
+
+            .hstat_opt_section("Éléments tracés", "eye", "#2e86c1", "#eaf3fb",
+              shiny::checkboxInput(ns("gPoints"), "Points de l'essai (PE)", TRUE),
+              shiny::checkboxInput(ns("gCourbe"), "Courbe de l'essai (CE)", FALSE),
+              shiny::checkboxInput(ns("gDroite"), "Droite de régression (DR)", TRUE),
+              shiny::checkboxInput(ns("gBande"), "Intervalles (IF ou IC)", TRUE),
+              shiny::checkboxInput(ns("gReperes"), "Repères DL10 / DL50 / DL90", TRUE),
+              shiny::checkboxInput(ns("gTous"), "Tous les essais en mémoire", FALSE)),
+
+            .hstat_opt_section("Titres", "heading", "#8e44ad", "#f4ecfa",
+              shiny::textInput(ns("gTitre"), "Titre du graphique"),
+              shiny::fluidRow(
+                shiny::column(4, shiny::numericInput(ns("gTitreTaille"),
+                  "Taille du titre", value = 15, min = 6, max = 40, step = 1)),
+                shiny::column(4, shiny::selectInput(ns("gTitreStyle"),
+                  "Style du titre", choices = HSTAT_FONT_STYLES, selected = "bold")),
+                shiny::column(4, shiny::selectInput(ns("gTitrePos"),
+                  "Position du titre", choices = HSTAT_DL50_POS, selected = "0.5"))),
+              shiny::textInput(ns("gSousTitre"), "Sous-titre"),
+              shiny::fluidRow(
+                shiny::column(4, shiny::numericInput(ns("gSousTitreTaille"),
+                  "Taille du sous-titre", value = 12, min = 6, max = 40, step = 1)),
+                shiny::column(4, shiny::selectInput(ns("gSousTitreStyle"),
+                  "Style du sous-titre", choices = HSTAT_FONT_STYLES,
+                  selected = "italic")),
+                shiny::column(4, shiny::selectInput(ns("gSousTitrePos"),
+                  "Position du sous-titre", choices = HSTAT_DL50_POS,
+                  selected = "0.5")))),
+
+            .hstat_opt_section("Axes", "ruler-combined", "#16a085", "#e8f6f3",
+              shiny::textInput(ns("gXlab"), "Titre de l'axe des doses"),
+              shiny::textInput(ns("gYlab"), "Titre de l'axe des probits"),
+              shiny::textInput(ns("gYlab2"), "Titre de l'axe des pourcentages"),
+              shiny::checkboxInput(ns("gAxe2"), "Second axe en pourcentage", TRUE),
+              shiny::fluidRow(
+                shiny::column(6, shiny::numericInput(ns("gAxeTitreTaille"),
+                  "Taille des titres d'axe", value = 12, min = 6, max = 30, step = 1)),
+                shiny::column(6, shiny::selectInput(ns("gAxeTitreStyle"),
+                  "Style des titres d'axe", choices = HSTAT_FONT_STYLES))),
+              shiny::fluidRow(
+                shiny::column(4, shiny::numericInput(ns("gGradXTaille"),
+                  "Taille des graduations X", value = 10, min = 4, max = 30, step = 1)),
+                shiny::column(4, shiny::selectInput(ns("gGradXStyle"),
+                  "Style des graduations X", choices = HSTAT_FONT_STYLES)),
+                shiny::column(4, shiny::numericInput(ns("gGradXAngle"),
+                  "Angle des graduations X", value = 0, min = -90, max = 90, step = 15))),
+              shiny::fluidRow(
+                shiny::column(6, shiny::numericInput(ns("gGradYTaille"),
+                  "Taille des graduations Y", value = 10, min = 4, max = 30, step = 1)),
+                shiny::column(6, shiny::selectInput(ns("gGradYStyle"),
+                  "Style des graduations Y", choices = HSTAT_FONT_STYLES))),
+              shiny::helpText("Les limites de l'axe des doses se saisissent en doses,",
+                              " pas en logarithmes. Laissez vide pour l'étendue",
+                              " automatique."),
+              shiny::fluidRow(
+                shiny::column(6, shiny::numericInput(ns("gXmin"),
+                  "Dose minimale", value = NA, min = 0)),
+                shiny::column(6, shiny::numericInput(ns("gXmax"),
+                  "Dose maximale", value = NA, min = 0))),
+              shiny::fluidRow(
+                shiny::column(6, shiny::numericInput(ns("gYmin"),
+                  "Mortalité minimale (%)", value = NA, min = 0, max = 100)),
+                shiny::column(6, shiny::numericInput(ns("gYmax"),
+                  "Mortalité maximale (%)", value = NA, min = 0, max = 100)))),
+
+            .hstat_opt_section("Points et traits", "bezier-curve", "#e67e22", "#fdf1e6",
+              shiny::fluidRow(
+                shiny::column(4, shiny::numericInput(ns("gPointTaille"),
+                  "Taille des points", value = 2.4, min = 0.5, max = 12, step = 0.2)),
+                shiny::column(4, shiny::selectInput(ns("gPointForme"),
+                  "Forme des points", choices = HSTAT_DL50_FORMES, selected = "16")),
+                shiny::column(4, shiny::numericInput(ns("gPointOpacite"),
+                  "Opacité des points", value = 1, min = 0.1, max = 1, step = 0.05))),
+              shiny::fluidRow(
+                shiny::column(6, shiny::numericInput(ns("gDroiteEp"),
+                  "Épaisseur de la droite", value = 0.9, min = 0.1, max = 5, step = 0.1)),
+                shiny::column(6, shiny::selectInput(ns("gDroiteType"),
+                  "Trait de la droite", choices = HSTAT_DL50_TRAITS,
+                  selected = "solid"))),
+              shiny::fluidRow(
+                shiny::column(6, shiny::numericInput(ns("gCourbeEp"),
+                  "Épaisseur de la courbe", value = 0.6, min = 0.1, max = 5, step = 0.1)),
+                shiny::column(6, shiny::selectInput(ns("gCourbeType"),
+                  "Trait de la courbe", choices = HSTAT_DL50_TRAITS,
+                  selected = "dashed"))),
+              shiny::numericInput(ns("gBandeOpacite"), "Opacité des intervalles",
+                                  value = 0.12, min = 0.02, max = 1, step = 0.02)),
+
+            .hstat_opt_section("Repères DL", "location-crosshairs", "#c0392b", "#fbeceb",
+              shiny::checkboxInput(ns("gRepereEtiq"), "Étiqueter les repères", TRUE),
+              shiny::fluidRow(
+                shiny::column(4, colourInput(ns("gRepereCouleur"),
+                  "Couleur des repères", value = "#6b7280")),
+                shiny::column(4, shiny::selectInput(ns("gRepereType"),
+                  "Trait des repères", choices = HSTAT_DL50_TRAITS,
+                  selected = "dotted")),
+                shiny::column(4, shiny::numericInput(ns("gRepereEp"),
+                  "Épaisseur des repères", value = 0.5, min = 0.1, max = 3,
+                  step = 0.1)))),
+
+            .hstat_opt_section("Couleurs et légende", "palette", "#2c3e50", "#eceff1",
+              shiny::selectInput(ns("gTheme"), "Thème", choices = HSTAT_THEMES_GG,
+                                 selected = "minimal"),
+              shiny::numericInput(ns("gBaseSize"), "Taille de police de base",
+                                  value = 12, min = 6, max = 30, step = 1),
+              shiny::checkboxInput(ns("gGrille"), "Afficher la grille", TRUE),
+              shiny::selectInput(ns("gPalette"), "Palette (plusieurs essais)",
+                                 choices = HSTAT_PALETTES_QUALI, selected = "Set1"),
+              colourInput(ns("gCouleur"), "Couleur (un seul essai)",
+                                        value = "#2e86c1"),
+              shiny::textInput(ns("gLegendeTitre"), "Titre de la légende"),
+              shiny::fluidRow(
+                shiny::column(4, shiny::selectInput(ns("gLegendePos"),
+                  "Position de la légende", choices = HSTAT_DL50_LEGENDE,
+                  selected = "right")),
+                shiny::column(4, shiny::numericInput(ns("gLegendeTaille"),
+                  "Taille de la légende", value = 10, min = 4, max = 30, step = 1)),
+                shiny::column(4, shiny::numericInput(ns("gLegendeTitreTaille"),
+                  "Taille du titre de légende", value = 11, min = 4, max = 30,
+                  step = 1))))),
+
           shinydashboard::box(
             title = shiny::tagList(shiny::icon("chart-simple"), " Droite de Henry"),
-            status = "success", width = 9, solidHeader = TRUE,
-            shiny::plotOutput(ns("graphe"), height = "560px"),
-            shiny::br(),
-            hstat_export_plot_ui(ns, "gExp", width = 10, height = 7)))),
+            status = "success", width = 8, solidHeader = TRUE,
+            shiny::plotOutput(ns("graphe"), height = "600px"),
+            shiny::hr(),
+            .hstat_opt_section("Export de l'image", "download", "#27ae60", "#e9f7ef",
+              shiny::fluidRow(
+                shiny::column(3, hstat_format_input(ns("gFmt"), "Format")),
+                shiny::column(3, shiny::numericInput(ns("gLargeur"),
+                  "Largeur (pixels)", value = 1200, min = 200, step = 100)),
+                shiny::column(3, shiny::numericInput(ns("gHauteur"),
+                  "Hauteur (pixels)", value = 800, min = 200, step = 100)),
+                shiny::column(3, hstat_dpi_input(ns("gDpi"), "Résolution (DPI)"))),
+              shiny::conditionalPanel(
+                condition = sprintf("input['%s'] == 'jpeg'", ns("gFmt")),
+                shiny::sliderInput(ns("gQualite"), "Qualité JPEG",
+                                   min = 50, max = 100, value = 95, step = 5)),
+              shiny::conditionalPanel(
+                condition = sprintf("input['%s'] == 'tiff'", ns("gFmt")),
+                shiny::selectInput(ns("gCompression"), "Compression TIFF",
+                                   choices = HSTAT_TIFF_COMPRESSION, selected = "lzw")),
+              shiny::verbatimTextOutput(ns("gTaille")),
+              shiny::downloadButton(ns("gDl"), " Télécharger le graphique",
+                                    class = "btn-success"))))),
 
-      # ------------------------------------------------------------------
       shiny::tabPanel(
         shiny::tagList(shiny::icon("code-compare"), " Comparaison d'essais"),
         shiny::div(style = "padding-top:14px;"),
@@ -1527,14 +1811,20 @@ mod_dl50_ui <- function(id) {
             shiny::helpText("Intervalle de prédiction, construit sur le probit puis",
                             " ramené en pourcentage : les bornes restent donc entre",
                             " 0 et 100 %."),
-            DT::DTOutput(ns("tableMort"))),
+            DT::DTOutput(ns("tableMort")),
+            shiny::br(),
+            shiny::downloadButton(ns("mortCsv"), " Télécharger (CSV)", class = "btn-sm"),
+            shiny::downloadButton(ns("mortXlsx"), " Télécharger (Excel)", class = "btn-sm")),
           shinydashboard::box(
             title = shiny::tagList(shiny::icon("arrow-left"), " Une mortalité, quelle dose ?"),
             status = "info", width = 6, solidHeader = TRUE,
             shiny::textInput(ns("mortsCalc"), "Mortalités visées (%)", value = "25, 50, 95"),
             shiny::helpText("Mortalité observée, témoin compris : elle est ramenée",
                             " par Abbott avant l'inversion de la droite."),
-            DT::DTOutput(ns("tableDose")))))
+            DT::DTOutput(ns("tableDose")),
+            shiny::br(),
+            shiny::downloadButton(ns("doseCsv"), " Télécharger (CSV)", class = "btn-sm"),
+            shiny::downloadButton(ns("doseXlsx"), " Télécharger (Excel)", class = "btn-sm"))))
     ))
 }
 
@@ -1960,26 +2250,60 @@ mod_dl50_server <- function(id, values) {
                  trf("%d itérations", f$iterations)))
     })
 
+    # TOUS les parametres statistiques dans UN tableau : un chiffre lu dans un
+    # paragraphe ne se recopie pas dans un rapport, et ne s'exporte pas. Le
+    # resume en prose reste au-dessus pour la lecture, le tableau porte les
+    # valeurs -- et c'est lui qui part en CSV et en Excel.
     parametres <- shiny::reactive({
       f <- fit()
       if (is.null(f) || !isTRUE(f$ok)) return(NULL)
-      data.frame(
-        Parametre = c("a", "b", "c", "Log-vrais. (H0)", "Log-vrais. (H1)",
-                      "Vab", "Vac", "Vbc"),
-        Estimation = c(f$a, f$b, f$c, f$ll0, f$ll1,
-                       f$Vh[1, 2], f$Vh[1, 3], f$Vh[2, 3]),
-        Ecart_type = c(sqrt(f$Vh[1, 1]), sqrt(f$Vh[2, 2]), sqrt(f$Vh[3, 3]),
-                       NA_real_, NA_real_, NA_real_, NA_real_, NA_real_),
-        stringsAsFactors = FALSE)
+      sigma <- if (is.finite(f$b) && f$b != 0) 1 / abs(f$b) else NA_real_
+      lig <- function(p, v, e = NA_real_, u = "") {
+        data.frame(Parametre = p, Valeur = v, Erreur_type = e, Unite = u,
+                   stringsAsFactors = FALSE)
+      }
+      do.call(rbind, list(
+        lig(tr("Terme constant (a)"), f$a, sqrt(f$Vh[1, 1]), tr("probit")),
+        lig(tr("Pente (b)"), f$b, sqrt(f$Vh[2, 2]), tr("probit / log10(dose)")),
+        lig(tr("Mortalité naturelle (c)"), f$c, sqrt(f$Vh[3, 3]), tr("proportion")),
+        lig(tr("Mortalité naturelle du témoin"), f$c_temoin, NA_real_, tr("proportion")),
+        lig(tr("Écart-type des tolérances (1/b)"), sigma, NA_real_, tr("log10(dose)")),
+        lig(tr("Covariance a-b (Vab)"), f$Vh[1, 2]),
+        lig(tr("Covariance a-c (Vac)"), f$Vh[1, 3]),
+        lig(tr("Covariance b-c (Vbc)"), f$Vh[2, 3]),
+        lig(tr("Log-vraisemblance du modèle (H0)"), f$ll0),
+        lig(tr("Log-vraisemblance saturée (H1)"), f$ll1),
+        lig(tr("Chi-2 d'ajustement"), f$chi2),
+        lig(tr("Degrés de liberté"), f$ddl),
+        lig(tr("Probabilité de dépassement du Chi-2"), f$p_chi2),
+        lig(tr("Facteur d'hétérogénéité"), f$facteur),
+        lig(tr("Quantile employé pour les intervalles"), f$t),
+        lig(tr("Risque α"), f$alpha),
+        lig(tr("Nombre de doses"), f$n_doses),
+        lig(tr("Doses à 0 % après correction"), f$n_zero),
+        lig(tr("Doses à 100 % après correction"), f$n_cent),
+        lig(tr("Itérations"), f$iterations)))
     })
 
     output$parametres <- DT::renderDT({
       d <- parametres()
       shiny::validate(shiny::need(!is.null(d), tr("Aucun résultat à afficher.")))
-      DT::datatable(d, rownames = FALSE,
-        colnames = c(tr("Paramètre"), tr("Estimation"), tr("Écart-type")),
-        options = list(dom = "t", pageLength = 10, ordering = FALSE)) |>
-        DT::formatSignif(c("Estimation", "Ecart_type"), 6)
+      # Le tableau melange des grandeurs (2,19759), des probabilites (0,05) et
+      # des ENTIERS (5 degres de liberte). Un format a decimales fixes ecrivait
+      # « 5.00000 » degres de liberte -- on doute d'un chiffre affiche comme
+      # s'il avait cinq decimales. Le tableau EXPORTE reste numerique ; seule
+      # sa mise en forme change ici.
+      aff <- d
+      for (k in c("Valeur", "Erreur_type"))
+        aff[[k]] <- ifelse(is.finite(d[[k]]),
+                           trimws(formatC(signif(d[[k]], 6), format = "g",
+                                          digits = 6)), "")
+      DT::datatable(aff, rownames = FALSE,
+        colnames = c(tr("Paramètre"), tr("Valeur"), tr("Erreur-type"), tr("Unité")),
+        options = list(dom = "tp", pageLength = 20, ordering = FALSE,
+                       scrollX = TRUE,
+                       columnDefs = list(list(className = "dt-right",
+                                              targets = c(1, 2)))))
     })
 
     seuils_demandes <- shiny::reactive({
@@ -1998,13 +2322,15 @@ mod_dl50_server <- function(id, values) {
       d <- doses_letales()
       shiny::validate(shiny::need(!is.null(d), tr("Aucun résultat à afficher.")))
       DT::datatable(d, rownames = FALSE,
-        colnames = c(tr("Seuil (%)"), tr("log10(dose)"), tr("Écart-type"),
-                     tr("Dose"), tr("Limite inférieure"), tr("Limite supérieure"),
+        colnames = c(tr("Seuil (%)"), tr("log10(dose)"), tr("Dose"),
+                     tr("Erreur-type"), tr("Écart-type"),
+                     tr("DL ± erreur-type"), tr("DL ± écart-type"),
+                     tr("Limite inférieure"), tr("Limite supérieure"),
                      tr("Type d'intervalle")),
         options = list(dom = "t", pageLength = 20, ordering = FALSE,
                        scrollX = TRUE)) |>
-        DT::formatSignif(c("Log_dose", "Ecart_type", "Dose", "Limite_inf",
-                           "Limite_sup"), 5)
+        DT::formatSignif(c("Log_dose", "Dose", "Erreur_type", "Ecart_type",
+                           "Limite_inf", "Limite_sup"), 5)
     })
 
     output$detail <- DT::renderDT({
@@ -2081,26 +2407,67 @@ mod_dl50_server <- function(id, values) {
       if (!length(cur)) return(list())
       al <- min(max(.hstat_num1(input$alpha, 0.05), 0.001), 0.2)
       m <- input$methode %||% "em"
-      choisis <- if (isTRUE(input$gTous)) essais_retenus() else {
+      choisis <- if (isTRUE(input$gTous)) cur else {
         e <- essai_actif()
         if (is.null(e)) list() else list(e)
       }
       lapply(choisis, function(e) hstat_dl50_ajuste(e, m, alpha = al))
     })
 
-    graphe <- shiny::reactive({
-      fs <- fits_graphe()
-      if (!length(fs)) return(NULL)
-      hstat_dl50_graphique(
-        fs,
+    # TOUS les reglages sont lus ICI, dans le reactif qui construit l'image :
+    # un reglage que le reactif n'observe pas se change sans que rien ne bouge
+    # a l'ecran, et l'utilisateur conclut que le bouton ne marche pas.
+    graphe_opt <- shiny::reactive({
+      nb <- function(id, defaut) .hstat_num1(input[[id]], defaut)
+      list(
         points = isTRUE(input$gPoints), courbe = isTRUE(input$gCourbe),
         droite = isTRUE(input$gDroite), bande = isTRUE(input$gBande),
         reperes = isTRUE(input$gReperes),
-        titre = input$gTitre %||% "",
-        xlab = if (nzchar(input$gXlab %||% "")) input$gXlab else NULL,
-        ylab = if (nzchar(input$gYlab %||% "")) input$gYlab else NULL,
-        theme = hstat_export_theme(input, "gExp"),
-        palette = input$gPalette %||% "Set1")
+        titre = input$gTitre %||% "", sous_titre = input$gSousTitre %||% "",
+        xlab = input$gXlab %||% "", ylab = input$gYlab %||% "",
+        ylab2 = input$gYlab2 %||% "",
+        titre_taille = nb("gTitreTaille", 15),
+        titre_style = input$gTitreStyle %||% "bold",
+        titre_pos = nb("gTitrePos", 0.5),
+        sous_titre_taille = nb("gSousTitreTaille", 12),
+        sous_titre_style = input$gSousTitreStyle %||% "italic",
+        sous_titre_pos = nb("gSousTitrePos", 0.5),
+        axe_titre_taille = nb("gAxeTitreTaille", 12),
+        axe_titre_style = input$gAxeTitreStyle %||% "plain",
+        grad_x_taille = nb("gGradXTaille", 10),
+        grad_x_style = input$gGradXStyle %||% "plain",
+        grad_x_angle = nb("gGradXAngle", 0),
+        grad_y_taille = nb("gGradYTaille", 10),
+        grad_y_style = input$gGradYStyle %||% "plain",
+        legende_pos = input$gLegendePos %||% "right",
+        legende_taille = nb("gLegendeTaille", 10),
+        legende_titre_taille = nb("gLegendeTitreTaille", 11),
+        legende_titre = input$gLegendeTitre %||% "",
+        point_taille = nb("gPointTaille", 2.4),
+        point_forme = input$gPointForme %||% "16",
+        point_opacite = nb("gPointOpacite", 1),
+        droite_epaisseur = nb("gDroiteEp", 0.9),
+        droite_type = input$gDroiteType %||% "solid",
+        courbe_epaisseur = nb("gCourbeEp", 0.6),
+        courbe_type = input$gCourbeType %||% "dashed",
+        bande_opacite = nb("gBandeOpacite", 0.12),
+        repere_couleur = input$gRepereCouleur %||% "#6b7280",
+        repere_type = input$gRepereType %||% "dotted",
+        repere_epaisseur = nb("gRepereEp", 0.5),
+        repere_etiquette = isTRUE(input$gRepereEtiq),
+        theme = input$gTheme %||% "minimal",
+        base_size = nb("gBaseSize", 12),
+        palette = input$gPalette %||% "Set1",
+        couleur = input$gCouleur %||% "#2e86c1",
+        grille = isTRUE(input$gGrille), axe2 = isTRUE(input$gAxe2),
+        x_min = nb("gXmin", NA_real_), x_max = nb("gXmax", NA_real_),
+        y_min = nb("gYmin", NA_real_), y_max = nb("gYmax", NA_real_))
+    })
+
+    graphe <- shiny::reactive({
+      fs <- fits_graphe()
+      if (!length(fs)) return(NULL)
+      hstat_dl50_graphique(fs, graphe_opt())
     })
 
     output$graphe <- shiny::renderPlot({
@@ -2109,7 +2476,57 @@ mod_dl50_server <- function(id, values) {
         tr("Aucun essai ajustable : vérifiez les doses et les effectifs.")))
       p
     })
-    hstat_export_plot_handler(input, "gExp", graphe, "dl50_henry")
+
+    # LES PIXELS SAISIS SONT UNE MISE EN PAGE, PAS LA SORTIE. Ils sont lus a la
+    # resolution de l'ecran (96 ppp) ; le DPI multiplie ensuite la finesse. Le
+    # decompte est affiche : ne montrer que la mise en page laisserait croire
+    # qu'un DPI plus eleve ne change rien au fichier.
+    dims_export <- shiny::reactive(
+      hstat_export_dims(input$gLargeur, input$gHauteur, input$gDpi))
+
+    output$gTaille <- shiny::renderText({
+      d <- dims_export()
+      fmt <- hstat_img_fmt(input$gFmt %||% "png")
+      if (fmt %in% c("svg", "pdf", "eps"))
+        return(trf("Mise en page %s × %s pouces. Format vectoriel : résolution illimitée, le DPI ne s'applique pas.",
+                   round(d$width_in, 2), round(d$height_in, 2)))
+      px <- d$width_out * d$height_out
+      mo <- if (identical(fmt, "jpeg")) px * 0.3 / 1048576 else px * 3 / 1048576
+      paste0(trf("Mise en page %s × %s pouces → fichier de %s × %s pixels à %s DPI",
+                 round(d$width_in, 2), round(d$height_in, 2),
+                 d$width_out, d$height_out, d$dpi),
+             " | ", trf("Taille estimée : %s Mo", round(mo, 2)))
+    })
+
+    output$gDl <- shiny::downloadHandler(
+      filename = function()
+        paste0("dl50_henry_", Sys.Date(), ".", hstat_img_fmt(input$gFmt %||% "png")),
+      content = function(file) {
+        p <- graphe()
+        d <- dims_export()
+        if (!is.null(d$note))
+          shiny::showNotification(d$note, type = "warning", duration = 8)
+        fmt <- hstat_img_fmt(input$gFmt %||% "png")
+        # Un `stop()` ne laisserait AUCUN fichier : Shiny renverrait sa page
+        # d'erreur, que le navigateur enregistrerait sous le nom demande. On
+        # croit tenir une image, on ouvre du HTML.
+        ok <- !is.null(p) && hstat_ecrire_image(
+          file, p, fmt, d$width_in, d$height_in, d$dpi,
+          qualite = .hstat_num1(input$gQualite, 95),
+          compression = input$gCompression %||% "lzw")
+        if (isTRUE(ok))
+          shiny::showNotification(
+            trf("Graphique exporté : %s, %s × %s pixels à %s DPI.",
+                toupper(fmt), d$width_out, d$height_out, d$dpi),
+            type = "message", duration = 6)
+        else {
+          writeLines(tr("Export impossible : aucun essai ajustable, ou dimensions trop grandes. Réduisez la taille ou le DPI, ou choisissez un format vectoriel (SVG, PDF)."),
+                     file)
+          shiny::showNotification(
+            tr("Export impossible : aucun essai ajustable, ou dimensions trop grandes. Réduisez la taille ou le DPI, ou choisissez un format vectoriel (SVG, PDF)."),
+            type = "error", duration = 10)
+        }
+      })
 
     # -- Comparaison et fusion ---------------------------------------------
     comparaison <- shiny::eventReactive(input$comparer, {
@@ -2176,11 +2593,11 @@ mod_dl50_server <- function(id, values) {
       shiny::validate(shiny::need(!is.null(d), tr("Saisissez au moins une dose strictement positive.")))
       DT::datatable(d, rownames = FALSE,
         colnames = c(tr("Dose"), tr("log10(dose)"), tr("Probit attendu"),
-                     tr("Écart-type"), tr("Mortalité"), tr("Limite inférieure"),
+                     tr("Erreur-type"), tr("Mortalité"), tr("Limite inférieure"),
                      tr("Limite supérieure")),
         options = list(dom = "t", pageLength = 20, ordering = FALSE,
                        scrollX = TRUE)) |>
-        DT::formatSignif(c("Dose", "Log_dose", "Probit_attendu", "Ecart_type",
+        DT::formatSignif(c("Dose", "Log_dose", "Probit_attendu", "Erreur_type",
                            "Mortalite", "Limite_inf", "Limite_sup"), 5)
     })
 
@@ -2189,22 +2606,40 @@ mod_dl50_server <- function(id, values) {
       if (is.null(f) || !isTRUE(f$ok)) return(NULL)
       d <- hstat_dl50_dose_pour(f, .nombres(input$mortsCalc))
       if (is.null(d)) return(NULL)
-      d[c("Mortalite_demandee", "Log_dose", "Ecart_type", "Dose",
-          "Limite_inf", "Limite_sup", "Intervalle")]
+      d[c("Mortalite_demandee", "Log_dose", "Dose", "Erreur_type", "Ecart_type",
+          "DL_erreur_type", "DL_ecart_type", "Limite_inf", "Limite_sup",
+          "Intervalle")]
     })
     output$tableDose <- DT::renderDT({
       d <- table_dose()
       shiny::validate(shiny::need(!is.null(d),
         tr("Aucune mortalité exploitable : elle doit dépasser la mortalité naturelle et rester sous 100 %.")))
       DT::datatable(d, rownames = FALSE,
-        colnames = c(tr("Mortalité visée (%)"), tr("log10(dose)"), tr("Écart-type"),
-                     tr("Dose"), tr("Limite inférieure"), tr("Limite supérieure"),
+        colnames = c(tr("Mortalité visée (%)"), tr("log10(dose)"), tr("Dose"),
+                     tr("Erreur-type"), tr("Écart-type"),
+                     tr("DL ± erreur-type"), tr("DL ± écart-type"),
+                     tr("Limite inférieure"), tr("Limite supérieure"),
                      tr("Type d'intervalle")),
         options = list(dom = "t", pageLength = 20, ordering = FALSE,
                        scrollX = TRUE)) |>
-        DT::formatSignif(c("Log_dose", "Ecart_type", "Dose", "Limite_inf",
-                           "Limite_sup"), 5)
+        DT::formatSignif(c("Log_dose", "Dose", "Erreur_type", "Ecart_type",
+                           "Limite_inf", "Limite_sup"), 5)
     })
+
+    # Chaque tableau de resultats s'exporte : un chiffre qu'on ne peut pas
+    # sortir de l'ecran ne sert qu'a l'ecran.
+    output$mortCsv  <- hstat_csv_handler(function() {
+      d <- table_mort(); if (is.null(d)) NULL else list("Mortalite_par_dose" = d)
+    }, "dl50_mortalite")
+    output$mortXlsx <- hstat_classeur_handler(function() {
+      d <- table_mort(); if (is.null(d)) NULL else list("Mortalite_par_dose" = d)
+    }, "dl50_mortalite")
+    output$doseCsv  <- hstat_csv_handler(function() {
+      d <- table_dose(); if (is.null(d)) NULL else list("Dose_par_mortalite" = d)
+    }, "dl50_dose")
+    output$doseXlsx <- hstat_classeur_handler(function() {
+      d <- table_dose(); if (is.null(d)) NULL else list("Dose_par_mortalite" = d)
+    }, "dl50_dose")
 
     # -- L'assistance observe, elle n'instrumente pas -----------------------
     shiny::observeEvent(fit(), {
