@@ -916,6 +916,24 @@ Règle de conduite : quand le code exact n'est pas reconstituable fidèlement
 silence de ce que l'application a calculé serait pire que pas de script. Un test
 vérifie que le script généré **s'analyse et s'exécute** réellement.
 
+### Le bioessai est la seule analyse dont les données ne viennent pas du fichier
+
+Elles sont saisies dans le module, ou lues d'un fichier WIN DL. Le journal les
+**reporte** donc dans le script : il s'exécute sans `mon_fichier.csv`, et il est
+exactement reproductible.
+
+Et il n'est écrit **que quand il est fidèle**. À mortalité naturelle déclarée
+nulle, le modèle de Finney est un GLM binomial à lien probit : le script sort un
+`glm()` et un `MASS::dose.p()`, et un test vérifie qu'il rend **les mêmes
+chiffres** — pas seulement qu'il s'exécute. Dès que `c` est estimée (EM) ou fixée
+par Abbott, ce n'en est plus un — `glm()` ne sait pas ajuster `c` dans
+`p = c + (1 − c)·F(a + b·log d)` — et le journal écrit `NON RECONSTITUÉ` avec les
+paramètres obtenus, plutôt qu'un `glm()` plausible et faux.
+
+`.hstat_rlog_num()` écrit les nombres à quinze chiffres par `formatC` : `format()`
+respecte `OutDec`, et une locale française produirait « 0,00063 » que R refuserait
+d'analyser — sur le seul artefact dont la promesse est d'être exécutable.
+
 ## Rapport automatique
 
 `mod_report.R` assemble en un document ce que la session a produit. Il ne
@@ -1203,6 +1221,84 @@ Même remarque pour le **degré de liberté** du test d'ajustement : le manuel
 ddl = 5) **y compris quand `c` est estimée**, où la théorie voudrait retirer un
 paramètre de plus. C'est ce ddl qui fixe le seuil au-delà duquel le facteur
 d'hétérogénéité s'applique : le changer déplacerait ce seuil.
+
+### Ce qui est estimé et ce qui est déclaré ne se comptent pas pareil
+
+Deux défauts silencieux, de la même famille, et tous deux découverts en
+comparant HStat à `glm()` plutôt qu'en relisant le code.
+
+**La matrice à inverser est celle des paramètres réellement estimés.** Sous
+« Abbott » et « mortalité nulle », `c` est **déclarée** — lue sur le témoin, ou
+posée à zéro — et pourtant la matrice d'information à trois lignes était
+inversée comme si elle avait été estimée. Le bloc (a, b) payait alors une
+incertitude sur `c` que l'hypothèse exclut :
+
+| Essai de référence, `c` fixée à zéro | var(a) | var(b) | ET(DL50) |
+|---|---|---|---|
+| inversion 3×3 (faux) | 0,5893 | 0,3554 | **0,6716** |
+| bloc 2×2 (juste) | 0,1841 | 0,0329 | **0,1032** |
+
+Soit une erreur-type **6,5 fois trop grande**, des intervalles absurdement
+larges, et un `g = t²·var(b)/b²` gonflé au point de franchir 1 — ce qui faisait
+abandonner Fieller pour la delta-méthode sans raison.
+
+L'incohérence était **interne** : `npar` vaut déjà 2 pour ces deux méthodes,
+c'est lui qui décide si le Chi-2 garde un degré de liberté résiduel. Le même
+ajustement comptait donc deux paramètres pour le test d'ajustement et trois
+pour les variances.
+
+La vérification qui tranche : à `c = 0`, le modèle de Finney **est** un GLM
+binomial à lien probit sur le log10 de la dose. `glm()` et `MASS::dose.p()`
+sont la référence universelle, et les deux coïncident désormais à 1e-7 — pas
+« approchent ». `c` n'étant pas estimée, son écart-type et ses covariances
+valent `NA` : zéro dirait « connue exactement », ce qui n'est pas la question
+posée.
+
+**Le témoin informe `c`, il n'est pas une dose.** Quand `c` est estimée (EM), le
+témoin entre dans la vraisemblance — c'est ce chemin que WIN DL reproduit au
+chiffre près. Quand `c` est déclarée, il n'informe plus rien : le modèle est
+fixé avant qu'on le regarde, et l'ajustement se juge sur la série de doses
+seule. C'est déjà la convention du degré de liberté (doses − 2) et celle de la
+matrice d'information ; l'y ranger rend les trois cohérentes.
+
+Ce n'est pas une question de doctrine. Sous « mortalité nulle » avec un témoin
+qui compte des morts, le modèle affirme `p = 0` là où l'on a observé des décès :
+la vraisemblance vaut moins l'infini. `hstat_dl50_logvrais()` borne la
+probabilité à 1e-12 pour ne pas rendre l'infini, et le Chi-2 ressortait **fini
+mais entièrement déterminé par cette borne** :
+
+| epsilon | 1e-10 | 1e-12 | 1e-15 | 1e-20 |
+|---|---|---|---|---|
+| Chi-2 | 119,8 | 147,4 | 188,9 | 258,0 |
+
+Un nombre qui change avec une constante d'implémentation n'est pas une
+statistique de test. Il pilotait pourtant le facteur d'hétérogénéité, donc la
+largeur de **tous** les intervalles publiés. Sur l'essai d'exemple, il valait
+148 et multipliait les intervalles par 5,4.
+
+La contradiction, elle, se dit maintenant par son nom : déclarer une mortalité
+naturelle nulle devant un témoin qui compte des morts est un défaut de saisie,
+pas un résultat.
+
+**L'essai de référence de WIN DL n'est touché par aucun des deux** : il est
+ajusté par EM, où `c` est estimée, et son témoin est 25/0 — le terme valait déjà
+zéro des deux côtés. Les vingt valeurs vérifiées ne bougent pas d'un chiffre.
+
+#### Deux vraisemblances ne se soustraient que sur les mêmes données
+
+Onde de choc du point précédent, et attrapée avant de partir. Le test
+Abbott/EM calculait `2·(em$ll0 − ab$ll0)` : depuis que le témoin sort de la
+vraisemblance quand `c` est déclarée, celui d'EM le contient et celui d'Abbott
+non. La différence chargeait le terme du témoin, ressortait **négative**, et le
+`max(0, ·)` la ramenait à zéro — p = 1, « les deux estimations concordent »,
+**quelles que soient les données**.
+
+Or le témoin est précisément la donnée qui sépare les deux modèles : c'est lui
+qui dit où est la mortalité naturelle. Il entre donc des deux côtés, Abbott
+étant EM contraint à `c = x0/n0`. La différence est alors positive par
+construction — EM maximise exactement cet objectif. Mesuré : 0,002 (p = 0,96)
+sur un essai concordant, 28,3 (p = 1e-7) sur un essai où le témoin contredit
+les doses.
 
 ### Fieller cède la place à la delta-méthode, et cela se voit
 

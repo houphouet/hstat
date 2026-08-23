@@ -225,6 +225,49 @@ hstat_dl50_probit <- function(p) stats::qnorm(pmin(pmax(p, 1e-12), 1 - 1e-12))
   I
 }
 
+# LA MATRICE A INVERSER EST CELLE DES PARAMETRES REELLEMENT ESTIMES.
+#
+# C'est la faute la plus couteuse que ce module ait portee, et elle etait
+# entierement silencieuse : sous « Abbott » et « mortalite nulle », `c` est
+# DECLAREE -- lue sur le temoin, ou posee a zero -- et pourtant la matrice a
+# trois lignes etait inversee comme si elle avait ete estimee. Inverser une
+# matrice 3x3 pour n'en lire que le bloc (a, b) fait payer une incertitude sur
+# `c` que l'hypothese exclut : les variances ressortent bien plus grandes.
+#
+# Mesure sur l'essai de reference, `c` fixee a zero :
+#
+#   |            | var(a) | var(b) | ET(DL50) |
+#   |------------|--------|--------|----------|
+#   | 3x3 (faux) | 0,5893 | 0,3554 |   0,6716 |
+#   | 2x2 (juste)| 0,1841 | 0,0329 |   0,1032 |
+#
+# soit une erreur-type de la DL50 **6,5 fois trop grande**, donc des
+# intervalles absurdement larges -- et un `g = t².var(b)/b²` gonfle au point de
+# franchir 1, ce qui faisait abandonner Fieller pour la delta-methode sans
+# raison.
+#
+# Le bloc 2x2 est verifie contre `glm(binomial(probit))` quand `c` vaut zero :
+# c'est alors exactement le meme modele, et les deux coincident a 1e-7.
+#
+# L'incoherence etait d'ailleurs INTERNE : `npar` vaut deja 2 pour ces deux
+# methodes -- c'est lui qui decide si le Chi-2 a un degre de liberte
+# residuel. Le meme ajustement comptait donc deux parametres pour le test
+# d'ajustement et trois pour les variances.
+#
+# L'essai de reference de WIN DL est ajuste par EM, ou `c` EST estimee : ce
+# cas-la garde ses trois lignes et ne bouge pas d'un chiffre.
+.hstat_dl50_vcov <- function(z, n, a, b, cc, npar) {
+  I <- .hstat_dl50_fisher(z, n, a, b, cc)
+  if (npar >= 3L) return(solve(I))
+  V <- matrix(NA_real_, 3, 3, dimnames = dimnames(I))
+  V[1:2, 1:2] <- solve(I[1:2, 1:2])
+  # `c` n'etant pas estimee, son ecart-type et ses covariances N'EXISTENT PAS.
+  # Zero dirait « connue exactement », ce qui n'est pas la question posee ;
+  # `NA` dit « sans objet ici », et c'est deja l'idiome du tableau de
+  # parametres pour les lignes qui ne portent pas d'erreur-type.
+  V
+}
+
 # ---------------------------------------------------------------------------
 #  Un essai : la structure d'entree
 # ---------------------------------------------------------------------------
@@ -327,10 +370,36 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
   eta <- a + b * z
   Pobs <- cc + (1 - cc) * stats::pnorm(eta)
 
+  # LE TEMOIN INFORME `c` ; IL N'EST PAS UNE DOSE.
+  #
+  # Quand `c` est ESTIMEE (EM), le temoin entre dans la vraisemblance : c'est
+  # lui qui la tire, et c'est ce chemin-la que WIN DL reproduit au chiffre
+  # pres. Quand `c` est DECLAREE -- Abbott, ou mortalite nulle -- il n'informe
+  # plus rien : le modele est fixe avant qu'on le regarde, et l'ajustement se
+  # juge sur la serie de doses seule. C'est deja la convention du degre de
+  # liberte (nombre de doses moins deux) et celle de la matrice d'information
+  # (les doses seules) ; l'y ranger rend les trois coherentes.
+  #
+  # Ce n'est pas une question de doctrine. Sous « mortalite nulle » avec un
+  # temoin qui compte des morts, le modele affirme p = 0 la ou l'on a observe
+  # des deces : la vraisemblance vaut moins l'infini. `hstat_dl50_logvrais()`
+  # borne la probabilite a 1e-12 pour ne pas rendre l'infini, et le Chi-2
+  # ressortait donc FINI -- mais entierement determine par cette borne :
+  #
+  #   epsilon | 1e-10 | 1e-12 | 1e-15 | 1e-20
+  #   Chi-2   | 119,8 | 147,4 | 188,9 | 258,0
+  #
+  # Un nombre qui change avec une constante d'implementation n'est pas une
+  # statistique de test. Il pilotait pourtant le facteur d'heterogeneite, donc
+  # la largeur de TOUS les intervalles publies.
+  #
+  # L'essai de reference de WIN DL n'est pas touche : son temoin est 25/0 et sa
+  # mortalite naturelle vaut zero, le terme valait deja zero des deux cotes.
+  temoin_lu <- identical(methode, "em") && n0 > 0
   ll0 <- hstat_dl50_logvrais(x, n, Pobs) +
-         if (n0 > 0) hstat_dl50_logvrais(x0, n0, cc) else 0
+         if (temoin_lu) hstat_dl50_logvrais(x0, n0, cc) else 0
   ll1 <- hstat_dl50_logvrais(x, n, x / n) +
-         if (n0 > 0) hstat_dl50_logvrais(x0, n0, x0 / n0) else 0
+         if (temoin_lu) hstat_dl50_logvrais(x0, n0, x0 / n0) else 0
   chi2 <- max(0, 2 * (ll1 - ll0))
   # Le degre de liberte est celui de WIN DL : nombre de doses - 2. Le manuel
   # l'ecrit, le fichier de reference le confirme (7 doses, ddl = 5) -- y
@@ -349,8 +418,11 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
   npar <- if (identical(methode, "em")) 3L else 2L
   informatif <- nrow(d) > npar
 
-  V <- tryCatch(solve(.hstat_dl50_fisher(z, n, a, b, cc)), error = function(e) NULL)
-  if (is.null(V) || any(!is.finite(V)))
+  V <- tryCatch(.hstat_dl50_vcov(z, n, a, b, cc, npar), error = function(e) NULL)
+  # Le controle porte sur le BLOC ESTIME seulement : quand `c` est declaree,
+  # sa ligne vaut NA par construction, et exiger la finitude partout ferait
+  # refuser un ajustement parfaitement calculable.
+  if (is.null(V) || any(!is.finite(V[1:2, 1:2])))
     return(echec(tr("Matrice d'information singulière : les variances des paramètres ne peuvent pas être calculées. Ajoutez des doses ou augmentez les effectifs.")))
 
   # Heterogeneite : un ajustement rejete a 5 % signale une dispersion que le
@@ -383,6 +455,11 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
     heterogene = hetero, facteur = facteur, t = tq, alpha = alpha,
     informatif = informatif, npar = npar,
     temoin_eleve = isTRUE(c_temoin > HSTAT_DL50_TEMOIN_MAX),
+    # Declarer une mortalite naturelle nulle alors que le temoin compte des
+    # morts est une CONTRADICTION DE SAISIE, pas un resultat. Le calcul se
+    # poursuit -- c'est un choix legitime quand on tient la perte du temoin
+    # pour accidentelle -- mais il ne doit pas passer inapercu.
+    temoin_contredit = isTRUE(identical(methode, "nulle") && x0 > 0),
     V = V, Vh = Vh, table = table,
     n_doses = nrow(d), n_zero = sum(p_cor <= 0), n_cent = sum(p_cor >= 1)),
     class = "hstat_dl50_fit")
@@ -599,6 +676,9 @@ hstat_dl50_verdict <- function(fit, seuils = HSTAT_DL50_SEUILS) {
       if (isTRUE(fit$temoin_eleve))
         trf("Mortalité du témoin élevée (%.1f %%) : au-delà de %.0f %%, la correction d'Abbott devient peu fiable et l'usage veut qu'on refasse l'essai.",
             100 * fit$c_temoin, 100 * HSTAT_DL50_TEMOIN_MAX),
+      if (isTRUE(fit$temoin_contredit))
+        trf("Mortalité naturelle déclarée nulle alors que le témoin en compte %.1f %% : les doses sont analysées sans correction, et l'ajustement est jugé sur elles seules. Choisissez Abbott ou EM pour tenir compte du témoin.",
+            100 * fit$c_temoin),
       if (identical(dl$Position[i], tr("extrapolée")))
         trf("Cette dose est hors de l'étendue testée (%s à %s) : elle repose sur le prolongement de la droite.",
             nb(attr(dl, "etendue")[1]), nb(attr(dl, "etendue")[2])),
@@ -618,7 +698,25 @@ hstat_dl50_test_abbott_em <- function(essai) {
   ab <- hstat_dl50_ajuste(essai, "abbott")
   if (!isTRUE(em$ok) || !isTRUE(ab$ok))
     return(list(ok = FALSE, message = if (!isTRUE(em$ok)) em$message else ab$message))
-  chi2 <- max(0, 2 * (em$ll0 - ab$ll0))
+  # DEUX VRAISEMBLANCES NE SE SOUSTRAIENT QUE SI ELLES PORTENT SUR LES MEMES
+  # DONNEES. `ll0` ne convient pas ici : depuis que le temoin est retire de la
+  # vraisemblance quand c est DECLAREE, celui d'EM le contient et celui
+  # d'Abbott non. La difference chargeait alors le terme du temoin, ressortait
+  # negative, et `max(0, .)` la ramenait a zero -- p = 1, « les deux
+  # estimations concordent », QUELLES QUE SOIENT LES DONNEES. Le verdict
+  # devenait constant sans que rien ne le signale.
+  #
+  # Or le temoin est precisement la donnee qui separe les deux modeles : c'est
+  # lui qui dit ou est la mortalite naturelle. Il entre donc des deux cotes.
+  # Abbott est alors EM contraint a c = x0/n0, le rapport de vraisemblance est
+  # bien emboite, et la difference est positive par construction -- EM
+  # maximise exactement cet objectif-la.
+  ll_complet <- function(f) {
+    dd <- f$essai$doses
+    hstat_dl50_logvrais(dd$x, dd$n, f$table$Mortalite_attendue) +
+      if (f$essai$n0 > 0) hstat_dl50_logvrais(f$essai$x0, f$essai$n0, f$c) else 0
+  }
+  chi2 <- max(0, 2 * (ll_complet(em) - ll_complet(ab)))
   p <- stats::pchisq(chi2, 1, lower.tail = FALSE)
   v <- hstat_p_verdict(p)
   list(ok = TRUE, c_em = em$c, c_abbott = ab$c, chi2 = chi2, ddl = 1L, p = p,
@@ -1162,7 +1260,9 @@ hstat_dl50_prn <- function(fit, nom_fichier = "") {
   g <- function(nm) as.character(ch[[nm]] %||% "")
   dl <- hstat_dl50_doses_letales(fit)
   nb <- function(v, d = 5) formatC(v, format = "f", digits = d)
-  sc <- function(v) formatC(v, format = "e", digits = 5)
+  # Une valeur sans objet s'ecrit « - », pas « NA » : sous Abbott et sous
+  # mortalite nulle, `c` est declaree et n'a donc ni ecart-type ni covariance.
+  sc <- function(v) ifelse(is.finite(v), formatC(v, format = "e", digits = 5), "-")
   tb <- fit$table
   c(
     trf("Nom du fichier : %s", nom_fichier),
@@ -3294,8 +3394,15 @@ mod_dl50_server <- function(id, values) {
         }),
         tables = list("Doses_letales" = dl, "Detail_par_dose" = f$table),
         plot = function() shiny::isolate(graphe()),
+        # Les doses voyagent avec la capture : c'est la seule analyse dont les
+        # donnees ne viennent pas du fichier de travail, et sans elles le
+        # journal de reproductibilite n'a rien a reconstituer.
         meta = list(a = f$a, b = f$b, c = f$c, methode = f$methode,
-                    chi2 = f$chi2, ddl = f$ddl, p = f$p_chi2))
+                    chi2 = f$chi2, ddl = f$ddl, p = f$p_chi2,
+                    doses = f$essai$doses$dose, effectifs = f$essai$doses$n,
+                    morts = f$essai$doses$x,
+                    temoin_n = f$essai$n0, temoin_x = f$essai$x0,
+                    unite = hstat_dl50_unite(f)))
     }, ignoreInit = TRUE)
   })
 }
