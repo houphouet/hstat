@@ -824,9 +824,9 @@ hstat_dl50_ecrire_windl <- function(essai, chemin) {
   con <- file(chemin, open = "wb")
   on.exit(close(con))
   writeBin(c(entete, charToRaw("\r\n")), con)
-  writeBin(charToRaw(paste0(
-    paste(iconv(suite, "UTF-8", "CP437", sub = "?"), collapse = "\r\n"),
-    "\r\n\333\r\n")), con)          # 0xDB : marqueur de fin de WIN DL
+  writeBin(c(charToRaw(paste0(
+    paste(iconv(suite, "UTF-8", "CP437", sub = "?"), collapse = "\r\n"), "\r\n")),
+    as.raw(219L), charToRaw("\r\n")), con)   # 0xDB : marqueur de fin de WIN DL
   invisible(chemin)
 }
 
@@ -1072,10 +1072,10 @@ mod_dl50_ui <- function(id) {
                 shiny::HTML("<b>Saisie directe</b> <small style='color:#7f8c8d;'>(doses, effectifs, morts)</small>"),
                 shiny::HTML("<b>Jeu de données chargé</b> <small style='color:#7f8c8d;'>(CSV, Excel, SPSS…)</small>"),
                 shiny::HTML("<b>Fichier WIN DL</b> <small style='color:#7f8c8d;'>(.TXT natif)</small>")),
-              choiceValues = list("saisie", "donnees", "windl"), selected = "saisie"),
+              choiceValues = list("manual", "dataset", "windl"), selected = "manual"),
 
             shiny::conditionalPanel(
-              condition = sprintf("input['%s'] == 'donnees'", ns("source")),
+              condition = sprintf("input['%s'] == 'dataset'", ns("source")),
               shiny::helpText("Les colonnes viennent du jeu de travail : tout ce que",
                               " l'onglet Chargement sait lire est donc utilisable ici."),
               shiny::selectInput(ns("colDose"), "Colonne des doses", choices = NULL),

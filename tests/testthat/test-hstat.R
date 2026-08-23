@@ -8328,6 +8328,407 @@ test_that("le nombre de filles est un entier borne, et il appartient au produit"
   expect_true(grepl("P", attr(r, "message"), fixed = TRUE))
 })
 
+# =============================================================================
+#  DL50 / CL50 -- REGRESSION PROBIT DOSE-MORTALITE
+# -----------------------------------------------------------------------------
+#  Les valeurs de reference viennent d'un fichier de resultats produit par WIN
+#  DL lui-meme (CL94AC1.PRN, CIRAD) : 7 doses, 25 insectes par dose, temoin
+#  25/0. Elles sont inscrites ici en dur -- un test qui dependrait d'une
+#  archive televersee ne tournerait pas en integration continue, et c'est
+#  precisement ce test-la qui doit tourner a chaque modification du noyau.
+# =============================================================================
+
+.hstat_dl50_essai_ref <- function()
+  hstat_dl50_essai(c(0.00063, 0.00125, 0.0025, 0.005, 0.01, 0.02, 0.03),
+                   rep(25, 7), c(5, 7, 9, 11, 14, 18, 20),
+                   temoin_n = 25, temoin_morts = 0,
+                   titre = "C. leucotreta reference cyfluthrine 94")
+
+test_that("l'ajustement probit reproduit les resultats de WIN DL", {
+  f <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  expect_true(isTRUE(f$ok))
+
+  # Parametres de la droite de Henry et mortalite naturelle.
+  expect_equal(f$a, 2.19760, tolerance = 1e-4)
+  expect_equal(f$b, 0.97319, tolerance = 1e-4)
+  expect_equal(f$c, 0, tolerance = 1e-6)
+
+  # Les deux log-vraisemblances, dans la convention du logiciel : SANS les
+  # coefficients binomiaux. R en rendrait -12.55876 -- l'ecart est exactement
+  # sum(log(choose(n, x))), et il ne depend pas des parametres.
+  expect_equal(f$ll0, -105.63592, tolerance = 1e-4)
+  expect_equal(f$ll1, -105.29973, tolerance = 1e-5)
+  ecart <- sum(log(choose(25, c(5, 7, 9, 11, 14, 18, 20))))
+  expect_equal(f$ll1 + ecart,
+               sum(stats::dbinom(c(5, 7, 9, 11, 14, 18, 20), 25,
+                                 c(5, 7, 9, 11, 14, 18, 20) / 25, log = TRUE)))
+
+  # Ajustement : le Chi-2 est la DEVIANCE, pas celui de Pearson (qui vaudrait
+  # 0.668). Le degre de liberte est celui du manuel : nombre de doses - 2.
+  expect_equal(f$chi2, 0.672, tolerance = 1e-3)
+  expect_equal(f$ddl, 5L)
+  expect_equal(f$p_chi2, 0.9845, tolerance = 1e-3)
+  expect_false(f$heterogene)
+
+  # Les six termes de variance, issus de l'inversion de la matrice
+  # d'information de FISHER a TROIS parametres.
+  expect_equal(sqrt(f$Vh[1, 1]), 7.67643e-01, tolerance = 1e-4)
+  expect_equal(sqrt(f$Vh[2, 2]), 5.96156e-01, tolerance = 1e-4)
+  expect_equal(sqrt(f$Vh[3, 3]), 4.38675e-01, tolerance = 1e-4)
+  expect_equal(f$Vh[1, 2], 4.37167e-01, tolerance = 1e-4)
+  expect_equal(f$Vh[1, 3], 2.79222e-01, tolerance = 1e-4)
+  expect_equal(abs(f$Vh[2, 3]), 2.49109e-01, tolerance = 1e-4)
+
+  dl <- hstat_dl50_doses_letales(f)
+  expect_equal(dl$Seuil, c(90, 50, 10))
+  expect_equal(dl$Log_dose, c(-9.41099e-01, -2.25814e+00, -3.57517e+00), tolerance = 1e-3)
+  expect_equal(dl$Ecart_type, c(2.92820e-01, 6.71583e-01, 1.45538e+00), tolerance = 1e-3)
+  expect_equal(dl$Dose, c(1.14525e-01, 5.51905e-03, 2.65967e-04), tolerance = 1e-3)
+  expect_equal(dl$Limite_inf, c(3.05474e-02, 2.66417e-04, 3.73502e-07), tolerance = 1e-2)
+  expect_equal(dl$Limite_sup, c(4.29366e-01, 1.14332e-01, 1.89393e-01), tolerance = 1e-2)
+})
+
+test_that("la matrice d'information est assemblee sur les doses seules", {
+  # C'est la convention de WIN DL, et elle ne se devine pas. Le lot temoin
+  # apporte pourtant de l'information sur c -- mais sa contribution vaut
+  # n0/(c(1-c)), donc INFINIE des que c = 0, ce qui rendrait ET(c) = 0. Le
+  # logiciel affiche 0.4387 sur un essai ou c vaut exactement zero.
+  f <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  expect_gt(sqrt(f$V[3, 3]), 0.4)
+  # Reprendre le choix inverse (temoin inclus) ferait tendre ET(c) vers zero :
+  # on le verifie en ajoutant a la main la contribution du temoin.
+  z <- log10(f$essai$doses$dose)
+  I <- solve(f$V)
+  I[3, 3] <- I[3, 3] + f$essai$n0 / (1e-8 * (1 - 1e-8))
+  expect_lt(sqrt(solve(I)[3, 3]), 1e-3)
+})
+
+test_that("Fieller est exact, et cede a la delta-methode quand il n'est plus borne", {
+  # FIELLER par definition : l'ensemble des m tels que
+  #   (y - a - b m)^2 <= t^2 (Vaa + m^2 Vbb + 2 m Vab)
+  # soit les racines d'un polynome du second degre. Une forme approchee du
+  # terme sous la racine rendait des bornes qui n'encadraient meme pas
+  # l'estimation -- c'est le premier symptome, et le seul si l'on ne regarde
+  # pas le tableau.
+  racines <- function(a, b, V, t, p) {
+    y <- stats::qnorm(p)
+    A <- b^2 - t^2 * V[2, 2]
+    B <- -2 * (b * (y - a) + t^2 * V[1, 2])
+    C <- (y - a)^2 - t^2 * V[1, 1]
+    d <- B^2 - 4 * A * C
+    if (A <= 0 || d < 0) return(c(NA_real_, NA_real_))
+    sort(c((-B - sqrt(d)) / (2 * A), (-B + sqrt(d)) / (2 * A)))
+  }
+  # Essai bien determine : g < 1, Fieller s'applique.
+  e <- hstat_dl50_essai(c(0.25, 0.5, 1, 2, 4, 10), rep(300, 6),
+                        c(40, 100, 150, 220, 280, 299), 300, 0)
+  f <- hstat_dl50_ajuste(e, "em")
+  dl <- hstat_dl50_doses_letales(f)
+  expect_lt(attr(dl, "g"), 1)
+  expect_true(all(dl$Intervalle == "Fieller"))
+  for (i in seq_len(nrow(dl))) {
+    r <- racines(f$a, f$b, f$Vh, f$t, dl$Seuil[i] / 100)
+    expect_equal(log10(dl$Limite_inf[i]), r[1], tolerance = 1e-8)
+    expect_equal(log10(dl$Limite_sup[i]), r[2], tolerance = 1e-8)
+  }
+  # Et, dans tous les cas, les bornes ENCADRENT l'estimation.
+  expect_true(all(dl$Limite_inf < dl$Dose & dl$Dose < dl$Limite_sup))
+
+  # Essai de reference : g = 1.44, l'ensemble n'est plus borne. WIN DL y rend
+  # des bornes symetriques en log-dose, celles de la delta-methode.
+  f2 <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  dl2 <- hstat_dl50_doses_letales(f2)
+  expect_gt(attr(dl2, "g"), 1)
+  expect_true(all(dl2$Intervalle == "delta"))
+  expect_equal(log10(dl2$Limite_sup) - dl2$Log_dose,
+               dl2$Log_dose - log10(dl2$Limite_inf), tolerance = 1e-8)
+  expect_true(all(dl2$Limite_inf < dl2$Dose & dl2$Dose < dl2$Limite_sup))
+})
+
+test_that("les trois methodes d'estimation de la mortalite naturelle se distinguent", {
+  # Temoin a 4 morts sur 90 : Abbott fixe c a 4/90, EM l'estime sur tout
+  # l'essai, la troisieme la force a zero.
+  e <- hstat_dl50_essai(c(0.00848, 0.0163, 0.03423, 0.05053, 0.08476),
+                        rep(90, 5), c(30, 43, 62, 75, 82), 90, 4)
+  em <- hstat_dl50_ajuste(e, "em")
+  ab <- hstat_dl50_ajuste(e, "abbott")
+  nu <- hstat_dl50_ajuste(e, "nulle")
+  expect_true(all(vapply(list(em, ab, nu), function(f) isTRUE(f$ok), logical(1))))
+  expect_equal(ab$c, 4 / 90)
+  expect_equal(nu$c, 0)
+  expect_gt(em$c, 0)
+  # Forcer c a zero devant un temoin qui compte des morts fait porter cette
+  # mortalite par la pente : l'ajustement s'effondre, et ca doit se voir.
+  expect_true(nu$heterogene)
+  expect_false(em$heterogene)
+  expect_gt(nu$facteur, 1)
+
+  # Le test Abbott/EM oppose c libre a c fixee au temoin : 1 degre de liberte.
+  t <- hstat_dl50_test_abbott_em(e)
+  expect_true(t$ok)
+  expect_equal(t$ddl, 1L)
+  expect_equal(t$c_abbott, 4 / 90)
+  expect_true(nzchar(t$conseil))
+})
+
+test_that("moins de trois doses exploitables : le calcul est refuse, en le disant", {
+  # WIN DL refuse de continuer sous trois doses donnant une mortalite corrigee
+  # strictement comprise entre 0 et 100 %. Rendre une droite sur deux points
+  # utiles serait pire que refuser.
+  e <- hstat_dl50_essai(c(0.1, 1, 10, 100), rep(20, 4), c(0, 0, 20, 20), 20, 0)
+  f <- hstat_dl50_ajuste(e, "em")
+  expect_false(isTRUE(f$ok))
+  expect_true(grepl("Ajoutez", f$message, fixed = TRUE))
+
+  # Et les saisies impossibles sont nommees, pas avalees.
+  for (cas in list(
+      hstat_dl50_essai(c(0, 1, 2), rep(20, 3), c(1, 5, 9)),
+      hstat_dl50_essai(c(1, 2, 3), rep(20, 3), c(1, 25, 9)),
+      hstat_dl50_essai(c(1, 2, 3), c(20, 0, 20), c(1, 5, 9)))) {
+    r <- hstat_dl50_ajuste(cas, "em")
+    expect_false(isTRUE(r$ok))
+    expect_true(grepl("verifiez|vérifiez|renseignez|Renseignez|temoin|témoin",
+                      r$message))
+  }
+})
+
+test_that("les doses identiques sont regroupees et triees", {
+  # Deux lignes a la meme dose sont deux repetitions du meme point : les
+  # sommer est la seule lecture qui garde juste le nombre d'individus testes.
+  e <- hstat_dl50_essai(c(10, 1, 10, 0.1), c(20, 20, 30, 20), c(15, 2, 24, 1))
+  expect_equal(e$doses$dose, c(0.1, 1, 10))
+  expect_equal(e$doses$n, c(20, 20, 50))
+  expect_equal(e$doses$x, c(1, 2, 39))
+})
+
+test_that("le calcul inverse rend des doses croissantes avec la mortalite", {
+  # `doses_letales()` TRIE ses lignes par seuil decroissant. Y recoller la
+  # mortalite demandee dans l'ordre de saisie decalait toutes les colonnes :
+  # on lisait la dose de la DL25 sur la ligne de la DL95.
+  f <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  d <- hstat_dl50_dose_pour(f, c(95, 25, 50))
+  expect_equal(d$Mortalite_demandee, c(25, 50, 95))
+  expect_true(all(diff(d$Dose) > 0))
+  # La DL50 rendue ici est la meme que celle du tableau des doses letales.
+  expect_equal(d$Dose[d$Mortalite_demandee == 50],
+               hstat_dl50_doses_letales(f)$Dose[2])
+
+  # Une mortalite sous la mortalite naturelle n'a pas de dose : on rend NULL
+  # plutot qu'un nombre qui aurait l'air d'une reponse.
+  e <- hstat_dl50_essai(c(0.00848, 0.0163, 0.03423, 0.05053, 0.08476),
+                        rep(90, 5), c(30, 43, 62, 75, 82), 90, 20)
+  f2 <- hstat_dl50_ajuste(e, "abbott")
+  expect_null(hstat_dl50_dose_pour(f2, 5))
+
+  # La mortalite attendue reste dans [0 ; 1], bornes comprises : l'intervalle
+  # est construit sur le probit puis transporte, jamais sur la proportion.
+  m <- hstat_dl50_mortalite(f, c(1e-6, 0.005, 1e6))
+  expect_true(all(m$Limite_inf >= 0 & m$Limite_sup <= 1))
+  expect_true(all(m$Limite_inf <= m$Mortalite & m$Mortalite <= m$Limite_sup))
+})
+
+test_that("la comparaison d'essais ne compare jamais un modele a lui-meme", {
+  # Sous le scenario heterogene, prendre le modele de base comme hypothese
+  # nulle du 3e test revenait a le comparer a lui-meme : zero degre de
+  # liberte, et un test qui ne teste rien.
+  a <- .hstat_dl50_essai_ref()
+  b <- hstat_dl50_essai(c(0.25, 0.5, 1, 2, 4, 10), rep(30, 6),
+                        c(4, 10, 15, 22, 28, 30), 25, 0, titre = "endosulfan")
+  for (sc in c("heterogene", "homogene", "nulle")) {
+    r <- hstat_dl50_comparaison(list(a, b), sc)
+    expect_equal(nrow(r), 4L)
+    expect_true(all(r$DDL > 0), info = sc)
+    expect_true(all(is.finite(r$Chi2)), info = sc)
+    expect_true(all(nzchar(r$Conclusion)))
+    expect_true(nzchar(attr(r, "avertissement")))
+  }
+  # Deux produits differents : les droites different, et le test le dit.
+  r <- hstat_dl50_comparaison(list(a, b), "heterogene")
+  expect_lt(r$p[r$Hypothese == tr("Identité des droites (a et b identiques)")], 0.05)
+
+  # Le meme essai deux fois : rien ne peut differer.
+  r2 <- hstat_dl50_comparaison(list(a, a), "heterogene")
+  expect_gt(r2$p[2], 0.99)
+  expect_gt(r2$p[4], 0.99)
+
+  expect_equal(nrow(hstat_dl50_comparaison(list(a), "heterogene")), 0L)
+})
+
+test_that("le scenario a mortalite nulle est refuse si un temoin compte des morts", {
+  # Fixer c a zero devant un temoin qui compte des morts ferait porter cette
+  # mortalite par la pente. Le manuel l'ecrit ; on le refuse en le disant.
+  a <- .hstat_dl50_essai_ref()
+  b <- hstat_dl50_essai(c(0.25, 0.5, 1, 2, 4, 10), rep(30, 6),
+                        c(4, 10, 15, 22, 28, 30), 25, 3)
+  r <- hstat_dl50_comparaison(list(a, b), "nulle")
+  expect_equal(nrow(r), 0L)
+  expect_true(grepl("mortalité naturelle", attr(r, "message")))
+  # Les deux autres scenarios, eux, restent disponibles.
+  expect_equal(nrow(hstat_dl50_comparaison(list(a, b), "heterogene")), 4L)
+})
+
+test_that("la fusion exige des champs identiques et un test d'identite non significatif", {
+  ch <- list(espece = "C. leucotreta", stade = "Adulte", duree = "48 h",
+             temperature = "25", matiere1 = "Cyfluthrine", matiere2 = "",
+             ratio = "", methode = "Application topique", unite = "ug/insecte")
+  a <- hstat_dl50_essai(c(0.00063, 0.00125, 0.0025, 0.005, 0.01, 0.02),
+                        rep(25, 6), c(5, 7, 9, 11, 14, 18), 25, 0,
+                        titre = "rep 1", champs = ch)
+  b <- hstat_dl50_essai(c(0.00063, 0.00125, 0.0025, 0.005, 0.01, 0.02),
+                        rep(25, 6), c(4, 8, 10, 12, 13, 17), 25, 0,
+                        titre = "rep 2", champs = ch)
+  r <- hstat_dl50_fusion(list(a, b))
+  expect_true(isTRUE(r$ok))
+  # Les effectifs s'additionnent dose par dose.
+  expect_equal(r$essai$doses$n, rep(50, 6))
+  expect_equal(r$essai$doses$x, c(9, 15, 19, 23, 27, 35))
+  expect_equal(r$essai$n0, 50)
+
+  # Un champ qui differe suffit a bloquer : la fusion assemblerait deux
+  # experimentations differentes.
+  ch2 <- ch; ch2$matiere1 <- "Endosulfan"
+  b2 <- hstat_dl50_essai(b$doses$dose, b$doses$n, b$doses$x, 25, 0, champs = ch2)
+  r2 <- hstat_dl50_fusion(list(a, b2))
+  expect_false(isTRUE(r2$ok))
+  expect_true(grepl("Matière active", r2$message, fixed = TRUE))
+
+  # Des essais qui different vraiment : le test d'identite bloque la fusion.
+  b3 <- hstat_dl50_essai(c(0.25, 0.5, 1, 2, 4, 10), rep(30, 6),
+                         c(4, 10, 15, 22, 28, 30), 25, 0, champs = ch)
+  r3 <- hstat_dl50_fusion(list(a, b3))
+  expect_false(isTRUE(r3$ok))
+  expect_true(grepl("masquerait", r3$message, fixed = TRUE))
+})
+
+test_that("un fichier WIN DL se lit, s'ecrit et se relit a l'identique", {
+  # Les separateurs de la premiere ligne sont les octets 0x00 a 0x09 :
+  # `readLines()` s'arrete sur le premier zero et perdrait l'en-tete entier.
+  # Le fichier se lit donc en OCTETS, decoupage en lignes compris.
+  ch <- list(date = "1/2/95", auteur = "Jean-Michel Vassal", duree = "48 h",
+             temperature = "25", espece = "Cryptophlebia leucotreta",
+             stade = "Adulte", matiere1 = "Cyfluthrine", matiere2 = "",
+             ratio = "", methode = "Application topique",
+             unite = "µg / insecte")
+  e <- hstat_dl50_essai(c(0.00063, 0.00125, 0.0025, 0.005, 0.01, 0.02, 0.03),
+                        rep(25, 7), c(5, 7, 9, 11, 14, 18, 20), 25, 0,
+                        titre = "C. leucotreta reference", champs = ch)
+  tmp <- tempfile(fileext = ".txt")
+  on.exit(unlink(tmp), add = TRUE)
+  hstat_dl50_ecrire_windl(e, tmp)
+  # Le fichier porte bien des octets de controle : c'est ce qui le rend
+  # illisible par `readLines()`, et lisible par WIN DL.
+  oct <- readBin(tmp, "raw", n = file.size(tmp))
+  expect_true(any(oct == as.raw(0L)))
+  expect_true(any(oct == as.raw(219L)))          # 0xDB, marqueur de fin
+
+  r <- hstat_dl50_lire_windl(tmp)
+  expect_true(isTRUE(r$ok))
+  expect_equal(r$essai$doses$dose, e$doses$dose, tolerance = 1e-6)
+  expect_equal(r$essai$doses$n, e$doses$n)
+  expect_equal(r$essai$doses$x, e$doses$x)
+  expect_equal(r$essai$n0, 25)
+  expect_equal(r$essai$x0, 0)
+  expect_equal(r$essai$titre, "C. leucotreta reference")
+  for (nm in c("date", "auteur", "espece", "matiere1", "methode"))
+    expect_equal(r$essai$champs[[nm]], ch[[nm]], info = nm)
+  # Le micro passe l'aller-retour par le CP437.
+  expect_true(grepl("g / insecte", r$essai$champs$unite, fixed = TRUE))
+
+  # Et l'ajustement du fichier relu est celui de l'essai d'origine.
+  expect_equal(hstat_dl50_ajuste(r$essai, "em")$a,
+               hstat_dl50_ajuste(e, "em")$a, tolerance = 1e-8)
+
+  # Un fichier qui n'en est pas un se refuse, sans lever.
+  vide <- tempfile(fileext = ".txt")
+  writeLines(c("n'importe quoi", "deux lignes"), vide)
+  on.exit(unlink(vide), add = TRUE)
+  expect_false(isTRUE(hstat_dl50_lire_windl(vide)$ok))
+  expect_false(isTRUE(hstat_dl50_lire_windl(tempfile())$ok))
+})
+
+test_that("la dose zero devient le temoin, elle n'est pas ecartee", {
+  # Son logarithme n'existe pas : elle ne peut pas entrer dans la regression.
+  # L'ecarter en silence perdrait la mortalite naturelle de l'essai.
+  df <- data.frame(
+    essai = rep(c("A", "B"), each = 4),
+    dose = c(0, 1, 2, 4, 0, 1, 2, 4),
+    n = rep(20, 8), morts = c(2, 5, 9, 15, 0, 4, 8, 16))
+  r <- hstat_dl50_depuis_donnees(df, "dose", "n", "morts", "essai")
+  expect_true(isTRUE(r$ok))
+  expect_equal(length(r$essais), 2L)
+  expect_equal(r$essais[["A"]]$n0, 20)
+  expect_equal(r$essais[["A"]]$x0, 2)
+  expect_equal(r$essais[["B"]]$x0, 0)
+  expect_equal(nrow(r$essais[["A"]]$doses), 3L)
+
+  # Sans colonne de regroupement, un seul essai.
+  r2 <- hstat_dl50_depuis_donnees(df[df$essai == "A", ], "dose", "n", "morts")
+  expect_equal(length(r2$essais), 1L)
+
+  # Une colonne absente est nommee, pas devinee.
+  r3 <- hstat_dl50_depuis_donnees(df, "dose", "absente", "morts")
+  expect_false(isTRUE(r3$ok))
+  expect_true(grepl("absente", r3$message, fixed = TRUE))
+})
+
+test_that("le rapport .PRN porte les nombres et les libelles attendus", {
+  f <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  p <- hstat_dl50_prn(f, "CL94AC1.TXT")
+  txt <- paste(p, collapse = "\n")
+  expect_true(grepl("CL94AC1.TXT", txt, fixed = TRUE))
+  expect_true(grepl("2.19759", txt, fixed = TRUE) ||
+              grepl("2.19760", txt, fixed = TRUE))
+  expect_true(grepl("0.97319", txt, fixed = TRUE))
+  expect_true(grepl("-105.635", txt, fixed = TRUE))
+  # Une ligne par dose, plus les trois doses letales.
+  expect_equal(sum(grepl("^DL ", p)), 3L)
+  expect_true(grepl("Chi-2", txt, fixed = TRUE))
+  # Un ajustement en echec ne produit pas un rapport a moitie ecrit.
+  expect_equal(length(hstat_dl50_prn(list(ok = FALSE))), 0L)
+})
+
+test_that("le facteur d'heterogeneite s'applique quand l'ajustement est rejete", {
+  # Un Chi-2 significatif signale une dispersion que le modele binomial ne
+  # contient pas. Les variances sont multipliees par Chi2/ddl et le quantile
+  # devient celui de STUDENT : ne pas le faire publierait des intervalles trop
+  # etroits precisement quand le modele est douteux.
+  e <- hstat_dl50_essai(c(0.00848, 0.0163, 0.03423, 0.05053, 0.08476),
+                        c(90, 10000, 90, 90, 90), c(1, 1, 62, 75, 89), 100, 0)
+  f <- hstat_dl50_ajuste(e, "em")
+  expect_true(isTRUE(f$ok))
+  expect_true(f$heterogene)
+  expect_gt(f$facteur, 1)
+  expect_equal(f$Vh, f$V * f$facteur)
+  expect_equal(f$t, stats::qt(0.975, f$ddl))
+  # Sans heterogeneite, le quantile est celui de la loi normale.
+  f2 <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  expect_equal(f2$facteur, 1)
+  expect_equal(f2$t, stats::qnorm(0.975))
+  expect_equal(f2$Vh, f2$V)
+})
+
+test_that("le module DL50 est branche et depose son contexte", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  ux  <- paste(readLines(file.path(root, "inst", "app", "UX.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  srv <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl('tabName = "dl50"', ux, fixed = TRUE))
+  expect_true(grepl('mod_dl50_ui("dl50")', ux, fixed = TRUE))
+  expect_true(grepl('mod_dl50_server("dl50", values)', srv, fixed = TRUE))
+
+  mod <- paste(readLines(file.path(root, "R", "mod_dl50.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl('hstat_ai_capture(values, "DL50 / CL50"', mod, fixed = TRUE))
+  # La table de saisie passe par un proxy : la relire dans le rendu la
+  # reconstruirait a chaque cellule modifiee, detruisant sous le curseur celle
+  # que l'on est en train d'editer.
+  expect_true(grepl("DT::dataTableProxy(\"saisie\")", mod, fixed = TRUE))
+  expect_true(grepl("DT::replaceData(proxy_saisie", mod, fixed = TRUE))
+  expect_true(grepl("shiny::isolate(saisie())", mod, fixed = TRUE))
+})
+
 test_that("le module de doses est branche et depose son contexte", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))
