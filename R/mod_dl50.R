@@ -1505,7 +1505,18 @@ HSTAT_DL50_LEGENDE <- c("À droite" = "right", "À gauche" = "left",
 
 HSTAT_DL50_POS <- c("À gauche" = "0", "Au centre" = "0.5", "À droite" = "1")
 
+# Deux lectures du meme ajustement, et ce ne sont pas deux habillages : la
+# droite de Henry montre le MODELE (le probit est lineaire en log-dose, c'est
+# ce qui se verifie a l'oeil), la courbe dose-reponse montre la REPONSE telle
+# qu'on l'a mesuree -- une sigmoide bornee par la mortalite naturelle en bas et
+# par 100 % en haut. C'est celle-la qu'un rapport d'essai publie, parce qu'elle
+# se lit sans savoir ce qu'est un probit.
+HSTAT_DL50_GRAPHES <- c(
+  "Droite de Henry (probit)"    = "probit",
+  "Courbe dose-réponse (%)"     = "reponse")
+
 HSTAT_DL50_OPT_DEFAUT <- list(
+  type = "probit",
   points = TRUE, courbe = FALSE, droite = TRUE, bande = TRUE, reperes = TRUE,
   titre = "", sous_titre = "", xlab = "", ylab = "", ylab2 = "",
   titre_taille = 15, titre_style = "bold", titre_pos = 0.5,
@@ -1550,10 +1561,42 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
     if (length(t) && nzchar(t)) t else tr("Essai")
   }, character(1))
   nom <- make.unique(nom, sep = " ")
+  reponse <- identical(as.character(o$type %||% "probit")[1], "reponse")
 
+  # LE POINT TRACE N'EST PAS LE MEME D'UN GRAPHIQUE A L'AUTRE, et les confondre
+  # revient a superposer deux quantites differentes. La droite de Henry porte
+  # le probit de la mortalite CORRIGEE : c'est elle que la droite modelise. La
+  # courbe dose-reponse porte la mortalite OBSERVEE, parce que la courbe
+  # ajustee inclut deja la mortalite naturelle -- y poser les points corriges
+  # les descendrait tous de la valeur de c, et l'ecart passerait pour un defaut
+  # d'ajustement.
+  #
+  # UNE MORTALITE CORRIGEE DE 0 % OU DE 100 % N'A PAS DE PROBIT, et c'est la
+  # raison la plus concrete d'avoir les deux graphiques. `hstat_dl50_probit()`
+  # ramene la proportion dans [1e-12 ; 1 - 1e-12] pour ne pas rendre l'infini :
+  # le point ressort alors a +/- 7,03, une valeur qui ne mesure rien -- elle
+  # depend de l'epsilon choisi. Et comme l'etendue de l'axe se calcule sur les
+  # points, DEUX artefacts suffisent a etirer l'axe de -7,7 a +7,7 : sur un
+  # essai a six doses dont une a 0 % et une a 100 %, les quatre points reels
+  # occupaient 17 % de la hauteur, la droite et sa bande ecrasees au milieu.
+  #
+  # Ces points sont donc ecartes de la droite de Henry -- et NOMMES, parce
+  # qu'un point qui disparait sans un mot est le defaut que ce depot traque
+  # ailleurs. Sur la courbe dose-reponse ils se tracent tous : 0 % et 100 %
+  # sont des observations comme les autres, et ce sont justement les doses qui
+  # bornent l'essai.
+  ecartes <- character(0)
   pts <- do.call(rbind, lapply(seq_along(fits), function(i) {
     t <- fits[[i]]$table
-    data.frame(Essai = nom[i], x = t$Log_dose, y = t$Probit_corrige,
+    if (reponse)
+      return(data.frame(Essai = nom[i], x = t$Log_dose,
+                        y = 100 * t$Mortalite_observee, stringsAsFactors = FALSE))
+    ok <- is.finite(t$Mortalite_corrigee) &
+          t$Mortalite_corrigee > 0 & t$Mortalite_corrigee < 1
+    if (any(!ok))
+      ecartes <<- c(ecartes, trf("%s (doses %s)", nom[i], paste(
+        trimws(formatC(t$Dose[!ok], format = "g", digits = 4)), collapse = ", ")))
+    data.frame(Essai = nom[i], x = t$Log_dose[ok], y = t$Probit_corrige[ok],
                stringsAsFactors = FALSE)
   }))
   pts <- pts[is.finite(pts$y), , drop = FALSE]
@@ -1574,17 +1617,36 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
     eta <- f$a + f$b * grille_x
     se <- sqrt(pmax(f$Vh[1, 1] + grille_x^2 * f$Vh[2, 2] +
                       2 * grille_x * f$Vh[1, 2], 0))
-    data.frame(Essai = nom[i], x = grille_x, y = eta,
-               lo = eta - f$t * se, hi = eta + f$t * se, stringsAsFactors = FALSE)
+    # L'INTERVALLE SE CONSTRUIT SUR LE PROBIT, PUIS SE TRANSPORTE. F est
+    # monotone : les bornes restent donc dans [0 ; 100] et l'asymetrie de la
+    # sigmoide est respectee. Les construire directement sur le pourcentage
+    # les ferait sortir du cadre des que la mortalite approche ses extremes --
+    # c'est-a-dire la ou l'on veut justement lire. Meme regle que pour
+    # `hstat_dl50_mortalite()`.
+    vers <- if (reponse)
+      function(e) 100 * (f$c + (1 - f$c) * stats::pnorm(e)) else identity
+    data.frame(Essai = nom[i], x = grille_x, y = vers(eta),
+               lo = vers(eta - f$t * se), hi = vers(eta + f$t * se),
+               stringsAsFactors = FALSE)
   }))
 
   # La bande d'intervalle n'a de sens que dans la fenetre lisible : sur deux
   # decades, elle atteint des probits de +/- 20 et ecrase tout le reste.
-  ylim <- range(c(pts$y, stats::qnorm(c(0.001, 0.999))), finite = TRUE)
-  if (is.finite(o$y_min) && o$y_min > 0 && o$y_min < 100)
-    ylim[1] <- stats::qnorm(o$y_min / 100)
-  if (is.finite(o$y_max) && o$y_max > 0 && o$y_max < 100)
-    ylim[2] <- stats::qnorm(o$y_max / 100)
+  #
+  # Les deux champs de bornes se saisissent EN POURCENTAGE dans les deux cas :
+  # c'est ce que l'utilisateur lit sur son essai. Seule la conversion change --
+  # la courbe dose-reponse les prend telles quelles, la droite de Henry les
+  # passe par qnorm. Zero et cent n'ont pas de probit fini, d'ou les bornes
+  # strictes du second cas ; sur la courbe, ce sont au contraire les valeurs
+  # naturelles.
+  borne <- function(v, defaut) {
+    if (!is.finite(v)) return(defaut)
+    if (reponse) if (v >= 0 && v <= 100) v else defaut
+    else if (v > 0 && v < 100) stats::qnorm(v / 100) else defaut
+  }
+  ylim <- if (reponse) c(0, 100)
+          else range(c(pts$y, stats::qnorm(c(0.001, 0.999))), finite = TRUE)
+  ylim <- c(borne(o$y_min, ylim[1]), borne(o$y_max, ylim[2]))
   if (diff(ylim) <= 0) ylim <- range(pts$y, finite = TRUE)
 
   pc <- c(1, 5, 10, 25, 50, 75, 90, 95, 99)
@@ -1631,21 +1693,60 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
         colour = o$couleur)
   }
   if (isTRUE(o$reperes)) {
-    yr <- stats::qnorm(HSTAT_DL50_SEUILS / 100)
-    p <- p + ggplot2::geom_hline(yintercept = yr, linetype = o$repere_type,
-                                 colour = o$repere_couleur,
-                                 linewidth = o$repere_epaisseur)
-    # L'etiquette est ce qui rend le repere lisible : trois traits horizontaux
-    # sans nom obligent a compter les graduations pour savoir lequel est la
-    # DL50.
-    if (isTRUE(o$repere_etiquette))
-      p <- p + ggplot2::annotate(
-        "text", x = rg[1], y = yr, label = paste0("DL", HSTAT_DL50_SEUILS),
-        hjust = -0.1, vjust = -0.4, size = max(2, o$grad_y_taille / 3),
-        colour = o$repere_couleur)
+    # LA DL50 N'EST PAS A 50 % DE MORTALITE OBSERVEE. Elle est definie sur la
+    # mortalite CORRIGEE : la dose a laquelle le produit tue la moitie des
+    # individus que le temoin aurait laisses vivants. Sur une courbe de
+    # mortalites observees, le repere passe donc a c + (1 - c).s, pas a s.
+    #
+    # Avec un temoin nul les deux coincident -- ce qui rend l'erreur invisible
+    # precisement sur les essais les plus propres, et visible seulement sur
+    # ceux ou elle change la lecture.
+    cc <- vapply(fits, function(f) f$c, numeric(1))
+    yr <- if (reponse) unique(round(100 * (cc[1] + (1 - cc[1]) *
+                                             HSTAT_DL50_SEUILS / 100), 10))
+          else stats::qnorm(HSTAT_DL50_SEUILS / 100)
+    # Plusieurs essais de mortalites naturelles differentes n'ont pas un repere
+    # commun : un seul trait en tiendrait lieu et serait faux pour tous sauf un.
+    # On s'abstient plutot que d'en tracer un au hasard.
+    commun <- !reponse || length(unique(round(cc, 10))) == 1L
+    if (commun) {
+      p <- p + ggplot2::geom_hline(yintercept = yr, linetype = o$repere_type,
+                                   colour = o$repere_couleur,
+                                   linewidth = o$repere_epaisseur)
+      # L'etiquette est ce qui rend le repere lisible : trois traits
+      # horizontaux sans nom obligent a compter les graduations pour savoir
+      # lequel est la DL50.
+      if (isTRUE(o$repere_etiquette))
+        p <- p + ggplot2::annotate(
+          "text", x = rg[1], y = yr, label = paste0("DL", HSTAT_DL50_SEUILS),
+          hjust = -0.1, vjust = -0.4, size = max(2, o$grad_y_taille / 3),
+          colour = o$repere_couleur)
+    }
+    # La courbe ne part pas de zero quand le temoin meurt : elle part de c.
+    # Le dire evite de lire un defaut d'ajustement la ou il y a une mortalite
+    # naturelle -- et c est la seule quantite du modele qui se voie a l'oeil.
+    if (reponse && commun && cc[1] > 0.005) {
+      p <- p + ggplot2::geom_hline(yintercept = 100 * cc[1],
+                                   linetype = o$repere_type,
+                                   colour = o$repere_couleur,
+                                   linewidth = o$repere_epaisseur)
+      if (isTRUE(o$repere_etiquette))
+        p <- p + ggplot2::annotate(
+          "text", x = rg[2], y = 100 * cc[1], label = tr("mortalité naturelle"),
+          hjust = 1.05, vjust = -0.4, size = max(2, o$grad_y_taille / 3),
+          colour = o$repere_couleur)
+    }
   }
 
-  axe_y <- ggplot2::scale_y_continuous(
+  # Sur la courbe dose-reponse, le pourcentage EST l'axe principal : un second
+  # axe en probit y placerait l'infini a 0 % et a 100 %, c'est-a-dire aux deux
+  # graduations que cette courbe existe pour montrer. Le reglage est masque
+  # cote interface plutot qu'ignore en silence.
+  axe_y <- if (reponse)
+    ggplot2::scale_y_continuous(
+      name = if (nzchar(o$ylab)) o$ylab else tr("Mortalité observée (%)"),
+      labels = function(v) paste0(formatC(v, format = "g", digits = 4), " %"))
+  else ggplot2::scale_y_continuous(
     name = if (nzchar(o$ylab)) o$ylab else tr("Mortalité (probit)"),
     sec.axis = if (isTRUE(o$axe2))
       ggplot2::sec_axis(~ ., breaks = stats::qnorm(pc / 100),
@@ -1689,6 +1790,9 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
   if (multiple)
     p <- p + ggplot2::scale_colour_brewer(palette = o$palette) +
              ggplot2::scale_fill_brewer(palette = o$palette)
+  # Pose EN DERNIER : un `p + couche` reconstruit l'objet et emporterait
+  # l'attribut avec lui.
+  if (length(ecartes)) attr(p, "ecartes") <- ecartes
   p
 }
 
@@ -1900,10 +2004,21 @@ mod_dl50_ui <- function(id) {
             title = shiny::tagList(shiny::icon("sliders"), " Options du graphique"),
             status = "primary", width = 4, solidHeader = TRUE, collapsible = TRUE,
 
+            .hstat_opt_section("Type de graphique", "chart-line", "#d35400", "#fdf0e6",
+              shiny::radioButtons(ns("gType"), NULL, choices = HSTAT_DL50_GRAPHES,
+                                  selected = "probit"),
+              shiny::helpText("La droite de Henry montre le modèle : le probit de la",
+                              " mortalité corrigée est linéaire en log-dose, et cela se",
+                              " vérifie à l'œil. La courbe dose-réponse montre la",
+                              " réponse mesurée — une sigmoïde qui part de la mortalité",
+                              " naturelle et monte vers 100 %. Elle se lit sans savoir",
+                              " ce qu'est un probit, et elle porte les doses à 0 % et à",
+                              " 100 %, que la droite ne peut pas tracer.")),
+
             .hstat_opt_section("Éléments tracés", "eye", "#2e86c1", "#eaf3fb",
               shiny::checkboxInput(ns("gPoints"), "Points de l'essai (PE)", TRUE),
               shiny::checkboxInput(ns("gCourbe"), "Courbe de l'essai (CE)", FALSE),
-              shiny::checkboxInput(ns("gDroite"), "Droite de régression (DR)", TRUE),
+              shiny::checkboxInput(ns("gDroite"), "Modèle ajusté (DR)", TRUE),
               shiny::checkboxInput(ns("gBande"), "Intervalles (IF ou IC)", TRUE),
               shiny::checkboxInput(ns("gReperes"), "Repères DL10 / DL50 / DL90", TRUE),
               shiny::checkboxInput(ns("gTous"), "Tous les essais en mémoire", FALSE)),
@@ -1930,9 +2045,15 @@ mod_dl50_ui <- function(id) {
 
             .hstat_opt_section("Axes", "ruler-combined", "#16a085", "#e8f6f3",
               shiny::textInput(ns("gXlab"), "Titre de l'axe des doses"),
-              shiny::textInput(ns("gYlab"), "Titre de l'axe des probits"),
-              shiny::textInput(ns("gYlab2"), "Titre de l'axe des pourcentages"),
-              shiny::checkboxInput(ns("gAxe2"), "Second axe en pourcentage", TRUE),
+              shiny::textInput(ns("gYlab"), "Titre de l'axe des mortalités"),
+              # Le second axe n'existe que sur la droite de Henry : sur la
+              # courbe dose-reponse, le pourcentage est deja l'axe principal et
+              # son pendant en probit placerait l'infini a 0 % et a 100 %. Un
+              # reglage que l'image ignore vaut mieux masque que declare.
+              shiny::conditionalPanel(
+                condition = sprintf("input['%s'] == 'probit'", ns("gType")),
+                shiny::textInput(ns("gYlab2"), "Titre de l'axe des pourcentages"),
+                shiny::checkboxInput(ns("gAxe2"), "Second axe en pourcentage", TRUE)),
               shiny::fluidRow(
                 shiny::column(6, shiny::numericInput(ns("gAxeTitreTaille"),
                   "Taille des titres d'axe", value = 12, min = 6, max = 30, step = 1)),
@@ -2021,9 +2142,13 @@ mod_dl50_ui <- function(id) {
                   step = 1))))),
 
           shinydashboard::box(
-            title = shiny::tagList(shiny::icon("chart-simple"), " Droite de Henry"),
+            # Le titre suit le type choisi : une boite intitulee « Droite de
+            # Henry » au-dessus d'une sigmoide annonce le mauvais graphique.
+            title = shiny::tagList(shiny::icon("chart-simple"), " ",
+                                   shiny::textOutput(ns("gNom"), inline = TRUE)),
             status = "success", width = 8, solidHeader = TRUE,
             shiny::plotOutput(ns("graphe"), height = "600px"),
+            shiny::uiOutput(ns("gNote")),
             shiny::hr(),
             .hstat_opt_section("Export de l'image", "download", "#27ae60", "#e9f7ef",
               shiny::fluidRow(
@@ -2854,6 +2979,7 @@ mod_dl50_server <- function(id, values) {
     graphe_opt <- shiny::reactive({
       nb <- function(id, defaut) .hstat_num1(input[[id]], defaut)
       list(
+        type = input$gType %||% "probit",
         points = isTRUE(input$gPoints), courbe = isTRUE(input$gCourbe),
         droite = isTRUE(input$gDroite), bande = isTRUE(input$gBande),
         reperes = isTRUE(input$gReperes),
@@ -2902,6 +3028,30 @@ mod_dl50_server <- function(id, values) {
       fs <- fits_graphe()
       if (!length(fs)) return(NULL)
       hstat_dl50_graphique(fs, graphe_opt())
+    })
+
+    # Le nom de la boite suit le type choisi. `HSTAT_DL50_GRAPHES` en est la
+    # seule source : recopier « Droite de Henry » ici ferait deux libelles a
+    # tenir d'accord, et c'est toujours le second qui se perime.
+    # Un point ecarte se nomme. Sans cela l'utilisateur compte six doses dans
+    # son tableau et quatre sur son graphique, sans savoir lesquelles manquent
+    # ni pourquoi -- et la reponse (« 0 % et 100 % n'ont pas de probit ») est
+    # precisement ce qui doit l'amener a la courbe dose-reponse.
+    output$gNote <- shiny::renderUI({
+      g <- graphe()
+      ec <- if (is.null(g)) NULL else attr(g, "ecartes")
+      if (!length(ec)) return(NULL)
+      shiny::div(class = "callout callout-warning",
+                 style = "margin-top:10px;padding:8px 12px;",
+        shiny::icon("circle-info"), " ",
+        trf("Mortalité corrigée nulle ou totale : ces doses n'ont pas de probit et ne figurent pas sur la droite de Henry — %s. La courbe dose-réponse les porte, elle.",
+            paste(ec, collapse = " ; ")))
+    })
+
+    output$gNom <- shiny::renderText({
+      t <- input$gType %||% "probit"
+      i <- match(t, HSTAT_DL50_GRAPHES)
+      tr(if (is.na(i)) names(HSTAT_DL50_GRAPHES)[1] else names(HSTAT_DL50_GRAPHES)[i])
     })
 
     output$graphe <- shiny::renderPlot({
