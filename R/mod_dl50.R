@@ -58,10 +58,16 @@ HSTAT_DL50_MIN_UTILES <- 3L      # doses a mortalite corrigee strictement entre 
 # defaut de conduite d'essai, et le dire suffit -- le calcul continue.
 HSTAT_DL50_TEMOIN_MAX <- 0.20
 
+# WIN DL n'en propose que DEUX pour un essai isole -- Newton-Raphson avec
+# Abbott, et EM. La troisieme est un ajout de HStat : elle donne l'ajustement
+# probit nu, celui que `glm(binomial(probit))` produit. Utile, mais sans
+# vis-a-vis dans le logiciel ; le libelle le dit, pour qu'on ne cherche pas un
+# desaccord la ou il n'y a rien a comparer. (Cote WIN DL, la mortalite fixee a
+# zero n'existe que comme scenario de COMPARAISON entre essais.)
 HSTAT_DL50_METHODES <- c(
   "Maximum de vraisemblance sur tout l'essai (EM)"     = "em",
   "Mortalité naturelle du seul témoin (Abbott)"        = "abbott",
-  "Mortalité naturelle fixée à zéro"                   = "nulle")
+  "Mortalité naturelle fixée à zéro (hors WIN DL)"     = "nulle")
 
 HSTAT_DL50_SCENARIOS <- c(
   "Mortalité naturelle propre à chaque essai (hétérogène, estimée)"   = "heterogene",
@@ -103,7 +109,56 @@ hstat_dl50_logvrais <- function(x, n, p) {
 # Probit centre. WIN DL ecrit les probits centres (F^-1(p)) dans ses fichiers
 # recents et les probits decales de 5 dans ceux de la version DOS ; les deux se
 # lisent, c'est le meme nombre a 5 pres.
-hstat_dl50_probit <- function(p) stats::qnorm(pmin(pmax(p, 1e-12), 1 - 1e-12))
+# WIN DL N'INVERSE PAS LA NORMALE EXACTEMENT, ET CELA SE VOIT SUR LES DOSES
+# LETALES. Le manuel le dit -- « algorithme d'approximation polynomiale de la
+# distribution normale inverse de HASTINGS » -- et les chiffres publies le
+# confirment. C'est la formule 26.2.23 d'Abramowitz & Stegun, dont l'erreur
+# absolue est bornee par 4,5e-4 :
+#
+#   F^-1(p) ~ t - (c0 + c1 t + c2 t^2) / (1 + d1 t + d2 t^2 + d3 t^3),
+#   t = sqrt(ln(1/q^2)),  q = min(p, 1-p),  signe selon le cote.
+#
+# Sur l'essai de reference, la DL90 en log-dose vaut :
+#
+#   | normale exacte | Hastings    | WIN DL imprime |
+#   |----------------|-------------|----------------|
+#   | -0,9412818     | -0,9410997  | -9,41099e-01   |
+#
+# L'ecart passe de 1,8e-4 a 7e-7. C'est ce qui obligeait la suite de tests a
+# tolerer 1 % sur des bornes que le logiciel imprime a six chiffres.
+#
+# LE PRIX EST NUL, ET IL A ETE MESURE : l'erreur de l'approximation vaut
+# 1,8e-4 en probit, soit 0,04 % sur la dose -- quatre ordres de grandeur sous
+# l'intervalle de confiance de la DL50 elle-meme, qui couvre un facteur 20 sur
+# l'essai de reference. On ne perd donc aucune precision utile, et on gagne la
+# comparabilite chiffre pour chiffre, qui est la promesse du module.
+#
+# La reciproque n'est PAS reprise : l'approximation de Hastings pour F elle-meme
+# a une erreur de 7,5e-8, invisible a la precision d'impression, et l'employer
+# degraderait la vraisemblance sans rien rapprocher. La frontiere est mesuree,
+# pas choisie.
+.hstat_dl50_qnorm <- function(p) {
+  p <- as.numeric(p)
+  q <- pmin(pmax(ifelse(p > 0.5, 1 - p, p), 1e-300), 0.5)
+  t <- sqrt(log(1 / q^2))
+  v <- t - (2.515517 + 0.802853 * t + 0.010328 * t^2) /
+           (1 + 1.432788 * t + 0.189269 * t^2 + 0.001308 * t^3)
+  ifelse(p > 0.5, v, -v)
+}
+
+# Le probit de la mortalite corrigee, avec L'AFFECTATION DES VALEURS EXTREMES
+# du manuel : « 6 pour 100 % de mortalite et -6 pour 0 % ». Ce sont des valeurs
+# CONVENTIONNELLES, pas des mesures -- le probit de 0 et celui de 1 n'existent
+# pas. La borne a 1e-12 employee jusqu'ici rendait +/- 7,0345, un nombre qui ne
+# dependait que de l'epsilon choisi.
+HSTAT_DL50_PROBIT_EXTREME <- 6
+
+hstat_dl50_probit <- function(p) {
+  p <- as.numeric(p)
+  ifelse(!is.finite(p), NA_real_,
+    ifelse(p <= 0, -HSTAT_DL50_PROBIT_EXTREME,
+      ifelse(p >= 1, HSTAT_DL50_PROBIT_EXTREME, .hstat_dl50_qnorm(p))))
+}
 
 # ---------------------------------------------------------------------------
 #  Valeurs initiales : la regression NON PONDEREE du probit corrige
@@ -532,7 +587,8 @@ hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
             formatC(10^(m + d), format = "g", digits = 4))
   }
   out <- lapply(seuils, function(s) {
-    y <- stats::qnorm(s / 100)
+    # Meme inverse normale que WIN DL : c'est ICI qu'elle se voit.
+    y <- .hstat_dl50_qnorm(s / 100)
     m <- (y - a) / b
     g1 <- -1 / b; g2 <- -(y - a) / b^2
     v <- g1^2 * vaa + g2^2 * vbb + 2 * g1 * g2 * vab
@@ -1804,7 +1860,7 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
     cc <- vapply(fits, function(f) f$c, numeric(1))
     yr <- if (reponse) unique(round(100 * (cc[1] + (1 - cc[1]) *
                                              HSTAT_DL50_SEUILS / 100), 10))
-          else stats::qnorm(HSTAT_DL50_SEUILS / 100)
+          else .hstat_dl50_qnorm(HSTAT_DL50_SEUILS / 100)
     # Plusieurs essais de mortalites naturelles differentes n'ont pas un repere
     # commun : un seul trait en tiendrait lieu et serait faux pour tous sauf un.
     # On s'abstient plutot que d'en tracer un au hasard.

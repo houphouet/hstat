@@ -1904,7 +1904,7 @@
 "Une mortalité, quelle dose ?","One mortality, what dose?"
 "Maximum de vraisemblance sur tout l'essai (EM)","Maximum likelihood over the whole trial (EM)"
 "Mortalité naturelle du seul témoin (Abbott)","Natural mortality from the control only (Abbott)"
-"Mortalité naturelle fixée à zéro","Natural mortality fixed at zero"
+"Mortalité naturelle fixée à zéro (hors WIN DL)","Natural mortality set to zero (not in WIN DL)"
 "Mortalité naturelle propre à chaque essai (hétérogène, estimée)","Natural mortality specific to each trial (heterogeneous, estimated)"
 "Mortalité naturelle commune à tous les essais (homogène, estimée)","Natural mortality common to all trials (homogeneous, estimated)"
 "Mortalité naturelle fixée à 0 % pour tous les essais","Natural mortality fixed at 0% for all trials"
