@@ -1365,6 +1365,52 @@ désormais toutes, borné entre 1 et 15. **Les exports Excel et CSV gardent la
 précision complète** : arrondir une donnée exportée la ferait diverger du calcul
 dont elle sort.
 
+### Relire des assertions ne suffit pas : il faut les faire mordre
+
+Une assertion peut figer un mauvais comportement au lieu de garder un bon —
+c'était le cas du repli sur le premier essai — et cela ne se voit pas à la
+lecture, parce qu'une assertion qui fige une tolérance ressemble exactement à
+une assertion qui garde une règle.
+
+La méthode qui le voit est la **mutation** : on abîme le module d'une régression
+plausible, et on regarde si la suite s'en aperçoit. Dix-sept mutations ont été
+passées sur le module — inverse normale exacte au lieu de Hastings, probit
+extrême à 7, variances toujours en 3×3, témoin toujours dans la vraisemblance,
+ddl à *n* − 1, Chi-2 de Pearson, Fieller sans son test, arrondi bancaire, seuils
+non filtrés, référence hors bornes tolérée, doses non regroupées, total de doses
+non borné, chemin de WIN DL par défaut, facteur d'hétérogénéité jamais appliqué,
+plafond d'itérations ignoré, pente négative acceptée.
+
+**Seize sur dix-sept étaient attrapées. La dix-septième a livré un défaut.**
+
+#### Le refus de pente négative portait sur la mauvaise valeur
+
+Désactiver le refus sur la pente **initiale** ne faisait échouer aucune
+assertion. La raison : le refus existait en double — sur la valeur de départ et
+sur la valeur ajustée — et aucun test ne les distinguait, si bien qu'en retirer
+un laissait l'autre attraper le cas d'essai.
+
+En regardant ce que ce contrôle gardait, il s'est avéré qu'il **refusait à
+tort**. La valeur de départ vient d'une régression *non pondérée* sur les seules
+doses de mortalité intermédiaire : sur un essai bruité elle sort négative alors
+que l'ajustement rend une pente franchement positive. Mesuré sur quatre mille
+essais tirés au sort, **23 étaient refusés à tort** — et l'un d'eux passait de
+−0,36 au départ à **+2,49** ajusté, avec un message qui accusait l'utilisateur
+d'avoir inversé ses colonnes.
+
+Mortalités 0, 5, 7, 5 sur dix individus : 0 %, 50 %, 70 %, 50 %. Bruitée, mais
+croissante. Refusée.
+
+Le refus porte désormais sur la **pente ajustée** seule. Itérer « pour rien »
+coûte cinquante itérations d'une régression pondérée sur quelques doses : rien
+du tout. Un refus à tort, lui, coûte un essai. Deux essais distincts couvrent
+maintenant les deux cas séparément — l'un doit passer, l'autre non.
+
+Le banc de mutation vit dans le bac à sable, pas dans le dépôt : il substitue
+`test_that` pour n'exécuter que les tests du module, ce qui ramène une passe à
+vingt secondes au lieu de trois minutes. C'est ce qui rend la méthode praticable
+— dix-sept passes en cinq minutes.
+
 ### Trois défauts trouvés par l'audit, tous du même genre
 
 Aucun ne lève, aucun ne laisse un vide : tous les trois rendent un résultat
