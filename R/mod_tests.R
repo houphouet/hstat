@@ -4892,7 +4892,7 @@ mod_tests_server <- function(id, values) {
     } else {
       interp_text <- interpret_normality(norm$p.value)
     }
-    shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
+    shiny::HTML(paste0("<div class='hstat-interpretation'>", interp_text, "</div>"))
   })
   
   output$homogeneityResults <- shiny::renderPrint({
@@ -4917,7 +4917,7 @@ mod_tests_server <- function(id, values) {
     } else {
       interp_text <- interpret_homogeneity(hom$`Pr(>F)`[1])
     }
-    shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
+    shiny::HTML(paste0("<div class='hstat-interpretation'>", interp_text, "</div>"))
   })
   
   output$modelDiagnostics <- shiny::renderPlot({
@@ -4974,10 +4974,10 @@ mod_tests_server <- function(id, values) {
       - <strong>Residuals vs Leverage :</strong> Identifie les points influents"
       }
       
-      shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
+      shiny::HTML(paste0("<div class='hstat-interpretation'>", interp_text, "</div>"))
       
     }, error = function(e) {
-      shiny::HTML("<div class='interprétation-box'><span style='color: red;'>Erreur dans l'interprétation des diagnostics</span></div>")
+      shiny::HTML("<div class='hstat-interpretation'><span style='color: red;'>Erreur dans l'interprétation des diagnostics</span></div>")
     })
   })
   
@@ -5131,10 +5131,10 @@ mod_tests_server <- function(id, values) {
       <strong>Problèmes :</strong> Courbure prononcée, points très éloignés de la ligne"
       }
       
-      shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
+      shiny::HTML(paste0("<div class='hstat-interpretation'>", interp_text, "</div>"))
       
     }, error = function(e) {
-      shiny::HTML("<div class='interprétation-box'><span style='color: red;'>Erreur dans l'interprétation du QQ-plot</span></div>")
+      shiny::HTML("<div class='hstat-interpretation'><span style='color: red;'>Erreur dans l'interprétation du QQ-plot</span></div>")
     })
   })
   
@@ -5179,9 +5179,9 @@ mod_tests_server <- function(id, values) {
         interp_text <- interpret_normality_resid(norm_test$p.value)
       }
       
-      shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
+      shiny::HTML(paste0("<div class='hstat-interpretation'>", interp_text, "</div>"))
     }, error = function(e) {
-      shiny::HTML("<div class='interprétation-box'><span style='color: red;'>Erreur dans le test de normalité</span></div>")
+      shiny::HTML("<div class='hstat-interpretation'><span style='color: red;'>Erreur dans le test de normalité</span></div>")
     })
   })
   
@@ -5232,30 +5232,30 @@ mod_tests_server <- function(id, values) {
       
       if (stats::sd(fitted_data) < 1e-10) {
         interp_text <- "<span style='color: orange;'>Valeurs ajustées constantes (ajustement parfait). Test non applicable.</span>"
-        return(shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
+        return(shiny::HTML(paste0("<div class='hstat-interpretation'>", interp_text, "</div>")))
       }
       
       n_unique <- length(unique(fitted_data))
       if (n_unique < 2) {
         interp_text <- "<span style='color: orange;'>Pas assez de variation dans les prédictions. Test non applicable.</span>"
-        return(shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
+        return(shiny::HTML(paste0("<div class='hstat-interpretation'>", interp_text, "</div>")))
       }
       
       fitted_factor <- cut(fitted_data, breaks = 2, labels = c("Bas", "Haut"))
       
       if (length(levels(fitted_factor)) < 2 || any(table(fitted_factor) < 2)) {
         interp_text <- "<span style='color: orange;'>Impossible de créer deux groupes équilibrés. Test non applicable.</span>"
-        return(shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
+        return(shiny::HTML(paste0("<div class='hstat-interpretation'>", interp_text, "</div>")))
       }
       
       test_data <- data.frame(residuals = residuals_data, fitted_group = fitted_factor)
       hom_test <- car::leveneTest(residuals ~ fitted_group, data = test_data)
       interp_text <- interpret_homogeneity_resid(hom_test$`Pr(>F)`[1])
       
-      shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
+      shiny::HTML(paste0("<div class='hstat-interpretation'>", interp_text, "</div>"))
       
     }, error = function(e) {
-      shiny::HTML("<div class='interprétation-box'><span style='color: red;'>Erreur dans le test d'homogénéité</span></div>")
+      shiny::HTML("<div class='hstat-interpretation'><span style='color: red;'>Erreur dans le test d'homogénéité</span></div>")
     })
   })
   
@@ -5291,12 +5291,12 @@ mod_tests_server <- function(id, values) {
       
       if (length(residuals_data) < 3) {
         interp_text <- "Nombre d'observations insuffisant pour le test de Durbin-Watson."
-        return(shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
+        return(shiny::HTML(paste0("<div class='hstat-interpretation'>", interp_text, "</div>")))
       }
       
       if (stats::sd(residuals_data) < 1e-10) {
         interp_text <- "<span style='color: orange;'>Résidus constants (ajustement parfait). Test non applicable.</span>"
-        return(shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>")))
+        return(shiny::HTML(paste0("<div class='hstat-interpretation'>", interp_text, "</div>")))
       }
       
       dw_test <- lmtest::dwtest(values$currentModel)
@@ -5308,10 +5308,10 @@ mod_tests_server <- function(id, values) {
         "significatif" = "Autocorrélation significative des résidus (p < 0.05). Vérifiez l'indépendance des observations.",
         "Test de Durbin-Watson non calculable sur ce modèle (résidus dégénérés).")
       
-      shiny::HTML(paste0("<div class='interprétation-box'>", interp_text, "</div>"))
+      shiny::HTML(paste0("<div class='hstat-interpretation'>", interp_text, "</div>"))
       
     }, error = function(e) {
-      shiny::HTML("<div class='interprétation-box'><span style='color: red;'>Erreur dans le test d'autocorrélation</span></div>")
+      shiny::HTML("<div class='hstat-interpretation'><span style='color: red;'>Erreur dans le test d'autocorrélation</span></div>")
     })
   })
   

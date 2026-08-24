@@ -2317,6 +2317,67 @@ Prudence nécessaire : le balayage des mots sans accent remonte aussi des
 script de reproductibilité. Les corriger casserait des clés. Seuls les libellés
 **affichés** ont été touchés, un par un.
 
+#### Une phrase coupée par une balise n'est plus une chaîne
+
+Le traducteur remplace des **nœuds de texte**. Une phrase mise en forme —
+`<b>Toutes fermées</b> — <code>[a ; b]</code>` — n'existe donc nulle part comme
+nœud entier : le DOM la coupe en autant de morceaux qu'il y a de balises.
+**73 entrées du dictionnaire étaient dans ce cas**, et ce sont précisément les
+encadrés d'aide, ceux qui portent le plus d'explications. Elles ne pouvaient
+jamais s'appliquer, et restaient en français quoi qu'on fasse.
+
+`traduireHtml()` les traite au niveau de l'**élément** : quand le balisage
+entier d'un élément coïncide avec une entrée, il est remplacé d'un bloc.
+
+Traduire plutôt chaque morceau serait pire. Les morceaux courts (« La »,
+« ou », « Lancez ») sont ceux qui ressemblent le plus à une valeur de données,
+et les écarter par prudence rendrait une phrase à moitié anglaise — « La trial
+record opposite is optional ».
+
+**La clé passe par l'analyseur du navigateur avant d'être comparée.**
+`innerHTML` est renormalisé à la lecture : guillemets simples devenus doubles,
+entités résolues, attributs réordonnés. Comparer la chaîne du CSV telle qu'elle
+y est écrite n'aurait presque jamais collé. Le banc d'essai du test normalise de
+la même façon, sinon il testerait autre chose que la réalité.
+
+L'ordre compte : le remplacement en bloc vient **avant** la passe sur les nœuds
+de texte, dont les clés sont françaises et qui ne voit donc plus rien à faire
+dans le sous-arbre remplacé. Le retour au français restitue le balisage
+d'origine, conservé sur l'élément (`__hstatFrHtml`).
+
+Cette passe ne consulte pas la liste des termes du fichier, et n'est donc pas
+rejouée à son arrivée : un élément dont le balisage entier coïncide avec une
+entrée du dictionnaire est un libellé par construction — une donnée ne peut pas
+le reproduire.
+
+#### Une classe posée dans le code mais absente de la feuille de style
+
+Piège trouvé à l'audit, et parfaitement silencieux. La classe de l'encadré
+d'interprétation était posée sur **dix-sept** `div` de `mod_tests.R` et définie
+**nulle part** : l'encadré que le code construisait ne s'est jamais affiché,
+l'interprétation sortait au fil du texte, sans rien qui la distingue des
+résultats bruts qu'elle commente.
+
+Elle portait en plus un accent (`interprétation-box`) — un identifiant reste
+technique, sinon il dépend de l'encodage du fichier de style. Renommée
+`hstat-interpretation`, définie dans `hstat-theme.css`.
+
+Un test balaie les classes du préfixe du projet et exige une règle pour
+chacune. Le contrôle ne porte **que** sur `hstat-*` : `btn`, `box`,
+`col-md-6` viennent de Bootstrap et de shinydashboard, les exiger dans notre
+feuille de style ferait échouer le test sur du code sain.
+
+#### La comparaison des clés se fait des deux côtés élagués
+
+`hstat_i18n_load()` élague ses clés **et** en retire les doublons ; `tr()`
+cherche sur la chaîne élaguée. Une clé du CSV bordée d'espaces et un appel sans
+espace sont donc la **même** entrée.
+
+Conséquence pour tout contrôle : comparer les chaînes brutes signale des
+gabarits « absents » qui sont en fait présents. L'audit s'y est laissé prendre
+et a failli ajouter quatre doublons. Le test qui garde la couverture des appels
+`tr()`/`trf()` élague les deux côtés.
+
 #### Une cellule de tableau n'est pas un libellé
 
 La correspondance exacte ne suffisait pas : une colonne du fichier chargé

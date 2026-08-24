@@ -61,7 +61,7 @@ mod_descriptive_ui <- function(id) {
                       shiny::div(style = "margin-top:10px; padding:10px; background:#fff4e5; border:1px solid #ed6c02; border-radius:8px;",
                         shiny::tags$p(style = "margin:0 0 8px 0; font-size:12px; color:#7a4a1a;",
                           shiny::icon("database"),
-                          shiny::HTML(" Les statistiques ci-dessus portent sur l'<b>échantillon</b>. Le bouton ci-dessous calculé les valeurs <b>exactes sur le jeu complet</b> (via DuckDB).")),
+                          shiny::HTML(" Les statistiques ci-dessus portent sur l'<b>échantillon</b>. Le bouton ci-dessous calcule les valeurs <b>exactes sur le jeu complet</b> (via DuckDB).")),
                         shiny::actionButton(ns("calcDescFull"),
                           shiny::HTML("<i class='fa fa-server'></i> Calculer sur le jeu complet"),
                           class = "btn-warning btn-block",

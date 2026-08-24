@@ -91,6 +91,72 @@
     return false;
   }
 
+  // ------------------------------------------- phrases coupees par une balise
+  // LE TRADUCTEUR REMPLACE DES NOEUDS DE TEXTE. Une phrase mise en forme --
+  // « <b>Toutes fermees</b> — <code>[a, b]</code>, … » -- n'existe donc nulle
+  // part comme noeud entier : le DOM la coupe en autant de morceaux qu'il y a
+  // de balises. Les 73 entrees du dictionnaire de cette forme -- les encadres
+  // d'aide, ceux qui portent le plus d'explications -- ne pouvaient JAMAIS
+  // s'appliquer, et restaient en francais quoi qu'on fasse.
+  //
+  // Elles sont donc traitees a part, au niveau de l'ELEMENT qui les porte.
+  //
+  // Traduire plutot chaque morceau serait pire : les morceaux courts (« La »,
+  // « ou », « Lancez ») sont ceux qui ressemblent le plus a une valeur de
+  // donnees, et les ecarter par prudence rendrait une phrase a moitie anglaise.
+  //
+  // LA CLE EST PASSEE PAR L'ANALYSEUR DU NAVIGATEUR avant d'etre comparee :
+  // `innerHTML` est RENORMALISE a la lecture -- guillemets simples devenus
+  // doubles, entites resolues, attributs reordonnes. Comparer la chaine du CSV
+  // telle qu'elle y est ecrite n'aurait presque jamais colle.
+  var DICT_HTML = null;                 // innerHTML normalise -> traduction
+  var HTML_MAX  = 0;
+
+  function indexerHtml() {
+    DICT_HTML = Object.create(null);
+    var tmp;
+    try { tmp = document.createElement("div"); } catch (e) { return; }
+    if (!tmp) return;
+    for (var cle in DICT) {
+      if (cle.indexOf("<") < 0) continue;
+      var norm;
+      try { tmp.innerHTML = cle; norm = String(tmp.innerHTML).trim(); }
+      catch (e) { continue; }
+      if (!norm) continue;
+      DICT_HTML[norm] = DICT[cle];
+      if (norm.length > HTML_MAX) HTML_MAX = norm.length;
+    }
+  }
+
+  function traduireHtml(racine) {
+    if (DICT_HTML === null) indexerHtml();
+    if (!HTML_MAX) return;
+    var els = racine.querySelectorAll ? racine.querySelectorAll("*") : [];
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (langue === "en") {
+        if (el.__hstatFrHtml !== undefined) continue;   // deja remplace
+        if (ignorable(el)) continue;
+        // Un element sans enfant ELEMENT ne porte qu'un noeud de texte : la
+        // passe suivante s'en charge. Ne pas lire son innerHTML evite de
+        // serialiser chaque cellule d'un grand tableau pour rien.
+        if (!el.children || !el.children.length) continue;
+        var brut = el.innerHTML;
+        if (!brut || brut.length > HTML_MAX + 8) continue;
+        var cible = DICT_HTML[String(brut).trim()];
+        if (cible === undefined) continue;
+        el.__hstatFrHtml = brut;
+        el.innerHTML = cible;
+      } else if (el.__hstatFrHtml !== undefined) {
+        // Le retour au francais restitue le balisage d'origine EXACTEMENT :
+        // les noeuds de texte anglais sont remplaces d'un bloc, ils ne portent
+        // donc aucun __hstatFr a defaire.
+        el.innerHTML = el.__hstatFrHtml;
+        delete el.__hstatFrHtml;
+      }
+    }
+  }
+
   // --------------------------------------------------------- noeuds de texte
   function traduireTexte(racine) {
     var w = document.createTreeWalker(racine, NodeFilter.SHOW_TEXT, null, false);
@@ -158,6 +224,10 @@
     // remplacement declencherait une nouvelle passe, indefiniment.
     enCours = true;
     try {
+      // L'ORDRE COMPTE : le remplacement en bloc d'abord. Les noeuds de texte
+      // qu'il installe sont deja anglais, donc invisibles pour la passe
+      // suivante (les cles du dictionnaire sont francaises).
+      traduireHtml(racine);
       traduireTexte(racine);
       traduireAttributs(racine);
     } catch (e) { /* une page a moitie traduite vaut mieux qu'une page cassee */ }
@@ -197,8 +267,11 @@
     // Repasser en francais doit restituer le texte d'origine : on parcourt
     // donc la page dans les deux sens de bascule.
     enCours = true;
-    try { traduireTexte(document.body); traduireAttributs(document.body); }
-    catch (e) {} finally { enCours = false; }
+    try {
+      traduireHtml(document.body);
+      traduireTexte(document.body);
+      traduireAttributs(document.body);
+    } catch (e) {} finally { enCours = false; }
   }
 
   // Shiny n'est pas forcement pret quand ce fichier s'execute (il est charge
@@ -243,6 +316,11 @@
       // ses valeurs traduites avant l'arrivee de cette liste : on defait puis
       // on refait la passe, sinon la protection n'agirait qu'a partir du
       // prochain rendu.
+      //
+      // Seules les passes qui CONSULTENT la liste sont rejouees : un element
+      // dont le balisage entier coincide avec une entree du dictionnaire est
+      // un libelle par construction, une donnee ne peut pas le reproduire.
+      // Le defaire et le refaire serait 73 remplacements pour rien.
       if (langue === "en") {
         enCours = true;
         try {
