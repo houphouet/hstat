@@ -1625,7 +1625,7 @@ mod_correlation_server <- function(id, values) {
       res <- tryCatch(cor_results(), error = function(e) NULL)
       if (is.null(res) || !NROW(res)) return()
       hstat_ai_capture(values, "Corrélations",
-        sprintf("Tests de corrélation (%s)",
+        trf("Tests de corrélation (%s)",
                 paste(unique(if ("Methode" %in% names(res)) res$Methode
                              else input$corTestMethod %||% "pearson"), collapse = ", ")),
         tables = list("Corrélations par paire" = res),
@@ -7452,7 +7452,7 @@ mod_tests_server <- function(id, values) {
       shiny::div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 10px;",
           shiny::strong(v),
           shiny::br(),
-          sprintf("- %d effet(s) principal(aux)", main_count),
+          trf("- %d effet(s) principal(aux)", main_count),
           shiny::br(),
           sprintf("- %d effet(s) simple(s)", simple_count)
       )

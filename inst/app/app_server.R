@@ -285,7 +285,7 @@ server <- function(input, output, session) {
       # laisser « 3 fichiers » sous les yeux de quelqu'un qui vient d'en
       # combiner trois d'un meme classeur serait deroutant.
       msg <- paste(gsub("fichiers", "feuilles", gsub("fichier", "feuille", res$msg)),
-                   sprintf("Feuilles combinées : %s.",
+                   trf("Feuilles combinées : %s.",
                            paste(r$names, collapse = ", ")))
       sheet_merge_msg(list(ok = TRUE, msg = msg))
       shiny::showNotification(shiny::tagList(shiny::icon("check"), " ", msg), type = "message", duration = 8)

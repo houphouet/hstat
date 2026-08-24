@@ -1074,7 +1074,7 @@ hstat_code_auto_codebook <- function(texts, n_codes = 8, min_char = 4,
     kw <- unique(unlist(forms[st]))
     list(label = best[[st[1]]],
          n = sum(freq[st]),
-         memo = sprintf("Thème construit automatiquement à partir de : %s.",
+         memo = trf("Thème construit automatiquement à partir de : %s.",
                         paste(utils::head(vapply(st, function(z) best[[z]], character(1)), 6),
                               collapse = ", ")),
          keywords = paste(kw, collapse = "; "))
@@ -2261,7 +2261,7 @@ mod_coding_server <- function(id, values) {
     output$nav_ui <- shiny::renderUI({
       dd <- docs()
       shiny::req(nrow(dd) > 0)
-      shiny::sliderInput(ns("doc_idx"), sprintf("Réponse (%d au total)", nrow(dd)),
+      shiny::sliderInput(ns("doc_idx"), trf("Réponse (%d au total)", nrow(dd)),
                          min = 1, max = nrow(dd), value = min(rv$cur, nrow(dd)),
                          step = 1, ticks = FALSE, width = "100%")
     })
@@ -2293,7 +2293,7 @@ mod_coding_server <- function(id, values) {
       dd <- docs(); d <- cur_doc()
       shiny::div(style = "margin-bottom:6px;font-size:12px;color:#7f8c8d;",
         shiny::icon("hashtag"), sprintf(" Réponse %d / %d ", rv$cur, nrow(dd)),
-        shiny::tags$b(sprintf("(ligne %d du jeu de données)", d$row)),
+        shiny::tags$b(trf("(ligne %d du jeu de données)", d$row)),
         sprintf(" - %d caractères", nchar(d$text)))
     })
 
@@ -2343,7 +2343,7 @@ mod_coding_server <- function(id, values) {
       if (nrow(rv$codebook) == before) {
         shiny::showNotification(
           if (nzchar(parent))
-            sprintf("Le code « %s » existe déjà sous ce parent. Sous un autre parent, il serait accepte.", lab)
+            trf("Le code « %s » existe déjà sous ce parent. Sous un autre parent, il serait accepte.", lab)
           else trf("Le code « %s » existe déjà à la racine.", lab),
           type = "warning", duration = 6)
       } else {
@@ -2372,7 +2372,7 @@ mod_coding_server <- function(id, values) {
       rv$segments <- hstat_seg_drop_code(rv$segments, cid)
       rv$codebook <- hstat_code_remove(rv$codebook, cid)
       shiny::showNotification(
-        sprintf("Code « %s » supprime (%d étiquette(s) retirée(s)).", lab, n),
+        trf("Code « %s » supprime (%d étiquette(s) retirée(s)).", lab, n),
         type = "message", duration = 5)
     })
 
@@ -2611,7 +2611,7 @@ mod_coding_server <- function(id, values) {
                                 type = "warning", duration = 3)
       else
         shiny::showNotification(
-          sprintf("« %s » applique à : %s",
+          trf("« %s » applique à : %s",
                   hstat_code_label(rv$codebook, ev$code),
                   substr(txt, 1, 60)), type = "message", duration = 3)
     })
@@ -2648,7 +2648,7 @@ mod_coding_server <- function(id, values) {
       if (!(sid %in% rv$segments$seg_id)) return()
       lab <- hstat_code_label(rv$codebook, rv$segments$code_id[rv$segments$seg_id == sid])
       rv$segments <- hstat_seg_remove(rv$segments, sid)
-      shiny::showNotification(sprintf("Étiquette « %s » retirée.", lab),
+      shiny::showNotification(trf("Étiquette « %s » retirée.", lab),
                               type = "message", duration = 3)
     })
 
@@ -2661,9 +2661,9 @@ mod_coding_server <- function(id, values) {
         shiny::tags$b(shiny::icon("chart-simple"), " Avancement du codage"),
         shiny::div(style = "background:#ecf0f1;border-radius:8px;height:16px;margin:6px 0;overflow:hidden;",
           shiny::div(style = sprintf("background:#27ae60;height:100%%;width:%d%%;", pct))),
-        sprintf("%d / %d réponses codées (%d%%)", n_coded, n_doc, pct),
+        trf("%d / %d réponses codées (%d%%)", n_coded, n_doc, pct),
         shiny::br(),
-        sprintf("%d étiquette(s), %d code(s)", nrow(rv$segments), nrow(rv$codebook)))
+        trf("%d étiquette(s), %d code(s)", nrow(rv$segments), nrow(rv$codebook)))
     })
 
     # ==================================================== RECUPERATION
@@ -2705,7 +2705,7 @@ mod_coding_server <- function(id, values) {
       quoi <- switch(attr(s, "portee") %||% "document",
         document  = "présents dans la même réponse",
         overlap   = "étiquetant le même passage",
-        proximite = sprintf("distants de moins de %s caractères",
+        proximite = trf("distants de moins de %s caractères",
                             hstat_finite(input$qry_dist, 200)),
         "")
       lib <- switch(op, et = "A ET B", sauf = "A SAUF B", ou = "A OU B")
@@ -2871,7 +2871,7 @@ mod_coding_server <- function(id, values) {
                               if (is.finite(a$accord)) round(a$accord * 100, 1) else "-")),
         shiny::br(),
         if (is.finite(a$kappa))
-          shiny::span(sprintf("Kappa de Cohen : %.3f - %s.", a$kappa, verdict))
+          shiny::span(trf("Kappa de Cohen : %.3f - %s.", a$kappa, verdict))
         else shiny::span(a$message),
         shiny::br(),
         shiny::tags$small(style = "color:#7f8c8d;",
@@ -2906,7 +2906,7 @@ mod_coding_server <- function(id, values) {
       if (is.null(v) || !nzchar(v)) return(NULL)
       p <- profile()
       lv <- sort(unique(p[[v]][!is.na(p[[v]]) & nzchar(p[[v]])]))
-      shiny::selectInput(ns("ret_lvl"), sprintf("Modalités de %s", v),
+      shiny::selectInput(ns("ret_lvl"), trf("Modalités de %s", v),
                          choices = lv, selected = lv, multiple = TRUE)
     })
 
@@ -3207,7 +3207,7 @@ mod_coding_server <- function(id, values) {
           shiny::showNotification(rv$ai$msg, type = "error", duration = 10); return()
         }
         .push_codebook(cb, if (identical(o$engine, "claude")) "API Claude"
-                           else sprintf("Modèle local%s",
+                           else trf("Modèle local%s",
                                         if (!is.null(res$model)) paste0(" (", res$model, ")") else ""))
       })
     })
@@ -3225,7 +3225,7 @@ mod_coding_server <- function(id, values) {
       rv$next_color <- hstat_code_next_color(rv$codebook)
       colourpicker::updateColourInput(session, "new_color", value = rv$next_color)
       rv$ai <- list(ok = TRUE,
-                    msg = sprintf("%s : %d code(s) ajoute(s) sur %d proposition(s).",
+                    msg = trf("%s : %d code(s) ajoute(s) sur %d proposition(s).",
                                   source_label, added, nrow(cb)),
                     table = cb)
       shiny::showNotification(rv$ai$msg, type = "message", duration = 7)
@@ -3301,7 +3301,7 @@ mod_coding_server <- function(id, values) {
       auto <- rv$segments$source %in% c("IA", "auto")
       n <- sum(auto)
       rv$segments <- rv$segments[!auto, , drop = FALSE]
-      shiny::showNotification(sprintf("%d étiquette(s) posée(s) automatiquement supprimée(s).", n),
+      shiny::showNotification(trf("%d étiquette(s) posée(s) automatiquement supprimée(s).", n),
                               type = "message", duration = 5)
     })
 
@@ -3356,7 +3356,7 @@ mod_coding_server <- function(id, values) {
       kw <- paste(unique(trimws(strsplit(kw, "[;,\n]")[[1]])), collapse = "; ")
       rv$codebook <- hstat_code_update(rv$codebook, input$dict_code, keywords = kw)
       shiny::showNotification(
-        sprintf("Mots-clés enregistres pour « %s ».",
+        trf("Mots-clés enregistres pour « %s ».",
                 hstat_code_label(rv$codebook, input$dict_code)),
         type = "message", duration = 4)
     })
@@ -3462,7 +3462,7 @@ mod_coding_server <- function(id, values) {
       if (!is.null(obj$doc_var) && obj$doc_var %in% names(get_data()))
         shiny::updateSelectInput(session, "doc_var", selected = obj$doc_var)
       shiny::showNotification(
-        sprintf("Projet recharge : %d code(s), %d étiquette(s).",
+        trf("Projet recharge : %d code(s), %d étiquette(s).",
                 nrow(rv$codebook), nrow(rv$segments)),
         type = "message", duration = 6)
     })

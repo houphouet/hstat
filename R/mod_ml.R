@@ -454,7 +454,7 @@ mod_ml_server <- function(id, values) {
           b <- which.min(sc)
           depth <- grid$depth[b]; eta <- grid$eta[b]
           nrounds <- max(nrounds, 300L)
-          hp <- sprintf("max_depth = %d, êta = %.2f (validation), nrounds = %d",
+          hp <- trf("max_depth = %d, êta = %.2f (validation), nrounds = %d",
                         depth, eta, nrounds)
         }
         pars <- list(objective = obj, max_depth = depth, eta = eta)
@@ -604,7 +604,7 @@ mod_ml_server <- function(id, values) {
       if (is.null(df) || !NROW(df)) return()
       p <- tryCatch(fits()$p, error = function(e) NULL)
       hstat_ai_capture(values, "Machine Learning",
-        sprintf("Comparaison de modèles (%s)",
+        trf("Comparaison de modèles (%s)",
                 if (!is.null(p) && identical(p$task, "classification"))
                   "classification" else "regression"),
         tables = list("Comparaison des modèles" = df),
@@ -724,7 +724,7 @@ mod_ml_server <- function(id, values) {
           ggplot2::geom_text(ggplot2::aes(label = sprintf("%d\n(%.0f %%)", Freq, Pct)),
                              color = "white", lineheight = 0.9) +
           ggplot2::scale_fill_gradient(low = "#90a4ae", high = col) +
-          ggplot2::labs(title = sprintf("%s — matrice de confusion (test)", r$label),
+          ggplot2::labs(title = trf("%s — matrice de confusion (test)", r$label),
                         caption = "Pourcentages par ligne : part de chaque classe observée. Diagonale = bien classés.")
       }
       hstat_apply_plot_opts(g, input, "mlO")

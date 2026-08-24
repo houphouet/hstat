@@ -81,10 +81,10 @@ hstat_report_resume_donnees <- function(df, max_vars = 60L) {
     `Modalités / étendue` = vapply(vars, function(v) {
       x <- df[[v]]
       if (is.numeric(x) && any(!is.na(x)))
-        sprintf("%s à %s", format(signif(min(x, na.rm = TRUE), 4)),
+        trf("%s à %s", format(signif(min(x, na.rm = TRUE), 4)),
                 format(signif(max(x, na.rm = TRUE), 4)))
       else if (is.factor(x) || is.character(x))
-        sprintf("%d modalité(s)", length(unique(stats::na.omit(x))))
+        trf("%d modalité(s)", length(unique(stats::na.omit(x))))
       else ""
     }, character(1)),
     check.names = FALSE, stringsAsFactors = FALSE, row.names = NULL)
@@ -228,7 +228,7 @@ hstat_report_figures <- function(history, dossier = tempdir(),
     vapply(seq_len(nrow(df)), function(i)
       paste0("| ", paste(vapply(cellules, function(c) c[i], character(1)),
                          collapse = " | "), " |"), character(1)))
-  if (tronque) lignes <- c(lignes, "", sprintf("*(%d lignes au total, %d affichées)*",
+  if (tronque) lignes <- c(lignes, "", trf("*(%d lignes au total, %d affichées)*",
                                                n_total, max_lignes))
   paste(lignes, collapse = "\n")
 }
@@ -246,8 +246,8 @@ hstat_report_markdown <- function(history, titre = "Rapport d'analyse",
   L <- c(sprintf("# %s", titre), "")
   if (nzchar(auteur))   L <- c(L, sprintf("**Auteur** : %s  ", auteur))
   L <- c(L, sprintf("**Date** : %s  ", format(Sys.Date(), "%d/%m/%Y")))
-  if (!is.null(version)) L <- c(L, sprintf("**Produit avec** : HStat %s  ", version))
-  if (nzchar(contexte)) L <- c(L, "", sprintf("**Contexte de l'étude** : %s", contexte))
+  if (!is.null(version)) L <- c(L, trf("**Produit avec** : HStat %s  ", version))
+  if (nzchar(contexte)) L <- c(L, "", trf("**Contexte de l'étude** : %s", contexte))
   L <- c(L, "", "---", "")
 
   if ("donnees" %in% sections && !is.null(donnees_resume)) {
@@ -266,7 +266,7 @@ hstat_report_markdown <- function(history, titre = "Rapport d'analyse",
       h <- history[[i]]
       L <- c(L, sprintf("### %d. %s — %s", i, h$module %||% "", h$title %||% ""), "")
       if (!is.null(h$time))
-        L <- c(L, sprintf("*Réalisée à %s.*", format(h$time, "%H:%M:%S")), "")
+        L <- c(L, trf("*Réalisée à %s.*", format(h$time, "%H:%M:%S")), "")
       par <- unlist(lapply(names(h$meta), function(k) {
         v <- h$meta[[k]]
         if (is.null(v) || !length(v)) return(NULL)
@@ -457,7 +457,7 @@ hstat_report_render <- function(markdown, fichier, format = "html",
   format <- match.arg(format, c("html", "docx", "pdf"))
   replis <- character(0)
   if (!isTRUE(dispo[[format]])) {
-    replis <- sprintf("Format %s indisponible sur cette machine, repli sur HTML.",
+    replis <- trf("Format %s indisponible sur cette machine, repli sur HTML.",
                       toupper(format))
     format <- "html"
   }

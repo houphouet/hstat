@@ -483,7 +483,7 @@ hstat_q_gof_stratified <- function(y, x, yname = "Y", xname = "X",
     dd <- as.data.frame(ct); names(dd) <- c(".X", ".Y", "Effectif")
     ggplot2::ggplot(dd, ggplot2::aes(.X, Effectif, fill = .Y)) +
       ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.85), width = 0.8) +
-      ggplot2::labs(title = sprintf("Distribution de %s selon %s", yname, xname),
+      ggplot2::labs(title = trf("Distribution de %s selon %s", yname, xname),
                     x = xname, y = "Effectif", fill = yname) +
       ggplot2::theme_minimal(base_size = 12)
   }
@@ -711,7 +711,7 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
     if (!is.na(p_mc)) c("", sprintf("Khi-deux Monte-Carlo (B = %d) : p-value = %s", B,
                                     format.pval(p_mc, digits = 4))) else NULL,
     if (method == "multinomial") c("",
-      sprintf("Test multinomial exact -- %s", multi_meth),
+      trf("Test multinomial exact -- %s", multi_meth),
       sprintf("p-value = %s", format.pval(p_multi, digits = 4)),
       trf("Hypothèse nulle : proportions %s", p0_lab)) else NULL)
 
@@ -850,7 +850,7 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y") {
     Interpretation = c(
       trf("%d observations appariées (paires complètes X, Y).", n),
       "Mesure l'écart global entre effectifs observés et attendus sous indépendance.",
-      sprintf("(lignes-1) x (colonnes-1) = %d.", as.integer(ddl)),
+      trf("(lignes-1) x (colonnes-1) = %d.", as.integer(ddl)),
       if (!is.na(pval) && pval < 0.05)
         "p < 0,05 : on rejette l'indépendance, les deux variables sont associées."
       else "p >= 0,05 : pas de preuve d'association au seuil de 5 %.",
@@ -874,7 +874,7 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y") {
     if (cramer_v < 0.6) "relativement forte" else "forte"
   sig <- if (!is.na(pval) && pval < 0.05) "significative" else "non significative"
   interp <- c(
-    sprintf("Association %s entre %s et %s (Khi-deux = %.2f, ddl = %d, p = %s).",
+    trf("Association %s entre %s et %s (Khi-deux = %.2f, ddl = %d, p = %s).",
             sig, xname, yname, chi2, as.integer(ddl), format.pval(pval, digits = 3)),
     trf("Force de l'association (V de Cramér = %.3f) : %s.", cramer_v, force),
     if (!isTRUE(expected_ok))
@@ -1147,7 +1147,7 @@ hstat_q_ordinal_univariate <- function(x, var_name = "Variable", levels_order = 
        tables = list("Distribution ordinale" = freq_df),
        plotfns = list("Barres ordonnées" = plot_bar),
        interpretation = interp,
-       notes = sprintf("Ordre des niveaux : %s.", paste(levels_order, collapse = " < ")),
+       notes = trf("Ordre des niveaux : %s.", paste(levels_order, collapse = " < ")),
        ranks = ranks, levels_order = levels_order)
 }
 
@@ -1287,7 +1287,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
       else if (pval_sp < 0.001) trf("p = %s < 0,001 : association très hautement significative.", format.pval(pval_sp, 3))
       else if (pval_sp < 0.01)  sprintf("p = %s < 0,01 : association hautement significative.", format.pval(pval_sp, 3))
       else if (pval_sp < 0.05)  sprintf("p = %s < 0,05 : association significative.", format.pval(pval_sp, 3))
-      else if (pval_sp < 0.10)  sprintf("p = %s : tendance non significative au seuil de 5 %% (marginale).", format.pval(pval_sp, 3))
+      else if (pval_sp < 0.10)  trf("p = %s : tendance non significative au seuil de 5 %% (marginale).", format.pval(pval_sp, 3))
       else sprintf("p = %s >= 0,05 : association non significative.", format.pval(pval_sp, 3))
     r2 <- round(100 * rho^2, 1)
     interp <- if (signif_sp) c(
@@ -1324,7 +1324,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     return(list(ok = TRUE, metrics = metrics, tables = list(),
                 plotfns = list("Nuage de points (rangs)" = plot_fn),
                 interpretation = interp, console = console,
-                notes = sprintf("%d paires analysées.", length(rx))))
+                notes = trf("%d paires analysées.", length(rx))))
   }
 
   # Comparaison entre groupes
@@ -1382,7 +1382,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
         "p < 0,05 : les médianes des groupes diffèrent significativement."
       else "p >= 0,05 : médianes compatibles entre groupes.",
       "Valeur de référence pour le test de la médiane.",
-      sprintf("%d groupes comparés.", ng),
+      trf("%d groupes comparés.", ng),
       sprintf("%d observations valides.", length(rx))),
     stringsAsFactors = FALSE)
   sig <- if (!is.na(pval) && pval < 0.05) "significative" else "non significative"
@@ -1413,7 +1413,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     ggplot2::ggplot(data.frame(rang = rx, groupe = g), ggplot2::aes(groupe, rang, fill = groupe)) +
       ggplot2::stat_boxplot(geom = "errorbar", width = 0.3, show.legend = FALSE) +
       ggplot2::geom_boxplot(show.legend = FALSE, alpha = 0.7) +
-      ggplot2::labs(title = sprintf("%s selon %s", xname, gname), x = gname, y = "Rang ordinal") +
+      ggplot2::labs(title = trf("%s selon %s", xname, gname), x = gname, y = "Rang ordinal") +
       ggplot2::theme_minimal(base_size = 12)
   }
 
@@ -1976,7 +1976,7 @@ hstat_q_missing_summary <- function(df, vars = NULL, treat_blank_as_na = TRUE) {
        tables = list("Manquants par variable" = miss_df),
        plotfns = list("Carte des manquants" = plot_fn),
        interpretation = interp,
-       notes = sprintf("%d variable(s), %d ligne(s).", length(vars), n))
+       notes = trf("%d variable(s), %d ligne(s).", length(vars), n))
 }
 
 # ---------------------------------------------------------------------------
@@ -2034,7 +2034,7 @@ hstat_q_interpret_ratio <- function(value, lo, hi, kind = c("OR", "RR"),
     if (vv < 3) "modérée" else if (vv < 5) "forte" else "très forte"
   libelle <- if (kind == "OR") "L'odds ratio" else "Le risque relatif"
   facteur <- if (kind == "OR") "la cote (odds) de l'issue" else "le risque de l'issue"
-  txt <- sprintf("%s = %.2f [IC%.0f%% : %.2f - %.2f] : l'exposition %s %s d'un facteur %.2f (association %s).",
+  txt <- trf("%s = %.2f [IC%.0f%% : %.2f - %.2f] : l'exposition %s %s d'un facteur %.2f (association %s).",
                  libelle, value, 100 * conf, lo, hi, sens, facteur,
                  if (value >= 1) value else 1 / value, force)
   concl <- if (signif)
@@ -2079,7 +2079,7 @@ hstat_q_or_rr_analysis <- function(x, y, xname = "X", yname = "Y",
               tools::toTitleCase(sens), rr$or, expo_lab,
               if (rr$or > 1) "augmente" else "diminue", yname, issue_lab)
     else
-      sprintf("Pas d'association significative (OR = %.2f, IC contient 1) entre \"%s\" et \"%s = %s\".",
+      trf("Pas d'association significative (OR = %.2f, IC contient 1) entre \"%s\" et \"%s = %s\".",
               rr$or, expo_lab, yname, issue_lab)
     data.frame(
       Exposition = sprintf("%s = %s (vs reste)", xname, expo_lab),
@@ -2116,8 +2116,8 @@ hstat_q_or_rr_analysis <- function(x, y, xname = "X", yname = "Y",
 
   metrics <- data.frame(
     Metrique = c("Exposition de référence", "Issue de référence",
-                 "Odds Ratio (OR)", sprintf("IC%.0f%% de l'OR", 100 * conf),
-                 "Risque Relatif (RR)", sprintf("IC%.0f%% du RR", 100 * conf),
+                 "Odds Ratio (OR)", trf("IC%.0f%% de l'OR", 100 * conf),
+                 "Risque Relatif (RR)", trf("IC%.0f%% du RR", 100 * conf),
                  "Risque chez exposés", "Risque chez non-exposés",
                  "Réduction/augmentation du risque (%)"),
     Valeur = c(ref$Exposition, ref$Issue,
@@ -2166,9 +2166,9 @@ hstat_q_or_rr_analysis <- function(x, y, xname = "X", yname = "Y",
     y_bin <- ifelse(d$y == iss, iss, if (length(ly) == 2) setdiff(ly, iss) else "Autres")
     y_lvl <- c(setdiff(unique(y_bin), iss), iss)      # issue en 2e colonne
     tab2 <- table(factor(d$x, levels = lx), factor(y_bin, levels = y_lvl))
-    c(sprintf("== ODDS RATIO -- référence : %s = %s ; issue : %s = %s ==", xname, lx[1], yname, iss),
+    c(trf("== ODDS RATIO -- référence : %s = %s ; issue : %s = %s ==", xname, lx[1], yname, iss),
       "", hstat_q_epitools_block(tab2, "OR", conf), "",
-      sprintf("== RISQUE RELATIF -- référence : %s = %s ; issue : %s = %s ==", xname, lx[1], yname, iss),
+      trf("== RISQUE RELATIF -- référence : %s = %s ; issue : %s = %s ==", xname, lx[1], yname, iss),
       "", hstat_q_epitools_block(tab2, "RR", conf), "", "")
   }))
 
@@ -2660,7 +2660,7 @@ mod_qualitative_server <- function(id, values) {
           "orrr_expo", "orrr_issue", "tools_vars"),
         function(id) input[[id]])))
       hstat_ai_capture(values, "Analyses qualitatives",
-        r$title %||% sprintf("Analyse qualitative (%s)", input$family %||% "nominal"),
+        r$title %||% trf("Analyse qualitative (%s)", input$family %||% "nominal"),
         tables = tabs,
         text = if (!is.null(r$console)) paste(r$console, collapse = "\n") else NULL,
         meta = list(variables = vars, groupe = input$ord_group %||% input$nom_var2,

@@ -444,7 +444,7 @@ mod_timeseries_server <- function(id, values) {
       shiny::div(class = "callout callout-info", style = "margin-top:10px;",
           shiny::icon("trophy"),
           shiny::strong(trf(" Meilleur modèle sur le jeu de test : %s ", d$Modele[1])),
-          sprintf("(RMSE = %s, MAPE = %s %%). Le classement repose sur l'erreur de ",
+          trf("(RMSE = %s, MAPE = %s %%). Le classement repose sur l'erreur de ",
                   format(d$RMSE[1], big.mark = " "), d$`MAPE (%)`[1]),
           "prévision hors échantillon, le critère le plus honnête pour comparer des modèles.")
     })
@@ -539,7 +539,7 @@ mod_timeseries_server <- function(id, values) {
       txt <- hstat_model_interpretation(
         "regression", c0$r$metrics, c0$label,
         n_train = length(c0$f$train), n_test = c0$f$n_test,
-        notes = sprintf("La MASE vaut %s : %s",
+        notes = trf("La MASE vaut %s : %s",
           round(c0$r$mase, 3),
           if (!is.finite(c0$r$mase)) "non calculable."
           else if (c0$r$mase < 1) "le modèle bat la prévision naïve — il apporte une vraie valeur ajoutée."
@@ -688,7 +688,7 @@ mod_timeseries_server <- function(id, values) {
         }, error = function(e) NULL)
         shiny::validate(shiny::need(!is.null(nd), "Fichier importé illisible."),
                  shiny::need(input$tsVar %in% names(nd),
-                      sprintf("Le fichier doit contenir une colonne '%s'.", input$tsVar)))
+                      trf("Le fichier doit contenir une colonne '%s'.", input$tsVar)))
         add <- suppressWarnings(as.numeric(nd[[input$tsVar]]))
         add <- add[is.finite(add)]
         shiny::validate(shiny::need(length(add) > 0, "Aucune valeur numérique valide dans le fichier."))

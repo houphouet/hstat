@@ -1129,7 +1129,7 @@ mod_viz_server <- function(id, values) {
       if (!length(vars)) return()
       grp <- intersect(input$vizColorVar %||% character(0), names(d))
       hstat_ai_capture(values, "Visualisation",
-        sprintf("Graphique : %s", paste(vars, collapse = " x ")),
+        trf("Graphique : %s", paste(vars, collapse = " x ")),
         meta = list(variables = vars, groupe = grp,
                     `type de graphique` = input$vizType),
         # La figure part en FONCTION, pas en objet : elle n'est dessinee que si

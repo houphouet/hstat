@@ -384,7 +384,7 @@ mod_dl_server <- function(id, values) {
             tot <- tot + l$item(); nb <- nb + 1
           }
           losses[e] <- tot / max(nb, 1)
-          shiny::incProgress(1 / epochs, detail = sprintf("époque %d — perte %.4f", e, losses[e]))
+          shiny::incProgress(1 / epochs, detail = trf("époque %d — perte %.4f", e, losses[e]))
         }
       })
       model$eval()
@@ -407,7 +407,7 @@ mod_dl_server <- function(id, values) {
       f <- tryCatch(dlfit(), error = function(e) NULL)
       if (is.null(f) || is.null(f$metrics)) return()
       hstat_ai_capture(values, "Deep Learning",
-        sprintf("Réseau de neurones (%s)",
+        trf("Réseau de neurones (%s)",
                 if (!is.null(f$p) && identical(f$p$task, "classification"))
                   "classification" else "regression"),
         tables = list("Métriques du modèle" = hstat_ai_as_table(f$metrics)),
@@ -470,7 +470,7 @@ mod_dl_server <- function(id, values) {
           ggplot2::geom_text(ggplot2::aes(label = sprintf("%d\n(%.0f %%)", Freq, Pct)),
                              color = "white", lineheight = 0.9) +
           ggplot2::scale_fill_gradient(low = "#90a4ae", high = col) +
-          ggplot2::labs(title = sprintf("MLP (%s) — matrice de confusion (test)", f$fit$engine),
+          ggplot2::labs(title = trf("MLP (%s) — matrice de confusion (test)", f$fit$engine),
                         x = "Prédit", y = "Observé", fill = "Effectif",
                         caption = "Pourcentages par ligne : part de chaque classe observée. Diagonale = bien classés.")
         hstat_apply_plot_opts(g, input, "dlO")
@@ -646,7 +646,7 @@ mod_dl_server <- function(id, values) {
           l <- torch::nnf_mse_loss(model(xt), yt)
           l$backward(); opt$step()
           losses[e] <- l$item()
-          shiny::incProgress(1 / epochs, detail = sprintf("époque %d — perte %.5f", e, losses[e]))
+          shiny::incProgress(1 / epochs, detail = trf("époque %d — perte %.5f", e, losses[e]))
         }
       })
       model$eval()

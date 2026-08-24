@@ -1029,7 +1029,7 @@ mod_clean_server <- function(id, values) {
               data_temp[[col]] <- as.Date(data_temp[[col]])
             }
           }, error = function(e) {
-            shiny::showNotification(hstat_err_fr(e, sprintf("Variable `%s`", col)), 
+            shiny::showNotification(hstat_err_fr(e, trf("Variable `%s`", col)), 
                              type = "warning", duration = 5)
           })
         }
@@ -1152,7 +1152,7 @@ mod_clean_server <- function(id, values) {
                       rows = min(20, length(lv) + 1), width = "100%"))
     } else {
       shiny::tagList(
-        shiny::tags$small(sprintf("%d modalités.%s", length(lv),
+        shiny::tags$small(trf("%d modalités.%s", length(lv),
           if (is_ordinal) " L'ordre ci-dessous = ordre du facteur ordinal." else "")),
         lapply(seq_along(lv), function(i)
           shiny::textInput(ns(paste0("recodeLvl_", i)),
@@ -1612,7 +1612,7 @@ mod_clean_server <- function(id, values) {
             data_temp[[col]][is.na(data_temp[[col]])] <- input$naValue
           }
         }, error = function(e) {
-          shiny::showNotification(hstat_err_fr(e, sprintf("Variable `%s`", col)), 
+          shiny::showNotification(hstat_err_fr(e, trf("Variable `%s`", col)), 
                            type = "error", duration = 5)
         })
         
@@ -1893,7 +1893,7 @@ mod_clean_server <- function(id, values) {
     txt <- paste(ifelse(is.na(x), "NA", as.character(x)), collapse = "\n")
     shiny::tagList(
       shiny::textAreaInput(ns("zeroSaisie"),
-                    sprintf("Valeurs (%s lignes attendues, une par ligne) :", NROW(d)),
+                    trf("Valeurs (%s lignes attendues, une par ligne) :", NROW(d)),
                     value = txt, rows = 10, width = "100%"),
       shiny::tags$small(style = "color:#7f8c8d;",
                  "Une valeur par ligne (ou séparées par des points-virgules). Écrivez NA pour une valeur manquante ; la virgule décimale est acceptée."))
@@ -2149,7 +2149,7 @@ mod_clean_server <- function(id, values) {
     old <- info$old; new <- trimws(info$nw %||% "")
     if (is.null(old) || !nzchar(new)) return()
     if (!(old %in% names(values$cleanData))) {
-      shiny::showNotification(sprintf("Colonne « %s » introuvable.", old), type = "warning"); return()
+      shiny::showNotification(trf("Colonne « %s » introuvable.", old), type = "warning"); return()
     }
     if (new %in% setdiff(names(values$cleanData), old)) {
       shiny::showNotification(trf("Le nom « %s » existe déjà.", new), type = "error"); return()

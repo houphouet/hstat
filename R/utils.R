@@ -602,7 +602,7 @@ HSTAT_PKG_REPLI <- list(
 hstat_pkg_manquant <- function(pkg, analyse = NULL) {
   paste0(
     if (!is.null(analyse)) paste0(analyse, " : ") else "",
-    sprintf("le paquet R « %s » n'est pas installé sur cette machine, ", pkg),
+    trf("le paquet R « %s » n'est pas installé sur cette machine, ", pkg),
     "cette analyse ne peut donc pas être lancée. ",
     sprintf("Pour l'ajouter : install.packages(\"%s\"), puis relancez ", pkg),
     "HStat. ",
@@ -3343,7 +3343,7 @@ HSTAT_IMPUTE_MAX_N <- {
 hstat_bigdata_note <- function(what, n_used, n_total) {
   if (is.null(shiny::getDefaultReactiveDomain())) return(invisible(NULL))
   shiny::showNotification(
-    sprintf("%s : calcul sur un échantillon aléatoire de %s lignes (sur %s).",
+    trf("%s : calcul sur un échantillon aléatoire de %s lignes (sur %s).",
             what, format(n_used, big.mark = " "), format(n_total, big.mark = " ")),
     type = "message", duration = 8)
   invisible(NULL)
@@ -3731,9 +3731,9 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
       if (!any(dans_temoin))
         groupes_sans_temoin <- c(groupes_sans_temoin, g)
       else if (!is.finite(ref[["v"]]))
-        alertes <- c(alertes, sprintf("témoin sans valeur mesurable pour « %s »", v))
+        alertes <- c(alertes, trf("témoin sans valeur mesurable pour « %s »", v))
       else if (ref[["v"]] == 0)
-        alertes <- c(alertes, sprintf("témoin nul pour « %s » : l'efficacité n'est pas définissable", v))
+        alertes <- c(alertes, trf("témoin nul pour « %s » : l'efficacité n'est pas définissable", v))
       for (m in niveaux) {
         dans_m <- dans_g & !is.na(modal) & modal == m
         r <- resume(y[dans_m])
@@ -3796,7 +3796,7 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
   attr(out, "groupes_sans_temoin") <- gst
   msg(out, if (length(alertes))
     paste0("Attention : ", paste(unique(alertes), collapse = " ; "), ".")
-    else sprintf("%s modalité(s) comparée(s) au témoin « %s » (%s).",
+    else trf("%s modalité(s) comparée(s) au témoin « %s » (%s).",
                  length(niveaux), temoin, agg))
 }
 
@@ -4463,7 +4463,7 @@ hstat_excel_read_sheets <- function(path, sheets = NULL) {
   msg <- if (!length(frames)) "Aucune feuille exploitable dans ce classeur."
          else sprintf("%d feuille(s) lue(s)%s.", length(frames),
                       if (length(ignorees))
-                        sprintf(", %d écartée(s) car vide(s) ou illisible(s) : %s",
+                        trf(", %d écartée(s) car vide(s) ou illisible(s) : %s",
                                 length(ignorees), paste(ignorees, collapse = ", "))
                       else "")
   list(frames = frames, names = noms, ignorees = ignorees, msg = msg)
@@ -4572,11 +4572,11 @@ hstat_merge_frames <- function(frames, type = "inner",
     if (type == "union_distinct") {
       out <- out[!duplicated(out), , drop = FALSE]
       return(list(ok = TRUE, data = out,
-        msg = sprintf("Union distincte de %d fichiers : %d lignes uniques, %d colonnes.",
+        msg = trf("Union distincte de %d fichiers : %d lignes uniques, %d colonnes.",
                       length(frames), nrow(out), ncol(out))))
     }
     return(list(ok = TRUE, data = out,
-                msg = sprintf("Empilement de %d fichiers : %d lignes, %d colonnes.",
+                msg = trf("Empilement de %d fichiers : %d lignes, %d colonnes.",
                               length(frames), nrow(out), ncol(out))))
   }
 
@@ -4595,7 +4595,7 @@ hstat_merge_frames <- function(frames, type = "inner",
     out <- do.call(cbind, norm)
     names(out) <- make.unique(names(out))
     return(list(ok = TRUE, data = out,
-                msg = sprintf("Juxtaposition de %d fichiers : %d lignes, %d colonnes.",
+                msg = trf("Juxtaposition de %d fichiers : %d lignes, %d colonnes.",
                               length(frames), nrow(out), ncol(out))))
   }
 
@@ -4615,7 +4615,7 @@ hstat_merge_frames <- function(frames, type = "inner",
     lbl <- switch(type, "intersect" = "Intersection",
                   "setdiff" = "Différence (1er sauf 2e)", "setdiff_right" = "Différence (2e sauf 1er)")
     return(list(ok = TRUE, data = out,
-      msg = sprintf("%s sur colonnes communes : %d lignes, %d colonnes.", lbl, nrow(out), ncol(out))))
+      msg = trf("%s sur colonnes communes : %d lignes, %d colonnes.", lbl, nrow(out), ncol(out))))
   }
 
   # ---- Jointure CROISÉE (produit cartésien, sans clé) ----
@@ -4663,7 +4663,7 @@ hstat_merge_frames <- function(frames, type = "inner",
                   "anti" = "Anti-jointure (1er sans correspondance)",
                   "anti_right" = "Anti-jointure (2e sans correspondance)")
     return(list(ok = TRUE, data = out,
-      msg = sprintf("%s sur « %s » : %d lignes, %d colonnes.",
+      msg = trf("%s sur « %s » : %d lignes, %d colonnes.",
                     lbl, paste(kl, collapse = "+"), nrow(out), ncol(out))))
   }
 
@@ -4696,7 +4696,7 @@ hstat_merge_frames <- function(frames, type = "inner",
 
   # ---- Jointures classiques (inner/left/right/full), clés composites, enchaînées ----
   if (!type %in% c("inner", "left", "right", "full"))
-    return(list(ok = FALSE, data = NULL, msg = sprintf("Type de fusion inconnu : %s", type)))
+    return(list(ok = FALSE, data = NULL, msg = trf("Type de fusion inconnu : %s", type)))
   for (i in 2:length(frames)) {
     d2 <- frames[[i]]
     kr_i <- if (length(kr) == length(kl) && all(kr %in% names(d2))) kr else kl
@@ -4709,7 +4709,7 @@ hstat_merge_frames <- function(frames, type = "inner",
                  suffixes = c("", paste0("_", source_names[i])))
   }
   list(ok = TRUE, data = acc,
-       msg = sprintf("Jointure %s de %d fichiers sur « %s » : %d lignes, %d colonnes.",
+       msg = trf("Jointure %s de %d fichiers sur « %s » : %d lignes, %d colonnes.",
                      type, length(frames), paste(kl, collapse = "+"), nrow(acc), ncol(acc)))
 }
 
@@ -5257,7 +5257,7 @@ hstat_model_interpretation <- function(task, metrics_df, model_label,
     paste0(.hstat_interp_r2(r2), " ", .hstat_interp_mape(mape))
   } else {
     acc <- get_v("Exactitude (accuracy)"); f1 <- get_v("F1-score (macro)")
-    sprintf("Avec %.1f %% de bonnes classifications et un F1 macro de %.2f, %s",
+    trf("Avec %.1f %% de bonnes classifications et un F1 macro de %.2f, %s",
             100 * acc, f1,
             if (is.finite(f1) && f1 >= 0.8) "le modèle est opérationnel pour la prédiction."
             else if (is.finite(f1) && f1 >= 0.6) "le modèle est utilisable mais perfectible (plus de données, autres variables, réglages)."

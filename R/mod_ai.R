@@ -220,7 +220,7 @@ hstat_ai_status <- function(engine = "auto", url = NULL, model = NULL,
   m <- hstat_ai_modele(engine, model)
   if (nzchar(m) && !(m %in% mods))
     return(list(ok = FALSE, models = mods,
-                message = sprintf("Le modèle « %s » n'est pas disponible sur %s. Modèles annonces : %s.",
+                message = trf("Le modèle « %s » n'est pas disponible sur %s. Modèles annonces : %s.",
                                   m, u, paste(mods, collapse = ", "))))
   list(ok = TRUE, models = mods,
        message = trf("Serveur local disponible sur %s (%d modèle(s)). Gratuit, hors ligne, aucune donnée ne quitte la machine.",
@@ -300,7 +300,7 @@ hstat_ai_available <- function(explicit = NULL) {
   if (httr::status_code(res) >= 300) {
     msg <- if (!is.null(p$error$message)) p$error$message else raw
     return(list(ok = FALSE, text = "",
-                error = sprintf("Erreur de %s (HTTP %d) : %s", f$label,
+                error = trf("Erreur de %s (HTTP %d) : %s", f$label,
                                 httr::status_code(res), substr(msg, 1, 400))))
   }
   txt <- tryCatch(p$choices[[1]]$message$content, error = function(e) NULL)
@@ -343,7 +343,7 @@ hstat_ai_available <- function(explicit = NULL) {
   if (httr::status_code(res) >= 300) {
     msg <- if (!is.null(p$error$message)) p$error$message else raw
     return(list(ok = FALSE, text = "",
-                error = sprintf("Erreur de %s (HTTP %d) : %s", f$label,
+                error = trf("Erreur de %s (HTTP %d) : %s", f$label,
                                 httr::status_code(res), substr(msg, 1, 400))))
   }
   # Une reponse Gemini porte une liste de candidats, chacun une liste de parts.
@@ -385,7 +385,7 @@ hstat_ai_available <- function(explicit = NULL) {
   if (httr::status_code(res) >= 300) {
     msg <- if (!is.null(parsed$error$message)) parsed$error$message else raw
     return(list(ok = FALSE, text = "",
-                error = sprintf("Erreur API (HTTP %d) : %s",
+                error = trf("Erreur API (HTTP %d) : %s",
                                 httr::status_code(res), substr(msg, 1, 500))))
   }
   if (is.null(parsed) || is.null(parsed$content))
@@ -589,7 +589,7 @@ hstat_ai_as_table <- function(x) {
 # modele local bien plus qu'elle ne l'informe.
 hstat_ai_context_text <- function(ctx, max_rows = 25, max_chars = 6000) {
   if (is.null(ctx)) return("")
-  out <- c(sprintf("ANALYSE RÉALISÉE : %s", ctx$title))
+  out <- c(trf("ANALYSE RÉALISÉE : %s", ctx$title))
   if (length(ctx$meta)) {
     m <- vapply(names(ctx$meta), function(k) {
       v <- ctx$meta[[k]]
@@ -604,9 +604,9 @@ hstat_ai_context_text <- function(ctx, max_rows = 25, max_chars = 6000) {
     if (is.null(tb) || !NROW(tb)) next
     trunc <- NROW(tb) > max_rows
     tb <- utils::head(as.data.frame(tb), max_rows)
-    out <- c(out, "", sprintf("TABLEAU - %s :", nm),
+    out <- c(out, "", trf("TABLEAU - %s :", nm),
              paste(utils::capture.output(print(tb, row.names = FALSE)), collapse = "\n"),
-             if (trunc) sprintf("(... %d lignes au total)", NROW(ctx$tables[[nm]])) else NULL)
+             if (trunc) trf("(... %d lignes au total)", NROW(ctx$tables[[nm]])) else NULL)
   }
   if (!is.null(ctx$text) && nzchar(ctx$text))
     out <- c(out, "", "SORTIE R :", substr(ctx$text, 1, 2500))
@@ -661,7 +661,7 @@ hstat_ai_context_text <- function(ctx, max_rows = 25, max_chars = 6000) {
   skew <- mean(((x - m) / s)^3)
   kurt <- mean(((x - m) / s)^4) - 3
   list(ok = abs(skew) < 1 && abs(kurt) < 2,
-       methode = sprintf("asymétrie %.2f / aplatissement %.2f (n > 5000)", skew, kurt),
+       methode = trf("asymétrie %.2f / aplatissement %.2f (n > 5000)", skew, kurt),
        p = NA_real_)
 }
 
@@ -1098,12 +1098,12 @@ hstat_data_quality <- function(df, seuil_na = 0.20, seuil_modalite = 0.95,
       rares <- names(tb)[tb < 5]
       if (length(rares) && u <= max_modalites)
         out <- c(out, list(.hstat_q_row(nm,
-          sprintf("%d modalité(s) sous 5 observations (%s)", length(rares),
+          trf("%d modalité(s) sous 5 observations (%s)", length(rares),
                   paste(utils::head(rares, 4), collapse = ", ")), "à surveiller",
           "Les tests du Chi2 et les approximations asymptotiques y perdent leur validité. Regrouper ces modalités, ou passer au test exact de Fisher.")))
       if (u > max_modalites && u < 0.95 * length(vals))
         out <- c(out, list(.hstat_q_row(nm,
-          sprintf("%d modalités distinctes", u), "à surveiller",
+          trf("%d modalités distinctes", u), "à surveiller",
           trf("Au-delà de %d modalités, les tableaux croises deviennent illisibles et les effectifs trop faibles. Regrouper en catégories plus larges.", max_modalites))))
 
       # --- Nombres stockes en texte ----------------------------------------
@@ -1141,7 +1141,7 @@ hstat_data_quality <- function(df, seuil_na = 0.20, seuil_modalite = 0.95,
       for (k in seq_len(min(nrow(idx), 8L)))
         out <- c(out, list(.hstat_q_row(
           paste(quanti[idx[k, 1]], "/", quanti[idx[k, 2]]),
-          sprintf("corrélation de %.2f entre ces deux variables", M[idx[k, 1], idx[k, 2]]), "important",
+          trf("corrélation de %.2f entre ces deux variables", M[idx[k, 1], idx[k, 2]]), "important",
           "Redondance quasi parfaite : en garder une seule. Ensemble, elles rendent une régression instable (colinéarité) et faussent la lecture des coefficients.")))
   }
 
@@ -1149,17 +1149,17 @@ hstat_data_quality <- function(df, seuil_na = 0.20, seuil_modalite = 0.95,
   dup <- sum(duplicated(df))
   if (dup > 0)
     out <- c(out, list(.hstat_q_row("(jeu de données)",
-      sprintf("%d ligne(s) strictement identique(s)", dup), "important",
+      trf("%d ligne(s) strictement identique(s)", dup), "important",
       "Doublons probables de saisie ou d'import. Les supprimer, sinon ils gonflent artificiellement les effectifs et resserrent à tort les intervalles de confiance.")))
 
   # --- Effectif au regard du nombre de variables -------------------------------
   if (n < 5 * p)
     out <- c(out, list(.hstat_q_row("(jeu de données)",
-      sprintf("%d observations pour %d variables", n, p), "important",
+      trf("%d observations pour %d variables", n, p), "important",
       "Trop peu d'observations par variable : les modèles multivariés surapprendront. Réduire le nombre de variables, ou se limiter à des analyses bivariées.")))
   if (n < 30)
     out <- c(out, list(.hstat_q_row("(jeu de données)",
-      sprintf("effectif total de %d observations", n), "à surveiller",
+      trf("effectif total de %d observations", n), "à surveiller",
       "Sous 30 observations, les approximations normales sont fragiles : préférer les tests exacts et les tests de rangs.")))
 
   if (!length(out)) return(.hstat_q_row("(jeu de données)",
@@ -1179,8 +1179,8 @@ hstat_data_quality_resume <- function(dq) {
   n <- table(factor(dq$Gravite, levels = HSTAT_QUALITE_GRAVITES))
   parts <- c(if (n[["bloquant"]]) sprintf("%d bloquant(s)", n[["bloquant"]]),
              if (n[["important"]]) sprintf("%d important(s)", n[["important"]]),
-             if (n[["à surveiller"]]) sprintf("%d à surveiller", n[["à surveiller"]]))
-  sprintf("%d constat(s) de qualité : %s.", nrow(dq), paste(parts, collapse = ", "))
+             if (n[["à surveiller"]]) trf("%d à surveiller", n[["à surveiller"]]))
+  trf("%d constat(s) de qualité : %s.", nrow(dq), paste(parts, collapse = ", "))
 }
 
 
@@ -1248,7 +1248,7 @@ hstat_reco_analyses <- function(profile) {
         out <- c(out, list(
           if (normal_tous && !isFALSE(homo) && !isTRUE(g$petits_effectifs))
             .hstat_reco_row("Test t de Student (deux échantillons)", "Recommandée",
-              sprintf("Une quantitative comparée entre %d groupes indépendants, normalité intra-groupe acceptable%s.",
+              trf("Une quantitative comparée entre %d groupes indépendants, normalité intra-groupe acceptable%s.",
                       g$k, if (isTRUE(homo)) " et variances homogènes" else ""),
               "Indépendance des observations ; normalité dans chaque groupe.",
               "Test t de Welch si les variances différent, Mann-Whitney sinon.")
@@ -1259,7 +1259,7 @@ hstat_reco_analyses <- function(profile) {
               "Mann-Whitney.")
           else
             .hstat_reco_row("Mann-Whitney (Wilcoxon)", "Recommandée",
-              sprintf("Deux groupes indépendants%s.",
+              trf("Deux groupes indépendants%s.",
                       if (isTRUE(g$petits_effectifs))
                         " dont au moins un compte moins de 5 observations : la normalité n'y est pas vérifiable"
                       else " et distribution non normale dans au moins un groupe"),
@@ -1285,7 +1285,7 @@ hstat_reco_analyses <- function(profile) {
             "Test de permutation, si même les rangs sont trop peu nombreux.")
         else
           .hstat_reco_row("Kruskal-Wallis", "Recommandée",
-            sprintf("%d groupes indépendants et distribution non normale dans au moins un groupe.", g$k),
+            trf("%d groupes indépendants et distribution non normale dans au moins un groupe.", g$k),
             "Indépendance ; formes comparables pour conclure sur les médianes.",
             "Comparaison des rangs seule.")))
       out <- c(out, list(.hstat_reco_row(
@@ -1348,7 +1348,7 @@ hstat_reco_analyses <- function(profile) {
     if (length(quali) >= 3)
       out <- c(out, list(.hstat_reco_row(
         "ACM (analyse des correspondances multiples)", "À envisager",
-        sprintf("%d variables catégorielles : l'ACM positionne individus et modalités dans un même plan.", length(quali)),
+        trf("%d variables catégorielles : l'ACM positionne individus et modalités dans un même plan.", length(quali)),
         "Modalités suffisamment représentées (regrouper les plus rares).", "-")))
   }
 
@@ -1459,10 +1459,10 @@ hstat_ai_interpret_offline <- function(ctx, profile = NULL, reco = NULL,
     ty <- vapply(profile$variables, function(e) e$type, character(1))
     L <- c(L, "### Données analysées", "",
            sprintf("- %d observations ; %s.", profile$n,
-                   paste(sprintf("%d variable(s) %s", table(ty), names(table(ty))),
+                   paste(trf("%d variable(s) %s", table(ty), names(table(ty))),
                          collapse = ", ")))
     if (!is.null(profile$groupe))
-      L <- c(L, sprintf("- Facteur « %s » a %d modalités (effectifs : %s)%s.",
+      L <- c(L, trf("- Facteur « %s » a %d modalités (effectifs : %s)%s.",
                         profile$groupe$nom, profile$groupe$k,
                         paste(profile$groupe$effectifs, collapse = ", "),
                         if (isTRUE(profile$groupe$petits_effectifs))
@@ -1488,14 +1488,14 @@ hstat_ai_interpret_offline <- function(ctx, profile = NULL, reco = NULL,
     lab_col <- names(tb)[vapply(tb, function(x) is.character(x) || is.factor(x), logical(1))]
     for (i in seq_len(min(nrow(tb), 20L))) {
       p <- suppressWarnings(as.numeric(tb[[pc[1]]][i]))
-      etiq <- if (length(lab_col)) as.character(tb[[lab_col[1]]][i]) else sprintf("ligne %d", i)
-      L <- c(L, sprintf("- **%s** : p = %s -> %s au seuil de %.0f %%.",
+      etiq <- if (length(lab_col)) as.character(tb[[lab_col[1]]][i]) else trf("ligne %d", i)
+      L <- c(L, trf("- **%s** : p = %s -> %s au seuil de %.0f %%.",
                         etiq,
                         if (is.na(p)) "n.d." else format(signif(p, 3), scientific = p < 1e-4),
                         .hstat_ai_signif(p, alpha), 100 * alpha))
       lues <- lues + 1L
     }
-    if (nrow(tb) > 20L) L <- c(L, sprintf("- (... %d lignes supplémentaires)", nrow(tb) - 20L))
+    if (nrow(tb) > 20L) L <- c(L, trf("- (... %d lignes supplémentaires)", nrow(tb) - 20L))
   }
   if (lues == 0L)
     L <- c(L, "### Résultats", "",
@@ -1567,7 +1567,7 @@ hstat_ai_interpret_prompt <- function(ctx, profile = NULL, reco = NULL,
     "2. Ne recalcule rien et ne propose pas de relancer l'analyse à ta façon.\n",
     "3. Le choix de l'analyse appartient à l'utilisateur : tu peux signaler ",
     "qu'une autre méthode aurait mieux convenu, jamais affirmer qu'il a eu tort.\n",
-    sprintf("4. Seuil de signification retenu : %.0f %%.\n", 100 * alpha),
+    trf("4. Seuil de signification retenu : %.0f %%.\n", 100 * alpha),
     "\nSTYLE : ", style,
     if (nzchar(trimws(contexte))) paste0("\n\nCONTEXTE DE L'ÉTUDE : ", contexte) else "",
     bloc_profil, bloc_reco,
@@ -1872,7 +1872,7 @@ mod_ai_server <- function(id, values) {
           "variables ci-dessous."))
       shiny::div(class = "callout callout-success", style = "padding:10px 14px;",
         shiny::icon("circle-check"), shiny::tags$b(" ", c0$title), shiny::br(),
-        shiny::tags$small(sprintf("Module : %s - %d tableau(x) - %s",
+        shiny::tags$small(trf("Module : %s - %d tableau(x) - %s",
                                   c0$module, length(c0$tables),
                                   format(c0$time, "%H:%M:%S"))))
     })
@@ -2070,7 +2070,7 @@ mod_ai_server <- function(id, values) {
           el <- c(el, list(shiny::tags$li(shiny::tags$b("Au moins un groupe compte moins de 5 observations"),
             " : les approximations asymptotiques y sont peu fiables.")))
         if (!is.na(g$variances_homogenes))
-          el <- c(el, list(shiny::tags$li(sprintf("Variances %s entre groupes.",
+          el <- c(el, list(shiny::tags$li(trf("Variances %s entre groupes.",
             if (isTRUE(g$variances_homogenes)) "homogènes" else "hétérogènes"))))
         if (!is.na(g$equilibre) && !isTRUE(g$equilibre))
           el <- c(el, list(shiny::tags$li("Groupes déséquilibres (rapport des effectifs > 1,5).")))
@@ -2213,7 +2213,7 @@ mod_ai_server <- function(id, values) {
           dpi = suppressWarnings(as.numeric(input$rep_dpi %||% HSTAT_REPORT_DPI_MIN)),
           progres = if (apercu) NULL else function(i, n, titre)
             shiny::setProgress(value = i / max(n, 1),
-                               detail = sprintf("Figure %d sur %d — %s", i, n,
+                               detail = trf("Figure %d sur %d — %s", i, n,
                                                 substr(titre, 1, 60)))),
         error = function(e) NULL)
     }
@@ -2247,8 +2247,8 @@ mod_ai_server <- function(id, values) {
       nfig <- sum(vapply(h, function(x) is.function(x$plot), logical(1)))
       shiny::div(style = "font-size:12px;color:#566573;line-height:1.7;",
         shiny::icon("list-check"), shiny::tags$b(" Le rapport contiendra"), shiny::br(),
-        sprintf("%d analyse(s)", length(h)), shiny::br(),
-        sprintf("%d figure(s) disponible(s)", nfig), shiny::br(),
+        trf("%d analyse(s)", length(h)), shiny::br(),
+        trf("%d figure(s) disponible(s)", nfig), shiny::br(),
         if (!is.null(rv$txt) && nzchar(rv$txt)) "une interprétation rédigée"
         else shiny::tags$span(style = "color:#b9770e;",
           "aucune interprétation (lancez-en une dans l'onglet Interprétation)"))
