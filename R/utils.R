@@ -3505,7 +3505,18 @@ hstat_sql_path <- function(path) {
 # Il reste un VRAI plafond : un gabarit qui echapperait au filtre, ou une liste
 # de modalites partie par erreur au navigateur, le ferait sauter. C'est ce
 # qu'il garde -- pas la petitesse pour elle-meme.
-HSTAT_I18N_KO_MAX <- 400
+#
+# 700 Ko et non 400 : la traduction est passee de 28,5 % a 94,4 % du texte
+# REELLEMENT AFFICHE -- les 100 % annonces auparavant ne portaient que sur les
+# onglets et les libelles de widgets. Messages, verdicts, aides et
+# interpretations statistiques y sont maintenant.
+#
+# Mesure, pas estimation : a 4 741 entrees le fichier pese 440 Ko bruts pour
+# 148 Ko compresses (facteur 3,0), et c'est la taille compressee qui transite
+# -- Shiny sert la page en gzip. 700 Ko brut laissent la place aux dernieres
+# phrases en restant sous ~235 Ko sur le reseau : moins qu'une photographie,
+# pour une application entierement bilingue hors ligne.
+HSTAT_I18N_KO_MAX <- 700
 
 HSTAT_I18N_MARQUEUR <- "%[-0-9.]*[sdfgeix%]"
 
