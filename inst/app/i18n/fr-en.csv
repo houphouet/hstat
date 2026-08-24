@@ -5494,3 +5494,5 @@ and create a plot"
                                        
                                          <p><b>Usefulness:</b> Identify <i>exactly where</i> the factors differ when they interact.</p>
                                          </div>"
+"<b>%{label}</b><br>Valeur: %{value}<br>Part: %{percent}<extra></extra>","<b>%{label}</b><br>Value: %{value}<br>Share: %{percent}<extra></extra>"
+"<b>%{label}</b><br>Valeur: %{value}<extra></extra>","<b>%{label}</b><br>Value: %{value}<extra></extra>"

@@ -1525,7 +1525,8 @@ HSTAT_AI_NIVEAUX <- c(
 
 hstat_ai_interpret_prompt <- function(ctx, profile = NULL, reco = NULL,
                                       verdict = NULL, niveau = "scientifique",
-                                      contexte = "", alpha = 0.05) {
+                                      contexte = "", alpha = 0.05,
+                                      lang = hstat_langue_session()) {
   style <- switch(niveau,
     vulgarise = paste0("Écris pour un lecteur sans formation statistique : pas de jargon, ",
                        "pas de symboles, des phrases courtes. Explique ce que le résultat ",
@@ -1560,7 +1561,8 @@ hstat_ai_interpret_prompt <- function(ctx, profile = NULL, reco = NULL,
 
   paste0(
     "Tu es statisticien. On te donne les RÉSULTATS d'une analyse déjà réalisée ",
-    "par l'utilisateur. Ta mission est de les INTERPRÉTER, en français.\n\n",
+    "par l'utilisateur. Ta mission est de les INTERPRÉTER, ",
+    hstat_ai_consigne_langue(lang), ".\n\n",
     "RÈGLES ABSOLUES :\n",
     "1. N'invente aucun chiffre. N'utilise que les valeurs présentes ci-dessous. ",
     "Si une valeur manque, dis-le au lieu de la deviner.\n",
@@ -1974,7 +1976,8 @@ mod_ai_server <- function(id, values) {
                                     input$contexte %||% "", input$alpha %||% 0.05),
           system = paste0("Tu es statisticien. Tu interprètes des résultats déjà ",
                           "obtenus, sans jamais inventer de chiffre ni relancer ",
-                          "d'analyse. Tu réponds en français, en markdown."),
+                          "d'analyse. Tu réponds ", hstat_ai_consigne_langue(),
+                          ", en markdown."),
           engine = eng, url = input$url,
           model = input$model, api_key = input$key, json = FALSE)
         shiny::incProgress(0.5)

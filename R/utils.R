@@ -800,6 +800,16 @@ hstat_langue_session <- function() {
   if (identical(l, "en")) "en" else "fr"
 }
 
+# LA REPONSE DU MODELE EST DU TEXTE AFFICHE, ET AUCUN DICTIONNAIRE NE PEUT LA
+# TRADUIRE : elle n'existe pas encore quand la page se construit, et le
+# traducteur du navigateur ne remplace que des correspondances connues. Trois
+# invites imposaient « en francais » en dur ; un utilisateur anglophone
+# recevait donc une interpretation entiere en francais, sans un mot d'avertis-
+# sement. La consigne suit desormais la langue de la session.
+hstat_ai_consigne_langue <- function(lang = hstat_langue_session()) {
+  if (identical(lang, "en")) "in English" else "en fran\u00e7ais"
+}
+
 # `lang` : ces messages sont COMPOSES ici, phrase par phrase, et n'existent
 # donc pas comme chaine entiere dans le dictionnaire du navigateur — celui-ci
 # ne remplace que des correspondances completes. La traduction se fait ainsi

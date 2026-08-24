@@ -4054,7 +4054,8 @@ mod_viz_server <- function(id, values) {
       p_ply <- plotly::plot_ly(df,
                        labels = ~.data[[xv]], values = ~total, type = "pie", hole = hole_val,
                        textinfo = "label+percent",
-                       hovertemplate = "<b>%{label}</b><br>Valeur: %{value}<br>Part: %{percent}<extra></extra>") %>%
+                       hovertemplate = tr("<b>%{label}</b><br>Valeur: %{value}<br>Part: %{percent}<extra></extra>",
+                                          hstat_langue_session())) %>%
         layout(title = list(text = title_txt), showlegend = TRUE,
                        margin = list(t = 60, b = 40)) %>%
         config(displayModeBar = TRUE, displaylogo = FALSE)
@@ -4079,7 +4080,8 @@ mod_viz_server <- function(id, values) {
                        labels = df[[xv]], values = df$total,
                        parents = rep("", nrow(df)),
                        texttemplate  = "<b>%{label}</b><br>%{value}",
-                       hovertemplate = "<b>%{label}</b><br>Valeur: %{value}<extra></extra>") %>%
+                       hovertemplate = tr("<b>%{label}</b><br>Valeur: %{value}<extra></extra>",
+                                          hstat_langue_session())) %>%
         layout(title = list(text = title_txt),
                        margin = list(t = 60, b = 40)) %>%
         config(displayModeBar = TRUE, displaylogo = FALSE)

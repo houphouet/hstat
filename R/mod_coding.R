@@ -1178,7 +1178,8 @@ hstat_code_lexical_apply <- function(docs, codebook, whole_word = TRUE,
   out
 }
 
-hstat_ai_codebook_prompt <- function(texts, n_codes = 8, context = "") {
+hstat_ai_codebook_prompt <- function(texts, n_codes = 8, context = "",
+                                     lang = hstat_langue_session()) {
   texts <- as.character(texts)
   texts <- texts[!is.na(texts) & nzchar(trimws(texts))]
   # Corpus tronque : on borne la taille de la requete sans perdre la diversite
@@ -1195,7 +1196,8 @@ hstat_ai_codebook_prompt <- function(texts, n_codes = 8, context = "") {
     "réellement présents dans ce corpus.\n",
     "Réponds UNIQUEMENT par un objet JSON, sans texte autour, de la forme :\n",
     '{"codes":[{"label":"Prix trop élevé","mémo":"Définition du code en une phrase"}]}\n',
-    "Les libelles doivent être courts (1 à 4 mots), en français, et distincts.")
+    "Les libelles doivent être courts (1 à 4 mots), ",
+    hstat_ai_consigne_langue(lang), ", et distincts.")
 }
 
 hstat_ai_parse_codebook <- function(parsed) {

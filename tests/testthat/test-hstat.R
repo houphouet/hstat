@@ -2680,6 +2680,37 @@ test_that("l'invite d'interpretation interdit d'inventer et de decider", {
   expect_equal(length(unique(n)), 3L)
 })
 
+test_that("l'invite demande la reponse dans la langue de la session", {
+  # LA REPONSE DU MODELE EST DU TEXTE AFFICHE QU'AUCUN DICTIONNAIRE NE PEUT
+  # TRADUIRE : elle n'existe pas quand la page se construit, et le traducteur
+  # du navigateur ne remplace que des correspondances connues. Trois invites
+  # imposaient « en francais » en dur -- un utilisateur anglophone recevait une
+  # interpretation ENTIERE en francais, sans un mot d'avertissement. C'est la
+  # plus grosse trace de francais qui restait, et la seule qu'une mesure de
+  # couverture du dictionnaire ne peut pas voir.
+  ctx <- list(title = "ANOVA", module = "Tests",
+              tables = list("R" = data.frame(p_value = 0.02)),
+              text = NULL, meta = list(), time = Sys.time())
+  fr <- hstat_ai_interpret_prompt(ctx, lang = "fr")
+  en <- hstat_ai_interpret_prompt(ctx, lang = "en")
+  expect_true(grepl("en français", fr, fixed = TRUE))
+  expect_true(grepl("in English", en, fixed = TRUE))
+  expect_false(grepl("en français", en, fixed = TRUE))
+
+  # Meme regle pour le livre de codes : ses libelles deviennent des DONNEES du
+  # projet de codage, ils doivent suivre la langue de qui code.
+  cb_fr <- hstat_ai_codebook_prompt(c("trop cher", "service lent"), lang = "fr")
+  cb_en <- hstat_ai_codebook_prompt(c("trop cher", "service lent"), lang = "en")
+  expect_true(grepl("en français", cb_fr, fixed = TRUE))
+  expect_true(grepl("in English", cb_en, fixed = TRUE))
+  expect_false(grepl("en français", cb_en, fixed = TRUE))
+
+  # Hors session Shiny, la valeur par defaut reste le francais : la fonction
+  # est pure et testable, et un appel existant ne change pas de comportement.
+  expect_equal(hstat_ai_consigne_langue("fr"), "en français")
+  expect_equal(hstat_ai_consigne_langue(), "en français")
+})
+
 test_that("le markdown du modele est converti sans pouvoir injecter de HTML", {
   h <- .hstat_md_to_html("## Titre\n\nUn **gras** et un *italique*.\n\n- point A\n- point B")
   expect_true(grepl("<h4", h, fixed = TRUE))

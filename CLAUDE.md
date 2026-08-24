@@ -2317,6 +2317,32 @@ Prudence nécessaire : le balayage des mots sans accent remonte aussi des
 script de reproductibilité. Les corriger casserait des clés. Seuls les libellés
 **affichés** ont été touchés, un par un.
 
+#### Ce que le modèle écrit, aucun dictionnaire ne le traduira
+
+La réponse d'un modèle de langue est du **texte affiché** — mais elle n'existe
+pas quand la page se construit, et le traducteur du navigateur ne remplace que
+des correspondances connues. Trois invites imposaient « en français » **en
+dur** : un utilisateur anglophone recevait une interprétation entière en
+français, sans un mot d'avertissement.
+
+C'est la plus grosse trace de français qui restait, et la seule qu'une mesure
+de couverture du dictionnaire **ne peut pas voir** — elle ne mesure que ce qui
+est écrit dans les sources.
+
+`hstat_ai_consigne_langue()` (`Utils.R`) rend la consigne à insérer dans
+l'invite, d'après `hstat_langue_session()`. Trois sites la prennent :
+l'interprétation des résultats (invite et message système) et le livre de codes
+de l'atelier CAQDAS — dont les libellés deviennent des **données** du projet, et
+doivent donc suivre la langue de qui code.
+
+Hors session Shiny la valeur par défaut reste le français : les fonctions
+d'invite restent pures et testables, et aucun appel existant ne change de
+comportement.
+
+Même famille pour les **info-bulles de plotly** (`hovertemplate`) : elles ne
+sont ni un nœud de texte ni un attribut HTML, le traducteur du navigateur ne
+les voit pas. Elles passent par `tr()` côté serveur.
+
 #### Une phrase coupée par une balise n'est plus une chaîne
 
 Le traducteur remplace des **nœuds de texte**. Une phrase mise en forme —
