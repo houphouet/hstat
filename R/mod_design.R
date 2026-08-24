@@ -335,7 +335,7 @@ hstat_power_logistic <- function(analysis = "apriori", p0 = 0.2, OR = 1.5,
       ORs <- tryCatch(stats::uniroot(f_or, c(1.001, 50))$root, error = function(e) NA)
       list(n = n, effect = ORs, power = power, crit = za,
            extra = if (is.na(ORs)) "OR non résolu"
-                   else sprintf("OR détectable = %.3f ; p0 = %.3f ; expose = %.0f%%",
+                   else trf("OR détectable = %.3f ; p0 = %.3f ; expose = %.0f%%",
                                 ORs, p0, 100 * px))
     }
   } else {
@@ -356,7 +356,7 @@ hstat_power_logistic <- function(analysis = "apriori", p0 = 0.2, OR = 1.5,
       b2 <- (za + zb)^2 / (n * (1 - R2_other) * p0 * (1 - p0))
       OReff <- exp(sqrt(b2))
       list(n = n, effect = OReff, power = power, crit = za,
-           extra = sprintf("OR détectable = %.3f ; p0 = %.3f", OReff, p0))
+           extra = trf("OR détectable = %.3f ; p0 = %.3f", OReff, p0))
     }
   }
 }
@@ -374,11 +374,11 @@ hstat_power_poisson <- function(analysis = "apriori", base_rate = 1, RR = 1.3,
     zb <- stats::qnorm(power)
     nn <- ((za + zb * sqrt(V1))^2 / denom) / (1 - R2_other)
     list(n = ceiling(nn), effect = RR, power = power, crit = za,
-         extra = sprintf("RR = %.3f ; taux de base = %.3f ; beta1 = %.4f", RR, base_rate, b))
+         extra = trf("RR = %.3f ; taux de base = %.3f ; beta1 = %.4f", RR, base_rate, b))
   } else if (analysis == "posthoc") {
     zb <- (sqrt(n * (1 - R2_other) * denom) - za) / sqrt(V1)
     list(n = n, effect = RR, power = stats::pnorm(zb), crit = za,
-         extra = sprintf("RR = %.3f ; taux de base = %.3f", RR, base_rate))
+         extra = trf("RR = %.3f ; taux de base = %.3f", RR, base_rate))
   } else {
     zb <- stats::qnorm(power)
     f <- function(bb) {
@@ -387,7 +387,7 @@ hstat_power_poisson <- function(analysis = "apriori", base_rate = 1, RR = 1.3,
     }
     bsol <- tryCatch(stats::uniroot(f, c(0.01, 2))$root, error = function(e) NA)
     list(n = n, effect = if (is.na(bsol)) NA else exp(bsol), power = power, crit = za,
-         extra = if (is.na(bsol)) "RR non résolu" else sprintf("RR détectable = %.3f", exp(bsol)))
+         extra = if (is.na(bsol)) "RR non résolu" else trf("RR détectable = %.3f", exp(bsol)))
   }
 }
 
@@ -1400,9 +1400,7 @@ hstat_design_analysis <- function(type, n_factors) {
                     subtitle = "Grandes parcelles (Facteur 1, couleur) divisées en sous-parcelles (Facteur 2, étiquettes)",
                     x = "Grandes parcelles (Facteur 1) → sous-parcelles (Facteur 2)",
                     y = "Bloc", fill = lt %||% "Facteur principal (F1)",
-                    caption = paste0("Sous-parcelles (Facteur 2) : ",
-                                     paste(sort(unique(as.character(b[[f2]]))), collapse = ", "),
-                                     "  |  les lignes verticales épaisses séparent les grandes parcelles")) +
+                    caption = trf("Sous-parcelles (Facteur 2) : %s  |  les lignes verticales épaisses séparent les grandes parcelles", paste(sort(unique(as.character(b[[f2]]))), collapse = ", "))) +
       (theme_gg %||% ggplot2::theme_minimal(base_size = font_axis)) +
       ggplot2::theme(panel.grid = ggplot2::element_blank(),
                      plot.title = ggplot2::element_text(face = "bold"),
@@ -2346,7 +2344,7 @@ mod_design_server <- function(id, values) {
             trf("Nombre de modalités du facteur %s", LETTERS[i]),
             value = if (i == 1) 2 else 3, min = 2, step = 1)))
         eff_choices <- c(stats::setNames(paste0("main", seq_len(nf)),
-                                  sprintf("Effet principal du facteur %s", LETTERS[seq_len(nf)])))
+                                  trf("Effet principal du facteur %s", LETTERS[seq_len(nf)])))
         if (nf >= 2)
           eff_choices <- c(eff_choices,
             stats::setNames("inter2", "Interaction A x B"),
@@ -2403,7 +2401,7 @@ mod_design_server <- function(id, values) {
       tb <- hstat_ai_as_table(if (is.list(r) && !is.null(r$table)) r$table else r)
       if (is.null(tb) || !NROW(tb)) return()
       hstat_ai_capture(values, "Plan & Puissance",
-        sprintf("Analyse de puissance (%s)", input$powTest %||% "t_two"),
+        trf("Analyse de puissance (%s)", input$powTest %||% "t_two"),
         tables = list("Résultat du calcul" = tb),
         meta = list(`type d'analyse` = input$powAnalysis,
                     `taille d'effet` = input$powEffect,
@@ -2682,13 +2680,13 @@ mod_design_server <- function(id, values) {
         if (!is.null(mh)) {
           nom_i <- names(mh$facteurs)[i]
           return(shiny::div(style = "border-left:3px solid #8e44ad;padding-left:8px;margin-bottom:8px;",
-            shiny::textInput(ns(paste0("dsgFName", i)), paste0("Nom du facteur ", i), value = nom_i),
+            shiny::textInput(ns(paste0("dsgFName", i)), trf("Nom du facteur %s", i), value = nom_i),
             shiny::textInput(ns(paste0("dsgFLevels", i)),
-                      paste0("Modalités de ", nom_i, " (séparées par virgule)"),
+                      trf("Modalités de %s (séparées par virgule)", nom_i),
                       value = paste(mh$facteurs[[i]], collapse = ", "))))
         }
         shiny::div(style = "border-left:3px solid #3c8dbc;padding-left:8px;margin-bottom:8px;",
-          shiny::textInput(ns(paste0("dsgFName", i)), paste0("Nom du facteur ", i), value = paste0("Facteur", i)),
+          shiny::textInput(ns(paste0("dsgFName", i)), trf("Nom du facteur %s", i), value = paste0("Facteur", i)),
           # Generateur automatique de modalites : lettre + chiffre de debut + chiffre de fin.
           # Ex : lettre = A, début = 0, fin = 2  ->  A0, A1, A2 (rempli automatiquement ci-dessous).
           shiny::fluidRow(
@@ -2700,7 +2698,7 @@ mod_design_server <- function(id, values) {
                                    shiny::tagList(shiny::icon("stop"), " Fin"), value = if (i == 1) 2 else 1, min = 0, step = 1))
           ),
           shiny::textInput(ns(paste0("dsgFLevels", i)),
-                    paste0("Modalités du facteur ", i, " (séparées par virgule)"),
+                    trf("Modalités du facteur %s (séparées par virgule)", i),
                     value = default_levels))
       })
     })

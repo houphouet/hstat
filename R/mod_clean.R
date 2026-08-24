@@ -759,7 +759,7 @@ mod_clean_server <- function(id, values) {
         range_parts <- trimws(range_parts)
         
         if (length(range_parts) != 2) {
-          stop(paste("Format de plage invalide :", part))
+          stop(trf("Format de plage invalide : %s", part))
         }
         
         start <- as.numeric(range_parts[1])
@@ -770,7 +770,7 @@ mod_clean_server <- function(id, values) {
         }
         
         if (start > end) {
-          stop(paste("La ligne de début doit être <= ligne de fin dans :", part))
+          stop(trf("La ligne de début doit être <= ligne de fin dans : %s", part))
         }
         
         if (start < 1 || end > max_rows) {
@@ -783,7 +783,7 @@ mod_clean_server <- function(id, values) {
         row_num <- as.numeric(part)
         
         if (is.na(row_num)) {
-          stop(paste("Numéro de ligne invalide :", part))
+          stop(trf("Numéro de ligne invalide : %s", part))
         }
         
         if (row_num < 1 || row_num > max_rows) {
@@ -821,13 +821,13 @@ mod_clean_server <- function(id, values) {
     n <- length(rows)
     preview_ids <- utils::head(rows, 8)
     preview_str <- paste(preview_ids, collapse = ", ")
-    if (n > 8) preview_str <- paste0(preview_str, " ... (", n - 8, " de plus)")
+    if (n > 8) preview_str <- trf("%s ... (%s de plus)", preview_str, n - 8)
     
     shiny::div(
       style = "margin-top: 8px; padding: 10px; background-color: #fff3e0; border-radius: 4px; border-left: 3px solid #f57c00;",
       shiny::icon("info-circle", style = "color: #f57c00;"),
       shiny::tags$span(style = "color: #e65100; font-size: 12px; font-weight: bold; margin-left: 5px;",
-                paste0(n, " ligne(s) à supprimer : ")),
+                trf("%s ligne(s) à supprimer : ", n)),
       shiny::tags$code(style = "font-size: 11px;", preview_str)
     )
   })
@@ -851,8 +851,7 @@ mod_clean_server <- function(id, values) {
       values$filteredData <- values$cleanData
       
       shiny::showNotification(
-        paste0(length(rows_to_delete), " ligne(s) supprimée(s). ",
-               nrow(values$cleanData), " lignes restantes."),
+        trf("%s ligne(s) supprimée(s). %s lignes restantes.", length(rows_to_delete), nrow(values$cleanData)),
         type = "message", duration = 5
       )
     }, error = function(e) {
@@ -893,7 +892,7 @@ mod_clean_server <- function(id, values) {
     shiny::div(style = "padding: 10px; background-color: #fff3e0; border-radius: 4px; border-left: 3px solid #f57c00;",
         shiny::icon("info-circle", style = "color: #f57c00;"),
         shiny::tags$span(style = "color: #e65100; font-size: 12px; font-weight: bold; margin-left: 5px;",
-                  paste0(length(sel), " ligne(s) sélectionnée(s) : ")),
+                  trf("%s ligne(s) sélectionnée(s) : ", length(sel))),
         shiny::tags$code(style = "font-size: 11px;", paste(utils::head(sel, 10), collapse = ", "),
                   if (length(sel) > 10) paste0(" ... +", length(sel)-10, " autres") else "")
     )
@@ -913,7 +912,7 @@ mod_clean_server <- function(id, values) {
     values$cleanData    <- values$cleanData[-sel, ]
     values$filteredData <- values$cleanData
     shiny::showNotification(
-      paste0(length(sel), " ligne(s) supprimée(s). ", nrow(values$cleanData), " lignes restantes."),
+      trf("%s ligne(s) supprimée(s). %s lignes restantes.", length(sel), nrow(values$cleanData)),
       type = "message", duration = 5)
   })
   
@@ -1029,7 +1028,7 @@ mod_clean_server <- function(id, values) {
               data_temp[[col]] <- as.Date(data_temp[[col]])
             }
           }, error = function(e) {
-            shiny::showNotification(hstat_err_fr(e, sprintf("Variable `%s`", col)), 
+            shiny::showNotification(hstat_err_fr(e, trf("Variable `%s`", col)), 
                              type = "warning", duration = 5)
           })
         }
@@ -1063,7 +1062,7 @@ mod_clean_server <- function(id, values) {
     values$filteredData <- values$cleanData
     
     shiny::showNotification(
-      ui = shiny::tagList(shiny::icon("trash"), paste(" Variable `", var_name, "` supprimée avec succès")),
+      ui = shiny::tagList(shiny::icon("trash"), trf(" Variable ` %s ` supprimée avec succès", var_name)),
       type = "message", 
       duration = 3
     )
@@ -1152,7 +1151,7 @@ mod_clean_server <- function(id, values) {
                       rows = min(20, length(lv) + 1), width = "100%"))
     } else {
       shiny::tagList(
-        shiny::tags$small(sprintf("%d modalités.%s", length(lv),
+        shiny::tags$small(trf("%d modalités.%s", length(lv),
           if (is_ordinal) " L'ordre ci-dessous = ordre du facteur ordinal." else "")),
         lapply(seq_along(lv), function(i)
           shiny::textInput(ns(paste0("recodeLvl_", i)),
@@ -1235,7 +1234,7 @@ mod_clean_server <- function(id, values) {
       values$filteredData <- values$cleanData
       
       shiny::showNotification(
-        ui = shiny::tagList(shiny::icon("plus"), paste(" Variable `", input$newVarName, "` ajoutée avec succès")),
+        ui = shiny::tagList(shiny::icon("plus"), trf(" Variable ` %s ` ajoutée avec succès", input$newVarName)),
         type = "message", 
         duration = 3
       )
@@ -1381,7 +1380,7 @@ mod_clean_server <- function(id, values) {
       values$filteredData <- values$cleanData
       
       shiny::showNotification(
-        ui = shiny::tagList(shiny::icon("calculator"), paste(" Variable `", input$calcVarName, "` créée avec succès !")),
+        ui = shiny::tagList(shiny::icon("calculator"), trf(" Variable ` %s ` créée avec succès !", input$calcVarName)),
         type = "message", 
         duration = 3
       )
@@ -1452,7 +1451,7 @@ mod_clean_server <- function(id, values) {
     has_cat <- any(df$Type == "catégorielle" & df$`NA (%)` > 0)
     m <- if (max_pct < 5) "median" else if (max_pct <= 20 && has_cat) "rf" else "mice"
     shiny::updateRadioButtons(session, "naMethod", selected = m)
-    shiny::showNotification(paste("Méthode recommandée sélectionnée :", m), type = "message", duration = 3)
+    shiny::showNotification(trf("Méthode recommandée sélectionnée : %s", m), type = "message", duration = 3)
   })
 
   output$naVarSelect <- shiny::renderUI({
@@ -1468,8 +1467,7 @@ mod_clean_server <- function(id, values) {
     
     shiny::selectInput(
       inputId = ns("naVars"),
-      label = paste0("Sélectionnez les variables à traiter (", 
-                     length(vars_with_na), " variables avec NA) :"), 
+      label = trf("Sélectionnez les variables à traiter (%s variables avec NA) :", length(vars_with_na)), 
       choices = names(values$cleanData),
       selected = vars_with_na,
       multiple = TRUE,
@@ -1520,9 +1518,7 @@ mod_clean_server <- function(id, values) {
         } else if (input$naMethod == "mice") {
           if (requireNamespace("mice", quietly = TRUE)) {
             if (nrow(data_temp) > 200000L)
-              shiny::showNotification(paste0("Imputation multiple (mice) sur ",
-                format(nrow(data_temp), big.mark = " "),
-                " lignes : le calcul peut prendre plusieurs minutes."),
+              shiny::showNotification(trf("Imputation multiple (mice) sur %s lignes : le calcul peut prendre plusieurs minutes.", format(nrow(data_temp), big.mark = " ")),
                 type = "message", duration = 10)
             sub <- data_temp[, sel, drop = FALSE]
             mids <- tryCatch(mice::mice(sub, m = input$naMiceM %||% 5,
@@ -1591,7 +1587,7 @@ mod_clean_server <- function(id, values) {
               mean_val <- mean(data_temp[[col]], na.rm = TRUE)
               data_temp[[col]][is.na(data_temp[[col]])] <- mean_val
             } else {
-              shiny::showNotification(paste("La variable `", col, "` n'est pas numérique. Moyenne impossible."), 
+              shiny::showNotification(trf("La variable ` %s ` n'est pas numérique. Moyenne impossible.", col), 
                                type = "warning", duration = 3)
             }
           } else if (input$naMethod == "median") {
@@ -1599,7 +1595,7 @@ mod_clean_server <- function(id, values) {
               median_val <- stats::median(data_temp[[col]], na.rm = TRUE)
               data_temp[[col]][is.na(data_temp[[col]])] <- median_val
             } else {
-              shiny::showNotification(paste("La variable `", col, "` n'est pas numérique. Médiane impossible."), 
+              shiny::showNotification(trf("La variable ` %s ` n'est pas numérique. Médiane impossible.", col), 
                                type = "warning", duration = 3)
             }
           } else if (input$naMethod == "mode") {
@@ -1612,7 +1608,7 @@ mod_clean_server <- function(id, values) {
             data_temp[[col]][is.na(data_temp[[col]])] <- input$naValue
           }
         }, error = function(e) {
-          shiny::showNotification(hstat_err_fr(e, sprintf("Variable `%s`", col)), 
+          shiny::showNotification(hstat_err_fr(e, trf("Variable `%s`", col)), 
                            type = "error", duration = 5)
         })
         
@@ -1893,7 +1889,7 @@ mod_clean_server <- function(id, values) {
     txt <- paste(ifelse(is.na(x), "NA", as.character(x)), collapse = "\n")
     shiny::tagList(
       shiny::textAreaInput(ns("zeroSaisie"),
-                    sprintf("Valeurs (%s lignes attendues, une par ligne) :", NROW(d)),
+                    trf("Valeurs (%s lignes attendues, une par ligne) :", NROW(d)),
                     value = txt, rows = 10, width = "100%"),
       shiny::tags$small(style = "color:#7f8c8d;",
                  "Une valeur par ligne (ou séparées par des points-virgules). Écrivez NA pour une valeur manquante ; la virgule décimale est acceptée."))
@@ -2149,7 +2145,7 @@ mod_clean_server <- function(id, values) {
     old <- info$old; new <- trimws(info$nw %||% "")
     if (is.null(old) || !nzchar(new)) return()
     if (!(old %in% names(values$cleanData))) {
-      shiny::showNotification(sprintf("Colonne « %s » introuvable.", old), type = "warning"); return()
+      shiny::showNotification(trf("Colonne « %s » introuvable.", old), type = "warning"); return()
     }
     if (new %in% setdiff(names(values$cleanData), old)) {
       shiny::showNotification(trf("Le nom « %s » existe déjà.", new), type = "error"); return()

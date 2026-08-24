@@ -327,7 +327,7 @@ mod_explore_server <- function(id, values) {
     plot_title <- if (!is.null(title) && title != "") {
       title
     } else {
-      paste("Distribution de", var)
+      trf("Distribution de %s", var)
     }
 
     # On extrait UNIQUEMENT la variable a tracer dans un data.frame propre. Cela

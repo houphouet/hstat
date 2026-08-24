@@ -600,13 +600,7 @@ HSTAT_PKG_REPLI <- list(
                        "sont disponibles dans cet onglet."))
 
 hstat_pkg_manquant <- function(pkg, analyse = NULL) {
-  paste0(
-    if (!is.null(analyse)) paste0(analyse, " : ") else "",
-    sprintf("le paquet R « %s » n'est pas installé sur cette machine, ", pkg),
-    "cette analyse ne peut donc pas être lancée. ",
-    sprintf("Pour l'ajouter : install.packages(\"%s\"), puis relancez ", pkg),
-    "HStat. ",
-    HSTAT_PKG_REPLI[[pkg]] %||% "")
+  trf("%s%scette analyse ne peut donc pas être lancée. %sHStat. %s", if (!is.null(analyse)) paste0(analyse, " : ") else "", trf("le paquet R « %s » n'est pas installé sur cette machine, ",      pkg), sprintf("Pour l'ajouter : install.packages(\"%s\"), puis relancez ",      pkg), HSTAT_PKG_REPLI[[pkg]] %||% "")
 }
 
 # ---------------------------------------------------------------------------
@@ -806,6 +800,16 @@ hstat_langue_session <- function() {
   if (identical(l, "en")) "en" else "fr"
 }
 
+# LA REPONSE DU MODELE EST DU TEXTE AFFICHE, ET AUCUN DICTIONNAIRE NE PEUT LA
+# TRADUIRE : elle n'existe pas encore quand la page se construit, et le
+# traducteur du navigateur ne remplace que des correspondances connues. Trois
+# invites imposaient « en francais » en dur ; un utilisateur anglophone
+# recevait donc une interpretation entiere en francais, sans un mot d'avertis-
+# sement. La consigne suit desormais la langue de la session.
+hstat_ai_consigne_langue <- function(lang = hstat_langue_session()) {
+  if (identical(lang, "en")) "in English" else "en fran\u00e7ais"
+}
+
 # `lang` : ces messages sont COMPOSES ici, phrase par phrase, et n'existent
 # donc pas comme chaine entiere dans le dictionnaire du navigateur — celui-ci
 # ne remplace que des correspondances completes. La traduction se fait ainsi
@@ -860,19 +864,24 @@ hstat_p_verdict <- function(p, alpha = 0.05) {
 }
 
 interpret_test_results <- function(test_type, p_value, test_object = NULL) {
-  if (is.na(p_value)) return("Résultat non disponible")
-  significance <- ifelse(p_value < 0.05, "significative", "non significative")
+  if (is.na(p_value)) return(tr("Résultat non disponible", hstat_langue_session()))
+  # `trf()` ne traduit JAMAIS ses arguments -- c'est ce qui protège les données
+  # de l'utilisateur. Mais ce mot-ci n'est pas une donnée : c'est un verdict
+  # choisi par le code. On le déclare donc traduisible au point d'appel, comme
+  # le fait déjà l'onglet des plans d'expérience pour « équiprobables ».
+  significance <- tr(if (p_value < 0.05) "significative" else "non significative",
+                     hstat_langue_session())
   switch(test_type,
-         "t.test"           = paste0("Le test t montre une différence ", significance, " entre les groupes (p = ", round(p_value, 8), ")"),
-         "wilcox.test"      = paste0("Le test de Wilcoxon montre une différence ", significance, " entre les groupes (p = ", round(p_value, 8), ")"),
-         "anova"            = paste0("L'ANOVA montre une différence ", significance, " entre les groupes (p = ", round(p_value, 8), ")"),
-         "kruskal.test"     = paste0("Le test de Kruskal-Wallis montre une différence ", significance, " entre les groupes (p = ", round(p_value, 8), ")"),
-         "scheirerRayHare"  = paste0("Le test de Scheirer-Ray-Hare montre une différence ", significance, " entre les groupes (p = ", round(p_value, 8), ")"),
-         "manova"           = paste0("La MANOVA montre une différence multivariée ", significance, " entre les groupes (p = ", round(p_value, 8), ")"),
-         "permanova"        = paste0("La PERMANOVA montre une différence multivariée ", significance, " entre les groupes (p = ", round(p_value, 8), ")"),
-         "chisq.test"       = paste0("Le test du chi² montre une association ", significance, " entre les variables (p = ", round(p_value, 8), ")"),
-         "cor.test"         = paste0("La corrélation est ", significance, " (p = ", round(p_value, 8), ")"),
-         paste0("Le test ", test_type, " montre un résultat ", significance, " (p = ", round(p_value, 8), ")")
+         "t.test"           = trf("Le test t montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
+         "wilcox.test"      = trf("Le test de Wilcoxon montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
+         "anova"            = trf("L'ANOVA montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
+         "kruskal.test"     = trf("Le test de Kruskal-Wallis montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
+         "scheirerRayHare"  = trf("Le test de Scheirer-Ray-Hare montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
+         "manova"           = trf("La MANOVA montre une différence multivariée %s entre les groupes (p = %s)", significance, round(p_value, 8)),
+         "permanova"        = trf("La PERMANOVA montre une différence multivariée %s entre les groupes (p = %s)", significance, round(p_value, 8)),
+         "chisq.test"       = trf("Le test du chi² montre une association %s entre les variables (p = %s)", significance, round(p_value, 8)),
+         "cor.test"         = trf("La corrélation est %s (p = %s)", significance, round(p_value, 8)),
+         trf("Le test %s montre un résultat %s (p = %s)", test_type, significance, round(p_value, 8))
   )
 }
 
@@ -1024,18 +1033,18 @@ hstat_glm_fit <- function(formula, data, family = stats::binomial(),
 interpret_normality <- function(p_value) {
   if (is.na(p_value)) return("Résultat non disponible")
   if (p_value >= 0.05) {
-    return(paste0("La distribution est normale (p = ", round(p_value, 8), " >= 0.05)"))
+    return(trf("La distribution est normale (p = %s >= 0.05)", round(p_value, 8)))
   } else {
-    return(paste0("La distribution n'est pas normale (p = ", round(p_value, 8), " < 0.05)"))
+    return(trf("La distribution n'est pas normale (p = %s < 0.05)", round(p_value, 8)))
   }
 }
 
 interpret_homogeneity <- function(p_value) {
   if (is.na(p_value)) return("Résultat non disponible")
   if (p_value >= 0.05) {
-    return(paste0("Les variances sont homogènes (p = ", round(p_value, 8), " >= 0.05)"))
+    return(trf("Les variances sont homogènes (p = %s >= 0.05)", round(p_value, 8)))
   } else {
-    return(paste0("Les variances ne sont pas homogènes (p = ", round(p_value, 8), " < 0.05)"))
+    return(trf("Les variances ne sont pas homogènes (p = %s < 0.05)", round(p_value, 8)))
   }
 }
 
@@ -1284,15 +1293,15 @@ check_transformation_feasibility <- function(x, method) {
   if (n == 0) return(list(ok = FALSE, message = "Aucune valeur non-NA disponible."))
   
   issues <- switch(method,
-                   "log"     = if (any(x_nona <= 0)) paste(sum(x_nona <= 0), "valeur(s) <= 0 détectée(s)") else NULL,
-                   "log1p"   = if (any(x_nona < 0))  paste(sum(x_nona < 0),  "valeur(s) < 0 détectée(s)")  else NULL,
-                   "log10"   = if (any(x_nona <= 0)) paste(sum(x_nona <= 0), "valeur(s) <= 0 détectée(s)") else NULL,
-                   "sqrt"    = if (any(x_nona < 0))  paste(sum(x_nona < 0),  "valeur(s) < 0 détectée(s)")  else NULL,
+                   "log"     = if (any(x_nona <= 0)) trf("%s valeur(s) <= 0 détectée(s)", sum(x_nona <= 0)) else NULL,
+                   "log1p"   = if (any(x_nona < 0))  trf("%s valeur(s) < 0 détectée(s)", sum(x_nona < 0))else NULL,
+                   "log10"   = if (any(x_nona <= 0)) trf("%s valeur(s) <= 0 détectée(s)", sum(x_nona <= 0)) else NULL,
+                   "sqrt"    = if (any(x_nona < 0))  trf("%s valeur(s) < 0 détectée(s)", sum(x_nona < 0))else NULL,
                    "cuberoot" = NULL,  # toujours applicable
-                   "boxcox"  = if (any(x_nona <= 0)) paste(sum(x_nona <= 0), "valeur(s) <= 0 (Box-Cox nécessite x > 0)") else NULL,
+                   "boxcox"  = if (any(x_nona <= 0)) trf("%s valeur(s) <= 0 (Box-Cox nécessite x > 0)", sum(x_nona <= 0))else NULL,
                    "yeojohnson" = NULL,  # toujours applicable
-                   "arcsin"  = if (any(x_nona < 0 | x_nona > 1)) paste(sum(x_nona < 0 | x_nona > 1), "valeur(s) hors [0,1]") else NULL,
-                   "logit"   = if (any(x_nona <= 0 | x_nona >= 1)) paste(sum(x_nona <= 0 | x_nona >= 1), "valeur(s) hors ]0,1[") else NULL,
+                   "arcsin"  = if (any(x_nona < 0 | x_nona > 1)) trf("%s valeur(s) hors [0,1]", sum(x_nona < 0 | x_nona > 1)) else NULL,
+                   "logit"   = if (any(x_nona <= 0 | x_nona >= 1)) trf("%s valeur(s) hors ]0,1[", sum(x_nona <= 0 | x_nona >= 1)) else NULL,
                    NULL
   )
   
@@ -1941,8 +1950,7 @@ check_manova_data <- function(df, response, factors) {
   p <- length(response)
   if (n < (p + 3))
     return(list(ok = FALSE,
-                message = paste0("Trop peu d'observations complètes (n=", n,
-                                 ") pour ", p, " variables réponses.")))
+                message = trf("Trop peu d'observations complètes (n=%s) pour %s variables réponses.", n, p)))
   
   # Variance non nulle pour chaque réponse globalement et par groupe
   zero_var <- vapply(response, function(v) {
@@ -1951,14 +1959,13 @@ check_manova_data <- function(df, response, factors) {
   }, logical(1))
   if (any(zero_var))
     return(list(ok = FALSE,
-                message = paste0("Variance nulle pour : ",
-                                 paste(response[zero_var], collapse = ", "))))
+                message = trf("Variance nulle pour : %s", paste(response[zero_var], collapse = ", "))))
   
   # Au moins 2 niveaux par facteur, et chaque cellule >= 2 obs
   for (f in factors) {
     if (nlevels(df2[[f]]) < 2)
       return(list(ok = FALSE,
-                  message = paste0("Le facteur '", f, "' a moins de 2 niveaux après nettoyage.")))
+                  message = trf("Le facteur '%s' a moins de 2 niveaux après nettoyage.", f)))
   }
   
   list(ok = TRUE, message = "Données valides",
@@ -2028,8 +2035,7 @@ box_m_test <- function(Y, group) {
   min_per_group <- min(table(group))
   if (min_per_group < ncol(Y) + 1)
     return(list(chi2 = NA_real_, df = NA_real_, p.value = NA_real_,
-                conclusion = paste0("Groupes trop petits pour Box's M (min n=",
-                                    min_per_group, " < p+1=", ncol(Y) + 1, ")")))
+                conclusion = trf("Groupes trop petits pour Box's M (min n=%s < p+1=%s)", min_per_group, ncol(Y) + 1)))
   
   # Vérifier que chaque matrice de covariance de groupe est de rang plein.
   # On teste le RANG (via qr) et non le déterminant brut : le déterminant
@@ -2175,7 +2181,7 @@ manova_effect_sizes <- function(df, p) {
 interpret_manova_effect <- function(p_pillai, eta2 = NA) {
   if (is.na(p_pillai)) return("Résultat non disponible")
   sig <- if (p_pillai < 0.05) "significatif" else "non significatif"
-  base <- paste0("Effet multivarié ", sig, " (Pillai, p = ", round(p_pillai, 6), ")")
+  base <- trf("Effet multivarié %s (Pillai, p = %s)", sig, round(p_pillai, 6))
   if (!is.na(eta2)) {
     mag <- if (eta2 < 0.01) "négligeable"
     else if (eta2 < 0.06) "faible"
@@ -2190,7 +2196,7 @@ interpret_manova_effect <- function(p_pillai, eta2 = NA) {
 interpret_permanova_effect <- function(p_value, R2 = NA) {
   if (is.na(p_value)) return("Résultat non disponible")
   sig <- if (p_value < 0.05) "significatif" else "non significatif"
-  base <- paste0("Effet multivarié ", sig, " (PERMANOVA, p = ", round(p_value, 6), ")")
+  base <- trf("Effet multivarié %s (PERMANOVA, p = %s)", sig, round(p_value, 6))
   if (!is.na(R2)) {
     mag <- if (R2 < 0.01) "négligeable"
     else if (R2 < 0.06) "faible"
@@ -2519,13 +2525,11 @@ detect_multivariate_outliers <- function(Y, alpha = 0.001) {
   pct <- round(100 * length(idx) / n, 1)
   
   concl <- if (length(idx) == 0)
-    paste0("Aucun outlier multivarié détecté (seuil chi2(", p, ") à alpha = ", alpha, ").")
+    trf("Aucun outlier multivarié détecté (seuil chi2(%s) à alpha = %s).", p, alpha)
   else if (pct < 5)
-    paste0(length(idx), " outlier(s) multivarié(s) détecté(s) (", pct,
-           "% des observations). Inspectez-les avant d'analyser.")
+    trf("%s outlier(s) multivarié(s) détecté(s) (%s%% des observations). Inspectez-les avant d'analyser.", length(idx), pct)
   else
-    paste0(length(idx), " outliers (", pct,
-           "% des observations) -- proportion élevée, vérifiez la qualité des données.")
+    trf("%s outliers (%s%% des observations) -- proportion élevée, vérifiez la qualité des données.", length(idx), pct)
   
   list(d2 = d2, threshold = threshold, n_outliers = length(idx),
        idx_outliers = idx, conclusion = concl, alpha = alpha)
@@ -2560,9 +2564,7 @@ recommend_manova_test <- function(mardia, boxm, permdisp, n) {
     mardia$p.skewness >= 0.05 && mardia$p.kurtosis >= 0.05
   if (mardia_ok) {
     justifications <- c(justifications,
-                        paste0("Normalité multivariée respectée (Mardia : p.skew = ",
-                               round(mardia$p.skewness, 3), ", p.kurt = ",
-                               round(mardia$p.kurtosis, 3), ")."))
+                        trf("Normalité multivariée respectée (Mardia : p.skew = %s, p.kurt = %s).", round(mardia$p.skewness, 3), round(mardia$p.kurtosis, 3)))
     score_param <- score_param + 2L
   } else {
     if (!is.null(mardia) && (isTRUE(mardia$p.skewness < 0.05) || isTRUE(mardia$p.kurtosis < 0.05))) {
@@ -2571,13 +2573,11 @@ recommend_manova_test <- function(mardia, boxm, permdisp, n) {
       # Mais si n est grand, le theoreme central limite protege
       if (n >= 50) {
         justifications <- c(justifications,
-                            paste0("Toutefois, n = ", n, " >= 50 : la MANOVA reste robuste par le ",
-                                   "théorème central limite (préférer la statistique de Pillai)."))
+                            trf("Toutefois, n = %s >= 50 : la MANOVA reste robuste par le théorème central limite (préférer la statistique de Pillai).", n))
         score_param <- score_param + 0L
       } else {
         justifications <- c(justifications,
-                            paste0("Et n = ", n, " < 50 : PERMANOVA est plus sure (pas d'hypothèse ",
-                                   "distributionnelle)."))
+                            trf("Et n = %s < 50 : PERMANOVA est plus sure (pas d'hypothèse distributionnelle).", n))
         score_param <- score_param - 2L
       }
     }
@@ -2591,9 +2591,7 @@ recommend_manova_test <- function(mardia, boxm, permdisp, n) {
     score_param <- score_param + 1L
   } else if (boxm_violations > 0) {
     justifications <- c(justifications,
-                        paste0("Violation d'homogénéité des covariances sur ", boxm_violations,
-                               " facteur(s) (Box's M significatif). La statistique de Pillai est ",
-                               "recommandée car plus robuste à cette violation."))
+                        trf("Violation d'homogénéité des covariances sur %s facteur(s) (Box's M significatif). La statistique de Pillai est recommandée car plus robuste à cette violation.", boxm_violations))
     score_param <- score_param + 0L  # neutre car Pillai compense
   }
   
@@ -2601,10 +2599,7 @@ recommend_manova_test <- function(mardia, boxm, permdisp, n) {
   permdisp_violations <- if (!is.null(permdisp)) sum(grepl("heterogenes|hétérogènes", permdisp$Conclusion), na.rm = TRUE) else 0
   if (permdisp_violations > 0) {
     alertes <- c(alertes,
-                 paste0("PERMDISP signale des dispersions multivariées inégales sur ",
-                        permdisp_violations, " facteur(s). Une PERMANOVA significative pourrait ",
-                        "refléter une différence de dispersion plutôt qu'une différence de localisation. ",
-                        "À interpréter avec prudence."))
+                 trf("PERMDISP signale des dispersions multivariées inégales sur %s facteur(s). Une PERMANOVA significative pourrait refléter une différence de dispersion plutôt qu'une différence de localisation. À interpréter avec prudence.", permdisp_violations))
   }
   
   if (score_param >= 2) {
@@ -3310,7 +3305,7 @@ hstat_ref_result_row <- function(res, variable, reference_label = NULL) {
     Test        = res$test,
     Variable    = variable,
     Facteur     = if (is.null(reference_label))
-                    paste("Référence =", format(res$reference))
+                    trf("Référence = %s", format(res$reference))
                   else reference_label,
     Statistique = if (is.na(res$statistic)) NA_real_ else round(res$statistic, 4),
     ddl         = if (is.na(res$parameter)) NA_real_ else round(res$parameter, 2),
@@ -3343,7 +3338,7 @@ HSTAT_IMPUTE_MAX_N <- {
 hstat_bigdata_note <- function(what, n_used, n_total) {
   if (is.null(shiny::getDefaultReactiveDomain())) return(invisible(NULL))
   shiny::showNotification(
-    sprintf("%s : calcul sur un échantillon aléatoire de %s lignes (sur %s).",
+    trf("%s : calcul sur un échantillon aléatoire de %s lignes (sur %s).",
             what, format(n_used, big.mark = " "), format(n_total, big.mark = " ")),
     type = "message", duration = 8)
   invisible(NULL)
@@ -3501,7 +3496,35 @@ hstat_sql_path <- function(path) {
 # interface entierement bilingue, et il reste tres inferieur au moindre paquet
 # de scripts d'une page web ordinaire. Le plafond garde ce qu'il gardait : que
 # la croissance reste VUE, et decidee.
-HSTAT_I18N_KO_MAX <- 120
+#
+# 400 Ko et non 120 : la couverture ne portait que sur les ONGLETS et les
+# LIBELLES DE WIDGETS -- 100 % de ceux-la, mais 28,5 % du texte reellement
+# affiche. Messages, verdicts, aides et interpretations restaient en francais
+# au milieu d'une interface anglaise. Les traduire tous multiplie le
+# dictionnaire par trois.
+#
+# Le chiffre est MESURE, pas estime : a 2 678 entrees le fichier pese 153 Ko
+# bruts pour 50 Ko compresses (facteur 3,1), et c'est la taille compressee qui
+# transite -- Shiny sert la page en gzip. Le plafond a 400 Ko brut laisse la
+# place de finir la traduction en restant sous ~130 Ko sur le reseau, soit le
+# poids d'une seule image moyenne pour une application entierement bilingue
+# hors ligne.
+#
+# Il reste un VRAI plafond : un gabarit qui echapperait au filtre, ou une liste
+# de modalites partie par erreur au navigateur, le ferait sauter. C'est ce
+# qu'il garde -- pas la petitesse pour elle-meme.
+#
+# 700 Ko et non 400 : la traduction est passee de 28,5 % a 94,4 % du texte
+# REELLEMENT AFFICHE -- les 100 % annonces auparavant ne portaient que sur les
+# onglets et les libelles de widgets. Messages, verdicts, aides et
+# interpretations statistiques y sont maintenant.
+#
+# Mesure, pas estimation : a 4 741 entrees le fichier pese 440 Ko bruts pour
+# 148 Ko compresses (facteur 3,0), et c'est la taille compressee qui transite
+# -- Shiny sert la page en gzip. 700 Ko brut laissent la place aux dernieres
+# phrases en restant sous ~235 Ko sur le reseau : moins qu'une photographie,
+# pour une application entierement bilingue hors ligne.
+HSTAT_I18N_KO_MAX <- 700
 
 HSTAT_I18N_MARQUEUR <- "%[-0-9.]*[sdfgeix%]"
 
@@ -3658,8 +3681,7 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
   modal[is.na(modal) | !nzchar(modal)] <- NA_character_
   temoin <- trimws(as.character(temoin)[1])
   if (is.na(temoin) || !nzchar(temoin) || !(temoin %in% modal))
-    return(msg(vide, paste0("Le témoin choisi n'existe pas dans « ",
-                            var_modalite[1], " » : choisissez une modalité présente.")))
+    return(msg(vide, trf("Le témoin choisi n'existe pas dans « %s » : choisissez une modalité présente.", var_modalite[1])))
 
   a_rep <- !is.null(var_repetition) && nzchar(var_repetition[1]) &&
            var_repetition[1] %in% names(df)
@@ -3714,9 +3736,9 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
       if (!any(dans_temoin))
         groupes_sans_temoin <- c(groupes_sans_temoin, g)
       else if (!is.finite(ref[["v"]]))
-        alertes <- c(alertes, sprintf("témoin sans valeur mesurable pour « %s »", v))
+        alertes <- c(alertes, trf("témoin sans valeur mesurable pour « %s »", v))
       else if (ref[["v"]] == 0)
-        alertes <- c(alertes, sprintf("témoin nul pour « %s » : l'efficacité n'est pas définissable", v))
+        alertes <- c(alertes, trf("témoin nul pour « %s » : l'efficacité n'est pas définissable", v))
       for (m in niveaux) {
         dans_m <- dans_g & !is.na(modal) & modal == m
         r <- resume(y[dans_m])
@@ -3779,7 +3801,7 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
   attr(out, "groupes_sans_temoin") <- gst
   msg(out, if (length(alertes))
     paste0("Attention : ", paste(unique(alertes), collapse = " ; "), ".")
-    else sprintf("%s modalité(s) comparée(s) au témoin « %s » (%s).",
+    else trf("%s modalité(s) comparée(s) au témoin « %s » (%s).",
                  length(niveaux), temoin, agg))
 }
 
@@ -4446,7 +4468,7 @@ hstat_excel_read_sheets <- function(path, sheets = NULL) {
   msg <- if (!length(frames)) "Aucune feuille exploitable dans ce classeur."
          else sprintf("%d feuille(s) lue(s)%s.", length(frames),
                       if (length(ignorees))
-                        sprintf(", %d écartée(s) car vide(s) ou illisible(s) : %s",
+                        trf(", %d écartée(s) car vide(s) ou illisible(s) : %s",
                                 length(ignorees), paste(ignorees, collapse = ", "))
                       else "")
   list(frames = frames, names = noms, ignorees = ignorees, msg = msg)
@@ -4555,11 +4577,11 @@ hstat_merge_frames <- function(frames, type = "inner",
     if (type == "union_distinct") {
       out <- out[!duplicated(out), , drop = FALSE]
       return(list(ok = TRUE, data = out,
-        msg = sprintf("Union distincte de %d fichiers : %d lignes uniques, %d colonnes.",
+        msg = trf("Union distincte de %d fichiers : %d lignes uniques, %d colonnes.",
                       length(frames), nrow(out), ncol(out))))
     }
     return(list(ok = TRUE, data = out,
-                msg = sprintf("Empilement de %d fichiers : %d lignes, %d colonnes.",
+                msg = trf("Empilement de %d fichiers : %d lignes, %d colonnes.",
                               length(frames), nrow(out), ncol(out))))
   }
 
@@ -4578,7 +4600,7 @@ hstat_merge_frames <- function(frames, type = "inner",
     out <- do.call(cbind, norm)
     names(out) <- make.unique(names(out))
     return(list(ok = TRUE, data = out,
-                msg = sprintf("Juxtaposition de %d fichiers : %d lignes, %d colonnes.",
+                msg = trf("Juxtaposition de %d fichiers : %d lignes, %d colonnes.",
                               length(frames), nrow(out), ncol(out))))
   }
 
@@ -4598,7 +4620,7 @@ hstat_merge_frames <- function(frames, type = "inner",
     lbl <- switch(type, "intersect" = "Intersection",
                   "setdiff" = "Différence (1er sauf 2e)", "setdiff_right" = "Différence (2e sauf 1er)")
     return(list(ok = TRUE, data = out,
-      msg = sprintf("%s sur colonnes communes : %d lignes, %d colonnes.", lbl, nrow(out), ncol(out))))
+      msg = trf("%s sur colonnes communes : %d lignes, %d colonnes.", lbl, nrow(out), ncol(out))))
   }
 
   # ---- Jointure CROISÉE (produit cartésien, sans clé) ----
@@ -4646,7 +4668,7 @@ hstat_merge_frames <- function(frames, type = "inner",
                   "anti" = "Anti-jointure (1er sans correspondance)",
                   "anti_right" = "Anti-jointure (2e sans correspondance)")
     return(list(ok = TRUE, data = out,
-      msg = sprintf("%s sur « %s » : %d lignes, %d colonnes.",
+      msg = trf("%s sur « %s » : %d lignes, %d colonnes.",
                     lbl, paste(kl, collapse = "+"), nrow(out), ncol(out))))
   }
 
@@ -4679,7 +4701,7 @@ hstat_merge_frames <- function(frames, type = "inner",
 
   # ---- Jointures classiques (inner/left/right/full), clés composites, enchaînées ----
   if (!type %in% c("inner", "left", "right", "full"))
-    return(list(ok = FALSE, data = NULL, msg = sprintf("Type de fusion inconnu : %s", type)))
+    return(list(ok = FALSE, data = NULL, msg = trf("Type de fusion inconnu : %s", type)))
   for (i in 2:length(frames)) {
     d2 <- frames[[i]]
     kr_i <- if (length(kr) == length(kl) && all(kr %in% names(d2))) kr else kl
@@ -4692,7 +4714,7 @@ hstat_merge_frames <- function(frames, type = "inner",
                  suffixes = c("", paste0("_", source_names[i])))
   }
   list(ok = TRUE, data = acc,
-       msg = sprintf("Jointure %s de %d fichiers sur « %s » : %d lignes, %d colonnes.",
+       msg = trf("Jointure %s de %d fichiers sur « %s » : %d lignes, %d colonnes.",
                      type, length(frames), paste(kl, collapse = "+"), nrow(acc), ncol(acc)))
 }
 
@@ -5240,7 +5262,7 @@ hstat_model_interpretation <- function(task, metrics_df, model_label,
     paste0(.hstat_interp_r2(r2), " ", .hstat_interp_mape(mape))
   } else {
     acc <- get_v("Exactitude (accuracy)"); f1 <- get_v("F1-score (macro)")
-    sprintf("Avec %.1f %% de bonnes classifications et un F1 macro de %.2f, %s",
+    trf("Avec %.1f %% de bonnes classifications et un F1 macro de %.2f, %s",
             100 * acc, f1,
             if (is.finite(f1) && f1 >= 0.8) "le modèle est opérationnel pour la prédiction."
             else if (is.finite(f1) && f1 >= 0.6) "le modèle est utilisable mais perfectible (plus de données, autres variables, réglages)."
@@ -5616,8 +5638,7 @@ hstat_align_newdata <- function(newdf, ref, vars) {
   miss <- setdiff(vars, names(newdf))
   if (length(miss) > 0)
     return(list(data = NULL,
-                warn = paste0("Colonnes manquantes dans le fichier importé : ",
-                              paste(miss, collapse = ", "))))
+                warn = trf("Colonnes manquantes dans le fichier importé : %s", paste(miss, collapse = ", "))))
   out <- newdf[, vars, drop = FALSE]
   warns <- character(0)
   for (v in vars) {
@@ -5627,8 +5648,7 @@ hstat_align_newdata <- function(newdf, ref, vars) {
       lv <- levels(factor(ref[[v]]))
       bad <- setdiff(unique(as.character(out[[v]])), c(lv, NA))
       if (length(bad) > 0)
-        warns <- c(warns, paste0(v, " : modalités inconnues ignorées (",
-                                 paste(utils::head(bad, 5), collapse = ", "), ")"))
+        warns <- c(warns, trf("%s : modalités inconnues ignorées (%s)", v, paste(utils::head(bad, 5), collapse = ", ")))
       out[[v]] <- factor(as.character(out[[v]]), levels = lv)
     }
   }

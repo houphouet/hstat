@@ -274,6 +274,23 @@ pre, .shiny-text-output.shiny-bound-output {
 hr { border-top-color: var(--line); }
 a { color: var(--accent); }
 
+/* Encadré d'interprétation (onglet « Tests statistiques »).
+   La classe était posée sur 17 divs et définie NULLE PART : l'encadré que le
+   code construisait ne s'est jamais affiché, l'interprétation sortait au fil
+   du texte, sans rien qui la distingue des résultats bruts qu'elle commente.
+   Elle portait en plus un accent — un identifiant reste technique, sans quoi
+   il dépend de l'encodage du fichier de style. */
+.hstat-interpretation {
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 10px 0;
+  color: var(--ink2);
+  line-height: 1.55;
+}
+.hstat-interpretation:empty { display: none; }
+
 /* Barre de défilement discrète */
 ::-webkit-scrollbar { width: 11px; height: 11px; }
 ::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 6px; border: 3px solid transparent; background-clip: padding-box; }

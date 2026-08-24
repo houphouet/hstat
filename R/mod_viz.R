@@ -377,7 +377,7 @@ mod_viz_ui <- function(id) {
                         shiny::div(
                           id = "lastUpdateTime",
                           style = "font-size: 12px; color: #666;",
-                          paste("Dernière mise à jour :", format(Sys.time(), "%H:%M:%S"))
+                          trf("Dernière mise à jour : %s", format(Sys.time(), "%H:%M:%S"))
                         )
                       )
                     )
@@ -1129,7 +1129,7 @@ mod_viz_server <- function(id, values) {
       if (!length(vars)) return()
       grp <- intersect(input$vizColorVar %||% character(0), names(d))
       hstat_ai_capture(values, "Visualisation",
-        sprintf("Graphique : %s", paste(vars, collapse = " x ")),
+        trf("Graphique : %s", paste(vars, collapse = " x ")),
         meta = list(variables = vars, groupe = grp,
                     `type de graphique` = input$vizType),
         # La figure part en FONCTION, pas en objet : elle n'est dessinee que si
@@ -1340,7 +1340,7 @@ mod_viz_server <- function(id, values) {
     shiny::div(
       shiny::selectizeInput(ns("groupVars"),
         "Variables de regroupement :",
-        choices = c(stats::setNames(x_default, paste0("Variable X (", x_default, ")")), cat_cols),
+        choices = c(stats::setNames(x_default, trf("Variable X (%s)", x_default)), cat_cols),
         selected = x_default,
         multiple = TRUE,
         options = list(
@@ -1545,7 +1545,7 @@ mod_viz_server <- function(id, values) {
     shiny::invalidateLater(80)
     
     shiny::showNotification(
-      paste0("Labels appliqués : ", length(level_mapping), " niveaux mis à jour."),
+      trf("Labels appliqués : %s niveaux mis à jour.", length(level_mapping)),
       type = "message", duration = 2
     )
   })
@@ -1671,7 +1671,7 @@ mod_viz_server <- function(id, values) {
     if(length(unique_vals) == 0) return(NULL)
     if(length(unique_vals) > 100) {
       return(shiny::div(
-        shiny::p(paste("Trop de catégories (", length(unique_vals), "). Réduisez vos données."), 
+        shiny::p(trf("Trop de catégories ( %s ). Réduisez vos données.", length(unique_vals)), 
           style = "color: #ff9800; font-weight: bold;")
       ))
     }
@@ -1699,7 +1699,7 @@ mod_viz_server <- function(id, values) {
     shiny::div(
       shiny::div(style = "margin-bottom: 10px;",
           shiny::div(style = "display: flex; justify-content: space-between; align-items: center;",
-              shiny::span(paste(length(display_vals), "catégories détectées"), 
+              shiny::span(trf("%s catégories détectées", length(display_vals)), 
                    style = "color: #666; font-size: 12px;"),
               shiny::div(style = "display: flex; gap: 5px;",
                   shiny::actionButton(ns("autoSortX"), "Tri auto", 
@@ -2512,7 +2512,7 @@ mod_viz_server <- function(id, values) {
       removed <- setdiff(names(group_counts), valid_groups)
       if(length(removed) > 0) {
         shiny::showNotification(
-          paste("Violin: groupes ignorés (< 2 obs.):", paste(removed, collapse = ", ")),
+          trf("Violin: groupes ignorés (< 2 obs.): %s", paste(removed, collapse = ", ")),
           type = "warning", duration = 4
         )
       }
@@ -2567,7 +2567,7 @@ mod_viz_server <- function(id, values) {
         dplyr::filter(!is.na(.data[[y_var]])) %>%
         dplyr::group_by(dplyr::across(dplyr::all_of(group_cols))) %>%
         dplyr::summarise(!!y_var := mean(.data[[y_var]], na.rm=TRUE), .groups="drop")
-      shiny::showNotification(paste0("Seasonal Smooth : agrégation auto par moyenne (",nrow(data)," pts)."),
+      shiny::showNotification(trf("Seasonal Smooth : agrégation auto par moyenne (%s pts).", nrow(data)),
                        type="message", duration=4)
     } else {
       data <- data[!is.na(data[[y_var]]), , drop = FALSE]
@@ -2661,8 +2661,7 @@ mod_viz_server <- function(id, values) {
         dplyr::filter(!is.na(.data[[y_var]])) %>%
         dplyr::group_by(dplyr::across(dplyr::all_of(group_cols))) %>%
         dplyr::summarise(!!y_var := mean(.data[[y_var]],na.rm=TRUE), .groups="drop")
-      shiny::showNotification(paste0("Évolution : agrégation auto par moyenne. ",
-                              nrow(data_valid)," pts uniques."), type="message", duration=5)
+      shiny::showNotification(trf("Évolution : agrégation auto par moyenne. %s pts uniques.", nrow(data_valid)), type="message", duration=5)
       data_plot <- data_valid; data_pts <- data_valid
     } else {
       data_plot <- data[!is.na(data[[y_var]]), , drop = FALSE]
@@ -3724,10 +3723,9 @@ mod_viz_server <- function(id, values) {
       viz_type_name <- viz_type_names[[input$vizType]] %||% "Type inconnu"
       
       y_display <- if(!is.null(values$multipleY) && values$multipleY) {
-        paste0("Variables Y (", length(values$yVarNames), "): ", 
-               paste(values$yVarNames, collapse = ", "))
+        trf("Variables Y (%s): %s", length(values$yVarNames), paste(values$yVarNames, collapse = ", "))
       } else {
-        paste0("Variable Y: ", input$vizYVar[1])
+        trf("Variable Y: %s", input$vizYVar[1])
       }
       
       plot_info <- paste0("Type: ", viz_type_name, "\n",
@@ -4019,7 +4017,7 @@ mod_viz_server <- function(id, values) {
       
       shiny::removeNotification(id = "download_notif")
       shiny::showNotification(
-        paste("Téléchargement réussi :", filename), 
+        trf("Téléchargement réussi : %s", filename), 
         type = "message", 
         duration = 4
       )
@@ -4056,7 +4054,8 @@ mod_viz_server <- function(id, values) {
       p_ply <- plotly::plot_ly(df,
                        labels = ~.data[[xv]], values = ~total, type = "pie", hole = hole_val,
                        textinfo = "label+percent",
-                       hovertemplate = "<b>%{label}</b><br>Valeur: %{value}<br>Part: %{percent}<extra></extra>") %>%
+                       hovertemplate = tr("<b>%{label}</b><br>Valeur: %{value}<br>Part: %{percent}<extra></extra>",
+                                          hstat_langue_session())) %>%
         layout(title = list(text = title_txt), showlegend = TRUE,
                        margin = list(t = 60, b = 40)) %>%
         config(displayModeBar = TRUE, displaylogo = FALSE)
@@ -4081,7 +4080,8 @@ mod_viz_server <- function(id, values) {
                        labels = df[[xv]], values = df$total,
                        parents = rep("", nrow(df)),
                        texttemplate  = "<b>%{label}</b><br>%{value}",
-                       hovertemplate = "<b>%{label}</b><br>Valeur: %{value}<extra></extra>") %>%
+                       hovertemplate = tr("<b>%{label}</b><br>Valeur: %{value}<extra></extra>",
+                                          hstat_langue_session())) %>%
         layout(title = list(text = title_txt),
                        margin = list(t = 60, b = 40)) %>%
         config(displayModeBar = TRUE, displaylogo = FALSE)

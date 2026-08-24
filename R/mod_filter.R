@@ -170,7 +170,7 @@ mod_filter_server <- function(id, values) {
         range_parts <- trimws(range_parts)
         
         if (length(range_parts) != 2) {
-          stop(paste("Format de plage invalide :", part))
+          stop(trf("Format de plage invalide : %s", part))
         }
         
         start <- as.numeric(range_parts[1])
@@ -181,7 +181,7 @@ mod_filter_server <- function(id, values) {
         }
         
         if (start > end) {
-          stop(paste("La ligne de début doit être <= ligne de fin dans :", part))
+          stop(trf("La ligne de début doit être <= ligne de fin dans : %s", part))
         }
         
         if (start < 1 || end > max_rows) {
@@ -194,7 +194,7 @@ mod_filter_server <- function(id, values) {
         row_num <- as.numeric(part)
         
         if (is.na(row_num)) {
-          stop(paste("Numéro de ligne invalide :", part))
+          stop(trf("Numéro de ligne invalide : %s", part))
         }
         
         if (row_num < 1 || row_num > max_rows) {
@@ -221,7 +221,7 @@ mod_filter_server <- function(id, values) {
       values$filteredData <- filtered
       
       shiny::showNotification(
-        paste("Filtre par plage appliqué.", length(selected_rows), "lignes sélectionnées"),
+        trf("Filtre par plage appliqué. %s lignes sélectionnées", length(selected_rows)),
         type = "message",
         duration = 5
       )
@@ -288,7 +288,7 @@ mod_filter_server <- function(id, values) {
       values$filteredData <- filtered
       
       shiny::showNotification(
-        paste("Filtre par valeur appliqué :", nrow(filtered), "lignes trouvées avec", length(search_values), "valeur(s)"),
+        trf("Filtre par valeur appliqué : %s lignes trouvées avec %s valeur(s)", nrow(filtered), length(search_values)),
         type = "message",
         duration = 5
       )
@@ -340,7 +340,7 @@ mod_filter_server <- function(id, values) {
       values$filteredData <- filtered
       
       shiny::showNotification(
-        paste("Filtre par colonnes appliqué :", length(input$selectedColumns), "colonnes sélectionnées"),
+        trf("Filtre par colonnes appliqué : %s colonnes sélectionnées", length(input$selectedColumns)),
         type = "message",
         duration = 5
       )
@@ -379,7 +379,7 @@ mod_filter_server <- function(id, values) {
                                         reqA = isTRUE(input$requireA),
                                         reqB = isTRUE(input$requireB))
       values$filteredData <- filtered
-      shiny::showNotification(paste("Filtrage (2 facteurs) appliqué. Lignes :", nrow(filtered)), type = "message", duration = 5)
+      shiny::showNotification(trf("Filtrage (2 facteurs) appliqué. Lignes : %s", nrow(filtered)), type = "message", duration = 5)
     }, error = function(e) {
       shiny::showNotification(hstat_err_fr(e, "Erreur filtrage"), type = "error", duration = 10)
     })
@@ -397,7 +397,7 @@ mod_filter_server <- function(id, values) {
     tryCatch({
       filtered <- filter_complete_cross_n(values$cleanData, input$factorsN)
       values$filteredData <- filtered
-      shiny::showNotification(paste("Filtrage (N facteurs) appliqué. Lignes :", nrow(filtered)), type = "message", duration = 5)
+      shiny::showNotification(trf("Filtrage (N facteurs) appliqué. Lignes : %s", nrow(filtered)), type = "message", duration = 5)
     }, error = function(e) {
       shiny::showNotification(hstat_err_fr(e, "Erreur filtrage N facteurs"), type = "error", duration = 10)
     })

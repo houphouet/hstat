@@ -2317,6 +2317,121 @@ Prudence nécessaire : le balayage des mots sans accent remonte aussi des
 script de reproductibilité. Les corriger casserait des clés. Seuls les libellés
 **affichés** ont été touchés, un par un.
 
+#### `getParseData()` compte en octets, `substr()` en caractères
+
+Le piège le plus coûteux de tout le chantier de traduction, et le plus
+silencieux. L'outil qui convertit `paste0("texte ", x)` en `trf("texte %s", x)`
+localise l'appel par l'analyseur de R, puis découpe la ligne à ces colonnes.
+
+Or `getParseData()` rend des colonnes en **octets**, et `substr()` découpe en
+**caractères**. Le décalage vaut le nombre d'octets surnuméraires de la ligne —
+donc **nul tant qu'elle est en ASCII**. L'étendue extraite débordait sur la
+virgule suivante, `str2lang()` levait « unexpected `,` », et l'appel était
+sauté sans un mot.
+
+Conséquence : l'outil échouait sur **toute ligne accentuée**, c'est-à-dire
+exactement sur le français qu'il était censé traiter. Il annonçait 15
+conversions là où il y en avait 146, et rien ne le disait — un outil de mesure
+qui ment sur ce qu'il n'a pas vu. Corrigé, il en trouve **131** de plus, et la
+couverture passe de 94,4 % à 96,6 %.
+
+Règle : dès qu'on découpe une ligne source aux positions de `getParseData()`,
+passer par `charToRaw()` / `rawToChar()`. Le `nchar()` d'un fichier source
+français n'est jamais son nombre d'octets.
+
+Deuxième piège du même outil : `strsplit("", "\n")` rend `character(0)`,
+qu'`unlist()` fait disparaître. Redécouper les lignes réécrites supprimait
+ainsi **toutes les lignes vides** des douze fichiers — un diff de plusieurs
+milliers de lignes pour 131 conversions réelles. C'est `git diff --numstat` qui
+l'a montré, avant tout test.
+
+#### Ce que le modèle écrit, aucun dictionnaire ne le traduira
+
+La réponse d'un modèle de langue est du **texte affiché** — mais elle n'existe
+pas quand la page se construit, et le traducteur du navigateur ne remplace que
+des correspondances connues. Trois invites imposaient « en français » **en
+dur** : un utilisateur anglophone recevait une interprétation entière en
+français, sans un mot d'avertissement.
+
+C'est la plus grosse trace de français qui restait, et la seule qu'une mesure
+de couverture du dictionnaire **ne peut pas voir** — elle ne mesure que ce qui
+est écrit dans les sources.
+
+`hstat_ai_consigne_langue()` (`Utils.R`) rend la consigne à insérer dans
+l'invite, d'après `hstat_langue_session()`. Trois sites la prennent :
+l'interprétation des résultats (invite et message système) et le livre de codes
+de l'atelier CAQDAS — dont les libellés deviennent des **données** du projet, et
+doivent donc suivre la langue de qui code.
+
+Hors session Shiny la valeur par défaut reste le français : les fonctions
+d'invite restent pures et testables, et aucun appel existant ne change de
+comportement.
+
+Même famille pour les **info-bulles de plotly** (`hovertemplate`) : elles ne
+sont ni un nœud de texte ni un attribut HTML, le traducteur du navigateur ne
+les voit pas. Elles passent par `tr()` côté serveur.
+
+#### Une phrase coupée par une balise n'est plus une chaîne
+
+Le traducteur remplace des **nœuds de texte**. Une phrase mise en forme —
+`<b>Toutes fermées</b> — <code>[a ; b]</code>` — n'existe donc nulle part comme
+nœud entier : le DOM la coupe en autant de morceaux qu'il y a de balises.
+**73 entrées du dictionnaire étaient dans ce cas**, et ce sont précisément les
+encadrés d'aide, ceux qui portent le plus d'explications. Elles ne pouvaient
+jamais s'appliquer, et restaient en français quoi qu'on fasse.
+
+`traduireHtml()` les traite au niveau de l'**élément** : quand le balisage
+entier d'un élément coïncide avec une entrée, il est remplacé d'un bloc.
+
+Traduire plutôt chaque morceau serait pire. Les morceaux courts (« La »,
+« ou », « Lancez ») sont ceux qui ressemblent le plus à une valeur de données,
+et les écarter par prudence rendrait une phrase à moitié anglaise — « La trial
+record opposite is optional ».
+
+**La clé passe par l'analyseur du navigateur avant d'être comparée.**
+`innerHTML` est renormalisé à la lecture : guillemets simples devenus doubles,
+entités résolues, attributs réordonnés. Comparer la chaîne du CSV telle qu'elle
+y est écrite n'aurait presque jamais collé. Le banc d'essai du test normalise de
+la même façon, sinon il testerait autre chose que la réalité.
+
+L'ordre compte : le remplacement en bloc vient **avant** la passe sur les nœuds
+de texte, dont les clés sont françaises et qui ne voit donc plus rien à faire
+dans le sous-arbre remplacé. Le retour au français restitue le balisage
+d'origine, conservé sur l'élément (`__hstatFrHtml`).
+
+Cette passe ne consulte pas la liste des termes du fichier, et n'est donc pas
+rejouée à son arrivée : un élément dont le balisage entier coïncide avec une
+entrée du dictionnaire est un libellé par construction — une donnée ne peut pas
+le reproduire.
+
+#### Une classe posée dans le code mais absente de la feuille de style
+
+Piège trouvé à l'audit, et parfaitement silencieux. La classe de l'encadré
+d'interprétation était posée sur **dix-sept** `div` de `mod_tests.R` et définie
+**nulle part** : l'encadré que le code construisait ne s'est jamais affiché,
+l'interprétation sortait au fil du texte, sans rien qui la distingue des
+résultats bruts qu'elle commente.
+
+Elle portait en plus un accent (`interprétation-box`) — un identifiant reste
+technique, sinon il dépend de l'encodage du fichier de style. Renommée
+`hstat-interpretation`, définie dans `hstat-theme.css`.
+
+Un test balaie les classes du préfixe du projet et exige une règle pour
+chacune. Le contrôle ne porte **que** sur `hstat-*` : `btn`, `box`,
+`col-md-6` viennent de Bootstrap et de shinydashboard, les exiger dans notre
+feuille de style ferait échouer le test sur du code sain.
+
+#### La comparaison des clés se fait des deux côtés élagués
+
+`hstat_i18n_load()` élague ses clés **et** en retire les doublons ; `tr()`
+cherche sur la chaîne élaguée. Une clé du CSV bordée d'espaces et un appel sans
+espace sont donc la **même** entrée.
+
+Conséquence pour tout contrôle : comparer les chaînes brutes signale des
+gabarits « absents » qui sont en fait présents. L'audit s'y est laissé prendre
+et a failli ajouter quatre doublons. Le test qui garde la couverture des appels
+`tr()`/`trf()` élague les deux côtés.
+
 #### Une cellule de tableau n'est pas un libellé
 
 La correspondance exacte ne suffisait pas : une colonne du fichier chargé

@@ -2680,6 +2680,37 @@ test_that("l'invite d'interpretation interdit d'inventer et de decider", {
   expect_equal(length(unique(n)), 3L)
 })
 
+test_that("l'invite demande la reponse dans la langue de la session", {
+  # LA REPONSE DU MODELE EST DU TEXTE AFFICHE QU'AUCUN DICTIONNAIRE NE PEUT
+  # TRADUIRE : elle n'existe pas quand la page se construit, et le traducteur
+  # du navigateur ne remplace que des correspondances connues. Trois invites
+  # imposaient « en francais » en dur -- un utilisateur anglophone recevait une
+  # interpretation ENTIERE en francais, sans un mot d'avertissement. C'est la
+  # plus grosse trace de francais qui restait, et la seule qu'une mesure de
+  # couverture du dictionnaire ne peut pas voir.
+  ctx <- list(title = "ANOVA", module = "Tests",
+              tables = list("R" = data.frame(p_value = 0.02)),
+              text = NULL, meta = list(), time = Sys.time())
+  fr <- hstat_ai_interpret_prompt(ctx, lang = "fr")
+  en <- hstat_ai_interpret_prompt(ctx, lang = "en")
+  expect_true(grepl("en français", fr, fixed = TRUE))
+  expect_true(grepl("in English", en, fixed = TRUE))
+  expect_false(grepl("en français", en, fixed = TRUE))
+
+  # Meme regle pour le livre de codes : ses libelles deviennent des DONNEES du
+  # projet de codage, ils doivent suivre la langue de qui code.
+  cb_fr <- hstat_ai_codebook_prompt(c("trop cher", "service lent"), lang = "fr")
+  cb_en <- hstat_ai_codebook_prompt(c("trop cher", "service lent"), lang = "en")
+  expect_true(grepl("en français", cb_fr, fixed = TRUE))
+  expect_true(grepl("in English", cb_en, fixed = TRUE))
+  expect_false(grepl("en français", cb_en, fixed = TRUE))
+
+  # Hors session Shiny, la valeur par defaut reste le francais : la fonction
+  # est pure et testable, et un appel existant ne change pas de comportement.
+  expect_equal(hstat_ai_consigne_langue("fr"), "en français")
+  expect_equal(hstat_ai_consigne_langue(), "en français")
+})
+
 test_that("le markdown du modele est converti sans pouvoir injecter de HTML", {
   h <- .hstat_md_to_html("## Titre\n\nUn **gras** et un *italique*.\n\n- point A\n- point B")
   expect_true(grepl("<h4", h, fixed = TRUE))
@@ -5197,6 +5228,180 @@ process.stdout.write(JSON.stringify(apres));
   expect_equal(avec$menu, "Loading")
   expect_equal(avec$cellule, "Oui")
   expect_equal(avec$dollar, "$& remplace")
+})
+
+test_that("une classe hstat-* posee dans le code est definie dans le style", {
+  # LE DEFAUT QUE CE TEST GARDE, constate a l'audit. La classe de l'encadre
+  # d'interpretation etait posee sur DIX-SEPT divs de mod_tests.R et definie
+  # NULLE PART. Le code construisait donc un encadre qui ne s'affichait pas :
+  # l'interpretation sortait au fil du texte, sans rien qui la distingue des
+  # resultats bruts qu'elle commente. Rien ne casse, rien ne previent -- c'est
+  # exactement le genre de defaut qu'une relecture ne voit pas.
+  #
+  # Le controle ne porte QUE sur le prefixe du projet : « btn », « box »,
+  # « col-md-6 » viennent de Bootstrap et de shinydashboard, les exiger dans
+  # notre feuille de style ferait echouer le test sur du code parfaitement sain.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  css_f <- file.path(root, "inst", "app", "www", "hstat-theme.css")
+  skip_if(!file.exists(css_f))
+
+  src <- unlist(lapply(.hstat_sources_app(), readLines, warn = FALSE))
+  m <- regmatches(src, gregexpr("class\\s*=\\s*[\"'][^\"']*[\"']", src))
+  cls <- unlist(lapply(unlist(m), function(x)
+    strsplit(trimws(gsub("^class\\s*=\\s*[\"']|[\"']$", "", x)), "\\s+")[[1]]))
+  cls <- unique(cls[grepl("^hstat-", cls)])
+  skip_if(!length(cls))
+
+  css <- paste(readLines(css_f, warn = FALSE), collapse = "\n")
+  # Les modules qui portent leur propre bloc de style (mod_coding) comptent
+  # aussi : la definition n'a pas a vivre dans la feuille commune.
+  inline <- paste(src[grepl("\\{", src)], collapse = "\n")
+  defini <- function(c) {
+    motif <- paste0("\\.", c, "([^a-zA-Z0-9_-]|$)")
+    grepl(motif, css) || grepl(motif, inline)
+  }
+  absentes <- cls[!vapply(cls, defini, logical(1))]
+  expect_equal(absentes, character(0),
+               info = paste("classes sans regle de style :",
+                            paste(absentes, collapse = ", ")))
+})
+
+test_that("une phrase coupee par une balise se traduit quand meme", {
+  # LE DEFAUT QUE CE TEST GARDE. Le traducteur remplace des NOEUDS DE TEXTE.
+  # Une phrase mise en forme -- « <b>Toutes fermees</b> — <code>[a ; b]</code> »
+  # -- n'existe nulle part comme noeud entier : le DOM la coupe en morceaux.
+  # Les 73 entrees du dictionnaire de cette forme, qui sont precisement les
+  # encadres d'aide, ne s'appliquaient JAMAIS et restaient en francais.
+  #
+  # Deux proprietes sont verifiees ici, et la premiere ne se voit pas :
+  #  - la cle du dictionnaire est comparee APRES etre passee par l'analyseur du
+  #    navigateur, parce que `innerHTML` est renormalise a la lecture. Le banc
+  #    ecrit donc la cle avec des guillemets SIMPLES et l'element avec des
+  #    guillemets DOUBLES : sans normalisation, aucun des deux ne colle ;
+  #  - le retour au francais restitue le balisage d'origine.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  node <- .hstat_node()
+  skip_if(is.na(node), "node absent : le traducteur ne peut pas etre execute")
+
+  banc <- tempfile(fileext = ".js")
+  writeLines(r"---(var fs = require("fs"), vm = require("vm");
+var SRC = process.argv[2];
+
+function Txt(v) { return { nodeType: 3, nodeValue: v, parentNode: null }; }
+function add(p, c) { c.parentNode = p; p.childNodes.push(c); return c; }
+function tous(n, out) {
+  out = out || [];
+  (n.childNodes || []).forEach(function (c) { out.push(c); tous(c, out); });
+  return out;
+}
+// Le navigateur RENORMALISE le balisage : minuscules et guillemets doubles.
+// Le banc en fait autant, sinon il testerait autre chose que la realite.
+function norm(s) {
+  return String(s).replace(/<\/?[a-zA-Z][^>]*>/g, function (b) {
+    return b.replace(/([a-zA-Z-]+)='([^']*)'/g, '$1="$2"')
+            .replace(/^<(\/?)([a-zA-Z][a-zA-Z0-9]*)/,
+                     function (m, sl, t) { return "<" + sl + t.toLowerCase(); });
+  });
+}
+function attrs(el) {
+  var s = "";
+  for (var k in el.A) s += " " + k + '="' + el.A[k] + '"';
+  return s;
+}
+function serialiser(n) {
+  var out = "";
+  (n.childNodes || []).forEach(function (c) {
+    if (c.nodeType === 3) { out += c.nodeValue; return; }
+    var t = c.tagName.toLowerCase();
+    out += "<" + t + attrs(c) + ">" + serialiser(c) + "</" + t + ">";
+  });
+  return out;
+}
+function El(tag) {
+  var el = { nodeType: 1, tagName: tag, childNodes: [], parentNode: null, A: {},
+             hasAttribute: function (n) { return this.A[n] !== undefined; },
+             getAttribute: function (n) { return this.A[n]; },
+             setAttribute: function (n, v) { this.A[n] = v; },
+             classList: { add: function () {}, remove: function () {} } };
+  Object.defineProperty(el, "children", { get: function () {
+    return this.childNodes.filter(function (c) { return c.nodeType === 1; }); } });
+  Object.defineProperty(el, "innerHTML", {
+    get: function () {
+      return this.__html !== undefined ? norm(this.__html) : norm(serialiser(this));
+    },
+    set: function (v) { this.__html = v; this.childNodes = [Txt(String(v))]; }
+  });
+  el.querySelectorAll = function () {
+    return tous(this).filter(function (n) { return n.nodeType === 1; });
+  };
+  return el;
+}
+
+var html = El("HTML"), body = El("BODY");
+add(html, body);
+
+// L'encadre d'aide : trois noeuds de texte, dont un dans un <code> que le
+// traducteur ignore par principe. Aucun d'eux n'est traduisible seul.
+var boite = add(body, El("DIV"));
+var gras = add(boite, El("B")); gras.A["class"] = "t";
+add(gras, Txt("Toutes fermees"));
+add(boite, Txt(" — "));
+var code = add(boite, El("CODE"));
+add(code, Txt("[a ; b]"));
+
+var ctx = {
+  console: console, setTimeout: function () { return 0; }, clearTimeout: function () {},
+  localStorage: { getItem: function () { return null; }, setItem: function () {} },
+  NodeFilter: { SHOW_TEXT: 4 },
+  document: {
+    readyState: "complete", body: body, documentElement: html,
+    getElementById: function () { return null; },
+    addEventListener: function () {},
+    createElement: function (t) { return El(t.toUpperCase()); },
+    createTreeWalker: function (racine) {
+      var l = tous(racine).filter(function (n) { return n.nodeType === 3; }), i = -1;
+      return { nextNode: function () { return ++i < l.length ? l[i] : null; } };
+    }
+  }
+};
+ctx.window = ctx;
+// LA CLE PORTE DES GUILLEMETS SIMPLES, comme dans le CSV et dans le code R.
+ctx.window.HSTAT_I18N = {
+  "<b class='t'>Toutes fermees</b> — <code>[a ; b]</code>":
+    "<b class='t'>All closed</b> — <code>[a, b]</code>",
+  "Toutes fermees": "NE DOIT PAS SERVIR"
+};
+vm.createContext(ctx);
+ctx.window.Shiny = { addCustomMessageHandler: function () {}, setInputValue: function () {} };
+vm.runInContext(fs.readFileSync(SRC, "utf8"), ctx);
+
+var avant = boite.innerHTML;
+ctx.window.hstatSetLangue("en");
+var apres = boite.innerHTML;
+ctx.window.hstatSetLangue("fr");
+process.stdout.write(JSON.stringify(
+  { avant: avant, apres: apres, retour: boite.innerHTML }));
+)---", banc, useBytes = TRUE)
+
+  js <- file.path(root, "inst", "app", "www", "hstat-i18n.js")
+  s <- suppressWarnings(system2(node, c(shQuote(banc), shQuote(js)),
+                                stdout = TRUE, stderr = TRUE))
+  res <- if (length(s))
+    tryCatch(jsonlite::fromJSON(paste(s, collapse = "")), error = function(e) NULL)
+  skip_if(is.null(res), "le banc d'essai n'a rien produit d'exploitable")
+
+  # 1. La phrase mise en forme est bien coupee : aucun noeud ne la porte.
+  expect_true(grepl("<b", res$avant, fixed = TRUE))
+  # 2. ELLE SE TRADUIT MALGRE TOUT, balisage compris.
+  expect_true(grepl("All closed", res$apres, fixed = TRUE))
+  # 3. Y COMPRIS CE QUI EST DANS <code>, que la passe sur les noeuds de texte
+  #    ignore par principe : c'est le remplacement en bloc qui l'emporte.
+  expect_true(grepl("[a, b]", res$apres, fixed = TRUE))
+  expect_false(grepl("[a ; b]", res$apres, fixed = TRUE))
+  # 4. Le retour au francais restitue le balisage d'origine, exactement.
+  expect_equal(res$retour, res$avant)
 })
 
 test_that("une phrase composee traduit son gabarit, jamais ses arguments", {
