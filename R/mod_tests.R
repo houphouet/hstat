@@ -1769,7 +1769,7 @@ mod_correlation_server <- function(id, values) {
       }
       method_label <- switch(method, pearson = "Pearson", spearman = "Spearman", kendall = "Kendall")
       plot_title <- if (!is.null(title) && nzchar(title)) title
-                    else paste("Matrice de corrélation -", method_label)
+                    else trf("Matrice de corrélation - %s", method_label)
       ord <- if (isTRUE(reorder)) "hclust" else "original"
 
       # Palette de couleurs de la matrice (corrplot col)
@@ -2411,7 +2411,7 @@ mod_tests_server <- function(id, values) {
     } else {
       shiny::showNotification(
         if (length(motifs_refus))
-          paste("Test t impossible :", paste(unique(motifs_refus), collapse = " "))
+          trf("Test t impossible : %s", paste(unique(motifs_refus), collapse = " "))
         else
           paste("Aucun résultat t-test généré. Vérifiez que les variables réponse",
                 "sont numériques et comportent assez de données non manquantes."),
@@ -3335,8 +3335,7 @@ mod_tests_server <- function(id, values) {
     if (!custom_used) {
       missing_grp <- setdiff(input$glmmRandom, names(df))
       if (length(missing_grp) > 0) {
-        shiny::showNotification(paste("Variable(s) d'effet aléatoire introuvable(s) :",
-                               paste(missing_grp, collapse = ", ")), type = "error")
+        shiny::showNotification(trf("Variable(s) d'effet aléatoire introuvable(s) : %s", paste(missing_grp, collapse = ", ")), type = "error")
         return()
       }
     }
@@ -7385,7 +7384,7 @@ mod_tests_server <- function(id, values) {
     
     if (nrow(simple_var_data) == 0) {
       return(shiny::div(style = "color: #e74c3c; font-style: italic;", 
-                 paste("Aucun effet simple pour", resp_var)))
+                 trf("Aucun effet simple pour %s", resp_var)))
     }
     
     factors <- unique(simple_var_data$Facteur)

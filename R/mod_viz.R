@@ -377,7 +377,7 @@ mod_viz_ui <- function(id) {
                         shiny::div(
                           id = "lastUpdateTime",
                           style = "font-size: 12px; color: #666;",
-                          paste("Dernière mise à jour :", format(Sys.time(), "%H:%M:%S"))
+                          trf("Dernière mise à jour : %s", format(Sys.time(), "%H:%M:%S"))
                         )
                       )
                     )

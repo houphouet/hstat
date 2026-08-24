@@ -170,7 +170,7 @@ mod_filter_server <- function(id, values) {
         range_parts <- trimws(range_parts)
         
         if (length(range_parts) != 2) {
-          stop(paste("Format de plage invalide :", part))
+          stop(trf("Format de plage invalide : %s", part))
         }
         
         start <- as.numeric(range_parts[1])

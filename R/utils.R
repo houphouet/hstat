@@ -1279,14 +1279,14 @@ check_transformation_feasibility <- function(x, method) {
   
   issues <- switch(method,
                    "log"     = if (any(x_nona <= 0)) paste(sum(x_nona <= 0), "valeur(s) <= 0 détectée(s)") else NULL,
-                   "log1p"   = if (any(x_nona < 0))  paste(sum(x_nona < 0),  "valeur(s) < 0 détectée(s)")  else NULL,
+                   "log1p"   = if (any(x_nona < 0))  trf("%s valeur(s) < 0 détectée(s)", sum(x_nona < 0))else NULL,
                    "log10"   = if (any(x_nona <= 0)) paste(sum(x_nona <= 0), "valeur(s) <= 0 détectée(s)") else NULL,
-                   "sqrt"    = if (any(x_nona < 0))  paste(sum(x_nona < 0),  "valeur(s) < 0 détectée(s)")  else NULL,
+                   "sqrt"    = if (any(x_nona < 0))  trf("%s valeur(s) < 0 détectée(s)", sum(x_nona < 0))else NULL,
                    "cuberoot" = NULL,  # toujours applicable
-                   "boxcox"  = if (any(x_nona <= 0)) paste(sum(x_nona <= 0), "valeur(s) <= 0 (Box-Cox nécessite x > 0)") else NULL,
+                   "boxcox"  = if (any(x_nona <= 0)) trf("%s valeur(s) <= 0 (Box-Cox nécessite x > 0)", sum(x_nona <= 0))else NULL,
                    "yeojohnson" = NULL,  # toujours applicable
-                   "arcsin"  = if (any(x_nona < 0 | x_nona > 1)) paste(sum(x_nona < 0 | x_nona > 1), "valeur(s) hors [0,1]") else NULL,
-                   "logit"   = if (any(x_nona <= 0 | x_nona >= 1)) paste(sum(x_nona <= 0 | x_nona >= 1), "valeur(s) hors ]0,1[") else NULL,
+                   "arcsin"  = if (any(x_nona < 0 | x_nona > 1)) trf("%s valeur(s) hors [0,1]", sum(x_nona < 0 | x_nona > 1)) else NULL,
+                   "logit"   = if (any(x_nona <= 0 | x_nona >= 1)) trf("%s valeur(s) hors ]0,1[", sum(x_nona <= 0 | x_nona >= 1)) else NULL,
                    NULL
   )
   
@@ -3297,7 +3297,7 @@ hstat_ref_result_row <- function(res, variable, reference_label = NULL) {
     Test        = res$test,
     Variable    = variable,
     Facteur     = if (is.null(reference_label))
-                    paste("Référence =", format(res$reference))
+                    trf("Référence = %s", format(res$reference))
                   else reference_label,
     Statistique = if (is.na(res$statistic)) NA_real_ else round(res$statistic, 4),
     ddl         = if (is.na(res$parameter)) NA_real_ else round(res$parameter, 2),

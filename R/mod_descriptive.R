@@ -587,7 +587,7 @@ mod_descriptive_server <- function(id, values) {
     shiny::req(input$descPlotVar)
     
     if (is.null(input$descPlotTitle) || input$descPlotTitle == "") {
-      shiny::updateTextInput(session, "descPlotTitle", value = paste("Distribution de", input$descPlotVar))
+      shiny::updateTextInput(session, "descPlotTitle", value = trf("Distribution de %s", input$descPlotVar))
     }
     
     if (is.null(input$descPlotXLabel) || input$descPlotXLabel == "") {
@@ -609,7 +609,7 @@ mod_descriptive_server <- function(id, values) {
     plot_title <- if(!is.null(input$descPlotTitle) && input$descPlotTitle != "") {
       input$descPlotTitle
     } else {
-      paste("Distribution de", input$descPlotVar)
+      trf("Distribution de %s", input$descPlotVar)
     }
     
     x_label <- if(!is.null(input$descPlotXLabel) && input$descPlotXLabel != "") {

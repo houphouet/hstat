@@ -1281,7 +1281,7 @@ server <- function(input, output, session) {
                  "Réduisez le nombre de variables ou désactivez l'option 'Centrer/Réduire'."),
           type = "error", duration = 10)
       } else {
-        shiny::showNotification(paste("Erreur ACP :", msg), type = "error")
+        shiny::showNotification(trf("Erreur ACP : %s", msg), type = "error")
       }
       return(NULL)
     })
@@ -2913,7 +2913,7 @@ server <- function(input, output, session) {
       p_dend <- hstat_apply_label_sizes(p_dend, hstat_lbl_pt2gg(dend_lbl_pt))
 
     p_dend <- p_dend + 
-      labs(caption = paste("Nombre de clusters :", n_clusters)) +
+      labs(caption = trf("Nombre de clusters : %s", n_clusters)) +
       ggplot2::theme(
         axis.text.x = ggplot2::element_blank(),   # l'axe X (index des feuilles) n'a pas de sens
         axis.ticks.x = ggplot2::element_blank(),
@@ -3989,7 +3989,7 @@ server <- function(input, output, session) {
           duration = 10
         )
       } else {
-        shiny::showNotification(paste("Erreur AFD :", err_msg), type = "error", duration = 10)
+        shiny::showNotification(trf("Erreur AFD : %s", err_msg), type = "error", duration = 10)
       }
       return(NULL)
     })
@@ -6390,8 +6390,7 @@ server <- function(input, output, session) {
         if (sum(keep) < 2)
           return(list(ok = FALSE, error = "Moins de 2 variables numériques à variance non nulle après nettoyage."))
         if (any(!keep)) {
-          shiny::showNotification(paste("Variables à variance nulle ignorées :",
-            paste(names(X)[!keep], collapse = ", ")), type = "warning", duration = 5)
+          shiny::showNotification(trf("Variables à variance nulle ignorées : %s", paste(names(X)[!keep], collapse = ", ")), type = "warning", duration = 5)
           X <- X[, keep, drop = FALSE]; vars <- names(X)
         }
         if (nrow(X) < 2*k)
@@ -6490,8 +6489,7 @@ server <- function(input, output, session) {
         if (sum(keep) < 3)
           return(list(ok = FALSE, error = "Moins de 3 variables numériques exploitables (variance non nulle, sans NA)."))
         if (any(!keep)) {
-          shiny::showNotification(paste("Variables ignorées (variance nulle ou NA) :",
-            paste(names(X)[!keep], collapse = ", ")), type = "warning", duration = 5)
+          shiny::showNotification(trf("Variables ignorées (variance nulle ou NA) : %s", paste(names(X)[!keep], collapse = ", ")), type = "warning", duration = 5)
           X <- X[, keep, drop = FALSE]
         }
         nf <- input$mv_efa_nf %||% 2
@@ -6692,16 +6690,7 @@ server <- function(input, output, session) {
               cnt <- table(ld$lhs)
               small_fac <- names(cnt)[cnt < 3]
             }
-            msg <- paste0(
-              "Le modèle n'a pas convergé : les indices d'ajustement ne peuvent pas être calculés. ",
-              "Causes probables et pistes : ",
-              if (length(small_fac))
-                trf("(1) le(s) facteur(s) %s n'ont que 1-2 indicateurs -- un facteur latent nécessite idéalement >= 3 indicateurs ; ", paste(small_fac, collapse = ", "))
-              else "",
-              "(2) des indicateurs quasi-colinéaires (ex. une variable qui est le ratio ou la somme d'autres indicateurs du modèle) ; ",
-              "(3) des échelles très hétérogènes -- essayez de standardiser les variables ; ",
-              "(4) un effectif insuffisant pour la complexité du modèle. ",
-              "Reformulez le modèle (>= 3 indicateurs par facteur, indicateurs non redondants) puis relancez.")
+            msg <- trf("Le modèle n'a pas convergé : les indices d'ajustement ne peuvent pas être calculés. Causes probables et pistes : %s(2) des indicateurs quasi-colinéaires (ex. une variable qui est le ratio ou la somme d'autres indicateurs du modèle) ; (3) des échelles très hétérogènes -- essayez de standardiser les variables ; (4) un effectif insuffisant pour la complexité du modèle. Reformulez le modèle (>= 3 indicateurs par facteur, indicateurs non redondants) puis relancez.", if (length(small_fac)) trf("(1) le(s) facteur(s) %s n'ont que 1-2 indicateurs -- un facteur latent nécessite idéalement >= 3 indicateurs ; ",      paste(small_fac, collapse = ", ")) else "")
             return(list(ok = FALSE, error = msg))
           }
         }
@@ -7688,7 +7677,7 @@ server <- function(input, output, session) {
           # Non-convergence / separation : on remonte le diagnostic dans la
           # note affichee plutot que de laisser l'avertissement en console.
           note <- if (!is.null(gl$note))
-            paste("Régression logistique binaire estimée. ATTENTION :", gl$note)
+            trf("Régression logistique binaire estimée. ATTENTION : %s", gl$note)
           else "Régression logistique binaire estimée."
         } else {
           if (!mv_has("nnet"))
