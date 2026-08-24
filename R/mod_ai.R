@@ -1960,8 +1960,7 @@ mod_ai_server <- function(id, values) {
       }
       st <- hstat_ai_status(eng, input$url, input$model, input$key)
       if (!isTRUE(st$ok)) {
-        shiny::showNotification(paste0(st$message,
-          " La lecture automatique, elle, reste disponible."),
+        shiny::showNotification(trf("%s La lecture automatique, elle, reste disponible.", st$message),
           type = "error", duration = 12)
         return()
       }
@@ -1981,8 +1980,7 @@ mod_ai_server <- function(id, values) {
         shiny::incProgress(0.5)
         if (!isTRUE(res$ok)) {
           rv$err <- res$error
-          shiny::showNotification(paste0(res$error,
-            " Repli sur la lecture automatique."), type = "error", duration = 12)
+          shiny::showNotification(trf("%s Repli sur la lecture automatique.", res$error), type = "error", duration = 12)
           .offline(); return()
         }
         rv$txt <- res$text

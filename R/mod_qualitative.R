@@ -903,7 +903,7 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y") {
     ggplot2::ggplot(dd, ggplot2::aes(x = .data[[".Xvar"]], y = Effectif, fill = .data[[".Yvar"]])) +
       ggplot2::geom_col(position = "fill") +
       ggplot2::scale_y_continuous(labels = function(z) paste0(z*100, "%")) +
-      ggplot2::labs(title = paste0("Profils de ", yname, " selon ", xname),
+      ggplot2::labs(title = trf("Profils de %s selon %s", yname, xname),
                     x = xname, y = "Proportion", fill = yname) +
       ggplot2::theme_minimal(base_size = 12) +
       ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 30, hjust = 1))
@@ -919,7 +919,7 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y") {
                          position = ggplot2::position_dodge(width = 0.85),
                          vjust = -0.3, size = 3) +
       ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
-      ggplot2::labs(title = paste0("Proportions de ", yname, " selon ", xname),
+      ggplot2::labs(title = trf("Proportions de %s selon %s", yname, xname),
                     subtitle = "Profils ligne : chaque modalité de X totalise 100 %",
                     x = xname, y = "Pourcentage (%)", fill = yname) +
       ggplot2::theme_minimal(base_size = 12) +
@@ -1725,7 +1725,7 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
     ggplot2::ggplot(d, ggplot2::aes(x, y, label = Mot, size = Frequence, color = Frequence)) +
       ggplot2::geom_text(show.legend = FALSE) +
       ggplot2::scale_size_continuous(range = c(3, 12)) +
-      ggplot2::labs(title = paste0("Nuage de mots -- ", var_name)) +
+      ggplot2::labs(title = trf("Nuage de mots -- %s", var_name)) +
       ggplot2::theme_void(base_size = 12)
   }
   plot_sentiment <- function() {

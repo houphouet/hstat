@@ -821,7 +821,7 @@ mod_clean_server <- function(id, values) {
     n <- length(rows)
     preview_ids <- utils::head(rows, 8)
     preview_str <- paste(preview_ids, collapse = ", ")
-    if (n > 8) preview_str <- paste0(preview_str, " ... (", n - 8, " de plus)")
+    if (n > 8) preview_str <- trf("%s ... (%s de plus)", preview_str, n - 8)
     
     shiny::div(
       style = "margin-top: 8px; padding: 10px; background-color: #fff3e0; border-radius: 4px; border-left: 3px solid #f57c00;",
@@ -851,8 +851,7 @@ mod_clean_server <- function(id, values) {
       values$filteredData <- values$cleanData
       
       shiny::showNotification(
-        paste0(length(rows_to_delete), " ligne(s) supprimée(s). ",
-               nrow(values$cleanData), " lignes restantes."),
+        trf("%s ligne(s) supprimée(s). %s lignes restantes.", length(rows_to_delete), nrow(values$cleanData)),
         type = "message", duration = 5
       )
     }, error = function(e) {
@@ -1468,8 +1467,7 @@ mod_clean_server <- function(id, values) {
     
     shiny::selectInput(
       inputId = ns("naVars"),
-      label = paste0("Sélectionnez les variables à traiter (", 
-                     length(vars_with_na), " variables avec NA) :"), 
+      label = trf("Sélectionnez les variables à traiter (%s variables avec NA) :", length(vars_with_na)), 
       choices = names(values$cleanData),
       selected = vars_with_na,
       multiple = TRUE,
@@ -1520,9 +1518,7 @@ mod_clean_server <- function(id, values) {
         } else if (input$naMethod == "mice") {
           if (requireNamespace("mice", quietly = TRUE)) {
             if (nrow(data_temp) > 200000L)
-              shiny::showNotification(paste0("Imputation multiple (mice) sur ",
-                format(nrow(data_temp), big.mark = " "),
-                " lignes : le calcul peut prendre plusieurs minutes."),
+              shiny::showNotification(trf("Imputation multiple (mice) sur %s lignes : le calcul peut prendre plusieurs minutes.", format(nrow(data_temp), big.mark = " ")),
                 type = "message", duration = 10)
             sub <- data_temp[, sel, drop = FALSE]
             mids <- tryCatch(mice::mice(sub, m = input$naMiceM %||% 5,

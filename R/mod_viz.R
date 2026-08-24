@@ -1340,7 +1340,7 @@ mod_viz_server <- function(id, values) {
     shiny::div(
       shiny::selectizeInput(ns("groupVars"),
         "Variables de regroupement :",
-        choices = c(stats::setNames(x_default, paste0("Variable X (", x_default, ")")), cat_cols),
+        choices = c(stats::setNames(x_default, trf("Variable X (%s)", x_default)), cat_cols),
         selected = x_default,
         multiple = TRUE,
         options = list(
@@ -2661,8 +2661,7 @@ mod_viz_server <- function(id, values) {
         dplyr::filter(!is.na(.data[[y_var]])) %>%
         dplyr::group_by(dplyr::across(dplyr::all_of(group_cols))) %>%
         dplyr::summarise(!!y_var := mean(.data[[y_var]],na.rm=TRUE), .groups="drop")
-      shiny::showNotification(paste0("Évolution : agrégation auto par moyenne. ",
-                              nrow(data_valid)," pts uniques."), type="message", duration=5)
+      shiny::showNotification(trf("Évolution : agrégation auto par moyenne. %s pts uniques.", nrow(data_valid)), type="message", duration=5)
       data_plot <- data_valid; data_pts <- data_valid
     } else {
       data_plot <- data[!is.na(data[[y_var]]), , drop = FALSE]
@@ -3724,10 +3723,9 @@ mod_viz_server <- function(id, values) {
       viz_type_name <- viz_type_names[[input$vizType]] %||% "Type inconnu"
       
       y_display <- if(!is.null(values$multipleY) && values$multipleY) {
-        paste0("Variables Y (", length(values$yVarNames), "): ", 
-               paste(values$yVarNames, collapse = ", "))
+        trf("Variables Y (%s): %s", length(values$yVarNames), paste(values$yVarNames, collapse = ", "))
       } else {
-        paste0("Variable Y: ", input$vizYVar[1])
+        trf("Variable Y: %s", input$vizYVar[1])
       }
       
       plot_info <- paste0("Type: ", viz_type_name, "\n",

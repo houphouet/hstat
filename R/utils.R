@@ -600,13 +600,7 @@ HSTAT_PKG_REPLI <- list(
                        "sont disponibles dans cet onglet."))
 
 hstat_pkg_manquant <- function(pkg, analyse = NULL) {
-  paste0(
-    if (!is.null(analyse)) paste0(analyse, " : ") else "",
-    trf("le paquet R « %s » n'est pas installé sur cette machine, ", pkg),
-    "cette analyse ne peut donc pas être lancée. ",
-    sprintf("Pour l'ajouter : install.packages(\"%s\"), puis relancez ", pkg),
-    "HStat. ",
-    HSTAT_PKG_REPLI[[pkg]] %||% "")
+  trf("%s%scette analyse ne peut donc pas être lancée. %sHStat. %s", if (!is.null(analyse)) paste0(analyse, " : ") else "", trf("le paquet R « %s » n'est pas installé sur cette machine, ",      pkg), sprintf("Pour l'ajouter : install.packages(\"%s\"), puis relancez ",      pkg), HSTAT_PKG_REPLI[[pkg]] %||% "")
 }
 
 # ---------------------------------------------------------------------------
@@ -872,7 +866,7 @@ interpret_test_results <- function(test_type, p_value, test_object = NULL) {
          "permanova"        = paste0("La PERMANOVA montre une différence multivariée ", significance, " entre les groupes (p = ", round(p_value, 8), ")"),
          "chisq.test"       = paste0("Le test du chi² montre une association ", significance, " entre les variables (p = ", round(p_value, 8), ")"),
          "cor.test"         = paste0("La corrélation est ", significance, " (p = ", round(p_value, 8), ")"),
-         paste0("Le test ", test_type, " montre un résultat ", significance, " (p = ", round(p_value, 8), ")")
+         trf("Le test %s montre un résultat %s (p = %s)", test_type, significance, round(p_value, 8))
   )
 }
 
@@ -1024,9 +1018,9 @@ hstat_glm_fit <- function(formula, data, family = stats::binomial(),
 interpret_normality <- function(p_value) {
   if (is.na(p_value)) return("Résultat non disponible")
   if (p_value >= 0.05) {
-    return(paste0("La distribution est normale (p = ", round(p_value, 8), " >= 0.05)"))
+    return(trf("La distribution est normale (p = %s >= 0.05)", round(p_value, 8)))
   } else {
-    return(paste0("La distribution n'est pas normale (p = ", round(p_value, 8), " < 0.05)"))
+    return(trf("La distribution n'est pas normale (p = %s < 0.05)", round(p_value, 8)))
   }
 }
 
@@ -1951,8 +1945,7 @@ check_manova_data <- function(df, response, factors) {
   }, logical(1))
   if (any(zero_var))
     return(list(ok = FALSE,
-                message = paste0("Variance nulle pour : ",
-                                 paste(response[zero_var], collapse = ", "))))
+                message = trf("Variance nulle pour : %s", paste(response[zero_var], collapse = ", "))))
   
   # Au moins 2 niveaux par facteur, et chaque cellule >= 2 obs
   for (f in factors) {
@@ -2028,8 +2021,7 @@ box_m_test <- function(Y, group) {
   min_per_group <- min(table(group))
   if (min_per_group < ncol(Y) + 1)
     return(list(chi2 = NA_real_, df = NA_real_, p.value = NA_real_,
-                conclusion = paste0("Groupes trop petits pour Box's M (min n=",
-                                    min_per_group, " < p+1=", ncol(Y) + 1, ")")))
+                conclusion = trf("Groupes trop petits pour Box's M (min n=%s < p+1=%s)", min_per_group, ncol(Y) + 1)))
   
   # Vérifier que chaque matrice de covariance de groupe est de rang plein.
   # On teste le RANG (via qr) et non le déterminant brut : le déterminant
@@ -2175,7 +2167,7 @@ manova_effect_sizes <- function(df, p) {
 interpret_manova_effect <- function(p_pillai, eta2 = NA) {
   if (is.na(p_pillai)) return("Résultat non disponible")
   sig <- if (p_pillai < 0.05) "significatif" else "non significatif"
-  base <- paste0("Effet multivarié ", sig, " (Pillai, p = ", round(p_pillai, 6), ")")
+  base <- trf("Effet multivarié %s (Pillai, p = %s)", sig, round(p_pillai, 6))
   if (!is.na(eta2)) {
     mag <- if (eta2 < 0.01) "négligeable"
     else if (eta2 < 0.06) "faible"
@@ -2190,7 +2182,7 @@ interpret_manova_effect <- function(p_pillai, eta2 = NA) {
 interpret_permanova_effect <- function(p_value, R2 = NA) {
   if (is.na(p_value)) return("Résultat non disponible")
   sig <- if (p_value < 0.05) "significatif" else "non significatif"
-  base <- paste0("Effet multivarié ", sig, " (PERMANOVA, p = ", round(p_value, 6), ")")
+  base <- trf("Effet multivarié %s (PERMANOVA, p = %s)", sig, round(p_value, 6))
   if (!is.na(R2)) {
     mag <- if (R2 < 0.01) "négligeable"
     else if (R2 < 0.06) "faible"
@@ -2519,13 +2511,11 @@ detect_multivariate_outliers <- function(Y, alpha = 0.001) {
   pct <- round(100 * length(idx) / n, 1)
   
   concl <- if (length(idx) == 0)
-    paste0("Aucun outlier multivarié détecté (seuil chi2(", p, ") à alpha = ", alpha, ").")
+    trf("Aucun outlier multivarié détecté (seuil chi2(%s) à alpha = %s).", p, alpha)
   else if (pct < 5)
-    paste0(length(idx), " outlier(s) multivarié(s) détecté(s) (", pct,
-           "% des observations). Inspectez-les avant d'analyser.")
+    trf("%s outlier(s) multivarié(s) détecté(s) (%s%% des observations). Inspectez-les avant d'analyser.", length(idx), pct)
   else
-    paste0(length(idx), " outliers (", pct,
-           "% des observations) -- proportion élevée, vérifiez la qualité des données.")
+    trf("%s outliers (%s%% des observations) -- proportion élevée, vérifiez la qualité des données.", length(idx), pct)
   
   list(d2 = d2, threshold = threshold, n_outliers = length(idx),
        idx_outliers = idx, conclusion = concl, alpha = alpha)
@@ -2560,9 +2550,7 @@ recommend_manova_test <- function(mardia, boxm, permdisp, n) {
     mardia$p.skewness >= 0.05 && mardia$p.kurtosis >= 0.05
   if (mardia_ok) {
     justifications <- c(justifications,
-                        paste0("Normalité multivariée respectée (Mardia : p.skew = ",
-                               round(mardia$p.skewness, 3), ", p.kurt = ",
-                               round(mardia$p.kurtosis, 3), ")."))
+                        trf("Normalité multivariée respectée (Mardia : p.skew = %s, p.kurt = %s).", round(mardia$p.skewness, 3), round(mardia$p.kurtosis, 3)))
     score_param <- score_param + 2L
   } else {
     if (!is.null(mardia) && (isTRUE(mardia$p.skewness < 0.05) || isTRUE(mardia$p.kurtosis < 0.05))) {
@@ -2576,8 +2564,7 @@ recommend_manova_test <- function(mardia, boxm, permdisp, n) {
         score_param <- score_param + 0L
       } else {
         justifications <- c(justifications,
-                            paste0("Et n = ", n, " < 50 : PERMANOVA est plus sure (pas d'hypothèse ",
-                                   "distributionnelle)."))
+                            trf("Et n = %s < 50 : PERMANOVA est plus sure (pas d'hypothèse distributionnelle).", n))
         score_param <- score_param - 2L
       }
     }
@@ -5633,8 +5620,7 @@ hstat_align_newdata <- function(newdf, ref, vars) {
   miss <- setdiff(vars, names(newdf))
   if (length(miss) > 0)
     return(list(data = NULL,
-                warn = paste0("Colonnes manquantes dans le fichier importé : ",
-                              paste(miss, collapse = ", "))))
+                warn = trf("Colonnes manquantes dans le fichier importé : %s", paste(miss, collapse = ", "))))
   out <- newdf[, vars, drop = FALSE]
   warns <- character(0)
   for (v in vars) {
@@ -5644,8 +5630,7 @@ hstat_align_newdata <- function(newdf, ref, vars) {
       lv <- levels(factor(ref[[v]]))
       bad <- setdiff(unique(as.character(out[[v]])), c(lv, NA))
       if (length(bad) > 0)
-        warns <- c(warns, paste0(v, " : modalités inconnues ignorées (",
-                                 paste(utils::head(bad, 5), collapse = ", "), ")"))
+        warns <- c(warns, trf("%s : modalités inconnues ignorées (%s)", v, paste(utils::head(bad, 5), collapse = ", ")))
       out[[v]] <- factor(as.character(out[[v]]), levels = lv)
     }
   }

@@ -2682,13 +2682,13 @@ mod_design_server <- function(id, values) {
         if (!is.null(mh)) {
           nom_i <- names(mh$facteurs)[i]
           return(shiny::div(style = "border-left:3px solid #8e44ad;padding-left:8px;margin-bottom:8px;",
-            shiny::textInput(ns(paste0("dsgFName", i)), paste0("Nom du facteur ", i), value = nom_i),
+            shiny::textInput(ns(paste0("dsgFName", i)), trf("Nom du facteur %s", i), value = nom_i),
             shiny::textInput(ns(paste0("dsgFLevels", i)),
                       paste0("Modalités de ", nom_i, " (séparées par virgule)"),
                       value = paste(mh$facteurs[[i]], collapse = ", "))))
         }
         shiny::div(style = "border-left:3px solid #3c8dbc;padding-left:8px;margin-bottom:8px;",
-          shiny::textInput(ns(paste0("dsgFName", i)), paste0("Nom du facteur ", i), value = paste0("Facteur", i)),
+          shiny::textInput(ns(paste0("dsgFName", i)), trf("Nom du facteur %s", i), value = paste0("Facteur", i)),
           # Generateur automatique de modalites : lettre + chiffre de debut + chiffre de fin.
           # Ex : lettre = A, début = 0, fin = 2  ->  A0, A1, A2 (rempli automatiquement ci-dessous).
           shiny::fluidRow(

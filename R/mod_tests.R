@@ -2899,7 +2899,7 @@ mod_tests_server <- function(id, values) {
         }
         df_clean <- df[, c(var, input$factorVar), drop = FALSE]
         df_clean <- df_clean[stats::complete.cases(df_clean), ]
-        if (nrow(df_clean) < 4) { shiny::showNotification(paste0("ANOVA : trop peu d'obs pour '", var, "'."), type = "warning", duration = 4); next }
+        if (nrow(df_clean) < 4) { shiny::showNotification(trf("ANOVA : trop peu d'obs pour '%s'.", var), type = "warning", duration = 4); next }
         for (f in input$factorVar) {
           # Conversion universelle: tous les types vers facteur
           if (!is.factor(df_clean[[f]])) {
@@ -3464,7 +3464,7 @@ mod_tests_server <- function(id, values) {
             summary(model)$coefficients
           }
           if (is.null(coef_table) || nrow(coef_table) < 1) {
-            shiny::showNotification(paste0("GLMM (", var, ") : aucun coefficient d'effet fixe."), type = "warning")
+            shiny::showNotification(trf("GLMM (%s) : aucun coefficient d'effet fixe.", var), type = "warning")
             next
           }
           
@@ -3490,7 +3490,7 @@ mod_tests_server <- function(id, values) {
               } else if (!is.na(pval)) {
                 interpret_test_results("glm", pval)
               } else {
-                paste0("Effet aléatoire : ", rand_term)
+                trf("Effet aléatoire : %s", rand_term)
               },
               stringsAsFactors = FALSE
             )
@@ -3988,8 +3988,7 @@ mod_tests_server <- function(id, values) {
       
       shiny::removeNotification("permanovaProgress")
       shiny::showNotification(
-        paste0("PERMANOVA terminée : ", nrow(out), " effet(s) (", nperm,
-               " permutations, distance ", dist_method, ")."),
+        trf("PERMANOVA terminée : %s effet(s) (%s permutations, distance %s).", nrow(out), nperm, dist_method),
         type = "message", duration = 4
       )
     }, error = function(e) {
@@ -4043,8 +4042,7 @@ mod_tests_server <- function(id, values) {
       values$currentTestType <- "manova_diagnostic"
       
       shiny::showNotification(
-        paste0("Diagnostic terminé. Test recommandé : ", rec$test_recommande,
-               " (confiance : ", rec$niveau_confiance, ")."),
+        trf("Diagnostic terminé. Test recommandé : %s (confiance : %s).", rec$test_recommande, rec$niveau_confiance),
         type = "message", duration = 6
       )
     }, error = function(e) {
@@ -6406,8 +6404,7 @@ mod_tests_server <- function(id, values) {
               interaction_pvalue <- kw_interaction$p.value
               
               shiny::showNotification(
-                paste0("Test non-paramétrique (Kruskal-Wallis) pour ", fvar1, " x ", fvar2, 
-                       ": p = ", round(interaction_pvalue, 4)),
+                trf("Test non-paramétrique (Kruskal-Wallis) pour %s x %s: p = %s", fvar1, fvar2, round(interaction_pvalue, 4)),
                 type = "message", duration = 3
               )
             }
@@ -6451,7 +6448,7 @@ mod_tests_server <- function(id, values) {
                                       Type = "simple_effect",
                                       Interaction_base = interaction_term,
                                       P_interaction = round(interaction_pvalue, 4),
-                                      Direction = paste0(fvar1, " vers ", fvar2)
+                                      Direction = trf("%s vers %s", fvar1, fvar2)
                                     ), error = function(e) NULL)
                   if (!is.null(res))
                     simple_effects_list[[paste(var, fvar1, fvar2, level2, sep = "_")]] <- res
@@ -6483,7 +6480,7 @@ mod_tests_server <- function(id, values) {
                                       Type = "simple_effect",
                                       Interaction_base = interaction_term,
                                       P_interaction = round(interaction_pvalue, 4),
-                                      Direction = paste0(fvar2, " vers ", fvar1)
+                                      Direction = trf("%s vers %s", fvar2, fvar1)
                                     ), error = function(e) NULL)
                   if (!is.null(res))
                     simple_effects_list[[paste(var, fvar2, fvar1, level1, sep = "_")]] <- res
@@ -6783,9 +6780,8 @@ mod_tests_server <- function(id, values) {
         shiny::strong(paste0(" PostHoc ", entry$model_type, " : ", entry$variable, " ~ ", entry$predictor)),
         shiny::tags$ul(style = "margin:4px 0 0 18px;",
                 shiny::tags$li("Méthode : moyennes ajustées (emmeans) sur le prédicteur catégoriel"),
-                shiny::tags$li(paste0("Ajustement des p-values : ", entry$adjust)),
-                shiny::tags$li(paste0("Niveaux comparés : ", n_lev, " -- Paires : ", n_pairs,
-                               " -- Paires significatives : ", n_sig))
+                shiny::tags$li(trf("Ajustement des p-values : %s", entry$adjust)),
+                shiny::tags$li(trf("Niveaux comparés : %s -- Paires : %s -- Paires significatives : %s", n_lev, n_pairs, n_sig))
         ),
         "Pour les modèles GLM non gaussiens, les comparaisons sont sur l'échelle du lien (logit, log...)."
     )
@@ -6876,9 +6872,7 @@ mod_tests_server <- function(id, values) {
                 shiny::tags$li("Méthode : pairwise PERMANOVA (vegan::adonis2), distance euclidienne, 999 permutations"),
                 shiny::tags$li("Ajustement des p-values : Bonferroni"),
                 shiny::tags$li("Lettres CLD générées par multcompView::multcompLetters sur la matrice de p-values ajustées"),
-                shiny::tags$li(paste0("Niveaux comparés : ", entry$n_levels,
-                               " -- Paires : ", n_pairs,
-                               " -- Paires significatives : ", n_sig))
+                shiny::tags$li(trf("Niveaux comparés : %s -- Paires : %s -- Paires significatives : %s", entry$n_levels, n_pairs, n_sig))
         ),
         "Interprétation : deux niveaux partageant une même lettre ne diffèrent pas significativement sur le vecteur de réponses multivariées."
     )

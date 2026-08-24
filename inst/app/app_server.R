@@ -1042,8 +1042,7 @@ server <- function(input, output, session) {
     
     updatePickerInput(session, "pcaVars", selected = new_vars)
     shiny::showNotification(
-      paste0("Variables retirées : ", paste(to_remove, collapse = ", "),
-             ". Relancez l'ACP."),
+      trf("Variables retirées : %s. Relancez l'ACP.", paste(to_remove, collapse = ", ")),
       type = "message", duration = 6)
   })
   
@@ -1148,7 +1147,7 @@ server <- function(input, output, session) {
         pca_data <- calculate_group_means(values$filteredData, input$pcaVars, input$pcaMeansGroup)
         n_groups <- nrow(pca_data)
         shiny::showNotification(
-          paste0("ACP sur moyennes : ", n_groups, " groupes (", input$pcaMeansGroup, ")"), 
+          trf("ACP sur moyennes : %s groupes (%s)", n_groups, input$pcaMeansGroup), 
           type = "message", 
           duration = 3,
           id = "pca_means_notif"
@@ -1458,7 +1457,7 @@ server <- function(input, output, session) {
               shiny::tags$b(style="font-size:12px; color:#2c3e50;", shiny::icon("clipboard-check"), " Vérification des conditions -- ACP"),
               shiny::tags$br(),
               make_badge(n_ok, n_warn, paste0("n = ", n_obs, " observations")),
-              make_badge(p_ok, p_warn, paste0("p = ", p_vars, " variables"))
+              make_badge(p_ok, p_warn, trf("p = %s variables", p_vars))
           ),
           if (length(msgs) > 0)
             shiny::tagList(
@@ -1505,7 +1504,7 @@ server <- function(input, output, session) {
     comp_warn <- !is.na(n_comp_retained) && n_comp_retained == 1
     
     msgs <- list()
-    if (n_err)  msgs <- c(msgs, list(shiny::tagList(shiny::icon("times-circle", style="color:#c0392b;"), paste0(" Effectif critique : n=", n_obs, " < ", cond_n_min, " = 2xk. Classification impossible."))))
+    if (n_err)  msgs <- c(msgs, list(shiny::tagList(shiny::icon("times-circle", style="color:#c0392b;"), trf(" Effectif critique : n=%s < %s = 2xk. Classification impossible.", n_obs, cond_n_min))))
     else if (!n_ok) msgs <- c(msgs, list(shiny::tagList(shiny::icon("exclamation-triangle", style="color:#b7770d;"), paste0(" Effectif faible : n=", n_obs, " (recommandé min. ", cond_n_rec, " = 10xk). Stabilité réduite."))))
     if (!is.na(n_comp_retained)) {
       if (comp_warn) msgs <- c(msgs, list(shiny::tagList(shiny::icon("exclamation-triangle", style="color:#b7770d;"), " Seulement 1 composante ACP retenue (valeur propre min. 1). Recommandé : min. 2 composantes pour une classification robuste.")))
@@ -1579,9 +1578,9 @@ server <- function(input, output, session) {
     
     msgs <- list()
     if (n_err)  msgs <- c(msgs, list(shiny::tagList(shiny::icon("times-circle", style="color:#c0392b;"), paste0(" Effectif insuffisant : n=", n_obs, " inférieur ou égal à p+g=", cond_n_abs, ". L'AFD nécessite n > p + g - 1."))))
-    else if (!n_ok_rec) msgs <- c(msgs, list(shiny::tagList(shiny::icon("exclamation-triangle", style="color:#b7770d;"), paste0(" Effectif faible par groupe : n=", n_obs, " pour ", g, " groupes (recommande min. 20 obs/groupe = ", cond_n_grp, " au total)."))))
+    else if (!n_ok_rec) msgs <- c(msgs, list(shiny::tagList(shiny::icon("exclamation-triangle", style="color:#b7770d;"), trf(" Effectif faible par groupe : n=%s pour %s groupes (recommande min. 20 obs/groupe = %s au total).", n_obs, g, cond_n_grp))))
     if (!is.na(n_groups) && n_groups < 2) msgs <- c(msgs, list(shiny::tagList(shiny::icon("times-circle", style="color:#c0392b;"), " Variable discriminante : moins de 2 groupes détectés. L'AFD requiert g min. 2 groupes distincts.")))
-    if (!ratio_ok && !n_err) msgs <- c(msgs, list(shiny::tagList(shiny::icon("exclamation-triangle", style="color:#b7770d;"), paste0(" Ratio n/p faible : n/p = ", round(n_obs/max(p_vars,1),1), " (recommande min. 10). Risque de sur-ajustement."))))
+    if (!ratio_ok && !n_err) msgs <- c(msgs, list(shiny::tagList(shiny::icon("exclamation-triangle", style="color:#b7770d;"), trf(" Ratio n/p faible : n/p = %s (recommande min. 10). Risque de sur-ajustement.", round(n_obs/max(p_vars, 1), 1)))))
     
     any_err    <- n_err || (!is.na(n_groups) && n_groups < 2)
     border_col <- if (any_err) "#e74c3c" else if (!n_ok_rec || !ratio_ok) "#f39c12" else "#27ae60"
@@ -1594,9 +1593,9 @@ server <- function(input, output, session) {
               shiny::tags$b(style="font-size:12px; color:#2c3e50;", shiny::icon("clipboard-check"), " Vérification des conditions -- AFD"),
               shiny::tags$br(),
               make_badge(n_ok_abs, n_warn, paste0("n = ", n_obs, " observations")),
-              make_badge(p_ok, FALSE, paste0("p = ", p_vars, " variables")),
+              make_badge(p_ok, FALSE, trf("p = %s variables", p_vars)),
               if (!is.na(n_groups))
-                make_badge(g_ok, FALSE, paste0("g = ", n_groups, " groupes")),
+                make_badge(g_ok, FALSE, trf("g = %s groupes", n_groups)),
               make_badge(ratio_ok, ratio_warn, paste0("n/p = ", round(n_obs/max(p_vars,1),1)))
           ),
           if (length(msgs) > 0)
@@ -2022,7 +2021,7 @@ server <- function(input, output, session) {
       ggplot2::geom_text(ggplot2::aes(label = round(Valeur_propre, 2)), vjust = -0.8, size = 3.5, fontface = "bold", color = "#2c3e50") +
       labs(
         title    = "Graphique des \u00e9boulis (Scree Plot)",
-        subtitle = paste0(n_kaiser, " composante(s) retenue(s) selon le crit\u00e8re de Kaiser (\u03bb \u2265 1)"),
+        subtitle = trf("%s composante(s) retenue(s) selon le critère de Kaiser (λ ≥ 1)", n_kaiser),
         x        = "Composante principale",
         y        = "Valeur propre (\u03bb)",
         caption  = "Les composantes en vert ont une valeur propre \u2265 1 et sont retenues pour interpr\u00e9tation."
@@ -2105,8 +2104,7 @@ server <- function(input, output, session) {
       ggplot2::scale_x_continuous(breaks = seq_len(n_pc)) +
       labs(
         title    = "Analyse parall\u00e8le de Horn",
-        subtitle = paste0(n_retain, " composante(s) \u00e0 retenir (valeurs observ\u00e9es > percentile 95 des simulations, ",
-                          n_iter, " it\u00e9rations)"),
+        subtitle = trf("%s composante(s) à retenir (valeurs observées > percentile 95 des simulations, %s itérations)", n_retain, n_iter),
         x       = "Num\u00e9ro de la composante",
         y       = "Valeur propre",
         caption = "Les composantes dont la valeur propre observ\u00e9e d\u00e9passe la courbe rouge (p95 al\u00e9atoire) sont \u00e0 retenir."
@@ -2290,7 +2288,7 @@ server <- function(input, output, session) {
       ggplot2::coord_flip() +
       ggplot2::geom_hline(yintercept = threshold, linetype = "dashed", color = "#e74c3c", size = 0.9) +
       ggplot2::annotate("text", x = 0.6, y = threshold + 0.2,
-               label = paste0("Seuil th\u00e9orique (", round(threshold, 1), "%)"),
+               label = trf("Seuil théorique (%s%%)", round(threshold, 1)),
                hjust = 0, color = "#e74c3c", size = 3.5, fontface = "italic") +
       ggplot2::scale_fill_manual(values = c("TRUE" = "#27ae60", "FALSE" = "#bdc3c7"),
                         labels = c("TRUE" = "Contribution notable", "FALSE" = "Contribution faible"),
@@ -2298,8 +2296,7 @@ server <- function(input, output, session) {
       ggplot2::scale_y_continuous(labels = function(x) paste0(x, "%")) +
       labs(
         title    = paste0("Contributions absolues (CTR) \u2014 Composante PC", axis_num),
-        subtitle = paste0("Seuil th\u00e9orique = 100% / ", nrow(df_ctr), " variables = ",
-                          round(threshold, 1), "%. Les variables en vert contribuent au-del\u00e0 du seuil."),
+        subtitle = trf("Seuil théorique = 100%% / %s variables = %s%%. Les variables en vert contribuent au-delà du seuil.", nrow(df_ctr), round(threshold, 1)),
         x       = NULL,
         y       = "Contribution (%)",
         caption = "Une contribution sup\u00e9rieure au seuil th\u00e9orique indique que la variable influence significativement la composante."
@@ -2627,8 +2624,7 @@ server <- function(input, output, session) {
         }
         res.pca <- FactoMineR::PCA(means_data, graph = FALSE,
                        ncp = min(5, ncol(means_data)))
-        shiny::showNotification(paste0("HCPC sur moyennes : ", nrow(means_data), " groupes (",
-                                input$hcpcMeansGroup, ")."),
+        shiny::showNotification(trf("HCPC sur moyennes : %s groupes (%s).", nrow(means_data), input$hcpcMeansGroup),
                          type = "message", duration = 4, id = "hcpc_means_notif")
       } else {
         res.pca <- pcaResultReactive()
@@ -2794,7 +2790,7 @@ server <- function(input, output, session) {
             n_clusters <- length(unique(dfs$cluster_assignment$Cluster))
             n_individus <- nrow(dfs$cluster_assignment)
             
-            msg <- paste0("HCPC: ", n_individus, " individus classés en ", n_clusters, " clusters")
+            msg <- trf("HCPC: %s individus classés en %s clusters", n_individus, n_clusters)
             shiny::showNotification(msg, type = "message", duration = 3)
           } else {
             shiny::showNotification("Avertissement : dataframes HCPC créés mais vides", type = "warning", duration = 5)
@@ -3534,9 +3530,9 @@ server <- function(input, output, session) {
     col <- values$filteredData[[input$afdFactor]]
     n_lvl <- length(unique(stats::na.omit(col)))
     type_str <- if (is.factor(col))      paste0("Facteur -- ", n_lvl, " niveaux")
-    else if (is.character(col)) paste0("Texte -- ", n_lvl, " valeurs uniques")
-    else if (inherits(col,"Date") || inherits(col,"POSIXt")) paste0("Date -- ", n_lvl, " valeurs uniques")
-    else if (is.numeric(col))  paste0("Numérique -- converti en facteur (", n_lvl, " niveaux)")
+    else if (is.character(col)) trf("Texte -- %s valeurs uniques", n_lvl)
+    else if (inherits(col,"Date") || inherits(col,"POSIXt")) trf("Date -- %s valeurs uniques", n_lvl)
+    else if (is.numeric(col))  trf("Numérique -- converti en facteur (%s niveaux)", n_lvl)
     else if (is.logical(col))  "Logique -- 2 niveaux (TRUE / FALSE)"
     else paste0("Type : ", class(col)[1], " -- ", n_lvl, " niveaux")
     
@@ -3808,7 +3804,7 @@ server <- function(input, output, session) {
           } else {
             n_groups <- nrow(afd_data)
             shiny::showNotification(
-              paste0("AFD sur moyennes : ", n_groups, " groupes (", input$afdMeansGroup, ")"), 
+              trf("AFD sur moyennes : %s groupes (%s)", n_groups, input$afdMeansGroup), 
               type = "message", 
               duration = 3,
               id = "afd_means_notif"
@@ -3876,8 +3872,7 @@ server <- function(input, output, session) {
       vars_to_use <- setdiff(input$afdVars, constant_vars)
       if (length(constant_vars) > 0) {
         shiny::showNotification(
-          paste0("Variables exclues (constantes dans les groupes) : ", 
-                 paste(constant_vars, collapse = ", ")),
+          trf("Variables exclues (constantes dans les groupes) : %s", paste(constant_vars, collapse = ", ")),
           type = "warning",
           duration = 8
         )
@@ -4146,7 +4141,7 @@ server <- function(input, output, session) {
             n_individus <- nrow(dfs$ind_coords)
             n_groupes <- length(unique(dfs$ind_coords$Groupe_reel))
             
-            msg <- paste0("AFD: ", n_individus, " individus, ", n_groupes, " groupes")
+            msg <- trf("AFD: %s individus, %s groupes", n_individus, n_groupes)
             shiny::showNotification(msg, type = "message", duration = 3)
           } else {
             shiny::showNotification("Avertissement : dataframes AFD créés mais vides", type = "warning", duration = 5)
@@ -4611,7 +4606,7 @@ server <- function(input, output, session) {
                       card(border_color = "#6c5b8e", bg = "#f8f9fa",
                            shiny::div(style = "text-align:center;",
                                shiny::div(style = "font-size:22px; font-weight:bold; color:#6c5b8e;",
-                                   paste0(nrow(confusion_matrix), " groupes")),
+                                   trf("%s groupes", nrow(confusion_matrix))),
                                p(style = "font-size:13px; color:#444; margin:4px 0 0 0; text-transform:uppercase;",
                                  "Groupes discriminés"),
                                p(style = "font-size:13px; color:#555; margin:8px 0 0 0;",
@@ -5974,8 +5969,8 @@ server <- function(input, output, session) {
     n_st <- if (n >= 100) "ok" else if (n >= 50) "warn" else "err"
     p_st <- if (p >= 4) "ok" else "err"
     msgs <- list()
-    if (n_st == "err") msgs <- c(msgs, paste0("Effectif insuffisant : n=", n, " (min. 50, recommand\u00e9 100)."))
-    else if (n_st == "warn") msgs <- c(msgs, paste0("Effectif mod\u00e9r\u00e9 : n=", n, " (recommand\u00e9 n>=100)."))
+    if (n_st == "err") msgs <- c(msgs, trf("Effectif insuffisant : n=%s (min. 50, recommandé 100).", n))
+    else if (n_st == "warn") msgs <- c(msgs, trf("Effectif modéré : n=%s (recommandé n>=100).", n))
     if (p_st == "err") msgs <- c(msgs, "Le MTMM requiert au moins 4 variables (2 traits \u00d7 2 m\u00e9thodes).")
     lvl <- if ("err" %in% c(n_st, p_st)) "err" else if ("warn" %in% c(n_st, p_st)) "warn" else "ok"
     .mv_cond_render("Conditions -- MTMM",
@@ -6447,17 +6442,16 @@ server <- function(input, output, session) {
             mv_section_header("Qualité de la partition", "#4a7fa5", "object-group"),
             mv_info_note("Chaque métrique de séparation des clusters est confrontée à son seuil de référence."),
             mv_metrics_table(metrics, "#4a7fa5"),
-            mv_interp_bar(paste0("Solution à ", k, " clusters sur ", nrow(Xc),
-              " individus. Inertie inter-classes = ", round(100*bss,1), " %."),
+            mv_interp_bar(trf("Solution à %s clusters sur %s individus. Inertie inter-classes = %s %%.", k, nrow(Xc), round(100 * bss, 1)),
               mv_col(st_bss))),
           mv_card(border_color = "#6c757d",
             mv_section_header("Centres des clusters (variables d'origine)", "#6c757d", "crosshairs"),
             mv_data_table(data.frame(Cluster = seq_len(k), round(km$centers,3),
                                      check.names = FALSE), "#6c757d")))
         list(ok = TRUE, render = render, metrics = metrics,
-          note = paste0("k-means : ", k, " clusters sur ", nrow(Xc), " individus."),
+          note = trf("k-means : %s clusters sur %s individus.", k, nrow(Xc)),
           summary = c("=== Classification k-means ===",
-            paste0("Variables : ", paste(vars, collapse=", ")),
+            trf("Variables : %s", paste(vars, collapse = ", ")),
             paste0("k = ", k, " | nstart = ", input$mv_kmeans_nstart),
             paste0("Inertie inter/totale = ", round(100*bss,2), " %"),
             "", "Centres :", paste(utils::capture.output(round(km$centers,3)), collapse="\n")),
@@ -6540,7 +6534,7 @@ server <- function(input, output, session) {
                  st_com),
           mv_row("Cross-loadings (|charge|>0,30)", cross,
                  "0 souhaite : structure simple",
-                 if (st_cro=="ok") "Structure factorielle simple" else paste0(cross, " variable(s) ambigue(s)"),
+                 if (st_cro=="ok") "Structure factorielle simple" else trf("%s variable(s) ambigue(s)", cross),
                  st_cro))
         ld <- as.data.frame(load); ld$Variable <- rownames(load)
         ldl <- stats::reshape(ld, direction = "long",
@@ -6702,8 +6696,7 @@ server <- function(input, output, session) {
               "Le modèle n'a pas convergé : les indices d'ajustement ne peuvent pas être calculés. ",
               "Causes probables et pistes : ",
               if (length(small_fac))
-                paste0("(1) le(s) facteur(s) ", paste(small_fac, collapse = ", "),
-                       " n'ont que 1-2 indicateurs -- un facteur latent nécessite idéalement >= 3 indicateurs ; ")
+                trf("(1) le(s) facteur(s) %s n'ont que 1-2 indicateurs -- un facteur latent nécessite idéalement >= 3 indicateurs ; ", paste(small_fac, collapse = ", "))
               else "",
               "(2) des indicateurs quasi-colinéaires (ex. une variable qui est le ratio ou la somme d'autres indicateurs du modèle) ; ",
               "(3) des échelles très hétérogènes -- essayez de standardiser les variables ; ",
@@ -6812,10 +6805,7 @@ server <- function(input, output, session) {
           asg <- t(vapply(colnames(X), function(v) .mtmm_parse_name(v, sep), character(2)))
           bad <- rownames(asg)[is.na(asg[, 1]) | is.na(asg[, 2])]
           if (length(bad))
-            return(list(ok = FALSE, error = paste0(
-              "Impossible de d\u00e9duire trait/m\u00e9thode pour : ", paste(bad, collapse = ", "),
-              ". Attendu : Trait", sep, "M\u00e9thode (coupe sur le dernier '", sep,
-              "'), ou d\u00e9cochez la d\u00e9duction automatique pour une affectation manuelle.")))
+            return(list(ok = FALSE, error = trf("Impossible de déduire trait/méthode pour : %s. Attendu : Trait%sMéthode (coupe sur le dernier '%s'), ou décochez la déduction automatique pour une affectation manuelle.", paste(bad, collapse = ", "), sep, sep)))
           traits <- asg[, 1]; methods <- asg[, 2]
         } else {
           traits <- vapply(colnames(X), function(v)
@@ -6830,9 +6820,7 @@ server <- function(input, output, session) {
         names(traits) <- names(methods) <- colnames(X)
         Tn <- sort(unique(traits)); Mn <- sort(unique(methods))
         if (length(Tn) < 2 || length(Mn) < 2)
-          return(list(ok = FALSE, error = paste0(
-            "Le MTMM requiert au moins 2 traits et 2 m\u00e9thodes (d\u00e9tect\u00e9 : ",
-            length(Tn), " trait(s), ", length(Mn), " m\u00e9thode(s)).")))
+          return(list(ok = FALSE, error = trf("Le MTMM requiert au moins 2 traits et 2 méthodes (détecté : %s trait(s), %s méthode(s)).", length(Tn), length(Mn))))
         combo <- paste(traits, methods, sep = " || ")
         dup <- unique(combo[duplicated(combo)])
         if (length(dup))
@@ -6953,11 +6941,10 @@ server <- function(input, output, session) {
           i1 = vapply(Mn, function(m) max(which(methods == m)), numeric(1)))
         nv <- length(vn)
         list(ok = TRUE, render = render, metrics = metrics,
-          note = paste0("MTMM : ", length(Tn), " traits \u00d7 ", length(Mn),
-                        " m\u00e9thodes, ", nrow(val), " coefficients de validit\u00e9."),
+          note = trf("MTMM : %s traits × %s méthodes, %s coefficients de validité.", length(Tn), length(Mn), nrow(val)),
           summary = c("=== Multi-Trait Multi-Method (Campbell & Fiske) ===",
             paste0("Traits : ", paste(Tn, collapse = ", ")),
-            paste0("M\u00e9thodes : ", paste(Mn, collapse = ", ")),
+            trf("Méthodes : %s", paste(Mn, collapse = ", ")),
             paste0("n = ", n),
             "", "Matrice MTMM :",
             paste(utils::capture.output(round(R, 3)), collapse = "\n"),
@@ -6978,8 +6965,7 @@ server <- function(input, output, session) {
                        ymin = nv - blk$i1 + 0.5, ymax = nv - blk$i0 + 1.5,
                        fill = NA, color = "black", linewidth = 0.9) +
               labs(title = "Matrice Multi-Trait Multi-Method",
-                   subtitle = paste0(length(Tn), " traits \u00d7 ", length(Mn),
-                                     " m\u00e9thodes | n = ", n),
+                   subtitle = trf("%s traits × %s méthodes | n = %s", length(Tn), length(Mn), n),
                    x = NULL, y = NULL,
                    caption = paste0("Blocs noirs = monom\u00e9thode ; cadres or\u00e9s = diagonale de validit\u00e9 ",
                                     "(m\u00eame trait, m\u00e9thodes diff\u00e9rentes).")) +
@@ -7109,7 +7095,7 @@ server <- function(input, output, session) {
               mv_gg_theme()
           }
           exports <- list(Metriques = metrics)
-          note <- paste0("PLS : ", ncomp, " composantes, réponse continue.")
+          note <- trf("PLS : %s composantes, réponse continue.", ncomp)
           extra_card <- NULL
         }
         vip <- tryCatch({
@@ -7300,7 +7286,7 @@ server <- function(input, output, session) {
         list(ok = TRUE, render = render, metrics = metrics,
           note = paste0("AFC : table ", nrow(tab), "x", ncol(tab), "."),
           summary = c("=== Analyse Factorielle des Correspondances ===",
-            paste0("Variables : ", rv, " (lignes) x ", cv, " (colonnes)"),
+            trf("Variables : %s (lignes) x %s (colonnes)", rv, cv),
             "", "Valeurs propres :", paste(utils::capture.output(round(eig,4)), collapse="\n")),
           plotfn = function() {
             ggplot2::ggplot(biplot, ggplot2::aes(Dim1, Dim2, color = Type, label = Label)) +
@@ -7399,7 +7385,7 @@ server <- function(input, output, session) {
           summary = c("=== Analyse des Correspondances Multiples ===",
             "Valeurs propres :", paste(utils::capture.output(round(eig,4)), collapse="\n")),
           plotfn = function() {
-            sub_t <- paste0("Inertie ajustée axes 1-2 = ", round(dim12_adj,1), " %")
+            sub_t <- trf("Inertie ajustée axes 1-2 = %s %%", round(dim12_adj, 1))
             pt <- input$mv_mca_plottype %||% "biplot"
             # Coloration par groupe (variable qualitative) facon 'explor'
             gvar <- input$mv_mca_groupvar %||% "__none__"
@@ -7516,9 +7502,9 @@ server <- function(input, output, session) {
             mv_section_header("Modes (centres) des clusters", "#6c757d", "crosshairs"),
             mv_data_table(data.frame(Cluster = seq_len(k), km$modes, check.names = FALSE), "#6c757d")))
         list(ok = TRUE, render = render, metrics = metrics,
-          note = paste0("k-modes : ", k, " clusters sur ", nrow(sub), " individus."),
+          note = trf("k-modes : %s clusters sur %s individus.", k, nrow(sub)),
           summary = c("=== Classification k-modes ===",
-            paste0("Variables : ", paste(vars, collapse=", ")),
+            trf("Variables : %s", paste(vars, collapse = ", ")),
             "", "Modes :", paste(utils::capture.output(km$modes), collapse="\n")),
           plotfn = function() {
             df_plot <- sz_df
@@ -7738,7 +7724,7 @@ server <- function(input, output, session) {
                         color = ifelse(cm$Freq > max(cm$Freq)/2, "white", "#2c3e50")) +
               ggplot2::scale_fill_gradient(low = "#f3e5f5", high = "#6a1b9a") +
               labs(title = "Logistique multinomiale -- matrice de confusion",
-                   subtitle = paste0("Taux de bon classement = ", round(100*acc,1), " %"),
+                   subtitle = trf("Taux de bon classement = %s %%", round(100 * acc, 1)),
                    x = "Classe prédite", y = "Classe observée") +
               mv_gg_theme()
           }
@@ -8040,9 +8026,9 @@ server <- function(input, output, session) {
             mv_data_table(data.frame(Cluster = seq_len(k), kp$centers, check.names = FALSE),
                           "#6c757d")))
         list(ok = TRUE, render = render, metrics = metrics,
-          note = paste0("k-prototypes : ", k, " clusters sur ", nrow(sub), " individus."),
+          note = trf("k-prototypes : %s clusters sur %s individus.", k, nrow(sub)),
           summary = c("=== Classification k-prototypes ===",
-            paste0("Variables : ", paste(vars, collapse=", ")),
+            trf("Variables : %s", paste(vars, collapse = ", ")),
             "", "Prototypes :", paste(utils::capture.output(kp$centers), collapse="\n")),
           plotfn = function() {
             df_plot <- sz_df
