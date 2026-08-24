@@ -1400,9 +1400,7 @@ hstat_design_analysis <- function(type, n_factors) {
                     subtitle = "Grandes parcelles (Facteur 1, couleur) divisées en sous-parcelles (Facteur 2, étiquettes)",
                     x = "Grandes parcelles (Facteur 1) → sous-parcelles (Facteur 2)",
                     y = "Bloc", fill = lt %||% "Facteur principal (F1)",
-                    caption = paste0("Sous-parcelles (Facteur 2) : ",
-                                     paste(sort(unique(as.character(b[[f2]]))), collapse = ", "),
-                                     "  |  les lignes verticales épaisses séparent les grandes parcelles")) +
+                    caption = trf("Sous-parcelles (Facteur 2) : %s  |  les lignes verticales épaisses séparent les grandes parcelles", paste(sort(unique(as.character(b[[f2]]))), collapse = ", "))) +
       (theme_gg %||% ggplot2::theme_minimal(base_size = font_axis)) +
       ggplot2::theme(panel.grid = ggplot2::element_blank(),
                      plot.title = ggplot2::element_text(face = "bold"),
@@ -2684,7 +2682,7 @@ mod_design_server <- function(id, values) {
           return(shiny::div(style = "border-left:3px solid #8e44ad;padding-left:8px;margin-bottom:8px;",
             shiny::textInput(ns(paste0("dsgFName", i)), trf("Nom du facteur %s", i), value = nom_i),
             shiny::textInput(ns(paste0("dsgFLevels", i)),
-                      paste0("Modalités de ", nom_i, " (séparées par virgule)"),
+                      trf("Modalités de %s (séparées par virgule)", nom_i),
                       value = paste(mh$facteurs[[i]], collapse = ", "))))
         }
         shiny::div(style = "border-left:3px solid #3c8dbc;padding-left:8px;margin-bottom:8px;",
@@ -2700,7 +2698,7 @@ mod_design_server <- function(id, values) {
                                    shiny::tagList(shiny::icon("stop"), " Fin"), value = if (i == 1) 2 else 1, min = 0, step = 1))
           ),
           shiny::textInput(ns(paste0("dsgFLevels", i)),
-                    paste0("Modalités du facteur ", i, " (séparées par virgule)"),
+                    trf("Modalités du facteur %s (séparées par virgule)", i),
                     value = default_levels))
       })
     })

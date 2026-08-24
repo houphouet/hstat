@@ -418,7 +418,7 @@ mod_timeseries_server <- function(id, values) {
         lab <- names(f$labels)[match(idm, f$labels)]
         if (!isTRUE(r$ok))
           return(data.frame(Modele = lab, RMSE = NA, MAE = NA, `MAPE (%)` = NA,
-                            MASE = NA, AIC = NA, Statut = paste("Échec :", r$err),
+                            MASE = NA, AIC = NA, Statut = trf("Échec : %s", r$err),
                             check.names = FALSE))
         v <- function(m) { i <- match(m, r$metrics$Metrique)
                            if (is.na(i)) NA else r$metrics$Valeur[i] }

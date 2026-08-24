@@ -2317,6 +2317,34 @@ Prudence nécessaire : le balayage des mots sans accent remonte aussi des
 script de reproductibilité. Les corriger casserait des clés. Seuls les libellés
 **affichés** ont été touchés, un par un.
 
+#### `getParseData()` compte en octets, `substr()` en caractères
+
+Le piège le plus coûteux de tout le chantier de traduction, et le plus
+silencieux. L'outil qui convertit `paste0("texte ", x)` en `trf("texte %s", x)`
+localise l'appel par l'analyseur de R, puis découpe la ligne à ces colonnes.
+
+Or `getParseData()` rend des colonnes en **octets**, et `substr()` découpe en
+**caractères**. Le décalage vaut le nombre d'octets surnuméraires de la ligne —
+donc **nul tant qu'elle est en ASCII**. L'étendue extraite débordait sur la
+virgule suivante, `str2lang()` levait « unexpected `,` », et l'appel était
+sauté sans un mot.
+
+Conséquence : l'outil échouait sur **toute ligne accentuée**, c'est-à-dire
+exactement sur le français qu'il était censé traiter. Il annonçait 15
+conversions là où il y en avait 146, et rien ne le disait — un outil de mesure
+qui ment sur ce qu'il n'a pas vu. Corrigé, il en trouve **131** de plus, et la
+couverture passe de 94,4 % à 96,6 %.
+
+Règle : dès qu'on découpe une ligne source aux positions de `getParseData()`,
+passer par `charToRaw()` / `rawToChar()`. Le `nchar()` d'un fichier source
+français n'est jamais son nombre d'octets.
+
+Deuxième piège du même outil : `strsplit("", "\n")` rend `character(0)`,
+qu'`unlist()` fait disparaître. Redécouper les lignes réécrites supprimait
+ainsi **toutes les lignes vides** des douze fichiers — un diff de plusieurs
+milliers de lignes pour 131 conversions réelles. C'est `git diff --numstat` qui
+l'a montré, avant tout test.
+
 #### Ce que le modèle écrit, aucun dictionnaire ne le traduira
 
 La réponse d'un modèle de langue est du **texte affiché** — mais elle n'existe

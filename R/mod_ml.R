@@ -619,7 +619,7 @@ mod_ml_server <- function(id, values) {
       rows <- lapply(f$res, function(r) {
         if (!isTRUE(r$ok))
           return(data.frame(Modele = r$label, C1 = NA, C2 = NA, C3 = NA,
-                            HP = "", Statut = paste("Échec :", r$err)))
+                            HP = "", Statut = trf("Échec : %s", r$err)))
         v <- function(m) { i <- match(m, r$metrics$Metrique)
                            if (is.na(i)) NA else r$metrics$Valeur[i] }
         if (cls) data.frame(Modele = r$label, C1 = v("Exactitude (accuracy)"),

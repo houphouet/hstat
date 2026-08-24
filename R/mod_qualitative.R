@@ -328,7 +328,7 @@ hstat_q_nominal_univariate <- function(x, var_name = "Variable") {
                          position = ggplot2::position_stack(vjust = 0.5),
                          size = 3.8, fontface = "bold", color = "grey15") +
       ggplot2::coord_polar(theta = "y") +
-      ggplot2::labs(title = paste0("Répartition -- ", var_name), x = NULL, y = NULL, fill = "Modalité") +
+      ggplot2::labs(title = trf("Répartition -- %s", var_name), x = NULL, y = NULL, fill = "Modalité") +
       ggplot2::theme_void(base_size = 12)
   }
 
@@ -685,7 +685,7 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
       ggplot2::geom_text(ggplot2::aes(label = round(Effectif, 1)),
                          position = ggplot2::position_dodge(width = 0.8),
                          vjust = -0.3, size = 3.2) +
-      ggplot2::labs(title = paste0("Observé vs attendu -- ", var_name),
+      ggplot2::labs(title = trf("Observé vs attendu -- %s", var_name),
                     x = NULL, y = "Effectif", fill = NULL) +
       ggplot2::theme_minimal(base_size = 12)
   }
@@ -729,7 +729,7 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
       ggplot2::geom_text(ggplot2::aes(label = sprintf("%d\n(%s)", Observe, Groupe)),
                          vjust = -0.2, size = 3.6, fontface = "bold") +
       ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.18))) +
-      ggplot2::labs(title = paste0("Groupes homogènes -- ", var_name),
+      ggplot2::labs(title = trf("Groupes homogènes -- %s", var_name),
                     subtitle = "Modalités partageant une lettre : non significativement différentes",
                     x = NULL, y = "Effectif observé") +
       ggplot2::theme_minimal(base_size = 12)
@@ -892,7 +892,7 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y") {
       ggplot2::geom_text(ggplot2::aes(label = Effectif),
                          position = ggplot2::position_dodge(width = 0.85),
                          vjust = -0.3, size = 3.2) +
-      ggplot2::labs(title = paste0("Effectifs croisés : ", xname, " x ", yname),
+      ggplot2::labs(title = trf("Effectifs croisés : %s x %s", xname, yname),
                     x = xname, y = "Effectif", fill = yname) +
       ggplot2::theme_minimal(base_size = 12) +
       ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 30, hjust = 1))
@@ -1229,7 +1229,7 @@ hstat_q_likert_scale <- function(items_df, levels_order = NULL, scale_name = "É
       ggplot2::geom_col() +
       ggplot2::scale_fill_brewer(palette = "RdYlGn") +
       ggplot2::coord_flip() +
-      ggplot2::labs(title = paste0("Profil de l'échelle -- ", scale_name),
+      ggplot2::labs(title = trf("Profil de l'échelle -- %s", scale_name),
                     x = NULL, y = "Pourcentage", fill = "Niveau") +
       ggplot2::theme_minimal(base_size = 12)
   }
@@ -1713,7 +1713,7 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
     ggplot2::ggplot(d, ggplot2::aes(Mot, Frequence, fill = Frequence)) +
       ggplot2::geom_col(show.legend = FALSE) +
       ggplot2::coord_flip() +
-      ggplot2::labs(title = paste0("Mots les plus fréquents -- ", var_name), x = NULL, y = "Fréquence") +
+      ggplot2::labs(title = trf("Mots les plus fréquents -- %s", var_name), x = NULL, y = "Fréquence") +
       ggplot2::theme_minimal(base_size = 12)
   }
   plot_wordcloud <- function() {
@@ -1801,7 +1801,7 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
       ggplot2::geom_text(ggplot2::aes(label = label), hjust = 0, size = 3.3, y = 0.1) +
       ggplot2::coord_flip() +
       ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.35))) +
-      ggplot2::labs(title = paste0("Thèmes identifiés -- ", var_name),
+      ggplot2::labs(title = trf("Thèmes identifiés -- %s", var_name),
                     subtitle = "Analyse sémantique latente (SVD) + regroupement k-means",
                     x = NULL, y = "Nombre de termes") +
       ggplot2::theme_minimal(base_size = 12) +

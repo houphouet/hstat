@@ -1545,7 +1545,7 @@ mod_viz_server <- function(id, values) {
     shiny::invalidateLater(80)
     
     shiny::showNotification(
-      paste0("Labels appliqués : ", length(level_mapping), " niveaux mis à jour."),
+      trf("Labels appliqués : %s niveaux mis à jour.", length(level_mapping)),
       type = "message", duration = 2
     )
   })
@@ -1671,7 +1671,7 @@ mod_viz_server <- function(id, values) {
     if(length(unique_vals) == 0) return(NULL)
     if(length(unique_vals) > 100) {
       return(shiny::div(
-        shiny::p(paste("Trop de catégories (", length(unique_vals), "). Réduisez vos données."), 
+        shiny::p(trf("Trop de catégories ( %s ). Réduisez vos données.", length(unique_vals)), 
           style = "color: #ff9800; font-weight: bold;")
       ))
     }
@@ -1699,7 +1699,7 @@ mod_viz_server <- function(id, values) {
     shiny::div(
       shiny::div(style = "margin-bottom: 10px;",
           shiny::div(style = "display: flex; justify-content: space-between; align-items: center;",
-              shiny::span(paste(length(display_vals), "catégories détectées"), 
+              shiny::span(trf("%s catégories détectées", length(display_vals)), 
                    style = "color: #666; font-size: 12px;"),
               shiny::div(style = "display: flex; gap: 5px;",
                   shiny::actionButton(ns("autoSortX"), "Tri auto", 
@@ -2512,7 +2512,7 @@ mod_viz_server <- function(id, values) {
       removed <- setdiff(names(group_counts), valid_groups)
       if(length(removed) > 0) {
         shiny::showNotification(
-          paste("Violin: groupes ignorés (< 2 obs.):", paste(removed, collapse = ", ")),
+          trf("Violin: groupes ignorés (< 2 obs.): %s", paste(removed, collapse = ", ")),
           type = "warning", duration = 4
         )
       }
@@ -2567,7 +2567,7 @@ mod_viz_server <- function(id, values) {
         dplyr::filter(!is.na(.data[[y_var]])) %>%
         dplyr::group_by(dplyr::across(dplyr::all_of(group_cols))) %>%
         dplyr::summarise(!!y_var := mean(.data[[y_var]], na.rm=TRUE), .groups="drop")
-      shiny::showNotification(paste0("Seasonal Smooth : agrégation auto par moyenne (",nrow(data)," pts)."),
+      shiny::showNotification(trf("Seasonal Smooth : agrégation auto par moyenne (%s pts).", nrow(data)),
                        type="message", duration=4)
     } else {
       data <- data[!is.na(data[[y_var]]), , drop = FALSE]
@@ -4017,7 +4017,7 @@ mod_viz_server <- function(id, values) {
       
       shiny::removeNotification(id = "download_notif")
       shiny::showNotification(
-        paste("Téléchargement réussi :", filename), 
+        trf("Téléchargement réussi : %s", filename), 
         type = "message", 
         duration = 4
       )

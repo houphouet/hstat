@@ -246,7 +246,8 @@ consistency check, then the full suite.
 │   │   └── test-hstat.R            # the reference suite
 │   └── testthat.R                  # entry point used by R CMD check
 └── tools
-    └── mutation.R                  # mutation bench: does an assertion actually bite?
+    ├── mutation.R                  # mutation bench: does an assertion actually bite?
+    └── paste2trf.R                 # paste0("texte ", x) -> trf("texte %s", x)
 ```
 ---
 
@@ -261,7 +262,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.67.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.68.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -269,7 +270,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 0.67.0},
+  note   = {Version 0.68.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

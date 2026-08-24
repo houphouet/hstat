@@ -377,7 +377,7 @@ hstat_ai_available <- function(explicit = NULL) {
                         timeout)
   if (inherits(res, "error"))
     return(list(ok = FALSE, text = "",
-                error = paste("Échec de la connexion :", conditionMessage(res))))
+                error = trf("Échec de la connexion : %s", conditionMessage(res))))
 
   raw <- httr::content(res, as = "text", encoding = "UTF-8")
   parsed <- tryCatch(jsonlite::fromJSON(raw, simplifyVector = FALSE),
@@ -1974,6 +1974,9 @@ mod_ai_server <- function(id, values) {
         res <- hstat_ai_call(
           hstat_ai_interpret_prompt(c0, pr, rc, vd, input$niveau %||% "scientifique",
                                     input$contexte %||% "", input$alpha %||% 0.05),
+          # UNE INVITE N'EST PAS DU TEXTE AFFICHE : elle n'a pas a devenir une
+          # cle du dictionnaire. C'est `hstat_ai_consigne_langue()` qui porte
+          # la langue, pas une traduction du gabarit.
           system = paste0("Tu es statisticien. Tu interprètes des résultats déjà ",
                           "obtenus, sans jamais inventer de chiffre ni relancer ",
                           "d'analyse. Tu réponds ", hstat_ai_consigne_langue(),

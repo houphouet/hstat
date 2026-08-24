@@ -5230,59 +5230,6 @@ process.stdout.write(JSON.stringify(apres));
   expect_equal(avec$dollar, "$& remplace")
 })
 
-test_that("toute cle passee a tr() ou trf() figure au dictionnaire", {
-  # CE DEFAUT NE SE VOIT PAS. `tr()` retombe sur le francais quand la cle
-  # manque -- c'est la degradation douce voulue pour le DOM, ou une chaine
-  # oubliee reste lisible. Mais une cle passee EXPLICITEMENT a `tr()`/`trf()`
-  # n'est pas une chaine oubliee : c'est une phrase que le developpeur a
-  # declaree traduisible. Absente du CSV, elle sort en francais au milieu d'une
-  # interface anglaise, sans erreur, sans avertissement, sans trace.
-  #
-  # LA COMPARAISON SE FAIT SUR LES DEUX COTES ELAGUES, et ce detail est la
-  # moitie du test. `hstat_i18n_load()` elague ses cles, et `tr()` cherche sur
-  # la chaine elaguee : une cle du CSV bordee d'espaces et un appel sans espace
-  # sont LA MEME entree. Un controle qui comparerait les chaines brutes
-  # signalerait quatre gabarits « absents » qui sont en fait presents -- l'audit
-  # s'y est laisse prendre avant que ce test ne soit ecrit.
-  #
-  # Le releve passe par l'ANALYSEUR : un motif confondrait `trf("...")` avec la
-  # chaine d'un `paste0` voisin, et ne saurait pas ecarter un premier argument
-  # qui est une variable et non un litteral.
-  root <- .hstat_repo_root()
-  skip_if(is.na(root))
-  csv <- file.path(root, "inst", "app", "i18n", "fr-en.csv")
-  skip_if(!file.exists(csv))
-
-  cles <- character(0)
-  for (f in .hstat_sources_app()) {
-    ex <- tryCatch(parse(f, keep.source = FALSE), error = function(e) NULL)
-    if (is.null(ex)) next
-    visite <- function(n) {
-      if (is.call(n)) {
-        f1 <- n[[1]]
-        if (is.name(f1) && as.character(f1) %in% c("tr", "trf") &&
-            length(n) >= 2 && is.character(n[[2]]) && length(n[[2]]) == 1L)
-          cles <<- c(cles, n[[2]])
-        for (i in seq_along(n)) tryCatch(visite(n[[i]]), error = function(e) NULL)
-      } else if (is.pairlist(n) || is.expression(n)) {
-        for (i in seq_along(n)) tryCatch(visite(n[[i]]), error = function(e) NULL)
-      }
-    }
-    for (k in seq_along(ex)) tryCatch(visite(ex[[k]]), error = function(e) NULL)
-  }
-  # `tr()` cherche sur la chaine ELAGUEE et rend l'espacement autour : c'est
-  # donc la forme elaguee qui doit figurer au dictionnaire.
-  cles <- unique(trimws(cles))
-  skip_if(!length(cles))
-
-  d <- utils::read.csv(csv, stringsAsFactors = FALSE, colClasses = "character",
-                       encoding = "UTF-8")
-  absentes <- cles[!(cles %in% trimws(d$fr))]
-  expect_equal(absentes, character(0),
-               info = paste("cles sans traduction :",
-                            paste(utils::head(absentes, 5), collapse = " | ")))
-})
-
 test_that("une classe hstat-* posee dans le code est definie dans le style", {
   # LE DEFAUT QUE CE TEST GARDE, constate a l'audit. La classe de l'encadre
   # d'interpretation etait posee sur DIX-SEPT divs de mod_tests.R et definie

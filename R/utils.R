@@ -864,18 +864,23 @@ hstat_p_verdict <- function(p, alpha = 0.05) {
 }
 
 interpret_test_results <- function(test_type, p_value, test_object = NULL) {
-  if (is.na(p_value)) return("Résultat non disponible")
-  significance <- ifelse(p_value < 0.05, "significative", "non significative")
+  if (is.na(p_value)) return(tr("Résultat non disponible", hstat_langue_session()))
+  # `trf()` ne traduit JAMAIS ses arguments -- c'est ce qui protège les données
+  # de l'utilisateur. Mais ce mot-ci n'est pas une donnée : c'est un verdict
+  # choisi par le code. On le déclare donc traduisible au point d'appel, comme
+  # le fait déjà l'onglet des plans d'expérience pour « équiprobables ».
+  significance <- tr(if (p_value < 0.05) "significative" else "non significative",
+                     hstat_langue_session())
   switch(test_type,
-         "t.test"           = paste0("Le test t montre une différence ", significance, " entre les groupes (p = ", round(p_value, 8), ")"),
-         "wilcox.test"      = paste0("Le test de Wilcoxon montre une différence ", significance, " entre les groupes (p = ", round(p_value, 8), ")"),
-         "anova"            = paste0("L'ANOVA montre une différence ", significance, " entre les groupes (p = ", round(p_value, 8), ")"),
-         "kruskal.test"     = paste0("Le test de Kruskal-Wallis montre une différence ", significance, " entre les groupes (p = ", round(p_value, 8), ")"),
-         "scheirerRayHare"  = paste0("Le test de Scheirer-Ray-Hare montre une différence ", significance, " entre les groupes (p = ", round(p_value, 8), ")"),
-         "manova"           = paste0("La MANOVA montre une différence multivariée ", significance, " entre les groupes (p = ", round(p_value, 8), ")"),
-         "permanova"        = paste0("La PERMANOVA montre une différence multivariée ", significance, " entre les groupes (p = ", round(p_value, 8), ")"),
-         "chisq.test"       = paste0("Le test du chi² montre une association ", significance, " entre les variables (p = ", round(p_value, 8), ")"),
-         "cor.test"         = paste0("La corrélation est ", significance, " (p = ", round(p_value, 8), ")"),
+         "t.test"           = trf("Le test t montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
+         "wilcox.test"      = trf("Le test de Wilcoxon montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
+         "anova"            = trf("L'ANOVA montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
+         "kruskal.test"     = trf("Le test de Kruskal-Wallis montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
+         "scheirerRayHare"  = trf("Le test de Scheirer-Ray-Hare montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
+         "manova"           = trf("La MANOVA montre une différence multivariée %s entre les groupes (p = %s)", significance, round(p_value, 8)),
+         "permanova"        = trf("La PERMANOVA montre une différence multivariée %s entre les groupes (p = %s)", significance, round(p_value, 8)),
+         "chisq.test"       = trf("Le test du chi² montre une association %s entre les variables (p = %s)", significance, round(p_value, 8)),
+         "cor.test"         = trf("La corrélation est %s (p = %s)", significance, round(p_value, 8)),
          trf("Le test %s montre un résultat %s (p = %s)", test_type, significance, round(p_value, 8))
   )
 }
@@ -1037,9 +1042,9 @@ interpret_normality <- function(p_value) {
 interpret_homogeneity <- function(p_value) {
   if (is.na(p_value)) return("Résultat non disponible")
   if (p_value >= 0.05) {
-    return(paste0("Les variances sont homogènes (p = ", round(p_value, 8), " >= 0.05)"))
+    return(trf("Les variances sont homogènes (p = %s >= 0.05)", round(p_value, 8)))
   } else {
-    return(paste0("Les variances ne sont pas homogènes (p = ", round(p_value, 8), " < 0.05)"))
+    return(trf("Les variances ne sont pas homogènes (p = %s < 0.05)", round(p_value, 8)))
   }
 }
 
@@ -1288,9 +1293,9 @@ check_transformation_feasibility <- function(x, method) {
   if (n == 0) return(list(ok = FALSE, message = "Aucune valeur non-NA disponible."))
   
   issues <- switch(method,
-                   "log"     = if (any(x_nona <= 0)) paste(sum(x_nona <= 0), "valeur(s) <= 0 détectée(s)") else NULL,
+                   "log"     = if (any(x_nona <= 0)) trf("%s valeur(s) <= 0 détectée(s)", sum(x_nona <= 0)) else NULL,
                    "log1p"   = if (any(x_nona < 0))  trf("%s valeur(s) < 0 détectée(s)", sum(x_nona < 0))else NULL,
-                   "log10"   = if (any(x_nona <= 0)) paste(sum(x_nona <= 0), "valeur(s) <= 0 détectée(s)") else NULL,
+                   "log10"   = if (any(x_nona <= 0)) trf("%s valeur(s) <= 0 détectée(s)", sum(x_nona <= 0)) else NULL,
                    "sqrt"    = if (any(x_nona < 0))  trf("%s valeur(s) < 0 détectée(s)", sum(x_nona < 0))else NULL,
                    "cuberoot" = NULL,  # toujours applicable
                    "boxcox"  = if (any(x_nona <= 0)) trf("%s valeur(s) <= 0 (Box-Cox nécessite x > 0)", sum(x_nona <= 0))else NULL,
@@ -1945,8 +1950,7 @@ check_manova_data <- function(df, response, factors) {
   p <- length(response)
   if (n < (p + 3))
     return(list(ok = FALSE,
-                message = paste0("Trop peu d'observations complètes (n=", n,
-                                 ") pour ", p, " variables réponses.")))
+                message = trf("Trop peu d'observations complètes (n=%s) pour %s variables réponses.", n, p)))
   
   # Variance non nulle pour chaque réponse globalement et par groupe
   zero_var <- vapply(response, function(v) {
@@ -1961,7 +1965,7 @@ check_manova_data <- function(df, response, factors) {
   for (f in factors) {
     if (nlevels(df2[[f]]) < 2)
       return(list(ok = FALSE,
-                  message = paste0("Le facteur '", f, "' a moins de 2 niveaux après nettoyage.")))
+                  message = trf("Le facteur '%s' a moins de 2 niveaux après nettoyage.", f)))
   }
   
   list(ok = TRUE, message = "Données valides",
@@ -2569,8 +2573,7 @@ recommend_manova_test <- function(mardia, boxm, permdisp, n) {
       # Mais si n est grand, le theoreme central limite protege
       if (n >= 50) {
         justifications <- c(justifications,
-                            paste0("Toutefois, n = ", n, " >= 50 : la MANOVA reste robuste par le ",
-                                   "théorème central limite (préférer la statistique de Pillai)."))
+                            trf("Toutefois, n = %s >= 50 : la MANOVA reste robuste par le théorème central limite (préférer la statistique de Pillai).", n))
         score_param <- score_param + 0L
       } else {
         justifications <- c(justifications,
@@ -2588,9 +2591,7 @@ recommend_manova_test <- function(mardia, boxm, permdisp, n) {
     score_param <- score_param + 1L
   } else if (boxm_violations > 0) {
     justifications <- c(justifications,
-                        paste0("Violation d'homogénéité des covariances sur ", boxm_violations,
-                               " facteur(s) (Box's M significatif). La statistique de Pillai est ",
-                               "recommandée car plus robuste à cette violation."))
+                        trf("Violation d'homogénéité des covariances sur %s facteur(s) (Box's M significatif). La statistique de Pillai est recommandée car plus robuste à cette violation.", boxm_violations))
     score_param <- score_param + 0L  # neutre car Pillai compense
   }
   
@@ -2598,10 +2599,7 @@ recommend_manova_test <- function(mardia, boxm, permdisp, n) {
   permdisp_violations <- if (!is.null(permdisp)) sum(grepl("heterogenes|hétérogènes", permdisp$Conclusion), na.rm = TRUE) else 0
   if (permdisp_violations > 0) {
     alertes <- c(alertes,
-                 paste0("PERMDISP signale des dispersions multivariées inégales sur ",
-                        permdisp_violations, " facteur(s). Une PERMANOVA significative pourrait ",
-                        "refléter une différence de dispersion plutôt qu'une différence de localisation. ",
-                        "À interpréter avec prudence."))
+                 trf("PERMDISP signale des dispersions multivariées inégales sur %s facteur(s). Une PERMANOVA significative pourrait refléter une différence de dispersion plutôt qu'une différence de localisation. À interpréter avec prudence.", permdisp_violations))
   }
   
   if (score_param >= 2) {
@@ -3683,8 +3681,7 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
   modal[is.na(modal) | !nzchar(modal)] <- NA_character_
   temoin <- trimws(as.character(temoin)[1])
   if (is.na(temoin) || !nzchar(temoin) || !(temoin %in% modal))
-    return(msg(vide, paste0("Le témoin choisi n'existe pas dans « ",
-                            var_modalite[1], " » : choisissez une modalité présente.")))
+    return(msg(vide, trf("Le témoin choisi n'existe pas dans « %s » : choisissez une modalité présente.", var_modalite[1])))
 
   a_rep <- !is.null(var_repetition) && nzchar(var_repetition[1]) &&
            var_repetition[1] %in% names(df)

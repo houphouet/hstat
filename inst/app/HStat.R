@@ -43,7 +43,7 @@ if (!exists("ui") || is.null(ui) ||
                   "l'interface n'a donc pas pu être construite."),
     if (!is.null(.hstat_ui_err))
       shiny::tags$pre(style = "background:#fbeaea;padding:8px;border-radius:4px;",
-                      paste("Détail :", .hstat_ui_err)),
+                      trf("Détail : %s", .hstat_ui_err)),
     shiny::tags$p("Lancez l'application via ",
                   shiny::tags$code("HStat::run_hstat()"),
                   " : cette fonction installe automatiquement les dépendances ",

@@ -2060,7 +2060,7 @@ mod_tests_server <- function(id, values) {
       shiny::showNotification(shiny::HTML(paste0("<b>Erreur(s):</b><br>", paste(errors, collapse = "<br>"))),
                        type = "error", duration = 12)
     if (length(skipped) > 0)
-      shiny::showNotification(paste0("Déjà existante(s) : ", paste(skipped, collapse = ", ")),
+      shiny::showNotification(trf("Déjà existante(s) : %s", paste(skipped, collapse = ", ")),
                        type = "warning", duration = 5)
     if (length(added) > 0) {
       values$filteredData      <- df
@@ -2086,7 +2086,7 @@ mod_tests_server <- function(id, values) {
     if (length(removed) > 0) {
       values$filteredData      <- df
       values$transformationLog <- log_entries
-      shiny::showNotification(paste0("Supprimée(s): ", paste(removed, collapse = ", ")),
+      shiny::showNotification(trf("Supprimée(s): %s", paste(removed, collapse = ", ")),
                        type = "warning", duration = 3)
     }
   })
@@ -2526,7 +2526,7 @@ mod_tests_server <- function(id, values) {
       if (is.character(res)) {
         rows[[var]] <- data.frame(
           Test = .ref_method_label(method), Variable = var,
-          Facteur = paste("Référence =", format(mu)),
+          Facteur = trf("Référence = %s", format(mu)),
           Statistique = NA_real_, ddl = NA_real_, p_value = NA_real_,
           Interpretation = res, stringsAsFactors = FALSE)
         next
@@ -2648,7 +2648,7 @@ mod_tests_server <- function(id, values) {
       return()
     }
     row <- hstat_ref_result_row(res, lbl,
-             reference_label = paste("Référence =", format(p0)))
+             reference_label = trf("Référence = %s", format(p0)))
     det <- .ref_detail_row(res, lbl)
     det$n <- n
     .push_ref_results(stats::setNames(list(row), lbl),
@@ -2772,7 +2772,7 @@ mod_tests_server <- function(id, values) {
         test_data <- stats::na.omit(test_data)
         
         if (nrow(test_data) < 3) {
-          error_messages <- c(error_messages, paste(var, ": Pas assez de données après suppression des NA"))
+          error_messages <- c(error_messages, trf("%s : Pas assez de données après suppression des NA", var))
           next
         }
         
@@ -2808,7 +2808,7 @@ mod_tests_server <- function(id, values) {
         rownames(test_result) <- orig_rnames
         
         if (is.null(test_result) || nrow(test_result) == 0) {
-          error_messages <- c(error_messages, paste(var, ": Test n'a produit aucun résultat"))
+          error_messages <- c(error_messages, trf("%s : Test n'a produit aucun résultat", var))
           next
         }
         
@@ -2831,7 +2831,7 @@ mod_tests_server <- function(id, values) {
         }
         
         if (effects_found == 0) {
-          error_messages <- c(error_messages, paste(var, ": Aucun effet trouvé (uniquement des résidus)"))
+          error_messages <- c(error_messages, trf("%s : Aucun effet trouvé (uniquement des résidus)", var))
         }
         
         values$scheirerResults <- test_result
@@ -2868,7 +2868,7 @@ mod_tests_server <- function(id, values) {
       values$currentTestType <- "non-parametric"
       
       shiny::showNotification(
-        paste("Test Scheirer-Ray-Hare terminé :", length(results_list), "résultat(s) généré(s)"),
+        trf("Test Scheirer-Ray-Hare terminé : %s résultat(s) généré(s)", length(results_list)),
         type = "message",
         duration = 3
       )
@@ -2894,7 +2894,7 @@ mod_tests_server <- function(id, values) {
       for (var in input$responseVar) {
         if (!is.numeric(df[[var]])) df[[var]] <- suppressWarnings(as.numeric(df[[var]]))
         if (all(is.na(df[[var]]))) {
-          shiny::showNotification(paste0("ANOVA : '", var, "' non numérique -- ignorée."), type = "warning", duration = 5)
+          shiny::showNotification(trf("ANOVA : '%s' non numérique -- ignorée.", var), type = "warning", duration = 5)
           next
         }
         df_clean <- df[, c(var, input$factorVar), drop = FALSE]
@@ -3060,7 +3060,7 @@ mod_tests_server <- function(id, values) {
         n_params   <- nrow(coef_table)
         if (nrow(coef_table) < 1) {
           shiny::showNotification(
-            paste0("GLM (", var, ") : le modèle est vide."),
+            trf("GLM (%s) : le modèle est vide.", var),
             type = "warning"
           )
         } else {
@@ -3353,7 +3353,7 @@ mod_tests_server <- function(id, values) {
     }
     # Certaines familles ne sont disponibles que via glmmTMB.
     if (engine == "lme4" && fam %in% c("nbinom", "beta_family", "tweedie")) {
-      shiny::showNotification(paste0("La famille « ", fam, " » nécessite le moteur glmmTMB. Changez de moteur."),
+      shiny::showNotification(trf("La famille « %s » nécessite le moteur glmmTMB. Changez de moteur.", fam),
                        type = "warning", duration = 7); return()
     }
     
@@ -3387,7 +3387,7 @@ mod_tests_server <- function(id, values) {
     fam_check <- function(var) {
       y <- suppressWarnings(as.numeric(df[[var]]))
       y <- y[!is.na(y)]
-      if (length(y) == 0) return(paste0("« ", var, " » : aucune valeur numérique exploitable."))
+      if (length(y) == 0) return(trf("« %s » : aucune valeur numérique exploitable.", var))
       rng <- range(y)
       is_int <- all(abs(y - round(y)) < 1e-8)
       msg <- NULL
@@ -3586,7 +3586,7 @@ mod_tests_server <- function(id, values) {
           if (!is.numeric(df[[var]])) df[[var]] <- suppressWarnings(as.numeric(df[[var]]))
           dsub <- df[, c(var, subj, all_fac), drop = FALSE]
           dsub <- dsub[stats::complete.cases(dsub), ]
-          if (nrow(dsub) < 3) { shiny::showNotification(paste0("rmANOVA (", var, ") : trop peu de données."), type = "warning"); next }
+          if (nrow(dsub) < 3) { shiny::showNotification(trf("rmANOVA (%s) : trop peu de données.", var), type = "warning"); next }
           
           fixed <- paste(sapply(all_fac, bt), collapse = " * ")
           
@@ -3899,7 +3899,7 @@ mod_tests_server <- function(id, values) {
       values$modelList              <- NULL
       
       shiny::showNotification(
-        paste0("MANOVA terminée : ", nrow(stats_df), " effet(s) testé(s)."),
+        trf("MANOVA terminée : %s effet(s) testé(s).", nrow(stats_df)),
         type = "message", duration = 4
       )
     }, error = function(e) {
@@ -4099,14 +4099,10 @@ mod_tests_server <- function(id, values) {
       values$manovaSimpleEffects <- res
       
       if (used_fallback) {
-        shiny::showNotification(paste0("La MANOVA conditionnelle n'est pas calculable ",
-                                "(variables réponses colinéaires) : bascule automatique ",
-                                "sur la PERMANOVA conditionnelle. ", nrow(res),
-                                " niveau(x) testé(s)."),
+        shiny::showNotification(trf("La MANOVA conditionnelle n'est pas calculable (variables réponses colinéaires) : bascule automatique sur la PERMANOVA conditionnelle. %s niveau(x) testé(s).", nrow(res)),
                          type = "warning", duration = 8)
       } else {
-        shiny::showNotification(paste0("Effets simples calculés : ", nrow(res),
-                                " niveau(x) testé(s)."),
+        shiny::showNotification(trf("Effets simples calculés : %s niveau(x) testé(s).", nrow(res)),
                          type = "message", duration = 4)
       }
     }, error = function(e) {
@@ -4678,7 +4674,7 @@ mod_tests_server <- function(id, values) {
       chi_data$Groupes <- gl[match(cats, names(gl))]
       values$chiSqFreqData <- chi_data
     }, error = function(e) NULL)
-    shiny::showNotification(paste0("Post-hoc chi² terminé (",adj_method,")"),type="message",duration=3)
+    shiny::showNotification(trf("Post-hoc chi² terminé (%s)", adj_method),type="message",duration=3)
   })
   
   # NB : les handlers downloadChiSqExcel / downloadChiSqCSV / downloadChiSqPlot
@@ -4748,7 +4744,7 @@ mod_tests_server <- function(id, values) {
         values$chiSqFreqData <- chi_data
       }, error=function(e) NULL)
       shiny::showNotification(
-        paste0("Chi² + Post-hoc terminés (", adj_method, ")"),
+        trf("Chi² + Post-hoc terminés (%s)", adj_method),
         type="message", duration=4)
     }, error=function(e) shiny::showNotification(hstat_err_fr(e, "Erreur"),type="error"))
   })
@@ -5549,7 +5545,7 @@ mod_tests_server <- function(id, values) {
     })
     
     shiny::showNotification(
-      paste0("Test ", toupper(methode), " terminé -- p = ", fmt_p(p_val)),
+      trf("Test %s terminé -- p = %s", toupper(methode), fmt_p(p_val)),
       type = if (p_val < 0.05) "message" else "warning",
       duration = 5
     )
@@ -6085,7 +6081,7 @@ mod_tests_server <- function(id, values) {
         style = "margin-bottom:8px; padding:8px 10px; background:#e3f2fd; border-left:4px solid #1976d2; border-radius:4px;",
         shiny::icon("table", style="color:#1565c0;"),
         shiny::tags$b(style="color:#0d47a1; font-size:12px;",
-               paste0(" Résultats des tests -- ", n_sig, "/", nrow(df), " significatif(s)")),
+               trf(" Résultats des tests -- %s/%s significatif(s)", n_sig, nrow(df))),
         shiny::tags$br(),
         shiny::tags$small(style="color:#1976d2;",
                    "Les variables en vert (p < 0.05) sont pré-sélectionnées dans l'analyse PostHoc.")
@@ -6148,8 +6144,7 @@ mod_tests_server <- function(id, values) {
         values$lmPostHocResults <- NULL
       } else {
         values$lmPostHocResults <- results
-        shiny::showNotification(paste0("PostHoc LM/GLM calculé : ", length(results),
-                                " combinaison(s) Variable × Prédicteur."),
+        shiny::showNotification(trf("PostHoc LM/GLM calculé : %s combinaison(s) Variable × Prédicteur.", length(results)),
                          type = "message", duration = 4)
       }
       return()
@@ -6189,7 +6184,7 @@ mod_tests_server <- function(id, values) {
           if (!is.numeric(df[[var]])) {
             df[[var]] <- suppressWarnings(as.numeric(df[[var]]))
             if (all(is.na(df[[var]]))) {
-              shiny::showNotification(paste0("Variable '", var, "' non convertible en numérique."), type="warning", duration=4)
+              shiny::showNotification(trf("Variable '%s' non convertible en numérique.", var), type="warning", duration=4)
               next
             }
           }
@@ -6197,7 +6192,7 @@ mod_tests_server <- function(id, values) {
           if (!is.factor(df_var[[fvar]])) df_var[[fvar]] <- factor(as.character(df_var[[fvar]]))
           df_var[[fvar]] <- droplevels(df_var[[fvar]])
           if (nlevels(df_var[[fvar]]) < 2) {
-            shiny::showNotification(paste0("PostHoc '", fvar, "' : moins de 2 niveaux après nettoyage."), type="warning", duration=4)
+            shiny::showNotification(trf("PostHoc '%s' : moins de 2 niveaux après nettoyage.", fvar), type="warning", duration=4)
             next
           }
           if (nrow(df_var) < 4) { next }
@@ -6215,7 +6210,7 @@ mod_tests_server <- function(id, values) {
                                 "regw" = agricolae::REGW.test,
                                 "waller" = agricolae::waller.test)
               if (length(levels(df[[fvar]])) < 2) {
-                shiny::showNotification(paste0("PostHoc '", fvar, "' : moins de 2 niveaux, test ignoré."), type="warning", duration=4)
+                shiny::showNotification(trf("PostHoc '%s' : moins de 2 niveaux, test ignoré.", fvar), type="warning", duration=4)
                 next
               }
               # Ajustement des p-values : LSD accepte p.adj ; les autres
@@ -6378,7 +6373,7 @@ mod_tests_server <- function(id, values) {
             }
             if (!is.numeric(df_temp[[var]])) df_temp[[var]] <- suppressWarnings(as.numeric(df_temp[[var]]))
             if (nrow(df_temp) < 4 || all(is.na(df_temp[[var]]))) {
-              shiny::showNotification(paste0("Interaction ", fvar1, ":", fvar2, " -- données insuffisantes."), type="warning", duration=4)
+              shiny::showNotification(trf("Interaction %s:%s -- données insuffisantes.", fvar1, fvar2), type="warning", duration=4)
               return(NULL)
             }
             interaction_pvalue <- NA
@@ -6487,7 +6482,7 @@ mod_tests_server <- function(id, values) {
               }
               
               shiny::showNotification(
-                paste0("[OK] Décomposition complétée pour ", fvar1, " x ", fvar2),
+                trf("[OK] Décomposition complétée pour %s x %s", fvar1, fvar2),
                 type = "message", duration = 3
               )
             } else if (!is.na(interaction_pvalue)) {
@@ -6708,7 +6703,7 @@ mod_tests_server <- function(id, values) {
     }
     values$lmPostHocResults <- results
     shiny::showNotification(
-      paste0("PostHoc LM/GLM calculé : ", length(results), " combinaison(s) Variable × Prédicteur."),
+      trf("PostHoc LM/GLM calculé : %s combinaison(s) Variable × Prédicteur.", length(results)),
       type = "message", duration = 4
     )
   })
@@ -6866,7 +6861,7 @@ mod_tests_server <- function(id, values) {
     
     shiny::div(style = "background:#e8f5e9; border-left:4px solid #43a047; padding:10px 14px; border-radius:6px; margin-bottom:12px; font-size:12px;",
         shiny::icon("info-circle", style = "color:#2e7d32;"),
-        shiny::strong(paste0(" PostHoc multivarié -- ", entry$test, " sur ", entry$response_label, " :")),
+        shiny::strong(trf(" PostHoc multivarié -- %s sur %s :", entry$test, entry$response_label)),
         shiny::tags$ul(style = "margin:4px 0 0 18px;",
                 shiny::tags$li("Méthode : pairwise PERMANOVA (vegan::adonis2), distance euclidienne, 999 permutations"),
                 shiny::tags$li("Ajustement des p-values : Bonferroni"),
@@ -7846,10 +7841,7 @@ mod_tests_server <- function(id, values) {
     required_cols <- c(fvar, "Moyenne")
     if (!all(required_cols %in% colnames(agg))) {
       missing <- setdiff(c(fvar, "Moyenne", "Ecart_type", "Erreur_type", "groups"), colnames(agg))
-      posthoc_plot_msg(paste0(
-        "Ce graphique ne peut pas être tracé : les résultats ne contiennent pas les colonnes attendues (",
-        paste(missing, collapse = ", "),
-        "). Cela arrive notamment pour les analyses multivariées (MANOVA / PERMANOVA), qui n'ont pas de moyennes par groupe à représenter : consultez les onglets de résultats correspondants."))
+      posthoc_plot_msg(trf("Ce graphique ne peut pas être tracé : les résultats ne contiennent pas les colonnes attendues (%s). Cela arrive notamment pour les analyses multivariées (MANOVA / PERMANOVA), qui n'ont pas de moyennes par groupe à représenter : consultez les onglets de résultats correspondants.", paste(missing, collapse = ", ")))
       return(NULL)
     }
     # Colonnes secondaires optionnelles : on les cree vides si absentes pour ne pas
