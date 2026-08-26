@@ -9342,6 +9342,64 @@ test_that("le graphique se trace avec les reglages, et les limites sont en doses
     expect_s3_class(hstat_dl50_graphique(list(f), o), "ggplot")
 })
 
+test_that("la palette par defaut de ggplot2 ne plafonne pas au nombre d'essais", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("RColorBrewer")
+
+  # 1. LA SENTINELLE N'EST PAS UN NOM RColorBrewer, et ne doit pas rejoindre la
+  #    liste des qualitatives : un test verifie que chacune existe chez Brewer,
+  #    et l'y glisser ferait tomber le graphique de qui l'aurait choisie.
+  expect_false(unname(HSTAT_PALETTE_GG) %in%
+                 rownames(RColorBrewer::brewer.pal.info))
+  expect_false(unname(HSTAT_PALETTE_GG) %in%
+                 c(unname(HSTAT_PALETTES_QUALI), unname(HSTAT_PALETTES_DEGRADE)))
+
+  # 2. CE QUE LA PALETTE APPORTE, mesure sur les couleurs REELLEMENT RENDUES et
+  #    non sur l'argument passe. Les qualitatives de Brewer plafonnent -- Set2,
+  #    Dark2 et Accent a 8 couleurs, Set1 et Pastel1 a 9 -- et au-dela ggplot
+  #    AVERTIT puis rend les series surnumeraires en gris. Sur un reglage nomme
+  #    « plusieurs essais », c'est le cas qu'on rencontre pour de vrai.
+  rendues <- function(sc, n) {
+    d <- data.frame(x = seq_len(n), y = seq_len(n),
+                    g = factor(paste0("essai", seq_len(n))))
+    g <- ggplot2::ggplot(d, ggplot2::aes(x, y, colour = g)) +
+      ggplot2::geom_point() + sc
+    unique(suppressWarnings(ggplot2::ggplot_build(g))$data[[1]]$colour)
+  }
+  brewer12 <- suppressWarnings(
+    rendues(ggplot2::scale_colour_brewer(palette = "Set1"), 12))
+  hue12 <- rendues(ggplot2::scale_colour_hue(), 12)
+  expect_true(any(is.na(brewer12) | brewer12 == "grey50"))
+  expect_equal(length(hue12), 12L)
+  expect_false(any(is.na(hue12) | hue12 == "grey50"))
+
+  # 3. LE TRACE LA POSE VRAIMENT. Passee a `scale_*_brewer()`, la sentinelle
+  #    serait un nom inconnu : le trace retomberait sur Set1 SANS RIEN DIRE.
+  #    On compare donc les COULEURS que l'echelle du graphique engendre --
+  #    « hue » et « brewer » partagent leur classe (`ScaleDiscrete`), le nom de
+  #    classe ne les distingue pas.
+  f1 <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  f2 <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "abbott")
+  couleurs_du_trace <- function(pal, n = 5L) {
+    p <- hstat_dl50_graphique(list(f1, f2), list(palette = pal))
+    expect_s3_class(p, "ggplot")
+    for (s in p$scales$scales)
+      if (identical(s$aesthetics[1], "colour")) return(s$palette(n))
+    character(0)
+  }
+  attendu_hue <- ggplot2::scale_colour_hue()$palette(5L)
+  attendu_set1 <- ggplot2::scale_colour_brewer(palette = "Set1")$palette(5L)
+  expect_equal(couleurs_du_trace(unname(HSTAT_PALETTE_GG)), attendu_hue)
+  expect_equal(couleurs_du_trace("Set1"), attendu_set1)
+  # Les deux echelles different bien : sans cela les deux egalites ci-dessus
+  # seraient vraies pour la meme raison, et le test ne garderait rien.
+  expect_false(identical(attendu_hue, attendu_set1))
+
+  # 4. Un seul essai : pas d'echelle de groupes, la couleur unique s'applique.
+  expect_s3_class(hstat_dl50_graphique(list(f1),
+                    list(palette = unname(HSTAT_PALETTE_GG))), "ggplot")
+})
+
 test_that("la courbe dose-reponse porte la mortalite observee, bornee par 0 et 100", {
   skip_if_not_installed("ggplot2")
   # Un essai avec une dose a 0 mort et une dose ou tout meurt : c'est le cas

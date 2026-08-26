@@ -1410,6 +1410,20 @@ HSTAT_PALETTES_QUALI <- c("Set1 - vive" = "Set1", "Set2 - douce" = "Set2",
                           "Set3 - large (12)" = "Set3",
                           "Pastel" = "Pastel1")
 
+# LA PALETTE PAR DEFAUT DE ggplot2 -- teintes reparties sur le cercle HCL.
+# Ce n'est PAS un nom RColorBrewer : elle se pose par `scale_*_hue()`, pas par
+# `scale_*_brewer()`. Elle vit donc a part, et surtout PAS dans
+# `HSTAT_PALETTES_QUALI` -- un test verifie que chaque entree de cette liste
+# existe chez RColorBrewer, et l'y glisser ferait tomber le graphique de qui
+# l'aurait choisie.
+#
+# Ce qu'elle apporte : les palettes qualitatives de Brewer PLAFONNENT (Set2,
+# Dark2 et Accent a 8 couleurs, Set1 et Pastel1 a 9, Paired et Set3 a 12).
+# Au-dela, ggplot avertit et rend les series surnumeraires en GRIS -- sur un
+# onglet nomme « plusieurs essais », c'est exactement le cas qu'on rencontre.
+# `scale_*_hue()` engendre autant de teintes distinctes qu'il y a de groupes.
+HSTAT_PALETTE_GG <- c("ggplot2 (défaut) - autant de couleurs que d'essais" = "ggplot2")
+
 HSTAT_PALETTES_DEGRADE <- c("Bleus" = "Blues", "Verts" = "Greens",
                             "Rouges" = "Reds", "Violets" = "Purples",
                             "Bleu-vert" = "YlGnBu", "Mauve" = "BuPu",
