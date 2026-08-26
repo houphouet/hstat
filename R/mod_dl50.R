@@ -2114,14 +2114,27 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
       panel.grid = if (isTRUE(o$grille)) ggplot2::element_line()
                    else ggplot2::element_blank())
   if (multiple) {
-    # Une palette inconnue de RColorBrewer fait AVERTIR ggplot a chaque trace et
-    # rend un graphique gris. L'interface n'offre que des noms valides, mais la
-    # fonction est publique : on retombe sur le defaut plutot que de laisser
-    # un avertissement s'accumuler dans la console d'un serveur partage.
-    pal <- if (o$palette %in% c(HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE))
-      o$palette else HSTAT_DL50_OPT_DEFAUT$palette
-    p <- p + ggplot2::scale_colour_brewer(palette = pal) +
-             ggplot2::scale_fill_brewer(palette = pal)
+    # LA PALETTE PAR DEFAUT DE ggplot2 N'EST PAS UN NOM RColorBrewer : elle se
+    # pose par `scale_*_hue()`. La passer a `scale_*_brewer()` la ferait
+    # retomber sur Set1 sans que rien ne le dise.
+    #
+    # C'est aussi la seule qui ne PLAFONNE pas : les qualitatives de Brewer
+    # s'arretent a 8, 9 ou 12 couleurs, et au-dela ggplot avertit puis rend les
+    # essais surnumeraires en gris. Sur un graphique nomme « plusieurs essais »,
+    # c'est le cas qu'on rencontre pour de vrai.
+    if (identical(as.character(o$palette), unname(HSTAT_PALETTE_GG))) {
+      p <- p + ggplot2::scale_colour_hue() + ggplot2::scale_fill_hue()
+    } else {
+      # Une palette inconnue de RColorBrewer fait AVERTIR ggplot a chaque trace
+      # et rend un graphique gris. L'interface n'offre que des noms valides,
+      # mais la fonction est publique : on retombe sur le defaut plutot que de
+      # laisser un avertissement s'accumuler dans la console d'un serveur
+      # partage.
+      pal <- if (o$palette %in% c(HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE))
+        o$palette else HSTAT_DL50_OPT_DEFAUT$palette
+      p <- p + ggplot2::scale_colour_brewer(palette = pal) +
+               ggplot2::scale_fill_brewer(palette = pal)
+    }
   }
   # Pose EN DERNIER : un `p + couche` reconstruit l'objet et emporterait
   # l'attribut avec lui.
@@ -2520,7 +2533,9 @@ mod_dl50_ui <- function(id) {
                                   value = 12, min = 6, max = 30, step = 1),
               shiny::checkboxInput(ns("gGrille"), "Afficher la grille", TRUE),
               shiny::selectInput(ns("gPalette"), "Palette (plusieurs essais)",
-                                 choices = HSTAT_PALETTES_QUALI, selected = "Set1"),
+                                 choices = c(HSTAT_PALETTE_GG,
+                                             HSTAT_PALETTES_QUALI),
+                                 selected = "Set1"),
               colourInput(ns("gCouleur"), "Couleur (un seul essai)",
                                         value = "#2e86c1"),
               shiny::textInput(ns("gLegendeTitre"), "Titre de la légende"),
