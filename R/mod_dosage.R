@@ -35,7 +35,11 @@ HSTAT_DOSE_UNITES <- c("mL/ha" = 0.001, "L/ha" = 1, "g/ha" = 0.001, "kg/ha" = 1)
 HSTAT_CONC_UNITES <- c("g/L" = 1, "g/kg" = 1, "mg/L" = 0.001, "mg/kg" = 0.001,
                        "%" = 10, "ppm" = 0.001)
 
-HSTAT_VOL_UNITES <- c("mL" = 0.001, "L" = 1)
+# Le MICROLITRE manquait, et c'est l'unite de la paillasse : une gamme au
+# 1/10 depuis 100 mL descend a 0,01 mL des le quatrieme etage -- un nombre que
+# personne ne lit, alors que 10 uL se pipette. Le facteur est le meme partout :
+# une valeur en litres.
+HSTAT_VOL_UNITES <- c("µL" = 1e-6, "mL" = 0.001, "L" = 1)
 
 # Les formules, ecrites une fois. Elles sont AFFICHEES a l'utilisateur et
 # EXPORTEES avec les resultats : c'est le meme texte, il n'a donc pas deux
@@ -88,14 +92,33 @@ hstat_dose_depuis_ref <- function(valeur, unite) {
   valeur / f
 }
 
-# Nombre lisible : deux decimales au plus, sans zeros inutiles. `format()`
+# Nombre lisible : `dec` decimales au plus, sans zeros inutiles. `format()`
 # rendrait « 1.5e+05 » sur une grande surface, illisible sur une etiquette.
+#
+# DEUX DEFAUTS CORRIGES ICI, tous deux silencieux.
+#
+# 1. LE RETRAIT DES ZEROS MANGEAIT LES ENTIERS. `sub("\\.?0+$", "")` ne demande
+#    pas de point : a zero decimale, « 1 000 » ressortait « 1 ». Le motif exige
+#    donc desormais un point, en deux passes -- les zeros APRES un chiffre
+#    significatif, puis une partie decimale entierement nulle.
+#
+# 2. UNE VALEUR NON NULLE QUI S'ARRONDIT A ZERO S'AFFICHAIT « 0 ». Sur une
+#    gamme de dilution c'est le cas NORMAL, pas le cas rare : au 1/10 depuis
+#    100 g/L, la cinquieme fille vaut 1e-3 et la septieme 1e-5. A quatre
+#    decimales, l'ecran annoncait une concentration NULLE pour une solution
+#    qui en a une. On bascule ces valeurs en notation scientifique : c'est
+#    l'ecriture des chimistes, et elle dit la verite.
 hstat_fmt_nb <- function(x, dec = 2) {
   v <- suppressWarnings(as.numeric(x))
+  dec <- max(0L, as.integer(dec))
   out <- ifelse(is.finite(v),
                 formatC(round(v, dec), format = "f", digits = dec, big.mark = " "),
                 NA_character_)
-  out <- sub("\\.?0+$", "", out)
+  # Les zeros de fin ne se retirent QU'APRES un point decimal.
+  out <- sub("(\\.[0-9]*[1-9])0+$", "\\1", out)
+  out <- sub("\\.0+$", "", out)
+  petit <- is.finite(v) & v != 0 & round(v, dec) == 0
+  out[petit] <- formatC(v[petit], format = "e", digits = 2)
   out[is.na(out) | !nzchar(out)] <- NA_character_
   out
 }
@@ -252,17 +275,23 @@ HSTAT_DILUTION_NB_MAX <- 50L
 # dire avant la paillasse qu'apres.
 HSTAT_DILUTION_MIN_ML <- 0.01
 
+# Au-dela, un nombre a virgule flottante double ne porte plus d'information :
+# afficher une seizieme decimale, ce serait inventer de la precision. La borne
+# est donc une VERITE de la representation, pas un choix d'interface.
+HSTAT_DEC_MAX <- 15L
+
 hstat_dilution_table_vide <- function(n = 3) {
   data.frame(
-    Produit            = rep("", n),
-    Matiere_active     = rep("", n),
-    Concentration_mere = rep(NA_real_, n),
-    Unite              = rep("g/L", n),
-    Coefficient        = rep(NA_real_, n),
-    Nb_filles          = rep(1, n),
-    Volume_final       = rep(NA_real_, n),
-    Unite_volume       = rep("L", n),
-    stringsAsFactors   = FALSE)
+    Produit              = rep("", n),
+    Matiere_active       = rep("", n),
+    Concentration_mere   = rep(NA_real_, n),
+    Concentration_depart = rep(NA_real_, n),
+    Unite                = rep("g/L", n),
+    Coefficient          = rep(NA_real_, n),
+    Nb_filles            = rep(1, n),
+    Volume_final         = rep(NA_real_, n),
+    Unite_volume         = rep("L", n),
+    stringsAsFactors     = FALSE)
 }
 
 hstat_dilution_calcul <- function(df) {
@@ -288,6 +317,13 @@ hstat_dilution_calcul <- function(df) {
   d$Nb_filles <- if ("Nb_filles" %in% names(df))
     suppressWarnings(as.numeric(df$Nb_filles)) else rep(1, nrow(d))
   d$Nb_filles[!is.finite(d$Nb_filles)] <- 1
+
+  # LA CONCENTRATION DE DEPART EST FACULTATIVE, et c'est tout son interet : une
+  # gamme ne commence pas toujours a C_mere/k. Absente, le premier etage vaut
+  # le coefficient courant et le calcul est EXACTEMENT celui d'avant -- un
+  # tableau existant continue donc de rendre ce qu'il rendait.
+  d$Concentration_depart <- if ("Concentration_depart" %in% names(df))
+    suppressWarnings(as.numeric(df$Concentration_depart)) else rep(NA_real_, nrow(d))
 
   # Une ligne entierement vide est un reste de saisie, pas une erreur : on la
   # retire en silence. Une ligne A MOITIE remplie, elle, se signale.
@@ -358,22 +394,70 @@ hstat_dilution_calcul <- function(df) {
   d$.fac_v <- fac_v
   d <- d[order(d$Produit, d$Matiere_active), , drop = FALSE]
 
+  # -- Le PREMIER etage, quand l'utilisateur le fixe -------------------------
+  #  Donner la concentration de la premiere fille revient a fixer le
+  #  coefficient du PREMIER etage : k1 = C_mere / C_depart. Les etages suivants
+  #  gardent le coefficient courant.
+  #
+  #  UNE DILUTION EST UN GESTE UNIQUE SUR LA SOLUTION MERE : elle divise TOUTES
+  #  les matieres actives par le meme nombre. Une concentration de depart est
+  #  donc saisie par matiere active -- c'est une concentration de celle-ci --
+  #  mais le k1 qu'elle implique appartient au PRODUIT. Deux matieres actives
+  #  qui en impliqueraient deux differents decriraient deux gestes differents
+  #  sur le meme flacon : on le refuse en nommant le produit.
+  #
+  #  La tolerance est RELATIVE et lache (0,1 %) : les concentrations sont
+  #  saisies a la main et souvent arrondies (33,3 pour 5 et 3,33 pour 0,5
+  #  donnent 10,009 et 10). Une vraie erreur de saisie, elle, se compte en
+  #  dizaines de pour-cent.
+  k1_par_produit <- function(sp) {
+    dep <- sp$Concentration_depart
+    ok  <- is.finite(dep) & is.finite(sp$Concentration_mere) & sp$Concentration_mere > 0
+    if (!any(ok)) return(list(k1 = sp$Coefficient[1], motif = NULL))
+    if (any(ok & dep <= 0))
+      return(list(k1 = NA_real_, motif = "nulle"))
+    r <- sp$Concentration_mere[ok] / dep[ok]
+    if (any(r < 1)) return(list(k1 = NA_real_, motif = "plus_concentree"))
+    if (max(r) - min(r) > 1e-3 * min(r))
+      return(list(k1 = NA_real_, motif = "contradictoire"))
+    list(k1 = mean(r), motif = NULL)
+  }
+  # Les trois refus sont ecrits comme des appels LITTERAUX a `trf()` : le
+  # balayage qui verifie que chaque cle passee a `tr()`/`trf()` figure au
+  # dictionnaire lit l'arbre syntaxique, et une chaine rangee dans une variable
+  # lui echapperait -- le message resterait en francais dans une interface
+  # anglaise, sans que rien ne le signale.
+  refus <- function(motif, p) switch(motif,
+    nulle = trf("Concentration de départ nulle ou négative pour : %s. Indiquez la concentration de la première fille, ou laissez la case vide pour partir de la mère divisée par le coefficient.", p),
+    plus_concentree = trf("Concentration de départ supérieure à la concentration mère pour : %s. Une dilution ne concentre pas : choisissez une valeur inférieure ou égale à la mère.", p),
+    contradictoire = trf("Concentrations de départ contradictoires pour : %s. Une dilution divise toutes les matières actives d'un flacon par le même nombre : les concentrations de départ doivent être dans le même rapport que les concentrations mères.", p))
+
   # -- La gamme : une fille par rang, pour chaque matiere active ------------
-  #  C_n = C_(n-1) / k, et le prelevement se fait TOUJOURS dans la mere :
-  #  V_preleve_n x C_mere = V_final x C_n, donc V_preleve_n = V_final / k^n.
+  #  C_n = C_1 / k^(n-1) = C_mere / (k1 x k^(n-1)), et le prelevement se fait
+  #  TOUJOURS dans la mere : V_preleve_n x C_mere = V_final x C_n, d'ou
+  #  V_preleve_n = V_final x C_n / C_mere. Sans concentration de depart,
+  #  k1 = k et l'on retrouve exactement C_mere / k^n et V_final / k^n.
   morceaux <- list()
+  emploie_depart <- FALSE
   for (p in unique(d$Produit)) {
     sp <- d[d$Produit == p, , drop = FALSE]
     k  <- sp$Coefficient[1]
     n  <- sp$Nb_filles[1]
     vf <- sp$Volume_final[1]
 
+    dep <- k1_par_produit(sp)
+    if (!is.null(dep$motif)) return(vide(refus(dep$motif, p)))
+    k1 <- dep$k1
+    if (any(is.finite(sp$Concentration_depart))) emploie_depart <- TRUE
+
     for (i in seq_len(n)) {
       q <- sp
       q$Rang <- i
-      q$Concentration_precedente <- q$Concentration_mere / k^(i - 1L)
-      q$Concentration_fille      <- q$Concentration_mere / k^i
-      q$Volume_a_prelever        <- vf / k^i
+      # Le rang 1 vient de la mere ; au-dela, de la fille precedente.
+      q$Concentration_precedente <- if (i == 1L) q$Concentration_mere
+                                    else q$Concentration_mere / (k1 * k^(i - 2L))
+      q$Concentration_fille      <- q$Concentration_mere / (k1 * k^(i - 1L))
+      q$Volume_a_prelever        <- vf / (k1 * k^(i - 1L))
       q$Volume_eau_a_ajouter     <- vf - q$Volume_a_prelever
       morceaux[[length(morceaux) + 1L]] <- q
     }
@@ -408,11 +492,16 @@ hstat_dilution_calcul <- function(df) {
   d$Volume_mere_requis[!duplicated(d$Produit)] <-
     unname(v_mere[unique(d$Produit)])
 
-  res <- d[, c("Produit", "Matiere_active", "Concentration_mere", "Unite",
-               "Coefficient", "Rang", "Concentration_precedente",
-               "Concentration_fille", "Volume_final", "Unite_volume",
-               "Volume_a_prelever", "Volume_eau_a_ajouter",
-               "Concentration_totale_g_L", "Volume_mere_requis"), drop = FALSE]
+  # La colonne de depart DISPARAIT quand personne ne s'en sert : une colonne
+  # vide fait croire a une information absente. Meme regle que « Groupe » et
+  # « Variable » dans le calcul d'efficacite.
+  cols <- c("Produit", "Matiere_active", "Concentration_mere",
+            if (emploie_depart) "Concentration_depart", "Unite",
+            "Coefficient", "Rang", "Concentration_precedente",
+            "Concentration_fille", "Volume_final", "Unite_volume",
+            "Volume_a_prelever", "Volume_eau_a_ajouter",
+            "Concentration_totale_g_L", "Volume_mere_requis")
+  res <- d[, cols, drop = FALSE]
   rownames(res) <- NULL
   attr(res, "formules") <- unname(HSTAT_DOSE_FORMULES[
     c("conservation", "c_fille", "c_fille_n", "v_preleve", "v_eau",
@@ -438,6 +527,7 @@ HSTAT_DILUTION_LIBELLES <- c(
   Produit                   = "Produit",
   Matiere_active            = "Matière active",
   Concentration_mere        = "Concentration mère",
+  Concentration_depart      = "Concentration de la 1re fille (départ)",
   Unite                     = "Unité",
   Coefficient               = "Coefficient de dilution",
   Nb_filles                 = "Nombre de filles",
@@ -450,6 +540,40 @@ HSTAT_DILUTION_LIBELLES <- c(
   Volume_eau_a_ajouter      = "Eau à ajouter (Vf − Vi)",
   Concentration_totale_g_L  = "Concentration totale de la fille (g/L)",
   Volume_mere_requis        = "Solution mère nécessaire (total)")
+
+# Volumes ramenes a UNE unite commune.
+#
+# Chaque produit garde SON unite de saisie, ce qui est juste a la saisie et
+# illisible au resultat : deux produits declares l'un en litres et l'autre en
+# millilitres donnent une colonne « volume à prélever » ou 0,1 et 100 designent
+# la meme chose. La conversion rend la colonne comparable -- et c'est elle qui
+# donne son interet au microlitre, l'unite dans laquelle une gamme profonde
+# cesse d'etre une suite de zeros.
+#
+# `unite` vaut NULL ou "" pour ne rien convertir : c'est une OPTION, le defaut
+# reste l'unite de saisie.
+HSTAT_DILUTION_VOL_COLS <- c("Volume_final", "Volume_a_prelever",
+                             "Volume_eau_a_ajouter", "Volume_mere_requis")
+
+hstat_dilution_convertir <- function(d, unite = NULL) {
+  if (!is.data.frame(d) || !nrow(d)) return(d)
+  if (is.null(unite) || !nzchar(unite) || !"Unite_volume" %in% names(d)) return(d)
+  vers <- .hstat_dose_facteur(unite, HSTAT_VOL_UNITES)
+  # Une unite inconnue ne doit pas rendre des volumes faux : on ne convertit
+  # pas, plutot que de diviser par NA et de vider la colonne en silence.
+  if (!isTRUE(is.finite(vers)) || vers == 0) return(d)
+  depuis <- vapply(as.character(d$Unite_volume),
+                   function(u) .hstat_dose_facteur(u, HSTAT_VOL_UNITES),
+                   numeric(1), USE.NAMES = FALSE)
+  ok <- is.finite(depuis) & depuis > 0
+  if (!any(ok)) return(d)
+  for (k in intersect(HSTAT_DILUTION_VOL_COLS, names(d)))
+    d[[k]][ok] <- d[[k]][ok] * depuis[ok] / vers
+  # L'unite affichee suit la valeur : la laisser inchangee serait pire que ne
+  # pas convertir du tout.
+  d$Unite_volume[ok] <- unite
+  d
+}
 
 hstat_dilution_affichage <- function(d) {
   if (!is.data.frame(d) || !nrow(d)) return(d)
@@ -578,6 +702,10 @@ mod_dosage_ui <- function(id) {
                             " permet de détailler chaque fille et d'en donner la",
                             " concentration totale."),
             shiny::uiOutput(ns("dilMaUi")),
+            shiny::helpText(shiny::strong("Concentration de départ : facultative."),
+                            " Laissée vide, la première fille vaut la mère divisée par",
+                            " le coefficient. Renseignée, la gamme commence à cette",
+                            " valeur, puis se divise par le coefficient à chaque étage."),
 
             shiny::hr(),
             shiny::div(class = "callout callout-info", style = "padding:8px 12px;",
@@ -609,6 +737,21 @@ mod_dosage_ui <- function(id) {
                 "Volume final de chaque fille (Vf)", value = 100, min = 0, step = 10)),
               shiny::column(5, shiny::selectInput(ns("dilVfUnite"), "Unité",
                 choices = names(HSTAT_VOL_UNITES), selected = "mL"))),
+            shiny::hr(),
+            # Deux reglages d'AFFICHAGE : ils ne changent aucun calcul, ils
+            # changent ce qu'on peut en lire.
+            shiny::selectInput(ns("dilConvVol"), "Convertir les volumes en",
+              choices = c("(unité de saisie)" = "", names(HSTAT_VOL_UNITES)),
+              selected = ""),
+            shiny::helpText("Chaque produit garde son unité de saisie ; la conversion",
+                            " ramène toute la colonne à une seule unité, donc comparable."),
+            shiny::numericInput(ns("dilDecimales"), "Chiffres après la virgule",
+              value = 4, min = 0, max = HSTAT_DEC_MAX, step = 1),
+            shiny::helpText("Une gamme profonde descend vite : au 1/10 depuis 100 g/L,",
+                            " la 5e fille vaut 0,001. Au-delà de 15 décimales un nombre",
+                            " à virgule flottante ne porte plus d'information ;",
+                            " une valeur trop petite pour l'affichage choisi passe",
+                            " automatiquement en notation scientifique."),
             shiny::hr(),
             shiny::actionButton(ns("dilAjouter"),
               shiny::tagList(shiny::icon("plus"), " Ajouter ce produit"),
@@ -750,13 +893,19 @@ mod_dosage_server <- function(id, values) {
       lapply(seq_len(n), function(i) {
         nom <- shiny::isolate(input[[paste0("dilMaNom", i)]]) %||% ""
         cnc <- shiny::isolate(input[[paste0("dilMaConc", i)]])
+        dep <- shiny::isolate(input[[paste0("dilMaDep", i)]])
         shiny::fluidRow(
-          shiny::column(7, shiny::textInput(ns(paste0("dilMaNom", i)),
+          shiny::column(5, shiny::textInput(ns(paste0("dilMaNom", i)),
             if (i == 1L) "Matière active" else NULL, value = nom,
             placeholder = if (i == 1L) "ex : Lambda-cyhalothrine" else NULL)),
-          shiny::column(5, shiny::numericInput(ns(paste0("dilMaConc", i)),
+          shiny::column(4, shiny::numericInput(ns(paste0("dilMaConc", i)),
             if (i == 1L) "Concentration mère" else NULL,
-            value = if (is.null(cnc)) NA_real_ else cnc, min = 0, step = 1)))
+            value = if (is.null(cnc)) NA_real_ else cnc, min = 0, step = 1)),
+          # Facultatif : vide, la gamme part de la mère divisée par le
+          # coefficient -- exactement ce qu'elle faisait avant ce champ.
+          shiny::column(3, shiny::numericInput(ns(paste0("dilMaDep", i)),
+            if (i == 1L) "1re fille (option.)" else NULL,
+            value = if (is.null(dep)) NA_real_ else dep, min = 0, step = 1)))
       })
     })
 
@@ -826,16 +975,19 @@ mod_dosage_server <- function(id, values) {
           type = "warning", duration = 6)
         return()
       }
+      dep <- vapply(seq_len(n), function(i)
+        .hstat_num1(input[[paste0("dilMaDep", i)]], NA_real_), numeric(1))
       ajout <- data.frame(
-        Produit            = rep(nom, n),
-        Matiere_active     = mas,
-        Concentration_mere = cnc,
-        Unite              = rep(input$dilUnite %||% "g/L", n),
-        Coefficient        = rep(.hstat_num1(input$dilCoef, NA_real_), n),
-        Nb_filles          = rep(.hstat_num1(input$dilNb, 1), n),
-        Volume_final       = rep(.hstat_num1(input$dilVf, NA_real_), n),
-        Unite_volume       = rep(input$dilVfUnite %||% "mL", n),
-        stringsAsFactors   = FALSE)
+        Produit              = rep(nom, n),
+        Matiere_active       = mas,
+        Concentration_mere   = cnc,
+        Concentration_depart = dep,
+        Unite                = rep(input$dilUnite %||% "g/L", n),
+        Coefficient          = rep(.hstat_num1(input$dilCoef, NA_real_), n),
+        Nb_filles            = rep(.hstat_num1(input$dilNb, 1), n),
+        Volume_final         = rep(.hstat_num1(input$dilVf, NA_real_), n),
+        Unite_volume         = rep(input$dilVfUnite %||% "mL", n),
+        stringsAsFactors     = FALSE)
       d <- saisie()
       # Ajouter deux fois le meme produit decrirait deux preparations sous un
       # seul nom : on remplace ses lignes plutot que de les empiler.
@@ -886,8 +1038,14 @@ mod_dosage_server <- function(id, values) {
     dil_affiche <- shiny::reactive({
       d <- dilution()
       if (!is.data.frame(d) || !nrow(d)) return(NULL)
+      # La conversion vient AVANT la mise en forme : convertir des chaines
+      # deja arrondies perdrait les décimales que l'utilisateur vient de
+      # demander, et le nombre affiché ne serait plus celui du calcul.
+      d <- hstat_dilution_convertir(d, input$dilConvVol %||% "")
+      dec <- max(0L, min(HSTAT_DEC_MAX,
+                         as.integer(.hstat_num1(input$dilDecimales, 4))))
       num <- vapply(d, is.numeric, logical(1))
-      d[num] <- lapply(d[num], function(x) hstat_fmt_nb(x, 4))
+      d[num] <- lapply(d[num], function(x) hstat_fmt_nb(x, dec))
       hstat_dilution_affichage(d)
     })
 
