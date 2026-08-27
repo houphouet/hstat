@@ -8855,6 +8855,123 @@ test_that("le bilan de dose refuse ce qu'il ne peut pas calculer, en le nommant"
   expect_true(grepl("saisissez", attr(r, "message"), fixed = TRUE))
 })
 
+test_that("un nombre affiche ne ment ni sur zero ni sur ses entiers", {
+  # DEUX DEFAUTS SILENCIEUX, tous deux constates sur les solutions filles.
+  #
+  # 1. LE RETRAIT DES ZEROS MANGEAIT LES ENTIERS. L'ancien motif
+  #    `\\.?0+$` ne demandait pas de point : a zero decimale, « 1 000 »
+  #    ressortait « 1 ». Le reglage n'allait jamais a zero, le defaut dormait --
+  #    et le rendre reglable le reveillait.
+  expect_equal(hstat_fmt_nb(1000, 0), "1 000")
+  expect_equal(hstat_fmt_nb(1000, 2), "1 000")
+  expect_equal(hstat_fmt_nb(1.23, 4), "1.23")
+  expect_equal(hstat_fmt_nb(0, 2), "0")
+
+  # 2. UNE CONCENTRATION NON NULLE S'AFFICHAIT « 0 ». Sur une gamme au 1/10
+  #    depuis 100 g/L, la 7e fille vaut 1e-5 : a quatre decimales l'ecran
+  #    annoncait une solution VIDE. Dans un contexte de paillasse c'est le pire
+  #    defaut possible -- on prepare a partir du chiffre lu.
+  expect_false(identical(hstat_fmt_nb(1e-5, 4), "0"))
+  expect_true(grepl("e-0?5", hstat_fmt_nb(1e-5, 4)))
+  # Assez de decimales : l'ecriture decimale revient, la scientifique s'efface.
+  expect_equal(hstat_fmt_nb(1e-5, 10), "0.00001")
+  # Zero reste zero : la bascule ne vise QUE les valeurs non nulles.
+  expect_equal(hstat_fmt_nb(0, 0), "0")
+  expect_true(is.na(hstat_fmt_nb(NA, 3)))
+})
+
+test_that("le microlitre est une unite de volume, et les volumes se convertissent", {
+  # Le microlitre manquait, et c'est l'unite de la paillasse : une gamme au
+  # 1/10 depuis 100 mL descend a 0,01 mL des le quatrieme etage -- illisible,
+  # alors que 10 uL se pipette.
+  expect_true("µL" %in% names(HSTAT_VOL_UNITES))
+  expect_equal(unname(HSTAT_VOL_UNITES[["µL"]]), 1e-6)
+  # Les facteurs sont des LITRES : mille microlitres font un millilitre.
+  expect_equal(HSTAT_VOL_UNITES[["mL"]] / HSTAT_VOL_UNITES[["µL"]], 1000)
+
+  d <- data.frame(
+    Produit = "A", Matiere_active = "ma1", Concentration_mere = 100,
+    Unite = "g/L", Coefficient = 10, Nb_filles = 3, Volume_final = 100,
+    Unite_volume = "mL", stringsAsFactors = FALSE)
+  r <- hstat_dilution_calcul(d)
+
+  c_ul <- hstat_dilution_convertir(r, "µL")
+  expect_equal(unique(c_ul$Unite_volume), "µL")
+  expect_equal(c_ul$Volume_final, r$Volume_final * 1000)
+  expect_equal(c_ul$Volume_a_prelever, r$Volume_a_prelever * 1000)
+  # L'UNITE SUIT LA VALEUR. La laisser inchangee serait pire que ne pas
+  # convertir : le tableau annoncerait des millilitres et porterait des
+  # microlitres.
+  expect_false(identical(unique(c_ul$Unite_volume), unique(r$Unite_volume)))
+
+  # L'option est une OPTION : sans unite, rien ne bouge.
+  expect_equal(hstat_dilution_convertir(r, ""), r)
+  expect_equal(hstat_dilution_convertir(r, NULL), r)
+  # Une unite inconnue ne doit pas VIDER la colonne en divisant par NA.
+  expect_equal(hstat_dilution_convertir(r, "gallon"), r)
+})
+
+test_that("la concentration de depart est facultative et fixe le premier etage", {
+  base <- data.frame(
+    Produit = "A", Matiere_active = "ma1", Concentration_mere = 100,
+    Unite = "g/L", Coefficient = 10, Nb_filles = 4, Volume_final = 100,
+    Unite_volume = "mL", stringsAsFactors = FALSE)
+
+  # 1. ABSENTE, LE CALCUL EST EXACTEMENT CELUI D'AVANT -- c'est ce qui rend
+  #    l'ajout sans risque pour un tableau deja saisi.
+  r0 <- hstat_dilution_calcul(base)
+  expect_equal(r0$Concentration_fille, 100 / 10^(1:4))
+  expect_equal(r0$Volume_a_prelever, 100 / 10^(1:4))
+  # La colonne DISPARAIT quand personne ne s'en sert : une colonne vide fait
+  # croire a une information absente.
+  expect_false("Concentration_depart" %in% names(r0))
+
+  # 2. RENSEIGNEE, la gamme commence a cette valeur puis se divise par le
+  #    coefficient. Donner 25 au lieu des 10 par defaut decale toute la suite.
+  b1 <- base; b1$Concentration_depart <- 25
+  r1 <- hstat_dilution_calcul(b1)
+  expect_true("Concentration_depart" %in% names(r1))
+  expect_equal(r1$Concentration_fille, 25 / 10^(0:3))
+  # La conservation du solute tient : c'est elle qui garantit le prelevement.
+  expect_equal(r1$Concentration_mere * r1$Volume_a_prelever,
+               r1$Concentration_fille * r1$Volume_final)
+  # Le rang 1 vient de la MERE, les suivants de la fille precedente.
+  expect_equal(r1$Concentration_precedente[1], 100)
+  expect_equal(r1$Concentration_precedente[-1], r1$Concentration_fille[-4])
+
+  # 3. UNE DILUTION NE CONCENTRE PAS.
+  b2 <- base; b2$Concentration_depart <- 200
+  expect_equal(nrow(hstat_dilution_calcul(b2)), 0L)
+  expect_true(grepl("ne concentre pas",
+                    attr(hstat_dilution_calcul(b2), "message"), fixed = TRUE))
+  b3 <- base; b3$Concentration_depart <- 0
+  expect_true(grepl("nulle ou négative",
+                    attr(hstat_dilution_calcul(b3), "message"), fixed = TRUE))
+
+  # 4. UN FLACON, UN GESTE. Une dilution divise TOUTES les matieres actives par
+  #    le meme nombre : deux concentrations de depart qui impliqueraient deux
+  #    coefficients decriraient deux gestes sur le meme flacon.
+  duo <- data.frame(
+    Produit = "B", Matiere_active = c("a", "b"),
+    Concentration_mere = c(100, 50), Unite = "g/L",
+    Coefficient = 10, Nb_filles = 2, Volume_final = 100,
+    Unite_volume = "mL", stringsAsFactors = FALSE)
+  faux <- duo; faux$Concentration_depart <- c(25, 25)      # rapports 4 et 2
+  expect_equal(nrow(hstat_dilution_calcul(faux)), 0L)
+  expect_true(grepl("contradictoires",
+                    attr(hstat_dilution_calcul(faux), "message"), fixed = TRUE))
+
+  # Dans le MEME rapport, c'est un geste unique : accepte.
+  bon <- duo; bon$Concentration_depart <- c(25, 12.5)
+  rb <- hstat_dilution_calcul(bon)
+  expect_equal(nrow(rb), 4L)
+  expect_setequal(rb$Concentration_fille[rb$Rang == 1], c(25, 12.5))
+  # La tolerance est relative et lache : une saisie arrondie passe.
+  arr <- duo; arr$Concentration_mere <- c(33.3, 10)
+  arr$Concentration_depart <- c(3.33, 1)
+  expect_equal(nrow(hstat_dilution_calcul(arr)), 4L)
+})
+
 test_that("les solutions filles suivent la conservation du solute", {
   d <- data.frame(
     Produit            = c("A", "B", "B"),
