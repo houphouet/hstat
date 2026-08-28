@@ -262,7 +262,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.71.1. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.71.2. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -270,7 +270,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 0.71.1},
+  note   = {Version 0.71.2},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

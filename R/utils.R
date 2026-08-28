@@ -2873,34 +2873,55 @@ lm_cld_letters <- function(model, predictor, adjust = "tukey", digits = 3) {
 #' @param decimals nombre de decimales (input$testsDecimals)
 #' @return data.frame avec colonnes numeriques arrondies (inchange si round_on FALSE)
 # Nombre de decimales D'AFFICHAGE : la valeur choisie quand l'arrondi est actif,
-# sinon une precision par defaut (3) qui garde les colonnes texte
-# « Moyenne ± ... » coherentes avec les colonnes numeriques.
+# et `NA` quand il ne l'est pas -- « pas d'arrondi » n'est pas « arrondi a trois
+# decimales ».
+#
+# UNE PRECISION PAR DEFAUT ETAIT ENCORE UN ARRONDI. La case « Arrondir les
+# resultats numeriques » est decochee par defaut et promet des valeurs SANS
+# arrondi ; les colonnes numeriques le respectaient, mais la chaine
+# « moyenne ± dispersion » etait quand meme ramenee a trois decimales. Le
+# tableau montrait donc deux precisions differentes pour le meme nombre, et la
+# plus visible -- celle qu'on recopie dans un rapport -- etait la tronquee.
 #
 # LA REGLE N'EXISTE QU'ICI. Elle est lue a deux endroits -- l'arrondi
 # d'affichage et la composition des chaines « ± » au moment du calcul -- et deux
-# chiffres qui ne se parlent pas finissent par diverger : le tableau
-# annoncerait alors une moyenne et son ecart-type a des precisions differentes.
+# chiffres qui ne se parlent pas finissent par diverger.
 hstat_dec_affichage <- function(round_on, decimals = 2) {
-  if (!isTRUE(round_on)) return(3L)
+  if (!isTRUE(round_on)) return(NA_integer_)
   if (is.null(decimals) || !length(decimals) || is.na(decimals[1])) return(2L)
   max(0L, as.integer(decimals[1]))
 }
 
 # « moyenne ± dispersion groupe », a une precision d'affichage donnee.
+# `dec = NA` rend la valeur ENTIERE, sans arrondi : c'est le cas par defaut.
 #
 # UN SEUL FORMATEUR, parce que la chaine est composee a DEUX moments : au calcul
 # (mod_tests, ou les colonnes numeriques restent en pleine precision) et a
 # l'affichage (`round_numeric_df`, qui la reconstruit). Deux mises en forme
 # distinctes feraient afficher « 12.35 ± 1.2 » a un endroit et « 12.3 ± 1.23 »
 # a l'autre pour les memes nombres.
-.hstat_pm <- function(m, s, groupes = NULL, dec = 3L) {
+.hstat_pm <- function(m, s, groupes = NULL, dec = NA_integer_) {
   m <- suppressWarnings(as.numeric(m))
   s <- suppressWarnings(as.numeric(s))
-  dec <- max(0L, as.integer(dec))
+  dec <- suppressWarnings(as.integer(dec[1]))
+  # Sans arrondi demande, on rend le nombre tel qu'il est. `format()` et non
+  # `as.character()` : celui-ci bascule en notation scientifique des 1e-5, et
+  # une moyenne ecrite « 1.2e-05 » au milieu de nombres decimaux ne se compare
+  # a rien. 15 chiffres significatifs, c'est tout ce qu'un double porte.
+  mef <- if (is.na(dec)) {
+    # ELEMENT PAR ELEMENT. `format()` sur un VECTEUR aligne tout le monde sur
+    # la meme longueur : a cote de 12,3456789012 l'entier 3 ressortait
+    # « 3.000000000000 » et un ecart-type nul « 0.0000000000000 ». Ce n'est
+    # pas de la precision, c'est du bruit -- et il fait croire a une mesure
+    # au douzieme chiffre.
+    function(x) vapply(x, function(v)
+      format(v, trim = TRUE, digits = 15, scientific = FALSE), character(1),
+      USE.NAMES = FALSE)
+  } else {
+    function(x) formatC(round(x, dec), digits = max(0L, dec), format = "f")
+  }
   out <- ifelse(is.na(m) | is.na(s), "NA",
-                paste0(formatC(round(m, dec), digits = dec, format = "f"),
-                       " \u00b1 ",
-                       formatC(round(s, dec), digits = dec, format = "f")))
+                paste0(mef(m), " \u00b1 ", mef(s)))
   if (!is.null(groupes)) out <- paste0(out, " ", as.character(groupes))
   out
 }

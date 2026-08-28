@@ -6447,7 +6447,10 @@ mod_tests_server <- function(id, values) {
                                       Facteur = paste0(fvar1, " | ", fvar2, "=", level2),
                                       Type = "simple_effect",
                                       Interaction_base = interaction_term,
-                                      P_interaction = round(interaction_pvalue, 4),
+                                      # PAS D'ARRONDI AU CALCUL : le choix
+                                      # appartient a l'utilisateur, et
+                                      # l'affichage l'applique deja.
+                                      P_interaction = interaction_pvalue,
                                       Direction = trf("%s vers %s", fvar1, fvar2)
                                     ), error = function(e) NULL)
                   if (!is.null(res))
@@ -6479,7 +6482,10 @@ mod_tests_server <- function(id, values) {
                                       Facteur = paste0(fvar2, " | ", fvar1, "=", level1),
                                       Type = "simple_effect",
                                       Interaction_base = interaction_term,
-                                      P_interaction = round(interaction_pvalue, 4),
+                                      # PAS D'ARRONDI AU CALCUL : le choix
+                                      # appartient a l'utilisateur, et
+                                      # l'affichage l'applique deja.
+                                      P_interaction = interaction_pvalue,
                                       Direction = trf("%s vers %s", fvar2, fvar1)
                                     ), error = function(e) NULL)
                   if (!is.null(res))
@@ -7175,8 +7181,7 @@ mod_tests_server <- function(id, values) {
       class = 'cell-border stripe hstat-fixedcols'
     )
     if (isTRUE(input$multiRoundResults)) {
-      dec <- if (is.null(input$multiDecimals) || is.na(input$multiDecimals)) 2
-      else as.integer(input$multiDecimals)
+      dec <- hstat_dec_affichage(TRUE, input$multiDecimals)
       round_cols <- intersect(c("Moyenne", "Ecart_type", "Erreur_type", "CV"),
                               cols_to_show)
       if (length(round_cols) > 0)
@@ -7235,8 +7240,7 @@ mod_tests_server <- function(id, values) {
       class = 'cell-border stripe hstat-fixedcols'
     )
     if (isTRUE(input$multiRoundResults)) {
-      dec <- if (is.null(input$multiDecimals) || is.na(input$multiDecimals)) 2
-      else as.integer(input$multiDecimals)
+      dec <- hstat_dec_affichage(TRUE, input$multiDecimals)
       round_cols <- intersect(c("Moyenne", "Ecart_type", "Erreur_type", "CV", "P_interaction"),
                               cols_to_show)
       if (length(round_cols) > 0)

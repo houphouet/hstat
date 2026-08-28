@@ -6084,22 +6084,28 @@ test_that("le post-hoc rend les vraies moyennes, pas des valeurs tronquees", {
   skip_if(is.na(root))
   m <- readLines(.hstat_module_path("mod_tests.R"), warn = FALSE,
                  encoding = "UTF-8")
-  fautifs <- grep("(Moyenne|Ecart_type|Erreur_type|CV)[[:space:]]*=[[:space:]]*round\\(",
+  fautifs <- grep("(Moyenne|Ecart_type|Erreur_type|CV|P_interaction)[[:space:]]*=[[:space:]]*round\\(",
                   m, value = TRUE)
   expect_equal(fautifs, character(0),
                info = paste("arrondi au calcul :", paste(fautifs, collapse = " | ")))
+  # La regle de decimales ne se recopie pas non plus : elle etait ecrite en
+  # toutes lettres a deux endroits de l'affichage, en plus du socle.
+  expect_equal(grep("is.null(input$multiDecimals)", m, fixed = TRUE), integer(0))
 
-  # 1. LA REGLE DE DECIMALES N'EXISTE QU'A UN ENDROIT. Elle est lue par
-  #    l'arrondi d'affichage ET par la composition des chaines « ± » ; deux
-  #    chiffres qui ne se parlent pas finissent par diverger, et le tableau
-  #    annoncerait la moyenne et son ecart-type a des precisions differentes.
-  expect_equal(hstat_dec_affichage(FALSE), 3L)
-  expect_equal(hstat_dec_affichage(FALSE, 7), 3L)   # decoche : le reglage ne s'applique pas
+  # 1. « PAS D'ARRONDI » N'EST PAS « ARRONDI A TROIS DECIMALES ». La case est
+  #    decochee par defaut et promet des valeurs sans arrondi : la regle rend
+  #    donc NA, que le formateur lit comme « rends le nombre tel qu'il est ».
+  #    Une precision par defaut faisait afficher deux precisions differentes
+  #    pour le meme nombre, et la plus visible -- celle qu'on recopie dans un
+  #    rapport -- etait la tronquee.
+  expect_true(is.na(hstat_dec_affichage(FALSE)))
+  expect_true(is.na(hstat_dec_affichage(FALSE, 7)))  # decoche : le reglage ne s'applique pas
   expect_equal(hstat_dec_affichage(TRUE, NULL), 2L)
   expect_equal(hstat_dec_affichage(TRUE, NA), 2L)
   expect_equal(hstat_dec_affichage(TRUE, 5), 5L)
 
-  # 2. SANS ARRONDI DEMANDE, LES COLONNES NUMERIQUES SORTENT INTACTES.
+  # 2. SANS ARRONDI DEMANDE, RIEN N'EST ARRONDI -- ni les colonnes numeriques,
+  #    ni la chaine.
   d <- data.frame(Moyenne = c(12.3456789, 1000.5),
                   Ecart_type = c(1.23456789, 2.25),
                   Erreur_type = c(0.61728, 1.125),
@@ -6109,17 +6115,23 @@ test_that("le post-hoc rend les vraies moyennes, pas des valeurs tronquees", {
   expect_equal(sans$Moyenne, d$Moyenne)
   expect_equal(sans$Ecart_type, d$Ecart_type)
   expect_equal(sans$Erreur_type, d$Erreur_type)
-  # La chaine, elle, reste lisible : c'est une mise en forme, pas une donnee.
-  expect_equal(sans$Moyenne_pm_SD[1], "12.346 ± 1.235 a")
+  expect_equal(sans$Moyenne_pm_SD[1], "12.3456789 ± 1.23456789 a")
 
   # 3. AVEC ARRONDI, la precision demandee s'applique aux deux a la fois.
   avec <- round_numeric_df(d, TRUE, 4)
   expect_equal(avec$Moyenne[1], 12.3457)
   expect_equal(avec$Moyenne_pm_SD[1], "12.3457 ± 1.2346 a")
 
-  # 4. Le formateur est partage, et il tient les cas degeneres : un ecart-type
-  #    manquant (groupe a une seule observation) ne doit pas rendre « 12.35 ± NA »
-  #    a moitie forme.
+  # 4. CHAQUE NOMBRE PORTE SES PROPRES CHIFFRES. `format()` sur un VECTEUR
+  #    aligne tout le monde sur la meme longueur : a cote de 12,3456789
+  #    l'entier 3 ressortait « 3.000000000 » et un ecart-type nul
+  #    « 0.00000000 ». Ce n'est pas de la precision, c'est du bruit -- et il
+  #    fait croire a une mesure au neuvieme chiffre.
+  ligne <- .hstat_pm(c(12.3456789, 3), c(1.2345, 0), NULL)
+  expect_equal(ligne, c("12.3456789 ± 1.2345", "3 ± 0"))
+
+  # 5. Le formateur tient les cas degeneres : un ecart-type manquant (groupe a
+  #    une seule observation) ne doit pas rendre « 12.35 ± NA » a moitie forme.
   expect_equal(.hstat_pm(1.5, NA, NULL, 2), "NA")
   expect_equal(.hstat_pm(NA, 1.5, NULL, 2), "NA")
   expect_equal(.hstat_pm(1.5, 0.25, NULL, 0), "2 ± 0")
