@@ -8896,13 +8896,31 @@ test_that("le microlitre est une unite de volume, et les volumes se convertissen
   r <- hstat_dilution_calcul(d)
 
   c_ul <- hstat_dilution_convertir(r, "µL")
-  expect_equal(unique(c_ul$Unite_volume), "µL")
-  expect_equal(c_ul$Volume_final, r$Volume_final * 1000)
-  expect_equal(c_ul$Volume_a_prelever, r$Volume_a_prelever * 1000)
-  # L'UNITE SUIT LA VALEUR. La laisser inchangee serait pire que ne pas
-  # convertir : le tableau annoncerait des millilitres et porterait des
-  # microlitres.
-  expect_false(identical(unique(c_ul$Unite_volume), unique(r$Unite_volume)))
+
+  # 1. LA CONVERSION AJOUTE, ELLE NE REMPLACE PAS. Une premiere version
+  #    ecrasait la valeur saisie : l'utilisateur qui avait tape « 100 mL » ne
+  #    le retrouvait plus nulle part et ne pouvait plus verifier son entree.
+  #    Devant une paillasse, la valeur convertie sert au geste et la valeur
+  #    saisie sert au controle -- il faut les DEUX.
+  expect_equal(c_ul$Volume_final, r$Volume_final)
+  expect_equal(c_ul$Volume_a_prelever, r$Volume_a_prelever)
+  expect_equal(c_ul$Unite_volume, r$Unite_volume)
+
+  # 2. La valeur convertie est la, dans sa propre colonne, avec son unite.
+  expect_equal(c_ul$Volume_final_conv, r$Volume_final * 1000)
+  expect_equal(c_ul$Volume_a_prelever_conv, r$Volume_a_prelever * 1000)
+  expect_equal(c_ul$Volume_eau_a_ajouter_conv, r$Volume_eau_a_ajouter * 1000)
+  expect_equal(unique(c_ul$Unite_volume_conv), "µL")
+
+  # 3. CHAQUE COLONNE CONVERTIE SUIT IMMEDIATEMENT SON ORIGINALE : deux
+  #    colonnes de volume separees par la moitie du tableau ne se comparent
+  #    pas, et c'est la comparaison qui est demandee.
+  nm <- names(c_ul)
+  for (k in c("Volume_final", "Volume_a_prelever", "Volume_eau_a_ajouter",
+              "Volume_mere_requis", "Unite_volume"))
+    expect_equal(match(paste0(k, "_conv"), nm), match(k, nm) + 1L, info = k)
+  # Rien n'est perdu au passage : les colonnes d'origine sont toutes la.
+  expect_true(all(names(r) %in% nm))
 
   # L'option est une OPTION : sans unite, rien ne bouge.
   expect_equal(hstat_dilution_convertir(r, ""), r)
