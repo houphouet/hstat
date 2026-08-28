@@ -6069,6 +6069,62 @@ test_that("le tableau des valeurs aberrantes a une sortie dediee", {
   expect_true(grepl("output$outlierTable <- shiny::renderTable", m, fixed = TRUE))
 })
 
+test_that("le post-hoc rend les vraies moyennes, pas des valeurs tronquees", {
+  # LE DEFAUT QUE CE TEST GARDE, et il rendait un REGLAGE MENTEUR. L'onglet
+  # porte « Arrondir les résultats numériques », décoché par défaut, et
+  # promet : « Si décoché, les valeurs s'affichent sans arrondi ». Or les
+  # tableaux de comparaisons multiples arrondissaient `Moyenne`, `Ecart_type`,
+  # `Erreur_type` et `CV` A DEUX DECIMALES AU MOMENT DU CALCUL, sur trois
+  # sites. La valeur était détruite avant d'atteindre l'affichage : décocher
+  # la case ne pouvait plus rien restituer, et l'export comme le rapport ne
+  # portaient qu'une moyenne à deux décimales.
+  #
+  # L'arrondi appartient à l'AFFICHAGE (`round_numeric_df`), jamais au calcul.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  m <- readLines(.hstat_module_path("mod_tests.R"), warn = FALSE,
+                 encoding = "UTF-8")
+  fautifs <- grep("(Moyenne|Ecart_type|Erreur_type|CV)[[:space:]]*=[[:space:]]*round\\(",
+                  m, value = TRUE)
+  expect_equal(fautifs, character(0),
+               info = paste("arrondi au calcul :", paste(fautifs, collapse = " | ")))
+
+  # 1. LA REGLE DE DECIMALES N'EXISTE QU'A UN ENDROIT. Elle est lue par
+  #    l'arrondi d'affichage ET par la composition des chaines « ± » ; deux
+  #    chiffres qui ne se parlent pas finissent par diverger, et le tableau
+  #    annoncerait la moyenne et son ecart-type a des precisions differentes.
+  expect_equal(hstat_dec_affichage(FALSE), 3L)
+  expect_equal(hstat_dec_affichage(FALSE, 7), 3L)   # decoche : le reglage ne s'applique pas
+  expect_equal(hstat_dec_affichage(TRUE, NULL), 2L)
+  expect_equal(hstat_dec_affichage(TRUE, NA), 2L)
+  expect_equal(hstat_dec_affichage(TRUE, 5), 5L)
+
+  # 2. SANS ARRONDI DEMANDE, LES COLONNES NUMERIQUES SORTENT INTACTES.
+  d <- data.frame(Moyenne = c(12.3456789, 1000.5),
+                  Ecart_type = c(1.23456789, 2.25),
+                  Erreur_type = c(0.61728, 1.125),
+                  Groupes = c("a", "b"),
+                  Moyenne_pm_SD = NA_character_, stringsAsFactors = FALSE)
+  sans <- round_numeric_df(d, FALSE)
+  expect_equal(sans$Moyenne, d$Moyenne)
+  expect_equal(sans$Ecart_type, d$Ecart_type)
+  expect_equal(sans$Erreur_type, d$Erreur_type)
+  # La chaine, elle, reste lisible : c'est une mise en forme, pas une donnee.
+  expect_equal(sans$Moyenne_pm_SD[1], "12.346 ± 1.235 a")
+
+  # 3. AVEC ARRONDI, la precision demandee s'applique aux deux a la fois.
+  avec <- round_numeric_df(d, TRUE, 4)
+  expect_equal(avec$Moyenne[1], 12.3457)
+  expect_equal(avec$Moyenne_pm_SD[1], "12.3457 ± 1.2346 a")
+
+  # 4. Le formateur est partage, et il tient les cas degeneres : un ecart-type
+  #    manquant (groupe a une seule observation) ne doit pas rendre « 12.35 ± NA »
+  #    a moitie forme.
+  expect_equal(.hstat_pm(1.5, NA, NULL, 2), "NA")
+  expect_equal(.hstat_pm(NA, 1.5, NULL, 2), "NA")
+  expect_equal(.hstat_pm(1.5, 0.25, NULL, 0), "2 ± 0")
+})
+
 test_that("les diagnostics d'ANOVA ne font pas tomber toute la sortie", {
   # Le tryCatch y enveloppe TOUTE la boucle : une seule variable a residus
   # constants emporterait l'ANOVA de toutes les autres. Shapiro leve « all 'x'

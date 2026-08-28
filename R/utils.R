@@ -2872,17 +2872,42 @@ lm_cld_letters <- function(model, predictor, adjust = "tukey", digits = 3) {
 #' @param round_on TRUE si l'arrondi est active (input$testsRoundResults)
 #' @param decimals nombre de decimales (input$testsDecimals)
 #' @return data.frame avec colonnes numeriques arrondies (inchange si round_on FALSE)
+# Nombre de decimales D'AFFICHAGE : la valeur choisie quand l'arrondi est actif,
+# sinon une precision par defaut (3) qui garde les colonnes texte
+# « Moyenne ± ... » coherentes avec les colonnes numeriques.
+#
+# LA REGLE N'EXISTE QU'ICI. Elle est lue a deux endroits -- l'arrondi
+# d'affichage et la composition des chaines « ± » au moment du calcul -- et deux
+# chiffres qui ne se parlent pas finissent par diverger : le tableau
+# annoncerait alors une moyenne et son ecart-type a des precisions differentes.
+hstat_dec_affichage <- function(round_on, decimals = 2) {
+  if (!isTRUE(round_on)) return(3L)
+  if (is.null(decimals) || !length(decimals) || is.na(decimals[1])) return(2L)
+  max(0L, as.integer(decimals[1]))
+}
+
+# « moyenne ± dispersion groupe », a une precision d'affichage donnee.
+#
+# UN SEUL FORMATEUR, parce que la chaine est composee a DEUX moments : au calcul
+# (mod_tests, ou les colonnes numeriques restent en pleine precision) et a
+# l'affichage (`round_numeric_df`, qui la reconstruit). Deux mises en forme
+# distinctes feraient afficher « 12.35 ± 1.2 » a un endroit et « 12.3 ± 1.23 »
+# a l'autre pour les memes nombres.
+.hstat_pm <- function(m, s, groupes = NULL, dec = 3L) {
+  m <- suppressWarnings(as.numeric(m))
+  s <- suppressWarnings(as.numeric(s))
+  dec <- max(0L, as.integer(dec))
+  out <- ifelse(is.na(m) | is.na(s), "NA",
+                paste0(formatC(round(m, dec), digits = dec, format = "f"),
+                       " \u00b1 ",
+                       formatC(round(s, dec), digits = dec, format = "f")))
+  if (!is.null(groupes)) out <- paste0(out, " ", as.character(groupes))
+  out
+}
+
 round_numeric_df <- function(df, round_on, decimals = 2) {
   if (is.null(df) || !is.data.frame(df)) return(df)
-  
-  # Nombre de decimales : si l'arrondi est actif, valeur choisie ; sinon
-  # une precision d'affichage par defaut (3) garantissant la coherence
-  # entre colonnes numeriques et colonnes texte "Moyenne ± ...".
-  dec <- if (isTRUE(round_on)) {
-    if (is.null(decimals) || is.na(decimals)) 2L else as.integer(decimals)
-  } else {
-    3L
-  }
+  dec <- hstat_dec_affichage(round_on, decimals)
   
   # Noms possibles des colonnes texte (avant ou apres renommage d'affichage)
   sd_names <- c("Moyenne_pm_SD", "Moyenne \u00b1 Écart-type groupe")
@@ -2893,14 +2918,7 @@ round_numeric_df <- function(df, round_on, decimals = 2) {
   
   # Reconstruction des colonnes texte a partir des colonnes numeriques sources,
   # afin que "Moyenne ± Écart-type" affiche EXACTEMENT la valeur de "Moyenne".
-  fmt_pair <- function(m, s, grp) {
-    out <- ifelse(is.na(m) | is.na(s), "NA",
-                  paste0(formatC(round(m, dec), digits = dec, format = "f"),
-                         " \u00b1 ",
-                         formatC(round(s, dec), digits = dec, format = "f")))
-    if (!is.null(grp)) out <- paste0(out, " ", grp)
-    out
-  }
+  fmt_pair <- function(m, s, grp) .hstat_pm(m, s, grp, dec)
   grp_vec <- if ("Groupes" %in% names(df)) as.character(df$Groupes) else NULL
   
   if (!is.na(sd_col) && all(c("Moyenne", "Ecart_type") %in% names(df))) {

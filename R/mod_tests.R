@@ -6156,6 +6156,10 @@ mod_tests_server <- function(id, values) {
     
     multi_results_list <- list()
     simple_effects_list <- list()
+    # Precision des seules chaines « moyenne ± dispersion ». Les colonnes
+    # numeriques, elles, restent en pleine precision : c'est `round_numeric_df`
+    # qui les arrondit A L'AFFICHAGE, et seulement si l'utilisateur le demande.
+    .dec_aff <- hstat_dec_affichage(input$multiRoundResults, input$multiDecimals)
     df <- values$filteredData
     
     if (is.null(df) || nrow(df) == 0) {
@@ -6335,12 +6339,14 @@ mod_tests_server <- function(id, values) {
             res <- merge(desc, groups, by = fvar, all.x = TRUE)
             res <- res %>%
               dplyr::mutate(
-                Moyenne = round(Moyenne, 2),
-                Ecart_type = round(Ecart_type, 2),
-                Erreur_type = round(Erreur_type, 2),
-                CV = round(CV, 2),
-                `Moyenne±Ecart_type` = paste0(Moyenne, "±", Ecart_type, " ", groups),
-                `Moyenne±Erreur_type` = paste0(Moyenne, "±", Erreur_type, " ", groups),
+                # LES COLONNES NUMERIQUES GARDENT LEUR PRECISION. Les arrondir
+                # ici DETRUISAIT la valeur : le reglage « Si decoche, les
+                # valeurs s'affichent sans arrondi » ne pouvait plus rien
+                # restituer, et l'export comme le rapport ne portaient plus
+                # qu'une moyenne a deux decimales. L'arrondi appartient a
+                # l'affichage (`round_numeric_df`), pas au calcul.
+                `Moyenne±Ecart_type` = .hstat_pm(Moyenne, Ecart_type, groups, .dec_aff),
+                `Moyenne±Erreur_type` = .hstat_pm(Moyenne, Erreur_type, groups, .dec_aff),
                 Variable = var,
                 Facteur = fvar,
                 Type = "main"
@@ -6431,12 +6437,12 @@ mod_tests_server <- function(id, values) {
                 if (!is.null(res) && nrow(res) > 0) {
                   res <- tryCatch(res %>%
                                     dplyr::mutate(
-                                      Moyenne = round(as.numeric(Moyenne), 2),
-                                      Ecart_type = round(as.numeric(Ecart_type), 2),
-                                      Erreur_type = round(as.numeric(Erreur_type), 2),
-                                      CV = round(as.numeric(CV), 2),
-                                      `Moyenne±Ecart_type` = paste0(Moyenne, "±", Ecart_type, " ", groups),
-                                      `Moyenne±Erreur_type` = paste0(Moyenne, "±", Erreur_type, " ", groups),
+                                      Moyenne = as.numeric(Moyenne),
+                                      Ecart_type = as.numeric(Ecart_type),
+                                      Erreur_type = as.numeric(Erreur_type),
+                                      CV = as.numeric(CV),
+                                      `Moyenne±Ecart_type` = .hstat_pm(Moyenne, Ecart_type, groups, .dec_aff),
+                                      `Moyenne±Erreur_type` = .hstat_pm(Moyenne, Erreur_type, groups, .dec_aff),
                                       Variable = var,
                                       Facteur = paste0(fvar1, " | ", fvar2, "=", level2),
                                       Type = "simple_effect",
@@ -6463,12 +6469,12 @@ mod_tests_server <- function(id, values) {
                 if (!is.null(res) && nrow(res) > 0) {
                   res <- tryCatch(res %>%
                                     dplyr::mutate(
-                                      Moyenne = round(as.numeric(Moyenne), 2),
-                                      Ecart_type = round(as.numeric(Ecart_type), 2),
-                                      Erreur_type = round(as.numeric(Erreur_type), 2),
-                                      CV = round(as.numeric(CV), 2),
-                                      `Moyenne±Ecart_type` = paste0(Moyenne, "±", Ecart_type, " ", groups),
-                                      `Moyenne±Erreur_type` = paste0(Moyenne, "±", Erreur_type, " ", groups),
+                                      Moyenne = as.numeric(Moyenne),
+                                      Ecart_type = as.numeric(Ecart_type),
+                                      Erreur_type = as.numeric(Erreur_type),
+                                      CV = as.numeric(CV),
+                                      `Moyenne±Ecart_type` = .hstat_pm(Moyenne, Ecart_type, groups, .dec_aff),
+                                      `Moyenne±Erreur_type` = .hstat_pm(Moyenne, Erreur_type, groups, .dec_aff),
                                       Variable = var,
                                       Facteur = paste0(fvar2, " | ", fvar1, "=", level1),
                                       Type = "simple_effect",
