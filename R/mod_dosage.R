@@ -539,7 +539,15 @@ HSTAT_DILUTION_LIBELLES <- c(
   Volume_a_prelever         = "Volume à prélever dans la mère (Vi)",
   Volume_eau_a_ajouter      = "Eau à ajouter (Vf − Vi)",
   Concentration_totale_g_L  = "Concentration totale de la fille (g/L)",
-  Volume_mere_requis        = "Solution mère nécessaire (total)")
+  Volume_mere_requis        = "Solution mère nécessaire (total)",
+  # Les colonnes de conversion. Elles ne remplacent pas leurs originales, elles
+  # les accompagnent : le libellé doit donc dire « converti » sans ambiguïté,
+  # sans quoi deux colonnes de volume côte à côte se confondraient.
+  Unite_volume_conv         = "Unité convertie",
+  Volume_final_conv         = "Volume final converti",
+  Volume_a_prelever_conv    = "Volume à prélever converti",
+  Volume_eau_a_ajouter_conv = "Eau à ajouter convertie",
+  Volume_mere_requis_conv   = "Solution mère nécessaire convertie")
 
 # Volumes ramenes a UNE unite commune.
 #
@@ -567,12 +575,34 @@ hstat_dilution_convertir <- function(d, unite = NULL) {
                    numeric(1), USE.NAMES = FALSE)
   ok <- is.finite(depuis) & depuis > 0
   if (!any(ok)) return(d)
-  for (k in intersect(HSTAT_DILUTION_VOL_COLS, names(d)))
-    d[[k]][ok] <- d[[k]][ok] * depuis[ok] / vers
-  # L'unite affichee suit la valeur : la laisser inchangee serait pire que ne
-  # pas convertir du tout.
-  d$Unite_volume[ok] <- unite
-  d
+
+  # LA CONVERSION AJOUTE, ELLE NE REMPLACE PAS. Une premiere version ecrasait
+  # la valeur saisie : l'utilisateur qui avait tape « 100 mL » ne le retrouvait
+  # plus nulle part, et ne pouvait plus verifier ce qu'il avait entre. Or c'est
+  # la premiere chose qu'on relit devant une paillasse -- la valeur convertie
+  # sert au geste, la valeur saisie sert au controle.
+  #
+  # Chaque colonne convertie est posee JUSTE APRES son originale : l'oeil
+  # apparie les deux sans avoir a traverser le tableau.
+  for (k in intersect(HSTAT_DILUTION_VOL_COLS, names(d))) {
+    v <- rep(NA_real_, nrow(d))
+    v[ok] <- d[[k]][ok] * depuis[ok] / vers
+    d <- .hstat_col_apres(d, k, paste0(k, "_conv"), v)
+  }
+  # L'unite convertie est une colonne A PART : `Unite_volume` continue de dire
+  # dans quoi l'utilisateur a saisi. Deux colonnes, deux questions.
+  u <- rep(NA_character_, nrow(d))
+  u[ok] <- unite
+  .hstat_col_apres(d, "Unite_volume", "Unite_volume_conv", u)
+}
+
+# Insere une colonne juste apres une autre, en conservant l'ordre du reste.
+.hstat_col_apres <- function(d, apres, nom, valeurs) {
+  d[[nom]] <- valeurs
+  nm <- setdiff(names(d), nom)
+  i  <- match(apres, nm)
+  if (is.na(i)) return(d)
+  d[, append(nm, nom, after = i), drop = FALSE]
 }
 
 hstat_dilution_affichage <- function(d) {
@@ -743,8 +773,9 @@ mod_dosage_ui <- function(id) {
             shiny::selectInput(ns("dilConvVol"), "Convertir les volumes en",
               choices = c("(unité de saisie)" = "", names(HSTAT_VOL_UNITES)),
               selected = ""),
-            shiny::helpText("Chaque produit garde son unité de saisie ; la conversion",
-                            " ramène toute la colonne à une seule unité, donc comparable."),
+            shiny::helpText("Les résultats portent alors les ", shiny::strong("deux"),
+                            " valeurs : celle que vous avez saisie et sa conversion,",
+                            " chacune dans sa colonne et avec son unité."),
             shiny::numericInput(ns("dilDecimales"), "Chiffres après la virgule",
               value = 4, min = 0, max = HSTAT_DEC_MAX, step = 1),
             shiny::helpText("Une gamme profonde descend vite : au 1/10 depuis 100 g/L,",
