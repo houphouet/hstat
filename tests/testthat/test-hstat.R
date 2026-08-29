@@ -5896,8 +5896,12 @@ test_that("creation et reinitialisation partagent la meme liste", {
   expect_true(grepl("init <- hstat_valeurs_initiales()", socle, fixed = TRUE))
   expect_true(grepl("for (nm in names(init)) values[[nm]] <- init[[nm]]",
                     socle, fixed = TRUE))
-  # Et vide en plus ce qu'un module aurait cree en cours de session
-  expect_true(grepl("setdiff(connus, names(init))", socle, fixed = TRUE))
+  # Et vide en plus ce qu'un module aurait cree en cours de session -- y
+  # compris les `reactiveVal`, que `hstat_vider_valeurs()` remet a NULL EN LES
+  # APPELANT plutot qu'en les detruisant.
+  expect_true(grepl("hstat_vider_valeurs(values)", socle, fixed = TRUE))
+  expect_true(grepl("setdiff(names(shiny::isolate(shiny::reactiveValuesToList(rv))), sauf)",
+                    socle, fixed = TRUE))
   # L'ancienne enumeration a la main a bien disparu
   expect_false(grepl("values$chiSqPGlobal     <- NULL", src, fixed = TRUE))
 })
@@ -5945,6 +5949,56 @@ test_that("charger de nouvelles donnees remet l'etat de session a zero", {
   })
 })
 
+test_that("un reactiveVal range dans values survit a la remise a zero", {
+  # LE DEFAUT QUE CE TEST GARDE, introduit par la remise a zero elle-meme.
+  # `values$customXLevels` EST une fonction -- un `reactiveVal` --, et le reste
+  # du code l'appelle comme telle : `values$customXLevels()`. Lui affecter NULL
+  # DETRUIT l'objet au lieu de le vider ; l'appel suivant leve « attempt to
+  # apply non-function » et tout le graphique post-hoc tombe, sur un geste
+  # aussi banal que charger un autre fichier.
+  v <- do.call(shiny::reactiveValues, hstat_valeurs_initiales())
+  shiny::isolate({
+    v$customXLevels <- shiny::reactiveVal(NULL)
+    v$customXLevels(c("B", "A"))
+    v$descStats <- "resultats du fichier precedent"
+
+    hstat_reinitialiser_valeurs(v)
+
+    expect_true(is.function(v$customXLevels))
+    expect_true(inherits(v$customXLevels, "reactiveVal"))
+    expect_null(v$customXLevels())          # vide, mais VIVANT
+    expect_null(v$descStats)
+    # Et il reste utilisable : c'est tout l'objet de la nuance.
+    v$customXLevels(c("A", "B"))
+    expect_equal(v$customXLevels(), c("A", "B"))
+  })
+
+  # `hstat_vider_valeurs()` sait aussi epargner ce qu'on lui nomme.
+  w <- shiny::reactiveValues(a = 1, b = 2)
+  shiny::isolate({
+    hstat_vider_valeurs(w, sauf = "b")
+    expect_null(w$a)
+    expect_equal(w$b, 2)
+  })
+})
+
+test_that("les modules a etat propre ecoutent le signal de remise a zero", {
+  # Un module qui garde son etat dans SES PROPRES `reactiveVal` echappe a la
+  # remise a zero de `values` : le tableau d'efficacites et les quatre messages
+  # de nettoyage decrivaient encore le fichier PRECEDENT apres un nouveau
+  # chargement. `resetSignal` est le seul canal qui les atteint.
+  root <- .hstat_repo_root(); skip_if(is.na(root))
+  attendu <- list("mod_threshold.R" = "eff_res(NULL)",
+                  "mod_clean.R"     = "rename_msg(NULL)")
+  for (f in names(attendu)) {
+    chemin <- .hstat_module_path(f)
+    skip_if_not(file.exists(chemin), f)
+    txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+    expect_true(grepl("observeEvent(values$resetSignal", txt, fixed = TRUE), label = f)
+    expect_true(grepl(attendu[[f]], txt, fixed = TRUE), label = paste(f, attendu[[f]]))
+  }
+})
+
 test_that("les trois portes d'entree des donnees remettent l'etat a zero", {
   # Un quatrieme chemin d'import ajoute demain sans cet appel reintroduirait le
   # defaut en silence : les anciennes variables reviendraient, sans erreur.
@@ -5962,7 +6016,7 @@ test_that("les trois portes d'entree des donnees remettent l'etat a zero", {
         dec <- paste(deparse(n[[2]]), collapse = "")
         if (dec %in% portes) {
           corps <- paste(deparse(n[[3]]), collapse = " ")
-          if (grepl("hstat_reinitialiser_valeurs", corps, fixed = TRUE))
+          if (grepl(".hstat_purger_session", corps, fixed = TRUE))
             vus <<- c(vus, dec)
         }
       }
@@ -5973,6 +6027,11 @@ test_that("les trois portes d'entree des donnees remettent l'etat a zero", {
   }
   for (k in seq_along(ex)) v(ex[[k]])
   expect_equal(sort(unique(vus)), sort(portes))
+  # Et le purgeur fait bien les deux : l'etat partage ET les resultats
+  # multivaries, qui vivent dans leur propre `reactiveValues`.
+  src1 <- paste(src, collapse = "\n")
+  expect_true(grepl("hstat_reinitialiser_valeurs(values)", src1, fixed = TRUE))
+  expect_true(grepl("hstat_vider_valeurs(mv_res)", src1, fixed = TRUE))
 })
 
 test_that("le fichier reste neutralise apres la reinitialisation", {
@@ -7195,6 +7254,99 @@ test_that("le panneau d'options post-hoc expose toutes ses mises en forme", {
     expect_true(grepl(sprintf("input$%s", r), txt, fixed = TRUE),
                 label = paste("lu par le serveur :", r))
   }
+})
+
+test_that("chaque option du graphique post-hoc est declaree, lue ET utilisee", {
+  # TROIS CONDITIONS, PAS DEUX. Un reglage absent de l'interface est
+  # inatteignable ; un reglage que le reactif ne LIT pas se change sans que
+  # l'image bouge ; et un reglage lu mais jamais UTILISE ne fait rien non plus
+  # -- c'est le cas le plus trompeur, puisque le code a l'air branche.
+  # `legendKeySize` etait exactement dans ce cas avant sa correction.
+  root <- .hstat_repo_root(); skip_if(is.na(root))
+  chemin <- .hstat_module_path("mod_tests.R")
+  txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  ex <- parse(chemin, keep.source = FALSE)
+  corps <- NULL
+  v <- function(n) {
+    if (!is.null(corps) || !is.call(n)) return(invisible())
+    if (identical(paste(deparse(n[[1]]), collapse = ""), "<-") && is.name(n[[2]]) &&
+        identical(as.character(n[[2]]), "create_posthoc_plot")) {
+      corps <<- n[[3]]; return(invisible())
+    }
+    for (i in seq_along(n)) tryCatch(v(n[[i]]), error = function(e) NULL)
+  }
+  for (k in seq_along(ex)) v(ex[[k]])
+  expect_false(is.null(corps))
+  b <- paste(deparse(corps, width.cutoff = 500), collapse = "\n")
+
+  paires <- c(
+    xLabelAngle = "x_label_angle", yLabelAngle = "y_label_angle",
+    titlePosition = "title_position", legendPosition = "legend_position",
+    plotAlpha = "plot_alpha", showBorder = "show_border",
+    borderColor = "border_color", borderWidth = "border_width",
+    geomWidth = "geom_width", pointSize = "point_size",
+    errorBarWidth = "error_bar_width", errorBarColor = "error_bar_color",
+    letterColor = "letter_color", showMeanValues = "show_mean_values",
+    meanValueDecimals = "mean_value_decimals", meanValueColor = "mean_value_color",
+    meanValueFontStyle = "mean_value_font_style",
+    showGridMajor = "show_grid_major", showGridMinor = "show_grid_minor")
+  for (nm in names(paires)) {
+    loc <- paires[[nm]]
+    expect_true(grepl(sprintf('ns("%s")', nm), txt, fixed = TRUE),
+                label = paste("declare dans l'interface :", nm))
+    expect_true(grepl(sprintf("input$%s", nm), b, fixed = TRUE),
+                label = paste("lu par le reactif du graphique :", nm))
+    # Deux occurrences au moins : l'affectation, et au moins un usage.
+    n_u <- if (grepl(loc, b, fixed = TRUE))
+      length(gregexpr(paste0("\\b", loc, "\\b"), b, perl = TRUE)[[1]]) else 0L
+    expect_gte(n_u, 2L, label = paste("utilise par le graphique :", nm))
+  }
+
+  # Les valeurs figees que ces reglages remplacent ont bien disparu.
+  expect_false(grepl("alpha = 0.7", txt, fixed = TRUE))
+  expect_false(grepl('color = "red")', txt, fixed = TRUE))
+  expect_false(grepl('width = 0.2, color = "black"', txt, fixed = TRUE))
+  expect_false(grepl("round(Moyenne, 2)", txt, fixed = TRUE))
+})
+
+test_that("l'inclinaison des libelles X couvre tout l'intervalle 0-90 degres", {
+  # La case « inclines a 45 degres » ne laissait le choix qu'entre 0 et 45 :
+  # onze noms de traitement se chevauchent encore a 45, et une etiquette
+  # courte n'a aucune raison d'etre penchee.
+  chemin <- .hstat_module_path("mod_tests.R")
+  txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_false(grepl("rotateXLabels", txt, fixed = TRUE))
+  # L'appel tient sur deux lignes : on prend la declaration ET la suivante,
+  # plutot qu'une regex gourmande qui s'arreterait sur le `)` de `ns(...)`.
+  lignes <- readLines(chemin, warn = FALSE, encoding = "UTF-8")
+  for (nm in c("xLabelAngle", "yLabelAngle")) {
+    i <- grep(sprintf('ns("%s")', nm), lignes, fixed = TRUE)
+    expect_length(i, 1L)
+    m <- paste(lignes[i:(i + 1)], collapse = " ")
+    expect_true(grepl("sliderInput", m, fixed = TRUE), label = nm)
+    expect_true(grepl("min = 0", m, fixed = TRUE), label = nm)
+    expect_true(grepl("max = 90", m, fixed = TRUE), label = nm)
+  }
+})
+
+test_that("les options du graphique post-hoc forment une boite a part entiere", {
+  # Elles vivaient repliees DANS l'onglet « Graphique », au bas de la colonne
+  # de resultats : quarante reglages dans une colonne etroite, qu'il fallait
+  # deplier a chaque fois.
+  chemin <- .hstat_module_path("mod_tests.R")
+  txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # Une vraie boite de tableau de bord, sur toute la largeur.
+  lignes <- readLines(chemin, warn = FALSE, encoding = "UTF-8")
+  i <- grep(" Options du graphique", lignes, fixed = TRUE)
+  expect_length(i, 1L)
+  bloc <- paste(lignes[max(1, i - 4):(i + 4)], collapse = "\n")
+  expect_true(grepl("shinydashboard::box(", bloc, fixed = TRUE))
+  expect_true(grepl("width = 12", bloc, fixed = TRUE))
+  expect_true(grepl("collapsible = TRUE", bloc, fixed = TRUE))
+  # Et elle vient APRES la configuration de l'analyse
+  expect_gt(i, grep("Configuration de l'analyse", lignes)[1])
+  # L'ancien panneau replie a bien disparu
+  expect_false(grepl("graphOptionsPanel", txt, fixed = TRUE))
 })
 
 test_that("chaque palette proposee existe vraiment chez RColorBrewer", {

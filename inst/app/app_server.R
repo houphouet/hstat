@@ -98,17 +98,27 @@ server <- function(input, output, session) {
                             footer = shiny::modalButton("Fermer")))
   })
   
+  # LES RESULTATS MULTIVARIES NE VIVENT PAS DANS `values`. `mv_res` et
+  # `mv_launch` sont des `reactiveValues` propres a ce fichier : la remise a
+  # zero de `values` ne les touchait pas, et une ACP, une AFC ou une k-means
+  # calculee sur le fichier PRECEDENT restait affichee apres le chargement du
+  # suivant. Les quatre gestes qui remettent la session a zero passent donc par
+  # ici, pas par `hstat_reinitialiser_valeurs()` seul.
+  .hstat_purger_session <- function() {
+    hstat_reinitialiser_valeurs(values)
+    hstat_vider_valeurs(mv_res)
+    # `mv_launch` garde sa FORME : les lancements sont testes par `req()`, et
+    # ses trois champs valent FALSE tant qu'on n'a rien demande.
+    mv_launch$pca <- FALSE; mv_launch$hcpc <- FALSE; mv_launch$afd <- FALSE
+  }
+
   # La remise a zero elle-meme, appelee par les deux chemins de confirmation.
   .hstat_reinitialiser <- function() {
           # La connexion hors-memoire se ferme AVANT d'effacer sa reference,
           # sinon le fichier reste verrouille et le processus DuckDB en vie.
           if (!is.null(values$dbCon)) hstat_duckdb_close(values$dbCon)
 
-          # Meme remise a zero que celle d'un nouveau chargement : elle est
-          # ecrite une seule fois, dans `Utils.R`. Elle incremente aussi
-          # `resetSignal`, que les modules observent pour vider leurs propres
-          # controles.
-          hstat_reinitialiser_valeurs(values)
+          .hstat_purger_session()
 
           # `shinyjs::reset("file")` remet le widget a blanc mais `input$file`
           # garde sa valeur : la feuille Excel choisie et le bloc de
@@ -273,7 +283,7 @@ server <- function(input, output, session) {
       d <- as.data.frame(res$data)
       # Meme raison qu'au chargement d'un fichier : les colonnes changent, donc
       # tout ce que la session portait se rapporte a autre chose.
-      hstat_reinitialiser_valeurs(values)
+      .hstat_purger_session()
       values$data <- d; values$cleanData <- d; values$filteredData <- d
       values$dataMode <- "memory"
       values$sourceKind <- "xlsx"
@@ -324,7 +334,7 @@ server <- function(input, output, session) {
         # recommandations portant sur des colonnes qui n'existent plus.
         # Elle a lieu AVANT la lecture : les affectations qui suivent doivent
         # etre les dernieres.
-        hstat_reinitialiser_valeurs(values)
+        .hstat_purger_session()
         thr <- (input$bigDataThreshold %||% 500) * 1024^2
         smp <- as.integer(input$sampleSize %||% HSTAT_SAMPLE_SIZE)
         shiny::incProgress(0.3, detail = "Lecture")
@@ -456,7 +466,7 @@ server <- function(input, output, session) {
         source_mode = input$mergeSourceMode %||% "name")
       if (!isTRUE(res$ok)) { merge_msg(list(ok = FALSE, msg = res$msg)); return() }
       d <- as.data.frame(res$data)
-      hstat_reinitialiser_valeurs(values)
+      .hstat_purger_session()
       values$data <- d; values$cleanData <- d; values$filteredData <- d
       values$dataMode <- "memory"
       merge_msg(list(ok = TRUE, msg = res$msg))

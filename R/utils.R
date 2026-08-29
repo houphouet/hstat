@@ -524,6 +524,28 @@ hstat_valeurs_initiales <- function() {
 # l'appellent. Ce qui leur reste en propre est ce qui les distingue vraiment :
 # le bouton neutralise le fichier et revient a l'onglet de chargement, le
 # chargement affecte ensuite les nouvelles donnees.
+# Vide un `reactiveValues` : chaque champ revient a NULL.
+#
+# UN `reactiveVal` STOCKE DANS UN `reactiveValues` NE SE VIDE PAS COMME LES
+# AUTRES. `values$customXLevels` EST une fonction -- un `reactiveVal` --, et le
+# reste du code l'appelle comme telle (`values$customXLevels()`). Lui affecter
+# NULL DETRUIT l'objet au lieu de le vider, et l'appel suivant leve « attempt
+# to apply non-function » : tout le graphique post-hoc tombe, sur un geste
+# aussi banal que charger un autre fichier. On le remet donc a NULL EN
+# L'APPELANT, ce qui preserve l'objet.
+#
+# `isolate()` parce que lire TOUS les champs prendrait une dependance sur
+# chacun : appelee depuis un observateur ordinaire, la fonction se
+# redeclencherait sur ses propres ecritures, indefiniment.
+hstat_vider_valeurs <- function(rv, sauf = character(0)) {
+  noms <- setdiff(names(shiny::isolate(shiny::reactiveValuesToList(rv))), sauf)
+  for (nm in noms) {
+    v <- shiny::isolate(rv[[nm]])
+    if (inherits(v, "reactiveVal")) v(NULL) else rv[[nm]] <- NULL
+  }
+  invisible(noms)
+}
+
 hstat_reinitialiser_valeurs <- function(values) {
   init <- hstat_valeurs_initiales()
   # LE COMPTEUR DE REMISE A ZERO EST MONOTONE. Les modules l'observent pour
@@ -531,15 +553,11 @@ hstat_reinitialiser_valeurs <- function(values) {
   # changement de valeur. Le remettre a son initiale (0) puis l'incrementer
   # rendrait toujours 1 : le deuxieme chargement ne signalerait plus rien.
   sig <- (shiny::isolate(values$resetSignal) %||% 0) + 1
+  # Tout est vide d'abord -- y compris les champs crees en cours de session par
+  # un module, qui ne figurent pas dans la liste initiale --, puis les valeurs
+  # de depart sont reposees. Dans cet ordre, un `reactiveVal` garde son objet.
+  hstat_vider_valeurs(values)
   for (nm in names(init)) values[[nm]] <- init[[nm]]
-  # Un champ cree en cours de session par un module (il y en a) n'est pas dans
-  # la liste initiale : on le vide aussi, sans quoi il survivrait.
-  #
-  # `isolate()` parce que lire TOUS les champs prendrait une dependance sur
-  # chacun : appelee depuis un observateur ordinaire, la fonction se
-  # redeclencherait sur ses propres ecritures, indefiniment.
-  connus <- names(shiny::isolate(shiny::reactiveValuesToList(values)))
-  for (nm in setdiff(connus, names(init))) values[[nm]] <- NULL
   values$resetSignal <- sig
   invisible(sig)
 }
