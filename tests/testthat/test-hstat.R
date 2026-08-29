@@ -5887,15 +5887,92 @@ test_that("creation et reinitialisation partagent la meme liste", {
   # `reactiveValues` est construit DEPUIS la liste, pas recopie a cote
   expect_true(grepl("do.call(shiny::reactiveValues, hstat_valeurs_initiales())",
                     src, fixed = TRUE))
-  # La reinitialisation reparcourt la meme liste
-  expect_true(grepl("init <- hstat_valeurs_initiales()", src, fixed = TRUE))
+  # La remise a zero elle-meme vit dans le socle, en UN exemplaire : deux
+  # gestes l'appellent (le bouton, et le chargement de nouvelles donnees), et
+  # deux copies finiraient par diverger -- l'une des deux oublierait un champ.
+  expect_true(grepl("hstat_reinitialiser_valeurs(values)", src, fixed = TRUE))
+  socle <- paste(readLines(.hstat_socle_path(), warn = FALSE, encoding = "UTF-8"),
+                 collapse = "\n")
+  expect_true(grepl("init <- hstat_valeurs_initiales()", socle, fixed = TRUE))
   expect_true(grepl("for (nm in names(init)) values[[nm]] <- init[[nm]]",
-                    src, fixed = TRUE))
+                    socle, fixed = TRUE))
   # Et vide en plus ce qu'un module aurait cree en cours de session
-  expect_true(grepl("setdiff(names(shiny::reactiveValuesToList(values)), names(init))",
-                    src, fixed = TRUE))
+  expect_true(grepl("setdiff(connus, names(init))", socle, fixed = TRUE))
   # L'ancienne enumeration a la main a bien disparu
   expect_false(grepl("values$chiSqPGlobal     <- NULL", src, fixed = TRUE))
+})
+
+test_that("charger de nouvelles donnees remet l'etat de session a zero", {
+  # LE DEFAUT QUE CE TEST GARDE, signale a l'ecran : apres le chargement d'un
+  # SECOND fichier, les anciennes variables restaient proposees et les
+  # resultats du premier restaient affiches. Quarante-huit champs crees par les
+  # modules portent des noms de colonnes et des niveaux de facteur
+  # (`yVarNames`, `selected_y_vars`, `x_label_levels`, `customXLevels`...) :
+  # aucun n'etait efface. On lisait donc des tableaux et des recommandations
+  # portant sur des colonnes qui n'existent plus -- pire qu'un ecran vide,
+  # parce que ca ressemble a un resultat.
+  v <- do.call(shiny::reactiveValues, hstat_valeurs_initiales())
+  shiny::isolate({
+    v$data <- data.frame(a = 1); v$cleanData <- v$data; v$filteredData <- v$data
+    v$descStats <- "resultats du fichier precedent"
+    v$aiHistory <- list("une analyse", "une autre")
+    v$transformationLog <- list(x = 1)
+    v$customXOrder <- c("A", "B")
+    v$allTestResults <- list(t = 1)
+    # Champs CREES PAR UN MODULE : ils ne figurent pas dans la liste initiale,
+    # et ce sont eux qui portent les noms de variables.
+    v$yVarNames <- c("ancienne_variable")
+    v$selected_y_vars <- c("ancienne_variable")
+    v$manovaOutliers <- 1:3
+
+    expect_equal(hstat_reinitialiser_valeurs(v), 1L)
+
+    for (nm in c("data", "cleanData", "filteredData", "descStats", "aiHistory",
+                 "customXOrder", "yVarNames", "selected_y_vars", "manovaOutliers"))
+      expect_null(v[[nm]], info = nm)
+    # Les valeurs par defaut qui ne sont pas NULL reviennent, elles aussi.
+    expect_equal(v$transformationLog, list())
+    expect_equal(v$allTestResults, list())
+    expect_equal(v$dataMode, "memory")
+
+    # LE COMPTEUR EST MONOTONE. Les modules l'observent pour vider leurs
+    # propres controles, et `observeEvent` ne reagit qu'a un CHANGEMENT : le
+    # remettre a son initiale (0) puis l'incrementer rendrait toujours 1, et le
+    # deuxieme chargement ne signalerait plus rien.
+    expect_equal(hstat_reinitialiser_valeurs(v), 2L)
+    expect_equal(v$resetSignal, 2L)
+    expect_equal(hstat_reinitialiser_valeurs(v), 3L)
+  })
+})
+
+test_that("les trois portes d'entree des donnees remettent l'etat a zero", {
+  # Un quatrieme chemin d'import ajoute demain sans cet appel reintroduirait le
+  # defaut en silence : les anciennes variables reviendraient, sans erreur.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- readLines(file.path(root, "inst", "app", "app_server.R"),
+                   warn = FALSE, encoding = "UTF-8")
+  ex <- parse(text = paste(src, collapse = "\n"), keep.source = FALSE)
+  portes <- c("input$loadData", "input$applySheetMerge", "input$applyMerge")
+  vus <- character(0)
+  v <- function(n) {
+    if (is.call(n)) {
+      nm <- sub("^shiny::", "", paste(deparse(n[[1]]), collapse = ""))
+      if (nm == "observeEvent" && length(n) >= 3) {
+        dec <- paste(deparse(n[[2]]), collapse = "")
+        if (dec %in% portes) {
+          corps <- paste(deparse(n[[3]]), collapse = " ")
+          if (grepl("hstat_reinitialiser_valeurs", corps, fixed = TRUE))
+            vus <<- c(vus, dec)
+        }
+      }
+      for (i in seq_along(n)) tryCatch(v(n[[i]]), error = function(e) NULL)
+    } else if (is.pairlist(n) || is.expression(n)) {
+      for (i in seq_along(n)) tryCatch(v(n[[i]]), error = function(e) NULL)
+    }
+  }
+  for (k in seq_along(ex)) v(ex[[k]])
+  expect_equal(sort(unique(vus)), sort(portes))
 })
 
 test_that("le fichier reste neutralise apres la reinitialisation", {

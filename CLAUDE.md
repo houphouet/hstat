@@ -2227,6 +2227,48 @@ tout accès direct à `input$file`.
 par l'observateur et le bouton « Réinitialiser » ne faisait **rien, en silence**.
 Le repli passe par `modalDialog`, qui fait partie de Shiny.
 
+### Charger de nouvelles données EST une réinitialisation
+
+Le bouton « Réinitialiser » n'est pas le seul geste qui rend l'état de session
+caduc : **choisir un autre fichier le fait aussi**, et ne le faisait pas.
+Constaté à l'écran — après un second chargement, les anciennes variables
+restaient proposées et les résultats du premier fichier restaient affichés.
+
+Quarante-huit champs créés par les modules portent des noms de colonnes ou des
+niveaux de facteur (`yVarNames`, `selected_y_vars`, `x_label_levels`,
+`legendLabels`, `customXLevels`…) ; aucun n'était effacé. On lisait donc des
+tableaux, des graphiques et des recommandations portant sur des colonnes qui
+n'existent plus — **pire qu'un écran vide, parce que ça ressemble à un
+résultat**.
+
+`hstat_reinitialiser_valeurs()` (`Utils.R`) porte donc la remise à zéro en un
+seul exemplaire, et les **quatre** gestes l'appellent : le bouton, le chargement
+d'un fichier, la combinaison de feuilles d'un classeur, la fusion de plusieurs
+fichiers. Ce qui leur reste en propre est ce qui les distingue vraiment — le
+bouton neutralise le fichier et revient à l'onglet de chargement ; un chargement
+affecte ensuite les nouvelles données, **après** la remise à zéro, sinon elle
+les effacerait.
+
+**Le compteur `resetSignal` est monotone.** Les modules l'observent pour vider
+leurs propres contrôles, et `observeEvent` ne réagit qu'à un *changement* de
+valeur. Le remettre à son initiale (0) puis l'incrémenter rendrait toujours 1 :
+le deuxième chargement ne signalerait plus rien. Il est donc lu avant la remise
+à zéro et réécrit après.
+
+**`reactiveValuesToList` sous `isolate()`.** Lire tous les champs prend une
+dépendance sur chacun ; appelée depuis un observateur ordinaire, la fonction se
+redéclencherait sur ses propres écritures, indéfiniment. Les appels actuels
+passent par `observeEvent`, dont le corps est déjà isolé — l'`isolate()` protège
+le prochain point d'appel, pas ceux d'aujourd'hui.
+
+Deux remplacements du jeu de travail **n'y passent pas**, délibérément :
+`mod_clean` (typage, découpage en classes) modifie les colonnes du fichier
+courant, et « Utiliser comme jeu de données » (`mod_threshold`) dérive son
+tableau de l'analyse en cours — purger effacerait l'analyse qui vient de le
+produire. Un test vérifie que les trois portes d'*import*, elles, appellent bien
+la remise à zéro : un quatrième chemin ajouté demain sans elle réintroduirait le
+défaut en silence.
+
 ## Bilingue : traduire l'AFFICHAGE, pas les 9 700 appels
 
 L'application compte ~9 700 chaînes destinées à l'utilisateur sur 24 fichiers.

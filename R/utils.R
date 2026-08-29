@@ -510,6 +510,41 @@ hstat_valeurs_initiales <- function() {
 }
 
 # ---------------------------------------------------------------------------
+# REMISE A ZERO DE L'ETAT DE SESSION -- une seule definition
+# ---------------------------------------------------------------------------
+# Deux gestes remettent l'application a zero : le bouton « Reinitialiser », et
+# le CHARGEMENT D'UN NOUVEAU JEU DE DONNEES. Le second ne le faisait pas, et
+# c'est un defaut qu'on ne voit qu'a l'usage : les resultats, les selections de
+# variables et le journal du fichier PRECEDENT survivaient au nouveau. On
+# lisait donc des tableaux, des graphiques et des recommandations portant sur
+# des colonnes qui n'existent plus -- pire qu'un ecran vide, parce que ca
+# ressemble a un resultat.
+#
+# La remise a zero est donc ecrite ICI, une fois, et les deux gestes
+# l'appellent. Ce qui leur reste en propre est ce qui les distingue vraiment :
+# le bouton neutralise le fichier et revient a l'onglet de chargement, le
+# chargement affecte ensuite les nouvelles donnees.
+hstat_reinitialiser_valeurs <- function(values) {
+  init <- hstat_valeurs_initiales()
+  # LE COMPTEUR DE REMISE A ZERO EST MONOTONE. Les modules l'observent pour
+  # vider leurs propres controles, et `observeEvent` ne reagit qu'a un
+  # changement de valeur. Le remettre a son initiale (0) puis l'incrementer
+  # rendrait toujours 1 : le deuxieme chargement ne signalerait plus rien.
+  sig <- (shiny::isolate(values$resetSignal) %||% 0) + 1
+  for (nm in names(init)) values[[nm]] <- init[[nm]]
+  # Un champ cree en cours de session par un module (il y en a) n'est pas dans
+  # la liste initiale : on le vide aussi, sans quoi il survivrait.
+  #
+  # `isolate()` parce que lire TOUS les champs prendrait une dependance sur
+  # chacun : appelee depuis un observateur ordinaire, la fonction se
+  # redeclencherait sur ses propres ecritures, indefiniment.
+  connus <- names(shiny::isolate(shiny::reactiveValuesToList(values)))
+  for (nm in setdiff(connus, names(init))) values[[nm]] <- NULL
+  values$resetSignal <- sig
+  invisible(sig)
+}
+
+# ---------------------------------------------------------------------------
 # Retrait des accents : UNE seule definition
 # ---------------------------------------------------------------------------
 # Le meme `chartr` etait recopie sept fois (nettoyage de texte, tokenisation,
