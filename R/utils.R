@@ -2930,9 +2930,18 @@ round_numeric_df <- function(df, round_on, decimals = 2) {
   if (is.null(df) || !is.data.frame(df)) return(df)
   dec <- hstat_dec_affichage(round_on, decimals)
   
-  # Noms possibles des colonnes texte (avant ou apres renommage d'affichage)
-  sd_names <- c("Moyenne_pm_SD", "Moyenne \u00b1 Écart-type groupe")
-  se_names <- c("Moyenne_pm_SE", "Moyenne \u00b1 Erreur-type groupe")
+  # Noms possibles des colonnes texte (avant ou apres renommage d'affichage).
+  #
+  # LE POST-HOC LES NOMME AUTREMENT, et c'est ce qui faisait echouer l'arrondi
+  # sur les chaines : le tableau des comparaisons multiples porte
+  # « Moyenne±Ecart_type », pas « Moyenne_pm_SD ». Aucune des deux ne
+  # correspondait, la reconstruction ne se declenchait donc jamais, et la
+  # chaine gardait la precision qu'elle avait au CALCUL -- « 0.03 » en colonne
+  # numerique a cote de « 0.02556235 ± 0.16167049669281 » dans la meme ligne.
+  sd_names <- c("Moyenne_pm_SD", "Moyenne\u00b1Ecart_type",
+                "Moyenne \u00b1 Écart-type groupe")
+  se_names <- c("Moyenne_pm_SE", "Moyenne\u00b1Erreur_type",
+                "Moyenne \u00b1 Erreur-type groupe")
   has_col  <- function(nms) nms[nms %in% names(df)][1]
   sd_col   <- has_col(sd_names)
   se_col   <- has_col(se_names)
@@ -2940,7 +2949,12 @@ round_numeric_df <- function(df, round_on, decimals = 2) {
   # Reconstruction des colonnes texte a partir des colonnes numeriques sources,
   # afin que "Moyenne ± Écart-type" affiche EXACTEMENT la valeur de "Moyenne".
   fmt_pair <- function(m, s, grp) .hstat_pm(m, s, grp, dec)
-  grp_vec <- if ("Groupes" %in% names(df)) as.character(df$Groupes) else NULL
+  # La colonne des lettres de groupes s'appelle « Groupes » ici et « groups »
+  # dans le post-hoc. La chercher sous un seul nom faisait perdre la lettre a
+  # la reconstruction : « 0.03 ± 0.16 » au lieu de « 0.03 ± 0.16 ef », et la
+  # lettre est justement ce que le lecteur vient chercher.
+  grp_col <- has_col(c("Groupes", "groups"))
+  grp_vec <- if (!is.na(grp_col)) as.character(df[[grp_col]]) else NULL
   
   if (!is.na(sd_col) && all(c("Moyenne", "Ecart_type") %in% names(df))) {
     df[[sd_col]] <- fmt_pair(df$Moyenne, df$Ecart_type, grp_vec)

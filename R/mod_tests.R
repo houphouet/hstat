@@ -7161,6 +7161,14 @@ mod_tests_server <- function(id, values) {
     
     cols_to_show <- unique(cols_to_show)
     cols_to_show <- cols_to_show[cols_to_show %in% colnames(main_data)]
+    # L'ARRONDI EST RECALCULE A L'AFFICHAGE, pas fige au moment du calcul.
+    # Les chaines « moyenne ± dispersion » etaient composees quand l'analyse
+    # tournait : cocher la case ensuite ne les touchait plus, et le tableau
+    # montrait « 0.03 » en colonne numerique a cote de « 0.02556235 ± ... »
+    # sur la meme ligne. `round_numeric_df()` les reconstruit depuis les
+    # colonnes sources, donc le reglage agit tout de suite.
+    main_data <- round_numeric_df(main_data, input$multiRoundResults,
+                                  input$multiDecimals)
     
     dt <- DT::datatable(
       main_data[, cols_to_show, drop = FALSE],
@@ -7224,6 +7232,9 @@ mod_tests_server <- function(id, values) {
     
     cols_to_show <- unique(cols_to_show)
     cols_to_show <- cols_to_show[cols_to_show %in% colnames(simple_data)]
+    # Meme regle que le tableau principal : l'arrondi vit a l'affichage.
+    simple_data <- round_numeric_df(simple_data, input$multiRoundResults,
+                                    input$multiDecimals)
     
     dt <- DT::datatable(
       simple_data[, cols_to_show, drop = FALSE],

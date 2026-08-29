@@ -6135,6 +6135,39 @@ test_that("le post-hoc rend les vraies moyennes, pas des valeurs tronquees", {
   expect_equal(.hstat_pm(1.5, NA, NULL, 2), "NA")
   expect_equal(.hstat_pm(NA, 1.5, NULL, 2), "NA")
   expect_equal(.hstat_pm(1.5, 0.25, NULL, 0), "2 ± 0")
+
+  # 6. LE CHOIX D'ARRONDI DOIT ATTEINDRE LES CHAINES DU POST-HOC. Constate a
+  #    l'ecran : case cochee a 2 decimales, la colonne « Moyenne » affichait
+  #    0.03 et « Moyenne±Ecart_type », sur la MEME LIGNE,
+  #    « 0.02556235 ± 0.16167049669281 ». Deux causes :
+  #
+  #      - le post-hoc nomme ses colonnes « Moyenne±Ecart_type », pas
+  #        « Moyenne_pm_SD » : la reconstruction ne se declenchait jamais ;
+  #      - la lettre de groupe y vit sous « groups » et non « Groupes », si
+  #        bien qu'une reconstruction naive l'aurait perdue -- or c'est
+  #        justement ce que le lecteur vient chercher.
+  ph <- data.frame(
+    Moyenne = c(0.02556235, 0.053072775),
+    Ecart_type = c(0.16167049669281, 0.150358300574377),
+    Erreur_type = c(0.02556235, 0.0237737347463618),
+    groups = c("ef", "bc"),
+    `Moyenne±Ecart_type` = "composee au calcul",
+    `Moyenne±Erreur_type` = "composee au calcul",
+    check.names = FALSE, stringsAsFactors = FALSE)
+
+  r2 <- round_numeric_df(ph, TRUE, 2)
+  expect_equal(r2$`Moyenne±Ecart_type`, c("0.03 ± 0.16 ef", "0.05 ± 0.15 bc"))
+  expect_equal(r2$`Moyenne±Erreur_type`, c("0.03 ± 0.03 ef", "0.05 ± 0.02 bc"))
+  # La chaine dit EXACTEMENT ce que dit la colonne numerique de la meme ligne.
+  expect_true(all(mapply(function(ch, m)
+    startsWith(ch, formatC(m, digits = 2, format = "f")),
+    r2$`Moyenne±Ecart_type`, r2$Moyenne)))
+
+  r4 <- round_numeric_df(ph, TRUE, 4)
+  expect_equal(r4$`Moyenne±Ecart_type`[1], "0.0256 ± 0.1617 ef")
+  # Decoche : la chaine repart en pleine precision, lettre comprise.
+  expect_equal(round_numeric_df(ph, FALSE)$`Moyenne±Ecart_type`[1],
+               "0.02556235 ± 0.16167049669281 ef")
 })
 
 test_that("les diagnostics d'ANOVA ne font pas tomber toute la sortie", {
