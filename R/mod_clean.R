@@ -1374,8 +1374,12 @@ mod_clean_server <- function(id, values) {
         shiny::showNotification(
           shiny::tagList(
             shiny::icon("exclamation-triangle"),
-            " Formule incorrecte : le résultat à ", length(new_col), " valeur(s) ",
-            "au lieu de ", nrow(values$cleanData), ". ",
+            # LES ENFANTS TEXTE ADJACENTS NE FONT QU'UN SEUL NOEUD. Les
+            # morceaux et les valeurs se retrouvent fondus dans la meme chaine
+            # (« Formule incorrecte : le résultat à 3 valeur(s) au lieu de 10. »)
+            # qu'aucune cle ne peut couvrir : seul un gabarit le peut.
+            trf(" Formule incorrecte : le résultat à %s valeur(s) au lieu de %s. ",
+                length(new_col), nrow(values$cleanData)),
             shiny::tags$br(),
             shiny::tags$small("Astuce : utilisez rowMeans(cbind(Var1, Var2)) pour la moyenne ligne par ligne.")
           ),

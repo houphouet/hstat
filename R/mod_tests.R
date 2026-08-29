@@ -2070,9 +2070,9 @@ mod_tests_server <- function(id, values) {
       values$filteredData      <- df
       values$transformationLog <- log_entries
       shiny::showNotification(
-        shiny::HTML(paste0("<b>Transformation appliquée</b><br>",
-                    length(added), " variable(s) créée(s): ",
-                    paste0("<b>", added, "</b>", collapse = ", "))),
+        shiny::HTML(trf("<b>Transformation appliquée</b><br>%s variable(s) créée(s) : %s",
+                        length(added),
+                        paste0("<b>", added, "</b>", collapse = ", "))),
         type = "message", duration = 5)
     }
   })
@@ -2859,7 +2859,7 @@ mod_tests_server <- function(id, values) {
     
     if (length(error_messages) > 0) {
       shiny::showNotification(
-        paste("Problèmes détectés:\n", paste(error_messages, collapse = "\n")),
+        trf("Problèmes détectés :\n%s", paste(error_messages, collapse = "\n")),
         type = "warning",
         duration = 10
       )
@@ -6034,8 +6034,9 @@ mod_tests_server <- function(id, values) {
     
     shiny::showNotification(
       shiny::tagList(
-        shiny::icon("link"), " PostHoc mis à jour avec les résultats des tests (",
-        nrow(values$testResultsDF), " résultats)"
+        shiny::icon("link"),
+        trf(" PostHoc mis à jour avec les résultats des tests (%s résultats)",
+            nrow(values$testResultsDF))
       ),
       type = "message", duration = 3
     )
@@ -6416,9 +6417,9 @@ mod_tests_server <- function(id, values) {
             # SI INTERACTION SIGNIFICATIVE : DÉCOMPOSITION BIDIRECTIONNELLE 
             if (!is.na(interaction_pvalue) && interaction_pvalue < 0.05) {
               shiny::showNotification(
-                paste0("[OK] Interaction significative détectée : ", fvar1, " x ", fvar2, 
-                       " (p = ", round(interaction_pvalue, 4), ")\n",
-                       "-> Décomposition bidirectionnelle en cours..."),
+                trf(paste0("[OK] Interaction significative détectée : %s x %s (p = %s)\n",
+                           "-> Décomposition bidirectionnelle en cours..."),
+                    fvar1, fvar2, round(interaction_pvalue, 4)),
                 type = "warning", duration = 5
               )
               
@@ -6581,12 +6582,12 @@ mod_tests_server <- function(id, values) {
       n_interactions <- length(unique(combined_results$Interaction_base[!is.na(combined_results$Interaction_base)]))
       
       shiny::showNotification(
-        shiny::HTML(paste0(
+        shiny::HTML(trf(paste0(
           "<b>[OK] ANALYSE TERMINÉE</b><br/>",
-          "- ", n_main, " effet(s) principal(aux)<br/>",
-          "- ", n_simple, " effet(s) simple(s)<br/>",
-          "- ", n_interactions, " interaction(s) décomposée(s)"
-        )),
+          "- %s effet(s) principal(aux)<br/>",
+          "- %s effet(s) simple(s)<br/>",
+          "- %s interaction(s) décomposée(s)"),
+          n_main, n_simple, n_interactions)),
         type = "message", duration = 8
       )
     } else {

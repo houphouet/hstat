@@ -1669,8 +1669,6 @@
 "Volume de bouillie (L/ha)","Spray volume (L/ha)"
 "Superficie du champ (ha)","Field area (ha)"
 "Volume de la cuve ou du pulvérisateur (L)","Tank or sprayer volume (L)"
-" Télécharger (CSV)"," Download (CSV)"
-" Télécharger (Excel)"," Download (Excel)"
 "Nombre de lignes","Number of rows"
 "Dose et grammage à l'hectare","Dose and rate per hectare"
 "Solutions filles (dilutions)","Working solutions (dilutions)"
@@ -4962,7 +4960,6 @@ and create a plot"
 "compatible avec","consistent with"
 "rapport rédige.","written report."
 "ex : Age_années","e.g. Age_years"
-"Hétérogénéité :","Heterogeneity:"
 "et des chiffres","and figures"
 "et un facteur à","and a factor to"
 "par définition.","by definition."
@@ -5720,9 +5717,6 @@ and create a plot"
 "premier coefficient r (r1) ; renseignez r2 ci-dessous","first r coefficient (r1); enter r2 below"
 "Pas axe Y:","Y axis step:"
 "{0} variables sélectionnées","{0} variables selected"
-"résultats)","results)"
-"au lieu de","instead of"
-"valeur(s)","value(s)"
 "Exemples :
 1 à 10
 1,3,4,5,10,15,20
@@ -5745,3 +5739,15 @@ July 28-03"
 10 to 20
 1,3,5,10 to 15"
 " (+ %d points de bruit)"," (+ %d noise points)"
+"AFD : variables colinéaires exclues automatiquement -- %s.","LDA: collinear variables automatically excluded -- %s."
+" Formule incorrecte : le résultat à %s valeur(s) au lieu de %s. "," Incorrect formula: the result has %s value(s) instead of %s. "
+"<b>Transformation appliquée</b><br>%s variable(s) créée(s) : %s","<b>Transformation applied</b><br>%s variable(s) created: %s"
+"Problèmes détectés :
+%s","Problems detected:
+%s"
+" PostHoc mis à jour avec les résultats des tests (%s résultats)"," PostHoc updated with the test results (%s results)"
+"[OK] Interaction significative détectée : %s x %s (p = %s)
+-> Décomposition bidirectionnelle en cours...","[OK] Significant interaction detected: %s x %s (p = %s)
+-> Two-way decomposition in progress..."
+"<b>[OK] ANALYSE TERMINÉE</b><br/>- %s effet(s) principal(aux)<br/>- %s effet(s) simple(s)<br/>- %s interaction(s) décomposée(s)","<b>[OK] ANALYSIS COMPLETE</b><br/>- %s main effect(s)<br/>- %s simple effect(s)<br/>- %s decomposed interaction(s)"
+"Données agrégées : %s observations","Aggregated data: %s observations"

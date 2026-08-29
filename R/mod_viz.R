@@ -1881,7 +1881,7 @@ mod_viz_server <- function(id, values) {
       }
       
       shiny::showNotification(
-        paste("Données agrégées :", nrow(data), "observations"),
+        trf("Données agrégées : %s observations", nrow(data)),
         type = "message",
         duration = 2
       )

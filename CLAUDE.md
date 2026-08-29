@@ -2579,6 +2579,37 @@ Le hasard des accords a résolu le cas voisin : la force d'association dit
 « modérée » (accord avec *force*), la taille d'effet « modéré ». Deux chaînes
 différentes, donc deux entrées légitimes.
 
+#### Les enfants texte adjacents ne font qu'un seul nœud
+
+Le piège le plus coûteux de la traduction des **alertes**, parce qu'il ressemble
+à un succès. Dans
+
+```r
+showNotification(tagList(icon("x"), " Le résultat a ", n, " valeur(s)"))
+```
+
+le navigateur ne voit pas trois morceaux : il fond toute suite de caractères en
+**un** nœud, « Le résultat a 3 valeur(s) » — une chaîne qui dépend des données
+et qu'aucune clé ne peut couvrir. Mettre « valeur(s) » ou « au lieu de » au
+dictionnaire ne sert donc à *rien* : ces morceaux n'existent nulle part comme
+nœud. Trois entrées de ce genre ont été ajoutées puis retirées.
+
+Une **balise** coupe le nœud : `tagList(icon(...), " texte fixe")` reste
+traduisible par le dictionnaire, et c'est la forme la plus courante. La règle :
+
+> dès qu'une valeur est interpolée **entre** deux morceaux de texte, l'unité
+> affichée passe par `trf()`.
+
+Un test balaie `showNotification`, `showModal`, `shinyalert` et `modalDialog` :
+il reconstitue l'unité affichée (en distinguant `paste` de `paste0`, dont les
+séparateurs diffèrent), la coupe sur les balises, et échoue sur tout morceau
+français portant encore un `%s`.
+
+Ce test ne vérifie **pas** que le gabarit est au dictionnaire — c'est le rôle
+d'un autre — mais qu'il passe par `trf()`. Un `paste()` qui reconstituerait par
+hasard une clé existante passerait sinon pour correct alors qu'il n'est jamais
+traduit à l'exécution : le défaut exact recherché.
+
 #### Un attribut n'est pas du contenu
 
 `IGNORE` (SCRIPT, STYLE, TEXTAREA, CODE, PRE, SVG) protège ce qu'une balise

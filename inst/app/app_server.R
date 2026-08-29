@@ -3892,8 +3892,8 @@ server <- function(input, output, session) {
             }
             if (length(drop_afd) > 0) {
               shiny::showNotification(
-                paste0("AFD : variables colinéaires exclues automatiquement -- ",
-                       paste(drop_afd, collapse = ", "), "."),
+                trf("AFD : variables colinéaires exclues automatiquement -- %s.",
+                    paste(drop_afd, collapse = ", ")),
                 type = "warning", duration = 8)
               vars_to_use <- setdiff(vars_to_use, drop_afd)
             }

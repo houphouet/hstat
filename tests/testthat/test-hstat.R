@@ -5557,6 +5557,85 @@ test_that("tr() suit la langue de la session, sans qu'on ait a la lui passer", {
   expect_identical(deparse(formals(tr)$lang), deparse(formals(trf)$lang))
 })
 
+test_that("une alerte qui melange texte et valeurs passe par un gabarit", {
+  # LE DEFAUT QUE CE TEST GARDE, constate a l'ecran en anglais.
+  #
+  # LES ENFANTS TEXTE ADJACENTS NE FONT QU'UN SEUL NOEUD. Le navigateur fond
+  # toute suite de caracteres en UN noeud de texte : dans
+  # `tagList(icon(...), " Formule incorrecte : le resultat a ", n, " valeur(s)")`
+  # le traducteur ne voit pas trois morceaux, il voit
+  # « Formule incorrecte : le resultat a 3 valeur(s) » -- une chaine qui depend
+  # des donnees et qu'aucune cle ne peut couvrir. Mettre les morceaux au
+  # dictionnaire ne sert donc a RIEN : ils n'existent nulle part comme noeud.
+  # Seul un gabarit `trf()` traduit ce cas.
+  #
+  # Une BALISE, elle, coupe le noeud : `tagList(icon(...), " texte fixe")` reste
+  # traduisible par le dictionnaire, et c'est la forme la plus courante.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "depot introuvable")
+  ALERTE <- c("showNotification", "showModal", "shinyalert", "modalDialog")
+  DEJA   <- c("tr", "trf", "hstat_err_fr", "hstat_pkg_manquant")
+  BORNE  <- "\u0001"                 # marque une balise : elle coupe le noeud
+  frcs <- function(x) grepl("[\u00e0-\u00ff\u00c0-\u00dd]", x) ||
+    grepl("\\b(le|la|les|des|une|un|du|de|et|pour|dans|sur|avec|est|sont|pas|vos|vous|aucun|aucune|ce|cette|qui|que|ne|au|aux)\\b",
+          tolower(x), perl = TRUE)
+  fautifs <- character(0)
+  for (f in .hstat_sources_app()) {
+    ex <- tryCatch(parse(f, keep.source = FALSE), error = function(e) NULL)
+    if (is.null(ex)) next
+    unite <- function(n) {
+      if (is.character(n) && length(n) == 1L) return(n)
+      if (!is.call(n)) return("%s")
+      nm <- sub("^(shiny|htmltools)::", "", paste(deparse(n[[1]]), collapse = ""))
+      if (nm %in% DEJA) return("")            # deja traduit : neutre
+      if (nm %in% c("paste", "paste0")) {
+        a <- as.list(n)[-1]; nz <- names(a); if (is.null(nz)) nz <- rep("", length(a))
+        # `paste` colle avec une espace, `paste0` sans : confondre les deux
+        # souderait des mots et ferait passer pour absentes des phrases
+        # presentes.
+        sep <- if (nm == "paste") {
+          j <- which(nz == "sep")
+          if (length(j) && is.character(a[[j]])) a[[j]] else " "
+        } else ""
+        return(paste(vapply(a[nz == ""], unite, character(1)), collapse = sep))
+      }
+      if (nm == "tagList") {
+        a <- as.list(n)[-1]; nz <- names(a); if (is.null(nz)) nz <- rep("", length(a))
+        return(paste(vapply(a[nz == ""], unite, character(1)), collapse = ""))
+      }
+      if (grepl("^(tags[$]|icon$|br$|HTML$|strong$|b$|em$|span$|div$|p$|small$|a$|h[1-6]$|code$|pre$)", nm))
+        return(BORNE)
+      "%s"
+    }
+    v <- function(n) {
+      if (is.call(n)) {
+        nm <- sub("^(shiny|shinyalert)::", "", paste(deparse(n[[1]]), collapse = ""))
+        if (nm %in% ALERTE) {
+          a <- as.list(n)[-1]; nz <- names(a); if (is.null(nz)) nz <- rep("", length(a))
+          for (x in a[nz %in% c("", "ui", "text", "title")])
+            for (bout in strsplit(unite(x), BORNE, fixed = TRUE)[[1]]) {
+              g <- gsub("\\s+", " ", trimws(bout))
+              # ON NE VERIFIE PAS QUE LE GABARIT EST AU DICTIONNAIRE, mais
+              # qu'il PASSE PAR `trf()` : `unite()` rend la chaine vide pour un
+              # appel deja traduit. Un `paste()` qui reconstitue par hasard une
+              # cle existante resterait sinon accepte alors qu'il n'est jamais
+              # traduit a l'execution -- le defaut exact qu'on cherche.
+              if (nchar(g) >= 6 && frcs(g) && grepl("%s", g, fixed = TRUE))
+                fautifs <<- c(fautifs, paste(basename(f), "|", g))
+            }
+        }
+        for (i in seq_along(n)) tryCatch(v(n[[i]]), error = function(e) NULL)
+      } else if (is.pairlist(n) || is.expression(n)) {
+        for (i in seq_along(n)) tryCatch(v(n[[i]]), error = function(e) NULL)
+      }
+    }
+    for (k in seq_along(ex)) tryCatch(v(ex[[k]]), error = function(e) NULL)
+  }
+  expect_equal(unique(fautifs), character(0),
+               info = paste("Alertes sans gabarit :",
+                            paste(utils::head(unique(fautifs), 10), collapse = " || ")))
+})
+
 test_that("une syntaxe de plage montree a l'utilisateur est une syntaxe acceptee", {
   # Les exemples affiches sous les champs de selection de lignes sont traduits :
   # « 1 a 10 » devient « 1 to 10 ». Un analyseur qui ne connait que « a »
