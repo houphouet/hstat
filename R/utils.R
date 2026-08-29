@@ -378,7 +378,15 @@ hstat_i18n_dict <- function(lang = "fr", path = hstat_i18n_path()) {
 # Traduction cote R, pour le texte que le serveur compose lui-meme (noms de
 # fichiers telecharges, en-tetes de rapport). Une chaine inconnue ressort
 # INCHANGEE : c'est la regle de degradation douce.
-tr <- function(x, lang = "fr", dict = NULL) {
+#
+# `lang` SUIT LA SESSION, comme `trf()` et `hstat_err_fr()`. La valeur par
+# defaut etait `"fr"` : les DEUX CENT CINQUANTE appels `tr("...")` du depot --
+# aucun ne passe `lang` -- rendaient donc le francais QUOI QU'IL ARRIVE. La
+# fonction existait, le dictionnaire la servait, les tests la couvraient (ils
+# passent `lang` explicitement, ce qui masquait exactement le defaut) et pas
+# une seule de ces chaines n'etait traduite a l'ecran. Un defaut qui
+# neutralise sa propre fonction ne se voit qu'a l'usage.
+tr <- function(x, lang = hstat_langue_session(), dict = NULL) {
   if (is.null(x) || !length(x)) return(x)
   if (!identical(lang, "en")) return(x)
   if (is.null(dict)) dict <- hstat_i18n_dict(lang)
@@ -2197,11 +2205,15 @@ interpret_manova_effect <- function(p_pillai, eta2 = NA) {
   sig <- if (p_pillai < 0.05) "significatif" else "non significatif"
   base <- trf("Effet multivarié %s (Pillai, p = %s)", sig, round(p_pillai, 6))
   if (!is.na(eta2)) {
-    mag <- if (eta2 < 0.01) "négligeable"
-    else if (eta2 < 0.06) "faible"
-    else if (eta2 < 0.14) "modéré"
-    else "important"
-    base <- paste0(base, " — taille d'effet ", mag, " (eta² = ", round(eta2, 3), ")")
+    # « faible » vaut *small* pour une taille d'effet et *weak* pour une force
+    # d'association : la cle du dictionnaire etant la chaine francaise
+    # elle-meme, le mot ne peut pas y entrer seul. La nuance est donc portee
+    # par la PHRASE ENTIERE, comme pour « moyenne ».
+    base <- paste0(base,
+      if (eta2 < 0.01) trf(" — taille d'effet négligeable (eta² = %s)", round(eta2, 3))
+      else if (eta2 < 0.06) trf(" — taille d'effet faible (eta² = %s)", round(eta2, 3))
+      else if (eta2 < 0.14) trf(" — taille d'effet modérée (eta² = %s)", round(eta2, 3))
+      else trf(" — taille d'effet importante (eta² = %s)", round(eta2, 3)))
   }
   base
 }
@@ -2212,11 +2224,11 @@ interpret_permanova_effect <- function(p_value, R2 = NA) {
   sig <- if (p_value < 0.05) "significatif" else "non significatif"
   base <- trf("Effet multivarié %s (PERMANOVA, p = %s)", sig, round(p_value, 6))
   if (!is.na(R2)) {
-    mag <- if (R2 < 0.01) "négligeable"
-    else if (R2 < 0.06) "faible"
-    else if (R2 < 0.14) "modéré"
-    else "important"
-    base <- paste0(base, " — R² = ", round(R2, 3), " (", mag, ")")
+    base <- paste0(base,
+      if (R2 < 0.01) trf(" — R² = %s (taille d'effet négligeable)", round(R2, 3))
+      else if (R2 < 0.06) trf(" — R² = %s (taille d'effet faible)", round(R2, 3))
+      else if (R2 < 0.14) trf(" — R² = %s (taille d'effet modérée)", round(R2, 3))
+      else trf(" — R² = %s (taille d'effet importante)", round(R2, 3)))
   }
   base
 }
@@ -5296,8 +5308,8 @@ hstat_metrics_cls <- function(obs, pred, prob = NULL) {
     Interpretation = c(
       trf("%.1f %% des observations sont bien classées (classe majoritaire seule : %.1f %% ; le modèle %s).",
               100 * acc, 100 * maj,
-              if (is.finite(acc) && acc > maj) "fait mieux que ce niveau de référence"
-              else "ne dépasse pas ce niveau de référence"),
+              if (is.finite(acc) && acc > maj) tr("fait mieux que ce niveau de référence")
+              else tr("ne dépasse pas ce niveau de référence")),
       if (!is.finite(kap)) "Non calculable." else if (kap >= 0.8) "Accord quasi parfait au-delà du hasard."
       else if (kap >= 0.6) "Accord substantiel au-delà du hasard."
       else if (kap >= 0.4) "Accord modéré au-delà du hasard."
@@ -5331,9 +5343,9 @@ hstat_model_interpretation <- function(task, metrics_df, model_label,
     acc <- get_v("Exactitude (accuracy)"); f1 <- get_v("F1-score (macro)")
     trf("Avec %.1f %% de bonnes classifications et un F1 macro de %.2f, %s",
             100 * acc, f1,
-            if (is.finite(f1) && f1 >= 0.8) "le modèle est opérationnel pour la prédiction."
-            else if (is.finite(f1) && f1 >= 0.6) "le modèle est utilisable mais perfectible (plus de données, autres variables, réglages)."
-            else "le modèle n'est pas encore fiable : enrichir les variables ou changer d'algorithme.")
+            if (is.finite(f1) && f1 >= 0.8) tr("le modèle est opérationnel pour la prédiction.")
+            else if (is.finite(f1) && f1 >= 0.6) tr("le modèle est utilisable mais perfectible (plus de données, autres variables, réglages).")
+            else tr("le modèle n'est pas encore fiable : enrichir les variables ou changer d'algorithme."))
   }
   paste(c(head_txt, core, notes), collapse = " ")
 }

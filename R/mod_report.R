@@ -44,7 +44,7 @@ hstat_report_formats_dispo <- function() {
 hstat_report_message_dispo <- function(dispo = hstat_report_formats_dispo()) {
   manquants <- names(dispo)[!dispo]
   if (!length(manquants)) return(NULL)
-  trf("Format(s) indisponible(s) sur cette machine : %s. %s%sLe HTML, lui, est toujours produit : il s'ouvre dans un navigateur et se colle dans un traitement de texte.", paste(toupper(manquants), collapse = ", "), if ("docx" %in% manquants) "Word exige pandoc (fourni avec RStudio ; sinon : pandoc.org). " else "", if ("pdf" %in% manquants) "Le PDF exige en plus une distribution LaTeX (install.packages(\"tinytex\"); tinytex::install_tinytex()). " else "")
+  trf("Format(s) indisponible(s) sur cette machine : %s. %s%sLe HTML, lui, est toujours produit : il s'ouvre dans un navigateur et se colle dans un traitement de texte.", paste(toupper(manquants), collapse = ", "), if ("docx" %in% manquants) tr("Word exige pandoc (fourni avec RStudio ; sinon : pandoc.org). ") else "", if ("pdf" %in% manquants) tr("Le PDF exige en plus une distribution LaTeX (install.packages(\"tinytex\"); tinytex::install_tinytex()). ") else "")
 }
 
 # Resume du jeu de donnees porte en tete du rapport. Un relecteur doit pouvoir

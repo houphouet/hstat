@@ -752,7 +752,11 @@ mod_posthoc_ui <- function(id) {
                                              "background:#fff8e1;border:1px solid #ffb300;",
                                              "border-radius:6px;"),
                               shiny::checkboxInput(ns("showBackTransformed"),
-                                shiny::HTML(paste0(
+                                # La chaine ASSEMBLEE passe par tr() : le
+                                # traducteur du navigateur ne remplace que des
+                                # correspondances entieres, et ce libelle n'existe
+                                # comme chaine entiere qu'apres le paste0.
+                                shiny::HTML(tr(paste0(
                                   "<b style='color:#e65100;'>",
                                   "<i class='fa fa-exchange-alt'></i>&nbsp;",
                                   "Retro-transformer les moyennes</b><br>",
@@ -760,7 +764,7 @@ mod_posthoc_ui <- function(id) {
                                   "Affiche les moyennes sur l'échelle originale (interprétation).",
                                   "<br>Les lettres de comparaison restent sur l'échelle transformée.",
                                   "</small>"
-                                )),
+                                ))),
                                 value = FALSE
                               )
                             )
@@ -2327,9 +2331,9 @@ mod_tests_server <- function(id, values) {
             fvar, length(factor_levels),
             paste(utils::head(factor_levels, 5), collapse = ", "),
             if (length(factor_levels) > 2)
-              "Pour plus de deux groupes, utilisez l'ANOVA — ou Kruskal-Wallis si la normalité n'est pas acquise."
+              tr("Pour plus de deux groupes, utilisez l'ANOVA — ou Kruskal-Wallis si la normalité n'est pas acquise.")
             else
-              "Vérifiez le facteur choisi : il ne distingue qu'un seul groupe."))
+              tr("Vérifiez le facteur choisi : il ne distingue qu'un seul groupe.")))
           next
         }
         

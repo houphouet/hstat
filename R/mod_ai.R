@@ -193,7 +193,7 @@ hstat_ai_status <- function(engine = "auto", url = NULL, model = NULL,
     return(list(ok = FALSE,
                 message = trf(
                   "Moteur indisponible : le(s) paquet(s) %s manquent. Installez-les avec install.packages(c(%s)), ou basculez sur la thématisation automatique, qui n'en a pas besoin.",
-                  paste(miss, collapse = " et "),
+                  paste(miss, collapse = tr(" et ")),
                   paste(sprintf('"%s"', gsub("[{}]", "", miss)), collapse = ", "))))
   }
 
@@ -204,7 +204,7 @@ hstat_ai_status <- function(engine = "auto", url = NULL, model = NULL,
     if (!nzchar(hstat_ai_key(engine, api_key)))
       return(list(ok = FALSE,
                   message = trf("%s indisponible : renseignez une clé d'API (champ ci-dessous ou variable %s). Clé à créer sur %s. Ce service est payant et nécessite une connexion ; la thématisation automatique, elle, est gratuite et hors ligne.",
-                                f$label, f$cle_env, f$cle_url %||% "le site du fournisseur")))
+                                f$label, f$cle_env, f$cle_url %||% tr("le site du fournisseur"))))
     return(list(ok = TRUE,
                 message = trf("%s disponible (modèle %s).", f$label,
                               hstat_ai_modele(engine, model))))
@@ -216,7 +216,7 @@ hstat_ai_status <- function(engine = "auto", url = NULL, model = NULL,
   if (!length(mods))
     return(list(ok = FALSE, models = character(0),
                 message = trf("Aucun modèle joignable sur %s. %s", u,
-                              f$aide %||% "Vérifiez l'adresse ci-dessous.")))
+                              f$aide %||% tr("Vérifiez l'adresse ci-dessous."))))
   m <- hstat_ai_modele(engine, model)
   if (nzchar(m) && !(m %in% mods))
     return(list(ok = FALSE, models = mods,
@@ -424,7 +424,7 @@ hstat_ai_reglages_ui <- function(ns, engine, prefixe = "") {
         shiny::tags$small(style = "color:#7f8c8d;display:block;margin-top:-8px;",
           shiny::icon("key"), " ",
           trf("Clé à créer sur %s. Service payant, en ligne.",
-              f$cle_url %||% "le site du fournisseur"))),
+              f$cle_url %||% tr("le site du fournisseur")))),
     shiny::textInput(id("url"), "Adresse du service", value = f$url),
     shiny::textInput(id("model"), "Modèle",
                      value = f$modele,
@@ -1249,7 +1249,7 @@ hstat_reco_analyses <- function(profile) {
           if (normal_tous && !isFALSE(homo) && !isTRUE(g$petits_effectifs))
             .hstat_reco_row("Test t de Student (deux échantillons)", "Recommandée",
               trf("Une quantitative comparée entre %d groupes indépendants, normalité intra-groupe acceptable%s.",
-                      g$k, if (isTRUE(homo)) " et variances homogènes" else ""),
+                      g$k, if (isTRUE(homo)) tr(" et variances homogènes") else ""),
               "Indépendance des observations ; normalité dans chaque groupe.",
               "Test t de Welch si les variances différent, Mann-Whitney sinon.")
           else if (normal_tous && !isTRUE(g$petits_effectifs))
@@ -1261,8 +1261,8 @@ hstat_reco_analyses <- function(profile) {
             .hstat_reco_row("Mann-Whitney (Wilcoxon)", "Recommandée",
               trf("Deux groupes indépendants%s.",
                       if (isTRUE(g$petits_effectifs))
-                        " dont au moins un compte moins de 5 observations : la normalité n'y est pas vérifiable"
-                      else " et distribution non normale dans au moins un groupe"),
+                        tr(" dont au moins un compte moins de 5 observations : la normalité n'y est pas vérifiable")
+                      else tr(" et distribution non normale dans au moins un groupe")),
               "Indépendance ; formes de distribution comparables si l'on conclut sur les médianes.",
               "Comparaison des rangs seule, sans conclure sur la médiane.")))
       }
@@ -1402,7 +1402,7 @@ hstat_reco_verdict <- function(reco, titre_analyse, module = NULL) {
       message = trf(
         "« %s » décrit vos données : c'est une étape préliminaire, pas un test, il n'y a donc rien à valider ici. Pour aller plus loin, le profil de vos variables appelle %s. À vous de décider si cette suite a du sens pour votre question de recherche.",
         titre_analyse,
-        if (length(reco_1)) paste(reco_1, collapse = " ou ") else "une analyse inférentielle")))
+        if (length(reco_1)) paste(reco_1, collapse = " ou ") else tr("une analyse inférentielle"))))
   }
   cle <- function(x) {
     x <- tolower(hstat_sans_accents(x))
@@ -1424,7 +1424,7 @@ hstat_reco_verdict <- function(reco, titre_analyse, module = NULL) {
     list(coherent = FALSE, exploratoire = FALSE,
          message = trf(
            "Au vu du profil des variables, %s aurait été le choix le plus direct. Cela ne disqualifie pas votre analyse : un objectif de recherche ou une contrainte de terrain peut la justifier. À vous de trancher.",
-           if (length(reco_1)) paste(reco_1, collapse = " ou ") else "une autre approche"))
+           if (length(reco_1)) paste(reco_1, collapse = " ou ") else tr("une autre approche")))
 }
 
 
@@ -1466,12 +1466,12 @@ hstat_ai_interpret_offline <- function(ctx, profile = NULL, reco = NULL,
                         profile$groupe$nom, profile$groupe$k,
                         paste(profile$groupe$effectifs, collapse = ", "),
                         if (isTRUE(profile$groupe$petits_effectifs))
-                          " — au moins un groupe sous 5 observations" else ""))
+                          tr(" — au moins un groupe sous 5 observations") else ""))
     for (nm in names(profile$variables)) {
       e <- profile$variables[[nm]]
       if (is.null(e$normale) || is.na(e$normale$ok)) next
       L <- c(L, trf("- « %s » : distribution %s la normalité (%s%s).", nm,
-                        if (isTRUE(e$normale$ok)) "compatible avec" else "incompatible avec",
+                        if (isTRUE(e$normale$ok)) tr("compatible avec") else tr("incompatible avec"),
                         e$normale$methode,
                         if (!is.na(e$normale$p)) sprintf(", p = %.4g", e$normale$p) else ""))
     }
@@ -2075,7 +2075,7 @@ mod_ai_server <- function(id, values) {
             " : les approximations asymptotiques y sont peu fiables.")))
         if (!is.na(g$variances_homogenes))
           el <- c(el, list(shiny::tags$li(trf("Variances %s entre groupes.",
-            if (isTRUE(g$variances_homogenes)) "homogènes" else "hétérogènes"))))
+            if (isTRUE(g$variances_homogenes)) tr("homogènes") else tr("hétérogènes")))))
         if (!is.na(g$equilibre) && !isTRUE(g$equilibre))
           el <- c(el, list(shiny::tags$li("Groupes déséquilibres (rapport des effectifs > 1,5).")))
       }

@@ -2553,6 +2553,57 @@ distinction qui compte : `trf()` ne traduit jamais ses arguments *de lui-même*
 — c'est ce qui protège les valeurs de l'utilisateur — mais le développeur peut
 déclarer qu'un argument est un libellé, pas une donnée.
 
+#### `tr()` doit suivre la session, sinon elle ne fait rien
+
+Le défaut de `tr()` était `lang = "fr"`. Or **aucun** de ses ~250 points d'appel
+ne passe `lang` : la fonction rendait donc le français quoi qu'il arrive. Elle
+existait, le dictionnaire la servait, les tests la couvraient — en lui passant
+`lang` explicitement, ce qui masquait exactement le défaut. Un défaut qui
+neutralise sa propre fonction ne se voit nulle part ailleurs qu'à l'usage.
+
+`lang = hstat_langue_session()`, comme `trf()` et `hstat_err_fr()` : la langue
+vient de la **session**, jamais d'une option globale — sur un serveur partagé,
+une option ferait basculer la langue de tous les utilisateurs. Un test compare
+les deux valeurs par défaut, elles ne doivent plus diverger.
+
+#### « faible » : la phrase porte la nuance, l'adjectif ne le peut pas
+
+Même piège que « moyenne », rencontré à l'inverse. « faible » vaut *small* pour
+une **taille d'effet** et *weak* pour une **force d'association** ; le mot ne
+peut donc pas entrer seul au dictionnaire. Ce sont les deux sites de taille
+d'effet (`interpret_manova_effect`, `interpret_permanova_effect`) qui portent
+désormais la phrase entière — quatre gabarits chacun au lieu d'un adjectif
+interpolé —, ce qui libère « faible » pour son sens d'association.
+
+Le hasard des accords a résolu le cas voisin : la force d'association dit
+« modérée » (accord avec *force*), la taille d'effet « modéré ». Deux chaînes
+différentes, donc deux entrées légitimes.
+
+#### Un attribut n'est pas du contenu
+
+`IGNORE` (SCRIPT, STYLE, TEXTAREA, CODE, PRE, SVG) protège ce qu'une balise
+**contient** : le texte tapé dans une zone de saisie, un extrait de code. Le
+`placeholder` d'un `<textarea>`, lui, est un **libellé** posé par
+l'application. L'écarter avec le contenu laissait en français tous les exemples
+de saisie — précisément les endroits où l'exemple *est* l'aide.
+
+D'où `ignorableAttr()`, qui n'honore que l'exclusion explicite
+(`data-hstat-notranslate`). Un test le vérifie sur un `placeholder` de
+`<textarea>`.
+
+Corollaire sur le contenu d'un `<code>`, lui bel et bien exclu : un exemple de
+syntaxe qui y figure ne sera **jamais** traduit par le navigateur. Les blocs
+d'aide qui en contiennent passent donc par `tr()`/`trf()` **côté serveur**, où
+l'échantillon suit la langue.
+
+#### Une syntaxe montrée est une syntaxe acceptée
+
+Les exemples de sélection de lignes deviennent « 1 to 10 » en anglais. Les deux
+analyseurs (`mod_filter.R`, `mod_clean.R`) acceptent donc `to` au même titre que
+`à` : sans cela, la traduction enseignerait à l'utilisateur anglophone une
+syntaxe que l'application refuse. Un test extrait `parseRowSelection` de l'arbre
+syntaxique des deux modules et lui donne les trois écritures.
+
 #### Une seule définition de ce qu'est un gabarit
 
 `HSTAT_I18N_MARQUEUR` sert au filtre du dictionnaire **et** au test. Deux motifs

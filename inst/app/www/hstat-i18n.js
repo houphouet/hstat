@@ -91,6 +91,21 @@
     return false;
   }
 
+  // UN ATTRIBUT N'EST PAS DU CONTENU. La liste IGNORE protege ce qu'une balise
+  // CONTIENT -- le texte tape dans une zone de saisie, un extrait de code --
+  // mais le `placeholder` d'un <textarea> est un LIBELLE, pose par
+  // l'application. L'ecarter avec le contenu laissait en francais tous les
+  // exemples de saisie, precisement les zones ou l'exemple est l'aide.
+  // Seule l'exclusion explicite vaut ici.
+  function ignorableAttr(el) {
+    while (el) {
+      if (el.nodeType === 1 && el.hasAttribute &&
+          el.hasAttribute("data-hstat-notranslate")) return true;
+      el = el.parentNode;
+    }
+    return false;
+  }
+
   // ------------------------------------------- phrases coupees par une balise
   // LE TRADUCTEUR REMPLACE DES NOEUDS DE TEXTE. Une phrase mise en forme --
   // « <b>Toutes fermees</b> — <code>[a, b]</code>, … » -- n'existe donc nulle
@@ -112,6 +127,15 @@
   var DICT_HTML = null;                 // innerHTML normalise -> traduction
   var HTML_MAX  = 0;
 
+  // Meme normalisation des blancs que pour les noeuds de texte, et pour la
+  // meme raison : Shiny ecrit chaque enfant d'une balise sur sa propre ligne.
+  // `div("Un texte ", strong("en gras"), " la suite.")` donne un innerHTML
+  // truffe de retours a la ligne, alors que la cle du CSV est ecrite d'un
+  // trait. Sans cette normalisation, la passe en bloc ne reconnaissait que les
+  // chaines `shiny::HTML("...")` -- inserees verbatim, donc sans blancs
+  // ajoutes -- et laissait tout le contenu MIXTE en francais.
+  function blancs(x) { return String(x).replace(/\s+/g, " ").trim(); }
+
   function indexerHtml() {
     DICT_HTML = Object.create(null);
     var tmp;
@@ -120,7 +144,7 @@
     for (var cle in DICT) {
       if (cle.indexOf("<") < 0) continue;
       var norm;
-      try { tmp.innerHTML = cle; norm = String(tmp.innerHTML).trim(); }
+      try { tmp.innerHTML = cle; norm = blancs(tmp.innerHTML); }
       catch (e) { continue; }
       if (!norm) continue;
       DICT_HTML[norm] = DICT[cle];
@@ -142,8 +166,8 @@
         // serialiser chaque cellule d'un grand tableau pour rien.
         if (!el.children || !el.children.length) continue;
         var brut = el.innerHTML;
-        if (!brut || brut.length > HTML_MAX + 8) continue;
-        var cible = DICT_HTML[String(brut).trim()];
+        if (!brut || brut.length > HTML_MAX * 2 + 64) continue;
+        var cible = DICT_HTML[blancs(brut)];
         if (cible === undefined) continue;
         el.__hstatFrHtml = brut;
         el.innerHTML = cible;
@@ -166,7 +190,19 @@
       var t = lot[i];
       if (ignorable(t.parentNode)) continue;
       var brut = t.nodeValue;
-      var net = brut.trim();
+      // LES BLANCS INTERNES SONT NORMALISES AVANT LA RECHERCHE.
+      //
+      // Shiny serialise CHAQUE argument d'une balise sur sa propre ligne :
+      // `helpText("...ce qui", " permet de...", " tout dire.")` produit un
+      // seul noeud de texte, mais dont la valeur porte les retours a la ligne
+      // et l'indentation du serialiseur. Aucune cle propre ne pouvait donc
+      // correspondre, et les QUARANTE-NEUF indications sous les controles
+      // restaient en francais quoi qu'on mette au dictionnaire.
+      //
+      // Le navigateur, lui, replie ces blancs a l'affichage : la phrase LUE
+      // est bien « ...ce qui permet de tout dire. ». On cherche donc ce que
+      // l'utilisateur voit, pas ce que le serialiseur a ecrit.
+      var net = brut.replace(/\s+/g, " ").trim();
       if (!net) continue;
 
       if (langue === "en") {
@@ -179,12 +215,15 @@
         if (estDonnee(net)) continue;
         if (net.length <= LONGUEUR_CELLULE && dansCellule(t.parentNode)) continue;
         t.__hstatFr = brut;
-        // Les espaces qui entourent le texte sont conserves : les retirer
+        // Les espaces qui ENTOURENT le texte sont conserves : les retirer
         // collerait un libelle a l'icone qui le precede.
-        // Le remplacement passe par une FONCTION : avec une chaine, « $& » et
-        // « $\u0060 » dans une traduction seraient interpretes comme des
-        // references au texte trouve et la corrompraient.
-        t.nodeValue = brut.replace(net, function () { return cible; });
+        //
+        // La valeur est RECOMPOSEE, plus remplacee : la chaine cherchee
+        // (blancs normalises) ne figure plus telle quelle dans le noeud, un
+        // `replace` ne trouverait rien. C'est aussi ce qui rend « $& » et
+        // « $\u0060 » litteraux -- une concatenation n'interprete rien, la
+        // ou `String.replace` y voit des references au texte trouve.
+        t.nodeValue = brut.match(/^\s*/)[0] + cible + brut.match(/\s*$/)[0];
       } else if (t.__hstatFr !== undefined) {
         t.nodeValue = t.__hstatFr;
         delete t.__hstatFr;
@@ -197,7 +236,7 @@
     var els = racine.querySelectorAll ? racine.querySelectorAll("*") : [];
     for (var i = 0; i < els.length; i++) {
       var el = els[i];
-      if (ignorable(el)) continue;
+      if (ignorableAttr(el)) continue;
       for (var a = 0; a < ATTRS.length; a++) {
         var nom = ATTRS[a];
         if (!el.hasAttribute(nom)) continue;

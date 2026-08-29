@@ -542,8 +542,8 @@ mod_timeseries_server <- function(id, values) {
         notes = trf("La MASE vaut %s : %s",
           round(c0$r$mase, 3),
           if (!is.finite(c0$r$mase)) "non calculable."
-          else if (c0$r$mase < 1) "le modèle bat la prévision naïve — il apporte une vraie valeur ajoutée."
-          else "le modèle ne fait pas mieux qu'une prévision naïve — à reconsidérer."))
+          else if (c0$r$mase < 1) tr("le modèle bat la prévision naïve — il apporte une vraie valeur ajoutée.")
+          else tr("le modèle ne fait pas mieux qu'une prévision naïve — à reconsidérer.")))
       shiny::div(class = "callout callout-info", style = "margin-top:10px;",
           shiny::icon("lightbulb"), shiny::strong(" Interprétation : "), txt)
     })
