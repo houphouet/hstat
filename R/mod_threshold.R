@@ -699,6 +699,11 @@ mod_threshold_server <- function(id, values) {
     threshold_values$y_colors <- NULL
     threshold_values$legend_label_mapping <- NULL
     threshold_values$legend_label_styles <- NULL
+    # Le tableau d'efficacites calcule sur le fichier PRECEDENT : il alimente
+    # `source_data()`, donc le graphique et les selecteurs. Sans cette ligne,
+    # les modalites de l'ancien essai restaient proposees apres un nouveau
+    # chargement.
+    eff_res(NULL)
     shiny::updateNumericInput(session, "thresholdValue", value = 80)
     shiny::updateTextInput(session, "thresholdPlotTitle", value = "")
     shiny::updateTextInput(session, "thresholdXLabel", value = "")

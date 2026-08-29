@@ -1806,6 +1806,16 @@ mod_clean_server <- function(id, values) {
   # =========================================================================
   zero_message <- shiny::reactiveVal(NULL)
 
+  # Les quatre messages de ce module decrivent un geste pose sur le fichier
+  # PRECEDENT : renommage, recodage, valeurs extremes, variables nulles. Ils
+  # restaient affiches sous un panneau qui parle desormais d'autres colonnes.
+  # `resetSignal` est incremente par les quatre gestes qui remettent la session
+  # a zero, chargement d'un nouveau fichier compris.
+  shiny::observeEvent(values$resetSignal, {
+    if ((values$resetSignal %||% 0) == 0) return()
+    rename_msg(NULL); recode_msg(NULL); outlier_report(NULL); zero_message(NULL)
+  }, ignoreInit = TRUE)
+
   zero_table <- shiny::reactive({
     d <- values$cleanData
     if (is.null(d) || !NCOL(d)) return(NULL)

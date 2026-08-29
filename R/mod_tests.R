@@ -967,182 +967,6 @@ mod_posthoc_ui <- function(id) {
                                   
                                     shiny::br(),
                                   
-                                    shiny::div(style = "border:1px solid #dee2e6; border-radius:10px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,.06);",
-                                        shiny::div(
-                                          class = "panel-heading",
-                                          style = paste0("background:linear-gradient(135deg,#3c8dbc 0%,#8e44ad 100%);",
-                                                         "color:white; padding:14px 18px; cursor:pointer;",
-                                                         "display:flex; align-items:center;"),
-                                          `data-toggle` = "collapse",
-                                          `data-target` = "#graphOptionsPanel",
-                                          shiny::icon("sliders-h", style = "margin-right: 10px;"),
-                                          shiny::tags$strong("Options du graphique"),
-                                          shiny::tags$span(style = "margin-left:12px; font-size:12px; opacity:.85;",
-                                                    "toute la mise en forme, de la palette à l'export"),
-                                          shiny::tags$span(style = "margin-left: auto; font-size: 12px; opacity: 0.85;",
-                                                    shiny::icon("chevron-down"), " Développer / Réduire")
-                                        ),
-                                        shiny::div(id = "graphOptionsPanel", class = "collapse",
-                                            shiny::div(style = "padding: 18px; background-color: #fbfcfd;",
-
-                                                shiny::fluidRow(
-                                                  # ---- COL 1 : type, palette, barres d'erreur ----
-                                                  shiny::column(3,
-                                                    .hstat_opt_section(
-                                                      "Type et couleurs", "palette", "#8e44ad", "#f7f0fb",
-                                                      shiny::radioButtons(ns("plotType"), "Type de graphique",
-                                                                   choices = c("Boxplot" = "box", "Violon" = "violin",
-                                                                               "Points + barres" = "point", "Barres" = "hist"),
-                                                                   selected = "box"),
-                                                      shiny::selectInput(ns("boxColor"), "Palette de couleurs",
-                                                                  choices = list(
-                                                                    "Sans palette" = c("Défaut (gris)" = "default"),
-                                                                    "Teintes vives (groupes distincts)" = HSTAT_PALETTES_QUALI,
-                                                                    "Dégradés (valeurs ordonnées)" = HSTAT_PALETTES_DEGRADE),
-                                                                  selected = "Set2"),
-                                                      shiny::selectInput(ns("posthocTheme"), "Thème du graphique",
-                                                                  choices = HSTAT_THEMES_GG, selected = "minimal"),
-                                                      shiny::radioButtons(ns("errorType"), "Barres d'erreur",
-                                                                   choices = c("SE" = "se", "SD" = "sd",
-                                                                               "IC 95%" = "ci", "Aucune" = "none"),
-                                                                   selected = "se", inline = TRUE),
-                                                      shiny::checkboxInput(ns("colorByGroups"),
-                                                                    shiny::HTML("Colorer par groupes statistiques <small style='color:#6c757d;'>(a, b, c...)</small>"),
-                                                                    value = FALSE),
-                                                      shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
-                                                                 "Un dégradé sur des groupes sans ordre naturel suggère une progression qui n'existe pas.")
-                                                    )
-                                                  ),
-
-                                                  # ---- COL 2 : textes ----
-                                                  shiny::column(3,
-                                                    .hstat_opt_section(
-                                                      "Titres et libellés", "heading", "#2980b9", "#eaf3fa",
-                                                      shiny::textInput(ns("customTitle"), "Titre", placeholder = "Auto"),
-                                                      shiny::textInput(ns("customSubtitle"), "Sous-titre", placeholder = "Optionnel"),
-                                                      shiny::fluidRow(
-                                                        shiny::column(6, shiny::textInput(ns("customXLabel"), "Libellé X", placeholder = "Auto")),
-                                                        shiny::column(6, shiny::textInput(ns("customYLabel"), "Libellé Y", placeholder = "Auto"))
-                                                      ),
-                                                      shiny::textInput(ns("customLegendTitle"), "Titre de la légende", placeholder = "Auto"),
-                                                      shiny::selectInput(ns("subtitlePosition"), "Position du sous-titre",
-                                                                  choices = list("Centré" = "0.5", "Gauche" = "0", "Droite" = "1"),
-                                                                  selected = "0.5"),
-                                                      shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
-                                                                 "Le gras et l'italique s'écrivent aussi dans le texte : **gras**, *italique*.")
-                                                    )
-                                                  ),
-
-                                                  # ---- COL 3 : tailles et styles ----
-                                                  shiny::column(3,
-                                                    .hstat_opt_section(
-                                                      "Tailles", "text-height", "#d35400", "#fdf2e9",
-                                                      shiny::fluidRow(
-                                                        shiny::column(6, shiny::sliderInput(ns("titleSize"), "Titre", min = 8, max = 32, value = 16, step = 1, ticks = FALSE)),
-                                                        shiny::column(6, shiny::sliderInput(ns("subtitleSize"), "Sous-titre", min = 6, max = 28, value = 12, step = 1, ticks = FALSE))
-                                                      ),
-                                                      shiny::fluidRow(
-                                                        shiny::column(6, shiny::sliderInput(ns("axisTitleSize"), "Titres des axes", min = 8, max = 28, value = 14, step = 1, ticks = FALSE)),
-                                                        shiny::column(6, shiny::sliderInput(ns("axisTextSize"), "Graduations", min = 6, max = 24, value = 12, step = 1, ticks = FALSE))
-                                                      ),
-                                                      # Les noms de traitement sont longs par nature
-                                                      # ici (« 2SP(0,5)&2PV »...) : le titre d'axe
-                                                      # deborde des qu'on le nomme vraiment.
-                                                      hstat_axe_titre_ui(ns, "posthoc"),
-                                                      shiny::fluidRow(
-                                                        shiny::column(6, shiny::sliderInput(ns("graphValueSize"), "Lettres (a, b, c)", min = 2, max = 20, value = 5, step = 0.5, ticks = FALSE)),
-                                                        shiny::column(6, shiny::sliderInput(ns("meanValueSize"), "Moyennes", min = 2, max = 12, value = 4, step = 0.5, ticks = FALSE))
-                                                      )
-                                                    ),
-                                                    .hstat_opt_section(
-                                                      "Styles d'écriture", "font", "#c0392b", "#fdeeec",
-                                                      # Un select par ligne : appairés, leurs libellés étaient
-                                                      # rognés dans une colonne de panneau.
-                                                      shiny::selectInput(ns("titleFontStyle"), "Titre",
-                                                                  choices = HSTAT_FONT_STYLES, selected = "bold"),
-                                                      shiny::selectInput(ns("subtitleFontStyle"), "Sous-titre",
-                                                                  choices = HSTAT_FONT_STYLES, selected = "italic"),
-                                                      shiny::selectInput(ns("axisTitleFontStyle"), "Titres des axes",
-                                                                  choices = HSTAT_FONT_STYLES, selected = "plain"),
-                                                      shiny::selectInput(ns("graphValueFontStyle"), "Lettres (a, b, c)",
-                                                                  choices = HSTAT_FONT_STYLES, selected = "bold"),
-                                                      shiny::selectInput(ns("axisTextXFontStyle"), "Graduations X",
-                                                                  choices = HSTAT_FONT_STYLES, selected = "plain"),
-                                                      shiny::selectInput(ns("axisTextYFontStyle"), "Graduations Y",
-                                                                  choices = HSTAT_FONT_STYLES, selected = "plain"),
-                                                      shiny::checkboxInput(ns("rotateXLabels"), "Libellés X inclinés à 45°", value = TRUE)
-                                                    )
-                                                  ),
-
-                                                  # ---- COL 4 : axes, legende, export ----
-                                                  shiny::column(3,
-                                                    .hstat_opt_section(
-                                                      "Axes et ordre", "ruler-combined", "#16a085", "#e8f8f4",
-                                                      shiny::checkboxInput(ns("customAxisLimits"), "Personnaliser les limites", value = FALSE),
-                                                      shiny::conditionalPanel(
-                                                        ns = ns,
-                                                        condition = "input.customAxisLimits == true",
-                                                        shiny::fluidRow(
-                                                          shiny::column(6, shiny::numericInput(ns("yAxisMin"), "Y min", value = NULL, step = 0.1)),
-                                                          shiny::column(6, shiny::numericInput(ns("yAxisMax"), "Y max", value = NULL, step = 0.1))
-                                                        ),
-                                                        shiny::fluidRow(
-                                                          shiny::column(6, shiny::numericInput(ns("xAxisMin"), "X min", value = NULL, step = 0.1)),
-                                                          shiny::column(6, shiny::numericInput(ns("xAxisMax"), "X max", value = NULL, step = 0.1))
-                                                        ),
-                                                        shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
-                                                                   "Les limites X ne s'appliquent qu'à un axe numérique.")
-                                                      ),
-                                                      shiny::checkboxInput(ns("customAxisBreaks"), "Personnaliser les graduations", value = FALSE),
-                                                      shiny::conditionalPanel(
-                                                        ns = ns,
-                                                        condition = "input.customAxisBreaks == true",
-                                                        shiny::fluidRow(
-                                                          shiny::column(6, shiny::numericInput(ns("yAxisBreakStep"), "Pas Y", value = NULL, step = 0.1, min = 0.01)),
-                                                          shiny::column(6, shiny::numericInput(ns("xAxisBreakStep"), "Pas X", value = NULL, step = 0.1, min = 0.01))
-                                                        )
-                                                      ),
-                                                      shiny::checkboxInput(ns("customXOrder"), "Personnaliser l'ordre de l'axe X", value = FALSE),
-                                                      shiny::conditionalPanel(
-                                                        ns = ns,
-                                                        condition = "input.customXOrder == true",
-                                                        shiny::uiOutput(ns("xAxisOrderUI"))
-                                                      )
-                                                    ),
-                                                    .hstat_opt_section(
-                                                      "Légende", "list", "#7f8c8d", "#f4f6f7",
-                                                      shiny::fluidRow(
-                                                        shiny::column(6, shiny::sliderInput(ns("legendTitleSize"), "Titre", min = 6, max = 24, value = 12, step = 1, ticks = FALSE)),
-                                                        shiny::column(6, shiny::sliderInput(ns("legendTextSize"), "Texte", min = 6, max = 20, value = 10, step = 1, ticks = FALSE))
-                                                      ),
-                                                      shiny::selectInput(ns("legendTitleFontStyle"), "Style du titre",
-                                                                  choices = HSTAT_FONT_STYLES, selected = "bold"),
-                                                      shiny::selectInput(ns("legendTextFontStyle"), "Style du texte",
-                                                                  choices = HSTAT_FONT_STYLES, selected = "plain"),
-                                                      shiny::fluidRow(
-                                                        shiny::column(6, shiny::sliderInput(ns("legendSpacing"), "Espacement", min = 0, max = 6, value = 0, step = 0.1, ticks = FALSE)),
-                                                        shiny::column(6, shiny::sliderInput(ns("legendKeySize"), "Taille des clés", min = 0.4, max = 3, value = 1.2, step = 0.1, ticks = FALSE))
-                                                      ),
-                                                      shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
-                                                                 "La légende n'apparaît qu'avec « Colorer par groupes statistiques ».")
-                                                    ),
-                                                    .hstat_opt_section(
-                                                      "Taille du fichier exporté", "download", "#2c3e50", "#eef1f4",
-                                                      shiny::fluidRow(
-                                                        shiny::column(6, shiny::numericInput(ns("plotWidth"), "Largeur (pouces)", value = 8, min = 3, max = 20, step = 0.5)),
-                                                        shiny::column(6, shiny::numericInput(ns("plotHeight"), "Hauteur (pouces)", value = 6, min = 3, max = 20, step = 0.5))
-                                                      ),
-                                                      shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
-                                                                 "Format et résolution se choisissent sous le graphique.")
-                                                    )
-                                                  )
-                                                )
-                                            )
-                                        )
-                                    ),
-                                  
-                                    shiny::br(),
-                                  
                                     shiny::div(style = "max-width: 400px; margin: 0 auto;",
                                         shiny::fluidRow(
                                           shiny::column(7,
@@ -1203,6 +1027,246 @@ mod_posthoc_ui <- function(id) {
                       )
                   )
                 ),
+                shiny::fluidRow(
+                  # LES OPTIONS DU GRAPHIQUE SONT UNE BOITE A PART ENTIERE.
+                  # Elles vivaient repliees DANS l'onglet « Graphique », au bas
+                  # de la colonne de resultats : quarante reglages dans une
+                  # colonne etroite, qu'il fallait deplier a chaque fois. Ici,
+                  # elles occupent toute la largeur sous la configuration de
+                  # l'analyse -- on les voit, on les atteint, et le graphique
+                  # reste visible au-dessus pendant qu'on les regle.
+                  shinydashboard::box(
+                    title = shiny::tagList(shiny::icon("sliders-h"),
+                                    " Options du graphique"),
+                    status = "primary", width = 12, solidHeader = TRUE,
+                    collapsible = TRUE, collapsed = FALSE,
+                    shiny::div(style = "font-size:12px; color:#7f8c8d; margin-bottom:12px;",
+                        shiny::icon("info-circle"),
+                        " Toute la mise en forme du graphique post-hoc, de la palette à l'export."),
+                    shiny::fluidRow(
+                      # ---- COL 1 : type, palette, barres d'erreur ----
+                      shiny::column(3,
+                        .hstat_opt_section(
+                          "Type et couleurs", "palette", "#8e44ad", "#f7f0fb",
+                          shiny::radioButtons(ns("plotType"), "Type de graphique",
+                                       choices = c("Boxplot" = "box", "Violon" = "violin",
+                                                   "Points + barres" = "point", "Barres" = "hist"),
+                                       selected = "box"),
+                          shiny::selectInput(ns("boxColor"), "Palette de couleurs",
+                                      choices = list(
+                                        "Sans palette" = c("Défaut (gris)" = "default"),
+                                        "Teintes vives (groupes distincts)" = HSTAT_PALETTES_QUALI,
+                                        "Dégradés (valeurs ordonnées)" = HSTAT_PALETTES_DEGRADE),
+                                      selected = "Set2"),
+                          shiny::selectInput(ns("posthocTheme"), "Thème du graphique",
+                                      choices = HSTAT_THEMES_GG, selected = "minimal"),
+                          shiny::radioButtons(ns("errorType"), "Barres d'erreur",
+                                       choices = c("SE" = "se", "SD" = "sd",
+                                                   "IC 95%" = "ci", "Aucune" = "none"),
+                                       selected = "se", inline = TRUE),
+                          shiny::checkboxInput(ns("colorByGroups"),
+                                        shiny::HTML("Colorer par groupes statistiques <small style='color:#6c757d;'>(a, b, c...)</small>"),
+                                        value = FALSE),
+                          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                     "Un dégradé sur des groupes sans ordre naturel suggère une progression qui n'existe pas.")
+                        ),
+                        .hstat_opt_section(
+                          "Géométrie", "shapes", "#e67e22", "#fdf2e6",
+                          shiny::sliderInput(ns("plotAlpha"), "Opacité",
+                                      min = 0.1, max = 1, value = 0.7, step = 0.05, ticks = FALSE),
+                          shiny::sliderInput(ns("geomWidth"), "Largeur des boîtes / barres",
+                                      min = 0.1, max = 1, value = 0.75, step = 0.05, ticks = FALSE),
+                          shiny::sliderInput(ns("pointSize"), "Taille des points",
+                                      min = 1, max = 12, value = 4, step = 0.5, ticks = FALSE),
+                          # `colour = NA` n'est PAS l'absence d'argument : il EFFACE
+                          # le contour que la géométrie dessinerait. Le contour se
+                          # demande donc explicitement.
+                          shiny::checkboxInput(ns("showBorder"), "Contour des boîtes / barres", value = TRUE),
+                          shiny::conditionalPanel(
+                            ns = ns,
+                            condition = "input.showBorder == true",
+                            shiny::fluidRow(
+                              shiny::column(6, colourInput(ns("borderColor"), "Couleur", value = "#000000")),
+                              shiny::column(6, shiny::sliderInput(ns("borderWidth"), "Épaisseur",
+                                                          min = 0.1, max = 3, value = 0.5, step = 0.1, ticks = FALSE))
+                            )
+                          ),
+                          shiny::fluidRow(
+                            shiny::column(6, shiny::sliderInput(ns("errorBarWidth"), "Largeur des moustaches",
+                                                        min = 0, max = 1, value = 0.2, step = 0.05, ticks = FALSE)),
+                            shiny::column(6, colourInput(ns("errorBarColor"), "Couleur", value = "#000000"))
+                          )
+                        )
+                      ),
+
+                      # ---- COL 2 : textes ----
+                      shiny::column(3,
+                        .hstat_opt_section(
+                          "Titres et libellés", "heading", "#2980b9", "#eaf3fa",
+                          shiny::textInput(ns("customTitle"), "Titre", placeholder = "Auto"),
+                          shiny::textInput(ns("customSubtitle"), "Sous-titre", placeholder = "Optionnel"),
+                          shiny::fluidRow(
+                            shiny::column(6, shiny::textInput(ns("customXLabel"), "Libellé X", placeholder = "Auto")),
+                            shiny::column(6, shiny::textInput(ns("customYLabel"), "Libellé Y", placeholder = "Auto"))
+                          ),
+                          shiny::textInput(ns("customLegendTitle"), "Titre de la légende", placeholder = "Auto"),
+                          shiny::selectInput(ns("titlePosition"), "Position du titre",
+                                      choices = list("Centré" = "0.5", "Gauche" = "0", "Droite" = "1"),
+                                      selected = "0.5"),
+                          shiny::selectInput(ns("subtitlePosition"), "Position du sous-titre",
+                                      choices = list("Centré" = "0.5", "Gauche" = "0", "Droite" = "1"),
+                                      selected = "0.5"),
+                          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                     "Le gras et l'italique s'écrivent aussi dans le texte : **gras**, *italique*.")
+                        )
+                      ),
+
+                      # ---- COL 3 : tailles et styles ----
+                      shiny::column(3,
+                        .hstat_opt_section(
+                          "Tailles", "text-height", "#d35400", "#fdf2e9",
+                          shiny::fluidRow(
+                            shiny::column(6, shiny::sliderInput(ns("titleSize"), "Titre", min = 8, max = 32, value = 16, step = 1, ticks = FALSE)),
+                            shiny::column(6, shiny::sliderInput(ns("subtitleSize"), "Sous-titre", min = 6, max = 28, value = 12, step = 1, ticks = FALSE))
+                          ),
+                          shiny::fluidRow(
+                            shiny::column(6, shiny::sliderInput(ns("axisTitleSize"), "Titres des axes", min = 8, max = 28, value = 14, step = 1, ticks = FALSE)),
+                            shiny::column(6, shiny::sliderInput(ns("axisTextSize"), "Graduations", min = 6, max = 24, value = 12, step = 1, ticks = FALSE))
+                          ),
+                          # Les noms de traitement sont longs par nature
+                          # ici (« 2SP(0,5)&2PV »...) : le titre d'axe
+                          # deborde des qu'on le nomme vraiment.
+                          hstat_axe_titre_ui(ns, "posthoc"),
+                          shiny::fluidRow(
+                            shiny::column(6, shiny::sliderInput(ns("graphValueSize"), "Lettres (a, b, c)", min = 2, max = 20, value = 5, step = 0.5, ticks = FALSE)),
+                            shiny::column(6, shiny::sliderInput(ns("meanValueSize"), "Moyennes", min = 2, max = 12, value = 4, step = 0.5, ticks = FALSE))
+                          )
+                        ),
+                        .hstat_opt_section(
+                          "Valeurs portées sur le graphique", "tag", "#27ae60", "#eafaf1",
+                          colourInput(ns("letterColor"), "Couleur des lettres (a, b, c)", value = "#FF0000"),
+                          shiny::checkboxInput(ns("showMeanValues"), "Afficher les moyennes sur les barres", value = TRUE),
+                          shiny::conditionalPanel(
+                            ns = ns,
+                            condition = "input.showMeanValues == true",
+                            shiny::fluidRow(
+                              shiny::column(6, shiny::numericInput(ns("meanValueDecimals"), "Décimales",
+                                                           value = 2, min = 0, max = 6, step = 1)),
+                              shiny::column(6, colourInput(ns("meanValueColor"), "Couleur", value = "#FFFFFF"))
+                            ),
+                            shiny::selectInput(ns("meanValueFontStyle"), "Style",
+                                        choices = HSTAT_FONT_STYLES, selected = "bold")
+                          ),
+                          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                     "Les moyennes ne se portent que sur le graphique en barres.")
+                        ),
+                        .hstat_opt_section(
+                          "Styles d'écriture", "font", "#c0392b", "#fdeeec",
+                          # Un select par ligne : appairés, leurs libellés étaient
+                          # rognés dans une colonne de panneau.
+                          shiny::selectInput(ns("titleFontStyle"), "Titre",
+                                      choices = HSTAT_FONT_STYLES, selected = "bold"),
+                          shiny::selectInput(ns("subtitleFontStyle"), "Sous-titre",
+                                      choices = HSTAT_FONT_STYLES, selected = "italic"),
+                          shiny::selectInput(ns("axisTitleFontStyle"), "Titres des axes",
+                                      choices = HSTAT_FONT_STYLES, selected = "plain"),
+                          shiny::selectInput(ns("graphValueFontStyle"), "Lettres (a, b, c)",
+                                      choices = HSTAT_FONT_STYLES, selected = "bold"),
+                          shiny::selectInput(ns("axisTextXFontStyle"), "Graduations X",
+                                      choices = HSTAT_FONT_STYLES, selected = "plain"),
+                          shiny::selectInput(ns("axisTextYFontStyle"), "Graduations Y",
+                                      choices = HSTAT_FONT_STYLES, selected = "plain"),
+                          # L'INCLINAISON EST UN ANGLE, PAS UN OUI/NON. La case
+                          # « inclinés à 45° » ne laissait le choix qu'entre 0 et
+                          # 45 : onze noms de traitement se chevauchent encore à
+                          # 45°, et une étiquette courte n'a aucune raison d'être
+                          # penchée. Le curseur couvre tout l'intervalle utile.
+                          shiny::sliderInput(ns("xLabelAngle"), "Inclinaison des libellés X (°)",
+                                      min = 0, max = 90, value = 45, step = 5, ticks = FALSE),
+                          shiny::sliderInput(ns("yLabelAngle"), "Inclinaison des libellés Y (°)",
+                                      min = 0, max = 90, value = 0, step = 5, ticks = FALSE)
+                        )
+                      ),
+
+                      # ---- COL 4 : axes, legende, export ----
+                      shiny::column(3,
+                        .hstat_opt_section(
+                          "Axes et ordre", "ruler-combined", "#16a085", "#e8f8f4",
+                          shiny::checkboxInput(ns("customAxisLimits"), "Personnaliser les limites", value = FALSE),
+                          shiny::conditionalPanel(
+                            ns = ns,
+                            condition = "input.customAxisLimits == true",
+                            shiny::fluidRow(
+                              shiny::column(6, shiny::numericInput(ns("yAxisMin"), "Y min", value = NULL, step = 0.1)),
+                              shiny::column(6, shiny::numericInput(ns("yAxisMax"), "Y max", value = NULL, step = 0.1))
+                            ),
+                            shiny::fluidRow(
+                              shiny::column(6, shiny::numericInput(ns("xAxisMin"), "X min", value = NULL, step = 0.1)),
+                              shiny::column(6, shiny::numericInput(ns("xAxisMax"), "X max", value = NULL, step = 0.1))
+                            ),
+                            shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                       "Les limites X ne s'appliquent qu'à un axe numérique.")
+                          ),
+                          shiny::checkboxInput(ns("customAxisBreaks"), "Personnaliser les graduations", value = FALSE),
+                          shiny::conditionalPanel(
+                            ns = ns,
+                            condition = "input.customAxisBreaks == true",
+                            shiny::fluidRow(
+                              shiny::column(6, shiny::numericInput(ns("yAxisBreakStep"), "Pas Y", value = NULL, step = 0.1, min = 0.01)),
+                              shiny::column(6, shiny::numericInput(ns("xAxisBreakStep"), "Pas X", value = NULL, step = 0.1, min = 0.01))
+                            )
+                          ),
+                          shiny::checkboxInput(ns("customXOrder"), "Personnaliser l'ordre de l'axe X", value = FALSE),
+                          shiny::conditionalPanel(
+                            ns = ns,
+                            condition = "input.customXOrder == true",
+                            shiny::uiOutput(ns("xAxisOrderUI"))
+                          ),
+                          shiny::fluidRow(
+                            shiny::column(6, shiny::checkboxInput(ns("showGridMajor"), "Grille principale", value = TRUE)),
+                            shiny::column(6, shiny::checkboxInput(ns("showGridMinor"), "Grille secondaire", value = TRUE))
+                          )
+                        ),
+                        .hstat_opt_section(
+                          "Légende", "list", "#7f8c8d", "#f4f6f7",
+                          shiny::selectInput(ns("legendPosition"), "Position",
+                                      # « Haut » et « Bas » seuls sont des valeurs de
+                                      # données plausibles (une colonne « Niveau ») :
+                                      # le dictionnaire du navigateur les traduirait
+                                      # jusque dans le fichier de l'utilisateur.
+                                      choices = list("Droite" = "right", "Gauche" = "left",
+                                                     "En haut" = "top", "En bas" = "bottom",
+                                                     "Masquée" = "none"),
+                                      selected = "right"),
+                          shiny::fluidRow(
+                            shiny::column(6, shiny::sliderInput(ns("legendTitleSize"), "Titre", min = 6, max = 24, value = 12, step = 1, ticks = FALSE)),
+                            shiny::column(6, shiny::sliderInput(ns("legendTextSize"), "Texte", min = 6, max = 20, value = 10, step = 1, ticks = FALSE))
+                          ),
+                          shiny::selectInput(ns("legendTitleFontStyle"), "Style du titre",
+                                      choices = HSTAT_FONT_STYLES, selected = "bold"),
+                          shiny::selectInput(ns("legendTextFontStyle"), "Style du texte",
+                                      choices = HSTAT_FONT_STYLES, selected = "plain"),
+                          shiny::fluidRow(
+                            shiny::column(6, shiny::sliderInput(ns("legendSpacing"), "Espacement", min = 0, max = 6, value = 0, step = 0.1, ticks = FALSE)),
+                            shiny::column(6, shiny::sliderInput(ns("legendKeySize"), "Taille des clés", min = 0.4, max = 3, value = 1.2, step = 0.1, ticks = FALSE))
+                          ),
+                          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                     "La légende n'apparaît qu'avec « Colorer par groupes statistiques ».")
+                        ),
+                        .hstat_opt_section(
+                          "Taille du fichier exporté", "download", "#2c3e50", "#eef1f4",
+                          shiny::fluidRow(
+                            shiny::column(6, shiny::numericInput(ns("plotWidth"), "Largeur (pouces)", value = 8, min = 3, max = 20, step = 0.5)),
+                            shiny::column(6, shiny::numericInput(ns("plotHeight"), "Hauteur (pouces)", value = 6, min = 3, max = 20, step = 0.5))
+                          ),
+                          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                     "Format et résolution se choisissent sous le graphique.")
+                        )
+                      )
+                    )
+                  )
+                ),
+
               
                 shiny::fluidRow(
                   shinydashboard::box(
@@ -7723,7 +7787,28 @@ mod_tests_server <- function(id, values) {
     error_type <- input$errorType
     color_by_groups <- input$colorByGroups
     box_color <- input$boxColor
-    rotate_labels <- input$rotateXLabels
+    # Un reglage que le reactif NE LIT PAS se change sans que l'image bouge :
+    # chaque nouvelle option est donc lue ici, meme quand elle n'est utilisee
+    # que plus bas.
+    x_label_angle <- input$xLabelAngle %||% 45
+    y_label_angle <- input$yLabelAngle %||% 0
+    title_position <- input$titlePosition %||% "0.5"
+    legend_position <- input$legendPosition %||% "right"
+    plot_alpha <- input$plotAlpha %||% 0.7
+    show_border <- isTRUE(input$showBorder)
+    border_color <- input$borderColor %||% "black"
+    border_width <- input$borderWidth %||% 0.5
+    geom_width <- input$geomWidth %||% 0.75
+    point_size <- input$pointSize %||% 4
+    error_bar_width <- input$errorBarWidth %||% 0.2
+    error_bar_color <- input$errorBarColor %||% "black"
+    letter_color <- input$letterColor %||% "red"
+    show_mean_values <- isTRUE(input$showMeanValues)
+    mean_value_decimals <- input$meanValueDecimals %||% 2
+    mean_value_color <- input$meanValueColor %||% "white"
+    mean_value_font_style <- input$meanValueFontStyle %||% "bold"
+    show_grid_major <- isTRUE(input$showGridMajor)
+    show_grid_minor <- isTRUE(input$showGridMinor)
     
     custom_title <- input$customTitle
     custom_subtitle <- input$customSubtitle
@@ -7889,7 +7974,7 @@ mod_tests_server <- function(id, values) {
         plot.title = ggtext::element_markdown(
           size = title_size, 
           face = title_font_style, 
-          hjust = 0.5
+          hjust = as.numeric(title_position)
         ),
         
         plot.subtitle = if (!is.null(custom_subtitle) && custom_subtitle != "") {
@@ -7908,24 +7993,26 @@ mod_tests_server <- function(id, values) {
                                             axis_title_font_style, "x"),
         axis.title.y = hstat_axe_titre_lire(input, "posthoc", axis_title_size,
                                             axis_title_font_style, "y"),
-        axis.text.x = if (rotate_labels) {
-          ggplot2::element_text(
-            angle = 45, 
-            hjust = 1, 
-            size = axis_text_size, 
-            face = axis_text_x_font_style
-          )
-        } else {
-          ggplot2::element_text(
-            size = axis_text_size, 
-            face = axis_text_x_font_style
-          )
-        },
+        # L'INCLINAISON COMMANDE AUSSI L'ALIGNEMENT. Une etiquette penchee
+        # doit finir SOUS sa graduation (`hjust = 1`), alors qu'une etiquette
+        # droite se centre. Les choisir separement decalait le texte d'un demi
+        # libelle des qu'on revenait a 0.
+        axis.text.x = ggplot2::element_text(
+          angle = x_label_angle,
+          hjust = if (x_label_angle > 0) 1 else 0.5,
+          vjust = if (x_label_angle >= 90) 0.5 else 1,
+          size = axis_text_size,
+          face = axis_text_x_font_style
+        ),
         axis.text.y = ggplot2::element_text(
-          size = axis_text_size, 
+          angle = y_label_angle,
+          hjust = if (y_label_angle >= 90) 0.5 else 1,
+          size = axis_text_size,
           face = axis_text_y_font_style
         ),
-        legend.position = if (color_by_groups) "right" else "none",
+        # La legende ne se montre que s'il y a quelque chose a nommer, mais sa
+        # PLACE reste au choix de l'utilisateur.
+        legend.position = if (color_by_groups) legend_position else "none",
         legend.title = ggtext::element_markdown(
           size = legend_title_size, 
           face = legend_title_font_style
@@ -7942,8 +8029,10 @@ mod_tests_server <- function(id, values) {
         legend.key.spacing.y = ggplot2::unit(legend_spacing, "lines"),  
         legend.margin = ggplot2::margin(t = 5, r = 5, b = 5, l = 5),
         legend.box.spacing = ggplot2::unit(0.5, "lines"),
-        panel.grid.major = ggplot2::element_line(color = "gray90"),
-        panel.grid.minor = ggplot2::element_blank(),
+        panel.grid.major = if (show_grid_major) ggplot2::element_line(color = "gray90")
+                           else ggplot2::element_blank(),
+        panel.grid.minor = if (show_grid_minor) ggplot2::element_line(color = "gray95")
+                           else ggplot2::element_blank(),
         panel.background = ggplot2::element_rect(fill = "white", color = NA)
       )
     
@@ -8029,6 +8118,14 @@ mod_tests_server <- function(id, values) {
       }
       
       
+      # `colour = NA` n'est PAS l'absence d'argument : il EFFACE le contour que
+      # la geometrie dessinerait. `hstat_barre_style()` monte donc une LISTE
+      # d'arguments a la demande, et n'y met la couleur que si un contour est
+      # demande. C'est la meme aide que celle des seuils d'efficacite : un seul
+      # endroit ou la regle est ecrite.
+      sty <- hstat_barre_style(plot_alpha, show_border, border_color, border_width)
+      geom_ <- function(g, ...) do.call(g, c(list(...), sty))
+
       if (plot_type == "box") {
         if (color_by_groups) {
           agg_subset <- agg[, c(fvar, "groups"), drop = FALSE]
@@ -8036,18 +8133,18 @@ mod_tests_server <- function(id, values) {
           plot_data_merged <- merge(plot_data, agg_subset, by = "x_var", all.x = TRUE)
           
           p <- ggplot2::ggplot(plot_data_merged, ggplot2::aes(x = x_var, y = y_var, fill = groups)) +
-            ggplot2::geom_boxplot(alpha = 0.7) +
+            geom_(ggplot2::geom_boxplot, width = geom_width) +
             ggplot2::scale_fill_discrete(name = legend_title)
         } else {
           p <- ggplot2::ggplot(plot_data, ggplot2::aes(x = x_var, y = y_var, fill = x_var)) +
-            ggplot2::geom_boxplot(alpha = 0.7) +
+            geom_(ggplot2::geom_boxplot, width = geom_width) +
             ggplot2::annotate("text", 
                      x = seq_len(nrow(agg)),   # seq_len : 1:0 rendrait c(1, 0)
                      y = y_max + y_range * 0.05, 
                      label = agg$groups, 
                      size = safe_graph_value_size,  
                      fontface = safe_graph_value_font_style,  
-                     color = "red")
+                     color = letter_color)
         }
         
       } else if (plot_type == "violin") {
@@ -8057,12 +8154,12 @@ mod_tests_server <- function(id, values) {
           plot_data_merged <- merge(plot_data, agg_subset, by = "x_var", all.x = TRUE)
           
           p <- ggplot2::ggplot(plot_data_merged, ggplot2::aes(x = x_var, y = y_var, fill = groups)) +
-            ggplot2::geom_violin(alpha = 0.7) +
+            geom_(ggplot2::geom_violin, width = geom_width) +
             ggplot2::geom_boxplot(width = 0.1, alpha = 0.5, fill = "white") +
             ggplot2::scale_fill_discrete(name = legend_title)
         } else {
           p <- ggplot2::ggplot(plot_data, ggplot2::aes(x = x_var, y = y_var, fill = x_var)) +
-            ggplot2::geom_violin(alpha = 0.7) +
+            geom_(ggplot2::geom_violin, width = geom_width) +
             ggplot2::geom_boxplot(width = 0.1, alpha = 0.5, fill = "white") +
             ggplot2::annotate("text", 
                      x = seq_len(nrow(agg)),   # seq_len : 1:0 rendrait c(1, 0)
@@ -8070,7 +8167,7 @@ mod_tests_server <- function(id, values) {
                      label = agg$groups, 
                      size = safe_graph_value_size,  
                      fontface = safe_graph_value_font_style,  
-                     color = "red")
+                     color = letter_color)
         }
         
       } else if (plot_type == "point") {
@@ -8084,65 +8181,71 @@ mod_tests_server <- function(id, values) {
         
         if (color_by_groups) {
           p <- ggplot2::ggplot(agg, ggplot2::aes(x = x_var, y = Moyenne, fill = groups, color = groups)) +
-            ggplot2::geom_point(size = 4, shape = 21, stroke = 2) +
+            ggplot2::geom_point(size = point_size, shape = 21, stroke = 2,
+                                alpha = plot_alpha) +
             ggplot2::scale_fill_discrete(name = legend_title) +
             ggplot2::scale_color_discrete(name = legend_title)
         } else {
           p <- ggplot2::ggplot(agg, ggplot2::aes(x = x_var, y = Moyenne, fill = x_var, color = x_var)) +
-            ggplot2::geom_point(size = 4, shape = 21, stroke = 2) +
+            ggplot2::geom_point(size = point_size, shape = 21, stroke = 2,
+                                alpha = plot_alpha) +
             ggplot2::annotate("text", 
                      x = seq_len(nrow(agg)),   # seq_len : 1:0 rendrait c(1, 0)
                      y = y_text_pos, 
                      label = agg$groups, 
                      size = safe_graph_value_size,  
                      fontface = safe_graph_value_font_style,  
-                     color = "red")
+                     color = letter_color)
         }
         
         if (error_type == "se") {
           p <- p + ggplot2::geom_errorbar(ggplot2::aes(ymin = Moyenne - Erreur_type, ymax = Moyenne + Erreur_type), 
-                                 width = 0.2, color = "black")
+                                 width = error_bar_width, color = error_bar_color)
         } else if (error_type == "sd") {
           p <- p + ggplot2::geom_errorbar(ggplot2::aes(ymin = Moyenne - Ecart_type, ymax = Moyenne + Ecart_type), 
-                                 width = 0.2, color = "black")
+                                 width = error_bar_width, color = error_bar_color)
         } else if (error_type == "ci") {
           agg$ci_margin <- 1.96 * agg$Erreur_type
           p <- p + ggplot2::geom_errorbar(ggplot2::aes(ymin = Moyenne - ci_margin, ymax = Moyenne + ci_margin), 
-                                 width = 0.2, color = "black")
+                                 width = error_bar_width, color = error_bar_color)
         }
         
       } else if (plot_type == "hist") {
         if (color_by_groups) {
           p <- ggplot2::ggplot(agg, ggplot2::aes(x = x_var, y = Moyenne, fill = groups)) +
-            ggplot2::geom_col(alpha = 0.7, color = "black") +
+            geom_(ggplot2::geom_col, width = geom_width) +
             ggplot2::scale_fill_discrete(name = legend_title)
         } else {
           p <- ggplot2::ggplot(agg, ggplot2::aes(x = x_var, y = Moyenne, fill = x_var)) +
-            ggplot2::geom_col(alpha = 0.7, color = "black") +
+            geom_(ggplot2::geom_col, width = geom_width) +
             ggplot2::annotate("text", 
                      x = seq_len(nrow(agg)),   # seq_len : 1:0 rendrait c(1, 0)
                      y = agg$Moyenne * 0.8, 
                      label = agg$groups, 
                      size = safe_graph_value_size,  
                      fontface = safe_graph_value_font_style,  
-                     color = "red")
+                     color = letter_color)
         }
         
-        p <- p + ggplot2::geom_text(ggplot2::aes(y = Moyenne/2, label = round(Moyenne, 2)),
-                           size = safe_mean_value_size,  # Taille personnalisable
-                           fontface = "bold", color = "white")
+        if (show_mean_values) {
+          dec <- max(0L, as.integer(mean_value_decimals %||% 2))
+          p <- p + ggplot2::geom_text(
+            ggplot2::aes(y = Moyenne / 2, label = round(Moyenne, dec)),
+            size = safe_mean_value_size,
+            fontface = mean_value_font_style, color = mean_value_color)
+        }
         
         if (error_type != "none") {
           if (error_type == "se") {
             p <- p + ggplot2::geom_errorbar(ggplot2::aes(ymin = Moyenne, ymax = Moyenne + Erreur_type), 
-                                   width = 0.2, color = "black")
+                                   width = error_bar_width, color = error_bar_color)
           } else if (error_type == "sd") {
             p <- p + ggplot2::geom_errorbar(ggplot2::aes(ymin = Moyenne, ymax = Moyenne + Ecart_type), 
-                                   width = 0.2, color = "black")
+                                   width = error_bar_width, color = error_bar_color)
           } else if (error_type == "ci") {
             agg$ci_margin <- 1.96 * agg$Erreur_type
             p <- p + ggplot2::geom_errorbar(ggplot2::aes(ymin = Moyenne, ymax = Moyenne + ci_margin), 
-                                   width = 0.2, color = "black")
+                                   width = error_bar_width, color = error_bar_color)
           }
         }
       }

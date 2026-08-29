@@ -265,9 +265,46 @@ l'interface.
 Un réglage était même déclaré **et** masqué **et** jamais lu (`legendKeySize`) :
 il est maintenant branché sur `legend.key.height`.
 
-Le panneau est organisé en sept cartes colorées (`.hstat_opt_section()`), une
+Le panneau est organisé en cartes colorées (`.hstat_opt_section()`), une
 couleur par famille. Ce n'est pas de la décoration : quarante contrôles gris
 d'affilée ne se parcourent pas.
+
+#### Et un réglage lu mais jamais utilisé n'existe pas non plus
+
+C'est le cas le plus trompeur des trois, parce que le code *a l'air* branché.
+`legendKeySize` était déclaré, masqué **et** jamais lu ; d'autres étaient lus et
+inemployés. Le test exige donc **les trois** conditions pour chaque option :
+déclarée `ns("x")` dans l'interface, lue `input$x` **dans le réactif du
+graphique**, et la variable locale employée au moins une fois de plus que son
+affectation.
+
+#### La boîte des options est une boîte, pas un repli
+
+Les options vivaient repliées **dans** l'onglet « Graphique », au bas de la
+colonne de résultats : quarante réglages dans une colonne étroite, à déplier à
+chaque fois. Elles occupent désormais une `box` de largeur 12 **sous** la
+configuration de l'analyse — on les voit, on les atteint, et le graphique reste
+visible au-dessus pendant qu'on les règle.
+
+#### L'inclinaison des libellés est un angle, pas un oui/non
+
+La case « libellés X inclinés à 45° » ne laissait le choix qu'entre 0 et 45 :
+onze noms de traitement se chevauchent encore à 45°, et une étiquette courte n'a
+aucune raison d'être penchée. Deux curseurs couvrent **0 à 90°**, X et Y.
+
+Piège : **l'inclinaison commande aussi l'alignement**. Une étiquette penchée doit
+finir *sous* sa graduation (`hjust = 1`), une étiquette droite se centre. Les
+choisir séparément décalait le texte d'un demi-libellé dès qu'on revenait à 0.
+
+#### Dix-neuf valeurs figées devenues des réglages
+
+Opacité (`0.7` en six endroits), contour des barres (`"black"`), couleur des
+lettres CLD (`"red"`), taille des points (`4`), largeur et couleur des
+moustaches (`0.2`, `"black"`), décimales des moyennes portées (`2`), position du
+titre (`hjust = 0.5`), position de la légende (`"right"`), grilles majeure et
+mineure. Le contour passe par `hstat_barre_style()`, la même aide que les seuils
+d'efficacité : `colour = NA` **efface** le contour au lieu de l'omettre, et la
+règle n'est écrite qu'à un endroit.
 
 **Les listes de choix sont déclarées une fois** — `HSTAT_FONT_STYLES`,
 `HSTAT_THEMES_GG`, `HSTAT_PALETTES_QUALI`, `HSTAT_PALETTES_DEGRADE`. La liste
@@ -2268,6 +2305,28 @@ tableau de l'analyse en cours — purger effacerait l'analyse qui vient de le
 produire. Un test vérifie que les trois portes d'*import*, elles, appellent bien
 la remise à zéro : un quatrième chemin ajouté demain sans elle réintroduirait le
 défaut en silence.
+
+#### Un `reactiveVal` rangé dans `values` ne se vide pas comme les autres
+
+`values$customXLevels` **est** une fonction — un `reactiveVal` — et le reste du
+code l'appelle comme telle (`values$customXLevels()`). Lui affecter `NULL`
+**détruit l'objet** au lieu de le vider : l'appel suivant lève « attempt to
+apply non-function » et **tout le graphique post-hoc tombe**, sur un geste aussi
+banal que charger un autre fichier.
+
+`hstat_vider_valeurs()` le remet donc à `NULL` **en l'appelant**, ce qui
+préserve l'objet. Le défaut dormait déjà dans le bouton « Réinitialiser » ;
+l'étendre au chargement l'aurait rendu quotidien.
+
+#### Les résultats multivariés ne vivent pas dans `values`
+
+`mv_res` et `mv_launch` sont des `reactiveValues` propres à `app_server.R` : la
+remise à zéro de `values` ne les touchait pas, et une ACP, une AFC ou une
+k-means calculée sur le fichier *précédent* restait affichée après le
+chargement du suivant. Les quatre gestes passent donc par
+`.hstat_purger_session()`, qui fait les deux. `mv_launch` garde sa **forme** —
+ses trois champs valent `FALSE` — parce que les lancements sont testés par
+`req()`.
 
 ## Bilingue : traduire l'AFFICHAGE, pas les 9 700 appels
 
