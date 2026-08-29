@@ -1577,7 +1577,7 @@ hstat_code_accord <- function(segments, codebook, codeur_a, codeur_b,
                    else if (res$kappa >= 0.8) "excellent"
                    else if (res$kappa >= 0.6) "acceptable"
                    else "faible"
-    res$message <- sprintf(
+    res$message <- trf(
       "%s unités comparées (%s document(s) x %s code(s)).",
       n, length(communs), length(codes))
   } else {
@@ -2860,16 +2860,16 @@ mod_coding_server <- function(id, values) {
       a <- acc_res()
       # Kappa n'est pas toujours defini ; on traite le quatrieme etat
       # explicitement plutot que d'afficher NaN ou de brancher dessus.
-      verdict <- switch(a$verdict,
+      verdict <- tr(switch(a$verdict,
         excellent  = "accord excellent",
         acceptable = "accord acceptable",
         faible     = "accord faible : relisez ensemble le livre de codes",
-        "verdict indéterminable")
+        "verdict indéterminable"))
       classe <- switch(a$verdict, excellent = "callout callout-success",
                        acceptable = "callout callout-info",
                        faible = "callout callout-warning", "callout callout-warning")
       shiny::div(class = classe, style = "padding:10px 14px;",
-        shiny::tags$b(sprintf("Accord observe : %s %%",
+        shiny::tags$b(trf("Accord observé : %s %%",
                               if (is.finite(a$accord)) round(a$accord * 100, 1) else "-")),
         shiny::br(),
         if (is.finite(a$kappa))
@@ -3389,7 +3389,7 @@ mod_coding_server <- function(id, values) {
           msg = trf("%s : %d étiquette(s) posée(s) sur %d réponse(s) analysée(s) (tout le corpus).%s",
                         source_label, added, nrow(dd),
                         if (!is.null(sans) && sans > 0)
-                          sprintf(" %d code(s) sans mots-clés ont été ignoré(s).", sans) else ""),
+                          trf(" %d code(s) sans mots-clés ont été ignoré(s).", sans) else ""),
           table = if (nrow(segs)) utils::head(data.frame(
             Reponse = segs$doc_id,
             Code = hstat_code_label(rv$codebook, segs$code_id),

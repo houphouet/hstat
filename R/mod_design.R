@@ -156,8 +156,11 @@ hstat_gpower <- function(test, analysis, effect = NULL, effect2 = NULL,
            crit = res$crit, crit_lab = "z critique", df_lab = res$extra,
            power = res$power,
            note = trf("Régression logistique (Hsieh et al. 1998) : prédicteur %s ; OR par %s.",
-                          if ((predictor %||% "continuous") == "binary") "binaire (expose/non-expose)" else "continu standardise",
-                          if ((predictor %||% "continuous") == "binary") "exposition" else "écart-type"))
+                          # `trf()` ne traduit jamais ses arguments DE LUI-MEME : ce sont eux
+                          # qui portent les donnees de l'utilisateur. Ici le developpeur
+                          # declare que ces deux-la sont des libelles, pas des donnees.
+                          if ((predictor %||% "continuous") == "binary") tr("binaire (exposé/non-exposé)") else tr("continu standardisé"),
+                          if ((predictor %||% "continuous") == "binary") tr("exposition") else tr("écart-type")))
     } else if (test == "poisson") {
       res <- hstat_power_poisson(analysis = analysis, base_rate = base_rate %||% 1,
                RR = effect %||% 1.3, alpha = alpha, power = pa, n = na, alt = alt,

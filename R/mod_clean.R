@@ -147,8 +147,13 @@ mod_clean_ui <- function(id) {
                           shiny::br(),
                           shiny::div(
                             style = "background-color: #ffebee; padding: 12px; border-radius: 5px;",
+                            # Le contenu d'un <code> n'est jamais traduit par le
+                            # navigateur : les exemples de syntaxe resteraient en
+                            # francais. Le bloc entier passe donc par tr().
                             shiny::tags$p(style = "font-size: 11px; color: #7f8c8d; margin-bottom: 8px;",
-                                   "Formats : ", shiny::tags$code("1,3,5"), " -- ", shiny::tags$code("10 à 20"), " -- ", shiny::tags$code("1,3,10 à 15")),
+                                   shiny::HTML(tr(paste0("Formats : <code>1,3,5</code> -- ",
+                                                         "<code>10 à 20</code> -- ",
+                                                         "<code>1,3,10 à 15</code>")))),
                             shiny::textAreaInput(ns("deleteRowsInput"), NULL,
                                           placeholder = "1,3,5
 10 à 20
@@ -745,7 +750,9 @@ mod_clean_server <- function(id, values) {
     # Remplacer différents formats de plage par un format uniforme.
     # Correction : ne remplacer « a »/« à » que s'ils sont ENTRE deux chiffres
     # (ex. « 1 a 5 »), sinon toute lettre a du texte etait transformee en tiret.
-    text <- gsub("(?i)(?<=[0-9])\\s*[aà]\\s*(?=[0-9])", "-", text, perl = TRUE)
+    # « to » est accepte au meme titre : les exemples affiches sous le champ
+    # sont traduits, et une syntaxe montree doit etre une syntaxe acceptee.
+    text <- gsub("(?i)(?<=[0-9])\\s*(?:to|[a\u00e0])\\s*(?=[0-9])", "-", text, perl = TRUE)
     
     parts <- strsplit(text, ",")[[1]]
     parts <- trimws(parts)
@@ -1146,13 +1153,13 @@ mod_clean_server <- function(id, values) {
       default_txt <- paste(sprintf("%s = %s", lv, lv), collapse = "\n")
       shiny::tagList(
         shiny::tags$small(trf("%d modalités (tableau éditable).%s", length(lv),
-          if (is_ordinal) " L'ordre des lignes = ordre du facteur ordinal." else "")),
+          if (is_ordinal) tr(" L'ordre des lignes = ordre du facteur ordinal.") else "")),
         shiny::textAreaInput(ns("recodeTable"), NULL, value = default_txt,
                       rows = min(20, length(lv) + 1), width = "100%"))
     } else {
       shiny::tagList(
         shiny::tags$small(trf("%d modalités.%s", length(lv),
-          if (is_ordinal) " L'ordre ci-dessous = ordre du facteur ordinal." else "")),
+          if (is_ordinal) tr(" L'ordre ci-dessous = ordre du facteur ordinal.") else "")),
         lapply(seq_along(lv), function(i)
           shiny::textInput(ns(paste0("recodeLvl_", i)),
                     label = sprintf("%s« %s » devient :",
@@ -1207,7 +1214,7 @@ mod_clean_server <- function(id, values) {
     recode_msg(list(ok = TRUE,
       msg = trf("Recodage %s appliqué à « %s » : %d valeur(s) modifiée(s), %d modalité(s)%s.",
                     if (is_ordinal) "ordinal" else "nominal", v, n_changed,
-                    length(unique(new_order)), if (is_ordinal) " (ordre défini)" else "")))
+                    length(unique(new_order)), if (is_ordinal) tr(" (ordre défini)") else "")))
   })
   output$recodeStatus <- shiny::renderUI({
     m <- recode_msg(); if (is.null(m)) return(NULL)
@@ -1367,8 +1374,12 @@ mod_clean_server <- function(id, values) {
         shiny::showNotification(
           shiny::tagList(
             shiny::icon("exclamation-triangle"),
-            " Formule incorrecte : le résultat à ", length(new_col), " valeur(s) ",
-            "au lieu de ", nrow(values$cleanData), ". ",
+            # LES ENFANTS TEXTE ADJACENTS NE FONT QU'UN SEUL NOEUD. Les
+            # morceaux et les valeurs se retrouvent fondus dans la meme chaine
+            # (« Formule incorrecte : le résultat à 3 valeur(s) au lieu de 10. »)
+            # qu'aucune cle ne peut couvrir : seul un gabarit le peut.
+            trf(" Formule incorrecte : le résultat à %s valeur(s) au lieu de %s. ",
+                length(new_col), nrow(values$cleanData)),
             shiny::tags$br(),
             shiny::tags$small("Astuce : utilisez rowMeans(cbind(Var1, Var2)) pour la moyenne ligne par ligne.")
           ),
@@ -2097,7 +2108,7 @@ mod_clean_server <- function(id, values) {
     shiny::showNotification(shiny::tagList(shiny::icon("check"),
       trf(" Variable « %s » créée (%d classes, facteur ordonné)%s.",
               new_name, nlevels(r$factor),
-              if (overwrite) " -- ancienne colonne remplacée" else "")),
+              if (overwrite) tr(" -- ancienne colonne remplacée") else "")),
       type = "message", duration = 5)
   })
 

@@ -2227,6 +2227,48 @@ tout accès direct à `input$file`.
 par l'observateur et le bouton « Réinitialiser » ne faisait **rien, en silence**.
 Le repli passe par `modalDialog`, qui fait partie de Shiny.
 
+### Charger de nouvelles données EST une réinitialisation
+
+Le bouton « Réinitialiser » n'est pas le seul geste qui rend l'état de session
+caduc : **choisir un autre fichier le fait aussi**, et ne le faisait pas.
+Constaté à l'écran — après un second chargement, les anciennes variables
+restaient proposées et les résultats du premier fichier restaient affichés.
+
+Quarante-huit champs créés par les modules portent des noms de colonnes ou des
+niveaux de facteur (`yVarNames`, `selected_y_vars`, `x_label_levels`,
+`legendLabels`, `customXLevels`…) ; aucun n'était effacé. On lisait donc des
+tableaux, des graphiques et des recommandations portant sur des colonnes qui
+n'existent plus — **pire qu'un écran vide, parce que ça ressemble à un
+résultat**.
+
+`hstat_reinitialiser_valeurs()` (`Utils.R`) porte donc la remise à zéro en un
+seul exemplaire, et les **quatre** gestes l'appellent : le bouton, le chargement
+d'un fichier, la combinaison de feuilles d'un classeur, la fusion de plusieurs
+fichiers. Ce qui leur reste en propre est ce qui les distingue vraiment — le
+bouton neutralise le fichier et revient à l'onglet de chargement ; un chargement
+affecte ensuite les nouvelles données, **après** la remise à zéro, sinon elle
+les effacerait.
+
+**Le compteur `resetSignal` est monotone.** Les modules l'observent pour vider
+leurs propres contrôles, et `observeEvent` ne réagit qu'à un *changement* de
+valeur. Le remettre à son initiale (0) puis l'incrémenter rendrait toujours 1 :
+le deuxième chargement ne signalerait plus rien. Il est donc lu avant la remise
+à zéro et réécrit après.
+
+**`reactiveValuesToList` sous `isolate()`.** Lire tous les champs prend une
+dépendance sur chacun ; appelée depuis un observateur ordinaire, la fonction se
+redéclencherait sur ses propres écritures, indéfiniment. Les appels actuels
+passent par `observeEvent`, dont le corps est déjà isolé — l'`isolate()` protège
+le prochain point d'appel, pas ceux d'aujourd'hui.
+
+Deux remplacements du jeu de travail **n'y passent pas**, délibérément :
+`mod_clean` (typage, découpage en classes) modifie les colonnes du fichier
+courant, et « Utiliser comme jeu de données » (`mod_threshold`) dérive son
+tableau de l'analyse en cours — purger effacerait l'analyse qui vient de le
+produire. Un test vérifie que les trois portes d'*import*, elles, appellent bien
+la remise à zéro : un quatrième chemin ajouté demain sans elle réintroduirait le
+défaut en silence.
+
 ## Bilingue : traduire l'AFFICHAGE, pas les 9 700 appels
 
 L'application compte ~9 700 chaînes destinées à l'utilisateur sur 24 fichiers.
@@ -2552,6 +2594,88 @@ En revanche, un mot **non ambigu choisi par le code** (« équiprobables »,
 distinction qui compte : `trf()` ne traduit jamais ses arguments *de lui-même*
 — c'est ce qui protège les valeurs de l'utilisateur — mais le développeur peut
 déclarer qu'un argument est un libellé, pas une donnée.
+
+#### `tr()` doit suivre la session, sinon elle ne fait rien
+
+Le défaut de `tr()` était `lang = "fr"`. Or **aucun** de ses ~250 points d'appel
+ne passe `lang` : la fonction rendait donc le français quoi qu'il arrive. Elle
+existait, le dictionnaire la servait, les tests la couvraient — en lui passant
+`lang` explicitement, ce qui masquait exactement le défaut. Un défaut qui
+neutralise sa propre fonction ne se voit nulle part ailleurs qu'à l'usage.
+
+`lang = hstat_langue_session()`, comme `trf()` et `hstat_err_fr()` : la langue
+vient de la **session**, jamais d'une option globale — sur un serveur partagé,
+une option ferait basculer la langue de tous les utilisateurs. Un test compare
+les deux valeurs par défaut, elles ne doivent plus diverger.
+
+#### « faible » : la phrase porte la nuance, l'adjectif ne le peut pas
+
+Même piège que « moyenne », rencontré à l'inverse. « faible » vaut *small* pour
+une **taille d'effet** et *weak* pour une **force d'association** ; le mot ne
+peut donc pas entrer seul au dictionnaire. Ce sont les deux sites de taille
+d'effet (`interpret_manova_effect`, `interpret_permanova_effect`) qui portent
+désormais la phrase entière — quatre gabarits chacun au lieu d'un adjectif
+interpolé —, ce qui libère « faible » pour son sens d'association.
+
+Le hasard des accords a résolu le cas voisin : la force d'association dit
+« modérée » (accord avec *force*), la taille d'effet « modéré ». Deux chaînes
+différentes, donc deux entrées légitimes.
+
+#### Les enfants texte adjacents ne font qu'un seul nœud
+
+Le piège le plus coûteux de la traduction des **alertes**, parce qu'il ressemble
+à un succès. Dans
+
+```r
+showNotification(tagList(icon("x"), " Le résultat a ", n, " valeur(s)"))
+```
+
+le navigateur ne voit pas trois morceaux : il fond toute suite de caractères en
+**un** nœud, « Le résultat a 3 valeur(s) » — une chaîne qui dépend des données
+et qu'aucune clé ne peut couvrir. Mettre « valeur(s) » ou « au lieu de » au
+dictionnaire ne sert donc à *rien* : ces morceaux n'existent nulle part comme
+nœud. Trois entrées de ce genre ont été ajoutées puis retirées.
+
+Une **balise** coupe le nœud : `tagList(icon(...), " texte fixe")` reste
+traduisible par le dictionnaire, et c'est la forme la plus courante. La règle :
+
+> dès qu'une valeur est interpolée **entre** deux morceaux de texte, l'unité
+> affichée passe par `trf()`.
+
+Un test balaie `showNotification`, `showModal`, `shinyalert` et `modalDialog` :
+il reconstitue l'unité affichée (en distinguant `paste` de `paste0`, dont les
+séparateurs diffèrent), la coupe sur les balises, et échoue sur tout morceau
+français portant encore un `%s`.
+
+Ce test ne vérifie **pas** que le gabarit est au dictionnaire — c'est le rôle
+d'un autre — mais qu'il passe par `trf()`. Un `paste()` qui reconstituerait par
+hasard une clé existante passerait sinon pour correct alors qu'il n'est jamais
+traduit à l'exécution : le défaut exact recherché.
+
+#### Un attribut n'est pas du contenu
+
+`IGNORE` (SCRIPT, STYLE, TEXTAREA, CODE, PRE, SVG) protège ce qu'une balise
+**contient** : le texte tapé dans une zone de saisie, un extrait de code. Le
+`placeholder` d'un `<textarea>`, lui, est un **libellé** posé par
+l'application. L'écarter avec le contenu laissait en français tous les exemples
+de saisie — précisément les endroits où l'exemple *est* l'aide.
+
+D'où `ignorableAttr()`, qui n'honore que l'exclusion explicite
+(`data-hstat-notranslate`). Un test le vérifie sur un `placeholder` de
+`<textarea>`.
+
+Corollaire sur le contenu d'un `<code>`, lui bel et bien exclu : un exemple de
+syntaxe qui y figure ne sera **jamais** traduit par le navigateur. Les blocs
+d'aide qui en contiennent passent donc par `tr()`/`trf()` **côté serveur**, où
+l'échantillon suit la langue.
+
+#### Une syntaxe montrée est une syntaxe acceptée
+
+Les exemples de sélection de lignes deviennent « 1 to 10 » en anglais. Les deux
+analyseurs (`mod_filter.R`, `mod_clean.R`) acceptent donc `to` au même titre que
+`à` : sans cela, la traduction enseignerait à l'utilisateur anglophone une
+syntaxe que l'application refuse. Un test extrait `parseRowSelection` de l'arbre
+syntaxique des deux modules et lui donne les trois écritures.
 
 #### Une seule définition de ce qu'est un gabarit
 

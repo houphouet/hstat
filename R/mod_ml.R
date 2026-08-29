@@ -986,13 +986,13 @@ mod_ml_server <- function(id, values) {
           shiny::icon("lightbulb"), shiny::strong(" Interprétation : "),
           trf("La méthode %s a identifié %d groupe(s)%s. ", r$meth,
                   length(unique(r$cl[r$cl > 0])),
-                  if (any(r$cl == 0)) sprintf(" (+ %d points de bruit)", sum(r$cl == 0)) else ""),
+                  if (any(r$cl == 0)) trf(" (+ %d points de bruit)", sum(r$cl == 0)) else ""),
           if (is.finite(r$sil)) trf(
             "Silhouette moyenne = %.3f : %s Le tableau des moyennes par groupe (export CSV/Excel) sert de carte d'identité de chaque groupe : comparez les colonnes pour nommer les profils.",
             r$sil,
-            if (r$sil >= 0.5) "structure de groupes nette et fiable."
-            else if (r$sil >= 0.25) "structure réelle mais frontières floues."
-            else "structure faible : les groupes se chevauchent, essayer un autre k ou une autre méthode.")
+            if (r$sil >= 0.5) tr("structure de groupes nette et fiable.")
+            else if (r$sil >= 0.25) tr("structure réelle mais frontières floues.")
+            else tr("structure faible : les groupes se chevauchent, essayer un autre k ou une autre méthode."))
           else "Silhouette non calculable sur ce résultat.")
     })
   })

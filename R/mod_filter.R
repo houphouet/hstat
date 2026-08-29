@@ -136,13 +136,17 @@ mod_filter_server <- function(id, values) {
       shiny::textAreaInput(ns("rowSelection"), "Sélection de lignes :",
                     placeholder = "Exemples :\n1 à 10\n1,3,4,5,10,15,20\n1,3,4,5,10,15,20 à 30",
                     rows = 3),
-      shiny::helpText(shiny::HTML(paste0(
+      # Le contenu d'un <code> n'est JAMAIS traduit par le navigateur (la balise
+      # est dans sa liste d'exclusion, et c'est voulu : on n'altere pas un
+      # extrait de code). Les exemples de syntaxe resteraient donc en francais.
+      # Le bloc passe par un gabarit traduit cote serveur, ou ils suivent la
+      # langue -- « 1 to 10 » en anglais, que l'analyseur accepte desormais.
+      shiny::helpText(shiny::HTML(trf(paste0(
         "<b>Formats acceptés :</b><br>",
         "- Plage : <code>1 à 10</code> ou <code>5-15</code><br>",
         "- Liste : <code>1,3,4,5,10,15,20</code><br>",
         "- Combinaison : <code>1,3,5,10 à 15,20,25 à 30</code><br>",
-        "Total de lignes disponibles : ", max_rows
-      )))
+        "Total de lignes disponibles : %s"), max_rows)))
     )
   })
   
@@ -154,7 +158,12 @@ mod_filter_server <- function(id, values) {
     text <- trimws(selection_text)
     text <- gsub("\\s+", " ", text)  
     
-    # Remplacer différents formats de plage par un format uniforme
+    # Remplacer différents formats de plage par un format uniforme.
+    # « to » est accepté au même titre que « à » : les exemples affichés sous
+    # le champ sont traduits dans la version anglaise, et un utilisateur qui
+    # recopie « 1 to 10 » doit obtenir la plage qu'on lui a montrée -- sinon la
+    # traduction lui enseigne une syntaxe que l'application refuse.
+    text <- gsub("\\bto\\b", "-", text, ignore.case = TRUE)
     text <- gsub("à", "-", text, ignore.case = TRUE)
     text <- gsub("a", "-", text, ignore.case = TRUE)
     

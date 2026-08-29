@@ -5136,6 +5136,16 @@ var tLong = add(tdLong, Txt("Effectifs attendus >= 5 dans au moins 80 % des case
 var tdDollar = add(body, equiper(El("SPAN")));
 var tDollar = add(tdDollar, Txt("Prix"));
 
+// --- une indication telle que SHINY LA SERIALISE : un seul noeud de texte,
+// mais chaque argument sur sa propre ligne, avec l'indentation du serialiseur.
+var aide = add(body, equiper(El("SPAN")));
+var tAide = add(aide, Txt("\n  Une indication coupee en trois\n   morceaux par le\n   serialiseur.\n"));
+
+// --- un exemple de saisie porte par un attribut, avec de VRAIS retours a la
+// ligne : c'est la forme normale d'un `placeholder` de zone de texte.
+var zone = add(body, equiper(El("TEXTAREA")));
+zone.setAttribute("placeholder", "Exemples :\n1 a 10\n1,3,5,10 a 15");
+
 var ctx = {
   console: console, setTimeout: function () { return 0; }, clearTimeout: function () {},
   localStorage: { getItem: function () { return null; }, setItem: function () {} },
@@ -5154,7 +5164,13 @@ ctx.window = ctx;
 ctx.window.HSTAT_I18N = {
   "Chargement": "Loading", "Oui": "Yes",
   "Effectifs attendus >= 5 dans au moins 80 % des cases.": "Expected counts >= 5 in at least 80% of cells.",
-  "Prix": "$& remplace", "Total": "Total (translated)"
+  "Prix": "$& remplace", "Total": "Total (translated)",
+  // La cle est PROPRE : c'est la phrase que l'utilisateur lit, pas ce que le
+  // serialiseur a ecrit.
+  "Une indication coupee en trois morceaux par le serialiseur.":
+    "A hint split into three pieces by the serialiser.",
+  // La cle porte ses retours a la ligne, la traduction aussi.
+  "Exemples :\n1 a 10\n1,3,5,10 a 15": "Examples:\n1 to 10\n1,3,5,10 to 15"
 };
 // Termes venant du fichier charge : le serveur les annonce au traducteur.
 if (process.argv[3] === "avec-termes") {
@@ -5175,12 +5191,15 @@ ctx.window.hstatSetLangue("en");
 var apres = {
   menu: tMenu.nodeValue, th: tTh.nodeValue, cellule: tTd.nodeValue,
   th_colonne: tThCol.nodeValue, libelle_total: tTot.nodeValue,
-  cellule_longue: tLong.nodeValue, dollar: tDollar.nodeValue
+  cellule_longue: tLong.nodeValue, dollar: tDollar.nodeValue,
+  aide: tAide.nodeValue, exemple: zone.getAttribute("placeholder")
 };
 ctx.window.hstatSetLangue("fr");
 apres.retour_menu = tMenu.nodeValue;
 apres.retour_cellule = tTd.nodeValue;
 apres.retour_dollar = tDollar.nodeValue;
+apres.retour_aide = tAide.nodeValue;
+apres.retour_exemple = zone.getAttribute("placeholder");
 process.stdout.write(JSON.stringify(apres));
 )---", banc, useBytes = TRUE)
   js <- file.path(root, "inst", "app", "www", "hstat-i18n.js")
@@ -5224,6 +5243,30 @@ process.stdout.write(JSON.stringify(apres));
   #    degradation douce. Alterer une donnee n'en serait pas une.
   expect_equal(avec$th_colonne, "Total")
   expect_equal(avec$libelle_total, "Total")
+  # 10. UNE INDICATION SERIALISEE PAR SHINY SE TRADUIT. Shiny ecrit chaque
+  #     argument d'une balise sur sa propre ligne : `helpText("a", " b")` rend
+  #     UN noeud de texte, mais dont la valeur porte retours a la ligne et
+  #     indentation. Aucune cle propre ne pouvait correspondre, et les
+  #     quarante-neuf indications sous les controles restaient en francais quoi
+  #     qu'on mette au dictionnaire. On cherche donc sur les blancs normalises
+  #     -- ce que le navigateur AFFICHE, pas ce que le serialiseur a ecrit.
+  expect_equal(trimws(res$aide),
+               "A hint split into three pieces by the serialiser.")
+  #     Les blancs de BORDURE sont conserves : les retirer collerait le texte
+  #     a l'element voisin.
+  expect_true(startsWith(res$aide, "\n  "))
+  #     Et le retour au francais restitue la valeur d'origine, blancs compris.
+  expect_equal(res$retour_aide,
+               "\n  Une indication coupee en trois\n   morceaux par le\n   serialiseur.\n")
+  # 11. UN ATTRIBUT PORTE DE VRAIS RETOURS A LA LIGNE. Le `placeholder` d'une
+  #     zone de texte montre une saisie sur plusieurs lignes ; la valeur brute
+  #     ne collait a aucune cle, et ces exemples restaient en francais dans la
+  #     version anglaise. La recherche passe par les blancs normalises, mais la
+  #     valeur POSEE est la traduction telle quelle -- avec ses propres retours
+  #     a la ligne, sans quoi l'exemple tiendrait sur une seule ligne.
+  expect_equal(res$exemple, "Examples:\n1 to 10\n1,3,5,10 to 15")
+  expect_equal(res$retour_exemple, "Exemples :\n1 a 10\n1,3,5,10 a 15")
+
   # 9. Le reste de l'interface continue de se traduire normalement.
   expect_equal(avec$menu, "Loading")
   expect_equal(avec$cellule, "Oui")
@@ -5344,12 +5387,18 @@ add(html, body);
 
 // L'encadre d'aide : trois noeuds de texte, dont un dans un <code> que le
 // traducteur ignore par principe. Aucun d'eux n'est traduisible seul.
+//
+// LES RETOURS A LA LIGNE SONT CEUX DE SHINY. `div("a", strong("b"), "c")`
+// serialise chaque enfant sur sa propre ligne, avec indentation : le balisage
+// reel est truffe de blancs que la cle du CSV, ecrite d'un trait, n'a pas.
 var boite = add(body, El("DIV"));
+add(boite, Txt("\n  "));
 var gras = add(boite, El("B")); gras.A["class"] = "t";
 add(gras, Txt("Toutes fermees"));
-add(boite, Txt(" — "));
+add(boite, Txt("\n   — \n  "));
 var code = add(boite, El("CODE"));
 add(code, Txt("[a ; b]"));
+add(boite, Txt("\n"));
 
 var ctx = {
   console: console, setTimeout: function () { return 0; }, clearTimeout: function () {},
@@ -5487,6 +5536,139 @@ test_that("les libelles de widgets et les titres d'onglets sont traduits", {
   expect_equal(cv_lab$manquantes, character(0),
                info = paste("Libelles de widgets non traduits :",
                             paste(utils::head(cv_lab$manquantes, 20), collapse = " | ")))
+})
+
+test_that("tr() suit la langue de la session, sans qu'on ait a la lui passer", {
+  # LE DEFAUT QUE CE TEST GARDE. `tr()` avait pour defaut `lang = "fr"` : les
+  # deux cent cinquante appels `tr("...")` du depot -- pas un ne passe `lang` --
+  # rendaient donc le francais QUOI QU'IL ARRIVE. La fonction existait, le
+  # dictionnaire la servait, et les tests la couvraient... en lui passant
+  # `lang` explicitement, ce qui masquait exactement le defaut. Un defaut qui
+  # neutralise sa propre fonction ne se voit qu'a l'usage.
+  faux <- list(userData = list(langue = "en"))
+  expect_equal(shiny::withReactiveDomain(faux, tr("Chargement")), "Loading")
+  # Hors session, ou en francais, rien ne change.
+  expect_equal(tr("Chargement"), "Chargement")
+  expect_equal(shiny::withReactiveDomain(list(userData = list(langue = "fr")),
+                                         tr("Chargement")), "Chargement")
+  # Meme regle que `trf()` et `hstat_err_fr()` : la langue vient de la SESSION,
+  # jamais d'une option globale -- sur un serveur partage, une option ferait
+  # basculer la langue de tous les utilisateurs des que l'un change la sienne.
+  expect_identical(deparse(formals(tr)$lang), deparse(formals(trf)$lang))
+})
+
+test_that("une alerte qui melange texte et valeurs passe par un gabarit", {
+  # LE DEFAUT QUE CE TEST GARDE, constate a l'ecran en anglais.
+  #
+  # LES ENFANTS TEXTE ADJACENTS NE FONT QU'UN SEUL NOEUD. Le navigateur fond
+  # toute suite de caracteres en UN noeud de texte : dans
+  # `tagList(icon(...), " Formule incorrecte : le resultat a ", n, " valeur(s)")`
+  # le traducteur ne voit pas trois morceaux, il voit
+  # « Formule incorrecte : le resultat a 3 valeur(s) » -- une chaine qui depend
+  # des donnees et qu'aucune cle ne peut couvrir. Mettre les morceaux au
+  # dictionnaire ne sert donc a RIEN : ils n'existent nulle part comme noeud.
+  # Seul un gabarit `trf()` traduit ce cas.
+  #
+  # Une BALISE, elle, coupe le noeud : `tagList(icon(...), " texte fixe")` reste
+  # traduisible par le dictionnaire, et c'est la forme la plus courante.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "depot introuvable")
+  ALERTE <- c("showNotification", "showModal", "shinyalert", "modalDialog")
+  DEJA   <- c("tr", "trf", "hstat_err_fr", "hstat_pkg_manquant")
+  BORNE  <- "\u0001"                 # marque une balise : elle coupe le noeud
+  frcs <- function(x) grepl("[\u00e0-\u00ff\u00c0-\u00dd]", x) ||
+    grepl("\\b(le|la|les|des|une|un|du|de|et|pour|dans|sur|avec|est|sont|pas|vos|vous|aucun|aucune|ce|cette|qui|que|ne|au|aux)\\b",
+          tolower(x), perl = TRUE)
+  fautifs <- character(0)
+  for (f in .hstat_sources_app()) {
+    ex <- tryCatch(parse(f, keep.source = FALSE), error = function(e) NULL)
+    if (is.null(ex)) next
+    unite <- function(n) {
+      if (is.character(n) && length(n) == 1L) return(n)
+      if (!is.call(n)) return("%s")
+      nm <- sub("^(shiny|htmltools)::", "", paste(deparse(n[[1]]), collapse = ""))
+      if (nm %in% DEJA) return("")            # deja traduit : neutre
+      if (nm %in% c("paste", "paste0")) {
+        a <- as.list(n)[-1]; nz <- names(a); if (is.null(nz)) nz <- rep("", length(a))
+        # `paste` colle avec une espace, `paste0` sans : confondre les deux
+        # souderait des mots et ferait passer pour absentes des phrases
+        # presentes.
+        sep <- if (nm == "paste") {
+          j <- which(nz == "sep")
+          if (length(j) && is.character(a[[j]])) a[[j]] else " "
+        } else ""
+        return(paste(vapply(a[nz == ""], unite, character(1)), collapse = sep))
+      }
+      if (nm == "tagList") {
+        a <- as.list(n)[-1]; nz <- names(a); if (is.null(nz)) nz <- rep("", length(a))
+        return(paste(vapply(a[nz == ""], unite, character(1)), collapse = ""))
+      }
+      if (grepl("^(tags[$]|icon$|br$|HTML$|strong$|b$|em$|span$|div$|p$|small$|a$|h[1-6]$|code$|pre$)", nm))
+        return(BORNE)
+      "%s"
+    }
+    v <- function(n) {
+      if (is.call(n)) {
+        nm <- sub("^(shiny|shinyalert)::", "", paste(deparse(n[[1]]), collapse = ""))
+        if (nm %in% ALERTE) {
+          a <- as.list(n)[-1]; nz <- names(a); if (is.null(nz)) nz <- rep("", length(a))
+          for (x in a[nz %in% c("", "ui", "text", "title")])
+            for (bout in strsplit(unite(x), BORNE, fixed = TRUE)[[1]]) {
+              g <- gsub("\\s+", " ", trimws(bout))
+              # ON NE VERIFIE PAS QUE LE GABARIT EST AU DICTIONNAIRE, mais
+              # qu'il PASSE PAR `trf()` : `unite()` rend la chaine vide pour un
+              # appel deja traduit. Un `paste()` qui reconstitue par hasard une
+              # cle existante resterait sinon accepte alors qu'il n'est jamais
+              # traduit a l'execution -- le defaut exact qu'on cherche.
+              if (nchar(g) >= 6 && frcs(g) && grepl("%s", g, fixed = TRUE))
+                fautifs <<- c(fautifs, paste(basename(f), "|", g))
+            }
+        }
+        for (i in seq_along(n)) tryCatch(v(n[[i]]), error = function(e) NULL)
+      } else if (is.pairlist(n) || is.expression(n)) {
+        for (i in seq_along(n)) tryCatch(v(n[[i]]), error = function(e) NULL)
+      }
+    }
+    for (k in seq_along(ex)) tryCatch(v(ex[[k]]), error = function(e) NULL)
+  }
+  expect_equal(unique(fautifs), character(0),
+               info = paste("Alertes sans gabarit :",
+                            paste(utils::head(unique(fautifs), 10), collapse = " || ")))
+})
+
+test_that("une syntaxe de plage montree a l'utilisateur est une syntaxe acceptee", {
+  # Les exemples affiches sous les champs de selection de lignes sont traduits :
+  # « 1 a 10 » devient « 1 to 10 ». Un analyseur qui ne connait que « a »
+  # enseignerait alors a l'utilisateur anglophone une syntaxe qu'il refuse --
+  # une traduction qui casse la fonctionnalite qu'elle decrit.
+  #
+  # La fonction est definie DANS le corps du module : on va la chercher dans
+  # l'arbre syntaxique plutot que de decouper le fichier au juge.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "depot introuvable")
+  extraire <- function(fichier, nom) {
+    trouve <- NULL
+    v <- function(n) {
+      if (!is.null(trouve) || !is.call(n)) return(invisible())
+      if (identical(paste(deparse(n[[1]]), collapse = ""), "<-") &&
+          is.name(n[[2]]) && identical(as.character(n[[2]]), nom)) {
+        trouve <<- n[[3]]; return(invisible())
+      }
+      for (i in seq_along(n)) tryCatch(v(n[[i]]), error = function(e) NULL)
+    }
+    for (k in parse(fichier, keep.source = FALSE)) v(k)
+    trouve
+  }
+  for (f in c(file.path("R", "mod_filter.R"), file.path("R", "mod_clean.R"))) {
+    chemin <- file.path(root, f)
+    skip_if_not(file.exists(chemin), f)
+    def <- extraire(chemin, "parseRowSelection")
+    expect_false(is.null(def), info = f)
+    fn <- eval(def, envir = globalenv())
+    expect_equal(sort(fn("1 \u00e0 10", 20)), 1:10, info = f)
+    expect_equal(sort(fn("1 to 10", 20)), 1:10, info = f)
+    expect_equal(sort(fn("1,3,5,10 to 12", 20)), c(1, 3, 5, 10, 11, 12), info = f)
+  }
 })
 
 test_that("un mot ambigu n'entre pas seul au dictionnaire", {
@@ -5705,15 +5887,92 @@ test_that("creation et reinitialisation partagent la meme liste", {
   # `reactiveValues` est construit DEPUIS la liste, pas recopie a cote
   expect_true(grepl("do.call(shiny::reactiveValues, hstat_valeurs_initiales())",
                     src, fixed = TRUE))
-  # La reinitialisation reparcourt la meme liste
-  expect_true(grepl("init <- hstat_valeurs_initiales()", src, fixed = TRUE))
+  # La remise a zero elle-meme vit dans le socle, en UN exemplaire : deux
+  # gestes l'appellent (le bouton, et le chargement de nouvelles donnees), et
+  # deux copies finiraient par diverger -- l'une des deux oublierait un champ.
+  expect_true(grepl("hstat_reinitialiser_valeurs(values)", src, fixed = TRUE))
+  socle <- paste(readLines(.hstat_socle_path(), warn = FALSE, encoding = "UTF-8"),
+                 collapse = "\n")
+  expect_true(grepl("init <- hstat_valeurs_initiales()", socle, fixed = TRUE))
   expect_true(grepl("for (nm in names(init)) values[[nm]] <- init[[nm]]",
-                    src, fixed = TRUE))
+                    socle, fixed = TRUE))
   # Et vide en plus ce qu'un module aurait cree en cours de session
-  expect_true(grepl("setdiff(names(shiny::reactiveValuesToList(values)), names(init))",
-                    src, fixed = TRUE))
+  expect_true(grepl("setdiff(connus, names(init))", socle, fixed = TRUE))
   # L'ancienne enumeration a la main a bien disparu
   expect_false(grepl("values$chiSqPGlobal     <- NULL", src, fixed = TRUE))
+})
+
+test_that("charger de nouvelles donnees remet l'etat de session a zero", {
+  # LE DEFAUT QUE CE TEST GARDE, signale a l'ecran : apres le chargement d'un
+  # SECOND fichier, les anciennes variables restaient proposees et les
+  # resultats du premier restaient affiches. Quarante-huit champs crees par les
+  # modules portent des noms de colonnes et des niveaux de facteur
+  # (`yVarNames`, `selected_y_vars`, `x_label_levels`, `customXLevels`...) :
+  # aucun n'etait efface. On lisait donc des tableaux et des recommandations
+  # portant sur des colonnes qui n'existent plus -- pire qu'un ecran vide,
+  # parce que ca ressemble a un resultat.
+  v <- do.call(shiny::reactiveValues, hstat_valeurs_initiales())
+  shiny::isolate({
+    v$data <- data.frame(a = 1); v$cleanData <- v$data; v$filteredData <- v$data
+    v$descStats <- "resultats du fichier precedent"
+    v$aiHistory <- list("une analyse", "une autre")
+    v$transformationLog <- list(x = 1)
+    v$customXOrder <- c("A", "B")
+    v$allTestResults <- list(t = 1)
+    # Champs CREES PAR UN MODULE : ils ne figurent pas dans la liste initiale,
+    # et ce sont eux qui portent les noms de variables.
+    v$yVarNames <- c("ancienne_variable")
+    v$selected_y_vars <- c("ancienne_variable")
+    v$manovaOutliers <- 1:3
+
+    expect_equal(hstat_reinitialiser_valeurs(v), 1L)
+
+    for (nm in c("data", "cleanData", "filteredData", "descStats", "aiHistory",
+                 "customXOrder", "yVarNames", "selected_y_vars", "manovaOutliers"))
+      expect_null(v[[nm]], info = nm)
+    # Les valeurs par defaut qui ne sont pas NULL reviennent, elles aussi.
+    expect_equal(v$transformationLog, list())
+    expect_equal(v$allTestResults, list())
+    expect_equal(v$dataMode, "memory")
+
+    # LE COMPTEUR EST MONOTONE. Les modules l'observent pour vider leurs
+    # propres controles, et `observeEvent` ne reagit qu'a un CHANGEMENT : le
+    # remettre a son initiale (0) puis l'incrementer rendrait toujours 1, et le
+    # deuxieme chargement ne signalerait plus rien.
+    expect_equal(hstat_reinitialiser_valeurs(v), 2L)
+    expect_equal(v$resetSignal, 2L)
+    expect_equal(hstat_reinitialiser_valeurs(v), 3L)
+  })
+})
+
+test_that("les trois portes d'entree des donnees remettent l'etat a zero", {
+  # Un quatrieme chemin d'import ajoute demain sans cet appel reintroduirait le
+  # defaut en silence : les anciennes variables reviendraient, sans erreur.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  src <- readLines(file.path(root, "inst", "app", "app_server.R"),
+                   warn = FALSE, encoding = "UTF-8")
+  ex <- parse(text = paste(src, collapse = "\n"), keep.source = FALSE)
+  portes <- c("input$loadData", "input$applySheetMerge", "input$applyMerge")
+  vus <- character(0)
+  v <- function(n) {
+    if (is.call(n)) {
+      nm <- sub("^shiny::", "", paste(deparse(n[[1]]), collapse = ""))
+      if (nm == "observeEvent" && length(n) >= 3) {
+        dec <- paste(deparse(n[[2]]), collapse = "")
+        if (dec %in% portes) {
+          corps <- paste(deparse(n[[3]]), collapse = " ")
+          if (grepl("hstat_reinitialiser_valeurs", corps, fixed = TRUE))
+            vus <<- c(vus, dec)
+        }
+      }
+      for (i in seq_along(n)) tryCatch(v(n[[i]]), error = function(e) NULL)
+    } else if (is.pairlist(n) || is.expression(n)) {
+      for (i in seq_along(n)) tryCatch(v(n[[i]]), error = function(e) NULL)
+    }
+  }
+  for (k in seq_along(ex)) v(ex[[k]])
+  expect_equal(sort(unique(vus)), sort(portes))
 })
 
 test_that("le fichier reste neutralise apres la reinitialisation", {

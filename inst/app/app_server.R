@@ -104,13 +104,11 @@ server <- function(input, output, session) {
           # sinon le fichier reste verrouille et le processus DuckDB en vie.
           if (!is.null(values$dbCon)) hstat_duckdb_close(values$dbCon)
 
-          init <- hstat_valeurs_initiales()
-          for (nm in names(init)) values[[nm]] <- init[[nm]]
-          # Un champ cree en cours de session par un module (il y en a) n'est
-          # pas dans la liste initiale : on le vide aussi, sans quoi il
-          # survivrait a la reinitialisation.
-          for (nm in setdiff(names(shiny::reactiveValuesToList(values)), names(init)))
-            values[[nm]] <- NULL
+          # Meme remise a zero que celle d'un nouveau chargement : elle est
+          # ecrite une seule fois, dans `Utils.R`. Elle incremente aussi
+          # `resetSignal`, que les modules observent pour vider leurs propres
+          # controles.
+          hstat_reinitialiser_valeurs(values)
 
           # `shinyjs::reset("file")` remet le widget a blanc mais `input$file`
           # garde sa valeur : la feuille Excel choisie et le bloc de
@@ -125,9 +123,6 @@ server <- function(input, output, session) {
           sheet_merge_msg(NULL)
           merge_msg(NULL)
 
-          # Signale aux modules (Plan & Puissance, Seuils d'efficacite) de
-          # reinitialiser leur propre etat et leurs controles.
-          values$resetSignal <- (values$resetSignal %||% 0) + 1
           shinydashboard::updateTabItems(session, "tabs", "load")
 
     shiny::showNotification("Application réinitialisée", type = "message")
@@ -276,6 +271,9 @@ server <- function(input, output, session) {
         source_mode = input$sheetSourceMode %||% "name")
       if (!isTRUE(res$ok)) { sheet_merge_msg(list(ok = FALSE, msg = res$msg)); return() }
       d <- as.data.frame(res$data)
+      # Meme raison qu'au chargement d'un fichier : les colonnes changent, donc
+      # tout ce que la session portait se rapporte a autre chose.
+      hstat_reinitialiser_valeurs(values)
       values$data <- d; values$cleanData <- d; values$filteredData <- d
       values$dataMode <- "memory"
       values$sourceKind <- "xlsx"
@@ -319,6 +317,14 @@ server <- function(input, output, session) {
       shiny::withProgress(message = 'Chargement des données', value = 0, {
         shiny::incProgress(0.2, detail = "Analyse du fichier")
         hstat_cache_clear()   # vide le cache d'agregations du fichier precedent
+        # DE NOUVELLES DONNEES, DE NOUVELLES VARIABLES : tout ce que la session
+        # portait se rapporte au fichier PRECEDENT. Sans cette remise a zero,
+        # les resultats, les selections de variables et le journal de l'ancien
+        # fichier survivaient au nouveau -- on lisait des tableaux et des
+        # recommandations portant sur des colonnes qui n'existent plus.
+        # Elle a lieu AVANT la lecture : les affectations qui suivent doivent
+        # etre les dernieres.
+        hstat_reinitialiser_valeurs(values)
         thr <- (input$bigDataThreshold %||% 500) * 1024^2
         smp <- as.integer(input$sampleSize %||% HSTAT_SAMPLE_SIZE)
         shiny::incProgress(0.3, detail = "Lecture")
@@ -450,6 +456,7 @@ server <- function(input, output, session) {
         source_mode = input$mergeSourceMode %||% "name")
       if (!isTRUE(res$ok)) { merge_msg(list(ok = FALSE, msg = res$msg)); return() }
       d <- as.data.frame(res$data)
+      hstat_reinitialiser_valeurs(values)
       values$data <- d; values$cleanData <- d; values$filteredData <- d
       values$dataMode <- "memory"
       merge_msg(list(ok = TRUE, msg = res$msg))
@@ -3892,8 +3899,8 @@ server <- function(input, output, session) {
             }
             if (length(drop_afd) > 0) {
               shiny::showNotification(
-                paste0("AFD : variables colinéaires exclues automatiquement -- ",
-                       paste(drop_afd, collapse = ", "), "."),
+                trf("AFD : variables colinéaires exclues automatiquement -- %s.",
+                    paste(drop_afd, collapse = ", ")),
                 type = "warning", duration = 8)
               vars_to_use <- setdiff(vars_to_use, drop_afd)
             }

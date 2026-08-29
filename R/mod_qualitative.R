@@ -443,7 +443,7 @@ hstat_q_gof_stratified <- function(y, x, yname = "Y", xname = "X",
     r <- pg$res
     if (!isTRUE(r$ok)) return(data.frame(
       Groupe = pg$group, n = NA, Khi2 = NA, ddl = NA, p_value = NA,
-      Conclusion = r$notes %||% "non calculé", stringsAsFactors = FALSE))
+      Conclusion = r$notes %||% tr("non calculé"), stringsAsFactors = FALSE))
     m <- r$metrics
     getv <- function(lbl) m$Valeur[m$Metrique == lbl][1]
     pval <- suppressWarnings(as.numeric(gsub("[^0-9.eE-]", "", getv("p-value (Khi-deux)"))))
@@ -573,7 +573,7 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
                  "V de Cramér (ajustement)"),
     Valeur = c(n, k, p0_lab, round(chi2, 3), as.integer(ddl),
                format.pval(p_chi, digits = 3),
-               if (is.na(p_mc)) "non calculé" else format.pval(p_mc, digits = 3),
+               if (is.na(p_mc)) tr("non calculé") else format.pval(p_mc, digits = 3),
                if (method == "multinomial") format.pval(p_multi, digits = 3) else NULL,
                if (expected_ok) "Respectées" else "Non respectées",
                round(cohen_w, 3), round(v_gof, 3)),
@@ -661,11 +661,11 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
   worst <- names(tab)[which.max(abs(resid_p))]
   interp <- c(
     trf("Test %s des proportions %s de \"%s\" : p = %s -- %s.",
-            if (method == "multinomial") "multinomial exact" else "du Khi-deux d'ajustement",
+            if (method == "multinomial") "multinomial exact" else tr("du Khi-deux d'ajustement"),
             p0_lab, var_name, format.pval(p_final, digits = 3),
             if (!is.na(p_final) && p_final < 0.05)
-              "la répartition observée diffère significativement de la répartition attendue"
-            else "la répartition observée est compatible avec la répartition attendue"),
+              tr("la répartition observée diffère significativement de la répartition attendue")
+            else tr("la répartition observée est compatible avec la répartition attendue")),
     trf("La modalité qui s'écarte le plus de l'attendu est \"%s\" (résidu = %.2f ; %.0f %% du Khi-deux).",
             worst, resid_p[which.max(abs(resid_p))], contrib[which.max(abs(resid_p))]),
     trf(if (cohen_w < 0.1) "Taille d'effet w de Cohen = %.3f : écart négligeable."
@@ -843,9 +843,9 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y") {
                  "Coefficient de contingence"),
     Valeur = c(n, round(chi2, 3), ddl, format.pval(pval, digits = 3),
                if (isTRUE(expected_ok)) "Respectées" else "Non respectées",
-               if (is.na(fisher_p)) "non calculé" else format.pval(fisher_p, digits = 3),
+               if (is.na(fisher_p)) tr("non calculé") else format.pval(fisher_p, digits = 3),
                round(phi, 3), round(cramer_v, 3),
-               if (anyNA(v_ci)) "non calculé" else sprintf("[%.3f ; %.3f]", v_ci[1], v_ci[2]),
+               if (anyNA(v_ci)) tr("non calculé") else sprintf("[%.3f ; %.3f]", v_ci[1], v_ci[2]),
                round(contingency, 3)),
     Interpretation = c(
       trf("%d observations appariées (paires complètes X, Y).", n),
@@ -861,18 +861,21 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y") {
       else "Test exact : pas d'association significative.",
       "Force de l'association pour un tableau 2x2 (équivaut au r de Pearson).",
       trf("Force de l'association : %s (0,1 faible ; 0,2 modérée ; 0,4 forte).",
-              if (is.na(cramer_v)) "indéterminée" else if (cramer_v < 0.1) "négligeable"
-              else if (cramer_v < 0.2) "faible" else if (cramer_v < 0.4) "modérée"
-              else if (cramer_v < 0.6) "relativement forte" else "forte"),
+              if (is.na(cramer_v)) tr("indéterminée") else if (cramer_v < 0.1) tr("négligeable")
+              else if (cramer_v < 0.2) tr("faible") else if (cramer_v < 0.4) tr("modérée")
+              else if (cramer_v < 0.6) tr("relativement forte") else tr("forte")),
       "Si l'IC exclut ~0, l'association est robuste ; s'il est large, l'estimation est incertaine.",
       "Variante normalisée entre 0 et ~0,71 (2x2) ; plus il est proche de 1, plus l'association est forte."),
     stringsAsFactors = FALSE)
 
   # Interpretation de la force d'association (V de Cramer)
-  force <- if (is.na(cramer_v)) "indéterminée" else if (cramer_v < 0.1) "négligeable" else
+  # Ces qualificatifs partent en ARGUMENTS de `trf()`, qui ne traduit jamais
+  # ses arguments de lui-meme -- c'est ce qui protege les valeurs de
+  # l'utilisateur. Le developpeur declare donc ici que ce sont des libelles.
+  force <- tr(if (is.na(cramer_v)) "indéterminée" else if (cramer_v < 0.1) "négligeable" else
     if (cramer_v < 0.2) "faible" else if (cramer_v < 0.4) "modérée" else
-    if (cramer_v < 0.6) "relativement forte" else "forte"
-  sig <- if (!is.na(pval) && pval < 0.05) "significative" else "non significative"
+    if (cramer_v < 0.6) "relativement forte" else "forte")
+  sig <- tr(if (!is.na(pval) && pval < 0.05) "significative" else "non significative")
   interp <- c(
     trf("Association %s entre %s et %s (Khi-deux = %.2f, ddl = %d, p = %s).",
             sig, xname, yname, chi2, as.integer(ddl), format.pval(pval, digits = 3)),
@@ -1062,7 +1065,7 @@ hstat_q_multiple_choice <- function(df, cols = NULL, sep_col = NULL,
        plotfns = list("Barres (% répondants)" = plot_bar, "Co-occurrences" = plot_cooc),
        interpretation = interp,
        notes = trf("%d répondants, format %s.", n_resp,
-                       if (!is.null(sep_col)) "valeurs séparées" else "colonnes binaires"))
+                       if (!is.null(sep_col)) tr("valeurs séparées") else "colonnes binaires"))
 }
 
 # ===========================================================================
@@ -1278,9 +1281,9 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
                  round(unname(kd$estimate), 3), format.pval(kd$p.value, 3)),
       stringsAsFactors = FALSE)
     rho <- unname(sp$estimate); pval_sp <- sp$p.value; tau <- unname(kd$estimate)
-    force <- if (abs(rho) < 0.2) "très faible" else if (abs(rho) < 0.4) "faible" else
-      if (abs(rho) < 0.6) "modérée" else if (abs(rho) < 0.8) "forte" else "très forte"
-    sens <- if (rho > 0) "positive (croissante)" else "négative (décroissante)"
+    force <- tr(if (abs(rho) < 0.2) "très faible" else if (abs(rho) < 0.4) "faible" else
+      if (abs(rho) < 0.6) "modérée" else if (abs(rho) < 0.8) "forte" else "très forte")
+    sens <- tr(if (rho > 0) "positive (croissante)" else "négative (décroissante)")
     signif_sp <- !is.na(pval_sp) && pval_sp < 0.05
     # Interprétation de la p-value (seuils usuels)
     pval_interp <- if (is.na(pval_sp)) "p-value non calculable."
@@ -1369,7 +1372,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
                  "Médiane globale (rang)", "Nombre de groupes", "Effectif total"),
     Valeur = c(test_name, round(stat_val, 3), format.pval(pval, 3),
                "Khi-deux d'homogénéité des médianes",
-               if (is.na(mood_p)) "non calculé" else format.pval(mood_p, 3),
+               if (is.na(mood_p)) tr("non calculé") else format.pval(mood_p, 3),
                round(med_global, 2), ng, length(rx)),
     Interpretation = c(
       "Compare les rangs (positions) entre groupes -- adapté aux données ordinales.",
@@ -1402,8 +1405,8 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
       trf("Le groupe « %s » présente les rangs les plus élevés, « %s » les plus faibles.", hi_g, lo_g)
     else "Les rangs médians et moyens sont proches d'un groupe à l'autre.",
     trf("Test de la médiane (Mood) : %s",
-            if (is.na(mood_p)) "non calculé."
-            else if (mood_p < 0.05) "les médianes diffèrent aussi significativement." else "les médianes ne diffèrent pas significativement."),
+            if (is.na(mood_p)) tr("non calculé.")
+            else if (mood_p < 0.05) tr("les médianes diffèrent aussi significativement.") else tr("les médianes ne diffèrent pas significativement.")),
     "Analyses fondées sur les rangs et les médianes : adaptées aux données ordinales (aucune hypothèse de normalité).",
     if (ng > 2 && !is.na(pval) && pval < 0.05)
       "Un test post-hoc (Dunn) permettrait d'identifier quelles paires de groupes diffèrent." else NULL)
@@ -1747,7 +1750,7 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
     Detail = c(
       trf("Découpage en mots : %d occurrences sur %d réponses.", length(all_words), n_doc),
       trf("Minuscules, retrait des accents, de la ponctuation%s, mots < %d lettres.",
-              if (remove_numbers) " et des chiffres" else "", min_char),
+              if (remove_numbers) tr(" et des chiffres") else "", min_char),
       trf("%d mots vides français retirés (+ %d personnalisés).",
               length(hstat_q_stopwords_fr()),
               length(extra_stopwords %||% character(0))),
@@ -2027,13 +2030,13 @@ hstat_q_interpret_ratio <- function(value, lo, hi, kind = c("OR", "RR"),
                                    conf = 0.95) {
   kind <- match.arg(kind)
   signif <- !(lo <= 1 && hi >= 1)          # IC excluant 1 => association significative
-  sens <- if (value > 1) "augmente" else if (value < 1) "diminue" else "n'affecte pas"
+  sens <- tr(if (value > 1) "augmente" else if (value < 1) "diminue" else "n'affecte pas")
   # Force (échelle indicative)
   vv <- if (value >= 1) value else 1 / value
-  force <- if (vv < 1.2) "négligeable" else if (vv < 1.5) "faible" else
-    if (vv < 3) "modérée" else if (vv < 5) "forte" else "très forte"
-  libelle <- if (kind == "OR") "L'odds ratio" else "Le risque relatif"
-  facteur <- if (kind == "OR") "la cote (odds) de l'issue" else "le risque de l'issue"
+  force <- tr(if (vv < 1.2) "négligeable" else if (vv < 1.5) "faible" else
+    if (vv < 3) "modérée" else if (vv < 5) "forte" else "très forte")
+  libelle <- tr(if (kind == "OR") "L'odds ratio" else "Le risque relatif")
+  facteur <- tr(if (kind == "OR") "la cote (odds) de l'issue" else "le risque de l'issue")
   txt <- trf("%s = %.2f [IC%.0f%% : %.2f - %.2f] : l'exposition %s %s d'un facteur %.2f (association %s).",
                  libelle, value, 100 * conf, lo, hi, sens, facteur,
                  if (value >= 1) value else 1 / value, force)
@@ -2077,7 +2080,7 @@ hstat_q_or_rr_analysis <- function(x, y, xname = "X", yname = "Y",
     interp_line <- if (or_sig)
       trf("%s significatif (OR = %.2f) : être \"%s\" %s la cote de \"%s = %s\".",
               tools::toTitleCase(sens), rr$or, expo_lab,
-              if (rr$or > 1) "augmente" else "diminue", yname, issue_lab)
+              if (rr$or > 1) tr("augmente") else tr("diminue"), yname, issue_lab)
     else
       trf("Pas d'association significative (OR = %.2f, IC contient 1) entre \"%s\" et \"%s = %s\".",
               rr$or, expo_lab, yname, issue_lab)
