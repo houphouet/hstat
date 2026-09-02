@@ -8039,6 +8039,7 @@ server <- function(input, output, session) {
 
   # ---- Seuils d'efficacite (module Shiny) ----
   mod_threshold_server("threshold", values)
+  mod_yield_server("yield", values)
   mod_dosage_server("dosage", values)
   mod_dl50_server("dl50", values)
 
