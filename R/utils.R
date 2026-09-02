@@ -1483,7 +1483,7 @@ HSTAT_PALETTES_QUALI <- c("Set1 - vive" = "Set1", "Set2 - douce" = "Set2",
 # Au-dela, ggplot avertit et rend les series surnumeraires en GRIS -- sur un
 # onglet nomme « plusieurs essais », c'est exactement le cas qu'on rencontre.
 # `scale_*_hue()` engendre autant de teintes distinctes qu'il y a de groupes.
-HSTAT_PALETTE_GG <- c("ggplot2 (défaut) - autant de couleurs que d'essais" = "ggplot2")
+HSTAT_PALETTE_GG <- c("ggplot2 (défaut) - une couleur par modalité" = "ggplot2")
 
 # UN NOM DE COULEUR SEUL EST UNE VALEUR DE DONNEES PLAUSIBLE. « Bleus »,
 # « Verts », « Mauve » peuvent etre les modalites d'une colonne du fichier de
@@ -1498,6 +1498,59 @@ HSTAT_PALETTES_DEGRADE <- c("Dégradé de bleus" = "Blues",
                             "Dégradé mauve" = "BuPu",
                             "Spectral (froid -> chaud)" = "Spectral",
                             "Rouge-jaune-bleu" = "RdYlBu")
+
+# -- LA PALETTE NE SE POSE QU'A UN ENDROIT -------------------------------------
+#
+# Six modules offraient chacun leur liste et leur `switch`, et ils avaient
+# DIVERGE : la palette par defaut de ggplot2 n'etait atteignable que dans deux
+# d'entre eux, et le post-hoc l'offrait sous le libelle « Defaut (gris) » --
+# qui est faux, elle rend douze teintes distinctes. Un utilisateur qui cherche
+# « la palette de ggplot2 » ne la trouve pas sous ce nom.
+#
+# `hstat_palettes_choix()` declare la liste, `hstat_scales_palette()` la pose.
+# C'est la meme regle que pour les formats d'image et les champs de DPI : ce
+# qui est recopie finit par diverger, et l'un des exemplaires ment.
+
+# Liste de choix commune. La palette de ggplot2 vient EN TETE : c'est la seule
+# qui ne plafonne pas, donc le bon defaut quand on ignore combien il y aura de
+# modalites.
+hstat_palettes_choix <- function(degrades = TRUE) {
+  ch <- list("Palette par défaut" = HSTAT_PALETTE_GG,
+             "Teintes vives (groupes distincts)" = HSTAT_PALETTES_QUALI)
+  if (isTRUE(degrades))
+    ch[["Dégradés (valeurs ordonnées)"]] <- HSTAT_PALETTES_DEGRADE
+  ch
+}
+
+# Rend les echelles a ajouter au graphique, ou NULL quand il n'y a rien a poser.
+#
+# TROIS FAMILLES, ET ELLES NE SE POSENT PAS PAREIL :
+#   - « ggplot2 » n'est PAS un nom RColorBrewer. La passer a `scale_*_brewer()`
+#     la ferait retomber EN SILENCE sur une autre palette, et l'utilisateur
+#     croirait avoir change de couleurs.
+#   - un nom de Brewer se pose par `scale_*_brewer()`.
+#   - tout le reste (un nom inconnu, "default", "") ne pose RIEN : ggplot
+#     applique alors son echelle par defaut, qui est deja `hue`. Rendre une
+#     echelle brewer sur un nom inconnu ferait avertir ggplot a chaque trace et
+#     rendrait un graphique gris.
+#
+# `...` va aux constructeurs d'echelle : c'est ce qui permet a l'appelant de
+# nommer la legende (`name =`) ou d'en reetiqueter les cles (`labels =`) sans
+# que la fonction ait a connaitre ces cas.
+hstat_scales_palette <- function(pal, fill = TRUE, colour = TRUE, ...) {
+  pal <- as.character(pal %||% "")[1]
+  if (is.na(pal) || !nzchar(pal)) return(NULL)
+  out <- list()
+  if (identical(pal, unname(HSTAT_PALETTE_GG))) {
+    if (isTRUE(fill))   out <- c(out, list(ggplot2::scale_fill_hue(...)))
+    if (isTRUE(colour)) out <- c(out, list(ggplot2::scale_colour_hue(...)))
+    return(out)
+  }
+  if (!pal %in% c(HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE)) return(NULL)
+  if (isTRUE(fill))   out <- c(out, list(ggplot2::scale_fill_brewer(palette = pal, ...)))
+  if (isTRUE(colour)) out <- c(out, list(ggplot2::scale_colour_brewer(palette = pal, ...)))
+  out
+}
 
 # Alignements horizontaux d'un titre. Les valeurs sont les `hjust` de ggplot,
 # transmises en CHAINE par selectInput : le lecteur doit les convertir.
@@ -2599,8 +2652,20 @@ detect_multivariate_outliers <- function(Y, alpha = 0.001) {
   
   centre <- colMeans(Y)
   cov_mat <- tryCatch(stats::cov(Y), error = function(e) NULL)
+  # LE RANG, PAS LE DETERMINANT. C'est la meme correction que dans
+  # `box_m_test()`, et elle manquait ici.
+  #
+  # Le determinant d'une covariance est homogene a la p-ieme puissance d'une
+  # unite : cinq variables mesurees en MICROGRAMMES le font tomber a 8e-60
+  # alors que le rang reste plein. Le seuil `< .Machine$double.eps` criait donc
+  # a la singularite sur des donnees parfaitement inversibles, et la detection
+  # d'outliers s'arretait -- en accusant les donnees. Mesure : les MEMES
+  # observations rendaient « 1 outlier » a l'echelle usuelle et « matrice
+  # singuliere » multipliees par 1e-6, alors que la distance de Mahalanobis est
+  # invariante par changement d'echelle.
+  rang <- tryCatch(qr(cov_mat)$rank, error = function(e) NA_integer_)
   if (is.null(cov_mat) || any(is.na(cov_mat)) ||
-      tryCatch(det(cov_mat) < .Machine$double.eps, error = function(e) TRUE)) {
+      is.na(rang) || rang < p) {
     return(list(d2 = NULL, threshold = NA, n_outliers = NA,
                 idx_outliers = integer(0),
                 conclusion = "Matrice de covariance singulière -- impossible de calculer Mahalanobis"))

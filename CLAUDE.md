@@ -1244,6 +1244,100 @@ les qualitatives (« Set1 - vive », « Dark2 - soutenue »…). Le test vérifi
 désormais les trois listes d'un coup : elles sont déclarées une seule fois, il
 serait absurde de les couvrir une par une.
 
+## La palette ne se pose qu'à un endroit
+
+Six modules portaient **chacun** leur liste de palettes et leur `switch`, et ils
+avaient divergé — la dérive que ce dépôt a déjà corrigée pour les formats
+d'image, les champs de DPI et les thèmes.
+
+Deux conséquences, toutes deux mesurées :
+
+- Le post-hoc offrait la palette de ggplot2 sous le libellé **« Défaut
+  (gris) »**, qui est **faux** : cette entrée n'ajoutait aucune échelle, si bien
+  que ggplot posait la sienne — quinze teintes distinctes sur quinze modalités,
+  pas du gris. La palette que l'utilisateur venait chercher était là, sous un nom
+  qui la cachait.
+- Les seuils d'efficacité ne l'offraient **pas du tout** : leur liste ne
+  contenait que des noms RColorBrewer, tous plafonnés. Un essai à plus de huit
+  modalités y perdait ses dernières barres en gris.
+
+`hstat_palettes_choix()` déclare la liste, `hstat_scales_palette()` la pose.
+`mod_tests`, `mod_threshold`, `mod_yield` et `mod_dl50` y passent tous ; un test
+échoue sur tout `scale_*_brewer(palette = …)` reposé à la main dans ces fichiers.
+
+**La palette de ggplot2 vient en tête du catalogue.** C'est la seule qui ne
+plafonne pas : quand on ignore combien il y aura de modalités, c'est le seul
+défaut sûr. Mesuré — quinze modalités : `ggplot2` rend quinze teintes et aucun
+`NA`, `Set2` en rend huit et laisse sept séries en gris.
+
+### Elle se pose, elle ne s'omet pas
+
+Piège attrapé par mutation, et contre-intuitif. Ne **rien** rendre pour
+« ggplot2 » donnerait exactement les mêmes couleurs — l'échelle par défaut de
+ggplot *est* `hue` —, si bien que le défaut serait invisible sur la seule
+teinte. Ce qui se perdrait, c'est tout ce que l'appelant passe à l'échelle : le
+module des seuils y fait voyager le **titre de sa légende**, qui disparaîtrait
+sans un mot. D'où le `...` de `hstat_scales_palette()`, et l'assertion qui
+vérifie que le titre arrive bien jusqu'à l'échelle.
+
+Corollaire symétrique : un nom **inconnu** ne pose rien, plutôt que de retomber
+sur une palette Brewer. Lui appliquer `scale_*_brewer()` ferait avertir ggplot à
+chaque tracé et rendrait un graphique gris ; ne rien poser laisse l'échelle par
+défaut, qui est déjà la bonne.
+
+## Le bac à sable des formules : la porte de demain, pas celle d'aujourd'hui
+
+`hstat_safe_eval()` tient. Vingt-sept tentatives d'évasion ont été essayées une
+par une — nom entre accents graves, `:::`, `$` et `[[` sur un environnement,
+`match.fun`, `Recall`, `sapply`, `quote`, une formule, `structure`, `attr`, les
+structures de contrôle — et **toutes** sont refusées.
+
+Le risque n'est donc pas le code d'aujourd'hui, c'est **l'ajout de demain**. Le
+bac à sable tient parce que `HSTAT_FORMULA_FUNS` ne contient que des fonctions
+closes sur leurs arguments : y glisser une seule fonction d'ordre supérieur
+(`sapply`, `do.call`, `Reduce`) ou une fonction qui résout un nom (`get`,
+`match.fun`, `eval`) rouvrirait l'exécution de code arbitraire depuis un champ
+de texte, et **rien ne le signalerait**. Un test épingle donc la liste des
+portes interdites.
+
+Second garde-fou, et c'est celui qui manquait : **l'évaluation reste close**.
+`list2env(funs, parent = emptyenv())` est ce qui empêche un nom absent des
+données et de la liste blanche d'être résolu par le chemin de recherche.
+Remplacer `emptyenv()` par `baseenv()` ne faisait échouer **aucune** des neuf
+assertions d'origine — le test le vérifie désormais sur `pi`, `T` et `letters`.
+
+## Le rang, pas le déterminant — la deuxième fois
+
+`box_m_test()` avait été corrigé sur ce point ; `detect_multivariate_outliers()`
+portait **le même défaut**, non corrigé, dans la fonction voisine.
+
+Le déterminant d'une matrice de covariance est homogène à la **p-ième
+puissance** d'une unité. Cinq variables mesurées en microgrammes le font tomber
+à 8 × 10⁻⁶⁰ alors que le rang reste **plein** : le seuil
+`det < .Machine$double.eps` criait donc à la singularité sur des données
+parfaitement inversibles, la détection d'outliers s'arrêtait, et le message
+accusait les données.
+
+La mesure rend le défaut indiscutable, parce que la distance de Mahalanobis est
+**invariante par changement d'échelle** : les mêmes observations rendaient
+« 1 outlier » à l'échelle usuelle et « matrice singulière » multipliées par
+10⁻⁶. Le test vérifie les deux moitiés — l'égalité des `d2` aux deux échelles,
+**et** le refus d'une vraie colinéarité (colonne dupliquée), sans quoi il
+passerait aussi sur une fonction qui aurait simplement retiré le garde-fou.
+
+## Un nom de colonne n'entre jamais tel quel dans du balisage
+
+Deux notifications de `mod_tests.R` composaient leur texte avec des **noms de
+colonnes venus du fichier** et le passaient à `shiny::HTML()`. Une colonne
+« Rendement <2023> » — des chevrons dans un intitulé, c'est courant — voyait
+« <2023> » lu comme une balise et **disparaître** : on annonçait à l'utilisateur
+un nom qui n'était pas le sien. Le « & » d'un « Masse & surface » ressortait de
+même corrompu.
+
+C'est la règle déjà écrite pour les mémos de l'atelier de codage, appliquée aux
+deux sites qui l'avaient manquée. Le bénéfice de sécurité (injection dans le
+DOM) suit ; le défaut visible, lui, est un nom de variable affiché faux.
+
 ## Seuils d'efficacité : comparer chaque modalité au témoin
 
 `hstat_efficacite()` applique la formule d'Abbott — celle de l'agronomie, de la

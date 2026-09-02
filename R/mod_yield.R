@@ -237,12 +237,9 @@ mod_yield_ui <- function(id) {
               # rend les modalites surnumeraires en GRIS. Un essai a quinze
               # traitements n'a rien d'exotique en agronomie.
               shiny::selectInput(ns("yieldPalette"), "Palette de couleurs",
-                          choices = list(
-                            "Sans palette" = c("Couleur unique" = "unique"),
-                            "Palette par défaut" = HSTAT_PALETTE_GG,
-                            "Teintes vives (groupes distincts)" = HSTAT_PALETTES_QUALI,
-                            "Dégradés (valeurs ordonnées)" = HSTAT_PALETTES_DEGRADE),
-                          selected = "Set2"),
+                          choices = c(list("Sans palette" = c("Couleur unique" = "unique")),
+                                      hstat_palettes_choix()),
+                          selected = unname(HSTAT_PALETTE_GG)),
               shiny::conditionalPanel(
                 ns = ns, condition = "input.yieldPalette == 'unique'",
                 colourInput(ns("yieldCouleurUnique"), "Couleur", value = "#2E86C1")),
@@ -815,19 +812,12 @@ mod_yield_server <- function(id, values) {
         u <- input$yieldCouleurUnique %||% "#2E86C1"
         p <- p + ggplot2::scale_fill_manual(values = rep(u, nrow(d))) +
           ggplot2::scale_colour_manual(values = rep(u, nrow(d)))
-      } else if (identical(pal, unname(HSTAT_PALETTE_GG))) {
-        # « ggplot2 » N'EST PAS UN NOM RColorBrewer : elle se pose par
-        # `scale_*_hue()`. La passer a `scale_*_brewer()` la ferait retomber en
-        # silence sur Set1 -- l'utilisateur croirait avoir change de palette.
-        p <- p + ggplot2::scale_fill_hue() + ggplot2::scale_colour_hue()
       } else {
-        # Une palette inconnue de RColorBrewer fait avertir ggplot a chaque
-        # trace et rend un graphique gris. L'interface n'offre que des noms
-        # valides ; on retombe malgre tout sur le defaut plutot que de laisser
-        # un avertissement s'accumuler dans la console d'un serveur partage.
-        if (!pal %in% c(HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE)) pal <- "Set2"
-        p <- p + ggplot2::scale_fill_brewer(palette = pal) +
-          ggplot2::scale_colour_brewer(palette = pal)
+        # Le choix des echelles vit dans `hstat_scales_palette()` : « ggplot2 »
+        # se pose par `scale_*_hue()`, un nom de Brewer par `scale_*_brewer()`,
+        # et un nom inconnu ne pose rien plutot que de faire avertir ggplot a
+        # chaque trace.
+        for (sc in hstat_scales_palette(pal)) p <- p + sc
       }
 
       lim <- if (isTRUE(input$yieldLimites))

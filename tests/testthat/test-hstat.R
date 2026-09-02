@@ -562,6 +562,125 @@ test_that("hstat_safe_eval bloque le code arbitraire (RCE)", {
   expect_error(hstat_safe_eval('1 + 1; system("id")', d))
   expect_error(hstat_safe_eval('get("system")("id")', d))
   expect_error(hstat_safe_eval('do.call("system", list("id"))', d))
+
+  # Vecteurs d'evasion supplementaires, tous verifies un par un. Chacun est une
+  # facon differente d'atteindre une fonction : par le nom cite, par l'espace
+  # de noms, par l'environnement, par le detour d'une fonction d'ordre
+  # superieur, ou par une structure de controle.
+  for (f in c('`system`("id")',            # nom entre accents graves
+              'base:::system("id")',       # espace de noms interne
+              '.GlobalEnv$q',              # `$` sur un environnement
+              'globalenv()[["q"]]',        # `[[` sur un environnement
+              'match.fun("system")("id")', # resolution differee
+              'Recall()',                  # rappel de l appelant
+              'sapply(1, get)',            # fonction passee en valeur
+              'lapply(c(1), function(i) i)',
+              'Reduce(`+`, c(B))',
+              'quote(system("id"))',       # expression non evaluee
+              '~system("id")',             # formule
+              'structure(1, class = "x")', # fabrique d objet
+              'attr(B, "x")',
+              'body(mean)',
+              'while (TRUE) 1',            # structures de controle
+              'for (i in 1:2) i',
+              '{ system("id") }',
+              'x <- 1'))
+    expect_error(hstat_safe_eval(f, d), info = f)
+})
+
+test_that("la liste blanche des formules ne laisse entrer aucune porte", {
+  # LE RISQUE N'EST PAS LE CODE D'AUJOURD'HUI, C'EST L'AJOUT DE DEMAIN. Le bac
+  # a sable tient parce que `HSTAT_FORMULA_FUNS` ne contient que des fonctions
+  # closes sur leurs arguments. Y glisser une seule fonction d'ordre superieur
+  # -- `sapply`, `do.call`, `Reduce` -- ou une fonction qui resout un nom
+  # -- `get`, `match.fun`, `eval` -- rouvrirait l'execution de code arbitraire
+  # depuis un simple champ de texte, et rien ne le signalerait.
+  portes <- c("eval", "evalq", "parse", "str2lang", "str2expression", "quote",
+              "bquote", "substitute", "get", "get0", "mget", "match.fun",
+              "assign", "do.call", "Recall", "Reduce", "Filter", "Map",
+              "lapply", "sapply", "vapply", "mapply", "apply", "outer",
+              "system", "system2", "shell", "source", "sys.function",
+              "environment", "globalenv", "emptyenv", "baseenv", "new.env",
+              "as.environment", "list2env", "attach", "library", "require",
+              "loadNamespace", "asNamespace", "getExportedValue",
+              "file", "url", "readRDS", "saveRDS", "load", "save",
+              "readLines", "writeLines", "unlink", "file.remove",
+              "install.packages", "download.file", "Sys.setenv", "Sys.getenv",
+              "body", "formals", "args", "structure", "attr", "attributes",
+              "class", "oldClass", "unclass", "on.exit", "trace", "debug",
+              "$", "[[", "[", "@", "::", ":::", "<-", "<<-", "=", "->",
+              "function", "if", "for", "while", "repeat", "{", "return")
+  for (f in portes)
+    expect_false(f %in% HSTAT_FORMULA_FUNS, info = f)
+
+  # Et l'evaluation reste CLOSE : l'environnement des fonctions autorisees a
+  # `emptyenv()` pour parent, si bien qu'un nom absent des donnees et de la
+  # liste blanche ne peut pas etre resolu par le chemin de recherche.
+  d <- data.frame(B = 1:3)
+  expect_error(hstat_safe_eval("pi", d))
+  expect_error(hstat_safe_eval("T", d))
+  expect_error(hstat_safe_eval("letters", d))
+  # Les fonctions autorisees, elles, restent atteignables.
+  expect_equal(hstat_safe_eval("sqrt(B)", d), sqrt(1:3))
+})
+
+test_that("la détection d'outliers juge la singularité sur le rang, pas le déterminant", {
+  # LE DEFAUT, MESURE. Le determinant d'une covariance est homogene a la
+  # p-ieme puissance d'une unite : cinq variables mesurees en microgrammes le
+  # font tomber a 8e-60 alors que le rang reste plein. Le seuil
+  # `det < .Machine$double.eps` criait donc a la singularite sur des donnees
+  # parfaitement inversibles, et la detection s'arretait -- en accusant les
+  # donnees. C'est la meme correction que dans `box_m_test()` ; elle manquait
+  # ici, dans la fonction voisine.
+  set.seed(1)
+  n <- 60L; p <- 5L
+  Y <- matrix(stats::rnorm(n * p), n, p)
+  Y[1, ] <- Y[1, ] + 12                      # un outlier franc
+
+  usuel <- detect_multivariate_outliers(Y)
+  micro <- detect_multivariate_outliers(Y * 1e-6)
+
+  # LA DISTANCE DE MAHALANOBIS EST INVARIANTE PAR CHANGEMENT D'ECHELLE : les
+  # deux appels portent sur les memes observations, ils doivent donner le meme
+  # resultat. C'est ce qui rend le defaut indiscutable.
+  expect_equal(length(usuel$idx_outliers), 1L)
+  expect_identical(micro$idx_outliers, usuel$idx_outliers)
+  expect_equal(micro$d2, usuel$d2)
+  expect_false(grepl("singuli", micro$conclusion))
+
+  # Le determinant, lui, s'effondre : c'est bien lui qui mentait, pas le rang.
+  expect_lt(det(stats::cov(Y * 1e-6)), .Machine$double.eps)
+  expect_equal(qr(stats::cov(Y * 1e-6))$rank, p)
+
+  # ET UNE VRAIE SINGULARITE RESTE REFUSEE. Sans cette moitie, le test
+  # passerait aussi sur une fonction qui aurait simplement retire le garde-fou.
+  Z <- cbind(Y, Y[, 1])
+  expect_match(detect_multivariate_outliers(Z)$conclusion, "singuli")
+  expect_equal(length(detect_multivariate_outliers(Z)$idx_outliers), 0L)
+
+  # Un echantillon trop petit se dit, il ne se calcule pas.
+  expect_match(detect_multivariate_outliers(Y[1:3, ])$conclusion, "trop petit")
+})
+
+test_that("un nom de colonne n'entre jamais tel quel dans une notification HTML", {
+  # UNE COLONNE « Rendement <2023> » PERD SON MILLESIME. Les chevrons sont lus
+  # comme une balise : la notification annonce un nom qui n'est pas celui de
+  # l'utilisateur, et rien ne le signale. Le « & » d'un « Masse & surface »
+  # ressort de meme corrompu.
+  expect_equal(hstat_html_escape("Rendement <2023>"), "Rendement &lt;2023&gt;")
+  expect_equal(hstat_html_escape("Masse & surface"), "Masse &amp; surface")
+  expect_equal(hstat_html_escape(c("a<b", "c>d")), c("a&lt;b", "c&gt;d"))
+
+  # Les deux sites qui composent une notification a partir de noms de colonnes
+  # passent par l'echappement. Ils sont nommes : ce sont les seuls du depot ou
+  # un nom venu du fichier rejoint du balisage.
+  chemin <- .hstat_module_path("mod_tests.R")
+  skip_if_not(file.exists(chemin))
+  txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("hstat_html_escape(errors)", txt, fixed = TRUE))
+  expect_true(grepl("hstat_html_escape(added)", txt, fixed = TRUE))
+  expect_false(grepl('paste(errors, collapse = "<br>")', txt, fixed = TRUE))
+  expect_false(grepl('paste0("<b>", added, "</b>"', txt, fixed = TRUE))
 })
 
 test_that("hstat_sql_ident neutralise les guillemets dans les identifiants", {
@@ -12069,33 +12188,90 @@ test_that("la saisie manuelle du rendement suit l'idiome de DL50/CL50", {
   expect_true(grepl('selected = "fichier"', txt, fixed = TRUE))
 })
 
-test_that("la palette par défaut de ggplot2 est offerte au module de rendement", {
-  chemin <- .hstat_module_path("mod_yield.R")
-  skip_if_not(file.exists(chemin))
-  txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
-
-  expect_true(grepl("HSTAT_PALETTE_GG", txt, fixed = TRUE))
-  # « ggplot2 » N'EST PAS UN NOM RColorBrewer : la poser par `scale_*_brewer()`
-  # la ferait retomber en silence sur une autre palette, et l'utilisateur
-  # croirait avoir change de couleurs.
-  expect_true(grepl("identical(pal, unname(HSTAT_PALETTE_GG))", txt, fixed = TRUE))
-  expect_true(grepl("ggplot2::scale_fill_hue()", txt, fixed = TRUE))
-  expect_true(grepl("ggplot2::scale_colour_hue()", txt, fixed = TRUE))
-
-  # Et elle ne doit JAMAIS rejoindre la liste des qualitatives : un test verifie
+test_that("la palette par défaut de ggplot2 colore chaque modalité", {
+  # Elle ne doit JAMAIS rejoindre la liste des qualitatives : un test verifie
   # que chaque entree de celle-ci existe chez RColorBrewer, et un nom inconnu
   # fait tomber tout le graphique de qui l'aurait choisi.
   expect_false(unname(HSTAT_PALETTE_GG) %in% unname(HSTAT_PALETTES_QUALI))
   expect_false(unname(HSTAT_PALETTE_GG) %in% unname(HSTAT_PALETTES_DEGRADE))
 
-  # Le trace rend bien autant de teintes que de modalites -- c'est ce qu'elle
-  # apporte : les qualitatives de Brewer plafonnent a 8, 9 ou 12 couleurs.
+  # ELLE VIENT EN TETE DU CATALOGUE. C'est la seule qui ne plafonne pas : quand
+  # on ignore combien il y aura de modalites, c'est le seul defaut sur.
+  ch <- hstat_palettes_choix()
+  expect_identical(unname(unlist(ch))[1], unname(HSTAT_PALETTE_GG))
+  expect_true(all(unlist(HSTAT_PALETTES_DEGRADE) %in% unlist(ch)))
+  expect_false(any(unlist(HSTAT_PALETTES_DEGRADE) %in%
+                     unlist(hstat_palettes_choix(degrades = FALSE))))
+
   skip_if_not_installed("ggplot2")
   d <- data.frame(m = factor(sprintf("T%02d", 1:15)), v = 1:15)
-  b <- ggplot2::ggplot_build(
-    ggplot2::ggplot(d, ggplot2::aes(m, v, fill = m)) +
-      ggplot2::geom_col() + ggplot2::scale_fill_hue())
-  expect_equal(length(unique(b$data[[1]]$fill)), 15L)
+  teintes <- function(pal, ...) {
+    p <- ggplot2::ggplot(d, ggplot2::aes(m, v, fill = m)) + ggplot2::geom_col()
+    for (sc in hstat_scales_palette(pal, ...)) p <- p + sc
+    suppressWarnings(ggplot2::ggplot_build(p)$data[[1]]$fill)
+  }
+  # CE QU'ELLE APPORTE, MESURE : quinze modalites, quinze teintes. Les
+  # qualitatives de Brewer PLAFONNENT (Set2 a 8) et rendent les series
+  # surnumeraires en `NA`, donc en gris -- un essai a quinze traitements n'a
+  # rien d'exotique en agronomie.
+  gg <- teintes(unname(HSTAT_PALETTE_GG))
+  expect_equal(length(unique(gg)), 15L)
+  expect_false(anyNA(gg))
+
+  # ELLE SE POSE, ELLE NE S'OMET PAS. Ne rien rendre donnerait les MEMES
+  # couleurs -- l'echelle par defaut de ggplot est deja `hue` -- si bien que le
+  # defaut serait invisible sur la seule teinte. Ce qui se perdrait, c'est tout
+  # ce que l'appelant passe a l'echelle : le module des seuils y fait voyager
+  # le titre de sa legende, qui disparaitrait sans un mot.
+  expect_false(is.null(hstat_scales_palette(unname(HSTAT_PALETTE_GG))))
+  expect_equal(length(hstat_scales_palette(unname(HSTAT_PALETTE_GG))), 2L)
+  lg <- ggplot2::ggplot(d, ggplot2::aes(m, v, fill = m)) + ggplot2::geom_col()
+  for (sc in hstat_scales_palette(unname(HSTAT_PALETTE_GG), colour = FALSE,
+                                  name = "Traitements")) lg <- lg + sc
+  expect_equal(ggplot2::ggplot_build(lg)$plot$scales$scales[[1]]$name,
+               "Traitements")
+  set2 <- teintes("Set2")
+  expect_equal(length(unique(set2[!is.na(set2)])), 8L)
+  expect_gt(sum(is.na(set2)), 0L)
+
+  # UN NOM INCONNU NE POSE RIEN. Lui appliquer `scale_*_brewer()` ferait
+  # avertir ggplot a chaque trace et rendrait un graphique gris ; ne rien poser
+  # laisse l'echelle par defaut, qui est deja celle de ggplot2.
+  expect_null(hstat_scales_palette("PaletteQuiNExistePas"))
+  expect_null(hstat_scales_palette(""))
+  expect_null(hstat_scales_palette(NULL))
+  expect_equal(length(unique(teintes("PaletteQuiNExistePas"))), 15L)
+
+  # Le sens de l'echelle se choisit, et le libelle de legende voyage jusqu'a
+  # elle : c'est ce qui permet a l'aide commune de servir un module qui renomme
+  # sa legende plutot que d'en faire un cas particulier.
+  expect_equal(length(hstat_scales_palette("Set2")), 2L)
+  expect_equal(length(hstat_scales_palette("Set2", colour = FALSE)), 1L)
+  expect_s3_class(hstat_scales_palette("Set2", colour = FALSE,
+                                       name = "Traitements")[[1]], "Scale")
+})
+
+test_that("la palette ne se pose qu'à un endroit", {
+  # SIX MODULES PORTAIENT CHACUN LEUR LISTE ET LEUR `switch`, et ils avaient
+  # diverge : le post-hoc offrait la palette de ggplot2 sous le libelle
+  # « Défaut (gris) » -- qui est faux, elle rend quinze teintes distinctes --
+  # et les seuils d'efficacite ne l'offraient pas du tout.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  for (m in c("mod_tests.R", "mod_threshold.R", "mod_yield.R", "mod_dl50.R")) {
+    chemin <- .hstat_module_path(m)
+    skip_if_not(file.exists(chemin))
+    txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+    expect_true(grepl("hstat_palettes_choix(", txt, fixed = TRUE), info = m)
+    expect_true(grepl("hstat_scales_palette(", txt, fixed = TRUE), info = m)
+    # Plus aucun `scale_*_brewer()` pose a la main : c'est la recopie qui a
+    # fait diverger les six listes.
+    expect_false(grepl("scale_fill_brewer(palette = ", txt, fixed = TRUE), info = m)
+    expect_false(grepl("scale_colour_brewer(palette = ", txt, fixed = TRUE), info = m)
+    expect_false(grepl("scale_color_brewer(palette = ", txt, fixed = TRUE), info = m)
+    # Et le libelle faux ne revient pas.
+    expect_false(grepl("Défaut (gris)", txt, fixed = TRUE), info = m)
+  }
 })
 
 test_that("un nom de couleur seul n'entre pas au dictionnaire", {
