@@ -1033,6 +1033,71 @@ de `HSTAT_REPORT_SECTIONS` (`"donnees"`, `"qualite"`…), pas ses noms, qui sont
 les libellés affichés. Passer les noms vidait le rapport **en silence** — seul
 l'en-tête sortait.
 
+## Gain de rendement : deux rendements, deux gains, et ce n'est pas une redondance
+
+```
+Rendement = masse récoltée / surface
+Gain (%)  = (rendement du traitement − rendement du non traité)
+            / rendement du non traité × 100
+```
+
+Le calcul vit dans `Utils.R` (`hstat_rendement()`, `hstat_rdt_table()`,
+`hstat_rdt_gain()`, `hstat_rdt_complet()`) ; `mod_yield.R` ne fait que choisir,
+afficher et mettre en forme. C'est la règle du dépôt : une statistique posée
+dans un `observeEvent` n'est pas testable.
+
+### Le rendement global n'est pas la moyenne des rendements
+
+Le **global** rapporte la masse *totale* à la surface *totale* : il pondère
+chaque répétition par sa surface. Le **moyen** traite chaque répétition à
+égalité. Les deux coïncident à surfaces égales — un test le vérifie — et
+divergent dès qu'elles diffèrent. Aucun n'est plus juste que l'autre : ils
+répondent à deux questions, et le module donne les deux plutôt que d'en choisir
+un à la place de l'utilisateur. La divergence est **annoncée** quand elle
+apparaît, sinon elle passe pour une incohérence de calcul.
+
+C'est le même partage que « en commun » / « par répétition » des efficacités, et
+il porte le même piège : confondre les deux, c'est publier un artefact de plan.
+
+### Les unités se convertissent par une base commune
+
+Chaque unité porte son facteur vers le **kilogramme** ou le **mètre carré** ;
+une conversion est une multiplication et une division. Un tableau deux à deux
+aurait 49 cases pour sept unités de masse, dont 42 recopiées — et une faute de
+frappe y fausserait un chemin sans toucher les autres.
+
+**Le symbole se déclare, il ne se devine pas.** Le lire entre les parenthèses du
+libellé marche pour « hectare (ha) » et rate tout le reste : la parenthèse y
+porte la *définition*, pas l'abréviation, et l'axe s'intitulait « 1000 kg/ha »
+au lieu de « t/ha ». D'où `HSTAT_RDT_MASSE_SYM` et `HSTAT_RDT_SURFACE_SYM`, dont
+un test vérifie qu'ils suivent exactement les tables de facteurs.
+
+### Deux divisions par zéro, deux refus
+
+1. **Surface nulle, négative ou manquante** → le rendement serait `Inf` : une
+   valeur d'apparence normale en tableau, une barre démesurée en graphique qui
+   écraserait toutes les autres à l'échelle. La ligne est écartée **et comptée**.
+2. **Programme non traité de rendement nul** → le gain serait `Inf`, qui
+   passerait pour un gain colossal. Aucun gain n'est calculé, et on le dit.
+
+Et le non traité vaut **zéro de gain par définition** : la formule le donne bien,
+mais on l'écrit — cela protège des arrondis et dit ce qu'on affiche.
+
+Un gain **négatif** est un résultat, pas une erreur : la modalité fait moins bien
+que le non traité. Le borner à zéro masquerait précisément ce qu'il faut voir.
+D'où la ligne de référence à 0 sur les graphiques de gain — sans elle, un gain
+négatif se confond avec un petit gain positif — et `hstat_valeur_pos()`, qui rend
+l'ordonnée **et** le calage ensemble parce qu'une étiquette de valeur négative
+s'écrirait sinon du mauvais côté de la barre.
+
+### L'ordre des modalités est un réglage lu par le réactif
+
+Il était lu dans l'aide `ordonner()`, appelée depuis le réactif : la dépendance
+existe bien à l'exécution, mais elle ne se voit pas à la lecture du réactif — et
+c'est exactement ce qu'un balayage ne peut pas vérifier. Les réglages sont donc
+lus **dans** le réactif et passés en argument. Le test exige les trois
+conditions : déclaré dans l'interface, lu par le réactif du graphique, employé.
+
 ## Seuils d'efficacité : comparer chaque modalité au témoin
 
 `hstat_efficacite()` applique la formule d'Abbott — celle de l'agronomie, de la

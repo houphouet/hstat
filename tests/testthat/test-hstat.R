@@ -6577,6 +6577,255 @@ test_that("aucun reactif ne s'appelle lui-meme", {
   rdt    = c( 10, 20, 30, 40,   12, 22, 33, 44,  11, 21, 31, 41),
   stringsAsFactors = FALSE)
 
+# ===========================================================================
+#  RENDEMENT ET GAIN DE RENDEMENT
+# ===========================================================================
+
+test_that("le rendement suit la formule, quelle que soit l'unite de saisie", {
+  # Rendement (kg/ha) = masse (kg) / surface (ha). Une tonne sur un hectare
+  # fait mille kilogrammes a l'hectare, quelle que soit la facon de l'ecrire.
+  expect_equal(as.numeric(hstat_rendement(1000, 1)), 1000)
+  expect_equal(as.numeric(hstat_rendement(1, 1, "tonne (1000 kg)", "hectare (ha)")), 1000)
+  # 1 000 000 g = 1000 kg ; 100 ares = 1 ha.
+  expect_equal(as.numeric(hstat_rendement(1e6, 100, "gramme (g)", "are (100 m²)")), 1000)
+  # Et la sortie se choisit independamment de l'entree.
+  expect_equal(as.numeric(hstat_rendement(1000, 1, "kilogramme (kg)", "hectare (ha)",
+                                          "tonne (1000 kg)", "hectare (ha)")), 1)
+  expect_equal(as.numeric(hstat_rendement(1000, 1, "kilogramme (kg)", "hectare (ha)",
+                                          "quintal (100 kg)", "hectare (ha)")), 10)
+
+  # LE SYMBOLE SE DECLARE, IL NE SE DEVINE PAS. Le lire entre les parentheses
+  # du libelle donnait « 1000 kg/ha » au lieu de « t/ha » : la parenthese porte
+  # la definition, pas l'abreviation.
+  expect_equal(hstat_rdt_unite_libelle(), "kg/ha")
+  expect_equal(hstat_rdt_unite_libelle("tonne (1000 kg)", "hectare (ha)"), "t/ha")
+  expect_equal(hstat_rdt_unite_libelle("quintal (100 kg)", "are (100 m²)"), "q/a")
+
+  # Le symbole est accepte a l'entree comme le libelle complet : un appel ecrit
+  # a la main ne doit pas echouer pour une raison que rien n'affiche.
+  expect_equal(as.numeric(hstat_rendement(1000, 1, "kg", "ha")), 1000)
+  expect_equal(hstat_rdt_facteur("t", HSTAT_RDT_MASSE), 1000)
+  expect_true(is.na(hstat_rdt_facteur("stone", HSTAT_RDT_MASSE)))
+})
+
+test_that("une surface nulle rend le rendement indefini, jamais infini", {
+  # LE DEFAUT QUE CE TEST GARDE. La division rendrait `Inf` : une valeur
+  # d'apparence normale dans un tableau, et une barre demesuree dans un
+  # graphique -- qui ecraserait toutes les autres a l'echelle.
+  r <- hstat_rendement(c(100, 100, 100, 100), c(1, 0, -1, NA))
+  expect_false(any(is.infinite(r)))
+  expect_equal(as.numeric(r[1]), 100)
+  expect_true(all(is.na(r[2:4])))
+  # Les lignes ecartees sont COMPTEES : les taire ferait croire a un jeu
+  # complet.
+  expect_equal(attr(r, "invalides"), 3L)
+
+  # Une unite inconnue ne fabrique pas un chiffre au hasard.
+  u <- hstat_rendement(1000, 1, "stone")
+  expect_true(all(is.na(u)))
+  expect_true(nzchar(attr(u, "message")))
+})
+
+test_that("le rendement global et le rendement moyen coincident a surfaces egales", {
+  d <- data.frame(
+    Traitement = rep(c("T0", "T1"), each = 3),
+    Masse = c(900, 1000, 1100, 1500, 1600, 1700),
+    Surface = rep(1, 6), Bloc = rep(c("B1", "B2", "B3"), 2),
+    stringsAsFactors = FALSE)
+  r <- hstat_rdt_table(d, "Traitement", "Masse", "Surface", var_repetition = "Bloc")
+  expect_equal(r$Rendement_global, r$Rendement_moyen)
+  expect_equal(r$Rendement_global, c(1000, 1600))
+  expect_equal(r$Repetitions, c(3L, 3L))
+  expect_false(grepl("^Attention", attr(r, "message")))
+
+  # A SURFACES INEGALES ILS DIVERGENT, et le module le dit. Le global pondere
+  # chaque repetition par sa surface, la moyenne les traite a egalite : aucun
+  # n'est faux, mais les confondre l'est.
+  d2 <- d; d2$Surface <- c(1, 2, 3, 1, 1, 1)
+  r2 <- hstat_rdt_table(d2, "Traitement", "Masse", "Surface")
+  expect_false(isTRUE(all.equal(r2$Rendement_global[1], r2$Rendement_moyen[1])))
+  expect_match(attr(r2, "message"), "surfaces varient")
+})
+
+test_that("le gain suit la formule et vaut zero pour le programme non traite", {
+  g <- hstat_rdt_gain(c(1000, 1600, 2000), c("T0", "T1", "T2"), "T0")
+  expect_equal(as.numeric(g), c(0, 60, 100))
+  # LE NON TRAITE VAUT ZERO PAR DEFINITION, et on l'ecrit plutot que de s'en
+  # remettre a l'arrondi de la division.
+  expect_identical(as.numeric(g[1]), 0)
+  expect_equal(attr(g, "reference"), 1000)
+
+  # Un gain negatif est un RESULTAT : la modalite fait moins bien que le
+  # non traite. Le borner a zero masquerait ce qu'il faut voir.
+  gn <- hstat_rdt_gain(c(1000, 400), c("T0", "T1"), "T0")
+  expect_equal(as.numeric(gn[2]), -60)
+})
+
+test_that("un programme non traite a rendement nul rend le gain indefini, pas infini", {
+  # Division par zero : `Inf` passerait pour un gain colossal.
+  g <- hstat_rdt_gain(c(0, 100, 200), c("T0", "T1", "T2"), "T0")
+  expect_true(all(is.na(g)))
+  expect_false(any(is.infinite(g)))
+  expect_match(attr(g, "message"), "nul")
+
+  # Reference introuvable, reference non calculable : on refuse en le disant.
+  expect_match(attr(hstat_rdt_gain(c(1, 2), c("A", "B"), "T0"), "message"),
+               "non trait")
+  expect_true(all(is.na(hstat_rdt_gain(c(NA, 2), c("T0", "B"), "T0"))))
+})
+
+test_that("hstat_rdt_complet rend les deux rendements et les deux gains", {
+  d <- data.frame(
+    Traitement = rep(c("T0", "T1", "T2"), each = 2),
+    Masse = c(900, 1100, 1400, 1600, 1900, 2100),
+    Surface = rep(1, 6), stringsAsFactors = FALSE)
+  r <- hstat_rdt_complet(d, "Traitement", "Masse", "Surface", "T0")
+  for (col in c("Rendement_global", "Rendement_moyen", "Gain_global", "Gain_moyen"))
+    expect_true(col %in% names(r), info = col)
+  expect_equal(r$Rendement_global, c(1000, 1500, 2000))
+  expect_equal(r$Gain_global, c(0, 50, 100))
+  expect_equal(r$Gain_moyen, r$Gain_global)      # surfaces egales
+  expect_equal(attr(r, "unite"), "kg/ha")
+
+  # L'unite de sortie traverse tout le calcul, gains compris (qui n'en
+  # dependent pas : un pourcentage est sans unite).
+  rt <- hstat_rdt_complet(d, "Traitement", "Masse", "Surface", "T0",
+                          sortie_masse = "tonne (1000 kg)")
+  expect_equal(rt$Rendement_global, c(1, 1.5, 2))
+  expect_equal(rt$Gain_global, c(0, 50, 100))
+  expect_equal(attr(rt, "unite"), "t/ha")
+})
+
+test_that("le module de rendement refuse clairement ce qu'il ne peut pas faire", {
+  d <- data.frame(T = c("A", "B"), M = c(1, 2), S = c(1, 1), stringsAsFactors = FALSE)
+  att <- function(x) attr(x, "message")
+  expect_match(att(hstat_rdt_table(NULL, "T", "M", "S")), "Aucune donn")
+  expect_match(att(hstat_rdt_table(d, "", "M", "S")), "traitements")
+  expect_match(att(hstat_rdt_table(d, "T", "Absente", "S")), "masse")
+  expect_match(att(hstat_rdt_table(d, "T", "M", "Absente")), "surface")
+  # Une variable de repetition demandee mais introuvable etait ignoree EN
+  # SILENCE dans le module des efficacites : meme piege ici, meme refus.
+  expect_match(att(hstat_rdt_table(d, "T", "M", "S", var_repetition = "Zzz")),
+               "introuvable")
+  # Chaque refus est une phrase COMPLETE au dictionnaire : `trf()` ne traduit
+  # jamais ses arguments, un gabarit « Choisissez la variable %s » rendrait une
+  # phrase a moitie anglaise.
+  dico <- trimws(hstat_i18n_load()$fr)
+  skip_if(!length(dico), "dictionnaire introuvable")
+  for (m in c("Choisissez la variable qui porte les traitements.",
+              "Choisissez la variable qui porte la masse récoltée.",
+              "Choisissez la variable qui porte la surface."))
+    expect_true(m %in% dico, info = m)
+})
+
+test_that("les unites de rendement sont coherentes entre facteurs et symboles", {
+  # Une unite ajoutee d'un cote et pas de l'autre ferait tomber le libelle
+  # d'axe sur le nom complet, ou pire : chercher un facteur inexistant.
+  expect_identical(names(HSTAT_RDT_MASSE), names(HSTAT_RDT_MASSE_SYM))
+  expect_identical(names(HSTAT_RDT_SURFACE), names(HSTAT_RDT_SURFACE_SYM))
+  expect_true(all(HSTAT_RDT_MASSE > 0))
+  expect_true(all(HSTAT_RDT_SURFACE > 0))
+  # Les unites de BASE valent 1 : tout le reste s'y rapporte.
+  expect_equal(unname(HSTAT_RDT_MASSE[["kilogramme (kg)"]]), 1)
+  expect_equal(unname(HSTAT_RDT_SURFACE[["mètre carré (m²)"]]), 1)
+  # Aucun symbole en double : deux unites de meme symbole rendraient le premier
+  # facteur trouve, en silence.
+  expect_false(any(duplicated(HSTAT_RDT_MASSE_SYM)))
+  expect_false(any(duplicated(HSTAT_RDT_SURFACE_SYM)))
+  # Les conversions connues, verifiees a la main.
+  expect_equal(unname(HSTAT_RDT_SURFACE[["hectare (ha)"]]), 10000)
+  expect_equal(unname(HSTAT_RDT_MASSE[["quintal (100 kg)"]]), 100)
+})
+
+test_that("le module de rendement est cable de bout en bout", {
+  # Un module qui n'est ni au menu, ni dans les onglets, ni appele par le
+  # serveur existe dans le depot et nulle part a l'ecran.
+  root <- .hstat_repo_root(); skip_if(is.na(root))
+  ux  <- paste(readLines(file.path(root, "inst", "app", "UX.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  srv <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl('tabName = "yield"', ux, fixed = TRUE))
+  expect_true(grepl('mod_yield_ui("yield")', ux, fixed = TRUE))
+  expect_true(grepl('mod_yield_server("yield", values)', srv, fixed = TRUE))
+  expect_true(file.exists(.hstat_module_path("mod_yield.R")))
+})
+
+test_that("chaque option du graphique de rendement est declaree, lue ET utilisee", {
+  # TROIS CONDITIONS, PAS DEUX. Un reglage absent de l'interface est
+  # inatteignable ; un reglage que le reactif ne LIT pas se change sans que
+  # l'image bouge ; et un reglage lu mais jamais UTILISE ne fait rien non plus
+  # -- c'est le cas le plus trompeur, puisque le code a l'air branche.
+  chemin <- .hstat_module_path("mod_yield.R")
+  skip_if_not(file.exists(chemin))
+  txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  ex <- parse(chemin, keep.source = FALSE)
+  corps <- NULL
+  v <- function(n) {
+    if (!is.null(corps) || !is.call(n)) return(invisible())
+    if (identical(paste(deparse(n[[1]]), collapse = ""), "<-") && is.name(n[[2]]) &&
+        identical(as.character(n[[2]]), "graphique")) { corps <<- n[[3]]; return(invisible()) }
+    for (i in seq_along(n)) tryCatch(v(n[[i]]), error = function(e) NULL)
+  }
+  for (k in seq_along(ex)) v(ex[[k]])
+  expect_false(is.null(corps))
+  b <- paste(deparse(corps, width.cutoff = 500), collapse = "\n")
+
+  reglages <- c("yieldPlotType", "yieldPalette", "yieldCouleurUnique", "yieldTheme",
+                "yieldAlpha", "yieldLargeur", "yieldPointSize", "yieldContour",
+                "yieldContourCouleur", "yieldContourEpaisseur",
+                "yieldTitre", "yieldSousTitre", "yieldLabelX", "yieldLabelY",
+                "yieldLegendeTitre", "yieldTitrePos", "yieldSousTitrePos",
+                "yieldTitreStyle", "yieldSousTitreStyle", "yieldAxisTitleStyle",
+                "yieldAxisTextXStyle", "yieldAxisTextYStyle",
+                "yieldTitreSize", "yieldSousTitreSize", "yieldAxisTitleSize",
+                "yieldAxisTextSize",
+                "yieldValeurs", "yieldValeursDec", "yieldValeursSize",
+                "yieldValeursCouleur", "yieldValeursStyle", "yieldValeursPos",
+                "yieldAngleX", "yieldAngleY", "yieldOrdre", "yieldLimites",
+                "yieldYMin", "yieldYMax", "yieldPasY", "yieldGrilleMaj",
+                "yieldGrilleMin", "yieldLigneZero", "yieldErreurs", "yieldErreurType",
+                "yieldLegendePos", "yieldLegendeTitreSize", "yieldLegendeTexteSize")
+  for (r in reglages) {
+    expect_true(grepl(sprintf('ns("%s")', r), txt, fixed = TRUE),
+                label = paste("declare dans l'interface :", r))
+    expect_true(grepl(sprintf("input$%s", r), b, fixed = TRUE),
+                label = paste("lu par le reactif du graphique :", r))
+  }
+  # Les reglages d'EXPORT sont lus par le telechargement, pas par le graphique.
+  for (r in c("yieldExportW", "yieldExportH", "yieldExportFormat", "yieldExportDPI")) {
+    expect_true(grepl(sprintf('ns("%s")', r), txt, fixed = TRUE), label = r)
+    expect_true(grepl(sprintf("input$%s", r), txt, fixed = TRUE), label = r)
+  }
+  # Un reglage declare mais masque n'existe pas.
+  expect_false(grepl("display *: *none", txt))
+})
+
+test_that("l'export du rendement offre tous les formats et la resolution demandee", {
+  chemin <- .hstat_module_path("mod_yield.R")
+  skip_if_not(file.exists(chemin))
+  lignes <- readLines(chemin, warn = FALSE, encoding = "UTF-8")
+  txt <- paste(lignes, collapse = "\n")
+  # Le selecteur de format ne recopie pas sa propre liste : c'est ce qui
+  # laissait chaque module en inventer une plus courte.
+  expect_true(grepl("hstat_format_input(ns(\"yieldExportFormat\")", txt, fixed = TRUE))
+  # Sept formats, dont trois vectoriels.
+  expect_gte(length(HSTAT_FORMATS_IMG), 7L)
+  # Le plancher est a 300 DPI : en dessous, une figure est nette a l'ecran et
+  # floue sur papier, et le defaut ne se voit qu'une fois le document remis.
+  i <- grep('ns("yieldExportDPI")', lignes, fixed = TRUE)
+  expect_length(i, 1L)
+  m <- paste(lignes[i:(i + 1)], collapse = " ")
+  expect_true(grepl("min = 300", m, fixed = TRUE))
+  # Le plafond est celui de l'application, il ne se negocie pas au point
+  # d'appel : `hstat_dpi_input()` n'accepte pas d'argument `max`.
+  expect_false(grepl("max = ", m, fixed = TRUE))
+  expect_equal(HSTAT_DPI_MAX, 20000L)
+  # L'ecriture passe par le chemin commun, qui garantit un fichier valide.
+  expect_true(grepl("hstat_ecrire_image(file, graphique(), fmt", txt, fixed = TRUE))
+  expect_true(grepl("hstat_export_dims(input$yieldExportW", txt, fixed = TRUE))
+})
+
 test_that("l'efficacite suit la formule, sur toutes les modalites", {
   d <- .hstat_essai()
   r <- hstat_efficacite(d, "trt", "degats", "Temoin")
