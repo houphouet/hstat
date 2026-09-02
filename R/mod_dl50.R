@@ -2122,19 +2122,15 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
     # s'arretent a 8, 9 ou 12 couleurs, et au-dela ggplot avertit puis rend les
     # essais surnumeraires en gris. Sur un graphique nomme « plusieurs essais »,
     # c'est le cas qu'on rencontre pour de vrai.
-    if (identical(as.character(o$palette), unname(HSTAT_PALETTE_GG))) {
-      p <- p + ggplot2::scale_colour_hue() + ggplot2::scale_fill_hue()
-    } else {
-      # Une palette inconnue de RColorBrewer fait AVERTIR ggplot a chaque trace
-      # et rend un graphique gris. L'interface n'offre que des noms valides,
-      # mais la fonction est publique : on retombe sur le defaut plutot que de
-      # laisser un avertissement s'accumuler dans la console d'un serveur
-      # partage.
-      pal <- if (o$palette %in% c(HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE))
-        o$palette else HSTAT_DL50_OPT_DEFAUT$palette
-      p <- p + ggplot2::scale_colour_brewer(palette = pal) +
-               ggplot2::scale_fill_brewer(palette = pal)
-    }
+    # Une palette inconnue de RColorBrewer fait AVERTIR ggplot a chaque trace et
+    # rend un graphique gris. L'interface n'offre que des noms valides, mais la
+    # fonction est publique : on retombe sur le defaut du module plutot que de
+    # laisser un avertissement s'accumuler dans la console d'un serveur partage.
+    pal <- as.character(o$palette %||% "")[1]
+    if (!identical(pal, unname(HSTAT_PALETTE_GG)) &&
+        !pal %in% c(HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE))
+      pal <- HSTAT_DL50_OPT_DEFAUT$palette
+    for (sc in hstat_scales_palette(pal)) p <- p + sc
   }
   # Pose EN DERNIER : un `p + couche` reconstruit l'objet et emporterait
   # l'attribut avec lui.
@@ -2533,9 +2529,8 @@ mod_dl50_ui <- function(id) {
                                   value = 12, min = 6, max = 30, step = 1),
               shiny::checkboxInput(ns("gGrille"), "Afficher la grille", TRUE),
               shiny::selectInput(ns("gPalette"), "Palette (plusieurs essais)",
-                                 choices = c(HSTAT_PALETTE_GG,
-                                             HSTAT_PALETTES_QUALI),
-                                 selected = "Set1"),
+                                 choices = hstat_palettes_choix(degrades = FALSE),
+                                 selected = unname(HSTAT_PALETTE_GG)),
               colourInput(ns("gCouleur"), "Couleur (un seul essai)",
                                         value = "#2e86c1"),
               shiny::textInput(ns("gLegendeTitre"), "Titre de la légende"),

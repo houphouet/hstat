@@ -281,16 +281,14 @@ mod_threshold_ui <- function(id) {
                             shiny::conditionalPanel(
               ns = ns,
                               condition = "input.thresholdBarColor == 'palette'",
+                              # La liste vient du catalogue commun : celle qui
+                              # vivait ici n'offrait AUCUNE palette non
+                              # plafonnee, et un essai a plus de huit
+                              # modalites y perdait ses dernieres barres en
+                              # gris.
                               shiny::selectInput(ns("thresholdPalette"), "Choisir une palette :",
-                                          choices = list(
-                                            "Palettes qualitatives" = c("Set1" = "Set1", "Set2" = "Set2", "Set3" = "Set3",
-                                                                        "Pastel1" = "Pastel1", "Pastel2" = "Pastel2",
-                                                                        "Paired" = "Paired", "Dark2" = "Dark2", "Accent" = "Accent"),
-                                            "Palettes divergentes" = c("Spectral" = "Spectral", "RdYlBu" = "RdYlBu", "RdBu" = "RdBu"),
-                                            "Palettes séquentielles" = c("Blues" = "Blues", "Greens" = "Greens", 
-                                                                         "Oranges" = "Oranges", "Purples" = "Purples")
-                                          ),
-                                          selected = "Set1")
+                                          choices = hstat_palettes_choix(),
+                                          selected = unname(HSTAT_PALETTE_GG))
                             ),
                             
                             shiny::conditionalPanel(
@@ -1473,10 +1471,14 @@ mod_threshold_server <- function(id, values) {
               ggplot2::scale_fill_discrete(name = input$thresholdLegendTitle %||% "Traitements",
                                   labels = legend_labels)
           } else if(input$thresholdBarColor == "palette") {
-            p <- p + do.call(ggplot2::geom_col, c(list(mapping = ggplot2::aes(fill = Treatment), width = bar_width, na.rm = TRUE), sty_barre)) +
-              ggplot2::scale_fill_brewer(palette = input$thresholdPalette %||% "Set1",
-                                name = input$thresholdLegendTitle %||% "Traitements",
-                                labels = legend_labels)
+            p <- p + do.call(ggplot2::geom_col, c(list(mapping = ggplot2::aes(fill = Treatment), width = bar_width, na.rm = TRUE), sty_barre))
+            # `name` et `labels` voyagent jusqu'a l'echelle : c'est ce qui
+            # permet a l'aide commune de servir un site qui renomme sa legende.
+            for (sc in hstat_scales_palette(input$thresholdPalette %||% unname(HSTAT_PALETTE_GG),
+                                            colour = FALSE,
+                                            name = input$thresholdLegendTitle %||% "Traitements",
+                                            labels = legend_labels))
+              p <- p + sc
           } else if(input$thresholdBarColor == "custom") {
             custom_colors <- sapply(seq_along(levels(plot_data$Treatment)), function(i) {
               color_input <- input[[paste0("thresholdCustomColor_", i)]]

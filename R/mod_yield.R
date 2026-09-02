@@ -42,6 +42,24 @@ mod_yield_ui <- function(id) {
         title = shiny::tagList(shiny::icon("wheat-awn"), " Configuration de l'analyse"),
         status = "primary", width = 4, solidHeader = TRUE, collapsible = TRUE,
 
+        # LA RECOLTE SE PESE AVANT D'ETRE MISE EN FICHIER. Un essai de dix
+        # traitements sur trois blocs tient en trente lignes : exiger un CSV
+        # pour trente nombres oblige a ouvrir un tableur, a le nommer, a le
+        # relire -- pour un calcul de trois minutes. La saisie directe est
+        # celle de l'onglet DL50/CL50, et pour la meme raison.
+        .hstat_opt_section(
+          "Source des données", "database", "#2c3e50", "#eceff1",
+          shiny::radioButtons(ns("yieldSource"), NULL,
+                       choices = c("Jeu de données chargé" = "fichier",
+                                   "Saisie manuelle de la récolte" = "saisie"),
+                       selected = "fichier"),
+          shiny::conditionalPanel(
+            ns = ns, condition = "input.yieldSource == 'saisie'",
+            shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                       "Le tableau se remplit dans l'onglet « Saisie ». Le fichier chargé, lui, reste intact.")),
+          shiny::uiOutput(ns("yieldSourceNote"))
+        ),
+
         .hstat_opt_section(
           "Colonnes de la récolte", "table-columns", "#2980b9", "#eaf3fa",
           shiny::uiOutput(ns("yieldModaliteUI")),
@@ -149,6 +167,38 @@ mod_yield_ui <- function(id) {
           ),
 
           shiny::tabPanel(
+            title = shiny::tagList(shiny::icon("keyboard"), " Saisie"),
+            value = "saisie",
+            shiny::br(),
+            # UN SEUL ARGUMENT, PAS TROIS. Des enfants texte adjacents ne font
+            # qu'un seul noeud dans le DOM : le traducteur du navigateur, qui ne
+            # remplace que des correspondances entieres, ne verrait aucun des
+            # trois morceaux.
+            shiny::helpText("Double-cliquez une cellule pour la modifier. La modalité est du texte, la masse et la surface des nombres ; la répétition est facultative."),
+            DT::DTOutput(ns("yieldSaisie")),
+            shiny::br(),
+            shiny::actionButton(ns("yieldLigne"),
+              shiny::tagList(shiny::icon("plus"), " Ligne"), class = "btn-sm"),
+            shiny::actionButton(ns("yieldVider"),
+              shiny::tagList(shiny::icon("eraser"), " Vider"), class = "btn-sm"),
+            shiny::actionButton(ns("yieldSaisieGo"),
+              shiny::tagList(shiny::icon("play"), " Analyser cette saisie"),
+              class = "btn-primary btn-sm"),
+            shiny::hr(),
+            .hstat_opt_section("Coller depuis un tableur", "clipboard", "#16a085", "#e8f6f3",
+              shiny::helpText("Copiez trois colonnes — modalité, masse récoltée, surface — et collez-les ici ; une quatrième colonne est lue comme la répétition. La ligne d'en-tête est reconnue et ignorée, et la virgule décimale d'un tableur français aussi."),
+              shiny::textAreaInput(ns("yieldCollage"), NULL, rows = 5,
+                placeholder = "T0\t12,5\t0,25\nT1\t18,3\t0,25\nT2\t17,1\t0,25",
+                width = "100%"),
+              shiny::actionButton(ns("yieldCollerGo"),
+                shiny::tagList(shiny::icon("paste"), " Remplir le tableau"),
+                class = "btn-primary"),
+              shiny::actionButton(ns("yieldCollerAjout"),
+                shiny::tagList(shiny::icon("plus"), " Ajouter à la suite"),
+                class = "btn-sm"))
+          ),
+
+          shiny::tabPanel(
             title = shiny::tagList(shiny::icon("circle-question"), " Méthode"),
             value = "aide",
             shiny::br(),
@@ -181,12 +231,15 @@ mod_yield_ui <- function(id) {
                                        "Points + barres d'erreur" = "point",
                                        "Sucettes (lollipop)" = "lollipop"),
                            selected = "bar"),
+              # LA PALETTE PAR DEFAUT DE ggplot2 EST OFFERTE, ET EN PREMIER.
+              # C'est la seule qui ne PLAFONNE pas : les qualitatives de Brewer
+              # s'arretent a 8, 9 ou 12 couleurs, et au-dela ggplot avertit puis
+              # rend les modalites surnumeraires en GRIS. Un essai a quinze
+              # traitements n'a rien d'exotique en agronomie.
               shiny::selectInput(ns("yieldPalette"), "Palette de couleurs",
-                          choices = list(
-                            "Sans palette" = c("Couleur unique" = "unique"),
-                            "Teintes vives (groupes distincts)" = HSTAT_PALETTES_QUALI,
-                            "Dégradés (valeurs ordonnées)" = HSTAT_PALETTES_DEGRADE),
-                          selected = "Set2"),
+                          choices = c(list("Sans palette" = c("Couleur unique" = "unique")),
+                                      hstat_palettes_choix()),
+                          selected = unname(HSTAT_PALETTE_GG)),
               shiny::conditionalPanel(
                 ns = ns, condition = "input.yieldPalette == 'unique'",
                 colourInput(ns("yieldCouleurUnique"), "Couleur", value = "#2E86C1")),
@@ -368,7 +421,110 @@ mod_yield_server <- function(id, values) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    donnees <- shiny::reactive(values$filteredData)
+    # ------------------------------------------------------------------ saisie
+    saisie <- shiny::reactiveVal(hstat_rdt_saisie_vide())
+
+    # LA TABLE N'EST CONSTRUITE QU'UNE FOIS, et mise a jour ensuite par son
+    # proxy. Relire `saisie()` dans le rendu la reconstruirait a CHAQUE cellule
+    # modifiee : la cellule en cours d'edition est alors detruite sous le
+    # curseur. C'est l'idiome de l'onglet DL50/CL50, et le seul qui rende la
+    # saisie utilisable -- d'ou le `isolate()`.
+    output$yieldSaisie <- DT::renderDT({
+      DT::datatable(shiny::isolate(saisie()), rownames = FALSE,
+                    editable = list(target = "cell"), selection = "none",
+                    colnames = c(tr("Modalité"), tr("Masse récoltée"),
+                                 tr("Surface récoltée"), tr("Répétition")),
+                    options = list(dom = "t", pageLength = 100, ordering = FALSE))
+    })
+    proxy_saisie <- DT::dataTableProxy("yieldSaisie")
+    shiny::observeEvent(saisie(), {
+      DT::replaceData(proxy_saisie, saisie(), resetPaging = FALSE, rownames = FALSE)
+    }, ignoreInit = TRUE)
+
+    shiny::observeEvent(input$yieldSaisie_cell_edit, {
+      info <- input$yieldSaisie_cell_edit
+      d <- saisie()
+      j <- info$col + 1L
+      if (j < 1L || j > ncol(d)) return()
+      # LA MODALITE ET LA REPETITION SONT DU TEXTE, la masse et la surface des
+      # nombres. Passer tout au meme convertisseur ferait disparaitre le nom du
+      # traitement des qu'il ne serait pas un nombre -- c'est-a-dire toujours.
+      d[info$row, j] <- if (names(d)[j] %in% c("Masse", "Surface"))
+        suppressWarnings(as.numeric(gsub(",", ".", info$value, fixed = TRUE)))
+      else trimws(as.character(info$value))
+      saisie(d)
+    })
+
+    shiny::observeEvent(input$yieldLigne, {
+      d <- rbind(saisie(), hstat_rdt_saisie_vide(1L))
+      rownames(d) <- NULL
+      saisie(d)
+    })
+    shiny::observeEvent(input$yieldVider, saisie(hstat_rdt_saisie_vide()))
+
+    # Le bouton ne calcule rien : il BASCULE LA SOURCE. Le calcul suit la
+    # source, et l'utilisateur qui vient de remplir le tableau ne doit pas
+    # avoir a remonter jusqu'au bouton radio pour voir son resultat.
+    shiny::observeEvent(input$yieldSaisieGo, {
+      shiny::updateRadioButtons(session, "yieldSource", selected = "saisie")
+      shiny::updateTabsetPanel(session, "yieldTabs", selected = "rendements")
+    })
+
+    .yield_coller <- function(ajouter) {
+      r <- hstat_rdt_coller(input$yieldCollage)
+      if (!isTRUE(r$ok)) {
+        shiny::showNotification(r$message, type = "warning", duration = 10)
+        return()
+      }
+      tab <- r$table
+      if (!"Repetition" %in% names(tab)) tab$Repetition <- NA_character_
+      d <- if (isTRUE(ajouter)) {
+        cur <- saisie()
+        # Les lignes entierement vides du tableau de depart ne sont pas des
+        # donnees : les garder devant le collage ferait un tableau a trous.
+        cur <- cur[rowSums(!is.na(cur) & cur != "") > 0, , drop = FALSE]
+        rbind(cur, tab[names(cur)])
+      } else tab
+      rownames(d) <- NULL
+      saisie(d)
+      shiny::updateTextAreaInput(session, "yieldCollage", value = "")
+      shiny::updateRadioButtons(session, "yieldSource", selected = "saisie")
+      shiny::showNotification(
+        paste0(
+          trf("%d ligne(s) collée(s) ; la virgule y a été lue comme %s.",
+              r$lignes, if (identical(r$decimale, ","))
+                tr("une décimale") else tr("un séparateur")),
+          # L'EN-TETE ECARTE SE DIT. Sa reconnaissance est une heuristique :
+          # taire la ligne sautee ferait disparaitre une observation en
+          # silence si elle n'en etait pas un.
+          if (isTRUE(r$entete))
+            paste0(" ", tr("La première ligne a été lue comme un en-tête et écartée."))
+          else ""),
+        type = "message", duration = 7)
+    }
+    shiny::observeEvent(input$yieldCollerGo, .yield_coller(FALSE))
+    shiny::observeEvent(input$yieldCollerAjout, .yield_coller(TRUE))
+
+    saisie_utile <- shiny::reactive(hstat_rdt_saisie_propre(saisie()))
+
+    # LA SOURCE EST UN CHOIX, PAS UNE DEVINETTE. Basculer tout seul sur la
+    # saisie des qu'un fichier manque -- ou l'inverse -- ferait changer les
+    # chiffres sans que personne ait rien demande.
+    donnees <- shiny::reactive({
+      if (identical(input$yieldSource %||% "fichier", "saisie"))
+        return(saisie_utile())
+      values$filteredData
+    })
+
+    output$yieldSourceNote <- shiny::renderUI({
+      if (!identical(input$yieldSource %||% "fichier", "saisie")) return(NULL)
+      n <- NROW(saisie_utile())
+      shiny::div(class = if (n) "callout callout-info" else "callout callout-warning",
+          style = "padding:8px 12px;margin:6px 0 0 0;font-size:13px;",
+          shiny::icon("keyboard"), " ",
+          if (n) trf("%d ligne(s) exploitable(s) dans le tableau de saisie.", n)
+          else tr("Le tableau de saisie est vide : renseignez au moins la modalité, la masse et la surface."))
+    })
 
     cols_num <- shiny::reactive({
       d <- donnees(); if (is.null(d)) return(character(0))
@@ -380,23 +536,33 @@ mod_yield_server <- function(id, values) {
     })
 
     # ---------------------------------------------------------------- selecteurs
+    # LE TABLEAU DE SAISIE PORTE DES NOMS CONNUS : les proposer est gratuit, et
+    # offrir la premiere colonne venue obligerait a re-choisir trois fois ce que
+    # le module vient lui-meme de nommer.
+    .prefere <- function(nom, dispo, repli) {
+      if (nom %in% dispo) nom else repli
+    }
     output$yieldModaliteUI <- shiny::renderUI({
+      cn <- cols_toutes()
       shiny::selectInput(ns("yieldModalite"), "Variable des traitements (modalités)",
-                  choices = cols_toutes(), selected = cols_toutes()[1])
+                  choices = cn, selected = .prefere("Modalite", cn, cn[1]))
     })
     output$yieldMasseUI <- shiny::renderUI({
       n <- cols_num()
       shiny::selectInput(ns("yieldMasse"), "Masse récoltée", choices = n,
-                  selected = if (length(n)) n[1] else NULL)
+                  selected = if (length(n)) .prefere("Masse", n, n[1]) else NULL)
     })
     output$yieldSurfaceUI <- shiny::renderUI({
       n <- cols_num()
       shiny::selectInput(ns("yieldSurface"), "Surface récoltée", choices = n,
-                  selected = if (length(n) > 1) n[2] else NULL)
+                  selected = if (length(n) > 1) .prefere("Surface", n, n[2])
+                             else if (length(n)) .prefere("Surface", n, n[1]) else NULL)
     })
     output$yieldRepetitionUI <- shiny::renderUI({
+      cn <- cols_toutes()
       shiny::selectInput(ns("yieldRepetition"), "Répétition (facultatif)",
-                  choices = c("(aucune)" = "", cols_toutes()), selected = "")
+                  choices = c("(aucune)" = "", cn),
+                  selected = .prefere("Repetition", cn, ""))
     })
 
     modalites <- shiny::reactive({
@@ -647,8 +813,11 @@ mod_yield_server <- function(id, values) {
         p <- p + ggplot2::scale_fill_manual(values = rep(u, nrow(d))) +
           ggplot2::scale_colour_manual(values = rep(u, nrow(d)))
       } else {
-        p <- p + ggplot2::scale_fill_brewer(palette = pal) +
-          ggplot2::scale_colour_brewer(palette = pal)
+        # Le choix des echelles vit dans `hstat_scales_palette()` : « ggplot2 »
+        # se pose par `scale_*_hue()`, un nom de Brewer par `scale_*_brewer()`,
+        # et un nom inconnu ne pose rien plutot que de faire avertir ggplot a
+        # chaque trace.
+        for (sc in hstat_scales_palette(pal)) p <- p + sc
       }
 
       lim <- if (isTRUE(input$yieldLimites))

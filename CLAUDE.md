@@ -1163,6 +1163,181 @@ c'est exactement ce qu'un balayage ne peut pas vérifier. Les réglages sont don
 lus **dans** le réactif et passés en argument. Le test exige les trois
 conditions : déclaré dans l'interface, lu par le réactif du graphique, employé.
 
+### La récolte se pèse avant d'être mise en fichier
+
+Un essai de dix traitements sur trois blocs tient en trente lignes. Exiger un
+CSV pour trente nombres oblige à ouvrir un tableur, à le nommer, à le relire —
+pour un calcul de trois minutes. Le module offre donc les **deux** sources
+(`yieldSource`), et la saisie manuelle reprend l'idiome de l'onglet DL50/CL50 :
+tableau `DT` éditable, mise à jour par `dataTableProxy`, boutons « Ligne » et
+« Vider », collage depuis un tableur.
+
+**`isolate()` dans le `renderDT` n'est pas une précaution, c'est la condition.**
+Relire `saisie()` dans le rendu reconstruit la table à chaque cellule modifiée :
+la cellule en cours d'édition est détruite sous le curseur.
+
+**La source est un choix, jamais une devinette.** Basculer tout seul sur la
+saisie dès qu'un fichier manque — ou l'inverse — ferait changer les chiffres
+sans que personne ait rien demandé. Un test lit le corps du réactif `donnees()`
+lui-même : poser le choix ailleurs le laisserait sans effet, et l'assertion
+passerait quand même si elle balayait tout le fichier (le bloc voisin lit la
+même entrée).
+
+**La modalité est du texte, la masse et la surface des nombres.** Passer toutes
+les colonnes au même convertisseur numérique fait disparaître le nom du
+traitement dès qu'il n'est pas un nombre — c'est-à-dire toujours.
+
+#### L'en-tête se juge sur les colonnes qui doivent être numériques
+
+La règle du collage des DL50 — « aucun nombre sur la ligne entière » — vaut pour
+trois colonnes numériques. Ici la première ne l'est jamais : elle n'apprend rien
+sur la nature de la ligne. Mais son **en-tête**, lui, peut parfaitement être un
+nombre : une campagne (« 2024 »), un numéro d'essai, un code de parcelle. La
+règle des DL50 refuserait alors d'y voir un en-tête, le titre des colonnes
+partirait dans les données, et le refus parlerait d'une masse illisible sans
+jamais dire qu'il s'agissait de l'en-tête.
+
+Corollaire : la reconnaissance est une **heuristique**, donc la ligne écartée se
+dit (`r$entete`). Une observation dont la masse serait illisible lui ressemble ;
+la taire ferait disparaître une ligne sans cause visible.
+
+Même règle que partout ailleurs pour la virgule : elle n'est un séparateur que
+si la ligne ne porte **ni** tabulation **ni** point-virgule. « T0;12,5;0,25 »
+sort d'un tableur français, la virgule y est la décimale.
+
+#### Zéro ligne est une demande légitime
+
+`hstat_rdt_saisie_vide(0L)` doit rendre **zéro** ligne : c'est la forme que rend
+`hstat_rdt_saisie_propre()` quand rien n'est exploitable. Un plancher à une
+ligne y glissait une ligne vide — donc une modalité « NA » parmi les
+traitements, exactement ce que le tri devait écarter. Signalé par le test de
+mutation, pas à l'écran.
+
+### La palette par défaut de ggplot2 ne passe pas par Brewer
+
+`HSTAT_PALETTE_GG` se pose par `scale_*_hue()`, jamais par `scale_*_brewer()` —
+la passer au second la ferait retomber en silence sur une autre palette, et
+l'utilisateur croirait avoir changé de couleurs. Elle ne doit surtout **pas**
+rejoindre `HSTAT_PALETTES_QUALI` : un test vérifie que chaque entrée de cette
+liste existe chez RColorBrewer, et un nom inconnu ferait tomber tout le
+graphique de qui l'aurait choisi.
+
+Ce qu'elle apporte : les palettes qualitatives de Brewer **plafonnent** (Set2,
+Dark2 et Accent à 8 couleurs, Set1 et Pastel1 à 9, Paired et Set3 à 12).
+Au-delà, ggplot avertit et rend les séries surnuméraires en **gris** — un essai
+à quinze traitements n'a rien d'exotique en agronomie.
+
+### Un nom de couleur seul est une valeur de données plausible
+
+Les libellés des dégradés étaient « Bleus », « Verts », « Mauve ». Ces mots
+peuvent être les modalités d'une colonne du fichier de l'utilisateur : entrés
+seuls au dictionnaire, ils seraient traduits jusque **dans** ses données. Le
+libellé porte donc ce qu'il est — « Dégradé de bleus » — ce qui le rend à la
+fois non ambigu et plus clair à l'écran. Un test barre le retour des mots nus.
+
+C'est la même famille de piège que la règle des cellules `<td>` : la protection
+par la longueur est une heuristique, et le meilleur remède reste de ne pas
+mettre au dictionnaire un mot qui peut être une donnée.
+
+Au passage, **aucun** libellé de palette n'était traduit — ni les dégradés, ni
+les qualitatives (« Set1 - vive », « Dark2 - soutenue »…). Le test vérifie
+désormais les trois listes d'un coup : elles sont déclarées une seule fois, il
+serait absurde de les couvrir une par une.
+
+## La palette ne se pose qu'à un endroit
+
+Six modules portaient **chacun** leur liste de palettes et leur `switch`, et ils
+avaient divergé — la dérive que ce dépôt a déjà corrigée pour les formats
+d'image, les champs de DPI et les thèmes.
+
+Deux conséquences, toutes deux mesurées :
+
+- Le post-hoc offrait la palette de ggplot2 sous le libellé **« Défaut
+  (gris) »**, qui est **faux** : cette entrée n'ajoutait aucune échelle, si bien
+  que ggplot posait la sienne — quinze teintes distinctes sur quinze modalités,
+  pas du gris. La palette que l'utilisateur venait chercher était là, sous un nom
+  qui la cachait.
+- Les seuils d'efficacité ne l'offraient **pas du tout** : leur liste ne
+  contenait que des noms RColorBrewer, tous plafonnés. Un essai à plus de huit
+  modalités y perdait ses dernières barres en gris.
+
+`hstat_palettes_choix()` déclare la liste, `hstat_scales_palette()` la pose.
+`mod_tests`, `mod_threshold`, `mod_yield` et `mod_dl50` y passent tous ; un test
+échoue sur tout `scale_*_brewer(palette = …)` reposé à la main dans ces fichiers.
+
+**La palette de ggplot2 vient en tête du catalogue.** C'est la seule qui ne
+plafonne pas : quand on ignore combien il y aura de modalités, c'est le seul
+défaut sûr. Mesuré — quinze modalités : `ggplot2` rend quinze teintes et aucun
+`NA`, `Set2` en rend huit et laisse sept séries en gris.
+
+### Elle se pose, elle ne s'omet pas
+
+Piège attrapé par mutation, et contre-intuitif. Ne **rien** rendre pour
+« ggplot2 » donnerait exactement les mêmes couleurs — l'échelle par défaut de
+ggplot *est* `hue` —, si bien que le défaut serait invisible sur la seule
+teinte. Ce qui se perdrait, c'est tout ce que l'appelant passe à l'échelle : le
+module des seuils y fait voyager le **titre de sa légende**, qui disparaîtrait
+sans un mot. D'où le `...` de `hstat_scales_palette()`, et l'assertion qui
+vérifie que le titre arrive bien jusqu'à l'échelle.
+
+Corollaire symétrique : un nom **inconnu** ne pose rien, plutôt que de retomber
+sur une palette Brewer. Lui appliquer `scale_*_brewer()` ferait avertir ggplot à
+chaque tracé et rendrait un graphique gris ; ne rien poser laisse l'échelle par
+défaut, qui est déjà la bonne.
+
+## Le bac à sable des formules : la porte de demain, pas celle d'aujourd'hui
+
+`hstat_safe_eval()` tient. Vingt-sept tentatives d'évasion ont été essayées une
+par une — nom entre accents graves, `:::`, `$` et `[[` sur un environnement,
+`match.fun`, `Recall`, `sapply`, `quote`, une formule, `structure`, `attr`, les
+structures de contrôle — et **toutes** sont refusées.
+
+Le risque n'est donc pas le code d'aujourd'hui, c'est **l'ajout de demain**. Le
+bac à sable tient parce que `HSTAT_FORMULA_FUNS` ne contient que des fonctions
+closes sur leurs arguments : y glisser une seule fonction d'ordre supérieur
+(`sapply`, `do.call`, `Reduce`) ou une fonction qui résout un nom (`get`,
+`match.fun`, `eval`) rouvrirait l'exécution de code arbitraire depuis un champ
+de texte, et **rien ne le signalerait**. Un test épingle donc la liste des
+portes interdites.
+
+Second garde-fou, et c'est celui qui manquait : **l'évaluation reste close**.
+`list2env(funs, parent = emptyenv())` est ce qui empêche un nom absent des
+données et de la liste blanche d'être résolu par le chemin de recherche.
+Remplacer `emptyenv()` par `baseenv()` ne faisait échouer **aucune** des neuf
+assertions d'origine — le test le vérifie désormais sur `pi`, `T` et `letters`.
+
+## Le rang, pas le déterminant — la deuxième fois
+
+`box_m_test()` avait été corrigé sur ce point ; `detect_multivariate_outliers()`
+portait **le même défaut**, non corrigé, dans la fonction voisine.
+
+Le déterminant d'une matrice de covariance est homogène à la **p-ième
+puissance** d'une unité. Cinq variables mesurées en microgrammes le font tomber
+à 8 × 10⁻⁶⁰ alors que le rang reste **plein** : le seuil
+`det < .Machine$double.eps` criait donc à la singularité sur des données
+parfaitement inversibles, la détection d'outliers s'arrêtait, et le message
+accusait les données.
+
+La mesure rend le défaut indiscutable, parce que la distance de Mahalanobis est
+**invariante par changement d'échelle** : les mêmes observations rendaient
+« 1 outlier » à l'échelle usuelle et « matrice singulière » multipliées par
+10⁻⁶. Le test vérifie les deux moitiés — l'égalité des `d2` aux deux échelles,
+**et** le refus d'une vraie colinéarité (colonne dupliquée), sans quoi il
+passerait aussi sur une fonction qui aurait simplement retiré le garde-fou.
+
+## Un nom de colonne n'entre jamais tel quel dans du balisage
+
+Deux notifications de `mod_tests.R` composaient leur texte avec des **noms de
+colonnes venus du fichier** et le passaient à `shiny::HTML()`. Une colonne
+« Rendement <2023> » — des chevrons dans un intitulé, c'est courant — voyait
+« <2023> » lu comme une balise et **disparaître** : on annonçait à l'utilisateur
+un nom qui n'était pas le sien. Le « & » d'un « Masse & surface » ressortait de
+même corrompu.
+
+C'est la règle déjà écrite pour les mémos de l'atelier de codage, appliquée aux
+deux sites qui l'avaient manquée. Le bénéfice de sécurité (injection dans le
+DOM) suit ; le défaut visible, lui, est un nom de variable affiché faux.
+
 ## Seuils d'efficacité : comparer chaque modalité au témoin
 
 `hstat_efficacite()` applique la formule d'Abbott — celle de l'agronomie, de la

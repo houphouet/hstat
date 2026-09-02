@@ -1483,13 +1483,74 @@ HSTAT_PALETTES_QUALI <- c("Set1 - vive" = "Set1", "Set2 - douce" = "Set2",
 # Au-dela, ggplot avertit et rend les series surnumeraires en GRIS -- sur un
 # onglet nomme « plusieurs essais », c'est exactement le cas qu'on rencontre.
 # `scale_*_hue()` engendre autant de teintes distinctes qu'il y a de groupes.
-HSTAT_PALETTE_GG <- c("ggplot2 (défaut) - autant de couleurs que d'essais" = "ggplot2")
+HSTAT_PALETTE_GG <- c("ggplot2 (défaut) - une couleur par modalité" = "ggplot2")
 
-HSTAT_PALETTES_DEGRADE <- c("Bleus" = "Blues", "Verts" = "Greens",
-                            "Rouges" = "Reds", "Violets" = "Purples",
-                            "Bleu-vert" = "YlGnBu", "Mauve" = "BuPu",
+# UN NOM DE COULEUR SEUL EST UNE VALEUR DE DONNEES PLAUSIBLE. « Bleus »,
+# « Verts », « Mauve » peuvent etre les modalites d'une colonne du fichier de
+# l'utilisateur : entres seuls au dictionnaire, ils seraient traduits jusque
+# DANS ses donnees. Le libelle porte donc ce qu'il est -- un degrade -- ce qui
+# le rend a la fois non ambigu et plus clair a l'ecran.
+HSTAT_PALETTES_DEGRADE <- c("Dégradé de bleus" = "Blues",
+                            "Dégradé de verts" = "Greens",
+                            "Dégradé de rouges" = "Reds",
+                            "Dégradé de violets" = "Purples",
+                            "Dégradé bleu-vert" = "YlGnBu",
+                            "Dégradé mauve" = "BuPu",
                             "Spectral (froid -> chaud)" = "Spectral",
                             "Rouge-jaune-bleu" = "RdYlBu")
+
+# -- LA PALETTE NE SE POSE QU'A UN ENDROIT -------------------------------------
+#
+# Six modules offraient chacun leur liste et leur `switch`, et ils avaient
+# DIVERGE : la palette par defaut de ggplot2 n'etait atteignable que dans deux
+# d'entre eux, et le post-hoc l'offrait sous le libelle « Defaut (gris) » --
+# qui est faux, elle rend douze teintes distinctes. Un utilisateur qui cherche
+# « la palette de ggplot2 » ne la trouve pas sous ce nom.
+#
+# `hstat_palettes_choix()` declare la liste, `hstat_scales_palette()` la pose.
+# C'est la meme regle que pour les formats d'image et les champs de DPI : ce
+# qui est recopie finit par diverger, et l'un des exemplaires ment.
+
+# Liste de choix commune. La palette de ggplot2 vient EN TETE : c'est la seule
+# qui ne plafonne pas, donc le bon defaut quand on ignore combien il y aura de
+# modalites.
+hstat_palettes_choix <- function(degrades = TRUE) {
+  ch <- list("Palette par défaut" = HSTAT_PALETTE_GG,
+             "Teintes vives (groupes distincts)" = HSTAT_PALETTES_QUALI)
+  if (isTRUE(degrades))
+    ch[["Dégradés (valeurs ordonnées)"]] <- HSTAT_PALETTES_DEGRADE
+  ch
+}
+
+# Rend les echelles a ajouter au graphique, ou NULL quand il n'y a rien a poser.
+#
+# TROIS FAMILLES, ET ELLES NE SE POSENT PAS PAREIL :
+#   - « ggplot2 » n'est PAS un nom RColorBrewer. La passer a `scale_*_brewer()`
+#     la ferait retomber EN SILENCE sur une autre palette, et l'utilisateur
+#     croirait avoir change de couleurs.
+#   - un nom de Brewer se pose par `scale_*_brewer()`.
+#   - tout le reste (un nom inconnu, "default", "") ne pose RIEN : ggplot
+#     applique alors son echelle par defaut, qui est deja `hue`. Rendre une
+#     echelle brewer sur un nom inconnu ferait avertir ggplot a chaque trace et
+#     rendrait un graphique gris.
+#
+# `...` va aux constructeurs d'echelle : c'est ce qui permet a l'appelant de
+# nommer la legende (`name =`) ou d'en reetiqueter les cles (`labels =`) sans
+# que la fonction ait a connaitre ces cas.
+hstat_scales_palette <- function(pal, fill = TRUE, colour = TRUE, ...) {
+  pal <- as.character(pal %||% "")[1]
+  if (is.na(pal) || !nzchar(pal)) return(NULL)
+  out <- list()
+  if (identical(pal, unname(HSTAT_PALETTE_GG))) {
+    if (isTRUE(fill))   out <- c(out, list(ggplot2::scale_fill_hue(...)))
+    if (isTRUE(colour)) out <- c(out, list(ggplot2::scale_colour_hue(...)))
+    return(out)
+  }
+  if (!pal %in% c(HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE)) return(NULL)
+  if (isTRUE(fill))   out <- c(out, list(ggplot2::scale_fill_brewer(palette = pal, ...)))
+  if (isTRUE(colour)) out <- c(out, list(ggplot2::scale_colour_brewer(palette = pal, ...)))
+  out
+}
 
 # Alignements horizontaux d'un titre. Les valeurs sont les `hjust` de ggplot,
 # transmises en CHAINE par selectInput : le lecteur doit les convertir.
@@ -2591,8 +2652,20 @@ detect_multivariate_outliers <- function(Y, alpha = 0.001) {
   
   centre <- colMeans(Y)
   cov_mat <- tryCatch(stats::cov(Y), error = function(e) NULL)
+  # LE RANG, PAS LE DETERMINANT. C'est la meme correction que dans
+  # `box_m_test()`, et elle manquait ici.
+  #
+  # Le determinant d'une covariance est homogene a la p-ieme puissance d'une
+  # unite : cinq variables mesurees en MICROGRAMMES le font tomber a 8e-60
+  # alors que le rang reste plein. Le seuil `< .Machine$double.eps` criait donc
+  # a la singularite sur des donnees parfaitement inversibles, et la detection
+  # d'outliers s'arretait -- en accusant les donnees. Mesure : les MEMES
+  # observations rendaient « 1 outlier » a l'echelle usuelle et « matrice
+  # singuliere » multipliees par 1e-6, alors que la distance de Mahalanobis est
+  # invariante par changement d'echelle.
+  rang <- tryCatch(qr(cov_mat)$rank, error = function(e) NA_integer_)
   if (is.null(cov_mat) || any(is.na(cov_mat)) ||
-      tryCatch(det(cov_mat) < .Machine$double.eps, error = function(e) TRUE)) {
+      is.na(rang) || rang < p) {
     return(list(d2 = NULL, threshold = NA, n_outliers = NA,
                 idx_outliers = integer(0),
                 conclusion = "Matrice de covariance singulière -- impossible de calculer Mahalanobis"))
@@ -3821,9 +3894,12 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
   # SILENCE : l'utilisateur croyait ses repetitions prises en compte alors que
   # le calcul les melangeait. On refuse plutot que de rendre un chiffre faux.
   if (!is.null(var_repetition) && nzchar(var_repetition[1]) && !a_rep)
-    return(msg(vide, sprintf(paste0("La variable de répétition « %s » est introuvable ",
-                                    "dans les données : choisissez-en une autre."),
-                             var_repetition[1])))
+    # `sprintf(paste0(...))` composait ce refus MORCEAU PAR MORCEAU : la phrase
+    # entiere n'existait nulle part, ni dans le DOM ni au dictionnaire, et elle
+    # ressortait en francais au milieu d'une interface anglaise. Un gabarit
+    # `trf()` est traduit AVANT le `sprintf`, l'argument passant intact.
+    return(msg(vide, trf("La variable de répétition « %s » est introuvable dans les données : choisissez-en une autre.",
+                         var_repetition[1])))
   rep_v <- if (a_rep) trimws(as.character(df[[var_repetition[1]]]))
            else rep("", NROW(df))
   rep_v[is.na(rep_v)] <- "(manquant)"
@@ -4438,6 +4514,138 @@ hstat_rdt_complet <- function(df, var_modalite, var_masse, var_surface,
   attr(res, "non_traite") <- non_traite
   attr(res, "message_gain") <- attr(g_glob, "message")
   res
+}
+
+# ---------------------------------------------------------------------------
+#  SAISIE DE LA RECOLTE : COLLAGE DEPUIS UN TABLEUR
+# ---------------------------------------------------------------------------
+#  Trois colonnes attendues -- modalite, masse, surface -- et une quatrieme
+#  facultative pour la repetition.
+#
+#  DEUX DIFFERENCES AVEC LE COLLAGE DES DL50, ET ELLES COMPTENT.
+#
+#  1. LA PREMIERE COLONNE EST DU TEXTE. Reconnaitre l'en-tete a « aucun nombre
+#     sur la ligne entiere » marche pour trois colonnes numeriques, celles des
+#     DL50. Ici la premiere n'apprend rien -- mais SON EN-TETE peut tres bien
+#     etre un nombre (une campagne, un numero d'essai). On regarde donc les
+#     seules colonnes qui DOIVENT etre numeriques : la deuxieme et la
+#     troisieme.
+#
+#  2. LA VIRGULE NE PEUT PAS ETRE A LA FOIS SEPARATEUR ET DECIMALE. Un tableur
+#     francais rend « T1;12,5;0,25 » : la virgule y est la decimale. On ne la
+#     traite en separateur que si la ligne ne porte NI tabulation NI
+#     point-virgule -- exactement la regle du collage des DL50, pour la meme
+#     raison.
+hstat_rdt_coller <- function(txt) {
+  echec <- function(motif) list(ok = FALSE, message = motif)
+  vide <- is.null(txt) || !length(txt) || !nzchar(trimws(paste(txt, collapse = "")))
+  if (vide)
+    return(echec(tr("Rien à coller : copiez au moins trois colonnes (modalité, masse, surface) depuis votre tableur.")))
+
+  lignes <- trimws(unlist(strsplit(paste(txt, collapse = "\n"), "[\r\n]+")))
+  lignes <- lignes[nzchar(lignes)]
+  if (!length(lignes))
+    return(echec(tr("Rien à coller : copiez au moins trois colonnes (modalité, masse, surface) depuis votre tableur.")))
+
+  franc <- any(grepl("[\t;]", lignes))
+  motif <- if (franc) "[\t;]+" else "[\t;,]+"
+  champs <- function(li) {
+    v <- trimws(strsplit(li, motif)[[1]])
+    v[!is.na(v)]
+  }
+  nombre <- function(x) {
+    x <- trimws(as.character(x))
+    if (franc) x <- gsub(",", ".", x, fixed = TRUE)
+    suppressWarnings(as.numeric(x))
+  }
+
+  # L'EN-TETE SE RECONNAIT SUR LES COLONNES QUI DOIVENT ETRE NUMERIQUES, pas
+  # sur la ligne entiere.
+  #
+  # La premiere colonne porte des noms de traitement, donc jamais de nombre :
+  # elle n'apprend rien sur la nature de la ligne. Mais son EN-TETE, lui, peut
+  # tres bien en etre un -- une campagne (« 2024 »), un numero d'essai, un code
+  # de parcelle. « Aucun nombre sur la ligne entiere », la regle du collage des
+  # DL50 ou les trois colonnes sont numeriques, refuserait alors d'y voir un
+  # en-tete : la ligne partirait dans les donnees, « Masse » ne se lirait pas
+  # comme un nombre, et le refus parlerait d'une valeur illisible sans jamais
+  # dire qu'il s'agit du titre des colonnes.
+  entete <- function(li) {
+    v <- champs(li)
+    length(v) >= 3 && !any(is.finite(nombre(v[2:3])))
+  }
+  # ET L'EN-TETE ECARTE SE DIT. La regle ci-dessus est une heuristique : une
+  # ligne de donnees dont la masse serait illisible lui ressemble. La taire
+  # ferait disparaitre une observation en silence -- l'utilisateur compterait
+  # ses lignes et en trouverait une de moins, sans cause visible.
+  saute <- entete(lignes[1])
+  if (saute) lignes <- lignes[-1]
+  if (!length(lignes))
+    return(echec(tr("Le collage ne contient que des en-têtes : il manque les lignes de données.")))
+
+  mat <- lapply(lignes, champs)
+  larg <- vapply(mat, length, integer(1))
+  if (any(larg < 3L))
+    return(echec(trf("Ligne(s) à moins de trois colonnes : %s. Il faut la modalité, la masse récoltée et la surface.",
+                     paste(which(larg < 3L), collapse = ", "))))
+
+  pris <- function(i) vapply(mat, function(v) if (length(v) >= i) v[i] else NA_character_,
+                             character(1))
+  d <- data.frame(
+    Modalite = trimws(pris(1)),
+    Masse    = nombre(pris(2)),
+    Surface  = nombre(pris(3)),
+    Repetition = if (any(larg >= 4L)) trimws(pris(4)) else NA_character_,
+    stringsAsFactors = FALSE)
+
+  mauvaises <- which(!nzchar(d$Modalite) | !is.finite(d$Masse) | !is.finite(d$Surface))
+  if (length(mauvaises))
+    return(echec(trf("Valeur illisible ligne(s) %s : la modalité doit être renseignée, la masse et la surface doivent être des nombres.",
+                     paste(mauvaises, collapse = ", "))))
+  # Une repetition vide partout ne merite pas sa colonne : elle ferait croire a
+  # une information absente.
+  if (all(is.na(d$Repetition) | !nzchar(d$Repetition))) d$Repetition <- NA_character_
+
+  list(ok = TRUE, table = d, lignes = nrow(d), entete = saute,
+       decimale = if (franc) "," else ".")
+}
+
+# Table de saisie vide : `n` lignes prêtes à recevoir une récolte.
+#
+# ZERO LIGNE EST UNE DEMANDE LEGITIME, pas une valeur a corriger : c'est la
+# forme que rend `hstat_rdt_saisie_propre()` quand rien n'est exploitable.
+# Un plancher a une ligne y glissait une ligne vide -- donc une modalite « NA »
+# parmi les traitements, exactement ce que le tri devait ecarter.
+hstat_rdt_saisie_vide <- function(n = 6L) {
+  n <- as.integer(n)[1]
+  if (!isTRUE(is.finite(n)) || n < 0L) n <- 0L
+  data.frame(Modalite = rep(NA_character_, n),
+             Masse = rep(NA_real_, n),
+             Surface = rep(NA_real_, n),
+             Repetition = rep(NA_character_, n),
+             stringsAsFactors = FALSE)
+}
+
+# Ce qui, dans une table de saisie, est REELLEMENT exploitable.
+#
+# Les lignes vides d'une grille de saisie ne sont pas des erreurs : elles
+# attendent qu'on les remplisse. Les ecarter ici, une fois, evite que chaque
+# lecteur refasse -- ou oublie -- le tri, et que `hstat_rdt_table()` compte une
+# modalite « NA » parmi les traitements.
+hstat_rdt_saisie_propre <- function(d) {
+  if (!is.data.frame(d) || !NROW(d)) return(hstat_rdt_saisie_vide(0L))
+  for (k in c("Modalite", "Repetition"))
+    if (k %in% names(d)) d[[k]] <- trimws(as.character(d[[k]]))
+  for (k in c("Masse", "Surface"))
+    if (k %in% names(d)) d[[k]] <- suppressWarnings(as.numeric(d[[k]]))
+  ok <- !is.na(d$Modalite) & nzchar(d$Modalite) &
+        is.finite(d$Masse) & is.finite(d$Surface)
+  out <- d[ok, , drop = FALSE]
+  rownames(out) <- NULL
+  if ("Repetition" %in% names(out) &&
+      all(is.na(out$Repetition) | !nzchar(out$Repetition)))
+    out$Repetition <- NULL
+  out
 }
 
 # =============================================================================

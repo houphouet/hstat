@@ -1052,12 +1052,14 @@ mod_posthoc_ui <- function(id) {
                                        choices = c("Boxplot" = "box", "Violon" = "violin",
                                                    "Points + barres" = "point", "Barres" = "hist"),
                                        selected = "box"),
+                          # « Defaut (gris) » ETAIT UN LIBELLE FAUX. Cette entree
+                          # n'ajoutait aucune echelle, si bien que ggplot posait
+                          # la sienne -- douze teintes distinctes, mesurees, pas
+                          # du gris. La palette que l'utilisateur venait chercher
+                          # etait donc deja la, sous un nom qui la cachait.
                           shiny::selectInput(ns("boxColor"), "Palette de couleurs",
-                                      choices = list(
-                                        "Sans palette" = c("Défaut (gris)" = "default"),
-                                        "Teintes vives (groupes distincts)" = HSTAT_PALETTES_QUALI,
-                                        "Dégradés (valeurs ordonnées)" = HSTAT_PALETTES_DEGRADE),
-                                      selected = "Set2"),
+                                      choices = hstat_palettes_choix(),
+                                      selected = unname(HSTAT_PALETTE_GG)),
                           shiny::selectInput(ns("posthocTheme"), "Thème du graphique",
                                       choices = HSTAT_THEMES_GG, selected = "minimal"),
                           shiny::radioButtons(ns("errorType"), "Barres d'erreur",
@@ -2124,8 +2126,13 @@ mod_tests_server <- function(id, values) {
         errors <<- c(errors, hstat_err_fr(e, sprintf("[%s]", var)))
       })
     }
+    # LE NOM DE COLONNE VIENT DU FICHIER, il n'entre pas tel quel dans le DOM.
+    # Une colonne « Rendement <2023> » -- des chevrons dans un intitule, c'est
+    # courant -- voit « <2023> » lu comme une balise et DISPARAITRE de la
+    # notification : on annonce a l'utilisateur un nom qui n'est pas le sien.
     if (length(errors) > 0)
-      shiny::showNotification(shiny::HTML(paste0("<b>Erreur(s):</b><br>", paste(errors, collapse = "<br>"))),
+      shiny::showNotification(shiny::HTML(paste0("<b>Erreur(s):</b><br>",
+                              paste(hstat_html_escape(errors), collapse = "<br>"))),
                        type = "error", duration = 12)
     if (length(skipped) > 0)
       shiny::showNotification(trf("Déjà existante(s) : %s", paste(skipped, collapse = ", ")),
@@ -2136,7 +2143,8 @@ mod_tests_server <- function(id, values) {
       shiny::showNotification(
         shiny::HTML(trf("<b>Transformation appliquée</b><br>%s variable(s) créée(s) : %s",
                         length(added),
-                        paste0("<b>", added, "</b>", collapse = ", "))),
+                        paste0("<b>", hstat_html_escape(added), "</b>",
+                               collapse = ", "))),
         type = "message", duration = 5)
     }
   })
@@ -8252,9 +8260,12 @@ mod_tests_server <- function(id, values) {
       
       p <- p + base_theme + base_labels
       
-      if (!is.null(p) && box_color != "default" && !color_by_groups) {
-        p <- p + ggplot2::scale_fill_brewer(palette = box_color) +
-          ggplot2::scale_color_brewer(palette = box_color)
+      # La palette ne se pose qu'ici, et par l'aide commune : un `switch` de
+      # plus dans ce fichier finirait par diverger de celui des autres modules.
+      # Quand les lettres colorent les groupes, l'echelle est deja posee par la
+      # geometrie -- en ajouter une seconde ferait avertir ggplot.
+      if (!is.null(p) && !color_by_groups) {
+        for (sc in hstat_scales_palette(box_color)) p <- p + sc
       }
       
       
