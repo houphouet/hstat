@@ -9604,8 +9604,12 @@ test_that("une colonne creee et une colonne lue portent le meme nom", {
   }
   # Les couples legitimes : un nom de colonne ASCII et son LIBELLE accentue,
   # verifies un par un (« Modalite » la colonne, « Modalité » l'etiquette).
+  # « Répétition » vient de la grille de saisie du rendement : la colonne
+  # s'appelle `Repetition` (un nom de colonne ne s'accentue pas), l'etiquette
+  # affichee par `tr()` porte l'accent. Verifie : aucune lecture accentuee
+  # (`$Répétition`, `[["Répétition"]]`) n'existe dans le depot.
   connus <- c("Observé", "Prédit", "Modalité", "Résidu", "Thème", "Fréquence",
-              "Méthode", "Interprétation", "Métrique", "Unité")
+              "Méthode", "Interprétation", "Métrique", "Unité", "Répétition")
   fautifs <- fautifs[!grepl(paste0("chaine (", paste(connus, collapse = "|"),
                                    ") "), fautifs)]
   expect_equal(fautifs, character(0))
@@ -11920,4 +11924,244 @@ test_that("le banc de mutation ne se laisse pas ecraser par le code qu'il joue",
                                             shQuote(faux)),
                                  stdout = TRUE, stderr = TRUE))
   expect_true(any(grepl("ne retient aucun", st)), info = paste(st, collapse = "\n"))
+})
+
+test_that("le collage de la récolte lit trois colonnes, dont une de texte", {
+  # L'EN-TETE SE RECONNAIT SUR LES COLONNES QUI DOIVENT ETRE NUMERIQUES.
+  # Chercher « aucun nombre sur la ligne » -- la regle du collage des DL50, ou
+  # les trois colonnes sont numeriques -- classerait ici toute premiere ligne
+  # comme un en-tete, puisque la modalite n'est jamais un nombre.
+  r <- hstat_rdt_coller("Traitement\tMasse\tSurface\nT0\t12,5\t0,25\nT1\t18,3\t0,25")
+  expect_true(r$ok)
+  expect_equal(nrow(r$table), 2L)
+  expect_equal(r$table$Modalite, c("T0", "T1"))
+  expect_equal(r$table$Masse, c(12.5, 18.3))
+
+  expect_true(r$entete)
+  # Et une modalite qui COMMENCE par un chiffre -- « 2SP », « 2PV », des noms
+  # de traitement courants -- ne fait pas davantage un en-tete.
+  r2 <- hstat_rdt_coller("2SP;12,5;0,25\n2PV;18,3;0,25")
+  expect_true(r2$ok)
+  expect_equal(nrow(r2$table), 2L)
+  expect_equal(r2$table$Modalite, c("2SP", "2PV"))
+  expect_false(r2$entete)
+
+  # L'EN-TETE SE JUGE SUR LES COLONNES QUI DOIVENT ETRE NUMERIQUES. Sa premiere
+  # cellule, elle, peut parfaitement etre un nombre -- une campagne, un numero
+  # d'essai, un code de parcelle. « Aucun nombre sur la ligne entiere » ferait
+  # alors partir le titre des colonnes dans les donnees, et le refus parlerait
+  # d'une masse illisible sans jamais dire qu'il s'agit de l'en-tete.
+  r5 <- hstat_rdt_coller("2024;Masse;Surface\nT0;12,5;0,25\nT1;18,3;0,25")
+  expect_true(r5$ok)
+  expect_true(r5$entete)
+  expect_equal(nrow(r5$table), 2L)
+  expect_equal(r5$table$Modalite, c("T0", "T1"))
+
+  # ET LA LIGNE SAUTEE SE DIT. La reconnaissance est une heuristique : une
+  # observation dont la masse serait illisible lui ressemble, et la taire
+  # ferait disparaitre une ligne sans cause visible.
+  expect_true(grepl("r$entete", paste(readLines(
+    .hstat_module_path("mod_yield.R"), warn = FALSE, encoding = "UTF-8"),
+    collapse = "\n"), fixed = TRUE))
+
+  # LA VIRGULE EST UNE DECIMALE DES QUE LA LIGNE PORTE UN VRAI SEPARATEUR.
+  # « T0;12,5;0,25 » sort d'un tableur francais : y voir un separateur ferait
+  # cinq champs de trois, donc un refus incomprehensible.
+  expect_equal(r2$decimale, ",")
+  expect_equal(r2$table$Surface, c(0.25, 0.25))
+  # Sans tabulation ni point-virgule, elle redevient le separateur.
+  r3 <- hstat_rdt_coller("T0,12.5,0.25\nT1,18.3,0.25")
+  expect_true(r3$ok)
+  expect_equal(r3$decimale, ".")
+  expect_equal(r3$table$Masse, c(12.5, 18.3))
+
+  # La quatrieme colonne est la repetition ; absente partout, elle ne fait pas
+  # une colonne vide -- qui laisserait croire a une information manquante.
+  r4 <- hstat_rdt_coller("T0;12,5;0,25;B1\nT0;13,1;0,25;B2")
+  expect_equal(r4$table$Repetition, c("B1", "B2"))
+  expect_true(all(is.na(r$table$Repetition)))
+
+  # LES REFUS NOMMENT LA LIGNE FAUTIVE. « Collage invalide » obligerait a
+  # relire trente lignes pour trouver la seule qui pose probleme.
+  expect_false(hstat_rdt_coller("")$ok)
+  expect_false(hstat_rdt_coller("   ")$ok)
+  expect_match(hstat_rdt_coller("T0;12,5\nT1;18,3;0,25")$message, "1")
+  expect_match(hstat_rdt_coller("T0;abc;0,25")$message, "1")
+  expect_match(hstat_rdt_coller(";12,5;0,25")$message, "1")
+  # Un collage qui n'est QUE l'en-tete se dit, plutot que de rendre zero ligne
+  # en silence.
+  expect_match(hstat_rdt_coller("Traitement\tMasse\tSurface")$message,
+               "en-tête")
+})
+
+test_that("la grille de saisie ne retient que ce qui est exploitable", {
+  v <- hstat_rdt_saisie_vide(4L)
+  expect_equal(nrow(v), 4L)
+  expect_equal(names(v), c("Modalite", "Masse", "Surface", "Repetition"))
+  # UNE GRILLE VIDE N'EST PAS UNE ERREUR : elle attend qu'on la remplisse.
+  # Ecarter les lignes vides ici, une fois, evite que chaque lecteur refasse --
+  # ou oublie -- le tri, et que le calcul compte une modalite « NA » parmi les
+  # traitements.
+  expect_equal(nrow(hstat_rdt_saisie_propre(v)), 0L)
+  # Rien du tout n'est pas davantage une erreur : l'onglet s'ouvre avant que la
+  # grille existe.
+  expect_equal(nrow(hstat_rdt_saisie_propre(NULL)), 0L)
+  expect_equal(nrow(hstat_rdt_saisie_propre(hstat_rdt_saisie_vide(0L))), 0L)
+
+  v$Modalite[c(1, 3)] <- c("T0", "T1")
+  v$Masse[c(1, 3)] <- c(10, 20)
+  v$Surface[c(1, 3)] <- c(1, 1)
+  p <- hstat_rdt_saisie_propre(v)
+  expect_equal(nrow(p), 2L)
+  expect_equal(p$Modalite, c("T0", "T1"))
+  # Une repetition vide partout perd sa colonne, comme dans le tableau des
+  # resultats : une colonne vide fait croire a une information absente.
+  expect_false("Repetition" %in% names(p))
+  v$Repetition[1] <- "B1"
+  expect_true("Repetition" %in% names(hstat_rdt_saisie_propre(v)))
+
+  # Une ligne A MOITIE remplie n'est pas exploitable : la surface manquante
+  # rendrait un rendement infini, pas une valeur.
+  v2 <- hstat_rdt_saisie_vide(2L)
+  v2$Modalite <- c("T0", "T1"); v2$Masse <- c(10, 20); v2$Surface <- c(1, NA)
+  expect_equal(nrow(hstat_rdt_saisie_propre(v2)), 1L)
+  # Une modalite faite d'espaces n'en est pas une.
+  v2$Surface <- c(1, 1); v2$Modalite <- c("T0", "   ")
+  expect_equal(nrow(hstat_rdt_saisie_propre(v2)), 1L)
+
+  # Et le calcul traverse une grille vide sans lever : l'onglet s'ouvre avant
+  # qu'une seule ligne soit tapee.
+  vide <- hstat_rdt_saisie_propre(hstat_rdt_saisie_vide(3L))
+  expect_equal(nrow(hstat_rdt_complet(vide, "Modalite", "Masse", "Surface", "")), 0L)
+})
+
+test_that("la saisie manuelle du rendement suit l'idiome de DL50/CL50", {
+  chemin <- .hstat_module_path("mod_yield.R")
+  skip_if_not(file.exists(chemin))
+  txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+
+  # LE RENDU ISOLE LA TABLE. Relire `saisie()` dans `renderDT` la reconstruit a
+  # chaque cellule modifiee : la cellule en cours d'edition est detruite sous
+  # le curseur, et la saisie devient inutilisable.
+  expect_true(grepl("DT::datatable(shiny::isolate(saisie())", txt, fixed = TRUE))
+  expect_true(grepl("DT::dataTableProxy(\"yieldSaisie\")", txt, fixed = TRUE))
+  expect_true(grepl("DT::replaceData(proxy_saisie", txt, fixed = TRUE))
+  expect_true(grepl("input$yieldSaisie_cell_edit", txt, fixed = TRUE))
+
+  # LA MODALITE EST DU TEXTE. Passer toutes les colonnes au meme convertisseur
+  # numerique ferait disparaitre le nom du traitement des qu'il n'est pas un
+  # nombre -- c'est-a-dire toujours.
+  expect_true(grepl('names(d)[j] %in% c("Masse", "Surface")', txt, fixed = TRUE))
+
+  # LA SOURCE EST UN CHOIX, ET C'EST `donnees()` QUI LE LIT. Basculer tout seul
+  # sur la saisie des qu'un fichier manque ferait changer les chiffres sans que
+  # personne ait rien demande -- et poser le choix ailleurs que dans le reactif
+  # qui sert les donnees le laisserait sans effet.
+  corps <- sub("^.*donnees <- shiny::reactive\\(\\{", "", txt)
+  # On s'arrete a la fermeture du reactif : le bloc suivant lit lui aussi
+  # `input$yieldSource`, et l'englober ferait passer le test alors que
+  # `donnees()` ne regarderait plus la source du tout.
+  corps <- sub("\n    \\}\\).*$", "", corps)
+  expect_match(corps, 'input$yieldSource', fixed = TRUE)
+  expect_match(corps, 'saisie_utile()', fixed = TRUE)
+  expect_true(grepl("hstat_rdt_saisie_propre(saisie())", txt, fixed = TRUE))
+  # Le fichier chargé reste la source par defaut.
+  expect_true(grepl('selected = "fichier"', txt, fixed = TRUE))
+})
+
+test_that("la palette par défaut de ggplot2 est offerte au module de rendement", {
+  chemin <- .hstat_module_path("mod_yield.R")
+  skip_if_not(file.exists(chemin))
+  txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+
+  expect_true(grepl("HSTAT_PALETTE_GG", txt, fixed = TRUE))
+  # « ggplot2 » N'EST PAS UN NOM RColorBrewer : la poser par `scale_*_brewer()`
+  # la ferait retomber en silence sur une autre palette, et l'utilisateur
+  # croirait avoir change de couleurs.
+  expect_true(grepl("identical(pal, unname(HSTAT_PALETTE_GG))", txt, fixed = TRUE))
+  expect_true(grepl("ggplot2::scale_fill_hue()", txt, fixed = TRUE))
+  expect_true(grepl("ggplot2::scale_colour_hue()", txt, fixed = TRUE))
+
+  # Et elle ne doit JAMAIS rejoindre la liste des qualitatives : un test verifie
+  # que chaque entree de celle-ci existe chez RColorBrewer, et un nom inconnu
+  # fait tomber tout le graphique de qui l'aurait choisi.
+  expect_false(unname(HSTAT_PALETTE_GG) %in% unname(HSTAT_PALETTES_QUALI))
+  expect_false(unname(HSTAT_PALETTE_GG) %in% unname(HSTAT_PALETTES_DEGRADE))
+
+  # Le trace rend bien autant de teintes que de modalites -- c'est ce qu'elle
+  # apporte : les qualitatives de Brewer plafonnent a 8, 9 ou 12 couleurs.
+  skip_if_not_installed("ggplot2")
+  d <- data.frame(m = factor(sprintf("T%02d", 1:15)), v = 1:15)
+  b <- ggplot2::ggplot_build(
+    ggplot2::ggplot(d, ggplot2::aes(m, v, fill = m)) +
+      ggplot2::geom_col() + ggplot2::scale_fill_hue())
+  expect_equal(length(unique(b$data[[1]]$fill)), 15L)
+})
+
+test_that("un nom de couleur seul n'entre pas au dictionnaire", {
+  # UN NOM DE COULEUR COURT EST UNE VALEUR DE DONNEES PLAUSIBLE. « Bleus »,
+  # « Verts », « Mauve » peuvent etre les modalites d'une colonne du fichier de
+  # l'utilisateur : entres seuls au dictionnaire, ils seraient traduits jusque
+  # DANS ses donnees. Le libelle porte donc ce qu'il est -- un degrade.
+  for (lib in names(HSTAT_PALETTES_DEGRADE))
+    expect_false(lib %in% c("Bleus", "Verts", "Rouges", "Violets", "Mauve",
+                            "Bleu-vert", "Spectral"),
+                 info = lib)
+  expect_true(all(grepl("égradé|Spectral \\(|Rouge-jaune",
+                        names(HSTAT_PALETTES_DEGRADE))))
+
+  # Et chaque libelle offert a l'ecran est traduit : le defaut corrige etait
+  # qu'ils restaient tous en francais dans la version anglaise.
+  # Et TOUS les libelles de palette sont traduits -- qualitatives comprises.
+  # Le defaut corrige etait qu'ils restaient en francais dans la version
+  # anglaise : « Set1 - vive », « Dark2 - soutenue »… au milieu d'une interface
+  # anglaise, alors meme que la liste est declaree une seule fois.
+  dico <- hstat_i18n_dict("en")
+  skip_if(!length(dico))
+  for (lib in c(names(HSTAT_PALETTES_QUALI), names(HSTAT_PALETTES_DEGRADE),
+                names(HSTAT_PALETTE_GG)))
+    expect_true(lib %in% names(dico), info = lib)
+})
+
+test_that("le refus de la variable de répétition passe par un gabarit", {
+  # `sprintf(paste0(...))` compose une phrase qui n'existe nulle part comme
+  # chaine entiere : ni le dictionnaire du navigateur ni `tr()` ne peuvent
+  # l'atteindre, et elle ressort en francais au milieu d'une interface
+  # anglaise. Seul `trf()` traduit le GABARIT avant d'appliquer `sprintf`.
+  d <- data.frame(Trait = c("T0", "T1"), Y = c(10, 5), stringsAsFactors = FALSE)
+  r <- hstat_efficacite(d, "Trait", "Y", "T0", var_repetition = "Bloc")
+  msg <- attr(r, "message")
+  expect_true(nzchar(msg %||% ""))
+  expect_match(msg, "Bloc")
+  # La phrase entiere est au dictionnaire sous sa forme de gabarit.
+  expect_true(grepl("%s", tr(
+    "La variable de répétition « %s » est introuvable dans les données : choisissez-en une autre.",
+    lang = "en"), fixed = TRUE))
+  expect_false(identical(
+    tr("La variable de répétition « %s » est introuvable dans les données : choisissez-en une autre.",
+       lang = "en"),
+    "La variable de répétition « %s » est introuvable dans les données : choisissez-en une autre."))
+
+  # Et le module ne compose plus la phrase a la main.
+  chemin <- .hstat_module_path("utils.R")
+  skip_if_not(file.exists(chemin))
+  txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_false(grepl("sprintf(paste0(\"La variable de r", txt, fixed = TRUE))
+})
+
+test_that("« Gain de rendement » se place entre le plan et les seuils", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  chemin <- file.path(root, "inst", "app", "UX.R")
+  skip_if_not(file.exists(chemin))
+  txt <- readLines(chemin, warn = FALSE, encoding = "UTF-8")
+  pos <- function(tab) grep(sprintf('tabName = "%s"', tab), txt)[1]
+  # L'ORDRE DU MENU EST L'ORDRE DE TRAVAIL. Le gain de rendement se calcule
+  # apres le plan d'experience et avant les seuils d'efficacite ; le ranger
+  # ailleurs oblige a le chercher.
+  expect_true(is.finite(pos("design")))
+  expect_true(is.finite(pos("yield")))
+  expect_true(is.finite(pos("threshold")))
+  expect_lt(pos("design"), pos("yield"))
+  expect_lt(pos("yield"), pos("threshold"))
 })

@@ -1163,6 +1163,87 @@ c'est exactement ce qu'un balayage ne peut pas vérifier. Les réglages sont don
 lus **dans** le réactif et passés en argument. Le test exige les trois
 conditions : déclaré dans l'interface, lu par le réactif du graphique, employé.
 
+### La récolte se pèse avant d'être mise en fichier
+
+Un essai de dix traitements sur trois blocs tient en trente lignes. Exiger un
+CSV pour trente nombres oblige à ouvrir un tableur, à le nommer, à le relire —
+pour un calcul de trois minutes. Le module offre donc les **deux** sources
+(`yieldSource`), et la saisie manuelle reprend l'idiome de l'onglet DL50/CL50 :
+tableau `DT` éditable, mise à jour par `dataTableProxy`, boutons « Ligne » et
+« Vider », collage depuis un tableur.
+
+**`isolate()` dans le `renderDT` n'est pas une précaution, c'est la condition.**
+Relire `saisie()` dans le rendu reconstruit la table à chaque cellule modifiée :
+la cellule en cours d'édition est détruite sous le curseur.
+
+**La source est un choix, jamais une devinette.** Basculer tout seul sur la
+saisie dès qu'un fichier manque — ou l'inverse — ferait changer les chiffres
+sans que personne ait rien demandé. Un test lit le corps du réactif `donnees()`
+lui-même : poser le choix ailleurs le laisserait sans effet, et l'assertion
+passerait quand même si elle balayait tout le fichier (le bloc voisin lit la
+même entrée).
+
+**La modalité est du texte, la masse et la surface des nombres.** Passer toutes
+les colonnes au même convertisseur numérique fait disparaître le nom du
+traitement dès qu'il n'est pas un nombre — c'est-à-dire toujours.
+
+#### L'en-tête se juge sur les colonnes qui doivent être numériques
+
+La règle du collage des DL50 — « aucun nombre sur la ligne entière » — vaut pour
+trois colonnes numériques. Ici la première ne l'est jamais : elle n'apprend rien
+sur la nature de la ligne. Mais son **en-tête**, lui, peut parfaitement être un
+nombre : une campagne (« 2024 »), un numéro d'essai, un code de parcelle. La
+règle des DL50 refuserait alors d'y voir un en-tête, le titre des colonnes
+partirait dans les données, et le refus parlerait d'une masse illisible sans
+jamais dire qu'il s'agissait de l'en-tête.
+
+Corollaire : la reconnaissance est une **heuristique**, donc la ligne écartée se
+dit (`r$entete`). Une observation dont la masse serait illisible lui ressemble ;
+la taire ferait disparaître une ligne sans cause visible.
+
+Même règle que partout ailleurs pour la virgule : elle n'est un séparateur que
+si la ligne ne porte **ni** tabulation **ni** point-virgule. « T0;12,5;0,25 »
+sort d'un tableur français, la virgule y est la décimale.
+
+#### Zéro ligne est une demande légitime
+
+`hstat_rdt_saisie_vide(0L)` doit rendre **zéro** ligne : c'est la forme que rend
+`hstat_rdt_saisie_propre()` quand rien n'est exploitable. Un plancher à une
+ligne y glissait une ligne vide — donc une modalité « NA » parmi les
+traitements, exactement ce que le tri devait écarter. Signalé par le test de
+mutation, pas à l'écran.
+
+### La palette par défaut de ggplot2 ne passe pas par Brewer
+
+`HSTAT_PALETTE_GG` se pose par `scale_*_hue()`, jamais par `scale_*_brewer()` —
+la passer au second la ferait retomber en silence sur une autre palette, et
+l'utilisateur croirait avoir changé de couleurs. Elle ne doit surtout **pas**
+rejoindre `HSTAT_PALETTES_QUALI` : un test vérifie que chaque entrée de cette
+liste existe chez RColorBrewer, et un nom inconnu ferait tomber tout le
+graphique de qui l'aurait choisi.
+
+Ce qu'elle apporte : les palettes qualitatives de Brewer **plafonnent** (Set2,
+Dark2 et Accent à 8 couleurs, Set1 et Pastel1 à 9, Paired et Set3 à 12).
+Au-delà, ggplot avertit et rend les séries surnuméraires en **gris** — un essai
+à quinze traitements n'a rien d'exotique en agronomie.
+
+### Un nom de couleur seul est une valeur de données plausible
+
+Les libellés des dégradés étaient « Bleus », « Verts », « Mauve ». Ces mots
+peuvent être les modalités d'une colonne du fichier de l'utilisateur : entrés
+seuls au dictionnaire, ils seraient traduits jusque **dans** ses données. Le
+libellé porte donc ce qu'il est — « Dégradé de bleus » — ce qui le rend à la
+fois non ambigu et plus clair à l'écran. Un test barre le retour des mots nus.
+
+C'est la même famille de piège que la règle des cellules `<td>` : la protection
+par la longueur est une heuristique, et le meilleur remède reste de ne pas
+mettre au dictionnaire un mot qui peut être une donnée.
+
+Au passage, **aucun** libellé de palette n'était traduit — ni les dégradés, ni
+les qualitatives (« Set1 - vive », « Dark2 - soutenue »…). Le test vérifie
+désormais les trois listes d'un coup : elles sont déclarées une seule fois, il
+serait absurde de les couvrir une par une.
+
 ## Seuils d'efficacité : comparer chaque modalité au témoin
 
 `hstat_efficacite()` applique la formule d'Abbott — celle de l'agronomie, de la

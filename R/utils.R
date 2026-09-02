@@ -1485,9 +1485,17 @@ HSTAT_PALETTES_QUALI <- c("Set1 - vive" = "Set1", "Set2 - douce" = "Set2",
 # `scale_*_hue()` engendre autant de teintes distinctes qu'il y a de groupes.
 HSTAT_PALETTE_GG <- c("ggplot2 (défaut) - autant de couleurs que d'essais" = "ggplot2")
 
-HSTAT_PALETTES_DEGRADE <- c("Bleus" = "Blues", "Verts" = "Greens",
-                            "Rouges" = "Reds", "Violets" = "Purples",
-                            "Bleu-vert" = "YlGnBu", "Mauve" = "BuPu",
+# UN NOM DE COULEUR SEUL EST UNE VALEUR DE DONNEES PLAUSIBLE. « Bleus »,
+# « Verts », « Mauve » peuvent etre les modalites d'une colonne du fichier de
+# l'utilisateur : entres seuls au dictionnaire, ils seraient traduits jusque
+# DANS ses donnees. Le libelle porte donc ce qu'il est -- un degrade -- ce qui
+# le rend a la fois non ambigu et plus clair a l'ecran.
+HSTAT_PALETTES_DEGRADE <- c("Dégradé de bleus" = "Blues",
+                            "Dégradé de verts" = "Greens",
+                            "Dégradé de rouges" = "Reds",
+                            "Dégradé de violets" = "Purples",
+                            "Dégradé bleu-vert" = "YlGnBu",
+                            "Dégradé mauve" = "BuPu",
                             "Spectral (froid -> chaud)" = "Spectral",
                             "Rouge-jaune-bleu" = "RdYlBu")
 
@@ -3821,9 +3829,12 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
   # SILENCE : l'utilisateur croyait ses repetitions prises en compte alors que
   # le calcul les melangeait. On refuse plutot que de rendre un chiffre faux.
   if (!is.null(var_repetition) && nzchar(var_repetition[1]) && !a_rep)
-    return(msg(vide, sprintf(paste0("La variable de répétition « %s » est introuvable ",
-                                    "dans les données : choisissez-en une autre."),
-                             var_repetition[1])))
+    # `sprintf(paste0(...))` composait ce refus MORCEAU PAR MORCEAU : la phrase
+    # entiere n'existait nulle part, ni dans le DOM ni au dictionnaire, et elle
+    # ressortait en francais au milieu d'une interface anglaise. Un gabarit
+    # `trf()` est traduit AVANT le `sprintf`, l'argument passant intact.
+    return(msg(vide, trf("La variable de répétition « %s » est introuvable dans les données : choisissez-en une autre.",
+                         var_repetition[1])))
   rep_v <- if (a_rep) trimws(as.character(df[[var_repetition[1]]]))
            else rep("", NROW(df))
   rep_v[is.na(rep_v)] <- "(manquant)"
@@ -4438,6 +4449,138 @@ hstat_rdt_complet <- function(df, var_modalite, var_masse, var_surface,
   attr(res, "non_traite") <- non_traite
   attr(res, "message_gain") <- attr(g_glob, "message")
   res
+}
+
+# ---------------------------------------------------------------------------
+#  SAISIE DE LA RECOLTE : COLLAGE DEPUIS UN TABLEUR
+# ---------------------------------------------------------------------------
+#  Trois colonnes attendues -- modalite, masse, surface -- et une quatrieme
+#  facultative pour la repetition.
+#
+#  DEUX DIFFERENCES AVEC LE COLLAGE DES DL50, ET ELLES COMPTENT.
+#
+#  1. LA PREMIERE COLONNE EST DU TEXTE. Reconnaitre l'en-tete a « aucun nombre
+#     sur la ligne entiere » marche pour trois colonnes numeriques, celles des
+#     DL50. Ici la premiere n'apprend rien -- mais SON EN-TETE peut tres bien
+#     etre un nombre (une campagne, un numero d'essai). On regarde donc les
+#     seules colonnes qui DOIVENT etre numeriques : la deuxieme et la
+#     troisieme.
+#
+#  2. LA VIRGULE NE PEUT PAS ETRE A LA FOIS SEPARATEUR ET DECIMALE. Un tableur
+#     francais rend « T1;12,5;0,25 » : la virgule y est la decimale. On ne la
+#     traite en separateur que si la ligne ne porte NI tabulation NI
+#     point-virgule -- exactement la regle du collage des DL50, pour la meme
+#     raison.
+hstat_rdt_coller <- function(txt) {
+  echec <- function(motif) list(ok = FALSE, message = motif)
+  vide <- is.null(txt) || !length(txt) || !nzchar(trimws(paste(txt, collapse = "")))
+  if (vide)
+    return(echec(tr("Rien à coller : copiez au moins trois colonnes (modalité, masse, surface) depuis votre tableur.")))
+
+  lignes <- trimws(unlist(strsplit(paste(txt, collapse = "\n"), "[\r\n]+")))
+  lignes <- lignes[nzchar(lignes)]
+  if (!length(lignes))
+    return(echec(tr("Rien à coller : copiez au moins trois colonnes (modalité, masse, surface) depuis votre tableur.")))
+
+  franc <- any(grepl("[\t;]", lignes))
+  motif <- if (franc) "[\t;]+" else "[\t;,]+"
+  champs <- function(li) {
+    v <- trimws(strsplit(li, motif)[[1]])
+    v[!is.na(v)]
+  }
+  nombre <- function(x) {
+    x <- trimws(as.character(x))
+    if (franc) x <- gsub(",", ".", x, fixed = TRUE)
+    suppressWarnings(as.numeric(x))
+  }
+
+  # L'EN-TETE SE RECONNAIT SUR LES COLONNES QUI DOIVENT ETRE NUMERIQUES, pas
+  # sur la ligne entiere.
+  #
+  # La premiere colonne porte des noms de traitement, donc jamais de nombre :
+  # elle n'apprend rien sur la nature de la ligne. Mais son EN-TETE, lui, peut
+  # tres bien en etre un -- une campagne (« 2024 »), un numero d'essai, un code
+  # de parcelle. « Aucun nombre sur la ligne entiere », la regle du collage des
+  # DL50 ou les trois colonnes sont numeriques, refuserait alors d'y voir un
+  # en-tete : la ligne partirait dans les donnees, « Masse » ne se lirait pas
+  # comme un nombre, et le refus parlerait d'une valeur illisible sans jamais
+  # dire qu'il s'agit du titre des colonnes.
+  entete <- function(li) {
+    v <- champs(li)
+    length(v) >= 3 && !any(is.finite(nombre(v[2:3])))
+  }
+  # ET L'EN-TETE ECARTE SE DIT. La regle ci-dessus est une heuristique : une
+  # ligne de donnees dont la masse serait illisible lui ressemble. La taire
+  # ferait disparaitre une observation en silence -- l'utilisateur compterait
+  # ses lignes et en trouverait une de moins, sans cause visible.
+  saute <- entete(lignes[1])
+  if (saute) lignes <- lignes[-1]
+  if (!length(lignes))
+    return(echec(tr("Le collage ne contient que des en-têtes : il manque les lignes de données.")))
+
+  mat <- lapply(lignes, champs)
+  larg <- vapply(mat, length, integer(1))
+  if (any(larg < 3L))
+    return(echec(trf("Ligne(s) à moins de trois colonnes : %s. Il faut la modalité, la masse récoltée et la surface.",
+                     paste(which(larg < 3L), collapse = ", "))))
+
+  pris <- function(i) vapply(mat, function(v) if (length(v) >= i) v[i] else NA_character_,
+                             character(1))
+  d <- data.frame(
+    Modalite = trimws(pris(1)),
+    Masse    = nombre(pris(2)),
+    Surface  = nombre(pris(3)),
+    Repetition = if (any(larg >= 4L)) trimws(pris(4)) else NA_character_,
+    stringsAsFactors = FALSE)
+
+  mauvaises <- which(!nzchar(d$Modalite) | !is.finite(d$Masse) | !is.finite(d$Surface))
+  if (length(mauvaises))
+    return(echec(trf("Valeur illisible ligne(s) %s : la modalité doit être renseignée, la masse et la surface doivent être des nombres.",
+                     paste(mauvaises, collapse = ", "))))
+  # Une repetition vide partout ne merite pas sa colonne : elle ferait croire a
+  # une information absente.
+  if (all(is.na(d$Repetition) | !nzchar(d$Repetition))) d$Repetition <- NA_character_
+
+  list(ok = TRUE, table = d, lignes = nrow(d), entete = saute,
+       decimale = if (franc) "," else ".")
+}
+
+# Table de saisie vide : `n` lignes prêtes à recevoir une récolte.
+#
+# ZERO LIGNE EST UNE DEMANDE LEGITIME, pas une valeur a corriger : c'est la
+# forme que rend `hstat_rdt_saisie_propre()` quand rien n'est exploitable.
+# Un plancher a une ligne y glissait une ligne vide -- donc une modalite « NA »
+# parmi les traitements, exactement ce que le tri devait ecarter.
+hstat_rdt_saisie_vide <- function(n = 6L) {
+  n <- as.integer(n)[1]
+  if (!isTRUE(is.finite(n)) || n < 0L) n <- 0L
+  data.frame(Modalite = rep(NA_character_, n),
+             Masse = rep(NA_real_, n),
+             Surface = rep(NA_real_, n),
+             Repetition = rep(NA_character_, n),
+             stringsAsFactors = FALSE)
+}
+
+# Ce qui, dans une table de saisie, est REELLEMENT exploitable.
+#
+# Les lignes vides d'une grille de saisie ne sont pas des erreurs : elles
+# attendent qu'on les remplisse. Les ecarter ici, une fois, evite que chaque
+# lecteur refasse -- ou oublie -- le tri, et que `hstat_rdt_table()` compte une
+# modalite « NA » parmi les traitements.
+hstat_rdt_saisie_propre <- function(d) {
+  if (!is.data.frame(d) || !NROW(d)) return(hstat_rdt_saisie_vide(0L))
+  for (k in c("Modalite", "Repetition"))
+    if (k %in% names(d)) d[[k]] <- trimws(as.character(d[[k]]))
+  for (k in c("Masse", "Surface"))
+    if (k %in% names(d)) d[[k]] <- suppressWarnings(as.numeric(d[[k]]))
+  ok <- !is.na(d$Modalite) & nzchar(d$Modalite) &
+        is.finite(d$Masse) & is.finite(d$Surface)
+  out <- d[ok, , drop = FALSE]
+  rownames(out) <- NULL
+  if ("Repetition" %in% names(out) &&
+      all(is.na(out$Repetition) | !nzchar(out$Repetition)))
+    out$Repetition <- NULL
+  out
 }
 
 # =============================================================================
