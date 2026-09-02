@@ -22,8 +22,10 @@
 HSTAT_RDT_MESURES <- c(
   "Rendement moyen par modalité" = "Rendement_moyen",
   "Rendement global par modalité" = "Rendement_global",
+  "Rendement cumulé des répétitions" = "Rendement_somme",
   "Gain de rendement global (%)" = "Gain_global",
-  "Gain de rendement moyen (%)" = "Gain_moyen")
+  "Gain de rendement moyen (%)" = "Gain_moyen",
+  "Gain de rendement cumulé (%)" = "Gain_somme")
 
 # Une mesure de GAIN se lit par rapport a zero : la ligne de reference n'est
 # pas une decoration, c'est l'axe de lecture.
@@ -66,7 +68,23 @@ mod_yield_ui <- function(id) {
                       choices = names(HSTAT_RDT_MASSE), selected = "kilogramme (kg)"),
           shiny::selectInput(ns("yieldSortieSurface"), "Par unité de surface",
                       choices = names(HSTAT_RDT_SURFACE), selected = "hectare (ha)"),
-          shiny::uiOutput(ns("yieldUniteApercu"))
+          shiny::uiOutput(ns("yieldUniteApercu")),
+          # LA CONVERSION AJOUTE, ELLE NE REMPLACE PAS. C'est une OPTION : le
+          # tableau garde l'unite demandee ci-dessus, et gagne une colonne par
+          # mesure convertie. L'une sert a comparer avec un barème ou une
+          # publication, l'autre au contrôle -- et l'une sans l'autre oblige à
+          # refaire le calcul de tête.
+          shiny::checkboxInput(ns("yieldConvertir"),
+                        "Convertir aussi le rendement dans une autre unité",
+                        value = FALSE),
+          shiny::conditionalPanel(
+            ns = ns, condition = "input.yieldConvertir == true",
+            shiny::selectInput(ns("yieldConvMasse"), "Convertir la masse en",
+                        choices = names(HSTAT_RDT_MASSE), selected = "tonne (1000 kg)"),
+            shiny::selectInput(ns("yieldConvSurface"), "Par unité de surface",
+                        choices = names(HSTAT_RDT_SURFACE), selected = "hectare (ha)"),
+            shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                       "Les deux valeurs figurent dans les résultats : la colonne convertie se pose juste après son originale."))
         ),
 
         .hstat_opt_section(
@@ -295,9 +313,12 @@ mod_yield_ui <- function(id) {
               shiny::fluidRow(
                 shiny::column(6, shiny::checkboxInput(ns("yieldGrilleMaj"), "Grille principale", value = TRUE)),
                 shiny::column(6, shiny::checkboxInput(ns("yieldGrilleMin"), "Grille secondaire", value = FALSE))),
-              # Un gain se lit PAR RAPPORT A ZERO : sans le trait, un gain
-              # negatif se confond avec un petit gain positif.
-              shiny::checkboxInput(ns("yieldLigneZero"), "Ligne de référence à 0 (gains)", value = TRUE),
+              # UNE VALEUR NEGATIVE SE LIT PAR RAPPORT A ZERO. Sans le trait,
+              # un gain negatif se confond avec un petit gain positif, et un
+              # rendement negatif -- une correction, un solde -- ne se
+              # distingue plus d'un rendement faible. Le trait n'est donc pas
+              # reserve aux gains.
+              shiny::checkboxInput(ns("yieldLigneZero"), "Ligne de référence à 0", value = TRUE),
               shiny::checkboxInput(ns("yieldErreurs"), "Barres d'erreur (rendement moyen)", value = TRUE),
               shiny::conditionalPanel(
                 ns = ns, condition = "input.yieldErreurs == true",
@@ -388,8 +409,12 @@ mod_yield_server <- function(id, values) {
 
     output$yieldTemoinUI <- shiny::renderUI({
       m <- modalites()
+      # LE TEMOIN NE SE DEVINE PAS. Prendre la premiere modalite par ordre
+      # alphabetique donne un gain a toutes les autres sans que personne ait
+      # designe la reference : les chiffres sont alors faux ET vraisemblables.
+      # L'utilisateur choisit, et le calcul refuse tant qu'il n'a pas choisi.
       shiny::selectInput(ns("yieldTemoin"), "Modalité non traitée (référence)",
-                  choices = m, selected = if (length(m)) m[1] else NULL)
+                  choices = c("(à choisir)" = "", m), selected = "")
     })
 
     unite_rdt <- shiny::reactive({
@@ -397,11 +422,22 @@ mod_yield_server <- function(id, values) {
                               input$yieldSortieSurface %||% "hectare (ha)")
     })
 
+    unite_conv <- shiny::reactive({
+      if (!isTRUE(input$yieldConvertir)) return(NULL)
+      u <- hstat_rdt_unite_libelle(input$yieldConvMasse %||% "tonne (1000 kg)",
+                                   input$yieldConvSurface %||% "hectare (ha)")
+      if (identical(u, unite_rdt())) NULL else u
+    })
+
     output$yieldUniteApercu <- shiny::renderUI({
       shiny::div(class = "callout callout-info",
           style = "padding:8px 12px;margin:6px 0 0 0;font-size:13px;",
           shiny::icon("equals"), " ",
-          shiny::strong(trf("Rendement exprimé en %s", unite_rdt())))
+          shiny::strong(trf("Rendement exprimé en %s", unite_rdt())),
+          if (!is.null(unite_conv()))
+            shiny::div(style = "margin-top:4px;",
+                shiny::icon("arrow-right-arrow-left"), " ",
+                trf("Converti aussi en %s", unite_conv())))
     })
 
     # ------------------------------------------------------------------ calcul
@@ -415,7 +451,9 @@ mod_yield_server <- function(id, values) {
         unite_surface = input$yieldUniteSurface %||% "hectare (ha)",
         sortie_masse = input$yieldSortieMasse %||% "kilogramme (kg)",
         sortie_surface = input$yieldSortieSurface %||% "hectare (ha)",
-        var_repetition = if (nzchar(input$yieldRepetition %||% "")) input$yieldRepetition else NULL)
+        var_repetition = if (nzchar(input$yieldRepetition %||% "")) input$yieldRepetition else NULL,
+        conv_masse = if (isTRUE(input$yieldConvertir)) input$yieldConvMasse else NULL,
+        conv_surface = if (isTRUE(input$yieldConvertir)) input$yieldConvSurface else NULL)
     })
 
     output$yieldMessage <- shiny::renderUI({
@@ -447,13 +485,19 @@ mod_yield_server <- function(id, values) {
       }
       dec <- hstat_dec_affichage(input$yieldRound, input$yieldDecimals)
       arr <- function(x) if (is.na(dec)) format(x, digits = 7) else format(round(x, dec), nsmall = min(dec, 6))
-      meilleur <- if (all(is.na(r$Gain_moyen))) NA else r$Modalite[which.max(r$Gain_moyen)]
+      # UN ZERO N'EST PAS UNE ABSENCE. `which.max` sur des gains tous nuls rend
+      # bien une modalite ; c'est `all(is.na(...))` qui doit decider, jamais
+      # une comparaison a zero.
+      meilleur <- if (!any(is.finite(r$Gain_moyen))) NA else r$Modalite[which.max(r$Gain_moyen)]
       shiny::fluidRow(
         carte("Modalités comparées", nrow(r), "#2980b9"),
         carte(trf("Rendement global le plus élevé (%s)", unite_rdt()),
               if (all(is.na(r$Rendement_global))) "—" else arr(max(r$Rendement_global, na.rm = TRUE)),
               "#16a085"),
-        carte("Meilleur gain moyen", if (is.na(meilleur)) "—" else meilleur, "#27ae60"))
+        carte("Meilleur gain moyen", if (is.na(meilleur)) "—" else meilleur, "#27ae60"),
+        carte("Programme non traité",
+              if (nzchar(input$yieldTemoin %||% "")) input$yieldTemoin else "(à choisir)",
+              "#c0392b"))
     })
 
     # Tableau mis en forme : arrondi commande par l'utilisateur.
@@ -465,17 +509,27 @@ mod_yield_server <- function(id, values) {
       round_numeric_df(d, input$yieldRound, input$yieldDecimals)
     }
 
+    # Les colonnes converties suivent leurs originales : `intersect()` sur les
+    # noms REELS du tableau garde cet ordre, la enumerer a la main le perdrait.
+    avec_conv <- function(cols) {
+      r <- resultat()
+      if (!NROW(r)) return(cols)
+      voulues <- unlist(lapply(cols, function(k) c(k, paste0(k, "_conv"))))
+      c(intersect(names(r), voulues), intersect(names(r), c("Unite", "Unite_conv")))
+    }
+
     output$yieldTableRdt <- DT::renderDT({
-      d <- table_affiche(c("Modalite", "N", "Repetitions", "Masse_totale",
+      d <- table_affiche(avec_conv(c("Modalite", "N", "Repetitions", "Masse_totale",
                            "Surface_totale", "Rendement_global", "Rendement_moyen",
-                           "Ecart_type", "Erreur_type"))
+                           "Rendement_somme", "Ecart_type", "Erreur_type")))
       shiny::req(d)
       DT::datatable(d, rownames = FALSE, options = list(pageLength = 15, scrollX = TRUE))
     })
 
     output$yieldTableGain <- DT::renderDT({
-      d <- table_affiche(c("Modalite", "Rendement_global", "Gain_global",
-                           "Rendement_moyen", "Gain_moyen"))
+      d <- table_affiche(avec_conv(c("Modalite", "Rendement_global", "Gain_global",
+                           "Rendement_moyen", "Gain_moyen",
+                           "Rendement_somme", "Gain_somme")))
       shiny::req(d)
       DT::datatable(d, rownames = FALSE, options = list(pageLength = 15, scrollX = TRUE))
     })
@@ -508,8 +562,14 @@ mod_yield_server <- function(id, values) {
       d$.val <- d[[mesure]]
 
       gain <- .hstat_rdt_est_gain(mesure)
+      # La mesure tracee peut etre une colonne CONVERTIE : l'ordonnee doit
+      # alors porter l'unite de conversion, sinon le graphique annonce des
+      # kg/ha en affichant des t/ha.
+      u_axe <- if (grepl("_conv$", mesure)) attr(r, "unite_conv") %||% unite_rdt()
+               else unite_rdt()
       titre_auto <- names(HSTAT_RDT_MESURES)[match(mesure, HSTAT_RDT_MESURES)]
-      y_auto <- if (gain) "Gain (%)" else trf("Rendement (%s)", unite_rdt())
+      if (is.na(titre_auto)) titre_auto <- mesure
+      y_auto <- if (gain) "Gain (%)" else trf("Rendement (%s)", u_axe)
 
       alpha <- input$yieldAlpha %||% 0.85
       sty <- hstat_barre_style(alpha, isTRUE(input$yieldContour),
@@ -548,9 +608,26 @@ mod_yield_server <- function(id, values) {
         }
       }
 
-      if (gain && isTRUE(input$yieldLigneZero))
+      # LES VALEURS NEGATIVES SE REPRESENTENT COMME LES AUTRES, et il faut
+      # deux choses pour qu'elles se LISENT : le trait de zero, et un axe qui
+      # atteint zero. Sur un nuage de points dont toutes les valeurs sont
+      # negatives, ggplot cadre sur les donnees : la base de comparaison sort
+      # du champ et l'ampleur du recul devient invisible.
+      # UNE VALEUR EXACTEMENT NULLE NE DESSINE RIEN. Une barre de hauteur zero
+      # est invisible : le temoin, dont le gain vaut 0 PAR DEFINITION,
+      # disparaissait du graphique de gain alors qu'il en est la reference.
+      # La categorie restait sur l'axe, mais il n'y avait rien a voir -- ce
+      # qui se lit « pas de resultat » et non « egal a la reference ».
+      zeros <- d[is.finite(d$.val) & d$.val == 0, , drop = FALSE]
+      if (NROW(zeros) && type %in% c("bar", "barh"))
+        p <- p + ggplot2::geom_point(data = zeros, ggplot2::aes(y = 0),
+                                     size = max(2, (input$yieldPointSize %||% 4) * 0.6),
+                                     shape = 18, show.legend = FALSE)
+      negatifs <- any(is.finite(d$.val) & d$.val < 0)
+      if ((gain || negatifs) && isTRUE(input$yieldLigneZero))
         p <- p + ggplot2::geom_hline(yintercept = 0, linetype = "dashed",
                                      colour = "#7f8c8d", linewidth = 0.5)
+      if (negatifs) p <- p + ggplot2::expand_limits(y = 0)
 
       if (isTRUE(input$yieldValeurs)) {
         dec <- max(0L, as.integer(input$yieldValeursDec %||% 1))
@@ -588,9 +665,12 @@ mod_yield_server <- function(id, values) {
 
       angle_x <- input$yieldAngleX %||% 45
       angle_y <- input$yieldAngleY %||% 0
+      nt <- input$yieldTemoin %||% ""
+      sous_auto <- if (gain && nzchar(nt))
+        trf("Référence : %s (gain nul par définition)", nt) else NULL
       p + ggplot2::labs(
             title = if (nzchar(input$yieldTitre %||% "")) input$yieldTitre else titre_auto,
-            subtitle = if (nzchar(input$yieldSousTitre %||% "")) input$yieldSousTitre else NULL,
+            subtitle = if (nzchar(input$yieldSousTitre %||% "")) input$yieldSousTitre else sous_auto,
             x = if (nzchar(input$yieldLabelX %||% "")) input$yieldLabelX else input$yieldModalite,
             y = if (nzchar(input$yieldLabelY %||% "")) input$yieldLabelY else y_auto,
             fill = if (nzchar(input$yieldLegendeTitre %||% "")) input$yieldLegendeTitre else input$yieldModalite,
@@ -601,6 +681,9 @@ mod_yield_server <- function(id, values) {
             size = input$yieldTitreSize %||% 16,
             face = input$yieldTitreStyle %||% "bold",
             hjust = as.numeric(input$yieldTitrePos %||% "0.5")),
+          # Le sous-titre s'affiche aussi quand il est AUTOMATIQUE (la
+          # reference du gain) : le conditionner au seul champ de saisie
+          # masquait la mention du temoin.
           plot.subtitle = ggplot2::element_text(
             size = input$yieldSousTitreSize %||% 12,
             face = input$yieldSousTitreStyle %||% "italic",
@@ -641,10 +724,16 @@ mod_yield_server <- function(id, values) {
 
     output$yieldPlotNote <- shiny::renderUI({
       shiny::req(input$yieldMesure)
-      if (!.hstat_rdt_est_gain(input$yieldMesure)) return(NULL)
+      r <- resultat()
+      m <- input$yieldMesure
+      neg <- NROW(r) && m %in% names(r) && any(is.finite(r[[m]]) & r[[m]] < 0)
+      if (!.hstat_rdt_est_gain(m) && !neg) return(NULL)
       shiny::div(style = "font-size:12px;color:#7f8c8d;margin-bottom:10px;",
-          shiny::icon("circle-info"),
-          " Un gain négatif signifie que la modalité fait moins bien que le programme non traité : c'est un résultat, pas une erreur.")
+          shiny::icon("circle-info"), " ",
+          if (.hstat_rdt_est_gain(m))
+            "Un gain négatif signifie que la modalité fait moins bien que le programme non traité : c'est un résultat, pas une erreur."
+          else
+            "Les valeurs négatives sont représentées telles quelles, sous la ligne de zéro : les masquer ou les ramener à zéro cacherait précisément ce qu'il faut voir.")
     })
 
     # -------------------------------------------------------------- exports

@@ -4176,6 +4176,7 @@ hstat_rdt_table <- function(df, var_modalite, var_masse, var_surface,
                      Repetitions = integer(0),
                      Masse_totale = numeric(0), Surface_totale = numeric(0),
                      Rendement_global = numeric(0), Rendement_moyen = numeric(0),
+                     Rendement_somme = numeric(0),
                      Ecart_type = numeric(0), Erreur_type = numeric(0),
                      check.names = FALSE, stringsAsFactors = FALSE)
   msg <- function(x, m) { attr(x, "message") <- m; x }
@@ -4244,6 +4245,11 @@ hstat_rdt_table <- function(df, var_modalite, var_masse, var_surface,
       Surface_totale = st,
       Rendement_global = if (is.finite(st) && st > 0) mt / st else NA_real_,
       Rendement_moyen = if (n_ok) mean(r[ok]) else NA_real_,
+      # LA SOMME DES RENDEMENTS DE CHAQUE REPETITION. Elle repond a une
+      # troisieme question -- « combien cette modalite a-t-elle produit en
+      # tout, rapporte a l'hectare » -- et elle porte un piege qui lui est
+      # propre : voir l'alerte sur les repetitions inegales, plus bas.
+      Rendement_somme = if (n_ok) sum(r[ok]) else NA_real_,
       Ecart_type = if (n_ok > 1) stats::sd(r[ok]) else NA_real_,
       Erreur_type = if (n_ok > 1) stats::sd(r[ok]) / sqrt(n_ok) else NA_real_,
       check.names = FALSE, stringsAsFactors = FALSE)
@@ -4253,6 +4259,10 @@ hstat_rdt_table <- function(df, var_modalite, var_masse, var_surface,
   if (!a_rep) out$Repetitions <- NULL
 
   attr(out, "unite") <- hstat_rdt_unite_libelle(sortie_masse, sortie_surface)
+  # Les unites de sortie voyagent AVEC le tableau : une conversion demandee
+  # plus tard doit savoir d'ou elle part, et l'appelant n'a pas a les retenir.
+  attr(out, "sortie_masse") <- sortie_masse
+  attr(out, "sortie_surface") <- sortie_surface
   attr(out, "invalides") <- invalides
   alertes <- character(0)
   if (invalides > 0)
@@ -4260,6 +4270,17 @@ hstat_rdt_table <- function(df, var_modalite, var_masse, var_surface,
                               invalides))
   # LE GLOBAL ET LE MOYEN DIVERGENT QUAND LES SURFACES DIFFERENT. Le dire vaut
   # mieux que laisser croire a une incoherence de calcul.
+  # LA SOMME N'EST COMPARABLE QU'A NOMBRE DE LIGNES EGAL. C'est le piege de
+  # cette troisieme mesure, et il est massif : la modalite la plus repetee
+  # accumule mecaniquement davantage et ressort artificiellement plus
+  # productive -- un artefact de plan pris pour un resultat. La moyenne et le
+  # global n'en souffrent pas. Meme regle, meme avertissement que pour les
+  # efficacites.
+  n_lignes <- vapply(niveaux, function(m) sum(!is.na(modal) & modal == m & is.finite(rdt)),
+                     integer(1))
+  if (length(unique(n_lignes)) > 1)
+    alertes <- c(alertes, trf("le nombre de lignes exploitables varie d'une modalité à l'autre (%s) : la SOMME des rendements n'est pas comparable entre modalités, la moyenne et le rendement global le restent",
+                              paste(range(n_lignes), collapse = " à ")))
   ecart <- suppressWarnings(max(abs(out$Rendement_global - out$Rendement_moyen) /
                                  pmax(abs(out$Rendement_global), 1e-12), na.rm = TRUE))
   if (isTRUE(is.finite(ecart)) && ecart > 0.01)
@@ -4267,6 +4288,86 @@ hstat_rdt_table <- function(df, var_modalite, var_masse, var_surface,
   msg(out, if (length(alertes))
     paste0("Attention : ", paste(alertes, collapse = " ; "), ".")
     else trf("%d modalité(s), rendement en %s.", nrow(out), attr(out, "unite")))
+}
+
+# Insere une colonne juste apres une autre, en conservant l'ordre du reste.
+# Employee par les dilutions et par le rendement : une seule definition.
+.hstat_col_apres <- function(d, apres, nom, valeurs) {
+  d[[nom]] <- valeurs
+  nm <- setdiff(names(d), nom)
+  i  <- match(apres, nm)
+  if (is.na(i)) return(d)
+  d[, append(nm, nom, after = i), drop = FALSE]
+}
+
+# Colonnes d'un tableau de rendement qui PORTENT UNE UNITE, donc les seules
+# qui se convertissent.
+#
+# LES GAINS N'Y SONT PAS, ET C'EST LE POINT. Un gain est un POURCENTAGE : il
+# est sans dimension, il ne depend pas de l'unite dans laquelle on exprime le
+# rendement, et le « convertir » serait une faute de categorie -- un rendement
+# multiplie par mille rendrait le meme gain, mais la colonne afficherait des
+# pourcentages multiplies par mille.
+HSTAT_RDT_COLS_CONV <- c("Rendement_global", "Rendement_moyen",
+                         "Rendement_somme", "Ecart_type", "Erreur_type")
+
+# Convertit un rendement d'un couple (masse, surface) vers un autre.
+hstat_rdt_convertir_rendement <- function(x, de_masse, de_surface,
+                                          vers_masse, vers_surface) {
+  x   <- suppressWarnings(as.numeric(x))
+  fdm <- hstat_rdt_facteur(de_masse,     HSTAT_RDT_MASSE)
+  fds <- hstat_rdt_facteur(de_surface,   HSTAT_RDT_SURFACE)
+  fvm <- hstat_rdt_facteur(vers_masse,   HSTAT_RDT_MASSE)
+  fvs <- hstat_rdt_facteur(vers_surface, HSTAT_RDT_SURFACE)
+  if (anyNA(c(fdm, fds, fvm, fvs)) || fvm == 0 || fds == 0)
+    return(rep(NA_real_, length(x)))
+  x * fdm / fvm * fvs / fds
+}
+
+# Ajoute au tableau de rendement les colonnes exprimees dans une AUTRE unite.
+#
+# LA CONVERSION AJOUTE, ELLE NE REMPLACE PAS. C'est la meme regle que pour les
+# dilutions, et pour la meme raison : l'utilisateur qui a demande des kg/ha
+# doit continuer de les voir. La valeur convertie sert a comparer avec une
+# publication ou un bareme, la valeur d'origine sert au controle -- et l'une
+# sans l'autre oblige a refaire le calcul de tete.
+#
+# Chaque colonne convertie est posee JUSTE APRES son originale : l'oeil apparie
+# les deux sans traverser le tableau.
+hstat_rdt_convertir_table <- function(res, vers_masse = NULL, vers_surface = NULL) {
+  if (!is.data.frame(res) || !NROW(res)) return(res)
+  # Une conversion non demandee n'est pas une erreur : c'est une OPTION, et le
+  # defaut reste l'unite deja choisie.
+  if (is.null(vers_masse) || !length(vers_masse) || !nzchar(vers_masse[1]) ||
+      is.null(vers_surface) || !length(vers_surface) || !nzchar(vers_surface[1]))
+    return(res)
+
+  de_m <- attr(res, "sortie_masse")   %||% "kilogramme (kg)"
+  de_s <- attr(res, "sortie_surface") %||% "hectare (ha)"
+  u_conv <- hstat_rdt_unite_libelle(vers_masse[1], vers_surface[1])
+  # Convertir vers l'unite qu'on a deja n'ajoute rien : la colonne serait le
+  # doublon exact de son originale.
+  if (identical(u_conv, attr(res, "unite"))) return(res)
+
+  essai <- hstat_rdt_convertir_rendement(1, de_m, de_s, vers_masse[1], vers_surface[1])
+  # Une unite inconnue ne doit pas vider les colonnes en silence : on ne
+  # convertit pas, plutot que de multiplier par NA.
+  if (!isTRUE(is.finite(essai))) return(res)
+
+  garder <- attributes(res)[setdiff(names(attributes(res)),
+                                    c("names", "class", "row.names"))]
+  for (k in intersect(HSTAT_RDT_COLS_CONV, names(res)))
+    res <- .hstat_col_apres(res, k, paste0(k, "_conv"),
+                            hstat_rdt_convertir_rendement(res[[k]], de_m, de_s,
+                                                          vers_masse[1], vers_surface[1]))
+  # Les deux unites en colonnes : un CSV exporte doit se lire sans le tableau
+  # de bord qui l'a produit.
+  res$Unite <- attr(res, "unite") %||% hstat_rdt_unite_libelle(de_m, de_s)
+  res$Unite_conv <- u_conv
+  for (a in names(garder)) attr(res, a) <- garder[[a]]
+  attr(res, "unite_conv") <- u_conv
+  attr(res, "colonnes_conv") <- paste0(intersect(HSTAT_RDT_COLS_CONV, names(res)), "_conv")
+  res
 }
 
 # Gain de rendement par rapport au programme non traite.
@@ -4318,15 +4419,22 @@ hstat_rdt_complet <- function(df, var_modalite, var_masse, var_surface,
                               unite_surface = "hectare (ha)",
                               sortie_masse = "kilogramme (kg)",
                               sortie_surface = "hectare (ha)",
-                              var_repetition = NULL) {
+                              var_repetition = NULL,
+                              conv_masse = NULL, conv_surface = NULL) {
   res <- hstat_rdt_table(df, var_modalite, var_masse, var_surface,
                          unite_masse, unite_surface, sortie_masse,
                          sortie_surface, var_repetition)
   if (!NROW(res)) return(res)
   g_glob <- hstat_rdt_gain(res$Rendement_global, res$Modalite, non_traite)
   g_moy  <- hstat_rdt_gain(res$Rendement_moyen,  res$Modalite, non_traite)
+  g_som  <- hstat_rdt_gain(res$Rendement_somme,  res$Modalite, non_traite)
   res$Gain_global <- as.numeric(g_glob)
   res$Gain_moyen  <- as.numeric(g_moy)
+  res$Gain_somme  <- as.numeric(g_som)
+  # La conversion vient APRES les gains : un pourcentage est sans dimension, il
+  # n'a rien a convertir, et l'ajouter avant ferait convertir les colonnes de
+  # gain par simple voisinage de nom.
+  res <- hstat_rdt_convertir_table(res, conv_masse, conv_surface)
   attr(res, "non_traite") <- non_traite
   attr(res, "message_gain") <- attr(g_glob, "message")
   res

@@ -1090,6 +1090,71 @@ négatif se confond avec un petit gain positif — et `hstat_valeur_pos()`, qui 
 l'ordonnée **et** le calage ensemble parce qu'une étiquette de valeur négative
 s'écrirait sinon du mauvais côté de la barre.
 
+### Trois rendements, parce qu'il y a trois questions
+
+| Mesure | Formule | Ce qu'elle répond |
+|---|---|---|
+| **global** | masse totale / surface totale | ce que la parcelle a produit, pondéré par la surface |
+| **moyen** | moyenne des rendements par répétition | ce qu'une répétition produit en moyenne |
+| **cumulé** | somme des rendements par répétition | ce que la modalité a produit en tout |
+
+Les trois coïncident à surfaces et répétitions égales, et chacun a son gain.
+
+**La somme n'est comparable qu'à nombre de lignes égal.** C'est le piège propre à
+la troisième mesure, et il est massif : la modalité la plus répétée accumule
+mécaniquement davantage et ressort *artificiellement* plus productive — un
+artefact de plan pris pour un résultat. Sur un essai où T0 n'a qu'une répétition
+contre trois :
+
+| Gain de T1 | valeur |
+|---|---|
+| moyen | **77,8 %** (juste) |
+| cumulé | **433,3 %** (artefact) |
+
+L'application le signale plutôt que de laisser publier le second chiffre — et
+précise que la moyenne et le global, eux, restent comparables. Même règle et même
+avertissement que pour les efficacités.
+
+### La conversion ajoute, elle ne remplace pas
+
+Même règle que les dilutions, même raison : celui qui a demandé des kg/ha doit
+continuer de les voir. La valeur convertie sert à comparer avec un barème ou une
+publication, l'originale au contrôle — et l'une sans l'autre oblige à refaire le
+calcul de tête. Chaque colonne convertie se pose **juste après** son originale, et
+les deux unités deviennent des colonnes pour qu'un CSV exporté se lise sans le
+tableau de bord qui l'a produit.
+
+**Un gain ne se convertit pas** : c'est un pourcentage, donc sans dimension.
+`HSTAT_RDT_COLS_CONV` ne liste que les colonnes qui portent une unité ; y ajouter
+un gain serait une faute de catégorie — le même rapport rendrait des pourcentages
+multipliés par mille. Un test échoue si un `Gain_*_conv` apparaît.
+
+### Un zéro n'est pas une absence
+
+Le témoin a un gain de **0 par définition**. Sur un graphique en barres, une
+hauteur nulle ne dessine rien : la référence de toute l'analyse disparaissait, ce
+qui se lit « pas de résultat » et non « égal à la référence ». Les valeurs
+exactement nulles reçoivent donc un repère visible, et le sous-titre nomme le
+témoin.
+
+Corollaire dans le code : c'est `any(is.finite(...))` qui décide qu'une colonne
+est exploitable, **jamais** une comparaison à zéro. `which.max` sur des gains tous
+nuls désigne bien une modalité.
+
+**Le témoin ne se devine pas.** Prendre la première modalité par ordre
+alphabétique donnerait un gain à toutes les autres sans que personne ait désigné
+la référence : les chiffres seraient alors faux *et* vraisemblables. Le sélecteur
+s'ouvre sur « (à choisir) » et le calcul refuse tant qu'on n'a pas choisi.
+
+### Les valeurs négatives se représentent
+
+Un gain négatif — la modalité fait moins bien que le non traité — est un
+résultat. Il faut **deux** choses pour qu'il se lise : le trait de zéro, et un axe
+qui *atteint* zéro. Sur un nuage de points dont toutes les valeurs sont négatives,
+ggplot cadre sur les données : la base de comparaison sort du champ et l'ampleur
+du recul devient invisible. D'où `expand_limits(y = 0)`, et un trait de zéro qui
+n'est plus réservé aux gains.
+
 ### L'ordre des modalités est un réglage lu par le réactif
 
 Il était lu dans l'aide `ordonner()`, appelée depuis le réactif : la dépendance

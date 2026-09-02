@@ -596,14 +596,9 @@ hstat_dilution_convertir <- function(d, unite = NULL) {
   .hstat_col_apres(d, "Unite_volume", "Unite_volume_conv", u)
 }
 
-# Insere une colonne juste apres une autre, en conservant l'ordre du reste.
-.hstat_col_apres <- function(d, apres, nom, valeurs) {
-  d[[nom]] <- valeurs
-  nm <- setdiff(names(d), nom)
-  i  <- match(apres, nm)
-  if (is.na(i)) return(d)
-  d[, append(nm, nom, after = i), drop = FALSE]
-}
+# `.hstat_col_apres()` a rejoint le socle (`Utils.R`) : le module de rendement
+# l'emploie aussi, et deux copies d'une aide de cinq lignes finissent par
+# diverger sur le cas limite -- ici, la colonne « apres » introuvable.
 
 hstat_dilution_affichage <- function(d) {
   if (!is.data.frame(d) || !nrow(d)) return(d)

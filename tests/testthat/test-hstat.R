@@ -6696,6 +6696,146 @@ test_that("hstat_rdt_complet rend les deux rendements et les deux gains", {
   expect_equal(attr(rt, "unite"), "t/ha")
 })
 
+test_that("la conversion du rendement ajoute, elle ne remplace pas", {
+  d <- data.frame(Traitement = rep(c("T0", "T1"), each = 2),
+                  Masse = c(900, 1100, 1500, 1700), Surface = rep(1, 4),
+                  stringsAsFactors = FALSE)
+  r0 <- hstat_rdt_complet(d, "Traitement", "Masse", "Surface", "T0")
+  r  <- hstat_rdt_complet(d, "Traitement", "Masse", "Surface", "T0",
+                          conv_masse = "tonne (1000 kg)", conv_surface = "hectare (ha)")
+
+  # LA VALEUR D'ORIGINE SURVIT. L'utilisateur qui a demandé des kg/ha doit
+  # continuer de les voir : la valeur convertie sert a comparer avec un bareme,
+  # l'originale au controle, et l'une sans l'autre oblige a refaire le calcul.
+  expect_equal(r$Rendement_global, r0$Rendement_global)
+  expect_equal(r$Rendement_moyen, r0$Rendement_moyen)
+  expect_true("Rendement_global_conv" %in% names(r))
+  expect_equal(r$Rendement_global_conv, r$Rendement_global / 1000)
+  # La colonne convertie se pose JUSTE APRES son originale : l'oeil apparie les
+  # deux sans traverser le tableau.
+  expect_equal(which(names(r) == "Rendement_global_conv"),
+               which(names(r) == "Rendement_global") + 1L)
+  # Les deux unites sont dans le tableau : un CSV exporte se lit sans le
+  # tableau de bord qui l'a produit.
+  expect_equal(unique(r$Unite), "kg/ha")
+  expect_equal(unique(r$Unite_conv), "t/ha")
+  expect_equal(attr(r, "unite_conv"), "t/ha")
+
+  # UN GAIN NE SE CONVERTIT PAS : c'est un pourcentage, donc sans dimension.
+  # Le convertir serait une faute de categorie -- le meme rapport rendrait des
+  # pourcentages multiplies par mille.
+  expect_false("Gain_global_conv" %in% names(r))
+  expect_false("Gain_moyen_conv" %in% names(r))
+  expect_equal(r$Gain_global, r0$Gain_global)
+
+  # La conversion est une OPTION : non demandee, unite identique, ou unite
+  # inconnue, le tableau ressort tel quel plutot que vide.
+  for (arg in list(list(NULL, NULL), list("", ""),
+                   list("kilogramme (kg)", "hectare (ha)"),
+                   list("stone", "hectare (ha)"))) {
+    x <- hstat_rdt_complet(d, "Traitement", "Masse", "Surface", "T0",
+                           conv_masse = arg[[1]], conv_surface = arg[[2]])
+    expect_false("Rendement_global_conv" %in% names(x),
+                 info = paste(arg, collapse = "/"))
+    expect_equal(x$Rendement_global, r0$Rendement_global)
+  }
+
+  # La conversion part de l'unite de SORTIE, pas de celle de saisie.
+  q <- hstat_rdt_complet(d, "Traitement", "Masse", "Surface", "T0",
+                         sortie_masse = "quintal (100 kg)",
+                         sortie_surface = "are (100 m²)",
+                         conv_masse = "tonne (1000 kg)", conv_surface = "hectare (ha)")
+  expect_equal(q$Rendement_global, c(0.1, 0.16))
+  expect_equal(q$Rendement_global_conv, c(1, 1.6))
+})
+
+test_that("le rendement cumulé est la somme des répétitions, et son piège est dit", {
+  d <- data.frame(Traitement = rep(c("T0", "T1"), each = 3),
+                  Masse = c(900, 1000, 1100, 1500, 1600, 1700),
+                  Surface = rep(1, 6), stringsAsFactors = FALSE)
+  r <- hstat_rdt_complet(d, "Traitement", "Masse", "Surface", "T0")
+  expect_true("Rendement_somme" %in% names(r))
+  expect_equal(r$Rendement_somme, c(3000, 4800))
+  expect_equal(r$Rendement_somme, r$Rendement_moyen * r$N)
+  expect_true("Gain_somme" %in% names(r))
+  # A nombre de lignes egal, les trois gains coincident.
+  expect_equal(r$Gain_somme, r$Gain_moyen)
+  expect_equal(r$Gain_somme, r$Gain_global)
+  expect_false(grepl("SOMME", attr(r, "message")))
+
+  # LA SOMME N'EST COMPARABLE QU'A NOMBRE DE LIGNES EGAL. La modalite la plus
+  # repetee accumule mecaniquement davantage et ressort artificiellement plus
+  # productive : un artefact de plan pris pour un resultat.
+  d2 <- d[-c(2, 3), ]
+  r2 <- hstat_rdt_complet(d2, "Traitement", "Masse", "Surface", "T0")
+  expect_equal(round(r2$Gain_moyen[2], 2), 77.78)   # juste
+  expect_equal(round(r2$Gain_somme[2], 2), 433.33)  # artefact
+  expect_match(attr(r2, "message"), "SOMME")
+  # La moyenne et le global, eux, restent comparables : c'est ce que dit
+  # l'alerte, et c'est ce qui rend l'avertissement utile plutot qu'alarmiste.
+  expect_equal(r2$Gain_moyen, r2$Gain_global)
+
+  # La somme porte une unite, donc elle se convertit ; son gain, non.
+  rc <- hstat_rdt_complet(d, "Traitement", "Masse", "Surface", "T0",
+                          conv_masse = "tonne (1000 kg)", conv_surface = "hectare (ha)")
+  expect_equal(rc$Rendement_somme_conv, rc$Rendement_somme / 1000)
+  expect_false("Gain_somme_conv" %in% names(rc))
+})
+
+test_that("un rendement et un gain negatifs traversent le calcul intacts", {
+  # Une modalite qui fait moins bien que le non traite donne un gain NEGATIF :
+  # c'est un resultat. Le borner a zero masquerait ce qu'il faut voir.
+  d <- data.frame(Traitement = rep(c("T0", "T1", "T2"), each = 2),
+                  Masse = c(1000, 1000, 400, 400, -50, -50),
+                  Surface = rep(1, 6), stringsAsFactors = FALSE)
+  r <- hstat_rdt_complet(d, "Traitement", "Masse", "Surface", "T0")
+  expect_equal(r$Rendement_global, c(1000, 400, -50))
+  expect_equal(r$Gain_global, c(0, -60, -105))
+  expect_true(any(r$Rendement_global < 0))
+  expect_true(any(r$Gain_global < 0))
+  # Rien n'est ecrete, rien n'est mis a NA.
+  expect_false(anyNA(r$Gain_global))
+  expect_equal(min(r$Gain_moyen), -105)
+})
+
+test_that("un gain nul est une valeur, pas une absence", {
+  # LE DEFAUT QUE CE TEST GARDE. Le temoin a un gain de 0 PAR DEFINITION : sur
+  # un graphique en barres, une hauteur nulle ne dessine rien, et la reference
+  # de toute l'analyse disparaissait -- ce qui se lit « pas de resultat » et
+  # non « egal a la reference ».
+  d <- data.frame(Traitement = rep(c("T0", "T1"), each = 2),
+                  Masse = c(1000, 1000, 1000, 1000), Surface = rep(1, 4),
+                  stringsAsFactors = FALSE)
+  r <- hstat_rdt_complet(d, "Traitement", "Masse", "Surface", "T0")
+  # Tous les gains valent zero : aucun n'est NA, et le tableau garde ses lignes.
+  expect_equal(r$Gain_global, c(0, 0))
+  expect_false(anyNA(r$Gain_global))
+  expect_equal(nrow(r), 2L)
+  expect_true(all(is.finite(r$Gain_moyen)))
+
+  # `which.max` sur des gains tous nuls designe bien une modalite : c'est
+  # `any(is.finite(...))` qui doit decider, jamais une comparaison a zero.
+  expect_true(any(is.finite(r$Gain_moyen)))
+  expect_equal(r$Modalite[which.max(r$Gain_moyen)], "T0")
+
+  # Le module dessine un repere pour les valeurs exactement nulles, et le
+  # temoin se choisit -- il ne se devine pas.
+  chemin <- .hstat_module_path("mod_yield.R")
+  skip_if_not(file.exists(chemin))
+  txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("zeros <- d[is.finite(d$.val) & d$.val == 0, , drop = FALSE]",
+                    txt, fixed = TRUE))
+  expect_true(grepl("geom_point(data = zeros", txt, fixed = TRUE))
+  # Prendre la premiere modalite par ordre alphabetique donnerait un gain a
+  # toutes les autres sans que personne ait designe la reference : les chiffres
+  # seraient alors faux ET vraisemblables.
+  expect_true(grepl('choices = c("(à choisir)" = "", m), selected = ""',
+                    txt, fixed = TRUE))
+  # Et l'axe atteint zero quand des valeurs sont negatives, sinon la base de
+  # comparaison sort du champ.
+  expect_true(grepl("expand_limits(y = 0)", txt, fixed = TRUE))
+})
+
 test_that("le module de rendement refuse clairement ce qu'il ne peut pas faire", {
   d <- data.frame(T = c("A", "B"), M = c(1, 2), S = c(1, 1), stringsAsFactors = FALSE)
   att <- function(x) attr(x, "message")
