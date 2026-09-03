@@ -12438,3 +12438,160 @@ test_that("« Gain de rendement » se place entre le plan et les seuils", {
   expect_lt(pos("design"), pos("yield"))
   expect_lt(pos("yield"), pos("threshold"))
 })
+
+
+test_that("une agrégation numérique ne porte jamais sur une variable de texte", {
+  # ONZE AVERTISSEMENTS POUR UNE COURBE VIDE. Les agregations *automatiques* de
+  # l'onglet Visualisation appelaient `mean()` sans regarder le type : sur une
+  # date de traitement notee « T1+13 », R rend NA en avertissant, une fois par
+  # groupe, et le graphique sort vide sans un mot a l'ecran.
+  d <- data.frame(a = 1:3, b = c("T1+13", "T2", "T3"),
+                  l = c(TRUE, FALSE, TRUE), stringsAsFactors = FALSE)
+  d$dt <- as.Date("2024-01-01") + 0:2
+  expect_true(hstat_y_agregeable(d, "a"))
+  expect_true(hstat_y_agregeable(d, "l"))
+  expect_true(hstat_y_agregeable(d, "dt"))
+  expect_false(hstat_y_agregeable(d, "b"))
+  # Les cas degeneres refusent, ils ne levent pas : la fonction alimente un
+  # reactif de graphique.
+  expect_false(hstat_y_agregeable(d, "absente"))
+  expect_false(hstat_y_agregeable(NULL, "a"))
+  expect_false(hstat_y_agregeable(d, NULL))
+  expect_false(hstat_y_agregeable(d, ""))
+
+  chemin <- .hstat_module_path("mod_viz.R")
+  skip_if_not(file.exists(chemin))
+  txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # Le garde-fou est pose la ou l'agregation se declenche TOUTE SEULE.
+  motif <- "has_duplicates && !isTRUE(input$useAggregation) && agregeable"
+  expect_equal(length(gregexpr(motif, txt, fixed = TRUE)[[1]]), 2L)
+  # Les parts d'un camembert se pesent par une colonne numerique, ou se
+  # comptent : `sum()` sur du texte fait tomber tout le graphique.
+  expect_false(grepl("sum(.data[[y_var]], na.rm = TRUE)", txt, fixed = TRUE))
+  # ET LE REDESSIN EN BOUCLE NE REVIENT PAS : un `observeEvent` qui se
+  # reprogramme relance l'observateur vingt fois par seconde, sans fin.
+  #
+  # LE BALAYAGE RETIRE LES COMMENTAIRES PAR L'ANALYSEUR DE R, jamais par une
+  # heuristique : le commentaire qui documente la correction contient le motif,
+  # et le test se signalait lui-meme. Un faux positif permanent finit toujours
+  # par faire desactiver le test.
+  pd <- utils::getParseData(parse(chemin, keep.source = TRUE))
+  code <- paste(pd$text[pd$token != "COMMENT"], collapse = " ")
+  expect_false(grepl("invalidateLater", code, fixed = TRUE))
+})
+
+test_that("renommer deux modalités pareil ne les fond pas en une seule", {
+  n <- c("T0", "T1", "T2")
+  expect_equal(unname(hstat_etiquettes_x(n)), n)
+  expect_equal(names(hstat_etiquettes_x(n)), n)
+  # Une etiquette s'applique ; vide ou absente, elle ne fait rien -- on
+  # n'invente jamais un nom.
+  expect_equal(unname(hstat_etiquettes_x(n, c(T1 = "Témoin traité"))),
+               c("T0", "Témoin traité", "T2"))
+  expect_equal(unname(hstat_etiquettes_x(n, c(T1 = "", T2 = NA))), n)
+  expect_equal(unname(hstat_etiquettes_x(n, c(absente = "Z"))), n)
+  # LA COLLISION EST LE PIEGE. Deux modalites affichees sous le meme nom se
+  # lisent comme une seule, et les lettres de groupes deviennent
+  # contradictoires sur ce qui parait etre une meme barre.
+  r <- hstat_etiquettes_x(n, c(T1 = "X", T2 = "X"))
+  # `as.character()` et non `unname()` : le second retire les NOMS, pas les
+  # autres attributs, et la comparaison portait aussi sur « collisions ».
+  expect_equal(as.character(r), n)
+  expect_equal(attr(r, "collisions"), "X")
+  # Y compris la collision avec un niveau qu'on n'a PAS renomme.
+  r2 <- hstat_etiquettes_x(n, c(T1 = "T0"))
+  expect_equal(as.character(r2), n)
+  expect_equal(attr(r2, "collisions"), "T0")
+})
+
+test_that("un rendement déjà calculé donne les mêmes chiffres, sans le global", {
+  d <- data.frame(Traitement = rep(c("T0", "T1", "T2"), each = 3),
+                  Bloc = rep(1:3, 3),
+                  Masse = c(10, 11, 12, 18, 19, 20, 14, 15, 16),
+                  Surface = rep(0.01, 9), stringsAsFactors = FALSE)
+  ref <- hstat_rdt_complet(d, "Traitement", "Masse", "Surface",
+                           non_traite = "T0", var_repetition = "Bloc")
+  d$Rdt <- hstat_rendement(d$Masse, d$Surface)
+  pret <- hstat_rdt_complet(d, "Traitement", NULL, NULL, non_traite = "T0",
+                            var_repetition = "Bloc", var_rendement = "Rdt")
+  # LE CHEMIN COURT DONNE LES MEMES NOMBRES : c'est ce qui autorise a l'offrir.
+  expect_equal(pret$Rendement_moyen, ref$Rendement_moyen)
+  expect_equal(pret$Rendement_somme, ref$Rendement_somme)
+  expect_equal(pret$Gain_moyen, ref$Gain_moyen)
+  expect_equal(pret$Ecart_type, ref$Ecart_type)
+  expect_equal(pret$Repetitions, ref$Repetitions)
+  # LE RENDEMENT GLOBAL EXIGE LES SURFACES : il est ABSENT, jamais remplace par
+  # la moyenne -- ce serait annoncer une ponderation qui n'a pas eu lieu.
+  expect_false("Rendement_global" %in% names(pret))
+  expect_false("Gain_global" %in% names(pret))
+  expect_true("Rendement_global" %in% names(ref))
+
+  # L'unite est DECLAREE, et elle titre l'axe.
+  u <- hstat_rdt_complet(d, "Traitement", NULL, NULL, non_traite = "T0",
+                         sortie_masse = "tonne (1000 kg)",
+                         sortie_surface = "hectare (ha)", var_rendement = "Rdt")
+  expect_equal(attr(u, "unite"), "t/ha")
+
+  # Un refus se dit, il ne rend pas un tableau vide muet.
+  v <- hstat_rdt_table_prete(d, "Traitement", "")
+  expect_equal(NROW(v), 0L)
+  expect_true(grepl("rendement", attr(v, "message")))
+  d$Texte <- letters[1:9]
+  v2 <- hstat_rdt_table_prete(d, "Traitement", "Texte")
+  expect_equal(NROW(v2), 0L)
+  expect_true(grepl("num\u00e9rique", attr(v2, "message")))
+
+  # UN GAIN NE SE CONVERTIT PAS : c'est un pourcentage.
+  pc <- hstat_rdt_complet(d, "Traitement", NULL, NULL, non_traite = "T0",
+                          var_rendement = "Rdt",
+                          conv_masse = "tonne (1000 kg)",
+                          conv_surface = "hectare (ha)")
+  expect_true("Rendement_moyen_conv" %in% names(pc))
+  expect_equal(pc$Rendement_moyen_conv, pc$Rendement_moyen / 1000)
+  expect_length(grep("^Gain_.*_conv$", names(pc)), 0)
+})
+
+test_that("une boîte de résultats ne s'affiche pas avant d'avoir un résultat", {
+  chemin <- .hstat_module_path("mod_tests.R")
+  skip_if_not(file.exists(chemin))
+  txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # UNE BOITE VIDE OCCUPE LA PLACE DES REGLAGES. Les six boites concernees ne
+  # se construisent que sur demande.
+  for (cond in c("output.hasTestResults", "output.hasLMPostHoc",
+                 "output.hasMultivariatePosthoc", "output.hasRMPostHoc",
+                 "input.showTransformTools"))
+    expect_true(grepl(sprintf('condition = "%s"', cond), txt, fixed = TRUE),
+                info = cond)
+  # Le drapeau existe cote serveur, et il est calcule meme cache -- sinon la
+  # boite ne reapparaitrait jamais.
+  expect_true(grepl("output$hasTestResults <- shiny::reactive(", txt, fixed = TRUE))
+  expect_true(grepl('outputOptions(output, "hasTestResults", suspendWhenHidden = FALSE)',
+                    txt, fixed = TRUE))
+  # LES PANNEAUX « AUCUN RESULTAT » SONT DEVENUS INATTEIGNABLES : les garder
+  # serait du code mort dans une branche qui ne s'evalue jamais.
+  for (cond in c("!output.hasLMPostHoc", "!output.hasMultivariatePosthoc",
+                 "!output.hasRMPostHoc"))
+    expect_false(grepl(sprintf('condition = "%s"', cond), txt, fixed = TRUE),
+                 info = cond)
+  # Le second bouton de diagnostic vivait dans la boite d'attente retiree : il
+  # ne pouvait que refuser, il ne revient pas.
+  expect_false(grepl("runManovaDiagnostic2", txt, fixed = TRUE))
+})
+
+test_that("les boutons de l'éditeur d'ordre post-hoc sont namespacés", {
+  chemin <- .hstat_module_path("mod_tests.R")
+  skip_if_not(file.exists(chemin))
+  txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # CREES HORS DU NAMESPACE DU MODULE, les fleches haut/bas n'etaient jamais
+  # vues par `input$moveUp_1` : l'ordre des categories ne bougeait pas.
+  for (s in c("moveUp_", "moveDown_")) {
+    expect_true(grepl(sprintf('ns(paste0("%s", i))', s), txt, fixed = TRUE), info = s)
+    expect_false(grepl(sprintf('actionButton(paste0("%s", i)', s), txt, fixed = TRUE),
+                 info = s)
+  }
+  # Meme regle pour les elements glissables de la visualisation.
+  cv <- .hstat_module_path("mod_viz.R")
+  skip_if_not(file.exists(cv))
+  tv <- paste(readLines(cv, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl('id = ns(paste0("xorder_", i))', tv, fixed = TRUE))
+})

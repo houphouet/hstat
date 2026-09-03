@@ -498,43 +498,20 @@ mod_tests_ui <- function(id) {
                   )
                 ),
               
+              
+              
+                # La transformation est un OUTIL, pas un resultat : elle ne se deplie
+                # que si on la demande. Ouverte d'office, elle poussait les resultats
+                # hors de l'ecran a chaque test.
+                shiny::fluidRow(
+                  shiny::column(12,
+                         shiny::checkboxInput(ns("showTransformTools"),
+                                       "Afficher les outils de transformation des variables",
+                                       value = FALSE))
+                ),
                 shiny::conditionalPanel(
                   ns = ns,
-                  condition = "!output.showManovaWorkflow",
-                  shiny::fluidRow(
-                    shiny::div(id = "boxWrap_manovaPlaceholder",
-                        shinydashboard::box(
-                          title = shiny::tagList(shiny::icon("magic"), " Analyse multivariée assistée"),
-                          status = "info", width = 12, solidHeader = TRUE,
-                          collapsible = TRUE, collapsed = TRUE,
-                          shiny::div(style = "padding:20px; text-align:center;",
-                              shiny::icon("magic", style = "font-size:48px; color:#1565C0; opacity:0.6;"),
-                              shiny::h4("Parcours pour débutants et experts",
-                                 style = "color:#1565C0;"),
-                              shiny::p(style = "font-size:13px; color:#555; max-width:600px; margin:8px auto;",
-                                "Sélectionnez au moins ", shiny::strong("2 variables réponses numériques"),
-                                " et ", shiny::strong("1 facteur"), " dans \'Paramètres des tests\'. ",
-                                "Puis cliquez sur le bouton ci-dessous pour un diagnostic complet et une recommandation automatique."),
-                              shiny::br(),
-                              # DEUXIEME point d'entree du meme diagnostic, et non
-                              # un doublon : les deux boutons portaient le meme
-                              # identifiant, si bien que la page en contenait deux
-                              # exemplaires. Cela marche tant qu'on se contente de
-                              # cliquer -- la liaison de Shiny lit l'id de
-                              # l'element -- mais `updateActionButton()` ou
-                              # `shinyjs::disable()` n'en atteindraient qu'un seul,
-                              # et le HTML est invalide.
-                              shiny::actionButton(ns("runManovaDiagnostic2"),
-                                           shiny::tagList(shiny::icon("magic"), " Diagnostiquer mes données"),
-                                           class = "btn-primary btn-lg",
-                                           style = "padding:10px 30px; font-weight:bold;")
-                          )
-                        )
-                    )
-                  )
-                ),
-              
-              
+                  condition = "input.showTransformTools",
                 shiny::fluidRow(
                   shinydashboard::box(
                     title = shiny::div(
@@ -681,8 +658,12 @@ mod_tests_ui <- function(id) {
                       )
                     )  # fin fluidRow interne
                   )  # fin box transformation
+                )
                 ),
               
+                shiny::conditionalPanel(
+                  ns = ns,
+                  condition = "output.hasTestResults",
                 shiny::fluidRow(
                   shinydashboard::box(title = "Résultats des tests", status = "danger", width = 12, solidHeader = TRUE,
                       # LA BOITE EST PARTAGEE, DONC ELLE DOIT DIRE CE QU'ELLE
@@ -694,6 +675,7 @@ mod_tests_ui <- function(id) {
                       DT::DTOutput(ns("testResultsDF")),
                       shiny::br(),
                       shiny::downloadButton(ns("downloadTestsExcel"), "Télécharger les résultats (Excel)", class = "btn-info"))
+                )
                 ),
                 shiny::conditionalPanel(
                   ns = ns,
@@ -1375,6 +1357,9 @@ mod_posthoc_ui <- function(id) {
                 ),
 
               
+                shiny::conditionalPanel(
+                  ns = ns,
+                  condition = "output.hasLMPostHoc",
                 shiny::fluidRow(
                   shinydashboard::box(
                     title = shiny::tagList(shiny::icon("calculator"),
@@ -1424,30 +1409,16 @@ mod_posthoc_ui <- function(id) {
                                )
                         )
                       )
-                    ),
-                    shiny::conditionalPanel(
-                      ns = ns,
-                      condition = "!output.hasLMPostHoc",
-                      shiny::div(style = "text-align:center; padding:40px; color:#95a5a6;",
-                          shiny::icon("calculator", style = "font-size:4em; opacity:0.3;"),
-                          shiny::h4("Aucun PostHoc LM/GLM calculé"),
-                          shiny::p("Pour activer cette section :"),
-                          shiny::tags$ul(style = "text-align:left; display:inline-block; color:#555;",
-                                  shiny::tags$li("Lancez d'abord une ", shiny::strong("Régression linéaire"),
-                                          " ou un ", shiny::strong("GLM"),
-                                          " dans l'onglet 'Tests statistiques'"),
-                                  shiny::tags$li("Le modèle doit contenir au moins ", shiny::strong("un prédicteur catégoriel (factor)")),
-                                  shiny::tags$li("Revenez ici, sélectionnez ", shiny::strong("'LM / GLM (emmeans + lettres CLD)'"),
-                                          " dans la liste 'Méthode post-hoc paramétrique'"),
-                                  shiny::tags$li("Cliquez sur ", shiny::strong("LANCER L'ANALYSE"))
-                          )
-                      )
                     )
                   )
+                )
                 ),
               
                 # MANOVA / PERMANOVA POSTHOC -- Comparaisons multivariees par paires + lettres
               
+                shiny::conditionalPanel(
+                  ns = ns,
+                  condition = "output.hasMultivariatePosthoc",
                 shiny::fluidRow(
                   shiny::div(id = "boxWrap_manovaPosthoc",
                       shinydashboard::box(
@@ -1525,29 +1496,17 @@ mod_posthoc_ui <- function(id) {
                                    )
                             )
                           )
-                        ),
-                      
-                        shiny::conditionalPanel(
-                          ns = ns,
-                          condition = "!output.hasMultivariatePosthoc",
-                          shiny::div(style = "text-align: center; padding: 40px; color: #95a5a6;",
-                              shiny::icon("layer-group", style = "font-size: 4em; opacity: 0.3;"),
-                              shiny::h4("Aucun PostHoc multivarié calculé"),
-                              shiny::p("Pour activer cette section :"),
-                              shiny::tags$ul(style = "text-align: left; display: inline-block; color: #555;",
-                                      shiny::tags$li("Sélectionnez ", shiny::strong(">= 2 variables réponses"),
-                                              " dans le panneau de configuration"),
-                                      shiny::tags$li("Sélectionnez au moins ", shiny::strong("1 facteur")),
-                                      shiny::tags$li("Cliquez sur ", shiny::strong("LANCER L'ANALYSE")),
-                                      shiny::tags$li("Les comparaisons multivariées par paires et les lettres de groupes s'afficheront ici")
-                              )
-                          )
                         )
+                      
                       )
                   )
+                )
                 ),
               
               
+                shiny::conditionalPanel(
+                  ns = ns,
+                  condition = "output.hasRMPostHoc",
                 shiny::fluidRow(
                   shinydashboard::box(
                     title = shiny::tagList(shiny::icon("repeat"), " PostHoc Mesures répétées -- Comparaisons par paires (Période / Traitement)"),
@@ -1562,20 +1521,9 @@ mod_posthoc_ui <- function(id) {
                       withSpinner(DT::DTOutput(ns("rmPostHocTable")), color = "#00897b"),
                       shiny::br(),
                       shiny::downloadButton(ns("downloadRMPostHoc"), "Télécharger (Excel)", class = "btn-success")
-                    ),
-                    shiny::conditionalPanel(
-                      ns = ns,
-                      condition = "!output.hasRMPostHoc",
-                      shiny::div(style = "text-align:center; padding:40px; color:#95a5a6;",
-                          shiny::icon("repeat", style = "font-size:4em; opacity:0.3;"),
-                          shiny::h4("Aucun post-hoc de mesures répétées calculé"),
-                          shiny::p("Pour activer cette section :"),
-                          shiny::tags$ul(style = "text-align:left; display:inline-block; color:#555;",
-                                  shiny::tags$li("Renseignez Sujet, Période (et Traitement) dans le panneau « Mesures répétées »"),
-                                  shiny::tags$li(shiny::HTML("Lancez <b>ANOVA à mesures répétées</b> ou <b>Non paramétrique répété</b> dans l'onglet « Tests statistiques »")),
-                                  shiny::tags$li("Les comparaisons par paires s'afficheront ici")))
                     )
                   )
+                )
                 )
               
               
@@ -2843,6 +2791,14 @@ mod_tests_server <- function(id, values) {
 
   # Le détail ne s'affiche que tant que le dernier test lancé est bien un test
   # de conformité : sinon il resterait à l'écran après un autre test.
+  # La boite de resultats est PARTAGEE par tous les tests : vide, elle n'annonce
+  # rien et occupe la place des reglages. Elle n'apparait qu'une fois remplie.
+  output$hasTestResults <- shiny::reactive({
+    d <- values$testResultsDF
+    !is.null(d) && NROW(d) > 0
+  })
+  shiny::outputOptions(output, "hasTestResults", suspendWhenHidden = FALSE)
+
   output$hasRefTest <- shiny::reactive(
     !is.null(values$refTestDetails) &&
     identical(values$currentTestType, "reference"))
@@ -4177,10 +4133,11 @@ mod_tests_server <- function(id, values) {
     })
   })
   
-  # Les DEUX boutons de diagnostic declenchent le meme travail.
-  shiny::observeEvent(list(input$runManovaDiagnostic, input$runManovaDiagnostic2), {
-    if (((input$runManovaDiagnostic %||% 0) +
-         (input$runManovaDiagnostic2 %||% 0)) == 0) return()
+  # Le second bouton de diagnostic vivait dans la boite d'attente, retiree :
+  # elle s'affichait tant que MANOVA n'etait PAS possible, si bien que son
+  # bouton ne pouvait que refuser. Un seul point d'entree desormais.
+  shiny::observeEvent(input$runManovaDiagnostic, {
+    if ((input$runManovaDiagnostic %||% 0) == 0) return()
     shiny::req(input$responseVar, input$factorVar)
     if (length(input$responseVar) < 2) {
       shiny::showNotification("Le diagnostic nécessite au moins 2 variables réponses.",
@@ -4479,7 +4436,6 @@ mod_tests_server <- function(id, values) {
   # Repli des boxes de l'assistant multivarie au demarrage (le conditionalPanel
   # peut empecher collapsed=TRUE de s'appliquer correctement au rendu initial).
   session$onFlushed(function() {
-    session$sendCustomMessage("collapseBox", "boxWrap_manovaPlaceholder")
     session$sendCustomMessage("collapseBox", "boxWrap_manovaAssist")
   }, once = TRUE)
   
@@ -7657,6 +7613,27 @@ mod_tests_server <- function(id, values) {
   })
   
   
+  # Les niveaux de l'axe X du graphique post-hoc : le facteur en cours, dans
+  # l'ordre choisi par l'utilisateur s'il en a choisi un. UNE seule definition,
+  # relue par l'editeur d'ordre, par ses observateurs et par les etiquettes --
+  # trois copies du meme calcul finiraient par diverger.
+  posthoc_x_niveaux <- shiny::reactive({
+    if (is.null(values$filteredData)) return(NULL)
+    fvar <- NULL
+    if (!is.null(input$plotDisplayType) && input$plotDisplayType == "main") {
+      fvar <- tryCatch(input$multiFactor[[1]], error = function(e) NULL)
+    } else if (!is.null(input$selectedSimpleEffect) && input$selectedSimpleEffect != "") {
+      fvar <- tryCatch({
+        parts <- strsplit(input$selectedSimpleEffect, " | ", fixed = TRUE)[[1]]
+        if (length(parts) >= 1) trimws(parts[1]) else NULL
+      }, error = function(e) NULL)
+    }
+    if (is.null(fvar) || !fvar %in% colnames(values$filteredData)) return(NULL)
+    if (!is.null(values$customXLevels())) return(values$customXLevels())
+    if (is.factor(values$filteredData[[fvar]])) return(levels(values$filteredData[[fvar]]))
+    unique(as.character(values$filteredData[[fvar]]))
+  })
+
   output$xAxisOrderUI <- shiny::renderUI({
     shiny::req(input$multiResponse, input$multiFactor, values$filteredData)
     
@@ -7678,18 +7655,18 @@ mod_tests_server <- function(id, values) {
     
     if (is.null(fvar) || !fvar %in% colnames(values$filteredData)) return(NULL)
     
-    current_levels <- if (!is.null(values$customXLevels())) {
-      values$customXLevels()
-    } else if (is.factor(values$filteredData[[fvar]])) {
-      levels(values$filteredData[[fvar]])
-    } else {
-      unique(as.character(values$filteredData[[fvar]]))
-    }
+    current_levels <- posthoc_x_niveaux()
     
     if (length(current_levels) == 0) return(NULL)
     
+    # Les etiquettes deja posees reviennent dans les champs : sans cela, rouvrir
+    # le panneau les effacerait sous les doigts de l'utilisateur.
+    etiquettes_actuelles <- as.list(values$posthocXLabels %||% character(0))
+    
     shiny::tagList(
-      shiny::h6("Ordre actuel des catégories :", style = "font-weight: bold; color: #27ae60;"),
+      shiny::h6("Ordre et étiquettes des catégories :", style = "font-weight: bold; color: #27ae60;"),
+      shiny::tags$small(style = "color:#7f8c8d; font-style:italic; display:block; margin-bottom:6px;",
+                 "Le nom saisi ne change que l'affichage : les données gardent leur modalité d'origine."),
       shiny::div(style = "max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 5px;",
           lapply(seq_along(current_levels), function(i) {
             level_name <- current_levels[i]
@@ -7700,18 +7677,22 @@ mod_tests_server <- function(id, values) {
                          style = "text-align: center; padding-top: 5px;"
                   ),
                   shiny::column(6, 
-                         shiny::span(level_name, style = "font-weight: bold; color: #2c3e50;")
+                         shiny::span(level_name, style = "font-weight: bold; color: #2c3e50;"),
+                         shiny::textInput(ns(paste0("xLabel_", i)), NULL,
+                                   value = etiquettes_actuelles[[level_name]] %||% level_name,
+                                   placeholder = "Étiquette affichée",
+                                   width = "100%")
                   ),
                   shiny::column(4,
                          shiny::div(style = "text-align: right;",
                              if (i > 1) {
-                               shiny::actionButton(paste0("moveUp_", i), "", 
+                               shiny::actionButton(ns(paste0("moveUp_", i)), "", 
                                             icon = shiny::icon("arrow-up"),
                                             class = "btn-sm btn-primary",
                                             style = "margin-right: 5px; padding: 2px 8px;")
                              },
                              if (i < length(current_levels)) {
-                               shiny::actionButton(paste0("moveDown_", i), "", 
+                               shiny::actionButton(ns(paste0("moveDown_", i)), "", 
                                             icon = shiny::icon("arrow-down"),
                                             class = "btn-sm btn-primary",
                                             style = "padding: 2px 8px;")
@@ -7723,10 +7704,18 @@ mod_tests_server <- function(id, values) {
           })
       ),
       shiny::hr(),
-      shiny::actionButton(ns("resetXOrder"), "Réinitialiser l'ordre", 
-                   class = "btn-warning btn-sm", 
-                   icon = shiny::icon("undo"),
-                   style = "width: 100%;")
+      shiny::fluidRow(
+        shiny::column(6,
+               shiny::actionButton(ns("applyXLabels"), "Appliquer les étiquettes",
+                            class = "btn-success btn-sm",
+                            icon = shiny::icon("check"),
+                            style = "width: 100%;")),
+        shiny::column(6,
+               shiny::actionButton(ns("resetXOrder"), "Réinitialiser",
+                            class = "btn-warning btn-sm",
+                            icon = shiny::icon("undo"),
+                            style = "width: 100%;"))
+      )
     )
   })
   
@@ -7751,13 +7740,7 @@ mod_tests_server <- function(id, values) {
     
     if (is.null(fvar) || !fvar %in% colnames(values$filteredData)) return(NULL)
     
-    current_levels <- if (!is.null(values$customXLevels())) {
-      values$customXLevels()
-    } else if (is.factor(values$filteredData[[fvar]])) {
-      levels(values$filteredData[[fvar]])
-    } else {
-      unique(as.character(values$filteredData[[fvar]]))
-    }
+    current_levels <- posthoc_x_niveaux()
     
     if (length(current_levels) == 0) return(NULL)
     
@@ -7785,7 +7768,32 @@ mod_tests_server <- function(id, values) {
   
   shiny::observeEvent(input$resetXOrder, {
     values$customXLevels(NULL)
-    shiny::showNotification("Ordre des catégories réinitialisé", type = "message", duration = 2)
+    values$posthocXLabels <- NULL
+    shiny::showNotification("Ordre et étiquettes des catégories réinitialisés",
+                     type = "message", duration = 2)
+  })
+
+  # Les etiquettes ne sont relues qu'au clic : les appliquer a la frappe
+  # reconstruirait la figure a chaque lettre tapee.
+  shiny::observeEvent(input$applyXLabels, {
+    niveaux <- posthoc_x_niveaux()
+    if (is.null(niveaux) || !length(niveaux)) return()
+    saisies <- vapply(seq_along(niveaux), function(i) {
+      v <- input[[paste0("xLabel_", i)]]
+      if (is.null(v)) "" else trimws(as.character(v)[1])
+    }, character(1))
+    names(saisies) <- niveaux
+    saisies <- saisies[nzchar(saisies) & saisies != niveaux]
+    res <- hstat_etiquettes_x(niveaux, saisies)
+    coll <- attr(res, "collisions")
+    if (!is.null(coll) && length(coll))
+      shiny::showNotification(
+        trf("%s : deux modalités porteraient la même étiquette, elles gardent leur nom d'origine.",
+            paste(coll, collapse = ", ")),
+        type = "warning", duration = 8)
+    values$posthocXLabels <- if (length(saisies)) saisies else NULL
+    shiny::showNotification(trf("%s étiquette(s) appliquée(s).", length(saisies)),
+                     type = "message", duration = 3)
   })
   
   # Message expliquant pourquoi le graphique post-hoc est vide (le cas echeant).
@@ -7865,6 +7873,7 @@ mod_tests_server <- function(id, values) {
     
     custom_x_order <- input$customXOrder
     custom_x_levels <- values$customXLevels()
+    custom_x_labels <- values$posthocXLabels
     
     subtitle_position <- input$subtitlePosition
     
@@ -8269,6 +8278,12 @@ mod_tests_server <- function(id, values) {
       }
       
       p <- p + base_theme + base_labels
+      
+      # Les etiquettes de modalites : l'axe affiche le nom choisi, les donnees
+      # gardent le leur. `common_levels` est l'ordre reellement trace.
+      if (!is.null(custom_x_labels) && length(custom_x_labels))
+        p <- p + ggplot2::scale_x_discrete(
+          labels = hstat_etiquettes_x(common_levels, custom_x_labels))
       
       # La palette ne se pose qu'ici, et par l'aide commune : un `switch` de
       # plus dans ce fichier finirait par diverger de celui des autres modules.
