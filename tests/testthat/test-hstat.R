@@ -12963,3 +12963,137 @@ test_that("une graine posée dans une boucle doit varier avec la boucle", {
   }
   expect_equal(unique(fautifs), character(0))
 })
+
+
+test_that("une PERMANOVA par paires refuse un groupe d'une seule observation", {
+  skip_if_not_installed("vegan")
+  set.seed(21)
+  n <- 12
+  Y <- rbind(matrix(stats::rnorm(2 * n, 0), n, 2),
+             matrix(stats::rnorm(2 * n, 0), n, 2),
+             matrix(stats::rnorm(2 * n, 6), n, 2))
+  g <- rep(c("T-1", "T-2", "T-3"), each = n)
+
+  r <- pairwise_permanova(Y, g, permutations = 199)
+  expect_equal(nrow(r), 3L)
+  # LES NIVEAUX REVIENNENT EN COLONNES, pas concatenes dans une etiquette :
+  # c'est la forme qui rend le tiret inoffensif.
+  expect_setequal(paste(r$Niveau1, r$Niveau2), c("T-1 T-2", "T-1 T-3", "T-2 T-3"))
+  # Deux nuages confondus, un nuage a part : une paire non significative,
+  # deux significatives. Verifier le VERDICT, pas seulement la presence.
+  expect_equal(sum(r$Significatif == "Oui"), 2L)
+  expect_equal(r$Significatif[r$Niveau1 == "T-1" & r$Niveau2 == "T-2"], "Non")
+  # Bonferroni sur trois paires.
+  expect_equal(r$p_adj, pmin(r$p_value * 3, 1))
+
+  # UN GROUPE D'UNE SEULE OBSERVATION N'A PAS DE DISPERSION INTERNE. La garde
+  # ne portait que sur l'effectif TOTAL : une paire 12 contre 1 la franchissait
+  # et rendait un p parfaitement plausible -- mesure : p = 0,08, « Non
+  # significatif ». La non-significativite y est un artefact d'effectif.
+  idx <- c(1:12, 13, 25:36)
+  r2 <- pairwise_permanova(Y[idx, ], g[idx], permutations = 99)
+  petites <- r2$n1 < 2 | r2$n2 < 2
+  expect_true(any(petites))
+  expect_true(all(is.na(r2$p_value[petites])))
+  expect_true(all(r2$Significatif[petites] == "NA"))
+  # ...et la paire complete, elle, reste testee.
+  expect_false(any(is.na(r2$p_value[!petites])))
+})
+
+test_that("les lettres d'interaction survivent aux tirets dans les deux facteurs", {
+  skip_if_not_installed("multcompView")
+  # Les cellules d'interaction sont composees (« A-1 . B-1 ») : l'etiquette de
+  # Tukey y porte DEUX separateurs possibles. Rapprocher des niveaux connus
+  # tranche, decouper ne le pouvait pas.
+  set.seed(5)
+  d <- expand.grid(A = c("A-1", "A-2"), B = c("B-1", "B-2"), r = 1:6)
+  d$y <- stats::rnorm(nrow(d), 10) +
+         ifelse(d$A == "A-2", 8, 0) + ifelse(d$B == "B-2", 5, 0)
+  r <- build_letters_interaction(d, "y", c("A", "B"), parametric = TRUE)
+  expect_false(is.null(r))
+  expect_equal(nrow(r), 4L)
+  # Quatre cellules nettement separees -> quatre lettres distinctes.
+  expect_equal(length(unique(r$Groupes)), 4L)
+})
+
+test_that("le niveau de confiance et le sens du test atteignent cor.test", {
+  # LE DEPOT A DEJA ETE MORDU PAR CETTE FAMILLE : le niveau annonce differait
+  # du niveau calcule, et la phrase d'interpretation ecrivait 95 % sous des
+  # bornes a 99 %. Ici les deux reglages sont des ARGUMENTS -- ils doivent
+  # arriver jusqu'a `cor.test`, et rien ne le verifiait.
+  set.seed(9)
+  dd <- data.frame(a = 1:20, b = (1:20) * 2 + stats::rnorm(20, 0, 3))
+  c95 <- hstat_correlation_tests(dd, c("a", "b"), conf.level = 0.95)
+  c99 <- hstat_correlation_tests(dd, c("a", "b"), conf.level = 0.99)
+  ref99 <- stats::cor.test(dd$a, dd$b, conf.level = 0.99)$conf.int
+  # Le tableau est arrondi a l'affichage : on compare a cette precision-la.
+  expect_equal(c99$IC_bas, ref99[1], tolerance = 1e-4)
+  expect_equal(c99$IC_haut, ref99[2], tolerance = 1e-4)
+  # ET L'INTERVALLE A 99 % EST PLUS LARGE : sans quoi l'assertion passerait
+  # sur une fonction qui ignorerait le niveau et rendrait toujours 95 %.
+  expect_lt(c99$IC_bas, c95$IC_bas)
+  expect_gt(c99$IC_haut, c95$IC_haut)
+
+  # Le sens du test aussi : unilateral = moitie du bilateral quand l'effet va
+  # dans le sens demande.
+  #
+  # LA DONNEE D'ESSAI DOIT RENDRE LA DIFFERENCE MESURABLE. Sur la correlation
+  # quasi parfaite ci-dessus, p vaut ~1e-12 : sa moitie en differe de 7e-13,
+  # soit MOINS que toute tolerance raisonnable -- l'assertion passait alors
+  # meme en ignorant `alternative`. Une correlation faible donne p ~ 0,3, et
+  # la moitie s'en distingue.
+  set.seed(31)
+  faible <- data.frame(a = stats::rnorm(20), b = stats::rnorm(20))
+  bi  <- hstat_correlation_tests(faible, c("a", "b"))
+  uni <- hstat_correlation_tests(faible, c("a", "b"),
+                                 alternative = if (bi$Coefficient > 0) "greater" else "less")
+  expect_gt(bi$p_value, 0.05)          # p bien loin de zero, donc mesurable
+  expect_equal(uni$p_value, bi$p_value / 2, tolerance = 1e-3)
+})
+
+
+test_that("un niveau écarté des effets simples est nommé, pas escamoté", {
+  skip_if_not_installed("vegan")
+  set.seed(17)
+  d <- expand.grid(A = c("A-1", "A-2"), B = c("B-1", "B-2"), r = 1:8)
+  d$y1 <- stats::rnorm(nrow(d), 10) + ifelse(d$A == "A-2" & d$B == "B-2", 9, 0)
+  d$y2 <- stats::rnorm(nrow(d), 5)  + ifelse(d$A == "A-2" & d$B == "B-2", 7, 0)
+
+  # Interaction vraie : l'effet de B n'existe que dans A-2.
+  r <- manova_simple_effects(d, c("y1", "y2"), fixed = "A", tested = "B")
+  expect_equal(nrow(r), 2L)
+  expect_equal(r$Significatif, c("Non", "Oui"))
+  expect_null(attr(r, "niveaux_ecartes"))
+
+  # UN NIVEAU NON CALCULABLE DISPARAISSAIT SANS UN MOT. Le motif n'etait
+  # attache que si TOUS echouaient ; quand un seul tombait, l'utilisateur
+  # lisait des effets simples pour un niveau sur deux en croyant les avoir
+  # tous. Et la correction de Bonferroni porte sur les tests RESTANTS : un
+  # niveau escamote rend les p survivantes MOINS corrigees, donc plus
+  # facilement significatives.
+  d2 <- d; d2$y1[d2$A == "A-1"] <- 3; d2$y2[d2$A == "A-1"] <- 3
+  r2 <- manova_simple_effects(d2, c("y1", "y2"), fixed = "A", tested = "B")
+  expect_equal(nrow(r2), 1L)
+  expect_equal(attr(r2, "niveaux_ecartes"), "A-1")
+  expect_true(grepl("A-1", attr(r2, "message"), fixed = TRUE))
+  expect_true(grepl("Bonferroni", attr(r2, "message"), fixed = TRUE))
+  # La preuve du cout : la meme p-value est MOINS corrigee sans le niveau.
+  expect_lt(r2$p_adj[1], r$p_adj[r$Niveau_fixe == "A = A-2"])
+
+  # Meme regle pour la version non parametrique, qui ne collectait meme pas
+  # les niveaux ecartes.
+  d3 <- d
+  d3$B[d3$A == "A-1"] <- "B-1"           # un seul niveau teste dans A-1
+  r3 <- permanova_simple_effects(d3, c("y1", "y2"), fixed = "A", tested = "B",
+                                 permutations = 99)
+  expect_equal(attr(r3, "niveaux_ecartes"), "A-1")
+  expect_true(grepl("A-1", attr(r3, "message"), fixed = TRUE))
+
+  # ET LE MESSAGE EST AFFICHE : une alerte que personne ne lit ne vaut rien.
+  chemin <- .hstat_module_path("mod_tests.R")
+  skip_if_not(file.exists(chemin))
+  pd <- utils::getParseData(parse(chemin, keep.source = TRUE))
+  code <- paste(pd$text[pd$token != "COMMENT" & nzchar(pd$text)], collapse = "")
+  expect_true(grepl('attr(res,"message")', code, fixed = TRUE))
+  expect_true(grepl("showNotification(msg_ecartes", code, fixed = TRUE))
+})

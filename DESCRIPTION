@@ -1,7 +1,7 @@
 Package: HStat
 Type: Package
 Title: Interactive Shiny Application for Statistical Analysis
-Version: 0.82.0
+Version: 0.82.2
 Authors@R: c(
     person("Houphouet", "KOUADIO", email = "houphouet.kouadio@epitech.eu",
            role = c("aut", "cre"),
