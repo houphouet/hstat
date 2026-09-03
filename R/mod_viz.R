@@ -802,6 +802,19 @@ mod_viz_ui <- function(id) {
                         
                         shiny::h4(shiny::icon("palette"), " Apparence Visuelle",
                            style = "color: #ff9800; font-weight: bold; border-bottom: 3px solid #ff9800; padding-bottom: 10px; margin-top: 0;"),
+
+                        # LE MODAL DE PERSONNALISATION RAPIDE EXISTAIT SANS
+                        # BOUTON POUR L'OUVRIR. Il regroupe les six reglages
+                        # qu'on retouche le plus souvent -- titres, tailles,
+                        # position de legende -- et son bouton « Appliquer »
+                        # ecrit dans les vrais champs ci-dessous. Il fait donc
+                        # gagner le parcours de tout le panneau, ce qui est sa
+                        # raison d'etre.
+                        shiny::actionButton(ns("customizePlot"),
+                          "Personnalisation rapide", icon = shiny::icon("paint-brush"),
+                          class = "btn-warning btn-block"),
+                        shiny::br(),
+
                         
                         shiny::sliderInput(ns("pointSize"),
                           shiny::tagList(shiny::icon("circle"), " Taille des points :"),
@@ -1032,11 +1045,19 @@ mod_viz_ui <- function(id) {
                 # Script SortableJS pour le drag-and-drop (servi en local depuis www/)
                 shiny::tags$script(src = "Sortable.min.js"),
                 
-                shiny::tags$script(shiny::HTML("
+                # LE JAVASCRIPT D'UN MODULE DOIT PORTER LE PREFIXE DU MODULE.
+                # `Shiny.setInputValue('xLevelOrder', ...)` posait l'entree SANS
+                # prefixe, alors que le serveur ecoute `input$xLevelOrder`,
+                # c'est-a-dire « viz-xLevelOrder » : le reordonnancement des
+                # categories par glisser-deposer n'arrivait jamais. Meme cause
+                # pour la comparaison `event.target.id === 'xOrderEditor'`, que
+                # le vrai identifiant « viz-xOrderEditor » ne satisfait jamais :
+                # Sortable n'etait plus re-arme apres un redessin de la liste.
+                shiny::tags$script(shiny::HTML(sprintf("
     $(document).ready(function() {
       // Fonction pour initialiser Sortable (recrée toujours une instance fraiche)
       function initSortable() {
-        var el = document.getElementById('xOrderSortable');
+        var el = document.getElementById('%s');
         if (!el) return;
         // Détruire l'ancienne instance si elle existe
         if (el.sortableInstance) {
@@ -1053,7 +1074,7 @@ mod_viz_ui <- function(id) {
             items.forEach(function(item) {
               order.push(item.getAttribute('data-value'));
             });
-            Shiny.setInputValue('xLevelOrder', order, {priority: 'event'});
+            Shiny.setInputValue('%s', order, {priority: 'event'});
           }
         });
       }
@@ -1063,19 +1084,20 @@ mod_viz_ui <- function(id) {
       
       // Réinitialiser chaque fois que xOrderEditor ou xLevelsEditor est mis à jour
       $(document).on('shiny:value', function(event) {
-        if (event.target.id === 'xOrderEditor' || event.target.id === 'xLevelsEditor') {
+        if (event.target.id === '%s' || event.target.id === '%s') {
           setTimeout(initSortable, 150);
         }
       });
       
       // Réinitialiser aussi après shiny:recalculated (au cas où le DOM est reconstruit)
       $(document).on('shiny:recalculated', function() {
-        if (document.getElementById('xOrderSortable')) {
+        if (document.getElementById('%s')) {
           setTimeout(initSortable, 200);
         }
       });
     });
-  ")),
+  ", ns("xOrderSortable"), ns("xLevelOrder"), ns("xOrderEditor"),
+     ns("xLevelsEditor"), ns("xOrderSortable")))),
                 
                 shiny::tags$style(shiny::HTML("
     /* Styles pour le drag-and-drop */
@@ -1712,7 +1734,7 @@ mod_viz_server <- function(id, values) {
           )
       ),
       
-      shiny::div(id = "xOrderSortable",
+      shiny::div(id = ns("xOrderSortable"),
           style = if(length(display_vals) > 15) "max-height: 500px; overflow-y: auto; padding: 10px; background-color: #f9f9f9; border-radius: 5px;" else "padding: 10px; background-color: #f9f9f9; border-radius: 5px;",
           lapply(seq_along(display_vals), function(i) {
             val <- display_vals[i]

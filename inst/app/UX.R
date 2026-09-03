@@ -192,7 +192,7 @@ ui <- shinydashboard::dashboardPage(
       shinydashboard::menuItem("Deep Learning", tabName = "dl", icon = shiny::icon("brain")),
       shiny::tags$li(class = "header", "5. Planification & outils"),
       shinydashboard::menuItem("Plan & Puissance", tabName = "design", icon = shiny::icon("flask")),
-      shinydashboard::menuItem("Gain de rendement", tabName = "yield", icon = shiny::icon("wheat-awn")),
+      shinydashboard::menuItem("Rendement/Gain de rendement", tabName = "yield", icon = shiny::icon("wheat-awn")),
       shinydashboard::menuItem("Seuils d'efficacité", tabName = "threshold", icon = shiny::icon("gauge-high")),
       shinydashboard::menuItem("Doses & dilutions", tabName = "dosage", icon = shiny::icon("flask-vial")),
       shinydashboard::menuItem("DL50 / CL50", tabName = "dl50", icon = shiny::icon("skull-crossbones")),
