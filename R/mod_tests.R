@@ -797,6 +797,12 @@ mod_posthoc_ui <- function(id) {
                                         ),
                                         selected = "tukey"
                             ),
+                            shiny::checkboxInput(ns("multiProtege"),
+                                          "Post-hoc protégé : n'attribuer des lettres que si le test global est significatif",
+                                          value = TRUE),
+                            shiny::div(style = "font-size:11px;color:#7f8c8d;margin-top:-6px;margin-bottom:8px;",
+                                shiny::icon("shield-halved"),
+                                shiny::HTML(" Sans différence globale, toutes les modalités reçoivent la même lettre. LSD et Duncan l'exigent (ils ne contrôlent pas le risque eux-mêmes) ; Tukey, Scheffé, Bonferroni et Games-Howell le contrôlent, et leur désaccord avec le test global est rare mais légitime — décochez pour le voir.")),
                             shiny::selectInput(ns("multiParamAdjust"),
                                         shiny::tagList(shiny::icon("sliders-h"), " Ajustement des p-values (homogénéisation des groupes)"),
                                         choices = c("Holm" = "holm", "Bonferroni" = "bonferroni",
@@ -6394,17 +6400,31 @@ mod_tests_server <- function(id, values) {
               # emmeans accepte tukey/bonferroni/holm/BH/... ; "none" = brut
               pm_adj <- input$multiParamAdjust %||% "bonferroni"
               mc <- graphics::pairs(emm, adjust = if (identical(pm_adj, "none")) "none" else pm_adj)
-              pmat <- as.matrix(summary(mc)$p.value)
-              if (is.null(dim(pmat))) {
-                groups <- data.frame(groups = rep("a", length(levels(df[[fvar]]))))
-                groups[[fvar]] <- levels(df[[fvar]])
-              } else {
-                pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-                diag(pmat) <- 1
-                groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
-                groups <- data.frame(groups = groups_letters)
-                groups[[fvar]] <- names(groups_letters)
-              }
+              # CE POST-HOC N'A JAMAIS FONCTIONNE. `summary(pairs(emm))$p.value`
+              # est un VECTEUR -- une p-value par contraste --, pas une matrice.
+              # `as.matrix()` en faisait un tableau n x 1 sans noms, si bien que
+              # la garde `is.null(dim(pmat))` ne se declenchait JAMAIS, que
+              # `diag(pmat) <- 1` ecrasait la premiere case, et que
+              # `multcompLetters` levait « Names required for pmat ». Reproduit
+              # au navigateur : « L'analyse a échoué [...] Names required for ».
+              #
+              # La matrice se construit donc a partir des ETIQUETTES de
+              # contraste (« T1 - T2 ») rapprochees des niveaux connus -- la
+              # meme porte que les lettres CLD du socle, immunisee contre les
+              # noms a tiret.
+              rc <- summary(mc)
+              niv <- levels(df_var[[fvar]])
+              pmat <- hstat_pmat_comparaisons(as.character(rc$contrast), rc$p.value,
+                                              niv, sep = "-")
+              non_res <- attr(pmat, "non_resolues")
+              if (!is.null(non_res) && length(non_res))
+                shiny::showNotification(
+                  trf("PostHoc %s : %s comparaison(s) non rattachée(s) à leurs modalités (%s). Les lettres peuvent être optimistes.",
+                      fvar, length(non_res), paste(utils::head(non_res, 3), collapse = ", ")),
+                  type = "warning", duration = 10)
+              groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters[niv]
+              groups <- data.frame(groups = as.character(groups_letters))
+              groups[[fvar]] <- niv
             } else if (input$multiTest == "dunnett") {
               emm <- emmeans::emmeans(model, stats::as.formula(paste0("~ `", fvar, "`")))
               groups_cld <- multcomp::cld(emm, Letters = letters)
@@ -6479,6 +6499,28 @@ mod_tests_server <- function(id, values) {
             }
           }
           
+          # LE TEST GLOBAL D'ABORD. Un post-hoc n'est pas un test independant :
+          # sans difference globale, classer les modalites en a / ab / b
+          # contredit l'analyse dans le meme rapport. Signale a l'usage.
+          #
+          # LSD et Duncan sont PROTEGES par construction -- ils ne controlent
+          # pas le risque eux-memes. Tukey, Scheffe, Bonferroni et Games-Howell
+          # le controlent, et leur desaccord avec le test global est rare mais
+          # legitime : d'ou une protection PAR DEFAUT, qui se decoche.
+          omni <- hstat_omnibus(
+            if (exists("df_var") && !is.null(df_var)) df_var else df,
+            var, fvar, parametric = identical(input$testType, "param"))
+          if (isTRUE(input$multiProtege %||% TRUE) &&
+              "groups" %in% names(groups)) {
+            lt <- hstat_cld_proteger(groups$groups, omni$p, test = omni$test)
+            if (isTRUE(attr(lt, "protege"))) {
+              groups$groups <- as.character(lt)
+              shiny::showNotification(
+                paste0(var, " x ", fvar, " : ", attr(lt, "message")),
+                type = "warning", duration = 14)
+            }
+          }
+
           # Utiliser df_var (sans NA dans var) pour les stats descriptives
           df_desc <- if (exists("df_var") && !is.null(df_var)) df_var else df
           desc <- df_desc %>%
@@ -6506,7 +6548,13 @@ mod_tests_server <- function(id, values) {
                 `Moyenne±Erreur_type` = .hstat_pm(Moyenne, Erreur_type, groups, .dec_aff),
                 Variable = var,
                 Facteur = fvar,
-                Type = "main"
+                Type = "main",
+                # LE TEST GLOBAL VOYAGE AVEC LES LETTRES. Le lire dans un autre
+                # onglet est precisement ce qui rendait la contradiction
+                # invisible : on publiait des lettres sans savoir si l'analyse
+                # d'ensemble les autorisait.
+                Test_global = omni$test %||% NA_character_,
+                p_global = omni$p
               )
             
             multi_results_list[[paste(var, fvar, "main", sep = "_")]] <- res
