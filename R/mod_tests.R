@@ -3120,45 +3120,81 @@ mod_tests_server <- function(id, values) {
     
     tryCatch({
       df <- values$filteredData
-      for (var in input$responseVar) {
+      # UN `tryCatch` QUI COUVRE LA BOUCLE EMPORTE TOUTE LA SORTIE. Le
+      # gestionnaire du bas enveloppait les N variables reponses : un seul
+      # predicteur degenere -- une colonne constante, le cas le plus ordinaire
+      # -- faisait tomber la regression de TOUTES les autres. Chaque variable
+      # porte donc sa propre garde, et ce qui echoue devient une LIGNE lisible
+      # au lieu d'un vide.
+      #
+      # `<<-` est indispensable : dans un `error = function(e)`, `<-` ecrirait
+      # une copie locale au gestionnaire, et la ligne serait perdue.
+      for (var in input$responseVar) tryCatch({
         formula_str <- paste0("`", var, "` ~ ", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = "+"))
         model <- stats::lm(stats::as.formula(formula_str), data = df)
         summary_model <- summary(model)
         
         model_list[[var]] <- model
         
-        results_list[[paste(var, "global", sep = "_")]] <- data.frame(
-          Test = "Régression linéaire",
-          Variable = var,
-          Facteur = "Modèle global",
-          Statistique = round(summary_model$fstatistic[1], 4),
-          ddl = paste(summary_model$fstatistic[2], ",", summary_model$fstatistic[3]),
-          p_value = stats::pf(summary_model$fstatistic[1], summary_model$fstatistic[2], 
-                       summary_model$fstatistic[3], lower.tail = FALSE),
-          Interpretation = paste("R² =", round(summary_model$r.squared, 4)),
-          stringsAsFactors = FALSE
-        )
-        
+        # UN MODELE SANS PENTE N'A PAS DE STATISTIQUE F. Quand tous les
+        # predicteurs sont constants ou colineaires, R ne garde que
+        # l'ordonnee a l'origine : `summary()$fstatistic` vaut NULL et
+        # `round(NULL[1], 4)` leve « non-numeric argument to mathematical
+        # function ». Ce n'est pas une erreur de l'utilisateur, c'est un
+        # resultat -- on l'ecrit.
         coef_table <- summary_model$coefficients
-        for (i in 2:nrow(coef_table)) {
-          results_list[[paste(var, rownames(coef_table)[i], sep = "_")]] <- data.frame(
+        fs <- summary_model$fstatistic
+        if (is.null(fs) || nrow(coef_table) < 2) {
+          results_list[[paste(var, "global", sep = "_")]] <- data.frame(
             Test = "Régression linéaire",
             Variable = var,
-            Facteur = rownames(coef_table)[i],
-            Statistique = round(coef_table[i, "t value"], 4),
-            ddl = summary_model$df[2],
-            p_value = coef_table[i, "Pr(>|t|)"],
-            Interpretation = interpret_test_results("lm", coef_table[i, "Pr(>|t|)"]),
+            Facteur = "Modèle global",
+            Statistique = NA_real_, ddl = NA_character_, p_value = NA_real_,
+            Interpretation = tr("Aucun prédicteur exploitable : tous sont constants ou colinéaires, le modèle se réduit à sa constante. Choisissez d'autres facteurs."),
+            stringsAsFactors = FALSE)
+        } else {
+          results_list[[paste(var, "global", sep = "_")]] <- data.frame(
+            Test = "Régression linéaire",
+            Variable = var,
+            Facteur = "Modèle global",
+            Statistique = round(fs[1], 4),
+            ddl = paste(fs[2], ",", fs[3]),
+            p_value = stats::pf(fs[1], fs[2], fs[3], lower.tail = FALSE),
+            Interpretation = paste("R² =", round(summary_model$r.squared, 4)),
             stringsAsFactors = FALSE
           )
+          # `seq_len(n)[-1]` et non `2:n` : a une seule ligne de coefficients,
+          # `2:1` rend `c(2, 1)` et l'indexation sort du tableau.
+          for (i in seq_len(nrow(coef_table))[-1]) {
+            results_list[[paste(var, rownames(coef_table)[i], sep = "_")]] <- data.frame(
+              Test = "Régression linéaire",
+              Variable = var,
+              Facteur = rownames(coef_table)[i],
+              Statistique = round(coef_table[i, "t value"], 4),
+              ddl = summary_model$df[2],
+              p_value = coef_table[i, "Pr(>|t|)"],
+              Interpretation = interpret_test_results("lm", coef_table[i, "Pr(>|t|)"]),
+              stringsAsFactors = FALSE
+            )
+          }
         }
-      }
+      }, error = function(e) {
+        results_list[[paste(var, "global", sep = "_")]] <<- data.frame(
+          Test = "Régression linéaire", Variable = var, Facteur = "Modèle global",
+          Statistique = NA_real_, ddl = NA_character_, p_value = NA_real_,
+          Interpretation = hstat_err_fr(e, trf("Régression sur %s", var)),
+          stringsAsFactors = FALSE)
+      })
       
       if (length(results_list) > 0) {
         values$testResultsDF <- do.call(rbind, results_list)
-        values$currentModel <- model
-        values$modelList <- model_list
-        values$currentModelVar <- 1
+        # `model` n'existe pas si toutes les variables ont echoue : le tableau
+        # porte alors des lignes d'echec, et il n'y a aucun modele a garder.
+        if (length(model_list)) {
+          values$currentModel <- model_list[[length(model_list)]]
+          values$modelList <- model_list
+          values$currentModelVar <- 1
+        }
         values$currentTestType <- "parametric"
       } else {
         shiny::showNotification("Aucun résultat de régression généré", type = "warning")
@@ -3177,7 +3213,9 @@ mod_tests_server <- function(id, values) {
     
     tryCatch({
       df <- values$filteredData
-      for (var in input$responseVar) {
+      # Meme regle que la regression : une variable qui echoue ne doit pas
+      # emporter les autres.
+      for (var in input$responseVar) tryCatch({
         formula_str <- paste0("`", var, "` ~ ", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = "+"))
         gl <- hstat_glm_fit(stats::as.formula(formula_str), data = df, family = stats::gaussian())
         model <- gl$fit
@@ -3219,13 +3257,21 @@ mod_tests_server <- function(id, values) {
             )
           }
         }
-      }
+      }, error = function(e) {
+        results_list[[paste(var, "global", sep = "_")]] <<- data.frame(
+          Test = "GLM", Variable = var, Facteur = "Modèle global",
+          Statistique = NA_real_, ddl = NA_character_, p_value = NA_real_,
+          Interpretation = hstat_err_fr(e, trf("GLM sur %s", var)),
+          stringsAsFactors = FALSE)
+      })
       
       if (length(results_list) > 0) {
         values$testResultsDF <- do.call(rbind, results_list)
-        values$currentModel <- model
-        values$modelList <- model_list
-        values$currentModelVar <- 1
+        if (length(model_list)) {
+          values$currentModel <- model_list[[length(model_list)]]
+          values$modelList <- model_list
+          values$currentModelVar <- 1
+        }
         values$currentTestType <- "parametric"
       } else {
         shiny::showNotification("Aucun résultat GLM généré", type = "warning")
@@ -3570,7 +3616,11 @@ mod_tests_server <- function(id, values) {
         fam_obj <- build_family(engine, fam, link)
         n_resp  <- length(input$responseVar)
         
-        for (var in input$responseVar) {
+        # MEME REGLE QUE LA REGRESSION ET LE GLM : un modele mixte qui ne
+        # converge pas -- le cas ordinaire des le plan un peu desequilibre --
+        # emportait l'ajustement de TOUTES les autres variables reponses. La
+        # garde est desormais au niveau de l'iteration.
+        for (var in input$responseVar) tryCatch({
           fixed <- paste(sapply(input$factorVar, function(x) paste0("`", x, "`")),
                          collapse = if (isTRUE(input$interaction)) " * " else " + ")
           formula_str <- paste0("`", var, "` ~ ", fixed, " + ", rand_term)
@@ -3632,13 +3682,25 @@ mod_tests_server <- function(id, values) {
             )
           }
           shiny::incProgress(0.6 / max(n_resp, 1))
-        }
+        }, error = function(e) {
+          results_list[[paste(var, "global", sep = "_")]] <<- data.frame(
+            Test = "Modèle mixte", Variable = var, Facteur = "Modèle global",
+            Statistique = NA_real_, ddl = NA_character_, p_value = NA_real_,
+            Interpretation = hstat_err_fr(e, trf("Modèle mixte sur %s", var)),
+            stringsAsFactors = FALSE)
+        })
         
         if (length(results_list) > 0) {
           values$testResultsDF   <- do.call(rbind, results_list)
-          values$currentModel    <- model_list[[length(model_list)]]
-          values$modelList       <- model_list
-          values$currentModelVar <- 1
+          # DEPUIS QUE CHAQUE VARIABLE PORTE SA GARDE, le tableau peut etre
+          # rempli de lignes d'echec alors qu'AUCUN modele n'a ete ajuste :
+          # `model_list[[0]]` leverait « subscript out of bounds » et ferait
+          # tomber la sortie que la garde venait de sauver.
+          if (length(model_list)) {
+            values$currentModel    <- model_list[[length(model_list)]]
+            values$modelList       <- model_list
+            values$currentModelVar <- 1
+          }
           values$currentTestType <- "parametric"
           shiny::showNotification(
             trf("Modèle mixte ajusté (%s, famille %s) sur %d variable(s).",
