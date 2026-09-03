@@ -4293,10 +4293,20 @@ mod_tests_server <- function(id, values) {
                          type = "warning", duration = 7); return()
       }
       
+      # UN NIVEAU ECARTE DOIT SE VOIR. Les deux fonctions d'effets simples
+      # nomment desormais les niveaux qu'elles n'ont pas pu tester, et disent
+      # sur combien de tests porte reellement la correction de Bonferroni --
+      # un niveau disparu en silence rend les p-values survivantes MOINS
+      # corrigees, donc plus facilement significatives.
+      msg_ecartes <- attr(res, "message")
+      
       is_param_result <- want_param && !used_fallback
       res$Type_test <- if (is_param_result) "MANOVA conditionnelle"
       else "PERMANOVA conditionnelle"
       values$manovaSimpleEffects <- res
+      
+      if (!is.null(msg_ecartes) && nzchar(msg_ecartes))
+        shiny::showNotification(msg_ecartes, type = "warning", duration = 12)
       
       if (used_fallback) {
         shiny::showNotification(trf("La MANOVA conditionnelle n'est pas calculable (variables réponses colinéaires) : bascule automatique sur la PERMANOVA conditionnelle. %s niveau(x) testé(s).", nrow(res)),

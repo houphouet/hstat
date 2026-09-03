@@ -1919,6 +1919,26 @@ Règle : quand une assertion porte sur un **rapport** entre deux quantités,
 vérifier d'abord que les quantités sont d'un ordre de grandeur où la tolérance
 mord.
 
+## Un niveau écarté change la correction des p-values restantes
+
+`manova_simple_effects()` et `permanova_simple_effects()` n'attachaient leur
+motif que si **tous** les niveaux échouaient. Quand un seul tombait — réponses
+colinéaires, sous-groupe trop petit — il disparaissait du tableau sans un mot,
+et l'utilisateur lisait des effets simples pour deux niveaux sur trois en
+croyant les avoir tous. La version non paramétrique ne collectait même pas les
+niveaux écartés.
+
+**Et le coût n'est pas seulement d'affichage.** La correction de Bonferroni
+porte sur les tests **restants** : un niveau escamoté rend les p-values
+survivantes *moins* corrigées, donc plus facilement significatives. Mesuré :
+`p_adj` passe de 5,5 × 10⁻¹¹ à 2,8 × 10⁻¹¹ par la seule disparition d'un
+niveau.
+
+Les deux fonctions nomment donc les niveaux écartés et disent sur combien de
+tests porte réellement la correction. **Et le module l'affiche** : une alerte
+que personne ne lit ne vaut rien — c'est la moitié du travail que le dépôt a
+déjà oubliée ailleurs (le message de repli de `hstat_report_render()`).
+
 ## Doses et dilutions : chaque résultat porte sa formule
 
 `mod_dosage.R` refait les trois calculs qu'un essai phytosanitaire pose sur un

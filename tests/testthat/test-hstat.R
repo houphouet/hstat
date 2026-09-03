@@ -13050,3 +13050,50 @@ test_that("le niveau de confiance et le sens du test atteignent cor.test", {
   expect_gt(bi$p_value, 0.05)          # p bien loin de zero, donc mesurable
   expect_equal(uni$p_value, bi$p_value / 2, tolerance = 1e-3)
 })
+
+
+test_that("un niveau écarté des effets simples est nommé, pas escamoté", {
+  skip_if_not_installed("vegan")
+  set.seed(17)
+  d <- expand.grid(A = c("A-1", "A-2"), B = c("B-1", "B-2"), r = 1:8)
+  d$y1 <- stats::rnorm(nrow(d), 10) + ifelse(d$A == "A-2" & d$B == "B-2", 9, 0)
+  d$y2 <- stats::rnorm(nrow(d), 5)  + ifelse(d$A == "A-2" & d$B == "B-2", 7, 0)
+
+  # Interaction vraie : l'effet de B n'existe que dans A-2.
+  r <- manova_simple_effects(d, c("y1", "y2"), fixed = "A", tested = "B")
+  expect_equal(nrow(r), 2L)
+  expect_equal(r$Significatif, c("Non", "Oui"))
+  expect_null(attr(r, "niveaux_ecartes"))
+
+  # UN NIVEAU NON CALCULABLE DISPARAISSAIT SANS UN MOT. Le motif n'etait
+  # attache que si TOUS echouaient ; quand un seul tombait, l'utilisateur
+  # lisait des effets simples pour un niveau sur deux en croyant les avoir
+  # tous. Et la correction de Bonferroni porte sur les tests RESTANTS : un
+  # niveau escamote rend les p survivantes MOINS corrigees, donc plus
+  # facilement significatives.
+  d2 <- d; d2$y1[d2$A == "A-1"] <- 3; d2$y2[d2$A == "A-1"] <- 3
+  r2 <- manova_simple_effects(d2, c("y1", "y2"), fixed = "A", tested = "B")
+  expect_equal(nrow(r2), 1L)
+  expect_equal(attr(r2, "niveaux_ecartes"), "A-1")
+  expect_true(grepl("A-1", attr(r2, "message"), fixed = TRUE))
+  expect_true(grepl("Bonferroni", attr(r2, "message"), fixed = TRUE))
+  # La preuve du cout : la meme p-value est MOINS corrigee sans le niveau.
+  expect_lt(r2$p_adj[1], r$p_adj[r$Niveau_fixe == "A = A-2"])
+
+  # Meme regle pour la version non parametrique, qui ne collectait meme pas
+  # les niveaux ecartes.
+  d3 <- d
+  d3$B[d3$A == "A-1"] <- "B-1"           # un seul niveau teste dans A-1
+  r3 <- permanova_simple_effects(d3, c("y1", "y2"), fixed = "A", tested = "B",
+                                 permutations = 99)
+  expect_equal(attr(r3, "niveaux_ecartes"), "A-1")
+  expect_true(grepl("A-1", attr(r3, "message"), fixed = TRUE))
+
+  # ET LE MESSAGE EST AFFICHE : une alerte que personne ne lit ne vaut rien.
+  chemin <- .hstat_module_path("mod_tests.R")
+  skip_if_not(file.exists(chemin))
+  pd <- utils::getParseData(parse(chemin, keep.source = TRUE))
+  code <- paste(pd$text[pd$token != "COMMENT" & nzchar(pd$text)], collapse = "")
+  expect_true(grepl('attr(res,"message")', code, fixed = TRUE))
+  expect_true(grepl("showNotification(msg_ecartes", code, fixed = TRUE))
+})

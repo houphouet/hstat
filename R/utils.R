@@ -2911,6 +2911,23 @@ manova_simple_effects <- function(df, response, fixed, tested) {
   out$p_adj        <- stats::p.adjust(out$p_value, method = "bonferroni")
   out$Significatif <- ifelse(is.na(out$p_adj), "NA",
                              ifelse(out$p_adj < 0.05, "Oui", "Non"))
+  # CE QUI EST ECARTE EST NOMME, MEME QUAND LE RESTE ABOUTIT.
+  #
+  # Le motif n'etait attache que si TOUS les niveaux echouaient. Quand un seul
+  # tombait -- reponses colineaires, sous-groupe trop petit -- il disparaissait
+  # du tableau sans un mot, et l'utilisateur lisait des effets simples pour
+  # deux niveaux sur trois en croyant les avoir tous.
+  #
+  # Pire : la correction de Bonferroni porte sur les tests RESTANTS. Un niveau
+  # ecarte en silence rend donc les p-values survivantes MOINS corrigees, donc
+  # plus facilement significatives. Mesure : p_adj passe de 5,5e-11 a 2,8e-11
+  # par la seule disparition d'un niveau.
+  if (length(skipped) > 0) {
+    attr(out, "niveaux_ecartes") <- skipped
+    attr(out, "message") <- trf(
+      "%s niveau(x) écarté(s) : %s. Réponses colinéaires ou sous-groupe trop petit. La correction de Bonferroni ne porte que sur les %s test(s) restant(s).",
+      length(skipped), paste(skipped, collapse = ", "), nrow(out))
+  }
   out
 }
 
@@ -2924,21 +2941,22 @@ permanova_simple_effects <- function(df, response, fixed, tested,
   if (!is.factor(df[[tested]])) df[[tested]] <- factor(as.character(df[[tested]]))
   
   results <- list()
+  skipped <- character()
   for (lev in levels(df[[fixed]])) {
     sub <- df[df[[fixed]] == lev, , drop = FALSE]
     sub[[tested]] <- droplevels(sub[[tested]])
-    if (nlevels(sub[[tested]]) < 2 || nrow(sub) < 4) next
+    if (nlevels(sub[[tested]]) < 2 || nrow(sub) < 4) { skipped <- c(skipped, lev); next }
     
     sub <- hstat_cap_df_rows(sub, what = "PERMANOVA stratifiée")
     Y <- as.matrix(sub[, response, drop = FALSE])
     d <- tryCatch(vegan::vegdist(Y, method = dist_method), error = function(e) NULL)
-    if (is.null(d)) next
+    if (is.null(d)) { skipped <- c(skipped, lev); next }
     fml <- stats::as.formula(paste0("d ~ `", tested, "`"))
     ad <- tryCatch(
       vegan::adonis2(fml, data = sub, permutations = permutations, by = "terms"),
       error = function(e) NULL
     )
-    if (is.null(ad)) next
+    if (is.null(ad)) { skipped <- c(skipped, lev); next }
     
     results[[lev]] <- data.frame(
       Niveau_fixe  = paste0(fixed, " = ", lev),
@@ -2955,6 +2973,14 @@ permanova_simple_effects <- function(df, response, fixed, tested,
   out$p_adj        <- stats::p.adjust(out$p_value, method = "bonferroni")
   out$Significatif <- ifelse(is.na(out$p_adj), "NA",
                              ifelse(out$p_adj < 0.05, "Oui", "Non"))
+  # Meme regle que les effets simples MANOVA : un niveau ecarte est nomme, et
+  # l'on dit sur combien de tests porte reellement la correction.
+  if (length(skipped) > 0) {
+    attr(out, "niveaux_ecartes") <- skipped
+    attr(out, "message") <- trf(
+      "%s niveau(x) écarté(s) : %s. Moins de deux modalités testées ou trop peu d'observations. La correction de Bonferroni ne porte que sur les %s test(s) restant(s).",
+      length(skipped), paste(skipped, collapse = ", "), nrow(out))
+  }
   out
 }
 
