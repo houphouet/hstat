@@ -2395,7 +2395,13 @@ pairwise_permanova <- function(Y, group, permutations = 999,
     idx  <- group %in% pr
     Yp   <- Y[idx, , drop = FALSE]
     gp   <- droplevels(group[idx])
-    if (length(unique(gp)) < 2 || nrow(Yp) < 4) {
+    # DEUX OBSERVATIONS AU MOINS DANS CHAQUE GROUPE. La garde ne portait que sur
+    # l'effectif TOTAL (`nrow(Yp) < 4`) : une paire 12 contre 1 la franchissait
+    # et rendait un p parfaitement plausible -- mesure : p = 0,08, « Non
+    # significatif ». Or un groupe d'UNE observation n'a pas de dispersion
+    # interne : la non-significativite y est un artefact d'effectif, pas un
+    # resultat. On rend NA, et les colonnes n1 / n2 disent pourquoi.
+    if (length(unique(gp)) < 2 || nrow(Yp) < 4 || min(table(gp)) < 2) {
       return(data.frame(Niveau1 = pr[1], Niveau2 = pr[2],
                         n1 = sum(group == pr[1]),
                         n2 = sum(group == pr[2]),

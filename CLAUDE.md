@@ -1887,6 +1887,38 @@ retiré, et `safe_cor` alimente une sortie Shiny — où une erreur fait tomber 
 panneau entier. `vapply(df, is.numeric, logical(1))` rend `logical(0)` et
 traverse sans broncher.
 
+## Un groupe d'une seule observation n'a pas de dispersion
+
+`pairwise_permanova()` ne gardait qu'une borne sur l'effectif **total**
+(`nrow(Yp) < 4`). Une paire de 12 contre 1 la franchissait donc, et `adonis2`
+rendait un p parfaitement plausible — mesuré : **p = 0,08, « Non
+significatif »**. Or un groupe d'une observation n'a pas de dispersion
+interne : la non-significativité y est un artefact d'effectif, pas un résultat.
+
+La garde porte désormais sur le **plus petit des deux groupes**, et les
+colonnes `n1` / `n2` disent pourquoi la ligne vaut `NA`.
+
+Bonne forme déjà en place, à ne pas défaire : la fonction rend `Niveau1` et
+`Niveau2` en **colonnes séparées**, jamais concaténés dans une étiquette. C'est
+exactement ce qui rend le tiret inoffensif ici, là où les lettres CLD s'y
+cassaient.
+
+## Une donnée d'essai doit rendre la différence mesurable
+
+Troisième leçon de la même famille que « précision et rappel coïncident sur une
+matrice équilibrée », et celle-ci s'est prise deux fois.
+
+Le test du sens (`alternative`) des corrélations comparait un p unilatéral à la
+moitié du bilatéral **sur une corrélation quasi parfaite** : p vaut ~1 × 10⁻¹²,
+sa moitié en diffère de 7 × 10⁻¹³, soit *moins* que toute tolérance
+raisonnable. L'assertion passait donc même en ignorant complètement
+`alternative` — mutation non attrapée. Sur une corrélation **faible**
+(p ≈ 0,3), la moitié se distingue.
+
+Règle : quand une assertion porte sur un **rapport** entre deux quantités,
+vérifier d'abord que les quantités sont d'un ordre de grandeur où la tolérance
+mord.
+
 ## Doses et dilutions : chaque résultat porte sa formule
 
 `mod_dosage.R` refait les trois calculs qu'un essai phytosanitaire pose sur un
