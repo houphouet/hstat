@@ -487,7 +487,8 @@ hstat_valeurs_initiales <- function() {
     allTestResults = list(), allPostHocResults = list(), modelsList = list(),
     normalityResultsPerVar = list(), homogeneityResultsPerVar = list(),
     currentDiagVar = 1, currentResidVar = 1,
-    customXOrder = NULL, y2Vars = NULL, dualAxisActive = FALSE,
+    customXOrder = NULL, posthocXLabels = NULL,
+    y2Vars = NULL, dualAxisActive = FALSE,
     y2VarsActive = NULL, y2RangeForAxis = NULL, y2UnifiedColorMap = NULL,
     postHocSyncTrigger = NULL,
     transformationLog = list(),
@@ -4366,6 +4367,106 @@ hstat_rdt_table <- function(df, var_modalite, var_masse, var_surface,
     else trf("%d modalité(s), rendement en %s.", nrow(out), attr(out, "unite")))
 }
 
+# LE RENDEMENT EST PARFOIS DEJA CALCULE, et l'exiger en masse + surface est
+# alors une friction pure : beaucoup de fichiers d'essai portent une colonne
+# « t/ha » sortie du logiciel de pesee ou d'une campagne precedente, et leur
+# proprietaire vient ici pour COMPARER, pas pour recalculer.
+#
+# Le tableau rendu a la meme forme que celui de `hstat_rdt_table()` -- memes
+# noms de colonnes, memes attributs, meme discipline de message -- pour que les
+# gains, les graphiques, les exports et la conversion d'unites marchent sans
+# une ligne de plus.
+#
+# UNE COLONNE MANQUE, ET C'EST VOULU : `Rendement_global`. La masse totale
+# rapportee a la surface totale n'est PAS calculable sans les surfaces, et la
+# remplacer par la moyenne laisserait croire a une ponderation par la surface
+# qui n'a pas eu lieu -- c'est precisement la distinction que ce module existe
+# pour tenir. Elle est absente, et le module n'offre donc pas de la tracer.
+#
+# L'unite, elle, est DECLAREE par l'utilisateur : sans masse ni surface,
+# l'application ne peut pas la deviner, et un axe de rendement sans unite n'est
+# pas un resultat. Declaree, elle rend aussi la conversion possible.
+hstat_rdt_table_prete <- function(df, var_modalite, var_rendement,
+                                  sortie_masse = "kilogramme (kg)",
+                                  sortie_surface = "hectare (ha)",
+                                  var_repetition = NULL) {
+  vide <- data.frame(Modalite = character(0), N = integer(0),
+                     Repetitions = integer(0),
+                     Rendement_moyen = numeric(0), Rendement_somme = numeric(0),
+                     Ecart_type = numeric(0), Erreur_type = numeric(0),
+                     check.names = FALSE, stringsAsFactors = FALSE)
+  msg <- function(x, m) { attr(x, "message") <- m; x }
+
+  if (!is.data.frame(df) || !NROW(df))
+    return(msg(vide, "Aucune donnée : chargez un jeu de données."))
+  manque <- function(nm) is.null(nm) || !length(nm) || !nzchar(nm[1]) ||
+                         !(nm[1] %in% names(df))
+  if (manque(var_modalite))
+    return(msg(vide, "Choisissez la variable qui porte les traitements."))
+  if (manque(var_rendement))
+    return(msg(vide, "Choisissez la variable qui porte le rendement déjà calculé."))
+
+  modal <- trimws(as.character(df[[var_modalite[1]]]))
+  modal[is.na(modal) | !nzchar(modal)] <- NA_character_
+  rdt <- suppressWarnings(as.numeric(df[[var_rendement[1]]]))
+  if (!any(is.finite(rdt)))
+    return(msg(vide, trf("La variable « %s » ne porte aucun rendement exploitable : elle doit être numérique.",
+                         var_rendement[1])))
+  invalides <- sum(!is.finite(rdt) & !is.na(modal))
+
+  a_rep <- !is.null(var_repetition) && length(var_repetition) &&
+           nzchar(var_repetition[1]) && var_repetition[1] %in% names(df)
+  if (!is.null(var_repetition) && length(var_repetition) &&
+      nzchar(var_repetition[1]) && !a_rep)
+    return(msg(vide, trf("La variable de répétition « %s » est introuvable dans les données : choisissez-en une autre.",
+                         var_repetition[1])))
+  rep_v <- if (a_rep) trimws(as.character(df[[var_repetition[1]]])) else rep("", NROW(df))
+
+  niveaux <- sort(unique(modal[!is.na(modal)]))
+  if (!length(niveaux))
+    return(msg(vide, trf("La variable « %s » ne porte aucune modalité exploitable.",
+                         var_modalite[1])))
+
+  lignes <- lapply(niveaux, function(m) {
+    i <- which(!is.na(modal) & modal == m)
+    r <- rdt[i]
+    ok <- is.finite(r)
+    n_ok <- sum(ok)
+    data.frame(
+      Modalite = m,
+      N = length(i),
+      Repetitions = if (a_rep) length(unique(rep_v[i])) else NA_integer_,
+      Rendement_moyen = if (n_ok) mean(r[ok]) else NA_real_,
+      Rendement_somme = if (n_ok) sum(r[ok]) else NA_real_,
+      Ecart_type = if (n_ok > 1) stats::sd(r[ok]) else NA_real_,
+      Erreur_type = if (n_ok > 1) stats::sd(r[ok]) / sqrt(n_ok) else NA_real_,
+      check.names = FALSE, stringsAsFactors = FALSE)
+  })
+  out <- do.call(rbind, lignes)
+  rownames(out) <- NULL
+  if (!a_rep) out$Repetitions <- NULL
+
+  attr(out, "unite") <- hstat_rdt_unite_libelle(sortie_masse, sortie_surface)
+  attr(out, "sortie_masse") <- sortie_masse
+  attr(out, "sortie_surface") <- sortie_surface
+  attr(out, "invalides") <- invalides
+  attr(out, "prete") <- TRUE
+  alertes <- character(0)
+  if (invalides > 0)
+    alertes <- c(alertes, trf("%d ligne(s) écartée(s) : rendement illisible ou manquant",
+                              invalides))
+  # MEME PIEGE QUE LE TABLEAU CALCULE : la somme n'est comparable qu'a nombre
+  # de lignes egal, la modalite la plus repetee accumulant mecaniquement plus.
+  n_lignes <- vapply(niveaux, function(m) sum(!is.na(modal) & modal == m & is.finite(rdt)),
+                     integer(1))
+  if (length(unique(n_lignes)) > 1)
+    alertes <- c(alertes, trf("le nombre de lignes exploitables varie d'une modalité à l'autre (%s) : la SOMME des rendements n'est pas comparable entre modalités, la moyenne le reste",
+                              paste(range(n_lignes), collapse = " à ")))
+  msg(out, if (length(alertes))
+    paste0("Attention : ", paste(alertes, collapse = " ; "), ".")
+    else trf("%d modalité(s), rendement lu tel quel en %s.", nrow(out), attr(out, "unite")))
+}
+
 # Insere une colonne juste apres une autre, en conservant l'ordre du reste.
 # Employee par les dilutions et par le rendement : une seule definition.
 .hstat_col_apres <- function(d, apres, nom, valeurs) {
@@ -4496,15 +4597,25 @@ hstat_rdt_complet <- function(df, var_modalite, var_masse, var_surface,
                               sortie_masse = "kilogramme (kg)",
                               sortie_surface = "hectare (ha)",
                               var_repetition = NULL,
-                              conv_masse = NULL, conv_surface = NULL) {
-  res <- hstat_rdt_table(df, var_modalite, var_masse, var_surface,
-                         unite_masse, unite_surface, sortie_masse,
-                         sortie_surface, var_repetition)
+                              conv_masse = NULL, conv_surface = NULL,
+                              var_rendement = NULL) {
+  # Le rendement DEJA CALCULE court-circuite la pesee : meme tableau, memes
+  # gains, memes graphiques -- une colonne de moins, `Rendement_global`, qui
+  # exige les surfaces.
+  prete <- !is.null(var_rendement) && length(var_rendement) && nzchar(var_rendement[1])
+  res <- if (prete)
+    hstat_rdt_table_prete(df, var_modalite, var_rendement,
+                          sortie_masse, sortie_surface, var_repetition)
+  else
+    hstat_rdt_table(df, var_modalite, var_masse, var_surface,
+                    unite_masse, unite_surface, sortie_masse,
+                    sortie_surface, var_repetition)
   if (!NROW(res)) return(res)
-  g_glob <- hstat_rdt_gain(res$Rendement_global, res$Modalite, non_traite)
   g_moy  <- hstat_rdt_gain(res$Rendement_moyen,  res$Modalite, non_traite)
   g_som  <- hstat_rdt_gain(res$Rendement_somme,  res$Modalite, non_traite)
-  res$Gain_global <- as.numeric(g_glob)
+  g_glob <- if ("Rendement_global" %in% names(res))
+    hstat_rdt_gain(res$Rendement_global, res$Modalite, non_traite) else NULL
+  if (!is.null(g_glob)) res$Gain_global <- as.numeric(g_glob)
   res$Gain_moyen  <- as.numeric(g_moy)
   res$Gain_somme  <- as.numeric(g_som)
   # La conversion vient APRES les gains : un pourcentage est sans dimension, il
@@ -4512,7 +4623,7 @@ hstat_rdt_complet <- function(df, var_modalite, var_masse, var_surface,
   # gain par simple voisinage de nom.
   res <- hstat_rdt_convertir_table(res, conv_masse, conv_surface)
   attr(res, "non_traite") <- non_traite
-  attr(res, "message_gain") <- attr(g_glob, "message")
+  attr(res, "message_gain") <- attr(g_glob %||% g_moy, "message")
   res
 }
 
@@ -6799,6 +6910,61 @@ hstat_html_style_label <- function(x, style = "plain") {
            "bolditalic" = paste0("<b><i>", s, "</i></b>"),
            s)
   }, character(1))
+}
+
+# Une agregation numerique n'a de sens que sur une variable numerique.
+#
+# Les agregations *automatiques* de l'onglet Visualisation (celles qui se
+# declenchent quand plusieurs lignes partagent la meme abscisse, sans que
+# l'utilisateur ait coche l'agregation) appelaient `mean()` sans regarder le
+# type : sur une colonne de texte -- une date de traitement notee "T1+13" --
+# R rend NA en avertissant, une fois par groupe. Onze groupes, onze
+# avertissements, et une courbe entierement vide sans un mot a l'ecran.
+#
+# C'est le contraire de ce que fait deja `aggregatedData()`, qui bascule en
+# comptage et le dit. Cette porte unique rend les deux chemins coherents.
+hstat_y_agregeable <- function(data, y_var) {
+  if (is.null(data) || is.null(y_var)) return(FALSE)
+  y_var <- as.character(y_var)[1]
+  if (is.na(y_var) || !nzchar(y_var) || !y_var %in% names(data)) return(FALSE)
+  x <- data[[y_var]]
+  is.numeric(x) || is.logical(x) || inherits(x, c("Date", "POSIXct", "POSIXlt"))
+}
+
+# Renommer les modalites AFFICHEES sur l'axe X, sans toucher aux donnees.
+#
+# L'onglet des comparaisons post-hoc savait REORDONNER ses modalites, pas les
+# renommer : un code de traitement (« 2SP(0,5)&2PV ») restait tel quel sur la
+# figure publiee, alors que le titre de l'axe, lui, etait deja reglable.
+#
+# La cle est le niveau d'origine. Une etiquette vide ou absente laisse le
+# niveau tel quel -- c'est la degradation douce : on n'invente rien.
+#
+# Le piege est la COLLISION. Deux modalites renommees pareil se lisent comme
+# une seule : ggplot les affiche sous le meme nom, les lettres de groupes
+# deviennent contradictoires (« a » et « b » sur ce qui parait etre une meme
+# barre), et rien ne le signale. Les niveaux fautifs gardent donc leur nom
+# d'origine, et les etiquettes en cause sont NOMMEES en attribut.
+hstat_etiquettes_x <- function(niveaux, etiquettes = NULL) {
+  niveaux <- as.character(niveaux)
+  out <- niveaux
+  names(out) <- niveaux
+  if (is.null(etiquettes) || !length(etiquettes) || is.null(names(etiquettes)))
+    return(out)
+  et <- as.character(etiquettes)
+  names(et) <- names(etiquettes)
+  garde <- !is.na(names(et)) & nzchar(names(et)) & !is.na(et) & nzchar(et)
+  et <- et[garde]
+  com <- intersect(niveaux, names(et))
+  if (!length(com)) return(out)
+  out[com] <- unname(et[com])
+  dup <- unique(out[duplicated(out)])
+  if (length(dup)) {
+    fautifs <- names(out)[out %in% dup]
+    out[fautifs] <- fautifs
+    attr(out, "collisions") <- sort(dup)
+  }
+  out
 }
 
 # Variables Y retenues pour un graphique multi-courbes. `pivot_longer` empile

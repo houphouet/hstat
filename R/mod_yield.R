@@ -50,26 +50,38 @@ mod_yield_ui <- function(id) {
         .hstat_opt_section(
           "Source des données", "database", "#2c3e50", "#eceff1",
           shiny::radioButtons(ns("yieldSource"), NULL,
-                       choices = c("Jeu de données chargé" = "fichier",
+                       choices = c("Masse et surface du jeu de données chargé" = "fichier",
+                                   "Rendement déjà calculé dans le jeu de données" = "rendement",
                                    "Saisie manuelle de la récolte" = "saisie"),
                        selected = "fichier"),
           shiny::conditionalPanel(
             ns = ns, condition = "input.yieldSource == 'saisie'",
             shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
                        "Le tableau se remplit dans l'onglet « Saisie ». Le fichier chargé, lui, reste intact.")),
+          shiny::conditionalPanel(
+            ns = ns, condition = "input.yieldSource == 'rendement'",
+            shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                       "Le rendement est lu tel quel : ni masse ni surface ne sont demandées. Déclarez son unité ci-dessous.")),
           shiny::uiOutput(ns("yieldSourceNote"))
         ),
 
         .hstat_opt_section(
           "Colonnes de la récolte", "table-columns", "#2980b9", "#eaf3fa",
           shiny::uiOutput(ns("yieldModaliteUI")),
-          shiny::uiOutput(ns("yieldMasseUI")),
-          shiny::uiOutput(ns("yieldSurfaceUI")),
+          shiny::conditionalPanel(
+            ns = ns, condition = "input.yieldSource == 'rendement'",
+            shiny::uiOutput(ns("yieldRendementUI"))),
+          shiny::conditionalPanel(
+            ns = ns, condition = "input.yieldSource != 'rendement'",
+            shiny::uiOutput(ns("yieldMasseUI")),
+            shiny::uiOutput(ns("yieldSurfaceUI"))),
           shiny::uiOutput(ns("yieldRepetitionUI")),
           shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
                      "La répétition est facultative : elle ne change aucun chiffre, elle documente le plan.")
         ),
 
+        shiny::conditionalPanel(
+          ns = ns, condition = "input.yieldSource != 'rendement'",
         .hstat_opt_section(
           "Unités saisies", "ruler", "#8e44ad", "#f7f0fb",
           shiny::selectInput(ns("yieldUniteMasse"), "Unité de la masse récoltée",
@@ -78,10 +90,15 @@ mod_yield_ui <- function(id) {
                       choices = names(HSTAT_RDT_SURFACE), selected = "hectare (ha)"),
           shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
                      "Le calcul part de n'importe quelle unité : elle est ramenée au kilogramme et au mètre carré avant d'être exprimée dans l'unité voulue.")
-        ),
+        )),
 
         .hstat_opt_section(
           "Unité du rendement", "arrow-right-arrow-left", "#16a085", "#e8f8f4",
+          # UN AXE DE RENDEMENT SANS UNITE N'EST PAS UN RESULTAT. Quand le
+          # rendement est deja calcule, l'application ne peut pas la deviner :
+          # c'est l'utilisateur qui la DECLARE ici, et c'est elle qui titre
+          # l'axe et rend la conversion possible.
+          shiny::uiOutput(ns("yieldSortieNote")),
           shiny::selectInput(ns("yieldSortieMasse"), "Exprimer la masse en",
                       choices = names(HSTAT_RDT_MASSE), selected = "kilogramme (kg)"),
           shiny::selectInput(ns("yieldSortieSurface"), "Par unité de surface",
@@ -156,9 +173,7 @@ mod_yield_ui <- function(id) {
             title = shiny::tagList(shiny::icon("chart-simple"), " Graphique"),
             value = "graphique",
             shiny::br(),
-            shiny::selectInput(ns("yieldMesure"), "Mesure représentée",
-                        choices = HSTAT_RDT_MESURES, selected = "Rendement_moyen",
-                        width = "100%"),
+            shiny::uiOutput(ns("yieldMesureUI")),
             shiny::div(style = "background:#fff;padding:16px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.08);",
                 shiny::plotOutput(ns("yieldPlot"), height = "620px")),
             shiny::br(),
@@ -513,6 +528,8 @@ mod_yield_server <- function(id, values) {
     donnees <- shiny::reactive({
       if (identical(input$yieldSource %||% "fichier", "saisie"))
         return(saisie_utile())
+      # « fichier » et « rendement » lisent le meme tableau : ce qui change,
+      # c'est la colonne qu'on y prend, pas d'ou elle vient.
       values$filteredData
     })
 
@@ -558,6 +575,13 @@ mod_yield_server <- function(id, values) {
                   selected = if (length(n) > 1) .prefere("Surface", n, n[2])
                              else if (length(n)) .prefere("Surface", n, n[1]) else NULL)
     })
+    output$yieldRendementUI <- shiny::renderUI({
+      n <- cols_num()
+      shiny::selectInput(ns("yieldRendement"), "Rendement déjà calculé",
+                  choices = n,
+                  selected = if (length(n)) .prefere("Rendement_moyen", n,
+                                              .prefere("Rendement", n, n[1])) else NULL)
+    })
     output$yieldRepetitionUI <- shiny::renderUI({
       cn <- cols_toutes()
       shiny::selectInput(ns("yieldRepetition"), "Répétition (facultatif)",
@@ -581,6 +605,18 @@ mod_yield_server <- function(id, values) {
       # L'utilisateur choisit, et le calcul refuse tant qu'il n'a pas choisi.
       shiny::selectInput(ns("yieldTemoin"), "Modalité non traitée (référence)",
                   choices = c("(à choisir)" = "", m), selected = "")
+    })
+
+    # SOURCE DU RENDEMENT : un choix, jamais une devinette -- meme regle que
+    # pour la source des donnees.
+    rdt_pret <- shiny::reactive(identical(input$yieldSource %||% "fichier", "rendement"))
+
+    output$yieldSortieNote <- shiny::renderUI({
+      if (!rdt_pret()) return(NULL)
+      shiny::div(class = "callout callout-warning",
+          style = "padding:8px 12px;margin:0 0 8px 0;font-size:13px;",
+          shiny::icon("triangle-exclamation"), " ",
+          tr("Le rendement est lu tel quel : déclarez ici l'unité dans laquelle il est déjà exprimé. Elle n'est pas devinée, et c'est elle qui titre l'axe et permet la conversion."))
     })
 
     unite_rdt <- shiny::reactive({
@@ -609,9 +645,13 @@ mod_yield_server <- function(id, values) {
     # ------------------------------------------------------------------ calcul
     resultat <- shiny::reactive({
       d <- donnees()
-      shiny::req(d, input$yieldModalite, input$yieldMasse, input$yieldSurface)
+      pret <- identical(input$yieldSource %||% "fichier", "rendement")
+      if (pret) shiny::req(d, input$yieldModalite, input$yieldRendement)
+      else      shiny::req(d, input$yieldModalite, input$yieldMasse, input$yieldSurface)
       hstat_rdt_complet(
-        d, input$yieldModalite, input$yieldMasse, input$yieldSurface,
+        d, input$yieldModalite,
+        if (pret) NULL else input$yieldMasse,
+        if (pret) NULL else input$yieldSurface,
         non_traite = input$yieldTemoin,
         unite_masse = input$yieldUniteMasse %||% "kilogramme (kg)",
         unite_surface = input$yieldUniteSurface %||% "hectare (ha)",
@@ -619,7 +659,8 @@ mod_yield_server <- function(id, values) {
         sortie_surface = input$yieldSortieSurface %||% "hectare (ha)",
         var_repetition = if (nzchar(input$yieldRepetition %||% "")) input$yieldRepetition else NULL,
         conv_masse = if (isTRUE(input$yieldConvertir)) input$yieldConvMasse else NULL,
-        conv_surface = if (isTRUE(input$yieldConvertir)) input$yieldConvSurface else NULL)
+        conv_surface = if (isTRUE(input$yieldConvertir)) input$yieldConvSurface else NULL,
+        var_rendement = if (pret) input$yieldRendement else NULL)
     })
 
     output$yieldMessage <- shiny::renderUI({
@@ -657,9 +698,17 @@ mod_yield_server <- function(id, values) {
       meilleur <- if (!any(is.finite(r$Gain_moyen))) NA else r$Modalite[which.max(r$Gain_moyen)]
       shiny::fluidRow(
         carte("Modalités comparées", nrow(r), "#2980b9"),
-        carte(trf("Rendement global le plus élevé (%s)", unite_rdt()),
-              if (all(is.na(r$Rendement_global))) "—" else arr(max(r$Rendement_global, na.rm = TRUE)),
-              "#16a085"),
+        # Sans les surfaces, le rendement GLOBAL n'est pas calculable : la carte
+        # porte alors le moyen, et le dit. Afficher « — » sous un titre qui
+        # promet un global laisserait croire a un calcul rate.
+        local({
+          glob <- "Rendement_global" %in% names(r)
+          col <- if (glob) r$Rendement_global else r$Rendement_moyen
+          carte(trf(if (glob) "Rendement global le plus élevé (%s)"
+                    else "Rendement moyen le plus élevé (%s)", unite_rdt()),
+                if (!any(is.finite(col))) "—" else arr(max(col, na.rm = TRUE)),
+                "#16a085")
+        }),
         carte("Meilleur gain moyen", if (is.na(meilleur)) "—" else meilleur, "#27ae60"),
         carte("Programme non traité",
               if (nzchar(input$yieldTemoin %||% "")) input$yieldTemoin else "(à choisir)",
@@ -716,6 +765,19 @@ mod_yield_server <- function(id, values) {
       d$Modalite <- factor(d$Modalite, levels = unique(niveaux))
       d
     }
+
+    # UNE MESURE QU'ON NE PEUT PAS CALCULER NE S'OFFRE PAS. Sans les surfaces,
+    # `Rendement_global` n'existe pas : la proposer rendrait un graphique vide
+    # sans dire pourquoi -- et laisser le choix se figer dessus le rendrait
+    # vide APRES avoir marche, ce qui est pire.
+    output$yieldMesureUI <- shiny::renderUI({
+      r <- resultat()
+      dispo <- HSTAT_RDT_MESURES[HSTAT_RDT_MESURES %in% names(r)]
+      if (!length(dispo)) dispo <- HSTAT_RDT_MESURES
+      sel <- if ("Rendement_moyen" %in% dispo) "Rendement_moyen" else unname(dispo[1])
+      shiny::selectInput(ns("yieldMesure"), "Mesure représentée",
+                  choices = dispo, selected = sel, width = "100%")
+    })
 
     graphique <- shiny::reactive({
       r <- resultat()

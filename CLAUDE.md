@@ -1541,6 +1541,151 @@ Il **retire les commentaires par l'analyseur de R**, pas par une heuristique :
 il s'était signalé lui-même sur le commentaire documentant la correction, et un
 faux positif permanent finit toujours par faire désactiver le test.
 
+## Une boîte vide occupe la place des réglages
+
+Six boîtes se construisaient **à chaque ouverture de l'onglet**, avant tout
+calcul : « Analyse multivariée assistée », « Transformation des variables »,
+« Résultats des tests », et les trois post-hoc (Régression/GLM, MANOVA/PERMANOVA,
+Mesures répétées). Elles ne portaient rien, et elles poussaient hors de l'écran
+la seule chose qu'on venait régler.
+
+Elles passent par `conditionalPanel(ns = ns, condition = "output.hasXxx")` —
+l'idiome déjà employé par `output.hasRefTest` et `output.hasChiSqTest`. Le
+drapeau est un `reactive()` doublé de
+`outputOptions(..., suspendWhenHidden = FALSE)` : **sans lui la boîte ne
+réapparaîtrait jamais**, un output suspendu ne se recalculant pas.
+
+Trois conséquences, chacune gardée par un test :
+
+1. **Les panneaux « aucun résultat calculé » sont devenus inatteignables.** Ils
+   vivaient *dans* la boîte, sous `!output.hasXxx` : la boîte étant maintenant
+   absente tant qu'il n'y a rien, cette branche ne s'évalue plus jamais. Du code
+   mort dans une branche morte est pire qu'absent — on le corrige en croyant
+   corriger l'affichage.
+2. **Un des boutons ainsi retirés ne pouvait que refuser.** Le second
+   « Diagnostiquer mes données » (`runManovaDiagnostic2`) vivait dans la boîte
+   d'attente multivariée, celle qui s'affichait tant que MANOVA n'était **pas**
+   possible — or son gestionnaire exige deux variables réponses. Il refusait par
+   construction. Un seul point d'entrée désormais.
+3. **La transformation est un outil, pas un résultat.** Elle ne se déclenche par
+   aucun calcul : elle se déplie sur une case à cocher
+   (`input.showTransformTools`) posée juste au-dessus. « Sollicitée » a ici un
+   sens littéral.
+
+Piège d'édition rencontré deux fois, et il vaut pour toute suppression dans une
+liste d'arguments : **la virgule de la fratrie précédente ne se retire que si
+l'élément supprimé était le dernier**. Les trois panneaux post-hoc l'étaient, le
+panneau multivarié non — le retirer en enlevant la virgule cassait l'analyse
+syntaxique quarante lignes plus haut, à un endroit sans rapport visible.
+
+### Renommer une modalité sur l'axe, sans toucher aux données
+
+L'onglet des comparaisons post-hoc savait **réordonner** ses modalités, pas les
+renommer : un code de traitement (« 2SP(0,5)&2PV ») restait tel quel sur la
+figure publiée, alors que le **titre** de l'axe, lui, était déjà réglable
+(`customXLabel` / `customYLabel`). Un champ par niveau, un bouton
+« Appliquer les étiquettes », et `scale_x_discrete(labels = ...)`.
+
+`hstat_etiquettes_x()` (`Utils.R`) porte la règle. La clé est le niveau
+d'origine ; une étiquette vide ou absente laisse le niveau tel quel — on
+n'invente rien.
+
+**Le piège est la collision.** Deux modalités renommées pareil se lisent comme
+une seule : ggplot les affiche sous le même nom, et les lettres de groupes
+deviennent contradictoires — « a » et « b » sur ce qui paraît être une même
+barre. Les niveaux fautifs gardent donc leur nom d'origine, et les étiquettes en
+cause sont **nommées**. Y compris la collision avec un niveau qu'on n'a *pas*
+renommé, cas que la seule détection de doublons parmi les saisies laisserait
+passer.
+
+Les étiquettes ne sont relues **qu'au clic** : les appliquer à la frappe
+reconstruirait la figure à chaque lettre tapée.
+
+### Deux boutons créés hors du namespace de leur module
+
+Les flèches haut/bas de l'éditeur d'ordre post-hoc s'écrivaient
+`actionButton(paste0("moveUp_", i), …)`, sans `ns()`. Créés au niveau supérieur,
+`input$moveUp_1` — qui lit `<module>-moveUp_1` — ne les voyait **jamais** :
+l'ordre des catégories ne bougeait pas, et rien ne le disait. Même famille que
+le `Shiny.setInputValue('xLevelOrder', …)` non préfixé déjà corrigé dans
+`mod_viz.R`, et même remède.
+
+Le calcul des niveaux existait par ailleurs en **deux copies** ; il est passé
+dans un réactif unique (`posthoc_x_niveaux()`), l'observateur des étiquettes en
+étant le troisième lecteur.
+
+## `invalidateLater()` dans un `observeEvent` est une boucle infinie
+
+`observeEvent(input$xLevelOrder, { … invalidateLater(50) })` ne « retarde » rien :
+l'observateur se **relance toutes les 50 ms, indéfiniment**, et réécrivait à
+chaque passage un `plotUpdateTrigger` neuf — donc le graphique se reconstruisait
+vingt fois par seconde jusqu'à la fin de la session. Le nouvel ordre des
+catégories s'appliquait bien ; c'est l'écran qui ne se stabilisait plus, ce qui
+se lit exactement comme « le changement ne s'applique pas ».
+
+Vérifié avant de conclure, parce que le symptôme accusait le mauvais coupable :
+`plotData()` applique l'ordre personnalisé sur **seize** combinaisons de
+(colonne texte / facteur) × (type auto, texte, facteur, catégorielle) ×
+(agrégation ou non), et le glisser-déposer délivre bien son ordre au serveur —
+mesuré au navigateur. Le défaut n'était pas dans la logique d'ordre.
+
+## Une agrégation numérique ne porte jamais sur une variable de texte
+
+`aggregatedData()` le savait déjà — variable Y non numérique, on bascule en
+comptage **et on le dit**. Les agrégations **automatiques** de l'onglet
+Visualisation, celles qui se déclenchent quand plusieurs lignes partagent la
+même abscisse sans que l'utilisateur ait coché l'agrégation, ne le savaient pas :
+elles appelaient `mean()` sans regarder le type.
+
+Sur une date de traitement notée « T1+13 », R rend `NA` en avertissant — **une
+fois par groupe**. Onze groupes, onze avertissements dans la console, et une
+courbe entièrement vide sans un mot à l'écran. Signalé à l'usage.
+
+`hstat_y_agregeable()` (`Utils.R`) est la porte unique : numérique, booléen ou
+date. Les deux agrégations automatiques la consultent, et à défaut tracent les
+observations telles quelles en le disant.
+
+Même famille pour le camembert, l'anneau et la carte de proportions : `sum()`
+sur une colonne de texte **lève**, et fait tomber tout le graphique. Les parts
+se pèsent donc par une colonne numérique, ou se **comptent** — ce qui est le cas
+d'usage courant d'un camembert sur une variable qualitative.
+
+## Le rendement est parfois déjà calculé
+
+Beaucoup de fichiers d'essai portent une colonne « t/ha » sortie du logiciel de
+pesée ou d'une campagne précédente, et leur propriétaire vient ici pour
+**comparer**, pas pour recalculer. Exiger masse + surface était une friction
+pure.
+
+`hstat_rdt_table_prete()` rend un tableau de **même forme** que
+`hstat_rdt_table()` — mêmes noms de colonnes, mêmes attributs, même discipline
+de message — pour que les gains, les graphiques, les exports et la conversion
+d'unités marchent sans une ligne de plus. `hstat_rdt_complet()` aiguille sur
+`var_rendement`.
+
+Trois décisions, chacune testée :
+
+1. **`Rendement_global` est absent, et c'est voulu.** La masse totale rapportée
+   à la surface totale n'est pas calculable sans les surfaces. La remplacer par
+   la moyenne annoncerait une pondération par la surface qui n'a pas eu lieu —
+   or c'est précisément la distinction que ce module existe pour tenir. La carte
+   de résumé porte alors le rendement **moyen**, sous son propre libellé :
+   afficher « — » sous un titre qui promet un global laisserait croire à un
+   calcul raté.
+2. **Une mesure incalculable ne s'offre pas.** Le sélecteur « Mesure
+   représentée » est construit depuis les colonnes réellement présentes. La
+   laisser dans la liste rendrait un graphique vide sans dire pourquoi — et
+   laisser le choix s'y figer le rendrait vide **après** avoir marché, ce qui
+   est pire.
+3. **L'unité est déclarée, jamais devinée.** Sans masse ni surface,
+   l'application ne peut pas l'inférer, et un axe de rendement sans unité n'est
+   pas un résultat (même règle que la DL50). Déclarée, elle titre l'axe **et**
+   rend la conversion possible — le chemin court ne perd donc rien.
+
+Le chemin court donne **les mêmes nombres** que le chemin long sur le même essai
+(moyenne, somme, écart-type, erreur-type, gains) : c'est ce qui autorise à
+l'offrir, et un test le vérifie plutôt que de le supposer.
+
 ## Doses et dilutions : chaque résultat porte sa formule
 
 `mod_dosage.R` refait les trois calculs qu'un essai phytosanitaire pose sur un

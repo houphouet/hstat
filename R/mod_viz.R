@@ -1563,8 +1563,11 @@ mod_viz_server <- function(id, values) {
       values$customXOrder <- as.character(level_mapping[values$currentXLevels])
     }
     
+    # SECONDE BOUCLE INFINIE DU MEME GENRE : `invalidateLater(80)` relancait
+    # cet observateur toutes les 80 ms, si bien que la notification
+    # « Labels appliques » revenait sans fin et que le graphique se
+    # reconstruisait douze fois par seconde.
     values$plotUpdateTrigger <- stats::runif(1)
-    shiny::invalidateLater(80)
     
     shiny::showNotification(
       trf("Labels appliqués : %s niveaux mis à jour.", length(level_mapping)),
@@ -1739,7 +1742,7 @@ mod_viz_server <- function(id, values) {
           lapply(seq_along(display_vals), function(i) {
             val <- display_vals[i]
             shiny::div(
-              id = paste0("xorder_", i),
+              id = ns(paste0("xorder_", i)),
               `data-value` = val,
               class = "sortable-item",
               style = "cursor: move; padding: 12px; margin-bottom: 8px; background-color: white; border: 2px solid #ddd; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s;",
@@ -1803,8 +1806,14 @@ mod_viz_server <- function(id, values) {
   shiny::observeEvent(input$xLevelOrder, {
     if(!is.null(input$xLevelOrder) && length(input$xLevelOrder) > 0) {
       values$customXOrder <- input$xLevelOrder
+      # UN OBSERVATEUR QUI SE REPROGRAMME NE SE REVEILLE JAMAIS SEUL : un
+      # `invalidateLater` vivait ici, et c'etait une boucle infinie. L'observateur
+      # se relancait toutes les 50 ms, reecrivait un `plotUpdateTrigger` neuf, et
+      # le graphique se reconstruisait vingt fois par seconde jusqu'a la fin de
+      # la session. Sur un glisser-deposer, le nouvel ordre s'appliquait bien --
+      # puis l'ecran ne se stabilisait plus, ce qui se lit exactement comme
+      # « le changement ne s'applique pas ».
       values$plotUpdateTrigger <- stats::runif(1)
-      shiny::invalidateLater(50)
     }
   })
   
@@ -2584,7 +2593,8 @@ mod_viz_server <- function(id, values) {
       dplyr::group_by(dplyr::across(dplyr::all_of(group_cols))) %>%
       dplyr::summarise(n=dplyr::n(), .groups="drop")
     has_duplicates <- any(x_counts$n > 1)
-    if (has_duplicates && !isTRUE(input$useAggregation)) {
+    agregeable <- hstat_y_agregeable(data, y_var)
+    if (has_duplicates && !isTRUE(input$useAggregation) && agregeable) {
       data <- data %>%
         dplyr::filter(!is.na(.data[[y_var]])) %>%
         dplyr::group_by(dplyr::across(dplyr::all_of(group_cols))) %>%
@@ -2592,6 +2602,10 @@ mod_viz_server <- function(id, values) {
       shiny::showNotification(trf("Seasonal Smooth : agrégation auto par moyenne (%s pts).", nrow(data)),
                        type="message", duration=4)
     } else {
+      if (has_duplicates && !isTRUE(input$useAggregation) && !agregeable)
+        shiny::showNotification(
+          trf("%s n'est pas numérique : pas de moyenne automatique, les observations sont tracées telles quelles.", y_var),
+          type="warning", duration=6)
       data <- data[!is.na(data[[y_var]]), , drop = FALSE]
     }
     if (x_is_date || x_is_numeric) data <- data[order(data[[x_var]]), , drop = FALSE]
@@ -2678,7 +2692,8 @@ mod_viz_server <- function(id, values) {
       dplyr::group_by(dplyr::across(dplyr::all_of(group_cols))) %>%
       dplyr::summarise(n=dplyr::n(), .groups="drop")
     has_duplicates <- nrow(x_counts)>0 && any(x_counts$n>1)
-    if (has_duplicates && !isTRUE(input$useAggregation)) {
+    agregeable <- hstat_y_agregeable(data, y_var)
+    if (has_duplicates && !isTRUE(input$useAggregation) && agregeable) {
       data_valid <- data %>%
         dplyr::filter(!is.na(.data[[y_var]])) %>%
         dplyr::group_by(dplyr::across(dplyr::all_of(group_cols))) %>%
@@ -2686,6 +2701,10 @@ mod_viz_server <- function(id, values) {
       shiny::showNotification(trf("Évolution : agrégation auto par moyenne. %s pts uniques.", nrow(data_valid)), type="message", duration=5)
       data_plot <- data_valid; data_pts <- data_valid
     } else {
+      if (has_duplicates && !isTRUE(input$useAggregation) && !agregeable)
+        shiny::showNotification(
+          trf("%s n'est pas numérique : pas de moyenne automatique, les observations sont tracées telles quelles.", y_var),
+          type="warning", duration=6)
       data_plot <- data[!is.na(data[[y_var]]), , drop = FALSE]
       data_pts  <- data_plot
     }
@@ -2848,9 +2867,15 @@ mod_viz_server <- function(id, values) {
   }
   
   create_pie_plot <- function(data, x_var, y_var) {
+    pesee <- hstat_y_agregeable(data, y_var)
+    if (!pesee)
+      shiny::showNotification(
+        trf("%s n'est pas numérique : les parts comptent les observations.", y_var),
+        type = "warning", duration = 6)
     pie_data <- data %>%
+      dplyr::mutate(.hstat_poids = if (pesee) as.numeric(.data[[y_var]]) else 1) %>%
       dplyr::group_by(dplyr::across(dplyr::all_of(x_var))) %>%
-      dplyr::summarise(total = sum(.data[[y_var]], na.rm = TRUE), .groups = "drop") %>%
+      dplyr::summarise(total = sum(.hstat_poids, na.rm = TRUE), .groups = "drop") %>%
       dplyr::mutate(percentage = total / sum(total) * 100)
     
     p <- ggplot2::ggplot(pie_data, ggplot2::aes(x = "", y = total, fill = .data[[x_var]])) +
@@ -2866,9 +2891,15 @@ mod_viz_server <- function(id, values) {
   
   create_donut_plot <- function(data, x_var, y_var) {
     # Similaire au pie mais avec un trou au centre
+    pesee <- hstat_y_agregeable(data, y_var)
+    if (!pesee)
+      shiny::showNotification(
+        trf("%s n'est pas numérique : les parts comptent les observations.", y_var),
+        type = "warning", duration = 6)
     donut_data <- data %>%
+      dplyr::mutate(.hstat_poids = if (pesee) as.numeric(.data[[y_var]]) else 1) %>%
       dplyr::group_by(dplyr::across(dplyr::all_of(x_var))) %>%
-      dplyr::summarise(total = sum(.data[[y_var]], na.rm = TRUE), .groups = "drop") %>%
+      dplyr::summarise(total = sum(.hstat_poids, na.rm = TRUE), .groups = "drop") %>%
       dplyr::mutate(percentage = total / sum(total) * 100)
     
     p <- ggplot2::ggplot(donut_data, ggplot2::aes(x = 2, y = total, fill = .data[[x_var]])) +
@@ -2885,9 +2916,15 @@ mod_viz_server <- function(id, values) {
   
   create_treemap_plot <- function(data, x_var, y_var) {
     
+    pesee <- hstat_y_agregeable(data, y_var)
+    if (!pesee)
+      shiny::showNotification(
+        trf("%s n'est pas numérique : les parts comptent les observations.", y_var),
+        type = "warning", duration = 6)
     treemap_data <- data %>%
+      dplyr::mutate(.hstat_poids = if (pesee) as.numeric(.data[[y_var]]) else 1) %>%
       dplyr::group_by(dplyr::across(dplyr::all_of(x_var))) %>%
-      dplyr::summarise(total = sum(.data[[y_var]], na.rm = TRUE), .groups = "drop")
+      dplyr::summarise(total = sum(.hstat_poids, na.rm = TRUE), .groups = "drop")
     
     p <- ggplot2::ggplot(treemap_data, ggplot2::aes(area = total, fill = .data[[x_var]], label = .data[[x_var]])) +
       treemapify::geom_treemap() +
