@@ -1003,7 +1003,7 @@ mod_yield_server <- function(id, values) {
       r <- resultat()
       if (!NROW(r)) return()
       hstat_ai_capture(
-        values, "Gain de rendement", "Rendements et gains par modalité",
+        values, "Rendement/Gain de rendement", "Rendements et gains par modalité",
         tables = list("Rendements et gains" = utils::head(as.data.frame(r), 200)),
         meta = list(`programme non traité` = input$yieldTemoin %||% "",
                     unité = unite_rdt(),

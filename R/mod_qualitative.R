@@ -2336,6 +2336,7 @@ mod_qualitative_ui <- function(id) {
             shiny::radioButtons(ns("tools_mode"), "Outil",
               choices = c("Lister les modalités" = "modal",
                           "Compter les valeurs manquantes (NA)" = "miss",
+                          "Recoder les modalités" = "recode",
                           "Odds Ratio / Risque Relatif" = "orrr"),
               selected = "modal"),
 
@@ -2345,6 +2346,22 @@ mod_qualitative_ui <- function(id) {
               shiny::uiOutput(ns("tools_vars_ui")),
               shiny::conditionalPanel(sprintf("input['%s'] == 'miss'", ns("tools_mode")),
                 shiny::checkboxInput(ns("miss_blank"), "Compter aussi les chaînes vides / blancs comme manquants", value = TRUE))),
+
+            # --- RECODAGE DES MODALITES ---
+            # Le serveur portait les trois sorties (selecteur, editeur, message)
+            # et l'observateur `apply_recode`, mais AUCUNE n'etait posee dans
+            # l'interface : la fonctionnalite existait entierement et restait
+            # inatteignable. Elle a son propre bouton -- « Lancer l'analyse »
+            # plus bas produit un tableau, recoder MODIFIE les donnees, les deux
+            # gestes ne se confondent pas.
+            shiny::conditionalPanel(sprintf("input['%s'] == 'recode'", ns("tools_mode")),
+              shiny::uiOutput(ns("recode_var_ui")),
+              shiny::uiOutput(ns("recode_interface_ui")),
+              shiny::actionButton(ns("apply_recode"), "Appliquer le recodage",
+                                  icon = shiny::icon("wand-magic-sparkles"),
+                                  class = "btn-success btn-block"),
+              shiny::br(),
+              shiny::uiOutput(ns("recode_status"))),
 
             # --- OR / RR ---
             shiny::conditionalPanel(sprintf("input['%s'] == 'orrr'", ns("tools_mode")),

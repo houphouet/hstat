@@ -1338,6 +1338,90 @@ C'est la règle déjà écrite pour les mémos de l'atelier de codage, appliqué
 deux sites qui l'avaient manquée. Le bénéfice de sécurité (injection dans le
 DOM) suit ; le défaut visible, lui, est un nom de variable affiché faux.
 
+## Un déclencheur sans déclaration ne se déclenche jamais
+
+**463 lignes étaient inatteignables.** Un `observeEvent(input$X)` dont aucune
+interface ne déclare `X` ne s'exécute pas : le code se lit comme une
+fonctionnalité vivante, et rien ne le signale. Neuf déclencheurs étaient dans ce
+cas, sur cinq modules.
+
+Le risque n'est pas le poids, c'est de **corriger la copie morte en croyant
+corriger l'analyse** — la leçon déjà tirée de `createPlotDownloadHandler`.
+
+### Ce qui manquait d'interface, et l'a reçue
+
+| Fonctionnalité | Ce qui manquait |
+|---|---|
+| Chi² d'adéquation (analyse, post-hoc, graphique, exports) | tout : contrôles, boîte de résultats, rendus |
+| Recodage des modalités (qualitatif) | sélecteur, éditeur, bouton, message — le serveur était complet |
+| Personnalisation rapide (visualisation) | le bouton qui ouvre le modal |
+| Test de connexion (atelier de codage) | le bouton |
+
+### Ce qui était un doublon, et a été retiré
+
+`testChiSq`, `testMultinomial` et `runChiSqPostHoc2` refaisaient ce que
+`runChiSqTest` et `runChiSqPostHoc` font déjà — avec un **second jeu de
+sélecteurs**. `runLMPostHoc` était le duplicata *verbatim* du post-hoc que
+« Lancer les comparaisons multiples » exécute (mêmes appels, mêmes écritures).
+
+Leur donner un bouton aurait offert deux chemins vers la même analyse, avec deux
+listes de variables à tenir d'accord : exactement la dérive que ce dépôt corrige
+partout ailleurs. **On ne construit pas l'interface d'un doublon.**
+
+Le chemin retenu est celui qui réutilise les sélecteurs partagés
+(`factorVar` / `responseVar`) : une seule façon de désigner les colonnes.
+
+### Le JavaScript d'un module porte le préfixe du module
+
+`Shiny.setInputValue('xLevelOrder', …)` posait l'entrée **sans préfixe**, alors
+que le serveur écoute `input$xLevelOrder`, c'est-à-dire `visualization-xLevelOrder` :
+le réordonnancement des catégories de l'axe X par glisser-déposer n'arrivait
+**jamais**. Même cause pour `event.target.id === 'xOrderEditor'`, que le vrai
+identifiant ne satisfait jamais — Sortable n'était plus ré-armé après un redessin.
+
+Le script est donc un **gabarit** : les identifiants y entrent par `ns()`.
+
+### Une sortie de module est toujours namespacée
+
+Cinq panneaux d'interprétation ne s'affichaient jamais — diagnostic du modèle,
+QQ-plot, normalité, homogénéité, autocorrélation des résidus. Le serveur les
+calculait ; l'interface les posait sans `ns()`, demandant
+« qqPlotInterpretation » quand le module publie « tests-qqPlotInterpretation ».
+Rien ne lève, la place reste vide.
+
+Un test balaie les UI de module et échoue sur toute sortie non namespacée.
+
+### Le balayage lui-même avait deux angles morts
+
+Écrit trop vite, il signalait trois boutons parfaitement déclarés :
+
+1. **`.` ne franchit pas un retour à la ligne.** Un identifiant posé sur la
+   ligne *suivant* `actionButton(` échappait au découpage `^.*\("`.
+2. **Le renommage de colonne se déclare en guillemets simples**, depuis le
+   JavaScript de DT (`nsId + 'renameColDirect'`). C'est une déclaration valide,
+   elle ne ressemble simplement à aucune autre.
+
+Un balayage qui crie au loup finit désactivé : les deux formes sont traitées, et
+les trois déclencheurs construits par une aide (`id()` de `mod_ai`,
+`torch_install_ui`) sont nommés comme exceptions plutôt que devinés.
+
+## La boîte de résultats est partagée, donc elle dit ce qu'elle montre
+
+Chaque test écrit dans le **même** `values$testResultsDF` : le tableau change
+sous les yeux sans que rien ne nomme l'analyse qui vient de le remplir, et deux
+tests successifs se ressemblent assez pour qu'on s'y trompe. Un bandeau porte
+désormais la famille et le nom du dernier calcul.
+
+Les **détails** propres à un test, eux, vivent dans une boîte qui n'existe à
+l'écran que pour ce test — `output.hasRefTest` pour la comparaison à une norme,
+`output.hasChiSqTest` pour le chi-deux. C'est `values$currentTestType` qui
+tranche : sans lui, la boîte resterait après un autre test et afficherait un
+tableau sans rapport avec ce qu'on vient de lancer.
+
+Détail d'implémentation qui coûte cher : `HSTAT_TEST_FAMILLES[[type]]` lève
+« subscript out of bounds » sur un nom inconnu — et le nom est **vide** tant
+qu'aucun test n'a tourné. `[` rend `NA`, qu'on traite.
+
 ## Seuils d'efficacité : comparer chaque modalité au témoin
 
 `hstat_efficacite()` applique la formule d'Abbott — celle de l'agronomie, de la

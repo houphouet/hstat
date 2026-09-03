@@ -2059,7 +2059,14 @@ mod_coding_ui <- function(id) {
                                      placeholder = "Ex. enquête de satisfaction clients, secteur telecom"))),
 
             shiny::uiOutput(ns("ai_status")),
-            shiny::br(),
+            # L'observateur `ai_ping` existait sans bouton pour le declencher :
+            # on ne pouvait pas verifier une adresse ou une cle avant de lancer
+            # un appel, ce qui est precisement le moment ou l'on veut le savoir.
+            # `mod_ai.R` porte le meme bouton, sous le nom `ping`.
+            shiny::actionButton(ns("ai_ping"), "Tester la connexion",
+                                icon = shiny::icon("plug-circle-check"),
+                                class = "btn-default btn-sm"),
+            shiny::br(), shiny::br(),
             shiny::fluidRow(
               shiny::column(4, shiny::actionButton(ns("ai_codebook"),
                 "1. Proposer un livre de codes", icon = shiny::icon("lightbulb"),

@@ -683,6 +683,88 @@ test_that("un nom de colonne n'entre jamais tel quel dans une notification HTML"
   expect_false(grepl('paste0("<b>", added, "</b>"', txt, fixed = TRUE))
 })
 
+test_that("aucun déclencheur ne guette une entrée que personne ne déclare", {
+  # 463 LIGNES ETAIENT INATTEIGNABLES. Un `observeEvent(input$X)` dont aucune
+  # interface ne declare `X` ne se declenche JAMAIS : le code se lit comme une
+  # fonctionnalite vivante, il ne s'execute pas, et rien ne le signale. Neuf
+  # declencheurs etaient dans ce cas -- dont le chi-deux d'adequation entier
+  # (analyse, post-hoc, graphique, exports) et un post-hoc LM en double.
+  #
+  # Le risque n'est pas le poids : c'est de corriger la copie morte en croyant
+  # corriger l'analyse. C'est la lecon deja tiree de `createPlotDownloadHandler`.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  fs <- c(list.files(file.path(root, "R"), "^mod_.*\\.R$", full.names = TRUE),
+          file.path(root, "inst", "app", c("app_server.R", "UX.R")))
+  fs <- fs[file.exists(fs)]
+  skip_if(!length(fs))
+  txt <- paste(vapply(fs, function(f)
+    paste(readLines(f, warn = FALSE, encoding = "UTF-8"), collapse = "\n"), ""), collapse = "\n")
+
+  pull <- function(re) unique(unlist(regmatches(txt, gregexpr(re, txt, perl = TRUE))))
+  # `.` NE FRANCHIT PAS UN RETOUR A LA LIGNE, et un identifiant se pose souvent
+  # sur la ligne SUIVANT `actionButton(`. Un decoupage par `^.*\\("` laissait
+  # donc la correspondance entiere et signalait comme orphelins trois boutons
+  # parfaitement declares. On extrait la DERNIERE chaine citee, quelle que soit
+  # la mise en page.
+  cap  <- function(v, pre, suf) {
+    if (!length(v)) return(character(0))
+    unique(vapply(v, function(x) {
+      q <- regmatches(x, gregexpr('"[A-Za-z0-9_.]+"', x))[[1]]
+      if (!length(q)) NA_character_ else gsub('"', "", q[length(q)])
+    }, character(1), USE.NAMES = FALSE))
+  }
+
+  # Tout ce qui DECLARE un identifiant : ns("x"), un widget, une mise a jour,
+  # ou une construction JavaScript par prefixe (le renommage de colonne).
+  dec <- c(
+    cap(pull('ns\\("[A-Za-z0-9_.]+"\\)'), '^ns\\("', '"\\)$'),
+    cap(pull(paste0('(?:selectInput|selectizeInput|numericInput|textInput|textAreaInput|',
+                    'checkboxInput|checkboxGroupInput|radioButtons|radioGroupButtons|',
+                    'sliderInput|actionButton|actionLink|fileInput|dateInput|colourInput|',
+                    'pickerInput|downloadButton|downloadLink|tabsetPanel|rank_list)',
+                    '\\(\\s*"[A-Za-z0-9_.]+"')), '^.*\\("', '"$'),
+    cap(pull('update[A-Za-z]*\\(\\s*session\\s*,\\s*"[A-Za-z0-9_.]+"'), '^.*,\\s*"', '"$'),
+    # Le renommage de colonne se pose depuis le JavaScript de DT, en guillemets
+    # SIMPLES et prefixe a la main : `Shiny.setInputValue(nsId + 'renameCol...')`.
+    # C'est une declaration valide, elle ne ressemble simplement a aucune autre.
+    unique(gsub(".*'([A-Za-z0-9_.]+)'.*", "\\1",
+                pull("nsId \\+ '[A-Za-z0-9_.]+'"))))
+
+  trig <- unique(sub('^.*input\\$', "",
+    pull('(?:observeEvent|eventReactive)\\(\\s*(?:shiny::)?input\\$[A-Za-z0-9_.]+')))
+  # Formes construites a l'execution, hors de portee d'un balayage textuel :
+  # les entrees que DT fabrique, les prefixes du multivarie, et les deux aides
+  # qui posent elles-memes leur bouton (`id()` de mod_ai, `torch_install_ui`).
+  dyn <- "(_cell_edit|_rows_selected|_columns_selected|_cells_selected|_search|_state)$|^mv_|^hstat_"
+  connus <- c("ping", "torchInstall", "torchInstall2")
+  orphelins <- setdiff(trig[!grepl(dyn, trig)], c(dec, connus))
+  expect_equal(sort(orphelins), character(0))
+})
+
+test_that("une sortie de module est toujours namespacée", {
+  # CINQ PANNEAUX D'INTERPRETATION NE S'AFFICHAIENT JAMAIS. Le serveur les
+  # calculait -- diagnostic du modele, QQ-plot, normalite, homogeneite,
+  # autocorrelation des residus -- mais l'interface les posait sans `ns()` :
+  # elle demandait « qqPlotInterpretation » quand le module publie
+  # « tests-qqPlotInterpretation ». Rien ne leve, la place reste vide.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  fs <- list.files(file.path(root, "R"), "^mod_.*\\.R$", full.names = TRUE)
+  skip_if(!length(fs))
+  fautifs <- character(0)
+  sorties <- paste0("(uiOutput|htmlOutput|textOutput|verbatimTextOutput|plotOutput|",
+                    "DTOutput|dataTableOutput|plotlyOutput|imageOutput|tableOutput)")
+  for (f in fs) {
+    src <- paste(readLines(f, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+    m <- regmatches(src, gregexpr(paste0(sorties, '\\(\\s*"[A-Za-z0-9_.]+"'),
+                                  src, perl = TRUE))[[1]]
+    if (length(m))
+      fautifs <- c(fautifs, sprintf("%s : %s", basename(f), m))
+  }
+  expect_equal(fautifs, character(0))
+})
+
 test_that("hstat_sql_ident neutralise les guillemets dans les identifiants", {
   expect_equal(hstat_sql_ident("Rendement"), '"Rendement"')
   expect_equal(hstat_sql_ident('col" ; DROP TABLE x --'),
@@ -9520,9 +9602,24 @@ test_that("le code mort retire ne revient pas", {
   # tout le depot. Le chi-deux reellement accessible vit ailleurs dans le meme
   # fichier ; le risque etait de corriger la copie morte en croyant corriger
   # l'analyse -- la lecon deja tiree de createPlotDownloadHandler.
-  for (n in c("chiSqGlobalResult", "chiSqPostHocTable", "chiSqPlotMultiple",
+  #
+  # LA REGLE A SURVECU, LA LISTE NON. Le chi-deux d'adequation a depuis recu
+  # l'interface qui lui manquait : `chiSqPostHocTable` est de nouveau la, mais
+  # AFFICHEE cette fois. Figer des noms aurait interdit de reparer le defaut ;
+  # ce qu'il faut garder, c'est la regle -- une sortie que rien n'affiche ne
+  # doit pas exister. On la verifie donc directement, ce qui couvre aussi les
+  # sorties qu'on ajouterait demain.
+  for (n in c("chiSqGlobalResult", "chiSqPlotMultiple",
               "chiSqVarCatSelect", "downloadChiSqPHPlot"))
     expect_false(grepl(paste0("output$", n), src, fixed = TRUE), label = n)
+
+  sorties <- unique(gsub("^output[$]", "",
+    unlist(regmatches(src, gregexpr("output[$]chiSq[A-Za-z0-9_]*", src)))))
+  posees <- unique(unlist(regmatches(src,
+    gregexpr('ns\\("(chiSq[A-Za-z0-9_]*)"\\)', src, perl = TRUE))))
+  posees <- gsub('^ns\\("|"\\)$', "", posees)
+  expect_equal(sort(setdiff(sorties, posees)), character(0))
+
   # ... et le chi-deux VIVANT est toujours la.
   expect_true(grepl("chisq.test(", src, fixed = TRUE))
 
