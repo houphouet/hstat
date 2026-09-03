@@ -1796,6 +1796,97 @@ Les jetons se collent sans séparateur.
 C'est la troisième fois que l'outil de mesure ment dans le sens rassurant, après
 le filtre du banc de mutation et les colonnes en octets de `getParseData()`.
 
+## Une étiquette de comparaison ne se découpe pas sur son séparateur
+
+Le défaut le plus coûteux trouvé jusqu'ici, parce qu'il est **muet** et qu'il
+sort un chiffre publiable.
+
+`TukeyHSD` nomme ses lignes « B-A », `FSA::dunnTest` « A - B ». Les quatre blocs
+de lettres CLD découpaient l'étiquette sur le tiret. Cela marche tant qu'aucun
+nom de traitement n'en contient — et « T-1 », « Rdt-2023 », « 2SP-0,5 » sont la
+règle en agronomie, pas l'exception.
+
+`strsplit("T-2-T-1", "-")` rend **quatre** morceaux ; la garde
+`length(pair) == 2` écarte la paire, et sa p-value reste à la valeur
+d'initialisation : **1**, c'est-à-dire « pas de différence ».
+
+Mesuré : trois groupes à 10, 20 et 30, Tukey donne p = 4 × 10⁻¹⁴ sur chaque
+paire, et les lettres sortaient **`a | a | a`**. Un résultat parfaitement
+plausible, entièrement faux, recopié tel quel dans un rapport.
+
+On ne découpe donc pas : **on rapproche des niveaux connus**.
+`hstat_paire_niveaux()` essaie chaque position du séparateur et garde la coupe
+dont les deux moitiés sont des niveaux du facteur.
+
+Trois décisions, chacune testée :
+
+1. **Zéro coupe valide** → `NULL` : l'étiquette ne parle pas de ces niveaux.
+2. **Plusieurs coupes valides** → `NULL` aussi. Avec « A », « B », « A-B » *et*
+   « B-A » au catalogue, « A-B-A » se lit des deux façons ; aucune méthode ne
+   peut trancher, et deviner serait pire que s'abstenir. Une seule coupe valide
+   suffit en revanche, même si un niveau porte un tiret.
+3. **Ce qui n'a pas pu être rapproché est nommé** (`attr(pmat, "non_resolues")`).
+   La case garde alors un 1, donc « pas de différence » : le taire ferait
+   publier des lettres optimistes sans le moindre signe.
+
+`hstat_pmat_comparaisons()` porte la matrice pour les quatre blocs, qui la
+recopiaient. `build_pvalue_matrix()`, elle, recevait déjà `Niveau1` / `Niveau2`
+en colonnes — c'est la bonne forme, et elle existait à côté sans être employée.
+
+## Le coefficient de variation : deux divisions par zéro et un signe
+
+`sd / mean` rendait **`Inf`** dès que la moyenne valait zéro — une valeur
+d'apparence normale dans une cellule de tableau, une barre démesurée en
+graphique — et un CV **négatif** sur des données de moyenne négative (un gain,
+un écart à une norme, une anomalie de température).
+
+Un coefficient de variation négatif n'existe pas : c'est une dispersion
+*relative*, et la convention la prend en valeur absolue. Moyenne nulle ou
+incalculable → `NA`, qui s'affiche « — » et ne trompe personne.
+
+**Il en existait deux définitions** : celle du socle et une copie dans
+`mod_tests.R`, qui divergeait — et qui levait « missing value where TRUE/FALSE
+needed » sur une colonne entièrement vide, `sd(NA, na.rm = TRUE) == 0` valant
+`NA`. Une statistique n'a qu'une définition ; la copie a été retirée.
+
+## Une graine posée dans une boucle doit varier avec la boucle
+
+`hstat_set_seed(input$globalSeed)` vivait **dans** la boucle de stabilité du
+clustering : les trente sous-échantillons étaient trente copies du **même**
+tirage. Mesuré : un seul tirage distinct sur cinq.
+
+Trois conséquences, toutes muettes : l'écart-type des indices de Rand valait
+**0** — donc « parfaitement reproductible » —, la moyenne portait sur un seul
+échantillon, et le verdict affiché (« Excellente stabilité », « Faible
+stabilité ») ne décrivait qu'un tirage. Un bootstrap dont les réplicats sont
+identiques ne mesure plus rien.
+
+Posée **avant** la boucle, la graine garde la reproductibilité — deux sessions
+de même graine rendent la même suite — et les trente tirages redeviennent
+différents entre eux, ce qui est tout l'objet de la méthode.
+
+**La règle est « elle varie », pas « elle est absente ».** `mod_design.R` pose
+légitimement `set.seed(base_seed + tt * 7919L)` dans une boucle : c'est ainsi
+qu'une randomisation par bloc reste reproductible.
+
+Et **c'est la boucle la plus intérieure qui compte**. Une première version du
+balayage s'arrêtait à la première boucle englobante trouvée — l'extérieure — et
+signalait `mod_design.R` à tort. Une graine qui varie avec la boucle du dessus
+laisse malgré tout les réplicats de la boucle du dessous identiques.
+
+Détail d'implémentation, attrapé par mutation : **la variable de boucle se lit
+sur la ligne source, pas dans l'arbre**. R range le `b` de `for (b in ...)`
+sous un nœud `forcond`, et non parmi les enfants directs de l'expression `for` ;
+l'y chercher rendait `NA`, et l'assertion ne pouvait alors rien signaler.
+
+## `safe_cor` sur un tableau sans colonne
+
+`sapply()` sur un tableau vide rend `list()`, et `df[, list()]` lève
+« invalid subscript type 'list' ». Le cas s'atteint dès que le filtrage a tout
+retiré, et `safe_cor` alimente une sortie Shiny — où une erreur fait tomber le
+panneau entier. `vapply(df, is.numeric, logical(1))` rend `logical(0)` et
+traverse sans broncher.
+
 ## Doses et dilutions : chaque résultat porte sa formule
 
 `mod_dosage.R` refait les trois calculs qu'un essai phytosanitaire pose sur un

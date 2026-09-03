@@ -12744,3 +12744,222 @@ test_that("un prédicteur constant donne un verdict, pas une chute", {
   expect_false(grepl("2:nrow(coef_table)", code, fixed = TRUE))
   expect_true(grepl("seq_len(nrow(coef_table))[-1]", code, fixed = TRUE))
 })
+
+
+test_that("un nom de traitement avec tiret ne fait pas fusionner les lettres CLD", {
+  skip_if_not_installed("multcompView")
+  # LE DEFAUT LE PLUS COUTEUX TROUVE JUSQU'ICI, parce qu'il est MUET et qu'il
+  # sort un chiffre publiable. `TukeyHSD` nomme ses lignes « B-A » ; le code
+  # decoupait sur le tiret. Avec « T-1 » / « T-2 », `strsplit("T-2-T-1", "-")`
+  # rend quatre morceaux, la paire etait ecartee, et sa p-value restait a la
+  # valeur d'initialisation -- 1, c'est-a-dire « pas de difference ».
+  #
+  # Mesure : trois groupes a 10, 20 et 30, Tukey a p = 4e-14 sur chaque paire.
+  # Lettres obtenues « a | a | a ».
+  set.seed(1)
+  jeu <- function(niv) data.frame(
+    y = c(stats::rnorm(8, 10), stats::rnorm(8, 20), stats::rnorm(8, 30)),
+    g = rep(niv, each = 8), stringsAsFactors = FALSE)
+
+  for (niv in list(c("A", "B", "C"), c("T-1", "T-2", "T-3"),
+                   c("Rdt-2023", "Rdt-2024", "Rdt-2025"))) {
+    r <- build_letters_per_variable(jeu(niv), "y", "g", parametric = TRUE)
+    expect_false(is.null(r), info = paste(niv, collapse = ","))
+    # TROIS groupes nettement separes : TROIS lettres distinctes.
+    expect_equal(length(unique(r$Groupes)), 3L, info = paste(niv, collapse = ","))
+  }
+
+  # ET L'INVERSE, sinon l'assertion passerait sur un code qui rendrait
+  # toujours des lettres differentes : deux groupes identiques la PARTAGENT.
+  set.seed(2)
+  meme <- data.frame(y = c(stats::rnorm(10, 10), stats::rnorm(10, 10),
+                           stats::rnorm(10, 40)),
+                     g = rep(c("T-1", "T-2", "T-3"), each = 10),
+                     stringsAsFactors = FALSE)
+  r2 <- build_letters_per_variable(meme, "y", "g", parametric = TRUE)
+  expect_equal(r2$Groupes[r2$Niveau == "T-1"], r2$Groupes[r2$Niveau == "T-2"])
+  expect_false(identical(r2$Groupes[r2$Niveau == "T-1"],
+                         r2$Groupes[r2$Niveau == "T-3"]))
+})
+
+test_that("une étiquette de comparaison se rapproche des niveaux, elle ne se découpe pas", {
+  n <- c("A", "B", "C")
+  expect_equal(hstat_paire_niveaux("B-A", n), c("B", "A"))
+  # `FSA::dunnTest` ecrit « A - B », avec des espaces.
+  expect_equal(hstat_paire_niveaux("A - B", n), c("A", "B"))
+  # Le tiret DANS le nom : c'est tout le sujet.
+  h <- c("T-1", "T-2", "T-3")
+  expect_equal(hstat_paire_niveaux("T-2-T-1", h), c("T-2", "T-1"))
+  expect_equal(hstat_paire_niveaux("T-3 - T-1", h), c("T-3", "T-1"))
+  # Une etiquette qui ne parle pas de ces niveaux ne rend rien -- on ne devine
+  # pas, et le NULL est ce que l'appelant compte pour le dire.
+  expect_null(hstat_paire_niveaux("X-Y", n))
+  expect_null(hstat_paire_niveaux("A", n))
+  expect_null(hstat_paire_niveaux("", n))
+  # UNE SEULE COUPE VALIDE SUFFIT, meme quand un niveau porte un tiret :
+  # avec « A », « B » et « A-B », l'etiquette « A-B-A » ne se coupe qu'en
+  # (« A-B », « A ») -- (« A », « B-A ») echoue, « B-A » n'etant pas un niveau.
+  expect_equal(hstat_paire_niveaux("A-B-A", c("A", "B", "A-B")), c("A-B", "A"))
+  # AMBIGUITE REELLE : il faut que les DEUX coupes tombent sur des niveaux
+  # connus. Avec « A-B » ET « B-A » au catalogue, « A-B-A » se lit des deux
+  # façons -- aucune methode ne peut trancher, et deviner serait pire que
+  # s'abstenir.
+  expect_null(hstat_paire_niveaux("A-B-A", c("A", "B", "A-B", "B-A")))
+
+  # La matrice : ce qui n'a pas pu etre rapproche est NOMME.
+  m <- hstat_pmat_comparaisons(c("B-A", "C-A", "Z-Q"), c(0.01, 0.4, 0.02), n)
+  expect_equal(m["B", "A"], 0.01)
+  expect_equal(m["A", "B"], 0.01)
+  expect_equal(m["C", "A"], 0.4)
+  expect_equal(diag(m), stats::setNames(rep(1, 3), n))
+  expect_equal(attr(m, "non_resolues"), "Z-Q")
+  # Une paire jamais renseignee garde 1, donc « pas de difference » : c'est
+  # justement pourquoi il faut la nommer.
+  expect_equal(unname(m["B", "C"]), 1)
+})
+
+
+test_that("le coefficient de variation ne rend ni l'infini ni un signe négatif", {
+  # DEUX DIVISIONS PAR ZERO, ET UN SIGNE QUI NE VEUT RIEN DIRE.
+  # `sd / mean` rendait `Inf` sur une moyenne nulle -- une valeur d'apparence
+  # normale dans une cellule de tableau -- et un CV NEGATIF sur des donnees de
+  # moyenne negative. Un coefficient de variation negatif n'existe pas : c'est
+  # une dispersion RELATIVE, prise en valeur absolue par convention.
+  expect_equal(calc_cv(c(10, 12, 14, 16)), stats::sd(c(10, 12, 14, 16)) / 13 * 100)
+  # Moyenne exactement nulle : indefini, donc NA -- jamais `Inf`.
+  expect_true(is.na(calc_cv(c(-2, -1, 1, 2))))
+  # Moyenne negative : meme dispersion relative que son oppose, et POSITIVE.
+  expect_equal(calc_cv(c(-10, -12, -14, -16)), calc_cv(c(10, 12, 14, 16)))
+  expect_gt(calc_cv(c(-10, -12, -14, -16)), 0)
+  # Rien de calculable : NA, pas une chute.
+  expect_true(is.na(calc_cv(c(NA_real_, NA_real_))))
+  expect_true(is.na(calc_cv(numeric(0))))
+  expect_true(is.na(calc_cv(5)))          # un seul point : sd vaut NA
+
+  # UNE STATISTIQUE N'A QU'UNE DEFINITION. `mod_tests.R` en portait une copie
+  # qui divergeait -- et qui levait « missing value where TRUE/FALSE needed »
+  # sur une colonne vide, `sd(NA, na.rm = TRUE) == 0` valant NA.
+  chemin <- .hstat_module_path("mod_tests.R")
+  skip_if_not(file.exists(chemin))
+  pd <- utils::getParseData(parse(chemin, keep.source = TRUE))
+  code <- paste(pd$text[pd$token != "COMMENT" & nzchar(pd$text)], collapse = "")
+  expect_false(grepl("calc_cv<-function", code, fixed = TRUE))
+})
+
+test_that("une matrice de corrélation refuse au lieu de lever", {
+  # `sapply()` sur un tableau SANS COLONNE rend `list()`, et `df[, list()]`
+  # leve « invalid subscript type 'list' ». Le cas s'atteint des que le
+  # filtrage a tout retire -- et `safe_cor` alimente une sortie Shiny, ou une
+  # erreur fait tomber le panneau entier.
+  expect_null(safe_cor(data.frame()))
+  expect_null(safe_cor(NULL))
+  expect_null(safe_cor(data.frame(a = 1:5)))                    # une seule colonne
+  expect_null(safe_cor(data.frame(a = letters[1:5], b = letters[1:5])))  # rien de numerique
+  expect_null(safe_cor(data.frame(a = rep(1, 5), b = rep(2, 5))))        # variance nulle
+  m <- safe_cor(data.frame(a = 1:5, b = c(2, 4, 6, 8, 10)))
+  expect_equal(unname(m["a", "b"]), 1)
+})
+
+
+test_that("la corrélation cophénétique ne dépend pas de l'échelle des mesures", {
+  # C'EST SA PROPRIETE ESSENTIELLE, et elle porte le chiffre de qualite d'une
+  # CAH. `dist` change avec l'unite, `cor` non : mesurer en microgrammes ou en
+  # tonnes doit rendre exactement le meme indice. Un jour ou l'on normaliserait
+  # les coordonnees quelque part, seul ce test le verrait.
+  set.seed(7)
+  co <- rbind(matrix(stats::rnorm(40, 0), 20, 2), matrix(stats::rnorm(40, 8), 20, 2))
+  a <- hstat_cophenetic_corr(co, stats::hclust(stats::dist(co), method = "ward.D2"))
+  b2 <- hstat_cophenetic_corr(co * 1000,
+          stats::hclust(stats::dist(co * 1000), method = "ward.D2"))
+  expect_equal(a, b2)
+  # Deux nuages nettement separes : l'arbre represente bien les distances.
+  expect_gt(a, 0.9)
+
+  # UN ARBRE QUI NE CORRESPOND PAS AUX COORDONNEES est recalcule, jamais
+  # confronte tel quel : `cor(dist, cophenetic)` sur deux tailles differentes
+  # rendrait un nombre sans rapport, ou leverait.
+  petit <- stats::hclust(stats::dist(co[1:10, ]), method = "ward.D2")
+  r <- hstat_cophenetic_corr(co, petit)
+  expect_true(is.finite(r))
+  expect_equal(r, a, tolerance = 1e-6)
+})
+
+test_that("la MANOVA refuse en nommant ce qui manque", {
+  # ONZE SORTIES ANTICIPEES protegent l'appel a `manova()`, et aucune n'etait
+  # testee. Toutes doivent NOMMER la cause : « Test impossible » se lit, un
+  # `ok = FALSE` nu ne se lit pas.
+  set.seed(11)
+  d <- data.frame(y1 = stats::rnorm(30), y2 = stats::rnorm(30),
+                  g = rep(c("A", "B", "C"), 10), cst = 1,
+                  stringsAsFactors = FALSE)
+  expect_true(check_manova_data(d, c("y1", "y2"), "g")$ok)
+
+  refus <- function(r, motif) {
+    expect_false(r$ok)
+    expect_true(grepl(motif, r$message), info = r$message)
+  }
+  refus(check_manova_data(d, "y1", "g"), "2 variables")
+  refus(check_manova_data(d, c("y1", "y2"), character(0)), "facteur")
+  # La variable fautive est NOMMEE, pas seulement comptee.
+  refus(check_manova_data(d, c("y1", "cst"), "g"), "cst")
+  d2 <- d; d2$g <- "A"
+  refus(check_manova_data(d2, c("y1", "y2"), "g"), "'g'")
+  # n < p + 3 : le nombre reel est dit.
+  refus(check_manova_data(d[1:4, ], c("y1", "y2"), "g"), "n=4")
+
+  # Le tableau nettoye revient a l'appelant, facteurs deja convertis.
+  ok <- check_manova_data(d, c("y1", "y2"), "g")
+  expect_true(is.factor(ok$df_clean$g))
+  expect_equal(ok$n, 30L)
+  expect_equal(ok$p, 2L)
+})
+
+
+test_that("une graine posée dans une boucle doit varier avec la boucle", {
+  # UN BOOTSTRAP DONT LES REPLICATS SONT IDENTIQUES NE MESURE PLUS RIEN.
+  # `hstat_set_seed(input$globalSeed)` vivait DANS la boucle de stabilite du
+  # clustering : les trente sous-echantillons etaient trente copies du meme
+  # tirage. Mesure : un seul tirage distinct sur cinq. L'ecart-type des indices
+  # de Rand valait donc 0 -- « parfaitement reproductible » -- et le verdict
+  # affiche ne decrivait qu'un echantillon.
+  #
+  # La graine reste legitime DANS une boucle quand elle depend de l'indice :
+  # c'est ainsi que `mod_design.R` rend une randomisation par bloc
+  # reproductible. La regle est donc « elle varie », pas « elle est absente ».
+  #
+  # C'EST LA BOUCLE LA PLUS INTERIEURE QUI COMPTE. Une premiere version
+  # s'arretait a la premiere boucle englobante trouvee -- l'exterieure -- et
+  # signalait `mod_design.R`, dont la graine depend bien de l'indice INTERNE.
+  # Une graine qui varie avec la boucle du dessus laisse malgre tout les
+  # replicats de la boucle du dessous identiques.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  fautifs <- character(0)
+  for (f in .hstat_sources_app()) {
+    d <- utils::getParseData(parse(f, keep.source = TRUE))
+    l <- readLines(f, warn = FALSE, encoding = "UTF-8")
+    graines <- d[d$token == "SYMBOL_FUNCTION_CALL" &
+                 d$text %in% c("set.seed", "hstat_set_seed"), ]
+    boucles <- d[d$token %in% c("FOR", "WHILE"), ]
+    for (i in seq_len(nrow(graines))) {
+      # l'appel entier, pas la seule ligne du symbole
+      ap <- d[d$id == d$parent[match(d$parent[match(graines$id[i], d$id)], d$id)], ]
+      if (!nrow(ap)) next
+      appel <- paste(l[ap$line1:ap$line2], collapse = " ")
+      englobantes <- integer(0)
+      for (j in seq_len(nrow(boucles))) {
+        r <- d[d$id == d$parent[match(boucles$id[j], d$id)], ]
+        if (nrow(r) && graines$line1[i] > r$line1 && graines$line1[i] <= r$line2)
+          englobantes <- c(englobantes, r$line1)
+      }
+      if (!length(englobantes)) next
+      interieure <- max(englobantes)          # la plus proche du `set.seed`
+      vb <- sub("^.*for\\s*\\(\\s*([A-Za-z_.][A-Za-z0-9_.]*)\\s+in.*$", "\\1",
+                l[interieure])
+      if (identical(vb, l[interieure])) next  # `while` : pas de variable
+      if (!grepl(sprintf("[^A-Za-z0-9_.]%s[^A-Za-z0-9_.]", vb), appel))
+        fautifs <- c(fautifs, sprintf("%s:%d", basename(f), graines$line1[i]))
+    }
+  }
+  expect_equal(unique(fautifs), character(0))
+})
