@@ -3380,8 +3380,22 @@ server <- function(input, output, session) {
       prop    <- 0.8
       rand_indices <- numeric(n_boot)
       
+      # LA GRAINE SE POSE AVANT LA BOUCLE, PAS DEDANS.
+      #
+      # `hstat_set_seed(input$globalSeed)` vivait a l'interieur : les trente
+      # sous-echantillons etaient donc trente copies du MEME tirage. Mesure :
+      # un seul tirage distinct sur cinq. Trois consequences, toutes muettes :
+      # l'ecart-type des indices de Rand valait 0 -- « parfaitement
+      # reproductible » -- la moyenne portait sur un seul echantillon, et le
+      # verdict affiche (« Excellente stabilite », « Faible stabilite ») ne
+      # decrivait qu'un tirage. Un bootstrap dont les replicats sont
+      # identiques ne mesure plus rien.
+      #
+      # Posee ici, la graine garde la reproductibilite -- deux sessions de meme
+      # graine rendent la meme suite -- et les trente tirages redeviennent
+      # differents entre eux, ce qui est tout l'objet de la methode.
+      hstat_set_seed(input$globalSeed)
       for (b in 1:n_boot) {
-        hstat_set_seed(input$globalSeed)
         idx_b   <- sample(1:n, size = floor(n * prop), replace = FALSE)
         sub_coords <- coords[idx_b, , drop = FALSE]
         d_sub   <- dist(sub_coords)

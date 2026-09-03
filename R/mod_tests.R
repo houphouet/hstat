@@ -6028,10 +6028,10 @@ mod_tests_server <- function(id, values) {
   
   # ---- Comparaisons multiples PostHoc  ----
   
-  calc_cv <- function(x) {
-    if (length(x) <= 1 || stats::sd(x, na.rm = TRUE) == 0) return(0)
-    return((stats::sd(x, na.rm = TRUE) / mean(x, na.rm = TRUE)) * 100)
-  }
+  # LA COPIE LOCALE DE `calc_cv` A ETE RETIREE. Elle divergeait du socle et
+  # levait « missing value where TRUE/FALSE needed » sur une colonne
+  # entierement vide : `sd(NA, na.rm = TRUE) == 0` vaut NA, et `if (NA)` leve.
+  # Une statistique n'a qu'une definition.
   
   perform_simple_effect_posthoc <- function(df, var, factor1, factor2, level, test_type, test_method) {
     

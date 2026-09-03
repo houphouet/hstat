@@ -193,8 +193,11 @@ remove_zero_var_cols <- function(df) {
 }
 
 safe_cor <- function(df, use = "pairwise.complete.obs") {
-  if (is.null(df)) return(NULL)
-  df <- df[, sapply(df, is.numeric), drop = FALSE]
+  if (is.null(df) || !is.data.frame(df) || !ncol(df)) return(NULL)
+  # `sapply()` sur un tableau SANS COLONNE rend `list()`, et `df[, list()]`
+  # leve « invalid subscript type 'list' ». Le cas s'atteint des que le
+  # filtrage a tout retire.
+  df <- df[, vapply(df, is.numeric, logical(1)), drop = FALSE]
   df <- remove_zero_var_cols(df)
   if (is.null(df) || ncol(df) < 2) return(NULL)
   tryCatch(suppressWarnings(stats::cor(df, use = use)), error = function(e) NULL)
@@ -1169,7 +1172,28 @@ filter_complete_cross_n <- function(df, factors) {
   dfx
 }
 
-calc_cv <- function(x) stats::sd(x, na.rm = TRUE) / mean(x, na.rm = TRUE) * 100
+# COEFFICIENT DE VARIATION : deux divisions par zero, et un signe qui ne veut
+# rien dire.
+#
+# `sd / mean` rendait `Inf` des que la moyenne valait zero -- une valeur
+# d'apparence normale dans une cellule de tableau, et une barre demesuree en
+# graphique -- et un CV NEGATIF sur des donnees de moyenne negative (un gain,
+# un ecart a une norme, une anomalie de temperature). Un coefficient de
+# variation negatif n'existe pas : c'est une dispersion RELATIVE, elle se lit
+# en pour-cent de la moyenne, et la convention la prend en valeur absolue.
+#
+# Moyenne nulle ou incalculable -> `NA`, qui s'affiche « — » et ne trompe
+# personne. La regle du depot : ne jamais rendre un nombre plausible et faux.
+#
+# Il en existait DEUX definitions -- celle-ci et une copie dans `mod_tests.R`,
+# qui levait « missing value where TRUE/FALSE needed » sur une colonne
+# entierement vide (`sd(NA) == 0` vaut NA). La copie a ete retiree.
+calc_cv <- function(x) {
+  s <- stats::sd(x, na.rm = TRUE)
+  m <- mean(x, na.rm = TRUE)
+  if (!isTRUE(is.finite(s)) || !isTRUE(is.finite(m)) || m == 0) return(NA_real_)
+  s / abs(m) * 100
+}
 
 
 
@@ -2437,6 +2461,67 @@ permdisp_per_factor <- function(Y, df, factors, dist_method = "euclidean") {
 }
 
 
+# UNE ETIQUETTE DE COMPARAISON NE SE DECOUPE PAS SUR SON SEPARATEUR.
+#
+# `TukeyHSD` nomme ses lignes « B-A », `FSA::dunnTest` « A - B ». Decouper sur
+# le tiret marche tant qu'aucun nom de traitement n'en contient -- et « T-1 »,
+# « Rdt-2023 », « 2SP-0,5 » sont la regle en agronomie, pas l'exception.
+#
+# Le defaut etait MUET ET GRAVE. `strsplit("T-2-T-1", "-")` rend quatre
+# morceaux, la garde `length(pair) == 2` ecarte la paire, et sa p-value reste a
+# la valeur d'initialisation : 1, c'est-a-dire « pas de difference ». Mesure sur
+# trois groupes a 10, 20 et 30 -- Tukey donne p = 4e-14 pour chaque paire, et
+# les lettres sortaient « a | a | a ». Un resultat parfaitement plausible, et
+# entierement faux, recopie tel quel dans un rapport.
+#
+# On ne decoupe donc pas : on RAPPROCHE des niveaux connus. Chaque position du
+# separateur est essayee, et l'on garde la coupe dont les deux moities sont des
+# niveaux du facteur.
+hstat_paire_niveaux <- function(etiquette, niveaux, sep = "-") {
+  et <- trimws(as.character(etiquette)[1])
+  niveaux <- as.character(niveaux)
+  if (is.na(et) || !nzchar(et) || !length(niveaux)) return(NULL)
+  pos <- gregexpr(sep, et, fixed = TRUE)[[1]]
+  if (pos[1] == -1L) return(NULL)
+  trouves <- list()
+  for (k in pos) {
+    gauche <- trimws(substr(et, 1L, k - 1L))
+    droite <- trimws(substr(et, k + nchar(sep), nchar(et)))
+    if (gauche %in% niveaux && droite %in% niveaux)
+      trouves[[length(trouves) + 1L]] <- c(gauche, droite)
+  }
+  # ZERO coupe valide : l'etiquette ne parle pas de ces niveaux.
+  # PLUSIEURS : elle est vraiment ambigue (des niveaux « A », « B » et « A-B »
+  # coexistent) -- aucune methode ne peut trancher, et deviner serait pire.
+  if (length(trouves) != 1L) return(NULL)
+  trouves[[1L]]
+}
+
+# Matrice de p-values a partir d'etiquettes de comparaison. Une seule
+# definition pour les quatre blocs de lettres CLD, qui la recopiaient.
+#
+# Ce qui n'a pas pu etre rapproche est NOMME en attribut : la matrice garde
+# alors un 1 sur cette case, donc « pas de difference », et le taire ferait
+# publier des lettres optimistes sans le moindre signe.
+hstat_pmat_comparaisons <- function(etiquettes, p, niveaux, sep = "-") {
+  niveaux <- as.character(niveaux)
+  pmat <- matrix(1, length(niveaux), length(niveaux),
+                 dimnames = list(niveaux, niveaux))
+  non_resolues <- character(0)
+  for (i in seq_along(etiquettes)) {
+    paire <- hstat_paire_niveaux(etiquettes[i], niveaux, sep)
+    if (is.null(paire)) {
+      non_resolues <- c(non_resolues, as.character(etiquettes[i]))
+      next
+    }
+    pmat[paire[1], paire[2]] <- p[i]
+    pmat[paire[2], paire[1]] <- p[i]
+  }
+  diag(pmat) <- 1
+  if (length(non_resolues)) attr(pmat, "non_resolues") <- non_resolues
+  pmat
+}
+
 #' Construit la matrice de p-values à partir d'un data.frame de paires
 #' (utilisé pour générer les lettres CLD via multcompView)
 #' @param pairs_df data.frame avec colonnes Niveau1, Niveau2, p_adj
@@ -2499,26 +2584,12 @@ build_letters_per_variable <- function(df, response, factor_name,
         tuk  <- stats::TukeyHSD(fit)[[1]]
         pv   <- tuk[, "p adj"]
         nm   <- rownames(tuk)
-        pmat <- matrix(1, length(levs), length(levs), dimnames = list(levs, levs))
-        for (i in seq_along(nm)) {
-          pair <- strsplit(nm[i], "-", fixed = TRUE)[[1]]
-          if (length(pair) == 2 && all(pair %in% levs)) {
-            pmat[pair[1], pair[2]] <- pv[i]
-            pmat[pair[2], pair[1]] <- pv[i]
-          }
-        }
+        pmat <- hstat_pmat_comparaisons(nm, pv, levs)
         multcompView::multcompLetters(pmat, threshold = 0.05)$Letters[levs]
       } else {
         kt <- stats::kruskal.test(y ~ g)
         dn <- FSA::dunnTest(y, g, method = "bonferroni")$res
-        pmat <- matrix(1, length(levs), length(levs), dimnames = list(levs, levs))
-        for (i in seq_len(nrow(dn))) {
-          pair <- trimws(strsplit(as.character(dn$Comparison[i]), "-", fixed = TRUE)[[1]])
-          if (length(pair) == 2 && all(pair %in% levs)) {
-            pmat[pair[1], pair[2]] <- dn$P.adj[i]
-            pmat[pair[2], pair[1]] <- dn$P.adj[i]
-          }
-        }
+        pmat <- hstat_pmat_comparaisons(dn$Comparison, dn$P.adj, levs)
         multcompView::multcompLetters(pmat, threshold = 0.05)$Letters[levs]
       }
     }, error = function(e) stats::setNames(rep("a", length(levs)), levs))
@@ -2596,23 +2667,11 @@ build_letters_interaction <- function(df, response, factors,
         fit  <- stats::aov(y ~ cell)
         tuk  <- stats::TukeyHSD(fit)[[1]]
         pv   <- tuk[, "p adj"]; nm <- rownames(tuk)
-        pmat <- matrix(1, length(levs), length(levs), dimnames = list(levs, levs))
-        for (i in seq_along(nm)) {
-          pair <- strsplit(nm[i], "-", fixed = TRUE)[[1]]
-          if (length(pair) == 2 && all(pair %in% levs)) {
-            pmat[pair[1], pair[2]] <- pv[i]; pmat[pair[2], pair[1]] <- pv[i]
-          }
-        }
+        pmat <- hstat_pmat_comparaisons(nm, pv, levs)
         multcompView::multcompLetters(pmat, threshold = 0.05)$Letters[levs]
       } else {
         dn <- FSA::dunnTest(y, cell, method = "bonferroni")$res
-        pmat <- matrix(1, length(levs), length(levs), dimnames = list(levs, levs))
-        for (i in seq_len(nrow(dn))) {
-          pair <- trimws(strsplit(as.character(dn$Comparison[i]), "-", fixed = TRUE)[[1]])
-          if (length(pair) == 2 && all(pair %in% levs)) {
-            pmat[pair[1], pair[2]] <- dn$P.adj[i]; pmat[pair[2], pair[1]] <- dn$P.adj[i]
-          }
-        }
+        pmat <- hstat_pmat_comparaisons(dn$Comparison, dn$P.adj, levs)
         multcompView::multcompLetters(pmat, threshold = 0.05)$Letters[levs]
       }
     }, error = function(e) stats::setNames(rep("a", length(levs)), levs))
