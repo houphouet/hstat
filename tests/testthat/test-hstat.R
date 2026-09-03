@@ -12595,3 +12595,152 @@ test_that("les boutons de l'éditeur d'ordre post-hoc sont namespacés", {
   tv <- paste(readLines(cv, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_true(grepl('id = ns(paste0("xorder_", i))', tv, fixed = TRUE))
 })
+
+
+test_that("tout identifiant de widget construit dans un module passe par ns()", {
+  # LE DEFAUT LE PLUS SILENCIEUX DU DEPOT, ET LE TROISIEME DE SA FAMILLE.
+  # Un widget cree HORS du namespace de son module n'existe pour personne :
+  # `input[["xLevel_Alpha"]]` lit « visualization-xLevel_Alpha », le widget
+  # porte « xLevel_Alpha ». Rien ne leve, rien ne s'affiche de travers -- le
+  # reglage ne fait simplement RIEN.
+  #
+  # Mesure avant correction : le renommage des etiquettes de l'axe X et celui
+  # des etiquettes de legende etaient morts dans le navigateur, et avec eux le
+  # prefixe, le suffixe, la casse et la remise a zero, qui lisent les memes
+  # champs. Trois champs poses, zero prefixe, zero notification au clic.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  widgets <- c("actionButton", "actionLink", "selectInput", "numericInput",
+               "textInput", "checkboxInput", "radioButtons", "sliderInput",
+               "selectizeInput", "textAreaInput", "fileInput", "downloadButton",
+               "dateInput", "checkboxGroupInput", "colourInput", "pickerInput",
+               "plotOutput", "uiOutput", "verbatimTextOutput", "tableOutput",
+               "DTOutput", "dataTableOutput", "plotlyOutput")
+  fautifs <- character(0)
+  for (f in list.files(file.path(root, "R"), "^mod_.*\\.R$", full.names = TRUE)) {
+    d <- utils::getParseData(parse(f, keep.source = TRUE))
+
+    # UN MODULE PEUT SE DONNER SON PROPRE RACCOURCI. `mod_ai.R` definit
+    # `id <- function(s) ns(...)` : ces noms-la namespacent aussi, et les
+    # compter pour fautifs ferait echouer le test sur du code sain.
+    aides <- unique(d$text[d$token == "SYMBOL" &
+                           d$id %in% d$id[d$token == "SYMBOL"]])
+    src <- paste(readLines(f, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+    aides <- unique(c("ns", regmatches(src, gregexpr(
+      "[A-Za-z_.][A-Za-z0-9_.]*(?=\\s*<-\\s*function\\([^)]*\\)\\s*ns\\()",
+      src, perl = TRUE))[[1]]))
+
+    w <- d[d$token == "SYMBOL_FUNCTION_CALL" & d$text %in% widgets, ]
+    for (i in seq_len(nrow(w))) {
+      appel <- d$parent[match(d$parent[match(w$id[i], d$id)], d$id)]
+      args  <- d[d$parent == appel & d$token == "expr", ]
+      if (nrow(args) < 2) next
+      a1 <- args$id[2]
+      # tous les symboles d'appel du premier argument, a n'importe quelle
+      # profondeur : `ns(paste0("x_", i))` comme `paste0(ns("x"), i)`.
+      desc <- a1; k <- 0
+      repeat {
+        nouv <- d$id[d$parent %in% desc]
+        if (!length(setdiff(nouv, desc)) || k > 12) break
+        desc <- unique(c(desc, nouv)); k <- k + 1
+      }
+      appels <- d$text[d$id %in% desc & d$token == "SYMBOL_FUNCTION_CALL"]
+      if (!any(appels %in% aides))
+        fautifs <- c(fautifs, sprintf("%s:%d %s", basename(f), w$line1[i], w$text[i]))
+    }
+  }
+  expect_equal(fautifs, character(0))
+})
+
+test_that("un bouton déclaré est un bouton branché", {
+  # « Actualiser le graphique », pleine largeur et en vert, n'etait relie a
+  # AUCUN observateur : le geste le plus visible de l'onglet ne faisait rien.
+  # Deux autres etaient dans le meme cas -- « Aperçu » du theme et
+  # « Afficher quand même » au-dela de cinquante niveaux, qui promet une issue
+  # que le clic ne donnait pas.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  orphelins <- character(0)
+  for (f in list.files(file.path(root, "R"), "^mod_.*\\.R$", full.names = TRUE)) {
+    src <- paste(readLines(f, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+    d <- utils::getParseData(parse(f, keep.source = TRUE))
+    b <- d[d$token == "SYMBOL_FUNCTION_CALL" & d$text %in% c("actionButton", "actionLink"), ]
+    for (i in seq_len(nrow(b))) {
+      appel <- d$parent[match(d$parent[match(b$id[i], d$id)], d$id)]
+      args  <- d[d$parent == appel & d$token == "expr", ]
+      if (nrow(args) < 2) next
+      s <- d[d$parent %in% d$id[d$parent == args$id[2]] & d$token == "STR_CONST", ]
+      if (!nrow(s)) next
+      id <- gsub('"', "", s$text[1])
+      if (!nzchar(id)) next
+      if (!grepl(sprintf("input\\$%s\\b|input\\[\\[\"%s\"\\]\\]", id, id), src))
+        orphelins <- c(orphelins, sprintf("%s:%d %s", basename(f), b$line1[i], id))
+    }
+  }
+  expect_equal(orphelins, character(0))
+})
+
+
+test_that("une variable réponse en échec n'emporte pas les autres", {
+  skip_if_not_installed("shinydashboard")
+  skip_if_not_installed("DT")
+  suppressMessages(hstat_installer_replis_ui())
+  # UN `tryCatch` QUI COUVRE LA BOUCLE EMPORTE TOUTE LA SORTIE -- la regle est
+  # ecrite dans ce dépôt, elle n'etait pas appliquee a la regression, au GLM ni
+  # au modele mixte : le gestionnaire enveloppait les N variables reponses.
+  d <- data.frame(Bonne = c(10, 11, 12, 18, 19, 20, 14, 15, 16),
+                  Vide  = rep(NA_real_, 9),
+                  X     = 1:9)
+  for (bouton in c("testLM", "testGLM")) {
+    vals <- shiny::reactiveValues(filteredData = d)
+    shiny::testServer(mod_tests_server, args = list(values = vals), {
+      session$setInputs(responseVar = c("Bonne", "Vide"), factorVar = "X")
+      session$setInputs(!!bouton := 1)
+      r <- values$testResultsDF
+      expect_false(is.null(r), info = bouton)
+      # La bonne variable sort ses resultats...
+      expect_true("Bonne" %in% r$Variable, info = bouton)
+      expect_true(any(is.finite(r$Statistique[r$Variable == "Bonne"])), info = bouton)
+      # ...et celle qui echoue devient une LIGNE NOMMEE, jamais un vide.
+      expect_true("Vide" %in% r$Variable, info = bouton)
+      expect_true(all(nzchar(r$Interpretation[r$Variable == "Vide"])), info = bouton)
+    })
+  }
+})
+
+test_that("un prédicteur constant donne un verdict, pas une chute", {
+  skip_if_not_installed("shinydashboard")
+  skip_if_not_installed("DT")
+  suppressMessages(hstat_installer_replis_ui())
+  # LE CAS DEGENERE LE PLUS ORDINAIRE : une colonne constante. R ne garde alors
+  # que l'ordonnee a l'origine -- `summary()$fstatistic` vaut NULL, et
+  # `round(NULL[1], 4)` leve « non-numeric argument to mathematical function ».
+  # Pire, `2:nrow(coef_table)` rend `c(2, 1)` a une seule ligne : l'indexation
+  # sort du tableau. Les deux tombaient dans le meme `tryCatch` global.
+  d <- data.frame(Y = c(10, 11, 12, 18, 19, 20, 14, 15, 16), Cst = rep(7, 9))
+  vals <- shiny::reactiveValues(filteredData = d)
+  shiny::testServer(mod_tests_server, args = list(values = vals), {
+    session$setInputs(responseVar = "Y", factorVar = "Cst")
+    session$setInputs(testLM = 1)
+    r <- values$testResultsDF
+    expect_false(is.null(r))
+    expect_equal(nrow(r), 1L)
+    # Le verdict NOMME la cause et dit quoi faire -- un NA nu ne se lit pas.
+    expect_true(grepl("constant|colin", r$Interpretation[1]))
+    expect_true(is.na(r$Statistique[1]))
+  })
+
+  # Et la sequence inversee ne revient pas : `seq_len(n)[-1]`, jamais `2:n`.
+  #
+  # LE BALAYAGE COLLE LES JETONS SANS ESPACE. `getParseData()` rend
+  # « 2 », « : », « nrow », « ( »... : les joindre par un espace donne
+  # « 2 : nrow ( coef_table ) », qu'aucun motif ecrit en R ne rencontre. La
+  # premiere version de cette assertion ne pouvait donc PAS echouer -- une
+  # mutation l'a montre, pas la relecture.
+  chemin <- .hstat_module_path("mod_tests.R")
+  skip_if_not(file.exists(chemin))
+  pd <- utils::getParseData(parse(chemin, keep.source = TRUE))
+  code <- paste(pd$text[pd$token != "COMMENT" & nzchar(pd$text)], collapse = "")
+  expect_false(grepl("2:nrow(coef_table)", code, fixed = TRUE))
+  expect_true(grepl("seq_len(nrow(coef_table))[-1]", code, fixed = TRUE))
+})

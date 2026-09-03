@@ -864,11 +864,14 @@ mod_viz_ui <- function(id) {
                             ),
                             selected = "minimal"
                           ),
-                          shiny::div(
-                            style = "margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap;",
-                            shiny::actionButton(ns("previewThemeBtn"), shiny::tagList(shiny::icon("eye"), " Aperçu"),
-                                         class = "btn-xs btn-info")
-                          )
+                          # PAS DE BOUTON « APERCU » : le theme est lu par le
+                          # reactif du graphique, il s'applique donc a la
+                          # seconde ou on le choisit. Le bouton n'etait relie a
+                          # rien, et un bouton inerte a cote d'un reglage qui
+                          # marche fait croire que le reglage attend un clic.
+                          shiny::helpText(shiny::icon("bolt"),
+                                   " Le thème s'applique immédiatement.",
+                                   style = "margin-top:6px; color:#7f8c8d; font-size:12px;")
                         ),
                         
                         shiny::conditionalPanel(
@@ -1255,7 +1258,10 @@ mod_viz_server <- function(id, values) {
           style = "flex:1; font-size:12px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;",
           shiny::tags$b(v)
         ),
-        colourInput(col_id, label = NULL, value = col_def,
+        # QUATRIEME OCCURRENCE DU MEME DEFAUT. Non namespace, ce selecteur de
+        # couleur n'atteignait jamais `input[[col_id]]` : chaque courbe gardait
+        # sa couleur par defaut, quoi qu'on choisisse.
+        colourInput(ns(col_id), label = NULL, value = col_def,
                     showColour = "background", palette = "square")
       )
     })
@@ -1443,6 +1449,14 @@ mod_viz_server <- function(id, values) {
     }
   })
   
+  # Plafond de niveaux leve a la demande. Il se REFERME au changement de
+  # variable X : cinquante etiquettes acceptees sur une colonne ne disent rien
+  # de la suivante, et garder le plafond leve ferait construire mille champs
+  # sans que personne l'ait demande.
+  tous_niveaux <- shiny::reactiveVal(FALSE)
+  shiny::observeEvent(input$showAllLevels, tous_niveaux(TRUE))
+  shiny::observeEvent(input$vizXVar, tous_niveaux(FALSE), ignoreInit = TRUE)
+
   output$xLevelsEditor <- shiny::renderUI({
     shiny::req(values$filteredData, input$vizXVar)
     shiny::req(values$filteredData, input$vizXVar)
@@ -1469,7 +1483,10 @@ mod_viz_server <- function(id, values) {
                    style = "color: #999;")))
     }
     
-    if(length(unique_vals) > 50) {
+    # LE PLAFOND EST LEVABLE, ET LE BOUTON QUI LE PROMET DOIT LE FAIRE.
+    # « Afficher quand même » n'etait relie a rien : on annoncait une issue,
+    # le clic ne produisait rien, et l'utilisateur restait devant son refus.
+    if(length(unique_vals) > 50 && !isTRUE(tous_niveaux())) {
       return(shiny::div(
         shiny::p(paste("Trop de valeurs uniques (", length(unique_vals), "). ", 
                 "Considérez l'agrégation ou le regroupement.", sep = ""), 
@@ -1509,8 +1526,16 @@ mod_viz_server <- function(id, values) {
                     shiny::div(style = "flex: 1;",
                         shiny::div(style = "font-size: 11px; color: #666; margin-bottom: 2px;",
                             paste("Original :", lvl)),
+                        # CREE HORS DU NAMESPACE DU MODULE, ce champ n'existait
+                        # pour personne : `input[["xLevel_Alpha"]]` lit
+                        # « visualization-xLevel_Alpha », le widget portait
+                        # « xLevel_Alpha ». « Appliquer » ne faisait donc RIEN,
+                        # sans un mot -- et avec lui tombaient le prefixe, le
+                        # suffixe, la casse et la remise a zero, qui lisent tous
+                        # les memes champs. Mesure au navigateur : trois champs,
+                        # zero prefixe, zero notification au clic.
                         shiny::textInput(
-                          inputId = paste0("xLevel_", make.names(lvl)),
+                          inputId = ns(paste0("xLevel_", make.names(lvl))),
                           label = NULL,
                           value = default_val,
                           placeholder = "Nouvelle étiquette...",
@@ -1540,6 +1565,15 @@ mod_viz_server <- function(id, values) {
     )
   })
   
+  # LE BOUTON LE PLUS VISIBLE DE L'ONGLET NE FAISAIT RIEN. « Actualiser le
+  # graphique », pleine largeur et en vert, n'etait relie a aucun observateur :
+  # le graphique est reactif, mais un utilisateur qui doute a besoin que le
+  # geste ait un effet -- et un bouton inerte fait douter de tout le reste.
+  shiny::observeEvent(input$refreshPlot, {
+    values$plotUpdateTrigger <- stats::runif(1)
+    shiny::showNotification(tr("Graphique actualisé."), type = "message", duration = 2)
+  })
+
   shiny::observeEvent(input$applyLabels, {
     shiny::req(values$currentXLevels, input$vizXVar)
     
@@ -2213,8 +2247,9 @@ mod_viz_server <- function(id, values) {
                     shiny::tags$span(style="color:#bbb; font-size:10px;", paste0("Niveau ", i))),
                 shiny::div(style="color:#bbb; font-size:14px;", "->"),
                 shiny::div(style="flex:1;",
+                    # Meme defaut que les niveaux X, meme remede.
                     shiny::textInput(
-                      inputId = paste0("legendLevel_", make.names(lvl)),
+                      inputId = ns(paste0("legendLevel_", make.names(lvl))),
                       label   = NULL,
                       value   = current_label,
                       placeholder = paste0("ex: Groupe ", i),

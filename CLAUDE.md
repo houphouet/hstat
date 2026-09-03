@@ -1686,6 +1686,116 @@ Le chemin court donne **les mêmes nombres** que le chemin long sur le même ess
 (moyenne, somme, écart-type, erreur-type, gains) : c'est ce qui autorise à
 l'offrir, et un test le vérifie plutôt que de le supposer.
 
+## Un widget hors du namespace de son module n'existe pour personne
+
+C'est le défaut le plus silencieux du dépôt, et il s'est présenté **quatre
+fois**. Un widget créé sans `ns()` porte l'identifiant `xLevel_Alpha` ; le
+serveur du module lit `input[["xLevel_Alpha"]]`, c'est-à-dire
+`visualization-xLevel_Alpha`. Les deux ne se rencontrent jamais. **Rien ne lève,
+rien ne s'affiche de travers — le réglage ne fait simplement rien.**
+
+Quatre fonctionnalités entières étaient mortes :
+
+| Widget | Ce qui ne marchait pas |
+|---|---|
+| `xLevel_*` | Le **renommage des étiquettes de l'axe X**, et avec lui le préfixe, le suffixe, la casse et la remise à zéro, qui lisent les mêmes champs |
+| `legendLevel_*` | Le renommage des **étiquettes de légende** |
+| `curveColor_*` | Le **choix de couleur par courbe** : chaque courbe gardait sa couleur par défaut |
+| `moveUp_` / `moveDown_` | Les flèches d'ordre des catégories post-hoc (déjà corrigé) |
+
+Mesuré au navigateur avant correction : trois champs posés, **aucun** ne portait
+le préfixe, et le clic sur « Appliquer » ne produisait **aucune** notification.
+Après : `visualization-xLevel_Alpha`, « Labels appliqués : 3 niveaux mis à
+jour. », et le nouveau libellé remonte jusque dans la liste d'ordre.
+
+Un test balaie désormais **tous** les constructeurs de widgets des modules et
+exige que le premier argument traverse `ns()`. Il regarde le premier argument
+en entier, à n'importe quelle profondeur : `ns(paste0("x_", i))` et
+`paste0(ns("x"), i)` sont tous deux acceptés.
+
+**Un module peut se donner son propre raccourci**, et le test doit le savoir :
+`mod_ai.R` définit `id <- function(s) ns(...)`. Le test relève donc les
+fonctions du fichier dont le corps appelle `ns` et les accepte au même titre —
+les compter pour fautives ferait échouer le test sur du code sain.
+
+C'est ce test qui a trouvé la quatrième occurrence : je n'avais vu que trois.
+
+## Un bouton déclaré est un bouton branché
+
+« Actualiser le graphique » — pleine largeur, vert, `btn-lg`, le geste le plus
+visible de l'onglet Visualisation — n'était relié à **aucun** observateur. Deux
+autres étaient dans le même cas :
+
+- « Aperçu » à côté du sélecteur de thème. Le thème est lu par le réactif du
+  graphique, donc il s'applique déjà à la seconde où on le choisit : le bouton
+  ne pouvait rien apporter. Il est **retiré** au profit d'une note — un bouton
+  inerte à côté d'un réglage qui marche fait croire que le réglage attend un
+  clic.
+- « Afficher quand même », proposé au-delà de cinquante niveaux. Il **promettait
+  une issue** que le clic ne donnait pas. Le plafond est désormais levable, et
+  il se referme au changement de variable X : cinquante étiquettes acceptées sur
+  une colonne ne disent rien de la suivante.
+
+Un test balaie les `actionButton` / `actionLink` des modules et échoue sur tout
+identifiant qu'aucun `input$` ne lit.
+
+## La règle du `tryCatch` autour d'une boucle n'était pas appliquée aux modèles
+
+Elle est écrite ici depuis `mod_tests.R` et l'ANOVA, et **trois** analyses ne la
+suivaient pas : la régression linéaire, le GLM et le modèle mixte enveloppaient
+d'un seul gestionnaire **toute la boucle sur les variables réponses**. Une
+variable qui échoue emportait donc les résultats de toutes les autres.
+
+Chaque itération porte désormais sa garde, et ce qui échoue devient une **ligne
+nommée** (`hstat_err_fr()`) au lieu d'un vide. `<<-` est indispensable dans le
+gestionnaire — la règle déjà écrite plus haut pour les six analyses de
+`mod_tests.R`.
+
+### Le cas dégénéré le plus ordinaire : une colonne constante
+
+Ce n'est pas un cas exotique, c'est celui qu'un fichier d'essai produit tout
+seul. Avec un prédicteur constant, R ne garde que l'ordonnée à l'origine, et
+**deux** choses cassent d'un coup :
+
+```
+summary(lm(y ~ cst))$fstatistic   ->  NULL   puis round(NULL[1], 4)
+                                          -> « non-numeric argument to mathematical function »
+nrow(summary$coefficients) == 1   ->  2:1 vaut c(2, 1)
+                                          -> « subscript out of bounds »
+```
+
+`2:n` s'inverse quand `n < 2` : c'est le même piège que `sample(x, n)` sur un
+`x` de longueur 1, déjà documenté. On écrit **`seq_len(n)[-1]`**, qui rend le
+vide quand il n'y a rien à parcourir.
+
+Et le modèle sans pente n'est pas une erreur de l'utilisateur, c'est un
+résultat : la ligne le dit — « tous les prédicteurs sont constants ou
+colinéaires » — plutôt que de rendre un `NA` nu.
+
+**Un prédicteur facteur constant, lui, fait lever `lm()` elle-même**
+(« contrasts can be applied only to factors with 2 or more levels ») : c'est la
+garde par itération qui le rattrape.
+
+### Conséquence à ne pas manquer quand on pose une garde par itération
+
+Le tableau peut désormais être **rempli de lignes d'échec alors qu'aucun modèle
+n'a été ajusté**. `values$currentModel <- model` lisait alors une variable qui
+n'existe pas, et `model_list[[length(model_list)]]` valait `[[0]]` — « subscript
+out of bounds », c'est-à-dire la chute que la garde venait précisément
+d'éviter. Les trois analyses vérifient donc `length(model_list)` avant
+d'enregistrer un modèle.
+
+### Un balayage qui colle les jetons avec un espace ne rencontre rien
+
+Attrapé par mutation, pas par relecture. `getParseData()` rend les jetons un par
+un — « 2 », « : », « nrow », « ( »… — et les joindre par un espace donne
+`2 : nrow ( coef_table )`, qu'aucun motif écrit en R ne rencontre. La première
+version de l'assertion sur `2:nrow(coef_table)` **ne pouvait donc pas échouer**.
+Les jetons se collent sans séparateur.
+
+C'est la troisième fois que l'outil de mesure ment dans le sens rassurant, après
+le filtre du banc de mutation et les colonnes en octets de `getParseData()`.
+
 ## Doses et dilutions : chaque résultat porte sa formule
 
 `mod_dosage.R` refait les trois calculs qu'un essai phytosanitaire pose sur un
