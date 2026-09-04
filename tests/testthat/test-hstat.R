@@ -13192,3 +13192,186 @@ test_that("le post-hoc Bonferroni produit des lettres au lieu de lever", {
   expect_false(is.null(protege))
   expect_equal(length(unique(protege$groups)), 1L)
 })
+
+test_that("Games-Howell est jugé sur Welch, pas sur l'ANOVA classique", {
+  # UN POST-HOC SE JUGE SUR SON PROPRE TEST GLOBAL.
+  #
+  # Games-Howell ne suppose PAS les variances égales : sa référence est
+  # l'ANOVA de Welch. Les confondre n'est pas un détail théorique — sur ce jeu
+  # (cinq groupes à sigma = 1, un à sigma = 20), l'ANOVA classique rend
+  # p = 0,2452 et Welch p = 0,0001. Protéger les lettres de Games-Howell avec
+  # l'ANOVA classique les aplatirait toutes sur « a » et EFFACERAIT un
+  # résultat réel — l'inverse exact de ce que la protection existe pour faire.
+  jeu <- function() {
+    set.seed(8)
+    ecarts <- c(1, 1, 1, 1, 1, 20)
+    y <- unlist(lapply(seq_len(6), function(i)
+      stats::rnorm(5, 50 + c(0, 1, 2, 3, 4, 25)[i], ecarts[i])))
+    data.frame(Traitement = rep(paste0("T", seq_len(6)), each = 5),
+               Rendement = y, stringsAsFactors = FALSE)
+  }
+  d <- jeu()
+
+  # LA REGLE EST DECLAREE UNE FOIS, les deux sites de post-hoc la lisent.
+  expect_equal(hstat_omnibus_variances("games"), "inegales")
+  expect_equal(hstat_omnibus_variances("tukey"), "egales")
+  expect_equal(hstat_omnibus_variances("dunn"), "egales")
+  expect_equal(hstat_omnibus_variances(NA_character_), "egales")
+  expect_equal(hstat_omnibus_variances(NULL), "egales")
+  expect_equal(hstat_omnibus_variances(character(0)), "egales")
+
+  classique <- hstat_omnibus(d, "Rendement", "Traitement", parametric = TRUE)
+  welch <- hstat_omnibus(d, "Rendement", "Traitement", parametric = TRUE,
+                         variances = "inegales")
+  expect_equal(classique$test, "ANOVA")
+  expect_equal(welch$test, "ANOVA de Welch")
+  # Le chiffre est celui de R, pas une approximation maison.
+  expect_equal(welch$p,
+               stats::oneway.test(Rendement ~ factor(Traitement), d,
+                                  var.equal = FALSE)$p.value)
+  # LES DEUX REFERENCES DOIVENT ETRE DISCERNABLES SUR CE JEU, sinon
+  # l'assertion suivante ne prouverait rien : elle passerait avec ou sans le
+  # correctif. C'est la leçon des métriques de modélisation.
+  expect_gt(classique$p, 0.05)
+  expect_lt(welch$p, 0.05)
+
+  # LE VERDICT SUIT LA REFERENCE. Avec Welch significatif, la protection ne
+  # doit PAS s'appliquer ; avec l'ANOVA classique, elle s'appliquerait.
+  l <- c(T1 = "a", T2 = "ab", T3 = "bc", T4 = "cd", T5 = "d", T6 = "abcd")
+  garde <- hstat_cld_proteger(l, welch$p, test = welch$test)
+  expect_false(isTRUE(attr(garde, "protege")))
+  expect_equal(as.character(garde), as.character(l))
+  efface <- hstat_cld_proteger(l, classique$p, test = classique$test)
+  expect_true(attr(efface, "protege"))       # le défaut, si la référence est fausse
+})
+
+test_that("les lettres agricolae et Games-Howell suivent la protection dans le module", {
+  skip_if_not_installed("agricolae")
+  skip_if_not_installed("PMCMRplus")
+  skip_if_not_installed("multcompView")
+  skip_if_not_installed("shinydashboard")
+  skip_if_not_installed("DT")
+  suppressMessages(hstat_installer_replis_ui())
+  # LE CHEMIN REEL, pas seulement les fonctions du socle. Quatre méthodes
+  # agricolae sur sept séparent sous une ANOVA non significative — LSD,
+  # Duncan, REGW et Waller-Duncan — et c'est ce que l'utilisateur a signalé.
+  # Mesuré avec agricolae 1.3-7.
+  lettres <- function(d, methode, protege) {
+    v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d,
+                               aiHistory = list())
+    out <- NULL
+    shiny::testServer(mod_tests_server, args = list(values = v), {
+      vider <- function() try(session$flushReact(), silent = TRUE)
+      session$setInputs(multiResponse = "Rendement", multiFactor = "Traitement",
+                        testType = "param", multiTest = methode,
+                        multiParamAdjust = "none", multiProtege = protege,
+                        posthocInteraction = FALSE, multiRoundResults = TRUE,
+                        multiDecimals = 2); vider()
+      session$setInputs(runMultiple = 1); vider()
+      out <<- values$multiResultsMain
+    })
+    out
+  }
+
+  set.seed(5)
+  homo <- data.frame(Traitement = rep(paste0("T", seq_len(6)), each = 5),
+                     Rendement = stats::rnorm(30, 50, 10),
+                     stringsAsFactors = FALSE)
+  # ANOVA non significative : REGW sépare quand même, la protection l'aplatit.
+  libre <- lettres(homo, "regw", FALSE)
+  expect_false(is.null(libre))
+  expect_gt(length(unique(libre$groups)), 1L)
+  expect_gt(libre$p_global[1], 0.05)
+  garde <- lettres(homo, "regw", TRUE)
+  expect_equal(length(unique(garde$groups)), 1L)
+
+  # GAMES-HOWELL SUR VARIANCES INEGALES : Welch est significatif, la
+  # protection ne doit RIEN aplatir. Avec l'ANOVA classique en référence,
+  # `garde_gh` n'aurait qu'une seule lettre — le résultat effacé.
+  set.seed(8)
+  ecarts <- c(1, 1, 1, 1, 1, 20)
+  y <- unlist(lapply(seq_len(6), function(i)
+    stats::rnorm(5, 50 + c(0, 1, 2, 3, 4, 25)[i], ecarts[i])))
+  hetero <- data.frame(Traitement = rep(paste0("T", seq_len(6)), each = 5),
+                       Rendement = y, stringsAsFactors = FALSE)
+  garde_gh <- lettres(hetero, "games", TRUE)
+  expect_false(is.null(garde_gh))
+  expect_gt(length(unique(garde_gh$groups)), 1L)
+  expect_equal(garde_gh$Test_global[1], "ANOVA de Welch")
+  expect_lt(garde_gh$p_global[1], 0.05)
+  # ...et l'ANOVA classique, elle, ne l'est pas : les deux se distinguent bien
+  # sur ce jeu, sans quoi l'assertion ci-dessus passerait sans le correctif.
+  expect_gt(summary(stats::aov(Rendement ~ factor(Traitement),
+                               hetero))[[1]][["Pr(>F)"]][1], 0.05)
+})
+
+test_that("les effets simples sont protégés par LEUR propre test global", {
+  skip_if_not_installed("agricolae")
+  skip_if_not_installed("multcompView")
+  skip_if_not_installed("shinydashboard")
+  skip_if_not_installed("DT")
+  suppressMessages(hstat_installer_replis_ui())
+  # `perform_simple_effect_posthoc()` construisait ses lettres sans regarder
+  # aucun test global : la protection posée sur les comparaisons multiples ne
+  # l'atteignait pas — autre fonction, autre chemin.
+  #
+  # Le test global est ici celui de l'EFFET SIMPLE, calculé sur le
+  # sous-tableau : c'est ce sous-groupe-là qui est comparé, pas le tableau
+  # entier. Jeu construit pour que les deux diffèrent — interaction
+  # p = 1,4e-06 (elle déclenche la décomposition), et dans F2 = « A »
+  # l'ANOVA de F1 rend p = 0,2297 alors que le LSD y sépare en « a ab ab b ».
+  jeu <- function() {
+    set.seed(83)
+    dA <- data.frame(F1 = rep(paste0("T", seq_len(4)), each = 4), F2 = "A",
+                     y = stats::rnorm(16, 50, 6), stringsAsFactors = FALSE)
+    dB <- data.frame(F1 = rep(paste0("T", seq_len(4)), each = 4), F2 = "B",
+                     y = stats::rnorm(16, rep(c(30, 50, 70, 90), each = 4), 6),
+                     stringsAsFactors = FALSE)
+    rbind(dA, dB)
+  }
+  d <- jeu()
+  sous <- d[d$F2 == "A", ]
+  # LES DEUX REFERENCES SONT DISCERNABLES SUR CE JEU, sinon l'assertion
+  # finale passerait avec ou sans le correctif.
+  expect_lt(summary(stats::aov(y ~ factor(F1) * factor(F2), d))[[1]][["Pr(>F)"]][3], 0.05)
+  expect_gt(summary(stats::aov(y ~ factor(F1), sous))[[1]][["Pr(>F)"]][1], 0.05)
+
+  # ET C'EST CE TEST QUI A TROUVE POURQUOI L'ONGLET RESTAIT VIDE.
+  # `summary(aov)` REMPLIT SES NOMS DE LIGNE D'ESPACES — « F1:F2      » —, si
+  # bien que `"F1:F2" %in% rownames(...)` est TOUJOURS faux. La p-value
+  # d'interaction restait `NA`, et la décomposition bidirectionnelle ne s'est
+  # jamais déclenchée, même à p = 1e-06. Aucune erreur, aucun message : juste
+  # un onglet « Effets simples » perpétuellement vide.
+  ar <- summary(stats::aov(y ~ F1 * F2,
+                           transform(d, F1 = factor(F1), F2 = factor(F2))))[[1]]
+  expect_false("F1:F2" %in% rownames(ar))            # le piège
+  expect_true("F1:F2" %in% trimws(rownames(ar)))     # le remède
+
+  effets <- function(protege) {
+    v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d,
+                               aiHistory = list())
+    out <- NULL
+    shiny::testServer(mod_tests_server, args = list(values = v), {
+      vider <- function() try(session$flushReact(), silent = TRUE)
+      session$setInputs(multiResponse = "y", multiFactor = c("F1", "F2"),
+                        testType = "param", multiTest = "lsd",
+                        multiParamAdjust = "none", multiProtege = protege,
+                        posthocInteraction = TRUE, multiRoundResults = TRUE,
+                        multiDecimals = 2); vider()
+      session$setInputs(runMultiple = 1); vider()
+      out <<- values$multiResultsMain
+    })
+    if (is.null(out)) return(NULL)
+    out[!is.na(out$Type) & out$Type == "simple_effect" &
+          grepl("F2=A", out$Facteur, fixed = TRUE), ]
+  }
+
+  libre <- effets(FALSE)
+  expect_false(is.null(libre))
+  expect_gt(nrow(libre), 0L)
+  expect_gt(length(unique(libre$groups)), 1L)   # le défaut : il sépare
+
+  garde <- effets(TRUE)
+  expect_gt(nrow(garde), 0L)
+  expect_equal(length(unique(garde$groups)), 1L)
+})

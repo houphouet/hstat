@@ -1950,12 +1950,120 @@ affirmations se contredisent dans le même rapport.
 | Méthode | Contrôle du risque | Verdict |
 |---|---|---|
 | **LSD (Fisher)**, **Duncan** | aucun — protégées *par construction* | leur emploi sans F significatif gonfle le risque : c'est une faute |
-| **Tukey**, **Bonferroni**, **Games-Howell**, **REGW** | intégré | un désaccord avec le test global est **rare mais légitime** — deux tests différents, deux puissances |
+| **REGW**, **Waller-Duncan** | propre procédure, mais qui **ne suit pas le F** | séparent sous une ANOVA non significative, mesuré |
+| **Tukey**, **SNK**, **Bonferroni** | intégré | un désaccord avec le test global est **rare mais légitime** — deux tests différents, deux puissances |
 | **Scheffé** | intégré | ne *peut pas* séparer quand F ne l'est pas |
+| **Games-Howell** | intégré, mais sa référence est **Welch** | voir ci-dessous : le comparer à l'ANOVA classique efface un résultat réel |
 
 Mesuré sur 300 jeux **sans effet réel** dont l'ANOVA est non significative : les
 comparaisons non ajustées (le LSD) séparent quand même dans **30 %** des cas,
 Tukey dans **0 %**.
+
+### La ligne REGW / Waller-Duncan a d'abord été écrite fausse
+
+J'avais rangé REGW parmi les méthodes à contrôle intégré dont le désaccord est
+rare. `agricolae` n'étant installable ni depuis CRAN (bloqué par le mandataire)
+ni depuis apt, la ligne reposait sur ce que je croyais savoir de la méthode, pas
+sur une mesure — et personne ne pouvait la vérifier.
+
+Le paquet installé, la mesure la contredit. Sur un essai à six modalités,
+ANOVA p = 0,1207, `agricolae` 1.3-7 :
+
+| sépare quand même | ne sépare pas |
+|---|---|
+| **LSD**, **Duncan**, **REGW**, **Waller-Duncan** | Tukey, SNK, Scheffé, Bonferroni |
+
+**Quatre méthodes sur sept**, pas deux. La protection ne couvre donc pas un cas
+marginal, et l'encadré de l'interface qui annonçait le contraire a été refait.
+
+Côté non paramétrique, même essai, Kruskal-Wallis p = 0,2534 : Dunn, Conover et
+Nemenyi (PMCMRplus) rendent **une seule lettre** ; `agricolae::kruskal` en rend
+**trois**.
+
+### Games-Howell se juge sur Welch, jamais sur l'ANOVA classique
+
+C'est le défaut que la mesure a trouvé **en plus** de celui qu'elle venait
+confirmer, et il va dans le sens le plus coûteux : la protection *efface* un
+résultat vrai.
+
+Games-Howell ne suppose pas les variances égales — c'est sa raison d'être. Son
+test global n'est donc pas l'ANOVA de Fisher mais l'**ANOVA de Welch**. Sur cinq
+groupes à σ = 1 et un à σ = 20 :
+
+| | p |
+|---|---|
+| ANOVA classique | **0,2452** (non significative) |
+| ANOVA de Welch | **0,0001** (significative) |
+
+Protéger les lettres de Games-Howell avec l'ANOVA classique les aplatit toutes
+sur « a » alors que son propre test global est franchement significatif. On
+n'affiche pas un résultat douteux : on en **supprime** un bon, et sans un mot —
+c'est le mode de défaillance que ce dépôt traque partout ailleurs.
+
+`hstat_omnibus()` prend donc un argument `variances`, et
+`HSTAT_POSTHOC_WELCH` / `hstat_omnibus_variances()` déclarent la règle **une
+seule fois** : les deux sites de post-hoc (comparaisons multiples et effets
+simples) la lisent, ils ne peuvent pas diverger. Le test exige que les deux
+références soient **discernables sur le jeu d'essai** — sans quoi l'assertion
+passerait avec ou sans le correctif.
+
+### Les effets simples n'étaient pas protégés
+
+`perform_simple_effect_posthoc()` — le post-hoc du facteur 1 *à l'intérieur*
+d'un niveau du facteur 2 — construisait ses lettres sans regarder aucun test
+global. La protection posée sur les comparaisons multiples ne l'atteignait pas :
+c'est une autre fonction, un autre chemin. Elle y est désormais, avec le test
+global de **l'effet simple** — calculé sur le sous-tableau, pas sur le tableau
+entier : c'est ce sous-groupe-là qui est comparé.
+
+### `summary(aov)` remplit ses noms de ligne d'espaces
+
+Trouvé **par** le test précédent, et c'est tout l'intérêt de la méthode : je
+cherchais à protéger les effets simples, et il n'y en avait aucun à protéger.
+
+La décomposition bidirectionnelle ne se déclenche que si l'interaction est
+significative, et la p-value se lisait ainsi :
+
+```r
+interaction_row <- paste(fvar1, fvar2, sep = ":")     # « F1:F2 »
+if (interaction_row %in% rownames(anova_res)) ...     # TOUJOURS FAUX
+```
+
+`summary(aov)` rend `"F1:F2      "` — le nom est **rempli d'espaces** pour
+aligner la colonne. La comparaison exacte ne colle donc jamais,
+`interaction_pvalue` restait `NA`, et l'onglet « Effets simples » restait vide
+**même sur une interaction à p = 1,4 × 10⁻⁶**. Aucune erreur, aucun message :
+la fonctionnalité était là, entière, et inatteignable.
+
+`trimws()` sur les noms de ligne, et `match()` plutôt que `%in%` pour tenir la
+position. Le test épingle le piège **et** le remède (`expect_false` sur la forme
+exacte, `expect_true` sur la forme élaguée) : le remède seul ne dirait pas
+pourquoi il existe.
+
+### Les paquets se prennent au miroir CRAN de GitHub
+
+`agricolae` et `PMCMRplus` ne sont ni sur apt (~1130 `r-cran-*`, aucun des deux)
+ni joignables sur CRAN depuis ce conteneur. `github.com/cran/<paquet>`, lui,
+répond :
+
+```sh
+git clone --depth 1 https://github.com/cran/agricolae.git && R CMD INSTALL agricolae
+```
+
+Chaîne réelle : `AlgDesign` pour agricolae ; pour PMCMRplus, `gmp`, `Rmpfr`,
+`SuppDists`, `kSamples` viennent d'apt (`r-cran-*`), `BWStest` du miroir, et il
+faut **`gfortran`** — le paquet porte du Fortran, et son absence sort en
+« gfortran: command not found » au milieu de la compilation.
+
+`FSA` n'a pas été installé : sa chaîne (`dunn.test` → `scrutiny` → `corrr` →
+`seriation`) n'a pas de fin visible, et le module appelle Dunn par PMCMRplus.
+
+**Et la CI les nomme désormais.** Ils y arrivaient comme dépendances
+transitives — donc par chance : une reconstruction du cache les ferait
+disparaître, et les trois tests qui gardent la protection des lettres se
+sauteraient **en silence**. C'est la règle déjà écrite pour l'intégration
+continue, et elle vaut aussi pour un paquet qu'on n'a pas eu à installer
+soi-même : ce qui n'est pas déclaré n'est pas garanti.
 
 D'où le choix : la protection est le **défaut** — c'est la convention
 agronomique, et c'est ce que l'utilisateur attend en lisant ses lettres — mais
