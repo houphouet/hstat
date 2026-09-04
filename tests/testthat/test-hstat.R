@@ -5940,6 +5940,73 @@ test_that("une chaine bordee d'espaces se traduit, et garde son espacement", {
                " 12 cases predicted (mean = 3,4).")
 })
 
+test_that("une erreur d'API dit la cause, et surtout laquelle", {
+  # LE CODE MENT, LE MESSAGE DIT LA VERITE. Le manque de credit est un 400 chez
+  # Anthropic et un 429 chez OpenAI -- ce dernier partage donc son code avec le
+  # depassement de cadence, qui appelle pourtant le geste INVERSE : attendre
+  # plutot que payer. Reconnaitre sur le code seul rendrait donc, une fois sur
+  # deux, le conseil contraire a celui qu'il faut suivre.
+  cred <- hstat_ai_err_http(
+    400, "Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.",
+    "Claude (Anthropic)")
+  expect_true(grepl("crédit", cred, fixed = TRUE))
+  # Le point qui compte pour l'utilisateur : sa cle n'est PAS en cause. Sans
+  # cela il cherche une faute de frappe dans une cle parfaitement valide.
+  expect_true(grepl("la clé est valide", cred, fixed = TRUE))
+  # Et le message d'origine survit : c'est ce qu'on copie pour demander de
+  # l'aide, et ce qui rend une reconnaissance fautive debuggable.
+  expect_true(grepl("credit balance is too low", cred, fixed = TRUE))
+  expect_true(grepl("HTTP 400", cred, fixed = TRUE))
+
+  # Meme cause, autre fournisseur, autre code : c'est bien le message qui
+  # tranche.
+  quota <- hstat_ai_err_http(429, "You exceeded your current quota, please check your plan and billing details.", "ChatGPT (OpenAI)")
+  expect_true(grepl("crédit", quota, fixed = TRUE))
+  # Meme code, message different : le conseil doit changer.
+  cadence <- hstat_ai_err_http(429, "Rate limit reached for requests", "ChatGPT (OpenAI)")
+  expect_false(grepl("crédit", cadence, fixed = TRUE))
+  expect_true(grepl("cadence", cadence, fixed = TRUE))
+  # Les deux 429 ne rendent donc PAS la meme phrase : sans cette derniere
+  # assertion, une fonction qui ignorerait le message passerait les deux
+  # precedentes des qu'elle dirait « crédit » partout.
+  expect_false(identical(quota, cadence))
+
+  # Une cle refusee n'est pas un defaut de credit, et se repare autrement.
+  cle <- hstat_ai_err_http(401, "invalid x-api-key", "Claude (Anthropic)")
+  expect_true(grepl("clé d'API", cle, fixed = TRUE))
+  expect_false(grepl("crédit", cle, fixed = TRUE))
+
+  # Repli par le CODE quand le message ne dit rien : chacun a son geste.
+  expect_true(grepl("modèle", hstat_ai_err_http(404, "", "X"), fixed = TRUE))
+  expect_true(grepl("panne", hstat_ai_err_http(503, "", "X"), fixed = TRUE))
+  expect_true(grepl("trop longue", hstat_ai_err_http(413, "", "X"), fixed = TRUE))
+
+  # Un code inconnu n'est pas maquille : on ne promet pas une cause qu'on
+  # ignore, on rend la phrase neutre et le message brut.
+  inc <- hstat_ai_err_http(418, "je suis une théière", "Serveur local")
+  expect_true(grepl("a refusé la requête", inc, fixed = TRUE))
+  expect_true(grepl("théière", inc, fixed = TRUE))
+
+  # Cas degeneres : ni code ni message ne doivent faire tomber la sortie --
+  # c'est une fonction qui ne sert QUE sur le chemin d'erreur.
+  expect_true(nzchar(hstat_ai_err_http(NA, "", "X")))
+  expect_true(nzchar(hstat_ai_err_http("pas un nombre", NULL, "X")))
+  expect_false(grepl("HTTP NA", hstat_ai_err_http(NA, "", "X"), fixed = TRUE))
+})
+
+test_that("les trois protocoles d'IA passent par le meme traducteur", {
+  # Ils rendaient chacun le message du fournisseur tel quel, en anglais : trois
+  # copies du meme defaut, qu'une correction faite a un seul endroit laisserait
+  # diverger.
+  root <- .hstat_repo_root(); skip_if(is.na(root))
+  txt <- paste(readLines(.hstat_module_path("mod_ai.R"), warn = FALSE,
+                         encoding = "UTF-8"), collapse = "\n")
+  expect_equal(length(gregexpr("hstat_ai_err_http(", txt, fixed = TRUE)[[1]]), 3L)
+  # Et les deux gabarits d'erreur brute ont bien disparu du code.
+  expect_false(grepl("Erreur API (HTTP %d)", txt, fixed = TRUE))
+  expect_false(grepl("Erreur de %s (HTTP %d)", txt, fixed = TRUE))
+})
+
 test_that("toute chaine passee a tr()/trf() est au dictionnaire", {
   root <- .hstat_repo_root()
   # Ces chaines sont traduites DANS R : leur absence du dictionnaire n'est

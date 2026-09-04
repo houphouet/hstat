@@ -903,6 +903,85 @@ hstat_err_fr <- function(e, contexte = NULL, lang = hstat_langue_session()) {
           dp, msg)
 }
 
+# Erreurs HTTP des services d'IA : la cause, puis le geste.
+#
+# Les trois protocoles rendaient le message du fournisseur TEL QUEL, en
+# anglais, precede du code HTTP. Le plus courant d'entre eux est aussi le plus
+# trompeur : Anthropic repond « HTTP 400 - Your credit balance is too low »,
+# c'est-a-dire que LA CLE EST BONNE et que c'est la facturation qui bloque.
+# Signale a l'ecran, dans ces termes : « malgre ma cle API ». Qui lit
+# « erreur 400 » cherche une faute de frappe dans sa cle, et ne la trouvera
+# jamais -- exactement le mode de defaillance que `hstat_err_fr()` existe pour
+# fermer, applique ici aux erreurs qui viennent du reseau plutot que de R.
+#
+# Piege propre a ces services, et il vaut d'etre ecrit noir sur blanc : un
+# abonnement grand public (Claude Pro ou Max, ChatGPT Plus...) NE DONNE AUCUN
+# credit d'API. Ce sont deux produits distincts, et le second se paie d'avance
+# sur la console du fournisseur. C'est la question qu'on se pose en lisant le
+# message d'origine, et a laquelle il ne repond pas.
+#
+# LA RECONNAISSANCE SE FAIT SUR LE MESSAGE AVANT LE CODE, parce que le code
+# ment : le manque de credit est un 400 chez Anthropic et un 429 chez OpenAI,
+# soit le meme code qu'un depassement de cadence, qui appelle pourtant le geste
+# inverse (attendre plutot que payer).
+#
+# Meme regle que `hstat_err_fr()` : le message d'origine SURVIT entre
+# parentheses. Sans lui, celui qui demande de l'aide n'a plus rien a montrer,
+# et une reconnaissance fautive devient indebuggable.
+hstat_ai_err_http <- function(code, message = "", label = "l'API") {
+  code <- suppressWarnings(as.integer(code[1]))
+  msg  <- if (length(message)) as.character(message)[1] else ""
+  if (is.na(msg)) msg <- ""
+  bas  <- tolower(msg)
+  a <- function(motifs)
+    any(vapply(motifs, function(m) grepl(m, bas, fixed = TRUE), logical(1)))
+
+  cause <-
+    if (a(c("credit balance", "insufficient_quota", "insufficient quota",
+            "exceeded your current quota", "purchase credits", "billing")))
+      "credit"
+    else if (a(c("invalid x-api-key", "invalid api key", "incorrect api key",
+                 "api key not valid", "invalid_api_key", "authentication_error")))
+      "cle"
+    else if (a(c("permission", "does not have access", "not allowed")))
+      "droit"
+    else if (a(c("model not found", "unknown model", "is not supported",
+                 "does not exist")))
+      "modele"
+    else if (a(c("rate limit", "too many requests", "overloaded")))
+      "cadence"
+    else if (a(c("too long", "maximum context", "exceeds the maximum",
+                 "request too large", "too large")))
+      "taille"
+    else if (isTRUE(code == 401L)) "cle"
+    else if (isTRUE(code == 402L)) "credit"
+    else if (isTRUE(code == 403L)) "droit"
+    else if (isTRUE(code == 404L)) "modele"
+    else if (isTRUE(code == 413L)) "taille"
+    else if (isTRUE(code == 429L)) "cadence"
+    else if (isTRUE(!is.na(code) && code >= 500L)) "panne"
+    else "inconnue"
+
+  phrase <- switch(
+    cause,
+    "credit"  = trf("Le compte d'API de %s n'a plus de crédit : la clé est valide, c'est la facturation qui bloque. Un abonnement grand public (Claude Pro ou Max, ChatGPT Plus...) ne donne aucun crédit d'API — l'API se paie à part, par avance, sur la console du fournisseur.", label),
+    "cle"     = trf("%s refuse la clé d'API. Vérifiez qu'elle est recopiée en entier, sans espace ni retour à la ligne, et qu'elle appartient bien à ce service.", label),
+    "droit"   = trf("La clé est acceptée par %s mais n'a pas le droit d'appeler ce modèle. Vérifiez les autorisations du compte, ou choisissez un autre modèle.", label),
+    "modele"  = trf("%s ne connaît pas le modèle demandé. Corrigez son nom dans le champ « Modèle » des réglages du moteur.", label),
+    "cadence" = trf("%s refuse la requête pour cause de cadence : trop d'appels en peu de temps, ou service momentanément saturé. Réessayez dans un instant.", label),
+    "taille"  = trf("La requête est trop longue pour %s. Réduisez le nombre de résultats interprétés, ou choisissez un modèle à plus grande fenêtre.", label),
+    "panne"   = trf("%s est en panne ou en maintenance. Réessayez plus tard ; l'analyse locale reste disponible.", label),
+    trf("%s a refusé la requête.", label))
+
+  # L'assemblage ne passe PAS par `trf()` : « HTTP » et les parentheses n'ont
+  # rien a traduire, et trois gabarits de pure ponctuation encombreraient le
+  # dictionnaire sans jamais rien changer a l'ecran.
+  if (!nzchar(msg))
+    return(if (is.na(code)) phrase else sprintf("%s (HTTP %d)", phrase, code))
+  if (is.na(code)) return(sprintf("%s (%s)", phrase, substr(msg, 1, 300)))
+  sprintf("%s (HTTP %d \u2014 %s)", phrase, code, substr(msg, 1, 300))
+}
+
 # FactoMineR reduit ses coordonnees a un VECTEUR des que le resultat ne comporte
 # qu'un seul axe. C'est le cas d'une AFC croisant une variable BINAIRE avec une
 # autre (une table 3x2 ne porte qu'une dimension), situation tres courante en

@@ -4164,6 +4164,44 @@ Même logique pour les paquets absents : `hstat_pkg_manquant()` donne la
 commande d'installation **et** une analyse de repli déjà disponible.
 « Package 'klaR' indisponible. » était une impasse.
 
+### Une erreur d'API se traduit comme une erreur de R
+
+Même règle, autre source. Les trois protocoles d'IA rendaient le message du
+fournisseur **tel quel**, en anglais, précédé du code HTTP — précisément ce que
+`hstat_err_fr()` existe pour empêcher côté R.
+
+Le cas le plus courant est aussi le plus trompeur. Anthropic répond
+**HTTP 400 — « Your credit balance is too low »** : la clé est **valide**, c'est
+la facturation qui bloque. Signalé à l'écran dans ces termes — « malgré ma clé
+API ». Qui lit « erreur 400 » cherche une faute de frappe dans une clé
+parfaitement bonne, et ne la trouvera jamais.
+
+Le piège de fond mérite d'être écrit noir sur blanc, parce que c'est la question
+qu'on se pose devant le message d'origine : **un abonnement grand public (Claude
+Pro ou Max, ChatGPT Plus…) ne donne aucun crédit d'API.** Ce sont deux produits
+distincts, et le second se paie d'avance sur la console du fournisseur. HStat
+n'y peut rien — mais il peut le dire.
+
+**La reconnaissance se fait sur le message avant le code, parce que le code
+ment.** Le manque de crédit est un 400 chez Anthropic et un **429** chez
+OpenAI — soit le même code qu'un dépassement de cadence, qui appelle pourtant le
+geste **inverse** : attendre plutôt que payer. Décider sur le seul code rendrait
+donc, une fois sur deux, le conseil contraire à celui qu'il faut suivre. Le test
+l'exige explicitement : les deux 429 ne doivent **pas** rendre la même phrase —
+sans cette assertion, une fonction qui ignorerait le message passerait toutes
+les autres en disant « crédit » partout.
+
+Sept causes sont nommées (crédit, clé refusée, droit manquant, modèle inconnu,
+cadence, requête trop longue, panne), chacune avec son geste. Une cause inconnue
+n'est **pas** maquillée : phrase neutre et message brut, comme le fait déjà
+`hstat_err_fr()` — présenter un message anglais comme une phrase française
+serait pire que de dire qu'il ne l'est pas. Et le message d'origine survit entre
+parenthèses dans tous les cas.
+
+L'assemblage final (`« … (HTTP 400 — … ) »`) ne passe **pas** par `trf()` :
+« HTTP » et les parenthèses n'ont rien à traduire, et trois gabarits de pure
+ponctuation encombreraient le dictionnaire sans jamais rien changer à l'écran.
+
 ### `<<-` dans un gestionnaire d'erreur, sinon la ligne est perdue
 
 Six analyses (normalité, homogénéité, t-test, Wilcoxon, Kruskal-Wallis,
