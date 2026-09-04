@@ -2058,6 +2058,13 @@ faut **`gfortran`** — le paquet porte du Fortran, et son absence sort en
 `FSA` n'a pas été installé : sa chaîne (`dunn.test` → `scrutiny` → `corrr` →
 `seriation`) n'a pas de fin visible, et le module appelle Dunn par PMCMRplus.
 
+**Et la CI les nomme désormais.** Ils y arrivaient comme dépendances
+transitives — donc par chance : une reconstruction du cache les ferait
+disparaître, et les trois tests qui gardent la protection des lettres se
+sauteraient **en silence**. C'est la règle déjà écrite pour l'intégration
+continue, et elle vaut aussi pour un paquet qu'on n'a pas eu à installer
+soi-même : ce qui n'est pas déclaré n'est pas garanti.
+
 D'où le choix : la protection est le **défaut** — c'est la convention
 agronomique, et c'est ce que l'utilisateur attend en lisant ses lettres — mais
 elle **se décoche**, parce qu'un désaccord Tukey/ANOVA est un fait, pas un

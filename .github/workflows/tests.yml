@@ -120,7 +120,14 @@ jobs:
           souhaites <- c("ggplot2", "ggrepel", "DT", "dplyr", "FactoMineR",
                          "openxlsx", "jsonlite", "httr", "car", "svglite",
                          "scales", "stringr", "reshape2", "ggdendro", "digest",
-                         "base64enc", "rmarkdown", "readxl", "writexl")
+                         "base64enc", "rmarkdown", "readxl", "writexl",
+                         # Post-hoc : ils arrivaient jusqu'ici comme dependances
+                         # transitives, donc par chance. Une reconstruction du
+                         # cache les ferait disparaitre, et les tests qui
+                         # gardent la protection des lettres se sauteraient EN
+                         # SILENCE -- un test saute ressemble a un test qui
+                         # passe. On les nomme.
+                         "agricolae", "PMCMRplus", "multcompView", "emmeans")
           install.packages(requis)
           manquants <- requis[!vapply(requis, requireNamespace, logical(1), quietly = TRUE)]
           if (length(manquants))
