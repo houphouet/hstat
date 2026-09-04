@@ -123,7 +123,41 @@ mod_tests_ui <- function(id) {
                                    shiny::actionButton(ns("testGLM"),  "Modèle linéaire généralisé",   class = "btn-success btn-block", icon = shiny::icon("check")),
                                    shiny::actionButton(ns("testGLMM"), "Modèle (généralisé) mixte",    class = "btn-success btn-block", icon = shiny::icon("sitemap")),
                                    shiny::actionButton(ns("testRMAnova"), "ANOVA à mesures répétées",   class = "btn-success btn-block", icon = shiny::icon("repeat"))
-                               )
+                               ),
+                               # --- CHI-DEUX D'ADEQUATION ------------------------------------
+                               # Place SOUS les tests parametriques, dans leur
+                               # colonne : c'est un test d'ajustement, il se lit a
+                               # la suite. Il reutilise les selecteurs partages
+                               # « Variable réponse » et « Facteur » : la modalite
+                               # vient du facteur, l'effectif de la reponse. Aucun
+                               # second jeu de selecteurs -- deux facons de designer
+                               # les memes colonnes finiraient par diverger.
+                               shiny::div(style = "border-left:4px solid #1565C0; padding-left:10px; margin-top:16px;",
+                                   shiny::h4(shiny::tagList(shiny::icon("chart-simple"), " Chi² d'adéquation"),
+                                      style = "color:#1565C0;"),
+                                   shiny::div(style = "font-size:11px; color:#7f8c8d; margin:-4px 0 8px 0;",
+                                       "Compare la répartition observée des modalités du facteur à une répartition théorique."),
+                                   shiny::radioButtons(ns("chiSqDataType"), "Nature de la variable réponse",
+                                     choices = c("Effectifs (fréquences)" = "freq",
+                                                 "Pourcentages" = "pct"),
+                                     selected = "freq"),
+                                   shiny::radioButtons(ns("chiSqMethod"), "Méthode",
+                                     choices = c("Chi² de Pearson" = "chisq",
+                                                 "Test multinomial exact" = "multinomial"),
+                                     selected = "chisq"),
+                                   shiny::actionButton(ns("runChiSqTest"), "Lancer le chi² d'adéquation",
+                                                class = "btn-block", icon = shiny::icon("chart-simple"),
+                                                style = "background:#1565C0; color:#fff; border-color:#0d47a1;"),
+                                   shiny::br(),
+                                   shiny::selectInput(ns("chiSqPostHocAdj"),
+                                     "Correction des comparaisons deux à deux",
+                                     choices = c("Bonferroni" = "bonferroni", "Holm" = "holm",
+                                                 "Benjamini-Hochberg (FDR)" = "BH",
+                                                 "Hochberg" = "hochberg", "Aucune" = "none"),
+                                     selected = "bonferroni"),
+                                   shiny::actionButton(ns("runChiSqPostHoc"), "Comparaisons deux à deux",
+                                                class = "btn-block", icon = shiny::icon("code-compare"),
+                                                style = "background:#1976D2; color:#fff; border-color:#1565C0;"))
                         ),
                         shiny::column(4,
                                shiny::h4("Tests non-paramétriques", style = "color: #f39c12;"),
@@ -219,41 +253,7 @@ mod_tests_ui <- function(id) {
                                        paste(" Pour Poisson, la référence est un taux d'événements",
                                              "par observation, non une proportion bornée à 1.")))
                         )
-                      ),
-
-                      # --- CHI-DEUX D'ADEQUATION ------------------------------------
-                      # Il reutilise les selecteurs partages « Variable réponse »
-                      # et « Facteur » : la modalite vient du facteur, l'effectif
-                      # de la reponse. Aucun second jeu de selecteurs -- deux
-                      # facons de designer les memes colonnes finiraient par
-                      # diverger.
-                      shiny::column(4,
-                        shiny::div(style = "border-left:4px solid #1565C0; padding-left:10px;",
-                          shiny::h5(shiny::icon("chart-simple"), " Chi² d'adéquation",
-                                    style = "color:#1565C0; font-weight:bold; margin-top:0;"),
-                          shiny::tags$small(style = "color:#7f8c8d; display:block; margin-bottom:8px;",
-                            "Compare la répartition observée des modalités du facteur à une répartition théorique."),
-                          shiny::radioButtons(ns("chiSqDataType"), "Nature de la variable réponse",
-                            choices = c("Effectifs (fréquences)" = "freq",
-                                        "Pourcentages" = "pct"),
-                            selected = "freq"),
-                          shiny::radioButtons(ns("chiSqMethod"), "Méthode",
-                            choices = c("Chi² de Pearson" = "chisq",
-                                        "Test multinomial exact" = "multinomial"),
-                            selected = "chisq"),
-                          shiny::actionButton(ns("runChiSqTest"), "Lancer le chi² d'adéquation",
-                                       class = "btn-block", icon = shiny::icon("chart-simple"),
-                                       style = "background:#1565C0; color:#fff; border-color:#0d47a1;"),
-                          shiny::br(),
-                          shiny::selectInput(ns("chiSqPostHocAdj"),
-                            "Correction des comparaisons deux à deux",
-                            choices = c("Bonferroni" = "bonferroni", "Holm" = "holm",
-                                        "Benjamini-Hochberg (FDR)" = "BH",
-                                        "Hochberg" = "hochberg", "Aucune" = "none"),
-                            selected = "bonferroni"),
-                          shiny::actionButton(ns("runChiSqPostHoc"), "Comparaisons deux à deux",
-                                       class = "btn-block", icon = shiny::icon("code-compare"),
-                                       style = "background:#1976D2; color:#fff; border-color:#1565C0;")))
+                      )
                   )
                 ),
 
@@ -1218,6 +1218,24 @@ mod_posthoc_ui <- function(id) {
                                       selected = "0.5"),
                           shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
                                      "Le gras et l'italique s'écrivent aussi dans le texte : **gras**, *italique*.")
+                        ),
+                        .hstat_opt_section(
+                          "Valeurs portées sur le graphique", "tag", "#27ae60", "#eafaf1",
+                          colourInput(ns("letterColor"), "Couleur des lettres (a, b, c)", value = "#FF0000"),
+                          shiny::checkboxInput(ns("showMeanValues"), "Afficher les moyennes sur les barres", value = TRUE),
+                          shiny::conditionalPanel(
+                            ns = ns,
+                            condition = "input.showMeanValues == true",
+                            shiny::fluidRow(
+                              shiny::column(6, shiny::numericInput(ns("meanValueDecimals"), "Décimales",
+                                                           value = 2, min = 0, max = 6, step = 1)),
+                              shiny::column(6, colourInput(ns("meanValueColor"), "Couleur", value = "#FFFFFF"))
+                            ),
+                            shiny::selectInput(ns("meanValueFontStyle"), "Style",
+                                        choices = HSTAT_FONT_STYLES, selected = "bold")
+                          ),
+                          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                                     "Les moyennes ne se portent que sur le graphique en barres.")
                         )
                       ),
 
@@ -1241,24 +1259,6 @@ mod_posthoc_ui <- function(id) {
                             shiny::column(6, shiny::sliderInput(ns("graphValueSize"), "Lettres (a, b, c)", min = 2, max = 20, value = 5, step = 0.5, ticks = FALSE)),
                             shiny::column(6, shiny::sliderInput(ns("meanValueSize"), "Moyennes", min = 2, max = 12, value = 4, step = 0.5, ticks = FALSE))
                           )
-                        ),
-                        .hstat_opt_section(
-                          "Valeurs portées sur le graphique", "tag", "#27ae60", "#eafaf1",
-                          colourInput(ns("letterColor"), "Couleur des lettres (a, b, c)", value = "#FF0000"),
-                          shiny::checkboxInput(ns("showMeanValues"), "Afficher les moyennes sur les barres", value = TRUE),
-                          shiny::conditionalPanel(
-                            ns = ns,
-                            condition = "input.showMeanValues == true",
-                            shiny::fluidRow(
-                              shiny::column(6, shiny::numericInput(ns("meanValueDecimals"), "Décimales",
-                                                           value = 2, min = 0, max = 6, step = 1)),
-                              shiny::column(6, colourInput(ns("meanValueColor"), "Couleur", value = "#FFFFFF"))
-                            ),
-                            shiny::selectInput(ns("meanValueFontStyle"), "Style",
-                                        choices = HSTAT_FONT_STYLES, selected = "bold")
-                          ),
-                          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
-                                     "Les moyennes ne se portent que sur le graphique en barres.")
                         ),
                         .hstat_opt_section(
                           "Styles d'écriture", "font", "#c0392b", "#fdeeec",
@@ -1325,6 +1325,28 @@ mod_posthoc_ui <- function(id) {
                           shiny::fluidRow(
                             shiny::column(6, shiny::checkboxInput(ns("showGridMajor"), "Grille principale", value = TRUE)),
                             shiny::column(6, shiny::checkboxInput(ns("showGridMinor"), "Grille secondaire", value = TRUE))
+                          ),
+                          # LES AXES NE SE DESSINENT PAS TOUT SEULS. Les themes
+                          # de ggplot2 les plus employes ici (« minimal »,
+                          # « clair ») ne tracent AUCUN trait d'axe : la figure
+                          # flotte sur sa grille, ce qui passe mal a
+                          # l'impression d'un rapport. Le trait se demande donc,
+                          # avec sa couleur et son epaisseur -- « noir gras »
+                          # etant le reglage attendu d'une figure publiee.
+                          #
+                          # Decoche, le reglage ne pose RIEN : un theme qui
+                          # trace ses axes de lui-meme (« classique ») garde les
+                          # siens, la ou un `element_blank()` les effacerait.
+                          shiny::checkboxInput(ns("showAxisLines"), "Tracer les axes X et Y", value = FALSE),
+                          shiny::conditionalPanel(
+                            ns = ns,
+                            condition = "input.showAxisLines == true",
+                            shiny::fluidRow(
+                              shiny::column(6, colourInput(ns("axisLineColor"), "Couleur des axes", value = "#000000")),
+                              shiny::column(6, shiny::sliderInput(ns("axisLineWidth"), "Épaisseur des axes",
+                                                          min = 0.1, max = 3, value = 1, step = 0.1, ticks = FALSE))
+                            ),
+                            shiny::checkboxInput(ns("axisTicksMarks"), "Graduations (petits traits) sur les axes", value = TRUE)
                           )
                         ),
                         .hstat_opt_section(
@@ -7892,11 +7914,14 @@ mod_tests_server <- function(id, values) {
     # Les etiquettes deja posees reviennent dans les champs : sans cela, rouvrir
     # le panneau les effacerait sous les doigts de l'utilisateur.
     etiquettes_actuelles <- as.list(values$posthocXLabels %||% character(0))
+    # Meme raison pour les styles : rouvrir le panneau ne doit pas les remettre
+    # tous a « Normal » sous les doigts de l'utilisateur.
+    styles_actuels <- as.list(values$posthocXStyles %||% character(0))
     
     shiny::tagList(
-      shiny::h6("Ordre et étiquettes des catégories :", style = "font-weight: bold; color: #27ae60;"),
+      shiny::h6("Ordre, étiquettes et style des catégories :", style = "font-weight: bold; color: #27ae60;"),
       shiny::tags$small(style = "color:#7f8c8d; font-style:italic; display:block; margin-bottom:6px;",
-                 "Le nom saisi ne change que l'affichage : les données gardent leur modalité d'origine."),
+                 "Le nom saisi ne change que l'affichage : les données gardent leur modalité d'origine. Le style s'applique au seul niveau choisi."),
       shiny::div(style = "max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 5px;",
           lapply(seq_along(current_levels), function(i) {
             level_name <- current_levels[i]
@@ -7911,7 +7936,11 @@ mod_tests_server <- function(id, values) {
                          shiny::textInput(ns(paste0("xLabel_", i)), NULL,
                                    value = etiquettes_actuelles[[level_name]] %||% level_name,
                                    placeholder = "Étiquette affichée",
-                                   width = "100%")
+                                   width = "100%"),
+                         shiny::selectInput(ns(paste0("xStyle_", i)), NULL,
+                                     choices = HSTAT_FONT_STYLES,
+                                     selected = styles_actuels[[level_name]] %||% "plain",
+                                     width = "100%")
                   ),
                   shiny::column(4,
                          shiny::div(style = "text-align: right;",
@@ -7936,7 +7965,7 @@ mod_tests_server <- function(id, values) {
       shiny::hr(),
       shiny::fluidRow(
         shiny::column(6,
-               shiny::actionButton(ns("applyXLabels"), "Appliquer les étiquettes",
+               shiny::actionButton(ns("applyXLabels"), "Appliquer les étiquettes et les styles",
                             class = "btn-success btn-sm",
                             icon = shiny::icon("check"),
                             style = "width: 100%;")),
@@ -7999,7 +8028,8 @@ mod_tests_server <- function(id, values) {
   shiny::observeEvent(input$resetXOrder, {
     values$customXLevels(NULL)
     values$posthocXLabels <- NULL
-    shiny::showNotification("Ordre et étiquettes des catégories réinitialisés",
+    values$posthocXStyles <- NULL
+    shiny::showNotification("Ordre, étiquettes et styles des catégories réinitialisés",
                      type = "message", duration = 2)
   })
 
@@ -8022,8 +8052,18 @@ mod_tests_server <- function(id, values) {
             paste(coll, collapse = ", ")),
         type = "warning", duration = 8)
     values$posthocXLabels <- if (length(saisies)) saisies else NULL
-    shiny::showNotification(trf("%s étiquette(s) appliquée(s).", length(saisies)),
-                     type = "message", duration = 3)
+    # Le style suit le NIVEAU, pas l'etiquette : renommer une modalite ne doit
+    # pas lui faire perdre son gras.
+    styles <- vapply(seq_along(niveaux), function(i) {
+      v <- input[[paste0("xStyle_", i)]]
+      if (is.null(v)) "plain" else as.character(v)[1]
+    }, character(1))
+    names(styles) <- niveaux
+    styles <- styles[styles != "plain"]
+    values$posthocXStyles <- if (length(styles)) styles else NULL
+    shiny::showNotification(
+      trf("%s étiquette(s) et %s style(s) appliqué(s).", length(saisies), length(styles)),
+      type = "message", duration = 3)
   })
   
   # Message expliquant pourquoi le graphique post-hoc est vide (le cas echeant).
@@ -8088,6 +8128,10 @@ mod_tests_server <- function(id, values) {
     axis_title_font_style <- input$axisTitleFontStyle
     axis_text_x_font_style <- input$axisTextXFontStyle
     axis_text_y_font_style <- input$axisTextYFontStyle
+    show_axis_lines  <- isTRUE(input$showAxisLines)
+    axis_line_color  <- input$axisLineColor %||% "#000000"
+    axis_line_width  <- input$axisLineWidth %||% 1
+    axis_ticks_marks <- isTRUE(input$axisTicksMarks)
     graph_value_font_style <- input$graphValueFontStyle
     legend_title_font_style <- input$legendTitleFontStyle
     legend_text_font_style <- input$legendTextFontStyle
@@ -8104,6 +8148,7 @@ mod_tests_server <- function(id, values) {
     custom_x_order <- input$customXOrder
     custom_x_levels <- values$customXLevels()
     custom_x_labels <- values$posthocXLabels
+    custom_x_styles <- values$posthocXStyles
     
     subtitle_position <- input$subtitlePosition
     
@@ -8508,12 +8553,52 @@ mod_tests_server <- function(id, values) {
       }
       
       p <- p + base_theme + base_labels
+
+      # Le trait d'axe ne s'ajoute QUE s'il est demande : hors de la, on laisse
+      # le theme decider, plutot que d'effacer ce qu'il aurait trace.
+      if (show_axis_lines) {
+        p <- p + ggplot2::theme(
+          axis.line   = ggplot2::element_line(colour = axis_line_color,
+                                              linewidth = axis_line_width),
+          axis.line.x = ggplot2::element_line(colour = axis_line_color,
+                                              linewidth = axis_line_width),
+          axis.line.y = ggplot2::element_line(colour = axis_line_color,
+                                              linewidth = axis_line_width),
+          axis.ticks  = if (axis_ticks_marks)
+                          ggplot2::element_line(colour = axis_line_color,
+                                                linewidth = axis_line_width)
+                        else ggplot2::element_blank())
+      }
       
       # Les etiquettes de modalites : l'axe affiche le nom choisi, les donnees
       # gardent le leur. `common_levels` est l'ordre reellement trace.
-      if (!is.null(custom_x_labels) && length(custom_x_labels))
-        p <- p + ggplot2::scale_x_discrete(
-          labels = hstat_etiquettes_x(common_levels, custom_x_labels))
+      #
+      # L'ETIQUETTE ET SON STYLE PASSENT PAR LA MEME ECHELLE. Deux appels a
+      # `scale_x_discrete()` ne s'ajoutent pas : le second REMPLACE le premier,
+      # en avertissant -- le gras effacerait donc les noms choisis, ou
+      # l'inverse selon l'ordre.
+      etiquettes_x <- hstat_etiquettes_x(common_levels, custom_x_labels)
+      styles_x <- stats::setNames(rep("plain", length(common_levels)), common_levels)
+      if (!is.null(custom_x_styles) && length(custom_x_styles) &&
+          !is.null(names(custom_x_styles))) {
+        com <- intersect(common_levels, names(custom_x_styles))
+        if (length(com)) styles_x[com] <- as.character(custom_x_styles[com])
+      }
+      if ((!is.null(custom_x_labels) && length(custom_x_labels)) || any(styles_x != "plain")) {
+        # Le libelle est resolu PAR RUPTURE et non par position : une echelle
+        # peut n'afficher qu'une partie des niveaux, et un decalage donnerait
+        # le gras -- ou le nom -- de la modalite voisine.
+        p <- p + ggplot2::scale_x_discrete(labels = function(ruptures) {
+          b <- as.character(ruptures)
+          i <- match(b, common_levels)
+          ok <- !is.na(i)
+          lab <- b
+          lab[ok] <- unname(etiquettes_x)[i[ok]]
+          sty <- rep("plain", length(b))
+          sty[ok] <- unname(styles_x)[i[ok]]
+          hstat_etiquettes_x_style(lab, sty)
+        })
+      }
       
       # La palette ne se pose qu'ici, et par l'aide commune : un `switch` de
       # plus dans ce fichier finirait par diverger de celui des autres modules.
@@ -8582,6 +8667,12 @@ mod_tests_server <- function(id, values) {
       }
       
       if (!is.null(p)) {
+        # Le plotmath ne survit pas a `ggplotly` : le rendu interactif rejoue
+        # les memes styles en HTML. Les niveaux et leurs styles voyagent donc
+        # AVEC la figure, en attributs -- un detour par `values` ferait
+        # reinvalider le rendu a chaque trace.
+        attr(p, "hstat_x_niveaux")    <- unname(etiquettes_x)
+        attr(p, "hstat_x_styles")     <- unname(styles_x)
         values$currentPlot <- p
         return(p)
       }
@@ -8617,6 +8708,19 @@ mod_tests_server <- function(id, values) {
         layout(showlegend = if (isTRUE(input$colorByGroups)) TRUE else FALSE)
       # NB : pas de boxmode = "group" ici -- le post-hoc n'a jamais plusieurs
       # boites par categorie x, et ce mode decalerait les boites de leur axe.
+
+      # Gras et italique des NIVEAUX de l'axe X, rejoues en HTML : plotmath ne
+      # survit pas a la conversion, l'axe afficherait `bold("T1")` en toutes
+      # lettres. Les positions d'un axe discret valent 1..n.
+      lv <- attr(p, "hstat_x_niveaux")
+      st <- attr(p, "hstat_x_styles")
+      if (!is.null(lv) && length(lv) && length(st) == length(lv) &&
+          any(st != "plain")) {
+        gp <- gp %>% layout(xaxis = list(
+          tickmode = "array",
+          tickvals = seq_along(lv),
+          ticktext = hstat_html_style_label(lv, st)))
+      }
       gp %>% config(displaylogo = FALSE)
     }, error = function(e_plotly) {
       # Repli : si la conversion plotly echoue, on renvoie tout de meme un objet

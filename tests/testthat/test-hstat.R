@@ -7879,7 +7879,9 @@ test_that("chaque option du graphique post-hoc est declaree, lue ET utilisee", {
     letterColor = "letter_color", showMeanValues = "show_mean_values",
     meanValueDecimals = "mean_value_decimals", meanValueColor = "mean_value_color",
     meanValueFontStyle = "mean_value_font_style",
-    showGridMajor = "show_grid_major", showGridMinor = "show_grid_minor")
+    showGridMajor = "show_grid_major", showGridMinor = "show_grid_minor",
+    showAxisLines = "show_axis_lines", axisLineColor = "axis_line_color",
+    axisLineWidth = "axis_line_width", axisTicksMarks = "axis_ticks_marks")
   for (nm in names(paires)) {
     loc <- paires[[nm]]
     expect_true(grepl(sprintf('ns("%s")', nm), txt, fixed = TRUE),
@@ -7897,6 +7899,150 @@ test_that("chaque option du graphique post-hoc est declaree, lue ET utilisee", {
   expect_false(grepl('color = "red")', txt, fixed = TRUE))
   expect_false(grepl('width = 0.2, color = "black"', txt, fixed = TRUE))
   expect_false(grepl("round(Moyenne, 2)", txt, fixed = TRUE))
+})
+
+test_that("hstat_etiquettes_x_style rend du plotmath, et laisse « plain » en texte", {
+  # LE STYLE PAR NIVEAU SE POSE EN PLOTMATH, seule forme que ggsave rende dans
+  # un fichier. Mais « plain » doit rester une CHAINE : `plain()` de plotmath
+  # rend le texte dans la police mathematique, ou l'espace disparait et la
+  # parenthese se decale -- un nom de traitement en ressortirait deforme alors
+  # que l'utilisateur n'a demande aucun style.
+  r <- hstat_etiquettes_x_style(c("T0", "T1", "T2", "T3"),
+                                c("plain", "bold", "italic", "bold.italic"))
+  expect_length(r, 4L)
+  expect_true(is.character(r[[1]]))
+  expect_identical(r[[1]], "T0")
+  # Les trois autres sont des APPELS plotmath, et c'est la fonction appelee
+  # qu'il faut verifier : `is.call` seul passerait sur n'importe quel appel.
+  expect_true(is.call(r[[2]])); expect_identical(as.character(r[[2]][[1]]), "bold")
+  expect_true(is.call(r[[3]])); expect_identical(as.character(r[[3]][[1]]), "italic")
+  expect_true(is.call(r[[4]])); expect_identical(as.character(r[[4]][[1]]), "bolditalic")
+  # Le texte porte est bien celui du niveau, pas celui d'un voisin.
+  expect_identical(r[[2]][[2]], "T1")
+  expect_identical(r[[4]][[2]], "T3")
+
+  # « bolditalic » et « bold.italic » nomment le meme style : deux orthographes
+  # pour un seul rendu, dont l'une retomberait sinon en silence sur « plain ».
+  expect_identical(as.character(hstat_etiquettes_x_style("A", "bolditalic")[[1]][[1]]),
+                   "bolditalic")
+  # Un style inconnu ne fait pas tomber le graphique : il ne style pas.
+  expect_identical(hstat_etiquettes_x_style("A", "souligne")[[1]], "A")
+  # Le recyclage : un seul style pour tous les niveaux.
+  expect_length(hstat_etiquettes_x_style(c("A", "B", "C"), "bold"), 3L)
+  expect_identical(hstat_etiquettes_x_style(character(0), "bold"), list())
+})
+
+test_that("hstat_html_style_label connait les deux orthographes du gras italique", {
+  # Le meme style porte deux noms dans le depot : « bold.italic » dans
+  # HSTAT_FONT_STYLES (le nom de ggplot2), « bolditalic » dans le plotmath. Le
+  # rendu interactif lit le PREMIER : ne connaitre que le second rendait le
+  # niveau en texte nu, sans un mot, alors que l'export sortait bien en gras
+  # italique -- deux images differentes pour un meme reglage.
+  expect_identical(hstat_html_style_label("T1", "bold.italic"), "<b><i>T1</i></b>")
+  expect_identical(hstat_html_style_label("T1", "bolditalic"), "<b><i>T1</i></b>")
+  expect_identical(hstat_html_style_label("T1", "bold"), "<b>T1</b>")
+  expect_identical(hstat_html_style_label("T1", "plain"), "T1")
+  # Le texte reste echappe : un « & » dans un nom de traitement casserait la
+  # balise que plotly interprete.
+  expect_false(grepl("&amp;", hstat_html_style_label("2SP&2PV", "plain"), fixed = TRUE) &&
+               grepl("<", hstat_html_style_label("2SP&2PV", "plain"), fixed = TRUE))
+  expect_true(grepl("&", hstat_html_style_label("2SP&2PV", "bold"), fixed = TRUE))
+})
+
+test_that("le chi2 d'adequation vit dans la colonne des tests parametriques", {
+  skip_if_not_installed("shinydashboard")
+  # Il vivait dans une COLONNE A LUI, posee apres la rangee des trois familles
+  # de tests : il retombait donc sous la premiere colonne (les reglages), pas
+  # sous les tests parametriques. La mesure porte sur l'ARBRE de l'interface,
+  # pas sur l'ordre des lignes du fichier : une accolade deplacee changerait
+  # l'imbrication sans changer l'ordre.
+  # Les aiguillages d'interface (`withSpinner`, `plotlyOutput`...) vivent dans
+  # l'environnement global : sans eux, l'UI du module ne se construit pas.
+  suppressMessages(hstat_installer_replis_ui())
+  ui <- mod_tests_ui("tests")
+  colonnes <- list()
+  ids_sous <- function(x) {
+    if (inherits(x, "shiny.tag")) {
+      out <- character(0)
+      if (!is.null(x$attribs$id)) out <- c(out, as.character(x$attribs$id))
+      for (k in x$children) out <- c(out, ids_sous(k))
+      cls <- x$attribs$class
+      if (!is.null(cls) && any(grepl("col-sm-", as.character(cls), fixed = TRUE)))
+        colonnes[[length(colonnes) + 1L]] <<- out
+      return(out)
+    }
+    if (is.list(x)) {
+      out <- character(0)
+      for (k in x) out <- c(out, ids_sous(k))
+      return(out)
+    }
+    character(0)
+  }
+  tous <- ids_sous(ui)
+  expect_true(all(c("tests-testANOVA", "tests-runChiSqTest",
+                    "tests-testKruskal") %in% tous))
+  # UNE colonne porte les tests parametriques ET le chi2, sans porter les
+  # non parametriques : c'est la definition de « sous les tests parametriques ».
+  # Sans la seconde condition, la boite entiere (elle aussi une colonne, de
+  # largeur 12) satisferait la premiere quelle que soit la disposition.
+  ok <- vapply(colonnes, function(s)
+    all(c("tests-testANOVA", "tests-runChiSqTest") %in% s) &&
+      !("tests-testKruskal" %in% s), logical(1))
+  expect_true(any(ok))
+})
+
+test_that("l'etiquette et le style de l'axe X passent par une seule echelle", {
+  # DEUX `scale_x_discrete()` NE S'AJOUTENT PAS : le second REMPLACE le premier
+  # en avertissant. Poser le style dans une echelle et les noms choisis dans
+  # une autre effacerait donc l'un des deux, selon l'ordre -- et l'utilisateur
+  # verrait son reglage rester sans effet.
+  root <- .hstat_repo_root(); skip_if(is.na(root))
+  chemin <- .hstat_module_path("mod_tests.R")
+  ex <- parse(chemin, keep.source = FALSE)
+  corps <- NULL
+  v <- function(n) {
+    if (!is.null(corps) || !is.call(n)) return(invisible())
+    if (identical(paste(deparse(n[[1]]), collapse = ""), "<-") && is.name(n[[2]]) &&
+        identical(as.character(n[[2]]), "create_posthoc_plot")) {
+      corps <<- n[[3]]; return(invisible())
+    }
+    for (i in seq_along(n)) tryCatch(v(n[[i]]), error = function(e) NULL)
+  }
+  for (k in seq_along(ex)) v(ex[[k]])
+  expect_false(is.null(corps))
+  b <- paste(deparse(corps, width.cutoff = 500), collapse = "\n")
+  expect_equal(length(gregexpr("scale_x_discrete", b, fixed = TRUE)[[1]]), 1L)
+  # Et cette echelle passe bien par l'aide de style : sans elle, le gras
+  # demande par niveau ne serait jamais pose.
+  expect_true(grepl("hstat_etiquettes_x_style", b, fixed = TRUE))
+
+  # Le rendu interactif rejoue les memes styles en HTML : ggplotly DEPARSE le
+  # plotmath, l'axe afficherait `bold("T1")` en toutes lettres.
+  txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("hstat_html_style_label", txt, fixed = TRUE))
+  expect_true(grepl('attr(p, "hstat_x_styles")', txt, fixed = TRUE))
+})
+
+test_that("le trait des axes ne s'impose ni ne s'efface", {
+  # Decoche, le reglage ne doit RIEN poser : un theme qui trace ses axes de
+  # lui-meme (« classique ») garde les siens, la ou un `element_blank()` les
+  # effacerait sans que personne l'ait demande.
+  chemin <- .hstat_module_path("mod_tests.R")
+  lignes <- readLines(chemin, warn = FALSE, encoding = "UTF-8")
+  txt <- paste(lignes, collapse = "\n")
+  expect_true(grepl("axis.line", txt, fixed = TRUE))
+  expect_false(grepl("axis.line = ggplot2::element_blank()", txt, fixed = TRUE))
+  # La couleur par defaut est le NOIR : c'est le reglage attendu d'une figure
+  # publiee, et le demander a chaque fois serait une friction inutile.
+  i <- grep('ns("axisLineColor")', lignes, fixed = TRUE)
+  expect_length(i, 1L)
+  expect_true(grepl('value = "#000000"', lignes[i], fixed = TRUE))
+  # L'epaisseur va jusqu'a 3 : « gras » n'est pas un oui/non, c'est un trait
+  # dont on choisit la force.
+  j <- grep('ns("axisLineWidth")', lignes, fixed = TRUE)
+  expect_length(j, 1L)
+  m <- paste(lignes[j:(j + 1)], collapse = " ")
+  expect_true(grepl("max = 3", m, fixed = TRUE))
 })
 
 test_that("l'inclinaison des libelles X couvre tout l'intervalle 0-90 degres", {

@@ -286,6 +286,77 @@ chaque fois. Elles occupent désormais une `box` de largeur 12 **sous** la
 configuration de l'analyse — on les voit, on les atteint, et le graphique reste
 visible au-dessus pendant qu'on les règle.
 
+#### Un réglage se lit à côté de ce qu'il règle
+
+Deux déplacements, tous deux demandés à l'écran, tous deux de la même famille
+que « la taille de l'étiquette de seuil vivait deux onglets plus loin que la
+valeur du seuil » :
+
+- **« Valeurs portées sur le graphique » vit sous « Titres et libellés ».** Ce
+  sont les mêmes textes — le titre, les libellés d'axes, les moyennes écrites
+  sur les barres — et la carte des valeurs se trouvait deux colonnes plus loin,
+  entre les tailles et les styles.
+- **Le chi² d'adéquation vit sous « Tests paramétriques ».** Il occupait une
+  **colonne à lui**, posée après la rangée des trois familles de tests : il
+  retombait donc au bas de la *première* colonne (les réglages), à l'opposé des
+  boutons de test. C'est désormais un `div` de la colonne du milieu, exactement
+  comme « Comparaison à une norme » l'est de la colonne de droite.
+
+Le test qui garde la seconde règle porte sur l'**arbre** de l'interface, pas sur
+l'ordre des lignes du fichier : une colonne porte les tests paramétriques *et*
+le chi², sans porter les non-paramétriques. Sans cette dernière condition, la
+boîte entière — elle aussi une colonne, de largeur 12 — satisferait la première
+quelle que soit la disposition.
+
+#### Le style se choisit par niveau, et il voyage par deux chemins
+
+Le panneau post-hoc réglait le style des **graduations** en bloc (« Graduations
+X », « Graduations Y » : normal, gras, italique, gras + italique). Un essai
+comporte pourtant une modalité qu'on veut distinguer des autres — le témoin, la
+référence, la modalité retenue — et rien ne permettait de la mettre en gras
+seule. L'éditeur de l'axe X, qui portait déjà l'ordre et les étiquettes, porte
+donc aussi **un style par niveau**.
+
+`hstat_etiquettes_x_style()` (`R/utils.R`) pose le style en **plotmath** —
+`bold()`, `italic()`, `bolditalic()` —, seule forme que `ggsave` rende dans un
+fichier. Deux pièges, tous deux constatés ailleurs dans le dépôt :
+
+1. **« plain » reste une chaîne**, jamais `bquote(plain(.(lab)))`. Plotmath rend
+   le texte dans sa police mathématique, où l'espace disparaît et la parenthèse
+   se décale : un nom de traitement en ressortirait déformé alors que
+   l'utilisateur n'a demandé **aucun** style.
+2. **Le plotmath ne survit pas à `ggplotly`** — il le déparse, et l'axe
+   afficherait `bold("T1")` en toutes lettres. Le rendu interactif rejoue donc
+   les mêmes styles en HTML (`hstat_html_style_label()`), comme le fait déjà le
+   module des seuils. Les niveaux et leurs styles voyagent **avec la figure**,
+   en attributs : un détour par `values` ferait réinvalider le rendu à chaque
+   tracé.
+
+Le même style porte deux noms dans le dépôt : `bold.italic` (celui de ggplot2,
+donc de `HSTAT_FONT_STYLES`) et `bolditalic` (celui du plotmath). Les deux
+fonctions connaissent les deux — n'en connaître qu'un rendait le niveau en texte
+nu à l'écran alors que l'export sortait bien en gras italique, soit **deux
+images différentes pour un même réglage**.
+
+Enfin, **l'étiquette et le style passent par une seule `scale_x_discrete()`**.
+Deux appels ne s'ajoutent pas : le second **remplace** le premier en
+avertissant, si bien que le gras effacerait les noms choisis — ou l'inverse,
+selon l'ordre. Le libellé y est résolu **par rupture** (`match` sur le niveau)
+et non par position : une échelle peut n'afficher qu'une partie des niveaux, et
+un décalage donnerait le gras — ou le nom — de la modalité voisine.
+
+#### Un trait d'axe se demande, il ne s'efface jamais
+
+Les thèmes les plus employés ici (« minimal », « clair ») ne tracent **aucun**
+trait d'axe : la figure flotte sur sa grille, ce qui passe mal à l'impression
+d'un rapport. Le trait se demande donc, avec sa couleur (**noir** par défaut,
+le réglage attendu d'une figure publiée) et son épaisseur — « gras » n'est pas
+un oui/non, c'est un trait dont on choisit la force, jusqu'à 3.
+
+Décoché, le réglage ne pose **rien**. Un `element_blank()` en repli effacerait
+les axes d'un thème qui les trace de lui-même (« classique ») sans que personne
+l'ait demandé : le réglage retirerait alors ce qu'il prétend ajouter.
+
 #### L'inclinaison des libellés est un angle, pas un oui/non
 
 La case « libellés X inclinés à 45° » ne laissait le choix qu'entre 0 et 45 :
