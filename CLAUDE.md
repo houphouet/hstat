@@ -2236,6 +2236,33 @@ méthode engage l'interprétation, il reste à l'analyste. Un test vérifie que 
 quatre déclarent leur hypothèse — l'ANOVA de Fisher comprise, sans quoi le
 post-hoc lirait celle du test précédent.
 
+### Le modèle linéaire mixte est un bouton, pas une combinaison à deviner
+
+Le LMM existait déjà : « Modèle (généralisé) mixte » avec la famille
+**gaussienne** *est* un modèle linéaire mixte, et le module l'étiquetait
+d'ailleurs déjà « LMM ». Encore fallait-il **savoir** que la famille par défaut
+le donnait — et un sélecteur laissé sur « Poisson » par une analyse précédente
+rendait alors autre chose sous le nom qu'on venait de demander.
+
+Un bouton propre le pose donc : **« Modèle linéaire mixte (LMM) »**, qui impose
+la réponse gaussienne à lien identité et **ne lit ni la famille ni le lien**. Un
+LMM à lien logarithmique n'existe pas ; laisser le sélecteur agir donnerait un
+modèle qui ne serait plus celui que le bouton nomme.
+
+**Un seul ajustement, deux portes.** `.run_mixed(lineaire)` porte les deux
+boutons, exactement comme `.run_ttest(var_equal)` porte les deux tests t : deux
+copies du même ajustement divergeraient à la première correction. Ce que le
+drapeau change tient en deux lignes — la famille et le lien —, tout le reste
+(moteur, effets aléatoires, garde par variable réponse, extraction des
+coefficients) est commun.
+
+Ce qui ne change pas : `lmerTest::lmer()` reste le chemin gaussien sous lme4,
+et c'est lui qui fournit les **ddl de Satterthwaite** et donc les p-values. Sans
+lui, une ligne de LMM sortirait sans p-value — un tableau de résultats qui ne se
+lit pas. Le test le vérifie sur les **valeurs** du modèle ajusté (famille,
+lien, formule), jamais sur la colonne `Test` : un modèle de Poisson étiqueté
+« LMM » passerait un contrôle qui ne lirait que le libellé.
+
 ### Une demi-matrice de PMCMRplus ne porte pas toutes les modalités
 
 Trouvé en validant la présélection de Games-Howell au navigateur, et c'est le
