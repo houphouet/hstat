@@ -1398,6 +1398,165 @@ sur une palette Brewer. Lui appliquer `scale_*_brewer()` ferait avertir ggplot �
 chaque tracé et rendrait un graphique gris ; ne rien poser laisse l'échelle par
 défaut, qui est déjà la bonne.
 
+## « Options du graphique » : un vocabulaire commun, pas douze copies
+
+Demandé à l'écran : « les fonctionnalités de *Options du graphique* dans le
+module Visualisation doivent toutes être présentes dans les autres ». La mesure
+donne l'écart réel — douze familles de réglages chez `mod_viz`, et de zéro à
+onze ailleurs, chaque module ayant recopié à la main celles dont il avait besoin
+le jour où on l'a écrit :
+
+| Famille | viz | tests | seuils | rendement | DL50 | explor. | descr. | design |
+|---|---|---|---|---|---|---|---|---|
+| Titres / libellés | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ |
+| Tailles de texte | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ |
+| Gras / italique | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | ✓ |
+| Thème | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — |
+| Bornes et pas d'axe | ✓ | ✓ | ✓ | ✓ | — | — | — | — |
+| Valeurs portées | ✓ | ✓ | — | ✓ | — | — | — | — |
+| **Marges** | ✓ | — | — | — | — | — | — | — |
+| **Clés de légende** | ✓ | ✓ | — | — | — | — | — | — |
+| **Police de base** | ✓ | — | — | — | — | — | — | — |
+| **Trait des axes** | ✓ | ✓ | ✓ | — | — | — | — | — |
+
+**La réponse n'est pas de recopier une douzième fois.** C'est la dérive que ce
+dépôt a déjà corrigée pour les formats d'image, les champs de DPI, les thèmes et
+les palettes : une liste recopiée finit par diverger, et c'est la copie oubliée
+qui ment. `hstat_plot_extras_ui()` déclare, `hstat_plot_extras_lire()` lit et
+`hstat_plot_extras_theme()` **applique** — un module l'adopte en trois lignes, et
+une correction faite ici profite à tous.
+
+Ce que le kit porte est exactement ce qui manquait partout ailleurs (les quatre
+lignes en gras) : la **police de base**, le **trait des axes**, la **taille des
+clés de légende** et les **quatre marges**. Ce que chaque module garde en propre,
+ce sont les réglages qui parlent de *ses* données — le type de graphique, la
+palette, la géométrie, les valeurs portées.
+
+Trois points de construction, chacun testé :
+
+1. **La police de base ne passe pas par le kit de thème.** Elle appartient au
+   thème lui-même (`viz_get_theme(..., base_size = o$police)`) : l'appliquer
+   après coup ne toucherait que ce que le thème vient de fixer. C'est la seule
+   des neuf entrées dont l'emploi ne se voit pas dans
+   `hstat_plot_extras_theme()`, et le test l'exige **dans le module**.
+2. **Le kit se pose en dernier.** Un thème complet remplace tout ce qui précède :
+   posé avant le thème du module, il serait effacé sans un mot.
+3. **Le trait d'axe décoché ne pose rien**, jamais un `element_blank()` — sinon
+   le réglage *retirerait* les axes d'un thème qui les trace de lui-même
+   (« classique »), c'est-à-dire l'inverse de ce qu'il annonce.
+
+La lecture rend une **liste nommée**, jamais les entrées une par une : un module
+qui en oublierait une la laisserait sans effet — « déclaré, lu, mais jamais
+utilisé », le plus trompeur des trois défauts que ce dépôt traque. Et une saisie
+vidée en cours de frappe (`NA`) retombe sur le défaut plutôt que de faire tomber
+le graphique ou de redimensionner la figure sous les doigts de l'utilisateur.
+
+Deux corrections à ce tableau, faites en le vérifiant plutôt qu'en le relisant.
+La ligne « Marges » cochait `mod_tests` et `mod_design` : `refMargin` est une
+**marge d'équivalence**, `svMargin` une **marge d'erreur** d'effectif — deux
+paramètres statistiques, aucune marge de figure. Une documentation qui invente
+une fonctionnalité est pire qu'une documentation absente : on la cherche.
+
+### Le kit se prend par famille, jamais en bloc
+
+C'est le point qui a décidé de la forme finale. Trois modules portaient **déjà**
+une partie de ce vocabulaire, écrite à la main et gardée par des tests : les
+comparaisons post-hoc ont le trait des axes et la taille des clés, les seuils
+d'efficacité le trait des axes, la DL50 et le plan expérimental leur taille de
+police. Leur poser le kit entier déclarerait **deux** réglages pour un même
+trait — et c'est le second, invisible, qui finirait par mentir : l'utilisateur
+en changerait un pendant que le graphique lirait l'autre.
+
+`familles` voyage donc **avec** la lecture, et ce qui n'est pas déclaré n'est ni
+lu ni appliqué. L'appliquer quand même serait le pire des deux mondes : le
+réglage propre du module cesserait d'agir *sans un mot*, remplacé par la valeur
+par défaut du kit.
+
+Corollaire sur la déduction : on **ne devine pas** les familles d'après la
+nullité des entrées. Un réglage déclaré vaut `NULL` tant que le navigateur n'a
+pas répondu, et la première figure sortirait alors sans ses marges.
+
+Corollaire sur le libellé : le titre de la carte ne nomme **aucune** famille.
+« Cadre, marges et police » annoncerait deux réglages absents dans un module qui
+ne prend que les marges — le défaut même que ce dépôt traque, un libellé qui
+promet ce que la carte ne porte pas. Elle s'intitule « Mise en forme générale »,
+vraie quel que soit le sous-ensemble.
+
+### Adoption : terminée, et mesurée sur l'interface rendue
+
+Les **douze** panneaux de mise en forme de l'application portent désormais les
+quatre familles. Ce que chacun a pris est exactement ce qui lui manquait :
+
+| Panneau | Prend du kit | Portait déjà |
+|---|---|---|
+| `mod_yield` | les quatre | — |
+| `mod_posthoc` (tests) | police, marges | trait des axes, clés |
+| `mod_threshold` | police, clés, marges | trait des axes |
+| `mod_dl50` | trait, clés, marges | police (`gBaseSize`) |
+| `mod_design` | trait, clés, marges | police (`dsgFontAxis`) |
+| `mod_descriptive` | les quatre | — |
+| `mod_explore` (×2) | les quatre, par graphique | — |
+| `mod_qualitative` | trait, clés, marges | — (voir ci-dessous) |
+| `mod_ml`, `mod_dl`, `mod_timeseries` | trait, clés, marges | police (`<préfixe>Base`) |
+
+Les trois derniers n'ont **aucune ligne** à eux : ils passent par
+`hstat_plot_opts_ui()` / `hstat_apply_plot_opts()`, et c'est ce kit-là qui a
+adopté celui-ci. Une correction faite au socle leur arrive sans qu'ils y pensent
+— c'est exactement ce que la mise en commun promettait.
+
+`mod_design` est un cas à part : ses constructeurs vivent **hors** du
+`moduleServer`, mais ses **trois** chemins de rendu du plan (facetté,
+facetté par bloc, plan simple) repassent tous par une même aide interne. Le kit
+s'y pose une seule fois, à ce point de passage — le poser sur chacun des trois
+le recopierait, et c'est la copie oubliée qui ment. Il n'est jamais posé sur une
+composition **patchwork** : elle empile plusieurs panneaux, et une marge posée
+sur le dernier déplacerait un seul morceau de la figure.
+
+**Une exception, motivée : la police de base de `mod_qualitative`.** Ses quinze
+constructeurs posent chacun leur propre thème complet
+(`theme_minimal(base_size = 12)`) ; un curseur posé après coup ne toucherait que
+ce que ces thèmes ont laissé libre, c'est-à-dire presque rien. Offrir un réglage
+que l'image ignore est précisément le défaut que ce dépôt traque — et les
+tailles nommées (titre, axes, graduations, légende) y sont, elles, déjà
+réglables. Le test porte l'exception et sa raison, plutôt que de la laisser
+passer en silence.
+
+### Le test mesure l'interface rendue, pas les appels
+
+Un appel à `hstat_plot_extras_ui()` peut être placé hors du chemin de rendu :
+chercher l'appel dans le source dirait « adopté » d'un module dont la page ne
+porte rien. Le test **construit** les douze interfaces et relève les
+identifiants qu'elles déclarent réellement.
+
+Il compte aussi les **doublons**, et c'est l'autre moitié : deux réglages pour
+un même trait, c'est un utilisateur qui en change un pendant que le graphique
+lit l'autre. C'est cette assertion qui interdit de poser le kit entier sur un
+module qui porte déjà une partie du vocabulaire.
+
+Le compte attendu est le **nombre de panneaux**, pas 1 : `mod_explore` en porte
+deux, un par graphique (distribution et valeurs manquantes), et ses deux jeux de
+réglages sont légitimes — ils habillent deux figures différentes. C'est le test
+qui l'a établi, pas une hypothèse : écrit à 1 partout, il a signalé `mod_explore`
+sur les quatre familles.
+
+Cinq mutations le gardent, toutes attrapées : le thème qui ignore `familles`,
+l'interface qui les ignore, le kit retiré d'un module, la police redevenue une
+constante, et le kit partagé qui perd le sien (neuf échecs, un par module servi).
+
+Deux fonctionnalités de `mod_viz` restent hors du kit et demandent chacune leur
+propre travail : l'**éditeur d'étiquettes par niveau** (déjà présent dans
+`mod_tests` et `mod_threshold`) et le **rendu interactif**, qui touche au type de
+sortie et non au thème. `mod_viz` garde par ailleurs ses propres widgets : c'est
+l'implémentation de référence, celle d'où le vocabulaire a été relevé.
+
+### Un thème mort se corrige en croyant corriger le graphique
+
+Trouvé en mesurant les panneaux. `get_plot_theme()` (`mod_tests.R`) lisait
+`input$plotTheme`, **qu'aucune interface ne déclare** : elle aurait rendu
+« minimal » quoi que l'utilisateur choisisse. Et son nom n'apparaissait qu'une
+seule fois dans tout le dépôt — sa propre définition, le critère du code mort.
+Retirée.
+
 ## Le bac à sable des formules : la porte de demain, pas celle d'aujourd'hui
 
 `hstat_safe_eval()` tient. Vingt-sept tentatives d'évasion ont été essayées une

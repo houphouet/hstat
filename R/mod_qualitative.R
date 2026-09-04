@@ -2441,6 +2441,16 @@ mod_qualitative_ui <- function(id) {
                     shiny::checkboxInput(ns("sty_show_grid"), "Grille de fond", value = TRUE),
                     shiny::checkboxInput(ns("sty_black_axes"), "Axes en noir", value = FALSE),
                     shiny::checkboxInput(ns("sty_black_ticks"), "Graduations en noir", value = FALSE)))),
+              # LA POLICE DE BASE RESTE HORS DU KIT ICI, et c'est un choix.
+              # Les quinze constructeurs de ce module posent chacun leur propre
+              # theme complet (`theme_minimal(base_size = 12)`) : un curseur
+              # pose apres coup ne toucherait que ce que ces themes ont laisse
+              # libre, c'est-a-dire presque rien. Offrir un reglage que l'image
+              # ignore est exactement le defaut que ce depot traque -- les
+              # tailles nommees (titre, axes, graduations, legende) sont, elles,
+              # deja reglables juste au-dessus.
+              hstat_plot_extras_ui(ns, "sty_",
+                                   familles = c("axe", "cles", "marges")),
               # Paramètres d'exportation de l'image (rapatriés des Tableaux croisés)
               shiny::div(style = "background:#fff8f0;border-left:4px solid #e67e22;padding:12px;border-radius:6px;",
                 shiny::tags$strong(shiny::icon("image"), " Paramètres d'exportation de l'image"),
@@ -2830,7 +2840,13 @@ mod_qualitative_server <- function(id, values) {
         x_rotation = input$sty_x_rotation %||% 45,
         show_grid = input$sty_show_grid %||% TRUE,
         black_axes = input$sty_black_axes %||% FALSE,
-        black_ticks = input$sty_black_ticks %||% FALSE))
+        black_ticks = input$sty_black_ticks %||% FALSE)) +
+        # LE KIT SE POSE EN DERNIER : un theme complet remplace tout ce qui
+        # precede. Ce point de passage est unique -- l'apercu comme le
+        # telechargement lisent `current_plot()`, ils ne peuvent pas diverger.
+        hstat_plot_extras_theme(
+          hstat_plot_extras_lire(input, "sty_",
+                                 familles = c("axe", "cles", "marges")))
     })
     output$main_plot <- shiny::renderPlot({
       p <- current_plot(); shiny::req(!is.null(p)); p

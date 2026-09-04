@@ -118,6 +118,8 @@ mod_explore_ui <- function(id) {
                   
                   shiny::hr(),
                   
+                  hstat_plot_extras_ui(ns, "distPl"),
+
                   hstat_export_plot_ui(ns, "distPl", width = 10, height = 8),
                   
                   shiny::div(
@@ -203,6 +205,8 @@ mod_explore_ui <- function(id) {
                   
                   shiny::hr(),
                   
+                  hstat_plot_extras_ui(ns, "missPl"),
+
                   hstat_export_plot_ui(ns, "missPl", width = 12, height = 8),
                   
                   shiny::div(
@@ -353,7 +357,9 @@ mod_explore_server <- function(id, values) {
       p <- p + ggplot2::geom_density(color = "red", linewidth = 1.2)
     }
     
-    p <- p + (hstat_export_theme(input, "distPl") %||% ggplot2::theme_minimal()) +
+    extras <- hstat_plot_extras_lire(input, "distPl")
+    p <- p + (hstat_export_theme(input, "distPl", base_size = extras$police) %||%
+                ggplot2::theme_minimal(base_size = extras$police)) +
       ggplot2::labs(title = plot_title, x = var, y = "Densité") +
       ggplot2::theme(
         plot.title = ggtext::element_markdown(size = title_size, hjust = if (center_title) 0.5 else 0),
@@ -365,8 +371,10 @@ mod_explore_server <- function(id, values) {
         legend.text = ggplot2::element_text(size = legend_text_size),
         legend.title = ggtext::element_markdown(size = legend_text_size)
       )
-    
-    return(p)
+
+    # LE KIT SE POSE EN DERNIER : un theme complet remplace tout ce qui
+    # precede, si bien que pose avant celui du module il serait efface.
+    return(p + hstat_plot_extras_theme(extras))
   }
   
   distParams <- shiny::reactive({
@@ -445,11 +453,13 @@ mod_explore_server <- function(id, values) {
       "Analyse des valeurs manquantes"
     }
     
+    extras <- hstat_plot_extras_lire(input, "missPl")
     p <- ggplot2::ggplot(missing_data, ggplot2::aes(x = stats::reorder(Variable, -Missing), y = Missing)) +
       ggplot2::geom_bar(stat = "identity", fill = "steelblue", alpha = 0.8) +
       ggplot2::geom_text(ggplot2::aes(label = paste0(round(PctMissing, 1), "%")), 
                 vjust = -0.5, size = 3.5) +
-      (hstat_export_theme(input, "missPl") %||% ggplot2::theme_minimal()) +
+      (hstat_export_theme(input, "missPl", base_size = extras$police) %||%
+         ggplot2::theme_minimal(base_size = extras$police)) +
       ggplot2::labs(title = plot_title, x = "Variable", y = "Nombre de valeurs manquantes") +
       ggplot2::theme(
         plot.title = ggtext::element_markdown(size = title_size, hjust = if (center_title) 0.5 else 0),
@@ -463,8 +473,10 @@ mod_explore_server <- function(id, values) {
           hjust = if (rotate_labels) 1 else 0.5
         )
       )
-    
-    return(p)
+
+    # LE KIT SE POSE EN DERNIER : un theme complet remplace tout ce qui
+    # precede, si bien que pose avant celui du module il serait efface.
+    return(p + hstat_plot_extras_theme(extras))
   }
   
   missingParams <- shiny::reactive({

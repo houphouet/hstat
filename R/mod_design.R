@@ -2186,6 +2186,10 @@ mod_design_ui <- function(id) {
               ),
               # ============ EXPORT DE L'IMAGE =========================
               .sect("download", "Export de l'image"),
+              # Le module porte deja sa taille de police d'axe (`dsgFontAxis`) :
+              # il ne prend du kit que les trois familles qui lui manquaient.
+              hstat_plot_extras_ui(ns, "dsgPl",
+                                   familles = c("axe", "cles", "marges")),
               hstat_export_plot_ui(ns, "dsgPl", width = 11, height = 7),
               footer = shiny::div(style = "font-size:12px;color:#7f8c8d;", shiny::icon("info-circle"),
                 " Chaque cellule = une unité expérimentale ; couleur = traitement randomise. ",
@@ -2965,6 +2969,22 @@ mod_design_server <- function(id, values) {
           legend.text  = ggplot2::element_text(size = txt_sz, face = txt_face),
           legend.title = ggplot2::element_text(size = ttl_sz, face = ttl_face))
       }
+      # LES TROIS CHEMINS DE RENDU DU PLAN PASSENT PAR ICI. Poser le kit sur
+      # chacun d'eux le recopierait trois fois, et c'est la copie oubliee qui
+      # ment : le facette, le facette-par-bloc et le plan simple cesseraient de
+      # se ressembler des la premiere correction.
+      #
+      # Le kit se pose EN DERNIER, et jamais sur une composition patchwork --
+      # elle empile plusieurs panneaux, une marge posee sur le dernier
+      # deplacerait un seul morceau de la figure.
+      .finir_plan <- function(g) {
+        g <- .apply_legend_fonts(g)
+        if (is.null(g) || !inherits(g, "ggplot") || inherits(g, "patchwork"))
+          return(g)
+        g + hstat_plot_extras_theme(
+          hstat_plot_extras_lire(input, "dsgPl",
+                                 familles = c("axe", "cles", "marges")))
+      }
       fill_col <- if ("Traitement" %in% names(b)) "Traitement" else names(get_factors())[1]
       nplot <- input$dsgN %||% 1
 
@@ -3045,7 +3065,7 @@ mod_design_server <- function(id, values) {
                                     leg_ttl_size = input$dsgLegendTitleSize %||% 12,
                                     leg_txt_bold = isTRUE(input$dsgLegendTextBold),
                                     leg_ttl_bold = isTRUE(input$dsgLegendTitleBold))
-        if (!is.null(gf)) return(.apply_legend_fonts(.add_terrain_constraints(gf)))
+        if (!is.null(gf)) return(.finir_plan(.add_terrain_constraints(gf)))
       }
 
       # Ordre / position / titre de la legende (choisis par l'utilisateur)
@@ -3149,7 +3169,7 @@ mod_design_server <- function(id, values) {
                   xlab = if (paired_facet) "Couple" else "Parcelle (traitement randomise dans le bloc)",
                   bold = isTRUE(input$dsgBoldLabels),
                   block_stack = block_stack, treat_vertical = treat_vertical)
-        if (!is.null(gbf)) return(.apply_legend_fonts(.add_terrain_constraints(gbf)))
+        if (!is.null(gbf)) return(.finir_plan(.add_terrain_constraints(gbf)))
       }
 
       # Orientation des traitements dans le plan principal (non facette) : si
@@ -3284,8 +3304,9 @@ mod_design_server <- function(id, values) {
       # Contraintes de terrain (obstacle + bandes) via l'aide commune.
       g <- .add_terrain_constraints(g)
 
-      # Tailles de police de la legende (modalites + titre), reglables par l'utilisateur.
-      g <- .apply_legend_fonts(g)
+      # Tailles de police de la legende (modalites + titre), reglables par
+      # l'utilisateur, puis le kit de mise en forme commun.
+      g <- .finir_plan(g)
 
       g
     })

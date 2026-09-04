@@ -406,6 +406,7 @@ mod_yield_ui <- function(id) {
                                          "IC 95 %" = "ci"),
                              selected = "se", inline = TRUE))
             ),
+            hstat_plot_extras_ui(ns, "yield"),
             .hstat_opt_section(
               "Légende", "list", "#7f8c8d", "#f4f6f7",
               shiny::selectInput(ns("yieldLegendePos"), "Position",
@@ -933,6 +934,10 @@ mod_yield_server <- function(id, values) {
 
       angle_x <- input$yieldAngleX %||% 45
       angle_y <- input$yieldAngleY %||% 0
+      # Le kit commun : cadre, marges, police de base, trait des axes et
+      # taille des cles. `police` part au THEME -- l'appliquer apres coup ne
+      # toucherait que ce que le theme vient de fixer.
+      extras <- hstat_plot_extras_lire(input, "yield")
       nt <- input$yieldTemoin %||% ""
       sous_auto <- if (gain && nzchar(nt))
         trf("Référence : %s (gain nul par définition)", nt) else NULL
@@ -943,7 +948,7 @@ mod_yield_server <- function(id, values) {
             y = if (nzchar(input$yieldLabelY %||% "")) input$yieldLabelY else y_auto,
             fill = if (nzchar(input$yieldLegendeTitre %||% "")) input$yieldLegendeTitre else input$yieldModalite,
             colour = if (nzchar(input$yieldLegendeTitre %||% "")) input$yieldLegendeTitre else input$yieldModalite) +
-        viz_get_theme(input$yieldTheme %||% "minimal", base_size = 12) +
+        viz_get_theme(input$yieldTheme %||% "minimal", base_size = extras$police) +
         ggplot2::theme(
           plot.title = ggplot2::element_text(
             size = input$yieldTitreSize %||% 16,
@@ -980,7 +985,10 @@ mod_yield_server <- function(id, values) {
           panel.grid.major = if (isTRUE(input$yieldGrilleMaj))
             ggplot2::element_line(colour = "gray90") else ggplot2::element_blank(),
           panel.grid.minor = if (isTRUE(input$yieldGrilleMin))
-            ggplot2::element_line(colour = "gray95") else ggplot2::element_blank())
+            ggplot2::element_line(colour = "gray95") else ggplot2::element_blank()) +
+        # EN DERNIER, et c'est voulu : un theme complet remplace tout ce qui
+        # precede. Pose avant, le kit serait efface par le theme du module.
+        hstat_plot_extras_theme(extras)
     })
 
     output$yieldPlot <- shiny::renderPlot({

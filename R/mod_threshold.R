@@ -405,6 +405,11 @@ mod_threshold_ui <- function(id) {
                                     shiny::tagList(shiny::icon("undo"), " Inclinaison des labels X (°)"),
                                     min = 0, max = 90, value = 45, step = 5)
                     ),
+
+                    # Le module porte deja « Afficher les lignes d'axes » : il
+                    # ne prend du kit que les trois familles qui lui manquaient.
+                    hstat_plot_extras_ui(ns, "threshold",
+                                         familles = c("police", "cles", "marges")),
                     
                     shiny::div(style = "background-color: #fce4ec; padding: 12px; border-radius: 6px; margin-bottom: 12px; border: 1px solid #f48fb1;",
                         shiny::h6(shiny::icon("text-height"), " Tailles de texte", 
@@ -1600,6 +1605,8 @@ mod_threshold_server <- function(id, values) {
         "plain"
       }
       
+      extras <- hstat_plot_extras_lire(input, "threshold",
+                                       familles = c("police", "cles", "marges"))
       axis_color <- if(!is.null(input$thresholdBlackAxes) && input$thresholdBlackAxes) {
         "black"
       } else {
@@ -1715,7 +1722,8 @@ mod_threshold_server <- function(id, values) {
       p <- p + ggplot2::labs(title = plot_title, x = x_label, y = y_label,
                     subtitle = if (nzchar(sous_titre)) sous_titre else NULL) +
         ech_y +
-        viz_get_theme(input$thresholdTheme %||% "minimal") +
+        viz_get_theme(input$thresholdTheme %||% "minimal",
+                      base_size = extras$police) +
         ggplot2::theme(
           plot.title = ggtext::element_markdown(size = input$thresholdTitleSize %||% 16, 
                                         hjust = hj(input$thresholdTitlePosition),
@@ -1817,6 +1825,10 @@ mod_threshold_server <- function(id, values) {
         p <- p + ggplot2::scale_x_discrete(labels = styled_labels)
       }
       
+      # LE KIT SE POSE EN DERNIER : un theme complet remplace tout ce qui
+      # precede, si bien que pose avant celui du module il serait efface.
+      p <- p + hstat_plot_extras_theme(extras)
+
       threshold_values$current_plot <- p
       
       return(p)

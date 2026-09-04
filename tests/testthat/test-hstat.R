@@ -5940,6 +5940,182 @@ test_that("une chaine bordee d'espaces se traduit, et garde son espacement", {
                " 12 cases predicted (mean = 3,4).")
 })
 
+test_that("le kit de mise en forme declare, lit ET applique ses neuf reglages", {
+  # UNE LISTE RECOPIEE FINIT PAR DIVERGER, et c'est la copie oubliee qui ment :
+  # la lecon des formats d'image, des champs de DPI, des themes et des palettes,
+  # appliquee cette fois aux reglages de mise en forme que `mod_viz` portait
+  # seul. Le test exige les TROIS conditions, comme celui du panneau post-hoc :
+  # declare dans l'interface, lu par la lecture, et employe par le theme.
+  skip_if_not_installed("shinydashboard")
+  suppressMessages(hstat_installer_replis_ui())
+  expect_length(HSTAT_PLOT_EXTRAS, 9L)
+
+  # 1. DECLARE -- et prefixe : un widget hors du prefixe de son module
+  # n'existe pour personne, le defaut le plus silencieux du depot.
+  h <- paste(as.character(hstat_plot_extras_ui(shiny::NS("m"), "pfx")), collapse = "")
+  for (x in HSTAT_PLOT_EXTRAS)
+    expect_true(grepl(sprintf('id="m-pfx%s"', x), h, fixed = TRUE), label = x)
+
+  # 2. LU -- les defauts tiennent quand rien n'est saisi (le cas du premier
+  # rendu, avant que le navigateur ait renvoye quoi que ce soit).
+  o <- hstat_plot_extras_lire(list(), "pfx")
+  expect_equal(o$police, 11); expect_false(o$axe); expect_equal(o$cles, 1.2)
+  expect_equal(unname(o$marges), rep(5, 4))
+  # Une saisie videe en cours de frappe rend NA : elle ne doit pas faire tomber
+  # le graphique ni redimensionner la figure sous les doigts.
+  expect_equal(hstat_plot_extras_lire(list(pfxPoliceBase = NA), "pfx")$police, 11)
+  expect_equal(hstat_plot_extras_lire(list(pfxMargeHaut = "x"), "pfx")$marges[["haut"]], 5)
+
+  i <- list(pfxPoliceBase = 14, pfxAxisLine = TRUE, pfxAxisLineCouleur = "#123456",
+            pfxAxisLineEpaisseur = 2, pfxLegendeCles = 2, pfxMargeHaut = 20,
+            pfxMargeBas = 3, pfxMargeGauche = 30, pfxMargeDroite = 4)
+  o2 <- hstat_plot_extras_lire(i, "pfx")
+  expect_equal(o2$police, 14); expect_true(o2$axe)
+  expect_equal(unname(o2$marges), c(20, 4, 3, 30))   # haut, droite, bas, gauche
+
+  # 3. APPLIQUE -- on lit les VALEURS du theme construit, jamais le nom des
+  # reglages : un kit qui rendrait un theme vide passerait un controle qui ne
+  # verifierait que la presence de la fonction.
+  th <- hstat_plot_extras_theme(o2)
+  expect_identical(th$axis.line$colour, "#123456")
+  expect_equal(th$axis.line$linewidth, 2)
+  expect_equal(as.numeric(th$legend.key.height), 2)
+  expect_equal(as.numeric(th$plot.margin), c(20, 4, 3, 30))
+
+  # Le trait d'axe ne s'impose ni ne s'efface : decoche, le kit ne pose RIEN,
+  # la ou un `element_blank()` effacerait les axes d'un theme qui les trace.
+  th0 <- hstat_plot_extras_theme(hstat_plot_extras_lire(list(), "pfx"))
+  expect_null(th0$axis.line)
+
+  # 4. LE KIT SE PREND PAR FAMILLE. Trois modules portaient deja une partie de
+  # ce vocabulaire, ecrite a la main et gardee par des tests : leur poser le kit
+  # entier declarerait DEUX fois le meme reglage, et c'est le second, invisible,
+  # qui finirait par mentir.
+  expect_setequal(names(HSTAT_PLOT_EXTRAS_PAR_FAMILLE), HSTAT_PLOT_EXTRAS_FAMILLES)
+  expect_setequal(unlist(HSTAT_PLOT_EXTRAS_PAR_FAMILLE, use.names = FALSE),
+                  HSTAT_PLOT_EXTRAS)
+
+  # Ce qu'un module ne declare pas n'est ni affiche...
+  hm <- paste(as.character(hstat_plot_extras_ui(shiny::NS("m"), "pfx",
+                                                familles = "marges")), collapse = "")
+  for (x in HSTAT_PLOT_EXTRAS_PAR_FAMILLE$marges)
+    expect_true(grepl(sprintf('id="m-pfx%s"', x), hm, fixed = TRUE), label = x)
+  for (x in c(HSTAT_PLOT_EXTRAS_PAR_FAMILLE$axe, HSTAT_PLOT_EXTRAS_PAR_FAMILLE$cles,
+              HSTAT_PLOT_EXTRAS_PAR_FAMILLE$police))
+    expect_false(grepl(sprintf('id="m-pfx%s"', x), hm, fixed = TRUE), label = x)
+
+  # ...NI APPLIQUE. C'est la moitie qui compte : un module qui garde son propre
+  # reglage de cles verrait sinon le kit lui imposer sa valeur par defaut, et le
+  # sien cesserait d'agir sans un mot.
+  om <- hstat_plot_extras_lire(i, "pfx", familles = "marges")
+  thm <- hstat_plot_extras_theme(om)
+  expect_equal(as.numeric(thm$plot.margin), c(20, 4, 3, 30))
+  expect_null(thm$legend.key.height)
+  expect_null(thm$axis.line)
+
+  # Et le trait d'axe demande n'arrive pas si la famille n'est pas prise.
+  expect_null(hstat_plot_extras_theme(
+    hstat_plot_extras_lire(i, "pfx", familles = "cles"))$axis.line)
+  expect_equal(as.numeric(hstat_plot_extras_theme(
+    hstat_plot_extras_lire(i, "pfx", familles = "cles"))$legend.key.height), 2)
+
+  # Le titre de la carte ne nomme AUCUNE famille : il reste vrai quel que soit
+  # le sous-ensemble. « Cadre, marges et police » annoncerait deux reglages
+  # absents d'un module qui ne prend que les marges.
+  expect_false(grepl("police", hm, fixed = TRUE))
+  # Aucune famille demandee : rien du tout, plutot qu'une carte vide.
+  expect_null(hstat_plot_extras_ui(shiny::NS("m"), "pfx", familles = character(0)))
+})
+
+test_that("chaque module porte les quatre familles, et une seule fois", {
+  # LA DEMANDE, MESUREE SUR CE QUI EST RENDU. « Les fonctionnalites de Options
+  # du graphique du module visualisation doivent toutes etre presentes dans les
+  # autres » : on ne verifie donc pas que le kit est APPELE -- un appel peut
+  # etre place hors du chemin de rendu -- mais que le widget existe dans la page
+  # que le module construit.
+  #
+  # « Une seule fois » est l'autre moitie, et c'est celle qui coute : deux
+  # reglages pour un meme trait, c'est un utilisateur qui en change un pendant
+  # que le graphique lit l'autre. C'est cette assertion qui interdit de poser le
+  # kit entier sur un module qui porte deja une partie du vocabulaire.
+  skip_if_not_installed("shinydashboard")
+  root <- .hstat_repo_root(); skip_if(is.na(root))
+  suppressMessages(hstat_installer_replis_ui())
+
+  # Les motifs portent sur les IDENTIFIANTS rendus, pas sur une liste de noms
+  # recopiee module par module : un module renomme le sien sans que ce test
+  # cesse de le voir.
+  motifs <- c(
+    police = "policebase|fontbase|basefontsize|basesize|fontaxis|obase$",
+    axe    = "^[a-z0-9_]*(show)?axisline",
+    cles   = "keysize|legendecles",
+    marges = "marge(haut|bas|gauche|droite)$|plotmargin(top|right|bottom|left)$")
+
+  # `mod_tests_ui` n'a pas de panneau de mise en forme : les options du
+  # graphique post-hoc vivent dans `mod_posthoc_ui`, qui est donc l'interface
+  # a mesurer.
+  # LE COMPTE ATTENDU EST LE NOMBRE DE PANNEAUX DE MISE EN FORME, pas 1 :
+  # `mod_explore` en porte DEUX, un par graphique (distribution et valeurs
+  # manquantes), et ses deux jeux de reglages sont legitimes -- ils habillent
+  # deux figures differentes. C'est le test qui l'a etabli, pas une hypothese.
+  uis <- c(mod_viz_ui = 1L, mod_posthoc_ui = 1L, mod_threshold_ui = 1L,
+           mod_yield_ui = 1L, mod_dl50_ui = 1L, mod_descriptive_ui = 1L,
+           mod_explore_ui = 2L, mod_design_ui = 1L, mod_qualitative_ui = 1L,
+           mod_ml_ui = 1L, mod_dl_ui = 1L, mod_timeseries_ui = 1L)
+
+  for (nm in names(uis)) {
+    fn <- tryCatch(get(nm), error = function(e) NULL)
+    if (is.null(fn)) { expect_true(FALSE, label = paste("UI absente :", nm)); next }
+    h <- paste(as.character(fn(nm)), collapse = "")
+    ids <- unique(regmatches(
+      h, gregexpr(sprintf('(?<=id=")%s-[A-Za-z0-9_]+', nm), h, perl = TRUE))[[1]])
+    ids <- sub(paste0("^", nm, "-"), "", ids)
+
+    for (fam in names(motifs)) {
+      # `mod_qualitative` est la seule exception, et elle est motivee : ses
+      # quinze constructeurs posent chacun leur theme complet, si bien qu'un
+      # curseur de police pose apres coup serait un reglage que l'image ignore.
+      if (nm == "mod_qualitative_ui" && fam == "police") next
+      # Le trait d'axe se declare en un widget (case a cocher) ou en trois
+      # (case, couleur, epaisseur) ; les marges en quatre. Ce qui doit rester
+      # unique, c'est le reglage MAITRE de la famille.
+      maitres <- switch(
+        fam,
+        marges = grep("(haut|top)$", ids[grepl(motifs[[fam]], tolower(ids))],
+                      ignore.case = TRUE, value = TRUE),
+        axe    = grep("(couleur|epaisseur|color|width)$",
+                      ids[grepl(motifs[[fam]], tolower(ids))],
+                      ignore.case = TRUE, value = TRUE, invert = TRUE),
+        ids[grepl(motifs[[fam]], tolower(ids))])
+      expect_length(maitres, uis[[nm]])
+      if (length(maitres) != uis[[nm]])
+        message(sprintf("%s / %s -> %s", nm, fam, paste(maitres, collapse = ", ")))
+    }
+  }
+})
+
+test_that("un module qui declare la police l'emploie vraiment", {
+  # LA POLICE DE BASE PART AU THEME, pas au kit : l'appliquer apres coup ne
+  # toucherait que ce que le theme vient de fixer. C'est la seule des neuf
+  # entrees dont l'emploi ne se voit pas dans `hstat_plot_extras_theme()` -- il
+  # faut donc l'exiger DANS le module, sans quoi elle serait « declaree, lue,
+  # mais jamais utilisee », le plus trompeur des trois defauts.
+  root <- .hstat_repo_root(); skip_if(is.na(root))
+  for (m in c("mod_yield.R", "mod_tests.R", "mod_threshold.R",
+              "mod_descriptive.R", "mod_explore.R")) {
+    txt <- paste(readLines(.hstat_module_path(m), warn = FALSE,
+                           encoding = "UTF-8"), collapse = "\n")
+    expect_true(grepl("base_size = extras$police", txt, fixed = TRUE), label = m)
+    expect_true(grepl("hstat_plot_extras_theme(", txt, fixed = TRUE), label = m)
+  }
+  # Le rendement etait le premier adoptant : sa taille de police figee a 12 a
+  # bien disparu.
+  expect_false(grepl("base_size = 12)",
+                     paste(readLines(.hstat_module_path("mod_yield.R"),
+                                     warn = FALSE, encoding = "UTF-8"),
+                           collapse = "\n"), fixed = TRUE))
+})
+
 test_that("une erreur d'API dit la cause, et surtout laquelle", {
   # LE CODE MENT, LE MESSAGE DIT LA VERITE. Le manque de credit est un 400 chez
   # Anthropic et un 429 chez OpenAI -- ce dernier partage donc son code avec le
