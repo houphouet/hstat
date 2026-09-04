@@ -31,7 +31,7 @@ mod_tests_ui <- function(id) {
                                    shiny::h6(shiny::tagList(shiny::icon("sitemap"), " Modèle mixte (GLMM)"),
                                       style = "color:#6c3483; margin-top:0; font-weight:bold;"),
                                    shiny::div(style = "font-size:11px; color:#6c3483; margin-bottom:8px;",
-                                       "Paramètres utilisés par le bouton « Modèle (généralisé) mixte »."),
+                                       "Paramètres du bouton « Modèle (généralisé) mixte ». Le bouton « Modèle linéaire mixte (LMM) » n'en lit que le moteur et la structure d'effets aléatoires."),
                                    shiny::fluidRow(
                                      shiny::column(6,
                                             shiny::selectInput(ns("glmmEngine"), "Moteur :",
@@ -121,7 +121,11 @@ mod_tests_ui <- function(id) {
                                    shiny::actionButton(ns("testMANOVA"),"MANOVA (>= 2 réponses)",     class = "btn-success btn-block", icon = shiny::icon("layer-group")),
                                    shiny::actionButton(ns("testLM"),   "Régression linéaire",          class = "btn-success btn-block", icon = shiny::icon("check")),
                                    shiny::actionButton(ns("testGLM"),  "Modèle linéaire généralisé",   class = "btn-success btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testLMM"),  "Modèle linéaire mixte (LMM)",  class = "btn-success btn-block", icon = shiny::icon("sitemap")),
                                    shiny::actionButton(ns("testGLMM"), "Modèle (généralisé) mixte",    class = "btn-success btn-block", icon = shiny::icon("sitemap")),
+                                   shiny::div(style = "font-size:11px;color:#7f8c8d;margin:-2px 0 4px 0;",
+                                       shiny::icon("circle-info"), " ",
+                                       shiny::HTML(tr("Le modèle linéaire mixte est la réponse gaussienne à lien identité : le bouton LMM impose les deux et ne lit ni la famille ni le lien. Le bouton « (généralisé) mixte » ouvre les autres familles — comptages, proportions, données strictement positives."))),
                                    shiny::actionButton(ns("testRMAnova"), "ANOVA à mesures répétées",   class = "btn-success btn-block", icon = shiny::icon("repeat"))
                                ),
                                # --- CHI-DEUX D'ADEQUATION ------------------------------------
@@ -805,9 +809,6 @@ mod_posthoc_ui <- function(id) {
                             shiny::checkboxInput(ns("multiProtege"),
                                           "Post-hoc protégé : n'attribuer des lettres que si le test global est significatif",
                                           value = TRUE),
-                            shiny::div(style = "font-size:11px;color:#7f8c8d;margin-top:-6px;margin-bottom:8px;",
-                                shiny::icon("shield-halved"),
-                                shiny::HTML(" Sans différence globale, toutes les modalités reçoivent la même lettre. Mesuré sur un essai à ANOVA non significative : LSD, Duncan, REGW et Waller-Duncan séparent quand même — quatre méthodes sur sept ; Tukey, SNK, Scheffé et Bonferroni ne séparent pas, et leur désaccord avec le test global est rare mais légitime. Games-Howell est jugé sur l'ANOVA de Welch, sa vraie référence, et non sur l'ANOVA classique. Décochez pour voir les comparaisons par paires malgré tout.")),
                             shiny::selectInput(ns("multiParamAdjust"),
                                         shiny::tagList(shiny::icon("sliders-h"), " Ajustement des p-values (homogénéisation des groupes)"),
                                         choices = c("Holm" = "holm", "Bonferroni" = "bonferroni",
@@ -3595,7 +3596,15 @@ mod_tests_server <- function(id, values) {
   })
   
   # --- Modele lineaire (generalise) mixte : lme4 ou glmmTMB ---
-  shiny::observeEvent(input$testGLMM, {
+  # UN SEUL AJUSTEMENT, DEUX PORTES. Le modele LINEAIRE mixte n'est pas un
+  # autre modele : c'est le mixte a reponse gaussienne et lien identite. Le
+  # dupliquer ferait diverger deux copies a la premiere correction -- meme
+  # raison que pour les deux tests t, ou `.run_ttest(var_equal)` porte les deux.
+  #
+  # Ce que le drapeau change : la famille et le lien sont IMPOSES, ils ne sont
+  # plus lus. Un LMM a lien logarithmique n'existe pas, et laisser le selecteur
+  # agir donnerait un modele qui ne serait plus celui que le bouton nomme.
+  .run_mixed <- function(lineaire = FALSE) {
     shiny::req(input$responseVar, input$factorVar)
     
     df <- values$filteredData %||% values$cleanData %||% values$data
@@ -3619,8 +3628,8 @@ mod_tests_server <- function(id, values) {
     }
     
     engine <- input$glmmEngine %||% "lme4"
-    fam    <- input$glmmFamily %||% "gaussian"
-    link   <- input$glmmLink   %||% "auto"
+    fam    <- if (isTRUE(lineaire)) "gaussian" else (input$glmmFamily %||% "gaussian")
+    link   <- if (isTRUE(lineaire)) "auto"     else (input$glmmLink   %||% "auto")
     
     # Verifier la disponibilite du moteur demande.
     if (engine == "lme4" && !requireNamespace("lme4", quietly = TRUE)) {
@@ -3798,18 +3807,25 @@ mod_tests_server <- function(id, values) {
           }
           values$currentTestType <- "parametric"
           shiny::showNotification(
-            trf("Modèle mixte ajusté (%s, famille %s) sur %d variable(s).",
-                    engine, fam, length(model_list)),
+            if (isTRUE(lineaire))
+              trf("Modèle linéaire mixte ajusté (%s) sur %d variable(s).",
+                      engine, length(model_list))
+            else
+              trf("Modèle mixte ajusté (%s, famille %s) sur %d variable(s).",
+                      engine, fam, length(model_list)),
             type = "message", duration = 5
           )
         } else {
-          shiny::showNotification("Aucun résultat GLMM généré.", type = "warning")
+          shiny::showNotification("Aucun résultat de modèle mixte généré.", type = "warning")
         }
       }, error = function(e) {
         shiny::showNotification(hstat_err_fr(e, "Erreur modèle mixte"), type = "error", duration = 8)
       })
     })
-  })
+  }
+
+  shiny::observeEvent(input$testGLMM, .run_mixed(lineaire = FALSE))
+  shiny::observeEvent(input$testLMM,  .run_mixed(lineaire = TRUE))
   
   
   #  ANOVA A MESURES REPETEES (parametrique) -- moteurs lmer (mixte) ou afex

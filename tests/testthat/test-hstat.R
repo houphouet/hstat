@@ -8023,6 +8023,92 @@ test_that("l'etiquette et le style de l'axe X passent par une seule echelle", {
   expect_true(grepl('attr(p, "hstat_x_styles")', txt, fixed = TRUE))
 })
 
+test_that("le bouton LMM impose la gaussienne, quels que soient les selecteurs", {
+  # UN MODELE LINEAIRE MIXTE EST LE MIXTE GAUSSIEN A LIEN IDENTITE. Il vivait
+  # derriere « Modèle (généralisé) mixte » : il fallait savoir que la famille
+  # par defaut le donnait, et un selecteur laisse sur « Poisson » d'une analyse
+  # precedente rendait autre chose sous le nom qu'on venait de demander.
+  #
+  # Le test porte donc sur ce que le bouton AJUSTE, pas sur sa presence : les
+  # selecteurs de famille et de lien sont poses a des valeurs FAUSSES pour un
+  # LMM, et le modele doit sortir gaussien a lien identite quand meme.
+  skip_if_not_installed("shinydashboard")
+  skip_if_not_installed("lme4")
+  set.seed(42)
+  bloc <- rep(paste0("B", 1:4), each = 15)
+  trt  <- rep(rep(c("T0", "T1", "T2", "T3", "T4"), each = 3), 4)
+  eb <- stats::setNames(stats::rnorm(4, 0, 1.5), paste0("B", 1:4))
+  et <- c(T0 = 0, T1 = 1.2, T2 = 2, T3 = 2.4, T4 = 0.6)
+  df <- data.frame(Bloc = bloc, Traitement = trt,
+                   Rendement = 5 + eb[bloc] + et[trt] + stats::rnorm(60, 0, 0.8),
+                   stringsAsFactors = FALSE)
+  suppressMessages(hstat_installer_replis_ui())
+  vals <- do.call(shiny::reactiveValues, hstat_valeurs_initiales())
+  vals$data <- df; vals$filteredData <- df
+
+  shiny::testServer(mod_tests_server, args = list(values = vals), {
+    session$setInputs(responseVar = "Rendement", factorVar = "Traitement",
+                      glmmEngine = "lme4",
+                      glmmFamily = "poisson",   # faux pour un LMM, exprès
+                      glmmLink   = "log",       # faux pour un LMM, exprès
+                      glmmRandom = "Bloc", glmmRandomCustom = "",
+                      interaction = FALSE)
+    session$setInputs(testLMM = 1)
+    r <- values$testResultsDF
+    expect_false(is.null(r))
+    expect_true(nrow(r) >= 2L)
+    # C'est la VALEUR qui est verifiee, pas le libelle : un modele de Poisson
+    # etiquete « LMM » passerait un controle qui ne lirait que la colonne Test.
+    m <- values$currentModel
+    expect_identical(stats::family(m)$family, "gaussian")
+    expect_identical(stats::family(m)$link, "identity")
+    # L'effet aleatoire demande est bien dans le modele ajuste.
+    expect_true(grepl("(1 | Bloc)", paste(deparse(stats::formula(m)), collapse = ""),
+                      fixed = TRUE))
+    expect_setequal(unique(r$Test), "LMM")
+    # lmerTest fournit des ddl de Satterthwaite : sans eux il n'y a pas de
+    # p-value, et une ligne de LMM sans p-value ne se lit pas.
+    skip_if_not_installed("lmerTest")
+    expect_true(any(is.finite(r$p_value)))
+    expect_true(any(is.finite(suppressWarnings(as.numeric(r$ddl)))))
+  })
+})
+
+test_that("les deux modeles mixtes partagent un seul ajustement", {
+  # Deux copies du meme ajustement divergeraient a la premiere correction --
+  # c'est la lecon des deux tests t, ou `.run_ttest(var_equal)` porte les deux.
+  root <- .hstat_repo_root(); skip_if(is.na(root))
+  chemin <- .hstat_module_path("mod_tests.R")
+  txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl(".run_mixed <- function(", txt, fixed = TRUE))
+  expect_true(grepl("input$testGLMM, .run_mixed(lineaire = FALSE)", txt, fixed = TRUE))
+  expect_true(grepl("input$testLMM,  .run_mixed(lineaire = TRUE)", txt, fixed = TRUE))
+  # Les deux boutons existent dans l'interface, et un seul appel a lmer y
+  # repond : un second `lme4::lmer(` hors de l'ANOVA a mesures repetees
+  # signalerait la copie que ce test existe pour empecher.
+  expect_true(grepl('ns("testLMM")', txt, fixed = TRUE))
+  expect_true(grepl('ns("testGLMM")', txt, fixed = TRUE))
+})
+
+test_that("la note du post-hoc protege a bien disparu de l'interface", {
+  # Retiree a la demande : elle tenait dix lignes sous une case a cocher, et
+  # detaillait un comportement (quelles methodes separent sous une ANOVA non
+  # significative) qui releve de la documentation, pas du panneau de reglages.
+  # La CASE, elle, reste : c'est elle qui protege les lettres.
+  chemin <- .hstat_module_path("mod_tests.R")
+  txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_false(grepl("Sans diff", txt, fixed = TRUE))
+  expect_false(grepl("Waller-Duncan s", txt, fixed = TRUE))
+  expect_true(grepl('ns("multiProtege")', txt, fixed = TRUE))
+  # Et sa cle quitte le dictionnaire avec elle : une entree qui ne peut plus
+  # rien traduire se lit comme une traduction manquante.
+  root <- .hstat_repo_root(); skip_if(is.na(root))
+  csv <- file.path(root, "inst", "app", "i18n", "fr-en.csv")
+  skip_if_not(file.exists(csv))
+  dico <- paste(readLines(csv, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_false(grepl("Waller-Duncan s", dico, fixed = TRUE))
+})
+
 test_that("le trait des axes ne s'impose ni ne s'efface", {
   # Decoche, le reglage ne doit RIEN poser : un theme qui trace ses axes de
   # lui-meme (« classique ») garde les siens, la ou un `element_blank()` les
