@@ -13097,3 +13097,98 @@ test_that("un niveau écarté des effets simples est nommé, pas escamoté", {
   expect_true(grepl('attr(res,"message")', code, fixed = TRUE))
   expect_true(grepl("showNotification(msg_ecartes", code, fixed = TRUE))
 })
+
+
+test_that("sans différence globale, les lettres ne classent pas les modalités", {
+  # SIGNALE A L'USAGE : l'ANOVA rend p > 0,05 -- « aucune différence » -- et le
+  # post-hoc classait pourtant les modalités en a, ab, b, c, bc... Les deux
+  # affirmations se contredisaient dans le même rapport.
+  #
+  # Mesure sur 300 jeux SANS effet réel dont l'ANOVA est non significative :
+  # les comparaisons NON AJUSTEES (le LSD de Fisher) séparent quand même dans
+  # 30 % des cas, Tukey dans 0 %. LSD et Duncan sont protégés par construction ;
+  # les autres contrôlent le risque eux-mêmes, et leur désaccord est légitime.
+  set.seed(5)
+  d <- data.frame(Traitement = rep(paste0("T", 1:6), each = 5),
+                  Rendement = stats::rnorm(30, 50, 10), stringsAsFactors = FALSE)
+  o <- hstat_omnibus(d, "Rendement", "Traitement", parametric = TRUE)
+  expect_equal(o$test, "ANOVA")
+  expect_gt(o$p, 0.05)                       # non significatif, par construction
+  # Le chiffre est celui de R, pas une approximation maison.
+  expect_equal(o$p, summary(stats::aov(Rendement ~ factor(Traitement), d))[[1]][["Pr(>F)"]][1])
+
+  k <- hstat_omnibus(d, "Rendement", "Traitement", parametric = FALSE)
+  expect_equal(k$test, "Kruskal-Wallis")
+  expect_equal(k$p, stats::kruskal.test(Rendement ~ factor(Traitement), d)$p.value)
+
+  # Les cas dégénérés refusent en NOMMANT la cause, ils ne lèvent pas.
+  vide <- hstat_omnibus(data.frame(y = 1:5, g = "A"), "y", "g")
+  expect_true(is.na(vide$p))
+  expect_true(grepl("deux groupes", vide$message))
+  expect_true(is.na(hstat_omnibus(d, "absente", "Traitement")$p))
+  expect_true(is.na(hstat_omnibus(data.frame(), "y", "g")$p))
+
+  # LA PROTECTION : sans différence globale, une seule lettre pour tous.
+  l <- c(A = "a", B = "b", C = "c")
+  ns <- hstat_cld_proteger(l, 0.30, test = "ANOVA")
+  expect_equal(as.character(ns), rep("a", 3))
+  expect_true(attr(ns, "protege"))
+  expect_true(grepl("0.3", attr(ns, "message"), fixed = TRUE))
+  # ...et avec différence globale, les lettres passent intactes.
+  s <- hstat_cld_proteger(l, 0.01, test = "ANOVA")
+  expect_equal(as.character(s), c("a", "b", "c"))
+  expect_false(attr(s, "protege"))
+  # `NA` N'EST PAS « NON SIGNIFICATIF ». Un test global incalculable ne prouve
+  # rien : on laisse les lettres et on le dit.
+  na <- hstat_cld_proteger(l, NA_real_, test = "ANOVA")
+  expect_equal(as.character(na), c("a", "b", "c"))
+  expect_false(attr(na, "protege"))
+  expect_true(grepl("non calculable", attr(na, "message")))
+})
+
+test_that("le post-hoc Bonferroni produit des lettres au lieu de lever", {
+  skip_if_not_installed("emmeans")
+  skip_if_not_installed("multcompView")
+  skip_if_not_installed("shinydashboard")
+  skip_if_not_installed("DT")
+  suppressMessages(hstat_installer_replis_ui())
+  # IL N'A JAMAIS FONCTIONNE. `summary(pairs(emm))$p.value` est un VECTEUR --
+  # une p-value par contraste --, pas une matrice. `as.matrix()` en faisait un
+  # tableau n x 1 sans noms : la garde `is.null(dim(pmat))` ne se declenchait
+  # jamais, `diag(pmat) <- 1` ecrasait la premiere case, et `multcompLetters`
+  # levait « Names required for pmat ». Reproduit au navigateur.
+  set.seed(5)
+  d <- data.frame(Traitement = rep(paste0("T", 1:6), each = 5),
+                  Rendement = stats::rnorm(30, 50, 10), stringsAsFactors = FALSE)
+
+  lettres <- function(protege) {
+    v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d,
+                               aiHistory = list())
+    out <- NULL
+    shiny::testServer(mod_tests_server, args = list(values = v), {
+      vider <- function() try(session$flushReact(), silent = TRUE)
+      session$setInputs(multiResponse = "Rendement", multiFactor = "Traitement",
+                        testType = "param", multiTest = "bonferroni",
+                        multiParamAdjust = "none", multiProtege = protege,
+                        posthocInteraction = FALSE, multiRoundResults = TRUE,
+                        multiDecimals = 2); vider()
+      session$setInputs(runMultiple = 1); vider()
+      out <<- values$multiResultsMain
+    })
+    out
+  }
+
+  libre <- lettres(FALSE)
+  expect_false(is.null(libre))               # avant : NULL, l'analyse levait
+  expect_equal(nrow(libre), 6L)
+  # Non protégé, les comparaisons non ajustées séparent : c'est le défaut signalé.
+  expect_gt(length(unique(libre$groups)), 1L)
+  # LE TEST GLOBAL VOYAGE AVEC LES LETTRES : le lire dans un autre onglet est
+  # ce qui rendait la contradiction invisible.
+  expect_equal(libre$Test_global[1], "ANOVA")
+  expect_gt(libre$p_global[1], 0.05)
+
+  protege <- lettres(TRUE)
+  expect_false(is.null(protege))
+  expect_equal(length(unique(protege$groups)), 1L)
+})

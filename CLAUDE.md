@@ -1939,6 +1939,57 @@ tests porte réellement la correction. **Et le module l'affiche** : une alerte
 que personne ne lit ne vaut rien — c'est la moitié du travail que le dépôt a
 déjà oubliée ailleurs (le message de repli de `hstat_report_render()`).
 
+## Le test global d'abord : un post-hoc n'est pas un test indépendant
+
+Signalé à l'usage. L'ANOVA rend p > 0,05 — « aucune différence » — et le
+post-hoc classe pourtant les modalités en **a, ab, b, c, bc, d…** Les deux
+affirmations se contredisent dans le même rapport.
+
+**La cause dépend de la méthode, et il faut la nommer plutôt que tout aplatir :**
+
+| Méthode | Contrôle du risque | Verdict |
+|---|---|---|
+| **LSD (Fisher)**, **Duncan** | aucun — protégées *par construction* | leur emploi sans F significatif gonfle le risque : c'est une faute |
+| **Tukey**, **Bonferroni**, **Games-Howell**, **REGW** | intégré | un désaccord avec le test global est **rare mais légitime** — deux tests différents, deux puissances |
+| **Scheffé** | intégré | ne *peut pas* séparer quand F ne l'est pas |
+
+Mesuré sur 300 jeux **sans effet réel** dont l'ANOVA est non significative : les
+comparaisons non ajustées (le LSD) séparent quand même dans **30 %** des cas,
+Tukey dans **0 %**.
+
+D'où le choix : la protection est le **défaut** — c'est la convention
+agronomique, et c'est ce que l'utilisateur attend en lisant ses lettres — mais
+elle **se décoche**, parce qu'un désaccord Tukey/ANOVA est un fait, pas un
+défaut.
+
+**Et dans les deux cas le test global est affiché à côté des lettres**
+(colonnes `Test_global` et `p_global`). Le lire dans un autre onglet est
+précisément ce qui rendait la contradiction invisible : on publiait des lettres
+sans savoir si l'analyse d'ensemble les autorisait.
+
+`NA` n'est **pas** traité comme « non significatif » : un test global
+incalculable ne prouve rien, ni dans un sens ni dans l'autre. On laisse alors
+les lettres, et on le dit — la règle du dépôt, ne jamais brancher sur une
+statistique non calculable.
+
+### Le post-hoc Bonferroni n'avait jamais fonctionné
+
+Trouvé en reproduisant le défaut ci-dessus **au navigateur** : l'application
+affichait « L'analyse a échoué […] Names required for ».
+
+`summary(pairs(emm))$p.value` est un **vecteur** — une p-value par contraste —,
+pas une matrice. `as.matrix()` en faisait un tableau *n* × 1 sans noms, si bien
+que :
+
+- la garde `is.null(dim(pmat))` ne se déclenchait **jamais** ;
+- `diag(pmat) <- 1` écrasait la première case ;
+- `multcompLetters` levait « Names required for pmat ».
+
+La matrice se construit donc depuis les **étiquettes de contraste**
+(« T1 - T2 ») rapprochées des niveaux connus, par `hstat_pmat_comparaisons()` —
+la même porte que les lettres CLD, donc immunisée contre les noms à tiret. Ce
+qui n'a pas pu être rattaché est nommé à l'écran.
+
 ## Doses et dilutions : chaque résultat porte sa formule
 
 `mod_dosage.R` refait les trois calculs qu'un essai phytosanitaire pose sur un

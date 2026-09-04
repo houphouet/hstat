@@ -2467,6 +2467,94 @@ permdisp_per_factor <- function(Y, df, factors, dist_method = "euclidean") {
 }
 
 
+# LE TEST GLOBAL D'ABORD : un post-hoc n'est pas un test independant.
+#
+# Signale a l'usage : l'ANOVA rend p > 0,05 -- « aucune difference » -- et le
+# post-hoc classe pourtant les modalites en a, ab, b, c, bc... Les deux
+# affirmations se contredisent dans le meme rapport.
+#
+# LA CAUSE DEPEND DE LA METHODE, et il faut la nommer plutot que de tout
+# aplatir :
+#
+#  - LSD (Fisher) et Duncan sont des procedures PROTEGEES par construction :
+#    elles ne controlent PAS le risque de premiere espece par elles-memes, et
+#    leur emploi classique suppose un F significatif. Les employer sans cette
+#    protection gonfle le risque. Mesure sur 300 jeux SANS effet reel dont
+#    l'ANOVA est non significative : les comparaisons non ajustees separent
+#    quand meme dans 30 % des cas, Tukey dans 0 %.
+#  - Tukey, Scheffe, Bonferroni, Games-Howell, REGW controlent le risque
+#    eux-memes. Leur desaccord avec le test global est RARE mais legitime :
+#    ce sont deux tests differents, de puissances differentes. Scheffe est
+#    meme mathematiquement incapable de separer quand F ne l'est pas.
+#
+# D'ou le choix retenu : la protection est le DEFAUT -- c'est la convention
+# agronomique, et c'est ce que l'utilisateur attend en lisant ses lettres --
+# mais elle se decoche, parce qu'un desaccord Tukey/ANOVA est un fait, pas un
+# defaut. Et dans les deux cas le test global est AFFICHE a cote des lettres :
+# le lire dans un autre onglet est ce qui rendait la contradiction invisible.
+hstat_omnibus <- function(df, var, fvar, parametric = TRUE) {
+  vide <- list(p = NA_real_, test = NA_character_, statistique = NA_real_,
+               ddl = NA_character_, message = NULL)
+  if (!is.data.frame(df) || !NROW(df)) return(vide)
+  if (!all(c(var, fvar) %in% names(df))) return(vide)
+  y <- suppressWarnings(as.numeric(df[[var]]))
+  g <- droplevels(factor(as.character(df[[fvar]])))
+  ok <- is.finite(y) & !is.na(g)
+  y <- y[ok]; g <- droplevels(g[ok])
+  if (nlevels(g) < 2 || length(y) < 3) {
+    vide$message <- tr("Test global non calculable : moins de deux groupes exploitables.")
+    return(vide)
+  }
+  if (isTRUE(parametric)) {
+    r <- tryCatch({
+      s <- summary(stats::aov(y ~ g))[[1]]
+      list(p = s[["Pr(>F)"]][1], test = "ANOVA", statistique = s[["F value"]][1],
+           ddl = paste(s[["Df"]][1], ",", s[["Df"]][2]), message = NULL)
+    }, error = function(e) NULL)
+  } else {
+    r <- tryCatch({
+      k <- stats::kruskal.test(y ~ g)
+      list(p = unname(k$p.value), test = "Kruskal-Wallis",
+           statistique = unname(k$statistic), ddl = as.character(unname(k$parameter)),
+           message = NULL)
+    }, error = function(e) NULL)
+  }
+  if (is.null(r) || !isTRUE(is.finite(r$p))) {
+    vide$message <- tr("Test global non calculable sur ces données.")
+    return(vide)
+  }
+  r
+}
+
+# Applique la protection : sans test global significatif, TOUTES les modalites
+# partagent la meme lettre.
+#
+# `NA` n'est PAS traite comme « non significatif » : un test global
+# incalculable ne prouve rien, ni dans un sens ni dans l'autre. On laisse alors
+# les lettres et on le dit -- la regle du depot, ne jamais brancher sur une
+# statistique non calculable.
+hstat_cld_proteger <- function(lettres, p_omnibus, seuil = 0.05,
+                               test = NULL) {
+  lettres <- as.character(lettres)
+  if (!length(lettres)) return(lettres)
+  if (!isTRUE(is.finite(p_omnibus))) {
+    attr(lettres, "protege") <- FALSE
+    attr(lettres, "message") <- tr("Test global non calculable : les lettres sont laissées telles quelles.")
+    return(lettres)
+  }
+  if (p_omnibus <= seuil) {
+    attr(lettres, "protege") <- FALSE
+    return(lettres)
+  }
+  aplat <- rep("a", length(lettres))
+  names(aplat) <- names(lettres)
+  attr(aplat, "protege") <- TRUE
+  attr(aplat, "message") <- trf(
+    "%s non significatif (p = %s) : aucune différence entre modalités, toutes reçoivent la même lettre. Décochez « post-hoc protégé » pour voir les comparaisons par paires malgré tout.",
+    test %||% tr("Test global"), format(signif(p_omnibus, 4), scientific = FALSE))
+  aplat
+}
+
 # UNE ETIQUETTE DE COMPARAISON NE SE DECOUPE PAS SUR SON SEPARATEUR.
 #
 # `TukeyHSD` nomme ses lignes « B-A », `FSA::dunnTest` « A - B ». Decouper sur
