@@ -490,7 +490,7 @@ hstat_valeurs_initiales <- function() {
     allTestResults = list(), allPostHocResults = list(), modelsList = list(),
     normalityResultsPerVar = list(), homogeneityResultsPerVar = list(),
     currentDiagVar = 1, currentResidVar = 1,
-    customXOrder = NULL, posthocXLabels = NULL,
+    customXOrder = NULL, posthocXLabels = NULL, posthocXStyles = NULL,
     y2Vars = NULL, dualAxisActive = FALSE,
     y2VarsActive = NULL, y2RangeForAxis = NULL, y2UnifiedColorMap = NULL,
     postHocSyncTrigger = NULL,
@@ -7342,6 +7342,34 @@ hstat_export_dims <- function(width_px, height_px, dpi,
 # plotly comprend un sous-ensemble de HTML ; le texte est echappe avant d'y
 # entrer, sinon un « & » ou un « < » dans un nom de traitement casserait la
 # balise.
+# Styles par NIVEAU de l'axe X (gras, italique, gras + italique). Le style se
+# pose en PLOTMATH -- `bold()`, `italic()`, `bolditalic()` --, la seule forme
+# que ggsave sait rendre dans un fichier. La conversion interactive, elle,
+# DEPARSE le plotmath (l'axe afficherait `bold("2SP(0,5)&2PV")` en toutes
+# lettres) : le rendu plotly reprend les memes styles en HTML par
+# `hstat_html_style_label()`. Les deux chemins lisent la meme table de styles,
+# ils ne peuvent donc pas diverger.
+#
+# « plain » reste une CHAINE et non `bquote(plain(.(lab)))` : plotmath rendrait
+# le texte dans sa police mathematique, ou l'espace disparait et la parenthese
+# se decale -- un nom de traitement en ressortirait deforme alors que
+# l'utilisateur n'a demande aucun style.
+hstat_etiquettes_x_style <- function(etiquettes, styles = "plain") {
+  etiquettes <- as.character(etiquettes)
+  if (!length(etiquettes)) return(list())
+  styles <- rep_len(as.character(styles %||% "plain"), length(etiquettes))
+  styles[is.na(styles)] <- "plain"
+  lapply(seq_along(etiquettes), function(i) {
+    lab <- etiquettes[i]
+    switch(styles[i],
+           "bold"        = bquote(bold(.(lab))),
+           "italic"      = bquote(italic(.(lab))),
+           "bolditalic"  = bquote(bolditalic(.(lab))),
+           "bold.italic" = bquote(bolditalic(.(lab))),
+           lab)
+  })
+}
+
 hstat_html_style_label <- function(x, style = "plain") {
   x <- as.character(x)
   style <- rep_len(as.character(style %||% "plain"), length(x))
@@ -7352,6 +7380,7 @@ hstat_html_style_label <- function(x, style = "plain") {
            "bold"       = paste0("<b>", s, "</b>"),
            "italic"     = paste0("<i>", s, "</i>"),
            "bolditalic" = paste0("<b><i>", s, "</i></b>"),
+           "bold.italic" = paste0("<b><i>", s, "</i></b>"),
            s)
   }, character(1))
 }
