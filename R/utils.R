@@ -1579,47 +1579,98 @@ HSTAT_PLOT_EXTRAS <- c("PoliceBase", "AxisLine", "AxisLineCouleur",
                        "AxisLineEpaisseur", "LegendeCles",
                        "MargeHaut", "MargeBas", "MargeGauche", "MargeDroite")
 
-hstat_plot_extras_ui <- function(ns, prefix) {
+# LE KIT SE PREND PAR FAMILLE, PAS EN BLOC. Trois modules portaient deja une
+# partie de ce vocabulaire, ecrite a la main et gardee par des tests : les
+# comparaisons post-hoc ont le trait des axes et la taille des cles, les seuils
+# d'efficacite le trait des axes, la DL50 sa taille de police de base. Leur
+# poser le kit entier declarerait DEUX fois le meme reglage -- et c'est le
+# second, invisible, qui finirait par mentir : l'utilisateur en changerait un
+# pendant que le graphique lirait l'autre.
+#
+# Un module prend donc les familles qui lui MANQUENT, et rien de plus. Ce qu'il
+# ne declare pas n'est ni lu ni applique : le kit ne peut pas ecraser un
+# reglage qu'un module tient deja.
+HSTAT_PLOT_EXTRAS_FAMILLES <- c("police", "axe", "cles", "marges")
+
+# La correspondance famille -> reglages n'est ecrite qu'ici ; le test la relit
+# plutot que de la recopier.
+HSTAT_PLOT_EXTRAS_PAR_FAMILLE <- list(
+  police = "PoliceBase",
+  axe    = c("AxisLine", "AxisLineCouleur", "AxisLineEpaisseur"),
+  cles   = "LegendeCles",
+  marges = c("MargeHaut", "MargeBas", "MargeGauche", "MargeDroite"))
+
+# Le titre de la carte ne nomme AUCUNE des familles : il doit rester vrai quel
+# que soit le sous-ensemble retenu. « Cadre, marges et police » annoncerait
+# deux reglages absents dans un module qui ne prend que les marges -- le defaut
+# meme que ce depot traque, un libelle qui promet ce que la carte ne porte pas.
+hstat_plot_extras_ui <- function(ns, prefix,
+                                 familles = HSTAT_PLOT_EXTRAS_FAMILLES) {
+  familles <- intersect(as.character(familles), HSTAT_PLOT_EXTRAS_FAMILLES)
+  if (!length(familles)) return(NULL)
   id <- function(x) ns(paste0(prefix, x))
-  .hstat_opt_section(
-    "Cadre, marges et police", "vector-square", "#5d6d7e", "#eef2f5",
-    # LA POLICE DE BASE EST CELLE DU THEME, pas un reglage de plus. Les tailles
-    # nommees (titre, graduations) s'en detachent ; tout ce qui n'est pas nomme
-    # -- les etiquettes de facette, le texte des couches -- la suit.
-    shiny::sliderInput(id("PoliceBase"), "Taille de police de base",
-                       min = 6, max = 24, value = 11, step = 1, ticks = FALSE),
-    # Decoche, le reglage ne pose RIEN : un theme qui trace ses axes de lui-meme
-    # (« classique ») garde les siens, la ou un `element_blank()` les effacerait.
-    shiny::checkboxInput(id("AxisLine"), "Tracer les axes X et Y", value = FALSE),
-    shiny::conditionalPanel(
-      ns = ns, condition = sprintf("input.%sAxisLine == true", prefix),
+  els <- list()
+
+  # LA POLICE DE BASE EST CELLE DU THEME, pas un reglage de plus. Les tailles
+  # nommees (titre, graduations) s'en detachent ; tout ce qui n'est pas nomme
+  # -- les etiquettes de facette, le texte des couches -- la suit.
+  if ("police" %in% familles)
+    els <- c(els, list(
+      shiny::sliderInput(id("PoliceBase"), "Taille de police de base",
+                         min = 6, max = 24, value = 11, step = 1, ticks = FALSE)))
+
+  # Decoche, le reglage ne pose RIEN : un theme qui trace ses axes de lui-meme
+  # (« classique ») garde les siens, la ou un `element_blank()` les effacerait.
+  if ("axe" %in% familles)
+    els <- c(els, list(
+      shiny::checkboxInput(id("AxisLine"), "Tracer les axes X et Y", value = FALSE),
+      shiny::conditionalPanel(
+        ns = ns, condition = sprintf("input.%sAxisLine == true", prefix),
+        shiny::fluidRow(
+          shiny::column(6, colourInput(id("AxisLineCouleur"), "Couleur des axes",
+                                       value = "#000000")),
+          shiny::column(6, shiny::sliderInput(id("AxisLineEpaisseur"),
+                                              "Épaisseur des axes",
+                                              min = 0.1, max = 3, value = 1,
+                                              step = 0.1, ticks = FALSE))))))
+
+  if ("cles" %in% familles)
+    els <- c(els, list(
+      shiny::sliderInput(id("LegendeCles"), "Taille des clés de légende",
+                         min = 0.4, max = 3, value = 1.2, step = 0.1,
+                         ticks = FALSE)))
+
+  if ("marges" %in% familles)
+    els <- c(els, list(
       shiny::fluidRow(
-        shiny::column(6, colourInput(id("AxisLineCouleur"), "Couleur des axes",
-                                     value = "#000000")),
-        shiny::column(6, shiny::sliderInput(id("AxisLineEpaisseur"),
-                                            "Épaisseur des axes",
-                                            min = 0.1, max = 3, value = 1,
-                                            step = 0.1, ticks = FALSE)))),
-    shiny::sliderInput(id("LegendeCles"), "Taille des clés de légende",
-                       min = 0.4, max = 3, value = 1.2, step = 0.1, ticks = FALSE),
-    shiny::fluidRow(
-      shiny::column(6, shiny::numericInput(id("MargeHaut"), "Marge haut (pt)",
-                                           value = 5, min = 0, step = 1)),
-      shiny::column(6, shiny::numericInput(id("MargeBas"), "Marge bas (pt)",
-                                           value = 5, min = 0, step = 1))),
-    shiny::fluidRow(
-      shiny::column(6, shiny::numericInput(id("MargeGauche"), "Marge gauche (pt)",
-                                           value = 5, min = 0, step = 1)),
-      shiny::column(6, shiny::numericInput(id("MargeDroite"), "Marge droite (pt)",
-                                           value = 5, min = 0, step = 1))),
-    shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
-                      "Les marges se comptent en points, comme les tailles de texte."))
+        shiny::column(6, shiny::numericInput(id("MargeHaut"), "Marge haut (pt)",
+                                             value = 5, min = 0, step = 1)),
+        shiny::column(6, shiny::numericInput(id("MargeBas"), "Marge bas (pt)",
+                                             value = 5, min = 0, step = 1))),
+      shiny::fluidRow(
+        shiny::column(6, shiny::numericInput(id("MargeGauche"), "Marge gauche (pt)",
+                                             value = 5, min = 0, step = 1)),
+        shiny::column(6, shiny::numericInput(id("MargeDroite"), "Marge droite (pt)",
+                                             value = 5, min = 0, step = 1))),
+      shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                        "Les marges se comptent en points, comme les tailles de texte.")))
+
+  do.call(.hstat_opt_section,
+          c(list("Mise en forme générale", "vector-square", "#5d6d7e", "#eef2f5"),
+            els))
 }
 
 # La lecture rend une liste NOMMEE, jamais les entrees une par une : un module
 # qui en oublierait une la laisserait sans effet, et c'est precisement le defaut
 # — « declare, lu, mais jamais utilise » — que le depot traque ailleurs.
-hstat_plot_extras_lire <- function(input, prefix) {
+#
+# `familles` voyage AVEC la liste : c'est ce qui permet a l'application de
+# n'agir que sur ce que le module a reellement declare. Le deduire de la
+# nullite des entrees ne marcherait pas -- un reglage declare vaut `NULL` tant
+# que le navigateur n'a pas repondu, et le premier trace sortirait sans marges.
+hstat_plot_extras_lire <- function(input, prefix,
+                                   familles = HSTAT_PLOT_EXTRAS_FAMILLES) {
+  familles <- intersect(as.character(familles), HSTAT_PLOT_EXTRAS_FAMILLES)
   g <- function(x, defaut) {
     v <- input[[paste0(prefix, x)]]
     if (is.null(v) || (length(v) == 1L && is.na(v))) defaut else v
@@ -1628,7 +1679,8 @@ hstat_plot_extras_lire <- function(input, prefix) {
     v <- suppressWarnings(as.numeric(g(x, defaut))[1])
     if (!isTRUE(is.finite(v))) defaut else v
   }
-  list(police   = n("PoliceBase", 11),
+  list(familles = familles,
+       police   = n("PoliceBase", 11),
        axe      = isTRUE(g("AxisLine", FALSE)),
        axe_col  = as.character(g("AxisLineCouleur", "#000000"))[1],
        axe_ep   = n("AxisLineEpaisseur", 1),
@@ -1642,13 +1694,19 @@ hstat_plot_extras_lire <- function(input, prefix) {
 # toucherait que ce que le theme a deja fixe. Le module la lit donc dans la
 # liste et la passe a son theme -- c'est ce qui la rend REELLEMENT employee.
 hstat_plot_extras_theme <- function(o) {
-  m <- o$marges
-  th <- ggplot2::theme(
-    legend.key.height = ggplot2::unit(o$cles, "lines"),
-    legend.key.width  = ggplot2::unit(o$cles * 1.25, "lines"),
-    plot.margin = ggplot2::margin(t = m[["haut"]], r = m[["droite"]],
-                                  b = m[["bas"]], l = m[["gauche"]], unit = "pt"))
-  if (!isTRUE(o$axe)) return(th)
+  f  <- as.character(o$familles %||% HSTAT_PLOT_EXTRAS_FAMILLES)
+  th <- ggplot2::theme()
+  if ("cles" %in% f)
+    th <- th + ggplot2::theme(
+      legend.key.height = ggplot2::unit(o$cles, "lines"),
+      legend.key.width  = ggplot2::unit(o$cles * 1.25, "lines"))
+  if ("marges" %in% f) {
+    m  <- o$marges
+    th <- th + ggplot2::theme(
+      plot.margin = ggplot2::margin(t = m[["haut"]], r = m[["droite"]],
+                                    b = m[["bas"]], l = m[["gauche"]], unit = "pt"))
+  }
+  if (!("axe" %in% f) || !isTRUE(o$axe)) return(th)
   th + ggplot2::theme(
     axis.line   = ggplot2::element_line(colour = o$axe_col, linewidth = o$axe_ep),
     axis.line.x = ggplot2::element_line(colour = o$axe_col, linewidth = o$axe_ep),
@@ -6918,7 +6976,14 @@ hstat_plot_opts_ui <- function(ns, prefix) {
       shiny::column(4, shiny::numericInput(ns(paste0(prefix, "Lwd")), "Épaisseur des lignes",
                              value = 0.9, min = 0.2, max = 4, step = 0.1)),
       shiny::column(4, shiny::numericInput(ns(paste0(prefix, "Rot")), "Rotation des labels X (°)",
-                             value = 0, min = 0, max = 90, step = 15)))
+                             value = 0, min = 0, max = 90, step = 15))),
+    # UNE CORRECTION FAITE ICI PROFITE AUX TROIS MODULES qui passent par ce kit
+    # (apprentissage, apprentissage profond, series temporelles) : le trait des
+    # axes, la taille des cles et les quatre marges leur arrivent sans qu'aucun
+    # des trois ait une ligne a ecrire. La taille du texte, elle, est deja
+    # au-dessus (`<prefixe>Base`) -- la declarer deux fois donnerait deux
+    # reglages pour une meme grandeur, dont un seul agirait.
+    hstat_plot_extras_ui(ns, prefix, familles = c("axe", "cles", "marges"))
   )
 }
 
@@ -6941,10 +7006,13 @@ hstat_apply_plot_opts <- function(g, input, prefix) {
   if (!is.null(lab("Xlab")))  g <- g + ggplot2::labs(x = lab("Xlab"))
   if (!is.null(lab("Ylab")))  g <- g + ggplot2::labs(y = lab("Ylab"))
   rot <- hstat_finite(input[[paste0(prefix, "Rot")]], 0)
-  g + ggplot2::theme(
+  g <- g + ggplot2::theme(
     legend.position = input[[paste0(prefix, "Legend")]] %||% "right",
     axis.text.x = ggplot2::element_text(angle = rot,
                                         hjust = if (rot > 0) 1 else 0.5))
+  # LE KIT SE POSE EN DERNIER : un theme complet remplace tout ce qui precede.
+  g + hstat_plot_extras_theme(
+    hstat_plot_extras_lire(input, prefix, familles = c("axe", "cles", "marges")))
 }
 
 hstat_plot_opt <- function(input, prefix, what, default) {

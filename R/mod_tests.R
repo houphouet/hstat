@@ -1376,6 +1376,12 @@ mod_posthoc_ui <- function(id) {
                           shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
                                      "La légende n'apparaît qu'avec « Colorer par groupes statistiques ».")
                         ),
+                        # Le post-hoc porte DEJA le trait des axes et la taille
+                        # des cles : il ne prend du kit que ce qui lui manque.
+                        # Les declarer deux fois donnerait deux reglages pour un
+                        # meme trait, dont un seul agirait.
+                        hstat_plot_extras_ui(ns, "posthoc",
+                                             familles = c("police", "marges")),
                         .hstat_opt_section(
                           "Taille du fichier exporté", "download", "#2c3e50", "#eef1f4",
                           shiny::fluidRow(
@@ -2112,10 +2118,12 @@ mod_tests_server <- function(id, values) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-  # Theme ggplot2 (utilise par les graphiques du Chi2). viz_get_theme est global.
-  get_plot_theme <- function(base_size = 12) {
-    viz_get_theme(input$plotTheme %||% "minimal", base_size = base_size)
-  }
+  # `get_plot_theme()` vivait ici. Son nom n'apparaissait qu'UNE fois dans tout
+  # le depot -- sa propre definition : le critere du code mort. Elle lisait de
+  # surcroit `input$plotTheme`, qu'aucune interface ne declare, si bien qu'elle
+  # aurait rendu « minimal » quoi que l'utilisateur choisisse. Le risque n'est
+  # pas le poids, c'est de corriger la copie morte en croyant corriger le
+  # graphique.
 
   output$responseVarSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
@@ -8148,6 +8156,8 @@ mod_tests_server <- function(id, values) {
     axis_line_color  <- input$axisLineColor %||% "#000000"
     axis_line_width  <- input$axisLineWidth %||% 1
     axis_ticks_marks <- isTRUE(input$axisTicksMarks)
+    extras <- hstat_plot_extras_lire(input, "posthoc",
+                                     familles = c("police", "marges"))
     graph_value_font_style <- input$graphValueFontStyle
     legend_title_font_style <- input$legendTitleFontStyle
     legend_text_font_style <- input$legendTextFontStyle
@@ -8287,7 +8297,8 @@ mod_tests_server <- function(id, values) {
     
     # Theme de base choisi par l'utilisateur (viz_get_theme est le meme helper
     # que le module de visualisation : un theme ajoute la profite aux deux).
-    base_theme <- viz_get_theme(input$posthocTheme %||% "minimal", base_size = 11) +
+    base_theme <- viz_get_theme(input$posthocTheme %||% "minimal",
+                                 base_size = extras$police) +
       ggplot2::theme(
         plot.title = ggtext::element_markdown(
           size = title_size, 
@@ -8683,6 +8694,10 @@ mod_tests_server <- function(id, values) {
       }
       
       if (!is.null(p)) {
+        # LE KIT SE POSE EN DERNIER : un theme complet remplace tout ce qui
+        # precede, si bien que pose avant celui du module il serait efface
+        # sans un mot.
+        p <- p + hstat_plot_extras_theme(extras)
         # Le plotmath ne survit pas a `ggplotly` : le rendu interactif rejoue
         # les memes styles en HTML. Les niveaux et leurs styles voyagent donc
         # AVEC la figure, en attributs -- un detour par `values` ferait

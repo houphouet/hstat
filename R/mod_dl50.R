@@ -1859,6 +1859,10 @@ HSTAT_DL50_OPT_DEFAUT <- list(
   repere_couleur = "#6b7280", repere_type = "dotted", repere_epaisseur = 0.5,
   repere_etiquette = TRUE,
   theme = "minimal", base_size = 12, palette = "Set1",
+  # Le kit de mise en forme partage. Vide, il ne pose RIEN : un appel
+  # programmatique de `hstat_dl50_graphique(fits)` rend exactement la meme
+  # figure qu'avant, ce qui est la condition pour l'ajouter sans rien casser.
+  extras = list(),
   couleur = "#2e86c1", grille = TRUE, axe2 = TRUE,
   x_min = NA_real_, x_max = NA_real_, y_min = NA_real_, y_max = NA_real_)
 
@@ -2132,6 +2136,9 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
       pal <- HSTAT_DL50_OPT_DEFAUT$palette
     for (sc in hstat_scales_palette(pal)) p <- p + sc
   }
+  # LE KIT SE POSE EN DERNIER parmi les themes : un theme complet remplace
+  # tout ce qui precede. Il ne s'applique que s'il a ete rempli.
+  if (length(o$extras)) p <- p + hstat_plot_extras_theme(o$extras)
   # Pose EN DERNIER : un `p + couche` reconstruit l'objet et emporterait
   # l'attribut avec lui.
   if (length(ecartes)) attr(p, "ecartes") <- ecartes
@@ -2543,6 +2550,11 @@ mod_dl50_ui <- function(id) {
                 shiny::column(4, shiny::numericInput(ns("gLegendeTitreTaille"),
                   "Taille du titre de légende", value = 11, min = 4, max = 30,
                   step = 1))))),
+
+            # Le module porte deja sa taille de police de base (`gBaseSize`) :
+            # il ne prend du kit que les trois familles qui lui manquaient.
+            hstat_plot_extras_ui(ns, "g",
+                                 familles = c("axe", "cles", "marges")),
 
           shinydashboard::box(
             # Le titre suit le type choisi : une boite intitulee « Droite de
@@ -3541,6 +3553,8 @@ mod_dl50_server <- function(id, values) {
         repere_etiquette = isTRUE(input$gRepereEtiq),
         theme = input$gTheme %||% "minimal",
         base_size = nb("gBaseSize", 12),
+        extras = hstat_plot_extras_lire(input, "g",
+                                        familles = c("axe", "cles", "marges")),
         palette = input$gPalette %||% "Set1",
         couleur = input$gCouleur %||% "#2e86c1",
         grille = isTRUE(input$gGrille), axe2 = isTRUE(input$gAxe2),
