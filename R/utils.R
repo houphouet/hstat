@@ -1556,6 +1556,105 @@ hstat_mv_forme_ui <- function(prefix, titre = "Apparence du graphique") {
     ...)
 }
 
+# Le vocabulaire de mise en forme que TOUS les panneaux « Options du
+# graphique » doivent porter, quel que soit le module.
+#
+# Demande a l'ecran : « les fonctionnalites de Options du graphique dans le
+# module visualisation doivent toutes etre presentes dans les autres ». La
+# mesure donne l'ecart : `mod_viz` porte douze familles de reglages, et les
+# autres modules en portaient de zero a onze -- chacun ayant recopie a la main
+# celles dont il avait besoin le jour ou on l'a ecrit.
+#
+# LA REPONSE N'EST PAS DE RECOPIER UNE DOUZIEME FOIS. C'est la derive que ce
+# depot a deja corrigee pour les formats d'image, les champs de DPI, les themes
+# et les palettes : une liste recopiee finit par diverger, et c'est la copie
+# oubliee qui ment. Le kit declare, lit et APPLIQUE ; un module l'adopte en
+# trois lignes, et une correction faite ici profite a tous.
+#
+# Ce que le kit porte est exactement ce qui manquait partout ailleurs : la
+# taille de police de base, le trait des axes, la taille des cles de legende et
+# les quatre marges. Ce que chaque module garde en propre, ce sont les reglages
+# qui parlent de SES donnees -- le type de graphique, la palette, la geometrie.
+HSTAT_PLOT_EXTRAS <- c("PoliceBase", "AxisLine", "AxisLineCouleur",
+                       "AxisLineEpaisseur", "LegendeCles",
+                       "MargeHaut", "MargeBas", "MargeGauche", "MargeDroite")
+
+hstat_plot_extras_ui <- function(ns, prefix) {
+  id <- function(x) ns(paste0(prefix, x))
+  .hstat_opt_section(
+    "Cadre, marges et police", "vector-square", "#5d6d7e", "#eef2f5",
+    # LA POLICE DE BASE EST CELLE DU THEME, pas un reglage de plus. Les tailles
+    # nommees (titre, graduations) s'en detachent ; tout ce qui n'est pas nomme
+    # -- les etiquettes de facette, le texte des couches -- la suit.
+    shiny::sliderInput(id("PoliceBase"), "Taille de police de base",
+                       min = 6, max = 24, value = 11, step = 1, ticks = FALSE),
+    # Decoche, le reglage ne pose RIEN : un theme qui trace ses axes de lui-meme
+    # (« classique ») garde les siens, la ou un `element_blank()` les effacerait.
+    shiny::checkboxInput(id("AxisLine"), "Tracer les axes X et Y", value = FALSE),
+    shiny::conditionalPanel(
+      ns = ns, condition = sprintf("input.%sAxisLine == true", prefix),
+      shiny::fluidRow(
+        shiny::column(6, colourInput(id("AxisLineCouleur"), "Couleur des axes",
+                                     value = "#000000")),
+        shiny::column(6, shiny::sliderInput(id("AxisLineEpaisseur"),
+                                            "Épaisseur des axes",
+                                            min = 0.1, max = 3, value = 1,
+                                            step = 0.1, ticks = FALSE)))),
+    shiny::sliderInput(id("LegendeCles"), "Taille des clés de légende",
+                       min = 0.4, max = 3, value = 1.2, step = 0.1, ticks = FALSE),
+    shiny::fluidRow(
+      shiny::column(6, shiny::numericInput(id("MargeHaut"), "Marge haut (pt)",
+                                           value = 5, min = 0, step = 1)),
+      shiny::column(6, shiny::numericInput(id("MargeBas"), "Marge bas (pt)",
+                                           value = 5, min = 0, step = 1))),
+    shiny::fluidRow(
+      shiny::column(6, shiny::numericInput(id("MargeGauche"), "Marge gauche (pt)",
+                                           value = 5, min = 0, step = 1)),
+      shiny::column(6, shiny::numericInput(id("MargeDroite"), "Marge droite (pt)",
+                                           value = 5, min = 0, step = 1))),
+    shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                      "Les marges se comptent en points, comme les tailles de texte."))
+}
+
+# La lecture rend une liste NOMMEE, jamais les entrees une par une : un module
+# qui en oublierait une la laisserait sans effet, et c'est precisement le defaut
+# — « declare, lu, mais jamais utilise » — que le depot traque ailleurs.
+hstat_plot_extras_lire <- function(input, prefix) {
+  g <- function(x, defaut) {
+    v <- input[[paste0(prefix, x)]]
+    if (is.null(v) || (length(v) == 1L && is.na(v))) defaut else v
+  }
+  n <- function(x, defaut) {
+    v <- suppressWarnings(as.numeric(g(x, defaut))[1])
+    if (!isTRUE(is.finite(v))) defaut else v
+  }
+  list(police   = n("PoliceBase", 11),
+       axe      = isTRUE(g("AxisLine", FALSE)),
+       axe_col  = as.character(g("AxisLineCouleur", "#000000"))[1],
+       axe_ep   = n("AxisLineEpaisseur", 1),
+       cles     = n("LegendeCles", 1.2),
+       marges   = c(haut = n("MargeHaut", 5), droite = n("MargeDroite", 5),
+                    bas  = n("MargeBas", 5),  gauche = n("MargeGauche", 5)))
+}
+
+# `police` ne passe PAS par ici : elle appartient au theme de base
+# (`viz_get_theme(..., base_size = o$police)`), et l'appliquer apres coup ne
+# toucherait que ce que le theme a deja fixe. Le module la lit donc dans la
+# liste et la passe a son theme -- c'est ce qui la rend REELLEMENT employee.
+hstat_plot_extras_theme <- function(o) {
+  m <- o$marges
+  th <- ggplot2::theme(
+    legend.key.height = ggplot2::unit(o$cles, "lines"),
+    legend.key.width  = ggplot2::unit(o$cles * 1.25, "lines"),
+    plot.margin = ggplot2::margin(t = m[["haut"]], r = m[["droite"]],
+                                  b = m[["bas"]], l = m[["gauche"]], unit = "pt"))
+  if (!isTRUE(o$axe)) return(th)
+  th + ggplot2::theme(
+    axis.line   = ggplot2::element_line(colour = o$axe_col, linewidth = o$axe_ep),
+    axis.line.x = ggplot2::element_line(colour = o$axe_col, linewidth = o$axe_ep),
+    axis.line.y = ggplot2::element_line(colour = o$axe_col, linewidth = o$axe_ep))
+}
+
 HSTAT_FONT_STYLES <- c("Normal" = "plain", "Gras" = "bold",
                        "Italique" = "italic", "Gras + italique" = "bold.italic")
 

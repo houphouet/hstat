@@ -1398,6 +1398,68 @@ sur une palette Brewer. Lui appliquer `scale_*_brewer()` ferait avertir ggplot �
 chaque tracé et rendrait un graphique gris ; ne rien poser laisse l'échelle par
 défaut, qui est déjà la bonne.
 
+## « Options du graphique » : un vocabulaire commun, pas douze copies
+
+Demandé à l'écran : « les fonctionnalités de *Options du graphique* dans le
+module Visualisation doivent toutes être présentes dans les autres ». La mesure
+donne l'écart réel — douze familles de réglages chez `mod_viz`, et de zéro à
+onze ailleurs, chaque module ayant recopié à la main celles dont il avait besoin
+le jour où on l'a écrit :
+
+| Famille | viz | tests | seuils | rendement | DL50 | explor. | descr. | design |
+|---|---|---|---|---|---|---|---|---|
+| Titres / libellés | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ |
+| Tailles de texte | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ |
+| Gras / italique | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | ✓ |
+| Thème | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — |
+| Bornes et pas d'axe | ✓ | ✓ | ✓ | ✓ | — | — | — | — |
+| Valeurs portées | ✓ | ✓ | — | ✓ | — | — | — | — |
+| **Marges** | ✓ | ✓ | — | — | — | — | — | ✓ |
+| **Clés de légende** | ✓ | ✓ | — | — | — | — | — | — |
+| **Police de base** | ✓ | — | — | — | — | — | — | — |
+| **Trait des axes** | ✓ | ✓ | ✓ | — | — | — | — | — |
+
+**La réponse n'est pas de recopier une douzième fois.** C'est la dérive que ce
+dépôt a déjà corrigée pour les formats d'image, les champs de DPI, les thèmes et
+les palettes : une liste recopiée finit par diverger, et c'est la copie oubliée
+qui ment. `hstat_plot_extras_ui()` déclare, `hstat_plot_extras_lire()` lit et
+`hstat_plot_extras_theme()` **applique** — un module l'adopte en trois lignes, et
+une correction faite ici profite à tous.
+
+Ce que le kit porte est exactement ce qui manquait partout ailleurs (les quatre
+lignes en gras) : la **police de base**, le **trait des axes**, la **taille des
+clés de légende** et les **quatre marges**. Ce que chaque module garde en propre,
+ce sont les réglages qui parlent de *ses* données — le type de graphique, la
+palette, la géométrie, les valeurs portées.
+
+Trois points de construction, chacun testé :
+
+1. **La police de base ne passe pas par le kit de thème.** Elle appartient au
+   thème lui-même (`viz_get_theme(..., base_size = o$police)`) : l'appliquer
+   après coup ne toucherait que ce que le thème vient de fixer. C'est la seule
+   des neuf entrées dont l'emploi ne se voit pas dans
+   `hstat_plot_extras_theme()`, et le test l'exige **dans le module**.
+2. **Le kit se pose en dernier.** Un thème complet remplace tout ce qui précède :
+   posé avant le thème du module, il serait effacé sans un mot.
+3. **Le trait d'axe décoché ne pose rien**, jamais un `element_blank()` — sinon
+   le réglage *retirerait* les axes d'un thème qui les trace de lui-même
+   (« classique »), c'est-à-dire l'inverse de ce qu'il annonce.
+
+La lecture rend une **liste nommée**, jamais les entrées une par une : un module
+qui en oublierait une la laisserait sans effet — « déclaré, lu, mais jamais
+utilisé », le plus trompeur des trois défauts que ce dépôt traque. Et une saisie
+vidée en cours de frappe (`NA`) retombe sur le défaut plutôt que de faire tomber
+le graphique ou de redimensionner la figure sous les doigts de l'utilisateur.
+
+**Adoption en cours, module par module.** `mod_yield` est le premier — c'est
+celui d'où la demande est venue. Les suivants sont, par ordre de manque :
+`mod_dl50`, `mod_explore`, `mod_descriptive`, `mod_qualitative`, `mod_design`,
+puis `mod_threshold` et `mod_tests`, qui portent déjà la plupart des familles et
+n'y gagneront que les marges et la police. Deux fonctionnalités de `mod_viz`
+restent hors du kit et demandent chacune leur propre travail : l'**éditeur
+d'étiquettes par niveau** (déjà présent dans `mod_tests` et `mod_threshold`) et
+le **rendu interactif**, qui touche au type de sortie et non au thème.
+
 ## Le bac à sable des formules : la porte de demain, pas celle d'aujourd'hui
 
 `hstat_safe_eval()` tient. Vingt-sept tentatives d'évasion ont été essayées une

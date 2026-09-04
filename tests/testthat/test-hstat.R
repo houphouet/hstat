@@ -5940,6 +5940,71 @@ test_that("une chaine bordee d'espaces se traduit, et garde son espacement", {
                " 12 cases predicted (mean = 3,4).")
 })
 
+test_that("le kit de mise en forme declare, lit ET applique ses neuf reglages", {
+  # UNE LISTE RECOPIEE FINIT PAR DIVERGER, et c'est la copie oubliee qui ment :
+  # la lecon des formats d'image, des champs de DPI, des themes et des palettes,
+  # appliquee cette fois aux reglages de mise en forme que `mod_viz` portait
+  # seul. Le test exige les TROIS conditions, comme celui du panneau post-hoc :
+  # declare dans l'interface, lu par la lecture, et employe par le theme.
+  skip_if_not_installed("shinydashboard")
+  suppressMessages(hstat_installer_replis_ui())
+  expect_length(HSTAT_PLOT_EXTRAS, 9L)
+
+  # 1. DECLARE -- et prefixe : un widget hors du prefixe de son module
+  # n'existe pour personne, le defaut le plus silencieux du depot.
+  h <- paste(as.character(hstat_plot_extras_ui(shiny::NS("m"), "pfx")), collapse = "")
+  for (x in HSTAT_PLOT_EXTRAS)
+    expect_true(grepl(sprintf('id="m-pfx%s"', x), h, fixed = TRUE), label = x)
+
+  # 2. LU -- les defauts tiennent quand rien n'est saisi (le cas du premier
+  # rendu, avant que le navigateur ait renvoye quoi que ce soit).
+  o <- hstat_plot_extras_lire(list(), "pfx")
+  expect_equal(o$police, 11); expect_false(o$axe); expect_equal(o$cles, 1.2)
+  expect_equal(unname(o$marges), rep(5, 4))
+  # Une saisie videe en cours de frappe rend NA : elle ne doit pas faire tomber
+  # le graphique ni redimensionner la figure sous les doigts.
+  expect_equal(hstat_plot_extras_lire(list(pfxPoliceBase = NA), "pfx")$police, 11)
+  expect_equal(hstat_plot_extras_lire(list(pfxMargeHaut = "x"), "pfx")$marges[["haut"]], 5)
+
+  i <- list(pfxPoliceBase = 14, pfxAxisLine = TRUE, pfxAxisLineCouleur = "#123456",
+            pfxAxisLineEpaisseur = 2, pfxLegendeCles = 2, pfxMargeHaut = 20,
+            pfxMargeBas = 3, pfxMargeGauche = 30, pfxMargeDroite = 4)
+  o2 <- hstat_plot_extras_lire(i, "pfx")
+  expect_equal(o2$police, 14); expect_true(o2$axe)
+  expect_equal(unname(o2$marges), c(20, 4, 3, 30))   # haut, droite, bas, gauche
+
+  # 3. APPLIQUE -- on lit les VALEURS du theme construit, jamais le nom des
+  # reglages : un kit qui rendrait un theme vide passerait un controle qui ne
+  # verifierait que la presence de la fonction.
+  th <- hstat_plot_extras_theme(o2)
+  expect_identical(th$axis.line$colour, "#123456")
+  expect_equal(th$axis.line$linewidth, 2)
+  expect_equal(as.numeric(th$legend.key.height), 2)
+  expect_equal(as.numeric(th$plot.margin), c(20, 4, 3, 30))
+
+  # Le trait d'axe ne s'impose ni ne s'efface : decoche, le kit ne pose RIEN,
+  # la ou un `element_blank()` effacerait les axes d'un theme qui les trace.
+  th0 <- hstat_plot_extras_theme(hstat_plot_extras_lire(list(), "pfx"))
+  expect_null(th0$axis.line)
+})
+
+test_that("le module rendement adopte le kit, police comprise", {
+  # L'adoption est ce qui donne au kit sa raison d'etre : declare sans etre
+  # branche, il serait un panneau de reglages qui ne fait rien -- exactement le
+  # defaut que le depot documente sous « un reglage lu mais jamais utilise ».
+  root <- .hstat_repo_root(); skip_if(is.na(root))
+  txt <- paste(readLines(.hstat_module_path("mod_yield.R"), warn = FALSE,
+                         encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl('hstat_plot_extras_ui(ns, "yield")', txt, fixed = TRUE))
+  expect_true(grepl('hstat_plot_extras_lire(input, "yield")', txt, fixed = TRUE))
+  expect_true(grepl("hstat_plot_extras_theme(extras)", txt, fixed = TRUE))
+  # LA POLICE DE BASE PART AU THEME, pas au kit : l'appliquer apres coup ne
+  # toucherait que ce que le theme vient de fixer. C'est la seule des neuf
+  # entrees dont l'emploi ne se voit pas dans `hstat_plot_extras_theme()`.
+  expect_true(grepl("base_size = extras$police", txt, fixed = TRUE))
+  expect_false(grepl("base_size = 12)", txt, fixed = TRUE))
+})
+
 test_that("une erreur d'API dit la cause, et surtout laquelle", {
   # LE CODE MENT, LE MESSAGE DIT LA VERITE. Le manque de credit est un 400 chez
   # Anthropic et un 429 chez OpenAI -- ce dernier partage donc son code avec le
