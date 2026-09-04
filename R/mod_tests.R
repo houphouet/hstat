@@ -802,7 +802,7 @@ mod_posthoc_ui <- function(id) {
                                           value = TRUE),
                             shiny::div(style = "font-size:11px;color:#7f8c8d;margin-top:-6px;margin-bottom:8px;",
                                 shiny::icon("shield-halved"),
-                                shiny::HTML(" Sans différence globale, toutes les modalités reçoivent la même lettre. LSD et Duncan l'exigent (ils ne contrôlent pas le risque eux-mêmes) ; Tukey, Scheffé, Bonferroni et Games-Howell le contrôlent, et leur désaccord avec le test global est rare mais légitime — décochez pour le voir.")),
+                                shiny::HTML(" Sans différence globale, toutes les modalités reçoivent la même lettre. Mesuré sur un essai à ANOVA non significative : LSD, Duncan, REGW et Waller-Duncan séparent quand même — quatre méthodes sur sept ; Tukey, SNK, Scheffé et Bonferroni ne séparent pas, et leur désaccord avec le test global est rare mais légitime. Games-Howell est jugé sur l'ANOVA de Welch, sa vraie référence, et non sur l'ANOVA classique. Décochez pour voir les comparaisons par paires malgré tout.")),
                             shiny::selectInput(ns("multiParamAdjust"),
                                         shiny::tagList(shiny::icon("sliders-h"), " Ajustement des p-values (homogénéisation des groupes)"),
                                         choices = c("Holm" = "holm", "Bonferroni" = "bonferroni",
@@ -812,7 +812,7 @@ mod_posthoc_ui <- function(id) {
                                         selected = "holm"),
                             shiny::div(style = "font-size:11px;color:#7f8c8d;margin-top:-6px;margin-bottom:8px;",
                                 shiny::icon("info-circle"),
-                                shiny::HTML(" S'applique aux méthodes par comparaisons de paires (LSD, Bonferroni, LM/GLM). Un ajustement plus strict (Bonferroni, Holm) rend les groupes plus homogènes ; les méthodes à contrôle intégré (Tukey, Duncan, SNK, Scheffé, Games-Howell) conservent le leur."))
+                                shiny::HTML(" S'applique aux méthodes par comparaisons de paires (LSD, Bonferroni, LM/GLM). Un ajustement plus strict (Bonferroni, Holm) rend les groupes plus homogènes ; les méthodes qui portent leur propre procédure (Tukey, Duncan, SNK, Scheffé, REGW, Waller-Duncan, Games-Howell) conservent la leur et ignorent ce réglage."))
                           ),
                           shiny::conditionalPanel(
                             ns = ns,
@@ -6157,6 +6157,20 @@ mod_tests_server <- function(id, values) {
       
       if (is.null(groups)) return(NULL)
       
+      # MEME PROTECTION QUE LES COMPARAISONS MULTIPLES, et pour la meme
+      # raison : sans difference globale DANS CE NIVEAU, classer les
+      # modalites en a / ab / b contredit l'analyse. Le test global est ici
+      # celui de l'effet simple -- calcule sur df_subset, pas sur le tableau
+      # entier : c'est le sous-groupe qui est compare.
+      if (isTRUE(input$multiProtege %||% TRUE) && "groups" %in% names(groups)) {
+        omni_se <- hstat_omnibus(
+          df_subset, var, factor1,
+          parametric = identical(test_type, "param"),
+          variances = hstat_omnibus_variances(test_method))
+        lt_se <- hstat_cld_proteger(groups$groups, omni_se$p, test = omni_se$test)
+        if (isTRUE(attr(lt_se, "protege"))) groups$groups <- as.character(lt_se)
+      }
+      
       desc <- df_subset %>%
         dplyr::group_by(dplyr::across(dplyr::all_of(factor1))) %>%
         dplyr::summarise(
@@ -6509,7 +6523,8 @@ mod_tests_server <- function(id, values) {
           # legitime : d'ou une protection PAR DEFAUT, qui se decoche.
           omni <- hstat_omnibus(
             if (exists("df_var") && !is.null(df_var)) df_var else df,
-            var, fvar, parametric = identical(input$testType, "param"))
+            var, fvar, parametric = identical(input$testType, "param"),
+            variances = hstat_omnibus_variances(input$multiTest))
           if (isTRUE(input$multiProtege %||% TRUE) &&
               "groups" %in% names(groups)) {
             lt <- hstat_cld_proteger(groups$groups, omni$p, test = omni$test)
@@ -6595,9 +6610,17 @@ mod_tests_server <- function(id, values) {
               if (is.null(model)) return(NULL)
               anova_res <- tryCatch(summary(model)[[1]], error = function(e) NULL)
               if (!is.null(anova_res)) {
+                # `summary(aov)` REMPLIT SES NOMS DE LIGNE D'ESPACES :
+                # « F1:F2      », jamais « F1:F2 ». La comparaison exacte
+                # etait donc TOUJOURS fausse, la p-value d'interaction
+                # restait NA, et la decomposition bidirectionnelle ne
+                # s'est jamais declenchee -- l'onglet « Effets simples »
+                # restait vide meme sur une interaction a p = 1e-06.
                 interaction_row <- paste(fvar1, fvar2, sep = ":")
-                if (interaction_row %in% rownames(anova_res)) {
-                  interaction_pvalue <- anova_res[interaction_row, "Pr(>F)"]
+                noms <- trimws(rownames(anova_res))
+                pos <- match(interaction_row, noms)
+                if (!is.na(pos)) {
+                  interaction_pvalue <- anova_res[pos, "Pr(>F)"]
                 }
               }
             } else { 

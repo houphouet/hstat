@@ -2482,17 +2482,45 @@ permdisp_per_factor <- function(Y, df, factors, dist_method = "euclidean") {
 #    protection gonfle le risque. Mesure sur 300 jeux SANS effet reel dont
 #    l'ANOVA est non significative : les comparaisons non ajustees separent
 #    quand meme dans 30 % des cas, Tukey dans 0 %.
-#  - Tukey, Scheffe, Bonferroni, Games-Howell, REGW controlent le risque
-#    eux-memes. Leur desaccord avec le test global est RARE mais legitime :
-#    ce sont deux tests differents, de puissances differentes. Scheffe est
-#    meme mathematiquement incapable de separer quand F ne l'est pas.
+#  - REGW et Waller-Duncan aussi, contrairement a ce qui etait ecrit ici :
+#    ils portent bien leur propre procedure, mais elle ne suit pas le F.
+#    Mesure avec agricolae 1.3-7 sur un essai a six modalites, ANOVA
+#    p = 0,1207 : LSD, Duncan, REGW et Waller-Duncan rendent tous les
+#    quatre trois groupes de lettres. C'est quatre methodes sur sept, pas
+#    deux -- la protection ne concerne donc pas qu'un cas marginal.
+#  - Tukey, SNK, Scheffe et Bonferroni ne separent pas sur ce meme essai.
+#    Leur desaccord avec le test global existe, mais il est RARE et
+#    legitime : ce sont deux tests differents, de puissances differentes.
+#    Scheffe est meme mathematiquement incapable de separer quand F ne
+#    l'est pas.
 #
 # D'ou le choix retenu : la protection est le DEFAUT -- c'est la convention
 # agronomique, et c'est ce que l'utilisateur attend en lisant ses lettres --
 # mais elle se decoche, parce qu'un desaccord Tukey/ANOVA est un fait, pas un
 # defaut. Et dans les deux cas le test global est AFFICHE a cote des lettres :
 # le lire dans un autre onglet est ce qui rendait la contradiction invisible.
-hstat_omnibus <- function(df, var, fvar, parametric = TRUE) {
+# UN POST-HOC SE JUGE SUR SON PROPRE TEST GLOBAL.
+#
+# Games-Howell ne suppose PAS les variances egales : sa reference est
+# l'ANOVA de WELCH, pas l'ANOVA classique. Les confondre n'est pas un detail
+# theorique -- mesure sur un essai a six modalites de variances tres
+# inegales : ANOVA classique p = 0,2452 (non significative), Welch
+# p = 0,0001 (significative). Proteger les lettres de Games-Howell avec
+# l'ANOVA classique les aplatit toutes sur « a » et EFFACE un resultat reel,
+# exactement ce que la protection existe pour eviter dans l'autre sens.
+#
+# La regle est declaree UNE fois : les deux sites de post-hoc (comparaisons
+# multiples et effets simples) la lisent ici, ils ne peuvent pas diverger.
+HSTAT_POSTHOC_WELCH <- c("games")
+
+hstat_omnibus_variances <- function(methode) {
+  if (length(methode) != 1L || is.na(methode)) return("egales")
+  if (as.character(methode) %in% HSTAT_POSTHOC_WELCH) "inegales" else "egales"
+}
+
+hstat_omnibus <- function(df, var, fvar, parametric = TRUE,
+                          variances = c("egales", "inegales")) {
+  variances <- match.arg(variances)
   vide <- list(p = NA_real_, test = NA_character_, statistique = NA_real_,
                ddl = NA_character_, message = NULL)
   if (!is.data.frame(df) || !NROW(df)) return(vide)
@@ -2505,7 +2533,17 @@ hstat_omnibus <- function(df, var, fvar, parametric = TRUE) {
     vide$message <- tr("Test global non calculable : moins de deux groupes exploitables.")
     return(vide)
   }
-  if (isTRUE(parametric)) {
+  if (isTRUE(parametric) && identical(variances, "inegales")) {
+    # ANOVA DE WELCH : la reference des methodes a variances inegales.
+    r <- tryCatch({
+      w <- stats::oneway.test(y ~ g, var.equal = FALSE)
+      list(p = unname(w$p.value), test = "ANOVA de Welch",
+           statistique = unname(w$statistic),
+           ddl = paste(signif(unname(w$parameter[1]), 4), ",",
+                       signif(unname(w$parameter[2]), 4)),
+           message = NULL)
+    }, error = function(e) NULL)
+  } else if (isTRUE(parametric)) {
     r <- tryCatch({
       s <- summary(stats::aov(y ~ g))[[1]]
       list(p = s[["Pr(>F)"]][1], test = "ANOVA", statistique = s[["F value"]][1],
