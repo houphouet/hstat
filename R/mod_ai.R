@@ -300,8 +300,7 @@ hstat_ai_available <- function(explicit = NULL) {
   if (httr::status_code(res) >= 300) {
     msg <- if (!is.null(p$error$message)) p$error$message else raw
     return(list(ok = FALSE, text = "",
-                error = trf("Erreur de %s (HTTP %d) : %s", f$label,
-                                httr::status_code(res), substr(msg, 1, 400))))
+                error = hstat_ai_err_http(httr::status_code(res), msg, f$label)))
   }
   txt <- tryCatch(p$choices[[1]]$message$content, error = function(e) NULL)
   if (is.null(txt))
@@ -343,8 +342,7 @@ hstat_ai_available <- function(explicit = NULL) {
   if (httr::status_code(res) >= 300) {
     msg <- if (!is.null(p$error$message)) p$error$message else raw
     return(list(ok = FALSE, text = "",
-                error = trf("Erreur de %s (HTTP %d) : %s", f$label,
-                                httr::status_code(res), substr(msg, 1, 400))))
+                error = hstat_ai_err_http(httr::status_code(res), msg, f$label)))
   }
   # Une reponse Gemini porte une liste de candidats, chacun une liste de parts.
   txt <- tryCatch(
@@ -385,8 +383,8 @@ hstat_ai_available <- function(explicit = NULL) {
   if (httr::status_code(res) >= 300) {
     msg <- if (!is.null(parsed$error$message)) parsed$error$message else raw
     return(list(ok = FALSE, text = "",
-                error = trf("Erreur API (HTTP %d) : %s",
-                                httr::status_code(res), substr(msg, 1, 500))))
+                error = hstat_ai_err_http(httr::status_code(res), msg,
+                                          hstat_ai_fournisseur("claude")$label)))
   }
   if (is.null(parsed) || is.null(parsed$content))
     return(list(ok = FALSE, text = "", error = "Réponse illisible de l'API."))
