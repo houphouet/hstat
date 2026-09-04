@@ -111,8 +111,13 @@ mod_tests_ui <- function(id) {
                                ),
                                shiny::h4("Tests paramétriques", style = "color: #00a65a;"),
                                shiny::div(style="display:flex; flex-direction:column; gap:8px;",
-                                   shiny::actionButton(ns("testT"),    "Test t de Student",           class = "btn-success btn-block", icon = shiny::icon("check")),
-                                   shiny::actionButton(ns("testANOVA"),"ANOVA",                        class = "btn-success btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testT"),    "Test t de Welch (variances inégales)", class = "btn-success btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testTStudent"), "Test t de Student (variances égales)", class = "btn-success btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testANOVA"),"ANOVA (Fisher, variances égales)", class = "btn-success btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testANOVAWelch"), "ANOVA de Welch (variances inégales)", class = "btn-success btn-block", icon = shiny::icon("check")),
+                                   shiny::div(style = "font-size:11px;color:#7f8c8d;margin:-2px 0 4px 0;",
+                                       shiny::icon("circle-info"), " ",
+                                       shiny::HTML(tr("Welch ne suppose pas les variances égales : c'est le choix sûr quand le test d'homogénéité les rejette, et il coûte peu quand elles sont égales. Il n'existe que ces deux tests de Welch, le t à deux échantillons et l'ANOVA à un facteur. Leur post-hoc est Games-Howell, présélectionné après coup."))),
                                    shiny::actionButton(ns("testMANOVA"),"MANOVA (>= 2 réponses)",     class = "btn-success btn-block", icon = shiny::icon("layer-group")),
                                    shiny::actionButton(ns("testLM"),   "Régression linéaire",          class = "btn-success btn-block", icon = shiny::icon("check")),
                                    shiny::actionButton(ns("testGLM"),  "Modèle linéaire généralisé",   class = "btn-success btn-block", icon = shiny::icon("check")),
@@ -2332,7 +2337,7 @@ mod_tests_server <- function(id, values) {
             Variable = var,
             Facteur = "Global",
             Statistique = round(norm_test$statistic, 4),
-            ddl = NA,
+            ddl = NA_character_,
             p_value = norm_test$p.value,
             Interpretation = interpret_test_results("shapiro", norm_test$p.value),
             stringsAsFactors = FALSE
@@ -2432,8 +2437,12 @@ mod_tests_server <- function(id, values) {
     }
   })
   
-  shiny::observeEvent(input$testT, {
+  # UN SEUL CHEMIN POUR LES DEUX t. Welch et Student ne different que par la
+  # mise en commun des variances : deux observateurs recopies auraient diverge
+  # a la premiere correction, comme les palettes et les champs de DPI avant eux.
+  .run_ttest <- function(var_equal) {
     shiny::req(input$responseVar, input$factorVar)
+    nom_test <- if (isTRUE(var_equal)) tr("Test t de Student") else tr("Test t de Welch")
     if (length(input$factorVar) > 1) {
       shiny::showNotification("Le test t nécessite un seul facteur", type = "warning")
       return()
@@ -2505,17 +2514,18 @@ mod_tests_server <- function(id, values) {
         
         # Exécuter le t-test et le modèle pour les diagnostics
         formula_str <- stats::as.formula(paste0("`", var, "` ~ `", fvar, "`"))
-        test_result <- stats::t.test(formula_str, data = values$filteredData)
+        test_result <- stats::t.test(formula_str, data = values$filteredData,
+                                     var.equal = isTRUE(var_equal))
         
         lm_model <- stats::lm(formula_str, data = values$filteredData)
         model_list[[var]] <- lm_model
         
         results_list[[var]] <- data.frame(
-          Test = "t-test",
+          Test = nom_test,
           Variable = var,
           Facteur = fvar,
           Statistique = round(test_result$statistic, 4),
-          ddl = round(test_result$parameter, 2),
+          ddl = hstat_ddl_fmt(test_result$parameter),
           p_value = test_result$p.value,
           Interpretation = interpret_test_results("t.test", test_result$p.value),
           stringsAsFactors = FALSE
@@ -2523,7 +2533,7 @@ mod_tests_server <- function(id, values) {
         
       }, error = function(e) {
         results_list[[var]] <<- data.frame(
-          Test = "t-test",
+          Test = nom_test,
           Variable = var,
           Facteur = fvar,
           Statistique = NA,
@@ -2543,6 +2553,10 @@ mod_tests_server <- function(id, values) {
       values$modelList <- model_list
       values$currentModelVar <- 1
       values$currentTestType <- "parametric"
+      # L'HYPOTHESE DE VARIANCE VOYAGE AVEC LE RESULTAT. Le post-hoc doit
+      # savoir lequel des deux a tourne : Games-Howell est celui de Welch,
+      # et le comparer a l'ANOVA de Fisher effacerait un resultat vrai.
+      values$currentTestVariances <- if (isTRUE(var_equal)) "egales" else "inegales"
     } else {
       shiny::showNotification(
         if (length(motifs_refus))
@@ -2552,7 +2566,9 @@ mod_tests_server <- function(id, values) {
                 "sont numériques et comportent assez de données non manquantes."),
         type = "warning", duration = 12)
     }
-  })
+  }
+  shiny::observeEvent(input$testT,        .run_ttest(var_equal = FALSE))
+  shiny::observeEvent(input$testTStudent, .run_ttest(var_equal = TRUE))
   
   shiny::observeEvent(input$testWilcox, {
     shiny::req(input$responseVar, input$factorVar)
@@ -3020,6 +3036,56 @@ mod_tests_server <- function(id, values) {
     }
   })
   
+  # ANOVA DE WELCH : la reference des methodes a variances inegales.
+  #
+  # Elle ne rend PAS de tableau a plusieurs effets : Welch est un test a UN
+  # facteur, il n'y a ni interaction ni decomposition. Offrir un second
+  # facteur donnerait un reglage que le calcul ignore -- le defaut que ce
+  # depot traque ailleurs. On prend donc le premier facteur et on le dit.
+  shiny::observeEvent(input$testANOVAWelch, {
+    shiny::req(input$responseVar, input$factorVar)
+    fvar <- input$factorVar[1]
+    if (length(input$factorVar) > 1)
+      shiny::showNotification(
+        trf("L'ANOVA de Welch est un test à un facteur : seul « %s » est utilisé. Pour un plan à plusieurs facteurs, employez l'ANOVA de Fisher.", fvar),
+        type = "warning", duration = 10)
+    results_list <- list()
+    motifs <- character(0)
+    df <- values$filteredData
+    for (var in input$responseVar) {
+      r <- hstat_anova_welch(df, var, fvar)
+      if (!isTRUE(is.finite(r$p))) {
+        motifs <- c(motifs, paste0(var, " : ", r$message %||% tr("non calculable")))
+        next
+      }
+      results_list[[var]] <- data.frame(
+        Test = r$test,
+        Variable = var,
+        Facteur = fvar,
+        Statistique = round(r$statistique, 4),
+        # LE DENOMINATEUR EST FRACTIONNAIRE, c'est la signature de Welch.
+        ddl = paste(hstat_ddl_fmt(r$ddl1), ",", hstat_ddl_fmt(r$ddl2)),
+        p_value = r$p,
+        Interpretation = interpret_test_results("anova", r$p),
+        stringsAsFactors = FALSE)
+    }
+    if (length(results_list)) {
+      values$testResultsDF <- do.call(rbind, results_list)
+      values$currentTestType <- "parametric"
+      values$currentTestVariances <- "inegales"
+      if (length(motifs))
+        shiny::showNotification(
+          trf("ANOVA de Welch : %s", paste(unique(motifs), collapse = " ; ")),
+          type = "warning", duration = 12)
+    } else {
+      shiny::showNotification(
+        trf("ANOVA de Welch impossible : %s",
+            if (length(motifs)) paste(unique(motifs), collapse = " ; ")
+            else tr("aucune variable réponse exploitable.")),
+        type = "warning", duration = 12)
+    }
+  })
+  
   shiny::observeEvent(input$testANOVA, {
     shiny::req(input$responseVar, input$factorVar)
     
@@ -3109,6 +3175,7 @@ mod_tests_server <- function(id, values) {
         values$homogeneityResults <- homogeneity_results
         values$currentValidationVar <- 1
         values$currentTestType <- "parametric"
+      values$currentTestVariances <- "egales"
       } else {
         shiny::showNotification("Aucun résultat ANOVA généré", type = "warning")
       }
@@ -6094,17 +6161,20 @@ mod_tests_server <- function(id, values) {
         } else if (test_method == "bonferroni") {
           emm <- emmeans::emmeans(model, stats::as.formula(paste0("~ `", factor1, "`")))
           mc <- graphics::pairs(emm, adjust = "bonferroni")
-          pmat <- as.matrix(summary(mc)$p.value)
-          if (is.null(dim(pmat))) {
-            groups <- data.frame(groups = rep("a", length(unique(df_subset[[factor1]]))))
-            groups[[factor1]] <- unique(df_subset[[factor1]])
-          } else {
-            pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-            diag(pmat) <- 1
-            groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
-            groups <- data.frame(groups = groups_letters)
-            groups[[factor1]] <- names(groups_letters)
-          }
+          # MEME DEFAUT QUE LE BONFERRONI PRINCIPAL, non corrige ici :
+          # `summary(pairs(emm))$p.value` est un VECTEUR, pas une matrice.
+          # `as.matrix()` en faisait un tableau n x 1 sans noms, la garde
+          # `is.null(dim(pmat))` ne se declenchait jamais, et les lettres
+          # levaient « Names required for pmat ». On passe par la meme porte
+          # que le chemin principal : les etiquettes de contraste rapprochees
+          # des niveaux connus, donc immunisees contre les noms a tiret.
+          rc <- summary(mc)
+          niv_se <- levels(droplevels(factor(df_subset[[factor1]])))
+          pmat <- hstat_pmat_comparaisons(as.character(rc$contrast), rc$p.value,
+                                          niv_se, sep = "-")
+          groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters[niv_se]
+          groups <- data.frame(groups = as.character(groups_letters))
+          groups[[factor1]] <- niv_se
         } else if (test_method == "dunnett") {
           emm <- emmeans::emmeans(model, stats::as.formula(paste0("~ `", factor1, "`")))
           groups_cld <- multcomp::cld(emm, Letters = letters)
@@ -6115,9 +6185,9 @@ mod_tests_server <- function(id, values) {
         } else if (test_method == "games") {
           bt_loc <- function(x) paste0("`", x, "`")
           mc <- PMCMRplus::gamesHowellTest(stats::as.formula(paste0(bt_loc(var), " ~ ", bt_loc(factor1))), data = df_subset)
-          pmat <- as.matrix(mc$p.value)
-          pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-          diag(pmat) <- 1
+          # LA DEMI-MATRICE DE PMCMRplus NE PORTE PAS LE PREMIER NIVEAU :
+          # on la reconstruit sur les niveaux CONNUS du facteur.
+          pmat <- hstat_pmat_demi(mc$p.value, levels(droplevels(factor(df_subset[[factor1]]))))
           groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
           groups <- data.frame(groups = groups_letters)
           groups[[factor1]] <- names(groups_letters)
@@ -6130,25 +6200,25 @@ mod_tests_server <- function(id, values) {
           groups[[factor1]] <- rownames(groups)
         } else if (test_method == "dunn") {
           mc <- PMCMRplus::kwAllPairsDunnTest(df_subset[[var]], df_subset[[factor1]])
-          pmat <- as.matrix(mc$p.value)
-          pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-          diag(pmat) <- 1
+          # LA DEMI-MATRICE DE PMCMRplus NE PORTE PAS LE PREMIER NIVEAU :
+          # on la reconstruit sur les niveaux CONNUS du facteur.
+          pmat <- hstat_pmat_demi(mc$p.value, levels(droplevels(factor(df_subset[[factor1]]))))
           groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
           groups <- data.frame(groups = groups_letters)
           groups[[factor1]] <- names(groups_letters)
         } else if (test_method == "conover") {
           mc <- PMCMRplus::kwAllPairsConoverTest(df_subset[[var]], df_subset[[factor1]])
-          pmat <- as.matrix(mc$p.value)
-          pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-          diag(pmat) <- 1
+          # LA DEMI-MATRICE DE PMCMRplus NE PORTE PAS LE PREMIER NIVEAU :
+          # on la reconstruit sur les niveaux CONNUS du facteur.
+          pmat <- hstat_pmat_demi(mc$p.value, levels(droplevels(factor(df_subset[[factor1]]))))
           groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
           groups <- data.frame(groups = groups_letters)
           groups[[factor1]] <- names(groups_letters)
         } else if (test_method == "nemenyi") {
           mc <- PMCMRplus::kwAllPairsNemenyiTest(df_subset[[var]], df_subset[[factor1]])
-          pmat <- as.matrix(mc$p.value)
-          pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-          diag(pmat) <- 1
+          # LA DEMI-MATRICE DE PMCMRplus NE PORTE PAS LE PREMIER NIVEAU :
+          # on la reconstruit sur les niveaux CONNUS du facteur.
+          pmat <- hstat_pmat_demi(mc$p.value, levels(droplevels(factor(df_subset[[factor1]]))))
           groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
           groups <- data.frame(groups = groups_letters)
           groups[[factor1]] <- names(groups_letters)
@@ -6200,6 +6270,23 @@ mod_tests_server <- function(id, values) {
     if (!is.null(values$currentTestType)) {
       new_type <- if (values$currentTestType == "parametric") "param" else "nonparam"
       shiny::updateRadioButtons(session, "testType", selected = new_type)
+      # LE POST-HOC SUIT L'HYPOTHESE DE VARIANCE DU TEST GLOBAL.
+      #
+      # Games-Howell est le post-hoc de Welch : c'est le seul qui n'exige pas
+      # les variances egales, et sa reference est l'ANOVA de Welch. Laisser
+      # Tukey selectionne apres un test de Welch ferait comparer des lettres a
+      # un test global que l'utilisateur n'a pas lance.
+      #
+      # C'est une PRESELECTION, pas un verrou : le choix de la methode engage
+      # l'interpretation, il reste a l'analyste. On le dit plutot que de le
+      # changer en silence.
+      if (identical(values$currentTestType, "parametric") &&
+          identical(values$currentTestVariances %||% "", "inegales")) {
+        shiny::updateSelectInput(session, "multiTest", selected = "games")
+        shiny::showNotification(
+          tr("Test de Welch : le post-hoc a été présélectionné sur Games-Howell, le seul qui ne suppose pas les variances égales. Vous pouvez en choisir un autre."),
+          type = "message", duration = 8)
+      }
     }
     
     values$postHocSyncTrigger <- stats::runif(1)
@@ -6448,9 +6535,9 @@ mod_tests_server <- function(id, values) {
               groups$groups <- trimws(groups$groups)
             } else if (input$multiTest == "games") {
               mc <- PMCMRplus::gamesHowellTest(stats::as.formula(paste0("`", var, "` ~ `", fvar, "`")), data = df)
-              pmat <- as.matrix(mc$p.value)
-              pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-              diag(pmat) <- 1
+              # LA DEMI-MATRICE DE PMCMRplus NE PORTE PAS LE PREMIER NIVEAU :
+              # on la reconstruit sur les niveaux CONNUS du facteur.
+              pmat <- hstat_pmat_demi(mc$p.value, levels(droplevels(factor(df[[fvar]]))))
               groups_letters <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
               groups <- data.frame(groups = groups_letters)
               groups[[fvar]] <- names(groups_letters)
@@ -6470,9 +6557,9 @@ mod_tests_server <- function(id, values) {
               np_adj <- input$multiNonParamAdjust %||% "holm"
               groups <- tryCatch({
                 mc <- PMCMRplus::kwAllPairsDunnTest(df_var[[var]], df_var[[fvar]], p.adjust.method = np_adj)
-                pmat <- as.matrix(mc$p.value)
-                pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-                diag(pmat) <- 1
+                # LA DEMI-MATRICE DE PMCMRplus NE PORTE PAS LE PREMIER NIVEAU :
+                # on la reconstruit sur les niveaux CONNUS du facteur.
+                pmat <- hstat_pmat_demi(mc$p.value, levels(droplevels(factor(df_var[[fvar]]))))
                 gl <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
                 gdf <- data.frame(groups = gl); gdf[[fvar]] <- names(gl); gdf
               }, error = function(e) {
@@ -6485,9 +6572,9 @@ mod_tests_server <- function(id, values) {
               np_adj <- input$multiNonParamAdjust %||% "holm"
               groups <- tryCatch({
                 mc <- PMCMRplus::kwAllPairsConoverTest(df_var[[var]], df_var[[fvar]], p.adjust.method = np_adj)
-                pmat <- as.matrix(mc$p.value)
-                pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-                diag(pmat) <- 1
+                # LA DEMI-MATRICE DE PMCMRplus NE PORTE PAS LE PREMIER NIVEAU :
+                # on la reconstruit sur les niveaux CONNUS du facteur.
+                pmat <- hstat_pmat_demi(mc$p.value, levels(droplevels(factor(df_var[[fvar]]))))
                 gl <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
                 gdf <- data.frame(groups = gl); gdf[[fvar]] <- names(gl); gdf
               }, error = function(e) {
@@ -6499,9 +6586,9 @@ mod_tests_server <- function(id, values) {
             } else if (input$multiTestNonParam == "nemenyi") {
               groups <- tryCatch({
                 mc <- PMCMRplus::kwAllPairsNemenyiTest(df_var[[var]], df_var[[fvar]])
-                pmat <- as.matrix(mc$p.value)
-                pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]
-                diag(pmat) <- 1
+                # LA DEMI-MATRICE DE PMCMRplus NE PORTE PAS LE PREMIER NIVEAU :
+                # on la reconstruit sur les niveaux CONNUS du facteur.
+                pmat <- hstat_pmat_demi(mc$p.value, levels(droplevels(factor(df_var[[fvar]]))))
                 gl <- multcompView::multcompLetters(pmat, threshold = 0.05)$Letters
                 gdf <- data.frame(groups = gl); gdf[[fvar]] <- names(gl); gdf
               }, error = function(e) {
