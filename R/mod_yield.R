@@ -70,7 +70,18 @@ mod_yield_ui <- function(id) {
           shiny::uiOutput(ns("yieldModaliteUI")),
           shiny::conditionalPanel(
             ns = ns, condition = "input.yieldSource == 'rendement'",
-            shiny::uiOutput(ns("yieldRendementUI"))),
+            shiny::uiOutput(ns("yieldRendementUI")),
+            # LE RENDEMENT GLOBAL PONDERE PAR LA SURFACE. Sans surface il
+            # n'est pas calculable -- sauf a declarer les surfaces egales,
+            # ce qui est le plan d'essai ordinaire. Les deux se declarent,
+            # aucun ne se devine.
+            shiny::checkboxInput(ns("yieldSurfacesEgales"),
+              "Les répétitions portent des surfaces égales",
+              value = TRUE),
+            shiny::conditionalPanel(
+              ns = ns, condition = "!input.yieldSurfacesEgales",
+              shiny::uiOutput(ns("yieldSurfacePondUI"))),
+            shiny::uiOutput(ns("yieldGlobalNote"))),
           shiny::conditionalPanel(
             ns = ns, condition = "input.yieldSource != 'rendement'",
             shiny::uiOutput(ns("yieldMasseUI")),
@@ -582,6 +593,28 @@ mod_yield_server <- function(id, values) {
                   selected = if (length(n)) .prefere("Rendement_moyen", n,
                                               .prefere("Rendement", n, n[1])) else NULL)
     })
+    output$yieldSurfacePondUI <- shiny::renderUI({
+      n <- cols_num()
+      shiny::selectInput(ns("yieldSurfacePond"),
+                  "Surface de chaque répétition (pondère le rendement global)",
+                  choices = c("(aucune)" = "", n),
+                  selected = .prefere("Surface", n, ""))
+    })
+
+    output$yieldGlobalNote <- shiny::renderUI({
+      egales <- isTRUE(input$yieldSurfacesEgales)
+      pond <- nzchar(input$yieldSurfacePond %||% "")
+      txt <- if (egales)
+          tr("Surfaces égales : le rendement global vaut alors exactement la moyenne. Ce n'est pas un second calcul, c'est la même pondération — et c'est le cas d'un essai à parcelles identiques.")
+        else if (pond)
+          tr("Le rendement global sera la moyenne des rendements pondérée par la surface — soit la masse totale rapportée à la surface totale.")
+        else
+          tr("Sans surface ni déclaration d'égalité, le rendement global n'est pas calculable : il pondère par la surface. La colonne sera absente ; la moyenne, la somme et leurs gains restent calculés.")
+      shiny::div(class = if (egales || pond) "callout callout-info" else "callout callout-warning",
+          style = "padding:8px 12px;margin:6px 0 0 0;font-size:12px;",
+          shiny::icon(if (egales || pond) "circle-info" else "triangle-exclamation"), " ", txt)
+    })
+
     output$yieldRepetitionUI <- shiny::renderUI({
       cn <- cols_toutes()
       shiny::selectInput(ns("yieldRepetition"), "Répétition (facultatif)",
@@ -660,7 +693,11 @@ mod_yield_server <- function(id, values) {
         var_repetition = if (nzchar(input$yieldRepetition %||% "")) input$yieldRepetition else NULL,
         conv_masse = if (isTRUE(input$yieldConvertir)) input$yieldConvMasse else NULL,
         conv_surface = if (isTRUE(input$yieldConvertir)) input$yieldConvSurface else NULL,
-        var_rendement = if (pret) input$yieldRendement else NULL)
+        var_rendement = if (pret) input$yieldRendement else NULL,
+        rdt_surfaces_egales = pret && isTRUE(input$yieldSurfacesEgales),
+        rdt_var_surface = if (pret && !isTRUE(input$yieldSurfacesEgales) &&
+                              nzchar(input$yieldSurfacePond %||% ""))
+                            input$yieldSurfacePond else NULL)
     })
 
     output$yieldMessage <- shiny::renderUI({

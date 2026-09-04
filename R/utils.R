@@ -2513,6 +2513,122 @@ permdisp_per_factor <- function(Y, df, factors, dist_method = "euclidean") {
 # multiples et effets simples) la lisent ici, ils ne peuvent pas diverger.
 HSTAT_POSTHOC_WELCH <- c("games")
 
+# ---------------------------------------------------------------------------
+#  LES DEUX TESTS DE WELCH
+# ---------------------------------------------------------------------------
+#  Welch ne suppose pas les variances egales. Il n'existe QUE deux tests
+#  parametriques qui portent son nom, et c'est une liste close :
+#
+#    - le t a deux echantillons (Welch 1947) ;
+#    - l'analyse de variance a un facteur (Welch 1951).
+#
+#  Il n'y a pas de « t de Welch a un echantillon » : sans second groupe, il n'y
+#  a rien a mettre en commun, donc rien a ne pas mettre en commun. Le dire evite
+#  qu'on cherche un troisieme test qui n'existe pas.
+#
+#  LE DEGRE DE LIBERTE EST FRACTIONNAIRE, et c'est la signature de la methode :
+#  l'approximation de Welch-Satterthwaite ne rend pas un entier. Un ddl affiche
+#  arrondi ferait passer un Welch pour un Student.
+#
+#  POURQUOI LES DEUX SONT OFFERTS PLUTOT QU'IMPOSES. Welch est plus robuste
+#  quand les variances different, et il coute peu quand elles sont egales --
+#  mais Student et Fisher restent ce que les protocoles d'essai prescrivent et
+#  ce que les publications rapportent. Le choix appartient a l'analyste ; ce
+#  qui n'est pas negociable, c'est que le nom affiche dise lequel a tourne.
+HSTAT_TESTS_WELCH <- c("t_welch", "anova_welch")
+
+# Nettoie et verifie un couple (reponse numerique, facteur) avant tout test a
+# deux echantillons ou plus. Rend `NULL` et un motif nomme plutot que de
+# laisser lever : un test statistique refuse doit dire de quoi il manque.
+.hstat_deux_ech <- function(df, var, fvar, min_groupes = 2L, max_groupes = Inf) {
+  ko <- function(m) list(ok = FALSE, message = m)
+  if (!is.data.frame(df) || !NROW(df)) return(ko(tr("Aucune donnée : chargez un jeu de données.")))
+  if (!all(c(var, fvar) %in% names(df)))
+    return(ko(tr("Variable réponse ou facteur introuvable dans les données.")))
+  y <- suppressWarnings(as.numeric(df[[var]]))
+  g <- droplevels(factor(as.character(df[[fvar]])))
+  ok <- is.finite(y) & !is.na(g)
+  y <- y[ok]; g <- droplevels(g[ok])
+  k <- nlevels(g)
+  if (k < min_groupes)
+    return(ko(trf("« %s » ne distingue que %d groupe(s) exploitable(s) : il en faut au moins %d.",
+                  fvar, k, min_groupes)))
+  if (k > max_groupes)
+    return(ko(trf("« %s » compte %d modalités (%s). Ce test en compare exactement %d ; au-delà, passez à l'ANOVA.",
+                  fvar, k, paste(utils::head(levels(g), 5), collapse = ", "), max_groupes)))
+  # UN GROUPE A UNE SEULE OBSERVATION N'A PAS DE VARIANCE, et c'est justement
+  # la variance par groupe que Welch estime separement : il rendrait NaN.
+  n_g <- as.integer(table(g))
+  if (any(n_g < 2L))
+    return(ko(trf("Chaque groupe doit compter au moins deux observations ; %s n'en a qu'une.",
+                  paste(levels(g)[n_g < 2L], collapse = ", "))))
+  list(ok = TRUE, y = y, g = g, k = k, n = n_g)
+}
+
+# Test t a deux echantillons. `var_equal = FALSE` donne Welch, `TRUE` donne
+# Student (variance mise en commun). Le nom rendu dit lequel a tourne -- c'est
+# tout l'objet : l'application executait Welch sous l'etiquette « Student ».
+hstat_t_deux <- function(df, var, fvar, var_equal = FALSE, conf_level = 0.95) {
+  nom <- if (isTRUE(var_equal)) "Test t de Student" else "Test t de Welch"
+  vide <- list(p = NA_real_, statistique = NA_real_, ddl = NA_real_,
+               test = nom, message = NULL, ic = c(NA_real_, NA_real_),
+               moyennes = NULL)
+  pre <- .hstat_deux_ech(df, var, fvar, min_groupes = 2L, max_groupes = 2L)
+  if (!isTRUE(pre$ok)) { vide$message <- pre$message; return(vide) }
+  r <- tryCatch(
+    stats::t.test(pre$y ~ pre$g, var.equal = isTRUE(var_equal),
+                  conf.level = conf_level),
+    error = function(e) NULL)
+  if (is.null(r) || !isTRUE(is.finite(r$p.value))) {
+    vide$message <- tr("Test t non calculable sur ces données.")
+    return(vide)
+  }
+  list(p = unname(r$p.value), statistique = unname(r$statistic),
+       # LE DDL DE WELCH EST FRACTIONNAIRE : on ne l'arrondit pas.
+       ddl = unname(r$parameter), test = nom, message = NULL,
+       ic = unname(r$conf.int), moyennes = unname(r$estimate),
+       niveaux = levels(pre$g), n = pre$n)
+}
+
+# ANOVA de Welch a un facteur. C'est la reference des methodes a variances
+# inegales -- Games-Howell la lit deja par `hstat_omnibus_variances()`.
+hstat_anova_welch <- function(df, var, fvar) {
+  vide <- list(p = NA_real_, statistique = NA_real_, ddl1 = NA_real_,
+               ddl2 = NA_real_, test = "ANOVA de Welch", message = NULL)
+  pre <- .hstat_deux_ech(df, var, fvar, min_groupes = 2L)
+  if (!isTRUE(pre$ok)) { vide$message <- pre$message; return(vide) }
+  r <- tryCatch(stats::oneway.test(pre$y ~ pre$g, var.equal = FALSE),
+                error = function(e) NULL)
+  if (is.null(r) || !isTRUE(is.finite(r$p.value))) {
+    vide$message <- tr("ANOVA de Welch non calculable sur ces données.")
+    return(vide)
+  }
+  list(p = unname(r$p.value), statistique = unname(r$statistic),
+       ddl1 = unname(r$parameter[1]), ddl2 = unname(r$parameter[2]),
+       test = "ANOVA de Welch", message = NULL,
+       niveaux = levels(pre$g), n = pre$n)
+}
+
+# Ecrit un degre de liberte : entier quand il l'est, deux decimales sinon.
+# Welch en rend un fractionnaire (Welch-Satterthwaite) ; l'arrondir a l'entier
+# le ferait passer pour un Student, qui est exactement ce qu'il n'est pas.
+hstat_ddl_fmt <- function(x, dec = 2L, max_dec = 6L) {
+  if (!length(x) || !isTRUE(is.finite(x[1]))) return(NA_character_)
+  x <- x[1]
+  if (isTRUE(all.equal(x, round(x)))) return(format(round(x)))
+  # UN DDL FRACTIONNAIRE QUI S'AFFICHE « 11.00 » SE LIT COMME UN ENTIER.
+  # Welch rend 11,00449737 sur un essai a six modalites : arrondi a deux
+  # decimales il ne se distingue plus du 11 de Fisher -- or c'est
+  # precisement ce qui separe les deux tests. On ajoute donc des decimales
+  # jusqu'a ce que la fraction se voie, sans jamais en mettre plus qu'il
+  # n'en faut.
+  for (d in seq.int(dec, max_dec)) {
+    v <- round(x, d)
+    if (!isTRUE(all.equal(v, round(v)))) return(format(v, nsmall = d))
+  }
+  format(round(x, max_dec), nsmall = max_dec)
+}
+
 hstat_omnibus_variances <- function(methode) {
   if (length(methode) != 1L || is.na(methode)) return("egales")
   if (as.character(methode) %in% HSTAT_POSTHOC_WELCH) "inegales" else "egales"
@@ -2591,6 +2707,52 @@ hstat_cld_proteger <- function(lettres, p_omnibus, seuil = 0.05,
     "%s non significatif (p = %s) : aucune différence entre modalités, toutes reçoivent la même lettre. Décochez « post-hoc protégé » pour voir les comparaisons par paires malgré tout.",
     test %||% tr("Test global"), format(signif(p_omnibus, 4), scientific = FALSE))
   aplat
+}
+
+# UNE DEMI-MATRICE DE PMCMRplus NE PORTE PAS TOUS LES NIVEAUX.
+#
+# `gamesHowellTest`, `kwAllPairsDunnTest`, `kwAllPairsConoverTest` et
+# `kwAllPairsNemenyiTest` rendent une matrice (k-1) x (k-1) : ses LIGNES sont
+# les niveaux 2..k et ses COLONNES les niveaux 1..(k-1). Le PREMIER niveau
+# n'apparait donc jamais en ligne, et le dernier jamais en colonne.
+#
+# L'idiome employe jusqu'ici -- `pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]`
+# puis `diag(pmat) <- 1` -- travaille sur cette forme sans jamais la completer :
+# les dimensions concordent, rien ne leve, et `multcompLetters` ne voit que
+# k-1 niveaux. LA PREMIERE MODALITE RESSORT SANS LETTRE, `NA` dans le tableau
+# final apres la fusion avec les descriptives. Constate a l'ecran sur les
+# quatre post-hoc a la fois : « NA a b c d abcd » pour six traitements.
+#
+# On reconstruit donc la matrice PLEINE sur les niveaux CONNUS, comme
+# `hstat_pmat_comparaisons()` le fait deja pour les etiquettes de contraste :
+# c'est la meme regle, on ne fait pas confiance a la forme rendue par le
+# paquet, on la rapproche des niveaux du facteur.
+#
+# Une paire absente garde 1 -- « pas de difference » --, ce qui est le repli
+# prudent : il regroupe au lieu de separer a tort.
+hstat_pmat_demi <- function(p, niveaux) {
+  niveaux <- as.character(niveaux)
+  n <- length(niveaux)
+  out <- matrix(1, n, n, dimnames = list(niveaux, niveaux))
+  if (is.null(p) || !length(p)) return(out)
+  p <- as.matrix(p)
+  rn <- rownames(p); cn <- colnames(p)
+  if (is.null(rn) || is.null(cn)) return(out)
+  manquants <- character(0)
+  for (r in rn) for (cc in cn) {
+    v <- p[r, cc]
+    if (!isTRUE(is.finite(v))) next
+    if (!(r %in% niveaux) || !(cc %in% niveaux)) {
+      manquants <- c(manquants, paste(r, cc, sep = " - ")); next
+    }
+    out[r, cc] <- v
+    out[cc, r] <- v
+  }
+  diag(out) <- 1
+  # CE QUI N'A PAS PU ETRE RATTACHE EST NOMME : la case garde 1, donc « pas de
+  # difference », et le taire ferait publier des lettres optimistes sans signe.
+  if (length(manquants)) attr(out, "non_resolues") <- unique(manquants)
+  out
 }
 
 # UNE ETIQUETTE DE COMPARAISON NE SE DECOUPE PAS SUR SON SEPARATEUR.
@@ -4603,10 +4765,33 @@ hstat_rdt_table <- function(df, var_modalite, var_masse, var_surface,
 # L'unite, elle, est DECLAREE par l'utilisateur : sans masse ni surface,
 # l'application ne peut pas la deviner, et un axe de rendement sans unite n'est
 # pas un resultat. Declaree, elle rend aussi la conversion possible.
+# LE RENDEMENT GLOBAL EXISTE AUSSI QUAND ON N'A QUE DES RENDEMENTS.
+#
+# Il rapporte la masse TOTALE a la surface TOTALE, donc il pondere chaque
+# repetition par sa surface. Sans les surfaces il etait tenu pour incalculable
+# et la colonne disparaissait -- ce qui est juste dans le cas general, et faux
+# dans le cas le plus courant.
+#
+# Deux chemins le rendent calculable, et aucun ne se devine :
+#
+#  1. UNE COLONNE DE SURFACES. Le global vaut alors la moyenne PONDEREE des
+#     rendements par les surfaces -- exactement masse totale / surface totale,
+#     puisque la masse d'une ligne vaut son rendement fois sa surface.
+#  2. DES SURFACES DECLAREES EGALES. C'est le plan d'essai ordinaire : cinq
+#     modalites sur dix parcelles identiques. La ponderation est alors
+#     uniforme et le global vaut EXACTEMENT la moyenne. On l'ecrit quand meme,
+#     parce que c'est la question posee -- et le message dit l'egalite ET sa
+#     condition, sinon on croirait a deux calculs differents.
+#
+# Ce qu'on ne fait PAS : deviner. Sans surface ni declaration, la colonne reste
+# absente. Poser la moyenne sous une etiquette qui promet une ponderation par
+# la surface serait le defaut que ce module existe pour eviter.
 hstat_rdt_table_prete <- function(df, var_modalite, var_rendement,
                                   sortie_masse = "kilogramme (kg)",
                                   sortie_surface = "hectare (ha)",
-                                  var_repetition = NULL) {
+                                  var_repetition = NULL,
+                                  var_surface = NULL,
+                                  surfaces_egales = FALSE) {
   vide <- data.frame(Modalite = character(0), N = integer(0),
                      Repetitions = integer(0),
                      Rendement_moyen = numeric(0), Rendement_somme = numeric(0),
@@ -4644,6 +4829,21 @@ hstat_rdt_table_prete <- function(df, var_modalite, var_rendement,
     return(msg(vide, trf("La variable « %s » ne porte aucune modalité exploitable.",
                          var_modalite[1])))
 
+  # LA SURFACE, QUAND ELLE EST DONNEE, PONDERE LE GLOBAL.
+  a_surf <- !is.null(var_surface) && length(var_surface) && nzchar(var_surface[1]) &&
+            var_surface[1] %in% names(df)
+  if (!is.null(var_surface) && length(var_surface) && nzchar(var_surface[1]) && !a_surf)
+    return(msg(vide, trf("La variable de surface « %s » est introuvable dans les données : choisissez-en une autre.",
+                         var_surface[1])))
+  surf <- if (a_surf) suppressWarnings(as.numeric(df[[var_surface[1]]])) else rep(NA_real_, NROW(df))
+  if (a_surf && !any(is.finite(surf) & surf > 0))
+    return(msg(vide, trf("La variable « %s » ne porte aucune surface exploitable : elle doit être numérique et strictement positive.",
+                         var_surface[1])))
+  # UNE SURFACE NULLE OU NEGATIVE NE PONDERE RIEN : elle est ecartee et comptee,
+  # comme dans le chemin masse/surface.
+  surf_ko <- if (a_surf) sum(!is.na(modal) & is.finite(rdt) & !(is.finite(surf) & surf > 0)) else 0L
+  glob <- a_surf || isTRUE(surfaces_egales)
+
   lignes <- lapply(niveaux, function(m) {
     i <- which(!is.na(modal) & modal == m)
     r <- rdt[i]
@@ -4653,6 +4853,16 @@ hstat_rdt_table_prete <- function(df, var_modalite, var_rendement,
       Modalite = m,
       N = length(i),
       Repetitions = if (a_rep) length(unique(rep_v[i])) else NA_integer_,
+      # `NULL` DANS UN `data.frame()` N'OMET PAS LA COLONNE : il y met un
+      # argument de longueur nulle, et R leve « arguments imply differing
+      # number of rows ». On pose `NA` puis on RETIRE la colonne apres coup,
+      # exactement comme le fait deja `Repetitions`.
+      Rendement_global = if (!glob) NA_real_
+        else if (a_surf) {
+          s_i <- surf[i]
+          u <- ok & is.finite(s_i) & s_i > 0
+          if (any(u)) sum(r[u] * s_i[u]) / sum(s_i[u]) else NA_real_
+        } else if (n_ok) mean(r[ok]) else NA_real_,
       Rendement_moyen = if (n_ok) mean(r[ok]) else NA_real_,
       Rendement_somme = if (n_ok) sum(r[ok]) else NA_real_,
       Ecart_type = if (n_ok > 1) stats::sd(r[ok]) else NA_real_,
@@ -4662,12 +4872,14 @@ hstat_rdt_table_prete <- function(df, var_modalite, var_rendement,
   out <- do.call(rbind, lignes)
   rownames(out) <- NULL
   if (!a_rep) out$Repetitions <- NULL
+  if (!glob) out$Rendement_global <- NULL
 
   attr(out, "unite") <- hstat_rdt_unite_libelle(sortie_masse, sortie_surface)
   attr(out, "sortie_masse") <- sortie_masse
   attr(out, "sortie_surface") <- sortie_surface
   attr(out, "invalides") <- invalides
   attr(out, "prete") <- TRUE
+  attr(out, "global") <- if (!glob) "aucun" else if (a_surf) "pondere" else "surfaces_egales"
   alertes <- character(0)
   if (invalides > 0)
     alertes <- c(alertes, trf("%d ligne(s) écartée(s) : rendement illisible ou manquant",
@@ -4679,9 +4891,21 @@ hstat_rdt_table_prete <- function(df, var_modalite, var_rendement,
   if (length(unique(n_lignes)) > 1)
     alertes <- c(alertes, trf("le nombre de lignes exploitables varie d'une modalité à l'autre (%s) : la SOMME des rendements n'est pas comparable entre modalités, la moyenne le reste",
                               paste(range(n_lignes), collapse = " à ")))
+  if (a_surf && surf_ko > 0)
+    alertes <- c(alertes, trf("%d ligne(s) sans surface exploitable : elles ne pondèrent pas le rendement global",
+                              surf_ko))
+  note <- if (a_surf)
+      trf("%d modalité(s), rendement lu tel quel en %s. Le rendement global est pondéré par « %s ».",
+          nrow(out), attr(out, "unite"), var_surface[1])
+    else if (isTRUE(surfaces_egales))
+      trf("%d modalité(s), rendement lu tel quel en %s. Surfaces déclarées égales : le rendement global vaut alors exactement la moyenne — c'est la même pondération, pas un second calcul.",
+          nrow(out), attr(out, "unite"))
+    else
+      trf("%d modalité(s), rendement lu tel quel en %s. Sans surface ni déclaration d'égalité, le rendement global n'est pas calculable : il pondère par la surface.",
+          nrow(out), attr(out, "unite"))
   msg(out, if (length(alertes))
     paste0("Attention : ", paste(alertes, collapse = " ; "), ".")
-    else trf("%d modalité(s), rendement lu tel quel en %s.", nrow(out), attr(out, "unite")))
+    else note)
 }
 
 # Insere une colonne juste apres une autre, en conservant l'ordre du reste.
@@ -4815,14 +5039,17 @@ hstat_rdt_complet <- function(df, var_modalite, var_masse, var_surface,
                               sortie_surface = "hectare (ha)",
                               var_repetition = NULL,
                               conv_masse = NULL, conv_surface = NULL,
-                              var_rendement = NULL) {
+                              var_rendement = NULL,
+                              rdt_var_surface = NULL,
+                              rdt_surfaces_egales = FALSE) {
   # Le rendement DEJA CALCULE court-circuite la pesee : meme tableau, memes
   # gains, memes graphiques -- une colonne de moins, `Rendement_global`, qui
   # exige les surfaces.
   prete <- !is.null(var_rendement) && length(var_rendement) && nzchar(var_rendement[1])
   res <- if (prete)
     hstat_rdt_table_prete(df, var_modalite, var_rendement,
-                          sortie_masse, sortie_surface, var_repetition)
+                          sortie_masse, sortie_surface, var_repetition,
+                          rdt_var_surface, rdt_surfaces_egales)
   else
     hstat_rdt_table(df, var_modalite, var_masse, var_surface,
                     unite_masse, unite_surface, sortie_masse,

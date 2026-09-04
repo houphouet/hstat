@@ -13375,3 +13375,285 @@ test_that("les effets simples sont protégés par LEUR propre test global", {
   expect_gt(nrow(garde), 0L)
   expect_equal(length(unique(garde$groups)), 1L)
 })
+
+test_that("les deux tests de Welch existent, et ils ne sont pas Student", {
+  # WELCH NE SUPPOSE PAS LES VARIANCES EGALES. Il n'existe QUE deux tests
+  # parametriques qui portent son nom -- le t a deux echantillons et l'ANOVA a
+  # un facteur -- et la liste est close : sans second groupe il n'y a rien a
+  # mettre en commun, donc pas de « t de Welch a un echantillon ».
+  expect_setequal(HSTAT_TESTS_WELCH, c("t_welch", "anova_welch"))
+
+  # LE JEU D'ESSAI DOIT RENDRE LES DEUX FORMULES DISCERNABLES : sur des
+  # variances egales, Welch et Student donnent presque le meme p et
+  # l'assertion se viderait de son sens. On prend donc des variances tres
+  # inegales, ET on verifie qu'elles se distinguent.
+  set.seed(11)
+  d <- data.frame(
+    g = rep(c("A", "B"), each = 12),
+    y = c(stats::rnorm(12, 10, 1), stats::rnorm(12, 12, 8)),
+    stringsAsFactors = FALSE)
+
+  w <- hstat_t_deux(d, "y", "g", var_equal = FALSE)
+  st <- hstat_t_deux(d, "y", "g", var_equal = TRUE)
+  expect_equal(w$test, "Test t de Welch")
+  expect_equal(st$test, "Test t de Student")
+  # Les chiffres sont ceux de R, pas une approximation maison.
+  expect_equal(w$p,  stats::t.test(y ~ g, d, var.equal = FALSE)$p.value)
+  expect_equal(st$p, stats::t.test(y ~ g, d, var.equal = TRUE)$p.value)
+  expect_false(isTRUE(all.equal(w$p, st$p)))
+
+  # LE DDL DE WELCH EST FRACTIONNAIRE, c'est la signature de la methode ;
+  # celui de Student vaut n - 2, un entier. L'arrondir ferait passer l'un
+  # pour l'autre.
+  expect_false(isTRUE(all.equal(w$ddl, round(w$ddl))))
+  expect_equal(st$ddl, 22)
+  expect_equal(hstat_ddl_fmt(st$ddl), "22")           # 22, pas 22.00
+  expect_true(grepl("[.]", hstat_ddl_fmt(w$ddl)))     # la fraction survit
+
+  # ET LA FRACTION DOIT SE VOIR, pas seulement le point décimal.
+  # L'ANOVA de Welch rend ici ddl2 = 11,00449737 : arrondi à deux décimales il
+  # s'écrit « 11.00 » et se lit comme le 11 entier de Fisher — or c'est
+  # précisément ce qui sépare les deux tests. Vérifier la présence d'un point
+  # ne suffit donc pas : « 11.00 » en porte un. C'est la valeur qu'on contrôle.
+  expect_equal(hstat_ddl_fmt(11.00449737), "11.004")
+  expect_false(identical(hstat_ddl_fmt(11.00449737), "11.00"))
+  expect_equal(hstat_ddl_fmt(11.72), "11.72")         # deux décimales suffisent
+  expect_equal(hstat_ddl_fmt(5), "5")
+  expect_true(is.na(hstat_ddl_fmt(NA_real_)))
+
+  # L'ANOVA DE WELCH est la reference des methodes a variances inegales.
+  set.seed(8)
+  ecarts <- c(1, 1, 1, 1, 1, 20)
+  y <- unlist(lapply(seq_len(6), function(i)
+    stats::rnorm(5, 50 + c(0, 1, 2, 3, 4, 25)[i], ecarts[i])))
+  h <- data.frame(Traitement = rep(paste0("T", seq_len(6)), each = 5),
+                  Rendement = y, stringsAsFactors = FALSE)
+  aw <- hstat_anova_welch(h, "Rendement", "Traitement")
+  expect_equal(aw$test, "ANOVA de Welch")
+  expect_equal(aw$p, stats::oneway.test(Rendement ~ factor(Traitement), h,
+                                        var.equal = FALSE)$p.value)
+  # ...et c'est bien celle que la protection post-hoc lit pour Games-Howell.
+  expect_equal(aw$p, hstat_omnibus(h, "Rendement", "Traitement",
+                                   parametric = TRUE, variances = "inegales")$p)
+  expect_false(isTRUE(all.equal(aw$ddl2, round(aw$ddl2))))
+
+  # LES CAS DEGENERES REFUSENT EN NOMMANT LA CAUSE, ils ne lèvent pas.
+  trois <- data.frame(g = rep(c("A", "B", "C"), each = 4),
+                      y = stats::rnorm(12), stringsAsFactors = FALSE)
+  r3 <- hstat_t_deux(trois, "y", "g")
+  expect_true(is.na(r3$p))
+  expect_true(grepl("exactement 2|ANOVA", r3$message))
+  # UN GROUPE A UNE SEULE OBSERVATION N'A PAS DE VARIANCE -- or c'est
+  # justement la variance PAR GROUPE que Welch estime separement.
+  seul <- data.frame(g = c("A", "A", "A", "B"), y = c(1, 2, 3, 4),
+                     stringsAsFactors = FALSE)
+  r1 <- hstat_t_deux(seul, "y", "g")
+  expect_true(is.na(r1$p))
+  expect_true(grepl("deux observations", r1$message))
+  expect_true(grepl("B", r1$message))              # le groupe fautif est nommé
+  expect_true(is.na(hstat_anova_welch(seul, "y", "g")$p))
+  expect_true(is.na(hstat_t_deux(data.frame(), "y", "g")$p))
+})
+
+test_that("le module offre les deux t et l'ANOVA de Welch, et oriente le post-hoc", {
+  skip_if_not_installed("shinydashboard")
+  skip_if_not_installed("DT")
+  skip_if_not_installed("car")
+  suppressMessages(hstat_installer_replis_ui())
+  # LE DEFAUT CORRIGE : `stats::t.test()` est Welch PAR DEFAUT, et le bouton
+  # s'appelait « Test t de Student ». L'application executait donc Welch sous
+  # le nom de Student, et Student n'etait offert nulle part.
+  set.seed(11)
+  d <- data.frame(
+    g = rep(c("A", "B"), each = 12),
+    y = c(stats::rnorm(12, 10, 1), stats::rnorm(12, 12, 8)),
+    stringsAsFactors = FALSE)
+
+  lance <- function(bouton) {
+    v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d,
+                               aiHistory = list())
+    out <- NULL
+    shiny::testServer(mod_tests_server, args = list(values = v), {
+      vider <- function() try(session$flushReact(), silent = TRUE)
+      session$setInputs(responseVar = "y", factorVar = "g", interaction = FALSE)
+      vider()
+      session$setInputs(!!bouton := 1); vider()
+      out <<- list(res = values$testResultsDF,
+                   var = values$currentTestVariances)
+    })
+    out
+  }
+
+  w  <- lance("testT")
+  st <- lance("testTStudent")
+  expect_equal(w$res$Test[1],  "Test t de Welch")
+  expect_equal(st$res$Test[1], "Test t de Student")
+  # LES DEUX NE RENDENT PAS LE MEME CHIFFRE sur variances inégales — sans quoi
+  # l'ajout serait cosmétique.
+  expect_false(isTRUE(all.equal(w$res$p_value[1], st$res$p_value[1])))
+  expect_equal(w$res$p_value[1],  stats::t.test(y ~ g, d, var.equal = FALSE)$p.value)
+  expect_equal(st$res$p_value[1], stats::t.test(y ~ g, d, var.equal = TRUE)$p.value)
+  # L'HYPOTHESE DE VARIANCE VOYAGE AVEC LE RESULTAT : c'est elle qui oriente
+  # le post-hoc vers Games-Howell.
+  expect_equal(w$var,  "inegales")
+  expect_equal(st$var, "egales")
+  # Le ddl fractionnaire de Welch survit à l'affichage.
+  expect_true(grepl("[.]", as.character(w$res$ddl[1])))
+  expect_false(grepl("[.]", as.character(st$res$ddl[1])))
+
+  # ANOVA DE WELCH sur plus de deux groupes.
+  set.seed(8)
+  ecarts <- c(1, 1, 1, 1, 1, 20)
+  yy <- unlist(lapply(seq_len(6), function(i)
+    stats::rnorm(5, 50 + c(0, 1, 2, 3, 4, 25)[i], ecarts[i])))
+  h <- data.frame(Traitement = rep(paste0("T", seq_len(6)), each = 5),
+                  Rendement = yy, stringsAsFactors = FALSE)
+  v <- shiny::reactiveValues(data = h, cleanData = h, filteredData = h,
+                             aiHistory = list())
+  out <- NULL
+  shiny::testServer(mod_tests_server, args = list(values = v), {
+    vider <- function() try(session$flushReact(), silent = TRUE)
+    session$setInputs(responseVar = "Rendement", factorVar = "Traitement",
+                      interaction = FALSE); vider()
+    session$setInputs(testANOVAWelch = 1); vider()
+    out <<- list(res = values$testResultsDF, var = values$currentTestVariances)
+  })
+  expect_equal(out$res$Test[1], "ANOVA de Welch")
+  expect_equal(out$res$p_value[1],
+               stats::oneway.test(Rendement ~ factor(Traitement), h,
+                                  var.equal = FALSE)$p.value)
+  expect_equal(out$var, "inegales")
+  # L'ANOVA DE FISHER DECLARE LA SIENNE, sinon le post-hoc lirait celle du
+  # test precedent -- et sur ce jeu les deux ne concluent pas pareil.
+  v2 <- shiny::reactiveValues(data = h, cleanData = h, filteredData = h,
+                              aiHistory = list())
+  vf <- NULL
+  shiny::testServer(mod_tests_server, args = list(values = v2), {
+    vider <- function() try(session$flushReact(), silent = TRUE)
+    session$setInputs(responseVar = "Rendement", factorVar = "Traitement",
+                      interaction = FALSE); vider()
+    session$setInputs(testANOVA = 1); vider()
+    vf <<- values$currentTestVariances
+  })
+  expect_equal(vf, "egales")
+})
+
+test_that("un fichier de deux colonnes suffit au rendement global, moyen et cumulé", {
+  # LE CAS SIGNALE : un fichier ne portant que le facteur et le rendement, cinq
+  # modalités répétées dix fois. Ni masse, ni surface. L'utilisateur veut le
+  # rendement global, le rendement moyen et le gain de chaque modalité.
+  set.seed(1)
+  d <- data.frame(
+    Facteur = rep(paste0("T", seq_len(5)), each = 10),
+    Rendement = round(stats::rnorm(50, rep(c(3, 3.6, 4.1, 3.9, 4.4), each = 10), .35), 2),
+    stringsAsFactors = FALSE)
+
+  r <- hstat_rdt_complet(d, "Facteur", NULL, NULL, non_traite = "T1",
+                         var_rendement = "Rendement", rdt_surfaces_egales = TRUE)
+  expect_equal(nrow(r), 5L)
+  expect_true(all(c("Rendement_global", "Rendement_moyen", "Rendement_somme",
+                    "Gain_global", "Gain_moyen", "Gain_somme") %in% names(r)))
+  expect_true(all(r$N == 10L))
+  # A SURFACES EGALES, LE GLOBAL VAUT EXACTEMENT LA MOYENNE. Ce n'est pas une
+  # approximation : masse totale / surface totale, avec des surfaces
+  # identiques, EST la moyenne des rendements. On l'écrit parce que c'est la
+  # question posée, et le message dit l'égalité et sa condition.
+  expect_equal(r$Rendement_global, r$Rendement_moyen)
+  expect_equal(r$Gain_global, r$Gain_moyen)
+  expect_match(attr(r, "message"), "[Ss]urfaces déclarées égales")
+  expect_equal(attr(r, "global"), "surfaces_egales")
+  # Le témoin vaut zéro de gain par définition, les autres sont calculés.
+  expect_equal(r$Gain_moyen[r$Modalite == "T1"], 0)
+  expect_true(all(is.finite(r$Gain_moyen)))
+
+  # AVEC DES SURFACES, LE GLOBAL EST PONDERE -- et il DIFFERE de la moyenne,
+  # sans quoi l'assertion précédente passerait aussi bien sur un code qui
+  # ignorerait la pondération.
+  p <- data.frame(Facteur = c("A", "A", "B", "B"), Rdt = c(10, 20, 10, 20),
+                  S = c(1, 9, 5, 5), stringsAsFactors = FALSE)
+  w <- hstat_rdt_complet(p, "Facteur", NULL, NULL, non_traite = "A",
+                         var_rendement = "Rdt", rdt_var_surface = "S")
+  expect_equal(w$Rendement_global[w$Modalite == "A"], (10 * 1 + 20 * 9) / 10)
+  expect_equal(w$Rendement_global[w$Modalite == "B"], 15)
+  expect_equal(w$Rendement_moyen, c(15, 15))
+  expect_false(isTRUE(all.equal(w$Rendement_global, w$Rendement_moyen)))
+  expect_equal(attr(w, "global"), "pondere")
+
+  # SANS SURFACE NI DECLARATION, ON NE DEVINE PAS. Poser la moyenne sous une
+  # étiquette qui promet une pondération par la surface serait exactement le
+  # défaut que ce module existe pour éviter.
+  q <- hstat_rdt_complet(p, "Facteur", NULL, NULL, non_traite = "A",
+                         var_rendement = "Rdt")
+  expect_false("Rendement_global" %in% names(q))
+  expect_false("Gain_global" %in% names(q))
+  expect_equal(nrow(q), 2L)                  # le tableau reste entier
+  expect_true(all(is.finite(q$Rendement_moyen)))
+  expect_equal(attr(q, "global"), "aucun")
+
+  # Une colonne de surface introuvable ou inexploitable REFUSE en nommant la
+  # cause, elle ne rend pas un tableau silencieusement faux.
+  ko <- hstat_rdt_complet(p, "Facteur", NULL, NULL, non_traite = "A",
+                          var_rendement = "Rdt", rdt_var_surface = "absente")
+  expect_equal(nrow(ko), 0L)
+  expect_match(attr(ko, "message"), "introuvable")
+  p0 <- p; p0$S <- 0
+  z <- hstat_rdt_complet(p0, "Facteur", NULL, NULL, non_traite = "A",
+                         var_rendement = "Rdt", rdt_var_surface = "S")
+  expect_equal(nrow(z), 0L)
+  expect_match(attr(z, "message"), "strictement positive")
+})
+
+test_that("une demi-matrice PMCMRplus porte quand même toutes les modalités", {
+  skip_if_not_installed("PMCMRplus")
+  skip_if_not_installed("multcompView")
+  # LE DEFAUT : `gamesHowellTest`, `kwAllPairsDunnTest`, `kwAllPairsConoverTest`
+  # et `kwAllPairsNemenyiTest` rendent une matrice (k-1) x (k-1) dont les LIGNES
+  # sont les niveaux 2..k et les COLONNES 1..(k-1). Le PREMIER niveau n'y figure
+  # jamais en ligne.
+  #
+  # L'idiome employe -- `pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]` -- travaille
+  # sur cette forme sans la completer : les dimensions concordent, rien ne leve,
+  # et `multcompLetters` ne voit que k-1 niveaux. La premiere modalite ressortait
+  # SANS LETTRE (`NA` apres la fusion), et les lettres des autres etaient fausses.
+  set.seed(8)
+  ecarts <- c(1, 1, 1, 1, 1, 20)
+  y <- unlist(lapply(seq_len(6), function(i)
+    stats::rnorm(5, 50 + c(0, 1, 2, 3, 4, 25)[i], ecarts[i])))
+  h <- data.frame(Traitement = factor(rep(paste0("T", seq_len(6)), each = 5)),
+                  Rendement = y)
+  niv <- levels(h$Traitement)
+  brut <- suppressWarnings(
+    PMCMRplus::gamesHowellTest(Rendement ~ Traitement, data = h))$p.value
+
+  # LE PIEGE, epingle : la forme rendue n'est pas carree sur les niveaux.
+  expect_equal(dim(brut), c(5L, 5L))
+  expect_false(niv[1] %in% rownames(brut))
+  expect_false(niv[length(niv)] %in% colnames(brut))
+
+  # LE REMEDE : une matrice pleine sur les niveaux CONNUS.
+  m <- hstat_pmat_demi(brut, niv)
+  expect_equal(dim(m), c(6L, 6L))
+  expect_equal(rownames(m), niv)
+  expect_equal(m, t(m))                      # symétrique
+  expect_true(all(diag(m) == 1))
+  # Les p-values rendues par le paquet y sont, aux deux positions.
+  expect_equal(m["T2", "T1"], brut["T2", "T1"])
+  expect_equal(m["T1", "T2"], brut["T2", "T1"])
+
+  lettres <- multcompView::multcompLetters(m, threshold = 0.05)$Letters[niv]
+  expect_false(anyNA(lettres))
+  expect_equal(length(lettres), 6L)
+  expect_true(nzchar(lettres[["T1"]]))       # la modalité qui manquait
+
+  # UNE PAIRE ABSENTE GARDE 1 -- « pas de différence » --, le repli prudent :
+  # il regroupe au lieu de séparer à tort.
+  vide <- hstat_pmat_demi(NULL, niv)
+  expect_equal(dim(vide), c(6L, 6L))
+  expect_true(all(vide == 1))
+  # Un niveau que le facteur ne connaît pas est NOMMÉ, pas absorbé en silence.
+  etranger <- brut
+  rownames(etranger)[1] <- "ZZZ"
+  e2 <- hstat_pmat_demi(etranger, niv)
+  expect_true(length(attr(e2, "non_resolues")) > 0)
+  expect_true(any(grepl("ZZZ", attr(e2, "non_resolues"))))
+})

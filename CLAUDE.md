@@ -1129,6 +1129,48 @@ tableau de bord qui l'a produit.
 un gain serait une faute de catégorie — le même rapport rendrait des pourcentages
 multipliés par mille. Un test échoue si un `Gain_*_conv` apparaît.
 
+### Deux colonnes suffisent : le facteur et le rendement
+
+Le cas signalé, et il est le plus courant : un fichier qui ne porte que le
+facteur et le rendement — cinq modalités répétées dix fois, ni masse ni surface.
+Le rendement moyen, la somme et leurs gains se calculaient déjà. Le **global**,
+lui, disparaissait, parce qu'il pondère par la surface.
+
+C'est juste dans le cas général, et faux dans le cas ordinaire. Deux chemins le
+rendent calculable, et **aucun ne se devine** :
+
+1. **Une colonne de surfaces** → le global est la moyenne des rendements
+   *pondérée* par les surfaces, ce qui est exactement masse totale / surface
+   totale : la masse d'une ligne vaut son rendement fois sa surface.
+2. **Des surfaces déclarées égales** → la pondération est uniforme et le global
+   vaut **exactement** la moyenne. On l'écrit quand même : c'est la question
+   posée, et le message dit l'égalité *et* sa condition — sinon on croirait à
+   deux calculs différents qui tombent juste.
+
+Sans surface ni déclaration, la colonne reste **absente**. Poser la moyenne sous
+une étiquette qui promet une pondération par la surface serait précisément le
+défaut que ce module existe pour éviter — c'est le même partage que
+« en commun » / « par répétition » des efficacités.
+
+Le sélecteur « Mesure représentée » étant construit depuis les colonnes
+réellement présentes, le graphique, les exports et le gain suivent sans une
+ligne de plus.
+
+**Le test croise les trois cas**, et il exige que la pondération soit
+*discernable* : sur `(10, 20)` de surfaces `(1, 9)` le global vaut 19 et la
+moyenne 15. Sans cela, l'assertion « global = moyenne à surfaces égales »
+passerait aussi bien sur un code qui ignorerait complètement les surfaces.
+
+#### `NULL` dans un `data.frame()` n'omet pas la colonne
+
+Piège rencontré en posant ce calcul, et attrapé par la vérification du troisième
+cas. Écrire `Rendement_global = if (!glob) NULL` dans l'appel à `data.frame()`
+n'enlève pas la colonne : il y passe un argument de **longueur nulle**, et R
+lève « arguments imply differing number of rows: 1, 0 » — sur le chemin qui
+était justement le comportement d'avant. On pose `NA` puis on **retire la
+colonne après coup**, ce que la fonction faisait déjà pour `Repetitions` deux
+lignes plus bas.
+
 ### Un zéro n'est pas une absence
 
 Le témoin a un gain de **0 par définition**. Sur un graphique en barres, une
@@ -2079,6 +2121,96 @@ sans savoir si l'analyse d'ensemble les autorisait.
 incalculable ne prouve rien, ni dans un sens ni dans l'autre. On laisse alors
 les lettres, et on le dit — la règle du dépôt, ne jamais brancher sur une
 statistique non calculable.
+
+### Les deux tests de Welch, et l'application en exécutait un sous un faux nom
+
+`stats::t.test()` est **Welch par défaut** (`var.equal = FALSE`). Le bouton
+s'appelait « Test t de Student ». L'application exécutait donc Welch sous le nom
+de Student — et Student, le vrai, n'était offert **nulle part**.
+
+C'est la même famille que les lettres CLD sous une étiquette qui ment : le
+chiffre est bon, le nom est faux, et c'est le nom qu'on recopie dans un rapport.
+
+Les deux sont désormais proposés, et le nom rendu dit lequel a tourné. Aucun
+comportement existant ne change : le bouton `testT` garde son calcul, il change
+d'étiquette.
+
+**La liste est close.** Il n'existe que **deux** tests paramétriques de Welch :
+le t à deux échantillons (1947) et l'ANOVA à un facteur (1951). Pas de « t de
+Welch à un échantillon » — sans second groupe il n'y a rien à mettre en commun,
+donc rien à ne pas mettre en commun. `HSTAT_TESTS_WELCH` le déclare, et le dire
+évite qu'on cherche un troisième test qui n'existe pas.
+
+**Le degré de liberté est fractionnaire, et c'est la signature de la méthode.**
+Welch-Satterthwaite ne rend pas un entier. `round(ddl, 2)` l'écrivait « 22.00 »
+là où Student rend 22 : `hstat_ddl_fmt()` garde la fraction quand il y en a une
+et l'entier quand il n'y en a pas. Un ddl arrondi ferait passer un Welch pour un
+Student, c'est-à-dire pour ce qu'il n'est précisément pas.
+
+**L'ANOVA de Welch est un test à UN facteur.** Elle ne décompose pas
+d'interaction. Accepter un second facteur donnerait un réglage que le calcul
+ignore — le défaut que ce dépôt traque ailleurs : le module prend le premier et
+le dit.
+
+#### L'hypothèse de variance voyage avec le résultat
+
+`values$currentTestVariances` est écrit par les quatre tests paramétriques. Le
+post-hoc le lit et **présélectionne Games-Howell** après un test de Welch : c'est
+le seul post-hoc qui ne suppose pas les variances égales, et sa référence est
+l'ANOVA de Welch (voir plus haut). Laisser Tukey sélectionné ferait comparer des
+lettres à un test global que l'utilisateur n'a pas lancé.
+
+C'est une **présélection, pas un verrou**, et elle est annoncée : le choix de la
+méthode engage l'interprétation, il reste à l'analyste. Un test vérifie que les
+quatre déclarent leur hypothèse — l'ANOVA de Fisher comprise, sans quoi le
+post-hoc lirait celle du test précédent.
+
+### Une demi-matrice de PMCMRplus ne porte pas toutes les modalités
+
+Trouvé en validant la présélection de Games-Howell au navigateur, et c'est le
+défaut le plus large de cette série : il touchait **les quatre** post-hoc de
+PMCMRplus à la fois — Games-Howell, Dunn, Conover, Nemenyi.
+
+`gamesHowellTest`, `kwAllPairsDunnTest`, `kwAllPairsConoverTest` et
+`kwAllPairsNemenyiTest` rendent une matrice **(k−1) × (k−1)** : ses *lignes* sont
+les niveaux 2..k, ses *colonnes* les niveaux 1..(k−1). Le **premier niveau
+n'apparaît jamais en ligne**, le dernier jamais en colonne.
+
+L'idiome employé travaillait sur cette forme sans jamais la compléter :
+
+```r
+pmat <- as.matrix(mc$p.value)
+pmat[is.na(pmat)] <- t(pmat)[is.na(pmat)]   # dimensions concordantes, rien ne lève
+diag(pmat) <- 1
+```
+
+`multcompLetters` ne voyait donc que k−1 niveaux. Mesuré sur six traitements :
+**« NA a b c d abcd »** — la première modalité sans lettre, et les autres
+**fausses** (T2 sortait « a », il vaut « ab »). Pas une erreur, pas un vide : un
+tableau complet et faux, la forme la plus coûteuse.
+
+`hstat_pmat_demi()` reconstruit la matrice **pleine sur les niveaux connus**,
+exactement comme `hstat_pmat_comparaisons()` le fait pour les étiquettes de
+contraste : on ne fait pas confiance à la forme rendue par le paquet, on la
+rapproche des niveaux du facteur. Une paire absente garde 1 — « pas de
+différence » —, le repli prudent : il regroupe au lieu de séparer à tort. Un
+niveau que le facteur ne connaît pas est **nommé**, pas absorbé.
+
+Neuf sites y passent. Le neuvième était le **Bonferroni des effets simples**,
+resté sur la forme vecteur que le chemin principal avait déjà quittée.
+
+#### Un ddl fractionnaire qui s'affiche « 11.00 » se lit comme un entier
+
+Trou trouvé par mutation, et il est instructif : mon assertion vérifiait
+`grepl("[.]", …)` — la présence d'un **point décimal**. Or l'ANOVA de Welch rend
+ici ddl₂ = 11,00449737, qui arrondi à deux décimales s'écrit « 11.00 » : le point
+est là, l'assertion passait, et le nombre se lisait comme le 11 entier de Fisher.
+**Le décor était contrôlé, pas la valeur** — le défaut même que ce dépôt
+documente pour les métriques de modélisation.
+
+`hstat_ddl_fmt()` ajoute donc des décimales jusqu'à ce que la fraction se voie,
+et jamais plus qu'il n'en faut : 22 reste « 22 », 11,72 reste « 11.72 »,
+11,00449737 devient « 11.004 ». Le test compare désormais la **chaîne rendue**.
 
 ### Le post-hoc Bonferroni n'avait jamais fonctionné
 
