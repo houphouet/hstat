@@ -77,6 +77,20 @@ local({
     assign(nm, get(nm, envir = e), envir = globalenv())
 })
 
+# -- Poser les aiguillages, UNE FOIS, comme le fait le pont au demarrage ------
+# Les modules appellent `withSpinner`, `pickerInput`, `element_markdown`... sans
+# prefixe : ce sont des AIGUILLAGES, definis soit vers le paquet optionnel soit
+# vers un equivalent de base. Sans eux, tout test qui construit une interface ou
+# trace un graphique de module leve « could not find function ».
+#
+# Sept tests les posaient chacun de leur cote. Comme ils ecrivent dans
+# `globalenv()`, le PREMIER a s'executer servait tous les suivants -- donc un
+# test dependait de l'ordre des autres, exactement ce que l'amorce ci-dessus
+# dit d'eviter pour l'attachement de shiny. On le pose ici, au meme endroit et
+# pour la meme raison.
+if (exists("hstat_installer_replis_ui"))
+  suppressMessages(hstat_installer_replis_ui())
+
 # -- Racine du depot (pour les tests portant sur app.R et R/) ----------------
 # Renvoie NA quand les tests tournent depuis un paquet installe, ou app.R et le
 # dossier R/ n'existent plus : les tests concernes s'y skippent d'eux-memes.
@@ -9502,6 +9516,11 @@ test_that("un nom optionnel passe par son aiguillage, jamais par le paquet", {
   # sa page de secours -- pour un indicateur d'attente manquant.
   #
   # Le repli existait pourtant, sous le meme nom, a un prefixe pres.
+  # `ggtext` s'y est ajoute : VINGT-QUATRE appels ecrivaient
+  # `ggtext::element_markdown(...)` en dur. Le paquet est optionnel, et son
+  # absence emportait le graphique entier -- dans sept modules. Meme defaut que
+  # les treize precedents, a ceci pres qu'il frappait au TRACE et non a la
+  # construction de l'interface : plus tard, et un onglet a la fois.
   optionnels <- c(shinycssloaders = "withSpinner",
                   colourpicker    = "colourInput",
                   shinyWidgets    = "pickerInput",
@@ -9510,15 +9529,31 @@ test_that("un nom optionnel passe par son aiguillage, jamais par le paquet", {
                   sortable        = "rank_list",
                   plotly          = "plotlyOutput",
                   plotly          = "renderPlotly",
-                  plotly          = "ggplotly")
+                  plotly          = "ggplotly",
+                  ggtext          = "element_markdown")
+  # LE BALAYAGE PASSE PAR L'ANALYSEUR, PAS PAR LE TEXTE DE LA LIGNE.
+  # Cherche a la ligne, il signalait `UX.R:461` -- un commentaire JAVASCRIPT
+  # dans une chaine R, que `.hstat_code_lignes()` ne peut pas retirer puisque
+  # ce n'est pas un commentaire R. Un balayage qui crie au loup finit
+  # desactive ; celui-ci ne voit que de VRAIS `pkg::nom`, commentaires et
+  # chaines exclus par construction.
+  #
+  # Il est aussi plus strict que la version textuelle : celle-ci exigeait la
+  # parenthese ouvrante et manquait donc `sapply(x, plotly::ggplotly)`, ou le
+  # nom est passe en VALEUR. Un aiguillage contourne de cette facon serait tout
+  # aussi mort.
   fautifs <- character(0)
   for (f in .hstat_sources_app()) {
-    l <- .hstat_code_lignes(f)
-    for (i in seq_along(optionnels)) {
-      motif <- paste0(names(optionnels)[i], "::", optionnels[[i]], "(")
-      j <- grep(motif, l, fixed = TRUE)
-      if (length(j))
-        fautifs <- c(fautifs, sprintf("%s:%d %s", basename(f), j, motif))
+    pd <- tryCatch(utils::getParseData(parse(f, keep.source = TRUE)),
+                   error = function(e) NULL)
+    if (is.null(pd)) next
+    o <- pd[order(pd$line1, pd$col1), , drop = FALSE]
+    k <- which(o$token == "SYMBOL_PACKAGE")
+    for (i in k) {
+      if (i + 2L > nrow(o) || !identical(o$token[i + 1L], "NS_GET")) next
+      pkg <- o$text[i]; nom <- o$text[i + 2L]
+      if (any(names(optionnels) == pkg & optionnels == nom))
+        fautifs <- c(fautifs, sprintf("%s:%d %s::%s", basename(f), o$line1[i], pkg, nom))
     }
   }
   # `R/utils.R` est le seul endroit legitime : c'est lui qui POSE les
@@ -14695,4 +14730,74 @@ test_that("hstat_axe_titre survit a l'absence de ggtext", {
   skip_if_not_installed("ggtext")
   expect_s3_class(hstat_axe_titre(retour = TRUE), "element_textbox")
   expect_s3_class(hstat_axe_titre(retour = FALSE), "element_markdown")
+})
+
+# -----------------------------------------------------------------------------
+# L'AIGUILLAGE DE ggtext : LE REPLI REPREND L'ORDRE, IL NE DELEGUE PAS A `...`
+# -----------------------------------------------------------------------------
+test_that("element_markdown est toujours defini, avec ou sans ggtext", {
+  skip_if_not_installed("ggplot2")
+  # Deux environnements : l'un ou ggtext existe, l'autre ou il est declare
+  # absent. `hstat_installer_replis_ui()` lit `requireNamespace` depuis SON
+  # environnement d'execution -- on le masque donc la, ce qui reproduit
+  # exactement une machine sans ggtext.
+  poser <- function(ggtext_present) {
+    env <- new.env(parent = globalenv())
+    f <- hstat_installer_replis_ui
+    e2 <- new.env(parent = environment(f))
+    if (!ggtext_present) {
+      vrai <- base::requireNamespace
+      assign("requireNamespace", function(package, ...)
+        if (identical(package, "ggtext")) FALSE else vrai(package, ...), envir = e2)
+    }
+    environment(f) <- e2
+    suppressMessages(f(env))
+    get("element_markdown", envir = env)
+  }
+
+  # SANS ggtext : on rend un vrai element_text, pas une erreur, pas un blanc.
+  em <- poser(FALSE)
+  el <- em(size = 17, face = "bold", colour = "#123456", hjust = 1)
+  expect_identical(class(el), class(ggplot2::element_text()))
+  expect_equal(el$size, 17); expect_equal(el$face, "bold")
+  expect_equal(el$colour, "#123456"); expect_equal(el$hjust, 1)
+
+  # LE PIEGE QUE LE REPLI EXISTE POUR EVITER. Les deux signatures divergent des
+  # la troisieme position :
+  #   element_markdown(family, face, size,   colour, ...)
+  #   element_text    (family, face, colour, size,   ...)
+  # Un repli ecrit `function(...) element_text(...)` echangerait donc taille et
+  # couleur sur tout appel POSITIONNEL -- sans lever, sans avertir.
+  pos <- em(NULL, "bold", 13, "#ff0000")
+  expect_equal(pos$size, 13)            # et non "#ff0000"
+  expect_equal(pos$colour, "#ff0000")   # et non 13
+
+  # `color` a l'americaine reste accepte : neuf appels du depot l'ecrivent ainsi.
+  expect_equal(em(color = "#00ff00")$colour, "#00ff00")
+  # `halign` de gridtext n'existe pas chez element_text : le laisser tomber en
+  # silence perdrait un reglage. On le rapproche de `hjust`.
+  expect_equal(em(halign = 0.5)$hjust, 0.5)
+  # Un argument que `element_text` ignore ne doit pas faire LEVER le repli :
+  # c'est tout le graphique qui tomberait pour une bordure decorative.
+  expect_silent(em(size = 10, fill = "white", box.colour = "grey", r = 3))
+
+  # AVEC ggtext : c'est bien la vraie fonction, le rendu markdown est preserve.
+  skip_if_not_installed("ggtext")
+  expect_s3_class(poser(TRUE)(size = 12), "element_markdown")
+})
+
+test_that("les modules appellent element_markdown sans prefixe", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  # Le balayage general (« un nom optionnel passe par son aiguillage ») couvre
+  # deja la forme `ggtext::element_markdown(`. Celui-ci verifie l'autre moitie :
+  # que les appels EXISTENT toujours -- une reecriture qui les aurait supprimes
+  # au lieu de les deprefixer passerait le premier sans un mot.
+  n <- 0L
+  for (f in .hstat_sources_app()) {
+    if (identical(basename(f), "utils.R")) next
+    l <- .hstat_code_lignes(f)
+    n <- n + sum(grepl("(^|[^:[:alnum:]._])element_markdown\\(", l))
+  }
+  expect_gte(n, 23L)
 })

@@ -138,8 +138,8 @@ faute de pouvoir bâtir l'interface, s'exécute enfin — et un test sauté ress
 
 `hstat_installer_replis_ui()` (`R/utils.R`) pose `withSpinner`, `plotlyOutput`,
 `ggplotly`, `layout`, `config`, `renderPlotly`, `colourInput`, `pickerInput`,
-`radioGroupButtons`, `updatePickerInput` et `rank_list` : **toujours définis**,
-soit vers le paquet, soit vers un équivalent de base.
+`radioGroupButtons`, `updatePickerInput`, `rank_list` et `element_markdown` :
+**toujours définis**, soit vers le paquet, soit vers un équivalent de base.
 
 Treize appels écrivaient pourtant `shinycssloaders::withSpinner(...)`,
 `colourpicker::colourInput(...)` ou `shinyWidgets::pickerInput(...)` en dur. Ces
@@ -148,6 +148,61 @@ construit pas, et `HStat.R` remplace **toute** l'application par sa page de
 secours — pour un indicateur d'attente manquant. Le repli existait sous le même
 nom, à un préfixe près. Un test balaie le dépôt ; `R/utils.R` en est exclu,
 c'est lui qui **pose** les aiguillages.
+
+#### `ggtext` : vingt-quatre appels, et un repli qui devait tenir l'ordre
+
+Le douzième aiguillage est arrivé après les onze autres, et il frappait plus
+tard : **vingt-quatre** appels écrivaient `ggtext::element_markdown(...)` en
+dur, dans sept modules. Ceux-là ne touchent pas la construction de l'interface
+mais le **tracé** — l'application démarre, et c'est le graphique qui tombe, un
+onglet à la fois.
+
+`hstat_axe_titre()` portait la même faute sous une forme plus retorse : sa garde
+disait « si ggtext manque, se replier » et se repliait sur
+`ggtext::element_markdown()`, c'est-à-dire sur le paquet qu'elle venait de
+constater manquant.
+
+**Le repli reprend l'ordre de `element_markdown`, il ne délègue pas à `...`.**
+Les deux signatures divergent dès la troisième position :
+
+```
+element_markdown(family, face, size,   colour, …)
+element_text    (family, face, colour, size,   …)
+```
+
+Un repli écrit `function(...) ggplot2::element_text(...)` échangerait donc
+**taille et couleur** sur tout appel positionnel — sans lever, sans avertir :
+un titre de 13 points ressortirait de la couleur « 13 ». Les appels du dépôt
+nomment tous leurs arguments, mais un repli qui ne tient que par la discipline
+des appelants n'en est pas un. Une mutation le vérifie.
+
+Ce qui se perd sans ggtext, c'est le rendu markdown lui-même — le gras d'un
+`**mot**` reste écrit avec ses étoiles. C'est précisément ce qu'aucun
+équivalent de base ne peut rendre ; tout le reste (police, style, taille,
+couleur, alignement, angle, interligne, marge) est porté à l'identique, et un
+graphique complet se construit, se rend **et s'exporte** sans le paquet.
+
+`ggtext` est nommé dans la liste de la CI : son absence ne fait plus tomber le
+graphique, mais elle laisserait la branche markdown non testée — et un test qui
+n'exerce plus rien ressemble à un test qui passe.
+
+#### Le balayage des aiguillages passe par l'analyseur, pas par la ligne
+
+Cherché dans le texte, il signalait `UX.R:461` — un commentaire **JavaScript**
+dans une chaîne R, que `.hstat_code_lignes()` ne peut pas retirer puisque ce
+n'est pas un commentaire R. Un balayage qui crie au loup finit désactivé.
+
+Il y gagne au passage en portée : la version textuelle exigeait la parenthèse
+ouvrante et manquait donc `sapply(x, plotly::ggplotly)`, où le nom est passé en
+**valeur**. Un aiguillage contourné de cette façon serait tout aussi mort.
+
+#### Les aiguillages se posent une fois, à l'amorce de la suite
+
+Sept tests les posaient chacun de leur côté. Comme `hstat_installer_replis_ui()`
+écrit dans `globalenv()`, le **premier** à s'exécuter servait tous les suivants :
+un test dépendait donc de l'ordre des autres — exactement ce que l'amorce dit
+d'éviter pour l'attachement de shiny. Ils sont posés au même endroit, et pour la
+même raison.
 
 ### Assistance IA : deux roles, et deux seulement
 

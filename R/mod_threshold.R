@@ -1725,11 +1725,11 @@ mod_threshold_server <- function(id, values) {
         viz_get_theme(input$thresholdTheme %||% "minimal",
                       base_size = extras$police) +
         ggplot2::theme(
-          plot.title = ggtext::element_markdown(size = input$thresholdTitleSize %||% 16, 
+          plot.title = element_markdown(size = input$thresholdTitleSize %||% 16, 
                                         hjust = hj(input$thresholdTitlePosition),
                                         face = input$thresholdTitleStyle %||% "bold"),
           plot.subtitle = if (nzchar(sous_titre))
-            ggtext::element_markdown(size = max(6, (input$thresholdTitleSize %||% 16) - 4),
+            element_markdown(size = max(6, (input$thresholdTitleSize %||% 16) - 4),
                              hjust = hj(input$thresholdSubtitlePosition),
                              face = input$thresholdSubtitleStyle %||% "italic",
                              colour = "gray30")
@@ -1769,7 +1769,7 @@ mod_threshold_server <- function(id, values) {
           } else {
             ggplot2::element_blank()
           },
-          legend.title = ggtext::element_markdown(size = input$thresholdLegendSize %||% 10, face = legend_title_face),
+          legend.title = element_markdown(size = input$thresholdLegendSize %||% 10, face = legend_title_face),
           legend.text = ggplot2::element_text(size = input$thresholdLegendTextSize %||%
                                             input$thresholdLegendSize %||% 10),
           panel.grid.major = if(input$thresholdShowGrid) {

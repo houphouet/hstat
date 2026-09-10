@@ -3532,7 +3532,7 @@ mod_viz_server <- function(id, values) {
     p <- p +
       get_plot_theme(base_size = input$baseFontSize %||% 12) +
       ggplot2::theme(
-        plot.title    = ggtext::element_markdown(hjust = 0.5, face = "bold", size = input$titleSize %||% 14),
+        plot.title    = element_markdown(hjust = 0.5, face = "bold", size = input$titleSize %||% 14),
         axis.title.x  = hstat_axe_titre_lire(input, "viz", input$axisLabelSize %||% 12,
                                              x_axis_face, "x"),
         axis.title.y  = hstat_axe_titre_lire(input, "viz", input$axisLabelSize %||% 12,
@@ -3540,7 +3540,7 @@ mod_viz_server <- function(id, values) {
         axis.text.x   = ggplot2::element_text(face = x_tick_face, size = x_tick_size, angle = x_angle, hjust = x_hjust, vjust = x_vjust),
         axis.text.y   = ggplot2::element_text(face = y_tick_face, size = y_tick_size),
         legend.position    = input$legendPosition %||% "right",
-        legend.title       = ggtext::element_markdown(size = input$legendTitleSize %||% 12, face = "bold"),
+        legend.title       = element_markdown(size = input$legendTitleSize %||% 12, face = "bold"),
         legend.text        = ggplot2::element_text(size = input$legendTextSize  %||% 12),
         legend.key.size    = ggplot2::unit(input$legendKeySize %||% 1, "lines"),
         legend.margin      = ggplot2::margin(t = 6, r = 6, b = 6, l = 6),
