@@ -735,7 +735,7 @@ mod_descriptive_server <- function(id, values) {
             size = 11
           ),
           axis.text.y = ggplot2::element_text(face = y_tick_font_face, size = 11),
-          plot.title = ggtext::element_markdown(
+          plot.title = element_markdown(
             hjust = if(isTRUE(input$descPlotCenterTitle)) 0.5 else 0, 
             face = title_font_face, 
             size = 16,
@@ -801,7 +801,7 @@ mod_descriptive_server <- function(id, values) {
             size = 11
           ),
           axis.text.y = ggplot2::element_text(face = y_tick_font_face, size = 11),
-          plot.title = ggtext::element_markdown(
+          plot.title = element_markdown(
             hjust = if(isTRUE(input$descPlotCenterTitle)) 0.5 else 0,
             face = title_font_face, 
             size = 16,

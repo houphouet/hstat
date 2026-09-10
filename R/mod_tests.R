@@ -5257,7 +5257,7 @@ mod_tests_server <- function(id, values) {
           ggplot2::labs(title = "QQ-plot des résidus", 
                x = "Quantiles théoriques", 
                y = "Quantiles observés") +
-          ggplot2::theme(plot.title = ggtext::element_markdown(hjust = 0.5))
+          ggplot2::theme(plot.title = element_markdown(hjust = 0.5))
 
         p
       }, error = function(e) {
@@ -5310,7 +5310,7 @@ mod_tests_server <- function(id, values) {
         ggplot2::labs(title = "QQ-plot des résidus", 
              x = "Quantiles théoriques", 
              y = "Quantiles observés") +
-        ggplot2::theme(plot.title = ggtext::element_markdown(hjust = 0.5))
+        ggplot2::theme(plot.title = element_markdown(hjust = 0.5))
       
     }, error = function(e) {
       plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
@@ -8300,7 +8300,7 @@ mod_tests_server <- function(id, values) {
     base_theme <- viz_get_theme(input$posthocTheme %||% "minimal",
                                  base_size = extras$police) +
       ggplot2::theme(
-        plot.title = ggtext::element_markdown(
+        plot.title = element_markdown(
           size = title_size, 
           face = title_font_style, 
           hjust = as.numeric(title_position)
@@ -8342,7 +8342,7 @@ mod_tests_server <- function(id, values) {
         # La legende ne se montre que s'il y a quelque chose a nommer, mais sa
         # PLACE reste au choix de l'utilisateur.
         legend.position = if (color_by_groups) legend_position else "none",
-        legend.title = ggtext::element_markdown(
+        legend.title = element_markdown(
           size = legend_title_size, 
           face = legend_title_font_style
         ),

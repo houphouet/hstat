@@ -362,14 +362,14 @@ mod_explore_server <- function(id, values) {
                 ggplot2::theme_minimal(base_size = extras$police)) +
       ggplot2::labs(title = plot_title, x = var, y = "Densité") +
       ggplot2::theme(
-        plot.title = ggtext::element_markdown(size = title_size, hjust = if (center_title) 0.5 else 0),
+        plot.title = element_markdown(size = title_size, hjust = if (center_title) 0.5 else 0),
         axis.title = hstat_axe_titre(axis_title_size, "plain", titre_align,
                                      "x", retour = titre_retour),
         axis.title.y = hstat_axe_titre(axis_title_size, "plain", titre_align,
                                        "y", retour = titre_retour),
         axis.text = ggplot2::element_text(size = axis_text_size),
         legend.text = ggplot2::element_text(size = legend_text_size),
-        legend.title = ggtext::element_markdown(size = legend_text_size)
+        legend.title = element_markdown(size = legend_text_size)
       )
 
     # LE KIT SE POSE EN DERNIER : un theme complet remplace tout ce qui
@@ -462,7 +462,7 @@ mod_explore_server <- function(id, values) {
          ggplot2::theme_minimal(base_size = extras$police)) +
       ggplot2::labs(title = plot_title, x = "Variable", y = "Nombre de valeurs manquantes") +
       ggplot2::theme(
-        plot.title = ggtext::element_markdown(size = title_size, hjust = if (center_title) 0.5 else 0),
+        plot.title = element_markdown(size = title_size, hjust = if (center_title) 0.5 else 0),
         axis.title = hstat_axe_titre(axis_title_size, "plain", titre_align,
                                      "x", retour = titre_retour),
         axis.title.y = hstat_axe_titre(axis_title_size, "plain", titre_align,

@@ -2057,7 +2057,7 @@ server <- function(input, output, session) {
       ) +
       mv_ggtheme("pcaScree") +
       ggplot2::theme(
-        plot.title    = ggtext::element_markdown(hjust = 0.5, face = "bold", size = 14, color = "#2c3e50"),
+        plot.title    = element_markdown(hjust = 0.5, face = "bold", size = 14, color = "#2c3e50"),
         plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555", size = 11),
         legend.position = "bottom",
         panel.grid.minor = ggplot2::element_blank(),
@@ -2140,7 +2140,7 @@ server <- function(input, output, session) {
       ) +
       mv_ggtheme("pcaParallel") +
       ggplot2::theme(
-        plot.title    = ggtext::element_markdown(hjust = 0.5, face = "bold", size = 14, color = "#2c3e50"),
+        plot.title    = element_markdown(hjust = 0.5, face = "bold", size = 14, color = "#2c3e50"),
         plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555", size = 11),
         legend.position = "bottom",
         panel.grid.minor = ggplot2::element_blank()
@@ -2332,7 +2332,7 @@ server <- function(input, output, session) {
       ) +
       mv_ggtheme("pcaCTR") +
       ggplot2::theme(
-        plot.title    = ggtext::element_markdown(hjust = 0.5, face = "bold", size = 13, color = "#2c3e50"),
+        plot.title    = element_markdown(hjust = 0.5, face = "bold", size = 13, color = "#2c3e50"),
         plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555", size = 10),
         legend.position = "bottom",
         panel.grid.minor = ggplot2::element_blank()
@@ -3069,7 +3069,7 @@ server <- function(input, output, session) {
                               main = cluster_title) +
       labs(x = x_label, y = y_label) +
       ggplot2::theme(legend.position = "right",
-            legend.title = ggtext::element_markdown(size = hcpc_txt - 1, face = "bold"),
+            legend.title = element_markdown(size = hcpc_txt - 1, face = "bold"),
             legend.text = ggplot2::element_text(size = hcpc_txt - 2),
             axis.title = ggplot2::element_text(size = hcpc_txt),
             axis.text = ggplot2::element_text(size = hcpc_txt - 2),
@@ -3210,7 +3210,7 @@ server <- function(input, output, session) {
       ) +
       mv_ggtheme("hcpcHeights") +
       ggplot2::theme(
-        plot.title       = ggtext::element_markdown(hjust = 0.5, face = "bold", size = 13, color = "#2c3e50"),
+        plot.title       = element_markdown(hjust = 0.5, face = "bold", size = 13, color = "#2c3e50"),
         plot.subtitle    = ggplot2::element_text(hjust = 0.5, color = "#555", size = 10),
         legend.position  = "bottom",
         panel.grid.minor = ggplot2::element_blank()
@@ -4321,7 +4321,7 @@ server <- function(input, output, session) {
         labs(title = ind_title, x = x_label, y = y_label) +
         ggplot2::scale_color_manual(values = group_colors) +
         ggplot2::theme(legend.position = "right",
-              legend.title = ggtext::element_markdown(size = afd_txt - 2, face = "bold"),
+              legend.title = element_markdown(size = afd_txt - 2, face = "bold"),
               legend.text = ggplot2::element_text(size = afd_txt - 3),
               axis.title = ggplot2::element_text(size = afd_txt),
               axis.text = ggplot2::element_text(size = afd_txt - 2))
@@ -4341,7 +4341,7 @@ server <- function(input, output, session) {
         ggplot2::scale_color_manual(values = group_colors) +
         ggplot2::scale_fill_manual(values = group_colors) +
         ggplot2::theme(legend.position = "right",
-              legend.title = ggtext::element_markdown(size = afd_txt - 2, face = "bold"),
+              legend.title = element_markdown(size = afd_txt - 2, face = "bold"),
               legend.text = ggplot2::element_text(size = afd_txt - 3),
               axis.title = ggplot2::element_text(size = afd_txt),
               axis.text = ggplot2::element_text(size = afd_txt - 2))
@@ -4446,7 +4446,7 @@ server <- function(input, output, session) {
              subtitle = "Couleur = importance discriminatoire globale (corrélation pondérée par la variance de chaque LD)",
              x = x_label, y = y_label) +
         ggplot2::theme(
-          plot.title    = ggtext::element_markdown(hjust = 0.5, face = "bold", size = 13),
+          plot.title    = element_markdown(hjust = 0.5, face = "bold", size = 13),
           plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555", size = 10),
           legend.position  = "right",
           legend.title     = ggplot2::element_text(size = 10, face = "bold"),
@@ -4487,7 +4487,7 @@ server <- function(input, output, session) {
              x = NULL, y = y_label) +
         mv_ggtheme("afdVar") +
         ggplot2::theme(
-          plot.title    = ggtext::element_markdown(hjust = 0.5, face = "bold", size = 13),
+          plot.title    = element_markdown(hjust = 0.5, face = "bold", size = 13),
           plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555", size = 10),
           legend.position  = "right",
           legend.title     = ggplot2::element_text(size = 10, face = "bold"),

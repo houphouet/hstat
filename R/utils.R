@@ -8066,6 +8066,48 @@ hstat_installer_replis_ui <- function(envir = globalenv()) {
       } else rhs(lhs)
     })
 
+  # -- ggtext ------------------------------------------------------------------
+  # VINGT-QUATRE APPELS ECRIVAIENT `ggtext::element_markdown(...)` EN DUR.
+  # `ggtext` est optionnel (Suggests) : absent, chacun de ces appels leve, et
+  # avec lui le graphique entier -- dans sept modules. C'est exactement le
+  # defaut deja corrige pour `withSpinner`, `colourInput` et `pickerInput`, a
+  # ceci pres qu'il ne touchait pas la construction de l'interface mais le
+  # TRACE, donc plus tard et sur un seul onglet a la fois.
+  #
+  # LE REPLI REPREND L'ORDRE DE `element_markdown`, IL NE DELEGUE PAS A `...`.
+  # Les deux signatures divergent des la troisieme position :
+  #
+  #   element_markdown(family, face, size,   colour, ...)
+  #   element_text    (family, face, colour, size,   ...)
+  #
+  # Un repli ecrit `function(...) ggplot2::element_text(...)` echangerait donc
+  # TAILLE ET COULEUR sur tout appel positionnel -- sans lever, sans avertir :
+  # un titre de 13 points ressortirait de la couleur « 13 ». Les vingt-quatre
+  # appels du depot nomment tous leurs arguments (un test le garde), mais un
+  # repli qui ne tient que par la discipline des appelants n'en est pas un.
+  #
+  # Ce qui se perd sans ggtext, c'est le rendu markdown lui-meme -- le gras
+  # d'un `**mot**` reste ecrit avec ses etoiles. C'est precisement ce qu'aucun
+  # equivalent de base ne peut rendre ; tout le reste (police, style, taille,
+  # couleur, alignement, angle, interligne, marge) est porte a l'identique.
+  poser("element_markdown", if (has("ggtext")) ggtext::element_markdown
+        else function(family = NULL, face = NULL, size = NULL, colour = NULL,
+                      fill = NULL, box.colour = NULL, linetype = NULL,
+                      linewidth = NULL, hjust = NULL, vjust = NULL,
+                      halign = NULL, valign = NULL, angle = NULL,
+                      lineheight = NULL, margin = NULL, color = NULL, ...) {
+          # `halign`/`valign` alignent les LIGNES entre elles chez gridtext ;
+          # `element_text` n'a que `hjust`/`vjust`, qui deplacent le bloc
+          # entier. Les rapprocher est une approximation -- mais laisser
+          # tomber le reglage en silence en serait une pire.
+          if (is.null(hjust) && !is.null(halign)) hjust <- halign
+          if (is.null(vjust) && !is.null(valign)) vjust <- valign
+          ggplot2::element_text(family = family, face = face, size = size,
+                                colour = colour %||% color, hjust = hjust,
+                                vjust = vjust, angle = angle,
+                                lineheight = lineheight, margin = margin)
+        })
+
   # -- colourpicker ------------------------------------------------------------
   poser("colourInput", if (has("colourpicker")) colourpicker::colourInput
         else function(inputId, label, value = "#000000", ...)
