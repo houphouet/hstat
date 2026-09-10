@@ -14132,3 +14132,217 @@ test_that("une demi-matrice PMCMRplus porte quand même toutes les modalités", 
   expect_true(length(attr(e2, "non_resolues")) > 0)
   expect_true(any(grepl("ZZZ", attr(e2, "non_resolues"))))
 })
+
+# -----------------------------------------------------------------------------
+# UNE SELECTION SURVIT AU JEU DE DONNEES QU'ELLE DESIGNE
+# -----------------------------------------------------------------------------
+test_that("une colonne disparue est reconnue comme telle, pas devinee", {
+  d <- data.frame(a = 1:3, b = 4:6)
+  expect_equal(hstat_cols_absentes(d, "ch_Hel"), "ch_Hel")
+  expect_equal(hstat_cols_absentes(d, c("a", "b")), character(0))
+  expect_equal(hstat_cols_absentes(d, c("a", "z", "z")), "z")  # dedoublonne
+  # Ce qui n'est pas un nom n'est pas une colonne manquante : un selecteur vide
+  # rend "" ou NA, et les compter ferait refuser un etat parfaitement normal.
+  expect_equal(hstat_cols_absentes(d, c("", NA)), character(0))
+  expect_equal(hstat_cols_absentes(NULL, "a"), character(0))
+  expect_equal(hstat_cols_absentes(d, NULL), character(0))
+  # Le pendant positif, celui qui se lit dans un `req()`.
+  expect_true(hstat_cols_pretes(d, c("a", "b")))
+  expect_false(hstat_cols_pretes(d, c("a", "ch_Hel")))
+  expect_true(hstat_cols_pretes(d, NULL))
+})
+
+test_that("le graphique descriptif attend l'echo plutot que de tomber", {
+  # Le defaut constate a l'ecran : apres un changement de fichier, le
+  # navigateur renvoie encore l'ANCIENNE colonne, et `.data[[input$...]]`
+  # levait « Column `ch_Hel` not found in `.data` » -- un message qui accuse
+  # les donnees pour un simple aller-retour en cours.
+  src <- readLines(.hstat_module_path("mod_descriptive.R"), warn = FALSE)
+  src <- paste(src, collapse = "\n")
+  i_def <- regexpr("generate_desc_plot <- function", src, fixed = TRUE)
+  expect_true(i_def > 0)
+  i_hist <- regexpr("geom_histogram", src, fixed = TRUE)
+  expect_true(i_hist > i_def)
+  corps <- substr(src, i_def, i_hist)
+  expect_true(grepl("hstat_cols_pretes", corps, fixed = TRUE))
+  # LE FACTEUR DE GROUPEMENT COMPTE AUSSI : il nomme lui aussi une colonne du
+  # fichier, et « Aucun » n'en est pas une.
+  expect_true(grepl("descPlotFactor", corps, fixed = TRUE))
+})
+
+# -----------------------------------------------------------------------------
+# LE RANG, PAS LE DETERMINANT -- et ce qui est redondant se nomme
+# -----------------------------------------------------------------------------
+test_that("hstat_colineaires nomme les colonnes surnumeraires", {
+  set.seed(11)
+  d <- data.frame(a = stats::rnorm(40), b = stats::rnorm(40))
+  d$c <- d$a + d$b                      # exactement deduite des deux autres
+  r <- hstat_colineaires(d)
+  expect_equal(r$rang, 2L)
+  expect_equal(r$p, 3L)
+  expect_equal(r$redondantes, "c")
+  # Un tableau de plein rang ne fait ecarter personne.
+  plein <- hstat_colineaires(d[, c("a", "b")])
+  expect_equal(plein$rang, 2L)
+  expect_equal(plein$redondantes, character(0))
+  # Une colonne CONSTANTE n'est pas « redondante », elle est vide de variation.
+  # `scale()` y rendrait des NaN et le rang deviendrait NA : elle est ecartee
+  # avant, et nommee comme les autres.
+  dk <- d[, c("a", "b")]; dk$k <- 5
+  expect_true("k" %in% hstat_colineaires(dk)$redondantes)
+  expect_equal(hstat_colineaires(dk)$rang, 2L)
+  expect_equal(hstat_colineaires(NULL)$redondantes, character(0))
+})
+
+test_that("le rang se mesure sur des colonnes CENTREES, comme cor() le fait", {
+  # LE CAS QUI DECIDE, et il est ordinaire : une colonne qui est la somme de
+  # deux autres PLUS UNE CONSTANTE -- un total rebase, un indice ramene a 100.
+  # Elle n'est pas une combinaison lineaire exacte des deux autres tant qu'on
+  # ne centre pas ; la matrice de CORRELATIONS, elle, est centree par
+  # construction et devient singuliere. Un rang mesure sans centrage la
+  # declarerait pleine, laisserait passer les trois colonnes, et `psych::fa()`
+  # retomberait sur sa pseudo-inverse en imprimant sa pile d'erreurs.
+  set.seed(5)
+  a <- stats::rnorm(40); b <- stats::rnorm(40)
+  d <- data.frame(a = a, b = b, c = a + b + 100)
+  expect_equal(qr(as.matrix(d))$rank, 3L)          # sans centrage : plein
+  expect_true(inherits(try(solve(stats::cor(d)), silent = TRUE), "try-error"))
+  r <- hstat_colineaires(d)
+  expect_equal(r$rang, 2L)                          # avec centrage : deficient
+  expect_equal(r$redondantes, "c")
+})
+
+test_that("le rang est invariant d'echelle, le determinant ne l'est pas", {
+  # C'est la lecon deja tiree deux fois dans ce depot (box_m_test, puis
+  # detect_multivariate_outliers) : cinq variables mesurees en microgrammes
+  # font tomber le determinant de la covariance a ~1e-60 alors que le rang
+  # reste PLEIN. Tout seuil pose sur le determinant crierait a la singularite
+  # sur des donnees parfaitement inversibles.
+  set.seed(23)
+  d <- as.data.frame(matrix(stats::rnorm(200), 40, 5))
+  micro <- d * 1e-6
+  expect_lt(det(stats::cov(micro)), 1e-40)          # le determinant s'effondre
+  expect_equal(hstat_colineaires(micro)$rang, 5L)   # le rang, lui, ne bouge pas
+  expect_equal(hstat_colineaires(micro)$redondantes, character(0))
+  # Et l'assertion mord dans l'autre sens : une VRAIE colinearite est vue aux
+  # deux echelles. Sans cette moitie, un code qui aurait simplement retire le
+  # garde-fou passerait le test.
+  d$V6 <- d$V1 * 3
+  expect_equal(hstat_colineaires(d)$rang, 5L)
+  expect_equal(hstat_colineaires(d * 1e-6)$rang, 5L)
+  expect_true(length(hstat_colineaires(d)$redondantes) == 1L)
+})
+
+test_that("l'AFE retire les colonnes colineaires en les nommant", {
+  # LES COMMENTAIRES SONT RETIRES PAR L'ANALYSEUR DE R. Ecrit sur le texte
+  # brut, ce test se signalait LUI-MEME : le commentaire qui documente la
+  # correction cite `psych::fa()`, et l'ordre relevé devenait celui du
+  # commentaire, pas celui du code. C'est le piège deja documente ailleurs
+  # dans ce depot, et il s'est represente ici.
+  f <- file.path(.hstat_repo_root(), "inst", "app", "app_server.R")
+  code <- paste(.hstat_code_lignes(f), collapse = "\n")
+  i <- regexpr("observeEvent(input$mv_efa_run", code, fixed = TRUE)
+  expect_true(i > 0)
+  j_fa <- regexpr("psych::fa(", substr(code, i, nchar(code)), fixed = TRUE)
+  j_co <- regexpr("hstat_colineaires", substr(code, i, nchar(code)), fixed = TRUE)
+  # `psych::fa()` ne s'arrete PAS sur une matrice singuliere : il imprime son
+  # « Error in solve.default(r) », bascule sur une pseudo-inverse et rend quand
+  # meme un tableau. On tranche AVANT lui, et sur le rang.
+  expect_true(j_co > 0)
+  expect_true(j_fa > 0)
+  expect_lt(j_co, j_fa)
+})
+
+# -----------------------------------------------------------------------------
+# UN POINT QUI DISPARAIT SE NOMME
+# -----------------------------------------------------------------------------
+test_that("hstat_coord_incompletes nomme les coordonnees non finies", {
+  m <- matrix(c(1, 2, NaN, 4, 5, NA, 7, 8), 4, 2,
+              dimnames = list(c("a", "b", "c", "d"), NULL))
+  expect_equal(hstat_coord_incompletes(m), c("b", "c"))
+  # L'axe demande change la reponse : `c` n'est fautive que sur le premier.
+  expect_equal(hstat_coord_incompletes(m, axes = 1L), "c")
+  expect_equal(hstat_coord_incompletes(m, axes = 2L), "b")
+  # UN SEUL AXE : FactoMineR rend alors un VECTEUR NU, et `m[, 1:2]` echouerait
+  # sur « incorrect number of dimensions ». Le passage par hstat_coord_mat()
+  # est ce qui l'evite -- meme regle que partout ailleurs dans le depot.
+  expect_equal(hstat_coord_incompletes(c(a = 1, b = NaN, c = 3)), "b")
+  # Un axe hors du domaine ne fait rien ecarter, il n'existe simplement pas.
+  expect_equal(hstat_coord_incompletes(m, axes = c(7L, 9L)), character(0))
+  expect_equal(hstat_coord_incompletes(NULL), character(0))
+  # Sans noms de lignes, on rend le rang : « la 2e » vaut mieux que rien.
+  sans <- m; rownames(sans) <- NULL
+  expect_equal(hstat_coord_incompletes(sans), c("2", "3"))
+})
+
+# -----------------------------------------------------------------------------
+# RENDEMENT : LA BARRE D'ERREUR NE PORTE QUE SA MOITIE HAUTE
+# -----------------------------------------------------------------------------
+test_that("les barres d'erreur du rendement ne descendent jamais sous la valeur", {
+  skip_if_not_installed("ggplot2")
+  h <- data.frame(Modalite = rep(c("T0", "T1", "T2"), each = 4),
+                  Masse    = c(10, 11, 12, 9, 14, 15, 16, 13, 20, 21, 19, 22),
+                  Surface  = rep(1, 12), Bloc = rep(1:4, 3),
+                  stringsAsFactors = FALSE)
+  v <- shiny::reactiveValues(data = h, cleanData = h, filteredData = h,
+                             aiHistory = list())
+  p <- NULL; r <- NULL
+  shiny::testServer(mod_yield_server, args = list(values = v), {
+    vider <- function() try(session$flushReact(), silent = TRUE)
+    session$setInputs(yieldSource = "fichier", yieldModalite = "Modalite",
+                      yieldMasse = "Masse", yieldSurface = "Surface",
+                      yieldRepetition = "Bloc", yieldTemoin = "T0"); vider()
+    session$setInputs(yieldMesure = "Rendement_moyen", yieldErreurs = TRUE,
+                      yieldErreurType = "se"); vider()
+    p <<- graphique(); r <<- resultat()
+  })
+  expect_s3_class(p, "ggplot")
+  b <- suppressWarnings(ggplot2::ggplot_build(p))
+  geoms <- vapply(p$layers, function(l) class(l$geom)[1], character(1))
+  # LA DEMI-BARRE SE MONTE EN DEUX COUCHES : une hampe, et une coiffe d'etendue
+  # nulle. Un `geom_errorbar` unique allant de la valeur au sommet poserait
+  # AUSSI une coiffe au pied -- invisible sur une barre, elle barrerait le
+  # point d'un nuage ou d'une sucette.
+  expect_true("GeomLinerange" %in% geoms)
+  expect_true("GeomErrorbar" %in% geoms)
+
+  ordre  <- order(as.character(r$Modalite))
+  val    <- r$Rendement_moyen[ordre]
+  haut   <- val + r$Erreur_type[ordre]
+
+  hampe <- b$data[[which(geoms == "GeomLinerange")[1]]]
+  hampe <- hampe[order(hampe$x), ]
+  expect_equal(hampe$ymin, val, tolerance = 1e-8)
+  expect_equal(hampe$ymax, haut, tolerance = 1e-8)
+
+  coiffe <- b$data[[which(geoms == "GeomErrorbar")[1]]]
+  coiffe <- coiffe[order(coiffe$x), ]
+  expect_equal(coiffe$ymin, coiffe$ymax, tolerance = 1e-8)
+  expect_equal(coiffe$ymax, haut, tolerance = 1e-8)
+
+  # L'ASSERTION QUI MORD : aucune couche d'erreur ne descend sous la valeur.
+  # Ecrite sur les seules bornes hautes, elle passerait encore sur la barre
+  # symetrique d'avant -- c'est celle-ci qui la refuse.
+  for (i in which(geoms %in% c("GeomLinerange", "GeomErrorbar"))) {
+    d <- b$data[[i]]; d <- d[order(d$x), ]
+    expect_true(all(d$ymin >= val - 1e-8))
+  }
+  # La demi-barre depasse VRAIMENT la valeur, sans quoi l'assertion ci-dessus
+  # serait satisfaite par une erreur-type nulle -- donc par rien du tout.
+  expect_true(all(haut > val))
+
+  # Decochee, la barre d'erreur ne pose aucune des deux couches.
+  v2 <- shiny::reactiveValues(data = h, cleanData = h, filteredData = h,
+                              aiHistory = list())
+  p2 <- NULL
+  shiny::testServer(mod_yield_server, args = list(values = v2), {
+    vider <- function() try(session$flushReact(), silent = TRUE)
+    session$setInputs(yieldSource = "fichier", yieldModalite = "Modalite",
+                      yieldMasse = "Masse", yieldSurface = "Surface",
+                      yieldRepetition = "Bloc", yieldTemoin = "T0"); vider()
+    session$setInputs(yieldMesure = "Rendement_moyen", yieldErreurs = FALSE); vider()
+    p2 <<- graphique()
+  })
+  g2 <- vapply(p2$layers, function(l) class(l$geom)[1], character(1))
+  expect_false(any(c("GeomLinerange", "GeomErrorbar") %in% g2))
+})

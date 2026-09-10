@@ -995,6 +995,31 @@ hstat_coord_mat <- function(x) {
   as.matrix(x)
 }
 
+# UN POINT QUI DISPARAIT SE NOMME.
+#
+# Une variable constante, un individu entierement manquant : FactoMineR rend
+# alors des coordonnees NaN, et `factoextra` les retire en avertissant dans la
+# CONSOLE -- « Removed 2 rows containing missing values (`geom_path()`) ».
+# L'utilisateur, lui, voit un cercle des correlations ou deux fleches manquent
+# et rien qui le dise. C'est le meme mode de defaillance que la barre absente
+# du module des seuils, et il appelle le meme remede : compter, et NOMMER.
+#
+# Les coordonnees passent par `hstat_coord_mat()` : des qu'un resultat ne
+# comporte qu'un seul axe, FactoMineR les rend en VECTEUR NU, et `m[, ax]`
+# echouerait sur « incorrect number of dimensions ».
+hstat_coord_incompletes <- function(coord, axes = c(1L, 2L)) {
+  m <- hstat_coord_mat(coord)
+  if (is.null(m) || !NROW(m) || !NCOL(m)) return(character(0))
+  ax <- unique(as.integer(axes))
+  ax <- ax[!is.na(ax) & ax >= 1L & ax <= NCOL(m)]
+  if (!length(ax)) return(character(0))
+  sub <- m[, ax, drop = FALSE]
+  mauvais <- apply(sub, 1L, function(r) any(!is.finite(r)))
+  noms <- rownames(m)
+  if (is.null(noms)) noms <- as.character(seq_len(NROW(m)))
+  noms[mauvais]
+}
+
 # Verdict a TROIS etats sur une p-value : significatif / non significatif /
 # indeterminable. Un test statistique rend NA ou NaN des que ses donnees sont
 # degenerees (variance nulle, matrice singuliere, effectifs vides) ; brancher
@@ -7629,6 +7654,104 @@ hstat_html_style_label <- function(x, style = "plain") {
            "bold.italic" = paste0("<b><i>", s, "</i></b>"),
            s)
   }, character(1))
+}
+
+# LE RANG, PAS LE DETERMINANT -- et il faut NOMMER ce qui est redondant.
+#
+# Une matrice de correlations singuliere fait sortir R de sa reserve : `psych`
+# imprime « Error in solve.default(r) : le systeme est numeriquement
+# singulier », « matrix is not invertible », « the pseudo inverse is used »,
+# et l'analyse continue quand meme sur une pseudo-inverse. L'utilisateur voit
+# donc une pile d'erreurs dans la console ET un tableau de resultats : il ne
+# peut savoir ni si le calcul a eu lieu, ni sur quoi.
+#
+# La cause est presque toujours banale : deux colonnes qui se deduisent l'une
+# de l'autre -- un total et ses parts, une mesure et la meme convertie, une
+# variable dupliquee a l'import. La dire par son nom vaut mille fois mieux que
+# de la faire deviner.
+#
+# La decomposition QR AVEC PIVOT donne les deux d'un coup : le rang, et
+# lesquelles des colonnes sont surnumeraires (celles que le pivot relegue
+# au-dela du rang). Le determinant, lui, ne repond pas -- il est homogene a la
+# p-ieme puissance d'une unite, et cinq variables en microgrammes le font
+# tomber a 1e-60 sur des donnees parfaitement inversibles. C'est la lecon deja
+# tiree pour `box_m_test()` et `detect_multivariate_outliers()`.
+#
+# LES COLONNES SONT CENTREES, et c'est le centrage qui decide -- mesure, pas
+# suppose. La tolerance de `qr()` est deja RELATIVE a la norme de chaque
+# colonne : multiplier un tableau par 1e-6, ou melanger des colonnes d'echelles
+# separees par dix-huit ordres de grandeur, ne change pas le rang rendu. Le
+# centrage, lui, change tout, et sur un cas ordinaire :
+#
+#   c = a + b + 100   ->  rang brut 3, rang centre 2
+#
+# -- un total rebase, un indice ramene a 100, une somme avec son ordonnee a
+# l'origine. La matrice de CORRELATIONS, elle, est centree par construction :
+# `solve()` y echoue (det = 3e-16) alors qu'un rang non centre l'aurait
+# declaree pleine. Mesurer le rang autrement que ne le fait `cor()` reviendrait
+# a garder une porte qui ne donne pas sur la bonne piece.
+#
+# La reduction ne decide de rien ; elle est conservee parce qu'elle rend la
+# tolerance comparable d'une colonne a l'autre et qu'elle ne coute rien.
+hstat_colineaires <- function(data, tol = 1e-7) {
+  vide <- list(rang = 0L, p = 0L, redondantes = character(0))
+  if (is.null(data)) return(vide)
+  X <- as.data.frame(data)
+  X <- X[, vapply(X, is.numeric, logical(1)), drop = FALSE]
+  if (!NCOL(X) || !NROW(X)) return(vide)
+  X <- X[stats::complete.cases(X), , drop = FALSE]
+  if (NROW(X) < 2L) return(list(rang = 0L, p = NCOL(X), redondantes = names(X)))
+  # Une colonne d'ecart-type nul n'est pas « redondante », elle est vide de
+  # variation : `scale()` y rendrait des NaN et le rang deviendrait NA. Elle
+  # compte donc directement comme surnumeraire.
+  et <- vapply(X, function(x) stats::sd(x), numeric(1))
+  cst <- names(X)[!is.finite(et) | et <= 0]
+  Xv <- X[, setdiff(names(X), cst), drop = FALSE]
+  if (!NCOL(Xv)) return(list(rang = 0L, p = NCOL(X), redondantes = names(X)))
+  Z <- scale(Xv)
+  q <- tryCatch(qr(Z, tol = tol), error = function(e) NULL)
+  if (is.null(q)) return(list(rang = NA_integer_, p = NCOL(X), redondantes = cst))
+  rang <- q$rank
+  sup <- if (rang < NCOL(Xv)) colnames(Xv)[q$pivot[seq.int(rang + 1L, NCOL(Xv))]]
+         else character(0)
+  list(rang = as.integer(rang), p = NCOL(X),
+       redondantes = unique(c(cst, sup)))
+}
+
+# UNE SELECTION SURVIT AU JEU DE DONNEES QU'ELLE DESIGNE.
+#
+# Un selecteur de colonne garde sa valeur dans le NAVIGATEUR. Quand le jeu de
+# travail change -- nouveau fichier, filtre, nettoyage, feuille combinee --,
+# l'interface reconstruit le selecteur, mais le serveur voit encore l'ancienne
+# valeur jusqu'a ce que le navigateur lui reponde. Entre les deux, tout
+# graphique bati sur `.data[[input$X]]` tombe sur :
+#
+#   Column `ch_Hel` not found in `.data`
+#
+# -- un message qui accuse les donnees alors que rien n'est casse : c'est un
+# aller-retour en cours. Constate a l'ecran sur le graphique descriptif.
+#
+# La reponse est d'ATTENDRE (`req`), pas d'expliquer : la condition se resout
+# d'elle-meme en une fraction de seconde, et afficher « colonne absente » le
+# temps d'un echo serait un faux diagnostic. C'est l'inverse de la regle
+# habituelle du depot -- ici ce qui est ecarte ne l'est pas durablement.
+#
+# La fonction rend les noms MANQUANTS (donc `character(0)` quand tout est la),
+# parce que c'est cette liste qu'un appelant qui, lui, doit nommer -- un
+# refus durable, une capture -- voudra afficher.
+hstat_cols_absentes <- function(data, cols) {
+  if (is.null(data) || is.null(cols)) return(character(0))
+  cols <- as.character(cols)
+  cols <- unique(cols[!is.na(cols) & nzchar(cols)])
+  if (!length(cols)) return(character(0))
+  setdiff(cols, names(data))
+}
+
+# Le pendant a l'usage : vrai quand TOUTES les colonnes demandees sont la.
+# Un `req()` se lit mieux en positif -- `req(hstat_cols_pretes(d, v))` -- que
+# par la longueur d'un `setdiff`.
+hstat_cols_pretes <- function(data, cols) {
+  length(hstat_cols_absentes(data, cols)) == 0L
 }
 
 # Une agregation numerique n'a de sens que sur une variable numerique.
