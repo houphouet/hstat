@@ -424,6 +424,26 @@ hstat_ai_reglages_ui <- function(ns, engine, prefixe = "") {
           trf("Clé à créer sur %s. Service payant, en ligne.",
               f$cle_url %||% tr("le site du fournisseur")))),
     shiny::textInput(id("url"), "Adresse du service", value = f$url),
+    # CE QUI SORT DE LA MACHINE SE DIT, ET AU MOMENT DU CHOIX.
+    #
+    # Le moteur « auto » annonce en vert qu'il ne transmet rien. Les autres ne
+    # disaient rien du tout : l'utilisateur lisait « service payant, en ligne »
+    # -- ce qui parle du COUT -- et devait deviner ce qui part. L'asymetrie
+    # etait le probleme : le cas rassurant etait nomme, le cas engageant non.
+    #
+    # Le texte vaut pour les deux adresses possibles, celle d'un tiers comme
+    # celle d'un serveur local, parce que le champ juste au-dessus est
+    # librement modifiable : une note qui ne parlerait que du tiers mentirait
+    # des que l'adresse change.
+    shiny::div(
+      style = "background:#fef9e7;border-left:3px solid #f39c12;padding:8px 12px;font-size:12px;margin-bottom:10px;",
+      shiny::icon("triangle-exclamation"), " ",
+      shiny::strong(tr("Ce qui est transmis à cette adresse :")), " ",
+      tr(paste("les résultats de l'analyse en cours (au plus 25 lignes par tableau),",
+               "les noms de vos variables et de leurs modalités, et le contexte",
+               "d'étude que vous saisissez.")), " ",
+      shiny::strong(tr("Votre fichier de données n'est jamais envoyé.")), " ",
+      tr("Sur une adresse locale (127.0.0.1), rien ne quitte la machine.")),
     shiny::textInput(id("model"), "Modèle",
                      value = f$modele,
                      placeholder = paste("ex.", .hstat_ai_ex(f))),

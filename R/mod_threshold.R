@@ -447,11 +447,11 @@ mod_threshold_ui <- function(id) {
                         shiny::fluidRow(
                           shiny::column(6,
                                  shiny::numericInput(ns("thresholdYMin"), "Minimum (vide = auto) :",
-                                              value = NA)
+                                              value = NULL)
                           ),
                           shiny::column(6,
                                  shiny::numericInput(ns("thresholdYMax"), "Maximum (vide = auto) :",
-                                              value = NA)
+                                              value = NULL)
                           )
                         ),
                         shiny::checkboxInput(ns("thresholdZeroLine"),
@@ -461,7 +461,7 @@ mod_threshold_ui <- function(id) {
                         # sur un pourcentage (0, 10, 20...).
                         shiny::numericInput(ns("thresholdYBreakStep"),
                                      shiny::tagList(shiny::icon("ruler-vertical"), " Pas des graduations Y"),
-                                     value = NA, min = 0.01, step = 5),
+                                     value = NULL, min = 0.01, step = 5),
                         shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
                                    "Laisser vide pour laisser ggplot choisir.")
                     ),

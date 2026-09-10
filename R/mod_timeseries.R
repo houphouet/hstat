@@ -45,7 +45,7 @@ mod_timeseries_ui <- function(id) {
                                  "Annuelle — jours (365)" = 365),
                      selected = 12)),
             shiny::column(6, shiny::numericInput(ns("tsFreqCustom"),
-                     "…ou fréquence libre", value = NA, min = 1, step = 1))),
+                     "…ou fréquence libre", value = NULL, min = 1, step = 1))),
           shiny::fluidRow(
             shiny::column(6, shiny::numericInput(ns("tsTestN"), "Taille du jeu de test",
                                    value = 12, min = 2, step = 1)),

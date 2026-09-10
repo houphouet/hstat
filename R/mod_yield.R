@@ -385,10 +385,10 @@ mod_yield_ui <- function(id) {
               shiny::conditionalPanel(
                 ns = ns, condition = "input.yieldLimites == true",
                 shiny::fluidRow(
-                  shiny::column(6, shiny::numericInput(ns("yieldYMin"), "Y min", value = NA, step = 1)),
-                  shiny::column(6, shiny::numericInput(ns("yieldYMax"), "Y max", value = NA, step = 1)))),
+                  shiny::column(6, shiny::numericInput(ns("yieldYMin"), "Y min", value = NULL, step = 1)),
+                  shiny::column(6, shiny::numericInput(ns("yieldYMax"), "Y max", value = NULL, step = 1)))),
               shiny::numericInput(ns("yieldPasY"), "Pas des graduations Y (vide = auto)",
-                           value = NA, min = 0, step = 1),
+                           value = NULL, min = 0, step = 1),
               shiny::fluidRow(
                 shiny::column(6, shiny::checkboxInput(ns("yieldGrilleMaj"), "Grille principale", value = TRUE)),
                 shiny::column(6, shiny::checkboxInput(ns("yieldGrilleMin"), "Grille secondaire", value = FALSE))),

@@ -2485,14 +2485,14 @@ mod_dl50_ui <- function(id) {
                               " automatique."),
               shiny::fluidRow(
                 shiny::column(6, shiny::numericInput(ns("gXmin"),
-                  "Dose minimale", value = NA, min = 0)),
+                  "Dose minimale", value = NULL, min = 0)),
                 shiny::column(6, shiny::numericInput(ns("gXmax"),
-                  "Dose maximale", value = NA, min = 0))),
+                  "Dose maximale", value = NULL, min = 0))),
               shiny::fluidRow(
                 shiny::column(6, shiny::numericInput(ns("gYmin"),
-                  "Mortalité minimale (%)", value = NA, min = 0, max = 100)),
+                  "Mortalité minimale (%)", value = NULL, min = 0, max = 100)),
                 shiny::column(6, shiny::numericInput(ns("gYmax"),
-                  "Mortalité maximale (%)", value = NA, min = 0, max = 100)))),
+                  "Mortalité maximale (%)", value = NULL, min = 0, max = 100)))),
 
             .hstat_opt_section("Points et traits", "bezier-curve", "#e67e22", "#fdf1e6",
               shiny::fluidRow(
@@ -2709,9 +2709,9 @@ mod_dl50_ui <- function(id) {
                                                   placeholder = "ex : 1:2")))),
             shiny::fluidRow(
               shiny::column(4, shiny::numericInput(ns("selTempMin"),
-                "Température minimale", value = NA, step = 1)),
+                "Température minimale", value = NULL, step = 1)),
               shiny::column(4, shiny::numericInput(ns("selTempMax"),
-                "Température maximale", value = NA, step = 1)),
+                "Température maximale", value = NULL, step = 1)),
               shiny::column(4, shiny::div(style = "margin-top:26px;",
                 shiny::actionButton(ns("selValider"),
                   shiny::tagList(shiny::icon("filter"), " Sélectionner"),
@@ -3158,7 +3158,7 @@ mod_dl50_server <- function(id, values) {
     })
 
     output$listeDl <- shiny::downloadHandler(
-      filename = function() paste0(toupper(input$listeNom %||% "liste"), ".TXT"),
+      filename = function() paste0(toupper(hstat_nom_fichier(input$listeNom, "liste")), ".TXT"),
       content = function(file)
         hstat_dl50_liste_ecrire(listes()[[input$listeNom %||% "auteur"]] %||%
                                   character(0), file))

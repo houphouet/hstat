@@ -122,6 +122,12 @@
 
 ui <- shinydashboard::dashboardPage(
   skin = "blue",
+  # LE TITRE DE L'ONGLET SE DECLARE, IL NE SE DEDUIT PAS DU BANDEAU. Sans lui,
+  # shinydashboard reprend le titre de l'en-tete -- qui est ici une grappe de
+  # balises -- et le SERIALISE dans <title> : l'onglet du navigateur, le
+  # signet et l'historique affichaient 270 caracteres de balisage brut au lieu
+  # d'un nom. Mesure dans la page rendue.
+  title = "HStat",
   shinydashboard::dashboardHeader(
     title = shiny::span(
       style = "display:inline-flex; align-items:baseline; gap:9px;",
@@ -207,6 +213,14 @@ ui <- shinydashboard::dashboardPage(
       shinyalert::useShinyalert(force = TRUE),
     shiny::tags$head(
       shiny::tags$meta(name = "viewport", content = "width=device-width, initial-scale=1, shrink-to-fit=no"),
+      # UNE ICONE DECLAREE EST UNE REQUETE EN MOINS. Sans `rel = "icon"`, le
+      # navigateur demande `/favicon.ico` de lui-meme, l'application n'en sert
+      # aucun, et CHAQUE visite inscrit un 404 dans la console -- ou il masque
+      # les vraies erreurs, exactement comme le polyfill de plotly et la
+      # dependance `strftime` deja corriges. L'onglet y gagne aussi son icone,
+      # seul repere quand vingt onglets sont ouverts sur un telephone.
+      shiny::tags$link(rel = "icon", type = "image/svg+xml",
+                       href = hstat_asset("hstat-favicon.svg")),
       # Feuille de theme HStat (polices IBM Plex LOCALES -> fonctionne hors-ligne).
       shiny::tags$link(rel = "stylesheet", type = "text/css",
                 href = hstat_asset("hstat-theme.css")),

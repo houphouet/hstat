@@ -5514,7 +5514,16 @@ hstat_vars_zero <- function(df, seuil = 1) {
     # laissait passer la moitie, et le test des booleens place avant faisait
     # disparaitre l'autre : dans les deux cas, en silence.
     plat <- if (is.character(x) || is.factor(x)) trimws(as.character(x)) else x
-    if (all(is.na(plat) | (is.character(plat) & !nzchar(plat)))) {
+    # `&` EST VECTORISE : SES DEUX COTES SONT EVALUES. Ecrit
+    # `is.character(plat) & !nzchar(plat)`, le terme de droite est calcule meme
+    # quand celui de gauche est un FALSE scalaire qui le rend sans effet -- et
+    # `nzchar()` sur un vecteur NUMERIQUE le convertit d'abord en chaines. Sur
+    # cent mille lignes cela coute 0,69 s par colonne contre 0,02 s pour le
+    # `is.na()` voisin, et ce diagnostic tourne a CHAQUE chargement de fichier.
+    # Mesure : 1,38 s -> 0,25 s sur un tableau de 100 000 x 10.
+    # Le resultat est identique, la conversion etait pure perte.
+    vide_txt <- if (is.character(plat)) !nzchar(plat) else FALSE
+    if (all(is.na(plat) | vide_txt)) {
       vides <- c(vides, cn); next
     }
     # Decision 3 : un booleen renseigne est une reponse, pas une mesure.
@@ -5717,6 +5726,34 @@ hstat_cut_intervals <- function(x, method = c("width", "quantile", "manual"),
 # Echappement d'un identifiant SQL (nom de colonne issu du fichier utilisateur)
 # pour DuckDB : doublement des guillemets internes puis encadrement par "...".
 hstat_sql_ident <- function(x) sprintf('"%s"', gsub('"', '""', x))
+
+# UN NOM DE TELECHARGEMENT PART DANS UN EN-TETE HTTP, PAS SUR UN DISQUE.
+#
+# `downloadHandler(filename = ...)` ne cree aucun fichier : la chaine devient la
+# valeur `filename=` de l'en-tete `Content-Disposition`. Elle ne doit donc
+# porter ni retour a la ligne (qui coupe l'en-tete), ni guillemet (qui en
+# ferme la valeur), ni separateur de chemin (que certains clients suivent).
+#
+# LA VALEUR D'UN `selectInput` N'EST PAS UNE GARANTIE : elle arrive du
+# navigateur, et un client peut envoyer tout autre chose sur le websocket. Une
+# liste de choix contraint l'interface, pas le protocole. Sur un poste isole
+# cela ne vise que l'utilisateur lui-meme ; sur un serveur partage -- le cas
+# que `app.R` a la racine existe pour servir -- c'est une entree comme une
+# autre, et elle se traite comme telle.
+#
+# Distinct de `.safe_name()` (mod_qualitative), qui fabrique un IDENTIFIANT en
+# minuscules sans accent : ce n'est pas le meme contrat, et les fondre ferait
+# perdre a chacun ce qu'il garantit.
+hstat_nom_fichier <- function(x, defaut = "fichier", max = 80L) {
+  s <- as.character(x)[1]
+  if (is.na(s)) s <- ""
+  s <- gsub("[[:cntrl:]]", "", s)                 # retours a la ligne, tabulations
+  s <- gsub('[/\\\\:*?"<>|]', "_", s)               # separateurs et caracteres refuses
+  s <- gsub("[.][.]+", ".", s)                    # « .. » ne remonte nulle part
+  s <- trimws(s)
+  s <- substr(s, 1L, max)
+  if (!nzchar(s) || s %in% c(".", "..")) defaut else s
+}
 
 # =============================================================================
 #  VERSION DU PAQUET -- source unique de verite
@@ -6578,9 +6615,39 @@ hstat_set_seed <- function(seed = NULL) {
 
 .hstat_cache <- new.env(parent = emptyenv())
 
-# Vide le cache (a appeler au chargement d'un nouveau fichier).
+# LE CACHE EST DANS LE PAQUET, LES SESSIONS SONT DANS LE PROCESSUS.
+#
+# `.hstat_cache` vit dans l'espace de noms : il est donc PARTAGE par toutes les
+# sessions servies par le meme processus R -- ce qui est le fonctionnement
+# ordinaire de Shiny Server, de Posit Connect et de shinyapps.io.
+#
+# Or la vue DuckDB porte un nom FIXE (« hstat_source »), et la cle
+# d'agregation se compose de ce nom, des colonnes et des statistiques
+# demandees. Deux collegues qui analysent le meme genre de fichier d'essai --
+# donc les memes noms de colonnes -- produisent la MEME cle. Mesure : la
+# seconde session demande une moyenne de 7 et recoit 42, celle de la premiere.
+# Pas une erreur, pas un vide : le chiffre d'un autre, sous le bon libelle.
+#
+# La cle porte donc l'identifiant de session. Hors de Shiny elle retombe sur un
+# jeton constant, pour que la fonction reste pure et testable -- c'est le meme
+# procede que `hstat_langue_session()`, et pour la meme raison : l'etat vient de
+# la SESSION, jamais d'une option globale.
+.hstat_session_id <- function() {
+  d <- tryCatch(shiny::getDefaultReactiveDomain(), error = function(e) NULL)
+  if (is.null(d)) return("hors-session")
+  tok <- tryCatch(d$token, error = function(e) NULL)
+  if (is.null(tok) || !nzchar(as.character(tok)[1])) "hors-session"
+  else as.character(tok)[1]
+}
+
+# Vide le cache DE LA SESSION COURANTE (a appeler au chargement d'un nouveau
+# fichier). Vider le cache entier ferait recalculer les agregations des autres
+# sessions du meme processus -- sans les fausser, mais sans raison.
 hstat_cache_clear <- function() {
-  rm(list = ls(.hstat_cache, all.names = TRUE), envir = .hstat_cache)
+  prefixe <- paste0(.hstat_session_id(), "::")
+  cles <- ls(.hstat_cache, all.names = TRUE)
+  cles <- cles[startsWith(cles, prefixe)]
+  if (length(cles)) rm(list = cles, envir = .hstat_cache)
   invisible(NULL)
 }
 
@@ -6598,7 +6665,11 @@ hstat_cache_get <- function(key, fn) {
 hstat_cache_key <- function(...) {
   parts <- vapply(list(...), function(x) paste(as.character(x), collapse = "|"),
                   character(1))
-  paste(parts, collapse = "::")
+  # L'IDENTIFIANT DE SESSION VIENT EN TETE, et il n'est pas decoratif : sans
+  # lui, deux sessions du meme processus qui interrogent les memes colonnes du
+  # meme nom de vue partagent leurs resultats. C'est aussi ce prefixe qui
+  # permet a `hstat_cache_clear()` de ne vider que ce qui est a elle.
+  paste(c(.hstat_session_id(), parts), collapse = "::")
 }
 
 # Protege les noms de colonnes contenant des caracteres speciaux dans une formule
