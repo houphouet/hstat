@@ -2137,7 +2137,24 @@ hstat_axe_titre <- function(size = 12, face = "plain", align = "0.5",
   h <- suppressWarnings(as.numeric(align)[1])
   if (!isTRUE(is.finite(h))) h <- 0
   marges <- if (axe == "y") ggplot2::margin(r = marge) else ggplot2::margin(t = marge)
-  if (!isTRUE(retour) || !requireNamespace("ggtext", quietly = TRUE))
+  # LE REPLI D'UN PAQUET ABSENT NE PEUT PAS ETRE CE PAQUET.
+  #
+  # La garde disait bien « si ggtext manque, se replier » -- et se repliait sur
+  # `ggtext::element_markdown()`, c'est-a-dire sur le paquet qu'elle venait de
+  # constater manquant. Sans ggtext, tout titre d'axe levait donc « there is no
+  # package called 'ggtext' », et avec lui le graphique entier, dans SEPT
+  # modules. Constate ici meme : deux tests echouaient sur cette ligne dans un
+  # environnement neuf, et le paquet n'arrivait que par dependance transitive.
+  #
+  # `ggtext` est en Suggests a bon droit -- l'interface se construit sans lui,
+  # mesure -- donc la regle du depot s'applique en entier : aucune fonction
+  # essentielle ne doit dependre d'un paquet optionnel. `element_text()` porte
+  # la taille, le style, la couleur, l'alignement et la marge ; seul le rendu
+  # markdown se perd, et c'est exactement ce qu'on ne peut pas rendre sans lui.
+  if (!requireNamespace("ggtext", quietly = TRUE))
+    return(ggplot2::element_text(size = size, face = face, hjust = h,
+                                 colour = colour, margin = marges))
+  if (!isTRUE(retour))
     return(ggtext::element_markdown(size = size, face = face, hjust = h,
                                     colour = colour, margin = marges))
   ggtext::element_textbox_simple(

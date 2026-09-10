@@ -14639,3 +14639,60 @@ test_that("hors de Shiny la cle reste stable, donc testable", {
   hstat_cache_clear()
   expect_equal(hstat_cache_get(k1, function() 2), 2)   # et bien vide
 })
+
+# -----------------------------------------------------------------------------
+# LE REPLI D'UN PAQUET ABSENT NE PEUT PAS ETRE CE PAQUET
+# -----------------------------------------------------------------------------
+test_that("hstat_axe_titre survit a l'absence de ggtext", {
+  skip_if_not_installed("ggplot2")
+  # La garde disait « si ggtext manque, se replier » -- et se repliait sur
+  # `ggtext::element_markdown()`, c'est-a-dire sur le paquet qu'elle venait de
+  # constater manquant. Sans ggtext, TOUT titre d'axe levait « there is no
+  # package called 'ggtext' », et avec lui le graphique entier, dans SEPT
+  # modules. Le paquet est en Suggests a bon droit (l'interface se construit
+  # sans lui) : la regle du depot s'applique donc en entier -- aucune fonction
+  # essentielle ne doit dependre d'un paquet optionnel.
+  #
+  # On MESURE le repli plutot que de le lire : `requireNamespace` est masquee
+  # le temps de l'appel, ce qui reproduit exactement une machine sans ggtext.
+  sans_ggtext <- function(expr) {
+    vrai <- base::requireNamespace
+    faux <- function(package, ...) if (identical(package, "ggtext")) FALSE
+                                   else vrai(package, ...)
+    env <- environment(hstat_axe_titre)
+    assign("requireNamespace", faux, envir = env)
+    on.exit(if (exists("requireNamespace", envir = env, inherits = FALSE))
+              rm("requireNamespace", envir = env), add = TRUE)
+    eval(expr)
+  }
+  e <- sans_ggtext(quote(hstat_axe_titre(size = 17, face = "bold",
+                                         align = "1", colour = "#123456")))
+  # LA CLASSE SE COMPARE EXACTEMENT, PAS PAR HERITAGE. `element_markdown`
+  # HERITE de `element_text` : `expect_s3_class(e, "element_text")` etait donc
+  # satisfait par l'objet meme qu'il devait refuser, et la mutation qui
+  # remettait le repli fautif passait sans un mot. Attrape par mutation, pas
+  # par relecture -- meme famille que « precision et rappel coincident sur une
+  # matrice equilibree ».
+  expect_identical(class(e), class(ggplot2::element_text()))
+  expect_false(inherits(e, "element_markdown"))
+  expect_false(inherits(e, "element_textbox"))
+  # LE REPLI GARDE LES REGLAGES. Rendre un `element_blank()` -- ou un element
+  # nu -- ferait disparaitre le style que l'utilisateur vient de choisir : le
+  # defaut serait alors silencieux, donc pire que l'erreur qu'on corrige.
+  expect_equal(e$size, 17)
+  expect_equal(e$face, "bold")
+  expect_equal(e$hjust, 1)
+  expect_equal(e$colour, "#123456")
+  # Les deux axes restent servis : la marge n'est pas du meme cote.
+  for (cas in list(quote(hstat_axe_titre(axe = "y")),
+                   quote(hstat_axe_titre(retour = FALSE)),
+                   quote(hstat_axe_titre(retour = TRUE)))) {
+    ec <- sans_ggtext(cas)
+    expect_identical(class(ec), class(ggplot2::element_text()))
+  }
+  # Avec ggtext, les DEUX branches d'origine sont intactes -- sans quoi le
+  # correctif aurait supprime la fonctionnalite au lieu de la proteger.
+  skip_if_not_installed("ggtext")
+  expect_s3_class(hstat_axe_titre(retour = TRUE), "element_textbox")
+  expect_s3_class(hstat_axe_titre(retour = FALSE), "element_markdown")
+})
