@@ -121,6 +121,14 @@ jobs:
                          "openxlsx", "jsonlite", "httr", "car", "svglite",
                          "scales", "stringr", "reshape2", "ggdendro", "digest",
                          "base64enc", "rmarkdown", "readxl", "writexl",
+                         # ggtext arrivait lui aussi par dependance
+                         # transitive. Sept modules l'appellent pour leurs
+                         # titres d'axe ; son absence ne fait plus tomber le
+                         # graphique (repli sur element_text), mais elle
+                         # laisserait la branche markdown NON TESTEE -- et un
+                         # test qui n'exerce plus rien ressemble a un test qui
+                         # passe. On le nomme.
+                         "ggtext",
                          # Post-hoc : ils arrivaient jusqu'ici comme dependances
                          # transitives, donc par chance. Une reconstruction du
                          # cache les ferait disparaitre, et les tests qui

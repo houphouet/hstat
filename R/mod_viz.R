@@ -644,13 +644,13 @@ mod_viz_ui <- function(id) {
                               style = "margin-top: 8px;",
                               shiny::numericInput(ns("yAxisBreakStep"),
                                 shiny::tagList(shiny::icon("long-arrow-alt-up"), " Pas axe Y:"),
-                                value = NA, min = 0.001, step = 1
+                                value = NULL, min = 0.001, step = 1
                               ),
                               shiny::helpText(shiny::icon("info-circle"), "Ex: 10 -> graduations 0, 10, 20...",
                                        style = "font-size: 11px; color: #555;"),
                               shiny::numericInput(ns("xAxisBreakStep"),
                                 shiny::tagList(shiny::icon("long-arrow-alt-right"), " Pas axe X (numérique):"),
-                                value = NA, min = 0.001, step = 1
+                                value = NULL, min = 0.001, step = 1
                               ),
                               shiny::helpText(shiny::icon("info-circle"), "Uniquement si l'axe X est numérique.",
                                        style = "font-size: 11px; color: #555;")
@@ -678,13 +678,13 @@ mod_viz_ui <- function(id) {
                                    style = "font-size: 11px; color: #555; margin-bottom: 8px;"),
                           shiny::div(
                             style = "display: flex; gap: 8px;",
-                            shiny::numericInput(ns("yAxisMin"), shiny::tagList(shiny::icon("long-arrow-alt-up"),    " Y min:"), value = NA),
-                            shiny::numericInput(ns("yAxisMax"), shiny::tagList(shiny::icon("long-arrow-alt-up"),    " Y max:"), value = NA)
+                            shiny::numericInput(ns("yAxisMin"), shiny::tagList(shiny::icon("long-arrow-alt-up"),    " Y min:"), value = NULL),
+                            shiny::numericInput(ns("yAxisMax"), shiny::tagList(shiny::icon("long-arrow-alt-up"),    " Y max:"), value = NULL)
                           ),
                           shiny::div(
                             style = "display: flex; gap: 8px; margin-top: 8px;",
-                            shiny::numericInput(ns("xAxisMin"), shiny::tagList(shiny::icon("long-arrow-alt-right"), " X min:"), value = NA),
-                            shiny::numericInput(ns("xAxisMax"), shiny::tagList(shiny::icon("long-arrow-alt-right"), " X max:"), value = NA)
+                            shiny::numericInput(ns("xAxisMin"), shiny::tagList(shiny::icon("long-arrow-alt-right"), " X min:"), value = NULL),
+                            shiny::numericInput(ns("xAxisMax"), shiny::tagList(shiny::icon("long-arrow-alt-right"), " X max:"), value = NULL)
                           ),
                           shiny::helpText(shiny::icon("info-circle"), "Axe X uniquement pour variables numériques.",
                                    style = "font-size: 11px; color: #555; margin-top: 6px;")
@@ -769,7 +769,7 @@ mod_viz_ui <- function(id) {
                                  style = "color:#e65100; font-size:12px; font-weight:bold; margin:0 0 8px 0;"),
                               shiny::numericInput(ns("y2AxisBreakStep"),
                                 shiny::tagList(shiny::icon("long-arrow-alt-up"), " Pas (intervalle):"),
-                                value = NA, min = 0.001, step = 1
+                                value = NULL, min = 0.001, step = 1
                               ),
                               shiny::helpText(shiny::icon("info-circle"), "Ex: 5 -> graduations 0, 5, 10...",
                                        style = "font-size:11px; color:#888;")
@@ -783,8 +783,8 @@ mod_viz_ui <- function(id) {
                                        style = "font-size:11px; color:#888; margin-bottom:6px;"),
                               shiny::div(
                                 style = "display:flex; gap:8px;",
-                                shiny::numericInput(ns("y2AxisMin"), shiny::tagList(shiny::icon("long-arrow-alt-down"), " Y2 min:"), value = NA),
-                                shiny::numericInput(ns("y2AxisMax"), shiny::tagList(shiny::icon("long-arrow-alt-up"),   " Y2 max:"), value = NA)
+                                shiny::numericInput(ns("y2AxisMin"), shiny::tagList(shiny::icon("long-arrow-alt-down"), " Y2 min:"), value = NULL),
+                                shiny::numericInput(ns("y2AxisMax"), shiny::tagList(shiny::icon("long-arrow-alt-up"),   " Y2 max:"), value = NULL)
                               )
                             )
                           )

@@ -995,6 +995,31 @@ hstat_coord_mat <- function(x) {
   as.matrix(x)
 }
 
+# UN POINT QUI DISPARAIT SE NOMME.
+#
+# Une variable constante, un individu entierement manquant : FactoMineR rend
+# alors des coordonnees NaN, et `factoextra` les retire en avertissant dans la
+# CONSOLE -- « Removed 2 rows containing missing values (`geom_path()`) ».
+# L'utilisateur, lui, voit un cercle des correlations ou deux fleches manquent
+# et rien qui le dise. C'est le meme mode de defaillance que la barre absente
+# du module des seuils, et il appelle le meme remede : compter, et NOMMER.
+#
+# Les coordonnees passent par `hstat_coord_mat()` : des qu'un resultat ne
+# comporte qu'un seul axe, FactoMineR les rend en VECTEUR NU, et `m[, ax]`
+# echouerait sur « incorrect number of dimensions ».
+hstat_coord_incompletes <- function(coord, axes = c(1L, 2L)) {
+  m <- hstat_coord_mat(coord)
+  if (is.null(m) || !NROW(m) || !NCOL(m)) return(character(0))
+  ax <- unique(as.integer(axes))
+  ax <- ax[!is.na(ax) & ax >= 1L & ax <= NCOL(m)]
+  if (!length(ax)) return(character(0))
+  sub <- m[, ax, drop = FALSE]
+  mauvais <- apply(sub, 1L, function(r) any(!is.finite(r)))
+  noms <- rownames(m)
+  if (is.null(noms)) noms <- as.character(seq_len(NROW(m)))
+  noms[mauvais]
+}
+
 # Verdict a TROIS etats sur une p-value : significatif / non significatif /
 # indeterminable. Un test statistique rend NA ou NaN des que ses donnees sont
 # degenerees (variance nulle, matrice singuliere, effectifs vides) ; brancher
@@ -2112,7 +2137,24 @@ hstat_axe_titre <- function(size = 12, face = "plain", align = "0.5",
   h <- suppressWarnings(as.numeric(align)[1])
   if (!isTRUE(is.finite(h))) h <- 0
   marges <- if (axe == "y") ggplot2::margin(r = marge) else ggplot2::margin(t = marge)
-  if (!isTRUE(retour) || !requireNamespace("ggtext", quietly = TRUE))
+  # LE REPLI D'UN PAQUET ABSENT NE PEUT PAS ETRE CE PAQUET.
+  #
+  # La garde disait bien « si ggtext manque, se replier » -- et se repliait sur
+  # `ggtext::element_markdown()`, c'est-a-dire sur le paquet qu'elle venait de
+  # constater manquant. Sans ggtext, tout titre d'axe levait donc « there is no
+  # package called 'ggtext' », et avec lui le graphique entier, dans SEPT
+  # modules. Constate ici meme : deux tests echouaient sur cette ligne dans un
+  # environnement neuf, et le paquet n'arrivait que par dependance transitive.
+  #
+  # `ggtext` est en Suggests a bon droit -- l'interface se construit sans lui,
+  # mesure -- donc la regle du depot s'applique en entier : aucune fonction
+  # essentielle ne doit dependre d'un paquet optionnel. `element_text()` porte
+  # la taille, le style, la couleur, l'alignement et la marge ; seul le rendu
+  # markdown se perd, et c'est exactement ce qu'on ne peut pas rendre sans lui.
+  if (!requireNamespace("ggtext", quietly = TRUE))
+    return(ggplot2::element_text(size = size, face = face, hjust = h,
+                                 colour = colour, margin = marges))
+  if (!isTRUE(retour))
     return(ggtext::element_markdown(size = size, face = face, hjust = h,
                                     colour = colour, margin = marges))
   ggtext::element_textbox_simple(
@@ -5489,7 +5531,16 @@ hstat_vars_zero <- function(df, seuil = 1) {
     # laissait passer la moitie, et le test des booleens place avant faisait
     # disparaitre l'autre : dans les deux cas, en silence.
     plat <- if (is.character(x) || is.factor(x)) trimws(as.character(x)) else x
-    if (all(is.na(plat) | (is.character(plat) & !nzchar(plat)))) {
+    # `&` EST VECTORISE : SES DEUX COTES SONT EVALUES. Ecrit
+    # `is.character(plat) & !nzchar(plat)`, le terme de droite est calcule meme
+    # quand celui de gauche est un FALSE scalaire qui le rend sans effet -- et
+    # `nzchar()` sur un vecteur NUMERIQUE le convertit d'abord en chaines. Sur
+    # cent mille lignes cela coute 0,69 s par colonne contre 0,02 s pour le
+    # `is.na()` voisin, et ce diagnostic tourne a CHAQUE chargement de fichier.
+    # Mesure : 1,38 s -> 0,25 s sur un tableau de 100 000 x 10.
+    # Le resultat est identique, la conversion etait pure perte.
+    vide_txt <- if (is.character(plat)) !nzchar(plat) else FALSE
+    if (all(is.na(plat) | vide_txt)) {
       vides <- c(vides, cn); next
     }
     # Decision 3 : un booleen renseigne est une reponse, pas une mesure.
@@ -5692,6 +5743,34 @@ hstat_cut_intervals <- function(x, method = c("width", "quantile", "manual"),
 # Echappement d'un identifiant SQL (nom de colonne issu du fichier utilisateur)
 # pour DuckDB : doublement des guillemets internes puis encadrement par "...".
 hstat_sql_ident <- function(x) sprintf('"%s"', gsub('"', '""', x))
+
+# UN NOM DE TELECHARGEMENT PART DANS UN EN-TETE HTTP, PAS SUR UN DISQUE.
+#
+# `downloadHandler(filename = ...)` ne cree aucun fichier : la chaine devient la
+# valeur `filename=` de l'en-tete `Content-Disposition`. Elle ne doit donc
+# porter ni retour a la ligne (qui coupe l'en-tete), ni guillemet (qui en
+# ferme la valeur), ni separateur de chemin (que certains clients suivent).
+#
+# LA VALEUR D'UN `selectInput` N'EST PAS UNE GARANTIE : elle arrive du
+# navigateur, et un client peut envoyer tout autre chose sur le websocket. Une
+# liste de choix contraint l'interface, pas le protocole. Sur un poste isole
+# cela ne vise que l'utilisateur lui-meme ; sur un serveur partage -- le cas
+# que `app.R` a la racine existe pour servir -- c'est une entree comme une
+# autre, et elle se traite comme telle.
+#
+# Distinct de `.safe_name()` (mod_qualitative), qui fabrique un IDENTIFIANT en
+# minuscules sans accent : ce n'est pas le meme contrat, et les fondre ferait
+# perdre a chacun ce qu'il garantit.
+hstat_nom_fichier <- function(x, defaut = "fichier", max = 80L) {
+  s <- as.character(x)[1]
+  if (is.na(s)) s <- ""
+  s <- gsub("[[:cntrl:]]", "", s)                 # retours a la ligne, tabulations
+  s <- gsub('[/\\\\:*?"<>|]', "_", s)               # separateurs et caracteres refuses
+  s <- gsub("[.][.]+", ".", s)                    # « .. » ne remonte nulle part
+  s <- trimws(s)
+  s <- substr(s, 1L, max)
+  if (!nzchar(s) || s %in% c(".", "..")) defaut else s
+}
 
 # =============================================================================
 #  VERSION DU PAQUET -- source unique de verite
@@ -6553,9 +6632,39 @@ hstat_set_seed <- function(seed = NULL) {
 
 .hstat_cache <- new.env(parent = emptyenv())
 
-# Vide le cache (a appeler au chargement d'un nouveau fichier).
+# LE CACHE EST DANS LE PAQUET, LES SESSIONS SONT DANS LE PROCESSUS.
+#
+# `.hstat_cache` vit dans l'espace de noms : il est donc PARTAGE par toutes les
+# sessions servies par le meme processus R -- ce qui est le fonctionnement
+# ordinaire de Shiny Server, de Posit Connect et de shinyapps.io.
+#
+# Or la vue DuckDB porte un nom FIXE (« hstat_source »), et la cle
+# d'agregation se compose de ce nom, des colonnes et des statistiques
+# demandees. Deux collegues qui analysent le meme genre de fichier d'essai --
+# donc les memes noms de colonnes -- produisent la MEME cle. Mesure : la
+# seconde session demande une moyenne de 7 et recoit 42, celle de la premiere.
+# Pas une erreur, pas un vide : le chiffre d'un autre, sous le bon libelle.
+#
+# La cle porte donc l'identifiant de session. Hors de Shiny elle retombe sur un
+# jeton constant, pour que la fonction reste pure et testable -- c'est le meme
+# procede que `hstat_langue_session()`, et pour la meme raison : l'etat vient de
+# la SESSION, jamais d'une option globale.
+.hstat_session_id <- function() {
+  d <- tryCatch(shiny::getDefaultReactiveDomain(), error = function(e) NULL)
+  if (is.null(d)) return("hors-session")
+  tok <- tryCatch(d$token, error = function(e) NULL)
+  if (is.null(tok) || !nzchar(as.character(tok)[1])) "hors-session"
+  else as.character(tok)[1]
+}
+
+# Vide le cache DE LA SESSION COURANTE (a appeler au chargement d'un nouveau
+# fichier). Vider le cache entier ferait recalculer les agregations des autres
+# sessions du meme processus -- sans les fausser, mais sans raison.
 hstat_cache_clear <- function() {
-  rm(list = ls(.hstat_cache, all.names = TRUE), envir = .hstat_cache)
+  prefixe <- paste0(.hstat_session_id(), "::")
+  cles <- ls(.hstat_cache, all.names = TRUE)
+  cles <- cles[startsWith(cles, prefixe)]
+  if (length(cles)) rm(list = cles, envir = .hstat_cache)
   invisible(NULL)
 }
 
@@ -6573,7 +6682,11 @@ hstat_cache_get <- function(key, fn) {
 hstat_cache_key <- function(...) {
   parts <- vapply(list(...), function(x) paste(as.character(x), collapse = "|"),
                   character(1))
-  paste(parts, collapse = "::")
+  # L'IDENTIFIANT DE SESSION VIENT EN TETE, et il n'est pas decoratif : sans
+  # lui, deux sessions du meme processus qui interrogent les memes colonnes du
+  # meme nom de vue partagent leurs resultats. C'est aussi ce prefixe qui
+  # permet a `hstat_cache_clear()` de ne vider que ce qui est a elle.
+  paste(c(.hstat_session_id(), parts), collapse = "::")
 }
 
 # Protege les noms de colonnes contenant des caracteres speciaux dans une formule
@@ -7629,6 +7742,104 @@ hstat_html_style_label <- function(x, style = "plain") {
            "bold.italic" = paste0("<b><i>", s, "</i></b>"),
            s)
   }, character(1))
+}
+
+# LE RANG, PAS LE DETERMINANT -- et il faut NOMMER ce qui est redondant.
+#
+# Une matrice de correlations singuliere fait sortir R de sa reserve : `psych`
+# imprime « Error in solve.default(r) : le systeme est numeriquement
+# singulier », « matrix is not invertible », « the pseudo inverse is used »,
+# et l'analyse continue quand meme sur une pseudo-inverse. L'utilisateur voit
+# donc une pile d'erreurs dans la console ET un tableau de resultats : il ne
+# peut savoir ni si le calcul a eu lieu, ni sur quoi.
+#
+# La cause est presque toujours banale : deux colonnes qui se deduisent l'une
+# de l'autre -- un total et ses parts, une mesure et la meme convertie, une
+# variable dupliquee a l'import. La dire par son nom vaut mille fois mieux que
+# de la faire deviner.
+#
+# La decomposition QR AVEC PIVOT donne les deux d'un coup : le rang, et
+# lesquelles des colonnes sont surnumeraires (celles que le pivot relegue
+# au-dela du rang). Le determinant, lui, ne repond pas -- il est homogene a la
+# p-ieme puissance d'une unite, et cinq variables en microgrammes le font
+# tomber a 1e-60 sur des donnees parfaitement inversibles. C'est la lecon deja
+# tiree pour `box_m_test()` et `detect_multivariate_outliers()`.
+#
+# LES COLONNES SONT CENTREES, et c'est le centrage qui decide -- mesure, pas
+# suppose. La tolerance de `qr()` est deja RELATIVE a la norme de chaque
+# colonne : multiplier un tableau par 1e-6, ou melanger des colonnes d'echelles
+# separees par dix-huit ordres de grandeur, ne change pas le rang rendu. Le
+# centrage, lui, change tout, et sur un cas ordinaire :
+#
+#   c = a + b + 100   ->  rang brut 3, rang centre 2
+#
+# -- un total rebase, un indice ramene a 100, une somme avec son ordonnee a
+# l'origine. La matrice de CORRELATIONS, elle, est centree par construction :
+# `solve()` y echoue (det = 3e-16) alors qu'un rang non centre l'aurait
+# declaree pleine. Mesurer le rang autrement que ne le fait `cor()` reviendrait
+# a garder une porte qui ne donne pas sur la bonne piece.
+#
+# La reduction ne decide de rien ; elle est conservee parce qu'elle rend la
+# tolerance comparable d'une colonne a l'autre et qu'elle ne coute rien.
+hstat_colineaires <- function(data, tol = 1e-7) {
+  vide <- list(rang = 0L, p = 0L, redondantes = character(0))
+  if (is.null(data)) return(vide)
+  X <- as.data.frame(data)
+  X <- X[, vapply(X, is.numeric, logical(1)), drop = FALSE]
+  if (!NCOL(X) || !NROW(X)) return(vide)
+  X <- X[stats::complete.cases(X), , drop = FALSE]
+  if (NROW(X) < 2L) return(list(rang = 0L, p = NCOL(X), redondantes = names(X)))
+  # Une colonne d'ecart-type nul n'est pas « redondante », elle est vide de
+  # variation : `scale()` y rendrait des NaN et le rang deviendrait NA. Elle
+  # compte donc directement comme surnumeraire.
+  et <- vapply(X, function(x) stats::sd(x), numeric(1))
+  cst <- names(X)[!is.finite(et) | et <= 0]
+  Xv <- X[, setdiff(names(X), cst), drop = FALSE]
+  if (!NCOL(Xv)) return(list(rang = 0L, p = NCOL(X), redondantes = names(X)))
+  Z <- scale(Xv)
+  q <- tryCatch(qr(Z, tol = tol), error = function(e) NULL)
+  if (is.null(q)) return(list(rang = NA_integer_, p = NCOL(X), redondantes = cst))
+  rang <- q$rank
+  sup <- if (rang < NCOL(Xv)) colnames(Xv)[q$pivot[seq.int(rang + 1L, NCOL(Xv))]]
+         else character(0)
+  list(rang = as.integer(rang), p = NCOL(X),
+       redondantes = unique(c(cst, sup)))
+}
+
+# UNE SELECTION SURVIT AU JEU DE DONNEES QU'ELLE DESIGNE.
+#
+# Un selecteur de colonne garde sa valeur dans le NAVIGATEUR. Quand le jeu de
+# travail change -- nouveau fichier, filtre, nettoyage, feuille combinee --,
+# l'interface reconstruit le selecteur, mais le serveur voit encore l'ancienne
+# valeur jusqu'a ce que le navigateur lui reponde. Entre les deux, tout
+# graphique bati sur `.data[[input$X]]` tombe sur :
+#
+#   Column `ch_Hel` not found in `.data`
+#
+# -- un message qui accuse les donnees alors que rien n'est casse : c'est un
+# aller-retour en cours. Constate a l'ecran sur le graphique descriptif.
+#
+# La reponse est d'ATTENDRE (`req`), pas d'expliquer : la condition se resout
+# d'elle-meme en une fraction de seconde, et afficher « colonne absente » le
+# temps d'un echo serait un faux diagnostic. C'est l'inverse de la regle
+# habituelle du depot -- ici ce qui est ecarte ne l'est pas durablement.
+#
+# La fonction rend les noms MANQUANTS (donc `character(0)` quand tout est la),
+# parce que c'est cette liste qu'un appelant qui, lui, doit nommer -- un
+# refus durable, une capture -- voudra afficher.
+hstat_cols_absentes <- function(data, cols) {
+  if (is.null(data) || is.null(cols)) return(character(0))
+  cols <- as.character(cols)
+  cols <- unique(cols[!is.na(cols) & nzchar(cols)])
+  if (!length(cols)) return(character(0))
+  setdiff(cols, names(data))
+}
+
+# Le pendant a l'usage : vrai quand TOUTES les colonnes demandees sont la.
+# Un `req()` se lit mieux en positif -- `req(hstat_cols_pretes(d, v))` -- que
+# par la longueur d'un `setdiff`.
+hstat_cols_pretes <- function(data, cols) {
+  length(hstat_cols_absentes(data, cols)) == 0L
 }
 
 # Une agregation numerique n'a de sens que sur une variable numerique.

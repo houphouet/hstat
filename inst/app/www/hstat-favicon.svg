@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="HStat">
+  <rect width="64" height="64" rx="12" fill="#2c3e50"/>
+  <!-- La fiole du bandeau, reprise en aplat : elle doit rester lisible a 16 px. -->
+  <path d="M26 10h12v3h-2v13.6l10.2 20.1A6 6 0 0 1 40.9 56H23.1a6 6 0 0 1-5.3-9.3L28 26.6V13h-2z"
+        fill="none" stroke="#5dade2" stroke-width="3.4" stroke-linejoin="round"/>
+  <path d="M21.5 43h21l3.2 6.3A4 4 0 0 1 42.9 55H21.1a4 4 0 0 1-2.8-5.7z" fill="#5dade2"/>
+</svg>

@@ -607,6 +607,15 @@ mod_descriptive_server <- function(id, values) {
   
   generate_desc_plot <- function() {
     shiny::req(values$filteredData, input$descPlotVar)
+    # UNE SELECTION SURVIT AU JEU DE DONNEES QU'ELLE DESIGNE. Apres un
+    # changement de fichier, le navigateur renvoie encore l'ancienne colonne :
+    # `.data[[input$descPlotVar]]` tombait alors sur « Column `ch_Hel` not
+    # found in `.data` », qui accuse les donnees pour un simple aller-retour en
+    # cours. On attend l'echo plutot que d'afficher un faux diagnostic.
+    fac <- input$descPlotFactor %||% "Aucun"
+    shiny::req(hstat_cols_pretes(values$filteredData,
+                                 c(input$descPlotVar,
+                                   if (!identical(fac, "Aucun")) fac)))
 
     extras <- hstat_plot_extras_lire(input, "descPl")
     

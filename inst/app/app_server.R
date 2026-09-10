@@ -1649,6 +1649,21 @@ server <- function(input, output, session) {
     
     axis_x <- if (!is.null(input$pcaAxisX)) as.numeric(input$pcaAxisX) else 1
     axis_y <- if (!is.null(input$pcaAxisY)) as.numeric(input$pcaAxisY) else 2
+
+    # UN POINT QUI DISPARAIT SE NOMME. Une variable constante rend des
+    # coordonnees NaN : `factoextra` retire la fleche et l'ecrit dans la
+    # CONSOLE (« Removed 2 rows containing missing values »), pas a l'ecran.
+    # On voyait donc un cercle des correlations ampute sans savoir de quoi.
+    .pca_signaler <- function(coord, quoi) {
+      abs_ <- hstat_coord_incompletes(coord, c(axis_x, axis_y))
+      if (length(abs_))
+        shiny::showNotification(
+          trf("ACP : %s sans coordonnée sur ces axes, donc absente(s) du graphique : %s.",
+              quoi, paste(utils::head(abs_, 10), collapse = ", ")),
+          type = "warning", duration = 8)
+    }
+    .pca_signaler(res.pca$var$coord, tr("variable(s)"))
+    .pca_signaler(res.pca$ind$coord, tr("individu(s)"))
     
     plot_title <- if (!is.null(input$pcaPlotTitle) && input$pcaPlotTitle != "") {
       input$pcaPlotTitle
@@ -4232,10 +4247,24 @@ server <- function(input, output, session) {
   createAfdIndPlot <- function(afd_res) {
     afd_predict <- afd_res$predictions
     afd_data    <- afd_res$data
-    # Utiliser le nom du facteur stocké dans afd_res (pas input$afdFactor qui est NULL hors réactif)
-    factor_name <- afd_res$factor_name %||%
-      names(afd_data)[sapply(afd_data, is.factor)][1] %||%
-      names(afd_data)[ncol(afd_data)]
+    if (is.null(afd_predict) || is.null(afd_data) || !NROW(afd_data))
+      stop("AFD : aucun ajustement disponible. Relancez l'analyse.")
+    # LE GROUPE DOIT EXISTER DANS LES DONNEES, PAS SEULEMENT ETRE NOMME.
+    # `afd_data[[nom]]` rend NULL sur un nom absent, et affecter NULL a une
+    # colonne NE LA CREE PAS : `Groupe` restait introuvable, et l'erreur
+    # tombait bien plus loin, dans ggplot (« objet 'Groupe' introuvable »),
+    # sur une couche de densite qui n'y est pour rien. Le nom stocke peut ne
+    # plus designer une colonne des le moment ou le jeu de travail change.
+    # On retient donc le premier candidat REELLEMENT present.
+    candidats <- c(afd_res$factor_name,
+                   names(afd_data)[vapply(afd_data, is.factor, logical(1))],
+                   names(afd_data)[ncol(afd_data)])
+    candidats <- as.character(candidats)
+    candidats <- candidats[!is.na(candidats) & nzchar(candidats) &
+                             candidats %in% names(afd_data)]
+    if (!length(candidats))
+      stop("AFD : la variable de groupe n'est plus dans les données. Relancez l'analyse.")
+    factor_name <- candidats[1]
     
     n_dims <- ncol(afd_predict$x)
     
@@ -4250,7 +4279,14 @@ server <- function(input, output, session) {
     }
     
     afd_df <- as.data.frame(afd_predict$x)
-    afd_df$Groupe     <- afd_data[[factor_name]]
+    grp <- afd_data[[factor_name]]
+    # Une projection peut compter moins de lignes que les donnees (individus
+    # ecartes) : recoller un vecteur plus long leverait « replacement has n
+    # rows ». On refuse en le disant plutot que de laisser passer un
+    # appariement decale, qui rendrait un graphique plausible et faux.
+    if (is.null(grp) || length(grp) != NROW(afd_df))
+      stop("AFD : les groupes ne correspondent plus aux individus projetés. Relancez l'analyse.")
+    afd_df$Groupe     <- grp
     afd_df$Individual <- rownames(afd_data)
     
     x_label <- if (!is.null(input$afdIndXLabel) && input$afdIndXLabel != "") {
@@ -4335,7 +4371,12 @@ server <- function(input, output, session) {
     if (is.null(vars_used) || length(vars_used) == 0) {
       vars_used <- names(afd_data)[sapply(afd_data, is.numeric)]
     }
-    if (is.null(vars_used) || length(vars_used) == 0) stop("Aucune variable disponible pour le graphique AFD.")
+    # Les variables retenues peuvent avoir disparu du jeu de travail : le nom
+    # est stocke, la colonne non. On ne garde que celles qui sont la.
+    vars_used <- intersect(as.character(vars_used), names(afd_data))
+    vars_used <- vars_used[vapply(afd_data[vars_used], is.numeric, logical(1))]
+    if (length(vars_used) == 0)
+      stop("AFD : aucune variable quantitative disponible pour ce graphique. Vérifiez les colonnes choisies, puis relancez l'analyse.")
     
     X_std <- scale(afd_data[, vars_used, drop = FALSE])
     scores <- as.matrix(X_std) %*% afd_result$scaling
@@ -4457,14 +4498,27 @@ server <- function(input, output, session) {
     return(p_var)
   }
   
+  # UN REFUS SE LIT, UNE TRACE D'ERREUR NON. `stop()` dans un `renderPlot`
+  # affiche la pile rouge de R au milieu de l'onglet ; la meme phrase passee a
+  # `validate()` s'affiche comme un message. Le chemin du TELECHARGEMENT, lui,
+  # garde le `stop()` : `hstat_ecrire_image()` en fait le motif porte par
+  # l'image de secours, ce qui est exactement ce qu'il faut la-bas.
+  .afd_rendu <- function(expr) {
+    p <- tryCatch(expr, error = function(e) conditionMessage(e))
+    if (is.character(p)) shiny::validate(shiny::need(FALSE, p))
+    p
+  }
+
   output$afdIndPlot <- shiny::renderPlot({
     shiny::req(values$filteredData, input$afdFactor)
-    suppressWarnings(suppressMessages(mv_legacy(createAfdIndPlot(afdResultReactive()), "afdInd")))
+    .afd_rendu(suppressWarnings(suppressMessages(
+      mv_legacy(createAfdIndPlot(afdResultReactive()), "afdInd"))))
   }, res = 120)
   
   output$afdVarPlot <- shiny::renderPlot({
     shiny::req(values$filteredData, input$afdFactor)
-    suppressWarnings(suppressMessages(mv_legacy(createAfdVarPlot(afdResultReactive()), "afdVar")))
+    .afd_rendu(suppressWarnings(suppressMessages(
+      mv_legacy(createAfdVarPlot(afdResultReactive()), "afdVar"))))
   }, res = 120)
   
   output$afdSummary <- shiny::renderUI({
@@ -6512,7 +6566,29 @@ server <- function(input, output, session) {
           shiny::showNotification(trf("Variables ignorées (variance nulle ou NA) : %s", paste(names(X)[!keep], collapse = ", ")), type = "warning", duration = 5)
           X <- X[, keep, drop = FALSE]
         }
-        nf <- input$mv_efa_nf %||% 2
+        # LE RANG, PAS LE DETERMINANT. Deux colonnes qui se deduisent l'une de
+        # l'autre -- un total et ses parts, une mesure et la meme convertie --
+        # rendent la matrice de correlations singuliere. `psych::fa()` ne
+        # s'arrete pas pour autant : il imprime « Error in solve.default(r) »,
+        # « matrix is not invertible », bascule sur une PSEUDO-INVERSE et rend
+        # un tableau. L'utilisateur voit donc une pile d'erreurs a cote d'un
+        # resultat, sans savoir lequel croire.
+        # On retire les colonnes surnumeraires EN LES NOMMANT, et l'analyse
+        # porte alors sur une matrice reellement inversible.
+        col <- hstat_colineaires(X)
+        if (length(col$redondantes)) {
+          X <- X[, setdiff(names(X), col$redondantes), drop = FALSE]
+          if (ncol(X) < 3)
+            return(list(ok = FALSE, error = trf(
+              "Moins de 3 variables indépendantes : %s se déduisent des autres (colinéarité). Retirez-en ou choisissez d'autres colonnes.",
+              paste(col$redondantes, collapse = ", "))))
+          shiny::showNotification(trf(
+            "AFE : %s retirée(s), colinéaire(s) avec les autres variables.",
+            paste(col$redondantes, collapse = ", ")), type = "warning", duration = 8)
+        }
+        # Le nombre de facteurs se compte sur les colonnes QUI RESTENT : le
+        # champ a pu etre regle avant que la colinearite en retire.
+        nf <- max(1L, min(as.integer(input$mv_efa_nf %||% 2), ncol(X) - 1L))
         if (nrow(X) < 3*ncol(X))
           return(list(ok = FALSE, error = "Effectif trop faible pour une AFE fiable."))
         R <- stats::cor(X)

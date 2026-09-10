@@ -385,10 +385,10 @@ mod_yield_ui <- function(id) {
               shiny::conditionalPanel(
                 ns = ns, condition = "input.yieldLimites == true",
                 shiny::fluidRow(
-                  shiny::column(6, shiny::numericInput(ns("yieldYMin"), "Y min", value = NA, step = 1)),
-                  shiny::column(6, shiny::numericInput(ns("yieldYMax"), "Y max", value = NA, step = 1)))),
+                  shiny::column(6, shiny::numericInput(ns("yieldYMin"), "Y min", value = NULL, step = 1)),
+                  shiny::column(6, shiny::numericInput(ns("yieldYMax"), "Y max", value = NULL, step = 1)))),
               shiny::numericInput(ns("yieldPasY"), "Pas des graduations Y (vide = auto)",
-                           value = NA, min = 0, step = 1),
+                           value = NULL, min = 0, step = 1),
               shiny::fluidRow(
                 shiny::column(6, shiny::checkboxInput(ns("yieldGrilleMaj"), "Grille principale", value = TRUE)),
                 shiny::column(6, shiny::checkboxInput(ns("yieldGrilleMin"), "Grille secondaire", value = FALSE))),
@@ -398,7 +398,7 @@ mod_yield_ui <- function(id) {
               # distingue plus d'un rendement faible. Le trait n'est donc pas
               # reserve aux gains.
               shiny::checkboxInput(ns("yieldLigneZero"), "Ligne de référence à 0", value = TRUE),
-              shiny::checkboxInput(ns("yieldErreurs"), "Barres d'erreur (rendement moyen)", value = TRUE),
+              shiny::checkboxInput(ns("yieldErreurs"), "Barres d'erreur supérieures (rendement moyen)", value = TRUE),
               shiny::conditionalPanel(
                 ns = ns, condition = "input.yieldErreurs == true",
                 shiny::radioButtons(ns("yieldErreurType"), NULL,
@@ -862,15 +862,27 @@ mod_yield_server <- function(id, values) {
       # BARRES D'ERREUR : elles n'ont de sens que sur le rendement MOYEN. Les
       # poser sur un rendement global ou un gain afficherait la dispersion
       # d'une autre grandeur que celle qui est tracee.
+      #
+      # SEULE LA MOITIE SUPERIEURE EST TRACEE. Sur un graphique en barres, la
+      # moitie basse se superpose au remplissage : elle n'ajoute rien et
+      # encombre la valeur portee sur la barre. La demi-barre se monte en DEUX
+      # couches -- un segment pour la hampe, un `geom_errorbar` d'etendue nulle
+      # pour la seule coiffe du haut. Un `geom_errorbar` allant de la valeur au
+      # sommet poserait AUSSI une coiffe au pied : invisible sur une barre,
+      # elle barrerait le point d'un nuage ou d'une sucette.
+      d$.hi <- NA_real_
       if (isTRUE(input$yieldErreurs) && identical(mesure, "Rendement_moyen") &&
           "Erreur_type" %in% names(d)) {
         e <- switch(input$yieldErreurType %||% "se",
                     sd = d$Ecart_type, ci = 1.96 * d$Erreur_type, d$Erreur_type)
         if (any(is.finite(e))) {
-          d$.lo <- d$.val - e; d$.hi <- d$.val + e
-          p <- p + ggplot2::geom_errorbar(
-            data = d, ggplot2::aes(ymin = .data$.lo, ymax = .data$.hi),
-            width = 0.2, colour = "black", inherit.aes = TRUE)
+          d$.hi <- d$.val + e
+          p <- p + ggplot2::geom_linerange(
+              data = d, ggplot2::aes(ymin = .data$.val, ymax = .data$.hi),
+              colour = "black", linewidth = 0.5, na.rm = TRUE) +
+            ggplot2::geom_errorbar(
+              data = d, ggplot2::aes(ymin = .data$.hi, ymax = .data$.hi),
+              width = 0.2, colour = "black", linewidth = 0.5, na.rm = TRUE)
         }
       }
 
@@ -925,7 +937,7 @@ mod_yield_server <- function(id, values) {
           if (is.finite(input$yieldYMax %||% NA)) input$yieldYMax else NA) else c(NA, NA)
       pas <- input$yieldPasY
       if (isTRUE(is.finite(pas)) && pas > 0) {
-        bornes <- hstat_etendue_axe(c(d$.val, lim))
+        bornes <- hstat_etendue_axe(c(d$.val, d$.hi, lim))
         p <- p + ggplot2::scale_y_continuous(
           breaks = seq(hstat_pas_debut(bornes[1], pas), bornes[2] + pas, by = pas))
       }

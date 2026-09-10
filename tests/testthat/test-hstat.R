@@ -14132,3 +14132,567 @@ test_that("une demi-matrice PMCMRplus porte quand même toutes les modalités", 
   expect_true(length(attr(e2, "non_resolues")) > 0)
   expect_true(any(grepl("ZZZ", attr(e2, "non_resolues"))))
 })
+
+# -----------------------------------------------------------------------------
+# UNE SELECTION SURVIT AU JEU DE DONNEES QU'ELLE DESIGNE
+# -----------------------------------------------------------------------------
+test_that("une colonne disparue est reconnue comme telle, pas devinee", {
+  d <- data.frame(a = 1:3, b = 4:6)
+  expect_equal(hstat_cols_absentes(d, "ch_Hel"), "ch_Hel")
+  expect_equal(hstat_cols_absentes(d, c("a", "b")), character(0))
+  expect_equal(hstat_cols_absentes(d, c("a", "z", "z")), "z")  # dedoublonne
+  # Ce qui n'est pas un nom n'est pas une colonne manquante : un selecteur vide
+  # rend "" ou NA, et les compter ferait refuser un etat parfaitement normal.
+  expect_equal(hstat_cols_absentes(d, c("", NA)), character(0))
+  expect_equal(hstat_cols_absentes(NULL, "a"), character(0))
+  expect_equal(hstat_cols_absentes(d, NULL), character(0))
+  # Le pendant positif, celui qui se lit dans un `req()`.
+  expect_true(hstat_cols_pretes(d, c("a", "b")))
+  expect_false(hstat_cols_pretes(d, c("a", "ch_Hel")))
+  expect_true(hstat_cols_pretes(d, NULL))
+})
+
+test_that("le graphique descriptif attend l'echo plutot que de tomber", {
+  # Le defaut constate a l'ecran : apres un changement de fichier, le
+  # navigateur renvoie encore l'ANCIENNE colonne, et `.data[[input$...]]`
+  # levait « Column `ch_Hel` not found in `.data` » -- un message qui accuse
+  # les donnees pour un simple aller-retour en cours.
+  src <- readLines(.hstat_module_path("mod_descriptive.R"), warn = FALSE)
+  src <- paste(src, collapse = "\n")
+  i_def <- regexpr("generate_desc_plot <- function", src, fixed = TRUE)
+  expect_true(i_def > 0)
+  i_hist <- regexpr("geom_histogram", src, fixed = TRUE)
+  expect_true(i_hist > i_def)
+  corps <- substr(src, i_def, i_hist)
+  expect_true(grepl("hstat_cols_pretes", corps, fixed = TRUE))
+  # LE FACTEUR DE GROUPEMENT COMPTE AUSSI : il nomme lui aussi une colonne du
+  # fichier, et « Aucun » n'en est pas une.
+  expect_true(grepl("descPlotFactor", corps, fixed = TRUE))
+})
+
+# -----------------------------------------------------------------------------
+# LE RANG, PAS LE DETERMINANT -- et ce qui est redondant se nomme
+# -----------------------------------------------------------------------------
+test_that("hstat_colineaires nomme les colonnes surnumeraires", {
+  set.seed(11)
+  d <- data.frame(a = stats::rnorm(40), b = stats::rnorm(40))
+  d$c <- d$a + d$b                      # exactement deduite des deux autres
+  r <- hstat_colineaires(d)
+  expect_equal(r$rang, 2L)
+  expect_equal(r$p, 3L)
+  expect_equal(r$redondantes, "c")
+  # Un tableau de plein rang ne fait ecarter personne.
+  plein <- hstat_colineaires(d[, c("a", "b")])
+  expect_equal(plein$rang, 2L)
+  expect_equal(plein$redondantes, character(0))
+  # Une colonne CONSTANTE n'est pas « redondante », elle est vide de variation.
+  # `scale()` y rendrait des NaN et le rang deviendrait NA : elle est ecartee
+  # avant, et nommee comme les autres.
+  dk <- d[, c("a", "b")]; dk$k <- 5
+  expect_true("k" %in% hstat_colineaires(dk)$redondantes)
+  expect_equal(hstat_colineaires(dk)$rang, 2L)
+  expect_equal(hstat_colineaires(NULL)$redondantes, character(0))
+})
+
+test_that("le rang se mesure sur des colonnes CENTREES, comme cor() le fait", {
+  # LE CAS QUI DECIDE, et il est ordinaire : une colonne qui est la somme de
+  # deux autres PLUS UNE CONSTANTE -- un total rebase, un indice ramene a 100.
+  # Elle n'est pas une combinaison lineaire exacte des deux autres tant qu'on
+  # ne centre pas ; la matrice de CORRELATIONS, elle, est centree par
+  # construction et devient singuliere. Un rang mesure sans centrage la
+  # declarerait pleine, laisserait passer les trois colonnes, et `psych::fa()`
+  # retomberait sur sa pseudo-inverse en imprimant sa pile d'erreurs.
+  set.seed(5)
+  a <- stats::rnorm(40); b <- stats::rnorm(40)
+  d <- data.frame(a = a, b = b, c = a + b + 100)
+  expect_equal(qr(as.matrix(d))$rank, 3L)          # sans centrage : plein
+  expect_true(inherits(try(solve(stats::cor(d)), silent = TRUE), "try-error"))
+  r <- hstat_colineaires(d)
+  expect_equal(r$rang, 2L)                          # avec centrage : deficient
+  expect_equal(r$redondantes, "c")
+})
+
+test_that("le rang est invariant d'echelle, le determinant ne l'est pas", {
+  # C'est la lecon deja tiree deux fois dans ce depot (box_m_test, puis
+  # detect_multivariate_outliers) : cinq variables mesurees en microgrammes
+  # font tomber le determinant de la covariance a ~1e-60 alors que le rang
+  # reste PLEIN. Tout seuil pose sur le determinant crierait a la singularite
+  # sur des donnees parfaitement inversibles.
+  set.seed(23)
+  d <- as.data.frame(matrix(stats::rnorm(200), 40, 5))
+  micro <- d * 1e-6
+  expect_lt(det(stats::cov(micro)), 1e-40)          # le determinant s'effondre
+  expect_equal(hstat_colineaires(micro)$rang, 5L)   # le rang, lui, ne bouge pas
+  expect_equal(hstat_colineaires(micro)$redondantes, character(0))
+  # Et l'assertion mord dans l'autre sens : une VRAIE colinearite est vue aux
+  # deux echelles. Sans cette moitie, un code qui aurait simplement retire le
+  # garde-fou passerait le test.
+  d$V6 <- d$V1 * 3
+  expect_equal(hstat_colineaires(d)$rang, 5L)
+  expect_equal(hstat_colineaires(d * 1e-6)$rang, 5L)
+  expect_true(length(hstat_colineaires(d)$redondantes) == 1L)
+})
+
+test_that("l'AFE retire les colonnes colineaires en les nommant", {
+  # LES COMMENTAIRES SONT RETIRES PAR L'ANALYSEUR DE R. Ecrit sur le texte
+  # brut, ce test se signalait LUI-MEME : le commentaire qui documente la
+  # correction cite `psych::fa()`, et l'ordre relevé devenait celui du
+  # commentaire, pas celui du code. C'est le piège deja documente ailleurs
+  # dans ce depot, et il s'est represente ici.
+  f <- file.path(.hstat_repo_root(), "inst", "app", "app_server.R")
+  code <- paste(.hstat_code_lignes(f), collapse = "\n")
+  i <- regexpr("observeEvent(input$mv_efa_run", code, fixed = TRUE)
+  expect_true(i > 0)
+  j_fa <- regexpr("psych::fa(", substr(code, i, nchar(code)), fixed = TRUE)
+  j_co <- regexpr("hstat_colineaires", substr(code, i, nchar(code)), fixed = TRUE)
+  # `psych::fa()` ne s'arrete PAS sur une matrice singuliere : il imprime son
+  # « Error in solve.default(r) », bascule sur une pseudo-inverse et rend quand
+  # meme un tableau. On tranche AVANT lui, et sur le rang.
+  expect_true(j_co > 0)
+  expect_true(j_fa > 0)
+  expect_lt(j_co, j_fa)
+})
+
+# -----------------------------------------------------------------------------
+# UN POINT QUI DISPARAIT SE NOMME
+# -----------------------------------------------------------------------------
+test_that("hstat_coord_incompletes nomme les coordonnees non finies", {
+  m <- matrix(c(1, 2, NaN, 4, 5, NA, 7, 8), 4, 2,
+              dimnames = list(c("a", "b", "c", "d"), NULL))
+  expect_equal(hstat_coord_incompletes(m), c("b", "c"))
+  # L'axe demande change la reponse : `c` n'est fautive que sur le premier.
+  expect_equal(hstat_coord_incompletes(m, axes = 1L), "c")
+  expect_equal(hstat_coord_incompletes(m, axes = 2L), "b")
+  # UN SEUL AXE : FactoMineR rend alors un VECTEUR NU, et `m[, 1:2]` echouerait
+  # sur « incorrect number of dimensions ». Le passage par hstat_coord_mat()
+  # est ce qui l'evite -- meme regle que partout ailleurs dans le depot.
+  expect_equal(hstat_coord_incompletes(c(a = 1, b = NaN, c = 3)), "b")
+  # Un axe hors du domaine ne fait rien ecarter, il n'existe simplement pas.
+  expect_equal(hstat_coord_incompletes(m, axes = c(7L, 9L)), character(0))
+  expect_equal(hstat_coord_incompletes(NULL), character(0))
+  # Sans noms de lignes, on rend le rang : « la 2e » vaut mieux que rien.
+  sans <- m; rownames(sans) <- NULL
+  expect_equal(hstat_coord_incompletes(sans), c("2", "3"))
+})
+
+# -----------------------------------------------------------------------------
+# RENDEMENT : LA BARRE D'ERREUR NE PORTE QUE SA MOITIE HAUTE
+# -----------------------------------------------------------------------------
+test_that("les barres d'erreur du rendement ne descendent jamais sous la valeur", {
+  skip_if_not_installed("ggplot2")
+  h <- data.frame(Modalite = rep(c("T0", "T1", "T2"), each = 4),
+                  Masse    = c(10, 11, 12, 9, 14, 15, 16, 13, 20, 21, 19, 22),
+                  Surface  = rep(1, 12), Bloc = rep(1:4, 3),
+                  stringsAsFactors = FALSE)
+  v <- shiny::reactiveValues(data = h, cleanData = h, filteredData = h,
+                             aiHistory = list())
+  p <- NULL; r <- NULL
+  shiny::testServer(mod_yield_server, args = list(values = v), {
+    vider <- function() try(session$flushReact(), silent = TRUE)
+    session$setInputs(yieldSource = "fichier", yieldModalite = "Modalite",
+                      yieldMasse = "Masse", yieldSurface = "Surface",
+                      yieldRepetition = "Bloc", yieldTemoin = "T0"); vider()
+    session$setInputs(yieldMesure = "Rendement_moyen", yieldErreurs = TRUE,
+                      yieldErreurType = "se"); vider()
+    p <<- graphique(); r <<- resultat()
+  })
+  expect_s3_class(p, "ggplot")
+  b <- suppressWarnings(ggplot2::ggplot_build(p))
+  geoms <- vapply(p$layers, function(l) class(l$geom)[1], character(1))
+  # LA DEMI-BARRE SE MONTE EN DEUX COUCHES : une hampe, et une coiffe d'etendue
+  # nulle. Un `geom_errorbar` unique allant de la valeur au sommet poserait
+  # AUSSI une coiffe au pied -- invisible sur une barre, elle barrerait le
+  # point d'un nuage ou d'une sucette.
+  expect_true("GeomLinerange" %in% geoms)
+  expect_true("GeomErrorbar" %in% geoms)
+
+  ordre  <- order(as.character(r$Modalite))
+  val    <- r$Rendement_moyen[ordre]
+  haut   <- val + r$Erreur_type[ordre]
+
+  hampe <- b$data[[which(geoms == "GeomLinerange")[1]]]
+  hampe <- hampe[order(hampe$x), ]
+  expect_equal(hampe$ymin, val, tolerance = 1e-8)
+  expect_equal(hampe$ymax, haut, tolerance = 1e-8)
+
+  coiffe <- b$data[[which(geoms == "GeomErrorbar")[1]]]
+  coiffe <- coiffe[order(coiffe$x), ]
+  expect_equal(coiffe$ymin, coiffe$ymax, tolerance = 1e-8)
+  expect_equal(coiffe$ymax, haut, tolerance = 1e-8)
+
+  # L'ASSERTION QUI MORD : aucune couche d'erreur ne descend sous la valeur.
+  # Ecrite sur les seules bornes hautes, elle passerait encore sur la barre
+  # symetrique d'avant -- c'est celle-ci qui la refuse.
+  for (i in which(geoms %in% c("GeomLinerange", "GeomErrorbar"))) {
+    d <- b$data[[i]]; d <- d[order(d$x), ]
+    expect_true(all(d$ymin >= val - 1e-8))
+  }
+  # La demi-barre depasse VRAIMENT la valeur, sans quoi l'assertion ci-dessus
+  # serait satisfaite par une erreur-type nulle -- donc par rien du tout.
+  expect_true(all(haut > val))
+
+  # Decochee, la barre d'erreur ne pose aucune des deux couches.
+  v2 <- shiny::reactiveValues(data = h, cleanData = h, filteredData = h,
+                              aiHistory = list())
+  p2 <- NULL
+  shiny::testServer(mod_yield_server, args = list(values = v2), {
+    vider <- function() try(session$flushReact(), silent = TRUE)
+    session$setInputs(yieldSource = "fichier", yieldModalite = "Modalite",
+                      yieldMasse = "Masse", yieldSurface = "Surface",
+                      yieldRepetition = "Bloc", yieldTemoin = "T0"); vider()
+    session$setInputs(yieldMesure = "Rendement_moyen", yieldErreurs = FALSE); vider()
+    p2 <<- graphique()
+  })
+  g2 <- vapply(p2$layers, function(l) class(l$geom)[1], character(1))
+  expect_false(any(c("GeomLinerange", "GeomErrorbar") %in% g2))
+})
+
+# -----------------------------------------------------------------------------
+# LA PAGE RENDUE : TITRE, ICONE, ET AUCUN CHAMP QUE LE NAVIGATEUR REFUSE
+# -----------------------------------------------------------------------------
+# Ces trois-la ne se voient qu'en CONSTRUISANT l'interface. Chercher l'appel
+# dans le source dirait « fait » d'une declaration placee hors du chemin de
+# rendu -- la lecon deja tiree pour l'adoption du kit d'options.
+#
+# Et il faut lire le FRAGMENT D'EN-TETE autant que le corps : `renderTags()`
+# rend les deux separement, et `<title>` comme `<link rel="icon">` vivent dans
+# le premier. Mesurer le seul corps concluait « aucun titre » sur une page qui
+# en porte un.
+.hstat_ui_rendue <- function() {
+  root <- .hstat_repo_root()
+  if (is.na(root)) return(NULL)
+  e <- new.env(parent = globalenv())
+  ok <- tryCatch({
+    suppressMessages(suppressWarnings({
+      old <- setwd(file.path(root, "inst", "app")); on.exit(setwd(old), add = TRUE)
+      socle <- file.path(root, "R")
+      for (f in c(file.path(socle, "utils.R"),
+                  list.files(socle, pattern = "^mod_.*[.]R$", full.names = TRUE)))
+        try(sys.source(f, e), silent = TRUE)
+      hstat_installer_replis_ui(e)
+      try(sys.source("UX.R", e), silent = TRUE)
+    }))
+    exists("ui", envir = e)
+  }, error = function(err) FALSE)
+  if (!isTRUE(ok)) return(NULL)
+  rt <- htmltools::renderTags(get("ui", e))
+  paste(paste(as.character(rt$head), collapse = "\n"),
+        paste(as.character(rt$html), collapse = "\n"), sep = "\n")
+}
+
+test_that("l'onglet du navigateur porte un nom, pas le balisage du bandeau", {
+  html <- .hstat_ui_rendue()
+  skip_if(is.null(html), "interface non constructible dans cet environnement")
+  # SANS `title =`, shinydashboard reprend le titre de l'EN-TETE -- ici une
+  # grappe de balises -- et le serialise dans <title>. Mesure dans la page
+  # rendue avant correction : 270 caracteres de balisage brut dans l'onglet,
+  # dans le signet et dans l'historique.
+  titre <- regmatches(html, regexpr("<title>[^<]*</title>", html))
+  expect_length(titre, 1L)
+  expect_equal(titre, "<title>HStat</title>")
+  expect_false(grepl("<title>[^<]*&lt;", html))   # aucune balise echappee dedans
+})
+
+test_that("l'icone d'onglet est declaree, et elle porte l'estampille de version", {
+  html <- .hstat_ui_rendue()
+  skip_if(is.null(html), "interface non constructible dans cet environnement")
+  # Sans `rel = "icon"`, le navigateur demande `/favicon.ico` de lui-meme et
+  # l'application n'en sert aucun : CHAQUE visite inscrivait un 404 dans la
+  # console, ou il masque les vraies erreurs.
+  expect_true(grepl('rel="icon"', html, fixed = TRUE))
+  href <- regmatches(html, regexpr("hstat-favicon[^\"]*", html))
+  expect_length(href, 1L)
+  # L'estampille est la regle du depot : un fichier statique servi sous un nom
+  # inchange reste en cache, et l'utilisateur garde l'ancienne icone.
+  expect_true(grepl("[?]v=", href))
+  root <- .hstat_repo_root()
+  expect_true(file.exists(file.path(root, "inst", "app", "www", "hstat-favicon.svg")))
+})
+
+test_that("aucun champ numerique ne rend value=\"NA\"", {
+  html <- .hstat_ui_rendue()
+  skip_if(is.null(html), "interface non constructible dans cet environnement")
+  # `numericInput(value = NA)` ecrit `value="NA"` dans le HTML. Le navigateur
+  # REFUSE la valeur -- le champ s'affiche vide, ce qui est bien l'intention
+  # (« vide = automatique ») -- mais il l'ecrit dans la console :
+  #
+  #   The specified value "NA" cannot be parsed, or is out of range.
+  #
+  # Vingt-trois fois par page. `value = NULL` omet l'attribut et rend
+  # exactement le meme champ vide, sans un mot. Meme famille que le polyfill
+  # de plotly et la dependance `strftime` : un avertissement permanent en
+  # console masque les vrais.
+  expect_equal(lengths(regmatches(html, gregexpr('value="NA"', html, fixed = TRUE))), 0L)
+  # Et le balayage des sources, pour que la forme ne revienne pas : plus aucun
+  # `numericInput(..., value = NA)` dans le depot.
+  restants <- character(0)
+  for (f in .hstat_sources_app()) {
+    pd <- tryCatch(utils::getParseData(parse(f, keep.source = TRUE)),
+                   error = function(e) NULL)
+    if (is.null(pd)) next
+    ap <- pd[pd$token == "SYMBOL_FUNCTION_CALL" & pd$text == "numericInput", ]
+    for (i in seq_len(nrow(ap))) {
+      z <- pd[pd$line1 >= ap$line1[i] & pd$line1 <= ap$line1[i] + 3L, ]
+      z <- z[order(z$line1, z$col1), ]
+      k <- which(z$token == "SYMBOL_SUB" & z$text == "value")
+      for (kk in k) {
+        s <- z[seq_len(nrow(z)) > kk, ]
+        s <- s[s$token %in% c("EQ_SUB", "NUM_CONST", "SYMBOL", "NULL_CONST"), ]
+        if (nrow(s) >= 2 && s$token[1] == "EQ_SUB" && s$text[2] == "NA")
+          restants <- c(restants, paste0(basename(f), ":", z$line1[kk]))
+      }
+    }
+  }
+  expect_equal(restants, character(0))
+})
+
+# -----------------------------------------------------------------------------
+# `&` EST VECTORISE : SES DEUX COTES SONT EVALUES
+# -----------------------------------------------------------------------------
+test_that("aucun `&` ne fait calculer un cote vectorise qu'un test de type annule", {
+  # Le defaut trouve dans `hstat_vars_zero()`, et il coutait cher :
+  #
+  #   is.character(plat) & !nzchar(plat)
+  #
+  # Le cote gauche est un FALSE SCALAIRE sur une colonne numerique -- le cote
+  # droit ne peut donc rien changer au resultat. Mais `&` n'est pas `&&` : il
+  # evalue les deux, et `nzchar()` sur un vecteur numerique le convertit
+  # d'abord ENTIEREMENT en chaines. Mesure sur 100 000 lignes : 0,69 s par
+  # colonne, contre 0,02 s pour le `is.na()` voisin de la meme ligne. Ce
+  # diagnostic tourne a chaque chargement de fichier -- 1,38 s sont devenues
+  # 0,20 s, et le resultat n'a pas bouge d'une ligne.
+  #
+  # Le balayage porte sur le motif, pas sur le site : c'est ce qui l'empeche de
+  # revenir ailleurs. Il n'y en avait qu'un dans tout le depot.
+  scalaires <- c("is.character", "is.numeric", "is.factor", "is.logical",
+                 "is.data.frame", "is.null", "inherits", "is.matrix",
+                 "is.list", "is.function", "is.environment")
+  vectorises <- c("nzchar", "grepl", "trimws", "tolower", "toupper", "nchar",
+                  "as.character", "as.numeric", "substr")
+  trouves <- character(0)
+  visite <- function(e, f) {
+    if (!is.call(e)) return(invisible(NULL))
+    op <- as.character(e[[1]])[1]
+    if (op %in% c("&", "|") && length(e) == 3L) {
+      cote <- function(x) if (is.call(x)) as.character(x[[1]])[1] else ""
+      # `!nzchar(x)` : on regarde sous la negation, sinon le motif se cache.
+      sous <- function(x) {
+        if (is.call(x) && identical(as.character(x[[1]])[1], "!") && length(x) == 2L) x[[2]] else x
+      }
+      a <- cote(sous(e[[2]])); b <- cote(sous(e[[3]]))
+      if ((a %in% scalaires && b %in% vectorises) ||
+          (b %in% scalaires && a %in% vectorises))
+        trouves <<- c(trouves, sprintf("%s : %s", basename(f),
+                                       paste(deparse(e), collapse = " ")))
+    }
+    # UN ARGUMENT VIDE (`d[i, ]`) rend le symbole manquant : il n'est pas NULL,
+    # et le forcer leve « argument "el" is missing ». Une premiere version
+    # enveloppait la descente dans un `try()` -- elle sautait alors des
+    # sous-arbres EN SILENCE, et le balayage annoncait « aucun motif » sans les
+    # avoir lus. Le vide se teste, il ne se rattrape pas.
+    # UN ARGUMENT VIDE (`d[i, ]`) est le symbole manquant : il n'est pas NULL,
+    # et toute lecture par `e[[i]]` leve « argument is missing ». Une premiere
+    # version enveloppait la descente dans un `try()` -- elle sautait alors des
+    # sous-arbres EN SILENCE, et le balayage annoncait « aucun motif » sans les
+    # avoir lus. `as.list()` rend le vide comme une VALEUR qu'on peut tester.
+    enfants <- as.list(e)
+    for (k in seq_along(enfants)) {
+      # Le vide se teste PAR INDEX. Le lier a une variable de boucle ne suffit
+      # pas : `for (el in ...)` rend `el` manquant, et la moindre lecture leve.
+      if (identical(enfants[[k]], quote(expr = )) || is.null(enfants[[k]])) next
+      visite(enfants[[k]], f)
+    }
+    invisible(NULL)
+  }
+  for (f in .hstat_sources_app()) {
+    ex <- tryCatch(parse(f), error = function(e) NULL)
+    if (is.null(ex)) next
+    for (i in seq_along(ex)) visite(ex[[i]], f)
+  }
+  expect_equal(unique(trouves), character(0))
+})
+
+test_that("hstat_vars_zero garde ses trois formes de colonne vide", {
+  # La correction ci-dessus ne devait rien changer au comportement : les trois
+  # formes sous lesquelles une colonne vide arrive -- typee LOGIQUE par un
+  # lecteur de CSV, numerique tout-NA, ou remplie de chaines vides (Excel,
+  # exports SPSS) -- restent nommees a part, et la colonne de zeros reste
+  # detectee.
+  z <- data.frame(a = c(0, 0, 0), b = c(1, 2, 3), vide_na = NA_real_,
+                  vide_txt = c("", "  ", ""), vide_log = c(NA, NA, NA),
+                  stringsAsFactors = FALSE)
+  r <- hstat_vars_zero(z)
+  expect_equal(r$Variable, "a")
+  expect_setequal(attr(r, "vides"), c("vide_na", "vide_txt", "vide_log"))
+})
+
+# -----------------------------------------------------------------------------
+# UN NOM DE TELECHARGEMENT PART DANS UN EN-TETE, PAS SUR UN DISQUE
+# -----------------------------------------------------------------------------
+test_that("hstat_nom_fichier retire ce qui casse un en-tete HTTP", {
+  # `downloadHandler(filename = ...)` ne cree aucun fichier : la chaine devient
+  # la valeur `filename=` de `Content-Disposition`. Un retour a la ligne y COUPE
+  # l'en-tete, un guillemet en ferme la valeur, un separateur de chemin est
+  # suivi par certains clients.
+  expect_equal(hstat_nom_fichier("auteur"), "auteur")
+  expect_false(grepl("[[:cntrl:]]", hstat_nom_fichier("a\nb\tc")))
+  expect_false(grepl('"', hstat_nom_fichier('a"b')))
+  expect_false(grepl("[/\\\\]", hstat_nom_fichier("../../etc/passwd")))
+  expect_false(grepl("[/\\\\:]", hstat_nom_fichier("C:\\Windows\\notepad")))
+  expect_false(grepl("[.][.]", hstat_nom_fichier("../../etc/passwd")))
+  # Ce qui ne laisse rien retombe sur le defaut, jamais sur une chaine vide :
+  # un `filename=""` fait enregistrer le fichier sous un nom invente par le
+  # navigateur, ce qui est pire que le defaut annonce.
+  expect_equal(hstat_nom_fichier("", "liste"), "liste")
+  expect_equal(hstat_nom_fichier("..", "liste"), "liste")
+  expect_equal(hstat_nom_fichier(NA, "liste"), "liste")
+  expect_lte(nchar(hstat_nom_fichier(strrep("a", 500))), 80L)
+})
+
+test_that("l'export de liste DL50 assainit le nom qu'il recoit", {
+  # LA VALEUR D'UN `selectInput` N'EST PAS UNE GARANTIE : elle arrive du
+  # navigateur, et un client peut envoyer tout autre chose sur le websocket.
+  # Une liste de choix contraint l'interface, pas le protocole.
+  code <- paste(.hstat_code_lignes(.hstat_module_path("mod_dl50.R")), collapse = "\n")
+  i <- regexpr('output$listeDl <- shiny::downloadHandler', code, fixed = TRUE)
+  expect_true(i > 0)
+  bloc <- substr(code, i, i + 400L)
+  expect_true(grepl("hstat_nom_fichier", bloc, fixed = TRUE))
+})
+
+# -----------------------------------------------------------------------------
+# CE QUI SORT DE LA MACHINE SE DIT, ET AU MOMENT DU CHOIX
+# -----------------------------------------------------------------------------
+test_that("les moteurs en reseau annoncent ce qu'ils transmettent", {
+  ns <- shiny::NS("ai")
+  # Le moteur « auto » n'a rien a annoncer : il ne sort pas de R.
+  auto <- as.character(hstat_ai_reglages_ui(ns, "auto"))
+  expect_false(any(grepl("transmis", auto)))
+  expect_true(any(grepl("sans r", auto)))       # « sans réseau »
+  # TOUS LES AUTRES le disent, celui qui pointe sur un serveur LOCAL compris :
+  # le champ d'adresse est librement modifiable, et une note qui ne parlerait
+  # que du tiers mentirait des que l'adresse change.
+  for (moteur in setdiff(names(HSTAT_AI_FOURNISSEURS), "auto")) {
+    h <- paste(as.character(hstat_ai_reglages_ui(ns, moteur)), collapse = " ")
+    expect_true(grepl("transmis", h),
+                info = paste("moteur sans annonce de transmission :", moteur))
+    # Ce qui NE part pas est dit aussi : sans cela, l'utilisateur suppose le pire
+    # et se prive d'une fonctionnalite qui ne lit pas son fichier.
+    expect_true(grepl("jamais envoy", h), info = moteur)
+  }
+})
+
+# -----------------------------------------------------------------------------
+# LE CACHE EST DANS LE PAQUET, LES SESSIONS SONT DANS LE PROCESSUS
+# -----------------------------------------------------------------------------
+test_that("deux sessions ne partagent pas leurs agregations", {
+  # `.hstat_cache` vit dans l'espace de noms : il est PARTAGE par toutes les
+  # sessions servies par le meme processus R, ce qui est le fonctionnement
+  # ordinaire de Shiny Server, Posit Connect et shinyapps.io.
+  #
+  # La vue DuckDB porte un nom FIXE (« hstat_source »), et la cle se composait
+  # de ce nom, des colonnes et des statistiques demandees. Deux collegues qui
+  # analysent le meme genre de fichier d'essai -- donc les memes noms de
+  # colonnes -- produisaient la MEME cle. Mesure avant correction : la seconde
+  # session demandait une moyenne de 7 et recevait 42, celle de la premiere.
+  # Pas une erreur, pas un vide : le chiffre d'un AUTRE, sous le bon libelle.
+  faux <- function(tok) structure(list(token = tok, userData = new.env()),
+                                  class = "ShinySession")
+  avec <- function(tok, expr) shiny::withReactiveDomain(faux(tok), expr)
+  args <- list("desc_global", "hstat_source", c("Rendement", "Azote"), c("mean", "sd"))
+
+  kA <- avec("sessA", do.call(hstat_cache_key, args))
+  kB <- avec("sessB", do.call(hstat_cache_key, args))
+  expect_false(identical(kA, kB))
+  # Le prefixe est bien l'identifiant, pas un sel quelconque : c'est lui qui
+  # permet le vidage cible ci-dessous.
+  expect_true(startsWith(kA, "sessA::"))
+
+  avec("sessA", hstat_cache_clear()); avec("sessB", hstat_cache_clear())
+  vA <- avec("sessA", hstat_cache_get(kA, function() data.frame(mean = 42)))
+  vB <- avec("sessB", hstat_cache_get(kB, function() data.frame(mean = 7)))
+  expect_equal(vA$mean, 42)
+  expect_equal(vB$mean, 7)          # et surtout PAS 42
+
+  # Le cache sert encore : A relit sa valeur sans recalculer.
+  expect_equal(avec("sessA", hstat_cache_get(kA, function() data.frame(mean = -1)))$mean, 42)
+  # Et le vidage de B ne touche pas a celui de A. Vider tout ne FAUSSERAIT
+  # rien, mais ferait recalculer les agregations des autres sessions a chaque
+  # fois qu'un utilisateur charge un fichier.
+  avec("sessB", hstat_cache_clear())
+  expect_equal(avec("sessA", hstat_cache_get(kA, function() data.frame(mean = -1)))$mean, 42)
+  expect_equal(avec("sessB", hstat_cache_get(kB, function() data.frame(mean = 99)))$mean, 99)
+  avec("sessA", hstat_cache_clear()); avec("sessB", hstat_cache_clear())
+})
+
+test_that("hors de Shiny la cle reste stable, donc testable", {
+  # Le jeton de repli est une CONSTANTE, pas un tirage : une cle qui changerait
+  # a chaque appel rendrait le cache inutile en ligne de commande et dans les
+  # tests -- le defaut inverse de celui qu'on vient de corriger.
+  k1 <- hstat_cache_key("a", "b")
+  k2 <- hstat_cache_key("a", "b")
+  expect_identical(k1, k2)
+  expect_true(startsWith(k1, "hors-session::"))
+  hstat_cache_clear()
+  expect_equal(hstat_cache_get(k1, function() 1), 1)
+  expect_equal(hstat_cache_get(k1, function() 2), 1)   # bien servi par le cache
+  hstat_cache_clear()
+  expect_equal(hstat_cache_get(k1, function() 2), 2)   # et bien vide
+})
+
+# -----------------------------------------------------------------------------
+# LE REPLI D'UN PAQUET ABSENT NE PEUT PAS ETRE CE PAQUET
+# -----------------------------------------------------------------------------
+test_that("hstat_axe_titre survit a l'absence de ggtext", {
+  skip_if_not_installed("ggplot2")
+  # La garde disait « si ggtext manque, se replier » -- et se repliait sur
+  # `ggtext::element_markdown()`, c'est-a-dire sur le paquet qu'elle venait de
+  # constater manquant. Sans ggtext, TOUT titre d'axe levait « there is no
+  # package called 'ggtext' », et avec lui le graphique entier, dans SEPT
+  # modules. Le paquet est en Suggests a bon droit (l'interface se construit
+  # sans lui) : la regle du depot s'applique donc en entier -- aucune fonction
+  # essentielle ne doit dependre d'un paquet optionnel.
+  #
+  # On MESURE le repli plutot que de le lire : `requireNamespace` est masquee
+  # le temps de l'appel, ce qui reproduit exactement une machine sans ggtext.
+  sans_ggtext <- function(expr) {
+    vrai <- base::requireNamespace
+    faux <- function(package, ...) if (identical(package, "ggtext")) FALSE
+                                   else vrai(package, ...)
+    env <- environment(hstat_axe_titre)
+    assign("requireNamespace", faux, envir = env)
+    on.exit(if (exists("requireNamespace", envir = env, inherits = FALSE))
+              rm("requireNamespace", envir = env), add = TRUE)
+    eval(expr)
+  }
+  e <- sans_ggtext(quote(hstat_axe_titre(size = 17, face = "bold",
+                                         align = "1", colour = "#123456")))
+  # LA CLASSE SE COMPARE EXACTEMENT, PAS PAR HERITAGE. `element_markdown`
+  # HERITE de `element_text` : `expect_s3_class(e, "element_text")` etait donc
+  # satisfait par l'objet meme qu'il devait refuser, et la mutation qui
+  # remettait le repli fautif passait sans un mot. Attrape par mutation, pas
+  # par relecture -- meme famille que « precision et rappel coincident sur une
+  # matrice equilibree ».
+  expect_identical(class(e), class(ggplot2::element_text()))
+  expect_false(inherits(e, "element_markdown"))
+  expect_false(inherits(e, "element_textbox"))
+  # LE REPLI GARDE LES REGLAGES. Rendre un `element_blank()` -- ou un element
+  # nu -- ferait disparaitre le style que l'utilisateur vient de choisir : le
+  # defaut serait alors silencieux, donc pire que l'erreur qu'on corrige.
+  expect_equal(e$size, 17)
+  expect_equal(e$face, "bold")
+  expect_equal(e$hjust, 1)
+  expect_equal(e$colour, "#123456")
+  # Les deux axes restent servis : la marge n'est pas du meme cote.
+  for (cas in list(quote(hstat_axe_titre(axe = "y")),
+                   quote(hstat_axe_titre(retour = FALSE)),
+                   quote(hstat_axe_titre(retour = TRUE)))) {
+    ec <- sans_ggtext(cas)
+    expect_identical(class(ec), class(ggplot2::element_text()))
+  }
+  # Avec ggtext, les DEUX branches d'origine sont intactes -- sans quoi le
+  # correctif aurait supprime la fonctionnalite au lieu de la proteger.
+  skip_if_not_installed("ggtext")
+  expect_s3_class(hstat_axe_titre(retour = TRUE), "element_textbox")
+  expect_s3_class(hstat_axe_titre(retour = FALSE), "element_markdown")
+})

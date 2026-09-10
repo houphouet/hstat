@@ -674,7 +674,7 @@ mod_clean_ui <- function(id) {
                           selected = "na"),
                         shiny::conditionalPanel(
                           condition = sprintf("input['%s'] == 'valeur'", ns("zeroAction")),
-                          shiny::numericInput(ns("zeroRemplacement"), "Valeur de remplacement :", value = NA)),
+                          shiny::numericInput(ns("zeroRemplacement"), "Valeur de remplacement :", value = NULL)),
                         shiny::conditionalPanel(
                           condition = sprintf("input['%s'] == 'saisie'", ns("zeroAction")),
                           shiny::uiOutput(ns("zeroSaisieUI"))),
