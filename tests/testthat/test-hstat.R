@@ -15135,3 +15135,112 @@ test_that("les paires de substitution sont produites au-dela du plan de base", {
   expect_identical(.hstat_i18n_ascii("\U0001F4CA"), "\\ud83d\\udcca")
   expect_identical(.hstat_i18n_ascii("a\U0001F4CAbé"), "a\\ud83d\\udccab\\u00e9")
 })
+
+
+# ============================================================================
+#  LES DATES NE DEPENDENT PLUS DE LA LOCALE DU SYSTEME
+# ============================================================================
+
+# Signale a l'ecran : axe regle sur « JJ Mois », donnees d'aout 2026, et
+# l'etiquette sortait « 04 August » dans une interface entierement francaise.
+# `%B` et `%b` lisent LC_TIME ; l'application ne pose que LC_CTYPE au demarrage,
+# et c'est deliberement peu -- poser LC_TIME en francais donnerait des mois
+# FRANCAIS a un utilisateur qui a choisi l'anglais. Une application bilingue ne
+# peut pas faire dependre sa langue d'un reglage du systeme d'exploitation.
+test_that("le nom du mois suit la langue de la session, jamais LC_TIME", {
+  d <- as.Date("2026-08-04")
+
+  # Le defaut d'origine, reproduit : il faut que la locale du banc soit
+  # DISCERNABLE du francais, sinon l'assertion passerait avec ou sans
+  # correctif -- la lecon du « precision et rappel coincident sur une matrice
+  # equilibree ».
+  skip_if(grepl("^fr", Sys.getlocale("LC_TIME"), ignore.case = TRUE),
+          "locale deja francaise : le defaut ne serait pas discernable")
+  expect_false(identical(format(d, "%d %B"), "04 août"))
+
+  expect_identical(hstat_date_fmt(d, "%d %B", "fr"), "04 août")
+  expect_identical(hstat_date_fmt(d, "%d %B", "en"), "04 August")
+  expect_identical(hstat_date_fmt(d, "%d %B %Y", "fr"), "04 août 2026")
+  expect_identical(hstat_date_fmt(d, "%B %Y", "fr"), "août 2026")
+  expect_identical(hstat_date_fmt(d, "%d-%b-%Y", "fr"), "04-août-2026")
+  expect_identical(hstat_date_fmt(d, "%d-%b-%Y", "en"), "04-Aug-2026")
+
+  # Le jour de la semaine est indexe par %u (1 = lundi). Indexe par %w
+  # (0 = dimanche) il decalerait TOUS les noms d'un rang -- une faute qui rend
+  # un nom de jour parfaitement plausible, et faux.
+  expect_identical(hstat_date_fmt(d, "%A", "fr"), "mardi")
+  expect_identical(hstat_date_fmt(d, "%A", "en"), "Tuesday")
+  expect_identical(hstat_date_fmt(as.Date("2026-08-09"), "%A", "fr"), "dimanche")
+
+  # Vectorise, et un NA reste un NA plutot que de devenir une date plausible.
+  v <- as.Date(c("2026-08-04", "2026-11-17", NA))
+  expect_identical(hstat_date_fmt(v, "%d %B", "fr"),
+                   c("04 août", "17 novembre", NA))
+
+  # Un format sans nom de mois ne passe par aucune table : les codes chiffres
+  # ne dependent d'aucune locale, il n'y a rien a corriger.
+  expect_identical(hstat_date_fmt(d, "%d/%m/%Y", "fr"), "04/08/2026")
+  expect_identical(hstat_date_fmt(d, "%Y-%m-%d", "en"), "2026-08-04")
+
+  # `%%` est un pour-cent LITTERAL : un gsub("%B", ...) nu abimerait « %%B ».
+  expect_identical(hstat_date_fmt(d, "%d %%B", "fr"), "04 %B")
+})
+
+test_that("la lecture reconnait les mois des DEUX langues", {
+  skip_if(grepl("^fr", Sys.getlocale("LC_TIME"), ignore.case = TRUE),
+          "locale deja francaise : le defaut ne serait pas discernable")
+
+  # Le defaut symetrique, reproduit : sous une locale anglaise, une date
+  # francaise est ILLISIBLE. Le fichier de l'utilisateur devenait donc
+  # inexploitable selon le systeme qui fait tourner l'application.
+  expect_true(is.na(as.Date("25-mars-2024", format = "%d-%b-%Y")))
+
+  ref <- as.Date("2024-03-25")
+  for (k in c("25-mars-2024", "25-Mars-2024", "25-Mar-2024", "25-MARS-2024"))
+    expect_identical(hstat_date_parse(k, "%d-%b-%Y"), ref)
+  expect_identical(hstat_date_parse("25 mars 2024", "%d %B %Y"), ref)
+  expect_identical(hstat_date_parse("25 March 2024", "%d %B %Y"), ref)
+  expect_identical(hstat_date_parse("4 août 2026", "%d %B %Y"),
+                   as.Date("2026-08-04"))
+
+  # Du PLUS LONG au plus court : « juillet » avant « juil. », sans quoi le
+  # prefixe mordrait d'abord et laisserait « let » derriere lui.
+  expect_identical(hstat_date_parse("25-juillet-2024", "%d-%B-%Y"),
+                   as.Date("2024-07-25"))
+  expect_identical(hstat_date_parse("25-juil.-2024", "%d-%b-%Y"),
+                   as.Date("2024-07-25"))
+
+  # Un format chiffre ne passe par aucune table, et une Date deja convertie
+  # ressort telle quelle.
+  expect_identical(hstat_date_parse("25/03/2024", "%d/%m/%Y"), ref)
+  expect_identical(hstat_date_parse(ref, "%d-%b-%Y"), ref)
+  expect_true(is.na(hstat_date_parse("pas une date", "%d-%b-%Y")))
+})
+
+test_that("les tables de noms sont completes et l'echelle de l'axe les emploie", {
+  for (l in c("fr", "en")) {
+    expect_length(HSTAT_MOIS[[l]], 12L)
+    expect_length(HSTAT_MOIS_ABR[[l]], 12L)
+    expect_length(HSTAT_JOURS[[l]], 7L)
+    expect_length(HSTAT_JOURS_ABR[[l]], 7L)
+    expect_true(all(nzchar(HSTAT_MOIS[[l]])))
+    expect_false(any(duplicated(HSTAT_MOIS[[l]])))
+    # Aucun nom ne porte de « % » : c'est ce qui permet de l'injecter dans le
+    # format sans qu'il puisse etre relu comme un code.
+    expect_false(any(grepl("%", c(HSTAT_MOIS[[l]], HSTAT_MOIS_ABR[[l]],
+                                  HSTAT_JOURS[[l]], HSTAT_JOURS_ABR[[l]]),
+                           fixed = TRUE)))
+  }
+  # « mars », « mai » et « juin » ne s'abregent pas : ecrire « mars. » serait
+  # une faute, pas une abreviation.
+  expect_identical(HSTAT_MOIS_ABR[["fr"]][c(3L, 5L, 6L)], c("mars", "mai", "juin"))
+
+  # Et c'est bien l'echelle de l'axe qui les emploie : le correctif serait sans
+  # effet s'il restait dans le socle sans que le graphique l'appelle.
+  u <- paste(.hstat_code_lignes(file.path(.hstat_repo_root(), "R", "utils.R")),
+             collapse = "\n")
+  cur <- sub(".*viz_get_x_scale <- function", "", u)
+  cur <- substr(cur, 1, 2500)
+  expect_true(grepl("hstat_date_fmt(", cur, fixed = TRUE))
+  expect_false(grepl("format(as.Date(v), disp_fmt)", cur, fixed = TRUE))
+})

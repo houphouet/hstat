@@ -1586,6 +1586,112 @@ check_transformation_feasibility <- function(x, method) {
 
 
 
+# -- Noms de mois et de jours : DECLARES, jamais lus dans la locale ----------
+# `%B`, `%b`, `%A` et `%a` lisent LC_TIME. L'application ne pose que LC_CTYPE
+# au demarrage -- et c'est deliberement peu : LC_TIME depend de ce que le
+# systeme a installe, et le poser en francais donnerait des mois FRANCAIS a un
+# utilisateur qui a choisi l'anglais. Une application bilingue ne peut pas
+# faire dependre sa langue d'un reglage du systeme d'exploitation.
+#
+# Constate a l'ecran : axe regle sur « JJ Mois », donnees d'aout 2026, et
+# l'etiquette sortait « 04 August » dans une interface entierement francaise.
+# Reproduit ici : sous LC_TIME = C.UTF-8, `format(as.Date("2026-08-04"),
+# "%d %B")` rend bien « 04 August ».
+#
+# Les noms viennent donc d'une table, et la table suit la langue de la SESSION.
+HSTAT_MOIS <- list(
+  fr = c("janvier", "f\u00e9vrier", "mars", "avril", "mai", "juin",
+         "juillet", "ao\u00fbt", "septembre", "octobre", "novembre", "d\u00e9cembre"),
+  en = c("January", "February", "March", "April", "May", "June",
+         "July", "August", "September", "October", "November", "December"))
+
+# Abreviations d'usage. En francais elles portent un point -- sauf « mai »,
+# « juin » et « mars », qui ne s'abregent pas : ecrire « mars. » serait une
+# faute, pas une abreviation.
+HSTAT_MOIS_ABR <- list(
+  fr = c("janv.", "f\u00e9vr.", "mars", "avr.", "mai", "juin",
+         "juil.", "ao\u00fbt", "sept.", "oct.", "nov.", "d\u00e9c."),
+  en = c("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
+
+# Indexes par `%u` : 1 = lundi. Ne PAS indexer par `%w` (0 = dimanche), qui
+# decalerait tous les noms d'un rang.
+HSTAT_JOURS <- list(
+  fr = c("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"),
+  en = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+HSTAT_JOURS_ABR <- list(
+  fr = c("lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."),
+  en = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
+
+.hstat_lang2 <- function(lang) if (identical(lang, "en")) "en" else "fr"
+
+# Remplace `%B`, `%b`, `%A`, `%a` par le texte fourni, en laissant TOUT le reste
+# intact -- `%%` compris. Un `gsub("%B", ...)` nu abimerait « %%B », qui est un
+# pour-cent litteral suivi de la lettre B, pas un nom de mois.
+.hstat_pct_sub <- function(fmt, repl) {
+  ch <- strsplit(fmt, "")[[1]]
+  n <- length(ch); out <- character(n); k <- 0L; i <- 1L
+  while (i <= n) {
+    if (identical(ch[i], "%") && i < n) {
+      code <- ch[i + 1L]
+      k <- k + 1L
+      out[k] <- if (code %in% names(repl)) repl[[code]] else paste0("%", code)
+      i <- i + 2L
+    } else {
+      k <- k + 1L; out[k] <- ch[i]; i <- i + 1L
+    }
+  }
+  paste(out[seq_len(k)], collapse = "")
+}
+
+# Formate une date SANS dependre de LC_TIME. Le nom du mois est injecte dans le
+# format avant l'appel a `format()` : aucun nom de mois ne contient de « % », la
+# substitution ne peut donc pas etre relue comme un code.
+hstat_date_fmt <- function(x, fmt, lang = hstat_langue_session()) {
+  x <- tryCatch(as.Date(x), error = function(e) as.Date(NA))
+  if (!length(x)) return(character(0))
+  if (is.null(fmt) || !nzchar(fmt)) fmt <- "%Y-%m-%d"
+  # Rien a faire si le format ne nomme ni mois ni jour : `format()` suffit, et
+  # les codes chiffres ne dependent d'aucune locale.
+  if (!grepl("%[BbAa]", fmt)) return(format(x, fmt))
+  l <- .hstat_lang2(lang)
+  mo <- HSTAT_MOIS[[l]]; moa <- HSTAT_MOIS_ABR[[l]]
+  jo <- HSTAT_JOURS[[l]]; joa <- HSTAT_JOURS_ABR[[l]]
+  vapply(seq_along(x), function(i) {
+    d <- x[i]
+    if (is.na(d)) return(NA_character_)
+    m <- as.integer(format(d, "%m"))
+    w <- as.integer(format(d, "%u"))
+    format(d, .hstat_pct_sub(fmt, c(B = mo[m], b = moa[m], A = jo[w], a = joa[w])))
+  }, character(1))
+}
+
+# LA LECTURE SOUFFRE DU MEME MAL QUE L'ECRITURE. `as.Date("25-mars-2024",
+# "%d-%b-%Y")` rend NA sous une locale anglaise, et « 25-Mar-2024 » rend NA sous
+# une locale francaise : le fichier de l'utilisateur devenait illisible selon le
+# systeme qui fait tourner l'application.
+#
+# Les deux langues sont donc reconnues QUELLE QUE SOIT celle de la session : un
+# fichier porte les mois qu'il porte, et rien ne dit qu'ils suivent la langue
+# d'affichage choisie.
+hstat_date_parse <- function(x, fmt, lang = hstat_langue_session()) {
+  if (is.null(fmt) || !nzchar(fmt)) fmt <- "%Y-%m-%d"
+  if (inherits(x, "Date")) return(x)
+  x <- as.character(x)
+  if (!grepl("%[Bb]", fmt)) return(as.Date(x, format = fmt))
+  # Du plus long au plus court : « juillet » avant « juil. », sans quoi le
+  # prefixe mordrait d'abord et laisserait « let » derriere lui.
+  noms <- c(HSTAT_MOIS[["fr"]], HSTAT_MOIS[["en"]],
+            HSTAT_MOIS_ABR[["fr"]], HSTAT_MOIS_ABR[["en"]])
+  nums <- sprintf("%02d", rep(1:12, 4L))
+  ord <- order(nchar(noms), decreasing = TRUE)
+  noms <- noms[ord]; nums <- nums[ord]
+  y <- hstat_sans_accents(tolower(x))
+  for (i in seq_along(noms))
+    y <- sub(hstat_sans_accents(tolower(noms[i])), nums[i], y, fixed = TRUE)
+  as.Date(y, format = .hstat_pct_sub(fmt, c(B = "%m", b = "%m")))
+}
+
 VIZ_DATE_FORMATS_VALID <- c(
   "%d-%m-%Y", "%m-%d-%Y", "%Y-%m-%d", "%Y-%d-%m",
   "%d/%m/%Y", "%m/%d/%Y",
@@ -2367,7 +2473,10 @@ viz_get_x_scale <- function(x_col, disp_fmt = "%d-%m-%Y", label_map = NULL, cust
       if (has_lm && v %in% names(label_map) && as.character(label_map[[v]]) != v)
         as.character(label_map[[v]])
       else
-        tryCatch(format(as.Date(v), disp_fmt), error = function(e) v)
+        # `hstat_date_fmt` et non `format` : `%B` et `%b` liraient sinon
+        # LC_TIME, et l'axe sortait « 04 August » dans une interface
+        # entierement francaise. Le nom du mois suit la langue de la session.
+        tryCatch(hstat_date_fmt(as.Date(v), disp_fmt), error = function(e) v)
     }, USE.NAMES = FALSE)
     return(ggplot2::scale_x_date(
       breaks = all_x, labels = labels_vec,
