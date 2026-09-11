@@ -5257,10 +5257,27 @@ test_that("la bascule cote navigateur est presente et branchee", {
   ux <- paste(readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE,
                         encoding = "UTF-8"), collapse = "\n")
   expect_true(grepl("hstat-i18n.js", ux, fixed = TRUE))
-  # Le dictionnaire est INCORPORE : le bilingue doit fonctionner hors ligne.
-  expect_true(grepl("window.HSTAT_I18N", ux, fixed = TRUE))
-  expect_true(grepl("hstat_i18n_json", ux, fixed = TRUE))
   expect_true(grepl("hstatLangEn", ux, fixed = TRUE))
+
+  # Les deux assertions qui suivent portent sur le CODE, commentaires
+  # retires. Ecrites sur le texte brut elles se signalaient elles-memes :
+  # le commentaire qui explique l'ordre nomme forcement les deux balises,
+  # et il est place AVANT la ligne qu'il documente. Un balayage qui crie au
+  # loup finit desactive -- la meme raison qui fait passer les autres par
+  # l'analyseur.
+  code <- paste(.hstat_code_lignes(file.path(root, "inst", "app", "UX.R")),
+                collapse = "\n")
+  # Le dictionnaire passe par le socle, jamais recopie dans UX.R : deux
+  # facons de le poser finiraient par diverger.
+  expect_true(grepl("hstat_i18n_script(", code, fixed = TRUE))
+  expect_false(grepl("window.HSTAT_I18N", code, fixed = TRUE))
+  # ET IL DOIT PRECEDER hstat-i18n.js, qui lit le dictionnaire DES SON
+  # CHARGEMENT (`var DICT = window.HSTAT_I18N || {}` dans l'IIFE), pas a la
+  # bascule. Pose apres, le dictionnaire serait la et le traducteur ne
+  # verrait rien : l'interface resterait en francais sans qu'aucune erreur
+  # ne le dise.
+  expect_lt(regexpr("hstat_i18n_script(", code, fixed = TRUE),
+            regexpr("hstat-i18n.js", code, fixed = TRUE))
 })
 
 
@@ -15043,4 +15060,78 @@ test_that("aucune fonction d'ordre superieur ni de resolution de nom n'entre", {
                     "do.call('system','id')", "(function() 1)()",
                     "base::system('id')", "x[1]", "quote(system('id'))"))
     expect_error(hstat_safe_eval(mechant, df))
+})
+
+
+# ============================================================================
+#  LE DICTIONNAIRE PART EN FICHIER, PAS DANS LA PAGE
+# ============================================================================
+
+# Ecrit en clair dans l'en-tete, il pesait 476 Ko sur une page de 2 143 -- soit
+# 160 Ko des 332 Ko qui transitent apres gzip, LA MOITIE du transfert -- et il
+# repartait a chaque ouverture, y compris chez un francophone qui ne s'en sert
+# jamais. Servi en ressource statique, il est revalide : mesure sur un banc
+# httpuv, une requete conditionnelle recoit 304 et zero octet de corps.
+test_that("le dictionnaire est servi en ressource estampillee, et le repli tient", {
+  skip_if_not_installed("shiny")
+
+  src <- hstat_i18n_asset("en")
+  skip_if(is.na(src), "ecriture de la ressource impossible ici")
+
+  # L'estampille vient de hstat_asset() : un dictionnaire corrige arrive avec la
+  # montee de version, et pas avant. Sans elle, un navigateur garderait
+  # l'ancienne traduction sans qu'aucun message ne le lui dise.
+  expect_true(grepl("?v=", src, fixed = TRUE))
+  expect_true(grepl(hstat_version(), src, fixed = TRUE))
+  expect_true(grepl("^hstat-dict/", src))
+  expect_true("hstat-dict" %in% names(shiny::resourcePaths()))
+
+  # Le fichier servi porte EXACTEMENT la charge utile. Les deux chemins lisent
+  # hstat_i18n_payload() : ils ne peuvent pas diverger.
+  f <- file.path(tempdir(), "hstat-dict", "hstat-i18n-en.js")
+  expect_true(file.exists(f))
+  expect_identical(readBin(f, "raw", file.size(f)),
+                   charToRaw(hstat_i18n_payload("en")))
+
+  # Idempotent : l'appeler deux fois ne redeclare rien et rend la meme adresse.
+  expect_identical(src, hstat_i18n_asset("en"))
+
+  # La balise porte le fichier, et le dictionnaire n'est PLUS dans la page.
+  tg <- as.character(hstat_i18n_script("en"))
+  expect_true(grepl("<script src=", tg, fixed = TRUE))
+  expect_false(grepl("HSTAT_I18N", tg, fixed = TRUE))
+})
+
+test_that("la charge utile est du pur ASCII, et elle se relit", {
+  p <- hstat_i18n_payload("en")
+
+  # PUR ASCII, et ce n'est pas un detail de confort. Un <script src> classique
+  # herite du jeu de caracteres du DOCUMENT : un dictionnaire dont les accents
+  # ne tiendraient que par cet heritage se corromprait au premier navigateur ou
+  # au premier mandataire qui en decide autrement. Echapper coute +1,7 % apres
+  # gzip, mesure, et supprime la question.
+  expect_false(any(utf8ToInt(p) > 127L))
+
+  # Et il reste du JSON valide : les cles accentuees se relisent a l'identique.
+  skip_if_not_installed("jsonlite")
+  d <- jsonlite::fromJSON(sub(";$", "", sub("^window\\.HSTAT_I18N = ", "", p)))
+  ref <- hstat_i18n_dict("en")
+  ref <- ref[names(ref) != unname(ref)]
+  ref <- ref[!grepl(HSTAT_I18N_MARQUEUR, names(ref))]
+  expect_equal(length(d), length(ref))
+  acc <- names(ref)[grepl("[^ -~]", names(ref))]
+  expect_gt(length(acc), 100L)
+  for (k in utils::head(acc, 20L)) expect_identical(d[[k]], unname(ref[[k]]))
+})
+
+test_that("les paires de substitution sont produites au-dela du plan de base", {
+  # `\uXXXX` ne couvre que le plan multilingue de base. Un emoji glisse dans une
+  # traduction -- ils existent dans les libelles d'interface modernes -- sortirait
+  # en caractere de remplacement sans la paire de substitution.
+  expect_identical(.hstat_i18n_ascii("été"), "e\\u0301t\\u00e9")
+  expect_identical(.hstat_i18n_ascii("abc"), "abc")
+  expect_identical(.hstat_i18n_ascii(""), "")
+  # U+1F4CA (graphique) = D83D DCCA
+  expect_identical(.hstat_i18n_ascii("\U0001F4CA"), "\\ud83d\\udcca")
+  expect_identical(.hstat_i18n_ascii("a\U0001F4CAbé"), "a\\ud83d\\udccab\\u00e9")
 })

@@ -449,6 +449,88 @@ hstat_i18n_json <- function(lang = "en", path = hstat_i18n_path()) {
                     collapse = ","), "}")
 }
 
+# -- Le dictionnaire part en FICHIER, pas dans la page ------------------------
+# Il etait ecrit en clair dans un <script> de l'en-tete. Mesure sur la page
+# reellement servie : 476 Ko sur 2 143, soit 160 Ko des 332 Ko qui transitent
+# apres gzip -- LA MOITIE du transfert. Et un script en ligne fait partie du
+# HTML : il est renvoye a CHAQUE ouverture, y compris a un utilisateur
+# francophone qui ne s'en sert jamais.
+#
+# Servi en ressource statique, il est revalide au lieu d'etre renvoye. Mesure
+# sur un banc httpuv : `addResourcePath` rend `Last-Modified` (pas d'`ETag`,
+# pas de `Cache-Control` -- c'est aussi ce que rend `www/`), et une requete
+# conditionnelle recoit **304, zero octet de corps**. La compression joue de
+# la meme facon sur les deux chemins.
+#
+# CE N'EST PAS UN RECUL SUR LE HORS-LIGNE : le fichier est servi par
+# l'application elle-meme, jamais par le reseau. La promesse etait « aucune
+# requete a un tiers », pas « aucune requete ».
+#
+# L'estampille de version vient de `hstat_asset()` : un dictionnaire corrige
+# arrive avec la montee de version, et pas avant.
+.hstat_i18n_ressource <- new.env(parent = emptyenv())
+
+# Echappe tout caractere hors ASCII en \uXXXX (paires de substitution
+# comprises). LE FICHIER DEVIENT PUR ASCII, donc son interpretation ne depend
+# plus d'aucune negociation d'encodage : un <script src> classique herite
+# sinon du jeu de caracteres du DOCUMENT, et un dictionnaire dont les accents
+# ne tiennent que par cet heritage n'est pas un dictionnaire fiable. Le prix
+# est mesure et derisoire : +2,7 Ko apres gzip, soit +1,7 %.
+.hstat_i18n_ascii <- function(s) {
+  cp <- utf8ToInt(enc2utf8(s))
+  if (!length(cp) || !any(cp > 127L)) return(s)
+  ch <- strsplit(s, "")[[1]]
+  # Au-dela du plan multilingue de base, \uXXXX ne suffit pas : JavaScript
+  # attend une paire de substitution. Un emoji glisse dans une traduction
+  # sortirait sinon en caractere de remplacement.
+  h <- cp > 0xFFFFL
+  if (any(h)) {
+    v <- cp[h] - 0x10000L
+    ch[h] <- sprintf("\\u%04x\\u%04x",
+                     0xD800L + v %/% 0x400L, 0xDC00L + v %% 0x400L)
+  }
+  b <- cp > 127L & !h
+  ch[b] <- sprintf("\\u%04x", cp[b])
+  paste(ch, collapse = "")
+}
+
+# Ecrit le dictionnaire dans un fichier servi par l'application et rend son
+# adresse estampillee. Rend NA si l'ecriture ou la declaration echoue -- un
+# disque plein ne doit pas emporter le bilingue, l'appelant se replie.
+hstat_i18n_asset <- function(lang = "en") {
+  cle <- paste0("src.", lang)
+  if (!is.null(.hstat_i18n_ressource[[cle]])) return(.hstat_i18n_ressource[[cle]])
+  src <- tryCatch({
+    nom <- paste0("hstat-i18n-", lang, ".js")
+    dir <- file.path(tempdir(), "hstat-dict")
+    dir.create(dir, showWarnings = FALSE, recursive = TRUE)
+    con <- file(file.path(dir, nom), open = "wb")
+    on.exit(close(con), add = TRUE)
+    writeBin(charToRaw(hstat_i18n_payload(lang)), con)
+    shiny::addResourcePath("hstat-dict", normalizePath(dir, mustWork = TRUE))
+    hstat_asset(paste0("hstat-dict/", nom))
+  }, error = function(e) NA_character_)
+  .hstat_i18n_ressource[[cle]] <- src
+  src
+}
+
+# Le contenu du fichier, et la seule forme sous laquelle le dictionnaire entre
+# dans le navigateur : les deux chemins (fichier et repli en ligne) lisent
+# cette fonction, ils ne peuvent donc pas diverger.
+hstat_i18n_payload <- function(lang = "en") {
+  paste0("window.HSTAT_I18N = ", .hstat_i18n_ascii(hstat_i18n_json(lang)), ";")
+}
+
+# La balise a poser dans l'en-tete, AVANT hstat-i18n.js qui lit
+# `window.HSTAT_I18N` des son chargement.
+hstat_i18n_script <- function(lang = "en") {
+  src <- hstat_i18n_asset(lang)
+  if (!is.na(src)) return(shiny::tags$script(src = src))
+  # Repli : le dictionnaire redevient incorpore. Plus lourd, mais le bilingue
+  # marche -- et c'est la seule chose qui compte ici.
+  shiny::tags$script(shiny::HTML(hstat_i18n_payload(lang)))
+}
+
 # Etat de la traduction : combien de chaines de l'interface sont couvertes, et
 # lesquelles manquent. Sert au suivi du chantier, et a un test qui empeche la
 # couverture de reculer en silence quand du texte est ajoute.
