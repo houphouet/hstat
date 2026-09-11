@@ -5673,3 +5673,92 @@ parfaitement plausible dans un fichier d'agronomie, et la règle de longueur des
 cellules `<td>` ne protège pas un mot de six lettres. C'est une lacune de
 couverture, pas un défaut de ce chemin — le contenu du dictionnaire n'a pas
 changé d'un octet, seule sa livraison a changé.
+
+## `%B` et `%b` lisent LC_TIME, et l'application n'en règle qu'un autre
+
+Signalé à l'écran : axe réglé sur « JJ Mois », données d'août 2026, et
+l'étiquette sortait **« 04 August »** dans une interface entièrement française.
+
+La cause tient en une ligne. `inst/app/Utils.R` pose `Sys.setlocale("LC_CTYPE",
+…)` — **et rien d'autre**. `%B`, `%b`, `%A` et `%a` lisent `LC_TIME`, qui reste
+à ce que R a trouvé au démarrage. Reproduit ici sous `LC_TIME = C.UTF-8` :
+`format(as.Date("2026-08-04"), "%d %B")` rend bien « 04 August ».
+
+**Poser `LC_TIME` en français ne serait pas le correctif.** D'abord parce que
+cela dépend de ce que le système a installé — un conteneur minimal n'a pas de
+locale française. Ensuite et surtout parce que cela donnerait des mois
+**français** à un utilisateur qui a choisi l'anglais. *Une application bilingue
+ne peut pas faire dépendre sa langue d'un réglage du système d'exploitation.*
+
+Les noms viennent donc d'une table déclarée — `HSTAT_MOIS`, `HSTAT_MOIS_ABR`,
+`HSTAT_JOURS`, `HSTAT_JOURS_ABR` — et `hstat_date_fmt()` la lit selon
+`hstat_langue_session()`. C'est la même règle que pour les palettes, les thèmes
+et les formats d'image : **une liste se déclare une fois**, elle ne se devine
+pas dans l'ambiance.
+
+Trois points de construction :
+
+1. **Le nom est injecté dans le format avant `format()`.** Aucun nom de mois ne
+   contient de `%` : la substitution ne peut donc pas être relue comme un code.
+2. **`%%` est un pour-cent littéral.** Un `gsub("%B", …)` nu abîmerait `%%B`,
+   qui est un pour-cent suivi de la lettre B. `.hstat_pct_sub()` parcourt la
+   chaîne plutôt que de substituer à l'aveugle.
+3. **Le jour de la semaine est indexé par `%u` (1 = lundi), jamais par `%w`**
+   (0 = dimanche), qui décalerait **tous** les noms d'un rang — une faute qui
+   rend un nom de jour parfaitement plausible, et faux.
+
+### La lecture souffrait du même mal, et personne ne l'avait vu
+
+`as.Date("25-mars-2024", "%d-%b-%Y")` rend **`NA`** sous une locale anglaise ;
+`as.Date("25-Mar-2024", …)` rend `NA` sous une locale française. Le fichier de
+l'utilisateur devenait donc **illisible selon le système qui fait tourner
+l'application** — et le message parlait d'un format de date, pas d'une locale.
+
+`hstat_date_parse()` reconnaît les mois des **deux** langues, quelle que soit
+celle de la session : un fichier porte les mois qu'il porte, et rien ne dit
+qu'ils suivent la langue d'affichage choisie.
+
+Les noms sont essayés **du plus long au plus court** — « juillet » avant
+« juil. » —, sans quoi le préfixe mordrait d'abord et laisserait « let »
+derrière lui.
+
+### Les exemples de l'interface disaient autre chose que ce que l'axe rend
+
+« JJ-Mois (ex: 25-**Mar**) » annonçait l'abréviation anglaise pour un axe qui
+sort désormais « 25-**mars** ». Les dix exemples et l'aide ont été recalés sur
+ce que l'application produit réellement. Un libellé qui promet ce que la figure
+ne donne pas est le défaut que ce dépôt traque partout ailleurs.
+
+Note de typographie, volontaire : le français **ne capitalise pas** les noms de
+mois (« 04 août », pas « 04 Août »). Et trois d'entre eux ne s'abrègent pas —
+« mars », « mai », « juin » : écrire « mars. » serait une faute, pas une
+abréviation.
+
+### Le test doit être discernable de la locale du banc
+
+L'assertion « `hstat_date_fmt(d, "%d %B", "fr")` vaut `04 août` » passerait
+**avec ou sans correctif** sur une machine dont `LC_TIME` est déjà français.
+Le test se saute donc explicitement dans ce cas, et vérifie d'abord que
+`format()` **ne** rend **pas** le mois français — c'est la même leçon que
+« précision et rappel coïncident sur une matrice équilibrée » : une donnée
+d'essai doit rendre la différence mesurable.
+
+## « Graine » entre au dictionnaire, et c'était un arbitrage
+
+Le libellé du champ de graine aléatoire de l'en-tête restait en français en
+anglais. Il n'était pas au dictionnaire — seuls « Graine (reproductibilité) » et
+« Graine aléatoire » y figuraient.
+
+Il avait d'abord été laissé de côté au titre de la règle « un mot ambigu n'entre
+pas seul au dictionnaire » : « graine » est un nom de colonne parfaitement
+plausible dans un fichier d'agronomie. Le risque est réel mais **borné**, et il
+l'est par un mécanisme qui existe déjà : les noms de colonnes et les modalités
+partent au navigateur dans la liste des termes de données
+(`hstat_i18n_termes_donnees`), et rien de ce qui y figure n'est traduit. Reste
+une cellule de texte libre valant exactement « Graine » — sous 25 caractères,
+donc non protégée par la règle de longueur. C'est le résidu assumé.
+
+Détail de mesure qui a failli m'égarer : la sonde au navigateur relevait
+**« GRAINE »** en capitales, et la chaîne n'existait nulle part dans le code.
+`innerText` rend le texte **après** `text-transform: uppercase` ; le nœud porte
+« Graine ». Chercher la mauvaise chaîne aurait conclu à une absence.

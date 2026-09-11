@@ -141,17 +141,17 @@ mod_viz_ui <- function(id) {
                           "MM-AAAA (ex: 03-2024)"        = "%m-%Y",
                           "AAAA-MM (ex: 2024-03)"        = "%Y-%m",
                           "- Mois abrégé -" = "",
-                          "JJ-Mois-AAAA (ex: 25-Mar-2024)"        = "%d-%b-%Y",
-                          "Mois-AAAA (ex: Mar-2024)"              = "%b-%Y",
-                          "JJ-Mois (ex: 25-Mar)"                  = "%d-%b",
-                          "Mois-JJ (ex: Mar-25)"                  = "%b-%d",
-                          "AAAA-Mois-JJ (ex: 2024-Mar-25)"        = "%Y-%b-%d",
+                          "JJ-Mois-AAAA (ex: 25-mars-2024)"       = "%d-%b-%Y",
+                          "Mois-AAAA (ex: mars-2024)"             = "%b-%Y",
+                          "JJ-Mois (ex: 25-mars)"                 = "%d-%b",
+                          "Mois-JJ (ex: mars-25)"                 = "%b-%d",
+                          "AAAA-Mois-JJ (ex: 2024-mars-25)"       = "%Y-%b-%d",
                           "- Mois entier -" = "",
-                          "JJ Mois AAAA (ex: 25 Mars 2024)"       = "%d %B %Y",
-                          "Mois AAAA (ex: Mars 2024)"             = "%B %Y",
-                          "JJ Mois (ex: 25 Mars)"                 = "%d %B",
-                          "Mois JJ (ex: Mars 25)"                 = "%B %d",
-                          "AAAA Mois (ex: 2024 Mars)"             = "%Y %B"
+                          "JJ Mois AAAA (ex: 25 mars 2024)"       = "%d %B %Y",
+                          "Mois AAAA (ex: mars 2024)"             = "%B %Y",
+                          "JJ Mois (ex: 25 mars)"                 = "%d %B",
+                          "Mois JJ (ex: mars 25)"                 = "%B %d",
+                          "AAAA Mois (ex: 2024 mars)"             = "%Y %B"
                         ),
                         selected = "%d-%m-%Y"
                       ),
@@ -161,7 +161,7 @@ mod_viz_ui <- function(id) {
                         shiny::tags$br(),
                         shiny::tags$small(
                           style = "color: #888;",
-                          "Mois abrégé = Jan, Fév, Mar... | Mois entier = Janvier, Février..."
+                          "Mois abrégé = janv., févr., mars... | Mois entier = janvier, février..."
                         )
                       )
                     )
@@ -2065,7 +2065,12 @@ mod_viz_server <- function(id, values) {
        !inherits(data[[x_var]], "Date")) {
       date_format <- input$xDateFormat %||% "%Y-%m-%d"
       converted <- tryCatch({
-        result <- as.Date(data[[x_var]], format = date_format)
+        # LA LECTURE SOUFFRE DU MEME MAL QUE L'ECRITURE : `as.Date(x,
+        # "%d-%b-%Y")` rend NA sur « 25-mars-2024 » sous une locale anglaise,
+        # et sur « 25-Mar-2024 » sous une locale francaise. Le fichier de
+        # l'utilisateur devenait illisible selon le systeme qui fait tourner
+        # l'application. `hstat_date_parse` reconnait les deux langues.
+        result <- hstat_date_parse(data[[x_var]], date_format)
         result
       }, error = function(e) {
         shiny::showNotification("Erreur de conversion de date. Vérifiez le format.", type = "error")
