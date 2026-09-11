@@ -96,8 +96,9 @@
         withSpinner(shiny::uiOutput(paste0("mv_", key, "_metrics")), color = th$main)
       ),
       shiny::tabPanel(shiny::tagList(shiny::icon("chart-area"), " Graphique"),
-        shiny::div(style = "max-width:860px; margin:0 auto; width:100%;",
-          withSpinner(shiny::plotOutput(paste0("mv_", key, "_plot"), height = "560px"), color = th$main))
+        # Les dimensions d'origine de ggplot2 : 7 x 7 pouces, carre.
+        # Un seul appel ici habille les QUATORZE analyses du catalogue.
+        hstat_carre_ui(paste0("mv_", key, "_plot"), spinner = th$main)
       ),
       shiny::tabPanel(shiny::tagList(shiny::icon("file-alt"), " Détails techniques"),
         shiny::div(style = "max-height:520px; overflow-y:auto; font-family:'Courier New',monospace; font-size:12px; background:#fff; padding:14px; border-radius:5px;",
@@ -968,7 +969,10 @@ ui <- shinydashboard::dashboardPage(
                       shiny::tabPanel(
                         shiny::tagList(shiny::icon("chart-area"), " Graphiques"),
                         shiny::br(),
-                        shiny::div(style="max-width:900px;margin:0 auto;", shiny::plotOutput("pcaPlot", height = "560px")),
+                        # Les dimensions d'origine de ggplot2 : 7 x 7 pouces,
+                        # carre. La regle et ses deux pieges sont ecrits une
+                        # seule fois, chez `hstat_carre_ui()`.
+                        hstat_carre_ui("pcaPlot"),
                         shiny::hr(),
                                             shiny::div(style = "background-color:#eef2f5;border-left:4px solid #3c8dbc;padding:10px;margin:6px 0;",
                                                 shiny::h4(style = "margin-top:0;color:#2c3e50;", shiny::icon("sliders-h"),
@@ -1062,7 +1066,7 @@ ui <- shinydashboard::dashboardPage(
                                                shiny::icon("chart-line"), " Graphique des éboulis (Scree Plot)"),
                                             shiny::p(style = "font-size: 11px; color: #666; font-style: italic;",
                                               "Critère de Kaiser (valeur propre min. 1) : les composantes en vert sont retenues. Cherchez le 'coude' de la courbe."),
-                                            shiny::plotOutput("pcaScreePlot", height = "320px"),
+                                            hstat_carre_ui("pcaScreePlot"),
                                             hstat_mv_forme_ui("pcaScree", "Apparence du graphique des éboulis"),
                                             shiny::fluidRow(
                                               shiny::column(12, hstat_format_input("pcaScree_format", "Format :")),
@@ -1079,7 +1083,7 @@ ui <- shinydashboard::dashboardPage(
                                                shiny::icon("random"), " Analyse parallèle de Horn"),
                                             shiny::p(style = "font-size: 11px; color: #666; font-style: italic;",
                                               "Méthode plus rigoureuse que Kaiser : retenir les composantes dont la valeur propre observée dépasse le percentile 95 des simulations aléatoires."),
-                                            shiny::plotOutput("pcaParallelPlot", height = "320px"),
+                                            hstat_carre_ui("pcaParallelPlot"),
                                             hstat_mv_forme_ui("pcaParallel", "Apparence de l'analyse parallèle"),
                                             shiny::fluidRow(
                                               shiny::column(12, hstat_format_input("pcaParallel_format", "Format :")),
@@ -1097,7 +1101,7 @@ ui <- shinydashboard::dashboardPage(
                                             shiny::p(style = "font-size: 11px; color: #666; font-style: italic;",
                                               "Seuil théorique = 100% / nb variables. Les variables au-dessus du seuil (en vert) structurent principalement l'axe."),
                                             shiny::uiOutput("pcaCTRAxisSelect"),
-                                            shiny::plotOutput("pcaCTRPlot", height = "300px"),
+                                            hstat_carre_ui("pcaCTRPlot"),
                                             hstat_mv_forme_ui("pcaCTR", "Apparence du graphique CTR"),
                                             shiny::fluidRow(
                                               shiny::column(12, hstat_format_input("pcaCTR_format", "Format :")),
@@ -1335,7 +1339,7 @@ ui <- shinydashboard::dashboardPage(
                                                              shiny::h4(class = "box-title", "Carte des clusters")
                                                          ),
                                                          shiny::div(class = "box-body",
-                                                             shiny::div(style="max-width:850px;margin:0 auto;", shiny::plotOutput("hcpcClusterPlot", height = "520px")),
+                                                             hstat_carre_ui("hcpcClusterPlot"),
                                                              shiny::downloadButton("downloadHcpcClusterPlot", "Télécharger carte")
                                                          )
                                                      )
@@ -1346,7 +1350,7 @@ ui <- shinydashboard::dashboardPage(
                                                              shiny::h4(class = "box-title", "Dendrogramme")
                                                          ),
                                                          shiny::div(class = "box-body",
-                                                             shiny::div(style="max-width:850px;margin:0 auto;", shiny::plotOutput("hcpcDendPlot", height = "520px")),
+                                                             hstat_carre_ui("hcpcDendPlot"),
                                                              shiny::downloadButton("downloadHcpcDendPlot", "Télécharger dendrogramme")
                                                          )
                                                      )
@@ -1373,7 +1377,7 @@ ui <- shinydashboard::dashboardPage(
                                                 shiny::div(class = "box-body",
                                                     shiny::p(style = "font-size: 12px; color: #555; font-style: italic;",
                                                       "Un saut important entre deux fusions consécutives suggère la coupure optimale du dendrogramme (règle du coude). Ce graphique complète la lecture visuelle du dendrogramme."),
-                                                    shiny::plotOutput("hcpcHeightsPlot", height = "320px"),
+                                                    hstat_carre_ui("hcpcHeightsPlot"),
                                                     shiny::fluidRow(
                                                       shiny::column(12, hstat_format_input("hcpcHeights_format", "Format :")),
                                                       shiny::column(4, hstat_dpi_input("hcpcHeights_dpi", "DPI :")),
@@ -1684,7 +1688,7 @@ ui <- shinydashboard::dashboardPage(
                                                              shiny::h4(class = "box-title", "Projection des individus", style = "color: #fff;")
                                                          ),
                                                          shiny::div(class = "box-body",
-                                                             shiny::div(style="max-width:850px;margin:0 auto;", shiny::plotOutput("afdIndPlot", height = "520px")),
+                                                             hstat_carre_ui("afdIndPlot"),
                                                              shiny::downloadButton("downloadAfdIndPlot", "Télécharger projection")
                                                          )
                                                      )
@@ -1695,7 +1699,7 @@ ui <- shinydashboard::dashboardPage(
                                                              shiny::h4(class = "box-title", "Contribution des variables", style = "color: #fff;")
                                                          ),
                                                          shiny::div(class = "box-body",
-                                                             shiny::div(style="max-width:850px;margin:0 auto;", shiny::plotOutput("afdVarPlot", height = "520px")),
+                                                             hstat_carre_ui("afdVarPlot"),
                                                              shiny::downloadButton("downloadAfdVarPlot", "Télécharger contribution")
                                                          )
                                                      )

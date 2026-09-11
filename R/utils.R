@@ -6952,6 +6952,71 @@ hstat_model_interpretation <- function(task, metrics_df, model_label,
 }
 
 # ==============================================================================
+#  Le cadre carre des analyses multivariees : les dimensions d'origine de ggplot2
+# ==============================================================================
+
+# Le peripherique que R ouvre par defaut -- celui pour lequel les valeurs par
+# defaut de ggplot2 sont reglees, celui des manuels et des exemples -- fait
+# 7 x 7 pouces, et il est CARRE (mesure : `dev.size()`). Les graphiques
+# multivaries s'affichaient pourtant dans des cadres larges et ecrases :
+# 900 x 560 px pour l'ACP, 860 x 560 pour les quatorze analyses du catalogue,
+# 850 x 520 pour la HCPC et l'AFD, 320 px de haut pour les diagnostics. Un
+# nuage d'individus y sort etire horizontalement, ce qui deforme les distances
+# -- or c'est precisement ce qu'une ACP existe pour montrer.
+#
+# `HSTAT_CARRE_RES` est la resolution des rendus multivaries, `HSTAT_CARRE_PX`
+# le cote du carre EN PIXELS a cette resolution : 840 / 120 = 7 pouces. Les
+# deux se declarent ensemble parce qu'ils ne veulent rien dire l'un sans
+# l'autre -- changer la resolution sans changer les pixels changerait la taille
+# physique, c'est-a-dire exactement la promesse qu'on vient de tenir.
+HSTAT_CARRE_RES <- 120
+HSTAT_CARRE_PX  <- 840   # 7 pouces a HSTAT_CARRE_RES
+
+# LA HAUTEUR N'EST PAS FIXEE DANS L'INTERFACE, ELLE EST CALCULEE AU SERVEUR.
+#
+# Une hauteur codee en dur a 840 px donnerait, sur un telephone ou la boite
+# tombe a 380 px de large, un cadre de 380 x 840 : deux fois plus haut que
+# large, l'inverse du defaut qu'on cherche a corriger. La hauteur suit donc la
+# largeur REELLEMENT accordee -- le cadre reste carre a toute taille, et vaut
+# 7 x 7 pouces des que la place existe.
+#
+# `height = "auto"` sur le `plotOutput` n'est pas un detail de style, c'est la
+# seconde moitie du mecanisme, et elle a ete mesuree au navigateur. Sans elle
+# le conteneur garde les 400 px du defaut de Shiny pendant que l'image en fait
+# 840 : l'image DEBORDE, et tout ce qui suit -- separateur, panneau de reglages
+# -- se dessine PAR-DESSUS sa moitie basse. Rien ne le signale, et c'est
+# exactement ce que la regle responsive du depot interdit. Avec `"auto"`, le
+# conteneur epouse l'image (mesure : 840 x 840, separateur rejete a 1301 px).
+hstat_carre_ui <- function(id, spinner = NULL, largeur = HSTAT_CARRE_PX) {
+  sortie <- shiny::plotOutput(id, height = "auto")
+  if (!is.null(spinner)) sortie <- withSpinner(sortie, color = spinner)
+  shiny::div(style = paste0("max-width:", largeur,
+                            "px; margin:0 auto; width:100%;"), sortie)
+}
+
+# La fonction a passer en `height =` d'un `renderPlot`. Elle rend une FONCTION,
+# pas un nombre : Shiny la rappelle a chaque redimensionnement, c'est ce qui
+# fait suivre le carre.
+#
+# `force(id)` fige l'identifiant a la CONSTRUCTION, pour que l'aide ne depende
+# pas du moment ou l'appelant evalue sa propre variable. Sans lui, l'argument
+# reste une promesse resolue au PREMIER APPEL de la fermeture : construite dans
+# une boucle `for`, elle lirait alors la derniere valeur de la variable
+# partagee, et chaque graphique suivrait la largeur d'un autre. Mesure sur deux
+# identifiants : 222 222 sans la garde, 111 222 avec.
+#
+# `clientData` est vide tant que le navigateur n'a pas repondu, et vaut 0 quand
+# la boite de resultats est repliee : on retombe alors sur le cote nominal
+# plutot que de demander un peripherique de hauteur nulle, que R refuse.
+hstat_carre_hauteur <- function(session, id, defaut = HSTAT_CARRE_PX) {
+  force(session); force(id); force(defaut)
+  function() {
+    l <- session$clientData[[paste0("output_", id, "_width")]]
+    if (is.null(l) || !is.numeric(l) || !is.finite(l) || l < 1) defaut else l
+  }
+}
+
+# ==============================================================================
 #  Export universel de graphiques : PNG/JPG/TIFF/BMP/PDF/SVG, DPI jusqu'a 20 000
 # ==============================================================================
 

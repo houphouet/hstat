@@ -499,6 +499,65 @@ Les valeurs de départ sont désormais celles de ggplot2 (`HSTAT_GG_POINT_SIZE`
 disponible sous `"hstat"`. Corollaire : `HSTAT_LBL_PT_MIN` descend de 12 à 11,
 sans quoi le défaut de ggplot2 serait hors du domaine du curseur.
 
+#### Le cadre aussi est un réglage de ggplot2, et il valait 7 × 7 pouces
+
+Le rendu d'origine, ce n'est pas seulement le thème et les tailles de texte :
+c'est aussi **la forme du cadre**. Le périphérique que R ouvre par défaut —
+celui pour lequel les valeurs par défaut de ggplot2 sont réglées, celui des
+manuels — fait 7 × 7 pouces, et il est **carré** (mesuré : `dev.size()`).
+
+Les dix graphiques multivariés étaient tous plus larges que hauts, chacun avec
+sa propre valeur : 900 × 560 px pour l'ACP, 860 × 560 pour les quatorze
+analyses du catalogue, 850 × 520 pour la HCPC et l'AFD, 320 px de haut pour les
+diagnostics. Un nuage d'individus y sort **étiré horizontalement**, ce qui
+déforme les distances — or c'est précisément ce qu'une ACP existe pour montrer.
+
+`hstat_carre_ui()` déclare, `hstat_carre_hauteur()` calcule. Un onzième
+graphique ajouté demain prend les deux en une ligne, et un test échoue sur tout
+`plotOutput()` reposé à la main dans `UX.R`.
+
+**La hauteur ne se code pas en dur, elle se calcule.** Figée à 840 px, elle
+donnerait sur un téléphone — où la boîte tombe à 380 px de large — un cadre de
+380 × 840 : deux fois plus haut que large, l'inverse du défaut qu'on corrige.
+La hauteur suit donc la largeur *réellement accordée*
+(`session$clientData[["output_<id>_width"]]`) : le cadre reste carré à toute
+taille, et vaut 7 × 7 pouces dès que la place existe.
+
+**`height = "auto"` sur le `plotOutput` est la seconde moitié du mécanisme, et
+elle a été trouvée par la mesure.** Sans elle, le conteneur garde les 400 px du
+défaut de Shiny pendant que l'image en fait 840 : l'image **déborde**, et tout
+ce qui suit — séparateur, panneau de réglages — se dessine **par-dessus sa
+moitié basse**. Rien ne le signale, et c'est exactement ce que la règle
+responsive du dépôt interdit.
+
+Mesuré au navigateur sur un banc à deux graphiques, l'un avec et l'autre sans :
+
+| | conteneur | image | le `<hr>` qui suit |
+|---|---|---|---|
+| sans `height` | 840 × **400** | 840 × 840 | à 420 px, soit **au milieu de l'image** |
+| `height = "auto"` | 840 × **840** | 840 × 840 | à 1301 px, dégagé |
+
+Leçon de méthode, la même que pour `innerText` d'une cellule en édition :
+j'avais d'abord relevé « 818 × 818, rapport 1,000 » et conclu que c'était bon.
+Je mesurais l'**image**, qui était bien carrée — pendant qu'elle recouvrait tout
+ce qui la suivait. **Une mesure qui ne porte pas sur ce qui peut casser ne dit
+rien**, et elle ment dans le sens rassurant.
+
+`force(id)` dans `hstat_carre_hauteur()` fige l'identifiant à la
+**construction**, pour que l'aide ne dépende pas du moment où l'appelant évalue
+sa propre variable. Sans lui, l'argument reste une promesse résolue au *premier
+appel* de la fermeture : construite dans une boucle `for`, elle lirait la
+**dernière** valeur de la variable partagée, et chaque graphique suivrait la
+largeur d'un autre.
+
+Et c'est **la boucle `for` qui le vérifie**, pas `lapply`. Ma première assertion
+passait par `lapply`, qui crée une liaison *fraîche* à chaque appel : la
+promesse y résout juste même sans la garde. Mesuré sur deux identifiants —
+boucle `for` : `222 222` sans, `111 222` avec ; `lapply` : `111 222` dans les
+deux cas. La mutation est passée, et c'est ainsi que le trou s'est vu. **Une
+assertion qui ne distingue pas les deux codes ne garde rien** : c'est la même
+famille que la donnée d'essai qui doit rendre les formules discernables.
+
 ### La résolution commande la taille, et il faut dire dans quel sens
 
 Deux modèles cohabitent, et les confondre produit exactement le défaut que

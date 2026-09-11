@@ -14801,3 +14801,106 @@ test_that("les modules appellent element_markdown sans prefixe", {
   }
   expect_gte(n, 23L)
 })
+
+# =============================================================================
+#  LE CADRE CARRE DES ANALYSES MULTIVARIEES
+# =============================================================================
+
+test_that("hstat_carre_ui pose height:auto -- la moitie qui evite le debordement", {
+  h <- as.character(hstat_carre_ui("truc"))
+  # La LARGEUR est plafonnee a 7 pouces.
+  expect_match(h, "max-width:840px", fixed = TRUE)
+  # `height:auto` sur le plotOutput. C'est la moitie mesuree au navigateur :
+  # sans elle le conteneur garde les 400 px du defaut de Shiny pendant que
+  # l'image en fait 840, et tout ce qui suit se dessine PAR-DESSUS sa moitie
+  # basse. Rien ne le signale.
+  expect_match(h, "height\\s*:\\s*auto")
+  # Et surtout : AUCUNE hauteur en pixels. C'est precisement la forme qui
+  # produisait le debordement.
+  expect_false(grepl("height\\s*:\\s*[0-9]+px", h))
+  expect_match(h, "truc", fixed = TRUE)
+})
+
+test_that("hstat_carre_hauteur suit la largeur reelle et retombe sur le cote nominal", {
+  faux <- function(v) list(clientData = stats::setNames(list(v), "output_p_width"))
+
+  # Le cas normal : la hauteur EST la largeur accordee -- le cadre est carre a
+  # toute taille, et vaut 7 x 7 pouces des que la place existe.
+  expect_identical(hstat_carre_hauteur(faux(818), "p")(), 818)
+  expect_identical(hstat_carre_hauteur(faux(380), "p")(), 380)
+  expect_identical(hstat_carre_hauteur(faux(HSTAT_CARRE_PX), "p")(), HSTAT_CARRE_PX)
+
+  # Les trois etats ou le navigateur n'a rien a dire : pas encore repondu,
+  # boite repliee (0), valeur inexploitable. On retombe sur le cote nominal --
+  # demander un peripherique de hauteur nulle ferait lever R.
+  for (v in list(NULL, 0, -5, NA_real_, Inf, "840"))
+    expect_identical(hstat_carre_hauteur(faux(v), "p")(), HSTAT_CARRE_PX)
+
+  # L'identifiant est fige a la CONSTRUCTION, et la BOUCLE `for` est ce qui le
+  # verifie. Sans `force(id)`, l'argument reste une promesse : elle n'est
+  # evaluee qu'au premier appel de la fermeture, c'est-a-dire APRES la fin de
+  # la boucle, quand la variable partagee porte sa DERNIERE valeur. Les
+  # fermetures liraient alors toutes le meme identifiant, et chaque graphique
+  # suivrait la largeur d'un autre.
+  #
+  # Une premiere version de cette assertion passait par `lapply()`, et ne
+  # pouvait donc rien attraper : `lapply` cree une liaison FRAICHE a chaque
+  # appel, si bien que la promesse resout juste meme sans `force()`. Mesure --
+  # boucle `for` : 222 222 sans la garde, 111 222 avec ; `lapply` : 111 222
+  # dans les deux cas. Une assertion qui ne distingue pas les deux codes ne
+  # garde rien.
+  sess <- list(clientData = list(output_a_width = 111, output_b_width = 222))
+  fs <- list()
+  for (k in c("a", "b")) fs[[k]] <- hstat_carre_hauteur(sess, k)
+  expect_identical(vapply(fs, function(f) f(), numeric(1)),
+                   c(a = 111, b = 222))
+})
+
+test_that("840 px a HSTAT_CARRE_RES font exactement les 7 pouces de ggplot2", {
+  # Le peripherique que R ouvre par defaut -- celui pour lequel les valeurs par
+  # defaut de ggplot2 sont reglees -- est CARRE de sept pouces de cote.
+  expect_identical(HSTAT_CARRE_PX / HSTAT_CARRE_RES, 7)
+})
+
+test_that("aucun graphique multivarie ne declare de hauteur en pixels", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  ux <- .hstat_code_lignes(file.path(root, "inst", "app", "UX.R"))
+
+  # C'est LE balayage qui compte : un graphique multivarie ajoute demain avec
+  # `plotOutput(..., height = "520px")` reprendrait le cadre ecrase qu'on vient
+  # de retirer, et rien d'autre ne le dirait. L'interface ne connait plus
+  # qu'une seule facon de poser un de ces graphiques.
+  restes <- grep("shiny::plotOutput\\(", ux, value = TRUE)
+  expect_identical(restes, character(0))
+
+  # Les dix graphiques passent tous par l'aide commune.
+  expect_gte(sum(grepl("hstat_carre_ui\\(", ux)), 10L)
+})
+
+test_that("chaque rendu multivarie calcule sa hauteur au lieu de la subir", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  f <- file.path(root, "inst", "app", "app_server.R")
+  l <- .hstat_code_lignes(f)
+
+  ids <- c("pcaPlot", "pcaScreePlot", "pcaParallelPlot", "pcaCTRPlot",
+           "hcpcDendPlot", "hcpcClusterPlot", "hcpcHeightsPlot",
+           "afdIndPlot", "afdVarPlot")
+  for (id in ids) {
+    att <- sprintf("height = hstat_carre_hauteur(session, \"%s\")", id)
+    expect_true(any(grepl(att, l, fixed = TRUE)),
+                info = paste(id, ": le rendu ne calcule pas sa hauteur"))
+  }
+  # Le rendu generique : un seul appel, identifiant construit, pour les
+  # quatorze analyses du catalogue.
+  expect_true(any(grepl(
+    'height = hstat_carre_hauteur(session, paste0("mv_", key, "_plot"))',
+    l, fixed = TRUE)))
+
+  # Un `renderPlot` multivarie sans hauteur calculee retomberait sur la
+  # hauteur ANNONCEE par le navigateur -- c'est-a-dire, avec `height:auto`,
+  # une hauteur qui depend de l'image precedente. Le cadre cesserait d'etre
+  # carre sans que rien ne leve.
+  expect_false(any(grepl("}, res = 120)", l, fixed = TRUE)))
+})

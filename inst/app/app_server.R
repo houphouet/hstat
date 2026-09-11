@@ -1862,7 +1862,7 @@ server <- function(input, output, session) {
     )
     shiny::req(!is.null(p))
     p
-  }, res = 120)
+  }, res = HSTAT_CARRE_RES, height = hstat_carre_hauteur(session, "pcaPlot"))
   
   output$pcaSummary <- shiny::renderPrint({
     shiny::req(pcaResultReactive())
@@ -2069,7 +2069,7 @@ server <- function(input, output, session) {
     shiny::req(pcaResultReactive())
     res.pca <- pcaResultReactive()
     mv_legacy(createScreePlot(res.pca), "pcaScree")
-  }, res = 120)
+  }, res = HSTAT_CARRE_RES, height = hstat_carre_hauteur(session, "pcaScreePlot"))
   
   output$downloadPcaScreePlot <- shiny::downloadHandler(
     filename = function() paste0("acp_screeplot_", Sys.Date(), ".", hstat_img_fmt(input$pcaScree_format)),
@@ -2168,7 +2168,7 @@ server <- function(input, output, session) {
       text(0.5, 0.5, paste(strwrap(hstat_err_fr(e, "Analyse parallèle"), 55), collapse = "\n"),
            cex = 1, col = "#e74c3c", adj = c(0.5, 0.5))
     })
-  }, res = 120)
+  }, res = HSTAT_CARRE_RES, height = hstat_carre_hauteur(session, "pcaParallelPlot"))
   
   output$downloadPcaParallelPlot <- shiny::downloadHandler(
     filename = function() paste0("acp_analyse_parallele_", Sys.Date(), ".", hstat_img_fmt(input$pcaParallel_format)),
@@ -2342,7 +2342,7 @@ server <- function(input, output, session) {
   output$pcaCTRPlot <- shiny::renderPlot({
     shiny::req(pcaResultReactive(), input$pcaCTRAxis)
     mv_legacy(createCTRPlot(pcaResultReactive(), as.numeric(input$pcaCTRAxis)), "pcaCTR")
-  }, res = 120)
+  }, res = HSTAT_CARRE_RES, height = hstat_carre_hauteur(session, "pcaCTRPlot"))
   
   output$downloadPcaCTRPlot <- shiny::downloadHandler(
     filename = function() paste0("acp_CTR_PC", input$pcaCTRAxis, "_", Sys.Date(), ".", hstat_img_fmt(input$pcaCTR_format)),
@@ -3092,12 +3092,12 @@ server <- function(input, output, session) {
   output$hcpcDendPlot <- shiny::renderPlot({
     shiny::req(values$pcaResult)
     suppressWarnings(suppressMessages(mv_legacy(createHcpcDendPlot(hcpcResultReactive()), "hcpcDend")))
-  }, res = 120)
+  }, res = HSTAT_CARRE_RES, height = hstat_carre_hauteur(session, "hcpcDendPlot"))
   
   output$hcpcClusterPlot <- shiny::renderPlot({
     shiny::req(values$pcaResult)
     suppressWarnings(suppressMessages(mv_legacy(createHcpcClusterPlot(hcpcResultReactive(), pcaResultReactive()), "hcpcCluster")))
-  }, res = 120)
+  }, res = HSTAT_CARRE_RES, height = hstat_carre_hauteur(session, "hcpcClusterPlot"))
   
   output$hcpcSummary <- shiny::renderPrint({
     shiny::req(hcpcResultReactive())
@@ -3226,7 +3226,7 @@ server <- function(input, output, session) {
         text(0.5, 0.5, paste(strwrap(hstat_err_fr(e), 55), collapse = "\n"), cex = 0.85, col = "#e74c3c")
       }
     )
-  }, res = 120)
+  }, res = HSTAT_CARRE_RES, height = hstat_carre_hauteur(session, "hcpcHeightsPlot"))
   
   output$downloadHcpcHeightsPlot <- shiny::downloadHandler(
     filename = function() paste0("hcpc_hauteurs_fusion_", Sys.Date(), ".", hstat_img_fmt(input$hcpcHeights_format)),
@@ -4513,13 +4513,13 @@ server <- function(input, output, session) {
     shiny::req(values$filteredData, input$afdFactor)
     .afd_rendu(suppressWarnings(suppressMessages(
       mv_legacy(createAfdIndPlot(afdResultReactive()), "afdInd"))))
-  }, res = 120)
+  }, res = HSTAT_CARRE_RES, height = hstat_carre_hauteur(session, "afdIndPlot"))
   
   output$afdVarPlot <- shiny::renderPlot({
     shiny::req(values$filteredData, input$afdFactor)
     .afd_rendu(suppressWarnings(suppressMessages(
       mv_legacy(createAfdVarPlot(afdResultReactive()), "afdVar"))))
-  }, res = 120)
+  }, res = HSTAT_CARRE_RES, height = hstat_carre_hauteur(session, "afdVarPlot"))
   
   output$afdSummary <- shiny::renderUI({
     shiny::req(afdResultReactive())
@@ -5708,7 +5708,8 @@ server <- function(input, output, session) {
       mv_active_prefix(paste0("mv_", key))
       on.exit(mv_active_prefix(NULL), add = TRUE)
       suppressWarnings(suppressMessages(print(mv_habille(r$plotfn()))))
-    }, res = 120)
+    }, res = HSTAT_CARRE_RES,
+    height = hstat_carre_hauteur(session, paste0("mv_", key, "_plot")))
     output[[paste0("mv_", key, "_summary")]] <- shiny::renderPrint({
       r <- mv_res[[key]]
       if (is.null(r)) { cat("En attente du lancement de l'analyse.\n"); return(invisible()) }
