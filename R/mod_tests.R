@@ -1830,9 +1830,16 @@ mod_correlation_server <- function(id, values) {
                    " Aucune corrélation significative après correction."))
       items <- lapply(seq_len(nrow(sig)), function(i) {
         r <- sig[i, ]
+        # UN NOM DE COLONNE N'ENTRE JAMAIS TEL QUEL DANS DU BALISAGE.
+        # `Variable_X` et `Variable_Y` viennent du fichier de l'utilisateur :
+        # une colonne « Rdt <2023> » verrait « <2023> » lu comme une balise et
+        # DISPARAITRE -- on annoncerait un nom qui n'est pas le sien -- et le
+        # « & » d'un « Masse & surface » ressortirait corrompu. Meme regle,
+        # meme remede que les deux notifications deja corrigees de ce fichier.
         shiny::tags$li(shiny::HTML(sprintf(
           "<b>%s \u2013 %s</b> (%s) : r = %.3f, %s, %s (p<sub>ajust</sub> = %s)",
-          r$Variable_X, r$Variable_Y, r$Methode, r$Coefficient,
+          hstat_html_escape(r$Variable_X), hstat_html_escape(r$Variable_Y),
+          r$Methode, r$Coefficient,
           tolower(r$Force), tolower(r$Sens), format(r$p_ajuste))))
       })
       shiny::div(class = "alert alert-success",

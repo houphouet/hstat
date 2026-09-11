@@ -6773,8 +6773,42 @@ hstat_check_formula_ast <- function(expr) {
   invisible(TRUE)
 }
 
+# -- Cout d'une formule : la liste blanche ne borne que ce qu'on appelle -----
+# Le bac a sable empeche d'EXECUTER autre chose ; il ne borne pas ce que les
+# fonctions autorisees peuvent COUTER. `paste0` imbrique double la chaine a
+# chaque niveau : le texte de la formule double aussi, si bien que la borne
+# utile est la longueur de la formule. Mesure sur une colonne de 1 000 lignes
+# de 10 caracteres, sans borne :
+#
+#   imbrications | formule   | alloue   | duree
+#   10           | 10 Ko     | 9,8 Mo   | 0,27 s
+#   15           | 328 Ko    | 313 Mo   | 10,6 s
+#   18           | 2,6 Mo    | 2,5 Go   | 98 s
+#
+# Shiny sert toutes les sessions depuis UN SEUL processus R : ces 98 secondes
+# figent l'application pour tout le monde, et l'allocation de 2,5 Go la fait
+# tuer par le systeme. Le texte se colle depuis le presse-papiers, il n'a pas
+# a etre tape.
+#
+# Sous la borne, le pire cas est MESURE et non deduit : neuf imbrications
+# tiennent en 5 111 caracteres et allouent 4,9 Mo en 0,14 s -- la dixieme,
+# qui en demanderait 10 Ko, est refusee.
+#
+# Et 10 000 caracteres ne genent aucune formule reelle : une moyenne de ligne
+# sur DEUX CENTS colonnes aux noms de quarante caracteres fait 8 415
+# caracteres, mesures. Ce qui n'y tient pas n'est plus une formule.
+HSTAT_FORMULA_MAX_CHARS <- {
+  v <- suppressWarnings(as.integer(Sys.getenv("HSTAT_FORMULA_MAX_CHARS", "10000")))
+  if (!is.finite(v) || v < 100) 10000L else v
+}
+
 # Evalue une formule validee sur un data.frame, sans acces au reste de R.
 hstat_safe_eval <- function(formula_str, data) {
+  n <- sum(nchar(as.character(formula_str), type = "bytes"))
+  if (!is.finite(n) || n > HSTAT_FORMULA_MAX_CHARS)
+    stop(trf("Formule trop longue : %s caractères pour un maximum de %s. Une formule de cette taille fige l'application pour toutes les sessions ; décomposez-la en plusieurs variables calculées.",
+             format(n, big.mark = " "),
+             format(HSTAT_FORMULA_MAX_CHARS, big.mark = " ")), call. = FALSE)
   exprs <- tryCatch(parse(text = formula_str, keep.source = FALSE),
                     error = function(e) stop("Formule invalide : ",
                                              conditionMessage(e), call. = FALSE))
@@ -6949,6 +6983,71 @@ hstat_model_interpretation <- function(task, metrics_df, model_label,
             else tr("le modèle n'est pas encore fiable : enrichir les variables ou changer d'algorithme."))
   }
   paste(c(head_txt, core, notes), collapse = " ")
+}
+
+# ==============================================================================
+#  Le cadre carre des analyses multivariees : les dimensions d'origine de ggplot2
+# ==============================================================================
+
+# Le peripherique que R ouvre par defaut -- celui pour lequel les valeurs par
+# defaut de ggplot2 sont reglees, celui des manuels et des exemples -- fait
+# 7 x 7 pouces, et il est CARRE (mesure : `dev.size()`). Les graphiques
+# multivaries s'affichaient pourtant dans des cadres larges et ecrases :
+# 900 x 560 px pour l'ACP, 860 x 560 pour les quatorze analyses du catalogue,
+# 850 x 520 pour la HCPC et l'AFD, 320 px de haut pour les diagnostics. Un
+# nuage d'individus y sort etire horizontalement, ce qui deforme les distances
+# -- or c'est precisement ce qu'une ACP existe pour montrer.
+#
+# `HSTAT_CARRE_RES` est la resolution des rendus multivaries, `HSTAT_CARRE_PX`
+# le cote du carre EN PIXELS a cette resolution : 840 / 120 = 7 pouces. Les
+# deux se declarent ensemble parce qu'ils ne veulent rien dire l'un sans
+# l'autre -- changer la resolution sans changer les pixels changerait la taille
+# physique, c'est-a-dire exactement la promesse qu'on vient de tenir.
+HSTAT_CARRE_RES <- 120
+HSTAT_CARRE_PX  <- 840   # 7 pouces a HSTAT_CARRE_RES
+
+# LA HAUTEUR N'EST PAS FIXEE DANS L'INTERFACE, ELLE EST CALCULEE AU SERVEUR.
+#
+# Une hauteur codee en dur a 840 px donnerait, sur un telephone ou la boite
+# tombe a 380 px de large, un cadre de 380 x 840 : deux fois plus haut que
+# large, l'inverse du defaut qu'on cherche a corriger. La hauteur suit donc la
+# largeur REELLEMENT accordee -- le cadre reste carre a toute taille, et vaut
+# 7 x 7 pouces des que la place existe.
+#
+# `height = "auto"` sur le `plotOutput` n'est pas un detail de style, c'est la
+# seconde moitie du mecanisme, et elle a ete mesuree au navigateur. Sans elle
+# le conteneur garde les 400 px du defaut de Shiny pendant que l'image en fait
+# 840 : l'image DEBORDE, et tout ce qui suit -- separateur, panneau de reglages
+# -- se dessine PAR-DESSUS sa moitie basse. Rien ne le signale, et c'est
+# exactement ce que la regle responsive du depot interdit. Avec `"auto"`, le
+# conteneur epouse l'image (mesure : 840 x 840, separateur rejete a 1301 px).
+hstat_carre_ui <- function(id, spinner = NULL, largeur = HSTAT_CARRE_PX) {
+  sortie <- shiny::plotOutput(id, height = "auto")
+  if (!is.null(spinner)) sortie <- withSpinner(sortie, color = spinner)
+  shiny::div(style = paste0("max-width:", largeur,
+                            "px; margin:0 auto; width:100%;"), sortie)
+}
+
+# La fonction a passer en `height =` d'un `renderPlot`. Elle rend une FONCTION,
+# pas un nombre : Shiny la rappelle a chaque redimensionnement, c'est ce qui
+# fait suivre le carre.
+#
+# `force(id)` fige l'identifiant a la CONSTRUCTION, pour que l'aide ne depende
+# pas du moment ou l'appelant evalue sa propre variable. Sans lui, l'argument
+# reste une promesse resolue au PREMIER APPEL de la fermeture : construite dans
+# une boucle `for`, elle lirait alors la derniere valeur de la variable
+# partagee, et chaque graphique suivrait la largeur d'un autre. Mesure sur deux
+# identifiants : 222 222 sans la garde, 111 222 avec.
+#
+# `clientData` est vide tant que le navigateur n'a pas repondu, et vaut 0 quand
+# la boite de resultats est repliee : on retombe alors sur le cote nominal
+# plutot que de demander un peripherique de hauteur nulle, que R refuse.
+hstat_carre_hauteur <- function(session, id, defaut = HSTAT_CARRE_PX) {
+  force(session); force(id); force(defaut)
+  function() {
+    l <- session$clientData[[paste0("output_", id, "_width")]]
+    if (is.null(l) || !is.numeric(l) || !is.finite(l) || l < 1) defaut else l
+  }
 }
 
 # ==============================================================================

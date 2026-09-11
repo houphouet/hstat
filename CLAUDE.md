@@ -499,6 +499,65 @@ Les valeurs de départ sont désormais celles de ggplot2 (`HSTAT_GG_POINT_SIZE`
 disponible sous `"hstat"`. Corollaire : `HSTAT_LBL_PT_MIN` descend de 12 à 11,
 sans quoi le défaut de ggplot2 serait hors du domaine du curseur.
 
+#### Le cadre aussi est un réglage de ggplot2, et il valait 7 × 7 pouces
+
+Le rendu d'origine, ce n'est pas seulement le thème et les tailles de texte :
+c'est aussi **la forme du cadre**. Le périphérique que R ouvre par défaut —
+celui pour lequel les valeurs par défaut de ggplot2 sont réglées, celui des
+manuels — fait 7 × 7 pouces, et il est **carré** (mesuré : `dev.size()`).
+
+Les dix graphiques multivariés étaient tous plus larges que hauts, chacun avec
+sa propre valeur : 900 × 560 px pour l'ACP, 860 × 560 pour les quatorze
+analyses du catalogue, 850 × 520 pour la HCPC et l'AFD, 320 px de haut pour les
+diagnostics. Un nuage d'individus y sort **étiré horizontalement**, ce qui
+déforme les distances — or c'est précisément ce qu'une ACP existe pour montrer.
+
+`hstat_carre_ui()` déclare, `hstat_carre_hauteur()` calcule. Un onzième
+graphique ajouté demain prend les deux en une ligne, et un test échoue sur tout
+`plotOutput()` reposé à la main dans `UX.R`.
+
+**La hauteur ne se code pas en dur, elle se calcule.** Figée à 840 px, elle
+donnerait sur un téléphone — où la boîte tombe à 380 px de large — un cadre de
+380 × 840 : deux fois plus haut que large, l'inverse du défaut qu'on corrige.
+La hauteur suit donc la largeur *réellement accordée*
+(`session$clientData[["output_<id>_width"]]`) : le cadre reste carré à toute
+taille, et vaut 7 × 7 pouces dès que la place existe.
+
+**`height = "auto"` sur le `plotOutput` est la seconde moitié du mécanisme, et
+elle a été trouvée par la mesure.** Sans elle, le conteneur garde les 400 px du
+défaut de Shiny pendant que l'image en fait 840 : l'image **déborde**, et tout
+ce qui suit — séparateur, panneau de réglages — se dessine **par-dessus sa
+moitié basse**. Rien ne le signale, et c'est exactement ce que la règle
+responsive du dépôt interdit.
+
+Mesuré au navigateur sur un banc à deux graphiques, l'un avec et l'autre sans :
+
+| | conteneur | image | le `<hr>` qui suit |
+|---|---|---|---|
+| sans `height` | 840 × **400** | 840 × 840 | à 420 px, soit **au milieu de l'image** |
+| `height = "auto"` | 840 × **840** | 840 × 840 | à 1301 px, dégagé |
+
+Leçon de méthode, la même que pour `innerText` d'une cellule en édition :
+j'avais d'abord relevé « 818 × 818, rapport 1,000 » et conclu que c'était bon.
+Je mesurais l'**image**, qui était bien carrée — pendant qu'elle recouvrait tout
+ce qui la suivait. **Une mesure qui ne porte pas sur ce qui peut casser ne dit
+rien**, et elle ment dans le sens rassurant.
+
+`force(id)` dans `hstat_carre_hauteur()` fige l'identifiant à la
+**construction**, pour que l'aide ne dépende pas du moment où l'appelant évalue
+sa propre variable. Sans lui, l'argument reste une promesse résolue au *premier
+appel* de la fermeture : construite dans une boucle `for`, elle lirait la
+**dernière** valeur de la variable partagée, et chaque graphique suivrait la
+largeur d'un autre.
+
+Et c'est **la boucle `for` qui le vérifie**, pas `lapply`. Ma première assertion
+passait par `lapply`, qui crée une liaison *fraîche* à chaque appel : la
+promesse y résout juste même sans la garde. Mesuré sur deux identifiants —
+boucle `for` : `222 222` sans, `111 222` avec ; `lapply` : `111 222` dans les
+deux cas. La mutation est passée, et c'est ainsi que le trou s'est vu. **Une
+assertion qui ne distingue pas les deux codes ne garde rien** : c'est la même
+famille que la donnée d'essai qui doit rendre les formules discernables.
+
 ### La résolution commande la taille, et il faut dire dans quel sens
 
 Deux modèles cohabitent, et les confondre produit exactement le défaut que
@@ -5363,3 +5422,153 @@ paquets R de Debian, `jquery.nouislider.min.js` est un lien vers la version
 autonome de noUiSlider, qui n'installe pas le greffon jQuery. Les filtres
 numériques de DT y sont donc inertes et la console affiche
 `$x.noUiSlider is not a function`. Le paquet CRAN n'a pas ce défaut.
+
+## Audit de sécurité : le bac à sable tenait, le balisage non
+
+Deux défauts trouvés en attaquant l'application plutôt qu'en la relisant. Aucun
+des deux ne lève, aucun ne laisse un vide.
+
+### Un nom de colonne exécute du JavaScript
+
+La règle « un nom de colonne n'entre jamais tel quel dans du balisage » était
+écrite pour deux notifications de `mod_tests.R`. **Un troisième site l'avait
+manquée**, et c'est le plus coûteux : l'interprétation des corrélations compose
+`<b>%s – %s</b>` avec `Variable_X` et `Variable_Y`, qui *sont* les noms des
+colonnes du fichier.
+
+Mesuré au navigateur sur un CSV dont une colonne s'appelle
+`<img src=x onerror=alert(1)>` :
+
+| | avant | après |
+|---|---|---|
+| éléments `<img>` injectés dans le DOM | **3** | 0 |
+| boîtes `alert()` réellement ouvertes | **3** | 0 |
+
+Ce n'est donc pas seulement un nom affiché faux — c'est du **JavaScript
+arbitraire qui s'exécute**, déposé par un fichier de données. Le vecteur est
+banal pour un outil de statistique : on ouvre le CSV d'un collègue, un jeu
+public téléchargé, l'export d'un logiciel tiers.
+
+La moitié « affichage » se voit dans le texte rendu : la colonne **disparaît**,
+et l'utilisateur lit « — Masse & surface (pearson) : r = −0,999 », une
+corrélation entre une variable sans nom et une autre.
+
+Détail instructif du rendu : `Rdt <2023> & suite` ressortait, lui, correctement
+échappé. `<2023>` n'est pas un début de balise valide — un nom de balise ne peut
+pas commencer par un chiffre — et l'analyseur du navigateur le re-sérialise en
+texte. **Un essai qui n'aurait employé que ce nom-là aurait conclu que tout va
+bien.** Il faut une charge qui soit une *vraie* balise pour que le défaut se
+voie.
+
+Le balayage qui garde la règle passe par l'**analyseur** : l'appel fautif
+s'étend sur quatre lignes, aucune recherche textuelle ne l'aurait vu. Trois
+sites sûrs sont **nommés** en exception plutôt que devinés (le `Cible` des mémos
+vaut `names(HSTAT_MEMO_CIBLES)`, une constante du paquet ; les deux sites de
+`app_server.R` n'interpolent que des nombres mis en forme).
+
+#### `paste0("f.R", ":", character(0))` rend une chaîne, pas rien
+
+Le balayage a d'abord signalé **les seize fichiers** du dépôt. La cause tient en
+une ligne : `paste0` recycle jusqu'à la plus longue de ses entrées, mais une
+entrée de longueur zéro ne ramène pas le résultat à zéro — il vaut `"f.R:"`,
+de longueur 1. Indexer un vecteur vide par ce `TRUE` rend **`NA`**, que
+`length()` compte pour un.
+
+C'est la famille de « les opérateurs vectoriels recyclent, l'indexation non »,
+déjà rencontrée sur `n[ok]` dans le module DL50. Un balayage qui crie au loup
+finit désactivé : on borne avant de composer la clé.
+
+### La liste blanche borne ce qu'on appelle, pas ce que cela coûte
+
+Quatre-vingt-dix-neuf tentatives d'évasion essayées une par une — `system`,
+`get`, `match.fun`, `do.call`, les vingt fonctions d'ordre supérieur, les huit
+façons d'attraper un environnement, les structures de contrôle, l'indexation,
+les lectures de fichier, `reg.finalizer`, `trace` — et **quatre-vingt-dix-neuf
+refusées**. Le bac à sable tient.
+
+Mais `paste0` est légitime, et imbriqué il **double la chaîne** à chaque niveau.
+Le texte de la formule double en même temps, si bien qu'on atteint le mégaoctet
+de formule en dix-huit niveaux — et une formule se **colle**, elle n'a pas à
+être tapée :
+
+| imbrications | formule collée | alloué | durée |
+|---|---|---|---|
+| 10 | 10 Ko | 9,8 Mo | 0,27 s |
+| 15 | 328 Ko | 313 Mo | 10,6 s |
+| 18 | 2,6 Mo | **2,5 Go** | **98 s** |
+
+Shiny sert toutes les sessions depuis **un seul processus R** : ces 98 secondes
+figent l'application pour tout le monde, et l'allocation de 2,5 Go la fait tuer
+par le système. Aucune évasion n'est nécessaire pour cela.
+
+`HSTAT_FORMULA_MAX_CHARS` (10 000) borne donc la **longueur**, et c'est bien la
+grandeur utile : le texte doublant avec le résultat, la borner borne l'autre.
+Sous la borne, le pire cas est **mesuré** — neuf imbrications, 5 111 caractères,
+4,9 Mo en 0,14 s — et la dixième est refusée en 0,00 s.
+
+Rien de réel n'est gêné : une moyenne de ligne sur **deux cents colonnes** aux
+noms de quarante caractères fait 8 415 caractères, mesurés.
+
+Ce que R refuse déjà de lui-même, et qu'il ne sert à rien de redire : une
+imbrication de plus de cent niveaux (« contextstack overflow ») et une formule
+de cent mille caractères (« C stack usage is too close to the limit »). Les deux
+rendent une erreur propre, pas un blocage.
+
+### Ce que l'audit a écarté, et pourquoi
+
+- **Injection de formule dans les exports CSV** (une cellule commençant par
+  `=`, `+`, `-` ou `@` s'exécute à l'ouverture dans un tableur). Préfixer par
+  une apostrophe **corromprait les données** : une colonne de texte porte
+  légitimement `-` pour une absence, et c'est précisément ce que ce module
+  existe pour préserver. La donnée exportée est par ailleurs celle que
+  l'utilisateur a lui-même chargée.
+- **`readRDS` sur un projet de codage téléversé.** Contrairement au `pickle` de
+  Python, la désérialisation de R n'exécute rien ; et l'objet est refusé tant
+  que `obj$hstat` ne vaut pas `"codage"`.
+- **`escape = FALSE` de DT** : **zéro** occurrence dans le dépôt. Toutes les
+  cellules de tableau sont échappées par DT.
+- **Les deux `shinyjs::runjs`** n'interpolent qu'un entier et une chaîne base64
+  ; les identifiants du script de glisser-déposer passent tous par `ns()`.
+- **Aucun secret littéral** dans le dépôt, et aucune variable d'environnement
+  courante lue d'office — la règle `GITHUB_MODELS_TOKEN` tient.
+- **Pas d'en-tête `Content-Security-Policy`.** L'application construit son
+  interface avec des scripts en ligne (`tags$script(HTML(...))`) : une CSP
+  stricte la casserait entièrement. C'est une décision, pas un oubli.
+
+### Ce que la mesure dit du poids de la page
+
+Relevé sur la page réellement servie :
+
+| | |
+|---|---|
+| page d'accueil | 2 143 Ko, **332 Ko après gzip** (httpuv compresse) |
+| dont dictionnaire bilingue en ligne | 476 Ko, **160 Ko gzip** — soit la moitié du transfert |
+| nœuds du DOM au premier rendu | 28 091 |
+| champs de saisie / listes déroulantes | 1 024 / 278 |
+| premier rendu complet mesuré | 10,6 s |
+
+Le dictionnaire est **incorporé dans la page**, donc retéléchargé à **chaque**
+ouverture — un utilisateur francophone paie 160 Ko pour une traduction qu'il
+n'utilise pas. Le servir en fichier statique estampillé
+(`hstat-i18n-dict.js?v=<version>`, comme le fait déjà `hstat_asset()`) le
+rendrait **cacheable** sans rien perdre du hors-ligne : un fichier de `www/` est
+servi par l'application elle-même, pas par le réseau. C'est la seule
+optimisation de poids qui vaille la peine ; elle touche l'ordre de chargement de
+`hstat-i18n.js` et n'a pas été faite ici.
+
+### Le cadre carré ne coûte rien, mesuré
+
+Le passage des dix graphiques multivariés au cadre 7 × 7 ajoute 40 % de pixels
+(706 kpx contre 504). Le temps de tracé, lui, **baisse** — 196 ms contre 243 —
+parce qu'il est dominé par le calcul des géométries et non par la trame. Le
+fichier gagne 15 Ko.
+
+### Ce que le parcours au navigateur a donné
+
+Vingt et un onglets parcourus deux fois, sur un jeu agronomique normal puis sur
+un jeu hostile (noms à chevrons, à esperluette, à barre verticale, à retour à la
+ligne ; colonne constante, colonne vide, colonne de zéros, deux noms dont l'un
+est le préfixe de l'autre) : **zéro sortie Shiny en erreur, zéro exception de
+page**. La seule erreur de console est
+`$x.noUiSlider is not a function`, déjà documentée ici comme un défaut de
+l'empaquetage Debian de DT et non d'HStat.
