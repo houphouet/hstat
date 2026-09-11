@@ -6773,8 +6773,42 @@ hstat_check_formula_ast <- function(expr) {
   invisible(TRUE)
 }
 
+# -- Cout d'une formule : la liste blanche ne borne que ce qu'on appelle -----
+# Le bac a sable empeche d'EXECUTER autre chose ; il ne borne pas ce que les
+# fonctions autorisees peuvent COUTER. `paste0` imbrique double la chaine a
+# chaque niveau : le texte de la formule double aussi, si bien que la borne
+# utile est la longueur de la formule. Mesure sur une colonne de 1 000 lignes
+# de 10 caracteres, sans borne :
+#
+#   imbrications | formule   | alloue   | duree
+#   10           | 10 Ko     | 9,8 Mo   | 0,27 s
+#   15           | 328 Ko    | 313 Mo   | 10,6 s
+#   18           | 2,6 Mo    | 2,5 Go   | 98 s
+#
+# Shiny sert toutes les sessions depuis UN SEUL processus R : ces 98 secondes
+# figent l'application pour tout le monde, et l'allocation de 2,5 Go la fait
+# tuer par le systeme. Le texte se colle depuis le presse-papiers, il n'a pas
+# a etre tape.
+#
+# Sous la borne, le pire cas est MESURE et non deduit : neuf imbrications
+# tiennent en 5 111 caracteres et allouent 4,9 Mo en 0,14 s -- la dixieme,
+# qui en demanderait 10 Ko, est refusee.
+#
+# Et 10 000 caracteres ne genent aucune formule reelle : une moyenne de ligne
+# sur DEUX CENTS colonnes aux noms de quarante caracteres fait 8 415
+# caracteres, mesures. Ce qui n'y tient pas n'est plus une formule.
+HSTAT_FORMULA_MAX_CHARS <- {
+  v <- suppressWarnings(as.integer(Sys.getenv("HSTAT_FORMULA_MAX_CHARS", "10000")))
+  if (!is.finite(v) || v < 100) 10000L else v
+}
+
 # Evalue une formule validee sur un data.frame, sans acces au reste de R.
 hstat_safe_eval <- function(formula_str, data) {
+  n <- sum(nchar(as.character(formula_str), type = "bytes"))
+  if (!is.finite(n) || n > HSTAT_FORMULA_MAX_CHARS)
+    stop(trf("Formule trop longue : %s caractères pour un maximum de %s. Une formule de cette taille fige l'application pour toutes les sessions ; décomposez-la en plusieurs variables calculées.",
+             format(n, big.mark = " "),
+             format(HSTAT_FORMULA_MAX_CHARS, big.mark = " ")), call. = FALSE)
   exprs <- tryCatch(parse(text = formula_str, keep.source = FALSE),
                     error = function(e) stop("Formule invalide : ",
                                              conditionMessage(e), call. = FALSE))
