@@ -5572,3 +5572,104 @@ est le préfixe de l'autre) : **zéro sortie Shiny en erreur, zéro exception de
 page**. La seule erreur de console est
 `$x.noUiSlider is not a function`, déjà documentée ici comme un défaut de
 l'empaquetage Debian de DT et non d'HStat.
+
+## Le dictionnaire part en fichier, pas dans la page
+
+Il était écrit en clair dans un `<script>` de l'en-tête. Mesuré sur la page
+réellement servie : **476 Ko sur 2 143**, soit **160 Ko des 332 Ko** qui
+transitent après gzip — **la moitié du transfert**. Et un script en ligne fait
+partie du HTML : il repart à **chaque** ouverture, y compris chez un
+francophone qui ne s'en sert jamais.
+
+Servi en ressource statique estampillée (`hstat_i18n_script()` →
+`hstat_i18n_asset()`), il est **revalidé** au lieu d'être renvoyé :
+
+| | avant | après |
+|---|---|---|
+| page d'accueil, gzip | **331,7 Ko** | **170,9 Ko** |
+| dictionnaire, 1re visite | dans la page | 163 Ko, requête à part |
+| dictionnaire, visites suivantes | **160 Ko renvoyés** | **304, zéro octet** |
+
+La première visite coûte donc le même total ; **toutes les suivantes sont
+divisées par deux**. Mesuré au navigateur : `200` puis `304` sur la même URL.
+
+**Ce n'est pas un recul sur le hors-ligne.** Le fichier est servi par
+l'application elle-même, jamais par le réseau : la promesse était « aucune
+requête à un tiers », pas « aucune requête ». Aucune API de traduction, aucun
+CDN — rien n'a changé de ce côté.
+
+### Ce que `addResourcePath` donne, mesuré et non supposé
+
+Banc httpuv à deux ressources, l'une par `addResourcePath`, l'autre par `www/` :
+les **deux** rendent `Last-Modified`, **aucune** ne rend `ETag` ni
+`Cache-Control`, et une requête conditionnelle `If-Modified-Since` reçoit
+**304 avec un corps de zéro octet**. La compression joue de la même façon des
+deux côtés. C'est ce qui rend le gain réel plutôt que théorique.
+
+L'estampille vient de `hstat_asset()`, donc de la version : un dictionnaire
+corrigé arrive avec la montée de version, et pas avant. C'est exactement la
+raison pour laquelle la feuille de style est déjà estampillée.
+
+Le fichier vit dans `tempdir()`, pas dans `inst/app/www/`. Un fichier engendré
+et commité dériverait de son CSV à la première correction oubliée — la dérive
+que ce dépôt corrige partout ailleurs — et `inst/` est en lecture seule quand le
+paquet est installé. L'écriture est donc faite au démarrage, dans un dossier
+toujours accessible.
+
+### La charge utile est du pur ASCII, et ce n'est pas du confort
+
+Un `<script src>` classique **hérite du jeu de caractères du document** quand la
+réponse n'en déclare pas. Un dictionnaire dont les accents ne tiendraient que
+par cet héritage se corromprait au premier navigateur, mandataire ou serveur qui
+en décide autrement — et il se corromprait **silencieusement**, en rendant des
+caractères de remplacement au milieu d'une traduction.
+
+`.hstat_i18n_ascii()` échappe donc tout caractère hors ASCII en `\uXXXX`. Le prix
+est mesuré et dérisoire : **+2,7 Ko après gzip, soit +1,7 %**. Vérifié au
+navigateur : 5 035 entrées relues, clés accentuées intactes
+(`"Corrélations"` → `"Correlations"`).
+
+**Au-delà du plan multilingue de base, `\uXXXX` ne suffit pas** : JavaScript
+attend une **paire de substitution**. Un emoji glissé dans un libellé — ils
+existent dans les interfaces modernes — sortirait sinon en caractère de
+remplacement. Un test l'épingle sur U+1F4CA.
+
+### L'ordre est la moitié du mécanisme
+
+`hstat-i18n.js` lit `window.HSTAT_I18N` **dès son chargement**
+(`var DICT = window.HSTAT_I18N || {}` dans l'IIFE), pas à la bascule. La balise
+du dictionnaire doit donc **précéder** celle du traducteur. Posée après, le
+dictionnaire serait bien là et le traducteur ne verrait rien : l'interface
+resterait en français **sans qu'aucune erreur ne le dise** — le mode de
+défaillance que ce dépôt traque partout. Un test compare les positions dans
+`UX.R`.
+
+### Le repli redevient l'incorporation
+
+Si l'écriture ou la déclaration échoue (disque plein, dossier temporaire
+inaccessible), `hstat_i18n_asset()` rend `NA` et `hstat_i18n_script()` incorpore
+le dictionnaire comme avant. Plus lourd, et le bilingue marche — c'est la seule
+chose qui compte. Les deux chemins lisent `hstat_i18n_payload()` : ils ne peuvent
+pas diverger.
+
+### Vérifié au navigateur, pas seulement en R
+
+Une ressource qui se charge sans que la traduction s'applique serait pire que
+l'état d'avant. Le parcours mesure donc la **bascule complète** :
+
+| | |
+|---|---|
+| menu en français | Chargement, Exploration, Nettoyage, Filtrage… |
+| après clic sur EN | Loading, Exploration, Cleaning, Filtering… |
+| libellés | « Charger données » → « Load data » |
+| retour au français | **exact**, caractère pour caractère |
+| erreurs de console | **0** |
+
+Observation au passage, **non corrigée et délibérément** : le titre de section
+« GRAINE » reste en français en anglais. Il n'est pas au dictionnaire — seuls
+« Graine (reproductibilité) » et « Graine aléatoire » y sont. L'y ajouter seul
+serait la faute que ce dépôt documente déjà : « graine » est un nom de variable
+parfaitement plausible dans un fichier d'agronomie, et la règle de longueur des
+cellules `<td>` ne protège pas un mot de six lettres. C'est une lacune de
+couverture, pas un défaut de ce chemin — le contenu du dictionnaire n'a pas
+changé d'un octet, seule sa livraison a changé.

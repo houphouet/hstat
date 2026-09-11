@@ -238,11 +238,16 @@ ui <- shinydashboard::dashboardPage(
       shiny::tags$style(shiny::HTML(
         "#shiny-disconnected-overlay{display:none !important;}")),
       shiny::tags$script(src = hstat_asset("hstat-session.js")),
-      # Dictionnaire de traduction INCORPORE dans la page : aucune requete
-      # reseau, le bilingue fonctionne hors ligne. La cle est la chaine
-      # francaise elle-meme, donc une chaine non traduite reste en francais.
-      shiny::tags$script(shiny::HTML(sprintf("window.HSTAT_I18N = %s;",
-                               hstat_i18n_json("en")))),
+      # Dictionnaire de traduction. Il est servi en RESSOURCE STATIQUE
+      # estampillee de la version, non plus ecrit en clair dans la page :
+      # 476 Ko y etaient renvoyes a chaque ouverture (160 Ko apres gzip, la
+      # moitie du transfert), y compris a un francophone qui ne les emploie
+      # pas. Le fichier est servi par l'application elle-meme : le bilingue
+      # fonctionne toujours hors ligne. La cle reste la chaine francaise, donc
+      # une chaine non traduite reste en francais.
+      # DOIT PRECEDER hstat-i18n.js, qui lit window.HSTAT_I18N des son
+      # chargement.
+      hstat_i18n_script("en"),
       shiny::tags$script(src = hstat_asset("hstat-i18n.js")),
       # Copie de la citation dans le presse-papiers (API moderne + repli execCommand).
       shiny::tags$script(shiny::HTML(
