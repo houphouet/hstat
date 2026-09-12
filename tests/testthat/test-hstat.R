@@ -7401,7 +7401,8 @@ test_that("chaque option du graphique de rendement est declaree, lue ET utilisee
                 "yieldValeursCouleur", "yieldValeursStyle", "yieldValeursPos",
                 "yieldAngleX", "yieldAngleY", "yieldOrdre", "yieldLimites",
                 "yieldYMin", "yieldYMax", "yieldPasY", "yieldGrilleMaj",
-                "yieldGrilleMin", "yieldLigneZero", "yieldErreurs", "yieldErreurType",
+                "yieldGrilleMin", "yieldZeroMode", "yieldMasquer",
+                "yieldErreurs", "yieldErreurType",
                 "yieldLegendePos", "yieldLegendeTitreSize", "yieldLegendeTexteSize")
   for (r in reglages) {
     expect_true(grepl(sprintf('ns("%s")', r), txt, fixed = TRUE),
@@ -15841,4 +15842,151 @@ test_that("une modalite qui ressemble a une date n'est jamais reecrite", {
                   c("04 ao\u00fbt", "01 septembre"))
   expect_setequal(etiquettes(factor(c("2026-08-04", "2026-09-01")), "%d %B"),
                   c("04 ao\u00fbt", "01 septembre"))
+})
+
+# -----------------------------------------------------------------------------
+# RENDEMENT : LA LIGNE DU ZERO, ET LES MODALITES QU'ON NE VEUT PAS VOIR
+# -----------------------------------------------------------------------------
+test_that("la ligne du zero est UN reglage a trois etats", {
+  skip_if_not_installed("ggplot2")
+  # Deux cases a cocher decriraient le MEME trait par deux commandes qui
+  # peuvent se contredire : c'est la seconde, invisible, qui finirait par
+  # mentir. Le choix est donc unique.
+  expect_setequal(unname(HSTAT_AXE_ZERO), c("aucune", "reference", "axe"))
+
+  aucune <- hstat_axe_zero("aucune")
+  expect_length(aucune$couches, 0L)
+  expect_true(identical(aucune$expand, ggplot2::waiver()))
+
+  # « reference » garde EXACTEMENT le comportement d'origine : un repere
+  # pointille, et rien d'autre -- surtout pas l'effacement du trait d'axe.
+  ref <- hstat_axe_zero("reference")
+  expect_length(ref$couches, 1L)
+  expect_true(inherits(ref$couches[[1]], "Layer"))
+  expect_true(identical(ref$expand, ggplot2::waiver()))
+  expect_length(Filter(function(x) inherits(x, "theme"), ref$couches), 0L)
+
+  # Un mode inconnu retombe sur le repere, jamais sur l'effacement : un nom de
+  # travers ne doit pas faire disparaitre le trait d'axe sans un mot.
+  expect_equal(hstat_axe_zero("zzz")$mode, "reference")
+  expect_equal(hstat_axe_zero(NULL)$mode, "reference")
+
+  ax <- hstat_axe_zero("axe", negatifs = FALSE, couleur = "#123456", epaisseur = 2)
+  th <- Filter(function(x) inherits(x, "theme"), ax$couches)
+  expect_length(th, 1L)
+  # L'ANCIEN TRAIT S'EFFACE, sinon l'axe existe en DEUX exemplaires -- un au bas
+  # du panneau, un a zero -- et c'est l'image que l'utilisateur vient corriger.
+  expect_true(inherits(th[[1]]$axis.line.x, "element_blank"))
+  expect_true(inherits(th[[1]]$axis.line.x.bottom, "element_blank"))
+  # MAIS L'AXE Y N'EST PAS TOUCHE : il porte l'echelle, y compris la part
+  # negative. Les deux axes se rejoignent alors a l'origine.
+  expect_null(th[[1]]$axis.line.y)
+  # La couleur et l'epaisseur sont celles du trait d'axe : un noir arbitraire
+  # en ferait un repere de plus a cote d'un cadre d'une autre couleur.
+  hl <- Filter(function(x) inherits(x, "Layer"), ax$couches)
+  expect_equal(hl[[1]]$aes_params$colour, "#123456")
+  expect_equal(hl[[1]]$aes_params$linewidth, 2)
+  # Une epaisseur aberrante ne fait pas tomber le graphique.
+  expect_equal(Filter(function(x) inherits(x, "Layer"),
+                      hstat_axe_zero("axe", epaisseur = NA)$couches)[[1]]$aes_params$linewidth, 1)
+})
+
+test_that("pose sur le zero, le trait d'axe rejoint vraiment les graduations", {
+  skip_if_not_installed("ggplot2")
+  d <- data.frame(M = factor(c("A", "B", "C")), v = c(10, 20, 30))
+  extras <- hstat_plot_extras_lire(
+    list(pfxAxisLine = TRUE, pfxAxisLineCouleur = "#000000",
+         pfxAxisLineEpaisseur = 1), "pfx")
+  base <- ggplot2::ggplot(d, ggplot2::aes(x = M, y = v)) + ggplot2::geom_col() +
+    hstat_plot_extras_theme(extras)
+  bas <- function(p) ggplot2::ggplot_build(p)$layout$panel_params[[1]]$y.range[1]
+
+  # LE DEFAUT MESURE, celui de la capture d'ecran : le trait d'axe est au BAS
+  # du panneau, et le bas du panneau n'est pas zero -- ggplot detend l'echelle
+  # de 5 % de chaque cote. Zero flotte donc au-dessus du trait.
+  expect_true(inherits(base$theme$axis.line.x, "element_line"))
+  expect_lt(bas(base), 0)
+
+  z <- hstat_axe_zero("axe", negatifs = FALSE, extras$axe_col, extras$axe_ep)
+  pose <- base + z$couches + ggplot2::scale_y_continuous(expand = z$expand)
+  # L'ancien trait a disparu, celui de l'axe Y est intact.
+  expect_true(inherits(pose$theme$axis.line.x, "element_blank"))
+  expect_true(inherits(pose$theme$axis.line.y, "element_line"))
+  # ET LE BAS DU PANNEAU EST EXACTEMENT ZERO. Sans cette moitie-la du
+  # correctif, le trait serait pose a zero pendant que les graduations
+  # resteraient dessinees au bord du panneau, 1,5 unite plus bas : on aurait
+  # deplace le defaut au lieu de le corriger. C'est l'assertion qui distingue
+  # les deux codes -- la couche seule ne la satisfait pas.
+  expect_equal(bas(pose), 0)
+
+  # DES QU'UNE VALEUR EST NEGATIVE, l'expansion se garde : le trait est de
+  # toute facon a l'interieur du cadre, et une barre collee au bord se lit mal.
+  zn <- hstat_axe_zero("axe", negatifs = TRUE)
+  expect_true(identical(zn$expand, ggplot2::waiver()))
+  dn <- data.frame(M = factor(c("A", "B", "C")), v = c(-10, 20, 30))
+  pn <- ggplot2::ggplot(dn, ggplot2::aes(x = M, y = v)) + ggplot2::geom_col() +
+    zn$couches
+  expect_lt(bas(pn), -10)
+
+  # Et le trait reste DANS le cadre meme si la serie n'atteint jamais zero :
+  # sans `expand_limits`, le reglage rendrait un axe invisible.
+  dl <- data.frame(M = factor(c("A", "B")), v = c(40, 50))
+  pl <- ggplot2::ggplot(dl, ggplot2::aes(x = M, y = v)) +
+    ggplot2::geom_point() + hstat_axe_zero("axe")$couches
+  expect_lte(bas(pl), 0)
+})
+
+test_that("masquer une modalite la retire de la figure sans toucher aux chiffres", {
+  skip_if_not_installed("ggplot2")
+  h <- data.frame(Modalite = rep(c("T0", "T1", "T2"), each = 3),
+                  Masse    = c(10, 11, 12, 20, 21, 22, 30, 31, 32),
+                  Surface  = rep(1, 9), Bloc = rep(1:3, 3),
+                  stringsAsFactors = FALSE)
+  lance <- function(masque) {
+    v <- shiny::reactiveValues(data = h, cleanData = h, filteredData = h,
+                               aiHistory = list())
+    out <- list()
+    shiny::testServer(mod_yield_server, args = list(values = v), {
+      vider <- function() try(session$flushReact(), silent = TRUE)
+      session$setInputs(yieldSource = "fichier", yieldModalite = "Modalite",
+                        yieldMasse = "Masse", yieldSurface = "Surface",
+                        yieldRepetition = "Bloc", yieldTemoin = "T0"); vider()
+      session$setInputs(yieldMesure = "Rendement_moyen", yieldErreurs = FALSE,
+                        yieldZeroMode = "reference", yieldMasquer = masque); vider()
+      out <<- list(p = graphique(), r = resultat(), note = output$yieldPlotNote)
+    })
+    out
+  }
+  niveaux <- function(p) {
+    b <- suppressWarnings(ggplot2::ggplot_build(p))
+    as.character(b$layout$panel_params[[1]]$x$get_labels())
+  }
+
+  tout <- lance(character(0))
+  expect_setequal(niveaux(tout$p), c("T0", "T1", "T2"))
+
+  part <- lance("T1")
+  # La modalite masquee quitte l'axe -- et elle n'y laisse pas sa place vide,
+  # ce qu'un facteur pose avant le retrait aurait fait.
+  expect_setequal(niveaux(part$p), c("T0", "T2"))
+
+  # MASQUER N'EST PAS FILTRER, et c'est tout le reglage : le tableau et les
+  # moyennes portent toujours les trois modalites. Un filtre, lui,
+  # recalculerait -- et c'est l'assertion qui separe les deux comportements.
+  expect_setequal(as.character(part$r$Modalite), c("T0", "T1", "T2"))
+  expect_equal(part$r$Rendement_moyen, tout$r$Rendement_moyen, tolerance = 1e-10)
+
+  # UNE BARRE ABSENTE SE NOMME. Une figure a laquelle il manque une modalite,
+  # sans rien qui le dise, se lit comme un essai qui n'en comptait que deux.
+  # `as.character()` d'une liste de balises rend UN element par noeud : l'aplatir
+  # est la difference entre une assertion et un vecteur de trois verdicts dont
+  # `expect_true` ne sait que faire.
+  txt <- function(x) paste(as.character(x), collapse = "")
+  expect_true(grepl("T1", txt(part$note), fixed = TRUE))
+  expect_true(grepl("masquer ne change aucun chiffre", txt(part$note), fixed = TRUE))
+  expect_false(grepl("T1", txt(tout$note), fixed = TRUE))
+
+  # Tout masquer ne fait pas tomber le module : il n'y a simplement plus de
+  # figure, et le motif affiche dira le masquage plutot que les colonnes.
+  expect_null(lance(c("T0", "T1", "T2"))$p)
 })

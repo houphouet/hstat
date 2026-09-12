@@ -381,6 +381,12 @@ mod_yield_ui <- function(id) {
                                       "Valeur décroissante" = "decroissant",
                                       "Non traité en premier" = "temoin"),
                           selected = "alpha"),
+              # MASQUER N'EST PAS FILTRER, et la difference est le tout du
+              # reglage : aucun chiffre ne change. Les rendements, les gains et
+              # le tableau portent toujours TOUTES les modalites -- seule la
+              # figure en montre moins. Un filtre, lui, recalculerait les
+              # moyennes sur ce qui reste.
+              shiny::uiOutput(ns("yieldMasquerUI")),
               shiny::checkboxInput(ns("yieldLimites"), "Personnaliser les limites Y", value = FALSE),
               shiny::conditionalPanel(
                 ns = ns, condition = "input.yieldLimites == true",
@@ -397,7 +403,15 @@ mod_yield_ui <- function(id) {
               # rendement negatif -- une correction, un solde -- ne se
               # distingue plus d'un rendement faible. Le trait n'est donc pas
               # reserve aux gains.
-              shiny::checkboxInput(ns("yieldLigneZero"), "Ligne de référence à 0", value = TRUE),
+              #
+              # UN SEUL REGLAGE POUR UNE SEULE LIGNE : le repere pointille et
+              # l'axe X pose sur le zero sont le MEME trait. Deux cases
+              # pourraient se contredire, et c'est la seconde -- invisible --
+              # qui finirait par mentir.
+              shiny::selectInput(ns("yieldZeroMode"), "Ligne du zéro",
+                          choices = HSTAT_AXE_ZERO, selected = "reference"),
+              shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                         "Posé sur le zéro, le trait de l'axe X quitte le bas du cadre pour la ligne y = 0, où les barres prennent appui ; l'axe Y, lui, garde toute la hauteur pour porter l'échelle. Les deux se rejoignent à l'origine."),
               shiny::checkboxInput(ns("yieldErreurs"), "Barres d'erreur supérieures (rendement moyen)", value = TRUE),
               shiny::conditionalPanel(
                 ns = ns, condition = "input.yieldErreurs == true",
@@ -817,12 +831,39 @@ mod_yield_server <- function(id, values) {
                   choices = dispo, selected = sel, width = "100%")
     })
 
+    # LES MODALITES A MASQUER SE CHOISISSENT DANS CELLES QUI EXISTENT. Une
+    # liste ecrite a la main derivierait du jeu charge ; celle-ci est construite
+    # sur `resultat()`, donc un essai a onze traitements en propose onze.
+    #
+    # LA SELECTION SURVIT AU RECALCUL, mais seulement pour ce qui existe encore.
+    # Sans `isolate()`, lire l'entree ici ferait boucler le rendu sur sa propre
+    # ecriture ; sans l'intersection, une modalite disparue du nouveau fichier
+    # resterait masquee sans figurer nulle part -- un reglage actif que plus
+    # aucune commande n'affiche.
+    output$yieldMasquerUI <- shiny::renderUI({
+      r <- resultat()
+      mods <- if (NROW(r)) unique(as.character(r$Modalite)) else character(0)
+      mods <- mods[!is.na(mods)]
+      if (!length(mods)) return(NULL)
+      garde <- intersect(as.character(shiny::isolate(input$yieldMasquer)), mods)
+      pickerInput(ns("yieldMasquer"), "Modalités à ne pas tracer",
+                  choices = mods, selected = garde, multiple = TRUE)
+    })
+
     graphique <- shiny::reactive({
       r <- resultat()
       shiny::req(NROW(r))
       mesure <- input$yieldMesure %||% "Rendement_moyen"
       if (!(mesure %in% names(r))) return(NULL)
       d <- r[is.finite(r[[mesure]]), , drop = FALSE]
+      if (!NROW(d)) return(NULL)
+      # ON RETIRE AVANT D'ORDONNER : les niveaux du facteur sont alors ceux qui
+      # restent, et « valeur croissante » classe ce qui est trace, pas ce qui a
+      # ete calcule. Poser le facteur d'abord laisserait sur l'axe la place vide
+      # de chaque modalite retiree.
+      masque <- as.character(input$yieldMasquer %||% character(0))
+      if (length(masque))
+        d <- d[!(as.character(d$Modalite) %in% masque), , drop = FALSE]
       if (!NROW(d)) return(NULL)
       d <- ordonner(d, mesure, input$yieldOrdre %||% "alpha", input$yieldTemoin %||% "")
       d$.val <- d[[mesure]]
@@ -902,9 +943,20 @@ mod_yield_server <- function(id, values) {
                                      size = max(2, (input$yieldPointSize %||% 4) * 0.6),
                                      shape = 18, show.legend = FALSE)
       negatifs <- any(is.finite(d$.val) & d$.val < 0)
-      if ((gain || negatifs) && isTRUE(input$yieldLigneZero))
-        p <- p + ggplot2::geom_hline(yintercept = 0, linetype = "dashed",
-                                     colour = "#7f8c8d", linewidth = 0.5)
+      # Le kit commun est lu ICI et non plus au moment du theme : pose sur le
+      # zero, le trait de l'axe X doit porter LA COULEUR ET L'EPAISSEUR du
+      # trait d'axe. Un noir arbitraire en ferait un repere de plus a cote d'un
+      # cadre d'une autre couleur, au lieu du meme axe deplace.
+      extras <- hstat_plot_extras_lire(input, "yield")
+      zmode <- input$yieldZeroMode %||% "reference"
+      # LE REPERE POINTILLE GARDE SA RESERVE D'ORIGINE : sur une serie qui ne
+      # descend jamais sous zero, il double le bas du cadre sans rien apprendre.
+      # L'AXE POSE SUR LE ZERO, lui, n'est jamais retire : c'est une demande
+      # explicite, et il a un sens meme sans valeur negative -- c'est la que les
+      # barres prennent appui.
+      if (identical(zmode, "reference") && !(gain || negatifs)) zmode <- "aucune"
+      zero <- hstat_axe_zero(zmode, negatifs, extras$axe_col, extras$axe_ep)
+      p <- p + zero$couches
       if (negatifs) p <- p + ggplot2::expand_limits(y = 0)
 
       if (isTRUE(input$yieldValeurs)) {
@@ -936,20 +988,25 @@ mod_yield_server <- function(id, values) {
         c(if (is.finite(input$yieldYMin %||% NA)) input$yieldYMin else NA,
           if (is.finite(input$yieldYMax %||% NA)) input$yieldYMax else NA) else c(NA, NA)
       pas <- input$yieldPasY
+      brk <- ggplot2::waiver()
       if (isTRUE(is.finite(pas)) && pas > 0) {
         bornes <- hstat_etendue_axe(c(d$.val, d$.hi, lim))
-        p <- p + ggplot2::scale_y_continuous(
-          breaks = seq(hstat_pas_debut(bornes[1], pas), bornes[2] + pas, by = pas))
+        brk <- seq(hstat_pas_debut(bornes[1], pas), bornes[2] + pas, by = pas)
       }
+      # UNE SEULE ECHELLE Y. Deux `scale_y_continuous()` ne s'ajoutent pas : le
+      # second REMPLACE le premier en avertissant. Poser l'expansion a part des
+      # graduations effacerait donc l'une des deux, selon l'ordre d'ecriture.
+      if (!identical(brk, ggplot2::waiver()) ||
+          !identical(zero$expand, ggplot2::waiver()))
+        p <- p + ggplot2::scale_y_continuous(breaks = brk, expand = zero$expand)
       if (any(is.finite(lim))) p <- p + ggplot2::coord_cartesian(ylim = lim)
       if (identical(type, "barh")) p <- p + ggplot2::coord_flip()
 
       angle_x <- input$yieldAngleX %||% 45
       angle_y <- input$yieldAngleY %||% 0
-      # Le kit commun : cadre, marges, police de base, trait des axes et
-      # taille des cles. `police` part au THEME -- l'appliquer apres coup ne
-      # toucherait que ce que le theme vient de fixer.
-      extras <- hstat_plot_extras_lire(input, "yield")
+      # Le kit commun (`extras`, lu plus haut) : cadre, marges, police de base,
+      # trait des axes et taille des cles. `police` part au THEME -- l'appliquer
+      # apres coup ne toucherait que ce que le theme vient de fixer.
       nt <- input$yieldTemoin %||% ""
       sous_auto <- if (gain && nzchar(nt))
         trf("Référence : %s (gain nul par définition)", nt) else NULL
@@ -1003,10 +1060,25 @@ mod_yield_server <- function(id, values) {
         hstat_plot_extras_theme(extras)
     })
 
+    # LE MOTIF D'UN GRAPHIQUE VIDE DOIT ETRE LE BON. « Vérifiez les colonnes »
+    # envoie chercher un défaut de saisie là où l'utilisateur a simplement tout
+    # masqué : il relirait ses colonnes sans jamais penser au réglage qu'il
+    # vient de poser.
+    motif_vide <- function() {
+      r <- resultat()
+      m <- input$yieldMesure %||% "Rendement_moyen"
+      if (NROW(r) && m %in% names(r)) {
+        tracables <- unique(as.character(r$Modalite[is.finite(r[[m]])]))
+        masque <- as.character(input$yieldMasquer %||% character(0))
+        if (length(tracables) && !length(setdiff(tracables, masque)))
+          return(tr("Toutes les modalités représentables sont masquées : retirez-en au moins une de « Modalités à ne pas tracer »."))
+      }
+      tr("Aucune valeur à représenter pour cette mesure : vérifiez les colonnes choisies et le programme non traité.")
+    }
+
     output$yieldPlot <- shiny::renderPlot({
       p <- graphique()
-      shiny::validate(shiny::need(!is.null(p),
-        "Aucune valeur à représenter pour cette mesure : vérifiez les colonnes choisies et le programme non traité."))
+      shiny::validate(shiny::need(!is.null(p), motif_vide()))
       p
     })
 
@@ -1014,14 +1086,37 @@ mod_yield_server <- function(id, values) {
       shiny::req(input$yieldMesure)
       r <- resultat()
       m <- input$yieldMesure
+      gain <- .hstat_rdt_est_gain(m)
       neg <- NROW(r) && m %in% names(r) && any(is.finite(r[[m]]) & r[[m]] < 0)
-      if (!.hstat_rdt_est_gain(m) && !neg) return(NULL)
+      masque <- intersect(as.character(input$yieldMasquer %||% character(0)),
+                          if (NROW(r)) as.character(r$Modalite) else character(0))
+      nt <- input$yieldTemoin %||% ""
+      lignes <- character(0)
+      # UNE BARRE ABSENTE SE NOMME. Une figure a laquelle il manque des
+      # modalites, sans rien qui le dise, se lit comme un essai qui n'en
+      # comptait pas davantage -- et c'est cette figure-la qui part au rapport.
+      # On dit aussi ce que le masquage NE fait pas : les moyennes, les gains et
+      # le tableau portent toujours toutes les modalites. Un filtre, lui,
+      # recalculerait.
+      if (length(masque))
+        lignes <- c(lignes, trf(
+          "Modalités masquées sur la figure : %s. Les calculs et les tableaux les gardent toutes : masquer ne change aucun chiffre.",
+          paste(masque, collapse = ", ")))
+      # Le sous-titre d'un graphique de gain NOMME le programme non traité comme
+      # référence. Masquer sa barre laisse donc une référence citée et absente :
+      # on le dit, plutôt que de laisser chercher la barre à zéro.
+      if (length(masque) && gain && nzchar(nt) && nt %in% masque)
+        lignes <- c(lignes, trf(
+          "Le programme non traité « %s » est masqué : sa barre de gain nul n'est plus sur la figure, alors que le sous-titre le cite toujours comme référence.",
+          nt))
+      if (gain)
+        lignes <- c(lignes, tr("Un gain négatif signifie que la modalité fait moins bien que le programme non traité : c'est un résultat, pas une erreur."))
+      else if (neg)
+        lignes <- c(lignes, tr("Les valeurs négatives sont représentées telles quelles, sous la ligne de zéro : les masquer ou les ramener à zéro cacherait précisément ce qu'il faut voir."))
+      if (!length(lignes)) return(NULL)
       shiny::div(style = "font-size:12px;color:#7f8c8d;margin-bottom:10px;",
-          shiny::icon("circle-info"), " ",
-          if (.hstat_rdt_est_gain(m))
-            "Un gain négatif signifie que la modalité fait moins bien que le programme non traité : c'est un résultat, pas une erreur."
-          else
-            "Les valeurs négatives sont représentées telles quelles, sous la ligne de zéro : les masquer ou les ramener à zéro cacherait précisément ce qu'il faut voir.")
+          lapply(lignes, function(t)
+            shiny::div(shiny::icon("circle-info"), " ", t)))
     })
 
     # -------------------------------------------------------------- exports

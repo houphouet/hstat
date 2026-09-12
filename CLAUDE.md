@@ -1382,6 +1382,84 @@ ggplot cadre sur les données : la base de comparaison sort du champ et l'ampleu
 du recul devient invisible. D'où `expand_limits(y = 0)`, et un trait de zéro qui
 n'est plus réservé aux gains.
 
+### La ligne du zéro est une seule ligne, donc un seul réglage
+
+Signalé à l'écran, capture à l'appui : le trait de l'axe X était au **bas du
+cadre** pendant que les barres prenaient appui sur le zéro, une graduation et
+demie plus haut. On lisait donc deux horizontales là où il n'y en a qu'une.
+
+La cause n'est pas un défaut de dessin : ggplot2 trace le trait d'axe par le
+**thème**, au bord du panneau, et rien ne le déplace à une ordonnée choisie. Le
+trait posé sur le zéro est donc une **couche** (`geom_hline`), à la couleur et à
+l'épaisseur du trait d'axe — un noir arbitraire en ferait un repère de plus à
+côté d'un cadre d'une autre couleur, au lieu du même axe déplacé.
+
+`hstat_axe_zero()` (`R/utils.R`) porte la règle, et **trois pièces sont
+nécessaires** :
+
+1. **La couche**, à zéro.
+2. **L'effacement de `axis.line.x`**, sans quoi l'axe existe en deux
+   exemplaires — un au bas du panneau, un à zéro — c'est-à-dire exactement
+   l'image qu'on venait corriger. Seul l'axe X est effacé : **l'axe Y porte
+   l'échelle** et doit couvrir toute la hauteur, part négative comprise. Les
+   deux se rejoignent alors à l'origine, ce que la demande appelait « x = 0 et
+   y = 0 » — sur un axe X discret il n'existe aucune abscisse zéro, le bord
+   gauche du panneau *est* l'origine.
+3. **L'expansion du bas disparaît quand rien n'est négatif.** Mesuré : sur trois
+   barres de 10, 20 et 30, l'étendue du panneau va de **−1,5 à 31,5** — zéro est
+   1,5 unité au-dessus du bas. Le trait posé à zéro y flotterait au-dessus des
+   **graduations**, qui sont dessinées au bord du panneau : on aurait déplacé le
+   défaut au lieu de le corriger. Sans l'expansion du bas (0 à 31,5, mesuré), le
+   zéro *est* le bord. C'est l'assertion qui distingue les deux codes — la
+   couche seule ne la satisfait pas.
+
+Dès qu'une valeur est négative l'expansion se garde : le trait est de toute
+façon à l'intérieur du cadre, et une barre collée au bord se lit mal.
+
+**Et c'est un seul réglage, pas deux cases.** Le repère pointillé et l'axe posé
+sur le zéro sont **le même trait** : deux commandes pourraient se contredire, et
+c'est la seconde — invisible — qui finirait par mentir. `HSTAT_AXE_ZERO` déclare
+les trois états une fois. Un mode inconnu retombe sur le repère, jamais sur
+l'effacement : un nom de travers ne doit pas faire disparaître le trait d'axe
+sans un mot.
+
+L'expansion voyage **à part** des couches parce qu'elle appartient à l'échelle :
+deux `scale_y_continuous()` ne s'ajoutent pas, le second remplace le premier en
+avertissant. L'appelant compose donc **une** échelle avec ses propres
+graduations.
+
+### Masquer une modalité n'est pas la filtrer
+
+Demandé à l'écran : pouvoir retirer de la figure les modalités qu'on ne veut pas
+y voir. La distinction qui fait tout le réglage : **aucun chiffre ne change**.
+Les rendements, les gains, l'écart-type et le tableau portent toujours toutes
+les modalités ; seule la figure en montre moins. Un filtre, lui, recalculerait
+les moyennes sur ce qui reste — et c'est l'assertion qui sépare les deux
+comportements dans le test.
+
+Trois points de construction :
+
+1. **On retire avant d'ordonner.** Les niveaux du facteur sont alors ceux qui
+   restent, et « valeur croissante » classe ce qui est tracé. Poser le facteur
+   d'abord laisserait sur l'axe la **place vide** de chaque modalité retirée.
+2. **La liste est construite sur les modalités qui existent**, et la sélection
+   survit au recalcul — mais seulement pour ce qui existe encore. Sans
+   `isolate()`, lire l'entrée dans son propre `renderUI` ferait boucler le rendu
+   sur son écriture ; sans l'intersection, une modalité disparue du nouveau
+   fichier resterait masquée sans figurer nulle part, réglage actif qu'aucune
+   commande n'affiche.
+3. **Une barre absente se nomme.** La note sous la figure liste les modalités
+   masquées et rappelle que les calculs les gardent toutes. Une figure à
+   laquelle il manque une modalité, sans rien qui le dise, se lit comme un essai
+   qui n'en comptait pas davantage — et c'est cette figure-là qui part au
+   rapport. Quand le **programme non traité** est masqué sur un graphique de
+   gain, on le dit aussi : le sous-titre le cite toujours comme référence alors
+   que sa barre de gain nul a quitté la figure.
+
+Et le motif d'un graphique vide doit être le bon : « vérifiez les colonnes »
+enverrait chercher un défaut de saisie là où l'utilisateur a simplement tout
+masqué.
+
 ### L'ordre des modalités est un réglage lu par le réactif
 
 Il était lu dans l'aide `ordonner()`, appelée depuis le réactif : la dépendance
