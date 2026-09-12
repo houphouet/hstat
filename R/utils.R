@@ -8425,3 +8425,1018 @@ hstat_installer_replis_ui <- function(envir = globalenv()) {
                              selected = labels, multiple = TRUE))
   invisible(TRUE)
 }
+
+# ==============================================================================
+#  DIVERSITE ECOLOGIQUE : matrice sites x especes, indices alpha et beta
+# ==============================================================================
+# Toutes les statistiques vivent ICI et non dans le module : c'est la regle du
+# depot, et elle a une raison pratique -- une statistique posee dans un
+# `observeEvent` n'est pas testable, et `vegan` n'est pas garanti present.
+#
+# CE QUI PASSE PAR VEGAN, ET CE QUI N'Y PASSE PAS. vegan est en Suggests : il
+# apporte les distances et la rarefaction, il ne doit pas emporter les indices.
+# Shannon, Simpson, Chao1, Jaccard et Sorensen sont donc calcules ici, en R de
+# base -- ce sont des sommes et des comptages. Un test les confronte a vegan
+# quand il est la ; sans lui l'application rend les memes nombres.
+
+# -- LA BASE DU LOGARITHME N'EST PAS UN DETAIL D'AFFICHAGE ---------------------
+# `vegan::diversity()` calcule en logarithme NATUREL. La grille de lecture la
+# plus employee en ecologie francophone (Frontier) est, elle, en BITS (log2).
+# Appliquer l'une a l'autre ne leve rien et ne laisse aucun vide : cela rend un
+# verdict plausible et faux. Sur un peuplement de H' = 2,5 bits -- « diversite
+# moyenne » -- la meme valeur vaut 1,73 nat, que la meme grille lue en nats
+# classerait « faible ».
+#
+# La base est donc DECLAREE des deux cotes : sur la valeur calculee, et sur
+# chaque grille de seuils. `hstat_div_verdict()` convertit avant de comparer.
+HSTAT_DIV_BASES <- c("bits (log2)" = "2", "nats (ln)" = "e", "décibels (log10)" = "10")
+
+.hstat_div_log <- function(x, base = "2") {
+  b <- as.character(base %||% "2")[1]
+  if (identical(b, "e")) log(x) else log(x, base = as.numeric(b))
+}
+
+# Conversion d'une entropie d'une base a l'autre : H_b2 = H_b1 * ln(b1)/ln(b2).
+hstat_div_convertir <- function(h, de = "2", vers = "2") {
+  lb <- function(b) if (identical(as.character(b), "e")) 1 else log(as.numeric(b))
+  h * lb(de) / lb(vers)
+}
+
+
+# -- Matrice sites x especes --------------------------------------------------
+# Deux formes de fichier existent sur le terrain, et aucune ne se devine :
+#
+#   LONG  : une ligne par (releve, espece), avec une colonne d'effectif -- ou
+#           sans, auquel cas CHAQUE LIGNE EST UN INDIVIDU et l'effectif est le
+#           nombre de lignes. C'est la forme d'une fiche de terrain.
+#   LARGE : la matrice deja faite, une colonne par espece.
+#
+# Le format se declare, il ne s'infere pas : une fiche large dont la premiere
+# colonne porte des noms d'especes serait lue a l'envers sans un mot.
+hstat_div_matrice <- function(data, format = c("long", "large"),
+                              var_site = NULL, var_espece = NULL,
+                              var_abondance = NULL, var_especes = NULL) {
+  format <- match.arg(format)
+  if (!is.data.frame(data) || !nrow(data))
+    stop("Aucune donnée à agréger.", call. = FALSE)
+
+  msg <- character(0)
+  if (identical(format, "large")) {
+    cols <- intersect(as.character(var_especes %||% character(0)), names(data))
+    if (length(cols) < 1L)
+      stop("Sélectionnez au moins une colonne d'espèce.", call. = FALSE)
+    m <- as.matrix(data[, cols, drop = FALSE])
+    storage.mode(m) <- "double"
+    lignes <- if (!is.null(var_site) && var_site %in% names(data))
+      as.character(data[[var_site]]) else paste0("Relevé ", seq_len(nrow(data)))
+    # Deux lignes de meme nom de releve sont AGREGEES, pas empilees : un fichier
+    # qui repete un releve sur plusieurs lignes est courant, et deux lignes
+    # homonymes compteraient sinon pour deux sites dans toute la beta-diversite.
+    if (anyDuplicated(lignes)) {
+      m <- rowsum(m, group = lignes, reorder = FALSE)
+      msg <- c(msg, trf("%d relevé(s) apparaissaient sur plusieurs lignes : leurs effectifs ont été additionnés.",
+                        sum(duplicated(lignes))))
+      lignes <- rownames(m)
+    }
+    rownames(m) <- lignes
+  } else {
+    if (is.null(var_espece) || !var_espece %in% names(data))
+      stop("Sélectionnez la colonne des espèces.", call. = FALSE)
+    esp <- as.character(data[[var_espece]])
+    sit <- if (!is.null(var_site) && var_site %in% names(data))
+      as.character(data[[var_site]]) else rep("Ensemble", nrow(data))
+    if (is.null(var_abondance) || !nzchar(var_abondance %||% "") ||
+        !var_abondance %in% names(data)) {
+      # CHAQUE LIGNE EST UN INDIVIDU. Le dire, parce que c'est une hypothese :
+      # un fichier qui portait une colonne d'effectif non selectionnee serait
+      # sinon compte comme une observation par ligne, sans un mot.
+      ab <- rep(1, length(esp))
+      msg <- c(msg, tr("Aucune colonne d'effectif : chaque ligne est comptée pour un individu."))
+    } else {
+      ab <- hstat_as_numeric_fr(data[[var_abondance]])
+      if (is.null(ab)) ab <- suppressWarnings(as.numeric(data[[var_abondance]]))
+    }
+    ok <- !is.na(esp) & nzchar(esp) & !is.na(sit) & !is.na(ab)
+    if (sum(!ok))
+      msg <- c(msg, trf("%d ligne(s) écartée(s) : espèce, relevé ou effectif manquant.", sum(!ok)))
+    if (!any(ok)) stop("Aucune ligne exploitable après nettoyage.", call. = FALSE)
+    neg <- ok & ab < 0
+    if (any(neg)) {
+      msg <- c(msg, trf("%d effectif(s) négatif(s) écarté(s) : un effectif ne peut pas l'être.", sum(neg)))
+      ok <- ok & !neg
+    }
+    m <- tapply(ab[ok], list(sit[ok], esp[ok]), sum)
+    m[is.na(m)] <- 0
+    m <- as.matrix(m)
+  }
+
+  m[!is.finite(m)] <- 0
+  # Une espece absente de TOUS les releves n'apporte rien et fausse la richesse
+  # si elle reste en colonne : `Sobs` compte les colonnes non nulles, mais les
+  # estimateurs de richesse comptent les singletons sur la matrice entiere.
+  vides_esp <- colSums(m) <= 0
+  if (any(vides_esp)) {
+    msg <- c(msg, trf("%d espèce(s) absente(s) de tous les relevés, écartée(s).", sum(vides_esp)))
+    m <- m[, !vides_esp, drop = FALSE]
+  }
+  vides_sit <- rowSums(m) <= 0
+  if (any(vides_sit)) {
+    msg <- c(msg, trf("%d relevé(s) sans aucun individu, écarté(s).", sum(vides_sit)))
+    m <- m[!vides_sit, , drop = FALSE]
+  }
+  if (!nrow(m) || !ncol(m))
+    stop("La matrice est vide après nettoyage.", call. = FALSE)
+  attr(m, "message") <- if (length(msg)) paste(msg, collapse = " ") else NULL
+  m
+}
+
+
+# -- Estimateurs de richesse --------------------------------------------------
+# Un inventaire ne voit jamais toutes les especes presentes : celles qui n'ont
+# ete rencontrees qu'une ou deux fois disent combien il en reste a voir. C'est
+# tout le principe des estimateurs non parametriques, et c'est pourquoi les
+# SINGLETONS et les DOUBLETONS sont affiches a cote de l'estimation : sans eux,
+# le chiffre ne se discute pas.
+hstat_div_richesse <- function(x) {
+  x <- as.numeric(x); x <- x[is.finite(x) & x > 0]
+  S <- length(x); N <- sum(x)
+  ent <- abs(x - round(x)) < 1e-9
+  # LES ESTIMATEURS COMPTENT DES INDIVIDUS, PAS DES BIOMASSES. Sur des donnees
+  # de recouvrement ou de poids, « singleton » n'a aucun sens : on rend NA et on
+  # le dit, plutot qu'un Chao1 calcule sur des decimales arrondies.
+  entier <- all(ent)
+  F1 <- if (entier) sum(x == 1) else NA_real_
+  F2 <- if (entier) sum(x == 2) else NA_real_
+
+  chao1 <- chao1_bc <- chao1_var <- chao1_inf <- chao1_sup <- NA_real_
+  ace <- jack1 <- jack2 <- boot <- couverture <- NA_real_
+  if (entier && S > 0) {
+    # Chao (1984) : S + F1^2 / (2 F2). Indefini a F2 = 0, cas FREQUENT sur un
+    # petit inventaire -- d'ou la forme corrigee du biais, toujours definie,
+    # qui est celle que l'on affiche en premier.
+    chao1    <- if (F2 > 0) S + F1^2 / (2 * F2) else NA_real_
+    chao1_bc <- S + F1 * (F1 - 1) / (2 * (F2 + 1))
+    if (F2 > 0) {
+      r <- F1 / F2
+      chao1_var <- F2 * (r^4 / 4 + r^3 + r^2 / 2)
+    } else if (F1 > 0) {
+      chao1_var <- F1 * (F1 - 1) / 2 + F1 * (2 * F1 - 1)^2 / 4 - F1^4 / (4 * chao1_bc)
+    }
+    # Intervalle LOG-NORMAL (Chao 1987) et non symetrique : la borne basse ne
+    # peut pas descendre sous le nombre d'especes REELLEMENT observees, et un
+    # intervalle symetrique le fait des que la variance est grande.
+    est <- if (is.finite(chao1)) chao1 else chao1_bc
+    if (is.finite(chao1_var) && chao1_var > 0 && est > S) {
+      K <- exp(1.96 * sqrt(log(1 + chao1_var / (est - S)^2)))
+      chao1_inf <- S + (est - S) / K
+      chao1_sup <- S + (est - S) * K
+    } else if (is.finite(est)) {
+      chao1_inf <- chao1_sup <- est
+    }
+
+    # Couverture de Good (1953) : part des individus appartenant a des especes
+    # deja vues plus d'une fois. C'est la mesure d'effort la plus lisible.
+    if (N > 0) couverture <- 1 - F1 / N
+
+    # ACE -- Chao & Lee (1992). Le seuil de rarete est 10, la valeur du papier.
+    rares <- x[x <= 10]; abondantes <- x[x > 10]
+    S_rare <- length(rares); S_abond <- length(abondantes)
+    N_rare <- sum(rares)
+    if (S_rare > 0 && N_rare > 0 && F1 < N_rare) {
+      C_ace <- 1 - F1 / N_rare
+      somme <- sum(vapply(1:10, function(i) i * (i - 1) * sum(x == i), numeric(1)))
+      g2 <- max(0, (S_rare / C_ace) * somme / (N_rare * (N_rare - 1)) - 1)
+      ace <- S_abond + S_rare / C_ace + F1 / C_ace * g2
+    }
+
+    # Jackknife d'ordre 1 et 2 -- Burnham & Overton (1978, 1979).
+    jack1 <- S + F1 * (N - 1) / N
+    if (N > 1) jack2 <- S + F1 * (2 * N - 3) / N - F2 * (N - 2)^2 / (N * (N - 1))
+    # Bootstrap -- Smith & van Belle (1984).
+    p <- x / N
+    boot <- S + sum((1 - p)^N)
+  }
+
+  data.frame(
+    Individus = N, Sobs = S,
+    Singletons = F1, Doubletons = F2,
+    Chao1 = chao1, Chao1_corrige = chao1_bc,
+    Chao1_IC_inf = chao1_inf, Chao1_IC_sup = chao1_sup,
+    ACE = ace, Jackknife1 = jack1, Jackknife2 = jack2, Bootstrap = boot,
+    Couverture_Good = couverture,
+    Completude = if (is.finite(chao1_bc) && chao1_bc > 0) S / chao1_bc else NA_real_,
+    stringsAsFactors = FALSE)
+}
+
+
+# -- Indices de diversite et d'equitabilite, releve par releve -----------------
+# Tout est calcule sur les proportions p_i = n_i / N, et sur elles seules : un
+# indice de diversite ne depend pas de l'unite de comptage.
+hstat_div_indices <- function(x, base = "2") {
+  x <- as.numeric(x); x <- x[is.finite(x) & x > 0]
+  S <- length(x); N <- sum(x)
+  vide <- data.frame(Individus = N, Richesse_S = S)
+  if (S == 0 || N <= 0) {
+    for (k in c("Shannon_H", "Shannon_Hmax", "Pielou_J", "Simpson_D",
+                "Simpson_1_D", "Simpson_inverse", "Simpson_E", "Heip_E",
+                "Sheldon_E", "Camargo_E", "Smith_Wilson_Evar", "Brillouin_HB",
+                "Brillouin_E", "McIntosh_U", "McIntosh_D", "McIntosh_E",
+                "Berger_Parker_d", "Berger_Parker_inverse", "Margalef_DMg",
+                "Menhinick_DMn", "Fisher_alpha", "Hill_N0", "Hill_N1",
+                "Hill_N2", "Hill_Ninf"))
+      vide[[k]] <- NA_real_
+    return(vide)
+  }
+  p <- x / N
+
+  H     <- -sum(p * .hstat_div_log(p, base))
+  Hmax  <- .hstat_div_log(S, base)
+  # UNE SEULE ESPECE : H' = 0 ET Hmax = 0, donc J = 0/0. `NaN` traverserait
+  # toutes les sorties et ferait lever la moindre condition posee dessus. Un
+  # peuplement monospecifique n'a PAS d'equitabilite definie -- c'est un fait,
+  # pas un accident de calcul -- et NA le dit la ou NaN ne dit rien.
+  J     <- if (S > 1) H / Hmax else NA_real_
+
+  D     <- sum(p^2)                       # Simpson (1949), concentration
+  D1    <- 1 - D                          # diversite de Gini-Simpson
+  Dinv  <- if (D > 0) 1 / D else NA_real_ # Simpson inverse = Hill N2
+  E_D   <- if (S > 1 && D > 0) Dinv / S else NA_real_
+
+  # Heip (1974) : equitabilite bornee a 0 pour une seule espece dominante, et
+  # moins sensible a la richesse que J. Elle se calcule sur e^H en NATS : la
+  # formule suppose l'exponentielle naturelle, la convertir est indispensable.
+  Hnat  <- hstat_div_convertir(H, base, "e")
+  E_hp  <- if (S > 1) (exp(Hnat) - 1) / (S - 1) else NA_real_
+  E_sh  <- exp(Hnat) / S                                    # Sheldon (1969)
+  E_cam <- if (S > 1)                                       # Camargo (1993)
+    1 - sum(outer(p, p, function(a, b) abs(a - b))[upper.tri(diag(S))]) / S else NA_real_
+  # Smith & Wilson (1996) : Evar, variance des log-abondances, bornee [0 ; 1].
+  E_var <- if (S > 1) {
+    lx <- log(x)
+    1 - 2 / pi * atan(sum((lx - mean(lx))^2) / S)
+  } else NA_real_
+
+  # Brillouin (1956) : l'entropie de la collection FINIE, pas de la population.
+  # C'est l'indice a employer quand l'echantillon n'est pas aleatoire -- un
+  # comptage exhaustif de piege, par exemple.
+  HB <- if (all(abs(x - round(x)) < 1e-9))
+    (lgamma(N + 1) - sum(lgamma(round(x) + 1))) / N else NA_real_
+  HB <- if (is.finite(HB)) hstat_div_convertir(HB / log(2), "2", base) else NA_real_
+  HBmax <- if (is.finite(HB) && S > 0) {
+    n <- N %/% S; r <- N - S * n
+    v <- (lgamma(N + 1) - (S - r) * lgamma(n + 1) - r * lgamma(n + 2)) / N
+    hstat_div_convertir(v / log(2), "2", base)
+  } else NA_real_
+  E_B <- if (is.finite(HB) && is.finite(HBmax) && HBmax > 0) HB / HBmax else NA_real_
+
+  U    <- sqrt(sum(x^2))                                    # McIntosh (1967)
+  D_mc <- if (N > 0) (N - U) / (N - sqrt(N)) else NA_real_
+  E_mc <- if (S > 1 && N > 0)
+    (N - U) / (N - N / sqrt(S)) else NA_real_
+
+  d_bp <- max(p)                                            # Berger & Parker (1970)
+
+  Mg <- if (N > 1) (S - 1) / log(N) else NA_real_           # Margalef (1958)
+  Mn <- S / sqrt(N)                                         # Menhinick (1964)
+
+  data.frame(
+    Individus = N, Richesse_S = S,
+    Shannon_H = H, Shannon_Hmax = Hmax, Pielou_J = J,
+    Simpson_D = D, Simpson_1_D = D1, Simpson_inverse = Dinv, Simpson_E = E_D,
+    Heip_E = E_hp, Sheldon_E = E_sh, Camargo_E = E_cam, Smith_Wilson_Evar = E_var,
+    Brillouin_HB = HB, Brillouin_E = E_B,
+    McIntosh_U = U, McIntosh_D = D_mc, McIntosh_E = E_mc,
+    Berger_Parker_d = d_bp, Berger_Parker_inverse = if (d_bp > 0) 1 / d_bp else NA_real_,
+    Margalef_DMg = Mg, Menhinick_DMn = Mn,
+    Fisher_alpha = hstat_div_fisher(S, N),
+    Hill_N0 = S,
+    Hill_N1 = exp(Hnat),
+    Hill_N2 = Dinv,
+    Hill_Ninf = if (d_bp > 0) 1 / d_bp else NA_real_,
+    stringsAsFactors = FALSE)
+}
+
+
+# -- Alpha de Fisher ----------------------------------------------------------
+# Fisher, Corbet & Williams (1943) : S = a * ln(1 + N/a), a resoudre en `a`.
+# Pas de forme close -- une bissection, bornee, plutot qu'un `uniroot` dont
+# l'echec leverait au milieu d'un tableau de vingt releves.
+hstat_div_fisher <- function(S, N) {
+  S <- as.numeric(S)[1]; N <- as.numeric(N)[1]
+  if (!is.finite(S) || !is.finite(N) || S < 1 || N <= S) return(NA_real_)
+  f <- function(a) a * log(1 + N / a) - S
+  lo <- 1e-8; hi <- 1
+  # L'alpha d'un peuplement tres divers monte vite : on elargit tant que la
+  # borne haute n'encadre pas, plutot que de la figer a une valeur choisie.
+  k <- 0L
+  while (f(hi) < 0 && k < 200L) { hi <- hi * 2; k <- k + 1L }
+  if (f(hi) < 0) return(NA_real_)
+  if (f(lo) > 0) return(NA_real_)
+  for (i in 1:200) {
+    mid <- (lo + hi) / 2
+    if (f(mid) < 0) lo <- mid else hi <- mid
+  }
+  (lo + hi) / 2
+}
+
+
+# -- Nombres de Hill : une seule famille, trois indices connus -----------------
+# Hill (1973) montre que richesse, Shannon et Simpson sont le MEME nombre a
+# trois valeurs de q : q = 0 compte les especes sans regarder leur abondance,
+# q = 1 les pondere par leur frequence, q = 2 favorise les dominantes. Leur
+# unite commune est le « nombre d'especes equivalentes », ce qui les rend
+# comparables entre eux -- ce que H' et D ne sont pas.
+hstat_div_hill <- function(x, q = c(0, 1, 2, Inf)) {
+  x <- as.numeric(x); x <- x[is.finite(x) & x > 0]
+  if (!length(x)) return(stats::setNames(rep(NA_real_, length(q)), paste0("q=", q)))
+  p <- x / sum(x)
+  v <- vapply(q, function(qq) {
+    if (!is.finite(qq)) return(1 / max(p))
+    if (abs(qq - 1) < 1e-9) return(exp(-sum(p * log(p))))
+    sum(p^qq)^(1 / (1 - qq))
+  }, numeric(1))
+  stats::setNames(v, paste0("q=", q))
+}
+
+
+# -- Profil de Renyi ----------------------------------------------------------
+# Renyi (1961) : H_a = ln(sum p^a) / (1 - a). Le profil ORDONNE les peuplements
+# -- si la courbe de l'un reste au-dessus de l'autre sur tout le domaine, il est
+# plus divers quel que soit l'indice choisi ; si elles se croisent, AUCUN indice
+# unique ne peut les departager, et c'est le resultat.
+hstat_div_renyi <- function(x, alphas = c(0, 0.25, 0.5, 1, 2, 4, 8, Inf)) {
+  x <- as.numeric(x); x <- x[is.finite(x) & x > 0]
+  if (!length(x)) return(stats::setNames(rep(NA_real_, length(alphas)), as.character(alphas)))
+  p <- x / sum(x)
+  v <- vapply(alphas, function(a) {
+    if (!is.finite(a)) return(-log(max(p)))
+    if (abs(a - 1) < 1e-9) return(-sum(p * log(p)))
+    log(sum(p^a)) / (1 - a)
+  }, numeric(1))
+  stats::setNames(v, as.character(alphas))
+}
+
+
+# -- Entropie de Tsallis (HCDT) -----------------------------------------------
+# Tsallis (1988) : (1 - sum p^q) / (q - 1). A q = 0 elle vaut S - 1, a q -> 1
+# elle tend vers Shannon en nats, a q = 2 elle vaut l'indice de Gini-Simpson.
+hstat_div_tsallis <- function(x, q = c(0, 1, 2)) {
+  x <- as.numeric(x); x <- x[is.finite(x) & x > 0]
+  if (!length(x)) return(stats::setNames(rep(NA_real_, length(q)), paste0("q=", q)))
+  p <- x / sum(x)
+  v <- vapply(q, function(qq) {
+    if (abs(qq - 1) < 1e-9) return(-sum(p * log(p)))
+    (1 - sum(p^qq)) / (qq - 1)
+  }, numeric(1))
+  stats::setNames(v, paste0("q=", q))
+}
+
+
+# -- Abondances : absolue, relative, frequence d'occurrence -------------------
+# « Abondance relative » est ambigue et les deux lectures existent : la part
+# d'une espece DANS son releve, et sa part dans l'ENSEMBLE du jeu. Les deux
+# colonnes sont donc rendues, nommees. N'en donner qu'une obligerait a refaire
+# le calcul de tete pour avoir l'autre.
+hstat_div_abondance <- function(m) {
+  m <- as.matrix(m)
+  tot <- sum(m)
+  ab  <- colSums(m)
+  data.frame(
+    Espece = colnames(m),
+    Abondance = as.numeric(ab),
+    Abondance_relative_pct = if (tot > 0) as.numeric(ab / tot * 100) else NA_real_,
+    Occurrences = as.integer(colSums(m > 0)),
+    Frequence_pct = if (nrow(m) > 0) as.numeric(colSums(m > 0) / nrow(m) * 100) else NA_real_,
+    Rang = rank(-as.numeric(ab), ties.method = "min"),
+    stringsAsFactors = FALSE, row.names = NULL)[order(-ab), , drop = FALSE]
+}
+
+# Abondance relative DANS chaque releve : c'est la ligne qui somme a 100, et
+# c'est la forme qu'un tableau de vegetation publie.
+hstat_div_abondance_site <- function(m) {
+  m <- as.matrix(m)
+  tot <- rowSums(m)
+  rel <- sweep(m, 1, ifelse(tot > 0, tot, NA_real_), "/") * 100
+  data.frame(Releve = rownames(m), as.data.frame(rel, check.names = FALSE),
+             check.names = FALSE, stringsAsFactors = FALSE, row.names = NULL)
+}
+
+
+# ==============================================================================
+#  DIVERSITE BETA : ce que deux releves ont en commun, et ce qui les separe
+# ==============================================================================
+# TOUS LES COEFFICIENTS SE CALCULENT SUR a, b, c -- et c'est ce qui permet de
+# les poser une seule fois :
+#   a = especes presentes dans LES DEUX releves
+#   b = presentes dans le premier seulement
+#   c = presentes dans le second seulement
+#
+# SIMILARITE OU DISSIMILARITE : les deux se publient, et les confondre inverse
+# la conclusion. Jaccard vaut 0,8 entre deux releves TRES SEMBLABLES en
+# similarite, et entre deux releves TRES DIFFERENTS en dissimilarite. Les deux
+# sont donc rendues cote a cote, nommees, plutot qu'une seule sous un nom
+# qu'il faudrait deviner.
+HSTAT_DIV_BETA_BINAIRES <- c(
+  "Jaccard"              = "jaccard",
+  "Sørensen (Dice)"      = "sorensen",
+  "Ochiai"               = "ochiai",
+  "Kulczynski"           = "kulczynski",
+  "Simpson (turnover)"   = "simpson",
+  "Whittaker"            = "whittaker",
+  "Russell-Rao"          = "russell",
+  "Sokal-Michener"       = "sokal")
+
+HSTAT_DIV_BETA_ABONDANCE <- c(
+  "Bray-Curtis"          = "bray",
+  "Morisita-Horn"        = "horn",
+  "Morisita"             = "morisita",
+  "Canberra"             = "canberra",
+  "Euclidienne"          = "euclidean",
+  "Manhattan"            = "manhattan",
+  "Chao-Jaccard"         = "chao_jaccard",
+  "Chao-Sørensen"        = "chao_sorensen")
+
+.hstat_div_abc <- function(u, v) {
+  pu <- u > 0; pv <- v > 0
+  list(a = sum(pu & pv), b = sum(pu & !pv), c = sum(!pu & pv),
+       d = sum(!pu & !pv))
+}
+
+# Similarite d'une PAIRE, pour un coefficient binaire.
+hstat_div_sim_binaire <- function(u, v, methode = "jaccard") {
+  k <- .hstat_div_abc(u, v); a <- k$a; b <- k$b; cc <- k$c; d <- k$d
+  s <- switch(as.character(methode),
+    jaccard    = if (a + b + cc > 0) a / (a + b + cc) else NA_real_,
+    sorensen   = if (2 * a + b + cc > 0) 2 * a / (2 * a + b + cc) else NA_real_,
+    ochiai     = if ((a + b) > 0 && (a + cc) > 0) a / sqrt((a + b) * (a + cc)) else NA_real_,
+    kulczynski = if ((a + b) > 0 && (a + cc) > 0) (a / (a + b) + a / (a + cc)) / 2 else NA_real_,
+    # Simpson (1943) : rapporte au PLUS PETIT des deux releves. C'est ce qui le
+    # rend insensible aux differences de richesse -- il mesure le remplacement
+    # d'especes et non l'appauvrissement.
+    simpson    = if (a + min(b, cc) > 0) a / (a + min(b, cc)) else NA_real_,
+    # Whittaker (1960) est une DISSIMILARITE par construction : beta_w = S/alpha - 1.
+    # Sur deux releves, elle vaut (b + c) / (2a + b + c) ; on rend sa similarite
+    # pour que la colonne « similarite » garde le meme sens partout.
+    whittaker  = if (2 * a + b + cc > 0) 1 - (b + cc) / (2 * a + b + cc) else NA_real_,
+    russell    = if (a + b + cc + d > 0) a / (a + b + cc + d) else NA_real_,
+    sokal      = if (a + b + cc + d > 0) (a + d) / (a + b + cc + d) else NA_real_,
+    NA_real_)
+  s
+}
+
+# Similarite d'une paire pour un coefficient d'ABONDANCE.
+hstat_div_sim_abondance <- function(u, v, methode = "bray") {
+  u <- as.numeric(u); v <- as.numeric(v)
+  su <- sum(u); sv <- sum(v)
+  s <- switch(as.character(methode),
+    bray = if (su + sv > 0) 1 - sum(abs(u - v)) / (su + sv) else NA_real_,
+    # Morisita-Horn (Horn 1966) : insensible a la taille de l'echantillon, ce
+    # qui en fait le coefficient d'abondance le plus employe pour comparer des
+    # releves d'effort inegal.
+    horn = {
+      if (su > 0 && sv > 0) {
+        pu <- u / su; pv <- v / sv
+        den <- sum(pu^2) + sum(pv^2)
+        if (den > 0) 2 * sum(pu * pv) / den else NA_real_
+      } else NA_real_
+    },
+    # Morisita (1959) : la forme d'origine, definie sur des EFFECTIFS entiers.
+    morisita = {
+      if (su > 1 && sv > 1 && all(abs(c(u, v) - round(c(u, v))) < 1e-9)) {
+        lu <- sum(u * (u - 1)) / (su * (su - 1))
+        lv <- sum(v * (v - 1)) / (sv * (sv - 1))
+        if (lu + lv > 0) 2 * sum(u * v) / ((lu + lv) * su * sv) else NA_real_
+      } else NA_real_
+    },
+    canberra = {
+      k <- (u + v) > 0
+      if (any(k)) 1 - mean(abs(u[k] - v[k]) / (u[k] + v[k])) else NA_real_
+    },
+    euclidean = NA_real_, manhattan = NA_real_,
+    # Chao, Chazdon, Colwell & Shen (2005) : corrigent le biais des especes non
+    # detectees. Sur un inventaire incomplet -- le cas ordinaire -- Jaccard et
+    # Sorensen classiques SOUS-ESTIMENT la ressemblance, parce qu'une espece
+    # presente des deux cotes mais vue d'un seul compte comme une difference.
+    chao_jaccard = .hstat_div_chao_sim(u, v, "jaccard"),
+    chao_sorensen = .hstat_div_chao_sim(u, v, "sorensen"),
+    NA_real_)
+  s
+}
+
+.hstat_div_chao_sim <- function(u, v, forme = "jaccard") {
+  u <- as.numeric(u); v <- as.numeric(v)
+  if (!all(abs(c(u, v) - round(c(u, v))) < 1e-9)) return(NA_real_)
+  n <- sum(u); m <- sum(v)
+  if (n <= 1 || m <= 1) return(NA_real_)
+  part <- u > 0 & v > 0
+  if (!any(part)) return(0)
+  U <- sum(u[part]) / n
+  V <- sum(v[part]) / m
+  f1p <- sum(u[part] == 1); f2p <- max(1, sum(u[part] == 2))
+  g1p <- sum(v[part] == 1); g2p <- max(1, sum(v[part] == 2))
+  U <- U + (m - 1) / m * f1p / (2 * f2p) * sum(v[part & u == 1]) / n
+  V <- V + (n - 1) / n * g1p / (2 * g2p) * sum(u[part & v == 1]) / m
+  U <- min(1, U); V <- min(1, V)
+  if (U <= 0 || V <= 0) return(0)
+  if (identical(forme, "jaccard")) U * V / (U + V - U * V) else 2 * U * V / (U + V)
+}
+
+# -- Matrice de (dis)similarite entre tous les releves ------------------------
+hstat_div_beta <- function(m, methode = "jaccard", sortie = c("similarite", "dissimilarite")) {
+  sortie <- match.arg(sortie)
+  m <- as.matrix(m)
+  n <- nrow(m)
+  if (n < 2) stop("Au moins deux relevés sont nécessaires pour la diversité bêta.", call. = FALSE)
+  binaire <- methode %in% HSTAT_DIV_BETA_BINAIRES
+  # Les distances metriques n'ont pas de similarite bornee a 1 : les rendre en
+  # « similarite » exigerait une normalisation arbitraire. On les laisse en
+  # distance et on le DIT, plutot que d'inventer une echelle.
+  metrique <- methode %in% c("euclidean", "manhattan")
+  out <- matrix(NA_real_, n, n, dimnames = list(rownames(m), rownames(m)))
+  for (i in seq_len(n)) for (j in seq_len(n)) {
+    if (i == j) { out[i, j] <- if (metrique) 0 else 1; next }
+    if (j < i) { out[i, j] <- out[j, i]; next }
+    out[i, j] <- if (metrique) {
+      if (identical(methode, "euclidean")) sqrt(sum((m[i, ] - m[j, ])^2))
+      else sum(abs(m[i, ] - m[j, ]))
+    } else if (binaire) hstat_div_sim_binaire(m[i, ], m[j, ], methode)
+    else hstat_div_sim_abondance(m[i, ], m[j, ], methode)
+  }
+  if (identical(sortie, "dissimilarite") && !metrique) out <- 1 - out
+  attr(out, "methode")  <- methode
+  attr(out, "metrique") <- metrique
+  attr(out, "sortie")   <- if (metrique) "distance" else sortie
+  out
+}
+
+# -- Partition de Baselga : remplacement contre emboitement -------------------
+# Baselga (2010) : une meme dissimilarite de Sorensen recouvre DEUX phenomenes
+# opposes. Deux releves peuvent differer parce que les especes se REMPLACENT
+# (turnover) ou parce que l'un est un sous-ensemble appauvri de l'autre
+# (nestedness). Conclure « les deux milieux different » sans les separer fait
+# manquer ce que l'on cherchait a montrer.
+hstat_div_baselga <- function(m) {
+  m <- as.matrix(m); n <- nrow(m)
+  if (n < 2) stop("Au moins deux relevés sont nécessaires.", call. = FALSE)
+  res <- list()
+  for (i in 1:(n - 1)) for (j in (i + 1):n) {
+    k <- .hstat_div_abc(m[i, ], m[j, ]); a <- k$a; b <- k$b; cc <- k$c
+    bmin <- min(b, cc); bmax <- max(b, cc)
+    sor  <- if (2 * a + b + cc > 0) (b + cc) / (2 * a + b + cc) else NA_real_
+    sim  <- if (a + bmin > 0) bmin / (bmin + a) else NA_real_
+    sne  <- if (is.finite(sor) && is.finite(sim)) sor - sim else NA_real_
+    jac  <- if (a + b + cc > 0) (b + cc) / (a + b + cc) else NA_real_
+    jtu  <- if (a + bmin > 0) 2 * bmin / (2 * bmin + a) else NA_real_
+    jne  <- if (is.finite(jac) && is.finite(jtu)) jac - jtu else NA_real_
+    res[[length(res) + 1L]] <- data.frame(
+      Releve_1 = rownames(m)[i], Releve_2 = rownames(m)[j],
+      Communes_a = a, Exclusives_1_b = b, Exclusives_2_c = cc,
+      Sorensen_total = sor, Simpson_turnover = sim, Sorensen_emboitement = sne,
+      Jaccard_total = jac, Jaccard_turnover = jtu, Jaccard_emboitement = jne,
+      stringsAsFactors = FALSE)
+  }
+  do.call(rbind, res)
+}
+
+# -- Partition de Whittaker : alpha, beta, gamma ------------------------------
+# Whittaker (1960) : gamma = diversite de l'ENSEMBLE, alpha = moyenne des
+# releves, beta = ce qui les separe. La forme multiplicative (gamma/alpha) rend
+# un « nombre de communautes distinctes » et se lit directement ; la forme
+# additive (gamma - alpha) reste dans l'unite de l'indice.
+hstat_div_whittaker <- function(m, base = "2") {
+  m <- as.matrix(m)
+  alpha_S <- mean(rowSums(m > 0))
+  gamma_S <- sum(colSums(m) > 0)
+  ind <- do.call(rbind, lapply(seq_len(nrow(m)), function(i) hstat_div_indices(m[i, ], base)))
+  pool <- hstat_div_indices(colSums(m), base)
+  data.frame(
+    Mesure = c("Richesse (S)", "Shannon (H')", "Simpson inverse (1/D)"),
+    Alpha_moyen = c(alpha_S, mean(ind$Shannon_H, na.rm = TRUE),
+                    mean(ind$Simpson_inverse, na.rm = TRUE)),
+    Gamma_total = c(gamma_S, pool$Shannon_H, pool$Simpson_inverse),
+    Beta_additif = c(gamma_S - alpha_S,
+                     pool$Shannon_H - mean(ind$Shannon_H, na.rm = TRUE),
+                     pool$Simpson_inverse - mean(ind$Simpson_inverse, na.rm = TRUE)),
+    Beta_multiplicatif = c(
+      if (alpha_S > 0) gamma_S / alpha_S else NA_real_,
+      NA_real_,
+      if (isTRUE(mean(ind$Simpson_inverse, na.rm = TRUE) > 0))
+        pool$Simpson_inverse / mean(ind$Simpson_inverse, na.rm = TRUE) else NA_real_),
+    Beta_Whittaker = c(if (alpha_S > 0) gamma_S / alpha_S - 1 else NA_real_,
+                       NA_real_, NA_real_),
+    stringsAsFactors = FALSE)
+}
+
+
+# -- Rarefaction : comparer a effort egal -------------------------------------
+# Sanders (1968), corrige par Hurlbert (1971). Comparer les richesses de deux
+# releves d'effort INEGAL n'a aucun sens : le plus echantillonne gagne par
+# construction. La rarefaction ramene tout le monde au plus petit effectif.
+#
+# Le calcul passe par les LOGARITHMES des coefficients binomiaux : la forme
+# directe deborde des que N depasse quelques centaines (choose(500, 250) vaut
+# 1e149, et le rapport de deux tels nombres rend NaN).
+hstat_div_rarefaction <- function(x, n) {
+  x <- as.numeric(x); x <- x[is.finite(x) & x > 0]
+  if (!length(x) || !all(abs(x - round(x)) < 1e-9)) return(NA_real_)
+  N <- sum(x); n <- min(n, N)
+  if (n < 1) return(NA_real_)
+  termes <- vapply(x, function(xi) {
+    if (N - xi < n) return(0)
+    exp(lchoose(N - xi, n) - lchoose(N, n))
+  }, numeric(1))
+  sum(1 - termes)
+}
+
+# Courbe de rarefaction d'un releve, de 1 individu a son effectif total.
+hstat_div_courbe_rarefaction <- function(x, pas = NULL) {
+  x <- as.numeric(x); x <- x[is.finite(x) & x > 0]
+  N <- sum(x)
+  if (!is.finite(N) || N < 1) return(NULL)
+  pas <- pas %||% max(1, floor(N / 50))
+  ns  <- unique(c(seq(1, N, by = pas), N))
+  data.frame(Individus = ns,
+             Especes = vapply(ns, function(k) hstat_div_rarefaction(x, k), numeric(1)),
+             stringsAsFactors = FALSE)
+}
+
+# -- Courbe d'accumulation des especes ----------------------------------------
+# Combien d'especes de plus par releve supplementaire. L'alea de l'ordre des
+# releves est moyenne sur des permutations : une seule courbe depend de l'ordre
+# du fichier, qui n'a aucune raison d'etre celui du terrain.
+hstat_div_accumulation <- function(m, permutations = 100L, graine = 123L) {
+  m <- as.matrix(m); n <- nrow(m)
+  if (n < 1) return(NULL)
+  hstat_set_seed(graine)
+  acc <- matrix(NA_real_, permutations, n)
+  for (p in seq_len(permutations)) {
+    ordre <- sample.int(n)
+    cum <- rep(0, ncol(m))
+    for (k in seq_len(n)) {
+      cum <- cum + m[ordre[k], ]
+      acc[p, k] <- sum(cum > 0)
+    }
+  }
+  data.frame(Releves = seq_len(n),
+             Especes = colMeans(acc),
+             Ecart_type = apply(acc, 2, stats::sd),
+             IC_inf = apply(acc, 2, stats::quantile, 0.025),
+             IC_sup = apply(acc, 2, stats::quantile, 0.975),
+             stringsAsFactors = FALSE)
+}
+
+
+# ==============================================================================
+#  SEUILS DE LECTURE : qui les a poses, et sur quelle base
+# ==============================================================================
+# DEUX ORIGINES, ET LES CONFONDRE SERAIT MALHONNETE. Certains seuils viennent
+# d'une publication qui les ENONCE ; d'autres sont une convention de lecture
+# repandue, dont l'indice a un auteur mais dont la grille n'en a pas un seul.
+# Le champ `origine` porte la distinction, et l'interface l'affiche :
+#
+#   "primaire" -- l'auteur cite enonce lui-meme ces bornes ;
+#   "usage"    -- convention repandue ; l'auteur cite est celui de l'INDICE,
+#                 et les references sont les travaux qui ont diffuse la grille.
+#
+# Un seuil presente comme publie alors qu'il releve de l'usage est exactement
+# le genre d'affirmation qu'un rapport recopie sans la verifier.
+#
+# ET LA BASE DU LOGARITHME FAIT PARTIE DU SEUIL. La grille de Frontier est en
+# BITS, le cadrage de Magurran en NATS : la meme valeur de H' y tombe dans deux
+# classes differentes. Chaque grille declare donc sa base, et le verdict
+# convertit avant de comparer.
+HSTAT_DIV_SEUILS <- list(
+
+  Shannon_H = list(
+    indice = "Indice de Shannon (H')", base = "2",
+    bornes = c(1, 2, 3, 4),
+    etats  = c("err", "err", "warn", "ok", "ok"),
+    libelles = c("Très faible", "Faible", "Moyenne", "Élevée", "Très élevée"),
+    interpretations = c(
+      "Peuplement très déséquilibré : une ou deux espèces concentrent presque tous les individus.",
+      "Diversité faible : le peuplement est dominé par un petit nombre d'espèces.",
+      "Diversité moyenne : plusieurs espèces se partagent le peuplement.",
+      "Diversité élevée : les individus se répartissent sur de nombreuses espèces.",
+      "Diversité très élevée : peuplement riche et équilibré."),
+    auteur = "Frontier (1983)",
+    reference = paste("FRONTIER S. (1983) — Stratégies d'échantillonnage en écologie.",
+                      "Masson, Paris. Grille reprise par Frontier & Pichod-Viale (1991)",
+                      "et Dajoz (2006). L'indice est de SHANNON C.E. (1948),",
+                      "A mathematical theory of communication, Bell System Tech. J. 27 : 379-423."),
+    origine = "usage"),
+
+  Shannon_H_nats = list(
+    indice = "Indice de Shannon (H', en nats)", base = "e",
+    bornes = c(1.5, 3.5, 4.5),
+    etats  = c("warn", "ok", "ok", "warn"),
+    libelles = c("Sous l'étendue usuelle", "Étendue usuelle", "Étendue usuelle haute",
+                 "Exceptionnellement élevée"),
+    interpretations = c(
+      "En deçà de l'étendue habituellement observée : peuplement peu diversifié ou échantillon trop petit.",
+      "Dans l'étendue habituelle des peuplements naturels.",
+      "Dans le haut de l'étendue habituelle.",
+      "Au-delà de ce qui s'observe habituellement : vérifiez la base du logarithme et la taille de l'échantillon."),
+    auteur = "Magurran (2004)",
+    reference = paste("MAGURRAN A.E. (2004) — Measuring Biological Diversity.",
+                      "Blackwell, Oxford, p. 107 : les valeurs de H' « se situent",
+                      "habituellement entre 1,5 et 3,5 et ne dépassent que rarement 4,5 »",
+                      "(logarithme naturel). C'est un CADRAGE D'ORDRE DE GRANDEUR observé,",
+                      "non une grille de qualité."),
+    origine = "primaire"),
+
+  Pielou_J = list(
+    indice = "Équitabilité de Pielou (J)", base = NA,
+    bornes = c(0.5, 0.65, 0.8),
+    etats  = c("err", "warn", "warn", "ok"),
+    libelles = c("Déséquilibré", "Déséquilibre modéré", "Tendance à l'équilibre", "Équilibré"),
+    interpretations = c(
+      "Une ou quelques espèces dominent nettement : les individus sont très inégalement répartis.",
+      "Répartition inégale : la dominance reste marquée.",
+      "Répartition assez régulière des individus entre les espèces.",
+      "Peuplement équilibré : les espèces ont des abondances comparables."),
+    auteur = "Pielou (1966) pour l'indice ; grille d'usage (Daget 1976, Barbault 1981)",
+    reference = paste("PIELOU E.C. (1966) — The measurement of diversity in different types",
+                      "of biological collections. J. Theor. Biol. 13 : 131-144. L'indice est",
+                      "défini comme J = H'/H'max et tend vers 0 quand une espèce domine,",
+                      "vers 1 quand les abondances sont égales — cela relève de la DÉFINITION.",
+                      "Les bornes 0,5 / 0,65 / 0,8 relèvent de l'usage en écologie francophone",
+                      "(DAGET J., 1976, Les modèles mathématiques en écologie, Masson ;",
+                      "BARBAULT R., 1981, Écologie des populations et des peuplements, Masson)."),
+    origine = "usage"),
+
+  Simpson_1_D = list(
+    indice = "Diversité de Simpson (1 − D)", base = NA,
+    bornes = c(0.3, 0.6, 0.8),
+    etats  = c("err", "warn", "ok", "ok"),
+    libelles = c("Faible", "Moyenne", "Élevée", "Très élevée"),
+    interpretations = c(
+      "Deux individus tirés au hasard ont moins de 3 chances sur 10 d'appartenir à des espèces différentes.",
+      "Deux individus tirés au hasard ont 3 à 6 chances sur 10 d'appartenir à des espèces différentes.",
+      "Deux individus tirés au hasard ont 6 à 8 chances sur 10 d'appartenir à des espèces différentes.",
+      "Deux individus tirés au hasard appartiennent presque toujours à des espèces différentes."),
+    auteur = "Simpson (1949) pour l'indice ; grille d'usage",
+    reference = paste("SIMPSON E.H. (1949) — Measurement of diversity. Nature 163 : 688.",
+                      "1 − D est la PROBABILITÉ que deux individus tirés au hasard",
+                      "appartiennent à deux espèces différentes : sa lecture est directe et",
+                      "ne demande aucun seuil. Les bornes 0,3 / 0,6 / 0,8 sont une commodité",
+                      "de lecture d'usage, sans source primaire unique."),
+    origine = "usage"),
+
+  Berger_Parker_d = list(
+    indice = "Dominance de Berger-Parker (d)", base = NA,
+    bornes = c(0.25, 0.5, 0.75),
+    etats  = c("ok", "warn", "err", "err"),
+    libelles = c("Pas de dominance marquée", "Dominance modérée",
+                 "Dominance forte", "Dominance très forte"),
+    interpretations = c(
+      "L'espèce la plus abondante représente moins du quart des individus.",
+      "L'espèce la plus abondante représente le quart à la moitié des individus.",
+      "L'espèce la plus abondante représente plus de la moitié des individus.",
+      "L'espèce la plus abondante représente plus des trois quarts des individus : peuplement quasi monospécifique."),
+    auteur = "Berger & Parker (1970)",
+    reference = paste("BERGER W.H. & PARKER F.L. (1970) — Diversity of planktonic",
+                      "foraminifera in deep-sea sediments. Science 168 : 1345-1347.",
+                      "d est la PART de l'espèce la plus abondante : le seuil de 0,5",
+                      "(« une espèce détient plus de la moitié du peuplement ») découle",
+                      "de la définition ; les bornes 0,25 et 0,75 sont d'usage."),
+    origine = "usage"),
+
+  Couverture_Good = list(
+    indice = "Couverture de Good (C)", base = NA,
+    bornes = c(0.8, 0.9, 0.95),
+    etats  = c("err", "warn", "warn", "ok"),
+    libelles = c("Inventaire très incomplet", "Inventaire incomplet",
+                 "Inventaire acceptable", "Inventaire quasi complet"),
+    interpretations = c(
+      "Plus de 20 % des individus appartiennent à des espèces vues une seule fois : l'échantillonnage est nettement insuffisant.",
+      "10 à 20 % des individus appartiennent à des espèces vues une seule fois : poursuivez l'échantillonnage.",
+      "5 à 10 % des individus appartiennent à des espèces vues une seule fois.",
+      "Moins de 5 % des individus appartiennent à des espèces vues une seule fois : l'inventaire peut être considéré comme complet."),
+    auteur = "Good (1953) pour l'estimateur ; seuil de 0,95 d'usage",
+    reference = paste("GOOD I.J. (1953) — The population frequencies of species and the",
+                      "estimation of population parameters. Biometrika 40 : 237-264.",
+                      "C = 1 − F1/N. Le seuil de 95 % au-delà duquel un inventaire est",
+                      "tenu pour complet est une pratique répandue (écologie microbienne,",
+                      "inventaires entomologiques), non une borne publiée par Good."),
+    origine = "usage"),
+
+  Completude = list(
+    indice = "Complétude de l'inventaire (Sobs / Chao1)", base = NA,
+    bornes = c(0.5, 0.7, 0.85),
+    etats  = c("err", "err", "warn", "ok"),
+    libelles = c("Très incomplet", "Incomplet", "Partiel", "Satisfaisant"),
+    interpretations = c(
+      "Moins de la moitié des espèces estimées présentes ont été observées.",
+      "La moitié aux deux tiers des espèces estimées ont été observées : l'effort est insuffisant.",
+      "70 à 85 % des espèces estimées ont été observées.",
+      "Plus de 85 % des espèces estimées ont été observées : l'inventaire couvre l'essentiel du peuplement."),
+    auteur = "Chao (1984) pour l'estimateur ; grille d'usage",
+    reference = paste("CHAO A. (1984) — Nonparametric estimation of the number of classes",
+                      "in a population. Scand. J. Stat. 11 : 265-270. Le rapport",
+                      "Sobs/Chao1 mesure la part du peuplement effectivement observée ;",
+                      "les bornes retenues relèvent de la pratique des inventaires."),
+    origine = "usage"),
+
+  Jaccard_similarite = list(
+    indice = "Similarité de Jaccard", base = NA,
+    bornes = c(0.25, 0.5, 0.75),
+    etats  = c("err", "warn", "ok", "ok"),
+    libelles = c("Très dissemblables", "Dissemblables", "Semblables", "Très semblables"),
+    interpretations = c(
+      "Moins du quart des espèces sont communes aux deux relevés.",
+      "Un quart à la moitié des espèces sont communes.",
+      "La moitié aux trois quarts des espèces sont communes.",
+      "Plus des trois quarts des espèces sont communes : les deux relevés décrivent le même peuplement."),
+    auteur = "Jaccard (1901, 1912) pour l'indice ; grille d'usage",
+    reference = paste("JACCARD P. (1901) — Distribution de la flore alpine dans le bassin",
+                      "des Dranses. Bull. Soc. Vaud. Sci. Nat. 37 : 241-272 ; JACCARD P.",
+                      "(1912) — The distribution of the flora in the alpine zone.",
+                      "New Phytol. 11 : 37-50. L'indice vaut a/(a+b+c). Les bornes de",
+                      "lecture par quarts sont une convention, non une borne publiée."),
+    origine = "usage"),
+
+  Sorensen_similarite = list(
+    indice = "Similarité de Sørensen", base = NA,
+    bornes = c(0.33, 0.5, 0.75),
+    etats  = c("err", "warn", "ok", "ok"),
+    libelles = c("Très dissemblables", "Dissemblables", "Semblables", "Très semblables"),
+    interpretations = c(
+      "Les deux relevés partagent peu d'espèces.",
+      "Les deux relevés partagent une minorité d'espèces.",
+      "Les deux relevés partagent la moitié à trois quarts de leurs espèces.",
+      "Les deux relevés partagent l'essentiel de leurs espèces."),
+    auteur = "Sørensen (1948), indice proposé indépendamment par Dice (1945) ; grille d'usage",
+    reference = paste("SØRENSEN T. (1948) — A method of establishing groups of equal",
+                      "amplitude in plant sociology. Biol. Skr. 5 : 1-34 ; DICE L.R. (1945)",
+                      "— Measures of the amount of ecologic association between species.",
+                      "Ecology 26 : 297-302. L'indice vaut 2a/(2a+b+c). Le seuil de 50 %",
+                      "employé en phytosociologie pour rattacher deux relevés au même",
+                      "groupement est une convention de la discipline."),
+    origine = "usage"),
+
+  Margalef_DMg = list(
+    indice = "Richesse de Margalef (DMg)", base = NA,
+    bornes = c(2.5, 4),
+    etats  = c("err", "warn", "ok"),
+    libelles = c("Faible", "Moyenne", "Élevée"),
+    interpretations = c(
+      "Faible richesse spécifique rapportée à l'effort d'échantillonnage.",
+      "Richesse spécifique moyenne rapportée à l'effort d'échantillonnage.",
+      "Richesse spécifique élevée rapportée à l'effort d'échantillonnage."),
+    auteur = "Margalef (1958) pour l'indice ; grille d'usage",
+    reference = paste("MARGALEF R. (1958) — Information theory in ecology.",
+                      "General Systems 3 : 36-71. DMg = (S − 1)/ln(N) corrige la richesse",
+                      "par l'effort. Les bornes 2,5 et 4 sont d'usage en écologie",
+                      "aquatique et benthique, sans source primaire unique."),
+    origine = "usage"),
+
+  Simpson_E = list(
+    indice = "Équitabilité de Simpson (E1/D)", base = NA,
+    bornes = c(0.4, 0.6, 0.8),
+    etats  = c("err", "warn", "ok", "ok"),
+    libelles = c("Faible", "Moyenne", "Bonne", "Très bonne"),
+    interpretations = c(
+      "Le nombre d'espèces effectivement équivalentes est bien inférieur à la richesse observée.",
+      "Une partie des espèces observées pèse peu dans le peuplement.",
+      "Les espèces observées contribuent de façon assez régulière.",
+      "Les espèces observées ont des poids proches : peuplement très régulier."),
+    auteur = "Smith & Wilson (1996) pour la formulation E1/D ; grille d'usage",
+    reference = paste("SMITH B. & WILSON J.B. (1996) — A consumer's guide to evenness",
+                      "indices. Oikos 76 : 70-82, qui recense et compare les indices",
+                      "d'équitabilité, dont E1/D = (1/D)/S. Les bornes relèvent de l'usage."),
+    origine = "usage")
+)
+
+
+# -- Le verdict : jamais de branchement sur une valeur non calculable ---------
+# Un indice rend NA des que le releve est degenere -- une seule espece, aucun
+# individu, des effectifs non entiers pour un estimateur qui compte des
+# singletons. `if (valeur < seuil)` leverait alors « missing value where
+# TRUE/FALSE needed » et emporterait TOUTE la sortie, pas la seule ligne.
+# C'est la regle du depot, appliquee ici comme ailleurs.
+hstat_div_verdict <- function(indice, valeur, base = "2") {
+  g <- HSTAT_DIV_SEUILS[[as.character(indice)[1]]]
+  if (is.null(g))
+    return(list(etat = "indeterminable", libelle = NA_character_,
+                interpretation = NA_character_, auteur = NA_character_,
+                reference = NA_character_, origine = NA_character_,
+                grille = NA_character_, valeur = NA_real_))
+  v <- suppressWarnings(as.numeric(valeur)[1])
+  # LA CONVERSION DE BASE EST LE COEUR DU MECANISME. Une grille en bits lue sur
+  # une valeur en nats classe « faible » un peuplement moyen, sans rien signaler.
+  if (!is.na(g$base) && !identical(as.character(base), as.character(g$base)))
+    v <- hstat_div_convertir(v, base, g$base)
+  grille <- .hstat_div_grille_texte(g)
+  if (!is.finite(v))
+    return(list(etat = "indeterminable",
+                libelle = "Indéterminable",
+                interpretation = "L'indice n'est pas calculable sur ce relevé (une seule espèce, aucun individu, ou effectifs non entiers).",
+                auteur = g$auteur, reference = g$reference, origine = g$origine,
+                grille = grille, valeur = NA_real_))
+  k <- sum(v >= g$bornes) + 1L
+  list(etat = g$etats[k], libelle = g$libelles[k],
+       interpretation = g$interpretations[k],
+       auteur = g$auteur, reference = g$reference, origine = g$origine,
+       grille = grille, valeur = v)
+}
+
+.hstat_div_grille_texte <- function(g) {
+  n <- length(g$libelles)
+  b <- g$bornes
+  parts <- character(n)
+  for (i in seq_len(n)) {
+    parts[i] <- if (i == 1L) sprintf("< %s", .hstat_div_num(b[1]))
+    else if (i == n) sprintf("≥ %s", .hstat_div_num(b[n - 1]))
+    else sprintf("%s – %s", .hstat_div_num(b[i - 1]), .hstat_div_num(b[i]))
+    parts[i] <- paste0(parts[i], " : ", g$libelles[i])
+  }
+  paste(parts, collapse = "  |  ")
+}
+
+.hstat_div_num <- function(x) {
+  x <- suppressWarnings(as.numeric(x)[1])
+  if (!is.finite(x)) return("—")
+  sub("[.]?0+$", "", formatC(x, format = "f", digits = 3))
+}
+
+
+# -- Tableau d'interpretation complet -----------------------------------------
+# Un indice sans sa grille, son auteur et sa reference n'est pas interpretable
+# par le lecteur du rapport : les quatre voyagent ensemble.
+hstat_div_interpreter <- function(indices, base = "2", cles = NULL) {
+  cles <- cles %||% names(HSTAT_DIV_SEUILS)
+  cles <- intersect(cles, names(HSTAT_DIV_SEUILS))
+  lignes <- lapply(cles, function(k) {
+    # La cle « Shannon_H_nats » lit la MEME colonne que « Shannon_H » : ce sont
+    # deux lectures d'une seule valeur, pas deux valeurs.
+    col <- if (identical(k, "Shannon_H_nats")) "Shannon_H" else k
+    val <- if (!is.null(indices[[col]])) indices[[col]][1] else NA_real_
+    v <- hstat_div_verdict(k, val, base)
+    data.frame(
+      Indice = HSTAT_DIV_SEUILS[[k]]$indice,
+      Valeur = v$valeur,
+      Classe = v$libelle %||% NA_character_,
+      Interpretation = v$interpretation %||% NA_character_,
+      Grille = v$grille, Auteur = v$auteur,
+      Origine = if (identical(v$origine, "primaire"))
+        "Seuils publiés par l'auteur" else "Convention d'usage",
+      Reference = v$reference,
+      stringsAsFactors = FALSE)
+  })
+  res <- do.call(rbind, lignes)
+  res[!is.na(res$Indice), , drop = FALSE]
+}
+
+# =============================================================================
+#  UN COMPTAGE N'A PAS DE DECIMALES
+# -----------------------------------------------------------------------------
+#  `DT::formatRound()` applique le meme nombre de decimales a toutes les
+#  colonnes qu'on lui nomme. Passe l'ensemble des colonnes numeriques d'un
+#  tableau, il ecrit « 392.000 individus » et « 12.000 especes » a cote de
+#  « 9.500 » : on doute d'un entier affiche comme s'il avait trois decimales, et
+#  l'oeil cherche la partie fractionnaire qui le justifierait. C'est le defaut
+#  deja corrige sur le tableau de parametres de la DL50, ou cinq degres de
+#  liberte s'ecrivaient « 5.00000 ».
+#
+#  La regle est donc declaree ICI plutot que dans le corps d'un module : une
+#  regle de mise en forme posee dans un `moduleServer` n'est pas testable, et
+#  c'est une mutation qui l'a montre -- l'assertion ecrite d'abord portait sur
+#  la DONNEE (le comptage est bien entier) et non sur son AFFICHAGE, si bien
+#  qu'elle passait avec ou sans le correctif.
+#
+#  Le critere porte sur les valeurs OBSERVEES : une colonne entierement
+#  manquante n'est pas « entiere » (il n'y a rien a arrondir), et un `NA` au
+#  milieu d'entiers n'empeche pas la colonne d'en etre une.
+#  La tolerance existe parce qu'un comptage peut avoir transite par un double :
+#  `sum()` sur des entiers rend un double, et 12 y vaut parfois 11.999999999998.
+#  Cela ne touche QUE l'affichage -- le tableau exporte reste numerique, comme
+#  le veut la regle du depot sur la DL50.
+hstat_cols_entieres <- function(df, tol = 1e-9) {
+  if (is.null(df) || !length(df)) return(logical(0))
+  vapply(df, function(v) {
+    if (!is.numeric(v)) return(FALSE)
+    o <- v[is.finite(v)]
+    length(o) > 0L && all(abs(o - round(o)) < tol)
+  }, logical(1))
+}
+
+# Pose les deux formats sur un `DT::datatable` : zero decimale sur les colonnes
+# de comptage, `digits` sur les autres. C'est la SEULE porte -- un module qui
+# rappellerait `DT::formatRound` sur l'ensemble de ses colonnes numeriques
+# retrouverait « 392.000 individus ».
+#
+#  Le decoupage vaut d'etre explique. La regle vivait d'abord dans le corps du
+#  `moduleServer` du module de diversite, ou rien n'est testable : la mutation
+#  qui la retirait ne faisait echouer aucune assertion. Une premiere correction
+#  a compte les appels a `DT::formatRound` dans le source du module -- et ce
+#  compte etait satisfait par un appel SANS RAPPORT, pose ailleurs dans le meme
+#  fichier. Une assertion qui ne distingue pas les deux codes ne garde rien.
+#  C'est donc l'EFFET qui se verifie : les decimales que DT pose reellement sur
+#  chaque colonne.
+hstat_dt_arrondi <- function(d, df, digits = 4) {
+  num    <- vapply(df, is.numeric, logical(1))
+  entier <- hstat_cols_entieres(df)
+  if (any(num & !entier)) d <- DT::formatRound(d, names(df)[num & !entier], digits)
+  if (any(entier))        d <- DT::formatRound(d, names(df)[entier], 0)
+  d
+}

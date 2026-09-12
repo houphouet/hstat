@@ -135,7 +135,14 @@ jobs:
                          # gardent la protection des lettres se sauteraient EN
                          # SILENCE -- un test saute ressemble a un test qui
                          # passe. On les nomme.
-                         "agricolae", "PMCMRplus", "multcompView", "emmeans")
+                         "agricolae", "PMCMRplus", "multcompView", "emmeans",
+                         # vegan : le socle de diversite ne l'APPELLE pas -- il
+                         # calcule tout en R de base, pour que les indices ne
+                         # dependent d'aucun paquet. Mais le test qui confronte
+                         # Shannon, Simpson, Chao1, ACE, la rarefaction et les
+                         # cinq coefficients beta a vegan se sauterait sans lui,
+                         # et un test saute ressemble a un test qui passe.
+                         "vegan")
           install.packages(requis)
           manquants <- requis[!vapply(requis, requireNamespace, logical(1), quietly = TRUE)]
           if (length(manquants))
