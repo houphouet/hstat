@@ -1372,6 +1372,68 @@ Quatre décisions, chacune testée :
 4. **Une référence absente des modalités est nommée**, pas retirée en silence :
    sinon la colonne demandée n'existe pas et rien ne le dit.
 
+#### Deux façons de tenir compte des répétitions, deux questions
+
+Demandé à l'écran. C'est le même partage que « en commun » / « par répétition »
+des efficacités, et il porte le même piège : confondre les deux, c'est publier
+un artefact de plan. Le vocabulaire est donc **repris à l'identique**
+(`mode = c("cumul", "par_repetition")`) plutôt que réinventé.
+
+- **« En commun »** — la perte est calculée sur le rendement **agrégé** de la
+  modalité : une valeur par modalité. C'est le chiffre du rapport.
+- **« Par répétition »** — la perte est calculée **dans** chaque bloc, contre la
+  référence **de ce bloc** : autant de valeurs que de répétitions, donc une
+  vraie variable, avec son écart-type et son erreur-type, analysable ensuite par
+  ANOVA ou comparaisons multiples.
+
+Le second n'est pas un raffinement : c'est ce que le **plan en blocs existe pour
+permettre**. Comparer une modalité à sa référence dans le même bloc retire
+l'effet du bloc ; comparer des moyennes de blocs ne le retire pas.
+
+**La moyenne des pertes n'est pas la perte des moyennes, et l'écart n'est pas un
+arrondi.** Une perte est un **rapport**, et la moyenne d'un rapport diffère du
+rapport des moyennes dès que les rendements varient d'un bloc à l'autre. Mesuré
+sur deux blocs — (PP 2000 / NT 1000) et (PP 1000 / NT 800) :
+
+| | valeur |
+|---|---|
+| pertes par répétition | 50 % et 20 % → **moyenne 35 %** |
+| perte des moyennes | (1500 − 900) / 1500 → **40 %** |
+
+Aucune des deux n'est fausse ; elles répondent à deux questions. C'est le même
+partage que « global » / « moyen » du rendement, et le module donne les deux
+plutôt que d'en choisir une à la place de l'utilisateur — **mais il dit toujours
+laquelle il montre**, parce que le tableau ne porte que l'une des deux.
+
+**Le mode est un aiguillage, pas un ajout.** Poser les deux jeux de colonnes
+côte à côte mettrait dans le même tableau la perte des moyennes et la moyenne
+des pertes, sous des noms proches et avec des valeurs différentes : c'est
+exactement la confusion que ce partage existe pour éviter.
+
+Trois cas dégénérés, chacun testé :
+
+1. **Un bloc qui ne porte pas la référence est écarté et nommé.** C'est un
+   défaut de plan, pas de mesure — le retirer en silence ferait porter la
+   moyenne sur moins de blocs que l'essai n'en compte.
+2. **Sans variable de répétition déclarée, le mode refuse.** Toutes les lignes
+   tomberaient dans le même groupe, et le calcul rendrait exactement le mode
+   « en commun » **sous un autre nom**.
+3. **Un écart-type sur une seule répétition vaut `NA`, jamais zéro.** Zéro se
+   lirait « aucune variabilité », ce qui est un résultat — même règle que la
+   silhouette d'un groupe unique.
+
+#### Le détail par ligne voyage avec le tableau
+
+`hstat_rdt_table()` et `hstat_rdt_table_prete()` attachent `attr(res, "detail")`
+— modalité, répétition, rendement. Les pertes par répétition le lisent au lieu
+de recalculer les rendements de leur côté : **deux copies du même calcul
+finiraient par diverger**, et c'est la dérive que ce dépôt corrige partout
+ailleurs. Le détail part aussi au classeur Excel, en seconde feuille — un résumé
+seul obligerait à refaire le calcul pour le réanalyser.
+
+**La référence d'un bloc est prise en moyenne** quand elle y est mesurée
+plusieurs fois : c'est la seule valeur définie quand il y en a plusieurs.
+
 #### Le suffixe de colonne et le mot du libellé voyagent ensemble
 
 La colonne doit rester **stable** — `Perte_somme_vs_PP` est relue par l'export et

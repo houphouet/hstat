@@ -157,7 +157,19 @@ mod_yield_ui <- function(id) {
           "Pertes de récolte", "arrow-trend-down", "#8e44ad", "#f4ecf7",
           shiny::uiOutput(ns("yieldRefPerteUI")),
           shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
-                     "Chaque modalité est comparée à ces références. Un essai phytosanitaire en compte souvent deux : la protection poussée et la protection vulgarisée.")
+                     "Chaque modalité est comparée à ces références. Un essai phytosanitaire en compte souvent deux : la protection poussée et la protection vulgarisée."),
+          shiny::hr(style = "margin:10px 0;"),
+          # DEUX FACONS DE TENIR COMPTE DES REPETITIONS, DEUX QUESTIONS --
+          # le meme partage que les efficacites, et il porte le meme piege.
+          # « En commun » rend le chiffre du rapport ; « par repetition » rend
+          # une VARIABLE, avec sa dispersion, analysable par ANOVA ou
+          # comparaisons multiples.
+          shiny::radioButtons(ns("yieldModePerte"), "Prise en compte des répétitions",
+            choices = c("En commun — une perte par modalité" = "cumul",
+                        "Par répétition — une perte dans chaque bloc" = "par_repetition"),
+            selected = "cumul"),
+          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                     "« Par répétition » compare chaque modalité à la référence du même bloc, ce qui retire l'effet du bloc. Déclarez la variable de répétition ci-dessus.")
         ),
 
         .hstat_opt_section(
@@ -205,7 +217,9 @@ mod_yield_ui <- function(id) {
             value = "pertes",
             shiny::br(),
             shiny::uiOutput(ns("yieldPerteNote")),
-            DT::DTOutput(ns("yieldTablePerte"))
+            DT::DTOutput(ns("yieldTablePerte")),
+            shiny::uiOutput(ns("yieldRepTitre")),
+            DT::DTOutput(ns("yieldTableRep"))
           ),
 
           shiny::tabPanel(
@@ -754,7 +768,8 @@ mod_yield_server <- function(id, values) {
         rdt_var_surface = if (pret && !isTRUE(input$yieldSurfacesEgales) &&
                               nzchar(input$yieldSurfacePond %||% ""))
                             input$yieldSurfacePond else NULL,
-        references = input$yieldRefPerte)
+        references = input$yieldRefPerte,
+        mode_perte = input$yieldModePerte %||% "cumul")
     })
 
     output$yieldMessage <- shiny::renderUI({
@@ -857,6 +872,14 @@ mod_yield_server <- function(id, values) {
         # perte » et « 82 % du rendement de la reference » sont le meme
         # resultat lu deux fois ; les confondre inverse la conclusion.
         lignes <- c(lignes, tr("La perte et le rendement relatif somment à 100 % : ce sont les deux lectures du même écart. Une perte négative signifie que la modalité fait mieux que sa référence — c'est un résultat, pas une erreur."))
+        # LE MODE EMPLOYE SE DIT. Les deux chiffres different -- la moyenne des
+        # pertes n'est pas la perte des moyennes -- et le tableau ne montre que
+        # l'un des deux : ne pas nommer lequel laisserait publier un chiffre
+        # pour l'autre.
+        if (identical(attr(r, "mode_perte"), "par_repetition"))
+          lignes <- c(lignes, tr("Mode « par répétition » : chaque modalité est comparée à la référence du même bloc, ce qui retire l'effet du bloc. Le tableau porte la moyenne de ces pertes, son écart-type et son erreur-type — la moyenne des pertes n'est pas la perte des moyennes, les deux répondent à deux questions."))
+        else
+          lignes <- c(lignes, tr("Mode « en commun » : la perte est calculée sur le rendement agrégé de chaque modalité, soit une valeur par modalité. Passez en « par répétition » pour obtenir une perte par bloc, avec sa dispersion, analysable par ANOVA ou comparaisons multiples."))
       }
       # UNE REFERENCE ABSENTE SE NOMME. La retirer en silence laisserait
       # l'utilisateur devant un tableau ou la colonne demandee n'existe pas.
@@ -872,9 +895,35 @@ mod_yield_server <- function(id, values) {
       r <- resultat(); shiny::req(NROW(r))
       cols <- c("Modalite", intersect(names(HSTAT_RDT_MESURES_PERTE), names(r)),
                 grep("^(Perte|Relatif)_", names(r), value = TRUE))
+      if (!is.null(attr(r, "pertes_repetitions")) && "Repetitions" %in% names(r))
+        cols <- append(cols, "Repetitions", after = 1L)
       d <- table_affiche(cols)
       shiny::req(d)
       DT::datatable(d, rownames = FALSE, options = list(pageLength = 15, scrollX = TRUE))
+    })
+
+    # LE DETAIL EST CE QUI REND LES PERTES ANALYSABLES. Une perte par bloc,
+    # c'est une variable : elle se porte en ANOVA ou en comparaisons multiples,
+    # ce qu'une valeur unique par modalite ne permet pas.
+    pertes_detail <- shiny::reactive({
+      r <- resultat()
+      reps <- attr(r, "pertes_repetitions")
+      if (!length(reps)) return(NULL)
+      do.call(rbind, unname(reps))
+    })
+
+    output$yieldTableRep <- DT::renderDT({
+      d <- pertes_detail()
+      shiny::req(NROW(d))
+      DT::datatable(round_numeric_df(d, input$yieldRound, input$yieldDecimals),
+                    rownames = FALSE, options = list(pageLength = 12, scrollX = TRUE))
+    })
+
+    output$yieldRepTitre <- shiny::renderUI({
+      shiny::req(NROW(pertes_detail()))
+      shiny::tagList(shiny::hr(), shiny::h4(
+        shiny::icon("layer-group"), " ",
+        tr("Détail par répétition")))
     })
 
     # ------------------------------------------------------------- graphique
@@ -1271,8 +1320,14 @@ mod_yield_server <- function(id, values) {
       filename = function() paste0("rendements_", Sys.Date(), ".xlsx"),
       content = function(file) {
         r <- resultat(); shiny::req(NROW(r))
-        if (requireNamespace("openxlsx", quietly = TRUE))
-          openxlsx::write.xlsx(list(Rendements = as.data.frame(r)), file)
+        if (requireNamespace("openxlsx", quietly = TRUE)) {
+          # LE DETAIL PART AVEC LE CLASSEUR, en seconde feuille : c'est lui qui
+          # se reanalyse, et un resume seul obligerait a refaire le calcul.
+          feuilles <- list(Rendements = as.data.frame(r))
+          det <- pertes_detail()
+          if (NROW(det)) feuilles[["Pertes_par_repetition"]] <- as.data.frame(det)
+          openxlsx::write.xlsx(feuilles, file)
+        }
         else
           utils::write.csv(as.data.frame(r), file, row.names = FALSE,
                            fileEncoding = "UTF-8")
@@ -1338,6 +1393,23 @@ mod_yield_server <- function(id, values) {
         "</ul>",
         "<p>Une perte <b>négative</b> est un résultat : la modalité fait mieux que ",
         "sa référence. La borner à zéro masquerait précisément ce qu'il faut voir.</p>",
+        "<h4>Deux façons de tenir compte des répétitions</h4>",
+        "<p><b>En commun</b> — la perte est calculée sur le rendement agrégé de ",
+        "chaque modalité : une valeur par modalité, le chiffre du rapport.</p>",
+        "<p><b>Par répétition</b> — la perte est calculée <i>dans</i> chaque bloc, ",
+        "contre la référence du même bloc : autant de valeurs que de répétitions. ",
+        "C'est ce que le plan en blocs existe pour permettre — comparer dans le ",
+        "même bloc retire l'effet du bloc — et cela donne une vraie variable, avec ",
+        "son écart-type et son erreur-type, analysable ensuite par ANOVA ou ",
+        "comparaisons multiples.</p>",
+        "<p><b>La moyenne des pertes n'est pas la perte des moyennes</b>, et l'écart ",
+        "n'est pas un arrondi : une perte est un rapport, et la moyenne d'un rapport ",
+        "diffère du rapport des moyennes dès que les rendements varient d'un bloc à ",
+        "l'autre. Sur deux blocs (PP 2000 / NT 1000) et (PP 1000 / NT 800), les pertes ",
+        "valent 50 % et 20 %, soit 35 % en moyenne, quand la perte des moyennes vaut ",
+        "40 %. Aucune des deux n'est fausse ; elles répondent à deux questions.</p>",
+        "<p>Un bloc qui ne porte pas la référence est écarté <b>et nommé</b> : c'est un ",
+        "défaut de plan, pas de mesure.</p>",
         "<h4>Global ou moyen ?</h4>",
         "<p>Le rendement <b>global</b> rapporte la masse totale à la surface ",
         "totale : il pondère chaque répétition par sa surface. Le rendement ",

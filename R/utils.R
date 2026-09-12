@@ -5425,6 +5425,15 @@ hstat_rdt_table <- function(df, var_modalite, var_masse, var_surface,
   attr(out, "sortie_masse") <- sortie_masse
   attr(out, "sortie_surface") <- sortie_surface
   attr(out, "invalides") <- invalides
+  # LE DETAIL PAR LIGNE VOYAGE AVEC LE TABLEAU. Les pertes « par repetition »
+  # en ont besoin, et le recalculer de leur cote ferait DEUX copies du meme
+  # rendement -- la derive que ce depot corrige partout ailleurs. On ne garde
+  # que ce qui sert : la modalite, la repetition et le rendement.
+  attr(out, "detail") <- data.frame(
+    Modalite   = modal,
+    Repetition = if (a_rep) rep_v else NA_character_,
+    Rendement  = as.numeric(rdt),
+    check.names = FALSE, stringsAsFactors = FALSE)
   alertes <- character(0)
   if (invalides > 0)
     alertes <- c(alertes, trf("%d ligne(s) écartée(s) : surface nulle, négative ou manquante",
@@ -5583,6 +5592,15 @@ hstat_rdt_table_prete <- function(df, var_modalite, var_rendement,
   attr(out, "sortie_masse") <- sortie_masse
   attr(out, "sortie_surface") <- sortie_surface
   attr(out, "invalides") <- invalides
+  # LE DETAIL PAR LIGNE VOYAGE AVEC LE TABLEAU. Les pertes « par repetition »
+  # en ont besoin, et le recalculer de leur cote ferait DEUX copies du meme
+  # rendement -- la derive que ce depot corrige partout ailleurs. On ne garde
+  # que ce qui sert : la modalite, la repetition et le rendement.
+  attr(out, "detail") <- data.frame(
+    Modalite   = modal,
+    Repetition = if (a_rep) rep_v else NA_character_,
+    Rendement  = as.numeric(rdt),
+    check.names = FALSE, stringsAsFactors = FALSE)
   attr(out, "prete") <- TRUE
   attr(out, "global") <- if (!glob) "aucun" else if (a_surf) "pondere" else "surfaces_egales"
   alertes <- character(0)
@@ -5877,7 +5895,157 @@ hstat_rdt_relatif <- function(rendements, modalites = names(rendements),
 
 # Ajoute au tableau de rendement, pour CHAQUE reference demandee, la perte et
 # le rendement relatif de chaque mesure disponible.
-hstat_rdt_pertes_table <- function(res, references = NULL) {
+# ---------------------------------------------------------------------------
+#  DEUX FACONS DE TENIR COMPTE DES REPETITIONS, DEUX QUESTIONS
+# ---------------------------------------------------------------------------
+#  C'est le meme partage que « en commun » / « par repetition » des
+#  efficacites, et il porte le meme piege : confondre les deux, c'est publier
+#  un artefact de plan.
+#
+#  « EN COMMUN » (mode = "cumul") -- la perte est calculee sur le rendement
+#  AGREGE de la modalite : une valeur par modalite. C'est le chiffre du
+#  rapport.
+#
+#  « PAR REPETITION » (mode = "par_repetition") -- la perte est calculee DANS
+#  chaque repetition, contre la reference DE CETTE REPETITION : autant de
+#  valeurs que de repetitions, donc une vraie variable, avec son ecart-type,
+#  son erreur-type, et analysable ensuite par ANOVA ou comparaisons multiples.
+#
+#  C'est aussi ce que le plan en blocs existe pour permettre : comparer T a sa
+#  reference DANS le meme bloc retire l'effet du bloc. Comparer des moyennes de
+#  blocs ne le retire pas.
+#
+#  LA MOYENNE DES PERTES N'EST PAS LA PERTE DES MOYENNES, et l'ecart n'est pas
+#  un arrondi. Une perte est un RAPPORT : la moyenne d'un rapport differe du
+#  rapport des moyennes des que les rendements varient d'un bloc a l'autre.
+#  Sur deux blocs (PP 2000 / NT 1000) et (PP 1000 / NT 800) :
+#
+#      pertes par repetition : 50 % et 20 %      -> moyenne 35 %
+#      perte des moyennes    : (1500-900)/1500   ->         40 %
+#
+#  Aucune des deux n'est fausse ; elles repondent a deux questions. Le module
+#  donne les deux plutot que d'en choisir une a la place de l'utilisateur.
+
+# Pertes calculees DANS chaque repetition, contre la reference de la meme
+# repetition. Rend le detail : une ligne par (modalite, repetition).
+hstat_rdt_pertes_rep <- function(detail, reference) {
+  vide <- data.frame(Modalite = character(0), Repetition = character(0),
+                     Reference = character(0), Rendement = numeric(0),
+                     Rendement_reference = numeric(0),
+                     Perte = numeric(0), Relatif = numeric(0),
+                     check.names = FALSE, stringsAsFactors = FALSE)
+  msg <- function(x, m) { attr(x, "message") <- m; x }
+  if (!is.data.frame(detail) || !NROW(detail))
+    return(msg(vide, "Aucun rendement détaillé : la perte par répétition n'est pas calculable."))
+  ref <- trimws(as.character(reference)[1])
+  if (is.na(ref) || !nzchar(ref))
+    return(msg(vide, "Choisissez la modalité de référence parmi les modalités présentes."))
+
+  d <- detail
+  d$Modalite   <- trimws(as.character(d$Modalite))
+  d$Repetition <- trimws(as.character(d$Repetition))
+  d$Rendement  <- suppressWarnings(as.numeric(d$Rendement))
+  d <- d[!is.na(d$Modalite) & nzchar(d$Modalite), , drop = FALSE]
+  # UNE REPETITION NON DECLAREE N'EN EST PAS UNE. Sans variable de repetition,
+  # toutes les lignes tombent dans le meme groupe et le calcul « par
+  # repetition » rendrait exactement le calcul « en commun » sous un autre nom.
+  if (!NROW(d) || all(is.na(d$Repetition)) || !any(nzchar(d$Repetition %||% "")))
+    return(msg(vide, "Déclarez la variable de répétition : sans elle, la perte ne peut pas être calculée à l'intérieur de chaque répétition."))
+  if (!(ref %in% d$Modalite))
+    return(msg(vide, trf("La référence « %s » est absente des données détaillées.", ref)))
+
+  blocs <- unique(d$Repetition[!is.na(d$Repetition) & nzchar(d$Repetition)])
+  sans_ref <- character(0); ref_nulle <- character(0)
+  out <- list()
+  for (b in blocs) {
+    i  <- which(d$Repetition == b)
+    db <- d[i, , drop = FALSE]
+    # La reference peut etre mesuree plusieurs fois dans un meme bloc : on
+    # prend sa MOYENNE, seule valeur definie quand il y en a plusieurs.
+    vr <- db$Rendement[db$Modalite == ref]
+    vr <- vr[is.finite(vr)]
+    # UN BLOC SANS REFERENCE EST UN DEFAUT DE PLAN, PAS DE MESURE, et il se
+    # nomme : le retirer en silence ferait porter la moyenne sur moins de blocs
+    # que l'utilisateur n'en compte.
+    if (!length(vr)) { sans_ref <- c(sans_ref, b); next }
+    r0 <- mean(vr)
+    if (r0 == 0) { ref_nulle <- c(ref_nulle, b); next }
+    perte   <- (r0 - db$Rendement) / r0 * 100
+    relatif <- db$Rendement / r0 * 100
+    # La reference vaut 0 % de perte et 100 % de rendement relatif DANS SON
+    # PROPRE BLOC, par definition.
+    perte[db$Modalite == ref]   <- 0
+    relatif[db$Modalite == ref] <- 100
+    out[[length(out) + 1L]] <- data.frame(
+      Modalite = db$Modalite, Repetition = b, Reference = ref,
+      Rendement = db$Rendement, Rendement_reference = r0,
+      Perte = perte, Relatif = relatif,
+      check.names = FALSE, stringsAsFactors = FALSE)
+  }
+  if (!length(out)) {
+    m <- if (length(sans_ref))
+      trf("Aucune répétition ne porte la référence « %s » : la perte par répétition n'est calculable nulle part.", ref)
+    else trf("Le rendement de la référence « %s » est nul dans toutes les répétitions : la perte est indéfinie (division par zéro).", ref)
+    return(msg(vide, m))
+  }
+  res <- do.call(rbind, out)
+  rownames(res) <- NULL
+  alertes <- character(0)
+  if (length(sans_ref))
+    alertes <- c(alertes, trf("%d répétition(s) sans la référence « %s », écartée(s) : %s.",
+                              length(sans_ref), ref, paste(sans_ref, collapse = ", ")))
+  if (length(ref_nulle))
+    alertes <- c(alertes, trf("%d répétition(s) où la référence « %s » a un rendement nul, écartée(s) : %s.",
+                              length(ref_nulle), ref, paste(ref_nulle, collapse = ", ")))
+  attr(res, "reference") <- ref
+  attr(res, "repetitions_ecartees") <- c(sans_ref, ref_nulle)
+  attr(res, "message") <- if (length(alertes)) paste(alertes, collapse = " ") else
+    trf("Pertes calculées dans chacune des %d répétitions, contre « %s » de la même répétition.",
+        length(unique(res$Repetition)), ref)
+  res
+}
+
+# Resume par modalite des pertes calculees par repetition : moyenne,
+# dispersion et nombre de repetitions reellement comparables.
+hstat_rdt_pertes_rep_resume <- function(rep_tab) {
+  vide <- data.frame(Modalite = character(0), n = integer(0), Perte = numeric(0),
+                     ET = numeric(0), ES = numeric(0), Relatif = numeric(0),
+                     check.names = FALSE, stringsAsFactors = FALSE)
+  if (!is.data.frame(rep_tab) || !NROW(rep_tab)) return(vide)
+  mods <- unique(rep_tab$Modalite)
+  lignes <- lapply(mods, function(m) {
+    x <- rep_tab$Perte[rep_tab$Modalite == m]
+    y <- rep_tab$Relatif[rep_tab$Modalite == m]
+    x <- x[is.finite(x)]; y <- y[is.finite(y)]
+    n <- length(x)
+    # UN ECART-TYPE SUR UNE SEULE VALEUR N'EXISTE PAS : `sd()` rend `NA`, et
+    # c'est ce qu'il faut afficher -- zero se lirait « aucune variabilite ».
+    et <- if (n >= 2L) stats::sd(x) else NA_real_
+    data.frame(Modalite = m, n = n,
+               Perte = if (n) mean(x) else NA_real_,
+               ET = et,
+               ES = if (n >= 2L) et / sqrt(n) else NA_real_,
+               Relatif = if (length(y)) mean(y) else NA_real_,
+               check.names = FALSE, stringsAsFactors = FALSE)
+  })
+  res <- do.call(rbind, lignes)
+  rownames(res) <- NULL
+  res
+}
+
+# Colonnes du resume « par repetition ». Meme regle que pour les mesures
+# agregees : le suffixe de colonne et la phrase du libelle voyagent ensemble,
+# et le libelle est une PHRASE ENTIERE -- `trf()` ne traduit pas ses arguments.
+HSTAT_RDT_PERTE_REP <- list(
+  Perte   = c(col = "Perte_rep",   lib = "Perte de rendement moyenne par répétition vs « %s » (%%)"),
+  ET      = c(col = "Perte_rep_ET", lib = "Écart-type des pertes par répétition vs « %s » (%%)"),
+  ES      = c(col = "Perte_rep_ES", lib = "Erreur-type des pertes par répétition vs « %s » (%%)"),
+  n       = c(col = "Perte_rep_n",  lib = "Nombre de répétitions comparables à « %s »"),
+  Relatif = c(col = "Relatif_rep",  lib = "Rendement relatif moyen par répétition vs « %s » (%%)"))
+
+hstat_rdt_pertes_table <- function(res, references = NULL,
+                                   mode = c("cumul", "par_repetition")) {
+  mode <- match.arg(mode)
   if (!is.data.frame(res) || !NROW(res)) return(res)
   refs <- trimws(as.character(references %||% character(0)))
   refs <- unique(refs[!is.na(refs) & nzchar(refs)])
@@ -5898,8 +6066,33 @@ hstat_rdt_pertes_table <- function(res, references = NULL) {
   # n'existe pas, sans rien qui le dise.
   absentes <- refs[!(refs %in% mods)]
 
+  detail <- attr(res, "detail")
+  reps   <- list()
+
   for (i in seq_along(refs)) {
     if (!(refs[i] %in% mods)) next
+
+    if (identical(mode, "par_repetition")) {
+      # LE MODE EST UN AIGUILLAGE, PAS UN AJOUT. Poser les deux jeux de
+      # colonnes cote a cote mettrait dans le meme tableau la perte des
+      # moyennes et la moyenne des pertes, sous des noms proches et avec des
+      # valeurs differentes : c'est exactement la confusion que ce partage
+      # existe pour eviter.
+      rt <- hstat_rdt_pertes_rep(detail, refs[i])
+      messages <- c(messages, attr(rt, "message"))
+      if (!NROW(rt)) next
+      reps[[refs[i]]] <- rt
+      som <- hstat_rdt_pertes_rep_resume(rt)
+      j <- match(mods, som$Modalite)
+      for (champ in names(HSTAT_RDT_PERTE_REP)) {
+        spec <- HSTAT_RDT_PERTE_REP[[champ]]
+        cn <- paste0(unname(spec[["col"]]), "_vs_", slugs[i])
+        res[[cn]] <- som[[champ]][j]
+        libelles[cn] <- trf(unname(spec[["lib"]]), refs[i])
+      }
+      next
+    }
+
     for (k in mesures) {
       spec  <- HSTAT_RDT_MESURES_PERTE[[k]]
       court <- unname(spec[["col"]])
@@ -5920,6 +6113,10 @@ hstat_rdt_pertes_table <- function(res, references = NULL) {
   attr(res, "references_perte")  <- refs[refs %in% mods]
   attr(res, "libelles_perte")    <- libelles
   attr(res, "message_perte")     <- paste(messages, collapse = " ")
+  attr(res, "mode_perte")        <- mode
+  # Le detail part AVEC le tableau : c'est lui qui rend les pertes analysables
+  # ailleurs (ANOVA, comparaisons multiples) et exportables.
+  attr(res, "pertes_repetitions") <- if (length(reps)) reps else NULL
   attr(res, "references_absentes") <- absentes
   res
 }
@@ -5935,7 +6132,9 @@ hstat_rdt_complet <- function(df, var_modalite, var_masse, var_surface,
                               var_rendement = NULL,
                               rdt_var_surface = NULL,
                               rdt_surfaces_egales = FALSE,
-                              references = NULL) {
+                              references = NULL,
+                              mode_perte = c("cumul", "par_repetition")) {
+  mode_perte <- match.arg(mode_perte)
   # Le rendement DEJA CALCULE court-circuite la pesee : meme tableau, memes
   # gains, memes graphiques -- une colonne de moins, `Rendement_global`, qui
   # exige les surfaces.
@@ -5960,12 +6159,12 @@ hstat_rdt_complet <- function(df, var_modalite, var_masse, var_surface,
   # pourcentages, donc sans dimension -- `HSTAT_RDT_COLS_CONV` ne les nomme
   # pas, et un `Perte_*_conv` serait la meme faute de categorie qu'un
   # `Gain_*_conv`.
-  res <- hstat_rdt_pertes_table(res, references)
+  res <- hstat_rdt_pertes_table(res, references, mode_perte)
   # La conversion vient APRES les gains : un pourcentage est sans dimension, il
   # n'a rien a convertir, et l'ajouter avant ferait convertir les colonnes de
   # gain par simple voisinage de nom.
   res <- hstat_rdt_convertir_table(res, conv_masse, conv_surface)
-  garder_p <- attributes(res)[grep("^(references_perte|libelles_perte|message_perte|references_absentes)$",
+  garder_p <- attributes(res)[grep("^(references_perte|libelles_perte|message_perte|references_absentes|mode_perte|pertes_repetitions)$",
                                   names(attributes(res)))]
   attr(res, "non_traite") <- non_traite
   attr(res, "message_gain") <- attr(g_glob %||% g_moy, "message")
