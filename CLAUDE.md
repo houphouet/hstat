@@ -5667,6 +5667,79 @@ Les noms sont essayés **du plus long au plus court** — « juillet » avant
 « juil. » —, sans quoi le préfixe mordrait d'abord et laisserait « let »
 derrière lui.
 
+### Toutes les écritures de date entrent, et la langue n'y est pour rien
+
+Demandé à l'écran, capture à l'appui : le graphique sortait **vide**, axe X sur
+« Date/Temporelle », colonne `Semaine` en ISO — et le sélecteur « Format des
+données source » était resté sur **MM/JJ/AAAA (US)**. Le format source se
+*déclarait*, et il devait tomber juste.
+
+Mesuré sur le module avant / après, sur quatre dates ISO :
+
+| Format déclaré | avant | après |
+|---|---|---|
+| `%m/%d/%Y` (US, faux) | **0 date lue sur 4, 0 point tracé** | 4 / 4 |
+| `%Y-%m-%d` (juste) | 4 / 4 | 4 / 4 |
+
+Le même tableau a montré **trois** défauts, et ils ne sont pas de même nature :
+
+1. **Le silence.** Format qui ne correspond pas → `NA` partout → cadre vide,
+   sans un mot. L'utilisateur cherche du côté de ses variables.
+2. **La valeur plausible et fausse.** « 20/10/2026 » lu en `%Y/%m/%d` rend
+   l'an **20** : le `%Y` de R accepte deux chiffres. Le graphique se trace,
+   l'axe couvre deux mille ans, et rien ne le dit. C'est le pire des trois.
+3. **Le format absent de la liste.** « 20 octobre 2026 » n'était offert par
+   **aucune** entrée du sélecteur source (six entrées), alors que le format
+   d'*affichage* le proposait — on pouvait donc écrire une date qu'on ne savait
+   pas relire.
+
+`hstat_date_auto()` (`R/utils.R`) porte la règle, et `HSTAT_DATE_FORMATS_SRC`
+déclare les **onze** formats une seule fois : le sélecteur en dérive, et le
+balayage emprunte la même liste. Deux listes recopiées finissent par diverger.
+
+**Un format n'est retenu que s'il se relit.** C'est ce contrôle
+(`.hstat_date_coherent()`), et lui seul, qui barre l'an 20 : la date obtenue se
+réécrirait « 0020/10/20 », qui ne ressemble pas à l'original. Que `as.Date()` ne
+rende pas `NA` ne prouve rien — c'est la leçon déjà apprise sur
+« 2026-08-04 bloc A ». L'aller-retour tolère le zéro de tête (sinon
+« 3 novembre 2026 » serait refusé par sa propre écriture, que `format()` rend
+« 03 novembre ») et il est tenté **dans les deux langues**.
+
+**Un choix explicite n'est jamais écrasé.** Quand le format déclaré relit la
+colonne, on le garde : sur « 01/02/2026 », l'utilisateur est le seul à savoir
+s'il s'agit du 1er février ou du 2 janvier.
+
+**L'ambiguïté se dit, elle ne se tranche pas en silence.** Quand plusieurs
+formats relisent tout *et rendent des dates différentes*, ils sont nommés à
+l'écran. Un jour supérieur à 12 tranche de lui-même — c'est l'assertion qui
+empêche une fonction de crier à l'ambiguïté sur toute date numérique.
+
+**L'ordre de départage est fixe et ne dépend pas de la session** : le non
+ambigu d'abord (l'année en tête ne peut pas se confondre avec un jour), puis
+jour-en-tête, puis mois-en-tête. Le faire dépendre de `hstat_langue_session()`
+serait précisément ce que la demande interdit — *le choix de la langue de
+l'application ne doit pas empêcher le type de date choisi*.
+
+#### Trois modules lisaient les dates, chacun à sa façon
+
+Le sélecteur de `mod_viz` n'était que le plus visible. Les deux autres étaient
+**muets**, ce qui est pire :
+
+| Site | Ce qu'il faisait | Conséquence |
+|---|---|---|
+| `mod_viz` | format déclaré, exact | cadre vide |
+| `mod_clean` (typage « date ») | `as.Date()` nu, donc ISO seul | une colonne datée à la française était **intypable**, et le refus parlait d'autre chose |
+| `mod_timeseries` | `as.Date(as.character(...))`, puis `if (all(is.na(dts))) dts <- NULL` | l'**axe des dates disparaissait sans un mot**, remplacé par le rang de l'observation |
+
+Les trois passent par le même lecteur, et les trois disent ce qu'ils ont lu.
+
+#### Le test porte sur le module, pas sur le lecteur
+
+Un test appelant `hstat_date_auto()` seul serait resté vert pendant que le
+graphique sortait vide : il aurait vérifié que le lecteur sait lire, jamais que
+le module l'emploie. C'est exactement la leçon de l'échelle de l'axe X, et le
+test construit donc la figure et compte les points tracés.
+
 ### Les exemples de l'interface disaient autre chose que ce que l'axe rend
 
 « JJ-Mois (ex: 25-**Mar**) » annonçait l'abréviation anglaise pour un axe qui

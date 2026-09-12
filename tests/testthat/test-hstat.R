@@ -14979,3 +14979,161 @@ test_that("masquer une modalite la retire de la figure sans toucher aux chiffres
   # figure, et le motif affiche dira le masquage plutot que les colonnes.
   expect_null(lance(c("T0", "T1", "T2"))$p)
 })
+
+# -----------------------------------------------------------------------------
+# DATES : FRANCAISES, ANGLAISES ET ISO, QUELLE QUE SOIT LA LANGUE DE L'APPLICATION
+# -----------------------------------------------------------------------------
+test_that("toutes les ecritures de date entrent, quel que soit le format declare", {
+  # LE DEFAUT MESURE, celui de la capture d'ecran : le format source se
+  # DECLARAIT, et il devait tomber juste. Un fichier ISO lu en « MM/JJ/AAAA »
+  # rend NA sur toutes les lignes -- cadre vide, sans un mot.
+  iso <- c("2026-10-20", "2026-10-27", "2026-11-03")
+  expect_true(all(is.na(suppressWarnings(hstat_date_parse(iso, "%m/%d/%Y")))))
+
+  attendu <- as.Date(c("2026-10-20", "2026-10-27", "2026-11-03"))
+  jeux <- list(
+    iso     = iso,
+    fr_slash = c("20/10/2026", "27/10/2026", "03/11/2026"),
+    us_slash = c("10/20/2026", "10/27/2026", "11/03/2026"),
+    fr_point = c("20.10.2026", "27.10.2026", "03.11.2026"),
+    fr_mois  = c("20 octobre 2026", "27 octobre 2026", "3 novembre 2026"),
+    en_mois  = c("October 20, 2026", "October 27, 2026", "November 3, 2026"))
+  # Le format declare est FAUX pour tous sauf un : c'est le balayage qui doit
+  # rattraper, et il le fait sans que la langue de la session intervienne.
+  for (lg in c("fr", "en")) {
+    shiny::withReactiveDomain(list(userData = list(langue = lg)), {
+      for (nm in names(jeux)) {
+        r <- hstat_date_auto(jeux[[nm]], "%m/%d/%Y")
+        expect_equal(r$dates, attendu, info = paste(lg, nm))
+      }
+    })
+  }
+
+  # Les mois abreges des DEUX langues passent par le meme format.
+  expect_equal(hstat_date_auto(c("25-mars-2024", "1-avril-2024"))$dates,
+               as.Date(c("2024-03-25", "2024-04-01")))
+  expect_equal(hstat_date_auto(c("25-Mar-2024", "1-Apr-2024"))$dates,
+               as.Date(c("2024-03-25", "2024-04-01")))
+
+  # Une colonne deja typee Date traverse sans etre retouchee.
+  d <- as.Date(c("2026-10-20", "2026-10-27"))
+  expect_equal(hstat_date_auto(d, "%m/%d/%Y")$dates, d)
+
+  # Ce qui n'est pas une date n'en devient pas une : le refus est franc.
+  r <- hstat_date_auto(c("T1", "T2", "bloc A"))
+  expect_true(all(is.na(r$dates)))
+  expect_equal(r$n_ok, 0L)
+})
+
+test_that("l'aller-retour barre la date plausible et fausse", {
+  # LE DEFAUT LE PLUS COUTEUX DES TROIS, parce qu'il ne laisse aucun vide :
+  # `%Y` de R accepte DEUX chiffres, si bien que « 20/10/2026 » lu en
+  # « %Y/%m/%d » rend l'an 20. Le graphique se trace, l'axe couvre deux mille
+  # ans, et rien ne le signale.
+  faux <- suppressWarnings(hstat_date_parse("20/10/2026", "%Y/%m/%d"))
+  # Deux mille ans d'ecart, et aucune erreur levee.
+  expect_equal(as.integer(format(faux, "%Y")), 20L)
+
+  # C'est le controle d'aller-retour, et lui seul, qui l'ecarte : la date
+  # relue s'ecrirait « 0020/10/20 », qui ne ressemble pas a l'original.
+  expect_false(.hstat_date_coherent("20/10/2026", faux, "%Y/%m/%d"))
+  expect_true(.hstat_date_coherent("20/10/2026", as.Date("2026-10-20"), "%d/%m/%Y"))
+  # Et le balayage retient donc la bonne lecture.
+  expect_equal(hstat_date_auto("20/10/2026", "%Y/%m/%d")$dates, as.Date("2026-10-20"))
+
+  # L'ALLER-RETOUR TOLERE LE ZERO DE TETE, sans quoi « 3 novembre 2026 »
+  # serait refuse par sa propre ecriture -- `format()` la rend « 03 novembre ».
+  expect_true(.hstat_date_coherent("3 novembre 2026", as.Date("2026-11-03"), "%d %B %Y"))
+  # Et il vaut dans LES DEUX LANGUES : un mois anglais se relit même en
+  # session francaise.
+  shiny::withReactiveDomain(list(userData = list(langue = "fr")), {
+    expect_true(.hstat_date_coherent("March 25, 2024", as.Date("2024-03-25"), "%B %d, %Y"))
+  })
+})
+
+test_that("une date ambigue se dit, elle ne se tranche pas en silence", {
+  # « 01/02/2026 » est le 1er fevrier OU le 2 janvier : les deux lectures
+  # relisent parfaitement, et aucune n'est plus juste que l'autre.
+  a <- hstat_date_auto(c("01/02/2026", "03/04/2026"))
+  expect_gt(length(a$ambigu), 1L)
+  expect_true(all(c("%d/%m/%Y", "%m/%d/%Y") %in% a$ambigu))
+
+  # UN CHOIX EXPLICITE N'EST JAMAIS ECRASE : c'est precisement sur ce jeu-la
+  # que l'utilisateur est le seul a savoir, et `auto` doit rester FALSE.
+  us <- hstat_date_auto(c("01/02/2026", "03/04/2026"), "%m/%d/%Y")
+  fr <- hstat_date_auto(c("01/02/2026", "03/04/2026"), "%d/%m/%Y")
+  expect_equal(us$dates, as.Date(c("2026-01-02", "2026-03-04")))
+  expect_equal(fr$dates, as.Date(c("2026-02-01", "2026-04-03")))
+  expect_false(us$auto); expect_false(fr$auto)
+
+  # ET L'ASSERTION QUI MORD : un jour superieur a 12 tranche de lui-meme, donc
+  # l'alerte ne se declenche pas partout. Sans ce cas, une fonction qui
+  # crierait a l'ambiguite sur TOUTE date numerique passerait le test ci-dessus.
+  net <- hstat_date_auto(c("20/10/2026", "27/10/2026"))
+  expect_length(net$ambigu, 0L)
+  expect_equal(net$dates, as.Date(c("2026-10-20", "2026-10-27")))
+})
+
+test_that("le selecteur de format source derive du catalogue", {
+  chemin <- .hstat_module_path("mod_viz.R")
+  skip_if_not(file.exists(chemin))
+  txt <- paste(readLines(chemin, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # La liste n'est pas recopiee : six entrees y figuraient contre onze
+  # reconnues, et « 20 octobre 2026 » n'etait offert nulle part.
+  expect_true(grepl("HSTAT_DATE_FORMATS_SRC", txt, fixed = TRUE))
+  expect_false(grepl('"AAAA-MM-JJ (ISO 8601)" = "%Y-%m-%d"', txt, fixed = TRUE))
+  expect_gte(length(HSTAT_DATE_FORMATS_SRC), 11L)
+  # Chaque entree offerte doit etre une entree que le lecteur sait lire.
+  for (f in unname(HSTAT_DATE_FORMATS_SRC)) {
+    d <- hstat_date_auto(hstat_date_fmt(as.Date("2024-03-25"), f), f)
+    expect_equal(d$dates, as.Date("2024-03-25"), info = f)
+  }
+  # Et chaque libelle offert a l'ecran est traduit.
+  dico <- hstat_i18n_dict("en")
+  skip_if(!length(dico))
+  for (lib in c(names(HSTAT_DATE_FORMATS_SRC), "Automatique (détecter)"))
+    expect_true(lib %in% names(dico), info = lib)
+})
+
+test_that("le graphique se trace meme quand le format source declare est faux", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("DT")
+  suppressMessages(hstat_installer_replis_ui())
+  # LE TEST PORTE SUR LE MODULE, PAS SUR LA FONCTION. Un test appelant
+  # `hstat_date_auto()` seul serait reste vert pendant que le graphique sortait
+  # vide -- il aurait verifie que le LECTEUR sait lire, jamais que le module
+  # l'emploie. C'est la lecon deja apprise sur l'echelle de l'axe X.
+  d <- data.frame(Semaine = c("2026-10-20", "2026-10-27", "2026-11-03", "2026-11-10"),
+                  Rdt = c(12, 15, 11, 18), stringsAsFactors = FALSE)
+  trace <- function(fmt) {
+    v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d)
+    out <- list()
+    shiny::testServer(mod_viz_server, args = list(values = v), {
+      vider <- function() try(session$flushReact(), silent = TRUE)
+      session$setInputs(vizXVar = "Semaine", xVarType = "date", vizYVar = "Rdt",
+                        vizType = "line", xDateFormat = fmt); vider()
+      out <<- list(pd = plotData(), p = createPlot())
+    })
+    out
+  }
+  pts <- function(o) {
+    b <- suppressWarnings(ggplot2::ggplot_build(o$p))
+    sum(!is.na(b$data[[1]]$x))
+  }
+  # Mesure d'avant correctif, sur ces memes entrees : 0 date lue sur 4 et 0
+  # point trace des que le format declare ne tombait pas juste.
+  for (fmt in c("%m/%d/%Y", HSTAT_DATE_AUTO, "%Y-%m-%d")) {
+    o <- trace(fmt)
+    expect_s3_class(o$pd$Semaine, "Date")
+    expect_equal(sum(!is.na(o$pd$Semaine)), 4L, info = fmt)
+    expect_equal(pts(o), 4L, info = fmt)
+  }
+  # Et les ecritures francaise et anglaise passent par le meme chemin.
+  for (col in list(c("20/10/2026", "27/10/2026", "03/11/2026", "10/11/2026"),
+                   c("20 octobre 2026", "27 octobre 2026", "3 novembre 2026",
+                     "10 novembre 2026"))) {
+    d$Semaine <- col
+    o <- trace(HSTAT_DATE_AUTO)
+    expect_equal(sum(!is.na(o$pd$Semaine)), 4L, info = col[1])
+  }
+})

@@ -1690,6 +1690,155 @@ hstat_date_parse <- function(x, fmt, lang = hstat_langue_session()) {
   as.Date(y, format = .hstat_pct_sub(fmt, c(B = "%m", b = "%m")))
 }
 
+# ---------------------------------------------------------------------------
+# TOUTES LES DATES DOIVENT ENTRER, QUELLE QUE SOIT LA LANGUE DE L'APPLICATION
+#
+# Demande a l'ecran, et le defaut etait muet : le format source se DECLARAIT
+# dans un selecteur, et il devait tomber juste. Un fichier ISO lu avec
+# « MM/JJ/AAAA (US) » rend `NA` sur toutes les lignes -- le graphique sort vide,
+# sans un mot, et l'utilisateur cherche du cote de ses variables.
+#
+# Trois defauts mesures sur le meme tableau, et ils ne sont pas de meme nature :
+#
+#   1. LE SILENCE. « 2026-10-20 » lu en `%m/%d/%Y` -> NA partout, cadre vide.
+#   2. LA VALEUR PLAUSIBLE ET FAUSSE. « 20/10/2026 » lu en `%Y/%m/%d` rend
+#      l'an **20** : `%Y` de R accepte deux chiffres. Le graphique se trace,
+#      l'axe couvre deux mille ans, et rien ne le dit. C'est le pire des deux.
+#   3. LE FORMAT ABSENT DE LA LISTE. « 20 octobre 2026 » n'etait offert par
+#      AUCUNE entree du selecteur source, alors que le format d'affichage, lui,
+#      le proposait -- on pouvait donc ecrire une date qu'on ne savait pas lire.
+#
+# La langue de l'application n'entre dans aucune de ces decisions : un fichier
+# porte les mois qu'il porte. `hstat_date_parse()` lit deja les deux langues ;
+# ce qui manquait, c'est de ne plus dependre d'un format devine juste.
+# ---------------------------------------------------------------------------
+
+# Catalogue des formats SOURCE. Declare une fois : le selecteur en derive, et le
+# balayage automatique emprunte la meme liste -- deux listes recopiees
+# finiraient par diverger, et c'est la copie oubliee qui ment.
+#
+# L'ORDRE EST LA REGLE DE DEPARTAGE, et il est fixe : le non ambigu d'abord
+# (l'annee en tete ne peut pas se confondre avec un jour), puis la convention
+# jour-en-tete, puis mois-en-tete. Il ne depend PAS de `hstat_langue_session()` :
+# faire dependre la lecture d'un fichier de la langue d'affichage est exactement
+# ce que cette regle existe pour empecher.
+HSTAT_DATE_FORMATS_SRC <- c(
+  "AAAA-MM-JJ (ISO 8601)"            = "%Y-%m-%d",
+  "AAAA/MM/JJ"                       = "%Y/%m/%d",
+  "JJ/MM/AAAA (France)"              = "%d/%m/%Y",
+  "JJ-MM-AAAA"                       = "%d-%m-%Y",
+  "JJ.MM.AAAA"                       = "%d.%m.%Y",
+  "MM/JJ/AAAA (US)"                  = "%m/%d/%Y",
+  "MM-JJ-AAAA"                       = "%m-%d-%Y",
+  "JJ Mois AAAA (25 mars 2024)"      = "%d %B %Y",
+  "JJ-Mois-AAAA (25-mars-2024)"      = "%d-%b-%Y",
+  "Mois JJ, AAAA (March 25, 2024)"   = "%B %d, %Y",
+  "Mois JJ AAAA (March 25 2024)"     = "%B %d %Y")
+
+# Valeur du selecteur qui demande le balayage plutot qu'un format impose.
+HSTAT_DATE_AUTO <- "auto"
+
+# Normalisation employee par le controle d'aller-retour ci-dessous. Elle retire
+# ce qui ne porte pas de sens : casse, accents, zeros de tete, espaces en trop.
+# Sans le retrait des zeros, « 3 novembre 2026 » serait refuse par sa propre
+# ecriture, que `format()` rend « 03 novembre 2026 ».
+.hstat_date_norm <- function(x) {
+  y <- hstat_sans_accents(tolower(as.character(x)))
+  y <- gsub("(^|[^0-9])0+([0-9])", "\\1\\2", y)
+  gsub("[[:space:]]+", " ", trimws(y))
+}
+
+# UN FORMAT N'EST RETENU QUE S'IL SE RELIT. C'est ce controle, et lui seul, qui
+# barre l'an 20 : « 20/10/2026 » lu en `%Y/%m/%d` se reecrit « 0020/10/20 », qui
+# ne ressemble pas a l'original. Le simple fait que `as.Date()` ne rende pas
+# `NA` ne prouve rien -- c'est la lecon deja apprise sur « 2026-08-04 bloc A ».
+#
+# L'aller-retour est tente dans LES DEUX LANGUES : un mois ecrit « March » doit
+# se relire meme quand la session est en francais.
+.hstat_date_coherent <- function(src, d, fmt) {
+  ok <- !is.na(d) & !is.na(src) & nzchar(trimws(as.character(src)))
+  if (!any(ok)) return(logical(length(d)))
+  cible <- .hstat_date_norm(src)
+  res <- rep(FALSE, length(d))
+  for (lg in c("fr", "en")) {
+    rendu <- rep(NA_character_, length(d))
+    rendu[ok] <- tryCatch(hstat_date_fmt(d[ok], fmt, lang = lg),
+                          error = function(e) NA_character_)
+    res <- res | (!is.na(rendu) & .hstat_date_norm(rendu) == cible)
+  }
+  res & ok
+}
+
+# Lecture d'une colonne de dates, format decide plutot que devine.
+#
+#   * `fmt` declare et concluant -> on le garde. Un choix explicite de
+#     l'utilisateur n'est jamais ecrase : sur « 01/02/2026 », lui seul sait s'il
+#     s'agit du 1er fevrier ou du 2 janvier.
+#   * sinon -> balayage du catalogue, et on retient celui qui relit le plus de
+#     valeurs.
+#
+# L'AMBIGUITE SE DIT, ELLE NE SE TRANCHE PAS EN SILENCE. Quand plusieurs
+# formats relisent tout et ne rendent PAS les memes dates, `ambigu` les nomme :
+# l'appelant peut alors prevenir. Trancher sans le dire ferait publier un
+# graphique juste d'apparence et faux d'un mois.
+hstat_date_auto <- function(x, fmt = NULL, seuil = 0.8) {
+  n <- length(x)
+  vide <- list(dates = as.Date(rep(NA_real_, n), origin = "1970-01-01"),
+               format = NA_character_, auto = FALSE, ambigu = character(0),
+               n_ok = 0L, n = n)
+  if (!n) return(vide)
+  if (inherits(x, c("Date", "POSIXct", "POSIXlt")))
+    return(list(dates = as.Date(x), format = NA_character_, auto = FALSE,
+                ambigu = character(0), n_ok = sum(!is.na(x)), n = n))
+  src <- as.character(x)
+  utile <- !is.na(src) & nzchar(trimws(src))
+  n_utile <- sum(utile)
+  if (!n_utile) return(vide)
+
+  essai <- function(f) {
+    d <- suppressWarnings(tryCatch(hstat_date_parse(src, f),
+                                   error = function(e) NULL))
+    if (is.null(d) || length(d) != n) return(NULL)
+    list(dates = d, ok = sum(.hstat_date_coherent(src, d, f)))
+  }
+
+  impose <- !is.null(fmt) && nzchar(fmt) && !identical(fmt, HSTAT_DATE_AUTO)
+  if (impose) {
+    e <- essai(fmt)
+    if (!is.null(e) && e$ok >= seuil * n_utile)
+      return(list(dates = e$dates, format = fmt, auto = FALSE,
+                  ambigu = character(0), ok = NULL, n_ok = e$ok, n = n_utile))
+  }
+
+  cands <- unname(HSTAT_DATE_FORMATS_SRC)
+  if (impose) cands <- unique(c(fmt, cands))
+  res <- lapply(cands, essai)
+  names(res) <- cands
+  res <- res[!vapply(res, is.null, logical(1))]
+  if (!length(res)) return(vide)
+  scores <- vapply(res, function(r) r$ok, integer(1))
+  best <- max(scores)
+  if (best == 0L) return(vide)
+  gagnants <- names(scores)[scores == best]
+  retenu <- gagnants[1]
+  # Ne sont ambigus que les formats qui relisent AUTANT et rendent AUTRE CHOSE :
+  # deux ecritures d'une meme date ne posent aucune question.
+  ambigu <- gagnants[vapply(gagnants, function(g)
+    !identical(res[[g]]$dates, res[[retenu]]$dates), logical(1))]
+  list(dates = res[[retenu]]$dates, format = retenu,
+       auto = !identical(retenu, fmt),
+       ambigu = if (length(ambigu)) c(retenu, ambigu) else character(0),
+       n_ok = best, n = n_utile)
+}
+
+# Libelle lisible d'un format, pour les messages. Un `%d/%m/%Y` affiche tel quel
+# n'apprend rien a qui n'ecrit pas de code.
+hstat_date_fmt_label <- function(fmt) {
+  if (is.null(fmt) || !length(fmt) || is.na(fmt[1])) return("")
+  i <- match(fmt[1], HSTAT_DATE_FORMATS_SRC)
+  if (is.na(i)) fmt[1] else names(HSTAT_DATE_FORMATS_SRC)[i]
+}
+
 VIZ_DATE_FORMATS_VALID <- c(
   "%d-%m-%Y", "%m-%d-%Y", "%Y-%m-%d", "%Y-%d-%m",
   "%d/%m/%Y", "%m/%d/%Y",
