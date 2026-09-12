@@ -28,8 +28,15 @@ HSTAT_RDT_MESURES <- c(
   "Gain de rendement cumulé (%)" = "Gain_somme")
 
 # Une mesure de GAIN se lit par rapport a zero : la ligne de reference n'est
-# pas une decoration, c'est l'axe de lecture.
-.hstat_rdt_est_gain <- function(mesure) grepl("^Gain_", mesure %||% "")
+# pas une decoration, c'est l'axe de lecture. Une PERTE se lit de meme -- une
+# perte negative signifie que la modalite fait mieux que la reference.
+.hstat_rdt_est_gain <- function(mesure) grepl("^(Gain|Perte)_", mesure %||% "")
+
+# UN RENDEMENT RELATIF SE LIT PAR RAPPORT A 100, PAS A ZERO. 100 % veut dire
+# « aussi productif que la reference » : c'est cette ligne-la qui porte la
+# lecture, et poser le zero a sa place ferait lire un ecart de 80 points la ou
+# il y en a 20. Le repere est donc pose a 100 pour ces colonnes.
+.hstat_rdt_est_relatif <- function(mesure) grepl("^Relatif_", mesure %||% "")
 
 mod_yield_ui <- function(id) {
   ns <- shiny::NS(id)
@@ -140,6 +147,19 @@ mod_yield_ui <- function(id) {
                      "C'est la référence du gain : toutes les autres modalités lui sont comparées.")
         ),
 
+        # LES PERTES ONT LEUR PROPRE REFERENCE, ET ELLE N'EST PAS LE TEMOIN.
+        # Le gain se lit PAR RAPPORT AU NON TRAITE (ce que le traitement
+        # apporte) ; la perte se lit PAR RAPPORT A UNE PROTECTION (ce que l'on
+        # perd a ne pas l'appliquer). Les deux coexistent dans le meme essai et
+        # ne designent pas la meme modalite : confondre les deux selecteurs
+        # rendrait des pourcentages justes sous le mauvais nom.
+        .hstat_opt_section(
+          "Pertes de récolte", "arrow-trend-down", "#8e44ad", "#f4ecf7",
+          shiny::uiOutput(ns("yieldRefPerteUI")),
+          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                     "Chaque modalité est comparée à ces références. Un essai phytosanitaire en compte souvent deux : la protection poussée et la protection vulgarisée.")
+        ),
+
         .hstat_opt_section(
           "Affichage des résultats", "hashtag", "#d35400", "#fdf2e9",
           shiny::checkboxInput(ns("yieldRound"), "Arrondir les résultats numériques", value = TRUE),
@@ -178,6 +198,14 @@ mod_yield_ui <- function(id) {
             shiny::br(),
             shiny::uiOutput(ns("yieldGainNote")),
             DT::DTOutput(ns("yieldTableGain"))
+          ),
+
+          shiny::tabPanel(
+            title = shiny::tagList(shiny::icon("arrow-trend-down"), " Pertes"),
+            value = "pertes",
+            shiny::br(),
+            shiny::uiOutput(ns("yieldPerteNote")),
+            DT::DTOutput(ns("yieldTablePerte"))
           ),
 
           shiny::tabPanel(
@@ -655,6 +683,19 @@ mod_yield_server <- function(id, values) {
                   choices = c("(à choisir)" = "", m), selected = "")
     })
 
+    # LA REFERENCE DES PERTES NE SE DEVINE PAS NON PLUS, et il peut y en avoir
+    # plusieurs : c'est ce qui rend les trois pertes usuelles calculables d'un
+    # seul geste (NT vs PP, NT vs PV, PV vs PP). La selection survit au
+    # recalcul mais seulement pour ce qui existe encore -- sans l'intersection,
+    # une modalite disparue du nouveau fichier resterait une reference active
+    # qu'aucune commande n'affiche.
+    output$yieldRefPerteUI <- shiny::renderUI({
+      m <- modalites()
+      garde <- intersect(as.character(shiny::isolate(input$yieldRefPerte)), m)
+      pickerInput(ns("yieldRefPerte"), "Modalités de référence",
+                  choices = m, selected = garde, multiple = TRUE)
+    })
+
     # SOURCE DU RENDEMENT : un choix, jamais une devinette -- meme regle que
     # pour la source des donnees.
     rdt_pret <- shiny::reactive(identical(input$yieldSource %||% "fichier", "rendement"))
@@ -712,7 +753,8 @@ mod_yield_server <- function(id, values) {
         rdt_surfaces_egales = pret && isTRUE(input$yieldSurfacesEgales),
         rdt_var_surface = if (pret && !isTRUE(input$yieldSurfacesEgales) &&
                               nzchar(input$yieldSurfacePond %||% ""))
-                            input$yieldSurfacePond else NULL)
+                            input$yieldSurfacePond else NULL,
+        references = input$yieldRefPerte)
     })
 
     output$yieldMessage <- shiny::renderUI({
@@ -801,6 +843,40 @@ mod_yield_server <- function(id, values) {
       DT::datatable(d, rownames = FALSE, options = list(pageLength = 15, scrollX = TRUE))
     })
 
+    output$yieldPerteNote <- shiny::renderUI({
+      r <- resultat(); shiny::req(NROW(r))
+      refs <- attr(r, "references_perte") %||% character(0)
+      abs_ <- attr(r, "references_absentes") %||% character(0)
+      lignes <- character(0)
+      if (!length(refs))
+        lignes <- c(lignes, tr("Choisissez au moins une modalité de référence dans « Pertes de récolte » : sans référence, il n'y a rien à quoi comparer."))
+      else {
+        m <- attr(r, "message_perte")
+        if (!is.null(m) && nzchar(m)) lignes <- c(lignes, m)
+        # LES DEUX COLONNES SE PUBLIENT, ET IL FAUT DIRE POURQUOI. « 18 % de
+        # perte » et « 82 % du rendement de la reference » sont le meme
+        # resultat lu deux fois ; les confondre inverse la conclusion.
+        lignes <- c(lignes, tr("La perte et le rendement relatif somment à 100 % : ce sont les deux lectures du même écart. Une perte négative signifie que la modalité fait mieux que sa référence — c'est un résultat, pas une erreur."))
+      }
+      # UNE REFERENCE ABSENTE SE NOMME. La retirer en silence laisserait
+      # l'utilisateur devant un tableau ou la colonne demandee n'existe pas.
+      if (length(abs_))
+        lignes <- c(lignes, trf("Référence absente des modalités calculées, donc sans colonne : %s.",
+                                paste(abs_, collapse = ", ")))
+      shiny::div(class = "callout callout-info",
+          style = "padding:10px 14px;font-size:13px;margin-bottom:12px;",
+          lapply(lignes, function(t) shiny::div(shiny::icon("circle-info"), " ", t)))
+    })
+
+    output$yieldTablePerte <- DT::renderDT({
+      r <- resultat(); shiny::req(NROW(r))
+      cols <- c("Modalite", intersect(names(HSTAT_RDT_MESURES_PERTE), names(r)),
+                grep("^(Perte|Relatif)_", names(r), value = TRUE))
+      d <- table_affiche(cols)
+      shiny::req(d)
+      DT::datatable(d, rownames = FALSE, options = list(pageLength = 15, scrollX = TRUE))
+    })
+
     # ------------------------------------------------------------- graphique
     # L'ordre des modalites est un REGLAGE : trier par valeur fait ressortir le
     # classement, l'ordre alphabetique permet de retrouver une modalite, et
@@ -822,10 +898,28 @@ mod_yield_server <- function(id, values) {
     # `Rendement_global` n'existe pas : la proposer rendrait un graphique vide
     # sans dire pourquoi -- et laisser le choix se figer dessus le rendrait
     # vide APRES avoir marche, ce qui est pire.
-    output$yieldMesureUI <- shiny::renderUI({
+    # LE CATALOGUE DES MESURES EST EN PARTIE DYNAMIQUE : les colonnes de perte
+    # dependent des references choisies, et leurs libelles voyagent AVEC le
+    # tableau (`libelles_perte`). Les recopier ici ferait deux listes a tenir
+    # d'accord -- et c'est la copie oubliee qui ment.
+    mesures_dispo <- shiny::reactive({
       r <- resultat()
       dispo <- HSTAT_RDT_MESURES[HSTAT_RDT_MESURES %in% names(r)]
+      lib <- attr(r, "libelles_perte") %||% character(0)
+      # UNE MESURE QU'ON NE PEUT PAS CALCULER NE S'OFFRE PAS : une colonne de
+      # perte entierement NA -- reference de rendement nul -- rendrait un
+      # graphique vide sans dire pourquoi, et laisser le choix s'y figer le
+      # rendrait vide APRES avoir marche, ce qui est pire.
+      if (length(lib))
+        lib <- lib[vapply(names(lib), function(k)
+          k %in% names(r) && any(is.finite(r[[k]])), logical(1))]
+      if (length(lib)) dispo <- c(dispo, stats::setNames(names(lib), unname(lib)))
       if (!length(dispo)) dispo <- HSTAT_RDT_MESURES
+      dispo
+    })
+
+    output$yieldMesureUI <- shiny::renderUI({
+      dispo <- mesures_dispo()
       sel <- if ("Rendement_moyen" %in% dispo) "Rendement_moyen" else unname(dispo[1])
       shiny::selectInput(ns("yieldMesure"), "Mesure représentée",
                   choices = dispo, selected = sel, width = "100%")
@@ -874,9 +968,19 @@ mod_yield_server <- function(id, values) {
       # kg/ha en affichant des t/ha.
       u_axe <- if (grepl("_conv$", mesure)) attr(r, "unite_conv") %||% unite_rdt()
                else unite_rdt()
-      titre_auto <- names(HSTAT_RDT_MESURES)[match(mesure, HSTAT_RDT_MESURES)]
+      dispo <- mesures_dispo()
+      titre_auto <- names(dispo)[match(mesure, dispo)]
       if (is.na(titre_auto)) titre_auto <- mesure
-      y_auto <- if (gain) "Gain (%)" else trf("Rendement (%s)", u_axe)
+      # L'ORDRE DES TESTS COMPTE : `.hstat_rdt_est_gain()` est vrai pour une
+      # perte aussi -- toutes deux se lisent par rapport a zero -- et poser
+      # « Gain (%) » sur un axe de pertes annoncerait l'inverse de ce qu'il
+      # porte.
+      relatif <- .hstat_rdt_est_relatif(mesure)
+      perte   <- grepl("^Perte_", mesure)
+      y_auto <- if (perte)        tr("Perte de rendement (%)")
+                else if (relatif) tr("Rendement relatif (%)")
+                else if (gain)    tr("Gain (%)")
+                else              trf("Rendement (%s)", u_axe)
 
       alpha <- input$yieldAlpha %||% 0.85
       sty <- hstat_barre_style(alpha, isTRUE(input$yieldContour),
@@ -958,6 +1062,15 @@ mod_yield_server <- function(id, values) {
       zero <- hstat_axe_zero(zmode, negatifs, extras$axe_col, extras$axe_ep)
       p <- p + zero$couches
       if (negatifs) p <- p + ggplot2::expand_limits(y = 0)
+      # UN RENDEMENT RELATIF SE LIT PAR RAPPORT A 100, et l'etendue doit
+      # l'ATTEINDRE. Sur une serie entierement au-dessus de 100, ggplot cadre
+      # sur les donnees : la base de comparaison sort du champ et l'ampleur de
+      # l'ecart devient invisible -- exactement le defaut deja corrige sur le
+      # zero des gains negatifs.
+      if (relatif)
+        p <- p + ggplot2::geom_hline(yintercept = 100, linetype = "dashed",
+                                     colour = "#7f8c8d", linewidth = 0.5) +
+                 ggplot2::expand_limits(y = 100)
 
       if (isTRUE(input$yieldValeurs)) {
         dec <- max(0L, as.integer(input$yieldValeursDec %||% 1))
@@ -1109,7 +1222,13 @@ mod_yield_server <- function(id, values) {
         lignes <- c(lignes, trf(
           "Le programme non traité « %s » est masqué : sa barre de gain nul n'est plus sur la figure, alors que le sous-titre le cite toujours comme référence.",
           nt))
-      if (gain)
+      perte   <- grepl("^Perte_", m)
+      relatif <- .hstat_rdt_est_relatif(m)
+      if (perte)
+        lignes <- c(lignes, tr("Une perte négative signifie que la modalité fait mieux que sa référence : c'est un résultat, pas une erreur. La perte et le rendement relatif somment à 100 %."))
+      else if (relatif)
+        lignes <- c(lignes, tr("Le trait à 100 % est la référence : une barre au-dessus indique une modalité plus productive que la référence, en dessous une modalité moins productive."))
+      else if (gain)
         lignes <- c(lignes, tr("Un gain négatif signifie que la modalité fait moins bien que le programme non traité : c'est un résultat, pas une erreur."))
       else if (neg)
         lignes <- c(lignes, tr("Les valeurs négatives sont représentées telles quelles, sous la ligne de zéro : les masquer ou les ramener à zéro cacherait précisément ce qu'il faut voir."))
@@ -1195,6 +1314,30 @@ mod_yield_server <- function(id, values) {
         "vous choisissez.</p>",
         "<p><b>Gain (%)</b> = (rendement du traitement − rendement du programme ",
         "non traité) / rendement du programme non traité × 100.</p>",
+        "<h4>Pertes de récolte</h4>",
+        "<p>La <b>perte</b> se lit par rapport à une <b>protection de référence</b>, ",
+        "et non par rapport au non traité : elle mesure ce que l'on perd à ne pas ",
+        "appliquer cette protection.</p>",
+        "<p><b>Perte (%)</b> = (rendement de la référence − rendement de la ",
+        "modalité) / rendement de la référence × 100.<br>",
+        "<b>Rendement relatif (%)</b> = rendement de la modalité / rendement de ",
+        "la référence × 100.</p>",
+        "<p>Les deux somment à 100 % : ce sont les deux lectures du même écart, ",
+        "et les deux se publient — « 18 % de perte » et « 82 % du rendement de la ",
+        "référence » décrivent le même essai, mais les confondre inverse la ",
+        "conclusion.</p>",
+        "<p>Choisissez plusieurs références pour obtenir d'un seul geste les ",
+        "indicateurs usuels d'un essai phytosanitaire. Avec la protection poussée ",
+        "(PP) et la protection vulgarisée (PV) comme références, et NT le non ",
+        "traité :</p>",
+        "<ul>",
+        "<li>perte du NT par rapport à PP = (PP − NT) / PP × 100 ;</li>",
+        "<li>perte du NT par rapport à PV = (PV − NT) / PV × 100 ;</li>",
+        "<li>perte de PV par rapport à PP = (PP − PV) / PP × 100 ;</li>",
+        "<li>rendement relatif de PV par rapport à PP = PV / PP × 100.</li>",
+        "</ul>",
+        "<p>Une perte <b>négative</b> est un résultat : la modalité fait mieux que ",
+        "sa référence. La borner à zéro masquerait précisément ce qu'il faut voir.</p>",
         "<h4>Global ou moyen ?</h4>",
         "<p>Le rendement <b>global</b> rapporte la masse totale à la surface ",
         "totale : il pondère chaque répétition par sa surface. Le rendement ",
@@ -1207,6 +1350,8 @@ mod_yield_server <- function(id, values) {
         "infini. La ligne est écartée et comptée.</li>",
         "<li>Un programme non traité de rendement nul : le gain serait une ",
         "division par zéro. Aucun gain n'est alors calculé.</li>",
+        "<li>Une référence de rendement nul : la perte serait une division par ",
+        "zéro. Aucune perte n'est alors calculée, et le motif est affiché.</li>",
         "</ul>")))
     })
 

@@ -5735,6 +5735,194 @@ hstat_rdt_gain <- function(rendements, modalites = names(rendements),
   out
 }
 
+# ---------------------------------------------------------------------------
+#  PERTES DE RECOLTE : CHAQUE MODALITE COMPAREE A UNE PROTECTION DE REFERENCE
+# ---------------------------------------------------------------------------
+#  Deux formules, et ce sont les deux faces d'un meme nombre :
+#
+#    Perte (%)             = (reference - modalite) / reference x 100
+#    Rendement relatif (%) =  modalite              / reference x 100
+#
+#  ELLES SOMMENT A 100, EXACTEMENT, et c'est precisement pourquoi les deux se
+#  publient. « 18 % de perte » et « 82 % du rendement de la reference »
+#  decrivent le meme essai ; les confondre INVERSE la lecture -- la meme regle
+#  que la similarite et la dissimilarite du module de diversite.
+#
+#  Chacune est calculee PAR SA PROPRE FORMULE, jamais l'une depuis l'autre.
+#  Deduire le relatif par `100 - perte` rendrait l'invariant vrai PAR
+#  CONSTRUCTION, et le test qui le verifie ne garderait alors plus rien.
+#
+#  LA REFERENCE NE SE DEVINE PAS -- meme regle que le programme non traite des
+#  gains. Prendre la premiere modalite venue donnerait une perte a toutes les
+#  autres sans que personne ait designe la reference : les chiffres seraient
+#  alors faux ET vraisemblables.
+#
+#  IL Y EN A PLUSIEURS parce qu'un essai phytosanitaire en compte couramment
+#  deux -- protection poussee (PP) et protection vulgarisee (PV) -- et que les
+#  quatre indicateurs usuels se deduisent tous du meme couple de formules :
+#
+#    PR(PP)    = (PP - NT) / PP x 100     reference = PP, modalite = NT
+#    PR(PV)    = (PV - NT) / PV x 100     reference = PV, modalite = NT
+#    PR(PV/PP) = (PP - PV) / PP x 100     reference = PP, modalite = PV
+#    RP(PV/PP) =        PV / PP x 100     reference = PP, modalite = PV
+#
+#  Ecrire trois fonctions pour trois de ces lignes ferait diverger trois copies
+#  d'un meme calcul : c'est la derive que ce depot corrige partout ailleurs.
+
+# Mesures de rendement sur lesquelles une perte se calcule. Declare UNE FOIS :
+# le tableau, les libelles et le selecteur du graphique en derivent tous.
+#
+# LE SUFFIXE DE COLONNE ET LE MOT DU LIBELLE SONT PORTES ENSEMBLE, et c'est
+# voulu : la colonne doit rester stable (`Perte_somme_vs_X` est relue par
+# l'export et par le graphique) pendant que le libelle suit le vocabulaire du
+# catalogue, qui dit « cumule » et non « somme ». Deux listes separees
+# finiraient par diverger.
+#
+# LE LIBELLE EST UNE PHRASE ENTIERE, PAS UN GABARIT PLUS UN ADJECTIF.
+# `trf("Perte de rendement %s vs ...", "moyen", ref)` ne traduirait jamais
+# « moyen » -- `trf()` ne traduit pas ses arguments, c'est ce qui protege les
+# donnees de l'utilisateur -- et mettre l'adjectif au dictionnaire est
+# precisement ce que ce depot interdit : « moyen » vaut *medium* pour une
+# taille d'effet et *mean* en statistique. Six phrases completes, donc.
+HSTAT_RDT_MESURES_PERTE <- list(
+  Rendement_global = c(col = "global",
+    perte   = "Perte de rendement global vs « %s » (%%)",
+    relatif = "Rendement relatif global vs « %s » (%%)"),
+  Rendement_moyen = c(col = "moyen",
+    perte   = "Perte de rendement moyen vs « %s » (%%)",
+    relatif = "Rendement relatif moyen vs « %s » (%%)"),
+  Rendement_somme = c(col = "somme",
+    perte   = "Perte de rendement cumulé vs « %s » (%%)",
+    relatif = "Rendement relatif cumulé vs « %s » (%%)"))
+
+# UN POURCENTAGE EST SANS DIMENSION : ces colonnes ne se convertissent jamais.
+# Les y faire entrer serait une faute de categorie -- le meme rapport rendrait
+# des pourcentages multiplies par mille.
+HSTAT_RDT_PREFIXES_PCT <- c("Gain_", "Perte_", "Relatif_")
+
+# Un nom de modalite vient du fichier : il porte des accents, des espaces, des
+# parentheses. Il ne peut pas entrer tel quel dans un nom de colonne, qui est
+# relu par le graphique, par l'export CSV et par Excel.
+.hstat_rdt_slug <- function(x) {
+  s <- hstat_sans_accents(as.character(x))
+  s <- gsub("[^A-Za-z0-9]+", "_", s)
+  s <- gsub("^_+|_+$", "", s)
+  s[is.na(s) | !nzchar(s)] <- "ref"
+  # « T 1 » et « T-1 » donnent le meme abrege : sans quoi la seconde colonne
+  # ECRASERAIT la premiere, et l'essai perdrait une reference sans un mot.
+  make.unique(s, sep = "_")
+}
+
+# Valeur de la modalite de reference, et le motif quand elle n'est pas
+# utilisable. Les deux formules partagent EXACTEMENT les memes garde-fous :
+# les ecrire deux fois les ferait diverger a la premiere correction.
+.hstat_rdt_ref_valeur <- function(r, m, reference) {
+  nom <- trimws(as.character(reference)[1])
+  if (is.na(nom) || !nzchar(nom) || !(nom %in% m))
+    return(list(ok = FALSE, nom = nom, message =
+      "Choisissez la modalité de référence parmi les modalités présentes."))
+  v <- r[match(nom, m)][1]
+  if (!isTRUE(is.finite(v)))
+    return(list(ok = FALSE, nom = nom, message = trf(
+      "Le rendement de la référence « %s » n'est pas calculable : la perte ne l'est pour aucune modalité.", nom)))
+  # DIVISER PAR ZERO RENDRAIT `Inf`, qui passerait pour une perte colossale --
+  # une valeur d'apparence normale en tableau, une barre demesuree en figure.
+  if (v == 0)
+    return(list(ok = FALSE, nom = nom, message = trf(
+      "Le rendement de la référence « %s » est nul : la perte est indéfinie (division par zéro).", nom)))
+  list(ok = TRUE, nom = nom, valeur = v, message = "")
+}
+
+.hstat_rdt_ecart <- function(rendements, modalites, reference, quoi) {
+  r <- suppressWarnings(as.numeric(rendements))
+  m <- trimws(as.character(modalites))
+  vide <- function(motif) {
+    out <- rep(NA_real_, length(r)); attr(out, "message") <- motif; out
+  }
+  if (!length(r) || length(m) != length(r))
+    return(vide("Aucun rendement à comparer."))
+  g <- .hstat_rdt_ref_valeur(r, m, reference)
+  if (!isTRUE(g$ok)) return(vide(g$message))
+  ref <- g$valeur
+  perte <- identical(quoi, "perte")
+  out <- if (perte) (ref - r) / ref * 100 else r / ref * 100
+  # LA REFERENCE VAUT 0 % DE PERTE ET 100 % DE RENDEMENT RELATIF PAR
+  # DEFINITION. La formule le donne bien ; on l'ecrit quand meme -- cela
+  # protege des arrondis et dit ce qu'on affiche.
+  out[m == g$nom] <- if (perte) 0 else 100
+  attr(out, "reference") <- ref
+  attr(out, "reference_nom") <- g$nom
+  attr(out, "message") <- trf(
+    if (perte) "Pertes de rendement calculées par rapport à « %s » (rendement de référence : %s)."
+    else       "Rendements relatifs calculés par rapport à « %s » (rendement de référence : %s).",
+    g$nom, format(signif(ref, 6), scientific = FALSE))
+  out
+}
+
+# Perte de rendement (%) de chaque modalite par rapport a `reference`.
+#
+# UNE PERTE NEGATIVE EST UN RESULTAT, pas une erreur : la modalite fait MIEUX
+# que la reference. La borner a zero masquerait precisement ce qu'il faut voir
+# -- c'est la regle deja ecrite pour les gains et pour les efficacites.
+hstat_rdt_perte <- function(rendements, modalites = names(rendements),
+                            reference = NULL) {
+  .hstat_rdt_ecart(rendements, modalites, reference, "perte")
+}
+
+# Rendement relatif (%) de chaque modalite par rapport a `reference`.
+hstat_rdt_relatif <- function(rendements, modalites = names(rendements),
+                              reference = NULL) {
+  .hstat_rdt_ecart(rendements, modalites, reference, "relatif")
+}
+
+# Ajoute au tableau de rendement, pour CHAQUE reference demandee, la perte et
+# le rendement relatif de chaque mesure disponible.
+hstat_rdt_pertes_table <- function(res, references = NULL) {
+  if (!is.data.frame(res) || !NROW(res)) return(res)
+  refs <- trimws(as.character(references %||% character(0)))
+  refs <- unique(refs[!is.na(refs) & nzchar(refs)])
+  if (!length(refs)) return(res)
+
+  mods    <- as.character(res$Modalite)
+  mesures <- intersect(names(HSTAT_RDT_MESURES_PERTE), names(res))
+  if (!length(mesures)) return(res)
+
+  # Les attributs ne survivent pas a l'ajout de colonnes : on les remet.
+  garder <- attributes(res)[setdiff(names(attributes(res)),
+                                    c("names", "class", "row.names"))]
+  slugs <- .hstat_rdt_slug(refs)
+  libelles <- character(0)
+  messages <- character(0)
+  # UNE REFERENCE ABSENTE SE NOMME. La retirer en silence laisserait un
+  # utilisateur devant un tableau ou la colonne qu'il vient de demander
+  # n'existe pas, sans rien qui le dise.
+  absentes <- refs[!(refs %in% mods)]
+
+  for (i in seq_along(refs)) {
+    if (!(refs[i] %in% mods)) next
+    for (k in mesures) {
+      spec  <- HSTAT_RDT_MESURES_PERTE[[k]]
+      court <- unname(spec[["col"]])
+      p  <- hstat_rdt_perte(res[[k]],   mods, refs[i])
+      q  <- hstat_rdt_relatif(res[[k]], mods, refs[i])
+      cp <- paste0("Perte_",    court, "_vs_", slugs[i])
+      cr <- paste0("Relatif_",  court, "_vs_", slugs[i])
+      res[[cp]] <- as.numeric(p)
+      res[[cr]] <- as.numeric(q)
+      libelles[cp] <- trf(unname(spec[["perte"]]),   refs[i])
+      libelles[cr] <- trf(unname(spec[["relatif"]]), refs[i])
+      if (identical(k, mesures[1]))
+        messages <- c(messages, attr(p, "message"))
+    }
+  }
+
+  for (a in names(garder)) attr(res, a) <- garder[[a]]
+  attr(res, "references_perte")  <- refs[refs %in% mods]
+  attr(res, "libelles_perte")    <- libelles
+  attr(res, "message_perte")     <- paste(messages, collapse = " ")
+  attr(res, "references_absentes") <- absentes
+  res
+}
 # Tableau complet : rendements ET gains, global et moyen.
 hstat_rdt_complet <- function(df, var_modalite, var_masse, var_surface,
                               non_traite,
@@ -5746,7 +5934,8 @@ hstat_rdt_complet <- function(df, var_modalite, var_masse, var_surface,
                               conv_masse = NULL, conv_surface = NULL,
                               var_rendement = NULL,
                               rdt_var_surface = NULL,
-                              rdt_surfaces_egales = FALSE) {
+                              rdt_surfaces_egales = FALSE,
+                              references = NULL) {
   # Le rendement DEJA CALCULE court-circuite la pesee : meme tableau, memes
   # gains, memes graphiques -- une colonne de moins, `Rendement_global`, qui
   # exige les surfaces.
@@ -5767,12 +5956,20 @@ hstat_rdt_complet <- function(df, var_modalite, var_masse, var_surface,
   if (!is.null(g_glob)) res$Gain_global <- as.numeric(g_glob)
   res$Gain_moyen  <- as.numeric(g_moy)
   res$Gain_somme  <- as.numeric(g_som)
+  # Les pertes viennent avec les gains, et AVANT la conversion : ce sont des
+  # pourcentages, donc sans dimension -- `HSTAT_RDT_COLS_CONV` ne les nomme
+  # pas, et un `Perte_*_conv` serait la meme faute de categorie qu'un
+  # `Gain_*_conv`.
+  res <- hstat_rdt_pertes_table(res, references)
   # La conversion vient APRES les gains : un pourcentage est sans dimension, il
   # n'a rien a convertir, et l'ajouter avant ferait convertir les colonnes de
   # gain par simple voisinage de nom.
   res <- hstat_rdt_convertir_table(res, conv_masse, conv_surface)
+  garder_p <- attributes(res)[grep("^(references_perte|libelles_perte|message_perte|references_absentes)$",
+                                  names(attributes(res)))]
   attr(res, "non_traite") <- non_traite
   attr(res, "message_gain") <- attr(g_glob %||% g_moy, "message")
+  for (a in names(garder_p)) attr(res, a) <- garder_p[[a]]
   res
 }
 
@@ -8709,9 +8906,75 @@ hstat_div_convertir <- function(h, de = "2", vers = "2") {
 #
 # Le format se declare, il ne s'infere pas : une fiche large dont la premiere
 # colonne porte des noms d'especes serait lue a l'envers sans un mot.
+# ---------------------------------------------------------------------------
+#  UN RELEVE PEUT ETRE DESIGNE PAR PLUSIEURS COLONNES
+# ---------------------------------------------------------------------------
+#  Une fiche d'entomologie identifie rarement son releve par une seule colonne :
+#  c'est le croisement (traitement x periode d'observation x semaine) qui fait
+#  l'unite d'echantillonnage. N'en prendre qu'une AGREGE tout le reste sans un
+#  mot -- choisir « Traitement » seul fond les quinze semaines en un point, et
+#  la diversite beta n'a plus que trois releves la ou l'essai en compte
+#  quarante-cinq. Les indices sortent alors parfaitement plausibles, et faux.
+.hstat_div_cle <- function(data, cols) {
+  parts <- lapply(cols, function(k) {
+    v <- data[[k]]
+    # Une date doit entrer par son ECRITURE, pas par son nombre de jours depuis
+    # 1970 : `as.character()` sur un `Date` rend bien l'ISO, mais un `POSIXct`
+    # y perdrait son fuseau.
+    if (inherits(v, c("Date", "POSIXct", "POSIXlt"))) format(v) else as.character(v)
+  })
+  parts <- lapply(parts, function(x) { x[is.na(x)] <- ""; trimws(x) })
+  trimws(do.call(paste, c(parts, sep = " | ")))
+}
+
+# ---------------------------------------------------------------------------
+#  LES STADES D'UNE MEME ESPECE NE SONT PAS DEUX ESPECES
+# ---------------------------------------------------------------------------
+#  Un fichier de comptages entomologiques porte le stade en prefixe :
+#  `ch_Cocc` (chrysalide/larve) et `ad_Cocc` (adulte) sont LA MEME ESPECE
+#  observee a deux stades. Les compter comme deux colonnes distinctes GONFLE LA
+#  RICHESSE -- huit colonnes pour six especes, soit +33 % -- et avec elle
+#  Shannon, Simpson, les estimateurs et tous les verdicts. Rien ne leve, rien
+#  ne manque : le tableau est complet et faux, la forme la plus couteuse.
+#
+#  LA DETECTION EST PILOTEE PAR LES DONNEES, PAS PAR UN CATALOGUE DE STADES.
+#  Une liste de prefixes connus (`ch`, `ad`, `lv`, `ind`...) raterait toute
+#  notation maison ; ici un prefixe n'est reconnu que si le MEME nom d'espece
+#  apparait sous au moins DEUX prefixes differents. C'est ce seuil de deux qui
+#  rend la detection sure : une colonne `Bloc_1` seule ne ressemble a rien.
+#
+#  ET LE REGROUPEMENT NE SE DEVINE PAS. Il est propose, jamais applique
+#  d'office : la meme regle que le temoin des gains. Non regroupe, le cas est
+#  NOMME -- une richesse gonflee sans un mot est precisement ce qu'on corrige.
+hstat_div_stades <- function(cols) {
+  cols <- as.character(cols)
+  # `[A-Za-z]+` ne peut pas franchir le souligne : la coupe se fait donc au
+  # PREMIER souligne, et `ad_Fourmi_Noire` rend bien (« ad », « Fourmi_Noire »).
+  mm <- regmatches(cols, regexec("^([A-Za-z]+)_(.+)$", cols))
+  stade  <- vapply(mm, function(x) if (length(x) == 3L) x[2] else NA_character_, character(1))
+  espece <- vapply(mm, function(x) if (length(x) == 3L) x[3] else NA_character_, character(1))
+  # Sans prefixe, la colonne EST l'espece.
+  sans <- is.na(espece)
+  espece[sans] <- cols[sans]
+  multi <- character(0)
+  for (e in unique(espece[!sans])) {
+    k <- which(espece == e & !sans)
+    if (length(unique(stade[k])) >= 2L) multi <- c(multi, e)
+  }
+  # Ce qui n'a pas au moins deux stades garde son nom de colonne : renommer
+  # `ad_Chrysope` en `Chrysope` sur la foi d'un prefixe isole inventerait une
+  # lecture que le fichier ne porte pas.
+  final <- cols
+  keep <- espece %in% multi
+  final[keep] <- espece[keep]
+  list(colonne = cols, stade = stade, espece = final,
+       multi = multi, n_multi = length(multi))
+}
+
 hstat_div_matrice <- function(data, format = c("long", "large"),
                               var_site = NULL, var_espece = NULL,
-                              var_abondance = NULL, var_especes = NULL) {
+                              var_abondance = NULL, var_especes = NULL,
+                              grouper_stades = FALSE) {
   format <- match.arg(format)
   if (!is.data.frame(data) || !nrow(data))
     stop("Aucune donnée à agréger.", call. = FALSE)
@@ -8723,8 +8986,9 @@ hstat_div_matrice <- function(data, format = c("long", "large"),
       stop("Sélectionnez au moins une colonne d'espèce.", call. = FALSE)
     m <- as.matrix(data[, cols, drop = FALSE])
     storage.mode(m) <- "double"
-    lignes <- if (!is.null(var_site) && var_site %in% names(data))
-      as.character(data[[var_site]]) else paste0("Relevé ", seq_len(nrow(data)))
+    sites <- intersect(as.character(var_site %||% character(0)), names(data))
+    lignes <- if (length(sites)) .hstat_div_cle(data, sites)
+              else paste0("Relevé ", seq_len(nrow(data)))
     # Deux lignes de meme nom de releve sont AGREGEES, pas empilees : un fichier
     # qui repete un releve sur plusieurs lignes est courant, et deux lignes
     # homonymes compteraient sinon pour deux sites dans toute la beta-diversite.
@@ -8739,8 +9003,8 @@ hstat_div_matrice <- function(data, format = c("long", "large"),
     if (is.null(var_espece) || !var_espece %in% names(data))
       stop("Sélectionnez la colonne des espèces.", call. = FALSE)
     esp <- as.character(data[[var_espece]])
-    sit <- if (!is.null(var_site) && var_site %in% names(data))
-      as.character(data[[var_site]]) else rep("Ensemble", nrow(data))
+    sites <- intersect(as.character(var_site %||% character(0)), names(data))
+    sit <- if (length(sites)) .hstat_div_cle(data, sites) else rep("Ensemble", nrow(data))
     if (is.null(var_abondance) || !nzchar(var_abondance %||% "") ||
         !var_abondance %in% names(data)) {
       # CHAQUE LIGNE EST UN INDIVIDU. Le dire, parce que c'est une hypothese :
@@ -8767,6 +9031,24 @@ hstat_div_matrice <- function(data, format = c("long", "large"),
   }
 
   m[!is.finite(m)] <- 0
+
+  # LE REGROUPEMENT SE FAIT ICI, sur la matrice montee, et non dans chacune des
+  # deux branches : les deux formes portent le meme piege (`ch_Cocc` peut tout
+  # aussi bien etre une MODALITE de la colonne d'especes en forme longue), et
+  # deux copies de la regle finiraient par diverger.
+  st <- hstat_div_stades(colnames(m))
+  if (st$n_multi) {
+    if (isTRUE(grouper_stades)) {
+      m <- t(rowsum(t(m), group = st$espece, reorder = FALSE))
+      msg <- c(msg, trf("Stades regroupés : %d espèce(s) observée(s) à plusieurs stades ont été additionnées (%s).",
+                        st$n_multi, paste(st$multi, collapse = ", ")))
+    } else {
+      # UNE RICHESSE GONFLEE SANS UN MOT est le defaut qu'on corrige : le cas
+      # est nomme meme quand on ne regroupe pas.
+      msg <- c(msg, trf("Attention : %d espèce(s) apparaissent à plusieurs stades (%s) et comptent ici pour autant d'espèces distinctes, ce qui gonfle la richesse. Cochez « Regrouper les stades » pour les additionner.",
+                        st$n_multi, paste(st$multi, collapse = ", ")))
+    }
+  }
   # Une espece absente de TOUS les releves n'apporte rien et fausse la richesse
   # si elle reste en colonne : `Sobs` compte les colonnes non nulles, mais les
   # estimateurs de richesse comptent les singletons sur la matrice entiere.
