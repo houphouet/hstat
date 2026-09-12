@@ -3026,7 +3026,8 @@ test_that("toutes les familles d'analyse deposent un contexte", {
   pose <- gsub('.*"([^"]+)"$', "\\1", pose)
   attendu <- c("Tests statistiques", "Comparaisons multiples", "Analyses multivariées",
                "Analyses descriptives", "Machine Learning", "Analyses qualitatives",
-               "Séries temporelles", "Corrélations", "Deep Learning", "Plan & Puissance")
+               "Séries temporelles", "Corrélations", "Deep Learning", "Plan & Puissance",
+               "Diversité écologique")
   for (m in attendu)
     expect_true(m %in% pose, info = paste("aucune capture pour :", m))
 })
@@ -6213,6 +6214,7 @@ test_that("les trois protocoles d'IA passent par le meme traducteur", {
   expect_false(grepl("Erreur API (HTTP %d)", txt, fixed = TRUE))
   expect_false(grepl("Erreur de %s (HTTP %d)", txt, fixed = TRUE))
 })
+
 
 test_that("toute chaine passee a tr()/trf() est au dictionnaire", {
   root <- .hstat_repo_root()
@@ -10351,8 +10353,14 @@ test_that("une colonne creee et une colonne lue portent le meme nom", {
   # s'appelle `Repetition` (un nom de colonne ne s'accentue pas), l'etiquette
   # affichee par `tr()` porte l'accent. Verifie : aucune lecture accentuee
   # (`$Répétition`, `[["Répétition"]]`) n'existe dans le depot.
+  # « Espèce » et « Relevé » viennent du module de diversite : les colonnes
+  # s'appellent `Espece` et `Releve` (un nom de colonne ne s'accentue pas), les
+  # chaines accentuees ne sont QUE des titres d'axe passes a `labs()`. Verifie :
+  # les cinq occurrences sont toutes des arguments de `ggplot2::labs()`, aucune
+  # lecture (`$Relevé`, `[["Espèce"]]`) n'existe dans le depot.
   connus <- c("Observé", "Prédit", "Modalité", "Résidu", "Thème", "Fréquence",
-              "Méthode", "Interprétation", "Métrique", "Unité", "Répétition")
+              "Méthode", "Interprétation", "Métrique", "Unité", "Répétition",
+              "Espèce", "Relevé")
   fautifs <- fautifs[!grepl(paste0("chaine (", paste(connus, collapse = "|"),
                                    ") "), fautifs)]
   expect_equal(fautifs, character(0))
@@ -15243,4 +15251,487 @@ test_that("les tables de noms sont completes et l'echelle de l'axe les emploie",
   cur <- substr(cur, 1, 2500)
   expect_true(grepl("hstat_date_fmt(", cur, fixed = TRUE))
   expect_false(grepl("format(as.Date(v), disp_fmt)", cur, fixed = TRUE))
+})
+
+
+# ============================================================================
+#  DIVERSITE ECOLOGIQUE
+# ============================================================================
+
+# Le jeu d'essai des tests de diversite : cinq relevés dont les profils sont
+# DELIBEREMENT contrastés — un peuplement dominé (R3), un parfaitement régulier
+# (R4), un intermédiaire. Sur des relevés qui se ressemblent, la moitié des
+# assertions passeraient en ignorant complètement l'indice mesuré.
+.hstat_div_jeu <- function() {
+  m <- matrix(c(
+    50, 20, 10,  5,  3,  2,  1,  1,
+    40, 30, 15,  8,  4,  2,  1,  0,
+    90,  5,  2,  1,  1,  1,  0,  0,
+    12, 12, 12, 12, 12, 12, 12, 12,
+    30, 25, 20, 15, 10,  0,  0,  0), nrow = 5, byrow = TRUE)
+  rownames(m) <- paste0("R", 1:5); colnames(m) <- paste0("sp", 1:8)
+  m
+}
+
+test_that("les indices alpha reproduisent vegan au chiffre près", {
+  skip_if_not_installed("vegan")
+  m <- .hstat_div_jeu()
+  # LE SOCLE N'APPELLE PAS VEGAN : il calcule tout en R de base, pour que les
+  # indices ne dépendent d'aucun paquet optionnel. Ce test est donc une
+  # CONFRONTATION, pas une vérification de plomberie — il attraperait une
+  # formule fautive que rien d'autre ne verrait.
+  for (i in seq_len(nrow(m))) {
+    a <- hstat_div_indices(m[i, ], "e")
+    expect_equal(a$Shannon_H, unname(vegan::diversity(m[i, ], "shannon")),
+                 tolerance = 1e-10, info = rownames(m)[i])
+    expect_equal(a$Simpson_1_D, unname(vegan::diversity(m[i, ], "simpson")),
+                 tolerance = 1e-10, info = rownames(m)[i])
+    expect_equal(a$Simpson_inverse, unname(vegan::diversity(m[i, ], "invsimpson")),
+                 tolerance = 1e-10, info = rownames(m)[i])
+    expect_equal(a$Fisher_alpha, unname(vegan::fisher.alpha(m[i, ])),
+                 tolerance = 1e-4, info = rownames(m)[i])
+  }
+  # Et le jeu d'essai DISCERNE les relevés : sans cela, une formule qui rendrait
+  # la même valeur partout passerait toutes les assertions ci-dessus.
+  h <- vapply(seq_len(nrow(m)), function(i) hstat_div_indices(m[i, ], "2")$Shannon_H, 0)
+  expect_gt(diff(range(h)), 1)
+})
+
+test_that("les estimateurs de richesse reproduisent vegan", {
+  skip_if_not_installed("vegan")
+  m <- .hstat_div_jeu()
+  for (i in seq_len(nrow(m))) {
+    r <- hstat_div_richesse(m[i, ])
+    v <- vegan::estimateR(m[i, ])
+    expect_equal(r$Sobs, unname(v["S.obs"]), info = rownames(m)[i])
+    # `S.chao1` de vegan EST la forme corrigée du biais : c'est elle qu'on
+    # affiche en premier, parce qu'elle reste définie quand F2 = 0 — le cas
+    # fréquent d'un petit inventaire, où la forme de 1984 divise par zéro.
+    expect_equal(r$Chao1_corrige, unname(v["S.chao1"]), tolerance = 1e-8,
+                 info = rownames(m)[i])
+    expect_equal(r$ACE, unname(v["S.ACE"]), tolerance = 1e-6, info = rownames(m)[i])
+    # `as.numeric` des deux cotes, et pas `unname` : `vegan::rarefy` accroche
+    # la taille du sous-echantillon en ATTRIBUT (`Subsample`), que `unname` ne
+    # retire pas -- l'assertion echouait sur un attribut alors que les valeurs
+    # coincidaient au dixieme de milliardieme. C'est bien la VALEUR qu'on
+    # confronte.
+    expect_equal(as.numeric(hstat_div_rarefaction(m[i, ], 20)),
+                 as.numeric(vegan::rarefy(m[i, ], 20)), tolerance = 1e-8,
+                 info = rownames(m)[i])
+  }
+  # F2 = 0 : la forme de 1984 n'est pas définie, la corrigée l'est toujours.
+  x <- c(10, 5, 3, 1, 1, 1)
+  expect_true(is.na(hstat_div_richesse(x)$Chao1))
+  expect_true(is.finite(hstat_div_richesse(x)$Chao1_corrige))
+  # La borne basse de l'intervalle ne descend JAMAIS sous ce qu'on a vu : un
+  # intervalle symétrique le fait dès que la variance est grande, et « moins
+  # d'espèces que celles comptées » ne veut rien dire.
+  r <- hstat_div_richesse(.hstat_div_jeu()[1, ])
+  expect_gte(r$Chao1_IC_inf, r$Sobs)
+  expect_gte(r$Chao1_IC_sup, r$Chao1_corrige)
+})
+
+test_that("les coefficients bêta reproduisent vegan", {
+  skip_if_not_installed("vegan")
+  m <- .hstat_div_jeu()
+  cas <- list(
+    list("jaccard",  vegan::vegdist(m, "jaccard", binary = TRUE)),
+    list("sorensen", vegan::vegdist(m, "bray",    binary = TRUE)),
+    list("bray",     vegan::vegdist(m, "bray")),
+    list("horn",     vegan::vegdist(m, "horn")),
+    list("morisita", vegan::vegdist(m, "morisita")))
+  for (k in cas) {
+    nous <- hstat_div_beta(m, k[[1]], "dissimilarite")
+    expect_equal(max(abs(nous - as.matrix(k[[2]]))), 0, tolerance = 1e-10,
+                 info = k[[1]])
+  }
+  # SIMILARITE ET DISSIMILARITE SONT COMPLEMENTAIRES, et les confondre inverse
+  # la conclusion : 0,80 se lit « très semblables » d'un côté et « très
+  # différents » de l'autre.
+  s <- hstat_div_beta(m, "jaccard", "similarite")
+  d <- hstat_div_beta(m, "jaccard", "dissimilarite")
+  expect_equal(max(abs(s + d - 1)), 0, tolerance = 1e-12)
+  expect_error(hstat_div_beta(m[1, , drop = FALSE]), "deux")
+})
+
+test_that("la partition de Baselga est exacte, pas approchée", {
+  m <- .hstat_div_jeu()
+  b <- hstat_div_baselga(m)
+  # Les deux identités sont la RAISON D'ETRE de la partition : si elles ne
+  # tiennent pas, les deux composantes ne se somment pas à la dissimilarité et
+  # l'interprétation « remplacement contre emboîtement » ne veut plus rien dire.
+  expect_equal(max(abs(b$Sorensen_total - b$Simpson_turnover - b$Sorensen_emboitement)),
+               0, tolerance = 1e-12)
+  expect_equal(max(abs(b$Jaccard_total - b$Jaccard_turnover - b$Jaccard_emboitement)),
+               0, tolerance = 1e-12)
+  # Deux relevés emboîtés (l'un sous-ensemble strict de l'autre) : TOUT est
+  # emboîtement, rien n'est remplacement. C'est le cas qui distingue les deux
+  # composantes — sur un jeu quelconque elles se mélangent et l'assertion ne
+  # discernerait rien.
+  e <- rbind(a = c(1, 1, 1, 1), b = c(1, 1, 0, 0))
+  be <- hstat_div_baselga(e)
+  expect_equal(be$Simpson_turnover, 0)
+  expect_gt(be$Sorensen_emboitement, 0)
+  # Et deux relevés de même richesse sans aucune espèce commune : tout est
+  # remplacement, rien n'est emboîtement.
+  r <- rbind(a = c(1, 1, 0, 0), b = c(0, 0, 1, 1))
+  br <- hstat_div_baselga(r)
+  expect_equal(br$Simpson_turnover, 1)
+  expect_equal(br$Sorensen_emboitement, 0)
+})
+
+test_that("Hill, Rényi et Tsallis retombent sur les indices connus", {
+  x <- .hstat_div_jeu()[1, ]
+  a <- hstat_div_indices(x, "e")
+  # Hill (1973) montre que richesse, Shannon et Simpson sont le MEME nombre à
+  # trois valeurs de q : c'est cela qui les rend comparables entre eux.
+  expect_equal(unname(hstat_div_hill(x, 0)), a$Richesse_S)
+  expect_equal(unname(hstat_div_hill(x, 1)), exp(a$Shannon_H), tolerance = 1e-10)
+  expect_equal(unname(hstat_div_hill(x, 2)), a$Simpson_inverse, tolerance = 1e-10)
+  expect_equal(unname(hstat_div_hill(x, Inf)), a$Berger_Parker_inverse, tolerance = 1e-10)
+  expect_equal(unname(hstat_div_renyi(x, 1)), a$Shannon_H, tolerance = 1e-10)
+  expect_equal(unname(hstat_div_renyi(x, 0)), log(a$Richesse_S), tolerance = 1e-10)
+  expect_equal(unname(hstat_div_tsallis(x, 2)), a$Simpson_1_D, tolerance = 1e-10)
+  expect_equal(unname(hstat_div_tsallis(x, 0)), a$Richesse_S - 1, tolerance = 1e-10)
+  # Hill décroît avec q par construction : q élevé favorise les dominantes.
+  h <- hstat_div_hill(x, c(0, 1, 2, Inf))
+  expect_true(all(diff(h) <= 1e-9))
+})
+
+test_that("la base du logarithme fait partie du seuil, et le verdict convertit", {
+  # LE PIEGE, ET IL EST SILENCIEUX. `vegan::diversity()` calcule en logarithme
+  # NATUREL ; la grille de Frontier est en BITS. Appliquer l'une à l'autre ne
+  # lève rien et ne laisse aucun vide : cela rend un verdict plausible et faux.
+  m <- .hstat_div_jeu()
+  x <- m[4, ]                                   # relevé parfaitement régulier
+  hb <- hstat_div_indices(x, "2")$Shannon_H     # 3 bits
+  hn <- hstat_div_indices(x, "e")$Shannon_H     # 2,079 nats
+  expect_equal(hb, 3, tolerance = 1e-10)
+  expect_equal(hstat_div_convertir(hb, "2", "e"), hn, tolerance = 1e-12)
+
+  # Le verdict rend la MEME classe quelle que soit la base de calcul.
+  expect_identical(hstat_div_verdict("Shannon_H", hb, "2")$libelle,
+                   hstat_div_verdict("Shannon_H", hn, "e")$libelle)
+
+  # ET LE JEU D'ESSAI DISCERNE LE DEFAUT : lue sans conversion, la grille en
+  # bits classerait ce relevé une classe plus bas. Sur une autre valeur les
+  # deux lectures coïncideraient, et l'assertion passerait avec ou sans le
+  # correctif — c'est la leçon de « précision et rappel coïncident sur une
+  # matrice équilibrée ».
+  g <- HSTAT_DIV_SEUILS$Shannon_H
+  sans_conversion <- g$libelles[sum(hn >= g$bornes) + 1L]
+  expect_false(identical(sans_conversion,
+                         hstat_div_verdict("Shannon_H", hn, "e")$libelle))
+  expect_identical(hstat_div_verdict("Shannon_H", hb, "2")$libelle, "Élevée")
+  expect_identical(sans_conversion, "Moyenne")
+})
+
+test_that("chaque grille de seuils est complète et porte son auteur", {
+  for (k in names(HSTAT_DIV_SEUILS)) {
+    g <- HSTAT_DIV_SEUILS[[k]]
+    n <- length(g$bornes) + 1L
+    expect_length(g$etats, n)
+    expect_length(g$libelles, n)
+    expect_length(g$interpretations, n)
+    expect_true(all(g$etats %in% c("ok", "warn", "err")), info = k)
+    expect_true(!is.unsorted(g$bornes), info = k)
+    # UN SEUIL SANS SON AUTEUR N'EST PAS INTERPRETABLE par le lecteur du
+    # rapport : les quatre voyagent ensemble.
+    expect_true(nzchar(g$indice) && nzchar(g$auteur) && nzchar(g$reference), info = k)
+    expect_gt(nchar(g$reference), 60L)
+    # ET L'ORIGINE EST DECLAREE. Un seuil présenté comme publié alors qu'il
+    # relève de l'usage est exactement le genre d'affirmation qu'un rapport
+    # recopie sans la vérifier.
+    expect_true(g$origine %in% c("primaire", "usage"), info = k)
+    expect_true(all(nzchar(g$interpretations)), info = k)
+    # La base est déclarée, ou explicitement sans objet.
+    expect_true(is.na(g$base) || g$base %in% HSTAT_DIV_BASES, info = k)
+  }
+  # Les deux origines existent réellement dans le catalogue : si tout était
+  # « usage », la colonne ne distinguerait rien.
+  org <- vapply(HSTAT_DIV_SEUILS, function(g) g$origine, "")
+  expect_true(all(c("primaire", "usage") %in% org))
+  # Magurran est le cadrage publié ; Frontier la convention d'usage.
+  expect_identical(HSTAT_DIV_SEUILS$Shannon_H_nats$origine, "primaire")
+  expect_identical(HSTAT_DIV_SEUILS$Shannon_H$origine, "usage")
+})
+
+test_that("aucun indice ne branche sur une valeur non calculable", {
+  # UN PEUPLEMENT MONOSPECIFIQUE N'A PAS D'EQUITABILITE : H' = 0 et Hmax = 0,
+  # donc J = 0/0. `NaN` traverserait toutes les sorties et ferait lever la
+  # moindre condition posée dessus ; NA dit ce qui est le cas.
+  a <- hstat_div_indices(c(10, 0, 0), "2")
+  expect_equal(a$Shannon_H, 0)
+  expect_true(is.na(a$Pielou_J))
+  expect_false(is.nan(a$Pielou_J %||% NA_real_))
+  for (k in c("Heip_E", "Camargo_E", "Smith_Wilson_Evar", "Simpson_E"))
+    expect_true(is.na(a[[k]]), info = k)
+
+  # LES ESTIMATEURS COMPTENT DES INDIVIDUS. Sur des recouvrements ou des
+  # biomasses, « singleton » n'a aucun sens : on rend NA plutôt qu'un Chao1
+  # calculé sur des décimales arrondies, qui serait plausible et faux.
+  d <- hstat_div_richesse(c(2.5, 1.3, 0.7))
+  expect_equal(d$Sobs, 3)
+  for (k in c("Chao1", "Chao1_corrige", "ACE", "Jackknife1", "Bootstrap",
+              "Couverture_Good"))
+    expect_true(is.na(d[[k]]), info = k)
+  expect_true(is.na(hstat_div_rarefaction(c(2.5, 1.3), 2)))
+
+  # Et le verdict ne lève pas : il rend le quatrième état.
+  v <- hstat_div_verdict("Pielou_J", NA_real_)
+  expect_identical(v$etat, "indeterminable")
+  expect_true(nzchar(v$auteur))
+  expect_true(nzchar(v$grille))
+  expect_identical(hstat_div_verdict("indice inconnu", 1)$etat, "indeterminable")
+})
+
+test_that("la matrice relevés × espèces se construit des deux formes", {
+  long <- data.frame(
+    site = c("A", "A", "B", "B", "B"),
+    esp  = c("sp1", "sp2", "sp1", "sp2", "sp3"),
+    n    = c(10, 5, 7, 0, 3), stringsAsFactors = FALSE)
+  m <- hstat_div_matrice(long, "long", "site", "esp", "n")
+  expect_equal(dim(m), c(2L, 3L))
+  expect_equal(unname(m["A", "sp1"]), 10)
+  expect_equal(unname(m["B", "sp3"]), 3)
+
+  # SANS COLONNE D'EFFECTIF, CHAQUE LIGNE EST UN INDIVIDU — et c'est une
+  # hypothèse, donc elle se dit. Un fichier portant une colonne d'effectif non
+  # sélectionnée serait sinon compté à raison d'une observation par ligne.
+  m2 <- hstat_div_matrice(long, "long", "site", "esp", NULL)
+  expect_equal(unname(m2["A", "sp1"]), 1)
+  expect_true(grepl("individu", attr(m2, "message")))
+
+  # Forme large, et deux lignes de même relevé AGREGEES : deux lignes homonymes
+  # compteraient sinon pour deux sites dans toute la diversité bêta.
+  large <- data.frame(site = c("A", "A", "B"),
+                      sp1 = c(1, 2, 5), sp2 = c(0, 3, 1),
+                      stringsAsFactors = FALSE)
+  ml <- hstat_div_matrice(large, "large", var_site = "site",
+                          var_especes = c("sp1", "sp2"))
+  expect_equal(dim(ml), c(2L, 2L))
+  expect_equal(unname(ml["A", "sp1"]), 3)
+  expect_true(grepl("addition", attr(ml, "message")))
+
+  # Un effectif négatif est écarté ET compté : le taire ferait disparaître une
+  # ligne sans cause visible.
+  neg <- data.frame(site = "A", esp = c("sp1", "sp2"), n = c(5, -3),
+                    stringsAsFactors = FALSE)
+  mn <- hstat_div_matrice(neg, "long", "site", "esp", "n")
+  expect_equal(ncol(mn), 1L)
+  expect_true(grepl("négatif", attr(mn, "message")))
+
+  expect_error(hstat_div_matrice(data.frame(), "long"), "agr")
+  expect_error(hstat_div_matrice(long, "long", "site", NULL, "n"), "espèces")
+})
+
+test_that("les abondances relatives somment à 100 et l'ordre suit l'abondance", {
+  m <- .hstat_div_jeu()
+  a <- hstat_div_abondance(m)
+  expect_equal(sum(a$Abondance_relative_pct), 100, tolerance = 1e-9)
+  expect_equal(sum(a$Abondance), sum(m))
+  expect_false(is.unsorted(rev(a$Abondance)))
+  expect_equal(a$Rang[1], 1)
+  # L'occurrence est un COMPTAGE DE RELEVES, pas une somme d'effectifs : les
+  # deux répondent à deux questions, et les confondre ferait passer une espèce
+  # rare mais omniprésente pour une espèce abondante.
+  expect_true(all(a$Occurrences <= nrow(m)))
+  expect_equal(a$Occurrences[a$Espece == "sp1"], 5L)
+
+  # Par relevé, chaque ligne somme à 100.
+  s <- hstat_div_abondance_site(m)
+  expect_equal(unname(rowSums(s[, -1, drop = FALSE])), rep(100, nrow(m)),
+               tolerance = 1e-9)
+})
+
+test_that("le tableau d'interprétation porte grille, auteur, origine et référence", {
+  m <- .hstat_div_jeu()
+  ind <- cbind(hstat_div_indices(colSums(m), "2"),
+               hstat_div_richesse(colSums(m))[, c("Couverture_Good", "Completude")])
+  d <- hstat_div_interpreter(ind, "2")
+  expect_gt(nrow(d), 5L)
+  for (k in c("Indice", "Valeur", "Classe", "Interpretation", "Grille",
+              "Auteur", "Origine", "Reference"))
+    expect_true(k %in% names(d), info = k)
+  expect_true(all(nzchar(d$Auteur)))
+  expect_true(all(nzchar(d$Reference)))
+  expect_true(all(d$Origine %in% c("Seuils publiés par l'auteur", "Convention d'usage")))
+  # La clé « Shannon_H_nats » lit la MEME colonne que « Shannon_H » : ce sont
+  # deux lectures d'une seule valeur, pas deux valeurs.
+  sh <- d[grepl("^Indice de Shannon", d$Indice), ]
+  expect_equal(nrow(sh), 2L)
+  expect_equal(hstat_div_convertir(sh$Valeur[1], "2", "e"), sh$Valeur[2],
+               tolerance = 1e-9)
+})
+
+test_that("le module de diversité respecte les conventions du dépôt", {
+  chemin <- .hstat_module_path("mod_diversity.R")
+  skip_if(is.na(chemin) || !file.exists(chemin))
+  l <- .hstat_code_lignes(chemin)
+  src <- paste(l, collapse = "\n")
+  # LE MODULE NE CALCULE RIEN : une statistique posée dans un `observeEvent`
+  # n'est pas testable, et c'est la raison d'être de la règle.
+  expect_false(grepl("function\\s*\\(x[^)]*\\)\\s*\\{[^}]*sum\\(p \\* log", src))
+  # Il passe par le socle.
+  for (f in c("hstat_div_matrice", "hstat_div_indices", "hstat_div_richesse",
+              "hstat_div_beta", "hstat_div_interpreter", "hstat_div_abondance"))
+    expect_true(grepl(f, src, fixed = TRUE), info = f)
+  # Il dépose son contexte, sans quoi il manquerait à l'onglet
+  # d'interprétation, au journal de reproductibilité et au rapport.
+  expect_true(grepl('hstat_ai_capture(values, "Diversité écologique"', src, fixed = TRUE))
+  # Il prend les kits partagés plutôt que de recopier une douzième fois.
+  for (f in c("hstat_export_plot_ui", "hstat_export_plot_handler",
+              "hstat_export_tables_handlers", "hstat_plot_extras_ui",
+              "hstat_plot_extras_lire", "hstat_plot_extras_theme",
+              "hstat_palettes_choix", "hstat_scales_palette", "hstat_axe_titre_ui"))
+    expect_true(grepl(f, src, fixed = TRUE), info = f)
+  # LA BOITE N'EXISTE QUE QUAND ELLE PORTE QUELQUE CHOSE, et le drapeau ne se
+  # suspend pas — sans quoi elle ne réapparaîtrait jamais.
+  expect_true(grepl('condition = "output.hasDiv"', src, fixed = TRUE))
+  expect_true(grepl('outputOptions(output, "hasDiv", suspendWhenHidden = FALSE)',
+                    src, fixed = TRUE))
+  # Et il est branché dans l'interface comme dans le serveur.
+  root <- .hstat_repo_root()
+  ux <- paste(readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE,
+                        encoding = "UTF-8"), collapse = "\n")
+  sv <- paste(readLines(file.path(root, "inst", "app", "app_server.R"), warn = FALSE,
+                        encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl('mod_diversity_ui("diversity")', ux, fixed = TRUE))
+  expect_true(grepl('tabName = "diversity"', ux, fixed = TRUE))
+  expect_true(grepl('mod_diversity_server("diversity", values)', sv, fixed = TRUE))
+})
+
+
+test_that("les huit figures du module de diversité se tracent réellement", {
+  # LE DEFAUT QUE CE TEST GARDE, mesure au navigateur : sept figures sur huit
+  # s'affichaient, et la huitieme -- la carte de chaleur de dissimilarite --
+  # rendait « Continuous value supplied to a discrete scale » a la place de
+  # l'image. La palette choisie par l'utilisateur etait posee sur TOUTES les
+  # figures ; sur une echelle de remplissage CONTINUE, `scale_fill_brewer`
+  # remplace le degrade par une echelle discrete et ggplot refuse de tracer.
+  #
+  # Aucun test n'exercait le reactif du graphique : le catalogue etait verifie
+  # (huit entrees), le constructeur ne l'etait pas. Ce test CONSTRUIT les huit
+  # figures et exige que chacune passe `ggplot_build` -- c'est la seule etape
+  # ou l'incompatibilite des echelles se manifeste, une figure mal composee se
+  # laissant assembler sans un mot.
+  skip_if_not_installed("ggplot2")
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+
+  # Un jeu en forme longue, la forme d'une fiche de terrain.
+  d <- data.frame(
+    Parcelle = rep(c("P1", "P2", "P3"), each = 5),
+    Espece   = rep(paste0("sp", 1:5), times = 3),
+    Abondance = c(40, 20, 10, 5, 1,
+                  12, 12, 11, 10, 9,
+                  60,  3,  2, 1, 0),
+    stringsAsFactors = FALSE)
+  vals <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d,
+                                aiHistory = list(), aiContext = NULL)
+
+  shiny::testServer(mod_diversity_server, args = list(values = vals), {
+    session$setInputs(divFormat = "long", divSite = "Parcelle",
+                      divEspece = "Espece", divAbondance = "Abondance",
+                      divBase = "2")
+    session$setInputs(divCalculer = 1)
+    expect_false(is.null(rv$mat))
+    expect_equal(nrow(rv$mat), 3L)
+
+    # La palette est celle qui declenchait le defaut : une palette Brewer, donc
+    # une echelle DISCRETE. Avec la palette par defaut de ggplot2 (`hue`) le
+    # defaut se manifeste de la meme facon, mais choisir Brewer rend le cas
+    # explicite -- c'est celui qu'un utilisateur selectionne pour ses figures.
+    session$setInputs(divPalette = "Set2", divBetaMethode = "jaccard",
+                      divBetaSortie = "similarite", divIndiceTrace = "Shannon_H",
+                      divRangLog = TRUE, divAbondTop = 20, divAccumPerm = 20)
+
+    for (f in unname(HSTAT_DIV_GRAPHIQUES)) {
+      session$setInputs(divGraphique = f)
+      p <- graphique()
+      expect_s3_class(p, "ggplot")
+      # `ggplot_build` est l'etape qui resout les echelles : c'est LA seule qui
+      # voit un degrade remplace par une palette qualitative.
+      expect_error(ggplot2::ggplot_build(p), NA, info = f)
+    }
+  })
+})
+
+test_that("une figure a echelle continue ne recoit pas de palette qualitative", {
+  # Le pendant de l'assertion precedente, et il tient a un detail : sans la
+  # liste `HSTAT_DIV_GRAPHIQUES_CONTINUS`, la seule figure concernee serait
+  # reconnue par son nom ecrit en dur dans le reactif -- une neuvieme figure a
+  # degrade ajoutee demain retrouverait le defaut sans que rien ne le dise.
+  expect_true(exists("HSTAT_DIV_GRAPHIQUES_CONTINUS"))
+  # Ce qu'elle nomme existe bien au catalogue : une entree obsolete n'exclurait
+  # plus rien, et c'est exactement le genre de derive muette que ce depot
+  # traque -- la liste protegerait une figure qui n'existe plus.
+  expect_true(all(HSTAT_DIV_GRAPHIQUES_CONTINUS %in% unname(HSTAT_DIV_GRAPHIQUES)))
+  # Et elle ne les nomme pas TOUTES : sinon la palette de l'utilisateur ne
+  # serait jamais posee sur aucune figure, et le reglage n'agirait plus.
+  expect_lt(length(HSTAT_DIV_GRAPHIQUES_CONTINUS), length(HSTAT_DIV_GRAPHIQUES))
+})
+
+test_that("un comptage s'affiche sans decimales", {
+  # LE DEFAUT QUE CE TEST GARDE, mesure a l'ecran : le tableau de richesse
+  # annoncait « 392.000 individus » et « 12.000 especes » a cote de « 9.500 ».
+  # `DT::formatRound` etait applique a TOUTES les colonnes numeriques du module,
+  # donc aussi aux comptages. On doute d'un entier affiche comme s'il avait
+  # trois decimales -- le defaut deja corrige sur le tableau de la DL50
+  # (« 5.00000 degres de liberte »).
+  #
+  # LEÇON DE METHODE, prise par mutation. La premiere version de cette
+  # assertion verifiait que `hstat_div_richesse()` rend bien des comptages
+  # ENTIERS -- ce qui est vrai, et n'a rien a voir : le defaut etait dans
+  # l'AFFICHAGE. Reposer `formatRound` sur toutes les colonnes ne la faisait
+  # donc pas echouer. La regle a ete sortie du `moduleServer` (ou rien n'est
+  # testable) vers le socle, et c'est elle qu'on verifie maintenant.
+  d <- data.frame(
+    Releve     = c("A", "B"),                 # texte : jamais arrondi
+    Individus  = c(118, 26),                  # comptage
+    Sobs       = c(9L, 7L),                   # comptage, deja entier de type
+    Chao1      = c(9.5, 7.5),                 # estimation : fractionnaire
+    Vide       = c(NA_real_, NA_real_),       # rien d'observe
+    Trouee     = c(12, NA_real_),             # un NA au milieu d'entiers
+    stringsAsFactors = FALSE)
+  e <- hstat_cols_entieres(d)
+  # Le jeu croise les deux traitements DANS LE MEME tableau : sans une colonne
+  # fractionnaire a cote, une fonction qui supprimerait toutes les decimales
+  # passerait l'assertion ; sans une colonne entiere, l'inverse.
+  expect_false(e[["Releve"]])
+  expect_true(e[["Individus"]])
+  expect_true(e[["Sobs"]])
+  expect_false(e[["Chao1"]])
+  # Une colonne entierement manquante n'est pas « entiere » : il n'y a rien a
+  # arrondir, et la dire entiere ferait afficher « NA » sous un format d'entier
+  # sans que ce soit un choix.
+  expect_false(e[["Vide"]])
+  # Un NA au milieu d'entiers n'empeche pas la colonne d'en etre une.
+  expect_true(e[["Trouee"]])
+
+  # ET C'EST L'EFFET QUI SE VERIFIE, jamais le texte du module. Une premiere
+  # version comptait les appels a `DT::formatRound` dans le source -- et ce
+  # compte etait satisfait par un appel SANS RAPPORT pose ailleurs dans le meme
+  # fichier : la mutation passait. Une assertion qui ne distingue pas les deux
+  # codes ne garde rien. On lit donc les decimales que DT pose REELLEMENT sur
+  # chaque colonne, dans la definition qu'il engendre.
+  skip_if_not_installed("DT")
+  dt <- hstat_dt_arrondi(DT::datatable(d, rownames = FALSE), d, digits = 3)
+  dec <- stats::setNames(rep(NA_integer_, ncol(d)), names(d))
+  for (cd in dt$x$options$columnDefs) {
+    if (is.null(cd$render)) next
+    m <- regmatches(cd$render, regexpr("formatRound\\(data, [0-9]+", cd$render))
+    if (!length(m)) next
+    n <- as.integer(sub(".*, ", "", m))
+    for (t in unlist(cd$targets)) dec[[as.integer(t) + 1L]] <- n
+  }
+  expect_equal(unname(dec[["Individus"]]), 0L)
+  expect_equal(unname(dec[["Sobs"]]),      0L)
+  expect_equal(unname(dec[["Trouee"]]),    0L)
+  # L'estimation, elle, garde les decimales demandees : c'est ce qui rend
+  # l'assertion discernante -- une fonction qui arrondirait tout a zero, ou qui
+  # ne distinguerait rien, en echouerait.
+  expect_equal(unname(dec[["Chao1"]]),     3L)
+  # Et une colonne de texte n'est pas arrondie du tout.
+  expect_true(is.na(dec[["Releve"]]))
 })

@@ -57,8 +57,8 @@ Le code vit dans `R/` — c'est le code du **paquet**. `inst/app/` ne garde que 
 qui **agit** au démarrage :
 
 - `R/utils.R` — le socle : fonctions de calcul et utilitaires partagés
-- `R/mod_*.R` — les **17 modules** Shiny (tests, visualisation, ML, DL,
-  qualitatif, etc.), UI et serveur
+- `R/mod_*.R` — les **18 modules** Shiny (tests, visualisation, ML, DL,
+  qualitatif, diversité écologique, etc.), UI et serveur
 - `inst/app/Utils.R` — le pont : charge le socle, puis effets de bord de
   démarrage (locale, installation des paquets, aiguillages d'interface)
 - `inst/app/UX.R` — définit `ui` (tous les onglets)
@@ -5762,3 +5762,228 @@ Détail de mesure qui a failli m'égarer : la sonde au navigateur relevait
 **« GRAINE »** en capitales, et la chaîne n'existait nulle part dans le code.
 `innerText` rend le texte **après** `text-transform: uppercase` ; le nœud porte
 « Graine ». Chercher la mauvaise chaîne aurait conclu à une absence.
+
+## Diversité écologique : le socle calcule, vegan sert de témoin
+
+`R/mod_diversity.R` ne calcule **rien**. Les ~40 indices vivent dans
+`R/utils.R` (`hstat_div_*`), et c'est la règle du dépôt appliquée à la lettre :
+une statistique posée dans un `observeEvent` n'est pas testable.
+
+Mais il y a ici une seconde raison, propre à ce module. **`vegan` n'est pas
+appelé.** Shannon, Simpson, Chao1, ACE, la raréfaction, Jaccard, Sørensen,
+Bray-Curtis, Morisita-Horn — tout est calculé en R de base : ce sont des sommes
+et des comptages. `vegan` est présent en `Imports` pour les analyses
+multivariées, mais un indice de diversité qui tomberait avec lui serait un
+indice de moins.
+
+Ce qui reste de `vegan`, c'est son rôle de **témoin** : un test confronte dix
+grandeurs aux siennes.
+
+| | écart |
+|---|---|
+| Shannon, Simpson, Simpson inverse | **0** (1e-10) |
+| Chao1 corrigé, ACE, raréfaction | **0** (1e-8) |
+| Jaccard, Sørensen, Bray-Curtis, Morisita-Horn, Morisita | **0** (1e-10) |
+| alpha de Fisher | 5 × 10⁻⁶ (bissection) |
+
+Le test se **saute** si `vegan` manque — d'où son inscription explicite dans la
+liste de la CI : il y arrivait par dépendance transitive, donc par chance, et un
+test sauté ressemble à un test qui passe.
+
+### La base du logarithme fait partie du seuil
+
+C'est le piège central du module, et il est **silencieux**.
+`vegan::diversity()` calcule en logarithme **naturel**. La grille de lecture la
+plus employée en écologie francophone (Frontier) est, elle, en **bits**.
+Appliquer l'une à l'autre ne lève rien et ne laisse aucun vide : cela rend un
+verdict plausible et faux.
+
+Mesuré sur un relevé de huit espèces parfaitement régulier :
+
+| | valeur | classe rendue |
+|---|---|---|
+| H′ en bits, grille en bits | 3,000 | **Élevée** |
+| H′ en nats, grille convertie | 2,079 | **Élevée** |
+| H′ en nats, grille **non** convertie | 2,079 | **Moyenne** |
+
+Chaque grille déclare donc sa base, et `hstat_div_verdict()` convertit **avant**
+de comparer. Le test choisit ce relevé-là précisément parce que les deux
+lectures y **divergent** : sur une autre valeur elles coïncideraient, et
+l'assertion passerait avec ou sans le correctif — c'est la leçon de « précision
+et rappel coïncident sur une matrice équilibrée ».
+
+### Un seuil publié n'est pas une convention d'usage
+
+L'utilisateur a demandé les seuils **avec le nom de leurs auteurs**. La réponse
+honnête distingue deux choses que l'on confond couramment :
+
+- **`origine = "primaire"`** — l'auteur cité **énonce lui-même** ces bornes.
+  Magurran (2004, p. 107) écrit que H′ « se situe habituellement entre 1,5 et
+  3,5 et ne dépasse que rarement 4,5 ». C'est un **cadrage d'ordre de grandeur
+  observé**, et c'est ainsi qu'il est présenté — pas comme une grille de qualité.
+- **`origine = "usage"`** — convention répandue dont l'**indice** a un auteur
+  mais dont la **grille** n'en a pas un seul. Pielou (1966) définit J = H′/H′max
+  et sa lecture aux bornes relève de la définition ; les coupures 0,5 / 0,65 /
+  0,8 relèvent de l'usage francophone (Daget 1976, Barbault 1981).
+
+Un seuil présenté comme publié alors qu'il relève de l'usage est exactement le
+genre d'affirmation qu'un rapport recopie sans la vérifier. La colonne
+« Origine » est donc **affichée**, et un test exige que les deux valeurs existent
+réellement dans le catalogue : si tout était « usage », la colonne ne
+distinguerait rien.
+
+Onze grilles sont déclarées (Shannon en bits et en nats, Pielou, Simpson,
+Berger-Parker, Good, complétude, Jaccard, Sørensen, Margalef, équitabilité de
+Simpson), chacune avec ses bornes, ses libellés, ses interprétations, son
+auteur, sa référence **complète** et son origine. Un test vérifie que les
+quatre voyagent ensemble et que la référence dépasse soixante caractères — une
+référence qui se réduirait à un nom ne se retrouve pas.
+
+### Ce qui rend NA, et pourquoi ce n'est pas un accident
+
+Trois cas, tous documentés dans le code et tous testés :
+
+1. **Un peuplement monospécifique n'a pas d'équitabilité.** H′ = 0 et H′max = 0,
+   donc J = 0/0. `NaN` traverserait toutes les sorties et ferait lever la
+   moindre condition posée dessus ; `NA` dit ce qui est le cas.
+2. **Les estimateurs de richesse comptent des individus.** Sur des
+   recouvrements ou des biomasses, « singleton » n'a aucun sens : Chao1, ACE,
+   jackknife, bootstrap et la couverture de Good rendent `NA` plutôt qu'un
+   nombre calculé sur des décimales arrondies — plausible et faux.
+3. **Chao1 de 1984 divise par F2.** À zéro doubleton — le cas *fréquent* d'un
+   petit inventaire — elle n'est pas définie. C'est la forme **corrigée du
+   biais** (Chao 1987) qui est affichée en premier, et c'est aussi celle que
+   `vegan::estimateR` rend sous `S.chao1`.
+
+L'intervalle de Chao1 est **log-normal, jamais symétrique** : sa borne basse ne
+peut pas descendre sous le nombre d'espèces réellement observées, et un
+intervalle symétrique le fait dès que la variance est grande. « Moins d'espèces
+que celles comptées » ne veut rien dire.
+
+### Une même dissimilarité recouvre deux phénomènes opposés
+
+Baselga (2010) : deux relevés peuvent différer parce que les espèces se
+**remplacent** (turnover) ou parce que l'un est un **sous-ensemble appauvri** de
+l'autre (emboîtement). Conclure « les deux milieux diffèrent » sans les séparer
+fait manquer ce que l'on cherchait à montrer.
+
+Les deux identités — βsor = βsim + βsne et βjac = βjtu + βjne — sont la **raison
+d'être** de la partition : si elles ne tiennent pas, les composantes ne se
+somment plus à la dissimilarité. Le test les vérifie à 1e-12, **et** il les
+discerne sur deux cas construits : deux relevés emboîtés (turnover = 0,
+emboîtement > 0) et deux relevés disjoints de même richesse (turnover = 1,
+emboîtement = 0). Sur un jeu quelconque les deux composantes se mélangent et
+l'assertion ne discernerait rien.
+
+### Similarité ou dissimilarité : les deux se publient
+
+Les confondre **inverse la conclusion**. Jaccard vaut 0,80 entre deux relevés
+très semblables en similarité, et entre deux relevés très différents en
+dissimilarité. Les deux sont donc rendues côte à côte et **nommées**, plutôt
+qu'une seule sous un nom qu'il faudrait deviner. Un test vérifie qu'elles sont
+bien complémentaires.
+
+Les distances métriques (euclidienne, Manhattan) restent en **distance** : les
+rendre en « similarité » exigerait une normalisation arbitraire. On le dit
+plutôt que d'inventer une échelle.
+
+### La forme du fichier se déclare, elle ne s'infère pas
+
+Deux formes existent sur le terrain, et aucune ne se devine : **long** (une
+ligne par relevé × espèce, avec ou sans colonne d'effectif) et **large** (la
+matrice déjà faite). Une fiche large dont la première colonne porte des noms
+d'espèces serait lue à l'envers **sans un mot**, et tous les indices sortiraient
+plausibles et faux.
+
+Trois décisions du constructeur, chacune annoncée à l'écran parce qu'aucune ne
+va de soi :
+
+- **Sans colonne d'effectif, chaque ligne est un individu.** C'est la forme
+  d'une fiche de terrain — mais c'est une hypothèse, donc elle se dit. Un
+  fichier portant une colonne d'effectif non sélectionnée serait sinon compté à
+  raison d'une observation par ligne.
+- **Deux lignes de même relevé sont agrégées, pas empilées.** Un fichier qui
+  répète un relevé sur plusieurs lignes est courant, et deux lignes homonymes
+  compteraient sinon pour deux sites dans toute la diversité bêta.
+- **Un effectif négatif est écarté et compté.** Le taire ferait disparaître une
+  ligne sans cause visible.
+
+### Huit figures, une seule sortie
+
+Le catalogue (`HSTAT_DIV_GRAPHIQUES`) est déclaré une fois et le sélecteur en
+dérive. Huit `plotOutput` côte à côte auraient demandé **huit blocs d'export à
+tenir d'accord**, et c'est la copie oubliée qui ment — la dérive déjà corrigée
+sur les formats d'image, les champs de DPI, les thèmes et les palettes.
+L'aperçu et le téléchargement lisent la même fonction.
+
+#### Une échelle continue ne se remplace pas par une palette qualitative
+
+Trois défauts du module ont été trouvés **au navigateur**, aucun par la suite de
+tests — et le premier ne laissait rien à lire.
+
+La palette choisie par l'utilisateur était posée sur **toutes** les figures.
+C'est juste tant que l'esthétique de groupe est discrète (une couleur par
+relevé, une par espèce). La carte de chaleur de dissimilarité, elle, remplit ses
+cases par une **valeur** et porte donc son propre dégradé : `scale_fill_brewer`
+posé par-dessus fait lever ggplot sur « Continuous value supplied to a discrete
+scale », et **le graphique ne sort pas du tout**. Mesuré : sept figures sur huit
+s'affichaient.
+
+`HSTAT_DIV_GRAPHIQUES_CONTINUS` est déclarée **à côté du catalogue** plutôt
+qu'écrite en dur dans le réactif : une neuvième figure à dégradé s'y inscrit au
+lieu de retrouver le défaut. Le test construit les **huit** figures et exige que
+chacune passe `ggplot_build` — la seule étape où l'incompatibilité des échelles
+se manifeste, une figure mal composée s'assemblant sans un mot.
+
+Aucun test n'exerçait le réactif du graphique : le catalogue était vérifié (huit
+entrées), le constructeur ne l'était pas. **Compter les entrées d'un catalogue
+ne dit rien de ce qu'elles produisent.**
+
+#### Un comptage n'a pas de décimales — et l'assertion s'est trompée deux fois
+
+`DT::formatRound` était appliqué à **toutes** les colonnes numériques : le
+tableau annonçait « 392.000 individus » et « 12.000 espèces » à côté de
+« 9.500 ». On doute d'un entier affiché comme s'il avait trois décimales, et
+l'œil cherche la fraction qui le justifierait — le défaut déjà corrigé sur le
+tableau de la DL50 (« 5.00000 degrés de liberté »).
+
+`hstat_cols_entieres()` et `hstat_dt_arrondi()` (`R/utils.R`) portent la règle.
+Le critère porte sur les valeurs **observées** : une colonne entièrement
+manquante n'est pas « entière » (il n'y a rien à arrondir), un `NA` au milieu
+d'entiers n'empêche pas la colonne d'en être une, et la tolérance existe parce
+qu'un comptage transite par un double — `sum()` sur des entiers rend un double,
+où 12 vaut parfois 11,999999999998.
+
+**La leçon est dans les deux assertions fausses qui ont précédé la bonne**, et
+c'est la troisième fois que l'outil de mesure ment dans le sens rassurant :
+
+1. La première vérifiait que `hstat_div_richesse()` rend bien des comptages
+   **entiers**. C'est vrai, et sans rapport : le défaut était dans
+   l'**affichage**. Remettre `formatRound` sur toutes les colonnes ne la faisait
+   pas échouer.
+2. La deuxième comptait les appels à `DT::formatRound` dans le source du module
+   et en exigeait **deux**. Le compte était satisfait par un appel **sans
+   rapport**, posé ailleurs dans le même fichier. Une assertion qui ne distingue
+   pas les deux codes ne garde rien.
+
+C'est donc l'**effet** qui se vérifie : les décimales que DT pose réellement sur
+chaque colonne, lues dans la définition qu'il engendre. Et le jeu d'essai croise
+les deux traitements **dans le même tableau** — sans une colonne fractionnaire à
+côté, une fonction qui arrondirait tout à zéro passerait aussi.
+
+Corollaire de structure : la règle vivait dans le corps du `moduleServer`, où
+rien n'est testable. Elle a rejoint le socle — la règle du dépôt sur les
+statistiques vaut aussi pour les règles de mise en forme.
+
+#### Deux boîtes du même nom, c'est une de trop
+
+Le panneau de gauche portait le **choix** de la figure et ses paramètres de
+calcul (indice tracé, échelle, nombre d'espèces, permutations) ; celui de droite
+sa **mise en forme** (titres, tailles, thème, marges). Les deux s'intitulaient
+« Options du graphique ». Qui cherche le thème ouvre la première et ne le trouve
+pas ; qui cherche les permutations ouvre la seconde. C'est le libellé qui promet
+ce que la carte ne porte pas, défaut que ce dépôt traque partout ailleurs.
+
+La première s'appelle désormais « Choix de la figure ». La seconde garde le nom
+qu'emploient les onze autres panneaux de mise en forme de l'application : deux
+vocabulaires pour une même chose, c'est le début de la dérive.

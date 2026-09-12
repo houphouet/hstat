@@ -226,6 +226,7 @@ consistency check, then the full suite.
 │   ├── mod_coding.R                # CAQDAS coding workbench
 │   ├── mod_descriptive.R
 │   ├── mod_design.R
+│   ├── mod_diversity.R             # indices de diversité écologique (α, β, seuils)
 │   ├── mod_dl.R
 │   ├── mod_dl50.R                  # DL50/CL50 : régression probit dose-mortalité
 │   ├── mod_dosage.R                # doses à l'hectare et solutions filles
@@ -264,7 +265,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.90.6. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.91.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -272,7 +273,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 0.90.6},
+  note   = {Version 0.91.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```
