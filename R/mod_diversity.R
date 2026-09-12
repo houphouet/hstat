@@ -52,6 +52,20 @@ HSTAT_DIV_INDICES_TRACABLES <- c(
   "Équitabilité de Simpson (E1/D)"  = "Simpson_E")
 
 
+# LE REGLAGE DES STADES EST LE MEME DANS LES DEUX FORMES : `ch_Cocc` peut tout
+# aussi bien etre une colonne (forme large) qu'une modalite de la colonne
+# d'especes (forme longue). Le declarer deux fois serait la copie oubliee qui
+# ment -- et c'est un reglage qui change la richesse.
+.hstat_div_stades_ui <- function(ns) {
+  shiny::tagList(
+    shiny::checkboxInput(ns("divStades"),
+      "Regrouper les stades d'une même espèce", value = FALSE),
+    shiny::tags$small(style = "color:#6b7280;",
+      "« ch_Cocc » et « ad_Cocc » sont la même espèce à deux stades : comptés ",
+      "séparément, ils gonflent la richesse et tous les indices. Le cas est ",
+      "signalé même si vous ne regroupez pas."))
+}
+
 mod_diversity_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
@@ -336,18 +350,32 @@ mod_diversity_server <- function(id, values) {
       num  <- cols[vapply(df, is.numeric, logical(1))]
       if (identical(input$divFormat %||% "long", "large")) {
         shiny::tagList(
-          shiny::selectInput(ns("divSite"), "Colonne des relevés (facultatif)",
-            choices = c("(numéro de ligne)" = "", cols)),
+          # UN RELEVE EST SOUVENT DESIGNE PAR PLUSIEURS COLONNES : c'est le
+          # croisement (traitement x periode x semaine) qui fait l'unite
+          # d'echantillonnage. N'en prendre qu'une agrege tout le reste sans un
+          # mot, et la beta-diversite compte alors trois releves la ou l'essai
+          # en porte quarante-cinq.
+          shiny::selectInput(ns("divSite"), "Colonnes identifiant le relevé (facultatif)",
+            choices = cols, multiple = TRUE),
+          shiny::tags$small(style = "color:#6b7280;",
+            "Plusieurs colonnes se combinent : traitement, période et semaine ",
+            "forment alors un relevé par croisement. Sans sélection, chaque ",
+            "ligne est un relevé."),
           shiny::selectInput(ns("divEspeces"), "Colonnes d'espèces",
             choices = num, multiple = TRUE,
-            selected = utils::head(num, min(length(num), 50))))
+            selected = utils::head(num, min(length(num), 50))),
+          .hstat_div_stades_ui(ns))
       } else {
         shiny::tagList(
-          shiny::selectInput(ns("divSite"), "Colonne des relevés (facultatif)",
-            choices = c("(un seul relevé)" = "", cols)),
+          shiny::selectInput(ns("divSite"), "Colonnes identifiant le relevé (facultatif)",
+            choices = cols, multiple = TRUE),
+          shiny::tags$small(style = "color:#6b7280;",
+            "Plusieurs colonnes se combinent. Sans sélection, tout le fichier ",
+            "forme un seul relevé."),
           shiny::selectInput(ns("divEspece"), "Colonne des espèces", choices = cols),
           shiny::selectInput(ns("divAbondance"), "Colonne des effectifs (facultatif)",
-            choices = c("(une ligne = un individu)" = "", num)))
+            choices = c("(une ligne = un individu)" = "", num)),
+          .hstat_div_stades_ui(ns))
       }
     })
 
@@ -361,11 +389,19 @@ mod_diversity_server <- function(id, values) {
         return()
       }
       res <- tryCatch(
+        # `input$divSite` est maintenant un VECTEUR : `nzchar()` y rendrait un
+        # vecteur de booleens, et `if()` sur plus d'une valeur leve depuis R 4.2.
+        # C'est la longueur qui decide.
         hstat_div_matrice(df, format = input$divFormat %||% "long",
-                          var_site = if (nzchar(input$divSite %||% "")) input$divSite else NULL,
+                          var_site = {
+                            v <- as.character(input$divSite %||% character(0))
+                            v <- v[nzchar(v)]
+                            if (length(v)) v else NULL
+                          },
                           var_espece = input$divEspece,
                           var_abondance = input$divAbondance,
-                          var_especes = input$divEspeces),
+                          var_especes = input$divEspeces,
+                          grouper_stades = isTRUE(input$divStades)),
         error = function(e) e)
       if (inherits(res, "error")) {
         rv$mat <- NULL

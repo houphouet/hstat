@@ -1321,6 +1321,99 @@ deux `scale_y_continuous()` ne s'ajoutent pas, le second remplace le premier en
 avertissant. L'appelant compose donc **une** échelle avec ses propres
 graduations.
 
+### Pertes de récolte : la perte et le rendement relatif sont un même nombre
+
+Demandé à l'écran, formules à l'appui. Un essai phytosanitaire publie quatre
+indicateurs, et ils se déduisent tous du **même couple de formules** :
+
+```
+Perte (%)             = (référence − modalité) / référence × 100
+Rendement relatif (%) =  modalité              / référence × 100
+```
+
+| Indicateur | Référence | Modalité |
+|---|---|---|
+| PR(PP) = (PP − NT) / PP × 100 | protection poussée | non traité |
+| PR(PV) = (PV − NT) / PV × 100 | protection vulgarisée | non traité |
+| PR(PV/PP) = (PP − PV) / PP × 100 | protection poussée | protection vulgarisée |
+| RP(PV/PP) = PV / PP × 100 | protection poussée | protection vulgarisée |
+
+Écrire trois fonctions pour trois de ces lignes ferait diverger trois copies
+d'un même calcul : c'est la dérive que ce dépôt corrige partout ailleurs. Une
+seule paire de fonctions, et **plusieurs références** — c'est ce qui rend les
+quatre lignes calculables d'un seul geste.
+
+**Les deux formules somment à 100, exactement, et c'est pourquoi les deux se
+publient.** « 18 % de perte » et « 82 % du rendement de la référence » décrivent
+le même essai ; les confondre **inverse** la lecture — la même règle que la
+similarité et la dissimilarité du module de diversité.
+
+**Chacune est calculée par sa propre formule, jamais l'une depuis l'autre.**
+Déduire le relatif par `100 − perte` rendrait l'invariant vrai **par
+construction**, et le test qui le vérifie ne garderait plus rien. Le test exige
+donc en plus que les deux vecteurs soient *différents* l'un de l'autre.
+
+**La référence ne se devine pas, et ce n'est pas le témoin.** Le gain se lit par
+rapport au **non traité** (ce que le traitement apporte) ; la perte par rapport
+à une **protection** (ce que l'on perd à ne pas l'appliquer). Les deux coexistent
+dans le même essai et ne désignent pas la même modalité : un seul sélecteur pour
+les deux rendrait des pourcentages justes sous le mauvais nom.
+
+Quatre décisions, chacune testée :
+
+1. **La référence vaut 0 % de perte et 100 % de rendement relatif**, écrit
+   explicitement : la formule le donne, mais l'écrire protège des arrondis.
+2. **Une référence de rendement nul rend `NA`**, jamais `Inf` — qui passerait
+   pour une perte colossale. Et le test vérifie les **valeurs**, pas seulement le
+   message : un `Inf` affiché à côté de son alerte est la forme la plus coûteuse,
+   le tableau paraît sain parce que le motif est là.
+3. **Une perte négative est un résultat** : la modalité fait mieux que sa
+   référence. La borner à zéro masquerait précisément ce qu'il faut voir.
+4. **Une référence absente des modalités est nommée**, pas retirée en silence :
+   sinon la colonne demandée n'existe pas et rien ne le dit.
+
+#### Le suffixe de colonne et le mot du libellé voyagent ensemble
+
+La colonne doit rester **stable** — `Perte_somme_vs_PP` est relue par l'export et
+par le graphique — pendant que le libellé suit le vocabulaire du catalogue, qui
+dit « cumulé » et non « somme ». Deux listes séparées finiraient par diverger.
+
+Et le libellé est une **phrase entière**, pas un gabarit plus un adjectif :
+`trf("Perte de rendement %s vs …", "moyen", ref)` ne traduirait jamais « moyen »
+— `trf()` ne traduit pas ses arguments, c'est ce qui protège les données — et
+mettre l'adjectif au dictionnaire est précisément ce que ce dépôt interdit,
+« moyen » valant *medium* pour une taille d'effet et *mean* en statistique. Six
+phrases complètes, donc.
+
+Corollaire : ces gabarits vivent dans une **constante**, et le balayage de
+couverture du dictionnaire ne relève que les chaînes **littérales** passées à
+`tr()`/`trf()`. Il ne peut donc pas les voir. Un test dédié les garde — même cas
+que `HSTAT_ERR_FR`, assemblé à l'exécution lui aussi.
+
+#### Un nom de modalité ne peut pas entrer tel quel dans un nom de colonne
+
+Il vient du fichier : accents, espaces, parenthèses. `.hstat_rdt_slug()` le
+réduit, et **distingue les collisions** : « T 1 » et « T-1 » donnent tous deux
+`T_1`, et sans `make.unique()` la seconde colonne **écraserait** la première —
+l'essai perdrait une référence sans un mot.
+
+#### Un rendement relatif se lit par rapport à 100, pas à zéro
+
+`.hstat_rdt_est_gain()` est vrai pour une perte aussi — toutes deux se lisent
+par rapport à zéro — d'où l'ordre des tests dans le module : poser « Gain (%) »
+sur un axe de pertes annoncerait l'inverse de ce qu'il porte.
+
+Le rendement relatif, lui, a **100 pour référence** : 100 % veut dire « aussi
+productif que la référence ». Le repère y est posé **et l'étendue l'atteint** —
+sur une série entièrement au-dessus de 100, ggplot cadre sur les données, la
+base de comparaison sort du champ et l'ampleur de l'écart devient invisible.
+C'est exactement le défaut déjà corrigé sur le zéro des gains négatifs.
+
+**Un pourcentage est sans dimension** : `HSTAT_RDT_PREFIXES_PCT` déclare les
+trois préfixes qui ne se convertissent jamais (`Gain_`, `Perte_`, `Relatif_`).
+Un `Perte_*_conv` serait la même faute de catégorie qu'un `Gain_*_conv` — le
+même rapport rendrait des pourcentages multipliés par mille.
+
 ### Masquer une modalité n'est pas la filtrer
 
 Demandé à l'écran : pouvoir retirer de la figure les modalités qu'on ne veut pas
@@ -5933,6 +6026,76 @@ dérive. Huit `plotOutput` côte à côte auraient demandé **huit blocs d'expor
 tenir d'accord**, et c'est la copie oubliée qui ment — la dérive déjà corrigée
 sur les formats d'image, les champs de DPI, les thèmes et les palettes.
 L'aperçu et le téléchargement lisent la même fonction.
+
+### Un fichier de comptages : l'identité du relevé, et les stades
+
+Signalé à l'écran, capture à l'appui : une fiche d'entomologie porte des
+colonnes d'**identité** (traitement, période d'observation, semaine) puis une
+colonne par couple **espèce × stade** (`ch_Cocc`, `ad_Cocc`, `ad_Chrysope`,
+`ind_Mante`…). Le module ne savait lire ni l'une ni l'autre.
+
+#### Un relevé peut être désigné par plusieurs colonnes
+
+`var_site` n'en acceptait qu'une. Or c'est le **croisement** (traitement ×
+période × semaine) qui fait l'unité d'échantillonnage : n'en prendre qu'une
+**agrège tout le reste sans un mot**. Mesuré sur le fichier reproduit — douze
+lignes, deux traitements, six dates :
+
+| Clé du relevé | relevés obtenus |
+|---|---|
+| `Traitement` seul | **2** |
+| les trois colonnes | **11** |
+
+Choisir « Traitement » seul fond les six semaines en un point, et la diversité
+bêta n'a plus que deux relevés là où l'essai en porte onze. Les indices sortent
+alors parfaitement plausibles, et faux.
+
+`.hstat_div_cle()` compose la clé, et une date y entre par son **écriture** :
+`as.character()` sur un `Date` rend bien l'ISO, mais un `POSIXct` y perdrait son
+fuseau.
+
+#### Les stades d'une même espèce ne sont pas deux espèces
+
+C'est le piège coûteux, et il est **muet**. `ch_Cocc` et `ad_Cocc` sont la même
+espèce à deux stades. Comptés séparément, ils gonflent la richesse — **huit
+colonnes pour six espèces** — et avec elle tout ce qui en dépend. Mesuré sur le
+relevé « Témoin » du fichier reproduit :
+
+| | sans regroupement | avec |
+|---|---|---|
+| richesse | **8** | 6 |
+| Shannon (bits) | **2,8153** | 2,1613 |
+
+Soit **30 % d'écart sur l'indice lui-même**, pas seulement sur le décompte.
+Rien ne lève, rien ne manque : le tableau est complet et faux.
+
+**La détection est pilotée par les données, pas par un catalogue de stades.**
+Une liste de préfixes connus (`ch`, `ad`, `lv`, `ind`…) raterait toute notation
+maison. Ici un préfixe n'est reconnu que si le **même** nom d'espèce apparaît
+sous **au moins deux** préfixes différents — et c'est ce seuil de deux qui rend
+la détection sûre : une colonne `Bloc_1` seule ne ressemble à rien.
+
+Corollaire : **un préfixe isolé ne renomme rien.** `ad_Chrysope` n'apparaît qu'à
+un stade et garde son nom de colonne ; le réduire à « Chrysope » inventerait une
+lecture que le fichier ne porte pas — et `Bloc_1` deviendrait l'espèce « 1 ».
+
+**Le regroupement ne se devine pas**, c'est la règle du témoin des gains : il
+est proposé, jamais appliqué d'office. Mais **non regroupé, le cas est nommé** —
+une richesse gonflée sans un mot est précisément ce qu'on corrige.
+
+Le regroupement se fait **à un seul endroit**, sur la matrice montée, et non
+dans chacune des deux branches : `ch_Cocc` peut tout aussi bien être une
+*modalité* de la colonne d'espèces en forme longue, et deux copies de la règle
+finiraient par diverger. Les effectifs sont **additionnés**, jamais remplacés :
+le total du relevé ne change pas, et un test le vérifie — regrouper deux stades
+ne fait disparaître aucun individu.
+
+#### `input$divSite` est devenu un vecteur
+
+`if (nzchar(input$divSite %||% ""))` y rendrait un vecteur de booléens, et
+`if()` sur plus d'une valeur **lève** depuis R 4.2. C'est la longueur qui
+décide. Le piège est le même que partout ailleurs quand un `selectInput` passe
+en `multiple = TRUE`.
 
 #### Une échelle continue ne se remplace pas par une palette qualitative
 

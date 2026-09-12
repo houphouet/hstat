@@ -15137,3 +15137,333 @@ test_that("le graphique se trace meme quand le format source declare est faux", 
     expect_equal(sum(!is.na(o$pd$Semaine)), 4L, info = col[1])
   }
 })
+
+# ---------------------------------------------------------------------------
+#  PERTES DE RECOLTE
+# ---------------------------------------------------------------------------
+
+# Le jeu d'essai rend les formules DISCERNABLES, et c'est la condition du test.
+# Avec PP = 2000, PV = 1600 et NT = 1000, chacune des quatre lignes publiees
+# tombe sur une valeur differente (50 / 37,5 / 20 / 80) : une inversion de
+# numerateur ou un rapport pris a l'envers se voit. Sur des rendements egaux,
+# toutes les mutations passeraient.
+.rdt_essai <- function() list(r = c(2000, 1600, 1000), m = c("PP", "PV", "NT"))
+.rdt_v <- function(x, mod, m) as.numeric(x)[match(mod, m)]
+
+test_that("les quatre indicateurs de perte tombent sur les formules publiees", {
+  e <- .rdt_essai()
+  pr_pp <- hstat_rdt_perte(e$r, e$m, "PP")
+  pr_pv <- hstat_rdt_perte(e$r, e$m, "PV")
+  rp_pp <- hstat_rdt_relatif(e$r, e$m, "PP")
+
+  # PR(PP) = (PP - NT) / PP x 100
+  expect_equal(.rdt_v(pr_pp, "NT", e$m), 50)
+  # PR(PV) = (PV - NT) / PV x 100
+  expect_equal(.rdt_v(pr_pv, "NT", e$m), 37.5)
+  # PR(PV/PP) = (PP - PV) / PP x 100
+  expect_equal(.rdt_v(pr_pp, "PV", e$m), 20)
+  # RP(PV/PP) = PV / PP x 100
+  expect_equal(.rdt_v(rp_pp, "PV", e$m), 80)
+
+  # Les quatre sont distinctes : sans cela l'assertion passerait sur une
+  # fonction qui confondrait deux des formules.
+  expect_equal(length(unique(c(50, 37.5, 20, 80))), 4L)
+})
+
+test_that("la perte et le rendement relatif somment a 100, chacun par sa formule", {
+  e <- .rdt_essai()
+  p <- as.numeric(hstat_rdt_perte(e$r, e$m, "PP"))
+  q <- as.numeric(hstat_rdt_relatif(e$r, e$m, "PP"))
+  expect_equal(p + q, rep(100, 3))
+  # L'INVARIANT NE DOIT PAS ETRE VRAI PAR CONSTRUCTION. Si le relatif etait
+  # deduit par `100 - perte`, la somme vaudrait 100 quelle que soit la formule
+  # de la perte, et ce test ne garderait plus rien. On exige donc que les deux
+  # soient reellement differents l'un de l'autre.
+  expect_false(isTRUE(all.equal(p, q)))
+})
+
+test_that("la reference vaut 0 % de perte et 100 % de rendement relatif", {
+  e <- .rdt_essai()
+  expect_equal(.rdt_v(hstat_rdt_perte(e$r, e$m, "PP"),   "PP", e$m), 0)
+  expect_equal(.rdt_v(hstat_rdt_relatif(e$r, e$m, "PP"), "PP", e$m), 100)
+})
+
+test_that("une perte negative est un resultat, elle n'est pas bornee a zero", {
+  # PV fait MIEUX que PP : la perte est negative, et c'est ce qu'il faut voir.
+  p <- hstat_rdt_perte(c(1000, 1400), c("PP", "PV"), "PP")
+  expect_equal(as.numeric(p)[2], -40)
+  expect_lt(as.numeric(p)[2], 0)
+})
+
+test_that("une reference de rendement nul rend NA, et le dit", {
+  p <- hstat_rdt_perte(c(0, 5), c("A", "B"), "A")
+  # LES VALEURS SONT VERIFIEES, PAS SEULEMENT LE MESSAGE. Un `Inf` affiche a
+  # cote de son alerte est la forme la plus couteuse : le tableau parait sain
+  # parce que le motif est la. C'est la lecon du temoin nul des efficacites.
+  expect_true(all(is.na(as.numeric(p))))
+  expect_false(any(is.infinite(as.numeric(p))))
+  expect_match(attr(p, "message"), "nul")
+  expect_match(attr(p, "message"), "division par z")
+})
+
+test_that("une reference non choisie ou absente ne rend aucun chiffre", {
+  e <- .rdt_essai()
+  for (ref in list(NULL, "", "ZZ")) {
+    p <- hstat_rdt_perte(e$r, e$m, ref)
+    expect_true(all(is.na(as.numeric(p))))
+    expect_true(nzchar(attr(p, "message")))
+  }
+})
+
+test_that("le tableau des pertes porte une reference absente plutot que de la taire", {
+  res <- data.frame(Modalite = c("PP", "NT"), Rendement_moyen = c(2000, 1000),
+                    stringsAsFactors = FALSE)
+  t2 <- hstat_rdt_pertes_table(res, c("PP", "Inconnue"))
+  expect_equal(attr(t2, "references_absentes"), "Inconnue")
+  expect_equal(attr(t2, "references_perte"), "PP")
+  expect_true("Perte_moyen_vs_PP" %in% names(t2))
+  expect_false(any(grepl("Inconnue", names(t2))))
+})
+
+test_that("deux references de meme abrege ne s'ecrasent pas", {
+  # « T 1 » et « T-1 » donnent tous deux « T_1 » : sans distinction, la seconde
+  # colonne ECRASERAIT la premiere et l'essai perdrait une reference sans un mot.
+  res <- data.frame(Modalite = c("T 1", "T-1", "NT"),
+                    Rendement_moyen = c(2000, 1600, 1000), stringsAsFactors = FALSE)
+  t2 <- hstat_rdt_pertes_table(res, c("T 1", "T-1"))
+  cols <- grep("^Perte_moyen_vs_", names(t2), value = TRUE)
+  expect_equal(length(cols), 2L)
+  expect_equal(length(unique(cols)), 2L)
+  # Et chaque colonne porte bien SA reference : la premiere met « T 1 » a zero,
+  # la seconde « T-1 ».
+  z <- vapply(cols, function(k) as.character(t2$Modalite[which(t2[[k]] == 0)])[1],
+              character(1))
+  expect_setequal(unname(z), c("T 1", "T-1"))
+})
+
+test_that("un pourcentage ne se convertit jamais, perte et relatif comprises", {
+  d <- data.frame(Traitement = rep(c("PP", "NT"), each = 2),
+                  Masse = c(2100, 1900, 1010, 990), Surface = 1,
+                  stringsAsFactors = FALSE)
+  r <- hstat_rdt_complet(d, "Traitement", "Masse", "Surface", non_traite = "NT",
+                         conv_masse = "tonne (1000 kg)", conv_surface = "hectare (ha)",
+                         references = "PP")
+  expect_true(any(grepl("^Perte_", names(r))))
+  expect_true(any(grepl("_conv$", names(r))))   # la conversion a bien eu lieu
+  # UN GAIN, UNE PERTE ET UN RENDEMENT RELATIF SONT SANS DIMENSION : les
+  # convertir serait une faute de categorie -- le meme rapport rendrait des
+  # pourcentages multiplies par mille.
+  expect_length(grep("^Gain_.*_conv$", names(r)), 0)
+  expect_length(grep("^Perte_.*_conv$", names(r)), 0)
+  expect_length(grep("^Relatif_.*_conv$", names(r)), 0)
+  expect_setequal(HSTAT_RDT_PREFIXES_PCT, c("Gain_", "Perte_", "Relatif_"))
+})
+
+test_that("le module de rendement offre les pertes ET les trace", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("DT")
+  # LE TEST PORTE SUR LE MODULE, PAS SUR LA FONCTION. Un test sur
+  # `hstat_rdt_perte()` seule resterait vert pendant que le selecteur n'offre
+  # rien et que la figure sort vide : il verifierait que le calcul sait
+  # calculer, jamais que le module l'emploie.
+  d <- data.frame(
+    Traitement = rep(c("PP", "PV", "NT"), each = 3),
+    Masse      = c(2100, 1950, 1950, 1650, 1580, 1570, 1010, 990, 1000),
+    Surface    = 1, stringsAsFactors = FALSE)
+  vals <- shiny::reactiveValues(filteredData = d)
+
+  shiny::testServer(mod_yield_server, args = list(values = vals), {
+    session$setInputs(yieldSource = "fichier", yieldModalite = "Traitement",
+                      yieldMasse = "Masse", yieldSurface = "Surface",
+                      yieldTemoin = "NT", yieldRefPerte = c("PP", "PV"),
+                      yieldRound = FALSE)
+    r <- resultat()
+    g <- function(mod, col) r[[col]][match(mod, r$Modalite)]
+    expect_equal(g("NT", "Perte_moyen_vs_PP"), 50)
+    expect_equal(g("NT", "Perte_moyen_vs_PV"), 37.5)
+    expect_equal(g("PV", "Perte_moyen_vs_PP"), 20)
+    expect_equal(g("PV", "Relatif_moyen_vs_PP"), 80)
+
+    # Le selecteur du graphique les offre, avec leur libelle.
+    md <- mesures_dispo()
+    expect_true("Perte_moyen_vs_PP" %in% md)
+    expect_true("Relatif_moyen_vs_PP" %in% md)
+    expect_match(names(md)[match("Perte_moyen_vs_PP", md)], "PP", fixed = TRUE)
+
+    # Et la figure se construit REELLEMENT sur une mesure de perte.
+    session$setInputs(yieldMesure = "Perte_moyen_vs_PP")
+    p <- graphique()
+    expect_false(is.null(p))
+    b <- ggplot2::ggplot_build(p)
+    expect_equal(nrow(b$data[[1]]), 3L)
+    expect_match(p$labels$y, "Perte")
+
+    # UN RENDEMENT RELATIF SE LIT PAR RAPPORT A 100 : l'etendue doit
+    # l'atteindre, sinon la base de comparaison sort du champ.
+    session$setInputs(yieldMesure = "Relatif_moyen_vs_PP")
+    p2 <- graphique()
+    expect_match(p2$labels$y, "relatif")
+    yr <- ggplot2::ggplot_build(p2)$layout$panel_params[[1]]$y.range
+    expect_lte(yr[1], 100)
+    expect_gte(yr[2], 100)
+  })
+})
+
+# ---------------------------------------------------------------------------
+#  DIVERSITE : FICHIER DE COMPTAGES (identifiants multiples, especes x stades)
+# ---------------------------------------------------------------------------
+
+# Reproduction de la forme reellement rencontree : trois colonnes d'identite
+# (traitement, periode, semaine) et une colonne par couple espece x stade.
+.div_comptages <- function() {
+  data.frame(
+    Traitement = rep(c("Produit A", "Témoin"), each = 6),
+    Periode    = rep(c("T-1", "T+7", "T+13", "T2-1", "T2+7", "T2+13"), 2),
+    Semaine    = rep(c("2026-08-04", "2026-08-11", "2026-08-18",
+                       "2026-08-25", "2026-09-01", "2026-09-08"), 2),
+    ch_Cocc          = c(0, 1, 0, 0, 0, 0,  2, 1, 3, 0, 1, 2),
+    ch_Syrphe        = c(0, 0, 0, 0, 0, 0,  1, 0, 2, 1, 0, 1),
+    ad_Cocc          = c(2, 2, 1, 0, 0, 0,  3, 4, 2, 1, 2, 3),
+    ad_Chrysope      = c(0, 0, 0, 0, 0, 0,  1, 1, 0, 2, 1, 0),
+    ad_Syrphe        = c(0, 0, 0, 0, 1, 1,  2, 1, 1, 0, 2, 1),
+    ad_Fourmi_Noire  = c(0, 0, 0, 0, 0, 0,  1, 0, 1, 1, 0, 2),
+    ind_Fourmi_Rouge = c(0, 0, 0, 0, 0, 0,  0, 2, 1, 0, 1, 0),
+    ind_Mante        = c(0, 0, 0, 0, 0, 0,  1, 0, 0, 1, 0, 1),
+    stringsAsFactors = FALSE)
+}
+.div_esp <- function() setdiff(names(.div_comptages()),
+                               c("Traitement", "Periode", "Semaine"))
+
+test_that("un stade n'est reconnu que si l'espece apparait sous deux prefixes", {
+  st <- hstat_div_stades(.div_esp())
+  # Cocc (ch + ad) et Syrphe (ch + ad) : deux stades chacune.
+  expect_setequal(st$multi, c("Cocc", "Syrphe"))
+  expect_equal(st$n_multi, 2L)
+  # `ad_Fourmi_Noire` coupe au PREMIER souligne : l'espece est « Fourmi_Noire ».
+  expect_equal(st$stade[match("ad_Fourmi_Noire", st$colonne)], "ad")
+  # UN PREFIXE ISOLE NE RENOMME RIEN. `ad_Chrysope` n'apparait qu'a un stade :
+  # le renommer en « Chrysope » inventerait une lecture que le fichier ne porte
+  # pas -- et `Bloc_1` seul deviendrait l'espece « 1 ».
+  expect_equal(st$espece[match("ad_Chrysope", st$colonne)], "ad_Chrysope")
+  expect_equal(st$espece[match("ind_Mante", st$colonne)], "ind_Mante")
+  # Les deux stades de Cocc portent bien le MEME nom une fois regroupes.
+  expect_equal(st$espece[match(c("ch_Cocc", "ad_Cocc"), st$colonne)],
+               c("Cocc", "Cocc"))
+  # Une colonne sans souligne reste elle-meme.
+  expect_equal(hstat_div_stades("Mante")$espece, "Mante")
+  expect_equal(hstat_div_stades("Mante")$n_multi, 0L)
+})
+
+test_that("l'identite du releve se compose de plusieurs colonnes", {
+  d <- .div_comptages(); esp <- .div_esp()
+  un    <- hstat_div_matrice(d, "large", var_site = "Traitement", var_especes = esp)
+  trois <- hstat_div_matrice(d, "large",
+                             var_site = c("Traitement", "Periode", "Semaine"),
+                             var_especes = esp)
+  # LES DEUX CODES DOIVENT ETRE DISCERNABLES : une fonction qui ignorerait les
+  # colonnes surnumeraires rendrait 2 dans les deux cas, et l'assertion
+  # passerait avec ou sans le correctif.
+  expect_equal(nrow(un), 2L)
+  expect_gt(nrow(trois), nrow(un))
+  expect_match(rownames(trois)[1], " | ", fixed = TRUE)
+  # Chaque croisement non vide fait un releve, et un seul.
+  expect_equal(anyDuplicated(rownames(trois)), 0L)
+})
+
+test_that("regrouper les stades change la richesse ET les indices", {
+  d <- .div_comptages(); esp <- .div_esp()
+  sans <- hstat_div_matrice(d, "large", var_site = "Traitement",
+                            var_especes = esp, grouper_stades = FALSE)
+  avec <- hstat_div_matrice(d, "large", var_site = "Traitement",
+                            var_especes = esp, grouper_stades = TRUE)
+  expect_equal(ncol(sans), 8L)   # huit colonnes
+  expect_equal(ncol(avec), 6L)   # six especes
+
+  # LE COUT NE PORTE PAS QUE SUR LA RICHESSE. Shannon, Simpson et tous les
+  # verdicts se calculent sur les memes colonnes : compter deux stades pour
+  # deux especes gonfle l'indice lui-meme, sans que rien ne leve.
+  h_sans <- hstat_div_indices(sans["Témoin", ])$Shannon_H
+  h_avec <- hstat_div_indices(avec["Témoin", ])$Shannon_H
+  expect_gt(h_sans, h_avec)
+  expect_gt((h_sans - h_avec) / h_avec, 0.1)
+
+  # LES EFFECTIFS SONT ADDITIONNES, pas remplaces : le total du releve ne
+  # change pas -- regrouper deux stades ne fait disparaitre aucun individu.
+  expect_equal(sum(sans), sum(avec))
+  expect_equal(unname(rowSums(sans)), unname(rowSums(avec)))
+  expect_equal(unname(avec["Témoin", "Cocc"]),
+               unname(sans["Témoin", "ch_Cocc"] + sans["Témoin", "ad_Cocc"]))
+})
+
+test_that("des stades non regroupes sont nommes plutot que tus", {
+  d <- .div_comptages(); esp <- .div_esp()
+  sans <- hstat_div_matrice(d, "large", var_site = "Traitement",
+                            var_especes = esp, grouper_stades = FALSE)
+  # UNE RICHESSE GONFLEE SANS UN MOT est le defaut qu'on corrige : le cas est
+  # nomme meme -- surtout -- quand on ne regroupe pas.
+  msg <- attr(sans, "message")
+  expect_true(!is.null(msg) && nzchar(msg))
+  expect_match(msg, "Cocc")
+  expect_match(msg, "Syrphe")
+  expect_match(msg, "richesse")
+
+  avec <- hstat_div_matrice(d, "large", var_site = "Traitement",
+                            var_especes = esp, grouper_stades = TRUE)
+  expect_match(attr(avec, "message"), "regroup", ignore.case = TRUE)
+
+  # Un fichier sans stade ne doit produire AUCUN de ces deux messages : un
+  # balayage qui crie au loup finit desactive.
+  d2 <- data.frame(Site = c("A", "B"), Mante = c(1, 2), Chrysope = c(3, 4),
+                   stringsAsFactors = FALSE)
+  m2 <- hstat_div_matrice(d2, "large", var_site = "Site",
+                          var_especes = c("Mante", "Chrysope"))
+  expect_false(grepl("stade", attr(m2, "message") %||% "", ignore.case = TRUE))
+})
+
+test_that("le module de diversite lit un fichier de comptages tel quel", {
+  skip_if_not_installed("ggplot2")
+  # LE TEST PORTE SUR LE MODULE. Un test sur `hstat_div_matrice()` seule
+  # resterait vert pendant que l'interface ne passe qu'une colonne de releve et
+  # ignore le regroupement : il verifierait que le socle sait lire, jamais que
+  # le module l'emploie.
+  d <- .div_comptages(); esp <- .div_esp()
+  vals <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d)
+
+  shiny::testServer(mod_diversity_server, args = list(values = vals), {
+    session$setInputs(divFormat = "large",
+                      divSite = c("Traitement", "Periode", "Semaine"),
+                      divEspeces = esp, divStades = TRUE, divBase = "2")
+    session$setInputs(divCalculer = 1)
+    expect_false(is.null(rv$mat))
+    expect_equal(ncol(rv$mat), 6L)          # les stades ont ete regroupes
+    expect_gt(nrow(rv$mat), 2L)             # la cle porte bien les trois colonnes
+    expect_match(rownames(rv$mat)[1], " | ", fixed = TRUE)
+
+    # Sans regroupement, le module rend huit especes et le dit.
+    session$setInputs(divStades = FALSE)
+    session$setInputs(divCalculer = 2)
+    expect_equal(ncol(rv$mat), 8L)
+  })
+})
+
+test_that("les gabarits de libelle de perte sont au dictionnaire", {
+  # LE BALAYAGE DE COUVERTURE NE PEUT PAS LES VOIR. Il ne releve que les
+  # chaines LITTERALES passees a `tr()`/`trf()` ; celles-ci sont declarees dans
+  # une constante et arrivent a `trf()` par une variable. Sans ce test, une
+  # entree oubliee laisserait le libelle en francais dans une interface
+  # anglaise, sans que rien ne le signale -- exactement le cas de
+  # `HSTAT_ERR_FR`, assemble a l'execution lui aussi.
+  dic <- hstat_i18n_load()
+  gab <- unlist(lapply(HSTAT_RDT_MESURES_PERTE, function(x) x[c("perte", "relatif")]))
+  expect_length(gab, 6L)
+  expect_equal(setdiff(unname(gab), dic$fr), character(0))
+
+  # Et la traduction garde les MEMES marqueurs : `sprintf` leverait « too few
+  # arguments » sur un `%s` perdu, et ferait tomber toute la sortie pour une
+  # simple erreur de dictionnaire.
+  marq <- function(x) sort(unlist(regmatches(x, gregexpr(HSTAT_I18N_MARQUEUR, x))))
+  for (g in unname(gab)) {
+    en <- dic$en[match(g, dic$fr)]
+    expect_equal(marq(g), marq(en), info = g)
+  }
+})
