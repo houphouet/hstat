@@ -2689,12 +2689,6 @@ mod_qualitative_server <- function(id, values) {
         c("nom_var1", "nom_var2", "ord_var1", "ord_var2", "txt_var",
           "orrr_expo", "orrr_issue", "tools_vars"),
         function(id) input[[id]])))
-      hstat_ai_capture(values, "Analyses qualitatives",
-        r$title %||% trf("Analyse qualitative (%s)", input$family %||% "nominal"),
-        tables = tabs,
-        text = if (!is.null(r$console)) paste(r$console, collapse = "\n") else NULL,
-        meta = list(variables = vars, groupe = input$ord_group %||% input$nom_var2,
-                    famille = input$family))
     }, ignoreInit = TRUE)
 
     result <- shiny::eventReactive(input$run, {

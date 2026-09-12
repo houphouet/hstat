@@ -1216,13 +1216,6 @@ mod_yield_server <- function(id, values) {
     shiny::observeEvent(resultat(), {
       r <- resultat()
       if (!NROW(r)) return()
-      hstat_ai_capture(
-        values, "Rendement/Gain de rendement", "Rendements et gains par modalité",
-        tables = list("Rendements et gains" = utils::head(as.data.frame(r), 200)),
-        meta = list(`programme non traité` = input$yieldTemoin %||% "",
-                    unité = unite_rdt(),
-                    modalités = NROW(r)),
-        plot = function() shiny::isolate(graphique()))
     }, ignoreInit = TRUE)
   })
 }

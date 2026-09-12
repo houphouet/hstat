@@ -97,7 +97,7 @@ install_and_load <- function(packages) {
 
 required_packages <- c(
   "shiny", "shinydashboard", "shinyjs", "shinyWidgets", "shinyalert", "DT", "shinycssloaders",
-  "RColorBrewer", "colourpicker", "ggrepel",  "openxlsx", "zip", "rmarkdown", "haven", "base64enc",
+  "RColorBrewer", "colourpicker", "ggrepel",  "openxlsx", "zip", "haven", "base64enc",
   "dplyr", "knitr", "stringr", "scales", "ggplot2", "ggdendro", "reshape2", "sortable",
   "tibble", "plotrix", "plotly",  "qqplotr", "tidyr",  "report", "see", "corrplot",
   "car", "agricolae", "pwr", "forcats", "bslib", "factoextra",  "FactoMineR","questionr",  "digest",
@@ -549,7 +549,7 @@ hstat_i18n_coverage <- function(chaines, path = hstat_i18n_path()) {
 # ---------------------------------------------------------------------------
 # La reinitialisation remettait a NULL une liste de champs ENUMEREE A LA MAIN,
 # distincte de celle qui cree `reactiveValues`. Les deux listes ont derive :
-# tout champ ajoute depuis (aiContext, aiHistory, cahClusters, y2Vars…)
+# tout champ ajoute depuis (cahClusters, y2Vars…)
 # survivait a la reinitialisation, et l'utilisateur retrouvait des restes de sa
 # session precedente.
 #
@@ -584,8 +584,6 @@ hstat_valeurs_initiales <- function() {
     dbCon = NULL, dbTable = NULL, dataMode = "memory",
     fullNrow = NULL, fullNcol = NULL, fullNA = NULL, isSampled = FALSE,
     sourceKind = NULL, sourceSize = NULL,
-    # ---- Aide a la decision ----
-    aiContext = NULL, aiHistory = NULL,
     # Chemin du fichier NEUTRALISE par la derniere reinitialisation.
     # `shinyjs::reset("file")` remet le widget a blanc mais `input$file` garde
     # sa valeur : sans ce temoin, la feuille Excel choisie et le bloc de

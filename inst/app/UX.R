@@ -191,8 +191,6 @@ ui <- shinydashboard::dashboardPage(
       shinydashboard::menuItem("Comparaisons post-hoc", tabName = "multiple", icon = shiny::icon("sort-amount-down")),
       shinydashboard::menuItem("Analyses multivariées", tabName = "multivariate", icon = shiny::icon("project-diagram")),
       shinydashboard::menuItem("Analyses qualitatives", tabName = "qualitative", icon = shiny::icon("comments")),
-      shinydashboard::menuItem("Interprétation & aide à la décision", tabName = "aidecision",
-               icon = shiny::icon("compass-drafting")),
       shiny::tags$li(class = "header", "4. Modélisation & prédiction"),
       shinydashboard::menuItem("Séries temporelles", tabName = "timeseries", icon = shiny::icon("clock")),
       shinydashboard::menuItem("Machine Learning", tabName = "ml", icon = shiny::icon("robot")),
@@ -1951,9 +1949,6 @@ ui <- shinydashboard::dashboardPage(
       mod_design_ui("design"),
       # ---- Analyses qualitatives d'enquete ----
       mod_qualitative_ui("qualitative"),
-
-      # ---- Interpretation des resultats et aide a la decision ----
-      mod_ai_ui("aidecision"),
       # ---- Seuils d'efficacité ----
       shinydashboard::tabItem(tabName = "timeseries",
               mod_timeseries_ui("timeseries")

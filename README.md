@@ -221,7 +221,7 @@ consistency check, then the full suite.
 ├── NAMESPACE
 ├── R
 │   ├── _disable_autoload.R         # stops Shiny sourcing R/ into the app environment
-│   ├── mod_ai.R                    # inference engine, decision support, reproducibility journal
+│   ├── mod_ai.R                    # shared inference engine (LLM providers)
 │   ├── mod_clean.R
 │   ├── mod_coding.R                # CAQDAS coding workbench
 │   ├── mod_descriptive.R
@@ -234,7 +234,6 @@ consistency check, then the full suite.
 │   ├── mod_filter.R
 │   ├── mod_ml.R
 │   ├── mod_qualitative.R
-│   ├── mod_report.R                # automatic report (HTML / Word / PDF)
 │   ├── mod_tests.R
 │   ├── mod_threshold.R
 │   ├── mod_timeseries.R
@@ -265,7 +264,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.92.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 0.93.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -273,7 +272,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 0.92.0},
+  note   = {Version 0.93.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

@@ -406,14 +406,6 @@ mod_dl_server <- function(id, values) {
     shiny::observeEvent(dlfit(), {
       f <- tryCatch(dlfit(), error = function(e) NULL)
       if (is.null(f) || is.null(f$metrics)) return()
-      hstat_ai_capture(values, "Deep Learning",
-        trf("Réseau de neurones (%s)",
-                if (!is.null(f$p) && identical(f$p$task, "classification"))
-                  "classification" else "regression"),
-        tables = list("Métriques du modèle" = hstat_ai_as_table(f$metrics)),
-        meta = list(variables = c(input$dlTarget, input$dlPredictors),
-                    `variable cible` = input$dlTarget,
-                    `couches cachees` = f$hidden))
     }, ignoreInit = TRUE)
 
     dlfit <- shiny::eventReactive(input$dlRun, {

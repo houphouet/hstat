@@ -680,12 +680,6 @@ mod_threshold_server <- function(id, values) {
   shiny::observeEvent(threshold_values$plot_data, {
     pd <- threshold_values$plot_data
     if (is.null(pd) || !NROW(pd)) return()
-    hstat_ai_capture(values, "Seuils d'efficacité",
-      "Courbes de seuils d'efficacité",
-      tables = list("Points des courbes" = utils::head(as.data.frame(pd), 200)),
-      meta = list(variables = threshold_values$selected_y_vars,
-                  `points traces` = NROW(pd)),
-      plot = function() shiny::isolate(threshold_values$current_plot))
   }, ignoreInit = TRUE)
 
   # Reinitialisation globale : quand l'utilisateur clique sur "Réinitialiser" dans
@@ -806,12 +800,6 @@ mod_threshold_server <- function(id, values) {
     }
     shiny::showNotification(shiny::tagList(shiny::icon("check"), " ", attr(r, "message")),
                      type = "message", duration = 5)
-    hstat_ai_capture(values, "Seuils d'efficacité",
-      "Efficacités calculées depuis le témoin (formule d'Abbott)",
-      tables = list("Efficacités" = utils::head(as.data.frame(r), 200)),
-      text = attr(r, "message"),
-      meta = list(temoin = attr(r, "temoin"), resume = attr(r, "agg"),
-                  variables = paste(input$effResponse, collapse = ", ")))
   })
 
   output$effMessage <- shiny::renderUI({

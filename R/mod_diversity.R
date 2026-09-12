@@ -391,16 +391,6 @@ mod_diversity_server <- function(id, values) {
             nrow(res), ncol(res), format(sum(res), big.mark = " ")),
         type = "message", duration = 5)
 
-      # L'ASSISTANCE OBSERVE, ELLE N'INSTRUMENTE PAS. Le module depose ce qu'il
-      # vient de produire ; l'onglet d'interpretation, le journal de
-      # reproductibilite et le rapport y puisent sans qu'aucun d'eux soit appele.
-      hstat_ai_capture(values, "Diversité écologique",
-        trf("Diversité écologique — %d relevé(s), %d espèce(s)", nrow(res), ncol(res)),
-        tables = list(Richesse = rv$richesse, Indices = rv$indices,
-                      Interpretation = seuils_table()),
-        meta = list(releves = nrow(res), especes = ncol(res),
-                    individus = sum(res), base = base),
-        plot = function() shiny::isolate(graphique()))
     })
 
     output$hasDiv <- shiny::reactive(!is.null(rv$mat))

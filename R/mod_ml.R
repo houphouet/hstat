@@ -603,14 +603,6 @@ mod_ml_server <- function(id, values) {
       df <- tryCatch(comp_df(), error = function(e) NULL)
       if (is.null(df) || !NROW(df)) return()
       p <- tryCatch(fits()$p, error = function(e) NULL)
-      hstat_ai_capture(values, "Machine Learning",
-        trf("Comparaison de modèles (%s)",
-                if (!is.null(p) && identical(p$task, "classification"))
-                  "classification" else "regression"),
-        tables = list("Comparaison des modèles" = df),
-        meta = list(variables = c(input$mlTarget, input$mlPredictors),
-                    `variable cible` = input$mlTarget,
-                    `modeles compares` = input$mlModels))
     }, ignoreInit = TRUE)
 
     comp_df <- shiny::reactive({
