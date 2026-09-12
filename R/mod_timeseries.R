@@ -187,9 +187,19 @@ mod_timeseries_server <- function(id, values) {
       dts <- NULL
       if (nzchar(input$tsDate %||% "")) {
         raw <- df[[input$tsDate]]
+        # `as.Date(as.character(...))` ne lit que l'ISO, et l'echec etait
+        # MUET : `all(is.na(dts))` reposait l'axe sur le numero de ligne, si
+        # bien qu'une colonne datee a la francaise faisait perdre l'axe des
+        # dates sans un mot. `hstat_date_auto` lit les trois ecritures.
         dts <- if (inherits(raw, c("Date", "POSIXct"))) as.Date(raw)
-               else suppressWarnings(as.Date(as.character(raw)))
-        if (all(is.na(dts))) dts <- NULL
+               else hstat_date_auto(raw)$dates
+        if (all(is.na(dts))) {
+          dts <- NULL
+          shiny::showNotification(
+            trf("La colonne « %s » n'a pas pu être lue comme une date : l'axe porte le rang de l'observation.",
+                input$tsDate),
+            type = "warning", duration = 8)
+        }
         if (!is.null(dts)) { o <- order(dts); y <- y[o]; dts <- dts[o]
                              row_idx <- row_idx[o] }
       }

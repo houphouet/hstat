@@ -107,21 +107,25 @@ mod_viz_ui <- function(id) {
                         shiny::icon("calendar-alt"), " Paramètres de Date",
                         style = "color: #2196F3; font-weight: bold; margin-top: 0; font-size: 15px;"
                       ),
+                      # LA LISTE VIENT DU CATALOGUE, elle n'est pas recopiee
+                      # ici : six entrees y figuraient contre onze reconnues, et
+                      # « 20 octobre 2026 » n'etait donc offert nulle part --
+                      # on pouvait ecrire une date qu'on ne savait pas relire.
+                      #
+                      # « Automatique » est le DEFAUT parce que le contraire
+                      # etait muet : un fichier ISO lu en « MM/JJ/AAAA (US) »
+                      # rendait NA partout et le graphique sortait vide, sans
+                      # que rien ne renvoie au reglage fautif.
                       shiny::selectInput(ns("xDateFormat"),
                         shiny::tagList(shiny::icon("file-import"), " Format des données source :"),
                         choices = c(
-                          "AAAA-MM-JJ (ISO 8601)" = "%Y-%m-%d",
-                          "JJ/MM/AAAA (France)"   = "%d/%m/%Y",
-                          "MM/JJ/AAAA (US)"       = "%m/%d/%Y",
-                          "AAAA/MM/JJ"            = "%Y/%m/%d",
-                          "JJ-Mois-AAAA"          = "%d-%b-%Y",
-                          "Mois JJ, AAAA"         = "%B %d, %Y"
-                        ),
-                        selected = "%Y-%m-%d"
+                          c("Automatique (détecter)" = HSTAT_DATE_AUTO),
+                          HSTAT_DATE_FORMATS_SRC),
+                        selected = HSTAT_DATE_AUTO
                       ),
                       shiny::helpText(
-                        shiny::icon("exclamation-triangle", style = "color: #ffc107;"),
-                        "Format des dates dans vos données brutes (pour la conversion)."
+                        shiny::icon("circle-info", style = "color: #2196F3;"),
+                        "Format des dates dans vos données brutes. En automatique, les écritures française, anglaise et ISO sont reconnues quelle que soit la langue de l'application ; un format imposé n'est jamais écrasé."
                       ),
                       
                       shiny::hr(style = "margin: 10px 0;"),
@@ -2054,22 +2058,38 @@ mod_viz_server <- function(id, values) {
     
     if(x_type == "date" && !is.null(x_var) && x_var %in% names(data) &&
        !inherits(data[[x_var]], "Date")) {
-      date_format <- input$xDateFormat %||% "%Y-%m-%d"
-      converted <- tryCatch({
-        # LA LECTURE SOUFFRE DU MEME MAL QUE L'ECRITURE : `as.Date(x,
-        # "%d-%b-%Y")` rend NA sur « 25-mars-2024 » sous une locale anglaise,
-        # et sur « 25-Mar-2024 » sous une locale francaise. Le fichier de
-        # l'utilisateur devenait illisible selon le systeme qui fait tourner
-        # l'application. `hstat_date_parse` reconnait les deux langues.
-        result <- hstat_date_parse(data[[x_var]], date_format)
-        result
-      }, error = function(e) {
-        shiny::showNotification("Erreur de conversion de date. Vérifiez le format.", type = "error")
-        NULL
-      })
-      # Appliquer uniquement si le résultat a la même longueur que les données
-      if (!is.null(converted) && length(converted) == nrow(data)) {
-        data[[x_var]] <- converted
+      # `hstat_date_auto` lit les ecritures francaise, anglaise et ISO sans
+      # dependre de la langue de l'application, et n'ecrase jamais un format
+      # impose qui aboutit. Voir R/utils.R pour les trois defauts qu'il ferme.
+      lu <- tryCatch(hstat_date_auto(data[[x_var]], input$xDateFormat),
+                     error = function(e) NULL)
+      if (!is.null(lu) && length(lu$dates) == nrow(data) && lu$n_ok > 0) {
+        data[[x_var]] <- lu$dates
+        # CE QUI A ETE LU SE DIT. Un repli silencieux vers un autre format
+        # serait la meme faute a l'envers : l'axe changerait de sens sans que
+        # personne ne sache pourquoi.
+        if (isTRUE(lu$auto))
+          shiny::showNotification(
+            trf("Dates lues au format « %s » : le format déclaré ne convenait pas à cette colonne.",
+                hstat_date_fmt_label(lu$format)),
+            type = "message", duration = 6, id = session$ns("vizDateAuto"))
+        # DEUX LECTURES POSSIBLES, ET AUCUNE N'EST PLUS JUSTE : « 01/02/2026 »
+        # est le 1er fevrier ou le 2 janvier. On tranche pour pouvoir tracer,
+        # et on le dit -- seul l'utilisateur sait d'ou vient son fichier.
+        if (length(lu$ambigu) > 1L)
+          shiny::showNotification(
+            trf("Dates ambiguës : « %s » se lit aussi en %s. Le jour et le mois ne se distinguent pas dans cette colonne ; imposez le format source si la lecture retenue n'est pas la vôtre.",
+                hstat_date_fmt_label(lu$format),
+                paste(vapply(setdiff(lu$ambigu, lu$format),
+                             hstat_date_fmt_label, character(1)), collapse = ", ")),
+            type = "warning", duration = 10, id = session$ns("vizDateAmbigu"))
+      } else {
+        # AUCUN FORMAT NE RELIT CETTE COLONNE : le dire vaut mieux qu'un cadre
+        # vide, qui envoie chercher le defaut du cote des variables.
+        shiny::showNotification(
+          trf("La colonne « %s » n'a pas pu être lue comme une date, dans aucun format connu : choisissez « Auto » pour le type de la variable X, ou corrigez la colonne.",
+              x_var),
+          type = "error", duration = 10, id = session$ns("vizDateEchec"))
       }
     }
     

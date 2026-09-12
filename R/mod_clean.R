@@ -1013,7 +1013,20 @@ mod_clean_server <- function(id, values) {
             } else if (type_input == "character") {
               data_temp[[col]] <- as.character(data_temp[[col]])
             } else if (type_input == "date") {
-              data_temp[[col]] <- as.Date(data_temp[[col]])
+              # `as.Date()` nu ne lit que l'ISO : « 20/10/2026 » y LEVE, et
+              # « 20 octobre 2026 » aussi. Une colonne datee a la francaise
+              # etait donc intypable, et le refus parlait d'un format de
+              # caractere sans jamais nommer la vraie cause.
+              lu <- hstat_date_auto(data_temp[[col]])
+              if (lu$n_ok == 0)
+                stop(trf("Aucun format de date connu ne relit la colonne « %s » (essais : française, anglaise, ISO).", col),
+                     call. = FALSE)
+              data_temp[[col]] <- lu$dates
+              if (isTRUE(lu$auto) && !is.na(lu$format))
+                shiny::showNotification(
+                  trf("« %s » : dates lues au format « %s ».", col,
+                      hstat_date_fmt_label(lu$format)),
+                  type = "message", duration = 5)
             }
           }, error = function(e) {
             shiny::showNotification(hstat_err_fr(e, trf("Variable `%s`", col)), 
