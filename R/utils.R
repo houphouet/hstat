@@ -2512,7 +2512,28 @@ viz_get_x_scale <- function(x_col, disp_fmt = "%d-%m-%Y", label_map = NULL, cust
       ord_valid <- custom_ord[custom_ord %in% all_x]
       if (length(ord_valid) > 0) all_x <- ord_valid
     }
-    return(ggplot2::scale_x_discrete(limits = all_x, drop = FALSE))
+    # UNE DATE RESTE UNE DATE MEME PRESENTEE EN DISCRET. Les barres passent X
+    # en facteur et l'histogramme en tableau d'effectifs : l'axe y devient
+    # discret, et ses niveaux sont les dates ECRITES (« 2026-08-04 »). Sans
+    # cette branche, le format d'affichage choisi n'agissait que sur les types
+    # a axe date -- l'utilisateur reglait « MM-JJ » et ses barres restaient en
+    # ISO, sans qu'un mot le dise.
+    #
+    # Le critere est STRICT, et il doit l'etre : seule une chaine de la forme
+    # AAAA-MM-JJ que `as.Date` accepte est reformatee. Un identifiant comme
+    # « 2024 » ou « T1-2 » n'est pas une date et ne doit jamais etre reecrit --
+    # ce serait alterer une modalite de l'utilisateur, le pire defaut possible
+    # pour un outil de statistique.
+    lab_disc <- vapply(all_x, function(v) {
+      if (has_lm && v %in% names(label_map) &&
+          as.character(label_map[[v]]) != v) return(as.character(label_map[[v]]))
+      if (!grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", v)) return(v)
+      dt <- tryCatch(as.Date(v, format = "%Y-%m-%d"), error = function(e) NA)
+      if (length(dt) != 1L || is.na(dt)) return(v)
+      tryCatch(hstat_date_fmt(dt, disp_fmt), error = function(e) v)
+    }, character(1), USE.NAMES = FALSE)
+    return(ggplot2::scale_x_discrete(limits = all_x, labels = lab_disc,
+                                     drop = FALSE))
   }
 }
 

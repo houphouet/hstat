@@ -3109,7 +3109,60 @@ mod_viz_server <- function(id, values) {
     })
     
     if(is.null(p)) return(NULL)
-    
+
+    # ---- AXE X : POSE UNE SEULE FOIS, ICI, POUR TOUS LES TYPES ----------
+    # LE DEFAUT QUE CE BLOC CORRIGE, signale a l'ecran : le reglage « Format
+    # d'affichage sur l'axe » ne faisait rien sur un nuage de points -- l'axe
+    # sortait « Aug / Sep / Oct », les graduations automatiques de ggplot, en
+    # anglais, alors que MM-JJ etait demande.
+    #
+    # La cause n'etait pas dans l'echelle : `viz_get_x_scale()` est juste, et le
+    # rendait deja. Elle etait dans sa POSE. Chaque constructeur devait
+    # l'ajouter lui-meme, et TROIS sur quatorze le faisaient (courbe et les deux
+    # saisonniers). Les onze autres -- nuage de points, barres, aire, boite,
+    # violon, histogramme, densite, carte de chaleur, camembert, anneau,
+    # treemap -- ne posaient rien. C'est la derive que ce depot corrige partout
+    # ailleurs : une regle recopiee finit par diverger, et c'est la copie
+    # oubliee qui ment. Ici elle mentait sur onze types.
+    #
+    # Et le format de date n'etait pas seul a tomber : le RENOMMAGE des
+    # etiquettes et l'ORDRE personnalise voyagent par la meme fonction.
+    #
+    # Elle est donc posee au point de passage commun, ou aucun type ne peut
+    # l'oublier. Deux reserves, chacune necessaire :
+    #
+    # 1. LES TYPES SANS AXE X CARTESIEN sont exclus. Un camembert, un anneau et
+    #    un treemap n'ont pas d'axe des abscisses : y poser une echelle ne
+    #    reglerait rien et pourrait defaire leur systeme de coordonnees.
+    # 2. ON NE POSE RIEN SI LE CONSTRUCTEUR L'A DEJA FAIT. Deux echelles ne
+    #    s'ajoutent pas : la seconde REMPLACE la premiere en avertissant. Les
+    #    trois constructeurs qui posent la leur travaillent sur un tableau
+    #    temporaire propre a leur transformation (`tmp_df_scale`) ; la remplacer
+    #    par une echelle batie sur `data` changerait leurs graduations sans
+    #    qu'on l'ait demande.
+    # 3. L'ECHELLE SE BATIT SUR CE QUE LA FIGURE PORTE, pas sur la colonne
+    #    d'origine. Piege rencontre en posant ce bloc, et il est net : les
+    #    barres passent X en FACTEUR, l'histogramme et la densite le ramenent a
+    #    un tableau d'effectifs dont X est du CARACTERE. Une `scale_x_date`
+    #    batie sur `data[[x_var]]` -- encore une Date a ce stade -- y levait
+    #    « transform_date() works with objects of class <Date> only » et faisait
+    #    tomber trois types qui, avant, s'affichaient. C'est la meme lecon que
+    #    la mesure du cadre carre : ce qu'on regarde doit etre ce qui peut
+    #    casser. On lit donc `p$data`, les donnees reellement attachees.
+    x_scale_src <- if (is.data.frame(p$data) && x_var %in% names(p$data))
+      p$data[[x_var]] else data[[x_var]]
+    if (!viz_type %in% c("pie", "donut", "treemap") &&
+        !any(vapply(p$scales$scales,
+                    function(s) "x" %in% s$aesthetics, logical(1)))) {
+      tryCatch({
+        p <- p + viz_get_x_scale(
+          x_col      = x_scale_src,
+          disp_fmt   = get_date_display_fmt(),
+          label_map  = values$storedLevelLabels[[x_var]],
+          custom_ord = values$customXOrder)
+      }, error = function(e) NULL)
+    }
+
     # Couleurs Y1 : differees jusqu'au scale_color_manual unifie Y1+Y2
     
     y2_active_vars <- if (isTRUE(values$dualAxisActive) && !is.null(values$y2VarsActive))
