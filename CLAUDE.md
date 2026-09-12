@@ -5987,3 +5987,77 @@ ce que la carte ne porte pas, défaut que ce dépôt traque partout ailleurs.
 La première s'appelle désormais « Choix de la figure ». La seconde garde le nom
 qu'emploient les onze autres panneaux de mise en forme de l'application : deux
 vocabulaires pour une même chose, c'est le début de la dérive.
+
+### L'échelle de l'axe X se pose une fois, pas dans chaque constructeur
+
+Signalé à l'écran, capture à l'appui : le réglage « Format d'affichage sur
+l'axe » était sur **MM-JJ** et l'axe d'un nuage de points sortait
+« Aug / Sep / Oct » — les graduations automatiques de ggplot, et en anglais.
+
+**La cause n'était pas dans l'échelle.** `viz_get_x_scale()` rendait déjà les
+bonnes étiquettes, et un test appelé sur elle seule l'aurait confirmé. Elle
+était dans sa **pose** : chaque constructeur de `mod_viz.R` devait l'ajouter
+lui-même, et **trois sur quatorze** le faisaient (courbe, et les deux
+saisonniers). Mesuré :
+
+| pose l'échelle | ne la pose pas |
+|---|---|
+| line, seasonal_smooth, seasonal_evolution | **scatter**, bar, box, violin, area, histogram, density, heatmap, pie, donut, treemap |
+
+C'est la dérive que ce dépôt corrige partout ailleurs — formats d'image, champs
+de DPI, thèmes, palettes : une règle recopiée finit par diverger, et c'est la
+copie oubliée qui ment. Ici elle mentait sur **onze** types. Et le format de
+date n'était pas seul à tomber : le **renommage des étiquettes** et l'**ordre
+personnalisé** voyagent par la même fonction.
+
+Elle est donc posée **au point de passage commun**, dans `createPlot()` après le
+`switch`, où aucun type ne peut l'oublier. Trois réserves, chacune nécessaire :
+
+1. **Les types sans axe X cartésien sont exclus** (camembert, anneau, treemap).
+2. **On ne pose rien si le constructeur l'a déjà fait.** Deux échelles ne
+   s'ajoutent pas : la seconde *remplace* la première en avertissant. Les trois
+   qui posent la leur travaillent sur un tableau temporaire propre à leur
+   transformation.
+3. **L'échelle se bâtit sur ce que la figure porte** (`p$data`), jamais sur la
+   colonne d'origine. Piège rencontré en posant ce bloc : les barres passent X
+   en **facteur**, l'histogramme et la densité le ramènent à un tableau
+   d'effectifs dont X est du **caractère**. Une `scale_x_date` bâtie sur
+   `data[[x_var]]` — encore une `Date` à ce stade — y levait
+   « transform_date() works with objects of class <Date> only » et faisait
+   tomber **trois types qui, avant, s'affichaient**. Même leçon que la mesure du
+   cadre carré : ce qu'on regarde doit être ce qui peut casser.
+
+#### Une date reste une date même présentée en discret
+
+Corollaire du point 3. Les barres et l'histogramme rendent l'axe **discret**, et
+ses niveaux sont les dates *écrites* (« 2026-08-04 »). La branche discrète de
+`viz_get_x_scale()` ne formatait rien : l'utilisateur réglait « MM-JJ » et ses
+barres restaient en ISO, sans un mot.
+
+Elle formate donc les niveaux qui **sont** des dates — et rien d'autre.
+
+**Le critère est la forme *et* la valeur, et le second ne suffit pas.**
+`as.Date(v, "%Y-%m-%d")` est tolérante d'une façon qui surprend : mesurée, elle
+accepte **« 2026-08-04 bloc A »** et rend le 4 août, **en jetant le suffixe sans
+un mot**. Un critère qui se contenterait de « `as.Date` ne rend pas `NA` »
+réécrirait donc cette modalité en « 08-04 », et « bloc A » disparaîtrait de
+l'axe — une donnée de l'utilisateur altérée, ce que ce dépôt tient pour le pire
+défaut possible.
+
+La première version du test ne portait que sur « T1 » et « 2024-13-45 », que
+`as.Date` refuse d'elle-même : **retirer le contrôle de forme ne la faisait pas
+échouer**. Le jeu d'essai porte désormais « 2026-08-04 bloc A », « 2026-08-04X »
+et « 2024-1-5 ». Une assertion qui ne distingue pas les deux codes ne garde rien
+— c'est la quatrième fois que ce dépôt le réapprend.
+
+Le renommage explicite **prime** sur le format : qui a nommé son niveau
+« Semaine 1 » ne veut pas le voir redevenir une date.
+
+#### Le test porte sur les types, pas sur la fonction
+
+C'est la forme qui compte ici. Un test appelant `viz_get_x_scale()` serait passé
+au vert pendant que onze graphiques sur quatorze ignoraient le réglage : il
+aurait vérifié que **l'échelle sait formater**, jamais que **le graphique la
+porte**. Le test construit donc les neuf types à axe cartésien et lit les
+étiquettes rendues par `ggplot_build` — la seule étape où l'étiquette réellement
+affichée existe.

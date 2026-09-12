@@ -15735,3 +15735,110 @@ test_that("un comptage s'affiche sans decimales", {
   # Et une colonne de texte n'est pas arrondie du tout.
   expect_true(is.na(dec[["Releve"]]))
 })
+
+
+test_that("le format de date choisi agit sur TOUS les types de graphique", {
+  # LE DEFAUT QUE CE TEST GARDE, signale a l'ecran avec sa capture : le reglage
+  # « Format d'affichage sur l'axe » etait regle sur « MM-JJ » et l'axe d'un
+  # nuage de points sortait « Aug / Sep / Oct » -- les graduations automatiques
+  # de ggplot, et en anglais par-dessus le marche.
+  #
+  # La cause n'etait PAS dans l'echelle : `viz_get_x_scale()` rendait deja les
+  # bonnes etiquettes, et un test isole l'aurait montre. Elle etait dans sa
+  # POSE : chaque constructeur devait l'ajouter lui-meme, et TROIS sur quatorze
+  # le faisaient. Les onze autres n'affichaient rien du reglage -- ni le
+  # format, ni le renommage des etiquettes, ni l'ordre personnalise, qui
+  # voyagent tous par cette meme fonction.
+  #
+  # C'est pourquoi ce test porte sur les TYPES, un par un, et pas sur la
+  # fonction : c'est la seule forme qui distingue « l'echelle sait formater »
+  # de « le graphique la porte ».
+  skip_if_not_installed("ggplot2")
+  set.seed(1)
+  d <- data.frame(
+    Semaine = rep(as.Date("2026-08-04") + 7 * (0:3), each = 3),
+    Valeur  = stats::rpois(12, 3),
+    Site    = rep(c("A", "B", "C"), 4),
+    stringsAsFactors = FALSE)
+  vals <- shiny::reactiveValues(
+    data = d, cleanData = d, filteredData = d, aiHistory = list(),
+    aiContext = NULL, storedLevelLabels = list(), customXOrder = NULL)
+
+  # Les types A AXE X CARTESIEN. Camembert, anneau et treemap en sont absents
+  # a dessein : ils n'ont pas d'axe des abscisses.
+  types <- c("scatter", "line", "bar", "box", "violin", "area",
+             "histogram", "density", "heatmap")
+  attendu <- c("08-04", "08-11", "08-18", "08-25")
+
+  shiny::testServer(mod_viz_server, args = list(values = vals), {
+    for (tt in types) {
+      session$setInputs(vizXVar = "Semaine", vizYVar = "Valeur",
+                        xVarType = "date", vizType = tt,
+                        xDateDisplayFormat = "%m-%d", xDateFormat = "%Y-%m-%d")
+      p <- createPlot()
+      expect_s3_class(p, "ggplot")
+      # `ggplot_build` est l'etape qui resout l'echelle : c'est la seule ou
+      # l'etiquette reellement affichee existe. Lire `p$scales` dirait qu'une
+      # echelle est presente sans dire ce qu'elle rend.
+      lab <- ggplot2::ggplot_build(p)$layout$panel_params[[1]]$x$get_labels()
+      expect_setequal(lab, attendu)
+    }
+  })
+})
+
+test_that("une modalite qui ressemble a une date n'est jamais reecrite", {
+  # Le pendant du test precedent, et c'est lui qui borne le correctif. La
+  # branche discrete de l'echelle reformate les niveaux qui SONT des dates --
+  # les barres et l'histogramme passent X en facteur, leurs niveaux sont donc
+  # des dates ecrites. Elle ne doit toucher a rien d'autre : reecrire une
+  # modalite de l'utilisateur serait le pire defaut possible pour un outil de
+  # statistique, et il serait muet.
+  skip_if_not_installed("ggplot2")
+  etiquettes <- function(x, fmt = "%m-%d", label_map = NULL) {
+    sc <- viz_get_x_scale(x, disp_fmt = fmt, label_map = label_map)
+    df <- data.frame(x = x, y = seq_along(x))
+    p <- ggplot2::ggplot(df, ggplot2::aes(x, y)) + ggplot2::geom_point() + sc
+    ggplot2::ggplot_build(p)$layout$panel_params[[1]]$x$get_labels()
+  }
+
+  # Trois familles de cas limites, et c'est la troisieme qui compte vraiment.
+  #
+  # `as.Date(v, "%Y-%m-%d")` est TOLERANTE d'une facon qui surprend : mesuree,
+  # elle accepte « 2026-08-04 bloc A » et rend le 4 aout, en jetant le suffixe
+  # SANS UN MOT. Un critere qui se contenterait de « as.Date ne rend pas NA »
+  # reecrirait donc cette modalite en « 08-04 », et « bloc A » disparaitrait de
+  # l'axe -- une donnee de l'utilisateur alteree, le pire defaut possible pour
+  # un outil de statistique, et parfaitement muet.
+  #
+  # D'ou le controle de FORME en plus du controle de valeur. La premiere
+  # version de ce test ne portait que sur « T1 » et « 2024-13-45 », que
+  # `as.Date` refuse d'elle-meme : retirer le controle de forme ne la faisait
+  # pas echouer. Une assertion qui ne distingue pas les deux codes ne garde
+  # rien -- c'est la lecon deja prise trois fois dans ce depot.
+  brut <- c(
+    "T1", "T2", "2024", "Rdt-2023",   # rien d'une date : `as.Date` refuse
+    "2024-13-45",                      # la forme d'une date, mois 13 : refusee
+    "2026-08-04 bloc A",               # ACCEPTEE par `as.Date`, et pourtant
+    "2026-08-04X",                     # une modalite : seule la forme les sauve
+    "2024-1-5")                        # date sans zeros : hors ISO strict
+  expect_setequal(etiquettes(factor(brut)), brut)
+
+  # Une vraie date, elle, suit le format demande.
+  expect_setequal(etiquettes(factor(c("2026-08-04", "2026-08-11"))),
+                  c("08-04", "08-11"))
+
+  # Le renommage explicite PRIME sur le format : l'utilisateur qui a nomme son
+  # niveau « Semaine 1 » ne veut pas le voir redevenir une date.
+  expect_setequal(
+    etiquettes(factor(c("2026-08-04", "2026-08-11")),
+               label_map = list("2026-08-04" = "Semaine 1",
+                                "2026-08-11" = "Semaine 2")),
+    c("Semaine 1", "Semaine 2"))
+
+  # Et le nom du mois suit la langue de la session, pas LC_TIME -- dans la
+  # branche discrete comme dans la branche date.
+  expect_setequal(etiquettes(as.Date(c("2026-08-04", "2026-09-01")), "%d %B"),
+                  c("04 ao\u00fbt", "01 septembre"))
+  expect_setequal(etiquettes(factor(c("2026-08-04", "2026-09-01")), "%d %B"),
+                  c("04 ao\u00fbt", "01 septembre"))
+})
