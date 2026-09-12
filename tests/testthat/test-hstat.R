@@ -15467,3 +15467,146 @@ test_that("les gabarits de libelle de perte sont au dictionnaire", {
     expect_equal(marq(g), marq(en), info = g)
   }
 })
+
+# ---------------------------------------------------------------------------
+#  PERTES : DEUX FACONS DE TENIR COMPTE DES REPETITIONS
+# ---------------------------------------------------------------------------
+
+# LES RENDEMENTS VARIENT FORTEMENT D'UN BLOC A L'AUTRE, et c'est la condition du
+# test : sur des blocs identiques, la moyenne des pertes et la perte des
+# moyennes COINCIDENT, et toute mutation passerait.
+.rdt_blocs <- function() data.frame(
+  Traitement = rep(c("PP", "NT"), each = 2),
+  Bloc       = c("B1", "B2", "B1", "B2"),
+  Masse      = c(2000, 1000, 1000, 800),
+  Surface    = 1, stringsAsFactors = FALSE)
+
+test_that("la moyenne des pertes n'est pas la perte des moyennes", {
+  d <- .rdt_blocs()
+  arg <- list(d, "Traitement", "Masse", "Surface", non_traite = "NT",
+              var_repetition = "Bloc", references = "PP")
+  cum <- do.call(hstat_rdt_complet, c(arg, list(mode_perte = "cumul")))
+  rep <- do.call(hstat_rdt_complet, c(arg, list(mode_perte = "par_repetition")))
+  g <- function(t, col) t[[col]][match("NT", t$Modalite)]
+
+  # (1500 - 900) / 1500 = 40 %
+  expect_equal(g(cum, "Perte_moyen_vs_PP"), 40)
+  # (50 + 20) / 2 = 35 %
+  expect_equal(g(rep, "Perte_rep_vs_PP"), 35)
+  # LES DEUX DOIVENT ETRE DISCERNABLES : sans cette assertion, un mode qui
+  # retomberait sur l'autre passerait inapercu.
+  expect_false(isTRUE(all.equal(g(cum, "Perte_moyen_vs_PP"),
+                                g(rep, "Perte_rep_vs_PP"))))
+
+  # La dispersion n'existe que dans le mode par repetition : c'est tout son
+  # interet -- une valeur unique par modalite n'en a pas.
+  expect_equal(g(rep, "Perte_rep_n_vs_PP"), 2)
+  expect_equal(g(rep, "Perte_rep_ET_vs_PP"), stats::sd(c(50, 20)))
+  expect_equal(g(rep, "Perte_rep_ES_vs_PP"), stats::sd(c(50, 20)) / sqrt(2))
+  expect_false("Perte_rep_vs_PP" %in% names(cum))
+  expect_false("Perte_moyen_vs_PP" %in% names(rep))
+})
+
+test_that("la perte par repetition se mesure contre la reference du meme bloc", {
+  d <- .rdt_blocs()
+  det <- attr(hstat_rdt_table(d, "Traitement", "Masse", "Surface",
+                              var_repetition = "Bloc"), "detail")
+  rt <- hstat_rdt_pertes_rep(det, "PP")
+  expect_equal(NROW(rt), 4L)
+  # LE DENOMINATEUR EST CELUI DU BLOC, pas la moyenne generale : 2000 en B1,
+  # 1000 en B2. Une fonction qui prendrait la moyenne (1500) rendrait 33,3 % et
+  # 46,7 % au lieu de 50 % et 20 %.
+  expect_equal(rt$Rendement_reference[rt$Repetition == "B1"], c(2000, 2000))
+  expect_equal(rt$Rendement_reference[rt$Repetition == "B2"], c(1000, 1000))
+  expect_equal(rt$Perte[rt$Modalite == "NT" & rt$Repetition == "B1"], 50)
+  expect_equal(rt$Perte[rt$Modalite == "NT" & rt$Repetition == "B2"], 20)
+  # La reference vaut 0 % de perte et 100 % de relatif DANS SON PROPRE BLOC.
+  expect_equal(rt$Perte[rt$Modalite == "PP"], c(0, 0))
+  expect_equal(rt$Relatif[rt$Modalite == "PP"], c(100, 100))
+  # Les deux lectures somment toujours a 100.
+  expect_equal(rt$Perte + rt$Relatif, rep(100, 4))
+})
+
+test_that("un bloc sans la reference est ecarte ET nomme", {
+  d <- rbind(.rdt_blocs(),
+             data.frame(Traitement = "NT", Bloc = "B3", Masse = 900, Surface = 1))
+  det <- attr(hstat_rdt_table(d, "Traitement", "Masse", "Surface",
+                              var_repetition = "Bloc"), "detail")
+  rt <- hstat_rdt_pertes_rep(det, "PP")
+  # UN BLOC SANS REFERENCE EST UN DEFAUT DE PLAN, PAS DE MESURE. Le retirer en
+  # silence ferait porter la moyenne sur moins de blocs que l'essai n'en compte.
+  expect_setequal(unique(rt$Repetition), c("B1", "B2"))
+  expect_equal(attr(rt, "repetitions_ecartees"), "B3")
+  expect_match(attr(rt, "message"), "B3")
+  expect_match(attr(rt, "message"), "sans la r")
+})
+
+test_that("sans variable de repetition, le mode refuse plutot que de mentir", {
+  d <- .rdt_blocs()
+  det <- attr(hstat_rdt_table(d, "Traitement", "Masse", "Surface"), "detail")
+  rt <- hstat_rdt_pertes_rep(det, "PP")
+  # SANS REPETITION DECLAREE, toutes les lignes tombent dans le meme groupe et
+  # le calcul rendrait exactement le mode « en commun » SOUS UN AUTRE NOM.
+  expect_equal(NROW(rt), 0L)
+  expect_match(attr(rt, "message"), "variable de r")
+})
+
+test_that("un ecart-type sur une seule repetition vaut NA, jamais zero", {
+  rt <- data.frame(Modalite = c("NT", "PP"), Repetition = "B1",
+                   Perte = c(50, 0), Relatif = c(50, 100),
+                   stringsAsFactors = FALSE)
+  som <- hstat_rdt_pertes_rep_resume(rt)
+  # Zero se lirait « aucune variabilite », ce qui est un resultat. NA dit qu'il
+  # n'y a rien a mesurer -- meme regle que la silhouette d'un groupe unique.
+  expect_true(all(is.na(som$ET)))
+  expect_true(all(is.na(som$ES)))
+  expect_equal(som$n, c(1L, 1L))
+})
+
+test_that("le module de rendement transmet le mode de prise en compte", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("DT")
+  # LE TEST PORTE SUR LE MODULE. Un test sur `hstat_rdt_pertes_rep()` seule
+  # resterait vert pendant que l'interface reste bloquee sur « en commun ».
+  d <- .rdt_blocs()
+  vals <- shiny::reactiveValues(filteredData = d)
+  shiny::testServer(mod_yield_server, args = list(values = vals), {
+    session$setInputs(yieldSource = "fichier", yieldModalite = "Traitement",
+                      yieldMasse = "Masse", yieldSurface = "Surface",
+                      yieldRepetition = "Bloc", yieldTemoin = "NT",
+                      yieldRefPerte = "PP", yieldRound = FALSE,
+                      yieldModePerte = "cumul")
+    r1 <- resultat()
+    expect_equal(r1[["Perte_moyen_vs_PP"]][match("NT", r1$Modalite)], 40)
+    expect_null(attr(r1, "pertes_repetitions"))
+
+    session$setInputs(yieldModePerte = "par_repetition")
+    r2 <- resultat()
+    expect_equal(r2[["Perte_rep_vs_PP"]][match("NT", r2$Modalite)], 35)
+    expect_equal(attr(r2, "mode_perte"), "par_repetition")
+
+    # Le detail existe et se reanalyse : c'est ce que le mode promet.
+    det <- pertes_detail()
+    expect_equal(NROW(det), 4L)
+    expect_setequal(unique(det$Repetition), c("B1", "B2"))
+
+    # Et la mesure est offerte au graphique, avec son libelle.
+    md <- mesures_dispo()
+    expect_true("Perte_rep_vs_PP" %in% md)
+    expect_match(names(md)[match("Perte_rep_vs_PP", md)], "répétition")
+  })
+})
+
+test_that("les gabarits du resume par repetition sont au dictionnaire", {
+  # Meme raison que pour les mesures agregees : declares dans une constante,
+  # ils echappent au balayage des chaines litterales de `tr()`/`trf()`.
+  dic <- hstat_i18n_load()
+  gab <- vapply(HSTAT_RDT_PERTE_REP, function(x) unname(x[["lib"]]), character(1))
+  expect_length(gab, 5L)
+  expect_equal(setdiff(unname(gab), dic$fr), character(0))
+  marq <- function(x) sort(unlist(regmatches(x, gregexpr(HSTAT_I18N_MARQUEUR, x))))
+  for (g in unname(gab)) {
+    en <- dic$en[match(g, dic$fr)]
+    expect_equal(marq(g), marq(en), info = g)
+  }
+})
