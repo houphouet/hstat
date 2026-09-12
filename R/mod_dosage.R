@@ -896,12 +896,6 @@ mod_dosage_server <- function(id, values) {
       d <- dose_res()
       if (!nrow(d)) return()
       p <- trimws(input$doseProduit %||% "")
-      hstat_ai_capture(values, "Doses & dilutions",
-        trf("Dose et grammage%s", if (nzchar(p)) paste0(" -- ", p) else ""),
-        tables = list("Doses" = dose_affiche()),
-        meta = list(superficie = input$doseSurface,
-                    bouillie   = input$doseBouillie,
-                    matiere    = input$doseMatiere))
     }, ignoreInit = TRUE)
 
     # ------------------------------------------------------------ dilution
@@ -1099,10 +1093,6 @@ mod_dosage_server <- function(id, values) {
     shiny::observeEvent(dilution(), {
       d <- dilution()
       if (!is.data.frame(d) || !nrow(d)) return()
-      hstat_ai_capture(values, "Doses & dilutions",
-        trf("Solutions filles (%d produit(s))", length(unique(d$Produit))),
-        tables = list("Solutions_filles" = dil_affiche()),
-        meta = list(produits = unique(d$Produit)))
     }, ignoreInit = TRUE)
   })
 }

@@ -35,7 +35,7 @@ if (isTRUE(requireNamespace("shiny", quietly = TRUE)))
 #
 # Le dossier est balaye, les fichiers ne sont plus nommes un a un. C'est le
 # gain de la migration, et il vaut pour les tests comme pour l'application :
-# avant, quatre modules etaient charges par leur nom (mod_ai, mod_report,
+# avant, quatre modules etaient charges par leur nom (mod_ai,
 # mod_coding, mod_design) et un cinquieme qui aurait porte une fonction de
 # calcul serait reste invisible -- les tests le concernant auraient echoue sur
 # « could not find function », loin de la cause.
@@ -2726,174 +2726,12 @@ test_that("le corps des requetes locales a la forme attendue par les serveurs", 
 #  AIDE A LA DECISION -- mod_ai.R
 # =============================================================================
 
-test_that("la normalite est evaluee DANS chaque groupe, pas sur le melange", {
-  set.seed(11)
-  # Deux groupes parfaitement normaux mais bien separes : leur melange est
-  # bimodal et Shapiro le rejette (p ~ 1e-6) alors que chaque groupe le passe.
-  # Tester le melange conduirait a deconseiller l'ANOVA quand elle convient.
-  d <- data.frame(y = c(stats::rnorm(30, 0, 1), stats::rnorm(30, 8, 1)),
-                  g = rep(c("A", "B"), each = 30), stringsAsFactors = FALSE)
-  expect_lt(stats::shapiro.test(d$y)$p.value, 0.001)   # le melange echoue
 
-  p <- hstat_data_profile(d, "y", "g")
-  expect_equal(p$variables$y$normale$portee, "par groupe")
-  expect_true(p$variables$y$normale$ok)
-  expect_equal(nrow(p$variables$y$normale$detail), 2L)
-  expect_true(all(p$variables$y$normale$detail$Normale))
 
-  r <- hstat_reco_analyses(p)
-  expect_true(grepl("t de Student|Welch", r$Analyse[r$Pertinence == "Recommandée"][1]))
 
-  # Sans facteur, la normalite est bien evaluee globalement
-  p0 <- hstat_data_profile(d, "y")
-  expect_equal(p0$variables$y$normale$portee, "globale")
-  expect_false(isTRUE(p0$variables$y$normale$ok))
-})
 
-test_that("le profil identifie correctement le type des variables", {
-  d <- data.frame(
-    quanti = stats::rnorm(50),
-    ordinale = sample(1:5, 50, TRUE),
-    binaire = sample(c(0, 1), 50, TRUE),
-    categ = sample(c("a", "b", "c", "d"), 50, TRUE),
-    stringsAsFactors = FALSE)
-  p <- hstat_data_profile(d, names(d))
-  expect_equal(p$variables$quanti$type, "quantitative")
-  expect_equal(p$variables$ordinale$type, "ordinale")   # entier a peu de niveaux
-  expect_equal(p$variables$binaire$type, "binaire")
-  expect_equal(p$variables$categ$type, "categorielle")
-  expect_equal(p$n, 50L)
-  expect_equal(p$n_quanti, 1L)
-  expect_null(hstat_data_profile(NULL))
-  expect_null(hstat_data_profile(d, "colonne_absente"))
-})
 
-test_that("le recommandateur suit les regles statistiques classiques", {
-  set.seed(4)
-  reco1 <- function(p) hstat_reco_analyses(p)$Analyse[
-    hstat_reco_analyses(p)$Pertinence == "Recommandée"][1]
 
-  # Deux groupes, normalite intra-groupe, variances homogenes -> t de Student
-  d <- data.frame(y = c(stats::rnorm(40, 0, 1), stats::rnorm(40, 1, 1)),
-                  g = rep(c("A", "B"), each = 40), stringsAsFactors = FALSE)
-  expect_match(reco1(hstat_data_profile(d, "y", "g")), "Student")
-
-  # Trois groupes non normaux -> Kruskal-Wallis
-  d3 <- data.frame(y = stats::rexp(90, 0.2),
-                   g = rep(c("A", "B", "C"), each = 30), stringsAsFactors = FALSE)
-  expect_equal(reco1(hstat_data_profile(d3, "y", "g")), "Kruskal-Wallis")
-  # ... et le post-hoc doit etre propose a la suite
-  r3 <- hstat_reco_analyses(hstat_data_profile(d3, "y", "g"))
-  expect_true("Comparaisons post-hoc" %in% r3$Analyse)
-
-  # Un groupe sous 5 observations : pas de test parametrique en tete
-  dp <- data.frame(y = stats::rnorm(20, 5, 1),
-                   g = rep(c("A", "B", "C", "D"), c(3, 3, 3, 11)),
-                   stringsAsFactors = FALSE)
-  rp <- hstat_reco_analyses(hstat_data_profile(dp, "y", "g"))
-  expect_equal(rp$Analyse[rp$Pertinence == "Recommandée"][1], "Kruskal-Wallis")
-  expect_true("Test exact / permutation" %in% rp$Analyse)
-
-  # Deux qualitatives -> chi-deux, et la taille d'effet a enchainer
-  dq <- data.frame(a = sample(c("x", "y"), 120, TRUE),
-                   b = sample(c("u", "v", "w"), 120, TRUE), stringsAsFactors = FALSE)
-  rq <- hstat_reco_analyses(hstat_data_profile(dq, c("a", "b"), "a"))
-  expect_match(rq$Analyse[rq$Pertinence == "Recommandée"][1], "chi-deux")
-  expect_true(any(grepl("Cramer", rq$Analyse)))
-
-  # Mesures appariees -> version appariee du test
-  da <- data.frame(y = stats::rnorm(60), g = rep(c("avant", "apres"), each = 30),
-                   stringsAsFactors = FALSE)
-  expect_match(reco1(hstat_data_profile(da, "y", "g", paired = TRUE)), "apparie")
-
-  expect_null(hstat_reco_analyses(NULL))
-})
-
-test_that("le verdict signale un ecart sans jamais desavouer l'utilisateur", {
-  set.seed(5)
-  d <- data.frame(y = stats::rexp(90, 0.2), g = rep(c("A", "B", "C"), each = 30),
-                  stringsAsFactors = FALSE)
-  r <- hstat_reco_analyses(hstat_data_profile(d, "y", "g"))
-
-  v_ok <- hstat_reco_verdict(r, "Kruskal-Wallis sur 3 groupes")
-  expect_true(v_ok$coherent)
-
-  v_no <- hstat_reco_verdict(r, "ANOVA à un facteur")
-  expect_false(v_no$coherent)
-  expect_true(grepl("Kruskal-Wallis", v_no$message, fixed = TRUE))
-  # Le ton compte autant que le fond : on informe, on ne condamne pas.
-  expect_true(grepl("ne disqualifie pas", v_no$message, fixed = TRUE))
-  expect_true(grepl("À vous de trancher", v_no$message, fixed = TRUE))
-  expect_false(grepl("erreur|faux|incorrect", tolower(v_no$message)))
-
-  expect_null(hstat_reco_verdict(NULL, "x"))
-  expect_null(hstat_reco_verdict(r, ""))
-})
-
-test_that("hstat_ai_capture depose un contexte exploitable", {
-  values <- new.env()
-  df <- data.frame(Test = "Test t", Variable = "score", p_value = 0.012,
-                   stringsAsFactors = FALSE)
-  ctx <- hstat_ai_capture(values, "Tests statistiques", "Test t de Student",
-                          tables = list("Resultats" = df, "Vide" = NULL),
-                          meta = list(variables = "score", groupe = "sexe"))
-  expect_equal(ctx$title, "Test t de Student")
-  # Les tableaux vides ne sont pas conserves : ils n'apporteraient rien a l'invite
-  expect_equal(names(ctx$tables), "Resultats")
-  expect_equal(ctx$meta$variables, "score")
-  expect_identical(values$aiContext, ctx)
-
-  txt <- hstat_ai_context_text(ctx)
-  expect_true(grepl("Test t de Student", txt, fixed = TRUE))
-  expect_true(grepl("score", txt, fixed = TRUE))
-  expect_true(grepl("0.012", txt, fixed = TRUE))
-  expect_equal(hstat_ai_context_text(NULL), "")
-})
-
-test_that("la lecture automatique relit les p-values sans modele ni reseau", {
-  set.seed(6)
-  d <- data.frame(y = c(stats::rnorm(30), stats::rnorm(30, 2)),
-                  g = rep(c("A", "B"), each = 30), stringsAsFactors = FALSE)
-  p <- hstat_data_profile(d, "y", "g")
-  r <- hstat_reco_analyses(p)
-  ctx <- list(title = "Test t de Student", module = "Tests",
-              tables = list("Resultats" = data.frame(
-                Test = c("Groupe A vs B", "Groupe A vs C"),
-                p_value = c(0.0031, 0.42), stringsAsFactors = FALSE)),
-              text = NULL, meta = list(), time = Sys.time())
-
-  out <- hstat_ai_interpret_offline(ctx, p, r, hstat_reco_verdict(r, ctx$title))
-  expect_true(grepl("Test t de Student", out, fixed = TRUE))
-  # Les chiffres sont LUS, pas generes : chaque p-value doit s'y retrouver
-  expect_true(grepl("0.0031", out, fixed = TRUE))
-  expect_true(grepl("significatif", out, fixed = TRUE))
-  expect_true(grepl("non significatif", out, fixed = TRUE))
-  expect_true(grepl("Analyses appelées par vos données", out, fixed = TRUE))
-  # Le rappel de responsabilite ne doit jamais disparaitre
-  expect_true(grepl("vous appartient", out, fixed = TRUE))
-
-  # Un seuil different change le verdict, pas les chiffres
-  out01 <- hstat_ai_interpret_offline(ctx, p, r, NULL, alpha = 0.001)
-  expect_true(grepl("0.0031", out01, fixed = TRUE))
-  expect_false(grepl("-> significatif", out01, fixed = TRUE))
-
-  expect_null(hstat_ai_interpret_offline(NULL))
-})
-
-test_that("l'invite d'interpretation interdit d'inventer et de decider", {
-  ctx <- list(title = "ANOVA", module = "Tests",
-              tables = list("R" = data.frame(p_value = 0.02)),
-              text = NULL, meta = list(), time = Sys.time())
-  pr <- hstat_ai_interpret_prompt(ctx, NULL, NULL, NULL, "scientifique")
-  expect_true(grepl("N'invente aucun chiffre", pr, fixed = TRUE))
-  expect_true(grepl("Ne recalcule rien", pr, fixed = TRUE))
-  expect_true(grepl("appartient à l'utilisateur", pr, fixed = TRUE))
-  expect_true(grepl("## Analyse recommandée pour la suite", pr, fixed = TRUE))
-  # Les trois niveaux de redaction produisent bien des consignes differentes
-  n <- vapply(c("scientifique", "vulgarise", "detaille"),
-              function(k) hstat_ai_interpret_prompt(ctx, niveau = k), character(1))
-  expect_equal(length(unique(n)), 3L)
-})
 
 test_that("l'invite demande la reponse dans la langue de la session", {
   # LA REPONSE DU MODELE EST DU TEXTE AFFICHE QU'AUCUN DICTIONNAIRE NE PEUT
@@ -2903,17 +2741,10 @@ test_that("l'invite demande la reponse dans la langue de la session", {
   # interpretation ENTIERE en francais, sans un mot d'avertissement. C'est la
   # plus grosse trace de francais qui restait, et la seule qu'une mesure de
   # couverture du dictionnaire ne peut pas voir.
-  ctx <- list(title = "ANOVA", module = "Tests",
-              tables = list("R" = data.frame(p_value = 0.02)),
-              text = NULL, meta = list(), time = Sys.time())
-  fr <- hstat_ai_interpret_prompt(ctx, lang = "fr")
-  en <- hstat_ai_interpret_prompt(ctx, lang = "en")
-  expect_true(grepl("en français", fr, fixed = TRUE))
-  expect_true(grepl("in English", en, fixed = TRUE))
-  expect_false(grepl("en français", en, fixed = TRUE))
-
-  # Meme regle pour le livre de codes : ses libelles deviennent des DONNEES du
-  # projet de codage, ils doivent suivre la langue de qui code.
+  # L'invite d'interpretation a disparu avec son onglet ; celle du LIVRE DE
+  # CODES reste, et la regle vaut d'autant plus pour elle : ses libelles
+  # deviennent des DONNEES du projet de codage, ils doivent suivre la langue de
+  # qui code.
   cb_fr <- hstat_ai_codebook_prompt(c("trop cher", "service lent"), lang = "fr")
   cb_en <- hstat_ai_codebook_prompt(c("trop cher", "service lent"), lang = "en")
   expect_true(grepl("en français", cb_fr, fixed = TRUE))
@@ -2926,20 +2757,6 @@ test_that("l'invite demande la reponse dans la langue de la session", {
   expect_equal(hstat_ai_consigne_langue(), "en français")
 })
 
-test_that("le markdown du modele est converti sans pouvoir injecter de HTML", {
-  h <- .hstat_md_to_html("## Titre\n\nUn **gras** et un *italique*.\n\n- point A\n- point B")
-  expect_true(grepl("<h4", h, fixed = TRUE))
-  expect_true(grepl("<strong>gras</strong>", h, fixed = TRUE))
-  expect_true(grepl("<em>italique</em>", h, fixed = TRUE))
-  expect_equal(lengths(regmatches(h, gregexpr("<li>", h, fixed = TRUE))), 2L)
-
-  # Une reponse de modele reste du contenu non fiable : jamais injectee telle quelle
-  inj <- .hstat_md_to_html("Voici <script>alert(1)</script> et <img onerror=x>")
-  expect_false(grepl("<script>", inj, fixed = TRUE))
-  expect_true(grepl("&lt;script&gt;", inj, fixed = TRUE))
-  expect_equal(.hstat_md_to_html(""), "")
-  expect_equal(.hstat_md_to_html(NULL), "")
-})
 
 test_that("le moteur d'inference est charge avec le paquet, sans rang a tenir", {
   # Ce test verifiait que `HStat.R` sourcait `mod_ai.R` avant les quatre modules
@@ -2953,84 +2770,15 @@ test_that("le moteur d'inference est charge avec le paquet, sans rang a tenir", 
   skip_if(is.na(root), "hors depot")
   expect_true(file.exists(file.path(root, "R", "mod_ai.R")))
   expect_false(file.exists(file.path(root, "inst", "app", "mod_ai.R")))
-  expect_true(is.function(hstat_ai_capture))
-  expect_true(is.function(hstat_reco_analyses))
+  # Ce qui vit encore dans ce fichier, c'est le moteur d'inference lui-meme,
+  # celui dont l'atelier de codage se sert.
+  expect_true(is.function(hstat_ai_call))
+  expect_true(is.function(hstat_ai_status))
 })
 
-test_that("une analyse descriptive n'est pas jugee comme un test", {
-  set.seed(9)
-  d <- data.frame(y = stats::rnorm(90), g = rep(c("A", "B", "C"), each = 30),
-                  stringsAsFactors = FALSE)
-  r <- hstat_reco_analyses(hstat_data_profile(d, "y", "g"))
 
-  # Sans module, la comparaison au catalogue s'applique
-  v0 <- hstat_reco_verdict(r, "Statistiques descriptives")
-  expect_false(v0$coherent)
 
-  # Avec le module, on propose la suite au lieu de juger : une moyenne n'est
-  # pas un mauvais test, c'est une etape anterieure.
-  v <- hstat_reco_verdict(r, "Statistiques descriptives", "Analyses descriptives")
-  expect_true(v$coherent)
-  expect_true(v$exploratoire)
-  expect_true(grepl("étape préliminaire", v$message, fixed = TRUE))
-  expect_true(grepl("pas un test", v$message, fixed = TRUE))
-  expect_true(grepl("À vous de décider", v$message, fixed = TRUE))
 
-  # Un module de tests reste evalue normalement
-  vt <- hstat_reco_verdict(r, "ANOVA à un facteur", "Tests statistiques")
-  expect_false(vt$exploratoire)
-})
-
-test_that("hstat_ai_as_table accepte tout ce que renvoient les modules", {
-  df <- data.frame(a = 1:2, b = c("x", "y"), stringsAsFactors = FALSE)
-  expect_identical(hstat_ai_as_table(df), df)
-
-  # Liste de valeurs nommees (calcul de puissance, metriques de modele...)
-  tb <- hstat_ai_as_table(list(n = 64L, puissance = 0.8012345, test = "t apparie"))
-  expect_equal(names(tb), c("Grandeur", "Valeur"))
-  expect_equal(tb$Grandeur, c("n", "puissance", "test"))
-  expect_equal(tb$Valeur[2], "0.80123")          # arrondi lisible
-  # Les elements non scalaires sont ecartes plutot que de casser la conversion
-  expect_equal(nrow(hstat_ai_as_table(list(n = 10, courbe = 1:100))), 1L)
-
-  expect_equal(nrow(hstat_ai_as_table(matrix(1:4, 2))), 2L)
-  expect_equal(nrow(hstat_ai_as_table(c(alpha = 0.05, beta = 0.2))), 2L)
-  expect_null(hstat_ai_as_table(NULL))
-  expect_null(hstat_ai_as_table(list()))
-})
-
-test_that("le bandeau de guidage ne revient nulle part", {
-  # Le bandeau greffe sur les onglets et sa notification repetaient a chaque
-  # resultat une recommandation que l'onglet dedie porte deja. Ils ont ete
-  # retires ; ce test barre leur reintroduction, y compris par un identifiant
-  # `aihint_*` reste dans une interface.
-  root <- .hstat_repo_root()
-  src  <- .hstat_sources_app()
-  txt  <- unlist(lapply(src, readLines, warn = FALSE))
-  code <- txt[!grepl("^\\s*#", txt)]           # les commentaires en parlent encore
-  for (motif in c("aihint_", "hstat_ai_hint_slot", "hstat_ai_with_hint",
-                  "hstat_ai_hint_ui", "hstat_ai_hint_text", "HSTAT_AI_HINT_IDS"))
-    expect_false(any(grepl(motif, code, fixed = TRUE)), label = motif)
-
-  # Le registre de capture, lui, reste : c'est lui qui alimente l'onglet
-  # d'interpretation, le journal de reproductibilite et le rapport.
-  expect_true(any(grepl("hstat_ai_capture", code, fixed = TRUE)))
-  expect_true(is.function(hstat_ai_capture))
-})
-
-test_that("toutes les familles d'analyse deposent un contexte", {
-  src <- unlist(lapply(.hstat_sources_app(), readLines, warn = FALSE))
-  src <- src[!grepl("^\\s*#", src)]
-  pose <- unique(unlist(regmatches(
-    src, gregexpr('hstat_ai_capture\\(values, "[^"]+"', src))))
-  pose <- gsub('.*"([^"]+)"$', "\\1", pose)
-  attendu <- c("Tests statistiques", "Comparaisons multiples", "Analyses multivariées",
-               "Analyses descriptives", "Machine Learning", "Analyses qualitatives",
-               "Séries temporelles", "Corrélations", "Deep Learning", "Plan & Puissance",
-               "Diversité écologique")
-  for (m in attendu)
-    expect_true(m %in% pose, info = paste("aucune capture pour :", m))
-})
 
 test_that("les intervalles de prevision perdent leur classe `ts` avant ggplot", {
   root <- .hstat_repo_root()
@@ -3190,42 +2938,6 @@ test_that("aucun identifiant n'est declare deux fois dans la page", {
   expect_equal(names(compte)[compte > 1], character(0))
 })
 
-test_that("aucune capture n'est branchee sur un champ que personne n'ecrit", {
-  root <- .hstat_repo_root()
-  skip_if(is.na(root))
-  # CE QUE LE TEST CI-DESSUS NE VOIT PAS. Il cherche l'APPEL dans le source, et
-  # le declarait donc couvert ; mais l'observateur des comparaisons post-hoc
-  # guettait `values$multiResults`, un champ qui n'existe que dans la liste
-  # initiale -- personne ne l'ecrit. Il ne s'est jamais declenche, et cette
-  # famille manquait a l'onglet d'interpretation, au journal de
-  # reproductibilite et au rapport, sans que rien ne le signale.
-  #
-  # On verifie donc le DECLENCHEUR, pas la presence de l'appel.
-  fichiers <- .hstat_sources_app()
-  lignes <- lapply(fichiers, .hstat_code_lignes)
-  tout <- unlist(lignes)
-
-  ecrits <- unique(c(
-    gsub(".*values\\$([A-Za-z0-9_.]+)\\s*<<?-.*", "\\1",
-         grep("values\\$[A-Za-z0-9_.]+\\s*<<?-", tout, value = TRUE)),
-    gsub('.*values\\[\\["([A-Za-z0-9_.]+)"\\]\\].*', "\\1",
-         grep('values\\[\\["[A-Za-z0-9_.]+"\\]\\]\\s*<<?-', tout, value = TRUE))))
-
-  fautifs <- character(0)
-  for (k in seq_along(fichiers)) {
-    l <- lignes[[k]]
-    deb <- grep("observeEvent\\(\\s*values\\$[A-Za-z0-9_.]+", l)
-    for (i in deb) {
-      champ <- sub(".*observeEvent\\(\\s*values\\$([A-Za-z0-9_.]+).*", "\\1", l[i])
-      # Le corps de l'observateur : jusqu'a la prochaine declaration de meme
-      # niveau. Une fenetre de 40 lignes suffit et evite d'analyser le fichier.
-      corps <- paste(l[i:min(length(l), i + 40L)], collapse = " ")
-      if (grepl("hstat_ai_capture", corps) && !(champ %in% ecrits))
-        fautifs <- c(fautifs, sprintf("%s:%d values$%s", basename(fichiers[k]), i, champ))
-    }
-  }
-  expect_equal(fautifs, character(0))
-})
 
 # =============================================================================
 #  ROBUSTESSE AUX STATISTIQUES NON CALCULABLES
@@ -3392,448 +3104,30 @@ test_that("aucune coordonnee FactoMineR n'est indexee sans passer par le garde-f
 #  DIAGNOSTIC DE QUALITE DES DONNEES
 # =============================================================================
 
-test_that("hstat_data_quality repere les problemes courants", {
-  set.seed(21)
-  n <- 60
-  d <- data.frame(
-    constante   = rep(7, n),
-    presque_na  = c(rnorm(3), rep(NA, n - 3)),
-    normale     = rnorm(n),
-    nombres_txt = as.character(round(rnorm(n), 3)),
-    ecrasante   = c(rep("oui", n - 1), "non"),
-    identifiant = paste0("ID", seq_len(n)),
-    stringsAsFactors = FALSE)
-  dq <- hstat_data_quality(d)
 
-  expect_true(is.data.frame(dq))
-  expect_setequal(names(dq), c("Variable", "Constat", "Gravite", "Suggestion"))
-  expect_true(all(dq$Gravite %in% HSTAT_QUALITE_GRAVITES))
-  # Chaque constat doit porter une suggestion : un diagnostic sans issue ne sert a rien
-  expect_true(all(nzchar(dq$Suggestion)))
 
-  c_var <- function(v) dq$Constat[dq$Variable == v]
-  expect_true(any(grepl("une seule valeur", c_var("constante"))))
-  expect_true(any(grepl("manquantes", c_var("presque_na"))))
-  expect_true(any(grepl("nombres stockes comme du texte", c_var("nombres_txt"))))
-  expect_true(any(grepl("couvre", c_var("ecrasante"))))
-  expect_true(any(grepl("valeurs distinctes", c_var("identifiant"))))
-  # La variable saine n'apparait pas
-  expect_length(c_var("normale"), 0L)
 
-  # Les constats les plus graves passent en tete
-  rang <- match(dq$Gravite, HSTAT_QUALITE_GRAVITES)
-  expect_false(is.unsorted(rang))
-})
 
-test_that("hstat_data_quality detecte redondance, doublons et effectif insuffisant", {
-  set.seed(22)
-  x <- rnorm(50)
-  d <- data.frame(a = x, b = x * 2 + 1e-9, c = rnorm(50))  # a et b colineaires
-  d <- rbind(d, d[1:3, ])                                   # 3 doublons
-  dq <- hstat_data_quality(d)
-  expect_true(any(grepl("corrélation", dq$Constat)))
-  expect_true(any(grepl("identique", dq$Constat)))
-
-  # Peu d'observations pour beaucoup de variables
-  petit <- as.data.frame(matrix(rnorm(10 * 8), nrow = 10))
-  dq2 <- hstat_data_quality(petit)
-  expect_true(any(grepl("observations pour", dq2$Constat)))
-  expect_true(any(grepl("effectif total", dq2$Constat)))
-})
-
-test_that("un jeu de donnees sain ne genere aucune fausse alerte", {
-  set.seed(23)
-  d <- data.frame(
-    score = rnorm(200, 10, 2),
-    age = round(runif(200, 18, 75)),
-    groupe = rep(c("A", "B", "C", "D"), each = 50),
-    stringsAsFactors = FALSE)
-  dq <- hstat_data_quality(d)
-  expect_equal(nrow(dq), 1L)
-  expect_true(grepl("aucun problème", dq$Constat[1]))
-  expect_true(grepl("Aucun problème", hstat_data_quality_resume(dq)))
-
-  expect_null(hstat_data_quality(NULL))
-  expect_null(hstat_data_quality(data.frame()))
-  expect_null(hstat_data_quality_resume(NULL))
-})
-
-test_that("le resume compte correctement les gravites", {
-  dq <- rbind(
-    .hstat_q_row("a", "x", "bloquant", "s"),
-    .hstat_q_row("b", "y", "important", "s"),
-    .hstat_q_row("c", "z", "important", "s"),
-    .hstat_q_row("d", "w", "à surveiller", "s"))
-  r <- hstat_data_quality_resume(dq)
-  expect_true(grepl("4 constat", r, fixed = TRUE))
-  expect_true(grepl("1 bloquant", r, fixed = TRUE))
-  expect_true(grepl("2 important", r, fixed = TRUE))
-  expect_true(grepl("1 à surveiller", r, fixed = TRUE))
-})
-
-test_that("TOUS les modules d'analyse deposent un contexte pour l'IA", {
-  src <- unlist(lapply(.hstat_sources_app(), readLines, warn = FALSE))
-  src <- src[!grepl("^\\s*#", src)]
-  pose <- gsub('.*"([^"]+)"$', "\\1", unique(unlist(regmatches(
-    src, gregexpr('hstat_ai_capture\\(values, "[^"]+"', src)))))
-
-  # La liste complete : aucun module ne doit rester muet.
-  attendu <- c("Exploration", "Nettoyage", "Filtrage", "Analyses descriptives",
-               "Visualisation", "Corrélations", "Tests statistiques",
-               "Comparaisons multiples", "Analyses multivariées",
-               "Analyses qualitatives", "Séries temporelles", "Machine Learning",
-               "Deep Learning", "Plan & Puissance", "Seuils d'efficacité")
-  for (m in attendu)
-    expect_true(m %in% pose, info = paste("aucune capture pour le module :", m))
-  expect_gte(length(pose), length(attendu))
-})
 
 # =============================================================================
 #  JOURNAL DE REPRODUCTIBILITE
 # =============================================================================
 
-test_that("hstat_rlog_code produit le code R attendu par famille d'analyse", {
-  cas <- function(module, titre, vars = NULL, grp = NULL)
-    hstat_rlog_code(list(module = module, title = titre,
-                         meta = list(variables = vars, groupe = grp)))
-
-  expect_match(paste(cas("Exploration", "Structure"), collapse = " "), "str\\(donnees\\)")
-
-  # Le test choisi doit suivre le TITRE, pas le module
-  expect_match(cas("Tests statistiques", "ANOVA", "score", "groupe")[1],
-               "aov\\(score ~ groupe", perl = TRUE)
-  expect_match(cas("Tests statistiques", "Kruskal-Wallis", "score", "groupe"),
-               "kruskal.test\\(score ~ groupe", perl = TRUE)
-  expect_match(cas("Tests statistiques", "Test t de Student", "score", "groupe"),
-               "t.test\\(score ~ groupe", perl = TRUE)
-  expect_match(cas("Tests statistiques", "Normalité (données brutes)", "score"),
-               "shapiro.test\\(donnees\\$score\\)", perl = TRUE)
-  expect_match(cas("Tests statistiques", "Régression linéaire", "y", "x")[1],
-               "lm\\(y ~ x", perl = TRUE)
-
-  expect_match(cas("Corrélations", "Tests de correlation", c("a", "b"))[2],
-               "cor.test\\(donnees\\$a, donnees\\$b\\)", perl = TRUE)
-  expect_match(cas("Analyses multivariées", "Analyse en Composantes Principales (ACP)",
-                   c("a", "b"))[1], "FactoMineR::PCA", fixed = TRUE)
-  expect_match(cas("Analyses multivariées", "Classification k-means", c("a", "b")),
-               "stats::kmeans", fixed = TRUE)
-  expect_match(cas("Analyses qualitatives", "Tableau croise", c("sexe", "avis")),
-               "chisq.test\\(table\\(", perl = TRUE)
-
-  # Honnetete : quand le code exact n'est pas reconstituable, on ne devine pas
-  expect_null(cas("Machine Learning", "Comparaison de modeles", "score"))
-  expect_null(cas("Deep Learning", "Reseau de neurones", "score"))
-  expect_null(cas("Nettoyage", "Etat des donnees", "score"))
-  # ... ni quand les variables necessaires manquent
-  expect_null(cas("Tests statistiques", "ANOVA"))
-  expect_null(hstat_rlog_code(NULL))
-})
-
-test_that("les noms de variables non syntaxiques sont proteges", {
-  code <- hstat_rlog_code(list(module = "Tests statistiques", title = "ANOVA",
-    meta = list(variables = "ma variable", groupe = "groupe 2")))
-  expect_match(code[1], "`ma variable` ~ `groupe 2`", fixed = TRUE)
-  # Un nom deja syntaxique n'est pas alourdi
-  expect_equal(.hstat_rlog_nom(c("score", "ma var", "x.1", "2eme")),
-               c("score", "`ma var`", "x.1", "`2eme`"))
-})
-
-test_that("le script de session est du R valide et executable", {
-  h <- list(
-    list(module = "Exploration", title = "Structure",
-         meta = list(variables = c("score", "groupe")), time = Sys.time()),
-    list(module = "Tests statistiques", title = "ANOVA",
-         meta = list(variables = "score", groupe = "groupe"), time = Sys.time()),
-    list(module = "Corrélations", title = "Corrélations",
-         meta = list(variables = c("score", "age")), time = Sys.time()),
-    list(module = "Machine Learning", title = "Comparaison",
-         meta = list(variables = "score"), time = Sys.time()))
-  sc <- hstat_rlog_script(h, source = "essai.csv", version = "9.9.9")
-
-  # 1. Le script doit s'analyser : un journal qui ne parse pas ne sert a rien
-  f <- tempfile(fileext = ".R"); on.exit(unlink(f), add = TRUE)
-  writeLines(sc, f)
-  expect_silent(parse(f))
-
-  # 2. Il doit s'executer sur de vraies donnees
-  set.seed(2)
-  donnees <- data.frame(score = stats::rnorm(60), age = stats::runif(60, 18, 70),
-                        groupe = rep(c("A", "B", "C"), each = 20),
-                        stringsAsFactors = FALSE)
-  lignes <- strsplit(sc, "\n")[[1]]
-  lignes <- lignes[!grepl("^donnees <- read.csv", lignes)]   # pas de fichier reel
-  env <- new.env(); assign("donnees", donnees, envir = env)
-  expect_error(
-    utils::capture.output(eval(parse(text = paste(lignes, collapse = "\n")), envir = env)),
-    NA)
-
-  # 3. Le contenu attendu y est
-  expect_true(grepl("Journal de session HStat 9.9.9", sc, fixed = TRUE))
-  expect_true(grepl("essai.csv", sc, fixed = TRUE))
-  expect_true(grepl("aov(score ~ groupe", sc, fixed = TRUE))
-  expect_true(grepl("NON RECONSTITUE", sc, fixed = TRUE))   # l'etape ML signalee
-  # L'ordre chronologique est respecte
-  expect_lt(regexpr("1. Exploration", sc, fixed = TRUE),
-            regexpr("2. Tests statistiques", sc, fixed = TRUE))
-
-  # Session vide : un script utilisable quand meme
-  vide <- hstat_rlog_script(NULL)
-  expect_true(grepl("Aucune analyse enregistrée", vide, fixed = TRUE))
-  expect_silent(parse(text = vide))
-})
-
-test_that("le nom de l'objet de donnees est configurable", {
-  h <- list(list(module = "Exploration", title = "S",
-                 meta = list(variables = "x"), time = Sys.time()))
-  sc <- hstat_rlog_script(h, donnees = "mes_donnees")
-  expect_true(grepl("mes_donnees <- read.csv", sc, fixed = TRUE))
-  expect_true(grepl("str(mes_donnees)", sc, fixed = TRUE))
-  expect_false(grepl("str(donnees)", sc, fixed = TRUE))
-})
-
-test_that("l'historique s'accumule sans doublon immediat", {
-  values <- new.env()
-  m <- list(variables = "score", groupe = "groupe")
-  hstat_ai_capture(values, "Tests statistiques", "ANOVA", meta = m)
-  hstat_ai_capture(values, "Tests statistiques", "ANOVA", meta = m)   # repetition
-  expect_length(values$aiHistory, 1L)
-
-  hstat_ai_capture(values, "Tests statistiques", "Kruskal-Wallis", meta = m)
-  expect_length(values$aiHistory, 2L)
-  # Revenir a une analyse deja faite la reinscrit : c'est bien un journal
-  hstat_ai_capture(values, "Tests statistiques", "ANOVA", meta = m)
-  expect_length(values$aiHistory, 3L)
-  expect_equal(vapply(values$aiHistory, function(c0) c0$title, character(1)),
-               c("ANOVA", "Kruskal-Wallis", "ANOVA"))
-  # Le dernier contexte reste accessible pour l'interpretation
-  expect_equal(values$aiContext$title, "ANOVA")
-  # L'historique conserve desormais les tableaux : le rapport les reprend.
-  # Sans tableau depose, l'entree en porte une liste vide, pas NULL.
-  expect_length(values$aiHistory[[1]]$tables, 0L)
-})
-
-test_that("l'historique s'allege au-dela des analyses recentes", {
-  values <- new.env()
-  tb <- list(Resultat = data.frame(x = 1:3))
-  for (i in seq_len(HSTAT_HIST_DETAIL + 3L))
-    hstat_ai_capture(values, "Tests statistiques", paste("Analyse", i),
-                     tables = tb, meta = list(variables = "x"),
-                     plot = function() NULL)
-  h <- values$aiHistory
-  expect_length(h, HSTAT_HIST_DETAIL + 3L)
-  # Les plus anciennes perdent tableaux et figures, pas leur identite : le
-  # journal de reproductibilite continue de les citer.
-  expect_null(h[[1]]$tables)
-  expect_null(h[[1]]$plot)
-  expect_equal(h[[1]]$title, "Analyse 1")
-  # Les recentes gardent tout
-  expect_length(h[[length(h)]]$tables, 1L)
-  expect_true(is.function(h[[length(h)]]$plot))
-})
 
 
-# ===========================================================================
-# RAPPORT AUTOMATIQUE (mod_report.R)
-# ===========================================================================
 
-.hstat_test_hist <- function() list(
-  list(module = "Tests statistiques", title = "Test t de Student",
-       time = Sys.time(), meta = list(variables = "poids", groupe = "sexe"),
-       tables = list(Resultat = data.frame(Variable = "poids", t = 2.31,
-                                           p = 0.0231)),
-       plot = NULL),
-  list(module = "Visualisation", title = "Graphique : poids x sexe",
-       time = Sys.time(), meta = list(variables = c("poids", "sexe")),
-       tables = list(), plot = NULL))
 
-test_that("le markdown du rapport respecte les sections demandees", {
-  h <- .hstat_test_hist()
-  md <- hstat_report_markdown(h, titre = "Mon rapport", auteur = "A. B.",
-                              contexte = "essai clinique",
-                              donnees_resume = data.frame(Variable = "poids",
-                                                          Type = "numerique"),
-                              qualite = data.frame(Variable = "poids",
-                                                   Constat = "3 % manquants"),
-                              interpretation = "La difference est nette.",
-                              reco = data.frame(Analyse = "Test t"),
-                              script = "t.test(poids ~ sexe, data = donnees)",
-                              version = "9.9.9")
-  expect_true(grepl("# Mon rapport", md, fixed = TRUE))
-  expect_true(grepl("A. B.", md, fixed = TRUE))
-  expect_true(grepl("HStat 9.9.9", md, fixed = TRUE))
-  expect_true(grepl("essai clinique", md, fixed = TRUE))
-  for (titre in c("## Données analysées", "## Diagnostic de qualité",
-                  "## Analyses menées", "## Interprétation",
-                  "## Analyses appelées", "## Annexe"))
-    expect_true(grepl(titre, md, fixed = TRUE), info = titre)
-  # Le contenu des analyses y est, pas seulement leur titre
-  expect_true(grepl("Test t de Student", md, fixed = TRUE))
-  expect_true(grepl("0.0231", md, fixed = TRUE))
 
-  # Une section non demandee ne doit pas apparaitre. Le piege : passer les
-  # LIBELLES du vecteur au lieu de ses valeurs vide le rapport en silence.
-  md2 <- hstat_report_markdown(h, sections = c("analyses"),
-                               qualite = data.frame(V = 1),
-                               script = "x <- 1")
-  expect_true(grepl("## Analyses menées", md2, fixed = TRUE))
-  expect_false(grepl("## Diagnostic", md2, fixed = TRUE))
-  expect_false(grepl("## Annexe", md2, fixed = TRUE))
-})
 
-test_that("les tableaux markdown sont bien formes et bornes", {
-  md <- .hstat_rep_tableau_md(data.frame(a = 1:3, b = c("x", "y", "z")))
-  lignes <- strsplit(md, "\n")[[1]]
-  expect_true(grepl("^\\| a \\| b \\|$", lignes[1]))
-  expect_true(grepl("^\\|", lignes[2]) && grepl("---", lignes[2]))
-  expect_length(lignes, 5L)
-  # Au-dela du plafond, le tableau est tronque ET le dit
-  gros <- .hstat_rep_tableau_md(data.frame(a = 1:100), max_lignes = 10L)
-  expect_true(grepl("100 lignes au total", gros, fixed = TRUE))
-  # Une barre verticale dans une cellule ne casse pas la colonne
-  echap <- .hstat_rep_tableau_md(data.frame(a = "gauche|droite"))
-  expect_true(grepl("gauche\\|droite", echap, fixed = TRUE))
-  expect_equal(.hstat_rep_tableau_md(data.frame()), "*(tableau vide)*")
-})
 
-test_that("le convertisseur du rapport rend tableaux, code et titres", {
-  md <- paste("# Titre", "", "| a | b |", "| --- | --- |", "| 1 | 2 |", "",
-              "- point", "", "```r", "x <- 1 < 2", "```", "",
-              "Texte **gras**.", sep = "\n")
-  html <- .hstat_rep_md_to_html(md)
-  expect_true(grepl("<h1>Titre</h1>", html, fixed = TRUE))
-  expect_true(grepl("<table>", html, fixed = TRUE))
-  expect_true(grepl("<th>a</th>", html, fixed = TRUE))
-  expect_true(grepl("<td>1</td>", html, fixed = TRUE))
-  expect_true(grepl("<li>point</li>", html, fixed = TRUE))
-  expect_true(grepl("<strong>gras</strong>", html, fixed = TRUE))
-  # Un tableau ne doit JAMAIS ressortir en barres verticales dans un paragraphe
-  expect_false(grepl("<p>|", html, fixed = TRUE))
-  # Le code de l'annexe est recopie tel quel, et echappe
-  expect_true(grepl("<pre><code>", html, fixed = TRUE))
-  expect_true(grepl("x &lt;- 1 &lt; 2", html, fixed = TRUE))
-})
 
-test_that("le convertisseur echappe le HTML injecte", {
-  html <- .hstat_rep_md_to_html("<script>alert(1)</script>")
-  expect_false(grepl("<script>", html, fixed = TRUE))
-  expect_true(grepl("&lt;script&gt;", html, fixed = TRUE))
-})
 
-test_that("le resume du jeu de donnees decrit chaque variable", {
-  d <- data.frame(poids = c(60, 70, NA), sexe = factor(c("F", "H", "F")),
-                  stringsAsFactors = FALSE)
-  r <- hstat_report_resume_donnees(d)
-  expect_equal(nrow(r), 2L)
-  expect_equal(r$Type, c("numérique", "catégorielle"))
-  expect_equal(r$`Renseignées`, c(2L, 3L))
-  expect_equal(r$Manquantes, c(1L, 0L))
-  expect_true(grepl("60", r[["Modalités / étendue"]][1]))
-  expect_true(grepl("2 modalité", r[["Modalités / étendue"]][2]))
-  expect_null(hstat_report_resume_donnees(NULL))
-})
 
-test_that("une figure indessinable disparait sans faire tomber le rapport", {
-  skip_if_not_installed("ggplot2")
-  d <- file.path(tempdir(), paste0("hstat_test_fig_", as.integer(runif(1, 1e6, 1e7))))
-  on.exit(unlink(d, recursive = TRUE), add = TRUE)
-  h <- list(
-    list(module = "Visualisation", title = "Nuage", time = Sys.time(),
-         meta = list(), tables = list(),
-         plot = function() ggplot2::ggplot(data.frame(x = 1:5, y = 1:5),
-                                           ggplot2::aes(x, y)) + ggplot2::geom_point()),
-    list(module = "Visualisation", title = "Cassee", time = Sys.time(),
-         meta = list(), tables = list(),
-         plot = function() stop("variable supprimee entre-temps")),
-    list(module = "Tests statistiques", title = "Sans figure",
-         time = Sys.time(), meta = list(), tables = list(), plot = NULL))
-  figs <- hstat_report_figures(h, dossier = d)
-  expect_equal(nrow(figs), 1L)
-  expect_true(grepl("Nuage", figs$titre[1], fixed = TRUE))
-  expect_true(file.exists(figs$fichier[1]) && file.size(figs$fichier[1]) > 0)
-  # Aucune figure du tout : un data.frame vide, pas une erreur
-  expect_equal(nrow(hstat_report_figures(list(), dossier = d)), 0L)
-  expect_equal(nrow(hstat_report_figures(h[3], dossier = d)), 0L)
-})
 
-test_that("le HTML incorpore ses figures et reste un fichier unique", {
-  skip_if_not_installed("base64enc")
-  png <- tempfile(fileext = ".png")
-  on.exit(unlink(png), add = TRUE)
-  grDevices::png(png, width = 240, height = 240); plot(1); grDevices::dev.off()
 
-  md <- hstat_report_markdown(list(), sections = "figures",
-                              figures = data.frame(titre = "Ma figure",
-                                                   fichier = png,
-                                                   stringsAsFactors = FALSE))
-  expect_true(grepl("## Figures", md, fixed = TRUE))
-  expect_true(grepl(sprintf("![Ma figure](%s)", png), md, fixed = TRUE))
 
-  html <- .hstat_rep_images_html(.hstat_rep_md_to_html(md))
-  expect_true(grepl("<img src=\"data:image/png;base64,", html, fixed = TRUE))
-  # Le chemin du fichier ne doit plus apparaitre : un rapport envoye par
-  # courriel ne peut pas aller relire /tmp.
-  expect_false(grepl(png, html, fixed = TRUE))
 
-  # Figure absente : le rapport le dit au lieu d'afficher une image cassee
-  manquante <- .hstat_rep_images_html(
-    .hstat_rep_md_to_html("![X](/introuvable/fig.png)"))
-  expect_true(grepl("figure indisponible", manquante, fixed = TRUE))
-})
 
-test_that("le rendu HTML aboutit toujours, et le repli se dit", {
-  md <- hstat_report_markdown(.hstat_test_hist(), titre = "T")
-  f <- tempfile(fileext = ".html")
-  on.exit(unlink(f), add = TRUE)
-  r <- hstat_report_render(md, f, "html", "T")
-  expect_true(r$ok)
-  expect_equal(r$format, "html")
-  expect_equal(r$message, "")
-  html <- paste(readLines(f, warn = FALSE), collapse = "\n")
-  expect_true(grepl("<!DOCTYPE html>", html, fixed = TRUE))
-  expect_true(grepl("<table>", html, fixed = TRUE))
-
-  # Word demande sur une machine sans pandoc : repli HTML, et on le DIT.
-  r2 <- hstat_report_render(md, f, "docx", "T",
-                            dispo = c(html = TRUE, docx = FALSE, pdf = FALSE))
-  expect_true(r2$ok)
-  expect_equal(r2$format, "html")
-  expect_true(grepl("indisponible", r2$message, fixed = TRUE))
-  expect_true(grepl("DOCX", r2$message, fixed = TRUE))
-
-  r3 <- hstat_report_render(md, f, "pdf", "T",
-                            dispo = c(html = TRUE, docx = TRUE, pdf = FALSE))
-  expect_equal(r3$format, "html")
-  expect_true(grepl("PDF", r3$message, fixed = TRUE))
-})
-
-test_that("le message de disponibilite oriente vers une solution", {
-  expect_null(hstat_report_message_dispo(c(html = TRUE, docx = TRUE, pdf = TRUE)))
-  m <- hstat_report_message_dispo(c(html = TRUE, docx = FALSE, pdf = FALSE))
-  expect_true(grepl("pandoc", m, fixed = TRUE))
-  expect_true(grepl("tinytex", m, fixed = TRUE))
-  expect_true(grepl("HTML", m, fixed = TRUE))
-  # Le HTML est toujours annonce comme disponible
-  d <- hstat_report_formats_dispo()
-  expect_true(d[["html"]])
-  expect_named(d, c("html", "docx", "pdf"))
-})
-
-test_that("le rendu Word passe par pandoc quand il est la", {
-  skip_if_not_installed("rmarkdown")
-  skip_if_not(isTRUE(tryCatch(rmarkdown::pandoc_available(),
-                              error = function(e) FALSE)),
-              "pandoc indisponible")
-  f <- tempfile(fileext = ".docx")
-  on.exit(unlink(f), add = TRUE)
-  r <- hstat_report_render(hstat_report_markdown(.hstat_test_hist(), titre = "T"),
-                           f, "docx", "T")
-  expect_true(r$ok)
-  expect_equal(r$format, "docx")
-  expect_true(file.size(f) > 1000)
-  # Un .docx est une archive zip contenant word/document.xml
-  expect_true(any(grepl("word/document.xml", utils::unzip(f, list = TRUE)$Name,
-                        fixed = TRUE)))
-})
 
 
 # ===========================================================================
@@ -4126,94 +3420,12 @@ test_that("aucune des trois analyses ne renvoie encore un message d'impasse", {
        plot = function() ggplot2::ggplot(data.frame(x = 1:8, y = (1:8)^2),
                                          ggplot2::aes(x, y)) + ggplot2::geom_point()))
 
-test_that("le plancher de resolution est bien de 1000 dpi", {
-  expect_gte(HSTAT_REPORT_DPI_MIN, 1000L)
-  # Toutes les resolutions proposees respectent le plancher
-  expect_true(all(as.numeric(HSTAT_REPORT_DPI) >= HSTAT_REPORT_DPI_MIN))
-  expect_equal(unname(HSTAT_REPORT_DPI[1]), "1000")
-})
 
-test_that("une figure de rapport sort a 1000 dpi par defaut", {
-  skip_if_not_installed("ggplot2")
-  d <- file.path(tempdir(), paste0("hstat_dpi_", as.integer(runif(1, 1e6, 1e7))))
-  on.exit(unlink(d, recursive = TRUE), add = TRUE)
-  f <- hstat_report_figures(.hstat_hist_figure(), dossier = d)
-  expect_equal(nrow(f), 1L)
-  px <- .hstat_png_dims(f$fichier[1])
-  # 9 x 5,5 pouces a 1000 dpi. On verifie les PIXELS produits, pas l'argument :
-  # un ggsave qui ignorerait le dpi passerait autrement inapercu.
-  expect_equal(unname(px[["largeur"]]), 9000)
-  expect_equal(unname(px[["hauteur"]]), 5500)
-})
 
-test_that("une resolution inferieure au plancher est remontee, pas obeie", {
-  skip_if_not_installed("ggplot2")
-  d <- file.path(tempdir(), paste0("hstat_dpi_", as.integer(runif(1, 1e6, 1e7))))
-  on.exit(unlink(d, recursive = TRUE), add = TRUE)
-  for (bas in list(72, 150, 300, NA, "", NULL)) {
-    f <- hstat_report_figures(.hstat_hist_figure(), dossier = d, dpi = bas)
-    px <- .hstat_png_dims(f$fichier[1])
-    expect_equal(unname(px[["largeur"]]), 9000,
-                 info = paste("dpi demande :", paste(bas, collapse = "")))
-  }
-})
 
-test_that("une resolution superieure au plancher est respectee", {
-  skip_if_not_installed("ggplot2")
-  d <- file.path(tempdir(), paste0("hstat_dpi_", as.integer(runif(1, 1e6, 1e7))))
-  on.exit(unlink(d, recursive = TRUE), add = TRUE)
-  f <- hstat_report_figures(.hstat_hist_figure(), dossier = d, dpi = 1200)
-  px <- .hstat_png_dims(f$fichier[1])
-  expect_equal(unname(px[["largeur"]]), 10800)
-  # La chaine de caracteres du selecteur doit marcher comme le nombre
-  f2 <- hstat_report_figures(.hstat_hist_figure(), dossier = d, dpi = "1200")
-  expect_equal(unname(.hstat_png_dims(f2$fichier[1])[["largeur"]]), 10800)
-})
 
-test_that("seul l'apercu a l'ecran echappe au plancher", {
-  skip_if_not_installed("ggplot2")
-  d <- file.path(tempdir(), paste0("hstat_dpi_", as.integer(runif(1, 1e6, 1e7))))
-  on.exit(unlink(d, recursive = TRUE), add = TRUE)
-  f <- hstat_report_figures(.hstat_hist_figure(), dossier = d, apercu = TRUE)
-  px <- .hstat_png_dims(f$fichier[1])
-  expect_equal(unname(px[["largeur"]]), 1350)   # 9 pouces a 150 dpi
-  # L'apercu ignore meme une resolution elevee explicitement demandee : il sert
-  # a verifier la mise en page, pas a etre imprime.
-  f2 <- hstat_report_figures(.hstat_hist_figure(), dossier = d,
-                             apercu = TRUE, dpi = 2400)
-  expect_equal(unname(.hstat_png_dims(f2$fichier[1])[["largeur"]]), 1350)
-})
 
-test_that("la progression est rapportee figure par figure", {
-  skip_if_not_installed("ggplot2")
-  d <- file.path(tempdir(), paste0("hstat_dpi_", as.integer(runif(1, 1e6, 1e7))))
-  on.exit(unlink(d, recursive = TRUE), add = TRUE)
-  h <- rep(.hstat_hist_figure(), 3)
-  vus <- list()
-  hstat_report_figures(h, dossier = d, apercu = TRUE,
-                       progres = function(i, n, titre) vus[[length(vus) + 1L]] <<- c(i, n))
-  expect_length(vus, 3L)
-  expect_equal(vapply(vus, function(x) x[1], numeric(1)), c(1, 2, 3))
-  expect_true(all(vapply(vus, function(x) x[2], numeric(1)) == 3))
 
-  # Un rappel qui echoue ne doit pas emporter le rapport : la progression est
-  # un confort, les figures sont le livrable.
-  expect_silent(f <- hstat_report_figures(h, dossier = d, apercu = TRUE,
-                                          progres = function(i, n, t) stop("boum")))
-  expect_equal(nrow(f), 3L)
-})
-
-test_that("l'interface propose de choisir la resolution", {
-  root <- .hstat_repo_root()
-  skip_if(is.na(root))
-  src <- paste(readLines(.hstat_module_path("mod_ai.R"),
-                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
-  expect_true(grepl("rep_dpi", src, fixed = TRUE))
-  expect_true(grepl("HSTAT_REPORT_DPI", src, fixed = TRUE))
-  # L'apercu passe par apercu = TRUE, le telechargement non : sans cela on
-  # incorporerait 9000 px en base64 dans un onglet a chaque clic.
-  expect_true(grepl("rep_figures(apercu = TRUE)", src, fixed = TRUE))
-})
 
 
 # ===========================================================================
@@ -4224,79 +3436,9 @@ test_that("l'interface propose de choisir la resolution", {
 # faux, ou un script que R refusait d'executer. Ce sont les pires.
 # ===========================================================================
 
-test_that("une barre verticale dans un NOM de colonne ne casse pas le tableau", {
-  d <- data.frame(a = 1:2, b = 3:4)
-  names(d) <- c("Rendement|t/ha", "normal")
-  md <- .hstat_rep_tableau_md(d)
-  lignes <- strsplit(md, "\n")[[1]]
-  # On compte les barres SEPARATRICES, donc non echappees : « \\| » appartient
-  # a une valeur et ne delimite aucune colonne.
-  sep <- function(s) lengths(gregexpr("(?<!\\\\)\\|", s, perl = TRUE))
-  # L'en-tete et le separateur doivent annoncer le MEME nombre de colonnes ;
-  # sinon le tableau ne se rend plus du tout.
-  expect_equal(sep(lignes[1]), sep(lignes[2]))
-  expect_equal(sep(lignes[1]), sep(lignes[3]))
-  # La barre du nom est echappee, donc toujours lisible
-  expect_true(grepl("Rendement\\|t/ha", md, fixed = TRUE))
 
-  # Et le rendu HTML ne doit pas inventer une colonne : le convertisseur doit
-  # honorer l'echappement au lieu de couper sur toutes les barres.
-  html <- .hstat_rep_md_to_html(md)
-  expect_equal(lengths(gregexpr("<th>", html)), 2L)
-  expect_true(grepl("<th>Rendement|t/ha</th>", html, fixed = TRUE))
-  expect_equal(lengths(gregexpr("<td>", html)), 4L)   # 2 lignes x 2 colonnes
-})
 
-test_that("un retour a la ligne dans une cellule ne scinde pas la ligne", {
-  # Cas reel : les reponses libres du module qualitatif en contiennent.
-  d <- data.frame(reponse = "trop cher\net livre en retard", n = 1L,
-                  stringsAsFactors = FALSE)
-  md <- .hstat_rep_tableau_md(d)
-  lignes <- strsplit(md, "\n")[[1]]
-  expect_length(lignes, 3L)              # en-tete, separateur, UNE ligne
-  expect_true(grepl("trop cher et livre en retard", md, fixed = TRUE))
-  # Meme protection sur un nom de colonne
-  d2 <- data.frame(x = 1); names(d2) <- "titre\nsur deux lignes"
-  expect_length(strsplit(.hstat_rep_tableau_md(d2), "\n")[[1]], 3L)
-})
 
-test_that("un crochet dans un titre de figure n'empeche pas son incorporation", {
-  skip_if_not_installed("base64enc")
-  png <- tempfile(fileext = ".png")
-  on.exit(unlink(png), add = TRUE)
-  grDevices::png(png, width = 240, height = 240); plot(1); grDevices::dev.off()
-
-  for (titre in c("Visualisation — Graphique : x]y",
-                  "Analyse [ACP] des donnees",
-                  "Titre\nsur deux lignes")) {
-    md <- hstat_report_markdown(list(), sections = "figures",
-            figures = data.frame(titre = titre, fichier = png,
-                                 stringsAsFactors = FALSE))
-    html <- .hstat_rep_images_html(.hstat_rep_md_to_html(md))
-    expect_true(grepl("<img src=\"data:image/png;base64,", html, fixed = TRUE),
-                info = titre)
-    # Le markdown brut ne doit jamais ressortir dans le document
-    expect_false(grepl("![", html, fixed = TRUE), info = titre)
-  }
-})
-
-test_that("le script du journal reste executable quel que soit le nom de colonne", {
-  # Le journal promet un script qui s'analyse et s'execute. Un accent grave
-  # dans un nom fermait la citation trop tot : R refusait le script entier.
-  noms <- c("a`b", "a\\b", "a\"b", "a; rm -rf /", "Rendement (t/ha)",
-            "variable é", "2021", "")
-  for (v in noms) {
-    h <- list(list(module = "Tests statistiques", title = "ANOVA",
-                   meta = list(variables = v, groupe = "g"), time = Sys.time()))
-    sc <- hstat_rlog_script(h)
-    expect_silent(parse(text = sc))
-  }
-  # La citation resiste, et le nom reste lisible
-  expect_equal(.hstat_rlog_nom("a`b"), "`a\\`b`")
-  expect_equal(.hstat_rlog_nom("simple"), "simple")
-  # Vectorise : un appel porte souvent plusieurs variables
-  expect_equal(.hstat_rlog_nom(c("x", "a b")), c("x", "`a b`"))
-})
 
 test_that("un nom de colonne prefixe d'un autre ne casse plus la formule", {
   # LE TRI PAR LONGUEUR NE SUFFISAIT PAS. Quand un nom est le PREFIXE d'un
@@ -4600,67 +3742,9 @@ test_that("hstat_part_equilibre rend un verdict, jamais une erreur", {
 # qu'un utilisateur suit sans se mefier.
 # ===========================================================================
 
-test_that("une variable sans aucune valeur n'a pas de type", {
-  # Le piege : unique(na.omit(x)) est vide, donc de longueur 0 <= 2, et la
-  # variable etait typee « binaire ».
-  expect_equal(.hstat_reco_type(rep(NA, 30)), "indeterminable")
-  expect_equal(.hstat_reco_type(rep(NA_character_, 30)), "indeterminable")
-  expect_equal(.hstat_reco_type(rep(NA_real_, 30)), "indeterminable")
-  expect_equal(.hstat_reco_type(logical(0)), "indeterminable")
-  expect_equal(.hstat_reco_type(NULL), "indeterminable")
-  # Le typage normal est intact
-  expect_equal(.hstat_reco_type(rnorm(50)), "quantitative")
-  expect_equal(.hstat_reco_type(c(0, 1, 1, 0)), "binaire")
-  expect_equal(.hstat_reco_type(factor(c("a", "b", "c"))), "categorielle")
-  expect_equal(.hstat_reco_type(c(TRUE, FALSE, NA)), "binaire")
-})
 
-test_that("aucune analyse n'est recommandee sur une variable vide", {
-  d <- data.frame(vide = rep(NA, 40), g = rep(c("a", "b"), 20))
-  reco <- hstat_reco_analyses(hstat_data_profile(d, "vide", "g"))
-  expect_true(NROW(reco) >= 1)
-  # Plus aucun test statistique propose
-  expect_false(any(grepl("chi-deux|Chi-deux|Student|Mann-Whitney|ANOVA",
-                         reco$Analyse)))
-  # A la place, un constat bloquant qui nomme la variable et dit quoi faire
-  expect_true(any(reco$Pertinence == "Bloquant"))
-  bloc <- reco[reco$Pertinence == "Bloquant", ][1, ]
-  expect_true(grepl("vide", bloc$Analyse, fixed = TRUE) ||
-              grepl("Aucune analyse", bloc$Analyse, fixed = TRUE))
-  expect_true(grepl("« vide »", bloc$Pourquoi, fixed = TRUE))
-  expect_true(grepl("Nettoyage", bloc[["Si non remplies"]], fixed = TRUE))
 
-  # Une variable vide parmi d'autres n'empeche pas de conseiller sur le reste
-  d2 <- data.frame(vide = rep(NA, 40), x = rnorm(40), g = rep(c("a", "b"), 20))
-  r2 <- hstat_reco_analyses(hstat_data_profile(d2, c("vide", "x"), "g"))
-  expect_true(any(r2$Pertinence == "Bloquant"))
-  expect_true(any(grepl("Student|Mann-Whitney|Welch", r2$Analyse)))
-})
 
-test_that("le profil compte les variables par type sans compter les vides", {
-  d <- data.frame(vide = rep(NA, 20), x = rnorm(20), g = rep(c("a", "b"), 10))
-  p <- hstat_data_profile(d, c("vide", "x"), "g")
-  expect_equal(p$variables$vide$type, "indeterminable")
-  expect_equal(p$variables$vide$n, 0L)
-  expect_equal(p$n_quanti, 1L)     # seule `x` compte
-  expect_equal(p$n_quali, 0L)      # `vide` n'est plus prise pour une binaire
-  # Une variable vide n'a pas de test de normalite
-  expect_null(p$variables$vide$normale)
-})
-
-test_that("le resume du rapport ne montre aucun nom de classe R en anglais", {
-  d <- data.frame(vide = rep(NA, 5), x = 1:5, g = c("a","b","a","b","a"),
-                  d = as.Date("2026-01-01") + 0:4,
-                  b = c(TRUE, FALSE, TRUE, FALSE, TRUE),
-                  stringsAsFactors = FALSE)
-  r <- hstat_report_resume_donnees(d)
-  expect_false(any(r$Type %in% c("logical", "integer", "character", "factor",
-                                 "numeric", "Date")))
-  expect_equal(r$Type[r$Variable == "vide"], "vide (aucune valeur)")
-  expect_equal(r$Type[r$Variable == "b"], "binaire (vrai / faux)")
-  expect_equal(r$Type[r$Variable == "d"], "date")
-  expect_equal(r$Type[r$Variable == "x"], "numérique")
-})
 
 
 # ===========================================================================
@@ -4719,7 +3803,7 @@ test_that("le nettoyage est pose sur renderPlotly, pas sur chaque appel", {
 # ---------------------------------------------------------------------------
 # La section « Project structure » est du markdown statique : rien ne la met a
 # jour quand un fichier arrive ou disparait. Elle avait derive — cinq fichiers
-# reels manquaient (dont le workflow de CI, mod_report.R et hstat-session.js)
+# reels manquaient (dont le workflow de CI et hstat-session.js)
 # et un fichier inexistant y figurait (tests/test-hstat.R). Une documentation
 # qui invente un fichier est pire qu'une documentation absente : on le cherche.
 # ===========================================================================
@@ -6263,25 +5347,6 @@ test_that("les gabarits ne partent pas au navigateur", {
     expect_true(grepl(motif, x), info = x)
 })
 
-test_that("le journal de reproductibilite n'est jamais traduit", {
-  # `hstat_rlog_*` construit du CODE R. Traduire ses gabarits produirait un
-  # script que R refuserait d'analyser, alors que le journal a precisement
-  # pour promesse d'etre executable.
-  root <- .hstat_repo_root()
-  skip_if(is.na(root))
-  src <- readLines(.hstat_module_path("mod_ai.R"), warn = FALSE,
-                   encoding = "UTF-8")
-  dans <- FALSE
-  fautifs <- character(0)
-  for (i in seq_along(src)) {
-    if (grepl("^\\.?hstat_rlog_[a-z_]* <- function", src[i])) dans <- TRUE
-    else if (dans && identical(src[i], "}")) dans <- FALSE
-    if (dans && grepl("\\btrf\\(", src[i]))
-      fautifs <- c(fautifs, paste0("mod_ai.R:", i))
-  }
-  expect_equal(fautifs, character(0),
-               info = paste("trf() dans le journal R :", paste(fautifs, collapse = ", ")))
-})
 
 test_that("les termes du fichier de l'utilisateur sont recenses et bornes", {
   d <- data.frame(Total = c(1, 2), Reponse = c("Oui", "Non"),
@@ -6346,7 +5411,7 @@ test_that("l'etat initial est decrit a un seul endroit", {
   expect_false(any(duplicated(names(init))))
   # Les champs structurants doivent y figurer, sinon ils ne seraient ni crees
   # au demarrage ni effaces a la reinitialisation.
-  for (nm in c("data", "cleanData", "filteredData", "aiContext", "aiHistory",
+  for (nm in c("data", "cleanData", "filteredData",
                "dbCon", "dataMode", "resetSignal", "fichierNeutralise"))
     expect_true(nm %in% names(init), info = nm)
   # Les valeurs par defaut qui ne sont pas NULL sont celles qu'on attend
@@ -6396,7 +5461,6 @@ test_that("charger de nouvelles donnees remet l'etat de session a zero", {
   shiny::isolate({
     v$data <- data.frame(a = 1); v$cleanData <- v$data; v$filteredData <- v$data
     v$descStats <- "resultats du fichier precedent"
-    v$aiHistory <- list("une analyse", "une autre")
     v$transformationLog <- list(x = 1)
     v$customXOrder <- c("A", "B")
     v$allTestResults <- list(t = 1)
@@ -6408,7 +5472,7 @@ test_that("charger de nouvelles donnees remet l'etat de session a zero", {
 
     expect_equal(hstat_reinitialiser_valeurs(v), 1L)
 
-    for (nm in c("data", "cleanData", "filteredData", "descStats", "aiHistory",
+    for (nm in c("data", "cleanData", "filteredData", "descStats",
                  "customXOrder", "yVarNames", "selected_y_vars", "manovaOutliers"))
       expect_null(v[[nm]], info = nm)
     # Les valeurs par defaut qui ne sont pas NULL reviennent, elles aussi.
@@ -7401,7 +6465,8 @@ test_that("chaque option du graphique de rendement est declaree, lue ET utilisee
                 "yieldValeursCouleur", "yieldValeursStyle", "yieldValeursPos",
                 "yieldAngleX", "yieldAngleY", "yieldOrdre", "yieldLimites",
                 "yieldYMin", "yieldYMax", "yieldPasY", "yieldGrilleMaj",
-                "yieldGrilleMin", "yieldLigneZero", "yieldErreurs", "yieldErreurType",
+                "yieldGrilleMin", "yieldZeroMode", "yieldMasquer",
+                "yieldErreurs", "yieldErreurType",
                 "yieldLegendePos", "yieldLegendeTitreSize", "yieldLegendeTexteSize")
   for (r in reglages) {
     expect_true(grepl(sprintf('ns("%s")', r), txt, fixed = TRUE),
@@ -9607,8 +8672,7 @@ test_that("le serveur du module de tests s'execute seul, hors application", {
   d <- data.frame(
     score = c(stats::rnorm(20, 10), stats::rnorm(20, 13), stats::rnorm(20, 16)),
     groupe = rep(c("A", "B", "C"), each = 20), stringsAsFactors = FALSE)
-  v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d,
-                             aiHistory = list())
+  v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d)
 
   shiny::testServer(mod_tests_server, args = list(values = v), {
     # `flushReact()` apres chaque saisie : les versions recentes de Shiny ne
@@ -11327,67 +10391,6 @@ test_that("une mortalite naturelle DECLAREE n'est pas un parametre estime", {
   expect_equal(sqrt(fem$V[3, 3]), 4.38675e-01, tolerance = 1e-4)
 })
 
-test_that("le journal reconstitue le bioessai, et seulement quand c'est fidele", {
-  ref <- .hstat_dl50_essai_ref()
-  ctx <- function(f) list(module = "DL50 / CL50", title = "probit",
-    meta = list(a = f$a, b = f$b, c = f$c, methode = f$methode,
-                doses = f$essai$doses$dose, effectifs = f$essai$doses$n,
-                morts = f$essai$doses$x,
-                temoin_n = f$essai$n0, temoin_x = f$essai$x0))
-
-  # LE SEUL CAS FIDELE : a mortalite naturelle nulle, le modele de Finney EST
-  # un GLM binomial a lien probit. Le script est ecrit, et il doit RENDRE LES
-  # MEMES CHIFFRES -- c'est la seule verification qui vaille, un script qui
-  # s'execute sans rendre le bon resultat serait pire que pas de script.
-  f0 <- hstat_dl50_ajuste(ref, "nulle")
-  code <- hstat_rlog_code(ctx(f0))
-  expect_true(length(code) > 0)
-  env <- new.env()
-  expect_silent(eval(parse(text = paste(code, collapse = "\n")), envir = env))
-  m <- get("dl50_modele", envir = env)
-  expect_equal(unname(stats::coef(m)), unname(c(f0$a, f0$b)), tolerance = 1e-5)
-  # LE SCRIPT PORTE LA MEME INVERSE NORMALE QUE L'APPLICATION. `qnorm()` exact
-  # rendrait des doses letales differentes des le quatrieme chiffre : le script
-  # cesserait de refaire ce que HStat a calcule, ce qui est toute sa raison
-  # d'etre. C'est pourquoi il emet la fonction de Hastings.
-  ab <- stats::coef(m)
-  qh <- get("dl50_qnorm", envir = env)
-  dl <- hstat_dl50_doses_letales(f0, c(10, 50, 90))
-  expect_equal(10^((qh(c(0.1, 0.5, 0.9)) - ab[1]) / ab[2]), rev(dl$Dose),
-               tolerance = 1e-5, ignore_attr = TRUE)
-  expect_equal(qh(0.9), .hstat_dl50_qnorm(0.9), tolerance = 1e-12)
-
-  # LES DEUX AUTRES NE SONT PAS RECONSTITUABLES, et on l'ecrit plutot que
-  # d'ecrire un glm() plausible : `glm()` ne sait pas ajuster c dans
-  # p = c + (1 - c).F(a + b.log d). Un script qui differerait en silence de ce
-  # que l'application a calcule serait pire que pas de script.
-  for (meth in c("em", "abbott")) {
-    cd <- hstat_rlog_code(ctx(hstat_dl50_ajuste(ref, meth)))
-    expect_true(any(grepl("NON RECONSTITU", cd)))
-    # Aucune ligne EXECUTABLE : le commentaire, lui, nomme `glm()` -- il
-    # explique justement pourquoi on ne l'ecrit pas. Chercher la chaine sans
-    # ecarter les commentaires ferait echouer le test sur son propre texte.
-    expect_equal(cd[!grepl("^\\s*#", cd)], character(0))
-    # Les parametres obtenus figurent quand meme : sans eux le commentaire ne
-    # dit rien d'utile.
-    expect_true(any(grepl("a = 2.19", cd, fixed = TRUE)))
-  }
-
-  # Sans les doses, rien : le journal ne devine pas.
-  c2 <- ctx(f0); c2$meta$doses <- NULL
-  expect_null(hstat_rlog_code(c2))
-
-  # LES NOMBRES SONT ECRITS EN CODE R, PAS EN AFFICHAGE. Un separateur decimal
-  # francais rendrait le script inanalysable, et c'est exactement ce que
-  # `format()` produirait sous une locale francaise.
-  expect_equal(.hstat_rlog_num(0.00063), "0.00063")
-  expect_equal(.hstat_rlog_vec_num(c(1, 2.5)), "c(1, 2.5)")
-  expect_equal(.hstat_rlog_num(NA), "NA")
-  expect_false(any(grepl(",", strsplit(.hstat_rlog_num(1234.5), "")[[1]], fixed = TRUE)))
-
-  # Et le script COMPLET de session s'analyse.
-  expect_silent(parse(text = hstat_rlog_script(list(ctx(f0)))))
-})
 
 test_that("la saisie en pourcentage arrondit, et le dit", {
   # Beaucoup d'operateurs notent « 40 % » plutot que « 12 sur 30 ». La
@@ -12572,7 +11575,6 @@ test_that("le module DL50 est branche et depose son contexte", {
 
   mod <- paste(readLines(file.path(root, "R", "mod_dl50.R"),
                          warn = FALSE, encoding = "UTF-8"), collapse = "\n")
-  expect_true(grepl('hstat_ai_capture(values, "DL50 / CL50"', mod, fixed = TRUE))
   # La table de saisie passe par un proxy : la relire dans le rendu la
   # reconstruirait a chaque cellule modifiee, detruisant sous le curseur celle
   # que l'on est en train d'editer.
@@ -12616,7 +11618,6 @@ test_that("le module de doses est branche et depose son contexte", {
 
   mod <- paste(readLines(file.path(root, "R", "mod_dosage.R"),
                          warn = FALSE, encoding = "UTF-8"), collapse = "\n")
-  expect_true(grepl('hstat_ai_capture(values, "Doses & dilutions"', mod, fixed = TRUE))
 })
 
 
@@ -13697,8 +12698,7 @@ test_that("le post-hoc Bonferroni produit des lettres au lieu de lever", {
                   Rendement = stats::rnorm(30, 50, 10), stringsAsFactors = FALSE)
 
   lettres <- function(protege) {
-    v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d,
-                               aiHistory = list())
+    v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d)
     out <- NULL
     shiny::testServer(mod_tests_server, args = list(values = v), {
       vider <- function() try(session$flushReact(), silent = TRUE)
@@ -13792,8 +12792,7 @@ test_that("les lettres agricolae et Games-Howell suivent la protection dans le m
   # Duncan, REGW et Waller-Duncan — et c'est ce que l'utilisateur a signalé.
   # Mesuré avec agricolae 1.3-7.
   lettres <- function(d, methode, protege) {
-    v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d,
-                               aiHistory = list())
+    v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d)
     out <- NULL
     shiny::testServer(mod_tests_server, args = list(values = v), {
       vider <- function() try(session$flushReact(), silent = TRUE)
@@ -13883,8 +12882,7 @@ test_that("les effets simples sont protégés par LEUR propre test global", {
   expect_true("F1:F2" %in% trimws(rownames(ar)))     # le remède
 
   effets <- function(protege) {
-    v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d,
-                               aiHistory = list())
+    v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d)
     out <- NULL
     shiny::testServer(mod_tests_server, args = list(values = v), {
       vider <- function() try(session$flushReact(), silent = TRUE)
@@ -14005,8 +13003,7 @@ test_that("le module offre les deux t et l'ANOVA de Welch, et oriente le post-ho
     stringsAsFactors = FALSE)
 
   lance <- function(bouton) {
-    v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d,
-                               aiHistory = list())
+    v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d)
     out <- NULL
     shiny::testServer(mod_tests_server, args = list(values = v), {
       vider <- function() try(session$flushReact(), silent = TRUE)
@@ -14043,8 +13040,7 @@ test_that("le module offre les deux t et l'ANOVA de Welch, et oriente le post-ho
     stats::rnorm(5, 50 + c(0, 1, 2, 3, 4, 25)[i], ecarts[i])))
   h <- data.frame(Traitement = rep(paste0("T", seq_len(6)), each = 5),
                   Rendement = yy, stringsAsFactors = FALSE)
-  v <- shiny::reactiveValues(data = h, cleanData = h, filteredData = h,
-                             aiHistory = list())
+  v <- shiny::reactiveValues(data = h, cleanData = h, filteredData = h)
   out <- NULL
   shiny::testServer(mod_tests_server, args = list(values = v), {
     vider <- function() try(session$flushReact(), silent = TRUE)
@@ -14060,8 +13056,7 @@ test_that("le module offre les deux t et l'ANOVA de Welch, et oriente le post-ho
   expect_equal(out$var, "inegales")
   # L'ANOVA DE FISHER DECLARE LA SIENNE, sinon le post-hoc lirait celle du
   # test precedent -- et sur ce jeu les deux ne concluent pas pareil.
-  v2 <- shiny::reactiveValues(data = h, cleanData = h, filteredData = h,
-                              aiHistory = list())
+  v2 <- shiny::reactiveValues(data = h, cleanData = h, filteredData = h)
   vf <- NULL
   shiny::testServer(mod_tests_server, args = list(values = v2), {
     vider <- function() try(session$flushReact(), silent = TRUE)
@@ -14344,8 +13339,7 @@ test_that("les barres d'erreur du rendement ne descendent jamais sous la valeur"
                   Masse    = c(10, 11, 12, 9, 14, 15, 16, 13, 20, 21, 19, 22),
                   Surface  = rep(1, 12), Bloc = rep(1:4, 3),
                   stringsAsFactors = FALSE)
-  v <- shiny::reactiveValues(data = h, cleanData = h, filteredData = h,
-                             aiHistory = list())
+  v <- shiny::reactiveValues(data = h, cleanData = h, filteredData = h)
   p <- NULL; r <- NULL
   shiny::testServer(mod_yield_server, args = list(values = v), {
     vider <- function() try(session$flushReact(), silent = TRUE)
@@ -14392,8 +13386,7 @@ test_that("les barres d'erreur du rendement ne descendent jamais sous la valeur"
   expect_true(all(haut > val))
 
   # Decochee, la barre d'erreur ne pose aucune des deux couches.
-  v2 <- shiny::reactiveValues(data = h, cleanData = h, filteredData = h,
-                              aiHistory = list())
+  v2 <- shiny::reactiveValues(data = h, cleanData = h, filteredData = h)
   p2 <- NULL
   shiny::testServer(mod_yield_server, args = list(values = v2), {
     vider <- function() try(session$flushReact(), silent = TRUE)
@@ -15578,7 +14571,6 @@ test_that("le module de diversité respecte les conventions du dépôt", {
     expect_true(grepl(f, src, fixed = TRUE), info = f)
   # Il dépose son contexte, sans quoi il manquerait à l'onglet
   # d'interprétation, au journal de reproductibilité et au rapport.
-  expect_true(grepl('hstat_ai_capture(values, "Diversité écologique"', src, fixed = TRUE))
   # Il prend les kits partagés plutôt que de recopier une douzième fois.
   for (f in c("hstat_export_plot_ui", "hstat_export_plot_handler",
               "hstat_export_tables_handlers", "hstat_plot_extras_ui",
@@ -15627,8 +14619,7 @@ test_that("les huit figures du module de diversité se tracent réellement", {
                   12, 12, 11, 10, 9,
                   60,  3,  2, 1, 0),
     stringsAsFactors = FALSE)
-  vals <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d,
-                                aiHistory = list(), aiContext = NULL)
+  vals <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d)
 
   shiny::testServer(mod_diversity_server, args = list(values = vals), {
     session$setInputs(divFormat = "long", divSite = "Parcelle",
@@ -15761,8 +14752,8 @@ test_that("le format de date choisi agit sur TOUS les types de graphique", {
     Site    = rep(c("A", "B", "C"), 4),
     stringsAsFactors = FALSE)
   vals <- shiny::reactiveValues(
-    data = d, cleanData = d, filteredData = d, aiHistory = list(),
-    aiContext = NULL, storedLevelLabels = list(), customXOrder = NULL)
+    data = d, cleanData = d, filteredData = d,
+    storedLevelLabels = list(), customXOrder = NULL)
 
   # Les types A AXE X CARTESIEN. Camembert, anneau et treemap en sont absents
   # a dessein : ils n'ont pas d'axe des abscisses.
@@ -15841,4 +14832,150 @@ test_that("une modalite qui ressemble a une date n'est jamais reecrite", {
                   c("04 ao\u00fbt", "01 septembre"))
   expect_setequal(etiquettes(factor(c("2026-08-04", "2026-09-01")), "%d %B"),
                   c("04 ao\u00fbt", "01 septembre"))
+})
+
+# -----------------------------------------------------------------------------
+# RENDEMENT : LA LIGNE DU ZERO, ET LES MODALITES QU'ON NE VEUT PAS VOIR
+# -----------------------------------------------------------------------------
+test_that("la ligne du zero est UN reglage a trois etats", {
+  skip_if_not_installed("ggplot2")
+  # Deux cases a cocher decriraient le MEME trait par deux commandes qui
+  # peuvent se contredire : c'est la seconde, invisible, qui finirait par
+  # mentir. Le choix est donc unique.
+  expect_setequal(unname(HSTAT_AXE_ZERO), c("aucune", "reference", "axe"))
+
+  aucune <- hstat_axe_zero("aucune")
+  expect_length(aucune$couches, 0L)
+  expect_true(identical(aucune$expand, ggplot2::waiver()))
+
+  # « reference » garde EXACTEMENT le comportement d'origine : un repere
+  # pointille, et rien d'autre -- surtout pas l'effacement du trait d'axe.
+  ref <- hstat_axe_zero("reference")
+  expect_length(ref$couches, 1L)
+  expect_true(inherits(ref$couches[[1]], "Layer"))
+  expect_true(identical(ref$expand, ggplot2::waiver()))
+  expect_length(Filter(function(x) inherits(x, "theme"), ref$couches), 0L)
+
+  # Un mode inconnu retombe sur le repere, jamais sur l'effacement : un nom de
+  # travers ne doit pas faire disparaitre le trait d'axe sans un mot.
+  expect_equal(hstat_axe_zero("zzz")$mode, "reference")
+  expect_equal(hstat_axe_zero(NULL)$mode, "reference")
+
+  ax <- hstat_axe_zero("axe", negatifs = FALSE, couleur = "#123456", epaisseur = 2)
+  th <- Filter(function(x) inherits(x, "theme"), ax$couches)
+  expect_length(th, 1L)
+  # L'ANCIEN TRAIT S'EFFACE, sinon l'axe existe en DEUX exemplaires -- un au bas
+  # du panneau, un a zero -- et c'est l'image que l'utilisateur vient corriger.
+  expect_true(inherits(th[[1]]$axis.line.x, "element_blank"))
+  expect_true(inherits(th[[1]]$axis.line.x.bottom, "element_blank"))
+  # MAIS L'AXE Y N'EST PAS TOUCHE : il porte l'echelle, y compris la part
+  # negative. Les deux axes se rejoignent alors a l'origine.
+  expect_null(th[[1]]$axis.line.y)
+  # La couleur et l'epaisseur sont celles du trait d'axe : un noir arbitraire
+  # en ferait un repere de plus a cote d'un cadre d'une autre couleur.
+  hl <- Filter(function(x) inherits(x, "Layer"), ax$couches)
+  expect_equal(hl[[1]]$aes_params$colour, "#123456")
+  expect_equal(hl[[1]]$aes_params$linewidth, 2)
+  # Une epaisseur aberrante ne fait pas tomber le graphique.
+  expect_equal(Filter(function(x) inherits(x, "Layer"),
+                      hstat_axe_zero("axe", epaisseur = NA)$couches)[[1]]$aes_params$linewidth, 1)
+})
+
+test_that("pose sur le zero, le trait d'axe rejoint vraiment les graduations", {
+  skip_if_not_installed("ggplot2")
+  d <- data.frame(M = factor(c("A", "B", "C")), v = c(10, 20, 30))
+  extras <- hstat_plot_extras_lire(
+    list(pfxAxisLine = TRUE, pfxAxisLineCouleur = "#000000",
+         pfxAxisLineEpaisseur = 1), "pfx")
+  base <- ggplot2::ggplot(d, ggplot2::aes(x = M, y = v)) + ggplot2::geom_col() +
+    hstat_plot_extras_theme(extras)
+  bas <- function(p) ggplot2::ggplot_build(p)$layout$panel_params[[1]]$y.range[1]
+
+  # LE DEFAUT MESURE, celui de la capture d'ecran : le trait d'axe est au BAS
+  # du panneau, et le bas du panneau n'est pas zero -- ggplot detend l'echelle
+  # de 5 % de chaque cote. Zero flotte donc au-dessus du trait.
+  expect_true(inherits(base$theme$axis.line.x, "element_line"))
+  expect_lt(bas(base), 0)
+
+  z <- hstat_axe_zero("axe", negatifs = FALSE, extras$axe_col, extras$axe_ep)
+  pose <- base + z$couches + ggplot2::scale_y_continuous(expand = z$expand)
+  # L'ancien trait a disparu, celui de l'axe Y est intact.
+  expect_true(inherits(pose$theme$axis.line.x, "element_blank"))
+  expect_true(inherits(pose$theme$axis.line.y, "element_line"))
+  # ET LE BAS DU PANNEAU EST EXACTEMENT ZERO. Sans cette moitie-la du
+  # correctif, le trait serait pose a zero pendant que les graduations
+  # resteraient dessinees au bord du panneau, 1,5 unite plus bas : on aurait
+  # deplace le defaut au lieu de le corriger. C'est l'assertion qui distingue
+  # les deux codes -- la couche seule ne la satisfait pas.
+  expect_equal(bas(pose), 0)
+
+  # DES QU'UNE VALEUR EST NEGATIVE, l'expansion se garde : le trait est de
+  # toute facon a l'interieur du cadre, et une barre collee au bord se lit mal.
+  zn <- hstat_axe_zero("axe", negatifs = TRUE)
+  expect_true(identical(zn$expand, ggplot2::waiver()))
+  dn <- data.frame(M = factor(c("A", "B", "C")), v = c(-10, 20, 30))
+  pn <- ggplot2::ggplot(dn, ggplot2::aes(x = M, y = v)) + ggplot2::geom_col() +
+    zn$couches
+  expect_lt(bas(pn), -10)
+
+  # Et le trait reste DANS le cadre meme si la serie n'atteint jamais zero :
+  # sans `expand_limits`, le reglage rendrait un axe invisible.
+  dl <- data.frame(M = factor(c("A", "B")), v = c(40, 50))
+  pl <- ggplot2::ggplot(dl, ggplot2::aes(x = M, y = v)) +
+    ggplot2::geom_point() + hstat_axe_zero("axe")$couches
+  expect_lte(bas(pl), 0)
+})
+
+test_that("masquer une modalite la retire de la figure sans toucher aux chiffres", {
+  skip_if_not_installed("ggplot2")
+  h <- data.frame(Modalite = rep(c("T0", "T1", "T2"), each = 3),
+                  Masse    = c(10, 11, 12, 20, 21, 22, 30, 31, 32),
+                  Surface  = rep(1, 9), Bloc = rep(1:3, 3),
+                  stringsAsFactors = FALSE)
+  lance <- function(masque) {
+    v <- shiny::reactiveValues(data = h, cleanData = h, filteredData = h)
+    out <- list()
+    shiny::testServer(mod_yield_server, args = list(values = v), {
+      vider <- function() try(session$flushReact(), silent = TRUE)
+      session$setInputs(yieldSource = "fichier", yieldModalite = "Modalite",
+                        yieldMasse = "Masse", yieldSurface = "Surface",
+                        yieldRepetition = "Bloc", yieldTemoin = "T0"); vider()
+      session$setInputs(yieldMesure = "Rendement_moyen", yieldErreurs = FALSE,
+                        yieldZeroMode = "reference", yieldMasquer = masque); vider()
+      out <<- list(p = graphique(), r = resultat(), note = output$yieldPlotNote)
+    })
+    out
+  }
+  niveaux <- function(p) {
+    b <- suppressWarnings(ggplot2::ggplot_build(p))
+    as.character(b$layout$panel_params[[1]]$x$get_labels())
+  }
+
+  tout <- lance(character(0))
+  expect_setequal(niveaux(tout$p), c("T0", "T1", "T2"))
+
+  part <- lance("T1")
+  # La modalite masquee quitte l'axe -- et elle n'y laisse pas sa place vide,
+  # ce qu'un facteur pose avant le retrait aurait fait.
+  expect_setequal(niveaux(part$p), c("T0", "T2"))
+
+  # MASQUER N'EST PAS FILTRER, et c'est tout le reglage : le tableau et les
+  # moyennes portent toujours les trois modalites. Un filtre, lui,
+  # recalculerait -- et c'est l'assertion qui separe les deux comportements.
+  expect_setequal(as.character(part$r$Modalite), c("T0", "T1", "T2"))
+  expect_equal(part$r$Rendement_moyen, tout$r$Rendement_moyen, tolerance = 1e-10)
+
+  # UNE BARRE ABSENTE SE NOMME. Une figure a laquelle il manque une modalite,
+  # sans rien qui le dise, se lit comme un essai qui n'en comptait que deux.
+  # `as.character()` d'une liste de balises rend UN element par noeud : l'aplatir
+  # est la difference entre une assertion et un vecteur de trois verdicts dont
+  # `expect_true` ne sait que faire.
+  txt <- function(x) paste(as.character(x), collapse = "")
+  expect_true(grepl("T1", txt(part$note), fixed = TRUE))
+  expect_true(grepl("masquer ne change aucun chiffre", txt(part$note), fixed = TRUE))
+  expect_false(grepl("T1", txt(tout$note), fixed = TRUE))
+
+  # Tout masquer ne fait pas tomber le module : il n'y a simplement plus de
+  # figure, et le motif affiche dira le masquage plutot que les colonnes.
+  expect_null(lance(c("T0", "T1", "T2"))$p)
 })

@@ -347,10 +347,6 @@ mod_timeseries_server <- function(id, values) {
         cbind(Modele = nm, r$metrics)
       })), error = function(e) NULL)
       if (is.null(mets) || !NROW(mets)) return()
-      hstat_ai_capture(values, "Séries temporelles",
-        "Prévision et comparaison de modèles",
-        tables = list("Qualité de prévision" = as.data.frame(mets)),
-        meta = list(variables = input$tsVar, `horizon` = input$tsHorizon))
     }, ignoreInit = TRUE)
 
     fits <- shiny::eventReactive(input$tsRun, {

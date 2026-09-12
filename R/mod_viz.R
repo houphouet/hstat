@@ -1153,15 +1153,6 @@ mod_viz_server <- function(id, values) {
       vars <- intersect(unique(c(input$vizXVar, input$vizYVar)), names(d))
       if (!length(vars)) return()
       grp <- intersect(input$vizColorVar %||% character(0), names(d))
-      hstat_ai_capture(values, "Visualisation",
-        trf("Graphique : %s", paste(vars, collapse = " x ")),
-        meta = list(variables = vars, groupe = grp,
-                    `type de graphique` = input$vizType),
-        # La figure part en FONCTION, pas en objet : elle n'est dessinee que si
-        # un rapport la reclame. `isolate` parce que le telechargement d'un
-        # rapport n'est pas un contexte reactif, et qu'un reactif ne se lit pas
-        # en dehors d'un tel contexte.
-        plot = function() shiny::isolate(createPlot()))
     }, ignoreInit = TRUE)
 
   get_date_display_fmt <- function() {

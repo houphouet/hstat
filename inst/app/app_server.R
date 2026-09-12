@@ -634,63 +634,7 @@ server <- function(input, output, session) {
   mod_correlation_server("corrélation", values)
   mod_design_server("design", values)
   mod_qualitative_server("qualitative", values)
-  mod_ai_server("aidecision", values)
 
-  # ==========================================================================
-  # CAPTURE AUTOMATIQUE POUR L'AIDE A LA DECISION
-  # (les analyses dont les selecteurs vivent dans un module namespace deposent
-  #  leur contexte depuis le module : `input$maVariable` n'a pas de sens ici)
-  # --------------------------------------------------------------------------
-  # Les modules deposent deja leurs resultats dans `values` : il suffit de les
-  # y observer. Aucun module n'appelle l'assistance, aucune analyse n'est
-  # modifiee, et une analyse ajoutee plus tard sera captee sans rien changer
-  # ici du moment qu'elle alimente les memes emplacements.
-  # ==========================================================================
-  # Le guidage ne s'invite plus a la fin de chaque analyse. Un bandeau greffe
-  # sur les douze onglets et une notification repetaient, a chaque resultat
-  # depose, une recommandation que l'onglet « Interpretation & aide a la
-  # decision » porte deja en entier -- au point de recouvrir les resultats que
-  # l'utilisateur venait de calculer. La recommandation reste disponible,
-  # elle est demandee et non subie.
-
-  shiny::observeEvent(values$testResultsDF, {
-    df <- values$testResultsDF
-    if (is.null(df) || !NROW(df)) return()
-    titre <- if ("Test" %in% names(df))
-      paste(unique(as.character(df$Test)), collapse = " / ") else "Tests statistiques"
-    vars <- if ("Variable" %in% names(df)) unique(as.character(df$Variable)) else NULL
-    grp  <- if ("Facteur" %in% names(df)) {
-      g <- unique(as.character(df$Facteur)); g[!is.na(g) & nzchar(g)]
-    } else NULL
-    tabs <- list("Résultats des tests" = df)
-    if (!is.null(values$normalityResults)) tabs[["Normalité"]] <- values$normalityResults
-    if (!is.null(values$homogeneityResults)) tabs[["Homogénéité des variances"]] <- values$homogeneityResults
-    if (!is.null(values$chiSqFreqData)) tabs[["Effectifs observes / attendus"]] <- values$chiSqFreqData
-    hstat_ai_capture(values, "Tests statistiques", titre, tables = tabs,
-                     meta = list(variables = vars, groupe = grp,
-                                 `type de test` = values$currentTestType))
-  }, ignoreInit = TRUE)
-
-  # LE DECLENCHEUR ETAIT UN CHAMP QUE PERSONNE N'ECRIT. `values$multiResults`
-  # n'existe que dans la liste initiale : les comparaisons post-hoc deposent
-  # leurs resultats dans `multiResultsMain` (mod_tests.R). L'observateur ne
-  # s'est donc JAMAIS declenche, et cette famille d'analyse manquait a
-  # l'onglet d'interpretation, au journal de reproductibilite et au rapport --
-  # alors que le test de couverture, qui cherche l'APPEL dans le source, la
-  # declarait couverte.
-  shiny::observeEvent(values$multiResultsMain, {
-    df <- values$multiResultsMain
-    if (is.null(df) || !NROW(df)) return()
-    # Les variables comparees se lisent dans le tableau lui-meme : `multiGroups`
-    # n'est pas davantage ecrit, et une meta vide vaut moins que rien.
-    vars <- if ("Variable" %in% names(df))
-              unique(as.character(df$Variable)) else values$multiGroups
-    facteurs <- if ("Facteur" %in% names(df))
-                  unique(as.character(df$Facteur)) else NULL
-    hstat_ai_capture(values, "Comparaisons multiples", "Comparaisons post-hoc",
-      tables = list("Comparaisons" = df),
-      meta = list(variables = vars, facteurs = facteurs))
-  }, ignoreInit = TRUE)
   mod_timeseries_server("timeseries", values)
   mod_ml_server("ml", values)
   mod_dl_server("dl", values)
@@ -5903,11 +5847,6 @@ server <- function(input, output, session) {
                               function(id) input[[id]]))
         grp <- unlist(lapply(paste0("mv_", key, c("_group", "_cat", "_quali", "_facteur")),
                              function(id) input[[id]]))
-        hstat_ai_capture(values, "Analyses multivariées",
-          MV_LIBELLES[[key]] %||% key,
-          tables = list("Métriques" = r$metrics),
-          text = if (!is.null(r$summary)) paste(r$summary, collapse = "\n") else NULL,
-          meta = list(variables = unique(vars), groupe = unique(grp)))
       }, ignoreInit = TRUE)
     })
   }

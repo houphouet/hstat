@@ -716,25 +716,6 @@ mod_clean_ui <- function(id) {
 }
 
 mod_clean_server <- function(id, values) {
-  # Depot de l'etat des donnees apres nettoyage : c'est le nouveau diagnostic
-  # de qualite qui dit si le nettoyage a atteint son but.
-  shiny::observeEvent(values$cleanData, {
-    d <- values$cleanData
-    if (is.null(d) || !NROW(d)) return()
-    # Au chargement, `cleanData` est une copie du jeu brut : rien n'a ete
-    # nettoye. On n'annonce un nettoyage que s'il a vraiment eu lieu.
-    if (!length(values$transformationLog) &&
-        identical(dim(d), dim(values$data))) return()
-    dq <- tryCatch(hstat_data_quality(d), error = function(e) NULL)
-    hstat_ai_capture(values, "Nettoyage",
-      "État des données après nettoyage",
-      tables = list("Diagnostic de qualité" = dq),
-      meta = list(variables = names(d), observations = NROW(d),
-                  `transformations appliquees` =
-                    if (length(values$transformationLog))
-                      length(values$transformationLog) else 0L))
-  }, ignoreInit = TRUE)
-
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -2004,15 +1985,6 @@ mod_clean_server <- function(id, values) {
 
     values$cleanData <- d
     values$filteredData <- d
-    # `transformationLog` est un registre TYPE : ses entrees sont relues champ
-    # par champ (methode, lambda) pour inverser les transformations. Y deposer
-    # une phrase casserait son affichage. Le geste est donc capture ici, la ou
-    # il a reellement eu lieu.
-    hstat_ai_capture(values, "Nettoyage", "Variables à valeurs nulles",
-      tables = list("Variables concernées" = zt),
-      text = res$texte,
-      meta = list(action = action, variables = paste(vars, collapse = ", "),
-                  observations = NROW(d)))
     zero_message(res)
     shiny::showNotification(shiny::tagList(shiny::icon("check"), " ", res$texte),
                      type = "message", duration = 4)

@@ -204,70 +204,54 @@ un test dépendait donc de l'ordre des autres — exactement ce que l'amorce dit
 d'éviter pour l'attachement de shiny. Ils sont posés au même endroit, et pour la
 même raison.
 
-### Assistance IA : deux roles, et deux seulement
+### L'onglet « Interprétation & aide à la décision » a été retiré
 
-`R/mod_ai.R` porte le moteur d'inference **partagé par toute l'application**
-et l'onglet d'aide à la décision. Il n'a plus de rang à tenir dans un
-`source()` ; un test vérifie seulement qu'il est bien du côté paquet, l'y
-oublier ferait revenir la question de l'ordre par la fenêtre.
+Demandé, et fait en entier : l'entrée de menu portait **sept** onglets
+(interprétation par un modèle de langue, analyse recommandée, profil des
+variables, journal de reproductibilité, rapport automatique, diagnostic de
+qualité des données, résultats captés). Les sept sont partis.
 
-L'assistance **interprète** des résultats et **recommande** une analyse. Elle ne
-choisit ni ne lance jamais une analyse : le choix de la méthode engage
-l'interprétation scientifique du travail, il reste à l'analyste. L'invite
-adressée au modèle l'interdit explicitement, et un test le vérifie.
+**Ce qui reste de `R/mod_ai.R`, c'est le moteur d'inférence seul** — la table
+des fournisseurs, les trois protocoles, le diagnostic de disponibilité et le
+panneau de réglages. Il n'est pas orphelin : `mod_coding.R` s'en sert pour
+pré-remplir un livre de codes et pré-coder un corpus. Le fichier garde donc son
+nom, mais plus qu'un rôle sur les deux qu'il portait.
 
-**La recommandation ne passe jamais par un modèle de langue.** `hstat_reco_*`
-applique des règles statistiques classiques au profil des variables : c'est
-déterministe, hors ligne, et explicable. Un test statistique ne doit pas être
-conseillé par génération de texte.
+**Et le registre de capture est parti avec.** C'est le point qui demandait le
+plus d'attention, parce qu'il ne se voyait pas depuis l'onglet : vingt-deux
+appels à `hstat_ai_capture()` déposaient dans `values$aiHistory`, réparti sur
+dix-sept fichiers. L'onglet supprimé était son **seul lecteur** — le journal et
+le rapport y puisaient, et ils sont partis avec lui. Les laisser en place aurait
+laissé vingt-deux écritures vers un registre que plus personne ne relit,
+c'est-à-dire exactement le code mort que ce dépôt traque : on le corrige en
+croyant corriger une analyse. Le test du bandeau de guidage barre désormais leur
+retour, au même titre que les `aihint_*`.
 
-Piège corrigé, à ne pas réintroduire : la normalité se teste **dans chaque
-groupe**, jamais sur la variable regroupée. Deux groupes parfaitement normaux
-mais bien séparés forment un mélange bimodal que Shapiro rejette (p ≈ 1e-6 là
-où chaque groupe donne p ≈ 0,8) — tester le mélange déconseillerait l'ANOVA
-précisément quand elle convient.
+Quatre `observeEvent` sont partis entiers, et pas seulement leur appel :
+`mod_filter`, `mod_clean` et `mod_explore` calculaient un diagnostic de qualité
+qui n'alimentait que la capture ; `mod_design` mettait en forme son calcul de
+puissance pour la même raison. Un observateur qui calcule et ne publie rien est
+la même faute sous une autre forme.
 
-### Capture des résultats : observer, ne pas instrumenter
+Sont partis avec l'onglet, tous dans `R/mod_ai.R` : le registre
+(`hstat_ai_capture`, `hstat_ai_as_table`, `hstat_ai_context_text`), le profil
+(`hstat_data_profile`, `.hstat_reco_*`), la recommandation déterministe
+(`hstat_reco_analyses`, `hstat_reco_verdict`), le diagnostic de qualité
+(`hstat_data_quality*`, `HSTAT_QUALITE_*`), le journal (`hstat_rlog_*`),
+l'interprétation (`hstat_ai_interpret_*`), les deux convertisseurs de rendu — et
+`R/mod_report.R` en entier, dont `mod_ai_server` était l'unique appelant.
+`aiContext` et `aiHistory` quittent `hstat_valeurs_initiales()`, qui est la
+source unique de l'état de session.
 
-Les modules déposent déjà leurs résultats dans `values` ; l'assistance les y
-**observe** (`hstat_ai_capture()` appelé depuis un `observeEvent`). Aucun module
-n'appelle l'assistance, aucune analyse n'est modifiée, et une analyse ajoutée
-plus tard est captée sans rien changer du moment qu'elle alimente les mêmes
-emplacements.
+`rmarkdown` ne servait qu'au rapport : il quitte les `Suggests`, la liste
+d'installation au démarrage et celle de la CI. `knitr` et `base64enc` restent —
+le second incorpore encore les images de l'onglet Visualisation.
 
-Corollaire : l'observateur doit vivre **là où ses `input$` existent**. Un module
-namespacé (`mod_descriptive`, `mod_ml`…) porte le sien dans son propre
-`moduleServer` — `input$numVars` n'a aucun sens dans `app_server.R`.
-
-Un test vérifie qu'aucune famille d'analyse n'est oubliée : ajouter un onglet
-d'analyse sans y poser de `hstat_ai_capture()` le fait échouer. Les **15**
-familles sont couvertes, exploration et nettoyage compris.
-
-Le registre n'a qu'un emplacement : la dernière analyse gagne. Un module ne doit
-donc revendiquer le contexte que s'il a **réellement agi** — `mod_filter` se tait
-tant qu'aucun filtre n'a retiré d'observation, `mod_clean` tant qu'aucune
-transformation n'a été appliquée. Sans cette réserve, trois modules se
-déclenchaient au chargement et s'écrasaient l'un l'autre, affichant un libellé
-faux.
-
-### Bandeau de guidage : retiré, et il ne revient pas
-
-Un bandeau (`aihint_*`) greffé sur les douze onglets d'analyse et une
-notification annonçaient, **à chaque résultat déposé**, l'analyse que le profil
-des données appelle. La même recommandation vit en entier dans l'onglet
-« Interprétation & aide à la décision », où l'utilisateur va la chercher.
-Répétée à chaque calcul, elle recouvrait les résultats qu'on venait de
-demander au lieu de les éclairer — signalé à l'écran.
-
-`HSTAT_AI_HINT_IDS`, `hstat_ai_hint_slot()`, `hstat_ai_with_hint()`,
-`hstat_ai_hint_ui()` et `hstat_ai_hint_text()` ont disparu avec elle. Un test
-balaie `inst/app/` et échoue sur leur réintroduction, identifiant `aihint_*`
-compris.
-
-Le registre de capture (`hstat_ai_capture()`) est **intact** : c'est lui qui
-alimente l'onglet d'interprétation, le journal de reproductibilité et le
-rapport. Ce qui a été supprimé, c'est l'affichage non sollicité, pas la
-collecte.
+**Ce que la suppression coûte, et il faut le savoir avant de la regretter :** il
+n'y a plus de script R reconstituant la session, plus de rapport Word/PDF/HTML
+assemblé depuis les analyses, et plus de recommandation d'analyse. Les analyses
+elles-mêmes ne changent pas d'une virgule — rien de tout cela n'entrait dans un
+calcul.
 
 ### Ne jamais brancher sur une statistique non calculable
 
@@ -1127,97 +1111,6 @@ eux la suite ne démarre pas) du souhaitable (dont l'absence transforme des test
 réels en tests sautés, **en silence**). Un test qui exige un nouveau paquet doit
 l'ajouter à cette liste.
 
-## Journal de reproductibilité
-
-`hstat_rlog_*` (`mod_ai.R`) reconstitue le script R de la session à partir de
-`values$aiHistory`, alimenté par `hstat_ai_capture()`.
-
-Règle de conduite : quand le code exact n'est pas reconstituable fidèlement
-(réglages interactifs, hyperparamètres de ML), écrire un **commentaire**
-`NON RECONSTITUÉ`, jamais du code plausible. Un script qui différerait en
-silence de ce que l'application a calculé serait pire que pas de script. Un test
-vérifie que le script généré **s'analyse et s'exécute** réellement.
-
-### Le bioessai est la seule analyse dont les données ne viennent pas du fichier
-
-Elles sont saisies dans le module, ou lues d'un fichier WIN DL. Le journal les
-**reporte** donc dans le script : il s'exécute sans `mon_fichier.csv`, et il est
-exactement reproductible.
-
-Et il n'est écrit **que quand il est fidèle**. À mortalité naturelle déclarée
-nulle, le modèle de Finney est un GLM binomial à lien probit : le script sort un
-`glm()` et un `MASS::dose.p()`, et un test vérifie qu'il rend **les mêmes
-chiffres** — pas seulement qu'il s'exécute. Dès que `c` est estimée (EM) ou fixée
-par Abbott, ce n'en est plus un — `glm()` ne sait pas ajuster `c` dans
-`p = c + (1 − c)·F(a + b·log d)` — et le journal écrit `NON RECONSTITUÉ` avec les
-paramètres obtenus, plutôt qu'un `glm()` plausible et faux.
-
-`.hstat_rlog_num()` écrit les nombres à quinze chiffres par `formatC` : `format()`
-respecte `OutDec`, et une locale française produirait « 0,00063 » que R refuserait
-d'analyser — sur le seul artefact dont la promesse est d'être exécutable.
-
-## Rapport automatique
-
-`mod_report.R` assemble en un document ce que la session a produit. Il ne
-calcule rien : il met en forme `values$aiHistory`, comme le journal.
-
-Le corps est écrit en **markdown**, parce que c'est le seul format que pandoc
-convertit vers Word *et* PDF, et qu'on sait aussi rendre en HTML sans lui.
-
-**Le HTML est le format de référence, et il ne peut pas échouer** : il est
-assemblé en R, sans dépendance externe. Word et PDF passent par `rmarkdown`,
-donc par pandoc (et LaTeX pour le PDF) — outils absents de beaucoup de postes.
-Quand ils manquent, `hstat_report_render()` rend le HTML et **renvoie le motif
-du repli** dans `res$message` ; l'appelant doit l'afficher. Un utilisateur qui
-demande du Word et reçoit du HTML sans explication croit à un bug. Même règle
-pour le nom du fichier : `rep_format()` calcule le format *effectivement*
-produit avant de nommer le téléchargement — un `.pdf` contenant du HTML ne
-s'ouvrirait pas.
-
-**Deux convertisseurs markdown → HTML, et c'est voulu.** Celui de `mod_ai.R`
-(`.hstat_md_to_html`) ne connaît que titres, gras et listes : il suffit à une
-réponse de modèle. Le rapport, lui, est fait de **tableaux**, de blocs de code
-et de figures — passé au premier, un tableau ressortait en barres verticales au
-milieu d'un paragraphe. D'où `.hstat_rep_md_to_html()`, propre au rapport.
-
-**Les figures sont déposées en fonction, pas en objet** :
-`hstat_ai_capture(..., plot = function() shiny::isolate(createPlot()))`. Elles
-ne sont dessinées qu'au moment où un rapport les réclame, et une figure devenue
-indessinable (variable supprimée entre-temps) disparaît du document au lieu de
-le faire tomber. `isolate()` est indispensable : le téléchargement d'un rapport
-n'est pas un contexte réactif, et un réactif ne s'y lit pas.
-
-**Les figures sont tracées pour l'impression : 1000 dpi au minimum.**
-`HSTAT_REPORT_DPI_MIN` est un **plancher**, pas une valeur par défaut — une
-résolution inférieure passée par un appelant est remontée. Les revues exigent
-couramment 300 à 600 dpi ; à 150 dpi une figure est nette à l'écran et floue sur
-papier, et le défaut ne se voit qu'une fois le document remis.
-
-Seul l'aperçu à l'écran y échappe (`apercu = TRUE`, 150 dpi) : il sert à
-vérifier la mise en page, et incorporer 9000 px en base64 dans un onglet
-rendrait la page poussive sans rien ajouter de visible.
-
-Le coût a été mesuré, pas supposé : à 9 × 5,5 pouces, un nuage de points pèse
-0,36 Mo à 1000 dpi (0,04 Mo à 150) pour 2,3 s de tracé. D'où le rappel
-`progres` — sans lui, vingt figures font une minute de silence après le clic.
-
-Les tests vérifient les **pixels réellement produits** (en-tête IHDR du PNG),
-jamais l'argument passé : un `ggsave` qui ignorerait le `dpi` passerait
-autrement inaperçu.
-
-Le HTML **incorpore ses images en base64**. Un rapport qui pointerait vers
-`/tmp` s'afficherait sans ses figures dès qu'on l'envoie à un relecteur.
-
-Corollaire sur l'historique : `hstat_ai_capture()` conserve désormais les
-tableaux (100 lignes) et les figures des `HSTAT_HIST_DETAIL` dernières analyses,
-puis les allège, et borne l'historique à `HSTAT_HIST_MAX`. La mémoire reste
-bornée quelle que soit la durée de la session.
-
-Piège corrigé : `hstat_report_markdown(sections = ...)` attend les **valeurs**
-de `HSTAT_REPORT_SECTIONS` (`"donnees"`, `"qualite"`…), pas ses noms, qui sont
-les libellés affichés. Passer les noms vidait le rapport **en silence** — seul
-l'en-tête sortait.
-
 ## Gain de rendement : deux rendements, deux gains, et ce n'est pas une redondance
 
 ```
@@ -1381,6 +1274,84 @@ qui *atteint* zéro. Sur un nuage de points dont toutes les valeurs sont négati
 ggplot cadre sur les données : la base de comparaison sort du champ et l'ampleur
 du recul devient invisible. D'où `expand_limits(y = 0)`, et un trait de zéro qui
 n'est plus réservé aux gains.
+
+### La ligne du zéro est une seule ligne, donc un seul réglage
+
+Signalé à l'écran, capture à l'appui : le trait de l'axe X était au **bas du
+cadre** pendant que les barres prenaient appui sur le zéro, une graduation et
+demie plus haut. On lisait donc deux horizontales là où il n'y en a qu'une.
+
+La cause n'est pas un défaut de dessin : ggplot2 trace le trait d'axe par le
+**thème**, au bord du panneau, et rien ne le déplace à une ordonnée choisie. Le
+trait posé sur le zéro est donc une **couche** (`geom_hline`), à la couleur et à
+l'épaisseur du trait d'axe — un noir arbitraire en ferait un repère de plus à
+côté d'un cadre d'une autre couleur, au lieu du même axe déplacé.
+
+`hstat_axe_zero()` (`R/utils.R`) porte la règle, et **trois pièces sont
+nécessaires** :
+
+1. **La couche**, à zéro.
+2. **L'effacement de `axis.line.x`**, sans quoi l'axe existe en deux
+   exemplaires — un au bas du panneau, un à zéro — c'est-à-dire exactement
+   l'image qu'on venait corriger. Seul l'axe X est effacé : **l'axe Y porte
+   l'échelle** et doit couvrir toute la hauteur, part négative comprise. Les
+   deux se rejoignent alors à l'origine, ce que la demande appelait « x = 0 et
+   y = 0 » — sur un axe X discret il n'existe aucune abscisse zéro, le bord
+   gauche du panneau *est* l'origine.
+3. **L'expansion du bas disparaît quand rien n'est négatif.** Mesuré : sur trois
+   barres de 10, 20 et 30, l'étendue du panneau va de **−1,5 à 31,5** — zéro est
+   1,5 unité au-dessus du bas. Le trait posé à zéro y flotterait au-dessus des
+   **graduations**, qui sont dessinées au bord du panneau : on aurait déplacé le
+   défaut au lieu de le corriger. Sans l'expansion du bas (0 à 31,5, mesuré), le
+   zéro *est* le bord. C'est l'assertion qui distingue les deux codes — la
+   couche seule ne la satisfait pas.
+
+Dès qu'une valeur est négative l'expansion se garde : le trait est de toute
+façon à l'intérieur du cadre, et une barre collée au bord se lit mal.
+
+**Et c'est un seul réglage, pas deux cases.** Le repère pointillé et l'axe posé
+sur le zéro sont **le même trait** : deux commandes pourraient se contredire, et
+c'est la seconde — invisible — qui finirait par mentir. `HSTAT_AXE_ZERO` déclare
+les trois états une fois. Un mode inconnu retombe sur le repère, jamais sur
+l'effacement : un nom de travers ne doit pas faire disparaître le trait d'axe
+sans un mot.
+
+L'expansion voyage **à part** des couches parce qu'elle appartient à l'échelle :
+deux `scale_y_continuous()` ne s'ajoutent pas, le second remplace le premier en
+avertissant. L'appelant compose donc **une** échelle avec ses propres
+graduations.
+
+### Masquer une modalité n'est pas la filtrer
+
+Demandé à l'écran : pouvoir retirer de la figure les modalités qu'on ne veut pas
+y voir. La distinction qui fait tout le réglage : **aucun chiffre ne change**.
+Les rendements, les gains, l'écart-type et le tableau portent toujours toutes
+les modalités ; seule la figure en montre moins. Un filtre, lui, recalculerait
+les moyennes sur ce qui reste — et c'est l'assertion qui sépare les deux
+comportements dans le test.
+
+Trois points de construction :
+
+1. **On retire avant d'ordonner.** Les niveaux du facteur sont alors ceux qui
+   restent, et « valeur croissante » classe ce qui est tracé. Poser le facteur
+   d'abord laisserait sur l'axe la **place vide** de chaque modalité retirée.
+2. **La liste est construite sur les modalités qui existent**, et la sélection
+   survit au recalcul — mais seulement pour ce qui existe encore. Sans
+   `isolate()`, lire l'entrée dans son propre `renderUI` ferait boucler le rendu
+   sur son écriture ; sans l'intersection, une modalité disparue du nouveau
+   fichier resterait masquée sans figurer nulle part, réglage actif qu'aucune
+   commande n'affiche.
+3. **Une barre absente se nomme.** La note sous la figure liste les modalités
+   masquées et rappelle que les calculs les gardent toutes. Une figure à
+   laquelle il manque une modalité, sans rien qui le dise, se lit comme un essai
+   qui n'en comptait pas davantage — et c'est cette figure-là qui part au
+   rapport. Quand le **programme non traité** est masqué sur un graphique de
+   gain, on le dit aussi : le sous-titre le cite toujours comme référence alors
+   que sa barre de gain nul a quitté la figure.
+
+Et le motif d'un graphique vide doit être le bon : « vérifiez les colonnes »
+enverrait chercher un défaut de saisie là où l'utilisateur a simplement tout
+masqué.
 
 ### L'ordre des modalités est un réglage lu par le réactif
 
@@ -4568,15 +4539,6 @@ Même logique pour le texte alternatif des figures (`.hstat_rep_alt()`) : un
 crochet dans un titre d'analyse fermait le `![...]` trop tôt, l'image n'était
 plus reconnue et le markdown brut ressortait dans le document.
 
-## Le journal doit rester exécutable, quel que soit le nom de colonne
-
-`.hstat_rlog_nom()` cite les noms non syntaxiques entre accents graves — mais un
-nom peut **lui-même** en contenir. Une colonne `` a`b `` fermait la citation
-trop tôt et produisait un script que R refusait d'analyser, alors que le journal
-a précisément pour promesse d'être exécutable. R accepte l'accent grave échappé
-par une barre oblique inverse ; la barre elle-même doit donc être échappée
-d'abord. Un test balaie une batterie de noms hostiles.
-
 ## Un curseur qui commence au défaut ne permet que d'agrandir
 
 `HSTAT_LBL_PT_MIN` valait 12, puis 11 — le défaut de ggplot2. Le curseur de
@@ -4588,23 +4550,6 @@ lisible sur une figure exportée à 300 DPI.
 Le **défaut**, lui, ne bouge pas : c'est toujours celui de ggplot2, l'état
 d'origine qu'on doit pouvoir retrouver sans le chercher — et il doit rester
 atteignable par le curseur. Un test vérifie les trois à la fois.
-
-## Ne jamais recommander une analyse sur une variable vide
-
-`.hstat_reco_type()` rend `"indeterminable"` quand la variable ne comporte
-**aucune** valeur observée. Sans ce garde-fou, `unique(na.omit(x))` était vide,
-donc de longueur 0 ≤ 2, et la variable était typée **binaire** : le moteur
-recommandait un chi-deux d'indépendance sur une colonne entièrement vide.
-
-Conseiller avec aplomb une analyse impossible est **pire que ne rien
-conseiller** — c'est ce qu'un utilisateur suit sans se méfier. Les listes
-`quanti` / `quali` / `ordin` excluent naturellement ce type, et
-`hstat_reco_analyses()` émet en plus une ligne `Bloquant` qui nomme la variable
-et renvoie à l'onglet Nettoyage : le silence seul serait trompeur.
-
-Même exigence de langue dans `hstat_report_resume_donnees()` : une colonne vide
-est lue comme `logical` par les lecteurs de CSV, et le nom de classe R sortait
-tel quel au milieu d'un tableau français.
 
 ## Graphiques interactifs : le polyfill obsolète de plotly
 

@@ -328,11 +328,6 @@ mod_descriptive_server <- function(id, values) {
     shiny::observeEvent(values$descStats, {
       df <- values$descStats
       if (is.null(df) || !NROW(df)) return()
-      hstat_ai_capture(values, "Analyses descriptives",
-        "Statistiques descriptives",
-        tables = list("Statistiques descriptives" = df),
-        meta = list(variables = input$numVars, groupe = input$descFactors),
-        plot = function() shiny::isolate(generate_desc_plot()))
     }, ignoreInit = TRUE)
   # ---- Analyse descriptives ----
   

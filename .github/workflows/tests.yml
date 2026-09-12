@@ -120,7 +120,7 @@ jobs:
           souhaites <- c("ggplot2", "ggrepel", "DT", "dplyr", "FactoMineR",
                          "openxlsx", "jsonlite", "httr", "car", "svglite",
                          "scales", "stringr", "reshape2", "ggdendro", "digest",
-                         "base64enc", "rmarkdown", "readxl", "writexl",
+                         "base64enc", "readxl", "writexl",
                          # ggtext arrivait lui aussi par dependance
                          # transitive. Sept modules l'appellent pour leurs
                          # titres d'axe ; son absence ne fait plus tomber le

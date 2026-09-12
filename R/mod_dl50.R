@@ -3825,22 +3825,6 @@ mod_dl50_server <- function(id, values) {
       f <- fit()
       if (is.null(f) || !isTRUE(f$ok)) return()
       dl <- doses_letales()
-      hstat_ai_capture(values, "DL50 / CL50",
-        trf("Régression probit%s", {
-          t <- f$essai$titre
-          if (length(t) && nzchar(t)) paste0(" -- ", t) else ""
-        }),
-        tables = list("Doses_letales" = dl, "Detail_par_dose" = f$table),
-        plot = function() shiny::isolate(graphe()),
-        # Les doses voyagent avec la capture : c'est la seule analyse dont les
-        # donnees ne viennent pas du fichier de travail, et sans elles le
-        # journal de reproductibilite n'a rien a reconstituer.
-        meta = list(a = f$a, b = f$b, c = f$c, methode = f$methode,
-                    chi2 = f$chi2, ddl = f$ddl, p = f$p_chi2,
-                    doses = f$essai$doses$dose, effectifs = f$essai$doses$n,
-                    morts = f$essai$doses$x,
-                    temoin_n = f$essai$n0, temoin_x = f$essai$x0,
-                    unite = hstat_dl50_unite(f)))
     }, ignoreInit = TRUE)
   })
 }

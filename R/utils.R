@@ -97,7 +97,7 @@ install_and_load <- function(packages) {
 
 required_packages <- c(
   "shiny", "shinydashboard", "shinyjs", "shinyWidgets", "shinyalert", "DT", "shinycssloaders",
-  "RColorBrewer", "colourpicker", "ggrepel",  "openxlsx", "zip", "rmarkdown", "haven", "base64enc",
+  "RColorBrewer", "colourpicker", "ggrepel",  "openxlsx", "zip", "haven", "base64enc",
   "dplyr", "knitr", "stringr", "scales", "ggplot2", "ggdendro", "reshape2", "sortable",
   "tibble", "plotrix", "plotly",  "qqplotr", "tidyr",  "report", "see", "corrplot",
   "car", "agricolae", "pwr", "forcats", "bslib", "factoextra",  "FactoMineR","questionr",  "digest",
@@ -549,7 +549,7 @@ hstat_i18n_coverage <- function(chaines, path = hstat_i18n_path()) {
 # ---------------------------------------------------------------------------
 # La reinitialisation remettait a NULL une liste de champs ENUMEREE A LA MAIN,
 # distincte de celle qui cree `reactiveValues`. Les deux listes ont derive :
-# tout champ ajoute depuis (aiContext, aiHistory, cahClusters, y2Vars…)
+# tout champ ajoute depuis (cahClusters, y2Vars…)
 # survivait a la reinitialisation, et l'utilisateur retrouvait des restes de sa
 # session precedente.
 #
@@ -584,8 +584,6 @@ hstat_valeurs_initiales <- function() {
     dbCon = NULL, dbTable = NULL, dataMode = "memory",
     fullNrow = NULL, fullNcol = NULL, fullNA = NULL, isSampled = FALSE,
     sourceKind = NULL, sourceSize = NULL,
-    # ---- Aide a la decision ----
-    aiContext = NULL, aiHistory = NULL,
     # Chemin du fichier NEUTRALISE par la derniere reinitialisation.
     # `shinyjs::reset("file")` remet le widget a blanc mais `input$file` garde
     # sa valeur : sans ce temoin, la feuille Excel choisie et le bloc de
@@ -1924,6 +1922,74 @@ hstat_plot_extras_theme <- function(o) {
     axis.line   = ggplot2::element_line(colour = o$axe_col, linewidth = o$axe_ep),
     axis.line.x = ggplot2::element_line(colour = o$axe_col, linewidth = o$axe_ep),
     axis.line.y = ggplot2::element_line(colour = o$axe_col, linewidth = o$axe_ep))
+}
+
+# ---------------------------------------------------------------------------
+# LA LIGNE ZERO EST UNE SEULE LIGNE, DONC UN SEUL REGLAGE
+#
+# Deux cases a cocher -- « ligne de reference a 0 » et « axe X sur le zero » --
+# decriraient le MEME trait par deux commandes qui peuvent se contredire :
+# l'utilisateur en changerait une pendant que la figure lirait l'autre. C'est
+# le defaut que ce depot traque ailleurs sous le nom de reglage en double.
+#
+# Le choix est donc unique, a trois etats.
+HSTAT_AXE_ZERO <- c("Aucune ligne au zéro"                = "aucune",
+                    "Ligne de référence en pointillés"    = "reference",
+                    "Axe X posé sur la ligne zéro"        = "axe")
+
+# Ce que « axe » fait, et pourquoi chacune des trois pieces est necessaire :
+#
+# 1. LA COUCHE. Un trait d'axe est dessine par le THEME, au bord du panneau ;
+#    rien dans ggplot2 ne le deplace a une ordonnee choisie. Il faut donc le
+#    poser comme une COUCHE (`geom_hline`), a la couleur et a l'epaisseur du
+#    trait d'axe pour qu'il en soit un et non un repere de plus.
+#
+# 2. L'ANCIEN TRAIT S'EFFACE. Sans cela l'axe existe en DEUX exemplaires -- un
+#    au bas du panneau, un a zero -- et c'est exactement l'image que
+#    l'utilisateur vient corriger. Seul `axis.line.x` est efface : l'axe Y
+#    porte l'echelle, il doit couvrir toute la hauteur, y compris la part
+#    negative. Les deux axes se rejoignent alors a l'origine.
+#
+# 3. L'EXPANSION DU BAS DISPARAIT QUAND RIEN N'EST NEGATIF. Mesure : sur trois
+#    barres de 10, 20 et 30, l'etendue du panneau va de -1,5 a 31,5 -- zero est
+#    donc 1,5 unite AU-DESSUS du bas. Le trait pose a zero y flotterait
+#    au-dessus des graduations, qui sont dessinees au bord du panneau : on
+#    aurait deplace le defaut au lieu de le corriger. En retirant la seule
+#    expansion du bas (0 a 31,5, mesure), le zero EST le bord : trait et
+#    graduations se rejoignent.
+#    Des qu'une valeur est negative, l'expansion se garde -- une barre collee
+#    au bord du cadre se lit mal, et le trait est de toute facon a l'interieur.
+#
+# L'expansion voyage a part parce qu'elle appartient a l'ECHELLE : deux
+# `scale_y_continuous()` ne s'ajoutent pas, le second remplace le premier en
+# avertissant. L'appelant compose donc UNE echelle avec ses propres graduations.
+hstat_axe_zero <- function(mode = "reference", negatifs = FALSE,
+                           couleur = "#000000", epaisseur = 1,
+                           couleur_ref = "#7f8c8d") {
+  mode <- as.character(mode %||% "reference")[1]
+  if (!isTRUE(mode %in% HSTAT_AXE_ZERO)) mode <- "reference"
+  res <- list(mode = mode, couches = list(), expand = ggplot2::waiver())
+  if (identical(mode, "aucune")) return(res)
+  if (identical(mode, "reference")) {
+    res$couches <- list(ggplot2::geom_hline(yintercept = 0, linetype = "dashed",
+                                            colour = couleur_ref, linewidth = 0.5))
+    return(res)
+  }
+  ep <- suppressWarnings(as.numeric(epaisseur)[1])
+  if (!isTRUE(is.finite(ep)) || ep <= 0) ep <- 1
+  col <- as.character(couleur %||% "#000000")[1]
+  if (!isTRUE(nzchar(col))) col <- "#000000"
+  res$couches <- list(
+    ggplot2::geom_hline(yintercept = 0, colour = col, linewidth = ep),
+    # Le trait doit etre DANS le cadre : sans cela le reglage rendrait un axe
+    # invisible sur une serie qui n'atteint jamais zero.
+    ggplot2::expand_limits(y = 0),
+    ggplot2::theme(axis.line.x        = ggplot2::element_blank(),
+                   axis.line.x.bottom = ggplot2::element_blank(),
+                   axis.line.x.top    = ggplot2::element_blank()))
+  res$expand <- if (isTRUE(negatifs)) ggplot2::waiver()
+                else ggplot2::expansion(mult = c(0, 0.05))
+  res
 }
 
 HSTAT_FONT_STYLES <- c("Normal" = "plain", "Gras" = "bold",
