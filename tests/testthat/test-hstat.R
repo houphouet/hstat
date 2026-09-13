@@ -16135,3 +16135,121 @@ test_that("le module d'epidemiologie lance une analyse et rend ses tableaux", {
     expect_false(is.null(figure()))
   })
 })
+
+test_that("une colonne de date en caracteres se lit comme une colonne typee", {
+  skip_if_not_installed("dlnm")
+  set.seed(5); n <- 240
+  d <- data.frame(Date = seq(as.Date("2005-01-01"), by = "month", length.out = n))
+  d$tmax <- 30 + 4 * sin(2 * pi * seq_len(n) / 12) + stats::rnorm(n, 0, 1.2)
+  d$nais <- stats::rpois(n, 400)
+  d$prema <- stats::rpois(n, exp(log(d$nais) - 3.2 + 0.05 * (d$tmax - 30)))
+
+  # LE CAS ORDINAIRE EST LA COLONNE DE CARACTERES : c'est ce que rend un CSV lu
+  # sans typage. `hstat_date_parse()` nu y levait « l'argument "fmt" est
+  # manquant », et le `tryCatch` de `hstat_epi_dlnm_multi()` le rendait sous
+  # « L'analyse a échoué » -- un motif qui n'apprend rien.
+  #
+  # LE TEST PORTE SUR LA COLONNE EN CARACTERES, et c'est tout son objet : une
+  # colonne deja typee `Date` prend l'autre branche et passe avec ou sans le
+  # correctif. C'est exactement pourquoi le test du module et le parcours au
+  # navigateur l'avaient tous deux manque -- aucun des deux n'exercait le chemin
+  # qui casse.
+  d2 <- d; d2$Date <- as.character(d2$Date)
+  r2 <- hstat_epi_dlnm(d2, "prema", "tmax", var_offset = "nais",
+                       var_temps = "Date", lag_max = 5)
+  expect_true(r2$ok)
+
+  # ET LA LECTURE DOIT ETRE LA MEME, pas seulement « ne pas echouer » : un
+  # lecteur qui rendrait des dates de travers passerait la premiere assertion.
+  r1 <- hstat_epi_dlnm(d, "prema", "tmax", var_offset = "nais",
+                       var_temps = "Date", lag_max = 5)
+  expect_true(r1$ok)
+  expect_equal(r2$aic, r1$aic, tolerance = 1e-8)
+  expect_equal(r2$n_utilisees, r1$n_utilisees)
+  # Le format retenu est NOMME : une lecture automatique qui ne se dit pas
+  # laisse l'utilisateur sans moyen de vérifier qu'elle a pris la bonne.
+  expect_match(r2$message, "%Y-%m-%d", fixed = TRUE)
+
+  # Le chemin reel du module passe par `_multi`, dont le `tryCatch` masquait la
+  # cause : on verifie qu'il aboutit, pas seulement la fonction sous-jacente.
+  m <- hstat_epi_dlnm_multi(d2, "prema", "tmax", var_offset = "nais",
+                            var_temps = "Date", lag_max = 5)
+  expect_true(m$ok)
+  expect_equal(names(m$resultats), "tmax")
+
+  # Le cas-croise lisait la date par le meme appel fautif.
+  N <- 400
+  dc <- data.frame(date = as.character(seq(as.Date("2020-01-01"), by = "day",
+                                           length.out = N)),
+                   cas = stats::rpois(N, 12), tmax = stats::rnorm(N, 25, 3))
+  expect_true(hstat_epi_cas_croise(dc, "date", "cas", "tmax")$ok)
+})
+
+# ---------------------------------------------------------------------------
+#  UNE DATE SE COMPOSE PARFOIS DE DEUX COLONNES
+# ---------------------------------------------------------------------------
+test_that("le mois se lit en toutes lettres, abrege ou en numero", {
+  expect_equal(hstat_epi_mois_num(c("février", "Fevr.", "March", " mars ")),
+               c(2L, 2L, 3L, 3L))
+  expect_equal(hstat_epi_mois_num(c(7, "07", "12")), c(7L, 7L, 12L))
+  # LA CORRESPONDANCE EST EXACTE, JAMAIS PAR PREFIXE. Un libelle tronque --
+  # « avri », « fevrie » -- doit etre NOMME, pas devine : un mois faux est
+  # parfaitement plausible en tableau et decale toute la serie d'un rang.
+  #
+  # L'assertion porte sur un prefixe NON AMBIGU, et c'est ce qui la rend utile :
+  # « ju » designe six entrees, si bien qu'un code a prefixe rendrait `NA` lui
+  # aussi -- une assertion qui ne distingue pas les deux codes ne garde rien.
+  # Mesure : « avri » vaut NA en correspondance exacte et 4 en correspondance
+  # par prefixe ; « ju » vaut NA des deux cotes.
+  expect_true(all(is.na(hstat_epi_mois_num(c("avri", "fevrie", "ju")))))
+  expect_true(all(is.na(hstat_epi_mois_num(c("0", "13", "", NA, "bloc A")))))
+})
+
+test_that("la composition mois + annee nomme ce qu'elle ecarte", {
+  r <- hstat_epi_date_mois_annee(c("janvier", "Feb", "13e mois", "mars"),
+                                 c(2005, 2005, 2005, 5))
+  expect_equal(as.character(r$dates[1:2]), c("2005-01-01", "2005-02-01"))
+  # Le jour est une HYPOTHESE, donc elle se dit.
+  expect_match(r$message, "premier du mois")
+  # Un mois inconnu est NOMME, pas retire en silence.
+  expect_equal(r$ecartes, "13e mois")
+  expect_match(r$message, "13e mois", fixed = TRUE)
+  # UNE ANNEE A DEUX CHIFFRES EST AMBIGUE : « 05 » vaut l'an 5 ou 2005 selon
+  # la convention, deux series distantes de deux millenaires.
+  expect_true(is.na(r$dates[4]))
+  expect_match(r$message, "deux chiffres")
+})
+
+test_that("le DLNM se calcule depuis un couple mois + annee", {
+  skip_if_not_installed("dlnm")
+  set.seed(1)
+  n <- 96
+  d <- data.frame(Date = seq(as.Date("2005-01-01"), by = "month", length.out = n))
+  d$Annees <- as.integer(format(d$Date, "%Y"))
+  d$Mois <- HSTAT_MOIS[["fr"]][as.integer(format(d$Date, "%m"))]
+  d$tmax <- 30 + 4 * sin(2 * pi * seq_len(n) / 12) + rnorm(n)
+  d$nais <- rpois(n, 400)
+  d$prema <- rpois(n, 20 + 0.4 * (d$tmax - 30))
+
+  a <- hstat_epi_dlnm(d, "prema", "tmax", var_offset = "nais",
+                      var_temps = "Date", lag_max = 5)
+  b <- hstat_epi_dlnm(d, "prema", "tmax", var_offset = "nais",
+                      var_mois = "Mois", var_annee = "Annees", lag_max = 5)
+  expect_true(a$ok); expect_true(b$ok)
+  # LE FICHIER PORTE LA MEME INFORMATION EN DEUX MORCEAUX : le resultat doit
+  # etre le MEME, pas seulement « calculable ».
+  expect_equal(b$aic, a$aic, tolerance = 1e-8)
+  expect_equal(b$n_utilisees, a$n_utilisees)
+  expect_match(b$message, "premier du mois")
+
+  # Un seul des deux champs ne compose rien, et on le dit.
+  s <- hstat_epi_temps(d, NULL, "Mois", NULL)
+  expect_null(s$dates)
+  expect_match(s$message, "ensemble")
+
+  # Le passage par `...` de la version multi-expositions.
+  m <- hstat_epi_dlnm_multi(d, "prema", "tmax", var_offset = "nais",
+                            var_mois = "Mois", var_annee = "Annees",
+                            lag_max = 5)
+  expect_true(m$ok)
+})

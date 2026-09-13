@@ -175,7 +175,8 @@ mod_epidemio_server <- function(id, values) {
             # temperature n'agit pas seule : pluviometrie, humidite relative et
             # vent covarient, et estimer l'une sans les autres lui attribue ce
             # qui revient aux autres.
-            shiny::selectInput(ns("epiExpo"), "Expositions à étudier",
+            shiny::selectInput(ns("epiExpo"),
+              "Variable d'influence (°C, mm, %, etc)",
               choices = n, multiple = TRUE),
             shiny::tags$small(style = "color:#6b7280;",
               tr("Chaque exposition retenue est analysée à son tour ; les autres servent alors d'ajustement.")),
@@ -186,6 +187,19 @@ mod_epidemio_server <- function(id, values) {
               choices = c("(aucun)" = "", n)),
             shiny::selectInput(ns("epiTemps"), "Colonne de date (facultatif)",
               choices = c("(ordre des lignes)" = "", a)),
+            # UNE DATE SE COMPOSE PARFOIS DE DEUX COLONNES. Un registre mensuel
+            # saisi a la main porte « Mois » en toutes lettres et « Annee » a
+            # cote, et aucune colonne de date : exiger l'ISO obligerait a
+            # rouvrir le fichier pour fabriquer ce qu'il contient deja.
+            shiny::fluidRow(
+              shiny::column(6, shiny::selectInput(ns("epiMois"),
+                "Mois (si aucune colonne de date)",
+                choices = c("(aucun)" = "", a))),
+              shiny::column(6, shiny::selectInput(ns("epiAnnee"),
+                "Année (si aucune colonne de date)",
+                choices = c("(aucune)" = "", a)))),
+            shiny::tags$small(style = "color:#6b7280;",
+              tr("Le mois et l'année se déclarent ensemble ; le jour est alors fixé au premier du mois.")),
             shiny::selectInput(ns("epiAjust"), "Covariables simples (facultatif)",
               choices = a, multiple = TRUE)),
           .hstat_opt_section("Structure du retard", "hourglass-half", "#2980b9", "#eaf4fb",
@@ -309,7 +323,8 @@ mod_epidemio_server <- function(id, values) {
       res <- tryCatch(switch(an,
         dlnm = hstat_epi_dlnm_multi(df, input$epiY, vide(input$epiExpo),
           mutuel = isTRUE(input$epiMutuel), var_offset = input$epiOffset,
-          var_temps = input$epiTemps, vars_ajust = vide(input$epiAjust),
+          var_temps = input$epiTemps, var_mois = input$epiMois,
+          var_annee = input$epiAnnee, vars_ajust = vide(input$epiAjust),
           lag_max = hstat_finite(input$epiLag, 5),
           nk_lag = hstat_finite(input$epiNkLag, 2),
           reference = input$epiRef,

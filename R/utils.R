@@ -10314,6 +10314,139 @@ HSTAT_EPI_DLNM_PCT <- c(0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99)
 
 # ---------------------------------------------------------------------------
 #  LE DENOMINATEUR NE S'INVENTE PAS
+
+# ---------------------------------------------------------------------------
+#  UNE DATE SE COMPOSE PARFOIS DE DEUX COLONNES
+# ---------------------------------------------------------------------------
+#  Beaucoup de fichiers de suivi mensuel ne portent AUCUNE colonne de date :
+#  ils portent « Mois » en toutes lettres et « Annee » a cote. C'est la forme
+#  d'un registre saisi a la main, et exiger une date ISO obligerait a rouvrir
+#  le fichier dans un tableur pour fabriquer une colonne que le fichier
+#  contient deja, en deux morceaux.
+#
+#  LE JOUR EST FIXE AU PREMIER DU MOIS, ET C'EST UNE HYPOTHESE, DONC ELLE SE
+#  DIT. Une donnee mensuelle n'a pas de jour ; le premier est la convention,
+#  mais un lecteur qui verrait « 2005-01-01 » sans explication pourrait croire
+#  a une mesure du 1er janvier.
+#
+#  Le mois s'ecrit de quatre facons, et les quatre se rencontrent dans le meme
+#  corpus : le nom (« février »), l'abreviation (« févr. »), le numero (2) et
+#  le numero sur deux chiffres (« 02 »). Les noms sont lus dans les DEUX
+#  langues et sans accents -- un fichier porte les mois qu'il porte, et rien ne
+#  dit qu'ils suivent la langue d'affichage.
+hstat_epi_mois_num <- function(x) {
+  if (is.null(x)) return(integer(0))
+  n <- suppressWarnings(as.numeric(x))
+  ok <- is.finite(n) & n >= 1 & n <= 12 & abs(n - round(n)) < 1e-8
+  out <- ifelse(ok, as.integer(round(n)), NA_integer_)
+  reste <- which(is.na(out) & !is.na(x) & nzchar(trimws(as.character(x))))
+  if (length(reste)) {
+    cle <- hstat_sans_accents(tolower(trimws(as.character(x)[reste])))
+    tab <- c(HSTAT_MOIS[["fr"]], HSTAT_MOIS[["en"]],
+             HSTAT_MOIS_ABR[["fr"]], HSTAT_MOIS_ABR[["en"]])
+    num <- rep(1:12, 4L)
+    # Du plus long au plus court, comme `hstat_date_parse` : sans quoi
+    # « mars » mordrait dans « mars. » et laisserait un point derriere lui.
+    ord <- order(nchar(tab), decreasing = TRUE)
+    tab <- hstat_sans_accents(tolower(tab[ord])); num <- num[ord]
+    # Correspondance EXACTE, jamais par prefixe : « ju » ne doit designer ni
+    # juin ni juillet, et rendre l'un des deux au hasard serait la faute la
+    # plus couteuse -- un mois faux decale toute la serie d'un rang.
+    out[reste] <- num[match(cle, tab)]
+  }
+  as.integer(out)
+}
+
+#' Compose une date a partir d'une colonne de mois et d'une colonne d'annee.
+#'
+#' Rend toujours une liste : `dates`, `n_ok`, `ecartes` (les libelles de mois
+#' non reconnus, NOMMES) et `message`.
+hstat_epi_date_mois_annee <- function(mois, annee) {
+  n <- max(length(mois), length(annee))
+  vide <- list(dates = as.Date(rep(NA_real_, n), origin = "1970-01-01"),
+               n_ok = 0L, ecartes = character(0), message = NULL)
+  if (!n) return(vide)
+  m <- hstat_epi_mois_num(mois)
+  a <- suppressWarnings(as.numeric(annee))
+  msg <- character(0)
+
+  # UNE ANNEE SUR DEUX CHIFFRES EST AMBIGUE, et la trancher en silence ferait
+  # lire « 05 » comme l'an 5 ou comme 2005 selon la convention choisie -- deux
+  # series distantes de deux millenaires, toutes deux plausibles en tableau.
+  deux <- is.finite(a) & a >= 0 & a < 100
+  if (any(deux, na.rm = TRUE))
+    msg <- c(msg, tr("La colonne d'année porte des valeurs à deux chiffres : elles ne sont pas interprétées, écrivez l'année en entier (2005 et non 05)."))
+  ok_a <- is.finite(a) & a >= 100 & abs(a - round(a)) < 1e-8
+
+  inconnus <- unique(as.character(mois)[is.na(m) & !is.na(mois) &
+                                          nzchar(trimws(as.character(mois)))])
+  if (length(inconnus))
+    msg <- c(msg, trf("Mois non reconnu(s) : %s. Les noms français et anglais, leurs abréviations et les numéros 1 à 12 sont acceptés.",
+                      paste(utils::head(inconnus, 8), collapse = ", ")))
+
+  ok <- !is.na(m) & ok_a
+  d <- as.Date(rep(NA_real_, n), origin = "1970-01-01")
+  if (any(ok))
+    d[ok] <- as.Date(sprintf("%04d-%02d-01", as.integer(round(a[ok])), m[ok]))
+  if (any(ok))
+    msg <- c(msg, tr("Date composée depuis le mois et l'année : le jour est fixé au premier du mois, une donnée mensuelle n'en portant pas."))
+
+  list(dates = d, n_ok = sum(ok), ecartes = inconnus,
+       message = if (length(msg)) paste(msg, collapse = " ") else NULL)
+}
+
+# ---------------------------------------------------------------------------
+#  LE TEMPS SE RESOUT A UN SEUL ENDROIT
+# ---------------------------------------------------------------------------
+#  Trois sources possibles -- une colonne de date, un couple mois + annee, ou
+#  rien (l'ordre des lignes). Les ecrire dans chaque analyse ferait diverger
+#  trois copies, et c'est la copie oubliee qui ment.
+hstat_epi_temps <- function(data, var_temps = NULL, var_mois = NULL,
+                            var_annee = NULL) {
+  n <- NROW(data)
+  msg <- character(0)
+  a_col <- function(v) isTRUE(nzchar(v %||% "")) && v %in% names(data)
+
+  if (a_col(var_mois) && a_col(var_annee)) {
+    r <- hstat_epi_date_mois_annee(data[[var_mois]], data[[var_annee]])
+    if (!is.null(r$message)) msg <- c(msg, r$message)
+    if (r$n_ok > 0)
+      return(list(dates = r$dates, source = "mois_annee",
+                  message = if (length(msg)) paste(msg, collapse = " ") else NULL))
+    msg <- c(msg, tr("Aucune date n'a pu être composée depuis le mois et l'année : les retards sont comptés sur l'ordre des lignes."))
+    return(list(dates = NULL, source = "rang",
+                message = paste(msg, collapse = " ")))
+  }
+  # UN SEUL DES DEUX CHAMPS NE SUFFIT PAS, et le taire laisserait croire que la
+  # date a ete composee alors que le module est retombe sur l'ordre des lignes.
+  if (a_col(var_mois) || a_col(var_annee))
+    msg <- c(msg, tr("Le mois et l'année se déclarent ensemble : un seul des deux ne compose aucune date."))
+
+  if (a_col(var_temps)) {
+    da <- hstat_date_auto(data[[var_temps]])
+    if (any(!is.na(da$dates))) {
+      if (isTRUE(da$auto) && isTRUE(nzchar(da$format %||% "")))
+        msg <- c(msg, trf("Format de date reconnu automatiquement : %s.", da$format))
+      if (length(da$ambigu) > 1L)
+        msg <- c(msg, trf("Plusieurs formats de date relisent cette colonne (%s) : déclarez-le dans l'onglet Nettoyage si la lecture retenue n'est pas la bonne.",
+                          paste(da$ambigu, collapse = ", ")))
+      return(list(dates = da$dates, source = "colonne",
+                  message = if (length(msg)) paste(msg, collapse = " ") else NULL))
+    }
+    # Une colonne numerique de rang (1, 2, 3...) est un temps legitime : on la
+    # garde telle quelle plutot que d'exiger une date.
+    num <- suppressWarnings(as.numeric(data[[var_temps]]))
+    if (any(is.finite(num)))
+      return(list(dates = NULL, rang = num, source = "numerique",
+                  message = if (length(msg)) paste(msg, collapse = " ") else NULL))
+    msg <- c(msg, tr("La colonne de temps n'a pu être lue ni comme une date ni comme un nombre : les retards sont comptés sur l'ordre des lignes."))
+  } else {
+    msg <- c(msg, tr("Aucune colonne de temps déclarée : les retards sont comptés sur l'ordre des lignes du fichier."))
+  }
+  list(dates = NULL, source = "rang",
+       message = if (length(msg)) paste(msg, collapse = " ") else NULL)
+}
+
 # ---------------------------------------------------------------------------
 #  L'usage courant ecrit `offset = log(N + 1)` pour eviter log(0). C'est une
 #  valeur INVENTEE : elle affirme qu'un mois sans aucune naissance vivante
@@ -10425,7 +10558,8 @@ hstat_epi_dlnm <- function(data, var_y, var_expo, var_offset = NULL,
                            famille = "auto", periode = 12,
                            harmoniques = 2L, df_tendance = 3L,
                            conf = 0.95, vars_ajust_cb = NULL,
-                           vars_ajust = NULL) {
+                           vars_ajust = NULL, var_mois = NULL,
+                           var_annee = NULL) {
   msg <- character(0)
   ko <- function(m) list(ok = FALSE, message = m)
 
@@ -10462,21 +10596,20 @@ hstat_epi_dlnm <- function(data, var_y, var_expo, var_offset = NULL,
 
   # Le temps : une colonne declaree, ou le rang. Le rang suppose que les lignes
   # sont DEJA dans l'ordre chronologique -- on le dit plutot que de le supposer.
+  #  LE TEMPS A TROIS SOURCES, et `hstat_epi_temps()` est la seule porte : une
+  #  colonne de date, un couple mois + annee (la forme d'un registre saisi a la
+  #  main, qui ne porte AUCUNE colonne de date), ou l'ordre des lignes. Ecrire
+  #  l'aiguillage ici et dans le cas-croise ferait diverger deux copies.
   tt <- seq_len(n)
-  if (isTRUE(nzchar(var_temps %||% "")) && var_temps %in% names(data)) {
-    d <- data[[var_temps]]
-    dd <- if (inherits(d, "Date") || inherits(d, "POSIXct")) as.numeric(d) else
-      suppressWarnings(as.numeric(hstat_date_parse(as.character(d))))
-    if (all(is.na(dd))) dd <- suppressWarnings(as.numeric(d))
-    if (!all(is.na(dd))) {
-      if (is.unsorted(dd, na.rm = TRUE))
-        msg <- c(msg, tr("Les lignes ne sont pas triées par date : un retard se compte sur des observations consécutives, triez le fichier avant l'analyse."))
-      tt <- as.numeric(dd)
-      pas <- stats::median(diff(sort(unique(tt))), na.rm = TRUE)
-      if (isTRUE(is.finite(pas)) && pas > 0) tt <- (tt - min(tt, na.rm = TRUE)) / pas + 1
-    }
-  } else {
-    msg <- c(msg, tr("Aucune colonne de temps déclarée : les retards sont comptés sur l'ordre des lignes du fichier."))
+  rt <- hstat_epi_temps(data, var_temps, var_mois, var_annee)
+  if (!is.null(rt$message)) msg <- c(msg, rt$message)
+  brut <- if (!is.null(rt$dates)) suppressWarnings(as.numeric(rt$dates)) else rt$rang
+  if (!is.null(brut) && !all(is.na(brut))) {
+    if (is.unsorted(brut, na.rm = TRUE))
+      msg <- c(msg, tr("Les lignes ne sont pas triées par date : un retard se compte sur des observations consécutives, triez le fichier avant l'analyse."))
+    pas <- stats::median(diff(sort(unique(brut))), na.rm = TRUE)
+    tt <- if (isTRUE(is.finite(pas)) && pas > 0)
+      (brut - min(brut, na.rm = TRUE)) / pas + 1 else as.numeric(brut)
   }
 
   # La surface principale, puis celles d'ajustement. LA GARDE EST PAR
@@ -11203,8 +11336,10 @@ hstat_epi_cas_croise <- function(data, var_date, var_cas, var_expo,
     if (!isTRUE(nzchar(v %||% "")) || !v %in% names(data))
       return(ko(tr("Choisissez la date, le nombre de cas et l'exposition.")))
 
+  # Meme lecteur que le DLNM, et pour la meme raison : `hstat_date_parse()` nu
+  # leve sur son `fmt` sans defaut des que la colonne est en caracteres.
   dt <- data[[var_date]]
-  dd <- if (inherits(dt, "Date")) dt else hstat_date_parse(as.character(dt))
+  dd <- hstat_date_auto(dt)$dates
   if (all(is.na(dd)))
     return(ko(tr("La colonne de dates n'a pas pu être lue : vérifiez son format.")))
   y <- suppressWarnings(as.numeric(data[[var_cas]]))
