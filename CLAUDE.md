@@ -5393,6 +5393,323 @@ Aucun n'est atteignable par le chemin courant, ce qui est précisément pourquoi
 ils ont duré. `seq_len(n)` rend le vide quand il n'y a rien à parcourir ; un
 test barre le retour des trois formes.
 
+## Épidémiologie : un module, huit familles, et le calcul hors du serveur
+
+`R/mod_epidemio.R` ne **calcule rien**. Les ~20 fonctions `hstat_epi_*` vivent
+dans `R/utils.R`, où elles sont testables — la règle du dépôt, qui a ici une
+raison propre à la discipline : **un rapport de risque n'est jamais faux
+bruyamment**. Il sort plausible, il se recopie dans un rapport sanitaire, et
+c'est le recopiage qui fait foi.
+
+Huit familles, déclarées **une seule fois** dans `HSTAT_EPI_ANALYSES` — le
+sélecteur, l'encadré d'aide et les tests en dérivent :
+
+| Famille | Ce qu'elle estime |
+|---|---|
+| DLNM | surface exposition × retard × réponse |
+| Taux d'incidence | IRR, temps-personne en offset |
+| Risque | OR **et** RR ajustés, et leur écart mesuré |
+| Survie | Kaplan-Meier, log-rank, Cox + hypothèse PH |
+| Cas-croisé | Poisson conditionnelle stratifiée sur le temps |
+| Standardisation | directe, indirecte, SMR à intervalle exact |
+| Test diagnostique | Se, Sp, VPP, VPN, RV, Youden, ROC |
+| Impact | RA, FAE, FAP, NST/NSE |
+
+Ce qui existait déjà **n'est pas recopié** : les OR/RR sur tableau 2×2 vivent
+dans `mod_qualitative.R` (`hstat_q_ratios_2x2`) et y restent.
+
+### Ce n'est pas le DLNM de l'onglet Séries temporelles
+
+Celui-là est une méthode de **prévision** : on lui donne des expositions
+futures, il rend un point prévu. Celui-ci estime la **forme** de l'effet et sa
+répartition dans le temps ; il ne prévoit rien. Deux questions, deux sorties —
+les confondre ferait publier une courbe exposition-réponse sous le nom d'une
+prévision. Les deux coexistent, chacun dans son onglet.
+
+### Un retard se désigne par sa valeur, jamais par son rang de colonne
+
+Le défaut le plus coûteux de cette série, et il vient d'un script réel.
+`crosspred(..., bylag = 0.5)` rend **une colonne par demi-retard** : colonne 1 =
+retard 0, colonne 2 = retard 0,5, colonne 3 = retard 1. Lire
+`matRRfit[i, lg + 1]` pour `lg = 0..5` donne donc les retards 0 ; 0,5 ; 1 ;
+1,5 ; 2 ; 2,5 — **étiquetés « Lag 0 » à « Lag 5 »**.
+
+Mesuré sur un jeu simulé :
+
+| Étiquette affichée | Retard réellement lu | RR |
+|---|---|---|
+| Lag 5 | **2,5** | 1,1009 |
+| Lag 5 (juste) | 5 | **0,9051** |
+
+Un effet **protecteur** publié comme délétère. Rien ne lève, le tableau est
+complet, et ses six lignes sont parfaitement plausibles. C'est la même famille
+que `hstat_dl50_dose_pour()`, qui recollait ses seuils dans l'ordre de saisie
+sur un tableau trié.
+
+`.hstat_epi_lag_grille()` relit la grille sur les noms de colonnes et
+`.hstat_epi_col_lag()` rapproche **par la valeur**. Un retard absent de la
+grille est rendu **absent**, jamais rapproché : donner un chiffre pour un
+retard que le modèle n'a pas évalué serait le même défaut sous une autre forme.
+
+### Une seule exposition ne suffit jamais
+
+La température n'agit pas seule : pluviométrie, humidité relative et vent
+varient **ensemble**. Le module porte donc trois rôles, et c'est le partage qui
+compte :
+
+- l'exposition **principale** — sa surface est estimée, tracée, publiée ;
+- les expositions **d'ajustement** — leur propre surface entre au modèle, avec
+  sa structure de retard, mais on ne la publie pas ;
+- les **covariables simples** — terme linéaire (jour férié, indicatrice).
+
+Une exposition d'ajustement **garde ses retards** : la réduire à sa valeur du
+mois même laisserait passer l'effet retardé de l'humidité dans le retard de la
+température, ce qu'on cherchait précisément à éviter.
+
+`hstat_epi_dlnm_multi()` fait de **chaque** exposition la principale tour à
+tour ; les autres restent en ajustement. La garde est **par exposition** : une
+variable trop plate ne doit pas emporter celles qu'on venait estimer.
+
+#### Deux expositions corrélées se partagent l'effet, et aucune ne ressort
+
+C'est le mode de défaillance propre au plan multi-expositions, et il ne lève
+rien. Mesuré sur température et humidité à r = −0,83 :
+
+| | RR au P90 | verdict |
+|---|---|---|
+| chacune seule | **1,451** [1,074 ; 1,960] | significatif |
+| ajustées l'une sur l'autre | 1,246 [0,842 ; 1,844] | non significatif |
+
+Les intervalles s'élargissent, les deux tombent à « non significatif », et l'on
+conclut qu'**aucune** n'agit alors que leur effet conjoint est net.
+`hstat_epi_collinearite()` le **mesure** et le **nomme** plutôt que de laisser
+la conclusion se former toute seule.
+
+#### Le test global porte sur UNE surface, et il a d'abord porté sur toutes
+
+Trouvé par la mesure, pas par la relecture. Un balayage en `^cb` prend les
+coefficients de **toutes** les surfaces du modèle : les trois lignes du tableau
+portaient alors le **même** khi-deux sous trois noms différents.
+
+| | avant | après |
+|---|---|---|
+| température | p = 0 | **p = 0,046** |
+| humidité | p = 0 | **p = 0,311** |
+| pluviométrie | p = 0 | **p = 0,0036** |
+
+Seule la température agissait dans la simulation. Le motif est `^cb1v` et non
+`^cb1` : les coefficients s'appellent `cb1v1.l1`, et un modèle à dix expositions
+porterait un `cb10v1.l1` que `^cb1` attraperait.
+
+Et le test ne **réajuste pas** : `lmtest::waldtest(fit, . ~ . - cb)` refait le
+modèle sans la surface, ce qui sur une binomiale négative **ré-estime θ** — les
+deux modèles ne diffèrent alors plus seulement par la surface. La forme
+quadratique `b' V⁻¹ b` ne réajuste rien et ne peut pas échouer à converger.
+
+#### `crosspred` retrouve sa surface par le nom déparsé de son argument
+
+`deparse(substitute(basis))`, pas l'objet. Lui passer `cbs[[k]]` lui fait
+chercher des coefficients nommés `cbs[[k]]v1.l1`, qui n'existent pas. L'appel
+est donc **construit** avec le symbole (`cb1`, `cb2`…), celui-là même sous lequel
+la surface est entrée dans la formule. Sur un modèle à une seule surface, un
+appel fautif aurait pu tomber sur les bons coefficients par hasard — ce qui est
+pire.
+
+Les surfaces entrent d'ailleurs sous des noms **stables** et non sous le nom de
+la colonne : un intitulé de fichier porte accents, espaces et parenthèses, que
+`as.formula` refuse — et le contourner par des accents graves casse
+l'appariement des coefficients.
+
+### L'offset entre par la formule, jamais par l'argument `offset =`
+
+Défaut **latent** trouvé par un test que je venais d'écrire. `glm()` applique
+`subset` **aussi** à l'argument `offset` : lui passer le vecteur déjà filtré le
+filtre une seconde fois, et l'appel lève « variable lengths differ ».
+
+Tant qu'aucune ligne n'est écartée, les deux longueurs coïncident **par
+hasard** et tout marche. Le défaut ne se réveille qu'au premier dénominateur
+nul — c'est-à-dire exactement dans le cas que le module existe pour traiter.
+`offset()` dans la formule est résolu dans `data`, donc sous-ensemblé avec elle.
+
+### Le dénominateur ne s'invente pas
+
+L'usage courant écrit `offset = log(N + 1)` pour éviter `log(0)`. C'est une
+valeur **inventée** : elle affirme qu'un mois sans aucune naissance vivante
+portait quand même un dénominateur de 1, et le taux estimé sur ce mois est alors
+entièrement fabriqué par la constante. Un mois sans dénominateur n'informe aucun
+taux — on l'**écarte**, et on le **compte**.
+
+### OR et RR ne sont pas interchangeables, et l'écart se mesure
+
+L'erreur la plus répandue de la littérature épidémiologique. La logistique rend
+une **cote** ; on la lit comme un **risque**. L'approximation ne tient que si
+l'issue est rare :
+
+```
+RR = OR / (1 − p₀ + p₀ · OR)
+```
+
+Mesuré sur une issue présente chez 48 % des observations : **OR 2,36 contre
+RR 1,53**, soit **54 % de surestimation**. Les trois modèles sont donc ajustés
+sur les **mêmes** données — logistique (OR), log-binomiale (RR), Poisson robuste
+(RR) — et l'écart est une **colonne**, pas une supposition.
+
+**La log-binomiale ne converge pas toujours**, et c'est sa faiblesse connue :
+elle doit garder la probabilité prédite sous 1, contrainte que l'optimisation
+viole dès que l'exposition est forte. Le repli est la **Poisson robuste** (Zou,
+2004), qui converge toujours — et il est **nommé**. Un RR obtenu par un autre
+modèle que celui annoncé serait la même faute que le t de Welch exécuté sous le
+nom de Student.
+
+La variance sandwich est écrite dans le socle, pas empruntée à `sandwich` : la
+règle déjà posée pour les classifications sur paquets optionnels. Vérifiée
+contre le paquet à **9 × 10⁻⁶** d'écart relatif.
+
+### Un intervalle de comptage est exact, pas normal
+
+L'approximation normale rend une borne basse **négative** dès que le compte est
+petit — et un nombre de décès négatif n'est pas un intervalle. Sur 3 événements :
+normal `[−0,39 ; 6,39]`, exact `[0,62 ; 8,77]`. Le cas est le quotidien d'un
+registre de canton. La relation Poisson–khi-deux donne les bornes sans
+itération, et elle est exacte. Vérifiée contre `stats::poisson.test`.
+
+C'est cet intervalle qui porte le SMR : un SMR dont la borne basse serait
+négative se lit « aucun décès attendu », ce qui n'a pas de sens.
+
+### La valeur prédictive est une propriété du test DANS une population
+
+Sensibilité et spécificité appartiennent au **test** ; les valeurs prédictives
+au test **dans une population**. Mesuré sur un test à 99 % / 99 % :
+
+| prévalence | VPP |
+|---|---|
+| 50 % (celle du fichier cas-témoins) | **99,0 %** |
+| 0,1 % (celle de la population) | **9,0 %** |
+
+Neuf « positifs » sur dix sont sains. Lire la VPP d'une étude cas-témoins — où
+les cas sont sur-représentés **par construction** — comme si elle valait en
+population est l'erreur la plus coûteuse de tout le dépistage. Les valeurs
+prédictives passent donc par **Bayes**, jamais par les effectifs du tableau.
+
+L'intervalle des proportions est celui de **Wilson**, pas de Wald : Wald sort de
+`[0 ; 1]` dès que la proportion approche une borne — et une sensibilité de 100 %
+est le cas le plus courant sur un petit échantillon.
+
+### L'aire sous la courbe ROC est la statistique de Mann-Whitney
+
+`AUC = P(score d'un malade > score d'un sain)`, ex æquo comptés pour moitié.
+L'intégration trapézoïdale de la courbe et le calcul par les rangs donnent le
+**même** nombre — vérifié à la précision machine — et c'est cette égalité qui
+permet de contrôler l'implémentation sans se fier à un paquet.
+
+### L'hypothèse de risques proportionnels n'est pas un détail
+
+Si elle tombe, le HR n'est plus constant dans le temps et le chiffre unique
+publié en est une **moyenne** — qui peut cacher un effet qui s'inverse. Le test
+de Schoenfeld est calculé et **rendu**, jamais tu.
+
+La courbe de survie passe par `geom_step`, **pas** `geom_line` : Kaplan-Meier
+est une fonction en escalier, constante entre deux événements. La relier en
+diagonale dessinerait une décroissance continue qui n'a pas eu lieu.
+
+### Le cas-croisé exige un pas journalier, et il le dit
+
+Chaque cas est son propre témoin : tout ce qui ne varie pas dans une strate —
+sexe, comorbidités, mais aussi la saison et la tendance — s'élimine sans être
+modélisé. C'est la raison d'être du plan, et pourquoi il n'a pas besoin des
+harmoniques du DLNM.
+
+La strate est **année × mois × jour de semaine** : le jour de semaine est ce qui
+le distingue d'un appariement mensuel, car exposition et issue ont souvent un
+rythme hebdomadaire. Sur des données **mensuelles**, la strate ne contient
+qu'une ligne : il n'y a plus de témoin, et le modèle ne peut rien estimer. On
+refuse en renvoyant au DLNM, plutôt que de rendre des coefficients vides.
+
+### Sans taux de référence, on ne les invente pas
+
+Les taux de l'ensemble du fichier servent alors de référence (standardisation
+**interne**) — c'est légitime et courant, mais le SMR moyen vaut 1 **par
+construction**, ce qui n'est pas la même lecture qu'un SMR contre une référence
+externe. Le taire ferait croire à une comparaison nationale.
+
+### La fraction attribuable en population dépend de la prévalence de l'exposition
+
+Et c'est tout son intérêt : une exposition au risque énorme mais **rare** pèse
+moins, en santé publique, qu'une exposition au risque modeste et **répandue**.
+Confondre FAE et FAP fait ranger les priorités à l'envers. Sur un plan
+cas-témoins la prévalence est **fixée par l'échantillonnage** : on le dit, sinon
+la FAP ne décrit aucune population réelle.
+
+Un risque attribuable **négatif** est un résultat — l'exposition protège — et le
+libellé bascule de « nombre à exposer » à « nombre à traiter ». Le borner à zéro
+masquerait précisément ce qu'il faut voir.
+
+### Trois mesures fautives d'affilée, toutes dans le sens rassurant
+
+Le panneau de mise en forme devait se **retirer** sur la surface 3D et les
+diagnostics. Vérifier qu'il le faisait a demandé quatre sondes, et les trois
+premières mentaient — chaque fois en annonçant que tout allait bien :
+
+| Sonde | Ce qu'elle mesurait | Pourquoi elle ment |
+|---|---|---|
+| `count('#…epiXPolice')` | un identifiant qui **n'existe pas** (le vrai est `epiXPoliceBase`) | zéro partout, lu comme « retiré partout » |
+| `count('#…epiXPoliceBase')` | la **présence dans le DOM** | `conditionalPanel` masque en CSS, il ne retire rien : présent partout |
+| `isVisible(widget)` | la visibilité du **contenu** | la boîte est `collapsed = TRUE` : invisible partout, quelle que soit la condition |
+| `closest('[data-display-if]')` depuis le widget | le panneau trouvé **par ascendance DOM** | rendait « présent » pour les six, sans jamais discriminer |
+| le panneau trouvé **par sa condition**, dans l'onglet | le bon panneau, sans ambiguïté | juste : `none` sur les deux figures de base, `block` sur les quatre ggplot |
+
+C'est la même leçon que le cadre carré des graphiques multivariés, où j'avais
+mesuré l'**image** (bien carrée) pendant qu'elle recouvrait tout ce qui la
+suivait : **une mesure qui ne porte pas sur ce qui peut casser ne dit rien**, et
+elle se trompe toujours dans le sens rassurant.
+
+**Et il faut dire ce que la mesure juste a conclu : le comportement était
+correct depuis le début.** Les quatre premières sondes annonçaient un défaut qui
+n'existait pas. La condition est malgré tout passée d'un drapeau serveur
+(`output$figureGg`) à une lecture directe de `input.epiFigure` — non pour
+corriger quoi que ce soit, mais parce qu'elle évite un aller-retour et une
+sortie réactive de plus. Documenter un défaut inventé serait pire que ne rien
+documenter : on le chercherait.
+
+### Les figures de base ne prennent pas le kit ggplot
+
+La surface 3D et les diagnostics sont tracés en graphiques de base : le thème,
+les marges et la taille des clés ne les atteignent pas.
+`HSTAT_EPI_FIGURES_BASE` les déclare **à côté du catalogue**, et le panneau de
+mise en forme se **retire** pour elles. Offrir un réglage que l'image ignore est
+le défaut que ce dépôt traque partout ailleurs.
+
+Les six autres figures sont en ggplot2 et prennent les quatre familles du kit.
+L'échelle des forêts est **logarithmique** quand tout est positif : un RR de 2 et
+un RR de 0,5 sont le même écart en sens inverse, et une échelle linéaire écrase
+le second contre l'axe. La carte de chaleur est **divergente centrée sur 1** —
+la valeur neutre d'un rapport est 1, pas la moyenne du jeu.
+
+### Un mot qui peut être une valeur de données n'entre pas au dictionnaire
+
+Neuf chaînes de ce module ont dû être allongées plutôt que traduites :
+« Malade », « Sain », « Ensemble », « Temps », « Proportion », « Facteurs »,
+« Loi », « Issue », « sujets ». Ce sont toutes des **modalités plausibles** d'une
+colonne d'un fichier de santé — traduire « Malade » réécrirait les données que
+l'utilisateur était venu lire. Même remède que pour « moyenne » et « faible » :
+la phrase entière porte la nuance.
+
+Une colonne filtrée par une **valeur traduite** est par ailleurs une bombe à
+retardement : le tableau est construit dans la langue du calcul, la figure filtre
+dans celle du rendu. Basculer entre les deux viderait la figure sans un mot. Le
+filtre passe donc par une clé stable (`.cle`), jamais par le libellé affiché.
+
+### `dlnm` 2.4.7, et pourquoi pas la version courante
+
+La version HEAD du miroir CRAN exige **R ≥ 4.4** ; l'environnement de ce dépôt
+est en 4.3.3. La 2.4.7 se contente de R ≥ 3.2 et porte tout ce dont le module a
+besoin. `tsModel` est sa dépendance, prise au même miroir.
+
+`dlnm` et `survival` sont **nommés dans la liste de la CI**. `survival` est un
+paquet recommandé, donc presque toujours présent — et c'est précisément la raison
+de le nommer : ce qui n'est pas déclaré n'est pas garanti, et un test sauté
+ressemble à un test qui passe.
+
 ## Fins de ligne
 
 Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. La fin de

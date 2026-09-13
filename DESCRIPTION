@@ -1,7 +1,7 @@
 Package: HStat
 Type: Package
 Title: Interactive Shiny Application for Statistical Analysis
-Version: 0.96.1
+Version: 0.97.0
 Authors@R: c(
     person("Houphouet", "KOUADIO", email = "houphouet.kouadio@epitech.eu",
            role = c("aut", "cre"),
@@ -69,6 +69,7 @@ Suggests:
     DescTools,
     dlm,
     dlnm,
+    survival,
     duckdb,
     e1071,
     EMT,

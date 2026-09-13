@@ -200,6 +200,7 @@ ui <- shinydashboard::dashboardPage(
       shinydashboard::menuItem("Rendement/Gain de rendement", tabName = "yield", icon = shiny::icon("wheat-awn")),
       shinydashboard::menuItem("Seuils d'efficacité", tabName = "threshold", icon = shiny::icon("gauge-high")),
       shinydashboard::menuItem("Diversité écologique", tabName = "diversity", icon = shiny::icon("leaf")),
+      shinydashboard::menuItem("Épidémiologie", tabName = "epidemio", icon = shiny::icon("virus-covid")),
       shinydashboard::menuItem("Doses & dilutions", tabName = "dosage", icon = shiny::icon("flask-vial")),
       shinydashboard::menuItem("DL50 / CL50", tabName = "dl50", icon = shiny::icon("skull-crossbones")),
       shiny::tags$li(class = "header", "6. À propos"),
@@ -1967,6 +1968,9 @@ ui <- shinydashboard::dashboardPage(
       ),
       shinydashboard::tabItem(tabName = "diversity",
               mod_diversity_ui("diversity")
+      ),
+      shinydashboard::tabItem(tabName = "epidemio",
+              mod_epidemio_ui("epidemio")
       ),
       shinydashboard::tabItem(tabName = "dosage",
               mod_dosage_ui("dosage")

@@ -142,7 +142,17 @@ jobs:
                          # Shannon, Simpson, Chao1, ACE, la rarefaction et les
                          # cinq coefficients beta a vegan se sauterait sans lui,
                          # et un test saute ressemble a un test qui passe.
-                         "vegan")
+                         "vegan",
+                         # dlnm et survival : le module d'epidemiologie les
+                         # appelle vraiment (surface exposition-retard, Cox,
+                         # Kaplan-Meier). Sans eux les tests qui confrontent le
+                         # DLNM a un effet simule, et le Cox au paquet de
+                         # reference, se sauteraient EN SILENCE -- et un test
+                         # saute ressemble a un test qui passe. `survival` est
+                         # recommande donc presque toujours la, ce qui est
+                         # precisement la raison de le nommer : ce qui n'est pas
+                         # declare n'est pas garanti.
+                         "dlnm", "survival")
           install.packages(requis)
           manquants <- requis[!vapply(requis, requireNamespace, logical(1), quietly = TRUE)]
           if (length(manquants))
