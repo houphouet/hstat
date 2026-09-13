@@ -2008,7 +2008,7 @@ mod_threshold_server <- function(id, values) {
         textDecoration = "bold"
       )
       
-      openxlsx::addStyle(wb, "Données", headerStyle, rows = 1, cols = 1:ncol(threshold_values$plot_data), gridExpand = TRUE)
+      openxlsx::addStyle(wb, "Données", headerStyle, rows = 1, cols = seq_len(ncol(threshold_values$plot_data)), gridExpand = TRUE)
       
       y_vars_text <- if(length(threshold_values$selected_y_vars) > 1) {
         paste(threshold_values$selected_y_vars, collapse = ", ")
@@ -2078,7 +2078,7 @@ mod_threshold_server <- function(id, values) {
         openxlsx::addStyle(wb, "Labels Légende", headerStyle, rows = 1, cols = 1:3, gridExpand = TRUE)
       }
       
-      openxlsx::setColWidths(wb, "Données", cols = 1:ncol(threshold_values$plot_data), widths = "auto")
+      openxlsx::setColWidths(wb, "Données", cols = seq_len(ncol(threshold_values$plot_data)), widths = "auto")
       openxlsx::setColWidths(wb, "Paramètres", cols = 1:2, widths = c(25, 30))
       if(!is.null(threshold_values$label_mapping)) {
         openxlsx::setColWidths(wb, "Labels X", cols = 1:3, widths = c(20, 25, 15))

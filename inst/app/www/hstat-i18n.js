@@ -33,6 +33,7 @@
   "use strict";
 
   var DICT = window.HSTAT_I18N || {};          // francais -> anglais
+  var dictPret = !!window.HSTAT_I18N;          // deja incorpore ? (repli)
   var CLE_STOCKAGE = "hstat-langue";
   var langue = "fr";
   var enCours = false;
@@ -292,9 +293,54 @@
   }
 
   // --------------------------------------------------------------- bascule
+  /* LE DICTIONNAIRE SE CHARGE A LA DEMANDE, au premier passage en anglais.
+     Pose en <script src> dans l'en-tete, il partait a CHAQUE premiere visite --
+     166 Ko transferes, 515 Ko decodes, mesures au navigateur -- y compris chez
+     un utilisateur francophone qui ne bascule jamais. Le francais est le
+     defaut : il ne doit rien payer pour une traduction qu'il n'utilisera pas.
+
+     LE REPLI D'INCORPORATION PASSE PAR LE MEME CHEMIN : si la page a deja pose
+     `window.HSTAT_I18N` (ecriture du fichier impossible, banc d'essai), il n'y
+     a rien a aller chercher et la bascule reste synchrone. */
+  var enAttenteDict = null;
+  function chargerDictionnaire(suite) {
+    if (dictPret) return suite(true);
+    if (window.HSTAT_I18N) {
+      DICT = window.HSTAT_I18N; dictPret = true; DICT_HTML = null;
+      return suite(true);
+    }
+    var src = window.HSTAT_I18N_SRC;
+    if (!src) { dictPret = true; return suite(false); }
+    if (enAttenteDict) { enAttenteDict.push(suite); return; }
+    enAttenteDict = [suite];
+    var fin = function (ok) {
+      dictPret = true;
+      DICT = window.HSTAT_I18N || {};
+      DICT_HTML = null;            // l'index HTML se rebatit sur le dictionnaire arrive
+      var f = enAttenteDict; enAttenteDict = null;
+      for (var i = 0; i < f.length; i++) f[i](ok);
+    };
+    var s = document.createElement("script");
+    s.src = src;
+    s.onload  = function () { fin(true); };
+    /* UNE TRADUCTION QUI N'ARRIVE PAS NE DOIT PAS FIGER L'INTERFACE : on reste
+       sur le francais, qui marche, plutot que de laisser la bascule sans effet
+       et sans un mot. */
+    s.onerror = function () { fin(false); };
+    document.head.appendChild(s);
+  }
+
   function definirLangue(l) {
     l = (l === "en") ? "en" : "fr";
     if (l === langue) return;
+    /* Revenir au francais ne demande AUCUN dictionnaire : le texte d'origine
+       est conserve sur les noeuds (`__hstatFr`). Seul le passage a l'anglais
+       en a besoin, et c'est donc le seul qui attend. */
+    if (l === "en") { chargerDictionnaire(function () { poserLangue(l); }); return; }
+    poserLangue(l);
+  }
+
+  function poserLangue(l) {
     langue = l;
     try { localStorage.setItem(CLE_STOCKAGE, l); } catch (e) {}
     document.documentElement.setAttribute("lang", l);

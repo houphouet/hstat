@@ -4356,11 +4356,12 @@ test_that("la bascule cote navigateur est presente et branchee", {
   # facons de le poser finiraient par diverger.
   expect_true(grepl("hstat_i18n_script(", code, fixed = TRUE))
   expect_false(grepl("window.HSTAT_I18N", code, fixed = TRUE))
-  # ET IL DOIT PRECEDER hstat-i18n.js, qui lit le dictionnaire DES SON
-  # CHARGEMENT (`var DICT = window.HSTAT_I18N || {}` dans l'IIFE), pas a la
-  # bascule. Pose apres, le dictionnaire serait la et le traducteur ne
-  # verrait rien : l'interface resterait en francais sans qu'aucune erreur
-  # ne le dise.
+  # ET IL DOIT PRECEDER hstat-i18n.js. La raison a change avec le chargement
+  # a la demande, l'ordre non : la balise ne porte plus le dictionnaire mais
+  # son ADRESSE (`window.HSTAT_I18N_SRC`), et le traducteur la lit des son
+  # chargement. Posee apres, l'adresse serait la et le traducteur n'aurait
+  # rien a aller chercher : la bascule resterait sans effet, sans qu'aucune
+  # erreur ne le dise.
   expect_lt(regexpr("hstat_i18n_script(", code, fixed = TRUE),
             regexpr("hstat-i18n.js", code, fixed = TRUE))
 })
@@ -14097,10 +14098,20 @@ test_that("le dictionnaire est servi en ressource estampillee, et le repli tient
   # Idempotent : l'appeler deux fois ne redeclare rien et rend la meme adresse.
   expect_identical(src, hstat_i18n_asset("en"))
 
-  # La balise porte le fichier, et le dictionnaire n'est PLUS dans la page.
+  # LA BALISE PORTE L'ADRESSE, PAS LE DICTIONNAIRE. Elle ne declare plus un
+  # `<script src>` -- qui partait a chaque premiere visite -- mais l'adresse
+  # que `hstat-i18n.js` ira chercher au premier passage en anglais.
+  #
+  # L'invariant testé n'est pas la FORME de la balise, c'est que la charge
+  # utile n'est plus dans la page : une assertion sur `<script src=` figeait
+  # l'ancienne conception et a interdit le correctif jusqu'ici.
   tg <- as.character(hstat_i18n_script("en"))
-  expect_true(grepl("<script src=", tg, fixed = TRUE))
-  expect_false(grepl("HSTAT_I18N", tg, fixed = TRUE))
+  expect_true(grepl("HSTAT_I18N_SRC", tg, fixed = TRUE))
+  expect_true(grepl(src, tg, fixed = TRUE))
+  # Le dictionnaire pese des dizaines de milliers de caracteres ; la balise
+  # n'en fait que quelques dizaines.
+  expect_lt(nchar(tg), 400L)
+  expect_gt(nchar(hstat_i18n_payload("en")), 10000L)
 })
 
 test_that("la charge utile est du pur ASCII, et elle se relit", {
@@ -15609,4 +15620,130 @@ test_that("les gabarits du resume par repetition sont au dictionnaire", {
     en <- dic$en[match(g, dic$fr)]
     expect_equal(marq(g), marq(en), info = g)
   }
+})
+
+# ---------------------------------------------------------------------------
+#  AUDIT : PERFORMANCE ET CORRECTION
+# ---------------------------------------------------------------------------
+
+test_that("`1:n` ne revient pas la ou n peut valoir zero", {
+  root <- .hstat_repo_root(); skip_if(is.na(root))
+  # `1:0` REND c(1, 0) : la boucle tourne une fois sur un indice qui n'existe
+  # pas, et `cols = 1:ncol(x)` sur un tableau vide passe une colonne 0 a
+  # openxlsx. C'est la meme inversion que `2:n`, deja documentee ici.
+  # `seq_len(n)` rend le vide quand il n'y a rien a parcourir.
+  fautifs <- character(0)
+  for (f in .hstat_sources_app()) {
+    l <- .hstat_code_lignes(f)
+    i <- grep("\\b1:(ncol|nrow|length|NROW|NCOL)\\(", l)
+    if (length(i))
+      fautifs <- c(fautifs, sprintf("%s:%d", basename(f), i))
+  }
+  expect_equal(fautifs, character(0))
+})
+
+test_that("le dictionnaire anglais ne part pas avec la page", {
+  root <- .hstat_repo_root(); skip_if(is.na(root))
+  # LE FRANCAIS EST LE DEFAUT : il ne doit rien payer pour une traduction
+  # qu'il n'utilisera pas. Mesure au navigateur avant correction : 166 Ko
+  # transferes (515 Ko decodes) a CHAQUE premiere visite.
+  s <- as.character(hstat_i18n_script("en"))
+  if (!is.na(hstat_i18n_asset("en"))) {
+    # La balise ne porte que l'ADRESSE, jamais le dictionnaire lui-meme.
+    expect_match(s, "HSTAT_I18N_SRC", fixed = TRUE)
+    expect_false(grepl("HSTAT_I18N *=[^_]", s))
+    expect_lt(nchar(s), 400L)
+  } else {
+    # Repli assume : le fichier n'a pas pu etre ecrit, on incorpore.
+    expect_match(s, "HSTAT_I18N", fixed = TRUE)
+  }
+})
+
+test_that("le traducteur va chercher le dictionnaire au premier passage en anglais", {
+  root <- .hstat_repo_root(); skip_if(is.na(root))
+  node <- unname(Sys.which("node")); skip_if(!nzchar(node), "node absent")
+  js <- file.path(root, "inst", "app", "www", "hstat-i18n.js")
+  skip_if(!file.exists(js))
+
+  # BANC SANS DICTIONNAIRE DANS LA PAGE : seulement son adresse. L'injection
+  # de script est simulee, et elle pose le dictionnaire comme le ferait le
+  # vrai fichier. C'est le COMPORTEMENT qui est verifie, pas la forme du
+  # code : un test textuel passerait encore si le chargement redevenait
+  # immediat sous une autre ecriture.
+  banc <- tempfile(fileext = ".js")
+  writeLines(r"---(
+var fs = require("fs"), vm = require("vm");
+var SRC = process.argv[2], MODE = process.argv[3] || "en";
+function El(t){ return { nodeType:1, tagName:t, childNodes:[], attributes:{},
+  classList:{ contains:function(){return false;} },
+  getAttribute:function(k){ return this.attributes[k]===undefined?null:this.attributes[k]; },
+  setAttribute:function(k,v){ this.attributes[k]=v; },
+  hasAttribute:function(k){ return this.attributes[k]!==undefined; },
+  appendChild:function(n){ this.childNodes.push(n); return n; },
+  get innerHTML(){ return this.childNodes.map(function(c){return c.nodeValue||"";}).join(""); },
+  set innerHTML(v){}, querySelectorAll:function(){ return []; }, closest:function(){ return null; } }; }
+function Txt(v){ return { nodeType:3, nodeValue:v, parentNode:null }; }
+function add(p,c){ p.childNodes.push(c); c.parentNode=p; return c; }
+function tous(r,acc){ acc=acc||[]; (r.childNodes||[]).forEach(function(c){ acc.push(c); tous(c,acc); }); return acc; }
+var html = El("HTML"), body = add(html, El("BODY"));
+var sp = add(body, El("SPAN")); var t = add(sp, Txt("Chargement"));
+var injectes = [];
+var ctx = {
+  console: console, setTimeout:function(){return 0;}, clearTimeout:function(){},
+  localStorage:{ getItem:function(){return null;}, setItem:function(){} },
+  NodeFilter:{ SHOW_TEXT:4 },
+  MutationObserver: function(){ this.observe=function(){}; },
+  document: {
+    readyState:"complete", body:body, documentElement:html,
+    head: { appendChild: function (s) {
+      injectes.push(s.src);
+      ctx.window.HSTAT_I18N = { "Chargement": "Loading" };
+      if (s.onload) s.onload();
+      return s; } },
+    createElement: function (tag) { return { tag: tag, src:null, onload:null, onerror:null }; },
+    getElementById:function(){ return null; }, addEventListener:function(){},
+    querySelectorAll:function(){ return []; },
+    createTreeWalker:function(r){ var l=tous(r).filter(function(n){return n.nodeType===3;}),i=-1;
+      return { nextNode:function(){ return ++i<l.length?l[i]:null; } }; }
+  }
+};
+ctx.window = ctx;
+ctx.window.HSTAT_I18N_SRC = "hstat-dict/hstat-i18n-en.js?v=test";
+ctx.Shiny = { addCustomMessageHandler:function(){}, setInputValue:function(){} };
+vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(SRC,"utf8"), ctx);
+var out = { au_demarrage: injectes.length };
+if (MODE === "fr") {
+  ctx.window.hstatSetLangue("fr");
+  out.apres_fr = injectes.length; out.texte = t.nodeValue;
+} else {
+  ctx.window.hstatSetLangue("en");
+  out.texte = t.nodeValue; out.apres_en = injectes.length;
+  ctx.window.hstatSetLangue("fr"); ctx.window.hstatSetLangue("en");
+  out.apres_aller_retour = injectes.length;
+}
+process.stdout.write(JSON.stringify(out));
+)---", banc, useBytes = TRUE)
+
+  lancer <- function(mode) {
+    s <- suppressWarnings(system2(node, c(shQuote(banc), shQuote(js), mode),
+                                  stdout = TRUE, stderr = TRUE))
+    if (!length(s)) return(NULL)
+    tryCatch(jsonlite::fromJSON(paste(s, collapse = "")), error = function(e) NULL)
+  }
+  en <- lancer("en"); skip_if(is.null(en), "le banc n'a rien produit")
+  fr <- lancer("fr"); skip_if(is.null(fr), "le banc n'a rien produit")
+
+  # 1. AU DEMARRAGE, RIEN N'EST TELECHARGE. C'est tout l'objet du correctif.
+  expect_equal(en$au_demarrage, 0L)
+  # 2. Rester en francais ne telecharge toujours rien.
+  expect_equal(fr$apres_fr, 0L)
+  expect_equal(fr$texte, "Chargement")
+  # 3. Le passage a l'anglais va chercher le dictionnaire, ET TRADUIT.
+  #    Sans la seconde assertion, un chargement qui n'aboutirait pas
+  #    passerait pour un succes.
+  expect_equal(en$apres_en, 1L)
+  expect_equal(en$texte, "Loading")
+  # 4. IL N'EST CHARGE QU'UNE FOIS : un aller-retour n'en redemande pas un.
+  expect_equal(en$apres_aller_retour, 1L)
 })

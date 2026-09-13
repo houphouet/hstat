@@ -5374,6 +5374,25 @@ Un test garde l'invariant : dans un module **migré**, aucun appel non qualifié
 n'appartient à un paquet des `Imports`. Il ne s'applique qu'aux modules déjà
 dans `R/` — les autres l'atteindront à leur tour.
 
+## `1:n` s'inverse à zéro, comme `2:n`
+
+La règle était écrite pour `2:n` (coefficients d'un modèle sans pente) ; elle
+vaut à l'identique pour `1:n`. `1:0` rend **`c(1, 0)`** : la boucle tourne une
+fois sur un indice qui n'existe pas.
+
+Quatorze sites étaient dans ce cas, tous de la forme `1:ncol(...)`,
+`1:nrow(...)` ou `1:length(...)` — quatre dans `mod_tests.R`, deux dans
+`mod_threshold.R`, huit dans `app_server.R`. Deux familles de conséquence :
+
+- `openxlsx::setColWidths(wb, ..., cols = 1:ncol(x))` sur un tableau sans
+  colonne passe une **colonne 0** à openxlsx, et l'export entier tombe ;
+- `paste0("LD", 1:length(eigenvals))` sur un vecteur vide rend `"LD1"` et
+  `"LD0"` — deux étiquettes pour une analyse qui n'en a aucune.
+
+Aucun n'est atteignable par le chemin courant, ce qui est précisément pourquoi
+ils ont duré. `seq_len(n)` rend le vide quand il n'y a rien à parcourir ; un
+test barre le retour des trois formes.
+
 ## Fins de ligne
 
 Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. La fin de
@@ -5715,6 +5734,66 @@ et commité dériverait de son CSV à la première correction oubliée — la d�
 que ce dépôt corrige partout ailleurs — et `inst/` est en lecture seule quand le
 paquet est installé. L'écriture est donc faite au démarrage, dans un dossier
 toujours accessible.
+
+### Et il ne part plus avec la page : il se charge à la demande
+
+Sorti du HTML, le dictionnaire restait un `<script src>` de l'en-tête — donc
+téléchargé à **chaque première visite**, y compris chez un utilisateur
+francophone qui ne bascule jamais. Mesuré au navigateur :
+
+| | avant | après |
+|---|---|---|
+| transfert au premier rendu | **1 064 Ko** | **898 Ko** |
+| dictionnaire au démarrage | 166 Ko transférés (515 Ko décodés) | **0 requête** |
+| après bascule en anglais | — | 1 requête, menu traduit |
+
+Le français est le **défaut** : il ne doit rien payer pour une traduction qu'il
+n'utilisera pas. `hstat_i18n_script()` ne pose donc que l'**adresse**
+(`window.HSTAT_I18N_SRC`), et `hstat-i18n.js` va chercher le fichier au premier
+passage en anglais — **une seule fois**, un aller-retour n'en redemande pas un.
+
+Trois points de construction, chacun testé :
+
+1. **Revenir au français ne charge rien.** Le texte d'origine est conservé sur
+   les nœuds (`__hstatFr`) : seul le passage à l'anglais a besoin du
+   dictionnaire, et c'est donc le seul qui attend.
+2. **Le repli d'incorporation passe par le même chemin.** Si la page a déjà posé
+   `window.HSTAT_I18N` — écriture du fichier impossible, banc d'essai — il n'y a
+   rien à aller chercher et la bascule reste synchrone. C'est ce qui garde les
+   tests existants du traducteur valables sans les toucher.
+3. **Une traduction qui n'arrive pas ne fige pas l'interface.** Sur `onerror`,
+   on reste sur le français, qui marche, plutôt que de laisser la bascule sans
+   effet et sans un mot.
+
+**L'ordre des deux balises survit, sa raison a changé.** La balise ne porte plus
+le dictionnaire mais son adresse ; le traducteur la lit dès son chargement. Le
+test garde donc la même assertion — et son commentaire a été recalé, une
+documentation qui explique un mécanisme disparu étant pire qu'absente.
+
+**Le test porte sur le comportement, pas sur la forme du code.** Un banc node
+sans dictionnaire dans la page, avec une injection de script simulée, vérifie :
+zéro requête au démarrage, zéro en restant en français, une seule au passage à
+l'anglais — **et que le texte est réellement traduit**. Sans cette dernière
+assertion, un chargement qui n'aboutirait pas passerait pour un succès.
+
+Vérifié au navigateur, parce que la persistance est le cas qui pouvait
+régresser : un utilisateur déjà en anglais qui **recharge** retrouve l'anglais,
+avec une seule requête et aucune erreur.
+
+#### Ce que l'audit a mesuré et n'a pas corrigé
+
+- **`fa-brands-400.woff2` : 108 Ko téléchargés, zéro glyphe rendu.** Mesuré sur
+  la page : 1 342 éléments emploient « Font Awesome 6 Free », **aucun** « Font
+  Awesome 6 Brands ». La police vient de la dépendance que Shiny attache ; la
+  supprimer demanderait de remplacer cette dépendance, au risque de perdre
+  **toutes** les icônes. Elle est mise en cache après la première visite : le
+  rapport risque/gain ne le justifie pas, et c'est une décision, pas un oubli.
+- **Premier rendu : 5,4 à 6,5 s**, pour 22 528 nœuds, 1 355 entrées liées et
+  687 sorties liées — toute l'interface est construite au démarrage. C'est
+  architectural : le corriger demanderait de ne bâtir un onglet qu'à son
+  ouverture, ce qui touche les vingt et un modules.
+- **Chargement d'un fichier de 5 000 × 20 : 7,1 s.** Les onglets les plus longs
+  à rendre sont Seuils d'efficacité (6,3 s) et Visualisation (6,2 s).
 
 ### La charge utile est du pur ASCII, et ce n'est pas du confort
 
