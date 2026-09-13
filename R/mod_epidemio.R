@@ -6,9 +6,18 @@
 #  depot, et elle a une raison propre a cette discipline : un rapport de risque
 #  n'est jamais faux bruyamment.
 
-# Les familles du kit de mise en forme que ce module prend. Il ne porte AUCUN
-# reglage de police en propre : le kit les fournit toutes les quatre.
-HSTAT_EPI_EXTRAS <- c("police", "axe", "cles", "marges")
+# Le module prend le kit COMPLET (`hstat_plot_opts_ui`), celui que portent deja
+# l'apprentissage, l'apprentissage profond et les series temporelles : titres,
+# titres d'axes, theme, taille du texte, position de la legende, couleur,
+# epaisseur, rotation des graduations, styles, bornes d'axes -- plus le trait
+# des axes, la taille des cles et les quatre marges qu'il tire lui-meme du kit
+# d'extras. C'est le vocabulaire du module Visualisation, et le prendre entier
+# evite d'en recopier une douzieme version.
+#
+# Corollaire : le bloc d'export ne declare PLUS son propre selecteur de theme
+# (`theme = FALSE`). Deux selecteurs pour un meme reglage, c'est l'utilisateur
+# qui en change un pendant que la figure lit l'autre.
+HSTAT_EPI_PREFIXE_MEF <- "epiG"
 
 .hstat_epi_aide <- function(cle) {
   a <- HSTAT_EPI_ANALYSES[[cle]]
@@ -75,15 +84,6 @@ mod_epidemio_ui <- function(id) {
         # La liste vient de `HSTAT_EPI_FIGURES_BASE` : la recopier en JavaScript
         # la ferait diverger au premier ajout, et c'est la copie oubliee qui
         # ment.
-        shiny::conditionalPanel(
-          ns = ns,
-          condition = sprintf("output.hasEpi && ['%s'].indexOf(input.epiFigure) < 0",
-                              paste(HSTAT_EPI_FIGURES_BASE, collapse = "','")),
-          shinydashboard::box(
-            title = shiny::tagList(shiny::icon("paint-roller"), " Mise en forme générale"),
-            status = "primary", solidHeader = TRUE, width = 12,
-            collapsible = TRUE, collapsed = TRUE,
-            hstat_plot_extras_ui(ns, "epiX", familles = HSTAT_EPI_EXTRAS)))
       ),
 
       shiny::column(8,
@@ -118,14 +118,51 @@ mod_epidemio_ui <- function(id) {
             title = shiny::tagList(shiny::icon("download"), " Exporter"),
             status = "success", solidHeader = TRUE, width = 12, collapsible = TRUE,
             shiny::h5(tr("Graphique")),
-            hstat_export_plot_ui(ns, "epiP", width = 10, height = 6),
+            hstat_export_plot_ui(ns, "epiP", width = 10, height = 6, theme = FALSE),
             shiny::hr(),
             shiny::h5(tr("Tableaux")),
             shiny::fluidRow(
               shiny::column(6, shiny::downloadButton(ns("epiTXlsx"), "Excel (.xlsx)",
                 class = "btn-success btn-block")),
               shiny::column(6, shiny::downloadButton(ns("epiTCsv"), "CSV (.zip)",
-                class = "btn-info btn-block")))))
+                class = "btn-info btn-block"))))),
+
+        # LA MISE EN FORME VIT SOUS L'EXPORT, ET DU MEME COTE QUE LA FIGURE :
+        # demande a l'ecran. Elle etait dans la colonne des reglages d'analyse,
+        # a gauche -- donc loin de l'image qu'elle habille, et il fallait
+        # traverser l'ecran des yeux entre chaque essai.
+        #
+        # ELLE SE RETIRE POUR LES FIGURES TRACEES EN GRAPHIQUES DE BASE : la
+        # surface 3D et les diagnostics n'obeissent pas au theme ggplot, et
+        # offrir un reglage que l'image ignore est le defaut que ce depot
+        # traque partout ailleurs. La liste vient de `HSTAT_EPI_FIGURES_BASE` :
+        # la recopier en JavaScript la ferait diverger au premier ajout.
+        shiny::conditionalPanel(
+          ns = ns,
+          condition = sprintf("output.hasEpi && ['%s'].indexOf(input.epiFigure) < 0",
+                              paste(HSTAT_EPI_FIGURES_BASE, collapse = "','")),
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("paint-roller"), " Mise en forme du graphique"),
+            status = "primary", solidHeader = TRUE, width = 12,
+            collapsible = TRUE, collapsed = TRUE,
+            hstat_plot_opts_ui(ns, HSTAT_EPI_PREFIXE_MEF),
+            shiny::hr(),
+            .hstat_opt_section(
+              "Étiquette de la ligne de référence", "tag", "#2980b9", "#eaf4fb",
+              shiny::checkboxInput(ns("epiRefLab"),
+                "Nommer la ligne de référence sur la figure", value = TRUE),
+              shiny::textInput(ns("epiRefTxt"),
+                "Texte (vide = la valeur de référence)", value = ""),
+              shiny::fluidRow(
+                shiny::column(6, shiny::selectInput(ns("epiRefPos"), "Position",
+                  choices = HSTAT_EPI_REPERE_POS, selected = "haut")),
+                shiny::column(6, shiny::selectInput(ns("epiRefCote"), "Côté",
+                  choices = HSTAT_EPI_REPERE_COTE, selected = "droite"))),
+              shiny::fluidRow(
+                shiny::column(6, shiny::numericInput(ns("epiRefTaille"), "Taille",
+                  value = 3.5, min = 1.5, max = 12, step = 0.5)),
+                shiny::column(6, shiny::selectInput(ns("epiRefStyle"), "Style",
+                  choices = HSTAT_FONT_STYLES, selected = "plain"))))))
       )
     )
   )
@@ -170,7 +207,14 @@ mod_epidemio_server <- function(id, values) {
         dlnm = shiny::tagList(
           .hstat_opt_section("Issue et expositions", "temperature-three-quarters",
             "#c0392b", "#fdecea",
-            shiny::selectInput(ns("epiY"), "Issue (décompte d'événements)", choices = n),
+            # PLUSIEURS ISSUES EN UN SEUL LANCEMENT : un registre en porte
+            # souvent trois ou quatre, et les relancer une par une refait a la
+            # main la boucle que le module sait faire -- en re-saisissant dix
+            # reglages a chaque tour.
+            shiny::selectInput(ns("epiY"), "Issues (décomptes d'événements)",
+                               choices = n, multiple = TRUE),
+            shiny::tags$small(style = "color:#6b7280;",
+              tr("Chaque issue est analysée avec chaque variable d'influence ; les résultats sont listés par couple.")),
             # PLUSIEURS EXPOSITIONS, PARCE QU'ELLES VARIENT ENSEMBLE. La
             # temperature n'agit pas seule : pluviometrie, humidite relative et
             # vent covarient, et estimer l'une sans les autres lui attribue ce
@@ -182,9 +226,23 @@ mod_epidemio_server <- function(id, values) {
               tr("Chaque exposition retenue est analysée à son tour ; les autres servent alors d'ajustement.")),
             shiny::checkboxInput(ns("epiMutuel"),
               "Ajuster chaque exposition sur les autres", value = TRUE),
+            # PLUSIEURS DENOMINATEURS S'AJOUTENT SUR L'ECHELLE LOG : une
+            # population ET une durée d'observation donnent des personnes-mois,
+            # donc la somme des logarithmes. Les déclarer séparément évite de
+            # fabriquer la colonne produit dans un tableur.
             shiny::selectInput(ns("epiOffset"),
-              "Dénominateur (population exposée, facultatif)",
-              choices = c("(aucun)" = "", n)),
+              "Dénominateurs (population, durée… — facultatif)",
+              choices = n, multiple = TRUE),
+            shiny::tags$small(style = "color:#6b7280;",
+              tr("Plusieurs dénominateurs se multiplient (personnes × mois). Une ligne dont un seul manque est écartée.")),
+            # UNE MESURE D'AMBIANCE N'EST PAS L'EXPOSITION D'UNE PERSONNE.
+            shiny::checkboxInput(ns("epiProxy"),
+              "Ramener les mesures d'ambiance à l'exposition individuelle",
+              value = FALSE),
+            shiny::conditionalPanel(ns = ns, condition = "input.epiProxy",
+              shiny::uiOutput(ns("epiProxyUI")),
+              shiny::tags$small(style = "color:#6b7280;",
+                tr("Personnelle = a × ambiance + b. Cela change l'axe, la référence et les valeurs des tableaux ; le RR lu à un percentile donné, lui, ne change pas."))),
             shiny::selectInput(ns("epiTemps"),
               "Colonne de date complète (jour, mois et année — facultatif)",
               choices = c("(ordre des lignes)" = "", a)),
@@ -225,6 +283,15 @@ mod_epidemio_server <- function(id, values) {
                                 min = 0, max = 60, step = 1),
             shiny::numericInput(ns("epiNkLag"), "Nœuds sur l'axe des retards",
                                 value = 2, min = 1, max = 5, step = 1),
+            # LA SOUPLESSE DE L'EXPOSITION EST LE LEVIER QUI PESE LE PLUS sur le
+            # budget de parametres, et elle n'etait pas atteignable : elle
+            # valait trois noeuds en dur. Mesure sur 118 mois et deux
+            # expositions, l'intervalle du RR au 90e percentile passe d'un
+            # rapport de 24 (trois noeuds) a 5 (lineaire).
+            shiny::selectInput(ns("epiNoeuds"), "Souplesse de la réponse",
+                               choices = hstat_epi_noeuds_choix(), selected = "k3"),
+            shiny::tags$small(style = "color:#6b7280;",
+              tr("Moins de nœuds = moins de paramètres = intervalles plus étroits. Le budget est chiffré dans l'onglet Diagnostic.")),
             shiny::numericInput(ns("epiRef"),
               "Référence de l'exposition (vide = médiane)", value = NULL)),
           .hstat_opt_section("Saison, tendance et loi", "calendar-days", "#16a085", "#e8f8f4",
@@ -367,14 +434,24 @@ mod_epidemio_server <- function(id, values) {
       }
       conf <- hstat_finite(input$epiConf, 0.95)
       vide <- function(x) { v <- as.character(x %||% character(0)); v[nzchar(v)] }
+      # Les facteurs de transfert sont relus PAR EXPOSITION, et seulement si la
+      # case est cochee : un champ laisse a 0,8 puis decoche ne doit pas
+      # continuer d'agir en silence.
+      pr <- list(a = NULL, b = NULL)
+      if (isTRUE(input$epiProxy)) for (v in vide(input$epiExpo)) {
+        pr$a[[v]] <- hstat_finite(input[[paste0("epiPxA_", v)]], 1)
+        pr$b[[v]] <- hstat_finite(input[[paste0("epiPxB_", v)]], 0)
+      }
 
       res <- tryCatch(switch(an,
-        dlnm = hstat_epi_dlnm_multi(df, input$epiY, vide(input$epiExpo),
+        dlnm = hstat_epi_dlnm_multi(df, vide(input$epiY), vide(input$epiExpo),
           mutuel = isTRUE(input$epiMutuel), var_offset = input$epiOffset,
+          proxy_a = pr$a, proxy_b = pr$b,
           var_temps = input$epiTemps, var_mois = input$epiMois,
           var_annee = input$epiAnnee, vars_ajust = vide(input$epiAjust),
           lag_max = hstat_finite(input$epiLag, 5),
           nk_lag = hstat_finite(input$epiNkLag, 2),
+          pct_noeuds = hstat_epi_noeuds_probs(input$epiNoeuds),
           reference = input$epiRef,
           famille = input$epiFamille %||% "auto",
           periode = hstat_finite(input$epiPeriode, 12),
@@ -424,6 +501,22 @@ mod_epidemio_server <- function(id, values) {
     output$hasEpi <- shiny::reactive(!is.null(rv$res))
     shiny::outputOptions(output, "hasEpi", suspendWhenHidden = FALSE)
 
+    # UN CHAMP PAR EXPOSITION, ET CHACUN TRAVERSE `ns()` : un widget cree sans
+    # lui porte « epiPxA_Tmax » quand le serveur lit « epidemio-epiPxA_Tmax ».
+    # Les deux ne se rencontrent jamais, rien ne leve, et le reglage ne fait
+    # simplement rien -- le defaut le plus silencieux du depot.
+    output$epiProxyUI <- shiny::renderUI({
+      vs <- as.character(input$epiExpo %||% character(0))
+      vs <- vs[nzchar(vs)]
+      if (!length(vs)) return(shiny::tags$em(style = "color:#7f8c8d;",
+        tr("Choisissez d'abord une variable d'influence.")))
+      do.call(shiny::tagList, lapply(vs, function(v) shiny::fluidRow(
+        shiny::column(6, shiny::numericInput(ns(paste0("epiPxA_", v)),
+          paste0(v, " — a"), value = 1, min = 0.01, step = 0.05)),
+        shiny::column(6, shiny::numericInput(ns(paste0("epiPxB_", v)),
+          paste0(v, " — b"), value = 0, step = 0.5)))))
+    })
+
     output$epiFigureUI <- shiny::renderUI({
       an <- rv$analyse
       if (is.null(an)) return(NULL)
@@ -440,9 +533,27 @@ mod_epidemio_server <- function(id, values) {
                            selected = shiny::isolate(
                              if (isTRUE((input$epiFigure %||% "") %in% fg))
                                input$epiFigure else fg[[1]])),
+        # PLUSIEURS EXPOSITIONS SE REPRESENTENT ENSEMBLE, et l'entree n'apparait
+        # qu'a partir de deux -- proposer « toutes » sur une seule serait un
+        # choix qui ne change rien.
         if (identical(an, "dlnm") && length(rv$res$resultats) > 1L)
-          shiny::selectInput(ns("epiFigExpo"), tr("Exposition représentée"),
-                             choices = names(rv$res$resultats)))
+          shiny::selectInput(ns("epiFigExpo"), tr("Variable représentée"),
+                             choices = c(stats::setNames(
+                               HSTAT_EPI_TOUTES,
+                               tr("Toutes ensemble")), names(rv$res$resultats))),
+        # Le MODE ne s'offre que pour les figures qui savent en porter
+        # plusieurs, et seulement quand « toutes » est choisi.
+        if (identical(an, "dlnm") && length(rv$res$resultats) > 1L)
+          shiny::conditionalPanel(
+            ns = ns,
+            condition = sprintf("input.epiFigExpo == '%s' && ['%s'].indexOf(input.epiFigure) >= 0",
+                                HSTAT_EPI_TOUTES,
+                                paste(setdiff(HSTAT_EPI_MULTI_FIG,
+                                              c(HSTAT_EPI_MULTI_FACETTES,
+                                                HSTAT_EPI_MULTI_PCT)), collapse = "','")),
+            shiny::radioButtons(ns("epiFigMode"), tr("Disposition"),
+                                choices = HSTAT_EPI_MULTI_MODES,
+                                selected = "facettes")))
     })
 
     # ------------------------------------------------------------- TABLEAUX
@@ -455,6 +566,7 @@ mod_epidemio_server <- function(id, values) {
       if (!identical(rv$analyse, "dlnm")) return(r)
       v <- input$epiFigExpo %||% names(r$resultats)[1]
       r$resultats[[if (v %in% names(r$resultats)) v else names(r$resultats)[1]]]
+
     })
 
     tables <- shiny::reactive({
@@ -462,7 +574,12 @@ mod_epidemio_server <- function(id, values) {
       if (is.null(r) || is.null(an)) return(NULL)
       switch(an,
         dlnm = {
+          # LE BUDGET DE PARAMETRES EST UN TABLEAU DE RESULTAT, pas une note :
+          # c'est lui qui explique un intervalle de [1,1 ; 352], et un chiffre
+          # qu'on ne peut pas exporter ne part pas dans le rapport.
+          bg <- tryCatch(hstat_epi_dlnm_budget(courant()), error = function(e) NULL)
           out <- list(Comparaison = r$comparaison)
+          if (!is.null(bg)) out[["Budget_parametres"]] <- as.data.frame(bg)
           for (v in names(r$resultats)) {
             # GARDE PAR EXPOSITION : une surface dont le tableau echoue ne doit
             # pas emporter celui des autres.
@@ -535,6 +652,12 @@ mod_epidemio_server <- function(id, values) {
         impact = trf("Prévalence de l'exposition : %.1f %%", 100 * r$prevalence_expo),
         NULL)
       if (identical(an, "dlnm")) {
+        # UN INTERVALLE ENORME SE LIT DANS LE BUDGET, PAS DANS LA FIGURE. Le
+        # verdict est affiche a cote de l'ajustement plutot que range dans un
+        # onglet : c'est la premiere question qu'on se pose devant un RR de 20.
+        bg <- tryCatch(hstat_epi_dlnm_budget(courant()), error = function(e) NULL)
+        if (!is.null(bg) && !identical(attr(bg, "verdict"), "confortable"))
+          l <- paste(l, "|", attr(bg, "message"))
         w <- tryCatch(hstat_epi_dlnm_wald(courant()), error = function(e) NULL)
         if (!is.null(w))
           l <- paste(l, trf("| test global de la surface : χ² = %.2f (%d ddl), p = %s — %s",
@@ -545,15 +668,40 @@ mod_epidemio_server <- function(id, values) {
     })
 
     # ------------------------------------------------------------- GRAPHIQUE
-    opts <- shiny::reactive(
-      hstat_plot_extras_lire(input, "epiX", familles = HSTAT_EPI_EXTRAS))
+    # L'ETIQUETTE DE LA LIGNE DE REFERENCE voyage AVEC la figure : elle est
+    # tracee en coordonnees de donnees sur l'axe du trait, donc elle ne peut
+    # pas etre posee apres coup par le kit de mise en forme, qui ne connait ni
+    # la valeur de reference ni l'etendue de l'autre axe.
+    repere <- shiny::reactive(list(
+      montrer = isTRUE(input$epiRefLab %||% TRUE),
+      texte   = input$epiRefTxt %||% "",
+      position = input$epiRefPos %||% "haut",
+      cote     = input$epiRefCote %||% "droite",
+      taille   = hstat_finite(input$epiRefTaille, 3.5),
+      style    = input$epiRefStyle %||% "plain"))
 
     figure <- shiny::reactive({
-      r <- courant(); an <- rv$analyse
+      r <- rv$res; an <- rv$analyse
       if (is.null(r) || is.null(an)) return(NULL)
       f <- input$epiFigure %||% names(HSTAT_EPI_FIGURES[[an]])[1]
-      o <- opts(); o$theme <- input$epiPTheme %||% "minimal"
-      hstat_epi_figure(an, f, r, o)
+      o <- list(repere = repere())
+
+      # « TOUTES ENSEMBLE » N'EST PAS UN REPLI : la figure multi rend `NULL`
+      # quand elle ne s'y prete pas (surface 3D, diagnostics), et on retombe
+      # alors sur l'exposition courante -- ce que la note sous la figure dit.
+      p <- NULL
+      if (identical(an, "dlnm") &&
+          identical(input$epiFigExpo %||% "", HSTAT_EPI_TOUTES))
+        p <- hstat_epi_figure_multi(f, r$resultats,
+                                    mode = input$epiFigMode %||% "facettes")
+      if (is.null(p)) {
+        cr <- courant(); if (is.null(cr)) return(NULL)
+        p <- hstat_epi_figure(an, f, cr, o)
+      }
+      # LE KIT SE POSE EN DERNIER, ET SEULEMENT SUR UN GGPLOT : les figures de
+      # base sont des FONCTIONS de trace, et `g + theme()` y leverait.
+      if (inherits(p, "ggplot")) p <- hstat_apply_plot_opts(p, input, HSTAT_EPI_PREFIXE_MEF)
+      p
     })
 
     output$epiPlot <- shiny::renderPlot({
@@ -564,9 +712,30 @@ mod_epidemio_server <- function(id, values) {
     })
 
     output$epiPlotNote <- shiny::renderUI({
-      if ((input$epiFigure %||% "") %in% HSTAT_EPI_FIGURES_BASE)
-        shiny::tags$small(style = "color:#6b7280;",
-          tr("Cette figure est tracée en graphiques de base : le panneau « Mise en forme générale » ne s'y applique pas, il est donc retiré."))
+      f <- input$epiFigure %||% ""
+      n <- list()
+      if (f %in% HSTAT_EPI_FIGURES_BASE)
+        n <- c(n, list(tr("Cette figure est tracée en graphiques de base : le panneau « Mise en forme du graphique » ne s'y applique pas, il est donc retiré.")))
+      # UNE FIGURE QUI N'A PAS PU MONTRER TOUTES LES EXPOSITIONS LE DIT. Sans
+      # ce mot, on lit une seule variable en croyant les voir toutes -- et
+      # c'est cette figure-la qui part au rapport.
+      if (identical(input$epiFigExpo %||% "", HSTAT_EPI_TOUTES) &&
+          !f %in% HSTAT_EPI_MULTI_FIG)
+        n <- c(n, list(trf("Cette figure ne porte qu'une variable à la fois : elle montre « %s ».",
+                           names(rv$res$resultats)[1] %||% "")))
+      # DEUX FIGURES, DEUX PHRASES, PARCE QUE LEURS COMPORTEMENTS SONT OPPOSES.
+      # Une seule liste les portait toutes les deux, et la phrase disait « une
+      # carte » sur les coupes -- ou les courbes se superposent bel et bien.
+      # Un message qui annonce le contraire de ce que la figure montre est le
+      # defaut que ce depot traque partout ailleurs.
+      tt <- identical(input$epiFigExpo %||% "", HSTAT_EPI_TOUTES)
+      if (tt && f %in% HSTAT_EPI_MULTI_FACETTES)
+        n <- c(n, list(tr("Cette figure ne se superpose pas : les variables sont mises en facettes, chacune avec sa propre échelle.")))
+      if (tt && f %in% HSTAT_EPI_MULTI_PCT)
+        n <- c(n, list(tr("Les variables sont superposées sur un axe en percentiles — sans dimension, donc comparable — et les panneaux portent le retard.")))
+      if (!length(n)) return(NULL)
+      shiny::tags$small(style = "color:#6b7280;",
+        do.call(shiny::tagList, lapply(n, function(x) shiny::div(x))))
     })
 
     hstat_export_plot_handler(input, "epiP", figure, fname = "epidemiologie")

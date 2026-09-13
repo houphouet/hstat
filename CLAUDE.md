@@ -5803,6 +5803,233 @@ donc sans être vue. Un **dimanche** suffit à les séparer, et c'est la cinqui�
 fois que ce dépôt réapprend qu'une donnée d'essai doit rendre la différence
 mesurable.
 
+### Un intervalle trop large est un budget de paramètres, pas un lissage manquant
+
+Signalé à l'écran, capture à l'appui : RR = 19,68 pour un intervalle
+**[1,100 ; 352,128]** — un facteur 320 entre les bornes — et la question qui
+l'accompagnait : « est-ce possible de faire des lags continus pour réduire
+cela ? »
+
+**Les retards sont déjà continus, et c'est mesurable.** `arglag` pose une
+spline naturelle sur le retard (`logknots`) depuis toujours : il n'existe pas
+de version « discrète » à quitter. Ce n'est donc pas là que se joue la largeur.
+
+La cause est arithmétique, et `hstat_epi_dlnm_budget()` la **compte** plutôt
+que de la supposer. Sur l'essai signalé :
+
+| Terme | Paramètres |
+|---|---|
+| Constante | 1 |
+| Surface « Tmax_mean » | 20 |
+| Surface « HR » | 20 |
+| Saison (harmoniques) | 4 |
+| Tendance | 3 |
+| **Total** | **48** pour **118** observations |
+
+Soit **2,5 observations par paramètre**. La convention épidémiologique en
+demande dix ; en dessous de cinq, les intervalles s'ouvrent — c'est exactement
+ce que l'écran montrait. `HSTAT_EPI_BUDGET_SEUILS` déclare les deux bornes une
+seule fois (`confortable = 10`, `juste = 5`).
+
+**Le message chiffre les leviers sur ce modèle-là, il ne récite pas une règle.**
+« Retirer un nœud à l'exposition économise 10 paramètres ; retirer un nœud au
+retard en économise 8 ; ne pas ajuster les expositions les unes sur les autres
+en économise 20. » Un conseil qui ne chiffre pas se lit comme un reproche : on
+sait que c'est trop, on ne sait pas de combien.
+
+Le budget est **affiché** dans la ligne de synthèse *et* rendu en tableau
+(`Budget_parametres`), donc exporté. Une alerte que personne ne lit ne vaut
+rien — c'est la moitié du travail déjà oubliée ailleurs dans ce dépôt.
+
+#### La souplesse de la surface devient un réglage, et elle descend jusqu'au linéaire
+
+Elle valait `c(0.25, 0.50, 0.75)` en dur — trois nœuds, quatre degrés de
+liberté sur l'exposition, multipliés par ceux du retard. C'est le levier qui
+pèse le plus, et il n'était pas atteignable : l'utilisateur voyait l'intervalle
+s'ouvrir sans pouvoir rien y faire. `HSTAT_EPI_NOEUDS_EXPO` déclare les cinq
+entrées (linéaire, 1 à 4 nœuds) **avec leur coût en df dans le libellé** —
+« 3 nœuds » ne dit rien à qui lit un intervalle trop large, « 4 df » le dit.
+
+Mesuré sur l'essai signalé, du plus souple au plus parcimonieux : la largeur de
+l'intervalle au P90 passe d'un rapport **24** à un rapport **5**, et les
+paramètres de 24 à 12. Un test l'exige (`expect_lt`) plutôt que de le supposer.
+
+**L'entrée linéaire est `fun = "lin"`, jamais une `ns` sans nœud** : `ns()`
+refuse un vecteur de nœuds vide. `.hstat_epi_cb()` distingue donc la demande
+**délibérée** de zéro nœud — légitime, une réponse monotone n'a pas besoin
+d'une spline — de l'effondrement dégénéré d'une variable trop plate, qui reste
+refusé et nommé. Sans cette distinction, le réglage le plus utile du panneau
+lèverait sur le chemin qu'il existe pour ouvrir.
+
+### Deux expositions ne partagent pas un axe en unités
+
+Demandé à l'écran : représenter simultanément les expositions sur une même
+figure. La réponse honnête distingue deux choses.
+
+**L'axe des retards est commun** — c'est un nombre de mois, le même pour
+toutes : la figure « effet par retard » se superpose donc nativement, une
+courbe par exposition.
+
+**L'axe des expositions ne l'est pas.** Une température en °C et une
+pluviométrie en mm n'ont ni la même échelle ni la même unité ; les poser sur un
+seul axe donnerait une figure où « 30 » est à la fois une canicule et une
+averse. Deux chemins existent, et aucun n'est une superposition brute :
+
+1. **Les facettes** (`scales = "free_x"`) : chaque exposition garde son axe.
+2. **L'axe en percentiles** : le rang est **sans dimension**, donc commun. Le
+   P90 de la température et le P90 de l'humidité se comparent — c'est
+   exactement la lecture que `hstat_epi_dlnm_comparaison()` publie déjà en
+   tableau.
+
+`HSTAT_EPI_MULTI_MODES` déclare les deux, et la superposition en valeurs brutes
+est **refusée**. Offrir un troisième mode qui écraserait deux unités sur un axe
+serait le défaut que ce dépôt traque : une figure parfaitement lisible, et
+fausse.
+
+#### Deux listes disaient la même chose, et elles disent l'inverse
+
+`HSTAT_EPI_MULTI_FACETTES` n'en faisait qu'une avec les coupes, et la phrase
+affichée sous la figure parlait donc « d'une carte » sur une grille de coupes.
+Or les deux se comportent à l'opposé, et c'est mesurable :
+
+| Figure | Les expositions | Les facettes portent | L'axe X |
+|---|---|---|---|
+| **carte** | en **facettes** | l'exposition | l'exposition, en unités |
+| **coupes** | **superposées** | le **retard** | le percentile |
+
+Une carte ne se superpose pas — deux surfaces l'une sur l'autre ne laissent
+voir que la dernière. Les coupes, elles, superposent bel et bien, et elles le
+peuvent parce que leur axe est **déjà** le percentile, donc sans dimension.
+
+Les tenir dans une seule liste faisait annoncer à l'utilisateur le contraire de
+ce que la figure montre. Deux listes **disjointes** — `HSTAT_EPI_MULTI_FACETTES`
+et `HSTAT_EPI_MULTI_PCT` — et deux phrases. Ce qu'elles gouvernent vraiment,
+c'est le sélecteur de disposition : il ne s'offre qu'aux figures qui savent
+porter les deux modes, sinon ce serait un réglage que l'image ignore.
+
+Le forçage du mode dans le constructeur de `coupes` est, lui, **redondant** :
+la branche pose son axe en percentiles quoi qu'on lui passe, et une mutation
+qui le retire ne change rien. Il reste parce qu'il dit l'intention — la même
+décision que pour les gardes de `hstat_coord_mat()` et `hstat_ellipse_ok()` —
+mais aucune assertion ne le fige.
+
+#### La couche se choisit par sa géométrie, jamais par son rang
+
+Trouvé en écrivant l'assertion ci-dessus, et c'est la cinquième fois que ce
+dépôt le réapprend. `ggplot_build(p)$data[[1]]` est ici le `geom_hline` de
+référence : il n'a **pas** de colonne `x`, si bien que `all(x >= 0 & x <= 100)`
+y vaut `TRUE` **sur le vide**. L'assertion passait sans rien mesurer — et
+elle se trompait, comme toujours, dans le sens rassurant. La couche se relève
+donc par `inherits(l$geom, "GeomLine")`.
+
+Détail d'implémentation mesuré : `geom_tile()` et non `geom_raster()`. Deux
+grilles d'expositions différentes ne donnent pas un pas régulier, et
+`geom_raster` avertit **à chaque rendu** — un avertissement permanent en
+console masque les vrais.
+
+### Plusieurs issues se lancent en une fois, et la clé reste plate
+
+Un essai porte rarement une seule issue : prématurés, faible poids de
+naissance, mortinaissances se lisent sur le même fichier et avec le même
+ajustement. Les relancer une par une, c'est ressaisir dix réglages à chaque
+tour — donc en changer un sans le voir.
+
+`hstat_epi_dlnm_multi()` boucle désormais **issue × exposition**. La clé du
+résultat reste **plate** : le nom de l'exposition avec une seule issue —
+exactement comme avant — et « issue — exposition » au-delà. Tout ce qui lit
+`resultats` (sélecteur de figure, tableaux, export, figure multi) continue donc
+de fonctionner sans une ligne de plus, et c'est ce qui rend l'extension sûre.
+Un test le garde des deux côtés.
+
+**L'ajustement mutuel reste dans une issue.** On ajuste une exposition sur les
+autres **expositions**, jamais sur une autre issue : ce serait expliquer une
+variable à expliquer par une autre. La colonne `Issue` de la comparaison
+**disparaît** quand elle est constante — un même nom répété sur chaque ligne
+ferait croire à un choix.
+
+### Le dénominateur peut venir en plusieurs morceaux
+
+Une population **et** une durée d'observation donnent des personnes-mois : sur
+l'échelle logarithmique, le produit est la **somme des logarithmes**. Les
+déclarer séparément évite de fabriquer la colonne produit dans un tableur, et
+c'est tout ce que le champ multiple change.
+
+**Une ligne dont un seul dénominateur manque est écartée.** Un mois sans
+naissance vivante n'informe aucun taux, quel que soit le second — et l'usage
+courant `log(N + 1)` invente une valeur qui fabrique entièrement le taux de ce
+mois-là. Le décompte des lignes écartées est rendu, jamais tu.
+
+### Une mesure d'ambiance n'est pas l'exposition d'une personne
+
+Une station météo mesure l'**ambiance** ; ce qu'une personne subit en diffère
+par son logement, son temps passé dehors, sa ventilation. La relation de
+transfert usuelle est affine — `personnelle = a × ambiance + b` — et
+`hstat_epi_proxy()` l'applique **avant** que les nœuds, la référence et les
+percentiles soient calculés : appliquée après, elle ne déplacerait que
+l'étiquette de l'axe.
+
+Trois décisions, chacune testée :
+
+1. **L'axe, la référence et les valeurs des tableaux changent ; le RR lu à un
+   percentile donné, non.** La transformation est monotone croissante : le 90e
+   percentile de l'ambiance *est* le 90e percentile du personnel. C'est
+   exactement ce qui autorise à l'offrir — et c'est l'assertion qui sépare une
+   transformation d'échelle d'un changement qui déplacerait l'effet.
+   `expect_equal(rp$RR, ra$RR)` **et** `expect_false(all.equal(rp$Exposition,
+   ra$Exposition))` : sans la seconde, une fonction qui ne transformerait rien
+   passerait aussi.
+2. **Un facteur nul ou négatif est refusé et nommé.** Nul, il écraserait la
+   série sur une constante ; négatif, il **inverserait le sens de l'effet** —
+   une protection publiée comme un excès de risque.
+3. **Le facteur est propre à chaque exposition.** Un facteur d'infiltration de
+   logement n'a rien à voir avec celui d'un polluant ; appliquer le même aux
+   deux transformerait une série sans raison. D'où un champ `a` et un champ `b`
+   par exposition, chacun traversant `ns()`.
+
+**Et l'erreur de Berkson explique une part des intervalles larges.** Quand une
+mesure d'ambiance sert à tout le monde, l'erreur est de type Berkson :
+l'estimation ponctuelle reste à peu près non biaisée, mais sa **variance**
+augmente. C'est la seconde cause d'un intervalle trop large, après le budget de
+paramètres — et elle ne se corrige par aucun réglage : elle se dit.
+
+### Le kit de mise en forme reprend les deux dernières familles de `mod_viz`
+
+Le vocabulaire commun portait quatre familles ; il en manquait deux que
+`mod_viz` était seul à offrir, et que l'épidémiologie demandait :
+
+- les **styles** (`StTitre`, `StAxes`, `StGrad`), qui lisent `HSTAT_FONT_STYLES` ;
+- les **bornes d'axe** (`Xmin/Xmax/Ymin/Ymax`).
+
+Les bornes passent par `coord_cartesian()`, **jamais par `scale_*_continuous(limits=)`** :
+le second *écarte* les observations hors bornes, ce qui recalcule les
+statistiques de couche, tandis que le premier ne fait que cadrer. Et la coord
+n'est posée **que si une borne est remplie** : en poser une systématiquement
+remplacerait celle qu'un constructeur aurait choisie, sans un mot.
+
+La valeur par défaut des quatre champs est `NULL`, jamais `NA` :
+`numericInput(value = NA)` rend `value="NA"` dans le HTML, ce qu'un test du
+dépôt barre déjà.
+
+### L'étiquette de la ligne de référence se pose à côté du trait
+
+`hstat_ligne_repere()` rend **une liste de couches** — le trait, et le texte
+quand on le demande — plutôt que le trait seul. `HSTAT_EPI_REPERE_POS` et
+`HSTAT_EPI_REPERE_COTE` déclarent les placements une seule fois.
+
+Le piège est « milieu » : il a besoin de l'**étendue de l'autre axe** pour
+savoir où est le milieu. Sans elle, on retombe sur « haut » plutôt que de poser
+l'étiquette hors du cadre, où elle disparaîtrait sans un mot. L'ordonnée le
+prouve dans le test — finie avec l'étendue, infinie sans : c'est l'assertion
+qui distingue les deux codes.
+
+### La boîte de mise en forme vit sous celle d'export
+
+Demandé à l'écran. Elle occupait la colonne des réglages d'analyse, où elle
+poussait hors de l'écran ce qu'on venait régler ; elle est désormais en
+largeur 8, **sous** l'export, avec le graphique visible au-dessus pendant qu'on
+la règle. C'est exactement le déplacement déjà fait pour les options du
+post-hoc, et pour la même raison.
+
 ### `dlnm` 2.4.7, et pourquoi pas la version courante
 
 La version HEAD du miroir CRAN exige **R ≥ 4.4** ; l'environnement de ce dépôt
