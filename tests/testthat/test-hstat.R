@@ -16253,3 +16253,89 @@ test_that("le DLNM se calcule depuis un couple mois + annee", {
                             lag_max = 5)
   expect_true(m$ok)
 })
+
+# ---------------------------------------------------------------------------
+#  UNE DATE COMPLETE SE DECOMPOSE
+# ---------------------------------------------------------------------------
+test_that("l'extraction ajoute des colonnes, elle ne remplace rien", {
+  d <- data.frame(Date = c("2026-01-05", "2026-08-04", "2026-12-31"),
+                  y = 1:3, stringsAsFactors = FALSE)
+  r <- hstat_epi_date_parts(d, "Date", c("annee", "mois", "jour", "sem"))
+  expect_equal(r$ajoutees,
+               c("Date_annee", "Date_mois", "Date_jour", "Date_jour_sem"))
+  # LA COLONNE D'ORIGINE EST CONSERVEE, et les autres aussi : une extraction
+  # qui remplacerait ferait perdre la date au fichier qui la portait.
+  expect_true(all(c("Date", "y") %in% names(r$data)))
+  expect_identical(r$data$Date, d$Date)
+  expect_identical(r$data$y, d$y)
+  expect_equal(r$data$Date_annee, c(2026L, 2026L, 2026L))
+  expect_equal(r$data$Date_jour, c(5L, 4L, 31L))
+  expect_match(r$message, "conservée")
+})
+
+test_that("le mois sort en facteur non ordonne, pas en nombre", {
+  # Le DIMANCHE est indispensable : `%u` (1 = lundi) et `%w` (0 = dimanche) ne
+  # different QUE sur lui -- lundi, mardi et jeudi valent 1, 2 et 4 des deux
+  # cotes. Sans lui, un code indexant par `%w` passerait l'assertion.
+  d <- data.frame(Date = as.Date(c("2026-01-05", "2026-08-04", "2026-12-31",
+                                   "2026-01-04")))
+  r <- hstat_epi_date_parts(d, "Date", c("mois", "sem"))
+  m <- r$data$Date_mois
+  expect_s3_class(m, "factor")
+  expect_equal(levels(m), sprintf("%02d", 1:12))
+  # UN MOIS EN NOMBRE ENTRERAIT LINEAIREMENT dans le modele -- « décembre =
+  # 12 x janvier », plausible en tableau et faux ; un facteur ORDONNE y
+  # poserait des contrastes polynomiaux (.L, .Q), le meme defaut sous un autre
+  # nom. L'assertion porte donc sur la matrice du modele, seul endroit ou les
+  # trois codes se distinguent.
+  expect_false(is.ordered(m))
+  mm <- stats::model.matrix(~ Date_mois, data = r$data)
+  expect_true(any(grepl("Date_mois08$", colnames(mm))))
+  expect_false(any(grepl("[.][LQC]$", colnames(mm))))
+
+  # 5 janvier 2026 = lundi, 4 aout = mardi, 31 decembre = jeudi, 4 janvier =
+  # dimanche.
+  s <- r$data$Date_jour_sem
+  expect_s3_class(s, "factor")
+  expect_equal(levels(s)[1], "lundi")
+  expect_equal(levels(s)[7], "dimanche")
+  expect_equal(as.character(s), c("lundi", "mardi", "jeudi", "dimanche"))
+})
+
+test_that("l'extraction nomme ce qu'elle ne peut pas lire et ce qu'elle renomme", {
+  d <- data.frame(Date = c("2026-01-05", "pas une date", "2026-12-31"),
+                  Date_mois = c("a", "b", "c"), stringsAsFactors = FALSE)
+  r <- hstat_epi_date_parts(d, "Date", c("annee", "mois"))
+  # Une ligne illisible ne disparait pas en silence.
+  expect_match(r$message, "1 ligne")
+  expect_true(is.na(r$data$Date_annee[2]))
+  # Une homonyme n'est pas ECRASEE : le fichier perdrait une colonne sans un mot.
+  expect_true("Date_mois.1" %in% r$ajoutees)
+  expect_identical(r$data$Date_mois, d$Date_mois)
+  expect_match(r$message, "existe déjà")
+
+  # Trois refus, chacun avec son motif.
+  expect_length(hstat_epi_date_parts(d, "", "annee")$ajoutees, 0L)
+  expect_length(hstat_epi_date_parts(d, "Date", character(0))$ajoutees, 0L)
+  r0 <- hstat_epi_date_parts(data.frame(x = c("a", "b")), "x", "annee")
+  expect_length(r0$ajoutees, 0L)
+  expect_match(r0$message, "date")
+})
+
+test_that("le module depose les colonnes extraites dans le jeu de travail", {
+  d <- data.frame(Date = c("2026-01-05", "2026-08-04", "2026-12-31"),
+                  y = 1:3, stringsAsFactors = FALSE)
+  vals <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d,
+                                resetSignal = 0)
+  shiny::testServer(mod_epidemio_server, args = list(values = vals), {
+    session$setInputs(epiAnalyse = "dlnm", epiTemps = "Date",
+                      epiParties = c("annee", "mois"), epiExtraire = 1)
+    # LE TEST PORTE SUR LE MODULE, pas sur la fonction : un test qui n'appelle
+    # que `hstat_epi_date_parts()` resterait vert pendant que le bouton ne
+    # publie rien, et les colonnes seraient inatteignables partout ailleurs.
+    expect_true(all(c("Date_annee", "Date_mois") %in% names(values$filteredData)))
+    expect_true(all(c("Date_annee", "Date_mois") %in% names(values$data)))
+    expect_true(all(c("Date_annee", "Date_mois") %in% names(values$cleanData)))
+    expect_equal(values$filteredData$Date_annee, c(2026L, 2026L, 2026L))
+  })
+})

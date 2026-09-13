@@ -5745,6 +5745,64 @@ Le test exige que les deux chemins donnent **le même** AIC, pas seulement qu'il
 aboutissent : le fichier porte la même information en deux morceaux, un
 résultat « calculable » mais différent serait la faute qu'on cherche à éviter.
 
+#### Le chemin inverse : une date complète se décompose
+
+Demandé à l'écran, et c'est l'autre moitié du point précédent : l'utilisateur
+porte déjà une date complète (jour, mois, année) et veut en tirer ses trois
+morceaux — pour grouper, filtrer, ou ajuster sur la saison et le rythme
+hebdomadaire. Le champ acceptait déjà une date complète ; son libellé ne le
+disait pas, et rien ne permettait de la décomposer.
+
+**Le type produit n'est pas le même pour tous, et c'est lui qui décide du
+résultat plutôt que du confort.** Une covariable entre **linéairement** dans le
+modèle : un mois rendu en nombre y dirait « décembre = 12 × janvier », ce qui
+est parfaitement plausible en tableau et faux.
+
+| Partie | Type produit | Pourquoi |
+|---|---|---|
+| Année | entier | une tendance linéaire y a un sens |
+| Mois | **facteur** `01`…`12` | un nombre entrerait linéairement |
+| Jour du mois | entier | une quantité ; pour lire et filtrer, pas pour ajuster |
+| Jour de la semaine | **facteur**, lundi en tête | le rythme hebdomadaire est cyclique, pas ordinal |
+
+**Le facteur n'est pas *ordonné*.** C'est le piège du second rang : R pose alors
+des contrastes polynomiaux (`contr.poly`), c'est-à-dire une tendance linéaire,
+quadratique, cubique… sur les mois — le défaut qu'on venait d'éviter, sous un
+autre nom, et avec des coefficients nommés `.L`, `.Q`, `.C` que personne ne
+relie à un mois.
+
+L'assertion porte donc sur la **matrice du modèle**, seul endroit où les trois
+codes se distinguent : un facteur ordinaire y donne une colonne `Date_mois08`,
+un entier une seule colonne, un facteur ordonné des colonnes en `.L` / `.Q`.
+
+Quatre décisions de plus, chacune testée :
+
+1. **L'extraction ajoute, elle ne remplace pas** — la colonne de date d'origine
+   reste, et reste utilisable comme colonne de temps de l'analyse.
+2. **Une homonyme n'est pas écrasée.** `Date_mois` déjà présent dans le fichier
+   ferait perdre une colonne sans un mot ; `make.unique` distingue, et on le
+   dit.
+3. **Une ligne illisible est comptée.** Sans ce décompte, la colonne extraite
+   porterait des `NA` dont personne ne connaîtrait le nombre.
+4. **C'est une action, pas une case à cocher.** Un drapeau lu au moment du
+   calcul créerait des colonnes qu'aucun sélecteur n'offre — « déclaré, mais
+   inatteignable ». Le bouton les dépose dans le **jeu de travail**, donc elles
+   apparaissent aussitôt en covariables, dans les champs Mois / Année, et dans
+   tous les autres onglets.
+
+Le dépôt ne passe **pas** par `hstat_reinitialiser_valeurs()` : comme le typage
+de l'onglet Nettoyage, l'extraction dérive du fichier courant, elle ne le
+remplace pas — purger effacerait l'analyse qui vient de la demander.
+
+##### Lundi et dimanche : `%u` et `%w` ne diffèrent que sur un jour
+
+Trou attrapé par mutation. `%u` numérote 1 = lundi, `%w` 0 = dimanche : sur
+**lundi, mardi et jeudi** les deux rendent 1, 2 et 4 — les mêmes valeurs. Mon
+jeu d'essai ne portait que ces trois-là, et la mutation `%u` → `%w` passait
+donc sans être vue. Un **dimanche** suffit à les séparer, et c'est la cinquième
+fois que ce dépôt réapprend qu'une donnée d'essai doit rendre la différence
+mesurable.
+
 ### `dlnm` 2.4.7, et pourquoi pas la version courante
 
 La version HEAD du miroir CRAN exige **R ≥ 4.4** ; l'environnement de ce dépôt
