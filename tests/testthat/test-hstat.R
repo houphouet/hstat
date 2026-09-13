@@ -16339,3 +16339,251 @@ test_that("le module depose les colonnes extraites dans le jeu de travail", {
     expect_equal(values$filteredData$Date_annee, c(2026L, 2026L, 2026L))
   })
 })
+
+# ---------------------------------------------------------------------------
+#  UN INTERVALLE ENORME EST UN BUDGET DE PARAMETRES
+# ---------------------------------------------------------------------------
+.hstat_epi_jeu <- function(n = 118) {
+  set.seed(7)
+  d <- data.frame(Date = seq(as.Date("2015-01-01"), by = "month", length.out = n))
+  d$Tmax <- round(30 + 4 * sin(2 * pi * seq_len(n) / 12) + rnorm(n), 2)
+  d$HR   <- round(70 - 0.8 * (d$Tmax - 30) + rnorm(n, 0, 5), 1)
+  d$nais <- rpois(n, 40); d$prema <- rpois(n, 4); d$fpn <- rpois(n, 6)
+  d
+}
+
+test_that("le budget de parametres nomme chaque terme et son cout", {
+  skip_if_not_installed("dlnm")
+  d <- .hstat_epi_jeu()
+  r <- hstat_epi_dlnm_multi(d, "prema", c("Tmax", "HR"), var_offset = "nais",
+                            var_temps = "Date", lag_max = 5)
+  b <- hstat_epi_dlnm_budget(r$resultats[[1]])
+  expect_true(is.data.frame(b))
+  # LA SOMME DES TERMES EST LE NOMBRE DE PARAMETRES : un budget dont les lignes
+  # ne somment pas au total decrirait un autre modele.
+  expect_equal(sum(b$Parametres), attr(b, "n_par"))
+  expect_equal(attr(b, "n_par"), length(stats::coef(r$resultats[[1]]$model)))
+  # Les DEUX surfaces sont nommees -- l'ajustement mutuel en pose une par
+  # exposition, et c'est la moitie du budget.
+  expect_equal(sum(grepl("Tmax|HR", b$Terme)), 2L)
+  expect_equal(attr(b, "ratio"), attr(b, "n_obs") / attr(b, "n_par"))
+  expect_equal(attr(b, "verdict"), "insuffisant")
+  # Le message CHIFFRE les leviers : un conseil qui ne chiffre pas se lit
+  # comme une generalite.
+  expect_match(attr(b, "message"), "INSUFFISANT")
+  expect_match(attr(b, "message"), "nœud")
+  expect_match(attr(b, "message"), "spline")
+})
+
+test_that("retirer des noeuds retrecit reellement l'intervalle", {
+  skip_if_not_installed("dlnm")
+  d <- .hstat_epi_jeu()
+  mes <- function(code) {
+    r <- hstat_epi_dlnm(d, "prema", "Tmax", var_offset = "nais", var_temps = "Date",
+                        lag_max = 5, nk_lag = 2,
+                        pct_noeuds = hstat_epi_noeuds_probs(code))
+    tb <- hstat_epi_dlnm_rr(r, 0.90)
+    c(par = length(stats::coef(r$model)), largeur = tb$IC_haut[1] / tb$IC_bas[1])
+  }
+  k3 <- mes("k3"); li <- mes("lin")
+  # C'EST LA MESURE QUI REPOND, pas une intuition : le retard etait DEJA lisse
+  # par une spline, et c'est la souplesse de l'EXPOSITION qui pese.
+  expect_lt(li[["par"]], k3[["par"]])
+  expect_lt(li[["largeur"]], k3[["largeur"]])
+  # Un code inconnu retombe sur le defaut, JAMAIS sur le lineaire : une faute
+  # de frappe ne doit pas changer la forme du modele en silence.
+  expect_equal(hstat_epi_noeuds_probs("n'importe quoi"),
+               HSTAT_EPI_NOEUDS_EXPO$k3$probs)
+  expect_length(hstat_epi_noeuds_probs("lin"), 0L)
+  # La liste de choix DERIVE du catalogue : elle ne peut pas en diverger.
+  expect_setequal(unname(hstat_epi_noeuds_choix()), names(HSTAT_EPI_NOEUDS_EXPO))
+})
+
+# ---------------------------------------------------------------------------
+#  PLUSIEURS EXPOSITIONS, PLUSIEURS ISSUES
+# ---------------------------------------------------------------------------
+test_that("les expositions se representent ensemble, jamais sur un axe commun en unites", {
+  skip_if_not_installed("dlnm")
+  d <- .hstat_epi_jeu()
+  r <- hstat_epi_dlnm_multi(d, "prema", c("Tmax", "HR"), var_offset = "nais",
+                            var_temps = "Date", lag_max = 5)
+  for (f in HSTAT_EPI_MULTI_FIG) for (m in c("facettes", "percentiles")) {
+    p <- hstat_epi_figure_multi(f, r$resultats, mode = m)
+    expect_s3_class(p, "ggplot")
+    # `ggplot_build` EST LA SEULE ETAPE ou une figure mal composee se signale :
+    # elle s'assemble sans un mot.
+    expect_silent(b <- ggplot2::ggplot_build(p))
+  }
+  # DEUX UNITES NE PARTAGENT PAS UN AXE. En facettes, chaque exposition a son
+  # panneau ; en superposition, l'axe est le PERCENTILE, donc sans dimension.
+  bf <- ggplot2::ggplot_build(hstat_epi_figure_multi("cumul", r$resultats, "facettes"))
+  bp <- ggplot2::ggplot_build(hstat_epi_figure_multi("cumul", r$resultats, "percentiles"))
+  expect_equal(length(unique(bf$data[[1]]$PANEL)), 2L)
+  expect_equal(length(unique(bp$data[[1]]$PANEL)), 1L)
+  expect_true(all(bp$data[[1]]$x >= 0 & bp$data[[1]]$x <= 100))
+  # Une CARTE ne se superpose pas : deux rasters l'un sur l'autre ne laissent
+  # voir que le dernier. Le mode demande est donc ignore, et en facettes.
+  for (f in HSTAT_EPI_MULTI_FACETTES) {
+    bc <- ggplot2::ggplot_build(hstat_epi_figure_multi(f, r$resultats, "percentiles"))
+    expect_equal(length(unique(bc$data[[1]]$PANEL)), 2L, info = f)
+  }
+  # LES DEUX LISTES DISENT L'INVERSE, ET ELLES N'EN FAISAIENT QU'UNE. Les
+  # coupes SUPERPOSENT les expositions -- leurs facettes portent le RETARD --
+  # et c'est legitime parce que leur axe est deja le percentile. Rangees avec
+  # la carte, elles faisaient annoncer a l'ecran qu'elles ne se superposaient
+  # pas, sous une figure ou les courbes se superposent. Les deux listes sont
+  # donc DISJOINTES, et c'est l'assertion qui separe les deux comportements :
+  # une carte a deux panneaux pour deux expositions, les coupes en ont six
+  # pour six retards, toutes expositions confondues.
+  expect_equal(intersect(HSTAT_EPI_MULTI_FACETTES, HSTAT_EPI_MULTI_PCT), character(0))
+  # CE QUE LA LISTE GOUVERNE VRAIMENT : le selecteur de disposition ne s'offre
+  # que sur les figures qui savent porter les deux modes. En proposer un aux
+  # deux autres donnerait un reglage que l'image ignore -- et c'est la
+  # condition du `conditionalPanel` du module, ecrite ici sous sa forme R.
+  expect_setequal(setdiff(HSTAT_EPI_MULTI_FIG,
+                          c(HSTAT_EPI_MULTI_FACETTES, HSTAT_EPI_MULTI_PCT)),
+                  c("cumul", "retard"))
+  # LA COUCHE SE CHOISIT PAR SA GEOMETRIE, JAMAIS PAR SON RANG. `data[[1]]`
+  # est ici le `geom_hline` de reference : il n'a pas de colonne `x`, si bien
+  # que `all(x >= 0)` y vaut TRUE SUR LE VIDE -- une assertion qui passe sans
+  # rien mesurer, et qui se trompe dans le sens rassurant. C'est le meme piege
+  # que la mesure du cadre carre, et il s'est represente ici.
+  cl <- function(b) b$data[[which(vapply(b$plot$layers,
+    function(l) inherits(l$geom, "GeomLine"), logical(1)))[1]]]
+  bk <- cl(ggplot2::ggplot_build(hstat_epi_figure_multi("coupes", r$resultats, "facettes")))
+  expect_gt(length(unique(bk$PANEL)), 2L)
+  # Le MODE demande est sans effet sur elles : l'axe reste le percentile.
+  bk2 <- cl(ggplot2::ggplot_build(hstat_epi_figure_multi("coupes", r$resultats, "percentiles")))
+  expect_equal(bk$x, bk2$x)
+  expect_gt(length(bk$x), 0L)
+  expect_true(all(bk$x >= 0 & bk$x <= 100))
+  # Et chaque panneau porte bien LES DEUX expositions, pas une seule : c'est
+  # exactement ce que la carte, elle, ne peut pas faire.
+  expect_equal(length(unique(bk$colour)), 2L)
+  expect_equal(length(unique(bk$colour[bk$PANEL == bk$PANEL[1]])), 2L)
+
+  # Une seule exposition, ou une figure qui n'en porte qu'une : `NULL`, et
+  # l'appelant retombe sur l'exposition courante en le disant.
+  expect_null(hstat_epi_figure_multi("cumul", r$resultats[1]))
+  expect_null(hstat_epi_figure_multi("surface3d", r$resultats))
+})
+
+test_that("plusieurs issues se lancent en une fois, et la cle reste plate", {
+  skip_if_not_installed("dlnm")
+  d <- .hstat_epi_jeu()
+  r1 <- hstat_epi_dlnm_multi(d, "prema", c("Tmax", "HR"), var_offset = "nais",
+                             var_temps = "Date", lag_max = 5)
+  r2 <- hstat_epi_dlnm_multi(d, c("prema", "fpn"), c("Tmax", "HR"),
+                             var_offset = "nais", var_temps = "Date", lag_max = 5)
+  # UNE SEULE ISSUE NE CHANGE RIEN : la cle reste le nom de l'exposition, donc
+  # tout ce qui lit `resultats` continue de fonctionner. C'est ce qui rend
+  # l'extension sure, et c'est l'assertion qui le garde.
+  expect_equal(names(r1$resultats), c("Tmax", "HR"))
+  expect_false("Issue" %in% names(r1$comparaison))
+  expect_length(r2$resultats, 4L)
+  expect_true(all(grepl("prema|fpn", names(r2$resultats))))
+  expect_setequal(r2$comparaison$Issue, c("prema", "fpn"))
+  # L'AJUSTEMENT MUTUEL RESTE DANS UNE ISSUE : on ajuste une exposition sur les
+  # autres EXPOSITIONS, jamais sur une autre issue -- ce serait expliquer une
+  # variable a expliquer par une autre.
+  expect_equal(r2$resultats[[1]]$vars_ajust_cb, "HR")
+  expect_equal(r2$resultats[[1]]$var_y, "prema")
+  expect_equal(r2$resultats[[3]]$var_y, "fpn")
+  expect_match(hstat_epi_dlnm_multi(d, character(0), "Tmax")$message, "issue")
+})
+
+# ---------------------------------------------------------------------------
+#  L'ETIQUETTE DE LA LIGNE DE REFERENCE
+# ---------------------------------------------------------------------------
+test_that("la ligne de repere porte son etiquette, et seulement si on la demande", {
+  cou <- function(l) vapply(l, function(x) class(x$geom)[1], character(1))
+  # Sans texte : le trait seul.
+  expect_equal(cou(hstat_ligne_repere(3, "v")), "GeomVline")
+  expect_equal(cou(hstat_ligne_repere(3, "h", etiquette = "")), "GeomHline")
+  # Avec texte : le trait ET l'etiquette.
+  for (pos in c("haut", "milieu", "bas")) {
+    l <- hstat_ligne_repere(3, "v", etiquette = "Réf.", position = pos,
+                            etendue = c(0, 10))
+    expect_equal(cou(l), c("GeomVline", "GeomText"))
+  }
+  # « MILIEU » SANS ETENDUE NE PEUT PAS ETRE PLACE : on retombe sur le haut
+  # plutot que de poser l'etiquette hors du cadre, ou elle disparaitrait sans
+  # un mot. L'ordonnee le prouve -- finie avec l'etendue, infinie sans.
+  av <- hstat_ligne_repere(3, "v", etiquette = "R", position = "milieu",
+                           etendue = c(0, 10))[[2]]
+  sa <- hstat_ligne_repere(3, "v", etiquette = "R", position = "milieu")[[2]]
+  expect_true(is.finite(av$data$y))
+  expect_false(is.finite(sa$data$y))
+  # Une valeur non finie ne pose rien du tout.
+  expect_length(hstat_ligne_repere(NA_real_, "v", etiquette = "R"), 0L)
+  # Le COTE change le calage le long du trait, pas sa position.
+  d <- hstat_ligne_repere(3, "v", etiquette = "R", cote = "droite")[[2]]
+  g <- hstat_ligne_repere(3, "v", etiquette = "R", cote = "gauche")[[2]]
+  expect_false(identical(d$aes_params$vjust, g$aes_params$vjust))
+})
+
+# ---------------------------------------------------------------------------
+#  PLUSIEURS DENOMINATEURS, ET LA MESURE D'AMBIANCE RAMENEE A L'INDIVIDU
+# ---------------------------------------------------------------------------
+test_that("plusieurs denominateurs se multiplient, et une ligne incomplete est ecartee", {
+  n <- matrix(c(40, 50, 60, 2, 3, 4), ncol = 2)
+  u <- .hstat_epi_offset(n[, 1, drop = FALSE])
+  d <- .hstat_epi_offset(n)
+  # LA SOMME DES LOGARITHMES EST LE LOGARITHME DU PRODUIT : une population ET
+  # une duree donnent des personnes-mois. L'assertion porte sur la VALEUR, pas
+  # sur la presence de la colonne -- un offset qui ignorerait le second
+  # denominateur rendrait un decompte parfaitement plausible, et faux.
+  expect_equal(d$log_off, log(n[, 1] * n[, 2]))
+  expect_false(isTRUE(all.equal(d$log_off, u$log_off)))
+  # UN SEUL DENOMINATEUR NON POSITIF SUFFIT A ECARTER LA LIGNE : un mois sans
+  # naissance vivante n'informe aucun taux, quel que soit le second.
+  z <- .hstat_epi_offset(matrix(c(40, 0, 60, 2, 3, 4), ncol = 2))
+  expect_equal(z$ecartes, 1L)
+  expect_equal(z$garde, c(TRUE, FALSE, TRUE))
+  expect_true(is.na(z$log_off[2]))
+  expect_equal(.hstat_epi_offset(NULL)$ecartes, 0L)
+})
+
+test_that("la mesure d'ambiance se ramene a l'individu sans changer le RR", {
+  skip_if_not_installed("dlnm")
+  d <- .hstat_epi_jeu()
+  # LE FACTEUR NUL OU NEGATIF EST REFUSE ET NOMME : nul, il ecraserait la serie
+  # sur une constante ; negatif, il INVERSERAIT le sens de l'effet -- une
+  # protection publiee comme un exces de risque.
+  r0 <- hstat_epi_proxy(d$Tmax, a = 0, nom = "Tmax")
+  expect_false(r0$applique)
+  expect_identical(r0$x, d$Tmax)
+  expect_match(r0$message, "Tmax")
+  expect_false(hstat_epi_proxy(d$Tmax, a = -1)$applique)
+  # a = 1, b = 0 n'est pas une transformation : rien n'est annonce.
+  expect_null(hstat_epi_proxy(d$Tmax)$message)
+  p <- hstat_epi_proxy(d$Tmax, a = 0.7, b = 2, nom = "Tmax")
+  expect_true(p$applique)
+  expect_equal(p$x, 0.7 * d$Tmax + 2)
+  # LE BALAYAGE DE COUVERTURE NE RELEVE QUE LES CHAINES LITTERALES passees a
+  # `tr()` : un message assemble dans une CONSTANTE lui est invisible. Meme cas
+  # que `HSTAT_ERR_FR`, et meme remede -- une assertion dediee, sans quoi la
+  # phrase resterait en francais au milieu d'une interface anglaise.
+  expect_true(HSTAT_EPI_PROXY_MSG %in% hstat_i18n_load()$fr)
+  expect_match(p$message, "a = 0.7")
+  # L'AXE, LA REFERENCE ET LES VALEURS CHANGENT ; LE RR A UN PERCENTILE DONNE,
+  # NON. La transformation est affine croissante, donc monotone : le 90e
+  # percentile de l'ambiance EST le 90e percentile du personnel. C'est
+  # exactement ce qui autorise a l'offrir -- et c'est l'assertion qui separe
+  # une vraie transformation d'un changement d'unite qui deplacerait l'effet.
+  ta <- hstat_epi_dlnm(d, "prema", "Tmax", var_offset = "nais",
+                       var_temps = "Date", lag_max = 5)
+  tp <- hstat_epi_dlnm(d, "prema", "Tmax", var_offset = "nais",
+                       var_temps = "Date", lag_max = 5, proxy_a = 0.7, proxy_b = 2)
+  expect_true(ta$ok && tp$ok)
+  expect_equal(tp$proxy$a, 0.7)
+  expect_true(tp$proxy$applique)
+  expect_false(ta$proxy$applique)
+  expect_equal(tp$reference, 0.7 * ta$reference + 2, tolerance = 1e-8)
+  expect_false(isTRUE(all.equal(tp$reference, ta$reference)))
+  ra <- hstat_epi_dlnm_rr(ta, c(0.10, 0.90))
+  rp <- hstat_epi_dlnm_rr(tp, c(0.10, 0.90))
+  expect_equal(rp$RR, ra$RR, tolerance = 1e-6)
+  expect_equal(rp$IC_bas, ra$IC_bas, tolerance = 1e-6)
+  expect_false(isTRUE(all.equal(rp$Exposition, ra$Exposition)))
+})

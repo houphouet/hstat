@@ -8040,6 +8040,32 @@ hstat_plot_opts_ui <- function(ns, prefix) {
     # des trois ait une ligne a ecrire. La taille du texte, elle, est deja
     # au-dessus (`<prefixe>Base`) -- la declarer deux fois donnerait deux
     # reglages pour une meme grandeur, dont un seul agirait.
+    # DEUX FAMILLES QUE LE MODULE VISUALISATION AVAIT ET QUE CE KIT N'AVAIT PAS :
+    # le STYLE des textes et les BORNES des axes. Les ajouter ici plutot que de
+    # les recopier dans un douzieme module est la regle du depot -- et les
+    # quatre modules servis par ce kit les recoivent sans une ligne a ecrire.
+    shiny::fluidRow(
+      shiny::column(4, shiny::selectInput(ns(paste0(prefix, "StTitre")),
+        "Style du titre", choices = HSTAT_FONT_STYLES, selected = "bold")),
+      shiny::column(4, shiny::selectInput(ns(paste0(prefix, "StAxes")),
+        "Style des titres d'axes", choices = HSTAT_FONT_STYLES, selected = "plain")),
+      shiny::column(4, shiny::selectInput(ns(paste0(prefix, "StGrad")),
+        "Style des graduations", choices = HSTAT_FONT_STYLES, selected = "plain"))),
+    # LES BORNES RECADRENT, ELLES NE FILTRENT PAS : `coord_cartesian` masque ce
+    # qui sort du cadre au lieu de le retirer des donnees. Un `xlim()` aurait
+    # supprime les lignes hors bornes -- donc deplace les moyennes et les
+    # lissages, sans un mot.
+    shiny::fluidRow(
+      shiny::column(3, shiny::numericInput(ns(paste0(prefix, "Xmin")),
+        "X minimum", value = NULL)),
+      shiny::column(3, shiny::numericInput(ns(paste0(prefix, "Xmax")),
+        "X maximum", value = NULL)),
+      shiny::column(3, shiny::numericInput(ns(paste0(prefix, "Ymin")),
+        "Y minimum", value = NULL)),
+      shiny::column(3, shiny::numericInput(ns(paste0(prefix, "Ymax")),
+        "Y maximum", value = NULL))),
+    shiny::tags$small(style = "color:#6b7280;",
+      tr("Bornes vides = automatiques. Elles recadrent la figure ; aucune observation n'est retirée du calcul.")),
     hstat_plot_extras_ui(ns, prefix, familles = c("axe", "cles", "marges"))
   )
 }
@@ -8070,6 +8096,30 @@ hstat_apply_plot_opts <- function(g, input, prefix) {
   # LE KIT SE POSE EN DERNIER : un theme complet remplace tout ce qui precede.
   g + hstat_plot_extras_theme(
     hstat_plot_extras_lire(input, prefix, familles = c("axe", "cles", "marges")))
+
+  # Le STYLE se pose apres le theme, sinon le theme l'efface. `element_text`
+  # n'herite que ce qu'on ne lui redit pas : on ne touche donc QUE la face.
+  st <- function(k, d) {
+    v <- input[[paste0(prefix, k)]]
+    if (is.null(v) || !nzchar(v)) d else v
+  }
+  g <- g + ggplot2::theme(
+    plot.title  = ggplot2::element_text(face = st("StTitre", "bold")),
+    axis.title  = ggplot2::element_text(face = st("StAxes", "plain")),
+    axis.text   = ggplot2::element_text(face = st("StGrad", "plain")))
+
+  # LES BORNES NE SE POSENT QUE SI ELLES SONT SAISIES. Un `coord_cartesian`
+  # pose d'office REMPLACERAIT celui que la figure a deja construit -- le
+  # recadrage sur les centiles de l'intervalle, par exemple -- et ferait
+  # reapparaitre la bande verticale qu'il existe pour eviter.
+  bo <- function(k) { v <- suppressWarnings(as.numeric(input[[paste0(prefix, k)]])[1])
+                      if (isTRUE(is.finite(v))) v else NA_real_ }
+  xl <- c(bo("Xmin"), bo("Xmax")); yl <- c(bo("Ymin"), bo("Ymax"))
+  if (any(is.finite(c(xl, yl))))
+    g <- g + ggplot2::coord_cartesian(
+      xlim = if (any(is.finite(xl))) xl else NULL,
+      ylim = if (any(is.finite(yl))) yl else NULL)
+  g
 }
 
 hstat_plot_opt <- function(input, prefix, what, default) {
@@ -10548,12 +10598,26 @@ hstat_epi_temps <- function(data, var_temps = NULL, var_mois = NULL,
 #  portait quand meme un denominateur de 1, et le taux estime sur ce mois est
 #  alors entierement fabrique par la constante. Un mois sans denominateur
 #  n'apporte aucune information sur un taux -- on l'ECARTE, et on le COMPTE.
+#  PLUSIEURS DENOMINATEURS S'AJOUTENT SUR L'ECHELLE LOG, ET C'EST EXACT, pas
+#  une approximation : un taux rapporte a une population ET a une duree
+#  d'observation a pour denominateur leur PRODUIT (des personnes-mois), donc
+#  pour offset la SOMME de leurs logarithmes. Les declarer separement evite de
+#  demander a l'utilisateur de fabriquer la colonne produit dans un tableur --
+#  et une colonne fabriquee a la main est une colonne qu'on ne peut pas relire.
+#
+#  UNE LIGNE EST ECARTEE DES QU'UN SEUL DE SES DENOMINATEURS MANQUE : le
+#  produit n'existe pas, et log(0) vaut moins l'infini. C'est la meme regle
+#  qu'a un seul denominateur, appliquee au produit.
 .hstat_epi_offset <- function(off) {
   if (is.null(off)) return(list(log_off = NULL, garde = NULL, ecartes = 0L))
-  o <- suppressWarnings(as.numeric(off))
-  ok <- is.finite(o) & o > 0
-  list(log_off = ifelse(ok, log(pmax(o, .Machine$double.xmin)), NA_real_),
-       garde = ok, ecartes = sum(!ok))
+  m <- if (is.data.frame(off) || is.matrix(off)) as.data.frame(off)
+       else data.frame(x = off)
+  if (!NCOL(m)) return(list(log_off = NULL, garde = NULL, ecartes = 0L))
+  o <- vapply(m, function(v) suppressWarnings(as.numeric(v)), numeric(NROW(m)))
+  o <- matrix(o, nrow = NROW(m))
+  ok <- apply(is.finite(o) & o > 0, 1, all)
+  lg <- rowSums(log(pmax(o, .Machine$double.xmin)))
+  list(log_off = ifelse(ok, lg, NA_real_), garde = ok, ecartes = sum(!ok))
 }
 
 # Saison et tendance : des harmoniques de Fourier pour le cycle, une spline du
@@ -10592,13 +10656,20 @@ hstat_epi_temps <- function(data, var_temps = NULL, var_mois = NULL,
 #  sa valeur du mois meme laisserait passer l'effet retarde de l'humidite dans
 #  le retard de la temperature, ce qu'on cherchait precisement a eviter.
 .hstat_epi_cb <- function(x, L, pct_noeuds, nk_lag, nom) {
-  nd <- .hstat_epi_noeuds(x, pct_noeuds)
-  if (!length(nd$noeuds))
+  # ZERO NOEUD DEMANDE N'EST PAS ZERO NOEUD SUBI. Le catalogue offre une base
+  # LINEAIRE (la plus parcimonieuse) ; elle se distingue du cas degenere ou des
+  # percentiles demandes coincident et ne laissent aucun noeud posable -- celui
+  # -la reste un refus, parce que le modele obtenu ne serait pas celui demande.
+  lineaire <- !length(pct_noeuds)
+  nd <- if (lineaire) list(noeuds = numeric(0), message = NULL)
+        else .hstat_epi_noeuds(x, pct_noeuds)
+  if (!lineaire && !length(nd$noeuds))
     return(list(ok = FALSE,
                 message = trf("« %s » ne varie pas assez pour poser un nœud : aucune surface n'y est estimable.", nom)))
   cb <- tryCatch(
     dlnm::crossbasis(x, lag = L,
-                     argvar = list(fun = "ns", knots = nd$noeuds),
+                     argvar = if (lineaire) list(fun = "lin")
+                              else list(fun = "ns", knots = nd$noeuds),
                      arglag = list(fun = "ns",
                                    knots = if (L >= 2L)
                                      dlnm::logknots(L, nk = max(1L, min(as.integer(nk_lag), L - 1L)))
@@ -10654,7 +10725,7 @@ hstat_epi_dlnm <- function(data, var_y, var_expo, var_offset = NULL,
                            harmoniques = 2L, df_tendance = 3L,
                            conf = 0.95, vars_ajust_cb = NULL,
                            vars_ajust = NULL, var_mois = NULL,
-                           var_annee = NULL) {
+                           var_annee = NULL, proxy_a = 1, proxy_b = 0) {
   msg <- character(0)
   ko <- function(m) list(ok = FALSE, message = m)
 
@@ -10678,6 +10749,13 @@ hstat_epi_dlnm <- function(data, var_y, var_expo, var_offset = NULL,
 
   y <- suppressWarnings(as.numeric(data[[var_y]]))
   x <- suppressWarnings(as.numeric(data[[var_expo]]))
+  # LA MESURE D'AMBIANCE SE RAMENE A L'EXPOSITION SUBIE AVANT TOUT LE RESTE :
+  # les noeuds, la reference et les percentiles se lisent sur la serie
+  # transformee, sans quoi le tableau annoncerait des °C releves en station
+  # sous une etiquette qui promet des °C subis.
+  px <- hstat_epi_proxy(x, proxy_a, proxy_b, nom = var_expo)
+  x <- px$x
+  if (!is.null(px$message)) msg <- c(msg, px$message)
   n <- length(y)
 
   L <- as.integer(max(0L, min(60L, suppressWarnings(as.numeric(lag_max)[1]))))
@@ -10729,8 +10807,9 @@ hstat_epi_dlnm <- function(data, var_y, var_expo, var_offset = NULL,
   if (!is.null(coll) && !is.null(attr(coll, "message")))
     msg <- c(msg, attr(coll, "message"))
 
-  of <- .hstat_epi_offset(if (isTRUE(nzchar(var_offset %||% "")) &&
-                              var_offset %in% names(data)) data[[var_offset]] else NULL)
+  vo <- intersect(as.character(var_offset %||% character(0)), names(data))
+  vo <- vo[nzchar(vo)]
+  of <- .hstat_epi_offset(if (length(vo)) data[, vo, drop = FALSE] else NULL)
   if (of$ecartes > 0)
     msg <- c(msg, trf("%d observation(s) écartée(s) : dénominateur nul, négatif ou manquant. Un mois sans dénominateur n'informe aucun taux — il n'est pas remplacé par 1, ce qui fabriquerait le taux de ce mois.",
                       of$ecartes))
@@ -10873,6 +10952,7 @@ hstat_epi_dlnm <- function(data, var_y, var_expo, var_offset = NULL,
        cbs = cbs, cb_noms = stats::setNames(cbn, names(cbs)),
        famille = fam_ret, reference = ref, lag_max = L, noeuds = pr$noeuds,
        expo = x, var_expo = var_expo, vars_ajust_cb = vars_ajust_cb,
+       proxy = list(a = px$a, b = px$b, applique = px$applique),
        vars_ajust = ajn, collinearite = coll,
        dispersion = disp, n_utilisees = sum(garde), conf = conf,
        aic = tryCatch(suppressWarnings(stats::AIC(fit)), error = function(e) NA_real_),
@@ -10894,24 +10974,52 @@ hstat_epi_dlnm <- function(data, var_y, var_expo, var_offset = NULL,
 #  ajustement si `mutuel = TRUE`. La garde est PAR EXPOSITION : une variable
 #  trop plate ne doit pas emporter les autres, c'est la regle du depot sur le
 #  `tryCatch` autour d'une boucle.
-hstat_epi_dlnm_multi <- function(data, var_y, vars_expo, mutuel = TRUE, ...) {
+#  PLUSIEURS ISSUES SE LANCENT EN UNE FOIS, et c'est demande a l'ecran : un
+#  registre porte prematures, faible poids, mortinatalite... et relancer
+#  l'analyse issue par issue refait a la main une boucle que le module sait
+#  faire -- en re-saisissant a chaque tour les dix reglages du modele, donc en
+#  risquant d'en changer un sans le voir.
+#
+#  LA CLE DU RESULTAT RESTE PLATE. Avec une seule issue elle vaut le nom de
+#  l'exposition, exactement comme avant ; avec plusieurs, le couple
+#  « issue — exposition ». Tout ce qui lit `resultats` -- selecteur de figure,
+#  tableaux, export, figure multi -- continue donc de fonctionner sans une
+#  ligne de plus, et c'est ce qui rend l'extension sure.
+#
+#  L'AJUSTEMENT MUTUEL RESTE DANS UNE ISSUE : on ajuste une exposition sur les
+#  AUTRES EXPOSITIONS, jamais sur une autre issue -- deux issues sont deux
+#  variables a expliquer, pas deux facteurs.
+hstat_epi_dlnm_multi <- function(data, vars_y, vars_expo, mutuel = TRUE,
+                                 proxy_a = NULL, proxy_b = NULL, ...) {
+  vars_y <- intersect(as.character(vars_y %||% character(0)), names(data))
+  if (!length(vars_y))
+    return(list(ok = FALSE, message = tr("Choisissez au moins une issue à analyser.")))
   vars_expo <- intersect(as.character(vars_expo %||% character(0)), names(data))
-  vars_expo <- setdiff(vars_expo, var_y)
+  vars_expo <- setdiff(vars_expo, vars_y)
   if (!length(vars_expo))
     return(list(ok = FALSE, message = tr("Choisissez au moins une variable d'exposition.")))
+  plusieurs <- length(vars_y) > 1L
   res <- list(); echecs <- character(0)
-  for (v in vars_expo) {
+  for (y in vars_y) for (v in vars_expo) {
+    cle <- if (plusieurs) sprintf("%s \u2014 %s", y, v) else v
     autres <- if (isTRUE(mutuel)) setdiff(vars_expo, v) else character(0)
-    r <- tryCatch(hstat_epi_dlnm(data, var_y, v, vars_ajust_cb = autres, ...),
+    # LE FACTEUR DE TRANSFERT EST PROPRE A CHAQUE EXPOSITION : un facteur
+    # d'infiltration de logement n'a rien a voir avec celui d'un polluant, et
+    # appliquer le meme aux deux transformerait une serie sans raison.
+    pa <- suppressWarnings(as.numeric(proxy_a[[v]] %||% 1)[1])
+    pb <- suppressWarnings(as.numeric(proxy_b[[v]] %||% 0)[1])
+    r <- tryCatch(hstat_epi_dlnm(data, y, v, vars_ajust_cb = autres,
+                                 proxy_a = pa, proxy_b = pb, ...),
                   error = function(e) list(ok = FALSE, message = hstat_err_fr(e)))
-    if (isTRUE(r$ok)) res[[v]] <- r
-    else echecs <- c(echecs, sprintf("%s : %s", v,
+    if (isTRUE(r$ok)) { r$var_y <- y; r$cle <- cle; res[[cle]] <- r }
+    else echecs <- c(echecs, sprintf("%s : %s", cle,
       r$message %||% tr("L'ajustement n'a pas abouti.")))
   }
   if (!length(res))
     return(list(ok = FALSE,
                 message = paste(c(tr("Aucune exposition n'a pu être analysée."), echecs), collapse = " ")))
   list(ok = TRUE, resultats = res, mutuel = isTRUE(mutuel),
+       vars_y = vars_y, plusieurs_issues = plusieurs,
        echecs = echecs,
        comparaison = hstat_epi_dlnm_comparaison(res),
        message = if (length(echecs))
@@ -10932,7 +11040,8 @@ hstat_epi_dlnm_comparaison <- function(res_list) {
     if (is.null(tb) || !nrow(tb)) return(NULL)
     w <- hstat_epi_dlnm_wald(r)
     data.frame(
-      Exposition = v, Famille = r$famille,
+      Issue = r$var_y %||% NA_character_,
+      Exposition = r$var_expo %||% v, Famille = r$famille,
       Reference = round(r$reference, 4),
       RR_P10 = tb$RR[1], IC_P10 = sprintf("[%.3f ; %.3f]", tb$IC_bas[1], tb$IC_haut[1]),
       RR_P90 = tb$RR[2], IC_P90 = sprintf("[%.3f ; %.3f]", tb$IC_bas[2], tb$IC_haut[2]),
@@ -10942,7 +11051,11 @@ hstat_epi_dlnm_comparaison <- function(res_list) {
   })
   out <- out[!vapply(out, is.null, logical(1))]
   if (!length(out)) return(NULL)
-  do.call(rbind, out)
+  d <- do.call(rbind, out)
+  # UNE COLONNE CONSTANTE N'APPREND RIEN : avec une seule issue, « Issue »
+  # repeterait le meme nom sur chaque ligne et ferait croire a un choix.
+  if (!is.null(d) && length(unique(d$Issue)) < 2L) d$Issue <- NULL
+  d
 }
 
 # ---------------------------------------------------------------------------
@@ -11701,6 +11814,478 @@ hstat_epi_diagnostic <- function(data, var_test, var_reference,
 # ---------------------------------------------------------------------------
 #  ROC : l'aire EST la statistique de Mann-Whitney, et c'est ce qui la teste
 # ---------------------------------------------------------------------------
+#  UNE MESURE D'AMBIANCE N'EST PAS L'EXPOSITION D'UNE PERSONNE
+# ---------------------------------------------------------------------------
+#  Demande a l'ecran : tenir compte des variables d'environnement « comme s'il
+#  s'agissait de celles des individus ». C'est le coeur de l'epidemiologie
+#  environnementale, et il faut dire exactement ce que la correction fait --
+#  et ce qu'elle ne fait pas.
+#
+#  Une station meteo, un capteur de quartier, une moyenne communale : tout le
+#  monde y recoit la MEME valeur. L'exposition reellement subie s'en deduit par
+#  une relation de transfert, que la litterature ecrit
+#
+#      exposition personnelle  =  a x mesure d'ambiance  +  b
+#
+#  `a` est le facteur d'attenuation (temps passe dehors, infiltration d'un
+#  logement, port d'une protection), `b` une source propre au lieu de vie.
+#
+#  CE QUE LA DECLARATION CHANGE, ET CE QU'ELLE NE CHANGE PAS. Il faut l'ecrire
+#  noir sur blanc, sinon on croit avoir corrige une estimation :
+#
+#   * elle change L'AXE, la REFERENCE et les VALEURS d'exposition des tableaux
+#     -- « RR = 1,8 a 24,6 °C subis » n'est pas la meme phrase publiable que
+#     « RR = 1,8 a 30,8 °C releves en station » ;
+#   * elle NE CHANGE PAS le RR lu a un percentile donne. La transformation est
+#     monotone : le 90e percentile de l'ambiance est le 90e percentile du
+#     personnel. Pretendre le contraire serait le defaut que ce depot traque.
+#
+#  ET L'ERREUR DE BERKSON EXPLIQUE UNE PART DES INTERVALLES LARGES : quand une
+#  mesure d'ambiance sert a tout le monde, l'erreur est de type Berkson --
+#  l'estimation ponctuelle reste a peu pres non biaisee, mais sa VARIANCE
+#  augmente. C'est la seconde cause d'un intervalle trop large, apres le budget
+#  de parametres, et elle ne se corrige pas par un reglage : elle se dit.
+HSTAT_EPI_PROXY_MSG <- paste(
+  "Exposition ramenée à l'échelle individuelle (personnelle = a × ambiance + b).",
+  "L'axe, la référence et les valeurs des tableaux sont désormais des expositions subies ;",
+  "le RR lu à un percentile donné, lui, ne change pas — la transformation est monotone.")
+
+#' Applique la relation de transfert ambiance -> individu.
+#'
+#' Rend toujours une liste : `x` (la série transformée), `applique` et
+#' `message`. Un facteur nul ou négatif n'est pas appliqué : il écraserait la
+#' série sur une constante ou en inverserait l'ordre, donc le sens de l'effet.
+hstat_epi_proxy <- function(x, a = 1, b = 0, nom = NULL) {
+  av <- suppressWarnings(as.numeric(a)[1]); bv <- suppressWarnings(as.numeric(b)[1])
+  if (!isTRUE(is.finite(av))) av <- 1
+  if (!isTRUE(is.finite(bv))) bv <- 0
+  if (av <= 0)
+    return(list(x = x, applique = FALSE, a = 1, b = 0,
+                message = trf("« %s » : le facteur de transfert doit être strictement positif — un facteur nul écraserait la série, un facteur négatif inverserait le sens de l'effet. La mesure d'ambiance est gardée telle quelle.",
+                              nom %||% "")))
+  if (isTRUE(all.equal(av, 1)) && isTRUE(all.equal(bv, 0)))
+    return(list(x = x, applique = FALSE, a = 1, b = 0, message = NULL))
+  list(x = av * x + bv, applique = TRUE, a = av, b = bv,
+       message = paste(trf("« %s » : a = %.3g, b = %.3g.", nom %||% "", av, bv),
+                       tr(HSTAT_EPI_PROXY_MSG)))
+}
+
+# ---------------------------------------------------------------------------
+#  LA SOUPLESSE DE LA SURFACE EST UN REGLAGE, PAS UNE CONSTANTE
+# ---------------------------------------------------------------------------
+#  Elle valait `c(0.25, 0.50, 0.75)` en dur -- trois noeuds, donc quatre degres
+#  de liberte sur l'exposition, multiplies par ceux du retard. C'est le levier
+#  qui pese le plus sur le budget de parametres (voir `hstat_epi_dlnm_budget`)
+#  et il n'etait pas atteignable : l'utilisateur voyait l'intervalle s'ouvrir
+#  sans pouvoir rien y faire.
+#
+#  LE LIBELLE PORTE LE COUT, pas seulement le nombre de noeuds. « 3 noeuds » ne
+#  dit rien a qui lit un intervalle trop large ; « 4 df » le dit.
+#
+#  L'entree LINEAIRE est la plus parcimonieuse, et elle est legitime : une
+#  reponse monotone -- plus il fait chaud, plus il y a d'evenements -- n'a pas
+#  besoin d'une spline. C'est `fun = "lin"` de dlnm, pas une `ns` sans noeud :
+#  `ns()` refuse un vecteur de noeuds vide.
+HSTAT_EPI_NOEUDS_EXPO <- list(
+  lin = list(label = "Linéaire (1 df) — le plus parcimonieux", probs = numeric(0)),
+  k1  = list(label = "1 nœud, médiane (2 df)",               probs = 0.50),
+  k2  = list(label = "2 nœuds, 33e et 66e (3 df)",           probs = c(1/3, 2/3)),
+  k3  = list(label = "3 nœuds, quartiles (4 df)",            probs = c(0.25, 0.50, 0.75)),
+  k4  = list(label = "4 nœuds, 10e à 90e (5 df)",            probs = c(0.10, 1/3, 2/3, 0.90)))
+
+# La liste de choix DERIVE du catalogue : deux listes recopiees finiraient par
+# diverger, et c'est la copie oubliee qui ment.
+hstat_epi_noeuds_choix <- function() {
+  stats::setNames(names(HSTAT_EPI_NOEUDS_EXPO),
+                  vapply(HSTAT_EPI_NOEUDS_EXPO, function(e) tr(e$label), character(1)))
+}
+
+#' Percentiles de nœuds d'un code du catalogue.
+#'
+#' Un code inconnu retombe sur le défaut (quartiles) plutôt que sur le linéaire :
+#' une faute de frappe ne doit pas changer la forme du modèle en silence.
+hstat_epi_noeuds_probs <- function(code) {
+  e <- HSTAT_EPI_NOEUDS_EXPO[[as.character(code %||% "")[1] %||% ""]]
+  if (is.null(e)) HSTAT_EPI_NOEUDS_EXPO$k3$probs else e$probs
+}
+
+# ---------------------------------------------------------------------------
+#  UNE LIGNE DE REPERE SANS ETIQUETTE OBLIGE A SE SOUVENIR DE CE QU'ELLE MARQUE
+# ---------------------------------------------------------------------------
+#  Demande a l'ecran. Le trait pointille de la reference porte une valeur --
+#  la mediane de l'exposition, ou le RR neutre -- et rien ne la nomme sur la
+#  figure : il faut la relire dans le sous-titre, puis revenir au trait.
+#
+#  L'ETIQUETTE SE POSE A COTE DU TRAIT, donc en coordonnees de DONNEES pour
+#  l'axe du trait, et en position RELATIVE AU CADRE pour l'autre. Les deux
+#  bornes `-Inf` / `Inf` sont exactes et survivent aux facettes ; le milieu,
+#  lui, demande l'etendue de l'autre axe -- l'appelant la connait, elle est
+#  donc un ARGUMENT. La deviner depuis les couches serait la deviner faux dans
+#  un `coord_cartesian` qui recadre.
+HSTAT_EPI_REPERE_POS <- c("En haut" = "haut", "Au milieu" = "milieu",
+                          "En bas" = "bas")
+HSTAT_EPI_REPERE_COTE <- c("À droite du trait" = "droite",
+                           "À gauche du trait" = "gauche")
+
+#' Couches d'une ligne de repère, avec son étiquette facultative.
+#'
+#' @param sens "v" (trait vertical, valeur en abscisse) ou "h".
+#' @param etendue étendue de l'AUTRE axe ; requise pour la position « milieu ».
+hstat_ligne_repere <- function(valeur, sens = "v", etiquette = NULL,
+                               position = "haut", cote = "droite",
+                               couleur = "#4575b4", type = "dotted",
+                               epaisseur = 0.5, taille = 3.5, style = "plain",
+                               etendue = NULL) {
+  if (!isTRUE(is.finite(valeur))) return(list())
+  vert <- !identical(sens, "h")
+  cou <- if (vert)
+    ggplot2::geom_vline(xintercept = valeur, linetype = type,
+                        colour = couleur, linewidth = epaisseur)
+  else
+    ggplot2::geom_hline(yintercept = valeur, linetype = type,
+                        colour = couleur, linewidth = epaisseur)
+  lab <- as.character(etiquette %||% "")[1]
+  if (!isTRUE(nzchar(lab))) return(list(cou))
+
+  # « milieu » sans etendue ne peut pas etre place : on retombe sur le haut
+  # PLUTOT QUE DE POSER L'ETIQUETTE HORS DU CADRE, ou elle disparaitrait sans
+  # un mot -- le defaut que ce depot traque.
+  mid <- if (length(etendue) == 2L && all(is.finite(etendue)))
+    mean(range(etendue)) else NULL
+  if (identical(position, "milieu") && is.null(mid)) position <- "haut"
+
+  dec <- if (identical(cote, "gauche")) 1.2 else -0.2   # hjust, le long du trait
+  a <- switch(position,
+    milieu = list(o = mid,  just = 0.5),
+    bas    = list(o = -Inf, just = -0.4),
+    list(o = Inf, just = 1.4))                          # « haut » par defaut
+
+  arg <- list(geom = "text", label = lab, colour = couleur, size = taille,
+              fontface = style, angle = if (vert) 90 else 0)
+  if (vert) {
+    arg$x <- valeur; arg$y <- a$o
+    arg$hjust <- a$just; arg$vjust <- dec
+  } else {
+    arg$y <- valeur; arg$x <- a$o
+    arg$hjust <- a$just; arg$vjust <- dec
+  }
+  list(cou, do.call(ggplot2::annotate, arg))
+}
+
+# ---------------------------------------------------------------------------
+#  UN INTERVALLE ENORME N'EST PAS UN DEFAUT D'AFFICHAGE : C'EST UN BUDGET
+# ---------------------------------------------------------------------------
+#  Signale a l'ecran : RR = 19,7 avec IC [1,10 ; 352,1]. Un tel intervalle ne
+#  vient ni du trace ni du niveau de confiance -- il vient du NOMBRE DE
+#  PARAMETRES rapporte au nombre d'observations.
+#
+#  Mesure sur le cas signale (118 mois, deux expositions ajustees l'une sur
+#  l'autre, 3 noeuds sur l'exposition, 3 sur le retard) :
+#
+#      (Intercept)  1 | cb1 20 | cb2 20 | harmoniques 4 | tendance 3  =  48
+#      118 / 48 = 2,5 observation par parametre
+#
+#  La convention epidemiologique demande AU MOINS 10 observations (ou
+#  evenements) par parametre estime ; en dessous de 5 l'estimation est
+#  instable et les intervalles s'ouvrent sans que rien d'autre soit en cause.
+#
+#  ET LE RETARD EST DEJA CONTINU. C'est la premiere chose qu'on croit pouvoir
+#  corriger, et elle est deja faite : `arglag = list(fun = "ns", ...)` pose une
+#  SPLINE sur l'axe des retards -- pas un parametre par retard. Le lisser
+#  davantage revient a lui retirer des noeuds, ce qui est exactement le levier
+#  ci-dessous, et il faut le dire plutot que laisser chercher.
+#
+#  Le tableau nomme donc chaque terme avec son cout, et le message chiffre ce
+#  que chaque levier ferait GAGNER sur ce modele-la. Un conseil qui ne chiffre
+#  pas se lit comme une generalite.
+HSTAT_EPI_BUDGET_SEUILS <- c(confortable = 10, juste = 5)
+
+hstat_epi_dlnm_budget <- function(res) {
+  if (is.null(res) || !isTRUE(res$ok) || is.null(res$model)) return(NULL)
+  cf <- tryCatch(stats::coef(res$model), error = function(e) NULL)
+  if (!length(cf)) return(NULL)
+  nm <- names(cf)
+  cbn <- res$cb_noms %||% character(0)
+
+  # Chaque surface est reconnue par le SYMBOLE sous lequel elle est entree dans
+  # la formule (`cb1`, `cb2`...), pas par le nom de la colonne : un intitule de
+  # fichier porte accents et espaces, et n'apparait pas dans les coefficients.
+  fam <- rep(tr("Autres termes du modèle"), length(nm))
+  fam[nm == "(Intercept)"] <- tr("Constante")
+  etiq <- names(cbn); if (is.null(etiq)) etiq <- cbn
+  etiq[!nzchar(etiq %||% "")] <- cbn[!nzchar(etiq %||% "")]
+  for (k in seq_along(cbn)) {
+    sel <- startsWith(nm, paste0(cbn[k], "v"))
+    if (any(sel)) fam[sel] <- trf("Surface « %s » (exposition × retard)", etiq[k])
+  }
+  fam[grepl("^(sin|cos)[0-9]+$", nm)] <- tr("Saison (harmoniques)")
+  fam[grepl("^tend[0-9]+$", nm)]      <- tr("Tendance longue")
+
+  tb <- as.data.frame(table(Terme = factor(fam, levels = unique(fam))),
+                      stringsAsFactors = FALSE)
+  names(tb)[2] <- "Parametres"
+  n_obs <- res$n_utilisees %||% NA_integer_
+  n_par <- length(cf)
+  ratio <- if (isTRUE(is.finite(n_obs)) && n_par > 0) n_obs / n_par else NA_real_
+
+  verdict <- if (!isTRUE(is.finite(ratio))) "indeterminable"
+    else if (ratio >= HSTAT_EPI_BUDGET_SEUILS[["confortable"]]) "confortable"
+    else if (ratio >= HSTAT_EPI_BUDGET_SEUILS[["juste"]]) "juste" else "insuffisant"
+
+  # Le cout REEL de chaque levier, sur ce modele-ci. `attr(cb, "df")` rend le
+  # couple (df exposition, df retard) ; le produit est la taille de la surface.
+  df1 <- tryCatch(as.integer(attr(res$cbs[[1]], "df")), error = function(e) NULL)
+  n_surf <- length(cbn)
+  levier <- character(0)
+  if (length(df1) == 2L && all(is.finite(df1))) {
+    if (df1[1] > 1L) levier <- c(levier, trf(
+      "retirer un nœud à l'exposition économise %d paramètre(s)", df1[2] * n_surf))
+    if (df1[2] > 1L) levier <- c(levier, trf(
+      "retirer un nœud au retard en économise %d", df1[1] * n_surf))
+  }
+  # L'AJUSTEMENT MUTUEL COUTE UNE SURFACE ENTIERE PAR EXPOSITION EN PLUS. Le
+  # chiffre se lit sur les coefficients, pas sur une formule : une surface
+  # degeneree en porterait moins que `prod(df)`.
+  if (n_surf > 1L) {
+    cout_autres <- sum(vapply(cbn[-1], function(s) sum(startsWith(nm, paste0(s, "v"))),
+                              integer(1)))
+    if (cout_autres > 0L) levier <- c(levier, trf(
+      "ne pas ajuster les expositions les unes sur les autres en économise %d",
+      cout_autres))
+  }
+
+  msg <- switch(verdict,
+    confortable = trf("%d observation(s) pour %d paramètre(s) estimé(s), soit %.1f par paramètre : l'estimation est confortable.",
+                      n_obs, n_par, ratio),
+    juste = trf("%d observation(s) pour %d paramètre(s) estimé(s), soit %.1f par paramètre : c'est juste — la convention demande au moins 10, et les intervalles s'élargissent en dessous.",
+                n_obs, n_par, ratio),
+    insuffisant = trf("%d observation(s) pour %d paramètre(s) estimé(s), soit %.1f par paramètre : c'est INSUFFISANT. Des intervalles très larges (un RR de 20 avec une borne haute à 350) n'ont pas d'autre cause — ni le tracé, ni le niveau de confiance.",
+                      n_obs, n_par, ratio),
+    trf("%d paramètre(s) estimé(s) ; le nombre d'observations n'est pas connu.", n_par))
+  if (!identical(verdict, "confortable") && length(levier))
+    msg <- paste0(msg, " ", trf("Sur ce modèle : %s.", paste(levier, collapse = " ; ")),
+                  " ",
+                  tr("Le retard est déjà lissé par une spline : il n'y a pas de version « continue » à activer, seulement des nœuds à retirer."))
+
+  structure(tb, n_obs = n_obs, n_par = n_par, ratio = ratio,
+            verdict = verdict, message = msg)
+}
+
+# ---------------------------------------------------------------------------
+#  PLUSIEURS EXPOSITIONS SUR UNE MEME FIGURE
+# ---------------------------------------------------------------------------
+#  Demande a l'ecran : quand deux variables d'influence sont analysees, les
+#  voir ensemble. La reponse n'est pas « oui » tout court -- elle depend de
+#  l'AXE, et c'est tout le sujet.
+#
+#  DEUX EXPOSITIONS N'ONT PAS LA MEME UNITE. Superposer une courbe en °C et une
+#  courbe en mm sur un meme axe des abscisses donne une figure parfaitement
+#  lisible et DENUEE DE SENS : « 30 » y designe une temperature sur une courbe
+#  et une pluviometrie sur l'autre. C'est le mode de defaillance que ce depot
+#  traque -- pas une erreur, pas un vide, une image plausible et fausse. Ce
+#  mode-la n'est donc PAS offert.
+#
+#  Restent deux representations honnetes, et elles ne repondent pas a la meme
+#  question :
+#
+#  * « facettes »    -- un panneau par exposition, chacun avec SA propre
+#                       echelle (`scales = "free_x"`). Rien n'est compare de
+#                       travers ; on lit les formes cote a cote.
+#  * « percentiles » -- l'axe devient le PERCENTILE de chaque exposition dans
+#                       sa propre distribution, donc une grandeur SANS
+#                       dimension, commune aux deux. La superposition est alors
+#                       legitime, et c'est la seule lecture qui repond a
+#                       « laquelle pese le plus ».
+#
+#  Le RETARD, lui, est deja une grandeur commune : les courbes par retard se
+#  superposent sans transformation, et c'est pourquoi ce mode y est le defaut.
+HSTAT_EPI_MULTI_MODES <- c(
+  "Facettes (une échelle par exposition)" = "facettes",
+  "Superposées sur les percentiles"       = "percentiles")
+
+# Les figures qui acceptent PLUSIEURS expositions. Les autres decrivent une
+# surface unique (3D, diagnostics) ou n'existent pas en DLNM.
+HSTAT_EPI_MULTI_FIG <- c("cumul", "retard", "carte", "coupes")
+
+# La valeur du selecteur qui demande TOUTES les expositions. Un jeton, pas un
+# libelle : un nom de colonne du fichier peut valoir « Toutes ensemble ».
+HSTAT_EPI_TOUTES <- "__toutes__"
+
+# LES DEUX LISTES DISAIENT LA MEME CHOSE, ET ELLES DISENT L'INVERSE.
+#
+# Elles n'en faisaient qu'une -- « carte » et « coupes » ensemble -- et le
+# message qui l'annonce a l'ecran parlait donc « d'une carte » sur une figure
+# de coupes. Or les deux figures se comportent a l'oppose :
+#
+#   * la CARTE met les expositions en FACETTES. Une case porte une couleur ;
+#     deux surfaces l'une sur l'autre ne laissent voir que la derniere. Son
+#     axe reste en UNITES, d'ou `scales = "free_x"`.
+#   * les COUPES, elles, SUPERPOSENT les expositions -- leurs facettes portent
+#     le RETARD, pas l'exposition -- et elles le peuvent parce que leur axe est
+#     deja le PERCENTILE, donc sans dimension.
+#
+# Les tenir dans une seule liste faisait donc annoncer a l'utilisateur le
+# contraire de ce que la figure montre : sur les coupes, les courbes se
+# superposent bel et bien sous une phrase disant qu'elles ne le peuvent pas.
+HSTAT_EPI_MULTI_FACETTES <- "carte"
+
+# Les figures dont l'axe est le PERCENTILE quoi qu'on demande : le mode n'y a
+# pas de prise, et l'offrir donnerait un reglage que l'image ignore.
+HSTAT_EPI_MULTI_PCT <- "coupes"
+
+#' Percentile de chaque valeur d'exposition dans sa propre distribution.
+#'
+#' C'est ce qui rend deux expositions comparables sur un même axe : le
+#' percentile est sans dimension. `stats::ecdf` est la définition exacte.
+.hstat_epi_pct <- function(valeurs, obs) {
+  o <- suppressWarnings(as.numeric(obs))
+  o <- o[is.finite(o)]
+  if (!length(o)) return(rep(NA_real_, length(valeurs)))
+  100 * stats::ecdf(o)(valeurs)
+}
+
+#' Construit la figure DLNM de PLUSIEURS expositions à la fois.
+#'
+#' Rend `NULL` quand la figure ne s'y prête pas — l'appelant retombe alors sur
+#' l'exposition choisie, et le dit.
+hstat_epi_figure_multi <- function(figure, res_list, mode = "facettes",
+                                   titre = NULL) {
+  if (!length(res_list) || !figure %in% HSTAT_EPI_MULTI_FIG) return(NULL)
+  ok <- vapply(res_list, function(r) isTRUE(r$ok), logical(1))
+  res_list <- res_list[ok]
+  if (length(res_list) < 2L) return(NULL)
+  # UNE CARTE NE SE SUPERPOSE PAS : on force les facettes plutot que de rendre
+  # une image ou seule la derniere exposition se voit. Les COUPES font
+  # l'inverse -- leur axe est le percentile, leurs facettes portent le retard.
+  if (figure %in% HSTAT_EPI_MULTI_FACETTES) mode <- "facettes"
+  # Redondant avec la branche « coupes », qui pose son axe en percentiles
+  # quoi qu'on lui passe : une mutation qui retire cette ligne ne change donc
+  # rien a la figure, et aucune assertion ne la garde. Elle reste parce qu'elle
+  # DIT l'intention -- et parce que `HSTAT_EPI_MULTI_PCT`, lui, gouverne bien
+  # quelque chose : c'est la liste qui retire le selecteur de disposition et
+  # qui choisit la phrase affichee sous la figure.
+  if (figure %in% HSTAT_EPI_MULTI_PCT) mode <- "percentiles"
+  mode <- if (identical(mode, "percentiles")) "percentiles" else "facettes"
+  noms <- names(res_list)
+
+  # --- Effet cumule : une courbe exposition-reponse par exposition ---------
+  if (identical(figure, "cumul")) {
+    d <- do.call(rbind, lapply(noms, function(v) {
+      p <- res_list[[v]]$pred
+      data.frame(x = p$predvar,
+                 pct = .hstat_epi_pct(p$predvar, res_list[[v]]$expo),
+                 fit = p$allRRfit, lo = p$allRRlow, hi = p$allRRhigh,
+                 Exposition = v, stringsAsFactors = FALSE)
+    }))
+    d$Exposition <- factor(d$Exposition, levels = noms)
+    pct <- identical(mode, "percentiles")
+    d$ax <- if (pct) d$pct else d$x
+    # LE CADRE SE BORNE SUR LES CENTILES DE L'INTERVALLE, comme la figure a une
+    # exposition : une bande qui explose aux extremes ecrase toutes les courbes.
+    hi <- stats::quantile(d$hi, 0.98, na.rm = TRUE)
+    lo <- max(0, stats::quantile(d$lo, 0.02, na.rm = TRUE))
+    g <- ggplot2::ggplot(d, ggplot2::aes(x = .data[["ax"]], colour = .data[["Exposition"]],
+                                         fill = .data[["Exposition"]])) +
+      ggplot2::geom_ribbon(ggplot2::aes(ymin = .data[["lo"]], ymax = .data[["hi"]]),
+                           alpha = 0.12, colour = NA) +
+      ggplot2::geom_hline(yintercept = 1, linetype = "dashed", colour = "grey40") +
+      ggplot2::geom_line(ggplot2::aes(y = .data[["fit"]]), linewidth = 1) +
+      ggplot2::coord_cartesian(ylim = c(lo, hi)) +
+      ggplot2::labs(
+        x = if (pct) tr("Percentile de l'exposition (%)") else tr("Exposition"),
+        y = tr("RR cumulé"), colour = tr("Variable d'influence"),
+        fill = tr("Variable d'influence"),
+        title = titre %||% tr("Effet cumulé — toutes les variables d'influence"),
+        subtitle = if (pct)
+          tr("Axe en percentiles : sans dimension, donc comparable d'une variable à l'autre.")
+        else tr("Un panneau par variable : les unités diffèrent, les échelles aussi."))
+    # `free_x` N'EST PAS UN CONFORT : sans lui, un axe unique en °C recevrait
+    # aussi des millimetres, et la courbe de l'une s'ecraserait sur un bord.
+    if (!pct) g <- g + ggplot2::facet_wrap(~ Exposition, scales = "free_x")
+    return(g)
+  }
+
+  # --- Structure temporelle : le RETARD est une grandeur commune ------------
+  if (identical(figure, "retard")) {
+    d <- do.call(rbind, lapply(noms, function(v) {
+      r <- res_list[[v]]; p <- r$pred
+      lagg <- .hstat_epi_lag_grille(p)
+      q <- stats::quantile(r$expo, 0.90, na.rm = TRUE)
+      i <- which.min(abs(p$predvar - q))
+      data.frame(lag = lagg, fit = p$matRRfit[i, ], lo = p$matRRlow[i, ],
+                 hi = p$matRRhigh[i, ], Exposition = v, stringsAsFactors = FALSE)
+    }))
+    d$Exposition <- factor(d$Exposition, levels = noms)
+    g <- ggplot2::ggplot(d, ggplot2::aes(x = .data[["lag"]], colour = .data[["Exposition"]],
+                                         fill = .data[["Exposition"]])) +
+      ggplot2::geom_ribbon(ggplot2::aes(ymin = .data[["lo"]], ymax = .data[["hi"]]),
+                           alpha = 0.12, colour = NA) +
+      ggplot2::geom_hline(yintercept = 1, linetype = "dashed", colour = "grey40") +
+      ggplot2::geom_line(ggplot2::aes(y = .data[["fit"]]), linewidth = 1) +
+      ggplot2::labs(x = tr("Retard"), y = "RR", colour = tr("Variable d'influence"),
+                    fill = tr("Variable d'influence"),
+                    title = titre %||% tr("Structure temporelle au 90e percentile"),
+                    subtitle = tr("Le retard est la même grandeur pour toutes : les courbes se superposent sans transformation."))
+    if (identical(mode, "facettes")) g <- g + ggplot2::facet_wrap(~ Exposition)
+    return(g)
+  }
+
+  # --- Carte de chaleur : facettes, chacune avec son echelle d'exposition ---
+  if (identical(figure, "carte")) {
+    d <- do.call(rbind, lapply(noms, function(v) {
+      p <- res_list[[v]]$pred
+      e <- expand.grid(lag = .hstat_epi_lag_grille(p), x = p$predvar)
+      e$RR <- as.vector(t(p$matRRfit))
+      e$Exposition <- v
+      e
+    }))
+    d$Exposition <- factor(d$Exposition, levels = noms)
+    # `geom_tile` ET NON `geom_raster` : deux expositions ont deux grilles de
+    # valeurs, donc un pas horizontal inegal une fois empilees. `geom_raster`
+    # avertit alors a CHAQUE rendu (« Raster pixels are placed at uneven
+    # horizontal intervals ») et decale les cases -- un avertissement permanent
+    # en console masque les vrais.
+    return(ggplot2::ggplot(d, ggplot2::aes(x = .data[["x"]], y = .data[["lag"]],
+                                           fill = .data[["RR"]])) +
+      ggplot2::geom_tile() +
+      ggplot2::scale_fill_gradient2(low = "#4575b4", mid = "#ffffbf",
+                                    high = "#a50026", midpoint = 1) +
+      ggplot2::facet_wrap(~ Exposition, scales = "free_x") +
+      ggplot2::labs(x = tr("Exposition"), y = tr("Retard"), fill = "RR",
+                    title = titre %||% tr("Surfaces exposition × retard")))
+  }
+
+  # --- Coupes par retard : exposition en couleur, retard en facette ---------
+  if (identical(figure, "coupes")) {
+    d <- do.call(rbind, lapply(noms, function(v) {
+      r <- res_list[[v]]; p <- r$pred
+      lags <- seq(0, r$lag_max, by = 1)
+      cols <- vapply(lags, function(l) .hstat_epi_col_lag(p, l), integer(1))
+      k <- which(!is.na(cols))
+      if (!length(k)) return(NULL)
+      do.call(rbind, lapply(k, function(j) data.frame(
+        pct = .hstat_epi_pct(p$predvar, r$expo), fit = p$matRRfit[, cols[j]],
+        lag = lags[j], Exposition = v, stringsAsFactors = FALSE)))
+    }))
+    if (is.null(d) || !NROW(d)) return(NULL)
+    d$Exposition <- factor(d$Exposition, levels = noms)
+    d$lag <- factor(trf("Retard %d", d$lag),
+                    levels = trf("Retard %d", sort(unique(d$lag))))
+    # L'AXE EST LE PERCENTILE, et il le faut : les facettes portent ici le
+    # RETARD, donc un meme panneau recoit toutes les expositions.
+    return(ggplot2::ggplot(d, ggplot2::aes(x = .data[["pct"]], y = .data[["fit"]],
+                                           colour = .data[["Exposition"]])) +
+      ggplot2::geom_hline(yintercept = 1, linetype = "dashed", colour = "grey40") +
+      ggplot2::geom_line(linewidth = 0.8) +
+      ggplot2::facet_wrap(~ lag) +
+      ggplot2::labs(x = tr("Percentile de l'exposition (%)"), y = "RR",
+                    colour = tr("Variable d'influence"),
+                    title = titre %||% tr("Coupes par retard — toutes les variables")))
+  }
+  NULL
+}
+
+# ---------------------------------------------------------------------------
 #  AUC = P(score d'un malade > score d'un sain), ex aequo comptes pour moitie.
 #  La calculer par integration trapezoidale de la courbe et la calculer par le
 #  rang donnent le MEME nombre -- et c'est cette egalite qui permet de verifier
@@ -11889,12 +12474,24 @@ hstat_epi_figure <- function(analyse, figure, res, o = NULL, titre = NULL) {
       # etendue -- sans quoi la seule chose lisible est une bande verticale.
       hi <- stats::quantile(d$hi, 0.98, na.rm = TRUE)
       lo <- max(0, stats::quantile(d$lo, 0.02, na.rm = TRUE))
+      # L'ETIQUETTE SE POSE A COTE DU TRAIT, et son etendue de placement est
+      # celle du CADRE (`lo`, `hi`), pas celle des donnees : la figure recadre,
+      # et une etiquette placee au milieu des donnees sortirait du cadre.
+      rp <- o$repere %||% list()
+      lab <- if (isTRUE(rp$montrer %||% TRUE)) {
+        t0 <- as.character(rp$texte %||% "")[1]
+        if (nzchar(t0)) t0 else trf("Référence : %.3g", res$reference)
+      } else NULL
       return(th(ggplot2::ggplot(d, ggplot2::aes(x = .data[["x"]])) +
         ggplot2::geom_ribbon(ggplot2::aes(ymin = .data[["lo"]], ymax = .data[["hi"]]),
                              fill = "#d73027", alpha = 0.15) +
         ggplot2::geom_hline(yintercept = 1, linetype = "dashed", colour = "grey40") +
-        ggplot2::geom_vline(xintercept = res$reference, linetype = "dotted",
-                            colour = "#4575b4") +
+        hstat_ligne_repere(res$reference, sens = "v", etiquette = lab,
+                           position = rp$position %||% "haut",
+                           cote = rp$cote %||% "droite",
+                           taille = rp$taille %||% 3.5,
+                           style = rp$style %||% "plain",
+                           etendue = c(lo, hi)) +
         ggplot2::geom_line(ggplot2::aes(y = .data[["fit"]]), colour = "#d73027", linewidth = 1) +
         ggplot2::coord_cartesian(ylim = c(lo, hi)) +
         ggplot2::labs(x = tr("Exposition"), y = tr("RR cumulé"),
