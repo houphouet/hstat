@@ -8072,6 +8072,7 @@ server <- function(input, output, session) {
   mod_yield_server("yield", values)
   mod_dosage_server("dosage", values)
   mod_diversity_server("diversity", values)
+  mod_epidemio_server("epidemio", values)
   mod_dl50_server("dl50", values)
 
   # ---- Citer HStat ----

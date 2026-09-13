@@ -9423,9 +9423,15 @@ test_that("une colonne creee et une colonne lue portent le meme nom", {
   # chaines accentuees ne sont QUE des titres d'axe passes a `labs()`. Verifie :
   # les cinq occurrences sont toutes des arguments de `ggplot2::labs()`, aucune
   # lecture (`$Relevé`, `[["Espèce"]]`) n'existe dans le depot.
+  # « Sensibilité » et « Spécificité » viennent du module d'epidemiologie : la
+  # courbe ROC porte les colonnes `Sensibilite` et `Specificite`, et les chaines
+  # accentuees sont le LIBELLE de la ligne du tableau de mesures et le titre
+  # d'axe de la figure. Verifie : aucune lecture accentuee (`$Sensibilité`,
+  # `[["Spécificité"]]`) n'existe dans le depot -- la figure lit bien
+  # `.data[["Sensibilite"]]`.
   connus <- c("Observé", "Prédit", "Modalité", "Résidu", "Thème", "Fréquence",
               "Méthode", "Interprétation", "Métrique", "Unité", "Répétition",
-              "Espèce", "Relevé")
+              "Espèce", "Relevé", "Sensibilité", "Spécificité")
   fautifs <- fautifs[!grepl(paste0("chaine (", paste(connus, collapse = "|"),
                                    ") "), fautifs)]
   expect_equal(fautifs, character(0))
@@ -15746,4 +15752,386 @@ process.stdout.write(JSON.stringify(out));
   expect_equal(en$texte, "Loading")
   # 4. IL N'EST CHARGE QU'UNE FOIS : un aller-retour n'en redemande pas un.
   expect_equal(en$apres_aller_retour, 1L)
+})
+
+# ---------------------------------------------------------------------------
+#  EPIDEMIOLOGIE
+# ---------------------------------------------------------------------------
+
+test_that("l'intervalle d'un comptage est exact, et l'approximation normale sort du domaine", {
+  ic <- hstat_epi_ic_poisson(3)
+  ref <- stats::poisson.test(3)$conf.int
+  expect_equal(ic$bas, as.numeric(ref[1]), tolerance = 1e-6)
+  expect_equal(ic$haut, as.numeric(ref[2]), tolerance = 1e-6)
+  # ET C'EST CE QUI JUSTIFIE L'EXACT : sur 3 evenements, l'approximation
+  # normale rend une borne basse NEGATIVE -- un nombre de deces negatif n'est
+  # pas un intervalle. Sans cette assertion, un code qui aurait garde le normal
+  # passerait le premier controle a la tolerance pres sur de grands comptages.
+  expect_lt(3 - 1.96 * sqrt(3), 0)
+  expect_gt(ic$bas, 0)
+  # Zero evenement : la borne basse vaut zero, jamais NA.
+  expect_equal(hstat_epi_ic_poisson(0)$bas, 0)
+  expect_gt(hstat_epi_ic_poisson(0)$haut, 0)
+})
+
+test_that("la variance robuste vaut celle du paquet de reference", {
+  skip_if_not_installed("sandwich")
+  set.seed(11); n <- 300
+  x <- stats::rnorm(n); y <- stats::rpois(n, exp(0.3 + 0.5 * x))
+  m <- stats::glm(y ~ x, family = stats::poisson())
+  V <- hstat_epi_vcov_robuste(m)
+  expect_false(is.null(V))
+  expect_equal(unname(V), unname(sandwich::sandwich(m)), tolerance = 1e-4)
+  # ELLE DOIT DIFFERER DE LA VARIANCE MODELE, sinon l'assertion passerait aussi
+  # sur une fonction qui rendrait simplement `vcov(fit)`.
+  expect_gt(max(abs(V - stats::vcov(m))), 1e-8)
+})
+
+test_that("un retard se lit par sa valeur, jamais par son rang de colonne", {
+  skip_if_not_installed("dlnm")
+  set.seed(1); n <- 240
+  x <- 25 + 6 * sin(2 * pi * seq_len(n) / 12) + stats::rnorm(n)
+  y <- stats::rpois(n, exp(1 + 0.03 * x))
+  cb <- dlnm::crossbasis(x, lag = 5,
+    argvar = list(fun = "ns", knots = stats::quantile(x, c(.25, .5, .75))),
+    arglag = list(fun = "ns", knots = dlnm::logknots(5, nk = 2)))
+  m <- stats::glm(y ~ cb + splines::ns(seq_len(n), df = 3), family = stats::poisson())
+  p <- dlnm::crosspred(cb, m, at = seq(min(x), max(x), length.out = 100),
+                       cen = stats::median(x), cumul = TRUE, bylag = 0.5)
+  g <- .hstat_epi_lag_grille(p)
+  # AU PAS DE 0,5 LA COLONNE `lg + 1` N'EST PAS LE RETARD `lg` : la colonne 6
+  # porte le retard 2,5, et un tableau qui l'etiquette « Lag 5 » est complet,
+  # plausible et faux. Mesure : 1,10 affiche pour un vrai retard 5 de 0,91 --
+  # un effet protecteur publie comme delectere.
+  expect_equal(g[6], 2.5)
+  expect_equal(.hstat_epi_col_lag(p, 5), 11L)
+  expect_false(identical(.hstat_epi_col_lag(p, 5), 6L))
+  # Et un retard absent de la grille est rendu ABSENT, pas rapproche : sinon on
+  # lirait un chiffre pour un retard que le modele n'a pas evalue.
+  expect_true(is.na(.hstat_epi_col_lag(p, 2.25)))
+})
+
+test_that("le DLNM retrouve un effet simule et nomme ce qu'il ecarte", {
+  skip_if_not_installed("dlnm")
+  set.seed(42); n <- 240
+  d <- data.frame(date = seq(as.Date("2005-01-01"), by = "month", length.out = n))
+  d$tmax <- 30 + 4 * sin(2 * pi * seq_len(n) / 12) + stats::rnorm(n, 0, 1.2)
+  d$nais <- stats::rpois(n, 400)
+  d$prema <- stats::rpois(n, exp(log(d$nais) - 3.2 + 0.05 * (d$tmax - 30)))
+  r <- hstat_epi_dlnm(d, "prema", "tmax", var_offset = "nais", var_temps = "date",
+                      lag_max = 5)
+  expect_true(r$ok)
+  lg <- hstat_epi_dlnm_lags(r, prob = 0.90)
+  # L'EFFET SIMULE EST CONTEMPORAIN : il doit ressortir au retard 0 et y etre
+  # significatif. Verifier seulement que le tableau a six lignes ne distinguerait
+  # pas un modele juste d'un modele qui rendrait 1 partout.
+  expect_equal(lg$Retard, 0:5)
+  expect_gt(lg$RR[lg$Retard == 0], 1.1)
+  expect_gt(lg$IC_bas[lg$Retard == 0], 1)
+  # UN DENOMINATEUR NUL EST ECARTE ET COMPTE, jamais remplace par 1 : `log(N+1)`
+  # affirmerait qu'un mois sans naissance portait un denominateur de 1, et le
+  # taux de ce mois serait entierement fabrique par la constante.
+  d2 <- d; d2$nais[1:3] <- 0
+  r2 <- hstat_epi_dlnm(d2, "prema", "tmax", var_offset = "nais", var_temps = "date",
+                       lag_max = 5)
+  expect_true(r2$ok)
+  expect_match(r2$message, "3 observation")
+  expect_equal(r2$n_utilisees, r$n_utilisees - 3L)
+})
+
+test_that("le test global porte sur UNE surface, pas sur toutes", {
+  skip_if_not_installed("dlnm")
+  set.seed(3); n <- 300; s <- 2 * pi * seq_len(n) / 12
+  d <- data.frame(date = seq(as.Date("2000-01-01"), by = "month", length.out = n))
+  d$tmax <- 31 + 3.5 * sin(s) + stats::rnorm(n, 0, 1)
+  d$hum <- 70 - 12 * sin(s) + stats::rnorm(n, 0, 4)
+  d$nais <- stats::rpois(n, 420)
+  d$prema <- stats::rpois(n, exp(log(d$nais) - 3.3 + 0.06 * (d$tmax - 31)))
+  r <- hstat_epi_dlnm(d, "prema", "tmax", vars_ajust_cb = "hum",
+                      var_offset = "nais", var_temps = "date", lag_max = 4)
+  expect_true(r$ok)
+  wt <- hstat_epi_dlnm_wald(r, "tmax")
+  wh <- hstat_epi_dlnm_wald(r, "hum")
+  # UN BALAYAGE EN `^cb` PRENDRAIT LES DEUX SURFACES : les deux lignes du
+  # tableau porteraient alors le MEME khi-deux sous deux noms differents.
+  # L'assertion exige qu'ils soient DISCERNABLES -- sans elle, une fonction qui
+  # testerait tout ensemble passerait.
+  expect_false(isTRUE(all.equal(wt$chi2, wh$chi2)))
+  expect_equal(wt$ddl, wh$ddl)
+  # Seule la temperature agissait dans la simulation.
+  expect_lt(wt$p, 0.05)
+  expect_gt(wh$p, 0.05)
+})
+
+test_that("deux expositions correlees sont nommees, et l'ajustement change le verdict", {
+  skip_if_not_installed("dlnm")
+  set.seed(3); n <- 300; s <- 2 * pi * seq_len(n) / 12
+  d <- data.frame(date = seq(as.Date("2000-01-01"), by = "month", length.out = n))
+  d$tmax <- 31 + 3.5 * sin(s) + stats::rnorm(n, 0, 1)
+  d$hum <- 70 - 12 * sin(s) + stats::rnorm(n, 0, 4)
+  d$nais <- stats::rpois(n, 420)
+  d$prema <- stats::rpois(n, exp(log(d$nais) - 3.3 + 0.06 * (d$tmax - 31)))
+  co <- hstat_epi_collinearite(d, c("tmax", "hum"))
+  expect_lt(co$Correlation[1], -0.7)
+  expect_match(attr(co, "message"), "corr")
+  m <- hstat_epi_dlnm_multi(d, "prema", c("tmax", "hum"), mutuel = TRUE,
+                            var_offset = "nais", var_temps = "date", lag_max = 4)
+  expect_true(m$ok)
+  expect_equal(sort(names(m$resultats)), c("hum", "tmax"))
+  expect_equal(nrow(m$comparaison), 2L)
+  # LE TABLEAU DE COMPARAISON DOIT DISTINGUER LES EXPOSITIONS : trois lignes
+  # identiques seraient la signature du test global mal cible.
+  expect_false(isTRUE(all.equal(m$comparaison$Test_global_p[1],
+                                m$comparaison$Test_global_p[2])))
+})
+
+test_that("l'odds ratio s'ecarte du risque relatif sur une issue frequente", {
+  set.seed(7); n <- 2000
+  d <- data.frame(expo = stats::rbinom(n, 1, 0.4))
+  d$issue <- stats::rbinom(n, 1, stats::plogis(-0.4 + 0.9 * d$expo))
+  r <- hstat_epi_risque(d, "issue", "expo")
+  expect_true(r$ok)
+  expect_gt(r$prevalence, 0.10)
+  # L'OR SURESTIME LE RR DES QUE L'ISSUE EST FREQUENTE, et c'est tout l'objet
+  # de la fonction. Mesure sur ce jeu : OR 2,36 contre RR 1,53, soit 54 % de
+  # surestimation. Une assertion qui ne verifierait que la presence des deux
+  # colonnes passerait sur un code qui rendrait l'OR deux fois.
+  expect_gt(r$or$OR[1], r$rr$RR[1] * 1.2)
+  expect_gt(r$ecart$Surestimation_pct[1], 20)
+  expect_match(r$message, "fr.quente")
+  # SUR UNE ISSUE RARE, les deux se rejoignent -- et le message change.
+  set.seed(8)
+  d2 <- data.frame(expo = stats::rbinom(n, 1, 0.4))
+  d2$issue <- stats::rbinom(n, 1, stats::plogis(-4.5 + 0.9 * d2$expo))
+  r2 <- hstat_epi_risque(d2, "issue", "expo")
+  skip_if(!isTRUE(r2$ok))
+  expect_lt(abs(r2$or$OR[1] - r2$rr$RR[1]) / r2$rr$RR[1], 0.15)
+  expect_match(r2$message, "rare")
+})
+
+test_that("une issue binaire se declare : la deviner inverserait l'effet", {
+  d <- data.frame(etat = rep(c("Malade", "Sain"), each = 5),
+                  expo = c(1, 1, 1, 1, 0, 0, 0, 0, 0, 1))
+  # Sans declaration, la colonne n'est pas 0/1 : on REFUSE plutot que de
+  # prendre la premiere modalite alphabetique -- qui donnerait « Malade » ici
+  # et « Negatif » sur une colonne « Negatif/Positif », soit le meme code
+  # rendant l'effet tantot a l'endroit tantot a l'envers.
+  b0 <- hstat_epi_binaire(d$etat)
+  expect_false(b0$ok)
+  b1 <- hstat_epi_binaire(d$etat, "Malade")
+  expect_true(b1$ok)
+  b2 <- hstat_epi_binaire(d$etat, "Sain")
+  expect_true(b2$ok)
+  expect_equal(b1$y, 1L - b2$y)
+  # Une modalite absente est refusee, pas silencieusement ignoree.
+  expect_false(hstat_epi_binaire(d$etat, "Inexistant")$ok)
+})
+
+test_that("l'aire sous la courbe ROC vaut la statistique de Mann-Whitney", {
+  set.seed(5)
+  sc <- c(stats::rnorm(120, 1), stats::rnorm(180, 0))
+  et <- c(rep(1L, 120), rep(0L, 180))
+  ro <- hstat_epi_roc(sc, et)
+  u <- stats::wilcox.test(sc[et == 1], sc[et == 0])$statistic / (120 * 180)
+  # DEUX CHEMINS, UN SEUL NOMBRE : l'integration trapezoidale de la courbe et
+  # le rang doivent coincider a la precision machine. C'est ce qui permet de
+  # verifier l'implementation sans se fier a un paquet.
+  expect_equal(ro$auc, ro$auc_rang, tolerance = 1e-12)
+  expect_equal(ro$auc, as.numeric(u), tolerance = 1e-12)
+  expect_gt(ro$auc, 0.7)
+  # Un etat constant n'a pas de courbe : NULL, jamais une aire de 0,5 inventee.
+  expect_null(hstat_epi_roc(sc, rep(1L, length(sc))))
+})
+
+test_that("la valeur predictive suit la prevalence, pas le tableau", {
+  d <- data.frame(ref = c(rep(1L, 100), rep(0L, 100)),
+                  tst = c(rep(1L, 99), 0L, rep(0L, 99), 1L))
+  a <- hstat_epi_diagnostic(d, "tst", "ref")
+  b <- hstat_epi_diagnostic(d, "tst", "ref", prevalence = 0.001)
+  expect_true(a$ok && b$ok)
+  # Se et Sp sont des proprietes DU TEST : elles ne bougent pas.
+  expect_equal(a$table$Valeur[1], b$table$Valeur[1])
+  expect_equal(a$table$Valeur[2], b$table$Valeur[2])
+  # LA VPP EST UNE PROPRIETE DU TEST DANS UNE POPULATION : a 0,1 % de
+  # prevalence, un test a 99/99 rend 9 % de VPP -- neuf « positifs » sur dix
+  # sont sains. Lire la VPP d'un plan cas-temoins comme si elle valait en
+  # population est l'erreur la plus couteuse du depistage.
+  expect_gt(a$table$Valeur[3], 0.95)
+  expect_lt(b$table$Valeur[3], 0.15)
+  expect_match(b$message, "pr.valence")
+})
+
+test_that("Cox rend le meme rapport que le paquet, et l'hypothese PH est testee", {
+  skip_if_not_installed("survival")
+  set.seed(11); n <- 300
+  g <- factor(sample(c("A", "B"), n, TRUE))
+  tp <- stats::rexp(n, rate = ifelse(g == "B", 0.09, 0.03))
+  cen <- stats::runif(n, 0, 40)
+  d <- data.frame(duree = pmin(tp, cen), evt = as.integer(tp <= cen), grp = g)
+  r <- hstat_epi_survie(d, "duree", "evt", "grp")
+  expect_true(r$ok)
+  ref <- exp(stats::coef(survival::coxph(
+    survival::Surv(d$duree, d$evt) ~ d$grp)))
+  expect_equal(r$cox$HR[1], round(unname(ref), 4), tolerance = 1e-4)
+  expect_lt(r$logrank$p, 0.001)
+  # L'HYPOTHESE PH EST TESTEE ET RENDUE : la taire laisserait publier un HR
+  # unique qui, si elle tombe, ne decrit aucun instant de l'etude.
+  expect_true(!is.null(r$ph))
+  expect_true("GLOBAL" %in% r$ph$Terme)
+  # Tout censure : aucune survie estimable, et on le dit.
+  d0 <- d; d0$evt <- 0L
+  expect_false(hstat_epi_survie(d0, "duree", "evt", "grp")$ok)
+})
+
+test_that("le cas-croise exige un pas journalier et retrouve l'effet simule", {
+  set.seed(13); N <- 730
+  dt <- seq(as.Date("2020-01-01"), by = "day", length.out = N)
+  x <- 25 + 8 * sin(2 * pi * seq_len(N) / 365) + stats::rnorm(N, 0, 2)
+  d <- data.frame(date = dt, cas = stats::rpois(N, exp(1.5 + 0.04 * (x - 25))),
+                  tmax = x)
+  r <- hstat_epi_cas_croise(d, "date", "cas", "tmax")
+  expect_true(r$ok)
+  expect_gt(r$strates, 100L)
+  # L'intervalle doit CONTENIR la verite simulee : verifier seulement que le
+  # RR est superieur a 1 passerait sur un modele qui surestimerait du double.
+  expect_lt(r$coefs$IC_bas[1], exp(0.04))
+  expect_gt(r$coefs$IC_haut[1], exp(0.04))
+  # SUR DU MENSUEL LA STRATE NE CONTIENT QU'UNE LIGNE : il n'y a plus de
+  # jour-temoin, et le modele ne peut rien estimer. On refuse en le disant.
+  dm <- data.frame(date = seq(as.Date("2020-01-01"), by = "month", length.out = 60),
+                   cas = stats::rpois(60, 10), tmax = stats::rnorm(60, 25))
+  rm <- hstat_epi_cas_croise(dm, "date", "cas", "tmax")
+  expect_false(rm$ok)
+  expect_match(rm$message, "journali")
+})
+
+test_that("le SMR vaut le rapport observe/attendu et son intervalle est exact", {
+  d <- data.frame(
+    zone = rep(c("Nord", "Sud"), each = 4),
+    age = rep(c("0-19", "20-39", "40-59", "60+"), 2),
+    pop = c(5000, 6000, 4000, 2000, 3000, 3000, 5000, 6000),
+    dec = c(2, 5, 20, 60, 1, 3, 26, 190),
+    txref = rep(c(0.0004, 0.0008, 0.005, 0.030), 2))
+  r <- hstat_epi_smr(d, "dec", "pop", "txref", "age", "zone")
+  expect_true(r$ok)
+  o <- sum(d$dec[1:4]); e <- sum(d$pop[1:4] * d$txref[1:4])
+  expect_equal(r$smr$SMR[r$smr$Groupe == "Nord"], round(o / e, 4), tolerance = 1e-6)
+  # L'INTERVALLE VIENT DU COMPTAGE, donc il est exact : l'approximation normale
+  # donnerait une borne basse differente, et sur de petits comptages negative.
+  ic <- hstat_epi_ic_poisson(o)
+  expect_equal(r$smr$IC_bas[r$smr$Groupe == "Nord"], round(ic$bas / e, 4),
+               tolerance = 1e-6)
+  # SANS TAUX DE REFERENCE on ne les invente pas : on les derive du fichier, et
+  # on DIT que le SMR moyen vaut alors 1 par construction -- sans quoi on
+  # croirait a une comparaison nationale.
+  r2 <- hstat_epi_smr(d, "dec", "pop", NULL, "age", "zone")
+  expect_true(r2$ok)
+  expect_match(r2$message, "interne")
+})
+
+test_that("les mesures d'impact sont exactes, et le signe change le libelle", {
+  r <- hstat_epi_impact(40, 60, 20, 80)
+  expect_true(r$ok)
+  v <- stats::setNames(r$table$Valeur, r$table$.cle)
+  expect_equal(r$table$Valeur[r$table$Mesure == tr("Risque relatif (RR)")], 2)
+  expect_equal(r$table$Valeur[r$table$Mesure == tr("Risque attribuable (RA)")], 0.2)
+  expect_equal(r$table$Valeur[r$table$Mesure ==
+    tr("Fraction attribuable chez les exposés (FAE)")], 0.5)
+  expect_equal(r$table$Valeur[r$table$Mesure ==
+    tr("Fraction attribuable en population (FAP)")], 1 / 3, tolerance = 1e-3)
+  # UNE CASE NULLE EST CORRIGEE ET ON LE DIT : l'appliquer en silence rendrait
+  # des intervalles qui ne sont plus ceux des donnees brutes.
+  r0 <- hstat_epi_impact(0, 60, 20, 80)
+  expect_true(r0$corrige)
+  expect_match(r0$message, "Haldane")
+  # UN RISQUE ATTRIBUABLE NEGATIF EST UN RESULTAT : l'exposition protege, et le
+  # libelle bascule de « a exposer » a « a traiter ». Le borner a zero
+  # masquerait precisement ce qu'il faut voir.
+  rn <- hstat_epi_impact(20, 80, 40, 60)
+  expect_lt(rn$table$Valeur[rn$table$Mesure == tr("Risque attribuable (RA)")], 0)
+  expect_true(tr("Nombre de sujets à traiter (NST)") %in% rn$table$Mesure)
+  expect_false(tr("Nombre de sujets à exposer pour un cas (NSE)") %in% rn$table$Mesure)
+})
+
+test_that("chaque analyse d'epidemiologie a son catalogue et ses figures", {
+  # LE CATALOGUE EST DECLARE UNE FOIS : le selecteur, l'aide et le module en
+  # derivent. Une analyse sans figure rendrait un onglet Graphique vide.
+  expect_setequal(names(HSTAT_EPI_FIGURES), names(HSTAT_EPI_ANALYSES))
+  for (k in names(HSTAT_EPI_ANALYSES)) {
+    expect_equal(length(HSTAT_EPI_ANALYSES[[k]]), 4L, info = k)
+    expect_true(all(nzchar(HSTAT_EPI_ANALYSES[[k]])), info = k)
+    expect_gt(length(HSTAT_EPI_FIGURES[[k]]), 0L)
+  }
+  # Les figures tracees en graphiques de base sont DECLAREES : c'est ce qui
+  # permet de retirer le panneau de mise en forme ggplot, qu'elles ignorent.
+  expect_true(all(HSTAT_EPI_FIGURES_BASE %in% unlist(HSTAT_EPI_FIGURES)))
+})
+
+test_that("les six figures du DLNM se construisent reellement", {
+  skip_if_not_installed("dlnm")
+  set.seed(21); n <- 240
+  d <- data.frame(date = seq(as.Date("2005-01-01"), by = "month", length.out = n))
+  d$tmax <- 30 + 4 * sin(2 * pi * seq_len(n) / 12) + stats::rnorm(n, 0, 1.2)
+  d$nais <- stats::rpois(n, 400)
+  d$prema <- stats::rpois(n, exp(log(d$nais) - 3.2 + 0.05 * (d$tmax - 30)))
+  r <- hstat_epi_dlnm(d, "prema", "tmax", var_offset = "nais", var_temps = "date",
+                      lag_max = 5)
+  skip_if(!isTRUE(r$ok))
+  # COMPTER LES ENTREES D'UN CATALOGUE NE DIT RIEN DE CE QU'ELLES PRODUISENT :
+  # c'est `ggplot_build` qui revele une echelle incompatible, et l'ecriture du
+  # fichier qui revele un tracage de base qui leve.
+  for (f in names(HSTAT_EPI_FIGURES$dlnm)) {
+    p <- hstat_epi_figure("dlnm", HSTAT_EPI_FIGURES$dlnm[[f]], r,
+                          o = list(theme = "minimal", police = 11))
+    expect_false(is.null(p), info = f)
+    if (is.function(p)) {
+      tf <- tempfile(fileext = ".png")
+      ok <- hstat_ecrire_image(tf, p, "png", 8, 6, 96, secours = FALSE)
+      expect_true(ok && file.exists(tf) && file.size(tf) > 1000, info = f)
+      unlink(tf)
+    } else {
+      expect_silent(invisible(ggplot2::ggplot_build(p)))
+    }
+  }
+})
+
+test_that("le module d'epidemiologie lance une analyse et rend ses tableaux", {
+  skip_if_not_installed("dlnm")
+  skip_if_not_installed("shiny")
+  set.seed(31); n <- 200
+  d <- data.frame(date = seq(as.Date("2008-01-01"), by = "month", length.out = n))
+  d$tmax <- 29 + 3 * sin(2 * pi * seq_len(n) / 12) + stats::rnorm(n, 0, 1)
+  d$nais <- stats::rpois(n, 350)
+  d$prema <- stats::rpois(n, exp(log(d$nais) - 3.1 + 0.05 * (d$tmax - 29)))
+  vals <- shiny::reactiveValues(data = d, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  # LE TEST PORTE SUR LE MODULE, PAS SUR LA FONCTION : un test qui appellerait
+  # `hstat_epi_dlnm()` resterait vert pendant que le module ne l'emploie pas.
+  shiny::testServer(mod_epidemio_server, args = list(values = vals), {
+    session$setInputs(epiAnalyse = "dlnm", epiY = "prema", epiExpo = "tmax",
+                      epiOffset = "nais", epiTemps = "date", epiMutuel = TRUE,
+                      epiLag = 4, epiNkLag = 2, epiFamille = "auto",
+                      epiPeriode = 12, epiHarmo = 2, epiTendance = 3,
+                      epiConf = 0.95, epiAjust = character(0),
+                      epiLancer = 1)
+    expect_true(!is.null(rv$res))
+    expect_equal(rv$analyse, "dlnm")
+    tb <- tables()
+    expect_true(is.list(tb) && length(tb) >= 2L)
+    expect_true("Comparaison" %in% names(tb))
+    expect_true(NROW(t1()) > 0)
+    # LE SELECTEUR DE FIGURE SE CONSTRUIT AVANT QU'AUCUNE FIGURE SOIT CHOISIE.
+    # `input$epiFigure` y vaut NULL, et `NULL %in% choix` rend `logical(0)` :
+    # `if()` leve « argument is of length zero », l'erreur tombe dans le
+    # `renderUI`, et LE SELECTEUR N'EXISTE JAMAIS -- donc aucune figure ne se
+    # trace sur une analyse pourtant calculee.
+    #
+    # Le defaut a ete trouve AU NAVIGATEUR, pas ici : le test posait
+    # `epiFigure` avant de lire `figure()`, et n'exercait donc jamais le
+    # `renderUI`. On le lit desormais AVANT tout choix.
+    expect_false(is.null(output$epiFigureUI))
+    expect_match(output$epiFigureUI$html, "epiFigure", fixed = TRUE)
+    session$setInputs(epiFigure = "cumul")
+    expect_false(is.null(figure()))
+  })
 })

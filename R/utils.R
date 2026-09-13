@@ -10179,3 +10179,1692 @@ hstat_dt_arrondi <- function(d, df, digits = 4) {
   if (any(entier))        d <- DT::formatRound(d, names(df)[entier], 0)
   d
 }
+
+# ===========================================================================
+#  EPIDEMIOLOGIE -- les modeles que la discipline emploie, et leurs pieges
+# ===========================================================================
+#
+#  Regle du depot appliquee a la lettre : TOUT le calcul vit ici, le module ne
+#  fait que choisir, afficher et mettre en forme. Une statistique posee dans un
+#  `observeEvent` n'est pas testable -- et en epidemiologie le mode de
+#  defaillance qui coute le plus cher n'est jamais une erreur, c'est un rapport
+#  de risque PLAUSIBLE ET FAUX recopie tel quel dans un rapport sanitaire.
+#
+#  Le catalogue est declare UNE FOIS ; le selecteur, l'aide et le balayage en
+#  derivent. Deux listes recopiees finissent par diverger, et c'est la copie
+#  oubliee qui ment.
+
+HSTAT_EPI_ANALYSES <- list(
+  dlnm = c(
+    "DLNM — exposition, retard et réponse",
+    "Surface exposition-retard par splines croisées : l'effet peut être non linéaire ET étalé dans le temps (vagues de chaleur, pollution).",
+    "Quantifier l'effet différé d'une exposition environnementale sur un décompte sanitaire.",
+    "Série longue devant le décalage ; un dénominateur (offset) si le décompte dépend d'une population."),
+  taux = c(
+    "Taux d'incidence (Poisson / binomiale négative)",
+    "Modèle de comptage avec temps-personne en offset : les coefficients sont des rapports de taux d'incidence (IRR).",
+    "Comparer des taux entre groupes en tenant compte du temps d'observation.",
+    "Un décompte d'événements et un temps-personne strictement positif."),
+  risque = c(
+    "Risque : OR, RR ajustés et leur écart",
+    "Logistique (OR), log-binomiale et Poisson robuste (RR) sur les mêmes données : l'écart OR/RR se mesure au lieu de se supposer.",
+    "Estimer un risque ajusté sans confondre cote et risque quand l'issue est fréquente.",
+    "Issue binaire 0/1 ; au moins un facteur d'exposition."),
+  survie = c(
+    "Survie : Kaplan-Meier, log-rank et Cox",
+    "Courbes de survie, test du log-rank et modèle à risques proportionnels, avec vérification de l'hypothèse PH (Schoenfeld).",
+    "Analyser un délai de survenue en présence de censure.",
+    "Une durée de suivi, un indicateur d'événement (1 = survenu, 0 = censuré)."),
+  cascroise = c(
+    "Cas-croisé (case-crossover) stratifié sur le temps",
+    "Chaque cas est son propre témoin : les jours-témoins sont pris dans la même strate (année x mois x jour de semaine), et le modèle est une logistique conditionnelle.",
+    "Effet aigu d'une exposition sans avoir à modéliser la saison ni les facteurs propres au sujet.",
+    "Une date, un décompte de cas et une exposition datée."),
+  smr = c(
+    "Standardisation et SMR / SIR",
+    "Standardisation directe (taux comparables) et indirecte (rapport observé/attendu), l'intervalle du SMR étant exact (Poisson).",
+    "Comparer la mortalité ou l'incidence de populations de structures d'âge différentes.",
+    "Des effectifs, des événements par strate et des taux de référence."),
+  diagnostic = c(
+    "Test diagnostique : Se, Sp, VPP, VPN, ROC",
+    "Sensibilité, spécificité, valeurs prédictives, rapports de vraisemblance, indice de Youden et aire sous la courbe ROC.",
+    "Évaluer un test de dépistage ou un score de prédiction.",
+    "Un résultat de test (binaire ou continu) et un état de référence binaire."),
+  impact = c(
+    "Mesures d'impact : RA, FAE, FAP, NNT",
+    "Risque attribuable, fraction attribuable chez les exposés et en population, nombre de sujets à traiter.",
+    "Traduire une association en nombre de cas évitables — ce que demande une décision de santé publique.",
+    "Un tableau 2x2 exposition x issue, et la prévalence de l'exposition pour la FAP.")
+)
+
+# ---------------------------------------------------------------------------
+#  UN INTERVALLE DE COMPTAGE EST EXACT, PAS NORMAL
+# ---------------------------------------------------------------------------
+#  L'approximation normale sur un decompte d'evenements rend une borne basse
+#  NEGATIVE des que le compte est petit -- et un nombre de deces negatif n'est
+#  pas un intervalle, c'est un aveu. Sur 3 evenements observes : normal donne
+#  [-0.39 ; 6.39], exact [0.62 ; 8.77]. Le cas n'a rien d'exotique, c'est le
+#  quotidien d'un registre de canton.
+#
+#  La relation entre la loi de Poisson et la loi du khi-deux donne les bornes
+#  sans iteration, et elle est exacte : elle ne s'approche pas.
+hstat_epi_ic_poisson <- function(x, conf = 0.95) {
+  x <- suppressWarnings(as.numeric(x))
+  conf <- suppressWarnings(as.numeric(conf)[1])
+  if (!isTRUE(is.finite(conf)) || conf <= 0 || conf >= 1) conf <- 0.95
+  a <- (1 - conf) / 2
+  bas <- ifelse(!is.finite(x) | x < 0, NA_real_,
+                ifelse(x == 0, 0, stats::qchisq(a, 2 * x) / 2))
+  haut <- ifelse(!is.finite(x) | x < 0, NA_real_,
+                 stats::qchisq(1 - a, 2 * (x + 1)) / 2)
+  list(bas = bas, haut = haut, conf = conf)
+}
+
+# Un decompte se lit toujours avec son denominateur : le taux, et son intervalle,
+# heritent de l'exactitude du compte.
+hstat_epi_taux_ic <- function(x, temps, conf = 0.95, pour = 1) {
+  ic <- hstat_epi_ic_poisson(x, conf)
+  t <- suppressWarnings(as.numeric(temps))
+  t[!is.finite(t) | t <= 0] <- NA_real_
+  list(taux = x / t * pour, bas = ic$bas / t * pour, haut = ic$haut / t * pour,
+       conf = ic$conf)
+}
+
+# ===========================================================================
+#  DLNM -- surface exposition / retard / reponse
+# ===========================================================================
+#
+#  Ce n'est PAS le DLNM de l'onglet Series temporelles, qui est une methode de
+#  PREVISION. Ici on ne prevoit rien : on estime la forme de l'effet d'une
+#  exposition et la facon dont il se repartit dans le temps. Deux questions,
+#  deux sorties, et les confondre ferait publier une courbe exposition-reponse
+#  sous le nom d'une prevision.
+
+HSTAT_EPI_DLNM_FAMILLES <- c(
+  "Automatique (AIC : Poisson vs binomiale négative)" = "auto",
+  "Poisson"                                          = "poisson",
+  "Quasi-Poisson (surdispersion)"                    = "quasipoisson",
+  "Binomiale négative"                               = "nb")
+
+# Les percentiles auxquels la surface est lue. Declares une fois : le tableau
+# des effets cumules, celui des retards et les deux courbes de la figure 4 les
+# lisent tous, ils ne peuvent donc pas diverger.
+HSTAT_EPI_DLNM_PCT <- c(0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99)
+
+# ---------------------------------------------------------------------------
+#  LES NOEUDS SONT DES PERCENTILES, ET DEUX PERCENTILES PEUVENT COINCIDER
+# ---------------------------------------------------------------------------
+#  Sur une exposition peu variable -- une temperature de saison seche, une
+#  serie tronquee -- P25 et P50 tombent sur la meme valeur. `ns()` leve alors
+#  une matrice singuliere, et le message ne nomme ni la variable ni la cause.
+#  On deduplique, on abaisse le nombre de noeuds, et ON LE DIT : un modele
+#  ajuste avec moins de souplesse que demandee n'est pas celui qu'on croit.
+.hstat_epi_noeuds <- function(x, probs) {
+  x <- x[is.finite(x)]
+  if (length(x) < 4L) return(list(noeuds = numeric(0), message = NULL))
+  k <- unname(stats::quantile(x, probs = probs, na.rm = TRUE))
+  k <- unique(k)
+  # Un noeud pose sur une borne ne partage rien : `ns()` le refuse.
+  k <- k[k > min(x) & k < max(x)]
+  msg <- if (length(k) < length(probs))
+    trf("Nœuds de la variable d'exposition : %d demandé(s), %d retenu(s) — des percentiles coïncident sur cette série, la souplesse du modèle est donc plus faible que demandée.",
+        length(probs), length(k)) else NULL
+  list(noeuds = k, message = msg)
+}
+
+# ---------------------------------------------------------------------------
+#  LE DENOMINATEUR NE S'INVENTE PAS
+# ---------------------------------------------------------------------------
+#  L'usage courant ecrit `offset = log(N + 1)` pour eviter log(0). C'est une
+#  valeur INVENTEE : elle affirme qu'un mois sans aucune naissance vivante
+#  portait quand meme un denominateur de 1, et le taux estime sur ce mois est
+#  alors entierement fabrique par la constante. Un mois sans denominateur
+#  n'apporte aucune information sur un taux -- on l'ECARTE, et on le COMPTE.
+.hstat_epi_offset <- function(off) {
+  if (is.null(off)) return(list(log_off = NULL, garde = NULL, ecartes = 0L))
+  o <- suppressWarnings(as.numeric(off))
+  ok <- is.finite(o) & o > 0
+  list(log_off = ifelse(ok, log(pmax(o, .Machine$double.xmin)), NA_real_),
+       garde = ok, ecartes = sum(!ok))
+}
+
+# Saison et tendance : des harmoniques de Fourier pour le cycle, une spline du
+# temps pour la derive longue. Les deux sont NECESSAIRES -- sans elles, la
+# saison de l'exposition et celle de l'issue se confondent, et la surface
+# attribue a la temperature ce qui n'est qu'un mois de l'annee.
+.hstat_epi_saison <- function(temps, periode, harmoniques) {
+  h <- as.integer(max(0L, min(6L, harmoniques)))
+  if (h < 1L || !isTRUE(is.finite(periode)) || periode <= 1) return(NULL)
+  out <- lapply(seq_len(h), function(k) {
+    cbind(sin(2 * pi * k * temps / periode), cos(2 * pi * k * temps / periode))
+  })
+  m <- do.call(cbind, out)
+  colnames(m) <- as.vector(rbind(paste0("sin", seq_len(h)), paste0("cos", seq_len(h))))
+  m
+}
+
+#  UNE SEULE EXPOSITION NE SUFFIT JAMAIS
+# ---------------------------------------------------------------------------
+#  La temperature n'agit pas seule : la pluviometrie, l'humidite relative, le
+#  vent et les polluants varient ENSEMBLE, et souvent fortement. Estimer
+#  l'effet de la temperature sans les autres lui attribue ce qui revient a
+#  l'humidite -- et le chiffre reste parfaitement plausible.
+#
+#  Le module porte donc trois roles distincts, et c'est le partage qui compte :
+#
+#    * l'exposition PRINCIPALE  -> sa surface exposition-retard est estimee,
+#                                  tracee et publiee ;
+#    * les expositions D'AJUSTEMENT -> leur propre surface entre au modele, mais
+#                                  on ne la publie pas : elles sont la pour que
+#                                  l'effet principal soit net ;
+#    * les covariables simples  -> terme lineaire (jour ferie, grille de
+#                                  population, indicatrice d'epidemie).
+#
+#  Une exposition d'ajustement DOIT garder sa structure de retard : la reduire a
+#  sa valeur du mois meme laisserait passer l'effet retarde de l'humidite dans
+#  le retard de la temperature, ce qu'on cherchait precisement a eviter.
+.hstat_epi_cb <- function(x, L, pct_noeuds, nk_lag, nom) {
+  nd <- .hstat_epi_noeuds(x, pct_noeuds)
+  if (!length(nd$noeuds))
+    return(list(ok = FALSE,
+                message = trf("« %s » ne varie pas assez pour poser un nœud : aucune surface n'y est estimable.", nom)))
+  cb <- tryCatch(
+    dlnm::crossbasis(x, lag = L,
+                     argvar = list(fun = "ns", knots = nd$noeuds),
+                     arglag = list(fun = "ns",
+                                   knots = if (L >= 2L)
+                                     dlnm::logknots(L, nk = max(1L, min(as.integer(nk_lag), L - 1L)))
+                                   else NULL)),
+    error = function(e) e)
+  if (inherits(cb, "error"))
+    return(list(ok = FALSE,
+                message = trf("« %s » : surface impossible (%s)", nom, hstat_err_fr(cb))))
+  list(ok = TRUE, cb = cb, noeuds = nd$noeuds,
+       message = if (!is.null(nd$message)) paste0(nom, " — ", nd$message) else NULL)
+}
+
+# ---------------------------------------------------------------------------
+#  DEUX EXPOSITIONS TRES CORRELEES SE PARTAGENT L'EFFET, ET AUCUNE NE RESSORT
+# ---------------------------------------------------------------------------
+#  Temperature maximale et humidite relative correlent souvent a -0,8 ; en
+#  saison seche, temperature et pluviometrie tout autant. Mises ensemble sans
+#  un mot, l'effet se repartit entre elles de facon instable : les deux
+#  intervalles s'elargissent, les deux verdicts tombent a « non significatif »,
+#  et on conclut qu'AUCUNE n'agit alors que leur effet conjoint est net.
+#
+#  C'est le mode de defaillance le plus trompeur du plan multi-expositions, et
+#  il ne leve rien. On le MESURE et on le NOMME.
+hstat_epi_collinearite <- function(data, vars, seuil = 0.7) {
+  vars <- intersect(as.character(vars %||% character(0)), names(data))
+  if (length(vars) < 2L) return(NULL)
+  m <- vapply(vars, function(v) suppressWarnings(as.numeric(data[[v]])),
+              numeric(nrow(data)))
+  cm <- suppressWarnings(stats::cor(m, use = "pairwise.complete.obs"))
+  pa <- utils::combn(seq_along(vars), 2)
+  r <- vapply(seq_len(ncol(pa)), function(k) cm[pa[1, k], pa[2, k]], numeric(1))
+  d <- data.frame(Variable_1 = vars[pa[1, ]], Variable_2 = vars[pa[2, ]],
+                  Correlation = round(r, 4), check.names = FALSE,
+                  stringsAsFactors = FALSE)
+  d <- d[order(-abs(d$Correlation)), , drop = FALSE]
+  fortes <- d[is.finite(d$Correlation) & abs(d$Correlation) >= seuil, , drop = FALSE]
+  msg <- if (nrow(fortes))
+    trf("Expositions fortement corrélées (|r| ≥ %.2f) : %s. Leur effet se partage de façon instable : les intervalles s'élargissent et les deux peuvent ressortir « non significatives » alors que leur effet conjoint est net. Retirez-en une, ou interprétez-les ensemble.",
+        seuil, paste(sprintf("%s/%s (r = %.2f)", fortes$Variable_1, fortes$Variable_2,
+                             fortes$Correlation), collapse = " ; ")) else NULL
+  structure(d, message = msg, fortes = nrow(fortes))
+}
+
+#' Ajuste une surface exposition-retard-reponse.
+#'
+#' Rend TOUJOURS une liste ; `ok = FALSE` porte le motif. Faire lever la
+#' fonction ferait tomber la sortie Shiny entiere, la ou un motif se lit.
+hstat_epi_dlnm <- function(data, var_y, var_expo, var_offset = NULL,
+                           var_temps = NULL, lag_max = 5L,
+                           pct_noeuds = c(0.25, 0.50, 0.75),
+                           nk_lag = 2L, reference = NULL,
+                           famille = "auto", periode = 12,
+                           harmoniques = 2L, df_tendance = 3L,
+                           conf = 0.95, vars_ajust_cb = NULL,
+                           vars_ajust = NULL) {
+  msg <- character(0)
+  ko <- function(m) list(ok = FALSE, message = m)
+
+  if (!requireNamespace("dlnm", quietly = TRUE))
+    return(ko(hstat_pkg_manquant("dlnm", tr("l'analyse exposition-retard"))))
+  if (is.null(data) || !nrow(data)) return(ko(tr("Aucune donnée.")))
+  for (v in c(var_y, var_expo))
+    if (!isTRUE(nzchar(v %||% "")) || !v %in% names(data))
+      return(ko(trf("Colonne introuvable : %s", as.character(v %||% "(non choisie)"))))
+  if (identical(var_y, var_expo))
+    return(ko(tr("L'issue et l'exposition doivent être deux colonnes différentes.")))
+
+  # UNE EXPOSITION D'AJUSTEMENT NE PEUT ETRE NI L'ISSUE NI L'EXPOSITION
+  # PRINCIPALE. La meme colonne posee deux fois rendrait une matrice singuliere
+  # -- et, quand elle ne la rend pas, deux surfaces qui se partagent exactement
+  # le meme effet.
+  vars_ajust_cb <- setdiff(intersect(as.character(vars_ajust_cb %||% character(0)),
+                                     names(data)), c(var_y, var_expo))
+  vars_ajust <- setdiff(intersect(as.character(vars_ajust %||% character(0)),
+                                  names(data)), c(var_y, var_expo, vars_ajust_cb))
+
+  y <- suppressWarnings(as.numeric(data[[var_y]]))
+  x <- suppressWarnings(as.numeric(data[[var_expo]]))
+  n <- length(y)
+
+  L <- as.integer(max(0L, min(60L, suppressWarnings(as.numeric(lag_max)[1]))))
+  if (!isTRUE(is.finite(L))) L <- 5L
+  # LA SERIE DOIT ETRE NETTEMENT PLUS LONGUE QUE LE DECALAGE. Les `L` premieres
+  # lignes perdent leur historique : avec L proche de n, il ne reste presque
+  # rien a ajuster, et le modele converge sur une poignee de points.
+  if (n < L + 12L)
+    return(ko(trf("Série trop courte : %d observations pour un décalage de %d. Il en faut au moins %d (réduisez le décalage).",
+                  n, L, L + 12L)))
+
+  # Le temps : une colonne declaree, ou le rang. Le rang suppose que les lignes
+  # sont DEJA dans l'ordre chronologique -- on le dit plutot que de le supposer.
+  tt <- seq_len(n)
+  if (isTRUE(nzchar(var_temps %||% "")) && var_temps %in% names(data)) {
+    d <- data[[var_temps]]
+    dd <- if (inherits(d, "Date") || inherits(d, "POSIXct")) as.numeric(d) else
+      suppressWarnings(as.numeric(hstat_date_parse(as.character(d))))
+    if (all(is.na(dd))) dd <- suppressWarnings(as.numeric(d))
+    if (!all(is.na(dd))) {
+      if (is.unsorted(dd, na.rm = TRUE))
+        msg <- c(msg, tr("Les lignes ne sont pas triées par date : un retard se compte sur des observations consécutives, triez le fichier avant l'analyse."))
+      tt <- as.numeric(dd)
+      pas <- stats::median(diff(sort(unique(tt))), na.rm = TRUE)
+      if (isTRUE(is.finite(pas)) && pas > 0) tt <- (tt - min(tt, na.rm = TRUE)) / pas + 1
+    }
+  } else {
+    msg <- c(msg, tr("Aucune colonne de temps déclarée : les retards sont comptés sur l'ordre des lignes du fichier."))
+  }
+
+  # La surface principale, puis celles d'ajustement. LA GARDE EST PAR
+  # EXPOSITION, pas autour de la boucle : une humidite trop plate ne doit pas
+  # emporter la temperature, qui est ce qu'on venait estimer.
+  pr <- .hstat_epi_cb(x, L, pct_noeuds, nk_lag, var_expo)
+  if (!isTRUE(pr$ok)) return(ko(pr$message))
+  if (!is.null(pr$message)) msg <- c(msg, pr$message)
+  cbs <- list(); cbs[[var_expo]] <- pr$cb
+  ecartees <- character(0)
+  for (v in vars_ajust_cb) {
+    a <- .hstat_epi_cb(suppressWarnings(as.numeric(data[[v]])), L, pct_noeuds, nk_lag, v)
+    if (!isTRUE(a$ok)) { ecartees <- c(ecartees, v); msg <- c(msg, a$message); next }
+    if (!is.null(a$message)) msg <- c(msg, a$message)
+    cbs[[v]] <- a$cb
+  }
+  vars_ajust_cb <- setdiff(vars_ajust_cb, ecartees)
+
+  # La collinearite se mesure sur TOUTES les expositions retenues, la principale
+  # comprise : c'est entre elles que l'effet se partage.
+  coll <- hstat_epi_collinearite(data, c(var_expo, vars_ajust_cb))
+  if (!is.null(coll) && !is.null(attr(coll, "message")))
+    msg <- c(msg, attr(coll, "message"))
+
+  of <- .hstat_epi_offset(if (isTRUE(nzchar(var_offset %||% "")) &&
+                              var_offset %in% names(data)) data[[var_offset]] else NULL)
+  if (of$ecartes > 0)
+    msg <- c(msg, trf("%d observation(s) écartée(s) : dénominateur nul, négatif ou manquant. Un mois sans dénominateur n'informe aucun taux — il n'est pas remplacé par 1, ce qui fabriquerait le taux de ce mois.",
+                      of$ecartes))
+
+  sais <- .hstat_epi_saison(tt, periode, harmoniques)
+  dft <- as.integer(max(0L, min(20L, suppressWarnings(as.numeric(df_tendance)[1]))))
+  if (!isTRUE(is.finite(dft))) dft <- 3L
+  tend <- if (dft >= 1L && n > dft + 2L)
+    tryCatch(splines::ns(tt, df = dft), error = function(e) NULL) else NULL
+  if (dft >= 1L && is.null(tend))
+    msg <- c(msg, tr("Tendance longue non estimable : la spline du temps a été retirée."))
+
+  dd <- data.frame(.y = y)
+  if (!is.null(sais)) dd <- cbind(dd, as.data.frame(sais))
+  if (!is.null(tend)) {
+    tn <- as.data.frame(unclass(tend))
+    names(tn) <- paste0("tend", seq_len(ncol(tn)))
+    dd <- cbind(dd, tn)
+  }
+  if (length(vars_ajust)) {
+    av <- data[, vars_ajust, drop = FALSE]
+    names(av) <- paste0("aj", seq_along(vars_ajust))
+    dd <- cbind(dd, av)
+    ajn <- stats::setNames(vars_ajust, names(av))
+  } else ajn <- character(0)
+  if (!is.null(of$log_off)) dd$.logoff <- of$log_off
+
+  # LA GARDE PAR OBSERVATION, PAS PAR MODELE : une ligne sans denominateur ne
+  # doit pas emporter la serie entiere.
+  garde <- stats::complete.cases(dd) & is.finite(y)
+  if (!is.null(of$garde)) garde <- garde & of$garde
+  if (sum(garde) < L + 12L)
+    return(ko(trf("Après retrait des lignes incomplètes il ne reste que %d observation(s) : trop peu pour un décalage de %d.",
+                  sum(garde), L)))
+
+  # Les surfaces entrent dans la formule sous des noms STABLES (`cb1`, `cb2`…)
+  # et non sous le nom de la colonne : un intitule de fichier porte accents,
+  # espaces et parentheses, que `as.formula` refuse -- et le contourner par des
+  # accents graves casse l'appariement des coefficients de `crosspred`.
+  cbn <- paste0("cb", seq_along(cbs))
+  env <- new.env(parent = parent.frame())
+  for (k in seq_along(cbs)) assign(cbn[k], cbs[[k]], envir = env)
+  #
+  #  L'OFFSET ENTRE PAR LA FORMULE, JAMAIS PAR L'ARGUMENT `offset =`. `glm()`
+  #  applique `subset` AUSSI a l'argument : lui passer le vecteur deja filtre le
+  #  filtre une seconde fois, et l'appel leve « variable lengths differ ».
+  #
+  #  Le defaut est LATENT tant qu'aucune ligne n'est ecartee -- les deux
+  #  longueurs coincident alors par hasard -- et il ne se reveille qu'au premier
+  #  denominateur nul, c'est-a-dire exactement dans le cas que le module existe
+  #  pour traiter. `offset()` dans la formule est resolu dans `data`, donc
+  #  sous-ensemble avec elle.
+  pred_noms <- setdiff(names(dd), c(".y", ".logoff"))
+  fml <- stats::as.formula(paste(".y ~", paste(cbn, collapse = " + "),
+                                 if (length(pred_noms)) paste("+", paste(pred_noms, collapse = " + ")) else "",
+                                 if (!is.null(of$log_off)) "+ offset(.logoff)" else ""))
+  environment(fml) <- env
+
+  compte <- all(y[garde] >= 0, na.rm = TRUE) &&
+    all(abs(y[garde] - round(y[garde])) < 1e-8, na.rm = TRUE)
+  if (!compte)
+    msg <- c(msg, tr("L'issue n'est pas un décompte d'événements (valeurs non entières ou négatives) : les rapports de risque se lisent alors avec prudence."))
+
+  ajuster <- function(fam) {
+    a <- list(formula = fml, data = dd, subset = garde, na.action = stats::na.exclude)
+    tryCatch({
+      if (identical(fam, "nb")) {
+        if (!requireNamespace("MASS", quietly = TRUE)) return(NULL)
+        suppressWarnings(do.call(MASS::glm.nb, a))
+      } else {
+        a$family <- switch(fam, poisson = stats::poisson(),
+                           quasipoisson = stats::quasipoisson(),
+                           stats::poisson())
+        suppressWarnings(do.call(stats::glm, a))
+      }
+    }, error = function(e) NULL)
+  }
+
+  fam_dem <- if (famille %in% c("auto", "poisson", "quasipoisson", "nb")) famille else "auto"
+  if (identical(fam_dem, "auto")) {
+    m_p <- ajuster("poisson"); m_n <- ajuster("nb")
+    # L'AIC N'EST PAS DEFINI POUR UN QUASI-MODELE : le comparer reviendrait a
+    # comparer un nombre a NA, et `which.min` designerait alors le survivant.
+    a_p <- if (!is.null(m_p)) stats::AIC(m_p) else NA_real_
+    a_n <- if (!is.null(m_n)) suppressWarnings(stats::AIC(m_n)) else NA_real_
+    if (isTRUE(is.finite(a_n)) && (!isTRUE(is.finite(a_p)) || a_n < a_p)) {
+      fit <- m_n; fam_ret <- "nb"
+    } else { fit <- m_p; fam_ret <- "poisson" }
+    if (isTRUE(is.finite(a_p)) && isTRUE(is.finite(a_n)))
+      msg <- c(msg, trf("Choix automatique par AIC : Poisson %.1f, binomiale négative %.1f.", a_p, a_n))
+  } else {
+    fit <- ajuster(fam_dem); fam_ret <- fam_dem
+  }
+  if (is.null(fit)) return(ko(tr("L'ajustement du modèle a échoué : essayez un décalage plus court ou moins de nœuds.")))
+
+  # LA SURDISPERSION SE MESURE, ELLE NE SE SUPPOSE PAS. Sous Poisson, une
+  # variance trois fois la moyenne rend des intervalles deux fois trop etroits
+  # -- donc des effets "significatifs" qui ne le sont pas.
+  disp <- tryCatch({
+    rp <- stats::residuals(fit, type = "pearson")
+    sum(rp^2, na.rm = TRUE) / stats::df.residual(fit)
+  }, error = function(e) NA_real_)
+  if (identical(fam_ret, "poisson") && isTRUE(is.finite(disp)) && disp > 1.5)
+    msg <- c(msg, trf("Surdispersion détectée (variance/moyenne des résidus = %.2f) : les intervalles de la loi de Poisson sont trop étroits. Choisissez quasi-Poisson ou la binomiale négative.", disp))
+
+  ref <- suppressWarnings(as.numeric(reference)[1])
+  if (!isTRUE(is.finite(ref))) ref <- unname(stats::quantile(x, 0.50, na.rm = TRUE))
+
+  # LA PREDICTION SE FAIT SURFACE PAR SURFACE. `crosspred` doit recevoir le nom
+  # exact sous lequel la surface est entree dans le modele, sinon il ne
+  # retrouve pas ses coefficients -- et, quand il en retrouve d'autres, il rend
+  # une surface qui n'est pas celle qu'on lui demande.
+  #
+  #  `crosspred` RETROUVE SA SURFACE PAR LE NOM DEPARSE DE SON ARGUMENT
+  #  (`deparse(substitute(basis))`), pas par l'objet. Lui passer `cbs[[k]]` lui
+  #  fait donc chercher des coefficients nommes « cbs[[k]]v1.l1 », qui
+  #  n'existent pas -- la prediction echoue, et sur un modele a une seule
+  #  surface elle aurait pu tomber sur les bons coefficients par hasard, ce qui
+  #  est pire. L'appel est donc CONSTRUIT avec le symbole (`cb1`, `cb2`...),
+  #  celui-la meme sous lequel la surface est entree dans la formule.
+  faire_pred <- function(k) {
+    xv <- if (k == 1L) x else suppressWarnings(as.numeric(data[[names(cbs)[k]]]))
+    cen <- if (k == 1L) ref else unname(stats::quantile(xv, 0.50, na.rm = TRUE))
+    at <- seq(min(xv, na.rm = TRUE), max(xv, na.rm = TRUE), length.out = 100)
+    ap <- as.call(list(quote(dlnm::crosspred), basis = as.name(cbn[k]),
+                       model = fit, at = at, cen = cen, cumul = TRUE,
+                       ci.level = conf))
+    tryCatch(eval(ap, envir = env), error = function(e) NULL)
+  }
+  pred <- faire_pred(1L)
+  if (is.null(pred))
+    return(ko(tr("Prédiction impossible sur l'exposition principale : réduisez le nombre de nœuds ou le décalage.")))
+  preds_aj <- list()
+  for (k in seq_along(cbs)[-1]) {
+    p <- faire_pred(k)
+    if (!is.null(p)) preds_aj[[names(cbs)[k]]] <- p
+  }
+
+  list(ok = TRUE, pred = pred, preds_ajust = preds_aj, model = fit, cb = cbs[[1]],
+       cbs = cbs, cb_noms = stats::setNames(cbn, names(cbs)),
+       famille = fam_ret, reference = ref, lag_max = L, noeuds = pr$noeuds,
+       expo = x, var_expo = var_expo, vars_ajust_cb = vars_ajust_cb,
+       vars_ajust = ajn, collinearite = coll,
+       dispersion = disp, n_utilisees = sum(garde), conf = conf,
+       aic = tryCatch(suppressWarnings(stats::AIC(fit)), error = function(e) NA_real_),
+       dev_expl = tryCatch(100 * (1 - fit$deviance / fit$null.deviance),
+                           error = function(e) NA_real_),
+       percentiles = stats::quantile(x, HSTAT_EPI_DLNM_PCT, na.rm = TRUE),
+       message = if (length(msg)) paste(msg, collapse = " ") else NULL)
+}
+
+# ---------------------------------------------------------------------------
+#  TOUS LES SCENARIOS : chaque exposition tour a tour, et la comparaison
+# ---------------------------------------------------------------------------
+#  Un essai porte rarement une seule question. « Quel est l'effet de la
+#  temperature, de la pluie, de l'humidite ? » demande trois surfaces, et les
+#  comparer suppose qu'elles aient ete estimees AVEC LE MEME AJUSTEMENT --
+#  sinon on compare aussi les modeles, pas seulement les expositions.
+#
+#  Chaque exposition devient tour a tour la principale ; les autres restent en
+#  ajustement si `mutuel = TRUE`. La garde est PAR EXPOSITION : une variable
+#  trop plate ne doit pas emporter les autres, c'est la regle du depot sur le
+#  `tryCatch` autour d'une boucle.
+hstat_epi_dlnm_multi <- function(data, var_y, vars_expo, mutuel = TRUE, ...) {
+  vars_expo <- intersect(as.character(vars_expo %||% character(0)), names(data))
+  vars_expo <- setdiff(vars_expo, var_y)
+  if (!length(vars_expo))
+    return(list(ok = FALSE, message = tr("Choisissez au moins une variable d'exposition.")))
+  res <- list(); echecs <- character(0)
+  for (v in vars_expo) {
+    autres <- if (isTRUE(mutuel)) setdiff(vars_expo, v) else character(0)
+    r <- tryCatch(hstat_epi_dlnm(data, var_y, v, vars_ajust_cb = autres, ...),
+                  error = function(e) list(ok = FALSE, message = hstat_err_fr(e)))
+    if (isTRUE(r$ok)) res[[v]] <- r
+    else echecs <- c(echecs, sprintf("%s : %s", v,
+      r$message %||% tr("L'ajustement n'a pas abouti.")))
+  }
+  if (!length(res))
+    return(list(ok = FALSE,
+                message = paste(c(tr("Aucune exposition n'a pu être analysée."), echecs), collapse = " ")))
+  list(ok = TRUE, resultats = res, mutuel = isTRUE(mutuel),
+       echecs = echecs,
+       comparaison = hstat_epi_dlnm_comparaison(res),
+       message = if (length(echecs))
+         trf("%d exposition(s) écartée(s) : %s", length(echecs), paste(echecs, collapse = " ; "))
+         else NULL)
+}
+
+# Le tableau qui met les expositions cote a cote : effet cumule au 90e et au
+# 10e percentile, reference la mediane de CHAQUE exposition. C'est la seule
+# lecture comparable -- comparer des RR pris a des percentiles differents
+# comparerait aussi les positions choisies.
+hstat_epi_dlnm_comparaison <- function(res_list) {
+  if (!length(res_list)) return(NULL)
+  out <- lapply(names(res_list), function(v) {
+    r <- res_list[[v]]
+    if (!isTRUE(r$ok)) return(NULL)
+    tb <- hstat_epi_dlnm_rr(r, c(0.10, 0.90))
+    if (is.null(tb) || !nrow(tb)) return(NULL)
+    w <- hstat_epi_dlnm_wald(r)
+    data.frame(
+      Exposition = v, Famille = r$famille,
+      Reference = round(r$reference, 4),
+      RR_P10 = tb$RR[1], IC_P10 = sprintf("[%.3f ; %.3f]", tb$IC_bas[1], tb$IC_haut[1]),
+      RR_P90 = tb$RR[2], IC_P90 = sprintf("[%.3f ; %.3f]", tb$IC_bas[2], tb$IC_haut[2]),
+      Test_global_p = if (!is.null(w)) round(w$p, 6) else NA_real_,
+      Verdict = if (!is.null(w)) w$verdict else tr("indéterminable"),
+      AIC = round(r$aic, 2), check.names = FALSE, stringsAsFactors = FALSE)
+  })
+  out <- out[!vapply(out, is.null, logical(1))]
+  if (!length(out)) return(NULL)
+  do.call(rbind, out)
+}
+
+# ---------------------------------------------------------------------------
+#  UN RETARD SE DESIGNE PAR SA VALEUR, JAMAIS PAR SON RANG DE COLONNE
+# ---------------------------------------------------------------------------
+#  `crosspred(..., bylag = 0.5)` rend une colonne tous les DEMI-retards :
+#  colonne 1 = lag 0, colonne 2 = lag 0,5, colonne 3 = lag 1... Lire
+#  `matRRfit[i, lg + 1]` pour lg = 0..5 donne alors les retards 0 ; 0,5 ; 1 ;
+#  1,5 ; 2 ; 2,5 -- etiquetes "Lag 0" a "Lag 5". Le tableau est complet, ses
+#  libelles sont faux, et rien ne le signale : c'est la forme la plus couteuse.
+#
+#  C'est le meme defaut que `hstat_dl50_dose_pour()`, qui recollait ses seuils
+#  dans l'ordre de saisie sur un tableau trie. On rapproche donc par la VALEUR
+#  du retard, quel que soit le pas choisi.
+.hstat_epi_lag_grille <- function(pred) {
+  g <- suppressWarnings(as.numeric(sub("^lag", "", colnames(pred$matRRfit))))
+  if (length(g) == ncol(pred$matRRfit) && all(is.finite(g))) return(g)
+  # Repli : la grille se reconstruit sur l'etendue et le nombre de colonnes.
+  seq(pred$lag[1], pred$lag[2], length.out = ncol(pred$matRRfit))
+}
+
+.hstat_epi_col_lag <- function(pred, lag) {
+  g <- .hstat_epi_lag_grille(pred)
+  i <- which.min(abs(g - lag))
+  # UN RETARD DEMANDE QUI N'EXISTE PAS DANS LA GRILLE N'EST PAS RENDU DE
+  # TRAVERS : il est rendu absent. Rapprocher 2 de la colonne 1,5 donnerait un
+  # chiffre plausible pour un retard que le modele n'a pas evalue.
+  if (!length(i) || !isTRUE(abs(g[i] - lag) < 1e-6)) return(NA_integer_)
+  i
+}
+
+# Effets CUMULES sur tous les retards, lus aux percentiles de l'exposition.
+# C'est le chiffre du rapport : « au 90e percentile de temperature, le risque
+# est multiplie par R sur l'ensemble des retards, reference la mediane ».
+hstat_epi_dlnm_rr <- function(res, probs = HSTAT_EPI_DLNM_PCT) {
+  if (!isTRUE(res$ok)) return(NULL)
+  p <- res$pred
+  q <- stats::quantile(res$expo, probs = probs, na.rm = TRUE)
+  idx <- vapply(q, function(v) which.min(abs(p$predvar - v)), integer(1))
+  verdict <- vapply(seq_along(idx), function(k) {
+    lo <- p$allRRlow[idx[k]]; hi <- p$allRRhigh[idx[k]]
+    # NE JAMAIS BRANCHER SUR UNE STATISTIQUE NON CALCULABLE : un intervalle
+    # incalculable ne prouve rien, ni dans un sens ni dans l'autre.
+    if (!isTRUE(is.finite(lo)) || !isTRUE(is.finite(hi))) tr("indéterminable")
+    else if (lo > 1) tr("risque accru")
+    else if (hi < 1) tr("risque réduit")
+    else tr("non significatif")
+  }, character(1))
+  data.frame(
+    Percentile = paste0("P", formatC(probs * 100, format = "fg")),
+    Exposition = unname(round(q, 4)),
+    RR         = unname(round(p$allRRfit[idx], 4)),
+    IC_bas     = unname(round(p$allRRlow[idx], 4)),
+    IC_haut    = unname(round(p$allRRhigh[idx], 4)),
+    Verdict    = verdict,
+    check.names = FALSE, stringsAsFactors = FALSE)
+}
+
+# Effets PAR RETARD a une exposition donnee : c'est la structure temporelle,
+# celle qui dit si l'effet frappe le mois meme ou trois mois plus tard.
+hstat_epi_dlnm_lags <- function(res, at = NULL, prob = 0.90) {
+  if (!isTRUE(res$ok)) return(NULL)
+  p <- res$pred
+  v <- suppressWarnings(as.numeric(at)[1])
+  if (!isTRUE(is.finite(v))) v <- unname(stats::quantile(res$expo, prob, na.rm = TRUE))
+  i <- which.min(abs(p$predvar - v))
+  lags <- seq(0, res$lag_max, by = 1)
+  cols <- vapply(lags, function(l) .hstat_epi_col_lag(p, l), integer(1))
+  ok <- !is.na(cols)
+  if (!any(ok)) return(NULL)
+  fit <- p$matRRfit[i, cols[ok]]; lo <- p$matRRlow[i, cols[ok]]; hi <- p$matRRhigh[i, cols[ok]]
+  verdict <- vapply(seq_along(fit), function(k) {
+    if (!isTRUE(is.finite(lo[k])) || !isTRUE(is.finite(hi[k]))) tr("indéterminable")
+    else if (lo[k] > 1) tr("risque accru")
+    else if (hi[k] < 1) tr("risque réduit")
+    else tr("non significatif")
+  }, character(1))
+  structure(data.frame(
+    Retard  = lags[ok], RR = unname(round(fit, 4)),
+    IC_bas  = unname(round(lo, 4)), IC_haut = unname(round(hi, 4)),
+    Verdict = verdict, check.names = FALSE, stringsAsFactors = FALSE),
+    exposition = unname(p$predvar[i]))
+}
+
+# ---------------------------------------------------------------------------
+#  LE TEST GLOBAL SE FAIT SUR LES COEFFICIENTS, PAS PAR UN REAJUSTEMENT
+# ---------------------------------------------------------------------------
+#  `lmtest::waldtest(fit, . ~ . - cb)` reajuste le modele sans la surface. Sur
+#  une binomiale negative, theta est alors RE-ESTIME : les deux modeles ne
+#  different plus seulement par la surface, et le test n'est plus celui qu'on
+#  croit. La forme quadratique b' V^-1 b ne reajuste rien, ne peut pas echouer
+#  a converger, et vaut le meme test asymptotique.
+#  IL TESTE UNE SURFACE, PAS TOUTES. Avec plusieurs expositions au modele, un
+#  balayage en `^cb` prend les coefficients de TOUTES les surfaces : le test
+#  rendu pour l'humidite serait alors le test conjoint temperature + humidite +
+#  pluie. Trois lignes du tableau porteraient le MEME khi-deux sous trois noms
+#  differents -- mesure : p identique a 0 pour les trois, alors que seule la
+#  temperature agissait. Le nom exact de la surface est donc exige.
+#
+#  `^cb1v` et non `^cb1` : les coefficients s'appellent `cb1v1.l1`, et un
+#  modele a dix expositions porterait un `cb10v1.l1` que `^cb1` attraperait.
+hstat_epi_dlnm_wald <- function(res, exposition = NULL) {
+  if (!isTRUE(res$ok)) return(NULL)
+  b <- stats::coef(res$model)
+  V <- tryCatch(stats::vcov(res$model), error = function(e) NULL)
+  if (is.null(V)) return(NULL)
+  nom <- res$cb_noms[[exposition %||% res$var_expo %||% names(res$cb_noms)[1]]]
+  if (is.null(nom)) return(NULL)
+  idx <- grep(paste0("^", nom, "v"), names(b))
+  idx <- idx[is.finite(b[idx])]
+  if (!length(idx)) return(NULL)
+  bb <- b[idx]; VV <- V[idx, idx, drop = FALSE]
+  # Une surface sur-parametree rend une matrice singuliere : on refuse plutot
+  # que de rendre un khi-deux tire d'une inversion approchee.
+  W <- tryCatch(as.numeric(t(bb) %*% solve(VV) %*% bb), error = function(e) NA_real_)
+  ddl <- length(bb)
+  p <- if (isTRUE(is.finite(W)) && W >= 0) stats::pchisq(W, ddl, lower.tail = FALSE) else NA_real_
+  list(chi2 = W, ddl = ddl, p = p, verdict = hstat_p_verdict(p))
+}
+
+# Diagnostics du modele : ce que le script d'origine trace en quatre panneaux.
+# Les non-finis sont retires AVANT `lowess`, qui leve sinon « delta doit etre
+# fini et > 0 » -- et l'erreur tombe dans le rendu, donc emporte le panneau.
+hstat_epi_dlnm_diag <- function(res, dates = NULL) {
+  if (!isTRUE(res$ok)) return(NULL)
+  r <- stats::residuals(res$model, type = "deviance")
+  f <- stats::fitted(res$model)
+  n <- max(length(r), length(f))
+  d <- if (!is.null(dates) && length(dates) == n) dates else seq_len(n)
+  ok <- is.finite(r) & is.finite(f)
+  data.frame(Ajuste = as.numeric(f)[ok], Residu = as.numeric(r)[ok],
+             Temps = d[ok], check.names = FALSE, stringsAsFactors = FALSE)
+}
+
+# ===========================================================================
+#  VARIANCE ROBUSTE (SANDWICH) -- ecrite ici, pas empruntee
+# ===========================================================================
+#  Le paquet `sandwich` est optionnel ; la variance robuste, elle, ne l'est
+#  pas : c'est elle qui rend le RR de la Poisson robuste utilisable. La regle
+#  du depot vaut ici comme pour les classifications sur paquets optionnels --
+#  on sort la statistique du paquet pour pouvoir la tester.
+#
+#  V = B M B, avec B = (X'WX)^-1 (le « pain ») et M = somme des scores au
+#  carre (la « viande »). Pour un lien canonique, B est `cov.unscaled`.
+hstat_epi_vcov_robuste <- function(fit) {
+  X <- tryCatch(stats::model.matrix(fit), error = function(e) NULL)
+  if (is.null(X)) return(NULL)
+  B <- tryCatch(summary(fit)$cov.unscaled, error = function(e) NULL)
+  if (is.null(B)) return(NULL)
+  r <- as.numeric(stats::residuals(fit, type = "response"))
+  w <- as.numeric(stats::weights(fit, type = "prior"))
+  if (!length(w) || all(is.na(w))) w <- rep(1, length(r))
+  u <- X * (w * r)
+  ok <- stats::complete.cases(u)
+  M <- crossprod(u[ok, , drop = FALSE])
+  V <- tryCatch(B %*% M %*% B, error = function(e) NULL)
+  if (is.null(V)) return(NULL)
+  dimnames(V) <- dimnames(B)
+  V
+}
+
+# Un tableau de coefficients exponentiels (OR, RR, IRR, HR) avec son intervalle.
+# `exponentiel = FALSE` sert aux modeles dont le coefficient se lit tel quel.
+.hstat_epi_coefs <- function(fit, V = NULL, conf = 0.95, exposant = TRUE,
+                             etiquette = "RR", retirer = "\\(Intercept\\)") {
+  b <- stats::coef(fit)
+  if (is.null(V)) V <- tryCatch(stats::vcov(fit), error = function(e) NULL)
+  if (is.null(V)) return(NULL)
+  se <- sqrt(diag(V))
+  keep <- rep(TRUE, length(b))
+  if (nzchar(retirer)) keep <- !grepl(retirer, names(b))
+  b <- b[keep]; se <- se[names(b)]
+  z <- suppressWarnings(stats::qnorm(1 - (1 - conf) / 2))
+  lo <- b - z * se; hi <- b + z * se
+  p <- suppressWarnings(2 * stats::pnorm(-abs(b / se)))
+  est <- if (exposant) exp(b) else b
+  l <- if (exposant) exp(lo) else lo
+  h <- if (exposant) exp(hi) else hi
+  out <- data.frame(Terme = names(b), Estimation = round(unname(est), 4),
+                    IC_bas = round(unname(l), 4), IC_haut = round(unname(h), 4),
+                    p = round(unname(p), 6),
+                    Verdict = vapply(p, function(v) hstat_p_verdict(v), character(1)),
+                    check.names = FALSE, stringsAsFactors = FALSE)
+  names(out)[2] <- etiquette
+  out
+}
+
+# ===========================================================================
+#  TAUX D'INCIDENCE -- le temps-personne est l'offset, jamais un predicteur
+# ===========================================================================
+#  Mettre le temps-personne en variable explicative estimerait un coefficient
+#  la ou la theorie en impose un (le taux est un rapport). Le resultat resterait
+#  plausible, et ce ne serait plus un taux.
+hstat_epi_taux <- function(data, var_y, vars_x, var_temps_personne = NULL,
+                           famille = "auto", conf = 0.95, pour = 1000) {
+  ko <- function(m) list(ok = FALSE, message = m)
+  if (is.null(data) || !nrow(data)) return(ko(tr("Aucune donnée.")))
+  vars_x <- intersect(as.character(vars_x %||% character(0)), names(data))
+  if (!isTRUE(nzchar(var_y %||% "")) || !var_y %in% names(data))
+    return(ko(tr("Choisissez la colonne du nombre d'événements.")))
+  if (!length(vars_x)) return(ko(tr("Choisissez au moins un facteur.")))
+
+  y <- suppressWarnings(as.numeric(data[[var_y]]))
+  if (any(y < 0, na.rm = TRUE))
+    return(ko(tr("Le nombre d'événements ne peut pas être négatif.")))
+  d <- data.frame(.y = y, data[, vars_x, drop = FALSE], check.names = FALSE)
+  msg <- character(0)
+
+  lo <- NULL
+  if (isTRUE(nzchar(var_temps_personne %||% "")) && var_temps_personne %in% names(data)) {
+    o <- .hstat_epi_offset(data[[var_temps_personne]])
+    lo <- o$log_off
+    if (o$ecartes > 0)
+      msg <- c(msg, trf("%d ligne(s) écartée(s) : temps-personne nul, négatif ou manquant — un taux n'y est pas défini.", o$ecartes))
+  } else {
+    msg <- c(msg, tr("Aucun temps-personne déclaré : les coefficients comparent des NOMBRES d'événements, pas des taux. Ils ne sont comparables qu'à durées d'observation égales."))
+  }
+  if (!is.null(lo)) d$.logoff <- lo
+  garde <- stats::complete.cases(d)
+  if (sum(garde) < length(vars_x) + 2L)
+    return(ko(tr("Trop peu d'observations complètes pour ajuster le modèle.")))
+
+  # L'offset passe par la FORMULE, pour la meme raison que dans le DLNM :
+  # `glm()` sous-ensemble aussi l'argument `offset =`, si bien qu'un vecteur
+  # deja filtre est filtre deux fois et l'appel leve.
+  fml <- stats::as.formula(paste(".y ~", paste(sprintf("`%s`", vars_x), collapse = " + "),
+                                 if (!is.null(lo)) "+ offset(.logoff)" else ""))
+  aj <- function(fam) {
+    a <- list(formula = fml, data = d, subset = garde)
+    tryCatch({
+      if (identical(fam, "nb")) {
+        if (!requireNamespace("MASS", quietly = TRUE)) return(NULL)
+        suppressWarnings(do.call(MASS::glm.nb, a))
+      } else {
+        a$family <- switch(fam, quasipoisson = stats::quasipoisson(), stats::poisson())
+        suppressWarnings(do.call(stats::glm, a))
+      }
+    }, error = function(e) NULL)
+  }
+
+  if (identical(famille, "auto")) {
+    mp <- aj("poisson"); mn <- aj("nb")
+    ap <- if (!is.null(mp)) stats::AIC(mp) else NA_real_
+    an <- if (!is.null(mn)) suppressWarnings(stats::AIC(mn)) else NA_real_
+    if (isTRUE(is.finite(an)) && (!isTRUE(is.finite(ap)) || an < ap)) {
+      fit <- mn; fam <- "nb" } else { fit <- mp; fam <- "poisson" }
+    if (isTRUE(is.finite(ap)) && isTRUE(is.finite(an)))
+      msg <- c(msg, trf("Choix automatique par AIC : Poisson %.1f, binomiale négative %.1f.", ap, an))
+  } else { fit <- aj(famille); fam <- famille }
+  if (is.null(fit)) return(ko(tr("L'ajustement du modèle a échoué.")))
+
+  disp <- tryCatch(sum(stats::residuals(fit, type = "pearson")^2, na.rm = TRUE) /
+                     stats::df.residual(fit), error = function(e) NA_real_)
+  if (identical(fam, "poisson") && isTRUE(is.finite(disp)) && disp > 1.5)
+    msg <- c(msg, trf("Surdispersion (%.2f) : sous Poisson les intervalles sont trop étroits et des effets ressortent significatifs à tort. Choisissez quasi-Poisson ou la binomiale négative.", disp))
+
+  list(ok = TRUE, model = fit, famille = fam, dispersion = disp,
+       coefs = .hstat_epi_coefs(fit, conf = conf, etiquette = "IRR"),
+       aic = tryCatch(suppressWarnings(stats::AIC(fit)), error = function(e) NA_real_),
+       n = sum(garde), pour = pour, conf = conf,
+       message = if (length(msg)) paste(msg, collapse = " ") else NULL)
+}
+
+# ===========================================================================
+#  OR ET RR NE SONT PAS INTERCHANGEABLES, ET L'ECART SE MESURE
+# ===========================================================================
+#  C'est l'erreur la plus repandue de la litterature epidemiologique. La
+#  regression logistique rend une COTE (odds ratio) ; on la lit comme un RISQUE
+#  (risk ratio). L'approximation ne tient que si l'issue est RARE :
+#
+#      RR = OR / (1 - p0 + p0 * OR)      avec p0 le risque chez les non exposes
+#
+#  A p0 = 5 %, un OR de 2 vaut un RR de 1,90 -- l'ecart est de 5 %. A p0 = 40 %,
+#  le meme OR vaut un RR de 1,43 : l'effet annonce est SURESTIME DE 40 %. Sur
+#  une issue frequente (prematurite, anemie, absenteeisme), publier l'OR sous le
+#  mot « risque » est un resultat faux, et parfaitement plausible.
+#
+#  On ajuste donc les TROIS modeles sur les MEMES donnees et on montre l'ecart,
+#  plutot que de laisser choisir a l'aveugle.
+hstat_epi_risque <- function(data, var_y, vars_x, cas = NULL, conf = 0.95) {
+  ko <- function(m) list(ok = FALSE, message = m)
+  if (is.null(data) || !nrow(data)) return(ko(tr("Aucune donnée.")))
+  vars_x <- intersect(as.character(vars_x %||% character(0)), names(data))
+  if (!isTRUE(nzchar(var_y %||% "")) || !var_y %in% names(data))
+    return(ko(tr("Choisissez la colonne de l'issue.")))
+  if (!length(vars_x)) return(ko(tr("Choisissez au moins un facteur d'exposition.")))
+
+  yb <- hstat_epi_binaire(data[[var_y]], cas)
+  if (!isTRUE(yb$ok)) return(ko(yb$message))
+  d <- data.frame(.y = yb$y, data[, vars_x, drop = FALSE], check.names = FALSE)
+  garde <- stats::complete.cases(d)
+  if (sum(garde) < length(vars_x) + 2L)
+    return(ko(tr("Trop peu d'observations complètes.")))
+  d <- d[garde, , drop = FALSE]
+  msg <- character(0)
+  if (length(yb$ecartes) && yb$ecartes > 0)
+    msg <- c(msg, trf("%d ligne(s) écartée(s) : issue ni « cas » ni « non-cas ».", yb$ecartes))
+
+  prev <- mean(d$.y, na.rm = TRUE)
+  if (!isTRUE(prev > 0) || !isTRUE(prev < 1))
+    return(ko(tr("L'issue ne prend qu'une seule valeur : aucun risque n'est estimable.")))
+
+  fml <- stats::as.formula(paste(".y ~", paste(sprintf("`%s`", vars_x), collapse = " + ")))
+  m_log <- tryCatch(suppressWarnings(stats::glm(fml, data = d, family = stats::binomial())),
+                    error = function(e) NULL)
+  if (is.null(m_log)) return(ko(tr("La régression logistique n'a pas pu être ajustée.")))
+
+  # LA LOG-BINOMIALE NE CONVERGE PAS TOUJOURS, ET C'EST SA FAIBLESSE CONNUE :
+  # elle doit garder la probabilite predite sous 1, contrainte que
+  # l'optimisation viole des que l'exposition est forte. On le DIT et on nomme
+  # le repli -- un RR obtenu par un autre modele que celui annonce serait la
+  # meme faute que le t de Welch execute sous le nom de Student.
+  m_lb <- tryCatch(suppressWarnings(
+    stats::glm(fml, data = d, family = stats::binomial(link = "log"),
+               start = c(log(prev), rep(0, length(stats::coef(m_log)) - 1L)))),
+    error = function(e) NULL, warning = function(w) NULL)
+  lb_ok <- !is.null(m_lb) && isTRUE(m_lb$converged)
+
+  # POISSON ROBUSTE (Zou, 2004) : la Poisson sur une issue binaire rend le bon
+  # RR mais une variance TROP GRANDE ; la variance sandwich la corrige. Elle
+  # converge toujours, ce qui en fait le repli sur lequel on peut compter.
+  m_pr <- tryCatch(suppressWarnings(stats::glm(fml, data = d, family = stats::poisson())),
+                   error = function(e) NULL)
+  V_pr <- if (!is.null(m_pr)) hstat_epi_vcov_robuste(m_pr) else NULL
+
+  if (!lb_ok)
+    msg <- c(msg, tr("La log-binomiale n'a pas convergé (contrainte de probabilité ≤ 1) : le risque relatif affiché vient de la Poisson à variance robuste, qui estime le même RR."))
+
+  or <- .hstat_epi_coefs(m_log, conf = conf, etiquette = "OR")
+  rr_lb <- if (lb_ok) .hstat_epi_coefs(m_lb, conf = conf, etiquette = "RR") else NULL
+  rr_pr <- if (!is.null(m_pr) && !is.null(V_pr))
+    .hstat_epi_coefs(m_pr, V = V_pr, conf = conf, etiquette = "RR") else NULL
+
+  # L'ecart OR/RR, terme a terme : c'est la colonne qui dit s'il fallait s'en
+  # soucier sur CE jeu de donnees, plutot que de s'en remettre a « l'issue est
+  # rare » qui n'est jamais verifie.
+  ecart <- NULL
+  rr_ref <- if (!is.null(rr_lb)) rr_lb else rr_pr
+  if (!is.null(rr_ref)) {
+    k <- match(or$Terme, rr_ref$Terme)
+    ecart <- data.frame(
+      Terme = or$Terme, OR = or$OR, RR = rr_ref$RR[k],
+      Surestimation_pct = round(100 * (or$OR - rr_ref$RR[k]) / rr_ref$RR[k], 1),
+      check.names = FALSE, stringsAsFactors = FALSE)
+  }
+
+  if (prev >= 0.10)
+    msg <- c(msg, trf("Issue fréquente (%.1f %% de cas) : l'odds ratio s'écarte nettement du risque relatif. C'est le RR qu'il faut publier sous le mot « risque ».", 100 * prev))
+  else
+    msg <- c(msg, trf("Issue rare (%.1f %% de cas) : l'odds ratio approche correctement le risque relatif.", 100 * prev))
+
+  list(ok = TRUE, prevalence = prev, n = nrow(d), conf = conf,
+       or = or, rr = rr_ref, rr_source = if (lb_ok) "log-binomiale" else "Poisson robuste",
+       rr_logbin = rr_lb, rr_poisson = rr_pr, ecart = ecart,
+       model = m_log, message = paste(msg, collapse = " "))
+}
+
+# ---------------------------------------------------------------------------
+#  UNE ISSUE BINAIRE SE DECLARE, ELLE NE SE DEVINE PAS
+# ---------------------------------------------------------------------------
+#  Prendre « la premiere modalite par ordre alphabetique » comme cas donnerait
+#  des OR parfaitement plausibles et INVERSES : sur « Deces » / « Survie », le
+#  tri met « Deces » en premier -- juste par hasard -- et sur « Malade » /
+#  « Sain » il met « Malade » ; mais sur « Negatif » / « Positif » il met le
+#  temoin. Le meme code rendrait donc l'effet tantot a l'endroit, tantot a
+#  l'envers, selon l'orthographe choisie par l'utilisateur.
+hstat_epi_binaire <- function(x, cas = NULL) {
+  if (is.null(x)) return(list(ok = FALSE, message = tr("Colonne absente.")))
+  if (is.logical(x)) return(list(ok = TRUE, y = as.integer(x), ecartes = sum(is.na(x)),
+                                 cas = "TRUE"))
+  if (isTRUE(nzchar(cas %||% ""))) {
+    v <- as.character(x)
+    y <- ifelse(is.na(v), NA_integer_, as.integer(v == cas))
+    if (!any(y == 1L, na.rm = TRUE))
+      return(list(ok = FALSE, message = trf("Aucune observation ne porte la modalité « %s » déclarée comme cas.", cas)))
+    return(list(ok = TRUE, y = y, ecartes = sum(is.na(y)), cas = cas))
+  }
+  n <- suppressWarnings(as.numeric(x))
+  u <- sort(unique(n[is.finite(n)]))
+  if (length(u) == 2L && all(u %in% c(0, 1)))
+    return(list(ok = TRUE, y = as.integer(n), ecartes = sum(!is.finite(n)), cas = "1"))
+  list(ok = FALSE, message = tr("L'issue n'est pas codée 0/1 : déclarez explicitement la modalité qui représente le cas."))
+}
+
+# ===========================================================================
+#  SURVIE -- Kaplan-Meier, log-rank, Cox, et l'hypothese qu'on oublie
+# ===========================================================================
+hstat_epi_survie <- function(data, var_duree, var_event, vars_x = NULL,
+                             event_cas = NULL, conf = 0.95) {
+  ko <- function(m) list(ok = FALSE, message = m)
+  if (!requireNamespace("survival", quietly = TRUE))
+    return(ko(hstat_pkg_manquant("survival", tr("l'analyse de survie"))))
+  if (is.null(data) || !nrow(data)) return(ko(tr("Aucune donnée.")))
+  for (v in c(var_duree, var_event))
+    if (!isTRUE(nzchar(v %||% "")) || !v %in% names(data))
+      return(ko(tr("Choisissez la durée de suivi et l'indicateur d'événement.")))
+
+  tps <- suppressWarnings(as.numeric(data[[var_duree]]))
+  ev <- hstat_epi_binaire(data[[var_event]], event_cas)
+  if (!isTRUE(ev$ok)) return(ko(ev$message))
+  msg <- character(0)
+
+  # UNE DUREE NEGATIVE OU NULLE N'EST PAS UN SUIVI. `Surv()` l'accepte pourtant
+  # sans broncher pour zero, et la courbe part alors d'une marche a l'instant 0
+  # qui n'a pas eu lieu.
+  bad <- !is.finite(tps) | tps <= 0
+  if (any(bad, na.rm = TRUE))
+    msg <- c(msg, trf("%d ligne(s) écartée(s) : durée de suivi nulle, négative ou manquante.", sum(bad, na.rm = TRUE)))
+
+  vars_x <- intersect(as.character(vars_x %||% character(0)), names(data))
+  d <- data.frame(.t = tps, .e = ev$y, check.names = FALSE)
+  if (length(vars_x)) d <- cbind(d, data[, vars_x, drop = FALSE])
+  garde <- stats::complete.cases(d) & !bad
+  if (sum(garde) < 5L) return(ko(tr("Trop peu d'observations exploitables.")))
+  d <- d[garde, , drop = FALSE]
+  if (!any(d$.e == 1L)) return(ko(tr("Aucun événement observé : toutes les observations sont censurées, aucune survie n'est estimable.")))
+
+  srv <- survival::Surv(d$.t, d$.e)
+  grp <- if (length(vars_x)) vars_x[1] else NULL
+  fml_km <- if (is.null(grp)) stats::as.formula("srv ~ 1") else
+    stats::as.formula(sprintf("srv ~ `%s`", grp))
+  km <- tryCatch(survival::survfit(fml_km, data = d, conf.int = conf),
+                 error = function(e) NULL)
+
+  # LOG-RANK : il n'existe que s'il y a au moins deux groupes A COMPARER.
+  lr <- NULL
+  if (!is.null(grp) && length(unique(stats::na.omit(d[[grp]]))) >= 2L) {
+    sd <- tryCatch(survival::survdiff(fml_km, data = d), error = function(e) NULL)
+    if (!is.null(sd)) {
+      p <- stats::pchisq(sd$chisq, length(sd$n) - 1L, lower.tail = FALSE)
+      lr <- list(chi2 = sd$chisq, ddl = length(sd$n) - 1L, p = p,
+                 verdict = hstat_p_verdict(p))
+    }
+  } else if (!is.null(grp)) {
+    msg <- c(msg, tr("Le facteur de groupement ne compte qu'une seule modalité : le test du log-rank est sans objet."))
+  }
+
+  cox <- ph <- NULL
+  if (length(vars_x)) {
+    fml_cox <- stats::as.formula(paste("srv ~", paste(sprintf("`%s`", vars_x), collapse = " + ")))
+    cx <- tryCatch(survival::coxph(fml_cox, data = d), error = function(e) NULL)
+    if (!is.null(cx)) {
+      cox <- .hstat_epi_coefs(cx, conf = conf, etiquette = "HR", retirer = "")
+      # L'HYPOTHESE DE RISQUES PROPORTIONNELS N'EST PAS UN DETAIL : si elle
+      # tombe, le HR n'est plus constant dans le temps et le chiffre unique
+      # publie est une MOYENNE sur une periode -- qui peut cacher un effet qui
+      # s'inverse. Le test de Schoenfeld le dit ; le taire laisse publier un HR
+      # qui ne decrit aucun instant de l'etude.
+      z <- tryCatch(survival::cox.zph(cx), error = function(e) NULL)
+      if (!is.null(z)) {
+        tb <- as.data.frame(z$table)
+        ph <- data.frame(Terme = rownames(tb), chi2 = round(tb$chisq, 4),
+                         ddl = tb$df, p = round(tb$p, 6),
+                         Verdict = vapply(tb$p, function(v) hstat_p_verdict(v), character(1)),
+                         check.names = FALSE, stringsAsFactors = FALSE)
+        pg <- tb$p[rownames(tb) == "GLOBAL"]
+        if (length(pg) && isTRUE(is.finite(pg)) && pg < 0.05)
+          msg <- c(msg, tr("L'hypothèse de risques proportionnels est rejetée : le rapport de risques n'est pas constant dans le temps, et le chiffre unique du modèle de Cox en est une moyenne. Stratifiez, ou modélisez l'interaction avec le temps."))
+      }
+      cox_model <- cx
+    }
+  }
+
+  list(ok = TRUE, km = km, logrank = lr, cox = cox, ph = ph, n = nrow(d),
+       evenements = sum(d$.e == 1L), groupe = grp, conf = conf,
+       mediane = tryCatch(as.data.frame(summary(km)$table), error = function(e) NULL),
+       donnees = d, message = if (length(msg)) paste(msg, collapse = " ") else NULL)
+}
+
+# ===========================================================================
+#  CAS-CROISE STRATIFIE SUR LE TEMPS
+# ===========================================================================
+#  Chaque cas est son propre temoin : tout ce qui ne varie pas a l'interieur
+#  d'une strate -- sexe, tabagisme, comorbidites, mais aussi la saison et la
+#  tendance longue -- s'elimine sans etre modelise. C'est la raison d'etre du
+#  plan, et c'est pourquoi il n'a pas besoin des harmoniques du DLNM.
+#
+#  La strate est annee x mois x jour de semaine : le jour de semaine est ce qui
+#  distingue ce plan d'un simple appariement mensuel, car l'exposition ET
+#  l'issue ont souvent un rythme hebdomadaire (trafic, activite hospitaliere).
+hstat_epi_cas_croise <- function(data, var_date, var_cas, var_expo,
+                                 vars_ajust = NULL, conf = 0.95) {
+  ko <- function(m) list(ok = FALSE, message = m)
+  if (is.null(data) || !nrow(data)) return(ko(tr("Aucune donnée.")))
+  for (v in c(var_date, var_cas, var_expo))
+    if (!isTRUE(nzchar(v %||% "")) || !v %in% names(data))
+      return(ko(tr("Choisissez la date, le nombre de cas et l'exposition.")))
+
+  dt <- data[[var_date]]
+  dd <- if (inherits(dt, "Date")) dt else hstat_date_parse(as.character(dt))
+  if (all(is.na(dd)))
+    return(ko(tr("La colonne de dates n'a pas pu être lue : vérifiez son format.")))
+  y <- suppressWarnings(as.numeric(data[[var_cas]]))
+  x <- suppressWarnings(as.numeric(data[[var_expo]]))
+
+  # LE PLAN EXIGE UN PAS JOURNALIER. Sur des donnees mensuelles, la strate
+  # (annee x mois x jour de semaine) ne contient qu'UNE ligne : il n'y a plus
+  # aucun temoin, et le modele ne peut rien estimer. Le dire vaut mieux que de
+  # rendre des coefficients vides.
+  pas <- suppressWarnings(stats::median(diff(sort(unique(as.numeric(dd)))), na.rm = TRUE))
+  if (!isTRUE(is.finite(pas)) || pas > 2)
+    return(ko(trf("Le cas-croisé stratifié sur le temps suppose un pas journalier ; le fichier a un pas de %s jour(s). Utilisez le DLNM pour des données mensuelles.",
+                  formatC(pas, format = "fg"))))
+
+  strate <- paste(format(dd, "%Y"), format(dd, "%m"), format(dd, "%u"), sep = "-")
+  vars_ajust <- intersect(as.character(vars_ajust %||% character(0)), names(data))
+  d <- data.frame(.y = y, .x = x, .s = factor(strate), check.names = FALSE)
+  if (length(vars_ajust)) d <- cbind(d, data[, vars_ajust, drop = FALSE])
+  garde <- stats::complete.cases(d)
+  d <- d[garde, , drop = FALSE]
+  msg <- character(0)
+
+  # UNE STRATE A UNE SEULE LIGNE N'APPORTE RIEN et consomme un parametre : elle
+  # est retiree, et comptee. La laisser gonflerait le nombre de parametres sans
+  # ajouter la moindre comparaison.
+  n_par_strate <- table(d$.s)
+  seules <- names(n_par_strate)[n_par_strate < 2L]
+  if (length(seules)) {
+    d <- d[!d$.s %in% seules, , drop = FALSE]
+    msg <- c(msg, trf("%d strate(s) à une seule journée retirée(s) : sans jour-témoin, elles ne portent aucune comparaison.", length(seules)))
+  }
+  d$.s <- droplevels(d$.s)
+  if (!nrow(d) || nlevels(d$.s) < 2L)
+    return(ko(tr("Aucune strate ne contient de jour-témoin exploitable.")))
+
+  # POISSON CONDITIONNELLE par effets fixes de strate : c'est l'equivalent exact
+  # du plan pour des comptages agreges. Quasi-Poisson parce que la surdispersion
+  # est la regle sur des comptages sanitaires journaliers.
+  fml <- stats::as.formula(paste(".y ~ .x + .s",
+    if (length(vars_ajust)) paste("+", paste(sprintf("`%s`", vars_ajust), collapse = " + ")) else ""))
+  fit <- tryCatch(suppressWarnings(stats::glm(fml, data = d, family = stats::quasipoisson())),
+                  error = function(e) NULL)
+  if (is.null(fit)) return(ko(tr("L'ajustement du modèle conditionnel a échoué.")))
+
+  co <- .hstat_epi_coefs(fit, conf = conf, etiquette = "RR", retirer = "^(\\(Intercept\\)|\\.s)")
+  if (!is.null(co) && nrow(co)) co$Terme[co$Terme == ".x"] <- var_expo
+
+  list(ok = TRUE, model = fit, coefs = co, n = nrow(d), strates = nlevels(d$.s),
+       conf = conf, message = if (length(msg)) paste(msg, collapse = " ") else NULL)
+}
+
+# ===========================================================================
+#  STANDARDISATION ET SMR
+# ===========================================================================
+#  Deux populations n'ont pas la meme structure d'age : comparer leurs taux
+#  bruts, c'est comparer leurs pyramides des ages. La standardisation retire
+#  cet effet, et les deux facons de le faire ne repondent pas a la meme
+#  question -- le meme partage que « global » et « moyen » du rendement.
+#
+#  DIRECTE   : on applique les taux OBSERVES a une population de REFERENCE.
+#              -> un taux comparable entre populations.
+#  INDIRECTE : on applique les taux de REFERENCE a la population observee.
+#              -> un rapport observe/attendu, le SMR.
+#
+#  L'indirecte exige moins (les taux par strate de la population etudiee
+#  peuvent etre instables sur de petits effectifs) ; c'est pourquoi un registre
+#  de canton publie un SMR et pas un taux standardise.
+hstat_epi_smr <- function(data, var_evenements, var_population,
+                          var_taux_ref = NULL, var_strate = NULL,
+                          var_groupe = NULL, conf = 0.95, pour = 100000) {
+  ko <- function(m) list(ok = FALSE, message = m)
+  if (is.null(data) || !nrow(data)) return(ko(tr("Aucune donnée.")))
+  for (v in c(var_evenements, var_population))
+    if (!isTRUE(nzchar(v %||% "")) || !v %in% names(data))
+      return(ko(tr("Choisissez la colonne des événements et celle de la population.")))
+
+  o <- suppressWarnings(as.numeric(data[[var_evenements]]))
+  pop <- suppressWarnings(as.numeric(data[[var_population]]))
+  msg <- character(0)
+  bad <- !is.finite(pop) | pop <= 0 | !is.finite(o) | o < 0
+  if (any(bad))
+    msg <- c(msg, trf("%d ligne(s) écartée(s) : population nulle ou négative, ou événements manquants.", sum(bad)))
+  keep <- !bad
+  if (!any(keep)) return(ko(tr("Aucune ligne exploitable.")))
+
+  grp <- if (isTRUE(nzchar(var_groupe %||% "")) && var_groupe %in% names(data))
+    as.character(data[[var_groupe]]) else rep(tr("Toutes strates confondues"), nrow(data))
+
+  ref <- NULL
+  if (isTRUE(nzchar(var_taux_ref %||% "")) && var_taux_ref %in% names(data))
+    ref <- suppressWarnings(as.numeric(data[[var_taux_ref]]))
+
+  # SANS TAUX DE REFERENCE, ON NE LES INVENTE PAS : on les DERIVE de l'ensemble
+  # du fichier, strate par strate, et on le dit. C'est la standardisation
+  # « interne », legitime et courante -- mais le SMR vaut alors 1 en moyenne
+  # par construction, ce qui n'est pas la meme lecture qu'un SMR contre une
+  # reference externe. Le taire ferait croire a une comparaison au niveau
+  # national.
+  st <- if (isTRUE(nzchar(var_strate %||% "")) && var_strate %in% names(data))
+    as.character(data[[var_strate]]) else rep("_", nrow(data))
+  if (is.null(ref)) {
+    agg_o <- tapply(o[keep], st[keep], sum, na.rm = TRUE)
+    agg_p <- tapply(pop[keep], st[keep], sum, na.rm = TRUE)
+    tx <- agg_o / agg_p
+    ref <- unname(tx[match(st, names(tx))])
+    msg <- c(msg, tr("Aucun taux de référence déclaré : les taux de l'ensemble du fichier servent de référence (standardisation interne). Le SMR moyen vaut alors 1 par construction — ce n'est pas une comparaison à une population externe."))
+  }
+
+  att <- pop * ref
+  g <- factor(grp[keep], levels = unique(grp[keep]))
+  O <- tapply(o[keep], g, sum, na.rm = TRUE)
+  E <- tapply(att[keep], g, sum, na.rm = TRUE)
+  P <- tapply(pop[keep], g, sum, na.rm = TRUE)
+  ic <- hstat_epi_ic_poisson(as.numeric(O), conf)
+
+  smr <- as.numeric(O) / as.numeric(E)
+  verdict <- vapply(seq_along(smr), function(k) {
+    lo <- ic$bas[k] / E[k]; hi <- ic$haut[k] / E[k]
+    if (!isTRUE(is.finite(lo)) || !isTRUE(is.finite(hi))) tr("indéterminable")
+    else if (lo > 1) tr("excès")
+    else if (hi < 1) tr("déficit")
+    else tr("non significatif")
+  }, character(1))
+
+  tab <- data.frame(
+    Groupe = levels(g), Observes = as.numeric(O),
+    Attendus = round(as.numeric(E), 2), Population = as.numeric(P),
+    SMR = round(smr, 4),
+    IC_bas = round(as.numeric(ic$bas) / as.numeric(E), 4),
+    IC_haut = round(as.numeric(ic$haut) / as.numeric(E), 4),
+    Verdict = verdict, check.names = FALSE, stringsAsFactors = FALSE)
+
+  # STANDARDISATION DIRECTE : la population de reference est la somme des
+  # strates de tout le fichier -- la « population type » implicite.
+  directe <- NULL
+  if (length(unique(st[keep])) > 1L) {
+    w <- tapply(pop[keep], st[keep], sum, na.rm = TRUE)
+    w <- w / sum(w, na.rm = TRUE)
+    directe <- do.call(rbind, lapply(levels(g), function(gg) {
+      sel <- keep & grp == gg
+      # LA GARDE EST PAR GROUPE, pas autour de la boucle : un groupe sans
+      # certaines strates ne doit pas emporter le tableau des autres.
+      tx_g <- tryCatch({
+        a <- tapply(o[sel], st[sel], sum, na.rm = TRUE)
+        b <- tapply(pop[sel], st[sel], sum, na.rm = TRUE)
+        a / b
+      }, error = function(e) NULL)
+      if (is.null(tx_g)) return(NULL)
+      k <- intersect(names(w), names(tx_g))
+      if (!length(k)) return(NULL)
+      ww <- w[k] / sum(w[k])
+      data.frame(Groupe = gg, Strates_couvertes = length(k),
+                 Taux_standardise = round(sum(ww * tx_g[k], na.rm = TRUE) * pour, 4),
+                 check.names = FALSE, stringsAsFactors = FALSE)
+    }))
+  }
+
+  list(ok = TRUE, smr = tab, directe = directe, pour = pour, conf = conf,
+       message = if (length(msg)) paste(msg, collapse = " ") else NULL)
+}
+
+# ===========================================================================
+#  TEST DIAGNOSTIQUE -- et la valeur predictive depend de la prevalence
+# ===========================================================================
+#  Sensibilite et specificite sont des proprietes DU TEST ; les valeurs
+#  predictives sont des proprietes du test DANS UNE POPULATION. Un test a 99 %
+#  de sensibilite et 99 % de specificite appliqué a une maladie touchant
+#  1 pour 1000 rend une VPP de 9 % : neuf « positifs » sur dix sont sains. Lire
+#  la VPP d'une etude cas-temoins -- ou les cas sont sur-representes par
+#  construction -- comme si elle valait en population est l'erreur la plus
+#  couteuse de tout le depistage.
+hstat_epi_diagnostic <- function(data, var_test, var_reference,
+                                 test_positif = NULL, ref_positif = NULL,
+                                 seuil = NULL, conf = 0.95, prevalence = NULL) {
+  ko <- function(m) list(ok = FALSE, message = m)
+  if (is.null(data) || !nrow(data)) return(ko(tr("Aucune donnée.")))
+  for (v in c(var_test, var_reference))
+    if (!isTRUE(nzchar(v %||% "")) || !v %in% names(data))
+      return(ko(tr("Choisissez le résultat du test et l'état de référence.")))
+
+  rb <- hstat_epi_binaire(data[[var_reference]], ref_positif)
+  if (!isTRUE(rb$ok)) return(ko(rb$message))
+  brut <- data[[var_test]]
+  msg <- character(0)
+
+  num <- suppressWarnings(as.numeric(brut))
+  continu <- is.numeric(brut) && length(unique(stats::na.omit(num))) > 2L
+  if (continu) {
+    s <- suppressWarnings(as.numeric(seuil)[1])
+    if (!isTRUE(is.finite(s))) {
+      s <- stats::median(num, na.rm = TRUE)
+      msg <- c(msg, trf("Aucun seuil déclaré : la médiane (%.4g) sert de seuil. Un seuil se choisit sur la question posée, il ne se devine pas.", s))
+    }
+    tb <- list(ok = TRUE, y = as.integer(num >= s), seuil = s)
+  } else {
+    tb <- hstat_epi_binaire(brut, test_positif)
+    if (!isTRUE(tb$ok)) return(ko(tb$message))
+  }
+
+  ok <- !is.na(tb$y) & !is.na(rb$y)
+  tp <- sum(tb$y == 1L & rb$y == 1L, na.rm = TRUE)
+  fp <- sum(tb$y == 1L & rb$y == 0L, na.rm = TRUE)
+  fn <- sum(tb$y == 0L & rb$y == 1L, na.rm = TRUE)
+  tn <- sum(tb$y == 0L & rb$y == 0L, na.rm = TRUE)
+  if ((tp + fn) == 0 || (tn + fp) == 0)
+    return(ko(tr("L'état de référence ne prend qu'une seule valeur : ni sensibilité ni spécificité ne sont estimables.")))
+
+  ic_p <- function(k, n) {
+    if (!isTRUE(n > 0)) return(c(NA_real_, NA_real_))
+    # WILSON, pas Wald : l'intervalle de Wald sort de [0 ; 1] des que la
+    # proportion approche une borne -- et une sensibilite de 100 % est le cas
+    # le plus courant sur un petit echantillon.
+    z <- stats::qnorm(1 - (1 - conf) / 2); ph <- k / n
+    d <- 1 + z^2 / n
+    c <- (ph + z^2 / (2 * n)) / d
+    h <- z * sqrt(ph * (1 - ph) / n + z^2 / (4 * n^2)) / d
+    c(max(0, c - h), min(1, c + h))
+  }
+  se <- tp / (tp + fn); sp <- tn / (tn + fp)
+  prev_obs <- (tp + fn) / (tp + fn + tn + fp)
+  prev <- suppressWarnings(as.numeric(prevalence)[1])
+  if (!isTRUE(is.finite(prev)) || prev <= 0 || prev >= 1) prev <- prev_obs
+  else msg <- c(msg, trf("Valeurs prédictives recalculées pour une prévalence déclarée de %.3g %% (la prévalence observée dans le fichier est de %.3g %%).",
+                         100 * prev, 100 * prev_obs))
+
+  # LES VALEURS PREDICTIVES PASSENT PAR BAYES, jamais par les effectifs du
+  # tableau : sur un plan cas-temoins, le tableau porte une prevalence CHOISIE
+  # par l'echantillonnage, et les VPP qu'on en tire ne valent dans aucune
+  # population reelle.
+  vpp <- se * prev / (se * prev + (1 - sp) * (1 - prev))
+  vpn <- sp * (1 - prev) / (sp * (1 - prev) + (1 - se) * prev)
+  rvp <- if (isTRUE((1 - sp) > 0)) se / (1 - sp) else NA_real_
+  rvn <- if (isTRUE(sp > 0)) (1 - se) / sp else NA_real_
+
+  ligne <- function(lab, val, ic = NULL) data.frame(
+    Mesure = lab, Valeur = round(val, 4),
+    IC_bas = if (is.null(ic)) NA_real_ else round(ic[1], 4),
+    IC_haut = if (is.null(ic)) NA_real_ else round(ic[2], 4),
+    check.names = FALSE, stringsAsFactors = FALSE)
+
+  tab <- rbind(
+    ligne(tr("Sensibilité"), se, ic_p(tp, tp + fn)),
+    ligne(tr("Spécificité"), sp, ic_p(tn, tn + fp)),
+    ligne(tr("Valeur prédictive positive"), vpp),
+    ligne(tr("Valeur prédictive négative"), vpn),
+    ligne(tr("Rapport de vraisemblance positif"), rvp),
+    ligne(tr("Rapport de vraisemblance négatif"), rvn),
+    ligne(tr("Indice de Youden"), se + sp - 1),
+    ligne(tr("Exactitude (accuracy)"), (tp + tn) / (tp + tn + fp + fn)))
+
+  if (prev < 0.05)
+    msg <- c(msg, trf("Prévalence faible (%.2g %%) : même un test très spécifique rend une majorité de faux positifs. VPP = %.1f %%.",
+                      100 * prev, 100 * vpp))
+
+  list(ok = TRUE, table = tab, matrice = matrix(c(tp, fn, fp, tn), 2, 2,
+         dimnames = list(c(tr("Test +"), tr("Test −")),
+                        c(tr("Malades (référence)"), tr("Sains (référence)")))),
+       prevalence = prev, prevalence_observee = prev_obs, continu = continu,
+       seuil = if (continu) tb$seuil else NULL, conf = conf,
+       roc = if (continu) hstat_epi_roc(num[ok], rb$y[ok]) else NULL,
+       message = if (length(msg)) paste(msg, collapse = " ") else NULL)
+}
+
+# ---------------------------------------------------------------------------
+#  ROC : l'aire EST la statistique de Mann-Whitney, et c'est ce qui la teste
+# ---------------------------------------------------------------------------
+#  AUC = P(score d'un malade > score d'un sain), ex aequo comptes pour moitie.
+#  La calculer par integration trapezoidale de la courbe et la calculer par le
+#  rang donnent le MEME nombre -- et c'est cette egalite qui permet de verifier
+#  l'implementation sans se fier a un paquet.
+hstat_epi_roc <- function(score, etat) {
+  s <- suppressWarnings(as.numeric(score)); e <- as.integer(etat)
+  ok <- is.finite(s) & e %in% c(0L, 1L)
+  s <- s[ok]; e <- e[ok]
+  if (!length(s) || !any(e == 1L) || !any(e == 0L)) return(NULL)
+  seuils <- sort(unique(s), decreasing = TRUE)
+  seuils <- c(Inf, seuils)
+  np <- sum(e == 1L); nn <- sum(e == 0L)
+  se <- vapply(seuils, function(k) sum(s >= k & e == 1L) / np, numeric(1))
+  sp <- vapply(seuils, function(k) sum(s < k & e == 0L) / nn, numeric(1))
+  courbe <- data.frame(Seuil = seuils, Sensibilite = se, Specificite = sp,
+                       Un_moins_Sp = 1 - sp, check.names = FALSE)
+  courbe <- courbe[order(courbe$Un_moins_Sp, courbe$Sensibilite), , drop = FALSE]
+  aire <- sum(diff(courbe$Un_moins_Sp) *
+                (utils::head(courbe$Sensibilite, -1) + courbe$Sensibilite[-1]) / 2)
+  # Le rang : meme quantite, autre chemin. `rank` traite les ex aequo par leur
+  # moyenne, ce qui est exactement la convention « ex aequo pour moitie ».
+  r <- rank(s)
+  auc_rang <- (sum(r[e == 1L]) - np * (np + 1) / 2) / (np * nn)
+  j <- which.max(courbe$Sensibilite + courbe$Specificite - 1)
+  list(courbe = courbe, auc = aire, auc_rang = auc_rang,
+       youden = list(seuil = courbe$Seuil[j], se = courbe$Sensibilite[j],
+                     sp = courbe$Specificite[j]),
+       n_positifs = np, n_negatifs = nn)
+}
+
+# ===========================================================================
+#  MESURES D'IMPACT -- ce qu'une decision de sante publique demande vraiment
+# ===========================================================================
+#  Un RR de 2 ne dit pas s'il faut agir. Ce qui le dit, c'est le nombre de cas
+#  qu'on eviterait : c'est la difference entre une association et une priorite.
+#
+#      RA   = R1 - R0                    (cas en exces par exposé)
+#      FAE  = (R1 - R0) / R1             (part des cas des exposés due à l'expo)
+#      FAP  = Pe (RR - 1) / (1 + Pe (RR - 1))   (part de TOUS les cas)
+#      NNT  = 1 / |RA|                   (sujets à traiter pour un cas évité)
+#
+#  LA FAP DEPEND DE LA PREVALENCE DE L'EXPOSITION, et c'est tout son interet :
+#  une exposition au risque enorme mais rare pese moins, en sante publique,
+#  qu'une exposition au risque modeste et repandue. Confondre FAE et FAP fait
+#  ranger les priorites a l'envers.
+hstat_epi_impact <- function(a, b, c, d, conf = 0.95, prevalence_expo = NULL) {
+  v <- suppressWarnings(as.numeric(c(a, b, c, d)))
+  if (any(!is.finite(v)) || any(v < 0))
+    return(list(ok = FALSE, message = tr("Les quatre effectifs du tableau 2x2 doivent être des entiers positifs ou nuls.")))
+  a <- v[1]; b <- v[2]; c <- v[3]; d <- v[4]
+  msg <- character(0)
+
+  # UNE CASE NULLE REND LE RR INDEFINI ou infini. La correction de Haldane
+  # (+0,5 partout) est la convention ; l'appliquer en SILENCE serait la faute,
+  # parce que les intervalles obtenus ne sont plus ceux des donnees brutes.
+  corrige <- FALSE
+  if (any(c(a, b, c, d) == 0)) {
+    a <- a + 0.5; b <- b + 0.5; c <- c + 0.5; d <- d + 0.5
+    corrige <- TRUE
+    msg <- c(msg, tr("Au moins une case du tableau est nulle : correction de Haldane (+0,5) appliquée. Les intervalles sont plus larges que ceux des effectifs bruts."))
+  }
+  n1 <- a + b; n0 <- c + d
+  if (!isTRUE(n1 > 0) || !isTRUE(n0 > 0))
+    return(list(ok = FALSE, message = tr("Un des deux groupes est vide : aucun risque n'est comparable.")))
+
+  r1 <- a / n1; r0 <- c / n0
+  rr <- if (isTRUE(r0 > 0)) r1 / r0 else NA_real_
+  ra <- r1 - r0
+  fae <- if (isTRUE(r1 > 0) && isTRUE(is.finite(rr))) (rr - 1) / rr else NA_real_
+  pe <- suppressWarnings(as.numeric(prevalence_expo)[1])
+  if (!isTRUE(is.finite(pe)) || pe < 0 || pe > 1) {
+    pe <- n1 / (n1 + n0)
+    msg <- c(msg, trf("Prévalence de l'exposition prise sur le fichier (%.1f %%). Sur un plan cas-témoins elle est FIXÉE par l'échantillonnage : déclarez la prévalence en population, sinon la fraction attribuable en population ne décrit aucune population réelle.",
+                      100 * pe))
+  }
+  fap <- if (isTRUE(is.finite(rr))) pe * (rr - 1) / (1 + pe * (rr - 1)) else NA_real_
+  nnt <- if (isTRUE(is.finite(ra)) && abs(ra) > 0) 1 / abs(ra) else NA_real_
+
+  z <- stats::qnorm(1 - (1 - conf) / 2)
+  se_ra <- sqrt(r1 * (1 - r1) / n1 + r0 * (1 - r0) / n0)
+  se_lrr <- if (isTRUE(a > 0) && isTRUE(c > 0)) sqrt(1 / a - 1 / n1 + 1 / c - 1 / n0) else NA_real_
+
+  ligne <- function(lab, val, lo = NA_real_, hi = NA_real_, unite = "",
+                    cle = "")
+    data.frame(Mesure = lab, Valeur = round(val, 4), IC_bas = round(lo, 4),
+               IC_haut = round(hi, 4), Unite = unite, .cle = cle,
+               check.names = FALSE, stringsAsFactors = FALSE)
+
+  tab <- rbind(
+    ligne(tr("Risque chez les exposés"), r1, unite = tr("proportion"), cle = "prop"),
+    ligne(tr("Risque chez les non exposés"), r0, unite = tr("proportion"), cle = "prop"),
+    ligne(tr("Risque relatif (RR)"), rr,
+          if (isTRUE(is.finite(se_lrr))) exp(log(rr) - z * se_lrr) else NA_real_,
+          if (isTRUE(is.finite(se_lrr))) exp(log(rr) + z * se_lrr) else NA_real_),
+    ligne(tr("Risque attribuable (RA)"), ra, ra - z * se_ra, ra + z * se_ra,
+          tr("proportion"), cle = "prop"),
+    ligne(tr("Fraction attribuable chez les exposés (FAE)"), fae, unite = tr("proportion"), cle = "prop"),
+    ligne(tr("Fraction attribuable en population (FAP)"), fap, unite = tr("proportion"), cle = "prop"),
+    ligne(if (isTRUE(ra < 0)) tr("Nombre de sujets à traiter (NST)")
+          else tr("Nombre de sujets à exposer pour un cas (NSE)"), nnt,
+          unite = tr("nombre de sujets"), cle = "nnt"))
+
+  # UN RISQUE ATTRIBUABLE NEGATIF EST UN RESULTAT : l'exposition PROTEGE. Le
+  # borner a zero masquerait precisement ce qu'il faut voir, et le libelle
+  # change avec le signe -- « nombre a traiter » et « nombre a exposer pour
+  # nuire » ne se lisent pas pareil.
+  if (isTRUE(ra < 0))
+    msg <- c(msg, tr("Le risque attribuable est négatif : dans ces données l'exposition est associée à MOINS de cas. Les fractions attribuables se lisent alors comme une fraction évitée."))
+
+  list(ok = TRUE, table = tab, corrige = corrige, conf = conf,
+       prevalence_expo = pe, message = if (length(msg)) paste(msg, collapse = " ") else NULL)
+}
+
+# ===========================================================================
+#  FIGURES -- le catalogue est declare une fois, le selecteur en derive
+# ===========================================================================
+HSTAT_EPI_FIGURES <- list(
+  dlnm = c("Effet cumulé (tous retards)" = "cumul",
+           "Carte de chaleur exposition × retard" = "carte",
+           "Structure temporelle (par retard)" = "retard",
+           "Coupes par retard" = "coupes",
+           "Surface 3D" = "surface3d",
+           "Diagnostics du modèle" = "diag"),
+  taux       = c("Forêt des IRR" = "foret"),
+  risque     = c("Forêt : OR contre RR" = "foret"),
+  survie     = c("Courbes de Kaplan-Meier" = "km", "Forêt des HR" = "foret"),
+  cascroise  = c("Forêt des RR" = "foret"),
+  smr        = c("SMR par groupe" = "smr"),
+  diagnostic = c("Courbe ROC" = "roc"),
+  impact     = c("Mesures d'impact" = "impact")
+)
+
+# LES FIGURES TRACEES EN GRAPHIQUES DE BASE N'OBEISSENT PAS AU KIT GGPLOT.
+# Leur offrir le selecteur de theme et les marges donnerait des reglages que
+# l'image ignore -- le defaut que ce depot traque partout ailleurs. Le panneau
+# de mise en forme se retire donc pour elles, plutot que de mentir.
+HSTAT_EPI_FIGURES_BASE <- c("surface3d", "diag")
+
+.hstat_epi_gg_foret <- function(df, etiquette, titre, ref = 1, o = NULL) {
+  df <- df[is.finite(df[[etiquette]]), , drop = FALSE]
+  if (!nrow(df)) return(NULL)
+  df$Terme <- factor(df$Terme, levels = rev(df$Terme))
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = .data[[etiquette]], y = .data[["Terme"]])) +
+    ggplot2::geom_vline(xintercept = ref, linetype = "dashed", colour = "grey40") +
+    ggplot2::geom_errorbarh(ggplot2::aes(xmin = .data[["IC_bas"]], xmax = .data[["IC_haut"]]),
+                            height = 0.18, colour = "#2c3e50") +
+    ggplot2::geom_point(size = 2.6, colour = "#d73027") +
+    ggplot2::labs(x = etiquette, y = NULL, title = titre)
+  # L'ECHELLE EST LOGARITHMIQUE PARCE QUE LA MESURE EST UN RAPPORT : un RR de 2
+  # et un RR de 0,5 sont le meme ecart en sens inverse, et une echelle lineaire
+  # ecrase le second contre l'axe. Elle n'est posee que si tout est > 0 --
+  # log(0) rejetterait la ligne sans un mot.
+  if (all(df$IC_bas > 0, na.rm = TRUE)) p <- p + ggplot2::scale_x_log10()
+  p
+}
+
+#' Construit une figure du module d'epidemiologie.
+#'
+#' Rend un objet ggplot, OU une fonction sans argument pour les figures tracees
+#' en graphiques de base (`hstat_ecrire_image` accepte les deux).
+hstat_epi_figure <- function(analyse, figure, res, o = NULL, titre = NULL) {
+  if (is.null(res) || !isTRUE(res$ok)) return(NULL)
+  # LE KIT DE MISE EN FORME NE SE POSE QUE S'IL A ETE LU. `hstat_plot_extras_theme`
+  # lit des champs que seule `hstat_plot_extras_lire()` pose ; l'appeler sur une
+  # liste partielle leve « 'x' and 'units' must have length > 0 », et l'erreur
+  # tombe dans le rendu -- donc emporte la figure entiere. On reconnait une
+  # lecture complete a sa cle `familles`, que la lecture pose toujours.
+  th <- function(p) {
+    if (is.null(p)) return(NULL)
+    base <- if (isTRUE(is.finite(suppressWarnings(as.numeric(o$police)[1]))))
+      as.numeric(o$police)[1] else 11
+    p <- p + viz_get_theme(o$theme %||% "minimal", base_size = base)
+    if (is.list(o) && !is.null(o$familles)) p <- p + hstat_plot_extras_theme(o)
+    p
+  }
+
+  if (identical(analyse, "dlnm")) {
+    p <- res$pred
+    lagg <- .hstat_epi_lag_grille(p)
+
+    if (identical(figure, "cumul")) {
+      d <- data.frame(x = p$predvar, fit = p$allRRfit,
+                      lo = p$allRRlow, hi = p$allRRhigh)
+      # UN INTERVALLE QUI EXPLOSE AUX EXTREMES ECRASE LA COURBE CENTRALE. On
+      # borne le cadre sur les centiles de l'intervalle plutot que sur son
+      # etendue -- sans quoi la seule chose lisible est une bande verticale.
+      hi <- stats::quantile(d$hi, 0.98, na.rm = TRUE)
+      lo <- max(0, stats::quantile(d$lo, 0.02, na.rm = TRUE))
+      return(th(ggplot2::ggplot(d, ggplot2::aes(x = .data[["x"]])) +
+        ggplot2::geom_ribbon(ggplot2::aes(ymin = .data[["lo"]], ymax = .data[["hi"]]),
+                             fill = "#d73027", alpha = 0.15) +
+        ggplot2::geom_hline(yintercept = 1, linetype = "dashed", colour = "grey40") +
+        ggplot2::geom_vline(xintercept = res$reference, linetype = "dotted",
+                            colour = "#4575b4") +
+        ggplot2::geom_line(ggplot2::aes(y = .data[["fit"]]), colour = "#d73027", linewidth = 1) +
+        ggplot2::coord_cartesian(ylim = c(lo, hi)) +
+        ggplot2::labs(x = tr("Exposition"), y = tr("RR cumulé"),
+                      title = titre %||% tr("Effet cumulé sur tous les retards"),
+                      subtitle = trf("Référence : %.3g", res$reference))))
+    }
+
+    if (identical(figure, "carte")) {
+      d <- expand.grid(lag = lagg, x = p$predvar)
+      d$RR <- as.vector(t(p$matRRfit))
+      return(th(ggplot2::ggplot(d, ggplot2::aes(x = .data[["x"]], y = .data[["lag"]],
+                                                fill = .data[["RR"]])) +
+        ggplot2::geom_raster(interpolate = TRUE) +
+        # UNE ECHELLE DIVERGENTE CENTREE SUR 1 : le RR est un rapport, et sa
+        # valeur neutre est 1, pas la moyenne du jeu. Une echelle sequentielle
+        # ferait passer « aucun effet » pour une couleur quelconque.
+        ggplot2::scale_fill_gradient2(low = "#4575b4", mid = "#ffffbf",
+                                      high = "#a50026", midpoint = 1) +
+        ggplot2::labs(x = tr("Exposition"), y = tr("Retard"), fill = "RR",
+                      title = titre %||% tr("Surface exposition × retard"))))
+    }
+
+    if (identical(figure, "retard")) {
+      q <- stats::quantile(res$expo, c(0.10, 0.90), na.rm = TRUE)
+      d <- do.call(rbind, lapply(seq_along(q), function(k) {
+        i <- which.min(abs(p$predvar - q[k]))
+        data.frame(lag = lagg, fit = p$matRRfit[i, ], lo = p$matRRlow[i, ],
+                   hi = p$matRRhigh[i, ],
+                   serie = sprintf("P%s (%.3g)", c("10", "90")[k], p$predvar[i]))
+      }))
+      return(th(ggplot2::ggplot(d, ggplot2::aes(x = .data[["lag"]], colour = .data[["serie"]],
+                                                fill = .data[["serie"]])) +
+        ggplot2::geom_ribbon(ggplot2::aes(ymin = .data[["lo"]], ymax = .data[["hi"]]),
+                             alpha = 0.15, colour = NA) +
+        ggplot2::geom_hline(yintercept = 1, linetype = "dashed", colour = "grey40") +
+        ggplot2::geom_line(ggplot2::aes(y = .data[["fit"]]), linewidth = 1) +
+        ggplot2::scale_colour_manual(values = c("#4575b4", "#d73027")) +
+        ggplot2::scale_fill_manual(values = c("#4575b4", "#d73027")) +
+        ggplot2::labs(x = tr("Retard"), y = "RR", colour = NULL, fill = NULL,
+                      title = titre %||% tr("Structure temporelle de l'effet"))))
+    }
+
+    if (identical(figure, "coupes")) {
+      lags <- seq(0, res$lag_max, by = 1)
+      cols <- vapply(lags, function(l) .hstat_epi_col_lag(p, l), integer(1))
+      ok <- !is.na(cols)
+      d <- do.call(rbind, lapply(which(ok), function(k) {
+        data.frame(x = p$predvar, fit = p$matRRfit[, cols[k]],
+                   lo = p$matRRlow[, cols[k]], hi = p$matRRhigh[, cols[k]],
+                   lag = factor(trf("Retard %d", lags[k]),
+                                levels = trf("Retard %d", lags[ok])))
+      }))
+      return(th(ggplot2::ggplot(d, ggplot2::aes(x = .data[["x"]])) +
+        ggplot2::geom_ribbon(ggplot2::aes(ymin = .data[["lo"]], ymax = .data[["hi"]]),
+                             fill = "#d73027", alpha = 0.15) +
+        ggplot2::geom_hline(yintercept = 1, linetype = "dashed", colour = "grey40") +
+        ggplot2::geom_line(ggplot2::aes(y = .data[["fit"]]), colour = "#d73027") +
+        ggplot2::facet_wrap(~ lag) +
+        ggplot2::labs(x = tr("Exposition"), y = "RR",
+                      title = titre %||% tr("Coupes par retard"))))
+    }
+
+    if (identical(figure, "surface3d")) {
+      pal <- grDevices::colorRampPalette(c("#313695", "#4575b4", "#74add1", "#e0f3f8",
+        "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#a50026"))(100)
+      return(function() {
+        graphics::par(mar = c(1, 1, 3, 1))
+        graphics::plot(p, xlab = tr("Exposition"), zlab = "RR", theta = 200,
+                       phi = 30, lphi = 30, col = pal, border = NA,
+                       main = titre %||% tr("Surface exposition-retard"))
+      })
+    }
+
+    if (identical(figure, "diag")) {
+      dg <- hstat_epi_dlnm_diag(res)
+      if (is.null(dg) || !nrow(dg)) return(NULL)
+      return(function() {
+        graphics::par(mfrow = c(2, 2), mar = c(4, 4, 2.5, 1.5))
+        graphics::plot(dg$Ajuste, dg$Residu, pch = 16, cex = 0.7, col = "grey40",
+                       xlab = tr("Valeurs ajustées"), ylab = tr("Résidus de déviance"),
+                       main = tr("Résidus contre ajustés"))
+        graphics::abline(h = 0, col = "#d73027", lty = 2, lwd = 2)
+        # `lowess` leve « delta doit etre fini et > 0 » sur des non-finis : ils
+        # sont deja retires par `hstat_epi_dlnm_diag`, mais un jeu a moins de
+        # deux points distincts le ferait encore tomber -- et l'erreur emporte
+        # le panneau entier.
+        if (length(unique(dg$Ajuste)) > 2L)
+          graphics::lines(stats::lowess(dg$Ajuste, dg$Residu), col = "#4575b4", lwd = 2)
+        stats::qqnorm(dg$Residu, pch = 16, cex = 0.7, col = "grey40",
+                      main = tr("Droite de Henry des résidus"))
+        stats::qqline(dg$Residu, col = "#d73027", lwd = 2)
+        stats::acf(dg$Residu, lag.max = min(24L, nrow(dg) - 1L),
+                   main = tr("Autocorrélation des résidus"), na.action = stats::na.pass)
+        graphics::plot(dg$Temps, dg$Residu, type = "l", col = "grey40",
+                       xlab = tr("Temps de suivi"), ylab = tr("Résidus de déviance"),
+                       main = tr("Résidus dans le temps"))
+        graphics::abline(h = 0, col = "#d73027", lty = 2, lwd = 2)
+      })
+    }
+    return(NULL)
+  }
+
+  if (identical(analyse, "taux"))
+    return(th(.hstat_epi_gg_foret(res$coefs, "IRR",
+      titre %||% tr("Rapports de taux d'incidence"))))
+
+  if (identical(analyse, "cascroise"))
+    return(th(.hstat_epi_gg_foret(res$coefs, "RR",
+      titre %||% tr("Effet de l'exposition (cas-croisé)"))))
+
+  if (identical(analyse, "risque")) {
+    if (is.null(res$or)) return(NULL)
+    d <- rbind(
+      data.frame(Terme = res$or$Terme, Mesure = "OR", val = res$or$OR,
+                 IC_bas = res$or$IC_bas, IC_haut = res$or$IC_haut),
+      if (!is.null(res$rr)) data.frame(Terme = res$rr$Terme, Mesure = "RR",
+        val = res$rr$RR, IC_bas = res$rr$IC_bas, IC_haut = res$rr$IC_haut))
+    d <- d[is.finite(d$val), , drop = FALSE]
+    if (!nrow(d)) return(NULL)
+    d$Terme <- factor(d$Terme, levels = rev(unique(d$Terme)))
+    p <- ggplot2::ggplot(d, ggplot2::aes(x = .data[["val"]], y = .data[["Terme"]],
+                                         colour = .data[["Mesure"]])) +
+      ggplot2::geom_vline(xintercept = 1, linetype = "dashed", colour = "grey40") +
+      ggplot2::geom_errorbarh(ggplot2::aes(xmin = .data[["IC_bas"]], xmax = .data[["IC_haut"]]),
+                              height = 0.18, position = ggplot2::position_dodge(width = 0.5)) +
+      ggplot2::geom_point(size = 2.6, position = ggplot2::position_dodge(width = 0.5)) +
+      ggplot2::scale_colour_manual(values = c(OR = "#d73027", RR = "#4575b4")) +
+      ggplot2::labs(x = tr("Rapport"), y = NULL, colour = NULL,
+                    title = titre %||% tr("Odds ratio contre risque relatif"),
+                    subtitle = trf("Issue présente chez %.1f %% des observations", 100 * res$prevalence))
+    if (all(d$IC_bas > 0, na.rm = TRUE)) p <- p + ggplot2::scale_x_log10()
+    return(th(p))
+  }
+
+  if (identical(analyse, "survie")) {
+    if (identical(figure, "foret"))
+      return(th(.hstat_epi_gg_foret(res$cox, "HR", titre %||% tr("Rapports de risques (Cox)"))))
+    if (is.null(res$km)) return(NULL)
+    k <- res$km
+    d <- data.frame(temps = k$time, surv = k$surv, lo = k$lower, hi = k$upper)
+    d$groupe <- if (!is.null(k$strata)) rep(sub("^[^=]*=", "", names(k$strata)), k$strata)
+                else tr("Tous sujets confondus")
+    return(th(ggplot2::ggplot(d, ggplot2::aes(x = .data[["temps"]], y = .data[["surv"]],
+                                              colour = .data[["groupe"]],
+                                              fill = .data[["groupe"]])) +
+      ggplot2::geom_ribbon(ggplot2::aes(ymin = .data[["lo"]], ymax = .data[["hi"]]),
+                           alpha = 0.12, colour = NA) +
+      # `geom_step` ET NON `geom_line` : la survie de Kaplan-Meier est une
+      # fonction en ESCALIER, constante entre deux evenements. La relier en
+      # diagonale dessinerait une decroissance continue qui n'a pas eu lieu, et
+      # ferait lire une survie intermediaire a des instants ou elle n'a pas
+      # bouge.
+      ggplot2::geom_step(linewidth = 0.9) +
+      ggplot2::coord_cartesian(ylim = c(0, 1)) +
+      ggplot2::labs(x = tr("Temps de suivi"), y = tr("Probabilité de survie"),
+                    colour = NULL, fill = NULL,
+                    title = titre %||% tr("Courbes de survie de Kaplan-Meier"))))
+  }
+
+  if (identical(analyse, "smr")) {
+    d <- res$smr
+    d <- d[is.finite(d$SMR), , drop = FALSE]
+    if (!nrow(d)) return(NULL)
+    return(th(ggplot2::ggplot(d, ggplot2::aes(x = stats::reorder(.data[["Groupe"]], .data[["SMR"]]),
+                                              y = .data[["SMR"]])) +
+      ggplot2::geom_hline(yintercept = 1, linetype = "dashed", colour = "grey40") +
+      ggplot2::geom_errorbar(ggplot2::aes(ymin = .data[["IC_bas"]], ymax = .data[["IC_haut"]]),
+                             width = 0.18, colour = "#2c3e50") +
+      ggplot2::geom_point(size = 3, colour = "#d73027") +
+      ggplot2::coord_flip() +
+      ggplot2::labs(x = NULL, y = tr("SMR (observés / attendus)"),
+                    title = titre %||% tr("Rapport standardisé de mortalité"))))
+  }
+
+  if (identical(analyse, "diagnostic")) {
+    if (is.null(res$roc)) return(NULL)
+    c0 <- res$roc$courbe
+    return(th(ggplot2::ggplot(c0, ggplot2::aes(x = .data[["Un_moins_Sp"]],
+                                               y = .data[["Sensibilite"]])) +
+      ggplot2::geom_abline(slope = 1, intercept = 0, linetype = "dashed", colour = "grey50") +
+      ggplot2::geom_line(colour = "#d73027", linewidth = 1) +
+      # LE CADRE EST CARRE PARCE QUE L'AIRE EN DEPEND : un cadre etire change
+      # l'aire PERCUE sans changer l'aire calculee, et c'est l'aire percue que
+      # le lecteur retient.
+      ggplot2::coord_equal(xlim = c(0, 1), ylim = c(0, 1)) +
+      ggplot2::labs(x = tr("1 − spécificité"), y = tr("Sensibilité"),
+                    title = titre %||% tr("Courbe ROC"),
+                    subtitle = trf("Aire sous la courbe : %.3f", res$roc$auc))))
+  }
+
+  if (identical(analyse, "impact")) {
+    d <- res$table[res$table$.cle == "prop", , drop = FALSE]
+    d <- d[is.finite(d$Valeur), , drop = FALSE]
+    if (!nrow(d)) return(NULL)
+    d$Mesure <- factor(d$Mesure, levels = rev(d$Mesure))
+    return(th(ggplot2::ggplot(d, ggplot2::aes(x = .data[["Valeur"]], y = .data[["Mesure"]])) +
+      ggplot2::geom_vline(xintercept = 0, colour = "grey40") +
+      ggplot2::geom_col(fill = "#d73027", alpha = 0.8) +
+      ggplot2::labs(x = tr("Proportion (0 à 1)"), y = NULL,
+                    title = titre %||% tr("Mesures d'impact"))))
+  }
+  NULL
+}
