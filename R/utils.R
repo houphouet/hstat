@@ -523,9 +523,31 @@ hstat_i18n_payload <- function(lang = "en") {
 
 # La balise a poser dans l'en-tete, AVANT hstat-i18n.js qui lit
 # `window.HSTAT_I18N` des son chargement.
+# Une adresse entre guillemets dans du JavaScript : on echappe ce qui
+# refermerait la chaine. Elle est composee par nous, mais une aide qui ne tient
+# que par la discipline de l'appelant n'en est pas une.
+.hstat_js_chaine <- function(x) {
+  x <- as.character(x)[1]
+  x <- gsub("\\\\", "\\\\\\\\", x)
+  x <- gsub("\"", "\\\\\"", x)
+  gsub("[\r\n<]", "", x)
+}
+
 hstat_i18n_script <- function(lang = "en") {
   src <- hstat_i18n_asset(lang)
-  if (!is.na(src)) return(shiny::tags$script(src = src))
+  # LE DICTIONNAIRE NE PART PLUS AVEC LA PAGE. En `<script src>` dans
+  # l'en-tete, il etait telecharge a CHAQUE premiere visite -- 166 Ko
+  # transferes, 515 Ko decodes, mesures au navigateur -- y compris chez un
+  # utilisateur francophone qui ne bascule jamais. Le francais est le defaut :
+  # il ne doit rien payer pour une traduction qu'il n'utilisera pas.
+  #
+  # On ne pose donc que l'ADRESSE ; `hstat-i18n.js` va chercher le fichier au
+  # premier passage en anglais, et une seule fois. La balise doit toujours
+  # PRECEDER celle du traducteur -- non plus parce qu'il lit le dictionnaire a
+  # son chargement, mais parce qu'il lit cette adresse.
+  if (!is.na(src))
+    return(shiny::tags$script(shiny::HTML(sprintf(
+      "window.HSTAT_I18N_SRC = \"%s\";", .hstat_js_chaine(src)))))
   # Repli : le dictionnaire redevient incorpore. Plus lourd, mais le bilingue
   # marche -- et c'est la seule chose qui compte ici.
   shiny::tags$script(shiny::HTML(hstat_i18n_payload(lang)))

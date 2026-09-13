@@ -2435,7 +2435,7 @@ server <- function(input, output, session) {
       
       df_group_acc <- data.frame(
         Groupe = rownames(confusion_matrix),
-        Taux_classif_pct = sapply(1:nrow(confusion_matrix), function(i) {
+        Taux_classif_pct = sapply(seq_len(nrow(confusion_matrix)), function(i) {
           round(confusion_matrix[i, i] / sum(confusion_matrix[i, ]) * 100, 2)
         })
       )
@@ -4061,7 +4061,7 @@ server <- function(input, output, session) {
       can_cor <- sqrt(eigenvals / (1 + eigenvals))
       
       variance_df <- data.frame(
-        Fonction = paste0("LD", 1:length(eigenvals)),
+        Fonction = paste0("LD", seq_len(length(eigenvals))),
         Valeur_propre = eigenvals,
         Variance_expliquee = round(prop_var, 2),
         Variance_cumulee = round(cumsum(prop_var), 2),
@@ -4647,7 +4647,7 @@ server <- function(input, output, session) {
                  )
              ),
              shiny::fluidRow(
-               lapply(1:nrow(confusion_matrix), function(i) {
+               lapply(seq_len(nrow(confusion_matrix)), function(i) {
                  g_acc <- confusion_matrix[i, i] / sum(confusion_matrix[i, ])
                  g_col <- if (g_acc >= .9) "#3a7d5c" else if (g_acc >= .7) "#b07d2a" else "#c0392b"
                  g_bg  <- if (g_acc >= .9) "#eaf5ef" else if (g_acc >= .7) "#fef9ec" else "#fdf0ef"
@@ -4682,11 +4682,11 @@ server <- function(input, output, session) {
                               )
                             ),
                             shiny::tags$tbody(
-                              lapply(1:nrow(confusion_matrix), function(i) {
+                              lapply(seq_len(nrow(confusion_matrix)), function(i) {
                                 shiny::tags$tr(
                                   shiny::tags$td(style = "padding:7px 10px; background:#f9f2eb; border:1px solid #dee2e6; font-weight:bold; font-size:13px; color:#2c3e50;",
                                           rownames(confusion_matrix)[i]),
-                                  lapply(1:ncol(confusion_matrix), function(j) {
+                                  lapply(seq_len(ncol(confusion_matrix)), function(j) {
                                     is_diag <- i == j
                                     bg <- if (is_diag) "#eaf5ef" else "white"
                                     fw <- if (is_diag) "bold" else "normal"
@@ -4719,12 +4719,12 @@ server <- function(input, output, session) {
                               )
                             ),
                             shiny::tags$tbody(
-                              lapply(1:nrow(structure_matrix), function(i) {
+                              lapply(seq_len(nrow(structure_matrix)), function(i) {
                                 bg <- if (i %% 2 == 0) "#f4f6f8" else "white"
                                 shiny::tags$tr(style = paste0("background:", bg, ";"),
                                         shiny::tags$td(style = "padding:7px 10px; border:1px solid #dee2e6; font-weight:bold; font-size:13px; color:#2c3e50;",
                                                 rownames(structure_matrix)[i]),
-                                        lapply(1:ncol(structure_matrix), function(j) {
+                                        lapply(seq_len(ncol(structure_matrix)), function(j) {
                                           v   <- structure_matrix[i, j]
                                           av  <- abs(v)
                                           col <- if (av >= .7) "#3a5f7d" else if (av >= .4) "#4a7fa5" else "#888"
@@ -4793,7 +4793,7 @@ server <- function(input, output, session) {
                                          shiny::tags$th(style = "padding:5px 8px; background:#2c3e50; color:white; border:1px solid #dee2e6; font-size:10px; text-align:center;", cn)
                                        )
                                      )),
-                                     shiny::tags$tbody(lapply(1:nrow(afd_result$means), function(i) {
+                                     shiny::tags$tbody(lapply(seq_len(nrow(afd_result$means)), function(i) {
                                        bg <- if (i %% 2 == 0) "#f8f9fa" else "white"
                                        shiny::tags$tr(style = paste0("background:", bg, ";"),
                                                shiny::tags$td(style = "padding:5px 8px; border:1px solid #dee2e6; font-weight:bold; font-size:10px;",

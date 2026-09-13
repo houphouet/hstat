@@ -6002,17 +6002,17 @@ mod_tests_server <- function(id, values) {
       
       openxlsx::addWorksheet(wb, "Résultat global")
       openxlsx::writeData(wb, "Résultat global", values$chiSqResults, headerStyle = h_style)
-      openxlsx::setColWidths(wb, "Résultat global", cols = 1:ncol(values$chiSqResults), widths = "auto")
+      openxlsx::setColWidths(wb, "Résultat global", cols = seq_len(ncol(values$chiSqResults)), widths = "auto")
       
       openxlsx::addWorksheet(wb, "Modalités et groupes")
       openxlsx::writeData(wb, "Modalités et groupes", values$chiSqFreqData, headerStyle = h_style)
       sr <- which(values$chiSqFreqData$Statut == "Sur-représenté")  + 1
       nr <- which(values$chiSqFreqData$Statut == "Sous-représenté") + 1
       if (length(sr) > 0) openxlsx::addStyle(wb, "Modalités et groupes", sig_s, rows = sr,
-                                             cols = 1:ncol(values$chiSqFreqData), gridExpand = TRUE)
+                                             cols = seq_len(ncol(values$chiSqFreqData)), gridExpand = TRUE)
       if (length(nr) > 0) openxlsx::addStyle(wb, "Modalités et groupes", ns_s, rows = nr,
-                                             cols = 1:ncol(values$chiSqFreqData), gridExpand = TRUE)
-      openxlsx::setColWidths(wb, "Modalités et groupes", cols = 1:ncol(values$chiSqFreqData), widths = "auto")
+                                             cols = seq_len(ncol(values$chiSqFreqData)), gridExpand = TRUE)
+      openxlsx::setColWidths(wb, "Modalités et groupes", cols = seq_len(ncol(values$chiSqFreqData)), widths = "auto")
       
       if (!is.null(values$chiSqPostHocData) && nrow(values$chiSqPostHocData) > 0) {
         openxlsx::addWorksheet(wb, "Comparaisons paires")
