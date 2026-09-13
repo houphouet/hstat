@@ -5699,6 +5699,52 @@ retardement : le tableau est construit dans la langue du calcul, la figure filtr
 dans celle du rendu. Basculer entre les deux viderait la figure sans un mot. Le
 filtre passe donc par une clé stable (`.cle`), jamais par le libellé affiché.
 
+### Le temps a trois sources, et `fmt` n'avait pas de défaut
+
+Deux défauts de la même famille, tous deux sur la lecture de la date, et tous
+deux signalés à l'écran.
+
+**Le premier était muet et total.** `hstat_date_parse(x, fmt, lang)` n'a **pas
+de valeur par défaut** pour `fmt` ; deux sites l'appelaient nu. L'erreur —
+« l'argument "fmt" est manquant, avec aucune valeur par défaut » — ne tombait
+que sur une colonne de date en **caractères**, c'est-à-dire le cas d'un CSV
+ordinaire : une colonne déjà typée `Date` prend l'autre branche. C'est
+exactement pourquoi ni le test du module ni le parcours au navigateur ne
+l'avaient vu — les deux travaillaient sur une colonne typée. Les deux sites
+passent par `hstat_date_auto()`, qui reconnaît le format et le **dit**.
+
+**Le second était une friction, pas un défaut.** Beaucoup de fichiers de suivi
+mensuel ne portent **aucune** colonne de date : ils portent « Mois » en toutes
+lettres et « Annee » à côté — la forme d'un registre saisi à la main. Exiger
+une date ISO obligeait à rouvrir le fichier dans un tableur pour fabriquer une
+colonne que le fichier contient déjà, en deux morceaux.
+
+`hstat_epi_temps()` est la **seule porte** des trois sources — colonne de date,
+couple mois + année, ordre des lignes. L'écrire dans chaque analyse ferait
+diverger trois copies, et c'est la copie oubliée qui ment.
+
+Quatre décisions, chacune testée :
+
+1. **Le jour est fixé au premier du mois, et c'est une hypothèse, donc elle se
+   dit.** Une donnée mensuelle n'a pas de jour ; un lecteur qui verrait
+   « 2005-01-01 » sans explication pourrait croire à une mesure du 1er janvier.
+2. **La correspondance du mois est exacte, jamais par préfixe.** « ju » ne
+   désigne ni juin ni juillet ; en rendre un au hasard décalerait toute la
+   série d'un rang — un mois faux est parfaitement plausible en tableau. Les
+   noms sont essayés du plus long au plus court et lus dans les **deux**
+   langues : un fichier porte les mois qu'il porte, et rien ne dit qu'ils
+   suivent la langue d'affichage.
+3. **Une année à deux chiffres est refusée, pas devinée.** « 05 » vaut l'an 5
+   ou 2005 selon la convention — deux séries distantes de deux millénaires,
+   toutes deux plausibles.
+4. **Un seul des deux champs ne compose rien, et on le dit.** Le taire
+   laisserait croire que la date a été composée alors que le module est retombé
+   sur l'ordre des lignes.
+
+Le test exige que les deux chemins donnent **le même** AIC, pas seulement qu'ils
+aboutissent : le fichier porte la même information en deux morceaux, un
+résultat « calculable » mais différent serait la faute qu'on cherche à éviter.
+
 ### `dlnm` 2.4.7, et pourquoi pas la version courante
 
 La version HEAD du miroir CRAN exige **R ≥ 4.4** ; l'environnement de ce dépôt
