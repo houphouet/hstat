@@ -185,7 +185,8 @@ mod_epidemio_server <- function(id, values) {
             shiny::selectInput(ns("epiOffset"),
               "Dénominateur (population exposée, facultatif)",
               choices = c("(aucun)" = "", n)),
-            shiny::selectInput(ns("epiTemps"), "Colonne de date (facultatif)",
+            shiny::selectInput(ns("epiTemps"),
+              "Colonne de date complète (jour, mois et année — facultatif)",
               choices = c("(ordre des lignes)" = "", a)),
             # UNE DATE SE COMPOSE PARFOIS DE DEUX COLONNES. Un registre mensuel
             # saisi a la main porte « Mois » en toutes lettres et « Annee » a
@@ -200,6 +201,23 @@ mod_epidemio_server <- function(id, values) {
                 choices = c("(aucune)" = "", a)))),
             shiny::tags$small(style = "color:#6b7280;",
               tr("Le mois et l'année se déclarent ensemble ; le jour est alors fixé au premier du mois.")),
+            # LE CHEMIN INVERSE : une date complete se DECOMPOSE. C'est une
+            # action, pas une case -- les colonnes doivent exister pour etre
+            # choisies en covariable, ici comme dans les autres onglets, et un
+            # drapeau lu au calcul donnerait des colonnes inatteignables.
+            shiny::checkboxInput(ns("epiDecomposer"),
+              "J'ai une date complète : en extraire l'année, le mois et le jour",
+              value = FALSE),
+            shiny::conditionalPanel(
+              ns = ns, condition = "input.epiDecomposer",
+              shiny::checkboxGroupInput(ns("epiParties"), "Éléments à extraire",
+                choices = HSTAT_EPI_PARTIES,
+                selected = c("annee", "mois", "jour")),
+              shiny::actionButton(ns("epiExtraire"),
+                shiny::tagList(shiny::icon("scissors"), " Extraire les colonnes"),
+                class = "btn-primary btn-sm"),
+              shiny::tags$small(style = "color:#6b7280; display:block; margin-top:6px;",
+                tr("Les colonnes sont ajoutées au jeu de données ; la colonne de date d'origine est conservée et reste utilisable ici."))),
             shiny::selectInput(ns("epiAjust"), "Covariables simples (facultatif)",
               choices = a, multiple = TRUE)),
           .hstat_opt_section("Structure du retard", "hourglass-half", "#2980b9", "#eaf4fb",
@@ -308,6 +326,36 @@ mod_epidemio_server <- function(id, values) {
     })
 
     # ------------------------------------------------------------- LANCEMENT
+    # ------------------------------------------------ DECOMPOSITION D'UNE DATE
+    #  Les colonnes rejoignent le JEU DE TRAVAIL, comme le fait le typage de
+    #  l'onglet Nettoyage : elles derivent du fichier courant, elles ne le
+    #  remplacent pas. Pas de remise a zero de session, donc -- purger ici
+    #  effacerait l'analyse qui vient de les demander.
+    shiny::observeEvent(input$epiExtraire, {
+      df <- donnees()
+      if (is.null(df) || !NROW(df)) {
+        shiny::showNotification(
+          shiny::tagList(shiny::icon("triangle-exclamation"),
+                         tr(" Chargez d'abord un jeu de données.")),
+          type = "warning")
+        return()
+      }
+      r <- hstat_epi_date_parts(df, input$epiTemps, input$epiParties)
+      if (!length(r$ajoutees)) {
+        shiny::showNotification(
+          shiny::tagList(shiny::icon("triangle-exclamation"),
+                         " ", r$message %||% tr("Aucune colonne n'a pu être extraite.")),
+          type = "warning", duration = 10)
+        return()
+      }
+      values$data         <- r$data
+      values$cleanData    <- r$data
+      values$filteredData <- r$data
+      shiny::showNotification(
+        shiny::tagList(shiny::icon("check"), " ", r$message),
+        type = "message", duration = 10)
+    })
+
     shiny::observeEvent(input$epiLancer, {
       df <- donnees()
       an <- input$epiAnalyse %||% "dlnm"

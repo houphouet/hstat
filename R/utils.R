@@ -10316,6 +10316,101 @@ HSTAT_EPI_DLNM_PCT <- c(0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99)
 #  LE DENOMINATEUR NE S'INVENTE PAS
 
 # ---------------------------------------------------------------------------
+#  UNE DATE COMPLETE SE DECOMPOSE, ET C'EST DEMANDE, JAMAIS FAIT D'OFFICE
+# ---------------------------------------------------------------------------
+#  Le chemin inverse du couple mois + annee : l'utilisateur porte deja une date
+#  complete (jour, mois, annee) et veut en tirer ses trois morceaux -- pour
+#  grouper, filtrer, ou ajuster sur la saison et le rythme hebdomadaire.
+#
+#  LE TYPE PRODUIT N'EST PAS LE MEME POUR TOUS, et c'est le point qui decide
+#  du resultat plutot que du confort. Une covariable entre LINEAIREMENT dans le
+#  modele : un mois rendu en nombre y dirait « decembre = 12 x janvier », ce
+#  qui est parfaitement plausible en tableau et faux. Le mois et le jour de la
+#  semaine sortent donc en FACTEUR ; l'annee en entier, ou une tendance
+#  lineaire a un sens.
+#
+#  Le facteur n'est PAS ordonne : R poserait alors des contrastes polynomiaux
+#  (`contr.poly`), c'est-a-dire une tendance lineaire, quadratique, cubique...
+#  sur les mois -- le defaut qu'on vient d'eviter, sous un autre nom, et avec
+#  des libelles de coefficients (« .L », « .Q ») que personne ne relie a un
+#  mois. Les niveaux sont en ordre chronologique, ce qui suffit aux graphiques.
+HSTAT_EPI_PARTIES <- c(
+  "Année (entier)"                          = "annee",
+  "Mois (facteur 01-12)"                    = "mois",
+  "Jour du mois (entier)"                   = "jour",
+  "Jour de la semaine (facteur, lundi en tête)" = "sem")
+
+# Suffixe de colonne, stable : c'est lui que relisent l'export et les autres
+# onglets. Le libelle du catalogue, lui, peut changer sans rien casser.
+HSTAT_EPI_PARTIES_SUFFIXE <- c(annee = "_annee", mois = "_mois",
+                               jour = "_jour", sem = "_jour_sem")
+
+#' Décompose une colonne de date complète en année, mois, jour et jour de
+#' semaine.
+#'
+#' Rend toujours une liste : `data` (le tableau, colonnes AJOUTEES), `ajoutees`
+#' (les noms réellement créés), `n_ok`, et `message`.
+hstat_epi_date_parts <- function(data, var_date,
+                                 parties = c("annee", "mois", "jour"),
+                                 lang = hstat_langue_session()) {
+  vide <- list(data = data, ajoutees = character(0), n_ok = 0L, message = NULL)
+  if (!is.data.frame(data) || !NROW(data)) return(vide)
+  if (!isTRUE(nzchar(var_date %||% "")) || !var_date %in% names(data)) {
+    vide$message <- tr("Choisissez d'abord la colonne de date complète à décomposer.")
+    return(vide)
+  }
+  parties <- intersect(as.character(parties %||% character(0)),
+                       unname(HSTAT_EPI_PARTIES))
+  if (!length(parties)) {
+    vide$message <- tr("Choisissez au moins un élément à extraire (année, mois, jour).")
+    return(vide)
+  }
+
+  da <- hstat_date_auto(data[[var_date]])
+  d  <- da$dates
+  n_ok <- sum(!is.na(d))
+  if (!n_ok) {
+    vide$message <- trf("La colonne « %s » n'a pu être lue comme une date : rien n'a été extrait.",
+                        var_date)
+    return(vide)
+  }
+  msg <- character(0)
+  if (isTRUE(da$auto) && isTRUE(nzchar(da$format %||% "")))
+    msg <- c(msg, trf("Format de date reconnu automatiquement : %s.", da$format))
+  # UNE LIGNE ILLISIBLE NE DISPARAIT PAS EN SILENCE : sans ce decompte, la
+  # colonne extraite porterait des NA dont personne ne connaitrait le nombre.
+  if (n_ok < length(d))
+    msg <- c(msg, trf("%d ligne(s) sur %d n'ont pas pu être lues comme une date : les colonnes extraites y valent NA.",
+                      length(d) - n_ok, length(d)))
+
+  jours <- HSTAT_JOURS[[.hstat_lang2(lang)]]
+  valeur <- function(p) switch(p,
+    annee = as.integer(format(d, "%Y")),
+    jour  = as.integer(format(d, "%d")),
+    # Facteur NON ordonne, niveaux en ordre chronologique : voir l'en-tete.
+    mois  = factor(format(d, "%m"), levels = sprintf("%02d", 1:12)),
+    sem   = factor(jours[as.integer(format(d, "%u"))], levels = jours))
+
+  ajout <- character(0)
+  for (p in parties) {
+    base <- paste0(var_date, HSTAT_EPI_PARTIES_SUFFIXE[[p]])
+    # LA COLONNE D'ORIGINE EST CONSERVEE, et une homonyme aussi : ecraser
+    # « Date_mois » deja present ferait perdre une colonne du fichier sans un
+    # mot. `make.unique` sur l'ensemble des noms distingue les deux.
+    nom <- make.unique(c(names(data), base))[length(names(data)) + 1L]
+    if (!identical(nom, base))
+      msg <- c(msg, trf("La colonne « %s » existe déjà : l'extraction est déposée sous « %s ».",
+                        base, nom))
+    data[[nom]] <- valeur(p)
+    ajout <- c(ajout, nom)
+  }
+  msg <- c(msg, trf("%d colonne(s) ajoutée(s) : %s. La colonne de date d'origine est conservée.",
+                    length(ajout), paste(ajout, collapse = ", ")))
+  list(data = data, ajoutees = ajout, n_ok = n_ok,
+       message = paste(msg, collapse = " "))
+}
+
+# ---------------------------------------------------------------------------
 #  UNE DATE SE COMPOSE PARFOIS DE DEUX COLONNES
 # ---------------------------------------------------------------------------
 #  Beaucoup de fichiers de suivi mensuel ne portent AUCUNE colonne de date :
