@@ -94,23 +94,22 @@ mod_epidemio_ui <- function(id) {
             shiny::tabPanel(
               shiny::tagList(shiny::icon("list-check"), " Synthèse"),
               shiny::br(),
-              shiny::uiOutput(ns("epiSynthese")),
-              DT::DTOutput(ns("epiTable1"))),
+              shiny::uiOutput(ns("epiSynthese"))),
+            # TROIS EMPLACEMENTS FIGES POUR UNE LISTE QUI EN PORTE ONZE.
+            # `tables()` rend la comparaison, le budget, puis DEUX tableaux par
+            # couple issue x exposition, plus la collinearite -- soit onze sur
+            # un plan a deux issues et deux expositions. Les huit derniers
+            # etaient calcules, EXPORTES, et jamais affiches : on lisait un
+            # classeur plus riche que l'ecran qui l'avait produit.
             shiny::tabPanel(
-              shiny::tagList(shiny::icon("clock-rotate-left"), " Détail"),
+              shiny::tagList(shiny::icon("table-list"), " Tableaux"),
               shiny::br(),
-              shiny::uiOutput(ns("epiTitre2")),
-              DT::DTOutput(ns("epiTable2"))),
+              shiny::uiOutput(ns("epiTablesUI"))),
             shiny::tabPanel(
               shiny::tagList(shiny::icon("chart-line"), " Graphique"),
               shiny::br(),
               shiny::plotOutput(ns("epiPlot"), height = "560px"),
-              shiny::uiOutput(ns("epiPlotNote"))),
-            shiny::tabPanel(
-              shiny::tagList(shiny::icon("triangle-exclamation"), " Diagnostic"),
-              shiny::br(),
-              shiny::uiOutput(ns("epiDiagTitre")),
-              DT::DTOutput(ns("epiTable3"))))),
+              shiny::uiOutput(ns("epiPlotNote"))))),
 
         shiny::conditionalPanel(
           ns = ns, condition = "output.hasEpi",
@@ -162,7 +161,30 @@ mod_epidemio_ui <- function(id) {
                 shiny::column(6, shiny::numericInput(ns("epiRefTaille"), "Taille",
                   value = 3.5, min = 1.5, max = 12, step = 0.5)),
                 shiny::column(6, shiny::selectInput(ns("epiRefStyle"), "Style",
-                  choices = HSTAT_FONT_STYLES, selected = "plain"))))))
+                  choices = HSTAT_FONT_STYLES, selected = "plain")))),
+            .hstat_opt_section(
+              "Percentiles marqués sur la courbe", "location-dot", "#c0392b", "#fdecea",
+              shiny::selectInput(ns("epiPct"), "Percentiles à matérialiser",
+                choices = stats::setNames(HSTAT_EPI_PCT_CHOIX,
+                                          paste0("P", HSTAT_EPI_PCT_CHOIX)),
+                selected = HSTAT_EPI_PCT_MARQUEURS, multiple = TRUE),
+              shiny::fluidRow(
+                shiny::column(6, shiny::numericInput(ns("epiPctDec"),
+                  "Décimales du RR", value = 2, min = 0, max = 6, step = 1)),
+                shiny::column(6, shiny::numericInput(ns("epiPctTaille"),
+                  "Taille de l'étiquette", value = 3, min = 1.5, max = 10, step = 0.5))),
+              shiny::tags$small(style = "color:#6b7280;",
+                tr("Le point se pose sur la courbe et porte son RR : c'est le chiffre du tableau, lu là où il se trouve."))),
+            .hstat_opt_section(
+              "Facettes et couleurs de la carte", "table-cells", "#8e44ad", "#f4ecf7",
+              shiny::selectInput(ns("epiFacettes"),
+                "Échelle des facettes (coupes, et variables mises côte à côte)",
+                choices = HSTAT_EPI_FACET_SCALES, selected = "free_x"),
+              shiny::selectInput(ns("epiCartePal"),
+                "Couleurs de la carte exposition × retard",
+                choices = hstat_epi_carte_choix(), selected = "thermique"),
+              shiny::tags$small(style = "color:#6b7280;",
+                tr("L'échelle de la carte reste divergente et centrée sur 1 quelle que soit la palette : c'est la valeur neutre d'un rapport de risque.")))))
       )
     )
   )
@@ -303,7 +325,20 @@ mod_epidemio_server <- function(id, values) {
             shiny::numericInput(ns("epiHarmo"), "Harmoniques de Fourier",
                                 value = 2, min = 0, max = 6, step = 1),
             shiny::numericInput(ns("epiTendance"), "Souplesse de la tendance longue",
-                                value = 3, min = 0, max = 20, step = 1))),
+                                value = 3, min = 0, max = 20, step = 1)),
+          # LES FENETRES DE RETARD SONT UN RESULTAT, PAS UN HABILLAGE : elles
+          # produisent un tableau publiable (« Lag 0-1 mois (court terme) »),
+          # elles vivent donc avec les reglages de l'analyse.
+          .hstat_opt_section("Fenêtres de retard", "timeline", "#d35400", "#fdf0e6",
+            shiny::textAreaInput(ns("epiFenetres"),
+              "Une fenêtre par ligne : « début-fin nom »",
+              value = "0-1 court terme\n2-4 différé\n5-8 moyen terme",
+              rows = 4, width = "100%"),
+            shiny::tags$small(style = "color:#6b7280;",
+              tr("Le RR d'une fenêtre porte la covariance entre ses retards : il ne s'obtient ni en multipliant les RR de chaque retard, ni en divisant deux cumuls.")),
+            shiny::numericInput(ns("epiFenPct"),
+              "Percentile d'exposition auquel lire les fenêtres (%)",
+              value = 90, min = 1, max = 99, step = 1))),
 
         taux = .hstat_opt_section("Colonnes", "list-ul", "#c0392b", "#fdecea",
           shiny::selectInput(ns("epiY"), "Nombre d'événements", choices = n),
@@ -588,6 +623,16 @@ mod_epidemio_server <- function(id, values) {
             if (!is.null(tb)) out[[hstat_feuille_nom(paste0("Cumul_", v))]] <- tb
             if (!is.null(lg)) out[[hstat_feuille_nom(paste0("Retards_", v))]] <- as.data.frame(lg)
           }
+          # LES FENETRES DE RETARD, une table par exposition : c'est le
+          # tableau que le rapport publie a cote des effets cumules.
+          fw <- fenetres()
+          pc <- hstat_finite(input$epiFenPct, 90) / 100
+          for (v in names(r$resultats)) {
+            fn <- tryCatch(hstat_epi_dlnm_fenetres(r$resultats[[v]], fw, prob = pc),
+                           error = function(e) NULL)
+            if (!is.null(fn))
+              out[[hstat_feuille_nom(paste0("Fenetres_", v))]] <- fn
+          }
           if (!is.null(r$resultats[[1]]$collinearite))
             out[["Collinearite"]] <- as.data.frame(r$resultats[[1]]$collinearite)
           out
@@ -608,29 +653,49 @@ mod_epidemio_server <- function(id, values) {
         NULL)
     })
 
-    t1 <- shiny::reactive({ tb <- tables(); if (is.null(tb) || !length(tb)) NULL else tb[[1]] })
-    t2 <- shiny::reactive({ tb <- tables(); if (is.null(tb) || length(tb) < 2L) NULL else tb[[2]] })
-    t3 <- shiny::reactive({ tb <- tables(); if (is.null(tb) || length(tb) < 3L) NULL else tb[[3]] })
+    # UN PLAFOND, PARCE QU'UN IDENTIFIANT DE SORTIE NE SE RETIRE PAS.
+    # Shiny garde un observateur par sortie enregistree : sans borne, un plan a
+    # dix issues et six expositions en poserait cent vingt-deux, et la page
+    # cesserait de repondre. Au-dela, les tableaux restent dans l'export --
+    # c'est dit a l'ecran, jamais tu.
+    epi_max_tables <- 40L
 
-    rendre <- function(fun) DT::renderDT({
-      d <- fun()
-      shiny::validate(shiny::need(!is.null(d) && NROW(d),
-        tr("Lancez une analyse pour voir les résultats.")))
-      d <- as.data.frame(d)
-      hstat_dt_arrondi(DT::datatable(d, rownames = FALSE,
-        options = list(pageLength = 15, scrollX = TRUE)), d)
+    # LES RENDUS SE POSENT UNE SEULE FOIS, jamais dans un observateur : les
+    # reenregistrer a chaque calcul empilerait un observateur de plus par
+    # passage. Chacun lit `tables()` par son rang, et `local()` fige ce rang --
+    # sans lui, les quarante fermetures liraient la DERNIERE valeur de `k`,
+    # le piege deja documente ici pour `force(id)`.
+    for (k in seq_len(epi_max_tables)) local({
+      kk <- k
+      output[[paste0("epiTable", kk)]] <- DT::renderDT({
+        tb <- tables()
+        d <- if (is.null(tb) || length(tb) < kk) NULL else tb[[kk]]
+        shiny::validate(shiny::need(!is.null(d) && NROW(d),
+          tr("Lancez une analyse pour voir les résultats.")))
+        d <- as.data.frame(d)
+        hstat_dt_arrondi(DT::datatable(d, rownames = FALSE,
+          options = list(pageLength = 15, scrollX = TRUE)), d)
+      })
     })
-    output$epiTable1 <- rendre(t1)
-    output$epiTable2 <- rendre(t2)
-    output$epiTable3 <- rendre(t3)
 
-    titre_de <- function(k) shiny::renderUI({
+    output$epiTablesUI <- shiny::renderUI({
       tb <- tables()
-      if (is.null(tb) || length(tb) < k) return(NULL)
-      shiny::h5(hstat_html_escape(names(tb)[k]))
+      if (is.null(tb) || !length(tb))
+        return(shiny::tags$em(style = "color:#7f8c8d;",
+          tr("Lancez une analyse pour voir les résultats.")))
+      n <- min(length(tb), epi_max_tables)
+      els <- lapply(seq_len(n), function(k) shiny::tagList(
+        # LE NOM DU TABLEAU EST ECHAPPE : il porte un nom de colonne du
+        # fichier (« Cumul_<exposition> »), donc du texte de l'utilisateur.
+        shiny::h5(hstat_html_escape(names(tb)[k])),
+        DT::DTOutput(ns(paste0("epiTable", k))),
+        shiny::hr()))
+      if (length(tb) > n)
+        els <- c(els, list(shiny::tags$small(style = "color:#b9770e;",
+          trf("%d tableau(x) de plus existent et partent dans l'export : l'écran en affiche %d au maximum.",
+              length(tb) - n, n))))
+      do.call(shiny::tagList, els)
     })
-    output$epiTitre2 <- titre_de(2L)
-    output$epiDiagTitre <- titre_de(3L)
 
     output$epiSynthese <- shiny::renderUI({
       r <- rv$res; an <- rv$analyse
@@ -680,11 +745,32 @@ mod_epidemio_server <- function(id, values) {
       taille   = hstat_finite(input$epiRefTaille, 3.5),
       style    = input$epiRefStyle %||% "plain"))
 
+    # LES REGLAGES DE FIGURE VOYAGENT EN UNE SEULE LISTE, et la meme atteint
+    # les deux constructeurs (figure simple et figure multi). Les lire d'un
+    # cote seulement etait exactement le defaut signale : on deplaçait
+    # l'etiquette et l'image ne bougeait pas.
+    opts_fig <- shiny::reactive(list(
+      repere        = repere(),
+      facettes      = input$epiFacettes %||% "free_x",
+      carte_palette = input$epiCartePal %||% "thermique",
+      percentiles   = input$epiPct %||% HSTAT_EPI_PCT_MARQUEURS,
+      pct_decimales = hstat_finite(input$epiPctDec, 2),
+      pct_taille    = hstat_finite(input$epiPctTaille, 3)))
+
+    # LES FENETRES SE LISENT DANS LE REACTIF, pas dans une aide appelee depuis
+    # lui : la dependance existe alors a l'execution mais ne se voit pas a la
+    # lecture -- et c'est exactement ce qu'un balayage ne peut pas verifier.
+    fenetres <- shiny::reactive({
+      lm <- courant()$lag_max %||% Inf
+      f <- hstat_epi_fenetres_parse(input$epiFenetres %||% "", lag_max = lm)
+      if (!length(f)) HSTAT_EPI_FENETRES else f
+    })
+
     figure <- shiny::reactive({
       r <- rv$res; an <- rv$analyse
       if (is.null(r) || is.null(an)) return(NULL)
       f <- input$epiFigure %||% names(HSTAT_EPI_FIGURES[[an]])[1]
-      o <- list(repere = repere())
+      o <- opts_fig()
 
       # « TOUTES ENSEMBLE » N'EST PAS UN REPLI : la figure multi rend `NULL`
       # quand elle ne s'y prete pas (surface 3D, diagnostics), et on retombe
@@ -693,7 +779,7 @@ mod_epidemio_server <- function(id, values) {
       if (identical(an, "dlnm") &&
           identical(input$epiFigExpo %||% "", HSTAT_EPI_TOUTES))
         p <- hstat_epi_figure_multi(f, r$resultats,
-                                    mode = input$epiFigMode %||% "facettes")
+                                    mode = input$epiFigMode %||% "facettes", o = o)
       if (is.null(p)) {
         cr <- courant(); if (is.null(cr)) return(NULL)
         p <- hstat_epi_figure(an, f, cr, o)
@@ -738,7 +824,13 @@ mod_epidemio_server <- function(id, values) {
         do.call(shiny::tagList, lapply(n, function(x) shiny::div(x))))
     })
 
-    hstat_export_plot_handler(input, "epiP", figure, fname = "epidemiologie")
+    # LE GESTIONNAIRE SE POSE SUR UNE SORTIE, IL NE S'APPELLE PAS. Appele nu,
+    # il construisait bien le `downloadHandler` -- puis le JETAIT : le bouton
+    # `epiPDl` restait affiche et ne produisait rien. Rien ne leve, rien ne
+    # manque a la lecture ; c'est le defaut le plus silencieux du depot, et le
+    # test qui devait le garder comptait l'APPEL au lieu de l'AFFECTATION.
+    output$epiPDl <- hstat_export_plot_handler(input, "epiP", figure,
+                                               fname = "epidemiologie")
     hstat_export_tables_handlers(output, "epiT", tables, "epidemiologie",
                                  tr("épidémiologie"))
   })

@@ -7962,7 +7962,13 @@ test_that("aucun bouton de telechargement n'est branche dans le vide", {
   producteurs <- unique(c(
     ext('output\\$([A-Za-z0-9_.]+) *<-'),
     ext('output\\[\\["([A-Za-z0-9_.]+)"\\]\\] *<-'),
-    paste0(ext('hstat_export_plot_handler\\(input, "([A-Za-z0-9_.]+)"'), "Dl"),
+    # L'AFFECTATION FAIT PARTIE DU MOTIF, ET C'EST TOUT LE SUJET.
+    # `hstat_export_plot_handler()` REND un `downloadHandler` : appele nu, il
+    # le construit puis le jette, et le bouton reste affiche sans rien
+    # produire. Un motif qui s'arretait a l'appel comptait donc un producteur
+    # la ou il n'y en avait aucun -- exactement le defaut qu'il devait voir,
+    # et il l'a laisse passer sur `epiP`. Le `output$X <-` est exige.
+    paste0(ext('output\\$[A-Za-z0-9_.]+ *<- *hstat_export_plot_handler\\(input, "([A-Za-z0-9_.]+)"'), "Dl"),
     paste0(kit_tb, "Csv"), paste0(kit_tb, "Xlsx")))
 
   # Les identifiants construits en boucle (`paste0("mv_", key, ...)`) ne sont
@@ -16119,7 +16125,15 @@ test_that("le module d'epidemiologie lance une analyse et rend ses tableaux", {
     tb <- tables()
     expect_true(is.list(tb) && length(tb) >= 2L)
     expect_true("Comparaison" %in% names(tb))
-    expect_true(NROW(t1()) > 0)
+    # LES TROIS EMPLACEMENTS FIGES ONT DISPARU avec les reactifs `t1`/`t2`/`t3` :
+    # l'ecran porte desormais TOUS les tableaux, par des sorties construites.
+    # On verifie donc ce que l'utilisateur voit -- le conteneur les emet, et
+    # chacun rend ses lignes -- plutot qu'un reactif qui n'existe plus.
+    expect_true(NROW(tb[[1]]) > 0)
+    expect_false(is.null(output$epiTablesUI))
+    for (k in seq_len(min(length(tb), 3L)))
+      expect_match(output$epiTablesUI$html, paste0("epiTable", k), fixed = TRUE)
+    expect_true(NROW(output$epiTable1) > 0 || nzchar(output$epiTable1 %||% ""))
     # LE SELECTEUR DE FIGURE SE CONSTRUIT AVANT QU'AUCUNE FIGURE SOIT CHOISIE.
     # `input$epiFigure` y vaut NULL, et `NULL %in% choix` rend `logical(0)` :
     # `if()` leve « argument is of length zero », l'erreur tombe dans le
@@ -16586,4 +16600,505 @@ test_that("la mesure d'ambiance se ramene a l'individu sans changer le RR", {
   expect_equal(rp$RR, ra$RR, tolerance = 1e-6)
   expect_equal(rp$IC_bas, ra$IC_bas, tolerance = 1e-6)
   expect_false(isTRUE(all.equal(rp$Exposition, ra$Exposition)))
+})
+
+# ===========================================================================
+#  EPIDEMIOLOGIE : TEST FONCTIONNEL
+# ===========================================================================
+#  Les sept defauts signales a l'ecran, chacun garde par l'assertion qui
+#  distingue le code corrige du code d'avant -- jamais par la seule presence
+#  d'un reglage.
+
+test_that("le bouton d'export du graphique a un producteur", {
+  root <- .hstat_repo_root(); skip_if(is.na(root))
+  src <- paste(.hstat_code_lignes(.hstat_module_path("mod_epidemio.R")), collapse = "\n")
+  # LE DEFAUT : `hstat_export_plot_handler()` REND un `downloadHandler`.
+  # Appele nu, il le construisait puis le jetait -- le bouton `epiPDl` restait
+  # affiche et ne telechargeait rien. Rien ne leve, et le test qui devait le
+  # garder comptait l'APPEL au lieu de l'AFFECTATION.
+  expect_match(src, "output\\$epiPDl *<- *hstat_export_plot_handler")
+  # L'appel nu ne doit pas revenir : c'est la forme exacte du defaut.
+  expect_false(grepl("(?<![-] )\\n *hstat_export_plot_handler\\(input", src, perl = TRUE))
+})
+
+test_that("tous les tableaux calcules sont atteignables a l'ecran", {
+  skip_if_not_installed("dlnm")
+  d <- .hstat_epi_jeu()
+  r <- hstat_epi_dlnm_multi(d, c("prema", "fpn"), c("Tmax", "HR"),
+                            var_offset = "nais", var_temps = "Date", lag_max = 5)
+  # Deux issues x deux expositions : comparaison + budget + 2 tableaux par
+  # couple + collinearite = onze. Trois emplacements figes en montraient trois.
+  expect_equal(length(r$resultats), 4L)
+  ui <- mod_epidemio_ui("epidemio")
+  h <- as.character(ui)
+  # L'ECRAN DOIT POUVOIR EN PORTER PLUS DE TROIS. On mesure le conteneur
+  # dynamique, pas trois identifiants figes : c'est lui qui les emet tous.
+  expect_true(grepl('epidemio-epiTablesUI', h, fixed = TRUE))
+  expect_false(grepl('epidemio-epiTable3"', h, fixed = TRUE))
+  src <- paste(.hstat_code_lignes(.hstat_module_path("mod_epidemio.R")), collapse = "\n")
+  # Le plafond existe ET il est annonce : au-dela, les tableaux restent dans
+  # l'export, et le taire ferait croire qu'ils n'existent pas.
+  expect_match(src, "epi_max_tables *<- *[0-9]+L")
+  expect_match(src, "partent dans l'export")
+})
+
+test_that("la loi se choisit sur l'AIC puis sur la surdispersion", {
+  # LA REGLE VIT HORS DU BLOC D'AJUSTEMENT, sans quoi la branche
+  # quasi-Poisson n'est atteignable qu'en faisant echouer `glm.nb`.
+  expect_equal(hstat_epi_famille_auto(620, 600, 3.0)$famille, "nb")
+  expect_equal(hstat_epi_famille_auto(600, 620, 0.9)$famille, "poisson")
+  # LE CAS QUE L'ANCIEN CODE MANQUAIT : Poisson gagne a l'AIC mais les residus
+  # sont surdisperses. Il se contentait alors de CONSEILLER quasi-Poisson, et
+  # publiait des intervalles trop etroits -- des effets « significatifs » qui
+  # ne le sont pas, le resultat faux et plausible que ce depot traque.
+  expect_equal(hstat_epi_famille_auto(600, 620, 3.0)$famille, "quasipoisson")
+  expect_equal(hstat_epi_famille_auto(600, 620, 3.0)$motif, "dispersion")
+  # UN AIC ABSENT N'EST PAS UN AIC PERDANT : sans cette garde, la binomiale
+  # negative gagnerait par sa seule absence.
+  expect_equal(hstat_epi_famille_auto(600, NA, 0.9)$famille, "poisson")
+  expect_equal(hstat_epi_famille_auto(600, NA, 3.0, nb_dispo = FALSE)$famille, "quasipoisson")
+  # LE SEUIL SE TESTE DES DEUX COTES DE SA FRONTIERE : un palier deplace
+  # laisse un comportement parfaitement lisible, et faux.
+  expect_equal(hstat_epi_famille_auto(600, 620, HSTAT_EPI_DISP_SEUIL - 0.01)$famille, "poisson")
+  expect_equal(hstat_epi_famille_auto(600, 620, HSTAT_EPI_DISP_SEUIL + 0.01)$famille, "quasipoisson")
+})
+
+test_that("le repere de reference atteint toutes les figures a axe d'exposition", {
+  skip_if_not_installed("dlnm")
+  d <- .hstat_epi_jeu()
+  r <- hstat_epi_dlnm_multi(d, "prema", c("Tmax", "HR"), var_offset = "nais",
+                            var_temps = "Date", lag_max = 5)
+  txt <- function(p) sum(vapply(p$layers,
+    function(l) inherits(l$geom, "GeomText"), logical(1)))
+  on  <- list(repere = list(montrer = TRUE, texte = "Réf.", position = "haut",
+                            cote = "droite", taille = 3.5, style = "plain"))
+  off <- list(repere = list(montrer = FALSE))
+  # LES SIX REGLAGES N'ETAIENT LUS QUE PAR « effet cumule ». Sur la carte et
+  # les coupes, l'utilisateur les deplaçait sans que rien ne bouge --
+  # « declare, lu, mais jamais utilise ».
+  for (f in c("cumul", "carte", "coupes")) {
+    expect_equal(txt(hstat_epi_figure("dlnm", f, r$resultats[[1]], on)), 1L, info = f)
+    expect_equal(txt(hstat_epi_figure("dlnm", f, r$resultats[[1]], off)), 0L, info = f)
+  }
+  # L'AXE DES RETARDS NE PORTE PAS L'EXPOSITION : une reference d'exposition
+  # n'est pas un nombre de mois, et l'y poser serait un repere qui ment.
+  expect_equal(txt(hstat_epi_figure("dlnm", "retard", r$resultats[[1]], on)), 0L)
+  # SUR UN AXE EN PERCENTILES, la reference se pose a SON percentile, jamais a
+  # sa valeur : 29,7 pose sur un axe de 0 a 100 tomberait au trentieme centile
+  # par coincidence d'echelle -- faux, et parfaitement plausible.
+  m <- hstat_epi_figure_multi("cumul", r$resultats, "percentiles", o = on)
+  expect_equal(txt(m), 1L)
+  pos <- m$layers[[which(vapply(m$layers,
+    function(l) inherits(l$geom, "GeomVline"), logical(1)))[1]]]$data$xintercept
+  expect_true(pos >= 0 && pos <= 100)
+  expect_equal(pos, .hstat_epi_pct(r$resultats[[1]]$reference, r$resultats[[1]]$expo))
+  expect_false(isTRUE(all.equal(pos, r$resultats[[1]]$reference)))
+})
+
+test_that("l'echelle des facettes est un reglage, et les quatre agissent", {
+  skip_if_not_installed("dlnm")
+  d <- .hstat_epi_jeu()
+  r <- hstat_epi_dlnm_multi(d, "prema", c("Tmax", "HR"), var_offset = "nais",
+                            var_temps = "Date", lag_max = 5)
+  # `free_x` etait ecrit en dur : deux panneaux dont les axes Y coincident --
+  # le seul cadre ou l'amplitude des RR se compare -- etaient inatteignables.
+  att <- list(free_x = c(TRUE, FALSE), fixed = c(FALSE, FALSE),
+              free_y = c(FALSE, TRUE), free   = c(TRUE, TRUE))
+  for (sc in names(att)) {
+    b <- ggplot2::ggplot_build(hstat_epi_figure_multi(
+      "carte", r$resultats, "facettes", o = list(facettes = sc)))
+    expect_equal(unname(c(b$layout$facet_params$free$x,
+                          b$layout$facet_params$free$y)), att[[sc]], info = sc)
+  }
+  # Un nom inconnu retombe sur le defaut, jamais sur une valeur que
+  # `facet_wrap` refuserait : elle leve, et l'erreur emporte la figure.
+  expect_equal(hstat_epi_facet_scales("zzz"), "free_x")
+  expect_equal(hstat_epi_facet_scales(NULL), "free_x")
+  expect_silent(ggplot2::ggplot_build(hstat_epi_figure_multi(
+    "carte", r$resultats, "facettes", o = list(facettes = "zzz"))))
+})
+
+test_that("la carte change de couleurs, jamais de nature", {
+  skip_if_not_installed("dlnm")
+  d <- .hstat_epi_jeu()
+  r <- hstat_epi_dlnm(d, "prema", "Tmax", var_temps = "Date", lag_max = 5)
+  fill_de <- function(p) {
+    i <- which(vapply(p$scales$scales, function(x) "fill" %in% x$aesthetics, logical(1)))[1]
+    p$scales$scales[[i]]
+  }
+  vus <- character(0)
+  for (pal in names(HSTAT_EPI_CARTE_PALETTES)) {
+    p <- hstat_epi_figure("dlnm", "carte", r, list(carte_palette = pal))
+    sc <- fill_de(p)
+    # CE QUI NE SE NEGOCIE PAS : l'echelle reste DIVERGENTE ET CENTREE SUR 1.
+    # Le RR est un rapport ; une palette sequentielle ferait passer « aucun
+    # effet » pour une couleur quelconque au milieu du degrade.
+    expect_equal(sc$rescaler(1, from = c(1, 1)), 0.5, info = pal)
+    vus <- c(vus, HSTAT_EPI_CARTE_PALETTES[[pal]]$low)
+  }
+  # LES PALETTES SONT REELLEMENT DIFFERENTES : sans cette assertion, six
+  # entrees rendant la meme couleur passeraient le test precedent.
+  expect_equal(length(unique(vus)), length(HSTAT_EPI_CARTE_PALETTES))
+  expect_gt(length(HSTAT_EPI_CARTE_PALETTES), 2L)
+  # Un nom inconnu rend le thermique, jamais `NULL` : une echelle absente
+  # laisserait ggplot poser la sienne, qui est SEQUENTIELLE.
+  expect_equal(hstat_epi_carte_palette("zzz")$low,
+               HSTAT_EPI_CARTE_PALETTES$thermique$low)
+  expect_equal(length(hstat_epi_carte_choix()), length(HSTAT_EPI_CARTE_PALETTES))
+})
+
+test_that("les reglages de figure voyagent par une seule liste vers les deux constructeurs", {
+  root <- .hstat_repo_root(); skip_if(is.na(root))
+  src <- paste(.hstat_code_lignes(.hstat_module_path("mod_epidemio.R")), collapse = "\n")
+  # LE DEFAUT SIGNALE : « les operations de modification doivent s'appliquer a
+  # tous ». Les options n'atteignaient que la figure simple ; la figure multi
+  # etait appelee SANS elles, donc six reglages sur six y etaient morts.
+  expect_match(src, "opts_fig *<- *shiny::reactive")
+  expect_match(src, "hstat_epi_figure_multi\\([^)]*o = o", perl = TRUE)
+  # Les trois familles sont dans la meme liste : un module qui en lirait une
+  # seule laisserait les autres sans effet.
+  for (k in c("repere", "facettes", "carte_palette"))
+    expect_match(src, paste0(k, " *="), info = k)
+  expect_true(all(grepl("epidemio-", c(
+    paste0("epidemio-", c("epiFacettes", "epiCartePal"))), fixed = TRUE)))
+  # Les deux nouveaux widgets traversent `ns()`, sinon ils n'existent pour
+  # personne -- le defaut le plus silencieux du depot.
+  h <- as.character(mod_epidemio_ui("epidemio"))
+  for (id in c("epiFacettes", "epiCartePal"))
+    expect_true(grepl(paste0('epidemio-', id), h, fixed = TRUE), info = id)
+})
+
+# ===========================================================================
+#  EPIDEMIOLOGIE : TEST DE PERFORMANCE
+# ===========================================================================
+#  Ce qu'on mesure n'est PAS une duree absolue -- elle depend de la machine, et
+#  une assertion sur des secondes ressemble a une regle tout en ne gardant
+#  qu'un etat du materiel. On mesure des invariants de COUT :
+#
+#    * le nombre d'observateurs que le module enregistre est BORNE ;
+#    * le cout croit lineairement avec le nombre de surfaces, jamais au carre ;
+#    * une figure ne refait pas l'ajustement.
+
+test_that("le nombre de sorties enregistrees est borne, quel que soit le plan", {
+  root <- .hstat_repo_root(); skip_if(is.na(root))
+  src <- paste(.hstat_code_lignes(.hstat_module_path("mod_epidemio.R")), collapse = "\n")
+  # SHINY GARDE UN OBSERVATEUR PAR SORTIE ENREGISTREE. Les identifiants des
+  # tableaux sont CONSTRUITS : sans plafond, un plan a dix issues et six
+  # expositions en poserait cent vingt-deux, et la page cesserait de repondre.
+  m <- regmatches(src, regexpr("epi_max_tables *<- *([0-9]+)L", src))
+  expect_length(m, 1L)
+  plafond <- as.integer(sub(".*<- *([0-9]+)L", "\\1", m))
+  expect_gt(plafond, 10L)
+  expect_lt(plafond, 200L)
+  # LES RENDUS SE POSENT UNE SEULE FOIS, hors de tout observateur : les
+  # reenregistrer a chaque calcul empilerait un observateur par passage, et la
+  # session ralentirait a l'usage sans qu'aucune erreur ne le dise.
+  bloc <- regmatches(src, regexpr(
+    "for \\(k in seq_len\\(epi_max_tables\\)\\) local\\(\\{", src))
+  expect_length(bloc, 1L)
+  expect_false(grepl("observe(Event)?\\([^)]*\\{[^}]*seq_len\\(epi_max_tables\\)",
+                     src, perl = TRUE))
+})
+
+test_that("le cout du multi-expositions croit lineairement, pas au carre", {
+  skip_if_not_installed("dlnm")
+  d <- .hstat_epi_jeu()
+  # ON COMPTE LES AJUSTEMENTS, ON NE CHRONOMETRE PAS.
+  #
+  # La premiere version de ce test comparait deux durees. Mesure : deux
+  # surfaces en 2,04 s et QUATRE en 0,32 s -- le premier appel paie le
+  # chargement de `dlnm` et la compilation. Le rapport sortait a 0,16, si bien
+  # qu'une implementation QUADRATIQUE l'aurait passe aussi. Une assertion qui
+  # ne distingue pas les deux codes ne garde rien, et celle-la se trompait
+  # dans le sens rassurant -- la troisieme fois dans ce depot.
+  #
+  # Le nombre d'ajustements, lui, est exact, deterministe, et independant de
+  # la machine : c'est LA grandeur que « lineaire, pas quadratique » designe.
+  compte <- new.env(); compte$n <- 0L
+  suppressMessages(trace(hstat_epi_dlnm, tracer = function() compte$n <- compte$n + 1L,
+                         print = FALSE, where = environment(hstat_epi_dlnm_multi)))
+  on.exit(suppressMessages(untrace(hstat_epi_dlnm,
+                                   where = environment(hstat_epi_dlnm_multi))), add = TRUE)
+
+  compte$n <- 0L
+  r2 <- hstat_epi_dlnm_multi(d, "prema", c("Tmax", "HR"),
+                             var_temps = "Date", lag_max = 5)
+  n2 <- compte$n
+  compte$n <- 0L
+  r4 <- hstat_epi_dlnm_multi(d, c("prema", "fpn"), c("Tmax", "HR"),
+                             var_temps = "Date", lag_max = 5)
+  n4 <- compte$n
+
+  expect_equal(length(r2$resultats), 2L)
+  expect_equal(length(r4$resultats), 4L)
+  # UN AJUSTEMENT PAR COUPLE issue x exposition, exactement. Une boucle qui
+  # ajusterait par PAIRE d'expositions en ferait quatre puis seize.
+  expect_equal(n2, 2L)
+  expect_equal(n4, 4L)
+  expect_equal(n4 / n2, 2)
+})
+
+test_that("changer un reglage de figure ne refait aucun ajustement", {
+  skip_if_not_installed("dlnm")
+  d <- .hstat_epi_jeu()
+  r <- hstat_epi_dlnm(d, "prema", "Tmax", var_temps = "Date", lag_max = 5)
+  # MEME LEÇON QUE CI-DESSUS : la premiere version comparait le temps de cinq
+  # figures a celui d'un ajustement. Mesure : 0,767 s contre 0,020 s, soit un
+  # rapport de 38 -- et l'assertion ne l'a pas signale parce qu'elle se
+  # SAUTAIT sur un ajustement trop rapide. Un test saute ressemble a un test
+  # qui passe. Le rapport de 38 ne dit d'ailleurs rien d'un reajustement :
+  # `ggplot_build` sur une carte de plusieurs milliers de cases est
+  # simplement cher, et c'est normal.
+  #
+  # L'invariant reel est un COMPTE, pas une duree : construire une figure ne
+  # doit declencher AUCUN ajustement, quel que soit le reglage change.
+  compte <- new.env(); compte$n <- 0L
+  for (f in c("glm", "glm.fit")) {
+    suppressMessages(trace(f, tracer = function() compte$n <- compte$n + 1L,
+                           print = FALSE, where = asNamespace("stats")))
+  }
+  on.exit({
+    for (f in c("glm", "glm.fit"))
+      suppressMessages(untrace(f, where = asNamespace("stats")))
+  }, add = TRUE)
+
+  compte$n <- 0L
+  for (pal in names(HSTAT_EPI_CARTE_PALETTES))
+    ggplot2::ggplot_build(hstat_epi_figure("dlnm", "carte", r,
+                                           list(carte_palette = pal)))
+  for (sc in HSTAT_EPI_FACET_SCALES)
+    ggplot2::ggplot_build(hstat_epi_figure("dlnm", "coupes", r,
+                                           list(facettes = sc)))
+  # SIX PALETTES ET QUATRE ECHELLES, et pas un seul ajustement.
+  expect_equal(compte$n, 0L)
+
+  # Et la preuve structurelle, qui tient meme si le compte venait a mentir :
+  # le corps du constructeur n'appelle aucune fonction d'ajustement.
+  src <- .hstat_code_lignes(file.path(.hstat_repo_root(), "R", "utils.R"))
+  i <- grep("^hstat_epi_figure <- function", src)
+  j <- grep("^hstat_epi_figure_multi <- function", src)
+  expect_length(i, 1L); expect_length(j, 1L)
+  corps <- paste(src[i:(j - 1L)], collapse = "\n")
+  for (f in c("hstat_epi_dlnm\\(", "stats::glm\\(", "MASS::glm.nb\\(",
+              "dlnm::crossbasis\\(", "dlnm::crosspred\\("))
+    expect_false(grepl(f, corps), info = f)
+})
+
+# ===========================================================================
+#  EPIDEMIOLOGIE : PERCENTILES MARQUES ET FENETRES DE RETARD
+# ===========================================================================
+
+test_that("les percentiles se materialisent sur la courbe, et la liste se choisit", {
+  skip_if_not_installed("dlnm")
+  d <- .hstat_epi_jeu()
+  r <- hstat_epi_dlnm(d, "prema", "Tmax", var_temps = "Date", lag_max = 5)
+  pts <- function(p) {
+    i <- which(vapply(p$layers, function(l) inherits(l$geom, "GeomPoint"), logical(1)))
+    if (!length(i)) 0L else nrow(p$layers[[i[1]]]$data)
+  }
+  labs <- function(p) {
+    i <- which(vapply(p$layers, function(l) inherits(l$geom, "GeomText"), logical(1)))
+    unlist(lapply(i, function(k) p$layers[[k]]$data$lab))
+  }
+  off <- list(repere = list(montrer = FALSE))
+  p4 <- hstat_epi_figure("dlnm", "cumul", r, c(off, list(percentiles = c(10, 25, 75, 90))))
+  expect_equal(pts(p4), 4L)
+  # L'ETIQUETTE PORTE LE PERCENTILE *ET* SON RR : c'est le chiffre du tableau,
+  # pose la ou il se lit. Un point sans sa valeur n'apprend rien.
+  expect_true(all(grepl("^P(10|25|75|90)\nRR=", labs(p4))))
+  # LA LISTE EST UN REGLAGE : un essai de canicule regarde P95, un essai de
+  # froid P5. Ecrite en dur, elle donnerait quatre points que personne n'a
+  # demandes -- et aucun de ceux qu'on cherche.
+  expect_equal(pts(hstat_epi_figure("dlnm", "cumul", r,
+                                    c(off, list(percentiles = c(5, 95))))), 2L)
+  expect_equal(pts(hstat_epi_figure("dlnm", "cumul", r,
+                                    c(off, list(percentiles = numeric(0))))), 0L)
+  # LE POINT SE POSE SUR LA COURBE, jamais a cote : le RR marque est LU sur la
+  # grille de prediction, il n'est pas recalcule. Sans cela le point
+  # flotterait a cote de la ligne qu'il designe.
+  p90 <- hstat_epi_figure("dlnm", "cumul", r, c(off, list(percentiles = 90)))
+  i <- which(vapply(p90$layers, function(l) inherits(l$geom, "GeomPoint"), logical(1)))[1]
+  expect_equal(round(p90$layers[[i]]$data$y, 4), hstat_epi_dlnm_rr(r, 0.90)$RR)
+  # Un percentile hors de ]0 ; 100[ n'existe pas : `quantile` y leve, et
+  # l'erreur emporterait la figure entiere.
+  expect_equal(hstat_epi_pct_valides(c(-1, 0, 10, 100, 150, 90)), c(10, 90))
+  expect_equal(hstat_epi_pct_valides(c("x", NA)), numeric(0))
+})
+
+test_that("une fenetre de retard porte la covariance de ses retards", {
+  skip_if_not_installed("dlnm")
+  d <- .hstat_epi_jeu()
+  r <- hstat_epi_dlnm(d, "prema", "Tmax", var_temps = "Date", lag_max = 5)
+
+  # LA RECONSTRUCTION EST EXACTE, et c'est ce qui autorise a s'en servir sur un
+  # sous-intervalle ou `crosspred` ne rend rien : la fenetre ENTIERE doit
+  # reproduire l'effet cumule de `crosspred`, estimation ET bornes.
+  tout <- hstat_epi_dlnm_fenetres(r, list(list(nom = NA, de = 0L, a = r$lag_max)),
+                                  prob = 0.90)
+  cum <- hstat_epi_dlnm_rr(r, 0.90)
+  expect_equal(tout$RR, cum$RR)
+  expect_equal(tout$IC_bas, cum$IC_bas)
+  expect_equal(tout$IC_haut, cum$IC_haut)
+
+  # LE PIEGE QUE CETTE FONCTION EXISTE POUR EVITER. Les retards d'un meme
+  # modele sont CORRELES : les effets (en log) s'ajoutent bien, mais les
+  # intervalles NON. Diviser deux cumuls, ou additionner deux largeurs,
+  # rendrait un intervalle faux et parfaitement plausible.
+  deux <- hstat_epi_dlnm_fenetres(r, list(list(nom = NA, de = 0L, a = 1L),
+                                          list(nom = NA, de = 2L, a = r$lag_max)),
+                                  prob = 0.90)
+  expect_equal(nrow(deux), 2L)
+  expect_equal(prod(deux$RR), cum$RR, tolerance = 1e-3)
+  larg <- function(x) x$IC_haut - x$IC_bas
+  # LE SENS DE L'ECART N'EST PAS UN INVARIANT, et ma premiere assertion le
+  # supposait : elle exigeait que les largeurs de fenetres SOMMENT a plus que
+  # celle du cumul. Mesure sur deux jeux, les deux sens se rencontrent -- le
+  # signe depend de celui des covariances. Ce qui est vrai, et c'est tout ce
+  # qu'il faut, c'est que les largeurs ne s'AJOUTENT PAS.
+  expect_false(isTRUE(all.equal(sum(larg(deux)), larg(cum), tolerance = 0.05)))
+
+  # Le tableau dit a quelle exposition il se lit : un RR de fenetre sans son
+  # percentile ne se recopie pas dans un rapport.
+  expect_equal(attr(tout, "percentile"), 0.90)
+  expect_true(is.finite(attr(tout, "exposition")))
+  expect_setequal(names(deux), c("Fenetre", "Lag_de", "Lag_a", "RR",
+                                 "IC_bas", "IC_haut", "Verdict"))
+})
+
+test_that("les fenetres se saisissent librement, et ce qui ne se lit pas est nomme", {
+  f <- hstat_epi_fenetres_parse("0-1 court terme\n2-4 différé\n5-8 moyen terme", lag_max = 12)
+  expect_length(f, 3L)
+  # LE NOM PORTE LE SENS, et c'est lui qui part dans le tableau publie :
+  # « Lag 0-1 » seul n'apprend rien a qui lit un rapport.
+  expect_equal(hstat_epi_fenetre_libelle(f[[1]]), "Lag 0-1 (court terme)")
+  expect_equal(hstat_epi_fenetre_libelle(f[[3]]), "Lag 5-8 (moyen terme)")
+  # Un rang seul est une fenetre d'un retard, et son libelle le dit.
+  expect_equal(hstat_epi_fenetre_libelle(hstat_epi_fenetres_parse("3")[[1]]), "Lag 3")
+  # LES BORNES SE REMETTENT DANS L'ORDRE : « 4-2 » est une inversion de saisie.
+  # Rendre une fenetre vide amputerait le tableau d'une ligne sans un mot.
+  inv <- hstat_epi_fenetres_parse("4-2", lag_max = 12)
+  expect_equal(c(inv[[1]]$de, inv[[1]]$a), c(2L, 4L))
+  # CE QUI NE SE LIT PAS EST NOMME, jamais ecarte en silence.
+  bad <- hstat_epi_fenetres_parse("abc; 0-1; 99-100", lag_max = 5)
+  expect_length(bad, 1L)
+  expect_setequal(attr(bad, "rejets"), c("abc", "99-100"))
+  # Une fenetre qui deborde est RAMENEE au decalage du modele, pas jetee.
+  expect_equal(hstat_epi_fenetres_parse("0-99", lag_max = 5)[[1]]$a, 5L)
+  expect_length(hstat_epi_fenetres_parse(""), 0L)
+  # Les quatre fenetres usuelles sont declarees une fois, avec leurs noms.
+  expect_gte(length(HSTAT_EPI_FENETRES), 4L)
+  expect_true(all(vapply(HSTAT_EPI_FENETRES,
+                         function(x) nzchar(x$nom) && x$a >= x$de, logical(1))))
+})
+
+# ===========================================================================
+#  EPIDEMIOLOGIE : TEST DE CYBERSECURITE
+# ===========================================================================
+#  Trouve en ATTAQUANT le module, pas en le relisant.
+
+test_that("une reference hors de l'etendue ne rend ni 0 ni l'infini", {
+  skip_if_not_installed("dlnm")
+  set.seed(7); n <- 60
+  d <- data.frame(Date = seq(as.Date("2015-01-01"), by = "month", length.out = n),
+                  x = round(20 + rnorm(n), 2), y = rpois(n, 4))
+  bornes <- range(d$x)
+  # LE DEFAUT, MESURE : la spline n'est definie que sur l'etendue observee ;
+  # au-dela elle extrapole sans borne. Sur une exposition allant de 18,4 a
+  # 22,7, une reference a 1e12 rendait un RR de 0 et une reference a -1e12 un
+  # RR d'INFINI -- un tableau complet, publiable, et faux, que rien ne
+  # signalait. C'est la forme la plus couteuse.
+  for (v in c(1e12, -1e12)) {
+    r <- hstat_epi_dlnm(d, "y", "x", var_temps = "Date", lag_max = 3, reference = v)
+    expect_true(isTRUE(r$ok))
+    expect_gte(r$reference, bornes[1])
+    expect_lte(r$reference, bornes[2])
+    tb <- hstat_epi_dlnm_rr(r, c(0.10, 0.90))
+    expect_true(all(is.finite(tb$RR)), info = format(v))
+    expect_true(all(tb$RR > 0), info = format(v))
+    # LE REPORT EST ANNONCE : sans un mot, l'utilisateur lit des RR rapportes
+    # a une reference qui n'est pas celle qu'il a demandee.
+    expect_match(r$message, "hors de l'étendue")
+  }
+  # Une reference legitime n'est pas deplacee, et rien n'est annonce a tort.
+  ok <- hstat_epi_dlnm(d, "y", "x", var_temps = "Date", lag_max = 3,
+                       reference = stats::median(d$x))
+  expect_equal(ok$reference, stats::median(d$x))
+  expect_false(grepl("hors de l'étendue", ok$message %||% ""))
+})
+
+test_that("un decalage aberrant est refuse ou nomme, jamais reinterprete en silence", {
+  skip_if_not_installed("dlnm")
+  set.seed(7); n <- 60
+  d <- data.frame(Date = seq(as.Date("2015-01-01"), by = "month", length.out = n),
+                  x = round(20 + rnorm(n), 2), y = rpois(n, 4))
+  # UN DECALAGE NEGATIF ETAIT RAMENE A ZERO EN SILENCE : le modele cessait
+  # alors d'etre un modele A RETARDS DISTRIBUES -- une seule colonne de
+  # surface au lieu de six -- et rien ne le disait.
+  neg <- hstat_epi_dlnm(d, "y", "x", var_temps = "Date", lag_max = -5)
+  expect_false(isTRUE(neg$ok))
+  expect_match(neg$message, "négatif")
+  # Un decalage illisible retombe sur le defaut, mais le repli est NOMME.
+  na <- hstat_epi_dlnm(d, "y", "x", var_temps = "Date", lag_max = NA)
+  expect_true(isTRUE(na$ok))
+  expect_match(na$message, "illisible")
+})
+
+test_that("le module resiste a des valeurs hostiles sur tous ses reglages", {
+  hostile <- list("zzz", "'; DROP TABLE --", "<img src=x onerror=alert(1)>",
+                  NA, NULL, c("a", "b"), 42, Inf, -1)
+  # AUCUN REGLAGE D'APPARENCE NE DOIT LEVER : une erreur dans un constructeur
+  # de figure emporte la sortie entiere, donc tout l'onglet.
+  for (v in hostile) {
+    expect_silent(pal <- hstat_epi_carte_palette(v))
+    expect_true(nzchar(pal$low))
+    expect_true(hstat_epi_facet_scales(v) %in% HSTAT_EPI_FACET_SCALES)
+    expect_silent(hstat_epi_pct_valides(v))
+  }
+  # LE TEXTE DU REPERE RESTE UNE DONNEE DE COUCHE, jamais du balisage : ggplot
+  # dessine du texte, il n'interprete pas de HTML. C'est ce qui rend
+  # l'injection inoffensive ici -- et l'echappement, lui, garde l'affichage.
+  ch <- "<img src=x onerror=alert(1)>"
+  l <- .hstat_epi_repere_couche(
+    list(repere = list(montrer = TRUE, texte = ch, position = "haut",
+                       cote = "droite", taille = 3.5, style = "plain")),
+    20, etendue = c(0, 2))
+  expect_equal(vapply(l, function(z) class(z$geom)[1], character(1)),
+               c("GeomVline", "GeomText"))
+  expect_false(grepl("<", hstat_html_escape(ch), fixed = TRUE))
+  # UN NOM DE FEUILLE VIENT DU FICHIER : les caracteres qu'Excel refuse
+  # feraient tomber l'export ENTIER pour un seul nom de colonne.
+  for (v in c(ch, "a[b]c:d*e?f/g\\h", strrep("x", 60))) {
+    s <- hstat_feuille_nom(paste0("Fenetres_", v))
+    expect_lte(nchar(s), 31L)
+    for (bad in c("[", "]", ":", "*", "?", "/", "\\"))
+      expect_false(grepl(bad, s, fixed = TRUE), info = paste(v, bad))
+  }
+  # LES TAILLES ABERRANTES NE FONT PAS TOMBER LA COUCHE.
+  for (v in list(NA, Inf, -1, 1e9, "x", NULL))
+    expect_silent(.hstat_epi_repere_couche(
+      list(repere = list(montrer = TRUE, texte = "R", taille = v,
+                         position = "haut", cote = "droite", style = "plain")),
+      20, etendue = c(0, 2)))
+})
+
+test_that("un nom de colonne hostile ne quitte jamais son role de donnee", {
+  skip_if_not_installed("dlnm")
+  ch <- "<img src=x onerror=alert(1)>"
+  set.seed(7); n <- 60
+  d <- data.frame(Date = seq(as.Date("2015-01-01"), by = "month", length.out = n),
+                  y = rpois(n, 4))
+  d[[ch]] <- round(20 + rnorm(n), 2)
+  r <- hstat_epi_dlnm(d, "y", ch, var_temps = "Date", lag_max = 3)
+  expect_true(isTRUE(r$ok))
+  # LA SURFACE ENTRE SOUS UN NOM STABLE, jamais sous celui de la colonne :
+  # `as.formula` refuse accents, espaces et parentheses, et les contourner par
+  # des accents graves casse l'appariement des coefficients.
+  expect_match(r$cb_noms[[1]], "^cb[0-9]+$")
+  expect_false(grepl("img|onerror", paste(r$cb_noms, collapse = " ")))
+  expect_false(any(grepl("onerror", names(stats::coef(r$model)))))
+  # Le nom traverse les tableaux INTACT -- on n'altere pas la donnee --
+  # et c'est l'echappement, au rendu, qui empeche le balisage.
+  cp <- hstat_epi_dlnm_comparaison(list(r))
+  expect_equal(as.character(cp$Exposition[1]), ch)
+  expect_false(grepl("<img", hstat_html_escape(ch), fixed = TRUE))
 })
