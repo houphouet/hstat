@@ -6508,6 +6508,30 @@ module et non de sa mise en forme : le type de graphique, la géométrie, la
 palette, les valeurs portées sur les barres, l'éditeur d'étiquettes par niveau
 et le rendu interactif. Les y mettre donnerait des réglages que l'image ignore.
 
+### Un enfant qui fixe sa propre face n'hérite rien de son parent
+
+Trouvé **au navigateur**, et par rien d'autre : changer le style des titres
+d'axes de la diversité rendait un PNG **identique à l'octet près** — 20 814
+octets avant, 20 814 après.
+
+Le kit pose `axis.title`. Ce que la figure trace est `axis.title.x`, que le
+module construit par `hstat_axe_titre_lire()` — un `element_textbox` qui fixe
+**sa propre** face à « plain ». Un enfant qui déclare une propriété n'hérite pas
+celle du parent : le réglage était déclaré, lu, appliqué au thème, et sans le
+moindre effet. Le style se passe donc à l'aide, comme la taille l'était déjà.
+
+**Et mon test ne pouvait pas le voir : il mesurait `axis.title`, le parent.**
+C'est la même faute que le cadre carré mesuré sur l'image pendant qu'elle
+recouvrait ce qui la suivait, et que la sonde au mauvais préfixe du lot
+précédent. **Une mesure qui ne porte pas sur ce qui peut casser ne dit rien**,
+et elle se trompe toujours dans le sens rassurant. Le test lit désormais
+`axis.title.x` et `axis.title.y`, et une mutation qui retire le passage du
+style le fait échouer sur les deux.
+
+Corollaire de méthode : le parcours au navigateur n'est pas une formalité de
+fin de lot. Ici il a trouvé ce que 605 tests laissaient passer, parce qu'il
+regarde les **octets de l'image** et non une propriété choisie à la main.
+
 ### Le défaut du kit ne s'élargit pas quand son catalogue s'élargit
 
 Le défaut le plus coûteux de ce lot, et c'est une **mesure** qui l'a imposé, pas

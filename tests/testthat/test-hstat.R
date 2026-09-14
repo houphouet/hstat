@@ -17392,8 +17392,14 @@ test_that("le module de diversite porte tout le vocabulaire de mise en forme", {
                       divXYmin = 0, divXYmax = 4, divXPasY = 2)
     ap <- graphique()
     expect_equal(ce(ap, "plot.title")$face, "italic")
-    expect_equal(ce(ap, "axis.title")$face, "bold.italic")
-    expect_equal(ce(ap, "axis.text")$face, "italic")
+    # ON MESURE L'ELEMENT DESSINE, JAMAIS SON PARENT. `axis.title` est le
+    # parent ; ce que la figure trace est `axis.title.x`, un `element_textbox`
+    # qui fixe SA PROPRE face -- donc n'herite rien. Mesurer le parent laissait
+    # passer un reglage declare, lu, applique au theme, et sans le moindre
+    # effet : 20 814 octets de PNG avant et apres, mesure au navigateur.
+    expect_equal(ce(ap, "axis.title.x")$face, "bold.italic")
+    expect_equal(ce(ap, "axis.title.y")$face, "bold.italic")
+    expect_equal(ce(ap, "axis.text.x")$face, "italic")
     expect_equal(ce(ap, "axis.text.x")$angle, 45)
     expect_equal(ce(ap, "axis.text.y")$angle, 30)
     expect_equal(ce(ap, "legend.text")$size, 19)

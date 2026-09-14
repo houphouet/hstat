@@ -829,8 +829,18 @@ mod_diversity_server <- function(id, values) {
           # se changerait sans que l'image bouge.
           plot.title = element_markdown(size = tsize, hjust = 0.5,
                                         face = extras$st_titre %||% "bold"),
-          axis.title.x = hstat_axe_titre_lire(input, "div", size = asize, axe = "x"),
-          axis.title.y = hstat_axe_titre_lire(input, "div", size = asize, axe = "y"),
+          # LE STYLE SE PASSE ICI, il ne s'herite pas. `axis.title.x` est un
+          # `element_textbox` qui fixe SA PROPRE face : le `axis.title` du kit
+          # est son PARENT, et un enfant qui declare la sienne n'herite rien.
+          # Le reglage etait donc declare, lu, applique au theme -- et l'image
+          # ne bougeait pas d'un octet. Mesure au navigateur : 20 814 octets
+          # avant et apres le changement de style.
+          axis.title.x = hstat_axe_titre_lire(input, "div", size = asize,
+                                              face = extras$st_axes %||% "plain",
+                                              axe = "x"),
+          axis.title.y = hstat_axe_titre_lire(input, "div", size = asize,
+                                              face = extras$st_axes %||% "plain",
+                                              axe = "y"),
           axis.text.x = ggplot2::element_text(size = gsize),
           axis.text.y = ggplot2::element_text(size = gsize),
           legend.position = input$divLegendePos %||% "right",
