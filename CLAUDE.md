@@ -6390,6 +6390,182 @@ comparer à un seuil), et la raison du changement est écrite dans le test plut�
 que l'assertion supprimée en silence — une assertion qui disparaît sans motif
 se relit comme un oubli.
 
+
+## Le kit passe de quatre familles à neuf, et deux modules les prennent
+
+Demandé à l'écran : « toutes les options de modification de graphique qui se
+trouvent dans *Visualisation des données* » doivent être dans **Diversité
+écologique** et **DL50/CL50**.
+
+**La réponse n'est pas de recopier une treizième fois.** Le kit par familles
+existait déjà (`hstat_plot_extras_ui` / `_lire` / `_theme`) avec quatre
+familles ; il en porte neuf. Ce qui manquait aux deux modules y entre une
+seule fois, et les onze autres panneaux peuvent le prendre demain sans une
+ligne :
+
+| Famille ajoutée | Réglages | Où elle s'applique |
+|---|---|---|
+| `styles` | style du titre, des titres d'axes, des graduations | `theme()` |
+| `angles` | inclinaison des graduations X **et** Y | `theme()` |
+| `legende` | titre de légende, taille du titre, taille du texte | `theme()` + `labs()` |
+| `bornes` | X min/max, Y min/max | `coord_cartesian()` |
+| `pas` | pas des graduations X et Y | l'**échelle** |
+
+### Les bornes et le pas ne sont pas un thème
+
+`hstat_plot_extras_theme()` rend un `theme()`, qui ne porte ni cadrage ni
+graduations. D'où une **seconde** fonction, `hstat_plot_extras_scales()`, que
+le module pose sur le graphique. Les deux lisent la même liste : un module qui
+n'appellerait que la première perdrait le pas et les bornes sans un mot — c'est
+ce que le test vérifie *sur le module*, pas sur l'aide.
+
+### `hstat_plot_opts_ui` cesse de déclarer sa propre copie
+
+Elle portait les styles et les bornes **en dur**, alors que ce sont exactement
+deux des familles. Elle les prend désormais au kit. **Les suffixes n'ont pas
+bougé** (`<préfixe>StTitre`, `<préfixe>Xmin`…), ce qui est la condition pour
+que les quatre modules servis — ML, Deep Learning, séries temporelles,
+épidémiologie — ne voient rien changer : un renommage aurait débranché leurs
+réglages en silence. Mesuré après coup sur un graphique construit : faces,
+trait des axes, marges, clés et cadrage identiques.
+
+### Un `element_markdown` refuse la fusion, et seulement là où ggtext est là
+
+Le piège le plus coûteux de ce lot, trouvé en branchant `styles` sur la
+diversité. ggplot2 **refuse** de fusionner deux éléments de classes
+différentes :
+
+```
+Only elements of the same class can be merged
+```
+
+Le module pose son titre en `element_markdown()` — pour que le markdown d'un
+titre soit rendu — et le `element_text()` du kit faisait **lever la
+construction entière**. Or `element_markdown` est un aiguillage : sans ggtext
+il retombe sur `element_text` et tout marche. La panne dépend donc de
+l'environnement, ce qui est la pire à diagnostiquer, et elle ne se serait pas
+vue ici.
+
+D'où `hstat_plot_extras_theme(o, titre = FALSE)` : le kit fournit la **valeur**
+du style, le module l'applique sur son propre élément. Une mutation le garde —
+elle fait lever la figure, exactement comme le défaut d'origine.
+
+### Le pas modifie l'échelle posée, il n'en ajoute pas une seconde
+
+Deux `scale_y_continuous()` ne s'ajoutent pas : le second **remplace** le
+premier en avertissant. Sur la DL50, cela coûterait l'étiquetage : son axe X
+porte des log₁₀ affichés **en doses**, et une échelle neuve rendrait des log
+nus. `.hstat_extras_pas()` écrit donc les graduations sur l'échelle existante
+et n'en ajoute une que s'il n'y en a aucune.
+
+Mesuré sur l'essai de référence — le pas de 1 en log₁₀ donne bien les décades,
+et les étiquettes restent des doses :
+
+| | sans pas | pas X = 1 |
+|---|---|---|
+| axe X | 0,001 · 0,00316 · 0,01 · 0,0316 | **0,001 · 0,01** |
+| axe Y | −2 · 0 · 2 | **−3 … 3** (pas Y = 1) |
+
+### Un axe discret n'a pas de pas, et le défaut est prudent
+
+« Une graduation sur deux » n'a aucun sens sur des noms de traitement, et poser
+une échelle continue par-dessus ferait lever ggplot sur « Discrete value
+supplied to continuous scale » — donc tomber l'onglet entier pour un réglage
+d'habillage. Quand on ne peut pas établir que l'axe est numérique, **on ne pose
+rien** : un pas absent est un réglage qui manque, un graphique qui ne se trace
+plus est un onglet perdu.
+
+#### Le mappage s'évalue, il ne se lit pas au nom
+
+Ma première version prenait `all.vars(mapping)[1]`. Sur
+`aes(y = .data[["Valeur"]])` — **l'idiome dominant de ce dépôt**, celui de tout
+graphique bâti sur un nom de colonne variable — elle rendait « .data », absent
+des colonnes, et concluait « axe discret ». Le pas ne s'appliquait donc
+**jamais** sur le cas général, et rien ne le disait : le réglage existait, se
+déplaçait, et l'image ne bougeait pas.
+
+Le mappage est désormais **évalué** contre le tableau, avec `.data` lié à
+celui-ci — les deux idiomes passent, sans dépendance nouvelle, et
+`baseenv()` en environnement englobant empêche de résoudre un nom quelconque au
+passage. Une mutation qui remet `all.vars` fait échouer les deux tests de pas.
+
+### Ce que chaque module prend, et ce qu'il garde
+
+**Diversité écologique** prend les neuf familles. Ses deux réglages qui
+faisaient doublon ont disparu au profit du kit : `divTitreStyle` → `divXStTitre`,
+`divAngleX` → `divXAngleX` (et l'axe Y, qu'elle n'avait pas). Elle garde ses
+**tailles** nommées, que le kit n'a pas.
+
+**DL50/CL50** ne prend que `angles` et `pas`. Il portait déjà sa police, ses
+bornes, et des **styles plus fins que le kit** — X et Y séparés. Lui poser ces
+familles-là aurait déclaré deux réglages pour un même trait, et c'est le
+second, invisible, qui finit par mentir. Son `gGradXAngle` cède la place à la
+paire du kit : il n'avait d'angle que sur X, et la convention du dépôt en veut
+deux, de 0 à 90°.
+
+Ce qui reste **volontairement hors du kit** est ce qui parle des données d'un
+module et non de sa mise en forme : le type de graphique, la géométrie, la
+palette, les valeurs portées sur les barres, l'éditeur d'étiquettes par niveau
+et le rendu interactif. Les y mettre donnerait des réglages que l'image ignore.
+
+### Un enfant qui fixe sa propre face n'hérite rien de son parent
+
+Trouvé **au navigateur**, et par rien d'autre : changer le style des titres
+d'axes de la diversité rendait un PNG **identique à l'octet près** — 20 814
+octets avant, 20 814 après.
+
+Le kit pose `axis.title`. Ce que la figure trace est `axis.title.x`, que le
+module construit par `hstat_axe_titre_lire()` — un `element_textbox` qui fixe
+**sa propre** face à « plain ». Un enfant qui déclare une propriété n'hérite pas
+celle du parent : le réglage était déclaré, lu, appliqué au thème, et sans le
+moindre effet. Le style se passe donc à l'aide, comme la taille l'était déjà.
+
+**Et mon test ne pouvait pas le voir : il mesurait `axis.title`, le parent.**
+C'est la même faute que le cadre carré mesuré sur l'image pendant qu'elle
+recouvrait ce qui la suivait, et que la sonde au mauvais préfixe du lot
+précédent. **Une mesure qui ne porte pas sur ce qui peut casser ne dit rien**,
+et elle se trompe toujours dans le sens rassurant. Le test lit désormais
+`axis.title.x` et `axis.title.y`, et une mutation qui retire le passage du
+style le fait échouer sur les deux.
+
+Corollaire de méthode : le parcours au navigateur n'est pas une formalité de
+fin de lot. Ici il a trouvé ce que 605 tests laissaient passer, parce qu'il
+regarde les **octets de l'image** et non une propriété choisie à la main.
+
+### Le défaut du kit ne s'élargit pas quand son catalogue s'élargit
+
+Le défaut le plus coûteux de ce lot, et c'est une **mesure** qui l'a imposé, pas
+une relecture. Les cinq familles nouvelles étaient d'abord entrées dans le
+**défaut** de `hstat_plot_extras_ui()`. Or `mod_yield` appelle le kit **sans
+nommer de familles** — et déclarait déjà chez lui `yieldAngleX`, `yieldAngleY`,
+`yieldLegendeTitre` et `yieldPasY`.
+
+Résultat : **quatre identifiants en double dans la page rendue**, donc deux
+réglages pour un même trait, dont un seul agit. Rien ne lève, rien ne s'affiche
+de travers. C'est le test des identifiants dupliqués qui l'a vu — pas moi.
+
+Un module qui écrit `hstat_plot_extras_ui(ns, "x")` demande **le kit tel qu'il
+était** ; l'élargir sous lui est exactement le contraire de « se prend par
+famille ». `HSTAT_PLOT_EXTRAS_DEFAUT` garde donc les quatre familles d'origine,
+`HSTAT_PLOT_EXTRAS_FAMILLES` nomme les neuf, et une famille nouvelle se demande
+**nommément**. Une mutation qui recolle les deux fait échouer le test.
+
+Corollaire : la liste plate `HSTAT_PLOT_EXTRAS` **dérive** désormais de la carte
+par famille. C'étaient deux déclarations de la même chose, tenues d'accord par
+une assertion ; la faire dériver rend la divergence impossible plutôt que
+détectable. L'assertion devenue tautologique est remplacée par celle qui garde
+encore quelque chose : les familles sont **disjointes** — un réglage rangé dans
+deux d'entre elles serait déclaré deux fois par un module qui prend les deux.
+
+### La lecture porte les mêmes familles que la déclaration
+
+Défaut introduit puis attrapé à la mesure : j'avais ajouté `angles` et `pas` à
+l'**interface** de la DL50 sans les ajouter à sa **lecture**. Les curseurs
+s'affichaient, se déplaçaient, et la figure ne bougeait pas — le défaut que ce
+dépôt traque, reproduit par inadvertance en le corrigeant ailleurs. Le test
+l'exige désormais explicitement (`graphe_opt()$extras$familles`), et la
+mutation correspondante échoue sur trois assertions.
+
 ## Fins de ligne
 
 Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. La fin de

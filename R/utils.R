@@ -1957,9 +1957,6 @@ hstat_mv_forme_ui <- function(prefix, titre = "Apparence du graphique") {
 # taille de police de base, le trait des axes, la taille des cles de legende et
 # les quatre marges. Ce que chaque module garde en propre, ce sont les reglages
 # qui parlent de SES donnees -- le type de graphique, la palette, la geometrie.
-HSTAT_PLOT_EXTRAS <- c("PoliceBase", "AxisLine", "AxisLineCouleur",
-                       "AxisLineEpaisseur", "LegendeCles",
-                       "MargeHaut", "MargeBas", "MargeGauche", "MargeDroite")
 
 # LE KIT SE PREND PAR FAMILLE, PAS EN BLOC. Trois modules portaient deja une
 # partie de ce vocabulaire, ecrite a la main et gardee par des tests : les
@@ -1972,7 +1969,22 @@ HSTAT_PLOT_EXTRAS <- c("PoliceBase", "AxisLine", "AxisLineCouleur",
 # Un module prend donc les familles qui lui MANQUENT, et rien de plus. Ce qu'il
 # ne declare pas n'est ni lu ni applique : le kit ne peut pas ecraser un
 # reglage qu'un module tient deja.
-HSTAT_PLOT_EXTRAS_FAMILLES <- c("police", "axe", "cles", "marges")
+HSTAT_PLOT_EXTRAS_FAMILLES <- c("police", "axe", "cles", "marges",
+                                "styles", "bornes", "angles", "pas",
+                                "legende")
+
+# LE DEFAUT NE S'ELARGIT PAS QUAND LE CATALOGUE S'ELARGIT, et c'est une
+# mesure qui l'a impose. En ajoutant cinq familles au catalogue, elles sont
+# d'abord entrees dans le defaut : `mod_yield`, qui appelle le kit SANS
+# nommer de familles, a donc recu d'un coup `yieldAngleX`, `yieldAngleY`,
+# `yieldLegendeTitre` et `yieldPasY` -- qu'il declarait deja chez lui.
+# QUATRE identifiants en double dans la page rendue, silencieux : deux
+# reglages pour un meme trait, dont un seul agit.
+#
+# Un module qui ecrit `hstat_plot_extras_ui(ns, "x")` demande le kit TEL
+# QU'IL ETAIT ; l'elargir sous lui est le contraire de « se prend par
+# famille ». Les nouvelles familles se demandent donc nommement.
+HSTAT_PLOT_EXTRAS_DEFAUT <- c("police", "axe", "cles", "marges")
 
 # La correspondance famille -> reglages n'est ecrite qu'ici ; le test la relit
 # plutot que de la recopier.
@@ -1980,14 +1992,32 @@ HSTAT_PLOT_EXTRAS_PAR_FAMILLE <- list(
   police = "PoliceBase",
   axe    = c("AxisLine", "AxisLineCouleur", "AxisLineEpaisseur"),
   cles   = "LegendeCles",
-  marges = c("MargeHaut", "MargeBas", "MargeGauche", "MargeDroite"))
+  marges = c("MargeHaut", "MargeBas", "MargeGauche", "MargeDroite"),
+  # LES SUFFIXES DE `styles` ET `bornes` SONT CEUX QUE `hstat_plot_opts_ui`
+  # DECLARAIT DEJA CHEZ ELLE. Les reprendre a l'identique est ce qui permet
+  # de retirer sa copie sans changer un seul identifiant chez les quatre
+  # modules qu'elle sert -- une migration qui renommerait `<prefixe>StTitre`
+  # debrancherait leurs reglages en silence.
+  styles = c("StTitre", "StAxes", "StGrad"),
+  bornes = c("Xmin", "Xmax", "Ymin", "Ymax"),
+  angles = c("AngleX", "AngleY"),
+  pas    = c("PasX", "PasY"),
+  # Memes suffixes que ceux de `mod_dl50`, qui les portait deja chez lui :
+  # un module qui prendrait la famille APRES les avoir declares verrait le
+  # doublon tout de suite, au lieu de le decouvrir a l'usage.
+  legende = c("LegendeTitre", "LegendeTitreTaille", "LegendeTaille"))
+
+# DERIVEE, jamais recopiee : la liste plate et la carte par famille etaient
+# deux declarations de la meme chose, tenues d'accord par une assertion. La
+# faire deriver rend la divergence impossible plutot que detectable.
+HSTAT_PLOT_EXTRAS <- unlist(HSTAT_PLOT_EXTRAS_PAR_FAMILLE, use.names = FALSE)
 
 # Le titre de la carte ne nomme AUCUNE des familles : il doit rester vrai quel
 # que soit le sous-ensemble retenu. « Cadre, marges et police » annoncerait
 # deux reglages absents dans un module qui ne prend que les marges -- le defaut
 # meme que ce depot traque, un libelle qui promet ce que la carte ne porte pas.
 hstat_plot_extras_ui <- function(ns, prefix,
-                                 familles = HSTAT_PLOT_EXTRAS_FAMILLES) {
+                                 familles = HSTAT_PLOT_EXTRAS_DEFAUT) {
   familles <- intersect(as.character(familles), HSTAT_PLOT_EXTRAS_FAMILLES)
   if (!length(familles)) return(NULL)
   id <- function(x) ns(paste0(prefix, x))
@@ -2022,6 +2052,76 @@ hstat_plot_extras_ui <- function(ns, prefix,
                          min = 0.4, max = 3, value = 1.2, step = 0.1,
                          ticks = FALSE)))
 
+  if ("styles" %in% familles)
+    els <- c(els, list(
+      shiny::fluidRow(
+        shiny::column(4, shiny::selectInput(id("StTitre"), "Style du titre",
+                                            choices = HSTAT_FONT_STYLES,
+                                            selected = "bold")),
+        shiny::column(4, shiny::selectInput(id("StAxes"), "Style des titres d'axes",
+                                            choices = HSTAT_FONT_STYLES,
+                                            selected = "plain")),
+        shiny::column(4, shiny::selectInput(id("StGrad"), "Style des graduations",
+                                            choices = HSTAT_FONT_STYLES,
+                                            selected = "plain")))))
+
+  # L'INCLINAISON EST UN ANGLE, PAS UN OUI/NON, et elle commande aussi le
+  # CALAGE : une etiquette penchee doit finir sous sa graduation (`hjust = 1`),
+  # une etiquette droite se centre. Les choisir separement decalait le texte
+  # d'un demi-libelle des qu'on revenait a 0.
+  if ("angles" %in% familles)
+    els <- c(els, list(
+      shiny::fluidRow(
+        shiny::column(6, shiny::sliderInput(id("AngleX"),
+                                            "Inclinaison des graduations X (°)",
+                                            min = 0, max = 90, value = 0,
+                                            step = 5, ticks = FALSE)),
+        shiny::column(6, shiny::sliderInput(id("AngleY"),
+                                            "Inclinaison des graduations Y (°)",
+                                            min = 0, max = 90, value = 0,
+                                            step = 5, ticks = FALSE)))))
+
+  # LES BORNES RECADRENT, ELLES NE FILTRENT PAS : `coord_cartesian` masque ce
+  # qui sort du cadre au lieu de le retirer des donnees. Un `xlim()` aurait
+  # supprime les lignes hors bornes -- donc deplace les moyennes et les
+  # lissages, sans un mot.
+  #
+  # La valeur par defaut est `NULL`, jamais `NA` : `numericInput(value = NA)`
+  # rend `value="NA"` dans le HTML, ce qu'un test du depot barre deja.
+  if ("bornes" %in% familles)
+    els <- c(els, list(
+      shiny::fluidRow(
+        shiny::column(3, shiny::numericInput(id("Xmin"), "X minimum", value = NULL)),
+        shiny::column(3, shiny::numericInput(id("Xmax"), "X maximum", value = NULL)),
+        shiny::column(3, shiny::numericInput(id("Ymin"), "Y minimum", value = NULL)),
+        shiny::column(3, shiny::numericInput(id("Ymax"), "Y maximum", value = NULL))),
+      shiny::tags$small(style = "color:#6b7280;",
+        tr("Bornes vides = automatiques. Elles recadrent la figure ; aucune observation n'est retirée du calcul."))))
+
+  if ("legende" %in% familles)
+    els <- c(els, list(
+      shiny::fluidRow(
+        shiny::column(4, shiny::textInput(id("LegendeTitre"),
+                                          "Titre de la légende", value = "")),
+        shiny::column(4, shiny::numericInput(id("LegendeTitreTaille"),
+                                             "Taille du titre de légende",
+                                             value = 11, min = 4, max = 30, step = 1)),
+        shiny::column(4, shiny::numericInput(id("LegendeTaille"),
+                                             "Taille du texte de légende",
+                                             value = 10, min = 4, max = 30, step = 1)))))
+
+  # UN PAS VIDE LAISSE LES GRADUATIONS AUTOMATIQUES. Le poser d'office
+  # remplacerait celles qu'une echelle du module a deja choisies.
+  if ("pas" %in% familles)
+    els <- c(els, list(
+      shiny::fluidRow(
+        shiny::column(6, shiny::numericInput(id("PasX"), "Pas des graduations X",
+                                             value = NULL, min = 0)),
+        shiny::column(6, shiny::numericInput(id("PasY"), "Pas des graduations Y",
+                                             value = NULL, min = 0))),
+      shiny::tags$small(style = "color:#6b7280;",
+        tr("Pas vide = graduations automatiques. Le pas ne s'applique qu'à un axe numérique."))))
+
   if ("marges" %in% familles)
     els <- c(els, list(
       shiny::fluidRow(
@@ -2051,7 +2151,7 @@ hstat_plot_extras_ui <- function(ns, prefix,
 # nullite des entrees ne marcherait pas -- un reglage declare vaut `NULL` tant
 # que le navigateur n'a pas repondu, et le premier trace sortirait sans marges.
 hstat_plot_extras_lire <- function(input, prefix,
-                                   familles = HSTAT_PLOT_EXTRAS_FAMILLES) {
+                                   familles = HSTAT_PLOT_EXTRAS_DEFAUT) {
   familles <- intersect(as.character(familles), HSTAT_PLOT_EXTRAS_FAMILLES)
   g <- function(x, defaut) {
     v <- input[[paste0(prefix, x)]]
@@ -2061,6 +2161,17 @@ hstat_plot_extras_lire <- function(input, prefix,
     v <- suppressWarnings(as.numeric(g(x, defaut))[1])
     if (!isTRUE(is.finite(v))) defaut else v
   }
+  # `nv()` rend NA sur une saisie vide, la ou `n()` retombe sur un defaut : une
+  # borne et un pas VIDES veulent dire « automatique », et c'est une valeur en
+  # soi. Les confondre poserait un cadre que personne n'a demande.
+  nv <- function(x) {
+    v <- suppressWarnings(as.numeric(input[[paste0(prefix, x)]])[1])
+    if (isTRUE(is.finite(v))) v else NA_real_
+  }
+  st <- function(x, defaut) {
+    v <- g(x, defaut)
+    if (length(v) != 1L || !nzchar(as.character(v)[1])) defaut else as.character(v)[1]
+  }
   list(familles = familles,
        police   = n("PoliceBase", 11),
        axe      = isTRUE(g("AxisLine", FALSE)),
@@ -2068,14 +2179,35 @@ hstat_plot_extras_lire <- function(input, prefix,
        axe_ep   = n("AxisLineEpaisseur", 1),
        cles     = n("LegendeCles", 1.2),
        marges   = c(haut = n("MargeHaut", 5), droite = n("MargeDroite", 5),
-                    bas  = n("MargeBas", 5),  gauche = n("MargeGauche", 5)))
+                    bas  = n("MargeBas", 5),  gauche = n("MargeGauche", 5)),
+       st_titre = st("StTitre", "bold"),
+       st_axes  = st("StAxes", "plain"),
+       st_grad  = st("StGrad", "plain"),
+       angle_x  = n("AngleX", 0),
+       angle_y  = n("AngleY", 0),
+       bornes   = c(xmin = nv("Xmin"), xmax = nv("Xmax"),
+                    ymin = nv("Ymin"), ymax = nv("Ymax")),
+       pas      = c(x = nv("PasX"), y = nv("PasY")),
+       leg_titre      = as.character(g("LegendeTitre", ""))[1],
+       leg_titre_taille = n("LegendeTitreTaille", 11),
+       leg_taille       = n("LegendeTaille", 10))
 }
 
 # `police` ne passe PAS par ici : elle appartient au theme de base
 # (`viz_get_theme(..., base_size = o$police)`), et l'appliquer apres coup ne
 # toucherait que ce que le theme a deja fixe. Le module la lit donc dans la
 # liste et la passe a son theme -- c'est ce qui la rend REELLEMENT employee.
-hstat_plot_extras_theme <- function(o) {
+# `titre = FALSE` : le kit ne touche PAS `plot.title`, et l'appelant applique
+# lui-meme `o$st_titre` sur l'element qu'il pose.
+#
+# Ce n'est pas un confort. ggplot2 REFUSE de fusionner deux elements de classes
+# differentes (« Only elements of the same class can be merged ») : un module
+# qui pose son titre en `element_markdown()` -- pour que le markdown d'un titre
+# soit rendu -- verrait le `element_text()` du kit faire LEVER la construction,
+# et l'onglet entier tomber. Et seulement la ou ggtext est installe, puisque
+# l'aiguillage retombe sinon sur `element_text` : une panne qui depend de
+# l'environnement, la pire a diagnostiquer. Mesure a l'appui.
+hstat_plot_extras_theme <- function(o, titre = TRUE) {
   f  <- as.character(o$familles %||% HSTAT_PLOT_EXTRAS_FAMILLES)
   th <- ggplot2::theme()
   if ("cles" %in% f)
@@ -2088,11 +2220,135 @@ hstat_plot_extras_theme <- function(o) {
       plot.margin = ggplot2::margin(t = m[["haut"]], r = m[["droite"]],
                                     b = m[["bas"]], l = m[["gauche"]], unit = "pt"))
   }
+  # LE STYLE NE TOUCHE QUE LA FACE. `element_text()` n'herite que ce qu'on ne
+  # lui redit pas : y remettre une taille effacerait celle que le module vient
+  # de fixer, et le curseur de taille cesserait d'agir sans un mot.
+  if ("styles" %in% f) {
+    if (isTRUE(titre))
+      th <- th + ggplot2::theme(
+        plot.title = ggplot2::element_text(face = o$st_titre))
+    th <- th + ggplot2::theme(
+      axis.title = ggplot2::element_text(face = o$st_axes),
+      axis.text  = ggplot2::element_text(face = o$st_grad))
+  }
+
+  # L'ANGLE COMMANDE LE CALAGE, et les deux se posent ensemble : une etiquette
+  # penchee finit sous sa graduation, une etiquette droite se centre.
+  if ("angles" %in% f) {
+    ax <- o$angle_x; ay <- o$angle_y
+    th <- th + ggplot2::theme(
+      axis.text.x = ggplot2::element_text(
+        angle = ax, hjust = if (ax > 0) 1 else 0.5,
+        vjust = if (ax > 0) 1 else 0.5),
+      # Cote Y le calage ne depend pas de l'angle : l'etiquette reste collee a
+      # son axe (`hjust = 1`) et centree sur sa graduation, penchee ou non.
+      axis.text.y = ggplot2::element_text(angle = ay, hjust = 1, vjust = 0.5))
+  }
+
+  if ("legende" %in% f)
+    th <- th + ggplot2::theme(
+      legend.title = ggplot2::element_text(size = o$leg_titre_taille),
+      legend.text  = ggplot2::element_text(size = o$leg_taille))
+
   if (!("axe" %in% f) || !isTRUE(o$axe)) return(th)
   th + ggplot2::theme(
     axis.line   = ggplot2::element_line(colour = o$axe_col, linewidth = o$axe_ep),
     axis.line.x = ggplot2::element_line(colour = o$axe_col, linewidth = o$axe_ep),
     axis.line.y = ggplot2::element_line(colour = o$axe_col, linewidth = o$axe_ep))
+}
+
+# ---------------------------------------------------------------------------
+#  BORNES ET PAS : ce sont des ECHELLES, pas un theme
+#
+#  Elles ne peuvent donc pas voyager avec `hstat_plot_extras_theme()` : un
+#  `theme()` ne porte ni cadrage ni graduations. D'ou une seconde fonction, que
+#  le module pose sur le GRAPHIQUE et non sur son theme.
+# ---------------------------------------------------------------------------
+
+# Un axe DISCRET n'a pas de pas : « une graduation sur deux » n'a aucun sens
+# sur des noms de traitement, et poser une echelle continue par-dessus ferait
+# lever ggplot sur « Discrete value supplied to continuous scale » -- donc
+# tomber l'onglet entier pour un reglage d'habillage.
+#
+# Le defaut est PRUDENT : quand on ne peut pas etablir que l'axe est numerique,
+# on ne pose rien. Un pas absent est un reglage qui manque ; un graphique qui
+# ne se trace plus est un onglet perdu.
+.hstat_extras_axe_continu <- function(g, aes) {
+  sc <- tryCatch(g$scales$get_scales(aes), error = function(e) NULL)
+  if (inherits(sc, "Scale")) return(!isTRUE(sc$is_discrete()))
+
+  # LE MAPPAGE S'EVALUE, IL NE SE LIT PAS AU NOM. Une premiere version prenait
+  # `all.vars(m)[1]` : sur `aes(y = .data[["Valeur"]])` -- l'idiome DOMINANT de
+  # ce depot, celui de tout graphique bati sur un nom de colonne variable --
+  # elle rendait « .data », absent des colonnes, et concluait « axe discret ».
+  # Le pas ne s'appliquait donc jamais sur le cas general, et rien ne le disait.
+  #
+  # `.data` est lie au tableau lui-meme : `.data[["Valeur"]]` s'evalue alors en
+  # `d[["Valeur"]]`, et `aes(y = Valeur)` par le masque des colonnes. Les deux
+  # idiomes passent, sans dependance nouvelle.
+  d <- g$data
+  if (!is.data.frame(d)) return(FALSE)
+  m <- g$mapping[[aes]]
+  if (is.null(m)) for (l in g$layers) {
+    if (!is.null(l$mapping[[aes]])) { m <- l$mapping[[aes]]; break }
+  }
+  if (is.null(m)) return(FALSE)
+  ex <- tryCatch(if (inherits(m, "formula")) m[[length(m)]] else m,
+                 error = function(e) NULL)
+  if (is.null(ex)) return(FALSE)
+  # `baseenv()` en environnement englobant : le mappage ne doit pas resoudre un
+  # nom quelconque de l'espace global au passage.
+  v <- tryCatch(eval(ex, c(as.list(d), list(.data = d)), baseenv()),
+                error = function(e) NULL, warning = function(w) NULL)
+  is.numeric(v) || inherits(v, c("Date", "POSIXct", "POSIXlt"))
+}
+
+.hstat_extras_pas <- function(g, aes, pas) {
+  if (!isTRUE(is.finite(pas)) || pas <= 0) return(g)
+  if (!.hstat_extras_axe_continu(g, aes)) return(g)
+  brk <- function(lim) {
+    if (!all(is.finite(lim))) return(ggplot2::waiver())
+    # Alignee sur le pas, PUIS bornee au cadre : partir de la borne brute
+    # donnerait des graduations decalees (-37, -17, 3...) et zero ne serait pas
+    # gradue, alors que c'est la seule qui compte des qu'il y a du negatif.
+    b <- seq(hstat_pas_debut(min(lim), pas), max(lim) + pas, by = pas)
+    b[b >= min(lim) & b <= max(lim)]
+  }
+  # DEUX ECHELLES NE S'AJOUTENT PAS : la seconde REMPLACE la premiere en
+  # avertissant, et le module perdrait la sienne (ses limites, son
+  # transformateur, son titre de legende). On modifie donc celle qui est deja
+  # posee, et on n'en ajoute une que s'il n'y en a aucune.
+  sc <- tryCatch(g$scales$get_scales(aes), error = function(e) NULL)
+  if (inherits(sc, "Scale")) { sc$breaks <- brk; return(g) }
+  g + (if (identical(aes, "x")) ggplot2::scale_x_continuous(breaks = brk)
+       else ggplot2::scale_y_continuous(breaks = brk))
+}
+
+hstat_plot_extras_scales <- function(g, o) {
+  if (is.null(g) || !inherits(g, "ggplot")) return(g)
+  f <- as.character(o$familles %||% HSTAT_PLOT_EXTRAS_FAMILLES)
+
+  # LE TITRE DE LEGENDE EST UN LIBELLE, pas un theme : il se pose par `labs()`.
+  # On le pose sur les deux esthetiques qui portent une legende de groupe ; sur
+  # une figure qui n'en a pas, `labs()` est sans effet plutot que fautif.
+  if ("legende" %in% f && nzchar(o$leg_titre %||% ""))
+    g <- g + ggplot2::labs(colour = o$leg_titre, fill = o$leg_titre)
+
+  if ("pas" %in% f) {
+    g <- .hstat_extras_pas(g, "x", o$pas[["x"]])
+    g <- .hstat_extras_pas(g, "y", o$pas[["y"]])
+  }
+
+  # LA COORD NE SE POSE QUE SI UNE BORNE EST REMPLIE : en poser une d'office
+  # remplacerait celle qu'un constructeur a choisie -- le recadrage sur les
+  # centiles d'un intervalle, par exemple -- sans un mot.
+  if (!("bornes" %in% f)) return(g)
+  b <- o$bornes
+  xl <- c(b[["xmin"]], b[["xmax"]]); yl <- c(b[["ymin"]], b[["ymax"]])
+  if (!any(is.finite(c(xl, yl)))) return(g)
+  g + ggplot2::coord_cartesian(
+    xlim = if (any(is.finite(xl))) xl else NULL,
+    ylim = if (any(is.finite(yl))) yl else NULL)
 }
 
 # ---------------------------------------------------------------------------
@@ -8040,33 +8296,14 @@ hstat_plot_opts_ui <- function(ns, prefix) {
     # des trois ait une ligne a ecrire. La taille du texte, elle, est deja
     # au-dessus (`<prefixe>Base`) -- la declarer deux fois donnerait deux
     # reglages pour une meme grandeur, dont un seul agirait.
-    # DEUX FAMILLES QUE LE MODULE VISUALISATION AVAIT ET QUE CE KIT N'AVAIT PAS :
-    # le STYLE des textes et les BORNES des axes. Les ajouter ici plutot que de
-    # les recopier dans un douzieme module est la regle du depot -- et les
-    # quatre modules servis par ce kit les recoivent sans une ligne a ecrire.
-    shiny::fluidRow(
-      shiny::column(4, shiny::selectInput(ns(paste0(prefix, "StTitre")),
-        "Style du titre", choices = HSTAT_FONT_STYLES, selected = "bold")),
-      shiny::column(4, shiny::selectInput(ns(paste0(prefix, "StAxes")),
-        "Style des titres d'axes", choices = HSTAT_FONT_STYLES, selected = "plain")),
-      shiny::column(4, shiny::selectInput(ns(paste0(prefix, "StGrad")),
-        "Style des graduations", choices = HSTAT_FONT_STYLES, selected = "plain"))),
-    # LES BORNES RECADRENT, ELLES NE FILTRENT PAS : `coord_cartesian` masque ce
-    # qui sort du cadre au lieu de le retirer des donnees. Un `xlim()` aurait
-    # supprime les lignes hors bornes -- donc deplace les moyennes et les
-    # lissages, sans un mot.
-    shiny::fluidRow(
-      shiny::column(3, shiny::numericInput(ns(paste0(prefix, "Xmin")),
-        "X minimum", value = NULL)),
-      shiny::column(3, shiny::numericInput(ns(paste0(prefix, "Xmax")),
-        "X maximum", value = NULL)),
-      shiny::column(3, shiny::numericInput(ns(paste0(prefix, "Ymin")),
-        "Y minimum", value = NULL)),
-      shiny::column(3, shiny::numericInput(ns(paste0(prefix, "Ymax")),
-        "Y maximum", value = NULL))),
-    shiny::tags$small(style = "color:#6b7280;",
-      tr("Bornes vides = automatiques. Elles recadrent la figure ; aucune observation n'est retirée du calcul.")),
-    hstat_plot_extras_ui(ns, prefix, familles = c("axe", "cles", "marges"))
+    # LE STYLE DES TEXTES ET LES BORNES D'AXE ETAIENT DECLARES ICI, EN DUR. Ils
+    # sont passes au kit par familles : les suffixes n'ont pas bouge
+    # (`<prefixe>StTitre`, `<prefixe>Xmin`...), donc aucun identifiant ne change
+    # chez les quatre modules servis -- et il n'existe plus qu'UNE declaration,
+    # que les modules a panneau propre (diversite, DL50) prennent par famille
+    # au lieu d'en ecrire une treizieme copie.
+    hstat_plot_extras_ui(ns, prefix,
+                         familles = c("axe", "cles", "marges", "styles", "bornes"))
   )
 }
 
@@ -8109,32 +8346,15 @@ hstat_apply_plot_opts <- function(g, input, prefix) {
   # Le test qui gardait le kit cherchait l'APPEL dans le source du module :
   # il etait satisfait par un appel dont la valeur se perd. C'est l'effet
   # sur le theme construit qui se verifie desormais.
-  g <- g + hstat_plot_extras_theme(
-    hstat_plot_extras_lire(input, prefix, familles = c("axe", "cles", "marges")))
-
-  # Le STYLE se pose apres le theme, sinon le theme l'efface. `element_text`
-  # n'herite que ce qu'on ne lui redit pas : on ne touche donc QUE la face.
-  st <- function(k, d) {
-    v <- input[[paste0(prefix, k)]]
-    if (is.null(v) || !nzchar(v)) d else v
-  }
-  g <- g + ggplot2::theme(
-    plot.title  = ggplot2::element_text(face = st("StTitre", "bold")),
-    axis.title  = ggplot2::element_text(face = st("StAxes", "plain")),
-    axis.text   = ggplot2::element_text(face = st("StGrad", "plain")))
-
-  # LES BORNES NE SE POSENT QUE SI ELLES SONT SAISIES. Un `coord_cartesian`
-  # pose d'office REMPLACERAIT celui que la figure a deja construit -- le
-  # recadrage sur les centiles de l'intervalle, par exemple -- et ferait
-  # reapparaitre la bande verticale qu'il existe pour eviter.
-  bo <- function(k) { v <- suppressWarnings(as.numeric(input[[paste0(prefix, k)]])[1])
-                      if (isTRUE(is.finite(v))) v else NA_real_ }
-  xl <- c(bo("Xmin"), bo("Xmax")); yl <- c(bo("Ymin"), bo("Ymax"))
-  if (any(is.finite(c(xl, yl))))
-    g <- g + ggplot2::coord_cartesian(
-      xlim = if (any(is.finite(xl))) xl else NULL,
-      ylim = if (any(is.finite(yl))) yl else NULL)
-  g
+  #
+  # LE STYLE ET LES BORNES ETAIENT APPLIQUES ICI, a la main, en relisant
+  # `input` une seconde fois. Ils passent par le kit comme leur declaration :
+  # deux implementations d'une meme regle finissent par diverger, et c'est la
+  # copie oubliee qui ment.
+  ex <- hstat_plot_extras_lire(
+    input, prefix, familles = c("axe", "cles", "marges", "styles", "bornes"))
+  g <- g + hstat_plot_extras_theme(ex)
+  hstat_plot_extras_scales(g, ex)
 }
 
 hstat_plot_opt <- function(input, prefix, what, default) {
