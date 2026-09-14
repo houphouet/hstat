@@ -16125,7 +16125,15 @@ test_that("le module d'epidemiologie lance une analyse et rend ses tableaux", {
     tb <- tables()
     expect_true(is.list(tb) && length(tb) >= 2L)
     expect_true("Comparaison" %in% names(tb))
-    expect_true(NROW(t1()) > 0)
+    # LES TROIS EMPLACEMENTS FIGES ONT DISPARU avec les reactifs `t1`/`t2`/`t3` :
+    # l'ecran porte desormais TOUS les tableaux, par des sorties construites.
+    # On verifie donc ce que l'utilisateur voit -- le conteneur les emet, et
+    # chacun rend ses lignes -- plutot qu'un reactif qui n'existe plus.
+    expect_true(NROW(tb[[1]]) > 0)
+    expect_false(is.null(output$epiTablesUI))
+    for (k in seq_len(min(length(tb), 3L)))
+      expect_match(output$epiTablesUI$html, paste0("epiTable", k), fixed = TRUE)
+    expect_true(NROW(output$epiTable1) > 0 || nzchar(output$epiTable1 %||% ""))
     # LE SELECTEUR DE FIGURE SE CONSTRUIT AVANT QU'AUCUNE FIGURE SOIT CHOISIE.
     # `input$epiFigure` y vaut NULL, et `NULL %in% choix` rend `logical(0)` :
     # `if()` leve « argument is of length zero », l'erreur tombe dans le
