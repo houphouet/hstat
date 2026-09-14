@@ -6030,6 +6030,240 @@ largeur 8, **sous** l'export, avec le graphique visible au-dessus pendant qu'on
 la règle. C'est exactement le déplacement déjà fait pour les options du
 post-hoc, et pour la même raison.
 
+### Le bouton d'export rendait un gestionnaire que personne ne gardait
+
+Signalé à l'écran — « je n'arrive pas à télécharger les graphiques ».
+
+`hstat_export_plot_handler()` **rend** un `downloadHandler` ; les dix-sept
+autres sites du dépôt l'affectent à `output$<préfixe>Dl`. L'épidémiologie
+l'appelait **nu** : le gestionnaire était construit, puis jeté. Le bouton
+restait affiché, et ne produisait rien.
+
+**Et le test qui devait le garder comptait l'appel au lieu de l'affectation.**
+Son motif s'arrêtait à `hstat_export_plot_handler\(input, "([A-Za-z0-9_.]+)"` :
+il comptait donc un producteur là où il n'y en avait aucun — exactement le
+défaut qu'il existe pour voir. Le `output$X <-` fait désormais partie du motif,
+et la mutation qui remet l'appel nu le fait échouer.
+
+### Onze tableaux calculés, trois affichés
+
+`tables()` rend, sur un plan à deux issues et deux expositions : la
+comparaison, le budget de paramètres, **deux tableaux par couple**, les
+fenêtres de retard et la colinéarité — onze. L'interface en portait **trois**,
+dans des emplacements figés. Les huit autres étaient calculés, **exportés**, et
+jamais montrés : on lisait un classeur plus riche que l'écran qui l'avait
+produit.
+
+L'onglet « Tableaux » les émet tous, chacun sous son nom — **échappé**, puisque
+ce nom porte une colonne du fichier (`Cumul_<exposition>`).
+
+**Le plafond existe parce qu'un identifiant de sortie ne se retire pas.** Shiny
+garde un observateur par sortie enregistrée ; sans borne, un plan à dix issues
+et six expositions en poserait cent vingt-deux. Les rendus se posent donc une
+seule fois, hors de tout observateur — les réenregistrer à chaque calcul
+empilerait un observateur par passage —, et `local()` fige le rang, sans quoi
+les quarante fermetures liraient la **dernière** valeur de `k` : le piège déjà
+documenté pour `force(id)`.
+
+Au-delà du plafond les tableaux restent dans l'export, **et on le dit**.
+
+### La loi se choisit en deux temps, et ce n'est pas un détour
+
+« Automatique » ne comparait que Poisson et la binomiale négative par AIC ;
+sous Poisson surdispersé il se contentait de **conseiller** quasi-Poisson — un
+réglage que l'utilisateur devait aller changer à la main, sur une analyse qu'il
+croyait déjà ajustée au mieux.
+
+On ne peut pas simplement ajouter quasi-Poisson au concours d'AIC : **un
+quasi-modèle n'a pas de vraisemblance, donc pas d'AIC.** `stats::AIC()` y rend
+`NA`, et `which.min` désignerait alors le survivant — le piège déjà documenté
+ici. Ce sont deux questions distinctes :
+
+1. l'AIC entre Poisson et binomiale négative dit quel **ajustement** est meilleur ;
+2. la surdispersion dit si la **fonction de variance** tient — ce que l'AIC ne
+   voit pas.
+
+Sous Poisson surdispersé, les intervalles sont trop étroits : des effets
+ressortent « significatifs » sans l'être. Un résultat faux et plausible, la
+forme la plus coûteuse.
+
+`hstat_epi_famille_auto()` porte la règle **hors du bloc d'ajustement** : dans
+le corps de `hstat_epi_dlnm()` la branche quasi-Poisson n'est atteignable qu'en
+faisant échouer `glm.nb`, donc intestable en pratique. Le seuil est testé des
+deux côtés de sa frontière.
+
+### Six réglages d'étiquette, une figure qui les lisait
+
+Les réglages du repère (affichage, texte, position, côté, taille, style)
+n'étaient lus **que** par « effet cumulé ». Sur la carte et les coupes,
+l'utilisateur les déplaçait sans que rien ne bouge — « déclaré, lu, mais jamais
+utilisé ». Et la figure multi ne recevait **aucune** option : elle était
+appelée sans elles.
+
+`.hstat_epi_repere_couche()` porte le repère, et `opts_fig()` fait voyager les
+trois familles vers **les deux** constructeurs.
+
+**La règle de placement : le repère se pose là où l'axe X porte l'exposition.**
+Sur l'axe des retards il n'aurait aucun sens — une référence d'exposition n'est
+pas un nombre de mois. Et **sur un axe en percentiles il se pose à son
+percentile, jamais à sa valeur** : 29,7 posé sur un axe de 0 à 100 tomberait au
+trentième centile par coïncidence d'échelle — faux, et parfaitement plausible.
+
+En facettes, aucun repère : chaque exposition a sa référence et son axe, un
+trait unique serait faux pour toutes sauf une. C'est la règle déjà écrite pour
+les essais DL50 de mortalités naturelles différentes.
+
+### L'échelle des facettes est un choix, et les quatre lectures sont légitimes
+
+`scales = "free_x"` était écrit en dur. C'est le bon défaut quand les unités
+diffèrent — mais il interdit précisément ce qu'on veut parfois lire : deux
+panneaux dont les axes Y **coïncident**, seul cadre où l'amplitude des RR se
+compare. À l'inverse, des échelles libres des deux côtés font paraître un effet
+de 1,05 aussi ample qu'un effet de 3.
+
+Aucune n'est plus juste : le libellé dit ce que chacune permet de comparer.
+
+### La carte change de couleurs, jamais de nature
+
+Une carte de température se lit en bleu-rouge ; une pluviométrie, une humidité
+ou un polluant appellent d'autres couleurs — le bleu y dit « beaucoup », pas
+« peu ».
+
+**Ce qui ne se négocie pas, c'est que l'échelle reste divergente et centrée sur
+1.** Le RR est un rapport : un RR de 2 et un RR de 0,5 sont le même écart en
+sens inverse. Une palette séquentielle ferait passer « aucun effet » pour une
+couleur quelconque au milieu du dégradé, et la moitié protectrice de la carte
+deviendrait illisible. Le catalogue offre donc des **triplets**, jamais un type
+d'échelle — et le test vérifie le centrage sur chacun.
+
+### Les percentiles se matérialisent sur la courbe, avec leur RR
+
+Demandé à l'écran, figure de thèse à l'appui : un point à chaque percentile
+d'intérêt, étiqueté « P90 / RR=1,23 ». C'est le chiffre du tableau, posé là où
+il se lit.
+
+**La liste est un réglage, pas une constante** : un essai de canicule regarde
+P95 et P99, un essai de froid P1 et P5.
+
+Deux points de construction : le RR marqué est **lu sur la grille de
+prédiction**, jamais recalculé — sinon le point flotte à côté de la ligne qu'il
+désigne — et les marqueurs se posent **après** la courbe, un point dessous
+disparaîtrait derrière elle.
+
+### Une fenêtre de retard porte la covariance de ses retards
+
+Demandé à l'écran, tableau de thèse à l'appui : publier le RR cumulé **sur un
+intervalle** de retards — « Lag 0-1 mois (court terme) », « Lag 2-4 mois
+(différé) ».
+
+**Ce n'est ni une somme ni un quotient, et c'est tout le piège.** On ne peut ni
+additionner les RR de chaque retard (ils se multiplient), ni diviser deux
+cumuls pour obtenir leurs bornes : les retards d'un même modèle sont
+**corrélés**. Mesuré sur deux fenêtres couvrant tout le décalage — les RR se
+multiplient bien pour redonner le cumul (0,3894 contre 0,3893), mais les
+largeurs d'intervalle ne s'additionnent pas du tout (1,61 + 0,81 contre 1,36).
+
+L'effet d'une fenêtre est `w'b`, où `w` est la **somme** des lignes de la base
+croisée sur les retards de la fenêtre ; sa variance est `w'Vw`, qui porte la
+covariance complète.
+
+**La reconstruction est vérifiée contre `crosspred`**, et c'est ce qui autorise
+à s'en servir là où `crosspred` ne rend rien : sur chaque retard pris seul et
+sur le cumul entier, l'estimation **et** l'erreur-type coïncident à 1e-8.
+
+#### L'ordre des colonnes de la base croisée, et l'exposition qui se cale
+
+Deux pièges, tous deux mesurés.
+
+**L'ordre** : les colonnes sont `v1.l1, v1.l2, …` — l'exposition varie le plus
+**lentement**, le retard le plus vite. `outer()` range à l'inverse (colonnes
+d'abord) ; l'employer nu donnait des RR parfaitement plausibles et faux —
+0,0122 attendu, **−0,2328** rendu. Une mutation le garde.
+
+**Le calage** : évaluée au percentile exact, la fenêtre entière rendait 0,3902
+là où le tableau des effets cumulés affichait 0,3893 — deux « P90 » différents
+dans le même rapport, pour un écart qui n'est qu'un pas de grille. L'exposition
+se cale donc sur la grille de prédiction, comme `hstat_epi_dlnm_rr()`, et c'est
+ce qui rend l'invariant « fenêtre entière = cumul » **exact**, donc testable.
+
+Les bornes d'une saisie inversée sont remises dans l'ordre, ce qui déborde est
+ramené au décalage du modèle, et **ce qui ne se lit pas est nommé** — une
+fenêtre disparue ferait publier un tableau incomplet sans que rien ne le dise.
+
+## Audit de sécurité du module d'épidémiologie
+
+Mené en **attaquant** le module, pas en le relisant. Deux vraies failles, et
+elles ont la même signature : un résultat publiable, faux, que rien ne signale.
+
+### Une référence hors de l'étendue rendait 0 ou l'infini
+
+La spline n'est définie que sur l'étendue observée ; au-delà elle extrapole
+sans borne et le rapport explose. Mesuré sur une exposition allant de 18,4 à
+22,7 :
+
+| Référence demandée | RR au P90 |
+|---|---|
+| `1e12` | **0** |
+| `-1e12` | **Inf** |
+
+Ni l'un ni l'autre ne lève : le tableau sort complet, avec un RR de zéro ou
+l'infini sous une étiquette de percentile.
+
+On **ramène** dans l'étendue plutôt que de refuser — une référence légèrement
+hors bornes est une saisie ordinaire, et l'analyse reste juste une fois
+ramenée — mais on le **dit**, sinon l'utilisateur lit des RR rapportés à une
+référence qui n'est pas la sienne. Après correction : 0,29 et 0,34.
+
+### Un décalage négatif était ramené à zéro en silence
+
+Le modèle cessait alors d'être un modèle **à retards distribués** — une seule
+colonne de surface au lieu de six — et rien ne le disait. Le négatif est
+refusé ; un décalage illisible retombe sur le défaut, et le repli est **nommé**
+plutôt que deviné.
+
+### Ce que l'attaque a écarté, et pourquoi
+
+- **Injection par un nom de colonne.** La surface entre au modèle sous un nom
+  **stable** (`cb1`), jamais sous celui de la colonne : `as.formula` refuse
+  accents, espaces et parenthèses, et les contourner par des accents graves
+  casserait l'appariement des coefficients. Vérifié : aucun coefficient ne
+  porte la charge, et le nom traverse les tableaux **intact** — on n'altère pas
+  la donnée, c'est l'échappement au rendu qui empêche le balisage.
+- **Texte du repère.** Il reste une **donnée de couche** : ggplot dessine du
+  texte, il n'interprète pas de HTML.
+- **Réglages d'apparence hostiles.** Palette, échelle de facettes, percentiles,
+  tailles : neuf valeurs hostiles essayées sur chacun, aucune ne lève. C'est ce
+  qui compte — une erreur dans un constructeur de figure emporte la sortie
+  entière, donc tout l'onglet.
+- **Noms de feuille Excel.** Les caractères qu'Excel refuse feraient tomber
+  l'export **entier** pour un seul nom de colonne : `hstat_feuille_nom()` les
+  retire et tronque à 31 caractères.
+
+## Le test de performance mesure un compte, jamais une durée
+
+Deux assertions de temps ont été écrites, et **les deux étaient fausses dans le
+sens rassurant** — la troisième fois dans ce dépôt.
+
+La première comparait le coût de deux surfaces à celui de quatre. Mesuré :
+**2,04 s pour deux et 0,32 s pour quatre** — le premier appel paie le
+chargement de `dlnm` et la compilation. Le rapport sortait à 0,16, si bien
+qu'une implémentation **quadratique** l'aurait passé aussi.
+
+La seconde comparait cinq figures à un ajustement : 0,767 s contre 0,020 s,
+soit un rapport de 38 — et elle ne l'a pas signalé parce qu'elle se **sautait**
+sur un ajustement trop rapide. Un test sauté ressemble à un test qui passe. Le
+rapport de 38 ne disait d'ailleurs rien d'un réajustement : `ggplot_build` sur
+une carte de plusieurs milliers de cases est simplement cher.
+
+Les deux mesurent désormais un **compte**, exact et indépendant de la machine :
+
+- `hstat_epi_dlnm_multi` appelle l'ajustement **exactement** une fois par
+  couple issue × exposition — deux puis quatre, jamais quatre puis seize ;
+- construire une figure ne déclenche **aucun** ajustement, six palettes et
+  quatre échelles confondues.
+
+Les deux mutations correspondantes sont attrapées.
+
 ### `dlnm` 2.4.7, et pourquoi pas la version courante
 
 La version HEAD du miroir CRAN exige **R ≥ 4.4** ; l'environnement de ce dépôt
