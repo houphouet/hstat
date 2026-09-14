@@ -5057,7 +5057,7 @@ test_that("une chaine bordee d'espaces se traduit, et garde son espacement", {
                " 12 cases predicted (mean = 3,4).")
 })
 
-test_that("le kit de mise en forme declare, lit ET applique ses neuf reglages", {
+test_that("le kit de mise en forme declare, lit ET applique chacun de ses reglages", {
   # UNE LISTE RECOPIEE FINIT PAR DIVERGER, et c'est la copie oubliee qui ment :
   # la lecon des formats d'image, des champs de DPI, des themes et des palettes,
   # appliquee cette fois aux reglages de mise en forme que `mod_viz` portait
@@ -5065,11 +5065,18 @@ test_that("le kit de mise en forme declare, lit ET applique ses neuf reglages", 
   # declare dans l'interface, lu par la lecture, et employe par le theme.
   skip_if_not_installed("shinydashboard")
   suppressMessages(hstat_installer_replis_ui())
-  expect_length(HSTAT_PLOT_EXTRAS, 9L)
+  # LE DEFAUT NE S'ELARGIT PAS QUAND LE CATALOGUE S'ELARGIT : un module qui
+  # appelle le kit sans nommer de familles demande le kit TEL QU'IL ETAIT.
+  # Ajouter cinq familles au defaut avait donne quatre identifiants en double
+  # dans la page -- `mod_yield` les declarait deja chez lui.
+  expect_equal(HSTAT_PLOT_EXTRAS_DEFAUT, c("police", "axe", "cles", "marges"))
+  expect_true(all(HSTAT_PLOT_EXTRAS_DEFAUT %in% HSTAT_PLOT_EXTRAS_FAMILLES))
+  expect_gt(length(HSTAT_PLOT_EXTRAS_FAMILLES), length(HSTAT_PLOT_EXTRAS_DEFAUT))
 
   # 1. DECLARE -- et prefixe : un widget hors du prefixe de son module
   # n'existe pour personne, le defaut le plus silencieux du depot.
-  h <- paste(as.character(hstat_plot_extras_ui(shiny::NS("m"), "pfx")), collapse = "")
+  h <- paste(as.character(hstat_plot_extras_ui(shiny::NS("m"), "pfx",
+               familles = HSTAT_PLOT_EXTRAS_FAMILLES)), collapse = "")
   for (x in HSTAT_PLOT_EXTRAS)
     expect_true(grepl(sprintf('id="m-pfx%s"', x), h, fixed = TRUE), label = x)
 
@@ -5109,8 +5116,12 @@ test_that("le kit de mise en forme declare, lit ET applique ses neuf reglages", 
   # entier declarerait DEUX fois le meme reglage, et c'est le second, invisible,
   # qui finirait par mentir.
   expect_setequal(names(HSTAT_PLOT_EXTRAS_PAR_FAMILLE), HSTAT_PLOT_EXTRAS_FAMILLES)
-  expect_setequal(unlist(HSTAT_PLOT_EXTRAS_PAR_FAMILLE, use.names = FALSE),
-                  HSTAT_PLOT_EXTRAS)
+  # La liste plate DERIVE de la carte : les comparer serait une tautologie. Ce
+  # qui se garde, c'est que les familles soient DISJOINTES -- un reglage range
+  # dans deux d'entre elles serait declare deux fois par un module qui prend
+  # les deux, et c'est le doublon silencieux qu'on vient de corriger.
+  expect_equal(anyDuplicated(HSTAT_PLOT_EXTRAS), 0L)
+  expect_true(all(vapply(HSTAT_PLOT_EXTRAS_PAR_FAMILLE, length, 0L) > 0L))
 
   # Ce qu'un module ne declare pas n'est ni affiche...
   hm <- paste(as.character(hstat_plot_extras_ui(shiny::NS("m"), "pfx",
@@ -10206,7 +10217,12 @@ test_that("le graphique se trace avec les reglages, et les limites sont en doses
                  list(courbe = TRUE, reperes = FALSE, axe2 = FALSE),
                  list(grille = FALSE, legende_pos = "none", theme = "classic"),
                  list(point_forme = "17", droite_type = "dashed",
-                      grad_x_angle = 45, titre = "T", sous_titre = "S")))
+                      titre = "T", sous_titre = "S"),
+                 # L'INCLINAISON VIENT DESORMAIS DU KIT, et pour les deux axes :
+                 # `gGradXAngle` a disparu au profit de `gAngleX`/`gAngleY`.
+                 list(extras = list(familles = c("angles", "pas"),
+                                    angle_x = 45, angle_y = 30,
+                                    pas = c(x = NA_real_, y = NA_real_)))))
     expect_s3_class(hstat_dl50_graphique(list(f), o), "ggplot")
 })
 
@@ -17277,5 +17293,211 @@ test_that("les cinq modules d'application demandes vivent sous « 3. Relations &
   for (tab in c("design", "dosage")) {
     p <- pos(paste0("#shiny-tab-", tab))
     expect_true(p > h5, label = tab)
+  }
+})
+
+test_that("les familles ajoutees au kit agissent, et le pas refuse un axe discret", {
+  skip_if_not_installed("ggplot2")
+  o <- list(familles = c("styles", "angles", "legende", "bornes", "pas"),
+            st_titre = "italic", st_axes = "bold", st_grad = "bold.italic",
+            angle_x = 45, angle_y = 30,
+            leg_titre = "Groupe", leg_titre_taille = 21, leg_taille = 19,
+            bornes = c(xmin = 2, xmax = 4, ymin = NA_real_, ymax = NA_real_),
+            pas = c(x = NA_real_, y = 2))
+  th <- hstat_plot_extras_theme(o)
+  expect_equal(ggplot2::calc_element("plot.title", th)$face, "italic")
+  expect_equal(ggplot2::calc_element("axis.title", th)$face, "bold")
+  expect_equal(ggplot2::calc_element("axis.text", th)$face, "bold.italic")
+  expect_equal(ggplot2::calc_element("axis.text.x", th)$angle, 45)
+  expect_equal(ggplot2::calc_element("axis.text.y", th)$angle, 30)
+  # L'ANGLE COMMANDE LE CALAGE : une etiquette penchee finit SOUS sa
+  # graduation. Sans cette assertion, un `hjust` fige a 0,5 passerait.
+  expect_equal(ggplot2::calc_element("axis.text.x", th)$hjust, 1)
+  expect_equal(ggplot2::calc_element("legend.title", th)$size, 21)
+  expect_equal(ggplot2::calc_element("legend.text", th)$size, 19)
+
+  # `titre = FALSE` NE TOUCHE PAS `plot.title`, et ce n'est pas un confort :
+  # ggplot REFUSE de fusionner un `element_text()` sur un `element_markdown()`
+  # (« Only elements of the same class can be merged »), si bien qu'un module
+  # qui pose son titre en markdown verrait la figure entiere lever -- et
+  # seulement la ou ggtext est installe.
+  th0 <- hstat_plot_extras_theme(o, titre = FALSE)
+  expect_null(th0$plot.title)
+  expect_equal(ggplot2::calc_element("axis.title", th0)$face, "bold")
+
+  d <- data.frame(g = c("A", "B", "C"), v = c(1, 5, 9), stringsAsFactors = FALSE)
+  cont <- ggplot2::ggplot(d, ggplot2::aes(.data[["v"]], .data[["v"]])) +
+    ggplot2::geom_point()
+  disc <- ggplot2::ggplot(d, ggplot2::aes(.data[["g"]], .data[["v"]])) +
+    ggplot2::geom_col()
+
+  brk <- function(p, ax) {
+    b <- ggplot2::ggplot_build(hstat_plot_extras_scales(p, ax))
+    gr <- ggplot2::ggplotGrob(hstat_plot_extras_scales(p, ax))
+    i <- grep("^axis-l", gr$layout$name)
+    tx <- character(0)
+    rec <- function(x) {
+      if (!is.null(x$label)) tx <<- c(tx, as.character(x$label))
+      if (!is.null(x$children)) for (k in x$children) rec(k)
+      if (!is.null(x$grobs)) for (k in x$grobs) rec(k)
+    }
+    for (k in i) rec(gr$grobs[[k]])
+    tx
+  }
+  # LE MAPPAGE S'EVALUE : `.data[["v"]]` est l'idiome dominant du depot, et une
+  # lecture par `all.vars()` y rendait « .data » -- le pas ne s'appliquait
+  # alors JAMAIS sur le cas general, sans que rien ne le dise.
+  expect_equal(brk(cont, o), c("2", "4", "6", "8"))
+  # Le meme reglage sur un axe DISCRET ne pose rien : « une graduation sur
+  # deux » n'a pas de sens sur des noms de traitement, et poser une echelle
+  # continue par-dessus ferait lever ggplot -- donc tomber l'onglet.
+  ox <- o; ox$pas <- c(x = 2, y = NA_real_)
+  expect_s3_class(ggplot2::ggplot_build(hstat_plot_extras_scales(disc, ox)),
+                  "ggplot_built")
+
+  # Les bornes recadrent sans rien retirer : la coord se pose, le nombre
+  # d'observations tracees ne bouge pas.
+  b <- ggplot2::ggplot_build(hstat_plot_extras_scales(cont, o))
+  expect_equal(NROW(b$data[[1]]), 3L)
+  expect_equal(b$layout$coord$limits$x, c(2, 4))
+  # Et rien ne se pose quand aucune borne n'est saisie.
+  o0 <- o; o0$bornes <- c(xmin = NA_real_, xmax = NA_real_,
+                          ymin = NA_real_, ymax = NA_real_)
+  expect_null(hstat_plot_extras_scales(cont, o0)$coordinates$limits$x)
+})
+
+test_that("le module de diversite porte tout le vocabulaire de mise en forme", {
+  skip_if_not_installed("shiny")
+  skip_if_not_installed("ggplot2")
+  d <- data.frame(
+    Parcelle  = rep(c("P1", "P2", "P3"), each = 5),
+    Espece    = rep(paste0("sp", 1:5), times = 3),
+    Abondance = c(40, 20, 10, 5, 1, 12, 12, 11, 10, 9, 60, 3, 2, 1, 0),
+    stringsAsFactors = FALSE)
+  vals <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d)
+  # LE TEST PORTE SUR LE MODULE : un test appelant `hstat_plot_extras_theme()`
+  # serait reste vert pendant que le module ne lui passe pas ses familles.
+  shiny::testServer(mod_diversity_server, args = list(values = vals), {
+    session$setInputs(divFormat = "long", divSite = "Parcelle",
+                      divEspece = "Espece", divAbondance = "Abondance",
+                      divBase = "2", divCalculer = 1)
+    session$setInputs(divGraphique = "indices", divIndiceTrace = "Shannon_H")
+    ce <- function(p, w) ggplot2::calc_element(w, p$theme)
+    av <- graphique()
+    expect_s3_class(av, "ggplot")
+
+    session$setInputs(divXStTitre = "italic", divXStAxes = "bold.italic",
+                      divXStGrad = "italic", divXAngleX = 45, divXAngleY = 30,
+                      divXLegendeTaille = 19, divXLegendeTitreTaille = 21,
+                      divXYmin = 0, divXYmax = 4, divXPasY = 2)
+    ap <- graphique()
+    expect_equal(ce(ap, "plot.title")$face, "italic")
+    expect_equal(ce(ap, "axis.title")$face, "bold.italic")
+    expect_equal(ce(ap, "axis.text")$face, "italic")
+    expect_equal(ce(ap, "axis.text.x")$angle, 45)
+    expect_equal(ce(ap, "axis.text.y")$angle, 30)
+    expect_equal(ce(ap, "legend.text")$size, 19)
+    expect_equal(ce(ap, "legend.title")$size, 21)
+    # ET LES VALEURS D'AVANT DIFFERENT : sans cette moitie, des reglages codes
+    # en dur aux memes valeurs passeraient aussi.
+    expect_false(identical(ce(av, "axis.text.x")$angle, 45))
+    expect_false(identical(ce(av, "legend.text")$size, 19))
+
+    b <- ggplot2::ggplot_build(ap)
+    expect_equal(b$layout$coord$limits$y, c(0, 4))
+    gr <- ggplot2::ggplotGrob(ap)
+    i <- grep("^axis-l", gr$layout$name)
+    tx <- character(0)
+    rec <- function(x) {
+      if (!is.null(x$label)) tx <<- c(tx, as.character(x$label))
+      if (!is.null(x$children)) for (k in x$children) rec(k)
+      if (!is.null(x$grobs)) for (k in x$grobs) rec(k)
+    }
+    for (k in i) rec(gr$grobs[[k]])
+    expect_equal(tx, c("0", "2", "4"))
+
+    # LE TITRE RESTE UN `element_markdown` : le kit lui fournit la VALEUR du
+    # style, il ne lui substitue pas un `element_text` -- qui ferait lever la
+    # fusion, et tomber l'onglet, la ou ggtext est installe.
+    expect_s3_class(ggplot2::ggplot_build(ap), "ggplot_built")
+  })
+})
+
+test_that("le module DL50 prend du kit les deux familles qui lui manquaient", {
+  skip_if_not_installed("shiny")
+  skip_if_not_installed("ggplot2")
+  d <- data.frame(Dose = c(0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5),
+                  N = rep(25, 7), Morts = c(0, 2, 6, 12, 18, 22, 24))
+  vals <- shiny::reactiveValues(data = d, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  shiny::testServer(mod_dl50_server, args = list(values = vals), {
+    session$setInputs(source = "fichier", colDose = "Dose", colN = "N",
+                      colMorts = "Morts", colEssai = "", importerDonnees = 1,
+                      methode = "em", alpha = 0.05, gTous = TRUE,
+                      gType = "probit")
+    ce <- function(p, w) ggplot2::calc_element(w, p$theme)
+    av <- graphe()
+    expect_s3_class(av, "ggplot")
+    session$setInputs(gAngleX = 45, gAngleY = 30)
+    ap <- graphe()
+    expect_equal(ce(ap, "axis.text.x")$angle, 45)
+    expect_equal(ce(ap, "axis.text.y")$angle, 30)
+    expect_false(identical(ce(av, "axis.text.x")$angle, 45))
+    # LA LECTURE PORTE LES MEMES FAMILLES QUE LA DECLARATION : declarer un
+    # widget que la lecture ignore, c'est le reglage qu'on deplace sans que
+    # l'image bouge.
+    expect_true(all(c("angles", "pas") %in% graphe_opt()$extras$familles))
+  })
+
+  # LE PAS SE MESURE SUR LES ETIQUETTES REELLEMENT DESSINEES, et l'echelle du
+  # module garde son etiquetage EN DOSES : c'est ce qui prouve qu'on a modifie
+  # l'echelle posee au lieu d'en ajouter une seconde, qui aurait remplace la
+  # premiere en avertissant et rendu des log10 nus.
+  e <- hstat_dl50_essai(c(0.00063, 0.00125, 0.0025, 0.005, 0.01, 0.02, 0.03),
+                        rep(25, 7), c(5, 7, 9, 11, 14, 18, 20),
+                        temoin_n = 25, temoin_morts = 0)
+  f <- hstat_dl50_ajuste(e, "em")
+  etiq <- function(q, cote) {
+    g <- ggplot2::ggplotGrob(q)
+    i <- grep(paste0("^axis-", cote), g$layout$name)
+    tx <- character(0)
+    rec <- function(x) {
+      if (!is.null(x$label)) tx <<- c(tx, as.character(x$label))
+      if (!is.null(x$children)) for (k in x$children) rec(k)
+      if (!is.null(x$grobs)) for (k in x$grobs) rec(k)
+    }
+    for (k in i) rec(g$grobs[[k]])
+    tx
+  }
+  sans <- hstat_dl50_graphique(list(f))
+  avec <- hstat_dl50_graphique(list(f), list(extras = list(
+    familles = "pas", pas = c(x = 1, y = NA_real_))))
+  expect_true(all(grepl("^0[.]", etiq(avec, "b"))))
+  expect_false(identical(etiq(sans, "b"), etiq(avec, "b")))
+  avecy <- hstat_dl50_graphique(list(f), list(extras = list(
+    familles = "pas", pas = c(x = NA_real_, y = 1))))
+  expect_equal(etiq(avecy, "l"), c("-3", "-2", "-1", "0", "1", "2", "3"))
+})
+
+test_that("diversite et DL50 declarent tout le vocabulaire, sans un seul doublon", {
+  skip_if_not_installed("shiny")
+  ids <- function(ui) {
+    h <- paste(as.character(htmltools::renderTags(ui)$html), collapse = "\n")
+    x <- gsub('^ id="|"$', "", regmatches(h, gregexpr(' id="[^"]+"', h))[[1]])
+    sub("^[^-]*-", "", x[!grepl("-label$", x)])
+  }
+  # LES FAMILLES SE PRENNENT UNE PAR UNE. Poser le kit entier sur un module qui
+  # porte deja une partie du vocabulaire declarerait DEUX reglages pour un meme
+  # trait, et c'est le second -- invisible -- qui finirait par mentir.
+  for (m in list(list(f = mod_diversity_ui, id = "diversity", pfx = "divX",
+                      fam = names(HSTAT_PLOT_EXTRAS_PAR_FAMILLE)),
+                 list(f = mod_dl50_ui, id = "dl50", pfx = "g",
+                      fam = c("axe", "cles", "marges", "angles", "pas")))) {
+    v <- ids(m$f(m$id))
+    expect_equal(v[duplicated(v)], character(0), label = m$id)
+    for (fam in m$fam)
+      for (suf in HSTAT_PLOT_EXTRAS_PAR_FAMILLE[[fam]])
+        expect_true(paste0(m$pfx, suf) %in% v,
+                    label = paste(m$id, fam, suf))
   }
 })

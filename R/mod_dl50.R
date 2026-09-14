@@ -1848,7 +1848,7 @@ HSTAT_DL50_OPT_DEFAUT <- list(
   titre_taille = 15, titre_style = "bold", titre_pos = 0.5,
   sous_titre_taille = 12, sous_titre_style = "italic", sous_titre_pos = 0.5,
   axe_titre_taille = 12, axe_titre_style = "plain",
-  grad_x_taille = 10, grad_x_style = "plain", grad_x_angle = 0,
+  grad_x_taille = 10, grad_x_style = "plain",
   grad_y_taille = 10, grad_y_style = "plain",
   legende_pos = "right", legende_taille = 10, legende_titre_taille = 11,
   legende_titre = "",
@@ -2108,9 +2108,10 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
       plot.subtitle = .hstat_dl50_txt(o$sous_titre_taille, o$sous_titre_style,
                                       hjust = o$sous_titre_pos),
       axis.title = .hstat_dl50_txt(o$axe_titre_taille, o$axe_titre_style),
-      axis.text.x = .hstat_dl50_txt(o$grad_x_taille, o$grad_x_style,
-                                    angle = o$grad_x_angle,
-                                    hjust = if (o$grad_x_angle != 0) 1 else NULL),
+      # L'INCLINAISON VIENT DU KIT, pose plus bas, et pour les DEUX axes. La
+      # redire ici la figerait : le curseur se changerait sans que l'image
+      # bouge -- le defaut que ce depot traque.
+      axis.text.x = .hstat_dl50_txt(o$grad_x_taille, o$grad_x_style),
       axis.text.y = .hstat_dl50_txt(o$grad_y_taille, o$grad_y_style),
       legend.position = o$legende_pos,
       legend.text = .hstat_dl50_txt(o$legende_taille, "plain"),
@@ -2138,7 +2139,11 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
   }
   # LE KIT SE POSE EN DERNIER parmi les themes : un theme complet remplace
   # tout ce qui precede. Il ne s'applique que s'il a ete rempli.
-  if (length(o$extras)) p <- p + hstat_plot_extras_theme(o$extras)
+  if (length(o$extras)) {
+    p <- p + hstat_plot_extras_theme(o$extras)
+    # Le pas des graduations est une ECHELLE, pas un theme.
+    p <- hstat_plot_extras_scales(p, o$extras)
+  }
   # Pose EN DERNIER : un `p + couche` reconstruit l'objet et emporterait
   # l'attribut avec lui.
   if (length(ecartes)) attr(p, "ecartes") <- ecartes
@@ -2469,12 +2474,10 @@ mod_dl50_ui <- function(id) {
                 shiny::column(6, shiny::selectInput(ns("gAxeTitreStyle"),
                   "Style des titres d'axe", choices = HSTAT_FONT_STYLES))),
               shiny::fluidRow(
-                shiny::column(4, shiny::numericInput(ns("gGradXTaille"),
+                shiny::column(6, shiny::numericInput(ns("gGradXTaille"),
                   "Taille des graduations X", value = 10, min = 4, max = 30, step = 1)),
-                shiny::column(4, shiny::selectInput(ns("gGradXStyle"),
-                  "Style des graduations X", choices = HSTAT_FONT_STYLES)),
-                shiny::column(4, shiny::numericInput(ns("gGradXAngle"),
-                  "Angle des graduations X", value = 0, min = -90, max = 90, step = 15))),
+                shiny::column(6, shiny::selectInput(ns("gGradXStyle"),
+                  "Style des graduations X", choices = HSTAT_FONT_STYLES))),
               shiny::fluidRow(
                 shiny::column(6, shiny::numericInput(ns("gGradYTaille"),
                   "Taille des graduations Y", value = 10, min = 4, max = 30, step = 1)),
@@ -2551,10 +2554,18 @@ mod_dl50_ui <- function(id) {
                   "Taille du titre de légende", value = 11, min = 4, max = 30,
                   step = 1))))),
 
-            # Le module porte deja sa taille de police de base (`gBaseSize`) :
-            # il ne prend du kit que les trois familles qui lui manquaient.
+            # LE KIT SE PREND PAR FAMILLE, JAMAIS EN BLOC. Le module porte deja
+            # sa police de base (`gBaseSize`), ses bornes d'axe (`gXmin`...) et
+            # des styles PLUS FINS que ceux du kit (X et Y separes) : lui poser
+            # ces familles-la donnerait deux reglages pour un meme trait, dont
+            # un seul agirait.
+            #
+            # `angles` remplace son `gGradXAngle` : le module n'avait d'angle
+            # que sur X, et « Visualisation des donnees » en offre deux. Une
+            # seule declaration vaut mieux qu'une X maison plus une Y copiee.
             hstat_plot_extras_ui(ns, "g",
-                                 familles = c("axe", "cles", "marges")),
+                                 familles = c("axe", "cles", "marges",
+                                              "angles", "pas")),
 
           shinydashboard::box(
             # Le titre suit le type choisi : une boite intitulee « Droite de
@@ -3532,7 +3543,6 @@ mod_dl50_server <- function(id, values) {
         axe_titre_style = input$gAxeTitreStyle %||% "plain",
         grad_x_taille = nb("gGradXTaille", 10),
         grad_x_style = input$gGradXStyle %||% "plain",
-        grad_x_angle = nb("gGradXAngle", 0),
         grad_y_taille = nb("gGradYTaille", 10),
         grad_y_style = input$gGradYStyle %||% "plain",
         legende_pos = input$gLegendePos %||% "right",
@@ -3553,8 +3563,12 @@ mod_dl50_server <- function(id, values) {
         repere_etiquette = isTRUE(input$gRepereEtiq),
         theme = input$gTheme %||% "minimal",
         base_size = nb("gBaseSize", 12),
+        # LA LECTURE PORTE LES MEMES FAMILLES QUE LA DECLARATION. Les laisser
+        # diverger est le defaut le plus silencieux du kit : le widget existe,
+        # l'utilisateur le deplace, et la lecture ne le regarde pas.
         extras = hstat_plot_extras_lire(input, "g",
-                                        familles = c("axe", "cles", "marges")),
+                                        familles = c("axe", "cles", "marges",
+                                                     "angles", "pas")),
         palette = input$gPalette %||% "Set1",
         couleur = input$gCouleur %||% "#2e86c1",
         grille = isTRUE(input$gGrille), axe2 = isTRUE(input$gAxe2),

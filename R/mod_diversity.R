@@ -293,11 +293,7 @@ mod_diversity_ui <- function(id) {
                   shiny::sliderInput(ns("divAxeSize"), "Taille des titres d'axe",
                     min = 6, max = 24, value = 12, step = 1, ticks = FALSE),
                   shiny::sliderInput(ns("divGradSize"), "Taille des graduations",
-                    min = 5, max = 20, value = 10, step = 1, ticks = FALSE),
-                  shiny::sliderInput(ns("divAngleX"), "Inclinaison des libellés X (°)",
-                    min = 0, max = 90, value = 45, step = 5, ticks = FALSE),
-                  shiny::selectInput(ns("divTitreStyle"), "Style du titre",
-                    choices = HSTAT_FONT_STYLES, selected = "bold"))),
+                    min = 5, max = 20, value = 10, step = 1, ticks = FALSE))),
               shiny::column(4,
                 .hstat_opt_section(
                   "Couleurs", "palette", "#e67e22", "#fdf2e9",
@@ -311,7 +307,17 @@ mod_diversity_ui <- function(id) {
                     choices = c("Droite" = "right", "Bas" = "bottom",
                                 "Haut" = "top", "Gauche" = "left", "Aucune" = "none"),
                     selected = "right")))),
-            hstat_plot_extras_ui(ns, "divX")
+            # LE MODULE PORTE SES PROPRES TAILLES (titre, titres d'axes,
+            # graduations) : il ne les reprend pas du kit, qui n'en a qu'une.
+            # Tout le reste du vocabulaire de « Visualisation des donnees » lui
+            # arrive d'ici -- styles, inclinaisons des DEUX axes, bornes et pas
+            # de graduations -- plutot que d'etre recopie une treizieme fois.
+            #
+            # `divAngleX` et `divTitreStyle` ont disparu : le kit les porte sous
+            # `divXAngleX` et `divXStTitre`. Les garder en plus aurait donne
+            # DEUX reglages pour un meme trait, dont un seul agirait.
+            hstat_plot_extras_ui(ns, "divX",
+                                 familles = HSTAT_PLOT_EXTRAS_FAMILLES)
           )
         )
       )
@@ -788,7 +794,11 @@ mod_diversity_server <- function(id, values) {
 
       # LE KIT SE POSE EN DERNIER. Un theme complet remplace tout ce qui
       # precede : pose avant celui du module, il serait efface sans un mot.
-      extras <- hstat_plot_extras_lire(input, "divX")
+      # LA LECTURE PORTE LES MEMES FAMILLES QUE LA DECLARATION : le defaut
+      # du kit n'en rend que quatre, et les cinq autres seraient declarees,
+      # deplacees, et sans effet.
+      extras <- hstat_plot_extras_lire(input, "divX",
+                                       familles = HSTAT_PLOT_EXTRAS_FAMILLES)
       titre  <- input$divTitre %||% ""
       st     <- input$divSousTitre %||% ""
       lx     <- input$divLabX %||% ""
@@ -796,7 +806,6 @@ mod_diversity_server <- function(id, values) {
       tsize  <- hstat_finite(input$divTitreSize, 15)
       asize  <- hstat_finite(input$divAxeSize, 12)
       gsize  <- hstat_finite(input$divGradSize, 10)
-      angle  <- hstat_finite(input$divAngleX, 45)
 
       if (nzchar(titre)) p <- p + ggplot2::ggtitle(titre)
       if (nzchar(st))    p <- p + ggplot2::labs(subtitle = st)
@@ -814,22 +823,29 @@ mod_diversity_server <- function(id, values) {
       p <- p +
         hstat_export_theme(input, "divP", base_size = extras$police %||% HSTAT_GG_BASE_SIZE) +
         ggplot2::theme(
-          plot.title = element_markdown(size = tsize,
-                                        face = input$divTitreStyle %||% "bold",
-                                        hjust = 0.5),
+          # LE STYLE ET L'INCLINAISON VIENNENT DU KIT, posé juste après : on ne
+          # fixe ici que ce que le kit ne porte pas -- les tailles nommées.
+          # Y redire une face ou un angle les figerait, et le réglage du kit
+          # se changerait sans que l'image bouge.
+          plot.title = element_markdown(size = tsize, hjust = 0.5,
+                                        face = extras$st_titre %||% "bold"),
           axis.title.x = hstat_axe_titre_lire(input, "div", size = asize, axe = "x"),
           axis.title.y = hstat_axe_titre_lire(input, "div", size = asize, axe = "y"),
-          axis.text.x = ggplot2::element_text(
-            size = gsize, angle = angle,
-            hjust = if (angle > 0) 1 else 0.5,
-            vjust = if (angle > 0) 1 else 0.5),
+          axis.text.x = ggplot2::element_text(size = gsize),
           axis.text.y = ggplot2::element_text(size = gsize),
           legend.position = input$divLegendePos %||% "right",
           panel.grid.major = if (isTRUE(input$divGrilleMaj))
             ggplot2::element_line() else ggplot2::element_blank(),
           panel.grid.minor = if (isTRUE(input$divGrilleMin))
             ggplot2::element_line() else ggplot2::element_blank()) +
-        hstat_plot_extras_theme(extras)
+        # `titre = FALSE` : le titre est pose ici en `element_markdown()`, et
+        # ggplot refuse de lui fusionner un `element_text()` -- la figure
+        # entiere leverait. Le kit fournit la VALEUR du style, le module
+        # l'applique sur son propre element.
+        hstat_plot_extras_theme(extras, titre = FALSE)
+      # LES BORNES ET LE PAS SONT DES ECHELLES, pas un theme : ils se posent
+      # sur le graphique, jamais dans `theme()`.
+      p <- hstat_plot_extras_scales(p, extras)
       p
     })
 
