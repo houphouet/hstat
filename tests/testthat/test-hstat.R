@@ -11971,20 +11971,27 @@ test_that("le refus de la variable de répétition passe par un gabarit", {
   expect_false(grepl("sprintf(paste0(\"La variable de r", txt, fixed = TRUE))
 })
 
-test_that("« Gain de rendement » se place entre le plan et les seuils", {
+test_that("« Gain de rendement » precede les seuils d'efficacite", {
   root <- .hstat_repo_root()
   skip_if(is.na(root))
   chemin <- file.path(root, "inst", "app", "UX.R")
   skip_if_not(file.exists(chemin))
   txt <- readLines(chemin, warn = FALSE, encoding = "UTF-8")
   pos <- function(tab) grep(sprintf('tabName = "%s"', tab), txt)[1]
-  # L'ORDRE DU MENU EST L'ORDRE DE TRAVAIL. Le gain de rendement se calcule
-  # apres le plan d'experience et avant les seuils d'efficacite ; le ranger
-  # ailleurs oblige a le chercher.
+  # LE MENU EST RANGE PAR NATURE D'ANALYSE, PLUS PAR CHRONOLOGIE D'ESSAI.
+  # Cette assertion exigeait `design < yield` -- le gain de rendement venant
+  # APRES le plan d'experience, dans l'ordre ou l'on travaille. Le rangement
+  # demande est autre : rendement, seuils, diversite, epidemiologie et DL50
+  # sont des analyses INFERENTIELLES et rejoignent la section 3, tandis que la
+  # section 5 garde ce qui se calcule AVANT l'essai (plan, doses). Les deux
+  # lectures sont legitimes ; c'est un choix d'organisation, pas une regle que
+  # les chiffres imposent, et il a ete tranche.
+  #
+  # Ce qui reste vrai et se garde : le gain de rendement precede les seuils
+  # d'efficacite -- on calcule le rendement avant de le comparer a un seuil.
   expect_true(is.finite(pos("design")))
   expect_true(is.finite(pos("yield")))
   expect_true(is.finite(pos("threshold")))
-  expect_lt(pos("design"), pos("yield"))
   expect_lt(pos("yield"), pos("threshold"))
 })
 
@@ -17101,4 +17108,174 @@ test_that("un nom de colonne hostile ne quitte jamais son role de donnee", {
   cp <- hstat_epi_dlnm_comparaison(list(r))
   expect_equal(as.character(cp$Exposition[1]), ch)
   expect_false(grepl("<img", hstat_html_escape(ch), fixed = TRUE))
+})
+
+test_that("le kit de mise en forme AGIT sur le theme construit, il ne fait pas que s'appeler", {
+  skip_if_not_installed("ggplot2")
+  # LE DEFAUT ETAIT UNE VALEUR JETEE. `hstat_apply_plot_opts()` ecrivait
+  # `g + hstat_plot_extras_theme(...)` sans affecter : la ligne suivante
+  # repartait du `g` d'avant, et LES NEUF REGLAGES DU KIT n'avaient aucun effet
+  # sur les quatre modules servis (ML, DL, series temporelles, epidemiologie).
+  # L'utilisateur cochait « Tracer les axes X et Y » et l'image ne bougeait pas.
+  #
+  # Le test qui gardait le kit cherchait l'APPEL dans le source du module : il
+  # etait satisfait par un appel dont la valeur se perd. On mesure donc l'EFFET
+  # sur le theme construit -- verifie comme echouant sur la version d'avant
+  # correction (axis.line.x `element_blank`, marge haute 6,5 pt pour 40 pt
+  # demandes, cles a 1,2 ligne pour 2,5 demandees).
+  pfx <- "epiG"
+  inp <- list(epiGBase = 13, epiGTheme = "minimal",
+              epiGAxisLine = TRUE, epiGAxisLineCouleur = "#FF0000",
+              epiGAxisLineEpaisseur = 2.5, epiGLegendeCles = 2.5,
+              epiGMargeHaut = 40, epiGMargeBas = 41,
+              epiGMargeGauche = 42, epiGMargeDroite = 43)
+  g <- ggplot2::ggplot(data.frame(x = 1:5, y = 1:5), ggplot2::aes(x, y)) +
+    ggplot2::geom_point()
+  h <- hstat_apply_plot_opts(g, inp, pfx)
+
+  ax <- ggplot2::calc_element("axis.line.x", h$theme)
+  expect_true(inherits(ax, "element_line"))
+  expect_equal(ax$colour, "#FF0000")
+  expect_equal(as.numeric(ax$linewidth), 2.5)
+  ay <- ggplot2::calc_element("axis.line.y", h$theme)
+  expect_true(inherits(ay, "element_line"))
+
+  # LES MARGES SONT L'ASSERTION QUI DISCRIMINE LE MIEUX : les quatre valeurs
+  # sont DIFFERENTES entre elles, si bien qu'un kit pose de travers (ordre
+  # haut/droite/bas/gauche echange) ne passerait pas non plus.
+  m <- as.numeric(ggplot2::calc_element("plot.margin", h$theme))
+  expect_equal(m, c(40, 43, 41, 42))
+
+  kh <- ggplot2::calc_element("legend.key.height", h$theme)
+  expect_equal(as.numeric(kh), 2.5)
+
+  # ET DECOCHE, LE REGLAGE NE POSE RIEN : un `element_blank()` en repli
+  # effacerait les axes d'un theme qui les trace de lui-meme (« classique »).
+  inp$epiGAxisLine <- FALSE
+  h0 <- hstat_apply_plot_opts(g, inp, pfx)
+  expect_false(inherits(h0$theme$axis.line, "element_line"))
+})
+
+test_that("l'epaisseur de la ligne de reference est un reglage, et « nommer » ne commande que le nom", {
+  skip_if_not_installed("dlnm")
+  skip_if_not_installed("shiny")
+  skip_if_not_installed("ggplot2")
+  set.seed(52); n <- 160
+  d <- data.frame(date = seq(as.Date("2010-01-01"), by = "month", length.out = n))
+  d$tmax  <- 28 + 3 * sin(2 * pi * seq_len(n) / 12) + stats::rnorm(n, 0, 1)
+  d$nais  <- stats::rpois(n, 300)
+  d$prema <- stats::rpois(n, exp(log(d$nais) - 3.1 + 0.05 * (d$tmax - 28)))
+  vals <- shiny::reactiveValues(data = d, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  # LE TEST PORTE SUR LE MODULE : un test appelant `.hstat_epi_repere_couche()`
+  # serait reste vert pendant que `repere()` ne lit pas l'epaisseur.
+  shiny::testServer(mod_epidemio_server, args = list(values = vals), {
+    session$setInputs(epiAnalyse = "dlnm", epiY = "prema", epiExpo = "tmax",
+                      epiOffset = "nais", epiTemps = "date", epiMutuel = TRUE,
+                      epiLag = 4, epiNkLag = 2, epiFamille = "auto",
+                      epiPeriode = 12, epiHarmo = 2, epiTendance = 3,
+                      epiConf = 0.95, epiAjust = character(0), epiLancer = 1)
+    session$setInputs(epiFigure = "cumul", epiRefLab = TRUE, epiRefEp = 2.4)
+    p <- figure()
+    expect_true(inherits(p, "ggplot"))
+    vl <- Filter(function(l) inherits(l$geom, "GeomVline"), p$layers)
+    expect_equal(length(vl), 1L)
+    expect_equal(as.numeric(vl[[1]]$aes_params$linewidth), 2.4)
+
+    # L'EPAISSEUR SUIT LE REGLAGE, elle n'est pas une constante : on la change
+    # et on la relit. Sans cette seconde lecture, une valeur codee en dur a 2,4
+    # passerait aussi.
+    session$setInputs(epiRefEp = 0.8)
+    vl2 <- Filter(function(l) inherits(l$geom, "GeomVline"), figure()$layers)
+    expect_equal(as.numeric(vl2[[1]]$aes_params$linewidth), 0.8)
+
+    # « NOMMER LA LIGNE » N'EFFACE PLUS LE TRAIT. Decochee, la case retirait la
+    # couche entiere -- donc la reference a laquelle tous les RR se rapportent,
+    # pour un libelle qui ne parle que du nom.
+    nt <- function(p) length(Filter(function(l) inherits(l$geom, "GeomText"), p$layers))
+    avant <- nt(figure())
+    session$setInputs(epiRefLab = FALSE)
+    p3 <- figure()
+    vl3 <- Filter(function(l) inherits(l$geom, "GeomVline"), p3$layers)
+    expect_equal(length(vl3), 1L)
+    expect_equal(nt(p3), avant - 1L)
+  })
+})
+
+test_that("les fenetres de retard sont une option, et decochees elles ne posent aucun tableau", {
+  skip_if_not_installed("dlnm")
+  skip_if_not_installed("shiny")
+  set.seed(53); n <- 160
+  d <- data.frame(date = seq(as.Date("2010-01-01"), by = "month", length.out = n))
+  d$tmax  <- 28 + 3 * sin(2 * pi * seq_len(n) / 12) + stats::rnorm(n, 0, 1)
+  d$nais  <- stats::rpois(n, 300)
+  d$prema <- stats::rpois(n, exp(log(d$nais) - 3.1 + 0.05 * (d$tmax - 28)))
+  vals <- shiny::reactiveValues(data = d, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  shiny::testServer(mod_epidemio_server, args = list(values = vals), {
+    session$setInputs(epiAnalyse = "dlnm", epiY = "prema", epiExpo = "tmax",
+                      epiOffset = "nais", epiTemps = "date", epiMutuel = TRUE,
+                      epiLag = 4, epiNkLag = 2, epiFamille = "auto",
+                      epiPeriode = 12, epiHarmo = 2, epiTendance = 3,
+                      epiConf = 0.95, epiAjust = character(0), epiLancer = 1)
+    fen <- function() sum(grepl("^Fenetres", names(tables())))
+
+    session$setInputs(epiFenOn = FALSE)
+    expect_equal(length(fenetres()), 0L)
+    expect_equal(fen(), 0L)
+
+    # DECOCHEE, ON NE RETOMBE PAS SUR LE CATALOGUE PAR DEFAUT : cela poserait
+    # les tableaux que l'utilisateur vient de retirer, et le reglage serait un
+    # reglage que l'application ignore.
+    session$setInputs(epiFenOn = TRUE,
+                      epiFenetres = "0-1 court terme\n2-4 différé",
+                      epiFenPct = 90)
+    expect_equal(length(fenetres()), 2L)
+    expect_equal(fen(), 1L)
+  })
+})
+
+test_that("les cinq modules d'application demandes vivent sous « 3. Relations & inférence »", {
+  skip_if_not_installed("shinydashboard")
+  skip_if_not_installed("htmltools")
+  root <- .hstat_repo_root()
+  app <- file.path(root, "inst", "app")
+  e <- new.env(parent = globalenv())
+  ok <- tryCatch({
+    suppressMessages(suppressWarnings({
+      old <- setwd(app); on.exit(setwd(old), add = TRUE)
+      socle <- file.path(root, "R")
+      for (f in c(file.path(socle, "utils.R"),
+                  list.files(socle, pattern = "^mod_.*[.]R$", full.names = TRUE)))
+        try(sys.source(f, e), silent = TRUE)
+      hstat_installer_replis_ui(e)
+      try(sys.source("UX.R", e), silent = TRUE)
+    }))
+    exists("ui", envir = e)
+  }, error = function(err) FALSE)
+  skip_if_not(isTRUE(ok), "interface non constructible dans cet environnement")
+
+  # LA MESURE PORTE SUR LE MENU RENDU, pas sur l'ordre des lignes du fichier :
+  # un item place dans un autre conteneur y sortirait au meme rang de source et
+  # a une tout autre place a l'ecran.
+  html <- paste(as.character(htmltools::renderTags(get("ui", e))$html), collapse = "\n")
+  pos <- function(motif) {
+    p <- regexpr(motif, html, fixed = TRUE)
+    expect_true(p > 0, label = motif)
+    as.integer(p)
+  }
+  h3 <- pos("3. Relations &amp; inf")
+  h4 <- pos("4. Mod")
+  expect_true(h3 < h4)
+  for (tab in c("yield", "threshold", "diversity", "epidemio", "dl50")) {
+    p <- pos(paste0("#shiny-tab-", tab))
+    expect_true(p > h3 && p < h4, label = tab)
+  }
+  # ET LA SECTION 5 GARDE LES SIENS : sans cette moitie, une interface qui
+  # aurait tout empile sous la section 3 passerait aussi.
+  h5 <- pos("5. Planification")
+  for (tab in c("design", "dosage")) {
+    p <- pos(paste0("#shiny-tab-", tab))
+    expect_true(p > h5, label = tab)
+  }
 })
