@@ -8093,8 +8093,23 @@ hstat_apply_plot_opts <- function(g, input, prefix) {
     legend.position = input[[paste0(prefix, "Legend")]] %||% "right",
     axis.text.x = ggplot2::element_text(angle = rot,
                                         hjust = if (rot > 0) 1 else 0.5))
-  # LE KIT SE POSE EN DERNIER : un theme complet remplace tout ce qui precede.
-  g + hstat_plot_extras_theme(
+  # LE KIT SE POSE APRES LE THEME : un theme complet remplace tout ce qui le
+  # precede, et `viz_get_theme()` ci-dessus en est un. Ce qui suit (la face
+  # des textes, le recadrage) ne touche ni l'axe, ni les marges, ni les cles.
+  #
+  # ET LE RESULTAT S'AFFECTE. Cette expression etait ecrite `g + ...` : sa
+  # valeur etait JETEE, et la ligne suivante repartait du `g` d'avant. Les
+  # NEUF reglages du kit -- trait des axes et sa couleur, son epaisseur,
+  # taille des cles, quatre marges -- etaient donc declares, lus, et sans
+  # aucun effet sur QUATRE modules a la fois (ML, DL, series temporelles,
+  # epidemiologie). Rien ne leve : l'utilisateur cochait « Tracer les axes X
+  # et Y » et l'image ne bougeait pas. Mesure : `axis.line.x` valait
+  # `element_blank` et la marge haute 6,5 pt pour 40 pt demandes.
+  #
+  # Le test qui gardait le kit cherchait l'APPEL dans le source du module :
+  # il etait satisfait par un appel dont la valeur se perd. C'est l'effet
+  # sur le theme construit qui se verifie desormais.
+  g <- g + hstat_plot_extras_theme(
     hstat_plot_extras_lire(input, prefix, familles = c("axe", "cles", "marges")))
 
   # Le STYLE se pose apres le theme, sinon le theme l'efface. `element_text`
@@ -12725,16 +12740,22 @@ hstat_epi_pct_valides <- function(x) {
 
 .hstat_epi_repere_couche <- function(o, ref, etendue = NULL, expo = NULL) {
   rp <- (o %||% list())$repere %||% list()
-  if (!isTRUE(rp$montrer %||% TRUE)) return(NULL)
   v <- suppressWarnings(as.numeric(ref)[1])
   if (!isTRUE(is.finite(v))) return(NULL)
   # L'axe est en percentiles des que l'appelant fournit la serie d'exposition.
   pos_x <- if (!is.null(expo)) .hstat_epi_pct(v, expo) else v
+  # « NOMMER LA LIGNE » NE COMMANDE QUE LE NOM. Decochee, la case effaçait le
+  # TRAIT lui-meme : un reglage qui fait davantage que ce que son libelle
+  # annonce, et ici le trait est la reference a laquelle tous les RR se
+  # rapportent -- la figure perdait son point d'appui sans qu'on l'ait
+  # demande. L'etiquette seule disparait, le trait reste.
   t0 <- as.character(rp$texte %||% "")[1]
-  lab <- if (nzchar(t0)) t0 else trf("Référence : %.3g", v)
+  lab <- if (!isTRUE(rp$montrer %||% TRUE)) NULL
+         else if (nzchar(t0)) t0 else trf("Référence : %.3g", v)
   hstat_ligne_repere(pos_x, sens = "v", etiquette = lab,
                      position = rp$position %||% "haut",
                      cote = rp$cote %||% "droite",
+                     epaisseur = rp$epaisseur %||% 0.5,
                      taille = rp$taille %||% 3.5,
                      style = rp$style %||% "plain",
                      etendue = etendue)

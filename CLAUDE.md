@@ -6275,6 +6275,121 @@ paquet recommandé, donc presque toujours présent — et c'est précisément la
 de le nommer : ce qui n'est pas déclaré n'est pas garanti, et un test sauté
 ressemble à un test qui passe.
 
+
+## Une valeur jetée : le kit de mise en forme ne s'appliquait sur aucun module
+
+Signalé à l'écran — « malgré avoir coché le tracé de x et y, les axes de tracés
+n'apparaissent pas ». La cause n'est pas dans le kit, elle est dans une ligne
+sans affectation, et sa portée dépasse de loin ce qui était signalé.
+
+`hstat_apply_plot_opts()` écrivait :
+
+```r
+  g + hstat_plot_extras_theme(hstat_plot_extras_lire(input, prefix, familles))
+  # la ligne suivante repart de `g`, celui d'AVANT
+  g <- g + ggplot2::theme(plot.title = ..., axis.title = ..., axis.text = ...)
+```
+
+La valeur est **jetée**. Rien ne lève, rien n'est vide : les **neuf** réglages
+du kit — trait des axes, sa couleur, son épaisseur, taille des clés de légende,
+quatre marges — étaient déclarés, lus, et **sans aucun effet**, sur les
+**quatre** modules servis par ce kit : ML, Deep Learning, séries temporelles,
+épidémiologie. C'est le plus trompeur des trois défauts que ce dépôt traque, et
+il touchait le point de passage commun plutôt qu'une copie.
+
+Mesuré sur la figure construite, réglages demandés contre thème obtenu :
+
+| Réglage demandé | avant | après |
+|---|---|---|
+| trait des axes, rouge, 2,5 | `element_blank` | `element_line` #FF0000, 2,5 |
+| marge haute 40 pt | **6,5 pt** (le défaut du thème) | 40 pt |
+| clés de légende 2,5 lignes | 1,2 ligne | 2,5 lignes |
+
+**Et le test qui gardait le kit ne pouvait pas le voir** : il cherchait l'appel
+`hstat_plot_extras_theme(` dans le source de chaque module servi. L'appel était
+bien là — c'est sa valeur qui se perdait. Une assertion qui compte les appels ne
+garde rien ; c'est l'**effet sur le thème construit** qui se vérifie désormais,
+et il a été vérifié comme échouant sur la version d'avant correction.
+
+Détail de méthode, et c'est la cinquième fois dans ce dépôt : ma **première**
+mesure employait le préfixe `epiMef` au lieu de `epiG`. Elle annonçait bien
+`element_blank`… mais elle l'aurait annoncé sur du code corrigé aussi, puisque
+aucune entrée ne correspondait. **Une mesure qui ne porte pas sur ce qui peut
+casser ne dit rien**, et elle se trompe toujours dans le sens rassurant. La
+mesure juste compare les deux codes sur le même préfixe.
+
+Les **quatre marges du test portent quatre valeurs différentes** (40, 41, 42,
+43) : un kit posé de travers — l'ordre haut/droite/bas/gauche échangé — ne
+passerait pas davantage. Quatre fois la même valeur rendrait l'assertion aveugle
+à cette faute-là.
+
+Le commentaire « le kit se pose en dernier » a été recalé : il se pose **après
+le thème**, qui est la seule contrainte réelle (un thème complet remplace tout
+ce qui le précède). Ce qui suit — la face des textes, le recadrage — ne touche
+ni l'axe, ni les marges, ni les clés. Une documentation qui décrit un ordre que
+le code ne tient pas se retourne contre celui qui la lit.
+
+### « Nommer la ligne de référence » ne commande que le nom
+
+Trouvé en branchant le réglage suivant. `.hstat_epi_repere_couche()` commençait
+par `if (!isTRUE(rp$montrer)) return(NULL)` : décocher la case effaçait le
+**trait** lui-même, et non son étiquette. Or le trait est la **référence à
+laquelle tous les RR se rapportent** — la figure perdait son point d'appui pour
+un libellé qui ne parle que du nom.
+
+C'est le défaut que ce dépôt traque sous une autre forme : un réglage qui fait
+davantage que ce que son libellé annonce. L'étiquette seule disparaît désormais.
+
+### L'épaisseur de la ligne de référence est un réglage
+
+`hstat_ligne_repere()` prenait déjà `epaisseur` ; l'épidémiologie ne la lui
+passait pas et héritait de 0,5 sans pouvoir en changer. Un curseur la porte
+(0,1 à 3).
+
+La carte s'intitule désormais **« Ligne de référence »** et non « Étiquette de
+la ligne de référence » : un titre qui ne parle que de l'étiquette en portant
+l'épaisseur du **trait** ferait chercher ce réglage ailleurs — c'est le même
+arbitrage que « Mise en forme générale », qui ne nomme aucune famille pour
+rester vrai quel que soit son contenu.
+
+Le test lit l'épaisseur **deux fois, à deux valeurs** (2,4 puis 0,8) : une
+valeur codée en dur satisferait une lecture unique.
+
+### Les fenêtres de retard sont une option
+
+Toutes les études ne publient pas de RR par fenêtre, et le bloc posait un
+tableau de plus **par exposition**, à l'écran comme dans le classeur exporté.
+Une case le commande, décochée par défaut.
+
+**Décochée, on ne retombe pas sur le catalogue par défaut.** `fenetres()` rend
+une liste vide, pas `HSTAT_EPI_FENETRES` : y retomber poserait les tableaux que
+l'utilisateur vient de retirer, et la case serait un réglage que l'application
+ignore — exactement ce que ce dépôt corrige ailleurs.
+
+### Cinq modules d'application rejoignent « 3. Relations & inférence »
+
+Rendement/Gain de rendement, Seuils d'efficacité, Diversité écologique,
+Épidémiologie et DL50/CL50 quittent « 5. Planification & outils ». Ce sont des
+analyses inférentielles — elles estiment, testent et publient des intervalles —
+et non des outils de préparation ; la section 5 garde le plan d'expérience et
+les doses & dilutions, qui se calculent **avant** l'essai.
+
+Le test mesure le **menu rendu**, pas l'ordre des lignes du fichier : un item
+déplacé dans un autre conteneur sortirait au même rang de source et à une tout
+autre place à l'écran. Il vérifie **les deux moitiés** — les cinq sous la
+section 3, et `design`/`dosage` toujours après la section 5 : sans la seconde,
+une interface qui aurait tout empilé sous la section 3 passerait aussi.
+
+**Une assertion existante a dû être réécrite, et il faut dire laquelle.**
+« *Gain de rendement* se place entre le plan et les seuils » exigeait
+`design < yield` — le rendement venant **après** le plan d'expérience, dans
+l'ordre où l'on travaille. C'est une autre lecture du menu, légitime elle
+aussi ; le rangement retenu classe par **nature d'analyse**. Ce qui restait
+vrai a été gardé (`yield < threshold` : on calcule un rendement avant de le
+comparer à un seuil), et la raison du changement est écrite dans le test plutôt
+que l'assertion supprimée en silence — une assertion qui disparaît sans motif
+se relit comme un oubli.
+
 ## Fins de ligne
 
 Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. La fin de

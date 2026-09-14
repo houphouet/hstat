@@ -146,22 +146,29 @@ mod_epidemio_ui <- function(id) {
             collapsible = TRUE, collapsed = TRUE,
             hstat_plot_opts_ui(ns, HSTAT_EPI_PREFIXE_MEF),
             shiny::hr(),
+            # LA CARTE PORTE LE TRAIT *ET* SON ETIQUETTE, donc elle les nomme
+            # tous deux. S'intituler « Etiquette de la ligne de reference » en
+            # portant l'epaisseur du trait serait le libelle qui promet moins
+            # que ce qu'il contient -- on chercherait l'epaisseur ailleurs.
             .hstat_opt_section(
-              "Étiquette de la ligne de référence", "tag", "#2980b9", "#eaf4fb",
+              "Ligne de référence", "tag", "#2980b9", "#eaf4fb",
+              shiny::sliderInput(ns("epiRefEp"), "Épaisseur du trait",
+                min = 0.1, max = 3, value = 0.5, step = 0.1, ticks = FALSE),
               shiny::checkboxInput(ns("epiRefLab"),
                 "Nommer la ligne de référence sur la figure", value = TRUE),
-              shiny::textInput(ns("epiRefTxt"),
-                "Texte (vide = la valeur de référence)", value = ""),
-              shiny::fluidRow(
-                shiny::column(6, shiny::selectInput(ns("epiRefPos"), "Position",
-                  choices = HSTAT_EPI_REPERE_POS, selected = "haut")),
-                shiny::column(6, shiny::selectInput(ns("epiRefCote"), "Côté",
-                  choices = HSTAT_EPI_REPERE_COTE, selected = "droite"))),
-              shiny::fluidRow(
-                shiny::column(6, shiny::numericInput(ns("epiRefTaille"), "Taille",
-                  value = 3.5, min = 1.5, max = 12, step = 0.5)),
-                shiny::column(6, shiny::selectInput(ns("epiRefStyle"), "Style",
-                  choices = HSTAT_FONT_STYLES, selected = "plain")))),
+              shiny::conditionalPanel(ns = ns, condition = "input.epiRefLab",
+                shiny::textInput(ns("epiRefTxt"),
+                  "Texte (vide = la valeur de référence)", value = ""),
+                shiny::fluidRow(
+                  shiny::column(6, shiny::selectInput(ns("epiRefPos"), "Position",
+                    choices = HSTAT_EPI_REPERE_POS, selected = "haut")),
+                  shiny::column(6, shiny::selectInput(ns("epiRefCote"), "Côté",
+                    choices = HSTAT_EPI_REPERE_COTE, selected = "droite"))),
+                shiny::fluidRow(
+                  shiny::column(6, shiny::numericInput(ns("epiRefTaille"), "Taille",
+                    value = 3.5, min = 1.5, max = 12, step = 0.5)),
+                  shiny::column(6, shiny::selectInput(ns("epiRefStyle"), "Style",
+                    choices = HSTAT_FONT_STYLES, selected = "plain"))))),
             .hstat_opt_section(
               "Percentiles marqués sur la courbe", "location-dot", "#c0392b", "#fdecea",
               shiny::selectInput(ns("epiPct"), "Percentiles à matérialiser",
@@ -329,16 +336,23 @@ mod_epidemio_server <- function(id, values) {
           # LES FENETRES DE RETARD SONT UN RESULTAT, PAS UN HABILLAGE : elles
           # produisent un tableau publiable (« Lag 0-1 mois (court terme) »),
           # elles vivent donc avec les reglages de l'analyse.
+          # ET C'EST UNE OPTION, DONC UNE CASE : toutes les etudes ne publient
+          # pas de fenetres, et un tableau de plus par exposition alourdit
+          # l'ecran comme le classeur exporte. Decochee, la case ne pose rien
+          # -- ni la saisie, ni les tableaux `Fenetres_*`.
           .hstat_opt_section("Fenêtres de retard", "timeline", "#d35400", "#fdf0e6",
-            shiny::textAreaInput(ns("epiFenetres"),
-              "Une fenêtre par ligne : « début-fin nom »",
-              value = "0-1 court terme\n2-4 différé\n5-8 moyen terme",
-              rows = 4, width = "100%"),
-            shiny::tags$small(style = "color:#6b7280;",
-              tr("Le RR d'une fenêtre porte la covariance entre ses retards : il ne s'obtient ni en multipliant les RR de chaque retard, ni en divisant deux cumuls.")),
-            shiny::numericInput(ns("epiFenPct"),
-              "Percentile d'exposition auquel lire les fenêtres (%)",
-              value = 90, min = 1, max = 99, step = 1))),
+            shiny::checkboxInput(ns("epiFenOn"),
+              "Calculer le RR par fenêtre de retard", value = FALSE),
+            shiny::conditionalPanel(ns = ns, condition = "input.epiFenOn",
+              shiny::textAreaInput(ns("epiFenetres"),
+                "Une fenêtre par ligne : « début-fin nom »",
+                value = "0-1 court terme\n2-4 différé\n5-8 moyen terme",
+                rows = 4, width = "100%"),
+              shiny::tags$small(style = "color:#6b7280;",
+                tr("Le RR d'une fenêtre porte la covariance entre ses retards : il ne s'obtient ni en multipliant les RR de chaque retard, ni en divisant deux cumuls.")),
+              shiny::numericInput(ns("epiFenPct"),
+                "Percentile d'exposition auquel lire les fenêtres (%)",
+                value = 90, min = 1, max = 99, step = 1)))),
 
         taux = .hstat_opt_section("Colonnes", "list-ul", "#c0392b", "#fdecea",
           shiny::selectInput(ns("epiY"), "Nombre d'événements", choices = n),
@@ -627,7 +641,7 @@ mod_epidemio_server <- function(id, values) {
           # tableau que le rapport publie a cote des effets cumules.
           fw <- fenetres()
           pc <- hstat_finite(input$epiFenPct, 90) / 100
-          for (v in names(r$resultats)) {
+          if (length(fw)) for (v in names(r$resultats)) {
             fn <- tryCatch(hstat_epi_dlnm_fenetres(r$resultats[[v]], fw, prob = pc),
                            error = function(e) NULL)
             if (!is.null(fn))
@@ -739,6 +753,7 @@ mod_epidemio_server <- function(id, values) {
     # la valeur de reference ni l'etendue de l'autre axe.
     repere <- shiny::reactive(list(
       montrer = isTRUE(input$epiRefLab %||% TRUE),
+      epaisseur = hstat_finite(input$epiRefEp, 0.5),
       texte   = input$epiRefTxt %||% "",
       position = input$epiRefPos %||% "haut",
       cote     = input$epiRefCote %||% "droite",
@@ -761,6 +776,10 @@ mod_epidemio_server <- function(id, values) {
     # lui : la dependance existe alors a l'execution mais ne se voit pas a la
     # lecture -- et c'est exactement ce qu'un balayage ne peut pas verifier.
     fenetres <- shiny::reactive({
+      # DECOCHEE, LA CASE NE REND RIEN -- pas le catalogue par defaut. Retomber
+      # dessus poserait les tableaux que l'utilisateur vient de retirer, et le
+      # reglage serait un reglage que l'application ignore.
+      if (!isTRUE(input$epiFenOn)) return(list())
       lm <- courant()$lag_max %||% Inf
       f <- hstat_epi_fenetres_parse(input$epiFenetres %||% "", lag_max = lm)
       if (!length(f)) HSTAT_EPI_FENETRES else f
