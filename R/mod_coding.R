@@ -47,12 +47,35 @@ HSTAT_CODE_PALETTE <- c(
 # reponses des modeles de langue.
 .hstat_code_esc <- function(x) hstat_html_escape(x)
 
+# UNE COULEUR N'EST PAS UNE CHAINE LIBRE, et elle entre dans du BALISAGE.
+#
+# Le surligneur monte son `<mark>` par `sprintf` et le rend par `HTML()` : ce
+# qui y entre n'est plus echappe par personne. Le texte du document, lui, passe
+# bien par `.hstat_code_esc()` -- mais la couleur y allait BRUTE. Une couleur
+# valant `#ff0000" onmouseover="alert(1)` sortait alors de l'attribut `style`
+# et deposait un gestionnaire d'evenement vivant sur l'element. Constate.
+#
+# Le vecteur realiste n'est pas la saisie : c'est le PROJET RECHARGE. Un livre
+# de codes arrive par `.rds` televerse, ou la couleur est une donnee comme une
+# autre -- on ouvre le projet d'un collegue, et le balisage part avec. (Le
+# repli de `colourInput` quand colourpicker manque est par ailleurs un champ
+# texte libre.)
+#
+# Les autres couleurs du module passent par `shiny::div(style = ...)`, ou
+# htmltools echappe l'attribut : elles n'ont jamais eu le defaut. Celle-ci
+# etait la seule a traverser `HTML()`.
+.hstat_code_hex <- function(hex, defaut = "#cccccc") {
+  h <- as.character(hex)[1]
+  if (is.na(h) || !grepl("^#?[0-9A-Fa-f]{6}$", h)) return(defaut)
+  if (startsWith(h, "#")) h else paste0("#", h)
+}
+
 # "#e74c3c" + alpha -> "rgba(231,76,60,0.35)". Un fond translucide laisse le
 # texte lisible la ou une couleur pleine l'ecraserait.
 .hstat_code_rgba <- function(hex, alpha = 0.35) {
-  hex <- as.character(hex)[1]
-  if (is.na(hex) || !grepl("^#?[0-9A-Fa-f]{6}$", hex)) hex <- "#cccccc"
-  hex <- sub("^#", "", hex)
+  # `.hstat_code_hex()` rend la couleur AVEC son croisillon ; `substring()`
+  # compte a partir du premier chiffre.
+  hex <- sub("^#", "", .hstat_code_hex(hex))
   v <- strtoi(substring(hex, c(1, 3, 5), c(2, 4, 6)), 16L)
   sprintf("rgba(%d,%d,%d,%s)", v[1], v[2], v[3],
           format(round(alpha, 3), nsmall = 2, trim = TRUE))
@@ -580,7 +603,9 @@ hstat_code_highlight_html <- function(text, segs, codebook) {
       "<mark class=\"hstat-seg\" data-seg=\"%s\" title=\"%s\" style=\"%sborder-bottom:2px solid %s;padding:1px 0;border-radius:2px;\">%s</mark>",
       .hstat_code_esc(paste(segs$seg_id[act], collapse = " ")),
       .hstat_code_esc(paste(labs, collapse = " + ")),
-      bg, cols[1], .hstat_code_esc(piece))
+      # `cols[1]` est VALIDEE avant d'entrer dans le style : c'est le seul
+      # chemin du module ou une couleur traverse `HTML()`.
+      bg, .hstat_code_hex(cols[1]), .hstat_code_esc(piece))
   }
   paste(out, collapse = "")
 }
@@ -2359,7 +2384,7 @@ mod_coding_server <- function(id, values) {
         rv$next_color <- hstat_code_next_color(rv$codebook)
         # updateColourInput() vient de {colourpicker}, pas de {shiny} :
         # `shiny::updateColourInput` leve une erreur et bloque l'ajout de code.
-        colourpicker::updateColourInput(session, "new_color", value = rv$next_color)
+        updateColourInput(session, "new_color", value = rv$next_color)
       }
     })
 
@@ -2367,7 +2392,7 @@ mod_coding_server <- function(id, values) {
       rv$codebook <- hstat_code_new_codebook()
       rv$segments <- hstat_code_new_segments()
       rv$next_color <- HSTAT_CODE_PALETTE[1]
-      colourpicker::updateColourInput(session, "new_color", value = rv$next_color)
+      updateColourInput(session, "new_color", value = rv$next_color)
       shiny::showNotification("Livre de codes et étiquettes supprimés.",
                               type = "message", duration = 4)
     })
@@ -3231,7 +3256,7 @@ mod_coding_server <- function(id, values) {
         if (nrow(rv$codebook) > before) added <- added + 1L
       }
       rv$next_color <- hstat_code_next_color(rv$codebook)
-      colourpicker::updateColourInput(session, "new_color", value = rv$next_color)
+      updateColourInput(session, "new_color", value = rv$next_color)
       rv$ai <- list(ok = TRUE,
                     msg = trf("%s : %d code(s) ajoute(s) sur %d proposition(s).",
                                   source_label, added, nrow(cb)),

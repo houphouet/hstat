@@ -486,11 +486,24 @@ server <- function(input, output, session) {
         shiny::icon(ic), " ", m$msg)
   })
 
-  # Liberer la connexion DuckDB a la fermeture de la session
+  # Liberer la connexion DuckDB a la fermeture de la session, ET vider ce que
+  # cette session a mis en cache.
+  #
+  # LE JETON EST CAPTE ICI, pas dans le rappel : `onSessionEnded` s'execute hors
+  # du domaine reactif, ou `.hstat_session_id()` retombe sur « hors-session » --
+  # `hstat_cache_clear()` nu n'y retirerait donc rien.
+  #
+  # Sans ce vidage, le cache d'agregations ne se purgeait qu'au CHARGEMENT d'un
+  # fichier : les entrees d'une session terminee restaient dans l'espace de noms
+  # du paquet, que le processus garde. Mesure sur quarante sessions portant
+  # chacune 5 Mo : +367 Mo retenus, rien de libere.
+  .hstat_jeton_session <- tryCatch(as.character(session$token)[1],
+                                   error = function(e) NULL)
   session$onSessionEnded(function() {
     shiny::isolate({
       if (!is.null(values$dbCon)) hstat_duckdb_close(values$dbCon)
     })
+    hstat_cache_clear(.hstat_jeton_session)
   })
 
   # Banniere de mode (memoire vs hors-memoire)

@@ -2380,6 +2380,62 @@ test_that("clé d'API : celle du service, jamais celle d'un autre", {
   Sys.unsetenv("OPENAI_API_KEY")
 })
 
+# -- UNE CLE D'AMBIANCE NE SUIT PAS UNE ADRESSE CHANGEE ----------------------
+# Deux decisions justes se combinaient mal : l'adresse du service est un champ
+# TEXTE LIBRE (le test voisin le garde, et c'est voulu), et le champ de cle
+# INVITE a rester vide pour que la variable d'environnement serve. Les deux se
+# resolvaient independamment.
+#
+# Sur un deploiement partage -- ceux que le README prevoit -- l'exploitant pose
+# la cle dans l'environnement du serveur. N'importe quel visiteur choisissait
+# alors le moteur, laissait la cle vide, remplacait l'adresse par la sienne, et
+# recevait la cle du serveur dans l'en-tete `x-api-key`. Constate avec un
+# serveur de capture : la cle partait en clair.
+#
+# L'assertion doit distinguer les DEUX cotes, sinon elle ne garde rien : une
+# fonction qui refuserait TOUJOURS le repli passerait la moitie « adresse
+# changee » et casserait le cas ordinaire, qui est justement celui que le repli
+# sert.
+test_that("la cle d'environnement ne part pas a une adresse changee", {
+  Sys.setenv(ANTHROPIC_API_KEY = "sk-ant-cle-du-serveur")
+  on.exit(Sys.unsetenv("ANTHROPIC_API_KEY"), add = TRUE)
+
+  # 1. L'ATTAQUE : adresse changee, champ de cle vide -> rien ne part.
+  expect_equal(hstat_ai_key("claude", NULL, "http://127.0.0.1:8099"), "")
+  expect_equal(hstat_ai_key("claude", NULL, "https://attaquant.example"), "")
+
+  # 2. LE CAS ORDINAIRE, qui ne doit pas casser : adresse du fournisseur.
+  expect_equal(hstat_ai_key("claude", NULL), "sk-ant-cle-du-serveur")
+  expect_equal(hstat_ai_key("claude", NULL, NULL), "sk-ant-cle-du-serveur")
+  # Un champ vide, ou une barre finale, ne sont PAS un changement d'adresse :
+  # `hstat_ai_url()` les resout tous deux sur celle du fournisseur.
+  expect_equal(hstat_ai_key("claude", NULL, "   "), "sk-ant-cle-du-serveur")
+  expect_equal(hstat_ai_key("claude", NULL, "https://api.anthropic.com/"),
+               "sk-ant-cle-du-serveur")
+
+  # 3. UNE CLE SAISIE part toujours ou son proprietaire l'envoie : c'est la
+  #    sienne. Le pouvoir de deplacer l'adresse reste entier.
+  expect_equal(hstat_ai_key("claude", "sk-a-moi", "http://127.0.0.1:8099"),
+               "sk-a-moi")
+
+  # 4. Le diagnostic le DIT, il ne se contente pas de laisser l'appel echouer :
+  #    un service annonce « disponible » qui ne peut pas partir serait pire.
+  st <- hstat_ai_status("claude", url = "http://127.0.0.1:8099")
+  expect_false(isTRUE(st$ok))
+  expect_true(grepl("clé d'API", st$message, fixed = TRUE))
+
+  # 5. Et l'appel complet ne part pas non plus -- c'est le chemin reellement
+  #    emprunte, celui par lequel la cle fuyait.
+  r <- hstat_ai_call("test", engine = "claude",
+                     url = "http://127.0.0.1:8099", api_key = NULL, timeout = 3)
+  expect_false(isTRUE(r$ok))
+
+  # L'aide qui porte la regle se lit seule, dans les deux sens.
+  expect_true(hstat_ai_url_attendue("claude", NULL))
+  expect_true(hstat_ai_url_attendue("claude", "https://api.anthropic.com"))
+  expect_false(hstat_ai_url_attendue("claude", "http://127.0.0.1:8099"))
+})
+
 test_that("adresses et modeles par defaut, modifiables", {
   # 127.0.0.1 et non localhost : on veut que ce soit visiblement la machine
   # de l'utilisateur, et rien d'autre.
@@ -4591,6 +4647,233 @@ process.stdout.write(JSON.stringify(apres));
   expect_equal(avec$dollar, "$& remplace")
 })
 
+# -- UNE COLONNE NOMMEE « constructor » RESTE « constructor » -----------------
+# `DICT` sort de JSON.parse : c'est un objet ORDINAIRE, donc porteur
+# d'Object.prototype. `DICT["constructor"]` y rend la fonction Object, qui
+# n'est pas `undefined` -- le noeud de texte etait alors remplace par
+# « function Object() { [native code] } ». Mesure avant correction, dictionnaire
+# reduit a {"Rendement": "Yield"} : les CINQ noms ci-dessous ressortaient en
+# code JavaScript, dans un en-tete de tableau comme dans un `placeholder`.
+#
+# C'est le defaut que ce depot tient pour le pire : l'application reecrivait
+# les donnees que l'utilisateur etait venu lire. Les deux protections en place
+# ne le couvrent pas -- la liste des termes de donnees est BORNEE
+# (max_termes 3000, max_modalites 200), et la regle de longueur en cellule ne
+# protege qu'un <td>, jamais un <th> ni un attribut.
+#
+# Le test EXECUTE le traducteur sous node plutot que de chercher une chaine
+# dans le fichier : un test textuel passerait encore si le code changeait de
+# forme en gardant le defaut. Et il verifie les DEUX cotes -- les noms rendus
+# intacts, ET une traduction ordinaire qui marche toujours : une fonction qui
+# ne traduirait plus rien du tout passerait la premiere moitie.
+test_that("un nom de methode d'Object n'est pas pris pour une traduction", {
+  node <- .hstat_node()
+  skip_if(is.na(node), "node absent : le traducteur ne peut pas etre execute")
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  skip_if_not_installed("jsonlite")
+
+  banc <- tempfile(fileext = ".js")
+  writeLines(r"---(var fs = require("fs"), vm = require("vm");
+var SRC = process.argv[2];
+function El(t) {
+  return { nodeType: 1, tagName: t, childNodes: [], parentNode: null, A: {},
+           hasAttribute: function (n) { return this.A[n] !== undefined; },
+           getAttribute: function (n) { return this.A[n]; },
+           setAttribute: function (n, v) { this.A[n] = v; },
+           classList: { add: function () {}, remove: function () {} } };
+}
+function Txt(v) { return { nodeType: 3, nodeValue: v, parentNode: null }; }
+function add(p, c) { c.parentNode = p; p.childNodes.push(c); return c; }
+function tous(n, o) { o = o || [];
+  (n.childNodes || []).forEach(function (c) { o.push(c); tous(c, o); }); return o; }
+function eq(e) { e.querySelectorAll = function () {
+  return tous(this).filter(function (n) { return n.nodeType === 1; }); }; return e; }
+
+var html = eq(El("HTML")), body = eq(El("BODY")); add(html, body);
+// Des EN-TETES de tableau portant des noms de colonnes du fichier. Un <th> est
+// un libelle : ni la regle de longueur en cellule ni la liste des termes ne le
+// protegent ici.
+var table = eq(add(body, eq(El("TABLE"))));
+var noms = ["constructor", "toString", "valueOf", "hasOwnProperty",
+            "isPrototypeOf", "Rendement"];
+var txt = {};
+noms.forEach(function (n) { var e = add(table, eq(El("TH"))); txt[n] = add(e, Txt(n)); });
+// Et un attribut, l'autre chemin de lecture du dictionnaire.
+var zone = add(body, eq(El("TEXTAREA")));
+zone.setAttribute("placeholder", "toString");
+
+var ctx = {
+  console: console, setTimeout: function () { return 0; }, clearTimeout: function () {},
+  localStorage: { getItem: function () { return null; }, setItem: function () {} },
+  NodeFilter: { SHOW_TEXT: 4 },
+  document: {
+    readyState: "complete", body: body, documentElement: html,
+    getElementById: function () { return null; },
+    addEventListener: function () {},
+    createTreeWalker: function (racine) {
+      var l = tous(racine).filter(function (n) { return n.nodeType === 3; }), i = -1;
+      return { nextNode: function () { return ++i < l.length ? l[i] : null; } };
+    }
+  }
+};
+ctx.window = ctx;
+// Le dictionnaire ne contient QUE « Rendement » : tout autre remplacement ne
+// peut venir que de la chaine de prototypes.
+ctx.window.HSTAT_I18N = { "Rendement": "Yield" };
+vm.createContext(ctx);
+ctx.window.Shiny = { addCustomMessageHandler: function () {}, setInputValue: function () {} };
+vm.runInContext(fs.readFileSync(SRC, "utf8"), ctx);
+ctx.window.hstatSetLangue("en");
+var out = {};
+noms.forEach(function (n) { out[n] = String(txt[n].nodeValue); });
+out.attribut = String(zone.getAttribute("placeholder"));
+process.stdout.write(JSON.stringify(out));
+)---", banc, useBytes = TRUE)
+
+  js <- file.path(root, "inst", "app", "www", "hstat-i18n.js")
+  sortie <- suppressWarnings(system2(node, c(shQuote(banc), shQuote(js)),
+                                     stdout = TRUE, stderr = TRUE))
+  res <- tryCatch(jsonlite::fromJSON(paste(sortie, collapse = "")),
+                  error = function(e) NULL)
+  skip_if(is.null(res), "le banc d'essai n'a rien produit d'exploitable")
+
+  # 1. Les noms de methodes d'Object ressortent INTACTS, en texte comme en
+  #    attribut. Avant correction : « function Object() { [native code] } ».
+  for (n in c("constructor", "toString", "valueOf", "hasOwnProperty",
+              "isPrototypeOf"))
+    expect_equal(res[[n]], n, info = n)
+  expect_equal(res$attribut, "toString")
+
+  # 2. ET LA TRADUCTION MARCHE TOUJOURS. Sans cette moitie, un traducteur qui
+  #    ne remplacerait plus rien passerait le test.
+  expect_equal(res$Rendement, "Yield")
+})
+
+# -- UNE COULEUR DE CODE N'EST PAS UNE CHAINE LIBRE ---------------------------
+# Le surligneur du corpus monte son `<mark>` par `sprintf` et le rend par
+# `HTML()` : ce qui y entre n'est plus echappe par personne. Le texte du
+# document passait bien par `.hstat_code_esc()` -- la COULEUR y allait brute.
+# Une couleur valant `#ff0000" onmouseover="alert(1)` sortait de l'attribut
+# `style` et deposait un gestionnaire d'evenement vivant sur l'element.
+#
+# Le vecteur realiste n'est pas la saisie, c'est le PROJET RECHARGE : un livre
+# de codes arrive par `.rds` televerse, ou la couleur est une donnee comme une
+# autre. On ouvre le projet d'un collegue, et le balisage part avec.
+#
+# Le test verifie les DEUX cotes -- l'injection refusee ET une couleur
+# legitime toujours rendue : une fonction qui remplacerait TOUTE couleur par
+# le gris passerait la premiere moitie sans rien garder.
+test_that("une couleur de code n'echappe pas de l'attribut style", {
+  cb <- hstat_code_add(hstat_code_new_codebook(), "Prix")
+  sg <- hstat_seg_add(hstat_code_new_segments(), "d1", cb$code_id[1], 0L, 4L, "t")
+
+  for (hostile in c("#ff0000\" onmouseover=\"alert(1)",
+                    "red;\"></mark><img src=x onerror=alert(1)>",
+                    "</style><script>alert(1)</script>")) {
+    cb$color[1] <- hostile
+    h <- hstat_code_highlight_html("trop cher pour ce que c'est", sg, cb)
+    expect_false(grepl("onmouseover", h, fixed = TRUE), info = hostile)
+    expect_false(grepl("<img", h, fixed = TRUE), info = hostile)
+    expect_false(grepl("<script", h, fixed = TRUE), info = hostile)
+    # Le `<mark>` reste bien forme : on ne casse pas l'affichage pour se
+    # proteger, on remplace la couleur par le repli.
+    expect_true(grepl("border-bottom:2px solid #cccccc;", h, fixed = TRUE),
+                info = hostile)
+  }
+
+  # ET UNE COULEUR LEGITIME PASSE TOUJOURS, avec ou sans croisillon.
+  for (bonne in c("#e74c3c", "e74c3c")) {
+    cb$color[1] <- bonne
+    h <- hstat_code_highlight_html("trop cher", sg, cb)
+    expect_true(grepl("border-bottom:2px solid #e74c3c;", h, fixed = TRUE),
+                info = bonne)
+  }
+
+  # Le texte du document, lui, etait deja echappe : on le garde sous garde.
+  cb$color[1] <- "#e74c3c"
+  expect_false(grepl("<script",
+                     hstat_code_highlight_html("<script>x</script>", sg, cb),
+                     fixed = TRUE))
+
+  # L'aide se lit seule, dans les deux sens.
+  expect_equal(.hstat_code_hex("#e74c3c"), "#e74c3c")
+  expect_equal(.hstat_code_hex("e74c3c"), "#e74c3c")
+  expect_equal(.hstat_code_hex("rouge"), "#cccccc")
+  expect_equal(.hstat_code_hex(NA), "#cccccc")
+  # Et la conversion en rgba, qui la traverse desormais, n'a pas change de
+  # resultat sur une couleur valide -- le croisillon est bien retire.
+  expect_equal(.hstat_code_rgba("#e74c3c", 0.35), "rgba(231,76,60,0.35)")
+  expect_equal(.hstat_code_rgba("e74c3c", 0.35), "rgba(231,76,60,0.35)")
+})
+
+# -- L'EXTENSION D'UN EXPORT PASSE PAR LE NORMALISEUR -------------------------
+# `hstat_img_fmt()` normalise le format (jpg -> jpeg, html -> png) ET sert a
+# composer le NOM du fichier : c'est son extension que Shiny traduit en type
+# MIME. Le contenu, lui, est deja normalise par l'ecrivain commun -- ce sont
+# donc les deux qui doivent se rejoindre, sinon l'extension annonce un format
+# que le fichier ne porte pas.
+#
+# Dix-neuf exports sur vingt et un le faisaient ; deux lisaient `input$...`
+# BRUT. Le balayage passe par l'analyseur et ne regarde que les entrees dont le
+# nom parle de format -- un axe numerique ou un nom de tableau n'a rien a
+# normaliser, et un balayage qui crie au loup finit desactive.
+test_that("aucun nom de fichier ne compose une extension de format non normalisee", {
+  fichiers <- .hstat_sources_app()
+  skip_if(!length(fichiers), "sources indisponibles")
+
+  symboles <- function(e) {
+    if (is.name(e)) return(as.character(e))
+    if (is.call(e) || is.pairlist(e) || is.expression(e))
+      return(unlist(lapply(as.list(e), symboles)))
+    character(0)
+  }
+  # Les entrees LUES dans l'expression, avec leur nom : `input$xFormat`.
+  entrees <- function(e) {
+    out <- character(0)
+    rec <- function(n) {
+      if (!is.call(n)) return(invisible())
+      if (identical(paste(deparse(n[[1]]), collapse = ""), "$") &&
+          length(n) == 3 && identical(as.character(n[[2]])[1], "input"))
+        out <<- c(out, as.character(n[[3]])[1])
+      for (i in seq_along(n)[-1]) {
+        a <- tryCatch(n[[i]], error = function(z) NULL)
+        if (missing(a)) next
+        if (!is.null(a) && !identical(a, quote(expr = ))) rec(a)
+      }
+    }
+    rec(e); out
+  }
+
+  fautifs <- character(0)
+  for (f in fichiers) {
+    p <- tryCatch(parse(f, keep.source = FALSE), error = function(e) NULL)
+    if (is.null(p)) next
+    visite <- function(e) {
+      if (!is.call(e)) return(invisible())
+      fn <- paste(deparse(e[[1]]), collapse = "")
+      if (grepl("(^|::)downloadHandler$", fn)) {
+        a <- as.list(e)[-1]
+        fa <- if (!is.null(a$filename)) a$filename else if (length(a)) a[[1]] else NULL
+        if (!is.null(fa)) {
+          # Une entree qui parle de format doit traverser le normaliseur.
+          fmt <- grep("(?i)(format|fmt)$", entrees(fa), value = TRUE, perl = TRUE)
+          if (length(fmt) && !("hstat_img_fmt" %in% symboles(fa)))
+            fautifs <<- c(fautifs,
+                          paste0(basename(f), " : input$", paste(fmt, collapse = ", input$")))
+        }
+      }
+      for (i in seq_along(e)[-1]) {
+        a <- tryCatch(e[[i]], error = function(z) NULL)
+        if (missing(a)) next
+        if (!is.null(a) && !identical(a, quote(expr = ))) visite(a)
+      }
+    }
+    for (i in seq_along(p)) visite(p[[i]])
+  }
+  expect_identical(unique(fautifs), character(0))
+})
+
 test_that("une classe hstat-* posee dans le code est definie dans le style", {
   # LE DEFAUT QUE CE TEST GARDE, constate a l'audit. La classe de l'encadre
   # d'interpretation etait posee sur DIX-SEPT divs de mod_tests.R et definie
@@ -4986,6 +5269,78 @@ test_that("une syntaxe de plage montree a l'utilisateur est une syntaxe acceptee
     expect_equal(sort(fn("1 \u00e0 10", 20)), 1:10, info = f)
     expect_equal(sort(fn("1 to 10", 20)), 1:10, info = f)
     expect_equal(sort(fn("1,3,5,10 to 12", 20)), c(1, 3, 5, 10, 11, 12), info = f)
+  }
+})
+
+# -- LE COUT NE DEPEND PAS DU NOMBRE DE PLAGES -------------------------------
+# `all_rows <- c(all_rows, start:end)` dans une boucle recopie le vecteur
+# ENTIER a chaque tour : le cout etait QUADRATIQUE en nombre de plages, alors
+# que le resultat est borne par `max_rows`. Et chaque plage est
+# individuellement VALIDE -- « 1-200000 » sur un fichier de 200 000 lignes --
+# donc aucune garde ne se declenchait. Mesure avant correction : 800 plages,
+# soit 7 Ko de saisie, tenaient le processus 237 s pour rendre exactement ce
+# qu'UNE plage rend en 0,1 s. Shiny sert toutes les sessions depuis un seul
+# processus R : ce gel est celui de tout le monde.
+#
+# ON MESURE UN COMPTE, JAMAIS UNE DUREE -- la regle que ce depot s'est donnee
+# apres trois assertions de temps fausses. Le compte est le nombre d'OCTETS
+# ALLOUES, que `Rprofmem` rend et qui ne depend pas de la machine. Il
+# discrimine sans ambiguite : mesure sur 20 000 lignes, le rapport entre les
+# deux codes passe de 12 (n=20) a 203 (n=400) -- l'un croit avec n, l'autre
+# non. Le PIC de memoire, lui, ne distingue rien (rapport 3,3) : le ramasse-
+# miettes reprend les copies intermediaires au fur et a mesure. Une assertion
+# posee dessus n'aurait rien garde.
+test_that("le selecteur de lignes ne paie pas le carre du nombre de plages", {
+  skip_if(!capabilities("profmem"),
+          "R sans profilage memoire : le compte d'octets est indisponible")
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+
+  extraire <- function(fichier, nom) {
+    trouve <- NULL
+    v <- function(n) {
+      if (!is.call(n)) return(invisible())
+      if (identical(paste(deparse(n[[1]]), collapse = ""), "<-") &&
+          is.name(n[[2]]) && identical(as.character(n[[2]]), nom)) {
+        trouve <<- n[[3]]; return(invisible())
+      }
+      for (i in seq_along(n)) tryCatch(v(n[[i]]), error = function(e) NULL)
+    }
+    for (k in parse(fichier, keep.source = FALSE)) v(k)
+    trouve
+  }
+  octets <- function(f, txt, mx) {
+    tf <- tempfile(); on.exit(unlink(tf), add = TRUE)
+    utils::Rprofmem(tf, threshold = 1000)
+    invisible(f(txt, mx))
+    utils::Rprofmem(NULL)
+    l <- readLines(tf, warn = FALSE)
+    sum(as.numeric(sub("^([0-9]+).*", "\\1", l[grepl("^[0-9]+ :", l)])),
+        na.rm = TRUE)
+  }
+
+  MX <- 20000L
+  for (f in c(file.path("R", "mod_filter.R"), file.path("R", "mod_clean.R"))) {
+    chemin <- file.path(root, f)
+    skip_if_not(file.exists(chemin), f)
+    fn <- eval(extraire(chemin, "parseRowSelection"), envir = globalenv())
+
+    peu     <- paste(rep(paste0("1-", MX),  10), collapse = ",")
+    beaucoup <- paste(rep(paste0("1-", MX), 100), collapse = ",")
+
+    # Le RESULTAT est le meme quel que soit le nombre de plages : c'est ce qui
+    # rend le surcout entierement gratuit.
+    expect_equal(fn(peu, MX), seq_len(MX), info = f)
+    expect_equal(fn(beaucoup, MX), seq_len(MX), info = f)
+
+    # Dix fois plus de plages ne doit pas couter cent fois plus. On laisse une
+    # marge large (20 pour un facteur 10 attendu) : c'est la difference d'ORDRE
+    # qu'on garde, pas un chiffre. Avant correction le rapport valait ~50 ici,
+    # et il montait avec n.
+    a <- octets(fn, peu, MX)
+    b <- octets(fn, beaucoup, MX)
+    expect_gt(a, 0)
+    expect_lt(b, 20 * a, label = paste("octets alloues,", f))
   }
 })
 
@@ -8105,9 +8460,24 @@ test_that("aucun module du paquet n'appelle un autre paquet sans prefixe", {
   #
   # Le test BALAIE le dossier : un module ajoute demain est couvert sans qu'on
   # y pense, ce qui est exactement ce qu'une liste de noms ne fait pas.
-  aiguillages <- c("withSpinner", "plotlyOutput", "ggplotly", "layout", "config",
-                   "renderPlotly", "colourInput", "pickerInput",
-                   "radioGroupButtons", "updatePickerInput", "rank_list", "%>%")
+  # LA LISTE DES AIGUILLAGES SE DERIVE, ELLE NE SE RECOPIE PAS. Elle etait
+  # tenue a la main ici, et elle avait deja deux noms de retard
+  # (`element_markdown`, `updateColourInput`) : une liste recopiee finit par
+  # diverger, et c'est la copie oubliee qui ment. Or `hstat_installer_replis_ui()`
+  # POSE exactement ces noms -- on les lui demande.
+  #
+  # L'enjeu n'est pas cosmetique : un aiguillage absent de la liste fait
+  # echouer ce test sur du code sain, et le remede evident (qualifier l'appel)
+  # serait precisement le defaut que l'aiguillage existe pour eviter. Constate
+  # sur `updateColourInput`, que `shinyjs` RE-EXPORTE -- le meme piege que la
+  # note de NAMESPACE documente deja pour `colourInput`.
+  #
+  # `%>%` reste nomme a part : il est pose au premier niveau du socle, pas par
+  # l'installateur (un repli naif du pipe perdrait les arguments nommes).
+  aig_env <- new.env(parent = globalenv())
+  suppressWarnings(suppressMessages(hstat_installer_replis_ui(aig_env)))
+  aiguillages <- c(ls(aig_env, all.names = TRUE), "%>%")
+  expect_gte(length(aiguillages), 12L)   # une liste vide ne garderait rien
   socle <- new.env()
   suppressWarnings(suppressMessages(
     sys.source(.hstat_socle_path(), envir = socle, keep.source = FALSE)))
@@ -13712,6 +14082,73 @@ test_that("deux sessions ne partagent pas leurs agregations", {
   expect_equal(avec("sessA", hstat_cache_get(kA, function() data.frame(mean = -1)))$mean, 42)
   expect_equal(avec("sessB", hstat_cache_get(kB, function() data.frame(mean = 99)))$mean, 99)
   avec("sessA", hstat_cache_clear()); avec("sessB", hstat_cache_clear())
+})
+
+# -- CE QU'UNE SESSION A MIS EN CACHE PART AVEC ELLE --------------------------
+# `hstat_cache_clear()` n'etait appele qu'au CHARGEMENT d'un fichier, et
+# `onSessionEnded` ne fermait que la connexion DuckDB. Les agregations d'une
+# session terminee restaient donc dans l'espace de noms du paquet, que le
+# processus garde : mesure sur quarante sessions portant chacune 5 Mo,
+# +367 Mo retenus, aucune ligne liberee.
+#
+# LE JETON EST L'ENJEU, et c'est ce qui rend l'argument `id` necessaire :
+# `onSessionEnded` s'execute HORS du domaine reactif, ou `.hstat_session_id()`
+# retombe sur « hors-session ». Un `hstat_cache_clear()` nu n'y retirerait
+# rien -- et le test doit distinguer les deux, sinon il passerait sur un code
+# qui ne vide toujours pas.
+test_that("le cache d'une session est vide a sa fermeture", {
+  faux <- function(tok) structure(list(token = tok, userData = new.env()),
+                                  class = "ShinySession")
+  avec <- function(tok, expr) shiny::withReactiveDomain(faux(tok), expr)
+  restes <- function(tok) {
+    cles <- ls(.hstat_cache, all.names = TRUE)
+    length(cles[startsWith(cles, paste0(tok, "::"))])
+  }
+
+  kA <- avec("finA", hstat_cache_key("t", "x"))
+  kB <- avec("finB", hstat_cache_key("t", "x"))
+  avec("finA", hstat_cache_get(kA, function() 1))
+  avec("finB", hstat_cache_get(kB, function() 2))
+  expect_equal(restes("finA"), 1L)
+
+  # 1. LE CHEMIN REEL : le jeton est capte a la construction et passe au
+  #    rappel, qui s'execute SANS domaine reactif.
+  hstat_cache_clear("finA")
+  expect_equal(restes("finA"), 0L)
+
+  # 2. ET LA PURGE RESTE CIBLEE : la session voisine garde la sienne. Vider
+  #    tout ne fausserait rien, mais ferait recalculer les agregations des
+  #    autres sessions du meme processus.
+  expect_equal(restes("finB"), 1L)
+
+  # 3. L'ASSERTION QUI DISTINGUE LES DEUX CODES : hors domaine reactif, un
+  #    appel NU ne retire rien -- c'est exactement ce que faisait
+  #    `onSessionEnded` avant, et c'est pourquoi l'argument existe.
+  hstat_cache_clear()
+  expect_equal(restes("finB"), 1L)
+  hstat_cache_clear("finB")
+  expect_equal(restes("finB"), 0L)
+
+  # 4. Sans argument et DANS une session, le comportement d'avant est intact.
+  avec("finB", hstat_cache_get(kB, function() 3))
+  avec("finB", hstat_cache_clear())
+  expect_equal(restes("finB"), 0L)
+})
+
+# Et le rappel de fermeture appelle bien la purge : une aide corrigee que
+# personne n'appelle ne vide rien. On lit le corps de `onSessionEnded` dans
+# `app_server.R` -- le seul endroit ou la session se termine.
+test_that("onSessionEnded purge le cache, avec le jeton capte au-dehors", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  f <- file.path(root, "inst", "app", "app_server.R")
+  skip_if_not(file.exists(f))
+  src <- paste(readLines(f, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+
+  # Le jeton est relevé HORS du rappel...
+  expect_true(grepl("session$token", src, fixed = TRUE))
+  # ...et la purge le reçoit : `hstat_cache_clear()` nu n'aurait rien retiré.
+  expect_true(grepl("hstat_cache_clear(.hstat_jeton_session)", src, fixed = TRUE))
 })
 
 test_that("hors de Shiny la cle reste stable, donc testable", {

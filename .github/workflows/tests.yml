@@ -152,7 +152,17 @@ jobs:
                          # recommande donc presque toujours la, ce qui est
                          # precisement la raison de le nommer : ce qui n'est pas
                          # declare n'est pas garanti.
-                         "dlnm", "survival")
+                         "dlnm", "survival",
+                         # duckdb, lmerTest, sandwich : SIX tests les exigent
+                         # -- quatre sur le chemin hors-memoire, un sur le
+                         # bouton LMM qui doit imposer la gaussienne, un sur la
+                         # variance robuste confrontee au paquet de reference.
+                         # Aucun des trois n'etait nomme ici, donc ces six
+                         # tests se sautaient EN SILENCE en CI comme en local
+                         # -- et un test saute ressemble a un test qui passe.
+                         # Meme raison que pour agricolae et vegan : ce qui
+                         # n'est pas declare n'est pas garanti.
+                         "duckdb", "lmerTest", "sandwich")
           install.packages(requis)
           manquants <- requis[!vapply(requis, requireNamespace, logical(1), quietly = TRUE)]
           if (length(manquants))

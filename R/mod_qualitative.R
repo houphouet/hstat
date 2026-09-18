@@ -2846,8 +2846,12 @@ mod_qualitative_server <- function(id, values) {
       p <- current_plot(); shiny::req(!is.null(p)); p
     })
     output$dl_plot <- shiny::downloadHandler(
+      # L'EXTENSION PASSE PAR LE NORMALISEUR, comme le contenu. C'est elle que
+      # Shiny traduit en type MIME : la laisser brute pouvait annoncer une
+      # extension que `hstat_ecrire_image()` n'ecrit pas (elle, elle normalise
+      # en interne). Dix-neuf exports sur vingt et un le faisaient deja.
       filename = function() paste0("graphique_qualitatif_", Sys.Date(),
-                                   ".", input$dl_format %||% "png"),
+                                   ".", hstat_img_fmt(input$dl_format)),
       content = function(file) {
         # `req()` interrompait le telechargement SANS ecrire de fichier : Shiny
         # renvoyait alors sa page d'erreur HTML sous le nom `.png`. L'ecrivain

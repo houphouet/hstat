@@ -33,6 +33,29 @@
   "use strict";
 
   var DICT = window.HSTAT_I18N || {};          // francais -> anglais
+
+  /* LA RECHERCHE NE TRAVERSE PAS LA CHAINE DE PROTOTYPES.
+
+     `DICT` sort de JSON.parse : c'est un objet ORDINAIRE, donc porteur
+     d'Object.prototype. `DICT["constructor"]` y rend la fonction Object, qui
+     n'est pas `undefined` -- et le texte de la page etait alors remplace par
+     « function Object() { [native code] } ». Mesure, dictionnaire reduit a
+     {"Rendement": "Yield"} : une colonne nommee `constructor`, `toString`,
+     `valueOf`, `hasOwnProperty` ou `isPrototypeOf` ressortait en code
+     JavaScript, dans un en-tete de tableau comme dans un `placeholder`.
+
+     C'est le defaut que ce depot tient pour le pire : l'application
+     reecrivait les donnees que l'utilisateur etait venu lire. Les deux
+     protections en place ne le couvrent pas -- la liste des termes de donnees
+     est bornee (max_termes 3000, max_modalites 200), et la regle de longueur
+     en cellule ne protege qu'un <td>, jamais un <th> ni un attribut.
+
+     `DICT_HTML` et `TERMES` sont deja des Object.create(null) : eux n'ont
+     jamais eu le defaut. On ne peut pas en faire autant de `DICT`, qui vient
+     du dictionnaire tel que la page ou le fichier le pose -- d'ou la lecture
+     gardee, qui vaut quelle que soit sa provenance. */
+  var aCle = Object.prototype.hasOwnProperty;
+  function lire(d, k) { return aCle.call(d, k) ? d[k] : undefined; }
   var dictPret = !!window.HSTAT_I18N;          // deja incorpore ? (repli)
   var CLE_STOCKAGE = "hstat-langue";
   var langue = "fr";
@@ -208,7 +231,7 @@
 
       if (langue === "en") {
         if (t.__hstatFr !== undefined) continue;   // deja traduit
-        var cible = DICT[net];
+        var cible = lire(DICT, net);
         if (cible === undefined) continue;
         // Protection des donnees de l'utilisateur, deux barrieres : le terme
         // vient-il du fichier charge (exact), et la regle de longueur en
@@ -245,7 +268,7 @@
         if (langue === "en") {
           if (el[memo] !== undefined) continue;
           var v = el.getAttribute(nom).trim();
-          var cible = DICT[v];
+          var cible = lire(DICT, v);
           if (cible === undefined || estDonnee(v)) continue;
           el[memo] = el.getAttribute(nom);
           el.setAttribute(nom, cible);
