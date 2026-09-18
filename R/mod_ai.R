@@ -117,13 +117,41 @@ HSTAT_AI_MODEL <- HSTAT_AI_FOURNISSEURS$claude$modele   # retro-compatibilite
 
 # Cle d'API : celle saisie dans l'interface, sinon la variable d'environnement
 # PROPRE AU SERVICE. Une cle OpenAI ne doit pas servir a appeler DeepSeek.
-hstat_ai_key <- function(engine = "claude", explicit = NULL) {
+#
+# UNE CLE D'AMBIANCE NE SUIT PAS UNE ADRESSE CHANGEE. C'est le prolongement de
+# la regle deja ecrite pour GITHUB_TOKEN -- « une cle n'est jamais ambiante » --
+# et il fallait l'etendre, parce que deux decisions justes se combinaient mal :
+# l'adresse du service est un champ TEXTE LIBRE (un service qui demenage ne doit
+# pas obliger a rouvrir le code), et le champ de cle INVITE a rester vide pour
+# que la variable d'environnement serve. Les deux se resolvaient
+# independamment.
+#
+# Sur un deploiement partage -- shinyapps.io, Posit Connect, Shiny Server, ceux
+# que le README prevoit -- l'exploitant pose la cle dans l'environnement du
+# serveur. N'importe quel visiteur choisissait alors le moteur, laissait la cle
+# vide, remplacait l'adresse par la sienne, et recevait la cle du serveur dans
+# l'en-tete `x-api-key`. Constate ici meme, avec un serveur de capture.
+#
+# La cle SAISIE, elle, part toujours ou son proprietaire l'envoie : c'est la
+# sienne, et le pouvoir de deplacer l'adresse reste entier. Seul le repli
+# ambiant est retire quand l'adresse quitte celle du fournisseur.
+hstat_ai_key <- function(engine = "claude", explicit = NULL, url = NULL) {
   k <- if (is.null(explicit)) "" else trimws(as.character(explicit)[1])
   if (is.na(k) || !nzchar(k)) {
     env <- hstat_ai_fournisseur(engine)$cle_env
-    if (nzchar(env)) k <- trimws(Sys.getenv(env, ""))
+    if (nzchar(env) && hstat_ai_url_attendue(engine, url))
+      k <- trimws(Sys.getenv(env, ""))
   }
   if (is.na(k)) "" else k
+}
+
+# L'adresse retenue est-elle celle que le fournisseur declare ? La comparaison
+# porte sur l'adresse RESOLUE des deux cotes, pour qu'une barre finale ou un
+# champ vide ne comptent pas comme un changement -- sinon le repli sauterait
+# dans le cas ordinaire, qui est justement celui qu'il sert.
+hstat_ai_url_attendue <- function(engine = "claude", url = NULL) {
+  identical(hstat_ai_url(engine, url),
+            hstat_ai_url(engine, NULL))
 }
 
 # Adresse de base : celle saisie, sinon celle du fournisseur.
@@ -198,7 +226,7 @@ hstat_ai_status <- function(engine = "auto", url = NULL, model = NULL,
   # d'environnement et l'endroit ou l'obtenir : « cle absente » tout court
   # laisse l'utilisateur sans geste a faire.
   if (nzchar(f$cle_env)) {
-    if (!nzchar(hstat_ai_key(engine, api_key)))
+    if (!nzchar(hstat_ai_key(engine, api_key, url)))
       return(list(ok = FALSE,
                   message = trf("%s indisponible : renseignez une clé d'API (champ ci-dessous ou variable %s). Clé à créer sur %s. Ce service est payant et nécessite une connexion ; la thématisation automatique, elle, est gratuite et hors ligne.",
                                 f$label, f$cle_env, f$cle_url %||% tr("le site du fournisseur"))))
@@ -323,7 +351,7 @@ hstat_ai_available <- function(explicit = NULL) {
 .hstat_ai_call_gemini <- function(prompt, system = NULL, url = NULL, model = NULL,
                                   api_key = NULL, json = TRUE, timeout = 300) {
   f <- hstat_ai_fournisseur("gemini")
-  key <- hstat_ai_key("gemini", api_key)
+  key <- hstat_ai_key("gemini", api_key, url)
   if (!nzchar(key)) return(list(ok = FALSE, text = "", error = "Clé d'API absente."))
   u <- hstat_ai_url("gemini", url)
   model <- hstat_ai_modele("gemini", model)
@@ -356,7 +384,7 @@ hstat_ai_available <- function(explicit = NULL) {
 .hstat_ai_call_claude <- function(prompt, system = NULL, api_key = NULL,
                                   model = NULL, max_tokens = 8000L,
                                   thinking = TRUE, timeout = 300, url = NULL) {
-  key <- hstat_ai_key("claude", api_key)
+  key <- hstat_ai_key("claude", api_key, url)
   if (!nzchar(key)) return(list(ok = FALSE, text = "", error = "Clé d'API absente."))
   model <- hstat_ai_modele("claude", model)
 
@@ -490,7 +518,7 @@ hstat_ai_call <- function(prompt, system = NULL, engine = "auto",
   # qu'une API distante : le delai d'attente par defaut en tient compte.
   tmo <- timeout %||% (if (nzchar(f$cle_env)) 300 else 900)
   .hstat_ai_call_openai(prompt, system, url, model,
-                        hstat_ai_key(engine, api_key), max_tokens, json, tmo,
+                        hstat_ai_key(engine, api_key, url), max_tokens, json, tmo,
                         engine = engine)
 }
 

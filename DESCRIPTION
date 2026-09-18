@@ -1,7 +1,7 @@
 Package: HStat
 Type: Package
 Title: Interactive Shiny Application for Statistical Analysis
-Version: 1.3.0
+Version: 1.3.1
 Authors@R: c(
     person("Houphouet", "KOUADIO", email = "houphouet.kouadio@epitech.eu",
            role = c("aut", "cre"),
@@ -20,7 +20,6 @@ LazyData: true
 RoxygenNote: 7.3.1
 Imports:
     cluster,
-    colourpicker,
     data.table,
     DBI,
     dplyr,
@@ -41,7 +40,6 @@ Imports:
     rlang,
     scales,
     shiny,
-    shinycssloaders,
     shinydashboard,
     shinyjs,
     stats,
@@ -51,6 +49,8 @@ Imports:
 Suggests:
     testthat (>= 3.0.0),
     bslib,
+    colourpicker,
+    shinycssloaders,
     digest,
     purrr,
     tibble,

@@ -7759,10 +7759,23 @@ hstat_set_seed <- function(seed = NULL) {
 }
 
 # Vide le cache DE LA SESSION COURANTE (a appeler au chargement d'un nouveau
-# fichier). Vider le cache entier ferait recalculer les agregations des autres
-# sessions du meme processus -- sans les fausser, mais sans raison.
-hstat_cache_clear <- function() {
-  prefixe <- paste0(.hstat_session_id(), "::")
+# fichier, ET a la fermeture de la session). Vider le cache entier ferait
+# recalculer les agregations des autres sessions du meme processus -- sans les
+# fausser, mais sans raison.
+#
+# `id` EXISTE POUR LA FERMETURE, et ce n'est pas du confort : `onSessionEnded`
+# s'execute hors du domaine reactif, ou `.hstat_session_id()` retombe sur
+# « hors-session » et ne retirerait donc rien. L'appelant capte le jeton a la
+# CONSTRUCTION -- pendant que la session existe encore -- et le passe ici.
+#
+# Sans cet appel a la fermeture, rien ne reprenait jamais les agregations d'une
+# session terminee : mesure sur quarante sessions portant chacune 5 Mo,
+# +367 Mo retenus, aucune ligne liberee. Le cache vit dans l'espace de noms du
+# paquet, donc dans le processus, qui lui ne s'arrete pas avec la session.
+hstat_cache_clear <- function(id = NULL) {
+  jeton <- if (is.null(id) || !nzchar(as.character(id)[1])) .hstat_session_id()
+           else as.character(id)[1]
+  prefixe <- paste0(jeton, "::")
   cles <- ls(.hstat_cache, all.names = TRUE)
   cles <- cles[startsWith(cles, prefixe)]
   if (length(cles)) rm(list = cles, envir = .hstat_cache)
@@ -9341,6 +9354,17 @@ hstat_installer_replis_ui <- function(envir = globalenv()) {
   poser("colourInput", if (has("colourpicker")) colourpicker::colourInput
         else function(inputId, label, value = "#000000", ...)
           shiny::textInput(inputId, label, value = value))
+  # LE METTEUR A JOUR VA AVEC LE CHAMP. `colourInput` avait son aiguillage,
+  # `updateColourInput` non -- et `mod_coding.R` l'appelait TROIS FOIS par son
+  # nom de paquet. L'asymetrie ne se voyait pas a la construction de
+  # l'interface (le champ, lui, a son repli) : elle levait au clic, dans
+  # l'atelier de codage, quand on change la couleur d'un code. Le repli suit
+  # celui de `colourInput` -- un champ texte se met a jour par
+  # `updateTextInput`.
+  poser("updateColourInput",
+        if (has("colourpicker")) colourpicker::updateColourInput
+        else function(session, inputId, label = NULL, value = NULL, ...)
+          shiny::updateTextInput(session, inputId, label = label, value = value))
 
   # -- shinyWidgets ------------------------------------------------------------
   poser("pickerInput", if (has("shinyWidgets")) shinyWidgets::pickerInput

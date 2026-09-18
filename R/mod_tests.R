@@ -8823,8 +8823,10 @@ mod_tests_server <- function(id, values) {
   
   output$downloadMultiPlot <- shiny::downloadHandler(
     filename = function() {
-      fmt <- input$multiPlotFormat %||% "png"
-      paste0("graphique_posthoc_", Sys.Date(), ".", fmt)
+      # L'extension passe par le normaliseur : c'est elle que Shiny traduit en
+      # type MIME, et l'ecrivain commun normalise deja le contenu de son cote.
+      paste0("graphique_posthoc_", Sys.Date(), ".",
+             hstat_img_fmt(input$multiPlotFormat))
     },
     content = function(file) {
       # On s'assure d'avoir un graphique : si l'utilisateur n'a pas (re)lancé
