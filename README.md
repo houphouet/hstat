@@ -176,6 +176,8 @@ consistency check, then the full suite.
 ├── app.R                           # deployment bridge to inst/app (shinyAppDir — never setwd)
 ├── CLAUDE.md                       # repository conventions
 ├── DESCRIPTION                     # single source of truth for the version number
+├── docs
+│   └── HStat-Guide-utilisation.docx  # user guide (French); not shipped in the tarball
 ├── Hstat.Rproj
 ├── inst
 │   ├── app
