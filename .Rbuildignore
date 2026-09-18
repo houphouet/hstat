@@ -6,3 +6,4 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^HStat_.*\.tar\.gz$
+^docs$
