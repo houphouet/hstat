@@ -1122,6 +1122,115 @@ hstat_coord_incompletes <- function(coord, axes = c(1L, 2L)) {
   noms[mauvais]
 }
 
+# =============================================================================
+#  ACP : QUI PORTE LA COULEUR SUR UN BIPLOT, ET CE QU'UNE VARIABLE N'APPREND PAS
+# =============================================================================
+
+# UN BIPLOT PORTE DEUX FAMILLES, UNE SEULE PEUT PORTER LE DEGRADE.
+#
+# Individus et variables coexistent sur la meme figure. Leur poser a tous deux
+# un degrade donnerait DEUX echelles sous UNE legende : on comparerait la
+# contribution d'un individu a celle d'une variable, qui ne sont pas la meme
+# grandeur et ne se lisent pas sur la meme plage.
+#
+# La cible depend de la metrique, et ce n'est pas une preference d'affichage :
+#
+#   * la CONTRIBUTION repond a « quels points construisent l'axe » -- la
+#     question porte sur les individus ;
+#   * le COS2 et l'INDICE DE SATURATION repondent a « ce plan represente-t-il
+#     bien cette mesure » -- la question porte sur les variables. La saturation
+#     est meme, par definition, une |correlation| entre une VARIABLE et un axe :
+#     un individu n'a pas de correlation avec un axe, seulement un cos2.
+#
+# La regle est donc declaree UNE fois. Deux `switch` recopies dans les deux
+# appels de `fviz_pca_biplot` (celui du trace et celui des ellipses) finiraient
+# par diverger, et c'est la copie oubliee qui ment.
+HSTAT_PCA_COLOR_CIBLE <- c(contrib = "ind", cos2 = "var", sat = "var")
+
+# Cible d'une metrique. Une metrique inconnue retombe sur "ind", le
+# comportement d'origine du biplot : un nom de travers ne doit pas deplacer
+# silencieusement la couleur d'une famille a l'autre.
+hstat_pca_cible_couleur <- function(metrique = "contrib") {
+  id <- as.character(metrique)[1]
+  if (is.na(id) || !nzchar(id)) return("ind")
+  cible <- HSTAT_PCA_COLOR_CIBLE[id]
+  if (is.na(cible)) "ind" else unname(cible)
+}
+
+# QUALITE DE REPRESENTATION D'UNE VARIABLE SUR UN SOUS-ESPACE.
+#
+# La somme des cos2 d'une variable sur les axes retenus est la part de sa
+# variance que ces axes capturent. Elle vaut 1 sur l'ensemble des composantes ;
+# basse sur le plan affiche, elle dit que la fleche que l'on voit ne represente
+# presque rien de la variable -- on la lit pourtant comme si elle la resumait.
+#
+# Trois decisions, chacune testee :
+#
+#  1. LE SOUS-ESPACE FAIT PARTIE DU CHIFFRE. Une variable mal representee sur
+#     le plan (1, 2) peut l'etre tres bien sur l'axe 3. Rendre « la » qualite
+#     sans dire sur quoi elle porte ferait retirer une variable informative.
+#     Les axes employes voyagent donc en attribut.
+#  2. UNE QUALITE INCALCULABLE RESTE `NA`, JAMAIS ZERO. `rowSums(na.rm = TRUE)`
+#     rendrait 0 sur une ligne entierement NaN -- c'est-a-dire le meme chiffre
+#     qu'une variable parfaitement orthogonale au plan, alors que le cas est
+#     tout autre : la variable est CONSTANTE, et FactoMineR ne peut pas lui
+#     donner de cos2. Les deux appellent le meme geste mais pas le meme mot.
+#  3. LE TRI MET LES INCALCULABLES EN TETE. Ce sont les variables dont on est
+#     le plus sur qu'elles n'apprennent rien : leur variance est nulle.
+hstat_pca_qualite_var <- function(res, axes = c(1L, 2L)) {
+  vide <- data.frame(Variable = character(0), Qualite = numeric(0),
+                     Qualite_pct = numeric(0), Contribution = numeric(0),
+                     stringsAsFactors = FALSE)
+  cos2 <- hstat_coord_mat(res$var$cos2)
+  if (is.null(cos2) || !NROW(cos2) || !NCOL(cos2)) {
+    attr(vide, "axes") <- integer(0)
+    return(vide)
+  }
+  ax <- unique(as.integer(axes))
+  ax <- ax[!is.na(ax) & ax >= 1L & ax <= NCOL(cos2)]
+  if (!length(ax)) ax <- seq_len(NCOL(cos2))
+
+  noms <- rownames(cos2)
+  if (is.null(noms)) noms <- as.character(seq_len(NROW(cos2)))
+
+  .somme <- function(m) {
+    apply(m[, ax, drop = FALSE], 1L, function(r) {
+      fini <- is.finite(r)
+      if (!any(fini)) NA_real_ else sum(r[fini])
+    })
+  }
+  qual <- .somme(cos2)
+
+  contrib <- hstat_coord_mat(res$var$contrib)
+  ctr <- if (is.null(contrib) || NCOL(contrib) < max(ax)) rep(NA_real_, length(qual))
+         else .somme(contrib)
+
+  out <- data.frame(Variable = noms, Qualite = unname(qual),
+                    Qualite_pct = unname(round(100 * qual, 1)),
+                    Contribution = unname(ctr),
+                    stringsAsFactors = FALSE)
+  out <- out[order(out$Qualite, na.last = FALSE), , drop = FALSE]
+  rownames(out) <- NULL
+  attr(out, "axes") <- ax
+  out
+}
+
+# Variables dont la qualite tombe sous le seuil, dans l'ordre du tableau (les
+# moins informatives d'abord).
+#
+# UNE QUALITE INCALCULABLE EST RETENUE, et ce n'est pas un traitement de
+# valeur manquante ordinaire : elle signale une variable CONSTANTE, donc une
+# variable dont on sait avec certitude qu'elle n'apporte rien -- a aucun axe,
+# pas seulement a ceux qu'on regarde. L'ecarter du decompte laisserait dans
+# l'ACP la seule variable dont le retrait ne se discute meme pas.
+hstat_pca_var_faibles <- function(qual, seuil = 0.30) {
+  if (!NROW(qual)) return(character(0))
+  s <- suppressWarnings(as.numeric(seuil)[1])
+  if (!is.finite(s)) s <- 0.30
+  garde <- is.na(qual$Qualite) | qual$Qualite < s
+  as.character(qual$Variable[garde])
+}
+
 # Verdict a TROIS etats sur une p-value : significatif / non significatif /
 # indeterminable. Un test statistique rend NA ou NaN des que ses donnees sont
 # degenerees (variance nulle, matrice singuliere, effectifs vides) ; brancher
@@ -1268,6 +1377,57 @@ hstat_lbl_slider <- function(id, label, value = HSTAT_LBL_PT_DEFAULT) {
 # toutes leurs coordonnées au même endroit. Ce repérage par effectif n'est
 # fiable que si individus et variables sont en nombres différents, d'où le
 # garde-fou sur `n_ind`.
+# NOIRCIR LES ETIQUETTES QUI PORTENT LE DEGRADE, ET ELLES SEULES.
+#
+# Un nom de variable qui herite du degrade sort en jaune clair sur fond blanc :
+# la fleche se voit, son nom non. On force donc le texte en noir.
+#
+# Mais sur un BIPLOT deux familles de texte coexistent. Les noircir toutes
+# rendrait les etiquettes d'individus -- volontairement mises en retrait --
+# plus visibles que les fleches qui portent la mesure, soit l'inverse de ce
+# qu'on vient de regler. La famille visee se reconnait a son NOMBRE DE LIGNES,
+# exactement comme `hstat_apply_label_sizes()` distingue les deux tailles.
+#
+# Sans `n_cible`, tous les calques de texte sont traites : c'est le cas du
+# cercle des correlations, ou il n'y a qu'une famille.
+#
+# Comptes AMBIGUS (autant de variables que d'individus) : on retombe sur
+# « tous ». C'est le moindre mal -- un nom illisible est un defaut visible,
+# une etiquette d'individu un peu trop sombre ne l'est pas.
+#
+# ATTENTION EN MESURANT CETTE FONCTION : les calques de ggplot2 sont des objets
+# ggproto, donc des ENVIRONNEMENTS. Elle modifie le graphique EN PLACE et rend
+# le meme objet -- comme `hstat_apply_label_sizes()`, sa voisine. Deux appels
+# successifs sur un meme `p` ne mesurent donc pas deux codes mais le second
+# etat du premier : une assertion ecrite ainsi a conclu que le ciblage ne
+# marchait pas alors qu'il marchait. Reconstruire le graphique avant chaque
+# appel.
+hstat_noircir_etiquettes <- function(p, colour = "#1a1a1a",
+                                     n_cible = NA_integer_, n_autre = NA_integer_) {
+  if (is.null(p) || is.null(p$layers)) return(p)
+  nc <- suppressWarnings(as.integer(n_cible))
+  nc <- unique(nc[!is.na(nc) & nc > 0])
+  n_autre <- suppressWarnings(as.integer(n_autre)[1])
+  if (!is.na(n_autre)) nc <- nc[nc != n_autre]
+  cible_seule <- length(nc) > 0
+
+  for (i in seq_along(p$layers)) {
+    if (!any(grepl("Text|Label", class(p$layers[[i]]$geom)))) next
+    if (cible_seule) {
+      nr <- tryCatch(
+        if (is.data.frame(p$layers[[i]]$data)) nrow(p$layers[[i]]$data) else NA_integer_,
+        error = function(e) NA_integer_)
+      if (is.na(nr) || !(nr %in% nc)) next
+    }
+    p$layers[[i]]$aes_params$colour   <- colour
+    p$layers[[i]]$aes_params$fontface <- "bold"
+    # Neutralise un mapping de couleur eventuel sur le texte : sans cela
+    # l'aes_params est ecrase au trace par le degrade mappe.
+    if (!is.null(p$layers[[i]]$mapping)) p$layers[[i]]$mapping$colour <- NULL
+  }
+  p
+}
+
 hstat_apply_label_sizes <- function(p, size_default, size_var = NULL,
                                     n_var = NA_integer_, n_ind = NA_integer_) {
   if (is.null(p) || is.null(p$layers)) return(p)
@@ -8385,12 +8545,92 @@ hstat_export_table_ui <- function(ns, prefix) {
       shiny::downloadButton(ns(paste0(prefix, "Xlsx")), "Excel", class = "btn-sm"))
 }
 
-hstat_export_table_handlers <- function(output, prefix, data_fun, fname = "resultats") {
+# Graine du LSTM. Elle est FIGEE -- aucune interface ne la declare, a la
+# difference de celle du reseau de neurones (`dlSeed`). Elle est nommee ici
+# parce que la feuille de details techniques l'ecrit : deux 123 recopies
+# finiraient par diverger, et c'est alors le fichier exporte qui mentirait sur
+# le tirage reellement employe.
+HSTAT_LSTM_SEED <- 123L
+
+# UNE METRIQUE SANS SON CONTEXTE NE SE RELIT PAS.
+#
+# `ml_metriques.csv` porte un RMSE, un R2 et leur interpretation -- et rien qui
+# dise QUEL modele les a produits, sur QUELLE cible, avec COMBIEN
+# d'observations, sous quelle graine. Six mois plus tard, ou dans un rapport
+# qui compare plusieurs modeles, le fichier ne se rattache plus a aucune
+# analyse : on refait le calcul, et c'est le recalcul qui fait foi. C'est la
+# meme regle que « chaque resultat porte la formule qui l'a produit » du module
+# des doses et dilutions.
+#
+# Le detail voyage en TABLE A PART, jamais melange aux metriques : « Modele »
+# range dans la colonne `Metrique` se lirait comme une metrique de plus -- la
+# faute de categorie que ce depot traque ailleurs sous « un gain ne se convertit
+# pas ». C'est l'idiome deja employe par le detail par ligne des rendements,
+# qui part en seconde feuille du classeur.
+#
+# Trois decisions :
+#
+#  1. UNE ENTREE VIDE DISPARAIT, elle ne s'ecrit pas « NA ». Un hyperparametre
+#     absent parce que le modele n'en a pas n'est pas une valeur manquante.
+#  2. UN VECTEUR SE REPLIE EN UNE CELLULE (« a, b, c »). La liste des
+#     predicteurs est une information, la tronquer en perdrait une partie.
+#  3. LA VERSION ET LA DATE FERMENT LE TABLEAU. Ce sont les deux seules lignes
+#     que l'appelant n'a pas a fournir et sans lesquelles la provenance se
+#     perd. La version passe par `hstat_version()`, jamais par un numero
+#     recopie -- un repli code en dur finit par mentir.
+hstat_details_techniques <- function(..., version = TRUE, date = TRUE) {
+  elems <- list(...)
+  noms  <- names(elems)
+  if (is.null(noms)) noms <- rep("", length(elems))
+
+  fmt <- function(v) {
+    if (is.null(v) || !length(v)) return(NA_character_)
+    if (is.factor(v)) v <- as.character(v)
+    if (is.numeric(v)) v <- format(v, trim = TRUE, scientific = FALSE)
+    v <- trimws(as.character(v))
+    v <- v[!is.na(v) & nzchar(v)]
+    if (!length(v)) NA_character_ else paste(v, collapse = ", ")
+  }
+  val <- vapply(elems, fmt, character(1))
+  ok  <- nzchar(noms) & !is.na(val)
+
+  # NOMS DE COLONNES SANS ACCENT, et ce n'est pas un oubli. La table voisine
+  # du meme classeur porte `Metrique` / `Interpretation` : un `Detail` accentue
+  # y jurerait. Surtout, un nom accente fait avertir `data.frame()` sur une
+  # machine dont la locale n'est pas UTF-8 (« unable to translate »), le piege
+  # deja rencontre sur `Ecart_type` -- et la colonne part dans un fichier lu
+  # par un tableur, dont l'encodage ne se devine pas.
+  out <- data.frame(noms[ok], val[ok], stringsAsFactors = FALSE)
+  names(out) <- c("Detail", "Valeur")
+
+  ligne <- function(k, v) stats::setNames(
+    data.frame(k, v, stringsAsFactors = FALSE), names(out))
+  if (isTRUE(version)) out <- rbind(out, ligne("Version HStat", hstat_version()))
+  if (isTRUE(date))
+    out <- rbind(out, ligne("Date d'export",
+                            format(Sys.time(), "%Y-%m-%d %H:%M:%S")))
+  rownames(out) <- NULL
+  out
+}
+
+hstat_export_table_handlers <- function(output, prefix, data_fun, fname = "resultats",
+                                        details_fun = NULL) {
   # Un tableau seul est une liste d'un element : meme chemin d'ecriture que les
   # exports a plusieurs feuilles, donc meme garantie.
   tables <- function() {
     d <- data_fun()
-    if (is.null(d)) NULL else stats::setNames(list(as.data.frame(d)), fname)
+    if (is.null(d)) return(NULL)
+    out <- stats::setNames(list(as.data.frame(d)), fname)
+    if (!is.null(details_fun)) {
+      # UN DETAIL QUI ECHOUE N'EMPORTE PAS L'EXPORT. Le tableau demande reste
+      # la promesse principale : mieux vaut un classeur a une feuille qu'un
+      # `content =` qui leve et fait renvoyer a Shiny sa page d'erreur HTML,
+      # que le navigateur enregistre sous le nom `.xlsx` demande.
+      det <- tryCatch(details_fun(), error = function(e) NULL)
+      if (!is.null(det) && NROW(det))
+        out[["details_techniques"]] <- as.data.frame(det)
+    }
+    out
   }
   output[[paste0(prefix, "Csv")]]  <- hstat_csv_handler(tables, fname)
   output[[paste0(prefix, "Xlsx")]] <- hstat_classeur_handler(tables, fname)

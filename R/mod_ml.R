@@ -783,7 +783,24 @@ mod_ml_server <- function(id, values) {
       DT::datatable(cur()$r$metrics, rownames = FALSE,
                     options = list(dom = "t", scrollX = TRUE)))
     hstat_export_table_handlers(output, "mlMet",
-      function() cur()$r$metrics, "ml_metriques")
+      function() cur()$r$metrics, "ml_metriques",
+      # Un RMSE seul ne se rattache a aucune analyse : le classeur porte donc
+      # en seconde feuille de quoi refaire exactement ce calcul.
+      details_fun = function() {
+        c0 <- cur(); p <- c0$p; r <- c0$r
+        hstat_details_techniques(
+          "Modele"                       = r$label,
+          "Tache"                        = if (identical(p$task, "classification"))
+                                             "Classification" else "Regression",
+          "Variable cible"               = p$target,
+          "Nombre de predicteurs"        = length(p$preds),
+          "Predicteurs"                  = p$preds,
+          "Observations (apprentissage)" = nrow(p$train),
+          "Observations (test)"          = nrow(p$test),
+          "Part d'entrainement (%)"      = hstat_finite(input$mlSplit, 75),
+          "Graine aleatoire"             = hstat_finite(input$mlSeed, 123),
+          "Hyperparametres"              = r$hp)
+      })
 
     output$mlInterp <- shiny::renderUI({
       c0 <- cur()
