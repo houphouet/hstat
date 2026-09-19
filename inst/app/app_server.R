@@ -977,6 +977,179 @@ server <- function(input, output, session) {
     )
   })
   
+  # ===========================================================================
+  #  LES VARIABLES QUI N'APPRENNENT RIEN, NOMMEES ET CHOISIES UNE PAR UNE
+  # ===========================================================================
+  #
+  # Le panneau de colinearite repond a « ces deux variables disent la meme
+  # chose ». Celui-ci repond a l'autre question, qui n'etait posee nulle part :
+  # « cette variable dit-elle quelque chose SUR CE PLAN ? »
+  #
+  # Une fleche courte est une variable dont les axes affiches ne capturent
+  # presque rien -- on la lit pourtant comme les autres. Le tri se fait donc
+  # sur la qualite de representation (somme des cos2), du moins informatif au
+  # plus informatif, et le retrait reste un geste : on coche, on retire. Rien
+  # n'est ecarte d'office, exactement comme le temoin des gains ne se devine
+  # pas.
+  pcaQualiteVar <- shiny::reactive({
+    res <- pcaResultReactive()
+    shiny::req(res)
+    ax_x <- if (!is.null(input$pcaAxisX)) as.numeric(input$pcaAxisX) else 1
+    ax_y <- if (!is.null(input$pcaAxisY)) as.numeric(input$pcaAxisY) else 2
+    base <- input$pcaLowInfoBase %||% "plan"
+    n_dim <- NCOL(hstat_coord_mat(res$var$cos2))
+    axes <- if (identical(base, "retenues")) seq_len(n_dim) else c(ax_x, ax_y)
+    hstat_pca_qualite_var(res, axes)
+  })
+
+  # LE PANNEAU SE SCINDE EN DEUX, ET CE N'EST PAS UN DETAIL DE MISE EN PAGE.
+  # Le cadre porte les COMMANDES (base de calcul, seuil, boutons) ; la liste
+  # porte ce qui DEPEND d'elles. Les garder ensemble ferait dependre le rendu
+  # du bouton radio de la valeur de ce meme bouton : chaque clic reconstruirait
+  # le widget sous le doigt de l'utilisateur -- le defaut deja corrige sur la
+  # table de saisie de l'onglet DL50.
+  output$pcaLowInfoPanel <- shiny::renderUI({
+    # L'OUTIL EST OPTIONNEL, ET IL EST FERME PAR DEFAUT. Ce n'est pas un
+    # resultat de l'ACP : c'est un geste de tri que l'on vient chercher. Une
+    # boite qui s'ouvrirait d'elle-meme pousserait hors de l'ecran les
+    # reglages qu'on venait regler -- le defaut deja corrige sur les six boites
+    # vides de l'onglet multivarie. Le drapeau ferme aussi le CALCUL : les
+    # reactifs sont paresseux, `pcaQualiteVar()` n'est pas evalue tant que la
+    # case n'est pas cochee.
+    if (!isTRUE(input$pcaShowLowInfo)) return(NULL)
+    res <- pcaResultReactive()
+    if (is.null(res)) return(NULL)
+    base0  <- shiny::isolate(input$pcaLowInfoBase)  %||% "plan"
+    seuil0 <- shiny::isolate(input$pcaLowInfoSeuil) %||% 0.30
+
+    shiny::div(
+      style = "border:2px solid #6f42c1; border-radius:6px; padding:12px; margin:8px 0; background:white;",
+      shiny::div(style = "display:flex; align-items:center; gap:8px; margin-bottom:8px; color:#6f42c1;",
+          shiny::icon("filter-circle-xmark"),
+          shiny::tags$strong(tr("Variables les moins informatives"))),
+
+      shiny::radioButtons(
+        "pcaLowInfoBase", tr("Qualité mesurée sur :"),
+        choices = stats::setNames(
+          c("plan", "retenues"),
+          c(tr("le plan affiché (les 2 axes du graphique)"),
+            tr("toutes les composantes retenues"))),
+        selected = base0),
+
+      shiny::uiOutput("pcaLowInfoList"),
+
+      shiny::fluidRow(
+        shiny::column(6, shiny::numericInput("pcaLowInfoSeuil", tr("Seuil de qualité :"),
+                                      value = seuil0, min = 0, max = 1, step = 0.05)),
+        shiny::column(6, shiny::div(style = "margin-top:25px;",
+          shiny::actionButton("pcaLowInfoPreselect",
+                       shiny::tagList(shiny::icon("check-double"), tr(" Cocher sous le seuil")),
+                       class = "btn-sm btn-outline-secondary btn-block",
+                       style = "font-size:11px; white-space:normal;")))),
+
+      shiny::actionButton("pcaLowInfoRemove",
+                   shiny::tagList(shiny::icon("eraser"), tr(" Retirer de l'ACP les variables cochées")),
+                   class = "btn-sm btn-danger btn-block",
+                   style = "font-size:11px; white-space:normal;"),
+
+      shiny::tags$small(style = "color:#6c757d; display:block; margin-top:8px;",
+        tr("Le retrait modifie les variables actives : relancez l'ACP pour en voir l'effet. Rien n'est retiré tant que vous ne cliquez pas."))
+    )
+  })
+
+  output$pcaLowInfoList <- shiny::renderUI({
+    if (!isTRUE(input$pcaShowLowInfo)) return(NULL)
+    qual <- pcaQualiteVar()
+    if (!NROW(qual)) return(NULL)
+    ax <- attr(qual, "axes")
+    base <- input$pcaLowInfoBase %||% "plan"
+
+    # UNE MESURE QUI NE DISTINGUE RIEN NE DOIT PAS ETRE PRESENTEE COMME UN
+    # CLASSEMENT. Mesure : sur 5 variables et 5 composantes retenues, la somme
+    # des cos2 vaut EXACTEMENT 1 pour chacune -- les axes couvrent alors tout
+    # l'espace. Le tableau serait parfaitement lisible, et strictement plat.
+    espace_plein <- identical(base, "retenues") &&
+      length(ax) >= NROW(qual) &&
+      all(is.na(qual$Qualite) | abs(qual$Qualite - 1) < 1e-8)
+
+    # La selection survit au recalcul, mais seulement pour ce qui existe
+    # encore : sans l'intersection, une variable retiree resterait cochee sans
+    # figurer nulle part. `isolate()` empeche le rendu de boucler sur sa
+    # propre ecriture.
+    deja <- intersect(shiny::isolate(input$pcaLowInfoVars) %||% character(0),
+                      qual$Variable)
+
+    etiquette <- function(i) {
+      q <- qual$Qualite[i]
+      if (is.na(q))
+        trf("%s  --  qualité non calculable (variable constante)", qual$Variable[i])
+      else
+        trf("%s  --  qualité %s (%s %%)", qual$Variable[i],
+            formatC(q, format = "f", digits = 3),
+            formatC(100 * q, format = "f", digits = 1))
+    }
+    choix <- stats::setNames(qual$Variable,
+                             vapply(seq_len(NROW(qual)), etiquette, character(1)))
+
+    shiny::tagList(
+      # LE SOUS-ESPACE FAIT PARTIE DU CHIFFRE, donc il est ecrit. Une variable
+      # mal representee sur le plan (1, 2) peut l'etre tres bien sur l'axe 3 :
+      # taire les axes employes ferait retirer une variable informative.
+      shiny::tags$small(
+        style = "color:#6c757d; display:block; margin:-4px 0 8px 0;",
+        shiny::icon("info-circle"), " ",
+        trf("Somme des cos² sur l'axe/les axes %s. Une variable peut être faible ici et forte sur un autre axe.",
+            paste(ax, collapse = ", "))),
+
+      if (isTRUE(espace_plein))
+        shiny::div(style = "padding:8px 10px; background:#fff8e1; border-radius:4px; font-size:11px; color:#6c5200; margin-bottom:8px;",
+            shiny::icon("exclamation-triangle"), " ",
+            tr("Les composantes retenues couvrent tout l'espace : la qualité y vaut 1 pour toutes les variables, ce classement ne distingue donc rien. Réduisez le nombre de composantes, ou classez sur le plan affiché.")),
+
+      shiny::div(
+        style = "max-height:220px; overflow-y:auto; border:1px solid #e9ecef; border-radius:4px; padding:6px 8px; margin-bottom:8px;",
+        shiny::checkboxGroupInput("pcaLowInfoVars", NULL,
+                                  choices = choix, selected = deja))
+    )
+  })
+
+  # Cocher, sans retirer : le seuil propose, l'utilisateur decide.
+  shiny::observeEvent(input$pcaLowInfoPreselect, {
+    qual <- pcaQualiteVar()
+    shiny::req(NROW(qual))
+    faibles <- hstat_pca_var_faibles(qual, input$pcaLowInfoSeuil %||% 0.30)
+    shiny::updateCheckboxGroupInput(session, "pcaLowInfoVars", selected = faibles)
+    shiny::showNotification(
+      if (length(faibles))
+        trf("%d variable(s) cochée(s) sous le seuil : %s.",
+            length(faibles), paste(faibles, collapse = ", "))
+      else tr("Aucune variable sous ce seuil."),
+      type = "message", duration = 5)
+  })
+
+  shiny::observeEvent(input$pcaLowInfoRemove, {
+    choisies <- input$pcaLowInfoVars %||% character(0)
+    if (!length(choisies)) {
+      shiny::showNotification(tr("Cochez d'abord les variables à retirer."),
+                       type = "warning", duration = 5)
+      return()
+    }
+    restantes <- setdiff(input$pcaVars %||% character(0), choisies)
+    # UNE ACP A BESOIN D'AU MOINS DEUX VARIABLES ACTIVES. Le meme garde-fou que
+    # le retrait automatique des colineaires, et pour la meme raison : mieux
+    # vaut refuser que rendre une analyse vide sans dire pourquoi.
+    if (length(restantes) < 2) {
+      shiny::showNotification(
+        tr("Impossible : une ACP demande au moins 2 variables actives. Décochez-en quelques-unes."),
+        type = "warning", duration = 6)
+      return()
+    }
+    updatePickerInput(session, "pcaVars", selected = restantes)
+    shiny::showNotification(
+      trf("Variables retirées : %s. Relancez l'ACP.", paste(choisies, collapse = ", ")),
+      type = "message", duration = 6)
+  })
+
   # Supprimer automatiquement les variables colinéaires de la sélection ACP
   shiny::observeEvent(input$pcaAutoRemoveCollinear, {
     shiny::req(values$filteredData, input$pcaVars)
@@ -1379,8 +1552,31 @@ server <- function(input, output, session) {
                    ),
                    list(txt = "", col = "#555", icon = "info-circle")
     )
-    shiny::div(style = paste0("margin-top:4px; padding:6px 10px; background:white; border-radius:4px; border-left:3px solid ", desc$col, "; font-size:11px; color:#444;"),
-        shiny::icon(desc$icon), " ", desc$txt)
+    # DIRE QUELLE FAMILLE PORTE LA COULEUR. Sur un biplot, le degrade se pose
+    # sur les individus ou sur les variables selon la metrique ; sans cette
+    # ligne, l'utilisateur change de critere et voit changer une couleur sans
+    # savoir de quel cote regarder.
+    cible <- hstat_pca_cible_couleur(color_choice)
+    sur_biplot <- identical(input$pcaPlotType %||% "var", "biplot")
+    habille <- sur_biplot && isTRUE(input$pcaShowEllipses) &&
+      !is.null(input$pcaEllipseGroup) && nzchar(input$pcaEllipseGroup %||% "")
+    cible_txt <- if (!sur_biplot) NULL else if (identical(cible, "var"))
+      tr("Sur le biplot, ce critère colore les VARIABLES (flèches) ; les individus restent en gris.")
+    else
+      tr("Sur le biplot, ce critère colore les INDIVIDUS (points) ; les variables restent en noir.")
+    shiny::tagList(
+      shiny::div(style = paste0("margin-top:4px; padding:6px 10px; background:white; border-radius:4px; border-left:3px solid ", desc$col, "; font-size:11px; color:#444;"),
+          shiny::icon(desc$icon), " ", desc$txt),
+      if (!is.null(cible_txt))
+        shiny::div(style = "margin-top:4px; padding:6px 10px; background:#fafafa; border-radius:4px; font-size:11px; color:#444;",
+            shiny::icon("crosshairs"), " ", shiny::tags$b(cible_txt)),
+      # Un reglage sans effet se dit. L'habillage par groupe prend l'esthetique
+      # « couleur » des individus : le degrade ne peut pas s'y superposer.
+      if (isTRUE(habille) && !identical(cible, "var"))
+        shiny::div(style = "margin-top:4px; padding:6px 10px; background:#fff8e1; border-radius:4px; font-size:11px; color:#6c5200;",
+            shiny::icon("exclamation-triangle"), " ",
+            tr("Les ellipses colorent déjà les individus par groupe : ce critère n'agit pas sur eux tant qu'elles sont affichées. Choisissez Cos² ou Indice de saturation pour colorer les variables à la place."))
+    )
   })
   
   output$pcaConditionsCheck <- shiny::renderUI({
@@ -1586,22 +1782,6 @@ server <- function(input, output, session) {
   # Force les calques de texte (labels de variables/individus) en noir et gras,
   # pour qu'ils restent lisibles meme quand la couleur d'origine vient d'un degrade
   # clair (contrib/cos2). Les fleches/points gardent leur couleur.
-  .mv_darken_text_labels <- function(p, colour = "#1a1a1a") {
-    if (is.null(p) || is.null(p$layers)) return(p)
-    for (i in seq_along(p$layers)) {
-      gcl <- class(p$layers[[i]]$geom)
-      if (any(grepl("Text|Label", gcl))) {
-        p$layers[[i]]$aes_params$colour <- colour
-        p$layers[[i]]$aes_params$fontface <- "bold"
-        # neutralise un mapping de couleur eventuel sur le texte
-        if (!is.null(p$layers[[i]]$mapping)) {
-          p$layers[[i]]$mapping$colour <- NULL
-        }
-      }
-    }
-    p
-  }
-
   createPcaPlot <- function(res.pca) {
     
     axis_x <- if (!is.null(input$pcaAxisX)) as.numeric(input$pcaAxisX) else 1
@@ -1639,13 +1819,20 @@ server <- function(input, output, session) {
       if (ax_x_s == ax_y_s) return(abs(cor_mat[, ax_x_s]))
       rowMeans(abs(cor_mat[, c(ax_x_s, ax_y_s), drop = FALSE]))
     }
+    # LE CHIFFRE ETAIT BON, LE NOM ETAIT FAUX. La legende annonce un « indice
+    # de saturation (|correlation|) » ; on rendait ici une somme de cos2,
+    # c'est-a-dire un CARRE. Pour un individu, le cos2 sur le plan est le carre
+    # du cosinus de l'angle qu'il fait avec lui : sa racine est donc bien
+    # l'analogue de la |correlation| d'une variable, et elle se lit sur la meme
+    # plage [0 ; 1] que celle des variables. Sans la racine, les deux familles
+    # portaient deux grandeurs differentes sous un seul mot.
     compute_sat_ind <- function(res, ax_x, ax_y) {
       cos2_mat <- res$ind$cos2
       n_dim    <- ncol(cos2_mat)
       ax_x_s   <- min(ax_x, n_dim)
       ax_y_s   <- min(ax_y, n_dim)
-      if (ax_x_s == ax_y_s) return(cos2_mat[, ax_x_s])
-      rowSums(cos2_mat[, c(ax_x_s, ax_y_s), drop = FALSE])
+      if (ax_x_s == ax_y_s) return(sqrt(cos2_mat[, ax_x_s]))
+      sqrt(rowSums(cos2_mat[, c(ax_x_s, ax_y_s), drop = FALSE]))
     }
     
     col_var <- switch(color_choice,
@@ -1661,6 +1848,15 @@ server <- function(input, output, session) {
                       "contrib"
     )
     
+    # SUR UN BIPLOT, UNE SEULE FAMILLE PORTE LE DEGRADE, et laquelle depend de
+    # la metrique : la contribution repond a « quels points construisent
+    # l'axe » (les individus), le cos2 et la saturation a « ce plan
+    # represente-t-il bien cette mesure » (les variables). La regle est
+    # declaree une seule fois dans `R/utils.R` ; les deux appels a
+    # `fviz_pca_biplot` la lisent au meme endroit.
+    cible_couleur <- hstat_pca_cible_couleur(color_choice)
+    var_coloree   <- identical(cible_couleur, "var")
+
     gradient_cols <- c("#00AFBB", "#E7B800", "#FC4E07")
     # Tailles de labels reglees en POINTS par l'utilisateur (12 a 24 pt),
     # converties vers l'unite de ggplot2 (mm) : une taille pour les individus,
@@ -1683,7 +1879,7 @@ server <- function(input, output, session) {
       # Les labels des variables heritaient du degrade de couleur (contrib/cos2),
       # rendant les noms clairs peu lisibles ("flous"). On force le TEXTE en noir
       # et en gras, tout en gardant les fleches colorees par la metrique.
-      p <- .mv_darken_text_labels(p)
+      p <- hstat_noircir_etiquettes(p)
       p <- hstat_apply_label_sizes(p, lbl_var)
     } else if (input$pcaPlotType == "ind") {
       p <- factoextra::fviz_pca_ind(res.pca,
@@ -1695,17 +1891,24 @@ server <- function(input, output, session) {
                         title = plot_title)
       p <- hstat_apply_label_sizes(p, lbl_ind)
     } else {
-      # Biplot : les individus sont colores selon le critere choisi, mais les
-      # VARIABLES (fleches + labels) sont forcees en NOIR pour rester visibles
-      # (sinon elles se confondent avec le degrade des individus).
+      # Biplot : la famille designee par la metrique porte le degrade, l'autre
+      # prend une couleur neutre. Colorer les deux donnerait DEUX echelles sous
+      # UNE legende -- on comparerait alors la contribution d'un individu a
+      # celle d'une variable, qui ne sont pas la meme grandeur.
       p <- factoextra::fviz_pca_biplot(res.pca,
                            axes = c(axis_x, axis_y),
                            repel = TRUE, labelsize = lbl_ind, pointsize = pt_sz,
-                           col.var = "black",
-                           col.ind = col_ind,
+                           col.var = if (var_coloree) col_var else "black",
+                           col.ind = if (var_coloree) "grey60" else col_ind,
                            gradient.cols = gradient_cols,
                            ggtheme = mv_ggtheme("pcaPlot"),
                            title = plot_title)
+      # Quand les fleches portent le degrade, leurs NOMS le portent aussi et
+      # les teintes claires deviennent illisibles -- le defaut deja corrige sur
+      # le cercle des correlations. On force donc le texte en noir, comme le
+      # fait la branche « Variables », et seulement dans ce cas : l'appliquer
+      # quand les individus sont colores changerait leur rendu sans raison.
+      if (var_coloree) p <- hstat_noircir_etiquettes(p, n_cible = n_var_p, n_autre = n_ind_p)
       # Le biplot melange les deux familles de labels : on retaille apres coup
       # les calques de texte des variables, factoextra n'exposant qu'un seul
       # argument `labelsize`.
@@ -1760,13 +1963,16 @@ server <- function(input, output, session) {
             factoextra::fviz_pca_biplot(res.pca, axes = c(axis_x, axis_y),
                             habillage = grp, addEllipses = TRUE,
                             ellipse.type = "confidence", ellipse.level = 0.95,
-                            col.var = "black", repel = TRUE,
+                            col.var = if (var_coloree) col_var else "black",
+                            gradient.cols = gradient_cols, repel = TRUE,
                             labelsize = lbl_ind,
                             ggtheme = mv_ggtheme("pcaPlot"), title = plot_title),
             error = function(e) NULL)
-          if (!is.null(p_ell))
+          if (!is.null(p_ell)) {
+            if (var_coloree) p_ell <- hstat_noircir_etiquettes(p_ell, n_cible = n_var_p, n_autre = n_ind_p)
             p_ell <- hstat_apply_label_sizes(p_ell, lbl_ind, lbl_var,
                                              n_var_p, n_ind_p)
+          }
         } else {
           p_ell <- tryCatch(
             factoextra::fviz_pca_ind(res.pca, axes = c(axis_x, axis_y),
@@ -5140,7 +5346,7 @@ server <- function(input, output, session) {
     if (is.null(p)) return(NULL)
     p <- p + ggplot2::labs(title = title, subtitle = subtitle)
     # Labels lisibles (noir/gras) plutot que la couleur claire du degrade.
-    p <- .mv_darken_text_labels(p)
+    p <- hstat_noircir_etiquettes(p)
     # factoextra n'expose qu'un seul `labelsize` : sur un graphique melangeant
     # individus et variables (biplot), on retaille apres coup les calques de
     # texte des variables pour honorer les deux reglages en points.

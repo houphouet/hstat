@@ -17944,3 +17944,276 @@ test_that("diversite et DL50 declarent tout le vocabulaire, sans un seul doublon
                     label = paste(m$id, fam, suf))
   }
 })
+
+# =============================================================================
+#  ACP : LA CIBLE DU DEGRADE SUR UN BIPLOT, ET LES VARIABLES PEU INFORMATIVES
+# =============================================================================
+
+test_that("la cible du degrade se declare une fois, et un nom inconnu ne la deplace pas", {
+  expect_equal(hstat_pca_cible_couleur("contrib"), "ind")
+  expect_equal(hstat_pca_cible_couleur("cos2"),    "var")
+  expect_equal(hstat_pca_cible_couleur("sat"),     "var")
+
+  # Un identifiant de travers ne doit pas faire glisser la couleur d'une
+  # famille a l'autre sans un mot : on retombe sur le comportement d'origine.
+  expect_equal(hstat_pca_cible_couleur("n_existe_pas"), "ind")
+  expect_equal(hstat_pca_cible_couleur(""),   "ind")
+  expect_equal(hstat_pca_cible_couleur(NA),   "ind")
+
+  # La table est la source unique : les trois metriques de l'interface y sont.
+  expect_setequal(names(HSTAT_PCA_COLOR_CIBLE), c("contrib", "cos2", "sat"))
+  expect_true(all(HSTAT_PCA_COLOR_CIBLE %in% c("ind", "var")))
+})
+
+test_that("la qualite d'une variable est la somme de ses cos2 sur les axes demandes", {
+  skip_if_not_installed("FactoMineR")
+  set.seed(11)
+  n <- 60
+  d <- data.frame(a = stats::rnorm(n), c = stats::rnorm(n),
+                  dd = stats::rnorm(n), e = stats::rnorm(n))
+  d$b <- d$a + stats::rnorm(n, 0, 0.1)
+  res <- FactoMineR::PCA(d, graph = FALSE, ncp = 5)
+
+  q12 <- hstat_pca_qualite_var(res, c(1, 2))
+  expect_equal(nrow(q12), 5L)
+  expect_setequal(q12$Variable, names(d))
+  expect_equal(attr(q12, "axes"), c(1L, 2L))
+
+  # La somme des cos2 sur TOUTES les composantes vaut 1 : c'est ce qui donne
+  # son sens a la grandeur -- « la part de la variable que ces axes captent ».
+  q5 <- hstat_pca_qualite_var(res, 1:5)
+  expect_equal(unname(q5$Qualite), rep(1, 5), tolerance = 1e-8)
+
+  # Trie du moins informatif au plus informatif.
+  expect_false(is.unsorted(q12$Qualite, na.rm = TRUE))
+  expect_equal(q12$Qualite_pct, round(100 * q12$Qualite, 1))
+
+  # LE SOUS-ESPACE FAIT PARTIE DU CHIFFRE, et cela se mesure : le classement
+  # change avec les axes. Sans cette assertion, une fonction qui ignorerait
+  # completement `axes` passerait aussi -- et l'on retirerait une variable
+  # informative parce qu'elle est faible sur un plan qu'on ne garde pas.
+  q13 <- hstat_pca_qualite_var(res, c(1, 3))
+  expect_false(identical(q12$Variable, q13$Variable))
+  expect_equal(attr(q13, "axes"), c(1L, 3L))
+
+  # Un axe hors du domaine est ignore, jamais pris pour un autre.
+  expect_equal(attr(hstat_pca_qualite_var(res, c(1, 99)), "axes"), 1L)
+})
+
+test_that("une qualite incalculable reste NA, jamais zero, et passe en tete", {
+  m <- matrix(c(0.90, 0.05,
+                NaN,  NaN,
+                0.20, 0.05),
+              nrow = 3, byrow = TRUE,
+              dimnames = list(c("bonne", "constante", "faible"),
+                              c("Dim.1", "Dim.2")))
+  q <- hstat_pca_qualite_var(list(var = list(cos2 = m, contrib = m)), c(1, 2))
+
+  # `rowSums(na.rm = TRUE)` aurait rendu 0 -- c'est-a-dire EXACTEMENT le
+  # chiffre d'une variable parfaitement orthogonale au plan. Deux situations
+  # differentes sous un meme nombre : la variable constante n'a pas de cos2,
+  # elle n'en a pas un nul.
+  expect_true(is.na(q$Qualite[q$Variable == "constante"]))
+  expect_false(isTRUE(all.equal(0, q$Qualite[q$Variable == "constante"])))
+
+  # Elle passe en tete : c'est la variable dont on est le plus sur qu'elle
+  # n'apprend rien.
+  expect_equal(q$Variable[1], "constante")
+  expect_equal(q$Qualite[q$Variable == "bonne"],  0.95)
+  expect_equal(q$Qualite[q$Variable == "faible"], 0.25)
+
+  # Un resultat a UN SEUL axe rend ses cos2 en VECTEUR NU : `m[, ax]` echouerait
+  # sur « incorrect number of dimensions » sans `hstat_coord_mat()`.
+  v <- stats::setNames(c(0.8, 0.1), c("x", "y"))
+  qv <- hstat_pca_qualite_var(list(var = list(cos2 = v, contrib = v)), c(1, 2))
+  expect_equal(qv$Variable, c("y", "x"))
+  expect_equal(attr(qv, "axes"), 1L)
+
+  # Aucune variable : un tableau vide, jamais une erreur -- le panneau alimente
+  # une sortie Shiny, ou une erreur ferait tomber tout le bloc.
+  vide <- hstat_pca_qualite_var(list(var = list(cos2 = NULL)))
+  expect_equal(nrow(vide), 0L)
+  expect_equal(hstat_pca_var_faibles(vide), character(0))
+})
+
+test_that("le seuil des variables faibles est strict, et retient les incalculables", {
+  q <- data.frame(Variable = c("cst", "bas", "pile", "haut"),
+                  Qualite  = c(NA, 0.10, 0.30, 0.90),
+                  stringsAsFactors = FALSE)
+
+  # Comparaison STRICTE : « pile au seuil » n'est pas sous le seuil.
+  expect_equal(hstat_pca_var_faibles(q, 0.30), c("cst", "bas"))
+  expect_equal(hstat_pca_var_faibles(q, 0.31), c("cst", "bas", "pile"))
+  expect_equal(hstat_pca_var_faibles(q, 0),    "cst")
+
+  # Une saisie videe en cours de frappe retombe sur le defaut plutot que de
+  # faire tomber le panneau.
+  expect_equal(hstat_pca_var_faibles(q, NA),    c("cst", "bas"))
+  expect_equal(hstat_pca_var_faibles(q, "abc"), c("cst", "bas"))
+})
+
+test_that("le biplot de l'ACP route bien le degrade, pas seulement l'aide qui le calcule", {
+  # LE TEST PORTE SUR LE MODULE, PAS SUR LA FONCTION. Un test qui n'appellerait
+  # que `hstat_pca_cible_couleur()` resterait vert pendant que le biplot
+  # continue de colorer les individus quoi qu'on choisisse : il verifierait que
+  # la regle SAIT repondre, jamais que le graphique la LIT.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "depot introuvable")
+  f <- file.path(root, "inst", "app", "app_server.R")
+  skip_if_not(file.exists(f), "app_server.R absent (paquet installe)")
+
+  ex <- parse(f, keep.source = FALSE)
+
+  # Tous les appels a `fviz_pca_biplot`, a n'importe quelle profondeur.
+  appels <- list()
+  recolter <- function(e) {
+    if (is.call(e)) {
+      nm <- deparse(e[[1]])
+      if (grepl("fviz_pca_biplot$", nm)) appels[[length(appels) + 1L]] <<- e
+      for (i in seq_along(e)) if (!is.null(e[[i]])) recolter(e[[i]])
+    } else if (is.pairlist(e) || is.list(e)) {
+      for (i in seq_along(e)) if (!is.null(e[[i]])) recolter(e[[i]])
+    }
+  }
+  for (i in seq_along(ex)) recolter(ex[[i]])
+  expect_gte(length(appels), 2L)   # le trace, et la variante a ellipses
+
+  # La cible est lue, et elle vient de l'aide partagee -- pas d'un `switch`
+  # recopie dans chaque appel, qui finirait par diverger.
+  src <- paste(deparse(ex), collapse = "\n")
+  expect_true(grepl("hstat_pca_cible_couleur", src, fixed = TRUE))
+
+  # Chaque appel conditionne `col.var` : un `col.var = "black"` en dur y
+  # ignorerait la metrique. C'est l'assertion que la mutation fait echouer.
+  for (k in seq_along(appels)) {
+    cv <- appels[[k]][["col.var"]]
+    expect_false(is.null(cv), label = paste("col.var absent, appel", k))
+    expect_true(is.call(cv) && identical(as.character(cv[[1]]), "if"),
+                label = paste("col.var non conditionnel, appel", k))
+    expect_true(grepl("var_coloree", paste(deparse(cv), collapse = " "), fixed = TRUE),
+                label = paste("col.var ne lit pas la cible, appel", k))
+  }
+})
+
+test_that("le panneau des variables peu informatives est declare, lu et branche", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "depot introuvable")
+  ux <- file.path(root, "inst", "app", "UX.R")
+  sv <- file.path(root, "inst", "app", "app_server.R")
+  skip_if_not(file.exists(ux) && file.exists(sv), "sources absentes (paquet installe)")
+
+  lux <- paste(.hstat_code_lignes(ux), collapse = "\n")
+  lsv <- paste(.hstat_code_lignes(sv), collapse = "\n")
+
+  # DECLARE : la sortie existe dans l'interface, sinon le serveur calcule pour
+  # une place qui n'est nulle part.
+  expect_true(grepl('uiOutput("pcaLowInfoPanel")', lux, fixed = TRUE))
+  expect_true(grepl('output$pcaLowInfoPanel', lsv, fixed = TRUE))
+  expect_true(grepl('output$pcaLowInfoList',  lsv, fixed = TRUE))
+
+  # LU : chaque bouton declare est guette par un observateur -- un bouton
+  # inerte se lit comme un reglage qui attend un clic.
+  for (b in c("pcaLowInfoPreselect", "pcaLowInfoRemove")) {
+    expect_true(grepl(paste0('actionButton("', b, '"'), lsv, fixed = TRUE), label = b)
+    expect_true(grepl(paste0("input$", b), lsv, fixed = TRUE), label = b)
+  }
+
+  # EMPLOYE : le retrait ecrit reellement dans la selection de variables de
+  # l'ACP. Sans cette ligne, on cocherait sans effet.
+  expect_true(grepl('updatePickerInput(session, "pcaVars"', lsv, fixed = TRUE))
+
+  # OPTIONNEL, ET FERME PAR DEFAUT. L'outil n'est pas un resultat de l'ACP :
+  # une boite qui s'ouvrirait d'elle-meme pousserait hors de l'ecran les
+  # reglages qu'on venait regler. La case commande l'AFFICHAGE *et* le CALCUL
+  # -- les deux rendus sortent avant d'appeler `pcaQualiteVar()`, sans quoi la
+  # qualite serait calculee pour une boite que personne n'a demandee.
+  expect_true(grepl('checkboxInput("pcaShowLowInfo"', lux, fixed = TRUE))
+  # LE DEFAUT SE LIT DANS L'ARBRE, PAS DANS LA LIGNE. Ma premiere assertion
+  # cherchait l'appel ecrit sur une seule ligne : elle echouait sur un appel
+  # correct simplement replie sur deux, c'est-a-dire qu'elle gardait une mise
+  # en page et non un comportement.
+  defaut <- local({
+    ex <- parse(ux, keep.source = FALSE); trouve <- NULL
+    visiter <- function(e) {
+      if (is.call(e)) {
+        if (grepl("checkboxInput$", deparse(e[[1]])) && length(e) >= 2 &&
+            identical(e[[2]], "pcaShowLowInfo")) trouve <<- e
+        for (i in seq_along(e)) if (!is.null(e[[i]])) visiter(e[[i]])
+      }
+    }
+    for (i in seq_along(ex)) visiter(ex[[i]])
+    trouve
+  })
+  expect_false(is.null(defaut))
+  expect_identical(defaut[[4]], FALSE)   # ferme par defaut
+  for (sortie in c("pcaLowInfoPanel", "pcaLowInfoList")) {
+    i <- regexpr(paste0("output\\$", sortie, " <- shiny::renderUI"), lsv)
+    corps <- substr(lsv, i, i + 400L)
+    expect_true(grepl("if (!isTRUE(input$pcaShowLowInfo)) return(NULL)", corps, fixed = TRUE),
+                label = sortie)
+  }
+
+  # LE COMMUTATEUR NE SE RECONSTRUIT PAS SOUS LE DOIGT : le cadre qui porte le
+  # bouton radio ne depend pas de sa propre valeur (elle y est isolee), c'est
+  # la LISTE qui en depend.
+  i_cadre <- regexpr("output\\$pcaLowInfoPanel", lsv)
+  i_liste <- regexpr("output\\$pcaLowInfoList",  lsv)
+  cadre <- substr(lsv, i_cadre, i_liste - 1L)
+  expect_true(grepl("isolate(input$pcaLowInfoBase)", cadre, fixed = TRUE))
+  expect_false(grepl("pcaQualiteVar()", cadre, fixed = TRUE))
+})
+
+test_that("le noircissement des etiquettes ne vise que la famille qui porte le degrade", {
+  skip_if_not_installed("ggplot2")
+  # LES CALQUES DE GGPLOT2 SONT DES ENVIRONNEMENTS : la fonction modifie en
+  # place. Rejouer deux appels sur le MEME graphique mesurerait le second etat
+  # du premier et non deux codes -- c'est ce qui m'a fait conclure, a tort, que
+  # le ciblage ne marchait pas. On reconstruit donc a chaque fois.
+  neuf <- function() {
+    ind <- data.frame(x = seq_len(20), y = seq_len(20), l = letters[1:20])
+    va  <- data.frame(x = seq_len(4),  y = seq_len(4),  l = LETTERS[1:4])
+    ggplot2::ggplot() +
+      ggplot2::geom_text(data = ind, ggplot2::aes(x, y, label = l, colour = x)) +
+      ggplot2::geom_text(data = va,  ggplot2::aes(x, y, label = l, colour = x))
+  }
+  teintes <- function(p) vapply(p$layers,
+    function(L) L$aes_params$colour %||% NA_character_, character(1))
+
+  expect_true(all(is.na(teintes(neuf()))))
+
+  # Sans cible : tous les calques -- le cercle des correlations, ou il n'y a
+  # qu'une famille de texte.
+  expect_true(all(teintes(hstat_noircir_etiquettes(neuf())) == "#1a1a1a"))
+
+  # Avec cible : SEULE la famille visee. L'assertion porte sur les deux
+  # calques, pas seulement sur celui qu'on veut noircir -- sans le second
+  # `expect_true`, une fonction qui noircirait tout passerait aussi.
+  t4 <- teintes(hstat_noircir_etiquettes(neuf(), n_cible = 4, n_autre = 20))
+  expect_true(is.na(t4[1]))            # les 20 individus restent en retrait
+  expect_equal(t4[2], "#1a1a1a")       # les 4 variables sont noircies
+
+  # Et la regle n'est pas « le plus petit calque » : on vise ce qu'on nomme.
+  t20 <- teintes(hstat_noircir_etiquettes(neuf(), n_cible = 20, n_autre = 4))
+  expect_equal(t20[1], "#1a1a1a")
+  expect_true(is.na(t20[2]))
+
+  # Comptes ambigus (autant de variables que d'individus) : on ne peut pas
+  # distinguer les calques, on retombe sur « tous » plutot que de laisser un
+  # nom illisible.
+  expect_true(all(teintes(hstat_noircir_etiquettes(neuf(), n_cible = 4, n_autre = 4)) == "#1a1a1a"))
+
+  # Le mapping de couleur est neutralise sur la cible, sinon le degrade
+  # ecraserait la teinte posee au trace.
+  q <- hstat_noircir_etiquettes(neuf(), n_cible = 4, n_autre = 20)
+  expect_null(q$layers[[2]]$mapping$colour)
+  expect_false(is.null(q$layers[[1]]$mapping$colour))
+
+  # Une seule definition dans le depot : une copie locale finirait par diverger.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "depot introuvable")
+  srcs <- .hstat_sources_app()
+  skip_if(!length(srcs), "sources absentes (paquet installe)")
+  defs <- sum(vapply(srcs, function(f)
+    sum(grepl("mv_darken_text_labels", .hstat_code_lignes(f), fixed = TRUE)), integer(1)))
+  expect_equal(defs, 0L)
+})

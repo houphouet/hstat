@@ -923,6 +923,9 @@ ui <- shinydashboard::dashboardPage(
                     shiny::uiOutput("pcaVarSelect"),
                     
                     shiny::uiOutput("pcaCollinearityPanel"),
+                    shiny::checkboxInput("pcaShowLowInfo",
+                      "Repérer les variables peu informatives", FALSE),
+                    shiny::uiOutput("pcaLowInfoPanel"),
                     
                     shiny::checkboxInput("pcaScale", "Standardiser les variables", TRUE),
                     shiny::checkboxInput("pcaUseMeans", "Utiliser les moyennes par groupe", FALSE),
