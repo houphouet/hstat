@@ -538,7 +538,19 @@ mod_timeseries_server <- function(id, values) {
                     options = list(dom = "t", scrollX = TRUE))
     })
     hstat_export_table_handlers(output, "tsMet",
-      function() cur()$r$metrics, "series_temporelles_metriques")
+      function() cur()$r$metrics, "series_temporelles_metriques",
+      details_fun = function() {
+        c0 <- cur(); f <- c0$f; r <- c0$r
+        hstat_details_techniques(
+          "Modele"                 = c0$label,
+          "Variable"               = input$tsVar,
+          "Longueur de serie"      = length(f$y),
+          "Observations (apprentissage)" = length(f$train),
+          "Observations (test)"    = f$n_test,
+          "Frequence saisonniere"  = stats::frequency(f$y),
+          "AIC"                    = r$aic,
+          "MASE"                   = r$mase)
+      })
 
     output$tsInterp <- shiny::renderUI({
       c0 <- cur()

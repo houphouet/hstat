@@ -477,7 +477,23 @@ mod_dl_server <- function(id, values) {
       DT::datatable(dlfit()$metrics, rownames = FALSE,
                     options = list(dom = "t", scrollX = TRUE)))
     hstat_export_table_handlers(output, "dlMet",
-      function() dlfit()$metrics, "dl_metriques")
+      function() dlfit()$metrics, "dl_metriques",
+      details_fun = function() {
+        f <- dlfit(); p <- f$p
+        hstat_details_techniques(
+          "Modele"                       = "Reseau de neurones",
+          "Moteur"                       = input$dlEngine,
+          "Tache"                        = if (identical(p$task, "classification"))
+                                             "Classification" else "Regression",
+          "Variable cible"               = p$target,
+          "Nombre de predicteurs"        = length(p$preds),
+          "Predicteurs"                  = p$preds,
+          "Couches cachees"              = f$hidden,
+          "Observations (apprentissage)" = NROW(p$x_train),
+          "Observations (test)"          = NROW(p$x_test),
+          "Graine aleatoire"             = hstat_finite(input$dlSeed, 123),
+          "Parametres du reseau"         = f$fit$n_params)
+      })
 
     output$dlInterp <- shiny::renderUI({
       f <- dlfit()
@@ -612,7 +628,7 @@ mod_dl_server <- function(id, values) {
       X <- t(vapply(seq_len(n_seq), function(i) z[i:(i + L - 1)], numeric(L)))
       Y <- z[(L + 1):length(z)]
       tr_ix <- seq_len(n_seq - n_test)
-      torch::torch_manual_seed(123)
+      torch::torch_manual_seed(HSTAT_LSTM_SEED)
       H <- as.integer(max(4, hstat_finite(input$lstmHidden, 32)))
       net <- torch::nn_module(
         initialize = function(L, H) {
@@ -692,7 +708,19 @@ mod_dl_server <- function(id, values) {
       DT::datatable(lstm_res()$metrics, rownames = FALSE,
                     options = list(dom = "t", scrollX = TRUE)))
     hstat_export_table_handlers(output, "lstmMet",
-      function() lstm_res()$metrics, "lstm_metriques")
+      function() lstm_res()$metrics, "lstm_metriques",
+      details_fun = function() {
+        r <- lstm_res()
+        hstat_details_techniques(
+          "Modele"              = "LSTM",
+          "Variable"            = input$lstmVar,
+          "Longueur de serie"   = length(r$y),
+          "Observations (test)" = r$n_test,
+          "Horizon"             = as.integer(max(1, hstat_finite(input$lstmH, 12))),
+          "Epoques"             = as.integer(max(10, hstat_finite(input$lstmEpochs, 80))),
+          "Taux d'apprentissage" = hstat_finite(input$lstmLr, 0.005),
+          "Graine aleatoire (fixee)" = HSTAT_LSTM_SEED)
+      })
 
     lstm_future_df <- shiny::reactive({
       r <- lstm_res()

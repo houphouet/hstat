@@ -18176,8 +18176,8 @@ test_that("le noircissement des etiquettes ne vise que la famille qui porte le d
       ggplot2::geom_text(data = ind, ggplot2::aes(x, y, label = l, colour = x)) +
       ggplot2::geom_text(data = va,  ggplot2::aes(x, y, label = l, colour = x))
   }
-  teintes <- function(p) vapply(p$layers,
-    function(L) L$aes_params$colour %||% NA_character_, character(1))
+  teintes <- function(p) unname(vapply(p$layers,
+    function(L) L$aes_params$colour %||% NA_character_, character(1)))
 
   expect_true(all(is.na(teintes(neuf()))))
 
@@ -18216,4 +18216,167 @@ test_that("le noircissement des etiquettes ne vise que la famille qui porte le d
   defs <- sum(vapply(srcs, function(f)
     sum(grepl("mv_darken_text_labels", .hstat_code_lignes(f), fixed = TRUE)), integer(1)))
   expect_equal(defs, 0L)
+})
+
+# =============================================================================
+#  LE FICHIER DES METRIQUES PORTE SES DETAILS TECHNIQUES
+# =============================================================================
+
+test_that("les details techniques se replient en une table, et une entree vide disparait", {
+  x <- hstat_details_techniques(
+    "Modele"      = "Foret aleatoire",
+    "Predicteurs" = c("a", "b", "c"),
+    "n"           = 42L,
+    "Absent"      = NULL,
+    "Vide"        = character(0),
+    "Manquant"    = NA,
+    version = FALSE, date = FALSE)
+
+  # Noms ASCII : la table voisine du meme classeur porte `Metrique` /
+  # `Interpretation`, et un nom accente fait avertir `data.frame()` hors UTF-8.
+  expect_equal(names(x), c("Detail", "Valeur"))
+  expect_true(all(vapply(x, is.character, logical(1))))
+
+  # UNE ENTREE VIDE DISPARAIT, elle ne s'ecrit pas « NA » : un hyperparametre
+  # absent parce que le modele n'en a pas n'est pas une valeur manquante.
+  expect_equal(x$Detail, c("Modele", "Predicteurs", "n"))
+  expect_false(any(c("Absent", "Vide", "Manquant") %in% x$Detail))
+
+  # UN VECTEUR SE REPLIE EN UNE CELLULE : la liste des predicteurs est une
+  # information, la tronquer en perdrait une partie.
+  expect_equal(x$Valeur[x$Detail == "Predicteurs"], "a, b, c")
+  expect_equal(x$Valeur[x$Detail == "n"], "42")
+
+  # Un argument non nomme est ignore plutot que de produire une ligne sans
+  # intitule.
+  expect_equal(nrow(hstat_details_techniques("sans nom", "A" = 1,
+                                             version = FALSE, date = FALSE)), 1L)
+
+  # Rien a dire : une table vide, jamais une erreur -- elle alimente un
+  # telechargement, ou une erreur rend une page HTML nommee `.xlsx`.
+  vide <- hstat_details_techniques(version = FALSE, date = FALSE)
+  expect_equal(nrow(vide), 0L)
+  expect_equal(names(vide), c("Detail", "Valeur"))
+
+  # La version vient de `hstat_version()`, jamais d'un numero recopie : un
+  # repli code en dur ne se met pas a jour et finit par mentir.
+  v <- hstat_details_techniques("A" = 1, date = FALSE)
+  expect_true("Version HStat" %in% v$Detail)
+  expect_equal(v$Valeur[v$Detail == "Version HStat"], as.character(hstat_version()))
+  expect_true("Date d'export" %in% hstat_details_techniques("A" = 1)$Detail)
+})
+
+test_that("l'export des metriques ecrit reellement la feuille des details", {
+  skip_if_not_installed("openxlsx")
+  # LE TEST PORTE SUR LE FICHIER, PAS SUR L'APPEL. Compter un `details_fun =`
+  # dans le source dirait « branche » d'un export dont le classeur ne porte
+  # qu'une feuille : c'est la lecon deja prise sur le bouton d'export de
+  # l'epidemiologie, ou le motif comptait l'appel au lieu de l'affectation.
+  out <- new.env()
+  mets <- data.frame(Metrique = c("RMSE", "R2"), Valeur = c(1.5, 0.8),
+                     stringsAsFactors = FALSE)
+  det  <- function() hstat_details_techniques("Modele" = "RF", "n" = 10L,
+                                              version = FALSE, date = FALSE)
+  hstat_export_table_handlers(out, "tst", function() mets, "les_metriques",
+                              details_fun = det)
+
+  # `downloadHandler` range son `content` DEUX environnements plus bas : la
+  # fonction rendue enveloppe un `renderFunc`, et c'est chez lui que vivent
+  # `content` et `filename`. Le chercher au premier niveau rend `NULL`, et
+  # l'appel echoue sur « could not find function » -- mesure prise, pas devinee.
+  contenu <- function(h) environment(environment(h)$renderFunc)$content
+
+  f <- tempfile(fileext = ".xlsx"); on.exit(unlink(f), add = TRUE)
+  invisible(contenu(out[["tstXlsx"]])(f))
+  expect_true(file.exists(f) && file.size(f) > 0)
+
+  feuilles <- openxlsx::getSheetNames(f)
+  expect_true("les_metriques" %in% feuilles)
+  expect_true("details_techniques" %in% feuilles)
+
+  lu <- openxlsx::read.xlsx(f, sheet = "details_techniques")
+  expect_equal(names(lu), c("Detail", "Valeur"))
+  expect_true("Modele" %in% lu$Detail)
+  expect_equal(lu$Valeur[lu$Detail == "Modele"], "RF")
+
+  # SANS `details_fun`, RIEN NE CHANGE : un export qui n'en veut pas garde son
+  # unique feuille. Sans cette moitie, une fonction qui ajouterait toujours la
+  # feuille passerait aussi.
+  hstat_export_table_handlers(out, "seul", function() mets, "les_metriques")
+  g <- tempfile(fileext = ".xlsx"); on.exit(unlink(g), add = TRUE)
+  invisible(contenu(out[["seulXlsx"]])(g))
+  expect_equal(openxlsx::getSheetNames(g), "les_metriques")
+
+  # UN DETAIL QUI ECHOUE N'EMPORTE PAS L'EXPORT : le tableau demande reste la
+  # promesse principale, et un `content =` qui leve rend une page d'erreur HTML
+  # que le navigateur enregistre sous le nom `.xlsx`.
+  hstat_export_table_handlers(out, "casse", function() mets, "les_metriques",
+                              details_fun = function() stop("boum"))
+  h <- tempfile(fileext = ".xlsx"); on.exit(unlink(h), add = TRUE)
+  invisible(contenu(out[["casseXlsx"]])(h))
+  expect_true(file.exists(h) && file.size(h) > 0)
+  expect_equal(openxlsx::getSheetNames(h), "les_metriques")
+
+  # CSV : deux tableaux font une archive, et c'est le comportement existant de
+  # l'ecrivain commun -- pas une exception introduite ici.
+  z <- tempfile(fileext = ".zip"); on.exit(unlink(z), add = TRUE)
+  invisible(contenu(out[["tstCsv"]])(z))
+  expect_setequal(utils::unzip(z, list = TRUE)$Name,
+                  c("les_metriques.csv", "details_techniques.csv"))
+})
+
+test_that("les quatre exports de metriques portent leurs details techniques", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "depot introuvable")
+
+  attendus <- list(
+    c(f = "R/mod_ml.R",          prefixe = "mlMet"),
+    c(f = "R/mod_dl.R",          prefixe = "dlMet"),
+    c(f = "R/mod_dl.R",          prefixe = "lstmMet"),
+    c(f = "R/mod_timeseries.R",  prefixe = "tsMet"))
+
+  for (a in attendus) {
+    chemin <- file.path(root, a[["f"]])
+    skip_if_not(file.exists(chemin), paste(a[["f"]], "absent"))
+    ex <- parse(chemin, keep.source = FALSE)
+    trouve <- NULL
+    visiter <- function(e) {
+      if (is.call(e)) {
+        if (grepl("hstat_export_table_handlers$", deparse(e[[1]])) &&
+            length(e) >= 3 && identical(e[[3]], a[["prefixe"]])) trouve <<- e
+        for (i in seq_along(e)) if (!is.null(e[[i]])) visiter(e[[i]])
+      }
+    }
+    for (i in seq_along(ex)) visiter(ex[[i]])
+    expect_false(is.null(trouve), label = a[["prefixe"]])
+    expect_false(is.null(trouve[["details_fun"]]),
+                 label = paste(a[["prefixe"]], ": details_fun absent"))
+    expect_true(grepl("hstat_details_techniques",
+                      paste(deparse(trouve[["details_fun"]]), collapse = " "),
+                      fixed = TRUE),
+                label = paste(a[["prefixe"]], ": details montes a la main"))
+  }
+})
+
+test_that("la graine du LSTM ecrite dans les details est celle qui est posee", {
+  # `input$lstmSeed` N'EXISTE PAS : aucune interface ne le declare. Le repli de
+  # `hstat_finite()` aurait ecrit « 123 » sous le nom d'un reglage que
+  # l'utilisateur ne peut pas toucher -- un chiffre juste pour une mauvaise
+  # raison. La feuille de details ecrit donc la constante REELLEMENT posee.
+  expect_identical(HSTAT_LSTM_SEED, 123L)
+
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "depot introuvable")
+  f <- file.path(root, "R", "mod_dl.R")
+  skip_if_not(file.exists(f), "mod_dl.R absent")
+  l <- paste(.hstat_code_lignes(f), collapse = "\n")
+
+  # La constante est posee ET ecrite : deux 123 recopies finiraient par
+  # diverger, et c'est le fichier exporte qui mentirait sur le tirage employe.
+  expect_true(grepl("torch_manual_seed(HSTAT_LSTM_SEED)", l, fixed = TRUE))
+  expect_true(grepl("HSTAT_LSTM_SEED)", l, fixed = TRUE))
+  expect_false(grepl("input$lstmSeed", l, fixed = TRUE))
+  # Et `lstmSeed` reste bien absent de l'interface : si on l'y ajoute un jour,
+  # ce test rappelle qu'il faut aussi brancher la graine sur lui.
+  expect_false(grepl('ns("lstmSeed")', l, fixed = TRUE))
 })

@@ -8545,12 +8545,92 @@ hstat_export_table_ui <- function(ns, prefix) {
       shiny::downloadButton(ns(paste0(prefix, "Xlsx")), "Excel", class = "btn-sm"))
 }
 
-hstat_export_table_handlers <- function(output, prefix, data_fun, fname = "resultats") {
+# Graine du LSTM. Elle est FIGEE -- aucune interface ne la declare, a la
+# difference de celle du reseau de neurones (`dlSeed`). Elle est nommee ici
+# parce que la feuille de details techniques l'ecrit : deux 123 recopies
+# finiraient par diverger, et c'est alors le fichier exporte qui mentirait sur
+# le tirage reellement employe.
+HSTAT_LSTM_SEED <- 123L
+
+# UNE METRIQUE SANS SON CONTEXTE NE SE RELIT PAS.
+#
+# `ml_metriques.csv` porte un RMSE, un R2 et leur interpretation -- et rien qui
+# dise QUEL modele les a produits, sur QUELLE cible, avec COMBIEN
+# d'observations, sous quelle graine. Six mois plus tard, ou dans un rapport
+# qui compare plusieurs modeles, le fichier ne se rattache plus a aucune
+# analyse : on refait le calcul, et c'est le recalcul qui fait foi. C'est la
+# meme regle que « chaque resultat porte la formule qui l'a produit » du module
+# des doses et dilutions.
+#
+# Le detail voyage en TABLE A PART, jamais melange aux metriques : « Modele »
+# range dans la colonne `Metrique` se lirait comme une metrique de plus -- la
+# faute de categorie que ce depot traque ailleurs sous « un gain ne se convertit
+# pas ». C'est l'idiome deja employe par le detail par ligne des rendements,
+# qui part en seconde feuille du classeur.
+#
+# Trois decisions :
+#
+#  1. UNE ENTREE VIDE DISPARAIT, elle ne s'ecrit pas « NA ». Un hyperparametre
+#     absent parce que le modele n'en a pas n'est pas une valeur manquante.
+#  2. UN VECTEUR SE REPLIE EN UNE CELLULE (« a, b, c »). La liste des
+#     predicteurs est une information, la tronquer en perdrait une partie.
+#  3. LA VERSION ET LA DATE FERMENT LE TABLEAU. Ce sont les deux seules lignes
+#     que l'appelant n'a pas a fournir et sans lesquelles la provenance se
+#     perd. La version passe par `hstat_version()`, jamais par un numero
+#     recopie -- un repli code en dur finit par mentir.
+hstat_details_techniques <- function(..., version = TRUE, date = TRUE) {
+  elems <- list(...)
+  noms  <- names(elems)
+  if (is.null(noms)) noms <- rep("", length(elems))
+
+  fmt <- function(v) {
+    if (is.null(v) || !length(v)) return(NA_character_)
+    if (is.factor(v)) v <- as.character(v)
+    if (is.numeric(v)) v <- format(v, trim = TRUE, scientific = FALSE)
+    v <- trimws(as.character(v))
+    v <- v[!is.na(v) & nzchar(v)]
+    if (!length(v)) NA_character_ else paste(v, collapse = ", ")
+  }
+  val <- vapply(elems, fmt, character(1))
+  ok  <- nzchar(noms) & !is.na(val)
+
+  # NOMS DE COLONNES SANS ACCENT, et ce n'est pas un oubli. La table voisine
+  # du meme classeur porte `Metrique` / `Interpretation` : un `Detail` accentue
+  # y jurerait. Surtout, un nom accente fait avertir `data.frame()` sur une
+  # machine dont la locale n'est pas UTF-8 (« unable to translate »), le piege
+  # deja rencontre sur `Ecart_type` -- et la colonne part dans un fichier lu
+  # par un tableur, dont l'encodage ne se devine pas.
+  out <- data.frame(noms[ok], val[ok], stringsAsFactors = FALSE)
+  names(out) <- c("Detail", "Valeur")
+
+  ligne <- function(k, v) stats::setNames(
+    data.frame(k, v, stringsAsFactors = FALSE), names(out))
+  if (isTRUE(version)) out <- rbind(out, ligne("Version HStat", hstat_version()))
+  if (isTRUE(date))
+    out <- rbind(out, ligne("Date d'export",
+                            format(Sys.time(), "%Y-%m-%d %H:%M:%S")))
+  rownames(out) <- NULL
+  out
+}
+
+hstat_export_table_handlers <- function(output, prefix, data_fun, fname = "resultats",
+                                        details_fun = NULL) {
   # Un tableau seul est une liste d'un element : meme chemin d'ecriture que les
   # exports a plusieurs feuilles, donc meme garantie.
   tables <- function() {
     d <- data_fun()
-    if (is.null(d)) NULL else stats::setNames(list(as.data.frame(d)), fname)
+    if (is.null(d)) return(NULL)
+    out <- stats::setNames(list(as.data.frame(d)), fname)
+    if (!is.null(details_fun)) {
+      # UN DETAIL QUI ECHOUE N'EMPORTE PAS L'EXPORT. Le tableau demande reste
+      # la promesse principale : mieux vaut un classeur a une feuille qu'un
+      # `content =` qui leve et fait renvoyer a Shiny sa page d'erreur HTML,
+      # que le navigateur enregistre sous le nom `.xlsx` demande.
+      det <- tryCatch(details_fun(), error = function(e) NULL)
+      if (!is.null(det) && NROW(det))
+        out[["details_techniques"]] <- as.data.frame(det)
+    }
+    out
   }
   output[[paste0(prefix, "Csv")]]  <- hstat_csv_handler(tables, fname)
   output[[paste0(prefix, "Xlsx")]] <- hstat_classeur_handler(tables, fname)
