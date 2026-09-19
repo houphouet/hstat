@@ -4,9 +4,9 @@
 
 HStat is an R Shiny application that takes a dataset from import to publication:
 cleaning, descriptive statistics, tests, multivariate analyses, machine
-learning, qualitative coding — then a report you can hand in. Everything runs
-through the interface. The whole app is bilingual (**French / English**) and
-works **offline**.
+learning, qualitative coding, and the tables and figures you publish.
+Everything runs through the interface. The whole app is bilingual
+(**French / English**) and works **offline**.
 
 ---
 
@@ -21,7 +21,7 @@ run_hstat()
 ```
 
 The app opens in your browser. Missing packages are installed on first run.
-Requires **R ≥ 4.4**.
+No minimum R version is declared; CI runs the suite on the current release.
 
 ---
 
@@ -31,15 +31,17 @@ Requires **R ≥ 4.4**.
 |---|---|
 | **Load** | CSV, Excel (several sheets at once), Parquet, DuckDB, SPSS, Stata |
 | **Prepare** | Overview, data health check, cleaning, filtering, recoding |
-| **Describe** | Descriptive statistics, 25+ chart types, correlations |
-| **Test** | t-test, ANOVA (incl. repeated measures), non-parametric tests, chi-square, post-hoc comparisons, tests against a reference value |
+| **Describe** | Descriptive statistics, 14 chart types, correlations |
+| **Test** | t-test (Student *and* Welch, each under its own name), ANOVA (Fisher, Welch, repeated measures), non-parametric tests, chi-square, post-hoc comparisons protected by the omnibus test, tests against a reference value |
 | **Explore** | PCA, CA, MCA, FAMD, clustering, HCPC, DFA, PLS, SEM/CFA, MANOVA/PERMANOVA — 14 multivariate analyses |
 | **Model** | Machine learning, deep learning, time series and forecasting |
 | **Qualitative** | Frequency and cross-tabulation, Likert scales, text analysis, CAQDAS coding workbench |
+| **Agronomy** | Yield and yield gain against an untreated control, efficacy thresholds (Abbott's formula), harvest-loss and relative-yield indicators |
+| **Ecology** | Alpha and beta diversity: some forty indices, richness estimators, rarefaction, Baselga partition, published reading grids with their source |
+| **Epidemiology** | DLNM (exposure–lag–response), incidence rates, adjusted OR *and* RR, survival (Kaplan-Meier, Cox), case-crossover, standardisation and SMR, diagnostic tests and ROC, impact measures |
 | **Plan** | Experimental designs, sample size and statistical power |
 | **Dose** | Product dose and active-ingredient rate per hectare, spray mix, tank loads, and serial dilutions (working solutions) |
 | **DL50 / CL50** | Dose-mortality probit regression (Henry line), natural mortality by Abbott or EM, lethal doses with standard error and tolerance standard deviation, Fieller intervals, potency ratio (resistance ratio), trial comparison and merging, native WIN DL file import/export |
-| **Report** | Interpretation, reproducibility journal, automatic report (HTML / Word / PDF) |
 
 Every analysis states its **assumptions**, gives an **interpretation in plain
 language**, and exports its tables (CSV, Excel) and its figures (PNG, JPEG,
@@ -49,19 +51,7 @@ TIFF, SVG, PDF, EPS) at a resolution you choose.
 
 ## Six things worth knowing
 
-### 1. It tells you which analysis your data call for
-
-A dedicated tab reads your variables — types, group sizes and balance,
-per-group normality, homogeneity of variance, pairing — and recommends the
-analysis those rules point to, **with the reason**. No language model is
-involved: a statistical test should not be suggested by text generation.
-
-It never runs the analysis for you. The method stays your decision, and your
-responsibility. And it refuses to advise on a variable it cannot analyse: an
-empty column is reported as *blocking*, by name, rather than typed as binary
-and handed a chi-square test.
-
-### 2. Your data are never translated
+### 1. Your data are never translated
 
 Switching to English must not turn the `Oui` in your table into `Yes`. For a
 statistics tool that is the worst possible defect, because nothing breaks — it
@@ -72,14 +62,14 @@ and nothing on that list is ever translated. Inside a table cell, only
 sentences are (over 25 characters): a data value is almost never a whole
 sentence, an interpretation always is.
 
-### 3. Bigger-than-RAM files
+### 2. Bigger-than-RAM files
 
 Under 500 MB a file is read into memory. Above it, CSV / Parquet / DuckDB files
 are **never loaded**: DuckDB queries them on disk, exact statistics are computed
 by SQL on the *full* dataset, and interactive analyses run on a reproducible
 random sample. Files with more than 2.1 billion rows are supported.
 
-### 4. A qualitative coding workbench (CAQDAS)
+### 3. A qualitative coding workbench (CAQDAS)
 
 Read one open-ended answer at a time, select a passage, drop it on a code. Codes
 nest, and a parent counts its whole branch. Memos attach to a code, a document,
@@ -89,11 +79,15 @@ concordance (KWIC), document portraits, intercoder agreement (Cohen's kappa),
 word clouds and concept maps.
 
 A coding assistant proposes a codebook and pre-codes the answers. Its default
-engine is a **local model** (Ollama or any OpenAI-compatible server) — free, and
-your survey responses never leave your machine. A second engine needs no model
-at all: it clusters corpus terms by co-occurrence, entirely inside R.
+engine needs **no model at all**: it clusters corpus terms by co-occurrence,
+entirely inside R — free, offline, no key, and the only engine guaranteed to be
+available everywhere. A language model is there if you want one (Claude,
+ChatGPT, Gemini, DeepSeek, GitHub Models, or any OpenAI-compatible server,
+local or remote), each reading **its own** environment variable and never an
+ambient one. A metered feature must never become the default path of someone
+who did not ask for it.
 
-### 5. The session survives a locked screen
+### 4. The session survives a locked screen
 
 When the machine sleeps, the browser drops its connection and a Shiny app
 normally dies with it. HStat keeps the session alive, shows a banner saying the
@@ -101,21 +95,36 @@ work is **not lost**, and reconnects on its own — when you unlock the machine,
 return to the tab, or the network comes back. **Only you close the
 application.**
 
-### 6. Everything you did is written down
+### 5. Bioassays that reproduce WIN DL, digit for digit
 
-Each analysis is recorded as you run it. Two tabs turn that into deliverables:
+The DL50 / CL50 tab reimplements WIN DL (CIRAD): probit dose-mortality
+regression, natural mortality by Abbott or EM, lethal doses with their standard
+error, Fieller intervals, potency ratio, trial comparison and merging.
 
-- **Reproducibility journal** — the session as an executable R script. Steps
-  whose settings were purely interactive are flagged `NON RECONSTITUE` in a
-  comment rather than guessed: a script that silently differed from what the app
-  computed would be worse than no script. The generated script is tested to
-  parse and to run.
-- **Automatic report** — dataset summary, data-quality findings, every analysis
-  with its tables and figures, the interpretation, and the script as an
-  appendix. HTML is assembled in R and therefore always available (figures
-  embedded, so the file stays mailable); Word and PDF go through pandoc, and
-  when it is missing the app says so and falls back to HTML rather than failing.
-  Figures are drawn for print: **1000 dpi minimum**.
+Conformity is checked against the software's **own output file**, not against a
+reimplementation: 27 quantities, maximum relative deviation 2.5 × 10⁻⁴ — and
+that worst case is the chi-square, which WIN DL prints to three decimals; on the
+other twenty-six it is 5.3 × 10⁻⁵. Getting there meant adopting two conventions
+that are in no textbook — the log-likelihood is written without the binomial
+coefficients, and the Fisher information is assembled on the dosed batches alone
+— plus the Hastings polynomial for the inverse normal, whose 4.5 × 10⁻⁴ error is
+visible at the software's printing precision.
+
+### 6. A setting you can see is a setting that acts
+
+The costliest defect in a statistics tool is not the one that crashes. It is the
+control that is declared, read, and quietly ignored: you change it, the figure
+does not move, and nothing says so.
+
+So the formatting controls are declared **once**, in a shared kit, and the tests
+require three things of every option — declared in the interface, read by the
+reactive that draws the figure, and used at least once more than its own
+assignment. The same rule covers buttons (every one must be read by an
+observer), module outputs (namespaced, or they render nowhere) and downloads
+(every export button must have a producer, and a failed export writes a valid
+file carrying the reason rather than an HTML error page named `.png`).
+
+Finding those is most of what [`CLAUDE.md`](CLAUDE.md) records.
 
 ---
 
@@ -265,7 +274,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.3.1. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.3.2. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -273,7 +282,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 1.3.1},
+  note   = {Version 1.3.2},
   url    = {https://github.com/houphouet/hstat},
 }
 ```
