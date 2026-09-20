@@ -14181,15 +14181,29 @@ test_that("hstat_axe_titre survit a l'absence de ggtext", {
   #
   # On MESURE le repli plutot que de le lire : `requireNamespace` est masquee
   # le temps de l'appel, ce qui reproduit exactement une machine sans ggtext.
+  # ON N'ECRIT PAS DANS L'ENVIRONNEMENT DE LA FONCTION.
+  #
+  # Depuis les sources, `environment(hstat_axe_titre)` est un environnement de
+  # test, donc inscriptible -- et cette version-ci passait. Sous `R CMD check`
+  # le paquet est INSTALLE : cet environnement est alors l'espace de noms, il
+  # est VERROUILLE, et `assign()` leve « cannot add bindings to a locked
+  # environment ». Le test etait donc vert partout sauf la ou il comptait le
+  # plus, et rien ne le disait -- 189 des 190 echecs du check etaient des
+  # artefacts de locale, celui-ci etait le seul reel.
+  #
+  # Le remede est l'idiome deja employe cinquante lignes plus bas par
+  # `poser()` : on ne touche a rien, on fabrique une COPIE de la fonction dont
+  # le parent porte le masque, et l'on evalue l'appel dans un masque de
+  # donnees ou le nom designe cette copie.
   sans_ggtext <- function(expr) {
     vrai <- base::requireNamespace
     faux <- function(package, ...) if (identical(package, "ggtext")) FALSE
                                    else vrai(package, ...)
-    env <- environment(hstat_axe_titre)
-    assign("requireNamespace", faux, envir = env)
-    on.exit(if (exists("requireNamespace", envir = env, inherits = FALSE))
-              rm("requireNamespace", envir = env), add = TRUE)
-    eval(expr)
+    f  <- hstat_axe_titre
+    e2 <- new.env(parent = environment(f))
+    assign("requireNamespace", faux, envir = e2)
+    environment(f) <- e2
+    eval(expr, list(hstat_axe_titre = f), enclos = parent.frame())
   }
   e <- sans_ggtext(quote(hstat_axe_titre(size = 17, face = "bold",
                                          align = "1", colour = "#123456")))
