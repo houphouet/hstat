@@ -116,7 +116,19 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libcurl4-openssl-dev libssl-dev libxml2-dev \
             libfontconfig1-dev libfreetype6-dev libharfbuzz-dev libfribidi-dev \
-            libpng-dev libtiff5-dev libjpeg-dev
+            libpng-dev libtiff5-dev libjpeg-dev \
+            libglu1-mesa-dev libglpk-dev
+          # DEUX PAQUETS S'INSTALLAIENT SANS POUVOIR SE CHARGER, et la CI le
+          # disait dans un `::warning::` que personne ne lit :
+          #
+          #   heplots -> rgl  -> « libGLU.so.1: cannot open shared object file »
+          #   kknn    -> igraph -> GLPK
+          #
+          # `heplots::boxM` est le test de Box, et son test tournait donc en
+          # mode degrade (« Trying without OpenGL ») depuis toujours. Une
+          # bibliotheque systeme absente ne se voit pas dans la liste des
+          # paquets R : c'est exactement le trou que ce workflow vient de
+          # fermer ailleurs, sous une autre forme.
 
       - name: Cache des paquets R
         uses: actions/cache@v4

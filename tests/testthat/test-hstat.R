@@ -18494,8 +18494,31 @@ test_that("la CI installe ce qu'il faut pour que les appels soient verifiables",
   ci <- unique(gsub('"', "", regmatches(y, gregexpr('"[A-Za-z0-9._]+"', y))[[1]]))
   livres <- rownames(utils::installed.packages(priority = c("base", "recommended")))
 
-  non_verifiables <- setdiff(.hstat_pkgs_appeles(), c(ci, livres))
-  expect_setequal(non_verifiables, hors_ci_assume)
+  # [1] La DECLARATION : tout paquet appele figure dans la liste du workflow,
+  #     hors les deux exclusions assumees.
+  expect_setequal(setdiff(.hstat_pkgs_appeles(), c(ci, livres)), hors_ci_assume)
+
+  # [2] LA REALITE, et c'est une assertion differente. La premiere version de
+  #     ce test s'arretait a [1] -- elle lisait la LISTE, pas l'ensemble
+  #     reellement chargeable, et elle est passee au vert pendant que la CI
+  #     ecrivait « Paquets facultatifs absents : kknn, heplots ».
+  #
+  #     Les deux s'installaient bien, mais ne se CHARGEAIENT pas, faute d'une
+  #     bibliotheque SYSTEME : `heplots` tire `rgl` (OpenGL, libGLU) et `kknn`
+  #     tire `igraph` (GLPK). Un paquet qui ne se charge pas laisse tous ses
+  #     appels `pkg::` sans controle -- le trou que ce lot pretendait fermer,
+  #     rouvert par une dependance qu'aucune liste de paquets R ne mentionne.
+  #
+  #     L'assertion ne vaut qu'EN CI : ici, quarante paquets manquent
+  #     legitimement, et l'exiger ferait echouer le test sur l'environnement
+  #     au lieu du code -- la faute que ce depot evite deja en sautant les
+  #     paquets absents.
+  skip_if(!nzchar(Sys.getenv("CI")), "hors CI : les paquets absents sont normaux")
+  attendus <- setdiff(.hstat_pkgs_appeles(), c(livres, hors_ci_assume))
+  illisibles <- attendus[!vapply(attendus, requireNamespace, logical(1), quietly = TRUE)]
+  expect_equal(illisibles, character(0),
+               info = paste0("installes mais non chargeables (bibliotheque systeme ?) : ",
+                             paste(illisibles, collapse = ", ")))
 })
 
 test_that("aucun predicat de colonnes ne passe par sapply, qui rend une liste sur un tableau vide", {
