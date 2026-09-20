@@ -2126,7 +2126,7 @@ mod_tests_server <- function(id, values) {
 
   output$responseVarSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+    num_cols <- names(values$filteredData)[vapply(values$filteredData, is.numeric, logical(1))]
     shiny::tagList(
       pickerInput(ns("responseVar"), "Variable(s) réponse :", 
                   choices = num_cols, 
@@ -2138,7 +2138,7 @@ mod_tests_server <- function(id, values) {
   })
   
   shiny::observeEvent(input$selectAllResponse, {
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+    num_cols <- names(values$filteredData)[vapply(values$filteredData, is.numeric, logical(1))]
     updatePickerInput(session, "responseVar", selected = num_cols)
   })
   
@@ -2150,7 +2150,7 @@ mod_tests_server <- function(id, values) {
   # Bloc 1 : Sélecteur de variables à transformer
   output$transformVarSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+    num_cols <- names(values$filteredData)[vapply(values$filteredData, is.numeric, logical(1))]
     transform_suffixes <- c("_log$","_log1p$","_log10$","_sqrt$",
                             "_cuberoot$","_boxcox$","_yeojohnson$","_arcsin$","_logit$")
     pattern   <- paste(transform_suffixes, collapse = "|")
@@ -3498,7 +3498,7 @@ mod_tests_server <- function(id, values) {
       cand <- names(df)[sapply(df, function(x) is.factor(x) || is.character(x))]
     }
     if (length(cand) == 0) cand <- names(df)
-    num_cols <- names(df)[sapply(df, is.numeric)]
+    num_cols <- names(df)[vapply(df, is.numeric, logical(1))]
     
     shiny::tagList(
       shiny::selectizeInput(ns("glmmRandom"),
@@ -4870,7 +4870,7 @@ mod_tests_server <- function(id, values) {
     use_round <- !is.null(input$testsRoundResults) && input$testsRoundResults
     if (use_round) {
       dec      <- if (!is.null(input$testsDecimals)) input$testsDecimals else 2
-      num_cols <- sapply(df, is.numeric)
+      num_cols <- vapply(df, is.numeric, logical(1))
       num_cols_safe <- num_cols & !names(df) %in% "p_value"
       df[, num_cols_safe] <- lapply(df[, num_cols_safe, drop = FALSE], function(x) round(x, dec))
     }
@@ -7320,7 +7320,7 @@ mod_tests_server <- function(id, values) {
   
   output$multiResponseSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+    num_cols <- names(values$filteredData)[vapply(values$filteredData, is.numeric, logical(1))]
     
     # Pré-sélection initiale : variables choisies dans "Paramètres des tests",
     # sinon repli sur les variables des résultats de tests.
@@ -7353,14 +7353,14 @@ mod_tests_server <- function(id, values) {
   # Synchronise multiResponse avec les variables choisies dans "Paramètres des tests"
   shiny::observeEvent(input$responseVar, {
     shiny::req(values$filteredData)
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+    num_cols <- names(values$filteredData)[vapply(values$filteredData, is.numeric, logical(1))]
     sel <- intersect(input$responseVar, num_cols)
     if (length(sel) > 0)
       updatePickerInput(session, "multiResponse", selected = sel)
   }, ignoreNULL = TRUE)
   
   shiny::observeEvent(input$selectAllMultiResponse, {
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+    num_cols <- names(values$filteredData)[vapply(values$filteredData, is.numeric, logical(1))]
     updatePickerInput(session, "multiResponse", selected = num_cols)
   })
   

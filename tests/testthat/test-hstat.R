@@ -18380,3 +18380,156 @@ test_that("la graine du LSTM ecrite dans les details est celle qui est posee", {
   # ce test rappelle qu'il faut aussi brancher la graine sur lui.
   expect_false(grepl('ns("lstmSeed")', l, fixed = TRUE))
 })
+
+# =============================================================================
+#  CONFIGURATION : CE QUI EST INSTALLE DOIT SERVIR, ET CE QUI EST APPELE DOIT
+#  ETRE VERIFIABLE
+# =============================================================================
+
+# Tous les paquets appeles par `pkg::` ou `pkg:::` dans le code du depot,
+# releves par l'ANALYSEUR : un nom cite dans un commentaire ou une chaine
+# (« essayez remotes::install_github », « identique a DescTools::CramerV »)
+# n'est PAS un appel. Un balayage textuel en signalait quatre a tort.
+.hstat_pkgs_appeles <- function() {
+  out <- character(0)
+  for (f in .hstat_sources_app()) for (e in parse(f)) {
+    rec <- function(x) {
+      if (!is.call(x)) return(invisible())
+      if (is.name(x[[1]]) && as.character(x[[1]]) %in% c("::", ":::") &&
+          length(x) == 3L && is.name(x[[2]]))
+        out <<- c(out, as.character(x[[2]]))
+      l <- as.list(x)
+      for (i in seq_along(l)) if (!identical(l[[i]], quote(expr = ))) rec(l[[i]])
+    }
+    rec(e)
+  }
+  sort(unique(out))
+}
+
+.hstat_required_pkgs <- function() {
+  root <- .hstat_repo_root()
+  if (is.na(root)) return(character(0))
+  f <- file.path(root, "R", "utils.R")
+  if (!file.exists(f)) return(character(0))
+  src <- paste(readLines(f, warn = FALSE), collapse = "\n")
+  m <- regmatches(src, regexpr(
+    "required_packages\\s*<-\\s*c\\((?:[^()]|\\([^()]*\\))*\\)", src))
+  if (!length(m)) return(character(0))
+  eval(parse(text = sub("required_packages\\s*<-\\s*", "", m)))
+}
+
+test_that("aucun paquet n'est installe au demarrage sans etre employe", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "depot introuvable")
+  req <- .hstat_required_pkgs()
+  skip_if(!length(req), "required_packages introuvable (paquet installe)")
+
+  # `required_packages` n'est pas une liste de dependances : `install_and_load()`
+  # les installe ET LES ATTACHE au demarrage. Un paquet qui n'y sert a rien
+  # coute donc deux fois -- l'attente du premier lancement, et un risque de
+  # MASQUAGE que ce depot documente comme fatal (`mclust::em` masque
+  # `shiny::em` et toute l'interface cesse de se construire).
+  #
+  # Mesure du jour ou ce test a ete ecrit : DIX-HUIT des 86 paquets de la liste
+  # n'etaient appeles nulle part -- bslib, digest, forcats, GGally, ggdendro,
+  # knitr, nortest, performance, plotrix, purrr, qqplotr, questionr, report,
+  # reshape2, see, stringr, DescTools, epitools. Aucune exception n'a ete
+  # necessaire : tous les autres sont bien appeles par `pkg::`, y compris les
+  # aiguillages (`plotly`, `shinyWidgets`, `colourpicker`...), dont la
+  # DEFINITION porte l'appel qualifie meme si les appelants ne le portent pas.
+  inutiles <- setdiff(req, .hstat_pkgs_appeles())
+  expect_equal(inutiles, character(0),
+               info = paste0("installes et attaches pour rien : ",
+                             paste(inutiles, collapse = ", ")))
+})
+
+test_that("tout paquet appele est declare, et tout Suggests sert a quelque chose", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "depot introuvable")
+  desc <- file.path(root, "DESCRIPTION")
+  skip_if_not(file.exists(desc), "DESCRIPTION absent")
+  d <- read.dcf(desc)
+  champ <- function(n) if (n %in% colnames(d))
+    sub("\\s*\\(.*", "", trimws(strsplit(d[1, n], ",")[[1]])) else character(0)
+  declares <- c(champ("Imports"), champ("Suggests"), champ("Depends"))
+  appeles  <- .hstat_pkgs_appeles()
+
+  # Base et recommandes sont livres avec R : les exiger dans DESCRIPTION serait
+  # faux, et les compter pour non declares gonflerait le decompte.
+  livres <- rownames(utils::installed.packages(priority = c("base", "recommended")))
+
+  # [1] Un paquet appele mais declare nulle part n'est installe par personne :
+  #     `install.packages("HStat")` reussit, et l'analyse tombe a l'usage.
+  expect_equal(setdiff(appeles, c(declares, livres)), character(0))
+
+  # [2] Un Suggests que rien n'appelle est du poids mort. `testthat` est la
+  #     seule exception legitime : la suite l'emploie par `library()`, jamais
+  #     par `testthat::`.
+  mort <- setdiff(declares, c(appeles, "testthat"))
+  expect_equal(mort, character(0),
+               info = paste0("declares et jamais appeles : ",
+                             paste(mort, collapse = ", ")))
+})
+
+test_that("la CI installe ce qu'il faut pour que les appels soient verifiables", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "depot introuvable")
+  wf <- file.path(root, ".github", "workflows", "tests.yml")
+  skip_if_not(file.exists(wf), "workflow absent")
+
+  # LE TEST QUI VERIFIE LES APPELS `pkg::objet` SAUTE LES PAQUETS ABSENTS.
+  # C'est juste -- sinon il echouerait sur l'environnement et non sur le code --
+  # mais cela rend son silence ambigu : un paquet que personne n'installe voit
+  # TOUS ses appels passer sans controle. C'est ainsi que `PMCMRplus::dunnTest`,
+  # `factoextra::fviz_mfa_biplot` et cinq familles fantomes de glmmTMB ont
+  # survecu dans ce depot.
+  #
+  # Ce test rend le trou VISIBLE plutot que de le combler entierement : deux
+  # paquets restent hors CI par decision de cout (torch telecharge libtorch,
+  # prophet une chaine Stan), et ils sont NOMMES ici. Un troisieme qui
+  # apparaitrait devra etre installe, ou justifie au meme endroit.
+  hors_ci_assume <- c("torch", "prophet")
+
+  y <- paste(readLines(wf, warn = FALSE), collapse = "\n")
+  ci <- unique(gsub('"', "", regmatches(y, gregexpr('"[A-Za-z0-9._]+"', y))[[1]]))
+  livres <- rownames(utils::installed.packages(priority = c("base", "recommended")))
+
+  non_verifiables <- setdiff(.hstat_pkgs_appeles(), c(ci, livres))
+  expect_setequal(non_verifiables, hors_ci_assume)
+})
+
+test_that("aucun predicat de colonnes ne passe par sapply, qui rend une liste sur un tableau vide", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "depot introuvable")
+
+  # MESURE, pas supposition. `sapply(df, is.numeric)` rend :
+  #   * un `logical` des que `df` porte au moins une colonne ;
+  #   * une LISTE VIDE quand il n'en porte aucune -- `sapply` ne peut alors
+  #     rien simplifier.
+  # Indexer avec cette liste leve « invalid subscript type 'list' », et le cas
+  # s'atteint des que le filtrage a tout retire. Ces predicats alimentent des
+  # sorties Shiny : une erreur y fait tomber le PANNEAU ENTIER, pas la ligne.
+  vide <- data.frame(a = 1:3)[, 0, drop = FALSE]
+  expect_true(is.list(sapply(vide, is.numeric)))
+  expect_error(names(vide)[sapply(vide, is.numeric)], "invalid subscript")
+  # `vapply` impose le type de retour : il rend `logical(0)` et traverse.
+  expect_identical(vapply(vide, is.numeric, logical(1)),
+                   stats::setNames(logical(0), character(0)))
+  expect_equal(ncol(vide[, vapply(vide, is.numeric, logical(1)), drop = FALSE]), 0L)
+
+  # Le correctif existait depuis `safe_cor`, mais sur UN SEUL site : quarante-
+  # huit autres portaient encore la forme fragile. Ce balayage empeche son
+  # retour. Les predicats ANONYMES restent hors de portee : leur valeur de
+  # retour n'est pas garantie scalaire, et `vapply` y changerait le
+  # comportement au lieu de le preserver.
+  motif <- "sapply\\([^,]+,\\s*(is\\.numeric|is\\.factor|is\\.character|is\\.logical|is_categorical)\\s*\\)"
+  fautifs <- character(0)
+  for (f in .hstat_sources_app()) {
+    l <- .hstat_code_lignes(f)            # commentaires retires par l'analyseur
+    k <- grep(motif, l)
+    if (length(k)) fautifs <- c(fautifs, sprintf("%s:%d", basename(f), k))
+  }
+  expect_equal(fautifs, character(0),
+               info = paste0("sapply() a predicat simple, a passer en vapply(..., logical(1)) : ",
+                             paste(fautifs, collapse = ", ")))
+})

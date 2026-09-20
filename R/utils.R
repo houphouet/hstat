@@ -96,17 +96,17 @@ install_and_load <- function(packages) {
 }
 
 required_packages <- c(
-  "shiny", "shinydashboard", "shinyjs", "shinyWidgets", "shinyalert", "DT", "shinycssloaders",
-  "RColorBrewer", "colourpicker", "ggrepel",  "openxlsx", "zip", "haven", "base64enc",
-  "dplyr", "knitr", "stringr", "scales", "ggplot2", "ggdendro", "reshape2", "sortable",
-  "tibble", "plotrix", "plotly",  "qqplotr", "tidyr",  "report", "see", "corrplot",
-  "car", "agricolae", "pwr", "forcats", "bslib", "factoextra",  "FactoMineR","questionr",  "digest",
-  "MASS", "cluster", "GGally", "psych", "nortest", "lmtest", "multcomp","FSA", "treemapify", "ggtext",
-  "stats",  "emmeans", "performance","purrr", "PMCMRplus","multcompView", "rcompanion", "EMT",
-  "bestNormalize","lme4", "lmerTest", "afex", "ARTool", "glmmTMB", "vegan", "heplots", "data.table",
-  "patchwork", "lavaan", "pls", "klaR", "poLCA", "clustMixType", "nnet", "DBI", "duckdb",
-  "DescTools", "epitools", "htmltools", "magrittr", "readxl", "rlang", "svglite", "writexl",
-  "mice", "missForest", "VIM"
+  "shiny", "shinydashboard", "shinyjs", "shinyWidgets", "shinyalert", "DT",
+  "shinycssloaders", "RColorBrewer", "colourpicker", "ggrepel", "openxlsx",
+  "zip", "haven", "base64enc", "dplyr", "scales", "ggplot2", "sortable",
+  "tibble", "plotly", "tidyr", "corrplot", "car", "agricolae", "pwr", "factoextra",
+  "FactoMineR", "MASS", "cluster", "psych", "lmtest", "multcomp", "FSA",
+  "treemapify", "ggtext", "stats", "emmeans", "PMCMRplus", "multcompView",
+  "rcompanion", "EMT", "bestNormalize", "lme4", "lmerTest", "afex", "ARTool",
+  "glmmTMB", "vegan", "heplots", "data.table", "patchwork", "lavaan", "pls",
+  "klaR", "poLCA", "clustMixType", "nnet", "DBI", "duckdb", "htmltools",
+  "magrittr", "readxl", "rlang", "svglite", "writexl", "mice", "missForest",
+  "VIM"
 )
 
 # -- Packages de modelisation predictive (series temporelles / ML / DL) -------
@@ -282,7 +282,7 @@ is_categorical <- function(x) {
 }
 
 get_categorical_cols <- function(df) {
-  names(df)[sapply(df, is_categorical)]
+  names(df)[vapply(df, is_categorical, logical(1))]
 }
 
 get_all_factor_candidates <- function(df, max_numeric_levels = 30) {

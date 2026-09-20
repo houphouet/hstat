@@ -7,17 +7,33 @@
 #            Quelques secondes, et attrape une parenthese manquante ou une
 #            virgule orpheline avant meme qu'un paquet soit telecharge.
 #
-#   tests    La suite testthat de reference. On installe une LISTE EXPLICITE de
-#            paquets, et non les 107 Imports de DESCRIPTION : la suite ne
-#            source que Utils.R, mod_ai.R, mod_coding.R et mod_qualitative.R,
-#            et plusieurs Imports (torch, duckdb, poLCA...) sont longs a
-#            compiler ou indisponibles en binaire. Installer tout ferait durer
-#            la CI plus d'une heure pour ne rien tester de plus.
+#   tests    La suite testthat de reference. On installe une LISTE EXPLICITE
+#            de paquets, et non les 87 Imports+Suggests de DESCRIPTION :
+#            quelques-uns (torch, prophet) telechargent des runtimes entiers
+#            ou exigent une chaine de compilation, et couteraient plus que ce
+#            qu'ils apprennent.
 #
 # Les paquets sont ranges en deux groupes : ceux SANS lesquels la suite ne peut
 # pas demarrer, et ceux qui font passer des tests de skip_if_not() a execution
 # reelle. Un ajout de test qui exige un nouveau paquet doit l'ajouter ici, sinon
 # le test se contentera d'etre saute -- en silence.
+#
+# CE COMMENTAIRE A MENTI, et il faut dire sur quoi : il annoncait « 107 Imports »
+# quand DESCRIPTION en porte 27, et « la suite ne source que Utils.R, mod_ai.R,
+# mod_coding.R et mod_qualitative.R » alors qu'elle BALAIE tout le dossier R/
+# depuis la migration des modules. Une documentation qui decrit un mecanisme
+# disparu se retourne contre celui qui la lit -- ici, elle justifiait une liste
+# courte par une couverture qui n'existe plus.
+#
+# LE SECOND GROUPE EST DONC LARGE, ET C'EST DELIBERE. Le test « tout appel
+# qualifie designe un objet qui existe » SAUTE tout paquet absent de la
+# machine : mesure faite, 159 appels `pkg::objet` sur 54 paquets n'etaient
+# confrontes a l'API reelle NULLE PART. C'est exactement ainsi que
+# `PMCMRplus::dunnTest`, `factoextra::fviz_mfa_biplot` et les cinq familles
+# fantomes de glmmTMB ont vecu dans le depot -- chacune trouvee le jour ou son
+# paquet est devenu installable ici. Ajouter un nom a `souhaites` ne peut pas
+# casser la CI (`try()`, puis simple avertissement si l'installation echoue) :
+# le seul cout est du temps de telechargement, mis en cache ensuite.
 # =============================================================================
 name: Tests
 
@@ -119,8 +135,7 @@ jobs:
           # ne doit pas faire tomber la CI.
           souhaites <- c("ggplot2", "ggrepel", "DT", "dplyr", "FactoMineR",
                          "openxlsx", "jsonlite", "httr", "car", "svglite",
-                         "scales", "stringr", "reshape2", "ggdendro", "digest",
-                         "base64enc", "readxl", "writexl",
+                         "scales", "base64enc", "readxl", "writexl",
                          # ggtext arrivait lui aussi par dependance
                          # transitive. Sept modules l'appellent pour leurs
                          # titres d'axe ; son absence ne fait plus tomber le
@@ -162,7 +177,25 @@ jobs:
                          # -- et un test saute ressemble a un test qui passe.
                          # Meme raison que pour agricolae et vegan : ce qui
                          # n'est pas declare n'est pas garanti.
-                         "duckdb", "lmerTest", "sandwich")
+                         "duckdb", "lmerTest", "sandwich",
+                         # Ferme le trou mesure plus haut : ces paquets sont
+                         # appeles par `pkg::` dans le code et n'etaient
+                         # verifies nulle part. `torch` et `prophet` restent
+                         # dehors -- le premier telecharge libtorch, le second
+                         # une chaine Stan ; tous deux couteraient plus de
+                         # minutes que de symboles gardes.
+                         "factoextra", "forecast", "plotly", "psych", "lavaan",
+                         "pwr", "shinyjs", "shinyWidgets", "shinyalert",
+                         "shinycssloaders", "colourpicker", "sortable",
+                         "DBI", "dlm", "glmmTMB", "rlang", "lmtest", "lme4",
+                         "htmltools", "tidyr", "tibble", "magrittr",
+                         "RColorBrewer", "corrplot", "patchwork", "treemapify",
+                         "mclust", "pROC", "randomForest", "xgboost", "e1071",
+                         "pls", "mice", "missForest", "VIM", "kknn", "klaR",
+                         "glmnet", "dbscan", "heplots", "multcomp", "FSA",
+                         "rcompanion", "EMT", "bestNormalize", "afex",
+                         "ARTool", "clustMixType", "poLCA", "neuralnet",
+                         "haven", "data.table", "zip")
           install.packages(requis)
           manquants <- requis[!vapply(requis, requireNamespace, logical(1), quietly = TRUE)]
           if (length(manquants))

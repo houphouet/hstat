@@ -2,9 +2,6 @@
 # mod_qualitative.R  --  Analyses de donnees qualitatives d'enquete
 # -----------------------------------------------------------------------------
 
-
-`%||%` <- function(x, y) if (is.null(x) || length(x) == 0) y else x
-
 # Nom de fichier sûr (accents retirés, non-alphanumériques -> underscore)
 .safe_name <- function(x) {
   x <- as.character(x)[1]
