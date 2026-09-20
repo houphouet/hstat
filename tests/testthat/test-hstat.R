@@ -18523,15 +18523,53 @@ test_that("la CI installe ce qu'il faut pour que les appels soient verifiables",
   #     appels `pkg::` sans controle -- le trou que ce lot pretendait fermer,
   #     rouvert par une dependance qu'aucune liste de paquets R ne mentionne.
   #
-  #     L'assertion ne vaut qu'EN CI : ici, quarante paquets manquent
-  #     legitimement, et l'exiger ferait echouer le test sur l'environnement
-  #     au lieu du code -- la faute que ce depot evite deja en sautant les
-  #     paquets absents.
-  skip_if(!nzchar(Sys.getenv("CI")), "hors CI : les paquets absents sont normaux")
+  #     ABSENT ET CASSE NE SE MESURENT PAS PAREIL, et la premiere version de
+  #     cette assertion les confondait. Elle ne regardait que
+  #     `requireNamespace`, qui rend FALSE dans les DEUX cas, et se gardait
+  #     par `Sys.getenv("CI")` -- vrai dans TOUS les jobs. Le job `R CMD check`
+  #     n'installe que les `Imports` (c'est la raison d'etre de
+  #     `_R_CHECK_FORCE_SUGGESTS_=false`) : elle y a donc declare « installes
+  #     mais non chargeables » quarante-huit paquets simplement ABSENTS, en
+  #     nommant une cause -- la bibliotheque systeme -- qui n'etait pas la
+  #     leur. Elle echouait sur l'environnement au lieu du code, la faute meme
+  #     que le commentaire ci-dessus dit eviter.
+  #
+  #     `find.package()` separe les deux, et c'est mesure plutot que suppose :
+  #     sur un repertoire portant un DESCRIPTION mais aucun espace de noms
+  #     chargeable -- la forme exacte qu'ont `kknn` et `heplots` sans libGLU --
+  #     il rend un chemin la ou un paquet absent n'en rend aucun.
+  #
+  #     Le garde-fou `CI` disparait avec la confusion qui le rendait
+  #     necessaire : un paquet absent est desormais ecarte PAR CONSTRUCTION,
+  #     partout. Ce qui reste exige est la seule chose qui ne soit jamais
+  #     normale -- un paquet POSE sur le disque qui ne se charge pas, parce
+  #     qu'il laisse tous ses appels `pkg::` sans controle en ayant l'air
+  #     installe.
+  # La propriete dont depend tout ce qui suit, EPINGLEE : `requireNamespace`
+  # rend FALSE dans les deux cas, `find.package` les separe. On fabrique la
+  # condition « pose mais non chargeable » au lieu de la supposer -- un
+  # repertoire portant un DESCRIPTION et aucun espace de noms. Sans cette
+  # assertion, un retour au seul `requireNamespace` repasserait au vert.
+  lib_essai <- file.path(tempdir(), "hstat_lib_essai")
+  dir.create(file.path(lib_essai, "hstatcasse"), recursive = TRUE, showWarnings = FALSE)
+  writeLines(c("Package: hstatcasse", "Version: 1.0", "License: GPL-2"),
+             file.path(lib_essai, "hstatcasse", "DESCRIPTION"))
+  anciens_chemins <- .libPaths()
+  on.exit(.libPaths(anciens_chemins), add = TRUE)
+  .libPaths(c(lib_essai, anciens_chemins))
+  expect_length(find.package("hstatcasse", quiet = TRUE), 1L)
+  expect_false(requireNamespace("hstatcasse", quietly = TRUE))
+  expect_length(find.package("hstatabsent", quiet = TRUE), 0L)
+  .libPaths(anciens_chemins)
+
   attendus <- setdiff(.hstat_pkgs_appeles(), c(livres, hors_ci_assume))
-  illisibles <- attendus[!vapply(attendus, requireNamespace, logical(1), quietly = TRUE)]
+  poses <- attendus[vapply(attendus,
+                           function(p) length(find.package(p, quiet = TRUE)) > 0L,
+                           logical(1))]
+  illisibles <- poses[!vapply(poses, requireNamespace, logical(1), quietly = TRUE)]
   expect_equal(illisibles, character(0),
-               info = paste0("installes mais non chargeables (bibliotheque systeme ?) : ",
+               info = paste0("poses sur le disque mais non chargeables ",
+                             "(bibliotheque systeme ?) : ",
                              paste(illisibles, collapse = ", ")))
 })
 
