@@ -774,7 +774,7 @@ server <- function(input, output, session) {
 
   output$pcaVarSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+    num_cols <- names(values$filteredData)[vapply(values$filteredData, is.numeric, logical(1))]
     if (length(num_cols) == 0) return(NULL)
     
     pickerInput(
@@ -793,7 +793,7 @@ server <- function(input, output, session) {
     
     pca_data <- tryCatch(
       { d <- values$filteredData[, input$pcaVars, drop = FALSE]
-      d[, sapply(d, is.numeric), drop = FALSE] },
+      d[, vapply(d, is.numeric, logical(1)), drop = FALSE] },
       error = function(e) NULL
     )
     if (is.null(pca_data) || ncol(pca_data) < 2) return(NULL)
@@ -1154,7 +1154,7 @@ server <- function(input, output, session) {
   shiny::observeEvent(input$pcaAutoRemoveCollinear, {
     shiny::req(values$filteredData, input$pcaVars)
     pca_data <- values$filteredData[, input$pcaVars, drop = FALSE]
-    pca_data <- pca_data[, sapply(pca_data, is.numeric), drop = FALSE]
+    pca_data <- pca_data[, vapply(pca_data, is.numeric, logical(1)), drop = FALSE]
     
     R_mat <- safe_cor(pca_data)
     if (is.null(R_mat)) return()
@@ -1215,7 +1215,7 @@ server <- function(input, output, session) {
 
   output$pcaQuantiSupSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+    num_cols <- names(values$filteredData)[vapply(values$filteredData, is.numeric, logical(1))]
     # On propose comme suppl. quantitatives les variables numeriques NON actives.
     avail <- setdiff(num_cols, input$pcaVars %||% character(0))
     pickerInput(
@@ -1359,7 +1359,7 @@ server <- function(input, output, session) {
       
       # - Garde contre la singularité : supprimer les colonnes numériques
       # quasi-colinéaires avant de passer à PCA() pour éviter solve.default crash
-      num_cols <- sapply(all_data, is.numeric)
+      num_cols <- vapply(all_data, is.numeric, logical(1))
       if (sum(num_cols) >= 2) {
         R_mat <- safe_cor(all_data[, num_cols, drop = FALSE])
         if (!is.null(R_mat) && !anyNA(R_mat)) {
@@ -1387,7 +1387,7 @@ server <- function(input, output, session) {
             }
           }
           # Vérifier que la matrice reste inversible (det != 0)
-          num_only <- all_data[, sapply(all_data, is.numeric), drop = FALSE]
+          num_only <- all_data[, vapply(all_data, is.numeric, logical(1)), drop = FALSE]
           if (ncol(num_only) >= 2) {
             det_val <- tryCatch(det(suppressWarnings(safe_cor(num_only, use = "complete.obs")) %||% diag(ncol(num_only))), error = function(e) NA)
             if (!is.na(det_val) && abs(det_val) < 1e-10) {
@@ -1399,7 +1399,7 @@ server <- function(input, output, session) {
         }
       }
       
-      n_num_remaining <- if (use_means) sum(sapply(all_data, is.numeric)) else length(active_num)
+      n_num_remaining <- if (use_means) sum(vapply(all_data, is.numeric, logical(1))) else length(active_num)
       if (n_num_remaining < 2) {
         shiny::showNotification("ACP : au moins 2 variables numériques sont nécessaires.", type = "error", duration = 6)
         return(NULL)
@@ -1584,7 +1584,7 @@ server <- function(input, output, session) {
     
     n_obs  <- nrow(values$filteredData)
     p_vars <- if (!is.null(input$pcaVars)) length(input$pcaVars) else
-      sum(sapply(values$filteredData, is.numeric))
+      sum(vapply(values$filteredData, is.numeric, logical(1)))
     
     cond_n_min <- 30
     cond_n_rec <- max(50, 5 * max(p_vars, 1))
@@ -1712,7 +1712,7 @@ server <- function(input, output, session) {
     df <- values$filteredData
     n_obs  <- nrow(df)
     p_vars <- if (!is.null(input$afdVars)) length(input$afdVars) else
-      sum(sapply(df, is.numeric))
+      sum(vapply(df, is.numeric, logical(1)))
     
     n_groups <- tryCatch({
       if (!is.null(input$afdFactor) && input$afdFactor %in% names(df)) {
@@ -2088,7 +2088,7 @@ server <- function(input, output, session) {
     shiny::req(pcaResultReactive(), values$filteredData, input$pcaVars)
     tryCatch({
       pca_data_raw <- values$filteredData[, input$pcaVars, drop = FALSE]
-      pca_data_raw <- pca_data_raw[, sapply(pca_data_raw, is.numeric), drop = FALSE]
+      pca_data_raw <- pca_data_raw[, vapply(pca_data_raw, is.numeric, logical(1)), drop = FALSE]
       pca_data_raw <- stats::na.omit(pca_data_raw)
       pca_data_raw <- remove_zero_var_cols(pca_data_raw)
       pca_data_raw <- remove_zero_var_cols(pca_data_raw)
@@ -2314,7 +2314,7 @@ server <- function(input, output, session) {
     shiny::req(pcaResultReactive(), values$filteredData, input$pcaVars)
     tryCatch({
       pca_data_raw <- values$filteredData[, input$pcaVars, drop = FALSE]
-      pca_data_raw <- pca_data_raw[, sapply(pca_data_raw, is.numeric), drop = FALSE]
+      pca_data_raw <- pca_data_raw[, vapply(pca_data_raw, is.numeric, logical(1)), drop = FALSE]
       pca_data_raw <- stats::na.omit(pca_data_raw)
       
       if (ncol(pca_data_raw) < 2 || nrow(pca_data_raw) < 10) {
@@ -2337,7 +2337,7 @@ server <- function(input, output, session) {
     filename = function() paste0("acp_analyse_parallele_", Sys.Date(), ".", hstat_img_fmt(input$pcaParallel_format)),
     content = function(file) {
       pca_data_raw <- values$filteredData[, input$pcaVars, drop = FALSE]
-      pca_data_raw <- pca_data_raw[, sapply(pca_data_raw, is.numeric), drop = FALSE]
+      pca_data_raw <- pca_data_raw[, vapply(pca_data_raw, is.numeric, logical(1)), drop = FALSE]
       pca_data_raw <- stats::na.omit(pca_data_raw)
       d <- mv_dims_export("pcaParallel", 9.8, 7.1); dpi <- d$dpi
       auto <- d
@@ -2352,7 +2352,7 @@ server <- function(input, output, session) {
     shiny::req(pcaResultReactive(), values$filteredData, input$pcaVars, input$pcaRotationMethod, input$pcaRotationNFactors)
     tryCatch({
       pca_data_raw <- values$filteredData[, input$pcaVars, drop = FALSE]
-      pca_data_raw <- pca_data_raw[, sapply(pca_data_raw, is.numeric), drop = FALSE]
+      pca_data_raw <- pca_data_raw[, vapply(pca_data_raw, is.numeric, logical(1)), drop = FALSE]
       pca_data_raw <- stats::na.omit(pca_data_raw)
       
       
@@ -2530,7 +2530,7 @@ server <- function(input, output, session) {
     if (is.null(pcaResultReactive()) || is.null(values$filteredData) ||
         is.null(input$pcaVars)) return(NULL)
     d <- values$filteredData[, input$pcaVars, drop = FALSE]
-    d <- stats::na.omit(d[, sapply(d, is.numeric), drop = FALSE])
+    d <- stats::na.omit(d[, vapply(d, is.numeric, logical(1)), drop = FALSE])
     dfs <- build_pca_metrics_df(pcaResultReactive(), d)
     if (is.null(dfs)) return(NULL)
     list("Valeurs_propres" = dfs$valeurs_propres,
@@ -3679,14 +3679,14 @@ server <- function(input, output, session) {
     
     # - Regrouper les colonnes par type avec étiquettes claires 
     build_group_choices <- function(df) {
-      cols_factor  <- names(df)[sapply(df, is.factor)]
-      cols_char    <- names(df)[sapply(df, is.character)]
+      cols_factor  <- names(df)[vapply(df, is.factor, logical(1))]
+      cols_char    <- names(df)[vapply(df, is.character, logical(1))]
       cols_date    <- names(df)[sapply(df, function(x) inherits(x, "Date") || inherits(x, "POSIXt"))]
       # Numériques avec <= 30 valeurs uniques -> utilisables comme groupes
       cols_num_few <- names(df)[sapply(df, function(x) {
         is.numeric(x) && length(unique(stats::na.omit(x))) <= 30
       })]
-      cols_logi    <- names(df)[sapply(df, is.logical)]
+      cols_logi    <- names(df)[vapply(df, is.logical, logical(1))]
       
       groups <- list()
       if (length(cols_factor)  > 0) groups[["Facteur"]]                             <- cols_factor
@@ -3753,7 +3753,7 @@ server <- function(input, output, session) {
   
   output$afdVarSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+    num_cols <- names(values$filteredData)[vapply(values$filteredData, is.numeric, logical(1))]
     if (length(num_cols) == 0) return(NULL)
     
     pickerInput(
@@ -3801,7 +3801,7 @@ server <- function(input, output, session) {
     
     afd_data <- tryCatch(
       { d <- values$filteredData[, input$afdVars, drop = FALSE]
-      d[, sapply(d, is.numeric), drop = FALSE] },
+      d[, vapply(d, is.numeric, logical(1)), drop = FALSE] },
       error = function(e) NULL
     )
     if (is.null(afd_data) || ncol(afd_data) < 2) return(NULL)
@@ -3885,7 +3885,7 @@ server <- function(input, output, session) {
   shiny::observeEvent(input$afdAutoRemoveCollinear, {
     shiny::req(values$filteredData, input$afdVars)
     afd_d <- values$filteredData[, input$afdVars, drop=FALSE]
-    afd_d <- afd_d[, sapply(afd_d, is.numeric), drop=FALSE]
+    afd_d <- afd_d[, vapply(afd_d, is.numeric, logical(1)), drop=FALSE]
     R_mat <- safe_cor(afd_d)
     if (is.null(R_mat)) return()
     to_rem <- c()
@@ -4085,7 +4085,7 @@ server <- function(input, output, session) {
       # lda() plante avec solve.default si la matrice intra-groupe est singulière
       if (length(vars_to_use) >= 2) {
         num_afd <- afd_data[, vars_to_use, drop = FALSE]
-        num_afd <- num_afd[, sapply(num_afd, is.numeric), drop = FALSE]
+        num_afd <- num_afd[, vapply(num_afd, is.numeric, logical(1)), drop = FALSE]
         if (ncol(num_afd) >= 2) {
           R_afd <- safe_cor(num_afd)
           if (!is.null(R_afd) && !anyNA(R_afd)) {
@@ -4532,7 +4532,7 @@ server <- function(input, output, session) {
     # Utiliser les variables stockées dans afd_res (pas input$afdVars qui est NULL hors réactif)
     vars_used <- afd_res$vars_used
     if (is.null(vars_used) || length(vars_used) == 0) {
-      vars_used <- names(afd_data)[sapply(afd_data, is.numeric)]
+      vars_used <- names(afd_data)[vapply(afd_data, is.numeric, logical(1))]
     }
     # Les variables retenues peuvent avoir disparu du jeu de travail : le nom
     # est stocke, la colonne non. On ne garde que celles qui sont la.
@@ -5145,7 +5145,7 @@ server <- function(input, output, session) {
   mv_data <- shiny::reactive(values$filteredData)
   mv_num_cols <- shiny::reactive({
     d <- mv_data(); if (is.null(d)) return(character(0))
-    names(d)[sapply(d, is.numeric)]
+    names(d)[vapply(d, is.numeric, logical(1))]
   })
   mv_cat_cols <- shiny::reactive({
     d <- mv_data(); if (is.null(d)) return(character(0))
@@ -5642,7 +5642,7 @@ server <- function(input, output, session) {
   # -- Tableau generique (data.frame -> table HTML compacte) --
   mv_data_table <- function(df, accent = "#3a6186", digits = 3) {
     if (is.null(df) || nrow(df) == 0) return(NULL)
-    nums <- sapply(df, is.numeric)
+    nums <- vapply(df, is.numeric, logical(1))
     df2 <- df
     df2[nums] <- lapply(df2[nums], function(x) round(x, digits))
     rows <- lapply(seq_len(nrow(df2)), function(i) {
@@ -8219,7 +8219,7 @@ server <- function(input, output, session) {
         sub <- d[, vars, drop = FALSE]
         for (v in vars) if (!is.numeric(sub[[v]])) sub[[v]] <- droplevels(factor(sub[[v]]))
         sub <- sub[stats::complete.cases(sub), , drop = FALSE]
-        nq <- sum(sapply(sub, is.numeric)); nc <- ncol(sub) - nq
+        nq <- sum(vapply(sub, is.numeric, logical(1))); nc <- ncol(sub) - nq
         if (nq < 1 || nc < 1)
           return(list(ok = FALSE, error = "k-prototypes exige au moins 1 variable quantitative ET 1 qualitative."))
         for (v in names(sub)) if (is.numeric(sub[[v]])) sub[[v]] <- as.numeric(scale(sub[[v]]))

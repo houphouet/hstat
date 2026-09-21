@@ -333,7 +333,7 @@ mod_descriptive_server <- function(id, values) {
   
   output$numVarSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+    num_cols <- names(values$filteredData)[vapply(values$filteredData, is.numeric, logical(1))]
     if (length(num_cols) == 0) return(NULL)
     
     shiny::tagList(
@@ -358,7 +358,7 @@ mod_descriptive_server <- function(id, values) {
   })
   
   shiny::observeEvent(input$selectAllNumVars, {
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+    num_cols <- names(values$filteredData)[vapply(values$filteredData, is.numeric, logical(1))]
     updatePickerInput(session, "numVars", selected = num_cols)
     shiny::showNotification("Toutes les variables sélectionnées", type = "message", duration = 2)
   })
@@ -384,7 +384,7 @@ mod_descriptive_server <- function(id, values) {
   
   shiny::observeEvent(input$selectAllNum, {
     shiny::req(values$filteredData)
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+    num_cols <- names(values$filteredData)[vapply(values$filteredData, is.numeric, logical(1))]
     if (input$selectAllNum) {
       updatePickerInput(session, "numVars", selected = num_cols)
     } else {
@@ -535,7 +535,7 @@ mod_descriptive_server <- function(id, values) {
       class = 'cell-border stripe hover',
       filter = 'top'
     ) %>%
-      DT::formatRound(columns = which(sapply(values$descStats, is.numeric)), digits = dec)
+      DT::formatRound(columns = which(vapply(values$descStats, is.numeric, logical(1))), digits = dec)
   })
   
   output$downloadDesc <- shiny::downloadHandler(
@@ -570,13 +570,13 @@ mod_descriptive_server <- function(id, values) {
   
   output$descPlotVarSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
-    num_cols <- names(values$filteredData)[sapply(values$filteredData, is.numeric)]
+    num_cols <- names(values$filteredData)[vapply(values$filteredData, is.numeric, logical(1))]
     shiny::selectInput(ns("descPlotVar"), "Variable à visualiser :", choices = num_cols, width = "100%")
   })
   
   output$descPlotFactorSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
-    fac_cols <- names(values$filteredData)[sapply(values$filteredData, is.factor)]
+    fac_cols <- names(values$filteredData)[vapply(values$filteredData, is.factor, logical(1))]
     shiny::selectInput(ns("descPlotFactor"), "Grouper par :", choices = c("Aucun", fac_cols), width = "100%")
   })
   

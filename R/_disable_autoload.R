@@ -20,4 +20,13 @@
 # faire taire depuis l'application. Ce qui compte est corrige : plus aucun
 # fichier de R/ n'est source dans l'environnement de l'application.
 #
-# Ce fichier ne definit aucun objet : R CMD build peut l'inclure sans effet.
+# Ce fichier ne definit aucun objet -- mais `R CMD build` ne l'inclut PAS pour
+# autant : un nom de fichier commencant par un souligne est invalide dans `R/`,
+# et le build l'ecarte en le disant (« Subdirectory 'R' contains invalid file
+# names »). La phrase qui tenait ici affirmait le contraire.
+#
+# C'est sans consequence, et il faut dire pourquoi plutot que de laisser
+# chercher : ce garde-fou ne sert que depuis le DEPOT SOURCE, ou `R/` est un
+# frere de `inst/app/`. Le paquet installe, lui, sert `system.file("app")`,
+# qui n'a pas de sous-dossier `R/` -- verifie -- donc rien a charger
+# automatiquement, donc rien a desactiver.

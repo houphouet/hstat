@@ -3833,10 +3833,10 @@ mod_viz_server <- function(id, values) {
     shiny::req(values$plotData)
     tryCatch({
       data <- values$plotData
-      num_vars <- sum(sapply(data, is.numeric))
+      num_vars <- sum(vapply(data, is.numeric, logical(1)))
       cat_vars <- sum(sapply(data, function(x) is.factor(x) || is.character(x)))
       date_vars <- sum(sapply(data, function(x) inherits(x, "Date") || inherits(x, "POSIXt")))
-      logical_vars <- sum(sapply(data, is.logical))
+      logical_vars <- sum(vapply(data, is.logical, logical(1)))
       missing_values <- sum(is.na(data))
       complete_rows <- sum(stats::complete.cases(data))
       

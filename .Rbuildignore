@@ -6,3 +6,12 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^HStat_.*\.tar\.gz$
+# Peripherique graphique par defaut de R : `Rplots.pdf` apparait des qu'un
+# trace part sans peripherique ouvert -- donc apres chaque passage de la
+# suite. `.gitignore` le connaissait, PAS `.Rbuildignore` : `R CMD build`
+# en embarquait DEUX dans le tarball, a la racine et dans tests/testthat.
+# Un paquet livre ne porte pas les artefacts de la machine qui l'a construit.
+^Rplots\.pdf$
+^tests/testthat/Rplots\.pdf$
+# Dossier de travail de `R CMD check`, s'il traine d'un passage precedent.
+^.*\.Rcheck$

@@ -1639,7 +1639,7 @@ mod_clean_server <- function(id, values) {
   # ---- Valeurs aberrantes et winsorisation ----
   output$outlierVarSelect <- shiny::renderUI({
     shiny::req(values$cleanData)
-    num_cols <- names(values$cleanData)[sapply(values$cleanData, is.numeric)]
+    num_cols <- names(values$cleanData)[vapply(values$cleanData, is.numeric, logical(1))]
     if (length(num_cols) == 0)
       return(shiny::div(class = "alert alert-warning", shiny::icon("exclamation-triangle"),
                  " Aucune variable numérique disponible."))

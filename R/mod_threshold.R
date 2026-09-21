@@ -978,7 +978,7 @@ mod_threshold_server <- function(id, values) {
   
   output$thresholdYVarSelect <- shiny::renderUI({
     shiny::req(source_data())
-    num_cols <- names(source_data())[sapply(source_data(), is.numeric)]
+    num_cols <- names(source_data())[vapply(source_data(), is.numeric, logical(1))]
     
     if(input$thresholdMultipleY) {
       pickerInput(ns("thresholdYVar"), "Variables Y (efficacité) — sélection multiple :", 

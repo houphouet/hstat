@@ -351,7 +351,7 @@ mod_filter_server <- function(id, values) {
   
   output$filterFactorA <- shiny::renderUI({
     shiny::req(values$cleanData)
-    fac_cols <- names(values$cleanData)[sapply(values$cleanData, is.factor)]
+    fac_cols <- names(values$cleanData)[vapply(values$cleanData, is.factor, logical(1))]
     if (length(fac_cols) == 0) {
       shiny::helpText("Aucun facteur. Convertissez d'abord des variables en facteurs dans l'onglet Nettoyage.")
     } else {
@@ -361,7 +361,7 @@ mod_filter_server <- function(id, values) {
   
   output$filterFactorB <- shiny::renderUI({
     shiny::req(values$cleanData)
-    fac_cols <- names(values$cleanData)[sapply(values$cleanData, is.factor)]
+    fac_cols <- names(values$cleanData)[vapply(values$cleanData, is.factor, logical(1))]
     if (length(fac_cols) == 0) {
       NULL
     } else {
@@ -386,7 +386,7 @@ mod_filter_server <- function(id, values) {
   
   output$filterFactorsN <- shiny::renderUI({
     shiny::req(values$cleanData)
-    fac_cols <- names(values$cleanData)[sapply(values$cleanData, is.factor)]
+    fac_cols <- names(values$cleanData)[vapply(values$cleanData, is.factor, logical(1))]
     shiny::selectInput(ns("factorsN"), "Facteurs (>=2) :", choices = fac_cols, multiple = TRUE)
   })
   

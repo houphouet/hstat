@@ -296,7 +296,7 @@ mod_explore_server <- function(id, values) {
   
   output$distVarSelect <- shiny::renderUI({
     shiny::req(values$data)
-    num_cols <- unique(names(values$data)[sapply(values$data, is.numeric)])
+    num_cols <- unique(names(values$data)[vapply(values$data, is.numeric, logical(1))])
 
     if (length(num_cols) == 0) {
       return(shiny::div(class = "alert alert-warning", 
