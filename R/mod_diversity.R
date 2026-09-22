@@ -326,7 +326,8 @@ mod_diversity_ui <- function(id) {
 }
 
 
-mod_diversity_server <- function(id, values) {
+mod_diversity_server <- function(id, values,
+                                 graine_globale = shiny::reactive(NULL)) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -749,7 +750,7 @@ mod_diversity_server <- function(id, values) {
         accumulation = {
           perm <- max(10L, as.integer(hstat_finite(input$divAccumPerm, 100)))
           d <- hstat_div_accumulation(m, permutations = perm,
-                                      graine = hstat_finite(values$globalSeed, 123))
+                                      graine = hstat_finite(graine_globale(), 123))
           shiny::validate(shiny::need(!is.null(d) && nrow(d) > 0,
             "La courbe d'accumulation demande au moins un relevé."))
           ggplot2::ggplot(d, ggplot2::aes(x = .data[["Releves"]], y = .data[["Especes"]])) +

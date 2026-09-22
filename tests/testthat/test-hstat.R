@@ -15087,7 +15087,11 @@ test_that("le module de diversité respecte les conventions du dépôt", {
                         encoding = "UTF-8"), collapse = "\n")
   expect_true(grepl('mod_diversity_ui("diversity")', ux, fixed = TRUE))
   expect_true(grepl('tabName = "diversity"', ux, fixed = TRUE))
-  expect_true(grepl('mod_diversity_server("diversity", values)', sv, fixed = TRUE))
+  # L'appel porte desormais un TROISIEME argument : la graine de l'en-tete.
+  # Le module lisait `values$globalSeed`, un champ que rien n'ecrit, et restait
+  # donc fige sur 123. L'assertion suit la correction plutot que d'epingler
+  # l'ancienne forme.
+  expect_true(grepl('mod_diversity_server("diversity", values,', sv, fixed = TRUE))
 })
 
 
@@ -18607,4 +18611,201 @@ test_that("aucun predicat de colonnes ne passe par sapply, qui rend une liste su
   expect_equal(fautifs, character(0),
                info = paste0("sapply() a predicat simple, a passer en vapply(..., logical(1)) : ",
                              paste(fautifs, collapse = ", ")))
+})
+
+
+# -- Parcourt l'arbre syntaxique et rend TOUS les appels ----------------------
+# L'argument vide (`x[, 1]`) est un symbole de nom vide : le tenir dans une
+# variable leve « argument is missing », on le teste donc par son nom.
+.hstat_appels_de <- function(f) {
+  ex <- tryCatch(parse(f), error = function(e) NULL)
+  if (is.null(ex)) return(list())
+  out <- list()
+  marche <- function(e) {
+    if (is.symbol(e) && !nzchar(as.character(e))) return(invisible(NULL))
+    if (is.call(e)) {
+      out[[length(out) + 1L]] <<- e
+      for (i in seq_along(e)) marche(e[[i]])
+    } else if (is.pairlist(e) || is.expression(e) || is.list(e)) {
+      for (i in seq_along(e)) marche(e[[i]])
+    }
+    invisible(NULL)
+  }
+  for (e in ex) marche(e)
+  out
+}
+
+test_that("aucun motif ne met \\s dans une classe entre crochets", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "depot introuvable")
+
+  # MESURE, pas supposition. Dans une classe entre crochets, le moteur par
+  # defaut de R (TRE) prend le contre-oblique pour LUI-MEME : `[;\s]` est la
+  # classe { ; , \ , s }. Le motif echoue donc DANS LES DEUX SENS --
+  # il decoupe sur la lettre « s », et il ne decoupe pas sur l'espace.
+  expect_equal(strsplit("le, la, les, sur", "[,;\\s]+")[[1]],
+               c("le", " la", " le", " ", "ur"))
+  # La forme POSIX, elle, fait ce qu'elle annonce.
+  expect_equal(strsplit("le, la, les, sur", "[,;[:space:]]+")[[1]],
+               c("le", "la", "les", "sur"))
+  # Les deux resultats doivent differer, sans quoi l'assertion ne garderait rien.
+  expect_false(identical(strsplit("le, la, les, sur", "[,;\\s]+")[[1]],
+                         strsplit("le, la, les, sur", "[,;[:space:]]+")[[1]]))
+
+  # Le depot employait les deux formes : trois sites saisis par l'utilisateur
+  # (bornes de classes, proportions attendues du chi2, mots vides) portaient la
+  # fautive pendant que la DL50 et les series temporelles portaient la juste.
+  regex_fn <- c("strsplit", "grepl", "grep", "sub", "gsub", "regmatches",
+                "gregexpr", "regexpr", "regexec")
+  fautifs <- character(0)
+  for (f in .hstat_sources_app()) for (e in .hstat_appels_de(f)) {
+    nm <- paste(deparse(e[[1]]), collapse = "")
+    if (!nm %in% regex_fn) next
+    a <- as.list(e)[-1]
+    # `pattern` est le 1er argument de grepl/sub/gsub, le 2e de strsplit.
+    cands <- a[vapply(a, function(z) is.character(z) && length(z) == 1L, logical(1))]
+    for (m in cands)
+      if (grepl("\\[[^]]*\\\\s[^]]*\\]", m))
+        fautifs <- c(fautifs, paste0(basename(f), " : ", m))
+  }
+  expect_equal(fautifs, character(0),
+               info = paste0("\\s dans une classe entre crochets (employer [[:space:]]) : ",
+                             paste(fautifs, collapse = ", ")))
+})
+
+test_that("trf() ne meurt jamais sur un argument fautif", {
+  # `sprintf("%d", 7.5)` LEVE. Le repli d'origine rejouait le MEME sprintf sur
+  # le gabarit francais, avec les MEMES arguments : il rattrapait une
+  # traduction fautive, jamais un argument fautif, et l'erreur emportait toute
+  # la sortie appelante -- un tableau, une figure, un panneau entier.
+  expect_error(sprintf("%d obs", 7.5), "invalid format")
+
+  expect_equal(trf("total = %d obs", 7L), "total = 7 obs")
+  expect_equal(trf("total = %d obs", 7),  "total = 7 obs")   # double entier : inchange
+  # La valeur a virgule se LIT au lieu de tout faire tomber.
+  expect_equal(trf("total = %d obs", 7.5), "total = 7.5 obs")
+  # Le pour-cent litteral et les largeurs survivent au repli.
+  expect_equal(trf("100 %% de %d", 2.5), "100 % de 2.5")
+  expect_equal(trf("%.2f et %d", 1.234, 9.9), "1.23 et 9.9")
+  # Une faute de NOMBRE d'arguments ne se repare pas : le gabarit brut vaut
+  # mieux qu'une sortie morte.
+  expect_equal(trf("%d et %d", 5L), "%d et %d")
+})
+
+test_that("hstat_div_whittaker ne branche pas sur une statistique non calculable", {
+  # `mean(rowSums(m > 0))` vaut NaN des que la matrice n'a aucune ligne, et
+  # `if (NaN > 0)` leve « missing value where TRUE/FALSE needed ». La troisieme
+  # branche de la fonction portait deja `isTRUE()` ; ses deux voisines l'avaient
+  # manque -- garder une garde et oublier sa jumelle.
+  expect_true(is.nan(mean(rowSums(matrix(numeric(0), 0, 0) > 0))))
+  # Il AVERTIT (moyenne d'un vide) ; ce qu'on exige est qu'il ne LEVE pas.
+  r <- suppressWarnings(expect_no_error(hstat_div_whittaker(matrix(numeric(0), 0, 0))))
+  expect_s3_class(r, "data.frame")
+  expect_true(all(is.na(r$Beta_Whittaker)))
+
+  # Le cas normal ne bouge pas : gamma = 3, alpha = 2, donc 1,5 et 0,5.
+  n <- hstat_div_whittaker(matrix(c(3, 1, 0, 0, 2, 4), nrow = 2, byrow = TRUE))
+  expect_equal(n$Beta_multiplicatif[1], 1.5)
+  expect_equal(n$Beta_Whittaker[1], 0.5)
+})
+
+test_that("aucun champ de session n'est ecrit sans etre jamais relu", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "depot introuvable")
+
+  # Dix champs etaient dans ce cas : quatre `chiSq*`, deux `manova*SummaryRows`
+  # -- dont le calcul ENTIER, deux `lapply` de treize lignes, ne servait plus
+  # qu'a les remplir --, `scheirerResults`, `anovaModel`, `postHocSyncTrigger`
+  # et `sourceKind`. Le risque n'est pas le poids : c'est de corriger la copie
+  # morte en croyant corriger l'analyse.
+  #
+  # Le critere compte les ACCES : `values$X <- v` fait un acces (le membre
+  # gauche) et une ecriture. Un champ dont les acces n'excedent pas les
+  # ecritures n'est donc relu nulle part.
+  ecrits <- character(0); acces <- character(0)
+  for (f in .hstat_sources_app()) for (e in .hstat_appels_de(f)) {
+    nm <- paste(deparse(e[[1]]), collapse = "")
+    if (nm %in% c("<-", "=", "<<-") && length(e) >= 2L) {
+      g <- e[[2]]
+      if (is.call(g) && identical(paste(deparse(g[[1]]), collapse = ""), "$") &&
+          identical(paste(deparse(g[[2]]), collapse = ""), "values"))
+        ecrits <- c(ecrits, paste(deparse(g[[3]]), collapse = ""))
+    }
+    if (identical(nm, "$") && length(e) >= 3L &&
+        identical(paste(deparse(e[[2]]), collapse = ""), "values"))
+      acces <- c(acces, paste(deparse(e[[3]]), collapse = ""))
+  }
+  te <- table(ecrits); ta <- table(acces)
+  morts <- character(0)
+  for (k in names(te)) {
+    na <- if (k %in% names(ta)) ta[[k]] else 0L
+    if (na <= te[[k]]) morts <- c(morts, k)
+  }
+  expect_equal(sort(morts), character(0),
+               info = paste0("champs ecrits et jamais relus : ",
+                             paste(sort(morts), collapse = ", ")))
+})
+
+test_that("la graine globale atteint le module de diversite", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root), "depot introuvable")
+
+  # La graine est un widget de l'EN-TETE (`numericInput("globalSeed", ...)`),
+  # donc `input$globalSeed` cote app_server -- onze sites l'emploient ainsi.
+  # Un module ne peut pas le lire : son `input` est namespace. `mod_diversity`
+  # lisait donc `values$globalSeed`, un champ que RIEN n'ecrit :
+  # `hstat_finite(NULL, 123)` rendait 123 quoi que l'utilisateur choisisse, et
+  # la courbe d'accumulation restait figee.
+  #
+  # Le piege est que le resultat AVAIT L'AIR reproductible -- rien ne signalait
+  # que le reglage etait inerte. C'est le mode de defaillance le plus couteux
+  # de ce depot : un chiffre faux et plausible.
+  src <- paste(readLines(file.path(root, "R", "mod_diversity.R"), warn = FALSE),
+               collapse = "\n")
+  expect_false(grepl("values$globalSeed", src, fixed = TRUE))
+  expect_true(grepl("graine_globale()", src, fixed = TRUE))
+
+  app <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                         warn = FALSE), collapse = "\n")
+  expect_true(grepl('mod_diversity_server("diversity", values,', app, fixed = TRUE))
+  expect_true(grepl("shiny::reactive(input$globalSeed)", app, fixed = TRUE))
+
+  # Et la graine est PORTEUSE : deux graines donnent deux courbes, la meme
+  # graine rend la meme. Sans cette paire, l'assertion passerait aussi sur une
+  # fonction qui ignorerait completement la graine.
+  set.seed(99)
+  m <- matrix(stats::rpois(120, 1.2), nrow = 20)
+  a  <- hstat_div_accumulation(m, permutations = 50, graine = 1)
+  b  <- hstat_div_accumulation(m, permutations = 50, graine = 2)
+  a2 <- hstat_div_accumulation(m, permutations = 50, graine = 1)
+  expect_equal(a, a2)
+  expect_false(isTRUE(all.equal(a, b)))
+})
+
+test_that("l'analyse textuelle survit a un vocabulaire vide", {
+  # Le seuil de rarete ne retient que les termes vus au moins deux fois : une
+  # liste de mots vides un peu fournie suffit donc a VIDER le vocabulaire.
+  # `sapply` rend alors une LISTE de vecteurs de longueur nulle -- donc sans
+  # `dim` -- et `matrix(., nrow = 0)` la refuse. Tout l'onglet textuel tombait,
+  # y compris les frequences deja calculees plus haut, qui sont justes.
+  #
+  # Le defaut etait latent tant que les mots vides arrivaient mutiles par
+  # `[,;\s]+` : ils ne retiraient rien. Corriger le motif l'a rendu ATTEIGNABLE.
+  vide <- sapply(list(c("a"), c("b")), function(w) as.integer(character(0) %in% w))
+  expect_null(dim(vide))
+  expect_error(matrix(vide, nrow = 0L), "data is too long")
+
+  txt <- c("prix eleves sur stock", "stock sans surprise et prix bas",
+           "le stock des prix reste stable", "prix du stock souci constant")
+  r <- hstat_q_text_analysis(txt, "t", min_char = 2, top_n = 10,
+                             extra_stopwords = c("prix", "stock", "souci"))
+  expect_true(is.list(r))
+  expect_true(length(r$tables) > 0L)
+
+  # Et les mots vides AGISSENT : ils quittent la table des frequences. Sans
+  # cette assertion, une fonction qui les ignorerait passerait aussi.
+  mots <- r$tables[[1]][[1]]
+  expect_false(any(c("prix", "stock") %in% mots))
+  sans <- hstat_q_text_analysis(txt, "t", min_char = 2, top_n = 10)
+  expect_true("prix" %in% sans$tables[[1]][[1]])
 })

@@ -582,7 +582,7 @@ hstat_valeurs_initiales <- function() {
   list(
     data = NULL, cleanData = NULL, filteredData = NULL, descStats = NULL,
     normResults = NULL, leveneResults = NULL, testResults = NULL,
-    anovaModel = NULL, lastKruskal = NULL, multiResults = NULL,
+    lastKruskal = NULL, multiResults = NULL,
     multiGroups = NULL, currentPlot = NULL, residualsNorm = NULL,
     leveneResid = NULL, multiNormResults = NULL, multiLeveneResults = NULL,
     pcaResult = NULL, clusterResult = NULL, currentModel = NULL,
@@ -591,21 +591,20 @@ hstat_valeurs_initiales <- function() {
     multiResultsMain = NULL, multiResultsInteraction = NULL,
     normalityResults = NULL, homogeneityResults = NULL,
     currentVarIndex = 1, currentValidationVar = 1,
-    allTestResults = list(), allPostHocResults = list(), modelsList = list(),
+    allTestResults = list(), modelsList = list(),
     normalityResultsPerVar = list(), homogeneityResultsPerVar = list(),
     currentDiagVar = 1, currentResidVar = 1,
     customXOrder = NULL, posthocXLabels = NULL, posthocXStyles = NULL,
     y2Vars = NULL, dualAxisActive = FALSE,
     y2VarsActive = NULL, y2RangeForAxis = NULL, y2UnifiedColorMap = NULL,
-    postHocSyncTrigger = NULL,
     transformationLog = list(),
     chiSqResults = NULL, chiSqFreqData = NULL, chiSqPostHocData = NULL,
-    chiSqPlotObj = NULL, chiSqRawObs = NULL, chiSqModalites = NULL,
+    chiSqPlotObj = NULL,
     chiSqPGlobal = NULL,
     # ---- Moteur de donnees (memoire / hors-memoire DuckDB) ----
     dbCon = NULL, dbTable = NULL, dataMode = "memory",
     fullNrow = NULL, fullNcol = NULL, fullNA = NULL, isSampled = FALSE,
-    sourceKind = NULL, sourceSize = NULL,
+    sourceSize = NULL,
     # Chemin du fichier NEUTRALISE par la derniere reinitialisation.
     # `shinyjs::reset("file")` remet le widget a blanc mais `input$file` garde
     # sa valeur : sans ce temoin, la feuille Excel choisie et le bloc de
@@ -5274,11 +5273,34 @@ HSTAT_I18N_MARQUEUR <- "%[-0-9.]*[sdfgeix%]"
 # correctement rempli, au lieu de disparaitre ou d'afficher une cle technique.
 trf <- function(fmt, ..., lang = hstat_langue_session()) {
   g <- tr(fmt, lang)
-  # Une traduction fautive peut avoir perdu un marqueur : sprintf leverait
-  # alors « too few arguments » et ferait tomber toute la sortie pour une
-  # simple erreur de dictionnaire. On retombe sur le francais, qui marche.
+  # [1] La traduction.
   out <- tryCatch(sprintf(g, ...), error = function(e) NULL)
-  if (is.null(out)) sprintf(fmt, ...) else out
+  if (!is.null(out)) return(out)
+  # [2] Le francais. Il rattrape une TRADUCTION fautive -- un marqueur perdu
+  #     au dictionnaire, qui ferait lever « too few arguments » -- et rien
+  #     d'autre : il porte les memes marqueurs et recoit les memes arguments.
+  out <- tryCatch(sprintf(fmt, ...), error = function(e) NULL)
+  if (!is.null(out)) return(out)
+  # [3] UN ARGUMENT FAUTIF PASSE DONC LES DEUX, et c'est le trou que [2]
+  #     laissait : le repli rejouait le MEME sprintf avec les MEMES valeurs.
+  #     Le cas reel est `%d` nourri d'une valeur a virgule -- une taille
+  #     d'echantillon fractionnaire, un produit de reglages -- ou `sprintf`
+  #     LEVE (« invalid format '%d'; use format %f... »). Cette erreur-la
+  #     emportait toute la sortie appelante : un tableau, une figure, un
+  #     panneau entier, pour un defaut de mise en forme.
+  #
+  #     On rend alors la valeur telle quelle (%d -> %s). « 7.5 » se lit, se
+  #     signale de lui-meme, et ne fait rien tomber. La langue de
+  #     l'utilisateur est tentee avant le francais.
+  souple <- c(d = "%s", i = "%s")
+  for (tpl in c(g, fmt)) {
+    out <- tryCatch(sprintf(.hstat_pct_sub(tpl, souple), ...),
+                    error = function(e) NULL)
+    if (!is.null(out)) return(out)
+  }
+  # [4] Restent les fautes de NOMBRE d'arguments, qu'aucune substitution ne
+  #     repare. Le gabarit brut vaut mieux qu'une sortie morte.
+  fmt
 }
 
 # =============================================================================
@@ -10305,12 +10327,17 @@ hstat_div_whittaker <- function(m, base = "2") {
     Beta_additif = c(gamma_S - alpha_S,
                      pool$Shannon_H - mean(ind$Shannon_H, na.rm = TRUE),
                      pool$Simpson_inverse - mean(ind$Simpson_inverse, na.rm = TRUE)),
+    # `alpha_S` vaut NaN des que la matrice n'a aucune ligne : `mean(numeric(0))`.
+    # `if (NaN > 0)` leve alors « missing value where TRUE/FALSE needed » et fait
+    # tomber toute la sortie -- la premiere regle de ce depot. La troisieme
+    # branche ci-dessous portait deja `isTRUE()` ; ses deux voisines l'avaient
+    # manque. Non calculable se rend NA, il ne se branche pas.
     Beta_multiplicatif = c(
-      if (alpha_S > 0) gamma_S / alpha_S else NA_real_,
+      if (isTRUE(alpha_S > 0)) gamma_S / alpha_S else NA_real_,
       NA_real_,
       if (isTRUE(mean(ind$Simpson_inverse, na.rm = TRUE) > 0))
         pool$Simpson_inverse / mean(ind$Simpson_inverse, na.rm = TRUE) else NA_real_),
-    Beta_Whittaker = c(if (alpha_S > 0) gamma_S / alpha_S - 1 else NA_real_,
+    Beta_Whittaker = c(if (isTRUE(alpha_S > 0)) gamma_S / alpha_S - 1 else NA_real_,
                        NA_real_, NA_real_),
     stringsAsFactors = FALSE)
 }

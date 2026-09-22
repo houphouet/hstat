@@ -3023,7 +3023,6 @@ mod_tests_server <- function(id, values) {
           error_messages <- c(error_messages, trf("%s : Aucun effet trouvé (uniquement des résidus)", var))
         }
         
-        values$scheirerResults <- test_result
         
       }, error = function(e) {
         error_msg <- hstat_err_fr(e, var)
@@ -3197,7 +3196,6 @@ mod_tests_server <- function(id, values) {
       
       if (length(results_list) > 0) {
         values$testResultsDF <- do.call(rbind, results_list)
-        values$anovaModel <- model
         values$currentModel <- model
         values$modelList <- model_list
         values$currentModelVar <- 1
@@ -4194,21 +4192,8 @@ mod_tests_server <- function(id, values) {
       values$manovaBoxM     <- boxm_per_factor(Y, df_clean, input$factorVar)
       values$manovaPermDisp <- permdisp_per_factor(Y, df_clean, input$factorVar)
       
-      rows <- lapply(seq_len(nrow(stats_df)), function(i) {
-        data.frame(
-          Test = "MANOVA (Pillai)",
-          Variable = paste(input$responseVar, collapse = " + "),
-          Facteur = stats_df$Effet[i],
-          Statistique = round(stats_df$F_Pillai[i], 4),
-          ddl = paste0(stats_df$ddl_num[i], ", ", stats_df$ddl_den[i]),
-          p_value = stats_df$p_Pillai[i],
-          Interpretation = stats_df$Interpretation[i],
-          stringsAsFactors = FALSE
-        )
-      })
       # MANOVA s'affiche dans la box "Diagnostics multivariés", pas dans testResultsDF.
       values$manovaParamResults     <- stats_df
-      values$manovaParamSummaryRows <- do.call(rbind, rows)
       values$manovaPermanovaResults <- NULL
       values$currentTestType        <- "manova"
       values$normalityResults       <- NULL
@@ -4280,20 +4265,7 @@ mod_tests_server <- function(id, values) {
       values$manovaPermDisp <- permdisp_per_factor(Y, df_clean, input$factorVar,
                                                    dist_method = dist_method)
       
-      rows <- lapply(seq_len(nrow(out)), function(i) {
-        data.frame(
-          Test = paste0("PERMANOVA (", dist_method, ")"),
-          Variable = paste(input$responseVar, collapse = " + "),
-          Facteur = out$Effet[i],
-          Statistique = round(out$F_pseudo[i], 4),
-          ddl = out$ddl[i],
-          p_value = out$p_value[i],
-          Interpretation = paste0("R² = ", round(out$R2[i], 3), " | ", out$Interpretation[i]),
-          stringsAsFactors = FALSE
-        )
-      })
       values$manovaPermanovaResults     <- out
-      values$manovaPermanovaSummaryRows <- do.call(rbind, rows)
       values$manovaParamResults         <- NULL
       values$manovaMardia               <- NULL
       values$manovaBoxM             <- NULL
@@ -5726,10 +5698,6 @@ mod_tests_server <- function(id, values) {
       values$currentTestType <- "chisq"
       values$chiSqFreqData   <- resume
       values$chiSqPostHocData <- ph$paires
-      values$chiSqRawObs     <- observed
-      values$chiSqModalites  <- modalites
-      values$chiSqValeursOrig <- valeurs_orig
-      values$chiSqTypeDonnee  <- type_d
       values$chiSqPGlobal     <- p_val
       
       # - Ajouter dans les Résultats des tests (tableau principal) -
@@ -6334,7 +6302,6 @@ mod_tests_server <- function(id, values) {
       }
     }
     
-    values$postHocSyncTrigger <- stats::runif(1)
     
     shiny::showNotification(
       shiny::tagList(
@@ -6928,7 +6895,6 @@ mod_tests_server <- function(id, values) {
         }
       }
       
-      values$allPostHocResults[[length(values$allPostHocResults) + 1]] <- combined_results
       values$multiResultsMain <- combined_results
       values$currentVarIndex <- 1
       

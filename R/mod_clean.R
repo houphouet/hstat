@@ -2036,7 +2036,7 @@ mod_clean_server <- function(id, values) {
     shiny::req(values$cleanData, input$cutVar, input$cutVar %in% names(values$cleanData))
     brks <- NULL
     if (identical(input$cutMethod, "manual")) {
-      toks <- strsplit(trimws(input$cutBreaks %||% ""), "[;\\s]+")[[1]]
+      toks <- strsplit(trimws(input$cutBreaks %||% ""), "[;[:space:]]+")[[1]]
       if (length(toks) == 1) toks <- strsplit(toks, ",")[[1]]
       toks <- gsub("[,;]+$", "", toks)
       toks <- gsub(",", ".", toks, fixed = TRUE)

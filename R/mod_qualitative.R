@@ -1599,11 +1599,21 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
   vocab <- names(wf)[wf >= max(2, ceiling(n_doc * 0.02))]   # termes pas trop rares
   vocab <- utils::head(vocab, 120)
   tdm <- sapply(toks, function(w) as.integer(vocab %in% w | vocab %in% unique(w)))
-  if (is.null(dim(tdm))) tdm <- matrix(tdm, nrow = length(vocab))
+  # UN VOCABULAIRE VIDE N'EST PAS UN CAS EXOTIQUE : le seuil de rarete ci-dessus
+  # (au moins deux occurrences) suffit a le produire des qu'une liste de mots
+  # vides un peu fournie retire les termes frequents. `sapply` rend alors une
+  # LISTE de vecteurs de longueur nulle -- donc sans `dim` --, et
+  # `matrix(., nrow = 0)` leve « data is too long » : tout l'onglet textuel
+  # tombe, y compris les frequences deja calculees plus haut, qui sont justes.
+  # On pose la matrice vide qu'il faut ; le reste du chemin la traverse (les
+  # themes sont deja gardes par `length(vocab) >= n_topics * 2`).
+  if (length(vocab) == 0L) tdm <- matrix(integer(0), nrow = 0L, ncol = n_doc)
+  else if (is.null(dim(tdm))) tdm <- matrix(tdm, nrow = length(vocab))
   # comptage reel (frequence du terme dans le doc)
   tf <- sapply(toks, function(w) { tb <- table(w); as.integer(tb[vocab]) })
   tf[is.na(tf)] <- 0L
-  if (is.null(dim(tf))) tf <- matrix(tf, nrow = length(vocab))
+  if (length(vocab) == 0L) tf <- matrix(integer(0), nrow = 0L, ncol = n_doc)
+  else if (is.null(dim(tf))) tf <- matrix(tf, nrow = length(vocab))
   rownames(tf) <- vocab
   df_count <- rowSums(tf > 0)
   idf <- log(n_doc / (1 + df_count))
@@ -2702,7 +2712,7 @@ mod_qualitative_server <- function(id, values) {
             props <- NULL
             if (identical(input$gof_props, "custom") && nzchar(trimws(input$gof_props_txt %||% ""))) {
               # Accepte "0.5, 0.3, 0.2", "0.5 0.3 0.2" ou "0,5 ; 0,3 ; 0,2"
-              toks <- strsplit(trimws(input$gof_props_txt), "[;\\s]+")[[1]]
+              toks <- strsplit(trimws(input$gof_props_txt), "[;[:space:]]+")[[1]]
               if (length(toks) == 1) toks <- strsplit(toks, ",")[[1]]
               toks <- gsub("[,;]+$", "", toks)          # separateurs traines
               toks <- gsub(",", ".", toks, fixed = TRUE) # decimale francaise
@@ -2758,7 +2768,7 @@ mod_qualitative_server <- function(id, values) {
         } else if (fam == "textual") {
           shiny::validate(shiny::need(input$txt_var %in% names(d), "Choisissez une variable textuelle."))
           extra_sw <- if (nzchar(trimws(input$txt_stopwords %||% "")))
-            strsplit(input$txt_stopwords, "[,;\\s]+")[[1]] else NULL
+            strsplit(input$txt_stopwords, "[,;[:space:]]+")[[1]] else NULL
           hstat_q_text_analysis(d[[input$txt_var]], input$txt_var,
                                 min_char = input$txt_minchar %||% 3,
                                 top_n = input$txt_topn %||% 20,

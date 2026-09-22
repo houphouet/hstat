@@ -286,7 +286,6 @@ server <- function(input, output, session) {
       .hstat_purger_session()
       values$data <- d; values$cleanData <- d; values$filteredData <- d
       values$dataMode <- "memory"
-      values$sourceKind <- "xlsx"
       # Le moteur de fusion parle de « fichiers » — c'est son vocabulaire, il
       # sert d'abord a fusionner des fichiers. Ici ce sont des feuilles, et
       # laisser « 3 fichiers » sous les yeux de quelqu'un qui vient d'en
@@ -354,7 +353,6 @@ server <- function(input, output, session) {
         values$fullNrow    <- res$full_nrow
         values$fullNcol    <- res$full_ncol
         values$isSampled   <- res$is_sampled
-        values$sourceKind  <- res$kind
         values$sourceSize  <- res$size
         # Total des NA : direct en memoire, calcule en SQL en mode DuckDB
         values$fullNA <- if (res$mode == "duckdb")
@@ -2842,12 +2840,6 @@ server <- function(input, output, session) {
     })
   })
   
-  shiny::observe({
-    res <- hcpcResultReactive()
-    if (!is.null(res)) {
-      values$hcpcResult <- res
-    }
-  })
   
   hcpcDataframes <- shiny::reactive({
     shiny::req(hcpcResultReactive())
@@ -4193,12 +4185,6 @@ server <- function(input, output, session) {
     })
   })
   
-  shiny::observe({
-    res <- afdResultReactive()
-    if (!is.null(res)) {
-      values$afdResult <- res$model
-    }
-  })
   
   # Renommage de 'loadings' en 'coefficients' pour inclure les coefficients discriminants
   afdDataframes <- shiny::reactive({
@@ -8290,7 +8276,8 @@ server <- function(input, output, session) {
   mod_threshold_server("threshold", values)
   mod_yield_server("yield", values)
   mod_dosage_server("dosage", values)
-  mod_diversity_server("diversity", values)
+  mod_diversity_server("diversity", values,
+                       shiny::reactive(input$globalSeed))
   mod_epidemio_server("epidemio", values)
   mod_dl50_server("dl50", values)
 
