@@ -4623,6 +4623,46 @@ les paquets installés sont une propriété du **processus**, et deux sessions d
 même processus voient le même catalogue. C'est juste, et c'est la seule fois
 dans ce dépôt où un cache partagé l'est.
 
+### Le parcours au navigateur : un défaut inventé, un défaut réel
+
+Fait après coup, et il valait les deux passages.
+
+**Ce qu'il a confirmé**, sur douze saisies : les six conversions annoncées, la
+casse rattrapée, `paquet::jeu`, la suggestion sur une faute de frappe, le refus
+nommé d'`ability.cov`, le champ vide, une saisie hostile (`air(`) — **douze sur
+douze**, l'aperçu portant bien la colonne « Nom » et « Mazda RX4 », le catalogue
+construit à la demande (zéro ligne avant la case, dix après), **zéro erreur de
+page**, et l'onglet qui reste sur « Chargement ».
+
+**Le défaut inventé.** Ma première sonde annonçait un bandeau de succès **vide**
+sur les quatre chargements réussis, alors que les refus s'affichaient. Elle
+dormait 4,5 s en dur — trop peu pour un chargement qui purge la session et
+reconstruit les sélecteurs de vingt et un modules. Le DOM lu ensuite portait la
+phrase entière, visible, 1018 × 58 px. **C'est la première fois dans ce dépôt
+qu'une mesure fautive crie au loup au lieu de rassurer** — et la règle en sort
+inchangée : on attend ce qu'on veut voir, on ne dort pas.
+
+**Le défaut réel, que seule la mesure du temps pouvait montrer.** Un chargement
+réussi prend **2,5 à 3,6 s**, et le clic ne donnait **aucun signe** pendant ce
+temps — là où le chargement d'un fichier affiche sa barre depuis toujours. Deux
+chemins d'import qui répondent différemment au même geste, c'est l'utilisateur
+qui clique deux fois. Une barre couvre désormais les deux étapes (« Recherche du
+nom », « Remise à zéro de la session », « Préparation »), vérifiée à l'écran.
+
+**`Progress$new()` et non `withProgress()`**, pour deux raisons. Un seul
+indicateur couvre les deux étapes, là où deux `withProgress` successifs en
+afficheraient deux. Et surtout `withProgress` évalue son expression **dans une
+fonction** : le `return(invisible(NULL))` du refus en sortirait sans quitter
+l'observateur, et le chemin de succès s'exécuterait sur un refus — exactement le
+piège déjà documenté pour `renderPlotly`. La fermeture passe par `on.exit()`,
+qui joue sur les deux sorties, `return()` compris.
+
+Note de méthode sur la sonde elle-même : le guetteur de barre appelle
+`page.evaluate` toutes les 250 ms, et cette contention a fait ressortir un
+premier chargement à **32 s**. Ce chiffre n'est pas celui de l'application — la
+mesure sans guetteur donne 3,6 s sur le même démarrage à froid. Un instrument
+qui perturbe ce qu'il mesure doit être dit, sinon c'est le chiffre qu'on retient.
+
 ### Un libellé coupé par une balise n'est plus une chaîne
 
 La règle déjà écrite pour les encadrés d'aide, appliquée en écrivant ce bloc :

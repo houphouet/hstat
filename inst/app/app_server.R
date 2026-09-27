@@ -393,6 +393,23 @@ server <- function(input, output, session) {
   r_data_msg <- shiny::reactiveVal(NULL)
 
   shiny::observeEvent(input$loadRData, {
+    # LA PROGRESSION EST LA MOITIE DU GESTE, et c'est le parcours au navigateur
+    # qui l'a montre : un chargement reussi prend 2,5 a 3,6 s mesurees -- le
+    # temps de resoudre le nom, de purger la session et de reconstruire les
+    # selecteurs de vingt et un modules --, et le clic ne donnait AUCUN signe
+    # pendant ce temps. Le chargement d'un fichier, lui, affiche sa barre
+    # depuis toujours : deux chemins d'import qui repondent differemment au
+    # meme geste, c'est l'utilisateur qui clique deux fois.
+    #
+    # `Progress$new()` ET NON `withProgress()`. Un seul indicateur couvre les
+    # deux etapes, la ou deux `withProgress` successifs en afficheraient deux ;
+    # et surtout, `withProgress` evalue son expression dans une FONCTION : le
+    # `return(invisible(NULL))` du refus en sortirait sans quitter
+    # l'observateur, et le chemin de succes s'executerait sur un refus. C'est
+    # exactement le piege deja documente pour `renderPlotly`.
+    barre <- shiny::Progress$new(); on.exit(barre$close(), add = TRUE)
+    barre$set(value = 0.1, message = "Chargement du jeu de données",
+              detail = "Recherche du nom")
     res <- tryCatch(hstat_donnees_r(input$rDataName),
                     error = function(e)
                       list(ok = FALSE, msg = hstat_err_fr(e, "Jeu de données intégré")))
@@ -410,6 +427,7 @@ server <- function(input, output, session) {
         values$dbCon <- NULL
       }
       hstat_cache_clear()
+      barre$set(value = 0.5, detail = "Remise à zéro de la session")
       .hstat_purger_session()
       # MEME FORME QUE `hstat_load_data()` : les affectations sont donc
       # exactement celles du chargement d'un fichier. Deux jeux d'affectations
@@ -425,6 +443,7 @@ server <- function(input, output, session) {
       values$isSampled   <- res$is_sampled
       values$sourceSize  <- res$size
       values$fullNA      <- res$full_na
+      barre$set(value = 0.9, detail = "Préparation")
       msg <- trf("Jeu « %s » du paquet %s chargé : %s lignes, %s colonnes.",
                  res$nom, res$paquet,
                  format(nrow(res$data), big.mark = " "), ncol(res$data))
