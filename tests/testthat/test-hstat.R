@@ -5907,15 +5907,20 @@ test_that("les modules a etat propre ecoutent le signal de remise a zero", {
   }
 })
 
-test_that("les trois portes d'entree des donnees remettent l'etat a zero", {
-  # Un quatrieme chemin d'import ajoute demain sans cet appel reintroduirait le
+test_that("les quatre portes d'entree des donnees remettent l'etat a zero", {
+  # Un cinquieme chemin d'import ajoute demain sans cet appel reintroduirait le
   # defaut en silence : les anciennes variables reviendraient, sans erreur.
+  #
+  # La quatrieme porte est le chargement d'un JEU INTEGRE A R (`input$loadRData`).
+  # Elle a ete ajoutee apres les trois autres, et le test a ete etendu dans le
+  # meme geste : un chemin d'import qui n'apparait pas ici n'est pas garde.
   root <- .hstat_repo_root()
   skip_if(is.na(root))
   src <- readLines(file.path(root, "inst", "app", "app_server.R"),
                    warn = FALSE, encoding = "UTF-8")
   ex <- parse(text = paste(src, collapse = "\n"), keep.source = FALSE)
-  portes <- c("input$loadData", "input$applySheetMerge", "input$applyMerge")
+  portes <- c("input$loadData", "input$applySheetMerge", "input$applyMerge",
+              "input$loadRData")
   vus <- character(0)
   v <- function(n) {
     if (is.call(n)) {
@@ -18808,4 +18813,335 @@ test_that("l'analyse textuelle survit a un vocabulaire vide", {
   expect_false(any(c("prix", "stock") %in% mots))
   sans <- hstat_q_text_analysis(txt, "t", min_char = 2, top_n = 10)
   expect_true("prix" %in% sans$tables[[1]][[1]])
+})
+
+# ---------------------------------------------------------------------------
+# Jeux de donnees integres a R
+# ---------------------------------------------------------------------------
+
+test_that("le catalogue distingue l'alias du fichier de donnees", {
+  cat_df <- hstat_donnees_r_catalogue("datasets")
+  expect_gt(nrow(cat_df), 90L)
+  expect_equal(names(cat_df), c("Nom", "Paquet", "Fichier", "Titre"))
+
+  # LE PIEGE QUE CE TEST GARDE. Le catalogue de R ecrit « beaver1 (beavers) » :
+  # l'alias est « beaver1 », le FICHIER de donnees « beavers ». Il y a 18
+  # entrees de cette forme dans `datasets` seul.
+  b <- cat_df[cat_df$Nom == "beaver1", , drop = FALSE]
+  expect_equal(nrow(b), 1L)
+  expect_equal(b$Fichier, "beavers")
+  # Un jeu ordinaire porte le meme nom des deux cotes : sans cette moitie,
+  # l'assertion passerait aussi sur un code qui rendrait TOUJOURS le fichier.
+  i <- cat_df[cat_df$Nom == "iris", , drop = FALSE]
+  expect_equal(i$Fichier, "iris")
+
+  # `datasets` vient en tete : un homonyme d'un autre paquet ne doit pas
+  # masquer le jeu integre a R, qui est ce que l'utilisateur demande.
+  tous <- hstat_donnees_r_catalogue()
+  skip_if(length(unique(tous$Paquet)) < 2, "un seul paquet porte des donnees")
+  expect_equal(tous$Paquet[1], "datasets")
+})
+
+test_that("un jeu se charge par son alias, la ou data() ne cree rien", {
+  # LA MOITIE QUI DISTINGUE LES DEUX CODES. `data(list = "beaver1")` ne cree
+  # RIEN et se contente d'un AVERTISSEMENT : un chargeur qui passerait l'alias
+  # a `data()` echouerait sans lever, et l'utilisateur verrait un refus sur un
+  # nom que le catalogue affiche. Sans cette assertion, le test passerait sur
+  # le code fautif comme sur le bon.
+  e <- new.env(parent = globalenv())
+  w <- character(0)
+  withCallingHandlers(
+    tryCatch(utils::data(list = "beaver1", package = "datasets", envir = e),
+             error = function(x) NULL),
+    warning = function(x) { w <<- c(w, conditionMessage(x)); invokeRestart("muffleWarning") })
+  expect_equal(length(ls(e)), 0L)
+  expect_gt(length(w), 0L)
+
+  r <- hstat_donnees_r("beaver1")
+  expect_true(isTRUE(r$ok))
+  expect_equal(nrow(r$data), 114L)
+  expect_true(all(c("day", "time", "temp", "activ") %in% names(r$data)))
+})
+
+test_that("les conversions rendent un tableau, et la conversion est annoncee", {
+  # --- serie temporelle : ce qu'elle apporte, c'est son TEMPS ---------------
+  ap <- hstat_donnees_r("AirPassengers")
+  expect_true(isTRUE(ap$ok))
+  expect_equal(nrow(ap$data), 144L)
+  expect_true(all(c("Temps", "Annee", "Periode", "AirPassengers") %in% names(ap$data)))
+  # Les VALEURS, pas seulement les noms de colonnes : c'est la lecon du depot,
+  # un tableau garde ses libelles et affiche un chiffre faux.
+  expect_equal(ap$data$AirPassengers[1], 112)
+  expect_equal(ap$data$Annee[1], 1949)
+  expect_equal(ap$data$Periode[13], 1L)
+  expect_true(any(grepl("rie temporelle", ap$notes)))
+
+  # UNE SERIE MULTIPLE EST AUSSI UNE MATRICE. La prendre pour telle perdrait
+  # son temps -- c'est-a-dire la seule variable qu'une serie apporte. La
+  # colonne `Temps` est ce qui separe les deux branches.
+  eu <- hstat_donnees_r("EuStockMarkets")
+  expect_true(isTRUE(eu$ok))
+  expect_true("Temps" %in% names(eu$data))
+  expect_true(all(c("DAX", "SMI", "CAC", "FTSE") %in% names(eu$data)))
+
+  # --- table de contingence : le format long, et le total conserve -----------
+  ti <- hstat_donnees_r("Titanic")
+  expect_true(isTRUE(ti$ok))
+  expect_equal(nrow(ti$data), 32L)
+  expect_true("Freq" %in% names(ti$data))
+  e <- new.env(parent = globalenv())
+  utils::data(list = "Titanic", package = "datasets", envir = e)
+  expect_equal(sum(ti$data$Freq), sum(get("Titanic", envir = e)))
+
+  # --- vecteur nomme : les noms sont une variable ----------------------------
+  pr <- hstat_donnees_r("precip")
+  expect_true(isTRUE(pr$ok))
+  expect_equal(names(pr$data), c(HSTAT_DONNEES_R_COL, "precip"))
+  expect_equal(pr$data[[1]][1], "Mobile")
+
+  # --- data.frame a noms de lignes : « mtcars » porte les modeles ------------
+  mt <- hstat_donnees_r("mtcars")
+  expect_true(isTRUE(mt$ok))
+  expect_equal(names(mt$data)[1], HSTAT_DONNEES_R_COL)
+  expect_equal(mt$data[[1]][1], "Mazda RX4")
+  expect_equal(ncol(mt$data), 12L)
+  # Un data.frame SANS noms de lignes reels n'en gagne pas une colonne : sinon
+  # tout jeu recevrait une colonne d'entiers qui n'apprend rien.
+  ir <- hstat_donnees_r("iris")
+  expect_equal(ncol(ir$data), 5L)
+  expect_null(ir$notes)
+
+  # --- ce qui ne se convertit pas est NOMME ---------------------------------
+  ab <- hstat_donnees_r("ability.cov")
+  expect_false(isTRUE(ab$ok))
+  expect_true(grepl("ability.cov", ab$msg, fixed = TRUE))
+  expect_true(grepl("n.obs", ab$msg, fixed = TRUE))   # les composantes sont citees
+  env <- hstat_donnees_r_convertir(new.env(), "truc")
+  expect_null(env$data)
+  expect_true(grepl("environment", env$msg, fixed = TRUE))
+})
+
+test_that("la colonne de noms ne collisionne pas avec une colonne existante", {
+  # LE DEFAUT QUE CE TEST GARDE, et il etait dans ma propre garde.
+  # `make.unique` laisse la PREMIERE occurrence intacte :
+  # `make.unique(c("Nom", "Nom", "x"))[1]` rend « Nom », donc le nom nu -- et le
+  # tableau sortait avec DEUX colonnes « Nom ». Le candidat passe en dernier.
+  expect_equal(make.unique(c("Nom", "Nom", "x"))[1], "Nom")   # le piege, epingle
+
+  d <- data.frame(Nom = c("a", "b"), v = 1:2, stringsAsFactors = FALSE)
+  rownames(d) <- c("L1", "L2")
+  r <- hstat_donnees_r_convertir(d, "essai")
+  expect_equal(length(unique(names(r$data))), 3L)
+  expect_equal(sum(names(r$data) == "Nom"), 1L)
+  # Et les valeurs ne se melangent pas : la colonne ajoutee porte les noms de
+  # lignes, celle d'origine ses propres valeurs.
+  expect_true("L1" %in% unlist(r$data, use.names = FALSE))
+  expect_true("a" %in% unlist(r$data, use.names = FALSE))
+})
+
+test_that("la casse est rattrapee, le paquet se declare, le nom proche se propose", {
+  expect_true(isTRUE(hstat_donnees_r("IRIS")$ok))
+  expect_true(isTRUE(hstat_donnees_r("  mtcars  ")$ok))
+  expect_equal(hstat_donnees_r("datasets::ToothGrowth")$paquet, "datasets")
+
+  # « Vouliez-vous dire » : la distance d'edition, pas `agrep`.
+  r <- hstat_donnees_r("irs")
+  expect_false(isTRUE(r$ok))
+  expect_true("iris" %in% r$suggestions)
+  # LA MOITIE QUI DISTINGUE LES DEUX CODES, et ma premiere version de cette
+  # assertion etait FAUSSE : j'avais ecrit qu'`agrep` ne trouvait pas « iris »,
+  # apres avoir lu les QUATRE premiers d'une liste de dix-huit. Il le trouve.
+  # Ce qu'il ne fait pas, c'est CLASSER : il rend ses correspondances dans
+  # l'ordre du catalogue, si bien qu'« iris » sort au rang 12 et n'atteint
+  # jamais les six proposees. C'est donc sur les six AFFICHEES que porte
+  # l'assertion, et sur le rang que `adist` lui donne.
+  noms <- hstat_donnees_r_catalogue("datasets")$Nom
+  vieux <- tryCatch(noms[agrep("irs", noms, max.distance = 0.3, ignore.case = TRUE)],
+                    error = function(e) character(0))
+  expect_true("iris" %in% vieux)          # il le trouve...
+  expect_gt(match("iris", vieux), 6L)     # ... et le classe hors de portee
+  expect_false("iris" %in% utils::head(vieux, 6L))
+  expect_equal(r$suggestions[1], "iris")  # la distance d'edition, elle, le place en tete
+
+  # Une saisie hostile ne fait pas lever le balayage : la recherche est
+  # LITTERALE, une parenthese ouverte n'est pas un motif.
+  expect_false(isTRUE(hstat_donnees_r("air(")$ok))
+  expect_false(isTRUE(hstat_donnees_r("[a-z")$ok))
+  # Et elle n'avertit pas : `grepl(fixed = TRUE, ignore.case = TRUE)` ignore
+  # l'argument en AVERTISSANT, une fois par appel.
+  w <- character(0)
+  withCallingHandlers(invisible(hstat_donnees_r("irs")),
+    warning = function(x) { w <<- c(w, conditionMessage(x)); invokeRestart("muffleWarning") })
+  expect_equal(w, character(0))
+
+  # Un champ vide dit quoi faire, il ne refuse pas sans motif.
+  v <- hstat_donnees_r("")
+  expect_false(isTRUE(v$ok))
+  expect_true(grepl("iris", v$msg, fixed = TRUE))
+})
+
+test_that("un jeu integre rend la MEME forme qu'un fichier charge", {
+  # C'est cet invariant qui permet au serveur de traiter les deux sources par
+  # les memes affectations. Deux formes differentes auraient fini par diverger,
+  # et c'est la copie oubliee qui ment.
+  f <- tempfile(fileext = ".csv")
+  on.exit(unlink(f), add = TRUE)
+  utils::write.csv(data.frame(a = 1:3, b = 4:6), f, row.names = FALSE)
+  lf <- hstat_load_data(f, hstat_file_kind(f))
+  dr <- hstat_donnees_r("iris")
+  expect_equal(setdiff(names(lf), names(dr)), character(0))
+  expect_equal(dr$mode, "memory")
+  expect_null(dr$con)
+  expect_false(dr$is_sampled)
+  expect_equal(dr$full_nrow, nrow(dr$data))
+  expect_equal(dr$full_ncol, ncol(dr$data))
+  expect_equal(dr$full_na, sum(is.na(dr$data)))
+  # La taille n'a pas de sens : rien n'est lu sur disque. `NA` le dit, la ou
+  # `0` se lirait « fichier vide ».
+  expect_true(is.na(dr$size))
+})
+
+test_that("un jeu stocke en script R se charge aussi", {
+  # LE PIEGE MESURE. Six fichiers de donnees des paquets installes ici sont des
+  # SCRIPTS R que `data()` EVALUE au lieu de les deserialiser. Dans un
+  # environnement clos (`parent = emptyenv()`), rien ne resout et le chargement
+  # tombe sur « could not find function "stopifnot" ».
+  scripts <- list()
+  for (p in tryCatch(rownames(utils::installed.packages()), error = function(e) character(0))) {
+    d <- tryCatch(file.path(find.package(p), "data"), error = function(e) "")
+    if (!nzchar(d) || !dir.exists(d)) next
+    f <- list.files(d, pattern = "\\.[Rr]$")
+    if (length(f)) scripts[[p]] <- tools::file_path_sans_ext(f)
+  }
+  skip_if(!length(scripts), "aucun jeu stocke en script R sur cette machine")
+  p <- names(scripts)[1]
+  cat_df <- hstat_donnees_r_catalogue(p)
+  sel <- cat_df[cat_df$Fichier %in% scripts[[p]], , drop = FALSE]
+  skip_if(!nrow(sel), "script R non annonce au catalogue")
+  r <- hstat_donnees_r(paste0(p, "::", sel$Nom[1]))
+  # Le jeu peut n'etre pas convertible (une matrice creuse ne l'est pas) : ce
+  # qui se verifie ici, c'est qu'il est bien CHARGE -- le refus de chargement
+  # porte un motif distinct du refus de conversion.
+  expect_false(grepl("pas pu être charg", r$msg %||% "", fixed = TRUE))
+})
+
+test_that("le champ, le bouton et le catalogue sont declares, lus et employes", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  ux <- paste(readLines(file.path(root, "inst", "app", "UX.R"),
+                        warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  sv <- paste(readLines(file.path(root, "inst", "app", "app_server.R"),
+                        warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # Declare dans l'interface...
+  for (id in c("rDataName", "loadRData", "rDataShowCat"))
+    expect_true(grepl(paste0('"', id, '"'), ux, fixed = TRUE), label = id)
+  # ... lu par le serveur...
+  for (id in c("input$rDataName", "input$loadRData", "input$rDataShowCat"))
+    expect_true(grepl(id, sv, fixed = TRUE), label = id)
+  # ... et les deux sorties du bloc ont bien un producteur.
+  for (o in c("output$rDataStatus", "output$rDataCatalog"))
+    expect_true(grepl(o, sv, fixed = TRUE), label = o)
+  for (o in c("rDataStatus", "rDataCatalog"))
+    expect_true(grepl(paste0('"', o, '"'), ux, fixed = TRUE), label = o)
+
+  # Le catalogue n'est construit que SUR DEMANDE : sans ce `req`, tout
+  # demarrage paierait le parcours des index de donnees de tous les paquets
+  # installes -- 0,3 s pour un tableau que personne n'a ouvert.
+  expect_true(grepl("shiny::req(isTRUE(input$rDataShowCat))", sv, fixed = TRUE))
+})
+
+test_that("le bouton charge reellement le jeu dans l'etat de session", {
+  # CE QUE LES ASSERTIONS DE SOURCE NE PEUVENT PAS VOIR. Le test precedent
+  # verifie que le champ est declare, lu, et que les sorties ont un producteur.
+  # Il passerait encore si l'observateur ecrivait dans le mauvais champ, ou si
+  # l'affectation etait jetee -- le defaut exact que ce depot a documente pour
+  # `hstat_apply_plot_opts()`, ou une valeur sans affectation rendait NEUF
+  # reglages inertes sur quatre modules.
+  #
+  # On execute donc le VRAI serveur de l'application, sans navigateur.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  skip_if_not_installed("shinydashboard")
+  skip_if_not_installed("DT")
+  skip_if_not_installed("ggplot2")
+
+  e <- new.env(parent = globalenv())
+  monte <- tryCatch({
+    suppressMessages(suppressWarnings({
+      socle <- file.path(root, "R")
+      for (f in c(file.path(socle, "utils.R"),
+                  list.files(socle, pattern = "^mod_.*[.]R$", full.names = TRUE)))
+        sys.source(f, e)
+      hstat_installer_replis_ui(e)
+      assign("em", shiny::em, envir = e)
+      assign("margin", ggplot2::margin, envir = e)
+      old <- setwd(file.path(root, "inst", "app")); on.exit(setwd(old), add = TRUE)
+      sys.source("UX.R", e)
+      sys.source("app_server.R", e)
+    }))
+    TRUE
+  }, error = function(err) conditionMessage(err))
+  skip_if(!isTRUE(monte), paste("montage du serveur impossible :", monte))
+
+  texte <- function(x) gsub("[[:space:]]+", " ",
+                            gsub("<[^>]*>", " ",
+                                 paste(as.character(x), collapse = " ")))
+  shiny::testServer(get("server", envir = e), {
+    session$setInputs(rDataName = "iris", loadRData = 1)
+    st <- texte(output$rDataStatus)
+    # Les NOMBRES, pas seulement un statut non vide : un chargeur qui ne
+    # deposerait rien rendrait un encadre tout aussi present.
+    expect_true(grepl("150", st, fixed = TRUE))
+    expect_true(grepl("5", st, fixed = TRUE))
+    expect_true(grepl("iris", st, fixed = TRUE))
+    # L'apercu est alimente par `values$data` : s'il se rend, les donnees y sont.
+    expect_false(is.null(output$preview))
+
+    # La conversion est ANNONCEE a l'ecran, pas seulement calculee.
+    session$setInputs(rDataName = "AirPassengers", loadRData = 2)
+    expect_true(grepl("144", texte(output$rDataStatus), fixed = TRUE))
+    expect_true(grepl("rie temporelle", texte(output$rDataStatus)))
+
+    # Un nom inconnu laisse un refus LISIBLE, pas un encadre vide.
+    session$setInputs(rDataName = "zzinconnu", loadRData = 3)
+    expect_true(grepl("Aucun jeu", texte(output$rDataStatus), fixed = TRUE))
+
+    # Le catalogue ne se construit qu'a la demande. Une sortie gardee par
+    # `req()` ne rend pas NULL sous `testServer` : elle LEVE l'erreur silencieuse
+    # de Shiny. C'est cette levee qui prouve que rien n'a ete construit -- un
+    # `expect_null` y echouait, et sur le bon code.
+    expect_error(output$rDataCatalog, class = "shiny.silent.error")
+    session$setInputs(rDataShowCat = TRUE)
+    expect_false(is.null(output$rDataCatalog))
+  })
+})
+
+test_that("un champ vide ne devient pas un jeu nomme NA", {
+  # LE DEFAUT QUE CE TEST GARDE, et il rendait un refus qui accusait le paquet.
+  # `%||%` ne rattrape que `NULL`, et `as.character(NULL)[1]` vaut
+  # `NA_character_` ; `nzchar(NA)` valant TRUE, le NA traversait la garde de
+  # champ vide. Ensuite `cat[NA, ]` fabrique une LIGNE ENTIERE de NA, donc
+  # `nrow(sel) == 1` : le resolveur croyait avoir trouve un jeu, et l'utilisateur
+  # lisait « le jeu NA est annonce par le paquet NA mais n'a pas pu etre
+  # charge » -- un motif plausible et faux, la forme la plus couteuse.
+  expect_true(nzchar(NA))                       # le piege, epingle
+  cat_df <- hstat_donnees_r_catalogue("datasets")
+  # MESURE, et ma premiere assertion disait « une » ligne : un masque tout-NA
+  # est un masque de la longueur de la table, donc il rend AUTANT de lignes
+  # fantomes que la table en compte -- 104 ici. Ce qui compte est qu'il en rende
+  # au moins une, et que `which()` n'en rende aucune.
+  fantomes <- cat_df[cat_df$Nom == NA_character_, , drop = FALSE]
+  expect_gt(nrow(fantomes), 0L)
+  expect_true(is.na(fantomes$Nom[1]))
+  expect_equal(nrow(cat_df[which(cat_df$Nom == NA_character_), , drop = FALSE]), 0L)
+
+  for (v in list(NULL, NA, NA_character_, character(0), "", "   ")) {
+    r <- hstat_donnees_r(v)
+    expect_false(isTRUE(r$ok), label = paste(deparse(v), collapse = ""))
+    # Le message dit QUOI FAIRE, et ne nomme ni jeu ni paquet.
+    expect_true(grepl("iris", r$msg, fixed = TRUE),
+                label = paste(deparse(v), collapse = ""))
+    expect_false(grepl("paquet NA", r$msg, fixed = TRUE),
+                 label = paste(deparse(v), collapse = ""))
+  }
 })

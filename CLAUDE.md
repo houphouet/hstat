@@ -4436,6 +4436,202 @@ d'origine. Le message est retraduit en « feuilles » à l'affichage — lire
 « 3 fichiers » après avoir combiné trois feuilles d'un même classeur est
 déroutant.
 
+## Les jeux de données intégrés à R : trois pièges, aucun visible
+
+Demandé à l'écran : « écrire le nom de la donnée et pouvoir le charger sans
+problème ». La fonctionnalité tient en un champ de texte et un bouton — et
+c'est le « sans problème » qui demande tout le travail, parce que les trois
+pièges sont muets.
+
+`hstat_donnees_r()` (`R/utils.R`) est la porte unique. Le module ne calcule
+rien : la règle du dépôt, et elle a ici une raison propre — un jeu chargé de
+travers rend un tableau complet et faux.
+
+### 1. Le nom du jeu n'est pas le nom du fichier de données
+
+Le catalogue de R écrit `beaver1 (beavers)` : l'alias est `beaver1`, le
+**fichier** `beavers`. Et `data(list = "beaver1")` ne crée **rien** — il se
+contente d'un **avertissement**. Mesuré : **18 des 104 entrées** de `datasets`
+sont dans ce cas (`BJsales.lead`, `beaver1`, `beaver2`, `euro.cross`, `fdeaths`,
+`freeny.x`, les six `state.*`…). Un chargeur qui passerait l'alias à `data()`
+refuserait donc un nom que le catalogue affiche, sans lever.
+
+On charge par le **fichier**, on relève l'objet par son **alias**. Un fichier
+qui crée plusieurs objets sans qu'aucun porte l'alias est **nommé** plutôt que
+deviné — il y en a sept dans `datasets` (`state` en crée à lui seul **sept**).
+
+### 2. La plupart de ces jeux ne sont pas des `data.frame`
+
+Mesure sur `datasets` : **35** data.frame, **23** séries temporelles, **8**
+matrices, **6** tables de contingence, **10** vecteurs nommés, **2** matrices de
+distances, **3** listes de covariance. Les refuser reviendrait à refuser les
+deux tiers du catalogue, c'est-à-dire à ne pas rendre le service demandé.
+
+Ils sont donc convertis, et **la conversion est annoncée** :
+
+| Classe | Ce qu'on en fait |
+|---|---|
+| `ts` / `mts` | colonnes `Temps`, `Annee`, `Periode` (si la fréquence > 1) puis les valeurs |
+| `table`, tableau > 2 dimensions | format long : une ligne par croisement, effectif en `Freq` |
+| matrice, `dist` | tableau, noms de lignes déplacés en colonne |
+| vecteur nommé | une colonne de valeurs, une colonne de noms |
+| liste de composantes de même longueur | tableau |
+
+**La branche `ts` passe AVANT le test `is.matrix`.** Une série multiple *est*
+une matrice : la prendre pour telle perdrait son temps, c'est-à-dire la seule
+variable qu'une série temporelle apporte. C'est la colonne `Temps` qui sépare
+les deux codes dans le test.
+
+**`Annee` et `Periode` sont exacts, pas devinés** : ils se déduisent de la
+fréquence déclarée par la série. À fréquence 1 ils ne diraient rien de plus que
+`Temps`, et ne sont donc pas posés.
+
+**Les noms de lignes sont une variable.** `mtcars` porte les modèles de voiture
+en noms de lignes, et HStat n'a aucune notion de nom de ligne : sans cette
+colonne, l'identité des individus est **perdue au chargement**.
+
+Résultat mesuré : **101 des 104** entrées de `datasets`, et **758 des 804**
+livrées par l'ensemble des paquets installés, deviennent un tableau exploitable.
+
+### 3. Ce qui ne se convertit pas est nommé
+
+Les trois listes de covariance (`ability.cov`, `Harman23.cor`, `Harman74.cor`)
+ne sont pas des tableaux d'observations. Le refus **cite les composantes et
+leurs longueurs** (`cov : 36, center : 6, n.obs : 1`) plutôt que de rendre un
+tableau bancal ou un vide sans motif.
+
+**Et il n'y a pas de repli par `as.matrix()` sur tout objet à deux
+dimensions**, alors qu'il gagnerait quatre jeux. Mesure :
+`as.matrix(Matrix::wrld_1deg)` **densifie** la matrice creuse — « allocating
+vector of size 1.7 GiB ». Shiny sert toutes les sessions depuis un seul
+processus R : ces 1,7 Go figeraient l'application pour tout le monde, pour
+quatre jeux qui ne sont pas des tableaux d'observations. Les 46 refus restants
+sont 27 listes hétérogènes, 6 graphes, 3 environnements, 6 matrices creuses et
+4 objets spatiaux.
+
+### `parent = globalenv()`, et surtout pas `emptyenv()`
+
+Six fichiers de données des paquets installés ici sont des **scripts R** que
+`data()` **évalue** au lieu de les désérialiser (`Matrix::CAex`,
+`gmp::Oakley1`…). Dans un environnement clos, rien ne résout et le chargement
+tombe sur « could not find function "stopifnot" ». C'est l'environnement que
+`data()` suppose.
+
+Ce n'est pas en contradiction avec le bac à sable des formules, qui est clos
+pour une autre raison : il évalue une **saisie de l'utilisateur**, pas un
+fichier livré par un paquet installé.
+
+### Le chargeur rend la MÊME forme que `hstat_load_data()`
+
+`mode`, `con`, `table`, `full_nrow`, `full_ncol`, `full_na`, `is_sampled`,
+`kind`, `size`. C'est ce qui permet au serveur de traiter les deux sources par
+les **mêmes affectations** — deux jeux d'affectations auraient fini par
+diverger, et c'est la copie oubliée qui ment. Même procédé que
+`hstat_rdt_table_prete()` face à `hstat_rdt_table()`. Un test compare les deux
+listes de champs.
+
+`size` vaut `NA`, jamais `0` : rien n'est lu sur disque, et `0` se lirait
+« fichier vide ».
+
+### C'est la quatrième porte d'import, donc la quatrième purge
+
+Charger un jeu intégré est un **import** : sans `.hstat_purger_session()`, les
+résultats, les sélections de variables et le journal du fichier précédent
+survivraient à un jeu qui n'a aucune colonne en commun avec lui. Le test qui
+gardait les trois portes en garde désormais **quatre**.
+
+Le fichier déjà choisi n'est en revanche **pas** neutralisé : l'utilisateur peut
+vouloir y revenir, et « Charger » comme la combinaison de feuilles restent des
+gestes explicites. C'est la différence avec le bouton « Réinitialiser », qui
+efface tout par définition.
+
+### « Vouliez-vous dire » : la distance d'édition, pas `agrep`
+
+`agrep()` a été essayé d'abord — et **ma première mesure était fausse**, dans le
+sens rassurant comme toujours. J'avais écrit qu'il ne trouvait pas « iris » sur
+la saisie « irs », après avoir lu les **quatre premiers** d'une liste de
+**dix-huit**. Il le trouve. Ce qu'il ne fait pas, c'est **classer** : il rend ses
+correspondances dans l'ordre du catalogue, si bien qu'« iris » sort au **rang
+12** et n'atteint jamais les six proposées — lesquelles étaient
+« AirPassengers, HairEyeColor, InsectSprays, UCBAdmissions,
+USPersonalExpenditure, UScitiesD ».
+
+(La `max.distance` fractionnaire est arrondie **au-dessus** : 0,1 × 3 = 0,3
+autorise déjà une modification. C'est vérifié, pas supposé — j'avais d'abord
+écrit l'inverse.)
+
+La distance d'édition (`adist`) place « iris » en **tête** sur les cinq saisies
+essayées, et le plafond suit la longueur de la saisie : une tolérance fixe
+accepterait n'importe quoi sur un nom de trois lettres. L'assertion porte donc
+sur les six **affichées** et sur le **rang** — une assertion écrite sur « il ne
+trouve pas » ne gardait rien, puisqu'elle était simplement inexacte. **C'est la
+cinquième fois dans ce dépôt qu'une mesure tronquée mène à une conclusion
+fausse.**
+
+La recherche par sous-chaîne est **littérale, casse retirée des deux côtés** :
+`grepl(fixed = TRUE, ignore.case = TRUE)` **ignore l'argument en avertissant**,
+une fois par appel — et un avertissement permanent en console finit par masquer
+ceux qui comptent. Littérale aussi parce que la saisie vient de l'utilisateur :
+« air( » ferait lever un balayage par motif.
+
+La casse est rattrapée à l'identique pour le nom lui-même : qui écrit « Iris »
+veut « iris », et le refuser sur une majuscule serait exactement le
+« problème » que ce chemin existe pour éviter.
+
+### `make.unique` laisse la PREMIÈRE occurrence intacte
+
+Défaut trouvé dans ma propre garde, et il est instructif : la garde annonçait
+empêcher la collision et ne l'empêchait pas.
+`make.unique(c("Nom", "Nom", "x"))[1]` rend **« Nom »** — le nom nu — et un
+tableau portant déjà une colonne `Nom` en ressortait avec **deux** colonnes du
+même nom, où toute lecture par nom rend la première sans qu'on sache laquelle.
+Le nom candidat passe donc **en dernier**, et c'est le dernier élément qu'on
+relève : `make.unique(c("Nom", "x", "Nom"))` rend « Nom.1 ». Le test épingle le
+piège **et** le remède.
+
+### `%||%` ne rattrape pas `NA`, et `cat[NA, ]` fabrique une ligne entière
+
+Défaut trouvé en essayant les valeurs dégénérées, et c'est la forme la plus
+coûteuse : un refus **plausible et faux**, qui accusait le paquet.
+
+`as.character(NULL)[1]` vaut `NA_character_`, que `%||%` laisse passer puisqu'il
+ne connaît que `NULL`. Ensuite `nzchar(NA)` vaut **TRUE** — le NA traversait donc
+la garde de champ vide. Et `cat$Nom == NA` ne rend pas zéro ligne : c'est un
+masque **tout-`NA` de la longueur de la table**, qui rend donc **autant de lignes
+fantômes que la table en compte** — 104 mesurées sur `datasets` —, toutes
+remplies de `NA`. `nrow(sel)` n'était pas nul, le résolveur croyait avoir trouvé
+un jeu, et l'utilisateur lisait :
+
+> Le jeu « NA » est annoncé par le paquet NA mais n'a pas pu être chargé.
+> Vérifiez l'installation de ce paquet.
+
+… là où son champ était simplement vide. Deux remèdes, tous deux nécessaires :
+`.hstat_dr_texte()` ramène `NULL`, `NA` et le vecteur vide à la chaîne vide — la
+seule valeur que la garde voit —, et l'indexation passe par **`which()`**, qui
+laisse tomber les `NA` au lieu d'en faire une ligne. Le test épingle les deux
+pièges (`nzchar(NA)` et la ligne fantôme) et les six saisies dégénérées.
+
+### Le catalogue est construit sur demande, et il ne porte pas de jeton de session
+
+Parcourir les index de données de tous les paquets installés coûte **0,3 s**
+pour 804 jeux — et ne sert à rien à qui connaît le nom qu'il veut. Le tableau
+n'est donc construit qu'à la demande (`req(isTRUE(input$rDataShowCat))`), et
+retenu ensuite : un second affichage est instantané (0,003 s mesuré).
+
+Contrairement au cache d'agrégations, il **ne porte pas de jeton de session** :
+les paquets installés sont une propriété du **processus**, et deux sessions du
+même processus voient le même catalogue. C'est juste, et c'est la seule fois
+dans ce dépôt où un cache partagé l'est.
+
+### Un libellé coupé par une balise n'est plus une chaîne
+
+La règle déjà écrite pour les encadrés d'aide, appliquée en écrivant ce bloc :
+le DOM fond toute suite de caractères adjacents en **un** nœud, si bien qu'une
+phrase écrite en trois morceaux n'existe nulle part comme chaîne entière et
+qu'aucune entrée du dictionnaire ne peut la couvrir. Chaque libellé de ce bloc
+est donc écrit **d'un tenant** — et les vingt-neuf chaînes ajoutées (vingt-une
+par `tr()`/`trf()`, huit libellés d'interface) sont au dictionnaire.
+
 ## Un fichier statique servi sous un nom inchangé reste en cache
 
 `hstat_asset()` estampille la feuille de style et les scripts de la version :

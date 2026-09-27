@@ -29,7 +29,7 @@ No minimum R version is declared; CI runs the suite on the current release.
 
 | Step | Tabs |
 |---|---|
-| **Load** | CSV, Excel (several sheets at once), Parquet, DuckDB, SPSS, Stata |
+| **Load** | CSV, Excel (several sheets at once), Parquet, DuckDB, SPSS, Stata — or a dataset built into R, by name |
 | **Prepare** | Overview, data health check, cleaning, filtering, recoding |
 | **Describe** | Descriptive statistics, 14 chart types, correlations |
 | **Test** | t-test (Student *and* Welch, each under its own name), ANOVA (Fisher, Welch, repeated measures), non-parametric tests, chi-square, post-hoc comparisons protected by the omnibus test, tests against a reference value |
@@ -69,7 +69,19 @@ are **never loaded**: DuckDB queries them on disk, exact statistics are computed
 by SQL on the *full* dataset, and interactive analyses run on a reproducible
 random sample. Files with more than 2.1 billion rows are supported.
 
-### 3. A qualitative coding workbench (CAQDAS)
+### 3. R's own datasets, by name
+
+Type `iris`, `mtcars` or `Titanic` — no file to provide. Three traps are handled
+rather than met: the catalogue names a dataset `beaver1 (beavers)`, so the
+**alias** is not the data file and `data(list = "beaver1")` creates nothing while
+merely *warning*; two thirds of the 104 datasets in `datasets` are **not**
+data frames (23 time series, 8 matrices, 6 contingency tables, 10 named
+vectors), so they are converted and the conversion is **announced**; and what is
+not a table of observations is **named**, never silently dropped. Measured:
+101 of the 104 datasets of `datasets`, and 758 of the 804 shipped by every
+installed package, become a usable table.
+
+### 4. A qualitative coding workbench (CAQDAS)
 
 Read one open-ended answer at a time, select a passage, drop it on a code. Codes
 nest, and a parent counts its whole branch. Memos attach to a code, a document,
@@ -87,7 +99,7 @@ local or remote), each reading **its own** environment variable and never an
 ambient one. A metered feature must never become the default path of someone
 who did not ask for it.
 
-### 4. The session survives a locked screen
+### 5. The session survives a locked screen
 
 When the machine sleeps, the browser drops its connection and a Shiny app
 normally dies with it. HStat keeps the session alive, shows a banner saying the
@@ -95,7 +107,7 @@ work is **not lost**, and reconnects on its own — when you unlock the machine,
 return to the tab, or the network comes back. **Only you close the
 application.**
 
-### 5. Bioassays that reproduce WIN DL, digit for digit
+### 6. Bioassays that reproduce WIN DL, digit for digit
 
 The DL50 / CL50 tab reimplements WIN DL (CIRAD): probit dose-mortality
 regression, natural mortality by Abbott or EM, lethal doses with their standard
@@ -110,7 +122,7 @@ coefficients, and the Fisher information is assembled on the dosed batches alone
 — plus the Hastings polynomial for the inverse normal, whose 4.5 × 10⁻⁴ error is
 visible at the software's printing precision.
 
-### 6. A setting you can see is a setting that acts
+### 7. A setting you can see is a setting that acts
 
 The costliest defect in a statistics tool is not the one that crashes. It is the
 control that is declared, read, and quietly ignored: you change it, the figure
@@ -274,7 +286,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.6.2. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.7.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -282,7 +294,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 1.6.2},
+  note   = {Version 1.7.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

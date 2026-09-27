@@ -7819,6 +7819,374 @@ hstat_load_data <- function(path, kind, header = TRUE, sep = ",",
        kind = kind, size = size)
 }
 
+# -- Jeux de donnees integres a R ---------------------------------------------
+#
+# « iris », « mtcars », « ToothGrowth » : l'utilisateur les connait par leur
+# nom, et il n'a aucun fichier a fournir. Le chemin est donc un champ de texte
+# et un bouton -- mais « sans probleme » demande trois choses que rien ne
+# devine, et chacune est un piege mesure.
+#
+# 1. LE NOM DU JEU N'EST PAS LE NOM DU FICHIER DE DONNEES. Le catalogue de R
+#    ecrit « beaver1 (beavers) » : l'alias est « beaver1 », le fichier
+#    « beavers ». `data(list = "beaver1")` ne cree RIEN et se contente d'un
+#    AVERTISSEMENT -- 18 des 104 entrees de `datasets` sont dans ce cas
+#    (BJsales.lead, beaver1, beaver2, euro.cross, fdeaths, freeny.x, state.*...).
+#    On charge donc par le FICHIER et on releve l'objet par son ALIAS.
+#
+# 2. LA PLUPART DE CES JEUX NE SONT PAS DES `data.frame`. Mesure sur
+#    `datasets` : 35 data.frame, 23 series temporelles, 8 matrices, 6 tables de
+#    contingence, 10 vecteurs nommes, 2 matrices de distances. Les refuser
+#    reviendrait a refuser les deux tiers du catalogue -- donc a ne pas rendre
+#    le service demande. Ils sont convertis, et la conversion est ANNONCEE :
+#    101 des 104 entrees deviennent un tableau exploitable.
+#
+# 3. CE QUI NE SE CONVERTIT PAS EST NOMME. Les trois listes de covariance
+#    (ability.cov, Harman23.cor, Harman74.cor) ne sont pas des tableaux
+#    d'observations : on dit lesquelles et pourquoi, plutot que de rendre un
+#    tableau bancal ou un vide sans motif.
+
+# Colonne qui recueille les noms de lignes -- « mtcars » porte les modeles de
+# voiture en noms de lignes, et HStat n'a pas de notion de nom de ligne : sans
+# cette colonne, l'identite des individus est PERDUE au chargement.
+HSTAT_DONNEES_R_COL <- "Nom"
+
+# Le catalogue ne depend pas de la session : les paquets installes sont une
+# propriete du PROCESSUS. Contrairement au cache d'agregations, il n'a donc pas
+# a porter de jeton de session -- deux sessions du meme processus voient le meme
+# catalogue, et c'est juste.
+.hstat_dr_cat <- new.env(parent = emptyenv())
+
+# -- Catalogue des jeux de donnees disponibles --------------------------------
+# Rend un data.frame : Nom (l'alias, celui que l'utilisateur ecrit), Paquet,
+# Fichier (celui qu'il faut passer a `data()`), Titre.
+#
+# `datasets` vient EN TETE : c'est ce que « les donnees integrees a R » designe,
+# et un homonyme d'un autre paquet ne doit pas le masquer.
+hstat_donnees_r_catalogue <- function(packages = NULL, rafraichir = FALSE) {
+  if (is.null(packages)) {
+    packages <- tryCatch(rownames(utils::installed.packages()),
+                         error = function(e) "datasets")
+    if (!length(packages)) packages <- "datasets"
+  }
+  packages <- unique(as.character(packages))
+  cle <- paste0("cat::", paste(sort(packages), collapse = "|"))
+  if (!rafraichir && exists(cle, envir = .hstat_dr_cat, inherits = FALSE))
+    return(get(cle, envir = .hstat_dr_cat, inherits = FALSE))
+  morceaux <- list()
+  for (p in packages) {
+    r <- tryCatch(suppressWarnings(utils::data(package = p)$results),
+                  error = function(e) NULL)
+    if (is.null(r) || !NROW(r)) next
+    it <- as.character(r[, "Item"])
+    # « alias (fichier) » : voir le piege 1 ci-dessus.
+    alias <- sub("[[:space:]].*$", "", it)
+    fichier <- ifelse(grepl("(", it, fixed = TRUE),
+                      sub("^.*\\(([^)]*)\\).*$", "\\1", it), alias)
+    morceaux[[length(morceaux) + 1L]] <- data.frame(
+      Nom = alias, Paquet = as.character(r[, "Package"]),
+      Fichier = fichier, Titre = as.character(r[, "Title"]),
+      stringsAsFactors = FALSE)
+  }
+  out <- if (length(morceaux)) do.call(rbind, morceaux) else
+    data.frame(Nom = character(0), Paquet = character(0),
+               Fichier = character(0), Titre = character(0),
+               stringsAsFactors = FALSE)
+  if (nrow(out))
+    out <- out[order(out$Paquet != "datasets", tolower(out$Nom), out$Paquet), ,
+               drop = FALSE]
+  rownames(out) <- NULL
+  assign(cle, out, envir = .hstat_dr_cat)
+  out
+}
+
+# Noms de lignes REELS : `as.character(seq_len(n))` est ce que R rend pour un
+# tableau qui n'en porte pas. Les deplacer en colonne dans ce cas ajouterait une
+# colonne d'entiers qui n'apprend rien.
+.hstat_dr_noms_lignes <- function(x) {
+  rn <- rownames(x)
+  if (is.null(rn) || !length(rn)) return(NULL)
+  if (identical(rn, as.character(seq_len(length(rn))))) return(NULL)
+  rn
+}
+
+# `make.unique` et non le nom nu : un tableau qui porte DEJA une colonne « Nom »
+# en verrait une seconde du meme nom, et toute lecture par nom rendrait la
+# premiere sans qu'on sache laquelle.
+#
+# L'ORDRE DES ARGUMENTS EST LA MOITIE DU MECANISME, et ma premiere version
+# l'avait a l'envers. `make.unique` laisse la PREMIERE occurrence intacte et
+# suffixe les suivantes : `make.unique(c("Nom", "Nom", "x"))[1]` rend donc
+# « Nom » -- le nom nu, exactement la collision que la garde annoncait
+# empecher, et le tableau sortait avec DEUX colonnes « Nom ». Le nom candidat
+# passe donc EN DERNIER, et c'est le dernier element qu'on releve :
+# `make.unique(c("Nom", "x", "Nom"))` rend « Nom.1 ».
+.hstat_dr_avec_noms <- function(df, noms, col = HSTAT_DONNEES_R_COL) {
+  if (is.null(noms) || !length(noms)) return(df)
+  cand <- make.unique(c(names(df), col))
+  nm <- cand[length(cand)]
+  out <- cbind(stats::setNames(
+    data.frame(as.character(noms), stringsAsFactors = FALSE), nm), df)
+  rownames(out) <- NULL
+  out
+}
+
+# -- Conversion en tableau d'observations -------------------------------------
+# Rend `list(data, classe, note, msg)`. `data` vaut NULL quand l'objet n'est pas
+# un tableau d'observations, et `msg` dit alors POURQUOI -- jamais un vide sans
+# motif.
+hstat_donnees_r_convertir <- function(x, nom = "donnees") {
+  cl <- paste(class(x), collapse = "/")
+  rien <- function(motif) list(data = NULL, classe = cl, note = NULL, msg = motif)
+  if (is.null(x)) return(rien(tr("objet vide")))
+
+  # --- serie temporelle -------------------------------------------------------
+  # AVANT le test `is.matrix` : une serie multiple (`mts`) est aussi une
+  # matrice, et la prendre pour telle perdrait son temps -- c'est-a-dire la
+  # seule variable qu'une serie temporelle apporte.
+  if (inherits(x, "ts")) {
+    tt <- as.numeric(stats::time(x))
+    fr <- stats::frequency(x)
+    val <- if (is.matrix(x)) as.data.frame(unclass(x)) else
+      stats::setNames(data.frame(as.numeric(x)), nom)
+    if (is.matrix(x) && is.null(colnames(x)))
+      names(val) <- paste0(nom, "_", seq_along(val))
+    cal <- data.frame(Temps = tt)
+    # L'annee et le rang dans le cycle sont EXACTS, pas devines : ils se
+    # deduisent de la frequence declaree par la serie. A frequence 1 ils ne
+    # diraient rien de plus que `Temps`.
+    if (fr > 1) {
+      cal$Annee <- floor(tt)
+      cal$Periode <- as.integer(stats::cycle(x))
+    }
+    out <- cbind(cal, val)
+    rownames(out) <- NULL
+    return(list(data = out, classe = cl, msg = NULL,
+      note = trf("série temporelle (fréquence %s) dépliée en colonnes de temps et de valeurs", fr)))
+  }
+
+  # --- data.frame -------------------------------------------------------------
+  if (is.data.frame(x)) {
+    rn <- .hstat_dr_noms_lignes(x)
+    d <- as.data.frame(x)
+    rownames(d) <- NULL
+    d <- .hstat_dr_avec_noms(d, rn)
+    return(list(data = d, classe = cl, msg = NULL,
+      note = if (is.null(rn)) NULL else
+        trf("noms de lignes déplacés dans la colonne « %s »", HSTAT_DONNEES_R_COL)))
+  }
+
+  # --- table de contingence, ou tableau a plus de deux dimensions -------------
+  if (inherits(x, "table") || (is.array(x) && length(dim(x)) > 2L)) {
+    d <- as.data.frame(if (inherits(x, "table")) x else as.table(x),
+                       stringsAsFactors = FALSE)
+    return(list(data = d, classe = cl, msg = NULL,
+      note = tr("table de contingence dépliée en format long (une ligne par croisement, effectif en colonne « Freq »)")))
+  }
+
+  # --- matrice de distances ---------------------------------------------------
+  if (inherits(x, "dist")) {
+    m <- as.matrix(x)
+    d <- .hstat_dr_avec_noms(as.data.frame(m), .hstat_dr_noms_lignes(m))
+    return(list(data = d, classe = cl, msg = NULL,
+      note = tr("matrice de distances dépliée en tableau carré")))
+  }
+
+  # --- matrice ----------------------------------------------------------------
+  if (is.matrix(x)) {
+    d <- as.data.frame(unclass(x))
+    if (is.null(colnames(x))) names(d) <- paste0(nom, "_", seq_along(d))
+    d <- .hstat_dr_avec_noms(d, .hstat_dr_noms_lignes(x))
+    return(list(data = d, classe = cl, msg = NULL,
+      note = tr("matrice convertie en tableau")))
+  }
+
+  # --- liste ------------------------------------------------------------------
+  if (is.list(x)) {
+    lg <- vapply(x, function(e) if (is.atomic(e)) length(e) else -1L, integer(1))
+    if (length(lg) && all(lg > 0L) && length(unique(lg)) == 1L) {
+      d <- as.data.frame(x, stringsAsFactors = FALSE)
+      rownames(d) <- NULL
+      return(list(data = d, classe = cl, msg = NULL,
+        note = tr("liste convertie en tableau")))
+    }
+    det <- paste(sprintf("%s : %s",
+                         if (is.null(names(x))) seq_along(x) else names(x),
+                         ifelse(lg < 0L, tr("non atomique"), lg)),
+                 collapse = ", ")
+    return(rien(trf("« %s » est une liste de composantes de longueurs différentes (%s) : ce n'est pas un tableau d'observations. Choisissez un autre jeu de données.",
+                    nom, det)))
+  }
+
+  # --- vecteur ----------------------------------------------------------------
+  if (is.atomic(x) && length(x)) {
+    d <- stats::setNames(data.frame(x, stringsAsFactors = FALSE), nom)
+    d <- .hstat_dr_avec_noms(d, names(x))
+    return(list(data = d, classe = cl, msg = NULL,
+      note = trf("vecteur converti en colonne « %s »", nom)))
+  }
+
+  # PAS DE REPLI PAR `as.matrix()` SUR TOUT OBJET A DEUX DIMENSIONS, et c'est
+  # une mesure qui l'a decide. Il gagnerait quatre jeux (Matrix::CAex,
+  # USCounties, wrld_1deg, SparseM::X) -- et `as.matrix(Matrix::wrld_1deg)`
+  # DENSIFIE la matrice creuse : « allocating vector of size 1.7 GiB », mesure.
+  # Shiny sert toutes les sessions depuis un seul processus R : ces 1,7 Go
+  # figeraient l'application pour tout le monde, pour quatre jeux qui ne sont
+  # pas des tableaux d'observations. Le refus est donc deliberement conserve,
+  # et il NOMME la classe -- les 46 refus restants sont 27 listes heterogenes,
+  # 6 graphes, 3 environnements, 6 matrices creuses et 4 objets spatiaux.
+  rien(trf("objet de classe « %s » : HStat ne sait pas en faire un tableau d'observations.", cl))
+}
+
+# `as.character(x)[1] %||% ""` NE SUFFIT PAS : `%||%` ne rattrape que `NULL`,
+# et `as.character(NULL)[1]` vaut `NA_character_`. `nzchar(NA)` valant TRUE, le
+# NA traversait la garde de champ vide, puis `cat[NA, ]` fabriquait une ligne
+# entiere de NA -- d'ou un refus qui parlait d'un « paquet NA ». On ramene donc
+# NULL, NA et le vecteur vide a la chaine vide, seule valeur que la garde voit.
+.hstat_dr_texte <- function(x) {
+  v <- tryCatch(as.character(x), error = function(e) character(0))
+  if (!length(v) || is.na(v[1])) return("")
+  trimws(v[1])
+}
+
+# -- « Vouliez-vous dire » -----------------------------------------------------
+# Un refus qui ne propose rien laisse chercher. Deux sources, dans cet ordre :
+# les noms qui CONTIENNENT la saisie -- « iri » veut « iris », et c'est la
+# faute de frappe la plus courante --, puis les noms les plus proches au sens
+# de la distance d'edition.
+#
+# `agrep()` a ete essaye d'abord, et MESURE : il TROUVE bien « iris » sur la
+# saisie « irs » -- mais il ne CLASSE pas. Il rend ses dix-huit
+# correspondances dans l'ordre du catalogue, ou « iris » arrive au rang 12 :
+# les six proposees etaient donc « AirPassengers, HairEyeColor,
+# InsectSprays, UCBAdmissions, USPersonalExpenditure, UScitiesD », qui
+# n'aident en rien. La distance d'edition le place en tete sur les cinq
+# saisies essayees.
+.hstat_dr_proches <- function(nom, noms, n = 6L) {
+  if (!length(noms) || !nzchar(nom)) return(character(0))
+  # RECHERCHE LITTERALE, et la casse est retiree des DEUX cotes plutot que
+  # passee en `ignore.case` : `grepl(fixed = TRUE, ignore.case = TRUE)`
+  # IGNORE l'argument et AVERTIT a chaque appel -- un avertissement permanent
+  # en console finit par masquer ceux qui comptent. Litterale et non motif,
+  # parce qu'un nom de jeu porte des points (« state.name ») et que la saisie
+  # vient de l'utilisateur : une parenthese ouverte ferait lever le balayage.
+  dedans <- noms[grepl(tolower(nom), tolower(noms), fixed = TRUE)]
+  dedans <- dedans[order(nchar(dedans), tolower(dedans))]
+  d <- tryCatch(as.vector(utils::adist(nom, noms, ignore.case = TRUE)),
+                error = function(e) rep(NA_integer_, length(noms)))
+  # Le plafond suit la longueur de la saisie : une tolerance fixe accepterait
+  # n'importe quoi sur un nom de trois lettres.
+  seuil <- max(1L, ceiling(nchar(nom) / 3))
+  ok <- !is.na(d) & d <= seuil
+  utils::head(unique(c(dedans, noms[ok][order(d[ok])])), n)
+}
+
+# -- Resolution d'un nom ------------------------------------------------------
+# Rend `list(nom, paquet, fichier, suggestions)`, ou NULL si le nom est inconnu.
+# La casse est rattrapee : qui ecrit « Iris » veut « iris », et le refuser sur
+# une majuscule serait exactement le « probleme » que ce chemin evite.
+.hstat_dr_resoudre <- function(nom, cat) {
+  nom <- .hstat_dr_texte(nom)
+  paquet <- NA_character_
+  # « paquet::jeu » : la seule facon de lever une ambiguite sans deviner.
+  if (grepl("::", nom, fixed = TRUE)) {
+    bouts <- strsplit(nom, "::", fixed = TRUE)[[1]]
+    paquet <- trimws(bouts[1]); nom <- trimws(paste(bouts[-1], collapse = "::"))
+  }
+  if (!nzchar(nom)) return(NULL)
+  # `which()` ET NON UN MASQUE LOGIQUE. Un masque tout-NA a la longueur de la
+  # table : il rend donc AUTANT de lignes fantomes qu'elle compte de lignes
+  # (104 mesurees sur `datasets`), toutes remplies de `NA`. Le resolveur
+  # annoncait alors « le jeu NA du paquet NA n'a pas pu etre charge » -- un
+  # refus qui accuse le paquet la ou le champ est simplement vide. `which()`
+  # laisse tomber les NA.
+  sel <- cat[which(cat$Nom == nom), , drop = FALSE]
+  if (!nrow(sel)) sel <- cat[which(tolower(cat$Nom) == tolower(nom)), , drop = FALSE]
+  if (!is.na(paquet) && nzchar(paquet))
+    sel <- sel[which(sel$Paquet == paquet | tolower(sel$Paquet) == tolower(paquet)), ,
+               drop = FALSE]
+  if (!nrow(sel))
+    return(list(nom = NULL, suggestions = .hstat_dr_proches(nom, cat$Nom)))
+  
+  # Le catalogue est trie `datasets` d'abord : la premiere ligne est donc la
+  # bonne, et les autres sont NOMMEES plutot que passees sous silence.
+  list(nom = sel$Nom[1], paquet = sel$Paquet[1], fichier = sel$Fichier[1],
+       autres = if (nrow(sel) > 1) sel$Paquet[-1] else character(0),
+       titre = sel$Titre[1], suggestions = character(0))
+}
+
+# -- Chargement d'un jeu integre ----------------------------------------------
+# MEME FORME QUE `hstat_load_data()` : mode, con, table, full_nrow, full_ncol,
+# full_na, is_sampled, kind, size. C'est ce qui permet au serveur de traiter les
+# deux sources par les memes affectations -- deux formes differentes auraient
+# fini par diverger, et c'est la copie oubliee qui ment.
+hstat_donnees_r <- function(nom, packages = NULL, catalogue = NULL) {
+  ko <- function(msg, sug = character(0))
+    list(ok = FALSE, msg = msg, suggestions = sug, data = NULL)
+  brut <- .hstat_dr_texte(nom)
+  if (!nzchar(brut))
+    return(ko(tr("Écrivez le nom d'un jeu de données intégré à R, par exemple « iris ».")))
+  cat_df <- if (is.null(catalogue)) hstat_donnees_r_catalogue(packages) else catalogue
+  r <- .hstat_dr_resoudre(brut, cat_df)
+  if (is.null(r) || is.null(r$nom)) {
+    sug <- if (is.null(r)) character(0) else r$suggestions
+    msg <- if (length(sug))
+      trf("Aucun jeu de données nommé « %s ». Vouliez-vous dire : %s ?",
+          brut, paste(sug, collapse = ", "))
+    else
+      trf("Aucun jeu de données nommé « %s » parmi les %s jeux des paquets installés. Consultez le catalogue ci-dessous.",
+          brut, nrow(cat_df))
+    return(ko(msg, sug))
+  }
+  # `parent = globalenv()`, ET SURTOUT PAS `emptyenv()`. Six fichiers de
+  # donnees des paquets installes ici sont des SCRIPTS R (Matrix::CAex,
+  # gmp::Oakley1...) que `data()` evalue au lieu de les deserialiser : dans un
+  # environnement vide, rien ne resout, et le chargement tombe sur « could not
+  # find function "stopifnot" ». C'est l'environnement que `data()` suppose --
+  # le bac a sable des formules, lui, a une autre raison d'etre clos : il
+  # evalue une saisie de l'utilisateur, pas un fichier livre par un paquet.
+  e <- new.env(parent = globalenv())
+  charge <- tryCatch({
+    suppressWarnings(utils::data(list = r$fichier, package = r$paquet, envir = e))
+    TRUE
+  }, error = function(err) FALSE)
+  objets <- ls(e, all.names = TRUE)
+  if (!charge || !length(objets))
+    return(ko(trf("Le jeu « %s » est annoncé par le paquet %s mais n'a pas pu être chargé. Vérifiez l'installation de ce paquet.",
+                  r$nom, r$paquet)))
+  # L'objet porte l'ALIAS. A defaut -- un fichier de donnees peut nommer son
+  # objet autrement -- on prend le seul objet cree, et on le dit ; au-dela d'un
+  # objet il n'y a rien a deviner.
+  note_obj <- NULL
+  if (r$nom %in% objets) {
+    x <- get(r$nom, envir = e, inherits = FALSE)
+  } else if (length(objets) == 1L) {
+    x <- get(objets[1], envir = e, inherits = FALSE)
+    note_obj <- trf("objet « %s » du fichier de données « %s »", objets[1], r$fichier)
+  } else {
+    return(ko(trf("Le fichier de données « %s » crée %s objets (%s) et aucun ne s'appelle « %s ». Écrivez directement le nom de l'objet voulu.",
+                  r$fichier, length(objets), paste(objets, collapse = ", "), r$nom)))
+  }
+  conv <- hstat_donnees_r_convertir(x, r$nom)
+  if (is.null(conv$data) || !nrow(conv$data))
+    return(ko(conv$msg %||% trf("Le jeu « %s » ne donne aucune observation.", r$nom)))
+  d <- hstat_df_to_utf8(as.data.frame(conv$data))
+  notes <- c(note_obj, conv$note,
+             if (length(r$autres))
+               trf("« %s » existe aussi dans : %s. Écrivez « paquet::%s » pour en choisir un autre.",
+                   r$nom, paste(unique(r$autres), collapse = ", "), r$nom))
+  list(ok = TRUE, msg = NULL,
+       data = d, mode = "memory", con = NULL, table = NULL,
+       full_nrow = nrow(d), full_ncol = ncol(d),
+       full_na = sum(is.na(d)), is_sampled = FALSE,
+       kind = "rdata",
+       # La taille n'a pas de sens ici : rien n'est lu sur disque. `NA` le dit,
+       # la ou `0` se lirait « fichier vide ».
+       size = NA_real_,
+       nom = r$nom, paquet = r$paquet, titre = r$titre,
+       classe = conv$classe, notes = notes,
+       suggestions = character(0))
+}
+
 
 #  Statistiques exactes sur le jeu COMPLET via DuckDB (mode hors-memoire)
 
