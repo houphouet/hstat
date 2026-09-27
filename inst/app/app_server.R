@@ -377,6 +377,119 @@ server <- function(input, output, session) {
     })
   })
 
+
+  # ---- Jeux de donnees integres a R ----
+  # QUATRIEME PORTE D'IMPORT, donc quatrieme appel a `.hstat_purger_session()`.
+  # De nouvelles donnees, de nouvelles variables : sans cette remise a zero, les
+  # resultats, les selections de variables et le journal du fichier precedent
+  # survivraient a un jeu qui n'a aucune colonne en commun avec lui -- on lirait
+  # des tableaux portant sur des colonnes qui n'existent plus. Un test exige que
+  # les quatre portes l'appellent.
+  #
+  # Le fichier deja choisi n'est PAS neutralise : l'utilisateur peut vouloir y
+  # revenir, et le bouton « Charger » comme la combinaison de feuilles restent
+  # des gestes explicites. C'est la difference avec le bouton
+  # « Reinitialiser », qui efface tout par definition.
+  r_data_msg <- shiny::reactiveVal(NULL)
+
+  shiny::observeEvent(input$loadRData, {
+    # LA PROGRESSION EST LA MOITIE DU GESTE, et c'est le parcours au navigateur
+    # qui l'a montre : un chargement reussi prend 2,5 a 3,6 s mesurees -- le
+    # temps de resoudre le nom, de purger la session et de reconstruire les
+    # selecteurs de vingt et un modules --, et le clic ne donnait AUCUN signe
+    # pendant ce temps. Le chargement d'un fichier, lui, affiche sa barre
+    # depuis toujours : deux chemins d'import qui repondent differemment au
+    # meme geste, c'est l'utilisateur qui clique deux fois.
+    #
+    # `Progress$new()` ET NON `withProgress()`. Un seul indicateur couvre les
+    # deux etapes, la ou deux `withProgress` successifs en afficheraient deux ;
+    # et surtout, `withProgress` evalue son expression dans une FONCTION : le
+    # `return(invisible(NULL))` du refus en sortirait sans quitter
+    # l'observateur, et le chemin de succes s'executerait sur un refus. C'est
+    # exactement le piege deja documente pour `renderPlotly`.
+    barre <- shiny::Progress$new(); on.exit(barre$close(), add = TRUE)
+    barre$set(value = 0.1, message = "Chargement du jeu de données",
+              detail = "Recherche du nom")
+    res <- tryCatch(hstat_donnees_r(input$rDataName),
+                    error = function(e)
+                      list(ok = FALSE, msg = hstat_err_fr(e, "Jeu de données intégré")))
+    if (!isTRUE(res$ok)) {
+      r_data_msg(list(ok = FALSE, msg = res$msg))
+      shiny::showNotification(shiny::tagList(shiny::icon("triangle-exclamation"), " ", res$msg),
+                              type = "error", duration = 12)
+      return(invisible(NULL))
+    }
+    tryCatch({
+      # Une connexion hors-memoire se ferme AVANT d'effacer sa reference, sinon
+      # le fichier reste verrouille et le processus DuckDB en vie.
+      if (!is.null(values$dbCon)) {
+        hstat_duckdb_close(values$dbCon)
+        values$dbCon <- NULL
+      }
+      hstat_cache_clear()
+      barre$set(value = 0.5, detail = "Remise à zéro de la session")
+      .hstat_purger_session()
+      # MEME FORME QUE `hstat_load_data()` : les affectations sont donc
+      # exactement celles du chargement d'un fichier. Deux jeux d'affectations
+      # differents auraient fini par diverger.
+      values$data        <- res$data
+      values$cleanData   <- res$data
+      values$filteredData <- res$data
+      values$dbCon       <- res$con
+      values$dbTable     <- res$table
+      values$dataMode    <- res$mode
+      values$fullNrow    <- res$full_nrow
+      values$fullNcol    <- res$full_ncol
+      values$isSampled   <- res$is_sampled
+      values$sourceSize  <- res$size
+      values$fullNA      <- res$full_na
+      barre$set(value = 0.9, detail = "Préparation")
+      msg <- trf("Jeu « %s » du paquet %s chargé : %s lignes, %s colonnes.",
+                 res$nom, res$paquet,
+                 format(nrow(res$data), big.mark = " "), ncol(res$data))
+      if (length(res$notes))
+        msg <- paste0(msg, " ", trf("Conversion : %s.",
+                                    paste(res$notes, collapse = " ; ")))
+      r_data_msg(list(ok = TRUE, msg = msg, titre = res$titre))
+      shiny::showNotification(shiny::tagList(shiny::icon("check"), " ", msg),
+                              type = "message", duration = 10)
+    }, error = function(e) {
+      m <- hstat_err_fr(e, "Jeu de données intégré")
+      r_data_msg(list(ok = FALSE, msg = m))
+      shiny::showNotification(shiny::tagList(shiny::icon("triangle-exclamation"), " ", m),
+                              type = "error", duration = 15)
+    })
+  })
+
+  output$rDataStatus <- shiny::renderUI({
+    m <- r_data_msg()
+    if (is.null(m)) return(NULL)
+    # Le titre vient du paquet, donc de l'exterieur : il est du TEXTE, jamais du
+    # balisage -- `shiny::em()` recoit une chaine, htmltools l'echappe.
+    shiny::div(class = if (isTRUE(m$ok)) "callout callout-success" else "callout callout-danger",
+        style = "padding:8px 12px; font-size:13px; margin:8px 0 4px 0;",
+        shiny::icon(if (isTRUE(m$ok)) "circle-check" else "triangle-exclamation"),
+        " ", m$msg,
+        if (isTRUE(m$ok) && nzchar(m$titre %||% ""))
+          shiny::tagList(shiny::tags$br(), shiny::em(m$titre)))
+  })
+
+  # Le catalogue n'est construit que SUR DEMANDE : parcourir les index de
+  # donnees de tous les paquets installes coute 0,3 s et ne sert a rien a qui
+  # connait le nom qu'il veut. Le resultat est retenu par le socle, donc un
+  # second affichage est instantane.
+  output$rDataCatalog <- DT::renderDT({
+    shiny::req(isTRUE(input$rDataShowCat))
+    cat_df <- tryCatch(hstat_donnees_r_catalogue(), error = function(e) NULL)
+    if (is.null(cat_df) || !nrow(cat_df))
+      return(DT::datatable(data.frame(Message = "Catalogue indisponible."),
+                           rownames = FALSE, options = list(dom = "t")))
+    DT::datatable(cat_df[, c("Nom", "Paquet", "Titre")], rownames = FALSE,
+                  filter = "top",
+                  options = list(pageLength = 10, scrollX = TRUE,
+                                 lengthMenu = c(10, 25, 50, 100)))
+  })
+
   # ---- Fusion de plusieurs fichiers ----
   # Pour peupler les menus de cles, on ne lit que les EN-TETES (noms de colonnes),
   # pas les donnees completes : lire 5 fichiers entiers en memoire des la selection

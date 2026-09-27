@@ -552,6 +552,49 @@ ui <- shinydashboard::dashboardPage(
                     ),
                     shiny::actionButton("loadData", "Charger", class = "btn-primary", icon = shiny::icon("upload")),
 
+                    # --- Jeux de donnees integres a R --------------------------------
+                    # VISIBLE, pas replie : un champ replie est un champ qu'on ne
+                    # trouve pas, et c'est la lecon que ce depot a deja tiree des
+                    # reglages caches derriere un `display:none`. Le CATALOGUE, lui,
+                    # se replie -- c'est un tableau de plusieurs centaines de lignes,
+                    # pas une commande.
+                    shiny::tags$hr(style = "margin:18px 0 12px;"),
+                    shiny::div(
+                      style = "padding:10px 14px; background:#f3f7ee; border:1px solid #cfe3bd; border-radius:8px;",
+                      # UN NOEUD DE TEXTE PAR CLE. Le traducteur du navigateur ne
+                      # remplace que des correspondances COMPLETES, et le DOM fond
+                      # toute suite de caracteres adjacents en un seul noeud : une
+                      # phrase ecrite en trois morceaux n'existe donc nulle part
+                      # comme chaine entiere, et aucune entree du dictionnaire ne
+                      # peut la couvrir. Chaque libelle est ecrit d'un tenant.
+                      shiny::tags$b(style = "color:#4a7c2f; font-size:14px;",
+                                    shiny::icon("database"),
+                                    " Utiliser un jeu de données intégré à R"),
+                      shiny::p(style = "color:#5a6a7a; font-size:13px; margin:6px 0 10px 0;",
+                        "Aucun fichier à fournir : écrivez le nom du jeu et chargez-le. Les séries temporelles, tables de contingence, matrices et vecteurs nommés sont convertis en tableau, et la conversion est annoncée."),
+                      shiny::fluidRow(
+                        shiny::column(7, shiny::textInput("rDataName", "Nom du jeu de données",
+                                   placeholder = "ex : iris, mtcars, ToothGrowth, airquality, Titanic")),
+                        shiny::column(5, shiny::div(style = "margin-top:25px;",
+                          shiny::actionButton("loadRData",
+                            shiny::tagList(shiny::icon("database"), " Charger ce jeu"),
+                            class = "btn-success")))),
+                      shiny::tags$small(style = "color:#6b7280; display:block;",
+                        shiny::icon("circle-info"),
+                        " La casse est rattrapée et un nom approchant est proposé. Écrivez « paquet::jeu » — par exemple « agricolae::sweetpotato » — pour désigner un jeu d'un autre paquet."),
+                      shiny::uiOutput("rDataStatus"),
+                      shiny::tags$details(
+                        style = "margin-top:10px;",
+                        shiny::tags$summary(style = "cursor:pointer; font-weight:600; color:#4a7c2f; font-size:13px;",
+                                     shiny::icon("list"), " Catalogue des jeux disponibles"),
+                        shiny::div(style = "padding-top:8px;",
+                          shiny::checkboxInput("rDataShowCat",
+                            "Construire le catalogue (tous les paquets installés)", value = FALSE),
+                          shiny::conditionalPanel(
+                            condition = "input.rDataShowCat == true",
+                            DT::DTOutput("rDataCatalog"))))
+                    ),
+
                     # --- Fusion de plusieurs fichiers (section integree au meme bloc) ---
                     shiny::tags$hr(style = "margin:18px 0 12px;"),
                     shiny::tags$details(
