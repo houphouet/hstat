@@ -38,10 +38,30 @@ if (is.null(year) || is.na(year) || !nzchar(year)) {
 ##
 ## `Authors@R` est du code R ; `Author`, s'il existe, en est la forme deja
 ## composee par R et sert de repli.
-auteurs <- tryCatch(eval(parse(text = meta[["Authors@R"]])),
-                    error = function(e) NULL)
+##
+## LE CHAMP EST VERIFIE AVANT D'ETRE ANALYSE, et ce n'est pas une precaution de
+## style. `parse(text = NULL)` ne rend pas une expression vide : `text` etant
+## nul, l'appel retombe sur `file = ""`, c'est-a-dire sur `stdin()` -- qui, sous
+## `R --file=`, EST le script en cours de lecture. Les lignes suivantes sont
+## alors avalees. Mesure : le travail "Suite testthat" de la CI est tombe
+## ainsi, sur "object of type 'closure' is not subsettable" a sa ligne de
+## compte-rendu, avec ZERO test en echec -- l'affectation qui precedait avait
+## disparu. Un paquet sans `Authors@R` suffit a l'atteindre.
+.champ_aut <- meta[["Authors@R"]]
+auteurs <- if (is.character(.champ_aut) && length(.champ_aut) == 1L &&
+               !is.na(.champ_aut) && nzchar(.champ_aut)) {
+  tryCatch(eval(parse(text = .champ_aut)), error = function(e) NULL)
+} else {
+  NULL
+}
 if (!inherits(auteurs, "person") || !length(auteurs)) {
-  auteurs <- tryCatch(utils::as.person(meta$Author), error = function(e) NULL)
+  .champ_a <- meta$Author
+  auteurs <- if (is.character(.champ_a) && length(.champ_a) == 1L &&
+                 !is.na(.champ_a) && nzchar(.champ_a)) {
+    tryCatch(utils::as.person(.champ_a), error = function(e) NULL)
+  } else {
+    NULL
+  }
 }
 
 ## Seuls les auteurs sont cites : un detenteur de droits ou un contributeur

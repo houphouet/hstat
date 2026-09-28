@@ -1663,16 +1663,55 @@ test_that("inst/CITATION nomme tous les auteurs", {
   for (a in att)
     expect_true(grepl(a, txt, fixed = TRUE),
                 info = paste("auteur absent de inst/CITATION :", a))
-  # Le repli ne fait pas tomber `citation("HStat")` : sans auteur resolvable,
-  # @Manual n'exige que son titre, et R compose la phrase depuis l'entree.
-  m2 <- meta
-  m2[["Authors@R"]] <- NULL
-  m2[["Author"]] <- NULL
-  c2 <- suppressWarnings(utils::readCitationFile(p, meta = m2))
-  expect_s3_class(c2, "bibentry")
-  expect_true(grepl("HStat", format(c2, style = "text")[1], fixed = TRUE))
 })
 
+# -- `parse(text = NULL)` LIT STDIN, et stdin c'est le script ----------------
+# Defaut trouve par la CI, et le mode de defaillance est le pire possible : le
+# travail « Suite testthat » est tombe sur
+# « object of type 'closure' is not subsettable » a sa ligne de compte-rendu,
+# avec ZERO test en echec. L'affectation qui precedait avait ete AVALEE.
+#
+# La cause est dans `inst/CITATION` : `parse(text = meta[["Authors@R"]])` sur un
+# champ absent ne rend pas une expression vide. `text` etant nul, l'appel
+# retombe sur son `file = ""` par defaut, c'est-a-dire sur `stdin()` -- qui,
+# sous `R --file=`, EST le script en cours de lecture. Mesure minimale : un
+# script de trois lignes dont la deuxieme appelle `parse(text = NULL)` perd sa
+# troisieme, stdin ferme sur /dev/null y compris.
+#
+# L'assertion tourne dans un SOUS-PROCESSUS, et c'est la seule forme qui la
+# rende visible : dans la suite, l'avalement ne fait echouer aucun test -- il
+# emporte le script qui les compte. Un marqueur pose APRES l'appel est present
+# ou absent, ce qui distingue les deux codes.
+test_that("le chemin degrade de inst/CITATION n'avale pas l'entree du script", {
+  root <- .hstat_repo_root()
+  p <- file.path(root, "inst", "CITATION")
+  skip_if_not(file.exists(p), "inst/CITATION absent")
+  rscript <- file.path(R.home("bin"), "Rscript")
+  skip_if_not(file.exists(rscript), "Rscript introuvable")
+
+  banc <- tempfile(fileext = ".R")
+  on.exit(unlink(banc), add = TRUE)
+  writeLines(c(
+    sprintf('meta <- as.list(read.dcf(%s)[1, ])',
+            deparse(file.path(root, "DESCRIPTION"))),
+    'meta[["Authors@R"]] <- NULL',
+    'meta[["Author"]] <- NULL',
+    sprintf('c2 <- suppressWarnings(utils::readCitationFile(%s, meta = meta))',
+            deparse(p)),
+    'cat("MARQUEUR-APRES\n")',
+    'cat("CITE:", inherits(c2, "bibentry"), "\n")'), banc)
+
+  sortie <- suppressWarnings(system2(rscript, shQuote(banc),
+                                     stdout = TRUE, stderr = TRUE))
+  sortie <- paste(sortie, collapse = "\n")
+  # Le marqueur suit l'appel : avale, il disparait.
+  expect_true(grepl("MARQUEUR-APRES", sortie, fixed = TRUE),
+              info = paste("sortie du banc :", sortie))
+  # Et l'entree reste valide : sans auteur resolvable, @Manual n'exige que son
+  # titre, et citation("HStat") ne tombe pas.
+  expect_true(grepl("CITE: TRUE", sortie, fixed = TRUE),
+              info = paste("sortie du banc :", sortie))
+})
 test_that("aucun nom d'auteur n'est recopié dans le code", {
   root <- .hstat_repo_root()
   att <- .hstat_auteurs_attendus()

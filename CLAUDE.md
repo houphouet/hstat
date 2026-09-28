@@ -125,6 +125,67 @@ sur `meta$Author` couvre le cas où `Authors@R` manque. Sans auteur résolvable,
 l'entrée est émise **sans** champ `author` plutôt qu'avec un nom inventé :
 `@Manual` n'exige que son titre, et `citation("HStat")` ne tombe pas.
 
+#### `parse(text = NULL)` lit stdin, et sous `R --file=` stdin c'est le script
+
+Le défaut le plus coûteux de ce lot, et il ne ressemble pas à un défaut : le
+travail « Suite testthat » de la CI a échoué avec **zéro test en échec**.
+
+```
+Error in df$passed : object of type 'closure' is not subsettable
+Calls: cat -> sprintf
+```
+
+`df` résolvait vers `stats::df` — l'affectation `df <- as.data.frame(res)`, une
+ligne plus haut dans le script du travail, **avait disparu**. Localement la même
+suite rendait 6185 assertions, 0 échec.
+
+La cause est dans le chemin dégradé du nouveau `inst/CITATION` :
+`parse(text = meta[["Authors@R"]])` sur un champ **absent**. `parse(text = NULL)`
+ne rend pas une expression vide — `text` étant nul, l'appel retombe sur son
+`file = ""` par défaut, c'est-à-dire sur **`stdin()`**, qui sous `R --file=` *est*
+le script en cours de lecture. Les lignes suivantes sont avalées.
+
+Mesure minimale, stdin fermé sur `/dev/null` :
+
+```r
+x <- parse(text = NULL)
+cat("APRES\n")            # ← cette ligne disparaît
+cat("SUIVANTE\n")         # ← celle-ci s'affiche
+```
+
+Le champ est donc **vérifié avant d'être analysé** — caractère, longueur 1, non
+`NA`, non vide — et le repli sur `meta$Author` l'est de même. Un paquet sans
+`Authors@R` suffisait à l'atteindre.
+
+**L'assertion tourne dans un sous-processus, et c'est la seule forme qui la rende
+visible.** Dans la suite, l'avalement ne fait échouer aucun test : il emporte le
+script qui les compte. Un marqueur posé *après* l'appel est présent ou absent, ce
+qui distingue les deux codes — mutation vérifiée, deux échecs sans la garde,
+aucun avec.
+
+#### Deux fausses pistes, et toutes deux annoncées comme la cause
+
+Il faut les écrire, parce que chacune paraissait établie :
+
+1. **`capture.output(..., type = "message")`.** Le test du message de démarrage
+   l'employait, et détourner le flux des messages au milieu d'une suite qui a son
+   propre détournement est une vraie maladresse — corrigée en
+   `withCallingHandlers`, qui lit le message à la source. Mais **ce n'était pas la
+   cause** : le défaut s'est reproduit à l'identique après correction.
+2. **Le double `close()` de `tools:::.parse_CITATION_file()`.** Sa branche
+   multi-octets fait `con <- file(...)`, `on.exit(close(con))`, `parse(con)` —
+   or `parse()` ferme déjà la connexion, si bien que le `close()` de sortie en
+   referme une seconde, donc celle qui occupe désormais le même numéro. Le
+   mécanisme existe bel et bien dans R ; il n'était **pas** à l'œuvre ici, et
+   `readCitationFile()` marche parfaitement une fois la garde posée.
+
+Ce qui a tranché n'est aucune relecture, c'est la **bissection** : `origin/main`
+rend son résumé sur la forme exacte du script de la CI, la branche le perd ; puis
+le filtre `desc =` de `test_file()` ramène le défaut à **un seul test** ; puis un
+corps de test piloté par une variable d'environnement le ramène à **une seule
+ligne**. Trois mesures, chacune en quelques secondes, là où deux hypothèses
+plausibles avaient coûté deux cycles de CI.
+
 #### L'assertion d'origine ne gardait rien
 
 `expect_true(grepl("KOUADIO|houphouet", v, ignore.case = TRUE))` ne demandait
