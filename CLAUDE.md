@@ -3899,6 +3899,48 @@ Les deux peuvent tenir. C'est l'assertion qui distingue « ajouter la cause » d
 « changer de message » : sur un essai à mortalité **croissante** dont le témoin
 est mort en entier, l'inversion n'est pas nommée.
 
+##### Le motif nommait l'inversion, mais pas la bonne paire de colonnes
+
+Trouvé **au navigateur**, et par rien d'autre : la phrase reprise telle quelle
+de la pente négative disait
+
+> Vérifiez que les colonnes « effectif testé » et « morts » ne sont pas
+> inversées.
+
+C'est une hypothèse juste, et ce n'est **pas** la faute mesurée ici : la colonne
+des morts portait les **survivants**. Un motif qui envoie vérifier la mauvaise
+paire coûte une recherche entière — on compare l'effectif et les morts, on les
+trouve cohérents, et on conclut que l'application se trompe.
+
+Le motif nomme désormais les **deux** confusions, celle des survivants d'abord :
+c'est la colonne que l'utilisateur a réellement choisie, et la seule des deux
+qui rende la mortalité décroissante de bout en bout. Les deux assertions le
+gardent — « survivants » présent, « effectif testé » toujours présent : n'en
+garder qu'une laisserait revenir l'autre moitié.
+
+Leçon de méthode, la même que pour le kit de mise en forme : **le parcours au
+navigateur n'est pas une formalité de fin de lot.** Les deux tests passaient, et
+ils passaient sur la mauvaise phrase — ils vérifiaient qu'une cause était
+nommée, pas que c'était la bonne.
+
+##### Trois mesures de la sonde, et les trois premières mentaient
+
+La sonde elle-même a demandé quatre corrections, toutes dans le sens rassurant
+ou bruyant, et chacune vaut d'être écrite :
+
+| Mesure | Ce qu'elle rendait | Pourquoi elle mentait |
+|---|---|---|
+| `page.selectOption('#dl50-colDose', …)` | expiration au bout de 30 s | le `<select>` est **selectizé**, donc caché ; Playwright l'attend visible indéfiniment. On passe par `el.selectize.setValue()`, seule chose que Shiny écoute |
+| `[...el.options].map(o => o.text)` | `[""]` pour **toute** liste | `updateSelectInput` réécrit les options de l'**instance** selectize, pas les `<option>` natifs |
+| téléversement seul, sans clic sur « Charger » | « Aucune donnée chargée » aux trois étapes | le téléversement ne charge pas — il reste un bouton à cliquer. La sonde tournait sur une session **vide** |
+| clic d'onglet posé par `page.evaluate()` | `messageFit` et `verdict` **vides** | un clic synthétique ne déclenche pas l'onglet Bootstrap : les sorties restent suspendues, et `uiOutput` caché ne rend rien |
+
+Et un cinquième, propre au module : `.ajouter()` **empile** les essais.
+Réimporter dans la même session laissait la sélection sur l'essai précédent, et
+la sonde relisait donc son verdict — **identique à l'octet près pour les trois
+scénarios**, ce qui ressemble exactement à « le réglage ne fait rien ». D'où une
+**session neuve par scénario**.
+
 ### Erreur-type et écart-type ne mesurent pas la même chose
 
 Les confondre est l'erreur classique du bioessai, et elle change la conclusion :

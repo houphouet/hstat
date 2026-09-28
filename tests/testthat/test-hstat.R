@@ -11806,8 +11806,14 @@ test_that("un temoin a 100 % nomme l'inversion des colonnes quand elle est etabl
                         temoin_n = 25, temoin_morts = 25)
   m <- hstat_dl50_ajuste(e)$message
   expect_true(grepl("témoin", m, fixed = TRUE))
-  expect_true(grepl("inversées", m, fixed = TRUE),
+  # LE MESSAGE NOMME LA COLONNE FAUTIVE, PAS UNE AUTRE PAIRE. Il disait
+  # « les colonnes "effectif teste" et "morts" ne sont pas inversees » : exact
+  # comme hypothese, et a cote de la faute mesuree ici -- la colonne des morts
+  # portait les SURVIVANTS. Un motif qui envoie verifier la mauvaise paire
+  # coute une recherche entiere.
+  expect_true(grepl("survivants", m, fixed = TRUE),
               info = paste("message rendu :", m))
+  expect_true(grepl("effectif testé", m, fixed = TRUE))
 
   # LE PREMIER MOTIF N'EST PAS REMPLACE : les deux peuvent tenir, et un temoin
   # a 100 % est un vrai defaut d'essai. C'est l'assertion qui distingue
@@ -11817,7 +11823,7 @@ test_that("un temoin a 100 % nomme l'inversion des colonnes quand elle est etabl
   m2 <- hstat_dl50_ajuste(droit)$message
   expect_true(grepl("témoin", m2, fixed = TRUE))
   # Mortalite CROISSANTE : rien n'etablit l'inversion, on ne l'invente pas.
-  expect_false(grepl("inversées", m2, fixed = TRUE))
+  expect_false(grepl("survivants", m2, fixed = TRUE))
 })
 
 test_that("la liste de regroupement n'offre pas les colonnes de mesure", {
@@ -12008,7 +12014,7 @@ test_that("une pente negative est refusee, en nommant la cause probable", {
   expect_false(isTRUE(f$ok))
   expect_true(grepl("décroît", f$message, fixed = TRUE))
   # Le message NOMME la cause probable : c'est ce qui le rend actionnable.
-  expect_true(grepl("inversées", f$message, fixed = TRUE))
+  expect_true(grepl("survivants", f$message, fixed = TRUE))
   expect_true(grepl("effectif testé", f$message, fixed = TRUE))
   # Et il ne rend rien d'exploitable par la suite.
   expect_null(hstat_dl50_doses_letales(f))

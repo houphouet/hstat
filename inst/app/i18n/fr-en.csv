@@ -2000,7 +2000,7 @@
 "Itérations","Iterations"
 "Graphique exporté : %s, %s × %s pixels à %s DPI.","Plot exported: %s, %s × %s pixels at %s DPI."
 "Export impossible : aucun essai ajustable, ou dimensions trop grandes. Réduisez la taille ou le DPI, ou choisissez un format vectoriel (SVG, PDF).","Export impossible: no fittable trial, or dimensions too large. Reduce the size or the DPI, or choose a vector format (SVG, PDF)."
-"La mortalité décroît quand la dose augmente : la droite de Henry n'a pas de sens ici. Vérifiez que les colonnes « effectif testé » et « morts » ne sont pas inversées, et que les doses correspondent bien aux mortalités.","Mortality decreases as the dose increases: a Henry line makes no sense here. Check that the “tested sample size” and “dead” columns are not swapped, and that the doses match the mortalities."
+"La mortalité décroît quand la dose augmente : la droite de Henry n'a pas de sens ici. La colonne des morts doit porter les morts et non les survivants ; vérifiez aussi qu'elle n'a pas été prise pour l'effectif testé, et que les doses correspondent bien aux mortalités.","Mortality decreases as the dose increases: a Henry line makes no sense here. The deaths column must hold the dead, not the survivors; also check that it was not mistaken for the tested sample size, and that the doses match the mortalities."
 "%s (%s)","%s (%s)"
 "extrapolée","extrapolated"
 "interpolée","interpolated"

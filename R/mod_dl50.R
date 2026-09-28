@@ -454,7 +454,7 @@ hstat_dl50_essai <- function(dose, effectif, morts, temoin_n = 0, temoin_morts =
 # Le message de la pente negative, ecrit UNE fois : il est rendu depuis deux
 # endroits, et deux formulations du meme refus finiraient par diverger.
 .hstat_dl50_msg_pente <- function()
-  tr("La mortalité décroît quand la dose augmente : la droite de Henry n'a pas de sens ici. Vérifiez que les colonnes « effectif testé » et « morts » ne sont pas inversées, et que les doses correspondent bien aux mortalités.")
+  tr("La mortalité décroît quand la dose augmente : la droite de Henry n'a pas de sens ici. La colonne des morts doit porter les morts et non les survivants ; vérifiez aussi qu'elle n'a pas été prise pour l'effectif testé, et que les doses correspondent bien aux mortalités.")
 
 # LES CHOIX DE LA LISTE DE REGROUPEMENT.
 #
