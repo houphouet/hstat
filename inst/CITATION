@@ -26,19 +26,83 @@ if (is.null(year) || is.na(year) || !nzchar(year)) {
   }
 }
 
-bibentry(
-  bibtype  = "Manual",
-  title    = paste0("HStat : Application Shiny interactive pour l'analyse statistique"),
-  author   = c(person("Houphouet", "KOUADIO",
-                      comment = c(ORCID = "0000-0002-8238-1091")),
-               person("Claude Code")),
-  year     = year,
-  note     = paste0("Version ", vers),
-  url      = "https://github.com/houphouet/hstat",
-  key      = "hstat",
-  textVersion = paste0(
-    "KOUADIO, Houphouet & Claude Code (", year, "). ",
-    "HStat : Application Shiny interactive pour l'analyse statistique. ",
-    "Version ", vers, ". https://github.com/houphouet/hstat"
-  )
-)
+## Les AUTEURS suivent eux aussi DESCRIPTION -- champ `Authors@R`, fourni par R
+## dans `meta`. La liste etait recopiee ici, et les trois copies avaient
+## diverge : le message de demarrage et l'onglet de citation ne nommaient qu'un
+## auteur sur deux, celle-ci les deux. Une liste recopiee finit par diverger, et
+## c'est la copie oubliee qui ment.
+##
+## Ce fichier ne peut pas appeler le socle : readCitationFile() le lit pendant
+## l'installation, avant que l'espace de noms de HStat soit chargeable. C'est
+## donc la MISE EN FORME qui est reecrite ici -- jamais les noms.
+##
+## `Authors@R` est du code R ; `Author`, s'il existe, en est la forme deja
+## composee par R et sert de repli.
+##
+## LE CHAMP EST VERIFIE AVANT D'ETRE ANALYSE, et ce n'est pas une precaution de
+## style. `parse(text = NULL)` ne rend pas une expression vide : `text` etant
+## nul, l'appel retombe sur `file = ""`, c'est-a-dire sur `stdin()` -- qui, sous
+## `R --file=`, EST le script en cours de lecture. Les lignes suivantes sont
+## alors avalees. Mesure : le travail "Suite testthat" de la CI est tombe
+## ainsi, sur "object of type 'closure' is not subsettable" a sa ligne de
+## compte-rendu, avec ZERO test en echec -- l'affectation qui precedait avait
+## disparu. Un paquet sans `Authors@R` suffit a l'atteindre.
+.champ_aut <- meta[["Authors@R"]]
+auteurs <- if (is.character(.champ_aut) && length(.champ_aut) == 1L &&
+               !is.na(.champ_aut) && nzchar(.champ_aut)) {
+  tryCatch(eval(parse(text = .champ_aut)), error = function(e) NULL)
+} else {
+  NULL
+}
+if (!inherits(auteurs, "person") || !length(auteurs)) {
+  .champ_a <- meta$Author
+  auteurs <- if (is.character(.champ_a) && length(.champ_a) == 1L &&
+                 !is.na(.champ_a) && nzchar(.champ_a)) {
+    tryCatch(utils::as.person(.champ_a), error = function(e) NULL)
+  } else {
+    NULL
+  }
+}
+
+## Seuls les auteurs sont cites : un detenteur de droits ou un contributeur
+## figure legitimement dans DESCRIPTION sans etre auteur de la publication.
+if (inherits(auteurs, "person") && length(auteurs)) {
+  roles <- vapply(auteurs, function(p) paste(p$role, collapse = " "), character(1))
+  garde <- grepl("\\baut\\b|\\bcre\\b", roles)
+  if (any(garde)) auteurs <- auteurs[garde]
+}
+
+titre <- "HStat : Application Shiny interactive pour l'analyse statistique"
+url   <- "https://github.com/houphouet/hstat"
+ok    <- inherits(auteurs, "person") && length(auteurs) > 0L
+
+## Aucun auteur resolu : on n'en invente pas, et on ne fait pas tomber
+## citation("HStat") pour autant. @Manual n'exige que son titre ; sans
+## textVersion, R compose la phrase depuis l'entree elle-meme.
+##
+## "Claude Code" n'a pas de nom de famille : person() range le nom d'un seul
+## tenant dans `given`, et l'inverser rendrait "Code, Claude" -- un auteur qui
+## n'existe pas. Il ressort donc tel quel.
+liste <- if (ok) {
+  noms <- vapply(auteurs, function(p) {
+    fam <- paste(p$family, collapse = " ")
+    giv <- paste(p$given,  collapse = " ")
+    if (!nzchar(fam)) giv else if (!nzchar(giv)) fam else paste0(fam, ", ", giv)
+  }, character(1))
+  if (length(noms) > 1L) {
+    paste0(paste(noms[-length(noms)], collapse = ", "), " & ", noms[length(noms)])
+  } else {
+    noms
+  }
+} else {
+  NULL
+}
+
+args <- c(
+  list(bibtype = "Manual", title = titre),
+  if (ok) list(author = auteurs) else NULL,
+  list(year = year, note = paste0("Version ", vers), url = url, key = "hstat"),
+  if (ok) list(textVersion = paste0(liste, " (", year, "). ", titre,
+                                    ". Version ", vers, ". ", url)) else NULL)
+
+do.call(bibentry, args)

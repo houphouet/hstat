@@ -80,14 +80,15 @@ jobs:
               "fichiers analyses sans erreur\n")
           if (length(echecs)) quit(status = 1)
 
-      - name: Verifier la coherence des versions
+      - name: Verifier la coherence des versions et des auteurs
         shell: Rscript {0}
         run: |
-          # DESCRIPTION fait foi ; README porte le numero en dur (markdown
-          # statique) et doit suivre. Un test le verifie deja, mais l'echec est
-          # plus lisible ici, avant meme l'installation des paquets.
+          # DESCRIPTION fait foi ; README porte le numero ET les auteurs en dur
+          # (markdown statique) et doit suivre. Des tests le verifient deja, mais
+          # l'echec est plus lisible ici, avant meme l'installation des paquets.
           v <- unname(read.dcf("DESCRIPTION", "Version")[1, 1])
-          rd <- paste(readLines("README.md", warn = FALSE), collapse = "\n")
+          lignes <- readLines("README.md", warn = FALSE)
+          rd <- paste(lignes, collapse = "\n")
           cites <- unique(regmatches(rd, gregexpr("Version [0-9]+\\.[0-9]+\\.[0-9]+", rd))[[1]])
           cites <- sub("^Version ", "", cites)
           cat("DESCRIPTION :", v, "| README :", paste(cites, collapse = ", "), "\n")
@@ -97,6 +98,34 @@ jobs:
             quit(status = 1)
           }
           cat("Versions coherentes.\n")
+
+          # Les AUTEURS suivent la meme regle, et ils avaient deja derive : le
+          # message de demarrage et l'onglet de citation ne nommaient qu'un
+          # auteur sur deux. Le controle porte sur le BLOC DE CITATION du README
+          # -- la section « Authors » les nomme elle aussi, si bien qu'un auteur
+          # retire de la citation passerait inapercu.
+          ppl <- eval(parse(text = unname(read.dcf("DESCRIPTION", "Authors@R")[1, 1])))
+          roles <- vapply(ppl, function(p) paste(p$role, collapse = " "), character(1))
+          ppl <- ppl[grepl("\\baut\\b|\\bcre\\b", roles)]
+          att <- vapply(ppl, function(p) {
+            fam <- paste(p$family, collapse = " ")
+            if (nzchar(fam)) fam else paste(p$given, collapse = " ")
+          }, character(1))
+          cit <- lignes[grepl("^> .*Version [0-9]", lignes)]
+          bib <- lignes[grepl("^ *author *= *[{]", lignes)]
+          cat("Auteurs declares :", paste(att, collapse = ", "), "\n")
+          if (!length(cit) || !length(bib)) {
+            cat("Bloc de citation du README introuvable.\n"); quit(status = 1)
+          }
+          manque <- att[!vapply(att, function(a)
+            any(grepl(a, cit, fixed = TRUE)) && any(grepl(a, bib, fixed = TRUE)),
+            logical(1))]
+          if (length(manque)) {
+            cat("Absents du bloc de citation du README :",
+                paste(manque, collapse = ", "), "\n")
+            quit(status = 1)
+          }
+          cat("Auteurs coherents.\n")
 
   # ===========================================================================
   #  R CMD check : le chemin que la suite ne prend JAMAIS

@@ -7132,51 +7132,170 @@ hstat_pkg_year <- function() {
   format(Sys.Date(), "%Y")
 }
 
+# ---------------------------------------------------------------------------
+#  Les auteurs a citer : DESCRIPTION est la source unique
+# ---------------------------------------------------------------------------
+# La liste vivait en TROIS exemplaires -- le message de demarrage (`R/zzz.R`),
+# l'onglet de citation (ici) et `inst/CITATION` -- et elle avait DERIVE : les
+# deux premiers ne nommaient qu'UN auteur sur deux, le troisieme les deux.
+# C'est la derive que ce depot corrige deja pour la version, les formats
+# d'image, les champs de DPI, les themes et les palettes -- et c'est la copie
+# oubliee qui ment. Ici elle mentait dans la phrase qu'un utilisateur recopie
+# dans sa publication : le pire endroit possible, parce que rien ne l'y
+# contredit.
+#
+# La resolution suit le meme ordre que `hstat_version()` : paquet installe,
+# puis DESCRIPTION sur disque (application lancee depuis les sources).
+#
+# Aucun repli code en dur : un nom d'auteur ecrit ici serait exactement la
+# copie qu'on retire. Faute de DESCRIPTION lisible, la fonction rend `NULL` et
+# c'est l'appelant qui le dit.
+hstat_pkg_auteurs <- function() {
+  champ <- suppressWarnings(tryCatch(
+    utils::packageDescription("HStat", fields = "Authors@R"),
+    error = function(e) NA_character_))
+  if (is.null(champ) || length(champ) != 1L || is.na(champ) || !nzchar(champ))
+    champ <- .hstat_description_field("Authors@R")
+  if (is.na(champ)) return(NULL)
+  # `Authors@R` est du CODE R, et c'est ainsi que R lui-meme le lit
+  # (`citation()` fait de meme). L'evaluation se fait sous l'espace de noms de
+  # `utils`, ou vivent `person()` et `c()` : par `globalenv()`, un objet de
+  # l'utilisateur nomme `person` masquerait la fonction. Ce n'est pas le cas de
+  # `hstat_donnees_r()`, qui a besoin du chemin de recherche parce que
+  # `data()` y evalue des fichiers de donnees ecrits en script.
+  ppl <- tryCatch(eval(parse(text = champ),
+                       envir = new.env(parent = asNamespace("utils"))),
+                  error = function(e) NULL)
+  if (!inherits(ppl, "person") || !length(ppl)) return(NULL)
+  # Seuls les AUTEURS sont cites. Un detenteur de droits (`cph`), un
+  # contributeur (`ctb`) ou un traducteur (`trl`) figure legitimement dans
+  # DESCRIPTION sans etre auteur de la publication. Si aucun role ne colle, on
+  # garde tout le monde plutot que de rendre une citation sans auteur.
+  roles <- vapply(ppl, function(p) paste(p$role, collapse = " "), character(1))
+  garde <- grepl("\\baut\\b|\\bcre\\b", roles)
+  if (!any(garde)) return(ppl)
+  ppl[garde]
+}
+
+# Les quatre formes de nom employees par les six styles de citation.
+HSTAT_CIT_FORMES <- c("nom_prenom", "prenom_nom", "nom_initiales",
+                      "nom_initiales_nu")
+
+# Rendu d'UN auteur.
+#
+# Un nom sans famille n'est pas un oubli : `person("Claude Code")` range le nom
+# d'un seul tenant dans `given`, et `family` vaut alors `character(0)`. Le
+# traiter comme un prenom rendrait « Code, Claude » -- un auteur qui n'existe
+# pas, et parfaitement plausible dans une bibliographie. Il ressort donc tel
+# quel, dans les quatre formes.
+#
+# Les initiales se prennent sur CHAQUE prenom, trait d'union compris :
+# « Jean-Pierre » donne « J.-P. » et non « J. ».
+.hstat_auteur_nom <- function(p, forme = HSTAT_CIT_FORMES) {
+  forme <- match.arg(forme, HSTAT_CIT_FORMES)
+  fam <- paste(p$family, collapse = " ")
+  giv <- paste(p$given,  collapse = " ")
+  if (!nzchar(fam)) return(giv)
+  if (!nzchar(giv)) return(fam)
+  mots <- strsplit(giv, "[[:space:]]+")[[1]]
+  ini  <- paste(vapply(mots, function(m)
+    paste0(substr(strsplit(m, "-")[[1]], 1, 1), ".", collapse = "-"),
+    character(1), USE.NAMES = FALSE), collapse = " ")
+  switch(forme,
+    nom_prenom       = paste0(fam, ", ", giv),
+    prenom_nom       = paste0(giv, " ", fam),
+    nom_initiales    = paste0(fam, ", ", ini),
+    # Vancouver colle les initiales, sans point ni trait d'union : « KOUADIO H ».
+    nom_initiales_nu = paste0(fam, " ", gsub("[^[:alnum:]]", "", ini)))
+}
+
+# BibTeX REORDONNE les noms qu'il croit composes : « Claude Code » ressortirait
+# « Code, C. » dans la bibliographie composee. Un nom d'un seul tenant est donc
+# accolade, ce qui dit a BibTeX de le prendre tel quel.
+.hstat_auteur_bibtex <- function(p) {
+  fam <- paste(p$family, collapse = " ")
+  giv <- paste(p$given,  collapse = " ")
+  if (!nzchar(fam)) return(paste0("{", giv, "}"))
+  if (!nzchar(giv)) return(paste0("{", fam, "}"))
+  paste0(giv, " ", fam)
+}
+
+# Assemblage de la liste. Le separateur du DERNIER auteur n'est pas celui des
+# autres, et il change avec le style : « & » en texte, « , & » en APA, « , » en
+# Vancouver. D'ou deux arguments et non un.
+.hstat_auteurs_liste <- function(ppl, forme, sep = ", ", dernier = sep) {
+  if (is.null(ppl) || !length(ppl)) return("")
+  noms <- vapply(ppl, .hstat_auteur_nom, character(1), forme = forme)
+  n <- length(noms)
+  if (n == 1L) return(noms)
+  paste0(paste(noms[-n], collapse = sep), dernier, noms[n])
+}
+
+# APA termine la liste d'auteurs par un point. L'initiale le porte deja
+# (« KOUADIO, H. ») mais pas un nom d'un seul tenant (« Claude Code ») : le
+# poser sans condition doublerait le premier cas.
+.hstat_point <- function(x) if (grepl("[.]$", x)) x else paste0(x, ".")
+
 # Genere la citation du package HStat dans differents styles.
-# Version et annee suivent automatiquement DESCRIPTION (cf. hstat_version()).
+# Auteurs, version et annee suivent automatiquement DESCRIPTION
+# (cf. hstat_pkg_auteurs(), hstat_version(), hstat_pkg_year()).
 hstat_citation <- function(style = c("text", "bibtex", "ris", "apa", "vancouver", "markdown")) {
   style <- match.arg(style)
   vers <- hstat_version()
   year <- hstat_pkg_year()
-  author_last <- "KOUADIO"; author_first <- "Houphouet"; author_initial <- "H"
+  ppl  <- hstat_pkg_auteurs()
   title <- "HStat : Application Shiny interactive pour l'analyse statistique"
   url   <- "https://github.com/houphouet/hstat"
-  orcid <- "0000-0002-8238-1091"
+
+  # DESCRIPTION illisible : la citation garde sa FORME et le manque se voit,
+  # comme le « 0.0.0 » volontairement invalide de `hstat_version()`. Un champ
+  # d'auteurs vide se recopierait sans qu'on le remarque.
+  if (is.null(ppl) || !length(ppl))
+    ppl <- utils::person(family = tr("Auteurs indisponibles"))
 
   switch(style,
     "text" = sprintf(
-      "%s, %s (%s). %s. Version %s. %s",
-      author_last, author_first, year, title, vers, url),
+      "%s (%s). %s. Version %s. %s",
+      .hstat_auteurs_liste(ppl, "nom_prenom", ", ", " & "),
+      year, title, vers, url),
 
     "apa" = sprintf(
-      "%s, %s. (%s). %s (Version %s) [Logiciel R]. %s",
-      author_last, substr(author_first, 1, 1), year, title, vers, url),
+      "%s (%s). %s (Version %s) [Logiciel R]. %s",
+      .hstat_point(.hstat_auteurs_liste(ppl, "nom_initiales", ", ", ", & ")),
+      year, title, vers, url),
 
     "vancouver" = sprintf(
-      "%s %s. %s [Logiciel R]. Version %s. %s; %s.",
-      author_last, author_initial, title, vers, year, url),
+      "%s. %s [Logiciel R]. Version %s. %s; %s.",
+      .hstat_auteurs_liste(ppl, "nom_initiales_nu", ", ", ", "),
+      title, vers, year, url),
 
     "markdown" = sprintf(
-      "%s, %s (%s). *%s*. Version %s. [%s](%s)",
-      author_last, author_first, year, title, vers, url, url),
+      "%s (%s). *%s*. Version %s. [%s](%s)",
+      .hstat_auteurs_liste(ppl, "nom_prenom", ", ", " & "),
+      year, title, vers, url, url),
 
     "bibtex" = paste(
       "@Manual{hstat,",
       sprintf("  title  = {%s},", title),
-      sprintf("  author = {%s %s},", author_first, author_last),
+      sprintf("  author = {%s},", paste(
+        vapply(ppl, .hstat_auteur_bibtex, character(1)), collapse = " and ")),
       sprintf("  year   = {%s},", year),
       sprintf("  note   = {Version %s},", vers),
       sprintf("  url    = {%s},", url),
       "}", sep = "\n"),
 
-    "ris" = paste(
+    # Une ligne AU par auteur : c'est la forme que les gestionnaires de
+    # references attendent, une seule ligne les rendrait comme un auteur unique
+    # au nom a rallonge.
+    "ris" = paste(c(
       "TY  - COMP",
-      sprintf("AU  - %s, %s", author_last, author_first),
+      sprintf("AU  - %s",
+              vapply(ppl, .hstat_auteur_nom, character(1), forme = "nom_prenom")),
       sprintf("PY  - %s", year),
       sprintf("TI  - %s", title),
       sprintf("ET  - Version %s", vers),
       sprintf("UR  - %s", url),
-      "ER  - ", sep = "\n")
+      "ER  - "), collapse = "\n")
   )
 }
 
