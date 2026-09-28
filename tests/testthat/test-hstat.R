@@ -1631,9 +1631,17 @@ test_that("le message de démarrage nomme tous les auteurs", {
     if (is.call(e) && identical(e[[1]], as.name("<-")) &&
         identical(e[[2]], as.name(".onAttach"))) eval(e, env)
   expect_true(is.function(env$.onAttach))
-  txt <- paste(suppressWarnings(
-    capture.output(env$.onAttach("lib", "HStat"), type = "message")),
-    collapse = "\n")
+  # `withCallingHandlers` et non `capture.output(type = "message")` : le second
+  # DETOURNE le flux des messages par un `sink`, au milieu d'une suite qui a
+  # elle-meme son propre detournement. Le condition-handler ne touche a aucun
+  # flux -- il lit le message a la source.
+  txt <- ""
+  withCallingHandlers(
+    env$.onAttach("lib", "HStat"),
+    message = function(m) {
+      txt <<- paste0(txt, conditionMessage(m))
+      invokeRestart("muffleMessage")
+    })
   expect_true(nzchar(txt))
   for (a in .hstat_auteurs_attendus())
     expect_true(grepl(a, txt, fixed = TRUE),
