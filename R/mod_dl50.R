@@ -456,6 +456,38 @@ hstat_dl50_essai <- function(dose, effectif, morts, temoin_n = 0, temoin_morts =
 .hstat_dl50_msg_pente <- function()
   tr("La mortalité décroît quand la dose augmente : la droite de Henry n'a pas de sens ici. Vérifiez que les colonnes « effectif testé » et « morts » ne sont pas inversées, et que les doses correspondent bien aux mortalités.")
 
+# LES CHOIX DE LA LISTE DE REGROUPEMENT.
+#
+# La regle vit ici et non dans l'observateur : ce qui est pose dans un
+# `observe()` n'est pas testable, et c'est la convention du depot. Les trois
+# colonnes de mesure en sortent -- regrouper par l'une d'elles ne peut jamais
+# marcher -- et « (aucune) » reste en tete, parce que c'est le defaut.
+.hstat_dl50_choix_regroupement <- function(noms, mesures = character(0)) {
+  noms <- as.character(noms %||% character(0))
+  mesures <- as.character(mesures %||% character(0))
+  c(stats::setNames("", tr("(aucune)")), setdiff(noms, mesures))
+}
+
+# LA MORTALITE DECROIT-ELLE QUAND LA DOSE MONTE ?
+#
+# C'est la signature d'une colonne de SURVIVANTS prise pour la colonne des
+# morts -- « Vivants_48h » plutot que « Morts_48h », signale a l'ecran. Le
+# refus qui en sortait parlait du temoin mort en totalite : exact, et sans
+# rapport avec le geste a faire.
+#
+# On mesure le SENS, pas la force : le signe de la pente d'une regression de
+# la mortalite observee sur le log de la dose. Deux doses ne disent rien d'une
+# tendance, et des mortalites toutes egales non plus -- dans les deux cas on
+# s'abstient plutot que de nommer une cause qu'on n'a pas etablie.
+.hstat_dl50_decroissante <- function(d) {
+  if (!is.data.frame(d) || nrow(d) < 3L) return(FALSE)
+  ok <- is.finite(d$dose) & d$dose > 0 & is.finite(d$n) & d$n > 0 & is.finite(d$x)
+  if (sum(ok) < 3L) return(FALSE)
+  z <- log10(d$dose[ok]); p <- d$x[ok] / d$n[ok]
+  if (stats::var(z) <= 0 || stats::var(p) <= 0) return(FALSE)
+  isTRUE(stats::cov(z, p) < 0)
+}
+
 .hstat_dl50_valide <- function(essai) {
   d <- essai$doses
   if (!nrow(d))
@@ -500,7 +532,12 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
   c_temoin <- if (n0 > 0) x0 / n0 else 0
   c_depart <- if (identical(methode, "nulle")) 0 else c_temoin
   if (c_depart >= 1)
-    return(echec(tr("Le témoin est mort en totalité : la mortalité naturelle vaut 100 %, aucune dose ne peut être évaluée.")))
+    return(echec(paste(
+      tr("Le témoin est mort en totalité : la mortalité naturelle vaut 100 %, aucune dose ne peut être évaluée."),
+      # Le temoin a 100 % est un vrai defaut d'essai ; la colonne inversee en
+      # est un autre, et c'est le plus frequent. On NOMME le second quand il
+      # est etabli, on ne remplace pas le premier : les deux peuvent tenir.
+      if (.hstat_dl50_decroissante(d)) .hstat_dl50_msg_pente() else "")))
 
   ini <- .hstat_dl50_init(z, n, x, c_depart)
   if (is.null(ini))
@@ -1630,6 +1667,33 @@ hstat_dl50_depuis_donnees <- function(df, col_dose, col_effectif, col_morts,
   if (length(manque))
     return(echec(trf("Colonne(s) absente(s) du tableau : %s.",
                      paste(manque, collapse = ", "))))
+  # LA COLONNE DE REGROUPEMENT NE PEUT PAS ETRE UNE DES TROIS MESURES.
+  #
+  # Signale a l'ecran : regroupement pose sur la colonne des DOSES. Chaque
+  # dose part alors dans son propre essai, et le refus qui en sortait ne
+  # nommait pas la cause -- il parlait de la limite de six essais.
+  #
+  # La moitie silencieuse etait pire. Mesure sur six doses : cinq essais d'UNE
+  # dose passent la validation, le module annonce « 5 essai(s) importe(s) »
+  # comme un succes, et c'est chaque ajustement qui echoue ensuite sur
+  # « moins de 3 doses » -- un message qui accuse les doses de l'utilisateur.
+  #
+  # Regrouper par une mesure n'a de sens dans aucun cas : un essai se decoupe
+  # par site, par repetition ou par matiere active, jamais par sa propre dose.
+  #
+  # TROIS PHRASES ENTIERES, pas un gabarit et un fragment : `trf()` ne traduit
+  # jamais ses arguments -- c'est ce qui protege les donnees -- et « des
+  # doses » n'entrerait au dictionnaire que comme un bout de phrase. Meme
+  # regle que les six libelles de perte de rendement.
+  if (!is.null(groupe) && groupe %in% c(col_dose, col_effectif, col_morts))
+    return(echec(trf(
+      if (identical(groupe, col_dose))
+        "La colonne de regroupement « %s » est déjà celle des doses : chaque dose partirait dans un essai à elle seule, et aucune droite ne serait calculable. Choisissez « (aucune) », ou une colonne qui distingue les essais (site, répétition, matière active)."
+      else if (identical(groupe, col_effectif))
+        "La colonne de regroupement « %s » est déjà celle des effectifs testés : les doses seraient découpées par une mesure, et aucune droite ne serait calculable. Choisissez « (aucune) », ou une colonne qui distingue les essais (site, répétition, matière active)."
+      else
+        "La colonne de regroupement « %s » est déjà celle des morts : les doses seraient découpées par une mesure, et aucune droite ne serait calculable. Choisissez « (aucune) », ou une colonne qui distingue les essais (site, répétition, matière active).",
+      groupe)))
   d <- data.frame(
     dose = suppressWarnings(as.numeric(df[[col_dose]])),
     n    = suppressWarnings(as.numeric(df[[col_effectif]])),
@@ -2960,9 +3024,29 @@ mod_dl50_server <- function(id, values) {
       for (id2 in c("colDose", "colN", "colMorts"))
         shiny::updateSelectInput(session, id2, choices = num,
                                  selected = shiny::isolate(input[[id2]]))
+    })
+
+    # LA LISTE DE REGROUPEMENT N'OFFRE PAS LES TROIS COLONNES DE MESURE.
+    #
+    # Le refus posé dans `hstat_dl50_depuis_donnees()` reste le garde-fou -- la
+    # fonction est publique, l'interface n'est pas son seul appelant -- mais
+    # mieux vaut ne pas laisser choisir ce qui ne peut jamais marcher.
+    #
+    # C'est un observateur À PART, et il LIT les trois sélecteurs plutôt que de
+    # les isoler : posé dans celui qui les remplit, il n'aurait dépendu que des
+    # données, et changer la colonne des doses après coup aurait laissé la
+    # liste sur son exclusion périmée. Seul `colEssai` s'y isole -- lire sa
+    # propre valeur en dépendance ferait boucler le rendu sur son écriture.
+    shiny::observe({
+      d <- donnees()
+      shiny::req(is.data.frame(d))
+      mesures <- c(input$colDose, input$colN, input$colMorts)
+      cour <- shiny::isolate(input$colEssai)
       shiny::updateSelectInput(session, "colEssai",
-        choices = c(stats::setNames("", tr("(aucune)")), names(d)),
-        selected = shiny::isolate(input$colEssai))
+        choices = .hstat_dl50_choix_regroupement(names(d), mesures),
+        # Une sélection devenue une mesure retombe sur « (aucune) » : la garder
+        # laisserait un réglage actif qu'aucune liste n'affiche.
+        selected = if (!is.null(cour) && cour %in% mesures) "" else cour)
     })
 
     .ajouter <- function(nouveaux) {
