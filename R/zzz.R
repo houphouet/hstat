@@ -1,21 +1,30 @@
 ## Message affiche au chargement du package (library(HStat) / require(HStat)).
 ## Propose immediatement a l'utilisateur comment citer HStat.
+##
+## La PHRASE DE CITATION N'EST PAS RECOPIEE ICI. Elle l'etait -- auteurs, titre,
+## version et adresse -- et elle avait DERIVE : ce message ne nommait qu'un
+## auteur sur deux quand `citation("HStat")` et le README en nommaient deux.
+## Tout vient donc de `hstat_citation("text")`, qui lit DESCRIPTION ; la version
+## et l'annee ne sont plus resolues une seconde fois ici non plus
+## (`hstat_version()` et `hstat_pkg_year()` le font, avertissement de
+## `packageDate()` neutralise compris -- il en emet un, et non une erreur,
+## quand le paquet n'est pas installe).
+##
+## `strwrap()` plutot qu'un retour a la ligne pose a la main : la phrase
+## s'allonge avec chaque auteur, et une coupe figee tomberait au mauvais
+## endroit des le troisieme.
 
 .onAttach <- function(libname, pkgname) {
-  vers <- tryCatch(as.character(utils::packageVersion("HStat")),
-                   error = function(e) "")
-  year <- tryCatch(sub("-.*", "", as.character(utils::packageDate("HStat"))),
-                   error = function(e) NA_character_)
-  if (is.null(year) || is.na(year) || !nzchar(year))
-    year <- format(Sys.Date(), "%Y")
+  vers <- hstat_version()
+  cit  <- tryCatch(hstat_citation("text"), error = function(e) NA_character_)
 
   msg <- paste0(
     "HStat ", vers, " charge.\n",
     "Pour lancer l'application : run_hstat()\n\n",
     "Si HStat vous est utile, merci de le citer :\n",
-    "  KOUADIO, Houphouet (", year, "). HStat : Application Shiny interactive ",
-    "pour l'analyse statistique.\n",
-    "  Version ", vers, ". https://github.com/houphouet/hstat\n\n",
+    if (!is.na(cit))
+      paste0(paste(strwrap(cit, width = 78, indent = 2, exdent = 2),
+                   collapse = "\n"), "\n\n") else "",
     "Citation complete et autres styles (BibTeX, RIS, APA...) : citation(\"HStat\")"
   )
   packageStartupMessage(msg)

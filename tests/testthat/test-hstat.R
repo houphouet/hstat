@@ -1490,14 +1490,111 @@ test_that("le test d'adéquation stratifié teste Y dans chaque groupe de X", {
 # --------------------------------------------------------------------------
 # =============================================================================
 
-test_that("hstat_citation produit les 6 styles valides", {
+# -- Les auteurs viennent de DESCRIPTION, jamais d'une copie ------------------
+# La liste vivait en TROIS exemplaires -- `R/zzz.R`, `hstat_citation()` et
+# `inst/CITATION` -- et elle avait DERIVE : les deux premiers ne nommaient qu'UN
+# auteur sur deux.
+#
+# L'assertion d'origine ne gardait rien contre cela : `grepl("KOUADIO", v)` ne
+# demandait qu'UN auteur, et passait donc sur le defaut. Les attentes sont
+# desormais LUES DANS DESCRIPTION -- jamais ecrites ici, sinon le test
+# deviendrait la quatrieme copie -- et elles portent sur TOUS les auteurs.
+.hstat_auteurs_attendus <- function() {
+  root <- .hstat_repo_root(requis = FALSE)
+  champ <- if (!is.na(root)) {
+    tryCatch(read.dcf(file.path(root, "DESCRIPTION"), fields = "Authors@R")[1, 1],
+             error = function(e) NA_character_)
+  } else {
+    # Sous `R CMD check` : le depot n'existe plus, le paquet INSTALLE le porte.
+    suppressWarnings(tryCatch(
+      utils::packageDescription("HStat", fields = "Authors@R"),
+      error = function(e) NA_character_))
+  }
+  if (length(champ) != 1L || is.na(champ)) testthat::skip("DESCRIPTION illisible")
+  ppl <- eval(parse(text = champ), envir = new.env(parent = asNamespace("utils")))
+  ppl <- ppl[grepl("\\baut\\b|\\bcre\\b",
+                   vapply(ppl, function(p) paste(p$role, collapse = " "),
+                          character(1)))]
+  vapply(ppl, function(p) {
+    fam <- paste(p$family, collapse = " ")
+    if (nzchar(fam)) fam else paste(p$given, collapse = " ")
+  }, character(1))
+}
+
+test_that("hstat_pkg_auteurs lit DESCRIPTION et n'invente personne", {
+  att <- .hstat_auteurs_attendus()
+  # PLUS D'UN auteur : c'est la condition qui rend le defaut discernable. Sur un
+  # paquet a auteur unique, une liste codee en dur passerait tout autant.
+  expect_gt(length(att), 1L)
+  ppl <- hstat_pkg_auteurs()
+  expect_s3_class(ppl, "person")
+  expect_equal(length(ppl), length(att))
+  noms <- vapply(seq_along(ppl), function(i) {
+    fam <- paste(ppl[[i]]$family, collapse = " ")
+    if (nzchar(fam)) fam else paste(ppl[[i]]$given, collapse = " ")
+  }, character(1))
+  expect_setequal(noms, att)
+})
+
+test_that("les 6 styles nomment TOUS les auteurs", {
+  att <- .hstat_auteurs_attendus()
   for (st in c("text", "apa", "vancouver", "markdown", "bibtex", "ris")) {
     v <- suppressWarnings(hstat_citation(st))
     expect_type(v, "character")
     expect_length(v, 1)
     expect_true(nzchar(v))
-    expect_true(grepl("KOUADIO|houphouet", v, ignore.case = TRUE))
+    for (a in att)
+      expect_true(grepl(a, v, fixed = TRUE),
+                  info = paste0("style « ", st, " » : auteur absent -- ", a))
   }
+})
+
+test_that("un nom d'un seul tenant n'est jamais inverse", {
+  # `person("Claude Code")` range le nom d'un seul tenant dans `given` :
+  # `family` vaut `character(0)`. Le prendre pour un prenom rendrait
+  # « Code, Claude » -- un auteur qui n'existe pas, et plausible en
+  # bibliographie.
+  p <- utils::person("Claude Code")
+  for (f in HSTAT_CIT_FORMES) expect_equal(.hstat_auteur_nom(p, f), "Claude Code")
+  # BibTeX reordonne ce qu'il croit compose : le nom est ACCOLADE.
+  expect_equal(.hstat_auteur_bibtex(p), "{Claude Code}")
+  expect_false(grepl("Code, ", suppressWarnings(hstat_citation("bibtex")),
+                     fixed = TRUE))
+  # Symetrique : un nom de famille seul ressort seul lui aussi.
+  expect_equal(.hstat_auteur_nom(utils::person(family = "ANON"), "nom_prenom"),
+               "ANON")
+})
+
+test_that("les initiales portent chaque prenom, trait d'union compris", {
+  p <- utils::person("Jean-Pierre Marie", "DUPONT")
+  expect_equal(.hstat_auteur_nom(p, "nom_prenom"),    "DUPONT, Jean-Pierre Marie")
+  expect_equal(.hstat_auteur_nom(p, "prenom_nom"),    "Jean-Pierre Marie DUPONT")
+  expect_equal(.hstat_auteur_nom(p, "nom_initiales"), "DUPONT, J.-P. M.")
+  # Vancouver colle les initiales : ni point ni trait d'union.
+  expect_equal(.hstat_auteur_nom(p, "nom_initiales_nu"), "DUPONT JPM")
+  # Un prenom simple ne gagne ni trait d'union ni espace surnumeraire.
+  expect_equal(.hstat_auteur_nom(utils::person("Houphouet", "KOUADIO"),
+                                 "nom_initiales"), "KOUADIO, H.")
+})
+
+test_that("le dernier auteur porte son propre separateur", {
+  ppl <- c(utils::person("A", "UN"), utils::person("B", "DEUX"),
+           utils::person("C", "TROIS"))
+  expect_equal(.hstat_auteurs_liste(ppl, "nom_prenom", ", ", " & "),
+               "UN, A, DEUX, B & TROIS, C")
+  # Un seul auteur : aucun separateur, et surtout pas celui du dernier.
+  expect_equal(.hstat_auteurs_liste(ppl[1], "nom_prenom", ", ", " & "), "UN, A")
+  expect_equal(.hstat_auteurs_liste(NULL, "nom_prenom"), "")
+})
+
+test_that("APA termine la liste d'auteurs par UN seul point", {
+  # L'initiale porte deja le point (« KOUADIO, H. »), un nom d'un seul tenant
+  # non : le poser sans condition doublerait le premier cas.
+  expect_equal(.hstat_point("KOUADIO, H."), "KOUADIO, H.")
+  expect_equal(.hstat_point("Claude Code"), "Claude Code.")
+  apa <- suppressWarnings(hstat_citation("apa"))
+  expect_false(grepl("[.][.]", apa))
+  expect_true(grepl("^.+[.] [(]", apa))
 })
 
 test_that("le BibTeX est bien formé et le RIS structuré", {
@@ -1508,10 +1605,90 @@ test_that("le BibTeX est bien formé et le RIS structuré", {
   ris <- suppressWarnings(hstat_citation("ris"))
   expect_true(grepl("^TY  - COMP", ris))
   expect_true(grepl("ER  - $", ris))
+  # UNE ligne AU par auteur : une seule ligne les rendrait comme un auteur
+  # unique au nom a rallonge.
+  expect_equal(sum(grepl("^AU  - ", strsplit(ris, "\n")[[1]])),
+               length(.hstat_auteurs_attendus()))
 })
 
 test_that("un style de citation inconnu est rejeté", {
   expect_error(hstat_citation("inconnu"))
+})
+
+test_that("le message de démarrage nomme tous les auteurs", {
+  root <- .hstat_repo_root()
+  p <- file.path(root, "R", "zzz.R")
+  skip_if_not(file.exists(p), "R/zzz.R absent")
+  # On n'evalue QUE la definition de `.onAttach` : `utils::globalVariables()` au
+  # premier niveau n'a de sens qu'a la construction du paquet, et c'est pour
+  # cela que le pont ecarte ce fichier.
+  #
+  # Lire le source et y chercher `hstat_citation(` ne garderait rien : un appel
+  # dont la valeur serait jetee passerait -- le defaut documente de
+  # `hstat_apply_plot_opts()`. C'est donc le MESSAGE RENDU qui est mesure.
+  env <- new.env(parent = globalenv())
+  for (e in parse(p))
+    if (is.call(e) && identical(e[[1]], as.name("<-")) &&
+        identical(e[[2]], as.name(".onAttach"))) eval(e, env)
+  expect_true(is.function(env$.onAttach))
+  txt <- paste(suppressWarnings(
+    capture.output(env$.onAttach("lib", "HStat"), type = "message")),
+    collapse = "\n")
+  expect_true(nzchar(txt))
+  for (a in .hstat_auteurs_attendus())
+    expect_true(grepl(a, txt, fixed = TRUE),
+                info = paste("auteur absent du message de démarrage :", a))
+  # La version etait resolue une seconde fois ici : elle vient desormais du
+  # socle, comme l'annee.
+  expect_true(grepl(hstat_version(), txt, fixed = TRUE))
+})
+
+test_that("inst/CITATION nomme tous les auteurs", {
+  root <- .hstat_repo_root()
+  p <- file.path(root, "inst", "CITATION")
+  skip_if_not(file.exists(p), "inst/CITATION absent")
+  meta <- as.list(read.dcf(file.path(root, "DESCRIPTION"))[1, ])
+  cit <- suppressWarnings(utils::readCitationFile(p, meta = meta))
+  att <- .hstat_auteurs_attendus()
+  txt <- paste(c(unlist(cit$textVersion), format(cit, style = "text")),
+               collapse = " ")
+  for (a in att)
+    expect_true(grepl(a, txt, fixed = TRUE),
+                info = paste("auteur absent de inst/CITATION :", a))
+  # Le repli ne fait pas tomber `citation("HStat")` : sans auteur resolvable,
+  # @Manual n'exige que son titre, et R compose la phrase depuis l'entree.
+  m2 <- meta
+  m2[["Authors@R"]] <- NULL
+  m2[["Author"]] <- NULL
+  c2 <- suppressWarnings(utils::readCitationFile(p, meta = m2))
+  expect_s3_class(c2, "bibentry")
+  expect_true(grepl("HStat", format(c2, style = "text")[1], fixed = TRUE))
+})
+
+test_that("aucun nom d'auteur n'est recopié dans le code", {
+  root <- .hstat_repo_root()
+  att <- .hstat_auteurs_attendus()
+  fichiers <- c(.hstat_sources_app(),
+                file.path(root, "R", "zzz.R"),
+                file.path(root, "inst", "CITATION"))
+  fichiers <- fichiers[file.exists(fichiers)]
+  skip_if(length(fichiers) == 0L, "aucune source à balayer")
+  faux <- character(0)
+  for (f in fichiers) {
+    # Commentaires retires PAR L'ANALYSEUR : ceux qui documentent le defaut
+    # citent les noms en exemple, et un balayage textuel se signalerait
+    # lui-meme -- un faux positif permanent finit par faire desactiver le test.
+    code <- .hstat_code_lignes(f)
+    for (a in att) {
+      hit <- which(grepl(a, code, fixed = TRUE))
+      if (length(hit))
+        faux <- c(faux, paste0(basename(f), ":", hit, " (", a, ")"))
+    }
+  }
+  # `README.md` est la SEULE exception, et elle est documentee : c'est du
+  # markdown statique, il ne peut pas lire DESCRIPTION -- exactement le cas du
+  # numero de version.
+  expect_equal(faux, character(0))
 })
 
 
@@ -2002,6 +2179,33 @@ test_that("la version du README suit celle de DESCRIPTION", {
   expect_identical(sort(citees), attendue,
                    info = paste0("README.md cite ", paste(citees, collapse = ", "),
                                  " alors que DESCRIPTION est en ", attendue))
+})
+
+test_that("les auteurs du README suivent ceux de DESCRIPTION", {
+  root <- .hstat_repo_root()
+  readme <- file.path(root, "README.md")
+  skip_if_not(file.exists(readme), "README.md absent (paquet installe)")
+  lignes <- readLines(readme, warn = FALSE)
+  att <- .hstat_auteurs_attendus()
+
+  # Meme raison que pour le numero de version, et meme remede : le README est du
+  # markdown statique, il ne peut pas lire DESCRIPTION. Il nommait bien les deux
+  # auteurs -- mais rien ne l'y obligeait, et c'est la copie que rien ne garde
+  # qui derive. Les trois autres copies l'avaient deja fait.
+  #
+  # Le controle porte sur le BLOC DE CITATION, pas sur le fichier entier : la
+  # section « Authors » nomme les auteurs elle aussi, si bien qu'un auteur
+  # retire de la citation passerait inapercu.
+  cit <- lignes[grepl("^> .*Version [0-9]", lignes)]
+  bib <- lignes[grepl("^ *author *= *[{]", lignes)]
+  expect_gt(length(cit), 0L)
+  expect_gt(length(bib), 0L)
+  for (a in att) {
+    expect_true(any(grepl(a, cit, fixed = TRUE)),
+                info = paste("auteur absent de la citation texte du README :", a))
+    expect_true(any(grepl(a, bib, fixed = TRUE)),
+                info = paste("auteur absent du BibTeX du README :", a))
+  }
 })
 
 # =============================================================================

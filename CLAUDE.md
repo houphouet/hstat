@@ -51,6 +51,112 @@ Note : `packageVersion()` lève une **erreur** quand le paquet est absent, mais
 `packageDate()` un **avertissement** — il faut `suppressWarnings()` en plus du
 `tryCatch()`, sinon l'onglet de citation pollue la console à chaque rendu.
 
+### Les auteurs non plus ne s'écrivent qu'à un seul endroit
+
+Signalé à l'écran, sur le message que `library(HStat)` affiche :
+
+```
+  KOUADIO, Houphouet (2026). HStat : Application Shiny interactive pour
+  l'analyse statistique. Version 1.7.1.
+```
+
+`DESCRIPTION` en déclare pourtant **deux** (`Authors@R`). La liste vivait en
+**trois exemplaires**, et elle avait dérivé — exactement comme la citation était
+restée bloquée sur `0.2.3` :
+
+| Site | Auteurs nommés |
+|---|---|
+| `DESCRIPTION` (`Authors@R`) | les deux |
+| `inst/CITATION` | les deux |
+| `README.md` | les deux |
+| **`R/zzz.R`** (message de démarrage) | **un seul** |
+| **`hstat_citation()`** (onglet « Citer HStat ») | **un seul, dans les six styles** |
+
+Le second est le plus coûteux : c'est la phrase que l'utilisateur **recopie dans
+sa publication** — texte, APA, Vancouver, Markdown, BibTeX, RIS. Rien ne l'y
+contredit, et une citation incomplète ne se corrige plus une fois l'article paru.
+
+`hstat_pkg_auteurs()` (`R/utils.R`) résout dans le même ordre que
+`hstat_version()` : paquet installé, puis `DESCRIPTION` lu sur disque. **Aucun
+repli codé en dur** — un nom écrit là serait exactement la copie qu'on retire.
+Faute de `DESCRIPTION` lisible, la citation garde sa **forme** et porte
+« Auteurs indisponibles », comme le `0.0.0` volontairement invalide de
+`hstat_version()` : un champ d'auteurs vide se recopierait sans qu'on le remarque.
+
+Cinq décisions, chacune testée :
+
+1. **`Authors@R` est du code R, et on l'évalue comme R le fait lui-même** —
+   `citation()` ne s'y prend pas autrement. L'évaluation se fait sous l'espace de
+   noms de `utils`, où vivent `person()` et `c()` : par `globalenv()`, un objet de
+   l'utilisateur nommé `person` masquerait la fonction. C'est l'inverse du choix
+   fait pour `hstat_donnees_r()`, qui a *besoin* du chemin de recherche parce que
+   `data()` y évalue des fichiers de données écrits en script.
+2. **Un nom sans famille n'est pas un oubli.** `person("Claude Code")` range le
+   nom d'un seul tenant dans `given`, et `family` vaut `character(0)`. Le prendre
+   pour un prénom rendrait « Code, Claude » — un auteur qui n'existe pas, et
+   parfaitement plausible dans une bibliographie.
+3. **BibTeX réordonne ce qu'il croit composé.** « Claude Code » ressortirait
+   « Code, C. » dans la bibliographie composée : un nom d'un seul tenant est donc
+   **accoladé**, ce qui dit à BibTeX de le prendre tel quel.
+4. **Le séparateur du dernier auteur n'est pas celui des autres**, et il change
+   avec le style : « & » en texte, « , & » en APA, « , » en Vancouver, « and » en
+   BibTeX. D'où deux arguments et non un.
+5. **Le RIS porte une ligne `AU` par auteur.** Une seule ligne les rendrait comme
+   un auteur unique au nom à rallonge — et c'est cette ligne-là que les
+   gestionnaires de références recopient.
+
+Les initiales se prennent sur **chaque** prénom, trait d'union compris :
+« Jean-Pierre » donne « J.-P. » et non « J. ». Et APA termine sa liste d'auteurs
+par un point : l'initiale le porte déjà (« KOUADIO, H. »), un nom d'un seul tenant
+non — le poser sans condition doublerait le premier cas.
+
+#### Ce que le message de démarrage recopiait en plus
+
+Il résolvait **aussi** la version et l'année de son côté, avec ses propres
+`tryCatch`, alors que `hstat_version()` et `hstat_pkg_year()` le font depuis
+toujours. Il reprend désormais la phrase entière de `hstat_citation("text")` et
+la replie par `strwrap()` : une coupe posée à la main tomberait au mauvais
+endroit dès le troisième auteur.
+
+`inst/CITATION`, lui, **ne peut pas appeler le socle** : `readCitationFile()` le
+lit pendant l'installation, avant que l'espace de noms de HStat soit chargeable.
+C'est donc la *mise en forme* qui y est réécrite, jamais les noms — et le repli
+sur `meta$Author` couvre le cas où `Authors@R` manque. Sans auteur résolvable,
+l'entrée est émise **sans** champ `author` plutôt qu'avec un nom inventé :
+`@Manual` n'exige que son titre, et `citation("HStat")` ne tombe pas.
+
+#### L'assertion d'origine ne gardait rien
+
+`expect_true(grepl("KOUADIO|houphouet", v, ignore.case = TRUE))` ne demandait
+qu'**un** auteur : elle passait sur le défaut, et sur les six styles à la fois.
+Les attentes sont désormais **lues dans `DESCRIPTION`** — les écrire dans le test
+en ferait la quatrième copie — et le test exige d'abord qu'il y ait **plus d'un
+auteur** : sur un paquet à auteur unique, une liste codée en dur passerait tout
+autant. C'est la même règle que « une donnée d'essai doit rendre la différence
+mesurable ».
+
+Le message de démarrage se vérifie sur le **message rendu**, pas sur son source :
+`.onAttach` est extrait de `R/zzz.R` et évalué seul — `utils::globalVariables()`
+au premier niveau n'a de sens qu'à la construction du paquet, et c'est pour cela
+que le pont écarte ce fichier. Chercher `hstat_citation(` dans le source ne
+garderait rien : un appel dont la valeur serait jetée passerait, comme il l'a
+fait pour `hstat_apply_plot_opts()`.
+
+Enfin un balayage barre le retour d'une copie : aucun nom d'auteur de
+`DESCRIPTION` ne doit apparaître dans le **code** des sources — commentaires
+retirés par l'analyseur, sinon ceux qui documentent ce défaut se signaleraient
+eux-mêmes. `README.md` reste la seule exception, la même que pour le numéro de
+version, et le contrôle de cohérence de la CI — qui ne comparait que la version —
+compare désormais les deux. Il porte sur le **bloc de citation** et non sur le
+fichier entier : la section « Authors » nomme les auteurs elle aussi, si bien
+qu'un auteur retiré de la citation y passerait inaperçu. Vérifié comme échouant
+sur un README amputé de son second auteur.
+
+Au passage, `hstat_citation()` affectait un `orcid` qu'**aucun** style ne lisait :
+une variable morte, le critère du code mort de ce dépôt. Elle est retirée ;
+l'ORCID voyage dans le `comment` d'`Authors@R`, à un appel de là si un style
+vient à le demander.
+
 ## Structure
 
 Le code vit dans `R/` — c'est le code du **paquet**. `inst/app/` ne garde que ce
