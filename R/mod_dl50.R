@@ -99,6 +99,27 @@ HSTAT_DL50_MIN_UTILES <- 3L      # doses a mortalite corrigee strictement entre 
 # defaut de conduite d'essai, et le dire suffit -- le calcul continue.
 HSTAT_DL50_TEMOIN_MAX <- 0.20
 
+# L'AMPLITUDE AU-DELA DE LAQUELLE UNE MORTALITE DECROISSANTE EST UNE INVERSION.
+#
+# Le sens seul ne suffit pas, et c'est une mesure qui l'a montre. Sur un essai
+# dont TOUTES les doses tuent 92 a 100 %, la mortalite observee descend d'un
+# demi-point entre les faibles doses et les fortes : le signe de la covariance
+# est negatif, et il ne dit rien -- c'est du bruit au plafond. Le module
+# accusait pourtant l'utilisateur d'avoir mis les survivants a la place des
+# morts, sur des colonnes parfaitement justes.
+#
+# Une vraie inversion, elle, retourne la reponse ENTIERE : les faibles doses
+# sortent a 90 % de « mortalite » et les fortes a 5 %. C'est donc l'ecart
+# entre la moitie basse et la moitie haute des doses qui l'etablit, jamais le
+# signe. Un tiers de l'echelle est la borne : en dessous, on s'abstient.
+HSTAT_DL50_INVERSION_MIN <- 0.30
+
+# AU-DELA, UNE DOSE EST AU PLAFOND : ce qui la separe de sa voisine n'est plus
+# que du bruit d'echantillonnage. Un essai dont toutes les doses y sont ne
+# porte plus de courbe -- il faut des doses plus faibles, et le dire vaut
+# mieux que de refuser sans motif.
+HSTAT_DL50_SATURATION <- 0.90
+
 # WIN DL n'en propose que DEUX pour un essai isole -- Newton-Raphson avec
 # Abbott, et EM. La troisieme est un ajout de HStat : elle donne l'ajustement
 # probit nu, celui que `glm(binomial(probit))` produit. Utile, mais sans
@@ -436,6 +457,7 @@ hstat_dl50_essai <- function(dose, effectif, morts, temoin_n = 0, temoin_morts =
   # WIN DL trie les doses et REGROUPE les doses identiques : deux lignes a la
   # meme dose sont deux repetitions du meme point, les sommer est la seule
   # lecture qui garde juste le nombre d'insectes testes.
+  lignes <- nrow(d)
   if (nrow(d)) {
     ag <- stats::aggregate(cbind(n, x) ~ dose, data = d, FUN = sum)
     d <- ag[order(ag$dose), , drop = FALSE]
@@ -448,13 +470,92 @@ hstat_dl50_essai <- function(dose, effectif, morts, temoin_n = 0, temoin_morts =
     n0     = if (is.finite(n0)) max(0, n0) else 0,
     x0     = if (is.finite(x0)) max(0, x0) else 0,
     titre  = as.character(titre)[1],
+    # CE QUE LE REGROUPEMENT A FAIT, POUR POUVOIR LE DIRE.
+    #
+    # Les repetitions d'une meme dose sont sommees ci-dessus depuis toujours,
+    # et RIEN ne l'annoncait : l'utilisateur qui porte quatre repetitions par
+    # dose cherchait donc dans « Colonne de regroupement » ce que le module
+    # faisait deja tout seul -- et y posait sa colonne de doses, ce qui ne
+    # peut jamais marcher. Un mecanisme muet se reinvente.
+    lignes     = lignes,
+    regroupees = max(0L, lignes - nrow(d)),
     champs = champs), class = "hstat_dl50_essai")
 }
 
 # Le message de la pente negative, ecrit UNE fois : il est rendu depuis deux
 # endroits, et deux formulations du meme refus finiraient par diverger.
-.hstat_dl50_msg_pente <- function()
-  tr("La mortalité décroît quand la dose augmente : la droite de Henry n'a pas de sens ici. La colonne des morts doit porter les morts et non les survivants ; vérifiez aussi qu'elle n'a pas été prise pour l'effectif testé, et que les doses correspondent bien aux mortalités.")
+#
+# UN REFUS NE NOMME QUE CE QU'IL A ETABLI.
+#
+# Il accusait les colonnes sans condition : « la colonne des morts doit porter
+# les morts et non les survivants ». Sur l'essai signale a l'ecran -- temoin a
+# 85 %, six doses tuant 92 a 100 % -- les colonnes etaient JUSTES, et la cause
+# reelle (un temoin quatre fois au-dessus du seuil d'Abbott) n'etait nommee
+# nulle part. L'utilisateur cherche donc une faute de saisie qui n'existe pas,
+# pendant que le defaut de conduite d'essai passe inapercu.
+#
+# Le message compose donc le FAIT, puis les causes REELLEMENT etablies. Quand
+# aucune ne l'est, l'hypothese des colonnes revient -- mais comme une
+# hypothese, pas comme un constat.
+.hstat_dl50_msg_pente <- function(d = NULL, cc = 0) {
+  causes <- .hstat_dl50_causes(d, cc)
+  fait <- tr("La mortalité ne croît pas avec la dose : la droite de Henry n'a pas de sens ici.")
+  if (!length(causes))
+    causes <- tr("Aucune cause ne se laisse établir sur ces données : vérifiez que la colonne des morts porte bien les morts et non les survivants, qu'elle n'a pas été prise pour l'effectif testé, et que chaque ligne associe bien sa dose à sa mortalité.")
+  paste(c(fait, causes), collapse = " ")
+}
+
+# LES CAUSES ETABLIES D'UN AJUSTEMENT QUI NE SE FAIT PAS.
+#
+# Une seule fonction pour les deux refus -- pente negative et « moins de trois
+# doses intermediaires » : ce sont deux symptomes du meme etat de l'essai, et
+# deux listes de causes finiraient par diverger.
+#
+# Chacune est un FAIT mesure sur les donnees, avec son chiffre et le geste qui
+# suit. Aucune n'est une supposition : ce qui n'est pas etabli n'est pas dit.
+.hstat_dl50_causes <- function(d, cc = 0) {
+  out <- character(0)
+  cc <- suppressWarnings(as.numeric(cc)[1])
+  if (!length(cc) || !is.finite(cc)) cc <- 0
+  cc <- min(max(cc, 0), 1)
+
+  # 1. LE TEMOIN. La correction d'Abbott divise par 1 - c : a 85 %, un ecart
+  #    de un point sur la mortalite observee en fait presque SEPT sur la
+  #    mortalite corrigee. L'essai n'a plus de signal, et ce n'est pas une
+  #    faute de saisie.
+  if (cc > HSTAT_DL50_TEMOIN_MAX)
+    out <- c(out, trf("La mortalité du témoin vaut %s %%, bien au-delà des %s %% que la correction d'Abbott supporte : elle divise par 1 − %s = %s, donc multiplie par %s le moindre écart de mortalité observée. C'est un défaut de conduite d'essai et non de saisie : refaites l'essai avec un témoin plus propre, ou passez à la méthode « mortalité naturelle nulle », qui ignore le témoin et juge les doses seules.",
+                      round(100 * cc, 1), round(100 * HSTAT_DL50_TEMOIN_MAX, 1),
+                      round(cc, 4), round(1 - cc, 4), round(1 / (1 - cc), 1)))
+
+  if (!is.data.frame(d) || !nrow(d)) return(out)
+  ok <- is.finite(d$dose) & d$dose > 0 & is.finite(d$n) & d$n > 0 & is.finite(d$x)
+  if (!any(ok)) return(out)
+  p <- (d$x[ok] / d$n[ok] - cc) / (1 - cc)
+  p <- p[is.finite(p)]
+  if (!length(p)) return(out)
+
+  # 2. LE PLAFOND. Toutes les doses tuent : il n'y a plus de courbe, seulement
+  #    du bruit d'echantillonnage entre des points colles a 100 %.
+  haut <- sum(p >= HSTAT_DL50_SATURATION)
+  if (haut >= 2L && haut >= length(p) - 1L)
+    out <- c(out, trf("%d doses sur %d tuent déjà %s %% ou plus une fois le témoin retranché : elles sont au plafond, et ce qui les sépare n'est plus que du bruit. Il faut des doses plus faibles pour que la courbe existe.",
+                      haut, length(p), round(100 * HSTAT_DL50_SATURATION, 1)))
+
+  # 3. LE PLANCHER, le cas symetrique : aucune dose ne fait mieux que le
+  #    temoin. La aussi le refus se comprend des qu'on le nomme.
+  bas <- sum(p <= 0)
+  if (bas >= 2L && bas >= length(p) - 1L)
+    out <- c(out, trf("%d doses sur %d ne tuent pas plus que le témoin : leur mortalité corrigée est nulle ou négative. Il faut des doses plus fortes pour que la courbe existe.",
+                      bas, length(p)))
+
+  # 4. L'INVERSION, etablie sur l'AMPLITUDE et non sur le signe.
+  inv <- .hstat_dl50_inversion(d)
+  if (!is.null(inv))
+    out <- c(out, trf("La mortalité observée passe de %s %% aux doses les plus faibles à %s %% aux doses les plus fortes : la réponse est retournée. La colonne des morts porte probablement les survivants ; vérifiez aussi qu'elle n'a pas été prise pour l'effectif testé.",
+                      round(100 * inv$bas, 1), round(100 * inv$haut, 1)))
+  out
+}
 
 # LES CHOIX DE LA LISTE DE REGROUPEMENT.
 #
@@ -475,18 +576,38 @@ hstat_dl50_essai <- function(dose, effectif, morts, temoin_n = 0, temoin_morts =
 # refus qui en sortait parlait du temoin mort en totalite : exact, et sans
 # rapport avec le geste a faire.
 #
-# On mesure le SENS, pas la force : le signe de la pente d'une regression de
-# la mortalite observee sur le log de la dose. Deux doses ne disent rien d'une
-# tendance, et des mortalites toutes egales non plus -- dans les deux cas on
-# s'abstient plutot que de nommer une cause qu'on n'a pas etablie.
-.hstat_dl50_decroissante <- function(d) {
-  if (!is.data.frame(d) || nrow(d) < 3L) return(FALSE)
+# LE SENS NE SUFFIT PAS, L'AMPLITUDE L'ETABLIT.
+#
+# La premiere version ne regardait que le signe de la covariance entre le log
+# de la dose et la mortalite observee. C'etait un choix delibere -- « on
+# mesure le sens, pas la force » -- et la mesure l'a dementi : sur un essai
+# dont toutes les doses tuent 92 a 100 %, le signe est negatif sur un ecart de
+# trois points, c'est-a-dire sur du bruit au plafond. Le module en concluait
+# que les colonnes etaient inversees alors qu'elles etaient justes.
+#
+# Une inversion retourne la reponse ENTIERE : c'est l'ecart entre la moitie
+# basse et la moitie haute des doses qui la distingue du bruit. Deux doses ne
+# disent rien d'une tendance, et des mortalites toutes egales non plus -- dans
+# les deux cas on s'abstient plutot que de nommer une cause non etablie.
+#
+# La fonction rend les deux moyennes plutot qu'un booleen : le message les
+# CITE, et un refus qui ne chiffre pas se lit comme un reproche.
+.hstat_dl50_inversion <- function(d) {
+  if (!is.data.frame(d) || nrow(d) < 3L) return(NULL)
   ok <- is.finite(d$dose) & d$dose > 0 & is.finite(d$n) & d$n > 0 & is.finite(d$x)
-  if (sum(ok) < 3L) return(FALSE)
+  if (sum(ok) < 3L) return(NULL)
   z <- log10(d$dose[ok]); p <- d$x[ok] / d$n[ok]
-  if (stats::var(z) <= 0 || stats::var(p) <= 0) return(FALSE)
-  isTRUE(stats::cov(z, p) < 0)
+  if (stats::var(z) <= 0 || stats::var(p) <= 0) return(NULL)
+  if (!isTRUE(stats::cov(z, p) < 0)) return(NULL)
+  p <- p[order(z)]
+  k <- length(p) %/% 2L
+  bas <- mean(p[seq_len(k)])
+  haut <- mean(p[seq.int(length(p) - k + 1L, length(p))])
+  if (!isTRUE(bas - haut >= HSTAT_DL50_INVERSION_MIN)) return(NULL)
+  list(bas = bas, haut = haut)
 }
+
+.hstat_dl50_decroissante <- function(d) !is.null(.hstat_dl50_inversion(d))
 
 .hstat_dl50_valide <- function(essai) {
   d <- essai$doses
@@ -537,12 +658,27 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
       # Le temoin a 100 % est un vrai defaut d'essai ; la colonne inversee en
       # est un autre, et c'est le plus frequent. On NOMME le second quand il
       # est etabli, on ne remplace pas le premier : les deux peuvent tenir.
-      if (.hstat_dl50_decroissante(d)) .hstat_dl50_msg_pente() else "")))
+      # `cc = 0` : le temoin a 100 % est deja nomme par la phrase ci-dessus,
+      # et la correction d'Abbott n'existe plus a cette valeur -- 1 - c vaut
+      # zero. Les causes se lisent donc sur la mortalite OBSERVEE.
+      if (.hstat_dl50_decroissante(d)) .hstat_dl50_msg_pente(d, 0) else "")))
 
   ini <- .hstat_dl50_init(z, n, x, c_depart)
   if (is.null(ini))
-    return(echec(trf("Moins de %d doses donnent une mortalité corrigée strictement comprise entre 0 %% et 100 %% : la droite de régression n'est pas déterminée. Ajoutez des doses intermédiaires.",
-                     HSTAT_DL50_MIN_UTILES)))
+    # LE MEME REFUS PORTE SES CAUSES. « Ajoutez des doses intermediaires »
+    # est un geste, pas un motif : il ne dit ni pourquoi il n'y en a pas, ni
+    # de quel cote elles manquent. Un temoin trop charge, des doses toutes au
+    # plafond ou toutes sous le temoin donnent le meme symptome et appellent
+    # trois gestes differents.
+    return(echec({
+      causes <- .hstat_dl50_causes(d, c_depart)
+      # Le geste generique ne se dit QUE si aucune cause n'est etablie : les
+      # causes portent le leur, et « ajoutez des doses intermediaires » juste
+      # apres « il faut des doses plus fortes » se contredit a demi-mot.
+      if (!length(causes)) causes <- tr("Ajoutez des doses intermédiaires.")
+      paste(c(trf("Moins de %d doses donnent une mortalité corrigée strictement comprise entre 0 %% et 100 %% : la droite de régression n'est pas déterminée.",
+                  HSTAT_DL50_MIN_UTILES), causes), collapse = " ")
+    }))
 
   # UNE PENTE NEGATIVE N'EST PAS UN AJUSTEMENT, C'EST UNE SAISIE A L'ENVERS.
   # Sans ce refus, deux colonnes inversees produisaient un rapport COMPLET --
@@ -575,7 +711,9 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
   }
   if (!is.finite(fit$a) || !is.finite(fit$b))
     return(echec(tr("L'estimation n'a pas convergé : vérifiez que la mortalité croît avec la dose.")))
-  if (fit$b <= 0) return(echec(.hstat_dl50_msg_pente()))
+  if (fit$b <= 0)
+    return(echec(.hstat_dl50_msg_pente(
+      d, if (is.finite(fit$c)) fit$c else c_depart)))
 
   a <- fit$a; b <- fit$b; cc <- fit$c
   eta <- a + b * z
@@ -2286,8 +2424,20 @@ mod_dl50_ui <- function(id) {
               shiny::selectInput(ns("colDose"), "Colonne des doses", choices = NULL),
               shiny::selectInput(ns("colN"), "Colonne des effectifs testés", choices = NULL),
               shiny::selectInput(ns("colMorts"), "Colonne des morts", choices = NULL),
-              shiny::selectInput(ns("colEssai"), "Colonne de regroupement (facultatif)",
+              # LE LIBELLE DISAIT L'INVERSE DE CE QUE LE CHAMP FAIT.
+              #
+              # « Colonne de regroupement » se lit « colonne par laquelle
+              # agreger » : l'utilisateur y a pose sa colonne de doses pour
+              # reunir ses quatre repetitions -- ce que le module fait deja
+              # tout seul, et ce que ce champ ne peut pas faire, puisqu'il
+              # DECOUPE le fichier au lieu de le reunir.
+              shiny::selectInput(ns("colEssai"), "Colonne qui sépare les essais (facultatif)",
                                  choices = NULL),
+              shiny::helpText("Elle découpe le fichier en plusieurs essais, un par",
+                              " modalité (site, souche, matière active). Les répétitions",
+                              " d'une même dose sont déjà regroupées d'office : il n'y a",
+                              " rien à faire pour cela, et une colonne de mesure (dose,",
+                              " effectif, morts) n'a donc jamais sa place ici."),
               shiny::helpText("Une ligne à la dose 0 est lue comme le témoin :",
                               " son logarithme n'existe pas, elle ne peut pas entrer",
                               " dans la régression."),
@@ -3113,12 +3263,26 @@ mod_dl50_server <- function(id, values) {
           type = "warning", duration = 10)
         return()
       }
-      if (isTRUE(.ajouter(bons)))
+      if (isTRUE(.ajouter(bons))) {
+        # LE REGROUPEMENT DES REPETITIONS SE DIT.
+        #
+        # Il a toujours eu lieu, et rien ne l'annoncait : on lisait « 1 essai
+        # importe » sur un fichier de vingt lignes sans savoir ce qu'il en
+        # restait. C'est ce silence qui a envoye l'utilisateur chercher un
+        # regroupement dans le champ voisin, ou il ne pouvait que nuire.
+        lg <- sum(vapply(bons, function(e) as.integer(e$lignes %||% NA_integer_), 1L),
+                  na.rm = TRUE)
+        ds <- sum(vapply(bons, function(e) nrow(e$doses), 1L))
         shiny::showNotification(
-          trf("%d essai(s) importé(s) du jeu de données%s.", length(bons),
-              if (ecartes > 0) trf(" ; %d écarté(s), faute de doses exploitables", ecartes)
-              else ""),
+          paste(c(
+            trf("%d essai(s) importé(s) du jeu de données.", length(bons)),
+            if (ecartes > 0)
+              trf("%d essai(s) écarté(s), faute de doses exploitables.", ecartes),
+            if (is.finite(lg) && lg > ds)
+              trf("Les répétitions d'une même dose ont été regroupées : %d lignes donnent %d doses.",
+                  lg, ds)), collapse = " "),
           type = "message", duration = 8)
+      }
     })
 
     shiny::observeEvent(input$fichierWindl, {

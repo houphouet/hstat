@@ -11852,6 +11852,114 @@ test_that("la tendance decroissante se mesure sur le sens, et s'abstient sans pr
     data.frame(dose = c(1, 2, 4), n = rep(20, 3), x = rep(7, 3))))
 })
 
+# -- L'AMPLITUDE, PAS SEULEMENT LE SIGNE -------------------------------------
+# Le signe seul suffisait, et la mesure l'a dementi : sur un essai dont toutes
+# les doses tuent au plafond, la mortalite observee descend de trois points
+# entre les faibles doses et les fortes -- du bruit -- et le module concluait
+# que les colonnes etaient inversees.
+test_that("une baisse au plafond n'est pas une inversion, une reponse retournee l'est", {
+  # LES DEUX ONT LE MEME SIGNE. C'est ce qui rend l'assertion discernante :
+  # une fonction qui ne regarderait que la covariance les traiterait pareil.
+  bruit <- data.frame(dose = c(0.125, 0.25, 0.5, 1, 2, 4), n = rep(40, 6),
+                      x = c(39, 39, 40, 38, 37, 39))
+  vraie <- data.frame(dose = c(0.125, 0.25, 0.5, 1, 2, 4), n = rep(40, 6),
+                      x = c(36, 32, 24, 16, 8, 2))
+  z <- log10(bruit$dose)
+  expect_lt(stats::cov(z, bruit$x / bruit$n), 0)
+  expect_lt(stats::cov(z, vraie$x / vraie$n), 0)
+
+  expect_null(.hstat_dl50_inversion(bruit))
+  inv <- .hstat_dl50_inversion(vraie)
+  expect_false(is.null(inv))
+  # Les deux moyennes voyagent avec la conclusion : le message les CITE, et un
+  # refus qui ne chiffre pas se lit comme un reproche.
+  expect_gt(inv$bas - inv$haut, HSTAT_DL50_INVERSION_MIN)
+})
+
+# -- UN REFUS NE NOMME QUE CE QU'IL A ETABLI ---------------------------------
+# Signale a l'ecran : temoin a 85 %, six doses tuant 92 a 100 %, colonnes
+# JUSTES -- et le module repondait « la colonne des morts doit porter les
+# morts et non les survivants ». L'utilisateur cherche une faute de saisie qui
+# n'existe pas pendant que la cause reelle n'est nommee nulle part.
+test_that("le refus nomme le temoin trop charge, et n'accuse pas des colonnes justes", {
+  charge <- hstat_dl50_essai(c(0.125, 0.25, 0.5, 1, 2, 4), rep(40, 6),
+                             c(39, 39, 40, 38, 37, 39),
+                             temoin_n = 40, temoin_morts = 34)   # 85 %
+  f <- hstat_dl50_ajuste(charge, methode = "abbott")
+  expect_false(f$ok)
+  m <- f$message
+  # LA CAUSE ETABLIE EST NOMMEE, avec son chiffre et le geste qui suit.
+  expect_true(grepl("témoin", m, fixed = TRUE), info = m)
+  expect_true(grepl("85", m, fixed = TRUE), info = m)
+  expect_true(grepl("Abbott", m, fixed = TRUE), info = m)
+  # ET L'HYPOTHESE NON ETABLIE NE L'EST PAS. C'est l'assertion qui distingue
+  # les deux codes : la version d'avant accusait les colonnes sans condition.
+  expect_false(grepl("survivants", m, fixed = TRUE), info = m)
+
+  # Un temoin propre ne se voit reprocher aucun Abbott : sans cette moitie,
+  # une fonction qui nommerait le temoin a tout coup passerait aussi.
+  propre <- hstat_dl50_essai(c(0.125, 0.25, 0.5, 1, 2, 4), rep(40, 6),
+                             c(36, 32, 24, 16, 8, 2),
+                             temoin_n = 40, temoin_morts = 2)      # 5 %
+  m2 <- hstat_dl50_ajuste(propre, methode = "abbott")$message
+  expect_false(grepl("Abbott", m2, fixed = TRUE), info = m2)
+  expect_true(grepl("survivants", m2, fixed = TRUE), info = m2)
+})
+
+test_that("le plafond et le plancher se nomment, et appellent des gestes opposes", {
+  # Toutes les doses tuent : il n'y a plus de courbe, seulement du bruit entre
+  # des points colles a 100 %. Il faut des doses plus FAIBLES.
+  haut <- hstat_dl50_ajuste(
+    hstat_dl50_essai(c(1, 2, 4, 8, 16, 32), rep(40, 6), rep(40, 6),
+                     temoin_n = 40, temoin_morts = 1))
+  expect_false(haut$ok)
+  expect_true(grepl("plafond", haut$message, fixed = TRUE), info = haut$message)
+  expect_true(grepl("plus faibles", haut$message, fixed = TRUE), info = haut$message)
+
+  # Le cas symetrique appelle l'inverse. Un seul motif pour les deux enverrait
+  # la moitie des utilisateurs dans la mauvaise direction.
+  bas <- hstat_dl50_ajuste(
+    hstat_dl50_essai(c(0.125, 0.25, 0.5, 1, 2, 4), rep(40, 6), rep(2, 6),
+                     temoin_n = 40, temoin_morts = 4))
+  expect_false(bas$ok)
+  expect_true(grepl("plus fortes", bas$message, fixed = TRUE), info = bas$message)
+  expect_false(grepl("plus faibles", bas$message, fixed = TRUE), info = bas$message)
+  # Le temoin vaut 10 % : rien a reprocher a Abbott, et on ne l'invente pas.
+  expect_false(grepl("Abbott", bas$message, fixed = TRUE), info = bas$message)
+})
+
+# -- LE REGROUPEMENT DES REPETITIONS SE COMPTE, DONC IL PEUT SE DIRE ---------
+# Il a toujours eu lieu, et rien ne l'annoncait : c'est ce silence qui a
+# envoye l'utilisateur poser sa colonne de DOSES dans le champ voisin, ou elle
+# ne peut que nuire.
+test_that("les repetitions d'une meme dose sont regroupees, et le compte est rendu", {
+  e <- hstat_dl50_essai(dose = rep(c(0.125, 0.25, 0.5, 1, 2), each = 4),
+                        effectif = rep(25, 20), morts = rep(c(2, 6, 12, 19, 23), each = 4),
+                        temoin_n = 100, temoin_morts = 4)
+  expect_equal(nrow(e$doses), 5L)
+  expect_equal(e$lignes, 20L)
+  expect_equal(e$regroupees, 15L)
+  # Les effectifs sont SOMMES, jamais moyennes : quatre repetitions de 25
+  # individus font cent individus testes a cette dose.
+  expect_equal(e$doses$n, rep(100, 5))
+  expect_equal(e$doses$x, c(8, 24, 48, 76, 92))
+  # Sans repetition, rien n'est regroupe -- et le compte le dit, sans quoi le
+  # message s'afficherait sur un fichier qui n'a rien a regrouper.
+  s <- hstat_dl50_essai(c(1, 2, 4), rep(20, 3), c(5, 9, 15))
+  expect_equal(s$regroupees, 0L)
+})
+
+test_that("le champ qui separe les essais dit ce qu'il fait, et ce qu'il ne fait pas", {
+  h <- as.character(mod_dl50_ui("dl50"))
+  # LE LIBELLE. « Colonne de regroupement » se lit « colonne par laquelle
+  # agreger » : c'est l'inverse de ce que le champ fait.
+  expect_false(grepl("Colonne de regroupement", h, fixed = TRUE))
+  expect_true(grepl("Colonne qui s", h, fixed = TRUE))
+  # ET L'AIDE DIT QUE LE REGROUPEMENT DES REPETITIONS EST DEJA FAIT : c'est
+  # precisement ce que l'utilisateur venait y chercher.
+  expect_true(grepl("d\u00e9j\u00e0 regroup", h))
+})
+
 test_that("le rapport .PRN porte les nombres et les libelles attendus", {
   f <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
   p <- hstat_dl50_prn(f, "CL94AC1.TXT")
@@ -12012,7 +12120,10 @@ test_that("une pente negative est refusee, en nommant la cause probable", {
   inv <- hstat_dl50_essai(c(0.1, 0.5, 1, 5, 10), rep(40, 5), c(36, 30, 20, 10, 3), 40, 0)
   f <- hstat_dl50_ajuste(inv, "em")
   expect_false(isTRUE(f$ok))
-  expect_true(grepl("décroît", f$message, fixed = TRUE))
+  # LE FAIT D'ABORD, la cause ensuite. Le message disait « la mortalité décroît
+  # quand la dose augmente » puis accusait les colonnes SANS CONDITION ; il
+  # énonce désormais le fait et n'y ajoute que les causes établies.
+  expect_true(grepl("ne croît pas avec la dose", f$message, fixed = TRUE))
   # Le message NOMME la cause probable : c'est ce qui le rend actionnable.
   expect_true(grepl("survivants", f$message, fixed = TRUE))
   expect_true(grepl("effectif testé", f$message, fixed = TRUE))
