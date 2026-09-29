@@ -19883,3 +19883,280 @@ test_that("un champ vide ne devient pas un jeu nomme NA", {
                  label = paste(deparse(v), collapse = ""))
   }
 })
+
+# =============================================================================
+#  AUDIT DU MODULE DL50/CL50 : CONVERGENCE, BORNES, ENTREES DU NAVIGATEUR
+# -----------------------------------------------------------------------------
+#  Chaque test ci-dessous a ete verifie comme ECHOUANT sur le code d'avant
+#  l'audit. Les essais sont ecrits en dur : ils viennent d'un tirage de 1 500
+#  essais ou le defaut s'est manifeste, et un tirage refait dans le test
+#  dependrait du generateur de la version de R.
+# =============================================================================
+
+# Log-vraisemblance maximale par une optimisation independante : c'est la
+# reference qui ne doit rien au code teste.
+.hstat_dl50_ll_max <- function(e, cc = NULL) {
+  z <- log10(e$doses$dose); n <- e$doses$n; x <- e$doses$x
+  if (is.null(cc)) {
+    nll <- function(t) {
+      c0 <- stats::plogis(t[3])
+      -(hstat_dl50_logvrais(x, n, c0 + (1 - c0) * stats::pnorm(t[1] + t[2] * z)) +
+          hstat_dl50_logvrais(e$x0, e$n0, c0))
+    }
+    o <- stats::optim(c(0, 1, -2), nll, control = list(maxit = 5000, reltol = 1e-12))
+    o <- stats::optim(o$par, nll, control = list(maxit = 5000, reltol = 1e-12))
+    list(ll = -o$value, a = o$par[1], b = o$par[2], c = stats::plogis(o$par[3]))
+  } else {
+    nll <- function(t) -hstat_dl50_logvrais(x, n, cc + (1 - cc) * stats::pnorm(t[1] + t[2] * z))
+    # Plusieurs departs, le meilleur garde : un depart unique peut s'egarer
+    # sur un point bas, et la reference mentirait alors contre un code juste.
+    os <- lapply(list(c(0, 1), c(-1, 0.5), c(1, 2)), function(st)
+      stats::optim(st, nll, method = "BFGS", control = list(reltol = 1e-14, maxit = 1000)))
+    o <- os[[which.min(vapply(os, `[[`, numeric(1), "value"))]]
+    list(ll = -o$value, a = o$par[1], b = o$par[2], c = cc)
+  }
+}
+
+test_that("Newton-Raphson ne boucle plus en cycle a deux temps sous Abbott", {
+  # AVANT : la pente alternait indefiniment entre deux valeurs encadrant
+  # l'optimum, `converge = FALSE`, et le module rendait la derniere iteration
+  # -- relever le plafond d'iterations n'y changeait rien. 23 ajustements
+  # Abbott sur 1 102 tires au sort etaient dans ce cas.
+  e <- hstat_dl50_essai(c(0.0655, 0.0997, 0.359, 0.669, 3.13, 11.6, 18.3), 10,
+                        c(0, 2, 2, 3, 4, 5, 5), temoin_n = 10, temoin_morts = 2)
+  f <- hstat_dl50_ajuste(e, "abbott", itmax = 5000)
+  expect_true(isTRUE(f$ok))
+  expect_true(isTRUE(f$converge))
+  expect_lt(f$iterations, 100)
+  ref <- .hstat_dl50_ll_max(e, cc = 0.2)
+  expect_equal(f$b, ref$b, tolerance = 1e-3)
+  expect_equal(f$a, ref$a, tolerance = 1e-3)
+})
+
+test_that("l'EM ne reste pas colle a c = 0 quand la borne n'est pas l'optimum", {
+  # AVANT : temoin sans mort, donc depart a c = 0, point fixe de l'EM -- le
+  # module rendait l'ajustement a mortalite NULLE sous le nom d'EM, avec
+  # « convergence atteinte ». 66 essais sur 1 085 ; DL50 fausse jusqu'a un
+  # facteur 1,9.
+  e <- hstat_dl50_essai(c(0.0418, 0.219, 0.418, 0.431, 0.461, 1, 1.1, 47.7), 50,
+                        c(2, 4, 5, 7, 4, 18, 20, 50), temoin_n = 50, temoin_morts = 0)
+  f <- hstat_dl50_ajuste(e, "em")
+  expect_true(isTRUE(f$ok))
+  expect_gt(f$c, 0.01)
+  ref <- .hstat_dl50_ll_max(e)
+  expect_equal(f$c, ref$c, tolerance = 1e-2)
+  expect_equal(-f$a / f$b, -ref$a / ref$b, tolerance = 1e-2)   # log10 DL50
+  # Discernable : l'ajustement a mortalite nulle, que l'EM rendait avant, a
+  # une autre DL50 -- sans quoi l'assertion ne garderait rien.
+  nu <- hstat_dl50_ajuste(e, "nulle")
+  expect_gt(abs(-nu$a / nu$b - (-f$a / f$b)), 0.05)
+
+  # L'autre moitie : quand la borne EST l'optimum, rien ne change. L'essai
+  # de reference de WIN DL garde c = 0 et ses trois boucles.
+  r <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  expect_equal(r$c, 0, tolerance = 1e-12)
+  expect_equal(r$iterations, 3L)
+})
+
+test_that("le risque alpha est borne par les quatre fonctions publiques", {
+  e <- .hstat_dl50_essai_ref()
+  base <- hstat_dl50_ajuste(e, alpha = 0.05)
+  for (al in list(NA, "x", NULL))
+    expect_equal(hstat_dl50_ajuste(e, alpha = al)$t, base$t, info = format(al))
+  expect_true(is.finite(hstat_dl50_ajuste(e, alpha = 0)$t))
+  expect_gt(hstat_dl50_ajuste(e, alpha = 1)$t, 1)       # ramene a 0,2
+  # AVANT : `p < "x"` comparait une p-value a une chaine -- VRAI -- et deux
+  # essais identiques passaient pour significativement differents.
+  es <- list(A = e, B = e)
+  expect_true(isTRUE(hstat_dl50_fusion(es, alpha = "x")$ok))
+  expect_true(isTRUE(hstat_dl50_fusion(es, alpha = 1)$ok))
+  expect_true(isTRUE(hstat_dl50_fusion(es, alpha = NA)$ok))
+  expect_s3_class(hstat_dl50_comparaison(es, alpha = NA), "data.frame")
+  expect_s3_class(hstat_dl50_puissance(es, alpha = "x"), "data.frame")
+})
+
+test_that("une liste de seuils, de doses ou de mortalites est bornee et dit ce qu'elle coupe", {
+  f <- hstat_dl50_ajuste(.hstat_dl50_essai_ref())
+  s <- seq(0.01, 99.99, length.out = 10000)
+  t0 <- proc.time()[[3]]
+  d <- hstat_dl50_doses_letales(f, s)
+  expect_lt(proc.time()[[3]] - t0, 5)                 # 9,6 s avant la borne
+  expect_equal(nrow(d), HSTAT_DL50_DEMANDES_MAX)
+  expect_true(grepl("ignor", attr(d, "plafond")))
+  # Un doublon ne fait pas une ligne de plus.
+  expect_equal(nrow(hstat_dl50_doses_letales(f, c(50, 50, 90))), 2L)
+  # La liste des ecartes est tronquee, pas recopiee en entier.
+  msg <- attr(hstat_dl50_doses_letales(f, c(50, -(1:5000))), "ecartes")
+  expect_lt(nchar(msg), 400)
+
+  # Les mortalites hors d'atteinte se NOMMENT : avant, « 0, 50 » rendait la
+  # seule ligne de 50 % sans un mot sur la premiere.
+  dp <- hstat_dl50_dose_pour(f, c(0, 50))
+  expect_equal(nrow(dp), 1L)
+  expect_true(grepl("0", attr(dp, "ecartes"), fixed = TRUE))
+  dm <- hstat_dl50_mortalite(f, c(-1, 0.01))
+  expect_equal(nrow(dm), 1L)
+  expect_true(nzchar(attr(dm, "ecartes")))
+  expect_equal(nrow(hstat_dl50_mortalite(f, seq(0.001, 1, length.out = 5000))),
+               HSTAT_DL50_DEMANDES_MAX)
+})
+
+test_that("l'ajout a une liste deroulante n'est plus quadratique", {
+  v <- sprintf("val%d", 1:200000)
+  t0 <- proc.time()[[3]]
+  L <- hstat_dl50_liste_ajouter(character(0), v)
+  expect_lt(proc.time()[[3]] - t0, 5)               # ne rendait jamais la main
+  expect_length(L, 200000L)
+  # La semantique d'origine : casse et bords ignores, l'existant l'emporte.
+  L <- hstat_dl50_liste_ajouter(c("Cyfluthrine", "Deltaméthrine"),
+                                c("cyfluthrine ", "Bifenthrine", "bifenthrine", NA, ""))
+  expect_equal(L, sort(c("Cyfluthrine", "Deltaméthrine", "Bifenthrine")))
+})
+
+test_that("un fichier natif trop gros est refuse avant d'etre lu", {
+  tmp <- tempfile(fileext = ".txt")
+  on.exit(unlink(tmp))
+  writeBin(as.raw(rep(65L, HSTAT_DL50_FICHIER_MAX + 1)), tmp)
+  r <- hstat_dl50_lire_windl(tmp)
+  expect_false(isTRUE(r$ok))
+  expect_true(grepl("volumineux", r$message))
+  expect_length(hstat_dl50_liste_lire(tmp), 0L)
+  # Le collage aussi a sa borne : il voyage entier vers le navigateur.
+  txt <- paste(rep("1\t20\t5", HSTAT_DL50_SAISIE_MAX + 1), collapse = "\n")
+  r <- hstat_dl50_coller(txt)
+  expect_false(isTRUE(r$ok))
+  expect_true(isTRUE(hstat_dl50_coller(paste(rep("1\t20\t5", 10), collapse = "\n"))$ok))
+})
+
+test_that("des comptages non entiers se signalent dans le verdict", {
+  e <- hstat_dl50_essai(c(1, 2, 4, 8, 16), 10.5, c(1.2, 3, 5, 7.7, 9))
+  v <- hstat_dl50_verdict(hstat_dl50_ajuste(e))
+  expect_true(any(grepl("non entiers", v$alertes)))
+  v <- hstat_dl50_verdict(hstat_dl50_ajuste(.hstat_dl50_essai_ref()))
+  expect_false(any(grepl("non entiers", v$alertes)))
+})
+
+test_that("le serveur DL50 n'obeit pas aux messages forges par le navigateur", {
+  values <- shiny::reactiveValues(data = NULL)
+  shiny::testServer(mod_dl50_server, args = list(values = values), {
+    n0 <- nrow(saisie())
+    # AVANT : le tableau passait a deux millions de lignes.
+    session$setInputs(saisie_cell_edit = list(row = 2e6, col = 0, value = "5"))
+    expect_equal(nrow(saisie()), n0)
+    # AVANT : toutes les lignes sauf la premiere prenaient la valeur 7.
+    session$setInputs(saisie_cell_edit = list(row = -1, col = 0, value = "7"))
+    expect_true(all(is.na(saisie()$Dose)))
+    session$setInputs(saisie_cell_edit = list(row = 1:3, col = 1, value = c("1", "2", "3")))
+    expect_true(all(is.na(saisie()$Effectif)))
+    session$setInputs(saisie_cell_edit = list(row = 2, col = 7, value = "1"))
+    expect_equal(ncol(saisie()), 3L)
+    # Une edition legitime passe toujours.
+    session$setInputs(saisie_cell_edit = list(row = 2, col = 0, value = "0,5"))
+    expect_equal(saisie()$Dose[2], 0.5)
+    # Un nom de liste hors catalogue ne cree aucune liste.
+    session$setInputs(listeNom = "__proto__", listeValeur = "Cyfluthrine",
+                      listeAjouter = 1)
+    expect_setequal(names(listes()), names(HSTAT_DL50_LISTES))
+  })
+})
+
+# =============================================================================
+#  DL50 : LE RENDU MODERNE DES DEUX GRAPHIQUES
+# =============================================================================
+
+.hstat_dl50_fit_b <- function()
+  hstat_dl50_ajuste(hstat_dl50_essai(c(0.1, 0.2, 0.5, 1, 2, 5), 30,
+                                     c(0, 4, 12, 20, 27, 30), 30, 3,
+                                     titre = "Souche B", champs = list(unite = "mg/l")))
+
+.hstat_dl50_couches <- function(p)
+  vapply(p$layers, function(l) class(l$geom)[1], character(1))
+
+test_that("le style moderne porte l'incertitude, la DL50 chiffree et le modele", {
+  skip_if_not_installed("ggplot2")
+  f <- .hstat_dl50_fit_b()
+  for (ty in c("probit", "reponse")) {
+    m <- hstat_dl50_graphique(list(f), list(type = ty))
+    cl <- hstat_dl50_graphique(list(f), list(type = ty, style = "classique"))
+    gm <- .hstat_dl50_couches(m); gc <- .hstat_dl50_couches(cl)
+    # Barres binomiales, DL50 avec son intervalle, graduations logarithmiques.
+    expect_true(all(c("GeomLinerange", "GeomErrorbar", "GeomLabel",
+                      "GeomLogticks") %in% gm), info = ty)
+    # Le classique rend la figure d'origine : aucune de ces couches.
+    expect_false(any(c("GeomLinerange", "GeomErrorbar", "GeomLabel",
+                       "GeomLogticks") %in% gc), info = ty)
+    expect_null(cl$labels$caption)
+    expect_true(grepl("Probit", m$labels$caption, fixed = TRUE))
+  }
+})
+
+test_that("la DL50 de la figure est celle du tableau, intervalle compris", {
+  skip_if_not_installed("ggplot2")
+  # Deux intervalles differents pour la meme DL50 dans le meme rapport
+  # seraient la copie qui ment.
+  f <- .hstat_dl50_fit_b()
+  d <- hstat_dl50_doses_letales(f, 50)
+  b <- ggplot2::ggplot_build(hstat_dl50_graphique(list(f), list(type = "reponse")))
+  k <- which(vapply(hstat_dl50_graphique(list(f), list(type = "reponse"))$layers,
+                    function(l) inherits(l$geom, "GeomErrorbar"), logical(1)))
+  eb <- b$data[[k]]
+  expect_equal(eb$xmin, log10(d$Limite_inf), tolerance = 1e-9)
+  expect_equal(eb$xmax, log10(d$Limite_sup), tolerance = 1e-9)
+  # Et a la hauteur de la DL50 sur la mortalite OBSERVEE : c + (1 - c)/2.
+  expect_equal(eb$y, 100 * (f$c + (1 - f$c) * 0.5), tolerance = 1e-9)
+  # L'etiquette porte le chiffre et l'unite.
+  kl <- which(vapply(hstat_dl50_graphique(list(f), list(type = "reponse"))$layers,
+                     function(l) inherits(l$geom, "GeomLabel"), logical(1)))
+  lab <- b$data[[kl]]$label
+  expect_true(grepl("mg/l", lab, fixed = TRUE))
+  expect_true(grepl(.hstat_dl50_nb(d$Dose), lab, fixed = TRUE))
+})
+
+test_that("les barres de chaque point sont l'intervalle de Wilson, dans le cadre", {
+  skip_if_not_installed("ggplot2")
+  f <- .hstat_dl50_fit_b()
+  p <- hstat_dl50_graphique(list(f), list(type = "reponse"))
+  k <- which(vapply(p$layers, function(l) inherits(l$geom, "GeomLinerange"), logical(1)))
+  br <- ggplot2::ggplot_build(p)$data[[k]]
+  w <- .hstat_dl50_wilson(f$table$Morts, f$table$Effectif)
+  expect_equal(br$ymin, 100 * w$lo, tolerance = 1e-9)
+  expect_equal(br$ymax, 100 * w$hi, tolerance = 1e-9)
+  # Wilson, pas Wald : a 0 % comme a 100 %, la barre a une LARGEUR -- Wald y
+  # rendrait un intervalle nul, soit une certitude que l'essai ne donne pas.
+  expect_true(all(br$ymax - br$ymin > 1))
+  expect_gte(min(br$ymin), 0); expect_lte(max(br$ymax), 100)
+})
+
+test_that("l'axe des doses est gradue en serie 1-2-5", {
+  expect_equal(10^.hstat_dl50_breaks_log(log10(c(0.08, 6))),
+               c(0.1, 0.2, 0.5, 1, 2, 5), tolerance = 1e-9)
+  # Au-dela de quatre decades, les decades seules : l'axe ne se surcharge pas.
+  expect_equal(10^.hstat_dl50_breaks_log(c(-4, 2)), 10^(-4:2), tolerance = 1e-9)
+})
+
+test_that("les reglages du rendu sont declares, lus et employes", {
+  code <- paste(.hstat_code_lignes(.hstat_module_path("mod_dl50.R")), collapse = "\n")
+  for (id in c("gStyle", "gBarres", "gAnnotDL", "gModele", "gLogticks")) {
+    expect_true(grepl(sprintf('ns("%s")', id), code, fixed = TRUE), info = id)
+    expect_true(grepl(sprintf("input$%s", id), code, fixed = TRUE), info = id)
+  }
+  # Et chaque reglage change l'image : decoche, sa couche disparait.
+  f <- .hstat_dl50_fit_b()
+  couches <- function(o) .hstat_dl50_couches(hstat_dl50_graphique(list(f), o))
+  expect_false("GeomLinerange" %in% couches(list(barres = FALSE)))
+  expect_false("GeomLabel" %in% couches(list(annot_dl = FALSE)))
+  expect_false("GeomLogticks" %in% couches(list(logticks = FALSE)))
+  expect_null(hstat_dl50_graphique(list(f), list(modele = FALSE))$labels$caption)
+})
+
+test_that("a plusieurs essais, chacun a sa DL50 et aucune etiquette ne se recouvre", {
+  skip_if_not_installed("ggplot2")
+  fa <- hstat_dl50_ajuste(hstat_dl50_essai(c(0.05, 0.1, 0.2, 0.5, 1, 2), 30,
+                                           c(1, 3, 9, 18, 25, 29), 30, 2, titre = "A"))
+  p <- hstat_dl50_graphique(list(fa, .hstat_dl50_fit_b()), list(type = "reponse"))
+  g <- .hstat_dl50_couches(p)
+  expect_false("GeomLabel" %in% g)
+  expect_null(p$labels$caption)
+  k <- which(vapply(p$layers, function(l) inherits(l$geom, "GeomErrorbar"), logical(1)))
+  expect_equal(nrow(ggplot2::ggplot_build(p)$data[[k]]), 2L)
+})
