@@ -20059,3 +20059,104 @@ test_that("le serveur DL50 n'obeit pas aux messages forges par le navigateur", {
     expect_setequal(names(listes()), names(HSTAT_DL50_LISTES))
   })
 })
+
+# =============================================================================
+#  DL50 : LE RENDU MODERNE DES DEUX GRAPHIQUES
+# =============================================================================
+
+.hstat_dl50_fit_b <- function()
+  hstat_dl50_ajuste(hstat_dl50_essai(c(0.1, 0.2, 0.5, 1, 2, 5), 30,
+                                     c(0, 4, 12, 20, 27, 30), 30, 3,
+                                     titre = "Souche B", champs = list(unite = "mg/l")))
+
+.hstat_dl50_couches <- function(p)
+  vapply(p$layers, function(l) class(l$geom)[1], character(1))
+
+test_that("le style moderne porte l'incertitude, la DL50 chiffree et le modele", {
+  skip_if_not_installed("ggplot2")
+  f <- .hstat_dl50_fit_b()
+  for (ty in c("probit", "reponse")) {
+    m <- hstat_dl50_graphique(list(f), list(type = ty))
+    cl <- hstat_dl50_graphique(list(f), list(type = ty, style = "classique"))
+    gm <- .hstat_dl50_couches(m); gc <- .hstat_dl50_couches(cl)
+    # Barres binomiales, DL50 avec son intervalle, graduations logarithmiques.
+    expect_true(all(c("GeomLinerange", "GeomErrorbar", "GeomLabel",
+                      "GeomLogticks") %in% gm), info = ty)
+    # Le classique rend la figure d'origine : aucune de ces couches.
+    expect_false(any(c("GeomLinerange", "GeomErrorbar", "GeomLabel",
+                       "GeomLogticks") %in% gc), info = ty)
+    expect_null(cl$labels$caption)
+    expect_true(grepl("Probit", m$labels$caption, fixed = TRUE))
+  }
+})
+
+test_that("la DL50 de la figure est celle du tableau, intervalle compris", {
+  skip_if_not_installed("ggplot2")
+  # Deux intervalles differents pour la meme DL50 dans le meme rapport
+  # seraient la copie qui ment.
+  f <- .hstat_dl50_fit_b()
+  d <- hstat_dl50_doses_letales(f, 50)
+  b <- ggplot2::ggplot_build(hstat_dl50_graphique(list(f), list(type = "reponse")))
+  k <- which(vapply(hstat_dl50_graphique(list(f), list(type = "reponse"))$layers,
+                    function(l) inherits(l$geom, "GeomErrorbar"), logical(1)))
+  eb <- b$data[[k]]
+  expect_equal(eb$xmin, log10(d$Limite_inf), tolerance = 1e-9)
+  expect_equal(eb$xmax, log10(d$Limite_sup), tolerance = 1e-9)
+  # Et a la hauteur de la DL50 sur la mortalite OBSERVEE : c + (1 - c)/2.
+  expect_equal(eb$y, 100 * (f$c + (1 - f$c) * 0.5), tolerance = 1e-9)
+  # L'etiquette porte le chiffre et l'unite.
+  kl <- which(vapply(hstat_dl50_graphique(list(f), list(type = "reponse"))$layers,
+                     function(l) inherits(l$geom, "GeomLabel"), logical(1)))
+  lab <- b$data[[kl]]$label
+  expect_true(grepl("mg/l", lab, fixed = TRUE))
+  expect_true(grepl(.hstat_dl50_nb(d$Dose), lab, fixed = TRUE))
+})
+
+test_that("les barres de chaque point sont l'intervalle de Wilson, dans le cadre", {
+  skip_if_not_installed("ggplot2")
+  f <- .hstat_dl50_fit_b()
+  p <- hstat_dl50_graphique(list(f), list(type = "reponse"))
+  k <- which(vapply(p$layers, function(l) inherits(l$geom, "GeomLinerange"), logical(1)))
+  br <- ggplot2::ggplot_build(p)$data[[k]]
+  w <- .hstat_dl50_wilson(f$table$Morts, f$table$Effectif)
+  expect_equal(br$ymin, 100 * w$lo, tolerance = 1e-9)
+  expect_equal(br$ymax, 100 * w$hi, tolerance = 1e-9)
+  # Wilson, pas Wald : a 0 % comme a 100 %, la barre a une LARGEUR -- Wald y
+  # rendrait un intervalle nul, soit une certitude que l'essai ne donne pas.
+  expect_true(all(br$ymax - br$ymin > 1))
+  expect_gte(min(br$ymin), 0); expect_lte(max(br$ymax), 100)
+})
+
+test_that("l'axe des doses est gradue en serie 1-2-5", {
+  expect_equal(10^.hstat_dl50_breaks_log(log10(c(0.08, 6))),
+               c(0.1, 0.2, 0.5, 1, 2, 5), tolerance = 1e-9)
+  # Au-dela de quatre decades, les decades seules : l'axe ne se surcharge pas.
+  expect_equal(10^.hstat_dl50_breaks_log(c(-4, 2)), 10^(-4:2), tolerance = 1e-9)
+})
+
+test_that("les reglages du rendu sont declares, lus et employes", {
+  code <- paste(.hstat_code_lignes(.hstat_module_path("mod_dl50.R")), collapse = "\n")
+  for (id in c("gStyle", "gBarres", "gAnnotDL", "gModele", "gLogticks")) {
+    expect_true(grepl(sprintf('ns("%s")', id), code, fixed = TRUE), info = id)
+    expect_true(grepl(sprintf("input$%s", id), code, fixed = TRUE), info = id)
+  }
+  # Et chaque reglage change l'image : decoche, sa couche disparait.
+  f <- .hstat_dl50_fit_b()
+  couches <- function(o) .hstat_dl50_couches(hstat_dl50_graphique(list(f), o))
+  expect_false("GeomLinerange" %in% couches(list(barres = FALSE)))
+  expect_false("GeomLabel" %in% couches(list(annot_dl = FALSE)))
+  expect_false("GeomLogticks" %in% couches(list(logticks = FALSE)))
+  expect_null(hstat_dl50_graphique(list(f), list(modele = FALSE))$labels$caption)
+})
+
+test_that("a plusieurs essais, chacun a sa DL50 et aucune etiquette ne se recouvre", {
+  skip_if_not_installed("ggplot2")
+  fa <- hstat_dl50_ajuste(hstat_dl50_essai(c(0.05, 0.1, 0.2, 0.5, 1, 2), 30,
+                                           c(1, 3, 9, 18, 25, 29), 30, 2, titre = "A"))
+  p <- hstat_dl50_graphique(list(fa, .hstat_dl50_fit_b()), list(type = "reponse"))
+  g <- .hstat_dl50_couches(p)
+  expect_false("GeomLabel" %in% g)
+  expect_null(p$labels$caption)
+  k <- which(vapply(p$layers, function(l) inherits(l$geom, "GeomErrorbar"), logical(1)))
+  expect_equal(nrow(ggplot2::ggplot_build(p)$data[[k]]), 2L)
+})

@@ -4506,6 +4506,49 @@ Plusieurs essais de mortalités naturelles différentes n'ont pas de repère
 commun : un seul trait serait faux pour tous sauf un. On s'abstient plutôt que
 d'en tracer un au hasard.
 
+### Le rendu moderne des deux graphiques
+
+Les deux figures étaient déjà en ggplot2 ; ce qui manquait, c'est ce qu'une
+figure de bioessai publiée porte d'habitude. Le style « moderne » (défaut) les
+ajoute, le style « classique » rend la figure d'avant **à l'identique** — pour
+qui l'a déjà collée dans un rapport.
+
+| Élément | Pourquoi |
+|---|---|
+| intervalle binomial sur chaque point | un point sur 10 insectes et un point sur 200 ne pèsent pas pareil dans l'ajustement ; sans barre, la figure les montre égaux |
+| DL50 chiffrée : losange, lignes de rappel, intervalle, étiquette avec unité | on ouvre le module pour lire une DL50 |
+| axe gradué 1-2-5 et graduations logarithmiques mineures | « 3,16e-3 » ne se lit pas comme une dose qu'on aurait préparée |
+| équation, χ², mortalité naturelle et méthode en légende | la figure se suffit sans le tableau |
+| points pleins cerclés de blanc, grille fine, axes tracés | le point se détache de la courbe et de sa bande |
+
+Quatre décisions, chacune testée :
+
+1. **Wilson, pas Wald.** Wald rend un intervalle **nul** à 0 % et à 100 % —
+   une certitude que l'essai ne donne pas, sur les doses mêmes qui encadrent un
+   bioessai bien conçu. Sur la droite de Henry, la borne est corrigée d'Abbott
+   puis passée au probit **par l'inverse de Hastings**, comme le point ; une
+   borne sans probit fini est ramenée au bord du cadre.
+2. **L'intervalle de la DL50 est celui du tableau** (Fieller, ou delta-méthode
+   quand g ≥ 1). Recalculé à part, il finirait par différer du tableau voisin.
+   Sa hauteur est `c + (1 − c)/2` sur la courbe dose-réponse — la règle déjà
+   écrite pour les repères.
+3. **L'étiquette se pose là où la courbe ne passe pas** : elle monte, donc la
+   place libre est en bas à droite de la DL50, ou en haut à gauche quand la
+   DL50 est déjà dans la moitié droite de l'axe. Posée au-dessus, elle
+   recouvrait la courbe — constaté au premier rendu.
+4. **À plusieurs essais, pas d'étiquette ni d'équation** : six étiquettes se
+   recouvriraient et six équations en pied de figure ne se liraient plus.
+   Chaque essai garde son losange et son intervalle, à sa couleur.
+
+L'habillage se pose **entre** le thème choisi et les réglages : il affine le
+thème, et tout ce que l'utilisateur règle ensuite — tailles, styles, grille,
+kit — l'emporte sur lui. Il ne fixe aucune taille de texte.
+
+La légende du modèle tient sur **deux lignes** : sur une ligne, elle débordait
+du cadre à sept pouces et se faisait rogner à l'export. Et les quatre réglages
+du rendu vivent dans un `conditionalPanel` : offerts en classique, ils se
+cocheraient sans que l'image bouge.
+
 ### Un tableau de résultats se recopie, un paragraphe non
 
 Les paramètres statistiques vivent dans **un tableau**, pas seulement dans le

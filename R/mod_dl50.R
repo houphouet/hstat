@@ -2319,8 +2319,18 @@ HSTAT_DL50_GRAPHES <- c(
   "Droite de Henry (probit)"    = "probit",
   "Courbe dose-réponse (%)"     = "reponse")
 
+# DEUX RENDUS, UN SEUL CONSTRUCTEUR. « Moderne » est le defaut : incertitude
+# portee sur chaque point, DL50 chiffree sur la figure, axe logarithmique
+# gradue en 1-2-5, modele en legende. « Classique » rend la figure d'avant a
+# l'identique -- pour qui l'a deja collee dans un rapport et veut la refaire
+# pareille.
+HSTAT_DL50_STYLES <- c("Moderne — incertitude, DL50 chiffrée, modèle en légende" = "moderne",
+                       "Classique — la figure d'origine" = "classique")
+
 HSTAT_DL50_OPT_DEFAUT <- list(
   type = "probit",
+  style = "moderne", barres = TRUE, annot_dl = TRUE, modele = TRUE,
+  logticks = TRUE,
   points = TRUE, courbe = FALSE, droite = TRUE, bande = TRUE, reperes = TRUE,
   titre = "", sous_titre = "", xlab = "", ylab = "", ylab2 = "",
   titre_taille = 15, titre_style = "bold", titre_pos = 0.5,
@@ -2360,8 +2370,57 @@ HSTAT_DL50_OPT_DEFAUT <- list(
     hjust = hjust, colour = couleur)
 }
 
+# GRADUATIONS D'UN AXE LOGARITHMIQUE : la serie 1-2-5, celle des papiers
+# log-probit. Des decades seules ne donnent que deux reperes sur un essai qui
+# couvre deux ordres de grandeur ; « 3,16e-3 », que rendaient les graduations
+# regulieres en log, ne se lit pas comme une dose qu'on aurait preparee.
+# Au-dela de quatre decades la serie surchargerait l'axe : les decades seules.
+.hstat_dl50_breaks_log <- function(rg) {
+  k <- seq(floor(rg[1]), ceiling(rg[2]))
+  m <- if (diff(rg) > 4) 1 else c(1, 2, 5)
+  b <- sort(as.vector(outer(log10(m), k, `+`)))
+  b[b >= rg[1] - 1e-9 & b <= rg[2] + 1e-9]
+}
+
+# L'intervalle d'une proportion observee : Wilson, pas Wald. Wald sort de
+# [0 ; 1] des qu'on approche une borne -- et 0 % et 100 % sont justement les
+# doses qui encadrent un bioessai bien concu. Meme choix que le test
+# diagnostique du module d'epidemiologie.
+.hstat_dl50_wilson <- function(x, n, alpha = 0.05) {
+  z <- stats::qnorm(1 - alpha / 2)
+  p <- ifelse(n > 0, x / n, NA_real_)
+  cen <- (p + z^2 / (2 * n)) / (1 + z^2 / n)
+  dem <- z * sqrt(p * (1 - p) / n + z^2 / (4 * n^2)) / (1 + z^2 / n)
+  list(lo = pmax(0, cen - dem), hi = pmin(1, cen + dem))
+}
+
+# Un nombre de rapport : quatre chiffres significatifs, sans notation
+# scientifique pour les doses usuelles.
+.hstat_dl50_nb <- function(v) trimws(formatC(v, format = "fg", digits = 4, flag = "#"))
+
+# L'habillage moderne : grille majeure fine, pas de grille mineure, axes
+# traces, titre aligne sur la figure et non sur le panneau, legende du modele
+# discrete. Il ne fixe AUCUNE taille de texte : celles-ci restent aux reglages.
+.hstat_dl50_theme_moderne <- function(o) {
+  ggplot2::theme(
+    panel.grid.minor = ggplot2::element_blank(),
+    panel.grid.major = ggplot2::element_line(colour = "#e5e7eb", linewidth = 0.35),
+    axis.line = ggplot2::element_line(colour = "#374151", linewidth = 0.45),
+    axis.ticks = ggplot2::element_line(colour = "#374151", linewidth = 0.4),
+    axis.ticks.length = ggplot2::unit(3, "pt"),
+    plot.title.position = "plot",
+    plot.caption.position = "plot",
+    plot.caption = ggplot2::element_text(colour = "#6b7280", hjust = 0,
+                                         size = max(7, o$grad_x_taille * 0.85),
+                                         margin = ggplot2::margin(t = 8)),
+    legend.key = ggplot2::element_blank(),
+    plot.background = ggplot2::element_rect(fill = "white", colour = NA),
+    plot.margin = ggplot2::margin(10, 14, 8, 10))
+}
+
 hstat_dl50_graphique <- function(fits, opt = list()) {
   o <- .hstat_dl50_opt(opt)
+  moderne <- !identical(as.character(o$style %||% "moderne")[1], "classique")
   fits <- Filter(function(f) isTRUE(f$ok), fits)
   if (!length(fits)) return(NULL)
   nom <- vapply(fits, function(f) {
@@ -2396,15 +2455,29 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
   ecartes <- character(0)
   pts <- do.call(rbind, lapply(seq_along(fits), function(i) {
     t <- fits[[i]]$table
+    # L'INCERTITUDE DE CHAQUE POINT, calculee sur la proportion OBSERVEE puis
+    # transportee comme le point lui-meme : telle quelle sur la courbe
+    # dose-reponse, corrigee d'Abbott puis passee au probit sur la droite de
+    # Henry. Une borne corrigee a 0 % ou 100 % n'a pas de probit : elle est
+    # ramenee au bord du cadre, ce qui dit « au-dela » sans inventer de valeur.
+    w <- .hstat_dl50_wilson(t$Morts, t$Effectif, fits[[i]]$alpha %||% 0.05)
+    cc <- fits[[i]]$c
     if (reponse)
       return(data.frame(Essai = nom[i], x = t$Log_dose,
-                        y = 100 * t$Mortalite_observee, stringsAsFactors = FALSE))
+                        y = 100 * t$Mortalite_observee,
+                        lo = 100 * w$lo, hi = 100 * w$hi,
+                        stringsAsFactors = FALSE))
     ok <- is.finite(t$Mortalite_corrigee) &
           t$Mortalite_corrigee > 0 & t$Mortalite_corrigee < 1
     if (any(!ok))
       ecartes <<- c(ecartes, trf("%s (doses %s)", nom[i], paste(
         trimws(formatC(t$Dose[!ok], format = "g", digits = 4)), collapse = ", ")))
+    vers_probit <- function(q) {
+      qc <- (q - cc) / (1 - cc)
+      ifelse(qc <= 0, -Inf, ifelse(qc >= 1, Inf, .hstat_dl50_qnorm(pmin(pmax(qc, 1e-12), 1 - 1e-12))))
+    }
     data.frame(Essai = nom[i], x = t$Log_dose[ok], y = t$Probit_corrige[ok],
+               lo = vers_probit(w$lo)[ok], hi = vers_probit(w$hi)[ok],
                stringsAsFactors = FALSE)
   }))
   pts <- pts[is.finite(pts$y), , drop = FALSE]
@@ -2489,10 +2562,43 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
         linetype = o$courbe_type, linewidth = o$courbe_epaisseur,
         colour = o$couleur)
   }
+  # LES BARRES D'INCERTITUDE, SOUS LES POINTS. Un point de bioessai sur 10
+  # insectes et un point sur 200 ne pesent pas la meme chose dans
+  # l'ajustement ; sans barre, la figure les montre egaux. Posees APRES la
+  # bande et AVANT les points : la bande reste la premiere couche a porter un
+  # intervalle, et le point se lit par-dessus sa barre.
+  if (moderne && isTRUE(o$barres) && isTRUE(o$points) && nrow(pts)) {
+    bar <- pts
+    bar$lo <- pmax(bar$lo, ylim[1]); bar$hi <- pmin(bar$hi, ylim[2])
+    bar <- bar[is.finite(bar$lo) & is.finite(bar$hi) & bar$hi > bar$lo, , drop = FALSE]
+    if (nrow(bar))
+      p <- p + if (multiple)
+        ggplot2::geom_linerange(data = bar,
+          ggplot2::aes(x = .data$x, ymin = .data$lo, ymax = .data$hi,
+                       colour = .data$Essai), linewidth = 0.55, alpha = 0.55,
+          show.legend = FALSE)
+      else ggplot2::geom_linerange(data = bar,
+          ggplot2::aes(x = .data$x, ymin = .data$lo, ymax = .data$hi),
+          linewidth = 0.55, alpha = 0.55, colour = o$couleur)
+  }
   if (isTRUE(o$points) && nrow(pts)) {
     forme <- suppressWarnings(as.integer(o$point_forme))
     if (!isTRUE(is.finite(forme))) forme <- 16L
-    p <- p + if (multiple)
+    # Un point plein cercle de blanc se detache de la courbe et de sa bande
+    # sans changer de forme : les formes pleines (16, 15, 17) prennent leur
+    # equivalent a contour (21, 22, 24), remplies de la couleur de l'essai.
+    plein <- c(`16` = 21L, `15` = 22L, `17` = 24L)
+    if (moderne && as.character(forme) %in% names(plein)) {
+      f2 <- unname(plein[as.character(forme)])
+      p <- p + if (multiple)
+        ggplot2::geom_point(data = pts,
+          ggplot2::aes(x = .data$x, y = .data$y, fill = .data$Essai),
+          size = o$point_taille * 1.15, shape = f2, alpha = o$point_opacite,
+          colour = "white", stroke = 0.7)
+      else ggplot2::geom_point(data = pts, ggplot2::aes(x = .data$x, y = .data$y),
+          size = o$point_taille * 1.15, shape = f2, alpha = o$point_opacite,
+          fill = o$couleur, colour = "white", stroke = 0.7)
+    } else p <- p + if (multiple)
       ggplot2::geom_point(data = pts,
         ggplot2::aes(x = .data$x, y = .data$y, colour = .data$Essai),
         size = o$point_taille, shape = forme, alpha = o$point_opacite)
@@ -2546,6 +2652,105 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
     }
   }
 
+  # LA DL50, CHIFFREE SUR LA FIGURE. On ouvre un module de DL50 pour lire une
+  # DL50 : la figure la montre desormais la ou elle se lit -- un losange sur
+  # la courbe, deux lignes de rappel vers les axes, son intervalle trace a
+  # sa hauteur, et l'etiquette qui porte le chiffre et l'unite. C'est
+  # l'intervalle du TABLEAU (Fieller, ou delta-methode quand g >= 1) : deux
+  # intervalles differents pour la meme DL50 dans le meme rapport seraient la
+  # copie qui ment.
+  #
+  # A plusieurs essais, chacun a son losange et son intervalle, a sa couleur ;
+  # l'etiquette chiffree ne se pose que pour un essai -- six etiquettes se
+  # recouvriraient, et le tableau les porte toutes.
+  caption <- NULL
+  if (moderne && isTRUE(o$annot_dl)) {
+    dl <- do.call(rbind, lapply(seq_along(fits), function(i) {
+      f <- fits[[i]]
+      d <- hstat_dl50_doses_letales(f, 50)
+      if (is.null(d) || !nrow(d) || !is.finite(d$Log_dose[1])) return(NULL)
+      data.frame(Essai = nom[i], x = d$Log_dose[1],
+                 y = if (reponse) 100 * (f$c + (1 - f$c) * 0.5) else 0,
+                 lo = log10(d$Limite_inf[1]), hi = log10(d$Limite_sup[1]),
+                 dose = d$Dose[1], inf = d$Limite_inf[1], sup = d$Limite_sup[1],
+                 stringsAsFactors = FALSE)
+    }))
+    if (!is.null(dl)) dl <- dl[dl$x >= rg[1] & dl$x <= rg[2] &
+                                 dl$y >= ylim[1] & dl$y <= ylim[2], , drop = FALSE]
+    if (!is.null(dl) && nrow(dl)) {
+      ic <- dl[is.finite(dl$lo) & is.finite(dl$hi), , drop = FALSE]
+      if (nrow(ic)) {
+        ic$lo <- pmax(ic$lo, rg[1]); ic$hi <- pmin(ic$hi, rg[2])
+        ep <- diff(ylim) * 0.012
+        p <- p + if (multiple)
+          ggplot2::geom_errorbar(data = ic, orientation = "y",
+            ggplot2::aes(y = .data$y, xmin = .data$lo, xmax = .data$hi,
+                         colour = .data$Essai), width = 2 * ep,
+            linewidth = 0.7, show.legend = FALSE)
+        else ggplot2::geom_errorbar(data = ic, orientation = "y",
+            ggplot2::aes(y = .data$y, xmin = .data$lo, xmax = .data$hi),
+            width = 2 * ep, linewidth = 0.7, colour = "#111827")
+      }
+      if (!multiple) {
+        # Lignes de rappel : de la DL50 vers l'axe des doses et vers celui
+        # des mortalites. Elles relient le chiffre de l'etiquette a la
+        # graduation qu'on lirait sinon a l'oeil.
+        p <- p +
+          ggplot2::annotate("segment", x = dl$x, xend = dl$x, y = ylim[1], yend = dl$y,
+                            linetype = "dashed", colour = "#6b7280", linewidth = 0.35) +
+          ggplot2::annotate("segment", x = rg[1], xend = dl$x, y = dl$y, yend = dl$y,
+                            linetype = "dashed", colour = "#6b7280", linewidth = 0.35)
+      }
+      p <- p + if (multiple)
+        ggplot2::geom_point(data = dl,
+          ggplot2::aes(x = .data$x, y = .data$y, fill = .data$Essai),
+          shape = 23, size = 3.4, colour = "#111827", stroke = 0.6,
+          show.legend = FALSE)
+      else ggplot2::geom_point(data = dl, ggplot2::aes(x = .data$x, y = .data$y),
+          shape = 23, size = 3.4, fill = "#ffffff", colour = "#111827", stroke = 0.9)
+      if (!multiple) {
+        u <- hstat_dl50_unite(fits[[1]])
+        etiq <- paste(
+          trf("DL50 = %s%s", .hstat_dl50_nb(dl$dose),
+              if (nzchar(u)) paste0(" ", u) else ""),
+          trf("IC à %d %% : [%s ; %s]",
+              as.integer(round(100 * (1 - (fits[[1]]$alpha %||% 0.05)))),
+              .hstat_dl50_nb(dl$inf), .hstat_dl50_nb(dl$sup)),
+          sep = "\n")
+        # L'etiquette se pose la ou la courbe NE PASSE PAS. Elle monte : au-dela
+        # de la DL50 elle est au-dessus, en deca au-dessous. La place libre est
+        # donc en bas a droite, ou en haut a gauche quand la DL50 est deja dans
+        # la moitie droite de l'axe.
+        droite <- dl$x < mean(rg)
+        p <- p + ggplot2::annotate("label",
+          x = dl$x + (if (droite) 1 else -1) * diff(rg) * 0.04,
+          y = dl$y + (if (droite) -1 else 1) * diff(ylim) * 0.06, label = etiq,
+          hjust = if (droite) 0 else 1, vjust = if (droite) 1 else 0,
+          size = max(3, o$grad_y_taille / 2.8),
+          colour = "#111827", fill = "#ffffffe6", lineheight = 1.05)
+      }
+    }
+  }
+  # LE MODELE EN LEGENDE. Une figure de rapport doit se suffire : l'equation,
+  # l'ajustement et la methode sont ce qui la rend reproductible sans le
+  # tableau. Pour un essai seulement -- plusieurs equations en pied de figure
+  # ne se liraient plus.
+  if (moderne && isTRUE(o$modele) && !multiple) {
+    f <- fits[[1]]
+    meth <- names(HSTAT_DL50_METHODES)[match(f$methode, HSTAT_DL50_METHODES)]
+    # Deux lignes, pas une : sur une figure de sept pouces, la ligne unique
+    # debordait du cadre et se faisait rogner a l'export.
+    caption <- paste(
+      trf("Probit : Y = %s + %s · log10(dose)   ·   χ² = %s (ddl = %d, p = %s)",
+          .hstat_dl50_nb(f$a), .hstat_dl50_nb(f$b),
+          formatC(f$chi2, format = "f", digits = 2), as.integer(f$ddl),
+          formatC(f$p_chi2, format = "f", digits = 3)),
+      trf("Mortalité naturelle %s %%   ·   %s",
+          formatC(100 * f$c, format = "f", digits = 1),
+          if (length(meth) && !is.na(meth)) tr(meth) else f$methode),
+      sep = "\n")
+  }
+
   # Sur la courbe dose-reponse, le pourcentage EST l'axe principal : un second
   # axe en probit y placerait l'infini a 0 % et a 100 %, c'est-a-dire aux deux
   # graduations que cette courbe existe pour montrer. Le reglage est masque
@@ -2573,13 +2778,19 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
         if (nzchar(u)) trf("Dose en %s (échelle logarithmique)", u)
         else tr("Dose (échelle logarithmique)")
       },
+      breaks = if (moderne) .hstat_dl50_breaks_log(rg) else ggplot2::waiver(),
       labels = function(v) formatC(10^v, format = "g", digits = 3)) +
     axe_y +
     ggplot2::labs(title = if (nzchar(o$titre)) o$titre else NULL,
                   subtitle = if (nzchar(o$sous_titre)) o$sous_titre else NULL,
+                  caption = caption,
                   colour = if (nzchar(o$legende_titre)) o$legende_titre else tr("Essai"),
                   fill = if (nzchar(o$legende_titre)) o$legende_titre else tr("Essai")) +
     (viz_get_theme(o$theme, base_size = o$base_size)) +
+    # L'HABILLAGE MODERNE SE POSE ENTRE LE THEME ET LES REGLAGES : il affine
+    # le theme choisi, et tout ce que l'utilisateur regle ensuite -- tailles,
+    # styles, grille, kit -- l'emporte sur lui.
+    (if (moderne) .hstat_dl50_theme_moderne(o) else ggplot2::theme()) +
     ggplot2::theme(
       plot.title = .hstat_dl50_txt(o$titre_taille, o$titre_style,
                                    hjust = o$titre_pos),
@@ -2615,6 +2826,13 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
       pal <- HSTAT_DL50_OPT_DEFAUT$palette
     for (sc in hstat_scales_palette(pal)) p <- p + sc
   }
+  # Graduations logarithmiques mineures, au pied de l'axe des doses : ce sont
+  # elles qui disent au premier regard que l'axe est logarithmique.
+  if (moderne && isTRUE(o$logticks))
+    p <- p + ggplot2::annotation_logticks(
+      sides = "b", colour = "#9ca3af", outside = FALSE,
+      short = ggplot2::unit(0.05, "cm"), mid = ggplot2::unit(0.09, "cm"),
+      long = ggplot2::unit(0.14, "cm"))
   # LE KIT SE POSE EN DERNIER parmi les themes : un theme complet remplace
   # tout ce qui precede. Il ne s'applique que s'il a ete rempli.
   if (length(o$extras)) {
@@ -2927,6 +3145,18 @@ mod_dl50_ui <- function(id) {
               shiny::checkboxInput(ns("gBande"), "Intervalles (IF ou IC)", TRUE),
               shiny::checkboxInput(ns("gReperes"), "Repères DL10 / DL50 / DL90", TRUE),
               shiny::checkboxInput(ns("gTous"), "Tous les essais en mémoire", FALSE)),
+
+            .hstat_opt_section("Rendu", "wand-magic-sparkles", "#0f766e", "#e6f4f1",
+              shiny::selectInput(ns("gStyle"), "Style de la figure",
+                                 choices = HSTAT_DL50_STYLES, selected = "moderne"),
+              # Ces quatre reglages n'existent qu'en style moderne : offerts en
+              # classique, ils se cocheraient sans que l'image bouge.
+              shiny::conditionalPanel(
+                condition = sprintf("input['%s'] == 'moderne'", ns("gStyle")),
+                shiny::checkboxInput(ns("gBarres"), "Intervalle binomial sur chaque point (Wilson)", TRUE),
+                shiny::checkboxInput(ns("gAnnotDL"), "DL50 chiffrée sur la figure, avec son intervalle", TRUE),
+                shiny::checkboxInput(ns("gModele"), "Modèle et ajustement en légende (un essai)", TRUE),
+                shiny::checkboxInput(ns("gLogticks"), "Graduations logarithmiques mineures", TRUE))),
 
             .hstat_opt_section("Titres", "heading", "#8e44ad", "#f4ecfa",
               shiny::textInput(ns("gTitre"), "Titre du graphique"),
@@ -4171,6 +4401,9 @@ mod_dl50_server <- function(id, values) {
       nb <- function(id, defaut) .hstat_num1(input[[id]], defaut)
       list(
         type = input$gType %||% "probit",
+        style = input$gStyle %||% "moderne",
+        barres = isTRUE(input$gBarres), annot_dl = isTRUE(input$gAnnotDL),
+        modele = isTRUE(input$gModele), logticks = isTRUE(input$gLogticks),
         points = isTRUE(input$gPoints), courbe = isTRUE(input$gCourbe),
         droite = isTRUE(input$gDroite), bande = isTRUE(input$gBande),
         reperes = isTRUE(input$gReperes),
