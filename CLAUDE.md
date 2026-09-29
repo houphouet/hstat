@@ -3941,6 +3941,150 @@ la sonde relisait donc son verdict — **identique à l'octet près pour les tro
 scénarios**, ce qui ressemble exactement à « le réglage ne fait rien ». D'où une
 **session neuve par scénario**.
 
+#### Un refus ne nomme que ce qu'il a établi
+
+Signalé à l'écran, capture à l'appui : colonnes correctement choisies —
+`Concentration`, `Effectif testé`, `Morts_48h` — et le module répondait
+
+> La mortalité décroît quand la dose augmente […] **La colonne des morts doit
+> porter les morts et non les survivants.**
+
+Les colonnes étaient **justes**. La cause réelle n'était nommée nulle part.
+
+Reproduit : témoin **34/40, soit 85 %**, six doses tuant 92,5 à 100 %.
+
+| | valeurs |
+|---|---|
+| mortalité observée | 0,975 · 0,975 · 1 · 0,95 · 0,925 · 0,975 |
+| après Abbott | 0,833 · 0,833 · **1** · 0,667 · **0,5** · 0,833 |
+
+**La correction d'Abbott divise par 1 − c.** À 85 %, elle divise par 0,15 : un
+écart de un point sur la mortalité observée en fait **6,7** sur la mortalité
+corrigée. Ce qui reste n'est plus une courbe, c'est du bruit amplifié — la
+pente ajustée sort négative, et le refus tombe. Le **même essai** avec un
+témoin propre (2/40) s'ajuste sans une alerte : **DL50 = 0,3305
+[0,2323 ; 0,4375]**.
+
+Le message accusait donc l'utilisateur d'une faute de saisie qui n'existait
+pas, pendant qu'un défaut de conduite d'essai — quatre fois le seuil
+`HSTAT_DL50_TEMOIN_MAX` — passait inaperçu. C'est la règle du dépôt appliquée à
+l'envers : « une erreur non reconnue n'est pas maquillée » vaut aussi pour une
+cause qu'on n'a pas établie.
+
+`.hstat_dl50_causes()` rend les causes **mesurées**, et les deux refus (pente
+négative, « moins de trois doses intermédiaires ») composent désormais le
+**fait** puis ces causes. Quatre sont établissables, chacune avec son chiffre
+et son geste, et chacune testée :
+
+| Cause | Ce qui l'établit | Le geste |
+|---|---|---|
+| témoin trop chargé | `c > HSTAT_DL50_TEMOIN_MAX` | refaire l'essai, ou passer en « mortalité naturelle nulle » |
+| plafond | les doses tuent ≥ 90 % **après** Abbott | des doses plus **faibles** |
+| plancher | les doses ne tuent pas plus que le témoin | des doses plus **fortes** |
+| inversion | voir ci-dessous | la colonne des morts porte les survivants |
+
+Deux gestes opposés sous un seul motif enverraient la moitié des utilisateurs
+dans la mauvaise direction : le test l'exige (`plus fortes` présent, `plus
+faibles` absent, et l'inverse).
+
+Quatre mutations le gardent, toutes attrapées : l'inversion revenue au signe
+seul (**deux** assertions), le motif qui accuse les colonnes sans condition,
+le plafond et le plancher réduits à un seul geste, et l'essai qui ne compte
+plus ce qu'il a regroupé.
+
+**Et le geste générique ne se dit que si aucune cause n'est établie.**
+« Ajoutez des doses intermédiaires » posé juste après « il faut des doses plus
+fortes » se contredit à demi-mot.
+
+##### Un motif ne promet pas une issue
+
+Le renvoi vers « mortalité naturelle nulle » disait d'abord « pour voir
+l'ajustement brut ». Mesuré sur l'essai signalé, cette méthode **refuse aussi**
+— et pour l'autre moitié de la vérité :
+
+| méthode | verdict |
+|---|---|
+| EM, Abbott | *La mortalité du témoin vaut 85 %…* |
+| mortalité nulle | *5 doses sur 5 tuent déjà 90 % ou plus…* |
+
+Les deux refus sont **complémentaires** : le témoin est perdu **et** les doses
+sont toutes au plafond. C'est exactement ce que l'utilisateur doit apprendre,
+et c'est pourquoi les causes se calculent sur l'essai plutôt que de se déduire
+de la méthode. Mais « pour voir l'ajustement brut » **promettait une issue que
+le clic ne donne pas** — le défaut déjà corrigé sur le bouton « Afficher quand
+même ». Le motif décrit désormais ce que la méthode fait (« elle ignore le
+témoin et juge les doses seules »), il n'annonce plus de résultat.
+
+##### L'amplitude, pas le signe
+
+`.hstat_dl50_decroissante()` ne regardait que le **signe** de la covariance
+entre le log de la dose et la mortalité observée. C'était écrit ici comme une
+décision — « on mesure le sens, pas la force » — et la mesure la dément.
+
+Les deux essais ci-dessous ont **le même signe**, et ce n'est pas la même
+chose :
+
+| | mortalité observée | moitié basse − moitié haute |
+|---|---|---|
+| bruit au plafond | 97,5 · 97,5 · 100 · 95 · 92,5 · 97,5 | **0,033** |
+| réponse retournée | 90 · 80 · 60 · 40 · 20 · 5 | **0,55** |
+
+Le premier est du bruit d'échantillonnage entre des points collés au plafond ;
+le second est une colonne de survivants. `HSTAT_DL50_INVERSION_MIN` (un tiers
+de l'échelle) les sépare, et `.hstat_dl50_inversion()` rend **les deux
+moyennes** plutôt qu'un booléen — le message les cite, et un refus qui ne
+chiffre pas se lit comme un reproche.
+
+C'est l'assertion qui distingue les deux codes : le test pose les deux essais
+**et vérifie d'abord que leur covariance est négative dans les deux cas**.
+Sans cela, une fonction qui ne regarderait que le signe passerait aussi.
+
+#### Le champ disait l'inverse de ce qu'il fait
+
+Second signalement de la même capture : *« dans la Colonne de regroupement
+(facultatif), la colonne dose ou concentration n'apparaît pas or c'est elle qui
+permet un regroupement »*.
+
+Le fichier porte **quatre répétitions par dose**, et l'utilisateur cherchait à
+les réunir. « Colonne de regroupement » se lit « colonne par laquelle
+agréger » — or ce champ **découpe** le fichier en plusieurs essais. Il demandait
+donc au champ l'inverse de ce que le champ fait, et la liste (qui écarte les
+trois mesures depuis la correction précédente) ne pouvait que le décevoir.
+
+**Le regroupement qu'il cherchait a toujours eu lieu, et rien ne l'annonçait.**
+`hstat_dl50_essai()` somme les doses identiques depuis toujours — c'est la règle
+de WIN DL, et la seule qui garde juste le nombre d'insectes testés. Vingt lignes
+devenaient cinq doses **en silence**, et l'on lisait « 1 essai importé » sans
+savoir ce qu'il en restait. Un mécanisme muet se réinvente : c'est ce silence
+qui a envoyé la colonne des doses dans le champ voisin.
+
+Trois corrections, chacune testée :
+
+1. **Le libellé dit ce que le champ fait** — « Colonne qui sépare les essais » —
+   et l'aide dit que les répétitions sont **déjà** regroupées d'office.
+2. **L'essai compte ce qu'il a regroupé** (`lignes`, `regroupees`).
+3. **L'import le dit** : « Les répétitions d'une même dose ont été regroupées :
+   20 lignes donnent 5 doses. » Le message ne s'affiche pas quand il n'y a rien
+   à regrouper — une phrase qui décrit une action qui n'a pas eu lieu est du
+   bruit.
+
+Au passage, la notification composait un **fragment** (`" ; %d écarté(s)…"`)
+passé à `trf()`. Trois phrases entières, comme les six libellés de perte de
+rendement : `trf()` ne traduit jamais ses arguments, et un bout de phrase au
+dictionnaire ne se traduit nulle part.
+
+#### Le troisième signalement n'était pas un défaut
+
+La boîte « Mise en forme générale » de l'onglet Graphique paraissait **vide**
+sur la capture. Mesurée sur l'interface rendue, elle porte **dix** champs : le
+tracé des axes et ses deux réglages, la taille des clés, les deux angles, les
+deux pas et les quatre marges. La capture était coupée.
+
+Documenter un défaut inventé serait pire que ne rien documenter : on le
+chercherait. C'est la même leçon que les quatre sondes du module
+d'épidémiologie, à ceci près qu'ici la mesure **infirme** le signalement au
+lieu de le confirmer.
+
 ### Erreur-type et écart-type ne mesurent pas la même chose
 
 Les confondre est l'erreur classique du bioessai, et elle change la conclusion :
