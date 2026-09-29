@@ -93,6 +93,28 @@ HSTAT_DL50_TOL        <- 1e-5    # ecart absolu sur la log-vraisemblance
 HSTAT_DL50_DOSES_MAX  <- 100L    # limite de WIN DL
 HSTAT_DL50_ESSAIS_MAX <- 6L      # limite de WIN DL
 HSTAT_DL50_MIN_UTILES <- 3L      # doses a mortalite corrigee strictement entre 0 et 1
+# COMBIEN DE VALEURS UNE LISTE SAISIE PEUT DEMANDER (seuils de DL, doses a
+# evaluer, mortalites visees). Ces listes viennent d'un champ de TEXTE : rien
+# n'empeche d'y coller cent mille nombres. Mesure avant la borne : 10 000 seuils
+# prenaient 9,6 s et 100 000 en prenaient 88 -- pendant lesquelles le processus
+# R, qui sert toutes les sessions, ne repondait a personne. Cinquante couvre
+# tout usage reel ; au-dela, ce que l'on ecarte se dit.
+HSTAT_DL50_DEMANDES_MAX <- 50L
+# LIGNES DU TABLEAU DE SAISIE. Cent doses au plus apres regroupement, et une
+# dose se repete : mille lignes laissent dix repetitions a chacune. La borne
+# existe parce que le tableau voyage entier vers le navigateur a chaque
+# modification -- un collage de cent mille lignes le figeait.
+HSTAT_DL50_SAISIE_MAX <- 1000L
+# TAILLE D'UN FICHIER NATIF (essai ou liste). Un essai de cent doses tient en
+# cinq kilo-octets, une liste de mille termes en cinquante. Le plafond d'envoi
+# de l'application, lui, vaut 100 Go par defaut -- et le lecteur charge le
+# fichier ENTIER en memoire, octet par octet, avant de le decouper. Sans borne
+# propre, un seul envoi pouvait faire tuer le processus R de toutes les
+# sessions.
+HSTAT_DL50_FICHIER_MAX <- 1024^2
+# TERMES D'UNE LISTE DEROULANTE. Un vocabulaire controle, pas un fichier de
+# donnees : au-dela, c'est qu'on s'est trompe de fichier.
+HSTAT_DL50_LISTE_MAX <- 5000L
 
 # Au-dela, la correction d'ABBOTT devient peu fiable et l'usage veut qu'on
 # refasse l'essai (FINNEY, 1971). Ce n'est pas une erreur de saisie : c'est un
@@ -273,9 +295,31 @@ hstat_dl50_probit <- function(p) {
     sxx <- sum(WN[ok] * z[ok]^2); sxy <- sum(WN[ok] * z[ok] * Y2[ok])
     den <- sw * sxx - sx^2
     if (!is.finite(den) || abs(den) < 1e-300) break
-    b <- (sw * sxy - sx * sy) / den
-    a <- (sy - b * sx) / sw
-    if (!is.finite(a) || !is.finite(b)) break
+    b_n <- (sw * sxy - sx * sy) / den
+    a_n <- (sy - b_n * sx) / sw
+    if (!is.finite(a_n) || !is.finite(b_n)) break
+    # UN PAS QUI FAIT BAISSER LA VRAISEMBLANCE SE REDUIT DE MOITIE.
+    #
+    # Le scoring de Fisher n'est pas monotone : sur un essai a doses
+    # nombreuses, il franchit l'optimum a chaque pas et entre dans un CYCLE A
+    # DEUX TEMPS -- la pente alternait 2,73 / 3,21 autour d'un optimum a 2,99,
+    # indefiniment. Le critere d'arret compare deux vraisemblances qui
+    # alternent elles aussi : il n'est jamais satisfait, et relever le plafond
+    # d'iterations -- le seul geste que l'interface propose -- n'y change rien.
+    # Mesure sur 1 500 essais tires au sort : 2,1 % des ajustements Abbott et
+    # 1,4 % des EM s'arretaient ainsi sur la derniere iteration, parametres
+    # faux de 9 % sur la pente.
+    #
+    # La reduction de pas ne touche que les pas qui DESCENDENT : sur un chemin
+    # qui monte deja -- celui de l'essai de reference de WIN DL -- elle ne se
+    # declenche jamais, et les chiffres confrontes au logiciel ne bougent pas.
+    ll_n <- hstat_dl50_logvrais(x, n, cc + (1 - cc) * stats::pnorm(a_n + b_n * z))
+    k <- 0L
+    while ((!is.finite(ll_n) || ll_n < ll) && k < 30L) {
+      a_n <- (a + a_n) / 2; b_n <- (b + b_n) / 2; k <- k + 1L
+      ll_n <- hstat_dl50_logvrais(x, n, cc + (1 - cc) * stats::pnorm(a_n + b_n * z))
+    }
+    a <- a_n; b <- b_n
   }
   list(a = a, b = b, iterations = it, converge = conv)
 }
@@ -320,6 +364,33 @@ hstat_dl50_probit <- function(p) {
                         tol = tol / 100)
     if (!is.finite(f$a) || !is.finite(f$b)) break
     a <- f$a; b <- f$b
+  }
+  # UN DEPART A c = 0 EST UN POINT FIXE DE L'EM, PAS UN OPTIMUM.
+  #
+  # A `c = 0`, l'etape [E] rend des poids nuls et `c` ne bouge plus jamais :
+  # l'EM « converge » en trois boucles sur l'ajustement a mortalite nulle, et
+  # l'annonce sous le nom d'EM. C'est juste sur l'essai de reference, dont
+  # l'optimum est bien sur la borne -- et faux des que les doses faibles
+  # tuent davantage que le temoin ne le laisse croire. Mesure sur 1 500 essais
+  # tires au sort : 66 temoins sans mort laissaient ainsi `c` a zero, a plus
+  # de 0,1 unite de log-vraisemblance de l'optimum, avec « convergence
+  # atteinte » ; la DL50 s'en ecartait jusqu'a un facteur 1,9.
+  #
+  # La borne est l'optimum si et seulement si la vraisemblance y DECROIT en
+  # `c` : c'est le signe de la derivee qui tranche, pas l'intuition. Positive,
+  # on repart du depart lisse -- celui qui laisse `c` explorer. Negative ou
+  # nulle, rien ne change, et l'essai de reference garde ses trois boucles.
+  if (cc <= 0 && !identical(chemin, "windl") && is.finite(a) && is.finite(b)) {
+    P1 <- stats::pnorm(a + b * z)
+    score <- sum(x * (1 - P1) / pmax(P1, 1e-12)) - sum(n - x) - (n0 - x0)
+    if (is.finite(score) && score > 0) {
+      g <- .hstat_dl50_em(z, n, x, n0, x0, a0, b0, itmax = itmax, tol = tol,
+                          chemin = "windl")
+      if (is.finite(g$a) && is.finite(g$b)) {
+        g$iterations <- it + g$iterations
+        return(g)
+      }
+    }
   }
   list(a = a, b = b, c = cc, iterations = it, converge = conv)
 }
@@ -630,6 +701,20 @@ hstat_dl50_essai <- function(dose, effectif, morts, temoin_n = 0, temoin_morts =
 # ---------------------------------------------------------------------------
 #  L'AJUSTEMENT
 # ---------------------------------------------------------------------------
+# LE RISQUE ALPHA, BORNE UNE FOIS POUR LES QUATRE FONCTIONS PUBLIQUES.
+# L'interface le ramene dans [0,001 ; 0,2], mais aucune de ces fonctions ne
+# le verifiait. Mesure : alpha = 0 rendait des intervalles infinis etiquetes
+# « delta », alpha = 1 des intervalles de largeur nulle etiquetes « Fieller »
+# et un test d'identite a p = 0,997 declare SIGNIFICATIF ; une chaine faisait
+# comparer la p-value a du texte -- « 0,997 < "x" » vaut VRAI, donc
+# « significatif » encore ; `NA` levait. Aucun de ces resultats ne se lit
+# comme une faute.
+.hstat_dl50_alpha <- function(alpha) {
+  a <- suppressWarnings(as.numeric(alpha)[1])
+  if (!length(a) || !is.finite(a)) return(0.05)
+  min(max(a, 0.001), 0.2)
+}
+
 hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
                               alpha = 0.05, itmax = HSTAT_DL50_ITMAX,
                               chemin = c("rapide", "windl")) {
@@ -640,6 +725,12 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
   itmax <- suppressWarnings(as.integer(itmax)[1])
   if (!length(itmax) || is.na(itmax) || itmax < 1L) itmax <- HSTAT_DL50_ITMAX
   itmax <- min(itmax, HSTAT_DL50_ITMAX_MAX)
+  # LE RISQUE ALPHA SE BORNE ICI AUSSI. L'interface le ramene dans
+  # [0,001 ; 0,2], mais la fonction est publique : alpha = 0 rendait un
+  # quantile infini et des intervalles infinis etiquetes « delta », alpha = 1
+  # des intervalles de largeur nulle etiquetes « Fieller », et une chaine
+  # levait -- trois resultats qui ne se lisent pas comme des fautes.
+  alpha <- .hstat_dl50_alpha(alpha)
   echec <- function(motif)
     structure(list(ok = FALSE, message = motif, methode = methode),
               class = "hstat_dl50_fit")
@@ -772,7 +863,13 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
   # sa ligne vaut NA par construction, et exiger la finitude partout ferait
   # refuser un ajustement parfaitement calculable.
   if (is.null(V) || any(!is.finite(V[1:2, 1:2])))
-    return(echec(tr("Matrice d'information singulière : les variances des paramètres ne peuvent pas être calculées. Ajoutez des doses ou augmentez les effectifs.")))
+    return(echec(if (identical(methode, "em"))
+      # Sous EM, la mortalite naturelle est estimee EN PLUS : sur une reponse
+      # en marche d'escalier, son optimum pousse la pente vers l'infini. Le
+      # dire oriente vers la methode qui, elle, peut aboutir.
+      tr("Matrice d'information singulière : les variances des paramètres ne peuvent pas être calculées. Sous EM, la mortalité naturelle est estimée en plus de la droite : une réponse qui passe d'un coup de quelques morts à 100 % ne suffit pas à la déterminer. Essayez la méthode Abbott, ou ajoutez des doses intermédiaires.")
+    else
+      tr("Matrice d'information singulière : les variances des paramètres ne peuvent pas être calculées. Ajoutez des doses ou augmentez les effectifs.")))
 
   # Heterogeneite : un ajustement rejete a 5 % signale une dispersion que le
   # modele binomial ne contient pas. Les variances sont alors multipliees par
@@ -955,6 +1052,35 @@ hstat_dl50_note_echelle <- function() {
     shiny::span(tr("Sur la DL50, 10^(log10 DL50 ± 1/b) rend la dose à un probit de plus et de moins, soit la DL84,1 et la DL15,9 : l'écart-type décrit la dispersion des sensibilités dans la population, il ne diminue pas quand on teste plus d'individus.")))
 }
 
+# Une liste demandee : dedoublonnee, puis bornee a HSTAT_DL50_DEMANDES_MAX.
+# Rend les valeurs gardees et, en attribut, la phrase qui dit ce qui a ete
+# coupe -- une coupe muette rendrait moins de lignes qu'on en a demande.
+.hstat_dl50_borne_demandes <- function(v) {
+  v <- unique(v)
+  coupe <- length(v) - HSTAT_DL50_DEMANDES_MAX
+  if (coupe > 0) {
+    v <- v[seq_len(HSTAT_DL50_DEMANDES_MAX)]
+    attr(v, "plafond") <- trf("%d valeur(s) au-delà des %d premières ont été ignorées : une liste se limite à %d valeurs.",
+                              coupe, HSTAT_DL50_DEMANDES_MAX, HSTAT_DL50_DEMANDES_MAX)
+  }
+  v
+}
+
+# Les valeurs ecartees, nommees -- mais pas toutes : cent mille nombres
+# ecartes feraient un message de cent mille nombres, rendu a l'ecran.
+# Un indice venu du navigateur : UN entier, dans [1 ; n], ou NA.
+.hstat_dl50_indice <- function(v, n) {
+  v <- suppressWarnings(as.numeric(v))
+  if (length(v) != 1L || !is.finite(v) || v != round(v) || v < 1 || v > n)
+    return(NA_integer_)
+  as.integer(v)
+}
+
+.hstat_dl50_liste_ecartes <- function(v, max = 10L) {
+  txt <- trimws(formatC(utils::head(v, max), format = "g", digits = 4))
+  paste0(paste(txt, collapse = ", "), if (length(v) > max) ", \u2026" else "")
+}
+
 hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
   if (!isTRUE(fit$ok)) return(NULL)
   # UN SEUIL SE FILTRE ICI, PAS CHEZ L'APPELANT.
@@ -972,7 +1098,9 @@ hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
   s <- suppressWarnings(as.numeric(seuils))
   garde <- is.finite(s) & s > 0 & s < 100
   ecartes <- s[!garde]
-  s <- s[garde]
+  s <- .hstat_dl50_borne_demandes(s[garde])
+  plafond <- attr(s, "plafond")
+  s <- as.numeric(s)
   if (!length(s)) {
     vide <- data.frame(
       Seuil = numeric(0), Log_dose = numeric(0), Dose = numeric(0),
@@ -1040,8 +1168,8 @@ hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
   rownames(res) <- NULL
   if (length(ecartes))
     attr(res, "ecartes") <- trf("Seuil(s) écarté(s) : %s. Une dose létale se demande strictement entre 0 %% et 100 %% de mortalité.",
-                                paste(trimws(formatC(ecartes, format = "g", digits = 4)),
-                                      collapse = ", "))
+                                .hstat_dl50_liste_ecartes(ecartes))
+  if (!is.null(plafond)) attr(res, "plafond") <- plafond
   attr(res, "g") <- g
   attr(res, "etendue") <- etendue
   hors <- res$Seuil[!is.na(res$Position) & res$Position == tr("extrapolée")]
@@ -1066,7 +1194,9 @@ hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
 hstat_dl50_mortalite <- function(fit, dose) {
   if (!isTRUE(fit$ok)) return(NULL)
   d <- suppressWarnings(as.numeric(dose))
-  d <- d[is.finite(d) & d > 0]
+  ecartees <- d[!is.na(d) & !(is.finite(d) & d > 0)]
+  d <- .hstat_dl50_borne_demandes(d[is.finite(d) & d > 0])
+  plafond <- attr(d, "plafond"); d <- as.numeric(d)
   if (!length(d)) return(NULL)
   V <- fit$Vh; tq <- fit$t; cc <- fit$c
   z <- log10(d)
@@ -1074,13 +1204,20 @@ hstat_dl50_mortalite <- function(fit, dose) {
   se <- sqrt(pmax(V[1, 1] + z^2 * V[2, 2] + 2 * z * V[1, 2], 0))
   vers_p <- function(e) cc + (1 - cc) * stats::pnorm(e)
   etendue <- range(fit$essai$doses$dose, finite = TRUE)
-  data.frame(Dose = d, Log_dose = z, Probit_attendu = eta, Erreur_type = se,
+  res <- data.frame(Dose = d, Log_dose = z, Probit_attendu = eta, Erreur_type = se,
              Mortalite = vers_p(eta),
              Limite_inf = vers_p(eta - tq * se),
              Limite_sup = vers_p(eta + tq * se),
              Position = ifelse(d < etendue[1] | d > etendue[2],
                                tr("extrapolée"), tr("interpolée")),
              stringsAsFactors = FALSE)
+  # Une dose nulle ou negative n'a pas de logarithme : elle est ecartee, et
+  # NOMMEE -- le tableau rendrait sinon moins de lignes qu'on en a demande.
+  if (length(ecartees))
+    attr(res, "ecartes") <- trf("Dose(s) écartée(s) : %s. Une dose s'évalue strictement au-dessus de zéro.",
+                                .hstat_dl50_liste_ecartes(ecartees))
+  if (!is.null(plafond)) attr(res, "plafond") <- plafond
+  res
 }
 
 # Dose correspondant a une mortalite donnee. La mortalite demandee est celle
@@ -1090,11 +1227,16 @@ hstat_dl50_mortalite <- function(fit, dose) {
 hstat_dl50_dose_pour <- function(fit, mortalite) {
   if (!isTRUE(fit$ok)) return(NULL)
   m <- suppressWarnings(as.numeric(mortalite))
-  m <- m[is.finite(m)]
+  m <- .hstat_dl50_borne_demandes(m[is.finite(m)])
+  plafond <- attr(m, "plafond"); m <- as.numeric(m)
   if (!length(m)) return(NULL)
   p <- (m / 100 - fit$c) / (1 - fit$c)
   ok <- p > 0 & p < 1
   if (!any(ok)) return(NULL)
+  # UNE MORTALITE HORS D'ATTEINTE SE NOMME. Sous la mortalite naturelle,
+  # aucune dose ne convient : « 5, 50 » sur un essai a 10 % de mortalite
+  # naturelle rendait la seule ligne de 50 %, sans un mot sur la premiere.
+  ecartees <- m[!ok]
   m <- m[ok]; p <- p[ok]
   # UNE LIGNE A LA FOIS, et surtout pas un appel groupe : `doses_letales()`
   # TRIE ses lignes par seuil decroissant. Y recoller ensuite la mortalite
@@ -1107,6 +1249,10 @@ hstat_dl50_dose_pour <- function(fit, mortalite) {
   }))
   res <- res[order(res$Mortalite_demandee), , drop = FALSE]
   rownames(res) <- NULL
+  if (length(ecartees))
+    attr(res, "ecartes") <- trf("Mortalité(s) écartée(s) : %s. Elle doit dépasser la mortalité naturelle estimée (%.2f %%) et rester sous 100 %%.",
+                                .hstat_dl50_liste_ecartes(ecartees), 100 * fit$c)
+  if (!is.null(plafond)) attr(res, "plafond") <- plafond
   res
 }
 
@@ -1121,6 +1267,12 @@ hstat_dl50_dose_pour <- function(fit, mortalite) {
 #  Le seuil retenu est la DL50 quand elle est demandee, sinon la premiere des
 #  doses letales calculees : demander « DL20, DL80 » et se voir repondre sur un
 #  seuil qu'on n'a pas demande serait pire que ne rien dire.
+.hstat_dl50_fractionnaire <- function(essai) {
+  v <- c(essai$doses$n, essai$doses$x, essai$n0, essai$x0)
+  v <- v[is.finite(v)]
+  any(abs(v - round(v)) > 1e-8)
+}
+
 hstat_dl50_verdict <- function(fit, seuils = HSTAT_DL50_SEUILS) {
   if (!isTRUE(fit$ok)) return(NULL)
   dl <- hstat_dl50_doses_letales(fit, seuils)
@@ -1154,6 +1306,13 @@ hstat_dl50_verdict <- function(fit, seuils = HSTAT_DL50_SEUILS) {
       if (isTRUE(fit$temoin_contredit))
         trf("Mortalité naturelle déclarée nulle alors que le témoin en compte %.1f %% : les doses sont analysées sans correction, et l'ajustement est jugé sur elles seules. Choisissez Abbott ou EM pour tenir compte du témoin.",
             100 * fit$c_temoin),
+      # UN INSECTE NE SE COMPTE PAS EN FRACTION. Le modele binomial compte des
+      # individus : « 10,5 testes » est presque toujours une MOYENNE de
+      # repetitions la ou il fallait une somme -- l'essai parait alors plus
+      # petit qu'il n'est, et le Chi-2 comme les intervalles en sont fausses.
+      # On le dit sans refuser : un comptage pondere reste calculable.
+      if (.hstat_dl50_fractionnaire(fit$essai))
+        tr("Effectifs ou morts non entiers : le modèle binomial compte des individus. S'il s'agit de moyennes de répétitions, saisissez plutôt les sommes — les répétitions d'une même dose sont regroupées d'office — sans quoi le test d'ajustement et les intervalles sont faussés."),
       if (identical(dl$Position[i], tr("extrapolée")))
         trf("Cette dose est hors de l'étendue testée (%s à %s) : elle repose sur le prolongement de la droite.",
             nb(attr(dl, "etendue")[1]), nb(attr(dl, "etendue")[2])),
@@ -1330,6 +1489,7 @@ hstat_dl50_comparaison <- function(essais,
                                    scenario = c("heterogene", "homogene", "nulle"),
                                    alpha = 0.05) {
   scenario <- match.arg(scenario)
+  alpha <- .hstat_dl50_alpha(alpha)
   vide <- function(motif) {
     r <- data.frame()
     attr(r, "message") <- motif
@@ -1436,6 +1596,7 @@ hstat_dl50_puissance <- function(essais, reference = 1,
                                  scenario = c("heterogene", "homogene", "nulle"),
                                  alpha = 0.05) {
   scenario <- match.arg(scenario)
+  alpha <- .hstat_dl50_alpha(alpha)
   vide <- function(motif) {
     r <- data.frame()
     attr(r, "message") <- motif
@@ -1559,6 +1720,7 @@ hstat_dl50_puissance <- function(essais, reference = 1,
 #     empiler des repetitions qui ne se ressemblent pas noierait leur
 #     difference au lieu de la montrer.
 hstat_dl50_fusion <- function(essais, alpha = 0.05) {
+  alpha <- .hstat_dl50_alpha(alpha)
   vide <- function(motif) list(ok = FALSE, message = motif)
   if (length(essais) < 2L) return(vide(tr("La fusion demande au moins deux essais.")))
   ch <- lapply(essais, function(e) e$champs)
@@ -1646,9 +1808,21 @@ hstat_dl50_fusion <- function(essais, alpha = 0.05) {
 #     Le retirer par son apparence textuelle ne marche donc pas, et la liste
 #     relue portait un element de plus, invisible a la lecture du code. On
 #     tronque l'octet.
+.hstat_dl50_trop_gros <- function(chemin) {
+  taille <- tryCatch(file.size(chemin), error = function(e) NA_real_)
+  isTRUE(is.finite(taille) && taille > HSTAT_DL50_FICHIER_MAX)
+}
+
+.hstat_dl50_msg_trop_gros <- function()
+  trf("Fichier trop volumineux pour un fichier natif de WIN DL (plus de %d Ko) : un essai de %d doses tient en quelques kilo-octets. Vérifiez qu'il s'agit du bon fichier.",
+      as.integer(HSTAT_DL50_FICHIER_MAX / 1024), HSTAT_DL50_DOSES_MAX)
+
 .hstat_dl50_lignes <- function(chemin) {
   taille <- tryCatch(file.size(chemin), error = function(e) NA_real_)
   if (!isTRUE(is.finite(taille)) || taille <= 0) return(character(0))
+  # Le garde-fou vit ICI, dans le seul lecteur : l'essai et la liste y
+  # passent tous les deux, et aucun appelant ne peut l'oublier.
+  if (taille > HSTAT_DL50_FICHIER_MAX) return(character(0))
   oct <- tryCatch(readBin(chemin, "raw", n = taille), error = function(e) NULL)
   if (is.null(oct) || !length(oct)) return(character(0))
   fin_fichier <- which(oct == as.raw(219L))
@@ -1670,6 +1844,7 @@ hstat_dl50_fusion <- function(essais, alpha = 0.05) {
 
 hstat_dl50_lire_windl <- function(chemin) {
   echec <- function(motif) list(ok = FALSE, message = motif)
+  if (.hstat_dl50_trop_gros(chemin)) return(echec(.hstat_dl50_msg_trop_gros()))
   L <- .hstat_dl50_lignes(chemin)
   if (!length(L)) return(echec(tr("Fichier vide ou illisible.")))
   if (length(L) < 6L)
@@ -1864,6 +2039,9 @@ hstat_dl50_coller <- function(txt) {
   if (!length(lignes))
     return(echec(tr("Le collage ne contient que des en-têtes : il manque les lignes de données.")))
 
+  if (length(lignes) > HSTAT_DL50_SAISIE_MAX)
+    return(echec(trf("Le collage compte %d lignes : le tableau de saisie en accepte %d au plus. Un essai de WIN DL porte au plus %d doses ; les répétitions d'une même dose sont regroupées d'office.",
+                     length(lignes), HSTAT_DL50_SAISIE_MAX, HSTAT_DL50_DOSES_MAX)))
   mat <- lapply(lignes, decoupe)
   larg <- vapply(mat, length, integer(1))
   if (any(larg < 3L))
@@ -1995,13 +2173,19 @@ hstat_dl50_liste_ecrire <- function(valeurs, chemin) {
 # les doublons. » La comparaison ignore la casse et les espaces de bord :
 # « Cyfluthrine » et « cyfluthrine  » sont le meme produit, et les garder tous
 # deux rendrait la selection inefficace -- exactement ce que la liste evite.
+#
+# VECTORISE, ET CE N'EST PAS UNE AFFAIRE DE STYLE. La boucle d'origine
+# comparait chaque valeur a toute la liste deja grossie : un cout quadratique.
+# Mesure : un fichier de liste de 200 000 lignes se lisait en 0,8 s, puis
+# l'ajout ne rendait JAMAIS la main -- et le processus R, qui sert toutes les
+# sessions, restait fige. `duplicated()` fait le meme tri en une passe : ce qui
+# est deja dans la liste l'emporte, puis la premiere occurrence d'un doublon.
 hstat_dl50_liste_ajouter <- function(liste, valeur) {
   v <- trimws(as.character(valeur))
-  v <- v[nzchar(v)]
+  v <- v[!is.na(v) & nzchar(v)]
   if (!length(v)) return(liste)
-  for (x in v)
-    if (!(tolower(x) %in% tolower(liste))) liste <- c(liste, x)
-  sort(liste)
+  tout <- c(as.character(liste), v)
+  sort(tout[!duplicated(tolower(tout))])
 }
 
 hstat_dl50_liste_retirer <- function(liste, valeur) {
@@ -3105,6 +3289,7 @@ mod_dl50_ui <- function(id) {
                             " ramené en pourcentage : les bornes restent donc entre",
                             " 0 et 100 %."),
             DT::DTOutput(ns("tableMort")),
+            shiny::uiOutput(ns("noteMort")),
             shiny::br(),
             shiny::downloadButton(ns("mortCsv"), " Télécharger (CSV)", class = "btn-sm"),
             shiny::downloadButton(ns("mortXlsx"), " Télécharger (Excel)", class = "btn-sm")),
@@ -3115,6 +3300,7 @@ mod_dl50_ui <- function(id) {
             shiny::helpText("Mortalité observée, témoin compris : elle est ramenée",
                             " par Abbott avant l'inversion de la droite."),
             DT::DTOutput(ns("tableDose")),
+            shiny::uiOutput(ns("noteDose")),
             hstat_dl50_note_echelle(),
             shiny::br(),
             shiny::downloadButton(ns("doseCsv"), " Télécharger (CSV)", class = "btn-sm"),
@@ -3222,13 +3408,22 @@ mod_dl50_server <- function(id, values) {
     shiny::observeEvent(input$saisie_cell_edit, {
       info <- input$saisie_cell_edit
       d <- saisie()
-      j <- info$col + 1L
-      if (j < 1L || j > ncol(d)) return()
+      # LE MESSAGE VIENT DU NAVIGATEUR, DONC DE N'IMPORTE QUI. Un client
+      # modifie peut envoyer ce qu'il veut, et rien ne le bornait :
+      # `row = 2e6` faisait croitre le tableau a deux millions de lignes
+      # (46 Mo, renvoyees au navigateur -- `2e8` suffirait a faire tuer le
+      # processus R qui sert TOUTES les sessions) ; `row = -1` ecrasait
+      # toutes les lignes sauf la premiere, sans un mot ; un vecteur de
+      # lignes ecrivait plusieurs cellules d'un coup. Une seule cellule
+      # existante, ou rien.
+      i <- .hstat_dl50_indice(info$row, nrow(d))
+      j <- .hstat_dl50_indice(info$col + 1L, ncol(d))
+      if (is.na(i) || is.na(j) || length(info$value) != 1L) return()
       v <- suppressWarnings(as.numeric(gsub(",", ".", info$value, fixed = TRUE)))
       # La colonne des morts saisie en POURCENTAGE est convertie tout de suite :
       # ce qui est range est toujours un effectif.
-      d[info$row, j] <- if (j == 3L && en_pct())
-        as.numeric(hstat_dl50_pct_vers_morts(d$Effectif[info$row], v)) else v
+      d[i, j] <- if (j == 3L && en_pct())
+        as.numeric(hstat_dl50_pct_vers_morts(d$Effectif[i], v)) else v
       saisie(d)
     })
 
@@ -3267,6 +3462,12 @@ mod_dl50_server <- function(id, values) {
     })
 
     shiny::observeEvent(input$ligne, {
+      if (nrow(saisie()) >= HSTAT_DL50_SAISIE_MAX) {
+        shiny::showNotification(
+          trf("Le tableau de saisie compte déjà %d lignes, le maximum.",
+              HSTAT_DL50_SAISIE_MAX), type = "warning", duration = 6)
+        return()
+      }
       d <- rbind(saisie(), data.frame(Dose = NA_real_, Effectif = NA_real_,
                                       Morts = NA_real_))
       rownames(d) <- NULL
@@ -3290,6 +3491,13 @@ mod_dl50_server <- function(id, values) {
         # Les lignes entierement vides du tableau de depart ne sont pas des
         # donnees : les garder devant le collage ferait un tableau a trous.
         cur <- cur[rowSums(!is.na(cur)) > 0, , drop = FALSE]
+        if (nrow(cur) + nrow(r$table) > HSTAT_DL50_SAISIE_MAX) {
+          shiny::showNotification(
+            trf("Le tableau compterait %d lignes : il en accepte %d au plus. Collez en remplaçant, ou videz le tableau.",
+                nrow(cur) + nrow(r$table), HSTAT_DL50_SAISIE_MAX),
+            type = "warning", duration = 10)
+          return()
+        }
         rbind(cur, r$table)
       } else r$table
       rownames(d) <- NULL
@@ -3434,6 +3642,15 @@ mod_dl50_server <- function(id, values) {
       f <- input$fichierWindl
       shiny::req(f)
       lus <- list(); refus <- character(0)
+      # La memoire ne garde que six essais : lire mille fichiers pour en jeter
+      # neuf cent quatre-vingt-quatorze ne coute que du temps de processus --
+      # celui de toutes les sessions. On lit les six premiers, et on le dit.
+      if (nrow(f) > HSTAT_DL50_ESSAIS_MAX) {
+        refus <- trf("%d fichier(s) au-delà des %d premiers n'ont pas été lus : la mémoire garde %d essais au plus.",
+                     nrow(f) - HSTAT_DL50_ESSAIS_MAX, HSTAT_DL50_ESSAIS_MAX,
+                     HSTAT_DL50_ESSAIS_MAX)
+        f <- f[seq_len(HSTAT_DL50_ESSAIS_MAX), , drop = FALSE]
+      }
       for (i in seq_len(nrow(f))) {
         r <- hstat_dl50_lire_windl(f$datapath[i])
         # Le nom du fichier est celui de l'utilisateur, pas le chemin temporaire
@@ -3482,6 +3699,15 @@ mod_dl50_server <- function(id, values) {
 
     # -- Listes deroulantes -------------------------------------------------
     listes <- shiny::reactiveVal(hstat_dl50_listes_vides())
+    # Le nom de liste vient d'un selecteur, donc du navigateur : un client
+    # modifie peut y mettre n'importe quelle chaine, et `L[[nm]] <- ...`
+    # creait alors une liste que rien n'affiche. Seules les listes du
+    # catalogue existent.
+    liste_nom <- function() {
+      nm <- input$listeNom
+      if (length(nm) == 1L && !is.na(nm) && nm %in% names(HSTAT_DL50_LISTES)) nm
+      else "auteur"
+    }
 
     # Les champs de la fiche puisent dans les listes, sans perdre ce qui y est
     # deja tape : `create = TRUE` accepte une valeur nouvelle, et la relire
@@ -3501,13 +3727,13 @@ mod_dl50_server <- function(id, values) {
     shiny::observe({
       L <- listes()
       shiny::updateSelectInput(session, "listeSupprimer",
-        choices = L[[input$listeNom %||% "auteur"]] %||% character(0))
+        choices = L[[liste_nom()]] %||% character(0))
     })
 
     shiny::observeEvent(input$listeAjouter, {
-      nm <- input$listeNom %||% "auteur"
-      v <- trimws(input$listeValeur %||% "")
-      if (!nzchar(v)) return()
+      nm <- liste_nom()
+      v <- trimws(as.character(input$listeValeur %||% "")[1])
+      if (is.na(v) || !nzchar(v)) return()
       L <- listes()
       avant <- length(L[[nm]])
       L[[nm]] <- hstat_dl50_liste_ajouter(L[[nm]], v)
@@ -3521,7 +3747,7 @@ mod_dl50_server <- function(id, values) {
     })
 
     shiny::observeEvent(input$listeRetirer, {
-      nm <- input$listeNom %||% "auteur"
+      nm <- liste_nom()
       v <- input$listeSupprimer
       if (is.null(v) || !nzchar(v)) return()
       L <- listes()
@@ -3547,13 +3773,24 @@ mod_dl50_server <- function(id, values) {
     shiny::observeEvent(input$listeFichier, {
       f <- input$listeFichier
       shiny::req(f)
+      if (.hstat_dl50_trop_gros(f$datapath[1])) {
+        shiny::showNotification(.hstat_dl50_msg_trop_gros(), type = "warning",
+                                duration = 10)
+        return()
+      }
       v <- hstat_dl50_liste_lire(f$datapath[1])
+      if (length(v) > HSTAT_DL50_LISTE_MAX) {
+        shiny::showNotification(
+          trf("Le fichier compte %d termes : une liste en accepte %d au plus. C'est un vocabulaire, pas un fichier de données — vérifiez qu'il s'agit du bon fichier.",
+              length(v), HSTAT_DL50_LISTE_MAX), type = "warning", duration = 10)
+        return()
+      }
       if (!length(v)) {
         shiny::showNotification(tr("Fichier de liste vide ou illisible."),
                                 type = "warning", duration = 8)
         return()
       }
-      nm <- input$listeNom %||% "auteur"
+      nm <- liste_nom()
       L <- listes()
       L[[nm]] <- hstat_dl50_liste_ajouter(L[[nm]], v)
       listes(L)
@@ -3562,10 +3799,9 @@ mod_dl50_server <- function(id, values) {
     })
 
     output$listeDl <- shiny::downloadHandler(
-      filename = function() paste0(toupper(hstat_nom_fichier(input$listeNom, "liste")), ".TXT"),
+      filename = function() paste0(toupper(hstat_nom_fichier(liste_nom(), "liste")), ".TXT"),
       content = function(file)
-        hstat_dl50_liste_ecrire(listes()[[input$listeNom %||% "auteur"]] %||%
-                                  character(0), file))
+        hstat_dl50_liste_ecrire(listes()[[liste_nom()]] %||% character(0), file))
 
     # -- Selection multi-criteres -------------------------------------------
     # NULL = aucune selection active, ce qui n'est PAS la meme chose qu'une
@@ -3811,7 +4047,7 @@ mod_dl50_server <- function(id, values) {
     # de rendre moins de lignes qu'on en a demande.
     output$noteSeuils <- shiny::renderUI({
       d <- doses_letales()
-      msg <- c(attr(d, "message"), attr(d, "ecartes"))
+      msg <- c(attr(d, "message"), attr(d, "ecartes"), attr(d, "plafond"))
       msg <- msg[!is.na(msg) & nzchar(msg)]
       if (!length(msg)) return(NULL)
       shiny::div(class = "callout callout-warning",
@@ -4208,14 +4444,32 @@ mod_dl50_server <- function(id, values) {
                            "Mortalite", "Limite_inf", "Limite_sup"), chiffres())
     })
 
+    # Ce que les deux tableaux dose <-> mortalite ont ecarte se dit sous eux :
+    # une ligne manquante sans motif se lit comme une demande ignoree.
+    .note_ecarts <- function(d) {
+      msg <- c(attr(d, "ecartes"), attr(d, "plafond"))
+      msg <- msg[!is.na(msg) & nzchar(msg)]
+      if (!length(msg)) return(NULL)
+      shiny::div(class = "callout callout-warning",
+                 style = "margin-top:8px;padding:8px 12px;font-size:0.92em;",
+        shiny::icon("triangle-exclamation"), " ", paste(msg, collapse = " "))
+    }
+    output$noteMort <- shiny::renderUI(.note_ecarts(table_mort()))
+    output$noteDose <- shiny::renderUI(.note_ecarts(table_dose()))
+
     table_dose <- shiny::reactive({
       f <- fit()
       if (is.null(f) || !isTRUE(f$ok)) return(NULL)
       d <- hstat_dl50_dose_pour(f, .nombres(input$mortsCalc))
       if (is.null(d)) return(NULL)
-      d[c("Mortalite_demandee", "Log_dose", "Dose", "Erreur_type", "Ecart_type",
+      att <- attributes(d)[c("ecartes", "plafond")]
+      d <- d[c("Mortalite_demandee", "Log_dose", "Dose", "Erreur_type", "Ecart_type",
           "DL_erreur_type", "DL_ecart_type", "Limite_inf", "Limite_sup",
           "Intervalle", "Position")]
+      # Choisir des colonnes perd les attributs : on les repose, sans quoi la
+      # note des mortalites ecartees ne verrait jamais rien.
+      for (nm in names(att)) if (!is.null(att[[nm]])) attr(d, nm) <- att[[nm]]
+      d
     })
     output$tableDose <- DT::renderDT({
       d <- table_dose()

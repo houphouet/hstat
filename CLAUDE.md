@@ -3459,6 +3459,111 @@ Plus une gêne : une **palette inconnue** de RColorBrewer faisait avertir ggplot
 valides, mais la fonction est publique et un avertissement par tracé s'accumule
 dans la console d'un serveur partagé.
 
+### Audit complet : convergence, bornes et entrées du navigateur
+
+Mené en **mesurant** plutôt qu'en relisant : 1 500 essais tirés au sort
+confrontés à une optimisation indépendante, des messages forgés rejoués sous
+`testServer()`, 800 fichiers WIN DL aléatoires ou mutés, et des chronométrages.
+Aucun des défauts ci-dessous ne levait ; tous rendaient un résultat plausible,
+ou figeaient le processus R qui sert **toutes** les sessions.
+
+#### Newton-Raphson bouclait en cycle à deux temps
+
+Le scoring de Fisher n'est pas monotone : sur un essai à doses nombreuses il
+franchit l'optimum à chaque pas. La pente alternait 2,73 / 3,21 autour d'un
+optimum à 2,99, **indéfiniment** ; le critère d'arrêt compare deux
+vraisemblances qui alternent elles aussi, et relever le plafond d'itérations —
+le seul geste que l'interface propose — n'y change rien. **23 ajustements
+Abbott sur 1 102** (2,1 %) s'arrêtaient ainsi sur la dernière itération.
+
+Un pas qui fait **baisser** la vraisemblance se réduit de moitié. Sur un chemin
+qui monte déjà — celui de l'essai de référence de WIN DL — la réduction ne se
+déclenche jamais : les vingt-sept valeurs confrontées au logiciel ne bougent
+pas. Après correction : **0 sur 1 116**.
+
+#### `c = 0` est un point fixe de l'EM, pas un optimum
+
+Ce qui était écrit ici — « le chemin rapide atteint un optimum meilleur sur
+tous les essais essayés » — était **faux hors de l'essai de référence**. Avec
+un témoin sans mort, l'EM part de `c = 0`, l'étape [E] rend des poids nuls, et
+`c` ne bouge plus jamais : le module rendait l'ajustement à mortalité **nulle**
+sous le nom d'EM, avec « convergence atteinte ». **66 essais sur 1 085**, à plus
+de 0,1 unité de log-vraisemblance de l'optimum ; la DL50 s'en écartait jusqu'à
+un facteur 1,9.
+
+La borne est l'optimum si et seulement si la vraisemblance y **décroît** en `c`
+— c'est le signe de la dérivée qui tranche. Positive, on repart du départ
+lissé. EM « convergé mais loin » : **67 → 1** ; 99ᵉ centile de l'erreur sur le
+log₁₀ de la DL50 : 0,28 → 0,06. L'essai de référence, dont l'optimum est bien
+sur la borne, garde ses trois boucles.
+
+Douze essais en marche d'escalier (quelques morts puis 100 %) passent alors
+d'un résultat faux à un refus : à l'optimum de l'EM, la pente y tend vers
+l'infini. Le motif le dit désormais et oriente vers Abbott.
+
+#### Le risque α n'était borné que par l'interface
+
+Les quatre fonctions publiques (`ajuste`, `comparaison`, `puissance`,
+`fusion`) le prenaient tel quel. `alpha = 1` déclarait **significatif** un test
+d'identité à p = 0,997 ; une chaîne faisait comparer la p-value à du texte —
+`0.997 < "x"` vaut VRAI, donc « significatif » encore ; `alpha = 0` rendait des
+intervalles infinis étiquetés « delta ». `.hstat_dl50_alpha()` borne une fois
+pour les quatre.
+
+#### Trois portes d'engorgement du processus partagé
+
+| Entrée | Mesure avant | Remède |
+|---|---|---|
+| seuils de DL saisis (champ texte) | 10 000 → 9,6 s ; 100 000 → **88 s** | `HSTAT_DL50_DEMANDES_MAX` (50), dédoublonnage, coupe annoncée |
+| fichier de liste de 200 000 termes | lu en 0,8 s, puis l'ajout **ne rend jamais la main** (boucle quadratique) | `duplicated()` en une passe ; `HSTAT_DL50_LISTE_MAX` |
+| fichier natif | lu **entier** en mémoire, sous un plafond d'envoi de 100 Go | `HSTAT_DL50_FICHIER_MAX` (1 Mo), refus nommé |
+
+Le collage et le tableau de saisie ont aussi leur borne
+(`HSTAT_DL50_SAISIE_MAX`, 1 000 lignes) : le tableau voyage entier vers le
+navigateur à chaque modification. Et un envoi de mille fichiers WIN DL n'en lit
+que six — la mémoire n'en garde pas davantage.
+
+#### Un message d'édition de cellule vient de n'importe qui
+
+`input$saisie_cell_edit` n'était pas borné. Rejoué sous `testServer()` :
+`row = 2e6` faisait passer le tableau à **deux millions de lignes** (46 Mo,
+renvoyées au navigateur — `2e8` suffirait à faire tuer le processus) ;
+`row = -1` **écrasait toutes les lignes sauf la première**, sans un mot ; un
+vecteur de lignes écrivait plusieurs cellules d'un coup.
+`.hstat_dl50_indice()` n'accepte qu'**un** entier dans les bornes. Même règle
+pour le nom de liste : hors catalogue, il retombe sur « auteur » au lieu de
+créer une liste qu'aucun écran n'affiche.
+
+#### Ce qui se retire se nomme
+
+`hstat_dl50_dose_pour()` et `hstat_dl50_mortalite()` écartaient en silence une
+mortalité hors d'atteinte ou une dose nulle : « 5, 50 » sur un essai à 10 % de
+mortalité naturelle rendait la seule ligne de 50 %. Les deux tableaux portent
+désormais une note sous eux, comme celui des doses létales. Et des effectifs
+ou des morts **non entiers** — presque toujours des moyennes de répétitions là
+où il fallait des sommes — se signalent dans le verdict, sans refus.
+
+#### Ce que l'audit a écarté, et pourquoi
+
+- **Injection de balisage** par le titre ou les champs d'un fichier : aucun
+  `HTML()` n'y touche, les notifications et les listes échappent (vérifié :
+  `<img onerror>` rendu en `&lt;img…`).
+- **800 fichiers aléatoires ou mutés** : zéro erreur levée, tout refus est
+  motivé.
+- **Pire cas de calcul** : 100 doses × plafond de 5 000 itérations = 0,4 s ;
+  comparaison de six essais = 3,3 s. Borné par les limites de WIN DL.
+- **Injection de formule** dans les exports : même décision que pour le reste
+  de l'application.
+
+#### Les tests de l'audit
+
+Huit tests, chacun **vérifié comme échouant** sur le code d'avant — celui de la
+liste en ne rendant jamais la main. La référence est une optimisation
+indépendante partie de **plusieurs** points : partie du seul (0, 1), elle
+s'égarait sur un point bas (ll = −44,7 contre −39,2) et accusait un code juste.
+Une référence se vérifie comme le code qu'elle juge : ici, c'est HStat qui
+avait raison.
+
 ### Le mode guidé, et les limites héritées
 
 La **fiche de l'essai** est repliée par défaut : vingt champs d'identification
