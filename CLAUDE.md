@@ -4179,6 +4179,67 @@ Compter les champs rendus ne l'aurait pas vu — c'est la faute déjà commise s
 ce même onglet. Compter les **pixels** non plus. Ce qui le voit, c'est le test
 de survol, parce qu'il porte sur ce qui peut casser : le hit-testing.
 
+### « Axes » et « Couleurs et légende » vivent sous la figure
+
+Demandé à l'écran. Ce sont les deux sections les plus lourdes du panneau de la
+DL50 — **treize** réglages pour la première, **neuf** pour la seconde — et elles
+poussaient hors de l'écran le graphique qu'elles règlent : on changeait une
+taille de graduation, puis on remontait pour voir ce qu'elle avait fait.
+
+Même disposition, et même raison, que le kit de mise en forme posé juste en
+dessous, que la boîte d'épidémiologie (« la boîte de mise en forme vit sous
+celle d'export ») et que les comparaisons post-hoc. Mesuré au navigateur après
+le déplacement :
+
+| Bloc | Haut de page | Colonne |
+|---|---|---|
+| graphique | **266 px** | `col-sm-8` |
+| export de l'image | 973 px | dans la boîte du graphique |
+| **Axes** | **2124 px** | `col-sm-6` |
+| **Couleurs et légende** | **2201 px** | `col-sm-6` |
+| kit de mise en forme | 2876 px | `col-sm-12` |
+
+Aucun débordement horizontal, zéro erreur de page, et les trois contrôles
+essayés au clic (grille, second axe, type de graphique) répondent.
+
+#### Chaque groupe dans sa propre `fluidRow`, jamais à la suite des deux boîtes
+
+C'est le point de construction, et il découle directement du défaut corrigé en
+1.7.8. `.row` porte un `clear: both` : une rangée neuve **dégage** les
+flottants. Deux `col-sm-6` ajoutés à la rangée qui porte déjà `col-sm-4` et
+`col-sm-8` se glisseraient au contraire **à côté** de la colonne de gauche dès
+qu'elle est la plus haute — c'est exactement le défaut de flottement qui rendait
+les contrôles inatteignables.
+
+Le `col-sm-12` du kit, lui, ne peut pas se glisser à côté de quoi que ce soit :
+c'est pourquoi il tenait dans la même rangée. Il passe malgré tout dans la
+sienne, parce qu'une disposition qui ne tient que par la largeur d'un de ses
+blocs n'est pas une disposition.
+
+#### La virgule de la fratrie, encore
+
+Piège d'édition rencontré pour la troisième fois dans ce dépôt, et il vaut
+d'être réécrit : **la parenthèse qui fermait la boîte voyageait avec la section
+retirée.** « Couleurs et légende » était le dernier enfant de la boîte, et sa
+ligne finale portait donc cinq parenthèses — `numericInput`, `column`,
+`fluidRow`, la section, **et la boîte**. En la déplaçant telle quelle, la boîte
+perdait sa fermeture et « Repères DL », devenu dernier, gardait la sienne à
+quatre. L'analyseur signale alors une erreur quarante lignes plus loin, à un
+endroit sans rapport visible.
+
+#### Le marcheur d'arbre est passé au premier niveau
+
+Deux tests le demandent maintenant — celui qui balaie les treize panneaux du
+kit, et celui qui garde l'ordre de la DL50. Il vivait dans le corps du premier ;
+`.hstat_ancetres()` et `.hstat_dans_colonne()` sont désormais des aides de
+fichier, comme les vingt autres de la suite. Deux copies d'un même marcheur
+finiraient par diverger, et c'est la copie oubliée qui ment.
+
+Le test d'ordre porte désormais sur les **trois** panneaux (`gAxisLine`,
+`gXlab`, `gTheme`) et vérifie pour chacun l'ancêtre `col-*`. Deux mutations le
+gardent : les sections reposées en `div` nu (1 échec) et la rangée des réglages
+remise avant celle du graphique (2 échecs).
+
 ### Une proportion s'affiche en pourcentage, et le fichier la porte de même
 
 Signalé à l'écran : « les valeurs qui doivent être en pourcentages, il faut les

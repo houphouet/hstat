@@ -2764,6 +2764,92 @@ mod_dl50_ui <- function(id) {
                   "Position du sous-titre", choices = HSTAT_DL50_POS,
                   selected = "0.5")))),
 
+            .hstat_opt_section("Points et traits", "bezier-curve", "#e67e22", "#fdf1e6",
+              shiny::fluidRow(
+                shiny::column(4, shiny::numericInput(ns("gPointTaille"),
+                  "Taille des points", value = 2.4, min = 0.5, max = 12, step = 0.2)),
+                shiny::column(4, shiny::selectInput(ns("gPointForme"),
+                  "Forme des points", choices = HSTAT_DL50_FORMES, selected = "16")),
+                shiny::column(4, shiny::numericInput(ns("gPointOpacite"),
+                  "Opacité des points", value = 1, min = 0.1, max = 1, step = 0.05))),
+              shiny::fluidRow(
+                shiny::column(6, shiny::numericInput(ns("gDroiteEp"),
+                  "Épaisseur de la droite", value = 0.9, min = 0.1, max = 5, step = 0.1)),
+                shiny::column(6, shiny::selectInput(ns("gDroiteType"),
+                  "Trait de la droite", choices = HSTAT_DL50_TRAITS,
+                  selected = "solid"))),
+              shiny::fluidRow(
+                shiny::column(6, shiny::numericInput(ns("gCourbeEp"),
+                  "Épaisseur de la courbe", value = 0.6, min = 0.1, max = 5, step = 0.1)),
+                shiny::column(6, shiny::selectInput(ns("gCourbeType"),
+                  "Trait de la courbe", choices = HSTAT_DL50_TRAITS,
+                  selected = "dashed"))),
+              shiny::numericInput(ns("gBandeOpacite"), "Opacité des intervalles",
+                                  value = 0.12, min = 0.02, max = 1, step = 0.02)),
+
+            .hstat_opt_section("Repères DL", "location-crosshairs", "#c0392b", "#fbeceb",
+              shiny::checkboxInput(ns("gRepereEtiq"), "Étiqueter les repères", TRUE),
+              shiny::fluidRow(
+                shiny::column(4, colourInput(ns("gRepereCouleur"),
+                  "Couleur des repères", value = "#6b7280")),
+                shiny::column(4, shiny::selectInput(ns("gRepereType"),
+                  "Trait des repères", choices = HSTAT_DL50_TRAITS,
+                  selected = "dotted")),
+                shiny::column(4, shiny::numericInput(ns("gRepereEp"),
+                  "Épaisseur des repères", value = 0.5, min = 0.1, max = 3,
+                  step = 0.1))))),
+
+          shinydashboard::box(
+            # Le titre suit le type choisi : une boite intitulee « Droite de
+            # Henry » au-dessus d'une sigmoide annonce le mauvais graphique.
+            title = shiny::tagList(shiny::icon("chart-simple"), " ",
+                                   shiny::textOutput(ns("gNom"), inline = TRUE)),
+            status = "success", width = 8, solidHeader = TRUE,
+            shiny::plotOutput(ns("graphe"), height = "600px"),
+            shiny::uiOutput(ns("gNote")),
+            shiny::hr(),
+            .hstat_opt_section("Export de l'image", "download", "#27ae60", "#e9f7ef",
+              shiny::fluidRow(
+                shiny::column(3, hstat_format_input(ns("gFmt"), "Format")),
+                shiny::column(3, shiny::numericInput(ns("gLargeur"),
+                  "Largeur (pixels)", value = 1200, min = 200, step = 100)),
+                shiny::column(3, shiny::numericInput(ns("gHauteur"),
+                  "Hauteur (pixels)", value = 800, min = 200, step = 100)),
+                shiny::column(3, hstat_dpi_input(ns("gDpi"), "Résolution (DPI)"))),
+              shiny::conditionalPanel(
+                condition = sprintf("input['%s'] == 'jpeg'", ns("gFmt")),
+                shiny::sliderInput(ns("gQualite"), "Qualité JPEG",
+                                   min = 50, max = 100, value = 95, step = 5)),
+              shiny::conditionalPanel(
+                condition = sprintf("input['%s'] == 'tiff'", ns("gFmt")),
+                shiny::selectInput(ns("gCompression"), "Compression TIFF",
+                                   choices = HSTAT_TIFF_COMPRESSION, selected = "lzw")),
+              shiny::verbatimTextOutput(ns("gTaille")),
+              shiny::downloadButton(ns("gDl"), " Télécharger le graphique",
+                                    class = "btn-success")))),
+
+        # « AXES » ET « COULEURS ET LEGENDE » VIVENT SOUS LA FIGURE.
+        #
+        # Demande a l'ecran. Ce sont les deux sections les plus lourdes du
+        # panneau -- treize reglages pour la premiere, neuf pour la seconde --
+        # et elles poussaient hors de l'ecran le graphique qu'elles reglent :
+        # on changeait une taille de graduation, puis on remontait pour voir
+        # ce qu'elle avait fait.
+        #
+        # Meme disposition, et meme raison, que le kit de mise en forme pose
+        # juste en dessous : on voit la figure, on l'atteint, et elle reste
+        # visible pendant qu'on regle. C'est deja le choix retenu pour
+        # l'epidemiologie et pour les comparaisons post-hoc.
+        #
+        # CHAQUE GROUPE DANS SA PROPRE `fluidRow`, jamais a la suite des deux
+        # boites. `.row` porte un `clear: both` : une rangee neuve degage les
+        # flottants. Deux `col-sm-6` ajoutes a la rangee des boites se
+        # glisseraient au contraire A COTE de la colonne de gauche des qu'elle
+        # est la plus haute -- c'est exactement le defaut de flottement qui
+        # rendait les controles inatteignables avant la 1.7.8.
+        shiny::fluidRow(
+          shiny::column(
+            width = 6,
             .hstat_opt_section("Axes", "ruler-combined", "#16a085", "#e8f6f3",
               shiny::textInput(ns("gXlab"), "Titre de l'axe des doses"),
               shiny::textInput(ns("gYlab"), "Titre de l'axe des mortalités"),
@@ -2802,43 +2888,10 @@ mod_dl50_ui <- function(id) {
                 shiny::column(6, shiny::numericInput(ns("gYmin"),
                   "Mortalité minimale (%)", value = NULL, min = 0, max = 100)),
                 shiny::column(6, shiny::numericInput(ns("gYmax"),
-                  "Mortalité maximale (%)", value = NULL, min = 0, max = 100)))),
-
-            .hstat_opt_section("Points et traits", "bezier-curve", "#e67e22", "#fdf1e6",
-              shiny::fluidRow(
-                shiny::column(4, shiny::numericInput(ns("gPointTaille"),
-                  "Taille des points", value = 2.4, min = 0.5, max = 12, step = 0.2)),
-                shiny::column(4, shiny::selectInput(ns("gPointForme"),
-                  "Forme des points", choices = HSTAT_DL50_FORMES, selected = "16")),
-                shiny::column(4, shiny::numericInput(ns("gPointOpacite"),
-                  "Opacité des points", value = 1, min = 0.1, max = 1, step = 0.05))),
-              shiny::fluidRow(
-                shiny::column(6, shiny::numericInput(ns("gDroiteEp"),
-                  "Épaisseur de la droite", value = 0.9, min = 0.1, max = 5, step = 0.1)),
-                shiny::column(6, shiny::selectInput(ns("gDroiteType"),
-                  "Trait de la droite", choices = HSTAT_DL50_TRAITS,
-                  selected = "solid"))),
-              shiny::fluidRow(
-                shiny::column(6, shiny::numericInput(ns("gCourbeEp"),
-                  "Épaisseur de la courbe", value = 0.6, min = 0.1, max = 5, step = 0.1)),
-                shiny::column(6, shiny::selectInput(ns("gCourbeType"),
-                  "Trait de la courbe", choices = HSTAT_DL50_TRAITS,
-                  selected = "dashed"))),
-              shiny::numericInput(ns("gBandeOpacite"), "Opacité des intervalles",
-                                  value = 0.12, min = 0.02, max = 1, step = 0.02)),
-
-            .hstat_opt_section("Repères DL", "location-crosshairs", "#c0392b", "#fbeceb",
-              shiny::checkboxInput(ns("gRepereEtiq"), "Étiqueter les repères", TRUE),
-              shiny::fluidRow(
-                shiny::column(4, colourInput(ns("gRepereCouleur"),
-                  "Couleur des repères", value = "#6b7280")),
-                shiny::column(4, shiny::selectInput(ns("gRepereType"),
-                  "Trait des repères", choices = HSTAT_DL50_TRAITS,
-                  selected = "dotted")),
-                shiny::column(4, shiny::numericInput(ns("gRepereEp"),
-                  "Épaisseur des repères", value = 0.5, min = 0.1, max = 3,
-                  step = 0.1)))),
-
+                  "Mortalité maximale (%)", value = NULL, min = 0, max = 100))))
+          ),
+          shiny::column(
+            width = 6,
             .hstat_opt_section("Couleurs et légende", "palette", "#2c3e50", "#eceff1",
               shiny::selectInput(ns("gTheme"), "Thème", choices = HSTAT_THEMES_GG,
                                  selected = "minimal"),
@@ -2859,36 +2912,10 @@ mod_dl50_ui <- function(id) {
                   "Taille de la légende", value = 10, min = 4, max = 30, step = 1)),
                 shiny::column(4, shiny::numericInput(ns("gLegendeTitreTaille"),
                   "Taille du titre de légende", value = 11, min = 4, max = 30,
-                  step = 1))))),
+                  step = 1))))
+          )),
 
-          shinydashboard::box(
-            # Le titre suit le type choisi : une boite intitulee « Droite de
-            # Henry » au-dessus d'une sigmoide annonce le mauvais graphique.
-            title = shiny::tagList(shiny::icon("chart-simple"), " ",
-                                   shiny::textOutput(ns("gNom"), inline = TRUE)),
-            status = "success", width = 8, solidHeader = TRUE,
-            shiny::plotOutput(ns("graphe"), height = "600px"),
-            shiny::uiOutput(ns("gNote")),
-            shiny::hr(),
-            .hstat_opt_section("Export de l'image", "download", "#27ae60", "#e9f7ef",
-              shiny::fluidRow(
-                shiny::column(3, hstat_format_input(ns("gFmt"), "Format")),
-                shiny::column(3, shiny::numericInput(ns("gLargeur"),
-                  "Largeur (pixels)", value = 1200, min = 200, step = 100)),
-                shiny::column(3, shiny::numericInput(ns("gHauteur"),
-                  "Hauteur (pixels)", value = 800, min = 200, step = 100)),
-                shiny::column(3, hstat_dpi_input(ns("gDpi"), "Résolution (DPI)"))),
-              shiny::conditionalPanel(
-                condition = sprintf("input['%s'] == 'jpeg'", ns("gFmt")),
-                shiny::sliderInput(ns("gQualite"), "Qualité JPEG",
-                                   min = 50, max = 100, value = 95, step = 5)),
-              shiny::conditionalPanel(
-                condition = sprintf("input['%s'] == 'tiff'", ns("gFmt")),
-                shiny::selectInput(ns("gCompression"), "Compression TIFF",
-                                   choices = HSTAT_TIFF_COMPRESSION, selected = "lzw")),
-              shiny::verbatimTextOutput(ns("gTaille")),
-              shiny::downloadButton(ns("gDl"), " Télécharger le graphique",
-                                    class = "btn-success"))),
+        shiny::fluidRow(
 
           # UN ENFANT DE `fluidRow` QUI N'EST PAS UNE COLONNE CASSE LA RANGEE.
           #
