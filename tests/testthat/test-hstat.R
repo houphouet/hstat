@@ -11759,6 +11759,99 @@ test_that("la dose zero devient le temoin, elle n'est pas ecartee", {
   expect_true(grepl("absente", r3$message, fixed = TRUE))
 })
 
+# -- REGROUPER PAR UNE MESURE, C'EST N'AVOIR QU'UNE DOSE PAR ESSAI -----------
+# Signale a l'ecran : la colonne de regroupement posee sur la colonne des
+# DOSES. Le refus qui en sortait nommait la limite de six essais, pas la
+# cause -- et sa moitie silencieuse etait pire : mesure sur six doses, cinq
+# essais d'UNE dose passaient la validation, le module annoncait « 5 essai(s)
+# importe(s) » comme un succes, et c'est chaque ajustement qui echouait
+# ensuite sur « moins de 3 doses », en accusant les doses de l'utilisateur.
+test_that("regrouper par une colonne de mesure est refuse, et la cause est nommee", {
+  df <- data.frame(dose = c(0, 0.03, 0.1, 0.3, 1, 3),
+                   n = rep(25, 6), morts = c(0, 6, 12, 19, 23, 25))
+
+  for (col in c("dose", "n", "morts")) {
+    r <- hstat_dl50_depuis_donnees(df, "dose", "n", "morts", col_essai = col)
+    expect_false(isTRUE(r$ok), info = paste("regroupement sur", col))
+    # La colonne fautive est NOMMEE : un refus qui ne la cite pas oblige a
+    # essayer les quatre selecteurs un par un.
+    expect_true(grepl(col, r$message, fixed = TRUE), info = col)
+    expect_true(grepl("regroupement", r$message, fixed = TRUE), info = col)
+  }
+
+  # SIX DOSES, PAS SEPT : c'est la branche qui ne levait rien. Avec sept, la
+  # limite de six essais se declenchait et masquait le defaut ; l'assertion
+  # ecrite sur sept aurait passe avant correction.
+  expect_equal(nrow(df), 6L)
+
+  # Et ce qui est legitime le reste : un vrai regroupement, et l'absence de
+  # regroupement, donnent toujours des essais ajustables.
+  d2 <- rbind(cbind(df, site = "A"), cbind(df, site = "B"))
+  rs <- hstat_dl50_depuis_donnees(d2, "dose", "n", "morts", col_essai = "site")
+  expect_true(isTRUE(rs$ok))
+  expect_equal(length(rs$essais), 2L)
+  expect_true(isTRUE(hstat_dl50_ajuste(rs$essais[[1]])$ok))
+  expect_true(isTRUE(hstat_dl50_depuis_donnees(df, "dose", "n", "morts",
+                                               col_essai = "")$ok))
+})
+
+# -- UNE COLONNE DE SURVIVANTS PRISE POUR CELLE DES MORTS --------------------
+# Signale a l'ecran : « Vivants_48h » choisi comme colonne des morts. La ligne
+# a la dose zero devient alors un temoin mort en totalite, et le refus parlait
+# du temoin -- exact, et sans rapport avec le geste a faire.
+test_that("un temoin a 100 % nomme l'inversion des colonnes quand elle est etablie", {
+  vivants <- data.frame(dose = c(0, 0.03, 0.1, 0.3, 1, 3), n = rep(25, 6),
+                        x = 25 - c(0, 6, 12, 19, 23, 25))
+  e <- hstat_dl50_essai(vivants$dose[-1], vivants$n[-1], vivants$x[-1],
+                        temoin_n = 25, temoin_morts = 25)
+  m <- hstat_dl50_ajuste(e)$message
+  expect_true(grepl("témoin", m, fixed = TRUE))
+  # LE MESSAGE NOMME LA COLONNE FAUTIVE, PAS UNE AUTRE PAIRE. Il disait
+  # « les colonnes "effectif teste" et "morts" ne sont pas inversees » : exact
+  # comme hypothese, et a cote de la faute mesuree ici -- la colonne des morts
+  # portait les SURVIVANTS. Un motif qui envoie verifier la mauvaise paire
+  # coute une recherche entiere.
+  expect_true(grepl("survivants", m, fixed = TRUE),
+              info = paste("message rendu :", m))
+  expect_true(grepl("effectif testé", m, fixed = TRUE))
+
+  # LE PREMIER MOTIF N'EST PAS REMPLACE : les deux peuvent tenir, et un temoin
+  # a 100 % est un vrai defaut d'essai. C'est l'assertion qui distingue
+  # « ajouter la cause » de « changer de message ».
+  droit <- hstat_dl50_essai(c(1, 2, 4), rep(20, 3), c(5, 9, 15),
+                            temoin_n = 20, temoin_morts = 20)
+  m2 <- hstat_dl50_ajuste(droit)$message
+  expect_true(grepl("témoin", m2, fixed = TRUE))
+  # Mortalite CROISSANTE : rien n'etablit l'inversion, on ne l'invente pas.
+  expect_false(grepl("survivants", m2, fixed = TRUE))
+})
+
+test_that("la liste de regroupement n'offre pas les colonnes de mesure", {
+  noms <- c("Concentration", "Effectif", "Morts", "Site", "Repetition")
+  ch <- .hstat_dl50_choix_regroupement(noms, c("Concentration", "Effectif", "Morts"))
+  # « (aucune) » en tete : c'est le defaut, et la seule entree a valeur vide.
+  expect_equal(unname(ch[1]), "")
+  expect_false(any(c("Concentration", "Effectif", "Morts") %in% ch))
+  # Ce qui distingue vraiment des essais reste offert -- sans quoi le
+  # regroupement, qui est la raison d'etre du champ, deviendrait inatteignable.
+  expect_true(all(c("Site", "Repetition") %in% ch))
+  # Sans mesure declaree, rien n'est retire : le champ vaut ce qu'il valait.
+  expect_true(all(noms %in% .hstat_dl50_choix_regroupement(noms)))
+})
+
+test_that("la tendance decroissante se mesure sur le sens, et s'abstient sans preuve", {
+  dec <- data.frame(dose = c(1, 2, 4, 8), n = rep(20, 4), x = c(18, 12, 6, 1))
+  cro <- data.frame(dose = c(1, 2, 4, 8), n = rep(20, 4), x = c(1, 6, 12, 18))
+  expect_true(.hstat_dl50_decroissante(dec))
+  expect_false(.hstat_dl50_decroissante(cro))
+  # Deux doses ne disent rien d'une tendance ; des mortalites toutes egales non
+  # plus. Dans les deux cas on s'abstient plutot que de nommer une cause qu'on
+  # n'a pas etablie.
+  expect_false(.hstat_dl50_decroissante(dec[1:2, ]))
+  expect_false(.hstat_dl50_decroissante(
+    data.frame(dose = c(1, 2, 4), n = rep(20, 3), x = rep(7, 3))))
+})
+
 test_that("le rapport .PRN porte les nombres et les libelles attendus", {
   f <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
   p <- hstat_dl50_prn(f, "CL94AC1.TXT")
@@ -11921,7 +12014,7 @@ test_that("une pente negative est refusee, en nommant la cause probable", {
   expect_false(isTRUE(f$ok))
   expect_true(grepl("décroît", f$message, fixed = TRUE))
   # Le message NOMME la cause probable : c'est ce qui le rend actionnable.
-  expect_true(grepl("inversées", f$message, fixed = TRUE))
+  expect_true(grepl("survivants", f$message, fixed = TRUE))
   expect_true(grepl("effectif testé", f$message, fixed = TRUE))
   # Et il ne rend rien d'exploitable par la suite.
   expect_null(hstat_dl50_doses_letales(f))

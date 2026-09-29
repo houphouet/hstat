@@ -3815,6 +3815,132 @@ jeter en silence vaut mieux que de rendre une première dose absurde ; demander
 « votre collage a-t-il un en-tête ? » serait poser une question dont le texte
 porte déjà la réponse.
 
+### Regrouper par une colonne de mesure n'a jamais de sens
+
+Signalé à l'écran, capture à l'appui : onglet DL50, source « Jeu de données
+chargé », colonnes bien remplies — et « Aucun essai en mémoire », aucune analyse
+possible. Le champ **« Colonne de regroupement (facultatif) »** portait
+`Concentration`, c'est-à-dire **la colonne des doses**.
+
+Regrouper par la dose met **une dose dans chaque essai**. Il n'y a alors plus de
+droite à ajuster : il en faut trois. Le module s'en apercevait, mais trop tard
+et par le mauvais bout.
+
+| Nombre de doses | Ce que l'utilisateur voyait |
+|---|---|
+| 7 et plus | « **7 essais** dans la colonne de regroupement : la limite est de 6. » |
+| 6 et moins | « **5 essai(s) importé(s)** » — puis chaque ajustement refuse |
+
+**La seconde ligne est la plus coûteuse, et c'est celle qu'on ne voit pas.**
+Mesuré sur six doses : cinq essais d'**une** dose traversent
+`.hstat_dl50_valide()` — une dose n'est ni « aucune dose », ni « trop de
+doses », ni une dose négative — le module annonce un **succès**, et le refus ne
+tombe qu'à l'ajustement, sur « moins de 3 doses donnent une mortalité
+intermédiaire ». Un message qui accuse les doses de l'utilisateur alors que ses
+doses n'ont rien. C'est le mode de défaillance que ce dépôt traque partout : un
+résultat plausible, et faux.
+
+`hstat_dl50_depuis_donnees()` refuse donc un regroupement posé sur l'une des
+**trois colonnes de mesure** — doses, effectifs testés, morts — et **nomme la
+colonne fautive** : un refus qui ne la cite pas oblige à essayer les quatre
+sélecteurs un par un.
+
+**Trois phrases entières, pas un gabarit et un fragment.** `trf()` ne traduit
+jamais ses arguments — c'est ce qui protège les données — et « des doses »
+n'entrerait au dictionnaire que comme un bout de phrase. Même règle que les six
+libellés de perte de rendement.
+
+**Et la liste ne l'offre plus.** `.hstat_dl50_choix_regroupement()` retire les
+trois mesures des choix ; une sélection devenue une mesure retombe sur
+« (aucune) », la garder laisserait un réglage actif qu'aucune liste n'affiche.
+Le refus dans la fonction reste le garde-fou — elle est publique, l'interface
+n'est pas son seul appelant — mais mieux vaut ne pas laisser choisir ce qui ne
+peut jamais marcher.
+
+La règle vit **hors de l'observateur**, et c'est la convention du dépôt : ce qui
+est posé dans un `observe()` n'est pas testable. `testServer()` n'expose pas ici
+le message d'`updateSelectInput` ; une assertion écrite dessus n'aurait rien
+gardé.
+
+**L'observateur est à part, et il LIT les trois sélecteurs plutôt que de les
+isoler.** Posé dans celui qui les remplit, il n'aurait dépendu que des données :
+changer la colonne des doses après coup aurait laissé la liste sur son exclusion
+périmée. Seul `colEssai` s'y isole — lire sa propre valeur en dépendance ferait
+boucler le rendu sur son écriture, le piège déjà documenté pour les modalités
+masquées du rendement.
+
+**Le test porte sur six doses, pas sept.** Avec sept, la limite de six essais se
+déclenche et masque le défaut : l'assertion passerait **avant** correction. Une
+assertion qui ne distingue pas les deux codes ne garde rien — c'est la sixième
+fois que ce dépôt le réapprend. Quatre mutations le gardent, toutes attrapées.
+
+#### Une colonne de survivants prise pour celle des morts
+
+Même capture, second défaut : la colonne des morts portait **« Vivants_48h »**.
+La ligne à la dose zéro devient alors un témoin **mort en totalité**, et le
+refus disait :
+
+> Le témoin est mort en totalité : la mortalité naturelle vaut 100 %, aucune
+> dose ne peut être évaluée.
+
+Exact, et sans rapport avec le geste à faire. Le dépôt possédait pourtant déjà
+la phrase juste — `.hstat_dl50_msg_pente()`, écrite pour la pente négative —
+mais elle n'est jamais atteinte : la garde du témoin se déclenche avant elle.
+
+`.hstat_dl50_decroissante()` mesure le **sens** de la mortalité, pas sa force :
+le signe de la covariance entre le log de la dose et la mortalité observée.
+Deux doses ne disent rien d'une tendance, et des mortalités toutes égales non
+plus — dans les deux cas on s'abstient plutôt que de nommer une cause qu'on n'a
+pas établie.
+
+**La cause s'ajoute, elle ne remplace pas.** Un témoin à 100 % est un vrai
+défaut d'essai ; la colonne inversée en est un autre, et c'est le plus fréquent.
+Les deux peuvent tenir. C'est l'assertion qui distingue « ajouter la cause » de
+« changer de message » : sur un essai à mortalité **croissante** dont le témoin
+est mort en entier, l'inversion n'est pas nommée.
+
+##### Le motif nommait l'inversion, mais pas la bonne paire de colonnes
+
+Trouvé **au navigateur**, et par rien d'autre : la phrase reprise telle quelle
+de la pente négative disait
+
+> Vérifiez que les colonnes « effectif testé » et « morts » ne sont pas
+> inversées.
+
+C'est une hypothèse juste, et ce n'est **pas** la faute mesurée ici : la colonne
+des morts portait les **survivants**. Un motif qui envoie vérifier la mauvaise
+paire coûte une recherche entière — on compare l'effectif et les morts, on les
+trouve cohérents, et on conclut que l'application se trompe.
+
+Le motif nomme désormais les **deux** confusions, celle des survivants d'abord :
+c'est la colonne que l'utilisateur a réellement choisie, et la seule des deux
+qui rende la mortalité décroissante de bout en bout. Les deux assertions le
+gardent — « survivants » présent, « effectif testé » toujours présent : n'en
+garder qu'une laisserait revenir l'autre moitié.
+
+Leçon de méthode, la même que pour le kit de mise en forme : **le parcours au
+navigateur n'est pas une formalité de fin de lot.** Les deux tests passaient, et
+ils passaient sur la mauvaise phrase — ils vérifiaient qu'une cause était
+nommée, pas que c'était la bonne.
+
+##### Trois mesures de la sonde, et les trois premières mentaient
+
+La sonde elle-même a demandé quatre corrections, toutes dans le sens rassurant
+ou bruyant, et chacune vaut d'être écrite :
+
+| Mesure | Ce qu'elle rendait | Pourquoi elle mentait |
+|---|---|---|
+| `page.selectOption('#dl50-colDose', …)` | expiration au bout de 30 s | le `<select>` est **selectizé**, donc caché ; Playwright l'attend visible indéfiniment. On passe par `el.selectize.setValue()`, seule chose que Shiny écoute |
+| `[...el.options].map(o => o.text)` | `[""]` pour **toute** liste | `updateSelectInput` réécrit les options de l'**instance** selectize, pas les `<option>` natifs |
+| téléversement seul, sans clic sur « Charger » | « Aucune donnée chargée » aux trois étapes | le téléversement ne charge pas — il reste un bouton à cliquer. La sonde tournait sur une session **vide** |
+| clic d'onglet posé par `page.evaluate()` | `messageFit` et `verdict` **vides** | un clic synthétique ne déclenche pas l'onglet Bootstrap : les sorties restent suspendues, et `uiOutput` caché ne rend rien |
+
+Et un cinquième, propre au module : `.ajouter()` **empile** les essais.
+Réimporter dans la même session laissait la sélection sur l'essai précédent, et
+la sonde relisait donc son verdict — **identique à l'octet près pour les trois
+scénarios**, ce qui ressemble exactement à « le réglage ne fait rien ». D'où une
+**session neuve par scénario**.
+
 ### Erreur-type et écart-type ne mesurent pas la même chose
 
 Les confondre est l'erreur classique du bioessai, et elle change la conclusion :
