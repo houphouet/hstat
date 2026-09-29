@@ -4073,17 +4073,87 @@ passé à `trf()`. Trois phrases entières, comme les six libellés de perte de
 rendement : `trf()` ne traduit jamais ses arguments, et un bout de phrase au
 dictionnaire ne se traduit nulle part.
 
-#### Le troisième signalement n'était pas un défaut
+#### Le troisième signalement était un vrai défaut, et je l'avais écarté
 
 La boîte « Mise en forme générale » de l'onglet Graphique paraissait **vide**
-sur la capture. Mesurée sur l'interface rendue, elle porte **dix** champs : le
-tracé des axes et ses deux réglages, la taille des clés, les deux angles, les
-deux pas et les quatre marges. La capture était coupée.
+sur la capture. J'ai construit l'interface, compté **dix** champs dans le
+retour de `hstat_plot_extras_ui()`, et conclu que la capture était coupée.
 
-Documenter un défaut inventé serait pire que ne rien documenter : on le
-chercherait. C'est la même leçon que les quatre sondes du module
-d'épidémiologie, à ceci près qu'ici la mesure **infirme** le signalement au
-lieu de le confirmer.
+**Elle ne l'était pas.** Signalé de nouveau — « le graphique ne fonctionne pas,
+rien ne peut être coché » — avec cette fois la page déroulée jusqu'en bas : les
+dix champs sont bien là, et le graphique aussi, **sous les quarante contrôles
+de la colonne de gauche**. En haut à droite il n'y a que le titre de la boîte,
+seul, et une grande zone vide.
+
+**Ma mesure portait sur la fonction, pas sur la page.** `hstat_plot_extras_ui()`
+rendait bien ses dix champs — c'est sa *place dans la rangée* qui était fausse,
+et compter ce qu'une fonction retourne ne dit rien de l'endroit où cela
+atterrit. C'est le même défaut de méthode que le cadre carré mesuré sur
+l'image pendant qu'elle recouvrait ce qui la suivait, et que la sonde au
+mauvais préfixe : **une mesure qui ne porte pas sur ce qui peut casser ne dit
+rien**, et elle se trompe toujours dans le sens rassurant.
+
+Et le prix est plus élevé qu'un défaut ordinaire : j'ai écrit ici, noir sur
+blanc, que le signalement n'en était pas un. Une documentation qui **nie** un
+défaut réel est pire qu'une documentation absente — elle empêche de le
+chercher. C'est la faute symétrique de celle que ce dépôt traque (documenter un
+défaut inventé), et elle coûte davantage.
+
+##### Un enfant de `fluidRow` qui n'est pas une colonne casse la rangée
+
+La cause se lit sur le DOM rendu, et elle est nette :
+
+| Widget | Ancêtres |
+|---|---|
+| `gType` (Options du graphique) | `div.row > **div.col-sm-4** > div.box` |
+| `graphe` | `div.row > **div.col-sm-8** > div.box` |
+| `gAxisLine` (le kit) | `div.row > **div**` — aucune classe `col-*` |
+
+Le kit était posé **entre** les deux boîtes, en `div` nu. Bootstrap fait
+**flotter** `col-sm-4` et `col-sm-8` ; un bloc non flotté glisse entre eux :
+son titre se dessine dans le flux, à côté du flottant de gauche — d'où le
+libellé seul en haut à droite — pendant que ses `row` intérieures **dégagent**
+les flottants et tombent sous la plus haute des deux colonnes, en poussant la
+colonne du graphique avec elles.
+
+Rien ne lève, rien ne manque, aucun réglage n'est inerte : **tout est là, au
+mauvais endroit**. C'est pour cela que l'utilisateur lit « le graphique ne
+fonctionne pas » — il faut dérouler toute la page pour l'atteindre.
+
+Sur les **douze** panneaux du kit de l'application, c'était le **seul** hors
+colonne. Le kit passe donc dans une `column(width = 12)` posée **après** le
+graphique : c'est la disposition déjà retenue pour l'épidémiologie (« la boîte
+de mise en forme vit sous celle d'export ») et pour les comparaisons post-hoc.
+On voit la figure, on l'atteint, et elle reste visible pendant qu'on règle.
+
+**Le test marche l'arbre de balises, pas le HTML.** C'est la même structure que
+le navigateur recevra, et cela n'ajoute aucune dépendance à la liste de la CI —
+`xml2` n'y figure pas, et ce qui n'est pas déclaré n'est pas garanti. Il balaie
+les treize modules et exige que chaque panneau du kit ait un ancêtre `col-*`.
+
+Deux moitiés le rendent discernant, et elles sont nécessaires toutes les deux :
+
+1. il construit **une rangée fautive et la même corrigée**, et vérifie qu'il
+   signale la première et pas la seconde — sans quoi un marcheur qui ne
+   trouverait jamais rien passerait tout aussi bien ;
+2. il compte les panneaux rencontrés et échoue sous neuf — un balayage qui ne
+   rencontre rien ressemble à un balayage qui passe.
+
+Un second test garde l'ordre : sur la DL50, `dl50-graphe` doit précéder
+`dl50-gAxisLine` dans la page. On ouvre un onglet « Graphique » pour voir un
+graphique.
+
+##### Et la sonde qui a mesuré cela s'est trompée d'abord
+
+Mon premier balayage XPath cherchait `substring(@id, string-length(@id) - 8)`
+pour un suffixe de **huit** caractères — donc neuf caractères comparés à huit,
+zéro correspondance. Il a annoncé « pas de famille axe » sur les **treize**
+modules, y compris sur celui dont je venais d'établir qu'il portait
+`dl50-gAxisLine`.
+
+C'est cette contradiction avec un fait déjà mesuré qui l'a fait voir, et non
+une relecture. Une sonde qui rend « rien nulle part » doit être soupçonnée
+avant d'être crue : c'est toujours le sens rassurant.
 
 ### Erreur-type et écart-type ne mesurent pas la même chose
 

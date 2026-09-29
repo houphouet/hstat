@@ -18423,6 +18423,83 @@ test_that("diversite et DL50 declarent tout le vocabulaire, sans un seul doublon
   }
 })
 
+# -- UN ENFANT DE `fluidRow` QUI N'EST PAS UNE COLONNE CASSE LA RANGEE --------
+# Signale a l'ecran : « le graphique ne fonctionne pas », onglet Graphique de
+# la DL50. Rien ne levait, rien ne manquait -- le kit de mise en forme etait
+# pose entre les deux boites en `div` NU, sans `column()`. Bootstrap fait
+# flotter les colonnes ; un bloc non flotte glisse entre elles, son titre se
+# dessine en haut a droite et ses `row` interieures tombent sous les quarante
+# controles de gauche, en poussant la colonne du graphique avec elles.
+test_that("chaque panneau du kit vit dans une colonne, sinon il casse sa rangee", {
+  skip_if_not_installed("shiny")
+  skip_if_not_installed("shinydashboard")
+
+  # ON MARCHE L'ARBRE DE BALISES, PAS LE HTML : c'est la meme structure que le
+  # navigateur recevra, et cela n'ajoute aucune dependance a la CI.
+  ancetres <- function(noeud, cible, pile = character(0)) {
+    if (inherits(noeud, "shiny.tag")) {
+      cl <- noeud$attribs$class
+      id <- noeud$attribs$id
+      if (length(id) && grepl(cible, paste(unlist(id), collapse = "")))
+        return(list(pile))
+      pile <- c(pile, if (length(cl)) paste(unlist(cl), collapse = " ") else "")
+      return(unlist(lapply(noeud$children, ancetres, cible = cible, pile = pile),
+                    recursive = FALSE))
+    }
+    if (is.list(noeud))
+      return(unlist(lapply(noeud, ancetres, cible = cible, pile = pile),
+                    recursive = FALSE))
+    NULL
+  }
+  colonne <- function(p) any(grepl("col-(sm|md|xs|lg)-[0-9]", p))
+
+  # LA SONDE DOIT DISTINGUER LES DEUX CODES. Sans cette moitie, un marcheur qui
+  # ne trouverait jamais rien passerait le balayage tout aussi bien.
+  faux <- shiny::fluidRow(
+    shinydashboard::box(width = 4, shiny::h4("gauche")),
+    hstat_plot_extras_ui(function(x) paste0("t-", x), "z", familles = "axe"),
+    shinydashboard::box(width = 8, shiny::h4("droite")))
+  juste <- shiny::fluidRow(
+    shinydashboard::box(width = 4, shiny::h4("gauche")),
+    shinydashboard::box(width = 8, shiny::h4("droite")),
+    shiny::column(12, hstat_plot_extras_ui(function(x) paste0("t-", x), "z",
+                                           familles = "axe")))
+  expect_false(all(vapply(ancetres(faux,  "AxisLine$"), colonne, TRUE)))
+  expect_true( all(vapply(ancetres(juste, "AxisLine$"), colonne, TRUE)))
+
+  mods <- c(tests = "mod_tests_ui", design = "mod_design_ui",
+            threshold = "mod_threshold_ui", explore = "mod_explore_ui",
+            qualitative = "mod_qualitative_ui", descriptive = "mod_descriptive_ui",
+            yield = "mod_yield_ui", diversity = "mod_diversity_ui",
+            dl50 = "mod_dl50_ui", ml = "mod_ml_ui", dl = "mod_dl_ui",
+            timeseries = "mod_timeseries_ui", epidemio = "mod_epidemio_ui")
+  vus <- 0L
+  for (nm in names(mods)) {
+    if (!exists(mods[[nm]])) next
+    for (p in ancetres(get(mods[[nm]])(nm), "AxisLine$")) {
+      vus <- vus + 1L
+      expect_true(colonne(p), label = paste("panneau du kit hors colonne :", nm))
+    }
+  }
+  # Un balayage qui ne rencontre rien ressemble a un balayage qui passe.
+  expect_gt(vus, 8L)
+})
+
+test_that("sur la DL50, le graphique vient AVANT ses reglages de mise en forme", {
+  skip_if_not_installed("shiny")
+  h <- paste(as.character(htmltools::renderTags(mod_dl50_ui("dl50"))$html),
+             collapse = "\n")
+  g <- regexpr('id="dl50-graphe"', h, fixed = TRUE)
+  k <- regexpr("dl50-gAxisLine", h, fixed = TRUE)
+  expect_gt(g, 0L)
+  expect_gt(k, 0L)
+  # On ouvre un onglet « Graphique » pour voir un graphique : le faire preceder
+  # de quarante controles oblige a derouler toute la page pour l'atteindre,
+  # et c'est exactement ce qui a ete signale.
+  expect_lt(g, k)
+})
+
+
 # =============================================================================
 #  ACP : LA CIBLE DU DEGRADE SUR UN BIPLOT, ET LES VARIABLES PEU INFORMATIVES
 # =============================================================================
