@@ -18614,28 +18614,33 @@ test_that("diversite et DL50 declarent tout le vocabulaire, sans un seul doublon
 # flotter les colonnes ; un bloc non flotte glisse entre elles, son titre se
 # dessine en haut a droite et ses `row` interieures tombent sous les quarante
 # controles de gauche, en poussant la colonne du graphique avec elles.
+# Le chemin des classes des ANCETRES de chaque noeud dont l'identifiant
+# correspond. On marche l'arbre de balises, pas le HTML : c'est la meme
+# structure que le navigateur recevra, et cela n'ajoute aucune dependance a la
+# liste de la CI -- `xml2` n'y figure pas, et ce qui n'est pas declare n'est pas
+# garanti. Deux tests s'en servent ; deux copies finiraient par diverger.
+.hstat_ancetres <- function(noeud, cible, pile = character(0)) {
+  if (inherits(noeud, "shiny.tag")) {
+    cl <- noeud$attribs$class
+    id <- noeud$attribs$id
+    if (length(id) && grepl(cible, paste(unlist(id), collapse = "")))
+      return(list(pile))
+    pile <- c(pile, if (length(cl)) paste(unlist(cl), collapse = " ") else "")
+    return(unlist(lapply(noeud$children, .hstat_ancetres, cible = cible,
+                         pile = pile), recursive = FALSE))
+  }
+  if (is.list(noeud))
+    return(unlist(lapply(noeud, .hstat_ancetres, cible = cible, pile = pile),
+                  recursive = FALSE))
+  NULL
+}
+.hstat_dans_colonne <- function(p) any(grepl("col-(sm|md|xs|lg)-[0-9]", p))
+
 test_that("chaque panneau du kit vit dans une colonne, sinon il casse sa rangee", {
   skip_if_not_installed("shiny")
   skip_if_not_installed("shinydashboard")
-
-  # ON MARCHE L'ARBRE DE BALISES, PAS LE HTML : c'est la meme structure que le
-  # navigateur recevra, et cela n'ajoute aucune dependance a la CI.
-  ancetres <- function(noeud, cible, pile = character(0)) {
-    if (inherits(noeud, "shiny.tag")) {
-      cl <- noeud$attribs$class
-      id <- noeud$attribs$id
-      if (length(id) && grepl(cible, paste(unlist(id), collapse = "")))
-        return(list(pile))
-      pile <- c(pile, if (length(cl)) paste(unlist(cl), collapse = " ") else "")
-      return(unlist(lapply(noeud$children, ancetres, cible = cible, pile = pile),
-                    recursive = FALSE))
-    }
-    if (is.list(noeud))
-      return(unlist(lapply(noeud, ancetres, cible = cible, pile = pile),
-                    recursive = FALSE))
-    NULL
-  }
-  colonne <- function(p) any(grepl("col-(sm|md|xs|lg)-[0-9]", p))
+  ancetres <- .hstat_ancetres
+  colonne <- .hstat_dans_colonne
 
   # LA SONDE DOIT DISTINGUER LES DEUX CODES. Sans cette moitie, un marcheur qui
   # ne trouverait jamais rien passerait le balayage tout aussi bien.
@@ -18671,16 +18676,33 @@ test_that("chaque panneau du kit vit dans une colonne, sinon il casse sa rangee"
 
 test_that("sur la DL50, le graphique vient AVANT ses reglages de mise en forme", {
   skip_if_not_installed("shiny")
-  h <- paste(as.character(htmltools::renderTags(mod_dl50_ui("dl50"))$html),
-             collapse = "\n")
+  ui <- mod_dl50_ui("dl50")
+  h <- paste(as.character(htmltools::renderTags(ui)$html), collapse = "\n")
   g <- regexpr('id="dl50-graphe"', h, fixed = TRUE)
-  k <- regexpr("dl50-gAxisLine", h, fixed = TRUE)
   expect_gt(g, 0L)
-  expect_gt(k, 0L)
   # On ouvre un onglet « Graphique » pour voir un graphique : le faire preceder
   # de quarante controles oblige a derouler toute la page pour l'atteindre,
   # et c'est exactement ce qui a ete signale.
-  expect_lt(g, k)
+  #
+  # LES TROIS PANNEAUX DE MISE EN FORME SUIVENT LA FIGURE : le kit, mais aussi
+  # « Axes » et « Couleurs et legende », descendus de la colonne de gauche a la
+  # demande. Ce sont les deux sections les plus lourdes du module, et elles
+  # poussaient hors de l'ecran le graphique qu'elles reglent.
+  for (k in c("dl50-gAxisLine", "dl50-gXlab", "dl50-gTheme")) {
+    i <- regexpr(k, h, fixed = TRUE)
+    expect_gt(i, 0L, label = k)
+    expect_lt(g, i, label = paste(k, "apres le graphique"))
+  }
+
+  # ET CHACUN VIT DANS UNE COLONNE. Un enfant de `fluidRow` qui n'est pas une
+  # colonne n'est pas flotte : sa boite recouvre le flottant de gauche, et
+  # c'est ELLE qui recoit le clic -- les controles cessent d'etre cliquables
+  # sans que rien ne leve. Mesure sur les deux codes avant la 1.7.8.
+  for (cible in c("gAxisLine$", "gXlab$", "gTheme$")) {
+    ch <- .hstat_ancetres(ui, cible)
+    expect_length(ch, 1L)
+    expect_true(.hstat_dans_colonne(ch[[1]]), label = cible)
+  }
 })
 
 
