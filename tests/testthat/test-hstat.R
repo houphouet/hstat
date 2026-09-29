@@ -10727,8 +10727,10 @@ test_that("erreur-type et ecart-type ne mesurent pas la meme chose", {
                which.min(abs(dl$Log_dose - m_etoile)))
   expect_gt(abs(dl$Log_dose[dl$Seuil == 50] - m_etoile), 0.5)
 
-  # La verification qui les separe : 10^(log DL50 +/- 1/b) rend exactement la
-  # DL84 et la DL16 -- l'ecart-type decrit la courbe, pas l'essai.
+  # La verification qui les separe : 10^(log DL50 +/- 1/b) rend la dose a UN
+  # PROBIT de plus et de moins -- soit la DL84,13 et la DL15,87, et non la DL84
+  # et la DL16 tout rondes, dont Phi^-1(0,84) = 0,9945 eloigne de 1,3 % sur la
+  # dose. L'ecart-type decrit la courbe, pas l'essai.
   m50 <- dl$Log_dose[dl$Seuil == 50]
   s <- dl$Ecart_type[1]
   attendu <- hstat_dl50_doses_letales(f, seuils = c(pnorm(1) * 100, pnorm(-1) * 100))
@@ -18398,6 +18400,188 @@ test_that("le module DL50 prend du kit les deux familles qui lui manquaient", {
   avecy <- hstat_dl50_graphique(list(f), list(extras = list(
     familles = "pas", pas = c(x = NA_real_, y = 1))))
   expect_equal(etiq(avecy, "l"), c("-3", "-2", "-1", "0", "1", "2", "3"))
+})
+
+test_that("la liste des colonnes en pourcentage est declaree PAR TABLEAU", {
+  # `Limite_inf` est une PROPORTION dans le tableau dose -> mortalite et une
+  # DOSE dans celui des doses letales. Une liste plate de noms de colonnes
+  # multiplierait donc des doses par cent : le tableau resterait complet,
+  # parfaitement lisible, et faux. C'EST L'ASSERTION QUI DISTINGUE LES DEUX
+  # CODES -- sans elle, une liste plate passerait tout aussi bien.
+  mo <- data.frame(Dose = c(0.01, 0.05), Probit_attendu = c(-1.33, -0.014),
+                   Erreur_type = c(0.667, 0.336), Mortalite = c(0.0916, 0.4945),
+                   Limite_inf = c(0.00416, 0.2509), Limite_sup = c(0.4909, 0.7402))
+  r <- hstat_dl50_en_pct(mo, "mortalite")
+  expect_equal(r$Mortalite, c(9.16, 49.45), tolerance = 1e-3)
+  expect_equal(r$Limite_inf, c(0.416, 25.09), tolerance = 1e-3)
+  expect_equal(r$Limite_sup, c(49.09, 74.02), tolerance = 1e-3)
+  # Ce qui n'est pas une proportion ne bouge pas : ni la dose, ni le probit,
+  # ni l'erreur-type qui porte sur ce probit.
+  expect_equal(r$Dose, mo$Dose)
+  expect_equal(r$Probit_attendu, mo$Probit_attendu)
+  expect_equal(r$Erreur_type, mo$Erreur_type)
+
+  # Le meme nom de colonne, l'autre tableau : les DOSES restent des doses.
+  dl <- data.frame(Seuil = c(90, 50), Dose = c(2.072, 0.1039),
+                   Limite_inf = c(1.2424, 0.0346), Limite_sup = c(4.9235, 0.1894))
+  expect_identical(hstat_dl50_en_pct(dl, "detail"), dl)
+
+  # Le tableau « detail » convertit, lui, ses trois mortalites -- et rien d'autre.
+  de <- data.frame(Dose = 0.05, Mortalite_observee = 0.48,
+                   Mortalite_corrigee = 0.48, Probit_corrige = -0.05,
+                   Mortalite_attendue = 0.4945, Probit_attendu = -0.0139)
+  p <- hstat_dl50_en_pct(de, "detail")
+  expect_equal(p$Mortalite_observee, 48)
+  expect_equal(p$Mortalite_corrigee, 48)
+  expect_equal(p$Mortalite_attendue, 49.45, tolerance = 1e-3)
+  expect_equal(p$Probit_corrige, de$Probit_corrige)
+  expect_equal(p$Dose, de$Dose)
+
+  # UN NOM DE TABLEAU INCONNU LEVE. Passer son chemin ne convertirait rien
+  # tout en laissant l'en-tete annoncer « (%) » : le defaut qu'on vient de
+  # corriger, rendu invisible.
+  expect_error(hstat_dl50_en_pct(de, "detai"), "tableau inconnu")
+  expect_null(hstat_dl50_en_pct(NULL, "detail"))
+})
+
+test_that("les proportions de la DL50 s'affichent en pourcentage, ecran et fichier", {
+  skip_if_not_installed("shiny")
+  skip_if_not_installed("DT")
+  d <- data.frame(Dose = c(0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5),
+                  N = rep(25, 7), Morts = c(0, 2, 6, 12, 18, 22, 24))
+  vals <- shiny::reactiveValues(data = d, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  shiny::testServer(mod_dl50_server, args = list(values = vals), {
+    session$setInputs(source = "fichier", colDose = "Dose", colN = "N",
+                      colMorts = "Morts", colEssai = "", importerDonnees = 1,
+                      methode = "em", alpha = 0.05, chiffres = 5,
+                      seuils = "10, 50, 90", dosesCalc = "0.01, 0.05")
+    aff <- detail_aff()
+    expect_equal(aff$Mortalite_observee, c(8, 24, 48, 72, 88, 96))
+    expect_true(all(aff$Mortalite_attendue > 1))
+
+    # LES COLONNES DE CALCUL RESTENT DES PROPORTIONS. Convertir dans
+    # `hstat_dl50_ajuste()` toucherait la log-vraisemblance et la garde du
+    # trace ; c'est cette assertion qui l'interdit.
+    expect_equal(fit()$table$Mortalite_observee, c(.08, .24, .48, .72, .88, .96))
+
+    # L'ECRAN ET LE FICHIER LISENT LA MEME SOURCE. Deux conversions posees
+    # separement finiraient par diverger, et c'est le fichier -- qu'on relit
+    # plus tard, loin de l'ecran -- qui mentirait.
+    expect_identical(tables_export()$Detail_par_dose, aff)
+
+    tm <- table_mort()
+    expect_true(all(tm$Mortalite > 1 & tm$Mortalite < 100))
+    expect_true(all(tm$Limite_inf < tm$Mortalite & tm$Mortalite < tm$Limite_sup))
+    # L'erreur-type porte sur le PROBIT : elle ne se convertit pas.
+    expect_true(all(tm$Erreur_type < 1))
+
+    # La mortalite naturelle du tableau des parametres suit, erreur-type
+    # comprise : les convertir separement ferait lire un ecart-type de 0,004
+    # a cote d'une valeur de 85.
+    pa <- parametres()
+    i <- grep("^Mortalit", pa$Parametre)
+    expect_length(i, 2L)
+    expect_true(all(pa$Unite[i] == "%"))
+
+    # L'EN-TETE REELLEMENT RENDU, pas la ligne de code qui le compose.
+    ent <- function(o) as.character(o)
+    expect_true(grepl("observée \\(%\\)", ent(output$detail)))
+    expect_true(grepl("corrigée \\(%\\)", ent(output$detail)))
+    expect_true(grepl("attendue \\(%\\)", ent(output$detail)))
+    expect_true(grepl("inférieure \\(%\\)", ent(output$tableMort)))
+    expect_true(grepl("Erreur-type \\(probit\\)", ent(output$tableMort)))
+
+    # LE TABLEAU DE LA CAPTURE. C'est celui-la que l'utilisateur lisait, et
+    # c'est son en-tete qui promettait une arithmetique en unite de dose.
+    dlh <- ent(output$dosesLetales)
+    expect_true(grepl("Erreur-type \\(log10\\(dose\\)\\)", dlh))
+    expect_true(grepl("Écart-type \\(log10\\(dose\\)\\)", dlh))
+    expect_true(grepl("DL à ± 1 erreur-type", dlh))
+    expect_true(grepl("DL à ± 1 écart-type", dlh))
+  })
+})
+
+test_that("l'echelle de l'erreur-type et de l'ecart-type est DECLAREE", {
+  skip_if_not_installed("shiny")
+  # Signale a l'ecran : « DL +/- erreur-type ne comporte pas les bonnes
+  # valeurs ». Les valeurs sont justes -- c'est l'etiquette qui promettait une
+  # arithmetique que le nombre ne fait pas. Sur la DL90 de l'essai signale,
+  # « Dose » vaut 2,0720 et « Erreur-type » 0,13792 : le lecteur pose
+  # 2,0720 +/- 0,13792 et lit 1,508 - 2,846, parce que l'erreur-type est celle
+  # du LOG10 de la dose.
+  # L'essai est celui de la capture : temoin 3/40, sept doses sur 40 individus.
+  e <- hstat_dl50_essai(c(0.125, 0.25, 0.5, 1, 2, 4, 8), rep(40, 7),
+                        c(25, 22, 36, 31, 35, 39, 39),
+                        temoin_n = 40, temoin_morts = 3)
+  f <- hstat_dl50_ajuste(e, "em")
+  dl <- hstat_dl50_doses_letales(f, seuils = c(10, 50, 90))
+  lire <- function(x) as.numeric(strsplit(x, "–", fixed = TRUE)[[1]])
+  i <- which(dl$Seuil == 90)
+  bornes <- lire(dl$DL_erreur_type[i])
+  # CE QUE LA COLONNE PORTE : 10^(log10 DL +/- ET), jamais DL +/- ET. La
+  # seconde assertion est la moitie qui compte -- sans elle, une colonne qui
+  # ferait bien DL +/- ET passerait aussi.
+  expect_equal(bornes, 10^(dl$Log_dose[i] + c(-1, 1) * dl$Erreur_type[i]),
+               tolerance = 1e-3)
+  expect_false(isTRUE(all.equal(bornes,
+                                dl$Dose[i] + c(-1, 1) * dl$Erreur_type[i],
+                                tolerance = 1e-2)))
+
+  # L'ECART-TYPE EST 1/|b| : il decrit la population, pas l'estimation, et il
+  # vaut donc la MEME chose sur les trois seuils -- ce que l'erreur-type, elle,
+  # ne fait pas.
+  expect_equal(length(unique(round(dl$Ecart_type, 12))), 1L)
+  expect_gt(length(unique(round(dl$Erreur_type, 6))), 1L)
+
+  # Un ecart-type de plus en log-dose, c'est un PROBIT de plus : la dose lue
+  # est celle de Phi(1) = 84,13 %, jamais celle de « 84 % » tout rond. L'ecart
+  # entre les deux (Phi^-1(0,84) = 0,9945) vaut 1,3 % sur la dose, donc plus
+  # que toute tolerance raisonnable -- mesure faite, pas supposee.
+  j <- which(dl$Seuil == 50)
+  b <- lire(dl$DL_ecart_type[j])
+  s1 <- hstat_dl50_doses_letales(f, seuils = 100 * stats::pnorm(c(1, -1)))
+  expect_equal(b[2], s1$Dose[which.max(s1$Seuil)], tolerance = 3e-3)
+  expect_equal(b[1], s1$Dose[which.min(s1$Seuil)], tolerance = 3e-3)
+  rond <- hstat_dl50_doses_letales(f, seuils = c(84, 16))
+  expect_false(isTRUE(all.equal(b[2], rond$Dose[which.max(rond$Seuil)],
+                                tolerance = 1e-3)))
+
+  # L'ECHELLE SE COMPOSE A UN SEUL ENDROIT. Trois tableaux portent ces
+  # colonnes ; trois libelles ecrits a la main finiraient par diverger.
+  expect_equal(hstat_dl50_libelle_echelle("Erreur-type", "log10"),
+               "Erreur-type (log10(dose))")
+  expect_equal(hstat_dl50_libelle_echelle("Erreur-type", "probit"),
+               "Erreur-type (probit)")
+  expect_error(hstat_dl50_libelle_echelle("Erreur-type", "dose"))
+
+  # Les valeurs de la table ne sont pas des chaines LITTERALES passees a
+  # `tr()` : le balayage de couverture du dictionnaire ne peut pas les voir.
+  # Meme cas que `HSTAT_ERR_FR`, assemble a l'execution lui aussi.
+  dic <- hstat_i18n_load()
+  expect_equal(setdiff(unname(HSTAT_DL50_ECHELLES), dic$fr), character(0))
+
+  # LA NOTE EST POSEE SOUS LES DEUX TABLEAUX QUI PORTENT CES COLONNES.
+  # Une etiquette corrigee dit ce que la colonne EST ; elle ne dit pas encore
+  # comment la lire, et c'est cette lecture-la qui etait demandee.
+  h <- paste(as.character(htmltools::renderTags(mod_dl50_ui("dl50"))$html),
+             collapse = "\n")
+  n <- length(gregexpr("asymétrique en dose", h)[[1]])
+  expect_equal(n, 2L)
+  expect_true(grepl("10\\^\\(log10 DL", h))
+
+  # CHAQUE PHRASE DANS SA PROPRE BALISE. Le DOM fond toute suite de caracteres
+  # adjacents en UN noeud : posees cote a cote, les deux phrases n'existeraient
+  # nulle part comme chaine entiere et aucune des deux entrees du dictionnaire
+  # ne pourrait s'appliquer. On verifie donc que chacune est le CONTENU ENTIER
+  # d'un `<span>`, pas seulement qu'elle figure dans la page.
+  dic <- hstat_i18n_load()
+  phrases <- grep("^L'erreur-type et l'écart-type portent|^Sur la DL50, 10\\^",
+                  dic$fr, value = TRUE)
+  expect_length(phrases, 2L)
+  for (ph in phrases)
+    expect_true(grepl(paste0("<span>", ph, "</span>"), h, fixed = TRUE),
+                info = substr(ph, 1, 40))
 })
 
 test_that("diversite et DL50 declarent tout le vocabulaire, sans un seul doublon", {

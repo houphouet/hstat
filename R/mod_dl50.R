@@ -863,6 +863,98 @@ hstat_dl50_libelle_dose <- function(fit, base = tr("Dose")) {
   if (nzchar(u)) trf("%s (%s)", base, u) else base
 }
 
+# ---------------------------------------------------------------------------
+#  Une proportion s'affiche en pourcentage, et le fichier la porte de meme
+# ---------------------------------------------------------------------------
+#  Signale a l'ecran. Le tableau « Detail par dose » ecrivait « 0.62500 » sous
+#  « Mortalite observee », immediatement a cote de probits du meme ordre de
+#  grandeur (0.23898, 1.2368). Deux colonnes voisines portent alors des
+#  nombres indiscernables dont les unes sont des proportions et les autres
+#  non, et il faut multiplier de tete a chaque ligne -- alors que TOUT le
+#  reste de l'essai parle en pourcentage : la fiche de terrain, le seuil des
+#  doses letales, la phrase de verdict et jusqu'au rapport .PRN, qui ecrit
+#  deja « Pourcentage de mortalite naturelle : 85,00 % ».
+#
+#  LA LISTE EST DECLAREE PAR TABLEAU, JAMAIS PAR NOM DE COLONNE SEUL.
+#  `Limite_inf` et `Limite_sup` sont des PROPORTIONS dans le tableau
+#  dose -> mortalite et des DOSES dans le tableau des doses letales. Une liste
+#  plate multiplierait donc des doses par cent : le tableau resterait complet,
+#  parfaitement lisible, et faux -- exactement le mode de defaillance que ce
+#  module existe pour eviter. C'est aussi l'assertion qui distingue les deux
+#  codes dans le test.
+#
+#  La conversion se fait au SEUL point de passage entre le calcul et
+#  l'affichage, et l'export lit la meme fonction : un fichier qui porterait
+#  0,625 sous un en-tete annoncant « (%) » serait la copie qui ment. Les
+#  colonnes de CALCUL, elles, restent des proportions -- `Mortalite_attendue`
+#  alimente la log-vraisemblance et `Mortalite_corrigee` la garde du trace.
+HSTAT_DL50_PCT <- list(
+  detail    = c("Mortalite_observee", "Mortalite_corrigee", "Mortalite_attendue"),
+  mortalite = c("Mortalite", "Limite_inf", "Limite_sup"))
+
+# Un nom de tableau inconnu LEVE, il ne passe pas son chemin : une coquille y
+# ne convertirait rien tout en laissant l'en-tete annoncer « (%) », c'est-a-dire
+# le defaut qu'on vient de corriger, rendu invisible.
+hstat_dl50_en_pct <- function(d, tableau) {
+  if (!tableau %in% names(HSTAT_DL50_PCT))
+    stop(sprintf("hstat_dl50_en_pct : tableau inconnu (%s)", tableau))
+  if (is.null(d) || !nrow(d)) return(d)
+  for (k in intersect(HSTAT_DL50_PCT[[tableau]], names(d)))
+    d[[k]] <- 100 * d[[k]]
+  d
+}
+
+# ---------------------------------------------------------------------------
+#  L'erreur-type et l'ecart-type portent sur le LOG10 DE LA DOSE
+# ---------------------------------------------------------------------------
+#  Signale a l'ecran : « les resultats de DL +/- erreur-type et DL +/- ecart-type
+#  ne comportent pas les bonnes valeurs ». Les valeurs sont justes ; c'est le
+#  libelle qui promet une arithmetique que le nombre ne fait pas. Sur la ligne
+#  de la DL90 de l'essai signale, la colonne « Dose » vaut 2,0720 et la colonne
+#  « Erreur-type » 0,13792 : le lecteur pose 2,0720 +/- 0,13792 = 1,934 - 2,210
+#  et lit 1,508 - 2,846. L'ecart n'est pas un defaut de calcul, c'est un defaut
+#  d'etiquette -- l'erreur-type est celle du LOG10 de la dose, et l'encadrement
+#  vaut 10^(log10 DL +/- s), donc ASYMETRIQUE en dose.
+#
+#  Le remede est celui que le tableau des parametres appliquait deja depuis
+#  toujours : il porte une colonne « Unite » qui ecrit « probit »,
+#  « probit / log10(dose) », « log10(dose) ». Les tableaux de resultats, eux,
+#  ne disaient rien. On ne donne SURTOUT PAS une seconde erreur-type en unite
+#  de dose a cote de la premiere : ce serait deux grandeurs pour une meme
+#  incertitude, dont la seconde -- approchee -- contredirait l'intervalle
+#  publie juste a cote.
+HSTAT_DL50_ECHELLES <- c(log10 = "log10(dose)", probit = "probit")
+
+# « Erreur-type (log10(dose)) ». Le libelle se compose ici et nulle part
+# ailleurs : trois tableaux le portent, et trois copies finiraient par diverger.
+# LA CLE EST VERIFIEE AVANT `trf()`, ET C'EST INDISPENSABLE. `trf()` se replie
+# sur le francais quand `sprintf` leve -- une traduction qui aurait perdu un
+# marqueur ne doit pas faire tomber toute la sortie -- et ce repli avale aussi
+# l'erreur levee en EVALUANT ses arguments. Mesure : sans la garde, une cle de
+# travers ne leve pas, elle rend le gabarit nu « %s (%s) », qui part alors
+# comme EN-TETE DE COLONNE. Le defaut qu'on vient de corriger, sous une autre
+# forme.
+hstat_dl50_libelle_echelle <- function(base, echelle) {
+  if (!echelle %in% names(HSTAT_DL50_ECHELLES))
+    stop(sprintf("hstat_dl50_libelle_echelle : echelle inconnue (%s)", echelle))
+  trf("%s (%s)", base, tr(HSTAT_DL50_ECHELLES[[echelle]]))
+}
+
+# La note posee sous les deux tableaux qui portent ces colonnes. Une etiquette
+# corrigee dit ce que la colonne EST ; elle ne dit pas encore comment la lire,
+# et c'est cette lecture-la que l'utilisateur a demandee.
+# CHAQUE PHRASE DANS SA PROPRE BALISE. Le DOM fond toute suite de caracteres
+# adjacents en UN noeud : posees cote a cote, les deux phrases n'existeraient
+# nulle part comme chaine entiere, et aucune des deux entrees du dictionnaire ne
+# pourrait s'appliquer. Une balise coupe le noeud -- la regle deja ecrite pour
+# les alertes, et le `<span>` est ce qui la fait tenir ici.
+hstat_dl50_note_echelle <- function() {
+  shiny::helpText(
+    shiny::span(tr("L'erreur-type et l'écart-type portent sur le log10 de la dose, jamais sur la dose : l'encadrement se lit 10^(log10 DL ± s) — asymétrique en dose — et non DL ± s.")),
+    " ",
+    shiny::span(tr("Sur la DL50, 10^(log10 DL50 ± 1/b) rend la dose à un probit de plus et de moins, soit la DL84,1 et la DL15,9 : l'écart-type décrit la dispersion des sensibilités dans la population, il ne diminue pas quand on teste plus d'individus.")))
+}
+
 hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
   if (!isTRUE(fit$ok)) return(NULL)
   # UN SEUIL SE FILTRE ICI, PAS CHEZ L'APPELANT.
@@ -2608,7 +2700,8 @@ mod_dl50_ui <- function(id) {
                             " DL10, DL50 et DL90 sont celles que les rapports de",
                             " bioessai portent."),
             shiny::uiOutput(ns("noteSeuils")),
-            DT::DTOutput(ns("dosesLetales")))),
+            DT::DTOutput(ns("dosesLetales")),
+            hstat_dl50_note_echelle())),
 
         shiny::fluidRow(
           shinydashboard::box(
@@ -2995,6 +3088,7 @@ mod_dl50_ui <- function(id) {
             shiny::helpText("Mortalité observée, témoin compris : elle est ramenée",
                             " par Abbott avant l'inversion de la droite."),
             DT::DTOutput(ns("tableDose")),
+            hstat_dl50_note_echelle(),
             shiny::br(),
             shiny::downloadButton(ns("doseCsv"), " Télécharger (CSV)", class = "btn-sm"),
             shiny::downloadButton(ns("doseXlsx"), " Télécharger (Excel)", class = "btn-sm"))))
@@ -3611,8 +3705,12 @@ mod_dl50_server <- function(id, values) {
       do.call(rbind, list(
         lig(tr("Terme constant (a)"), f$a, sqrt(f$Vh[1, 1]), tr("probit")),
         lig(tr("Pente (b)"), f$b, sqrt(f$Vh[2, 2]), tr("probit / log10(dose)")),
-        lig(tr("Mortalité naturelle (c)"), f$c, sqrt(f$Vh[3, 3]), tr("proportion")),
-        lig(tr("Mortalité naturelle du témoin"), f$c_temoin, NA_real_, tr("proportion")),
+        # EN POURCENTAGE, ERREUR-TYPE COMPRISE. Les convertir separement ferait
+        # lire un ecart-type de 0,0044 a cote d'une valeur de 85 : la seule
+        # facon de garder les deux lisibles ensemble est de les convertir
+        # ensemble, et l'unite declaree le dit.
+        lig(tr("Mortalité naturelle (c)"), 100 * f$c, 100 * sqrt(f$Vh[3, 3]), "%"),
+        lig(tr("Mortalité naturelle du témoin"), 100 * f$c_temoin, NA_real_, "%"),
         lig(tr("Écart-type des tolérances (1/b)"), sigma, NA_real_, tr("log10(dose)")),
         lig(tr("Covariance a-b (Vab)"), f$Vh[1, 2]),
         lig(tr("Covariance a-c (Vac)"), f$Vh[1, 3]),
@@ -3699,8 +3797,9 @@ mod_dl50_server <- function(id, values) {
       shiny::validate(shiny::need(!is.null(d), tr("Aucun résultat à afficher.")))
       DT::datatable(d, rownames = FALSE,
         colnames = c(tr("Seuil (%)"), tr("log10(dose)"), hstat_dl50_libelle_dose(fit()),
-                     tr("Erreur-type"), tr("Écart-type"),
-                     tr("DL ± erreur-type"), tr("DL ± écart-type"),
+                     hstat_dl50_libelle_echelle(tr("Erreur-type"), "log10"),
+                     hstat_dl50_libelle_echelle(tr("Écart-type"), "log10"),
+                     tr("DL à ± 1 erreur-type"), tr("DL à ± 1 écart-type"),
                      tr("Limite inférieure"), tr("Limite supérieure"),
                      tr("Type d'intervalle"), tr("Position")),
         options = list(dom = "t", pageLength = 20, ordering = FALSE,
@@ -3709,15 +3808,25 @@ mod_dl50_server <- function(id, values) {
                            "Limite_inf", "Limite_sup"), chiffres())
     })
 
+    # LE MEME TABLEAU POUR L'ECRAN ET POUR LE FICHIER. `f$table` garde ses
+    # proportions -- c'est elle qui alimente la log-vraisemblance et la garde du
+    # trace -- et la conversion se fait ici, a l'unique point de passage que
+    # `output$detail` et `tables_export()` traversent tous deux.
+    detail_aff <- shiny::reactive({
+      f <- fit()
+      if (is.null(f) || !isTRUE(f$ok)) return(NULL)
+      hstat_dl50_en_pct(f$table, "detail")
+    })
+
     output$detail <- DT::renderDT({
       f <- fit()
       shiny::validate(shiny::need(!is.null(f) && isTRUE(f$ok),
                                   tr("Aucun résultat à afficher.")))
-      DT::datatable(f$table, rownames = FALSE,
+      DT::datatable(detail_aff(), rownames = FALSE,
         colnames = c("N", hstat_dl50_libelle_dose(f), tr("Effectif testé"), tr("Morts"),
-                     tr("log10(dose)"), tr("Mortalité observée"),
-                     tr("Mortalité corrigée"), tr("Probit corrigé"),
-                     tr("Mortalité attendue"), tr("Probit attendu")),
+                     tr("log10(dose)"), tr("Mortalité observée (%)"),
+                     tr("Mortalité corrigée (%)"), tr("Probit corrigé"),
+                     tr("Mortalité attendue (%)"), tr("Probit attendu")),
         options = list(dom = "tp", pageLength = 25, ordering = FALSE,
                        scrollX = TRUE)) |>
         DT::formatSignif(c("Dose", "Log_dose", "Mortalite_observee",
@@ -3730,7 +3839,7 @@ mod_dl50_server <- function(id, values) {
       if (is.null(f) || !isTRUE(f$ok)) return(NULL)
       list("Parametres" = parametres(),
            "Doses_letales" = doses_letales(),
-           "Detail_par_dose" = f$table)
+           "Detail_par_dose" = detail_aff())
     }
     output$dlCsv  <- hstat_csv_handler(tables_export, "dl50")
     output$dlXlsx <- hstat_classeur_handler(tables_export, "dl50")
@@ -4049,15 +4158,22 @@ mod_dl50_server <- function(id, values) {
     table_mort <- shiny::reactive({
       f <- fit()
       if (is.null(f) || !isTRUE(f$ok)) return(NULL)
-      hstat_dl50_mortalite(f, .nombres(input$dosesCalc))
+      # La conversion est POSEE DANS LE REACTIF : `output$tableMort`, le CSV et
+      # le classeur le lisent tous les trois, et ne peuvent donc pas diverger.
+      # L'aide affichee au-dessus du tableau promettait deja des bornes « entre
+      # 0 et 100 % » ; le tableau, lui, rendait des proportions.
+      hstat_dl50_en_pct(hstat_dl50_mortalite(f, .nombres(input$dosesCalc)),
+                        "mortalite")
     })
     output$tableMort <- DT::renderDT({
       d <- table_mort()
       shiny::validate(shiny::need(!is.null(d), tr("Saisissez au moins une dose strictement positive.")))
       DT::datatable(d, rownames = FALSE,
         colnames = c(hstat_dl50_libelle_dose(fit()), tr("log10(dose)"),
-                     tr("Probit attendu"), tr("Erreur-type"), tr("Mortalité"),
-                     tr("Limite inférieure"), tr("Limite supérieure"),
+                     tr("Probit attendu"),
+                     hstat_dl50_libelle_echelle(tr("Erreur-type"), "probit"),
+                     tr("Mortalité (%)"),
+                     tr("Limite inférieure (%)"), tr("Limite supérieure (%)"),
                      tr("Position")),
         options = list(dom = "t", pageLength = 20, ordering = FALSE,
                        scrollX = TRUE)) |>
@@ -4080,9 +4196,11 @@ mod_dl50_server <- function(id, values) {
         tr("Aucune mortalité exploitable : elle doit dépasser la mortalité naturelle et rester sous 100 %.")))
       DT::datatable(d, rownames = FALSE,
         colnames = c(tr("Mortalité visée (%)"), tr("log10(dose)"),
-                     hstat_dl50_libelle_dose(fit()), tr("Erreur-type"),
-                     tr("Écart-type"), tr("DL ± erreur-type"),
-                     tr("DL ± écart-type"), tr("Limite inférieure"),
+                     hstat_dl50_libelle_dose(fit()),
+                     hstat_dl50_libelle_echelle(tr("Erreur-type"), "log10"),
+                     hstat_dl50_libelle_echelle(tr("Écart-type"), "log10"),
+                     tr("DL à ± 1 erreur-type"),
+                     tr("DL à ± 1 écart-type"), tr("Limite inférieure"),
                      tr("Limite supérieure"), tr("Type d'intervalle"),
                      tr("Position")),
         options = list(dom = "t", pageLength = 20, ordering = FALSE,

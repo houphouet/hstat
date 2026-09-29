@@ -4155,6 +4155,115 @@ C'est cette contradiction avec un fait déjà mesuré qui l'a fait voir, et non
 une relecture. Une sonde qui rend « rien nulle part » doit être soupçonnée
 avant d'être crue : c'est toujours le sens rassurant.
 
+#### Un bloc hors colonne ne déplace pas la figure : il barre les contrôles
+
+Signalé de nouveau, et c'est la moitié du défaut que je n'avais pas nommée :
+« les paramétrages et la sélection du type de graphique et des éléments tracés
+ne sont pas modifiables ni cliquables ». J'avais décrit un problème de
+**place** ; l'utilisateur, lui, décrivait un problème d'**accès**.
+
+Les deux sont le même défaut. Le bloc non flotté posé entre deux colonnes
+Bootstrap ne se contente pas de glisser entre elles : sa boîte occupe toute la
+largeur du conteneur, par-dessus le flottant de gauche, et c'est **elle** qui
+reçoit le clic. Mesuré sur les deux codes, avec `document.elementFromPoint` au
+centre de chaque contrôle — la seule sonde qui **nomme** ce qui recevrait
+l'événement :
+
+| | avant (`c1b69b8`) | après (1.7.8) |
+|---|---|---|
+| ce qui reçoit le clic, sur les 8 contrôles | `div.checkbox` — jamais l'`input` | l'`input` lui-même |
+| clic Playwright sur « Courbe dose-réponse » | **refusé** | OK, `gType` passe à `reponse` |
+| clic sur « Courbe de l'essai » | **refusé** | OK, coché |
+
+Compter les champs rendus ne l'aurait pas vu — c'est la faute déjà commise sur
+ce même onglet. Compter les **pixels** non plus. Ce qui le voit, c'est le test
+de survol, parce qu'il porte sur ce qui peut casser : le hit-testing.
+
+### Une proportion s'affiche en pourcentage, et le fichier la porte de même
+
+Signalé à l'écran : « les valeurs qui doivent être en pourcentages, il faut les
+mettre directement en pourcentage ». Le tableau « Détail par dose » écrivait
+`0.62500` sous « Mortalité observée », **immédiatement à côté** de probits du
+même ordre de grandeur (`0.23898`, `1.2368`). Deux colonnes voisines portent
+alors des nombres indiscernables dont les unes sont des proportions et les
+autres non.
+
+Et l'interface se contredisait déjà elle-même : l'aide posée au-dessus du
+tableau dose → mortalité annonce « ramené en pourcentage : les bornes restent
+donc entre 0 et 100 % » pendant que le tableau rendait des proportions. Le
+rapport `.PRN`, lui, écrit depuis toujours « Pourcentage de mortalité
+naturelle : 85,00 % ».
+
+**La liste est déclarée par tableau, jamais par nom de colonne seul.**
+`Limite_inf` et `Limite_sup` sont des **proportions** dans le tableau
+dose → mortalité et des **doses** dans celui des doses létales. Une liste plate
+multiplierait donc des doses par cent : le tableau resterait complet,
+parfaitement lisible, et faux. C'est l'assertion qui distingue les deux codes.
+
+Trois autres décisions, chacune testée :
+
+1. **Les colonnes de calcul restent des proportions.** `Mortalite_attendue`
+   alimente la log-vraisemblance et `Mortalite_corrigee` la garde du tracé :
+   convertir dans `hstat_dl50_ajuste()` toucherait les deux.
+2. **L'écran et le fichier lisent la même source.** `detail_aff()` est le seul
+   point de passage ; `table_mort()` convertit **dans le réactif**, que le
+   rendu et les deux exports lisent tous les trois. Un fichier qui porterait
+   `0,625` sous un en-tête annonçant « (%) » serait la copie qui ment.
+3. **La mortalité naturelle suit avec son erreur-type.** Les convertir
+   séparément ferait lire un écart-type de 0,004 à côté d'une valeur de 85.
+
+### L'erreur-type et l'écart-type portent sur le log₁₀ de la dose
+
+Signalé à l'écran : « les résultats de DL ± erreur-type et DL ± écart-type ne
+comportent pas les bonnes valeurs ». **Les valeurs sont justes** ; c'est le
+libellé qui promettait une arithmétique que le nombre ne fait pas. Sur la ligne
+de la DL90 de l'essai signalé, « Dose » vaut 2,0720 et « Erreur-type » 0,13792 :
+le lecteur pose 2,0720 ± 0,13792 = 1,934 – 2,210, et lit 1,508 – 2,846.
+
+L'écart n'est pas un défaut de calcul, c'est un défaut d'étiquette —
+l'erreur-type est celle du **log₁₀** de la dose, et l'encadrement vaut
+10^(log₁₀ DL ± s), donc **asymétrique en dose**.
+
+Le remède est celui que le tableau des paramètres appliquait déjà depuis
+toujours : il porte une colonne « Unité » qui écrit « probit »,
+« probit / log10(dose) », « log10(dose) ». Les tableaux de résultats, eux, ne
+disaient rien. `HSTAT_DL50_ECHELLES` déclare les deux échelles une fois, et
+`hstat_dl50_libelle_echelle()` compose le libellé — trois tableaux portent ces
+colonnes, trois libellés écrits à la main finiraient par diverger.
+
+**On ne donne surtout pas une seconde erreur-type en unité de dose à côté de la
+première.** Ce seraient deux grandeurs pour une même incertitude, dont la
+seconde — approchée, obtenue par la delta-méthode — contredirait l'intervalle
+publié juste à côté. C'est la règle « deux réglages pour un même trait » sous
+une autre forme.
+
+Une étiquette corrigée dit ce que la colonne **est** ; elle ne dit pas encore
+comment la lire, et c'est cette lecture-là qui était demandée. Une note posée
+sous les deux tableaux la donne, avec sa vérification : sur la DL50,
+10^(log₁₀ DL50 ± 1/b) rend la dose à un **probit** de plus.
+
+#### « 84 % » n'est pas Φ(1), et l'écart vaut 1,3 % sur la dose
+
+Piège rencontré en écrivant l'assertion. `Φ⁻¹(0,84)` vaut **0,9945**, pas 1 :
+la dose lue à un écart-type au-dessus de la DL50 est celle de **84,13 %**, pas
+celle de « 84 % » tout rond. Mesuré sur l'essai signalé : 0,9836 contre 0,9705,
+soit **1,3 %** — davantage que toute tolérance raisonnable. L'assertion écrite
+sur `seuils = c(84, 16)` échouait donc sur du code parfaitement juste, et la
+formulation « rend exactement la DL84 et la DL16 » écrite plus haut dans ce
+fichier est une approximation à 1 %. Le test épingle les deux : l'égalité sur
+`100 · Φ(±1)` **et** la différence sur les seuils ronds.
+
+#### `trf()` avale l'erreur levée en évaluant ses arguments
+
+Et c'est le défaut le plus retors de ce lot, trouvé par mutation.
+`hstat_dl50_libelle_echelle("Erreur-type", "dose")` — une clé de travers —
+**ne lève pas**. `HSTAT_DL50_ECHELLES[["dose"]]` lève bien « subscript out of
+bounds », mais `trf()` se replie sur le français quand `sprintf` échoue — une
+traduction ayant perdu un marqueur ne doit pas faire tomber toute la sortie —
+et ce repli attrape aussi l'erreur levée **en évaluant les arguments**. La
+fonction rendait alors le gabarit nu, `"%s (%s)"`, qui partait comme **en-tête
+de colonne**. La clé est donc vérifiée avant l'appel.
+
 ### Erreur-type et écart-type ne mesurent pas la même chose
 
 Les confondre est l'erreur classique du bioessai, et elle change la conclusion :
@@ -4170,8 +4279,13 @@ Les confondre est l'erreur classique du bioessai, et elle change la conclusion :
   écart-type même mesurée parfaitement.
 
 La vérification qui les sépare, et que le test porte : `10^(log DL50 ± 1/b)`
-rend exactement la **DL84** et la **DL16**. L'écart-type décrit la courbe, pas
-l'essai.
+rend la dose à **un probit** de plus et de moins, c'est-à-dire la **DL84,13** et
+la **DL15,87**. L'écart-type décrit la courbe, pas l'essai.
+
+Écrit « la DL84 et la DL16 » jusqu'ici, et c'était une approximation à 1 % :
+`Φ⁻¹(0,84)` vaut **0,9945**, pas 1. Mesuré sur l'essai signalé, la différence
+atteint **1,3 % sur la dose** — davantage que toute tolérance raisonnable, donc
+assez pour faire échouer une assertion sur du code juste. Voir plus bas.
 
 Piège posé par intuition, et faux : l'erreur-type **n'est pas minimale à la
 DL50**. `var(m)` est un polynôme du second degré en `m`, minimal en
