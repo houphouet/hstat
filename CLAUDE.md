@@ -4435,6 +4435,13 @@ Trois décisions, chacune testée :
    sortait avec des blancs au milieu de la cellule : `trimws()` sur chaque
    moitié, et une assertion qui refuse tout double blanc.
 
+**Et la même lecture sur le log10, à côté.** Redemandé à l'écran : deux
+colonnes « DL ± Erreur-type (log10(dose)) » et « DL ± Écart-type (log10(dose)) »
+portent `log10(DL) ± s(log10)` — ceux de WIN DL, **exacts**, sans la
+delta-méthode. Le libellé passe par `hstat_dl50_libelle_echelle()`, comme les
+autres colonnes du log10. Le test exige que les deux lectures ne se confondent
+pas : la valeur centrale du log10 n'est pas la dose.
+
 Le test exige que la valeur après « ± » ne soit **pas** l'erreur-type du log10 :
 « 2,0720 ± 0,13792 » est exactement la lecture fautive signalée, et une colonne
 qui y reviendrait passerait sinon toutes les autres assertions.

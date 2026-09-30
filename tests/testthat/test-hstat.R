@@ -18501,6 +18501,8 @@ test_that("les proportions de la DL50 s'affichent en pourcentage, ecran et fichi
     expect_true(grepl("DL ± écart-type", dlh))
     expect_true(grepl("Erreur-type \\(dose\\)", dlh))
     expect_true(grepl("Écart-type \\(dose\\)", dlh))
+    expect_true(grepl("DL ± Erreur-type \\(log10\\(dose\\)\\)", dlh))
+    expect_true(grepl("DL ± Écart-type \\(log10\\(dose\\)\\)", dlh))
     expect_false(grepl("DL à ± 1", dlh))
   })
 })
@@ -18533,8 +18535,19 @@ test_that("l'echelle de l'erreur-type et de l'ecart-type est DECLAREE", {
   expect_false(isTRUE(all.equal(v[2], dl$Erreur_type[i], tolerance = 1e-2)))
   expect_equal(lire(dl$DL_ecart_type[i]),
                c(dl$Dose[i], dl$Ecart_type_dose[i]), tolerance = 1e-4)
+  # SUR LE LOG10, LA MEME LECTURE ET SANS APPROXIMATION : log10(DL) suivi de
+  # l'erreur-type (ou de l'ecart-type) du log10 -- ceux de WIN DL.
+  expect_equal(lire(dl$DL_erreur_type_log[i]),
+               c(dl$Log_dose[i], dl$Erreur_type[i]), tolerance = 1e-4)
+  expect_equal(lire(dl$DL_ecart_type_log[i]),
+               c(dl$Log_dose[i], dl$Ecart_type[i]), tolerance = 1e-4)
+  # Les deux echelles ne se confondent pas : la valeur centrale du log10 n'est
+  # pas la dose, et l'erreur-type accolee n'est pas celle de la dose.
+  expect_false(isTRUE(all.equal(lire(dl$DL_erreur_type_log[i]),
+                                lire(dl$DL_erreur_type[i]), tolerance = 1e-2)))
   # Pas de blanc de calage au milieu de la cellule : `formatC()` en pose.
-  expect_false(any(grepl("  ", c(dl$DL_erreur_type, dl$DL_ecart_type))))
+  expect_false(any(grepl("  ", c(dl$DL_erreur_type, dl$DL_ecart_type,
+                                 dl$DL_erreur_type_log, dl$DL_ecart_type_log))))
 
   # L'ECART-TYPE EST 1/|b| sur le log10 : il vaut la MEME chose sur les trois
   # seuils -- ce que l'erreur-type, elle, ne fait pas. En unite de dose il
