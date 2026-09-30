@@ -990,6 +990,10 @@ hstat_err_fr <- function(e, contexte = NULL, lang = hstat_langue_session()) {
   dp <- if (identical(lang, "en")) ": " else " : "
   prefixe <- if (!is.null(contexte) && nzchar(contexte))
     paste0(contexte, dp) else ""
+  # UN REFUS DE L'APPLICATION EST DEJA REDIGE. Il passe tel quel : l'annoncer
+  # comme « message renvoye par R (non traduit) » ferait prendre une limite
+  # voulue, et expliquee, pour une panne.
+  if (inherits(e, "hstat_refus")) return(paste0(prefixe, msg))
   for (r in HSTAT_ERR_FR) {
     if (grepl(r[[1]], msg, ignore.case = TRUE, perl = TRUE))
       # Le message d'origine reste entre parentheses : c'est ce qu'un
@@ -5174,6 +5178,100 @@ hstat_finite <- function(x, default) {
   if (length(x) != 1 || !is.finite(x)) default else x
 }
 
+# -- Filtre par valeur : la saisie est un TEXTE, jamais un motif --------------
+# La recherche « contient » changeait de nature avec la case « sensible a la
+# casse » : cochee, elle etait litterale (`fixed = TRUE`) ; decochee, la saisie
+# devenait une EXPRESSION REGULIERE. « a.b » ramenait alors « axb », et
+# « prix (cher) » ne trouvait pas « prix (cher) » -- les parentheses y sont un
+# groupe. Les deux modes sont desormais litteraux, la casse retiree des deux
+# cotes quand elle ne compte pas.
+#
+# La correspondance exacte passe par `%in%` : une passe, quel que soit le
+# nombre de valeurs. La recherche « contient » coute lignes x valeurs, d'ou la
+# borne sur le nombre de valeurs, annoncee plutot que tue.
+HSTAT_FILTRE_VALEURS_MAX <- 500L
+hstat_filtre_valeurs <- function(x, valeurs, exact = TRUE, casse = FALSE) {
+  x <- as.character(x)
+  valeurs <- unique(valeurs[!is.na(valeurs) & nzchar(valeurs)])
+  plafond <- NULL
+  if (!exact && length(valeurs) > HSTAT_FILTRE_VALEURS_MAX) {
+    plafond <- trf("%d valeurs au-delà des %d premières ont été ignorées : une recherche « contient » se limite à %d valeurs.",
+                   length(valeurs) - HSTAT_FILTRE_VALEURS_MAX,
+                   HSTAT_FILTRE_VALEURS_MAX, HSTAT_FILTRE_VALEURS_MAX)
+    valeurs <- valeurs[seq_len(HSTAT_FILTRE_VALEURS_MAX)]
+  }
+  if (!casse) { x <- tolower(x); valeurs <- tolower(valeurs) }
+  m <- if (exact) x %in% valeurs
+       else Reduce(`|`, lapply(valeurs, function(v) grepl(v, x, fixed = TRUE)),
+                   logical(length(x)))
+  m[is.na(x)] <- FALSE
+  if (!is.null(plafond)) attr(m, "plafond") <- plafond
+  m
+}
+
+# -- Lire un .rds venu de l'exterieur -----------------------------------------
+# LA DESERIALISATION DE R N'EST PAS INOFFENSIVE AVANT R 4.4.0. Ce depot
+# affirmait l'inverse (« contrairement au pickle de Python, readRDS n'execute
+# rien ») : c'est faux jusqu'a R 4.3.x, ou un fichier .rds construit a cet effet
+# peut faire executer du code a sa lecture (CVE-2024-27322, corrigee dans
+# R 4.4.0). Or ce sont precisement des fichiers televerses que l'application
+# lit ici -- le chargement de donnees, la fusion de fichiers, le projet de
+# codage.
+#
+# Sous R < 4.4.0 la porte refuse donc, et dit pourquoi et quoi faire. Une
+# installation locale a utilisateur unique, qui ne lit que ses propres
+# fichiers, peut la rouvrir explicitement : options(hstat.rds.autoriser = TRUE).
+# Refuser sans echappatoire casserait le rechargement des projets de codage
+# la ou le risque n'existe pas.
+hstat_rds_autorise <- function(version = getRversion())
+  version >= "4.4.0" || isTRUE(getOption("hstat.rds.autoriser"))
+
+hstat_lire_rds <- function(path, version = getRversion()) {
+  if (!hstat_rds_autorise(version))
+    stop(hstat_refus(trf("Les fichiers .rds ne sont lus qu'à partir de R 4.4.0 (version installée : %s) : avant cette version, la lecture d'un fichier .rds peut exécuter du code qu'il contient. Exportez vos données en CSV ou en Excel, ou mettez R à jour. Pour une installation personnelle qui ne lit que vos propres fichiers : options(hstat.rds.autoriser = TRUE).",
+                         as.character(version))))
+  readRDS(path)
+}
+
+# -- Un refus de l'application, distinct d'une erreur de R --------------------
+# `stop(hstat_refus(msg))` : le message est deja redige et traduit, et
+# `hstat_err_fr()` le rend tel quel au lieu de l'annoncer comme non traduit.
+hstat_refus <- function(msg)
+  structure(class = c("hstat_refus", "error", "condition"),
+            list(message = msg, call = NULL))
+
+# -- Une valeur venue du navigateur, bornee DES DEUX COTES ---------------------
+# UN PLAFOND D'INTERFACE NE PROTEGE RIEN. `numericInput(max = 2000)` contraint
+# le widget, pas le protocole : un client modifie envoie la valeur qu'il veut
+# sur le websocket. Les serveurs bornaient presque tous leurs parametres
+# couteux PAR LE BAS (`max(10, epoques)`), jamais par le haut -- si bien qu'un
+# milliard d'epoques, d'arbres ou de permutations figeait le processus R, qui
+# sert TOUTES les sessions. La borne haute est celle que l'interface declare,
+# et un test verifie que les deux sont les memes : deux chiffres qui ne se
+# parlent pas finissent par diverger.
+hstat_borne_client <- function(x, defaut, min, max) {
+  v <- hstat_finite(x, defaut)
+  min(max(v, min), max)
+}
+
+# -- Un indice de ligne ou de colonne venu du navigateur ----------------------
+# UN entier, dans [1 ; n], ou NA. Un message d'edition de cellule forge pouvait
+# porter `row = 2e6` (le tableau grossissait d'autant, puis repartait entier
+# vers le navigateur), `row = -1` (R ecrase alors toutes les lignes SAUF la
+# premiere) ou un vecteur de lignes. Trois tableaux editables y passaient.
+hstat_indice_client <- function(v, n) {
+  v <- suppressWarnings(as.numeric(v))
+  if (length(v) != 1L || !is.finite(v) || v != round(v) || v < 1 || v > n)
+    return(NA_integer_)
+  as.integer(v)
+}
+
+# Lignes d'un tableau de saisie editable (DL50, rendement, dilutions). Le
+# tableau voyage entier vers le navigateur a chaque modification : un collage
+# de cent mille lignes le figeait. Mille lignes laissent dix repetitions a
+# chacune des cent doses que WIN DL admet.
+HSTAT_SAISIE_MAX <- 1000L
+
 # -- Detection du type de fichier ---------------------------------------------
 hstat_file_kind <- function(path) {
   ext <- tolower(tools::file_ext(path))
@@ -6699,6 +6797,11 @@ hstat_rdt_coller <- function(txt) {
   if (!length(lignes))
     return(echec(tr("Le collage ne contient que des en-têtes : il manque les lignes de données.")))
 
+  # Le collage voyage entier vers le navigateur une fois range dans le tableau :
+  # sans borne, cent mille lignes le figeaient (HSTAT_SAISIE_MAX).
+  if (length(lignes) > HSTAT_SAISIE_MAX)
+    return(echec(trf("Le collage compte %d lignes : le tableau de saisie en accepte %d au plus.",
+                     length(lignes), HSTAT_SAISIE_MAX)))
   mat <- lapply(lignes, champs)
   larg <- vapply(mat, length, integer(1))
   if (any(larg < 3L))
@@ -7445,7 +7548,7 @@ hstat_read_any_mem <- function(path, sep = ",", name = NULL) {
     } else if (ext %in% c("xlsx", "xls")) {
       as.data.frame(readxl::read_excel(path, sheet = 1))
     } else if (ext == "rds") {
-      as.data.frame(readRDS(path))
+      as.data.frame(hstat_lire_rds(path))
     } else if (ext == "sav") {
       as.data.frame(haven::read_sav(path))
     } else if (ext == "dta") {
@@ -7812,9 +7915,18 @@ hstat_duckdb_register <- function(con, path, kind, header = TRUE, sep = ",") {
 }
 
 # -- Connexion a un fichier DuckDB natif --------------------------------------
+HSTAT_DUCKDB_FICHIER_CONFIG <- list(enable_external_access = "false")
 hstat_duckdb_open_file <- function(path) {
   if (!hstat_has_duckdb()) stop("Le package 'duckdb' est requis.")
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = path, read_only = TRUE)
+  # Un fichier .duckdb televerse n'est pas qu'un conteneur de tables : il peut
+  # porter des VUES, et une vue peut lire n'importe quel fichier du serveur
+  # (read_csv, read_text…) ou une adresse distante, a la premiere requete.
+  # read_only protege le fichier, pas le reste du disque. L'acces externe est
+  # donc coupe : les tables du fichier se lisent, ses vues vers l'exterieur
+  # echouent. Aucun usage legitime n'est perdu -- ce chemin ne lit que le
+  # contenu du fichier lui-meme.
+  con <- DBI::dbConnect(duckdb::duckdb(config = HSTAT_DUCKDB_FICHIER_CONFIG),
+                        dbdir = path, read_only = TRUE)
   tbls <- DBI::dbListTables(con)
   if (length(tbls) == 0) { DBI::dbDisconnect(con, shutdown = TRUE); stop("Aucune table dans ce fichier DuckDB.") }
   list(con = con, table = tbls[1], tables = tbls)
@@ -7879,7 +7991,7 @@ hstat_load_data <- function(path, kind, header = TRUE, sep = ",",
   } else if (kind == "dta") {
     df <- as.data.frame(haven::read_dta(path))
   } else if (kind == "rds") {
-    df <- as.data.frame(readRDS(path))
+    df <- as.data.frame(hstat_lire_rds(path))
 
   # --- CSV : memoire si petit, DuckDB si volumineux ------------------------
   } else if (kind == "csv") {

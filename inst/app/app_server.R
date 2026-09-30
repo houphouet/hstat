@@ -7801,7 +7801,7 @@ server <- function(input, output, session) {
         sub <- sub[stats::complete.cases(sub), , drop = FALSE]
         hstat_set_seed(input$globalSeed)
         sub <- mv_subsample(sub, 8000)
-        km <- klaR::kmodes(sub, modes = k, iter.max = input$mv_kmodes_iter %||% 20)
+        km <- klaR::kmodes(sub, modes = k, iter.max = hstat_borne_client(input$mv_kmodes_iter, 20, 5, 100))
         sizes <- km$size
         # Calcul sorti dans Utils.R : klaR est absent de beaucoup de machines,
         # la qualite de la partition doit rester testable sans lui.
@@ -7884,7 +7884,7 @@ server <- function(input, output, session) {
           paste0("`", vars, "`", collapse = ","), ") ~ 1"))
         hstat_set_seed(input$globalSeed)
         fit <- poLCA::poLCA(fml, data = sub, nclass = nclass,
-                            nrep = input$mv_lca_rep %||% 5, verbose = FALSE)
+                            nrep = hstat_borne_client(input$mv_lca_rep, 5, 1, 30), verbose = FALSE)
         post <- fit$posterior
         e <- hstat_lca_entropie(post)
         ent_rel <- e$entropie_relative
@@ -8324,7 +8324,7 @@ server <- function(input, output, session) {
         for (v in names(sub)) if (is.numeric(sub[[v]])) sub[[v]] <- as.numeric(scale(sub[[v]]))
         hstat_set_seed(input$globalSeed)
         sub <- mv_subsample(sub, 8000)
-        kp <- clustMixType::kproto(sub, k = k, iter.max = input$mv_kproto_iter %||% 20,
+        kp <- clustMixType::kproto(sub, k = k, iter.max = hstat_borne_client(input$mv_kproto_iter, 20, 5, 100),
                                    verbose = FALSE)
         sizes <- as.integer(table(kp$cluster))
         tot_cost <- kp$tot.withinss

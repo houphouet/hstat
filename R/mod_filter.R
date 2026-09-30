@@ -262,28 +262,14 @@ mod_filter_server <- function(id, values) {
       shiny::validate(shiny::need(length(search_values) > 0, "Veuillez entrer au moins une valeur valide."))
       
       col_data <- as.character(df[[col_name]])
-      
-      mask <- rep(FALSE, length(col_data))
-      
-      for (search_value in search_values) {
-        if (input$valueFilterExact) {
-          if (input$valueFilterCaseSensitive) {
-            mask <- mask | (col_data == search_value)
-          } else {
-            mask <- mask | (tolower(col_data) == tolower(search_value))
-          }
-        } else {
-          if (input$valueFilterCaseSensitive) {
-            mask <- mask | grepl(search_value, col_data, fixed = TRUE)
-          } else {
-            mask <- mask | grepl(search_value, col_data, ignore.case = TRUE)
-          }
-        }
-      }
-      
-      mask[is.na(mask)] <- FALSE
-      
-      filtered <- df[mask, ]
+      mask <- hstat_filtre_valeurs(col_data, search_values,
+                                   exact = isTRUE(input$valueFilterExact),
+                                   casse = isTRUE(input$valueFilterCaseSensitive))
+      if (!is.null(attr(mask, "plafond")))
+        shiny::showNotification(attr(mask, "plafond"), type = "warning", duration = 8)
+      # `drop = FALSE` : un tableau d'une seule colonne redevient sinon un
+      # vecteur, et tout ce qui lit `values$filteredData` en aval tombe.
+      filtered <- df[mask, , drop = FALSE]
       values$filteredData <- filtered
       
       shiny::showNotification(

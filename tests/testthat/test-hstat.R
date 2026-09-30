@@ -20022,7 +20022,7 @@ test_that("un fichier natif trop gros est refuse avant d'etre lu", {
   expect_true(grepl("volumineux", r$message))
   expect_length(hstat_dl50_liste_lire(tmp), 0L)
   # Le collage aussi a sa borne : il voyage entier vers le navigateur.
-  txt <- paste(rep("1\t20\t5", HSTAT_DL50_SAISIE_MAX + 1), collapse = "\n")
+  txt <- paste(rep("1\t20\t5", HSTAT_SAISIE_MAX + 1), collapse = "\n")
   r <- hstat_dl50_coller(txt)
   expect_false(isTRUE(r$ok))
   expect_true(isTRUE(hstat_dl50_coller(paste(rep("1\t20\t5", 10), collapse = "\n"))$ok))
@@ -20159,4 +20159,138 @@ test_that("a plusieurs essais, chacun a sa DL50 et aucune etiquette ne se recouv
   expect_null(p$labels$caption)
   k <- which(vapply(p$layers, function(l) inherits(l$geom, "GeomErrorbar"), logical(1)))
   expect_equal(nrow(ggplot2::ggplot_build(p)$data[[k]]), 2L)
+})
+
+# ============================================================================
+# Audit de l'application : entrees du navigateur, fichiers televerses, charge
+# ============================================================================
+
+test_that("un .rds n'est lu qu'a partir de R 4.4.0, sauf autorisation explicite", {
+  f <- tempfile(fileext = ".rds"); saveRDS(data.frame(a = 1:3), f)
+  ancien <- options(hstat.rds.autoriser = NULL); on.exit(options(ancien), add = TRUE)
+  e <- tryCatch(hstat_lire_rds(f, version = package_version("4.3.3")), error = function(e) e)
+  expect_s3_class(e, "hstat_refus")
+  expect_match(conditionMessage(e), "4.4.0", fixed = TRUE)
+  expect_match(conditionMessage(e), "4.3.3", fixed = TRUE)
+  # Le refus se lit tel quel : ce n'est pas une erreur de R a traduire.
+  msg <- hstat_err_fr(e, lang = "fr")
+  expect_false(grepl("non traduit", msg))
+  expect_match(msg, "CSV")
+  # Les deux portes de sortie existent : version recente, ou option explicite.
+  expect_equal(hstat_lire_rds(f, version = package_version("4.4.0"))$a, 1:3)
+  options(hstat.rds.autoriser = TRUE)
+  expect_equal(hstat_lire_rds(f, version = package_version("4.3.3"))$a, 1:3)
+})
+
+test_that("aucun readRDS ne contourne la porte commune", {
+  sites <- character(0)
+  for (p in .hstat_sources_app()) {
+    pd <- utils::getParseData(parse(p, keep.source = TRUE))
+    k <- pd$token == "SYMBOL_FUNCTION_CALL" & pd$text == "readRDS"
+    if (any(k)) sites <- c(sites, paste0(basename(p), ":", pd$line1[k]))
+  }
+  # Un seul appel : celui de hstat_lire_rds() elle-meme.
+  expect_length(sites, 1L)
+  expect_match(sites, "^utils\\.R:")
+  code <- paste(.hstat_code_lignes(.hstat_module_path("mod_coding.R")), collapse = "\n")
+  expect_true(grepl("hstat_lire_rds(f$datapath)", code, fixed = TRUE))
+})
+
+test_that("un fichier DuckDB televerse s'ouvre sans acces externe", {
+  expect_identical(HSTAT_DUCKDB_FICHIER_CONFIG$enable_external_access, "false")
+  corps <- paste(deparse(body(hstat_duckdb_open_file)), collapse = "\n")
+  expect_true(grepl("HSTAT_DUCKDB_FICHIER_CONFIG", corps, fixed = TRUE))
+  expect_true(grepl("read_only = TRUE", corps, fixed = TRUE))
+})
+
+test_that("un indice venu du navigateur n'est accepte que s'il est un entier dans les bornes", {
+  expect_identical(hstat_indice_client(3, 5), 3L)
+  for (v in list(0, -1, 6, 2.5, NA, NULL, c(1, 2), "x", Inf, 2e6))
+    expect_true(is.na(hstat_indice_client(v, 5)), info = paste(deparse(v), collapse = ""))
+  expect_equal(hstat_borne_client(1e9, 10, 1, 100), 100)
+  expect_equal(hstat_borne_client(-5, 10, 1, 100), 1)
+  expect_equal(hstat_borne_client("x", 10, 1, 100), 10)
+  expect_equal(hstat_borne_client(NA, 10, 1, 100), 10)
+})
+
+test_that("les tableaux editables gardent l'indice de cellule cote serveur", {
+  for (m in c("mod_dosage.R", "mod_yield.R", "mod_dl50.R")) {
+    code <- paste(.hstat_code_lignes(.hstat_module_path(m)), collapse = "\n")
+    n_edit <- length(gregexpr("_cell_edit", code, fixed = TRUE)[[1]])
+    expect_gt(n_edit, 0)
+    expect_true(grepl("hstat_indice_client(", code, fixed = TRUE), info = m)
+    # Aucune ecriture directe a l'indice brut envoye par le navigateur.
+    expect_false(grepl("\\[info\\$row", code), info = m)
+  }
+})
+
+test_that("chaque borne serveur reprend exactement celle du champ", {
+  # Les declarations se lisent dans l'ARBRE : min et max d'un champ tombent
+  # souvent sur la ligne suivante, et un curseur n'est pas un numericInput.
+  decl <- list(); appels <- list()
+  nom_id <- function(a) {
+    if (is.character(a) && length(a) == 1L) return(a)
+    if (is.call(a) && identical(a[[1]], as.name("ns")) && is.character(a[[2]])) return(a[[2]])
+    NA_character_
+  }
+  marcher <- function(e) {
+    if (!is.call(e)) return(invisible())
+    f <- e[[1]]; fn <- if (is.call(f) && identical(f[[1]], as.name("::"))) as.character(f[[3]])
+                     else if (is.name(f)) as.character(f) else ""
+    if (fn %in% c("numericInput", "sliderInput") && length(e) >= 2L) {
+      id <- nom_id(e[[2]]); args <- as.list(e)[-1]
+      if (!is.na(id) && !is.null(args$min) && !is.null(args$max) &&
+          is.numeric(args$min) && is.numeric(args$max))
+        decl[[id]] <<- c(min = args$min, max = args$max)
+    }
+    if (fn == "hstat_borne_client" && length(e) == 5L && is.call(e[[2]]) &&
+        identical(e[[2]][[1]], as.name("$")))
+      appels[[length(appels) + 1L]] <<- list(id = as.character(e[[2]][[3]]),
+                                             min = eval(e[[4]]), max = eval(e[[5]]))
+    args <- as.list(e)
+    for (k in seq_along(args)[-1]) if (is.call(args[[k]])) marcher(args[[k]])
+  }
+  for (p in .hstat_sources_app()) for (e in parse(p, keep.source = FALSE)) marcher(e)
+  expect_gt(length(appels), 15)
+  for (a in appels) {
+    expect_true(a$id %in% names(decl), info = a$id)
+    if (!a$id %in% names(decl)) next
+    expect_equal(unname(decl[[a$id]]["max"]), a$max, info = paste(a$id, "max"))
+    expect_equal(unname(decl[[a$id]]["min"]), a$min, info = paste(a$id, "min"))
+  }
+})
+
+test_that("un plan d'experience demesure est refuse avant d'etre construit", {
+  expect_equal(unname(hstat_design_unites("factorial", list(A = 1:60, B = 1:60, C = 1:60), 1)), 216000)
+  expect_equal(unname(hstat_design_unites("lsd", list(T = 1:5), 3)), 25)
+  t0 <- proc.time()[["elapsed"]]
+  e <- tryCatch(hstat_agri_design("factorial", list(A = paste0("a", 1:60), B = paste0("b", 1:60),
+                                                    C = paste0("c", 1:60)), r = 1),
+                error = function(e) e)
+  expect_lt(proc.time()[["elapsed"]] - t0, 2)
+  expect_s3_class(e, "hstat_refus")
+  expect_match(conditionMessage(e), "216")
+})
+
+test_that("le filtre par valeur est litteral, sensible ou non a la casse", {
+  x <- c("a.b", "axb", "A.B", "(x)", "y")
+  expect_identical(hstat_filtre_valeurs(x, "a.b", exact = FALSE, casse = TRUE), c(TRUE, FALSE, FALSE, FALSE, FALSE))
+  expect_identical(hstat_filtre_valeurs(x, "a.b", exact = FALSE, casse = FALSE), c(TRUE, FALSE, TRUE, FALSE, FALSE))
+  expect_identical(hstat_filtre_valeurs(x, "(x", exact = FALSE, casse = FALSE), c(FALSE, FALSE, FALSE, TRUE, FALSE))
+  r <- hstat_filtre_valeurs(x, as.character(seq_len(HSTAT_FILTRE_VALEURS_MAX + 10)))
+  expect_null(attr(r, "plafond"))
+  r <- hstat_filtre_valeurs(x, as.character(seq_len(HSTAT_FILTRE_VALEURS_MAX + 10)), exact = FALSE)
+  expect_match(attr(r, "plafond"), "^10 ")
+})
+
+test_that("un collage de rendement demesure est refuse et nomme", {
+  txt <- paste(rep("T1\t10\t1", HSTAT_SAISIE_MAX + 1L), collapse = "\n")
+  r <- tryCatch(hstat_rdt_coller(txt), error = function(e) e)
+  msg <- if (inherits(r, "error")) conditionMessage(r) else paste(unlist(r[c("message", "msg", "erreur")]), collapse = " ")
+  expect_match(msg, as.character(HSTAT_SAISIE_MAX))
+})
+
+test_that("le champ d'horizon mort des series temporelles ne revient pas", {
+  code <- paste(.hstat_code_lignes(.hstat_module_path("mod_timeseries.R")), collapse = "\n")
+  expect_false(grepl('ns("tsHorizon")', code, fixed = TRUE))
 })

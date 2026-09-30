@@ -1012,6 +1012,12 @@ mod_dosage_server <- function(id, values) {
       # Ajouter deux fois le meme produit decrirait deux preparations sous un
       # seul nom : on remplace ses lignes plutot que de les empiler.
       d <- d[trimws(as.character(d$Produit)) != nom, , drop = FALSE]
+      if (nrow(d) + nrow(ajout) > HSTAT_SAISIE_MAX) {
+        shiny::showNotification(
+          trf("Le tableau de saisie compte déjà %d lignes, le maximum.", HSTAT_SAISIE_MAX),
+          type = "warning", duration = 6)
+        return()
+      }
       d <- rbind(d, ajout)
       rownames(d) <- NULL
       saisie(d)
@@ -1021,6 +1027,12 @@ mod_dosage_server <- function(id, values) {
     })
 
     shiny::observeEvent(input$dilLigne, {
+      if (nrow(saisie()) >= HSTAT_SAISIE_MAX) {
+        shiny::showNotification(
+          trf("Le tableau de saisie compte déjà %d lignes, le maximum.", HSTAT_SAISIE_MAX),
+          type = "warning", duration = 6)
+        return()
+      }
       d <- rbind(saisie(), hstat_dilution_table_vide(1))
       rownames(d) <- NULL
       saisie(d)
@@ -1038,10 +1050,14 @@ mod_dosage_server <- function(id, values) {
     shiny::observeEvent(input$dilSaisie_cell_edit, {
       info <- input$dilSaisie_cell_edit
       d <- saisie()
-      j <- info$col + 1L                      # `rownames = FALSE` decale d'un
-      if (j < 1L || j > ncol(d)) return()
+      # Le message vient du navigateur : une seule cellule EXISTANTE, ou rien.
+      # `row = -1` ecrasait sinon toutes les lignes sauf la premiere, et
+      # `row = 2e6` faisait grossir le tableau d'autant (hstat_indice_client).
+      i <- hstat_indice_client(info$row, nrow(d))
+      j <- hstat_indice_client(info$col + 1L, ncol(d))   # `rownames = FALSE` decale d'un
+      if (is.na(i) || is.na(j) || length(info$value) != 1L) return()
       v <- info$value
-      d[info$row, j] <- if (is.numeric(d[[j]]))
+      d[i, j] <- if (is.numeric(d[[j]]))
         suppressWarnings(as.numeric(gsub(",", ".", v, fixed = TRUE))) else as.character(v)
       saisie(d)
     })
