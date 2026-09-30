@@ -1096,6 +1096,7 @@ hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
       Erreur_type = numeric(0), Ecart_type = numeric(0),
       Erreur_type_dose = numeric(0), Ecart_type_dose = numeric(0),
       DL_erreur_type = character(0), DL_ecart_type = character(0),
+      DL_erreur_type_log = character(0), DL_ecart_type_log = character(0),
       Limite_inf = numeric(0), Limite_sup = numeric(0),
       Intervalle = character(0), Position = character(0),
       stringsAsFactors = FALSE)
@@ -1160,6 +1161,11 @@ hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
                Erreur_type_dose = se_d, Ecart_type_dose = sd_d,
                DL_erreur_type = plus_moins(10^m, se_d),
                DL_ecart_type = plus_moins(10^m, sd_d),
+               # Sur le log10, l'erreur-type et l'ecart-type sont EXACTS : ce
+               # sont ceux que publie WIN DL, et l'intervalle de Fieller en
+               # derive. La meme lecture « valeur ± s », sans approximation.
+               DL_erreur_type_log = plus_moins(m, se),
+               DL_ecart_type_log = plus_moins(m, sigma),
                Limite_inf = 10^lo, Limite_sup = 10^hi,
                Intervalle = meth,
                Position = if (!is.finite(10^m)) NA_character_
@@ -4298,6 +4304,8 @@ mod_dl50_server <- function(id, values) {
                      hstat_dl50_libelle_echelle(tr("Écart-type"), "log10"),
                      tr("Erreur-type (dose)"), tr("Écart-type (dose)"),
                      tr("DL ± erreur-type"), tr("DL ± écart-type"),
+                     hstat_dl50_libelle_echelle(tr("DL ± Erreur-type"), "log10"),
+                     hstat_dl50_libelle_echelle(tr("DL ± Écart-type"), "log10"),
                      tr("Limite inférieure"), tr("Limite supérieure"),
                      tr("Type d'intervalle"), tr("Position")),
         options = list(dom = "t", pageLength = 20, ordering = FALSE,
@@ -4703,7 +4711,8 @@ mod_dl50_server <- function(id, values) {
       if (is.null(d)) return(NULL)
       att <- attributes(d)[c("ecartes", "plafond")]
       d <- d[c("Mortalite_demandee", "Log_dose", "Dose", "Erreur_type", "Ecart_type",
-          "Erreur_type_dose", "Ecart_type_dose", "DL_erreur_type", "DL_ecart_type", "Limite_inf", "Limite_sup",
+          "Erreur_type_dose", "Ecart_type_dose", "DL_erreur_type", "DL_ecart_type",
+          "DL_erreur_type_log", "DL_ecart_type_log", "Limite_inf", "Limite_sup",
           "Intervalle", "Position")]
       # Choisir des colonnes perd les attributs : on les repose, sans quoi la
       # note des mortalites ecartees ne verrait jamais rien.
@@ -4721,7 +4730,10 @@ mod_dl50_server <- function(id, values) {
                      hstat_dl50_libelle_echelle(tr("Écart-type"), "log10"),
                      tr("Erreur-type (dose)"), tr("Écart-type (dose)"),
                      tr("DL ± erreur-type"),
-                     tr("DL ± écart-type"), tr("Limite inférieure"),
+                     tr("DL ± écart-type"),
+                     hstat_dl50_libelle_echelle(tr("DL ± Erreur-type"), "log10"),
+                     hstat_dl50_libelle_echelle(tr("DL ± Écart-type"), "log10"),
+                     tr("Limite inférieure"),
                      tr("Limite supérieure"), tr("Type d'intervalle"),
                      tr("Position")),
         options = list(dom = "t", pageLength = 20, ordering = FALSE,
