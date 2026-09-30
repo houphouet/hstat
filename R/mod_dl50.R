@@ -1044,7 +1044,7 @@ hstat_dl50_libelle_echelle <- function(base, echelle) {
 # les alertes, et le `<span>` est ce qui la fait tenir ici.
 hstat_dl50_note_echelle <- function() {
   shiny::helpText(
-    shiny::span(tr("L'erreur-type et l'écart-type portent sur le log10 de la dose, jamais sur la dose : l'encadrement se lit 10^(log10 DL ± s) — asymétrique en dose — et non DL ± s.")),
+    shiny::span(tr("L'erreur-type et l'écart-type sont donnés sur le log10 de la dose (ceux que publie WIN DL) et en unité de dose. Ces derniers se déduisent des premiers par la delta-méthode, s(DL) = ln(10) × DL × s(log10 DL) : une approximation, d'autant moins fidèle que s(log10) est grand. L'intervalle de confiance publié à côté reste celui de Fieller, calculé sur le log10 : c'est lui qui fait foi.")),
     " ",
     shiny::span(tr("Sur la DL50, 10^(log10 DL50 ± 1/b) rend la dose à un probit de plus et de moins, soit la DL84,1 et la DL15,9 : l'écart-type décrit la dispersion des sensibilités dans la population, il ne diminue pas quand on teste plus d'individus.")))
 }
@@ -1094,6 +1094,7 @@ hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
     vide <- data.frame(
       Seuil = numeric(0), Log_dose = numeric(0), Dose = numeric(0),
       Erreur_type = numeric(0), Ecart_type = numeric(0),
+      Erreur_type_dose = numeric(0), Ecart_type_dose = numeric(0),
       DL_erreur_type = character(0), DL_ecart_type = character(0),
       Limite_inf = numeric(0), Limite_sup = numeric(0),
       Intervalle = character(0), Position = character(0),
@@ -1113,10 +1114,22 @@ hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
   vaa <- V[1, 1]; vbb <- V[2, 2]; vab <- V[1, 2]
   g <- tq^2 * vbb / b^2
   sigma <- if (is.finite(b) && b != 0) 1 / abs(b) else NA_real_
-  bornes <- function(m, d) {
-    if (!is.finite(d)) return(NA_character_)
-    sprintf("%s – %s", formatC(10^(m - d), format = "g", digits = 4),
-            formatC(10^(m + d), format = "g", digits = 4))
+  # EN UNITE DE DOSE, et c'est une demande : « DL ± erreur-type » doit porter
+  # la dose et SON erreur-type, pas un encadrement 10^(log10 DL ± s) qu'il
+  # faut savoir relire. L'erreur-type (et l'ecart-type) de la dose se
+  # deduisent de ceux du log10 par la delta-methode :
+  #   s(DL) = ln(10) . DL . s(log10 DL)
+  # C'est une approximation au premier ordre -- exacte quand s(log10) est
+  # petit, de plus en plus grossiere quand il grandit. L'intervalle de
+  # confiance publie a cote, lui, reste celui de Fieller : c'est lui qui fait
+  # foi, et la note sous le tableau le dit.
+  en_dose <- function(m, s) if (is.finite(m) && is.finite(s)) log(10) * 10^m * s else NA_real_
+  plus_moins <- function(x, e) {
+    if (!is.finite(x) || !is.finite(e)) return(NA_character_)
+    # `formatC()` cale ses nombres sur une largeur fixe : sans `trimws()`,
+    # « 2.073 ±   4.84 » sortait avec des blancs au milieu de la cellule.
+    sprintf("%s ± %s", trimws(formatC(x, format = "g", digits = 5)),
+            trimws(formatC(e, format = "g", digits = 5)))
   }
   out <- lapply(seuils, function(s) {
     # Meme inverse normale que WIN DL : c'est ICI qu'elle se voit.
@@ -1141,10 +1154,12 @@ hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
     } else {
       lo <- m - tq * se; hi <- m + tq * se; meth <- "delta"
     }
+    se_d <- en_dose(m, se); sd_d <- en_dose(m, sigma)
     data.frame(Seuil = s, Log_dose = m, Dose = 10^m,
                Erreur_type = se, Ecart_type = sigma,
-               DL_erreur_type = bornes(m, se),
-               DL_ecart_type = bornes(m, sigma),
+               Erreur_type_dose = se_d, Ecart_type_dose = sd_d,
+               DL_erreur_type = plus_moins(10^m, se_d),
+               DL_ecart_type = plus_moins(10^m, sd_d),
                Limite_inf = 10^lo, Limite_sup = 10^hi,
                Intervalle = meth,
                Position = if (!is.finite(10^m)) NA_character_
@@ -4281,12 +4296,14 @@ mod_dl50_server <- function(id, values) {
         colnames = c(tr("Seuil (%)"), tr("log10(dose)"), hstat_dl50_libelle_dose(fit()),
                      hstat_dl50_libelle_echelle(tr("Erreur-type"), "log10"),
                      hstat_dl50_libelle_echelle(tr("Écart-type"), "log10"),
-                     tr("DL à ± 1 erreur-type"), tr("DL à ± 1 écart-type"),
+                     tr("Erreur-type (dose)"), tr("Écart-type (dose)"),
+                     tr("DL ± erreur-type"), tr("DL ± écart-type"),
                      tr("Limite inférieure"), tr("Limite supérieure"),
                      tr("Type d'intervalle"), tr("Position")),
         options = list(dom = "t", pageLength = 20, ordering = FALSE,
                        scrollX = TRUE)) |>
         DT::formatSignif(c("Log_dose", "Dose", "Erreur_type", "Ecart_type",
+                           "Erreur_type_dose", "Ecart_type_dose",
                            "Limite_inf", "Limite_sup"), chiffres())
     })
 
@@ -4686,7 +4703,7 @@ mod_dl50_server <- function(id, values) {
       if (is.null(d)) return(NULL)
       att <- attributes(d)[c("ecartes", "plafond")]
       d <- d[c("Mortalite_demandee", "Log_dose", "Dose", "Erreur_type", "Ecart_type",
-          "DL_erreur_type", "DL_ecart_type", "Limite_inf", "Limite_sup",
+          "Erreur_type_dose", "Ecart_type_dose", "DL_erreur_type", "DL_ecart_type", "Limite_inf", "Limite_sup",
           "Intervalle", "Position")]
       # Choisir des colonnes perd les attributs : on les repose, sans quoi la
       # note des mortalites ecartees ne verrait jamais rien.
@@ -4702,13 +4719,15 @@ mod_dl50_server <- function(id, values) {
                      hstat_dl50_libelle_dose(fit()),
                      hstat_dl50_libelle_echelle(tr("Erreur-type"), "log10"),
                      hstat_dl50_libelle_echelle(tr("Écart-type"), "log10"),
-                     tr("DL à ± 1 erreur-type"),
-                     tr("DL à ± 1 écart-type"), tr("Limite inférieure"),
+                     tr("Erreur-type (dose)"), tr("Écart-type (dose)"),
+                     tr("DL ± erreur-type"),
+                     tr("DL ± écart-type"), tr("Limite inférieure"),
                      tr("Limite supérieure"), tr("Type d'intervalle"),
                      tr("Position")),
         options = list(dom = "t", pageLength = 20, ordering = FALSE,
                        scrollX = TRUE)) |>
         DT::formatSignif(c("Log_dose", "Dose", "Erreur_type", "Ecart_type",
+                           "Erreur_type_dose", "Ecart_type_dose",
                            "Limite_inf", "Limite_sup"), chiffres())
     })
 

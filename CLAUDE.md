@@ -4408,6 +4408,37 @@ comment la lire, et c'est cette lecture-là qui était demandée. Une note posé
 sous les deux tableaux la donne, avec sa vérification : sur la DL50,
 10^(log₁₀ DL50 ± 1/b) rend la dose à un **probit** de plus.
 
+#### Puis l'erreur-type et l'écart-type EN DOSE, à la demande
+
+Redemandé à l'écran, capture à l'appui : « je veux les écarts-types et
+l'erreur-type **des doses** », et « DL ± erreur-type » plutôt que « DL à ± 1
+erreur-type ». Le paragraphe précédent écartait précisément cette seconde
+erreur-type ; c'est l'utilisateur qui tranche, et elle est là — mais **à côté**
+de celle du log10, jamais à sa place, et en disant d'où elle vient.
+
+| Colonne | Contenu |
+|---|---|
+| Erreur-type / Écart-type (log10(dose)) | ceux de WIN DL, inchangés ; l'intervalle de Fieller en dérive |
+| Erreur-type / Écart-type (dose) | delta-méthode : `s(DL) = ln(10) · DL · s(log10 DL)` |
+| DL ± erreur-type / DL ± écart-type | « 2,0729 ± 0,658 » : la dose et **son** erreur-type, en unité de dose |
+
+Trois décisions, chacune testée :
+
+1. **La delta-méthode est une approximation, et la note le dit.** Au premier
+   ordre, exacte quand `s(log10)` est petit ; sur un essai à pente faible
+   l'erreur-type en dose peut dépasser la dose elle-même. L'intervalle publié
+   reste celui de Fieller, calculé sur le log10 : c'est lui qui fait foi.
+2. **L'écart-type en dose n'est plus constant d'un seuil à l'autre.** Sur le
+   log10 il vaut `1/b` partout ; multiplié par la dose, il la suit. Le test
+   exige les deux propriétés, chacune sur son échelle.
+3. **`formatC()` cale ses nombres sur une largeur fixe.** « 2.073 ±   4.84 »
+   sortait avec des blancs au milieu de la cellule : `trimws()` sur chaque
+   moitié, et une assertion qui refuse tout double blanc.
+
+Le test exige que la valeur après « ± » ne soit **pas** l'erreur-type du log10 :
+« 2,0720 ± 0,13792 » est exactement la lecture fautive signalée, et une colonne
+qui y reviendrait passerait sinon toutes les autres assertions.
+
 #### « 84 % » n'est pas Φ(1), et l'écart vaut 1,3 % sur la dose
 
 Piège rencontré en écrivant l'assertion. `Φ⁻¹(0,84)` vaut **0,9945**, pas 1 :
