@@ -10753,7 +10753,7 @@ test_that("erreur-type et ecart-type ne mesurent pas la meme chose", {
   # la plus etroite des deux ici (l'essai est petit mais la pente est faible).
   expect_true(all(nzchar(dl$DL_ecart_type)))
   expect_true(all(nzchar(dl$DL_erreur_type)))
-  expect_true(all(grepl("–", dl$DL_ecart_type, fixed = TRUE)))
+  expect_true(all(grepl(" ± ", dl$DL_ecart_type, fixed = TRUE)))
 })
 
 test_that("le tableau des parametres porte toutes les statistiques", {
@@ -18497,8 +18497,11 @@ test_that("les proportions de la DL50 s'affichent en pourcentage, ecran et fichi
     dlh <- ent(output$dosesLetales)
     expect_true(grepl("Erreur-type \\(log10\\(dose\\)\\)", dlh))
     expect_true(grepl("Écart-type \\(log10\\(dose\\)\\)", dlh))
-    expect_true(grepl("DL à ± 1 erreur-type", dlh))
-    expect_true(grepl("DL à ± 1 écart-type", dlh))
+    expect_true(grepl("DL ± erreur-type", dlh))
+    expect_true(grepl("DL ± écart-type", dlh))
+    expect_true(grepl("Erreur-type \\(dose\\)", dlh))
+    expect_true(grepl("Écart-type \\(dose\\)", dlh))
+    expect_false(grepl("DL à ± 1", dlh))
   })
 })
 
@@ -18516,36 +18519,37 @@ test_that("l'echelle de l'erreur-type et de l'ecart-type est DECLAREE", {
                         temoin_n = 40, temoin_morts = 3)
   f <- hstat_dl50_ajuste(e, "em")
   dl <- hstat_dl50_doses_letales(f, seuils = c(10, 50, 90))
-  lire <- function(x) as.numeric(strsplit(x, "–", fixed = TRUE)[[1]])
+  # DEMANDE A L'ECRAN : « DL ± erreur-type » porte la dose et SON erreur-type
+  # EN UNITE DE DOSE, pas un encadrement 10^(log10 DL ± s) a relire. Elle se
+  # deduit de celle du log10 par la delta-methode : s(DL) = ln(10).DL.s(log10).
+  lire <- function(x) as.numeric(strsplit(x, " ± ", fixed = TRUE)[[1]])
   i <- which(dl$Seuil == 90)
-  bornes <- lire(dl$DL_erreur_type[i])
-  # CE QUE LA COLONNE PORTE : 10^(log10 DL +/- ET), jamais DL +/- ET. La
-  # seconde assertion est la moitie qui compte -- sans elle, une colonne qui
-  # ferait bien DL +/- ET passerait aussi.
-  expect_equal(bornes, 10^(dl$Log_dose[i] + c(-1, 1) * dl$Erreur_type[i]),
-               tolerance = 1e-3)
-  expect_false(isTRUE(all.equal(bornes,
-                                dl$Dose[i] + c(-1, 1) * dl$Erreur_type[i],
-                                tolerance = 1e-2)))
+  expect_equal(dl$Erreur_type_dose, log(10) * dl$Dose * dl$Erreur_type)
+  expect_equal(dl$Ecart_type_dose, log(10) * dl$Dose * dl$Ecart_type)
+  v <- lire(dl$DL_erreur_type[i])
+  expect_equal(v, c(dl$Dose[i], dl$Erreur_type_dose[i]), tolerance = 1e-4)
+  # La moitie qui compte : ce n'est plus l'erreur-type du LOG10 accolee a la
+  # dose (2,0720 ± 0,13792 sur l'essai de la capture) -- la confusion signalee.
+  expect_false(isTRUE(all.equal(v[2], dl$Erreur_type[i], tolerance = 1e-2)))
+  expect_equal(lire(dl$DL_ecart_type[i]),
+               c(dl$Dose[i], dl$Ecart_type_dose[i]), tolerance = 1e-4)
+  # Pas de blanc de calage au milieu de la cellule : `formatC()` en pose.
+  expect_false(any(grepl("  ", c(dl$DL_erreur_type, dl$DL_ecart_type))))
 
-  # L'ECART-TYPE EST 1/|b| : il decrit la population, pas l'estimation, et il
-  # vaut donc la MEME chose sur les trois seuils -- ce que l'erreur-type, elle,
-  # ne fait pas.
+  # L'ECART-TYPE EST 1/|b| sur le log10 : il vaut la MEME chose sur les trois
+  # seuils -- ce que l'erreur-type, elle, ne fait pas. En unite de dose il
+  # suit la dose, puisque la delta-methode le multiplie par elle.
   expect_equal(length(unique(round(dl$Ecart_type, 12))), 1L)
   expect_gt(length(unique(round(dl$Erreur_type, 6))), 1L)
+  expect_gt(length(unique(round(dl$Ecart_type_dose, 6))), 1L)
 
   # Un ecart-type de plus en log-dose, c'est un PROBIT de plus : la dose lue
-  # est celle de Phi(1) = 84,13 %, jamais celle de « 84 % » tout rond. L'ecart
-  # entre les deux (Phi^-1(0,84) = 0,9945) vaut 1,3 % sur la dose, donc plus
-  # que toute tolerance raisonnable -- mesure faite, pas supposee.
+  # est celle de Phi(1) = 84,13 %, jamais celle de « 84 % » tout rond.
   j <- which(dl$Seuil == 50)
-  b <- lire(dl$DL_ecart_type[j])
+  m50 <- dl$Log_dose[j]; s50 <- dl$Ecart_type[j]
   s1 <- hstat_dl50_doses_letales(f, seuils = 100 * stats::pnorm(c(1, -1)))
-  expect_equal(b[2], s1$Dose[which.max(s1$Seuil)], tolerance = 3e-3)
-  expect_equal(b[1], s1$Dose[which.min(s1$Seuil)], tolerance = 3e-3)
-  rond <- hstat_dl50_doses_letales(f, seuils = c(84, 16))
-  expect_false(isTRUE(all.equal(b[2], rond$Dose[which.max(rond$Seuil)],
-                                tolerance = 1e-3)))
+  expect_equal(10^(m50 + s50), s1$Dose[which.max(s1$Seuil)], tolerance = 3e-3)
+  expect_equal(10^(m50 - s50), s1$Dose[which.min(s1$Seuil)], tolerance = 3e-3)
 
   # L'ECHELLE SE COMPOSE A UN SEUL ENDROIT. Trois tableaux portent ces
   # colonnes ; trois libelles ecrits a la main finiraient par diverger.
@@ -18566,9 +18570,9 @@ test_that("l'echelle de l'erreur-type et de l'ecart-type est DECLAREE", {
   # comment la lire, et c'est cette lecture-la qui etait demandee.
   h <- paste(as.character(htmltools::renderTags(mod_dl50_ui("dl50"))$html),
              collapse = "\n")
-  n <- length(gregexpr("asymétrique en dose", h)[[1]])
+  n <- length(gregexpr("delta-méthode", h)[[1]])
   expect_equal(n, 2L)
-  expect_true(grepl("10\\^\\(log10 DL", h))
+  expect_true(grepl("s(DL) = ln(10)", h, fixed = TRUE))
 
   # CHAQUE PHRASE DANS SA PROPRE BALISE. Le DOM fond toute suite de caracteres
   # adjacents en UN noeud : posees cote a cote, les deux phrases n'existeraient
@@ -18576,7 +18580,7 @@ test_that("l'echelle de l'erreur-type et de l'ecart-type est DECLAREE", {
   # ne pourrait s'appliquer. On verifie donc que chacune est le CONTENU ENTIER
   # d'un `<span>`, pas seulement qu'elle figure dans la page.
   dic <- hstat_i18n_load()
-  phrases <- grep("^L'erreur-type et l'écart-type portent|^Sur la DL50, 10\\^",
+  phrases <- grep("^L'erreur-type et l'écart-type sont donnés|^Sur la DL50, 10\\^",
                   dic$fr, value = TRUE)
   expect_length(phrases, 2L)
   for (ph in phrases)
