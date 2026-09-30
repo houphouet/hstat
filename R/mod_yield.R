@@ -527,18 +527,27 @@ mod_yield_server <- function(id, values) {
     shiny::observeEvent(input$yieldSaisie_cell_edit, {
       info <- input$yieldSaisie_cell_edit
       d <- saisie()
-      j <- info$col + 1L
-      if (j < 1L || j > ncol(d)) return()
+      # Le message vient du navigateur : une seule cellule EXISTANTE, ou rien
+      # (hstat_indice_client).
+      i <- hstat_indice_client(info$row, nrow(d))
+      j <- hstat_indice_client(info$col + 1L, ncol(d))
+      if (is.na(i) || is.na(j) || length(info$value) != 1L) return()
       # LA MODALITE ET LA REPETITION SONT DU TEXTE, la masse et la surface des
       # nombres. Passer tout au meme convertisseur ferait disparaitre le nom du
       # traitement des qu'il ne serait pas un nombre -- c'est-a-dire toujours.
-      d[info$row, j] <- if (names(d)[j] %in% c("Masse", "Surface"))
+      d[i, j] <- if (names(d)[j] %in% c("Masse", "Surface"))
         suppressWarnings(as.numeric(gsub(",", ".", info$value, fixed = TRUE)))
       else trimws(as.character(info$value))
       saisie(d)
     })
 
     shiny::observeEvent(input$yieldLigne, {
+      if (nrow(saisie()) >= HSTAT_SAISIE_MAX) {
+        shiny::showNotification(
+          trf("Le tableau de saisie compte déjà %d lignes, le maximum.", HSTAT_SAISIE_MAX),
+          type = "warning", duration = 6)
+        return()
+      }
       d <- rbind(saisie(), hstat_rdt_saisie_vide(1L))
       rownames(d) <- NULL
       saisie(d)
@@ -566,6 +575,13 @@ mod_yield_server <- function(id, values) {
         # Les lignes entierement vides du tableau de depart ne sont pas des
         # donnees : les garder devant le collage ferait un tableau a trous.
         cur <- cur[rowSums(!is.na(cur) & cur != "") > 0, , drop = FALSE]
+        if (nrow(cur) + nrow(tab) > HSTAT_SAISIE_MAX) {
+          shiny::showNotification(
+            trf("Le tableau compterait %d lignes : il en accepte %d au plus. Collez en remplaçant, ou videz le tableau.",
+                nrow(cur) + nrow(tab), HSTAT_SAISIE_MAX),
+            type = "warning", duration = 10)
+          return()
+        }
         rbind(cur, tab[names(cur)])
       } else tab
       rownames(d) <- NULL

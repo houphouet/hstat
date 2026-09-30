@@ -100,11 +100,8 @@ HSTAT_DL50_MIN_UTILES <- 3L      # doses a mortalite corrigee strictement entre 
 # R, qui sert toutes les sessions, ne repondait a personne. Cinquante couvre
 # tout usage reel ; au-dela, ce que l'on ecarte se dit.
 HSTAT_DL50_DEMANDES_MAX <- 50L
-# LIGNES DU TABLEAU DE SAISIE. Cent doses au plus apres regroupement, et une
-# dose se repete : mille lignes laissent dix repetitions a chacune. La borne
-# existe parce que le tableau voyage entier vers le navigateur a chaque
-# modification -- un collage de cent mille lignes le figeait.
-HSTAT_DL50_SAISIE_MAX <- 1000L
+# LIGNES DU TABLEAU DE SAISIE : `HSTAT_SAISIE_MAX` (R/utils.R), partage avec
+# les tableaux du rendement et des dilutions.
 # TAILLE D'UN FICHIER NATIF (essai ou liste). Un essai de cent doses tient en
 # cinq kilo-octets, une liste de mille termes en cinquante. Le plafond d'envoi
 # de l'application, lui, vaut 100 Go par defaut -- et le lecteur charge le
@@ -1068,14 +1065,6 @@ hstat_dl50_note_echelle <- function() {
 
 # Les valeurs ecartees, nommees -- mais pas toutes : cent mille nombres
 # ecartes feraient un message de cent mille nombres, rendu a l'ecran.
-# Un indice venu du navigateur : UN entier, dans [1 ; n], ou NA.
-.hstat_dl50_indice <- function(v, n) {
-  v <- suppressWarnings(as.numeric(v))
-  if (length(v) != 1L || !is.finite(v) || v != round(v) || v < 1 || v > n)
-    return(NA_integer_)
-  as.integer(v)
-}
-
 .hstat_dl50_liste_ecartes <- function(v, max = 10L) {
   txt <- trimws(formatC(utils::head(v, max), format = "g", digits = 4))
   paste0(paste(txt, collapse = ", "), if (length(v) > max) ", \u2026" else "")
@@ -2039,9 +2028,9 @@ hstat_dl50_coller <- function(txt) {
   if (!length(lignes))
     return(echec(tr("Le collage ne contient que des en-têtes : il manque les lignes de données.")))
 
-  if (length(lignes) > HSTAT_DL50_SAISIE_MAX)
+  if (length(lignes) > HSTAT_SAISIE_MAX)
     return(echec(trf("Le collage compte %d lignes : le tableau de saisie en accepte %d au plus. Un essai de WIN DL porte au plus %d doses ; les répétitions d'une même dose sont regroupées d'office.",
-                     length(lignes), HSTAT_DL50_SAISIE_MAX, HSTAT_DL50_DOSES_MAX)))
+                     length(lignes), HSTAT_SAISIE_MAX, HSTAT_DL50_DOSES_MAX)))
   mat <- lapply(lignes, decoupe)
   larg <- vapply(mat, length, integer(1))
   if (any(larg < 3L))
@@ -3646,8 +3635,8 @@ mod_dl50_server <- function(id, values) {
       # toutes les lignes sauf la premiere, sans un mot ; un vecteur de
       # lignes ecrivait plusieurs cellules d'un coup. Une seule cellule
       # existante, ou rien.
-      i <- .hstat_dl50_indice(info$row, nrow(d))
-      j <- .hstat_dl50_indice(info$col + 1L, ncol(d))
+      i <- hstat_indice_client(info$row, nrow(d))
+      j <- hstat_indice_client(info$col + 1L, ncol(d))
       if (is.na(i) || is.na(j) || length(info$value) != 1L) return()
       v <- suppressWarnings(as.numeric(gsub(",", ".", info$value, fixed = TRUE)))
       # La colonne des morts saisie en POURCENTAGE est convertie tout de suite :
@@ -3692,10 +3681,10 @@ mod_dl50_server <- function(id, values) {
     })
 
     shiny::observeEvent(input$ligne, {
-      if (nrow(saisie()) >= HSTAT_DL50_SAISIE_MAX) {
+      if (nrow(saisie()) >= HSTAT_SAISIE_MAX) {
         shiny::showNotification(
           trf("Le tableau de saisie compte déjà %d lignes, le maximum.",
-              HSTAT_DL50_SAISIE_MAX), type = "warning", duration = 6)
+              HSTAT_SAISIE_MAX), type = "warning", duration = 6)
         return()
       }
       d <- rbind(saisie(), data.frame(Dose = NA_real_, Effectif = NA_real_,
@@ -3721,10 +3710,10 @@ mod_dl50_server <- function(id, values) {
         # Les lignes entierement vides du tableau de depart ne sont pas des
         # donnees : les garder devant le collage ferait un tableau a trous.
         cur <- cur[rowSums(!is.na(cur)) > 0, , drop = FALSE]
-        if (nrow(cur) + nrow(r$table) > HSTAT_DL50_SAISIE_MAX) {
+        if (nrow(cur) + nrow(r$table) > HSTAT_SAISIE_MAX) {
           shiny::showNotification(
             trf("Le tableau compterait %d lignes : il en accepte %d au plus. Collez en remplaçant, ou videz le tableau.",
-                nrow(cur) + nrow(r$table), HSTAT_DL50_SAISIE_MAX),
+                nrow(cur) + nrow(r$table), HSTAT_SAISIE_MAX),
             type = "warning", duration = 10)
           return()
         }

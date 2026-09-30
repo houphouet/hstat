@@ -3095,7 +3095,7 @@ mod_coding_server <- function(id, values) {
       # graphique se reduisait.
       mx <- input$cloud_size %||% 16
       hstat_code_cloud_layout(names(tb), as.integer(tb),
-                              max_words = input$cloud_max %||% 80,
+                              max_words = hstat_borne_client(input$cloud_max, 80, 20, 150),
                               min_size = max(3, mx * 0.3), max_size = mx)
     })
 
@@ -3482,8 +3482,15 @@ mod_coding_server <- function(id, values) {
     shiny::observeEvent(input$up_project, {
       f <- input$up_project
       shiny::req(f)
-      obj <- tryCatch(readRDS(f$datapath), error = function(e) NULL)
-      if (is.null(obj) || !identical(obj$hstat, "codage")) {
+      # Le projet passe par la porte commune des .rds (R/utils.R) : sous
+      # R < 4.4.0, lire un .rds televerse peut executer du code qu'il contient.
+      obj <- tryCatch(hstat_lire_rds(f$datapath), error = function(e) e)
+      if (inherits(obj, "hstat_refus")) {
+        shiny::showNotification(hstat_err_fr(obj), type = "error", duration = 15)
+        return()
+      }
+      if (inherits(obj, "error")) obj <- NULL
+      if (is.null(obj) || !is.list(obj) || !identical(obj$hstat, "codage")) {
         shiny::showNotification("Ce fichier n'est pas un projet de codage HStat.",
                                 type = "error", duration = 6); return()
       }

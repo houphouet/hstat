@@ -729,6 +729,21 @@ hstat_design_catalog <- function() {
                     vapply(hstat_malherbo_catalog(), function(x) x$label, character(1))))
 }
 
+HSTAT_DESIGN_UNITES_MAX <- 10000
+
+# Nombre de parcelles d'un plan, avant de le construire : le produit des
+# niveaux par le nombre de repetitions -- sauf le carre latin, dont la taille
+# est le carre du nombre de traitements, quel que soit `r`. Un facteur vide
+# compte pour un niveau : ce n'est pas ici que se refuse une saisie incomplete.
+hstat_design_unites <- function(type, factors, r = 3) {
+  n <- vapply(factors, function(f) max(1, length(f)), numeric(1))
+  if (!length(n)) return(0)
+  rr <- suppressWarnings(as.numeric(r)[1])
+  if (!is.finite(rr) || rr < 1) rr <- 1
+  if (identical(hstat_design_base(type), "lsd")) return(n[1]^2)
+  prod(n) * rr
+}
+
 hstat_agri_design <- function(type, factors, r = 3, seed = 123, k = NULL,
                               base_design = "rcbd", k_mode = "exact") {
   `%||%` <- function(x, y) if (is.null(x) || length(x) == 0) y else x
@@ -737,6 +752,20 @@ hstat_agri_design <- function(type, factors, r = 3, seed = 123, k = NULL,
   # ici, une seule fois, et tout le reste du moteur l'ignore.
   type <- hstat_design_base(type)
   fnames <- names(factors)
+  # LE NOMBRE DE PARCELLES SE BORNE ICI, AU SEUL POINT DE PASSAGE.
+  #
+  # Rien ne le bornait : les niveaux viennent d'un champ de texte, les
+  # repetitions d'un champ numerique sans plafond, et un factoriel MULTIPLIE
+  # ses niveaux. Mesure : dix traitements a 200 000 repetitions (deux millions
+  # de parcelles) demandaient 11 s de generation, un factoriel de trois facteurs
+  # a 60 niveaux autant -- avant meme la carte du plan, pendant lesquelles le
+  # processus R ne repondait a aucune session. Un essai reel compte quelques
+  # centaines de parcelles, rarement quelques milliers.
+  unites <- hstat_design_unites(type, factors, r)
+  if (is.finite(unites) && unites > HSTAT_DESIGN_UNITES_MAX)
+    stop(hstat_refus(trf("Le plan demandé compte %s parcelles : la limite est de %s. Réduisez le nombre de répétitions ou de niveaux — un factoriel multiplie les niveaux de ses facteurs.",
+             format(unites, big.mark = " ", scientific = FALSE),
+             format(HSTAT_DESIGN_UNITES_MAX, big.mark = " "))))
   # NB : le check de disponibilite d'agricolae est place APRES le bloc alpha, car le
   # generateur alpha-lattice generalise n'utilise que du R de base (aucune dependance
   # a agricolae). Il doit donc rester disponible meme si agricolae n'est pas installe.
@@ -919,8 +948,12 @@ hstat_agri_design <- function(type, factors, r = 3, seed = 123, k = NULL,
 }
 
 hstat_sample_allocation <- function(factors, r) {
-  treat <- expand.grid(factors, stringsAsFactors = FALSE)
-  n_treat <- nrow(treat)
+  # LE NOMBRE DE COMBINAISONS SE CALCULE, IL NE SE MATERIALISE PAS.
+  # `expand.grid()` construisait la grille entiere pour n'en lire que le nombre
+  # de lignes -- a chaque rendu du panneau d'information, et sans passer par la
+  # borne de `hstat_agri_design()`. Un factoriel saisi trop grand figeait donc
+  # l'onglet avant meme qu'on demande le plan.
+  n_treat <- if (length(factors)) prod(vapply(factors, length, numeric(1))) else 0
   data.frame(
     Indicateur = c("Nombre de traitements (combinaisons)", "Nombre de répétitions / blocs",
                    "Unités par répétition", "Taille totale de l'échantillon (N)"),
@@ -1940,7 +1973,7 @@ mod_design_ui <- function(id) {
               shiny::numericInput(ns("dsgNFactors"), "Nombre de facteurs (factoriel)", value = 2, min = 1, max = 5, step = 1),
               shiny::uiOutput(ns("dsgFactorInputs")),
               shiny::conditionalPanel("input.dsgType!='lsd'", ns = ns,
-                shiny::numericInput(ns("dsgRep"), "Répétitions / blocs", value = 3, min = 1, step = 1)),
+                shiny::numericInput(ns("dsgRep"), "Répétitions / blocs", value = 3, min = 1, max = 1000, step = 1)),
               shiny::conditionalPanel("input.dsgType=='alpha'", ns = ns,
                 shiny::numericInput(ns("dsgK"), "Taille du bloc incomplet (k)", value = 3, min = 2, step = 1),
                 shiny::radioButtons(ns("dsgKMode"),
@@ -2977,7 +3010,7 @@ mod_design_server <- function(id, values) {
 
       # Placement spatial selon le dispositif (CRD : minimise voisins identiques)
       b <- hstat_place_design(b, t, fill_col, seed = input$dsgSeed %||% 123,
-                              tries = input$dsgRandTries %||% 200)
+                              tries = hstat_borne_client(input$dsgRandTries, 200, 1, 2000))
       b$.fill <- as.character(b[[fill_col]])
       mode <- input$dsgLabelMode %||% "both"
       b$.lab <- switch(mode,

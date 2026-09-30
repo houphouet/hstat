@@ -46,11 +46,13 @@ mod_timeseries_ui <- function(id) {
                      selected = 12)),
             shiny::column(6, shiny::numericInput(ns("tsFreqCustom"),
                      "…ou fréquence libre", value = NULL, min = 1, step = 1))),
+          # « Horizon futur (h) » vivait ici, et AUCUN serveur ne le lisait : les
+          # previsions futures suivent « Horizon a simuler », plus bas. Deux
+          # reglages nommes « Horizon », dont un inerte -- l'utilisateur
+          # changeait celui-ci et la prevision ne bougeait pas.
           shiny::fluidRow(
             shiny::column(6, shiny::numericInput(ns("tsTestN"), "Taille du jeu de test",
-                                   value = 12, min = 2, step = 1)),
-            shiny::column(6, shiny::numericInput(ns("tsHorizon"), "Horizon futur (h)",
-                                   value = 12, min = 1, step = 1))),
+                                   value = 12, min = 2, step = 1))),
           shiny::checkboxGroupInput(ns("tsModels"), "Modèles à comparer",
             choices = .ts_catalog(),
             selected = c("naive", "ses", "ets", "arima", "theta")),
@@ -126,7 +128,7 @@ mod_timeseries_ui <- function(id) {
           shiny::fluidRow(
             shiny::column(4,
               shiny::numericInput(ns("simH"), "Horizon à simuler (périodes futures)",
-                           value = 12, min = 1, step = 1),
+                           value = 12, min = 1, max = 500, step = 1),
               shiny::textAreaInput(ns("simManual"),
                 "Saisir de nouvelles valeurs (séparées par des virgules, espaces ou retours à la ligne)",
                 placeholder = "ex. : 152,3  148,9  151,2  ou  152.3 148.9 151.2",
@@ -652,13 +654,13 @@ mod_timeseries_server <- function(id, values) {
     sim <- shiny::eventReactive(input$simRun, {
       c0 <- cur()
       y <- c0$f$y
-      h <- max(1, hstat_finite(input$simH, 12))
+      h <- hstat_borne_client(input$simH, 12, 1, 500)
       # --- Cas DLNM : le fichier importé fournit les EXPOSITIONS futures -----
       if (identical(input$tsShow, "dlnm")) {
         expo_full <- c0$f$expo
         shiny::validate(shiny::need(!is.null(expo_full),
                       "DLNM : relancez l'entraînement avec une exposition."))
-        L <- as.integer(max(1, hstat_finite(input$dlnmLag, 14)))
+        L <- as.integer(hstat_borne_client(input$dlnmLag, 14, 1, 60))
         note <- NULL
         manual <- parse_manual(input$simManual)
         if (length(manual) > 0) {

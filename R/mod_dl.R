@@ -49,7 +49,7 @@ mod_dl_ui <- function(id) {
                   shiny::column(6, shiny::selectInput(ns("dlAct"), "Activation",
                            choices = c("Logistique" = "logistic", "Tangente hyp." = "tanh"))),
                   shiny::column(6, shiny::numericInput(ns("dlStepmax"), "Itérations max",
-                                         value = 100000, min = 10000, step = 10000)))),
+                                         value = 100000, min = 10000, max = 1e6, step = 10000)))),
               shiny::actionButton(ns("dlRun"), "Entraîner le réseau",
                            icon = shiny::icon("play"), class = "btn-primary"),
               shiny::tags$small(style = "color:#6b7280; display:block; margin-top:8px;",
@@ -323,7 +323,7 @@ mod_dl_server <- function(id, values) {
         f, data = dat, hidden = hidden,
         act.fct = input$dlAct %||% "logistic",
         linear.output = !cls,
-        stepmax = max(1e4, hstat_finite(input$dlStepmax, 1e5)),
+        stepmax = hstat_borne_client(input$dlStepmax, 1e5, 1e4, 1e6),
         rep = 1)
       if (is.null(m$weights))
         stop("Le réseau n'a pas convergé : augmenter les itérations max, réduire les couches ou simplifier les variables.")
@@ -366,7 +366,7 @@ mod_dl_server <- function(id, values) {
       else torch::torch_tensor(matrix((p$y_train - p$y_ctr) / p$y_scl, ncol = 1),
                                dtype = torch::torch_float())
       opt <- torch::optim_adam(model$parameters, lr = hstat_finite(input$dlLr, 0.01))
-      epochs <- as.integer(max(10, hstat_finite(input$dlEpochs, 100)))
+      epochs <- as.integer(hstat_borne_client(input$dlEpochs, 100, 10, 2000))
       bs <- as.integer(max(8, hstat_finite(input$dlBatch, 64)))
       ntr <- nrow(p$x_train)
       losses <- numeric(epochs)
@@ -629,7 +629,7 @@ mod_dl_server <- function(id, values) {
       Y <- z[(L + 1):length(z)]
       tr_ix <- seq_len(n_seq - n_test)
       torch::torch_manual_seed(HSTAT_LSTM_SEED)
-      H <- as.integer(max(4, hstat_finite(input$lstmHidden, 32)))
+      H <- as.integer(hstat_borne_client(input$lstmHidden, 32, 4, 256))
       net <- torch::nn_module(
         initialize = function(L, H) {
           self$lstm <- torch::nn_lstm(input_size = 1, hidden_size = H, batch_first = TRUE)
@@ -646,7 +646,7 @@ mod_dl_server <- function(id, values) {
       yt <- torch::torch_tensor(matrix(Y[tr_ix], ncol = 1),
                                 dtype = torch::torch_float())
       opt <- torch::optim_adam(model$parameters, lr = hstat_finite(input$lstmLr, 0.005))
-      epochs <- as.integer(max(10, hstat_finite(input$lstmEpochs, 80)))
+      epochs <- as.integer(hstat_borne_client(input$lstmEpochs, 80, 10, 1000))
       losses <- numeric(epochs)
       shiny::withProgress(message = "Entraînement du LSTM", value = 0, {
         for (e in seq_len(epochs)) {
@@ -669,7 +669,7 @@ mod_dl_server <- function(id, values) {
       pred_test <- pred_test_z * scl + ctr
       obs_test  <- Y[te_ix] * scl + ctr
       # Futur : prévision récursive multi-pas
-      h <- as.integer(max(1, hstat_finite(input$lstmH, 12)))
+      h <- as.integer(hstat_borne_client(input$lstmH, 12, 1, 500))
       win <- utils::tail(z, L); fut_z <- numeric(h)
       for (i in seq_len(h)) {
         fut_z[i] <- pred1(win)
@@ -716,8 +716,8 @@ mod_dl_server <- function(id, values) {
           "Variable"            = input$lstmVar,
           "Longueur de serie"   = length(r$y),
           "Observations (test)" = r$n_test,
-          "Horizon"             = as.integer(max(1, hstat_finite(input$lstmH, 12))),
-          "Epoques"             = as.integer(max(10, hstat_finite(input$lstmEpochs, 80))),
+          "Horizon"             = as.integer(hstat_borne_client(input$lstmH, 12, 1, 500)),
+          "Epoques"             = as.integer(hstat_borne_client(input$lstmEpochs, 80, 10, 1000)),
           "Taux d'apprentissage" = hstat_finite(input$lstmLr, 0.005),
           "Graine aleatoire (fixee)" = HSTAT_LSTM_SEED)
       })

@@ -1519,7 +1519,7 @@ mod_clean_server <- function(id, values) {
               type = "warning", duration = 12)
           } else {
             imp <- tryCatch(VIM::kNN(data_temp, variable = sel,
-                                     k = input$naKnnK %||% 5, imp_var = FALSE),
+                                     k = hstat_borne_client(input$naKnnK, 5, 1, 30), imp_var = FALSE),
                             error = function(e) { ok <<- FALSE; NULL })
             if (ok && !is.null(imp)) data_temp <- imp
             if (!ok) shiny::showNotification("Échec de l'imputation KNN.",

@@ -7880,9 +7880,9 @@ rendent une erreur propre, pas un blocage.
   légitimement `-` pour une absence, et c'est précisément ce que ce module
   existe pour préserver. La donnée exportée est par ailleurs celle que
   l'utilisateur a lui-même chargée.
-- **`readRDS` sur un projet de codage téléversé.** Contrairement au `pickle` de
-  Python, la désérialisation de R n'exécute rien ; et l'objet est refusé tant
-  que `obj$hstat` ne vaut pas `"codage"`.
+- ~~**`readRDS` sur un projet de codage téléversé.**~~ Écarté à tort : voir
+  « Audit de l'application » plus bas. La désérialisation de R **peut**
+  exécuter du code avant R 4.4.0 (CVE-2024-27322).
 - **`escape = FALSE` de DT** : **zéro** occurrence dans le dépôt. Toutes les
   cellules de tableau sont échappées par DT.
 - **Les deux `shinyjs::runjs`** n'interpolent qu'un entier et une chaîne base64
@@ -8622,3 +8622,99 @@ aurait vérifié que **l'échelle sait formater**, jamais que **le graphique la
 porte**. Le test construit donc les neuf types à axe cartésien et lit les
 étiquettes rendues par `ggplot_build` — la seule étape où l'étiquette réellement
 affichée existe.
+
+## Audit de l'application : ce que le navigateur envoie n'est jamais borné par l'interface
+
+Mené sur toute l'application après celui de la DL50, avec la même méthode :
+**mesurer**, pas relire. Une règle en sort, et elle vaut partout : un `max =`
+sur un `numericInput`, un nombre de lignes dans un tableau `DT`, une liste de
+choix — tout cela est **affiché** par le navigateur, qui peut envoyer autre
+chose. Shiny sert toutes les sessions depuis **un seul processus R** : une
+entrée non bornée côté serveur fige l'application pour tout le monde.
+
+### Les indices de cellule, dans trois tableaux et non un
+
+La faille corrigée sur la DL50 (`input$saisie_cell_edit` non borné) existait à
+l'identique dans **Doses & dilutions** et **Rendement**. `hstat_indice_client()`
+(`R/utils.R`) remplace `.hstat_dl50_indice()` : **un** entier, dans les bornes,
+sinon `NA` et l'édition est ignorée. Trois copies d'un même garde-fou finiraient
+par diverger ; c'est la copie oubliée qui laisse passer l'écriture.
+
+`HSTAT_SAISIE_MAX` (1 000 lignes) remplace de même `HSTAT_DL50_SAISIE_MAX` et
+borne l'ajout de ligne **et** le collage des trois tableaux de saisie — le
+tableau voyage entier vers le navigateur à chaque modification.
+
+### Vingt paramètres coûteux n'étaient bornés que par le bas
+
+Époques, arbres, itérations, permutations, horizon de prévision, décalage d'un
+DLNM, tirages de randomisation… Le serveur prenait `max(valeur, plancher)` et
+rien au-dessus : un nombre d'époques d'un milliard partait tel quel.
+`hstat_borne_client(x, défaut, min, max)` borne des deux côtés, et **reprend
+exactement les chiffres du champ** — un test lit chaque appel et le compare au
+`min`/`max` du `numericInput` correspondant. Deux champs n'avaient pas de
+plafond du tout (`dlStepmax`, `simH`) : ils en ont reçu un.
+
+### Un plan d'expérience se refuse avant d'être construit
+
+Mesuré : un plan complètement randomisé de 10 traitements × 200 000 répétitions
+prenait 11,2 s, un factoriel 60 × 60 × 60 autant — chacun figeant le processus.
+`hstat_design_unites()` compte les parcelles **sans les construire** (produit
+des niveaux × répétitions ; `n²` pour un carré latin), et `hstat_agri_design()`
+refuse au-delà de `HSTAT_DESIGN_UNITES_MAX` (10 000) en 0,2 s, en disant que
+c'est le factoriel qui multiplie. `hstat_sample_allocation()` faisait un
+`expand.grid()` pour compter : il prend désormais le produit des longueurs.
+
+Le refus passe par la classe `hstat_refus` : `hstat_err_fr()` le rend **tel
+quel**. Sans elle, un refus métier écrit en français serait annoncé comme une
+« erreur non traduite » — ce qui est vrai pour une erreur de R, et faux ici.
+
+### Le filtre par valeur changeait de nature avec la casse
+
+En mode « contient », il était **littéral** sensible à la casse et passait par
+une **expression régulière** insensible à la casse : « a.b » y rencontrait
+« axb », et « (x » levait. `hstat_filtre_valeurs()` est littéral dans les deux
+cas, borné à `HSTAT_FILTRE_VALEURS_MAX` valeurs (la boucle est linéaire en ce
+nombre), et ce qui est coupé se dit.
+
+### Les `.rds` : l'affirmation écrite plus haut était fausse
+
+Ce fichier disait « contrairement au `pickle` de Python, la désérialisation de
+R n'exécute rien ». **C'est faux jusqu'à R 4.3.x** : un `.rds` construit à cet
+effet peut faire exécuter du code à sa lecture (CVE-2024-27322, corrigée dans
+R 4.4.0). Et ce sont précisément des fichiers **téléversés** que l'application
+lit — chargement de données, fusion de fichiers, projet de codage. Une
+documentation qui rassure à tort est pire qu'une documentation absente : elle
+empêche de chercher.
+
+`hstat_lire_rds()` est la seule porte (un test barre tout autre `readRDS`). Sous
+R < 4.4.0 elle **refuse**, dit pourquoi et propose CSV ou Excel. Une
+installation personnelle, qui ne lit que ses propres fichiers, la rouvre par
+`options(hstat.rds.autoriser = TRUE)` : refuser sans échappatoire casserait le
+rechargement des projets de codage là où le risque n'existe pas.
+
+### Un fichier DuckDB n'est pas qu'un conteneur de tables
+
+Il peut porter des **vues**, et une vue peut lire n'importe quel fichier du
+serveur ou une adresse distante à la première requête. `read_only = TRUE`
+protège le fichier, pas le reste du disque. `hstat_duckdb_open_file()` ouvre
+donc avec `enable_external_access = "false"`
+(`HSTAT_DUCKDB_FICHIER_CONFIG`) : les tables se lisent, les vues vers
+l'extérieur échouent. La connexion en mémoire du mode hors-mémoire, elle, garde
+l'accès : c'est elle qui lit les CSV et Parquet de l'utilisateur.
+
+### Un champ affiché que rien ne lit
+
+`tsHorizon` (« Horizon futur (h) », séries temporelles) était déclaré et **lu
+nulle part** — l'horizon réel est `simH`. On le réglait sans effet. Retiré.
+
+### Ce que l'audit a écarté, et pourquoi
+
+- **Les fichiers de scénario** (`simFile` de ML, DL, séries temporelles) n'ont
+  pas de plafond propre : ils passent par le plafond d'envoi global et sont
+  lus par les mêmes lecteurs que le reste.
+- **Le plafond d'envoi de 100 Go** est voulu : c'est le chemin hors-mémoire des
+  CSV et Parquet volumineux, lus par DuckDB sans être chargés. Les formats
+  Excel, SPSS, Stata et `.rds`, eux, sont chargés en mémoire — c'est une
+  limite de ces formats, pas un oubli.
+- **Le balisage des modules récents** (épidémiologie, diversité, rendement) :
+  aucun nom de colonne n'entre dans `HTML()` sans échappement.

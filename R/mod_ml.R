@@ -397,7 +397,7 @@ mod_ml_server <- function(id, values) {
                             Importance = as.numeric(m$variable.importance))
       } else if (idm == "rf") {
         need_pkg("randomForest")
-        ntree <- max(50, hstat_finite(input$hpTrees, 300))
+        ntree <- hstat_borne_client(input$hpTrees, 300, 50, 2000)
         mtry_best <- NULL
         if (auto) {
           nv <- ncol(tr) - 1
@@ -432,7 +432,7 @@ mod_ml_server <- function(id, values) {
         lab <- if (!cls) tr[[ti]] else as.numeric(tr[[ti]]) - 1
         depth <- as.integer(hstat_finite(input$hpDepth, 4))
         eta <- hstat_finite(input$hpEta, 0.1)
-        nrounds <- as.integer(hstat_finite(input$hpRounds, 150))
+        nrounds <- as.integer(hstat_borne_client(input$hpRounds, 150, 20, 2000))
         if (auto) {
           tsp <- tune_split(tr)
           xf <- mk_mm(p, tsp$fit); xv <- mk_mm(p, tsp$val)
@@ -509,7 +509,7 @@ mod_ml_server <- function(id, values) {
         }
       } else if (idm == "knn") {
         need_pkg("kknn")
-        k <- max(1, as.integer(hstat_finite(input$hpK, 7)))
+        k <- as.integer(hstat_borne_client(input$hpK, 7, 1, 100))
         if (auto) {
           tsp <- tune_split(tr, cap = 10000)
           grid <- c(3, 5, 7, 11, 15, 21, 31)
@@ -539,7 +539,7 @@ mod_ml_server <- function(id, values) {
         ctr <- vapply(tr[num], mean, numeric(1))
         scl <- vapply(tr[num], stats::sd, numeric(1)); scl[!is.finite(scl) | scl == 0] <- 1
         sc <- function(d) { for (v in num) d[[v]] <- (d[[v]] - ctr[v]) / scl[v]; d }
-        size <- max(1, as.integer(hstat_finite(input$hpSize, 8)))
+        size <- as.integer(hstat_borne_client(input$hpSize, 8, 1, 50))
         decay <- 5e-4
         if (auto) {
           tsp <- tune_split(tr, cap = 10000)

@@ -748,7 +748,7 @@ mod_diversity_server <- function(id, values,
         },
 
         accumulation = {
-          perm <- max(10L, as.integer(hstat_finite(input$divAccumPerm, 100)))
+          perm <- as.integer(hstat_borne_client(input$divAccumPerm, 100, 10, 1000))
           d <- hstat_div_accumulation(m, permutations = perm,
                                       graine = hstat_finite(graine_globale(), 123))
           shiny::validate(shiny::need(!is.null(d) && nrow(d) > 0,

@@ -2773,7 +2773,7 @@ mod_qualitative_server <- function(id, values) {
                                 min_char = input$txt_minchar %||% 3,
                                 top_n = input$txt_topn %||% 20,
                                 n_gram = input$txt_ngram %||% 2,
-                                n_topics = input$txt_topics %||% 3,
+                                n_topics = hstat_borne_client(input$txt_topics, 3, 2, 8),
                                 stem = isTRUE(input$txt_stem),
                                 remove_numbers = isTRUE(input$txt_nonum),
                                 extra_stopwords = extra_sw)
