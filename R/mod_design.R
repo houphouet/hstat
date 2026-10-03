@@ -2864,7 +2864,8 @@ mod_design_server <- function(id, values) {
     })
 
     output$dsgDownload <- shiny::downloadHandler(
-      filename = function() paste0("plan_", input$dsgType, "_", Sys.Date(), ".csv"),
+      filename = function() paste0("plan_", hstat_nom_fichier(input$dsgType, "plan"),
+                                   "_", Sys.Date(), ".csv"),
       content = function(file) utils::write.csv(design_book(), file, row.names = FALSE, fileEncoding = "UTF-8"))
 
     # Construction du graphique du dispositif (partagee affichage + export PNG)
@@ -3369,7 +3370,8 @@ mod_design_server <- function(id, values) {
           shiny::div(class = "callout callout-info", style = "margin-top:10px;",
               shiny::icon("layer-group"),
               sprintf(" Soit environ %d par strate (%d strates).",
-                      r$per_stratum, input$svStrata %||% 1))
+                      as.integer(r$per_stratum),
+                      as.integer(input$svStrata %||% 1)))
       )
     })
 

@@ -8812,3 +8812,119 @@ nulle part** — l'horizon réel est `simH`. On le réglait sans effet. Retiré.
   limite de ces formats, pas un oubli.
 - **Le balisage des modules récents** (épidémiologie, diversité, rendement) :
   aucun nom de colonne n'entre dans `HTML()` sans échappement.
+
+## Audit complet : fonctionnalités, performances, sécurité
+
+Mené en **mesurant**, comme les précédents : suite complète, parcours des
+vingt-deux onglets au navigateur sur un jeu normal puis hostile, chronométrages
+du serveur, et balayage des entrées que le navigateur peut envoyer.
+
+### Ce qui tient, mesuré
+
+| | résultat |
+|---|---|
+| suite testthat (`main`) | 692 tests, 2 échecs connus de l'environnement, 0 erreur |
+| parcours, jeu normal | 22 onglets, **0** sortie en erreur, **0** exception de page |
+| parcours, jeu hostile | idem ; colonne `<img src=x onerror=alert(1)>` : **0** balise injectée, **0** `alert()` |
+| injection de code | aucun `eval`/`parse` de saisie hors du bac à sable des formules, aucun `system()` |
+| motifs | aucun `grepl` sur un motif venu de la saisie sans `fixed = TRUE` |
+
+La seule erreur de console reste `$x.noUiSlider is not a function`, déjà
+documentée comme un défaut de l'empaquetage Debian de DT.
+
+### La page se sérialisait à chaque visite : 4,5 s du processus partagé
+
+L'interface est un objet **statique**, construit une fois au démarrage — et
+Shiny la sérialisait de nouveau à **chaque** ouverture de la page : 1,7 Mo de
+balises, **4,4 à 5 s** mesurées, dont 99 % dans `htmltools::renderTags()`.
+Shiny sert toutes les sessions depuis **un seul processus R** : pendant ces
+cinq secondes, tout le monde attend. Dix visiteurs qui ouvrent la page
+ensemble, c'est presque une minute de gel.
+
+Une fonction d'interface peut rendre directement une `httpResponse`, que Shiny
+sert telle quelle. `hstat_ui_en_cache()` sérialise à la première visite et
+garde le résultat :
+
+| | avant | après |
+|---|---|---|
+| requête `GET /` côté serveur | **4,4 – 5,0 s** | **4 ms** |
+| premier rendu au navigateur | 7,6 – 32,8 s (selon la charge) | **2,7 s** |
+
+Le HTML servi est le même **au caractère près** — longueur identique, seuls
+diffèrent les identifiants d'onglets que `tabsetPanel()` tire au hasard à
+chaque démarrage de processus. Trois points de construction, chacun testé :
+
+1. **`renderPage` est interne à shiny** : pris par `get()` sur l'espace de
+   noms, et s'il venait à manquer, l'interface est rendue telle quelle — Shiny
+   la sérialise alors lui-même, comme avant. Le gain se perd, jamais la page.
+2. **Le mode test de Shiny change le HTML** : il fait partie de la clé.
+3. **Une interface déjà fonction reste intacte** : elle peut dépendre de la
+   requête, et la mettre en cache servirait à l'un la page d'un autre.
+
+Le test compte les sérialisations par une `tagFunction` qui incrémente un
+compteur : deux visites, **une** sérialisation. Une mutation qui retire la mise
+en cache le fait échouer.
+
+### Un pas de graduation fixe un nombre de traits, et c'est le navigateur qui le choisit
+
+`seq(debut, fin, by = pas)` rend (fin − début) / pas traits, et ggplot les
+dessine **tous**. Mesuré sur un axe de 0 à 100 :
+
+| pas | traits | rendu |
+|---|---|---|
+| 1 | 101 | 0,14 s |
+| 0,001 | 100 001 | **21 s** |
+| 0,0001 | 1 000 001 | plus de deux minutes |
+
+Rien d'hostile n'est nécessaire : un rendement en kg/ha (5 000) gradué au pas
+de 0,5 en demande dix mille. **Dix sites** construisaient leur suite ainsi —
+Visualisation (X, Y, second axe en ggplot et en plotly), comparaisons post-hoc
+(X, Y), seuils d'efficacité, rendement, et le kit de mise en forme partagé.
+
+`hstat_graduations()` est la porte unique. Au-delà de
+`HSTAT_GRADUATIONS_MAX` (100) traits, le pas est **élargi** sur la série 1-2-5
+de ses multiples, jamais ignoré : les graduations restent des multiples du pas
+demandé, et l'axe se lit encore — cent traits ne se lisent déjà plus. Sous le
+plafond, la suite est **exactement** celle d'avant, et le test l'exige.
+
+Un balayage par l'analyseur barre le retour d'un `seq(..., by = <pas>)` dans
+les quatre modules concernés.
+
+### L'écrivain d'images bornait la résolution, pas la taille
+
+`hstat_ecrire_image()` ramenait le DPI pour tenir sous 20 000 px, mais pas en
+dessous de 72. Des pouces venus du navigateur — l'export du graphique du Khi²
+calcule pixels / 96 sans borne — pouvaient valoir un million : même à 72 DPI le bitmap dépassait ce que Cairo sait allouer, et
+**l'image de secours, tracée à la même taille, échouait avec lui**. Aucun
+fichier n'était écrit, et Shiny renvoyait sa page d'erreur HTML sous le nom
+`.png` — le défaut exact que l'écrivain commun existe pour empêcher.
+
+La taille est désormais bornée chez l'écrivain, entre `HSTAT_IMG_POUCES_MIN`
+(1) et `HSTAT_IMG_POUCES_MAX` (200) — 200 pouces étant aussi la plus grande page
+qu'un PDF puisse porter. Le test lit les **octets** du fichier produit : la
+signature PNG, et les dimensions d'en-tête d'une figure ordinaire, inchangées.
+
+### Trois corrections de passage
+
+- **Le kit lisait une quosure par `[[`**, ce que rlang déprécie : un
+  avertissement à **chaque** tracé portant un pas, dans la console d'un serveur
+  partagé. Trouvé par le test ci-dessus, pas par une relecture. L'expression se
+  prend par `rlang::quo_get_expr()`.
+- **Un nombre de strates fractionnaire** faisait lever `sprintf("%d", 2.5)` et
+  tomber la sortie du calcul d'effectif d'enquête : `as.integer()` avant.
+- **Le type de plan entrait tel quel dans le nom du fichier téléchargé** :
+  il passe par `hstat_nom_fichier()`, comme les autres noms construits depuis
+  une saisie.
+
+### Ce que l'audit a écarté, et pourquoi
+
+- **Les dimensions d'export en pixels** des modules qui passent par
+  `hstat_export_dims()` étaient déjà bornées à 200 pouces : seuls les exports
+  qui calculent leurs pouces à la main étaient exposés.
+- **Les autres champs numériques sans plafond** (effectifs de puissance, nombre
+  de solutions filles, tailles de test des séries) sont bornés côté serveur
+  par leur calcul ou par `hstat_borne_client()` : vérifiés un par un.
+- **Le badge `#multiYBadge`** est écrit sans `ns()` des deux côtés — interface
+  et JavaScript — et se rencontre donc : ce n'est pas le défaut de namespace
+  déjà documenté.
+- **Les deux `shinyjs::runjs`** n'interpolent qu'un entier et une chaîne base64.

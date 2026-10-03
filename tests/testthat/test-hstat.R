@@ -20393,3 +20393,95 @@ test_that("le champ d'horizon mort des series temporelles ne revient pas", {
   code <- paste(.hstat_code_lignes(.hstat_module_path("mod_timeseries.R")), collapse = "\n")
   expect_false(grepl('ns("tsHorizon")', code, fixed = TRUE))
 })
+
+# =============================================================================
+#  AUDIT : UN PAS DE GRADUATION, UNE TAILLE D'IMAGE ET LA PAGE ELLE-MEME
+# =============================================================================
+
+test_that("un pas de graduation minuscule est elargi, jamais dessine tel quel", {
+  # Au-dela de cent traits le pas est elargi sur la serie 1-2-5 de ses
+  # multiples : 0,001 sur 0-100 demandait cent mille traits, 21 s de rendu.
+  b <- hstat_graduations(0, 100, 0.001)
+  expect_lte(length(b), HSTAT_GRADUATIONS_MAX + 1L)
+  expect_gte(length(b), 10L)
+  # Les traits restent des multiples du pas demande : on l'elargit, on ne
+  # l'invente pas.
+  q <- as.numeric(b) / 0.001
+  expect_equal(q, round(q), tolerance = 1e-6)
+  expect_true(attr(b, "pas") %in% (0.001 * 10^(0:6) %o% c(1, 2, 5)))
+  # Sous le plafond, rien ne change : c'est exactement la suite d'avant.
+  expect_equal(as.numeric(hstat_graduations(-37, 100, 20)), seq(-40, 100, by = 20))
+  expect_equal(as.numeric(hstat_graduations(3, 17, 2, aligner = FALSE)), seq(3, 17, by = 2))
+  # Une etendue demesuree ne fait pas davantage de traits.
+  expect_lte(length(hstat_graduations(-1e300, 1e300, 1)), HSTAT_GRADUATIONS_MAX + 1L)
+  # Rien a graduer : NULL, et l'appelant laisse ggplot choisir.
+  for (p in list(0, -1, NA, NULL, "x", Inf)) expect_null(hstat_graduations(0, 100, p))
+  expect_null(hstat_graduations(NA, 100, 1))
+  expect_null(hstat_graduations(-Inf, Inf, 1))
+})
+
+test_that("le kit de mise en forme elargit le pas au lieu de dessiner cent mille traits", {
+  skip_if_not_installed("ggplot2")
+  d <- data.frame(x = 1:10, y = seq(0, 100, length.out = 10))
+  g <- .hstat_extras_pas(ggplot2::ggplot(d, ggplot2::aes(x, y)) + ggplot2::geom_point(),
+                         "y", 1e-4)
+  brk <- g$scales$get_scales("y")$breaks
+  # La fonction de graduations est posee ; c'est ce qu'elle rend qui compte.
+  expect_true(is.function(brk))
+  expect_lte(length(brk(c(0, 100))), HSTAT_GRADUATIONS_MAX + 1L)
+})
+
+test_that("aucune suite de graduations ne se construit sur un pas venu du navigateur", {
+  # Les dix sites passent par `hstat_graduations()`. Un `seq(..., by = pas)`
+  # revenu dans l'un d'eux remettrait le gel du processus partage.
+  for (f in c("mod_viz.R", "mod_tests.R", "mod_threshold.R", "mod_yield.R")) {
+    ex <- parse(.hstat_module_path(f), keep.source = TRUE)
+    pd <- utils::getParseData(ex)
+    seqs <- pd$parent[pd$token == "SYMBOL_FUNCTION_CALL" & pd$text == "seq"]
+    fautifs <- character(0)
+    for (s in seqs) {
+      appel <- pd$parent[pd$id == s]
+      txt <- utils::getParseText(pd, appel)
+      if (grepl("by *= *[A-Za-z_.]*(step|pas)", txt, ignore.case = TRUE))
+        fautifs <- c(fautifs, txt)
+    }
+    expect_length(fautifs, 0L)
+  }
+})
+
+test_that("une image demesuree produit quand meme un fichier image, jamais rien", {
+  # Un million de pouces faisaient echouer le PNG ET l'image de secours,
+  # tracee a la meme taille : aucun fichier, donc la page d'erreur HTML de
+  # Shiny sous le nom `.png`.
+  f <- tempfile(fileext = ".png")
+  suppressWarnings(hstat_ecrire_image(f, function() plot(1:3), "png", 1e6, 1e6, 300))
+  expect_true(file.exists(f))
+  expect_identical(readBin(f, "raw", 4L), as.raw(c(0x89, 0x50, 0x4e, 0x47)))
+  # Une taille ordinaire n'est pas touchee : 4 x 3 pouces a 100 DPI.
+  g <- tempfile(fileext = ".png")
+  hstat_ecrire_image(g, function() plot(1:3), "png", 4, 3, 100)
+  ihdr <- readBin(g, "raw", 24L)[17:24]
+  dims <- c(sum(as.integer(ihdr[1:4]) * 256^(3:0)), sum(as.integer(ihdr[5:8]) * 256^(3:0)))
+  expect_equal(dims, c(400, 300))
+})
+
+test_that("la page se serialise une fois, puis se sert depuis le cache", {
+  n <- 0
+  ui <- shiny::fluidPage(shiny::tags$p("x"),
+                         htmltools::tagFunction(function() { n <<- n + 1; shiny::tags$span("y") }))
+  f <- hstat_ui_en_cache(ui)
+  expect_true(is.function(f))
+  r1 <- f(list()); r2 <- f(list())
+  expect_s3_class(r1, "httpResponse")
+  expect_identical(r1$content, r2$content)
+  expect_true(grepl("<span>y</span>", r1$content, fixed = TRUE))
+  # La serialisation n'a eu lieu qu'UNE fois pour deux visites.
+  expect_equal(n, 1)
+  # Une interface deja fonction depend peut-etre de la requete : intacte.
+  g <- function(req) shiny::tags$p("z")
+  expect_identical(hstat_ui_en_cache(g), g)
+  # Et l'application la pose bien.
+  src <- paste(readLines(file.path(.hstat_repo_root(), "inst/app/HStat.R"), warn = FALSE),
+               collapse = "\n")
+  expect_true(grepl("ui <- hstat_ui_en_cache(ui)", src, fixed = TRUE))
+})

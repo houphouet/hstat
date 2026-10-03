@@ -2456,8 +2456,15 @@ hstat_plot_extras_theme <- function(o, titre = TRUE) {
     if (!is.null(l$mapping[[aes]])) { m <- l$mapping[[aes]]; break }
   }
   if (is.null(m)) return(FALSE)
-  ex <- tryCatch(if (inherits(m, "formula")) m[[length(m)]] else m,
-                 error = function(e) NULL)
+  # Une quosure HERITE de « formula » : `m[[2]]` y marche encore, mais rlang
+  # avertit a chaque appel que l'acces est deprecie -- un avertissement par
+  # trace, en console d'un serveur partage. On prend l'expression par la porte
+  # prevue.
+  ex <- tryCatch(
+    if (requireNamespace("rlang", quietly = TRUE) && rlang::is_quosure(m))
+      rlang::quo_get_expr(m)
+    else if (inherits(m, "formula")) m[[length(m)]] else m,
+    error = function(e) NULL)
   if (is.null(ex)) return(FALSE)
   # `baseenv()` en environnement englobant : le mappage ne doit pas resoudre un
   # nom quelconque de l'espace global au passage.
@@ -2474,7 +2481,8 @@ hstat_plot_extras_theme <- function(o, titre = TRUE) {
     # Alignee sur le pas, PUIS bornee au cadre : partir de la borne brute
     # donnerait des graduations decalees (-37, -17, 3...) et zero ne serait pas
     # gradue, alors que c'est la seule qui compte des qu'il y a du negatif.
-    b <- seq(hstat_pas_debut(min(lim), pas), max(lim) + pas, by = pas)
+    b <- hstat_graduations(min(lim), max(lim) + pas, pas)
+    if (is.null(b)) return(ggplot2::waiver())
     b[b >= min(lim) & b <= max(lim)]
   }
   # DEUX ECHELLES NE S'AJOUTENT PAS : la seconde REMPLACE la premiere en
@@ -2856,10 +2864,28 @@ hstat_image_secours <- function(file, fmt = "png", message = NULL,
 #  d'erreur au milieu d'un rapport remis serait pire que son absence. Partout
 #  ailleurs (telechargement direct), le filet reste indispensable : sans lui,
 #  Shiny renvoie sa page d'erreur HTML sous le nom `.png` demande.
+# LA TAILLE AUSSI SE BORNE, et pas seulement la resolution. Des pouces venus du
+# navigateur (pixels / 96 a l'export du Khi2) peuvent valoir un million : meme
+# ramene a 72 DPI, le bitmap depasse ce que le peripherique sait allouer, et
+# l'image de secours -- tracee a la MEME taille -- echoue avec lui. Aucun
+# fichier n'etait alors ecrit, et Shiny renvoyait sa page d'erreur HTML sous le
+# nom `.png`. 200 pouces est aussi la plus grande page qu'un PDF puisse porter.
+HSTAT_IMG_POUCES_MIN <- 1
+HSTAT_IMG_POUCES_MAX <- 200
+
+.hstat_img_pouces <- function(v, defaut) {
+  v <- suppressWarnings(as.numeric(v)[1])
+  if (!isTRUE(is.finite(v)) || v <= 0) return(defaut)
+  min(max(v, HSTAT_IMG_POUCES_MIN), HSTAT_IMG_POUCES_MAX)
+}
+
 hstat_ecrire_image <- function(file, plot, fmt = "png", width = 10, height = 7.5,
                                dpi = 300, echec = NULL, secours = TRUE,
                                qualite = 95, compression = "lzw") {
   fmt <- hstat_img_fmt(fmt)
+  # La taille aussi est bornee, pas seulement la resolution : voir
+  # `.hstat_img_pouces()`.
+  width <- .hstat_img_pouces(width, 10); height <- .hstat_img_pouces(height, 7.5)
   # LE PLAFOND EST ICI, chez l'ecrivain commun : vingt exports en heritent sans
   # que chacun ait a y penser, et aucun ne peut l'oublier.
   #
@@ -3070,6 +3096,45 @@ hstat_etendue_axe <- function(valeurs, reperes = numeric(0)) {
 hstat_pas_debut <- function(borne, pas) {
   if (!isTRUE(is.finite(borne)) || !isTRUE(is.finite(pas)) || pas <= 0) return(borne)
   floor(borne / pas) * pas
+}
+
+# UN PAS DE GRADUATION VIENT DU NAVIGATEUR, ET IL FIXE UN NOMBRE DE TRAITS.
+# `seq(debut, fin, by = pas)` en rend (fin - debut) / pas : un pas de 0,001 sur
+# un axe de 0 a 100 en demande cent mille, et ggplot les dessine TOUS. Mesure :
+# 21 s de rendu pour cet axe, plus de deux minutes au pas suivant -- et Shiny
+# sert toutes les sessions depuis un seul processus R. Le cas n'a rien
+# d'hostile : un rendement en kg/ha (5 000) gradue au pas de 0,5 en demande
+# dix mille.
+#
+# Au-dela de `max` traits, le pas est ELARGI sur la serie 1-2-5 de ses
+# multiples, jamais ignore : les graduations restent alignees sur des
+# multiples du pas demande, et l'axe se lit encore. Cent traits sur un axe ne
+# se lisent deja plus ; personne ne perd rien qu'il aurait pu voir.
+#
+# `aligner = TRUE` cale le debut sur un multiple du pas (zero gradue des qu'il
+# est dans l'etendue). Rend NULL quand il n'y a rien a graduer : l'appelant
+# laisse alors ggplot choisir.
+HSTAT_GRADUATIONS_MAX <- 100L
+
+hstat_graduations <- function(debut, fin, pas, aligner = TRUE,
+                              max = HSTAT_GRADUATIONS_MAX) {
+  num <- function(v) suppressWarnings(as.numeric(v)[1])
+  debut <- num(debut); fin <- num(fin); pas <- num(pas)
+  if (!isTRUE(is.finite(debut)) || !isTRUE(is.finite(fin)) ||
+      !isTRUE(is.finite(pas)) || pas <= 0) return(NULL)
+  if (fin < debut) { t <- debut; debut <- fin; fin <- t }
+  n <- (fin - debut) / pas
+  if (!is.finite(n)) return(NULL)
+  if (n > max) {
+    k <- n / max
+    m <- 10^floor(log10(k))
+    f <- k / m
+    pas <- pas * m * (if (f <= 1) 1 else if (f <= 2) 2 else if (f <= 5) 5 else 10)
+  }
+  d <- if (isTRUE(aligner)) floor(debut / pas) * pas else debut
+  b <- seq(d, fin, by = pas)
+  attr(b, "pas") <- pas
+  b
 }
 
 hstat_valeur_pos <- function(y, position = c("dessus", "dedans", "pied")) {
@@ -10105,6 +10170,46 @@ hstat_reparer_deps <- function(ui) {
   }
   if (!length(corrigees)) return(ui)
   htmltools::attachDependencies(ui, corrigees, append = TRUE)
+}
+
+# ---------------------------------------------------------------------------
+# La page se serialise une fois, pas a chaque visite
+# ---------------------------------------------------------------------------
+# L'interface est un objet STATIQUE : construite une fois au demarrage, elle
+# rend le meme HTML a chaque requete. Shiny la serialise pourtant de nouveau a CHAQUE
+# ouverture de la page -- 1,7 Mo de balises, mesure a 4,4-5 s, dont 99 % dans
+# `htmltools::renderTags()`. Or Shiny sert toutes les sessions depuis un seul
+# processus R : pendant ces cinq secondes, TOUT LE MONDE attend. Dix visiteurs
+# qui ouvrent la page ensemble, c'est presque une minute de gel.
+#
+# Une fonction d'interface peut rendre directement une `httpResponse`, que
+# Shiny sert telle quelle. On serialise donc a la premiere visite et on garde
+# le resultat : les suivantes ne coutent que l'envoi.
+#
+# Trois points de construction :
+#   * `renderPage` est interne a shiny ; on le prend par `get()` sur l'espace
+#     de noms et, s'il manque (version future), l'interface est rendue telle
+#     quelle -- Shiny la serialise alors lui-meme, comme avant ;
+#   * le mode test de Shiny change le HTML : il fait partie de la cle ;
+#   * une interface deja FONCTION reste intacte -- elle peut dependre de la
+#     requete, et la mettre en cache servirait a l'un la page d'un autre.
+hstat_ui_en_cache <- function(ui) {
+  if (is.function(ui)) return(ui)
+  rendre <- tryCatch(get("renderPage", envir = asNamespace("shiny")),
+                     error = function(e) NULL)
+  if (!is.function(rendre)) return(ui)
+  cache <- new.env(parent = emptyenv())
+  function(req) {
+    test <- isTRUE(shiny::getShinyOption("testmode", default = FALSE))
+    cle <- if (test) "test" else "normal"
+    html <- cache[[cle]]
+    if (is.null(html)) {
+      html <- tryCatch(rendre(ui, 0, test), error = function(e) NULL)
+      if (is.null(html)) return(ui)
+      assign(cle, html, envir = cache)
+    }
+    shiny::httpResponse(200, content = html)
+  }
 }
 
 hstat_installer_replis_ui <- function(envir = globalenv()) {
