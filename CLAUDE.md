@@ -8865,6 +8865,97 @@ Le test compte les sérialisations par une `tagFunction` qui incrémente un
 compteur : deux visites, **une** sérialisation. Une mutation qui retire la mise
 en cache le fait échouer.
 
+### La requête reste dynamique, et une erreur de sérialisation se lève
+
+La première version **avalait** l'erreur : `tryCatch(..., error = NULL)`, puis
+l'interface brute rendue à Shiny, qui la sérialisait une seconde fois. La cause
+d'origine était perdue, rien n'était consigné, et chaque visite payait **deux**
+sérialisations ratées tant que le défaut durait.
+
+`hstat_ui_en_cache()` reste une **fonction de la requête**, évaluée par Shiny
+dans son contexte de restauration, et c'est elle qui sérialise à la demande. Ce
+qui est gardé, c'est le résultat d'une sérialisation **réussie**, jamais un
+échec :
+
+1. **L'erreur se lève**, de classe `hstat_serialisation`, avec la cause
+   d'origine dans son message **et** dans `$parent`. Elle est consignée en
+   console, Shiny répond 500. Rien n'entre en cache : un défaut passager se
+   corrige à la visite suivante. Le test compte **une** tentative par visite,
+   pas deux.
+2. **La page se revalide.** Elle porte un `ETag` (empreinte `rlang::hash` du
+   HTML) et `Cache-Control: no-cache` : le navigateur redemande toujours, et une
+   page inchangée répond **304 sans corps**. Mesuré au navigateur : **181 694
+   octets** au premier chargement, **260** au rechargement. `no-cache` n'est pas
+   `no-store` : une nouvelle version change l'empreinte, aucune page périmée ne
+   peut être servie.
+3. **Le cache se chauffe hors requête**, par `later::later()` dès que la boucle
+   d'événements est libre. Première visite sept secondes après l'ouverture du
+   port : **4,65 s** avant, **14 ms** après. Un échec à cette étape est
+   consigné, jamais fatal : la requête réessaie et lève alors l'erreur.
+
+`later` évalue ses rappels **hors des gestionnaires de l'appelant** : un
+`suppressMessages()` posé autour de `later::run_now()` ne voit rien. Les
+gestionnaires vivent donc **dans** le rappel.
+
+## La première session bloquait tout le monde 28 secondes
+
+Trouvé en mesurant la réactivité du serveur **pendant** qu'une session
+s'ouvre, et le défaut existait bien avant : un `GET /` lancé à l'instant où un
+visiteur arrive attendait **28 s**. Shiny sert toutes les sessions depuis un
+seul processus R — pendant ce temps, aucune page, aucun clic, aucune autre
+session ne recevait de réponse. Un rechargement prenait **30 s**.
+
+Le profil est sans ambiguïté : plus de **80 %** de ce temps est le compilateur
+d'octets de R (`compiler:::tryCmpfun`). Deux causes, et il faut les deux
+remèdes — chacun seul laisse la moitié :
+
+| | 1re vraie session | 2e session |
+|---|---|---|
+| avant | **28 s** | 1,7 s |
+| session fictive seule | 10,7 s | — |
+| session fictive + `server` compilé | **2,8 s** | — |
+
+1. **La fonction `server` n'est jamais compilée par le JIT.** Mesuré : après
+   une session, son corps est toujours un arbre syntaxique. Elle était donc
+   interprétée à chaque ouverture, et chaque fermeture qu'elle crée était
+   neuve. `compiler::cmpfun()` explicite, une fois.
+2. **Le JIT compile le reste au premier usage** : les dix-neuf serveurs de
+   module, et surtout les fonctions que `observe()`, `reactive()` et
+   `render*()` fabriquent à partir de leurs expressions — qu'**aucun nom ne
+   désigne**, si bien qu'aucune précompilation par nom ne les atteint (la
+   tentative a laissé 8,7 s sur la table). Une **session fictive**
+   (`shiny::testServer`) passe par exactement le même code qu'un visiteur, donc
+   remplit exactement le même cache.
+
+`hstat_prechauffer_session()` fait les deux dès que le processus est libre, en
+**deux rappels successifs** : une requête arrivée entre les deux est servie
+entre les deux. Le démarrage n'est pas allongé, et rien n'est ajouté au travail
+total — ce prix, le premier visiteur le payait.
+
+**L'enveloppe est la pièce qui rend la compilation différée possible.**
+`shinyApp()` capture la fonction serveur une fois pour toutes : la remplacer
+ensuite dans l'environnement global ne changerait rien. L'enveloppe lit
+`courant` **à chaque session**, si bien que celles ouvertes après la
+compilation passent par le code compilé. Une mutation qui retire l'échange fait
+échouer le test.
+
+Un échec n'est jamais fatal — c'est un gain de temps, pas une condition de
+fonctionnement. `options(hstat.prechauffage = FALSE)` le désactive. Le pire cas
+qui reste : un visiteur arrivé **pendant** le préchauffage attend la fin de
+l'étape en cours, soit au plus ce qu'il attendait déjà.
+
+**`later` est déclaré en `Suggests` et nommé dans la liste de la CI.** Il
+arrive avec shiny, donc il est toujours là — et c'est précisément pourquoi
+l'oubli ne se voyait pas en local : `R CMD check` refuse tout `later::` non
+déclaré, et le test qui confronte les paquets appelés à `DESCRIPTION` aussi.
+L'appel reste gardé par `requireNamespace()` : ce qui n'est pas déclaré n'est
+pas garanti.
+
+`shiny::testServer()` refuse de s'imbriquer (« may not indirectly call
+itself ») : le préchauffage ne doit jamais être déclenché depuis un test qui
+tourne lui-même sous `testServer`. D'où l'argument `differer = FALSE`, qui rend
+l'enveloppe et ses deux étapes sans rien planifier.
+
 ### Un pas de graduation fixe un nombre de traits, et c'est le navigateur qui le choisit
 
 `seq(debut, fin, by = pas)` rend (fin − début) / pas traits, et ggplot les

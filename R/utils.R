@@ -10173,43 +10173,150 @@ hstat_reparer_deps <- function(ui) {
 }
 
 # ---------------------------------------------------------------------------
-# La page se serialise une fois, pas a chaque visite
+# La page se serialise a la demande, une fois, et ses erreurs se levent
 # ---------------------------------------------------------------------------
-# L'interface est un objet STATIQUE : construite une fois au demarrage, elle
-# rend le meme HTML a chaque requete. Shiny la serialise pourtant de nouveau a CHAQUE
+# L'interface est un objet construit une fois au demarrage, et elle rend le
+# meme HTML a chaque requete. Shiny la serialise pourtant de nouveau a CHAQUE
 # ouverture de la page -- 1,7 Mo de balises, mesure a 4,4-5 s, dont 99 % dans
 # `htmltools::renderTags()`. Or Shiny sert toutes les sessions depuis un seul
-# processus R : pendant ces cinq secondes, TOUT LE MONDE attend. Dix visiteurs
-# qui ouvrent la page ensemble, c'est presque une minute de gel.
+# processus R : pendant ces cinq secondes, TOUT LE MONDE attend.
 #
-# Une fonction d'interface peut rendre directement une `httpResponse`, que
-# Shiny sert telle quelle. On serialise donc a la premiere visite et on garde
-# le resultat : les suivantes ne coutent que l'envoi.
+# La requete reste DYNAMIQUE : c'est une fonction de la requete, evaluee par
+# Shiny dans son contexte de restauration, et c'est elle qui serialise. Ce qui
+# est garde, c'est le RESULTAT d'une serialisation reussie -- jamais un echec.
 #
-# Trois points de construction :
-#   * `renderPage` est interne a shiny ; on le prend par `get()` sur l'espace
-#     de noms et, s'il manque (version future), l'interface est rendue telle
-#     quelle -- Shiny la serialise alors lui-meme, comme avant ;
-#   * le mode test de Shiny change le HTML : il fait partie de la cle ;
-#   * une interface deja FONCTION reste intacte -- elle peut dependre de la
-#     requete, et la mettre en cache servirait a l'un la page d'un autre.
-hstat_ui_en_cache <- function(ui) {
+# Quatre points de construction, chacun teste :
+#   * UNE ERREUR DE SERIALISATION SE LEVE. La version precedente l'avalait
+#     (`tryCatch(..., error = NULL)`) puis rendait l'interface brute a Shiny,
+#     qui la serialisait une seconde fois : l'erreur d'origine etait perdue, et
+#     chaque visite payait deux serialisations ratees. Elle est desormais
+#     consignee, nommee, et relancee : Shiny repond 500 et la console porte la
+#     cause. Rien n'est mis en cache, si bien qu'un defaut passager (dossier
+#     temporaire, paquet recharge) se corrige a la visite suivante ;
+#   * LA PAGE SE REVALIDE. Elle porte un `ETag` (empreinte du HTML) et
+#     `Cache-Control: no-cache` : le navigateur redemande toujours, mais une
+#     page inchangee repond 304 sans corps -- environ 170 Ko gzip epargnes a
+#     chaque visite. `no-cache` n'est pas `no-store` : une nouvelle version
+#     change l'empreinte, donc aucune page perimee ne peut etre servie ;
+#   * LE CACHE SE CHAUFFE HORS REQUETE. `later::later()` serialise des que la
+#     boucle d'evenements est libre, apres l'ouverture du port : le premier
+#     visiteur ne paie plus les cinq secondes. Un echec a cette etape est
+#     consigne, jamais fatal -- la requete reessaie et leve alors l'erreur ;
+#   * le mode test de Shiny change le HTML : il fait partie de la cle. Une
+#     interface deja FONCTION reste intacte -- elle peut dependre de la requete,
+#     et la mettre en cache servirait a l'un la page d'un autre.
+#
+# `renderPage` est interne a shiny ; on le prend par `get()` et, s'il manque
+# (version future), l'interface est rendue telle quelle : Shiny la serialise
+# alors lui-meme, comme avant -- le gain se perd, jamais la page.
+hstat_ui_en_cache <- function(ui, prechauffer = TRUE) {
   if (is.function(ui)) return(ui)
   rendre <- tryCatch(get("renderPage", envir = asNamespace("shiny")),
                      error = function(e) NULL)
   if (!is.function(rendre)) return(ui)
   cache <- new.env(parent = emptyenv())
-  function(req) {
-    test <- isTRUE(shiny::getShinyOption("testmode", default = FALSE))
-    cle <- if (test) "test" else "normal"
-    html <- cache[[cle]]
-    if (is.null(html)) {
-      html <- tryCatch(rendre(ui, 0, test), error = function(e) NULL)
-      if (is.null(html)) return(ui)
-      assign(cle, html, envir = cache)
-    }
-    shiny::httpResponse(200, content = html)
+  cle_courante <- function()
+    if (isTRUE(shiny::getShinyOption("testmode", default = FALSE))) "test" else "normal"
+  serialiser <- function(cle) {
+    page <- cache[[cle]]
+    if (!is.null(page)) return(page)
+    html <- tryCatch(
+      rendre(ui, 0, identical(cle, "test")),
+      error = function(e) {
+        msg <- trf("HStat : sérialisation de l'interface impossible : %s",
+                   conditionMessage(e))
+        message(msg)
+        stop(structure(class = c("hstat_serialisation", "error", "condition"),
+                       list(message = msg, call = NULL, parent = e)))
+      })
+    page <- list(html = html,
+                 etag = paste0('"', rlang::hash(html), '"'))
+    assign(cle, page, envir = cache)
+    page
   }
+  if (isTRUE(prechauffer) && requireNamespace("later", quietly = TRUE))
+    later::later(function() tryCatch(serialiser("normal"), error = function(e) NULL))
+  f <- function(req) {
+    page <- serialiser(cle_courante())
+    entetes <- list(ETag = page$etag, `Cache-Control` = "no-cache")
+    if (identical(req$HTTP_IF_NONE_MATCH, page$etag))
+      return(shiny::httpResponse(304L, content = "", headers = entetes))
+    shiny::httpResponse(200L, content = page$html, headers = entetes)
+  }
+  attr(f, "hstat_serialiser") <- serialiser
+  f
+}
+
+# ---------------------------------------------------------------------------
+# La premiere session ne paie plus la compilation de toute l'application
+# ---------------------------------------------------------------------------
+# Mesure, profil a l'appui : la PREMIERE session ouverte apres le demarrage
+# bloquait le processus 27 a 28 s, et plus de 80 % de ce temps etait le
+# compilateur d'octets de R (`compiler:::tryCmpfun`). Or Shiny sert TOUT LE
+# MONDE depuis ce processus : pendant ce temps, aucune page, aucun clic, aucune
+# autre session ne recevait de reponse.
+#
+# Deux causes, et il faut les deux remedes -- chacun seul laisse la moitie :
+#   * LA FONCTION `server` N'EST JAMAIS COMPILEE PAR LE JIT. Mesure : apres une
+#     session, son corps est toujours un arbre syntaxique. Chaque ouverture de
+#     session l'interpretait donc, et chaque fermeture qu'elle cree etait
+#     neuve, sans code compile a reprendre. On la compile une fois,
+#     explicitement : la premiere vraie session passe de 10,7 s a 3,0 s ;
+#   * LE JIT COMPILE LE RESTE AU PREMIER USAGE -- les dix-neuf serveurs de
+#     module, et les fonctions que `observe()`, `reactive()` et `render*()`
+#     fabriquent a partir de leurs expressions, qu'aucun nom ne designe. Une
+#     session FICTIVE (`shiny::testServer`) passe par exactement le meme code
+#     qu'un visiteur, donc remplit exactement le meme cache.
+#
+# Les deux se font des que la boucle d'evenements est libre apres l'ouverture
+# du port, en deux rappels successifs : une requete arrivee entre les deux est
+# servie entre les deux. Le demarrage n'est pas allonge d'une seconde, et rien
+# n'est ajoute au travail total -- ce prix, le premier visiteur le payait.
+#
+# `courant` est la piece qui rend la compilation differee possible :
+# `shinyApp()` capture la fonction serveur une fois pour toutes, et la
+# remplacer ensuite dans l'environnement global ne changerait rien. L'enveloppe
+# lit `courant` a chaque session, si bien que les sessions ouvertes apres la
+# compilation passent par le code compile.
+#
+# Un echec n'est jamais fatal -- c'est un gain de temps, pas une condition de
+# fonctionnement : il est consigne, et l'application tourne comme avant.
+# `options(hstat.prechauffage = FALSE)` le desactive.
+hstat_prechauffer_session <- function(server, differer = TRUE) {
+  if (!is.function(server)) return(server)
+  courant <- server
+  enveloppe <- function(input, output, session)
+    courant(input = input, output = output, session = session)
+  compiler <- function() {
+    cf <- tryCatch(compiler::cmpfun(server), error = function(e) {
+      message(trf("HStat : compilation du serveur impossible : %s", conditionMessage(e)))
+      NULL
+    })
+    if (is.function(cf)) courant <<- cf
+  }
+  session_fictive <- function() {
+    # Les gestionnaires vivent DANS le rappel : `later` evalue ses rappels hors
+    # de ceux de l'appelant, un `suppressMessages()` pose autour serait ignore.
+    t0 <- proc.time()[["elapsed"]]
+    ok <- tryCatch({
+      suppressWarnings(suppressMessages(shiny::testServer(enveloppe, {})))
+      TRUE
+    }, error = function(e) {
+      message(trf("HStat : préchauffage de la session impossible : %s",
+                  conditionMessage(e)))
+      FALSE
+    })
+    if (ok) message(trf("HStat : session préchauffée en %.1f s.",
+                        proc.time()[["elapsed"]] - t0))
+  }
+  attr(enveloppe, "hstat_etapes") <- list(compiler = compiler, session = session_fictive)
+  if (isFALSE(getOption("hstat.prechauffage", TRUE)) || !isTRUE(differer) ||
+      !requireNamespace("later", quietly = TRUE)) return(enveloppe)
+  later::later(function() {
+    compiler()
+    later::later(session_fictive)
+  })
+  enveloppe
 }
 
 hstat_installer_replis_ui <- function(envir = globalenv()) {
