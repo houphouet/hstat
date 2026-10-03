@@ -8944,6 +8944,13 @@ fonctionnement. `options(hstat.prechauffage = FALSE)` le désactive. Le pire cas
 qui reste : un visiteur arrivé **pendant** le préchauffage attend la fin de
 l'étape en cours, soit au plus ce qu'il attendait déjà.
 
+**`later` est déclaré en `Suggests` et nommé dans la liste de la CI.** Il
+arrive avec shiny, donc il est toujours là — et c'est précisément pourquoi
+l'oubli ne se voyait pas en local : `R CMD check` refuse tout `later::` non
+déclaré, et le test qui confronte les paquets appelés à `DESCRIPTION` aussi.
+L'appel reste gardé par `requireNamespace()` : ce qui n'est pas déclaré n'est
+pas garanti.
+
 `shiny::testServer()` refuse de s'imbriquer (« may not indirectly call
 itself ») : le préchauffage ne doit jamais être déclenché depuis un test qui
 tourne lui-même sous `testServer`. D'où l'argument `differer = FALSE`, qui rend
