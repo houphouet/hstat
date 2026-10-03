@@ -4561,6 +4561,42 @@ Plusieurs essais de mortalités naturelles différentes n'ont pas de repère
 commun : un seul trait serait faux pour tous sauf un. On s'abstient plutôt que
 d'en tracer un au hasard.
 
+### L'axe des doses : trois représentations, un seul ajustement
+
+Demandé à l'écran : représenter la figure en dose aussi, et pas seulement sur
+l'axe logarithmique. `HSTAT_DL50_ECHELLES_X` déclare trois lectures :
+
+| Réglage | Positions | Graduations écrites |
+|---|---|---|
+| `log` (défaut) | log10(dose) | en **doses**, série 1-2-5 — le papier log-probit |
+| `log10` | log10(dose) | en **logarithmes**, comme les colonnes « log10(dose) » des tableaux |
+| `dose` | dose | en doses, échelle **arithmétique**, à partir de zéro |
+
+**Le modèle est ajusté sur log10(dose) dans les trois cas : aucun chiffre ne
+bouge.** Toutes les abscisses se calculent en log10 et `tx()` les porte dans la
+représentation au moment du tracé ; le test exige que l'étiquette de la DL50
+soit identique d'une échelle à l'autre.
+
+Quatre points de construction, chacun testé :
+
+1. **En arithmétique, la grille du modèle est régulière en dose.** Une grille
+   régulière en log ne pose presque plus de points aux fortes doses, et la
+   courbe y serait anguleuse.
+2. **L'axe arithmétique part de zéro**, l'origine naturelle d'un axe de doses ;
+   la courbe dose-réponse y rejoint la mortalité naturelle. La marge du haut se
+   prend en dose : 8 % d'une étendue logarithmique feraient près de 40 % de vide.
+3. **La droite de Henry devient une courbe.** Elle n'est droite qu'en log-dose :
+   c'est un fait du modèle, et l'aide le dit plutôt que de laisser croire à un
+   défaut d'ajustement.
+4. **Les graduations logarithmiques mineures n'existent que sur l'axe `log`.**
+   Sur un axe arithmétique elles mentiraient ; sur un axe écrit en logarithmes
+   elles graduent des doses que les étiquettes ne nomment pas. Leur case se
+   retire donc de l'interface hors de cet axe — offerte, elle se cocherait sans
+   que l'image bouge.
+
+Les bornes « Dose minimale / maximale » restent saisies **en doses** dans les
+trois cas.
+
 ### Le rendu moderne des deux graphiques
 
 Les deux figures étaient déjà en ggplot2 ; ce qui manquait, c'est ce qu'une

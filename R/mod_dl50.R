@@ -2338,8 +2338,23 @@ HSTAT_DL50_GRAPHES <- c(
 HSTAT_DL50_STYLES <- c("Moderne — incertitude, DL50 chiffrée, modèle en légende" = "moderne",
                        "Classique — la figure d'origine" = "classique")
 
+# TROIS LECTURES DE L'AXE DES DOSES, UN SEUL AJUSTEMENT. Le modele est pose sur
+# log10(dose) dans les trois cas : seule la representation change, jamais un
+# chiffre.
+#   - « log »   : positions en log10, graduations ECRITES EN DOSES (le papier
+#                 log-probit). C'est le defaut, la lecture d'origine.
+#   - « log10 » : positions en log10, graduations ecrites en LOGARITHMES -- ce
+#                 que portent les colonnes « log10(dose) » des tableaux.
+#   - « dose »  : echelle ARITHMETIQUE, la dose telle qu'on la prepare. La
+#                 droite de Henry y devient une courbe : elle n'est droite
+#                 qu'en log-dose, et c'est un fait du modele, pas un defaut.
+HSTAT_DL50_ECHELLES_X <- c(
+  "Dose, échelle logarithmique"  = "log",
+  "log10(dose)"                  = "log10",
+  "Dose, échelle arithmétique"   = "dose")
+
 HSTAT_DL50_OPT_DEFAUT <- list(
-  type = "probit",
+  type = "probit", echelle_x = "log",
   style = "moderne", barres = TRUE, annot_dl = TRUE, modele = TRUE,
   logticks = TRUE,
   points = TRUE, courbe = FALSE, droite = TRUE, bande = TRUE, reperes = TRUE,
@@ -2440,6 +2455,13 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
   }, character(1))
   nom <- make.unique(nom, sep = " ")
   reponse <- identical(as.character(o$type %||% "probit")[1], "reponse")
+  # L'ECHELLE DE L'AXE DES DOSES. Toutes les abscisses sont calculees en
+  # log10(dose), l'unite du modele ; `tx()` les porte dans la representation
+  # choisie au moment de les tracer. Un nom inconnu retombe sur le defaut.
+  ech <- as.character(o$echelle_x %||% "log")[1]
+  if (!ech %in% HSTAT_DL50_ECHELLES_X) ech <- "log"
+  arith <- identical(ech, "dose")
+  tx <- if (arith) function(z) 10^z else identity
 
   # LE POINT TRACE N'EST PAS LE MEME D'UN GRAPHIQUE A L'AUTRE, et les confondre
   # revient a superposer deux quantites differentes. La droite de Henry porte
@@ -2474,7 +2496,7 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
     w <- .hstat_dl50_wilson(t$Morts, t$Effectif, fits[[i]]$alpha %||% 0.05)
     cc <- fits[[i]]$c
     if (reponse)
-      return(data.frame(Essai = nom[i], x = t$Log_dose,
+      return(data.frame(Essai = nom[i], x = tx(t$Log_dose),
                         y = 100 * t$Mortalite_observee,
                         lo = 100 * w$lo, hi = 100 * w$hi,
                         stringsAsFactors = FALSE))
@@ -2487,7 +2509,7 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
       qc <- (q - cc) / (1 - cc)
       ifelse(qc <= 0, -Inf, ifelse(qc >= 1, Inf, .hstat_dl50_qnorm(pmin(pmax(qc, 1e-12), 1 - 1e-12))))
     }
-    data.frame(Essai = nom[i], x = t$Log_dose[ok], y = t$Probit_corrige[ok],
+    data.frame(Essai = nom[i], x = tx(t$Log_dose[ok]), y = t$Probit_corrige[ok],
                lo = vers_probit(w$lo)[ok], hi = vers_probit(w$hi)[ok],
                stringsAsFactors = FALSE)
   }))
@@ -2502,13 +2524,31 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
   if (is.finite(o$x_min) && o$x_min > 0) rg[1] <- log10(o$x_min)
   if (is.finite(o$x_max) && o$x_max > 0) rg[2] <- log10(o$x_max)
   if (diff(rg) <= 0) return(NULL)
-  grille_x <- seq(rg[1], rg[2], length.out = 200)
+  # LA FENETRE TRACEE (`xr`), dans l'unite de l'axe. En echelle arithmetique
+  # elle part de ZERO par defaut : c'est l'origine naturelle d'un axe de
+  # doses, et la courbe dose-reponse y rejoint la mortalite naturelle. La
+  # marge du haut se prend en dose, pas en log : 8 % d'une etendue
+  # logarithmique feraient pres de 40 % de vide a droite.
+  # La grille du modele (`grille_z`) reste en log10 ; en arithmetique elle est
+  # REGULIERE EN DOSE, sinon la courbe serait anguleuse aux fortes doses, ou
+  # une grille reguliere en log ne pose presque plus de points.
+  if (arith) {
+    dmax <- max(10^unlist(lapply(fits, function(f) f$table$Log_dose)), na.rm = TRUE)
+    xr <- c(if (is.finite(o$x_min) && o$x_min >= 0) o$x_min else 0,
+            if (is.finite(o$x_max) && o$x_max > 0) o$x_max else dmax * 1.05)
+    if (diff(xr) <= 0) return(NULL)
+    grille_x <- seq(xr[1], xr[2], length.out = 400)
+    grille_z <- log10(pmax(grille_x, xr[2] * 1e-6))
+  } else {
+    xr <- rg
+    grille_x <- grille_z <- seq(rg[1], rg[2], length.out = 200)
+  }
 
   lig <- do.call(rbind, lapply(seq_along(fits), function(i) {
     f <- fits[[i]]
-    eta <- f$a + f$b * grille_x
-    se <- sqrt(pmax(f$Vh[1, 1] + grille_x^2 * f$Vh[2, 2] +
-                      2 * grille_x * f$Vh[1, 2], 0))
+    eta <- f$a + f$b * grille_z
+    se <- sqrt(pmax(f$Vh[1, 1] + grille_z^2 * f$Vh[2, 2] +
+                      2 * grille_z * f$Vh[1, 2], 0))
     # L'INTERVALLE SE CONSTRUIT SUR LE PROBIT, PUIS SE TRANSPORTE. F est
     # monotone : les bornes restent donc dans [0 ; 100] et l'asymetrie de la
     # sigmoide est respectee. Les construire directement sur le pourcentage
@@ -2643,7 +2683,7 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
       # lequel est la DL50.
       if (isTRUE(o$repere_etiquette))
         p <- p + ggplot2::annotate(
-          "text", x = rg[1], y = yr, label = paste0("DL", HSTAT_DL50_SEUILS),
+          "text", x = xr[1], y = yr, label = paste0("DL", HSTAT_DL50_SEUILS),
           hjust = -0.1, vjust = -0.4, size = max(2, o$grad_y_taille / 3),
           colour = o$repere_couleur)
     }
@@ -2657,7 +2697,7 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
                                    linewidth = o$repere_epaisseur)
       if (isTRUE(o$repere_etiquette))
         p <- p + ggplot2::annotate(
-          "text", x = rg[2], y = 100 * cc[1], label = tr("mortalité naturelle"),
+          "text", x = xr[2], y = 100 * cc[1], label = tr("mortalité naturelle"),
           hjust = 1.05, vjust = -0.4, size = max(2, o$grad_y_taille / 3),
           colour = o$repere_couleur)
     }
@@ -2682,12 +2722,12 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
       f <- fits[[i]]
       d <- hstat_dl50_doses_letales(f, 50)
       if (is.null(d) || !nrow(d) || !is.finite(d$Log_dose[1])) return(NULL)
-      data.frame(Essai = nom[i], x = d$Log_dose[1],
+      data.frame(Essai = nom[i], x = tx(d$Log_dose[1]),
                  y = if (reponse) 100 * (f$c + (1 - f$c) * 0.5) else 0,
                  dose = d$Dose[1],
                  stringsAsFactors = FALSE)
     }))
-    if (!is.null(dl)) dl <- dl[dl$x >= rg[1] & dl$x <= rg[2] &
+    if (!is.null(dl)) dl <- dl[dl$x >= xr[1] & dl$x <= xr[2] &
                                  dl$y >= ylim[1] & dl$y <= ylim[2], , drop = FALSE]
     if (!is.null(dl) && nrow(dl)) {
       if (!multiple) {
@@ -2697,7 +2737,7 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
         p <- p +
           ggplot2::annotate("segment", x = dl$x, xend = dl$x, y = ylim[1], yend = dl$y,
                             linetype = "dashed", colour = "#6b7280", linewidth = 0.35) +
-          ggplot2::annotate("segment", x = rg[1], xend = dl$x, y = dl$y, yend = dl$y,
+          ggplot2::annotate("segment", x = xr[1], xend = dl$x, y = dl$y, yend = dl$y,
                             linetype = "dashed", colour = "#6b7280", linewidth = 0.35)
       }
       p <- p + if (multiple)
@@ -2715,9 +2755,9 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
         # de la DL50 elle est au-dessus, en deca au-dessous. La place libre est
         # donc en bas a droite, ou en haut a gauche quand la DL50 est deja dans
         # la moitie droite de l'axe.
-        droite <- dl$x < mean(rg)
+        droite <- dl$x < mean(xr)
         p <- p + ggplot2::annotate("label",
-          x = dl$x + (if (droite) 1 else -1) * diff(rg) * 0.04,
+          x = dl$x + (if (droite) 1 else -1) * diff(xr) * 0.04,
           y = dl$y + (if (droite) -1 else 1) * diff(ylim) * 0.06, label = etiq,
           hjust = if (droite) 0 else 1, vjust = if (droite) 1 else 0,
           size = max(3, o$grad_y_taille / 2.8),
@@ -2762,18 +2802,28 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
     else ggplot2::waiver())
 
   p <- p +
-    ggplot2::coord_cartesian(xlim = rg, ylim = ylim) +
+    ggplot2::coord_cartesian(xlim = xr, ylim = ylim) +
     ggplot2::scale_x_continuous(
       name = if (nzchar(o$xlab)) o$xlab else {
         # L'unite vient de l'essai, pas d'un reglage : la retaper dans le titre
         # d'axe alors qu'elle figure deja dans la fiche serait une deuxieme
         # saisie du meme fait, donc une occasion de divergence.
         u <- hstat_dl50_unite(fits[[1]])
-        if (nzchar(u)) trf("Dose en %s (échelle logarithmique)", u)
-        else tr("Dose (échelle logarithmique)")
+        switch(ech,
+          log10 = if (nzchar(u)) trf("log10(dose en %s)", u) else tr("log10(dose)"),
+          dose = if (nzchar(u)) trf("Dose en %s", u) else tr("Dose"),
+          if (nzchar(u)) trf("Dose en %s (échelle logarithmique)", u)
+          else tr("Dose (échelle logarithmique)"))
       },
-      breaks = if (moderne) .hstat_dl50_breaks_log(rg) else ggplot2::waiver(),
-      labels = function(v) formatC(10^v, format = "g", digits = 3)) +
+      # Les graduations 1-2-5 n'ont de sens que sur l'axe logarithmique ecrit
+      # en doses ; ailleurs ce sont des graduations ordinaires.
+      breaks = if (moderne && identical(ech, "log")) .hstat_dl50_breaks_log(rg)
+               else ggplot2::waiver(),
+      # `formatC()` cale ses nombres sur une largeur commune : sans `trimws()`
+      # les graduations sortent precedees de blancs.
+      labels = if (identical(ech, "log"))
+        function(v) trimws(formatC(10^v, format = "g", digits = 3))
+      else function(v) trimws(formatC(v, format = "g", digits = 4))) +
     axe_y +
     ggplot2::labs(title = if (nzchar(o$titre)) o$titre else NULL,
                   subtitle = if (nzchar(o$sous_titre)) o$sous_titre else NULL,
@@ -2822,7 +2872,10 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
   }
   # Graduations logarithmiques mineures, au pied de l'axe des doses : ce sont
   # elles qui disent au premier regard que l'axe est logarithmique.
-  if (moderne && isTRUE(o$logticks))
+  # Elles n'existent que la ou l'axe EST logarithmique et ecrit en doses :
+  # sur un axe arithmetique elles mentiraient, sur un axe ecrit en
+  # logarithmes elles graduent des doses que les etiquettes ne nomment pas.
+  if (moderne && isTRUE(o$logticks) && identical(ech, "log"))
     p <- p + ggplot2::annotation_logticks(
       sides = "b", colour = "#9ca3af", outside = FALSE,
       short = ggplot2::unit(0.05, "cm"), mid = ggplot2::unit(0.09, "cm"),
@@ -3130,7 +3183,15 @@ mod_dl50_ui <- function(id) {
                               " réponse mesurée — une sigmoïde qui part de la mortalité",
                               " naturelle et monte vers 100 %. Elle se lit sans savoir",
                               " ce qu'est un probit, et elle porte les doses à 0 % et à",
-                              " 100 %, que la droite ne peut pas tracer.")),
+                              " 100 %, que la droite ne peut pas tracer."),
+              # L'echelle de l'axe des doses vit A COTE du type : c'est un choix
+              # de representation du meme ordre, et non un reglage d'habillage.
+              shiny::radioButtons(ns("gEchelleX"), "Axe des doses",
+                                  choices = HSTAT_DL50_ECHELLES_X, selected = "log"),
+              shiny::helpText("Le modèle est ajusté sur log10(dose) dans les trois cas :",
+                              " seule la représentation change, aucun chiffre. En échelle",
+                              " arithmétique, la droite de Henry devient une courbe — elle",
+                              " n'est droite qu'en log-dose.")),
 
             .hstat_opt_section("Éléments tracés", "eye", "#2e86c1", "#eaf3fb",
               shiny::checkboxInput(ns("gPoints"), "Points de l'essai (PE)", TRUE),
@@ -3150,7 +3211,11 @@ mod_dl50_ui <- function(id) {
                 shiny::checkboxInput(ns("gBarres"), "Intervalle binomial sur chaque point (Wilson)", TRUE),
                 shiny::checkboxInput(ns("gAnnotDL"), "DL50 chiffrée sur la figure", TRUE),
                 shiny::checkboxInput(ns("gModele"), "Modèle et ajustement en légende (un essai)", TRUE),
-                shiny::checkboxInput(ns("gLogticks"), "Graduations logarithmiques mineures", TRUE))),
+                # Sans objet hors de l'axe logarithmique ecrit en doses : offert
+                # ailleurs, il se cocherait sans que l'image bouge.
+                shiny::conditionalPanel(
+                  condition = sprintf("input['%s'] == 'log'", ns("gEchelleX")),
+                  shiny::checkboxInput(ns("gLogticks"), "Graduations logarithmiques mineures", TRUE)))),
 
             .hstat_opt_section("Titres", "heading", "#8e44ad", "#f4ecfa",
               shiny::textInput(ns("gTitre"), "Titre du graphique"),
@@ -4393,6 +4458,7 @@ mod_dl50_server <- function(id, values) {
       nb <- function(id, defaut) .hstat_num1(input[[id]], defaut)
       list(
         type = input$gType %||% "probit",
+        echelle_x = input$gEchelleX %||% "log",
         style = input$gStyle %||% "moderne",
         barres = isTRUE(input$gBarres), annot_dl = isTRUE(input$gAnnotDL),
         modele = isTRUE(input$gModele), logticks = isTRUE(input$gLogticks),
