@@ -20166,6 +20166,62 @@ test_that("les barres de chaque point sont l'intervalle de Wilson, dans le cadre
   expect_gte(min(br$ymin), 0); expect_lte(max(br$ymax), 100)
 })
 
+test_that("l'axe des doses se represente en log, en log10(dose) ou en dose", {
+  skip_if_not_installed("ggplot2")
+  f <- .hstat_dl50_fit_b()
+  d <- hstat_dl50_doses_letales(f, 50)
+  losange <- function(p) which(vapply(p$layers, function(l)
+    inherits(l$geom, "GeomPoint") && identical(l$aes_params$shape, 23), logical(1)))
+  etiquette <- function(p, b) b$data[[which(vapply(p$layers, function(l)
+    inherits(l$geom, "GeomLabel"), logical(1)))]]$label
+  graduations <- function(b) b$layout$panel_params[[1]]$x$get_labels()
+  for (ty in c("probit", "reponse")) {
+    pl <- hstat_dl50_graphique(list(f), list(type = ty, echelle_x = "log"))
+    pg <- hstat_dl50_graphique(list(f), list(type = ty, echelle_x = "log10"))
+    pd <- hstat_dl50_graphique(list(f), list(type = ty, echelle_x = "dose"))
+    bl <- ggplot2::ggplot_build(pl); bg <- ggplot2::ggplot_build(pg)
+    bd <- ggplot2::ggplot_build(pd)
+    # La DL50 est placee a SA dose dans les trois representations : en log10
+    # sur les deux axes logarithmiques, en dose sur l'axe arithmetique.
+    expect_equal(bl$data[[losange(pl)]]$x, d$Log_dose, tolerance = 1e-9, info = ty)
+    expect_equal(bg$data[[losange(pg)]]$x, d$Log_dose, tolerance = 1e-9, info = ty)
+    expect_equal(bd$data[[losange(pd)]]$x, d$Dose, tolerance = 1e-9, info = ty)
+    # Aucun chiffre ne change : l'etiquette de la DL50 est la meme partout.
+    expect_identical(etiquette(pd, bd), etiquette(pl, bl))
+    # L'axe logarithmique ecrit des DOSES, l'axe log10 des LOGARITHMES : sur
+    # des doses de 0,1 a 5, seul le second porte des graduations negatives.
+    expect_false(any(grepl("^-", graduations(bl))), info = ty)
+    expect_true(any(grepl("^-", graduations(bg))), info = ty)
+    # L'axe arithmetique part de zero, l'origine d'un axe de doses.
+    expect_equal(pd$coordinates$limits$x[1], 0)
+    # Les graduations logarithmiques mineures n'existent que sur l'axe log.
+    expect_true("GeomLogticks" %in% .hstat_dl50_couches(pl), info = ty)
+    expect_false("GeomLogticks" %in% .hstat_dl50_couches(pg), info = ty)
+    expect_false("GeomLogticks" %in% .hstat_dl50_couches(pd), info = ty)
+  }
+  # Les points de la courbe dose-reponse sont aux doses de l'essai.
+  pd <- hstat_dl50_graphique(list(f), list(type = "reponse", echelle_x = "dose"))
+  bd <- ggplot2::ggplot_build(pd)
+  kp <- which(vapply(pd$layers, function(l) inherits(l$geom, "GeomPoint") &&
+                       !identical(l$aes_params$shape, 23), logical(1)))
+  expect_equal(sort(bd$data[[kp]]$x), sort(f$table$Dose), tolerance = 1e-9)
+  # A dose nulle, la courbe rejoint la mortalite naturelle.
+  kl <- which(vapply(pd$layers, function(l) inherits(l$geom, "GeomLine"), logical(1)))
+  li <- bd$data[[kl]]
+  expect_equal(li$y[which.min(li$x)], 100 * f$c, tolerance = 1e-3)
+  # Le titre d'axe dit la representation.
+  expect_identical(pd$scales$get_scales("x")$name, "Dose en mg/l")
+  pg <- hstat_dl50_graphique(list(f), list(type = "reponse", echelle_x = "log10"))
+  expect_identical(pg$scales$get_scales("x")$name, "log10(dose en mg/l)")
+  # Un nom inconnu retombe sur l'axe logarithmique, jamais sur une erreur.
+  px <- hstat_dl50_graphique(list(f), list(echelle_x = "n'importe"))
+  expect_true("GeomLogticks" %in% .hstat_dl50_couches(px))
+  # Le reglage est declare dans l'interface ET lu par le reactif du graphique.
+  src <- paste(readLines(.hstat_module_path("mod_dl50.R"), warn = FALSE), collapse = "\n")
+  expect_true(grepl('ns("gEchelleX")', src, fixed = TRUE))
+  expect_true(grepl("echelle_x = input$gEchelleX", src, fixed = TRUE))
+})
+
 test_that("l'axe des doses est gradue en serie 1-2-5", {
   expect_equal(10^.hstat_dl50_breaks_log(log10(c(0.08, 6))),
                c(0.1, 0.2, 0.5, 1, 2, 5), tolerance = 1e-9)
