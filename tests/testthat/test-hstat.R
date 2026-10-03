@@ -18535,16 +18535,19 @@ test_that("l'echelle de l'erreur-type et de l'ecart-type est DECLAREE", {
   expect_false(isTRUE(all.equal(v[2], dl$Erreur_type[i], tolerance = 1e-2)))
   expect_equal(lire(dl$DL_ecart_type[i]),
                c(dl$Dose[i], dl$Ecart_type_dose[i]), tolerance = 1e-4)
-  # SUR LE LOG10, LA MEME LECTURE ET SANS APPROXIMATION : log10(DL) suivi de
-  # l'erreur-type (ou de l'ecart-type) du log10 -- ceux de WIN DL.
+  # « DL ± Erreur-type (log10(dose)) » : la DOSE de la colonne « Dose »,
+  # suivie de l'erreur-type (ou de l'ecart-type) du log10 -- ceux de WIN DL.
+  # Demande a l'ecran : la valeur centrale est la dose, pas son logarithme.
   expect_equal(lire(dl$DL_erreur_type_log[i]),
-               c(dl$Log_dose[i], dl$Erreur_type[i]), tolerance = 1e-4)
+               c(dl$Dose[i], dl$Erreur_type[i]), tolerance = 1e-4)
   expect_equal(lire(dl$DL_ecart_type_log[i]),
-               c(dl$Log_dose[i], dl$Ecart_type[i]), tolerance = 1e-4)
-  # Les deux echelles ne se confondent pas : la valeur centrale du log10 n'est
-  # pas la dose, et l'erreur-type accolee n'est pas celle de la dose.
-  expect_false(isTRUE(all.equal(lire(dl$DL_erreur_type_log[i]),
-                                lire(dl$DL_erreur_type[i]), tolerance = 1e-2)))
+               c(dl$Dose[i], dl$Ecart_type[i]), tolerance = 1e-4)
+  expect_false(isTRUE(all.equal(lire(dl$DL_erreur_type_log[i])[1],
+                                dl$Log_dose[i], tolerance = 1e-2)))
+  # Meme dose des deux cotes, mais pas la meme erreur-type : celle du log10
+  # d'un cote, celle de la dose de l'autre.
+  expect_false(isTRUE(all.equal(lire(dl$DL_erreur_type_log[i])[2],
+                                lire(dl$DL_erreur_type[i])[2], tolerance = 1e-2)))
   # Pas de blanc de calage au milieu de la cellule : `formatC()` en pose.
   expect_false(any(grepl("  ", c(dl$DL_erreur_type, dl$DL_ecart_type,
                                  dl$DL_erreur_type_log, dl$DL_ecart_type_log))))
@@ -18720,6 +18723,21 @@ test_that("sur la DL50, le graphique vient AVANT ses reglages de mise en forme",
     expect_length(ch, 1L)
     expect_true(.hstat_dans_colonne(ch[[1]]), label = cible)
   }
+
+  # « AXES » ET « COULEURS ET LEGENDE » SOUS L'EXPORT, DANS LA BOITE DE LA
+  # FIGURE. Redemande a l'ecran : posees dans une rangee a part, elles
+  # tombaient sous la plus haute des deux colonnes -- celle des reglages de
+  # gauche --, loin du graphique. L'ordre du HTML ne distingue pas les deux
+  # dispositions (l'export precede les deux sections dans l'une comme dans
+  # l'autre) : c'est l'ARBRE qui tranche -- meme boite, meme `col-sm-8`.
+  boite <- function(ch) any(grepl("(^| )box( |$)", ch)) && any(grepl("col-sm-8", ch))
+  expect_true(boite(.hstat_ancetres(ui, "graphe$")[[1]]))
+  for (cible in c("gXlab$", "gTheme$"))
+    expect_true(boite(.hstat_ancetres(ui, cible)[[1]]), label = cible)
+  dl <- regexpr('id="dl50-gDl"', h, fixed = TRUE)
+  expect_gt(dl, 0L)
+  for (k in c("dl50-gXlab", "dl50-gTheme"))
+    expect_lt(dl, regexpr(k, h, fixed = TRUE), label = paste(k, "apres l'export"))
 })
 
 
@@ -20096,9 +20114,11 @@ test_that("le style moderne porte l'incertitude, la DL50 chiffree et le modele",
     m <- hstat_dl50_graphique(list(f), list(type = ty))
     cl <- hstat_dl50_graphique(list(f), list(type = ty, style = "classique"))
     gm <- .hstat_dl50_couches(m); gc <- .hstat_dl50_couches(cl)
-    # Barres binomiales, DL50 avec son intervalle, graduations logarithmiques.
-    expect_true(all(c("GeomLinerange", "GeomErrorbar", "GeomLabel",
-                      "GeomLogticks") %in% gm), info = ty)
+    # Barres binomiales, DL50 chiffree, graduations logarithmiques -- et PAS
+    # d'intervalle sur la DL50 : retire a la demande, il reste au tableau.
+    expect_true(all(c("GeomLinerange", "GeomLabel", "GeomLogticks") %in% gm),
+                info = ty)
+    expect_false("GeomErrorbar" %in% gm, info = ty)
     # Le classique rend la figure d'origine : aucune de ces couches.
     expect_false(any(c("GeomLinerange", "GeomErrorbar", "GeomLabel",
                        "GeomLogticks") %in% gc), info = ty)
@@ -20107,26 +20127,28 @@ test_that("le style moderne porte l'incertitude, la DL50 chiffree et le modele",
   }
 })
 
-test_that("la DL50 de la figure est celle du tableau, intervalle compris", {
+test_that("la DL50 de la figure est celle du tableau, sans son intervalle", {
   skip_if_not_installed("ggplot2")
-  # Deux intervalles differents pour la meme DL50 dans le meme rapport
-  # seraient la copie qui ment.
   f <- .hstat_dl50_fit_b()
   d <- hstat_dl50_doses_letales(f, 50)
-  b <- ggplot2::ggplot_build(hstat_dl50_graphique(list(f), list(type = "reponse")))
-  k <- which(vapply(hstat_dl50_graphique(list(f), list(type = "reponse"))$layers,
-                    function(l) inherits(l$geom, "GeomErrorbar"), logical(1)))
-  eb <- b$data[[k]]
-  expect_equal(eb$xmin, log10(d$Limite_inf), tolerance = 1e-9)
-  expect_equal(eb$xmax, log10(d$Limite_sup), tolerance = 1e-9)
-  # Et a la hauteur de la DL50 sur la mortalite OBSERVEE : c + (1 - c)/2.
-  expect_equal(eb$y, 100 * (f$c + (1 - f$c) * 0.5), tolerance = 1e-9)
+  p <- hstat_dl50_graphique(list(f), list(type = "reponse"))
+  b <- ggplot2::ggplot_build(p)
+  # Le losange : a la DL50 du tableau, a la hauteur de la DL50 sur la
+  # mortalite OBSERVEE, c + (1 - c)/2.
+  k <- which(vapply(p$layers, function(l) inherits(l$geom, "GeomPoint") &&
+                      identical(l$aes_params$shape, 23), logical(1)))
+  expect_length(k, 1L)
+  expect_equal(b$data[[k]]$x, d$Log_dose, tolerance = 1e-9)
+  expect_equal(b$data[[k]]$y, 100 * (f$c + (1 - f$c) * 0.5), tolerance = 1e-9)
+  expect_false("GeomErrorbar" %in% .hstat_dl50_couches(p))
   # L'etiquette porte le chiffre et l'unite.
   kl <- which(vapply(hstat_dl50_graphique(list(f), list(type = "reponse"))$layers,
                      function(l) inherits(l$geom, "GeomLabel"), logical(1)))
   lab <- b$data[[kl]]$label
   expect_true(grepl("mg/l", lab, fixed = TRUE))
   expect_true(grepl(.hstat_dl50_nb(d$Dose), lab, fixed = TRUE))
+  # L'intervalle ne figure plus dans l'etiquette non plus.
+  expect_false(grepl("IC", lab, fixed = TRUE))
 })
 
 test_that("les barres de chaque point sont l'intervalle de Wilson, dans le cadre", {
@@ -20174,7 +20196,11 @@ test_that("a plusieurs essais, chacun a sa DL50 et aucune etiquette ne se recouv
   g <- .hstat_dl50_couches(p)
   expect_false("GeomLabel" %in% g)
   expect_null(p$labels$caption)
-  k <- which(vapply(p$layers, function(l) inherits(l$geom, "GeomErrorbar"), logical(1)))
+  # Un losange par essai, et plus de barre d'intervalle.
+  expect_false("GeomErrorbar" %in% g)
+  k <- which(vapply(p$layers, function(l) inherits(l$geom, "GeomPoint") &&
+                      identical(l$aes_params$shape, 23), logical(1)))
+  expect_length(k, 1L)
   expect_equal(nrow(ggplot2::ggplot_build(p)$data[[k]]), 2L)
 })
 

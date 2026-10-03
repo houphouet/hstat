@@ -4307,6 +4307,20 @@ le déplacement :
 Aucun débordement horizontal, zéro erreur de page, et les trois contrôles
 essayés au clic (grille, second axe, type de graphique) répondent.
 
+#### Puis sous l'export, dans la boîte de la figure
+
+Redemandé à l'écran. Dans leur rangée à part, sous les **deux** colonnes, les
+deux sections tombaient sous la plus haute — celle des quarante réglages de
+gauche — et restaient loin du graphique. Elles vivent désormais **dans la boîte
+de la figure, juste après « Export de l'image »** : on règle, et la figure est
+juste au-dessus.
+
+L'ordre du HTML ne distingue pas les deux dispositions — l'export précède les
+deux sections dans l'une comme dans l'autre. C'est l'**arbre** qui tranche : le
+test exige que `gXlab` et `gTheme` partagent la boîte et la `col-sm-8` du
+graphique. Leur rangée étant intérieure à cette colonne, ses deux `col-sm-6` ne
+peuvent flotter à côté de rien d'autre.
+
 #### Chaque groupe dans sa propre `fluidRow`, jamais à la suite des deux boîtes
 
 C'est le point de construction, et il découle directement du défaut corrigé en
@@ -4435,12 +4449,15 @@ Trois décisions, chacune testée :
    sortait avec des blancs au milieu de la cellule : `trimws()` sur chaque
    moitié, et une assertion qui refuse tout double blanc.
 
-**Et la même lecture sur le log10, à côté.** Redemandé à l'écran : deux
-colonnes « DL ± Erreur-type (log10(dose)) » et « DL ± Écart-type (log10(dose)) »
-portent `log10(DL) ± s(log10)` — ceux de WIN DL, **exacts**, sans la
-delta-méthode. Le libellé passe par `hstat_dl50_libelle_echelle()`, comme les
-autres colonnes du log10. Le test exige que les deux lectures ne se confondent
-pas : la valeur centrale du log10 n'est pas la dose.
+**Et la même lecture avec l'erreur-type du log10, à côté.** Redemandé à
+l'écran : deux colonnes « DL ± Erreur-type (log10(dose)) » et « DL ± Écart-type
+(log10(dose)) ». Elles ont d'abord porté `log10(DL) ± s(log10)` ; l'utilisateur
+a tranché pour **la dose de la colonne « Dose »**, suivie de l'erreur-type (ou
+de l'écart-type) du log10 — ceux de WIN DL, exacts, sans la delta-méthode. Le
+libellé dit sur quelle échelle porte le « ± », et c'est ce qui rend la lecture
+honnête : « 2,0720 ± 0,13792 (log10(dose)) » ne promet plus une arithmétique en
+dose, la colonne voisine « DL ± erreur-type » s'en charge. Le test exige la dose
+au centre, et une erreur-type différente de celle de la dose.
 
 Le test exige que la valeur après « ± » ne soit **pas** l'erreur-type du log10 :
 « 2,0720 ± 0,13792 » est exactement la lecture fautive signalée, et une colonne
@@ -4554,7 +4571,7 @@ qui l'a déjà collée dans un rapport.
 | Élément | Pourquoi |
 |---|---|
 | intervalle binomial sur chaque point | un point sur 10 insectes et un point sur 200 ne pèsent pas pareil dans l'ajustement ; sans barre, la figure les montre égaux |
-| DL50 chiffrée : losange, lignes de rappel, intervalle, étiquette avec unité | on ouvre le module pour lire une DL50 |
+| DL50 chiffrée : losange, lignes de rappel, étiquette avec unité | on ouvre le module pour lire une DL50 |
 | axe gradué 1-2-5 et graduations logarithmiques mineures | « 3,16e-3 » ne se lit pas comme une dose qu'on aurait préparée |
 | équation, χ², mortalité naturelle et méthode en légende | la figure se suffit sans le tableau |
 | points pleins cerclés de blanc, grille fine, axes tracés | le point se détache de la courbe et de sa bande |
@@ -4566,17 +4583,20 @@ Quatre décisions, chacune testée :
    bioessai bien conçu. Sur la droite de Henry, la borne est corrigée d'Abbott
    puis passée au probit **par l'inverse de Hastings**, comme le point ; une
    borne sans probit fini est ramenée au bord du cadre.
-2. **L'intervalle de la DL50 est celui du tableau** (Fieller, ou delta-méthode
-   quand g ≥ 1). Recalculé à part, il finirait par différer du tableau voisin.
-   Sa hauteur est `c + (1 − c)/2` sur la courbe dose-réponse — la règle déjà
-   écrite pour les repères.
+2. **La DL50 de la figure n'a plus d'intervalle**, à la demande. Sur un essai
+   à pente mal estimée, celui de Fieller couvre plusieurs décades
+   ([0,0000133 ; 811] sur l'essai signalé) : la barre traversait tout le cadre
+   et ne disait rien que la bande ne dise déjà. Il reste au **tableau**, qui
+   fait foi — le recalculer à part pour la figure aurait fini par différer du
+   tableau voisin. Le losange se pose à `c + (1 − c)/2` sur la courbe
+   dose-réponse — la règle déjà écrite pour les repères.
 3. **L'étiquette se pose là où la courbe ne passe pas** : elle monte, donc la
    place libre est en bas à droite de la DL50, ou en haut à gauche quand la
    DL50 est déjà dans la moitié droite de l'axe. Posée au-dessus, elle
    recouvrait la courbe — constaté au premier rendu.
 4. **À plusieurs essais, pas d'étiquette ni d'équation** : six étiquettes se
    recouvriraient et six équations en pied de figure ne se liraient plus.
-   Chaque essai garde son losange et son intervalle, à sa couleur.
+   Chaque essai garde son losange, à sa couleur.
 
 L'habillage se pose **entre** le thème choisi et les réglages : il affine le
 thème, et tout ce que l'utilisateur règle ensuite — tailles, styles, grille,

@@ -1161,11 +1161,12 @@ hstat_dl50_doses_letales <- function(fit, seuils = HSTAT_DL50_SEUILS) {
                Erreur_type_dose = se_d, Ecart_type_dose = sd_d,
                DL_erreur_type = plus_moins(10^m, se_d),
                DL_ecart_type = plus_moins(10^m, sd_d),
-               # Sur le log10, l'erreur-type et l'ecart-type sont EXACTS : ce
-               # sont ceux que publie WIN DL, et l'intervalle de Fieller en
-               # derive. La meme lecture « valeur ± s », sans approximation.
-               DL_erreur_type_log = plus_moins(m, se),
-               DL_ecart_type_log = plus_moins(m, sigma),
+               # La DOSE suivie de l'erreur-type (ou de l'ecart-type) du LOG10,
+               # ceux que publie WIN DL, sans approximation. Demande a l'ecran :
+               # la valeur centrale est celle de la colonne « Dose », et le
+               # libelle dit sur quelle echelle porte le « ± ».
+               DL_erreur_type_log = plus_moins(10^m, se),
+               DL_ecart_type_log = plus_moins(10^m, sigma),
                Limite_inf = 10^lo, Limite_sup = 10^hi,
                Intervalle = meth,
                Position = if (!is.finite(10^m)) NA_character_
@@ -2663,14 +2664,16 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
   }
 
   # LA DL50, CHIFFREE SUR LA FIGURE. On ouvre un module de DL50 pour lire une
-  # DL50 : la figure la montre desormais la ou elle se lit -- un losange sur
-  # la courbe, deux lignes de rappel vers les axes, son intervalle trace a
-  # sa hauteur, et l'etiquette qui porte le chiffre et l'unite. C'est
-  # l'intervalle du TABLEAU (Fieller, ou delta-methode quand g >= 1) : deux
-  # intervalles differents pour la meme DL50 dans le meme rapport seraient la
-  # copie qui ment.
+  # DL50 : la figure la montre la ou elle se lit -- un losange sur la courbe,
+  # deux lignes de rappel vers les axes, et l'etiquette qui porte le chiffre
+  # et l'unite.
   #
-  # A plusieurs essais, chacun a son losange et son intervalle, a sa couleur ;
+  # SANS SON INTERVALLE, a la demande. Sur un essai a pente mal estimee,
+  # celui de Fieller couvre plusieurs decades ([0,0000133 ; 811] sur l'essai
+  # signale) : la barre traversait tout le cadre et ne disait rien qu'on ne
+  # lise deja sur la bande. L'intervalle reste au tableau, qui fait foi.
+  #
+  # A plusieurs essais, chacun a son losange, a sa couleur ;
   # l'etiquette chiffree ne se pose que pour un essai -- six etiquettes se
   # recouvriraient, et le tableau les porte toutes.
   caption <- NULL
@@ -2681,26 +2684,12 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
       if (is.null(d) || !nrow(d) || !is.finite(d$Log_dose[1])) return(NULL)
       data.frame(Essai = nom[i], x = d$Log_dose[1],
                  y = if (reponse) 100 * (f$c + (1 - f$c) * 0.5) else 0,
-                 lo = log10(d$Limite_inf[1]), hi = log10(d$Limite_sup[1]),
-                 dose = d$Dose[1], inf = d$Limite_inf[1], sup = d$Limite_sup[1],
+                 dose = d$Dose[1],
                  stringsAsFactors = FALSE)
     }))
     if (!is.null(dl)) dl <- dl[dl$x >= rg[1] & dl$x <= rg[2] &
                                  dl$y >= ylim[1] & dl$y <= ylim[2], , drop = FALSE]
     if (!is.null(dl) && nrow(dl)) {
-      ic <- dl[is.finite(dl$lo) & is.finite(dl$hi), , drop = FALSE]
-      if (nrow(ic)) {
-        ic$lo <- pmax(ic$lo, rg[1]); ic$hi <- pmin(ic$hi, rg[2])
-        ep <- diff(ylim) * 0.012
-        p <- p + if (multiple)
-          ggplot2::geom_errorbar(data = ic, orientation = "y",
-            ggplot2::aes(y = .data$y, xmin = .data$lo, xmax = .data$hi,
-                         colour = .data$Essai), width = 2 * ep,
-            linewidth = 0.7, show.legend = FALSE)
-        else ggplot2::geom_errorbar(data = ic, orientation = "y",
-            ggplot2::aes(y = .data$y, xmin = .data$lo, xmax = .data$hi),
-            width = 2 * ep, linewidth = 0.7, colour = "#111827")
-      }
       if (!multiple) {
         # Lignes de rappel : de la DL50 vers l'axe des doses et vers celui
         # des mortalites. Elles relient le chiffre de l'etiquette a la
@@ -2720,13 +2709,8 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
           shape = 23, size = 3.4, fill = "#ffffff", colour = "#111827", stroke = 0.9)
       if (!multiple) {
         u <- hstat_dl50_unite(fits[[1]])
-        etiq <- paste(
-          trf("DL50 = %s%s", .hstat_dl50_nb(dl$dose),
-              if (nzchar(u)) paste0(" ", u) else ""),
-          trf("IC à %d %% : [%s ; %s]",
-              as.integer(round(100 * (1 - (fits[[1]]$alpha %||% 0.05)))),
-              .hstat_dl50_nb(dl$inf), .hstat_dl50_nb(dl$sup)),
-          sep = "\n")
+        etiq <- trf("DL50 = %s%s", .hstat_dl50_nb(dl$dose),
+                    if (nzchar(u)) paste0(" ", u) else "")
         # L'etiquette se pose la ou la courbe NE PASSE PAS. Elle monte : au-dela
         # de la DL50 elle est au-dessus, en deca au-dessous. La place libre est
         # donc en bas a droite, ou en haut a gauche quand la DL50 est deja dans
@@ -3164,7 +3148,7 @@ mod_dl50_ui <- function(id) {
               shiny::conditionalPanel(
                 condition = sprintf("input['%s'] == 'moderne'", ns("gStyle")),
                 shiny::checkboxInput(ns("gBarres"), "Intervalle binomial sur chaque point (Wilson)", TRUE),
-                shiny::checkboxInput(ns("gAnnotDL"), "DL50 chiffrée sur la figure, avec son intervalle", TRUE),
+                shiny::checkboxInput(ns("gAnnotDL"), "DL50 chiffrée sur la figure", TRUE),
                 shiny::checkboxInput(ns("gModele"), "Modèle et ajustement en légende (un essai)", TRUE),
                 shiny::checkboxInput(ns("gLogticks"), "Graduations logarithmiques mineures", TRUE))),
 
@@ -3250,94 +3234,88 @@ mod_dl50_ui <- function(id) {
                                    choices = HSTAT_TIFF_COMPRESSION, selected = "lzw")),
               shiny::verbatimTextOutput(ns("gTaille")),
               shiny::downloadButton(ns("gDl"), " Télécharger le graphique",
-                                    class = "btn-success")))),
+                                    class = "btn-success")),
 
-        # « AXES » ET « COULEURS ET LEGENDE » VIVENT SOUS LA FIGURE.
-        #
-        # Demande a l'ecran. Ce sont les deux sections les plus lourdes du
-        # panneau -- treize reglages pour la premiere, neuf pour la seconde --
-        # et elles poussaient hors de l'ecran le graphique qu'elles reglent :
-        # on changeait une taille de graduation, puis on remontait pour voir
-        # ce qu'elle avait fait.
-        #
-        # Meme disposition, et meme raison, que le kit de mise en forme pose
-        # juste en dessous : on voit la figure, on l'atteint, et elle reste
-        # visible pendant qu'on regle. C'est deja le choix retenu pour
-        # l'epidemiologie et pour les comparaisons post-hoc.
-        #
-        # CHAQUE GROUPE DANS SA PROPRE `fluidRow`, jamais a la suite des deux
-        # boites. `.row` porte un `clear: both` : une rangee neuve degage les
-        # flottants. Deux `col-sm-6` ajoutes a la rangee des boites se
-        # glisseraient au contraire A COTE de la colonne de gauche des qu'elle
-        # est la plus haute -- c'est exactement le defaut de flottement qui
-        # rendait les controles inatteignables avant la 1.7.8.
-        shiny::fluidRow(
-          shiny::column(
-            width = 6,
-            .hstat_opt_section("Axes", "ruler-combined", "#16a085", "#e8f6f3",
-              shiny::textInput(ns("gXlab"), "Titre de l'axe des doses"),
-              shiny::textInput(ns("gYlab"), "Titre de l'axe des mortalités"),
-              # Le second axe n'existe que sur la droite de Henry : sur la
-              # courbe dose-reponse, le pourcentage est deja l'axe principal et
-              # son pendant en probit placerait l'infini a 0 % et a 100 %. Un
-              # reglage que l'image ignore vaut mieux masque que declare.
-              shiny::conditionalPanel(
-                condition = sprintf("input['%s'] == 'probit'", ns("gType")),
-                shiny::textInput(ns("gYlab2"), "Titre de l'axe des pourcentages"),
-                shiny::checkboxInput(ns("gAxe2"), "Second axe en pourcentage", TRUE)),
-              shiny::fluidRow(
-                shiny::column(6, shiny::numericInput(ns("gAxeTitreTaille"),
-                  "Taille des titres d'axe", value = 12, min = 6, max = 30, step = 1)),
-                shiny::column(6, shiny::selectInput(ns("gAxeTitreStyle"),
-                  "Style des titres d'axe", choices = HSTAT_FONT_STYLES))),
-              shiny::fluidRow(
-                shiny::column(6, shiny::numericInput(ns("gGradXTaille"),
-                  "Taille des graduations X", value = 10, min = 4, max = 30, step = 1)),
-                shiny::column(6, shiny::selectInput(ns("gGradXStyle"),
-                  "Style des graduations X", choices = HSTAT_FONT_STYLES))),
-              shiny::fluidRow(
-                shiny::column(6, shiny::numericInput(ns("gGradYTaille"),
-                  "Taille des graduations Y", value = 10, min = 4, max = 30, step = 1)),
-                shiny::column(6, shiny::selectInput(ns("gGradYStyle"),
-                  "Style des graduations Y", choices = HSTAT_FONT_STYLES))),
-              shiny::helpText("Les limites de l'axe des doses se saisissent en doses,",
-                              " pas en logarithmes. Laissez vide pour l'étendue",
-                              " automatique."),
-              shiny::fluidRow(
-                shiny::column(6, shiny::numericInput(ns("gXmin"),
-                  "Dose minimale", value = NULL, min = 0)),
-                shiny::column(6, shiny::numericInput(ns("gXmax"),
-                  "Dose maximale", value = NULL, min = 0))),
-              shiny::fluidRow(
-                shiny::column(6, shiny::numericInput(ns("gYmin"),
-                  "Mortalité minimale (%)", value = NULL, min = 0, max = 100)),
-                shiny::column(6, shiny::numericInput(ns("gYmax"),
-                  "Mortalité maximale (%)", value = NULL, min = 0, max = 100))))
-          ),
-          shiny::column(
-            width = 6,
-            .hstat_opt_section("Couleurs et légende", "palette", "#2c3e50", "#eceff1",
-              shiny::selectInput(ns("gTheme"), "Thème", choices = HSTAT_THEMES_GG,
-                                 selected = "minimal"),
-              shiny::numericInput(ns("gBaseSize"), "Taille de police de base",
-                                  value = 12, min = 6, max = 30, step = 1),
-              shiny::checkboxInput(ns("gGrille"), "Afficher la grille", TRUE),
-              shiny::selectInput(ns("gPalette"), "Palette (plusieurs essais)",
-                                 choices = hstat_palettes_choix(degrades = FALSE),
-                                 selected = unname(HSTAT_PALETTE_GG)),
-              colourInput(ns("gCouleur"), "Couleur (un seul essai)",
-                                        value = "#2e86c1"),
-              shiny::textInput(ns("gLegendeTitre"), "Titre de la légende"),
-              shiny::fluidRow(
-                shiny::column(4, shiny::selectInput(ns("gLegendePos"),
-                  "Position de la légende", choices = HSTAT_DL50_LEGENDE,
-                  selected = "right")),
-                shiny::column(4, shiny::numericInput(ns("gLegendeTaille"),
-                  "Taille de la légende", value = 10, min = 4, max = 30, step = 1)),
-                shiny::column(4, shiny::numericInput(ns("gLegendeTitreTaille"),
-                  "Taille du titre de légende", value = 11, min = 4, max = 30,
-                  step = 1))))
-          )),
+            # « AXES » ET « COULEURS ET LEGENDE » VIVENT SOUS L'EXPORT, DANS LA
+            # BOITE DE LA FIGURE.
+            #
+            # Demande a l'ecran, deux fois. Ce sont les deux sections les plus
+            # lourdes du panneau -- treize reglages pour la premiere, neuf pour
+            # la seconde. Posees dans une rangee a part, sous les DEUX colonnes,
+            # elles tombaient sous la plus haute -- celle des quarante reglages
+            # de gauche --, loin du graphique qu'elles reglent. Dans la boite de
+            # la figure, elles suivent l'export : on regle, et la figure reste
+            # juste au-dessus.
+            #
+            # La rangee est INTERIEURE a la boite, donc a sa colonne `col-sm-8` :
+            # ses deux `col-sm-6` ne peuvent flotter a cote de rien d'autre.
+            shiny::fluidRow(
+              shiny::column(
+                width = 6,
+                .hstat_opt_section("Axes", "ruler-combined", "#16a085", "#e8f6f3",
+                  shiny::textInput(ns("gXlab"), "Titre de l'axe des doses"),
+                  shiny::textInput(ns("gYlab"), "Titre de l'axe des mortalités"),
+                  # Le second axe n'existe que sur la droite de Henry : sur la
+                  # courbe dose-reponse, le pourcentage est deja l'axe principal et
+                  # son pendant en probit placerait l'infini a 0 % et a 100 %. Un
+                  # reglage que l'image ignore vaut mieux masque que declare.
+                  shiny::conditionalPanel(
+                    condition = sprintf("input['%s'] == 'probit'", ns("gType")),
+                    shiny::textInput(ns("gYlab2"), "Titre de l'axe des pourcentages"),
+                    shiny::checkboxInput(ns("gAxe2"), "Second axe en pourcentage", TRUE)),
+                  shiny::fluidRow(
+                    shiny::column(6, shiny::numericInput(ns("gAxeTitreTaille"),
+                      "Taille des titres d'axe", value = 12, min = 6, max = 30, step = 1)),
+                    shiny::column(6, shiny::selectInput(ns("gAxeTitreStyle"),
+                      "Style des titres d'axe", choices = HSTAT_FONT_STYLES))),
+                  shiny::fluidRow(
+                    shiny::column(6, shiny::numericInput(ns("gGradXTaille"),
+                      "Taille des graduations X", value = 10, min = 4, max = 30, step = 1)),
+                    shiny::column(6, shiny::selectInput(ns("gGradXStyle"),
+                      "Style des graduations X", choices = HSTAT_FONT_STYLES))),
+                  shiny::fluidRow(
+                    shiny::column(6, shiny::numericInput(ns("gGradYTaille"),
+                      "Taille des graduations Y", value = 10, min = 4, max = 30, step = 1)),
+                    shiny::column(6, shiny::selectInput(ns("gGradYStyle"),
+                      "Style des graduations Y", choices = HSTAT_FONT_STYLES))),
+                  shiny::helpText("Les limites de l'axe des doses se saisissent en doses,",
+                                  " pas en logarithmes. Laissez vide pour l'étendue",
+                                  " automatique."),
+                  shiny::fluidRow(
+                    shiny::column(6, shiny::numericInput(ns("gXmin"),
+                      "Dose minimale", value = NULL, min = 0)),
+                    shiny::column(6, shiny::numericInput(ns("gXmax"),
+                      "Dose maximale", value = NULL, min = 0))),
+                  shiny::fluidRow(
+                    shiny::column(6, shiny::numericInput(ns("gYmin"),
+                      "Mortalité minimale (%)", value = NULL, min = 0, max = 100)),
+                    shiny::column(6, shiny::numericInput(ns("gYmax"),
+                      "Mortalité maximale (%)", value = NULL, min = 0, max = 100))))
+              ),
+              shiny::column(
+                width = 6,
+                .hstat_opt_section("Couleurs et légende", "palette", "#2c3e50", "#eceff1",
+                  shiny::selectInput(ns("gTheme"), "Thème", choices = HSTAT_THEMES_GG,
+                                     selected = "minimal"),
+                  shiny::numericInput(ns("gBaseSize"), "Taille de police de base",
+                                      value = 12, min = 6, max = 30, step = 1),
+                  shiny::checkboxInput(ns("gGrille"), "Afficher la grille", TRUE),
+                  shiny::selectInput(ns("gPalette"), "Palette (plusieurs essais)",
+                                     choices = hstat_palettes_choix(degrades = FALSE),
+                                     selected = unname(HSTAT_PALETTE_GG)),
+                  colourInput(ns("gCouleur"), "Couleur (un seul essai)",
+                                            value = "#2e86c1"),
+                  shiny::textInput(ns("gLegendeTitre"), "Titre de la légende"),
+                  shiny::fluidRow(
+                    shiny::column(4, shiny::selectInput(ns("gLegendePos"),
+                      "Position de la légende", choices = HSTAT_DL50_LEGENDE,
+                      selected = "right")),
+                    shiny::column(4, shiny::numericInput(ns("gLegendeTaille"),
+                      "Taille de la légende", value = 10, min = 4, max = 30, step = 1)),
+                    shiny::column(4, shiny::numericInput(ns("gLegendeTitreTaille"),
+                      "Taille du titre de légende", value = 11, min = 4, max = 30,
+                      step = 1))))
+              )))),
 
         shiny::fluidRow(
 
