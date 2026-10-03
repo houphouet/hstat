@@ -60,4 +60,8 @@ if (!exists("server") || !is.function(server)) {
 # un 404 sur chaque page : on la repare avant de servir l'interface.
 ui <- hstat_reparer_deps(ui)
 
+# Serialisee une fois, servie ensuite : chaque visite coutait sinon 4 a 5 s au
+# processus R qui sert toutes les sessions (voir `hstat_ui_en_cache()`).
+ui <- hstat_ui_en_cache(ui)
+
 shinyApp(ui, server)

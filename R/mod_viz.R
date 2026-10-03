@@ -3452,7 +3452,8 @@ mod_viz_server <- function(id, values) {
             if (!is.null(s) && !is.na(s) && is.numeric(s) && s > 0) s else NULL
           }
           sec_breaks <- if (!is.null(user_y2_step))
-            seq(eff_y2_mn, eff_y2_mx, by = user_y2_step) else ggplot2::waiver()
+            hstat_graduations(eff_y2_mn, eff_y2_mx, user_y2_step, aligner = FALSE) %||%
+              ggplot2::waiver() else ggplot2::waiver()
           
           tryCatch(
             suppressMessages(suppressWarnings(
@@ -3653,7 +3654,9 @@ mod_viz_server <- function(id, values) {
           if(length(y_data) > 0) {
             y_b_min <- floor(min(y_data, na.rm = TRUE) / y_step) * y_step
             y_b_max <- ceiling(max(y_data, na.rm = TRUE) / y_step) * y_step
-            y_breaks_custom <- seq(y_b_min, y_b_max, by = y_step)
+            # Le pas vient du navigateur : au-dela de cent traits il est
+            # elargi, sinon ggplot en dessinerait cent mille.
+            y_breaks_custom <- hstat_graduations(y_b_min, y_b_max, y_step)
           }
         }, error = function(e) NULL)
       }
@@ -3667,7 +3670,7 @@ mod_viz_server <- function(id, values) {
             if(length(x_data) > 0) {
               x_b_min <- floor(min(x_data, na.rm = TRUE) / x_step) * x_step
               x_b_max <- ceiling(max(x_data, na.rm = TRUE) / x_step) * x_step
-              x_breaks_custom <- seq(x_b_min, x_b_max, by = x_step)
+              x_breaks_custom <- hstat_graduations(x_b_min, x_b_max, x_step)
             }
           }
         }, error = function(e) NULL)
@@ -4405,9 +4408,11 @@ mod_viz_server <- function(id, values) {
       )
       step_val <- input$y2AxisBreakStep
       if (!is.null(step_val) && !is.na(step_val) && is.numeric(step_val) && step_val > 0) {
-        ticks <- seq(real_mn, real_mx, by = step_val)
-        y2_cfg$tickvals <- ticks
-        y2_cfg$ticktext <- as.character(round(ticks, 8))
+        ticks <- hstat_graduations(real_mn, real_mx, step_val, aligner = FALSE)
+        if (!is.null(ticks)) {
+          y2_cfg$tickvals <- as.numeric(ticks)
+          y2_cfg$ticktext <- as.character(round(ticks, 8))
+        }
       }
       
       pm_r <- max(60, (input$plotMarginRight %||% 30) + 40)

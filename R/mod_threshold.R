@@ -1651,9 +1651,9 @@ mod_threshold_server <- function(id, values) {
         as.numeric(input$thresholdValue %||% NA)[1])))
       b_min <- if (is.na(y_min)) etendue[1] else y_min
       b_max <- if (is.na(y_max)) etendue[2] else y_max
-      ech_y <- if (isTRUE(is.finite(pas_y)) && pas_y > 0 && is.finite(b_max - b_min))
-        ggplot2::scale_y_continuous(limits = c(y_min, y_max),
-                           breaks = seq(hstat_pas_debut(b_min, pas_y), b_max, by = pas_y))
+      grad_y <- hstat_graduations(b_min, b_max, pas_y)
+      ech_y <- if (!is.null(grad_y))
+        ggplot2::scale_y_continuous(limits = c(y_min, y_max), breaks = grad_y)
       else ggplot2::scale_y_continuous(limits = c(y_min, y_max))
 
       # UNE EFFICACITE INDETERMINABLE NE TRACE AUCUNE BARRE, et rien ne le

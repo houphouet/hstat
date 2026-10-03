@@ -1169,7 +1169,7 @@ mod_yield_server <- function(id, values) {
       brk <- ggplot2::waiver()
       if (isTRUE(is.finite(pas)) && pas > 0) {
         bornes <- hstat_etendue_axe(c(d$.val, d$.hi, lim))
-        brk <- seq(hstat_pas_debut(bornes[1], pas), bornes[2] + pas, by = pas)
+        brk <- hstat_graduations(bornes[1], bornes[2] + pas, pas) %||% ggplot2::waiver()
       }
       # UNE SEULE ECHELLE Y. Deux `scale_y_continuous()` ne s'ajoutent pas : le
       # second REMPLACE le premier en avertissant. Poser l'expansion a part des

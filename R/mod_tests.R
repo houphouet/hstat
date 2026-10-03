@@ -8628,13 +8628,15 @@ mod_tests_server <- function(id, values) {
             if (!is.null(y_axis_max) && !is.na(y_axis_max)) y_data_max <- y_axis_max
           }
           
-          y_breaks <- seq(
-            from = floor(y_data_min / y_axis_break_step) * y_axis_break_step,
-            to = ceiling(y_data_max / y_axis_break_step) * y_axis_break_step,
-            by = y_axis_break_step
-          )
+          # Le pas vient du navigateur : `hstat_graduations()` l'elargit
+          # au-dela de cent traits plutot que d'en dessiner cent mille.
+          y_breaks <- hstat_graduations(
+            floor(y_data_min / y_axis_break_step) * y_axis_break_step,
+            ceiling(y_data_max / y_axis_break_step) * y_axis_break_step,
+            y_axis_break_step)
           
-          p <- p + ggplot2::scale_y_continuous(breaks = y_breaks)
+          if (!is.null(y_breaks))
+            p <- p + ggplot2::scale_y_continuous(breaks = y_breaks)
         }
         
         if (!is.null(x_axis_break_step) && !is.na(x_axis_break_step) && x_axis_break_step > 0) {
@@ -8647,13 +8649,13 @@ mod_tests_server <- function(id, values) {
               if (!is.null(x_axis_max) && !is.na(x_axis_max)) x_data_max <- x_axis_max
             }
             
-            x_breaks <- seq(
-              from = floor(x_data_min / x_axis_break_step) * x_axis_break_step,
-              to = ceiling(x_data_max / x_axis_break_step) * x_axis_break_step,
-              by = x_axis_break_step
-            )
+            x_breaks <- hstat_graduations(
+              floor(x_data_min / x_axis_break_step) * x_axis_break_step,
+              ceiling(x_data_max / x_axis_break_step) * x_axis_break_step,
+              x_axis_break_step)
             
-            p <- p + ggplot2::scale_x_continuous(breaks = x_breaks)
+            if (!is.null(x_breaks))
+              p <- p + ggplot2::scale_x_continuous(breaks = x_breaks)
           }
         }
       }
