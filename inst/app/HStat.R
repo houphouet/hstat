@@ -60,8 +60,15 @@ if (!exists("server") || !is.function(server)) {
 # un 404 sur chaque page : on la repare avant de servir l'interface.
 ui <- hstat_reparer_deps(ui)
 
-# Serialisee une fois, servie ensuite : chaque visite coutait sinon 4 a 5 s au
-# processus R qui sert toutes les sessions (voir `hstat_ui_en_cache()`).
+# Serialisee a la demande, une fois, puis revalidee par empreinte : chaque
+# visite coutait sinon 4 a 5 s au processus R qui sert toutes les sessions. Une
+# erreur de serialisation se leve au lieu d'etre avalee (voir `hstat_ui_en_cache()`).
 ui <- hstat_ui_en_cache(ui)
+
+# La premiere session compilait toute l'application sous les yeux du premier
+# visiteur -- et bloquait tous les autres pendant 28 s. La compilation et une
+# session fictive se font des que le processus est libre (voir
+# `hstat_prechauffer_session()`).
+server <- hstat_prechauffer_session(server)
 
 shinyApp(ui, server)

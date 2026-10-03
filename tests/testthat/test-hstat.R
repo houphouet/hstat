@@ -20469,7 +20469,7 @@ test_that("la page se serialise une fois, puis se sert depuis le cache", {
   n <- 0
   ui <- shiny::fluidPage(shiny::tags$p("x"),
                          htmltools::tagFunction(function() { n <<- n + 1; shiny::tags$span("y") }))
-  f <- hstat_ui_en_cache(ui)
+  f <- hstat_ui_en_cache(ui, prechauffer = FALSE)
   expect_true(is.function(f))
   r1 <- f(list()); r2 <- f(list())
   expect_s3_class(r1, "httpResponse")
@@ -20484,4 +20484,113 @@ test_that("la page se serialise une fois, puis se sert depuis le cache", {
   src <- paste(readLines(file.path(.hstat_repo_root(), "inst/app/HStat.R"), warn = FALSE),
                collapse = "\n")
   expect_true(grepl("ui <- hstat_ui_en_cache(ui)", src, fixed = TRUE))
+})
+
+test_that("une erreur de serialisation de la page se leve, et rien n'est mis en cache", {
+  # La version d'avant AVALAIT l'erreur et rendait l'interface brute a Shiny,
+  # qui la serialisait une seconde fois : la cause etait perdue, et chaque
+  # visite payait deux serialisations ratees.
+  casse <- TRUE; n <- 0
+  ui <- shiny::fluidPage(htmltools::tagFunction(function() {
+    n <<- n + 1
+    if (casse) stop("dependance introuvable")
+    shiny::tags$span("ok")
+  }))
+  f <- hstat_ui_en_cache(ui, prechauffer = FALSE)
+  e <- tryCatch(suppressMessages(f(list())), error = function(e) e)
+  expect_s3_class(e, "hstat_serialisation")
+  # La cause d'origine voyage avec l'erreur : c'est elle qu'on vient chercher.
+  expect_match(conditionMessage(e), "dependance introuvable", fixed = TRUE)
+  expect_identical(conditionMessage(e$parent), "dependance introuvable")
+  # Une seule tentative par visite, pas deux.
+  expect_equal(n, 1)
+  # L'echec n'est pas garde : le defaut corrige, la visite suivante reussit...
+  casse <- FALSE
+  r <- f(list())
+  expect_s3_class(r, "httpResponse")
+  expect_true(grepl("<span>ok</span>", r$content, fixed = TRUE))
+  # ... et c'est alors seulement que la page entre en cache : une troisieme
+  # visite ne serialise plus (un echec, une reussite, puis rien).
+  f(list())
+  expect_equal(n, 2)
+})
+
+test_that("la page porte une empreinte et repond 304 quand elle n'a pas change", {
+  ui <- shiny::fluidPage(shiny::tags$p("x"))
+  f <- hstat_ui_en_cache(ui, prechauffer = FALSE)
+  r <- f(list())
+  expect_equal(r$status, 200L)
+  etag <- r$headers$ETag
+  expect_match(etag, '^"[0-9a-f]+"$')
+  expect_identical(r$headers$`Cache-Control`, "no-cache")
+  # Meme empreinte : pas de corps, le navigateur reprend sa copie.
+  r304 <- f(list(HTTP_IF_NONE_MATCH = etag))
+  expect_equal(r304$status, 304L)
+  expect_identical(r304$content, "")
+  expect_identical(r304$headers$ETag, etag)
+  # Une empreinte perimee rend la page entiere : jamais de copie fausse.
+  r2 <- f(list(HTTP_IF_NONE_MATCH = '"perime"'))
+  expect_equal(r2$status, 200L)
+  expect_identical(r2$content, r$content)
+  # Deux interfaces differentes n'ont pas la meme empreinte.
+  g <- hstat_ui_en_cache(shiny::fluidPage(shiny::tags$p("y")), prechauffer = FALSE)
+  expect_false(identical(g(list())$headers$ETag, etag))
+})
+
+test_that("le cache de la page se chauffe hors requete, et un echec n'y est pas fatal", {
+  skip_if_not_installed("later")
+  n <- 0
+  ui <- shiny::fluidPage(htmltools::tagFunction(function() { n <<- n + 1; shiny::tags$i("z") }))
+  f <- hstat_ui_en_cache(ui)
+  # Rien n'est serialise a la construction : le demarrage n'est pas retarde.
+  expect_equal(n, 0)
+  later::run_now(1)
+  expect_equal(n, 1)
+  # La premiere visite est servie depuis le cache deja chaud.
+  f(list())
+  expect_equal(n, 1)
+  # Un prechauffage qui echoue ne leve rien : c'est la requete qui levera.
+  ko <- shiny::fluidPage(htmltools::tagFunction(function() stop("ko")))
+  g <- hstat_ui_en_cache(ko)
+  # (`later` evalue ses rappels hors des gestionnaires de l'appelant : le
+  # message consigne s'affiche donc malgre tout, et c'est voulu en production.)
+  expect_error(later::run_now(1), NA)
+  expect_error(suppressMessages(g(list())), class = "hstat_serialisation")
+})
+
+test_that("le serveur se compile hors requete, et les sessions suivantes passent par le code compile", {
+  bytecode <- function(f) typeof(.Internal(bodyCode(f))) == "bytecode"
+  appels <- 0
+  srv <- function(input, output, session) {
+    appels <<- appels + 1
+    output$x <- shiny::renderText("ok")
+  }
+  env <- hstat_prechauffer_session(srv, differer = FALSE)
+  expect_true(is.function(env))
+  expect_identical(names(formals(env)), c("input", "output", "session"))
+  # Avant compilation, l'enveloppe sert le serveur tel quel.
+  expect_false(bytecode(environment(env)$courant))
+  shiny::testServer(env, expect_identical(output$x, "ok"))
+  expect_equal(appels, 1)
+  # La compilation remplace ce que l'enveloppe appelle : `shinyApp()` ayant
+  # capture l'enveloppe, c'est la seule facon que la suite en profite.
+  attr(env, "hstat_etapes")$compiler()
+  expect_true(bytecode(environment(env)$courant))
+  shiny::testServer(env, expect_identical(output$x, "ok"))
+  expect_equal(appels, 2)
+  # La session fictive passe par le meme serveur, et le dit.
+  expect_message(attr(env, "hstat_etapes")$session(), "préchauffée")
+  expect_equal(appels, 3)
+  # Et l'application la pose bien.
+  src <- paste(readLines(file.path(.hstat_repo_root(), "inst/app/HStat.R"), warn = FALSE),
+               collapse = "\n")
+  expect_true(grepl("server <- hstat_prechauffer_session(server)", src, fixed = TRUE))
+})
+
+test_that("un prechauffage de session qui echoue n'est jamais fatal", {
+  env <- hstat_prechauffer_session(function(input, output, session) stop("panne"),
+                                   differer = FALSE)
+  expect_message(attr(env, "hstat_etapes")$session(), "panne")
+  # Une valeur qui n'est pas une fonction traverse sans etre enveloppee.
+  expect_null(hstat_prechauffer_session(NULL))
 })
