@@ -20119,10 +20119,18 @@ test_that("le style moderne porte l'incertitude, la DL50 chiffree et le modele",
     expect_true(all(c("GeomLinerange", "GeomLabel", "GeomLogticks") %in% gm),
                 info = ty)
     expect_false("GeomErrorbar" %in% gm, info = ty)
-    # Le classique rend la figure d'origine : aucune de ces couches.
-    expect_false(any(c("GeomLinerange", "GeomErrorbar", "GeomLabel",
-                       "GeomLogticks") %in% gc), info = ty)
-    expect_null(cl$labels$caption)
+    # Le classique garde l'habillage d'origine : ni barres ni graduations
+    # mineures. Les DL chiffrees et l'equation, elles, sont des reglages qui
+    # valent pour les deux styles (demande a l'ecran : en classique elles
+    # disparaissaient cochees) ; decochees, la figure d'origine revient.
+    expect_false(any(c("GeomLinerange", "GeomErrorbar", "GeomLogticks") %in% gc),
+                 info = ty)
+    expect_true("GeomLabel" %in% gc, info = ty)
+    expect_true(grepl("Probit", cl$labels$caption, fixed = TRUE))
+    nu <- hstat_dl50_graphique(list(f), list(type = ty, style = "classique",
+                                            annot_dl = numeric(0), modele = FALSE))
+    expect_false("GeomLabel" %in% .hstat_dl50_couches(nu), info = ty)
+    expect_null(nu$labels$caption)
     expect_true(grepl("Probit", m$labels$caption, fixed = TRUE))
   }
 })
@@ -20258,6 +20266,135 @@ test_that("a plusieurs essais, chacun a sa DL50 et aucune etiquette ne se recouv
                       identical(l$aes_params$shape, 23), logical(1)))
   expect_length(k, 1L)
   expect_equal(nrow(ggplot2::ggplot_build(p)$data[[k]]), 2L)
+})
+
+# L'essai signale a l'ecran : sept doses qui tuent toutes de 55 a 97,5 %, un
+# temoin a 7,5 %. Aucune dose ne tue peu -- la mortalite naturelle y est mal
+# connue, et c'est ce qui elargissait la bande d'un facteur dix.
+.hstat_dl50_fit_mal_encadre <- function(methode = "em")
+  hstat_dl50_ajuste(hstat_dl50_essai(c(0.125, 0.25, 0.5, 1, 2, 4, 8), rep(40, 7),
+                                     c(25, 22, 36, 31, 35, 39, 39), 40, 3),
+                    methode = methode)
+
+.hstat_dl50_ruban <- function(p) {
+  k <- which(vapply(p$layers, function(l) inherits(l$geom, "GeomRibbon"), logical(1)))
+  b <- ggplot2::ggplot_build(p)$data[[k]]
+  b$ymax - b$ymin
+}
+
+test_that("la bande se regle : droite seule ou complete, et son niveau", {
+  skip_if_not_installed("ggplot2")
+  f <- .hstat_dl50_fit_mal_encadre("em")
+  # La mortalite naturelle y est mal connue : son erreur-type depasse 1, sur
+  # une PROPORTION. Sans cela l'essai ne distinguerait pas les deux bandes.
+  expect_gt(sqrt(f$Vh[3, 3]), 1)
+  o <- list(type = "probit", echelle_x = "log")
+  dr <- .hstat_dl50_ruban(hstat_dl50_graphique(list(f), c(o, bande_type = "droite")))
+  co <- .hstat_dl50_ruban(hstat_dl50_graphique(list(f), c(o, bande_type = "complete")))
+  # La bande complete est plusieurs fois plus large : c'est le defaut signale.
+  expect_gt(median(co / dr), 3)
+  # La droite seule EST la bande d'Abbott, ou c n'est pas estimee : le
+  # complement de Schur du bloc (a, b), pas une bande inventee.
+  ab <- .hstat_dl50_fit_mal_encadre("abbott")
+  V <- f$Vh; S <- V[1:2, 1:2] - outer(V[1:2, 3], V[1:2, 3]) / V[3, 3]
+  expect_equal(.hstat_dl50_bande_v(f, "droite"), S)
+  expect_equal(sqrt(diag(S)), sqrt(diag(ab$Vh[1:2, 1:2])), tolerance = 0.05)
+  # Sous Abbott les deux types coincident : il n'y a pas de c a oublier.
+  expect_equal(.hstat_dl50_bande_v(ab, "droite"), .hstat_dl50_bande_v(ab, "complete"))
+  # Le defaut est la droite seule, et un type inconnu y retombe.
+  expect_equal(.hstat_dl50_ruban(hstat_dl50_graphique(list(f), o)), dr)
+  expect_equal(.hstat_dl50_ruban(hstat_dl50_graphique(list(f),
+                                   c(o, bande_type = "n'importe"))), dr)
+  # L'ecart voyage avec la figure : la note sous le graphique le lit.
+  p <- hstat_dl50_graphique(list(f), o)
+  expect_gt(attr(p, "ecart_bande"), 2)
+  expect_identical(attr(p, "bande"), "droite")
+  # LE NIVEAU : 80 % plus etroit que 99 %, « alpha » reprend celui de
+  # l'analyse, une valeur illisible aussi.
+  w <- function(nv) median(.hstat_dl50_ruban(hstat_dl50_graphique(list(f),
+                                               c(o, bande_niveau = nv))))
+  expect_lt(w("0.8"), w("0.99"))
+  expect_equal(w("alpha"), median(dr))
+  expect_equal(w("x"), median(dr))
+  expect_equal(.hstat_dl50_bande_q(f, "0.9"), stats::qnorm(0.95))
+  expect_identical(.hstat_dl50_bande_q(f, "alpha"), f$t)
+  # Sous heterogeneite, le quantile reste celui de Student.
+  fh <- f; fh$heterogene <- TRUE
+  expect_equal(.hstat_dl50_bande_q(fh, "0.9"), stats::qt(0.95, f$ddl))
+})
+
+test_that("DL10, DL50 et DL90 se chiffrent a la demande, dans les deux styles", {
+  skip_if_not_installed("ggplot2")
+  f <- .hstat_dl50_fit_mal_encadre("em")
+  losanges <- function(p) {
+    k <- which(vapply(p$layers, function(l) inherits(l$geom, "GeomPoint") &&
+                        identical(l$aes_params$shape, 23), logical(1)))
+    if (!length(k)) return(NULL)
+    ggplot2::ggplot_build(p)$data[[k]]
+  }
+  etiq <- function(p) {
+    k <- which(vapply(p$layers, function(l) inherits(l$geom, "GeomLabel"), logical(1)))
+    if (!length(k)) character(0) else ggplot2::ggplot_build(p)$data[[k]]$label
+  }
+  d <- hstat_dl50_doses_letales(f, c(10, 50, 90))
+  for (st in c("moderne", "classique")) {
+    p <- hstat_dl50_graphique(list(f), list(type = "reponse", echelle_x = "dose",
+                                           style = st, annot_dl = c(10, 50, 90)))
+    # Trois losanges, aux trois doses publiees, a c + (1 - c).s.
+    ls <- losanges(p)
+    expect_equal(nrow(ls), 3L, info = st)
+    expect_equal(sort(ls$x), sort(d$Dose), tolerance = 1e-9)
+    expect_equal(sort(ls$y), sort(100 * (f$c + (1 - f$c) * c(10, 50, 90) / 100)),
+                 tolerance = 1e-9)
+    lab <- etiq(p)
+    for (s in c("DL10 = ", "DL50 = ", "DL90 = "))
+      expect_true(any(startsWith(lab, s)), info = paste(st, s))
+    # L'equation ne depend plus du style non plus.
+    expect_match(p$labels$caption, "Probit", fixed = TRUE)
+  }
+  # Une seule DL demandee : un seul losange, une seule etiquette.
+  p <- hstat_dl50_graphique(list(f), list(type = "reponse", annot_dl = "90"))
+  expect_equal(nrow(losanges(p)), 1L)
+  expect_true(startsWith(etiq(p), "DL90 = "))
+  # Aucune : ni losange ni etiquette. Un booleen garde son sens d'avant.
+  p <- hstat_dl50_graphique(list(f), list(annot_dl = numeric(0)))
+  expect_null(losanges(p)); expect_length(etiq(p), 0L)
+  expect_identical(.hstat_dl50_annot_seuils(TRUE), 50)
+  expect_identical(.hstat_dl50_annot_seuils(FALSE), numeric(0))
+  # Un seuil hors du catalogue n'invente pas de losange.
+  expect_identical(.hstat_dl50_annot_seuils(c("25", "50", "abc")), 50)
+  expect_null(hstat_dl50_graphique(list(f), list(style = "classique", modele = FALSE))$labels$caption)
+})
+
+test_that("les reglages de bande et de DL chiffrees sont declares et lus ; Reperes DL sous Couleurs", {
+  skip_if_not_installed("shiny")
+  code <- paste(.hstat_code_lignes(.hstat_module_path("mod_dl50.R")), collapse = "\n")
+  for (id in c("gBandeType", "gBandeNiveau", "gAnnotDL", "gModele")) {
+    expect_true(grepl(sprintf('ns("%s")', id), code, fixed = TRUE), info = id)
+    expect_true(grepl(sprintf("input$%s", id), code, fixed = TRUE), info = id)
+  }
+  ui <- mod_dl50_ui("dl50")
+  h <- paste(as.character(htmltools::renderTags(ui)$html), collapse = "\n")
+  pos <- function(k) regexpr(k, h, fixed = TRUE)
+  # « Reperes DL » vit SOUS « Couleurs et legende » : apres le dernier reglage
+  # de la legende, dans la boite de la figure -- et non plus dans la colonne
+  # des reglages de gauche, qui precede le graphique.
+  for (k in c("dl50-gRepereEtiq", "dl50-gAnnotDL", "dl50-gModele")) {
+    expect_gt(pos(k), pos("dl50-gLegendeTitreTaille"), label = k)
+    expect_gt(pos(k), pos('id="dl50-graphe"'), label = k)
+    ch <- .hstat_ancetres(ui, sub("^dl50-", "", paste0(k, "$")))
+    expect_true(any(grepl("col-sm-8", ch[[1]])), label = k)
+  }
+  # Les DL chiffrees et l'equation ne sont plus cachees derriere le style.
+  # (Le panneau propre au style suit le selecteur de style et finit sur la
+  # case des graduations logarithmiques.)
+  i <- pos('id="dl50-gStyle"')
+  expect_gt(i, 0L)
+  expect_gt(pos("dl50-gLogticks"), i)
+  bloc <- substr(h, i, pos("dl50-gLogticks"))
+  expect_true(grepl("dl50-gBarres", bloc, fixed = TRUE))
+  expect_false(grepl("dl50-gAnnotDL", bloc, fixed = TRUE))
+  expect_false(grepl("dl50-gModele", bloc, fixed = TRUE))
 })
 
 # ============================================================================

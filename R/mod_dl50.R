@@ -2353,9 +2353,42 @@ HSTAT_DL50_ECHELLES_X <- c(
   "log10(dose)"                  = "log10",
   "Dose, échelle arithmétique"   = "dose")
 
+# LA BANDE D'UN AJUSTEMENT EM PEUT PORTER L'INCERTITUDE SUR LA MORTALITE
+# NATURELLE, OU NON -- et sur un essai mal encadre la difference fait un facteur
+# dix. Signale a l'ecran, capture a l'appui : une bande qui couvrait presque
+# tout le cadre. Mesure sur l'essai signale (7 doses de 55 a 97,5 % de
+# mortalite, temoin a 7,5 %) : l'erreur-type de c y vaut 1,58 -- sur une
+# PROPORTION. Aucune dose ne tue peu : rien ne dit ou est la mortalite
+# naturelle, et cette ignorance se reporte sur la droite entiere.
+#
+#   - « droite » (defaut) : la bande de la droite seule, c tenue pour connue a
+#     sa valeur estimee. C'est le complement de Schur du bloc (a, b), c'est-a-
+#     dire l'inverse du bloc (a, b) de l'information : exactement la bande que
+#     donnent Abbott et la mortalite nulle, ou c n'est pas estimee.
+#   - « complete » : la bande qui porte AUSSI l'incertitude sur c. C'est celle
+#     que les intervalles du tableau (Fieller sous EM) supposent.
+#
+# Aucune n'est fausse : elles repondent a deux questions. Le tableau garde
+# l'incertitude complete, et la note sous la figure le dit quand les deux
+# divergent -- une bande plus etroite que les intervalles publies a cote, sans
+# un mot, se lirait comme une contradiction.
+HSTAT_DL50_BANDES <- c(
+  "Droite seule (mortalité naturelle tenue pour connue)" = "droite",
+  "Complète (avec l'incertitude sur la mortalité naturelle)" = "complete")
+
+# Le niveau de la bande. « Celui du risque α » reprend le reglage de l'analyse ;
+# les autres le fixent pour la figure seule, sans toucher aux tableaux.
+HSTAT_DL50_NIVEAUX <- c("Celui du risque α de l'analyse" = "alpha",
+                        "80 %" = "0.8", "90 %" = "0.9", "95 %" = "0.95",
+                        "99 %" = "0.99")
+
 HSTAT_DL50_OPT_DEFAUT <- list(
   type = "probit", echelle_x = "log",
-  style = "moderne", barres = TRUE, annot_dl = TRUE, modele = TRUE,
+  # `annot_dl` porte les SEUILS chiffres sur la figure (10, 50, 90). Un
+  # booleen y reste accepte -- VRAI vaut la DL50 seule, FAUX aucune -- pour
+  # qu'un appel ecrit avant ne change pas de sens.
+  style = "moderne", barres = TRUE, annot_dl = 50, modele = TRUE,
+  bande_type = "droite", bande_niveau = "alpha",
   logticks = TRUE,
   points = TRUE, courbe = FALSE, droite = TRUE, bande = TRUE, reperes = TRUE,
   titre = "", sous_titre = "", xlab = "", ylab = "", ylab2 = "",
@@ -2442,6 +2475,41 @@ HSTAT_DL50_OPT_DEFAUT <- list(
     legend.key = ggplot2::element_blank(),
     plot.background = ggplot2::element_rect(fill = "white", colour = NA),
     plot.margin = ggplot2::margin(10, 14, 8, 10))
+}
+
+# La matrice (a, b) de la bande. Sous « droite », c est tenue pour connue :
+# V_ab - V_ac . V_cc^-1 . V_ca, le complement de Schur, qui vaut l'inverse du
+# bloc (a, b) de l'information. Quand c n'est pas estimee (Abbott, mortalite
+# nulle), sa variance vaut NA et le bloc (a, b) est deja conditionnel : les
+# deux types coincident, ce qui est juste.
+.hstat_dl50_bande_v <- function(f, type = "droite") {
+  V <- f$Vh
+  V2 <- V[1:2, 1:2]
+  if (identical(type, "complete") || nrow(V) < 3L) return(V2)
+  vc <- V[3, 3]
+  if (!is.finite(vc) || vc <= 0 || any(!is.finite(V[1:2, 3]))) return(V2)
+  V2 - outer(V[1:2, 3], V[1:2, 3]) / vc
+}
+
+# Le quantile de la bande. Le niveau se lit en proportion ; « alpha » (ou une
+# valeur illisible) reprend celui de l'analyse, donc `f$t` tel quel. Sinon le
+# quantile suit la meme regle que l'ajustement : Student quand le facteur
+# d'heterogeneite s'applique, normal autrement.
+.hstat_dl50_bande_q <- function(f, niveau = "alpha") {
+  nv <- suppressWarnings(as.numeric(as.character(niveau)[1]))
+  if (!isTRUE(is.finite(nv) && nv > 0 && nv < 1)) return(f$t)
+  if (isTRUE(f$heterogene)) stats::qt(1 - (1 - nv) / 2, f$ddl)
+  else stats::qnorm(1 - (1 - nv) / 2)
+}
+
+# Les seuils chiffres sur la figure. Un booleen garde son sens d'avant (VRAI :
+# la DL50) ; un seuil hors du catalogue est ignore plutot que de poser un
+# losange sur une dose que le tableau ne publie pas.
+.hstat_dl50_annot_seuils <- function(x) {
+  if (is.null(x) || !length(x)) return(numeric(0))
+  if (is.logical(x)) return(if (isTRUE(x[1])) 50 else numeric(0))
+  v <- suppressWarnings(as.numeric(as.character(x)))
+  sort(unique(v[is.finite(v) & v %in% HSTAT_DL50_SEUILS]))
 }
 
 hstat_dl50_graphique <- function(fits, opt = list()) {
@@ -2544,11 +2612,22 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
     grille_x <- grille_z <- seq(rg[1], rg[2], length.out = 200)
   }
 
+  bande_type <- as.character(o$bande_type %||% "droite")[1]
+  if (!bande_type %in% HSTAT_DL50_BANDES) bande_type <- "droite"
+  # L'ecart entre les deux bandes, mesure au centre de l'essai : au-dela d'un
+  # facteur deux, la note sous la figure le dit (voir `HSTAT_DL50_BANDES`).
+  ecart_bande <- 1
   lig <- do.call(rbind, lapply(seq_along(fits), function(i) {
     f <- fits[[i]]
     eta <- f$a + f$b * grille_z
-    se <- sqrt(pmax(f$Vh[1, 1] + grille_z^2 * f$Vh[2, 2] +
-                      2 * grille_z * f$Vh[1, 2], 0))
+    Vb <- .hstat_dl50_bande_v(f, bande_type)
+    q <- .hstat_dl50_bande_q(f, o$bande_niveau)
+    se <- sqrt(pmax(Vb[1, 1] + grille_z^2 * Vb[2, 2] +
+                      2 * grille_z * Vb[1, 2], 0))
+    zm <- mean(f$table$Log_dose)
+    sd_v <- function(M) sqrt(max(M[1, 1] + zm^2 * M[2, 2] + 2 * zm * M[1, 2], 0))
+    r <- sd_v(.hstat_dl50_bande_v(f, "complete")) / sd_v(.hstat_dl50_bande_v(f, "droite"))
+    if (is.finite(r)) ecart_bande <<- max(ecart_bande, r)
     # L'INTERVALLE SE CONSTRUIT SUR LE PROBIT, PUIS SE TRANSPORTE. F est
     # monotone : les bornes restent donc dans [0 ; 100] et l'asymetrie de la
     # sigmoide est respectee. Les construire directement sur le pourcentage
@@ -2558,7 +2637,7 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
     vers <- if (reponse)
       function(e) 100 * (f$c + (1 - f$c) * stats::pnorm(e)) else identity
     data.frame(Essai = nom[i], x = grille_x, y = vers(eta),
-               lo = vers(eta - f$t * se), hi = vers(eta + f$t * se),
+               lo = vers(eta - q * se), hi = vers(eta + q * se),
                stringsAsFactors = FALSE)
   }))
 
@@ -2716,22 +2795,34 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
   # A plusieurs essais, chacun a son losange, a sa couleur ;
   # l'etiquette chiffree ne se pose que pour un essai -- six etiquettes se
   # recouvriraient, et le tableau les porte toutes.
+  #
+  # LES DOSES LETALES CHIFFREES SE CHOISISSENT : DL10, DL50, DL90, une, deux ou
+  # les trois. Demande a l'ecran. Et elles ne dependent plus du style : en
+  # « classique » elles disparaissaient, cases cochees, sans un mot -- un
+  # reglage que l'image ignore, le defaut que ce depot traque. Leurs cases
+  # sont donc sorties du panneau propre au style moderne.
   caption <- NULL
-  if (moderne && isTRUE(o$annot_dl)) {
+  seuils_annot <- .hstat_dl50_annot_seuils(o$annot_dl)
+  if (length(seuils_annot)) {
     dl <- do.call(rbind, lapply(seq_along(fits), function(i) {
       f <- fits[[i]]
-      d <- hstat_dl50_doses_letales(f, 50)
-      if (is.null(d) || !nrow(d) || !is.finite(d$Log_dose[1])) return(NULL)
-      data.frame(Essai = nom[i], x = tx(d$Log_dose[1]),
-                 y = if (reponse) 100 * (f$c + (1 - f$c) * 0.5) else 0,
-                 dose = d$Dose[1],
+      d <- hstat_dl50_doses_letales(f, seuils_annot)
+      if (is.null(d) || !nrow(d)) return(NULL)
+      d <- d[is.finite(d$Log_dose), , drop = FALSE]
+      if (!nrow(d)) return(NULL)
+      # La DL d'un seuil s est a c + (1 - c).s sur la courbe des mortalites
+      # observees, a F^-1(s) sur la droite de Henry -- la regle des reperes.
+      data.frame(Essai = nom[i], seuil = d$Seuil, x = tx(d$Log_dose),
+                 y = if (reponse) 100 * (f$c + (1 - f$c) * d$Seuil / 100)
+                     else .hstat_dl50_qnorm(d$Seuil / 100),
+                 dose = d$Dose,
                  stringsAsFactors = FALSE)
     }))
     if (!is.null(dl)) dl <- dl[dl$x >= xr[1] & dl$x <= xr[2] &
                                  dl$y >= ylim[1] & dl$y <= ylim[2], , drop = FALSE]
     if (!is.null(dl) && nrow(dl)) {
       if (!multiple) {
-        # Lignes de rappel : de la DL50 vers l'axe des doses et vers celui
+        # Lignes de rappel : de chaque DL vers l'axe des doses et vers celui
         # des mortalites. Elles relient le chiffre de l'etiquette a la
         # graduation qu'on lirait sinon a l'oeil.
         p <- p +
@@ -2749,17 +2840,19 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
           shape = 23, size = 3.4, fill = "#ffffff", colour = "#111827", stroke = 0.9)
       if (!multiple) {
         u <- hstat_dl50_unite(fits[[1]])
-        etiq <- trf("DL50 = %s%s", .hstat_dl50_nb(dl$dose),
-                    if (nzchar(u)) paste0(" ", u) else "")
+        etiq <- vapply(seq_len(nrow(dl)), function(k)
+          trf("DL%s = %s%s", trimws(formatC(dl$seuil[k], format = "g", digits = 4)),
+              .hstat_dl50_nb(dl$dose[k]), if (nzchar(u)) paste0(" ", u) else ""),
+          character(1))
         # L'etiquette se pose la ou la courbe NE PASSE PAS. Elle monte : au-dela
-        # de la DL50 elle est au-dessus, en deca au-dessous. La place libre est
-        # donc en bas a droite, ou en haut a gauche quand la DL50 est deja dans
+        # de la DL elle est au-dessus, en deca au-dessous. La place libre est
+        # donc en bas a droite, ou en haut a gauche quand la DL est deja dans
         # la moitie droite de l'axe.
         droite <- dl$x < mean(xr)
         p <- p + ggplot2::annotate("label",
-          x = dl$x + (if (droite) 1 else -1) * diff(xr) * 0.04,
-          y = dl$y + (if (droite) -1 else 1) * diff(ylim) * 0.06, label = etiq,
-          hjust = if (droite) 0 else 1, vjust = if (droite) 1 else 0,
+          x = dl$x + ifelse(droite, 1, -1) * diff(xr) * 0.04,
+          y = dl$y + ifelse(droite, -1, 1) * diff(ylim) * 0.06, label = etiq,
+          hjust = ifelse(droite, 0, 1), vjust = ifelse(droite, 1, 0),
           size = max(3, o$grad_y_taille / 2.8),
           colour = "#111827", fill = "#ffffffe6", lineheight = 1.05)
       }
@@ -2769,7 +2862,8 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
   # l'ajustement et la methode sont ce qui la rend reproductible sans le
   # tableau. Pour un essai seulement -- plusieurs equations en pied de figure
   # ne se liraient plus.
-  if (moderne && isTRUE(o$modele) && !multiple) {
+  # Comme les DL chiffrees, l'equation ne depend plus du style.
+  if (isTRUE(o$modele) && !multiple) {
     f <- fits[[1]]
     meth <- names(HSTAT_DL50_METHODES)[match(f$methode, HSTAT_DL50_METHODES)]
     # Deux lignes, pas une : sur une figure de sept pouces, la ligne unique
@@ -2890,6 +2984,10 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
   # Pose EN DERNIER : un `p + couche` reconstruit l'objet et emporterait
   # l'attribut avec lui.
   if (length(ecartes)) attr(p, "ecartes") <- ecartes
+  if (isTRUE(o$bande)) {
+    attr(p, "bande") <- bande_type
+    attr(p, "ecart_bande") <- ecart_bande
+  }
   p
 }
 
@@ -3198,19 +3296,31 @@ mod_dl50_ui <- function(id) {
               shiny::checkboxInput(ns("gCourbe"), "Courbe de l'essai (CE)", FALSE),
               shiny::checkboxInput(ns("gDroite"), "Modèle ajusté (DR)", TRUE),
               shiny::checkboxInput(ns("gBande"), "Intervalles (IF ou IC)", TRUE),
+              # La largeur de la bande se regle a cote de la case qui l'affiche :
+              # cachee ailleurs, on la chercherait ici.
+              shiny::conditionalPanel(
+                condition = sprintf("input['%s']", ns("gBande")),
+                shiny::selectInput(ns("gBandeType"), "Incertitude portée par la bande",
+                                   choices = HSTAT_DL50_BANDES, selected = "droite"),
+                shiny::selectInput(ns("gBandeNiveau"), "Niveau de confiance de la bande",
+                                   choices = HSTAT_DL50_NIVEAUX, selected = "alpha"),
+                shiny::helpText("Sous EM, la mortalité naturelle est estimée : quand aucune",
+                                " dose ne tue peu, elle est mal connue et la bande complète",
+                                " s'élargit sur toute la droite. Les intervalles des tableaux",
+                                " gardent toujours l'incertitude complète.")),
               shiny::checkboxInput(ns("gReperes"), "Repères DL10 / DL50 / DL90", TRUE),
               shiny::checkboxInput(ns("gTous"), "Tous les essais en mémoire", FALSE)),
 
             .hstat_opt_section("Rendu", "wand-magic-sparkles", "#0f766e", "#e6f4f1",
               shiny::selectInput(ns("gStyle"), "Style de la figure",
                                  choices = HSTAT_DL50_STYLES, selected = "moderne"),
-              # Ces quatre reglages n'existent qu'en style moderne : offerts en
-              # classique, ils se cocheraient sans que l'image bouge.
+              # Ces deux reglages n'existent qu'en style moderne : offerts en
+              # classique, ils se cocheraient sans que l'image bouge. Les DL
+              # chiffrees et l'equation, elles, valent pour les deux styles et
+              # vivent dans « Repères DL ».
               shiny::conditionalPanel(
                 condition = sprintf("input['%s'] == 'moderne'", ns("gStyle")),
                 shiny::checkboxInput(ns("gBarres"), "Intervalle binomial sur chaque point (Wilson)", TRUE),
-                shiny::checkboxInput(ns("gAnnotDL"), "DL50 chiffrée sur la figure", TRUE),
-                shiny::checkboxInput(ns("gModele"), "Modèle et ajustement en légende (un essai)", TRUE),
                 # Sans objet hors de l'axe logarithmique ecrit en doses : offert
                 # ailleurs, il se cocherait sans que l'image bouge.
                 shiny::conditionalPanel(
@@ -3258,19 +3368,7 @@ mod_dl50_ui <- function(id) {
                   "Trait de la courbe", choices = HSTAT_DL50_TRAITS,
                   selected = "dashed"))),
               shiny::numericInput(ns("gBandeOpacite"), "Opacité des intervalles",
-                                  value = 0.12, min = 0.02, max = 1, step = 0.02)),
-
-            .hstat_opt_section("Repères DL", "location-crosshairs", "#c0392b", "#fbeceb",
-              shiny::checkboxInput(ns("gRepereEtiq"), "Étiqueter les repères", TRUE),
-              shiny::fluidRow(
-                shiny::column(4, colourInput(ns("gRepereCouleur"),
-                  "Couleur des repères", value = "#6b7280")),
-                shiny::column(4, shiny::selectInput(ns("gRepereType"),
-                  "Trait des repères", choices = HSTAT_DL50_TRAITS,
-                  selected = "dotted")),
-                shiny::column(4, shiny::numericInput(ns("gRepereEp"),
-                  "Épaisseur des repères", value = 0.5, min = 0.1, max = 3,
-                  step = 0.1))))),
+                                  value = 0.12, min = 0.02, max = 1, step = 0.02))),
 
           shinydashboard::box(
             # Le titre suit le type choisi : une boite intitulee « Droite de
@@ -3379,7 +3477,26 @@ mod_dl50_ui <- function(id) {
                       "Taille de la légende", value = 10, min = 4, max = 30, step = 1)),
                     shiny::column(4, shiny::numericInput(ns("gLegendeTitreTaille"),
                       "Taille du titre de légende", value = 11, min = 4, max = 30,
-                      step = 1))))
+                      step = 1)))),
+                # « REPERES DL » SOUS « COULEURS ET LEGENDE ». Demande a l'ecran.
+                # La section porte aussi les DL CHIFFREES et l'EQUATION : ce sont
+                # les memes doses que les reperes, et c'est la qu'on les cherche.
+                .hstat_opt_section("Repères DL", "location-crosshairs", "#c0392b", "#fbeceb",
+                  shiny::checkboxGroupInput(ns("gAnnotDL"), "Doses létales chiffrées sur la figure",
+                                            choices = c("DL10" = "10", "DL50" = "50",
+                                                        "DL90" = "90"),
+                                            selected = "50", inline = TRUE),
+                  shiny::checkboxInput(ns("gModele"), "Équation du modèle et ajustement en légende (un essai)", TRUE),
+                  shiny::checkboxInput(ns("gRepereEtiq"), "Étiqueter les repères", TRUE),
+                  shiny::fluidRow(
+                    shiny::column(4, colourInput(ns("gRepereCouleur"),
+                      "Couleur des repères", value = "#6b7280")),
+                    shiny::column(4, shiny::selectInput(ns("gRepereType"),
+                      "Trait des repères", choices = HSTAT_DL50_TRAITS,
+                      selected = "dotted")),
+                    shiny::column(4, shiny::numericInput(ns("gRepereEp"),
+                      "Épaisseur des repères", value = 0.5, min = 0.1, max = 3,
+                      step = 0.1))))
               )))),
 
         shiny::fluidRow(
@@ -4460,7 +4577,12 @@ mod_dl50_server <- function(id, values) {
         type = input$gType %||% "probit",
         echelle_x = input$gEchelleX %||% "log",
         style = input$gStyle %||% "moderne",
-        barres = isTRUE(input$gBarres), annot_dl = isTRUE(input$gAnnotDL),
+        barres = isTRUE(input$gBarres),
+        # Toutes les cases decochees rendent NULL : c'est une demande (aucune DL
+        # chiffree), pas une absence de reglage qui retomberait sur le defaut.
+        annot_dl = .hstat_dl50_annot_seuils(input$gAnnotDL %||% character(0)),
+        bande_type = input$gBandeType %||% "droite",
+        bande_niveau = input$gBandeNiveau %||% "alpha",
         modele = isTRUE(input$gModele), logticks = isTRUE(input$gLogticks),
         points = isTRUE(input$gPoints), courbe = isTRUE(input$gCourbe),
         droite = isTRUE(input$gDroite), bande = isTRUE(input$gBande),
@@ -4526,13 +4648,27 @@ mod_dl50_server <- function(id, values) {
     # precisement ce qui doit l'amener a la courbe dose-reponse.
     output$gNote <- shiny::renderUI({
       g <- graphe()
-      ec <- if (is.null(g)) NULL else attr(g, "ecartes")
-      if (!length(ec)) return(NULL)
-      shiny::div(class = "callout callout-warning",
+      if (is.null(g)) return(NULL)
+      ec <- attr(g, "ecartes")
+      note <- function(txt) shiny::div(class = "callout callout-warning",
                  style = "margin-top:10px;padding:8px 12px;",
-        shiny::icon("circle-info"), " ",
-        trf("Mortalité corrigée nulle ou totale : ces doses n'ont pas de probit et ne figurent pas sur la droite de Henry — %s. La courbe dose-réponse les porte, elle.",
-            paste(ec, collapse = " ; ")))
+        shiny::icon("circle-info"), " ", txt)
+      # Une bande plus etroite que les intervalles du tableau voisin, sans un
+      # mot, se lirait comme une contradiction ; plus large, elle fait croire
+      # a un ajustement rate. L'ecart se dit, avec le geste qui le change.
+      eb <- attr(g, "ecart_bande") %||% 1
+      bande <- if (isTRUE(eb > 2)) {
+        if (identical(attr(g, "bande"), "complete"))
+          trf("La bande est %s fois plus large qu'avec la droite seule : la mortalité naturelle est mal connue sur cet essai (aucune dose ne tue peu). Choisissez « Droite seule » pour la bande de la droite, à mortalité naturelle connue.",
+              formatC(eb, format = "f", digits = 1))
+        else
+          trf("La bande tient la mortalité naturelle pour connue. Avec son incertitude, elle serait %s fois plus large : les intervalles des tableaux, eux, la portent.",
+              formatC(eb, format = "f", digits = 1))
+      }
+      shiny::tagList(
+        if (length(ec)) note(trf("Mortalité corrigée nulle ou totale : ces doses n'ont pas de probit et ne figurent pas sur la droite de Henry — %s. La courbe dose-réponse les porte, elle.",
+            paste(ec, collapse = " ; "))),
+        if (!is.null(bande)) note(bande))
     })
 
     output$gNom <- shiny::renderText({
