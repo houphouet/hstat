@@ -3019,11 +3019,14 @@ mod_dl50_ui <- function(id) {
     shiny::fluidRow(
       shiny::div(class = "callout callout-info", style = "margin-bottom:14px;",
         shiny::icon("skull-crossbones"), shiny::strong(" DL50 / CL50. "),
-        "Régression probit dose-mortalité (droite de Henry), doses létales et",
-        " intervalles, d'après le modèle de Finney tel que le logiciel WIN DL",
-        " du CIRAD l'applique. La mortalité naturelle est estimée par maximum",
-        " de vraisemblance sur l'ensemble de l'essai, ou par la formule",
-        " d'Abbott sur le seul témoin.")),
+        # UNE seule chaine : le navigateur fond les morceaux adjacents en un
+        # noeud de texte, qu'aucune entree du dictionnaire ne couvrait -- le
+        # bandeau restait en francais dans une interface anglaise.
+        paste("Régression probit dose-mortalité (droite de Henry), doses létales",
+              "et intervalles, d'après le modèle de Finney tel que le logiciel",
+              "WIN DL du CIRAD l'applique. La mortalité naturelle est estimée par",
+              "maximum de vraisemblance sur l'ensemble de l'essai, ou par la",
+              "formule d'Abbott sur le seul témoin."))),
 
     shiny::tabsetPanel(
       id = ns("dl50Tabs"),
@@ -3154,7 +3157,7 @@ mod_dl50_ui <- function(id) {
                             " comme dans WIN DL : deux lignes à la même dose sont deux",
                             " répétitions du même point."),
             shiny::hr(),
-            .hstat_opt_section("Coller depuis un tableur", "clipboard", "#16a085", "#e8f6f3",
+            .hstat_opt_carte("Coller depuis un tableur", "clipboard", "sarcelle",
               shiny::helpText("Copiez trois colonnes — dose, effectif testé, morts —",
                               " et collez-les ici. La ligne d'en-tête est reconnue et",
                               " ignorée ; la virgule décimale d'un tableur français",
@@ -3272,7 +3275,7 @@ mod_dl50_ui <- function(id) {
             title = shiny::tagList(shiny::icon("sliders"), " Options du graphique"),
             status = "primary", width = 4, solidHeader = TRUE, collapsible = TRUE,
 
-            .hstat_opt_section("Type de graphique", "chart-line", "#d35400", "#fdf0e6",
+            .hstat_opt_carte("Type de graphique", "chart-line", "bleu",
               shiny::radioButtons(ns("gType"), NULL, choices = HSTAT_DL50_GRAPHES,
                                   selected = "probit"),
               shiny::helpText("La droite de Henry montre le modèle : le probit de la",
@@ -3291,7 +3294,7 @@ mod_dl50_ui <- function(id) {
                               " arithmétique, la droite de Henry devient une courbe — elle",
                               " n'est droite qu'en log-dose.")),
 
-            .hstat_opt_section("Éléments tracés", "eye", "#2e86c1", "#eaf3fb",
+            .hstat_opt_carte("Éléments tracés", "eye", "orange",
               shiny::checkboxInput(ns("gPoints"), "Points de l'essai (PE)", TRUE),
               shiny::checkboxInput(ns("gCourbe"), "Courbe de l'essai (CE)", FALSE),
               shiny::checkboxInput(ns("gDroite"), "Modèle ajusté (DR)", TRUE),
@@ -3311,7 +3314,7 @@ mod_dl50_ui <- function(id) {
               shiny::checkboxInput(ns("gReperes"), "Repères DL10 / DL50 / DL90", TRUE),
               shiny::checkboxInput(ns("gTous"), "Tous les essais en mémoire", FALSE)),
 
-            .hstat_opt_section("Rendu", "wand-magic-sparkles", "#0f766e", "#e6f4f1",
+            .hstat_opt_carte("Rendu", "wand-magic-sparkles", "violet",
               shiny::selectInput(ns("gStyle"), "Style de la figure",
                                  choices = HSTAT_DL50_STYLES, selected = "moderne"),
               # Ces deux reglages n'existent qu'en style moderne : offerts en
@@ -3327,7 +3330,7 @@ mod_dl50_ui <- function(id) {
                   condition = sprintf("input['%s'] == 'log'", ns("gEchelleX")),
                   shiny::checkboxInput(ns("gLogticks"), "Graduations logarithmiques mineures", TRUE)))),
 
-            .hstat_opt_section("Titres", "heading", "#8e44ad", "#f4ecfa",
+            .hstat_opt_carte("Titres", "heading", "sarcelle",
               shiny::textInput(ns("gTitre"), "Titre du graphique"),
               shiny::fluidRow(
                 shiny::column(4, shiny::numericInput(ns("gTitreTaille"),
@@ -3347,7 +3350,7 @@ mod_dl50_ui <- function(id) {
                   "Position du sous-titre", choices = HSTAT_DL50_POS,
                   selected = "0.5")))),
 
-            .hstat_opt_section("Points et traits", "bezier-curve", "#e67e22", "#fdf1e6",
+            .hstat_opt_carte("Points et traits", "bezier-curve", "magenta",
               shiny::fluidRow(
                 shiny::column(4, shiny::numericInput(ns("gPointTaille"),
                   "Taille des points", value = 2.4, min = 0.5, max = 12, step = 0.2)),
@@ -3379,7 +3382,7 @@ mod_dl50_ui <- function(id) {
             shiny::plotOutput(ns("graphe"), height = "600px"),
             shiny::uiOutput(ns("gNote")),
             shiny::hr(),
-            .hstat_opt_section("Export de l'image", "download", "#27ae60", "#e9f7ef",
+            .hstat_opt_carte("Export de l'image", "download", "vert",
               shiny::fluidRow(
                 shiny::column(3, hstat_format_input(ns("gFmt"), "Format")),
                 shiny::column(3, shiny::numericInput(ns("gLargeur"),
@@ -3415,7 +3418,7 @@ mod_dl50_ui <- function(id) {
             shiny::fluidRow(
               shiny::column(
                 width = 6,
-                .hstat_opt_section("Axes", "ruler-combined", "#16a085", "#e8f6f3",
+                .hstat_opt_carte("Axes", "ruler-combined", "indigo",
                   shiny::textInput(ns("gXlab"), "Titre de l'axe des doses"),
                   shiny::textInput(ns("gYlab"), "Titre de l'axe des mortalités"),
                   # Le second axe n'existe que sur la droite de Henry : sur la
@@ -3457,7 +3460,7 @@ mod_dl50_ui <- function(id) {
               ),
               shiny::column(
                 width = 6,
-                .hstat_opt_section("Couleurs et légende", "palette", "#2c3e50", "#eceff1",
+                .hstat_opt_carte("Couleurs et légende", "palette", "ocre",
                   shiny::selectInput(ns("gTheme"), "Thème", choices = HSTAT_THEMES_GG,
                                      selected = "minimal"),
                   shiny::numericInput(ns("gBaseSize"), "Taille de police de base",
@@ -3481,7 +3484,7 @@ mod_dl50_ui <- function(id) {
                 # « REPERES DL » SOUS « COULEURS ET LEGENDE ». Demande a l'ecran.
                 # La section porte aussi les DL CHIFFREES et l'EQUATION : ce sont
                 # les memes doses que les reperes, et c'est la qu'on les cherche.
-                .hstat_opt_section("Repères DL", "location-crosshairs", "#c0392b", "#fbeceb",
+                .hstat_opt_carte("Repères DL", "location-crosshairs", "rouge",
                   shiny::checkboxGroupInput(ns("gAnnotDL"), "Doses létales chiffrées sur la figure",
                                             choices = c("DL10" = "10", "DL50" = "50",
                                                         "DL90" = "90"),
