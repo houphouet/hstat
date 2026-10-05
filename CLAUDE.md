@@ -4703,6 +4703,21 @@ la demande ; la section porte aussi les DL chiffrées et l'équation, qui parlen
 des mêmes doses. Le test passe par l'arbre (`col-sm-8`) et par l'ordre de la
 page : après le dernier réglage de la légende, après le graphique.
 
+### « Mise en forme générale » à la hauteur de « Points et traits »
+
+Demandé à l'écran. La colonne des réglages est **plus haute** que la boîte de la
+figure — mesuré au navigateur, 2437 px contre 1796 —, si bien que le kit, posé
+dans une rangée à part sous les deux colonnes, tombait sous la plus haute et
+laissait un grand vide à droite de « Points et traits ». Il **finit désormais la
+boîte de la figure**, après « Repères DL » : il remplit ce vide, sur la même
+ligne que « Points et traits » (mesuré : `gAxisLine` à 2090 px, `gPointTaille`
+à 2269), et reste sous le graphique qu'il règle.
+
+Sa rangée est intérieure à la boîte, donc à sa `col-sm-8` : le défaut de
+flottement corrigé en 1.7.8 ne peut pas revenir. Le test exige la même boîte que
+le graphique **et** l'ordre après le dernier réglage des repères — il a été
+vérifié comme échouant sur la disposition d'avant.
+
 ### Un tableau de résultats se recopie, un paragraphe non
 
 Les paramètres statistiques vivent dans **un tableau**, pas seulement dans le

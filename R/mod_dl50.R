@@ -3497,46 +3497,58 @@ mod_dl50_ui <- function(id) {
                     shiny::column(4, shiny::numericInput(ns("gRepereEp"),
                       "Épaisseur des repères", value = 0.5, min = 0.1, max = 3,
                       step = 0.1))))
-              )))),
+              )),
 
-        shiny::fluidRow(
+            # « MISE EN FORME GENERALE » A LA HAUTEUR DE « POINTS ET TRAITS ».
+            # Demande a l'ecran. La colonne des reglages (gauche) est plus
+            # haute que la boite de la figure : mesure au navigateur, 2437 px
+            # contre 1796. Pose dans une rangee a part, sous les deux colonnes,
+            # le kit tombait sous la plus haute, et laissait un grand vide a
+            # droite de « Points et traits ». Il finit donc la boite de la
+            # figure : il remplit ce vide, sur la meme ligne que « Points et
+            # traits », et reste sous le graphique qu'il regle.
+            #
+            # Sa rangee est interieure a la boite, donc a sa `col-sm-8` : le
+            # defaut de flottement documente ci-dessous ne peut pas revenir.
+            #
+            # UN ENFANT DE `fluidRow` QUI N'EST PAS UNE COLONNE CASSE LA RANGEE.
+            #
+            # Le kit etait pose ICI, entre les deux boites, en `div` NU -- sans
+            # `column()`. Mesure sur le DOM rendu : `gType` sort sous
+            # `div.row > div.col-sm-4`, `graphe` sous `div.row > div.col-sm-8`,
+            # et `gAxisLine` sous `div.row > div`, sans aucune classe `col-*`.
+            #
+            # Bootstrap fait FLOTTER les deux colonnes ; un bloc non flotte glisse
+            # entre elles. Son titre se dessinait donc en haut a droite, seul,
+            # pendant que ses `row` interieures degageaient les flottants et
+            # tombaient sous les quarante controles de gauche -- en poussant la
+            # colonne du graphique avec elles. Signale a l'ecran : « le graphique
+            # ne fonctionne pas », et en effet il fallait derouler toute la page
+            # pour l'atteindre. Rien ne levait : tout etait la, au mauvais endroit.
+            #
+            # Sur les treize panneaux du kit, c'etait le SEUL hors colonne.
+            #
+            # Largeur 12 et place APRES le graphique : c'est la disposition deja
+            # retenue pour l'epidemiologie (« la boite de mise en forme vit sous
+            # celle d'export ») et pour les comparaisons post-hoc. On voit la
+            # figure, on l'atteint, et elle reste visible pendant qu'on regle.
+            #
+            # LE KIT SE PREND PAR FAMILLE, JAMAIS EN BLOC. Le module porte deja
+            # sa police de base (`gBaseSize`), ses bornes d'axe (`gXmin`...) et
+            # des styles PLUS FINS que ceux du kit (X et Y separes) : lui poser
+            # ces familles-la donnerait deux reglages pour un meme trait, dont
+            # un seul agirait.
+            #
+            # `angles` remplace son `gGradXAngle` : le module n'avait d'angle
+            # que sur X, et « Visualisation des donnees » en offre deux. Une
+            # seule declaration vaut mieux qu'une X maison plus une Y copiee.
+            shiny::fluidRow(
+              shiny::column(
+                width = 12,
+                hstat_plot_extras_ui(ns, "g",
+                                     familles = c("axe", "cles", "marges",
+                                                  "angles", "pas"))))))),
 
-          # UN ENFANT DE `fluidRow` QUI N'EST PAS UNE COLONNE CASSE LA RANGEE.
-          #
-          # Le kit etait pose ICI, entre les deux boites, en `div` NU -- sans
-          # `column()`. Mesure sur le DOM rendu : `gType` sort sous
-          # `div.row > div.col-sm-4`, `graphe` sous `div.row > div.col-sm-8`,
-          # et `gAxisLine` sous `div.row > div`, sans aucune classe `col-*`.
-          #
-          # Bootstrap fait FLOTTER les deux colonnes ; un bloc non flotte glisse
-          # entre elles. Son titre se dessinait donc en haut a droite, seul,
-          # pendant que ses `row` interieures degageaient les flottants et
-          # tombaient sous les quarante controles de gauche -- en poussant la
-          # colonne du graphique avec elles. Signale a l'ecran : « le graphique
-          # ne fonctionne pas », et en effet il fallait derouler toute la page
-          # pour l'atteindre. Rien ne levait : tout etait la, au mauvais endroit.
-          #
-          # Sur les treize panneaux du kit, c'etait le SEUL hors colonne.
-          #
-          # Largeur 12 et place APRES le graphique : c'est la disposition deja
-          # retenue pour l'epidemiologie (« la boite de mise en forme vit sous
-          # celle d'export ») et pour les comparaisons post-hoc. On voit la
-          # figure, on l'atteint, et elle reste visible pendant qu'on regle.
-          #
-          # LE KIT SE PREND PAR FAMILLE, JAMAIS EN BLOC. Le module porte deja
-          # sa police de base (`gBaseSize`), ses bornes d'axe (`gXmin`...) et
-          # des styles PLUS FINS que ceux du kit (X et Y separes) : lui poser
-          # ces familles-la donnerait deux reglages pour un meme trait, dont
-          # un seul agirait.
-          #
-          # `angles` remplace son `gGradXAngle` : le module n'avait d'angle
-          # que sur X, et « Visualisation des donnees » en offre deux. Une
-          # seule declaration vaut mieux qu'une X maison plus une Y copiee.
-          shiny::column(
-            width = 12,
-            hstat_plot_extras_ui(ns, "g",
-                                 familles = c("axe", "cles", "marges",
-                                              "angles", "pas"))))),
 
       shiny::tabPanel(
         shiny::tagList(shiny::icon("code-compare"), " Comparaison d'essais"),
