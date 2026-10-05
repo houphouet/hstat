@@ -4643,6 +4643,66 @@ du cadre à sept pouces et se faisait rogner à l'export. Et les quatre réglage
 du rendu vivent dans un `conditionalPanel` : offerts en classique, ils se
 cocheraient sans que l'image bouge.
 
+### Une bande dix fois trop large : l'incertitude sur la mortalité naturelle
+
+Signalé à l'écran, captures à l'appui : sur un essai, la bande couvrait presque
+tout le cadre ; sur un autre, elle collait à la courbe. Ce n'était **ni** le
+facteur d'hétérogénéité **ni** le niveau de confiance — c'est la mesure qui l'a
+dit, pas une relecture :
+
+| Essai signalé (7 doses de 55 à 97,5 %, témoin 7,5 %) | demi-largeur en probit, centre de l'essai |
+|---|---|
+| EM, bande actuelle | **2,42** |
+| Abbott | **0,20** |
+| EM, mortalité naturelle tenue pour connue | **0,20** |
+
+Le Chi-2 n'était pas significatif (p = 0,062) : le facteur d'hétérogénéité
+valait 1. La cause est la **mortalité naturelle** : sous EM elle est estimée,
+et aucune dose ne tuant peu, rien ne dit où elle est — son erreur-type vaut
+**1,58, sur une proportion**. Cette ignorance se reporte sur la droite entière.
+
+`HSTAT_DL50_BANDES` offre donc deux bandes, et aucune n'est fausse :
+
+- **« Droite seule »** (défaut) — `c` tenue pour connue à sa valeur estimée. C'est
+  le **complément de Schur** `V_ab − V_ac V_cc⁻¹ V_ca`, c'est-à-dire l'inverse du
+  bloc (a, b) de l'information : exactement la bande d'Abbott et de la
+  mortalité nulle, où `c` n'est pas estimée. Le test l'exige.
+- **« Complète »** — avec l'incertitude sur `c`. C'est celle que supposent les
+  intervalles du tableau (Fieller sous EM), qui **ne changent pas**.
+
+La divergence ne passe pas en silence : au-delà d'un facteur deux, la note sous
+la figure dit de combien la bande serait plus large, ou plus étroite, et
+pourquoi. Une bande plus étroite que les intervalles publiés à côté, sans un
+mot, se lirait comme une contradiction.
+
+Le **niveau** se règle à part (`HSTAT_DL50_NIVEAUX`) : « celui du risque α »
+reprend `f$t` tel quel, les autres suivent la même règle que l'ajustement —
+Student sous hétérogénéité, normal sinon.
+
+### DL10, DL50, DL90 et l'équation : des réglages, et pour les deux styles
+
+Les doses létales se chiffrent **à la demande** sur la figure — une, deux ou les
+trois —, chacune avec son losange à `c + (1 − c)·s` (ou `F⁻¹(s)` sur la droite
+de Henry), ses lignes de rappel et son étiquette. `annot_dl` porte désormais
+des **seuils** ; un booléen y garde son sens d'avant (VRAI = la DL50) pour
+qu'un appel ancien ne change pas de sens, et un seuil hors du catalogue
+n'invente pas de losange.
+
+**Ces cases et celle de l'équation vivaient dans le panneau du style
+moderne** : en « classique », elles disparaissaient cochées, sans un mot — un
+réglage que l'image ignore. Elles valent maintenant pour les deux styles, et le
+style « classique » ne rend donc plus *à l'identique* la figure d'origine dès
+qu'une DL ou l'équation est demandée : c'est l'utilisateur qui la demande.
+
+Toutes les cases décochées rendent `NULL` côté navigateur : c'est une demande
+(aucune DL chiffrée), pas une absence de réglage — elle est lue comme
+`numeric(0)` et ne retombe pas sur le défaut.
+
+« Repères DL » vit sous « Couleurs et légende », dans la boîte de la figure, à
+la demande ; la section porte aussi les DL chiffrées et l'équation, qui parlent
+des mêmes doses. Le test passe par l'arbre (`col-sm-8`) et par l'ordre de la
+page : après le dernier réglage de la légende, après le graphique.
+
 ### Un tableau de résultats se recopie, un paragraphe non
 
 Les paramètres statistiques vivent dans **un tableau**, pas seulement dans le
