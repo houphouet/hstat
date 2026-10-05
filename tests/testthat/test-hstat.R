@@ -18738,6 +18738,15 @@ test_that("sur la DL50, le graphique vient AVANT ses reglages de mise en forme",
   expect_gt(dl, 0L)
   for (k in c("dl50-gXlab", "dl50-gTheme"))
     expect_lt(dl, regexpr(k, h, fixed = TRUE), label = paste(k, "apres l'export"))
+
+  # « MISE EN FORME GENERALE » FINIT LA BOITE DE LA FIGURE, a la hauteur de
+  # « Points et traits ». La colonne des reglages est plus haute que la boite
+  # de la figure : dans une rangee a part, le kit tombait sous les deux et
+  # laissait un vide a droite de « Points et traits ». Meme boite, meme
+  # `col-sm-8` que le graphique, et apres le dernier reglage des reperes.
+  expect_true(boite(.hstat_ancetres(ui, "gAxisLine$")[[1]]))
+  expect_lt(regexpr("dl50-gRepereEp", h, fixed = TRUE),
+            regexpr("dl50-gAxisLine", h, fixed = TRUE))
 })
 
 
