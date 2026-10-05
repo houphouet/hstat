@@ -20740,3 +20740,94 @@ test_that("un prechauffage de session qui echoue n'est jamais fatal", {
   # Une valeur qui n'est pas une fonction traverse sans etre enveloppee.
   expect_null(hstat_prechauffer_session(NULL))
 })
+
+test_that("les teintes des cartes d'options se distinguent, et la DL50 les prend au catalogue", {
+  skip_if_not_installed("shiny")
+  # Deux cartes voisines de meme teinte se lisent comme une seule famille : la
+  # couleur par famille ne sert qu'a condition de distinguer. Signale a
+  # l'ecran sur l'onglet Graphique de la DL50 -- deux oranges dans la meme
+  # colonne, un vert d'export pose sur un vert-sarcelle d'axes.
+  lum <- function(h) {
+    v <- grDevices::col2rgb(h)[, 1] / 255
+    v <- ifelse(v <= 0.03928, v / 12.92, ((v + 0.055) / 1.055)^2.4)
+    sum(c(0.2126, 0.7152, 0.0722) * v)
+  }
+  teinte <- function(h) grDevices::rgb2hsv(grDevices::col2rgb(h))[1, ] * 360
+  sature <- function(h) grDevices::rgb2hsv(grDevices::col2rgb(h))[2, ] > 0.4
+  ecart <- function(a, b) { d <- abs(a - b) %% 360; pmin(d, 360 - d) }
+  ecarts_min <- function(cols) {
+    cols <- cols[sature(cols)]
+    if (length(cols) < 2) return(Inf)
+    h <- teinte(cols)
+    m <- outer(h, h, ecart); diag(m) <- Inf
+    min(m)
+  }
+
+  # LE CATALOGUE : un titre lisible sur son fond, et dix teintes discernables.
+  for (n in names(HSTAT_OPT_TEINTES)) {
+    tc <- HSTAT_OPT_TEINTES[[n]]
+    a <- lum(tc[1]); b <- lum(tc[2])
+    expect_gte((max(a, b) + 0.05) / (min(a, b) + 0.05), 4.5, label = n)
+  }
+  expect_gte(ecarts_min(vapply(HSTAT_OPT_TEINTES, `[`, "", 1)), 15)
+  # Un nom inconnu leve : retomber sur une couleur par defaut recreerait en
+  # silence deux cartes identiques.
+  expect_error(.hstat_opt_carte("X", "eye", "turquoise"), "inconnue")
+
+  # LA DL50 : aucune teinte posee a la main, et dans chaque onglet des cartes
+  # toutes discernables -- c'est cette assertion qui echoue sur l'ancienne
+  # disposition (#d35400 et #e67e22, a quatre degres l'une de l'autre).
+  src <- paste(readLines(.hstat_module_path("mod_dl50.R"), encoding = "UTF-8"),
+               collapse = "\n")
+  expect_false(grepl(".hstat_opt_section(", src, fixed = TRUE))
+
+  h <- paste(as.character(htmltools::renderTags(mod_dl50_ui("dl50"))$html),
+             collapse = "\n")
+  onglets <- strsplit(h, 'class="tab-pane', fixed = TRUE)[[1]][-1]
+  vus <- 0L
+  for (o in onglets) {
+    cols <- regmatches(o, gregexpr("border-left:4px solid #[0-9a-fA-F]{6}", o))[[1]]
+    cols <- tolower(sub(".*(#[0-9a-fA-F]{6})$", "\\1", cols))
+    if (length(cols) < 2) next
+    vus <- vus + 1L
+    expect_false(anyDuplicated(cols) > 0, label = paste(cols, collapse = " "))
+    expect_gte(ecarts_min(cols), 15)
+  }
+  # Un balayage qui ne rencontre rien ressemble a un balayage qui passe.
+  expect_gte(vus, 1L)
+})
+
+test_that("le bandeau qui decrit un module est UNE entree du dictionnaire", {
+  skip_if_not_installed("shiny")
+  # Signale a l'ecran : en anglais, le bandeau de la DL50 restait en francais.
+  # Il etait ecrit en cinq morceaux adjacents, que le navigateur fond en UN
+  # noeud de texte -- une chaine qu'aucune entree ne couvrait. Le dictionnaire
+  # portait pourtant les cinq morceaux, qui ne pouvaient jamais s'appliquer.
+  d <- hstat_i18n_load()
+  for (f in c("mod_dl50_ui", "mod_dosage_ui")) {
+    h <- paste(as.character(htmltools::renderTags(get(f)("x"))$html), collapse = "")
+    co <- regmatches(h, regexpr('(?s)<div class="callout callout-info"[^>]*>.*?</div>', h,
+                                perl = TRUE))
+    expect_length(co, 1L)
+    # Le texte visible du bandeau, hors icone et titre en gras : c'est le
+    # noeud que le traducteur du navigateur verra.
+    txt <- gsub("(?s)<i[^>]*></i>|<strong>.*?</strong>|<div[^>]*>|</div>", "", co,
+                perl = TRUE)
+    txt <- trimws(gsub("[[:space:]]+", " ", txt))
+    expect_true(nchar(txt) > 40L, label = f)
+    expect_true(txt %in% d$fr, label = paste(f, ":", txt))
+  }
+
+  # Le bandeau hors-memoire, pose sur une douzaine d'onglets : son texte vit
+  # dans SON element, dont le balisage entier est une entree du dictionnaire.
+  # A cote de l'icone, le balisage du paragraphe portait aussi celui de
+  # l'icone et ne correspondait a rien.
+  for (exact in c(FALSE, TRUE)) {
+    h <- paste(as.character(htmltools::renderTags(.hstat_scope_banner(exact))$html),
+               collapse = "")
+    sp <- regmatches(h, regexpr("(?s)<span><b>.*?</span>", h, perl = TRUE))
+    expect_length(sp, 1L)
+    inner <- sub("(?s)^<span>(.*)</span>$", "\\1", sp, perl = TRUE)
+    expect_true(inner %in% d$fr, label = paste("hors-memoire, exact =", exact))
+  }
+})

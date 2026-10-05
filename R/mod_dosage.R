@@ -630,8 +630,10 @@ mod_dosage_ui <- function(id) {
     shiny::fluidRow(
       shiny::div(class = "callout callout-info", style = "margin-bottom:14px;",
         shiny::icon("flask-vial"), shiny::strong(" Doses et dilutions. "),
-        "Chaque résultat porte la formule qui l'a produit : un chiffre de dose",
-        " qu'on ne peut pas refaire à la main sera de toute façon recalculé.")),
+        # Une seule chaine, sinon le bandeau reste en francais : voir mod_dl50.R.
+        paste("Chaque résultat porte la formule qui l'a produit : un chiffre de",
+              "dose qu'on ne peut pas refaire à la main sera de toute façon",
+              "recalculé."))),
 
     shiny::tabsetPanel(
       id = ns("dosageTabs"),

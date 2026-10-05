@@ -2090,6 +2090,42 @@ hstat_mv_forme_ui <- function(prefix, titre = "Apparence du graphique") {
                     "Aucune" = "sans"), selected = "gg"))))
 }
 
+# Les teintes des cartes d'options se DECLARENT, elles ne se choisissent pas
+# carte par carte. Chaque panneau prenait ses couleurs une a une, et elles
+# avaient fini par se ressembler la ou elles se touchent : deux oranges dans la
+# meme colonne de la DL50 (« Type de graphique » et « Points et traits »), un
+# vert d'export pose sur un vert-sarcelle d'axes, deux gris-ardoise cote a cote.
+# Une couleur par famille ne sert que si deux familles voisines se distinguent.
+#
+# Dix teintes, chacune a 15 degres au moins de toutes les autres (l'ardoise,
+# desaturee, se lit comme un gris), et chaque titre garde un contraste d'au
+# moins 4,5 sur son fond -- le seuil WCAG d'un texte de 12 px. Un test le
+# verifie, et verifie qu'aucun onglet ne pose deux cartes de meme teinte.
+HSTAT_OPT_TEINTES <- list(
+  bleu     = c("#1f6fb2", "#eaf3fb"),
+  orange   = c("#b4500b", "#fdf0e6"),
+  vert     = c("#1b7a43", "#e9f7ef"),
+  violet   = c("#7d3c98", "#f4ecfa"),
+  rouge    = c("#b03a2e", "#fbeceb"),
+  sarcelle = c("#0f766e", "#e6f4f1"),
+  ardoise  = c("#4d5d6e", "#eef2f5"),
+  ocre     = c("#8a6200", "#fdf6e3"),
+  magenta  = c("#a8326e", "#fbeaf3"),
+  indigo   = c("#3f51b5", "#ecedf8")
+)
+
+# Une carte d'options a la teinte du catalogue. Un nom inconnu LEVE : retomber
+# sur une couleur par defaut recreerait en silence deux cartes identiques.
+.hstat_opt_carte <- function(titre, icone, teinte, ...) {
+  if (!is.character(teinte) || length(teinte) != 1L ||
+      !teinte %in% names(HSTAT_OPT_TEINTES)) {
+    stop(sprintf("Teinte de carte inconnue : %s", paste(teinte, collapse = ", ")),
+         call. = FALSE)
+  }
+  tc <- HSTAT_OPT_TEINTES[[teinte]]
+  .hstat_opt_section(titre, icone, tc[1], tc[2], ...)
+}
+
 .hstat_opt_section <- function(titre, icone, couleur, fond, ...) {
   shiny::div(
     style = sprintf(paste0("background:%s;border-left:4px solid %s;border-radius:6px;",
@@ -2301,7 +2337,8 @@ hstat_plot_extras_ui <- function(ns, prefix,
                         "Les marges se comptent en points, comme les tailles de texte.")))
 
   do.call(.hstat_opt_section,
-          c(list("Mise en forme générale", "vector-square", "#5d6d7e", "#eef2f5"),
+          c(list("Mise en forme générale", "vector-square",
+                 HSTAT_OPT_TEINTES$ardoise[1], HSTAT_OPT_TEINTES$ardoise[2]),
             els))
 }
 
@@ -3076,11 +3113,16 @@ hstat_axe_titre_lire <- function(input, prefix, size = 12, face = "plain",
     condition = "output.hstatBigData == true",
     shiny::div(class = "callout callout-warning", style = "margin-bottom:16px;",
       shiny::tags$p(style = "margin:0; font-size:13px;",
-        shiny::icon("database"),
-        if (exact)
-          shiny::HTML(" <b>Mode hors-mémoire.</b> Cette analyse s'exécute sur l'échantillon de travail ; l'option <b>« calculer sur le jeu complet »</b> ci-dessous fournit un résultat exact lorsque c'est applicable.")
-        else
-          shiny::HTML(" <b>Mode hors-mémoire.</b> Cette analyse ajuste un modèle et s'exécute donc sur l'<b>échantillon de travail</b>. Pour gagner en fidélité, agrandissez l'échantillon dans l'onglet « Chargement » &rarr; « Échantillon de travail »."))
+        shiny::icon("database"), " ",
+        # Le texte vit dans SON element : le traducteur remplace un element
+        # dont le balisage entier est une entree du dictionnaire. Pose a cote
+        # de l'icone, le balisage du paragraphe portait aussi celui de l'icone
+        # et ne correspondait a rien -- le bandeau restait en francais.
+        shiny::span(
+          if (exact)
+            shiny::HTML("<b>Mode hors-mémoire.</b> Cette analyse s'exécute sur l'échantillon de travail ; l'option <b>« calculer sur le jeu complet »</b> ci-dessous fournit un résultat exact lorsque c'est applicable.")
+          else
+            shiny::HTML("<b>Mode hors-mémoire.</b> Cette analyse ajuste un modèle et s'exécute donc sur l'<b>échantillon de travail</b>. Pour gagner en fidélité, agrandissez l'échantillon dans l'onglet « Chargement » → « Échantillon de travail ».")))
     )
   )
 }

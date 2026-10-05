@@ -4718,6 +4718,29 @@ flottement corrigé en 1.7.8 ne peut pas revenir. Le test exige la même boîte 
 le graphique **et** l'ordre après le dernier réglage des repères — il a été
 vérifié comme échouant sur la disposition d'avant.
 
+### Les teintes des cartes se déclarent, et deux voisines se distinguent
+
+Demandé à l'écran : « réordonner les couleurs des box afin qu'il ait un bon
+agencement ». Chaque carte d'options prenait sa couleur à la main, et sur
+l'onglet Graphique de la DL50 elles avaient fini par se ressembler là où elles
+se touchent : **deux oranges** dans la même colonne (« Type de graphique »,
+« Points et traits », à quatre degrés de teinte l'une de l'autre), un vert
+d'export posé sur le vert-sarcelle des axes, deux gris-ardoise. Une couleur par
+famille ne sert qu'à condition de distinguer deux familles voisines.
+
+`HSTAT_OPT_TEINTES` déclare **dix** teintes, `.hstat_opt_carte()` les pose par
+leur nom. Chaque teinte est à 15° au moins de toutes les autres (l'ardoise,
+désaturée, se lit comme un gris), et chaque titre garde un contraste d'au moins
+**4,5** sur son fond, le seuil WCAG d'un texte de 12 px — l'orange et le vert
+d'avant étaient sous ce seuil. Un nom de teinte inconnu **lève** : retomber sur
+une couleur par défaut recréerait en silence deux cartes identiques.
+
+Répartition sur l'onglet Graphique, dans l'ordre de lecture : bleu, orange,
+violet, sarcelle, magenta à gauche ; vert (export), indigo et ocre côte à côte,
+rouge (repères), ardoise (mise en forme générale) à droite. Le test mesure les
+**teintes** des cartes dans chaque onglet de la page rendue — pas une liste
+codée en dur — et il a été vérifié comme échouant sur l'ancienne disposition.
+
 ### Un tableau de résultats se recopie, un paragraphe non
 
 Les paramètres statistiques vivent dans **un tableau**, pas seulement dans le
@@ -5045,6 +5068,24 @@ comportement.
 Même famille pour les **info-bulles de plotly** (`hovertemplate`) : elles ne
 sont ni un nœud de texte ni un attribut HTML, le traducteur du navigateur ne
 les voit pas. Elles passent par `tr()` côté serveur.
+
+#### Un bandeau écrit en morceaux ne se traduit jamais
+
+Signalé à l'écran : en anglais, le bandeau qui décrit la DL50 restait en
+français. Il était écrit en **cinq chaînes adjacentes**, que le navigateur fond
+en **un** nœud de texte ; le dictionnaire portait les cinq morceaux, et aucun ne
+pouvait s'appliquer — c'est exactement la règle « les enfants texte adjacents ne
+font qu'un seul nœud », que ce bandeau enfreignait depuis son écriture. Même
+défaut sur celui des **doses et dilutions**. Les deux sont écrits d'un seul
+tenant, les sept fragments morts quittent le dictionnaire.
+
+Le bandeau **hors-mémoire**, posé sur une douzaine d'onglets, avait l'autre
+forme du défaut : son balisage (`<b>…</b>`) était bien une entrée du
+dictionnaire, mais il vivait à côté de l'icône, si bien que le balisage du
+paragraphe portait aussi celui de l'icône et ne correspondait à rien. Le texte
+vit désormais dans **son** `<span>`. Un test vérifie que le texte de chacun de
+ces bandeaux est une entrée du dictionnaire ; il échoue sur les quatre avant
+correction.
 
 #### Une phrase coupée par une balise n'est plus une chaîne
 
