@@ -19691,7 +19691,14 @@ test_that("les conversions rendent un tableau, et la conversion est annoncee", {
   # tout jeu recevrait une colonne d'entiers qui n'apprend rien.
   ir <- hstat_donnees_r("iris")
   expect_equal(ncol(ir$data), 5L)
-  expect_null(ir$notes)
+  # Aucune note de CONVERSION. La seule note admise est celle des homonymes :
+  # elle dépend des paquets installés (locfit livre aussi un `iris`), et la
+  # proscrire ferait échouer le test sur l'environnement, pas sur le code.
+  autres <- setdiff(ir$notes %||% character(0),
+                    grep("existe aussi dans", ir$notes %||% character(0),
+                         fixed = TRUE, value = TRUE))
+  expect_identical(autres, character(0))
+  expect_false(any(grepl("noms de lignes", ir$notes %||% "", fixed = TRUE)))
 
   # --- ce qui ne se convertit pas est NOMME ---------------------------------
   ab <- hstat_donnees_r("ability.cov")
@@ -20724,13 +20731,38 @@ test_that("le serveur se compile hors requete, et les sessions suivantes passent
   expect_true(bytecode(environment(env)$courant))
   shiny::testServer(env, expect_identical(output$x, "ok"))
   expect_equal(appels, 2)
-  # La session fictive passe par le meme serveur, et le dit.
-  expect_message(attr(env, "hstat_etapes")$session(), "préchauffée")
+  # La session fictive passe par le meme serveur, et le dit -- sur une
+  # enveloppe qu'aucune vraie session n'a encore traversee.
+  env2 <- hstat_prechauffer_session(srv, differer = FALSE)
+  expect_message(attr(env2, "hstat_etapes")$session(), "préchauffée")
   expect_equal(appels, 3)
   # Et l'application la pose bien.
   src <- paste(readLines(file.path(.hstat_repo_root(), "inst/app/HStat.R"), warn = FALSE),
                collapse = "\n")
   expect_true(grepl("server <- hstat_prechauffer_session(server)", src, fixed = TRUE))
+})
+
+test_that("une vraie session ouverte avant la session fictive la rend inutile, et les etapes sont espacees", {
+  appels <- 0
+  srv <- function(input, output, session) appels <<- appels + 1
+  env <- hstat_prechauffer_session(srv, differer = FALSE)
+  # Un visiteur arrive avant le prechauffage : il a deja paye la compilation.
+  shiny::testServer(env, {})
+  expect_equal(appels, 1)
+  # La session fictive ne rejoue donc rien -- 25 s de processus bloque epargnees.
+  expect_false(attr(env, "hstat_etapes")$session())
+  expect_equal(appels, 1)
+  # Et la session fictive elle-meme ne compte pas comme une vraie session.
+  env2 <- hstat_prechauffer_session(srv, differer = FALSE)
+  suppressMessages(attr(env2, "hstat_etapes")$session())
+  expect_equal(appels, 2)
+  expect_false(isTRUE(environment(env2)$vraie_session))
+  # UN DELAI ENTRE LES ETAPES : a delai nul, une etape enchainee passait devant
+  # la requete arrivee pendant la precedente (mesure : 40 s a l'ouverture).
+  expect_gte(HSTAT_PRECHAUFFAGE_ECART, 0.5)
+  corps <- paste(deparse(hstat_prechauffer_session), collapse = "\n")
+  expect_equal(lengths(regmatches(corps, gregexpr("delay = HSTAT_PRECHAUFFAGE_ECART",
+                                                  corps, fixed = TRUE))), 2L)
 })
 
 test_that("un prechauffage de session qui echoue n'est jamais fatal", {
@@ -20830,4 +20862,186 @@ test_that("le bandeau qui decrit un module est UNE entree du dictionnaire", {
     inner <- sub("(?s)^<span>(.*)</span>$", "\\1", sp, perl = TRUE)
     expect_true(inner %in% d$fr, label = paste("hors-memoire, exact =", exact))
   }
+})
+
+test_that("la diversité bêta et Baselga se calculent par produits matriciels, à l'identique de la définition par paire", {
+  # Paire par paire, chaque comparaison appelait une fonction R : 12,7 s pour
+  # 1 000 relevés en Jaccard, 375 s pour la partition de Baselga, qui montait en
+  # plus un data.frame par paire. Le calcul passe par `tcrossprod()` ; la
+  # définition par paire (`hstat_div_sim_*`) reste la RÉFÉRENCE, et chaque
+  # coefficient lui est confronté.
+  set.seed(7)
+  ref_beta <- function(m, meth) {
+    n <- nrow(m); out <- matrix(NA_real_, n, n)
+    bin <- meth %in% HSTAT_DIV_BETA_BINAIRES
+    for (i in seq_len(n)) for (j in seq_len(n)) {
+      out[i, j] <- if (i == j) { if (meth %in% c("euclidean", "manhattan")) 0 else 1 }
+        else if (meth == "euclidean") sqrt(sum((m[i, ] - m[j, ])^2))
+        else if (meth == "manhattan") sum(abs(m[i, ] - m[j, ]))
+        else if (bin) hstat_div_sim_binaire(m[i, ], m[j, ], meth)
+        else hstat_div_sim_abondance(m[i, ], m[j, ], meth)
+    }
+    dimnames(out) <- list(rownames(m), rownames(m)); out
+  }
+  # Les cas qui font diverger une vectorisation fautive : un relevé vide (les
+  # dénominateurs nuls rendent NA), des effectifs non entiers (Morisita et Chao
+  # rendent NA), des singletons et doubletons (Chao), une espèce absente.
+  ms <- list(
+    matrix(c(0, 0, 0, 1, 2, 0, 3, 1, 1, 0, 2, 2, 5, 0, 1), 5, 3),
+    matrix(rpois(6 * 7, 1.2), 6, 7),
+    matrix(rpois(4 * 5, 3), 4, 5) + 0.5)
+  for (m in ms) {
+    rownames(m) <- paste0("R", seq_len(nrow(m)))
+    for (meth in c(HSTAT_DIV_BETA_BINAIRES, HSTAT_DIV_BETA_ABONDANCE)) {
+      nous <- unclass(hstat_div_beta(m, meth))
+      attributes(nous) <- attributes(nous)[c("dim", "dimnames")]
+      expect_equal(nous, ref_beta(m, meth), tolerance = 1e-12, label = meth)
+    }
+  }
+
+  # Baselga : la ligne (i, j) porte a, b, c de la paire, dans l'ordre de la
+  # double boucle -- (1, 2), (1, 3), …, (2, 3), … -- qui est celui de la lecture.
+  m <- ms[[1]]; rownames(m) <- paste0("R", 1:5)
+  b <- hstat_div_baselga(m)
+  expect_equal(nrow(b), 10L)
+  expect_identical(b$Releve_1[1:4], rep("R1", 4))
+  expect_identical(b$Releve_2[1:4], paste0("R", 2:5))
+  k <- .hstat_div_abc(m[2, ], m[4, ])
+  ligne <- b[b$Releve_1 == "R2" & b$Releve_2 == "R4", ]
+  expect_equal(c(ligne$Communes_a, ligne$Exclusives_1_b, ligne$Exclusives_2_c),
+               c(k$a, k$b, k$c))
+  expect_equal(b$Sorensen_total, b$Simpson_turnover + b$Sorensen_emboitement)
+
+  # ET AUCUN APPEL PAR PAIRE. C'est l'assertion qui distingue les deux codes :
+  # l'égalité des valeurs, elle, passerait aussi sur la double boucle d'avant.
+  env <- environment(hstat_div_beta)
+  skip_if(environmentIsLocked(env), "espace de noms verrouillé (paquet installé)")
+  n_appels <- 0
+  garder <- list(abc = env$.hstat_div_abc, bin = env$hstat_div_sim_binaire)
+  on.exit({ env$.hstat_div_abc <- garder$abc; env$hstat_div_sim_binaire <- garder$bin },
+          add = TRUE)
+  env$.hstat_div_abc <- function(...) { n_appels <<- n_appels + 1; garder$abc(...) }
+  env$hstat_div_sim_binaire <- function(...) { n_appels <<- n_appels + 1; garder$bin(...) }
+  m2 <- matrix(rpois(30 * 8, 2), 30, 8, dimnames = list(paste0("S", 1:30), NULL))
+  invisible(hstat_div_beta(m2, "jaccard")); invisible(hstat_div_beta(m2, "simpson"))
+  invisible(hstat_div_baselga(m2))
+  expect_identical(n_appels, 0)
+})
+
+test_that("la matrice relevés × espèces et les comparaisons par paire sont bornées avant d'être construites", {
+  # Une colonne de texte libre choisie comme relevé ou comme espèce donnait une
+  # matrice dense de n x n : 6 000 lignes, 52 s et 1,8 Go ; 12 000 ne rendaient
+  # jamais la main. Le refus tombe AVANT la construction, et nomme les deux
+  # comptes -- ce sont eux qui disent d'où vient l'excès.
+  n <- 3000
+  d <- data.frame(site = paste0("S", seq_len(n)), esp = paste0("E", seq_len(n)))
+  t0 <- proc.time()[["elapsed"]]
+  err <- tryCatch(hstat_div_matrice(d, "long", var_site = "site", var_espece = "esp"),
+                  error = function(e) e)
+  expect_s3_class(err, "hstat_refus")
+  expect_match(conditionMessage(err), "3000 relevés et 3000 espèces", fixed = TRUE)
+  # Le message d'un refus métier passe tel quel, il n'est pas « non traduit ».
+  expect_false(grepl("non traduit", hstat_err_fr(err), fixed = TRUE))
+  # Un fichier réel de taille ordinaire passe, lui.
+  ok <- data.frame(site = rep(paste0("S", 1:50), each = 40),
+                   esp = rep(paste0("E", 1:40), 50))
+  expect_equal(dim(hstat_div_matrice(ok, "long", var_site = "site", var_espece = "esp")),
+               c(50L, 40L))
+
+  m <- matrix(1, HSTAT_DIV_RELEVES_MAX + 1L, 2,
+              dimnames = list(paste0("S", seq_len(HSTAT_DIV_RELEVES_MAX + 1L)), NULL))
+  expect_error(hstat_div_beta(m), class = "hstat_refus")
+  expect_error(hstat_div_baselga(m), class = "hstat_refus")
+  expect_identical(.hstat_div_trop_de_releves(HSTAT_DIV_RELEVES_MAX), "")
+  expect_match(.hstat_div_trop_de_releves(HSTAT_DIV_RELEVES_MAX + 1L), "Regroupez")
+})
+
+test_that("une sortie déjà calculée suit le changement de langue, un observateur ne se relance pas", {
+  skip_if_not_installed("shiny")
+  # La langue vivait dans `userData`, qui n'est pas réactive : un résultat
+  # calculé en français restait en français après la bascule. Mesuré au
+  # navigateur : 251 textes français sur une page passée en anglais.
+  srv <- function(input, output, session) {
+    session$userData$langue_rv <- shiny::reactiveVal("fr")
+    shiny::observeEvent(input$lg, {
+      session$userData$langue <- input$lg
+      session$userData$langue_rv(input$lg)
+    })
+    n_obs <- 0
+    shiny::observe({ tr("Annuler"); n_obs <<- n_obs + 1; session$userData$n_obs <- n_obs })
+    output$txt <- shiny::renderText(tr("Annuler"))
+  }
+  shiny::testServer(srv, {
+    session$setInputs(lg = "fr")
+    expect_identical(output$txt, "Annuler")
+    session$setInputs(lg = "en")
+    expect_identical(output$txt, "Cancel")
+    # Un observateur qui compose du texte ne prend PAS la dépendance : le
+    # relancer à chaque bascule réafficherait ses notifications.
+    expect_identical(session$userData$n_obs, 1)
+  })
+  # Et l'application pose bien cet état réactif à côté de la valeur.
+  src <- paste(readLines(.hstat_module_path("app_server.R"), encoding = "UTF-8"),
+               collapse = "\n")
+  expect_match(src, "session$userData$langue_rv(session$userData$langue)", fixed = TRUE)
+})
+
+test_that("les libellés des options de liste sont au dictionnaire, comme les libellés des champs", {
+  skip_if_not_installed("shiny")
+  # Le test de couverture lisait le libellé de chaque widget, pas ses CHOIX :
+  # 79 options de liste restaient en français dans une interface anglaise
+  # (« Coin supérieur droit », « Niveaux de gris », « Binomiale négative »…).
+  d <- hstat_i18n_load(); cles <- trimws(gsub("[[:space:]]+", " ", d$fr))
+  ent <- function(x) {
+    x <- gsub("&lt;", "<", x, fixed = TRUE); x <- gsub("&gt;", ">", x, fixed = TRUE)
+    x <- gsub("&quot;", "\"", x, fixed = TRUE); x <- gsub("&#39;", "'", x, fixed = TRUE)
+    gsub("&amp;", "&", x, fixed = TRUE)
+  }
+  lab <- character(0); vus <- 0L
+  for (u in ls(globalenv(), pattern = "^mod_.*_ui$")) {
+    h <- tryCatch(paste(as.character(htmltools::renderTags(get(u)("x"))$html),
+                        collapse = "\n"), error = function(e) "")
+    if (!nzchar(h)) next
+    vus <- vus + 1L
+    o <- regmatches(h, gregexpr("<option[^>]*>([^<]*)</option>", h))[[1]]
+    r <- regmatches(h, gregexpr('<input type="(radio|checkbox)"[^>]*/?>\\s*<span>([^<]*)</span>', h))[[1]]
+    lab <- c(lab, sub("</option>$", "", sub("^<option[^>]*>", "", o)),
+             sub("</span>$", "", sub(".*<span>", "", r)))
+  }
+  # Un balayage qui ne rencontre rien ressemble à un balayage qui passe.
+  expect_gte(vus, 15L)
+  lab <- unique(trimws(gsub("[[:space:]]+", " ", ent(lab))))
+  fr <- lab[grepl("[éèêàùçôîâÉ]|\\b(les|des|une|du|pour|avec|par|sans|de|la|le|et|ou)\\b",
+                  lab, ignore.case = TRUE)]
+  expect_gte(length(fr), 100L)
+  manquants <- setdiff(fr, cles)
+  expect_identical(manquants, character(0))
+})
+
+test_that("aucune interface ne lit l'horloge : elle est construite une fois et mise en cache", {
+  # L'interface est sérialisée une fois, au démarrage (`hstat_ui_en_cache()`).
+  # « Dernière mise à jour : %s » y était calculé : la page annonçait donc pour
+  # dernière mise à jour du graphique l'heure de DÉMARRAGE du serveur, quoi
+  # qu'on trace ensuite. Une heure ou une date se calcule côté serveur.
+  fs <- c(.hstat_sources_app(), .hstat_module_path("UX.R"))
+  fs <- unique(fs[grepl("(mod_.*|UX)\\.R$", fs)])
+  expect_gte(length(fs), 15L)
+  fautes <- character(0)
+  for (f in fs) {
+    ex <- parse(f, keep.source = TRUE, encoding = "UTF-8")
+    cherche <- function(x, ctx) {
+      if (!is.call(x)) return(invisible())
+      fn <- paste(deparse(x[[1]]), collapse = "")
+      if (fn %in% c("Sys.time", "Sys.Date", "date", "base::Sys.time", "base::Sys.Date"))
+        fautes <<- c(fautes, paste(basename(f), ctx, fn))
+      for (a in as.list(x)[-1]) if (!missing(a)) cherche(a, ctx)
+    }
+    for (e in ex) {
+      if (basename(f) == "UX.R") cherche(e, "UX")
+      else if (is.call(e) && identical(e[[1]], as.name("<-")) &&
+               grepl("_ui$", paste(deparse(e[[2]]), collapse = "")))
+        cherche(e[[3]], paste(deparse(e[[2]]), collapse = ""))
+    }
+  }
+  expect_identical(fautes, character(0))
 })
