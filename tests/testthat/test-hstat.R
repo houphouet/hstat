@@ -21077,3 +21077,32 @@ process.stdout.write(JSON.stringify(out));
   expect_identical(r$excel, list("1.5", 2.5, "2,5"))
   expect_identical(r$point, "1.5")
 })
+
+test_that("chaque bloc d'export porte le selecteur du separateur, a cote du format", {
+  h <- as.character(hstat_format_input("x_fmt", "Format"))
+  # Les deux choix, chacun relie au choix unique par son attribut -- et AUCUNE
+  # entree Shiny : dix-sept entrees pour un meme reglage pourraient se
+  # contredire, l'export lisant l'une pendant qu'on regarde l'autre.
+  expect_true(grepl('data-hstat-dec=","', h, fixed = TRUE))
+  expect_true(grepl('data-hstat-dec="."', h, fixed = TRUE))
+  expect_true(grepl("hstat-dec-choix", h, fixed = TRUE))
+  expect_false(grepl("action-button", h, fixed = TRUE))
+  expect_equal(lengths(regmatches(h, gregexpr("<select", h))), 1L)
+  # Le kit d'export partage le porte donc aussi.
+  k <- as.character(hstat_export_plot_ui(shiny::NS("m"), "g"))
+  expect_true(grepl("hstat-dec-choix", k, fixed = TRUE))
+
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  lire <- function(...) paste(readLines(file.path(root, ...), warn = FALSE,
+                                        encoding = "UTF-8"), collapse = "\n")
+  js  <- lire("inst", "app", "www", "hstat-decimale.js")
+  css <- lire("inst", "app", "www", "hstat-theme.css")
+  # Le clic sur un segment regle le choix ; l'etat se lit sur <body>, si bien
+  # qu'un bloc rendu plus tard s'affiche juste ; et un bouton dont le bloc
+  # porte deja le selecteur ne redemande pas dans une fenetre.
+  for (x in c("[data-hstat-dec]", "data-hstat-decimale", "selecteurVoisin"))
+    expect_true(grepl(x, js, fixed = TRUE), info = x)
+  expect_true(grepl('body[data-hstat-decimale=","] .hstat-dec-seg[data-hstat-dec=","]',
+                    css, fixed = TRUE))
+})

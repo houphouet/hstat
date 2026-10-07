@@ -458,6 +458,21 @@ a { color: var(--accent); }
 .hstat-dec-plus input { margin: 0; }
 .hstat-dec-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .hstat-dec-bascule .seg { font-family: var(--mono); }
+/* Selecteur d'un bloc d'export : son etat se lit sur <body>, posé par le
+   script, pour qu'un bloc rendu apres coup s'affiche juste. */
+.hstat-dec-choix .hstat-dec-segments {
+  display: inline-flex; gap: 4px; padding: 3px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 7px;
+}
+.hstat-dec-seg {
+  font-family: var(--mono); font-size: 12px; color: var(--ink2);
+  background: transparent; border: 0; border-radius: 5px; padding: 3px 10px; cursor: pointer;
+}
+.hstat-dec-seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+body:not([data-hstat-decimale=","]) .hstat-dec-seg[data-hstat-dec="."],
+body[data-hstat-decimale=","] .hstat-dec-seg[data-hstat-dec=","] {
+  background: var(--paper); color: var(--ink); box-shadow: var(--shadow); font-weight: 600;
+}
 
 /* =============================================================================
    RESPONSIVE : DE L'IPHONE SE (375 px) AU GRAND ECRAN

@@ -2996,8 +2996,33 @@ HSTAT_FORMATS_IMG <- c(
 # ce qui permettait a chaque appel d'inventer sa propre liste.
 hstat_format_input <- function(id, label = "Format", selected = "png",
                                width = NULL) {
-  shiny::selectInput(id, label, choices = HSTAT_FORMATS_IMG,
-                     selected = selected, width = width)
+  # Le separateur decimal vit A COTE DU FORMAT, dans chaque bloc d'export : on
+  # le regle la ou l'on choisit le fichier. Poser le selecteur ici plutot que
+  # dans chacun des dix-sept blocs garantit qu'aucun ne l'oublie.
+  shiny::tagList(
+    shiny::selectInput(id, label, choices = HSTAT_FORMATS_IMG,
+                       selected = selected, width = width),
+    hstat_decimale_ui())
+}
+
+# Selecteur du separateur decimal d'un bloc d'export.
+#
+# CE N'EST PAS UNE ENTREE SHINY, et c'est voulu. Il y en a un par bloc, et ils
+# reglent tous LE MEME choix : dix-sept entrees distinctes pourraient se
+# contredire, et l'export lirait l'une pendant que l'utilisateur regarde
+# l'autre. Ce sont des boutons que www/hstat-decimale.js relie au choix unique
+# de la session ; leur etat se lit sur `body[data-hstat-decimale]`, si bien
+# qu'un bloc construit plus tard (renderUI) s'affiche juste sans qu'on y pense.
+hstat_decimale_ui <- function() {
+  seg <- function(dec, texte, titre)
+    shiny::tags$button(type = "button", class = "hstat-dec-seg",
+                       `data-hstat-dec` = dec, title = titre,
+                       `aria-label` = titre, texte)
+  shiny::div(class = "hstat-dec-choix form-group",
+    shiny::tags$label(class = "control-label", "Séparateur décimal"),
+    shiny::div(class = "hstat-dec-segments", role = "group",
+      seg(",", "1,5", "Virgule décimale"),
+      seg(".", "1.5", "Point décimal")))
 }
 
 # Champ de resolution. Pas d'argument `max` : le plafond est celui de

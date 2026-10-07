@@ -7863,6 +7863,30 @@ pour toujours sans dire où la retrouver serait un réglage perdu.
 test compare le CSV au point à celui de `write.csv()` octet pour octet — aucun
 export existant ne change sans que l'utilisateur le demande.
 
+### Et un sélecteur dans chaque bloc d'export, à côté du format
+
+Redemandé sur la PR : le choix doit vivre **là où l'on choisit le fichier**.
+`hstat_format_input()` pose désormais, sous la liste des formats, le sélecteur
+`hstat_decimale_ui()` — les dix-sept blocs d'export d'image en héritent sans
+qu'aucun ait à y penser, exactement comme ils héritent du catalogue des formats.
+Mesuré dans la page rendue : **34** sélecteurs.
+
+**Ce n'est pas une entrée Shiny, et c'est la décision qui compte.** Dix-sept
+entrées pour un même réglage pourraient se contredire : l'export lirait l'une
+pendant que l'utilisateur regarde l'autre — « deux réglages pour un même
+trait ». Ce sont des boutons que `hstat-decimale.js` relie au **choix unique** de
+la session ; cliquer l'un met à jour tous les autres et le bandeau.
+
+**L'état se lit sur `body[data-hstat-decimale]`, par la feuille de style.** Un
+bloc construit plus tard par `renderUI` (les vingt-trois exports multivariés)
+s'affiche donc juste sans que le script ait à le reparcourir.
+
+**La fenêtre ne se rouvre pas devant un choix déjà visible.** Un téléchargement
+dont la boîte porte un sélecteur part sans question — le choix est sous les yeux,
+juste à côté du format ; les autres (tableaux, boutons DataTables) gardent la
+fenêtre. Mesuré au navigateur : figure du bloc descriptif sans fenêtre et avec
+`0,05` sur l'axe, CSV de la boîte voisine avec la fenêtre.
+
 ### Le choix voyage par le websocket, le fichier par HTTP
 
 Le choix vit dans `session$userData$decimale`, comme la langue et pour la même

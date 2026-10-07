@@ -110,6 +110,10 @@
     var v = document.getElementById("hstatDecVirgule");
     if (p) p.classList.toggle("active", choix === ".");
     if (v) v.classList.toggle("active", choix === ",");
+    // Les selecteurs des blocs d'export lisent l'etat sur <body> par la feuille
+    // de style : un bloc rendu plus tard (renderUI) s'affiche juste sans qu'il
+    // faille le reparcourir.
+    if (document.body) document.body.setAttribute("data-hstat-decimale", choix);
   }
 
   window.hstatSetDecimale = function (v) {
@@ -220,9 +224,22 @@
   // ------------------------------------------------------------ interception
   function relancer(el) { el.__hstatDecOk = true; el.click(); }
 
+  // Le bloc qui porte le bouton porte-t-il aussi son selecteur ? Alors le choix
+  // est sous les yeux de l'utilisateur, juste a cote du format : le redemander
+  // dans une fenetre serait une question deja posee.
+  function selecteurVoisin(el) {
+    var bloc = el.closest(".box, .modal-content, .tab-pane, .well");
+    return !!(bloc && bloc.querySelector(".hstat-dec-choix"));
+  }
+
   document.addEventListener("click", function (ev) {
     var cible = ev.target && ev.target.closest ? ev.target : null;
     if (!cible) return;
+    var seg = cible.closest("[data-hstat-dec]");
+    if (seg) {
+      window.hstatSetDecimale(seg.getAttribute("data-hstat-dec"));
+      return;
+    }
     var lien = cible.closest("a.shiny-download-link");
     var bouton = lien ? null : cible.closest(".buttons-csv, .buttons-excel");
     var el = lien || bouton;
@@ -236,7 +253,8 @@
       ? function () { quandServeurPret(function () { relancer(el); }); }
       : function () { relancer(el); };
 
-    var demande = lire("sessionStorage", CLE_DEMANDER, "1") !== "0";
+    var demande = lire("sessionStorage", CLE_DEMANDER, "1") !== "0" &&
+                  !selecteurVoisin(el);
     if (!demande && (bouton || serveur === choix)) return;
 
     ev.preventDefault();
