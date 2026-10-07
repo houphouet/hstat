@@ -473,6 +473,8 @@ mod_diversity_server <- function(id, values,
       shiny::req(rv$mat)
       shiny::validate(shiny::need(nrow(rv$mat) >= 2,
         "La diversité bêta compare des relevés : il en faut au moins deux."))
+      shiny::validate(shiny::need(nrow(rv$mat) <= HSTAT_DIV_RELEVES_MAX,
+        .hstat_div_trop_de_releves(nrow(rv$mat))))
       hstat_div_beta(rv$mat, input$divBetaMethode %||% "jaccard",
                      input$divBetaSortie %||% "similarite")
     })
@@ -612,6 +614,8 @@ mod_diversity_server <- function(id, values,
       shiny::req(rv$mat)
       shiny::validate(shiny::need(nrow(rv$mat) >= 2,
         "La partition de Baselga compare des relevés : il en faut au moins deux."))
+      shiny::validate(shiny::need(nrow(rv$mat) <= HSTAT_DIV_RELEVES_MAX,
+        .hstat_div_trop_de_releves(nrow(rv$mat))))
       .tab(hstat_div_baselga(rv$mat),
            "Partition de Baselga (2010) : βsor = βsim (remplacement) + βsne (emboîtement)")
     })
@@ -875,7 +879,10 @@ mod_diversity_server <- function(id, values,
                                     as.data.frame(unclass(rv$mat), check.names = FALSE),
                                     check.names = FALSE, stringsAsFactors = FALSE,
                                     row.names = NULL))
-      if (nrow(rv$mat) >= 2) {
+      # Au-dela de la borne, les deux tableaux par paire sont OMIS de l'export,
+      # et l'onglet le dit deja : un classeur qui ferait tomber l'export entier
+      # pour deux feuilles priverait aussi l'utilisateur de toutes les autres.
+      if (nrow(rv$mat) >= 2 && nrow(rv$mat) <= HSTAT_DIV_RELEVES_MAX) {
         bm <- beta_mat()
         l$Beta      <- data.frame(Releve = rownames(bm),
                                   as.data.frame(unclass(bm), check.names = FALSE),
