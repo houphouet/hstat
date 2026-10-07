@@ -523,7 +523,7 @@ mod_descriptive_server <- function(id, values) {
         scrollX = TRUE, 
         pageLength = 15,
         dom = 'Bfrtip',
-        buttons = c('copy', 'csv', 'excel'),
+        buttons = .hstat_dt_buttons("statistiques_descriptives"),
         language = list(
           search = "Rechercher :",
           lengthMenu = "Afficher _MENU_ lignes",
@@ -543,7 +543,7 @@ mod_descriptive_server <- function(id, values) {
       paste0("descriptives_", Sys.Date(), ".csv")
     },
     content = function(file) {
-      utils::write.csv(values$descStats, file, row.names = FALSE)
+      hstat_ecrire_csv(values$descStats, file, row.names = FALSE)
       shiny::showNotification("Fichier CSV téléchargé !", type = "message", duration = 3)
     }
   )
@@ -555,13 +555,13 @@ mod_descriptive_server <- function(id, values) {
     content = function(file) {
       # openxlsx fait partie des packages requis ; repli propre si indisponible.
       if (requireNamespace("openxlsx", quietly = TRUE)) {
-        openxlsx::write.xlsx(values$descStats, file)
+        openxlsx::write.xlsx(hstat_decimale_tableau(values$descStats), file)
         shiny::showNotification("Fichier Excel téléchargé !", type = "message", duration = 3)
       } else if (requireNamespace("writexl", quietly = TRUE)) {
-        writexl::write_xlsx(values$descStats, file)
+        writexl::write_xlsx(hstat_decimale_tableau(values$descStats), file)
         shiny::showNotification("Fichier Excel téléchargé !", type = "message", duration = 3)
       } else {
-        utils::write.csv(values$descStats, file, row.names = FALSE)
+        hstat_ecrire_csv(values$descStats, file, row.names = FALSE)
         shiny::showNotification("Package Excel absent : export CSV fourni à la place.",
                          type = "warning", duration = 5)
       }

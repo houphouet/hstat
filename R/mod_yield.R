@@ -1328,7 +1328,7 @@ mod_yield_server <- function(id, values) {
       filename = function() paste0("rendements_", Sys.Date(), ".csv"),
       content = function(file) {
         r <- resultat(); shiny::req(NROW(r))
-        utils::write.csv(as.data.frame(r), file, row.names = FALSE,
+        hstat_ecrire_csv(as.data.frame(r), file, row.names = FALSE,
                          fileEncoding = "UTF-8")
       })
 
@@ -1342,10 +1342,10 @@ mod_yield_server <- function(id, values) {
           feuilles <- list(Rendements = as.data.frame(r))
           det <- pertes_detail()
           if (NROW(det)) feuilles[["Pertes_par_repetition"]] <- as.data.frame(det)
-          openxlsx::write.xlsx(feuilles, file)
+          openxlsx::write.xlsx(lapply(feuilles, hstat_decimale_tableau), file)
         }
         else
-          utils::write.csv(as.data.frame(r), file, row.names = FALSE,
+          hstat_ecrire_csv(as.data.frame(r), file, row.names = FALSE,
                            fileEncoding = "UTF-8")
       })
 

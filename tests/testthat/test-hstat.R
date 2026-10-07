@@ -9605,7 +9605,8 @@ test_that("les fichiers statiques portent la version, sinon le cache ment", {
   # l'ancien fichier. On vise la forme NON estampillee (`href = "..."`,
   # `src = "..."`) et non le nom du fichier, qui figure aussi -- legitimement --
   # a l'interieur de hstat_asset().
-  for (f in c("hstat-theme.css", "hstat-session.js", "hstat-i18n.js")) {
+  for (f in c("hstat-theme.css", "hstat-session.js", "hstat-i18n.js",
+              "hstat-decimale.js")) {
     for (attr in c("href", "src"))
       expect_false(grepl(sprintf('%s = "%s"', attr, f), ux, fixed = TRUE),
                    label = paste("appel direct :", attr, f))
@@ -20862,6 +20863,280 @@ test_that("le bandeau qui decrit un module est UNE entree du dictionnaire", {
     inner <- sub("(?s)^<span>(.*)</span>$", "\\1", sp, perl = TRUE)
     expect_true(inner %in% d$fr, label = paste("hors-memoire, exact =", exact))
   }
+})
+
+# ===========================================================================
+#  Separateur decimal des telechargements
+# ===========================================================================
+#  Le choix vit dans la session ; les ecrivains communs le lisent. Les tests
+#  portent sur les FICHIERS produits -- octets d'un CSV, cellules d'un classeur,
+#  texte d'une figure SVG -- et non sur l'appel des fonctions : une conversion
+#  appelee puis jetee passerait un test qui compterait les appels.
+
+.hstat_svg_textes <- function(fichier) {
+  t <- paste(readLines(fichier, warn = FALSE, encoding = "UTF-8"), collapse = "")
+  m <- regmatches(t, gregexpr("<text[^>]*>[^<]*</text>", t))[[1]]
+  gsub("<[^>]+>", "", m)
+}
+
+test_that("un nombre ecrit dans un texte prend la virgule, un identifiant non", {
+  x <- c("2.073 ± 0.658", "RR=1.23", "(0.5)", "p < 0.001", "12.5 %",
+         "1.5e-3", "T1.2", "x1.5", "Rdt_2.5", "04.08.2026", "1.13.0", NA)
+  attendu <- c("2,073 ± 0,658", "RR=1,23", "(0,5)", "p < 0,001", "12,5 %",
+               "1,5e-3", "T1.2", "x1.5", "Rdt_2.5", "04.08.2026", "1.13.0", NA)
+  expect_identical(hstat_decimale_texte(x, ","), attendu)
+  # Le point est le comportement d'avant : rien ne bouge, pas meme un NA.
+  expect_identical(hstat_decimale_texte(x, "."), x)
+  # Un facteur garde ses niveaux s'ils fusionneraient : une modalite ne
+  # disparait pas du fichier.
+  f <- factor(c("0.5", "0,5", "1"))
+  expect_identical(levels(hstat_decimale_texte(f, ",")), levels(f))
+  expect_identical(levels(hstat_decimale_texte(factor(c("0.5", "1")), ",")),
+                   c("0,5", "1"))
+  # Les nombres d'un tableau ne sont pas convertis en texte.
+  d <- hstat_decimale_tableau(data.frame(n = 1.5, t = "a 2.5"), ",")
+  expect_true(is.numeric(d$n))
+  expect_identical(d$t, "a 2,5")
+})
+
+test_that("le choix est celui de la session, et le point hors session", {
+  expect_identical(hstat_decimale_session(), ".")
+  s <- shiny::MockShinySession$new()
+  s$userData$decimale <- ","
+  expect_identical(shiny::withReactiveDomain(s, hstat_decimale_session()), ",")
+  s$userData$decimale <- "n'importe quoi"
+  expect_identical(shiny::withReactiveDomain(s, hstat_decimale_session()), ".")
+})
+
+test_that("le CSV a la virgule se separe par des points-virgules", {
+  df <- data.frame(Modalite = c("T1.2", "dose 0.5"), Valeur = c(1.5, 2.25),
+                   stringsAsFactors = FALSE)
+  f <- tempfile(fileext = ".csv")
+  hstat_ecrire_csv(df, f, dec = ",")
+  l <- readLines(f, encoding = "UTF-8")
+  expect_identical(l, c('"Modalite";"Valeur"', '"T1.2";1,5', '"dose 0,5";2,25'))
+  # Il se relit comme un CSV francais, et les nombres sont les memes.
+  r <- utils::read.csv2(f, stringsAsFactors = FALSE)
+  expect_equal(r$Valeur, df$Valeur)
+
+  # Au point, le fichier est EXACTEMENT celui de `write.csv()` : aucun export
+  # existant ne change d'un octet.
+  g <- tempfile(fileext = ".csv")
+  hstat_ecrire_csv(df, f, dec = ".")
+  utils::write.csv(df, g, row.names = FALSE, fileEncoding = "UTF-8")
+  expect_identical(readLines(f), readLines(g))
+  hstat_ecrire_csv(df, f, dec = ".", row.names = TRUE)
+  utils::write.csv(df, g, fileEncoding = "UTF-8")
+  expect_identical(readLines(f), readLines(g))
+})
+
+test_that("un classeur garde ses nombres et convertit son texte", {
+  skip_if_not_installed("openxlsx")
+  f <- tempfile(fileext = ".xlsx")
+  hstat_ecrire_classeur(f, list(A = data.frame(n = c(1.5, 2.25), t = c("0.5", "T1.2"))),
+                        dec = ",")
+  r <- openxlsx::read.xlsx(f)
+  expect_true(is.numeric(r$n))
+  expect_equal(r$n, c(1.5, 2.25))
+  expect_identical(r$t, c("0,5", "T1.2"))
+})
+
+test_that("les nombres d'une figure telechargee prennent la virgule", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("svglite")
+  d <- data.frame(a = c(1.5, 2.25))
+  p <- ggplot2::ggplot(d, ggplot2::aes(a, a, label = sprintf("v=%.2f", a))) +
+    ggplot2::geom_text() +
+    ggplot2::labs(title = "R = 0.85", x = quote(R^2 == 0.75))
+  f <- tempfile(fileext = ".svg")
+  expect_true(hstat_ecrire_image(f, p, "svg", 5, 4, decimale = ","))
+  v <- .hstat_svg_textes(f)
+  # Graduations, valeurs portees (sprintf ne lit aucune option), titre, et
+  # nombre d'une expression plotmath.
+  for (x in c("v=1,50", "v=2,25", "R = 0,85", "0,75", "1,5", "2,1"))
+    expect_true(x %in% v, info = x)
+  expect_false(any(grepl("[0-9][.][0-9]", v)))
+
+  hstat_ecrire_image(f, p, "svg", 5, 4, decimale = ".")
+  v <- .hstat_svg_textes(f)
+  expect_true(all(c("v=1.50", "R = 0.85", "0.75") %in% v))
+
+  # Graphique de base, trace par une fonction : ses axes lisent `OutDec`, qui
+  # est rendu a sa valeur apres l'ecriture.
+  hstat_ecrire_image(f, function() graphics::plot(c(0.5, 1.5), c(1, 2)),
+                     "svg", 5, 4, decimale = ",")
+  expect_true(any(grepl("^[0-9]+,[0-9]+$", .hstat_svg_textes(f))))
+  expect_identical(getOption("OutDec"), ".")
+})
+
+test_that("un titre d'axe a retour a la ligne est converti apres sa mise en page", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("svglite")
+  skip_if_not_installed("ggtext")
+  p <- ggplot2::ggplot(data.frame(a = c(1.5, 2.25)), ggplot2::aes(a, a)) +
+    ggplot2::geom_point() + ggplot2::labs(y = "Dose 2.5 mg") +
+    ggplot2::theme(axis.title.y = ggtext::element_textbox_simple(
+      orientation = "left-rotated"))
+  f <- tempfile(fileext = ".svg")
+  expect_true(hstat_ecrire_image(f, p, "svg", 5, 4, decimale = ","))
+  v <- .hstat_svg_textes(f)
+  # gridtext ne pose son texte qu'au trace : sans l'enveloppe differee, ce
+  # titre gardait son point a cote de graduations a la virgule.
+  expect_true("2,5" %in% v)
+  expect_false("2.5" %in% v)
+})
+
+test_that("les telechargements de la session suivent son choix", {
+  skip_if_not_installed("ggplot2")
+  srv <- function(input, output, session) {
+    hstat_export_tables_handlers(output, "t", function()
+      list(A = data.frame(x = c(1.5, 2.5)), B = data.frame(y = 3.25)))
+    output$u <- hstat_csv_handler(function() data.frame(x = 1.5))
+  }
+  shiny::testServer(srv, {
+    session$userData$decimale <- ","
+    l <- readLines(output$u)
+    expect_identical(l, c('"x"', "1,5"))
+    session$userData$decimale <- "."
+    expect_identical(readLines(output$u), c('"x"', "1.5"))
+    session$userData$decimale <- ","
+    skip_if_not_installed("openxlsx")
+    r <- openxlsx::read.xlsx(output$tXlsx, sheet = "B")
+    expect_equal(r$y, 3.25)
+  })
+})
+
+test_that("aucun export n'ecrit un CSV ou un classeur hors des ecrivains communs", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  fichiers <- setdiff(.hstat_sources_app(), file.path(root, "R", "utils.R"))
+  fautes <- character(0)
+  verifier <- function(e, f) {
+    if (!is.call(e)) return(invisible())
+    fn <- e[[1]]
+    nom <- if (is.name(fn)) as.character(fn)
+           else if (is.call(fn) && identical(fn[[1]], as.name("::"))) as.character(fn[[3]])
+           else ""
+    if (nom %in% c("write.csv", "write.csv2", "write.table", "fwrite"))
+      fautes <<- c(fautes, paste(basename(f), nom))
+    # Les donnees d'un classeur passent par `hstat_decimale_tableau()`.
+    arg <- if (nom == "writeData" && length(e) >= 4) e[[4]]
+           else if (nom %in% c("write_xlsx", "write.xlsx") && length(e) >= 2) e[[2]]
+           else NULL
+    if (!is.null(arg) && !grepl("hstat_decimale_tableau", paste(deparse(arg), collapse = "")))
+      fautes <<- c(fautes, paste(basename(f), nom, paste(deparse(arg), collapse = "")))
+    for (i in seq_along(e)[-1]) {
+      a <- e[[i]]
+      if (!missing(a)) verifier(a, f)
+    }
+  }
+  for (f in fichiers) {
+    ex <- tryCatch(parse(f, keep.source = FALSE, encoding = "UTF-8"), error = function(e) NULL)
+    for (e in ex) verifier(e, f)
+  }
+  expect_identical(fautes, character(0))
+  # Et les boutons de DataTables passent par `.hstat_dt_buttons()`, qui porte la
+  # conversion : une liste `c("copy", "csv", "excel")` exporterait sans elle.
+  for (f in fichiers) {
+    src <- paste(readLines(f, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+    expect_false(grepl("buttons\\s*=\\s*c\\(", src), info = basename(f))
+  }
+  b <- .hstat_dt_buttons("x")
+  expect_identical(vapply(b, `[[`, "", "extend"), c("copy", "csv", "excel"))
+  for (x in b) expect_true(grepl("hstatDecimaleCellule",
+                                 x$exportOptions$format$body, fixed = TRUE))
+  expect_true(grepl("fieldSeparator", b[[2]]$action, fixed = TRUE))
+})
+
+test_that("le choix est demande avant le telechargement, et accuse par le serveur", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  lire <- function(...) paste(readLines(file.path(root, ...), warn = FALSE,
+                                        encoding = "UTF-8"), collapse = "\n")
+  ux  <- lire("inst", "app", "UX.R")
+  srv <- lire("inst", "app", "app_server.R")
+  js  <- lire("inst", "app", "www", "hstat-decimale.js")
+  expect_true(grepl('hstat_asset("hstat-decimale.js")', ux, fixed = TRUE))
+  for (id in c("hstatDecPoint", "hstatDecVirgule"))
+    expect_true(grepl(id, ux, fixed = TRUE), info = id)
+  # Le serveur range le choix ET l'accuse : sans l'accuse, le fichier partirait
+  # avant le choix, qui voyage par un autre canal.
+  expect_true(grepl("observeEvent(input$hstat_decimale", srv, fixed = TRUE))
+  expect_true(grepl("session$userData$decimale", srv, fixed = TRUE))
+  expect_true(grepl('sendCustomMessage("hstat-decimale-ok"', srv, fixed = TRUE))
+  for (x in c('"hstat-decimale-ok"', '"hstat_decimale"', "a.shiny-download-link",
+              ".buttons-csv", ".buttons-excel", "jQuery(document).on(\"shiny:connected\""))
+    expect_true(grepl(x, js, fixed = TRUE), info = x)
+})
+
+test_that("le navigateur convertit comme le serveur", {
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  node <- .hstat_node()
+  skip_if(is.na(node), "node absent")
+  js <- file.path(root, "inst", "app", "www", "hstat-decimale.js")
+  x <- c("2.073 ± 0.658", "RR=1.23", "(0.5)", "p < 0.001", "12.5 %",
+         "1.5e-3", "T1.2", "x1.5", "Rdt_2.5", "04.08.2026", "1.13.0", "é1.5")
+  entree <- tempfile(fileext = ".json")
+  writeLines(jsonlite::toJSON(x), entree, useBytes = TRUE)
+  banc <- tempfile(fileext = ".js")
+  writeLines(r"---(var fs = require("fs"), vm = require("vm");
+var stock = {}; function St() { return { getItem: function (k) { return k in stock ? stock[k] : null; },
+  setItem: function (k, v) { stock[k] = String(v); } }; }
+var doc = { readyState: "complete", addEventListener: function () {},
+  removeEventListener: function () {}, getElementById: function () { return null; } };
+var w = { localStorage: St(), sessionStorage: St(), document: doc,
+  setTimeout: function () {} };
+w.window = w;
+vm.createContext(w);
+stock["hstat.decimale"] = ",";
+vm.runInContext(fs.readFileSync(process.argv[2], "utf8"), w);
+var x = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
+var out = { texte: x.map(function (s) { return w.hstatDecimaleCellule(s, "texte"); }),
+  excel: [w.hstatDecimaleCellule("1.5", "excel"), w.hstatDecimaleCellule(2.5, "excel"),
+          w.hstatDecimaleCellule(2.5, "texte")] };
+w.hstatSetDecimale(".");
+out.point = w.hstatDecimaleCellule("1.5", "texte");
+process.stdout.write(JSON.stringify(out));
+)---", banc)
+  s <- system2(node, c(shQuote(banc), shQuote(js), shQuote(entree)), stdout = TRUE, stderr = TRUE)
+  # La sortie de node est en UTF-8 quelle que soit la locale de R.
+  Encoding(s) <- "UTF-8"
+  r <- jsonlite::fromJSON(paste(s, collapse = ""), simplifyVector = FALSE)
+  expect_identical(unlist(r$texte), hstat_decimale_texte(x, ","))
+  # Pour Excel, un nombre nu reste un nombre -- comme dans les classeurs du
+  # serveur -- mais il prend la virgule dans un CSV.
+  expect_identical(r$excel, list("1.5", 2.5, "2,5"))
+  expect_identical(r$point, "1.5")
+})
+
+test_that("chaque bloc d'export porte le selecteur du separateur, a cote du format", {
+  h <- as.character(hstat_format_input("x_fmt", "Format"))
+  # Les deux choix, chacun relie au choix unique par son attribut -- et AUCUNE
+  # entree Shiny : dix-sept entrees pour un meme reglage pourraient se
+  # contredire, l'export lisant l'une pendant qu'on regarde l'autre.
+  expect_true(grepl('data-hstat-dec=","', h, fixed = TRUE))
+  expect_true(grepl('data-hstat-dec="."', h, fixed = TRUE))
+  expect_true(grepl("hstat-dec-choix", h, fixed = TRUE))
+  expect_false(grepl("action-button", h, fixed = TRUE))
+  expect_equal(lengths(regmatches(h, gregexpr("<select", h))), 1L)
+  # Le kit d'export partage le porte donc aussi.
+  k <- as.character(hstat_export_plot_ui(shiny::NS("m"), "g"))
+  expect_true(grepl("hstat-dec-choix", k, fixed = TRUE))
+
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  lire <- function(...) paste(readLines(file.path(root, ...), warn = FALSE,
+                                        encoding = "UTF-8"), collapse = "\n")
+  js  <- lire("inst", "app", "www", "hstat-decimale.js")
+  css <- lire("inst", "app", "www", "hstat-theme.css")
+  # Le clic sur un segment regle le choix ; l'etat se lit sur <body>, si bien
+  # qu'un bloc rendu plus tard s'affiche juste ; et un bouton dont le bloc
+  # porte deja le selecteur ne redemande pas dans une fenetre.
+  for (x in c("[data-hstat-dec]", "data-hstat-decimale", "selecteurVoisin"))
+    expect_true(grepl(x, js, fixed = TRUE), info = x)
+  expect_true(grepl('body[data-hstat-decimale=","] .hstat-dec-seg[data-hstat-dec=","]',
+                    css, fixed = TRUE))
 })
 
 test_that("la diversité bêta et Baselga se calculent par produits matriciels, à l'identique de la définition par paire", {

@@ -26,6 +26,20 @@ server <- function(input, output, session) {
     session$userData$langue_rv(session$userData$langue)
   }, ignoreInit = FALSE)
 
+  # Separateur decimal des fichiers telecharges, choisi dans le bandeau ou dans
+  # la fenetre qui precede chaque telechargement (www/hstat-decimale.js). Il est
+  # range dans `session$userData` et lu par `hstat_decimale_session()` -- donc
+  # par les ecrivains communs, sans qu'aucun export ait a le lire lui-meme.
+  #
+  # L'ACCUSE DE RECEPTION N'EST PAS UNE POLITESSE. Le telechargement part par une
+  # requete HTTP, le choix par le websocket : rien ne garantit que le second
+  # arrive avant la premiere. Le navigateur attend donc cet accuse avant de
+  # lancer le fichier, sans quoi il porterait le separateur d'avant.
+  shiny::observeEvent(input$hstat_decimale, {
+    session$userData$decimale <- .hstat_decimale(input$hstat_decimale)
+    session$sendCustomMessage("hstat-decimale-ok", session$userData$decimale)
+  })
+
   # LES TERMES DU FICHIER DE L'UTILISATEUR NE SE TRADUISENT JAMAIS.
   # On les envoie au navigateur a chaque changement de jeu de donnees : noms de
   # colonnes et modalites qualitatives. Le traducteur refuse alors d'y toucher
@@ -5992,7 +6006,7 @@ server <- function(input, output, session) {
         for (nm in names(exps)) {
           sh <- substr(gsub("[^A-Za-z0-9_]", "_", nm), 1, 31)
           openxlsx::addWorksheet(wb, sh)
-          openxlsx::writeData(wb, sh, exps[[nm]])
+          openxlsx::writeData(wb, sh, hstat_decimale_tableau(exps[[nm]]))
         }
         openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
       })
@@ -6002,7 +6016,7 @@ server <- function(input, output, session) {
         r <- mv_res[[key]]
         d <- if (!is.null(r) && !is.null(r$metrics)) r$metrics else
           data.frame(Message = "Aucun résultat disponible")
-        utils::write.csv(d, file, row.names = FALSE, fileEncoding = "UTF-8")
+        hstat_ecrire_csv(d, file, row.names = FALSE, fileEncoding = "UTF-8")
       })
     # Telechargement du GRAPHIQUE (taille adaptee au DPI, multi-formats).
     local({

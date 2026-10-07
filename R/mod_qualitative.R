@@ -23,17 +23,17 @@
     wb <- openxlsx::createWorkbook()
     for (s in names(sheets)) {
       openxlsx::addWorksheet(wb, s)
-      openxlsx::writeData(wb, s, sheets[[s]])
+      openxlsx::writeData(wb, s, hstat_decimale_tableau(sheets[[s]]))
       openxlsx::setColWidths(wb, s, cols = seq_len(ncol(sheets[[s]])), widths = "auto")
     }
     openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
   } else if (requireNamespace("writexl", quietly = TRUE)) {
-    writexl::write_xlsx(sheets, path = file)
+    writexl::write_xlsx(lapply(sheets, hstat_decimale_tableau), path = file)
   } else {
     con <- file(file, open = "w", encoding = "UTF-8"); on.exit(close(con))
     for (s in names(sheets)) {
       writeLines(paste0("# ", s), con)
-      utils::write.csv(sheets[[s]], con, row.names = FALSE)
+      hstat_ecrire_csv(sheets[[s]], con, row.names = FALSE)
       writeLines("", con)
     }
   }
@@ -2924,7 +2924,7 @@ mod_qualitative_server <- function(id, values) {
     output$dl_table <- shiny::downloadHandler(
       filename = function() paste0("tableau_", .safe_name(input$which_table %||% "resultat"),
                                    "_", Sys.Date(), ".csv"),
-      content = function(file) utils::write.csv(current_table(), file, row.names = FALSE, fileEncoding = "UTF-8"))
+      content = function(file) hstat_ecrire_csv(current_table(), file, row.names = FALSE, fileEncoding = "UTF-8"))
 
     output$dl_table_xlsx <- shiny::downloadHandler(
       filename = function() paste0("tableau_", .safe_name(input$which_table %||% "resultat"),
@@ -2942,13 +2942,13 @@ mod_qualitative_server <- function(id, values) {
         paths <- character(0)
         for (nm in names(r$tables)) {
           f <- file.path(tmp, paste0(.safe_name(nm), ".csv"))
-          utils::write.csv(r$tables[[nm]], f, row.names = FALSE, fileEncoding = "UTF-8")
+          hstat_ecrire_csv(r$tables[[nm]], f, row.names = FALSE, fileEncoding = "UTF-8")
           paths <- c(paths, f)
         }
         # métriques + interprétation jointes
         if (!is.null(r$metrics)) {
           fm <- file.path(tmp, "00_metriques_interpretees.csv")
-          utils::write.csv(r$metrics, fm, row.names = FALSE, fileEncoding = "UTF-8")
+          hstat_ecrire_csv(r$metrics, fm, row.names = FALSE, fileEncoding = "UTF-8")
           paths <- c(fm, paths)
         }
         # utils::zip exige un binaire zip externe, souvent absent sous Windows :

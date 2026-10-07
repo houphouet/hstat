@@ -4537,7 +4537,10 @@ mod_dl50_server <- function(id, values) {
         lignes <- if (is.null(f) || !isTRUE(f$ok))
           tr("Aucun résultat : l'ajustement n'a pas abouti.")
         else hstat_dl50_prn(f, nom_fichier = input$essaiActif %||% "")
-        writeLines(lignes, file, useBytes = TRUE)
+        # Le rapport suit le separateur decimal choisi ; le fichier d'essai
+        # (`dlTxt`), lui, est le format natif que WIN DL relit : il garde le
+        # point, sans quoi il ne se rouvrirait plus.
+        writeLines(hstat_decimale_texte(lignes), file, useBytes = TRUE)
       })
 
     output$dlTxt <- shiny::downloadHandler(

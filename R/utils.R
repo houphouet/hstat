@@ -37,10 +37,24 @@
 
 .hstat_dt_buttons <- function(fname = "HStat_export") {
   fname <- gsub("[^A-Za-z0-9_.-]+", "_", as.character(fname))
+  # Le separateur decimal se lit AU CLIC, dans le navigateur : ces boutons
+  # exportent sans repasser par le serveur, `hstat_decimale_session()` ne les
+  # atteint donc pas. `hstatDecimaleCellule()` (www/hstat-decimale.js) applique
+  # la meme regle que `hstat_decimale_texte()` ; pour Excel, un nombre nu reste
+  # un nombre, comme dans les classeurs ecrits par le serveur.
+  corps <- function(mode) list(format = list(body = DT::JS(sprintf(
+    "function (d) { return window.hstatDecimaleCellule ? window.hstatDecimaleCellule(d, '%s') : d; }",
+    mode))))
   list(
-    list(extend = "copy",  title = NULL),
-    list(extend = "csv",   filename = fname, title = NULL),
-    list(extend = "excel", filename = fname, title = NULL)
+    list(extend = "copy",  title = NULL, exportOptions = corps("texte")),
+    # Avec la virgule, le champ se separe par un point-virgule : la convention
+    # du CSV francais, sans laquelle « 1,5 » ferait deux colonnes.
+    list(extend = "csv",   filename = fname, title = NULL, exportOptions = corps("texte"),
+         action = DT::JS(paste(
+           "function (e, dt, button, config) {",
+           "config.fieldSeparator = (window.hstatDecimale && window.hstatDecimale() === ',') ? ';' : ',';",
+           "$.fn.dataTable.ext.buttons.csvHtml5.action.call(this, e, dt, button, config); }"))),
+    list(extend = "excel", filename = fname, title = NULL, exportOptions = corps("excel"))
   )
 }
 
@@ -980,6 +994,154 @@ hstat_langue_session <- function() {
     tryCatch(rv(), error = function(e) NULL)
   l <- tryCatch(d$userData$langue, error = function(e) NULL)
   if (identical(l, "en")) "en" else "fr"
+}
+
+# ---------------------------------------------------------------------------
+#  Separateur decimal des fichiers telecharges
+# ---------------------------------------------------------------------------
+#  Un utilisateur francophone colle un CSV dans un tableur regle a la francaise
+#  et lit « 1.5 » comme une date ou du texte ; un anglophone lit « 1,5 » comme
+#  deux colonnes. Aucun des deux reglages n'est juste pour tout le monde : il se
+#  CHOISIT, avant le telechargement, et il vaut pour TOUS les fichiers produits
+#  -- tableaux et figures.
+#
+#  Le choix vit dans `session$userData`, comme la langue, et pour la meme
+#  raison : une option globale ferait basculer les exports de TOUS les
+#  utilisateurs d'un serveur partage. Hors Shiny, le point s'applique : c'est le
+#  comportement d'avant, et aucun appel existant ne change de sortie.
+HSTAT_DECIMALES <- c("Point (1.5)" = ".", "Virgule (1,5)" = ",")
+
+.hstat_decimale <- function(dec) {
+  if (identical(as.character(dec)[1], ",")) "," else "."
+}
+
+hstat_decimale_session <- function() {
+  d <- tryCatch(shiny::getDefaultReactiveDomain(), error = function(e) NULL)
+  if (is.null(d) || is.null(d$userData)) return(".")
+  .hstat_decimale(tryCatch(d$userData$decimale, error = function(e) NULL))
+}
+
+# Un nombre ECRIT dans un texte : « 2.073 ± 0.658 », « RR=1.23 », « p < 0.001 ».
+# Trois protections, chacune testee :
+#  * precede d'une lettre, d'un chiffre, d'un `_` ou d'un point, ce n'est pas un
+#    nombre mais un identifiant -- « T1.2 », « x1.5 » sont des noms de modalite
+#    ou de colonne, et les reecrire alterait les donnees de l'utilisateur ;
+#  * suivi d'un second « .chiffre », c'est une date ou une version
+#    (« 04.08.2026 », « 1.13.0 ») : une virgule en ferait trois nombres ;
+#  * la virgule ne remplace QUE le point decimal -- aucun separateur de milliers
+#    n'est pose, il serait lu comme une decimale de plus.
+HSTAT_DECIMALE_MOTIF <- "(?<![\\p{L}\\p{N}_.])(\\d+)\\.(\\d+)(?!\\d|\\.\\d)"
+
+hstat_decimale_texte <- function(x, dec = hstat_decimale_session()) {
+  if (!identical(.hstat_decimale(dec), ",") || !length(x)) return(x)
+  if (is.factor(x)) {
+    lv <- hstat_decimale_texte(levels(x), dec)
+    # Deux niveaux qui deviendraient identiques (« 0.5 » et « 0,5 ») seraient
+    # FUSIONNES par `levels<-` : une modalite disparaitrait du fichier.
+    if (!anyDuplicated(lv)) levels(x) <- lv
+    return(x)
+  }
+  if (!is.character(x)) return(x)
+  x[] <- gsub(HSTAT_DECIMALE_MOTIF, "\\1,\\2", x, perl = TRUE)
+  x
+}
+
+# Les colonnes de TEXTE d'un tableau. Les colonnes numeriques ne sont pas
+# touchees ici : l'ecrivain CSV les ecrit avec `dec`, et un classeur Excel les
+# garde en NOMBRES -- leur virgule y suit les reglages regionaux d'Excel, et les
+# convertir en texte les rendrait inutilisables dans une formule.
+hstat_decimale_tableau <- function(x, dec = hstat_decimale_session()) {
+  if (!identical(.hstat_decimale(dec), ",") || is.null(x)) return(x)
+  if (is.matrix(x) && is.character(x)) return(hstat_decimale_texte(x, dec))
+  if (!is.data.frame(x)) return(x)
+  for (j in seq_along(x)) x[[j]] <- hstat_decimale_texte(x[[j]], dec)
+  x
+}
+
+# LE SEUL ecrivain de CSV. Avec la virgule, le separateur de champ devient le
+# point-virgule -- la convention du CSV francais, qui existe precisement parce
+# que la virgule y est prise : la garder separerait « 1,5 » en deux colonnes.
+hstat_ecrire_csv <- function(x, file, row.names = FALSE, fileEncoding = "UTF-8",
+                             dec = hstat_decimale_session()) {
+  dec <- .hstat_decimale(dec)
+  if (!is.data.frame(x)) x <- as.data.frame(x, stringsAsFactors = FALSE)
+  x <- hstat_decimale_tableau(x, dec)
+  # `col.names = NA` quand les noms de lignes sont ecrits : c'est ce que fait
+  # `write.csv()`, et l'en-tete garde alors une case vide au-dessus d'eux.
+  cn <- if (isTRUE(row.names) || is.character(row.names)) NA else TRUE
+  args <- list(x, file, sep = if (dec == ",") ";" else ",", dec = dec,
+               qmethod = "double", row.names = row.names, col.names = cn)
+  # `fileEncoding` ne vaut que pour un NOM de fichier ; une connexion porte
+  # deja le sien.
+  if (is.character(file)) args$fileEncoding <- fileEncoding
+  do.call(utils::write.table, args)
+}
+
+# Ce que les figures ecrivent : les graduations, les valeurs portees, les
+# etiquettes, les equations. Tout est du texte de grille une fois la figure
+# construite -- c'est donc LA qu'on remplace, et non dans chaque constructeur :
+# un `sprintf("%.2f")` ne lit aucune option, et une figure ajoutee demain en
+# herite sans qu'on y pense.
+.hstat_decimale_expr <- function(e) {
+  if (is.character(e)) return(hstat_decimale_texte(e, ","))
+  if (is.numeric(e) && length(e) == 1L && is.finite(e) && e != round(e))
+    return(format(e, decimal.mark = ","))
+  if (is.expression(e))
+    return(as.expression(lapply(e, .hstat_decimale_expr)))
+  if (is.call(e) && length(e) > 1L)
+    for (i in seq.int(2L, length(e))) {
+      a <- e[[i]]
+      if (!missing(a) && !is.null(a)) e[[i]] <- .hstat_decimale_expr(a)
+    }
+  e
+}
+
+.hstat_decimale_grob_texte <- function(g) {
+  if (is.null(g) || !is.list(g)) return(g)
+  for (champ in c("label", "lab")) {
+    v <- g[[champ]]
+    if (is.null(v)) next
+    if (is.character(v) || is.factor(v)) g[[champ]] <- hstat_decimale_texte(v, ",")
+    else if (is.expression(v) || is.call(v)) g[[champ]] <- .hstat_decimale_expr(v)
+    else if (is.list(v)) g[[champ]] <- lapply(v, .hstat_decimale_expr)
+  }
+  if (is.list(g$grobs)) g$grobs <- lapply(g$grobs, .hstat_decimale_grob_texte)
+  if (length(g$children)) {
+    cl <- class(g$children)
+    g$children[] <- lapply(g$children, .hstat_decimale_grob_texte)
+    class(g$children) <- cl
+  }
+  # CERTAINES GRILLES N'ECRIVENT LEUR TEXTE QU'AU TRACE. Le titre d'axe a
+  # retour a la ligne (`element_textbox_simple()`, ggtext) range le sien dans
+  # une mise en page C++ et ne pose ses morceaux de texte que dans
+  # `makeContent()` : rien a convertir avant. On l'enveloppe donc, et la
+  # conversion passe APRES sa mise en page. Constate : « Dose 2.5 mg » restait
+  # avec son point alors que les graduations voisines avaient la virgule.
+  if (inherits(g, "grob") && !inherits(g, "hstat_decimale_differee") &&
+      !is.null(utils::getS3method("makeContent", class(g)[1], optional = TRUE,
+                                   envir = asNamespace("grid"))))
+    class(g) <- c("hstat_decimale_differee", class(g))
+  g
+}
+
+# Enregistree aupres de grid au moment de l'emploi : l'application tourne aussi
+# depuis les SOURCES, ou aucun `NAMESPACE` ne declare la methode.
+.hstat_decimale_differee_contenu <- function(x) {
+  class(x) <- setdiff(class(x), "hstat_decimale_differee")
+  .hstat_decimale_grob_texte(grid::makeContent(x))
+}
+
+# La grille d'une figure, texte converti. `NULL` quand ce n'est pas une figure
+# de grille : l'appelant la trace alors sous `OutDec`.
+.hstat_decimale_grob <- function(plot) {
+  g <- if (inherits(plot, "patchwork") && requireNamespace("patchwork", quietly = TRUE))
+         patchwork::patchworkGrob(plot)
+       else if (inherits(plot, "ggplot")) ggplot2::ggplotGrob(plot)
+       else if (inherits(plot, "grob")) plot
+       else return(NULL)
+  registerS3method("makeContent", "hstat_decimale_differee",
+                   .hstat_decimale_differee_contenu, envir = asNamespace("grid"))
+  .hstat_decimale_grob_texte(g)
 }
 
 # LA REPONSE DU MODELE EST DU TEXTE AFFICHE, ET AUCUN DICTIONNAIRE NE PEUT LA
@@ -2850,8 +3012,33 @@ HSTAT_FORMATS_IMG <- c(
 # ce qui permettait a chaque appel d'inventer sa propre liste.
 hstat_format_input <- function(id, label = "Format", selected = "png",
                                width = NULL) {
-  shiny::selectInput(id, label, choices = HSTAT_FORMATS_IMG,
-                     selected = selected, width = width)
+  # Le separateur decimal vit A COTE DU FORMAT, dans chaque bloc d'export : on
+  # le regle la ou l'on choisit le fichier. Poser le selecteur ici plutot que
+  # dans chacun des dix-sept blocs garantit qu'aucun ne l'oublie.
+  shiny::tagList(
+    shiny::selectInput(id, label, choices = HSTAT_FORMATS_IMG,
+                       selected = selected, width = width),
+    hstat_decimale_ui())
+}
+
+# Selecteur du separateur decimal d'un bloc d'export.
+#
+# CE N'EST PAS UNE ENTREE SHINY, et c'est voulu. Il y en a un par bloc, et ils
+# reglent tous LE MEME choix : dix-sept entrees distinctes pourraient se
+# contredire, et l'export lirait l'une pendant que l'utilisateur regarde
+# l'autre. Ce sont des boutons que www/hstat-decimale.js relie au choix unique
+# de la session ; leur etat se lit sur `body[data-hstat-decimale]`, si bien
+# qu'un bloc construit plus tard (renderUI) s'affiche juste sans qu'on y pense.
+hstat_decimale_ui <- function() {
+  seg <- function(dec, texte, titre)
+    shiny::tags$button(type = "button", class = "hstat-dec-seg",
+                       `data-hstat-dec` = dec, title = titre,
+                       `aria-label` = titre, texte)
+  shiny::div(class = "hstat-dec-choix form-group",
+    shiny::tags$label(class = "control-label", "Séparateur décimal"),
+    shiny::div(class = "hstat-dec-segments", role = "group",
+      seg(",", "1,5", "Virgule décimale"),
+      seg(".", "1.5", "Point décimal")))
 }
 
 # Champ de resolution. Pas d'argument `max` : le plafond est celui de
@@ -2934,8 +3121,10 @@ HSTAT_IMG_POUCES_MAX <- 200
 
 hstat_ecrire_image <- function(file, plot, fmt = "png", width = 10, height = 7.5,
                                dpi = 300, echec = NULL, secours = TRUE,
-                               qualite = 95, compression = "lzw") {
+                               qualite = 95, compression = "lzw",
+                               decimale = hstat_decimale_session()) {
   fmt <- hstat_img_fmt(fmt)
+  decimale <- .hstat_decimale(decimale)
   # La taille aussi est bornee, pas seulement la resolution : voir
   # `.hstat_img_pouces()`.
   width <- .hstat_img_pouces(width, 10); height <- .hstat_img_pouces(height, 7.5)
@@ -2969,7 +3158,23 @@ hstat_ecrire_image <- function(file, plot, fmt = "png", width = 10, height = 7.5
     (function() {
       .hstat_img_device(file, fmt, width, height, dpi, qualite, compression)
       on.exit(grDevices::dev.off(), add = TRUE)
-      if (is.function(plot)) plot() else print(plot)
+      if (!identical(decimale, ",")) {
+        if (is.function(plot)) plot() else print(plot)
+        return(invisible(NULL))
+      }
+      # Une figure de grille (ggplot, patchwork) est convertie APRES sa
+      # construction, sur son texte : graduations, valeurs portees, equations.
+      # Le reste -- graphiques de base, traces par une fonction -- passe par
+      # `OutDec`, que les axes et `format()` de R lisent d'eux-memes.
+      g <- if (is.function(plot)) NULL else .hstat_decimale_grob(plot)
+      if (!is.null(g)) {
+        grid::grid.newpage()
+        grid::grid.draw(g)
+      } else {
+        ancien <- options(OutDec = ",")
+        on.exit(options(ancien), add = TRUE)
+        if (is.function(plot)) plot() else print(plot)
+      }
     })()
     TRUE
   }, error = function(e) {
@@ -9419,7 +9624,7 @@ hstat_feuille_nom <- function(x, defaut = "Feuille") {
 }
 
 # Liste nommee de tableaux -> classeur d'une feuille par element.
-hstat_ecrire_classeur <- function(file, tables) {
+hstat_ecrire_classeur <- function(file, tables, dec = hstat_decimale_session()) {
   wb <- openxlsx::createWorkbook()
   vus <- character(0)
   for (i in seq_along(tables)) {
@@ -9429,14 +9634,14 @@ hstat_ecrire_classeur <- function(file, tables) {
     if (nm %in% vus) nm <- hstat_feuille_nom(paste0(substr(nm, 1, 27), "_", i))
     vus <- c(vus, nm)
     openxlsx::addWorksheet(wb, nm)
-    openxlsx::writeData(wb, nm, as.data.frame(tables[[i]]))
+    openxlsx::writeData(wb, nm, hstat_decimale_tableau(as.data.frame(tables[[i]]), dec))
   }
   openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
   length(tables)
 }
 
 # Liste nommee de tableaux -> archive ZIP d'un CSV par element.
-hstat_ecrire_csv_zip <- function(file, tables) {
+hstat_ecrire_csv_zip <- function(file, tables, dec = hstat_decimale_session()) {
   dossier <- file.path(tempdir(), paste0("hstat_csv_", as.integer(Sys.time())))
   dir.create(dossier, showWarnings = FALSE, recursive = TRUE)
   on.exit(unlink(dossier, recursive = TRUE), add = TRUE)
@@ -9444,8 +9649,7 @@ hstat_ecrire_csv_zip <- function(file, tables) {
   for (i in seq_along(tables)) {
     nm <- hstat_feuille_nom(names(tables)[i] %||% "", paste0("tableau", i))
     f  <- paste0(nm, ".csv")
-    utils::write.csv(as.data.frame(tables[[i]]), file.path(dossier, f),
-                     row.names = FALSE, fileEncoding = "UTF-8")
+    hstat_ecrire_csv(tables[[i]], file.path(dossier, f), dec = dec)
     noms <- c(noms, f)
   }
   # `-q` : sans lui, chaque archive ecrit sa liste de fichiers dans la console
@@ -9508,8 +9712,7 @@ hstat_csv_handler <- function(tables_fun, fname = "resultats",
     content = function(file) {
       tb <- .hstat_tables_ou_motif(tables_fun, libelle)
       if (length(tb) > 1) hstat_ecrire_csv_zip(file, tb)
-      else utils::write.csv(as.data.frame(tb[[1]]), file, row.names = FALSE,
-                            fileEncoding = "UTF-8")
+      else hstat_ecrire_csv(tb[[1]], file)
     })
 }
 
