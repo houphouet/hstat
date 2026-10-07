@@ -429,6 +429,36 @@ a { color: var(--accent); }
 .mv-grp-mixte  .mv-grp-dot { background: #1d8a5d; }
 .mv-grp-count { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--ink3); }
 
+/* ---- Separateur decimal des telechargements (www/hstat-decimale.js) ----
+   La fenetre se pose au-dessus de tout, y compris des modales de Shiny
+   (z-index 1050) : elle precede un telechargement lance DEPUIS l'une d'elles. */
+.hstat-dec-fond {
+  position: fixed; inset: 0; z-index: 2000;
+  background: rgba(15, 20, 28, .45);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.hstat-dec-boite {
+  background: var(--paper); color: var(--ink);
+  border: 1px solid var(--line2); border-radius: var(--radius);
+  box-shadow: var(--shadow2); padding: 18px 20px;
+  width: 100%; max-width: 420px; font-family: var(--sans);
+}
+.hstat-dec-boite h4 { margin: 0 0 6px; font-weight: 600; }
+.hstat-dec-aide { margin: 0 0 12px; color: var(--ink2); }
+.hstat-dec-options { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.hstat-dec-option {
+  flex: 1 1 140px; display: flex; align-items: center; gap: 8px; margin: 0;
+  padding: 8px 10px; border: 1px solid var(--line2); border-radius: 8px;
+  cursor: pointer; font-weight: 500;
+}
+.hstat-dec-option input { margin: 0; }
+.hstat-dec-exemple { margin-left: auto; font-family: var(--mono); color: var(--ink2); }
+.hstat-dec-note { font-size: 12px; color: var(--ink3); margin: 0 0 10px; }
+.hstat-dec-plus { display: flex; align-items: center; gap: 8px; font-weight: 400; margin: 0 0 14px; }
+.hstat-dec-plus input { margin: 0; }
+.hstat-dec-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.hstat-dec-bascule .seg { font-family: var(--mono); }
+
 /* =============================================================================
    RESPONSIVE : DE L'IPHONE SE (375 px) AU GRAND ECRAN
    -----------------------------------------------------------------------------

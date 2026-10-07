@@ -2529,7 +2529,7 @@ mod_coding_server <- function(id, values) {
     output$dl_memos <- shiny::downloadHandler(
       filename = function() sprintf("hstat_memos_%s.csv", format(Sys.Date(), "%Y%m%d")),
       content = function(file)
-        utils::write.csv(rv$memos, file, row.names = FALSE, fileEncoding = "UTF-8"))
+        hstat_ecrire_csv(rv$memos, file, row.names = FALSE, fileEncoding = "UTF-8"))
 
     output$code_chips <- shiny::renderUI({
       cb <- rv$codebook
@@ -2760,7 +2760,7 @@ mod_coding_server <- function(id, values) {
       filename = function() sprintf("hstat_requete_%s.csv", format(Sys.Date(), "%Y%m%d")),
       content = function(file) {
         df <- qry_df(); df$.seg_id <- NULL
-        utils::write.csv(df, file, row.names = FALSE, fileEncoding = "UTF-8")
+        hstat_ecrire_csv(df, file, row.names = FALSE, fileEncoding = "UTF-8")
       })
 
     # ------------------------------------------------------ concordancier
@@ -2807,7 +2807,7 @@ mod_coding_server <- function(id, values) {
     output$dl_kwic_csv <- shiny::downloadHandler(
       filename = function() sprintf("hstat_concordancier_%s.csv", format(Sys.Date(), "%Y%m%d")),
       content = function(file)
-        utils::write.csv(kwic_df(), file, row.names = FALSE, fileEncoding = "UTF-8"))
+        hstat_ecrire_csv(kwic_df(), file, row.names = FALSE, fileEncoding = "UTF-8"))
 
     # -------------------------------------------------- portrait du document
     output$cl_doc_ui <- shiny::renderUI({
@@ -2975,7 +2975,7 @@ mod_coding_server <- function(id, values) {
       filename = function() sprintf("hstat_extraits_%s.csv", format(Sys.Date(), "%Y%m%d")),
       content = function(file) {
         df <- ret_df(); df$.seg_id <- NULL
-        utils::write.csv(df, file, row.names = FALSE, fileEncoding = "UTF-8")
+        hstat_ecrire_csv(df, file, row.names = FALSE, fileEncoding = "UTF-8")
       })
     output$dl_ret_xlsx <- shiny::downloadHandler(
       filename = function() sprintf("hstat_extraits_%s.xlsx", format(Sys.Date(), "%Y%m%d")),
@@ -3053,7 +3053,7 @@ mod_coding_server <- function(id, values) {
 
     output$dl_mat_csv <- shiny::downloadHandler(
       filename = function() sprintf("hstat_matrice_codes_%s.csv", format(Sys.Date(), "%Y%m%d")),
-      content = function(file) utils::write.csv(mat_df(), file, row.names = FALSE,
+      content = function(file) hstat_ecrire_csv(mat_df(), file, row.names = FALSE,
                                                 fileEncoding = "UTF-8"))
     output$dl_mat_xlsx <- shiny::downloadHandler(
       filename = function() sprintf("hstat_matrice_codes_%s.xlsx", format(Sys.Date(), "%Y%m%d")),

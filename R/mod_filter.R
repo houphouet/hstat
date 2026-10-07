@@ -434,7 +434,7 @@ mod_filter_server <- function(id, values) {
                 pageLength = 10,
                 lengthMenu = c(10, 25, 50, 100),
                 dom = 'Bfrtip',
-                buttons = c('copy', 'csv', 'excel')
+                buttons = .hstat_dt_buttons("donnees_filtrees")
               ),
               filter = "top",
               rownames = TRUE,
@@ -447,7 +447,7 @@ mod_filter_server <- function(id, values) {
     },
     content = function(file) {
       shiny::req(values$filteredData)
-      utils::write.csv(values$filteredData, file, row.names = FALSE)
+      hstat_ecrire_csv(values$filteredData, file, row.names = FALSE)
     }
   )
   })

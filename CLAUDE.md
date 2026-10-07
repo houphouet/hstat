@@ -7842,6 +7842,121 @@ dépôt traque, reproduit par inadvertance en le corrigeant ailleurs. Le test
 l'exige désormais explicitement (`graphe_opt()$extras$familles`), et la
 mutation correspondante échoue sur trois assertions.
 
+## Le séparateur décimal se choisit avant de télécharger
+
+Demandé à l'écran : choisir, **avant** de télécharger, entre la virgule et le
+point — pour les tableaux **et** pour les figures qui portent des nombres. Un
+tableur réglé à la française lit « 1.5 » comme du texte ou une date ; un tableur
+anglais lit « 1,5 » comme deux colonnes. Aucun des deux n'est juste pour tout
+le monde : c'est un réglage, et il appartient à l'utilisateur.
+
+### Une fenêtre avant chaque fichier, un réglage dans le bandeau
+
+`www/hstat-decimale.js` intercepte **tous** les téléchargements — les liens
+Shiny (`a.shiny-download-link`) et les boutons CSV/Excel de DataTables — et
+demande : virgule ou point. « Ne plus demander » vaut pour la **visite**
+(`sessionStorage`) ; le choix, lui, se retrouve et se change dans le bandeau
+(segments « 1.5 | 1,5 », à côté de la langue). Une question qui disparaîtrait
+pour toujours sans dire où la retrouver serait un réglage perdu.
+
+**Le défaut reste le point** : c'est la sortie d'avant, au caractère près. Un
+test compare le CSV au point à celui de `write.csv()` octet pour octet — aucun
+export existant ne change sans que l'utilisateur le demande.
+
+### Le choix voyage par le websocket, le fichier par HTTP
+
+Le choix vit dans `session$userData$decimale`, comme la langue et pour la même
+raison : une option globale ferait basculer les exports de tous les
+utilisateurs d'un serveur partagé. `hstat_decimale_session()` le lit.
+
+Mais le choix part par le **websocket** et le fichier par une **requête HTTP** :
+rien ne garantit que le premier arrive avant la seconde, et le fichier
+porterait alors le séparateur d'avant. Le serveur **accuse réception**
+(`hstat-decimale-ok`) et le navigateur attend cet accusé avant de lancer le
+téléchargement — trois secondes au plus : au-delà, un fichier au mauvais
+séparateur vaut mieux qu'un clic sans effet.
+
+### Les écrivains communs le lisent, aucun export n'y pense
+
+C'est ce qui rend le réglage applicable « dans toute l'application » : il n'y a
+qu'**un** écrivain de CSV, de classeur et d'image.
+
+| Écrivain | Ce que fait la virgule |
+|---|---|
+| `hstat_ecrire_csv()` (nouveau, seul écrivain CSV) | nombres en `1,5`, champs séparés par `;` — la convention du CSV français, sans laquelle « 1,5 » ferait deux colonnes |
+| `hstat_ecrire_classeur()` et les `writeData` des modules | les **nombres restent des nombres** ; seul le texte est converti |
+| `hstat_ecrire_image()` | graduations, valeurs portées, titres, équations |
+| boutons de DataTables (`.hstat_dt_buttons()`) | conversion au clic, dans le navigateur |
+
+Vingt et un `utils::write.csv()` des modules passent désormais par
+`hstat_ecrire_csv()`, et un balayage par l'analyseur barre le retour de
+`write.csv`, `write.table` et `fwrite` hors du socle, ainsi que de tout
+`writeData`, `write.xlsx` ou `write_xlsx` dont les données ne traversent pas
+`hstat_decimale_tableau()`. Six tableaux posaient `buttons = c('copy', 'csv',
+'excel')` à la main : ils passent par `.hstat_dt_buttons()`, qui porte la
+conversion, et le littéral est barré.
+
+**Un classeur Excel ne peut pas porter la virgule de ses nombres.** Le fichier
+stocke un nombre ; c'est Excel qui l'affiche selon ses réglages régionaux.
+Convertir les nombres en texte « 1,5 » les rendrait inutilisables dans une
+formule — un prix bien plus lourd que le gain. La fenêtre le **dit**, plutôt
+que de laisser croire que le réglage a été ignoré.
+
+### Un nombre écrit dans un texte, pas un identifiant
+
+`hstat_decimale_texte()` convertit les nombres **écrits** dans du texte :
+« 2.073 ± 0.658 », « RR=1.23 », « p < 0.001 ». Trois protections, chacune
+testée, toutes dans `HSTAT_DECIMALE_MOTIF` :
+
+1. **précédé d'une lettre, d'un chiffre, d'un `_` ou d'un point**, ce n'est pas
+   un nombre mais un identifiant — « T1.2 », « x1.5 » sont des noms de modalité
+   ou de colonne, et les réécrire altérerait les données de l'utilisateur ;
+2. **suivi d'un second « .chiffre »**, c'est une date ou une version
+   (« 04.08.2026 », « 1.13.0 ») : la virgule en ferait trois nombres ;
+3. **aucun séparateur de milliers** n'est posé : il serait lu comme une décimale
+   de plus.
+
+Un facteur dont deux niveaux deviendraient identiques (« 0.5 » et « 0,5 »)
+garde ses niveaux : `levels<-` les **fusionnerait**, et une modalité
+disparaîtrait du fichier.
+
+Le navigateur applique **la même règle** (`hstatDecimaleCellule()`), écrite sans
+lookbehind : un navigateur qui ne le connaît pas refuserait le fichier **entier**
+à l'analyse. Un test l'exécute sous `node` et compare ses sorties à celles de R,
+cas par cas.
+
+### Les figures se convertissent sur leur texte, après construction
+
+Corriger chaque constructeur aurait recopié la règle dans dix-neuf modules, et
+`sprintf("%.2f")` ne lit aucune option de toute façon. La figure est donc
+convertie **une fois construite** : `.hstat_decimale_grob()` prend la grille
+(ggplot, patchwork) et remplace le texte de chaque nœud — graduations, valeurs
+portées, `geom_text_repel` (`$lab`), et jusqu'aux nombres d'une expression
+plotmath (`R^2 == 0.75`).
+
+Deux pièges, tous deux constatés :
+
+1. **Un titre d'axe à retour à la ligne n'a pas de texte avant le tracé.**
+   `element_textbox_simple()` (ggtext) range le sien dans une mise en page C++
+   et ne pose ses morceaux que dans `makeContent()`. « Dose 2.5 mg » gardait son
+   point à côté de graduations à la virgule. Toute grille dotée d'un
+   `makeContent()` est donc enveloppée (`hstat_decimale_differee`) et convertie
+   **après** sa mise en page ; la méthode est enregistrée auprès de grid à
+   l'emploi, l'application tournant aussi depuis les sources, sans `NAMESPACE`.
+2. **`getS3method()` cherche le générique depuis l'appelant.** `makeContent`
+   n'étant pas attaché, il rendait `NULL` et l'enveloppe ne se posait jamais.
+   D'où `envir = asNamespace("grid")`.
+
+Les graphiques **de base**, tracés par une fonction, passent par
+`options(OutDec = ",")`, que leurs axes lisent d'eux-mêmes ; l'option est rendue
+à sa valeur à la sortie, et un test le vérifie.
+
+### Ce qui garde le point, délibérément
+
+Le **fichier d'essai WIN DL** (`dlTxt`) est le format natif que le logiciel
+relit : avec la virgule, il ne se rouvrirait plus. Le **rapport** `.prn`, lui,
+est un document de lecture et suit le choix.
+
 ## Fins de ligne
 
 Attention : le dépôt est **mixte**, et bien plus qu'il n'y paraît. La fin de

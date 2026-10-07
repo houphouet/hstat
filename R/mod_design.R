@@ -2866,7 +2866,7 @@ mod_design_server <- function(id, values) {
     output$dsgDownload <- shiny::downloadHandler(
       filename = function() paste0("plan_", hstat_nom_fichier(input$dsgType, "plan"),
                                    "_", Sys.Date(), ".csv"),
-      content = function(file) utils::write.csv(design_book(), file, row.names = FALSE, fileEncoding = "UTF-8"))
+      content = function(file) hstat_ecrire_csv(design_book(), file, row.names = FALSE, fileEncoding = "UTF-8"))
 
     # Construction du graphique du dispositif (partagee affichage + export PNG)
     # Ajoute les contraintes de terrain (obstacle + bandes de blocage) a un

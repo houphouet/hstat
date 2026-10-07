@@ -1810,7 +1810,7 @@ mod_correlation_server <- function(id, values) {
       filename = function() paste0("corrélations_", Sys.Date(), ".csv"),
       content  = function(file) {
         res <- cor_results()
-        utils::write.csv(res, file, row.names = FALSE, fileEncoding = "UTF-8")
+        hstat_ecrire_csv(res, file, row.names = FALSE, fileEncoding = "UTF-8")
       })
 
     output$corTestInterpretation <- shiny::renderUI({
@@ -5969,11 +5969,11 @@ mod_tests_server <- function(id, values) {
       ns_s  <- openxlsx::createStyle(fgFill = "#FFCDD2")
       
       openxlsx::addWorksheet(wb, "Résultat global")
-      openxlsx::writeData(wb, "Résultat global", values$chiSqResults, headerStyle = h_style)
+      openxlsx::writeData(wb, "Résultat global", hstat_decimale_tableau(values$chiSqResults), headerStyle = h_style)
       openxlsx::setColWidths(wb, "Résultat global", cols = seq_len(ncol(values$chiSqResults)), widths = "auto")
       
       openxlsx::addWorksheet(wb, "Modalités et groupes")
-      openxlsx::writeData(wb, "Modalités et groupes", values$chiSqFreqData, headerStyle = h_style)
+      openxlsx::writeData(wb, "Modalités et groupes", hstat_decimale_tableau(values$chiSqFreqData), headerStyle = h_style)
       sr <- which(values$chiSqFreqData$Statut == "Sur-représenté")  + 1
       nr <- which(values$chiSqFreqData$Statut == "Sous-représenté") + 1
       if (length(sr) > 0) openxlsx::addStyle(wb, "Modalités et groupes", sig_s, rows = sr,
@@ -5984,7 +5984,7 @@ mod_tests_server <- function(id, values) {
       
       if (!is.null(values$chiSqPostHocData) && nrow(values$chiSqPostHocData) > 0) {
         openxlsx::addWorksheet(wb, "Comparaisons paires")
-        openxlsx::writeData(wb, "Comparaisons paires", values$chiSqPostHocData, headerStyle = h_style)
+        openxlsx::writeData(wb, "Comparaisons paires", hstat_decimale_tableau(values$chiSqPostHocData), headerStyle = h_style)
         dr <- which(values$chiSqPostHocData$Decision == "Différent") + 1
         mr <- which(values$chiSqPostHocData$Decision == "Similaire") + 1
         if (length(dr) > 0) openxlsx::addStyle(wb, "Comparaisons paires", sig_s, rows = dr,
@@ -6003,7 +6003,7 @@ mod_tests_server <- function(id, values) {
     filename = function() paste0("chi2_modalités_", Sys.Date(), ".csv"),
     content  = function(file) {
       shiny::req(values$chiSqFreqData)
-      utils::write.csv(values$chiSqFreqData, file, row.names = FALSE)
+      hstat_ecrire_csv(values$chiSqFreqData, file, row.names = FALSE)
     }
   )
   
@@ -7128,9 +7128,9 @@ mod_tests_server <- function(id, values) {
     content = function(file) {
       shiny::req(values$rmPostHocData)
       if (requireNamespace("openxlsx", quietly = TRUE)) {
-        openxlsx::write.xlsx(values$rmPostHocData, file)
+        openxlsx::write.xlsx(hstat_decimale_tableau(values$rmPostHocData), file)
       } else {
-        utils::write.csv(values$rmPostHocData, sub("\\.xlsx$", ".csv", file), row.names = FALSE)
+        hstat_ecrire_csv(values$rmPostHocData, sub("\\.xlsx$", ".csv", file), row.names = FALSE)
       }
     }
   )
@@ -7466,7 +7466,7 @@ mod_tests_server <- function(id, values) {
         pageLength = 15,
         lengthMenu = c(10, 15, 25, 50),
         dom = 'Bfrtip',
-        buttons = c('copy', 'csv', 'excel')
+        buttons = .hstat_dt_buttons("effets_principaux")
       ),
       rownames = FALSE,
       extensions = 'Buttons',
@@ -7528,7 +7528,7 @@ mod_tests_server <- function(id, values) {
         pageLength = 15,
         lengthMenu = c(10, 15, 25, 50),
         dom = 'Bfrtip',
-        buttons = c('copy', 'csv', 'excel')
+        buttons = .hstat_dt_buttons("effets_simples")
       ),
       rownames = FALSE,
       extensions = 'Buttons',
@@ -8871,11 +8871,11 @@ mod_tests_server <- function(id, values) {
       
       wb <- openxlsx::createWorkbook()
       openxlsx::addWorksheet(wb, "Resume_par_facteur")
-      openxlsx::writeData(wb, "Resume_par_facteur", summary_stats)
+      openxlsx::writeData(wb, "Resume_par_facteur", hstat_decimale_tableau(summary_stats))
       openxlsx::addWorksheet(wb, "Resume_par_variable")
-      openxlsx::writeData(wb, "Resume_par_variable", var_summary)
+      openxlsx::writeData(wb, "Resume_par_variable", hstat_decimale_tableau(var_summary))
       openxlsx::addWorksheet(wb, "Données_completes")
-      openxlsx::writeData(wb, "Données_completes", values$multiResultsMain)
+      openxlsx::writeData(wb, "Données_completes", hstat_decimale_tableau(values$multiResultsMain))
       openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
     }
   )
