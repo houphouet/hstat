@@ -973,9 +973,25 @@ HSTAT_ERR_FR <- list(
 # par une option globale : sur un serveur partage, une option ferait basculer
 # la langue de TOUS les utilisateurs des que l'un d'eux change la sienne.
 # Hors Shiny (tests, scripts), le francais s'applique.
+#
+# UNE SORTIE DEJA CALCULEE SUIT LE CHANGEMENT DE LANGUE. La valeur vit dans
+# `userData`, qui n'est pas reactive : un tableau ou un verdict calcules en
+# francais restaient en francais apres le passage a l'anglais, tant qu'aucune
+# de leurs entrees ne bougeait. Mesure au navigateur : 251 textes francais sur
+# une page basculee en anglais, dont tous les resultats deja affiches.
+#
+# La dependance n'est prise QUE pendant le calcul d'une sortie
+# (`getCurrentOutputInfo()` n'y est pas NULL) : la sortie se recalcule alors
+# dans la nouvelle langue. Un observateur, lui, ne la prend pas -- relancer a
+# chaque bascule ceux qui composent du texte reafficherait leurs notifications
+# et repasserait leurs mises a jour de champs, sans que personne l'ait demande.
 hstat_langue_session <- function() {
   d <- tryCatch(shiny::getDefaultReactiveDomain(), error = function(e) NULL)
   if (is.null(d) || is.null(d$userData)) return("fr")
+  rv <- tryCatch(d$userData$langue_rv, error = function(e) NULL)
+  if (is.function(rv) &&
+      !is.null(tryCatch(shiny::getCurrentOutputInfo(d), error = function(e) NULL)))
+    tryCatch(rv(), error = function(e) NULL)
   l <- tryCatch(d$userData$langue, error = function(e) NULL)
   if (identical(l, "en")) "en" else "fr"
 }
@@ -8620,7 +8636,19 @@ hstat_donnees_r_convertir <- function(x, nom = "donnees") {
   # n'importe quoi sur un nom de trois lettres.
   seuil <- max(1L, ceiling(nchar(nom) / 3))
   ok <- !is.na(d) & d <= seuil
-  utils::head(unique(c(dedans, noms[ok][order(d[ok])])), n)
+  # LES DEUX FAMILLES SE CLASSENT ENSEMBLE, par distance d'edition. Mises bout a
+  # bout -- les sous-chaines d'abord --, « Affairs » passait devant « iris » sur
+  # la saisie « irs » : il CONTIENT « irs », alors que « iris » n'est qu'a une
+  # lettre. Une sous-chaine reste toujours proposee, mais un nom proche passe
+  # devant un nom long qui la contient par hasard.
+  #
+  # A distance egale, c'est l'ORDRE DU CATALOGUE qui departage : il range les
+  # jeux de `datasets` en tete. « iris » et « rs » (tseries) sont tous deux a
+  # une lettre de « irs » ; departager par la longueur proposait d'abord le jeu
+  # d'un paquet installe en plus, plutot que celui que tout le monde connait.
+  cand <- unique(c(dedans, noms[ok]))
+  pos <- match(cand, noms)
+  utils::head(cand[order(d[pos], pos)], n)
 }
 
 # -- Resolution d'un nom ------------------------------------------------------
@@ -10527,11 +10555,20 @@ hstat_ui_en_cache <- function(ui, prechauffer = TRUE) {
 # Un echec n'est jamais fatal -- c'est un gain de temps, pas une condition de
 # fonctionnement : il est consigne, et l'application tourne comme avant.
 # `options(hstat.prechauffage = FALSE)` le desactive.
+HSTAT_PRECHAUFFAGE_ECART <- 1
+
 hstat_prechauffer_session <- function(server, differer = TRUE) {
   if (!is.function(server)) return(server)
   courant <- server
-  enveloppe <- function(input, output, session)
+  # Une VRAIE session ouverte avant la session fictive rend celle-ci inutile :
+  # le visiteur a deja paye la compilation que le prechauffage devait lui
+  # epargner, et la rejouer bloquerait 25 s de plus le processus partage.
+  en_fictive <- FALSE
+  vraie_session <- FALSE
+  enveloppe <- function(input, output, session) {
+    if (!en_fictive) vraie_session <<- TRUE
     courant(input = input, output = output, session = session)
+  }
   compiler <- function() {
     cf <- tryCatch(compiler::cmpfun(server), error = function(e) {
       message(trf("HStat : compilation du serveur impossible : %s", conditionMessage(e)))
@@ -10542,7 +10579,10 @@ hstat_prechauffer_session <- function(server, differer = TRUE) {
   session_fictive <- function() {
     # Les gestionnaires vivent DANS le rappel : `later` evalue ses rappels hors
     # de ceux de l'appelant, un `suppressMessages()` pose autour serait ignore.
+    if (vraie_session) return(invisible(FALSE))
     t0 <- proc.time()[["elapsed"]]
+    en_fictive <<- TRUE
+    on.exit(en_fictive <<- FALSE, add = TRUE)
     ok <- tryCatch({
       suppressWarnings(suppressMessages(shiny::testServer(enveloppe, {})))
       TRUE
@@ -10557,10 +10597,16 @@ hstat_prechauffer_session <- function(server, differer = TRUE) {
   attr(enveloppe, "hstat_etapes") <- list(compiler = compiler, session = session_fictive)
   if (isFALSE(getOption("hstat.prechauffage", TRUE)) || !isTRUE(differer) ||
       !requireNamespace("later", quietly = TRUE)) return(enveloppe)
+  # UN DELAI ENTRE LES ETAPES, PAS ZERO. Une etape enchainee a delai nul passe
+  # DEVANT une requete arrivee pendant l'etape precedente : httpuv traite une
+  # requete en plusieurs rappels successifs, et chacun se replace derriere ce
+  # qui est deja du. Mesure : une page demandee a l'ouverture du port attendait
+  # serialisation + compilation + session fictive, soit 40 s. Une seconde
+  # d'ecart laisse la requete se servir entre deux etapes.
   later::later(function() {
     compiler()
-    later::later(session_fictive)
-  })
+    later::later(session_fictive, delay = HSTAT_PRECHAUFFAGE_ECART)
+  }, delay = HSTAT_PRECHAUFFAGE_ECART)
   enveloppe
 }
 
@@ -10819,6 +10865,41 @@ hstat_div_stades <- function(cols) {
        multi = multi, n_multi = length(multi))
 }
 
+# -- Bornes de la matrice releves x especes ---------------------------------
+# La matrice est DENSE : une colonne de texte libre choisie comme espece ou
+# comme releve -- une valeur par ligne -- donne autant de lignes et de colonnes
+# que le fichier compte de lignes. Mesure : 6 000 lignes donnaient une matrice
+# de 6 000 x 6 000, 52 s et 1,8 Go ; 12 000 ne rendaient jamais la main. Shiny
+# sert toutes les sessions depuis un seul processus R : on refuse AVANT de
+# construire, en nommant les deux comptes, qui disent d'ou vient l'exces.
+HSTAT_DIV_CELLULES_MAX <- 2e6
+
+# Les analyses PAR PAIRE (diversite beta, partition de Baselga) rendent n x n
+# valeurs, ou n (n - 1) / 2 lignes : 1 000 releves font deja 499 500 paires.
+HSTAT_DIV_RELEVES_MAX <- 1000L
+
+.hstat_div_releves_max <- function(n) {
+  if (n > HSTAT_DIV_RELEVES_MAX)
+    stop(hstat_refus(trf("%d relevés : les comparaisons par paire sont limitées à %d relevés (%s paires). Regroupez les relevés (par traitement ou par date) pour comparer des unités moins nombreuses.",
+                         as.integer(n), HSTAT_DIV_RELEVES_MAX,
+                         format(HSTAT_DIV_RELEVES_MAX * (HSTAT_DIV_RELEVES_MAX - 1) / 2,
+                                big.mark = " ", scientific = FALSE))))
+  invisible(TRUE)
+}
+
+# Le meme motif, rendu comme texte : les deux tableaux par paire de l'onglet
+# l'affichent par `validate()`, ou une erreur levee sortirait en rouge.
+.hstat_div_trop_de_releves <- function(n)
+  tryCatch({ .hstat_div_releves_max(n); "" }, error = function(e) conditionMessage(e))
+
+.hstat_div_cellules_max <- function(n_releves, n_especes) {
+  if (as.numeric(n_releves) * as.numeric(n_especes) > HSTAT_DIV_CELLULES_MAX)
+    stop(hstat_refus(trf("Le tableau relevés × espèces compterait %d relevés et %d espèces, soit plus de %s cases. Une colonne qui porte une valeur différente à chaque ligne a sans doute été choisie comme relevé ou comme espèce : vérifiez ces deux colonnes.",
+                         as.integer(n_releves), as.integer(n_especes),
+                         format(HSTAT_DIV_CELLULES_MAX, big.mark = " ", scientific = FALSE))))
+  invisible(TRUE)
+}
+
 hstat_div_matrice <- function(data, format = c("long", "large"),
                               var_site = NULL, var_espece = NULL,
                               var_abondance = NULL, var_especes = NULL,
@@ -10873,6 +10954,7 @@ hstat_div_matrice <- function(data, format = c("long", "large"),
       msg <- c(msg, trf("%d effectif(s) négatif(s) écarté(s) : un effectif ne peut pas l'être.", sum(neg)))
       ok <- ok & !neg
     }
+    .hstat_div_cellules_max(length(unique(sit[ok])), length(unique(esp[ok])))
     m <- tapply(ab[ok], list(sit[ok], esp[ok]), sum)
     m[is.na(m)] <- 0
     m <- as.matrix(m)
@@ -11308,26 +11390,168 @@ hstat_div_sim_abondance <- function(u, v, methode = "bray") {
 }
 
 # -- Matrice de (dis)similarite entre tous les releves ------------------------
+# LE CALCUL SE FAIT PAR PRODUITS MATRICIELS, jamais paire par paire. Le
+# compte des especes communes a deux releves est un produit scalaire de leurs
+# vecteurs de presence : `tcrossprod()` rend les n x n d'un coup. Paire par
+# paire, chaque comparaison appelait une fonction R : mesure, 12,7 s pour
+# 1 000 releves en Jaccard -- et 375 s pour la partition de Baselga, qui
+# montait en plus un `data.frame` par paire. Shiny sert toutes les sessions
+# depuis un seul processus R : ces secondes-la, tout le monde les attend.
+#
+# Les coefficients qui ne s'ecrivent pas en produits (Canberra, Chao) gardent
+# la boucle, mais sur le seul triangle superieur. Un test confronte chaque
+# coefficient a la formule par paire (`hstat_div_sim_binaire()`,
+# `hstat_div_sim_abondance()`), qui reste la definition de reference.
+.hstat_div_abc_mat <- function(m) {
+  P <- (m > 0) * 1
+  A <- tcrossprod(P)
+  S <- rowSums(P)
+  B <- S - A                       # B[i, j] : especes de i absentes de j
+  list(a = A, b = B, c = t(B), d = ncol(m) - A - B - t(B))
+}
+
+# Division qui rend NA quand le denominateur ne l'autorise pas -- la forme
+# vectorisee des `if (den > 0) num / den else NA` de la definition par paire.
+.hstat_div_quot <- function(num, den, ok = den > 0) {
+  out <- num / den
+  out[!ok] <- NA_real_
+  out
+}
+
+.hstat_div_beta_vect <- function(m, methode) {
+  if (methode %in% HSTAT_DIV_BETA_BINAIRES) {
+    k <- .hstat_div_abc_mat(m); a <- k$a; b <- k$b; cc <- k$c; d <- k$d
+    bmin <- pmin(b, cc)
+    return(switch(methode,
+      jaccard    = .hstat_div_quot(a, a + b + cc),
+      sorensen   = .hstat_div_quot(2 * a, 2 * a + b + cc),
+      ochiai     = .hstat_div_quot(a, sqrt((a + b) * (a + cc)),
+                                   (a + b) > 0 & (a + cc) > 0),
+      kulczynski = {
+        o <- (a / (a + b) + a / (a + cc)) / 2
+        o[!((a + b) > 0 & (a + cc) > 0)] <- NA_real_
+        o
+      },
+      simpson    = .hstat_div_quot(a, a + bmin),
+      whittaker  = {
+        o <- 1 - (b + cc) / (2 * a + b + cc)
+        o[!(2 * a + b + cc > 0)] <- NA_real_
+        o
+      },
+      russell    = .hstat_div_quot(a, a + b + cc + d),
+      sokal      = .hstat_div_quot(a + d, a + b + cc + d),
+      NULL))
+  }
+  su <- rowSums(m)
+  switch(methode,
+    euclidean = as.matrix(stats::dist(m, method = "euclidean")),
+    manhattan = as.matrix(stats::dist(m, method = "manhattan")),
+    bray = {
+      den <- outer(su, su, "+")
+      .hstat_div_quot(den - as.matrix(stats::dist(m, method = "manhattan")), den)
+    },
+    horn = {
+      vu <- su > 0
+      pu <- m / ifelse(vu, su, 1)
+      q  <- rowSums(pu^2)
+      den <- outer(q, q, "+")
+      .hstat_div_quot(2 * tcrossprod(pu), den, outer(vu, vu, "&") & den > 0)
+    },
+    morisita = {
+      entier <- apply(abs(m - round(m)) < 1e-9, 1, all)
+      vu <- su > 1 & entier
+      lu <- ifelse(vu, rowSums(m * (m - 1)) / (su * (su - 1)), NA_real_)
+      ll <- outer(lu, lu, "+")
+      ok <- outer(vu, vu, "&") & !is.na(ll) & ll > 0
+      ok[is.na(ok)] <- FALSE
+      .hstat_div_quot(2 * tcrossprod(m), ll * outer(su, su), ok)
+    },
+    canberra      = .hstat_div_par_ligne(m, .hstat_div_canberra_ligne),
+    chao_jaccard  = .hstat_div_chao_mat(m, "jaccard"),
+    chao_sorensen = .hstat_div_chao_mat(m, "sorensen"),
+    NULL)
+}
+
+# Une ligne contre TOUTES les suivantes, d'un coup : n appels au lieu de
+# n (n - 1) / 2. C'est la forme qui reste aux coefficients qui ne s'ecrivent
+# pas en produit matriciel.
+.hstat_div_par_ligne <- function(m, f) {
+  n <- nrow(m)
+  out <- matrix(NA_real_, n, n)
+  for (i in seq_len(n - 1L)) {
+    j <- (i + 1L):n
+    s <- f(m[i, ], m[j, , drop = FALSE])
+    out[i, j] <- s; out[j, i] <- s
+  }
+  out
+}
+
+.hstat_div_canberra_ligne <- function(u, V) {
+  U <- matrix(u, nrow(V), ncol(V), byrow = TRUE)
+  k <- (U + V) > 0
+  r <- abs(U - V) / (U + V)
+  r[!k] <- 0
+  nk <- rowSums(k)
+  out <- 1 - rowSums(r) / nk
+  out[nk == 0] <- NA_real_
+  out
+}
+
+# La forme MATRICIELLE de `.hstat_div_chao_sim()`, qui reste la definition.
+# Chaque somme de la formule porte sur les especes communes a deux releves --
+# les singletons et doubletons partages compris -- et s'ecrit donc comme un
+# produit : `E1 %*% t(P)` compte, pour chaque paire (i, j), les singletons de i
+# presents dans j. Paire par paire, la meme formule prenait 26 s a 1 000
+# releves.
+.hstat_div_chao_mat <- function(m, forme = "jaccard") {
+  P  <- (m > 0) * 1
+  E1 <- (m == 1) * 1
+  E2 <- (m == 2) * 1
+  n  <- rowSums(m)
+  ent <- apply(abs(m - round(m)) < 1e-9, 1, all)
+  k  <- nrow(m)
+  Ni <- matrix(n, k, k); Nj <- t(Ni)
+  A    <- tcrossprod(P)
+  Usum <- tcrossprod(m, P)
+  F1 <- tcrossprod(E1, P); F2 <- pmax(tcrossprod(E2, P), 1)
+  SV1 <- tcrossprod(E1, m)
+  U  <- Usum / Ni
+  Vv <- t(Usum) / Nj
+  U  <- U  + (Nj - 1) / Nj * F1 / (2 * F2) * SV1 / Ni
+  Vv <- Vv + (Ni - 1) / Ni * t(F1) / (2 * t(F2)) * t(SV1) / Nj
+  U <- pmin(U, 1); Vv <- pmin(Vv, 1)
+  out <- if (identical(forme, "jaccard")) U * Vv / (U + Vv - U * Vv) else 2 * U * Vv / (U + Vv)
+  na <- !outer(ent, ent, "&") | Ni <= 1 | Nj <= 1
+  out[!na & (U <= 0 | Vv <= 0)] <- 0
+  out[!na & A == 0] <- 0
+  out[na] <- NA_real_
+  out
+}
+
 hstat_div_beta <- function(m, methode = "jaccard", sortie = c("similarite", "dissimilarite")) {
   sortie <- match.arg(sortie)
   m <- as.matrix(m)
   n <- nrow(m)
   if (n < 2) stop("Au moins deux relevés sont nécessaires pour la diversité bêta.", call. = FALSE)
+  .hstat_div_releves_max(n)
   binaire <- methode %in% HSTAT_DIV_BETA_BINAIRES
   # Les distances metriques n'ont pas de similarite bornee a 1 : les rendre en
   # « similarite » exigerait une normalisation arbitraire. On les laisse en
   # distance et on le DIT, plutot que d'inventer une echelle.
   metrique <- methode %in% c("euclidean", "manhattan")
-  out <- matrix(NA_real_, n, n, dimnames = list(rownames(m), rownames(m)))
-  for (i in seq_len(n)) for (j in seq_len(n)) {
-    if (i == j) { out[i, j] <- if (metrique) 0 else 1; next }
-    if (j < i) { out[i, j] <- out[j, i]; next }
-    out[i, j] <- if (metrique) {
-      if (identical(methode, "euclidean")) sqrt(sum((m[i, ] - m[j, ])^2))
-      else sum(abs(m[i, ] - m[j, ]))
-    } else if (binaire) hstat_div_sim_binaire(m[i, ], m[j, ], methode)
-    else hstat_div_sim_abondance(m[i, ], m[j, ], methode)
+  out <- .hstat_div_beta_vect(m, methode)
+  if (is.null(out)) {
+    out <- matrix(NA_real_, n, n)
+    for (i in seq_len(n - 1L)) for (j in (i + 1L):n) {
+      s <- if (binaire) hstat_div_sim_binaire(m[i, ], m[j, ], methode)
+           else hstat_div_sim_abondance(m[i, ], m[j, ], methode)
+      out[i, j] <- s; out[j, i] <- s
+    }
   }
+  out <- unname(out)
+  storage.mode(out) <- "double"
+  diag(out) <- if (metrique) 0 else 1
+  dimnames(out) <- list(rownames(m), rownames(m))
   if (identical(sortie, "dissimilarite") && !metrique) out <- 1 - out
   attr(out, "methode")  <- methode
   attr(out, "metrique") <- metrique
@@ -11341,27 +11565,30 @@ hstat_div_beta <- function(m, methode = "jaccard", sortie = c("similarite", "dis
 # (turnover) ou parce que l'un est un sous-ensemble appauvri de l'autre
 # (nestedness). Conclure « les deux milieux different » sans les separer fait
 # manquer ce que l'on cherchait a montrer.
+#
+# Une ligne par paire, dans l'ordre (1, 2), (1, 3)… (2, 3)… : c'est l'ordre de
+# la double boucle qu'elle remplace, et celui dans lequel on lit le tableau.
 hstat_div_baselga <- function(m) {
   m <- as.matrix(m); n <- nrow(m)
   if (n < 2) stop("Au moins deux relevés sont nécessaires.", call. = FALSE)
-  res <- list()
-  for (i in 1:(n - 1)) for (j in (i + 1):n) {
-    k <- .hstat_div_abc(m[i, ], m[j, ]); a <- k$a; b <- k$b; cc <- k$c
-    bmin <- min(b, cc); bmax <- max(b, cc)
-    sor  <- if (2 * a + b + cc > 0) (b + cc) / (2 * a + b + cc) else NA_real_
-    sim  <- if (a + bmin > 0) bmin / (bmin + a) else NA_real_
-    sne  <- if (is.finite(sor) && is.finite(sim)) sor - sim else NA_real_
-    jac  <- if (a + b + cc > 0) (b + cc) / (a + b + cc) else NA_real_
-    jtu  <- if (a + bmin > 0) 2 * bmin / (2 * bmin + a) else NA_real_
-    jne  <- if (is.finite(jac) && is.finite(jtu)) jac - jtu else NA_real_
-    res[[length(res) + 1L]] <- data.frame(
-      Releve_1 = rownames(m)[i], Releve_2 = rownames(m)[j],
-      Communes_a = a, Exclusives_1_b = b, Exclusives_2_c = cc,
-      Sorensen_total = sor, Simpson_turnover = sim, Sorensen_emboitement = sne,
-      Jaccard_total = jac, Jaccard_turnover = jtu, Jaccard_emboitement = jne,
-      stringsAsFactors = FALSE)
-  }
-  do.call(rbind, res)
+  .hstat_div_releves_max(n)
+  k <- .hstat_div_abc_mat(m)
+  ij <- which(upper.tri(k$a), arr.ind = TRUE)
+  ij <- ij[order(ij[, 1], ij[, 2]), , drop = FALSE]
+  a <- k$a[ij]; b <- k$b[ij]; cc <- k$c[ij]
+  bmin <- pmin(b, cc)
+  sor <- .hstat_div_quot(b + cc, 2 * a + b + cc)
+  sim <- .hstat_div_quot(bmin, bmin + a)
+  jac <- .hstat_div_quot(b + cc, a + b + cc)
+  jtu <- .hstat_div_quot(2 * bmin, 2 * bmin + a)
+  rn <- rownames(m) %||% rep(NA_character_, n)
+  data.frame(
+    Releve_1 = rn[ij[, 1]], Releve_2 = rn[ij[, 2]],
+    Communes_a = as.integer(a), Exclusives_1_b = as.integer(b),
+    Exclusives_2_c = as.integer(cc),
+    Sorensen_total = sor, Simpson_turnover = sim, Sorensen_emboitement = sor - sim,
+    Jaccard_total = jac, Jaccard_turnover = jtu, Jaccard_emboitement = jac - jtu,
+    stringsAsFactors = FALSE)
 }
 
 # -- Partition de Whittaker : alpha, beta, gamma ------------------------------

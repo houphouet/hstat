@@ -18,8 +18,12 @@ server <- function(input, output, session) {
   # rangee dans `session$userData` — donc propre a CET utilisateur — et lue par
   # `hstat_langue_session()`. Les messages composes en R (erreurs, verdicts)
   # suivent ainsi la langue sans qu'aucun de leurs ~70 points d'appel change.
+  # `langue_rv` porte le MEME etat sous forme reactive : les sorties le lisent
+  # par `hstat_langue_session()` et se recalculent dans la nouvelle langue.
+  session$userData$langue_rv <- shiny::reactiveVal("fr")
   shiny::observeEvent(input$hstat_langue, {
     session$userData$langue <- if (identical(input$hstat_langue, "en")) "en" else "fr"
+    session$userData$langue_rv(session$userData$langue)
   }, ignoreInit = FALSE)
 
   # Separateur decimal des fichiers telecharges, choisi dans le bandeau ou dans

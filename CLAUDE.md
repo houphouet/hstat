@@ -5069,6 +5069,71 @@ Même famille pour les **info-bulles de plotly** (`hovertemplate`) : elles ne
 sont ni un nœud de texte ni un attribut HTML, le traducteur du navigateur ne
 les voit pas. Elles passent par `tr()` côté serveur.
 
+#### Une sortie déjà calculée suit le changement de langue
+
+La langue vivait dans `session$userData`, qui **n'est pas réactive** : un
+tableau, un verdict, une note composés par `trf()` en français restaient en
+français après le passage à l'anglais, tant qu'aucune de leurs entrées ne
+bougeait. Les gabarits étaient pourtant au dictionnaire — « Dernière mise à
+jour : %s », « Rendement exprimé en %s » —, ce qui rendait le défaut
+introuvable par la mesure de couverture.
+
+`session$userData$langue_rv` porte le même état sous forme réactive, et
+`hstat_langue_session()` n'en prend la dépendance **que pendant le calcul d'une
+sortie** (`shiny::getCurrentOutputInfo()` n'y est pas `NULL`). Un observateur
+ne la prend pas : relancer à chaque bascule ceux qui composent du texte
+réafficherait leurs notifications et repasserait leurs mises à jour de champs.
+Le test vérifie les deux moitiés — la sortie passe à « Cancel », l'observateur
+ne s'est exécuté qu'une fois.
+
+Une sortie cachée reste suspendue, comme toute sortie Shiny : elle se recalcule
+dans la nouvelle langue quand on revient sur son onglet. La mesure au navigateur
+doit donc **revisiter** les onglets après la bascule — lire ceux qu'on a
+quittés ferait croire que le correctif ne marche pas.
+
+#### Une clé à double espace ne se rencontre jamais
+
+Le traducteur replie les blancs internes du nœud de texte **avant** de chercher
+(`replace(/\s+/g, " ")`) : c'est ce qui rend traduisibles les phrases que Shiny
+sérialise sur plusieurs lignes. Une clé du dictionnaire qui porte elle-même deux
+espaces de suite ne peut donc **jamais** correspondre — elle est là, et elle ne
+sert à rien. Trouvé sur la formule de conservation de la matière
+(`HSTAT_DOSE_FORMULES`), restée en français en anglais : la double espace est
+retirée de la source **et** de la clé.
+
+#### Le test de couverture lisait les libellés, pas les options
+
+Mesuré au navigateur, page rendue en anglais : **251 textes français**. Trois
+familles, et une seule était vue par la suite :
+
+| Famille | Nombre | Pourquoi rien ne le voyait |
+|---|---|---|
+| options de liste (`choices = c("Libellé" = "valeur")`) | 79 + ~100 | le test lisait le libellé du widget, jamais ses choix |
+| paragraphes d'aide mêlant texte et balisage | 62 | l'entrée doit être le HTML **entier** de l'élément, que rien ne relevait |
+| sorties composées par `trf()` | une dizaine | voir ci-dessus : la langue n'était pas réactive |
+
+Les paragraphes ressortaient parfois **à moitié traduits** — « Choisissez un
+facteur à *fixer* and a factor to *tester* » : les morceaux courts coupés par
+une balise trouvaient chacun une entrée, la phrase entière aucune. C'est le
+remplacement d'élément (`traduireHtml()`) qui règle le cas, à condition que le
+dictionnaire porte la **version française d'origine** de l'élément.
+
+D'où la méthode de capture, qui vaut d'être écrite : rendre la page en
+**français**, mémoriser le HTML de chaque élément dans une `WeakMap` (sans
+toucher au DOM — un attribut ajouté changerait le HTML de tous ses ancêtres, et
+donc leurs clés), basculer en anglais, et relever les éléments qui portent
+encore du français. On ne remonte d'un élément en ligne à son parent que si ce
+parent ne contient que des éléments en ligne : sinon un `<small>` remonte à toute
+la boîte.
+
+Les morceaux isolés (« dans », « négative », « et nommé ») **n'entrent pas seuls
+au dictionnaire** : un mot court est une valeur de données plausible, et c'est
+l'entrée du paragraphe entier qui les couvre.
+
+Un test rend les UI de tous les modules et exige que chaque libellé d'option
+français soit au dictionnaire ; il décode les entités à la main plutôt que par
+`xml2`, absent de la liste de la CI.
+
 #### Un bandeau écrit en morceaux ne se traduit jamais
 
 Signalé à l'écran : en anglais, le bandeau qui décrit la DL50 restait en
@@ -5617,6 +5682,22 @@ ceux qui comptent. Littérale aussi parce que la saisie vient de l'utilisateur :
 La casse est rattrapée à l'identique pour le nom lui-même : qui écrit « Iris »
 veut « iris », et le refuser sur une majuscule serait exactement le
 « problème » que ce chemin existe pour éviter.
+
+#### Les deux familles de suggestions se classent ENSEMBLE
+
+Trouvé par les deux seuls échecs de la suite dans un conteneur où d'autres
+paquets étaient installés. Mises bout à bout — sous-chaînes d'abord —, les
+suggestions plaçaient « Affairs » (AER) devant « iris » sur la saisie « irs » :
+il *contient* « irs », alors que « iris » n'est qu'à une lettre. Les deux
+familles sont désormais classées par distance d'édition, et à distance égale
+par l'**ordre du catalogue**, qui range `datasets` en tête : « iris » et « rs »
+(tseries) sont tous deux à une lettre, et départager par la longueur proposait
+d'abord le jeu d'un paquet installé en plus.
+
+Le test du jeu `iris` exigeait de même **aucune** note, alors que `locfit` livre
+aussi un `iris` et que la note des homonymes est alors juste. Il proscrit
+désormais les notes de **conversion**, ce qu'il gardait vraiment : un test qui
+dépend des paquets installés échoue sur l'environnement, pas sur le code.
 
 ### `make.unique` laisse la PREMIÈRE occurrence intacte
 
@@ -8756,6 +8837,55 @@ tenir d'accord**, et c'est la copie oubliée qui ment — la dérive déjà corr
 sur les formats d'image, les champs de DPI, les thèmes et les palettes.
 L'aperçu et le téléchargement lisent la même fonction.
 
+### Les comparaisons par paire se calculent en produits matriciels
+
+Trouvé à l'audit, sans rien d'hostile : la partition de Baselga prenait **31 s
+pour 300 relevés et 375 s pour 1 000**, Jaccard 12,7 s à 1 000 relevés, Chao
+27,7 s. Chaque paire appelait une fonction R, et Baselga montait en plus un
+`data.frame` par paire avant de les empiler. Shiny sert toutes les sessions
+depuis un seul processus R : ces secondes-là, tout le monde les attend.
+
+Le nombre d'espèces communes à deux relevés est un **produit scalaire** de
+leurs vecteurs de présence : `tcrossprod()` rend les n × n d'un coup
+(`.hstat_div_abc_mat()`). Bray-Curtis passe par la distance de Manhattan,
+Morisita-Horn par le produit des profils, et Chao aussi — chacune de ses sommes
+porte sur les espèces communes, singletons et doubletons partagés compris.
+Seul Canberra garde une boucle, **une ligne contre toutes les suivantes**.
+
+| 1 000 relevés × 200 espèces | avant | après |
+|---|---|---|
+| Baselga | 375 s | **0,28 s** |
+| Jaccard | 12,7 s | **0,19 s** |
+| Chao-Jaccard | 27,7 s | **1,0 s** |
+| Canberra | 11,6 s | **3,6 s** |
+
+**La définition par paire reste la référence.** `hstat_div_sim_binaire()` et
+`hstat_div_sim_abondance()` ne servent plus au calcul de la matrice, mais le
+test confronte chaque coefficient à elles, sur les cas qui font diverger une
+vectorisation fautive : relevé vide (dénominateur nul, donc `NA`), effectifs
+non entiers (Morisita et Chao rendent `NA`), singletons et doubletons. Mesuré
+avant de publier : 1 320 cas, zéro écart. Et le test **compte les appels par
+paire** — zéro — parce que l'égalité des valeurs passerait aussi sur la double
+boucle d'avant.
+
+Piège rencontré en chemin : `pmax(1, M)` **perd les dimensions** de la matrice,
+le résultat prenant les attributs du premier argument, un scalaire. On écrit
+`pmax(M, 1)`.
+
+### La matrice relevés × espèces se borne avant d'être construite
+
+Une colonne de **texte libre** choisie comme relevé ou comme espèce donne autant
+de lignes et de colonnes que le fichier compte de lignes, et la matrice est
+dense. Mesuré : 6 000 lignes donnaient une matrice de 6 000 × 6 000, **52 s et
+1,8 Go** ; 12 000 ne rendaient jamais la main.
+
+`HSTAT_DIV_CELLULES_MAX` (2 millions de cases) refuse **avant** `tapply()`, en
+0,18 s, et le refus nomme les deux comptes : ce sont eux qui disent qu'une
+colonne porte une valeur par ligne. `HSTAT_DIV_RELEVES_MAX` (1 000 relevés)
+borne les analyses par paire, qui rendent n (n − 1) / 2 lignes : l'onglet le
+dit par `validate()`, et l'export omet ces deux feuilles plutôt que de tomber
+entier.
+
 ### Un fichier de comptages : l'identité du relevé, et les stades
 
 Signalé à l'écran, capture à l'appui : une fiche d'entomologie porte des
@@ -9210,6 +9340,29 @@ pas garanti.
 itself ») : le préchauffage ne doit jamais être déclenché depuis un test qui
 tourne lui-même sous `testServer`. D'où l'argument `differer = FALSE`, qui rend
 l'enveloppe et ses deux étapes sans rien planifier.
+
+### Une étape enchaînée à délai nul passe devant la requête
+
+Mesuré au repos sur 1.13 : le port s'ouvre en **12 s**, mais une page demandée
+à cet instant attendait **40 s** — la somme exacte des trois étapes de
+préchauffage (sérialisation 5 s, compilation 9 s, session fictive 25 s). La
+promesse écrite plus haut — « une requête arrivée entre les deux est servie
+entre les deux » — ne tenait pas : httpuv traite une requête en plusieurs
+rappels successifs, et une étape replanifiée à délai nul se replace devant
+eux.
+
+Deux corrections, chacune testée :
+
+1. **Une seconde d'écart entre les étapes** (`HSTAT_PRECHAUFFAGE_ECART`). La
+   page d'ouverture n'attend plus que la sérialisation et la compilation, dont
+   sa propre session a de toute façon besoin : **40 s → 14 s**.
+2. **Une vraie session ouverte avant la session fictive l'annule.** Le visiteur
+   a déjà payé la compilation que le préchauffage devait lui épargner ; la
+   rejouer bloquerait 25 s de plus le processus partagé, pour personne. C'est le
+   cas d'un lancement local, où le navigateur s'ouvre en même temps que le port.
+
+La session fictive ne compte pas elle-même comme une vraie session : sans ce
+drapeau (`en_fictive`), elle se désactiverait en se lançant.
 
 ### Un pas de graduation fixe un nombre de traits, et c'est le navigateur qui le choisit
 

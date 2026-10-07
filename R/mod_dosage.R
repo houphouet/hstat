@@ -55,7 +55,7 @@ HSTAT_DOSE_FORMULES <- c(
   par_cuve   = "Produit par cuve = Dose (par ha) × (Volume de cuve (L) ÷ Volume de bouillie (L/ha))",
   nb_cuves   = "Nombre de cuves = Volume d'eau total (L) ÷ Volume de cuve (L)",
   surf_cuve  = "Surface par cuve (ha) = Volume de cuve (L) ÷ Volume de bouillie (L/ha)",
-  conservation = "Conservation de la matière : Vi × Ci = Vf × Cf  (Vi prélevé dans la mère, Ci = concentration mère)",
+  conservation = "Conservation de la matière : Vi × Ci = Vf × Cf (Vi prélevé dans la mère, Ci = concentration mère)",
   c_fille    = "Concentration de la fille n (Cf) = Concentration de la fille n−1 ÷ Coefficient de dilution",
   c_fille_n  = "soit Concentration de la fille n = Concentration mère ÷ Coefficient^n",
   v_preleve  = "Volume à prélever dans la mère (Vi) = Vf × Cf ÷ Concentration mère = Volume final ÷ Coefficient^n",

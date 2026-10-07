@@ -378,10 +378,14 @@ mod_viz_ui <- function(id) {
                             "Mise à jour auto"
                           )
                         ),
+                        # L'heure vient du SERVEUR, au rendu du graphique. Ecrite
+                        # ici, elle etait figee a la construction de l'interface --
+                        # mise en cache au demarrage --, si bien que la page
+                        # annoncait pour « derniere mise a jour » l'heure de
+                        # demarrage du serveur, quoi qu'on trace ensuite.
                         shiny::div(
-                          id = "lastUpdateTime",
                           style = "font-size: 12px; color: #666;",
-                          trf("Dernière mise à jour : %s", format(Sys.time(), "%H:%M:%S"))
+                          shiny::textOutput(ns("lastUpdateTime"), inline = TRUE)
                         )
                       )
                     )
@@ -4200,6 +4204,13 @@ mod_viz_server <- function(id, values) {
     
   })
   
+  # Chaque chemin de rendu range sa figure dans `currentInteractivePlot` : c'est
+  # donc l'heure du dernier rendu REEL, et la phrase suit la langue de la session.
+  output$lastUpdateTime <- shiny::renderText({
+    shiny::req(values$currentInteractivePlot)
+    trf("Dernière mise à jour : %s", format(Sys.time(), "%H:%M:%S"))
+  })
+
   output$interactivePlot <- renderPlotly({
     viz_type <- input$vizType %||% "scatter"
     
