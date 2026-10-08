@@ -865,15 +865,15 @@ mod_threshold_server <- function(id, values) {
 
   output$effDownloadCsv <- shiny::downloadHandler(
     filename = function() paste0("efficacites_", Sys.Date(), ".csv"),
-    content = function(file) {
+    content = hstat_contenu_sur(function(file) {
       r <- eff_affiche(); shiny::req(r)
       hstat_ecrire_csv(as.data.frame(r), file, row.names = FALSE,
                        fileEncoding = "UTF-8")
-    })
+    }))
 
   output$effDownloadXlsx <- shiny::downloadHandler(
     filename = function() paste0("efficacites_", Sys.Date(), ".xlsx"),
-    content = function(file) {
+    content = hstat_contenu_sur(function(file) {
       r <- eff_affiche(); shiny::req(r)
       if (requireNamespace("openxlsx", quietly = TRUE)) {
         # Les deux lectures dans le meme classeur : le tableau large pour
@@ -886,7 +886,7 @@ mod_threshold_server <- function(id, values) {
       } else
         hstat_ecrire_csv(as.data.frame(r), file, row.names = FALSE,
                          fileEncoding = "UTF-8")
-    })
+    }))
 
   # « L'utilisateur doit pouvoir selectionner ce dataframe pour les autres
   # operations » : le tableau devient le jeu de travail. On le dit clairement
@@ -1990,7 +1990,7 @@ mod_threshold_server <- function(id, values) {
     filename = function() {
       paste0("données_seuils_", Sys.Date(), ".xlsx")
     },
-    content = function(file) {
+    content = hstat_contenu_sur(function(file) {
       shiny::req(threshold_values$plot_data)
       
       wb <- openxlsx::createWorkbook()
@@ -2090,7 +2090,7 @@ mod_threshold_server <- function(id, values) {
       openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
       
       shiny::showNotification("Données exportées avec succès !", type = "message", duration = 3)
-    }
+    })
   )
   })
 }

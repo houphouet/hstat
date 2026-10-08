@@ -840,7 +840,7 @@ mod_clean_server <- function(id, values) {
         return()
       }
       
-      values$cleanData    <- values$cleanData[-rows_to_delete, ]
+      values$cleanData    <- values$cleanData[-rows_to_delete, , drop = FALSE]
       values$filteredData <- values$cleanData
       
       shiny::showNotification(
@@ -902,7 +902,7 @@ mod_clean_server <- function(id, values) {
       shiny::showNotification("Impossible de supprimer toutes les lignes.", type = "error", duration = 5)
       return()
     }
-    values$cleanData    <- values$cleanData[-sel, ]
+    values$cleanData    <- values$cleanData[-sel, , drop = FALSE]
     values$filteredData <- values$cleanData
     shiny::showNotification(
       trf("%s ligne(s) supprimée(s). %s lignes restantes.", length(sel), nrow(values$cleanData)),

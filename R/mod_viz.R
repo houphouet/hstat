@@ -1958,15 +1958,17 @@ mod_viz_server <- function(id, values) {
   plotData <- shiny::reactive({
     shiny::req(values$filteredData, input$vizXVar, input$vizYVar)
     
-    # Forcer la réactivité à customXOrder, storedLevelLabels, format date et thème
+    # Forcer la réactivité à l'ordre et aux étiquettes des niveaux.
+    #
+    # PAS de dépendance sur ce qui n'habille que la figure -- thème, format
+    # d'affichage des dates, titre du second axe. Le réactif du graphique les
+    # lit déjà ; les poser ici faisait refaire toute la préparation des données
+    # (agrégation comprise) à CHAQUE LETTRE tapée dans le titre du second axe.
     values$customXOrder
     values$storedLevelLabels
     values$plotUpdateTrigger
-    input$xDateDisplayFormat
-    input$plotTheme
     input$enableDualAxis
     input$vizY2Vars
-    input$y2AxisLabel
     values$y2VarsActive
     values$dualAxisActive
     

@@ -202,6 +202,19 @@ mod_timeseries_server <- function(id, values) {
                 input$tsDate),
             type = "warning", duration = 8)
         }
+        # UNE LIGNE SANS DATE N'A PAS DE PLACE DANS LA SERIE : `order()` range
+        # les NA a la fin, si bien qu'une ligne datee « inconnue » au milieu du
+        # fichier devenait la DERNIERE observation -- celle qui entre dans le
+        # jeu de test et fausse la precision publiee. Elle est ecartee, et
+        # comptee.
+        if (!is.null(dts) && anyNA(dts)) {
+          sans <- is.na(dts)
+          shiny::showNotification(
+            trf("%d ligne(s) écartée(s) : date illisible dans la colonne « %s ».",
+                sum(sans), input$tsDate),
+            type = "warning", duration = 8)
+          y <- y[!sans]; dts <- dts[!sans]; row_idx <- row_idx[!sans]
+        }
         if (!is.null(dts)) { o <- order(dts); y <- y[o]; dts <- dts[o]
                              row_idx <- row_idx[o] }
       }

@@ -2859,7 +2859,7 @@ mod_qualitative_server <- function(id, values) {
       # en interne). Dix-neuf exports sur vingt et un le faisaient deja.
       filename = function() paste0("graphique_qualitatif_", Sys.Date(),
                                    ".", hstat_img_fmt(input$dl_format)),
-      content = function(file) {
+      content = hstat_contenu_sur(function(file) {
         # `req()` interrompait le telechargement SANS ecrire de fichier : Shiny
         # renvoyait alors sa page d'erreur HTML sous le nom `.png`. L'ecrivain
         # commun garantit un fichier valide, portant le motif le cas echeant.
@@ -2868,7 +2868,7 @@ mod_qualitative_server <- function(id, values) {
                            input$dl_width %||% 9, input$dl_height %||% 6,
                            input$dl_dpi %||% 300,
                            echec = "Aucun graphique à exporter : lancez d'abord l'analyse.")
-      })
+      }))
 
     # ---- Metriques ----
     output$metrics_table <- DT::renderDT({
@@ -2929,14 +2929,14 @@ mod_qualitative_server <- function(id, values) {
     output$dl_table_xlsx <- shiny::downloadHandler(
       filename = function() paste0("tableau_", .safe_name(input$which_table %||% "resultat"),
                                    "_", Sys.Date(), ".xlsx"),
-      content = function(file) {
+      content = hstat_contenu_sur(function(file) {
         tb <- current_table(); shiny::req(!is.null(tb))
         .write_xlsx(stats::setNames(list(tb), substr(input$which_table %||% "Tableau", 1, 31)), file)
-      })
+      }))
 
     output$dl_all_csv <- shiny::downloadHandler(
       filename = function() paste0("tableaux_qualitatifs_", Sys.Date(), ".zip"),
-      content = function(file) {
+      content = hstat_contenu_sur(function(file) {
         r <- result(); shiny::req(isTRUE(r$ok), length(r$tables) > 0)
         tmp <- tempfile("qexport"); dir.create(tmp)
         paths <- character(0)
@@ -2958,16 +2958,16 @@ mod_qualitative_server <- function(id, values) {
         } else {
           utils::zip(file, paths, flags = "-j9X")
         }
-      })
+      }))
 
     output$dl_all_xlsx <- shiny::downloadHandler(
       filename = function() paste0("resultats_qualitatifs_", Sys.Date(), ".xlsx"),
-      content = function(file) {
+      content = hstat_contenu_sur(function(file) {
         r <- result(); shiny::req(isTRUE(r$ok))
         sheets <- list()
         if (!is.null(r$metrics)) sheets[["Métriques"]] <- r$metrics
         for (nm in names(r$tables)) sheets[[substr(nm, 1, 31)]] <- r$tables[[nm]]
         .write_xlsx(sheets, file)
-      })
+      }))
   })
 }
