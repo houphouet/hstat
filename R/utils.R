@@ -1975,6 +1975,26 @@ HSTAT_MOIS_ABR <- list(
   en = c("Jan", "Feb", "Mar", "Apr", "May", "Jun",
          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
 
+# Les noms de mois que les lecteurs reconnaissent, deplies d'accents et en
+# minuscules, DU PLUS LONG AU PLUS COURT : « juillet » avant « juil. », sans
+# quoi le prefixe mordrait d'abord et laisserait « let » derriere lui.
+#
+# L'abreviation francaise s'ecrit avec son point (« févr. »), mais un fichier
+# l'ecrit aussi sans (« févr », « 25-sept-2024 »), et « fév » est courant : les
+# trois etaient refuses comme « mois non reconnu ». Les variantes sans point
+# s'ajoutent ; aucune ne recouvre un autre mois.
+.hstat_mois_variantes <- function() {
+  noms <- c(HSTAT_MOIS[["fr"]], HSTAT_MOIS[["en"]],
+            HSTAT_MOIS_ABR[["fr"]], HSTAT_MOIS_ABR[["en"]],
+            sub("\\.$", "", HSTAT_MOIS_ABR[["fr"]]), "fév")
+  num <- c(rep(1:12, 5L), 2L)
+  noms <- hstat_sans_accents(tolower(noms))
+  garde <- !duplicated(noms)
+  noms <- noms[garde]; num <- num[garde]
+  ord <- order(nchar(noms), decreasing = TRUE)
+  list(noms = noms[ord], num = num[ord])
+}
+
 # Indexes par `%u` : 1 = lundi. Ne PAS indexer par `%w` (0 = dimanche), qui
 # decalerait tous les noms d'un rang.
 HSTAT_JOURS <- list(
@@ -2040,16 +2060,10 @@ hstat_date_parse <- function(x, fmt, lang = hstat_langue_session()) {
   if (inherits(x, "Date")) return(x)
   x <- as.character(x)
   if (!grepl("%[Bb]", fmt)) return(as.Date(x, format = fmt))
-  # Du plus long au plus court : « juillet » avant « juil. », sans quoi le
-  # prefixe mordrait d'abord et laisserait « let » derriere lui.
-  noms <- c(HSTAT_MOIS[["fr"]], HSTAT_MOIS[["en"]],
-            HSTAT_MOIS_ABR[["fr"]], HSTAT_MOIS_ABR[["en"]])
-  nums <- sprintf("%02d", rep(1:12, 4L))
-  ord <- order(nchar(noms), decreasing = TRUE)
-  noms <- noms[ord]; nums <- nums[ord]
+  mv <- .hstat_mois_variantes()
   y <- hstat_sans_accents(tolower(x))
-  for (i in seq_along(noms))
-    y <- sub(hstat_sans_accents(tolower(noms[i])), nums[i], y, fixed = TRUE)
+  for (i in seq_along(mv$noms))
+    y <- sub(mv$noms[i], sprintf("%02d", mv$num[i]), y, fixed = TRUE)
   as.Date(y, format = .hstat_pct_sub(fmt, c(B = "%m", b = "%m")))
 }
 
@@ -2105,8 +2119,16 @@ HSTAT_DATE_AUTO <- "auto"
 # ce qui ne porte pas de sens : casse, accents, zeros de tete, espaces en trop.
 # Sans le retrait des zeros, « 3 novembre 2026 » serait refuse par sa propre
 # ecriture, que `format()` rend « 03 novembre 2026 ».
+#
+# Les noms de mois sont ramenes a leur NUMERO avant de comparer : la date
+# relue s'ecrit avec le nom complet (« février »), et le fichier peut porter
+# l'abreviation (« févr. », « févr ») -- sans quoi « 03 févr. 2024 » etait lue
+# juste puis refusee par sa propre relecture.
 .hstat_date_norm <- function(x) {
   y <- hstat_sans_accents(tolower(as.character(x)))
+  mv <- .hstat_mois_variantes()
+  for (i in seq_along(mv$noms))
+    y <- sub(mv$noms[i], as.character(mv$num[i]), y, fixed = TRUE)
   y <- gsub("(^|[^0-9])0+([0-9])", "\\1\\2", y)
   gsub("[[:space:]]+", " ", trimws(y))
 }
@@ -9686,6 +9708,55 @@ hstat_tables_non_vides <- function(tables) {
   tb
 }
 
+# UN `content =` QUI LEVE OU N'ECRIT RIEN FAIT RENVOYER A SHINY SA PAGE D'ERREUR
+# HTML, que le navigateur enregistre sous le nom demande : on croit tenir un CSV
+# ou un classeur, on ouvre du HTML. Un `req()` y suffit -- il leve une erreur
+# silencieuse --, et quatorze telechargements en portaient un, avec un bouton
+# visible avant tout calcul.
+#
+# `hstat_contenu_sur()` enveloppe le contenu : s'il leve, ou s'il rend sans
+# avoir ecrit, un fichier VALIDE du format demande est ecrit a la place, qui
+# porte le motif. Le format se lit sur l'extension du fichier temporaire, que
+# Shiny tire du nom du telechargement (`tempfile(fileext = ext)`).
+hstat_contenu_sur <- function(content, motif_vide = NULL) {
+  force(content)
+  function(file) {
+    err <- tryCatch({ content(file); NULL }, error = function(e) e)
+    if (is.null(err) && file.exists(file) && isTRUE(file.size(file) > 0))
+      return(invisible(file))
+    motif <- if (is.null(err) || !nzchar(conditionMessage(err)))
+      motif_vide %||% tr("Rien à exporter pour l'instant : lancez d'abord l'analyse.")
+    else if (inherits(err, "validation")) conditionMessage(err)
+    else hstat_err_fr(err)
+    .hstat_fichier_motif(file, motif)
+    invisible(file)
+  }
+}
+
+# Un fichier valide du format de `file`, qui ne porte que le motif.
+.hstat_fichier_motif <- function(file, motif) {
+  ext <- tolower(tools::file_ext(file))
+  tab <- data.frame(Message = motif, stringsAsFactors = FALSE)
+  if (ext == "csv") return(hstat_ecrire_csv(tab, file))
+  if (ext == "xlsx") return(hstat_ecrire_classeur(file, list(Info = tab)))
+  if (ext %in% names(HSTAT_FORMATS_IMG_EXT))
+    return(hstat_image_secours(file, HSTAT_FORMATS_IMG_EXT[[ext]], motif))
+  if (ext == "zip") {
+    d <- tempfile("hstat_motif")
+    dir.create(d)
+    on.exit(unlink(d, recursive = TRUE), add = TRUE)
+    f <- file.path(d, "message.txt")
+    writeLines(enc2utf8(motif), f, useBytes = TRUE)
+    return(utils::zip(file, f, flags = "-jq"))
+  }
+  writeLines(enc2utf8(motif), file, useBytes = TRUE)
+}
+
+# Extension de fichier -> format de `hstat_ecrire_image()`.
+HSTAT_FORMATS_IMG_EXT <- c(png = "png", jpg = "jpeg", jpeg = "jpeg",
+                           tif = "tiff", tiff = "tiff", bmp = "bmp",
+                           svg = "svg", pdf = "pdf", eps = "eps")
+
 # Telechargement d'un classeur Excel a partir d'une liste nommee de tableaux.
 hstat_classeur_handler <- function(tables_fun, fname = "resultats",
                                    libelle = "Export Excel") {
@@ -12361,17 +12432,11 @@ hstat_epi_mois_num <- function(x) {
   reste <- which(is.na(out) & !is.na(x) & nzchar(trimws(as.character(x))))
   if (length(reste)) {
     cle <- hstat_sans_accents(tolower(trimws(as.character(x)[reste])))
-    tab <- c(HSTAT_MOIS[["fr"]], HSTAT_MOIS[["en"]],
-             HSTAT_MOIS_ABR[["fr"]], HSTAT_MOIS_ABR[["en"]])
-    num <- rep(1:12, 4L)
-    # Du plus long au plus court, comme `hstat_date_parse` : sans quoi
-    # « mars » mordrait dans « mars. » et laisserait un point derriere lui.
-    ord <- order(nchar(tab), decreasing = TRUE)
-    tab <- hstat_sans_accents(tolower(tab[ord])); num <- num[ord]
+    mv <- .hstat_mois_variantes()
     # Correspondance EXACTE, jamais par prefixe : « ju » ne doit designer ni
     # juin ni juillet, et rendre l'un des deux au hasard serait la faute la
     # plus couteuse -- un mois faux decale toute la serie d'un rang.
-    out[reste] <- num[match(cle, tab)]
+    out[reste] <- mv$num[match(cle, mv$noms)]
   }
   as.integer(out)
 }
@@ -13369,6 +13434,10 @@ hstat_epi_binaire <- function(x, cas = NULL) {
 # ===========================================================================
 #  SURVIE -- Kaplan-Meier, log-rank, Cox, et l'hypothese qu'on oublie
 # ===========================================================================
+# Au-dela de ce nombre de valeurs distinctes, une variable numerique n'est pas
+# un facteur de groupement pour Kaplan-Meier et le log-rank.
+HSTAT_EPI_KM_GROUPES_MAX <- 10L
+
 hstat_epi_survie <- function(data, var_duree, var_event, vars_x = NULL,
                              event_cas = NULL, conf = 0.95) {
   ko <- function(m) list(ok = FALSE, message = m)
@@ -13401,6 +13470,18 @@ hstat_epi_survie <- function(data, var_duree, var_event, vars_x = NULL,
 
   srv <- survival::Surv(d$.t, d$.e)
   grp <- if (length(vars_x)) vars_x[1] else NULL
+  # UN FACTEUR CONTINU NE FAIT PAS DES GROUPES : un age en annees en donnait
+  # 57, une courbe par sujet ou presque, et un log-rank a 56 ddl lu
+  # « significatif » (p = 8,6e-21) la ou le modele de Cox, sur la meme
+  # variable, ne voyait rien (p = 0,45). Au-dela de
+  # HSTAT_EPI_KM_GROUPES_MAX modalites numeriques, la variable reste au Cox,
+  # qui sait la traiter, et Kaplan-Meier porte la courbe d'ensemble.
+  if (!is.null(grp) && is.numeric(d[[grp]]) &&
+      length(unique(d[[grp]])) > HSTAT_EPI_KM_GROUPES_MAX) {
+    msg <- c(msg, trf("« %s » est numérique et compte plus de %d valeurs : elle n'est pas un facteur de groupement. Elle entre au modèle de Cox ; la courbe de Kaplan-Meier et le log-rank portent sur l'ensemble. Pour comparer des groupes, découpez-la en classes.",
+                      grp, HSTAT_EPI_KM_GROUPES_MAX))
+    grp <- NULL
+  }
   fml_km <- if (is.null(grp)) stats::as.formula("srv ~ 1") else
     stats::as.formula(sprintf("srv ~ `%s`", grp))
   km <- tryCatch(survival::survfit(fml_km, data = d, conf.int = conf),
@@ -13580,6 +13661,17 @@ hstat_epi_smr <- function(data, var_evenements, var_population,
     tx <- agg_o / agg_p
     ref <- unname(tx[match(st, names(tx))])
     msg <- c(msg, tr("Aucun taux de référence déclaré : les taux de l'ensemble du fichier servent de référence (standardisation interne). Le SMR moyen vaut alors 1 par construction — ce n'est pas une comparaison à une population externe."))
+  }
+
+  # UNE LIGNE SANS TAUX DE REFERENCE EST ECARTEE, pas seulement ses attendus :
+  # ses evenements entreraient dans O pendant que `sum(na.rm = TRUE)` retire
+  # ses attendus de E, et le SMR monterait d'autant -- un « exces » publie sur
+  # une simple case vide du fichier.
+  sans_ref <- keep & (!is.finite(ref) | ref < 0)
+  if (any(sans_ref)) {
+    msg <- c(msg, trf("%d ligne(s) écartée(s) : taux de référence manquant ou négatif.", sum(sans_ref)))
+    keep <- keep & !sans_ref
+    if (!any(keep)) return(ko(tr("Aucune ligne exploitable.")))
   }
 
   att <- pop * ref
@@ -14278,6 +14370,13 @@ hstat_epi_impact <- function(a, b, c, d, conf = 0.95, prevalence_expo = NULL) {
   a <- v[1]; b <- v[2]; c <- v[3]; d <- v[4]
   msg <- character(0)
 
+  # LA GARDE DES GROUPES VIDES PRECEDE LA CORRECTION DE HALDANE : apres elle,
+  # chaque groupe compte au moins 1 et la garde ne se declenchait jamais -- un
+  # groupe expose VIDE rendait « RR 1,0 [0,13 ; 7,75] », un resultat qu'aucun
+  # sujet n'a produit.
+  if (!isTRUE(a + b > 0) || !isTRUE(c + d > 0))
+    return(list(ok = FALSE, message = tr("Un des deux groupes est vide : aucun risque n'est comparable.")))
+
   # UNE CASE NULLE REND LE RR INDEFINI ou infini. La correction de Haldane
   # (+0,5 partout) est la convention ; l'appliquer en SILENCE serait la faute,
   # parce que les intervalles obtenus ne sont plus ceux des donnees brutes.
@@ -14288,8 +14387,6 @@ hstat_epi_impact <- function(a, b, c, d, conf = 0.95, prevalence_expo = NULL) {
     msg <- c(msg, tr("Au moins une case du tableau est nulle : correction de Haldane (+0,5) appliquée. Les intervalles sont plus larges que ceux des effectifs bruts."))
   }
   n1 <- a + b; n0 <- c + d
-  if (!isTRUE(n1 > 0) || !isTRUE(n0 > 0))
-    return(list(ok = FALSE, message = tr("Un des deux groupes est vide : aucun risque n'est comparable.")))
 
   r1 <- a / n1; r0 <- c / n0
   rr <- if (isTRUE(r0 > 0)) r1 / r0 else NA_real_

@@ -1775,7 +1775,7 @@ server <- function(input, output, session) {
     shiny::req(values$filteredData)
     
     n_obs <- nrow(values$filteredData)
-    k     <- if (!is.null(input$hcpcClusters)) input$hcpcClusters else 3
+    k     <- as.integer(round(hstat_borne_client(input$hcpcClusters, 3, 2, 10)))
     
     n_comp_retained <- tryCatch({
       res <- pcaResultReactive()
@@ -6486,7 +6486,7 @@ server <- function(input, output, session) {
   # ====================== VERIFICATION DES CONDITIONS =========================
   output$mv_kmeans_conditions <- shiny::renderUI({
     shiny::req(mv_data())
-    n <- nrow(mv_data()); k <- input$mv_kmeans_k %||% 3
+    n <- nrow(mv_data()); k <- as.integer(round(hstat_borne_client(input$mv_kmeans_k, 3, 2, 15)))
     p <- length(input$mv_kmeans_vars %||% character(0))
     n_st <- if (n >= 10*k) "ok" else if (n >= 2*k) "warn" else "err"
     p_st <- if (p >= 3) "ok" else if (p >= 2) "warn" else "err"
@@ -6604,7 +6604,7 @@ server <- function(input, output, session) {
   # ---- k-modes -------------------------------------------------------------
   output$mv_kmodes_conditions <- shiny::renderUI({
     shiny::req(mv_data())
-    n <- nrow(mv_data()); k <- input$mv_kmodes_k %||% 3
+    n <- nrow(mv_data()); k <- as.integer(round(hstat_borne_client(input$mv_kmodes_k, 3, 2, 15)))
     p <- length(input$mv_kmodes_vars %||% character(0))
     n_st <- if (n >= 10*k) "ok" else if (n >= 2*k) "warn" else "err"
     p_st <- if (p >= 3) "ok" else if (p >= 2) "warn" else "err"
@@ -6699,7 +6699,7 @@ server <- function(input, output, session) {
   # ---- k-prototypes --------------------------------------------------------
   output$mv_kproto_conditions <- shiny::renderUI({
     shiny::req(mv_data())
-    n <- nrow(mv_data()); k <- input$mv_kproto_k %||% 3
+    n <- nrow(mv_data()); k <- as.integer(round(hstat_borne_client(input$mv_kproto_k, 3, 2, 15)))
     sel <- input$mv_kproto_vars %||% character(0)
     d <- mv_data()
     nq <- sum(sapply(sel, function(v) v %in% names(d) && is.numeric(d[[v]])))
@@ -6729,7 +6729,7 @@ server <- function(input, output, session) {
         d <- mv_data(); vars <- input$mv_kmeans_vars
         if (is.null(vars) || length(vars) < 2)
           return(list(ok = FALSE, error = "Sélectionnez au moins 2 variables numériques."))
-        k <- input$mv_kmeans_k %||% 3
+        k <- as.integer(round(hstat_borne_client(input$mv_kmeans_k, 3, 2, 15)))
         X <- d[, vars, drop = FALSE]
         # Ne garder que les colonnes numeriques et remplacer Inf par NA
         X <- X[, vapply(X, is.numeric, logical(1)), drop = FALSE]
@@ -7813,7 +7813,7 @@ server <- function(input, output, session) {
         d <- mv_data(); vars <- input$mv_kmodes_vars
         if (is.null(vars) || length(vars) < 2)
           return(list(ok = FALSE, error = "Sélectionnez au moins 2 variables qualitatives."))
-        k <- input$mv_kmodes_k %||% 3
+        k <- as.integer(round(hstat_borne_client(input$mv_kmodes_k, 3, 2, 15)))
         sub <- d[, vars, drop = FALSE]
         for (v in vars) sub[[v]] <- factor(sub[[v]])
         sub <- sub[stats::complete.cases(sub), , drop = FALSE]
@@ -8332,7 +8332,7 @@ server <- function(input, output, session) {
         d <- mv_data(); vars <- input$mv_kproto_vars
         if (is.null(vars) || length(vars) < 2)
           return(list(ok = FALSE, error = "Sélectionnez au moins 2 variables."))
-        k <- input$mv_kproto_k %||% 3
+        k <- as.integer(round(hstat_borne_client(input$mv_kproto_k, 3, 2, 15)))
         sub <- d[, vars, drop = FALSE]
         for (v in vars) if (!is.numeric(sub[[v]])) sub[[v]] <- droplevels(factor(sub[[v]]))
         sub <- sub[stats::complete.cases(sub), , drop = FALSE]

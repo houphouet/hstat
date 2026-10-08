@@ -2088,7 +2088,7 @@ mod_correlation_server <- function(id, values) {
         paste0("matrice_corrélation_", Sys.Date(), ".",
                hstat_img_fmt(input$corrFormat))
       },
-      content = function(file) {
+      content = hstat_contenu_sur(function(file) {
         shiny::req(values$data, input$corrVars)
         p <- corr_params()
         fv <- if (isTRUE(input$corrFocusMode)) input$corrFocusVar else NULL
@@ -2108,7 +2108,7 @@ mod_correlation_server <- function(id, values) {
         hstat_ecrire_image(file, draw, fmt, size_in, size_in, dpi)
         shiny::showNotification(trf("Graphique téléchargé (%s, %d DPI).", toupper(fmt), dpi),
                          type = "message", duration = 3)
-      })
+      }))
   })
 }
 
@@ -5186,7 +5186,7 @@ mod_tests_server <- function(id, values) {
     filename = function() {
       paste0("qqplot_residus_", Sys.Date(), ".png")
     },
-    content = function(file) {
+    content = hstat_contenu_sur(function(file) {
       # Meme principe que les diagnostics : le module construit le graphique,
       # l'ecrivain commun se charge du fichier. Le motif d'indisponibilite est
       # porte par `echec`, et sort en image valide au lieu d'un peripherique
@@ -5236,7 +5236,7 @@ mod_tests_server <- function(id, values) {
         NULL
       })
       hstat_ecrire_image(file, p, "png", 10, 8, 300, echec = motif)
-    }
+    })
   )
   
   output$qqPlotResiduals <- shiny::renderPlot({
@@ -5944,19 +5944,19 @@ mod_tests_server <- function(id, values) {
 
   output$downloadChiSqPlot <- shiny::downloadHandler(
     filename = function() paste0("chi2_graphique_", Sys.Date(), ".png"),
-    content  = function(file) {
+    content  = hstat_contenu_sur(function(file) {
       shiny::req(values$chiSqPlotObj)
       w <- (input$chiSqGraphWidth  %||% 800) / 96
       h <- (input$chiSqGraphHeight %||% 500) / 96
       # Sans fichier ecrit, Shiny renvoie sa page d'erreur HTML sous « .png ».
       hstat_ecrire_image(file, tryCatch(creer_graphique_chi2(), error = function(e) NULL),
                          "png", w, h, .hstat_num1(input$chiSqGraphDPI, 150))
-    }
+    })
   )
   
   output$downloadChiSqExcel <- shiny::downloadHandler(
     filename = function() paste0("chi2_résultats_", Sys.Date(), ".xlsx"),
-    content  = function(file) {
+    content  = hstat_contenu_sur(function(file) {
       shiny::req(values$chiSqResults)
       wb <- openxlsx::createWorkbook()
       
@@ -5996,15 +5996,15 @@ mod_tests_server <- function(id, values) {
       
       openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
       shiny::showNotification("Excel exporté avec succès.", type = "message", duration = 3)
-    }
+    })
   )
   
   output$downloadChiSqCSV <- shiny::downloadHandler(
     filename = function() paste0("chi2_modalités_", Sys.Date(), ".csv"),
-    content  = function(file) {
+    content  = hstat_contenu_sur(function(file) {
       shiny::req(values$chiSqFreqData)
       hstat_ecrire_csv(values$chiSqFreqData, file, row.names = FALSE)
-    }
+    })
   )
   
   # UI dynamique : renommage des modalités (labels niveaux X)
@@ -7125,14 +7125,14 @@ mod_tests_server <- function(id, values) {
   
   output$downloadRMPostHoc <- shiny::downloadHandler(
     filename = function() paste0("posthoc_mesures_repetees_", Sys.Date(), ".xlsx"),
-    content = function(file) {
+    content = hstat_contenu_sur(function(file) {
       shiny::req(values$rmPostHocData)
       if (requireNamespace("openxlsx", quietly = TRUE)) {
         openxlsx::write.xlsx(hstat_decimale_tableau(values$rmPostHocData), file)
       } else {
         hstat_ecrire_csv(values$rmPostHocData, sub("\\.xlsx$", ".csv", file), row.names = FALSE)
       }
-    }
+    })
   )
   
   # Selecteur de facteur (dynamique selon les facteurs disponibles dans manovaMultiPostHoc)
@@ -8844,7 +8844,7 @@ mod_tests_server <- function(id, values) {
   
   output$downloadSummaryStats <- shiny::downloadHandler(
     filename = function() { paste0("statistiques_resumees_", Sys.Date(), ".xlsx") },
-    content = function(file) {
+    content = hstat_contenu_sur(function(file) {
       shiny::req(values$multiResultsMain)
       
       summary_stats <- values$multiResultsMain %>%
@@ -8877,7 +8877,7 @@ mod_tests_server <- function(id, values) {
       openxlsx::addWorksheet(wb, "Données_completes")
       openxlsx::writeData(wb, "Données_completes", hstat_decimale_tableau(values$multiResultsMain))
       openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-    }
+    })
   )
   
   # Ce bouton n'ecrivait RIEN : Shiny renvoyait sa page d'erreur, enregistree

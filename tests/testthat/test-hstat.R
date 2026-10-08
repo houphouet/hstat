@@ -21320,3 +21320,206 @@ test_that("aucune interface ne lit l'horloge : elle est construite une fois et m
   }
   expect_identical(fautes, character(0))
 })
+
+# ===========================================================================
+#  Audit 1.15.1 : performance, fonctionnalités, sécurité
+# ===========================================================================
+
+test_that("SMR : une ligne sans taux de référence est écartée, pas seulement ses attendus", {
+  # Ses événements entraient dans O pendant que `sum(na.rm = TRUE)` retirait
+  # ses attendus de E : SMR 2 et « excès » sur un fichier où le taux est
+  # partout le même. La donnée d'essai rend la faute discernable : sans la
+  # garde, le SMR vaut 2.
+  d <- data.frame(ev = 50, pop = 5000, ref = c(0.01, 0.01, NA, NA))
+  r <- hstat_epi_smr(d, "ev", "pop", var_taux_ref = "ref")
+  expect_true(isTRUE(r$ok))
+  tab <- r$smr
+  expect_equal(tab$SMR, 1)
+  expect_equal(tab$Observes, 100)
+  expect_true(any(grepl("taux de référence manquant", unlist(r$message))))
+})
+
+test_that("impact : un groupe vide se refuse AVANT la correction de Haldane", {
+  # Après +0,5, chaque groupe comptait au moins 1 et la garde ne se déclenchait
+  # jamais : un groupe exposé VIDE rendait « RR 1,0 [0,13 ; 7,75] ».
+  r <- hstat_epi_impact(0, 0, 5, 5)
+  expect_false(isTRUE(r$ok))
+  expect_match(r$message, "groupes est vide")
+  # Une case nulle dans un groupe non vide reste calculable, corrigée.
+  expect_true(isTRUE(hstat_epi_impact(0, 10, 5, 5)$ok))
+})
+
+test_that("supprimer ou filtrer des lignes garde un tableau, même à une seule colonne", {
+  v <- shiny::reactiveValues(data = NULL, resetSignal = 0, filteredData = NULL,
+                             cleanData = data.frame(Rendement = c(10, 20, 30, 40, 50)))
+  shiny::testServer(mod_clean_server, args = list(values = v), {
+    session$setInputs(deleteRowsInput = "2")
+    session$setInputs(applyDeleteRows = 1)
+    expect_s3_class(v$cleanData, "data.frame")
+    expect_equal(v$cleanData$Rendement, c(10, 30, 40, 50))
+  })
+  v2 <- shiny::reactiveValues(data = NULL, resetSignal = 0, filteredData = NULL,
+                              cleanData = data.frame(Rendement = c(10, 20, 30, 40, 50)))
+  shiny::testServer(mod_filter_server, args = list(values = v2), {
+    session$setInputs(rowSelection = "1-3")
+    session$setInputs(applyRowRange = 1)
+    expect_s3_class(v2$filteredData, "data.frame")
+    expect_equal(nrow(v2$filteredData), 3L)
+  })
+})
+
+test_that("série temporelle : une ligne à date illisible est écartée, pas rangée en dernier", {
+  # `order()` range les NA à la fin : la valeur sans date devenait la dernière
+  # observation, donc une valeur du jeu de test (RMSE 565,8 sur l'essai signalé).
+  d <- data.frame(Date = c(format(seq(as.Date("2024-01-01"), by = "month",
+                                      length.out = 12)), "inconnue"),
+                  Y = c(10:21, 999))
+  d <- d[c(1:5, 13, 6:12), ]
+  v <- shiny::reactiveValues(cleanData = d)
+  shiny::testServer(mod_timeseries_server, args = list(values = v), {
+    session$setInputs(tsVar = "Y", tsDate = "Date", tsFreq = "12",
+                      tsModels = "naive", tsTestN = 3)
+    session$setInputs(tsRun = 1)
+    f <- fits()
+    expect_false(999 %in% as.numeric(f$y))
+    expect_false(anyNA(f$dates))
+    expect_equal(as.numeric(f$test), c(19, 20, 21))
+  })
+})
+
+test_that("dose depuis un grammage : un produit solide se dose en masse", {
+  # En g/kg, le produit est solide : « mL/ha » le faisait mesurer à
+  # l'éprouvette, alors que le sens « dose » le rendait bien en kg/ha.
+  r <- hstat_dose_bilan("grammage", 150, "g/ha", 750, "g/kg", 200, 2, 400)
+  expect_true(attr(r, "unite") %in% c("g/ha", "kg/ha"))
+  expect_true(any(grepl("(g/ha)", r$Grandeur, fixed = TRUE)))
+  expect_false(any(grepl("mL", r$Grandeur, fixed = TRUE)))
+  # Le liquide garde ses unités de volume.
+  l <- hstat_dose_bilan("grammage", 150, "g/ha", 750, "g/L", 200, 2, 400)
+  expect_true(attr(l, "unite") %in% c("mL/ha", "L/ha"))
+})
+
+test_that("survie : une variable continue n'est pas un facteur de groupement", {
+  skip_if_not_installed("survival")
+  set.seed(3)
+  d <- data.frame(t = rexp(60, 0.1) + 0.1, e = rbinom(60, 1, 0.7),
+                  age = round(runif(60, 20, 80), 1))
+  r <- hstat_epi_survie(d, "t", "e", vars_x = "age")
+  expect_true(isTRUE(r$ok))
+  # Sans la garde : 57 strates et un log-rank à 56 ddl lu « significatif ».
+  expect_null(r$groupe)
+  expect_null(r$logrank)
+  expect_false(is.null(r$cox))
+  expect_true(any(grepl("n'est pas un facteur de groupement", unlist(r$message))))
+  # Un vrai facteur numérique (0/1) reste un groupe.
+  d$trt <- rep(0:1, 30)
+  expect_identical(hstat_epi_survie(d, "t", "e", vars_x = "trt")$groupe, "trt")
+})
+
+test_that("un téléchargement qui lève ou n'écrit rien rend quand même un fichier valide", {
+  dir <- tempfile("dl"); dir.create(dir)
+  silencieux <- function(file) shiny::req(FALSE)
+  for (ext in c("csv", "xlsx", "png", "zip", "txt")) {
+    f <- file.path(dir, paste0("x.", ext))
+    hstat_contenu_sur(silencieux)(f)
+    expect_true(file.exists(f) && file.size(f) > 0, info = ext)
+  }
+  expect_match(paste(readLines(file.path(dir, "x.csv"), warn = FALSE), collapse = " "),
+               "lancez d'abord l'analyse")
+  sig <- readBin(file.path(dir, "x.png"), "raw", 8)
+  expect_identical(sig[2:4], charToRaw("PNG"))
+  expect_identical(readBin(file.path(dir, "x.xlsx"), "raw", 2), charToRaw("PK"))
+  # Un `validate()` porte son propre motif : c'est lui qui est écrit.
+  f <- file.path(dir, "v.csv")
+  hstat_contenu_sur(function(file) shiny::validate(shiny::need(FALSE, "Choisissez un facteur.")))(f)
+  expect_match(paste(readLines(f, warn = FALSE), collapse = " "), "Choisissez un facteur")
+  # Un contenu qui écrit normalement n'est pas touché.
+  f <- file.path(dir, "ok.csv")
+  hstat_contenu_sur(function(file) writeLines("a,b", file))(f)
+  expect_identical(readLines(f), "a,b")
+})
+
+test_that("tout downloadHandler dont le contenu porte req() ou validate() passe par hstat_contenu_sur", {
+  fs <- unique(c(.hstat_sources_app(), .hstat_module_path("app_server.R")))
+  expect_gte(length(fs), 15L)
+  fautes <- character(0); vus <- 0L
+  for (f in fs) {
+    ex <- parse(f, keep.source = FALSE, encoding = "UTF-8")
+    marche <- function(x) {
+      if (!is.call(x)) return(invisible())
+      fn <- paste(deparse(x[[1]]), collapse = "")
+      if (fn %in% c("downloadHandler", "shiny::downloadHandler") &&
+          !is.null(x$content)) {
+        vus <<- vus + 1L
+        txt <- paste(deparse(x$content), collapse = " ")
+        enveloppe <- is.call(x$content) &&
+          identical(deparse(x$content[[1]]), "hstat_contenu_sur")
+        if (grepl("\\b(req|validate)\\(", txt) && !enveloppe)
+          fautes <<- c(fautes, paste(basename(f), substr(txt, 1, 60)))
+      }
+      for (a in as.list(x)[-1]) if (!missing(a)) marche(a)
+    }
+    for (e in ex) marche(e)
+  }
+  expect_gte(vus, 30L)
+  expect_identical(fautes, character(0))
+})
+
+test_that("le nombre de classes des partitions est borné côté serveur", {
+  # `%||%` laisse passer NA, et le `min = 2` du champ n'est qu'affiché :
+  # k = 1 faisait tomber la projection des centres, k vide levait « missing
+  # value where TRUE/FALSE needed » dans le panneau des conditions.
+  src <- paste(readLines(.hstat_module_path("app_server.R"), warn = FALSE), collapse = "\n")
+  expect_false(grepl("input\\$mv_k(means|modes|proto)_k %\\|\\|%", src))
+  expect_false(grepl("input$hcpcClusters)) input$hcpcClusters else 3", src, fixed = TRUE))
+  for (v in c("kmeans", "kmodes", "kproto"))
+    expect_true(grepl(sprintf("hstat_borne_client(input$mv_%s_k, 3, 2, 15)", v),
+                      src, fixed = TRUE), info = v)
+})
+
+test_that("les mois abrégés sans point sont reconnus, et la relecture les accepte", {
+  expect_identical(hstat_epi_mois_num(c("févr", "fév", "Févr", "févr.", "sept", "juil")),
+                   c(2L, 2L, 2L, 2L, 9L, 7L))
+  # La correspondance reste exacte : « ju » ne désigne ni juin ni juillet.
+  expect_true(is.na(hstat_epi_mois_num("ju")))
+  expect_equal(hstat_date_parse("25-sept-2024", "%d-%b-%Y"), as.Date("2024-09-25"))
+  r <- hstat_date_auto(c("03 févr. 2024", "15 mars 2024"))
+  expect_equal(r$dates, as.Date(c("2024-02-03", "2024-03-15")))
+  expect_equal(r$n_ok, 2L)
+  # Le contrôle d'aller-retour barre toujours l'an 20.
+  expect_equal(hstat_date_auto(c("20/10/2026", "21/10/2026"))$format, "%d/%m/%Y")
+})
+
+test_that("l'adresse d'un service d'IA n'accepte que http et https", {
+  # curl ouvre aussi file://, ftp://, gopher://, dict:// : depuis le
+  # navigateur, un visiteur faisait lire au processus R un fichier du disque.
+  for (u in c("file:///etc/passwd", "ftp://hote/x", "gopher://127.0.0.1:6379/_",
+              "dict://127.0.0.1:11211/", "http://user@hote", "javascript:alert(1)"))
+    expect_identical(hstat_ai_url("local", u), "", info = u)
+  expect_identical(hstat_ai_url("local", "http://127.0.0.1:8080/"), "http://127.0.0.1:8080")
+  expect_identical(hstat_ai_url("chatgpt", NULL), "https://api.openai.com/v1")
+  st <- hstat_ai_status("local", url = "file:///etc/passwd")
+  expect_false(isTRUE(st$ok))
+  expect_match(st$message, "http://")
+  # L'envoi refuse avant tout réseau.
+  expect_s3_class(.hstat_ai_post("file:///etc/passwd", list()), "error")
+  # Une adresse refusée ne fait jamais partir la clé du serveur.
+  expect_false(hstat_ai_url_attendue("claude", "file:///etc/passwd"))
+})
+
+test_that("la préparation des données de la visualisation ne dépend pas de l'habillage", {
+  # Le titre du second axe se tape lettre par lettre : lu par `plotData()`, il
+  # y refaisait toute la préparation (agrégation comprise) à chaque frappe.
+  ex <- parse(.hstat_module_path("mod_viz.R"), keep.source = FALSE, encoding = "UTF-8")
+  corps <- NULL
+  marche <- function(x) {
+    if (!is.call(x)) return(invisible())
+    if (identical(x[[1]], as.name("<-")) && identical(x[[2]], as.name("plotData")))
+      corps <<- paste(deparse(x[[3]]), collapse = "\n")
+    for (a in as.list(x)[-1]) if (!missing(a)) marche(a)
+  }
+  for (e in ex) marche(e)
+  expect_false(is.null(corps))
+  for (i in c("input$plotTheme", "input$y2AxisLabel", "input$xDateDisplayFormat"))
+    expect_false(grepl(i, corps, fixed = TRUE), info = i)
+})

@@ -169,7 +169,13 @@ hstat_dose_bilan <- function(sens = c("dose", "grammage"),
     dose_ref <- grammage / conc
     # On rend la dose dans une unite lisible : le litre au-dela de 1, le
     # millilitre en dessous. Une dose de 0,0004 L/ha ne se lit pas.
-    u_dose   <- if (dose_ref >= 1) "L/ha" else "mL/ha"
+    # L'ETAT DU PRODUIT SE LIT SUR L'UNITE DE SA CONCENTRATION : en g/kg ou
+    # mg/kg, il est solide et sa dose se donne en masse. L'ecrire en mL/ha
+    # rendait une dose de granules a mesurer a l'eprouvette, et le meme
+    # produit sortait en kg/ha dans le sens « dose ».
+    solide   <- as.character(unite_concentration)[1] %in% c("g/kg", "mg/kg")
+    u_dose   <- if (solide) { if (dose_ref >= 1) "kg/ha" else "g/ha" }
+                else if (dose_ref >= 1) "L/ha" else "mL/ha"
     dose_aff <- hstat_dose_depuis_ref(dose_ref, u_dose)
   }
 

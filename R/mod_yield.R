@@ -1326,15 +1326,15 @@ mod_yield_server <- function(id, values) {
 
     output$yieldDlCsv <- shiny::downloadHandler(
       filename = function() paste0("rendements_", Sys.Date(), ".csv"),
-      content = function(file) {
+      content = hstat_contenu_sur(function(file) {
         r <- resultat(); shiny::req(NROW(r))
         hstat_ecrire_csv(as.data.frame(r), file, row.names = FALSE,
                          fileEncoding = "UTF-8")
-      })
+      }))
 
     output$yieldDlXlsx <- shiny::downloadHandler(
       filename = function() paste0("rendements_", Sys.Date(), ".xlsx"),
-      content = function(file) {
+      content = hstat_contenu_sur(function(file) {
         r <- resultat(); shiny::req(NROW(r))
         if (requireNamespace("openxlsx", quietly = TRUE)) {
           # LE DETAIL PART AVEC LE CLASSEUR, en seconde feuille : c'est lui qui
@@ -1347,7 +1347,7 @@ mod_yield_server <- function(id, values) {
         else
           hstat_ecrire_csv(as.data.frame(r), file, row.names = FALSE,
                            fileEncoding = "UTF-8")
-      })
+      }))
 
     output$yieldDlPlot <- shiny::downloadHandler(
       filename = function()

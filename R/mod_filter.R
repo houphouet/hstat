@@ -216,7 +216,7 @@ mod_filter_server <- function(id, values) {
       max_rows <- nrow(values$cleanData)
       selected_rows <- parseRowSelection(input$rowSelection, max_rows)
       
-      filtered <- values$cleanData[selected_rows, ]
+      filtered <- values$cleanData[selected_rows, , drop = FALSE]
       values$filteredData <- filtered
       
       shiny::showNotification(
@@ -445,10 +445,10 @@ mod_filter_server <- function(id, values) {
     filename = function() {
       paste("données_filtrees_", Sys.Date(), ".csv", sep = "")
     },
-    content = function(file) {
+    content = hstat_contenu_sur(function(file) {
       shiny::req(values$filteredData)
       hstat_ecrire_csv(values$filteredData, file, row.names = FALSE)
-    }
+    })
   )
   })
 }

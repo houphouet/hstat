@@ -7923,6 +7923,91 @@ dépôt traque, reproduit par inadvertance en le corrigeant ailleurs. Le test
 l'exige désormais explicitement (`graphe_opt()$extras$familles`), et la
 mutation correspondante échoue sur trois assertions.
 
+## Audit 1.15.1 : six résultats faux, une adresse trop libre
+
+Mené comme les précédents : chaque constat a été **déclenché** par un script
+avant d'être corrigé, puis rejoué sur le code corrigé.
+
+### Six résultats plausibles et faux
+
+| Site | Entrée | Ce qui sortait |
+|---|---|---|
+| `hstat_epi_smr()` | taux de référence manquant sur des lignes | ses événements comptés dans O, ses attendus retirés de E : **SMR 2, « excès »** au lieu de 1 |
+| `hstat_epi_impact()` | groupe exposé vide (A = B = 0) | la garde venait **après** Haldane, qui ajoute 0,5 partout : **RR 1,0 [0,13 ; 7,75]** pour un groupe sans sujet |
+| `hstat_epi_survie()` | âge continu en premier facteur | **57 strates** de Kaplan-Meier, log-rank à 56 ddl, p = 8,6e-21, là où le Cox sur la même variable rend p = 0,45 |
+| `build_series()` (séries) | une date illisible au milieu du fichier | `order()` range les NA à la fin : la valeur sans date devenait la **dernière** observation, donc une valeur du jeu de test |
+| `hstat_dose_bilan()` | sens « grammage », concentration en g/kg | un produit **solide** dosé en mL/ha, alors que le sens « dose » le rendait en kg/ha |
+| suppression / filtre de lignes | jeu à une seule colonne | `[-rows, ]` le réduisait à un **vecteur**, pour toute la suite de la session |
+
+Au-delà de `HSTAT_EPI_KM_GROUPES_MAX` (10) valeurs, une variable numérique
+reste au Cox, qui sait la traiter, et Kaplan-Meier porte la courbe d'ensemble —
+**et on le dit**. Un facteur 0/1 reste un groupe.
+
+### `hstat_contenu_sur()` : quatorze téléchargements pouvaient rendre du HTML
+
+Un `req()` dans un `content =` lève une erreur silencieuse : Shiny renvoie sa
+page HTML sous le nom `.csv` ou `.xlsx`. Quatorze contenus en portaient un, avec
+un bouton visible avant tout calcul. L'enveloppe écrit à la place un fichier
+**valide du format demandé** — CSV, classeur, image, archive — qui porte le
+motif ; le format se lit sur l'extension du fichier temporaire, que Shiny tire
+du nom du téléchargement. Un `validate()` y écrit son propre message.
+
+Un test balaie les `downloadHandler` de l'application et échoue sur tout
+contenu portant `req(` ou `validate(` sans l'enveloppe ; il a été vérifié comme
+échouant quand on en retire une.
+
+L'enveloppe a été posée **par l'analyseur**, et le piège des colonnes en octets
+s'est présenté une fois de plus, doublé d'un second : `mod_tests.R` mélange les
+fins de ligne. Découpé sur `\r\n`, il donnait des positions décalées de
+plusieurs lignes et un fichier qui ne s'analysait plus. On découpe sur `\n`, on
+retire le `\r` final avant l'analyse, et l'on compte en octets.
+
+### Le nombre de classes des partitions est borné côté serveur
+
+`k <- input$mv_kmeans_k %||% 3` : `%||%` laisse passer `NA`, et le `min = 2` du
+champ n'est qu'affiché. k = 1 faisait tomber la projection des centres, un champ
+vidé levait « missing value where TRUE/FALSE needed ». Les six sites (k-means,
+k-modes, k-prototypes) et le panneau de la HCPC passent par
+`hstat_borne_client()`, aux bornes de leur champ.
+
+### Les mois abrégés sans point
+
+« févr », « fév », « 25-sept-2024 » étaient refusés : la table ne connaissait
+que « févr. ». `.hstat_mois_variantes()` porte désormais la table unique des
+deux lecteurs, variantes sans point comprises, et le contrôle d'aller-retour
+ramène les noms de mois à leur **numéro** avant de comparer — sans quoi
+« 03 févr. 2024 » était lue juste, puis refusée par sa propre relecture, qui
+écrit « février ». La correspondance reste exacte : « ju » ne désigne rien.
+
+### L'adresse d'un service d'IA : http et https, rien d'autre
+
+L'adresse se saisit dans le navigateur, et `httr` passe par curl, qui ouvre
+aussi `file://`, `ftp://`, `gopher://` et `dict://`. Sur un serveur partagé, un
+visiteur faisait lire au processus R un fichier du disque, ou parler un autre
+protocole à un service interne. `hstat_ai_url()` rend désormais la chaîne
+**vide** pour tout autre schéma, `.hstat_ai_post()` refuse avant tout réseau,
+et le diagnostic le dit. Jamais de repli silencieux sur l'adresse du
+fournisseur : l'utilisateur croirait parler au service qu'il a désigné.
+
+Ce qui reste permis, délibérément : `http://127.0.0.1` — c'est le serveur
+local, la seule offre gratuite et hors ligne. Bloquer les adresses privées
+fermerait précisément celle-là.
+
+### La préparation des données ne dépend pas de l'habillage
+
+`plotData()` (Visualisation) prenait une dépendance sur le thème, le format
+d'affichage des dates et le **titre du second axe** — qui se tape lettre par
+lettre. Chaque frappe refaisait toute la préparation, agrégation comprise. Le
+réactif du graphique les lit déjà : ils quittent celui des données.
+
+### Ce que l'audit a écarté, et pourquoi
+
+- **`input$tsOLwd` « jamais déclaré »** : il l'est, par
+  `paste0(prefix, "Lwd")` dans `hstat_plot_opts_ui()`. Un balayage qui cherche
+  le littéral ne voit pas un identifiant composé.
+- **La raréfaction au-delà de l'effectif total rend la richesse observée** :
+  c'est aussi ce que rend `vegan::rarefy()`, la référence des tests.
+
 ## Le séparateur décimal se choisit avant de télécharger
 
 Demandé à l'écran : choisir, **avant** de télécharger, entre la virgule et le

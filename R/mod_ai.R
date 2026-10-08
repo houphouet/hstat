@@ -155,11 +155,29 @@ hstat_ai_url_attendue <- function(engine = "claude", url = NULL) {
 }
 
 # Adresse de base : celle saisie, sinon celle du fournisseur.
+#
+# SEULS http:// ET https:// SONT ACCEPTES, et c'est une garde de securite.
+# L'adresse est saisie dans le navigateur, et `httr` passe par curl, qui
+# ouvre aussi `file://`, `ftp://`, `gopher://` ou `dict://` : un visiteur
+# d'un serveur partage faisait lire au processus R un fichier du disque, ou
+# parler un autre protocole a un service interne. Une adresse refusee rend la
+# chaine VIDE, que `.hstat_ai_url_ok()` refuse a son tour au moment de
+# l'appel -- jamais un repli silencieux sur l'adresse du fournisseur.
 hstat_ai_url <- function(engine = "local", url = NULL) {
   u <- if (is.null(url)) "" else trimws(as.character(url)[1])
   if (is.na(u) || !nzchar(u)) u <- hstat_ai_fournisseur(engine)$url
-  sub("/+$", "", u)
+  u <- sub("/+$", "", u)
+  if (.hstat_ai_url_ok(u)) u else ""
 }
+
+# Une adresse que l'application accepte d'appeler : http ou https, un hote,
+# et ni espace ni identifiant (`http://user@hote`) dans la partie hote.
+.hstat_ai_url_ok <- function(u) {
+  isTRUE(grepl("^https?://[^[:space:]/?#@]+([/?#][^[:space:]]*)?$", u,
+               ignore.case = TRUE))
+}
+
+HSTAT_AI_URL_REFUS <- "Adresse du service refusée : seules les adresses http:// et https:// sont acceptées."
 
 # Modele : celui saisi, sinon celui du fournisseur.
 hstat_ai_modele <- function(engine = "local", model = NULL) {
@@ -181,7 +199,9 @@ hstat_ai_openai_models <- function(url = NULL, api_key = NULL, timeout = 5,
   if (!.hstat_ai_http_ok()) return(character(0))
   hdr <- if (!is.null(api_key) && nzchar(api_key))
     httr::add_headers(Authorization = paste("Bearer", api_key)) else NULL
-  args <- list(paste0(hstat_ai_url(engine, url), "/models"), httr::timeout(timeout))
+  u <- hstat_ai_url(engine, url)
+  if (!nzchar(u)) return(character(0))
+  args <- list(paste0(u, "/models"), httr::timeout(timeout))
   if (!is.null(hdr)) args <- append(args, list(hdr), after = 1)
   res <- tryCatch(do.call(httr::GET, args), error = function(e) NULL)
   if (is.null(res) || httr::status_code(res) >= 300) return(character(0))
@@ -206,6 +226,9 @@ hstat_ai_models <- function(engine = "local", url = NULL, api_key = NULL,
 hstat_ai_status <- function(engine = "auto", url = NULL, model = NULL,
                             api_key = NULL) {
   f <- hstat_ai_fournisseur(engine)
+
+  if (!identical(f$protocole, "auto") && !nzchar(hstat_ai_url(engine, url)))
+    return(list(ok = FALSE, message = tr(HSTAT_AI_URL_REFUS)))
 
   if (identical(f$protocole, "auto"))
     return(list(ok = TRUE,
@@ -262,6 +285,7 @@ hstat_ai_available <- function(explicit = NULL) {
 # absent ne doit faire tomber l'application.
 
 .hstat_ai_post <- function(url, body, headers = NULL, timeout = 600) {
+  if (!.hstat_ai_url_ok(url)) return(simpleError(tr(HSTAT_AI_URL_REFUS)))
   args <- list(url,
                body = jsonlite::toJSON(body, auto_unbox = TRUE, null = "null"),
                encode = "raw", httr::timeout(timeout))
