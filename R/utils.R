@@ -5460,6 +5460,150 @@ hstat_ref_result_row <- function(res, variable, reference_label = NULL) {
     stringsAsFactors = FALSE)
 }
 
+# ==============================================================================
+#  TESTS APPARIES : un test a un echantillon sur les DIFFERENCES
+# ==============================================================================
+# Deux mesures prises sur la MEME unite (avant / apres, gauche / droite, deux
+# methodes sur le meme echantillon) ne sont pas deux groupes. Les comparer par
+# un test t de Welch ou par Mann-Whitney ignore la correlation entre elles :
+# la variabilite d'une unite a l'autre passe dans l'erreur, et un effet net
+# ressort non significatif. Mesure sur dix plantes dont chacune gagne 1 +/- 0,3
+# alors qu'elles different entre elles de +/- 5 : apparie p = 2 x 10^-6, Welch
+# p = 0,54 (graine 1).
+#
+# Le test apparie EST le test a un echantillon des differences contre 0. Il
+# passe donc par `hstat_ref_test()`, qui porte deja le t, le Wilcoxon signe et
+# le test du signe : une statistique n'a qu'une definition dans ce depot.
+#
+# Le SENS de la difference est fixe et dit : deuxieme mesure MOINS premiere.
+# Un test unilateral « superieure » se lit « la deuxieme depasse la premiere »,
+# et c'est ce que le libelle de l'hypothese annonce.
+HSTAT_APPARIE_METHODES <- c(t = "ttest", wilcoxon = "wilcoxon", signe = "sign")
+
+.hstat_apparie_nom <- function(methode) switch(methode,
+  t        = tr("Test t apparié (Student)"),
+  wilcoxon = tr("Wilcoxon apparié (rangs signés)"),
+  signe    = tr("Test du signe apparié"),
+  methode)
+
+# -- Construire les paires ------------------------------------------------------
+# Deux formes de fichier, et aucune ne se devine : elle se declare.
+#
+#   * LARGE : deux colonnes, une ligne par unite (« avant », « apres »). La paire
+#     est la ligne. Une ligne a laquelle manque une des deux mesures est
+#     ecartee ET comptee : la taire ferait porter le test sur moins d'unites
+#     que le fichier n'en compte, sans que rien le dise.
+#   * LONGUE : une colonne de mesure, un facteur a DEUX modalites et une colonne
+#     d'identifiant. La paire est l'identifiant. Un sujet mesure plusieurs fois
+#     dans la meme modalite est ramene a sa MOYENNE -- c'est la seule valeur
+#     definie -- et c'est annonce ; un sujet auquel manque une modalite est
+#     ecarte et nomme.
+hstat_paires_large <- function(a, b) {
+  a <- suppressWarnings(as.numeric(a)); b <- suppressWarnings(as.numeric(b))
+  if (length(a) != length(b))
+    stop(hstat_refus(tr("Les deux colonnes n'ont pas le même nombre de lignes.")))
+  ok <- is.finite(a) & is.finite(b)
+  list(a = a[ok], b = b[ok], ecartees = sum(!ok), doublons = 0L,
+       incomplets = character(0))
+}
+
+hstat_paires_longue <- function(y, groupe, sujet) {
+  y <- suppressWarnings(as.numeric(y))
+  g <- if (is.factor(groupe)) droplevels(groupe) else factor(as.character(groupe))
+  s <- as.character(sujet)
+  ok <- is.finite(y) & !is.na(g) & !is.na(s) & nzchar(s)
+  y <- y[ok]; g <- droplevels(g[ok]); s <- s[ok]
+  niv <- levels(g)
+  if (length(niv) != 2L)
+    stop(hstat_refus(trf("Un test apparié compare exactement deux conditions : le facteur en compte %d (%s). Pour plus de deux mesures par sujet, utilisez l'ANOVA à mesures répétées ou Friedman.",
+                         length(niv), paste(utils::head(niv, 5), collapse = ", "))))
+  cle <- paste(s, g, sep = "\r")
+  nb <- table(cle)
+  doublons <- sum(nb > 1L)
+  moy <- tapply(y, list(s, g), mean)
+  complets <- stats::complete.cases(moy)
+  incomplets <- rownames(moy)[!complets]
+  if (sum(complets) == 0L)
+    stop(hstat_refus(tr("Aucun sujet n'est mesuré dans les deux conditions : vérifiez la colonne d'identifiant.")))
+  list(a = unname(moy[complets, 1]), b = unname(moy[complets, 2]),
+       niveaux = niv, sujets = rownames(moy)[complets],
+       ecartees = sum(!ok) , doublons = doublons, incomplets = incomplets)
+}
+
+# -- Le test ----------------------------------------------------------------------
+# Rend une liste a plat, du meme esprit que `.hstat_ref_out()`, et ne leve
+# jamais sur une donnee degeneree : des differences toutes egales rendent la
+# statistique incalculable (ecart-type nul), ce qui se DIT plutot que de faire
+# tomber la sortie -- la regle « ne jamais brancher sur une statistique non
+# calculable ».
+hstat_test_apparie <- function(a, b, methode = c("t", "wilcoxon", "signe"),
+                               alternative = c("two.sided", "greater", "less"),
+                               conf.level = 0.95, noms = c("Mesure 1", "Mesure 2")) {
+  methode <- match.arg(methode); alternative <- match.arg(alternative)
+  a <- suppressWarnings(as.numeric(a)); b <- suppressWarnings(as.numeric(b))
+  ok <- is.finite(a) & is.finite(b)
+  a <- a[ok]; b <- b[ok]
+  n <- length(a)
+  if (n < 2L)
+    stop(hstat_refus(trf("Un test apparié demande au moins 2 paires complètes ; %d disponible(s).", n)))
+  d <- b - a
+  nom <- .hstat_apparie_nom(methode)
+  base <- list(test = nom, n = n, moyenne_a = mean(a), moyenne_b = mean(b),
+               mediane_a = stats::median(a), mediane_b = stats::median(b),
+               alternative = alternative, noms = noms)
+  # Differences toutes egales : t (ecart-type nul) et Wilcoxon (rangs tous ex
+  # aequo) n'ont pas de statistique. Le test du signe, lui, en a une tant que
+  # les differences ne sont pas nulles.
+  degenere <- if (methode == "signe") isTRUE(all(d == 0))
+              else isTRUE(all(abs(d - d[1]) < 1e-12))
+  res <- if (degenere) NULL else tryCatch(
+    hstat_ref_test(d, mu = 0, method = HSTAT_APPARIE_METHODES[[methode]],
+                   alternative = alternative, conf.level = conf.level),
+    error = function(e) e)
+  if (is.null(res) || inherits(res, "error")) {
+    motif <- if (degenere && methode == "signe")
+      tr("Toutes les différences sont nulles : le test du signe n'a aucune paire à compter.")
+    else if (degenere)
+      trf("Toutes les différences valent %s : la statistique n'est pas calculable. Les deux mesures diffèrent d'une constante sur chaque paire.",
+          format(signif(d[1], 6)))
+    else hstat_err_fr(res)
+    return(c(base, list(statistic = NA_real_, parameter = NA_real_, p.value = NA_real_,
+                        estimate = if (methode == "t") mean(d) else stats::median(d),
+                        conf.low = NA_real_, conf.high = NA_real_,
+                        effect = NA_real_, effect_label = NA_character_,
+                        verdict = "indeterminable", interpretation = motif)))
+  }
+  verdict <- hstat_p_verdict(res$p.value)
+  mesure <- if (methode == "t") tr("la différence moyenne") else tr("la différence médiane")
+  # format.pval() rend « <2e-16 » sous le seuil machine : « p = <2e-16 » se
+  # lirait mal. Le signe fait partie du texte de la p-value.
+  pf <- format.pval(res$p.value, digits = 3)
+  ptxt <- if (startsWith(pf, "<")) paste("p <", sub("^<\\s*", "", pf)) else paste("p =", pf)
+  interp <- switch(verdict,
+    # Deux phrases entieres et non un adjectif en argument : `trf()` ne traduit
+    # pas ses arguments, et « supérieure à » ne se dit pas avec le meme ordre
+    # de mots dans les deux langues.
+    "significatif" = trf(if (res$estimate > 0)
+                           "%s : %s (%s − %s) vaut %s et diffère significativement de 0 (%s). La mesure « %s » est supérieure à la mesure « %s »."
+                         else
+                           "%s : %s (%s − %s) vaut %s et diffère significativement de 0 (%s). La mesure « %s » est inférieure à la mesure « %s ».",
+                         nom, mesure, noms[2], noms[1], format(signif(res$estimate, 4)),
+                         ptxt, noms[2], noms[1]),
+    "non significatif" = trf("%s : %s (%s − %s) vaut %s, sans différence significative entre les deux mesures (%s).",
+                             nom, mesure, noms[2], noms[1], format(signif(res$estimate, 4)),
+                             ptxt),
+    tr("Résultat non disponible"))
+  c(base, list(statistic = unname(res$statistic), parameter = unname(res$parameter),
+               p.value = res$p.value, estimate = res$estimate,
+               conf.low = res$conf.low, conf.high = res$conf.high,
+               effect = res$effect,
+               effect_label = switch(methode,
+                 t        = tr("dz de Cohen (différence / écart-type des différences)"),
+                 wilcoxon = tr("r (Z / racine de n)"),
+                 signe    = tr("Proportion de différences positives")),
+               verdict = verdict, interpretation = interp))
+}
+
 # Taille max des analyses a matrice de distances (dist, vegdist, silhouette,
 # cophenetique) : au-dela, echantillonnage (une matrice de distances est en
 # O(n^2) : 1 000 000 de lignes = ~4 To de RAM). Configurable par variable

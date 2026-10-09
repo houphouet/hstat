@@ -21646,3 +21646,100 @@ test_that("un nuage interactif est allege, et l'allegement se dit", {
     ggplot2::ggplot(d[1:100, ], ggplot2::aes(x, y)) + ggplot2::geom_point())))
   expect_null(attr(s, "hstat_allege"))
 })
+
+# ==============================================================================
+#  Tests apparies (1.16.0)
+# ==============================================================================
+
+test_that("le test apparie est le test a un echantillon des differences", {
+  set.seed(1); base <- stats::rnorm(10, 50, 5)
+  a <- base; b <- base + 1 + stats::rnorm(10, 0, 0.3)
+  r <- hstat_test_apparie(a, b, "t", noms = c("avant", "après"))
+  ref <- stats::t.test(b, a, paired = TRUE)
+  expect_equal(r$statistic, unname(ref$statistic))
+  expect_equal(r$p.value, ref$p.value)
+  expect_equal(r$parameter, 9)
+  expect_equal(c(r$conf.low, r$conf.high), as.numeric(ref$conf.int))
+  # La donnee rend la difference MESURABLE : Welch, qui ignore l'appariement,
+  # ne voit rien sur les memes valeurs.
+  expect_gt(stats::t.test(a, b)$p.value, 0.3)
+  expect_identical(r$verdict, "significatif")
+  w <- hstat_test_apparie(a, b, "wilcoxon")
+  expect_equal(w$p.value, suppressWarnings(stats::wilcox.test(b, a, paired = TRUE,
+                                                              exact = FALSE)$p.value))
+  s <- hstat_test_apparie(a, b, "signe")
+  expect_equal(s$p.value, stats::binom.test(sum(b - a > 0), 10)$p.value)
+  # Le sens est fixe : deuxieme MOINS premiere. Inverser les mesures inverse
+  # le signe, pas la p-value.
+  r2 <- hstat_test_apparie(b, a, "t")
+  expect_equal(r2$estimate, -r$estimate)
+  expect_equal(r2$p.value, r$p.value)
+  # Unilateral dans le bon sens.
+  expect_lt(hstat_test_apparie(a, b, "t", alternative = "greater")$p.value, 0.001)
+  expect_gt(hstat_test_apparie(a, b, "t", alternative = "less")$p.value, 0.99)
+  # Les deux phrases disent le bon sens.
+  expect_match(r$interpretation, "supérieure", fixed = TRUE)
+  expect_match(r2$interpretation, "inférieure", fixed = TRUE)
+})
+
+test_that("un test apparie degenere le dit au lieu de lever", {
+  r <- hstat_test_apparie(1:5, 1:5 + 2, "t")
+  expect_identical(r$verdict, "indeterminable")
+  expect_true(is.na(r$p.value))
+  expect_identical(hstat_test_apparie(1:5, 1:5 + 2, "wilcoxon")$verdict, "indeterminable")
+  # Le test du signe, lui, compte cinq differences positives.
+  expect_equal(hstat_test_apparie(1:5, 1:5 + 2, "signe")$p.value, 0.0625)
+  expect_identical(hstat_test_apparie(1:5, 1:5, "signe")$verdict, "indeterminable")
+  expect_s3_class(tryCatch(hstat_test_apparie(1, 2, "t"), error = function(e) e), "hstat_refus")
+})
+
+test_that("les paires se construisent dans les deux formes, et ce qui est retire se compte", {
+  L <- hstat_paires_large(c(1, 2, NA, 4), c(2, 3, 5, NA))
+  expect_equal(L$a, c(1, 2)); expect_equal(L$b, c(2, 3)); expect_equal(L$ecartees, 2)
+  P <- hstat_paires_longue(c(1, 2, 3, 4, 5, 6, 7, 9),
+                           c("A", "B", "A", "B", "A", "B", "A", "A"),
+                           c("s1", "s1", "s2", "s2", "s3", "s3", "s4", "s1"))
+  # s1 est mesure deux fois en A : sa moyenne (1 + 9) / 2 = 5.
+  expect_equal(P$sujets, c("s1", "s2", "s3"))
+  expect_equal(P$a, c(5, 3, 5)); expect_equal(P$b, c(2, 4, 6))
+  expect_equal(P$doublons, 1L)
+  expect_identical(P$incomplets, "s4")
+  e <- tryCatch(hstat_paires_longue(1:3, c("A", "B", "C"), 1:3), error = function(e) e)
+  expect_s3_class(e, "hstat_refus")
+  expect_match(conditionMessage(e), "3")
+})
+
+test_that("le module lance les trois tests apparies, en large et en long", {
+  set.seed(2); n <- 12; base <- stats::rnorm(n, 20, 4)
+  avant <- base; apres <- base + 2 + stats::rnorm(n, 0, 0.5)
+  large <- data.frame(Avant = avant, Apres = apres)
+  longue <- data.frame(Mesure = c(avant, apres),
+                       Periode = rep(c("Avant", "Apres"), each = n),
+                       Plante = rep(sprintf("P%02d", seq_len(n)), 2))
+  vals <- shiny::reactiveValues(filteredData = large)
+  shiny::testServer(mod_tests_server, args = list(values = vals), {
+    session$setInputs(responseVar = c("Avant", "Apres"), pairedFormat = "large",
+                      pairedAlt = "two.sided", pairedConf = 0.95)
+    session$setInputs(testTPaired = 1)
+    r <- values$testResultsDF
+    expect_equal(nrow(r), 1L)
+    expect_equal(r$p_value, stats::t.test(apres, avant, paired = TRUE)$p.value)
+    expect_identical(values$currentTestType, "paired")
+    expect_equal(values$pairedTestDetails$n_paires, n)
+    session$setInputs(testSignPaired = 1)
+    expect_match(values$testResultsDF$Test, "signe")
+  })
+  vals2 <- shiny::reactiveValues(filteredData = longue)
+  shiny::testServer(mod_tests_server, args = list(values = vals2), {
+    session$setInputs(responseVar = "Mesure", factorVar = "Periode", rmSubject = "Plante",
+                      pairedFormat = "longue", pairedAlt = "two.sided", pairedConf = 0.95)
+    session$setInputs(testWilcoxPaired = 1)
+    r <- values$testResultsDF
+    expect_equal(nrow(r), 1L)
+    # Les niveaux sont dans l'ordre du facteur (« Apres » avant « Avant ») :
+    # la difference est Avant - Apres, la p-value bilaterale est la meme.
+    expect_equal(r$p_value, suppressWarnings(stats::wilcox.test(avant, apres, paired = TRUE,
+                                                                exact = FALSE)$p.value))
+    expect_equal(values$pairedTestDetails$n_paires, n)
+  })
+})

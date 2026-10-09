@@ -101,6 +101,33 @@ mod_tests_ui <- function(id) {
                                                choices = c("Holm" = "holm", "Bonferroni" = "bonferroni",
                                                            "BH (FDR)" = "BH", "Tukey" = "tukey", "Aucun" = "none"),
                                                selected = "holm")
+                               ),
+                               # --- Configuration des tests apparies ---
+                               # Aucun selecteur de colonne de plus : la forme
+                               # LARGE reprend les deux variables reponse
+                               # choisies, la forme LONGUE la reponse, le facteur
+                               # et l'identifiant du bloc des mesures repetees.
+                               # Deux facons de designer les memes colonnes
+                               # finiraient par diverger.
+                               shiny::div(style = "background-color:#fff8e1; border-left:4px solid #ef6c00; padding:10px; margin-top:12px;",
+                                   shiny::h6(shiny::tagList(shiny::icon("link"), " Données appariées"),
+                                      style = "color:#e65100; margin-top:0; font-weight:bold;"),
+                                   shiny::div(style = "font-size:11px; color:#e65100; margin-bottom:8px;",
+                                       "Paramètres des boutons « Test t apparié », « Wilcoxon apparié » et « Test du signe apparié »."),
+                                   shiny::radioButtons(ns("pairedFormat"), "Forme du fichier :",
+                                       choices = c("Deux colonnes, une ligne par unité (avant / après)" = "large",
+                                                   "Format long : réponse, facteur à 2 modalités, identifiant" = "longue"),
+                                       selected = "large"),
+                                   shiny::div(style = "font-size:10px; color:#7f8c8d; margin:-4px 0 6px 0;",
+                                       shiny::icon("circle-info"), " ",
+                                       shiny::HTML(tr("<b>Deux colonnes</b> : choisissez exactement deux variables réponse ; la différence calculée est la deuxième moins la première. <b>Format long</b> : la variable réponse, le facteur (deux modalités) et le <b>sujet</b> du bloc « Mesures répétées » ; les deux mesures d'un même sujet forment la paire."))),
+                                   shiny::selectInput(ns("pairedAlt"), "Hypothèse alternative :",
+                                       choices = c("Bilatérale (les deux mesures diffèrent)" = "two.sided",
+                                                   "Unilatérale : la deuxième mesure est supérieure" = "greater",
+                                                   "Unilatérale : la deuxième mesure est inférieure" = "less"),
+                                       selected = "two.sided"),
+                                   shiny::sliderInput(ns("pairedConf"), "Niveau de confiance :",
+                                       min = 0.80, max = 0.99, value = 0.95, step = 0.01)
                                )
                         ),
                         shiny::column(4,
@@ -113,6 +140,7 @@ mod_tests_ui <- function(id) {
                                shiny::div(style="display:flex; flex-direction:column; gap:8px;",
                                    shiny::actionButton(ns("testT"),    "Test t de Welch (variances inégales)", class = "btn-success btn-block", icon = shiny::icon("check")),
                                    shiny::actionButton(ns("testTStudent"), "Test t de Student (variances égales)", class = "btn-success btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testTPaired"), "Test t apparié (mesures liées)", class = "btn-success btn-block", icon = shiny::icon("link")),
                                    shiny::actionButton(ns("testANOVA"),"ANOVA (Fisher, variances égales)", class = "btn-success btn-block", icon = shiny::icon("check")),
                                    shiny::actionButton(ns("testANOVAWelch"), "ANOVA de Welch (variances inégales)", class = "btn-success btn-block", icon = shiny::icon("check")),
                                    shiny::div(style = "font-size:11px;color:#7f8c8d;margin:-2px 0 4px 0;",
@@ -167,6 +195,11 @@ mod_tests_ui <- function(id) {
                                shiny::h4("Tests non-paramétriques", style = "color: #f39c12;"),
                                shiny::div(style="display:flex; flex-direction:column; gap:8px;",
                                    shiny::actionButton(ns("testWilcox"),          "Test de Wilcoxon",          class = "btn-warning btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testWilcoxPaired"),    "Wilcoxon apparié (rangs signés)", class = "btn-warning btn-block", icon = shiny::icon("link")),
+                                   shiny::actionButton(ns("testSignPaired"),      "Test du signe apparié",     class = "btn-warning btn-block", icon = shiny::icon("link")),
+                                   shiny::div(style = "font-size:11px;color:#7f8c8d;margin:-2px 0 4px 0;",
+                                       shiny::icon("circle-info"), " ",
+                                       shiny::HTML(tr("Le « Test de Wilcoxon » ci-dessus compare deux groupes indépendants (Mann-Whitney). Deux mesures sur la même unité relèvent des tests appariés : Wilcoxon apparié si les différences sont symétriques, test du signe sinon."))),
                                    shiny::actionButton(ns("testKruskal"),         "Test de Kruskal-Wallis",     class = "btn-warning btn-block", icon = shiny::icon("check")),
                                    shiny::actionButton(ns("testScheirerRayHare"), "Test de Scheirer-Ray-Hare",  class = "btn-warning btn-block", icon = shiny::icon("check")),
                                    shiny::actionButton(ns("testRMNonParam"), "Non paramétrique répété",  class = "btn-warning btn-block", icon = shiny::icon("repeat")),
@@ -276,6 +309,21 @@ mod_tests_ui <- function(id) {
                         collapsible = TRUE,
                         DT::DTOutput(ns("refTestDetails")),
                         shiny::uiOutput(ns("refTestNote")))
+                  )
+                ),
+
+                # RESULTAT DETAILLE DES TESTS APPARIES -- meme motif : la boite
+                # n'existe a l'ecran que pour le test qu'on vient de lancer.
+                shiny::conditionalPanel(
+                  ns = ns,
+                  condition = "output.hasPairedTest",
+                  shiny::fluidRow(
+                    shinydashboard::box(title = shiny::tagList(shiny::icon("link"),
+                                        " Détail des tests appariés"),
+                        status = "primary", width = 12, solidHeader = TRUE,
+                        collapsible = TRUE,
+                        DT::DTOutput(ns("pairedTestDetails")),
+                        shiny::uiOutput(ns("pairedTestNote")))
                   )
                 ),
 
@@ -2870,6 +2918,159 @@ mod_tests_server <- function(id, values) {
     if (is.null(n) || length(n) == 0) return(NULL)
     shiny::div(class = "callout callout-info", style = "margin-top:8px;",
         shiny::icon("circle-info"), shiny::strong(" À propos de ce test : "),
+        shiny::tags$ul(lapply(n, shiny::tags$li)))
+  })
+
+  # ===========================================================================
+  #  TESTS APPARIES : t, Wilcoxon signe, test du signe
+  # ===========================================================================
+  # Le calcul vit dans le socle (`hstat_test_apparie()`, `hstat_paires_*()`) :
+  # le serveur ne fait que choisir les colonnes, publier et annoncer.
+  .paired_conf <- function() {
+    v <- suppressWarnings(as.numeric(input$pairedConf))[1]
+    if (is.na(v) || v <= 0 || v >= 1) 0.95 else v
+  }
+  .paired_alt <- function() {
+    a <- as.character(input$pairedAlt %||% "two.sided")[1]
+    if (a %in% c("two.sided", "greater", "less")) a else "two.sided"
+  }
+
+  .run_apparie <- function(methode) {
+    d0 <- values$filteredData
+    if (is.null(d0)) {
+      shiny::showNotification("Chargez d'abord des données.", type = "warning"); return()
+    }
+    fmt <- input$pairedFormat %||% "large"
+    vars <- intersect(as.character(input$responseVar %||% character(0)), names(d0))
+    jeux <- list()
+    if (identical(fmt, "longue")) {
+      fvar <- as.character(input$factorVar %||% character(0))[1]
+      suj  <- as.character(input$rmSubject %||% "")[1]
+      if (!length(vars) || is.na(fvar) || !fvar %in% names(d0) ||
+          is.na(suj) || !suj %in% names(d0)) {
+        shiny::showNotification(tr("Format long : choisissez la variable réponse, le facteur (deux modalités) et le sujet du bloc « Mesures répétées »."),
+                                type = "warning", duration = 8)
+        return()
+      }
+      if (suj %in% c(fvar, vars)) {
+        shiny::showNotification(tr("Le sujet doit être une colonne d'identifiant, distincte de la réponse et du facteur."),
+                                type = "warning", duration = 8)
+        return()
+      }
+      for (v in vars) jeux[[v]] <- list(
+        etiquette = v, facteur = trf("%s (sujet : %s)", fvar, suj),
+        paires = tryCatch(hstat_paires_longue(d0[[v]], d0[[fvar]], d0[[suj]]),
+                          error = function(e) e))
+    } else {
+      if (length(vars) != 2L) {
+        shiny::showNotification(trf("Deux colonnes : choisissez exactement deux variables réponse (%d choisie(s)). La différence calculée est la deuxième moins la première.",
+                                    length(vars)), type = "warning", duration = 8)
+        return()
+      }
+      p <- tryCatch(hstat_paires_large(d0[[vars[1]]], d0[[vars[2]]]), error = function(e) e)
+      if (!inherits(p, "error")) p$niveaux <- vars
+      jeux[[1]] <- list(etiquette = paste(vars[2], "−", vars[1]),
+                        facteur = tr("Deux colonnes (une ligne par unité)"), paires = p)
+    }
+
+    rows <- list(); details <- list(); notes <- character(0)
+    for (k in seq_along(jeux)) {
+      j <- jeux[[k]]; p <- j$paires
+      res <- if (inherits(p, "error")) hstat_err_fr(p) else tryCatch(
+        hstat_test_apparie(p$a, p$b, methode, alternative = .paired_alt(),
+                           conf.level = .paired_conf(), noms = p$niveaux),
+        error = function(e) hstat_err_fr(e))
+      if (is.character(res)) {
+        rows[[k]] <- data.frame(Test = .hstat_apparie_nom(methode), Variable = j$etiquette,
+          Facteur = j$facteur, Statistique = NA_real_, ddl = NA_real_,
+          p_value = NA_real_, Interpretation = res, stringsAsFactors = FALSE)
+        next
+      }
+      rows[[k]] <- data.frame(Test = res$test, Variable = j$etiquette, Facteur = j$facteur,
+        Statistique = if (is.na(res$statistic)) NA_real_ else round(res$statistic, 4),
+        ddl = if (is.na(res$parameter)) NA_real_ else hstat_ddl_fmt(res$parameter),
+        p_value = res$p.value, Interpretation = res$interpretation,
+        stringsAsFactors = FALSE)
+      ic <- if (is.na(res$conf.low) && is.na(res$conf.high)) "-"
+            else sprintf("[%s ; %s]",
+                         if (is.finite(res$conf.low)) signif(res$conf.low, 5) else "-Inf",
+                         if (is.finite(res$conf.high)) signif(res$conf.high, 5) else "+Inf")
+      # La normalite porte sur les DIFFERENCES, pas sur chaque mesure : c'est
+      # l'hypothese du t apparie, et deux mesures non normales peuvent avoir
+      # des differences parfaitement normales.
+      dif <- p$b - p$a
+      sw <- if (methode == "t" && length(dif) >= 3 && length(dif) <= 5000 &&
+                stats::sd(dif) > 0)
+              tryCatch(hstat_shapiro(dif)$p.value, error = function(e) NA_real_)
+            else NA_real_
+      details[[k]] <- data.frame(
+        Paire = j$etiquette, Test = res$test, n_paires = res$n,
+        Mesure_1 = p$niveaux[1], Moyenne_1 = signif(res$moyenne_a, 6),
+        Mesure_2 = p$niveaux[2], Moyenne_2 = signif(res$moyenne_b, 6),
+        Difference = signif(res$estimate, 6), IC = ic,
+        Taille_effet = if (is.na(res$effect)) NA_real_ else signif(res$effect, 4),
+        Mesure_effet = res$effect_label %||% NA_character_,
+        Normalite_diff_p = sw,
+        Hypothese = switch(res$alternative,
+          two.sided = tr("bilatérale (les deux mesures diffèrent)"),
+          greater   = tr("unilatérale (la deuxième mesure est supérieure)"),
+          less      = tr("unilatérale (la deuxième mesure est inférieure)")),
+        p_value = res$p.value, stringsAsFactors = FALSE)
+      # CE QUI EST RETIRE SE NOMME : un test porte sur moins d'unites que le
+      # fichier n'en compte, sans rien qui le dise, se lit comme l'essai entier.
+      if (isTRUE(p$ecartees > 0))
+        notes <- c(notes, trf("%s : %d ligne(s) sans mesure exploitable écartée(s).",
+                              j$etiquette, p$ecartees))
+      if (isTRUE(p$doublons > 0))
+        notes <- c(notes, trf("%s : %d sujet(s) mesuré(s) plusieurs fois dans une même condition, ramené(s) à leur moyenne.",
+                              j$etiquette, p$doublons))
+      if (length(p$incomplets))
+        notes <- c(notes, trf("%s : %d sujet(s) sans mesure dans l'une des deux conditions, écarté(s) : %s.",
+                              j$etiquette, length(p$incomplets),
+                              paste(utils::head(p$incomplets, 8), collapse = ", ")))
+      if (isTRUE(is.finite(sw) && sw < 0.05))
+        notes <- c(notes, trf("%s : les différences s'écartent de la normalité (Shapiro-Wilk p = %s) ; le Wilcoxon apparié ou le test du signe sont plus sûrs.",
+                              j$etiquette, format.pval(sw, digits = 3)))
+    }
+    if (!length(rows)) {
+      shiny::showNotification("Aucun résultat généré.", type = "warning"); return()
+    }
+    values$testResultsDF      <- do.call(rbind, rows)
+    values$pairedTestDetails  <- if (length(details)) do.call(rbind, details) else NULL
+    values$pairedTestNotes    <- unique(notes)
+    values$normalityResults   <- NULL
+    values$homogeneityResults <- NULL
+    values$currentTestType    <- "paired"
+    ps <- vapply(rows, function(r) r$p_value[1], numeric(1))
+    shiny::showNotification(
+      trf("%d test(s) apparié(s) : %d différence(s) significative(s).",
+          length(rows), sum(!is.na(ps) & ps < 0.05)),
+      type = "message", duration = 5)
+  }
+  shiny::observeEvent(input$testTPaired,      .run_apparie("t"))
+  shiny::observeEvent(input$testWilcoxPaired, .run_apparie("wilcoxon"))
+  shiny::observeEvent(input$testSignPaired,   .run_apparie("signe"))
+
+  output$hasPairedTest <- shiny::reactive(
+    !is.null(values$pairedTestDetails) &&
+    identical(values$currentTestType, "paired"))
+  shiny::outputOptions(output, "hasPairedTest", suspendWhenHidden = FALSE)
+
+  output$pairedTestDetails <- DT::renderDT({
+    shiny::req(values$pairedTestDetails, identical(values$currentTestType, "paired"))
+    d <- values$pairedTestDetails
+    d$p_value <- vapply(d$p_value, function(p) if (is.na(p)) NA_character_ else fmt_p(p), character(1))
+    d$Normalite_diff_p <- vapply(d$Normalite_diff_p,
+      function(p) if (is.na(p)) "-" else fmt_p(p), character(1))
+    DT::datatable(d, rownames = FALSE,
+              options = list(dom = "t", scrollX = TRUE, pageLength = 25))
+  })
+
+  output$pairedTestNote <- shiny::renderUI({
+    n <- values$pairedTestNotes
+    if (!identical(values$currentTestType, "paired") || !length(n)) return(NULL)
+    shiny::div(class = "callout callout-info", style = "margin-top:8px;",
+        shiny::icon("circle-info"), shiny::strong(" À propos de ces paires : "),
         shiny::tags$ul(lapply(n, shiny::tags$li)))
   })
 
@@ -5890,6 +6091,7 @@ mod_tests_server <- function(id, values) {
     "parametric"     = "Test paramétrique",
     "non-parametric" = "Test non paramétrique",
     "reference"      = "Comparaison à une référence",
+    "paired"         = "Test apparié",
     "chisq"          = "Chi² d'adéquation")
 
   output$testResultsBadge <- shiny::renderUI({
@@ -6279,6 +6481,11 @@ mod_tests_server <- function(id, values) {
   
   shiny::observeEvent(values$testResultsDF, {
     shiny::req(values$testResultsDF)
+    # Un test apparie ou une comparaison a une norme n'a pas de post-hoc : il
+    # n'y a qu'une difference, ou qu'un echantillon. Annoncer « PostHoc mis a
+    # jour » apres eux, et basculer le type de test, ferait chercher des
+    # comparaisons multiples qui n'existent pas.
+    if (isTRUE(values$currentTestType %in% c("paired", "reference"))) return()
     
     if (!is.null(values$currentTestType)) {
       new_type <- if (values$currentTestType == "parametric") "param" else "nonparam"

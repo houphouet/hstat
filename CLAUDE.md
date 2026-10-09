@@ -9616,3 +9616,58 @@ le code seul, la traduction anglaise aurait cessé de s'appliquer en silence.
   `Authors@R`, `crosspred`), aucun sur une saisie hors du bac à sable.
 - **Les modèles ML, DL et le clustering** sont déjà plafonnés
   (`HSTAT_DIST_MAX_N`, `HSTAT_ML_MAX_N`, époques et arbres bornés).
+
+## Tests appariés : un test à un échantillon sur les différences
+
+Deux mesures prises sur la **même** unité (avant / après, gauche / droite, deux
+méthodes sur le même échantillon) ne sont pas deux groupes. Le module ne
+proposait que des tests à groupes indépendants : le t de Welch ou de Student,
+et le « Test de Wilcoxon », qui est Mann-Whitney. Appliqués à des mesures liées,
+ils versent la variabilité d'une unité à l'autre dans l'erreur. Mesuré sur dix
+plantes qui gagnent chacune 1 ± 0,3 mais diffèrent entre elles de ± 5 :
+**apparié p = 2 × 10⁻⁶, Welch p = 0,54**. L'effet est net, et le mauvais test
+ne le voit pas.
+
+Trois boutons, rangés avec leur famille :
+
+| Bouton | Colonne | Calcul |
+|---|---|---|
+| Test t apparié | paramétriques | t de Student sur les différences, dz de Cohen |
+| Wilcoxon apparié (rangs signés) | non paramétriques | rangs signés des différences, r = Z / √n |
+| Test du signe apparié | non paramétriques | binomial sur le signe des différences, sans hypothèse de symétrie |
+
+**Le test apparié EST le test à un échantillon des différences contre 0.**
+`hstat_test_apparie()` passe donc par `hstat_ref_test()`, qui portait déjà le t,
+le Wilcoxon signé et le test du signe. Une statistique n'a qu'une définition
+dans ce dépôt, et le test vérifie l'égalité avec `t.test(paired = TRUE)`,
+`wilcox.test(paired = TRUE)` et `binom.test()`.
+
+**Le sens est fixe et dit : deuxième mesure MOINS première.** Une alternative
+unilatérale « supérieure » se lit « la deuxième dépasse la première ».
+L'interprétation est écrite en deux phrases entières plutôt qu'avec un
+adjectif en argument, parce que `trf()` ne traduit pas ses arguments et que
+« supérieure à » ne s'ordonne pas pareil en anglais.
+
+### Deux formes de fichier, et aucune ne se devine
+
+- **Deux colonnes** : exactement deux variables réponse, une ligne par unité.
+  Une ligne à laquelle manque une mesure est écartée **et comptée**.
+- **Format long** : la réponse, le facteur (deux modalités) et le **sujet** du
+  bloc « Mesures répétées ». Un sujet mesuré plusieurs fois dans une même
+  condition est ramené à sa moyenne, c'est annoncé. Un sujet auquel manque une
+  condition est écarté et **nommé**.
+
+Aucun sélecteur de colonne de plus : deux façons de désigner les mêmes colonnes
+finiraient par diverger. Seuls la forme, l'hypothèse alternative et le niveau de
+confiance sont des réglages propres.
+
+### Ce qui se dit au lieu de lever
+
+- **Des différences toutes égales** n'ont ni t ni rangs : verdict
+  `indeterminable`, avec la valeur de la différence. Le test du signe, lui,
+  reste calculable tant qu'elles ne sont pas nulles.
+- **La normalité se juge sur les différences**, pas sur chaque mesure : c'est
+  l'hypothèse du t apparié. Rejetée (Shapiro-Wilk), elle oriente vers le
+  Wilcoxon apparié ou le test du signe, dans la note sous le tableau de détail.
+- **Un facteur à plus de deux modalités** renvoie à l'ANOVA à mesures répétées
+  ou à Friedman.
