@@ -21743,3 +21743,58 @@ test_that("le module lance les trois tests apparies, en large et en long", {
     expect_equal(values$pairedTestDetails$n_paires, n)
   })
 })
+
+# ==============================================================================
+#  Audit des tests sautes (1.16.1)
+# ==============================================================================
+
+test_that("un DLNM a dix expositions ou plus se calcule, et ses fenetres aussi", {
+  skip_if_not_installed("dlnm")
+  # `crosspred` retrouve une surface par MOTIF sur son nom : `cb1` attrapait
+  # `cb10`, et la dixieme exposition faisait echouer la prediction de la
+  # premiere sous un motif qui accusait les noeuds.
+  set.seed(7); n <- 600
+  d <- data.frame(Date = seq(as.Date("1950-01-01"), by = "month", length.out = n))
+  for (k in 1:10) d[[paste0("E", k)]] <- round(stats::rnorm(n, 20, 3), 2)
+  d$y <- stats::rpois(n, 10)
+  r9 <- hstat_epi_dlnm(d, "y", "E1", var_temps = "Date", lag_max = 2,
+                       vars_ajust_cb = paste0("E", 2:9))
+  r10 <- hstat_epi_dlnm(d, "y", "E1", var_temps = "Date", lag_max = 2,
+                        vars_ajust_cb = paste0("E", 2:10))
+  expect_true(isTRUE(r9$ok))
+  expect_true(isTRUE(r10$ok))
+  # Aucun nom de surface n'est le prefixe d'un autre.
+  nm <- unname(unlist(r10$cb_noms))
+  expect_false(any(outer(nm, nm, function(a, b) a != b & startsWith(b, a))))
+  # Sous dix, les noms ne changent pas.
+  expect_identical(unname(unlist(r9$cb_noms))[1], "cb1")
+  # Fenetres et test global ne portent que sur la surface principale.
+  f <- hstat_epi_dlnm_fenetres(r10, list(list(nom = NA, de = 0L, a = 1L)), prob = 0.9)
+  expect_false(is.null(f))
+  expect_equal(hstat_epi_dlnm_wald(r10)$ddl, hstat_epi_dlnm_wald(r9)$ddl)
+})
+
+test_that("une boite ou un violon sur un axe de dates trace une boite par date", {
+  skip_if_not_installed("ggplot2")
+  set.seed(1)
+  d <- data.frame(
+    Semaine = rep(as.Date("2026-08-04") + 7 * (0:3), each = 6),
+    Valeur  = stats::rpois(24, 3),
+    Lot     = rep(c("L1", "L2"), 12),
+    stringsAsFactors = FALSE)
+  vals <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d,
+                                storedLevelLabels = list(), customXOrder = NULL)
+  ngroupes <- function(p) length(unique(ggplot2::ggplot_build(p)$data[[1]]$group))
+  shiny::testServer(mod_viz_server, args = list(values = vals), {
+    for (tt in c("box", "violin")) {
+      session$setInputs(vizXVar = "Semaine", vizYVar = "Valeur", xVarType = "date",
+                        vizType = tt, xDateDisplayFormat = "%m-%d",
+                        xDateFormat = "%Y-%m-%d")
+      # Avant : UNE boite pour les quatre dates.
+      expect_equal(ngroupes(createPlot()), 4L, info = tt)
+    }
+    # Avec une couleur, chaque date porte une boite par lot.
+    session$setInputs(vizType = "box", vizColorVar = "Lot")
+    expect_equal(ngroupes(createPlot()), 8L)
+  })
+})

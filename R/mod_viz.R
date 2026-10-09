@@ -1,5 +1,10 @@
 #  Module Shiny : Visualisation des donnees
 
+# Au-dela de ce nombre de valeurs distinctes, un X numerique n'est pas groupe
+# dans une boite ou un violon : chaque valeur y donnerait une boite d'une
+# seule observation.
+HSTAT_VIZ_GROUPES_X_MAX <- 50L
+
 
 mod_viz_ui <- function(id) {
   ns <- shiny::NS(id)
@@ -2552,6 +2557,25 @@ mod_viz_server <- function(id, values) {
     return(p)
   }
   
+  # UN AXE X CONTINU NE FAIT PAS DE GROUPES TOUT SEUL. Une boite ou un violon
+  # dont l'abscisse est une DATE groupe par la valeur discrete de x -- et une
+  # date n'en a pas : ggplot tracait UNE seule boite melangeant toutes les
+  # dates (mesure : 4 dates de 3 mesures -> 1 boite), en avertissant
+  # « did you forget aes(group = ...) ». On groupe donc par la date, et par
+  # la couleur avec elle quand il y en a une : sans l'interaction, les
+  # boites de deux couleurs d'une meme date se fondraient en une.
+  # Un X numerique n'est groupe que s'il porte peu de valeurs distinctes : un
+  # nuage de 500 abscisses donnerait 500 boites d'une observation.
+  .groupe_x_continu <- function(data, x_var, color_var = NULL) {
+    x <- data[[x_var]]
+    continu <- inherits(x, c("Date", "POSIXct", "POSIXlt")) ||
+      (is.numeric(x) && length(unique(x[is.finite(x)])) <= HSTAT_VIZ_GROUPES_X_MAX)
+    if (!continu) return(NULL)
+    if (!is.null(color_var) && color_var %in% names(data))
+      ggplot2::aes(group = interaction(.data[[x_var]], .data[[color_var]], drop = TRUE))
+    else ggplot2::aes(group = .data[[x_var]])
+  }
+
   create_box_plot <- function(data, x_var, y_var, color_var = NULL) {
     if (nrow(data) == 0 || !x_var %in% names(data) || !y_var %in% names(data)) {
       return(ggplot2::ggplot() + ggplot2::annotate("text", x=0.5, y=0.5, label="Données insuffisantes") +
@@ -2566,12 +2590,14 @@ mod_viz_server <- function(id, values) {
     # Points aberrants : si le jitter est affiche, on masque ceux du boxplot
     # pour eviter leur affichage en double (points noirs + points gris).
     out_shape <- if (isTRUE(input$showOutliers)) NA else 16
+    grp <- .groupe_x_continu(data, x_var, color_var)
     if(!is.null(color_var)) {
       p <- p + ggplot2::geom_boxplot(ggplot2::aes(fill = .data[[color_var]]), alpha = 0.7,
                             outlier.shape = out_shape)
     } else {
       p <- p + ggplot2::geom_boxplot(alpha = 0.7, outlier.shape = out_shape)
     }
+    if (!is.null(grp)) p <- p + grp
     
     if(isTRUE(input$showOutliers))
       p <- p + ggplot2::geom_jitter(data = function(d) hstat_sample_rows(d, notify = FALSE),
@@ -2618,6 +2644,8 @@ mod_viz_server <- function(id, values) {
     } else {
       p <- p + ggplot2::geom_violin(alpha = 0.7, drop = FALSE)
     }
+    grp <- .groupe_x_continu(data, x_var, color_var)
+    if (!is.null(grp)) p <- p + grp
     
     if(isTRUE(input$showBoxInsideViolin)) {
       p <- p + ggplot2::geom_boxplot(width = 0.1)
