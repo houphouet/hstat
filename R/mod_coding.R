@@ -2300,7 +2300,8 @@ mod_coding_server <- function(id, values) {
     })
 
     shiny::observeEvent(input$doc_idx, {
-      if (!is.null(input$doc_idx) && input$doc_idx != rv$cur) rv$cur <- as.integer(input$doc_idx)
+      i <- hstat_indice_client(input$doc_idx, nrow(docs()))
+      if (!is.na(i) && i != rv$cur) rv$cur <- i
     })
     shiny::observeEvent(rv$cur, {
       if (!is.null(input$doc_idx) && input$doc_idx != rv$cur)
@@ -2614,9 +2615,18 @@ mod_coding_server <- function(id, values) {
     shiny::observeEvent(input$drop_event, {
       ev <- input$drop_event
       shiny::req(!is.null(ev), !is.null(ev$code))
-      if (!(ev$code %in% rv$codebook$code_id)) return()
+      # Le message vient du navigateur : UN code, UNE borne de debut et UNE de
+      # fin. Un vecteur faisait lever `if()` (longueur > 1), donc fermer la
+      # session ; des bornes hors du texte s'enregistraient telles quelles
+      # (debut a -10^9) et faussaient la ligne de codage et l'export.
+      code <- as.character(ev$code)
+      if (length(code) != 1L || !(code %in% rv$codebook$code_id)) return()
       d <- cur_doc()
-      st <- as.numeric(ev$start); en <- as.numeric(ev$end)
+      st <- suppressWarnings(as.numeric(ev$start)); en <- suppressWarnings(as.numeric(ev$end))
+      if (length(st) != 1L || length(en) != 1L) return()
+      nc <- nchar(d$text)
+      if (is.finite(st)) st <- min(max(round(st), 0), nc)
+      if (is.finite(en)) en <- min(max(round(en), 0), nc)
       if (is.na(st) || is.na(en) || en <= st) {
         shiny::showNotification("Sélection vide : sélectionnez d'abord un passage.",
                                 type = "warning", duration = 4); return()
@@ -2637,15 +2647,15 @@ mod_coding_server <- function(id, values) {
         }
       }
       before <- nrow(rv$segments)
-      rv$segments <- hstat_seg_add(rv$segments, d$doc_id, ev$code, st, en, txt)
+      rv$segments <- hstat_seg_add(rv$segments, d$doc_id, code, st, en, txt)
       rv$sel <- NULL
       if (nrow(rv$segments) == before)
         shiny::showNotification("Ce passage porte déjà ce code.",
                                 type = "warning", duration = 3)
       else
         shiny::showNotification(
-          trf("« %s » applique à : %s",
-                  hstat_code_label(rv$codebook, ev$code),
+          trf("« %s » appliqué à : %s",
+                  hstat_code_label(rv$codebook, code),
                   substr(txt, 1, 60)), type = "message", duration = 3)
     })
 
@@ -3202,7 +3212,7 @@ mod_coding_server <- function(id, values) {
 
       if (identical(o$engine, "auto")) {
         shiny::withProgress(message = "Thématisation du corpus...", value = 0.5, {
-          cb <- hstat_code_auto_codebook(tx, n_codes = input$ai_ncodes %||% 8,
+          cb <- hstat_code_auto_codebook(tx, n_codes = hstat_borne_client(input$ai_ncodes, 8, 3, 20),
                                          min_char = input$ai_minchar %||% 4)
           if (is.null(cb)) {
             rv$ai <- list(ok = FALSE,
@@ -3216,11 +3226,15 @@ mod_coding_server <- function(id, values) {
         return()
       }
 
-      n_max <- max(5L, as.integer(input$ai_maxdoc %||% 60))
+      # Le plafond du champ tient AUSSI cote serveur. Chaque reponse part chez un
+      # tiers payant a l'usage : un nombre forge enverrait le corpus entier, et
+      # un champ vide (NA) faisait tomber le bouton sur « missing value where
+      # TRUE/FALSE needed ».
+      n_max <- as.integer(hstat_borne_client(input$ai_maxdoc, 60, 5, 300))
       if (length(tx) > n_max) tx <- tx[round(seq(1, length(tx), length.out = n_max))]
       shiny::withProgress(message = "Le modèle analyse le corpus...", value = 0.4, {
         res <- hstat_ai_call(
-          hstat_ai_codebook_prompt(tx, input$ai_ncodes %||% 8, input$ai_context %||% ""),
+          hstat_ai_codebook_prompt(tx, hstat_borne_client(input$ai_ncodes, 8, 3, 20), input$ai_context %||% ""),
           system = "Tu es un analyste qualitatif rigoureux. Tu réponds exclusivement en JSON valide.",
           engine = o$engine, url = o$url, model = o$model,
           api_key = o$key)
@@ -3282,7 +3296,7 @@ mod_coding_server <- function(id, values) {
         return()
       }
 
-      n_max <- max(5L, as.integer(input$ai_maxdoc %||% 60))
+      n_max <- as.integer(hstat_borne_client(input$ai_maxdoc, 60, 5, 300))
       sub <- if (nrow(dd) > n_max) dd[round(seq(1, nrow(dd), length.out = n_max)), , drop = FALSE] else dd
       shiny::withProgress(message = "Le modèle pré-code les réponses...", value = 0.4, {
         res <- hstat_ai_call(

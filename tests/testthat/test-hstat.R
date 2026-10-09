@@ -21523,3 +21523,126 @@ test_that("la préparation des données de la visualisation ne dépend pas de l'
   for (i in c("input$plotTheme", "input$y2AxisLabel", "input$xDateDisplayFormat"))
     expect_false(grepl(i, corps, fixed = TRUE), info = i)
 })
+
+# ==============================================================================
+#  Audit 1.15.2 : ce que le navigateur envoie, et ce qu'un fichier coute a lire
+# ==============================================================================
+
+test_that("l'effectif d'enquete refuse une marge ou un effet de plan non calculables", {
+  expect_false(is.null(hstat_survey_size(margin = 0)$err))
+  expect_false(is.null(hstat_survey_size(margin = NA)$err))
+  expect_false(is.null(hstat_survey_size(margin = 0.05, design_effect = NA)$err))
+  expect_false(is.null(hstat_survey_size(margin = 0.05, design_effect = 0.5)$err))
+  # Le cas ordinaire est inchange : 385 a 95 % et 5 %.
+  r <- hstat_survey_size(margin = 0.05)
+  expect_null(r$err)
+  expect_equal(r$n_final, 385)
+  # Un champ de strates vide ne fait plus lever `if (NA > 1)`.
+  expect_null(hstat_survey_size(margin = 0.05, n_strata = NA)$err)
+})
+
+test_that("la courbe d'enquete a une grille de taille fixe, quel que soit l'effectif", {
+  skip_if_not_installed("ggplot2")
+  # Avant : seq(20, 1,5 x n_final, by = 5). Un effet de plan de 10^6 donnait
+  # n_final ~ 4,8 x 10^8, donc ~ 1,4 x 10^8 points et autant d'appels.
+  vals <- shiny::reactiveValues()
+  shiny::testServer(mod_design_server, args = list(values = vals), {
+    session$setInputs(svObjective = "proportion", svConf = 0.95, svMargin = 0.05,
+                      svP = 0.5, svPop = 0, svDeff = 1e6, svResp = 0.8, svStrata = 1)
+    session$setInputs(svCalc = 1)
+    expect_gt(sv_res()$n_final, 1e8)
+    t0 <- proc.time()[["elapsed"]]
+    o <- output$svCurve
+    expect_lt(proc.time()[["elapsed"]] - t0, 10)
+    expect_false(is.null(o))
+  })
+  expect_identical(HSTAT_SV_COURBE_POINTS, 400L)
+  src <- paste(readLines(.hstat_module_path("mod_design.R"), warn = FALSE), collapse = "\n")
+  expect_false(grepl("r$n_final * 1.5), by = 5)", src, fixed = TRUE))
+})
+
+test_that("un classeur Excel qui se decompresse demesurement est refuse avant readxl", {
+  skip_if(!nzchar(Sys.which("zip")), "zip absent")
+  d <- tempfile("bombe"); dir.create(d)
+  on.exit(unlink(d, recursive = TRUE), add = TRUE)
+  # 60 Mo de zeros : quelques dizaines de Ko une fois compresses.
+  dir.create(file.path(d, "xl", "worksheets"), recursive = TRUE)
+  con <- file(file.path(d, "xl", "worksheets", "sheet1.xml"), "wb")
+  bloc <- raw(1e6)
+  for (i in 1:60) writeBin(bloc, con)
+  close(con)
+  arch <- file.path(d, "b.xlsx")
+  ancien <- setwd(d); on.exit(setwd(ancien), add = TRUE)
+  utils::zip(arch, "xl", flags = "-r9q")
+  setwd(ancien)
+  expect_lt(file.size(arch), 1e6)
+  m <- hstat_excel_controle(arch)
+  expect_false(is.null(m))
+  expect_match(m, "facteur")
+  e <- tryCatch(hstat_lire_excel(arch), error = function(e) e)
+  expect_s3_class(e, "hstat_refus")
+  # La lecture par feuilles le dit au lieu de ranger le refus parmi les
+  # feuilles « ignorees ».
+  # Un classeur ordinaire passe, et un .xls (pas une archive) aussi.
+  skip_if_not_installed("openxlsx")
+  ok <- tempfile(fileext = ".xlsx")
+  openxlsx::write.xlsx(data.frame(a = 1:10, b = letters[1:10]), ok)
+  expect_null(hstat_excel_controle(ok))
+  skip_if_not_installed("readxl")
+  expect_equal(nrow(hstat_lire_excel(ok)), 10L)
+  pasxls <- tempfile(fileext = ".xls"); writeBin(as.raw(c(0xd0, 0xcf, 0x11, 0xe0)), pasxls)
+  expect_null(hstat_excel_controle(pasxls))
+})
+
+test_that("plafond de decompression : une archive trop grosse est refusee meme peu compressee", {
+  # Le seuil passe en ARGUMENT : dans le paquet installe, l'espace de noms est
+  # verrouille, et reassigner la constante y leve « locked binding ».
+  skip_if(!nzchar(Sys.which("zip")), "zip absent")
+  f <- tempfile(fileext = ".txt"); writeLines(as.character(stats::runif(500)), f)
+  arch <- tempfile(fileext = ".xlsx"); utils::zip(arch, f, flags = "-j9q")
+  expect_match(hstat_excel_controle(arch, decomp_max = 1000), "Mo")
+  expect_null(hstat_excel_controle(arch))
+})
+
+test_that("aucune lecture Excel ne contourne la porte commune", {
+  sites <- character(0)
+  for (p in .hstat_sources_app()) {
+    pd <- utils::getParseData(parse(p, keep.source = TRUE))
+    i <- which(pd$token == "SYMBOL_FUNCTION_CALL" & pd$text %in% c("read_excel", "read_xlsx"))
+    if (length(i)) sites <- c(sites, paste0(basename(p), ":", pd$line1[i]))
+  }
+  # La seule : le corps de hstat_lire_excel().
+  expect_length(sites, 1L)
+  expect_match(sites, "^utils\\.R:")
+})
+
+test_that("un nuage interactif est allege, et l'allegement se dit", {
+  skip_if_not_installed("plotly")
+  skip_if_not_installed("ggplot2")
+  set.seed(1); n <- 60000
+  d <- data.frame(x = stats::rnorm(n), y = stats::rnorm(n),
+                  g = sample(c("A", "B", "C"), n, TRUE, prob = c(0.9, 0.09, 0.01)))
+  p <- ggplot2::ggplot(d, ggplot2::aes(x, y, colour = g)) + ggplot2::geom_point()
+  b <- suppressWarnings(hstat_plotly_clean(plotly::ggplotly(p)))
+  a <- attr(b, "hstat_allege")
+  expect_false(is.null(a))
+  expect_equal(unname(a["total"]), n)
+  lg <- vapply(b$x$data, function(t) length(t$x), numeric(1))
+  expect_lte(sum(lg), HSTAT_PLOTLY_POINTS_MAX)
+  # Chaque groupe garde sa part : le groupe rare ne disparait pas.
+  expect_true(all(lg > 0))
+  # x et y restent apparies apres l'allegement.
+  expect_true(all(vapply(b$x$data, function(t) length(t$x) == length(t$y), logical(1))))
+  notes <- vapply(b$x$layout$annotations, function(z) z$text %||% "", character(1))
+  expect_true(any(grepl("60 000", notes)))
+  # Une boite a moustaches calcule ses quartiles sur TOUTES les valeurs : elle
+  # n'est pas touchee.
+  q <- ggplot2::ggplot(d, ggplot2::aes(g, y)) + ggplot2::geom_boxplot()
+  bq <- suppressWarnings(hstat_plotly_clean(plotly::ggplotly(q)))
+  expect_equal(sum(vapply(bq$x$data, function(t) length(t$y), numeric(1))), n)
+  expect_null(attr(bq, "hstat_allege"))
+  # Sous le plafond, rien ne change.
+  s <- suppressWarnings(hstat_plotly_clean(plotly::ggplotly(
+    ggplot2::ggplot(d[1:100, ], ggplot2::aes(x, y)) + ggplot2::geom_point())))
+  expect_null(attr(s, "hstat_allege"))
+})

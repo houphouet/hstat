@@ -238,6 +238,15 @@ hstat_survey_size <- function(objective = "proportion", conf_level = 0.95,
                               margin = 0.05, p = 0.5, sd = NULL,
                               population = Inf, design_effect = 1,
                               response_rate = 1, n_strata = 1) {
+  # Les champs arrivent du navigateur : un champ vide vaut NA, et une marge
+  # nulle rend un effectif INFINI, qui fait ensuite tomber la courbe et le
+  # tableau. On refuse en le disant plutot que de rendre « NA personnes ».
+  if (!isTRUE(is.finite(margin)) || margin <= 0)
+    return(list(err = "La marge d'erreur doit être un nombre strictement positif."))
+  if (!isTRUE(is.finite(design_effect)) || design_effect < 1)
+    return(list(err = "L'effet de plan doit être un nombre supérieur ou égal à 1."))
+  response_rate <- hstat_finite(response_rate, 1)
+  n_strata <- hstat_finite(n_strata, 1)
   z <- stats::qnorm(1 - (1 - conf_level) / 2)
   n0 <- if (objective == "proportion") {
     (z^2 * p * (1 - p)) / (margin^2)
@@ -255,6 +264,10 @@ hstat_survey_size <- function(objective = "proportion", conf_level = 0.95,
        per_stratum = if (n_strata > 1) ceiling(ceiling(n_fin) / n_strata) else NA,
        objective = objective)
 }
+
+# Nombre de points de la courbe « marge d'erreur en fonction de n » : la grille
+# a une taille fixe, quel que soit l'effectif calcule.
+HSTAT_SV_COURBE_POINTS <- 400L
 
 # Marge d'erreur atteinte pour un n donne (analyse inverse)
 hstat_survey_margin <- function(n, conf_level = 0.95, p = 0.5,
@@ -3393,7 +3406,15 @@ mod_design_server <- function(id, values) {
       r <- sv_res(); shiny::req(is.null(r$err))
       obj <- input$svObjective %||% "proportion"
       pop <- input$svPop %||% 0; pop <- if (is.null(pop) || pop <= 0) Inf else pop
-      ns_seq <- seq(20, max(1500, r$n_final * 1.5), by = 5)
+      # UNE GRILLE DE TAILLE FIXE, JAMAIS UN PAS FIXE. `by = 5` jusqu'a
+      # 1,5 x n_final donnait autant de points que l'effectif divise par cinq :
+      # un effet de plan ou un ecart-type saisis grands (n_final de 10^8 a
+      # 10^12) faisaient allouer des milliards de doubles, puis appeler la
+      # marge autant de fois -- et Shiny sert toutes les sessions depuis un
+      # seul processus. La courbe a la meme forme sur 400 points.
+      n_haut <- max(1500, r$n_final * 1.5)
+      shiny::validate(shiny::need(is.finite(n_haut), "Taille d'échantillon non calculable."))
+      ns_seq <- unique(round(seq(20, n_haut, length.out = HSTAT_SV_COURBE_POINTS)))
       marg <- vapply(ns_seq, function(nn) hstat_survey_margin(
         nn, input$svConf %||% 0.95, input$svP %||% 0.5, pop, obj, input$svSd),
         numeric(1))
