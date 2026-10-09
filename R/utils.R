@@ -13067,7 +13067,16 @@ hstat_epi_dlnm <- function(data, var_y, var_expo, var_offset = NULL,
   # et non sous le nom de la colonne : un intitule de fichier porte accents,
   # espaces et parentheses, que `as.formula` refuse -- et le contourner par des
   # accents graves casse l'appariement des coefficients de `crosspred`.
-  cbn <- paste0("cb", seq_along(cbs))
+  #
+  # LES NOMS ONT TOUS LA MEME LONGUEUR. `dlnm::crosspred()` retrouve les
+  # coefficients d'une surface par MOTIF sur son nom : avec `cb1` ... `cb10`,
+  # celui de `cb1` attrapait aussi ceux de `cb10`, et la prediction de
+  # l'exposition principale echouait des la DIXIEME exposition -- 9 marchaient,
+  # 10 rendaient « Prédiction impossible : réduisez le nombre de nœuds », un
+  # motif qui accusait un reglage sans rapport. Avec un zero de tete
+  # (`cb01` ... `cb10`), aucun nom n'est le prefixe d'un autre. Sous dix
+  # expositions la largeur vaut 1 : les noms restent `cb1`, `cb2`...
+  cbn <- sprintf("cb%0*d", nchar(length(cbs)), seq_along(cbs))
   env <- new.env(parent = parent.frame())
   for (k in seq_along(cbs)) assign(cbn[k], cbs[[k]], envir = env)
   #
@@ -15014,7 +15023,9 @@ hstat_epi_dlnm_fenetres <- function(res, fenetres = HSTAT_EPI_FENETRES,
   if (isTRUE(is.finite(suppressWarnings(as.numeric(conf)[1])))) cf <- as.numeric(conf)[1]
   zq <- stats::qnorm(1 - (1 - cf) / 2)
   nm <- names(stats::coef(res$model))
-  idx <- grep(paste0("^", res$cb_noms[[1]]), nm)
+  # `^nom` SUIVI DE `v`, comme le test de Wald : sans lui, `^cb1` prend aussi
+  # les coefficients d'une surface `cb10`.
+  idx <- grep(paste0("^", res$cb_noms[[1]], "v"), nm)
   if (!length(idx)) return(NULL)
   b <- stats::coef(res$model)[idx]
   V <- stats::vcov(res$model)[idx, idx, drop = FALSE]

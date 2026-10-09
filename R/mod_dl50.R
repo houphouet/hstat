@@ -2921,9 +2921,14 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
     axe_y +
     ggplot2::labs(title = if (nzchar(o$titre)) o$titre else NULL,
                   subtitle = if (nzchar(o$sous_titre)) o$sous_titre else NULL,
-                  caption = caption,
-                  colour = if (nzchar(o$legende_titre)) o$legende_titre else tr("Essai"),
-                  fill = if (nzchar(o$legende_titre)) o$legende_titre else tr("Essai")) +
+                  caption = caption) +
+    # Le titre de legende ne se pose que s'il y a une legende. Avec un seul
+    # essai, aucune couche ne porte `colour` ni `fill`, et ggplot2 >= 3.5.2
+    # annonce « Ignoring unknown labels » a CHAQUE rendu, dans la console du
+    # serveur partage -- la CI en affichait des dizaines par passe.
+    (if (multiple) ggplot2::labs(
+       colour = if (nzchar(o$legende_titre)) o$legende_titre else tr("Essai"),
+       fill = if (nzchar(o$legende_titre)) o$legende_titre else tr("Essai"))) +
     (viz_get_theme(o$theme, base_size = o$base_size)) +
     # L'HABILLAGE MODERNE SE POSE ENTRE LE THEME ET LES REGLAGES : il affine
     # le theme choisi, et tout ce que l'utilisateur regle ensuite -- tailles,

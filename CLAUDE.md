@@ -9671,3 +9671,74 @@ confiance sont des réglages propres.
   Wilcoxon apparié ou le test du signe, dans la note sous le tableau de détail.
 - **Un facteur à plus de deux modalités** renvoie à l'ANOVA à mesures répétées
   ou à Friedman.
+
+## Audit des tests sautés : un test sauté ne garde rien, il faut le faire tourner
+
+La suite locale annonçait **33 tests sautés**, tous pour la même raison : quatre
+paquets absents de ce conteneur — `dlnm` (26), `duckdb` (4), `agricolae` (2),
+`PMCMRplus` (1). La CI, elle, rend **0 sauté** : les quatre y sont nommés dans
+la liste d'installation. Les sauts sont donc propres à l'environnement, pas au
+dépôt. Mais ce n'est vrai que pour une CI qui a tourné : localement, ces 33
+tests ne prouvaient rien.
+
+Les quatre ont été installés depuis le miroir CRAN de GitHub (`dlnm` en 2.4.7,
+qui accepte R 4.3 ; `duckdb` compilé depuis les sources). **Les 33 tests
+tournent et passent.**
+
+### Un test qui passe ne prouve pas qu'il garde : neuf mutations
+
+Chaque règle gardée par les tests réactivés a été abîmée à dessein :
+
+| Mutation | Échecs |
+|---|---|
+| retard rapproché d'une colonne voisine au lieu d'être rendu absent | 1 |
+| retard lu par son rang de colonne | 1 |
+| test de Wald sur toutes les surfaces (`^cb`) | 2 |
+| référence hors étendue non ramenée | 4 |
+| demi-matrice PMCMRplus non symétrisée | 2 |
+| facteur de transfert négatif accepté | 3 |
+| fenêtre de retard amputée de son premier retard | 4 |
+| Games-Howell protégé par l'ANOVA de Fisher | 3 |
+| effets simples sans protection | 1 |
+
+**Neuf sur neuf attrapées.**
+
+### Ce que l'audit a trouvé : deux défauts réels
+
+**Un DLNM à dix expositions ou plus ne se calculait pas.** Les surfaces entrent
+dans la formule sous `cb1`, `cb2`… Or `dlnm::crosspred()` retrouve les
+coefficients d'une surface **par motif sur son nom** : celui de `cb1` attrapait
+aussi `cb10`. Mesuré : neuf expositions passent, la dixième rend « Prédiction
+impossible : réduisez le nombre de nœuds ou le décalage » — un motif qui accuse
+un réglage sans rapport. Rien ne plafonne le nombre d'expositions, et un fichier
+climatique en porte facilement dix.
+
+Les noms ont désormais tous la **même longueur** (`cb01` … `cb10`) : aucun n'est
+le préfixe d'un autre. Sous dix expositions la largeur vaut 1, et les noms ne
+changent pas. Les fenêtres de retard filtraient elles aussi par `^cb1` sans le
+`v` final, que le test de Wald exige déjà ; elles le portent aussi. C'est un
+**mutant équivalent** une fois les noms calés, et documenté comme tel : aucun
+test ne le fige.
+
+**Une boîte ou un violon sur un axe de dates traçait UNE seule boîte.** Une boîte
+groupe par la valeur discrète de x, et une date n'en a pas : quatre dates de
+trois mesures donnaient une boîte mêlant les quatre. ggplot2 avertissait « did
+you forget `aes(group = ...)` » — c'est la CI qui l'affichait, à chaque passe,
+sans que rien n'échoue. Une date est désormais groupée, avec la couleur en
+interaction quand il y en a une (sans quoi deux lots d'une même date se
+fondraient). Un X numérique n'est groupé qu'en deçà de
+`HSTAT_VIZ_GROUPES_X_MAX` (50) valeurs distinctes : au-delà, chaque valeur
+donnerait une boîte d'une observation.
+
+### Et un bruit de console
+
+Avec un seul essai, la figure DL50 posait un titre de légende `colour` et `fill`
+qu'aucune couche n'utilise : ggplot2 ≥ 3.5.2 annonce « Ignoring unknown labels »
+à **chaque** rendu, dans la console du serveur partagé. La CI en affichait des
+dizaines par passe. Le titre ne se pose plus que s'il y a une légende.
+
+### Leçon de méthode
+
+Lire la sortie d'une CI verte n'est pas une formalité. Les deux défauts de la
+figure étaient écrits en toutes lettres dans les avertissements d'une passe
+réussie — et un avertissement répété à chaque passe finit par ne plus se lire.
