@@ -749,6 +749,71 @@ hstat_plotly_clean <- function(p) {
   if (!is.null(b$dependencies))
     b$dependencies <- Filter(function(d) !identical(d$name, "typedarray"),
                              b$dependencies)
+  tryCatch(.hstat_plotly_alleger(b), error = function(e) b)
+}
+
+# -- Un nuage interactif ne porte pas un million de points --------------------
+# La conversion et l'envoi sont LINEAIRES en nombre de points. Mesure :
+# 20 000 points -> 0,55 s et 1,6 Mo de JSON ; 100 000 -> 2,1 s et 8,1 Mo. Un
+# fichier d'un million de lignes demandait donc une vingtaine de secondes du
+# processus partage, puis 80 Mo que le navigateur ne sait plus afficher.
+#
+# Seules les traces de POINTS (`mode` sans « lines ») sont allegees, et par un
+# pas regulier, donc reproductible. Une boite a moustaches calcule ses
+# quartiles dans le navigateur a partir de toutes les valeurs : l'alleger
+# changerait les quartiles affiches. Une courbe relie ses points dans l'ordre :
+# l'alleger changerait sa forme. Ni l'une ni l'autre n'est touchee.
+#
+# L'allegement se DIT sur la figure : une figure a laquelle il manque des
+# points, sans rien qui le signale, se lit comme un jeu plus petit. Les calculs
+# et l'export d'image portent toujours sur toutes les observations.
+HSTAT_PLOTLY_POINTS_MAX <- 20000L
+
+.hstat_plotly_trace_points <- function(tr) {
+  ty <- tr$type %||% "scatter"
+  if (!ty %in% c("scatter", "scattergl")) return(FALSE)
+  mo <- tr$mode %||% "markers"
+  grepl("markers", mo, fixed = TRUE) && !grepl("lines", mo, fixed = TRUE)
+}
+
+.hstat_plotly_sous <- function(v, idx, n) {
+  if (is.atomic(v) && length(v) == n) return(v[idx])
+  if (is.list(v) && !is.data.frame(v) && length(v) == n &&
+      is.null(names(v))) return(v[idx])
+  if (is.list(v) && !is.null(names(v)))
+    for (k in names(v)) if (!is.null(v[[k]]))
+      v[[k]] <- .hstat_plotly_sous(v[[k]], idx, n)
+  v
+}
+
+.hstat_plotly_alleger <- function(b, max_points = HSTAT_PLOTLY_POINTS_MAX) {
+  tr <- b$x$data
+  if (!length(tr)) return(b)
+  pts <- vapply(tr, .hstat_plotly_trace_points, logical(1))
+  n <- vapply(tr, function(t) length(t$x %||% t$y), numeric(1))
+  total <- sum(n[pts])
+  if (!any(pts) || total <= max_points) return(b)
+  # Chaque trace garde sa part : un groupe rare ne doit pas disparaitre au
+  # profit d'un groupe abondant. Une trace garde au moins un point.
+  garde <- 0
+  for (i in which(pts)) {
+    cible <- max(1L, floor(n[i] * max_points / total))
+    if (n[i] <= cible) { garde <- garde + n[i]; next }
+    idx <- unique(round(seq(1, n[i], length.out = cible)))
+    nom <- names(tr[[i]])
+    for (k in nom) if (!k %in% c("type", "mode", "name", "legendgroup",
+                                 "showlegend", "xaxis", "yaxis"))
+      tr[[i]][[k]] <- .hstat_plotly_sous(tr[[i]][[k]], idx, n[i])
+    garde <- garde + length(idx)
+  }
+  b$x$data <- tr
+  note <- trf("Affichage interactif allégé : %s points sur %s. Les calculs et l'export d'image portent sur toutes les observations.",
+              format(garde, big.mark = " "), format(total, big.mark = " "))
+  b$x$layout$annotations <- c(b$x$layout$annotations, list(list(
+    text = hstat_html_escape(note), showarrow = FALSE, xref = "paper",
+    yref = "paper", x = 0, y = 1, xanchor = "left", yanchor = "bottom",
+    font = list(size = 11, color = "#7f8c8d"))))
+  attr(b, "hstat_allege") <- c(garde = garde, total = total)
   b
 }
 
@@ -5583,6 +5648,56 @@ hstat_lire_rds <- function(path, version = getRversion()) {
   readRDS(path)
 }
 
+# -- Lire un classeur Excel venu de l'exterieur -------------------------------
+# UN .xlsx EST UNE ARCHIVE ZIP, ET SA TAILLE SUR DISQUE NE DIT RIEN DE CE QU'IL
+# COUTE A LIRE. readxl decompresse la feuille entiere avant de l'analyser.
+# Mesure : une feuille de 387 Ko sur disque en fait 93 Mo une fois
+# decompressee (rapport 241) et demande 13 s de lecture -- soit plusieurs
+# minutes pour un envoi de quelques Mo, et autant de Go de memoire, dans le
+# processus qui sert TOUTES les sessions. Le plafond d'envoi (100 Go, pour le
+# chemin hors-memoire des CSV) ne protege rien ici.
+#
+# On lit donc la table des matieres de l'archive -- quelques octets, sans rien
+# decompresser -- et l'on refuse avant readxl :
+#   * au-dela de HSTAT_EXCEL_DECOMP_MAX octets decompresses : un classeur de
+#     cette taille se lit mieux en CSV, que le mode hors-memoire sait traiter ;
+#   * au-dela d'un rapport HSTAT_EXCEL_RATIO_MAX entre taille decompressee et
+#     taille sur disque, des que la feuille depasse HSTAT_EXCEL_RATIO_SEUIL :
+#     c'est la signature d'une archive fabriquee pour cela. Un classeur reel
+#     se compresse d'un facteur 5 a 20.
+# Un .xls (binaire, pas une archive) n'a pas de decompression : il passe.
+HSTAT_EXCEL_DECOMP_MAX  <- 500e6
+HSTAT_EXCEL_RATIO_MAX   <- 100
+HSTAT_EXCEL_RATIO_SEUIL <- 50e6
+
+hstat_excel_controle <- function(path) {
+  taille <- suppressWarnings(file.size(path))
+  if (!isTRUE(is.finite(taille)) || taille <= 0) return(NULL)
+  sig <- tryCatch(readBin(path, "raw", 4L), error = function(e) raw(0))
+  if (!identical(sig, as.raw(c(0x50, 0x4b, 0x03, 0x04)))) return(NULL)
+  tdm <- tryCatch(utils::unzip(path, list = TRUE), error = function(e) NULL)
+  if (is.null(tdm))
+    return(tr("Ce classeur Excel est illisible : l'archive qui le compose est endommagée."))
+  decomp <- sum(as.numeric(tdm$Length), na.rm = TRUE)
+  if (decomp > HSTAT_EXCEL_DECOMP_MAX)
+    return(trf("Ce classeur occuperait %s Mo une fois décompressé (plafond : %s Mo) : sa lecture figerait l'application pour tous ses utilisateurs. Enregistrez-le en CSV, que l'application lit sans le charger entièrement.",
+               format(round(decomp / 1e6), big.mark = " "),
+               format(round(HSTAT_EXCEL_DECOMP_MAX / 1e6), big.mark = " ")))
+  if (decomp > HSTAT_EXCEL_RATIO_SEUIL && decomp / taille > HSTAT_EXCEL_RATIO_MAX)
+    return(trf("Ce classeur se décompresse d'un facteur %s (un classeur ordinaire : 5 à 20) : il n'est pas lu. Enregistrez vos données en CSV.",
+               format(round(decomp / taille))))
+  NULL
+}
+
+# La SEULE porte vers readxl::read_excel() pour un fichier venu de l'exterieur.
+# Rend un data.frame ; un refus leve `hstat_refus`, que `hstat_err_fr()` rend
+# tel quel.
+hstat_lire_excel <- function(path, sheet = 1, ...) {
+  motif <- hstat_excel_controle(path)
+  if (!is.null(motif)) stop(hstat_refus(motif))
+  as.data.frame(readxl::read_excel(path, sheet = sheet, ...))
+}
+
 # -- Un refus de l'application, distinct d'une erreur de R --------------------
 # `stop(hstat_refus(msg))` : le message est deja redige et traduit, et
 # `hstat_err_fr()` le rend tel quel au lieu de l'annoncer comme non traduit.
@@ -7896,7 +8011,7 @@ hstat_read_any_mem <- function(path, sep = ",", name = NULL) {
       s <- if (ext == "tsv") "\t" else sep
       hstat_read_csv_mem(path, header = TRUE, sep = s)
     } else if (ext %in% c("xlsx", "xls")) {
-      as.data.frame(readxl::read_excel(path, sheet = 1))
+      hstat_lire_excel(path, sheet = 1)
     } else if (ext == "rds") {
       as.data.frame(hstat_lire_rds(path))
     } else if (ext == "sav") {
@@ -7957,10 +8072,16 @@ hstat_excel_read_sheets <- function(path, sheets = NULL) {
   if (!length(choisies))
     return(list(frames = list(), names = character(0), ignorees = character(0),
                 msg = "Aucune des feuilles demandées n'existe dans ce classeur."))
+  # Le controle de decompression porte sur l'ARCHIVE, pas sur une feuille : il
+  # se fait une fois, avant la boucle. Dans la boucle, le refus serait range
+  # parmi les feuilles « ignorees » sans que son motif soit lu.
+  motif <- hstat_excel_controle(path)
+  if (!is.null(motif))
+    return(list(frames = list(), names = character(0), ignorees = character(0),
+                msg = motif))
   frames <- list(); noms <- character(0); ignorees <- character(0)
   for (s in choisies) {
-    d <- tryCatch(as.data.frame(readxl::read_excel(path, sheet = s),
-                                stringsAsFactors = FALSE),
+    d <- tryCatch(hstat_lire_excel(path, sheet = s),
                   error = function(e) NULL)
     if (is.null(d) || !nrow(d) || !ncol(d)) { ignorees <- c(ignorees, s); next }
     frames[[length(frames) + 1L]] <- d
@@ -8335,7 +8456,7 @@ hstat_load_data <- function(path, kind, header = TRUE, sep = ",",
 
   # --- Formats toujours charges en memoire ---------------------------------
   if (kind == "excel") {
-    df <- as.data.frame(readxl::read_excel(path = path, sheet = sheet %||% 1))
+    df <- hstat_lire_excel(path, sheet = sheet %||% 1)
   } else if (kind == "sav") {
     df <- as.data.frame(haven::read_sav(path))
   } else if (kind == "dta") {

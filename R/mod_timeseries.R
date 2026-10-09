@@ -275,10 +275,15 @@ mod_timeseries_server <- function(id, values) {
         arima  = { m <- forecast::auto.arima(train)
                    as_fc(forecast::forecast(m, h = h), stats::AIC(m)) },
         sarima = { m <- forecast::Arima(train,
-                     order    = c(hstat_finite(input$sar_p, 1), hstat_finite(input$sar_d, 1),
-                                  hstat_finite(input$sar_q, 1)),
-                     seasonal = c(hstat_finite(input$sar_P, 0), hstat_finite(input$sar_D, 0),
-                                  hstat_finite(input$sar_Q, 0)))
+                     # Les ordres reprennent les bornes de leurs champs : un
+                     # ordre forge a plusieurs centaines fait optimiser autant
+                     # de parametres, et fige le processus partage.
+                     order    = c(hstat_borne_client(input$sar_p, 1, 0, 5),
+                                  hstat_borne_client(input$sar_d, 1, 0, 2),
+                                  hstat_borne_client(input$sar_q, 1, 0, 5)),
+                     seasonal = c(hstat_borne_client(input$sar_P, 0, 0, 2),
+                                  hstat_borne_client(input$sar_D, 0, 0, 1),
+                                  hstat_borne_client(input$sar_Q, 0, 0, 2)))
                    as_fc(forecast::forecast(m, h = h), stats::AIC(m)) },
         tbats  = { m <- forecast::tbats(train)
                    as_fc(forecast::forecast(m, h = h), m$AIC %||% NA_real_) },
@@ -683,7 +688,7 @@ mod_timeseries_server <- function(id, values) {
         } else if (!is.null(input$simFile$datapath)) {
           nd <- tryCatch({
             if (grepl("\\.xlsx$", input$simFile$name, ignore.case = TRUE))
-              as.data.frame(readxl::read_excel(input$simFile$datapath))
+              hstat_lire_excel(input$simFile$datapath)
             else utils::read.csv(input$simFile$datapath, check.names = FALSE)
           }, error = function(e) NULL)
           shiny::validate(shiny::need(!is.null(nd), "Fichier importé illisible."),
@@ -716,7 +721,7 @@ mod_timeseries_server <- function(id, values) {
       } else if (!is.null(input$simFile$datapath)) {
         nd <- tryCatch({
           if (grepl("\\.xlsx$", input$simFile$name, ignore.case = TRUE))
-            as.data.frame(readxl::read_excel(input$simFile$datapath))
+            hstat_lire_excel(input$simFile$datapath)
           else utils::read.csv(input$simFile$datapath, check.names = FALSE)
         }, error = function(e) NULL)
         shiny::validate(shiny::need(!is.null(nd), "Fichier importé illisible."),

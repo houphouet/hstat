@@ -9512,3 +9512,107 @@ signature PNG, et les dimensions d'en-tête d'une figure ordinaire, inchangées.
   et JavaScript — et se rencontre donc : ce n'est pas le défaut de namespace
   déjà documenté.
 - **Les deux `shinyjs::runjs`** n'interpolent qu'un entier et une chaîne base64.
+
+## Audit 1.15.2 : les vingt-deux onglets, ouverts, cliqués, attaqués
+
+Mené en **mesurant**, comme les précédents. Trois passes, sur toute
+l'application et sans exception de module :
+
+| Passe | Résultat |
+|---|---|
+| suite testthat | 736 tests avant, 0 échec, 33 sautés (paquets optionnels absents) |
+| les 22 onglets ouverts au navigateur, jeu normal puis hostile | 0 sortie en erreur, 0 exception de page, 0 balise injectée, 0 `alert()` |
+| chaque bouton d'action visible cliqué, onglet par onglet | 92 boutons, **aucune session tombée**, seuls les refus attendus |
+
+La seule erreur de console reste `$x.noUiSlider is not a function`, l'empaquetage
+Debian de DT déjà documenté.
+
+### Un plafond d'interface ne protège rien : cinq qui manquaient
+
+La règle est écrite depuis l'audit précédent (`hstat_borne_client()`). Un
+balayage de **tous** les champs dotés d'un `max =` contre leurs lectures serveur
+en a trouvé cinq dont le coût dépend de la valeur :
+
+| Champ | Ce qu'une valeur forgée coûtait |
+|---|---|
+| `mv_kmeans_nstart` | k-means est **linéaire** en `nstart` : 1,2 s pour 100, 10,5 s pour 1 000 — des heures pour 10⁶ |
+| `sar_p` … `sar_Q` (SARIMA) | autant de paramètres à optimiser que l'ordre demandé |
+| `ai_maxdoc`, `ai_ncodes` | le corpus **entier** envoyé chez un tiers payant ; un champ vidé faisait lever `if (NA)` |
+| `descPlotWidth`, `descPlotHeight` | une image d'un million de pixels de côté |
+
+Le test qui confronte chaque `hstat_borne_client()` au `min`/`max` de son champ
+couvre les cinq sans une ligne de plus : il lit l'arbre.
+
+### Une grille de courbe a une TAILLE fixe, jamais un PAS fixe
+
+La courbe « marge d'erreur en fonction de n » de l'onglet enquête traçait
+`seq(20, 1,5 × n_final, by = 5)`. L'effectif dépend de champs **sans plafond** —
+effet de plan, écart-type — et un effet de plan de 10⁶ donnait n_final ≈ 4,8 ×
+10⁸, donc ~10⁸ points et autant d'appels à la marge. La grille compte désormais
+`HSTAT_SV_COURBE_POINTS` (400) points ; la forme de la courbe ne change pas.
+
+Au passage, `hstat_survey_size()` refuse une marge nulle, vide ou négative et un
+effet de plan inférieur à 1 : une marge nulle rendait un effectif **infini**, et
+un champ vidé « NA personnes à enquêter ».
+
+### Un `.xlsx` est une archive, et sa taille sur disque ne dit rien
+
+readxl décompresse la feuille entière avant de l'analyser. Mesuré : une feuille
+de **387 Ko** sur disque en fait **93 Mo** décompressée (rapport 241) et demande
+**13 s** — quelques Mo envoyés figent donc le processus partagé plusieurs
+minutes. Le plafond d'envoi de 100 Go, posé pour le chemin hors-mémoire des CSV,
+ne protège rien ici.
+
+`hstat_lire_excel()` est la **seule porte** vers `readxl::read_excel()` (un test
+barre tout autre appel ; il y en avait sept). `hstat_excel_controle()` lit la
+table des matières de l'archive — sans rien décompresser — et refuse au-delà de
+`HSTAT_EXCEL_DECOMP_MAX` (500 Mo) ou d'un rapport `HSTAT_EXCEL_RATIO_MAX` (100)
+dès que la feuille dépasse 50 Mo. Un classeur réel se compresse d'un facteur 5 à
+20 ; un `.xls`, binaire, n'est pas une archive et passe.
+
+La lecture **par feuilles** contrôle l'archive **avant** sa boucle : dans la
+boucle, le refus aurait été rangé parmi les feuilles « ignorées », son motif
+jamais lu.
+
+### Un nuage interactif est allégé, et l'allègement se dit
+
+La conversion plotly et l'envoi sont linéaires en nombre de points : 100 000
+points font 2,1 s et **8,1 Mo** de JSON. `.hstat_plotly_alleger()`, posé dans
+`hstat_plotly_clean()` — donc sous **chaque** `renderPlotly` —, ramène les
+traces de **points** à `HSTAT_PLOTLY_POINTS_MAX` (20 000) par un pas régulier,
+chaque groupe gardant sa part (un groupe rare ne disparaît pas). Mesuré :
+8,1 Mo → **1,8 Mo**.
+
+Deux types de traces ne sont **jamais** touchés : la boîte à moustaches, qui
+calcule ses quartiles dans le navigateur sur **toutes** les valeurs, et la
+courbe, dont l'allègement changerait la forme. Une annotation sur la figure dit
+combien de points sont montrés : une figure à laquelle il manque des points sans
+rien qui le dise se lit comme un jeu plus petit.
+
+### L'atelier de codage relisait un message du navigateur sans le borner
+
+Le dépôt d'un code portait `start`, `end` et `code` venus du navigateur. Un
+vecteur faisait lever `if()` — donc fermer la session —, et des bornes hors du
+texte s'enregistraient telles quelles (début à −10⁹), faussant la ligne de
+codage et l'export. Le code doit être **un** identifiant connu, les bornes sont
+ramenées dans `[0 ; nchar(texte)]`. Le curseur de document passe par
+`hstat_indice_client()`, comme les trois tableaux éditables.
+
+### Deux fautes de français, et leur clé avec elles
+
+« le résultat **à** 3 valeur(s) » (verbe avoir : **a**) et « « %s » applique à »
+(**appliqué**). La clé du dictionnaire est la phrase française : corrigée dans
+le code seul, la traduction anglaise aurait cessé de s'appliquer en silence.
+
+### Ce que l'audit a écarté, et pourquoi
+
+- **La largeur rendue par `clientData`** est forgeable elle aussi, mais c'est le
+  mécanisme de **tout** `renderPlot` de Shiny, pas une particularité de HStat.
+- **Une clé d'API posée dans l'environnement du serveur** sert à tout visiteur
+  qui choisit le fournisseur sans saisir de clé : c'est le mode d'exploitation
+  prévu, et l'adresse ne peut plus la détourner (audit précédent). Un
+  exploitant qui ne veut pas payer pour ses visiteurs ne pose pas la variable.
+- **`eval()`** : six sites, tous sur du code de l'application (mappages ggplot,
+  `Authors@R`, `crosspred`), aucun sur une saisie hors du bac à sable.
+- **Les modèles ML, DL et le clustering** sont déjà plafonnés
+  (`HSTAT_DIST_MAX_N`, `HSTAT_ML_MAX_N`, époques et arbres bornés).

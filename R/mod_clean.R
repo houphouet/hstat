@@ -1375,9 +1375,9 @@ mod_clean_server <- function(id, values) {
             shiny::icon("exclamation-triangle"),
             # LES ENFANTS TEXTE ADJACENTS NE FONT QU'UN SEUL NOEUD. Les
             # morceaux et les valeurs se retrouvent fondus dans la meme chaine
-            # (« Formule incorrecte : le résultat à 3 valeur(s) au lieu de 10. »)
+            # (« Formule incorrecte : le résultat a 3 valeur(s) au lieu de 10. »)
             # qu'aucune cle ne peut couvrir : seul un gabarit le peut.
-            trf(" Formule incorrecte : le résultat à %s valeur(s) au lieu de %s. ",
+            trf(" Formule incorrecte : le résultat a %s valeur(s) au lieu de %s. ",
                 length(new_col), nrow(values$cleanData)),
             shiny::tags$br(),
             shiny::tags$small("Astuce : utilisez rowMeans(cbind(Var1, Var2)) pour la moyenne ligne par ligne.")

@@ -6752,7 +6752,11 @@ server <- function(input, output, session) {
           return(list(ok = FALSE, error = "Données non exploitables après standardisation."))
         hstat_set_seed(input$globalSeed)
         Xc <- mv_subsample(as.data.frame(Xs), 8000)
-        km <- stats::kmeans(Xc, centers = k, nstart = input$mv_kmeans_nstart %||% 25, iter.max = 50)
+        # Le cout de kmeans est LINEAIRE en nstart (mesure : 1,2 s pour 100,
+        # 10,5 s pour 1 000 sur 5 000 x 5) : le plafond du champ doit tenir cote
+        # serveur, sinon un nombre forge fige le processus partage des heures.
+        nstart <- hstat_borne_client(input$mv_kmeans_nstart, 25, 1, 100)
+        km <- stats::kmeans(Xc, centers = k, nstart = nstart, iter.max = 50)
         bss <- km$betweenss / km$totss
         sil <- NA
         if (mv_has("cluster") && nrow(Xc) <= 5000)
@@ -6801,7 +6805,7 @@ server <- function(input, output, session) {
           note = trf("k-means : %s clusters sur %s individus.", k, nrow(Xc)),
           summary = c("=== Classification k-means ===",
             trf("Variables : %s", paste(vars, collapse = ", ")),
-            paste0("k = ", k, " | nstart = ", input$mv_kmeans_nstart),
+            paste0("k = ", k, " | nstart = ", nstart),
             paste0("Inertie inter/totale = ", round(100*bss,2), " %"),
             "", "Centres :", paste(utils::capture.output(round(km$centers,3)), collapse="\n")),
           plotfn = function() {

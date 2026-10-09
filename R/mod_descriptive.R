@@ -837,7 +837,12 @@ mod_descriptive_server <- function(id, values) {
   
   output$descPlotOutput <- shiny::renderUI({
     shiny::req(input$descPlotWidth, input$descPlotHeight)
-    shiny::plotOutput(ns("descPlot"), width = paste0(input$descPlotWidth, "px"), height = paste0(input$descPlotHeight, "px"))
+    # Les bornes des curseurs tiennent cote serveur : le rendu suit la largeur
+    # declaree, et une valeur forgee a 10^6 px ferait tracer une image d'un
+    # million de pixels de cote dans le processus partage.
+    l <- hstat_borne_client(input$descPlotWidth, 900, 400, 2000)
+    h <- hstat_borne_client(input$descPlotHeight, 600, 400, 2000)
+    shiny::plotOutput(ns("descPlot"), width = paste0(l, "px"), height = paste0(h, "px"))
   })
   
   output$descPlot <- shiny::renderPlot({

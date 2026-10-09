@@ -575,7 +575,7 @@ mod_dl_server <- function(id, values) {
       f <- dlfit()
       nd0 <- tryCatch({
         if (grepl("\\.xlsx$", input$dlSimFile$name, ignore.case = TRUE))
-          as.data.frame(readxl::read_excel(input$dlSimFile$datapath))
+          hstat_lire_excel(input$dlSimFile$datapath)
         else utils::read.csv(input$dlSimFile$datapath, check.names = FALSE)
       }, error = function(e) NULL)
       shiny::validate(shiny::need(!is.null(nd0), "Fichier importé illisible."))
