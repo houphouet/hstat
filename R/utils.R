@@ -5670,7 +5670,9 @@ HSTAT_EXCEL_DECOMP_MAX  <- 500e6
 HSTAT_EXCEL_RATIO_MAX   <- 100
 HSTAT_EXCEL_RATIO_SEUIL <- 50e6
 
-hstat_excel_controle <- function(path) {
+hstat_excel_controle <- function(path, decomp_max = HSTAT_EXCEL_DECOMP_MAX,
+                                 ratio_max = HSTAT_EXCEL_RATIO_MAX,
+                                 ratio_seuil = HSTAT_EXCEL_RATIO_SEUIL) {
   taille <- suppressWarnings(file.size(path))
   if (!isTRUE(is.finite(taille)) || taille <= 0) return(NULL)
   sig <- tryCatch(readBin(path, "raw", 4L), error = function(e) raw(0))
@@ -5679,11 +5681,11 @@ hstat_excel_controle <- function(path) {
   if (is.null(tdm))
     return(tr("Ce classeur Excel est illisible : l'archive qui le compose est endommagée."))
   decomp <- sum(as.numeric(tdm$Length), na.rm = TRUE)
-  if (decomp > HSTAT_EXCEL_DECOMP_MAX)
+  if (decomp > decomp_max)
     return(trf("Ce classeur occuperait %s Mo une fois décompressé (plafond : %s Mo) : sa lecture figerait l'application pour tous ses utilisateurs. Enregistrez-le en CSV, que l'application lit sans le charger entièrement.",
                format(round(decomp / 1e6), big.mark = " "),
-               format(round(HSTAT_EXCEL_DECOMP_MAX / 1e6), big.mark = " ")))
-  if (decomp > HSTAT_EXCEL_RATIO_SEUIL && decomp / taille > HSTAT_EXCEL_RATIO_MAX)
+               format(round(decomp_max / 1e6), big.mark = " ")))
+  if (decomp > ratio_seuil && decomp / taille > ratio_max)
     return(trf("Ce classeur se décompresse d'un facteur %s (un classeur ordinaire : 5 à 20) : il n'est pas lu. Enregistrez vos données en CSV.",
                format(round(decomp / taille))))
   NULL

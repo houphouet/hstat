@@ -21595,13 +21595,13 @@ test_that("un classeur Excel qui se decompresse demesurement est refuse avant re
 })
 
 test_that("plafond de decompression : une archive trop grosse est refusee meme peu compressee", {
-  vieux <- HSTAT_EXCEL_DECOMP_MAX
-  on.exit(assign("HSTAT_EXCEL_DECOMP_MAX", vieux, envir = environment(hstat_excel_controle)), add = TRUE)
+  # Le seuil passe en ARGUMENT : dans le paquet installe, l'espace de noms est
+  # verrouille, et reassigner la constante y leve « locked binding ».
   skip_if(!nzchar(Sys.which("zip")), "zip absent")
-  assign("HSTAT_EXCEL_DECOMP_MAX", 1000, envir = environment(hstat_excel_controle))
   f <- tempfile(fileext = ".txt"); writeLines(as.character(stats::runif(500)), f)
   arch <- tempfile(fileext = ".xlsx"); utils::zip(arch, f, flags = "-j9q")
-  expect_match(hstat_excel_controle(arch), "Mo")
+  expect_match(hstat_excel_controle(arch, decomp_max = 1000), "Mo")
+  expect_null(hstat_excel_controle(arch))
 })
 
 test_that("aucune lecture Excel ne contourne la porte commune", {
