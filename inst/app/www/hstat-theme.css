@@ -195,6 +195,17 @@ h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(-
   box-shadow: none;
   transition: all .12s;
 }
+/* `.btn-default` passe AVANT les couleurs, et ce n'est pas de l'ordre de
+   lecture : `shiny::actionButton()` et `downloadButton()` ajoutent TOUJOURS
+   `btn-default` a la classe demandee. A specificite egale c'est la regle
+   posee en dernier qui gagne -- posee apres, elle repeignait en blanc tout
+   bouton declare `btn-success`, `btn-primary` ou `btn-warning` de
+   l'application. Mesure au navigateur : « Charger » et les boutons de test
+   sortaient rgb(255, 255, 255). */
+.btn-default {
+  background: var(--paper); color: var(--ink2); border: 1px solid var(--line2);
+}
+.btn-default:hover { background: var(--bg); color: var(--ink); }
 .btn-primary, .btn-info {
   background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
 }
@@ -204,10 +215,30 @@ h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(-
 .btn-success { background: var(--mixte); border-color: var(--mixte); color: #fff; }
 .btn-warning { background: var(--quali); border-color: var(--quali); color: #fff; }
 .btn-danger  { background: var(--danger); border-color: var(--danger); color: #fff; }
-.btn-default {
-  background: var(--paper); color: var(--ink2); border: 1px solid var(--line2);
+/* Meme piege au survol : `.btn-default:hover` (une classe et une pseudo-classe)
+   l'emporte sur `.btn-success` (une classe) -- un bouton vert blanchissait
+   sous la souris. Chaque couleur garde donc la sienne au survol. */
+.btn-success:hover, .btn-success:focus { background: var(--mixte); border-color: var(--mixte); color: #fff; filter: brightness(.9); }
+.btn-warning:hover, .btn-warning:focus { background: var(--quali); border-color: var(--quali); color: #fff; filter: brightness(.9); }
+.btn-danger:hover,  .btn-danger:focus  { background: var(--danger); border-color: var(--danger); color: #fff; filter: brightness(.9); }
+
+/* Charger et telecharger sont des gestes de FICHIER : une seule couleur, le
+   vert, sur toute l'application. Posee ici et non sur chaque bouton : 98
+   `downloadButton()` portent chacun leur classe (btn-info, btn-primary...), et
+   une couleur recopiee 98 fois finit par diverger. `.btn.shiny-download-link`
+   l'emporte sur `.btn-info` par sa specificite, sans `!important`. Le
+   « Parcourir » des `fileInput` (.btn-file) et les exports CSV / Excel des
+   tableaux DT suivent la meme regle ; « Copier » non, ce n'est pas un fichier. */
+.btn.shiny-download-link, .btn.btn-file,
+.dt-buttons .dt-button.buttons-csv, .dt-buttons .dt-button.buttons-excel {
+  background: var(--mixte); border-color: var(--mixte); color: #fff;
 }
-.btn-default:hover { background: var(--bg); color: var(--ink); }
+.btn.shiny-download-link:hover, .btn.shiny-download-link:focus,
+.btn.btn-file:hover, .btn.btn-file:focus,
+.dt-buttons .dt-button.buttons-csv:hover, .dt-buttons .dt-button.buttons-excel:hover {
+  background: var(--mixte); border-color: var(--mixte); color: #fff;
+  filter: brightness(.9);
+}
 
 /* ===================== CHAMPS DE FORMULAIRE ===================== */
 .form-control, .selectize-input, .selectize-dropdown {

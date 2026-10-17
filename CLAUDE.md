@@ -9770,3 +9770,53 @@ du serveur — la règle du dépôt :
 
 Trois mutations (moyenne retirée, garde d'équilibre retirée, sujets incomplets
 gardés) sont toutes attrapées.
+
+## La couleur d'un bouton dit sa famille
+
+Demandé à l'écran :
+
+| Famille | Couleur | Où c'est posé |
+|---|---|---|
+| tests paramétriques | vert (`btn-success`) | `mod_tests.R`, colonne « Tests paramétriques » |
+| tests non paramétriques | bleu (`btn-primary`), titre compris | `mod_tests.R`, colonne « Tests non-paramétriques » |
+| charger, télécharger | vert (`--mixte`) | **la feuille de style**, pas les boutons |
+
+Les quatre-vingt-dix-huit `downloadButton()` portent chacun leur classe
+(`btn-info`, `btn-primary`…) : une couleur recopiée sur chacun finirait par
+diverger, et c'est le bouton oublié qui ment. La règle vise donc
+`.btn.shiny-download-link`, dont la spécificité l'emporte sur `.btn-info` sans
+`!important`, plus le « Parcourir » des `fileInput` (`.btn-file`) et les exports
+CSV / Excel des tableaux DT. « Copier » n'est pas un fichier et garde sa couleur.
+
+### `actionButton()` ajoute toujours `btn-default`, et c'est lui qui gagnait
+
+La mesure au navigateur l'a montré avant toute modification de couleur :
+« Charger » et **tous** les boutons de test sortaient **blancs**
+(`rgb(255, 255, 255)`), alors que le code les déclarait `btn-success` depuis
+toujours. `shiny::actionButton()` et `downloadButton()` ajoutent `btn-default`
+à la classe demandée ; dans `hstat-theme.css`, la règle `.btn-default` venait
+**après** les règles de couleur, à spécificité égale — elle l'emportait. Les
+couleurs voulues par le code ne s'affichaient nulle part dans l'application.
+
+`.btn-default` est donc posée **avant** les couleurs, et chaque couleur porte
+son survol : `.btn-default:hover` (une classe et une pseudo-classe) battait
+`.btn-success` (une classe), et un bouton vert blanchissait sous la souris. Le
+test vérifie l'**ordre** des règles — c'est la cause, pas la couleur, qu'il faut
+garder.
+
+Le chi² d'adéquation et la comparaison à une norme gardent leur couleur de
+section : ce sont des familles à part, et le chi² d'adéquation n'est pas un test
+paramétrique au sens où l'est le t.
+
+Le test lit l'**interface rendue** et la **règle entière** (sélecteurs *et*
+couleur) : une règle qui viserait les bons sélecteurs avec une autre couleur
+passerait une assertion qui ne lirait que les sélecteurs.
+
+## Le bloc de combinaison des feuilles s'ouvre à la demande
+
+Il était déplié d'office (`open = NA`), au motif qu'une ligne repliée passait
+inaperçue. Demandé à l'écran : c'est à l'utilisateur de l'ouvrir. Déplié, il
+poussait hors de l'écran le bouton « Charger » pour qui voulait seulement lire
+une feuille. Le titre du bloc dit le nombre de feuilles, ce qui suffit à le
+signaler. Le test exige l'absence de **tout** argument `open` — même `NA`, le
+navigateur le lit comme « ouvert ».

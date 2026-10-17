@@ -192,18 +192,18 @@ mod_tests_ui <- function(id) {
                                                 style = "background:#1976D2; color:#fff; border-color:#1565C0;"))
                         ),
                         shiny::column(4,
-                               shiny::h4("Tests non-paramétriques", style = "color: #f39c12;"),
+                               shiny::h4("Tests non-paramétriques", style = "color: #2f6bd4;"),
                                shiny::div(style="display:flex; flex-direction:column; gap:8px;",
-                                   shiny::actionButton(ns("testWilcox"),          "Test de Wilcoxon",          class = "btn-warning btn-block", icon = shiny::icon("check")),
-                                   shiny::actionButton(ns("testWilcoxPaired"),    "Wilcoxon apparié (rangs signés)", class = "btn-warning btn-block", icon = shiny::icon("link")),
-                                   shiny::actionButton(ns("testSignPaired"),      "Test du signe apparié",     class = "btn-warning btn-block", icon = shiny::icon("link")),
+                                   shiny::actionButton(ns("testWilcox"),          "Test de Wilcoxon",          class = "btn-primary btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testWilcoxPaired"),    "Wilcoxon apparié (rangs signés)", class = "btn-primary btn-block", icon = shiny::icon("link")),
+                                   shiny::actionButton(ns("testSignPaired"),      "Test du signe apparié",     class = "btn-primary btn-block", icon = shiny::icon("link")),
                                    shiny::div(style = "font-size:11px;color:#7f8c8d;margin:-2px 0 4px 0;",
                                        shiny::icon("circle-info"), " ",
                                        shiny::HTML(tr("Le « Test de Wilcoxon » ci-dessus compare deux groupes indépendants (Mann-Whitney). Deux mesures sur la même unité relèvent des tests appariés : Wilcoxon apparié si les différences sont symétriques, test du signe sinon."))),
-                                   shiny::actionButton(ns("testKruskal"),         "Test de Kruskal-Wallis",     class = "btn-warning btn-block", icon = shiny::icon("check")),
-                                   shiny::actionButton(ns("testScheirerRayHare"), "Test de Scheirer-Ray-Hare",  class = "btn-warning btn-block", icon = shiny::icon("check")),
-                                   shiny::actionButton(ns("testRMNonParam"), "Non paramétrique répété",  class = "btn-warning btn-block", icon = shiny::icon("repeat")),
-                                   shiny::actionButton(ns("testPERMANOVA"),       "PERMANOVA (>= 2 réponses)",  class = "btn-warning btn-block", icon = shiny::icon("layer-group"))
+                                   shiny::actionButton(ns("testKruskal"),         "Test de Kruskal-Wallis",     class = "btn-primary btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testScheirerRayHare"), "Test de Scheirer-Ray-Hare",  class = "btn-primary btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testRMNonParam"), "Non paramétrique répété",  class = "btn-primary btn-block", icon = shiny::icon("repeat")),
+                                   shiny::actionButton(ns("testPERMANOVA"),       "PERMANOVA (>= 2 réponses)",  class = "btn-primary btn-block", icon = shiny::icon("layer-group"))
                                ),
                                # Le Test Chi² / Multinomial a été déplacé dans
                                # « Analyses qualitatives » (famille Nominale) où
