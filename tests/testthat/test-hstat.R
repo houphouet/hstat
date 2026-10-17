@@ -21875,3 +21875,84 @@ test_that("le module rend une ligne de Friedman calculée, ou un motif", {
     expect_match(du$Interpretation, "équilibré")
   }
 })
+
+# ---------------------------------------------------------------------------
+# Couleurs des boutons : paramétrique vert, non paramétrique bleu, fichiers vert
+# ---------------------------------------------------------------------------
+# La mesure porte sur l'interface RENDUE : chercher la classe dans le source
+# passerait sur un bouton dont la classe serait reposée ailleurs.
+.hstat_classe_de <- function(html, id) {
+  m <- regmatches(html, regexpr(sprintf('<button[^>]*id="%s"[^>]*>', id), html))
+  if (!length(m)) return(NA_character_)
+  sub('.*class="([^"]*)".*', "\\1", m)
+}
+
+test_that("les tests paramétriques sont verts, les non paramétriques bleus", {
+  suppressMessages(hstat_installer_replis_ui())
+  html <- as.character(htmltools::renderTags(mod_tests_ui("tests"))$html)
+  param <- c("testT", "testTStudent", "testTPaired", "testANOVA", "testANOVAWelch",
+             "testMANOVA", "testLM", "testGLM", "testLMM", "testGLMM", "testRMAnova")
+  nonparam <- c("testWilcox", "testWilcoxPaired", "testSignPaired", "testKruskal",
+                "testScheirerRayHare", "testRMNonParam", "testPERMANOVA")
+  for (id in param) {
+    cl <- .hstat_classe_de(html, paste0("tests-", id))
+    expect_true(grepl("btn-success", cl, fixed = TRUE), info = id)
+  }
+  for (id in nonparam) {
+    cl <- .hstat_classe_de(html, paste0("tests-", id))
+    expect_true(grepl("btn-primary", cl, fixed = TRUE), info = id)
+    expect_false(grepl("btn-warning", cl, fixed = TRUE), info = id)
+  }
+})
+
+test_that("charger et télécharger sont verts dans toute l'application", {
+  racine <- .hstat_repo_root()
+  css <- paste(readLines(file.path(racine, "inst/app/www/hstat-theme.css"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  # La règle doit viser le lien de téléchargement ET le « Parcourir », et
+  # poser le vert : une règle qui viserait les bons sélecteurs avec une autre
+  # couleur passerait une assertion qui ne lirait que les sélecteurs.
+  regle <- regmatches(css, regexpr("\\.btn\\.shiny-download-link, \\.btn\\.btn-file,[^{]*\\{[^}]*\\}", css))
+  expect_length(regle, 1L)
+  expect_match(regle, "background: var(--mixte)", fixed = TRUE)
+  expect_match(regle, "buttons-csv", fixed = TRUE)
+  # `actionButton()` ajoute TOUJOURS `btn-default` : à spécificité égale, la
+  # règle posée en dernier gagne, et `.btn-default` posée après les couleurs
+  # repeignait en blanc tous les boutons colorés de l'application.
+  pos <- function(sel) regexpr(sel, css, fixed = TRUE)[1]
+  expect_true(pos(".btn-default {") > 0)
+  for (sel in c(".btn-success {", ".btn-primary, .btn-info {", ".btn-warning {"))
+    expect_lt(pos(".btn-default {"), pos(sel), label = sel)
+  expect_match(css, ".btn-success:hover", fixed = TRUE)
+  ux <- paste(readLines(file.path(racine, "inst/app/UX.R"), warn = FALSE,
+                        encoding = "UTF-8"), collapse = "\n")
+  expect_match(ux, 'actionButton("loadData", "Charger", class = "btn-success"', fixed = TRUE)
+})
+
+test_that("le bloc de combinaison des feuilles s'ouvre à la demande", {
+  racine <- .hstat_repo_root()
+  ex <- parse(file.path(racine, "inst/app/app_server.R"), keep.source = FALSE)
+  # On cherche l'appel `tags$details(...)` qui porte le choix des feuilles, et
+  # on exige qu'il n'ait pas d'argument `open` : présent, même à NA, le
+  # navigateur déplie le bloc d'office.
+  trouve <- list()
+  marche <- function(e) {
+    if (is.call(e)) {
+      f <- e[[1]]
+      if (is.call(f) && identical(as.character(f)[1], "$") &&
+          identical(as.character(f[[3]]), "details") &&
+          any(grepl("sheetPick", deparse(e), fixed = TRUE)))
+        trouve[[length(trouve) + 1L]] <<- e
+      # Un argument vide (`x[, 1]`) est le symbole manquant : le passer à une
+      # fonction lève « argument manquant ». On le saute par son indice.
+      a <- as.list(e)[-1]
+      for (i in seq_along(a)) if (!identical(a[[i]], quote(expr = ))) marche(a[[i]])
+    } else if (is.expression(e)) for (k in e) marche(k)
+    # Les arguments formels d'une fonction (`function(x, y)`) forment une
+    # liste de paires dont les valeurs par défaut sont vides : on ne les
+    # parcourt pas, ce sont des déclarations et non des appels.
+  }
+  marche(ex)
+  expect_length(trouve, 1L)
+  expect_false("open" %in% names(as.list(trouve[[1]])))
+})

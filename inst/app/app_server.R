@@ -205,12 +205,12 @@ server <- function(input, output, session) {
     if (!length(sheets)) return(NULL)
     shiny::tagList(
       shiny::selectInput("sheet", "Feuille Excel :", choices = sheets, selected = sheets[1]),
-      # `open = NA` : le bloc est DEPLIE d'emblee. Replie, il se resumait a une
-      # ligne que l'utilisateur ne remarquait pas — la fonctionnalite existait
-      # sans que personne ne la voie. Il ne s'affiche que lorsqu'il sert, c'est
-      # a dire quand le classeur compte plus d'une feuille.
+      # Le bloc est REPLIE : c'est l'utilisateur qui l'ouvre s'il veut combiner
+      # ses feuilles. Deplie d'office, il poussait hors de l'ecran le bouton
+      # « Charger » pour qui voulait seulement lire une feuille. Il ne
+      # s'affiche que lorsqu'il sert, c'est-a-dire quand le classeur compte plus
+      # d'une feuille, et son titre dit combien.
       if (length(sheets) > 1) shiny::tags$details(
-        open = NA,
         style = "margin:4px 0 10px; padding:10px 14px; background:#eef7fb; border:1px solid #b6e0ef; border-radius:8px;",
         shiny::tags$summary(style = "cursor:pointer; font-weight:700; color:#1b6f8c; font-size:14px;",
           shiny::icon("layer-group"),

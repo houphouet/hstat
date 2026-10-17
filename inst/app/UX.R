@@ -568,7 +568,7 @@ ui <- shinydashboard::dashboardPage(
                           "Au-delà du seuil, le fichier n'est pas chargé en RAM : DuckDB l'interroge sur disque ",
                           "et les analyses portent sur un échantillon représentatif de la taille indiquée."))
                     ),
-                    shiny::actionButton("loadData", "Charger", class = "btn-primary", icon = shiny::icon("upload")),
+                    shiny::actionButton("loadData", "Charger", class = "btn-success", icon = shiny::icon("upload")),
 
                     # --- Jeux de donnees integres a R --------------------------------
                     # VISIBLE, pas replie : un champ replie est un champ qu'on ne
