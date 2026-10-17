@@ -1501,6 +1501,8 @@ interpret_test_results <- function(test_type, p_value, test_object = NULL) {
          "t.test"           = trf("Le test t montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
          "wilcox.test"      = trf("Le test de Wilcoxon montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
          "anova"            = trf("L'ANOVA montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
+         "friedman"         = trf("Le test de Friedman montre une différence %s entre les périodes (p = %s)", significance, round(p_value, 8)),
+         "durbin"           = trf("Le test de Durbin montre une différence %s entre les périodes (p = %s)", significance, round(p_value, 8)),
          "kruskal.test"     = trf("Le test de Kruskal-Wallis montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
          "scheirerRayHare"  = trf("Le test de Scheirer-Ray-Hare montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
          "manova"           = trf("La MANOVA montre une différence multivariée %s entre les groupes (p = %s)", significance, round(p_value, 8)),
@@ -5528,6 +5530,104 @@ hstat_paires_longue <- function(y, groupe, sujet) {
   list(a = unname(moy[complets, 1]), b = unname(moy[complets, 2]),
        niveaux = niv, sujets = rownames(moy)[complets],
        ecartees = sum(!ok) , doublons = doublons, incomplets = incomplets)
+}
+
+# -- Mesures repetees non parametriques : Friedman et Durbin ------------------
+# `friedman.test()` exige un plan en blocs COMPLETS et NON REPLIQUES : une
+# observation par sujet et par periode, et chaque sujet mesure a chaque
+# periode. Un fichier d'essai le respecte rarement tel quel -- plusieurs
+# plantes par parcelle et par date, une date manquee pour un sujet. Le test
+# levait alors « not an unreplicated complete block design », l'erreur etait
+# avalee, et la ligne sortait VIDE (statistique et p-value absentes,
+# interpretation « — ») sans rien qui dise pourquoi.
+#
+# La preparation est donc faite ici, et elle se DIT :
+#   * plusieurs mesures d'un sujet a une meme periode sont ramenees a leur
+#     MOYENNE -- la seule valeur definie, la regle deja posee pour les tests
+#     apparies ;
+#   * Friedman : un sujet auquel manque une periode est ecarte et NOMME ;
+#   * Durbin est fait pour les blocs INCOMPLETS : le sujet est garde des qu'il
+#     porte deux periodes, seul un sujet mesure une seule fois est ecarte.
+hstat_rm_blocs <- function(y, groupe, sujet, complets = TRUE) {
+  y <- suppressWarnings(as.numeric(y))
+  g <- if (is.factor(groupe)) droplevels(groupe) else factor(as.character(groupe))
+  s <- as.character(sujet)
+  ok <- is.finite(y) & !is.na(g) & !is.na(s) & nzchar(s)
+  y <- y[ok]; g <- droplevels(g[ok]); s <- s[ok]
+  niv <- levels(g)
+  if (length(niv) < 2L)
+    stop(hstat_refus(trf("Le facteur intra-sujet ne compte qu'une modalité (%s) : il faut au moins deux périodes à comparer.",
+                         paste(niv, collapse = ", "))))
+  nb <- table(paste(s, g, sep = "\r"))
+  doublons <- sum(nb > 1L)
+  moy <- tapply(y, list(s, g), mean)
+  presents <- rowSums(!is.na(moy))
+  garde <- if (complets) presents == length(niv) else presents >= 2L
+  ecartes <- rownames(moy)[!garde]
+  if (sum(garde) < 2L)
+    stop(hstat_refus(if (complets)
+      trf("Moins de deux sujets sont mesurés à toutes les périodes (%d sur %d) : Friedman ne peut pas être calculé. Vérifiez la colonne « Sujet », ou choisissez Durbin, fait pour les blocs incomplets.",
+          sum(garde), nrow(moy))
+    else trf("Moins de deux sujets sont mesurés à au moins deux périodes (%d sur %d) : Durbin ne peut pas être calculé. Vérifiez la colonne « Sujet ».",
+             sum(garde), nrow(moy))))
+  m <- moy[garde, , drop = FALSE]
+  # Durbin suppose un plan en blocs incomplets EQUILIBRE : meme nombre de
+  # periodes par sujet, meme nombre de sujets par periode. Hors de ce plan,
+  # `PMCMRplus::durbinTest()` ne leve pas -- il rend un khi-deux NEGATIF et
+  # p = 1 (mesure : -62 sur quatre sujets complets et un incomplet), donc
+  # « non significatif » sur un effet net. On refuse en nommant les tailles.
+  if (!complets) {
+    k <- rowSums(!is.na(m)); r <- colSums(!is.na(m))
+    if (length(unique(k)) > 1L || length(unique(r)) > 1L)
+      stop(hstat_refus(trf("Durbin exige un plan équilibré : chaque sujet mesuré au même nombre de périodes (ici %s) et chaque période au même nombre de sujets (ici %s). Choisissez Friedman, qui écarte les sujets incomplets, ou ART.",
+                           paste(sort(unique(k)), collapse = ", "),
+                           paste(sort(unique(r)), collapse = ", "))))
+  }
+  long <- data.frame(y = as.vector(m),
+                     groupe = factor(rep(colnames(m), each = nrow(m)), levels = niv),
+                     sujet = factor(rep(rownames(m), times = ncol(m))),
+                     stringsAsFactors = FALSE)
+  long <- long[!is.na(long$y), , drop = FALSE]
+  list(y = long$y, groupe = long$groupe, sujet = long$sujet,
+       niveaux = niv, n_sujets = sum(garde), doublons = doublons,
+       ecartes = ecartes, lignes_ecartees = sum(!ok))
+}
+
+# Les notes de preparation, en phrases entieres : `trf()` ne traduit pas ses
+# arguments, et un fragment au dictionnaire ne se traduirait nulle part.
+hstat_rm_blocs_notes <- function(b) {
+  n <- character(0)
+  if (b$doublons > 0L)
+    n <- c(n, trf("%d combinaison(s) sujet × période portaient plusieurs mesures : ramenées à leur moyenne.",
+                  b$doublons))
+  if (length(b$ecartes) > 0L)
+    n <- c(n, trf("%d sujet(s) écarté(s), faute de mesures aux périodes requises : %s.",
+                  length(b$ecartes), paste(utils::head(b$ecartes, 8), collapse = ", ")))
+  n
+}
+
+# Le test lui-meme ne leve jamais : un echec rend une ligne qui DIT pourquoi.
+hstat_rm_np <- function(y, groupe, sujet, methode = c("friedman", "durbin")) {
+  methode <- match.arg(methode)
+  nom <- if (methode == "friedman") "Friedman" else "Durbin"
+  b <- tryCatch(hstat_rm_blocs(y, groupe, sujet, complets = methode == "friedman"),
+                error = function(e) e)
+  if (inherits(b, "error"))
+    return(list(test = nom, statistic = NA_real_, ddl = NA_real_, p.value = NA_real_,
+                n_sujets = NA_integer_, blocs = NULL, notes = character(0),
+                motif = hstat_err_fr(b)))
+  res <- tryCatch(
+    if (methode == "friedman") stats::friedman.test(y = b$y, groups = b$groupe, blocks = b$sujet)
+    else PMCMRplus::durbinTest(y = b$y, groups = b$groupe, blocks = b$sujet),
+    error = function(e) e)
+  if (inherits(res, "error"))
+    return(list(test = nom, statistic = NA_real_, ddl = length(b$niveaux) - 1,
+                p.value = NA_real_, n_sujets = b$n_sujets, blocs = b,
+                notes = hstat_rm_blocs_notes(b), motif = hstat_err_fr(res)))
+  ddl <- if (!is.null(res$parameter)) unname(res$parameter)[1] else length(b$niveaux) - 1
+  list(test = nom, statistic = unname(res$statistic)[1], ddl = ddl,
+       p.value = unname(res$p.value)[1], n_sujets = b$n_sujets, blocs = b,
+       notes = hstat_rm_blocs_notes(b), motif = NA_character_)
 }
 
 # -- Le test ----------------------------------------------------------------------
