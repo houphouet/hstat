@@ -2180,8 +2180,8 @@ mod_tests_server <- function(id, values) {
                   choices = num_cols, 
                   multiple = TRUE,
                   options = list(`actions-box` = TRUE)),
-      shiny::actionButton(ns("selectAllResponse"), "Tout sélectionner", class = "btn-success btn-sm"),
-      shiny::actionButton(ns("deselectAllResponse"), "Tout désélectionner", class = "btn-danger btn-sm")
+      hstat_btn_tout(ns("selectAllResponse"), class = "btn-sm"),
+      hstat_btn_aucun(ns("deselectAllResponse"), class = "btn-sm")
     )
   })
   
@@ -2371,8 +2371,8 @@ mod_tests_server <- function(id, values) {
                   options  = list(`actions-box` = TRUE)),
       shiny::tags$small(style = "color:#6c757d; font-size:11px;",
                  shiny::icon("info-circle"), " Facteur, texte, date et numérique (<= 30 niveaux) acceptés"),
-      shiny::actionButton(ns("selectAllFactors"),   "Tout sélectionner",   class = "btn-success btn-sm"),
-      shiny::actionButton(ns("deselectAllFactors"), "Tout désélectionner", class = "btn-danger btn-sm")
+      hstat_btn_tout(ns("selectAllFactors"),   class = "btn-sm"),
+      hstat_btn_aucun(ns("deselectAllFactors"), class = "btn-sm")
     )
   })
   
@@ -7515,10 +7515,10 @@ mod_tests_server <- function(id, values) {
                   multiple = TRUE,
                   options  = list(`actions-box` = TRUE, `selected-text-format` = "count > 3")),
       shiny::div(style = "display: flex; gap: 10px;",
-          shiny::actionButton(ns("selectAllMultiResponse"), "Tout sélectionner",
-                       class = "btn-success btn-sm", style = "flex: 1; height: 40px;"),
-          shiny::actionButton(ns("deselectAllMultiResponse"), "Tout désélectionner",
-                       class = "btn-danger btn-sm", style = "flex: 1; height: 40px;")
+          hstat_btn_tout(ns("selectAllMultiResponse"),
+                       class = "btn-sm", style = "flex: 1; height: 40px;"),
+          hstat_btn_aucun(ns("deselectAllMultiResponse"),
+                       class = "btn-sm", style = "flex: 1; height: 40px;")
       )
     )
   })
@@ -7564,10 +7564,10 @@ mod_tests_server <- function(id, values) {
       shiny::tags$small(style = "color:#6c757d; font-size:11px;",
                  shiny::icon("info-circle"), " Facteur, texte, date et numérique (<= 30 niveaux) acceptés"),
       shiny::div(style = "display: flex; gap: 10px;",
-          shiny::actionButton(ns("selectAllMultiFactors"),   "Tout sélectionner",
-                       class = "btn-success btn-sm", style = "flex: 1; height: 40px;"),
-          shiny::actionButton(ns("deselectAllMultiFactors"), "Tout désélectionner",
-                       class = "btn-danger btn-sm",  style = "flex: 1; height: 40px;")
+          hstat_btn_tout(ns("selectAllMultiFactors"),
+                       class = "btn-sm", style = "flex: 1; height: 40px;"),
+          hstat_btn_aucun(ns("deselectAllMultiFactors"),
+                       class = "btn-sm",  style = "flex: 1; height: 40px;")
       )
     )
   })

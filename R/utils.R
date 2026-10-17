@@ -15418,3 +15418,106 @@ hstat_epi_figure <- function(analyse, figure, res, o = NULL, titre = NULL) {
   }
   NULL
 }
+
+# ---------------------------------------------------------------------------
+# Valeurs manquantes : le seuil de chaque methode
+# ---------------------------------------------------------------------------
+# Une methode d'imputation n'est pas bonne ou mauvaise dans l'absolu : elle
+# l'est jusqu'a une certaine proportion de valeurs manquantes. La table est
+# declaree UNE fois -- le libelle du choix, le guide, la recommandation et la
+# note d'adequation en derivent ; quatre copies d'un meme seuil finiraient
+# par se contredire, et c'est la copie oubliee qui ment.
+#
+# `max` est le plafond du pourcentage de NA de la variable la plus
+# incomplete ; `NA` signifie « pas de plafond tire des donnees » (la valeur
+# specifique se justifie par le SENS du manquant, pas par sa proportion).
+# Sources : Schafer (1999) et Graham (2009) pour les 5 % ; Stekhoven &
+# Buhlmann (2012) pour missForest, eprouve jusqu'a 30 % ; Jakobsen et al.
+# (2017) pour l'imputation multiple, dont les resultats deviennent
+# exploratoires au-dela de 40 %.
+HSTAT_NA_METHODES <- data.frame(
+  code = c("remove", "mean", "median", "mode", "knn", "mice", "rf", "value"),
+  libelle = c(
+    "Supprimer les lignes contenant des NA (moins de 5 % de NA)",
+    "Remplacer par la moyenne, numériques (moins de 5 % de NA)",
+    "Remplacer par la médiane, numériques (moins de 5 % de NA)",
+    "Remplacer par le mode, catégorielles (moins de 5 % de NA)",
+    "Imputation par k plus proches voisins, KNN (5 à 20 % de NA)",
+    "Imputation multiple par équations chaînées, MICE/PMM (5 à 40 % de NA)",
+    "Imputation par forêts aléatoires, missForest (5 à 30 % de NA)",
+    "Remplacer par une valeur spécifique (quand le NA a un sens connu)"),
+  nom = c(
+    "Suppression des lignes", "Remplacement par la moyenne",
+    "Remplacement par la médiane", "Remplacement par le mode",
+    "KNN (k plus proches voisins)", "MICE/PMM (imputation multiple)",
+    "missForest (forêts aléatoires)", "Valeur spécifique"),
+  seuil = c(
+    "Moins de 5 %", "Moins de 5 %", "Moins de 5 %", "Moins de 5 %",
+    "5 à 20 %", "5 à 40 %", "5 à 30 %", "Selon le sens du NA"),
+  usage = c(
+    "La perte de lignes reste faible ; au-delà, l'échantillon s'appauvrit et se biaise.",
+    "Rapide, mais réduit la variance : réservé aux NA rares.",
+    "Comme la moyenne, et robuste aux valeurs extrêmes.",
+    "Pour une variable catégorielle, quand les NA sont rares.",
+    "Exploite la ressemblance entre observations ; se dégrade quand les voisins sont eux-mêmes incomplets.",
+    "Imputation multiple, recommandée pour des NA non négligeables (MAR) ; au-delà de 40 %, résultats exploratoires.",
+    "Non paramétrique, gère le mélange numérique / catégoriel ; éprouvé jusqu'à 30 %.",
+    "Quand le manquant signifie une valeur connue (absence = 0, par exemple)."),
+  max = c(5, 5, 5, 5, 20, 40, 30, NA),
+  stringsAsFactors = FALSE)
+
+# Au-dela de ce pourcentage, aucune methode n'est sure : retirer la variable
+# merite d'etre envisage.
+HSTAT_NA_SEUIL_RETRAIT <- 40
+
+# Choix du bouton radio, derives de la table : le seuil est ECRIT dans le
+# libelle, la ou l'on choisit.
+hstat_na_choix <- function() {
+  stats::setNames(HSTAT_NA_METHODES$code, HSTAT_NA_METHODES$libelle)
+}
+
+# Adequation d'une methode au pourcentage de NA observe. Rend « adaptee »,
+# « au-dela » ou « sans_seuil » (valeur specifique), ou NA si le pourcentage
+# n'est pas calculable : on ne branche jamais sur une valeur absente.
+hstat_na_adequation <- function(methode, pct) {
+  i <- match(methode, HSTAT_NA_METHODES$code)
+  if (is.na(i) || length(pct) != 1L || !is.finite(pct)) return(NA_character_)
+  m <- HSTAT_NA_METHODES$max[i]
+  if (is.na(m)) return("sans_seuil")
+  if (pct <= m) "adaptee" else "au-dela"
+}
+
+# Recommandation tiree des memes seuils. `pct` est le pourcentage de NA de la
+# variable la plus incomplete ; `categorielle` dit si une variable
+# categorielle porte des NA. Rend list(txt, m) -- `m` NULL quand il n'y a
+# rien a adopter.
+hstat_na_recommandation <- function(pct, categorielle = FALSE) {
+  if (length(pct) != 1L || !is.finite(pct) || pct <= 0)
+    return(list(txt = "Aucune valeur manquante : aucun traitement nécessaire.", m = NULL))
+  if (pct < 5)
+    return(list(txt = "Moins de 5 % de NA : la suppression des lignes est acceptable, ou une imputation simple (médiane).", m = "median"))
+  if (pct <= 20 && isTRUE(categorielle))
+    return(list(txt = "NA modérés avec variables catégorielles : missForest (gère le mixte, jusqu'à 30 %) ou MICE/PMM sont recommandés.", m = "rf"))
+  if (pct <= HSTAT_NA_SEUIL_RETRAIT)
+    return(list(txt = "NA non négligeables (mécanisme MAR plausible) : l'imputation multiple MICE/PMM est recommandée, jusqu'à 40 % de NA.", m = "mice"))
+  list(txt = "Plus de 40 % de NA sur au moins une variable : aucune méthode n'est sûre, envisagez de retirer la variable ; sinon MICE/PMM avec prudence.", m = "mice")
+}
+
+# ---------------------------------------------------------------------------
+# « Tout sélectionner » / « Tout désélectionner » : une couleur chacun
+# ---------------------------------------------------------------------------
+# Quatorze boutons dans quatre modules portaient chacun leur couleur --
+# vert, rouge, orange ou gris selon le module. Deux aides les posent avec une
+# classe propre (`hstat-btn-tout`, `hstat-btn-aucun`) que la feuille de style
+# colore UNE fois : un bouton ajoute demain prend la bonne couleur sans qu'on
+# y pense, et le rouge -- couleur d'un geste destructeur -- ne sert plus a un
+# simple decochage. `class` ne porte que la taille (`btn-sm`, `btn-block`).
+hstat_btn_tout <- function(inputId, label = "Tout sélectionner", ..., class = NULL) {
+  shiny::actionButton(inputId, label, ...,
+                      class = paste(c("hstat-btn-tout", class), collapse = " "))
+}
+
+hstat_btn_aucun <- function(inputId, label = "Tout désélectionner", ..., class = NULL) {
+  shiny::actionButton(inputId, label, ...,
+                      class = paste(c("hstat-btn-aucun", class), collapse = " "))
+}

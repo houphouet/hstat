@@ -426,18 +426,12 @@ mod_clean_ui <- function(id) {
 
                              shiny::radioButtons(ns("naMethod"), 
                                NULL,
-                               choices = c(
-                                 "Supprimer les lignes contenant des NA" = "remove", 
-                                 "Remplacer par la moyenne (numériques)" = "mean",
-                                 "Remplacer par la médiane (numériques)" = "median",
-                                 "Remplacer par le mode (catégorielles)" = "mode",
-                                 "Imputation par k plus proches voisins (KNN)" = "knn",
-                                 "Imputation multiple par équations chaînées (MICE/PMM)" = "mice",
-                                 "Imputation par forets aléatoires (missForest)" = "rf",
-                                 "Remplacer par une valeur spécifique" = "value"
-                               ),
+                               # Le seuil de NA de chaque methode est ecrit dans
+                               # son libelle : il se lit la ou l'on choisit.
+                               choices = hstat_na_choix(),
                                selected = "remove"
                              ),
+                             shiny::uiOutput(ns("naAdequation")),
 
                              shiny::conditionalPanel(
               ns = ns,
@@ -467,14 +461,22 @@ mod_clean_ui <- function(id) {
                            shiny::div(
                              style = "background-color: #fff; padding: 20px; border-radius: 5px; border: 2px solid #3498db;",
                              shiny::h5(shiny::icon("exclamation-triangle"), "Guide des méthodes", style = "color: #e74c3c; margin-top: 0;"),
-                             shiny::tags$ul(
-                               style = "font-size: 12px; color: #7f8c8d;",
-                               shiny::tags$li(shiny::tags$b("Suppression"), " : si < 5% de NA et perte de lignes acceptable."),
-                               shiny::tags$li(shiny::tags$b("Moyenne/médiane"), " : rapide, mais sous-estimé la variance."),
-                               shiny::tags$li(shiny::tags$b("KNN"), " : exploite la similarité entre observations."),
-                               shiny::tags$li(shiny::tags$b("MICE/PMM"), " : imputation multiple, recommandée pour NA non négligeables (MAR)."),
-                               shiny::tags$li(shiny::tags$b("missForest"), " : non paramétrique, gère mixte numérique/catégoriel.")
-                             ),
+                             # Seuil de NA par methode, lu dans la meme table
+                             # que les libelles du choix.
+                             shiny::tags$table(
+                               class = "table table-condensed",
+                               style = "font-size: 12px; color: #555; margin-bottom: 6px;",
+                               shiny::tags$thead(shiny::tags$tr(
+                                 shiny::tags$th("Méthode"), shiny::tags$th("Seuil de NA"))),
+                               shiny::tags$tbody(lapply(seq_len(nrow(HSTAT_NA_METHODES)), function(i)
+                                 shiny::tags$tr(
+                                   shiny::tags$td(shiny::tags$b(HSTAT_NA_METHODES$nom[i]),
+                                                  shiny::tags$br(),
+                                                  shiny::tags$small(style = "color:#7f8c8d;", HSTAT_NA_METHODES$usage[i])),
+                                   shiny::tags$td(style = "white-space: nowrap; font-weight: 600;",
+                                                  HSTAT_NA_METHODES$seuil[i]))))),
+                             shiny::tags$p(style = "font-size: 11px; color: #7f8c8d; margin: 0;",
+                               "Seuil = part de valeurs manquantes de la variable la plus incomplète. Au-delà de 40 %, aucune méthode n'est sûre : envisagez de retirer la variable."),
                              shiny::hr(),
                              shiny::actionButton(ns("applyNA"), 
                                shiny::tagList(shiny::icon("magic"), " Appliquer le Traitement"), 
@@ -1434,18 +1436,7 @@ mod_clean_server <- function(id, values) {
     df <- na_summary_df()
     max_pct <- max(df$`NA (%)`, na.rm = TRUE)
     has_cat <- any(df$Type == "catégorielle" & df$`NA (%)` > 0)
-    n_obs <- nrow(values$cleanData)
-    rec <- if (max_pct == 0) {
-      list(txt = "Aucune valeur manquante : aucun traitement nécessaire.", m = NULL)
-    } else if (max_pct < 5) {
-      list(txt = "Moins de 5% de NA : la suppression des lignes est acceptable, ou une imputation simple (médiane).", m = "median")
-    } else if (max_pct <= 20 && has_cat) {
-      list(txt = "NA modérés avec variables catégorielles : missForest (gère le mixte) ou MICE/PMM sont recommandés.", m = "rf")
-    } else if (max_pct <= 30) {
-      list(txt = "NA non négligeables (mécanisme MAR plausible) : l'imputation multiple MICE/PMM est recommandée pour préserver la variance.", m = "mice")
-    } else {
-      list(txt = "Plus de 30% de NA sur au moins une variable : envisagez de retirer la variable ; sinon MICE/PMM avec prudence.", m = "mice")
-    }
+    rec <- hstat_na_recommandation(max_pct, has_cat)
     shiny::tagList(
       shiny::tags$b(shiny::icon("lightbulb"), " Recommandation : "),
       shiny::span(rec$txt),
@@ -1459,9 +1450,39 @@ mod_clean_server <- function(id, values) {
     df <- na_summary_df()
     max_pct <- max(df$`NA (%)`, na.rm = TRUE)
     has_cat <- any(df$Type == "catégorielle" & df$`NA (%)` > 0)
-    m <- if (max_pct < 5) "median" else if (max_pct <= 20 && has_cat) "rf" else "mice"
+    m <- hstat_na_recommandation(max_pct, has_cat)$m
+    shiny::req(m)
     shiny::updateRadioButtons(session, "naMethod", selected = m)
     shiny::showNotification(trf("Méthode recommandée sélectionnée : %s", m), type = "message", duration = 3)
+  })
+
+  # Adequation de la methode choisie au pourcentage de NA des variables
+  # retenues : le seuil ecrit dans le libelle, confronte aux donnees.
+  output$naAdequation <- shiny::renderUI({
+    df <- na_summary_df()
+    sel <- input$naVars
+    if (length(sel)) df <- df[df$Variable %in% sel, , drop = FALSE]
+    df <- df[df$`NA (%)` > 0, , drop = FALSE]
+    if (!nrow(df)) return(NULL)
+    i <- which.max(df$`NA (%)`)
+    pct <- df$`NA (%)`[i]
+    j <- match(input$naMethod, HSTAT_NA_METHODES$code)
+    etat <- hstat_na_adequation(input$naMethod, pct)
+    if (is.na(etat) || is.na(j)) return(NULL)
+    # Le seuil se lit au milieu d'une phrase : minuscule initiale.
+    seuil_txt <- sub("^(.)", "\\L\\1", tr(HSTAT_NA_METHODES$seuil[j]), perl = TRUE)
+    pct <- format(pct, decimal.mark = if (identical(hstat_langue_session(), "en")) "." else ",")
+    txt <- switch(etat,
+      "adaptee" = trf("Variable la plus incomplète : « %s », %s %% de NA. Méthode adaptée (seuil : %s).",
+                      df$Variable[i], pct, seuil_txt),
+      "au-dela" = trf("Variable la plus incomplète : « %s », %s %% de NA. Au-delà du seuil de cette méthode (%s) : préférez une méthode prévue pour davantage de NA.",
+                      df$Variable[i], pct, seuil_txt),
+      "sans_seuil" = trf("Variable la plus incomplète : « %s », %s %% de NA. Cette méthode n'a pas de seuil : elle se justifie par le sens du manquant.",
+                         df$Variable[i], pct))
+    couleur <- if (identical(etat, "au-dela")) "#c0392b" else if (identical(etat, "adaptee")) "#1d8a5d" else "#7f8c8d"
+    shiny::div(style = sprintf("margin-top:6px;font-size:12px;color:%s;", couleur),
+               shiny::icon(if (identical(etat, "au-dela")) "exclamation-triangle" else "info-circle"),
+               " ", txt)
   })
 
   output$naVarSelect <- shiny::renderUI({
@@ -1862,10 +1883,10 @@ mod_clean_server <- function(id, values) {
       shiny::selectInput(ns("zeroVars"), "Variables à traiter :", choices = z$Variable,
                   selected = NULL, multiple = TRUE, selectize = TRUE),
       shiny::div(style = "margin-top:-8px;margin-bottom:12px;",
-          shiny::actionButton(ns("zeroSelectAll"), "Tout sélectionner",
-                       icon = shiny::icon("check-double"), class = "btn-xs btn-default"),
-          shiny::actionButton(ns("zeroSelectNone"), "Tout désélectionner",
-                       icon = shiny::icon("eraser"), class = "btn-xs btn-default",
+          hstat_btn_tout(ns("zeroSelectAll"),
+                       icon = shiny::icon("check-double"), class = "btn-xs"),
+          hstat_btn_aucun(ns("zeroSelectNone"),
+                       icon = shiny::icon("eraser"), class = "btn-xs",
                        style = "margin-left:6px;"),
           shiny::tags$small(style = "color:#7f8c8d;display:block;margin-top:4px;",
                      trf("%s variable(s) listée(s).", nrow(z)))))

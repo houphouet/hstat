@@ -21956,3 +21956,87 @@ test_that("le bloc de combinaison des feuilles s'ouvre à la demande", {
   expect_length(trouve, 1L)
   expect_false("open" %in% names(as.list(trouve[[1]])))
 })
+
+test_that("chaque méthode de valeurs manquantes porte son seuil, et une seule table le déclare", {
+  m <- HSTAT_NA_METHODES
+  expect_setequal(m$code, c("remove", "mean", "median", "mode", "knn", "mice", "rf", "value"))
+  # Le seuil est ÉCRIT dans le libellé du choix : c'est là qu'on choisit.
+  for (i in which(!is.na(m$max)))
+    expect_match(m$libelle[i], paste0(m$max[i], " % de NA)"), fixed = TRUE, label = m$code[i])
+  expect_identical(unname(hstat_na_choix()), m$code)
+  expect_identical(names(hstat_na_choix()), m$libelle)
+  # Le seuil se teste des deux côtés de sa frontière.
+  expect_identical(hstat_na_adequation("median", 5), "adaptee")
+  expect_identical(hstat_na_adequation("median", 5.01), "au-dela")
+  expect_identical(hstat_na_adequation("knn", 20), "adaptee")
+  expect_identical(hstat_na_adequation("knn", 20.5), "au-dela")
+  expect_identical(hstat_na_adequation("mice", 40), "adaptee")
+  expect_identical(hstat_na_adequation("mice", 40.1), "au-dela")
+  expect_identical(hstat_na_adequation("rf", 30.1), "au-dela")
+  expect_identical(hstat_na_adequation("value", 90), "sans_seuil")
+  # Un pourcentage non calculable ne tranche rien.
+  expect_true(is.na(hstat_na_adequation("mice", NA)))
+  expect_true(is.na(hstat_na_adequation("inconnue", 3)))
+})
+
+test_that("la recommandation de traitement des NA suit les seuils de la même table", {
+  expect_null(hstat_na_recommandation(0)$m)
+  expect_null(hstat_na_recommandation(NA)$m)
+  expect_identical(hstat_na_recommandation(4.9)$m, "median")
+  expect_identical(hstat_na_recommandation(10, TRUE)$m, "rf")
+  expect_identical(hstat_na_recommandation(10, FALSE)$m, "mice")
+  expect_identical(hstat_na_recommandation(25, TRUE)$m, "mice")
+  expect_false(grepl("Plus de 40", hstat_na_recommandation(40)$txt, fixed = TRUE))
+  expect_match(hstat_na_recommandation(40.5)$txt, "Plus de 40", fixed = TRUE)
+  # Invariant : sous le seuil de retrait, la méthode recommandée est adaptée au
+  # pourcentage qui l'a fait recommander -- sinon le conseil contredirait la
+  # note posée sous le choix.
+  for (pct in c(0.5, 4.9, 5, 12, 20, 21, 30, 39, 40)) for (cat in c(TRUE, FALSE)) {
+    r <- hstat_na_recommandation(pct, cat)
+    expect_identical(hstat_na_adequation(r$m, pct), "adaptee",
+                     label = paste(pct, cat, r$m))
+  }
+})
+
+test_that("l'onglet des valeurs manquantes affiche le seuil de chaque méthode", {
+  html <- as.character(mod_clean_ui("clean"))
+  for (l in HSTAT_NA_METHODES$libelle) expect_match(html, htmltools::htmlEscape(l), fixed = TRUE, label = l)
+  for (s in c(HSTAT_NA_METHODES$nom, unique(HSTAT_NA_METHODES$seuil))) expect_match(html, htmltools::htmlEscape(s), fixed = TRUE, label = s)
+  expect_match(html, "Seuil de NA", fixed = TRUE)
+  expect_match(html, "clean-naAdequation", fixed = TRUE)
+})
+
+test_that("tout sélectionner et tout désélectionner ont chacun leur couleur, partout", {
+  b1 <- as.character(hstat_btn_tout("x", class = "btn-sm"))
+  b2 <- as.character(hstat_btn_aucun("y"))
+  expect_match(b1, "hstat-btn-tout btn-sm", fixed = TRUE)
+  expect_match(b1, "Tout sélectionner", fixed = TRUE)
+  expect_match(b2, "hstat-btn-aucun", fixed = TRUE)
+  expect_match(b2, "Tout désélectionner", fixed = TRUE)
+  # Aucun bouton de ce rôle n'est posé à la main : c'est la copie oubliée qui
+  # garderait l'ancienne couleur. Le libellé suit l'identifiant, qui porte
+  # lui-même une parenthèse (`ns("x")`) : le motif l'enjambe.
+  n_aides <- 0L
+  for (f in .hstat_sources_app()) {
+    src <- paste(readLines(f, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+    expect_false(grepl('actionButton\\((ns\\()?"[^"]*"\\)?,\\s*"Tout (dé)?sélectionner"', src),
+                 label = basename(f))
+    n_aides <- n_aides + lengths(regmatches(src, gregexpr("hstat_btn_(tout|aucun)\\(ns\\(", src)))
+  }
+  # Un balayage qui ne rencontre rien ressemble à un balayage qui passe.
+  expect_gte(n_aides, 14L)
+  racine <- .hstat_repo_root()
+  css <- paste(readLines(file.path(racine, "inst/app/www/hstat-theme.css"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  r1 <- regmatches(css, regexpr("\\.btn\\.hstat-btn-tout, [^{]*\\{[^}]*\\}", css))
+  r2 <- regmatches(css, regexpr("\\.btn\\.hstat-btn-aucun, [^{]*\\{[^}]*\\}", css))
+  expect_length(r1, 1L); expect_length(r2, 1L)
+  expect_match(r1, "bs-select-all", fixed = TRUE)
+  expect_match(r2, "bs-deselect-all", fixed = TRUE)
+  coul <- function(r) regmatches(r, regexpr("background: #[0-9a-f]{6}", r))
+  # Deux couleurs, et distinctes.
+  expect_false(identical(coul(r1), coul(r2)))
+  # Posées après `.btn-default`, que Shiny ajoute à tout bouton.
+  expect_lt(regexpr(".btn-default {", css, fixed = TRUE)[1],
+            regexpr(".btn.hstat-btn-tout,", css, fixed = TRUE)[1])
+})

@@ -9820,3 +9820,64 @@ poussait hors de l'écran le bouton « Charger » pour qui voulait seulement lir
 une feuille. Le titre du bloc dit le nombre de feuilles, ce qui suffit à le
 signaler. Le test exige l'absence de **tout** argument `open` — même `NA`, le
 navigateur le lit comme « ouvert ».
+
+## Tout sélectionner, tout désélectionner : une couleur chacun
+
+Quatorze boutons dans quatre modules portaient chacun leur couleur — vert,
+rouge, orange ou gris selon le module où on les avait écrits. Ils passent par
+`hstat_btn_tout()` / `hstat_btn_aucun()` (`R/utils.R`), qui posent une classe
+propre ; la feuille de style la colore **une fois** : **violet** (#6741d9) pour
+cocher, **ardoise** (#5f6b7a) pour décocher. Les deux boutons de la boîte
+d'actions des listes `pickerInput` (`actions-box`) suivent la même règle.
+
+Ni vert (charger, télécharger, tests paramétriques), ni bleu (non
+paramétriques), ni **rouge** : décocher n'efface rien, et le rouge est la
+couleur d'un geste destructeur. Contraste du texte blanc : 6,3 et 5,4, au-dessus
+du seuil WCAG de 4,5.
+
+Un balayage barre tout `actionButton(…, "Tout sélectionner")` posé à la main :
+c'est la copie oubliée qui garderait l'ancienne couleur. Il compte aussi les
+appels aux deux aides — un balayage qui ne rencontre rien ressemble à un
+balayage qui passe.
+
+## Valeurs manquantes : chaque méthode porte son seuil
+
+Le choix d'une méthode d'imputation dépend de la part de valeurs manquantes, et
+l'interface ne le disait que pour la suppression (« si < 5 % »).
+`HSTAT_NA_METHODES` (`R/utils.R`) déclare, une fois, le libellé du choix, le
+seuil, l'usage et le plafond numérique de chaque méthode ; le libellé du bouton
+radio, le tableau du guide, la recommandation et la note d'adéquation en
+dérivent tous.
+
+| Méthode | Seuil de NA | Source |
+|---|---|---|
+| suppression, moyenne, médiane, mode | moins de 5 % | Schafer (1999), Graham (2009) |
+| KNN | 5 à 20 % | se dégrade quand les voisins sont incomplets |
+| missForest | 5 à 30 % | Stekhoven & Bühlmann (2012), éprouvé jusqu'à 30 % |
+| MICE/PMM | 5 à 40 % | Jakobsen et al. (2017) : exploratoire au-delà |
+| valeur spécifique | selon le sens du NA | pas de plafond tiré des données |
+
+Au-delà de 40 % (`HSTAT_NA_SEUIL_RETRAIT`), aucune méthode n'est sûre : la
+recommandation propose de retirer la variable.
+
+**La recommandation et la note ne peuvent pas se contredire.** Elles existaient
+en deux copies (le texte et le bouton « Adopter »), avec des seuils déjà
+différents de ceux du guide — 30 % d'un côté, rien de l'autre.
+`hstat_na_recommandation()` est la seule, et un test exige que la méthode
+recommandée soit **adaptée** au pourcentage qui l'a fait recommander.
+
+**La note d'adéquation confronte le choix aux données** : sous les méthodes,
+elle nomme la variable la plus incomplète parmi celles retenues, son
+pourcentage, et dit si la méthode choisie est dans son seuil. Elle est verte ou
+rouge, jamais muette. `hstat_na_adequation()` rend `NA` sur un pourcentage non
+calculable — on ne branche pas sur une valeur absente.
+
+Le guide affiche un **nom court** par méthode, pas le libellé du choix : le
+libellé porte déjà le seuil, et le tableau le répétait à côté de sa propre
+colonne « Seuil de NA ». Les noms courts sont des phrases (« Remplacement par la
+moyenne »), jamais un mot nu : « moyenne » seul n'entre pas au dictionnaire.
+
+Mesure au navigateur, piège rencontré une fois de plus : la note sortait vide
+sur un démarrage à froid parce que la sonde attendait six secondes après
+« Charger » — le fichier n'était pas encore chargé. Relancée sur l'application
+chaude, elle rend la phrase. On attend ce qu'on veut voir, on ne dort pas.
