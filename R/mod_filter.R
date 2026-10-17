@@ -294,12 +294,12 @@ mod_filter_server <- function(id, values) {
                          inline = FALSE),
       shiny::fluidRow(
         shiny::column(6,
-               shiny::actionButton(ns("selectAllCols"), "Tout sélectionner", 
-                            class = "btn-sm btn-default btn-block", icon = shiny::icon("check-square"))
+               hstat_btn_tout(ns("selectAllCols"), 
+                            class = "btn-sm btn-block", icon = shiny::icon("check-square"))
         ),
         shiny::column(6,
-               shiny::actionButton(ns("deselectAllCols"), "Tout désélectionner", 
-                            class = "btn-sm btn-default btn-block", icon = shiny::icon("square"))
+               hstat_btn_aucun(ns("deselectAllCols"), 
+                            class = "btn-sm btn-block", icon = shiny::icon("square"))
         )
       )
     )

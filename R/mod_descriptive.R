@@ -346,11 +346,11 @@ mod_descriptive_server <- function(id, values) {
         options = list(`actions-box` = TRUE, `live-search` = TRUE)
       ),
       shiny::div(style = "margin-top: 10px;",
-          shiny::actionButton(ns("selectAllNumVars"), "Tout sélectionner", 
-                       class = "btn-success btn-sm", 
+          hstat_btn_tout(ns("selectAllNumVars"), 
+                       class = "btn-sm", 
                        icon = shiny::icon("check-double")),
-          shiny::actionButton(ns("deselectAllNumVars"), "Tout désélectionner", 
-                       class = "btn-warning btn-sm", 
+          hstat_btn_aucun(ns("deselectAllNumVars"), 
+                       class = "btn-sm", 
                        icon = shiny::icon("times"),
                        style = "margin-left: 5px;")
       )

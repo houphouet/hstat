@@ -222,6 +222,29 @@ h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(-
 .btn-warning:hover, .btn-warning:focus { background: var(--quali); border-color: var(--quali); color: #fff; filter: brightness(.9); }
 .btn-danger:hover,  .btn-danger:focus  { background: var(--danger); border-color: var(--danger); color: #fff; filter: brightness(.9); }
 
+/* « Tout selectionner » et « Tout deselectionner » : une couleur chacun, sur
+   toute l'application -- violet pour cocher, ardoise pour decocher. Ni vert
+   (charger, telecharger, tests parametriques), ni bleu (non parametriques), ni
+   rouge : decocher n'efface rien. Les boutons passent par `hstat_btn_tout()` /
+   `hstat_btn_aucun()` ; les deux boutons de la boite d'actions des listes
+   `pickerInput` (`actions-box`) suivent la meme regle. `.btn.` l'emporte sur
+   `.btn-default` par la specificite, sans `!important`. Contraste du texte
+   blanc : 6,3 (violet) et 5,4 (ardoise), au-dessus du seuil WCAG de 4,5. */
+.btn.hstat-btn-tout, .bs-actionsbox .btn.bs-select-all {
+  background: #6741d9; border-color: #6741d9; color: #fff;
+}
+.btn.hstat-btn-aucun, .bs-actionsbox .btn.bs-deselect-all {
+  background: #5f6b7a; border-color: #5f6b7a; color: #fff;
+}
+.btn.hstat-btn-tout:hover, .btn.hstat-btn-tout:focus,
+.bs-actionsbox .btn.bs-select-all:hover, .bs-actionsbox .btn.bs-select-all:focus {
+  background: #6741d9; border-color: #6741d9; color: #fff; filter: brightness(.9);
+}
+.btn.hstat-btn-aucun:hover, .btn.hstat-btn-aucun:focus,
+.bs-actionsbox .btn.bs-deselect-all:hover, .bs-actionsbox .btn.bs-deselect-all:focus {
+  background: #5f6b7a; border-color: #5f6b7a; color: #fff; filter: brightness(.9);
+}
+
 /* Charger et telecharger sont des gestes de FICHIER : une seule couleur, le
    vert, sur toute l'application. Posee ici et non sur chaque bouton : 98
    `downloadButton()` portent chacun leur classe (btn-info, btn-primary...), et
