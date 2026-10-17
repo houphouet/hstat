@@ -21798,3 +21798,80 @@ test_that("une boite ou un violon sur un axe de dates trace une boite par date",
     expect_equal(ngroupes(createPlot()), 8L)
   })
 })
+
+# ---------------------------------------------------------------------------
+# Mesures répétées non paramétriques : la ligne ne sort jamais vide
+# ---------------------------------------------------------------------------
+# Signalé à l'écran : « Non paramétrique répété » rendait Friedman avec la
+# statistique et la p-value VIDES et l'interprétation « — ». `friedman.test()`
+# lève sur un plan répliqué (plusieurs plantes par sujet × période) ou
+# incomplet, et l'erreur était avalée.
+.rm_np_essai <- function() {
+  set.seed(2)
+  d <- expand.grid(Plante = 1:3, Parcelle = paste0("P", 1:5),
+                   PERIODES = c("J30", "J60", "J90"))
+  d$HAUTEUR <- 20 + 15 * as.integer(d$PERIODES) + rnorm(nrow(d), 0, 3)
+  d[!(d$Parcelle == "P5" & d$PERIODES == "J90"), ]
+}
+
+test_that("Friedman : répétitions moyennées, sujet incomplet écarté, et dit", {
+  d <- .rm_np_essai()
+  # Le défaut d'origine : le test brut lève sur ce plan.
+  expect_error(stats::friedman.test(y = d$HAUTEUR, groups = d$PERIODES,
+                                    blocks = factor(d$Parcelle)))
+  r <- hstat_rm_np(d$HAUTEUR, d$PERIODES, d$Parcelle, "friedman")
+  expect_true(is.finite(r$statistic) && is.finite(r$p.value))
+  expect_identical(r$n_sujets, 4L)
+  m <- aggregate(HAUTEUR ~ Parcelle + PERIODES, data = d[d$Parcelle != "P5", ], FUN = mean)
+  ref <- stats::friedman.test(y = m$HAUTEUR, groups = droplevels(m$PERIODES),
+                              blocks = droplevels(m$Parcelle))
+  expect_equal(r$statistic, unname(ref$statistic))
+  expect_equal(r$p.value, ref$p.value)
+  expect_true(any(grepl("moyenne", r$notes)))
+  expect_true(any(grepl("P5", r$notes, fixed = TRUE)))
+})
+
+test_that("Durbin : refus nommé hors plan équilibré, juste sur un plan BIBD", {
+  skip_if_not_installed("PMCMRplus")
+  d <- .rm_np_essai()
+  r <- hstat_rm_np(d$HAUTEUR, d$PERIODES, d$Parcelle, "durbin")
+  # Sans la garde, durbinTest rend un khi-deux NÉGATIF et p = 1.
+  expect_true(is.na(r$statistic) && is.na(r$p.value))
+  expect_match(r$motif, "équilibré")
+  set.seed(3)
+  b <- data.frame(s = rep(1:6, each = 2),
+                  g = c("A","B","A","C","B","C","A","B","A","C","B","C"))
+  b$y <- c(1,2,1,3,2,3,1,2,1,3,2,3) + rnorm(12, 0, 0.1)
+  r2 <- hstat_rm_np(b$y, b$g, b$s, "durbin")
+  ref <- PMCMRplus::durbinTest(y = b$y, groups = b$g, blocks = b$s)
+  expect_equal(r2$statistic, unname(ref$statistic))
+  expect_equal(r2$p.value, unname(ref$p.value))
+})
+
+test_that("le module rend une ligne de Friedman calculée, ou un motif", {
+  skip_if_not_installed("shiny")
+  d <- .rm_np_essai()
+  ligne <- function(methode) {
+    out <- NULL
+    shiny::testServer(mod_tests_server, args = list(
+      values = do.call(shiny::reactiveValues, hstat_valeurs_initiales())), {
+      values$filteredData <- d
+      session$setInputs(responseVar = "HAUTEUR", factorVar = "PERIODES",
+                        rmSubject = "Parcelle", rmWithin = "PERIODES",
+                        rmBetween = NULL, rmNonParam = methode,
+                        rmPostHocAdjust = "holm")
+      session$setInputs(testRMNonParam = 1)
+      out <<- values$testResultsDF
+    })
+    out
+  }
+  f <- ligne("friedman")
+  expect_true(is.finite(f$Statistique) && is.finite(f$p_value))
+  expect_match(f$Interpretation, "Friedman")
+  expect_false(f$Interpretation %in% c("—", ""))
+  if (requireNamespace("PMCMRplus", quietly = TRUE)) {
+    du <- ligne("durbin")
+    expect_true(is.na(du$p_value))
+    expect_match(du$Interpretation, "équilibré")
+  }
+})

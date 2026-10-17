@@ -4230,6 +4230,7 @@ mod_tests_server <- function(id, values) {
     
     results_list <- list()
     posthoc_list <- list()
+    notes_rm <- character(0)
     bt <- function(x) paste0("`", x, "`")
     
     shiny::withProgress(message = "Test non paramétrique répété...", value = 0.3, {
@@ -4279,32 +4280,28 @@ mod_tests_server <- function(id, values) {
             }
             
           } else {
-            # Friedman / Durbin : un seul facteur intra. Mise en forme wide.
+            # Friedman / Durbin : un seul facteur intra. La preparation (moyenne
+            # des mesures repetees d'un sujet a une periode, sujets incomplets
+            # ecartes) et le test vivent dans le socle : `friedman.test()` leve
+            # sur un plan replique ou incomplet, et la ligne sortait VIDE.
             wf <- within[1]
-            dsub <- df[, c(var, subj, wf), drop = FALSE]
-            dsub <- dsub[stats::complete.cases(dsub), ]
-            y <- dsub[[var]]; g <- dsub[[wf]]; b <- dsub[[subj]]
-            
-            if (method == "durbin") {
-              dt_res <- tryCatch(PMCMRplus::durbinTest(y = y, groups = g, blocks = b),
-                                 error = function(e) NULL)
-              stat <- if (!is.null(dt_res)) unname(dt_res$statistic) else NA
-              pval <- if (!is.null(dt_res)) dt_res$p.value else NA
-              ttl  <- "Durbin"
-              ph_fun <- function() PMCMRplus::durbinAllPairsTest(y = y, groups = g, blocks = b, p.adjust.method = adj)
-            } else {
-              fr <- tryCatch(stats::friedman.test(y = y, groups = g, blocks = b), error = function(e) NULL)
-              stat <- if (!is.null(fr)) unname(fr$statistic) else NA
-              pval <- if (!is.null(fr)) fr$p.value else NA
-              ttl  <- "Friedman"
-              ph_fun <- function() PMCMRplus::frdAllPairsConoverTest(y = y, groups = g, blocks = b, p.adjust.method = adj)
-            }
+            np <- hstat_rm_np(df[[var]], df[[wf]], df[[subj]], methode = method)
+            stat <- np$statistic; pval <- np$p.value; ttl <- np$test
+            if (length(np$notes) > 0)
+              notes_rm <- c(notes_rm, paste0(var, " : ", np$notes))
             results_list[[paste(var, ttl, sep = "_")]] <- data.frame(
               Test = ttl, Variable = var, Facteur = wf,
-              Statistique = round(stat, 4), ddl = length(unique(g)) - 1,
+              Statistique = round(stat, 4), ddl = round(np$ddl, 4),
               p_value = pval,
-              Interpretation = if (!is.na(pval)) interpret_test_results("anova", pval) else "—",
+              Interpretation = if (!is.na(pval)) interpret_test_results(method, pval)
+                               else np$motif,
               stringsAsFactors = FALSE)
+            if (!is.null(np$blocs)) {
+              y <- np$blocs$y; g <- np$blocs$groupe; b <- np$blocs$sujet
+            }
+            ph_fun <- if (method == "durbin")
+              function() PMCMRplus::durbinAllPairsTest(y = y, groups = g, blocks = b, p.adjust.method = adj)
+            else function() PMCMRplus::frdAllPairsConoverTest(y = y, groups = g, blocks = b, p.adjust.method = adj)
             
             # Post-hoc par paires (Conover pour Friedman ; paires de Durbin).
             if (requireNamespace("PMCMRplus", quietly = TRUE) && !is.na(pval)) {
@@ -4336,6 +4333,9 @@ mod_tests_server <- function(id, values) {
                                                   durbin = "Durbin", art = "ART"), ", ajustement ", adj)
           shiny::showNotification(trf("Test non paramétrique répété (%s) terminé.", method),
                            type = "message", duration = 5)
+          if (length(notes_rm) > 0)
+            shiny::showNotification(paste(notes_rm, collapse = " "),
+                                    type = "warning", duration = 12)
         } else {
           shiny::showNotification("Aucun résultat généré.", type = "warning")
         }

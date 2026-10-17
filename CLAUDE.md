@@ -9742,3 +9742,31 @@ dizaines par passe. Le titre ne se pose plus que s'il y a une légende.
 Lire la sortie d'une CI verte n'est pas une formalité. Les deux défauts de la
 figure étaient écrits en toutes lettres dans les avertissements d'une passe
 réussie — et un avertissement répété à chaque passe finit par ne plus se lire.
+
+## Friedman exige un plan non répliqué et complet, Durbin un plan équilibré
+
+Signalé à l'écran : « Non paramétrique répété » rendait Friedman avec la
+statistique et la p-value **vides** et l'interprétation « — ». Un fichier
+d'essai porte rarement une observation par sujet et par période : plusieurs
+plantes par parcelle et par date, une date manquée. `friedman.test()` lève alors
+« not an unreplicated complete block design », et l'erreur était avalée par un
+`tryCatch(..., error = NULL)`.
+
+`hstat_rm_blocs()` / `hstat_rm_np()` (`R/utils.R`) préparent et calculent, hors
+du serveur — la règle du dépôt :
+
+1. **Plusieurs mesures d'un sujet à une période → leur moyenne**, la règle déjà
+   posée pour les tests appariés ; et c'est annoncé.
+2. **Friedman écarte le sujet incomplet et le nomme.** Le test vérifie la
+   statistique contre `friedman.test()` sur les moyennes des sujets complets.
+3. **Durbin refuse un plan déséquilibré.** `PMCMRplus::durbinTest()` ne lève
+   pas hors d'un plan en blocs incomplets équilibré : il rend un khi-deux
+   **négatif** et p = 1 — mesuré −62 sur quatre sujets complets et un
+   incomplet, c'est-à-dire « non significatif » sur un effet net. Le refus
+   nomme les tailles et oriente vers Friedman ou ART.
+4. **Un échec ne laisse jamais « — »** : la colonne « Interprétation » porte le
+   motif. Et l'interprétation dit « Le test de Friedman » (ou Durbin) « entre
+   les périodes », là où elle disait « L'ANOVA ».
+
+Trois mutations (moyenne retirée, garde d'équilibre retirée, sujets incomplets
+gardés) sont toutes attrapées.
