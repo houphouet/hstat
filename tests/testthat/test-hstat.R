@@ -22377,7 +22377,9 @@ test_that("la repartition de l'echantillon reprend le nombre de repetitions impo
   expect_equal(hstat_repartition(26, 3, "blocks")$`répétitions`, 26)
   expect_equal(hstat_repartition(26, 3, "subsampling")$samples_per_plot, 5)
 
-  # Et le module le prend : le serveur, pas seulement la fonction.
+  # Et le module le prend : le serveur, pas seulement la fonction. Le calcul
+  # de puissance passe par pwr, que le travail `R CMD check` n'installe pas.
+  skip_if_not_installed("pwr")
   vals <- shiny::reactiveValues()
   shiny::testServer(mod_design_server, args = list(values = vals), {
     session$setInputs(powTest = "anova_oneway", powAnalysis = "apriori",
@@ -22396,4 +22398,21 @@ test_that("la repartition de l'echantillon reprend le nombre de repetitions impo
     session$setInputs(powRepartMode = "blocks")
     expect_equal(pow_repartition()$`répétitions`, rp$requested)
   })
+})
+
+test_that("le bloc des jeux integres a R est replie par defaut", {
+  # Demande a l'ecran : replier « Utiliser un jeu de donnees integre a R ». On
+  # lit l'ARBRE de l'interface : le titre doit etre le `summary` d'un `details`
+  # sans attribut `open` -- meme `NA`, que le navigateur lit comme « ouvert ».
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  ux <- paste(readLines(file.path(root, "inst", "app", "UX.R"),
+                        warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  i <- regexpr(" Utiliser un jeu de données intégré à R", ux, fixed = TRUE)
+  expect_gt(i, 0)
+  avant <- substr(ux, max(1, i - 1500), i)
+  expect_true(grepl("tags$summary(", avant, fixed = TRUE))
+  bloc <- sub(".*shiny::tags\\$details\\(", "", avant)
+  expect_false(grepl("open\\s*=", bloc))
+  expect_true(grepl("shiny::tags$details(", avant, fixed = TRUE))
 })

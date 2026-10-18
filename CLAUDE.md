@@ -9899,6 +9899,12 @@ une feuille. Le titre du bloc dit le nombre de feuilles, ce qui suffit à le
 signaler. Le test exige l'absence de **tout** argument `open` — même `NA`, le
 navigateur le lit comme « ouvert ».
 
+Même règle, même raison, pour **« Utiliser un jeu de données intégré à R »** :
+il était visible d'office (un `div`), et poussait la fusion de fichiers hors de
+l'écran pour qui charge son propre fichier. C'est désormais un `details` replié,
+comme la fusion juste en dessous ; le titre reste visible. Le test lit l'arbre
+de `UX.R` et refuse tout `open`, une mutation `open = NA` le fait échouer.
+
 ## Tout sélectionner, tout désélectionner : une couleur chacun
 
 Quatorze boutons dans quatre modules portaient chacun leur couleur — vert,
