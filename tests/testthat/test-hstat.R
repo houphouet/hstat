@@ -20930,15 +20930,21 @@ test_that("le CSV a la virgule se separe par des points-virgules", {
   expect_identical(readLines(f), readLines(g))
 })
 
-test_that("un classeur garde ses nombres et convertit son texte", {
+test_that("un classeur ecrit nombres et texte avec la virgule, et garde ses nombres au point", {
+  # Ce test exigeait d'abord des NOMBRES avec la virgule : c'est exactement ce
+  # qui faisait ignorer le choix sur un Excel regle au point (voir
+  # `hstat_decimale_classeur()`).
   skip_if_not_installed("openxlsx")
   f <- tempfile(fileext = ".xlsx")
-  hstat_ecrire_classeur(f, list(A = data.frame(n = c(1.5, 2.25), t = c("0.5", "T1.2"))),
-                        dec = ",")
+  d <- data.frame(n = c(1.5, 2.25), t = c("0.5", "T1.2"))
+  hstat_ecrire_classeur(f, list(A = d), dec = ",")
+  r <- openxlsx::read.xlsx(f)
+  expect_identical(r$n, c("1,5", "2,25"))
+  expect_identical(r$t, c("0,5", "T1.2"))
+  hstat_ecrire_classeur(f, list(A = d), dec = ".")
   r <- openxlsx::read.xlsx(f)
   expect_true(is.numeric(r$n))
   expect_equal(r$n, c(1.5, 2.25))
-  expect_identical(r$t, c("0,5", "T1.2"))
 })
 
 test_that("les nombres d'une figure telechargee prennent la virgule", {
