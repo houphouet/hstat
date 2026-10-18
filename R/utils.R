@@ -681,6 +681,127 @@ hstat_reinitialiser_valeurs <- function(values) {
   invisible(sig)
 }
 
+# ===========================================================================
+# GARDE DE SESSION : UNE VEILLE NE FERME PAS L'APPLICATION
+# ---------------------------------------------------------------------------
+# Verrouiller l'ordinateur ou le mettre en veille coupe le websocket de Shiny.
+# `session$allowReconnect("force")` et www/hstat-session.js le rouvrent bien --
+# mais la reprise de Shiny ouvre une session NEUVE (message `init`), et
+# l'ancienne est detruite cote serveur des la coupure (`wsClosed()` puis
+# `onSessionEnded`). L'utilisateur retrouvait donc une page reconnectee et
+# VIDE : donnees, nettoyage, filtres et resultats perdus. C'est cela qu'il
+# appelait « l'application se ferme ».
+#
+# Shiny ne sait pas rattacher un websocket neuf a une session existante (seul
+# Shiny Server le fait, par sa couche SockJS). On garde donc l'ETAT : a la fin
+# d'une session qui porte des donnees, ses `reactiveValues` sont deposees ici
+# sous une cle tiree au hasard par l'onglet (sessionStorage) ; la session qui
+# se presente ensuite avec la meme cle les reprend.
+#
+# Quatre decisions, chacune testee :
+#
+# 1. LA CLE EST UNE CAPACITE. Elle seule donne acces a l'etat : 128 bits tires
+#    par le navigateur, et toute autre forme est refusee AVANT de toucher au
+#    depot -- une cle courte se devinerait, et livrerait les donnees d'un autre.
+# 2. LA REPRISE EST A USAGE UNIQUE. L'etat repris quitte le depot : deux
+#    onglets ne peuvent pas se le partager, et la memoire est rendue.
+# 3. LE DEPOT EST BORNE, en duree ET en nombre. Un onglet ferme pour de bon ne
+#    revient jamais chercher son etat : sans borne, un serveur partage
+#    garderait les donnees de chaque visiteur indefiniment. Ce qui sort du
+#    depot est LIBERE (la connexion DuckDB se ferme), pas seulement oublie.
+# 4. UN `reactiveVal` SE REPREND EN L'APPELANT. `values$customXLevels` est un
+#    objet, pas une valeur : affecter l'ancien a la nouvelle session y
+#    brancherait un objet qu'aucun observateur de cette session n'ecoute.
+# ===========================================================================
+HSTAT_SESSION_GARDE_HEURES <- 24
+HSTAT_SESSION_GARDE_MAX    <- 20L
+HSTAT_SESSION_CLE_MOTIF    <- "^[A-Za-z0-9_-]{32,64}$"
+
+.hstat_garde <- new.env(parent = emptyenv())
+
+hstat_session_cle_valide <- function(cle) {
+  is.character(cle) && length(cle) == 1L && !is.na(cle) &&
+    grepl(HSTAT_SESSION_CLE_MOTIF, cle)
+}
+
+.hstat_garde_heures <- function() {
+  h <- suppressWarnings(as.numeric(getOption("hstat.session.garde.heures",
+                                             HSTAT_SESSION_GARDE_HEURES))[1])
+  if (is.na(h) || h < 0) HSTAT_SESSION_GARDE_HEURES else h
+}
+
+# Retire une entree ET libere ce qu'elle tient. Un echec de liberation ne doit
+# pas laisser l'entree en place : elle serait retentee a chaque passage.
+.hstat_garde_retirer <- function(cle, liberer = TRUE) {
+  e <- .hstat_garde[[cle]]
+  rm(list = cle, envir = .hstat_garde)
+  if (liberer && is.function(e$liberer)) try(e$liberer(), silent = TRUE)
+  invisible(e)
+}
+
+hstat_session_garde_purger <- function(maintenant = Sys.time()) {
+  limite <- maintenant - .hstat_garde_heures() * 3600
+  for (cle in ls(.hstat_garde, all.names = TRUE)) {
+    if (.hstat_garde[[cle]]$quand < limite) .hstat_garde_retirer(cle)
+  }
+  invisible(NULL)
+}
+
+hstat_session_deposer <- function(cle, etat, liberer = NULL,
+                                  maintenant = Sys.time()) {
+  if (!hstat_session_cle_valide(cle)) return(invisible(FALSE))
+  hstat_session_garde_purger(maintenant)
+  # Une cle deja deposee est remplacee : seule la derniere coupure compte.
+  if (exists(cle, envir = .hstat_garde, inherits = FALSE))
+    .hstat_garde_retirer(cle)
+  assign(cle, list(etat = etat, liberer = liberer, quand = maintenant),
+         envir = .hstat_garde)
+  cles <- ls(.hstat_garde, all.names = TRUE)
+  if (length(cles) > HSTAT_SESSION_GARDE_MAX) {
+    quand <- vapply(cles, function(k) as.numeric(.hstat_garde[[k]]$quand), 0)
+    for (k in cles[order(quand)][seq_len(length(cles) - HSTAT_SESSION_GARDE_MAX)])
+      .hstat_garde_retirer(k)
+  }
+  invisible(TRUE)
+}
+
+# Rend l'etat depose sous `cle` et le RETIRE du depot, sans le liberer : la
+# connexion DuckDB passe a la session qui le reprend.
+hstat_session_reprendre <- function(cle, maintenant = Sys.time()) {
+  if (!hstat_session_cle_valide(cle)) return(NULL)
+  hstat_session_garde_purger(maintenant)
+  if (!exists(cle, envir = .hstat_garde, inherits = FALSE)) return(NULL)
+  .hstat_garde_retirer(cle, liberer = FALSE)$etat
+}
+
+# Cliche d'un `reactiveValues` : une liste de REFERENCES (rien n'est copie). Un
+# `reactiveVal` y est remplace par sa valeur, marquee pour etre reprise en
+# appelant l'objet de la nouvelle session.
+hstat_session_cliche <- function(rv, sauf = character(0)) {
+  l <- shiny::isolate(shiny::reactiveValuesToList(rv))
+  l <- l[setdiff(names(l), sauf)]
+  lapply(l, function(v)
+    if (inherits(v, "reactiveVal")) structure(list(shiny::isolate(v())),
+                                              class = "hstat_rv_valeur")
+    else v)
+}
+
+hstat_session_restaurer <- function(rv, cliche, sauf = character(0)) {
+  if (!is.list(cliche)) return(invisible(character(0)))
+  noms <- setdiff(names(cliche), c(sauf, ""))
+  for (nm in noms) {
+    v <- cliche[[nm]]
+    if (inherits(v, "hstat_rv_valeur")) {
+      cible <- shiny::isolate(rv[[nm]])
+      if (inherits(cible, "reactiveVal")) cible(v[[1]])
+      else rv[[nm]] <- shiny::reactiveVal(v[[1]])
+    } else {
+      rv[[nm]] <- v
+    }
+  }
+  invisible(noms)
+}
+
 # ---------------------------------------------------------------------------
 # Retrait des accents : UNE seule definition
 # ---------------------------------------------------------------------------

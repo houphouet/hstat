@@ -147,6 +147,56 @@
     if (deconnecte) { essai = 0; reconnecter(); }
   });
 
+  // ---------------------------------------------------------- cle de session
+  // La reprise de Shiny ouvre une session serveur NEUVE : sans rien d'autre,
+  // la page se reconnecte VIDE. L'onglet porte donc une cle tiree au hasard,
+  // rangee dans sessionStorage -- propre a l'onglet, et qui survit a un
+  // rechargement, y compris celui que le navigateur impose a un onglet gele
+  // pendant la veille. Le serveur depose l'etat sous cette cle a la coupure et
+  // le rend a la session qui la presente (hstat_session_deposer, R/utils.R).
+  //
+  // 128 bits de crypto.getRandomValues : la cle EST l'acces aux donnees, une
+  // cle devinable les livrerait a un autre visiteur. Sans sessionStorage
+  // (navigation privee stricte), la cle vit en memoire : la reconnexion marche
+  // encore, seule la reprise apres rechargement est perdue.
+  var CLE_STOCKAGE = "hstat-session-cle";
+  var cleMemoire = null;
+
+  function tirerCle() {
+    var octets = new Uint8Array(16);
+    window.crypto.getRandomValues(octets);
+    var h = "";
+    for (var i = 0; i < octets.length; i++) {
+      h += ("0" + octets[i].toString(16)).slice(-2);
+    }
+    return h;
+  }
+
+  function cleSession() {
+    try {
+      var c = window.sessionStorage.getItem(CLE_STOCKAGE);
+      if (c && /^[A-Za-z0-9_-]{32,64}$/.test(c)) return c;
+      c = tirerCle();
+      window.sessionStorage.setItem(CLE_STOCKAGE, c);
+      return c;
+    } catch (e) {
+      if (!cleMemoire) cleMemoire = tirerCle();
+      return cleMemoire;
+    }
+  }
+
+  // `shiny:sessioninitialized`, pas `shiny:connected` : au second, l'entree
+  // n'est pas encore acceptee. Une entree ordinaire (pas « event ») reste dans
+  // les valeurs que Shiny renvoie a la reconnexion : la session neuve connait
+  // donc la cle des son premier message.
+  surEvenementShiny("shiny:sessioninitialized", function () {
+    try {
+      if (window.Shiny && Shiny.setInputValue && window.crypto) {
+        Shiny.setInputValue("hstat_session_cle", cleSession());
+      }
+    } catch (e) { /* sans cle, la session reste simplement non gardee */ }
+  });
+
   // ---------------------------------------------------------------- maintien
   setInterval(function () {
     try {

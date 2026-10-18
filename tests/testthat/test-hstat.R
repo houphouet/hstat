@@ -22222,3 +22222,94 @@ test_that("plan : la section du gradient vit sous la ligne « Sens des blocs »"
   expect_lt(pos('id="d-dsgGradient"'), pos('id="d-dsgPlDl"'))
   expect_gt(pos('id="d-dsgGradSize"'), pos('id="d-dsgBlockOrient"'))
 })
+
+# ---------------------------------------------------------------------------
+# Garde de session : une veille ne ferme pas l'application
+# ---------------------------------------------------------------------------
+# La reprise de Shiny ouvre une session NEUVE : sans le depot, la page se
+# reconnectait vide. Ces tests gardent les quatre decisions de
+# `hstat_session_deposer()` ; le parcours au navigateur (coupure du websocket,
+# puis rechargement de l'onglet) a ete verifie contre le code d'avant.
+test_that("garde de session : la cle est une capacite de 128 bits au moins", {
+  expect_true(hstat_session_cle_valide(strrep("a1", 16)))
+  expect_false(hstat_session_cle_valide("abc"))                 # devinable
+  expect_false(hstat_session_cle_valide(paste0(strrep("a", 31), "/")))
+  expect_false(hstat_session_cle_valide(c(strrep("a", 32), strrep("b", 32))))
+  expect_false(hstat_session_cle_valide(NA_character_))
+  expect_false(hstat_session_cle_valide(NULL))
+  # Une cle refusee ne touche jamais au depot.
+  expect_false(hstat_session_deposer("abc", list(x = 1)))
+  expect_null(hstat_session_reprendre("abc"))
+})
+
+test_that("garde de session : la reprise est a usage unique et rend l'etat", {
+  rm(list = ls(.hstat_garde, all.names = TRUE), envir = .hstat_garde)
+  cle <- strrep("c", 32)
+  df <- data.frame(x = 1:3)
+  expect_true(hstat_session_deposer(cle, list(values = list(data = df))))
+  e <- hstat_session_reprendre(cle)
+  expect_identical(e$values$data, df)
+  expect_null(hstat_session_reprendre(cle))   # deux onglets ne la partagent pas
+})
+
+test_that("garde de session : le depot est borne en duree et en nombre, et libere", {
+  rm(list = ls(.hstat_garde, all.names = TRUE), envir = .hstat_garde)
+  liberes <- character(0)
+  lib <- function(k) function() liberes <<- c(liberes, k)
+  t0 <- as.POSIXct("2026-01-01 00:00:00", tz = "UTC")
+  # Duree : une entree plus vieille que la garde sort, et sa connexion se ferme.
+  vieille <- strrep("v", 32)
+  hstat_session_deposer(vieille, list(), liberer = lib("v"), maintenant = t0)
+  expect_null(hstat_session_reprendre(
+    vieille, maintenant = t0 + (HSTAT_SESSION_GARDE_HEURES + 1) * 3600))
+  expect_identical(liberes, "v")
+  # Juste avant l'echeance, elle est encore la.
+  hstat_session_deposer(vieille, list(ok = TRUE), maintenant = t0)
+  expect_true(hstat_session_reprendre(
+    vieille, maintenant = t0 + (HSTAT_SESSION_GARDE_HEURES - 1) * 3600)$ok)
+  # Nombre : au-dela du plafond, la PLUS ANCIENNE sort, liberee.
+  liberes <- character(0)
+  cles <- sprintf("%032d", seq_len(HSTAT_SESSION_GARDE_MAX + 1L))
+  for (i in seq_along(cles))
+    hstat_session_deposer(cles[i], list(i = i), liberer = lib(cles[i]),
+                          maintenant = t0 + i)
+  expect_length(ls(.hstat_garde), HSTAT_SESSION_GARDE_MAX)
+  expect_identical(liberes, cles[1])
+  expect_null(hstat_session_reprendre(cles[1], maintenant = t0 + 100))
+  # La reprise ne libere pas : la connexion passe a la session qui reprend.
+  expect_equal(hstat_session_reprendre(cles[2], maintenant = t0 + 100)$i, 2L)
+  expect_identical(liberes, cles[1])
+  rm(list = ls(.hstat_garde, all.names = TRUE), envir = .hstat_garde)
+})
+
+test_that("garde de session : un reactiveVal se reprend en l'appelant", {
+  ancien <- shiny::reactiveValues(data = data.frame(a = 1), n = 2)
+  ancien$niveaux <- shiny::reactiveVal(c("B", "A"))
+  cliche <- hstat_session_cliche(ancien)
+  neuf <- shiny::reactiveValues(data = NULL, n = 0, resetSignal = 0)
+  rv <- shiny::reactiveVal(NULL)
+  neuf$niveaux <- rv
+  hstat_session_restaurer(neuf, cliche, sauf = "resetSignal")
+  shiny::isolate({
+    expect_equal(neuf$data, data.frame(a = 1))
+    expect_equal(neuf$n, 2)
+    # L'objet de la NOUVELLE session est garde, et porte la valeur d'avant.
+    expect_identical(neuf$niveaux, rv)
+    expect_equal(rv(), c("B", "A"))
+  })
+})
+
+test_that("garde de session : le serveur depose a la fin et reprend sur la cle", {
+  src <- paste(readLines(file.path(.hstat_repo_root(), "inst/app/app_server.R"),
+                         encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("hstat_session_deposer(", src, fixed = TRUE))
+  expect_true(grepl("hstat_session_reprendre(cle)", src, fixed = TRUE))
+  # resetSignal n'est pas repris : il viderait les controles des modules.
+  expect_true(grepl('etat$values, sauf = "resetSignal"', src, fixed = TRUE))
+  js <- paste(readLines(file.path(.hstat_repo_root(),
+                                  "inst/app/www/hstat-session.js"),
+                        encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("crypto.getRandomValues", js, fixed = TRUE))
+  expect_true(grepl("sessionStorage", js, fixed = TRUE))
+  expect_true(grepl('Shiny.setInputValue("hstat_session_cle"', js, fixed = TRUE))
+})

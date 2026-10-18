@@ -6013,6 +6013,63 @@ Le signal de maintien passe en `priority: "event"` : c'est un signal, pas une
 entrée. Sans cela il resterait dans `input` et pourrait redéclencher des
 observateurs en aval.
 
+### Reconnecter ne suffit pas : la session reconnectée était VIDE
+
+Signalé à l'écran — « lorsque l'ordinateur se verrouille ou passe en veille,
+l'application se ferme ». Les trois pièces ci-dessus étaient en place, le
+bandeau se reconnectait bien… et sur une page **vide**.
+
+La cause est dans Shiny lui-même, lue dans `shiny.js` et `ShinySession` : la
+reprise ouvre un **websocket neuf** qui envoie `init`, donc une **session
+serveur neuve** ; l'ancienne est détruite dès la coupure (`wsClosed()` puis
+`onSessionEnded`). `allowReconnect("force")` ne garde rien côté R — seul Shiny
+Server rattache un websocket neuf à une session existante, par sa couche SockJS.
+Données, nettoyage, filtres, résultats : tout repartait de zéro.
+
+On garde donc l'**état**. L'onglet tire une clé (128 bits,
+`crypto.getRandomValues`) rangée dans `sessionStorage` et l'envoie en entrée
+`hstat_session_cle` ; à la fin d'une session qui porte des données, ses
+`values`, `mv_res` et `mv_launch` sont déposés sous cette clé
+(`hstat_session_deposer()`, `R/utils.R`), et la session suivante qui la
+présente les reprend. `sessionStorage` survit au **rechargement** — y compris
+celui qu'un navigateur impose à un onglet gelé pendant la veille — et il est
+propre à l'onglet : un nouvel onglet n'hérite de rien.
+
+Mesuré au navigateur, coupure du websocket puis rechargement de l'onglet :
+« Mazda RX4 » réaffiché avec le correctif, **absent** sans lui.
+
+Quatre décisions, chacune testée :
+
+1. **La clé est une capacité.** Elle seule donne accès aux données d'une autre
+   session : toute forme autre que 32 à 64 caractères `[A-Za-z0-9_-]` est
+   refusée **avant** de toucher au dépôt.
+2. **La reprise est à usage unique** : l'état quitte le dépôt, deux onglets ne
+   se le partagent pas.
+3. **Le dépôt est borné**, 24 h (`HSTAT_SESSION_GARDE_HEURES`, option
+   `hstat.session.garde.heures`) et 20 sessions (`HSTAT_SESSION_GARDE_MAX`). Un
+   onglet fermé pour de bon ne revient jamais : sans borne, un serveur partagé
+   garderait les données de chaque visiteur. Ce qui sort est **libéré** — la
+   connexion DuckDB se ferme —, pas seulement oublié. Tant que l'état est
+   déposé, `onSessionEnded` ne ferme **pas** cette connexion : la fermer
+   rendrait l'état repris inutilisable.
+4. **Un `reactiveVal` se reprend en l'appelant** (`values$customXLevels`) :
+   affecter l'ancien objet brancherait la nouvelle session sur un objet
+   qu'aucun de ses observateurs n'écoute.
+
+`resetSignal` n'est **pas** repris : les modules l'observent pour vider leurs
+contrôles, et le faire passer de 0 à sa valeur d'avant effacerait les réglages
+que la reconnexion vient de renvoyer.
+
+La clé part sur `shiny:sessioninitialized`, pas sur `shiny:connected` : au
+second, l'entrée n'est pas encore acceptée. C'est une entrée **ordinaire**,
+pas un `priority: "event"` : elle reste dans les valeurs que Shiny renvoie à la
+reconnexion, et la session neuve la connaît dès son premier message.
+
+Ce qui ne survit pas, et il faut le savoir : l'état interne propre à un module
+(un `reactiveVal` local à son serveur), et tout ce qui vit dans le **processus
+R** si c'est lui qui s'arrête — fermer RStudio ou la console ferme l'application,
+et c'est voulu.
+
 ## Classifications sur paquets optionnels
 
 `klaR` (k-modes), `poLCA` (LCA) et `clustMixType` (k-prototypes) ne sont pas
