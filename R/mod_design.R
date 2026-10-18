@@ -1047,10 +1047,23 @@ hstat_factorial_df <- function(levels_vec, target = "main1") {
 # élémentaire (m) tels que R * m >= nper.
 #  - mode "blocks"       : R = nper, m = 1 (chaque répétition = un bloc/parcelle).
 #  - mode "subsampling"  : equilibre R et m (utile quand nper est grand).
+#  - mode "fixed"        : R est IMPOSE par l'utilisateur (`repetitions`), et m
+#    complete jusqu'a nper : m = ceiling(nper / R). C'est le nombre de blocs que
+#    le terrain permet, pas celui que le calcul voudrait -- le plan expérimental
+#    le reprend tel quel. Un R plus grand que nper donne m = 1 et davantage
+#    d'unites que le minimum requis : c'est un choix, rendu dans `excedent`.
 hstat_repartition <- function(nper, n_treatments, mode = "blocks",
-                              max_blocks = NULL) {
+                              max_blocks = NULL, repetitions = NULL) {
   nper <- max(1, ceiling(nper))
-  if (mode == "blocks" && (is.null(max_blocks) || nper <= max_blocks)) {
+  rep_ok <- length(repetitions) == 1L && is.finite(suppressWarnings(as.numeric(repetitions))) &&
+            as.numeric(repetitions) >= 1
+  # Un nombre impose absent ou aberrant retombe sur les repetitions seules, le
+  # mode par defaut -- jamais sur le sous-echantillonnage, que personne n'a
+  # demande.
+  if (identical(mode, "fixed") && !rep_ok) mode <- "blocks"
+  if (identical(mode, "fixed")) {
+    R <- as.integer(round(as.numeric(repetitions))); m <- max(1L, as.integer(ceiling(nper / R)))
+  } else if (mode == "blocks" && (is.null(max_blocks) || nper <= max_blocks)) {
     R <- nper; m <- 1
   } else if (mode == "blocks") {
     # nper depasse le nb de blocs souhaite -> completer par sous-échantillonnage
@@ -1060,7 +1073,7 @@ hstat_repartition <- function(nper, n_treatments, mode = "blocks",
   }
   list(`répétitions` = R, samples_per_plot = m,
        per_treatment = R * m, total = R * m * n_treatments,
-       requested = nper)
+       requested = nper, excedent = R * m - nper)
 }
 
 # Place les unités d'un field book sur une grille (x, y) selon le dispositif.
@@ -2001,7 +2014,12 @@ mod_design_ui <- function(id) {
               shiny::fluidRow(
                 shiny::column(6, shiny::selectInput(ns("powRepartMode"), "Mode de répartition vers le plan",
                   choices = c("Répétitions (1 échantillon/parcelle)" = "blocks",
-                              "Sous-échantillonnage (équilibre R x m)" = "subsampling"))),
+                              "Sous-échantillonnage (équilibre R x m)" = "subsampling",
+                              "Nombre de répétitions imposé" = "fixed")),
+                  shiny::conditionalPanel("input.powRepartMode == 'fixed'", ns = ns,
+                    shiny::numericInput(ns("powRepNb"), "Nombre de répétitions (blocs)",
+                                        value = 4, min = 1, max = 1000, step = 1),
+                    shiny::helpText("Les échantillons par parcelle complètent jusqu'à la taille requise par le calcul de puissance."))),
                 shiny::column(6, shiny::div(style = "margin-top:25px;",
                   shiny::actionButton(ns("powToDesign"),
                     shiny::tagList(shiny::icon("arrow-right"), " Utiliser cette taille dans le plan"),
@@ -2590,8 +2608,12 @@ mod_design_server <- function(id, values) {
         # tests sans n/groupe (correlation, regression...) : repartir la taille totale
         nper <- r$ntot
       }
-      hstat_repartition(nper, pow_n_treatments(),
-                        mode = input$powRepartMode %||% "blocks")
+      mode <- input$powRepartMode %||% "blocks"
+      # Borne du champ, cote serveur : le navigateur peut envoyer autre chose,
+      # et le nombre part ensuite dans `dsgRep` (1 a 1000).
+      reps <- if (identical(mode, "fixed"))
+        hstat_borne_client(input$powRepNb, 4, 1, 1000) else NULL
+      hstat_repartition(nper, pow_n_treatments(), mode = mode, repetitions = reps)
     })
 
     output$powRepartPreview <- shiny::renderUI({
@@ -2600,7 +2622,12 @@ mod_design_server <- function(id, values) {
       shiny::div(class = "callout callout-info", style = "margin-top:10px;",
           shiny::icon("info-circle"),
           trf(" Répartition proposée : %d répétition(s)/bloc(s) x %d échantillon(s) par parcelle = %d unités par traitement (total %d). Cliquez sur le bouton pour l'appliquer au plan.",
-                  rp$`répétitions`, rp$samples_per_plot, rp$per_treatment, rp$total))
+                  rp$`répétitions`, rp$samples_per_plot, rp$per_treatment, rp$total),
+          # Plus d'unites que le minimum : un choix de l'utilisateur, qui se dit.
+          if (isTRUE(rp$excedent > 0))
+            shiny::div(style = "margin-top:6px;font-size:12px;",
+              trf("Le calcul de puissance en demande %d par traitement : %d de plus sont prévues.",
+                  rp$requested, rp$excedent)))
     })
 
     shiny::observeEvent(input$powToDesign, {
@@ -2762,6 +2789,19 @@ mod_design_server <- function(id, values) {
         mods <- paste0(LETTERS[i], seq_len(levs[i]))
         shiny::updateTextInput(session, paste0("dsgFLevels", i),
                         value = paste(mods, collapse = ", "))
+      }
+      # Les repetitions imposees dans la repartition voyagent avec les facteurs :
+      # les recuperer sans elles laisserait le plan sur ses 3 blocs par defaut.
+      if (identical(input$powRepartMode, "fixed")) {
+        rp <- tryCatch(pow_repartition(), error = function(e) NULL)
+        reps <- if (!is.null(rp)) rp$`répétitions` else hstat_borne_client(input$powRepNb, 4, 1, 1000)
+        shiny::updateNumericInput(session, "dsgRep", value = reps)
+        if (!is.null(rp)) shiny::updateNumericInput(session, "dsgN", value = rp$samples_per_plot)
+        shiny::showNotification(
+          trf("Importe depuis Puissance : %d facteur(s) (%s modalités), %d répétition(s).",
+                  length(levs), paste(levs, collapse = " x "), reps),
+          type = "message", duration = 5)
+        return(invisible(NULL))
       }
       shiny::showNotification(
         trf("Importe depuis Puissance : %d facteur(s) (%s modalités).",

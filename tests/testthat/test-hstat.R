@@ -22349,3 +22349,45 @@ test_that("un classeur ecrit ses nombres avec la virgule choisie, et rien d'autr
   hstat_ecrire_classeur(f, list(A = data.frame(y = 2.75)), dec = ".")
   expect_equal(openxlsx::read.xlsx(f, sheet = "A")$y, 2.75)
 })
+
+test_that("la repartition de l'echantillon reprend le nombre de repetitions impose", {
+  # Demande a l'ecran : choisir le nombre de repetitions, et que le plan
+  # experimental le reprenne. Le moteur savait deja borner les blocs
+  # (`max_blocks`), l'interface ne le lui passait jamais.
+  r <- hstat_repartition(26, 3, mode = "fixed", repetitions = 4)
+  expect_identical(r$`répétitions`, 4L)
+  # Les echantillons par parcelle completent : 4 x 7 = 28 >= 26.
+  expect_identical(r$samples_per_plot, 7L)
+  expect_identical(r$per_treatment, 28L)
+  expect_equal(r$excedent, 2)
+  expect_equal(r$total, 84)
+  # Plus de repetitions que requis : m = 1, et l'excedent se dit.
+  r <- hstat_repartition(3, 2, mode = "fixed", repetitions = 5)
+  expect_equal(c(r$`répétitions`, r$samples_per_plot, r$excedent), c(5, 1, 2))
+  # Un nombre absent ou aberrant retombe sur le mode automatique, sans lever.
+  for (bad in list(NULL, NA, 0, -2, "x"))
+    expect_equal(hstat_repartition(6, 2, mode = "fixed", repetitions = bad)$`répétitions`, 6)
+  # Les deux modes d'avant ne changent pas.
+  expect_equal(hstat_repartition(26, 3, "blocks")$`répétitions`, 26)
+  expect_equal(hstat_repartition(26, 3, "subsampling")$samples_per_plot, 5)
+
+  # Et le module le prend : le serveur, pas seulement la fonction.
+  vals <- shiny::reactiveValues()
+  shiny::testServer(mod_design_server, args = list(values = vals), {
+    session$setInputs(powTest = "anova_oneway", powAnalysis = "apriori",
+                      powEffect = 0.4, powAlpha = 0.05, powPower = 0.8, powGroups = 3,
+                      powRepartMode = "fixed", powRepNb = 5)
+    session$setInputs(powCalc = 1)
+    rp <- pow_repartition()
+    expect_identical(rp$`répétitions`, 5L)
+    expect_gte(rp$per_treatment, rp$requested)
+    expect_identical(rp$samples_per_plot, as.integer(ceiling(rp$requested / 5)))
+    # La borne du champ tient cote serveur : 10^9 repetitions ne partent pas
+    # dans `dsgRep`, dont le plafond est 1000.
+    session$setInputs(powRepNb = 1e9)
+    expect_identical(pow_repartition()$`répétitions`, 1000L)
+    # Hors du mode impose, le champ n'agit pas.
+    session$setInputs(powRepartMode = "blocks")
+    expect_equal(pow_repartition()$`répétitions`, rp$requested)
+  })
+})

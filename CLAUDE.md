@@ -10014,6 +10014,28 @@ devenus des colonnes.
 La section « Gradient d'hétérogénéité » vit sous la ligne « Sens des blocs » :
 les deux se règlent ensemble.
 
+### La répartition de l'échantillon accepte un nombre de répétitions imposé
+
+Demandé à l'écran : dans « Répartition automatique de l'échantillon », choisir
+soi-même le nombre de répétitions, et que le plan expérimental le reprenne. Le
+moteur (`hstat_repartition()`) savait déjà borner les blocs par `max_blocks` —
+**l'interface ne le lui passait jamais** : un réglage qui existait sans pouvoir
+être atteint.
+
+Le mode « Nombre de répétitions imposé » (`fixed`) pose R tel que saisi, et les
+échantillons par parcelle complètent : `m = ceiling(nper / R)`. Le nombre de
+blocs est ce que le terrain permet, pas ce que le calcul voudrait ; un R plus
+grand que le requis donne `m = 1` et des unités en plus, que l'aperçu **dit**
+(`excedent`). Un nombre absent ou aberrant retombe sur les répétitions seules,
+jamais sur le sous-échantillonnage, que personne n'a demandé.
+
+Le nombre passe par `hstat_borne_client()` aux bornes de `dsgRep` (1 à 1000),
+et **les deux chemins vers le plan le transmettent** : le bouton « Utiliser
+cette taille » et le lien « Récupérer le nombre de facteurs ». Le second ne
+portait que les facteurs : sans les répétitions, le plan restait sur ses trois
+blocs par défaut. Vérifié au navigateur : 5 répétitions imposées donnent
+`dsgRep = 5` et 84 échantillons par parcelle pour 417 requis.
+
 ### Les tailles de légende étaient ignorées sur le rendu par défaut
 
 Signalé à l'écran : « les tailles de texte et de police ne fonctionnent pas ».
