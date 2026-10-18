@@ -22119,3 +22119,106 @@ test_that("plan : la flèche du gradient garde sa direction quand on change le s
     expect_identical(.hstat_dsg_fleches(build_design_plot()), "vertical_up")
   })
 })
+
+# Axe d'empilement des blocs lu sur la figure : facettes en rangees ou en
+# colonnes, sinon orientation des traits de separation des blocs.
+.hstat_dsg_axe_blocs <- function(g) {
+  plots <- list()
+  ajoute <- function(x) {
+    if (inherits(x, "patchwork")) for (i in seq_along(x)) ajoute(x[[i]])
+    else if (inherits(x, "ggplot")) plots[[length(plots) + 1L]] <<- x
+  }
+  ajoute(g)
+  for (p in plots) {
+    if (!any(vapply(p$layers, function(l) inherits(l$geom, "GeomTile"), logical(1)))) next
+    f <- p$facet
+    if (inherits(f, "FacetGrid")) {
+      if (length(f$params$rows)) return("vertical")
+      if (length(f$params$cols)) return("horizontal")
+    }
+    for (l in p$layers) {
+      if (!inherits(l$geom, "GeomSegment") || !is.data.frame(l$data)) next
+      if ((l$aes_params$colour %||% "") %in% c("#c0392b", "#2980b9")) next
+      d <- l$data
+      if (!all(c("x", "xend", "y", "yend") %in% names(d)) || !nrow(d)) next
+      return(if (all(d$y == d$yend)) "vertical" else "horizontal")
+    }
+  }
+  NA_character_
+}
+
+test_that("plan : les blocs sont perpendiculaires au gradient choisi, sur les trois rendus", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("patchwork")
+  # Le sens des blocs associé à chaque direction la suit et lui est perpendiculaire.
+  for (d in HSTAT_DSG_GRAD_DIRECTIONS) {
+    s <- HSTAT_DSG_SENS_BLOCS[[d]]
+    expect_identical(s %in% c("top_down", "bottom_up"), .hstat_dsg_axe_grad(d) == "vertical")
+  }
+  vals <- shiny::reactiveValues()
+  shiny::testServer(mod_design_server, args = list(values = vals), {
+    session$setInputs(dsgType = "fisher", dsgFName1 = "T", dsgFLevels1 = "T1, T2, T3, T4",
+                      dsgRep = 3, dsgSeed = 1, dsgFacetBlocks = TRUE,
+                      dsgTreatOrient = "auto", dsgBlockOrient = "top_down",
+                      dsgBlockLine = 2, dsgGradient = "auto")
+    session$setInputs(dsgGenerate = 1)
+    for (facette in c(TRUE, FALSE)) for (d in HSTAT_DSG_GRAD_DIRECTIONS) {
+      # Un « Sens des blocs » contraire au gradient ne l'emporte pas : le
+      # gradient commande l'axe des blocs.
+      contraire <- if (.hstat_dsg_axe_grad(d) == "vertical") "left_right" else "top_down"
+      session$setInputs(dsgFacetBlocks = facette, dsgGradient = d, dsgBlockOrient = contraire)
+      g <- build_design_plot()
+      lab <- paste(d, if (facette) "facettes" else "plan simple")
+      expect_identical(.hstat_dsg_fleches(g), d, label = lab)
+      expect_identical(.hstat_dsg_axe_blocs(g), .hstat_dsg_axe_grad(d), label = lab)
+    }
+    # Sans gradient choisi, le « Sens des blocs » décide, et l'automatique lui
+    # est perpendiculaire -- y compris sur 3 blocs de 4 parcelles, que l'ancien
+    # critère « plus de rangées que de colonnes » prenait pour des colonnes.
+    session$setInputs(dsgGradient = "auto", dsgFacetBlocks = FALSE, dsgBlockOrient = "top_down")
+    g <- build_design_plot()
+    expect_identical(.hstat_dsg_axe_blocs(g), "vertical")
+    expect_identical(.hstat_dsg_fleches(g), "vertical_down")
+  })
+})
+
+test_that("plan : les tailles de légende agissent aussi sur le rendu en facettes (patchwork)", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("patchwork")
+  taille <- function(g, el) {
+    pl <- NULL
+    aj <- function(x) {
+      if (inherits(x, "patchwork")) for (i in seq_along(x)) aj(x[[i]])
+      else if (inherits(x, "ggplot") &&
+               any(vapply(x$layers, function(l) inherits(l$geom, "GeomTile"), logical(1)))) pl <<- x
+    }
+    aj(g)
+    ggplot2::calc_element(el, ggplot2::theme_grey() + pl$theme)$size
+  }
+  vals <- shiny::reactiveValues()
+  shiny::testServer(mod_design_server, args = list(values = vals), {
+    session$setInputs(dsgType = "fisher", dsgFName1 = "T", dsgFLevels1 = "T1, T2, T3",
+                      dsgRep = 3, dsgSeed = 1, dsgFacetBlocks = TRUE,
+                      dsgGradient = "vertical_down", dsgFontAxis = 12,
+                      dsgLegendTextSize = 11, dsgLegendTitleSize = 12)
+    session$setInputs(dsgGenerate = 1)
+    g <- build_design_plot()
+    expect_s3_class(g, "patchwork")
+    expect_equal(taille(g, "legend.text"), 11)
+    expect_equal(taille(g, "legend.title"), 12)
+    # Indépendantes de la police des axes : c'est ce que le défaut confondait.
+    session$setInputs(dsgLegendTextSize = 23, dsgLegendTitleSize = 27, dsgFontAxis = 12)
+    g <- build_design_plot()
+    expect_equal(taille(g, "legend.text"), 23)
+    expect_equal(taille(g, "legend.title"), 27)
+  })
+})
+
+test_that("plan : la section du gradient vit sous la ligne « Sens des blocs »", {
+  h <- as.character(mod_design_ui("d"))
+  pos <- function(x) regexpr(x, h, fixed = TRUE)[1]
+  expect_gt(pos('id="d-dsgBlockOrient"'), pos('id="d-dsgPlot"'))
+  expect_gt(pos('id="d-dsgGradient"'), pos('id="d-dsgFacetBlocks"'))
+  expect_lt(pos('id="d-dsgGradient"'), pos('id="d-dsgPlDl"'))
+  expect_gt(pos('id="d-dsgGradSize"'), pos('id="d-dsgBlockOrient"'))
+})
