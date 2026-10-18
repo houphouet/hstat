@@ -9881,3 +9881,32 @@ Mesure au navigateur, piège rencontré une fois de plus : la note sortait vide
 sur un démarrage à froid parce que la sonde attendait six secondes après
 « Charger » — le fichier n'était pas encore chargé. Relancée sur l'application
 chaude, elle rend la phrase. On attend ce qu'on veut voir, on ne dort pas.
+
+## Plan & Puissance : le sens du gradient est un réglage autonome
+
+Signalé à l'écran : changer le **sens des blocs** retournait la flèche du
+gradient. Le menu ne proposait que « sens direct (haut→bas / gauche→droite) »
+et « sens inverse » — un seul réglage pour deux axes —, et l'axe était
+**recalculé** à chaque rendu pour rester perpendiculaire aux blocs. Une flèche
+haut→bas posée sur des blocs empilés devenait gauche→droite dès que les blocs
+passaient côte à côte, sans que personne l'ait demandé.
+
+Le menu porte désormais **quatre directions séparées** — haut→bas, bas→haut,
+gauche→droite, droite→gauche — plus « Automatique » et « Aucun ».
+`hstat_dsg_gradient()` (`R/mod_design.R`) est la seule porte, et les **trois**
+chemins de rendu du plan y passent (facetté par bloc, facetté par réplique,
+plan simple) :
+
+- une direction explicite est rendue **telle quelle**, quel que soit l'axe des
+  blocs ;
+- seul « Automatique » suit les blocs, perpendiculairement, dans le sens direct.
+
+Corollaire sur la numérotation des blocs : elle suivait le sens du gradient.
+Elle le suit encore quand le gradient court **le long** de l'empilement des
+blocs ; sinon c'est le « Sens des blocs » qui la décide — une flèche horizontale
+ne dit rien de l'ordre de blocs empilés verticalement.
+
+Le test lit la **direction réelle de la flèche sur la figure construite**
+(segment du panneau-flèche), sous `testServer()`, en changeant le sens des
+blocs entre deux rendus. Sur l'ancien code il échoue exactement sur le défaut
+signalé : `vertical_down` demandé, `horizontal_right` rendu.

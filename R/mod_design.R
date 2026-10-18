@@ -407,6 +407,30 @@ hstat_power_poisson <- function(analysis = "apriori", base_rate = 1, RR = 1.3,
   }
 }
 
+# Sens du gradient d'heterogeneite : un reglage AUTONOME.
+# Les quatre directions explicites (haut->bas, bas->haut, gauche->droite,
+# droite->gauche) sont rendues telles quelles, quelle que soit la disposition
+# des blocs : changer le sens des blocs ne doit pas retourner une fleche que
+# l'utilisateur a posee. Seul "auto" suit les blocs -- perpendiculaire a eux,
+# dans le sens direct. `axe_blocs` est l'axe d'empilement des blocs :
+# "vertical" (blocs empiles) ou "horizontal" (blocs cote a cote).
+HSTAT_DSG_GRAD_DIRECTIONS <- c("vertical_down", "vertical_up",
+                               "horizontal_right", "horizontal_left")
+
+hstat_dsg_gradient <- function(choix, axe_blocs = "vertical") {
+  choix <- if (length(choix) == 1L && !is.na(choix)) as.character(choix) else "auto"
+  if (identical(choix, "none")) return("none")
+  if (choix %in% HSTAT_DSG_GRAD_DIRECTIONS) return(choix)
+  if (identical(axe_blocs, "horizontal")) "horizontal_right" else "vertical_down"
+}
+
+# Axe d'une direction de gradient ("vertical" / "horizontal"), NA sinon.
+.hstat_dsg_axe_grad <- function(dir) {
+  if (dir %in% c("vertical_down", "vertical_up")) "vertical"
+  else if (dir %in% c("horizontal_right", "horizontal_left")) "horizontal"
+  else NA_character_
+}
+
 # Cree un petit panneau-fleche (gradient) a juxtaposer a un graphique facette via
 # patchwork, pour rendre le gradient bien visible meme avec des facettes.
 .gradient_arrow_panel <- function(direction, label = "Gradient", size = 3.5,
@@ -1695,18 +1719,22 @@ hstat_design_analysis <- function(type, n_factors) {
   # gris suit l'orientation des parcelles sans recourir a coord_flip.
 
   # ---- Gradient(s) d'heterogeneite ----
-  # REGLE : le gradient PRINCIPAL (1) est TOUJOURS perpendiculaire a l'empilement
-  # des blocs incomplets ; le 2e gradient reste ORTHOGONAL au 1er.
-  #  - blocs empiles verticalement -> G1 vertical, G2 horizontal ;
-  #  - blocs cote a cote (horizontal) -> G1 horizontal, G2 vertical.
+  # Une direction EXPLICITE (haut->bas, gauche->droite...) est rendue telle
+  # quelle : elle ne suit pas l'empilement des blocs (hstat_dsg_gradient).
+  # Sans direction explicite ("on"), le gradient PRINCIPAL est perpendiculaire
+  # a l'empilement des blocs incomplets ; le 2e reste ORTHOGONAL au 1er.
   sens_inverse <- identical(grad_sens, "inverse")
-  if (blocks_axis == "vertical") {
+  if (grad %in% HSTAT_DSG_GRAD_DIRECTIONS) {
+    main_dir <- grad
+  } else if (blocks_axis == "vertical") {
     main_dir <- if (sens_inverse) "vertical_up" else "vertical_down"
-    main_orient <- "vertical"
-    second_dir <- "horizontal_right"; second_orient <- "horizontal"
   } else {
     main_dir <- if (sens_inverse) "horizontal_left" else "horizontal_right"
-    main_orient <- "horizontal"
+  }
+  main_orient <- .hstat_dsg_axe_grad(main_dir)
+  if (identical(main_orient, "vertical")) {
+    second_dir <- "horizontal_right"; second_orient <- "horizontal"
+  } else {
     second_dir <- "vertical_down"; second_orient <- "vertical"
   }
   # 2e gradient : respecte un choix explicite de l'utilisateur s'il est orthogonal,
@@ -2134,9 +2162,13 @@ mod_design_ui <- function(id) {
               shiny::fluidRow(
                 shiny::column(6, shiny::selectInput(ns("dsgGradient"),
                             shiny::tagList(shiny::icon("arrows-alt"), " Sens du gradient"),
+                            # Quatre directions autonomes : une fleche posee
+                            # ne bouge pas quand on change le sens des blocs.
                             choices = c("Automatique (perpendiculaire aux blocs)" = "auto",
-                                        "Sens direct (haut->bas / gauche->droite)" = "vertical_down",
-                                        "Sens inverse (bas->haut / droite->gauche)" = "vertical_up",
+                                        "Vertical : haut -> bas" = "vertical_down",
+                                        "Vertical : bas -> haut" = "vertical_up",
+                                        "Horizontal : gauche -> droite" = "horizontal_right",
+                                        "Horizontal : droite -> gauche" = "horizontal_left",
                                         "Aucun" = "none"),
                             selected = "auto")),
                 shiny::column(6, shiny::conditionalPanel("input.dsgType=='lsd'", ns = ns,
@@ -3067,7 +3099,7 @@ mod_design_server <- function(id, values) {
                          else if (orient_f %in% c("left_right", "right_left")) "horizontal"
                          else "vertical"
         ug_f <- input$dsgGradient %||% "auto"
-        grad_sens_f <- if (ug_f %in% c("vertical_up", "horizontal_left")) "inverse" else "direct"
+        grad_sens_f <- "direct"
         gf <- .build_faceted_design(b, t, fill_col, fill_scale, ttl,
                                     cell_sep = input$dsgCellSep %||% 1,
                                     blk_line = input$dsgBlockLine %||% 2,
@@ -3078,7 +3110,7 @@ mod_design_server <- function(id, values) {
                                     font_axis = input$dsgFontAxis %||% 12,
                                     theme_gg = hstat_export_theme(
                                       input, "dsgPl", base_size = input$dsgFontAxis %||% 12),
-                                    grad = { if (ug_f == "none") "none" else "on" },
+                                    grad = hstat_dsg_gradient(ug_f, blocks_axis_f),
                                     grad_label = input$dsgGradLabel %||% "Gradient",
                                     grad_size = input$dsgGradSize %||% 3.5,
                                     legend_order = input$dsgLegendOrder %||% "alpha",
@@ -3134,9 +3166,7 @@ mod_design_server <- function(id, values) {
         # 2) L'ORIENTATION DES TRAITEMENTS pilote, separement, le sens des
         #    parcelles a l'intérieur de chaque bloc (rangee vs colonne).
         # --- Reglages de disposition ---
-        ug <- input$dsgGradient %||% "auto"      # ne fixe plus que le SENS
-        # Sens generique : "vertical_up" (= inverse) sinon direct.
-        sens_inverse <- ug %in% c("vertical_up", "horizontal_left")
+        ug <- input$dsgGradient %||% "auto"
 
         orient <- input$dsgBlockOrient %||% "top_down"
         to <- input$dsgTreatOrient %||% "auto"
@@ -3170,22 +3200,16 @@ mod_design_server <- function(id, values) {
           treat_vertical <- (block_stack == "horizontal")
         }
 
-        # (2) Le GRADIENT est TOUJOURS perpendiculaire aux blocs :
-        #  - blocs cote a cote (block_stack horizontal) -> gradient HORIZONTAL ;
-        #  - blocs empiles      (block_stack vertical)   -> gradient VERTICAL.
-        # Le menu ne fixe que le sens (direct / inverse) le long de cet axe impose.
-        if (ug == "none") {
-          grad_v <- "none"
-        } else if (block_stack == "horizontal") {
-          grad_v <- if (sens_inverse) "horizontal_left" else "horizontal_right"
-        } else {
-          grad_v <- if (sens_inverse) "vertical_up" else "vertical_down"
-        }
+        # (2) Le GRADIENT est un reglage autonome : une direction explicite
+        # est rendue telle quelle, quelle que soit la disposition des blocs ;
+        # seul "auto" se pose perpendiculairement aux blocs.
+        grad_v <- hstat_dsg_gradient(ug, block_stack)
 
-        # Sens de numerotation / d'empilement des blocs : suit le sens du gradient.
+        # Sens de numerotation des blocs : il suit le gradient quand celui-ci
+        # court le long de l'empilement des blocs ; sinon, le "Sens des blocs".
         bord <- as.integer(as.factor(b$block))
-        reverse_order <- if (grad_v %in% c("vertical_up", "horizontal_left")) TRUE
-                         else if (grad_v %in% c("vertical_down", "horizontal_right")) FALSE
+        reverse_order <- if (identical(.hstat_dsg_axe_grad(grad_v), block_stack))
+                           grad_v %in% c("vertical_up", "horizontal_left")
                          else orient %in% c("bottom_up", "right_left")
         if (isTRUE(reverse_order)) bord <- max(bord) - bord + 1L
         b$.blockord <- bord
@@ -3255,11 +3279,10 @@ mod_design_server <- function(id, values) {
                                     fontface = if (isTRUE(input$dsgBoldLabels)) "bold" else "plain")
 
       # Fleche d'orientation du gradient d'heterogeneite.
-      # REGLE : le gradient est TOUJOURS perpendiculaire aux blocs.
-      # Dans ce rendu non facette, les blocs sont empiles le long de l'axe Y
-      # (separateurs horizontaux) -> l'axe du gradient est donc VERTICAL ; si la
-      # structure ne comporte pas de blocs en rangees mais en colonnes, on bascule
-      # en HORIZONTAL. Le menu "Orientation du gradient" ne fixe plus que le sens.
+      # Une direction choisie (haut->bas, gauche->droite...) est rendue telle
+      # quelle. "Automatique" seul se pose perpendiculairement aux blocs : ils
+      # sont empiles le long de l'axe Y (separateurs horizontaux) -> gradient
+      # VERTICAL ; en colonnes -> HORIZONTAL.
       grad_struct <- attr(b, "gradient") %||% "none"
       user_grad <- input$dsgGradient %||% "auto"
       nx <- length(unique(b$.x)); ny <- length(unique(b$.y))
@@ -3288,13 +3311,9 @@ mod_design_server <- function(id, values) {
         # Plans a 2 gradients (carre latin) ou diagonale assumee : on conserve.
         grad <- grad_struct
       } else {
-        # Sens generique : "vertical_up" (= inverse) sinon direct.
-        sens_inverse <- user_grad %in% c("vertical_up", "horizontal_left")
-        if (grad_axis_perp == "vertical") {
-          grad <- if (sens_inverse) "vertical_up" else "vertical_down"
-        } else {
-          grad <- if (sens_inverse) "horizontal_left" else "horizontal_right"
-        }
+        # Direction explicite : rendue telle quelle ; "auto" : perpendiculaire
+        # aux blocs.
+        grad <- hstat_dsg_gradient(user_grad, grad_axis_perp)
       }
 
       draw_varrow <- function(g, down = TRUE) {
