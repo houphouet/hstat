@@ -628,9 +628,45 @@ server <- function(input, output, session) {
   # chacune 5 Mo : +367 Mo retenus, rien de libere.
   .hstat_jeton_session <- tryCatch(as.character(session$token)[1],
                                    error = function(e) NULL)
+  # GARDE DE SESSION (voir `hstat_session_deposer()`, R/utils.R). Une veille ou
+  # un verrouillage coupe le websocket, et la reprise de Shiny ouvre une session
+  # NEUVE : sans ce depot, l'utilisateur retrouvait une page reconnectee et vide.
+  # La cle vient de l'onglet (www/hstat-session.js, sessionStorage) ; elle n'est
+  # retenue qu'une fois validee.
+  .hstat_cle_session <- NULL
+  shiny::observeEvent(input$hstat_session_cle, {
+    cle <- input$hstat_session_cle
+    if (!hstat_session_cle_valide(cle)) return(invisible(NULL))
+    .hstat_cle_session <<- cle
+    etat <- hstat_session_reprendre(cle)
+    if (is.null(etat)) return(invisible(NULL))
+    # `resetSignal` n'est PAS repris : les modules l'observent pour vider leurs
+    # controles, et le faire passer de 0 a sa valeur d'avant effacerait les
+    # reglages que la reconnexion vient de renvoyer.
+    hstat_session_restaurer(values, etat$values, sauf = "resetSignal")
+    hstat_session_restaurer(mv_res, etat$mv_res)
+    hstat_session_restaurer(mv_launch, etat$mv_launch)
+    shiny::showNotification(
+      tr("Session reprise : vos données et vos résultats ont été conservés pendant la veille."),
+      type = "message", duration = 8)
+  }, once = TRUE)
+
   session$onSessionEnded(function() {
     shiny::isolate({
-      if (!is.null(values$dbCon)) hstat_duckdb_close(values$dbCon)
+      # Une session qui porte des donnees est DEPOSEE, et sa connexion DuckDB
+      # avec elle : la fermer ici rendrait l'etat repris inutilisable. C'est le
+      # depot qui la fermera s'il expire sans reprise.
+      garde <- !is.null(.hstat_cle_session) && !is.null(values$data)
+      if (garde) {
+        con <- values$dbCon
+        garde <- hstat_session_deposer(
+          .hstat_cle_session,
+          etat = list(values  = hstat_session_cliche(values),
+                      mv_res  = hstat_session_cliche(mv_res),
+                      mv_launch = hstat_session_cliche(mv_launch)),
+          liberer = if (!is.null(con)) function() hstat_duckdb_close(con))
+      }
+      if (!isTRUE(garde) && !is.null(values$dbCon)) hstat_duckdb_close(values$dbCon)
     })
     hstat_cache_clear(.hstat_jeton_session)
   })
