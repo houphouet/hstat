@@ -65,14 +65,16 @@
 
   var NOMBRE_NU = /^\s*[-+]?\d+(\.\d+)?([eE][-+]?\d+)?\s*$/;
 
-  // `mode` = "excel" : un nombre nu reste un nombre, comme dans les classeurs
-  // ecrits par le serveur -- Excel l'affiche alors selon ses reglages
-  // regionaux, et il reste utilisable dans une formule.
+  // Le mode "excel" ne fait plus d'exception : un nombre laisse NU dans un
+  // classeur s'affiche selon les reglages regionaux d'Excel, donc avec un point
+  // sur un poste regle au point, quel que soit le choix fait ici -- c'est le
+  // defaut signale. Avec la virgule, il part ecrit avec elle, comme dans les
+  // classeurs du serveur (hstat_decimale_classeur, R/utils.R).
   window.hstatDecimaleCellule = function (d, mode) {
     if (choix !== "," || d === null || d === undefined) return d;
-    if (typeof d === "number") return mode === "excel" ? d : convertirTexte(String(d));
+    if (typeof d === "number") return convertirTexte(String(d));
     if (typeof d !== "string") return d;
-    if (mode === "excel" && NOMBRE_NU.test(d)) return d;
+    if (NOMBRE_NU.test(d)) return d.replace(".", ",");
     return convertirTexte(d);
   };
   window.hstatDecimaleTexte = convertirTexte;
@@ -181,7 +183,7 @@
 
     var note = document.createElement("p");
     note.className = "hstat-dec-note";
-    note.textContent = "Avec la virgule, les colonnes d'un CSV sont séparées par un point-virgule. Dans un classeur Excel, les nombres restent des nombres : leur virgule suit les réglages régionaux d'Excel.";
+    note.textContent = "Avec la virgule, les colonnes d'un CSV sont séparées par un point-virgule, et les nombres d'un classeur Excel sont écrits avec la virgule quels que soient les réglages d'Excel. Ils y entrent comme du texte : « Convertir en nombre » les rend calculables.";
 
     var plus = document.createElement("label");
     plus.className = "hstat-dec-plus";

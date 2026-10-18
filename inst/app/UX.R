@@ -571,21 +571,21 @@ ui <- shinydashboard::dashboardPage(
                     shiny::actionButton("loadData", "Charger", class = "btn-success", icon = shiny::icon("upload")),
 
                     # --- Jeux de donnees integres a R --------------------------------
-                    # VISIBLE, pas replie : un champ replie est un champ qu'on ne
-                    # trouve pas, et c'est la lecon que ce depot a deja tiree des
-                    # reglages caches derriere un `display:none`. Le CATALOGUE, lui,
-                    # se replie -- c'est un tableau de plusieurs centaines de lignes,
-                    # pas une commande.
+                    # REPLIE, a la demande : deplie, le bloc poussait hors de l'ecran
+                    # la fusion de fichiers pour qui charge son propre fichier. Le
+                    # titre, toujours visible, suffit a le signaler -- c'est la
+                    # disposition de la fusion juste en dessous, et pour la meme
+                    # raison. Le CATALOGUE se replie a son tour a l'interieur.
                     shiny::tags$hr(style = "margin:18px 0 12px;"),
-                    shiny::div(
-                      style = "padding:10px 14px; background:#f3f7ee; border:1px solid #cfe3bd; border-radius:8px;",
+                    shiny::tags$details(
+                      style = "margin:4px 0; padding:10px 14px; background:#f3f7ee; border:1px solid #cfe3bd; border-radius:8px;",
                       # UN NOEUD DE TEXTE PAR CLE. Le traducteur du navigateur ne
                       # remplace que des correspondances COMPLETES, et le DOM fond
                       # toute suite de caracteres adjacents en un seul noeud : une
                       # phrase ecrite en trois morceaux n'existe donc nulle part
                       # comme chaine entiere, et aucune entree du dictionnaire ne
                       # peut la couvrir. Chaque libelle est ecrit d'un tenant.
-                      shiny::tags$b(style = "color:#4a7c2f; font-size:14px;",
+                      shiny::tags$summary(style = "cursor:pointer; font-weight:700; color:#4a7c2f; font-size:14px;",
                                     shiny::icon("database"),
                                     " Utiliser un jeu de données intégré à R"),
                       shiny::p(style = "color:#5a6a7a; font-size:13px; margin:6px 0 10px 0;",

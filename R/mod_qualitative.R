@@ -23,12 +23,12 @@
     wb <- openxlsx::createWorkbook()
     for (s in names(sheets)) {
       openxlsx::addWorksheet(wb, s)
-      openxlsx::writeData(wb, s, hstat_decimale_tableau(sheets[[s]]))
+      openxlsx::writeData(wb, s, hstat_decimale_classeur(sheets[[s]]))
       openxlsx::setColWidths(wb, s, cols = seq_len(ncol(sheets[[s]])), widths = "auto")
     }
     openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
   } else if (requireNamespace("writexl", quietly = TRUE)) {
-    writexl::write_xlsx(lapply(sheets, hstat_decimale_tableau), path = file)
+    writexl::write_xlsx(lapply(sheets, hstat_decimale_classeur), path = file)
   } else {
     con <- file(file, open = "w", encoding = "UTF-8"); on.exit(close(con))
     for (s in names(sheets)) {

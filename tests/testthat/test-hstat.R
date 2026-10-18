@@ -20930,15 +20930,21 @@ test_that("le CSV a la virgule se separe par des points-virgules", {
   expect_identical(readLines(f), readLines(g))
 })
 
-test_that("un classeur garde ses nombres et convertit son texte", {
+test_that("un classeur ecrit nombres et texte avec la virgule, et garde ses nombres au point", {
+  # Ce test exigeait d'abord des NOMBRES avec la virgule : c'est exactement ce
+  # qui faisait ignorer le choix sur un Excel regle au point (voir
+  # `hstat_decimale_classeur()`).
   skip_if_not_installed("openxlsx")
   f <- tempfile(fileext = ".xlsx")
-  hstat_ecrire_classeur(f, list(A = data.frame(n = c(1.5, 2.25), t = c("0.5", "T1.2"))),
-                        dec = ",")
+  d <- data.frame(n = c(1.5, 2.25), t = c("0.5", "T1.2"))
+  hstat_ecrire_classeur(f, list(A = d), dec = ",")
+  r <- openxlsx::read.xlsx(f)
+  expect_identical(r$n, c("1,5", "2,25"))
+  expect_identical(r$t, c("0,5", "T1.2"))
+  hstat_ecrire_classeur(f, list(A = d), dec = ".")
   r <- openxlsx::read.xlsx(f)
   expect_true(is.numeric(r$n))
   expect_equal(r$n, c(1.5, 2.25))
-  expect_identical(r$t, c("0,5", "T1.2"))
 })
 
 test_that("les nombres d'une figure telechargee prennent la virgule", {
@@ -21002,6 +21008,9 @@ test_that("les telechargements de la session suivent son choix", {
     session$userData$decimale <- ","
     skip_if_not_installed("openxlsx")
     r <- openxlsx::read.xlsx(output$tXlsx, sheet = "B")
+    expect_identical(r$y, "3,25")
+    session$userData$decimale <- "."
+    r <- openxlsx::read.xlsx(output$tXlsx, sheet = "B")
     expect_equal(r$y, 3.25)
   })
 })
@@ -21019,11 +21028,12 @@ test_that("aucun export n'ecrit un CSV ou un classeur hors des ecrivains communs
            else ""
     if (nom %in% c("write.csv", "write.csv2", "write.table", "fwrite"))
       fautes <<- c(fautes, paste(basename(f), nom))
-    # Les donnees d'un classeur passent par `hstat_decimale_tableau()`.
+    # Les donnees d'un classeur passent par `hstat_decimale_classeur()` : par
+    # `hstat_decimale_tableau()` seul, les nombres garderaient le point.
     arg <- if (nom == "writeData" && length(e) >= 4) e[[4]]
            else if (nom %in% c("write_xlsx", "write.xlsx") && length(e) >= 2) e[[2]]
            else NULL
-    if (!is.null(arg) && !grepl("hstat_decimale_tableau", paste(deparse(arg), collapse = "")))
+    if (!is.null(arg) && !grepl("hstat_decimale_classeur", paste(deparse(arg), collapse = "")))
       fautes <<- c(fautes, paste(basename(f), nom, paste(deparse(arg), collapse = "")))
     for (i in seq_along(e)[-1]) {
       a <- e[[i]]
@@ -21104,9 +21114,10 @@ process.stdout.write(JSON.stringify(out));
   Encoding(s) <- "UTF-8"
   r <- jsonlite::fromJSON(paste(s, collapse = ""), simplifyVector = FALSE)
   expect_identical(unlist(r$texte), hstat_decimale_texte(x, ","))
-  # Pour Excel, un nombre nu reste un nombre -- comme dans les classeurs du
-  # serveur -- mais il prend la virgule dans un CSV.
-  expect_identical(r$excel, list("1.5", 2.5, "2,5"))
+  # Pour Excel aussi, le nombre part avec la virgule : laisse nu, il
+  # s'afficherait selon les reglages regionaux d'Excel, donc avec un point sur
+  # un poste regle au point -- le defaut signale.
+  expect_identical(r$excel, list("1,5", "2,5", "2,5"))
   expect_identical(r$point, "1.5")
 })
 
@@ -22314,4 +22325,94 @@ test_that("garde de session : le serveur depose a la fin et reprend sur la cle",
   expect_true(grepl("crypto.getRandomValues", js, fixed = TRUE))
   expect_true(grepl("sessionStorage", js, fixed = TRUE))
   expect_true(grepl('Shiny.setInputValue("hstat_session_cle"', js, fixed = TRUE))
+})
+
+test_that("un classeur ecrit ses nombres avec la virgule choisie, et rien d'autre", {
+  # Signale a l'ecran : la virgule ne s'appliquait pas dans les classeurs. Un
+  # nombre stocke nu s'affiche selon les reglages regionaux d'Excel, donc avec
+  # un point sur un poste regle au point, quel que soit le choix fait ici.
+  d <- data.frame(n = c(1.5, NA, 3), e = c(2L, 3L, NA), t = c("a 2.5", "T1.2", NA),
+                  dt = as.Date(c("2026-01-01", NA, "2026-03-04")),
+                  x = c(1e-5, Inf, 5.84333333333333),
+                  stringsAsFactors = FALSE)
+  v <- hstat_decimale_classeur(d, ",")
+  expect_identical(v$n, c("1,5", NA, "3"))
+  expect_identical(v$e, c("2", "3", NA))
+  # Le texte suit la regle commune : un identifiant n'est pas un nombre.
+  expect_identical(v$t, c("a 2,5", "T1.2", NA))
+  # Une date n'est pas un nombre a virgule, et un infini reste une case vide.
+  expect_s3_class(v$dt, "Date")
+  expect_identical(v$x, c("1e-05", NA, "5,84333333333333"))
+  # Rien n'est arrondi : la relecture rend le nombre d'origine.
+  expect_equal(as.numeric(sub(",", ".", v$x[3], fixed = TRUE)), d$x[3])
+  # Le point garde des NOMBRES, a l'identique.
+  expect_identical(hstat_decimale_classeur(d, "."), d)
+  # Et l'ecrivain commun passe par elle.
+  skip_if_not_installed("openxlsx")
+  f <- tempfile(fileext = ".xlsx")
+  hstat_ecrire_classeur(f, list(A = data.frame(y = 2.75)), dec = ",")
+  expect_identical(openxlsx::read.xlsx(f, sheet = "A")$y, "2,75")
+  hstat_ecrire_classeur(f, list(A = data.frame(y = 2.75)), dec = ".")
+  expect_equal(openxlsx::read.xlsx(f, sheet = "A")$y, 2.75)
+})
+
+test_that("la repartition de l'echantillon reprend le nombre de repetitions impose", {
+  # Demande a l'ecran : choisir le nombre de repetitions, et que le plan
+  # experimental le reprenne. Le moteur savait deja borner les blocs
+  # (`max_blocks`), l'interface ne le lui passait jamais.
+  r <- hstat_repartition(26, 3, mode = "fixed", repetitions = 4)
+  expect_identical(r$`répétitions`, 4L)
+  # Les echantillons par parcelle completent : 4 x 7 = 28 >= 26.
+  expect_identical(r$samples_per_plot, 7L)
+  expect_identical(r$per_treatment, 28L)
+  expect_equal(r$excedent, 2)
+  expect_equal(r$total, 84)
+  # Plus de repetitions que requis : m = 1, et l'excedent se dit.
+  r <- hstat_repartition(3, 2, mode = "fixed", repetitions = 5)
+  expect_equal(c(r$`répétitions`, r$samples_per_plot, r$excedent), c(5, 1, 2))
+  # Un nombre absent ou aberrant retombe sur le mode automatique, sans lever.
+  for (bad in list(NULL, NA, 0, -2, "x"))
+    expect_equal(hstat_repartition(6, 2, mode = "fixed", repetitions = bad)$`répétitions`, 6)
+  # Les deux modes d'avant ne changent pas.
+  expect_equal(hstat_repartition(26, 3, "blocks")$`répétitions`, 26)
+  expect_equal(hstat_repartition(26, 3, "subsampling")$samples_per_plot, 5)
+
+  # Et le module le prend : le serveur, pas seulement la fonction. Le calcul
+  # de puissance passe par pwr, que le travail `R CMD check` n'installe pas.
+  skip_if_not_installed("pwr")
+  vals <- shiny::reactiveValues()
+  shiny::testServer(mod_design_server, args = list(values = vals), {
+    session$setInputs(powTest = "anova_oneway", powAnalysis = "apriori",
+                      powEffect = 0.4, powAlpha = 0.05, powPower = 0.8, powGroups = 3,
+                      powRepartMode = "fixed", powRepNb = 5)
+    session$setInputs(powCalc = 1)
+    rp <- pow_repartition()
+    expect_identical(rp$`répétitions`, 5L)
+    expect_gte(rp$per_treatment, rp$requested)
+    expect_identical(rp$samples_per_plot, as.integer(ceiling(rp$requested / 5)))
+    # La borne du champ tient cote serveur : 10^9 repetitions ne partent pas
+    # dans `dsgRep`, dont le plafond est 1000.
+    session$setInputs(powRepNb = 1e9)
+    expect_identical(pow_repartition()$`répétitions`, 1000L)
+    # Hors du mode impose, le champ n'agit pas.
+    session$setInputs(powRepartMode = "blocks")
+    expect_equal(pow_repartition()$`répétitions`, rp$requested)
+  })
+})
+
+test_that("le bloc des jeux integres a R est replie par defaut", {
+  # Demande a l'ecran : replier « Utiliser un jeu de donnees integre a R ». On
+  # lit l'ARBRE de l'interface : le titre doit etre le `summary` d'un `details`
+  # sans attribut `open` -- meme `NA`, que le navigateur lit comme « ouvert ».
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  ux <- paste(readLines(file.path(root, "inst", "app", "UX.R"),
+                        warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  i <- regexpr(" Utiliser un jeu de données intégré à R", ux, fixed = TRUE)
+  expect_gt(i, 0)
+  avant <- substr(ux, max(1, i - 1500), i)
+  expect_true(grepl("tags$summary(", avant, fixed = TRUE))
+  bloc <- sub(".*shiny::tags\\$details\\(", "", avant)
+  expect_false(grepl("open\\s*=", bloc))
+  expect_true(grepl("shiny::tags$details(", avant, fixed = TRUE))
 })

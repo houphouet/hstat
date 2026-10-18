@@ -6042,7 +6042,7 @@ server <- function(input, output, session) {
         for (nm in names(exps)) {
           sh <- substr(gsub("[^A-Za-z0-9_]", "_", nm), 1, 31)
           openxlsx::addWorksheet(wb, sh)
-          openxlsx::writeData(wb, sh, hstat_decimale_tableau(exps[[nm]]))
+          openxlsx::writeData(wb, sh, hstat_decimale_classeur(exps[[nm]]))
         }
         openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
       })

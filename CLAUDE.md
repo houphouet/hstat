@@ -8131,7 +8131,7 @@ qu'**un** écrivain de CSV, de classeur et d'image.
 | Écrivain | Ce que fait la virgule |
 |---|---|
 | `hstat_ecrire_csv()` (nouveau, seul écrivain CSV) | nombres en `1,5`, champs séparés par `;` — la convention du CSV français, sans laquelle « 1,5 » ferait deux colonnes |
-| `hstat_ecrire_classeur()` et les `writeData` des modules | les **nombres restent des nombres** ; seul le texte est converti |
+| `hstat_ecrire_classeur()` et les `writeData` des modules | nombres et texte écrits avec la virgule (voir ci-dessous) |
 | `hstat_ecrire_image()` | graduations, valeurs portées, titres, équations |
 | boutons de DataTables (`.hstat_dt_buttons()`) | conversion au clic, dans le navigateur |
 
@@ -8143,11 +8143,32 @@ Vingt et un `utils::write.csv()` des modules passent désormais par
 'excel')` à la main : ils passent par `.hstat_dt_buttons()`, qui porte la
 conversion, et le littéral est barré.
 
-**Un classeur Excel ne peut pas porter la virgule de ses nombres.** Le fichier
-stocke un nombre ; c'est Excel qui l'affiche selon ses réglages régionaux.
-Convertir les nombres en texte « 1,5 » les rendrait inutilisables dans une
-formule — un prix bien plus lourd que le gain. La fenêtre le **dit**, plutôt
-que de laisser croire que le réglage a été ignoré.
+**Un classeur Excel écrit ses nombres avec la virgule choisie, en texte.**
+Ce paragraphe disait d'abord l'inverse — « les nombres restent des nombres,
+leur virgule suit les réglages régionaux d'Excel » — et c'est précisément ce qui
+a été signalé à l'écran : « la virgule ne s'applique pas dans les résultats
+téléchargés ». Le fichier stocke `<v>5.84</v>` sans séparateur, et c'est
+**Excel** qui choisit celui qu'il affiche, d'après les réglages de l'ordinateur :
+sur un poste réglé au point, le choix fait dans HStat était ignoré, et la note
+de la fenêtre ne suffisait pas à le faire comprendre. Le réglage existait,
+l'image (ici, la feuille) ne bougeait pas — le défaut que ce dépôt traque.
+
+Aucun format de nombre ne force la virgule : le séparateur d'un format Excel
+suit toujours la machine. La seule écriture qu'Excel affiche telle quelle est
+le **texte**. `hstat_decimale_classeur()` l'applique à tous les classeurs —
+l'écrivain commun et les quinze sites qui montent le leur — et les boutons Excel
+de DataTables suivent la même règle. Le prix est connu et la fenêtre le dit :
+la cellule n'entre plus dans une formule tant qu'on ne l'a pas convertie
+(« Convertir en nombre »). **Le point garde des nombres**, au caractère près.
+
+`as.character()` rend quinze chiffres significatifs, la précision d'un double :
+rien n'est arrondi dans le fichier, et le test le relit. Une date reste une date,
+un entier s'écrit sans virgule, un `NA` ou un infini reste une case vide.
+
+Le balayage qui garde les écrivains exige désormais `hstat_decimale_classeur()`
+autour des données d'un classeur : `hstat_decimale_tableau()` seul — qui ne
+convertit que le texte, et reste le bon chemin pour le CSV — y laisserait les
+nombres au point.
 
 ### Un nombre écrit dans un texte, pas un identifiant
 
@@ -9878,6 +9899,12 @@ une feuille. Le titre du bloc dit le nombre de feuilles, ce qui suffit à le
 signaler. Le test exige l'absence de **tout** argument `open` — même `NA`, le
 navigateur le lit comme « ouvert ».
 
+Même règle, même raison, pour **« Utiliser un jeu de données intégré à R »** :
+il était visible d'office (un `div`), et poussait la fusion de fichiers hors de
+l'écran pour qui charge son propre fichier. C'est désormais un `details` replié,
+comme la fusion juste en dessous ; le titre reste visible. Le test lit l'arbre
+de `UX.R` et refuse tout `open`, une mutation `open = NA` le fait échouer.
+
 ## Tout sélectionner, tout désélectionner : une couleur chacun
 
 Quatorze boutons dans quatre modules portaient chacun leur couleur — vert,
@@ -9992,6 +10019,28 @@ devenus des colonnes.
 
 La section « Gradient d'hétérogénéité » vit sous la ligne « Sens des blocs » :
 les deux se règlent ensemble.
+
+### La répartition de l'échantillon accepte un nombre de répétitions imposé
+
+Demandé à l'écran : dans « Répartition automatique de l'échantillon », choisir
+soi-même le nombre de répétitions, et que le plan expérimental le reprenne. Le
+moteur (`hstat_repartition()`) savait déjà borner les blocs par `max_blocks` —
+**l'interface ne le lui passait jamais** : un réglage qui existait sans pouvoir
+être atteint.
+
+Le mode « Nombre de répétitions imposé » (`fixed`) pose R tel que saisi, et les
+échantillons par parcelle complètent : `m = ceiling(nper / R)`. Le nombre de
+blocs est ce que le terrain permet, pas ce que le calcul voudrait ; un R plus
+grand que le requis donne `m = 1` et des unités en plus, que l'aperçu **dit**
+(`excedent`). Un nombre absent ou aberrant retombe sur les répétitions seules,
+jamais sur le sous-échantillonnage, que personne n'a demandé.
+
+Le nombre passe par `hstat_borne_client()` aux bornes de `dsgRep` (1 à 1000),
+et **les deux chemins vers le plan le transmettent** : le bouton « Utiliser
+cette taille » et le lien « Récupérer le nombre de facteurs ». Le second ne
+portait que les facteurs : sans les répétitions, le plan restait sur ses trois
+blocs par défaut. Vérifié au navigateur : 5 répétitions imposées donnent
+`dsgRep = 5` et 84 échantillons par parcelle pour 417 requis.
 
 ### Les tailles de légende étaient ignorées sur le rendu par défaut
 

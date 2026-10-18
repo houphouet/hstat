@@ -40,8 +40,9 @@
   # Le separateur decimal se lit AU CLIC, dans le navigateur : ces boutons
   # exportent sans repasser par le serveur, `hstat_decimale_session()` ne les
   # atteint donc pas. `hstatDecimaleCellule()` (www/hstat-decimale.js) applique
-  # la meme regle que `hstat_decimale_texte()` ; pour Excel, un nombre nu reste
-  # un nombre, comme dans les classeurs ecrits par le serveur.
+  # la meme regle que `hstat_decimale_texte()` ; pour Excel, un nombre nu part
+  # ecrit avec la virgule, comme dans les classeurs du serveur
+  # (`hstat_decimale_classeur()`).
   corps <- function(mode) list(format = list(body = DT::JS(sprintf(
     "function (d) { return window.hstatDecimaleCellule ? window.hstatDecimaleCellule(d, '%s') : d; }",
     mode))))
@@ -1241,6 +1242,40 @@ hstat_decimale_tableau <- function(x, dec = hstat_decimale_session()) {
   if (is.matrix(x) && is.character(x)) return(hstat_decimale_texte(x, dec))
   if (!is.data.frame(x)) return(x)
   for (j in seq_along(x)) x[[j]] <- hstat_decimale_texte(x[[j]], dec)
+  x
+}
+
+# Un CLASSEUR Excel avec la virgule : les nombres y sont ECRITS avec elle.
+#
+# Signale a l'ecran : « la virgule ne s'applique pas dans les resultats
+# telecharges ». Un classeur stocke un nombre sans separateur (`<v>5.84</v>`) et
+# c'est Excel qui choisit celui qu'il affiche, d'apres les reglages regionaux de
+# l'ordinateur -- pas d'apres HStat. Sur un poste regle au point, le choix de
+# l'utilisateur etait donc ignore, et rien ne le disait.
+#
+# Aucun format de nombre ne force la virgule : le separateur d'un format Excel
+# suit toujours la machine. La seule ecriture qu'Excel affiche telle quelle est
+# le TEXTE. Le prix est connu et il est dit dans la fenetre de choix : la
+# cellule n'entre plus dans une formule tant qu'on ne l'a pas convertie
+# (« Convertir en nombre », que propose Excel sur un poste regle a la virgule).
+# Le point garde des NOMBRES, au caractere pres comme avant.
+#
+# `as.character()` rend 15 chiffres significatifs, la precision d'un double :
+# rien n'est arrondi dans le fichier. Un entier reste ecrit sans virgule, et un
+# `NA` reste une cellule vide.
+hstat_decimale_classeur <- function(x, dec = hstat_decimale_session()) {
+  if (!identical(.hstat_decimale(dec), ",") || is.null(x)) return(x)
+  if (is.matrix(x) && !is.character(x)) x <- as.data.frame(x, stringsAsFactors = FALSE)
+  x <- hstat_decimale_tableau(x, dec)
+  if (!is.data.frame(x)) return(x)
+  for (j in seq_along(x)) {
+    v <- x[[j]]
+    if (is.numeric(v) && !inherits(v, c("Date", "POSIXt", "difftime"))) {
+      s <- as.character(v)
+      s[!is.finite(v)] <- NA_character_
+      x[[j]] <- sub(".", ",", s, fixed = TRUE)
+    }
+  }
   x
 }
 
@@ -10144,7 +10179,7 @@ hstat_ecrire_classeur <- function(file, tables, dec = hstat_decimale_session()) 
     if (nm %in% vus) nm <- hstat_feuille_nom(paste0(substr(nm, 1, 27), "_", i))
     vus <- c(vus, nm)
     openxlsx::addWorksheet(wb, nm)
-    openxlsx::writeData(wb, nm, hstat_decimale_tableau(as.data.frame(tables[[i]]), dec))
+    openxlsx::writeData(wb, nm, hstat_decimale_classeur(as.data.frame(tables[[i]]), dec))
   }
   openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
   length(tables)
