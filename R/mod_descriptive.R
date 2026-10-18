@@ -555,10 +555,10 @@ mod_descriptive_server <- function(id, values) {
     content = function(file) {
       # openxlsx fait partie des packages requis ; repli propre si indisponible.
       if (requireNamespace("openxlsx", quietly = TRUE)) {
-        openxlsx::write.xlsx(hstat_decimale_tableau(values$descStats), file)
+        openxlsx::write.xlsx(hstat_decimale_classeur(values$descStats), file)
         shiny::showNotification("Fichier Excel téléchargé !", type = "message", duration = 3)
       } else if (requireNamespace("writexl", quietly = TRUE)) {
-        writexl::write_xlsx(hstat_decimale_tableau(values$descStats), file)
+        writexl::write_xlsx(hstat_decimale_classeur(values$descStats), file)
         shiny::showNotification("Fichier Excel téléchargé !", type = "message", duration = 3)
       } else {
         hstat_ecrire_csv(values$descStats, file, row.names = FALSE)

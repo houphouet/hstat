@@ -882,7 +882,7 @@ mod_threshold_server <- function(id, values) {
         det <- eff_res()
         if (!is.null(det) && !identical(NCOL(det), NCOL(r)))
           feuilles[["Détail"]] <- as.data.frame(det)
-        openxlsx::write.xlsx(lapply(feuilles, hstat_decimale_tableau), file)
+        openxlsx::write.xlsx(lapply(feuilles, hstat_decimale_classeur), file)
       } else
         hstat_ecrire_csv(as.data.frame(r), file, row.names = FALSE,
                          fileEncoding = "UTF-8")
@@ -1996,7 +1996,7 @@ mod_threshold_server <- function(id, values) {
       wb <- openxlsx::createWorkbook()
       
       openxlsx::addWorksheet(wb, "Données")
-      openxlsx::writeData(wb, "Données", hstat_decimale_tableau(threshold_values$plot_data))
+      openxlsx::writeData(wb, "Données", hstat_decimale_classeur(threshold_values$plot_data))
       
       headerStyle <- openxlsx::createStyle(
         fontSize = 12,
@@ -2042,7 +2042,7 @@ mod_threshold_server <- function(id, values) {
       )
       
       openxlsx::addWorksheet(wb, "Paramètres")
-      openxlsx::writeData(wb, "Paramètres", hstat_decimale_tableau(params))
+      openxlsx::writeData(wb, "Paramètres", hstat_decimale_classeur(params))
       openxlsx::addStyle(wb, "Paramètres", headerStyle, rows = 1, cols = 1:2, gridExpand = TRUE)
       
       if(!is.null(threshold_values$label_mapping)) {
@@ -2057,7 +2057,7 @@ mod_threshold_server <- function(id, values) {
         )
         
         openxlsx::addWorksheet(wb, "Labels X")
-        openxlsx::writeData(wb, "Labels X", hstat_decimale_tableau(label_info))
+        openxlsx::writeData(wb, "Labels X", hstat_decimale_classeur(label_info))
         openxlsx::addStyle(wb, "Labels X", headerStyle, rows = 1, cols = 1:3, gridExpand = TRUE)
       }
       
@@ -2074,7 +2074,7 @@ mod_threshold_server <- function(id, values) {
         )
         
         openxlsx::addWorksheet(wb, "Labels Légende")
-        openxlsx::writeData(wb, "Labels Légende", hstat_decimale_tableau(legend_info))
+        openxlsx::writeData(wb, "Labels Légende", hstat_decimale_classeur(legend_info))
         openxlsx::addStyle(wb, "Labels Légende", headerStyle, rows = 1, cols = 1:3, gridExpand = TRUE)
       }
       

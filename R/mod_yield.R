@@ -1342,7 +1342,7 @@ mod_yield_server <- function(id, values) {
           feuilles <- list(Rendements = as.data.frame(r))
           det <- pertes_detail()
           if (NROW(det)) feuilles[["Pertes_par_repetition"]] <- as.data.frame(det)
-          openxlsx::write.xlsx(lapply(feuilles, hstat_decimale_tableau), file)
+          openxlsx::write.xlsx(lapply(feuilles, hstat_decimale_classeur), file)
         }
         else
           hstat_ecrire_csv(as.data.frame(r), file, row.names = FALSE,

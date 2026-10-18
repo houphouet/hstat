@@ -21002,6 +21002,9 @@ test_that("les telechargements de la session suivent son choix", {
     session$userData$decimale <- ","
     skip_if_not_installed("openxlsx")
     r <- openxlsx::read.xlsx(output$tXlsx, sheet = "B")
+    expect_identical(r$y, "3,25")
+    session$userData$decimale <- "."
+    r <- openxlsx::read.xlsx(output$tXlsx, sheet = "B")
     expect_equal(r$y, 3.25)
   })
 })
@@ -21019,11 +21022,12 @@ test_that("aucun export n'ecrit un CSV ou un classeur hors des ecrivains communs
            else ""
     if (nom %in% c("write.csv", "write.csv2", "write.table", "fwrite"))
       fautes <<- c(fautes, paste(basename(f), nom))
-    # Les donnees d'un classeur passent par `hstat_decimale_tableau()`.
+    # Les donnees d'un classeur passent par `hstat_decimale_classeur()` : par
+    # `hstat_decimale_tableau()` seul, les nombres garderaient le point.
     arg <- if (nom == "writeData" && length(e) >= 4) e[[4]]
            else if (nom %in% c("write_xlsx", "write.xlsx") && length(e) >= 2) e[[2]]
            else NULL
-    if (!is.null(arg) && !grepl("hstat_decimale_tableau", paste(deparse(arg), collapse = "")))
+    if (!is.null(arg) && !grepl("hstat_decimale_classeur", paste(deparse(arg), collapse = "")))
       fautes <<- c(fautes, paste(basename(f), nom, paste(deparse(arg), collapse = "")))
     for (i in seq_along(e)[-1]) {
       a <- e[[i]]
@@ -21104,9 +21108,10 @@ process.stdout.write(JSON.stringify(out));
   Encoding(s) <- "UTF-8"
   r <- jsonlite::fromJSON(paste(s, collapse = ""), simplifyVector = FALSE)
   expect_identical(unlist(r$texte), hstat_decimale_texte(x, ","))
-  # Pour Excel, un nombre nu reste un nombre -- comme dans les classeurs du
-  # serveur -- mais il prend la virgule dans un CSV.
-  expect_identical(r$excel, list("1.5", 2.5, "2,5"))
+  # Pour Excel aussi, le nombre part avec la virgule : laisse nu, il
+  # s'afficherait selon les reglages regionaux d'Excel, donc avec un point sur
+  # un poste regle au point -- le defaut signale.
+  expect_identical(r$excel, list("1,5", "2,5", "2,5"))
   expect_identical(r$point, "1.5")
 })
 
@@ -22314,4 +22319,33 @@ test_that("garde de session : le serveur depose a la fin et reprend sur la cle",
   expect_true(grepl("crypto.getRandomValues", js, fixed = TRUE))
   expect_true(grepl("sessionStorage", js, fixed = TRUE))
   expect_true(grepl('Shiny.setInputValue("hstat_session_cle"', js, fixed = TRUE))
+})
+
+test_that("un classeur ecrit ses nombres avec la virgule choisie, et rien d'autre", {
+  # Signale a l'ecran : la virgule ne s'appliquait pas dans les classeurs. Un
+  # nombre stocke nu s'affiche selon les reglages regionaux d'Excel, donc avec
+  # un point sur un poste regle au point, quel que soit le choix fait ici.
+  d <- data.frame(n = c(1.5, NA, 3), e = c(2L, 3L, NA), t = c("a 2.5", "T1.2", NA),
+                  dt = as.Date(c("2026-01-01", NA, "2026-03-04")),
+                  x = c(1e-5, Inf, 5.84333333333333),
+                  stringsAsFactors = FALSE)
+  v <- hstat_decimale_classeur(d, ",")
+  expect_identical(v$n, c("1,5", NA, "3"))
+  expect_identical(v$e, c("2", "3", NA))
+  # Le texte suit la regle commune : un identifiant n'est pas un nombre.
+  expect_identical(v$t, c("a 2,5", "T1.2", NA))
+  # Une date n'est pas un nombre a virgule, et un infini reste une case vide.
+  expect_s3_class(v$dt, "Date")
+  expect_identical(v$x, c("1e-05", NA, "5,84333333333333"))
+  # Rien n'est arrondi : la relecture rend le nombre d'origine.
+  expect_equal(as.numeric(sub(",", ".", v$x[3], fixed = TRUE)), d$x[3])
+  # Le point garde des NOMBRES, a l'identique.
+  expect_identical(hstat_decimale_classeur(d, "."), d)
+  # Et l'ecrivain commun passe par elle.
+  skip_if_not_installed("openxlsx")
+  f <- tempfile(fileext = ".xlsx")
+  hstat_ecrire_classeur(f, list(A = data.frame(y = 2.75)), dec = ",")
+  expect_identical(openxlsx::read.xlsx(f, sheet = "A")$y, "2,75")
+  hstat_ecrire_classeur(f, list(A = data.frame(y = 2.75)), dec = ".")
+  expect_equal(openxlsx::read.xlsx(f, sheet = "A")$y, 2.75)
 })
