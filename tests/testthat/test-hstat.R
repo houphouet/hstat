@@ -22255,7 +22255,9 @@ test_that("garde de session : la reprise est a usage unique et rend l'etat", {
 test_that("garde de session : le depot est borne en duree et en nombre, et libere", {
   rm(list = ls(.hstat_garde, all.names = TRUE), envir = .hstat_garde)
   liberes <- character(0)
-  lib <- function(k) function() liberes <<- c(liberes, k)
+  # `force(k)` : construites dans une boucle `for`, les fermetures liraient
+  # sinon toutes la DERNIERE cle -- le piege deja documente pour force(id).
+  lib <- function(k) { force(k); function() liberes <<- c(liberes, k) }
   t0 <- as.POSIXct("2026-01-01 00:00:00", tz = "UTC")
   # Duree : une entree plus vieille que la garde sort, et sa connexion se ferme.
   vieille <- strrep("v", 32)
