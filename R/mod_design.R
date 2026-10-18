@@ -424,11 +424,31 @@ hstat_dsg_gradient <- function(choix, axe_blocs = "vertical") {
   if (identical(axe_blocs, "horizontal")) "horizontal_right" else "vertical_down"
 }
 
+# Sens des blocs qui accompagne une direction de gradient : le bloc 1 en tete
+# du gradient, les blocs perpendiculaires a lui.
+HSTAT_DSG_SENS_BLOCS <- c(vertical_down = "top_down", vertical_up = "bottom_up",
+                          horizontal_right = "left_right", horizontal_left = "right_left")
+
 # Axe d'une direction de gradient ("vertical" / "horizontal"), NA sinon.
 .hstat_dsg_axe_grad <- function(dir) {
   if (dir %in% c("vertical_down", "vertical_up")) "vertical"
   else if (dir %in% c("horizontal_right", "horizontal_left")) "horizontal"
   else NA_character_
+}
+
+# Applique `f` au(x) panneau(x) du PLAN d'une composition patchwork -- ceux qui
+# portent les parcelles (geom_tile) --, et a rien d'autre : le panneau-fleche
+# du gradient et les piles de legendes gardent leur habillage propre.
+.hstat_dsg_sur_plan <- function(g, f) {
+  if (!inherits(g, "patchwork")) return(f(g))
+  for (i in seq_along(g)) {
+    p <- g[[i]]
+    if (inherits(p, "patchwork")) { g[[i]] <- .hstat_dsg_sur_plan(p, f); next }
+    if (inherits(p, "ggplot") &&
+        any(vapply(p$layers, function(l) inherits(l$geom, "GeomTile"), logical(1))))
+      g[[i]] <- f(p)
+  }
+  g
 }
 
 # Cree un petit panneau-fleche (gradient) a juxtaposer a un graphique facette via
@@ -2157,37 +2177,6 @@ mod_design_ui <- function(id) {
                   shiny::tagList(shiny::icon("tags"), " Afficher une légende séparée pour le Facteur 2"),
                   value = TRUE)))),
 
-              # ============ GRADIENT D'HÉTÉROGÉNÉITÉ ==================
-              .sect("arrows-alt", "Gradient d'hétérogénéité"),
-              shiny::fluidRow(
-                shiny::column(6, shiny::selectInput(ns("dsgGradient"),
-                            shiny::tagList(shiny::icon("arrows-alt"), " Sens du gradient"),
-                            # Quatre directions autonomes : une fleche posee
-                            # ne bouge pas quand on change le sens des blocs.
-                            choices = c("Automatique (perpendiculaire aux blocs)" = "auto",
-                                        "Vertical : haut -> bas" = "vertical_down",
-                                        "Vertical : bas -> haut" = "vertical_up",
-                                        "Horizontal : gauche -> droite" = "horizontal_right",
-                                        "Horizontal : droite -> gauche" = "horizontal_left",
-                                        "Aucun" = "none"),
-                            selected = "auto")),
-                shiny::column(6, shiny::conditionalPanel("input.dsgType=='lsd'", ns = ns,
-                  shiny::selectInput(ns("dsgGradient2"),
-                            shiny::tagList(shiny::icon("arrows-alt-h"), " Orientation du 2e gradient"),
-                            choices = c("Automatique" = "auto",
-                                        "Horizontal : gauche -> droite" = "horizontal_right",
-                                        "Horizontal : droite -> gauche" = "horizontal_left",
-                                        "Vertical : haut -> bas" = "vertical_down",
-                                        "Vertical : bas -> haut" = "vertical_up",
-                                        "Aucun" = "none"),
-                            selected = "auto")))
-              ),
-              shiny::conditionalPanel("input.dsgGradient != 'none'", ns = ns,
-                shiny::fluidRow(
-                  shiny::column(7, shiny::textInput(ns("dsgGradLabel"), "Texte du gradient", value = "Gradient")),
-                  shiny::column(5, shiny::sliderInput(ns("dsgGradSize"), "Taille du texte",
-                                        min = 2, max = 8, value = 3.5, step = 0.5)))),
-
               # ============ BLOCS & SÉPARATEURS =======================
               .sect("border-all", "Blocs & séparateurs"),
               shiny::fluidRow(
@@ -2262,6 +2251,39 @@ mod_design_ui <- function(id) {
                     shiny::tagList(shiny::icon("th"), " Afficher chaque bloc en facette (avec son nom)"),
                     value = TRUE)))
               ),
+              # ============ GRADIENT D'HÉTÉROGÉNÉITÉ ==================
+              # Il vit SOUS le « Sens des blocs » : les deux se reglent ensemble,
+              # les blocs etant perpendiculaires au gradient choisi.
+              .sect("arrows-alt", "Gradient d'hétérogénéité"),
+              shiny::fluidRow(
+                shiny::column(6, shiny::selectInput(ns("dsgGradient"),
+                            shiny::tagList(shiny::icon("arrows-alt"), " Sens du gradient"),
+                            # Quatre directions autonomes : une fleche posee
+                            # ne bouge pas quand on change le sens des blocs.
+                            choices = c("Automatique (perpendiculaire aux blocs)" = "auto",
+                                        "Vertical : haut -> bas" = "vertical_down",
+                                        "Vertical : bas -> haut" = "vertical_up",
+                                        "Horizontal : gauche -> droite" = "horizontal_right",
+                                        "Horizontal : droite -> gauche" = "horizontal_left",
+                                        "Aucun" = "none"),
+                            selected = "auto")),
+                shiny::column(6, shiny::conditionalPanel("input.dsgType=='lsd'", ns = ns,
+                  shiny::selectInput(ns("dsgGradient2"),
+                            shiny::tagList(shiny::icon("arrows-alt-h"), " Orientation du 2e gradient"),
+                            choices = c("Automatique" = "auto",
+                                        "Horizontal : gauche -> droite" = "horizontal_right",
+                                        "Horizontal : droite -> gauche" = "horizontal_left",
+                                        "Vertical : haut -> bas" = "vertical_down",
+                                        "Vertical : bas -> haut" = "vertical_up",
+                                        "Aucun" = "none"),
+                            selected = "auto")))
+              ),
+              shiny::conditionalPanel("input.dsgGradient != 'none'", ns = ns,
+                shiny::fluidRow(
+                  shiny::column(7, shiny::textInput(ns("dsgGradLabel"), "Texte du gradient", value = "Gradient")),
+                  shiny::column(5, shiny::sliderInput(ns("dsgGradSize"), "Taille du texte",
+                                        min = 2, max = 8, value = 3.5, step = 0.5)))),
+
               # ============ EXPORT DE L'IMAGE =========================
               .sect("download", "Export de l'image"),
               # Le module porte deja sa taille de police d'axe (`dsgFontAxis`) :
@@ -2346,6 +2368,16 @@ mod_design_server <- function(id, values) {
       if (is_paired && !identical(input$dsgTreatOrient %||% "auto", "auto"))
         shiny::updateSelectInput(session, "dsgTreatOrient", selected = "auto")
     })
+
+    # Un gradient choisi aligne le « Sens des blocs » : les blocs lui sont
+    # perpendiculaires, le menu doit donc dire ce que la figure montre. Le
+    # sens inverse n'existe pas : changer le sens des blocs ne retourne jamais
+    # le gradient.
+    shiny::observeEvent(input$dsgGradient, {
+      cible <- HSTAT_DSG_SENS_BLOCS[input$dsgGradient %||% "auto"]
+      if (!is.na(cible) && !identical(input$dsgBlockOrient, unname(cible)))
+        shiny::updateSelectInput(session, "dsgBlockOrient", selected = unname(cible))
+    }, ignoreInit = TRUE)
 
     # Reinitialisation globale : ramene les controles du module "Plan & Puissance"
     # (plan experimental + calcul de puissance) a leurs valeurs par defaut.
@@ -3021,10 +3053,11 @@ mod_design_server <- function(id, values) {
       # chemins de rendu (facette et non facette) pour un comportement homogene.
       .apply_legend_fonts <- function(g) {
         if (is.null(g) || !inherits(g, "ggplot")) return(g)
-        # Les compositions patchwork (pile de legendes multi-facteurs) gerent
-        # deja les polices de legende en interne : ne pas modifier leur dernier
-        # panneau par accident.
-        if (inherits(g, "patchwork")) return(g)
+        # Une composition patchwork (fleche du gradient + plan, pile de
+        # legendes) se regle sur le PANNEAU DU PLAN, jamais sur l'ensemble :
+        # la sauter laissait les tailles de legende sans effet sur le rendu
+        # par defaut (blocs en facettes), qui est justement une composition.
+        if (inherits(g, "patchwork")) return(.hstat_dsg_sur_plan(g, .apply_legend_fonts))
         txt_sz  <- suppressWarnings(as.numeric(input$dsgLegendTextSize  %||% 11))
         ttl_sz  <- suppressWarnings(as.numeric(input$dsgLegendTitleSize %||% 12))
         if (is.na(txt_sz)) txt_sz <- 11
@@ -3040,13 +3073,17 @@ mod_design_server <- function(id, values) {
       # ment : le facette, le facette-par-bloc et le plan simple cesseraient de
       # se ressembler des la premiere correction.
       #
-      # Le kit se pose EN DERNIER, et jamais sur une composition patchwork --
-      # elle empile plusieurs panneaux, une marge posee sur le dernier
-      # deplacerait un seul morceau de la figure.
+      # Le kit se pose EN DERNIER. Sur une composition patchwork, il se pose
+      # sur le panneau du plan (celui qui porte les parcelles) : le sauter
+      # rendait ses reglages inertes sur le rendu par defaut ; le poser sur
+      # l'ensemble tracerait des axes sur le panneau-fleche du gradient.
       .finir_plan <- function(g) {
         g <- .apply_legend_fonts(g)
-        if (is.null(g) || !inherits(g, "ggplot") || inherits(g, "patchwork"))
-          return(g)
+        if (is.null(g) || !inherits(g, "ggplot")) return(g)
+        if (inherits(g, "patchwork")) return(.hstat_dsg_sur_plan(g, .finir_kit))
+        .finir_kit(g)
+      }
+      .finir_kit <- function(g) {
         g + hstat_plot_extras_theme(
           hstat_plot_extras_lire(input, "dsgPl",
                                  familles = c("axe", "cles", "marges")))
@@ -3094,11 +3131,14 @@ mod_design_server <- function(id, values) {
         #  - "Automatique" -> deduit du "Sens des blocs".
         to_f <- input$dsgTreatOrient %||% "auto"
         orient_f <- input$dsgBlockOrient %||% "top_down"
-        blocks_axis_f <- if (to_f == "vertical") "horizontal"
+        ug_f <- input$dsgGradient %||% "auto"
+        # Un gradient choisi commande l'axe des blocs : ils lui sont
+        # perpendiculaires (gradient vertical -> blocs empiles).
+        blocks_axis_f <- if (ug_f %in% HSTAT_DSG_GRAD_DIRECTIONS) .hstat_dsg_axe_grad(ug_f)
+                         else if (to_f == "vertical") "horizontal"
                          else if (to_f == "horizontal") "vertical"
                          else if (orient_f %in% c("left_right", "right_left")) "horizontal"
                          else "vertical"
-        ug_f <- input$dsgGradient %||% "auto"
         grad_sens_f <- "direct"
         gf <- .build_faceted_design(b, t, fill_col, fill_scale, ttl,
                                     cell_sep = input$dsgCellSep %||% 1,
@@ -3185,6 +3225,14 @@ mod_design_server <- function(id, values) {
           treat_vertical <- identical(paired_dir, "vertical")
           # Les facettes (blocs/couples) sont alignees horizontalement par defaut.
           block_stack <- "horizontal"
+        } else if (ug %in% HSTAT_DSG_GRAD_DIRECTIONS) {
+          # Gradient choisi : les blocs se posent PERPENDICULAIREMENT a lui --
+          # gradient vertical, blocs empiles ; horizontal, blocs cote a cote.
+          # Le gradient commande l'axe des blocs, jamais l'inverse.
+          block_stack <- .hstat_dsg_axe_grad(ug)
+          treat_vertical <- if (to == "vertical") TRUE
+                            else if (to == "horizontal") FALSE
+                            else (block_stack == "horizontal")
         } else if (to == "vertical") {
           block_stack   <- "horizontal"
           treat_vertical <- TRUE
@@ -3200,15 +3248,15 @@ mod_design_server <- function(id, values) {
           treat_vertical <- (block_stack == "horizontal")
         }
 
-        # (2) Le GRADIENT est un reglage autonome : une direction explicite
-        # est rendue telle quelle, quelle que soit la disposition des blocs ;
-        # seul "auto" se pose perpendiculairement aux blocs.
+        # (2) Le GRADIENT est un reglage autonome, rendu tel quel ; les blocs
+        # lui sont perpendiculaires (ci-dessus). "auto" se pose
+        # perpendiculairement aux blocs choisis par le "Sens des blocs".
         grad_v <- hstat_dsg_gradient(ug, block_stack)
 
-        # Sens de numerotation des blocs : il suit le gradient quand celui-ci
-        # court le long de l'empilement des blocs ; sinon, le "Sens des blocs".
+        # Sens de numerotation des blocs : le bloc 1 est en tete du gradient
+        # choisi ; sans gradient choisi, c'est le "Sens des blocs" qui decide.
         bord <- as.integer(as.factor(b$block))
-        reverse_order <- if (identical(.hstat_dsg_axe_grad(grad_v), block_stack))
+        reverse_order <- if (ug %in% HSTAT_DSG_GRAD_DIRECTIONS)
                            grad_v %in% c("vertical_up", "horizontal_left")
                          else orient %in% c("bottom_up", "right_left")
         if (isTRUE(reverse_order)) bord <- max(bord) - bord + 1L
@@ -3233,14 +3281,27 @@ mod_design_server <- function(id, values) {
       # Orientation des traitements dans le plan principal (non facette) : si
       # l'utilisateur force "verticale", on transpose lignes <-> colonnes.
       to_main <- input$dsgTreatOrient %||% "auto"
+      # Les blocs sont les rangees (.y) ; `blocs_en_y` suit les transpositions
+      # pour que separateurs et gradient restent sur le bon axe.
+      blocs_en_y <- TRUE
+      .transposer <- function() {
+        tmp <- b$.x; b$.x <<- b$.y; b$.y <<- tmp
+        tmpl <- xlab; xlab <<- ylab; ylab <<- tmpl
+        blocs_en_y <<- !blocs_en_y
+      }
       if (to_main %in% c("horizontal", "vertical")) {
         cur_horizontal <- length(unique(b$.x)) >= length(unique(b$.y))
         want_horizontal <- (to_main == "horizontal")
-        if (cur_horizontal != want_horizontal) {
-          tmp <- b$.x; b$.x <- b$.y; b$.y <- tmp
-          tmpl <- xlab; xlab <- ylab; ylab <- tmpl
-        }
+        if (cur_horizontal != want_horizontal) .transposer()
       }
+      # Un gradient choisi commande l'axe des blocs : ils lui sont
+      # perpendiculaires. Gradient horizontal -> blocs en colonnes ; vertical
+      # -> blocs en rangees. Il l'emporte sur l'orientation des traitements.
+      ug_main <- input$dsgGradient %||% "auto"
+      if (t %in% c("fisher", "alpha", "split", "strip", "factorial") &&
+          ug_main %in% HSTAT_DSG_GRAD_DIRECTIONS &&
+          (.hstat_dsg_axe_grad(ug_main) == "vertical") != blocs_en_y)
+        .transposer()
 
       g <- ggplot2::ggplot(b, ggplot2::aes(factor(.x), factor(.y), fill = .fill)) +
         ggplot2::geom_tile(color = "white", linewidth = (input$dsgCellSep %||% 1)) +
@@ -3257,16 +3318,19 @@ mod_design_server <- function(id, values) {
       block_designs <- c("fisher", "alpha", "split", "strip", "factorial")
       blk_line <- input$dsgBlockLine %||% 2
       if (t %in% block_designs && blk_line > 0) {
-        nblocks <- length(unique(b$.y))
+        nblocks <- length(unique(if (blocs_en_y) b$.y else b$.x))
         if (nblocks > 1) {
           # frontieres entre blocs adjacents (espace discret : k + 0.5).
-          # On borne le trait a l'etendue reelle des parcelles (0.5 -> max(.x)+0.5)
-          # au lieu d'un geom_hline pleine largeur qui deborderait a gauche/droite.
-          x_min <- 0.5
-          x_max <- max(b$.x) + 0.5
+          # On borne le trait a l'etendue reelle des parcelles (0.5 -> max+0.5)
+          # au lieu d'un geom_hline pleine largeur qui deborderait.
+          fr <- seq_len(nblocks - 1) + 0.5
+          sep <- if (blocs_en_y)
+                   data.frame(x = 0.5, xend = max(b$.x) + 0.5, y = fr, yend = fr)
+                 else
+                   data.frame(x = fr, xend = fr, y = 0.5, yend = max(b$.y) + 0.5)
           g <- g + ggplot2::geom_segment(
-            data = data.frame(yy = seq_len(nblocks - 1) + 0.5),
-            ggplot2::aes(x = x_min, xend = x_max, y = yy, yend = yy),
+            data = sep,
+            ggplot2::aes(x = x, xend = xend, y = y, yend = yend),
             inherit.aes = FALSE,
             color = input$dsgBlockColor %||% "black",
             linewidth = blk_line)
@@ -3295,12 +3359,10 @@ mod_design_server <- function(id, values) {
       # comme telle apres transposition (plus de colonnes que de rangees ET
       # dispositif en blocs).
       block_designs_perp <- c("fisher", "alpha", "split", "strip", "factorial")
-      blocks_on_y <- TRUE
-      if (t %in% block_designs_perp) {
-        # Si l'utilisateur a force des traitements "horizontaux" alors que les
-        # blocs seraient en colonnes, l'axe d'empilement peut devenir X.
-        blocks_on_y <- ny >= nx
-      }
+      # L'axe des blocs est SUIVI (`blocs_en_y`), pas devine : l'ancien critere
+      # « plus de rangees que de colonnes » prenait 3 blocs de 4 parcelles pour
+      # des blocs en colonnes, et posait un gradient PARALLELE aux blocs.
+      blocks_on_y <- if (t %in% block_designs_perp) blocs_en_y else TRUE
       # Gradient perpendiculaire : blocs sur Y -> gradient vertical ;
       #                            blocs sur X -> gradient horizontal.
       grad_axis_perp <- if (blocks_on_y) "vertical" else "horizontal"

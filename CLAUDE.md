@@ -9910,3 +9910,46 @@ Le test lit la **direction réelle de la flèche sur la figure construite**
 (segment du panneau-flèche), sous `testServer()`, en changeant le sens des
 blocs entre deux rendus. Sur l'ancien code il échoue exactement sur le défaut
 signalé : `vertical_down` demandé, `horizontal_right` rendu.
+
+### Puis : les blocs sont perpendiculaires au gradient choisi
+
+Redemandé à l'écran : le gradient ne bouge plus quand on change les blocs —
+**ce sont les blocs qui suivent le gradient**. Un gradient choisi commande
+l'axe des blocs (vertical → blocs empilés, horizontal → blocs côte à côte), sur
+les trois rendus, et l'emporte sur un « Sens des blocs » ou une orientation des
+traitements contraires. Le sens inverse n'existe pas : changer le sens des
+blocs ne retourne jamais le gradient. Seul « Automatique » laisse le « Sens des
+blocs » décider, le gradient se posant alors perpendiculairement.
+
+Un observateur aligne le menu « Sens des blocs » sur le gradient choisi
+(`HSTAT_DSG_SENS_BLOCS`) : un menu qui dirait « gauche → droite » sous des
+blocs empilés serait un réglage qui ment.
+
+Sur le plan simple (sans facettes), l'axe des blocs était **deviné** —
+« plus de rangées que de colonnes » — et le critère prenait 3 blocs de 4
+parcelles pour des blocs en colonnes : le gradient automatique y tombait
+**parallèle** aux blocs. L'axe est désormais **suivi** à travers les
+transpositions (`blocs_en_y`), et les traits de séparation des blocs suivent le
+même axe : après une transposition ils restaient horizontaux, sur des blocs
+devenus des colonnes.
+
+La section « Gradient d'hétérogénéité » vit sous la ligne « Sens des blocs » :
+les deux se règlent ensemble.
+
+### Les tailles de légende étaient ignorées sur le rendu par défaut
+
+Signalé à l'écran : « les tailles de texte et de police ne fonctionnent pas ».
+Mesuré sur la figure construite, réglage par réglage : sur le rendu **par
+défaut** (blocs en facettes), la taille des modalités et du titre de légende
+n'avait **aucun** effet — la légende suivait la police des axes.
+
+La figure y est une composition **patchwork** (panneau-flèche du gradient +
+plan), et `.apply_legend_fonts()` comme le kit de mise en forme rendaient une
+composition **telle quelle**, pour ne pas toucher aux piles de légendes. Ils se
+posent désormais sur le **panneau du plan** — celui qui porte les parcelles
+(`.hstat_dsg_sur_plan()`) —, jamais sur l'ensemble : posé sur le panneau-flèche,
+le trait d'axe du kit y dessinerait des axes.
+
+Vérifié au navigateur : chacun des cinq réglages (étiquettes, axes, modalités,
+titre de légende, texte du gradient) change l'image affichée. Le test mesure la
+taille lue sur le thème du panneau du plan ; trois mutations le gardent.
