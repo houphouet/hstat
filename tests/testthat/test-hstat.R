@@ -22040,3 +22040,82 @@ test_that("tout sélectionner et tout désélectionner ont chacun leur couleur, 
   expect_lt(regexpr(".btn-default {", css, fixed = TRUE)[1],
             regexpr(".btn.hstat-btn-tout,", css, fixed = TRUE)[1])
 })
+
+# Direction de la fleche du gradient, lue sur la figure construite : le
+# segment colore du panneau-fleche ou de l'annotation du plan simple.
+.hstat_dsg_fleches <- function(g) {
+  plots <- list()
+  ajoute <- function(x) {
+    if (inherits(x, "patchwork")) for (p in x$patches$plots) ajoute(p)
+    if (inherits(x, "ggplot")) plots[[length(plots) + 1L]] <<- x
+  }
+  ajoute(g)
+  dirs <- character(0)
+  for (p in plots) for (l in p$layers) {
+    if (!inherits(l$geom, "GeomSegment")) next
+    d <- l$data
+    if (!is.data.frame(d) || !all(c("x", "xend", "y", "yend") %in% names(d))) next
+    col <- l$aes_params$colour %||% NA
+    if (!col %in% c("#c0392b", "#2980b9")) next
+    for (i in seq_len(nrow(d))) {
+      dirs <- c(dirs, if (isTRUE(all.equal(d$x[i], d$xend[i])))
+        (if (d$y[i] > d$yend[i]) "vertical_down" else "vertical_up")
+      else if (isTRUE(all.equal(d$y[i], d$yend[i])))
+        (if (d$x[i] < d$xend[i]) "horizontal_right" else "horizontal_left")
+      else "diagonal")
+    }
+  }
+  unique(dirs)
+}
+
+test_that("le sens du gradient est autonome : quatre directions, et le sens des blocs ne le retourne pas", {
+  # Une direction choisie est rendue telle quelle, quel que soit l'axe des blocs.
+  for (ax in c("vertical", "horizontal"))
+    for (d in HSTAT_DSG_GRAD_DIRECTIONS) expect_identical(hstat_dsg_gradient(d, ax), d)
+  # Seul « auto » suit les blocs, perpendiculairement.
+  expect_identical(hstat_dsg_gradient("auto", "vertical"), "vertical_down")
+  expect_identical(hstat_dsg_gradient("auto", "horizontal"), "horizontal_right")
+  expect_identical(hstat_dsg_gradient("none", "horizontal"), "none")
+  expect_identical(hstat_dsg_gradient(NA, "horizontal"), "horizontal_right")
+  expect_identical(hstat_dsg_gradient(NULL, "vertical"), "vertical_down")
+  # Le menu offre les quatre directions, haut-bas et gauche-droite séparés.
+  h <- as.character(mod_design_ui("d"))
+  for (v in HSTAT_DSG_GRAD_DIRECTIONS)
+    expect_match(h, sprintf('<option value="%s"', v), fixed = TRUE, label = v)
+})
+
+test_that("plan : la flèche du gradient garde sa direction quand on change le sens des blocs", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("patchwork")
+  vals <- shiny::reactiveValues()
+  shiny::testServer(mod_design_server, args = list(values = vals), {
+    session$setInputs(dsgType = "fisher", dsgFName1 = "Traitement",
+                      dsgFLevels1 = "T1, T2, T3, T4", dsgRep = 3, dsgSeed = 1,
+                      dsgFacetBlocks = TRUE, dsgTreatOrient = "auto",
+                      dsgBlockOrient = "top_down", dsgGradient = "vertical_down")
+    session$setInputs(dsgGenerate = 1)
+    expect_identical(.hstat_dsg_fleches(build_design_plot()), "vertical_down")
+    # Blocs côte à côte : la flèche verticale demandée reste verticale.
+    session$setInputs(dsgBlockOrient = "left_right")
+    expect_identical(.hstat_dsg_fleches(build_design_plot()), "vertical_down")
+    # Et une flèche horizontale reste horizontale sur des blocs empilés.
+    session$setInputs(dsgBlockOrient = "top_down", dsgGradient = "horizontal_left")
+    expect_identical(.hstat_dsg_fleches(build_design_plot()), "horizontal_left")
+    session$setInputs(dsgGradient = "vertical_up")
+    expect_identical(.hstat_dsg_fleches(build_design_plot()), "vertical_up")
+    # « Automatique » suit les blocs : perpendiculaire à eux.
+    session$setInputs(dsgGradient = "auto", dsgBlockOrient = "left_right")
+    expect_identical(.hstat_dsg_fleches(build_design_plot()), "horizontal_right")
+    session$setInputs(dsgBlockOrient = "top_down")
+    expect_identical(.hstat_dsg_fleches(build_design_plot()), "vertical_down")
+    # Plan simple (sans facettes) : même règle.
+    session$setInputs(dsgFacetBlocks = FALSE, dsgGradient = "horizontal_right")
+    expect_identical(.hstat_dsg_fleches(build_design_plot()), "horizontal_right")
+    # Split-plot (rendu facetté par réplique) : blocs côte à côte, flèche verticale.
+    session$setInputs(dsgType = "split", dsgFName2 = "Dose", dsgFLevels2 = "D1, D2",
+                      dsgFLevels1 = "A1, A2", dsgTreatOrient = "vertical",
+                      dsgGradient = "vertical_up")
+    session$setInputs(dsgGenerate = 2)
+    expect_identical(.hstat_dsg_fleches(build_design_plot()), "vertical_up")
+  })
+})
