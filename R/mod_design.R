@@ -219,10 +219,7 @@ hstat_gpower <- function(test, analysis, effect = NULL, effect2 = NULL,
 }
 
 # Reperes de taille d'effet : UNE table, lue par l'indication posee sous le
-# champ « Taille d'effet » ET par le tableau « Conventions (Cohen) ». Deux
-# copies finiraient par diverger -- et c'est arrive : le tableau donnait les
-# seuils de f^2 (0,02 / 0,15 / 0,35) pour des tests dont le champ attend f
-# (lambda = f^2 x N), soit des reperes dix fois trop petits pour ce qu'on saisit.
+# champ « Taille d'effet » et par la classe du tableau des resultats.
 #
 # Les seuils sont ceux de Cohen (1988), sauf l'odds-ratio, repris de Chen,
 # Cohen & Chen (2010) : l'equivalent de d = 0,2 / 0,5 / 0,8 pour une issue
@@ -301,20 +298,6 @@ hstat_pow_classe_phrase <- function(classe, valeur) {
   if (is.null(gab)) return(NA_character_)
   # `formatC` cale sur une largeur fixe : sans `trimws`, « ( 0.25) ».
   trf(gab, trimws(formatC(valeur, format = "fg", digits = 3)))
-}
-
-hstat_effect_conventions <- function() {
-  # Une ligne par mesure, les trois seuils cote a cote : c'est ainsi qu'on
-  # les compare. Les en-tetes portent « Effet » devant l'adjectif -- « Moyen »
-  # seul vaudrait *mean* aussi bien que *medium*, et n'entre pas au dictionnaire.
-  nm <- names(HSTAT_POW_REPERES)
-  data.frame(
-    `Indice de taille d'effet` = vapply(nm, function(k) tr(HSTAT_POW_REPERES[[k]]$libelle), ""),
-    `Effet petit` = vapply(nm, function(k) HSTAT_POW_REPERES[[k]]$seuils[1], 0),
-    `Effet moyen` = vapply(nm, function(k) HSTAT_POW_REPERES[[k]]$seuils[2], 0),
-    `Effet grand` = vapply(nm, function(k) HSTAT_POW_REPERES[[k]]$seuils[3], 0),
-    `Source des seuils` = vapply(nm, function(k) HSTAT_POW_REPERES[[k]]$source, ""),
-    check.names = FALSE, stringsAsFactors = FALSE, row.names = NULL)
 }
 
 # Taille d'échantillon pour ENQUETE DE TERRAIN (sondage) :
@@ -2116,11 +2099,8 @@ mod_design_ui <- function(id) {
         ),
         shiny::fluidRow(
           shinydashboard::box(title = shiny::tagList(shiny::icon("chart-line"), " Courbe de puissance"),
-              status = "info", width = 8, solidHeader = TRUE,
-              shiny::plotOutput(ns("powCurve"), height = "340px")),
-          shinydashboard::box(title = shiny::tagList(shiny::icon("info-circle"), " Conventions (Cohen)"),
-              status = "info", width = 4, solidHeader = TRUE,
-              DT::DTOutput(ns("powConventions")))
+              status = "info", width = 12, solidHeader = TRUE,
+              shiny::plotOutput(ns("powCurve"), height = "340px"))
         )
       ),
       shiny::tabPanel(shiny::tagList(shiny::icon("th"), " Plan expérimental"), value = "plan", shiny::br(),
@@ -2635,15 +2615,6 @@ mod_design_server <- function(id, values) {
       }
       shiny::div(style = "font-size:12px;color:#7f8c8d;margin-top:-8px;margin-bottom:8px;",
           shiny::div("Mesure : ", shiny::tags$b(lab)), reperes, classe)
-    })
-
-    output$powConventions <- DT::renderDT({
-      # Deux decimales comme dans l'indication sous le champ, et un defilement
-      # horizontal : la boite fait un tiers de largeur, la source s'y coupait.
-      DT::formatRound(
-        DT::datatable(hstat_effect_conventions(), rownames = FALSE,
-                      options = list(pageLength = 18, dom = "t", scrollX = TRUE)),
-        columns = 2:4, digits = 2)
     })
 
     pow_res <- shiny::eventReactive(input$powCalc, {
