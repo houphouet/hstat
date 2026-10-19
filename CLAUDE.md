@@ -9961,7 +9961,8 @@ dérivent tous.
 
 | Méthode | Seuil de NA | Source |
 |---|---|---|
-| suppression, moyenne, médiane, mode | moins de 5 % | Schafer (1999), Graham (2009) |
+| suppression des lignes | moins de 5 % | Schafer (1999), Graham (2009) |
+| moyenne, médiane, mode (imputations simples) | 5 à 15 % | réduisent la variance : au-delà, imputation multiple |
 | KNN | 5 à 20 % | se dégrade quand les voisins sont incomplets |
 | missForest | 5 à 30 % | Stekhoven & Bühlmann (2012), éprouvé jusqu'à 30 % |
 | MICE/PMM | 5 à 30 % | Jakobsen et al. (2017) : exploratoire au-delà |

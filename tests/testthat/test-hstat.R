@@ -22028,8 +22028,12 @@ test_that("chaque méthode de valeurs manquantes porte son seuil, et une seule t
   expect_identical(unname(hstat_na_choix()), m$code)
   expect_identical(names(hstat_na_choix()), m$libelle)
   # Le seuil se teste des deux côtés de sa frontière.
-  expect_identical(hstat_na_adequation("median", 5), "adaptee")
-  expect_identical(hstat_na_adequation("median", 5.01), "au-dela")
+  # Imputations simples : 5 a 15 %, la suppression reste a moins de 5 %.
+  expect_identical(hstat_na_adequation("remove", 5.01), "au-dela")
+  for (m in c("mean", "median", "mode")) {
+    expect_identical(hstat_na_adequation(m, 15), "adaptee")
+    expect_identical(hstat_na_adequation(m, 15.01), "au-dela")
+  }
   expect_identical(hstat_na_adequation("knn", 20), "adaptee")
   expect_identical(hstat_na_adequation("knn", 20.5), "au-dela")
   expect_identical(hstat_na_adequation("mice", 30), "adaptee")
