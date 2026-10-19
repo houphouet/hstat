@@ -22449,13 +22449,16 @@ test_that("la taille d'effet porte ses seuils petit, moyen et grand", {
   expect_identical(hstat_pow_classe(q, "q"), "petit")
   expect_identical(hstat_pow_classe(0.5, "q"), "grand")
 
-  # Le tableau des conventions donne les seuils de f, pas de f^2 : le champ
-  # des tests factoriels attend f (lambda = f^2 x N).
-  tc <- hstat_effect_conventions()
-  ligne_f <- tc[tc[[1]] == tr("f de Cohen"), ]
-  expect_equal(unlist(ligne_f[2:4], use.names = FALSE), c(0.10, 0.25, 0.40))
-  expect_false(any(unlist(tc[2:4]) == 0.02))
-  expect_identical(nrow(tc), length(HSTAT_POW_REPERES))
+  # Les seuils de f, pas de f^2 : le champ des tests factoriels attend f
+  # (lambda = f^2 x N).
+  expect_equal(HSTAT_POW_REPERES$f$seuils, c(0.10, 0.25, 0.40))
+
+  # Le tableau « Conventions (Cohen) » a ete retire a la demande : les seuils
+  # vivent sous le champ. Il ne revient pas, et sa fonction non plus.
+  ui <- paste(as.character(mod_design_ui("dsg")), collapse = "")
+  expect_false(grepl("Conventions (Cohen)", ui, fixed = TRUE))
+  expect_false(grepl("powConventions", ui, fixed = TRUE))
+  expect_false(exists("hstat_effect_conventions"))
 
   # Et le module l'affiche : seuils, puis classe de la valeur saisie.
   vals <- shiny::reactiveValues()

@@ -10049,11 +10049,15 @@ petit, moyen et grand. Un nombre nu ne dit pas s'il est petit ou grand, et
 **les seuils changent d'une mesure à l'autre** : 0,25 est un f moyen mais un d
 petit. `HSTAT_POW_REPERES` déclare les seuils une fois, par mesure (d, r, q, f,
 w, h de Cohen 1988 ; OR de Chen, Cohen & Chen 2010) ; l'indication sous le
-champ **et** le tableau « Conventions (Cohen) » en dérivent.
+champ **et** la classe du tableau des résultats en dérivent.
 
-Les deux copies avaient déjà divergé : le tableau donnait les seuils de **f²**
+Le tableau « Conventions (Cohen) », posé à côté de la courbe de puissance, a
+d'abord été recalé sur la même table — il donnait les seuils de **f²**
 (0,02 / 0,15 / 0,35) pour les tests factoriels, dont le champ attend **f**
-(λ = f² × N) — des repères dix fois trop petits pour ce qu'on saisit.
+(λ = f² × N), soit des repères dix fois trop petits. Puis il a été **retiré**,
+à la demande : l'indication sous le champ porte déjà les seuils de la mesure en
+cours, là où l'on saisit. La courbe de puissance prend toute la largeur, et un
+test barre le retour du tableau et de sa fonction.
 
 Trois décisions, chacune testée :
 
