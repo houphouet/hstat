@@ -15741,6 +15741,37 @@ test_that("le format de date choisi agit sur TOUS les types de graphique", {
   })
 })
 
+test_that("Visualisation : une variable se trace sans le détail des niveaux de X", {
+  skip_if_not_installed("ggplot2")
+  set.seed(3)
+  d <- data.frame(TRAITEMENTS = rep(paste0("T", 0:5), each = 10),
+                  HAUTEUR = stats::rnorm(60, 60, 20), stringsAsFactors = FALSE)
+  vals <- shiny::reactiveValues(
+    data = d, cleanData = d, filteredData = d,
+    storedLevelLabels = list(), customXOrder = NULL)
+  shiny::testServer(mod_viz_server, args = list(values = vals), {
+    for (tt in HSTAT_VIZ_X_REGROUPABLE) {
+      session$setInputs(vizXVar = "TRAITEMENTS", vizYVar = "HAUTEUR",
+                        xVarType = "auto", vizType = tt, xRegrouper = TRUE)
+      p <- createPlot()
+      expect_s3_class(p, "ggplot")
+      # UNE position, nommée d'après la colonne -- et toutes les observations
+      # y sont : regrouper n'écarte rien.
+      lab <- ggplot2::ggplot_build(p)$layout$panel_params[[1]]$x$get_labels()
+      expect_identical(as.character(lab), "TRAITEMENTS", label = tt)
+      expect_identical(nrow(plotData()), 60L, label = tt)
+    }
+    # Décochée, les niveaux reviennent : c'est l'assertion qui distingue les
+    # deux codes.
+    session$setInputs(vizType = "box", xRegrouper = FALSE)
+    lab <- ggplot2::ggplot_build(createPlot())$layout$panel_params[[1]]$x$get_labels()
+    expect_setequal(as.character(lab), paste0("T", 0:5))
+    # Sur un histogramme, X est la mesure : la case cochée n'y fait rien.
+    expect_false(hstat_viz_x_regroupe(TRUE, "histogram"))
+    expect_false(hstat_viz_x_regroupe(NULL, "box"))
+  })
+})
+
 test_that("une modalite qui ressemble a une date n'est jamais reecrite", {
   # Le pendant du test precedent, et c'est lui qui borne le correctif. La
   # branche discrete de l'echelle reformate les niveaux qui SONT des dates --
@@ -18656,6 +18687,26 @@ test_that("diversite et DL50 declarent tout le vocabulaire, sans un seul doublon
   NULL
 }
 .hstat_dans_colonne <- function(p) any(grepl("col-(sm|md|xs|lg)-[0-9]", p))
+
+test_that("Visualisation : « Exporter le graphique » vit sous le graphique, dans sa colonne", {
+  skip_if_not_installed("shiny")
+  skip_if_not_installed("shinydashboard")
+  ui <- mod_viz_ui("v")
+  # L'arbre, pas l'ordre du HTML : export et figure partagent la col-sm-8.
+  pg <- .hstat_ancetres(ui, "^v-interactivePlot$")
+  pe <- .hstat_ancetres(ui, "^v-exportFormat$")
+  expect_length(pg, 1L)
+  expect_length(pe, 1L)
+  expect_true(any(grepl("col-sm-8", pg[[1]])))
+  expect_true(any(grepl("col-sm-8", pe[[1]])))
+  expect_false(any(grepl("col-sm-12", pe[[1]])))
+  # Et dessous : la figure d'abord, l'export ensuite, les options après.
+  h <- as.character(ui)
+  expect_lt(regexpr("v-interactivePlot", h, fixed = TRUE),
+            regexpr("v-exportFormat", h, fixed = TRUE))
+  expect_lt(regexpr("v-exportFormat", h, fixed = TRUE),
+            regexpr("Options Avancées de Personnalisation", h, fixed = TRUE))
+})
 
 test_that("chaque panneau du kit vit dans une colonne, sinon il casse sa rangee", {
   skip_if_not_installed("shiny")
@@ -21981,8 +22032,9 @@ test_that("chaque méthode de valeurs manquantes porte son seuil, et une seule t
   expect_identical(hstat_na_adequation("median", 5.01), "au-dela")
   expect_identical(hstat_na_adequation("knn", 20), "adaptee")
   expect_identical(hstat_na_adequation("knn", 20.5), "au-dela")
-  expect_identical(hstat_na_adequation("mice", 40), "adaptee")
-  expect_identical(hstat_na_adequation("mice", 40.1), "au-dela")
+  expect_identical(hstat_na_adequation("mice", 30), "adaptee")
+  expect_identical(hstat_na_adequation("mice", 30.1), "au-dela")
+  expect_identical(HSTAT_NA_METHODES$max[HSTAT_NA_METHODES$code == "mice"], 30)
   expect_identical(hstat_na_adequation("rf", 30.1), "au-dela")
   expect_identical(hstat_na_adequation("value", 90), "sans_seuil")
   # Un pourcentage non calculable ne tranche rien.
@@ -21997,12 +22049,12 @@ test_that("la recommandation de traitement des NA suit les seuils de la même ta
   expect_identical(hstat_na_recommandation(10, TRUE)$m, "rf")
   expect_identical(hstat_na_recommandation(10, FALSE)$m, "mice")
   expect_identical(hstat_na_recommandation(25, TRUE)$m, "mice")
-  expect_false(grepl("Plus de 40", hstat_na_recommandation(40)$txt, fixed = TRUE))
-  expect_match(hstat_na_recommandation(40.5)$txt, "Plus de 40", fixed = TRUE)
+  expect_false(grepl("Plus de 30", hstat_na_recommandation(30)$txt, fixed = TRUE))
+  expect_match(hstat_na_recommandation(30.5)$txt, "Plus de 30", fixed = TRUE)
   # Invariant : sous le seuil de retrait, la méthode recommandée est adaptée au
   # pourcentage qui l'a fait recommander -- sinon le conseil contredirait la
   # note posée sous le choix.
-  for (pct in c(0.5, 4.9, 5, 12, 20, 21, 30, 39, 40)) for (cat in c(TRUE, FALSE)) {
+  for (pct in c(0.5, 4.9, 5, 12, 20, 21, 25, 29, 30)) for (cat in c(TRUE, FALSE)) {
     r <- hstat_na_recommandation(pct, cat)
     expect_identical(hstat_na_adequation(r$m, pct), "adaptee",
                      label = paste(pct, cat, r$m))

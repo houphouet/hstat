@@ -9527,6 +9527,32 @@ Deux corrections, chacune testée :
 La session fictive ne compte pas elle-même comme une vraie session : sans ce
 drapeau (`en_fictive`), elle se désactiverait en se lançant.
 
+### Visualisation : l'export vit sous la figure
+
+Demandé à l'écran, capture à l'appui : « Exporter le graphique » occupait une
+rangée de largeur 12 sous les **deux** colonnes, donc sous la plus haute — celle
+des réglages —, loin de la figure qu'il exporte. La boîte vit désormais dans la
+colonne `col-sm-8` du graphique, juste dessous (`box(width = NULL)` : la colonne
+porte la largeur). Le test passe par l'arbre et par l'ordre de la page, comme
+celui de la DL50 ; il échoue sur l'ancienne disposition.
+
+### Une variable lue d'ensemble, sans le détail des niveaux de X
+
+Demandé à l'écran, capture à l'appui : tracer HAUTEUR en une seule boîte,
+nommée d'après la colonne (« TRAITEMENTS »), plutôt qu'une boîte par
+traitement. La case « Ne pas détailler les niveaux de X » ramène la colonne X à
+un facteur d'un niveau — son propre nom — dans `plotData()`, **avant** la
+lecture des dates et des nombres, qui ne doivent pas s'y appliquer.
+
+`HSTAT_VIZ_X_REGROUPABLE` déclare les types où X est un axe de catégories
+(boîte, violon, barres, nuage) : sur un histogramme ou une densité, X **est** la
+mesure, et la ramener à un niveau effacerait la variable tracée. La liste sert
+à l'interface (la case n'y est offerte que pour ces types) **et** au calcul : une
+case restée cochée après un changement de type ne fait rien ailleurs. Les
+étiquettes par niveau ne s'appliquent pas tant qu'elle est cochée, et
+l'interface le dit. Le test construit les quatre types et lit l'étiquette
+rendue, puis vérifie que décocher rend les six niveaux.
+
 ### Un pas de graduation fixe un nombre de traits, et c'est le navigateur qui le choisit
 
 `seq(debut, fin, by = pas)` rend (fin − début) / pas traits, et ggplot les
@@ -9938,11 +9964,15 @@ dérivent tous.
 | suppression, moyenne, médiane, mode | moins de 5 % | Schafer (1999), Graham (2009) |
 | KNN | 5 à 20 % | se dégrade quand les voisins sont incomplets |
 | missForest | 5 à 30 % | Stekhoven & Bühlmann (2012), éprouvé jusqu'à 30 % |
-| MICE/PMM | 5 à 40 % | Jakobsen et al. (2017) : exploratoire au-delà |
+| MICE/PMM | 5 à 30 % | Jakobsen et al. (2017) : exploratoire au-delà |
 | valeur spécifique | selon le sens du NA | pas de plafond tiré des données |
 
-Au-delà de 40 % (`HSTAT_NA_SEUIL_RETRAIT`), aucune méthode n'est sûre : la
-recommandation propose de retirer la variable.
+Au-delà de 30 % (`HSTAT_NA_SEUIL_RETRAIT`), aucune méthode n'est sûre : la
+recommandation propose de retirer la variable. MICE/PMM a d'abord porté un
+plafond de 40 % ; il a été ramené à 30 %, à la demande, au niveau de
+missForest — le seuil de retrait suit, sans quoi la recommandation
+proposerait entre 30 et 40 % une méthode que la note déclare au-delà de son
+seuil.
 
 **La recommandation et la note ne peuvent pas se contredire.** Elles existaient
 en deux copies (le texte et le bouton « Adopter »), avec des seuils déjà
