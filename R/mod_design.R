@@ -218,17 +218,103 @@ hstat_gpower <- function(test, analysis, effect = NULL, effect2 = NULL,
   }, error = function(e) list(err = conditionMessage(e)))
 }
 
+# Reperes de taille d'effet : UNE table, lue par l'indication posee sous le
+# champ « Taille d'effet » ET par le tableau « Conventions (Cohen) ». Deux
+# copies finiraient par diverger -- et c'est arrive : le tableau donnait les
+# seuils de f^2 (0,02 / 0,15 / 0,35) pour des tests dont le champ attend f
+# (lambda = f^2 x N), soit des reperes dix fois trop petits pour ce qu'on saisit.
+#
+# Les seuils sont ceux de Cohen (1988), sauf l'odds-ratio, repris de Chen,
+# Cohen & Chen (2010) : l'equivalent de d = 0,2 / 0,5 / 0,8 pour une issue
+# rare. Le ratio de taux n'a PAS de convention publiee : on n'en invente pas.
+HSTAT_POW_REPERES <- list(
+  d  = list(libelle = "d de Cohen", seuils = c(0.20, 0.50, 0.80),
+            source = "Cohen (1988)"),
+  r  = list(libelle = "coefficient r", seuils = c(0.10, 0.30, 0.50),
+            source = "Cohen (1988)"),
+  q  = list(libelle = "q de Cohen (écart de deux r après transformation de Fisher)",
+            seuils = c(0.10, 0.30, 0.50), source = "Cohen (1988)"),
+  f  = list(libelle = "f de Cohen", seuils = c(0.10, 0.25, 0.40),
+            source = "Cohen (1988)"),
+  w  = list(libelle = "w de Cohen", seuils = c(0.10, 0.30, 0.50),
+            source = "Cohen (1988)"),
+  h  = list(libelle = "h de Cohen", seuils = c(0.20, 0.50, 0.80),
+            source = "Cohen (1988)"),
+  OR = list(libelle = "odds-ratio (OR)", seuils = c(1.68, 3.47, 6.71),
+            source = "Chen, Cohen & Chen (2010)")
+)
+
+# Mesure attendue par le champ « Taille d'effet » pour un test donne. NA
+# quand aucune convention n'existe (ratio de taux) : mieux vaut rien qu'un
+# repere invente, qu'un rapport recopierait comme s'il etait publie.
+hstat_pow_mesure <- function(test) {
+  test <- as.character(test %||% "")[1]
+  if (is.na(test)) return(NA_character_)
+  if (test %in% c("t_two", "t_paired", "t_one", "mwu", "wilcox_paired",
+                  "wilcox_one", "t_generic")) return("d")
+  if (test %in% c("cor_pb", "cor_biv", "cor_tetra", "reg_slope")) return("r")
+  if (test %in% c("cor_2indep", "cor_2dep")) return("q")
+  if (test %in% c("anova_oneway", "anova_factorial", "rm_between", "rm_within",
+                  "rm_interaction", "ancova", "manova_global", "reg_r2inc",
+                  "reg_r2dev", "f_generic")) return("f")
+  if (test %in% c("gof", "chisq_generic")) return("w")
+  if (test %in% c("prop2", "prop1", "mcnemar", "sign")) return("h")
+  if (test == "logistic") return("OR")
+  NA_character_
+}
+
+# Classe une valeur saisie : « negligeable », « petit », « moyen », « grand ».
+# Le signe ne compte pas (d = -0,5 est un effet moyen), et un odds-ratio
+# inferieur a 1 se lit par son inverse : OR = 0,25 protege autant que OR = 4
+# expose. NA pour une valeur non calculable ou une mesure sans convention --
+# on ne branche pas sur ce qu'on ne peut pas classer.
+hstat_pow_classe <- function(valeur, mesure) {
+  rep <- HSTAT_POW_REPERES[[as.character(mesure %||% "")[1] %||% ""]]
+  v <- suppressWarnings(as.numeric(valeur)[1])
+  if (is.null(rep) || !isTRUE(is.finite(v))) return(NA_character_)
+  v <- if (identical(mesure, "OR")) { if (v <= 0) return(NA_character_); max(v, 1 / v) } else abs(v)
+  s <- rep$seuils
+  if (v < s[1]) "negligeable" else if (v < s[2]) "petit" else if (v < s[3]) "moyen" else "grand"
+}
+
+# La valeur saisie, ramenee a l'echelle de sa mesure. Pour deux correlations
+# le champ porte r1 et non q : classer r1 comme un q confondrait un
+# coefficient avec un ecart de coefficients. q = |atanh(r1) - atanh(r2)|, la
+# grandeur que le calcul de puissance emploie lui-meme.
+hstat_pow_valeur <- function(test, effect, effect2 = 0) {
+  e1 <- suppressWarnings(as.numeric(effect)[1])
+  if (!identical(hstat_pow_mesure(test), "q")) return(e1)
+  e2 <- suppressWarnings(as.numeric(effect2 %||% 0)[1])
+  if (!isTRUE(is.finite(e2))) e2 <- 0
+  if (!isTRUE(is.finite(e1)) || abs(e1) >= 1 || abs(e2) >= 1) return(NA_real_)
+  abs(atanh(e1) - atanh(e2))
+}
+
+# Phrase de classe, ecrite d'un tenant pour chacune des quatre classes.
+hstat_pow_classe_phrase <- function(classe, valeur) {
+  gab <- switch(classe %||% "",
+    negligeable = "Valeur saisie (%s) : effet négligeable, sous le seuil d'un effet petit.",
+    petit       = "Valeur saisie (%s) : effet petit.",
+    moyen       = "Valeur saisie (%s) : effet moyen.",
+    grand       = "Valeur saisie (%s) : effet grand.",
+    NULL)
+  if (is.null(gab)) return(NA_character_)
+  # `formatC` cale sur une largeur fixe : sans `trimws`, « ( 0.25) ».
+  trf(gab, trimws(formatC(valeur, format = "fg", digits = 3)))
+}
+
 hstat_effect_conventions <- function() {
+  # Une ligne par mesure, les trois seuils cote a cote : c'est ainsi qu'on
+  # les compare. Les en-tetes portent « Effet » devant l'adjectif -- « Moyen »
+  # seul vaudrait *mean* aussi bien que *medium*, et n'entre pas au dictionnaire.
+  nm <- names(HSTAT_POW_REPERES)
   data.frame(
-    Test = c("t (d)", "t (d)", "t (d)", "ANOVA (f)", "ANOVA (f)", "ANOVA (f)",
-             "f2 (factoriel/reg)", "f2 (factoriel/reg)", "f2 (factoriel/reg)",
-             "Corrélation (r)", "Corrélation (r)", "Corrélation (r)",
-             "Chi-deux (w)", "Chi-deux (w)", "Chi-deux (w)",
-             "Proportions (h)", "Proportions (h)", "Proportions (h)"),
-    Taille = rep(c("Petit", "Moyen", "Grand"), 6),
-    Valeur = c(0.20, 0.50, 0.80, 0.10, 0.25, 0.40, 0.02, 0.15, 0.35,
-               0.10, 0.30, 0.50, 0.10, 0.30, 0.50, 0.20, 0.50, 0.80),
-    stringsAsFactors = FALSE)
+    `Indice de taille d'effet` = vapply(nm, function(k) tr(HSTAT_POW_REPERES[[k]]$libelle), ""),
+    `Effet petit` = vapply(nm, function(k) HSTAT_POW_REPERES[[k]]$seuils[1], 0),
+    `Effet moyen` = vapply(nm, function(k) HSTAT_POW_REPERES[[k]]$seuils[2], 0),
+    `Effet grand` = vapply(nm, function(k) HSTAT_POW_REPERES[[k]]$seuils[3], 0),
+    `Source des seuils` = vapply(nm, function(k) HSTAT_POW_REPERES[[k]]$source, ""),
+    check.names = FALSE, stringsAsFactors = FALSE, row.names = NULL)
 }
 
 # Taille d'échantillon pour ENQUETE DE TERRAIN (sondage) :
@@ -2522,12 +2608,42 @@ mod_design_server <- function(id, values) {
              else if (test %in% c("gof", "chisq_generic")) "w de Cohen"
              else if (test %in% c("prop2", "prop1", "mcnemar", "sign")) "h de Cohen"
              else ""
+      # Les reperes de la mesure attendue, puis la classe de la valeur saisie :
+      # un nombre nu (« 0,25 ») ne dit pas s'il est petit ou grand, et les
+      # seuils changent d'une mesure a l'autre -- 0,25 est un f moyen mais un
+      # d petit. Chaque phrase est ecrite d'un tenant : `trf()` ne traduit pas
+      # ses arguments, et « moyen » seul n'entre pas au dictionnaire.
+      mes <- hstat_pow_mesure(test)
+      rep <- if (!is.na(mes)) HSTAT_POW_REPERES[[mes]]
+      # Deux decimales : les seuils se recopient tels qu'on les publie (0,10 / 0,25).
+      fmt <- function(x) sprintf("%.2f", x)
+      reperes <- if (!is.null(rep))
+        shiny::div(trf("Repères selon %s : effet petit %s · effet moyen %s · effet grand %s.",
+                       rep$source, fmt(rep$seuils[1]), fmt(rep$seuils[2]), fmt(rep$seuils[3])))
+      else if (identical(test, "poisson"))
+        shiny::div(tr("Aucun seuil conventionnel publié pour un ratio de taux : jugez l'effet sur sa portée pratique."))
+      # En sensibilite, le champ n'entre pas dans le calcul : le classer
+      # commenterait une valeur que l'analyse ignore. L'effet detectable, lui,
+      # est classe dans le tableau des resultats.
+      v <- hstat_pow_valeur(test, input$powEffect, input$powEffect2)
+      cl <- if (!identical(input$powAnalysis, "sensitivity")) hstat_pow_classe(v, mes) else NA_character_
+      classe <- if (!is.na(cl)) {
+        couleur <- switch(cl, negligeable = "#7f8c8d", petit = "#2f6f9f",
+                          moyen = "#9a6a00", grand = "#b03a2e")
+        shiny::div(style = paste0("font-weight:600;color:", couleur, ";"),
+                   hstat_pow_classe_phrase(cl, v))
+      }
       shiny::div(style = "font-size:12px;color:#7f8c8d;margin-top:-8px;margin-bottom:8px;",
-          "Mesure : ", shiny::tags$b(lab))
+          shiny::div("Mesure : ", shiny::tags$b(lab)), reperes, classe)
     })
 
     output$powConventions <- DT::renderDT({
-      DT::datatable(hstat_effect_conventions(), rownames = FALSE, options = list(pageLength = 18, dom = "t"))
+      # Deux decimales comme dans l'indication sous le champ, et un defilement
+      # horizontal : la boite fait un tiers de largeur, la source s'y coupait.
+      DT::formatRound(
+        DT::datatable(hstat_effect_conventions(), rownames = FALSE,
+                      options = list(pageLength = 18, dom = "t", scrollX = TRUE)),
+        columns = 2:4, digits = 2)
     })
 
     pow_res <- shiny::eventReactive(input$powCalc, {
@@ -2552,10 +2668,17 @@ mod_design_server <- function(id, values) {
     output$powOutputTable <- DT::renderDT({
       r <- pow_res(); shiny::validate(shiny::need(is.null(r$err), r$err %||% ""))
       fmt <- function(x) if (is.null(x) || (length(x) == 1 && is.na(x))) "\u2014" else format(round(x, 4), nsmall = 0)
+      mes <- hstat_pow_mesure(input$powTest %||% "t_two")
+      cl <- hstat_pow_classe(r$effect, mes)
+      classe <- switch(cl %||% "", negligeable = tr("Effet négligeable"),
+                       petit = tr("Effet petit"), moyen = tr("Effet moyen"),
+                       grand = tr("Effet grand"), "\u2014")
       tab <- data.frame(
         Parametre = c("Non-centralité \u03bb / \u03b4", r$crit_lab, "Degrés de liberté",
-                      "Taille d'effet", "Taille totale (N)", "Puissance réelle (1-\u03b2)"),
-        Valeur = c(fmt(r$lambda), fmt(r$crit), r$df_lab, fmt(r$effect), as.character(r$ntot), fmt(r$power)),
+                      "Taille d'effet", "Classe de la taille d'effet", "Taille totale (N)",
+                      "Puissance réelle (1-\u03b2)"),
+        Valeur = c(fmt(r$lambda), fmt(r$crit), r$df_lab, fmt(r$effect), classe,
+                   as.character(r$ntot), fmt(r$power)),
         stringsAsFactors = FALSE)
       DT::datatable(tab, rownames = FALSE, options = list(dom = "t", ordering = FALSE),
         caption = htmltools::tags$caption(style = "caption-side:top;font-weight:600;",
