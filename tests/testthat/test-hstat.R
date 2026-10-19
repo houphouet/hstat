@@ -22416,3 +22416,62 @@ test_that("le bloc des jeux integres a R est replie par defaut", {
   expect_false(grepl("open\\s*=", bloc))
   expect_true(grepl("shiny::tags$details(", avant, fixed = TRUE))
 })
+
+test_that("la taille d'effet porte ses seuils petit, moyen et grand", {
+  # Demande a l'ecran : indiquer les seuils sous « Taille d'effet ». Une seule
+  # table nourrit l'indication ET le tableau des conventions.
+  expect_identical(hstat_pow_mesure("t_two"), "d")
+  expect_identical(hstat_pow_mesure("anova_factorial"), "f")
+  expect_identical(hstat_pow_mesure("cor_2indep"), "q")
+  expect_identical(hstat_pow_mesure("logistic"), "OR")
+  # Pas de convention publiee pour un ratio de taux : rien n'est invente.
+  expect_true(is.na(hstat_pow_mesure("poisson")))
+  expect_true(is.na(hstat_pow_classe(1.5, NA)))
+
+  # Le meme nombre ne veut pas dire la meme chose selon la mesure : 0,25 est un
+  # f moyen mais un d petit. C'est l'assertion qui exige des seuils PAR mesure.
+  expect_identical(hstat_pow_classe(0.25, "f"), "moyen")
+  expect_identical(hstat_pow_classe(0.25, "d"), "petit")
+  # Les deux cotes de chaque frontiere.
+  expect_identical(hstat_pow_classe(0.19, "d"), "negligeable")
+  expect_identical(hstat_pow_classe(0.20, "d"), "petit")
+  expect_identical(hstat_pow_classe(0.79, "d"), "moyen")
+  expect_identical(hstat_pow_classe(0.80, "d"), "grand")
+  # Le signe ne compte pas, un OR < 1 se lit par son inverse.
+  expect_identical(hstat_pow_classe(-0.5, "d"), "moyen")
+  expect_identical(hstat_pow_classe(1 / 4, "OR"), hstat_pow_classe(4, "OR"))
+  expect_true(is.na(hstat_pow_classe(NA, "d")))
+  expect_true(is.na(hstat_pow_classe(0, "OR")))
+
+  # Deux correlations : le champ porte r1, la classe porte sur q.
+  q <- hstat_pow_valeur("cor_2indep", 0.5, 0.3)
+  expect_equal(q, abs(atanh(0.5) - atanh(0.3)))
+  expect_identical(hstat_pow_classe(q, "q"), "petit")
+  expect_identical(hstat_pow_classe(0.5, "q"), "grand")
+
+  # Le tableau des conventions donne les seuils de f, pas de f^2 : le champ
+  # des tests factoriels attend f (lambda = f^2 x N).
+  tc <- hstat_effect_conventions()
+  ligne_f <- tc[tc[[1]] == tr("f de Cohen"), ]
+  expect_equal(unlist(ligne_f[2:4], use.names = FALSE), c(0.10, 0.25, 0.40))
+  expect_false(any(unlist(tc[2:4]) == 0.02))
+  expect_identical(nrow(tc), length(HSTAT_POW_REPERES))
+
+  # Et le module l'affiche : seuils, puis classe de la valeur saisie.
+  vals <- shiny::reactiveValues()
+  shiny::testServer(mod_design_server, args = list(values = vals), {
+    session$setInputs(powFamily = "F", powTest = "anova_oneway",
+                      powAnalysis = "apriori", powEffect = 0.25)
+    h <- paste(as.character(output$powEffectHint$html), collapse = "")
+    expect_match(h, "effet petit 0.10 · effet moyen 0.25 · effet grand 0.40", fixed = TRUE)
+    expect_match(h, "Valeur saisie (0.25) : effet moyen.", fixed = TRUE)
+    session$setInputs(powTest = "t_two")
+    h <- paste(as.character(output$powEffectHint$html), collapse = "")
+    expect_match(h, "effet petit 0.20 · effet moyen 0.50 · effet grand 0.80", fixed = TRUE)
+    expect_match(h, "Valeur saisie (0.25) : effet petit.", fixed = TRUE)
+    # En sensibilite le champ n'entre pas dans le calcul : il n'est pas classe.
+    session$setInputs(powAnalysis = "sensitivity")
+    h <- paste(as.character(output$powEffectHint$html), collapse = "")
+    expect_false(grepl("Valeur saisie", h, fixed = TRUE))
+  })
+})

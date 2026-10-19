@@ -10042,6 +10042,34 @@ portait que les facteurs : sans les répétitions, le plan restait sur ses trois
 blocs par défaut. Vérifié au navigateur : 5 répétitions imposées donnent
 `dsgRep = 5` et 84 échantillons par parcelle pour 417 requis.
 
+### La taille d'effet porte ses seuils, et ce sont ceux de SA mesure
+
+Demandé à l'écran : indiquer sous « Taille d'effet » les seuils d'un effet
+petit, moyen et grand. Un nombre nu ne dit pas s'il est petit ou grand, et
+**les seuils changent d'une mesure à l'autre** : 0,25 est un f moyen mais un d
+petit. `HSTAT_POW_REPERES` déclare les seuils une fois, par mesure (d, r, q, f,
+w, h de Cohen 1988 ; OR de Chen, Cohen & Chen 2010) ; l'indication sous le
+champ **et** le tableau « Conventions (Cohen) » en dérivent.
+
+Les deux copies avaient déjà divergé : le tableau donnait les seuils de **f²**
+(0,02 / 0,15 / 0,35) pour les tests factoriels, dont le champ attend **f**
+(λ = f² × N) — des repères dix fois trop petits pour ce qu'on saisit.
+
+Trois décisions, chacune testée :
+
+1. **Le ratio de taux n'a pas de convention publiée**, on n'en invente pas :
+   l'indication le dit, et la classe vaut `NA`.
+2. **Deux corrélations se classent sur q**, jamais sur r1 : le champ porte r1,
+   et le classer comme un q confondrait un coefficient avec un écart de
+   coefficients. `hstat_pow_valeur()` calcule q = |atanh(r1) − atanh(r2)|.
+3. **En sensibilité, la valeur saisie n'est pas classée** : elle n'entre pas
+   dans le calcul. C'est l'effet **détectable**, calculé, que le tableau des
+   résultats classe (ligne « Classe de la taille d'effet »).
+
+Le signe ne compte pas, et un OR inférieur à 1 se lit par son inverse. Les
+phrases sont écrites d'un tenant et les en-têtes portent « Effet » devant
+l'adjectif : « moyen » seul n'entre pas au dictionnaire.
+
 ### Les tailles de légende étaient ignorées sur le rendu par défaut
 
 Signalé à l'écran : « les tailles de texte et de police ne fonctionnent pas ».
