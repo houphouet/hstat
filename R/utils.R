@@ -15578,6 +15578,20 @@ hstat_epi_figure <- function(analyse, figure, res, o = NULL, titre = NULL) {
 # ---------------------------------------------------------------------------
 # Valeurs manquantes : le seuil de chaque methode
 # ---------------------------------------------------------------------------
+# Visualisation : une variable lue d'ensemble, sans le detail des niveaux de X
+# ---------------------------------------------------------------------------
+# Les types ou X est un axe de categories et Y la mesure. Sur un histogramme
+# ou une densite, X EST la mesure : la ramener a un niveau effacerait la
+# variable tracee. La liste sert a l'interface (la case n'y est offerte que
+# pour ces types) ET au calcul -- une case cochee puis restee cochee apres un
+# changement de type ne doit rien faire ailleurs.
+HSTAT_VIZ_X_REGROUPABLE <- c("box", "violin", "bar", "scatter")
+
+hstat_viz_x_regroupe <- function(coche, type) {
+  isTRUE(coche) && length(type) == 1L && type %in% HSTAT_VIZ_X_REGROUPABLE
+}
+
+# ---------------------------------------------------------------------------
 # Une methode d'imputation n'est pas bonne ou mauvaise dans l'absolu : elle
 # l'est jusqu'a une certaine proportion de valeurs manquantes. La table est
 # declaree UNE fois -- le libelle du choix, le guide, la recommandation et la

@@ -15741,6 +15741,37 @@ test_that("le format de date choisi agit sur TOUS les types de graphique", {
   })
 })
 
+test_that("Visualisation : une variable se trace sans le détail des niveaux de X", {
+  skip_if_not_installed("ggplot2")
+  set.seed(3)
+  d <- data.frame(TRAITEMENTS = rep(paste0("T", 0:5), each = 10),
+                  HAUTEUR = stats::rnorm(60, 60, 20), stringsAsFactors = FALSE)
+  vals <- shiny::reactiveValues(
+    data = d, cleanData = d, filteredData = d,
+    storedLevelLabels = list(), customXOrder = NULL)
+  shiny::testServer(mod_viz_server, args = list(values = vals), {
+    for (tt in HSTAT_VIZ_X_REGROUPABLE) {
+      session$setInputs(vizXVar = "TRAITEMENTS", vizYVar = "HAUTEUR",
+                        xVarType = "auto", vizType = tt, xRegrouper = TRUE)
+      p <- createPlot()
+      expect_s3_class(p, "ggplot")
+      # UNE position, nommée d'après la colonne -- et toutes les observations
+      # y sont : regrouper n'écarte rien.
+      lab <- ggplot2::ggplot_build(p)$layout$panel_params[[1]]$x$get_labels()
+      expect_identical(as.character(lab), "TRAITEMENTS", label = tt)
+      expect_identical(nrow(plotData()), 60L, label = tt)
+    }
+    # Décochée, les niveaux reviennent : c'est l'assertion qui distingue les
+    # deux codes.
+    session$setInputs(vizType = "box", xRegrouper = FALSE)
+    lab <- ggplot2::ggplot_build(createPlot())$layout$panel_params[[1]]$x$get_labels()
+    expect_setequal(as.character(lab), paste0("T", 0:5))
+    # Sur un histogramme, X est la mesure : la case cochée n'y fait rien.
+    expect_false(hstat_viz_x_regroupe(TRUE, "histogram"))
+    expect_false(hstat_viz_x_regroupe(NULL, "box"))
+  })
+})
+
 test_that("une modalite qui ressemble a une date n'est jamais reecrite", {
   # Le pendant du test precedent, et c'est lui qui borne le correctif. La
   # branche discrete de l'echelle reformate les niveaux qui SONT des dates --

@@ -62,6 +62,19 @@ mod_viz_ui <- function(id) {
                     shiny::helpText(
                       shiny::icon("info-circle", style = "color: #17a2b8;"),
                       "Le mode 'Auto' détecte automatiquement le type optimal pour votre variable."
+                    ),
+                    # Une seule position pour toute la colonne : la variable Y se
+                    # lit d'ensemble, sans le detail des niveaux de X. Offerte
+                    # la seulement ou X est un axe de categories : sur un
+                    # histogramme ou une densite, X EST la mesure.
+                    shiny::conditionalPanel(
+                      ns = ns,
+                      condition = sprintf("[%s].indexOf(input.vizType) >= 0",
+                                          paste0("'", HSTAT_VIZ_X_REGROUPABLE, "'", collapse = ",")),
+                      shiny::checkboxInput(ns("xRegrouper"),
+                        "Ne pas détailler les niveaux de X : une seule position, nommée d'après la colonne",
+                        value = FALSE),
+                      shiny::helpText("Les étiquettes par niveau ne s'appliquent pas tant que cette case est cochée.")
                     )
                   ),
                   
@@ -1993,6 +2006,15 @@ mod_viz_server <- function(id, values) {
         viz_detect_x_type(data[[x_var]])
       }
     } else input$xVarType
+    
+    # TOUTE LA COLONNE EN UNE POSITION. Pose ici, avant la lecture des dates et
+    # des nombres : la colonne n'est plus qu'un facteur a un niveau, le nom de
+    # la colonne, et aucune conversion ne doit s'y appliquer.
+    if (hstat_viz_x_regroupe(input$xRegrouper, input$vizType) &&
+        x_var %in% names(data)) {
+      data[[x_var]] <- factor(rep(x_var, nrow(data)), levels = x_var)
+      x_type <- "categorical"
+    }
     
     x_is_date_type    <- x_type == "date" || inherits(data[[x_var]], c("Date","POSIXct","POSIXlt"))
     x_is_numeric_type <- x_type == "numeric" || (is.numeric(data[[x_var]]) && !x_is_date_type)

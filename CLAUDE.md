@@ -9536,6 +9536,23 @@ colonne `col-sm-8` du graphique, juste dessous (`box(width = NULL)` : la colonne
 porte la largeur). Le test passe par l'arbre et par l'ordre de la page, comme
 celui de la DL50 ; il échoue sur l'ancienne disposition.
 
+### Une variable lue d'ensemble, sans le détail des niveaux de X
+
+Demandé à l'écran, capture à l'appui : tracer HAUTEUR en une seule boîte,
+nommée d'après la colonne (« TRAITEMENTS »), plutôt qu'une boîte par
+traitement. La case « Ne pas détailler les niveaux de X » ramène la colonne X à
+un facteur d'un niveau — son propre nom — dans `plotData()`, **avant** la
+lecture des dates et des nombres, qui ne doivent pas s'y appliquer.
+
+`HSTAT_VIZ_X_REGROUPABLE` déclare les types où X est un axe de catégories
+(boîte, violon, barres, nuage) : sur un histogramme ou une densité, X **est** la
+mesure, et la ramener à un niveau effacerait la variable tracée. La liste sert
+à l'interface (la case n'y est offerte que pour ces types) **et** au calcul : une
+case restée cochée après un changement de type ne fait rien ailleurs. Les
+étiquettes par niveau ne s'appliquent pas tant qu'elle est cochée, et
+l'interface le dit. Le test construit les quatre types et lit l'étiquette
+rendue, puis vérifie que décocher rend les six niveaux.
+
 ### Un pas de graduation fixe un nombre de traits, et c'est le navigateur qui le choisit
 
 `seq(debut, fin, by = pas)` rend (fin − début) / pas traits, et ggplot les
