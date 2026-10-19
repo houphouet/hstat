@@ -21981,8 +21981,9 @@ test_that("chaque méthode de valeurs manquantes porte son seuil, et une seule t
   expect_identical(hstat_na_adequation("median", 5.01), "au-dela")
   expect_identical(hstat_na_adequation("knn", 20), "adaptee")
   expect_identical(hstat_na_adequation("knn", 20.5), "au-dela")
-  expect_identical(hstat_na_adequation("mice", 40), "adaptee")
-  expect_identical(hstat_na_adequation("mice", 40.1), "au-dela")
+  expect_identical(hstat_na_adequation("mice", 30), "adaptee")
+  expect_identical(hstat_na_adequation("mice", 30.1), "au-dela")
+  expect_identical(HSTAT_NA_METHODES$max[HSTAT_NA_METHODES$code == "mice"], 30)
   expect_identical(hstat_na_adequation("rf", 30.1), "au-dela")
   expect_identical(hstat_na_adequation("value", 90), "sans_seuil")
   # Un pourcentage non calculable ne tranche rien.
@@ -21997,12 +21998,12 @@ test_that("la recommandation de traitement des NA suit les seuils de la même ta
   expect_identical(hstat_na_recommandation(10, TRUE)$m, "rf")
   expect_identical(hstat_na_recommandation(10, FALSE)$m, "mice")
   expect_identical(hstat_na_recommandation(25, TRUE)$m, "mice")
-  expect_false(grepl("Plus de 40", hstat_na_recommandation(40)$txt, fixed = TRUE))
-  expect_match(hstat_na_recommandation(40.5)$txt, "Plus de 40", fixed = TRUE)
+  expect_false(grepl("Plus de 30", hstat_na_recommandation(30)$txt, fixed = TRUE))
+  expect_match(hstat_na_recommandation(30.5)$txt, "Plus de 30", fixed = TRUE)
   # Invariant : sous le seuil de retrait, la méthode recommandée est adaptée au
   # pourcentage qui l'a fait recommander -- sinon le conseil contredirait la
   # note posée sous le choix.
-  for (pct in c(0.5, 4.9, 5, 12, 20, 21, 30, 39, 40)) for (cat in c(TRUE, FALSE)) {
+  for (pct in c(0.5, 4.9, 5, 12, 20, 21, 25, 29, 30)) for (cat in c(TRUE, FALSE)) {
     r <- hstat_na_recommandation(pct, cat)
     expect_identical(hstat_na_adequation(r$m, pct), "adaptee",
                      label = paste(pct, cat, r$m))

@@ -15589,8 +15589,8 @@ hstat_epi_figure <- function(analyse, figure, res, o = NULL, titre = NULL) {
 # specifique se justifie par le SENS du manquant, pas par sa proportion).
 # Sources : Schafer (1999) et Graham (2009) pour les 5 % ; Stekhoven &
 # Buhlmann (2012) pour missForest, eprouve jusqu'a 30 % ; Jakobsen et al.
-# (2017) pour l'imputation multiple, dont les resultats deviennent
-# exploratoires au-dela de 40 %.
+# (2017) pour l'imputation multiple, plafonnee ici a 30 % comme missForest :
+# au-dela, ses resultats ne sont plus qu'exploratoires.
 HSTAT_NA_METHODES <- data.frame(
   code = c("remove", "mean", "median", "mode", "knn", "mice", "rf", "value"),
   libelle = c(
@@ -15599,7 +15599,7 @@ HSTAT_NA_METHODES <- data.frame(
     "Remplacer par la médiane, numériques (moins de 5 % de NA)",
     "Remplacer par le mode, catégorielles (moins de 5 % de NA)",
     "Imputation par k plus proches voisins, KNN (5 à 20 % de NA)",
-    "Imputation multiple par équations chaînées, MICE/PMM (5 à 40 % de NA)",
+    "Imputation multiple par équations chaînées, MICE/PMM (5 à 30 % de NA)",
     "Imputation par forêts aléatoires, missForest (5 à 30 % de NA)",
     "Remplacer par une valeur spécifique (quand le NA a un sens connu)"),
   nom = c(
@@ -15609,22 +15609,22 @@ HSTAT_NA_METHODES <- data.frame(
     "missForest (forêts aléatoires)", "Valeur spécifique"),
   seuil = c(
     "Moins de 5 %", "Moins de 5 %", "Moins de 5 %", "Moins de 5 %",
-    "5 à 20 %", "5 à 40 %", "5 à 30 %", "Selon le sens du NA"),
+    "5 à 20 %", "5 à 30 %", "5 à 30 %", "Selon le sens du NA"),
   usage = c(
     "La perte de lignes reste faible ; au-delà, l'échantillon s'appauvrit et se biaise.",
     "Rapide, mais réduit la variance : réservé aux NA rares.",
     "Comme la moyenne, et robuste aux valeurs extrêmes.",
     "Pour une variable catégorielle, quand les NA sont rares.",
     "Exploite la ressemblance entre observations ; se dégrade quand les voisins sont eux-mêmes incomplets.",
-    "Imputation multiple, recommandée pour des NA non négligeables (MAR) ; au-delà de 40 %, résultats exploratoires.",
+    "Imputation multiple, recommandée pour des NA non négligeables (MAR) ; au-delà de 30 %, résultats exploratoires.",
     "Non paramétrique, gère le mélange numérique / catégoriel ; éprouvé jusqu'à 30 %.",
     "Quand le manquant signifie une valeur connue (absence = 0, par exemple)."),
-  max = c(5, 5, 5, 5, 20, 40, 30, NA),
+  max = c(5, 5, 5, 5, 20, 30, 30, NA),
   stringsAsFactors = FALSE)
 
 # Au-dela de ce pourcentage, aucune methode n'est sure : retirer la variable
 # merite d'etre envisage.
-HSTAT_NA_SEUIL_RETRAIT <- 40
+HSTAT_NA_SEUIL_RETRAIT <- 30
 
 # Choix du bouton radio, derives de la table : le seuil est ECRIT dans le
 # libelle, la ou l'on choisit.
@@ -15655,8 +15655,8 @@ hstat_na_recommandation <- function(pct, categorielle = FALSE) {
   if (pct <= 20 && isTRUE(categorielle))
     return(list(txt = "NA modérés avec variables catégorielles : missForest (gère le mixte, jusqu'à 30 %) ou MICE/PMM sont recommandés.", m = "rf"))
   if (pct <= HSTAT_NA_SEUIL_RETRAIT)
-    return(list(txt = "NA non négligeables (mécanisme MAR plausible) : l'imputation multiple MICE/PMM est recommandée, jusqu'à 40 % de NA.", m = "mice"))
-  list(txt = "Plus de 40 % de NA sur au moins une variable : aucune méthode n'est sûre, envisagez de retirer la variable ; sinon MICE/PMM avec prudence.", m = "mice")
+    return(list(txt = "NA non négligeables (mécanisme MAR plausible) : l'imputation multiple MICE/PMM est recommandée, jusqu'à 30 % de NA.", m = "mice"))
+  list(txt = "Plus de 30 % de NA sur au moins une variable : aucune méthode n'est sûre, envisagez de retirer la variable ; sinon MICE/PMM avec prudence.", m = "mice")
 }
 
 # ---------------------------------------------------------------------------

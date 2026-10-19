@@ -9938,11 +9938,15 @@ dérivent tous.
 | suppression, moyenne, médiane, mode | moins de 5 % | Schafer (1999), Graham (2009) |
 | KNN | 5 à 20 % | se dégrade quand les voisins sont incomplets |
 | missForest | 5 à 30 % | Stekhoven & Bühlmann (2012), éprouvé jusqu'à 30 % |
-| MICE/PMM | 5 à 40 % | Jakobsen et al. (2017) : exploratoire au-delà |
+| MICE/PMM | 5 à 30 % | Jakobsen et al. (2017) : exploratoire au-delà |
 | valeur spécifique | selon le sens du NA | pas de plafond tiré des données |
 
-Au-delà de 40 % (`HSTAT_NA_SEUIL_RETRAIT`), aucune méthode n'est sûre : la
-recommandation propose de retirer la variable.
+Au-delà de 30 % (`HSTAT_NA_SEUIL_RETRAIT`), aucune méthode n'est sûre : la
+recommandation propose de retirer la variable. MICE/PMM a d'abord porté un
+plafond de 40 % ; il a été ramené à 30 %, à la demande, au niveau de
+missForest — le seuil de retrait suit, sans quoi la recommandation
+proposerait entre 30 et 40 % une méthode que la note déclare au-delà de son
+seuil.
 
 **La recommandation et la note ne peuvent pas se contredire.** Elles existaient
 en deux copies (le texte et le bouton « Adopter »), avec des seuils déjà

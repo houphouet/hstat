@@ -476,7 +476,7 @@ mod_clean_ui <- function(id) {
                                    shiny::tags$td(style = "white-space: nowrap; font-weight: 600;",
                                                   HSTAT_NA_METHODES$seuil[i]))))),
                              shiny::tags$p(style = "font-size: 11px; color: #7f8c8d; margin: 0;",
-                               "Seuil = part de valeurs manquantes de la variable la plus incomplète. Au-delà de 40 %, aucune méthode n'est sûre : envisagez de retirer la variable."),
+                               "Seuil = part de valeurs manquantes de la variable la plus incomplète. Au-delà de 30 %, aucune méthode n'est sûre : envisagez de retirer la variable."),
                              shiny::hr(),
                              shiny::actionButton(ns("applyNA"), 
                                shiny::tagList(shiny::icon("magic"), " Appliquer le Traitement"), 
