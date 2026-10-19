@@ -346,10 +346,14 @@ mod_viz_ui <- function(id) {
                   )
                 ),
                 
+                # « Exporter le graphique » vit dans la colonne de la figure,
+                # juste dessous : on regle l'export la ou l'on regarde l'image.
+                # `width = NULL` : la colonne porte deja la largeur.
+                shiny::column(width = 8,
                 shinydashboard::box(
                   title = shiny::tagList(shiny::icon("chart-area"), " Graphique "),
                   status = "success",
-                  width = 8,
+                  width = NULL,
                   solidHeader = TRUE,
                   
                   shiny::div(
@@ -395,14 +399,11 @@ mod_viz_ui <- function(id) {
                       )
                     )
                   )
-                )
-              ),
-              
-              shiny::fluidRow(
+                ),
                 shinydashboard::box(
                   title = shiny::tagList(shiny::icon("download"), " Exporter le graphique"),
                   status = "primary",
-                  width = 12,
+                  width = NULL,
                   solidHeader = TRUE,
                   collapsible = TRUE,
                   collapsed = FALSE,
@@ -457,6 +458,7 @@ mod_viz_ui <- function(id) {
                            )
                     )
                   )
+                )
                 )
               ),
               

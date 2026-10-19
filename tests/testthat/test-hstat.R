@@ -18657,6 +18657,26 @@ test_that("diversite et DL50 declarent tout le vocabulaire, sans un seul doublon
 }
 .hstat_dans_colonne <- function(p) any(grepl("col-(sm|md|xs|lg)-[0-9]", p))
 
+test_that("Visualisation : « Exporter le graphique » vit sous le graphique, dans sa colonne", {
+  skip_if_not_installed("shiny")
+  skip_if_not_installed("shinydashboard")
+  ui <- mod_viz_ui("v")
+  # L'arbre, pas l'ordre du HTML : export et figure partagent la col-sm-8.
+  pg <- .hstat_ancetres(ui, "^v-interactivePlot$")
+  pe <- .hstat_ancetres(ui, "^v-exportFormat$")
+  expect_length(pg, 1L)
+  expect_length(pe, 1L)
+  expect_true(any(grepl("col-sm-8", pg[[1]])))
+  expect_true(any(grepl("col-sm-8", pe[[1]])))
+  expect_false(any(grepl("col-sm-12", pe[[1]])))
+  # Et dessous : la figure d'abord, l'export ensuite, les options après.
+  h <- as.character(ui)
+  expect_lt(regexpr("v-interactivePlot", h, fixed = TRUE),
+            regexpr("v-exportFormat", h, fixed = TRUE))
+  expect_lt(regexpr("v-exportFormat", h, fixed = TRUE),
+            regexpr("Options Avancées de Personnalisation", h, fixed = TRUE))
+})
+
 test_that("chaque panneau du kit vit dans une colonne, sinon il casse sa rangee", {
   skip_if_not_installed("shiny")
   skip_if_not_installed("shinydashboard")

@@ -9527,6 +9527,15 @@ Deux corrections, chacune testée :
 La session fictive ne compte pas elle-même comme une vraie session : sans ce
 drapeau (`en_fictive`), elle se désactiverait en se lançant.
 
+### Visualisation : l'export vit sous la figure
+
+Demandé à l'écran, capture à l'appui : « Exporter le graphique » occupait une
+rangée de largeur 12 sous les **deux** colonnes, donc sous la plus haute — celle
+des réglages —, loin de la figure qu'il exporte. La boîte vit désormais dans la
+colonne `col-sm-8` du graphique, juste dessous (`box(width = NULL)` : la colonne
+porte la largeur). Le test passe par l'arbre et par l'ordre de la page, comme
+celui de la DL50 ; il échoue sur l'ancienne disposition.
+
 ### Un pas de graduation fixe un nombre de traits, et c'est le navigateur qui le choisit
 
 `seq(debut, fin, by = pas)` rend (fin − début) / pas traits, et ggplot les
