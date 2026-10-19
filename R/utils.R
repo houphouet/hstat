@@ -15609,9 +15609,9 @@ HSTAT_NA_METHODES <- data.frame(
   code = c("remove", "mean", "median", "mode", "knn", "mice", "rf", "value"),
   libelle = c(
     "Supprimer les lignes contenant des NA (moins de 5 % de NA)",
-    "Remplacer par la moyenne, numériques (moins de 5 % de NA)",
-    "Remplacer par la médiane, numériques (moins de 5 % de NA)",
-    "Remplacer par le mode, catégorielles (moins de 5 % de NA)",
+    "Remplacer par la moyenne, numériques (5 à 15 % de NA)",
+    "Remplacer par la médiane, numériques (5 à 15 % de NA)",
+    "Remplacer par le mode, catégorielles (5 à 15 % de NA)",
     "Imputation par k plus proches voisins, KNN (5 à 20 % de NA)",
     "Imputation multiple par équations chaînées, MICE/PMM (5 à 30 % de NA)",
     "Imputation par forêts aléatoires, missForest (5 à 30 % de NA)",
@@ -15622,18 +15622,18 @@ HSTAT_NA_METHODES <- data.frame(
     "KNN (k plus proches voisins)", "MICE/PMM (imputation multiple)",
     "missForest (forêts aléatoires)", "Valeur spécifique"),
   seuil = c(
-    "Moins de 5 %", "Moins de 5 %", "Moins de 5 %", "Moins de 5 %",
+    "Moins de 5 %", "5 à 15 %", "5 à 15 %", "5 à 15 %",
     "5 à 20 %", "5 à 30 %", "5 à 30 %", "Selon le sens du NA"),
   usage = c(
     "La perte de lignes reste faible ; au-delà, l'échantillon s'appauvrit et se biaise.",
-    "Rapide, mais réduit la variance : réservé aux NA rares.",
+    "Rapide, mais réduit la variance : au-delà de 15 %, préférer une imputation multiple.",
     "Comme la moyenne, et robuste aux valeurs extrêmes.",
-    "Pour une variable catégorielle, quand les NA sont rares.",
+    "Pour une variable catégorielle, jusqu'à 15 % de NA.",
     "Exploite la ressemblance entre observations ; se dégrade quand les voisins sont eux-mêmes incomplets.",
     "Imputation multiple, recommandée pour des NA non négligeables (MAR) ; au-delà de 30 %, résultats exploratoires.",
     "Non paramétrique, gère le mélange numérique / catégoriel ; éprouvé jusqu'à 30 %.",
     "Quand le manquant signifie une valeur connue (absence = 0, par exemple)."),
-  max = c(5, 5, 5, 5, 20, 30, 30, NA),
+  max = c(5, 15, 15, 15, 20, 30, 30, NA),
   stringsAsFactors = FALSE)
 
 # Au-dela de ce pourcentage, aucune methode n'est sure : retirer la variable
