@@ -335,12 +335,24 @@ mod_explore_server <- function(id, values) {
     if (nrow(pdata) == 0)
       stop(trf("La variable « %s » ne contient aucune valeur numérique valide.", var))
 
+    # LA LEGENDE DIT CE QUE PORTE CHAQUE COUCHE. Les barres sont la densite
+    # OBSERVEE (effectifs ramenes a une aire de 1, pour partager l'axe avec la
+    # courbe) ; la courbe rouge est la densite ESTIMEE par noyau gaussien,
+    # c'est-a-dire une version lissee des barres, pas une loi normale ajustee.
+    # Sans legende, la courbe se lit couramment comme « la normale », ce qui
+    # fait conclure a tort sur la normalite.
+    lab_hist <- tr("Histogramme : densité observée")
+    lab_dens <- tr("Courbe rouge : densité lissée (noyau)")
     p <- ggplot2::ggplot(pdata, ggplot2::aes(x = .x)) +
-      ggplot2::geom_histogram(ggplot2::aes(y = ggplot2::after_stat(density)), fill = "lightblue",
-                     color = "black", alpha = 0.7, bins = 30)
+      ggplot2::geom_histogram(ggplot2::aes(y = ggplot2::after_stat(density), fill = lab_hist),
+                     color = "black", alpha = 0.7, bins = 30) +
+      ggplot2::scale_fill_manual(name = NULL, values = stats::setNames("lightblue", lab_hist),
+                                 guide = ggplot2::guide_legend(order = 1))
 
     if (show_density) {
-      p <- p + ggplot2::geom_density(color = "red", linewidth = 1.2)
+      p <- p + ggplot2::geom_density(ggplot2::aes(colour = lab_dens), linewidth = 1.2) +
+        ggplot2::scale_colour_manual(name = NULL, values = stats::setNames("red", lab_dens),
+                                     guide = ggplot2::guide_legend(order = 2))
     }
     
     extras <- hstat_plot_extras_lire(input, "distPl")
@@ -355,7 +367,13 @@ mod_explore_server <- function(id, values) {
                                        "y", retour = titre_retour),
         axis.text = ggplot2::element_text(size = axis_text_size),
         legend.text = ggplot2::element_text(size = legend_text_size),
-        legend.title = element_markdown(size = legend_text_size)
+        legend.title = element_markdown(size = legend_text_size),
+        # Les deux legendes s'empilent : cote a cote, elles debordaient du
+        # cadre a la largeur courante et se faisaient rogner.
+        legend.position = "bottom",
+        legend.box = "vertical",
+        legend.box.just = "left",
+        legend.margin = ggplot2::margin(0, 0, 0, 0)
       )
 
     # LE KIT SE POSE EN DERNIER : un theme complet remplace tout ce qui

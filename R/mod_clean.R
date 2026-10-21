@@ -417,6 +417,13 @@ mod_clean_ui <- function(id) {
 
                              shiny::h5(shiny::icon("percent"), "Pourcentage de valeurs manquantes", style = "color: #3498db; margin-top: 0;"),
                              DT::DTOutput(ns("naSummaryTable")),
+                             shiny::checkboxInput(ns("naShowLignes"),
+                               "Afficher les numéros de lignes des valeurs manquantes", value = FALSE),
+                             shiny::conditionalPanel(ns = ns,
+                               condition = "input.naShowLignes",
+                               shiny::tags$small(style = "color:#7f8c8d;", shiny::icon("info-circle"),
+                                 " Numéros tels qu'affichés dans l'aperçu des données nettoyées : ils restent ceux du fichier d'origine après une suppression de lignes."),
+                               DT::DTOutput(ns("naLignesTable"))),
                              shiny::div(style = "margin: 10px 0; padding: 10px; background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;",
                                  shiny::uiOutput(ns("naRecommendation"))),
 
@@ -549,6 +556,12 @@ mod_clean_ui <- function(id) {
                         shiny::div(style = "overflow-x:auto; max-width:100%;",
                             shiny::tableOutput(ns("outlierTable"))),
                         shiny::uiOutput(ns("outlierNote")),
+                        shiny::checkboxInput(ns("outlierShowLignes"),
+                          "Afficher les numéros de lignes des valeurs aberrantes", value = TRUE),
+                        shiny::conditionalPanel(ns = ns,
+                          condition = "input.outlierShowLignes",
+                          shiny::uiOutput(ns("outlierLignesNote")),
+                          DT::DTOutput(ns("outlierLignesTable"))),
                         shiny::hr(),
                         shiny::tags$ul(style="font-size:12px;color:#7f8c8d;",
                           shiny::tags$li(shiny::tags$b("IQR"), " : robuste, standard pour distributions asymétriques."),
@@ -1431,6 +1444,16 @@ mod_clean_server <- function(id, values) {
         backgroundPosition = "center")
   })
 
+  # Numeros de lignes des valeurs manquantes, variable par variable.
+  output$naLignesTable <- DT::renderDT({
+    shiny::req(values$cleanData)
+    df <- hstat_na_lignes(values$cleanData)
+    DT::datatable(df, rownames = FALSE, extensions = "Buttons",
+                  options = list(pageLength = 10, dom = "Bftp", scrollX = TRUE,
+                                 buttons = .hstat_dt_buttons("lignes_valeurs_manquantes")),
+                  class = "compact stripe hover")
+  })
+
   # Recommandation automatique de la methode d'imputation
   output$naRecommendation <- shiny::renderUI({
     df <- na_summary_df()
@@ -1668,24 +1691,8 @@ mod_clean_server <- function(id, values) {
                 choices = num_cols, selected = num_cols, multiple = TRUE, selectize = TRUE)
   })
 
-  # Renvoie les bornes (basse, haute) selon la methode choisie
-  .outlier_bounds <- function(x, method, iqr_k, z_thr) {
-    x <- x[is.finite(x)]
-    if (length(x) < 2) return(c(NA_real_, NA_real_))
-    if (method == "iqr") {
-      q <- stats::quantile(x, c(.25, .75), names = FALSE)
-      iqrv <- q[2] - q[1]
-      c(q[1] - iqr_k * iqrv, q[2] + iqr_k * iqrv)
-    } else if (method == "zscore") {
-      m <- mean(x); s <- stats::sd(x)
-      c(m - z_thr * s, m + z_thr * s)
-    } else {  # mad
-      med <- stats::median(x); madv <- stats::mad(x)
-      if (madv == 0) madv <- 1e-9
-      c(med - z_thr * madv, med + z_thr * madv)
-    }
-  }
-
+  # Les bornes viennent du socle (`hstat_outlier_bornes()`), que la
+  # detection, le traitement et le detail des lignes partagent.
   outlier_report <- shiny::reactiveVal(NULL)
 
   compute_outliers <- function() {
@@ -1696,7 +1703,7 @@ mod_clean_server <- function(id, values) {
     z_thr <- input$outlierZThresh %||% 3
     rows <- lapply(input$outlierVars, function(cn) {
       x <- d[[cn]]
-      b <- .outlier_bounds(x, method, iqr_k, z_thr)
+      b <- hstat_outlier_bornes(x, method, iqr_k, z_thr)
       xs <- x[is.finite(x)]
       n_valid <- length(xs)
       if (n_valid == 0 || anyNA(b)) {
@@ -1755,6 +1762,42 @@ mod_clean_server <- function(id, values) {
       " Bornes basse/haute = valeurs réelles extrêmes non aberrantes observées dans les données (convention des moustaches du boxplot).")
   })
 
+  # Detail des valeurs aberrantes : une ligne par valeur. Lu sur les MEMES
+  # reglages que le resume, au moment de la detection -- relire les champs
+  # en direct afficherait des lignes que le tableau voisin ne compte pas.
+  outlier_lignes <- shiny::reactiveVal(NULL)
+  shiny::observeEvent(outlier_report(), {
+    d <- values$cleanData
+    if (is.null(outlier_report()) || is.null(d)) { outlier_lignes(NULL); return() }
+    outlier_lignes(tryCatch(
+      hstat_outlier_lignes(d, shiny::isolate(input$outlierVars),
+                           shiny::isolate(input$outlierMethod) %||% "iqr",
+                           shiny::isolate(input$outlierIqrK) %||% 1.5,
+                           shiny::isolate(input$outlierZThresh) %||% 3),
+      error = function(e) NULL))
+  }, ignoreNULL = FALSE)
+
+  output$outlierLignesNote <- shiny::renderUI({
+    df <- outlier_lignes()
+    if (is.null(df)) return(shiny::p(style = "color:#999;font-style:italic;font-size:12px;",
+                                     "Cliquez sur Détecter pour lister les lignes concernées."))
+    if (!nrow(df)) return(shiny::p(style = "font-size:12px;color:#1d8a5d;",
+                                   shiny::icon("check-circle"), " Aucune valeur aberrante : aucune ligne à signaler."))
+    shiny::p(style = "font-size:12px;color:#555;margin-bottom:4px;",
+      shiny::icon("list-ol"), " ",
+      trf("%d valeur(s) aberrante(s) sur %d ligne(s) : %s", nrow(df),
+          length(unique(df$Ligne)), hstat_lignes_compactes(unique(df$Ligne))))
+  })
+
+  output$outlierLignesTable <- DT::renderDT({
+    df <- outlier_lignes()
+    shiny::req(df, nrow(df) > 0)
+    DT::datatable(df, rownames = FALSE, extensions = "Buttons",
+                  options = list(pageLength = 10, dom = "Bftp", scrollX = TRUE,
+                                 buttons = .hstat_dt_buttons("lignes_valeurs_aberrantes")),
+                  class = "compact stripe hover")
+  })
+
   shiny::observeEvent(input$applyOutliers, {
     shiny::req(values$cleanData, input$outlierVars)
     action <- input$outlierAction %||% "detect"
@@ -1786,7 +1829,7 @@ mod_clean_server <- function(id, values) {
       } else {
         for (cn in input$outlierVars) {
           x <- d[[cn]]
-          b <- .outlier_bounds(x, method, iqr_k, z_thr)
+          b <- hstat_outlier_bornes(x, method, iqr_k, z_thr)
           if (anyNA(b)) next
           idx <- which(x < b[1] | x > b[2])
           if (action == "tona") { d[[cn]][idx] <- NA; n_changed <- n_changed + length(idx) }
@@ -1794,7 +1837,7 @@ mod_clean_server <- function(id, values) {
         if (action == "remove") {
           keep <- rep(TRUE, nrow(d))
           for (cn in input$outlierVars) {
-            x <- d[[cn]]; b <- .outlier_bounds(x, method, iqr_k, z_thr)
+            x <- d[[cn]]; b <- hstat_outlier_bornes(x, method, iqr_k, z_thr)
             if (anyNA(b)) next
             # Correction : l'ancienne expression `keep & !out | is.na(x)`
             # re-gardait une ligne deja marquee aberrante des qu'une autre

@@ -22534,3 +22534,222 @@ test_that("la taille d'effet porte ses seuils petit, moyen et grand", {
     expect_false(grepl("Valeur saisie", h, fixed = TRUE))
   })
 })
+
+# ---------------------------------------------------------------------------
+# Numéros de lignes des valeurs manquantes et aberrantes
+# ---------------------------------------------------------------------------
+# Demandé à l'écran : savoir QUELLES lignes portent les valeurs identifiées.
+# Le numéro rendu est le nom de ligne du jeu de travail, celui de l'aperçu
+# des données nettoyées : il reste celui du fichier après une suppression.
+test_that("les numéros de lignes des NA et des aberrants suivent le fichier", {
+  expect_identical(hstat_lignes_compactes(c("12", "3", "5", "6", "7", "8")),
+                   "3, 5-8, 12")
+  expect_identical(hstat_lignes_compactes(character(0)), "")
+  expect_identical(hstat_lignes_compactes(c("a", "b")), "a, b")
+
+  d <- data.frame(a = c(1, NA, 3, NA, NA, 6), b = c("x", NA, "y", "z", "w", "v"),
+                  c = 1:6)
+  rownames(d) <- c(2, 4, 5, 6, 7, 9)   # deux lignes supprimées auparavant
+  na <- hstat_na_lignes(d)
+  # Une variable complète n'y figure pas.
+  expect_identical(na$Variable, c("a", "b"))
+  # Les NOMS de lignes, pas les positions (2, 4-5 serait faux).
+  expect_identical(na$Lignes, c("4, 6-7", "4"))
+  expect_identical(na$`NA (n)`, c(3L, 1L))
+
+  x <- data.frame(v = c(1, 2, 3, 2, 1, 2, 100, 3, -80), w = NA_real_)
+  rownames(x) <- 11:19
+  o <- hstat_outlier_lignes(x, c("v", "w"))
+  expect_identical(o$Ligne, c("17", "19"))
+  expect_equal(o$Valeur, c(100, -80))
+  expect_identical(o$`Côté`, c("au-dessus de la borne haute", "sous la borne basse"))
+  # Les bornes sont celles que le traitement emploie.
+  b <- hstat_outlier_bornes(x$v)
+  expect_true(all(o$Valeur < b[1] | o$Valeur > b[2]))
+  expect_equal(nrow(hstat_outlier_lignes(data.frame(v = c(1, 2, 3)), "v")), 0L)
+
+  # Et le module les montre, sur les mêmes réglages que le résumé.
+  v <- shiny::reactiveValues(data = NULL, resetSignal = 0, filteredData = NULL,
+                             cleanData = x)
+  shiny::testServer(mod_clean_server, args = list(values = v), {
+    session$setInputs(outlierVars = "v", outlierMethod = "iqr", outlierIqrK = 1.5,
+                      outlierZThresh = 3, outlierShowLignes = TRUE)
+    expect_null(outlier_lignes())
+    session$setInputs(detectOutliers = 1)
+    expect_identical(outlier_lignes()$Ligne, c("17", "19"))
+    expect_match(paste(as.character(output$outlierLignesNote$html), collapse = ""),
+                 "17, 19", fixed = TRUE)
+    expect_false(is.null(output$naLignesTable))
+  })
+})
+
+# ---------------------------------------------------------------------------
+# Diagramme volcan
+# ---------------------------------------------------------------------------
+test_that("le volcan classe sur les deux seuils, et dit ce qu'il écarte", {
+  d <- data.frame(id = paste0("G", 1:8),
+                  fc = c(2, -2, 0.2, 3, -3, 2, 1.5, 4),
+                  p  = c(0.001, 0.001, 0.0001, 0.2, 0, NA, 1.5, 0.01))
+  vd <- hstat_volcan_donnees(d, "fc", "p", seuil_fc = 1, seuil_p = 0.05,
+                             label_var = "id", n_labels = 2)
+  b <- attr(vd, "bilan")
+  # p manquante et p > 1 écartées ; la seconde est comptée.
+  expect_equal(nrow(vd), 6L)
+  expect_equal(b[["ecartees_p"]], 1)
+  # p = 0 ramenée à la plus petite p positive : le point reste fini et le
+  # plus haut.
+  expect_equal(b[["p_nulles"]], 1)
+  expect_true(all(is.finite(vd$.y)))
+  expect_equal(vd$.y[vd$id == "G5"], -log10(0.0001))
+  cl <- stats::setNames(as.character(vd$.classe), vd$id)
+  # Les DEUX seuils sont exigés : effet minuscule significatif (G3) et grand
+  # effet non significatif (G4) ne sont pas signalés.
+  expect_identical(unname(cl[c("G1", "G2", "G3", "G4", "G5", "G8")]),
+                   c("hausse", "baisse", "ns", "ns", "baisse", "hausse"))
+  # Les étiquettes vont aux significatifs les plus hauts, jamais aux autres.
+  expect_setequal(vd$.label[!is.na(vd$.label)], c("G5", "G1"))
+  expect_true(all(is.na(vd$.label[vd$.classe == "ns"])))
+
+  # Mode « rapport » : log2, et un rapport non positif est écarté.
+  vr <- hstat_volcan_donnees(data.frame(fc = c(4, 0.25, -1), p = 0.01), "fc", "p",
+                             x_mode = "rapport")
+  expect_equal(vr$.x, c(2, -2))
+  expect_equal(attr(vr, "bilan")[["ecartees_x"]], 1)
+
+  p <- hstat_volcan_plot(vd)
+  expect_s3_class(p, "ggplot")
+  expect_no_error(ggplot2::ggplot_build(p))
+  # La légende porte le libellé et l'effectif, pas le code interne : le rendu
+  # interactif (ggplotly) lit les valeurs de la colonne, pas les `labels`.
+  expect_setequal(levels(p$data$.classe_lib),
+                  c("Hausse significative (n = 2)", "Baisse significative (n = 2)",
+                    "Non significatif (n = 2)"))
+  if (requireNamespace("plotly", quietly = TRUE)) {
+    pl <- plotly::plotly_build(plotly::ggplotly(p))
+    noms <- vapply(pl$x$data, function(tr) tr$name %||% "", character(1))
+    expect_true(any(grepl("Hausse significative", noms, fixed = TRUE)))
+    expect_false(any(noms %in% c("hausse", "baisse", "ns")))
+    # Les noms des points survivent au rendu interactif : la couche ggrepel,
+    # que plotly ne sait pas traduire, devient un geom_text.
+    if (requireNamespace("ggrepel", quietly = TRUE)) {
+      pi <- plotly::plotly_build(plotly::ggplotly(hstat_sans_repel(p)))
+      txt <- unlist(lapply(pi$x$data, function(tr)
+        if (identical(tr$mode, "text")) tr$text else NULL))
+      expect_true(all(c("G1", "G5") %in% txt))
+    }
+  }
+
+  # Dans l'onglet : un point par ligne du fichier, axes transformés nommés,
+  # et aucune graduation posée valeur par valeur.
+  set.seed(3)
+  g <- data.frame(Gene = paste0("g", 1:300), logFC = stats::rnorm(300, 0, 1.5),
+                  pval = stats::runif(300)^3)
+  vals <- shiny::reactiveValues(data = g, cleanData = g, filteredData = g,
+                                storedLevelLabels = list(), customXOrder = NULL)
+  shiny::testServer(mod_viz_server, args = list(values = vals), {
+    session$setInputs(vizXVar = "logFC", vizYVar = "pval", xVarType = "numeric",
+                      vizType = "volcano", volcanXMode = "log2", volcanPMode = "brute",
+                      volcanSeuilFc = 1, volcanSeuilP = 0.05, volcanLabelVar = "Gene",
+                      volcanNLabels = 5)
+    p <- createPlot()
+    expect_equal(nrow(p$data), 300L)
+    expect_true(all(c(".x", ".y", ".classe") %in% names(p$data)))
+    expect_identical(p$labels$y, "−log10(pval)")
+    sx <- Filter(function(s) "x" %in% s$aesthetics, p$scales$scales)
+    expect_length(sx, 0L)
+  })
+})
+
+# ---------------------------------------------------------------------------
+# Distribution des variables : la légende nomme l'histogramme et la courbe
+# ---------------------------------------------------------------------------
+test_that("la distribution dit ce que portent les barres et la courbe rouge", {
+  set.seed(4)
+  d <- data.frame(H30 = stats::rnorm(80, 35, 12))
+  vals <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d)
+  shiny::testServer(mod_explore_server, args = list(values = vals), {
+    session$setInputs(distVar = "H30", distShowDensity = TRUE)
+    session$elapse(600)
+    p <- dist_gg()
+    b <- ggplot2::ggplot_build(p)
+    noms <- vapply(p$scales$scales, function(s) s$aesthetics[1], character(1))
+    expect_true(all(c("fill", "colour") %in% noms))
+    # Les etiquettes d'une echelle n'existent qu'une fois entrainee : on les
+    # lit sur la figure construite.
+    lab_fill <- b$plot$scales$get_scales("fill")
+    lab_col  <- b$plot$scales$get_scales("colour")
+    expect_match(lab_fill$get_labels(), "Histogramme", fixed = TRUE)
+    expect_match(lab_col$get_labels(), "noyau", fixed = TRUE)
+    # Les couleurs d'origine sont gardées : barres bleu clair, courbe rouge.
+    expect_identical(unique(b$data[[1]]$fill), "lightblue")
+    expect_identical(unique(b$data[[2]]$colour), "red")
+    expect_false(identical(p$theme$legend.position, "none"))
+    # Sans la courbe, la légende ne nomme plus que l'histogramme.
+    session$setInputs(distShowDensity = FALSE)
+    session$elapse(600)
+    p2 <- dist_gg()
+    expect_false(any(vapply(p2$scales$scales, function(s) "colour" %in% s$aesthetics,
+                            logical(1))))
+  })
+})
+
+# ---------------------------------------------------------------------------
+# Shapiro-Wilk par groupe, sur les données brutes et sur les résidus
+# ---------------------------------------------------------------------------
+test_that("Shapiro-Wilk par groupe : brutes, résidus, et l'option du module", {
+  # Deux groupes normaux éloignés : le test GLOBAL rejette (bimodal), alors
+  # qu'aucun groupe n'est non normal. C'est la raison d'être du test par groupe.
+  # Quantiles normaux exacts : un tirage aléatoire peut rejeter par hasard.
+  z <- stats::qnorm(stats::ppoints(15))
+  d <- data.frame(y = c(z, z + 20) + rep(c(0, 0.01, -0.01), 10),
+                  f = rep(c("A", "B"), each = 15),
+                  g = rep(c("u", "v", "w"), 10))
+  expect_lt(stats::shapiro.test(d$y)$p.value, 0.05)
+  r <- hstat_shapiro_groupes(d, "y", "f")
+  brut <- r[grepl("brutes", r$Test), ]
+  expect_identical(brut$Groupe, c("A", "B"))
+  expect_true(all(brut$p_value > 0.05))
+  expect_equal(brut$p_value[1], stats::shapiro.test(d$y[d$f == "A"])$p.value)
+  # Un seul facteur : résidu = valeur centrée, donc même W par groupe -- et dit.
+  res <- r[grepl("par groupe, résidus", r$Test), ]
+  expect_equal(res$Statistique, brut$Statistique)
+  expect_match(res$Interpretation[1], "même que sur les données brutes", fixed = TRUE)
+  # Les résidus regroupés ne mélangent plus les deux moyennes.
+  ens <- r[r$Groupe == "Ensemble (résidus regroupés)", ]
+  expect_gt(ens$p_value, 0.05)
+  expect_equal(ens$n, 30L)
+
+  # Deux facteurs : les résidus croisent les cellules, ils diffèrent des brutes.
+  r2 <- hstat_shapiro_groupes(d, "y", c("f", "g"), "residus")
+  expect_false(any(grepl("brutes", r2$Test)))
+  expect_setequal(unique(r2$Facteur), c("f × g", "f", "g"))
+  rf <- r2[r2$Facteur == "f" & r2$Groupe == "A", ]
+  expect_false(isTRUE(all.equal(rf$Statistique,
+                                round(stats::shapiro.test(d$y[d$f == "A"])$statistic[[1]], 4))))
+  # Un groupe trop petit ne disparaît pas, il se dit.
+  r3 <- hstat_shapiro_groupes(data.frame(y = c(1, 2, 3, 4, 5), f = c("A", "A", "A", "B", "B")),
+                              "y", "f", "brutes")
+  expect_true(is.na(r3$p_value[r3$Groupe == "B"]))
+  expect_match(r3$Interpretation[r3$Groupe == "B"], "Moins de 3 valeurs", fixed = TRUE)
+
+  # L'option du module : décochée, le test global seul ; cochée, les groupes.
+  suppressMessages(hstat_installer_replis_ui())
+  vals <- do.call(shiny::reactiveValues, hstat_valeurs_initiales())
+  vals$data <- d; vals$filteredData <- d
+  shiny::testServer(mod_tests_server, args = list(values = vals), {
+    session$setInputs(responseVar = "y", factorVar = "f", normParGroupe = FALSE,
+                      normSources = c("brutes", "residus"))
+    session$setInputs(testNormalityRaw = 1)
+    expect_equal(nrow(values$testResultsDF), 1L)
+    expect_false("Groupe" %in% names(values$testResultsDF))
+    session$setInputs(normParGroupe = TRUE)
+    session$setInputs(testNormalityRaw = 2)
+    t <- values$testResultsDF
+    expect_true(all(c("Groupe", "n") %in% names(t)))
+    expect_identical(t$Groupe[1], "Ensemble (données brutes)")
+    expect_equal(sum(t$Groupe %in% c("A", "B")), 4L)
+    session$setInputs(normSources = "brutes")
+    session$setInputs(testNormalityRaw = 3)
+    expect_false(any(grepl("résidus", values$testResultsDF$Test)))
+  })
+})

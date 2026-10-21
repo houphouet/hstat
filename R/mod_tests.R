@@ -136,6 +136,21 @@ mod_tests_ui <- function(id) {
                                    shiny::actionButton(ns("testNormalityRaw"),   "Test de normalité",     class = "btn-warning btn-block", icon = shiny::icon("chart-line")),
                                    shiny::actionButton(ns("testHomogeneityRaw"), "Test d'homogénéité",    class = "btn-warning btn-block", icon = shiny::icon("balance-scale"))
                                ),
+                               # L'hypothese de normalite porte sur chaque
+                               # groupe : le test global melange les groupes,
+                               # et deux groupes normaux eloignes y forment une
+                               # distribution bimodale que Shapiro-Wilk rejette.
+                               shiny::checkboxInput(ns("normParGroupe"),
+                                   "Test de normalité : Shapiro-Wilk par groupe du facteur sélectionné", value = FALSE),
+                               shiny::conditionalPanel(ns = ns,
+                                   condition = "input.normParGroupe",
+                                   shiny::checkboxGroupInput(ns("normSources"), NULL,
+                                       choices = c("Sur les données brutes" = "brutes",
+                                                   "Sur les résidus du modèle (écart à la moyenne de la cellule)" = "residus"),
+                                       selected = c("brutes", "residus")),
+                                   shiny::div(style = "font-size:11px;color:#7f8c8d;margin:-6px 0 10px 0;",
+                                       shiny::icon("circle-info"), " ",
+                                       "Une ligne par modalité de chaque facteur sélectionné, en plus du test global. Les résidus croisent tous les facteurs sélectionnés ; la ligne « Ensemble » teste les résidus regroupés, le diagnostic classique de l'ANOVA.")),
                                shiny::h4("Tests paramétriques", style = "color: #00a65a;"),
                                shiny::div(style="display:flex; flex-direction:column; gap:8px;",
                                    shiny::actionButton(ns("testT"),    "Test t de Welch (variances inégales)", class = "btn-success btn-block", icon = shiny::icon("check")),
@@ -2446,6 +2461,38 @@ mod_tests_server <- function(id, values) {
       })
     }
     
+    # SHAPIRO-WILK PAR GROUPE (option). Le calcul vit dans le socle
+    # (`hstat_shapiro_groupes()`) ; les lignes globales recoivent les deux
+    # colonnes que portent les lignes par groupe, sans quoi `rbind` refuse.
+    if (isTRUE(input$normParGroupe) && length(results_list) > 0) {
+      if (length(input$factorVar) == 0) {
+        shiny::showNotification(
+          "Shapiro-Wilk par groupe : sélectionnez au moins un facteur. Seul le test global est affiché.",
+          type = "warning", duration = 6)
+      } else if (length(input$normSources) == 0) {
+        shiny::showNotification(
+          "Shapiro-Wilk par groupe : cochez les données brutes, les résidus, ou les deux.",
+          type = "warning", duration = 6)
+      } else {
+        par_groupe <- tryCatch(
+          hstat_shapiro_groupes(df_norm, input$responseVar, input$factorVar,
+                                input$normSources),
+          error = function(e) {
+            shiny::showNotification(hstat_err_fr(e, "Shapiro-Wilk par groupe"),
+                                    type = "error", duration = 6)
+            NULL
+          })
+        if (!is.null(par_groupe) && nrow(par_groupe) > 0) {
+          results_list <- lapply(results_list, function(r) {
+            r$Groupe <- tr("Ensemble (données brutes)")
+            r$n <- sum(is.finite(suppressWarnings(as.numeric(df_norm[[r$Variable[1]]]))))
+            r[, names(par_groupe), drop = FALSE]
+          })
+          results_list <- c(results_list, list(par_groupe))
+        }
+      }
+    }
+
     if (length(results_list) > 0) {
       values$testResultsDF <- do.call(rbind, results_list)
       values$normalityResults <- NULL
