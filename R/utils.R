@@ -5334,6 +5334,102 @@ hstat_shapiro <- function(x) {
 }
 
 # =============================================================================
+#  SHAPIRO-WILK PAR GROUPE, SUR LES DONNEES BRUTES ET SUR LES RESIDUS
+# -----------------------------------------------------------------------------
+#  Le test global sur la variable brute melange les groupes : deux groupes
+#  normaux de moyennes eloignees forment une distribution bimodale, que
+#  Shapiro-Wilk rejette alors qu'aucune hypothese de l'ANOVA n'est violee.
+#  L'hypothese porte sur chaque groupe, ou -- ce qui revient au meme -- sur
+#  les residus du modele. D'ou les deux sources :
+#
+#  - « brutes » : la variable dans chaque modalite du facteur ;
+#  - « residus » : l'ecart de chaque observation a la moyenne de SA CELLULE,
+#    la cellule croisant tous les facteurs selectionnes (modele factoriel
+#    complet). Une ligne « Ensemble » teste les residus regroupes, le
+#    diagnostic classique de l'ANOVA.
+#
+#  Avec UN SEUL facteur, le residu d'un groupe n'est que la valeur centree sur
+#  la moyenne du groupe : Shapiro-Wilk etant insensible a un decalage, les
+#  deux sources rendent par groupe le MEME W et la meme p-value. Ce n'est pas
+#  un defaut, c'est la propriete ; la colonne Interpretation le dit.
+#
+#  Un groupe de moins de 3 valeurs n'a pas de test : la ligne le dit au lieu
+#  de disparaitre. Des valeurs toutes egales non plus (W indefini).
+.hstat_shapiro_ligne <- function(x, test, variable, facteur, groupe) {
+  x <- x[is.finite(x)]
+  n <- length(x)
+  base <- data.frame(Test = test, Variable = variable, Facteur = facteur,
+                     Groupe = groupe, n = n, Statistique = NA_real_,
+                     ddl = NA_character_, p_value = NA_real_,
+                     Interpretation = NA_character_, stringsAsFactors = FALSE)
+  if (n < 3) {
+    base$Interpretation <- tr("Moins de 3 valeurs dans ce groupe : Shapiro-Wilk n'est pas calculable.")
+    return(base)
+  }
+  if (diff(range(x)) < 1e-12) {
+    base$Interpretation <- tr("Toutes les valeurs du groupe sont identiques : la normalité n'est pas testable.")
+    return(base)
+  }
+  r <- tryCatch(hstat_shapiro(x), error = function(e) e)
+  if (inherits(r, "error")) { base$Interpretation <- hstat_err_fr(r); return(base) }
+  base$Statistique <- round(unname(r$statistic), 4)
+  base$p_value <- r$p.value
+  base$Interpretation <- interpret_test_results("shapiro", r$p.value)
+  base
+}
+
+hstat_shapiro_groupes <- function(d, variables, facteurs,
+                                  sources = c("brutes", "residus")) {
+  sources <- intersect(sources, c("brutes", "residus"))
+  facteurs <- intersect(facteurs, names(d))
+  variables <- intersect(variables, names(d))
+  if (!length(facteurs) || !length(variables) || !length(sources)) return(NULL)
+  fac <- lapply(facteurs, function(f) {
+    v <- d[[f]]
+    if (inherits(v, c("Date", "POSIXct", "POSIXlt"))) v <- format(v, "%Y-%m-%d")
+    droplevels(factor(v))
+  })
+  names(fac) <- facteurs
+  lignes <- list()
+  for (var in variables) {
+    y <- suppressWarnings(as.numeric(d[[var]]))
+    # Le residu exige une cellule definie : une ligne a qui manque un facteur
+    # n'en a pas, et sort du calcul des moyennes de cellule.
+    ok_cell <- Reduce(`&`, lapply(fac, function(v) !is.na(v)), is.finite(y))
+    res <- rep(NA_real_, length(y))
+    if (any(ok_cell)) {
+      cell <- interaction(lapply(fac, function(v) v[ok_cell]), drop = TRUE)
+      res[ok_cell] <- y[ok_cell] - stats::ave(y[ok_cell], cell, FUN = mean)
+    }
+    if ("residus" %in% sources)
+      lignes[[length(lignes) + 1L]] <- .hstat_shapiro_ligne(
+        res, tr("Normalité des résidus (Shapiro-Wilk)"), var,
+        paste(facteurs, collapse = " × "), tr("Ensemble (résidus regroupés)"))
+    for (f in facteurs) {
+      for (niv in levels(fac[[f]])) {
+        dans <- !is.na(fac[[f]]) & fac[[f]] == niv
+        if ("brutes" %in% sources)
+          lignes[[length(lignes) + 1L]] <- .hstat_shapiro_ligne(
+            y[dans], tr("Normalité par groupe, données brutes (Shapiro-Wilk)"),
+            var, f, niv)
+        if ("residus" %in% sources) {
+          l <- .hstat_shapiro_ligne(
+            res[dans], tr("Normalité par groupe, résidus (Shapiro-Wilk)"),
+            var, f, niv)
+          if (length(facteurs) == 1L && !is.na(l$p_value))
+            l$Interpretation <- paste(l$Interpretation,
+              tr("Avec un seul facteur, le résidu d'un groupe est la valeur centrée sur sa moyenne : W est le même que sur les données brutes."))
+          lignes[[length(lignes) + 1L]] <- l
+        }
+      }
+    }
+  }
+  out <- do.call(rbind, lignes)
+  rownames(out) <- NULL
+  out
+}
+
+# =============================================================================
 #  COMPARAISON A UNE VALEUR DE REFERENCE (NORME)
 # -----------------------------------------------------------------------------
 #  Tests a UN echantillon : au lieu de comparer deux groupes entre eux, on
@@ -15671,6 +15767,263 @@ hstat_na_recommandation <- function(pct, categorielle = FALSE) {
   if (pct <= HSTAT_NA_SEUIL_RETRAIT)
     return(list(txt = "NA non négligeables (mécanisme MAR plausible) : l'imputation multiple MICE/PMM est recommandée, jusqu'à 30 % de NA.", m = "mice"))
   list(txt = "Plus de 30 % de NA sur au moins une variable : aucune méthode n'est sûre, envisagez de retirer la variable ; sinon MICE/PMM avec prudence.", m = "mice")
+}
+
+# ---------------------------------------------------------------------------
+# Diagramme volcan
+# ---------------------------------------------------------------------------
+# Un volcan croise l'AMPLEUR d'un effet (abscisse : log2 du rapport, ou
+# difference) et sa SIGNIFICATIVITE (ordonnee : -log10 de la p-value). Les
+# deux seuils decoupent le plan en trois classes, et une modalite n'est
+# signalee que si elle franchit LES DEUX : un effet enorme non significatif,
+# ou significatif mais minuscule, n'est pas un resultat.
+#
+# Trois decisions, chacune testee :
+# 1. UNE P-VALUE NULLE N'A PAS DE LOGARITHME. -log10(0) vaut l'infini, et un
+#    point infini sort du cadre sans un mot. Elle est ramenee a la plus petite
+#    p-value positive observee -- le point reste le plus haut du graphique, ce
+#    qui est juste -- et on le compte.
+# 2. CE QUI N'EST PAS UNE P-VALUE EST ECARTE ET COMPTE : manquante, negative,
+#    superieure a 1. Une colonne prise par erreur (une moyenne, un effectif)
+#    se reconnait ainsi au lieu de dessiner un nuage plausible et faux.
+# 3. UN RAPPORT N'EST PAS UN LOG2. Le mode « rapport » prend log2(x), et un
+#    rapport nul ou negatif n'a pas de logarithme : la ligne est ecartee et
+#    comptee, jamais ramenee a zero.
+HSTAT_VOLCAN_CLASSES <- c(hausse = "Hausse significative",
+                          baisse = "Baisse significative",
+                          ns = "Non significatif")
+
+hstat_volcan_donnees <- function(d, x_var, p_var, seuil_fc = 1, seuil_p = 0.05,
+                                 x_mode = c("log2", "rapport"),
+                                 p_mode = c("brute", "log10"),
+                                 label_var = NULL, n_labels = 10L) {
+  x_mode <- match.arg(x_mode); p_mode <- match.arg(p_mode)
+  if (!x_var %in% names(d) || !p_var %in% names(d))
+    stop(tr("Les variables du volcan sont absentes des données."), call. = FALSE)
+  seuil_fc <- suppressWarnings(as.numeric(seuil_fc))[1]
+  seuil_p  <- suppressWarnings(as.numeric(seuil_p))[1]
+  if (!is.finite(seuil_fc) || seuil_fc < 0) seuil_fc <- 1
+  if (!is.finite(seuil_p) || seuil_p <= 0 || seuil_p >= 1) seuil_p <- 0.05
+  xv <- suppressWarnings(as.numeric(d[[x_var]]))
+  pv <- suppressWarnings(as.numeric(d[[p_var]]))
+  n0 <- nrow(d)
+  ecart_x <- 0L; ecart_p <- 0L; nuls <- 0L
+  if (x_mode == "rapport") {
+    bad <- !is.finite(xv) | xv <= 0
+    ecart_x <- sum(bad & !is.na(xv))
+    xv[bad] <- NA_real_
+    xv <- log2(xv)
+  }
+  if (p_mode == "brute") {
+    bad <- !is.finite(pv) | pv < 0 | pv > 1
+    ecart_p <- sum(bad & !is.na(pv))
+    pv[bad] <- NA_real_
+    pos <- pv[is.finite(pv) & pv > 0]
+    zero <- which(is.finite(pv) & pv == 0)
+    nuls <- length(zero)
+    if (nuls) pv[zero] <- if (length(pos)) min(pos) else NA_real_
+    yv <- -log10(pv)
+  } else {
+    bad <- !is.finite(pv) | pv < 0
+    ecart_p <- sum(bad & !is.na(pv))
+    pv[bad] <- NA_real_
+    yv <- pv
+  }
+  garde <- is.finite(xv) & is.finite(yv)
+  out <- d[garde, , drop = FALSE]
+  out$.x <- xv[garde]
+  out$.y <- yv[garde]
+  y_seuil <- -log10(seuil_p)
+  sig <- out$.y > y_seuil
+  cl <- ifelse(sig & out$.x > 0 & out$.x >= seuil_fc, "hausse",
+        ifelse(sig & out$.x < 0 & out$.x <= -seuil_fc, "baisse", "ns"))
+  out$.classe <- factor(cl, levels = names(HSTAT_VOLCAN_CLASSES))
+  # Les etiquettes vont aux points significatifs les plus hauts : ce sont ceux
+  # qu'on cherche du regard. Un point non significatif n'en recoit jamais.
+  out$.label <- NA_character_
+  n_labels <- suppressWarnings(as.integer(n_labels))[1]
+  if (!is.null(label_var) && label_var %in% names(out) && is.finite(n_labels) &&
+      n_labels > 0) {
+    idx <- which(out$.classe != "ns")
+    idx <- idx[order(-out$.y[idx], -abs(out$.x[idx]))]
+    idx <- utils::head(idx, n_labels)
+    out$.label[idx] <- as.character(out[[label_var]][idx])
+  }
+  attr(out, "seuils") <- c(fc = seuil_fc, p = seuil_p, y = y_seuil)
+  attr(out, "bilan") <- c(lues = n0, gardees = nrow(out),
+                          ecartees_x = ecart_x, ecartees_p = ecart_p,
+                          p_nulles = nuls,
+                          hausse = sum(out$.classe == "hausse"),
+                          baisse = sum(out$.classe == "baisse"),
+                          ns = sum(out$.classe == "ns"))
+  rownames(out) <- NULL
+  out
+}
+
+# ggrepel n'a pas de traduction plotly : `ggplotly` laisse tomber la couche,
+# et le rendu interactif perdait les noms des points. Chaque couche ggrepel est
+# remplacee par un `geom_text` sur les memes donnees, pose au-dessus du point.
+# Le decalage est un DEPLACEMENT des donnees (`position_nudge`), pas un
+# `vjust` : plotly ignore le second et posait le nom sur le point.
+hstat_sans_repel <- function(p) {
+  y <- if (is.data.frame(p$data) && ".y" %in% names(p$data)) p$data$.y else numeric(0)
+  y <- y[is.finite(y)]
+  dy <- if (length(y) > 1L) diff(range(y)) * 0.035 else 0
+  for (i in seq_along(p$layers)) {
+    l <- p$layers[[i]]
+    if (inherits(l$geom, c("GeomTextRepel", "GeomLabelRepel")))
+      p$layers[[i]] <- ggplot2::geom_text(
+        data = l$data, mapping = l$mapping,
+        position = ggplot2::position_nudge(y = dy),
+        size = l$aes_params$size %||% 3.5, show.legend = FALSE)
+  }
+  p
+}
+
+# Figure : points par classe, lignes de seuil pointillees, etiquettes. La
+# legende porte l'effectif de chaque classe -- « Hausse (n = 12) » se lit sans
+# compter les points.
+hstat_volcan_plot <- function(vd, couleurs = c(hausse = "#d7301f",
+                                               baisse = "#2b8cbe",
+                                               ns = "grey65"),
+                              taille = 2, alpha = 0.8, montrer_seuils = TRUE,
+                              taille_label = 3.5) {
+  s <- attr(vd, "seuils")
+  b <- attr(vd, "bilan")
+  lib <- vapply(names(HSTAT_VOLCAN_CLASSES), function(k)
+    sprintf("%s (n = %d)", tr(HSTAT_VOLCAN_CLASSES[[k]]), as.integer(b[[k]])),
+    character(1))
+  couleurs <- unname(couleurs[names(HSTAT_VOLCAN_CLASSES)])
+  # La couleur porte le LIBELLE et non le code : `ggplotly` ignore les
+  # `labels` d'une echelle et afficherait « hausse », « ns » dans la legende
+  # interactive.
+  vd$.classe_lib <- factor(unname(lib[as.character(vd$.classe)]), levels = unname(lib))
+  p <- ggplot2::ggplot(vd, ggplot2::aes(x = .data$.x, y = .data$.y,
+                                        colour = .data$.classe_lib)) +
+    ggplot2::geom_point(size = taille, alpha = alpha, na.rm = TRUE) +
+    ggplot2::scale_colour_manual(name = NULL, values = stats::setNames(couleurs, lib),
+                                 breaks = unname(lib), drop = FALSE)
+  if (isTRUE(montrer_seuils) && !is.null(s)) {
+    p <- p + ggplot2::geom_hline(yintercept = s[["y"]], linetype = "dashed",
+                                 colour = "grey40", linewidth = 0.4)
+    if (s[["fc"]] > 0)
+      p <- p + ggplot2::geom_vline(xintercept = c(-s[["fc"]], s[["fc"]]),
+                                   linetype = "dashed", colour = "grey40",
+                                   linewidth = 0.4)
+  }
+  lab <- vd[!is.na(vd$.label), , drop = FALSE]
+  if (nrow(lab)) {
+    p <- p + if (requireNamespace("ggrepel", quietly = TRUE))
+      ggrepel::geom_text_repel(data = lab, ggplot2::aes(label = .data$.label),
+                               size = taille_label, show.legend = FALSE,
+                               max.overlaps = Inf, min.segment.length = 0)
+    else ggplot2::geom_text(data = lab, ggplot2::aes(label = .data$.label),
+                            size = taille_label, vjust = -0.7,
+                            show.legend = FALSE)
+  }
+  p
+}
+
+# ---------------------------------------------------------------------------
+# Numeros de lignes des valeurs identifiees (manquantes, aberrantes)
+# ---------------------------------------------------------------------------
+# Le numero rendu est le NOM DE LIGNE du jeu de travail, celui qu'affiche
+# l'apercu des donnees nettoyees (`rownames = TRUE`). Il reste celui du fichier
+# d'origine apres une suppression de lignes : une position (1, 2, 3...) se
+# decalerait a chaque ligne retiree, et l'utilisateur chercherait dans son
+# fichier une ligne qui n'est plus la bonne.
+
+# Suite d'entiers ecrite en plages : 3, 5-8, 12. Une liste de cinq cents
+# numeros ne se lit pas, et une plage dit la meme chose sans rien perdre. Des
+# noms de lignes non numeriques sont rendus tels quels, separes par des
+# virgules.
+hstat_lignes_compactes <- function(x) {
+  x <- as.character(x)
+  if (!length(x)) return("")
+  n <- suppressWarnings(as.integer(x))
+  if (anyNA(n) || any(as.character(n) != x)) return(paste(x, collapse = ", "))
+  n <- sort(unique(n))
+  coupe <- c(0L, which(diff(n) != 1L), length(n))
+  morceaux <- vapply(seq_len(length(coupe) - 1L), function(i) {
+    a <- n[coupe[i] + 1L]; b <- n[coupe[i + 1L]]
+    if (a == b) as.character(a) else paste0(a, "-", b)
+  }, character(1))
+  paste(morceaux, collapse = ", ")
+}
+
+.hstat_noms_lignes <- function(d) {
+  rn <- rownames(d)
+  if (is.null(rn) || length(rn) != nrow(d)) rn <- as.character(seq_len(nrow(d)))
+  rn
+}
+
+# Une ligne par variable portant au moins une valeur manquante : effectif et
+# numeros de lignes. Une variable complete n'y figure pas -- une ligne a zero
+# se lirait « rien a signaler » au milieu de ce qui l'est.
+hstat_na_lignes <- function(d, vars = names(d)) {
+  vars <- intersect(vars, names(d))
+  rn <- .hstat_noms_lignes(d)
+  res <- lapply(vars, function(v) {
+    i <- which(is.na(d[[v]]))
+    if (!length(i)) return(NULL)
+    data.frame(Variable = v, `NA (n)` = length(i),
+               Lignes = hstat_lignes_compactes(rn[i]),
+               check.names = FALSE, stringsAsFactors = FALSE)
+  })
+  res <- do.call(rbind, res)
+  if (is.null(res))
+    res <- data.frame(Variable = character(0), `NA (n)` = integer(0),
+                      Lignes = character(0), check.names = FALSE,
+                      stringsAsFactors = FALSE)
+  res
+}
+
+# Bornes (basse, haute) de detection des valeurs aberrantes. Sortie du module
+# de nettoyage pour etre testable, et partagee par la detection, le traitement
+# et le detail des lignes : trois copies d'une meme regle finiraient par
+# diverger.
+hstat_outlier_bornes <- function(x, method = "iqr", iqr_k = 1.5, z_thr = 3) {
+  x <- x[is.finite(x)]
+  if (length(x) < 2) return(c(NA_real_, NA_real_))
+  if (identical(method, "iqr")) {
+    q <- stats::quantile(x, c(.25, .75), names = FALSE)
+    iqrv <- q[2] - q[1]
+    c(q[1] - iqr_k * iqrv, q[2] + iqr_k * iqrv)
+  } else if (identical(method, "zscore")) {
+    m <- mean(x); s <- stats::sd(x)
+    c(m - z_thr * s, m + z_thr * s)
+  } else {  # mad
+    med <- stats::median(x); madv <- stats::mad(x)
+    if (madv == 0) madv <- 1e-9
+    c(med - z_thr * madv, med + z_thr * madv)
+  }
+}
+
+# Une ligne par valeur aberrante : la ligne, la variable, la valeur et le cote
+# franchi. Une valeur manquante n'est jamais aberrante. Tri par variable puis
+# par ligne, dans l'ordre du fichier.
+hstat_outlier_lignes <- function(d, vars, method = "iqr", iqr_k = 1.5, z_thr = 3) {
+  vars <- intersect(vars, names(d))
+  rn <- .hstat_noms_lignes(d)
+  res <- lapply(vars, function(v) {
+    x <- d[[v]]
+    if (!is.numeric(x)) return(NULL)
+    b <- hstat_outlier_bornes(x, method, iqr_k, z_thr)
+    if (anyNA(b)) return(NULL)
+    i <- which(is.finite(x) & (x < b[1] | x > b[2]))
+    if (!length(i)) return(NULL)
+    data.frame(Ligne = rn[i], Variable = v, Valeur = x[i],
+               `Côté` = ifelse(x[i] < b[1], tr("sous la borne basse"),
+                               tr("au-dessus de la borne haute")),
+               check.names = FALSE, stringsAsFactors = FALSE)
+  })
+  res <- do.call(rbind, res)
+  if (is.null(res))
+    res <- data.frame(Ligne = character(0), Variable = character(0),
+                      Valeur = numeric(0), `Côté` = character(0),
+                      check.names = FALSE, stringsAsFactors = FALSE)
+  rownames(res) <- NULL
+  res
 }
 
 # ---------------------------------------------------------------------------

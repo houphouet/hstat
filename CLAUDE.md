@@ -10122,3 +10122,72 @@ le trait d'axe du kit y dessinerait des axes.
 Vérifié au navigateur : chacun des cinq réglages (étiquettes, axes, modalités,
 titre de légende, texte du gradient) change l'image affichée. Le test mesure la
 taille lue sur le thème du panneau du plan ; trois mutations le gardent.
+
+## Numéros de lignes, volcan, légende de la distribution, Shapiro-Wilk par groupe
+
+### Les lignes identifiées se nomment par leur nom de ligne
+
+« Traitement des valeurs manquantes » et « Valeurs aberrantes et
+winsorisation » disent désormais QUELLES lignes portent les valeurs
+identifiées (`hstat_na_lignes()`, `hstat_outlier_lignes()`). Le numéro est le
+**nom de ligne** du jeu de travail, celui de l'aperçu des données nettoyées :
+une position se décalerait à chaque ligne supprimée, et l'utilisateur
+chercherait dans son fichier une ligne qui n'est plus la bonne. Les plages se
+compactent (`3, 5-8, 12`, `hstat_lignes_compactes()`).
+
+Les bornes de détection ont quitté le module pour le socle
+(`hstat_outlier_bornes()`) : la détection, le traitement et le détail des
+lignes les partagent, trois copies d'une même règle finiraient par diverger.
+Le détail se lit au moment de la détection, sur les mêmes réglages que le
+résumé — relire les champs en direct afficherait des lignes que le tableau
+voisin ne compte pas.
+
+### Diagramme volcan
+
+Un point par ligne du fichier, lu sur les données **filtrées** et jamais sur la
+préparation du graphique, qui agrégerait deux gènes au même log2 FC en un
+seul point. `hstat_volcan_donnees()` classe sur les **deux** seuils — un grand
+effet non significatif, ou significatif mais minuscule, n'est pas signalé —,
+ramène une p-value nulle à la plus petite positive (−log10(0) est infini) et
+**compte** ce qu'il écarte (p manquante, négative ou > 1 ; rapport non positif
+en mode « rapport »).
+
+Trois exclusions dans `createPlot()`, chacune nécessaire : la couleur de
+l'utilisateur (le volcan colore par classe), l'échelle X commune (sur un X
+numérique elle pose une graduation par valeur distincte, des milliers), et
+les titres d'axe par défaut (le nom brut de la colonne effacerait « −log10 »).
+Graduations et bornes se calculent sur les valeurs transformées.
+
+Deux pièges du rendu interactif, tous deux trouvés au navigateur. `ggplotly`
+ignore les `labels` d'une échelle : la légende affichait « hausse », « ns ».
+La couleur porte donc le **libellé** lui-même, effectif compris. Et ggrepel
+n'a pas de traduction plotly : la couche disparaissait, et avec elle les noms
+des points. `hstat_sans_repel()` la remplace par un `geom_text` décalé par
+`position_nudge` — un `vjust` serait ignoré par plotly, qui poserait le nom
+sur le point. L'éditeur d'étiquettes de l'axe X est masqué pour le volcan :
+il annonçait « trop de valeurs uniques » sur un axe continu.
+
+### La distribution dit ce que portent les barres et la courbe
+
+Signalé à l'écran : rien ne disait à quoi correspond la courbe rouge. Les
+barres sont la densité **observée** ; la courbe, la densité **estimée par
+noyau** — un lissage des barres, pas une loi normale ajustée. Sans légende,
+elle se lit couramment comme « la normale », et l'on conclut à tort sur la
+normalité.
+
+### Shapiro-Wilk par groupe, sur les données brutes et sur les résidus
+
+Option du bouton « Test de normalité ». Le test global mélange les groupes :
+deux groupes normaux éloignés forment une distribution bimodale que
+Shapiro-Wilk rejette alors qu'aucune hypothèse n'est violée — le test le
+vérifie sur des quantiles normaux exacts, un tirage aléatoire pouvant rejeter
+par hasard.
+
+`hstat_shapiro_groupes()` : une ligne par modalité de chaque facteur
+sélectionné, sur les données brutes et/ou sur les résidus (écart à la moyenne
+de la cellule qui croise tous les facteurs, soit le modèle factoriel complet),
+plus une ligne « Ensemble » des résidus regroupés. **Avec un seul facteur, le
+résidu d'un groupe n'est que la valeur centrée : W est identique** sur les deux
+sources, et la colonne Interprétation le dit plutôt que de laisser croire à
+deux calculs. Un groupe de moins de trois valeurs garde sa ligne, motif à
+l'appui.

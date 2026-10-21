@@ -78,9 +78,12 @@ mod_viz_ui <- function(id) {
                     )
                   ),
                   
+                  # Le volcan n'a pas de niveaux d'axe X a renommer ni a ordonner :
+                  # chaque point est une ligne du fichier, et l'editeur annoncerait
+                  # « trop de valeurs uniques » sur un axe continu.
                   shiny::conditionalPanel(
               ns = ns,
-                    condition = "true",
+                    condition = "input.vizType != 'volcano'",
                     shiny::div(
                       class = "well",
                       style = "background-color: #fff3e0; border-left: 4px solid #ff9800; padding: 15px; border-radius: 5px; margin-bottom: 15px;",
@@ -100,7 +103,7 @@ mod_viz_ui <- function(id) {
                   
                   shiny::conditionalPanel(
               ns = ns,
-                    condition = "input.vizType != 'histogram' && input.vizType != 'density' && input.vizType != 'pie' && input.vizType != 'donut' && input.vizType != 'treemap'",
+                    condition = "input.vizType != 'histogram' && input.vizType != 'density' && input.vizType != 'pie' && input.vizType != 'donut' && input.vizType != 'treemap' && input.vizType != 'volcano'",
                     shiny::div(
                       class = "well",
                       style = "background-color: #e8f5e9; border-left: 4px solid #28a745; padding: 15px; border-radius: 5px; margin-bottom: 15px;",
@@ -289,9 +292,46 @@ mod_viz_ui <- function(id) {
                         "Aires empilées (Area)" = "area",
                         "Diagramme circulaire (Pie)" = "pie",
                         "Graphique en anneau (Donut)" = "donut",
-                        "Carte proportionnelle (Treemap)" = "treemap"
+                        "Carte proportionnelle (Treemap)" = "treemap",
+                        "Diagramme volcan (Volcano plot)" = "volcano"
                       ),
                       selected = "scatter"
+                    ),
+
+                    # DIAGRAMME VOLCAN : X porte l'ampleur de l'effet, Y la
+                    # p-value. Les deux seuils se reglent ici, a cote du type,
+                    # parce qu'ils decident de la classe de chaque point.
+                    shiny::conditionalPanel(
+                      ns = ns,
+                      condition = "input.vizType == 'volcano'",
+                      shiny::div(
+                        style = "background:#fff;border:1px solid #b3e5fc;border-radius:5px;padding:10px;margin-top:6px;",
+                        shiny::tags$small(style = "color:#555;display:block;margin-bottom:6px;",
+                          shiny::icon("info-circle"),
+                          " Variable X : l'ampleur de l'effet (log2 du rapport, ou rapport brut). Variable Y : la p-value de chaque ligne. Un point n'est signalé que s'il franchit les deux seuils."),
+                        shiny::fluidRow(
+                          shiny::column(6, shiny::selectInput(ns("volcanXMode"), "La variable X est :",
+                            choices = c("déjà un log2 (log2 fold change)" = "log2",
+                                        "un rapport brut (log2 calculé)" = "rapport"),
+                            selected = "log2")),
+                          shiny::column(6, shiny::selectInput(ns("volcanPMode"), "La variable Y est :",
+                            choices = c("une p-value brute (−log10 calculé)" = "brute",
+                                        "déjà en −log10(p)" = "log10"),
+                            selected = "brute"))),
+                        shiny::fluidRow(
+                          shiny::column(6, shiny::numericInput(ns("volcanSeuilFc"),
+                            "Seuil d'effet |log2 FC| :", value = 1, min = 0, max = 20, step = 0.1)),
+                          shiny::column(6, shiny::numericInput(ns("volcanSeuilP"),
+                            "Seuil de p-value :", value = 0.05, min = 1e-10, max = 0.5, step = 0.01))),
+                        shiny::uiOutput(ns("volcanLabelSelect")),
+                        shiny::sliderInput(ns("volcanNLabels"),
+                          "Nombre de points significatifs étiquetés :", min = 0, max = 50, value = 10, step = 1),
+                        shiny::fluidRow(
+                          shiny::column(4, colourInput(ns("volcanColHausse"), "Hausse :", value = "#d7301f")),
+                          shiny::column(4, colourInput(ns("volcanColBaisse"), "Baisse :", value = "#2b8cbe")),
+                          shiny::column(4, colourInput(ns("volcanColNs"), "Non significatif :", value = "#a6a6a6"))),
+                        shiny::checkboxInput(ns("volcanSeuils"), "Tracer les lignes de seuil", value = TRUE),
+                        shiny::uiOutput(ns("volcanBilan")))
                     ),
                     
                     shiny::conditionalPanel(
@@ -1726,7 +1766,7 @@ mod_viz_server <- function(id, values) {
   output$xOrderEditor <- shiny::renderUI({
     shiny::req(values$filteredData, input$vizXVar)
     shiny::req(values$filteredData, input$vizXVar)
-    excluded_types <- c("histogram", "density", "pie", "donut", "treemap")
+    excluded_types <- c("histogram", "density", "pie", "donut", "treemap", "volcano")
     if(isTRUE(input$vizType %in% excluded_types)) return(NULL)
     
     x_type <- if(input$xVarType == "auto") values$detectedXType else input$xVarType
@@ -3042,6 +3082,71 @@ mod_viz_server <- function(id, values) {
     return(p)
   }
   
+  # ---- DIAGRAMME VOLCAN ------------------------------------------------
+  # Un volcan porte UN point par ligne du fichier (un gene, une variable, une
+  # modalite) : il se lit sur les donnees filtrees, jamais sur la preparation
+  # du graphique, qui agregerait les lignes partageant une meme abscisse --
+  # deux genes au meme log2 FC deviendraient un seul point, a la p-value
+  # moyennee. Le calcul vit dans le socle (`hstat_volcan_donnees()`).
+  output$volcanLabelSelect <- shiny::renderUI({
+    shiny::req(values$filteredData)
+    cols <- names(values$filteredData)
+    sel <- shiny::isolate(input$volcanLabelVar)
+    if (is.null(sel) || !sel %in% c("", cols)) sel <- ""
+    shiny::selectInput(ns("volcanLabelVar"), "Étiquettes des points (identifiant) :",
+                       choices = c("(aucune)" = "", cols), selected = sel)
+  })
+
+  volcan_donnees <- shiny::reactive({
+    shiny::req(identical(input$vizType, "volcano"), values$filteredData,
+               input$vizXVar, input$vizYVar)
+    lv <- input$volcanLabelVar
+    hstat_volcan_donnees(values$filteredData, input$vizXVar, input$vizYVar[1],
+                         seuil_fc = input$volcanSeuilFc %||% 1,
+                         seuil_p = input$volcanSeuilP %||% 0.05,
+                         x_mode = input$volcanXMode %||% "log2",
+                         p_mode = input$volcanPMode %||% "brute",
+                         label_var = if (nzchar(lv %||% "")) lv else NULL,
+                         n_labels = input$volcanNLabels %||% 10)
+  })
+
+  create_volcano_plot <- function() {
+    vd <- volcan_donnees()
+    if (!nrow(vd))
+      stop(tr("Aucun point traçable : vérifiez que X porte l'effet et Y la p-value."), call. = FALSE)
+    xv <- input$vizXVar; yv <- input$vizYVar[1]
+    hstat_volcan_plot(vd,
+      couleurs = c(hausse = input$volcanColHausse %||% "#d7301f",
+                   baisse = input$volcanColBaisse %||% "#2b8cbe",
+                   ns = input$volcanColNs %||% "#a6a6a6"),
+      taille = input$pointSize %||% 2, alpha = input$pointAlpha %||% 0.8,
+      montrer_seuils = !isFALSE(input$volcanSeuils)) +
+      # Les titres d'axe disent la transformation appliquee : « −log10 » sur
+      # une p-value brute, sinon le lecteur prend la hauteur pour la p-value.
+      ggplot2::labs(
+        x = if (identical(input$volcanXMode, "rapport")) sprintf("log2(%s)", xv) else xv,
+        y = if (identical(input$volcanPMode, "log10")) yv else sprintf("\u2212log10(%s)", yv))
+  }
+
+  # CE QUI EST ECARTE SE DIT : une colonne prise par erreur se reconnait ici,
+  # au lieu de dessiner un nuage plausible et faux.
+  output$volcanBilan <- shiny::renderUI({
+    vd <- tryCatch(volcan_donnees(), error = function(e) NULL)
+    if (is.null(vd)) return(NULL)
+    b <- attr(vd, "bilan")
+    msgs <- c(
+      trf("%d ligne(s) tracée(s) sur %d : %d en hausse, %d en baisse, %d non significative(s).",
+          b[["gardees"]], b[["lues"]], b[["hausse"]], b[["baisse"]], b[["ns"]]),
+      if (b[["ecartees_p"]] > 0)
+        trf("%d ligne(s) écartée(s) : la variable Y n'y est pas une p-value (manquante, négative ou supérieure à 1).", b[["ecartees_p"]]),
+      if (b[["ecartees_x"]] > 0)
+        trf("%d ligne(s) écartée(s) : un rapport nul ou négatif n'a pas de logarithme.", b[["ecartees_x"]]),
+      if (b[["p_nulles"]] > 0)
+        trf("%d p-value(s) égale(s) à 0 ramenée(s) à la plus petite p-value positive : −log10(0) est infini.", b[["p_nulles"]]))
+    shiny::tags$small(style = "color:#555;display:block;margin-top:4px;",
+      lapply(msgs, function(m) shiny::div(shiny::icon("info-circle"), " ", m)))
+  })
+
   createPlot <- shiny::reactive({
     shiny::req(values$plotData, input$vizXVar, input$vizYVar, input$vizType)
     
@@ -3150,6 +3255,10 @@ mod_viz_server <- function(id, values) {
       }
     }
     
+    # Le volcan colore ses points par CLASSE ; la variable de couleur, et les
+    # etiquettes de legende qui lui sont attachees, ne s'y appliquent pas.
+    if (identical(viz_type, "volcano")) color_var <- NULL
+
     p <- tryCatch({
       switch(viz_type,
              "scatter" = create_scatter_plot(data, x_var, y_var, color_var),
@@ -3166,6 +3275,7 @@ mod_viz_server <- function(id, values) {
              "pie" = create_pie_plot(data, x_var, y_var),
              "donut" = create_donut_plot(data, x_var, y_var),
              "treemap" = create_treemap_plot(data, x_var, y_var),
+             "volcano" = create_volcano_plot(),
              {
                shiny::showNotification("Type de visualisation non reconnu", type = "error")
                return(NULL)
@@ -3178,6 +3288,14 @@ mod_viz_server <- function(id, values) {
     })
     
     if(is.null(p)) return(NULL)
+
+    # Le volcan trace des valeurs TRANSFORMEES (log2, -log10) : graduations,
+    # bornes et echelle se calculent sur ce que la figure porte, pas sur les
+    # colonnes brutes -- des p-values entre 0 et 1 donneraient des graduations
+    # sans rapport avec un axe qui monte a 10.
+    if (identical(viz_type, "volcano")) {
+      data <- p$data; x_var <- ".x"; y_var <- ".y"
+    }
 
     # ---- AXE X : POSE UNE SEULE FOIS, ICI, POUR TOUS LES TYPES ----------
     # LE DEFAUT QUE CE BLOC CORRIGE, signale a l'ecran : le reglage « Format
@@ -3220,7 +3338,9 @@ mod_viz_server <- function(id, values) {
     #    casser. On lit donc `p$data`, les donnees reellement attachees.
     x_scale_src <- if (is.data.frame(p$data) && x_var %in% names(p$data))
       p$data[[x_var]] else data[[x_var]]
-    if (!viz_type %in% c("pie", "donut", "treemap") &&
+    # 4. LE VOLCAN EN EST EXCLU : sur un X numerique, l'echelle pose une
+    #    graduation par valeur distincte -- des milliers sur un volcan.
+    if (!viz_type %in% c("pie", "donut", "treemap", "volcano") &&
         !any(vapply(p$scales$scales,
                     function(s) "x" %in% s$aesthetics, logical(1)))) {
       tryCatch({
@@ -3238,7 +3358,7 @@ mod_viz_server <- function(id, values) {
       values$y2VarsActive else character(0)
     
     if (length(y2_active_vars) > 0 &&
-        !viz_type %in% c("pie","donut","treemap","heatmap","histogram","density")) {
+        !viz_type %in% c("pie","donut","treemap","heatmap","histogram","density","volcano")) {
       
       tryCatch({
         raw_full <- values$filteredData
@@ -3682,15 +3802,17 @@ mod_viz_server <- function(id, values) {
       p <- p + ggplot2::ggtitle(input$plotTitle)
     }
     
+    # Le volcan pose ses propres titres d'axe, qui disent la transformation
+    # (log2, -log10) : le nom brut de la colonne les effacerait.
     if(!is.null(input$xAxisLabel) && input$xAxisLabel != "") {
       p <- p + ggplot2::xlab(input$xAxisLabel)
-    } else {
+    } else if (!identical(viz_type, "volcano")) {
       p <- p + ggplot2::xlab(x_var)
     }
     
     if(!is.null(input$yAxisLabel) && input$yAxisLabel != "") {
       p <- p + ggplot2::ylab(input$yAxisLabel)
-    } else {
+    } else if (!identical(viz_type, "volcano")) {
       p <- p + ggplot2::ylab(y_var)
     }
     
@@ -3941,7 +4063,8 @@ mod_viz_server <- function(id, values) {
         "area" = "Aires empilées",
         "pie" = "Camembert",
         "donut" = "Donut",
-        "treemap" = "Treemap"
+        "treemap" = "Treemap",
+        "volcano" = "Diagramme volcan"
       )
       
       viz_type_name <- viz_type_names[[input$vizType]] %||% "Type inconnu"
@@ -4349,6 +4472,10 @@ mod_viz_server <- function(id, values) {
                       "left"   = "middle left", "top center")
     val_family <- make_font_family(val_bold, val_italic)
     
+    # ggrepel n'a pas de traduction plotly : sa couche disparaitrait du rendu
+    # interactif, et avec elle les noms des points du volcan.
+    if (identical(input$vizType, "volcano")) p <- hstat_sans_repel(p)
+
     plotly_obj <- tryCatch(
       suppressWarnings(suppressMessages(ggplotly(p, tooltip = "all"))),
       error = function(e) {
