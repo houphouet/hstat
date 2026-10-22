@@ -2475,7 +2475,7 @@ mod_viz_server <- function(id, values) {
       color    = input$valueLabelColor    %||% "#333333",
       bold     = isTRUE(input$valueLabelBold),
       italic   = isTRUE(input$valueLabelItalic),
-      digits   = input$valueLabelDigits   %||% 2,
+      digits   = hstat_borne_client(input$valueLabelDigits, 2, 0, 6),
       position = input$valueLabelPosition %||% "above"
     )
   }
@@ -2703,10 +2703,15 @@ mod_viz_server <- function(id, values) {
     
     p <- ggplot2::ggplot(data, ggplot2::aes(x = .data[[x_var]], y = .data[[y_var]]))
     
+    # `drop = FALSE` garde un groupe trop petit pour une densite ; le parametre
+    # n'existe que depuis ggplot2 3.5.0, et une version anterieure avertissait
+    # « Ignoring unknown parameters: `drop` » a CHAQUE trace.
+    vio <- c(list(alpha = 0.7), hstat_violin_drop())
     if(!is.null(color_var)) {
-      p <- p + ggplot2::geom_violin(ggplot2::aes(fill = .data[[color_var]]), alpha = 0.7, drop = FALSE)
+      p <- p + do.call(ggplot2::geom_violin,
+                       c(list(ggplot2::aes(fill = .data[[color_var]])), vio))
     } else {
-      p <- p + ggplot2::geom_violin(alpha = 0.7, drop = FALSE)
+      p <- p + do.call(ggplot2::geom_violin, vio)
     }
     grp <- .groupe_x_continu(data, x_var, color_var)
     if (!is.null(grp)) p <- p + grp
@@ -2939,7 +2944,7 @@ mod_viz_server <- function(id, values) {
       }
     }
     ggplot2::ggplot(data, ggplot2::aes(x = .data[[x_var]])) +
-      ggplot2::geom_histogram(bins = input$histBins %||% 30,
+      ggplot2::geom_histogram(bins = hstat_borne_client(input$histBins, 30, 10, 100),
                      fill  = input$histColor %||% "steelblue",
                      alpha = 0.7, color = "white", na.rm = TRUE)
   }
@@ -4499,7 +4504,7 @@ mod_viz_server <- function(id, values) {
          !identical(input$vizColorVar, input$vizXVar))
     )
     if (grouped_box) {
-      plotly_obj <- suppressWarnings(plotly::layout(plotly_obj, boxmode = "group"))
+      plotly_obj <- plotly::layout(plotly_obj, boxmode = "group")
     }
     
     if (show_values) {

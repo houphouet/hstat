@@ -353,7 +353,7 @@ server <- function(input, output, session) {
         # etre les dernieres.
         .hstat_purger_session()
         thr <- (input$bigDataThreshold %||% 500) * 1024^2
-        smp <- as.integer(input$sampleSize %||% HSTAT_SAMPLE_SIZE)
+        smp <- as.integer(hstat_borne_client(input$sampleSize, HSTAT_SAMPLE_SIZE, 1000, 10000000))
         shiny::incProgress(0.3, detail = "Lecture")
         res <- hstat_load_data(
           path = fichier_actif()$datapath, kind = kind,
@@ -773,7 +773,8 @@ server <- function(input, output, session) {
                        type = "warning")
       return(invisible(NULL))
     }
-    n <- as.integer(input$sampleSizeLive %||% HSTAT_SAMPLE_SIZE)
+    n <- suppressWarnings(as.integer(input$sampleSizeLive %||% HSTAT_SAMPLE_SIZE))
+    if (isTRUE(n > 20000000)) n <- 20000000L
     if (is.na(n) || n < 1000) {
       shiny::showNotification("Taille d'échantillon invalide (minimum 1000).", type = "warning")
       return(invisible(NULL))
@@ -1576,7 +1577,7 @@ server <- function(input, output, session) {
             quali.sup  = quali_sup_indices,
             quanti.sup = quanti_sup_indices,
             ind.sup    = ind_sup_indices,
-            ncp        = ifelse(is.null(input$pcaComponents), 5, input$pcaComponents),
+            ncp        = hstat_borne_client(input$pcaComponents, 5, 2, 10),
             graph      = FALSE)
       ))
       

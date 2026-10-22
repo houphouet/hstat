@@ -10276,3 +10276,77 @@ KT50, où c'est le temps qui varie.
 cases des DL chiffrées et des repères **portent le préfixe de la grandeur** —
 écrites « DL10 » en dur, elles annonceraient une dose létale sur un essai de
 concentration.
+
+## Audit 1.24.1 : un arbre qui ne rendait jamais la main
+
+Mené comme les précédents : suite complète (784 tests, 0 échec, 0 sauté), les
+22 onglets ouverts au navigateur sur un jeu normal puis hostile (0 sortie en
+erreur, 0 exception de page, 0 balise injectée), puis **chaque bouton cliqué**.
+C'est ce dernier passage qui a trouvé le seul défaut grave.
+
+### L'arbre CART essaie 2^(k-1) coupures par nœud
+
+Après « Lancer » dans l'onglet Machine learning, le serveur ne répondait plus —
+plusieurs minutes à 90 % de processeur, **pour toutes les sessions**. Le profil
+(`Rprof` posé avant `runApp`) désigne `rpart::rpart`. Avec une cible à **trois
+classes ou plus**, rpart essaie toutes les partitions des k modalités d'un
+prédicteur qualitatif, à chaque nœud. Mesuré sur 1 000 lignes et 4 classes :
+
+| modalités | 20 | 22 | 24 |
+|---|---|---|---|
+| durée | 0,25 s | 0,8 s | 2,9 s |
+
+Le temps double à chaque modalité : une colonne d'identifiants, de dates lues
+comme texte ou de réponses libres (60 modalités) ne rendait jamais la main.
+Cible binaire ou quantitative : rpart **trie** les modalités, le coût reste
+linéaire, et rien n'est refusé.
+
+`hstat_cart_niveaux_bloquants()` repère les prédicteurs au-delà de
+`HSTAT_CART_NIVEAUX_MAX` (20) ; l'arbre est alors **refusé et nommé** dans le
+tableau de comparaison (« Texte (60) »), les autres modèles s'ajustent. Le test
+pose la frontière des deux côtés (20 passe, 21 non) et exige le refus en moins
+de dix secondes sous `testServer()`.
+
+### Onze champs dont le coût suit la valeur, bornés côté serveur
+
+La règle est écrite depuis longtemps (`hstat_borne_client()`), un balayage de
+tous les champs dotés d'un `max =` en a trouvé onze qui y échappaient :
+imputations MICE, classes de découpage, cases d'histogramme, profondeur
+d'arbre, lignes échantillonnées (dont le ré-échantillonnage hors-mémoire),
+axes d'ACP, facteurs du calcul de puissance (une boucle d'interface **par
+facteur**), décimales des valeurs portées, et trois niveaux de confiance — un
+niveau de 5 rendait des bornes `NaN` sous une étiquette « IC500% ». Le test qui
+confronte chaque borne au champ couvre les nouvelles sans une ligne de plus ;
+un second exige que ces entrées ne soient **lues** que par leur borne (une ligne
+qui ne fait que les nommer, dans une liste de dépendances, n'est pas une
+lecture).
+
+### Le Wilcoxon renonce à son intervalle au-delà de 20 000 valeurs
+
+L'intervalle de Hodges-Lehmann se cherche par `uniroot` en recalculant les
+rangs à chaque pas : vingt fois le coût du test. 2 × 10⁵ paires faisaient
+**11 s** de processus partagé. Au-delà de `HSTAT_WILCOX_IC_MAX` il n'est pas
+calculé, **et la note le dit** ; la p-value porte toujours sur toutes les
+valeurs.
+
+### Le volcan n'étiquette pas plus que son curseur
+
+`n_labels` venait du navigateur sans plafond : tous les points significatifs
+partaient en étiquettes. `HSTAT_VOLCAN_LABELS_MAX` (50), celui du curseur.
+
+### Deux avertissements de console, chacun étouffé à sa source seule
+
+- **`boxmode`** : plotly (R) vérifie la mise en page contre un schéma qui ne
+  porte pas cet attribut propre aux boîtes, et avertit à **chaque** rendu d'une
+  boîte groupée — en le gardant, et plotly.js l'applique. Le rendu passe deux
+  fois par `plotly_build()` (nettoyage, puis sérialisation) : les deux sont
+  enveloppés, et seul ce message précis (`HSTAT_PLOTLY_LAYOUT_TOLERES`) est
+  étouffé. Un autre attribut inconnu avertit toujours, et le test le vérifie.
+- **`geom_violin(drop = FALSE)`** n'existe que depuis ggplot2 3.5.0 ; avant, il
+  avertissait à chaque tracé. `hstat_violin_drop()` ne le passe que si la stat
+  le déclare.
+
+Note de méthode : le premier balayage des lectures signalait `pcaComponents` et
+`valueLabelDigits` encore « non bornés » — à tort : les lignes trouvées ne
+faisaient que nommer l'entrée dans une liste de dépendances. Une assertion qui
+compte une dépendance comme une lecture crie au loup, et finit désactivée.

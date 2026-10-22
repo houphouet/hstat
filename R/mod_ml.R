@@ -376,6 +376,13 @@ mod_ml_server <- function(id, values) {
           imp <- data.frame(Variable = rownames(co)[-1], Importance = abs(co[-1, 1]))
       } else if (idm == "rpart") {
         need_pkg("rpart")
+        trop <- hstat_cart_niveaux_bloquants(tr, ti, p$pi)
+        if (length(trop)) {
+          noms <- names(p$map)[match(names(trop), p$map)]
+          stop(trf("Arbre CART non ajusté : avec une cible à %d classes, un prédicteur qualitatif à k modalités demande 2^(k-1) essais de coupure à chaque nœud. Trop de modalités (plus de %d) : %s. Regroupez ces modalités ou retirez ces variables.",
+                   nlevels(droplevels(tr[[ti]])), HSTAT_CART_NIVEAUX_MAX,
+                   paste(sprintf("%s (%d)", noms, trop), collapse = ", ")))
+        }
         if (auto) {
           m0 <- rpart::rpart(p$f, data = tr, method = if (cls) "class" else "anova",
                              cp = 5e-4)
@@ -430,7 +437,7 @@ mod_ml_server <- function(id, values) {
         obj <- if (!cls) "reg:squarederror"
                else if (nlevels(tr[[ti]]) == 2) "binary:logistic" else "multi:softprob"
         lab <- if (!cls) tr[[ti]] else as.numeric(tr[[ti]]) - 1
-        depth <- as.integer(hstat_finite(input$hpDepth, 4))
+        depth <- as.integer(hstat_borne_client(input$hpDepth, 4, 1, 12))
         eta <- hstat_finite(input$hpEta, 0.1)
         nrounds <- as.integer(hstat_borne_client(input$hpRounds, 150, 20, 2000))
         if (auto) {

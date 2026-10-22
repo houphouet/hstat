@@ -2792,7 +2792,7 @@ mod_qualitative_server <- function(id, values) {
             hstat_q_or_rr_analysis(d[[input$orrr_expo]], d[[input$orrr_issue]],
                                    xname = input$orrr_expo, yname = input$orrr_issue,
                                    x_expose = input$orrr_expo_lvl, y_issue = input$orrr_issue_lvl,
-                                   conf = input$orrr_conf %||% 0.95,
+                                   conf = hstat_borne_client(input$orrr_conf, 0.95, 0.80, 0.99),
                                    all_pairs = isTRUE(input$orrr_all_pairs))
           } else {
             list(ok = FALSE, notes = "Le recodage s'applique avec le bouton « Appliquer le recodage ».")
