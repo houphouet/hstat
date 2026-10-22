@@ -10400,3 +10400,55 @@ Note de méthode : le premier balayage des lectures signalait `pcaComponents` et
 `valueLabelDigits` encore « non bornés » — à tort : les lignes trouvées ne
 faisaient que nommer l'entrée dans une liste de dépendances. Une assertion qui
 compte une dépendance comme une lecture crie au loup, et finit désactivée.
+
+## La validité d'un essai DL50 se juge sur des seuils choisis
+
+Demandé à l'écran : préciser le ou les seuils de mortalité du témoin et en
+déduire la validité de l'essai. Le seuil fixe de 20 % (`HSTAT_DL50_TEMOIN_MAX`)
+ne disait qu'« élevée » ; il ne laissait ni choisir 10 %, ni distinguer
+« valide sans correction » de « valide après Abbott ».
+
+`hstat_dl50_validite(fit, seuil_correction, seuil_rejet, base)` rend quatre
+états (`HSTAT_DL50_VALIDITE_ETATS`) : sous le seuil de correction, **valide** ;
+entre les deux, **valide après correction d'Abbott** ; au-delà du seuil de
+rejet, **non valide** ; sans témoin ou sans seuil, **non jugée** — jamais
+« valide », l'absence ne prouve rien. Défauts 5 % et 20 %, l'usage OMS.
+
+`base` choisit la mortalité comparée : **observée** (l'usage) ou **corrigée**
+par la mortalité naturelle retenue (`hstat_dl50_temoin_corrige`). Sous Abbott
+la seconde vaut 0 par construction : le test l'exige, sans quoi on croirait la
+base sans effet. Un champ vidé n'applique pas ce seuil ; deux seuils inversés
+sont remis dans l'ordre.
+
+Le module n'affiche plus l'alerte au seuil fixe (`alerte_temoin = FALSE`) :
+elle contredirait un seuil de rejet choisi à 10 %. Les identifiants ne
+commencent pas par « g », réservé aux réglages de la figure.
+
+## Nettoyage : les doublons se repèrent et se traitent
+
+Une ligne saisie deux fois compte deux fois dans toutes les moyennes et
+resserre les intervalles. L'étape 8 du Nettoyage les repère
+(`hstat_doublons()`) sur toutes les colonnes ou sur une clé, et propose quatre
+traitements : supprimer en gardant la première ou la dernière occurrence
+(`hstat_doublons_superflus()`), supprimer les lignes sélectionnées, marquer
+d'une colonne portant le numéro de groupe. Une cellule du tableau des doublons
+se **corrige** en place.
+
+Quatre décisions, chacune testée :
+
+1. **Deux NA au même endroit sont égaux** : une recopie porte ses manquants aux
+   mêmes places.
+2. **La ligne se nomme par son nom de ligne**, jamais par sa position, comme
+   `hstat_na_lignes()` ; la correction d'une cellule retrouve la ligne par ce
+   nom.
+3. **Casse et espaces ne s'ignorent que sur demande**, et seulement dans la
+   comparaison : « Témoin » et « témoin » sont une modalité ou deux, seul
+   l'utilisateur le sait.
+4. **Une saisie prend le type de sa colonne** (`hstat_valeur_saisie()`) : la
+   virgule décimale est lue, l'illisible est refusé et nommé, jamais converti en
+   NA. Un facteur reçoit le niveau neuf (`hstat_ecrire_cellule()`), sans quoi
+   la saisie deviendrait NA. Ligne et colonne venues du navigateur passent par
+   `hstat_indice_client()`.
+
+Le message du traitement n'est pas effacé par l'observateur des données : il
+aurait disparu à l'écriture même qu'il annonce.

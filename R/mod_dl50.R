@@ -321,6 +321,70 @@ hstat_dl50_temoin_corrige <- function(fit) {
   100 * (p0 - cc) / (1 - cc)
 }
 
+# LA VALIDITE DE L'ESSAI SE JUGE SUR LE TEMOIN, ET LES SEUILS SONT CEUX DE
+# L'UTILISATEUR. L'usage le plus repandu (OMS, tests de sensibilite des
+# vecteurs) : moins de 5 % de mortalite dans le temoin, l'essai est valide sans
+# correction ; de 5 a 20 %, il est valide apres correction d'Abbott ; au-dela
+# de 20 %, il est a refaire. D'autres protocoles posent 10 % ou un seul seuil :
+# les deux bornes se reglent, et une borne absente (NA) n'est pas appliquee.
+#
+# `base` dit sur quoi l'on compare : la mortalite OBSERVEE du temoin (l'usage)
+# ou la mortalite CORRIGEE par la mortalite naturelle retenue par
+# l'ajustement (hstat_dl50_temoin_corrige). Les seuils inverses sont remis dans
+# l'ordre plutot que de rendre un verdict absurde. Sans temoin, aucun verdict :
+# « indeterminable », jamais « valide » -- l'absence de temoin ne prouve rien.
+HSTAT_DL50_VALIDITE_BASES <- c("Mortalité observée du témoin" = "observee",
+                               "Mortalité corrigée du témoin" = "corrigee")
+
+HSTAT_DL50_VALIDITE_ETATS <- c(valide = "Essai valide sans correction",
+                               valide_corrige = "Essai valide après correction d'Abbott",
+                               invalide = "Essai non valide, à refaire",
+                               indeterminable = "Validité non jugée")
+
+hstat_dl50_validite <- function(fit, seuil_correction = 5, seuil_rejet = 20,
+                                base = c("observee", "corrigee")) {
+  base <- if (length(base) && base[1] %in% HSTAT_DL50_VALIDITE_BASES) base[1] else "observee"
+  s1 <- suppressWarnings(as.numeric(seuil_correction)[1])
+  s2 <- suppressWarnings(as.numeric(seuil_rejet)[1])
+  if (!length(s1) || !is.finite(s1)) s1 <- NA_real_
+  if (!length(s2) || !is.finite(s2)) s2 <- NA_real_
+  if (is.finite(s1) && is.finite(s2) && s1 > s2) { t <- s1; s1 <- s2; s2 <- t }
+  res <- function(etat, valeur, texte)
+    list(etat = etat, valeur = valeur, base = base,
+         seuil_correction = s1, seuil_rejet = s2, texte = texte)
+  # La mortalite OBSERVEE se lit sur l'essai, pas sur l'ajustement : un essai
+  # dont l'ajustement echoue a quand meme un temoin, et c'est souvent lui la
+  # cause. Seule la mortalite CORRIGEE a besoin d'un ajustement abouti.
+  n0 <- suppressWarnings(as.numeric(fit$essai$n0)[1])
+  x0 <- suppressWarnings(as.numeric(fit$essai$x0)[1])
+  if (!length(n0) || !is.finite(n0) || n0 <= 0)
+    return(res("indeterminable", NA_real_,
+               tr("Validité non jugée : l'essai ne comporte pas de témoin.")))
+  if (identical(base, "corrigee") && !isTRUE(fit$ok))
+    return(res("indeterminable", NA_real_,
+               tr("Validité non jugée : l'ajustement n'a pas abouti.")))
+  v <- if (identical(base, "corrigee")) hstat_dl50_temoin_corrige(fit)
+       else if (length(x0) && is.finite(x0)) 100 * x0 / n0 else NA_real_
+  if (!length(v) || !is.finite(v))
+    return(res("indeterminable", NA_real_,
+               tr("Validité non jugée : la mortalité du témoin n'est pas calculable.")))
+  if (!is.finite(s1) && !is.finite(s2))
+    return(res("indeterminable", v,
+               tr("Validité non jugée : aucun seuil n'est renseigné.")))
+  lib <- if (identical(base, "corrigee")) "corrigee" else "observee"
+  if (is.finite(s2) && v > s2)
+    return(res("invalide", v, if (lib == "corrigee")
+      trf("Essai non valide : la mortalité corrigée du témoin (%.2f %%) dépasse le seuil de %.4g %%. L'usage veut qu'on refasse l'essai.", v, s2)
+      else trf("Essai non valide : la mortalité observée du témoin (%.2f %%) dépasse le seuil de %.4g %%. L'usage veut qu'on refasse l'essai.", v, s2)))
+  if (is.finite(s1) && v >= s1)
+    return(res("valide_corrige", v, if (lib == "corrigee")
+      trf("Essai valide après correction : la mortalité corrigée du témoin (%.2f %%) atteint le seuil de correction de %.4g %% sans dépasser celui de rejet. La correction d'Abbott est nécessaire.", v, s1)
+      else trf("Essai valide après correction : la mortalité observée du témoin (%.2f %%) atteint le seuil de correction de %.4g %% sans dépasser celui de rejet. La correction d'Abbott est nécessaire.", v, s1)))
+  res("valide", v, if (lib == "corrigee")
+    trf("Essai valide : la mortalité corrigée du témoin (%.2f %%) est sous le seuil fixé. Aucune correction n'est requise.", v)
+    else trf("Essai valide : la mortalité observée du témoin (%.2f %%) est sous le seuil fixé. Aucune correction n'est requise.", v))
+}
+
 # Les champs d'un essai qui doivent etre STRICTEMENT identiques pour qu'une
 # fusion ait un sens : fusionner deux especes ou deux durees d'exposition
 # fabriquerait un essai qui n'a jamais eu lieu.
@@ -928,7 +992,11 @@ hstat_dl50_ajuste <- function(essai, methode = c("em", "abbott", "nulle"),
   alpha <- .hstat_dl50_alpha(alpha)
   echec <- function(motif)
     structure(list(ok = FALSE, message = motif, methode = methode,
-                   reponse = reponse),
+                   reponse = reponse,
+                   # L'essai voyage avec l'echec : la validite du temoin se
+                   # juge sur sa mortalite OBSERVEE, qui ne depend d'aucun
+                   # ajustement.
+                   essai = if (inherits(essai, "hstat_dl50_essai")) essai),
               class = "hstat_dl50_fit")
   if (!inherits(essai, "hstat_dl50_essai")) return(echec(tr("Essai non conforme.")))
   msg <- .hstat_dl50_valide(essai)
@@ -1487,7 +1555,10 @@ hstat_dl50_dose_pour <- function(fit, mortalite) {
   any(abs(v - round(v)) > 1e-8)
 }
 
-hstat_dl50_verdict <- function(fit, seuils = HSTAT_DL50_SEUILS) {
+# `alerte_temoin = FALSE` : le module juge la validite du temoin sur les
+# seuils de l'utilisateur (hstat_dl50_validite) ; l'alerte au seuil fixe de
+# 20 % y contredirait un seuil choisi a 10 %.
+hstat_dl50_verdict <- function(fit, seuils = HSTAT_DL50_SEUILS, alerte_temoin = TRUE) {
   if (!isTRUE(fit$ok)) return(NULL)
   dl <- hstat_dl50_doses_letales(fit, seuils)
   if (is.null(dl) || !nrow(dl)) return(NULL)
@@ -1523,7 +1594,7 @@ hstat_dl50_verdict <- function(fit, seuils = HSTAT_DL50_SEUILS) {
       # publient.
       if (identical(.hstat_dl50_cle_reponse(fit), "kt"))
         tr("KT50 : si les temps sont lus sur un même lot (comptages cumulés), les observations ne sont pas indépendantes et les intervalles sont trop étroits. Un lot distinct par temps d'exposition rend le modèle exact."),
-      if (isTRUE(fit$temoin_eleve))
+      if (isTRUE(alerte_temoin) && isTRUE(fit$temoin_eleve))
         trf("Mortalité du témoin élevée (%.1f %%) : au-delà de %.0f %%, la correction d'Abbott devient peu fiable et l'usage veut qu'on refasse l'essai.",
             100 * fit$c_temoin, 100 * HSTAT_DL50_TEMOIN_MAX),
       if (isTRUE(fit$temoin_contredit))
@@ -3524,6 +3595,19 @@ mod_dl50_ui <- function(id) {
                             " Relevez ce plafond seulement si un essai difficile",
                             " annonce « convergence non atteinte » — et méfiez-vous",
                             " alors du résultat plutôt que du plafond."),
+            shiny::tags$hr(),
+            shiny::h5(shiny::icon("clipboard-check"), " Validité de l'essai (témoin)"),
+            shiny::radioButtons(ns("temoinBase"), "Mortalité comparée aux seuils",
+                                choices = HSTAT_DL50_VALIDITE_BASES, selected = "observee"),
+            shiny::numericInput(ns("temoinSeuilCorr"), "Seuil de correction (%)",
+                                value = 5, min = 0, max = 100, step = 1),
+            shiny::numericInput(ns("temoinSeuilRejet"), "Seuil de rejet (%)",
+                                value = 20, min = 0, max = 100, step = 1),
+            shiny::helpText(paste0(
+              "Sous le seuil de correction, l'essai est valide sans correction ;",
+              " entre les deux, il est valide après correction d'Abbott ; au-delà",
+              " du seuil de rejet, il est à refaire (usage OMS : 5 % et 20 %).",
+              " Videz un champ pour n'appliquer qu'un seul seuil.")),
             shiny::actionButton(ns("testAbbott"),
               shiny::tagList(shiny::icon("scale-balanced"), " Abbott ou EM ?"),
               class = "btn-default btn-block"),
@@ -3534,6 +3618,7 @@ mod_dl50_ui <- function(id) {
             status = "success", width = 8, solidHeader = TRUE,
             shiny::uiOutput(ns("messageFit")),
             shiny::uiOutput(ns("verdict")),
+            shiny::uiOutput(ns("validite")),
             shiny::uiOutput(ns("resume")),
             DT::DTOutput(ns("parametres")))),
 
@@ -4661,7 +4746,7 @@ mod_dl50_server <- function(id, values) {
     output$verdict <- shiny::renderUI({
       f <- fit()
       if (is.null(f) || !isTRUE(f$ok)) return(NULL)
-      v <- hstat_dl50_verdict(f, seuils_demandes())
+      v <- hstat_dl50_verdict(f, seuils_demandes(), alerte_temoin = FALSE)
       if (is.null(v)) return(NULL)
       shiny::div(
         style = paste0("background:", if (length(v$alertes)) "#fdf6e3" else "#eaf6ec",
@@ -4678,6 +4763,32 @@ mod_dl50_server <- function(id, values) {
           shiny::div(style = "margin-top:8px;font-size:13px;color:#8a6d1f;",
                      lapply(v$alertes, function(a)
                        shiny::div(shiny::icon("triangle-exclamation"), " ", a))))
+    })
+
+    # LA VALIDITE DE L'ESSAI, JUGEE SUR LES SEUILS DE L'UTILISATEUR. Un champ
+    # vide n'est pas un seuil : il rend NA, et ce seuil n'est pas applique.
+    validite <- shiny::reactive({
+      f <- fit()
+      if (is.null(f)) return(NULL)
+      hstat_dl50_validite(f,
+        seuil_correction = hstat_borne_client(input$temoinSeuilCorr, NA_real_, 0, 100),
+        seuil_rejet = hstat_borne_client(input$temoinSeuilRejet, NA_real_, 0, 100),
+        base = input$temoinBase %||% "observee")
+    })
+
+    output$validite <- shiny::renderUI({
+      v <- validite()
+      if (is.null(v)) return(NULL)
+      coul <- switch(v$etat, valide = c("#eaf6ec", "#2e7d43", "circle-check"),
+                     valide_corrige = c("#fdf6e3", "#b8860b", "circle-exclamation"),
+                     invalide = c("#fdecea", "#c0392b", "circle-xmark"),
+                     c("#f1f3f5", "#6b7280", "circle-question"))
+      shiny::div(
+        style = paste0("background:", coul[1], ";border-left:5px solid ", coul[2],
+                       ";border-radius:6px;padding:10px 14px;margin-bottom:14px;",
+                       "font-size:14px;color:#1f2937;"),
+        shiny::icon(coul[3], style = paste0("color:", coul[2], ";")), " ",
+        shiny::strong(tr("Validité de l'essai :")), " ", v$texte)
     })
 
     output$resume <- shiny::renderUI({
@@ -4728,6 +4839,10 @@ mod_dl50_server <- function(id, values) {
         lig(tr("Mortalité naturelle (c)"), 100 * f$c, 100 * sqrt(f$Vh[3, 3]), "%"),
         lig(tr("Mortalité naturelle du témoin"), 100 * f$c_temoin, NA_real_, "%"),
         lig(tr(voc_fit()$temoin_corrige), hstat_dl50_temoin_corrige(f), NA_real_, "%"),
+        lig(tr("Seuil de correction du témoin"), validite()$seuil_correction, NA_real_, "%"),
+        lig(tr("Seuil de rejet du témoin"), validite()$seuil_rejet, NA_real_, "%"),
+        lig(tr("Validité de l'essai"), NA_real_, NA_real_,
+            tr(HSTAT_DL50_VALIDITE_ETATS[[validite()$etat]])),
         lig(tr("Écart-type des tolérances (1/b)"), sigma, NA_real_, tr(voc_fit()$log10)),
         lig(tr("Covariance a-b (Vab)"), f$Vh[1, 2]),
         lig(tr("Covariance a-c (Vac)"), f$Vh[1, 3]),

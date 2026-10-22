@@ -703,6 +703,53 @@ mod_clean_ui <- function(id) {
                 )
               ),
 
+              # Étape 8: Doublons
+              shiny::fluidRow(
+                shinydashboard::box(
+                  title = shiny::tagList(
+                    shiny::tags$span(class = "badge bg-purple",
+                              style = "font-size: 14px; margin-right: 10px;", "8"),
+                    shiny::icon("clone"),
+                    "Doublons"
+                  ),
+                  status = "primary", width = 12, solidHeader = TRUE,
+                  collapsible = TRUE, collapsed = TRUE,
+                  shiny::fluidRow(
+                    shiny::column(4,
+                      shiny::div(style = "background-color:#f3eefc;padding:15px;border-radius:5px;",
+                        shiny::selectizeInput(ns("dupCles"), "Colonnes comparées (vide = toutes)",
+                                              choices = NULL, multiple = TRUE),
+                        shiny::checkboxInput(ns("dupCasse"), "Ignorer la casse du texte", FALSE),
+                        shiny::checkboxInput(ns("dupEspaces"), "Ignorer les espaces en trop", FALSE),
+                        shiny::helpText("Ces deux options ne changent que la comparaison, jamais les données. Deux valeurs manquantes au même endroit sont tenues pour égales."),
+                        shiny::uiOutput(ns("dupResume"))
+                      ),
+                      shiny::div(style = "background-color:#fff;padding:15px;border-radius:5px;border:2px solid #6741d9;margin-top:12px;",
+                        shiny::h5(shiny::icon("wrench"), " Traiter les doublons", style = "color:#6741d9;margin-top:0;"),
+                        shiny::radioButtons(ns("dupAction"), "Que faire ?",
+                          choices = c("Supprimer en gardant la première occurrence" = "premier",
+                                      "Supprimer en gardant la dernière occurrence" = "dernier",
+                                      "Supprimer les lignes sélectionnées dans le tableau" = "selection",
+                                      "Marquer les doublons (numéro de groupe) dans une nouvelle colonne" = "marquer"),
+                          selected = "premier"),
+                        shiny::conditionalPanel(
+                          condition = sprintf("input['%s'] == 'marquer'", ns("dupAction")),
+                          shiny::textInput(ns("dupColonne"), "Nom de la colonne de marquage", value = "Doublon")),
+                        shiny::actionButton(ns("applyDup"), shiny::tagList(shiny::icon("check"), " Appliquer"),
+                                            class = "btn-primary"),
+                        shiny::uiOutput(ns("dupMessage"))
+                      )
+                    ),
+                    shiny::column(8,
+                      DT::DTOutput(ns("dupTable")),
+                      shiny::p(style = "font-size:11px;color:#7f8c8d;font-style:italic;margin-top:6px;",
+                        shiny::icon("info-circle"),
+                        " Double-cliquez une cellule pour la corriger : la modification s'applique aux données de travail. Cliquez des lignes pour les sélectionner avant « Supprimer les lignes sélectionnées ».")
+                    )
+                  )
+                )
+              ),
+
               shiny::fluidRow(
                 shinydashboard::box(
                   title = shiny::tagList(
@@ -2211,6 +2258,117 @@ mod_clean_server <- function(id, values) {
       rownames = TRUE,
       class = 'cell-border stripe'
     )
+  })
+
+  # =========================================================================
+  # DOUBLONS -- reperer, supprimer, marquer, corriger
+  # =========================================================================
+  # Le calcul vit dans le socle (hstat_doublons) ; le module choisit et ecrit.
+  # Les ecritures passent par values$cleanData sans purge : comme le typage,
+  # le traitement des doublons derive du fichier courant, il ne le remplace pas.
+  shiny::observeEvent(names(values$cleanData), {
+    v <- names(values$cleanData)
+    shiny::updateSelectizeInput(session, "dupCles", choices = v,
+      selected = hstat_garder_choix(shiny::isolate(input$dupCles), v))
+  }, ignoreNULL = FALSE)
+
+  doublons <- shiny::reactive({
+    shiny::req(values$cleanData)
+    hstat_doublons(values$cleanData, input$dupCles,
+                   ignorer_casse = isTRUE(input$dupCasse),
+                   ignorer_espaces = isTRUE(input$dupEspaces))
+  })
+
+  output$dupResume <- shiny::renderUI({
+    r <- doublons()
+    cles <- attr(r, "cles")
+    porte <- if (length(cles) == NCOL(values$cleanData)) tr("sur toutes les colonnes")
+             else trf("sur : %s", paste(cles, collapse = ", "))
+    if (!attr(r, "n_lignes"))
+      return(shiny::div(class = "alert alert-success", style = "padding:8px;margin-top:8px;",
+        shiny::icon("check-circle"), " ", trf("Aucun doublon %s.", porte)))
+    shiny::div(class = "alert alert-warning", style = "padding:8px;margin-top:8px;",
+      shiny::icon("clone"), " ",
+      trf("%d groupe(s) de doublons %s : %d lignes concernées, dont %d en trop.",
+          attr(r, "n_groupes"), porte, attr(r, "n_lignes"), attr(r, "n_superflues")))
+  })
+
+  output$dupTable <- DT::renderDT({
+    r <- doublons()
+    shiny::validate(shiny::need(nrow(r) > 0, tr("Aucun doublon à afficher.")))
+    DT::datatable(r, rownames = FALSE, selection = "multiple",
+      editable = list(target = "cell", disable = list(columns = c(0, 1))),
+      options = list(scrollX = TRUE, pageLength = 10, dom = "frtip"),
+      class = "cell-border stripe")
+  })
+
+  dup_message <- shiny::reactiveVal(NULL)
+  output$dupMessage <- shiny::renderUI({
+    m <- dup_message()
+    if (is.null(m)) return(NULL)
+    shiny::div(class = if (isTRUE(m$ok)) "alert alert-success" else "alert alert-danger",
+               style = "padding:8px;margin-top:10px;",
+               shiny::icon(if (isTRUE(m$ok)) "check-circle" else "times-circle"), " ", m$texte)
+  })
+
+  ecrire_dup <- function(d, texte) {
+    values$cleanData <- d
+    values$filteredData <- d
+    dup_message(list(ok = TRUE, texte = texte))
+    shiny::showNotification(shiny::tagList(shiny::icon("check"), " ", texte),
+                            type = "message", duration = 4)
+  }
+
+  # UNE CELLULE CORRIGEE DANS LE TABLEAU DES DOUBLONS S'ECRIT DANS LES DONNEES.
+  # La ligne et la colonne viennent du navigateur : bornees comme dans les
+  # trois tableaux de saisie, la ligne retrouvee par son NOM (pas sa position),
+  # la valeur ramenee au type de sa colonne.
+  shiny::observeEvent(input$dupTable_cell_edit, {
+    info <- input$dupTable_cell_edit
+    r <- shiny::isolate(doublons())
+    d <- values$cleanData
+    i <- hstat_indice_client(info$row, nrow(r))
+    j <- hstat_indice_client(suppressWarnings(as.numeric(info$col)) + 1, ncol(r))
+    if (is.na(i) || is.na(j) || j <= 2 || (j - 2) > ncol(d)) return()
+    ligne <- match(r$Ligne[i], rownames(d))
+    if (is.na(ligne)) return()
+    colonne <- names(d)[j - 2]
+    s <- hstat_valeur_saisie(d[[colonne]], info$value)
+    if (!isTRUE(s$ok)) { dup_message(list(ok = FALSE, texte = s$texte)); return() }
+    d <- hstat_ecrire_cellule(d, ligne, colonne, s$valeur)
+    ecrire_dup(d, trf("Ligne « %s », colonne « %s » : valeur modifiée.", r$Ligne[i], colonne))
+  })
+
+  shiny::observeEvent(input$applyDup, {
+    d <- values$cleanData
+    shiny::req(d)
+    r <- doublons()
+    if (!nrow(r)) { dup_message(list(ok = FALSE, texte = tr("Aucun doublon à traiter."))); return() }
+    action <- input$dupAction %||% "premier"
+    if (action %in% c("premier", "dernier")) {
+      lig <- hstat_doublons_superflus(d, input$dupCles, garder = action,
+                                      ignorer_casse = isTRUE(input$dupCasse),
+                                      ignorer_espaces = isTRUE(input$dupEspaces))
+      ecrire_dup(d[!(rownames(d) %in% lig), , drop = FALSE],
+                 trf("%d ligne(s) en double supprimée(s) : %s.", length(lig),
+                     hstat_lignes_compactes(lig)))
+    } else if (identical(action, "selection")) {
+      sel <- suppressWarnings(as.integer(input$dupTable_rows_selected))
+      sel <- sel[!is.na(sel) & sel >= 1 & sel <= nrow(r)]
+      if (!length(sel)) {
+        dup_message(list(ok = FALSE, texte = tr("Aucune ligne sélectionnée : cliquez les lignes à supprimer dans le tableau des doublons.")))
+        return()
+      }
+      lig <- unique(r$Ligne[sel])
+      ecrire_dup(d[!(rownames(d) %in% lig), , drop = FALSE],
+                 trf("%d ligne(s) supprimée(s) : %s.", length(lig), hstat_lignes_compactes(lig)))
+    } else {
+      nom <- trimws(input$dupColonne %||% "")
+      if (!nzchar(nom)) nom <- "Doublon"
+      nouveau <- make.unique(c(names(d), nom))[ncol(d) + 1]
+      d[[nouveau]] <- r$Groupe[match(rownames(d), r$Ligne)]
+      ecrire_dup(d, trf("Colonne « %s » créée : elle porte le numéro du groupe de doublons de chaque ligne (vide hors doublon).", nouveau))
+    }
   })
 
   # Renommage en place declenche par le double-clic sur l'en-tete.
