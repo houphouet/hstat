@@ -22869,32 +22869,44 @@ test_that("l'equation se pose sous la droite, plus en legende, et sa taille se r
   expect_false(grepl("en légende (un essai)", h, fixed = TRUE))
 })
 
-test_that("la mortalite corrigee par dose rejoint les parametres de la regression", {
+test_that("les parametres de la regression portent la mortalite corrigee du temoin, et elle seule", {
   e <- hstat_dl50_essai(c(0.1, 0.2, 0.5, 1, 2), 30, c(5, 9, 15, 22, 27), 30, 3)
-  for (m in c("em", "abbott")) {
-    f <- hstat_dl50_ajuste(e, m)
-    mc <- hstat_dl50_corrigees(f)
-    expect_equal(mc$Dose, f$table$Dose)
-    # Abbott avec la c RETENUE par l'ajustement, en pourcentage.
-    expect_equal(mc$Mortalite_corrigee,
-                 100 * (f$table$Mortalite_observee - f$c) / (1 - f$c))
-    # Une correction non nulle : sinon l'assertion ne distinguerait pas
-    # mortalite corrigee et mortalite observee.
-    expect_false(isTRUE(all.equal(mc$Mortalite_corrigee,
-                                  100 * f$table$Mortalite_observee)))
-  }
-  expect_null(hstat_dl50_corrigees(list(ok = FALSE)))
-  # Le vocabulaire suit la grandeur, et la phrase est au dictionnaire.
-  expect_identical(hstat_dl50_vocab("kt")$corrigee, "Knock-down corrigé au temps %s")
+  # Abbott : `c` EST le temoin, sa mortalite corrigee vaut donc 0.
+  fa <- hstat_dl50_ajuste(e, "abbott")
+  expect_equal(hstat_dl50_temoin_corrige(fa), 0)
+  # EM : `c` est estimee sur tout l'essai, le temoin s'en ecarte -- et la
+  # formule est celle d'Abbott, avec la `c` RETENUE.
+  fe <- hstat_dl50_ajuste(e, "em")
+  expect_equal(hstat_dl50_temoin_corrige(fe), 100 * (3 / 30 - fe$c) / (1 - fe$c))
+  expect_false(isTRUE(all.equal(hstat_dl50_temoin_corrige(fe), 0)))
+  # Non defini : NA, jamais zero (qui se lirait « temoin conforme »).
+  expect_true(is.na(hstat_dl50_temoin_corrige(list(ok = FALSE))))
+  expect_true(is.na(hstat_dl50_temoin_corrige(list(ok = TRUE, c = 1, c_temoin = 0.5))))
+  expect_identical(hstat_dl50_vocab("kt")$temoin_corrige, "Knock-down corrigé du témoin")
   shiny::testServer(mod_dl50_server, args = list(values = shiny::reactiveValues()), {
-    session$setInputs(source = "manual", reponse = "mortalite", methode = "abbott",
+    session$setInputs(source = "manual", reponse = "mortalite", methode = "em",
                       alpha = 0.05, itmax = 100, chemin = "rapide", chiffres = 5)
     essais(list(T1 = e))
     session$flushReact()
     d <- parametres()
-    expect_true(any(grepl("^Mortalité corrigée à la dose ", d$Parametre)))
-    expect_equal(sum(grepl("^Mortalité corrigée à la dose ", d$Parametre)), 5L)
+    expect_equal(sum(d$Parametre == "Mortalité corrigée du témoin"), 1L)
+    # Les lignes par dose ont ete retirees, a la demande.
+    expect_false(any(grepl("corrigée à la", d$Parametre)))
   })
+})
+
+test_that("la boite Grandeur etudiee est repliee par defaut", {
+  h <- as.character(mod_dl50_ui("dl50"))
+  i <- regexpr("Grandeur étudiée", h, fixed = TRUE)
+  expect_gt(i, 0)
+  # La boite qui porte ce titre : le dernier `<div class="box ...` avant lui.
+  # (`box-header` et `box-title` commencent aussi par « box » : l'espace ou le
+  # guillemet qui suit le mot les ecarte.)
+  debut <- max(gregexpr('<div class="box[ "]', substr(h, 1, i))[[1]])
+  balise <- regmatches(substr(h, debut, i), regexpr('<div class="[^"]*"', substr(h, debut, i)))
+  expect_match(balise, "collapsed-box", fixed = TRUE)
+  # Repliee, ses reglages existent toujours, avec leur valeur par defaut.
+  expect_true(grepl('id="dl50-reponse"', h, fixed = TRUE))
 })
 
 test_that("DL ou CL : l'utilisateur dit ce qui varie, et le nom suit", {
@@ -23066,4 +23078,207 @@ test_that("l'arbre CART refuse un predicteur qualitatif a trop de modalites sur 
     expect_match(cmp$Statut[1], "Texte (", fixed = TRUE)
     expect_match(cmp$Statut[1], "2^(k-1)", fixed = TRUE)
   })
+})
+
+# =============================================================================
+#  UNE SELECTION RECONDUITE SUR DE NOUVELLES DONNEES (feuille Excel suivante)
+# =============================================================================
+
+test_that("une selection perimee retombe sur le defaut au lieu de vider la liste", {
+  expect_identical(hstat_garder_choix("Dose", c("Dose", "N")), "Dose")
+  # La colonne n'existe plus dans la nouvelle feuille : le defaut, pas le vide.
+  expect_identical(hstat_garder_choix("Dose1", c("Conc", "N"), "Conc"), "Conc")
+  # Un defaut absent des choix ne vaut pas mieux : rien, et la liste choisit.
+  expect_null(hstat_garder_choix("Dose1", c("Conc", "N"), "Dose1"))
+  expect_null(hstat_garder_choix(NULL, c("Conc", "N")))
+  # Selection multiple : on garde ce qui existe encore, et cela seul.
+  expect_identical(hstat_garder_choix(c("a", "zz", "c"), c("a", "b", "c")), c("a", "c"))
+  # Choix nommes ou groupes : on compare les VALEURS.
+  expect_identical(hstat_garder_choix("v2", c("Libellé" = "v1", "Autre" = "v2")), "v2")
+  expect_identical(hstat_garder_choix("x", list(Num = c("x", "y"), Txt = "z")), "x")
+  # « (aucune) » vaut "" et reste une valeur legitime.
+  expect_identical(hstat_garder_choix("", c("", "Bloc")), "")
+})
+
+test_that("la DL50 propose une colonne par role d'apres son nom", {
+  p <- .hstat_dl50_colonnes_proposees(c("Bloc", "Concentration", "Effectif testé",
+                                        "Vivants_48h", "Morts_48h"))
+  expect_identical(unname(p[c("colDose", "colN", "colMorts")]),
+                   c("Concentration", "Effectif testé", "Morts_48h"))
+  # Une colonne de survivants n'est jamais proposee pour les morts.
+  # « Vivants » vient AVANT « Morts » : l'ordre des colonnes la proposerait.
+  p <- .hstat_dl50_colonnes_proposees(c("Dose", "Vivants", "Testes", "Morts"))
+  expect_identical(unname(p), c("Dose", "Testes", "Morts"))
+  # Sans nom reconnaissable : l'ordre des colonnes, trois colonnes distinctes.
+  p <- .hstat_dl50_colonnes_proposees(c("V1", "V2", "V3"))
+  expect_identical(unname(p), c("V1", "V2", "V3"))
+  expect_length(unique(.hstat_dl50_colonnes_proposees(c("Conc", "Dose", "N", "Morts"))), 3L)
+})
+
+test_that("une nouvelle feuille chargee remplit les colonnes de la DL50 au lieu de les vider", {
+  f1 <- data.frame(Dose1 = c(0, 0.1, 0.2, 0.4, 0.8), N1 = 20, M1 = c(1, 4, 8, 13, 18))
+  f2 <- data.frame(Conc = c(0, 1, 2, 4, 8), Testes = 25, Morts = c(0, 5, 10, 16, 22))
+  vals <- shiny::reactiveValues(data = f1, cleanData = f1, filteredData = f1)
+  envoyes <- list()
+  shiny::testServer(mod_dl50_server, args = list(values = vals), {
+    # Les mises a jour de liste partent par `sendInputMessage` : on les releve
+    # a la racine (la session d'un module est un mandataire en lecture seule).
+    racine <- session$rootScope()
+    racine$sendInputMessage <- function(inputId, message)
+      envoyes[[sub("^.*-", "", inputId)]] <<- message
+    session$flushReact()
+    expect_identical(envoyes$colDose$value, "Dose1")
+    expect_identical(envoyes$colN$value, "N1")
+    expect_identical(envoyes$colMorts$value, "M1")
+    # L'utilisateur a garde ses colonnes ; puis il charge une autre feuille.
+    session$setInputs(colDose = "Dose1", colN = "N1", colMorts = "M1")
+    vals$data <- f2; vals$cleanData <- f2; vals$filteredData <- f2
+    session$flushReact()
+    expect_identical(envoyes$colDose$value, "Conc")
+    expect_identical(envoyes$colN$value, "Testes")
+    expect_identical(envoyes$colMorts$value, "Morts")
+  })
+})
+
+test_that("aucun selecteur ne reconduit une selection sans la rapprocher des nouveaux choix", {
+  # `selected = isolate(input$x)` (ou `%||% defaut`, qui ne rattrape que NULL)
+  # laisse la liste VIDE des que la colonne a disparu du nouveau fichier.
+  fautifs <- character(0)
+  marcher <- function(e, f) {
+    if (!is.call(e)) return(invisible())
+    a <- as.list(e)
+    if (!is.null(names(a)) && "selected" %in% names(a)) {
+      s <- paste(deparse(a$selected, width.cutoff = 500L), collapse = "")
+      nu <- grepl("^(shiny::)?isolate\\(input(\\$|\\[\\[)", s) ||
+            grepl("^(shiny::)?isolate\\(input\\$[A-Za-z0-9_]+\\) %\\|\\|%", s)
+      if (nu && !grepl("gAnnotDL", s)) fautifs <<- c(fautifs, paste(basename(f), s))
+    }
+    for (k in seq_along(a)[-1]) if (!missing(e) && is.call(a[[k]])) marcher(a[[k]], f)
+  }
+  for (f in .hstat_sources_app()) for (e in parse(f, keep.source = FALSE)) marcher(e, f)
+  # gAnnotDL : ses VALEURS sont fixes (10, 50, 90), seuls les libelles changent.
+  expect_identical(fautifs, character(0))
+})
+
+test_that("la validite d'un essai DL50 se juge sur les seuils du temoin choisis par l'utilisateur", {
+  doses <- c(0.00848, 0.0163, 0.03423, 0.05053, 0.08476)
+  essai <- function(x0) hstat_dl50_essai(doses, rep(90, 5), c(30, 43, 62, 75, 82), 90, x0)
+  f <- function(x0, m = "em") hstat_dl50_ajuste(essai(x0), m)
+  # 3 / 90 = 3,3 % ; 9 / 90 = 10 % ; 27 / 90 = 30 %
+  expect_identical(hstat_dl50_validite(f(3))$etat, "valide")
+  expect_identical(hstat_dl50_validite(f(9))$etat, "valide_corrige")
+  expect_identical(hstat_dl50_validite(f(27))$etat, "invalide")
+  # Les deux cotes de chaque frontiere, sur la meme mortalite de 10 %.
+  f9 <- f(9)
+  expect_identical(hstat_dl50_validite(f9, 10.01, 20)$etat, "valide")
+  expect_identical(hstat_dl50_validite(f9, 10, 20)$etat, "valide_corrige")
+  expect_identical(hstat_dl50_validite(f9, 5, 9.99)$etat, "invalide")
+  expect_identical(hstat_dl50_validite(f9, 5, 10)$etat, "valide_corrige")
+  # Seuils inverses : remis dans l'ordre, pas un verdict absurde.
+  v <- hstat_dl50_validite(f9, 20, 5)
+  expect_identical(c(v$seuil_correction, v$seuil_rejet), c(5, 20))
+  # Un seul seuil s'applique seul ; aucun seuil, aucun verdict.
+  expect_identical(hstat_dl50_validite(f9, NA, 8)$etat, "invalide")
+  expect_identical(hstat_dl50_validite(f9, NA, 15)$etat, "valide")
+  expect_identical(hstat_dl50_validite(f9, NA, NA)$etat, "indeterminable")
+  # La base change la valeur comparee : sous Abbott, la mortalite corrigee
+  # du temoin vaut 0 -- l'essai a 30 % est valide sur elle, pas sur l'observee.
+  ab <- f(27, "abbott")
+  expect_identical(hstat_dl50_validite(ab, base = "observee")$etat, "invalide")
+  vc <- hstat_dl50_validite(ab, base = "corrigee")
+  expect_equal(vc$valeur, 0)
+  expect_identical(vc$etat, "valide")
+  # Sans temoin, l'absence ne prouve rien.
+  expect_identical(hstat_dl50_validite(f(0) |> (\(x) { x$essai$n0 <- 0; x })())$etat,
+                   "indeterminable")
+  # Les phrases sont au dictionnaire, et le module declare les trois reglages.
+  fr <- hstat_i18n_load()$fr
+  expect_true(all(HSTAT_DL50_VALIDITE_ETATS %in% fr))
+  ui <- as.character(mod_dl50_ui("dl50"))
+  for (id in c("temoinBase", "temoinSeuilCorr", "temoinSeuilRejet", "validite"))
+    expect_true(grepl(paste0('id="dl50-', id, '"'), ui, fixed = TRUE), info = id)
+  # Le verdict du module ne repete pas l'alerte au seuil fixe de 20 %.
+  expect_false(any(grepl("témoin élevée",
+                         hstat_dl50_verdict(f(27), alerte_temoin = FALSE)$alertes, fixed = TRUE)))
+})
+
+test_that("les doublons se reperent et se traitent dans le Nettoyage", {
+  d <- data.frame(id = c(1, 2, 1, 3, 2, 1), t = c("A", "b", "A", "c", "B ", "A"),
+                  v = c(NA, 2, NA, 4, 2, NA), stringsAsFactors = FALSE)
+  rownames(d) <- paste0("r", 1:6)
+  r <- hstat_doublons(d)
+  # Deux NA au meme endroit sont egaux : r1, r3, r6 forment un groupe.
+  expect_identical(r$Ligne, c("r1", "r3", "r6"))
+  expect_identical(c(attr(r, "n_groupes"), attr(r, "n_superflues")), c(1L, 2L))
+  # « b » et « B » ne sont des doublons que sur demande -- les deux options.
+  expect_false("r5" %in% hstat_doublons(d, ignorer_casse = TRUE)$Ligne)
+  expect_false("r5" %in% hstat_doublons(d, ignorer_espaces = TRUE)$Ligne)
+  expect_true("r5" %in% hstat_doublons(d, ignorer_casse = TRUE, ignorer_espaces = TRUE)$Ligne)
+  # Une cle restreint la comparaison ; une cle inconnue retombe sur toutes.
+  expect_identical(sort(hstat_doublons(d, "id")$Ligne), c("r1", "r2", "r3", "r5", "r6"))
+  expect_identical(hstat_doublons(d, "inconnue")$Ligne, r$Ligne)
+  # Premiere ou derniere occurrence gardee, par NOM de ligne.
+  expect_identical(hstat_doublons_superflus(d), c("r3", "r6"))
+  expect_identical(hstat_doublons_superflus(d, garder = "dernier"), c("r1", "r3"))
+  expect_identical(attr(hstat_doublons(d[!duplicated(d), ]), "n_lignes"), 0L)
+  # Une saisie prend le type de sa colonne, et l'illisible est refusee.
+  expect_identical(hstat_valeur_saisie(c(1.5, 2), "12,5")$valeur, 12.5)
+  expect_false(hstat_valeur_saisie(c(1.5, 2), "douze")$ok)
+  expect_true(is.na(hstat_valeur_saisie(c(1.5, 2), "")$valeur))
+  expect_identical(levels(hstat_ecrire_cellule(data.frame(f = factor("a")), 1, "f", "z")$f), c("a", "z"))
+
+  v <- shiny::reactiveValues(data = NULL, resetSignal = 0, filteredData = NULL, cleanData = d)
+  shiny::testServer(mod_clean_server, args = list(values = v), {
+    session$setInputs(dupCles = NULL, dupCasse = FALSE, dupEspaces = FALSE, dupAction = "premier")
+    session$setInputs(applyDup = 1)
+    expect_identical(rownames(v$cleanData), c("r1", "r2", "r4", "r5"))
+    # Correction d'une cellule : la ligne se retrouve par son nom.
+    v$cleanData <- d
+    session$setInputs(dupCles = "id")
+    session$setInputs(dupTable_cell_edit = list(row = 2, col = 2, value = "7,5"))
+    expect_equal(v$cleanData["r3", "id"], 7.5)
+    # Une cellule forgee hors du tableau ne fait rien.
+    avant <- v$cleanData
+    session$setInputs(dupTable_cell_edit = list(row = 1e6, col = 2, value = "0"))
+    expect_identical(v$cleanData, avant)
+    # Lignes selectionnees.
+    v$cleanData <- d
+    session$setInputs(dupCles = NULL, dupAction = "selection", dupTable_rows_selected = 2)
+    session$setInputs(applyDup = 2)
+    expect_identical(rownames(v$cleanData), c("r1", "r2", "r4", "r5", "r6"))
+    # Marquage : le numero de groupe, vide hors doublon.
+    v$cleanData <- d
+    session$setInputs(dupAction = "marquer", dupColonne = "id")
+    session$setInputs(applyDup = 3)
+    expect_true("id.1" %in% names(v$cleanData))
+    expect_identical(v$cleanData$id.1, c(1L, NA, 1L, NA, NA, 1L))
+  })
+})
+
+test_that("la validite du temoin se juge meme quand l'ajustement echoue", {
+  # Deux doses seulement : l'ajustement refuse, le temoin a 30 % reste lisible.
+  e <- hstat_dl50_essai(c(0.01, 0.1), c(50, 50), c(20, 40), 90, 27)
+  f <- hstat_dl50_ajuste(e, "em")
+  expect_false(isTRUE(f$ok))
+  v <- hstat_dl50_validite(f)
+  expect_identical(v$etat, "invalide")
+  expect_equal(v$valeur, 30)
+  # La mortalite corrigee, elle, a besoin de l'ajustement.
+  expect_identical(hstat_dl50_validite(f, base = "corrigee")$etat, "indeterminable")
+})
+
+test_that("une liste de lignes est bornee, et une date-heure saisie prend son type", {
+  # Trente mille lignes eparses donnaient une notification de centaines de Ko.
+  x <- hstat_lignes_compactes(as.character(seq(1, 1e5, by = 2)))
+  expect_lt(nchar(x), 1000)
+  expect_true(grepl("(+49900)", x, fixed = TRUE))
+  # Sous la borne, rien ne change.
+  expect_identical(hstat_lignes_compactes(c("1", "2", "3", "9")), "1-3, 9")
+  expect_identical(hstat_lignes_compactes(c("a", "b", "c"), max = 2), "a, b, … (+1)")
+  # Une colonne date-heure : la saisie lisible prend son type, l'illisible est refusee.
+  col <- as.POSIXct(c("2024-01-01 10:00", "2024-01-02 10:00"), tz = "UTC")
+  s <- hstat_valeur_saisie(col, "2025-05-05 08:30")
+  expect_true(s$ok)
+  expect_s3_class(s$valeur, "POSIXct")
+  expect_false(hstat_valeur_saisie(col, "pas une date")$ok)
 })

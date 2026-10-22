@@ -10240,16 +10240,66 @@ une sonde qui lit `data$label` rend « aucune équation » sur une figure qui en
 porte une. Il exige la position sous la droite et deux tailles différentes pour
 deux réglages.
 
-### La mortalité corrigée dans « Paramètres de la régression »
+### La mortalité corrigée dans « Paramètres de la régression » : celle du témoin
 
-C'est le chiffre que la droite de Henry ajuste, et il ne vivait que dans le
-détail par dose. `hstat_dl50_corrigees()` le rend par dose, corrigé par la
-mortalité naturelle **retenue par l'ajustement** — la même `c` que les doses
-létales, pas celle du témoin seul quand la méthode l'estime. Une ligne par dose
-dans le tableau (donc dans les exports), une phrase dans le résumé. Une valeur
-négative reste négative : la borner à zéro masquerait une dose qui tue moins que
-le témoin. Le test exige que la correction soit **discernable** de la mortalité
-observée, sans quoi il ne distinguerait pas les deux.
+Elle y est d'abord entrée **dose par dose** ; ces lignes ont été retirées à la
+demande — le détail par dose les porte déjà, et le tableau des paramètres ne
+doit tenir que des grandeurs de l'ajustement. Reste **la mortalité corrigée du
+témoin** (`hstat_dl50_temoin_corrige()`), corrigée par la mortalité naturelle
+**retenue** par l'ajustement : `(p0 − c) / (1 − c)`, la même `c` que les doses
+létales.
+
+Elle vaut **0 sous Abbott**, où `c` est le témoin lui-même, et s'en écarte sous
+EM, où `c` est estimée sur tout l'essai : c'est l'écart entre ce que le témoin a
+montré et ce que le modèle a retenu. Le test exige les deux, sans quoi il ne
+distinguerait pas la formule d'une constante. Sans témoin ou à `c = 1`, elle
+vaut `NA`, jamais zéro — qui se lirait « témoin conforme ».
+
+### « Grandeur étudiée » est repliée par défaut
+
+Demandé à l'écran : la boîte poussait la saisie hors de l'écran pour le cas
+courant, une DL50 en dose. Elle n'est **pas** supprimée — elle porte le choix du
+knock-down (KD50, KT50) et celui de la DL ou de la CL, qui disparaîtraient avec
+elle. Repliée, ses réglages existent et gardent leur valeur par défaut
+(mortalité, dose) ; le test vérifie les deux.
+
+## Une nouvelle feuille chargée ne vide plus les listes de colonnes
+
+Signalé à l'écran : dans la DL50, après le chargement d'une **autre feuille** du
+classeur, « D'où viennent les données » ne proposait plus rien de sélectionné —
+les trois listes (doses, effectifs, morts) restaient vides.
+
+Mesuré au navigateur, la cause est double. Les listes se **remplissaient**
+bien des nouvelles colonnes, mais :
+
+1. **rien n'y était jamais sélectionné**, même au premier chargement : la
+   sélection reprenait `isolate(input$colDose)`, `NULL` au départ ;
+2. après une nouvelle feuille, elle reprenait la colonne **précédente**, absente
+   des nouveaux choix : `updateSelectInput()` reçoit alors un `selected`
+   inconnu, et la liste reste **vide**.
+
+`hstat_garder_choix(courant, choix, defaut)` (`R/utils.R`) porte la règle : ce
+qui existe encore est gardé, sinon le défaut — lui aussi rapproché des choix —,
+sinon rien. `%||% defaut`, l'idiome d'avant, ne rattrape que `NULL` : une valeur
+**périmée** n'est pas `NULL`, elle passait.
+
+La DL50 **propose** désormais une colonne par rôle
+(`.hstat_dl50_colonnes_proposees()`), d'après son nom d'abord (« Concentration »,
+« Effectif testé », « Morts_48h »), puis dans l'ordre des colonnes. Une colonne
+de **survivants** n'est jamais proposée pour les morts : c'est l'inversion déjà
+documentée plus haut.
+
+Même défaut, même remède, partout où il existait : mesures répétées (sujet,
+facteurs intra et inter), seuils d'efficacité (traitements, témoin, mesures,
+répétition), atelier de codage (question ouverte, document, code du
+dictionnaire) et critères de sélection des essais DL50. Un balayage par
+l'analyseur barre le retour de `selected = isolate(input$x)` nu ou suivi de
+`%||%`.
+
+Le test du module relève les messages de mise à jour à la **racine** de la
+session : sous `testServer()`, la session d'un module est un mandataire qui
+refuse l'affectation (`session$rootScope()$sendInputMessage <- …`). Il a été
+vérifié comme échouant sur l'ancien code (six assertions).
 
 ### La DL10 extrapolée ne sort plus du cadre
 
@@ -10350,3 +10400,75 @@ Note de méthode : le premier balayage des lectures signalait `pcaComponents` et
 `valueLabelDigits` encore « non bornés » — à tort : les lignes trouvées ne
 faisaient que nommer l'entrée dans une liste de dépendances. Une assertion qui
 compte une dépendance comme une lecture crie au loup, et finit désactivée.
+
+## La validité d'un essai DL50 se juge sur des seuils choisis
+
+Demandé à l'écran : préciser le ou les seuils de mortalité du témoin et en
+déduire la validité de l'essai. Le seuil fixe de 20 % (`HSTAT_DL50_TEMOIN_MAX`)
+ne disait qu'« élevée » ; il ne laissait ni choisir 10 %, ni distinguer
+« valide sans correction » de « valide après Abbott ».
+
+`hstat_dl50_validite(fit, seuil_correction, seuil_rejet, base)` rend quatre
+états (`HSTAT_DL50_VALIDITE_ETATS`) : sous le seuil de correction, **valide** ;
+entre les deux, **valide après correction d'Abbott** ; au-delà du seuil de
+rejet, **non valide** ; sans témoin ou sans seuil, **non jugée** — jamais
+« valide », l'absence ne prouve rien. Défauts 5 % et 20 %, l'usage OMS.
+
+`base` choisit la mortalité comparée : **observée** (l'usage) ou **corrigée**
+par la mortalité naturelle retenue (`hstat_dl50_temoin_corrige`). Sous Abbott
+la seconde vaut 0 par construction : le test l'exige, sans quoi on croirait la
+base sans effet. Un champ vidé n'applique pas ce seuil ; deux seuils inversés
+sont remis dans l'ordre.
+
+Le module n'affiche plus l'alerte au seuil fixe (`alerte_temoin = FALSE`) :
+elle contredirait un seuil de rejet choisi à 10 %. Les identifiants ne
+commencent pas par « g », réservé aux réglages de la figure.
+
+## Nettoyage : les doublons se repèrent et se traitent
+
+Une ligne saisie deux fois compte deux fois dans toutes les moyennes et
+resserre les intervalles. L'étape 8 du Nettoyage les repère
+(`hstat_doublons()`) sur toutes les colonnes ou sur une clé, et propose quatre
+traitements : supprimer en gardant la première ou la dernière occurrence
+(`hstat_doublons_superflus()`), supprimer les lignes sélectionnées, marquer
+d'une colonne portant le numéro de groupe. Une cellule du tableau des doublons
+se **corrige** en place.
+
+Quatre décisions, chacune testée :
+
+1. **Deux NA au même endroit sont égaux** : une recopie porte ses manquants aux
+   mêmes places.
+2. **La ligne se nomme par son nom de ligne**, jamais par sa position, comme
+   `hstat_na_lignes()` ; la correction d'une cellule retrouve la ligne par ce
+   nom.
+3. **Casse et espaces ne s'ignorent que sur demande**, et seulement dans la
+   comparaison : « Témoin » et « témoin » sont une modalité ou deux, seul
+   l'utilisateur le sait.
+4. **Une saisie prend le type de sa colonne** (`hstat_valeur_saisie()`) : la
+   virgule décimale est lue, l'illisible est refusé et nommé, jamais converti en
+   NA. Un facteur reçoit le niveau neuf (`hstat_ecrire_cellule()`), sans quoi
+   la saisie deviendrait NA. Ligne et colonne venues du navigateur passent par
+   `hstat_indice_client()`.
+
+Le message du traitement n'est pas effacé par l'observateur des données : il
+aurait disparu à l'écriture même qu'il annonce.
+
+## Audit 1.25.1 : deux défauts dans les doublons
+
+Mené sur le lot précédent avant tout le reste : messages forgés rejoués sous
+`testServer()`, chronométrage, puis les vingt-deux onglets au navigateur (jeu
+normal et hostile : 0 erreur, 0 balise injectée).
+
+- **Une liste de lignes n'était pas bornée.** Supprimer trente mille doublons
+  épars composait une notification de plusieurs centaines de Ko, envoyée au
+  navigateur et illisible. `hstat_lignes_compactes(max = 100)` coupe la liste et
+  dit combien il en reste (« … (+49900) »), une écriture qui se lit dans les
+  deux langues.
+- **Une cellule date-heure corrigée pouvait fermer la session.** Une saisie
+  illisible dans une colonne `POSIXct` levait dans l'observateur. Elle est lue
+  comme une date-heure ou refusée et nommée, et toute écriture qui lève encore
+  se dit au lieu de fermer la session.
+
+Mesuré : le repérage coûte 0,3 s sur 100 000 lignes et 2,9 s sur 500 000. Il ne
+tourne que lorsque la boîte est ouverte, c'est-à-dire quand ses sorties sont
+affichées.

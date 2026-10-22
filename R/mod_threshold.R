@@ -727,7 +727,7 @@ mod_threshold_server <- function(id, values) {
       logical(1))]
     if (!length(cand)) cand <- names(d)
     shiny::selectInput(ns("effFactor"), shiny::tagList(shiny::icon("layer-group"), " Variable des traitements"),
-                choices = cand, selected = shiny::isolate(input$effFactor) %||% cand[1])
+                choices = cand, selected = hstat_garder_choix(shiny::isolate(input$effFactor), cand, cand[1]))
   })
 
   output$effControlSelect <- shiny::renderUI({
@@ -737,7 +737,7 @@ mod_threshold_server <- function(id, values) {
     shiny::validate(shiny::need(length(m) >= 2,
       "Cette variable ne porte pas au moins deux modalités : le témoin ne pourrait être comparé à rien."))
     shiny::selectInput(ns("effControl"), shiny::tagList(shiny::icon("vial"), " Modalité témoin"),
-                choices = m, selected = shiny::isolate(input$effControl) %||% m[1])
+                choices = m, selected = hstat_garder_choix(shiny::isolate(input$effControl), m, m[1]))
   })
 
   # « Une fois le temoin choisi, les autres modalites passent dans une
@@ -763,7 +763,7 @@ mod_threshold_server <- function(id, values) {
     num <- names(d)[vapply(d, is.numeric, logical(1))]
     shiny::validate(shiny::need(length(num) > 0, "Aucune variable numérique à mesurer."))
     shiny::selectInput(ns("effResponse"), shiny::tagList(shiny::icon("ruler"), " Variable(s) mesurée(s)"),
-                choices = num, selected = shiny::isolate(input$effResponse) %||% num[1],
+                choices = num, selected = hstat_garder_choix(shiny::isolate(input$effResponse), num, num[1]),
                 multiple = TRUE)
   })
 
@@ -773,7 +773,7 @@ mod_threshold_server <- function(id, values) {
     cand <- setdiff(names(d), input$effFactor)
     shiny::selectInput(ns("effGroup"), shiny::tagList(shiny::icon("object-group"), " Variable de répétition"),
                 choices = c("(aucune répétition déclarée)" = "", cand),
-                selected = shiny::isolate(input$effGroup) %||% "")
+                selected = hstat_garder_choix(shiny::isolate(input$effGroup), c("", cand), ""))
   })
 
   shiny::observeEvent(input$effCompute, {

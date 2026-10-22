@@ -2253,7 +2253,7 @@ mod_coding_server <- function(id, values) {
       shiny::validate(shiny::need(length(v) > 0,
         "Aucune colonne textuelle dans ce jeu de données."))
       shiny::selectInput(ns("doc_var"), "Question ouverte à coder",
-                         choices = v, selected = shiny::isolate(input$doc_var) %||% v[1])
+                         choices = v, selected = hstat_garder_choix(shiny::isolate(input$doc_var), v, v[1]))
     })
 
     docs <- shiny::reactive({
@@ -2832,7 +2832,7 @@ mod_coding_server <- function(id, values) {
           " Aucun document code pour l'instant."))
       lab <- paste("Ligne", dd$row[match(ids, dd$doc_id)])
       shiny::selectInput(ns("cl_doc"), "Document", choices = stats::setNames(ids, lab),
-                         selected = shiny::isolate(input$cl_doc) %||% ids[1])
+                         selected = hstat_garder_choix(shiny::isolate(input$cl_doc), ids, ids[1]))
     })
 
     cl_df <- shiny::reactive({
@@ -3388,7 +3388,7 @@ mod_coding_server <- function(id, values) {
       cb <- rv$codebook
       shiny::selectInput(ns("dict_code"), "Code",
         choices = if (nrow(cb)) stats::setNames(cb$code_id, cb$label) else character(0),
-        selected = shiny::isolate(input$dict_code))
+        selected = hstat_garder_choix(shiny::isolate(input$dict_code), cb$code_id))
     })
 
     # Le champ suit le code selectionne, sans ecraser une saisie en cours.

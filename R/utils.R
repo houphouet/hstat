@@ -6246,7 +6246,28 @@ hstat_refus <- function(msg)
 # sert TOUTES les sessions. La borne haute est celle que l'interface declare,
 # et un test verifie que les deux sont les memes : deux chiffres qui ne se
 # parlent pas finissent par diverger.
+# -- Une selection reconduite sur de nouvelles donnees -------------------------
+# Un selecteur de colonnes rempli depuis le jeu de travail reconduit souvent la
+# selection precedente (`selected = isolate(input$x)`), pour ne pas la perdre a
+# chaque recalcul. Mais apres le chargement d'une AUTRE feuille ou d'un autre
+# fichier, cette colonne n'existe plus : `updateSelectInput()` recoit un
+# `selected` absent des choix, et la liste reste VIDE -- signale a l'ecran sur
+# la DL50, ou il fallait reprendre les trois colonnes a la main sans que rien
+# ne dise pourquoi elles avaient disparu.
+#
+# On garde ce qui existe encore ; sinon on retombe sur le defaut, lui aussi
+# rapproche des choix (un defaut absent ne vaut pas mieux qu'une selection
+# perimee). Les choix peuvent etre nommes ou groupes : on compare les VALEURS.
+hstat_garder_choix <- function(courant, choix, defaut = NULL) {
+  v <- unname(as.character(unlist(choix, use.names = FALSE)))
+  k <- intersect(as.character(courant), v)
+  if (length(k)) return(k)
+  d <- intersect(as.character(defaut), v)
+  if (length(d)) d else NULL
+}
+
 hstat_borne_client <- function(x, defaut, min, max) {
+
   v <- hstat_finite(x, defaut)
   min(max(v, min), max)
 }
@@ -16006,18 +16027,25 @@ hstat_volcan_plot <- function(vd, couleurs = c(hausse = "#d7301f",
 # numeros ne se lit pas, et une plage dit la meme chose sans rien perdre. Des
 # noms de lignes non numeriques sont rendus tels quels, separes par des
 # virgules.
-hstat_lignes_compactes <- function(x) {
+# `max` borne le nombre de morceaux ecrits : trente mille lignes eparses
+# donneraient une notification de plusieurs centaines de kilo-octets, envoyee
+# au navigateur et illisible. Au-dela, la liste se coupe et dit combien il en
+# reste -- « (+k) » se lit dans les deux langues.
+hstat_lignes_compactes <- function(x, max = 100L) {
   x <- as.character(x)
   if (!length(x)) return("")
+  couper <- function(m) {
+    if (length(m) > max) c(m[seq_len(max)], sprintf("\u2026 (+%d)", length(m) - max)) else m
+  }
   n <- suppressWarnings(as.integer(x))
-  if (anyNA(n) || any(as.character(n) != x)) return(paste(x, collapse = ", "))
+  if (anyNA(n) || any(as.character(n) != x)) return(paste(couper(x), collapse = ", "))
   n <- sort(unique(n))
   coupe <- c(0L, which(diff(n) != 1L), length(n))
   morceaux <- vapply(seq_len(length(coupe) - 1L), function(i) {
     a <- n[coupe[i] + 1L]; b <- n[coupe[i + 1L]]
     if (a == b) as.character(a) else paste0(a, "-", b)
   }, character(1))
-  paste(morceaux, collapse = ", ")
+  paste(couper(morceaux), collapse = ", ")
 }
 
 .hstat_noms_lignes <- function(d) {
@@ -16112,4 +16140,119 @@ hstat_btn_tout <- function(inputId, label = "Tout sélectionner", ..., class = N
 hstat_btn_aucun <- function(inputId, label = "Tout désélectionner", ..., class = NULL) {
   shiny::actionButton(inputId, label, ...,
                       class = paste(c("hstat-btn-aucun", class), collapse = " "))
+}
+
+# =============================================================================
+# DOUBLONS : reperer, puis traiter (supprimer, marquer, modifier)
+# =============================================================================
+# Deux lignes sont des doublons quand elles portent les MEMES valeurs sur les
+# colonnes de comparaison -- toutes par defaut, ou une cle choisie (identifiant,
+# parcelle x date). Une ligne saisie deux fois compte deux fois dans toutes les
+# moyennes, gonfle les effectifs et resserre les intervalles : un test devient
+# significatif sur un artefact de saisie.
+#
+# Trois decisions, chacune testee :
+#  1. DEUX NA SONT EGAUX. Une ligne recopiee porte ses manquants aux memes
+#     endroits ; les tenir pour differents ferait passer une recopie pour deux
+#     observations distinctes.
+#  2. LA LIGNE SE NOMME PAR SON NOM DE LIGNE, jamais par sa position : une
+#     position se decale a chaque ligne supprimee, et l'utilisateur chercherait
+#     dans son fichier une ligne qui n'est plus la bonne (meme regle que
+#     hstat_na_lignes()).
+#  3. LA CASSE ET LES ESPACES NE S'IGNORENT QUE SUR DEMANDE. « Témoin » et
+#     « témoin » sont la meme modalite saisie deux fois, ou deux modalites :
+#     seul l'utilisateur le sait. Ces options ne touchent que la comparaison,
+#     jamais les donnees.
+.hstat_doublons_cle <- function(d, cles, ignorer_casse = FALSE, ignorer_espaces = FALSE) {
+  parts <- lapply(cles, function(cn) {
+    x <- d[[cn]]
+    v <- if (inherits(x, c("Date", "POSIXt"))) format(x)
+         else if (is.numeric(x)) format(x, digits = 15, trim = TRUE)
+         else as.character(x)
+    if (is.character(x) || is.factor(x)) {
+      if (isTRUE(ignorer_espaces)) v <- gsub("[[:space:]]+", " ", trimws(v))
+      if (isTRUE(ignorer_casse)) v <- tolower(v)
+    }
+    v[is.na(x)] <- "\u0001NA"
+    v
+  })
+  if (!length(parts)) return(character(NROW(d)))
+  do.call(paste, c(parts, sep = "\u001f"))
+}
+
+hstat_doublons <- function(d, cles = NULL, ignorer_casse = FALSE, ignorer_espaces = FALSE) {
+  vide <- function(cles) structure(
+    data.frame(Groupe = integer(0), Ligne = character(0), stringsAsFactors = FALSE),
+    n_groupes = 0L, n_lignes = 0L, n_superflues = 0L, cles = cles)
+  if (is.null(d) || !NROW(d) || !NCOL(d)) return(vide(character(0)))
+  cles <- intersect(as.character(cles %||% character(0)), names(d))
+  if (!length(cles)) cles <- names(d)
+  k <- .hstat_doublons_cle(d, cles, ignorer_casse, ignorer_espaces)
+  dup <- duplicated(k) | duplicated(k, fromLast = TRUE)
+  if (!any(dup)) return(vide(cles))
+  g <- match(k, unique(k[dup]))
+  i <- which(dup)
+  i <- i[order(g[i], i)]
+  res <- data.frame(Groupe = g[i], Ligne = rownames(d)[i],
+                    d[i, , drop = FALSE], check.names = FALSE,
+                    stringsAsFactors = FALSE)
+  rownames(res) <- NULL
+  structure(res, n_groupes = length(unique(g[i])), n_lignes = length(i),
+            n_superflues = length(i) - length(unique(g[i])), cles = cles)
+}
+
+# Les lignes SUPERFLUES : toutes sauf une par groupe -- la premiere ou la
+# derniere occurrence, au choix. Rendues par leur nom de ligne.
+hstat_doublons_superflus <- function(d, cles = NULL, garder = c("premier", "dernier"),
+                                     ignorer_casse = FALSE, ignorer_espaces = FALSE) {
+  garder <- match.arg(garder)
+  if (is.null(d) || !NROW(d) || !NCOL(d)) return(character(0))
+  cles <- intersect(as.character(cles %||% character(0)), names(d))
+  if (!length(cles)) cles <- names(d)
+  k <- .hstat_doublons_cle(d, cles, ignorer_casse, ignorer_espaces)
+  rownames(d)[duplicated(k, fromLast = identical(garder, "dernier"))]
+}
+
+# UNE VALEUR SAISIE PREND LE TYPE DE SA COLONNE. Ecrire « 12,5 » dans une
+# colonne numerique en ferait du texte, et la colonne entiere passerait en
+# caractere a la prochaine lecture -- toutes les analyses la perdraient. La
+# virgule decimale est acceptee ; une saisie illisible est REFUSEE et nommee,
+# jamais convertie en NA en silence. Une cellule videe vaut NA.
+hstat_valeur_saisie <- function(col, valeur) {
+  v <- trimws(as.character(valeur %||% "")[1])
+  if (is.na(v) || !nzchar(v) || toupper(v) == "NA")
+    return(list(ok = TRUE, valeur = col[NA_integer_][1]))
+  if (is.logical(col)) {
+    b <- switch(tolower(v), "true" = , "vrai" = , "oui" = , "1" = TRUE,
+                "false" = , "faux" = , "non" = , "0" = FALSE, NA)
+    if (is.na(b)) return(list(ok = FALSE, texte = trf("« %s » n'est pas une valeur logique (vrai / faux).", v)))
+    return(list(ok = TRUE, valeur = b))
+  }
+  if (is.numeric(col)) {
+    n <- suppressWarnings(as.numeric(gsub(",", ".", v, fixed = TRUE)))
+    if (!is.finite(n)) return(list(ok = FALSE, texte = trf("« %s » n'est pas un nombre.", v)))
+    if (is.integer(col) && n == round(n) && abs(n) < .Machine$integer.max) n <- as.integer(n)
+    return(list(ok = TRUE, valeur = n))
+  }
+  if (inherits(col, "Date")) {
+    dt <- hstat_date_auto(v)$dates
+    if (!length(dt) || is.na(dt[1])) return(list(ok = FALSE, texte = trf("« %s » n'est pas une date lisible.", v)))
+    return(list(ok = TRUE, valeur = as.Date(dt[1])))
+  }
+  if (inherits(col, "POSIXt")) {
+    dt <- suppressWarnings(tryCatch(as.POSIXct(v, tz = attr(col, "tzone") %||% ""),
+                                    error = function(e) NA))
+    if (!length(dt) || is.na(dt[1])) return(list(ok = FALSE, texte = trf("« %s » n'est pas une date lisible.", v)))
+    return(list(ok = TRUE, valeur = dt[1]))
+  }
+  list(ok = TRUE, valeur = v)
+}
+
+# Ecrit la valeur dans la colonne. Un facteur recoit le niveau s'il est neuf :
+# l'affecter sans le niveau rendrait NA, et la saisie disparaitrait.
+hstat_ecrire_cellule <- function(d, ligne, colonne, valeur) {
+  if (is.factor(d[[colonne]]) && !is.na(valeur) && !(valeur %in% levels(d[[colonne]])))
+    levels(d[[colonne]]) <- c(levels(d[[colonne]]), valeur)
+  d[ligne, colonne] <- valeur
+  d
 }

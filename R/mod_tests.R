@@ -3726,11 +3726,11 @@ mod_tests_server <- function(id, values) {
                                    (is.numeric(x) && length(unique(x[!is.na(x)])) <= 20))]
     if (length(fac_cols) == 0) fac_cols <- all_cols
     shiny::updateSelectInput(session, "rmSubject", choices = all_cols,
-                      selected = shiny::isolate(input$rmSubject) %||% all_cols[1])
+                      selected = hstat_garder_choix(shiny::isolate(input$rmSubject), all_cols, all_cols[1]))
     shiny::updateSelectizeInput(session, "rmWithin", choices = fac_cols,
-                         selected = shiny::isolate(input$rmWithin))
+                         selected = hstat_garder_choix(shiny::isolate(input$rmWithin), fac_cols))
     shiny::updateSelectizeInput(session, "rmBetween", choices = fac_cols,
-                         selected = shiny::isolate(input$rmBetween))
+                         selected = hstat_garder_choix(shiny::isolate(input$rmBetween), fac_cols))
   })
   
   # --- Selecteur COMPLET de la structure d'effets aleatoires du GLMM ---
