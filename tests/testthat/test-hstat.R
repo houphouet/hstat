@@ -22753,3 +22753,72 @@ test_that("Shapiro-Wilk par groupe : brutes, résidus, et l'option du module", {
     expect_false(any(grepl("résidus", values$testResultsDF$Test)))
   })
 })
+
+# =============================================================================
+#  Knock-down : KD50 / KC50 et KT50
+# =============================================================================
+#  Meme regression probit que la DL50 : les CHIFFRES ne bougent pas d'une
+#  grandeur a l'autre, seuls les NOMS changent. Le test exige les deux -- un
+#  calcul identique sous le nom « DL50 » pour un temps d'abattement serait un
+#  chiffre juste sous un nom faux.
+test_that("KD50 et KT50 : meme calcul que la DL50, autres noms", {
+  e <- .hstat_dl50_essai_ref()
+  fm <- hstat_dl50_ajuste(e, "em")
+  fk <- hstat_dl50_ajuste(e, "em", reponse = "kd")
+  ft <- hstat_dl50_ajuste(e, "em", reponse = "kt")
+  expect_equal(c(fk$a, fk$b, fk$c), c(fm$a, fm$b, fm$c))
+  expect_equal(c(ft$a, ft$b, ft$c), c(fm$a, fm$b, fm$c))
+  expect_equal(hstat_dl50_doses_letales(ft)$Dose, hstat_dl50_doses_letales(fm)$Dose)
+
+  vm <- hstat_dl50_verdict(fm); vk <- hstat_dl50_verdict(fk); vt <- hstat_dl50_verdict(ft)
+  expect_identical(vm$libelle, "DL50")
+  expect_identical(vk$libelle, "KD50")
+  expect_identical(vt$libelle, "KT50")
+  expect_true(startsWith(vt$texte, "KT50 = "))
+  # L'avertissement des seuils extrapoles porte le prefixe de la grandeur.
+  expect_true(grepl("KT90", attr(hstat_dl50_doses_letales(ft), "avertissement")))
+  expect_false(grepl("DL90", attr(hstat_dl50_doses_letales(ft), "avertissement")))
+  expect_true(startsWith(attr(hstat_dl50_doses_letales(ft), "avertissement"),
+                         "Temps de knock-down hors"))
+  expect_identical(hstat_dl50_libelle_echelle("Erreur-type", "log10", "kt"),
+                   "Erreur-type (log10(temps))")
+  expect_identical(hstat_dl50_libelle_echelle("Erreur-type", "log10"),
+                   "Erreur-type (log10(dose))")
+  # Les comptages cumules d'un KT50 ne sont pas independants : on le dit.
+  expect_true(any(grepl("KT50", vt$alertes)))
+  expect_false(any(grepl("comptages cumulés", vm$alertes)))
+  # Un nom inconnu retombe sur la mortalite, jamais sur un autre prefixe.
+  expect_identical(hstat_dl50_prefixe(hstat_dl50_ajuste(e, "em", reponse = "zz")), "DL")
+
+  # La figure : axe X en temps, axe Y en knock-down, reperes « KT ».
+  p <- hstat_dl50_graphique(list(ft), list(type = "reponse"))
+  b <- ggplot2::ggplot_build(p)
+  expect_identical(b$plot$scales$get_scales("x")$name,
+                   "Temps d'exposition (échelle logarithmique)")
+  expect_identical(b$plot$scales$get_scales("y")$name, "Knock-down observé (%)")
+  txt <- unlist(lapply(b$data, function(l) as.character(l$label)))
+  expect_true(any(grepl("^KT50", txt)))
+  expect_false(any(grepl("^DL50", txt)))
+  expect_true(grepl("log10(temps)", b$plot$labels$caption, fixed = TRUE))
+
+  # Le rapport .PRN porte aussi le prefixe.
+  expect_true(any(grepl("^KT 50\t", hstat_dl50_prn(ft))))
+})
+
+test_that("le vocabulaire du knock-down est complet et traduit", {
+  noms <- names(HSTAT_DL50_VOCAB$mortalite)
+  for (k in names(HSTAT_DL50_VOCAB))
+    expect_setequal(names(HSTAT_DL50_VOCAB[[k]]), noms)
+  expect_setequal(unname(HSTAT_DL50_REPONSES), names(HSTAT_DL50_VOCAB))
+  # Ces phrases vivent dans une constante : le balayage des litteraux passes a
+  # tr() ne les voit pas, d'ou ce test dedie.
+  d <- utils::read.csv(file.path(.hstat_repo_root(), "inst/app/i18n/fr-en.csv"),
+                       encoding = "UTF-8", stringsAsFactors = FALSE)
+  v <- c(unlist(lapply(HSTAT_DL50_VOCAB, function(z) z[names(z) != "prefixe"])),
+         names(HSTAT_DL50_REPONSES))
+  expect_true(all(trimws(v) %in% trimws(d$fr)),
+              info = paste(setdiff(trimws(v), trimws(d$fr)), collapse = " | "))
+  h <- as.character(mod_dl50_ui("dl50"))
+  expect_true(grepl('id="dl50-reponse"', h, fixed = TRUE))
+  expect_true(grepl("kdr", h, fixed = TRUE))
+})

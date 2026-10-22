@@ -10191,3 +10191,35 @@ résidu d'un groupe n'est que la valeur centrée : W est identique** sur les deu
 sources, et la colonne Interprétation le dit plutôt que de laisser croire à
 deux calculs. Un groupe de moins de trois valeurs garde sa ligne, motif à
 l'appui.
+
+## Knock-down : KD50 / KC50 et KT50 dans le module DL50
+
+Le knock-down (« abattement ») est la paralysie rapide d'un insecte exposé à un
+insecticide neurotoxique (pyréthrinoïdes, DDT) : il tombe, sans être forcément
+mort. **KD50 / KC50** est la dose ou la concentration qui abat 50 % des
+individus à temps d'exposition fixé ; **KT50** le temps qui en abat 50 % à
+concentration fixée — l'indicateur de surveillance de la résistance kdr.
+
+**Le calcul est celui de la DL50, et c'est ce qui autorise à l'offrir ici** :
+même probit sur le log10 de la dose ou du temps, mêmes intervalles de Fieller,
+même correction du témoin. Un second moteur divergerait à la première
+correction. Ce qui change, c'est le **vocabulaire** : `HSTAT_DL50_VOCAB`
+déclare, par grandeur, le préfixe (DL, KD, KT) et des **phrases entières**
+(axes, en-têtes, légende du modèle) — jamais un gabarit et un mot, `trf()` ne
+traduisant pas ses arguments. Un « DL50 » écrit sur un temps d'abattement serait
+un chiffre juste sous un nom faux.
+
+La grandeur se choisit au-dessus des onglets (`input$reponse`) et voyage sur
+l'ajustement (`hstat_dl50_ajuste(reponse =)`) : verdict, tableaux, figure et
+rapport `.PRN` la lisent. Un nom inconnu retombe sur la mortalité.
+
+**Les comptages d'un KT50 ne sont pas indépendants** quand on lit le même lot à
+5, 10, 15 min : le modèle binomial suppose un lot par temps, et les intervalles
+sont alors trop étroits. C'est la convention de l'usage, donc on calcule — et le
+verdict le dit.
+
+Le test exige les deux moitiés : les **chiffres identiques** d'une grandeur à
+l'autre, et les **noms différents** (verdict, avertissement d'extrapolation,
+axes, repères, `.PRN`). Les phrases du vocabulaire vivent dans une constante,
+que le balayage des littéraux ne voit pas : un test dédié les exige au
+dictionnaire.
