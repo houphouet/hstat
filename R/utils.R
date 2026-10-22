@@ -11167,8 +11167,36 @@ layout <- function(p, ...) {
 # `resolveDependencies()` garde, a nom egal, la version la plus haute : il
 # suffit donc d'attacher la version corrigee au sommet de l'interface pour
 # qu'elle l'emporte sur celles posees par chaque curseur.
-hstat_reparer_deps <- function(ui) {
+# DT APPELLE L'ANCIENNE INTERFACE jQuery DE noUiSlider (`$x.noUiSlider(...)`,
+# version 7.0.10) pour les filtres de ses colonnes numeriques. Les paquets
+# Debian de DT livrent noUiSlider 15 -- une bibliotheque autonome, sans greffon
+# jQuery -- sous le nom de fichier du greffon (lien symbolique). Les filtres
+# restent inertes, et chaque page portant un tableau filtre leve
+# « $x.noUiSlider is not a function » en console.
+#
+# Le remede est la dependance, pas le code : quand le fichier que DT chargerait
+# ne declare pas le greffon, la page porte le greffon 7.0.10 d'origine (servi
+# depuis www/lib/nouislider) sous le MEME nom. Shiny enregistre par leur nom les
+# dependances de la page initiale et ne charge jamais une seconde dependance de
+# meme nom : la copie cassee que DT attache plus tard est ignoree. Une
+# installation CRAN de DT, dont le fichier est juste, n'est pas touchee.
+.hstat_nouislider_casse <- function(f = system.file("htmlwidgets/lib/nouislider/jquery.nouislider.min.js",
+                                                   package = "DT")) {
+  if (!nzchar(f) || !file.exists(f)) return(FALSE)
+  txt <- tryCatch(readChar(f, file.info(f)$size, useBytes = TRUE), error = function(e) "")
+  nzchar(txt) && !grepl("fn.noUiSlider", txt, fixed = TRUE, useBytes = TRUE)
+}
+
+.hstat_nouislider_dep <- function() {
+  htmltools::htmlDependency("nouislider", "7.0.10", src = c(href = "lib/nouislider"),
+                            script = "jquery.nouislider.min.js",
+                            stylesheet = "jquery.nouislider.min.css")
+}
+
+hstat_reparer_deps <- function(ui, nouislider_casse = .hstat_nouislider_casse()) {
   if (!requireNamespace("htmltools", quietly = TRUE)) return(ui)
+  if (isTRUE(nouislider_casse))
+    ui <- htmltools::attachDependencies(ui, list(.hstat_nouislider_dep()), append = TRUE)
   deps <- tryCatch(htmltools::findDependencies(ui), error = function(e) NULL)
   if (!length(deps)) return(ui)
   corrigees <- list()

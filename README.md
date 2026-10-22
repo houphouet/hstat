@@ -236,6 +236,10 @@ consistency check, then the full suite.
 │   │       ├── hstat-i18n.js       # FR/EN toggle applied to the rendered text
 │   │       ├── hstat-session.js    # session persistence: reconnect banner, keep-alive
 │   │       ├── hstat-theme.css
+│   │       ├── lib
+│   │       │   └── nouislider          # noUiSlider 7.0.10, the jQuery plugin DT expects (Debian ships v15)
+│   │       │       ├── jquery.nouislider.min.css
+│   │       │       └── jquery.nouislider.min.js
 │   │       └── Sortable.min.js     # drag-and-drop for the coding workbench
 │   └── CITATION
 ├── man
@@ -287,7 +291,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.25.1. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.25.2. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -295,7 +299,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 1.25.1},
+  note   = {Version 1.25.2},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

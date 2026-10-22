@@ -10472,3 +10472,26 @@ normal et hostile : 0 erreur, 0 balise injectée).
 Mesuré : le repérage coûte 0,3 s sur 100 000 lignes et 2,9 s sur 500 000. Il ne
 tourne que lorsque la boîte est ouverte, c'est-à-dire quand ses sorties sont
 affichées.
+
+## Les filtres numériques de DT reçoivent le greffon qu'ils appellent
+
+La seule erreur de console qui restait à chaque audit,
+`$x.noUiSlider is not a function`, était notée ici comme un défaut de
+l'environnement. C'en est un, mais il touche toute installation de DT par les
+paquets Debian. Et ce n'était pas qu'un bruit de console : **les filtres
+numériques des tableaux restaient inertes**.
+
+DT 0.31 appelle l'**ancienne interface jQuery** de noUiSlider (version 7.0.10).
+Debian livre noUiSlider 15, une bibliothèque autonome sans greffon jQuery, sous
+le nom de fichier du greffon (lien symbolique).
+`.hstat_nouislider_casse()` lit le fichier que DT chargerait. S'il ne déclare
+pas le greffon, `hstat_reparer_deps()` pose dans la page le greffon 7.0.10
+d'origine (`www/lib/nouislider`, repris du miroir CRAN de DT), **sous le même
+nom**. Shiny enregistre par leur nom les dépendances de la page initiale et
+ne charge jamais une seconde dépendance de même nom : la copie cassée, attachée
+plus tard par DT, est ignorée. Une installation CRAN, dont le fichier est
+juste, n'est pas touchée.
+
+Vérifié au navigateur. La console est vide sur les vingt-deux onglets, avec le
+jeu normal comme avec le jeu hostile. Seize curseurs sont rendus dans l'onglet
+Filtrage, et en déplacer un filtre bien le tableau (1 ligne sur 60).

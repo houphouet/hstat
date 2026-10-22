@@ -23282,3 +23282,29 @@ test_that("une liste de lignes est bornee, et une date-heure saisie prend son ty
   expect_s3_class(s$valeur, "POSIXct")
   expect_false(hstat_valeur_saisie(col, "pas une date")$ok)
 })
+
+test_that("les filtres numeriques de DT recoivent le greffon jQuery de noUiSlider", {
+  skip_if_not_installed("htmltools")
+  # Le fichier livre avec l'application est bien le greffon 7.0.10 qu'attend DT.
+  f <- file.path(.hstat_repo_root(), "inst", "app", "www", "lib", "nouislider",
+                 "jquery.nouislider.min.js")
+  expect_true(file.exists(f))
+  expect_true(grepl("fn.noUiSlider", readChar(f, file.info(f)$size, useBytes = TRUE),
+                    fixed = TRUE, useBytes = TRUE))
+  noms <- function(ui) vapply(htmltools::findDependencies(ui), `[[`, "", "name")
+  ui <- shiny::fluidPage("x")
+  # La detection lit le fichier : le greffon d'origine est juste, la bibliotheque
+  # autonome (ce que Debian livre sous ce nom) est cassee.
+  expect_false(.hstat_nouislider_casse(f))
+  autonome <- tempfile(fileext = ".js")
+  writeLines("!function(t){window.noUiSlider={create:function(){}}}();", autonome)
+  expect_true(.hstat_nouislider_casse(autonome))
+  expect_false(.hstat_nouislider_casse(tempfile()))
+  # Copie de DT cassee : la page porte le greffon, sous le nom de DT.
+  d <- Filter(function(x) x$name == "nouislider",
+              htmltools::findDependencies(hstat_reparer_deps(ui, nouislider_casse = TRUE)))
+  expect_length(d, 1L)
+  expect_identical(unname(d[[1]]$src$href), "lib/nouislider")
+  # Copie juste (CRAN) : rien n'est ajoute.
+  expect_false("nouislider" %in% noms(hstat_reparer_deps(ui, nouislider_casse = FALSE)))
+})
