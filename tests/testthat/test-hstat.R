@@ -18512,9 +18512,11 @@ test_that("les proportions de la DL50 s'affichent en pourcentage, ecran et fichi
     # comprise : les convertir separement ferait lire un ecart-type de 0,004
     # a cote d'une valeur de 85.
     pa <- parametres()
-    i <- grep("^Mortalit", pa$Parametre)
+    # Les deux lignes de mortalite naturelle -- les lignes de mortalite
+    # CORRIGEE par dose, ajoutees depuis, sont en pourcentage elles aussi.
+    i <- grep("^Mortalité naturelle", pa$Parametre)
     expect_length(i, 2L)
-    expect_true(all(pa$Unite[i] == "%"))
+    expect_true(all(pa$Unite[grep("^Mortalit", pa$Parametre)] == "%"))
 
     # L'EN-TETE REELLEMENT RENDU, pas la ligne de code qui le compose.
     ent <- function(o) as.character(o)
@@ -20172,6 +20174,16 @@ test_that("le serveur DL50 n'obeit pas aux messages forges par le navigateur", {
                                      c(0, 4, 12, 20, 27, 30), 30, 3,
                                      titre = "Souche B", champs = list(unite = "mg/l")))
 
+# L'equation du modele, posee DANS le cadre (sous la droite) et non plus en
+# legende : on la relit sur la couche de texte qui la porte.
+.hstat_dl50_equation <- function(p) {
+  txt <- unlist(lapply(p$layers, function(l)
+    if (inherits(l$geom, "GeomText"))
+      as.character(c(l$aes_params$label, l$data$label))))
+  txt <- txt[grepl("Y =", txt, fixed = TRUE)]
+  if (length(txt)) txt[1] else NULL
+}
+
 .hstat_dl50_couches <- function(p)
   vapply(p$layers, function(l) class(l$geom)[1], character(1))
 
@@ -20194,12 +20206,12 @@ test_that("le style moderne porte l'incertitude, la DL50 chiffree et le modele",
     expect_false(any(c("GeomLinerange", "GeomErrorbar", "GeomLogticks") %in% gc),
                  info = ty)
     expect_true("GeomLabel" %in% gc, info = ty)
-    expect_true(grepl("Probit", cl$labels$caption, fixed = TRUE))
+    expect_true(grepl("Probit", .hstat_dl50_equation(cl), fixed = TRUE))
     nu <- hstat_dl50_graphique(list(f), list(type = ty, style = "classique",
                                             annot_dl = numeric(0), modele = FALSE))
     expect_false("GeomLabel" %in% .hstat_dl50_couches(nu), info = ty)
-    expect_null(nu$labels$caption)
-    expect_true(grepl("Probit", m$labels$caption, fixed = TRUE))
+    expect_null(.hstat_dl50_equation(nu))
+    expect_true(grepl("Probit", .hstat_dl50_equation(m), fixed = TRUE))
   }
 })
 
@@ -20317,7 +20329,7 @@ test_that("les reglages du rendu sont declares, lus et employes", {
   expect_false("GeomLinerange" %in% couches(list(barres = FALSE)))
   expect_false("GeomLabel" %in% couches(list(annot_dl = FALSE)))
   expect_false("GeomLogticks" %in% couches(list(logticks = FALSE)))
-  expect_null(hstat_dl50_graphique(list(f), list(modele = FALSE))$labels$caption)
+  expect_null(.hstat_dl50_equation(hstat_dl50_graphique(list(f), list(modele = FALSE))))
 })
 
 test_that("a plusieurs essais, chacun a sa DL50 et aucune etiquette ne se recouvre", {
@@ -20327,7 +20339,7 @@ test_that("a plusieurs essais, chacun a sa DL50 et aucune etiquette ne se recouv
   p <- hstat_dl50_graphique(list(fa, .hstat_dl50_fit_b()), list(type = "reponse"))
   g <- .hstat_dl50_couches(p)
   expect_false("GeomLabel" %in% g)
-  expect_null(p$labels$caption)
+  expect_null(.hstat_dl50_equation(p))
   # Un losange par essai, et plus de barre d'intervalle.
   expect_false("GeomErrorbar" %in% g)
   k <- which(vapply(p$layers, function(l) inherits(l$geom, "GeomPoint") &&
@@ -20418,7 +20430,7 @@ test_that("DL10, DL50 et DL90 se chiffrent a la demande, dans les deux styles", 
     for (s in c("DL10 = ", "DL50 = ", "DL90 = "))
       expect_true(any(startsWith(lab, s)), info = paste(st, s))
     # L'equation ne depend plus du style non plus.
-    expect_match(p$labels$caption, "Probit", fixed = TRUE)
+    expect_match(.hstat_dl50_equation(p), "Probit", fixed = TRUE)
   }
   # Une seule DL demandee : un seul losange, une seule etiquette.
   p <- hstat_dl50_graphique(list(f), list(type = "reponse", annot_dl = "90"))
@@ -20431,7 +20443,7 @@ test_that("DL10, DL50 et DL90 se chiffrent a la demande, dans les deux styles", 
   expect_identical(.hstat_dl50_annot_seuils(FALSE), numeric(0))
   # Un seuil hors du catalogue n'invente pas de losange.
   expect_identical(.hstat_dl50_annot_seuils(c("25", "50", "abc")), 50)
-  expect_null(hstat_dl50_graphique(list(f), list(style = "classique", modele = FALSE))$labels$caption)
+  expect_null(.hstat_dl50_equation(hstat_dl50_graphique(list(f), list(style = "classique", modele = FALSE))))
 })
 
 test_that("les reglages de bande et de DL chiffrees sont declares et lus ; Reperes DL sous Couleurs", {
@@ -22799,7 +22811,7 @@ test_that("KD50 et KT50 : meme calcul que la DL50, autres noms", {
   txt <- unlist(lapply(b$data, function(l) as.character(l$label)))
   expect_true(any(grepl("^KT50", txt)))
   expect_false(any(grepl("^DL50", txt)))
-  expect_true(grepl("log10(temps)", b$plot$labels$caption, fixed = TRUE))
+  expect_true(grepl("log10(temps)", .hstat_dl50_equation(p), fixed = TRUE))
 
   # Le rapport .PRN porte aussi le prefixe.
   expect_true(any(grepl("^KT 50\t", hstat_dl50_prn(ft))))
@@ -22809,7 +22821,9 @@ test_that("le vocabulaire du knock-down est complet et traduit", {
   noms <- names(HSTAT_DL50_VOCAB$mortalite)
   for (k in names(HSTAT_DL50_VOCAB))
     expect_setequal(names(HSTAT_DL50_VOCAB[[k]]), noms)
-  expect_setequal(unname(HSTAT_DL50_REPONSES), names(HSTAT_DL50_VOCAB))
+  # Trois reponses, et pour deux d'entre elles une variante en concentration.
+  expect_setequal(names(HSTAT_DL50_VOCAB),
+                  c(unname(HSTAT_DL50_REPONSES), "mortalite_c", "kd_c"))
   # Ces phrases vivent dans une constante : le balayage des litteraux passes a
   # tr() ne les voit pas, d'ou ce test dedie.
   d <- utils::read.csv(file.path(.hstat_repo_root(), "inst/app/i18n/fr-en.csv"),
@@ -22821,4 +22835,110 @@ test_that("le vocabulaire du knock-down est complet et traduit", {
   h <- as.character(mod_dl50_ui("dl50"))
   expect_true(grepl('id="dl50-reponse"', h, fixed = TRUE))
   expect_true(grepl("kdr", h, fixed = TRUE))
+})
+
+test_that("l'equation se pose sous la droite, plus en legende, et sa taille se regle", {
+  skip_if_not_installed("ggplot2")
+  f <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  for (ty in c("probit", "reponse")) {
+    p <- hstat_dl50_graphique(list(f), list(type = ty, modele_taille = 14))
+    # Plus rien en pied de figure.
+    expect_null(p$labels$caption, info = ty)
+    eq <- .hstat_dl50_equation(p)
+    expect_true(grepl("Probit : Y = ", eq, fixed = TRUE), info = ty)
+    expect_true(grepl("χ² = ", eq, fixed = TRUE), info = ty)
+    l <- Filter(function(l) inherits(l$geom, "GeomText") &&
+                  any(grepl("Y =", l$aes_params$label, fixed = TRUE)), p$layers)[[1]]
+    # SOUS la droite : a l'abscisse de l'etiquette, la droite passe au-dessus.
+    z <- l$data$x
+    eta <- f$a + f$b * z
+    yl <- if (ty == "reponse") 100 * (f$c + (1 - f$c) * stats::pnorm(eta)) else eta
+    expect_lt(l$data$y, yl)
+    # La taille suit le reglage, en points : deux valeurs, deux tailles.
+    expect_equal(l$aes_params$size, 14 / ggplot2::.pt)
+    l2 <- Filter(function(l) inherits(l$geom, "GeomText") &&
+                   any(grepl("Y =", l$aes_params$label, fixed = TRUE)),
+                 hstat_dl50_graphique(list(f), list(type = ty, modele_taille = 8))$layers)[[1]]
+    expect_equal(l2$aes_params$size, 8 / ggplot2::.pt)
+    # La figure se construit.
+    expect_s3_class(ggplot2::ggplot_build(p), "ggplot_built")
+  }
+  expect_null(.hstat_dl50_equation(hstat_dl50_graphique(list(f), list(modele = FALSE))))
+  h <- as.character(mod_dl50_ui("dl50"))
+  expect_true(grepl('id="dl50-gModeleTaille"', h, fixed = TRUE))
+  expect_false(grepl("en légende (un essai)", h, fixed = TRUE))
+})
+
+test_that("la mortalite corrigee par dose rejoint les parametres de la regression", {
+  e <- hstat_dl50_essai(c(0.1, 0.2, 0.5, 1, 2), 30, c(5, 9, 15, 22, 27), 30, 3)
+  for (m in c("em", "abbott")) {
+    f <- hstat_dl50_ajuste(e, m)
+    mc <- hstat_dl50_corrigees(f)
+    expect_equal(mc$Dose, f$table$Dose)
+    # Abbott avec la c RETENUE par l'ajustement, en pourcentage.
+    expect_equal(mc$Mortalite_corrigee,
+                 100 * (f$table$Mortalite_observee - f$c) / (1 - f$c))
+    # Une correction non nulle : sinon l'assertion ne distinguerait pas
+    # mortalite corrigee et mortalite observee.
+    expect_false(isTRUE(all.equal(mc$Mortalite_corrigee,
+                                  100 * f$table$Mortalite_observee)))
+  }
+  expect_null(hstat_dl50_corrigees(list(ok = FALSE)))
+  # Le vocabulaire suit la grandeur, et la phrase est au dictionnaire.
+  expect_identical(hstat_dl50_vocab("kt")$corrigee, "Knock-down corrigé au temps %s")
+  shiny::testServer(mod_dl50_server, args = list(values = shiny::reactiveValues()), {
+    session$setInputs(source = "manual", reponse = "mortalite", methode = "abbott",
+                      alpha = 0.05, itmax = 100, chemin = "rapide", chiffres = 5)
+    essais(list(T1 = e))
+    session$flushReact()
+    d <- parametres()
+    expect_true(any(grepl("^Mortalité corrigée à la dose ", d$Parametre)))
+    expect_equal(sum(grepl("^Mortalité corrigée à la dose ", d$Parametre)), 5L)
+  })
+})
+
+test_that("DL ou CL : l'utilisateur dit ce qui varie, et le nom suit", {
+  expect_identical(hstat_dl50_cle("mortalite", "dose"), "mortalite")
+  expect_identical(hstat_dl50_cle("mortalite", "concentration"), "mortalite_c")
+  expect_identical(hstat_dl50_cle("kd", "concentration"), "kd_c")
+  # Le KT50 ne depend pas du choix : c'est le temps qui varie.
+  expect_identical(hstat_dl50_cle("kt", "concentration"), "kt")
+  expect_identical(hstat_dl50_cle("zz", "concentration"), "mortalite_c")
+  expect_identical(hstat_dl50_prefixe("mortalite_c"), "CL")
+  expect_identical(hstat_dl50_prefixe("kd_c"), "KC")
+
+  e <- .hstat_dl50_essai_ref()
+  fd <- hstat_dl50_ajuste(e, "em")
+  fc <- hstat_dl50_ajuste(e, "em", reponse = hstat_dl50_cle("mortalite", "concentration"))
+  expect_equal(hstat_dl50_doses_letales(fc)$Dose, hstat_dl50_doses_letales(fd)$Dose)
+  expect_identical(hstat_dl50_verdict(fc)$libelle, "CL50")
+  b <- ggplot2::ggplot_build(hstat_dl50_graphique(list(fc), list(type = "reponse")))
+  expect_identical(b$plot$scales$get_scales("x")$name,
+                   "Concentration (échelle logarithmique)")
+  expect_true(grepl("log10(concentration)", .hstat_dl50_equation(b$plot), fixed = TRUE))
+  h <- as.character(mod_dl50_ui("dl50"))
+  expect_true(grepl('id="dl50-exposition"', h, fixed = TRUE))
+})
+
+test_that("la DL10 extrapolee s'affiche comme la DL90", {
+  skip_if_not_installed("ggplot2")
+  # Sur l'essai de reference, la DL10 tombe SOUS la plus faible dose testee :
+  # elle sortait du cadre et son etiquette disparaissait, la DL90 restant.
+  f <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  dl <- hstat_dl50_doses_letales(f, c(10, 90))
+  expect_lt(dl$Dose[dl$Seuil == 10], min(f$table$Dose))
+  for (ty in c("probit", "reponse")) for (ech in c("log", "dose")) {
+    p <- hstat_dl50_graphique(list(f), list(type = ty, echelle_x = ech,
+                                           annot_dl = c(10, 50, 90)))
+    lab <- unlist(lapply(p$layers, function(l)
+      if (inherits(l$geom, "GeomLabel")) as.character(l$aes_params$label)))
+    for (s in c("DL10 = ", "DL50 = ", "DL90 = "))
+      expect_true(any(startsWith(lab, s)), info = paste(ty, ech, s))
+  }
+  # Des bornes saisies a la main l'emportent : on ne les elargit pas.
+  p <- hstat_dl50_graphique(list(f), list(type = "reponse", annot_dl = 10,
+                                         x_min = 0.0006, x_max = 0.04))
+  lab <- unlist(lapply(p$layers, function(l)
+    if (inherits(l$geom, "GeomLabel")) as.character(l$aes_params$label)))
+  expect_false(any(startsWith(as.character(lab), "DL10 = ")))
 })

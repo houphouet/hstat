@@ -10223,3 +10223,56 @@ l'autre, et les **noms différents** (verdict, avertissement d'extrapolation,
 axes, repères, `.PRN`). Les phrases du vocabulaire vivent dans une constante,
 que le balayage des littéraux ne voit pas : un test dédié les exige au
 dictionnaire.
+
+### L'équation se lit sous la droite, plus en légende
+
+Demandé à l'écran : en pied de figure, l'équation se lisait loin de ce qu'elle
+décrit. Elle se pose **dans le cadre**, juste sous la droite (ou la courbe), aux
+trois quarts de l'axe des doses : la droite monte, la place libre est en dessous
+et à droite. Elle ne sort jamais par le bas du panneau. Sa taille se règle en
+points (`gModeleTaille`), convertie en millimètres pour ggplot (`/ .pt`). Le
+pied de figure ne porte plus rien, et le thème moderne a perdu son réglage de
+`plot.caption`, devenu sans objet.
+
+Le test relit l'étiquette sur la couche de texte qui la porte — **dans
+`aes_params`**, pas dans `data` : c'est là qu'`annotate()` range son libellé, et
+une sonde qui lit `data$label` rend « aucune équation » sur une figure qui en
+porte une. Il exige la position sous la droite et deux tailles différentes pour
+deux réglages.
+
+### La mortalité corrigée dans « Paramètres de la régression »
+
+C'est le chiffre que la droite de Henry ajuste, et il ne vivait que dans le
+détail par dose. `hstat_dl50_corrigees()` le rend par dose, corrigé par la
+mortalité naturelle **retenue par l'ajustement** — la même `c` que les doses
+létales, pas celle du témoin seul quand la méthode l'estime. Une ligne par dose
+dans le tableau (donc dans les exports), une phrase dans le résumé. Une valeur
+négative reste négative : la borner à zéro masquerait une dose qui tue moins que
+le témoin. Le test exige que la correction soit **discernable** de la mortalité
+observée, sans quoi il ne distinguerait pas les deux.
+
+### La DL10 extrapolée ne sort plus du cadre
+
+Signalé à l'écran : la DL90 s'affichait sur la figure, la DL10 non. Elle était
+calculée — mais extrapolée sous la plus faible dose testée, donc hors de la
+fenêtre, et le filtre des losanges la retirait **sans un mot**. Le cadre
+s'étend désormais aux DL chiffrées demandées, dans la limite de **deux
+décades** au-delà des doses testées : plus loin, la DL ne repose que sur le
+prolongement de la droite, et un cadre étiré sur cinq décades écraserait l'essai
+en un point. Des bornes saisies à la main l'emportent toujours, et le test le
+vérifie dans les deux sens.
+
+### DL ou CL : l'utilisateur dit ce qui varie
+
+Le module nommait tout « DL ». Or une **dose** (quantité par individu :
+application topique, ingestion) et une **concentration** (milieu, eau, air,
+support imprégné) ne se publient pas sous le même nom : une « DL50 » en mg/L
+n'existe pas. Un second choix, « Ce qui varie d'un lot à l'autre », fixe le
+nom : DL/CL pour la mortalité, KD/KC pour le knock-down. Il ne s'applique pas au
+KT50, où c'est le temps qui varie.
+
+`hstat_dl50_cle(reponse, grandeur)` compose la clé du vocabulaire
+(`mortalite_c`, `kd_c`) ; le serveur la lit partout par `cle_reponse()`, et les
+cases des DL chiffrées et des repères **portent le préfixe de la grandeur** —
+écrites « DL10 » en dur, elles annonceraient une dose létale sur un essai de
+concentration.

@@ -185,6 +185,20 @@ HSTAT_DL50_REPONSES <- c(
   "Knock-down selon la dose — KD50 / KC50"               = "kd",
   "Knock-down selon le temps d'exposition — KT50"        = "kt")
 
+# CE QUI VARIE D'UN LOT A L'AUTRE : une dose ou une concentration. Il decide
+# du nom (DL ou CL, KD ou KC) ; il ne s'applique pas au KT50, ou c'est le temps
+# qui varie.
+HSTAT_DL50_GRANDEURS <- c(
+  "Dose (quantité par individu) — DL / KD"                     = "dose",
+  "Concentration (dans le milieu, l'eau, l'air, un support) — CL / KC" = "concentration")
+
+# La cle du vocabulaire depuis les deux choix de l'interface.
+hstat_dl50_cle <- function(reponse = "mortalite", grandeur = "dose") {
+  r <- .hstat_dl50_cle_reponse(reponse)
+  if (identical(as.character(grandeur)[1], "concentration") && r %in% c("mortalite", "kd"))
+    paste0(r, "_c") else r
+}
+
 HSTAT_DL50_VOCAB <- list(
   mortalite = list(
     prefixe = "DL", variable = "Dose",
@@ -197,7 +211,10 @@ HSTAT_DL50_VOCAB <- list(
     pm_et = "DL ± erreur-type", pm_sd = "DL ± écart-type",
     pm_et_log = "DL ± Erreur-type", pm_sd_log = "DL ± Écart-type",
     titre_table = "Doses létales",
-    equation = "Probit : Y = %s + %s · log10(dose)   ·   χ² = %s (ddl = %d, p = %s)",
+    annot_titre = "Doses létales chiffrées sur la figure",
+    corrigee = "Mortalité corrigée à la dose %s",
+    corrigee_titre = "Mortalité corrigée par dose :",
+    equation = "Probit : Y = %s + %s · log10(dose)",
     et_x = "Erreur-type (dose)", sd_x = "Écart-type (dose)",
     hors = "Dose(s) létale(s) hors de l'étendue testée (%s à %s) : %s. Elles reposent sur le prolongement de la droite, là où aucune observation ne vient plus la contraindre."),
   kd = list(
@@ -211,9 +228,53 @@ HSTAT_DL50_VOCAB <- list(
     pm_et = "KD ± erreur-type", pm_sd = "KD ± écart-type",
     pm_et_log = "KD ± Erreur-type", pm_sd_log = "KD ± Écart-type",
     titre_table = "Doses de knock-down",
-    equation = "Probit : Y = %s + %s · log10(dose)   ·   χ² = %s (ddl = %d, p = %s)",
+    annot_titre = "Doses de knock-down chiffrées sur la figure",
+    corrigee = "Knock-down corrigé à la dose %s",
+    corrigee_titre = "Knock-down corrigé par dose :",
+    equation = "Probit : Y = %s + %s · log10(dose)",
     et_x = "Erreur-type (dose)", sd_x = "Écart-type (dose)",
     hors = "Dose(s) de knock-down hors de l'étendue testée (%s à %s) : %s. Elles reposent sur le prolongement de la droite, là où aucune observation ne vient plus la contraindre."),
+  # LA CONCENTRATION : CL50 ET KC50. Demande a l'ecran -- l'utilisateur dit
+  # lui-meme s'il a fait varier une dose (DL, KD : quantite par individu,
+  # application topique, ingestion) ou une concentration (CL, KC : milieu,
+  # papier impregne, eau, air). Le calcul ne change pas ; le nom si, et le
+  # confondre fait publier une « DL50 » en mg/L, ce qui n'existe pas.
+  mortalite_c = list(
+    prefixe = "CL", variable = "Concentration",
+    variable_u = "Concentration en %s",
+    variable_log = "Concentration (échelle logarithmique)",
+    variable_log_u = "Concentration en %s (échelle logarithmique)",
+    log10 = "log10(concentration)", log10_u = "log10(concentration en %s)",
+    y_obs = "Mortalité observée (%)", y_probit = "Mortalité (probit)",
+    y_pct = "Mortalité (%)",
+    naturelle = "Mortalité naturelle %s %%   ·   %s",
+    pm_et = "CL ± erreur-type", pm_sd = "CL ± écart-type",
+    pm_et_log = "CL ± Erreur-type", pm_sd_log = "CL ± Écart-type",
+    titre_table = "Concentrations létales",
+    annot_titre = "Concentrations létales chiffrées sur la figure",
+    corrigee = "Mortalité corrigée à la concentration %s",
+    corrigee_titre = "Mortalité corrigée par concentration :",
+    equation = "Probit : Y = %s + %s · log10(concentration)",
+    et_x = "Erreur-type (concentration)", sd_x = "Écart-type (concentration)",
+    hors = "Concentration(s) létale(s) hors de l'étendue testée (%s à %s) : %s. Elles reposent sur le prolongement de la droite, là où aucune observation ne vient plus la contraindre."),
+  kd_c = list(
+    prefixe = "KC", variable = "Concentration",
+    variable_u = "Concentration en %s",
+    variable_log = "Concentration (échelle logarithmique)",
+    variable_log_u = "Concentration en %s (échelle logarithmique)",
+    log10 = "log10(concentration)", log10_u = "log10(concentration en %s)",
+    y_obs = "Knock-down observé (%)", y_probit = "Knock-down (probit)",
+    y_pct = "Knock-down (%)",
+    naturelle = "Knock-down du témoin %s %%   ·   %s",
+    pm_et = "KC ± erreur-type", pm_sd = "KC ± écart-type",
+    pm_et_log = "KC ± Erreur-type", pm_sd_log = "KC ± Écart-type",
+    titre_table = "Concentrations de knock-down",
+    annot_titre = "Concentrations de knock-down chiffrées sur la figure",
+    corrigee = "Knock-down corrigé à la concentration %s",
+    corrigee_titre = "Knock-down corrigé par concentration :",
+    equation = "Probit : Y = %s + %s · log10(concentration)",
+    et_x = "Erreur-type (concentration)", sd_x = "Écart-type (concentration)",
+    hors = "Concentration(s) de knock-down hors de l'étendue testée (%s à %s) : %s. Elles reposent sur le prolongement de la droite, là où aucune observation ne vient plus la contraindre."),
   kt = list(
     prefixe = "KT", variable = "Temps d'exposition",
     variable_u = "Temps d'exposition en %s",
@@ -226,7 +287,10 @@ HSTAT_DL50_VOCAB <- list(
     pm_et = "KT ± erreur-type", pm_sd = "KT ± écart-type",
     pm_et_log = "KT ± Erreur-type", pm_sd_log = "KT ± Écart-type",
     titre_table = "Temps de knock-down",
-    equation = "Probit : Y = %s + %s · log10(temps)   ·   χ² = %s (ddl = %d, p = %s)",
+    annot_titre = "Temps de knock-down chiffrés sur la figure",
+    corrigee = "Knock-down corrigé au temps %s",
+    corrigee_titre = "Knock-down corrigé par temps d'exposition :",
+    equation = "Probit : Y = %s + %s · log10(temps)",
     et_x = "Erreur-type (temps)", sd_x = "Écart-type (temps)",
     hors = "Temps de knock-down hors de l'étendue testée (%s à %s) : %s. Ils reposent sur le prolongement de la droite, là où aucune observation ne vient plus la contraindre."))
 
@@ -243,6 +307,21 @@ hstat_dl50_vocab <- function(x = "mortalite") HSTAT_DL50_VOCAB[[.hstat_dl50_cle_
 
 # « DL », « KD » ou « KT » : le prefixe de chaque seuil publie.
 hstat_dl50_prefixe <- function(x = "mortalite") hstat_dl50_vocab(x)$prefixe
+
+# LA MORTALITE CORRIGEE, DOSE PAR DOSE. Demande a l'ecran, dans « Parametres
+# de la regression » : c'est le chiffre que la droite de Henry ajuste, et il
+# vivait seul dans le detail par dose, deux onglets plus loin. Elle est
+# corrigee par la mortalite naturelle RETENUE par l'ajustement (Abbott :
+# (p - c) / (1 - c)), donc par la meme `c` que les doses letales -- pas par
+# celle du temoin seul quand la methode l'estime. En pourcentage, comme le
+# reste de l'essai ; une valeur negative reste ce qu'elle est (la dose tue
+# moins que le temoin), la borner a zero masquerait ce qu'il faut voir.
+hstat_dl50_corrigees <- function(fit) {
+  if (!isTRUE(fit$ok) || is.null(fit$table)) return(NULL)
+  t <- fit$table
+  data.frame(Dose = t$Dose, Mortalite_corrigee = 100 * t$Mortalite_corrigee,
+             stringsAsFactors = FALSE)
+}
 
 # Les champs d'un essai qui doivent etre STRICTEMENT identiques pour qu'une
 # fusion ait un sens : fusionner deux especes ou deux durees d'exposition
@@ -2488,6 +2567,7 @@ HSTAT_DL50_OPT_DEFAUT <- list(
   # booleen y reste accepte -- VRAI vaut la DL50 seule, FAUX aucune -- pour
   # qu'un appel ecrit avant ne change pas de sens.
   style = "moderne", barres = TRUE, annot_dl = 50, modele = TRUE,
+  modele_taille = 10,
   bande_type = "droite", bande_niveau = "alpha",
   logticks = TRUE,
   points = TRUE, courbe = FALSE, droite = TRUE, bande = TRUE, reperes = TRUE,
@@ -2568,10 +2648,6 @@ HSTAT_DL50_OPT_DEFAUT <- list(
     axis.ticks = ggplot2::element_line(colour = "#374151", linewidth = 0.4),
     axis.ticks.length = ggplot2::unit(3, "pt"),
     plot.title.position = "plot",
-    plot.caption.position = "plot",
-    plot.caption = ggplot2::element_text(colour = "#6b7280", hjust = 0,
-                                         size = max(7, o$grad_x_taille * 0.85),
-                                         margin = ggplot2::margin(t = 8)),
     legend.key = ggplot2::element_blank(),
     plot.background = ggplot2::element_rect(fill = "white", colour = NA),
     plot.margin = ggplot2::margin(10, 14, 8, 10))
@@ -2686,6 +2762,22 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
 
   rg <- range(unlist(lapply(fits, function(f) f$table$Log_dose)), finite = TRUE)
   if (!all(is.finite(rg))) return(NULL)
+  # LES DL CHIFFREES ENTRENT DANS LE CADRE. Signale a l'ecran : la DL90
+  # s'affichait, la DL10 non. Elle etait calculee -- mais extrapolee sous la
+  # plus faible dose testee, donc hors de la fenetre, et le filtre des
+  # losanges la retirait sans un mot. Le cadre s'etend donc aux DL demandees,
+  # dans la limite de deux decades au-dela des doses testees : au-dela, la DL
+  # ne repose plus que sur le prolongement de la droite, et un cadre etire sur
+  # cinq decades ecraserait l'essai en un point. Des bornes saisies a la main
+  # l'emportent toujours, plus bas.
+  dl_z <- unlist(lapply(fits, function(f) {
+    s <- .hstat_dl50_annot_seuils(o$annot_dl)
+    if (!length(s)) return(numeric(0))
+    d <- hstat_dl50_doses_letales(f, s)
+    if (is.null(d)) numeric(0) else d$Log_dose
+  }))
+  dl_z <- dl_z[is.finite(dl_z) & dl_z >= rg[1] - 2 & dl_z <= rg[2] + 2]
+  if (length(dl_z)) rg <- range(c(rg, dl_z))
   if (diff(rg) <= 0) rg <- rg + c(-1, 1)
   rg <- rg + c(-1, 1) * diff(rg) * 0.08
   # Les limites de l'axe des doses se saisissent EN DOSES, pas en logarithmes :
@@ -2702,7 +2794,8 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
   # REGULIERE EN DOSE, sinon la courbe serait anguleuse aux fortes doses, ou
   # une grille reguliere en log ne pose presque plus de points.
   if (arith) {
-    dmax <- max(10^unlist(lapply(fits, function(f) f$table$Log_dose)), na.rm = TRUE)
+    dmax <- max(10^c(unlist(lapply(fits, function(f) f$table$Log_dose)), dl_z),
+                na.rm = TRUE)
     xr <- c(if (is.finite(o$x_min) && o$x_min >= 0) o$x_min else 0,
             if (is.finite(o$x_max) && o$x_max > 0) o$x_max else dmax * 1.05)
     if (diff(xr) <= 0) return(NULL)
@@ -2902,7 +2995,6 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
   # « classique » elles disparaissaient, cases cochees, sans un mot -- un
   # reglage que l'image ignore, le defaut que ce depot traque. Leurs cases
   # sont donc sorties du panneau propre au style moderne.
-  caption <- NULL
   seuils_annot <- .hstat_dl50_annot_seuils(o$annot_dl)
   if (length(seuils_annot)) {
     dl <- do.call(rbind, lapply(seq_along(fits), function(i) {
@@ -2960,25 +3052,54 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
       }
     }
   }
-  # LE MODELE EN LEGENDE. Une figure de rapport doit se suffire : l'equation,
-  # l'ajustement et la methode sont ce qui la rend reproductible sans le
-  # tableau. Pour un essai seulement -- plusieurs equations en pied de figure
-  # ne se liraient plus.
-  # Comme les DL chiffrees, l'equation ne depend plus du style.
+  # L'EQUATION SOUS LA DROITE, ET PLUS EN LEGENDE. Demande a l'ecran : en
+  # pied de figure, elle se lisait loin de ce qu'elle decrit. Elle se pose
+  # dans le cadre, juste SOUS la droite (ou la courbe), aux trois quarts de
+  # l'axe des doses : la droite monte, la place libre est donc en dessous et a
+  # droite. Une figure de rapport doit se suffire -- l'equation, l'ajustement
+  # et la methode la rendent reproductible sans le tableau. Pour un essai
+  # seulement : plusieurs equations dans le cadre se recouvriraient.
+  # Comme les DL chiffrees, l'equation ne depend pas du style, et sa taille se
+  # regle (en points, convertie en millimetres pour ggplot).
   if (isTRUE(o$modele) && !multiple) {
     f <- fits[[1]]
     meth <- names(HSTAT_DL50_METHODES)[match(f$methode, HSTAT_DL50_METHODES)]
-    # Deux lignes, pas une : sur une figure de sept pouces, la ligne unique
-    # debordait du cadre et se faisait rogner a l'export.
-    caption <- paste(
-      trf(hstat_dl50_vocab(f)$equation,
-          .hstat_dl50_nb(f$a), .hstat_dl50_nb(f$b),
+    eq <- paste(
+      trf(hstat_dl50_vocab(f)$equation, .hstat_dl50_nb(f$a), .hstat_dl50_nb(f$b)),
+      trf("χ² = %s (ddl = %d, p = %s)",
           formatC(f$chi2, format = "f", digits = 2), as.integer(f$ddl),
           formatC(f$p_chi2, format = "f", digits = 3)),
       trf(hstat_dl50_vocab(f)$naturelle,
           formatC(100 * f$c, format = "f", digits = 1),
           if (length(meth) && !is.na(meth)) tr(meth) else f$methode),
       sep = "\n")
+    # La methode sur sa propre ligne : accolee a la mortalite naturelle, la
+    # ligne debordait du cadre (mesure au navigateur).
+    eq <- gsub("   ·   ", "\n", eq, fixed = TRUE)
+    taille <- suppressWarnings(as.numeric(o$modele_taille)[1])
+    if (!length(taille) || !is.finite(taille) || taille <= 0) taille <- 10
+    lignes <- strsplit(eq, "\n", fixed = TRUE)[[1]]
+    # L'emprise du bloc, estimee en fraction du cadre : la largeur suit le
+    # nombre de caracteres de la plus longue ligne, la hauteur le nombre de
+    # lignes, toutes deux proportionnelles a la taille du texte.
+    larg <- min(0.95, max(nchar(lignes)) * taille * 0.00105)
+    haut <- length(lignes) * taille * 0.0028
+    # CALE A DROITE, SOUS LA DROITE. La droite monte : sous elle, la place libre
+    # est en bas a droite. Le bord HAUT du bloc se pose sous le point le plus
+    # bas que la droite atteint au-dessus de lui -- son bord gauche --, pour que
+    # le texte ne la coupe jamais. Il ne sort pas par le bas du panneau.
+    xp <- xr[2] - 0.02 * diff(xr)
+    xg <- xp - larg * diff(xr)
+    vers_y <- function(x) {
+      z <- if (arith) log10(max(x, .Machine$double.xmin)) else x
+      e <- f$a + f$b * z
+      if (reponse) 100 * (f$c + (1 - f$c) * stats::pnorm(e)) else e
+    }
+    ye <- min(vers_y(xg), vers_y(xp)) - 0.04 * diff(ylim)
+    ye <- max(ye, ylim[1] + (haut + 0.02) * diff(ylim))
+    p <- p + ggplot2::annotate("text", x = xp, y = ye, label = eq,
+                               hjust = 1, vjust = 1, lineheight = 1.05,
+                               size = taille / ggplot2::.pt, colour = "#374151")
   }
 
   # Sur la courbe dose-reponse, le pourcentage EST l'axe principal : un second
@@ -3022,8 +3143,7 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
       else function(v) trimws(formatC(v, format = "g", digits = 4))) +
     axe_y +
     ggplot2::labs(title = if (nzchar(o$titre)) o$titre else NULL,
-                  subtitle = if (nzchar(o$sous_titre)) o$sous_titre else NULL,
-                  caption = caption) +
+                  subtitle = if (nzchar(o$sous_titre)) o$sous_titre else NULL) +
     # Le titre de legende ne se pose que s'il y a une legende. Avec un seul
     # essai, aucune couche ne porte `colour` ni `fill`, et ggplot2 >= 3.5.2
     # annonce « Ignoring unknown labels » a CHAQUE rendu, dans la console du
@@ -3146,6 +3266,11 @@ mod_dl50_ui <- function(id) {
           shiny::column(4,
             shiny::selectInput(ns("reponse"), "Réponse mesurée",
                                choices = HSTAT_DL50_REPONSES, selected = "mortalite"),
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s'] != 'kt'", ns("reponse")),
+              shiny::radioButtons(ns("exposition"), "Ce qui varie d'un lot à l'autre",
+                                  choices = HSTAT_DL50_GRANDEURS, selected = "dose"),
+              shiny::helpText("DL ou KD : dose appliquée à chaque individu (application topique, ingestion, injection). CL ou KC : concentration du milieu d'exposition (eau, air, support imprégné). Le calcul est le même, le nom publié change.")),
             shiny::conditionalPanel(
               condition = sprintf("input['%s'] == 'kd'", ns("reponse")),
               shiny::helpText("Saisie : la colonne des doses porte la dose ou la concentration, celle des morts le nombre d'individus abattus à la fin de l'exposition (souvent 60 min), et le témoin ses abattus.")),
@@ -3624,7 +3749,11 @@ mod_dl50_ui <- function(id) {
                                             choices = c("DL10" = "10", "DL50" = "50",
                                                         "DL90" = "90"),
                                             selected = "50", inline = TRUE),
-                  shiny::checkboxInput(ns("gModele"), "Équation du modèle et ajustement en légende (un essai)", TRUE),
+                  shiny::checkboxInput(ns("gModele"), "Équation du modèle et ajustement sous la droite (un essai)", TRUE),
+                  shiny::conditionalPanel(
+                    condition = sprintf("input['%s']", ns("gModele")),
+                    shiny::numericInput(ns("gModeleTaille"), "Taille de l'équation (pt)",
+                                        value = 10, min = 4, max = 30, step = 0.5)),
                   shiny::checkboxInput(ns("gRepereEtiq"), "Étiqueter les repères", TRUE),
                   shiny::fluidRow(
                     shiny::column(4, colourInput(ns("gRepereCouleur"),
@@ -4444,12 +4573,30 @@ mod_dl50_server <- function(id, values) {
       hstat_dl50_ajuste(e, input$methode %||% "em", alpha = al,
                         itmax = .hstat_num1(input$itmax, HSTAT_DL50_ITMAX),
                         chemin = input$chemin %||% "rapide",
-                        reponse = input$reponse %||% "mortalite")
+                        reponse = cle_reponse())
     })
 
     # Le vocabulaire de la grandeur etudiee : « DL », « KD » ou « KT ». Lu par
     # les en-tetes des tableaux, qui ne passent pas par le socle.
-    voc_fit <- shiny::reactive(hstat_dl50_vocab(input$reponse %||% "mortalite"))
+    # La cle du vocabulaire : la reponse mesuree ET ce qui varie (dose ou
+    # concentration). Lue partout ou un nom se compose, jamais devinee.
+    cle_reponse <- shiny::reactive(
+      hstat_dl50_cle(input$reponse %||% "mortalite", input$exposition %||% "dose"))
+    voc_fit <- shiny::reactive(hstat_dl50_vocab(cle_reponse()))
+
+    # LES CASES DES DL CHIFFREES PORTENT LE NOM DE LA GRANDEUR. Ecrites
+    # « DL10 / DL50 / DL90 » en dur, elles annonceraient une dose letale sur un
+    # essai de concentration ou de knock-down. La selection est gardee.
+    shiny::observeEvent(cle_reponse(), {
+      pre <- hstat_dl50_prefixe(cle_reponse())
+      shiny::updateCheckboxGroupInput(session, "gAnnotDL",
+        label = tr(hstat_dl50_vocab(cle_reponse())$annot_titre),
+        choiceNames = paste0(pre, c(10, 50, 90)),
+        choiceValues = c("10", "50", "90"),
+        selected = shiny::isolate(input$gAnnotDL), inline = TRUE)
+      shiny::updateCheckboxInput(session, "gReperes",
+        label = trf("Repères %s10 / %s50 / %s90", pre, pre, pre))
+    }, ignoreInit = TRUE)
 
     output$titreSeuils <- shiny::renderUI(
       shiny::tagList(shiny::icon("crosshairs"), " ", tr(voc_fit()$titre_table)))
@@ -4496,10 +4643,17 @@ mod_dl50_server <- function(id, values) {
       v <- hstat_p_verdict(f$p_chi2)
       shiny::tagList(
         shiny::p(shiny::strong(tr("Équation :")), " ",
-                 sprintf("Y = %.5f + %.5f × log10(dose)", f$a, f$b)),
+                 sprintf("Y = %.5f + %.5f × %s", f$a, f$b, tr(voc_fit()$log10))),
         shiny::p(shiny::strong(tr("Mortalité naturelle estimée :")), " ",
                  sprintf("%.2f %%", 100 * f$c),
                  sprintf(" (témoin : %.2f %%)", 100 * f$c_temoin)),
+        {
+          mc <- hstat_dl50_corrigees(f)
+          shiny::p(shiny::strong(tr(voc_fit()$corrigee_titre)), " ",
+                   paste(sprintf("%s : %.2f %%",
+                                 trimws(formatC(mc$Dose, format = "g", digits = 4)),
+                                 mc$Mortalite_corrigee), collapse = " ; "))
+        },
         shiny::p(shiny::strong(tr("Test d'ajustement :")), " ",
                  sprintf("Chi-2 = %.3f, ddl = %d, p = %.4f", f$chi2, f$ddl, f$p_chi2),
                  " — ", switch(v,
@@ -4532,6 +4686,13 @@ mod_dl50_server <- function(id, values) {
         # ensemble, et l'unite declaree le dit.
         lig(tr("Mortalité naturelle (c)"), 100 * f$c, 100 * sqrt(f$Vh[3, 3]), "%"),
         lig(tr("Mortalité naturelle du témoin"), 100 * f$c_temoin, NA_real_, "%"),
+        {
+          mc <- hstat_dl50_corrigees(f)
+          do.call(rbind, lapply(seq_len(nrow(mc)), function(i)
+            lig(trf(voc_fit()$corrigee,
+                    trimws(formatC(mc$Dose[i], format = "g", digits = 4))),
+                mc$Mortalite_corrigee[i], NA_real_, "%")))
+        },
         lig(tr("Écart-type des tolérances (1/b)"), sigma, NA_real_, tr(voc_fit()$log10)),
         lig(tr("Covariance a-b (Vab)"), f$Vh[1, 2]),
         lig(tr("Covariance a-c (Vac)"), f$Vh[1, 3]),
@@ -4618,12 +4779,12 @@ mod_dl50_server <- function(id, values) {
       shiny::validate(shiny::need(!is.null(d), tr("Aucun résultat à afficher.")))
       DT::datatable(d, rownames = FALSE,
         colnames = c(tr("Seuil (%)"), tr(voc_fit()$log10), hstat_dl50_libelle_dose(fit()),
-                     hstat_dl50_libelle_echelle(tr("Erreur-type"), "log10", input$reponse),
-                     hstat_dl50_libelle_echelle(tr("Écart-type"), "log10", input$reponse),
+                     hstat_dl50_libelle_echelle(tr("Erreur-type"), "log10", cle_reponse()),
+                     hstat_dl50_libelle_echelle(tr("Écart-type"), "log10", cle_reponse()),
                      tr(voc_fit()$et_x), tr(voc_fit()$sd_x),
                      tr(voc_fit()$pm_et), tr(voc_fit()$pm_sd),
-                     hstat_dl50_libelle_echelle(tr(voc_fit()$pm_et_log), "log10", input$reponse),
-                     hstat_dl50_libelle_echelle(tr(voc_fit()$pm_sd_log), "log10", input$reponse),
+                     hstat_dl50_libelle_echelle(tr(voc_fit()$pm_et_log), "log10", cle_reponse()),
+                     hstat_dl50_libelle_echelle(tr(voc_fit()$pm_sd_log), "log10", cle_reponse()),
                      tr("Limite inférieure"), tr("Limite supérieure"),
                      tr("Type d'intervalle"), tr("Position")),
         options = list(dom = "t", pageLength = 20, ordering = FALSE,
@@ -4727,7 +4888,7 @@ mod_dl50_server <- function(id, values) {
       lapply(choisis, function(e) hstat_dl50_ajuste(
         e, m, alpha = al, itmax = .hstat_num1(input$itmax, HSTAT_DL50_ITMAX),
         chemin = input$chemin %||% "rapide",
-        reponse = input$reponse %||% "mortalite"))
+        reponse = cle_reponse()))
     })
 
     # TOUS les reglages sont lus ICI, dans le reactif qui construit l'image :
@@ -4745,7 +4906,8 @@ mod_dl50_server <- function(id, values) {
         annot_dl = .hstat_dl50_annot_seuils(input$gAnnotDL %||% character(0)),
         bande_type = input$gBandeType %||% "droite",
         bande_niveau = input$gBandeNiveau %||% "alpha",
-        modele = isTRUE(input$gModele), logticks = isTRUE(input$gLogticks),
+        modele = isTRUE(input$gModele),
+        modele_taille = nb("gModeleTaille", 10), logticks = isTRUE(input$gLogticks),
         points = isTRUE(input$gPoints), courbe = isTRUE(input$gCourbe),
         droite = isTRUE(input$gDroite), bande = isTRUE(input$gBande),
         reperes = isTRUE(input$gReperes),
@@ -5023,7 +5185,7 @@ mod_dl50_server <- function(id, values) {
       DT::datatable(d, rownames = FALSE,
         colnames = c(hstat_dl50_libelle_dose(fit()), tr(voc_fit()$log10),
                      tr("Probit attendu"),
-                     hstat_dl50_libelle_echelle(tr("Erreur-type"), "probit", input$reponse),
+                     hstat_dl50_libelle_echelle(tr("Erreur-type"), "probit", cle_reponse()),
                      tr("Mortalité (%)"),
                      tr("Limite inférieure (%)"), tr("Limite supérieure (%)"),
                      tr("Position")),
@@ -5068,12 +5230,12 @@ mod_dl50_server <- function(id, values) {
       DT::datatable(d, rownames = FALSE,
         colnames = c(tr("Mortalité visée (%)"), tr(voc_fit()$log10),
                      hstat_dl50_libelle_dose(fit()),
-                     hstat_dl50_libelle_echelle(tr("Erreur-type"), "log10", input$reponse),
-                     hstat_dl50_libelle_echelle(tr("Écart-type"), "log10", input$reponse),
+                     hstat_dl50_libelle_echelle(tr("Erreur-type"), "log10", cle_reponse()),
+                     hstat_dl50_libelle_echelle(tr("Écart-type"), "log10", cle_reponse()),
                      tr(voc_fit()$et_x), tr(voc_fit()$sd_x),
                      tr(voc_fit()$pm_et), tr(voc_fit()$pm_sd),
-                     hstat_dl50_libelle_echelle(tr(voc_fit()$pm_et_log), "log10", input$reponse),
-                     hstat_dl50_libelle_echelle(tr(voc_fit()$pm_sd_log), "log10", input$reponse),
+                     hstat_dl50_libelle_echelle(tr(voc_fit()$pm_et_log), "log10", cle_reponse()),
+                     hstat_dl50_libelle_echelle(tr(voc_fit()$pm_sd_log), "log10", cle_reponse()),
                      tr("Limite inférieure"),
                      tr("Limite supérieure"), tr("Type d'intervalle"),
                      tr("Position")),
