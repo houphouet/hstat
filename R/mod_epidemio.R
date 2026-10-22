@@ -481,7 +481,7 @@ mod_epidemio_server <- function(id, values) {
           type = "error", duration = 5)
         return()
       }
-      conf <- hstat_finite(input$epiConf, 0.95)
+      conf <- hstat_borne_client(input$epiConf, 0.95, 0.80, 0.99)
       vide <- function(x) { v <- as.character(x %||% character(0)); v[nzchar(v)] }
       # Les facteurs de transfert sont relus PAR EXPOSITION, et seulement si la
       # case est cochee : un champ laisse a 0,8 puis decoche ne doit pas

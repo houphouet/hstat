@@ -2503,7 +2503,7 @@ mod_design_server <- function(id, values) {
 
     # ddl numerateur et nombre de cellules calcules a partir des modalites saisies
     pow_factorial <- shiny::reactive({
-      nf <- input$powNFactors %||% 2
+      nf <- hstat_borne_client(input$powNFactors, 2, 1, 4)
       levs <- vapply(seq_len(nf), function(i) {
         v <- input[[paste0("powLev", i)]]
         if (is.null(v) || is.na(v)) NA_integer_ else as.integer(v)
@@ -2529,7 +2529,7 @@ mod_design_server <- function(id, values) {
       if (test == "anova_oneway")
         els <- c(els, list(shiny::numericInput(ns("powGroups"), "Nombre de groupes (k)", value = 5, min = 2, step = 1)))
       if (test %in% F_factorial) {
-        nf <- input$powNFactors %||% 2
+        nf <- hstat_borne_client(input$powNFactors, 2, 1, 4)
         els <- c(els, list(
           shiny::div(class = "callout callout-info", style = "padding:8px 10px;font-size:12px;",
             shiny::icon("lightbulb"),
@@ -2864,7 +2864,7 @@ mod_design_server <- function(id, values) {
     # Recupere le nombre de facteurs et de modalites definis dans l'onglet Puissance
     # statistique et pre-remplit le plan factoriel (rend le module interactif).
     shiny::observeEvent(input$dsgImportPower, {
-      nf <- input$powNFactors %||% 2
+      nf <- hstat_borne_client(input$powNFactors, 2, 1, 4)
       levs <- vapply(seq_len(nf), function(i) {
         v <- input[[paste0("powLev", i)]]
         if (is.null(v) || is.na(v)) NA_integer_ else as.integer(v)

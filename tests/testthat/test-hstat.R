@@ -22942,3 +22942,128 @@ test_that("la DL10 extrapolee s'affiche comme la DL90", {
     if (inherits(l$geom, "GeomLabel")) as.character(l$aes_params$label)))
   expect_false(any(startsWith(as.character(lab), "DL10 = ")))
 })
+
+# =============================================================================
+#  AUDIT 1.24.1 : BORNES SERVEUR, WILCOXON, VOLCAN, AVERTISSEMENTS DE RENDU
+# =============================================================================
+
+test_that("les champs dont le cout suit la valeur passent par leur borne serveur", {
+  # Un `max =` d'interface n'est qu'affiche. Chacun de ces champs multiplie un
+  # calcul : imputations MICE, classes de decoupage, cases d'histogramme,
+  # profondeur d'arbre, lignes echantillonnees, axes d'ACP, facteurs du calcul
+  # de puissance (une boucle d'interface par facteur).
+  ids <- c("naMiceM", "cutNClasses", "histBins", "hpDepth", "sampleSize",
+           "pcaComponents", "powNFactors", "valueLabelDigits",
+           # Un niveau de confiance hors de ]0 ; 1[ rendait des bornes NaN sous
+           # une etiquette « IC500% » : la meme porte.
+           "orrr_conf", "corTestConf", "epiConf")
+  code <- unlist(lapply(.hstat_sources_app(), .hstat_code_lignes))
+  for (id in ids) {
+    lus <- grep(sprintf("input\\$%s\\b", id), code, value = TRUE)
+    # Une ligne qui ne fait que NOMMER l'entree prend une dependance (liste de
+    # declencheurs d'un reactif) : elle ne s'en sert pas.
+    lus <- lus[!grepl(sprintf("^\\s*input\\$%s\\s*,?\\s*$", id), lus)]
+    expect_gt(length(lus), 0L)
+    expect_true(all(grepl("hstat_borne_client(", lus, fixed = TRUE)), info = id)
+  }
+})
+
+test_that("le Wilcoxon a un echantillon renonce a son intervalle au-dela du plafond, et le dit", {
+  set.seed(3)
+  petit <- hstat_ref_test(rnorm(200, 0.3), method = "wilcoxon")
+  expect_true(all(is.finite(c(petit$conf.low, petit$conf.high))))
+  x <- rnorm(HSTAT_WILCOX_IC_MAX + 1L, 0.3)
+  t0 <- proc.time()[["elapsed"]]
+  grand <- hstat_ref_test(x, method = "wilcoxon")
+  expect_lt(proc.time()[["elapsed"]] - t0, 1)
+  expect_true(is.na(grand$conf.low) && is.na(grand$conf.high))
+  # La p-value porte toujours sur toutes les valeurs.
+  expect_equal(grand$p.value, stats::wilcox.test(x, exact = FALSE)$p.value)
+  expect_match(grand$note, as.character(HSTAT_WILCOX_IC_MAX), fixed = TRUE)
+  # Le gabarit est au dictionnaire : `trf()` le traduit avant de l'appliquer.
+  expect_true(any(grepl("Intervalle de confiance non calculé au-delà de %d valeurs",
+                        hstat_i18n_load()$fr, fixed = TRUE)))
+})
+
+test_that("le volcan n'etiquette jamais plus de points que le curseur n'en offre", {
+  set.seed(4)
+  d <- data.frame(g = paste0("g", 1:500), fc = rnorm(500, 0, 3), p = 1e-6)
+  vd <- hstat_volcan_donnees(d, "fc", "p", label_var = "g", n_labels = 1e9)
+  n_lab <- sum(!is.na(vd$.label))
+  expect_gt(n_lab, 0)
+  expect_lte(n_lab, HSTAT_VOLCAN_LABELS_MAX)
+})
+
+test_that("une boite groupee ne fait plus avertir plotly a chaque rendu, et garde son boxmode", {
+  skip_if_not_installed("plotly")
+  set.seed(1)
+  d <- data.frame(Semaine = rep(as.Date("2026-08-04") + 7 * (0:3), each = 6),
+                  Valeur = stats::rpois(24, 3), Lot = rep(c("L1", "L2"), 12))
+  vals <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d,
+                                storedLevelLabels = list(), customXOrder = NULL)
+  avert <- character(0)
+  withCallingHandlers(
+    shiny::testServer(mod_viz_server, args = list(values = vals), {
+      session$setInputs(vizXVar = "Semaine", vizYVar = "Valeur", xVarType = "date",
+                        vizType = "box", xDateDisplayFormat = "%m-%d",
+                        xDateFormat = "%Y-%m-%d", vizColorVar = "Lot")
+      js <- output$interactivePlot
+      expect_match(js, '"boxmode":"group"', fixed = TRUE)
+    }),
+    warning = function(w) {
+      avert <<- c(avert, conditionMessage(w)); invokeRestart("muffleWarning")
+    })
+  expect_false(any(grepl("boxmode", avert)))
+  # Le filtre ne vise QUE cet attribut : un autre attribut inconnu avertit.
+  expect_false(grepl(HSTAT_PLOTLY_LAYOUT_TOLERES,
+                     "'layout' objects don't have these attributes: 'boxmode', 'foo'\nValid"))
+  expect_true(grepl(HSTAT_PLOTLY_LAYOUT_TOLERES,
+                    "'layout' objects don't have these attributes: 'boxmode'\nValid"))
+})
+
+test_that("le violon ne passe drop que si la version de ggplot2 le connait", {
+  connu <- "drop" %in% ggplot2::StatYdensity$parameters(TRUE)
+  expect_identical(length(hstat_violin_drop()) == 1L, connu)
+  d <- data.frame(x = rep(c("a", "b"), each = 10), y = stats::rnorm(20))
+  avert <- character(0)
+  withCallingHandlers(
+    ggplot2::ggplot_build(ggplot2::ggplot(d, ggplot2::aes(x, y)) +
+                            do.call(ggplot2::geom_violin, hstat_violin_drop())),
+    warning = function(w) { avert <<- c(avert, conditionMessage(w)); invokeRestart("muffleWarning") })
+  expect_false(any(grepl("unknown parameters", avert)))
+  code <- paste(.hstat_code_lignes(.hstat_module_path("mod_viz.R")), collapse = "\n")
+  expect_false(grepl("geom_violin\\([^)]*drop = FALSE", code))
+})
+
+test_that("l'arbre CART refuse un predicteur qualitatif a trop de modalites sur une cible multi-classe", {
+  set.seed(5)
+  n <- 120
+  d <- data.frame(Cible = factor(sample(c("a", "b", "c"), n, TRUE)),
+                  Texte = paste("réponse", seq_len(n)),
+                  Bloc  = factor(sample(paste0("B", 1:4), n, TRUE)),
+                  Mesure = stats::rnorm(n), stringsAsFactors = FALSE)
+  k <- hstat_cart_niveaux_bloquants(d, "Cible", c("Texte", "Bloc", "Mesure"))
+  expect_identical(names(k), "Texte")
+  expect_equal(unname(k), n)
+  # Cible binaire : rpart trie les modalites, le cout reste lineaire.
+  d2 <- d; d2$Cible <- factor(d2$Cible == "a")
+  expect_length(hstat_cart_niveaux_bloquants(d2, "Cible", c("Texte", "Bloc")), 0L)
+  # A la frontiere : 20 modalites passent, 21 non.
+  d3 <- data.frame(Cible = d$Cible, X = factor(rep(paste0("x", 1:21), length.out = n)))
+  expect_length(hstat_cart_niveaux_bloquants(d3, "Cible", "X"), 1L)
+  d3$X <- factor(rep(paste0("x", 1:20), length.out = n))
+  expect_length(hstat_cart_niveaux_bloquants(d3, "Cible", "X"), 0L)
+
+  skip_if_not_installed("rpart")
+  vals <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d)
+  shiny::testServer(mod_ml_server, args = list(values = vals), {
+    session$setInputs(mlTarget = "Cible", mlPreds = c("Texte", "Bloc", "Mesure"),
+                      mlModels = "rpart", hpAuto = TRUE, mlSplit = 75, mlSeed = 1)
+    t0 <- proc.time()[["elapsed"]]
+    session$setInputs(mlRun = 1)
+    cmp <- comp_df()
+    expect_lt(proc.time()[["elapsed"]] - t0, 10)
+    expect_match(cmp$Statut[1], "Texte (", fixed = TRUE)
+    expect_match(cmp$Statut[1], "2^(k-1)", fixed = TRUE)
+  })
+})

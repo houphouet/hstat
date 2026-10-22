@@ -1840,7 +1840,7 @@ mod_correlation_server <- function(id, values) {
         hstat_correlation_tests(
           values$data, input$corTestVars, method = m,
           alternative = input$corTestAlt %||% "two.sided",
-          conf.level = input$corTestConf %||% 0.95,
+          conf.level = hstat_borne_client(input$corTestConf, 0.95, 0.80, 0.99),
           p.adjust.method = input$corTestAdjust %||% "holm",
           target = tgt)))
       out

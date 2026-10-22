@@ -863,10 +863,32 @@ HSTAT_PLOTLY_INTERDITS <- list(bar = c("mode"), pie = c("mode"),
   p
 }
 
+# `geom_violin(drop = FALSE)` n'est connu que depuis ggplot2 3.5.0 : le passer
+# a une version anterieure fait avertir a chaque trace. On ne le passe donc
+# que si la stat le declare.
+hstat_violin_drop <- function() {
+  ok <- tryCatch("drop" %in% ggplot2::StatYdensity$parameters(TRUE),
+                 error = function(e) FALSE)
+  if (isTRUE(ok)) list(drop = FALSE) else list()
+}
+
+HSTAT_PLOTLY_LAYOUT_TOLERES <- "don't have these attributes: '(boxmode|violinmode)'(\\n|$)"
+
 hstat_plotly_clean <- function(p) {
   if (is.null(p)) return(p)
   p <- tryCatch(.hstat_plotly_attrs(p), error = function(e) p)
-  b <- tryCatch(plotly::plotly_build(p), error = function(e) NULL)
+  # `boxmode` est un attribut de mise en page propre aux boites : le schema que
+  # plotly (R) consulte pour verifier la mise en page ne le porte pas, et il
+  # avertit « 'layout' objects don't have these attributes: 'boxmode' » A
+  # CHAQUE rendu d'une boite groupee -- tout en gardant l'attribut, que
+  # plotly.js applique. Seul CET avertissement est etouffe : un
+  # `suppressWarnings()` global masquerait ceux qui signalent un vrai defaut.
+  b <- tryCatch(withCallingHandlers(
+    plotly::plotly_build(p),
+    warning = function(w) {
+      if (grepl(HSTAT_PLOTLY_LAYOUT_TOLERES, conditionMessage(w)))
+        invokeRestart("muffleWarning")
+    }), error = function(e) NULL)
   if (is.null(b)) return(p)
   if (!is.null(b$dependencies))
     b$dependencies <- Filter(function(d) !identical(d$name, "typedarray"),
@@ -5496,6 +5518,8 @@ hstat_shapiro_groupes <- function(d, variables, facteurs,
 }
 
 # --- Famille quantitative ----------------------------------------------------
+HSTAT_WILCOX_IC_MAX <- 20000L
+
 hstat_ref_test <- function(x, mu = 0, method = "ttest",
                            alternative = c("two.sided", "greater", "less"),
                            conf.level = 0.95, sigma = NULL, margin = NULL) {
@@ -5542,9 +5566,15 @@ hstat_ref_test <- function(x, mu = 0, method = "ttest",
   }
 
   if (method == "wilcoxon") {
+    # L'INTERVALLE (pseudo-mediane de Hodges-Lehmann) se cherche par `uniroot`
+    # en recalculant les rangs a chaque pas : il coute vingt fois le test.
+    # Mesure : 2e4 valeurs -> 1,1 s, 2e5 -> 11 s, dans le processus que toutes
+    # les sessions partagent. Au-dela de HSTAT_WILCOX_IC_MAX il n'est pas
+    # calcule -- et on le dit ; la p-value, elle, porte toujours sur tout.
+    avec_ic <- n <= HSTAT_WILCOX_IC_MAX
     tr <- suppressWarnings(stats::wilcox.test(
       x, mu = mu, alternative = alternative, conf.level = conf.level,
-      conf.int = TRUE, exact = FALSE, correct = TRUE))
+      conf.int = avec_ic, exact = FALSE, correct = TRUE))
     med <- stats::median(x)
     # r = Z / sqrt(n), Z reconstitue depuis la p-value bilaterale.
     z_eq <- stats::qnorm(min(max(tr$p.value / 2, 1e-300), 0.5), lower.tail = FALSE)
@@ -5555,7 +5585,11 @@ hstat_ref_test <- function(x, mu = 0, method = "ttest",
       tr$p.value, med, mu, ci, r, "r (Z/racine(n))", alternative, n,
       .hstat_ref_interp("Test des rangs signés de Wilcoxon", tr$p.value, med, mu,
                         alternative),
-      "Compare la médiane à la norme ; suppose une distribution symétrique."))
+      if (avec_ic)
+        "Compare la médiane à la norme ; suppose une distribution symétrique."
+      else
+        trf("Compare la médiane à la norme ; suppose une distribution symétrique. Intervalle de confiance non calculé au-delà de %d valeurs (son calcul croît avec l'effectif) : la p-value porte sur toutes les valeurs.",
+            HSTAT_WILCOX_IC_MAX)))
   }
 
   if (method == "sign") {
@@ -11339,8 +11373,17 @@ hstat_installer_replis_ui <- function(envir = globalenv()) {
   poser("renderPlotly", if (has("plotly"))
     function(expr, env = parent.frame(), quoted = FALSE) {
       fn <- shiny::exprToFunction(expr, env, quoted)
-      plotly::renderPlotly(hstat_plotly_clean(fn()),
-                           env = environment(), quoted = FALSE)
+      rf <- plotly::renderPlotly(hstat_plotly_clean(fn()),
+                                 env = environment(), quoted = FALSE)
+      # La serialisation refait `plotly_build()`, donc reverifie la mise en
+      # page : le meme avertissement tolere (`boxmode`) y est etouffe, et lui
+      # seul. La fonction de rendu garde ses attributs (classe, sortie).
+      w <- function(...) withCallingHandlers(rf(...), warning = function(x) {
+        if (grepl(HSTAT_PLOTLY_LAYOUT_TOLERES, conditionMessage(x)))
+          invokeRestart("muffleWarning")
+      })
+      attributes(w) <- attributes(rf)
+      w
     } else function(expr, ...) {
       q <- substitute(expr); pf <- parent.frame()
       shiny::renderPlot({
@@ -15793,6 +15836,29 @@ HSTAT_VOLCAN_CLASSES <- c(hausse = "Hausse significative",
                           baisse = "Baisse significative",
                           ns = "Non significatif")
 
+# -- Arbre CART : un predicteur qualitatif a trop de modalites ----------------
+# Avec une cible a TROIS classes ou plus, rpart essaie les 2^(k-1) partitions
+# des k modalites d'un predicteur qualitatif, a chaque noeud. Mesure (1000
+# lignes, 4 classes) : 20 modalites -> 0,25 s, 22 -> 0,8 s, 24 -> 2,9 s ; le
+# temps double a chaque modalite, si bien qu'une colonne d'identifiants ou de
+# texte libre (60 modalites) bloquait le processus que toutes les sessions
+# partagent, sans fin previsible. Cible binaire ou quantitative : rpart trie
+# les modalites et le cout reste lineaire, rien n'est refuse.
+HSTAT_CART_NIVEAUX_MAX <- 20L
+
+hstat_cart_niveaux_bloquants <- function(d, cible, preds,
+                                         max_niveaux = HSTAT_CART_NIVEAUX_MAX) {
+  y <- d[[cible]]
+  if (!is.factor(y) || nlevels(droplevels(y)) < 3L) return(integer(0))
+  k <- vapply(preds, function(v) {
+    x <- d[[v]]
+    if (is.factor(x) || is.character(x)) length(unique(x[!is.na(x)])) else 0L
+  }, integer(1))
+  k[k > max_niveaux]
+}
+
+HSTAT_VOLCAN_LABELS_MAX <- 50L
+
 hstat_volcan_donnees <- function(d, x_var, p_var, seuil_fc = 1, seuil_p = 0.05,
                                  x_mode = c("log2", "rapport"),
                                  p_mode = c("brute", "log10"),
@@ -15841,7 +15907,10 @@ hstat_volcan_donnees <- function(d, x_var, p_var, seuil_fc = 1, seuil_p = 0.05,
   # Les etiquettes vont aux points significatifs les plus hauts : ce sont ceux
   # qu'on cherche du regard. Un point non significatif n'en recoit jamais.
   out$.label <- NA_character_
-  n_labels <- suppressWarnings(as.integer(n_labels))[1]
+  # Le curseur s'arrete a 50 ; la valeur vient pourtant du navigateur. Sans
+  # plafond, tous les points significatifs (des milliers) partaient en
+  # etiquettes, que le placement de ggrepel et l'envoi a plotly paient.
+  n_labels <- min(suppressWarnings(as.integer(n_labels))[1], HSTAT_VOLCAN_LABELS_MAX)
   if (!is.null(label_var) && label_var %in% names(out) && is.finite(n_labels) &&
       n_labels > 0) {
     idx <- which(out$.classe != "ns")

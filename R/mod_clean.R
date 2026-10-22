@@ -1575,7 +1575,7 @@ mod_clean_server <- function(id, values) {
               shiny::showNotification(trf("Imputation multiple (mice) sur %s lignes : le calcul peut prendre plusieurs minutes.", format(nrow(data_temp), big.mark = " ")),
                 type = "message", duration = 10)
             sub <- data_temp[, sel, drop = FALSE]
-            mids <- tryCatch(mice::mice(sub, m = input$naMiceM %||% 5,
+            mids <- tryCatch(mice::mice(sub, m = hstat_borne_client(input$naMiceM, 5, 1, 20),
                                         method = "pmm", printFlag = FALSE),
                              error = function(e) { ok <<- FALSE; NULL })
             if (ok && !is.null(mids)) {
@@ -2113,7 +2113,7 @@ mod_clean_server <- function(id, values) {
     labs_use <- if (identical(input$cutLabels, "custom")) labs else NULL
     hstat_cut_intervals(values$cleanData[[input$cutVar]],
                         method = input$cutMethod %||% "manual",
-                        n_classes = input$cutNClasses %||% 4,
+                        n_classes = hstat_borne_client(input$cutNClasses, 4, 2, 12),
                         breaks_manual = brks,
                         labels_custom = labs_use,
                         interval_style = input$cutStyle %||% "std_last_closed")
