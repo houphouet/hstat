@@ -16027,18 +16027,25 @@ hstat_volcan_plot <- function(vd, couleurs = c(hausse = "#d7301f",
 # numeros ne se lit pas, et une plage dit la meme chose sans rien perdre. Des
 # noms de lignes non numeriques sont rendus tels quels, separes par des
 # virgules.
-hstat_lignes_compactes <- function(x) {
+# `max` borne le nombre de morceaux ecrits : trente mille lignes eparses
+# donneraient une notification de plusieurs centaines de kilo-octets, envoyee
+# au navigateur et illisible. Au-dela, la liste se coupe et dit combien il en
+# reste -- « (+k) » se lit dans les deux langues.
+hstat_lignes_compactes <- function(x, max = 100L) {
   x <- as.character(x)
   if (!length(x)) return("")
+  couper <- function(m) {
+    if (length(m) > max) c(m[seq_len(max)], sprintf("\u2026 (+%d)", length(m) - max)) else m
+  }
   n <- suppressWarnings(as.integer(x))
-  if (anyNA(n) || any(as.character(n) != x)) return(paste(x, collapse = ", "))
+  if (anyNA(n) || any(as.character(n) != x)) return(paste(couper(x), collapse = ", "))
   n <- sort(unique(n))
   coupe <- c(0L, which(diff(n) != 1L), length(n))
   morceaux <- vapply(seq_len(length(coupe) - 1L), function(i) {
     a <- n[coupe[i] + 1L]; b <- n[coupe[i + 1L]]
     if (a == b) as.character(a) else paste0(a, "-", b)
   }, character(1))
-  paste(morceaux, collapse = ", ")
+  paste(couper(morceaux), collapse = ", ")
 }
 
 .hstat_noms_lignes <- function(d) {
@@ -16231,6 +16238,12 @@ hstat_valeur_saisie <- function(col, valeur) {
     dt <- hstat_date_auto(v)$dates
     if (!length(dt) || is.na(dt[1])) return(list(ok = FALSE, texte = trf("« %s » n'est pas une date lisible.", v)))
     return(list(ok = TRUE, valeur = as.Date(dt[1])))
+  }
+  if (inherits(col, "POSIXt")) {
+    dt <- suppressWarnings(tryCatch(as.POSIXct(v, tz = attr(col, "tzone") %||% ""),
+                                    error = function(e) NA))
+    if (!length(dt) || is.na(dt[1])) return(list(ok = FALSE, texte = trf("« %s » n'est pas une date lisible.", v)))
+    return(list(ok = TRUE, valeur = dt[1]))
   }
   list(ok = TRUE, valeur = v)
 }

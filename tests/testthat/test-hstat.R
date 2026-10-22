@@ -23266,3 +23266,19 @@ test_that("la validite du temoin se juge meme quand l'ajustement echoue", {
   # La mortalite corrigee, elle, a besoin de l'ajustement.
   expect_identical(hstat_dl50_validite(f, base = "corrigee")$etat, "indeterminable")
 })
+
+test_that("une liste de lignes est bornee, et une date-heure saisie prend son type", {
+  # Trente mille lignes eparses donnaient une notification de centaines de Ko.
+  x <- hstat_lignes_compactes(as.character(seq(1, 1e5, by = 2)))
+  expect_lt(nchar(x), 1000)
+  expect_true(grepl("(+49900)", x, fixed = TRUE))
+  # Sous la borne, rien ne change.
+  expect_identical(hstat_lignes_compactes(c("1", "2", "3", "9")), "1-3, 9")
+  expect_identical(hstat_lignes_compactes(c("a", "b", "c"), max = 2), "a, b, … (+1)")
+  # Une colonne date-heure : la saisie lisible prend son type, l'illisible est refusee.
+  col <- as.POSIXct(c("2024-01-01 10:00", "2024-01-02 10:00"), tz = "UTC")
+  s <- hstat_valeur_saisie(col, "2025-05-05 08:30")
+  expect_true(s$ok)
+  expect_s3_class(s$valeur, "POSIXct")
+  expect_false(hstat_valeur_saisie(col, "pas une date")$ok)
+})

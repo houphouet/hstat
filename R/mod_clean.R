@@ -2335,7 +2335,10 @@ mod_clean_server <- function(id, values) {
     colonne <- names(d)[j - 2]
     s <- hstat_valeur_saisie(d[[colonne]], info$value)
     if (!isTRUE(s$ok)) { dup_message(list(ok = FALSE, texte = s$texte)); return() }
-    d <- hstat_ecrire_cellule(d, ligne, colonne, s$valeur)
+    # Une ecriture qui leve (type exotique) se dit au lieu de fermer la session.
+    d <- tryCatch(hstat_ecrire_cellule(d, ligne, colonne, s$valeur),
+                  error = function(e) { dup_message(list(ok = FALSE, texte = hstat_err_fr(e))); NULL })
+    if (is.null(d)) return()
     ecrire_dup(d, trf("Ligne « %s », colonne « %s » : valeur modifiée.", r$Ligne[i], colonne))
   })
 

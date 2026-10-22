@@ -10452,3 +10452,23 @@ Quatre décisions, chacune testée :
 
 Le message du traitement n'est pas effacé par l'observateur des données : il
 aurait disparu à l'écriture même qu'il annonce.
+
+## Audit 1.25.1 : deux défauts dans les doublons
+
+Mené sur le lot précédent avant tout le reste : messages forgés rejoués sous
+`testServer()`, chronométrage, puis les vingt-deux onglets au navigateur (jeu
+normal et hostile : 0 erreur, 0 balise injectée).
+
+- **Une liste de lignes n'était pas bornée.** Supprimer trente mille doublons
+  épars composait une notification de plusieurs centaines de Ko, envoyée au
+  navigateur et illisible. `hstat_lignes_compactes(max = 100)` coupe la liste et
+  dit combien il en reste (« … (+49900) »), une écriture qui se lit dans les
+  deux langues.
+- **Une cellule date-heure corrigée pouvait fermer la session.** Une saisie
+  illisible dans une colonne `POSIXct` levait dans l'observateur. Elle est lue
+  comme une date-heure ou refusée et nommée, et toute écriture qui lève encore
+  se dit au lieu de fermer la session.
+
+Mesuré : le repérage coûte 0,3 s sur 100 000 lignes et 2,9 s sur 500 000. Il ne
+tourne que lorsque la boîte est ouverte, c'est-à-dire quand ses sorties sont
+affichées.
