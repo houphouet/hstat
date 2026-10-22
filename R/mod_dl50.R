@@ -212,8 +212,7 @@ HSTAT_DL50_VOCAB <- list(
     pm_et_log = "DL ± Erreur-type", pm_sd_log = "DL ± Écart-type",
     titre_table = "Doses létales",
     annot_titre = "Doses létales chiffrées sur la figure",
-    corrigee = "Mortalité corrigée à la dose %s",
-    corrigee_titre = "Mortalité corrigée par dose :",
+    temoin_corrige = "Mortalité corrigée du témoin",
     equation = "Probit : Y = %s + %s · log10(dose)",
     et_x = "Erreur-type (dose)", sd_x = "Écart-type (dose)",
     hors = "Dose(s) létale(s) hors de l'étendue testée (%s à %s) : %s. Elles reposent sur le prolongement de la droite, là où aucune observation ne vient plus la contraindre."),
@@ -229,8 +228,7 @@ HSTAT_DL50_VOCAB <- list(
     pm_et_log = "KD ± Erreur-type", pm_sd_log = "KD ± Écart-type",
     titre_table = "Doses de knock-down",
     annot_titre = "Doses de knock-down chiffrées sur la figure",
-    corrigee = "Knock-down corrigé à la dose %s",
-    corrigee_titre = "Knock-down corrigé par dose :",
+    temoin_corrige = "Knock-down corrigé du témoin",
     equation = "Probit : Y = %s + %s · log10(dose)",
     et_x = "Erreur-type (dose)", sd_x = "Écart-type (dose)",
     hors = "Dose(s) de knock-down hors de l'étendue testée (%s à %s) : %s. Elles reposent sur le prolongement de la droite, là où aucune observation ne vient plus la contraindre."),
@@ -252,8 +250,7 @@ HSTAT_DL50_VOCAB <- list(
     pm_et_log = "CL ± Erreur-type", pm_sd_log = "CL ± Écart-type",
     titre_table = "Concentrations létales",
     annot_titre = "Concentrations létales chiffrées sur la figure",
-    corrigee = "Mortalité corrigée à la concentration %s",
-    corrigee_titre = "Mortalité corrigée par concentration :",
+    temoin_corrige = "Mortalité corrigée du témoin",
     equation = "Probit : Y = %s + %s · log10(concentration)",
     et_x = "Erreur-type (concentration)", sd_x = "Écart-type (concentration)",
     hors = "Concentration(s) létale(s) hors de l'étendue testée (%s à %s) : %s. Elles reposent sur le prolongement de la droite, là où aucune observation ne vient plus la contraindre."),
@@ -270,8 +267,7 @@ HSTAT_DL50_VOCAB <- list(
     pm_et_log = "KC ± Erreur-type", pm_sd_log = "KC ± Écart-type",
     titre_table = "Concentrations de knock-down",
     annot_titre = "Concentrations de knock-down chiffrées sur la figure",
-    corrigee = "Knock-down corrigé à la concentration %s",
-    corrigee_titre = "Knock-down corrigé par concentration :",
+    temoin_corrige = "Knock-down corrigé du témoin",
     equation = "Probit : Y = %s + %s · log10(concentration)",
     et_x = "Erreur-type (concentration)", sd_x = "Écart-type (concentration)",
     hors = "Concentration(s) de knock-down hors de l'étendue testée (%s à %s) : %s. Elles reposent sur le prolongement de la droite, là où aucune observation ne vient plus la contraindre."),
@@ -288,8 +284,7 @@ HSTAT_DL50_VOCAB <- list(
     pm_et_log = "KT ± Erreur-type", pm_sd_log = "KT ± Écart-type",
     titre_table = "Temps de knock-down",
     annot_titre = "Temps de knock-down chiffrés sur la figure",
-    corrigee = "Knock-down corrigé au temps %s",
-    corrigee_titre = "Knock-down corrigé par temps d'exposition :",
+    temoin_corrige = "Knock-down corrigé du témoin",
     equation = "Probit : Y = %s + %s · log10(temps)",
     et_x = "Erreur-type (temps)", sd_x = "Écart-type (temps)",
     hors = "Temps de knock-down hors de l'étendue testée (%s à %s) : %s. Ils reposent sur le prolongement de la droite, là où aucune observation ne vient plus la contraindre."))
@@ -308,19 +303,22 @@ hstat_dl50_vocab <- function(x = "mortalite") HSTAT_DL50_VOCAB[[.hstat_dl50_cle_
 # « DL », « KD » ou « KT » : le prefixe de chaque seuil publie.
 hstat_dl50_prefixe <- function(x = "mortalite") hstat_dl50_vocab(x)$prefixe
 
-# LA MORTALITE CORRIGEE, DOSE PAR DOSE. Demande a l'ecran, dans « Parametres
-# de la regression » : c'est le chiffre que la droite de Henry ajuste, et il
-# vivait seul dans le detail par dose, deux onglets plus loin. Elle est
-# corrigee par la mortalite naturelle RETENUE par l'ajustement (Abbott :
-# (p - c) / (1 - c)), donc par la meme `c` que les doses letales -- pas par
-# celle du temoin seul quand la methode l'estime. En pourcentage, comme le
-# reste de l'essai ; une valeur negative reste ce qu'elle est (la dose tue
-# moins que le temoin), la borner a zero masquerait ce qu'il faut voir.
-hstat_dl50_corrigees <- function(fit) {
-  if (!isTRUE(fit$ok) || is.null(fit$table)) return(NULL)
-  t <- fit$table
-  data.frame(Dose = t$Dose, Mortalite_corrigee = 100 * t$Mortalite_corrigee,
-             stringsAsFactors = FALSE)
+# LA MORTALITE CORRIGEE DU TEMOIN, et elle seule. « Parametres de la
+# regression » a d'abord porte une ligne par dose ; elles ont ete retirees a
+# la demande -- le detail par dose les donne deja, et le tableau des
+# parametres ne doit porter que des grandeurs de l'ajustement. Reste le temoin,
+# corrige par la mortalite naturelle RETENUE par l'ajustement (Abbott :
+# (p0 - c) / (1 - c)), donc par la meme `c` que les doses letales. Elle vaut 0
+# sous Abbott, ou `c` EST le temoin, et s'en ecarte sous EM, ou `c` est
+# estimee sur tout l'essai : c'est l'ecart entre ce que le temoin a montre et
+# ce que le modele a retenu. Sans temoin, ou `c` a 1, elle n'est pas definie :
+# NA, jamais zero, qui se lirait « temoin conforme ».
+hstat_dl50_temoin_corrige <- function(fit) {
+  if (!isTRUE(fit$ok)) return(NA_real_)
+  p0 <- suppressWarnings(as.numeric(fit$c_temoin)[1])
+  cc <- suppressWarnings(as.numeric(fit$c)[1])
+  if (!length(p0) || !is.finite(p0) || !is.finite(cc) || cc >= 1) return(NA_real_)
+  100 * (p0 - cc) / (1 - cc)
 }
 
 # Les champs d'un essai qui doivent etre STRICTEMENT identiques pour qu'une
@@ -785,6 +783,41 @@ hstat_dl50_essai <- function(dose, effectif, morts, temoin_n = 0, temoin_morts =
   if (!is.null(inv))
     out <- c(out, trf("La mortalité observée passe de %s %% aux doses les plus faibles à %s %% aux doses les plus fortes : la réponse est retournée. La colonne des morts porte probablement les survivants ; vérifiez aussi qu'elle n'a pas été prise pour l'effectif testé.",
                       round(100 * inv$bas, 1), round(100 * inv$haut, 1)))
+  out
+}
+
+# LES TROIS COLONNES PROPOSEES D'OFFICE.
+#
+# Les listes se remplissaient sans rien selectionner : il fallait choisir les
+# trois colonnes a la main a chaque chargement, et apres une NOUVELLE feuille la
+# selection precedente -- absente des nouvelles colonnes -- laissait les trois
+# listes vides. On propose donc une colonne par role, d'apres son NOM d'abord
+# (le cas d'un fichier d'essai : « Concentration », « Effectif testé »,
+# « Morts_48h »), puis par ordre des colonnes pour ce qui reste. C'est une
+# proposition : l'utilisateur la voit et la corrige, et une selection qui
+# existe encore l'emporte toujours.
+#
+# Les morts d'abord, et jamais une colonne de survivants : la prendre pour les
+# morts retourne la reponse (defaut documente plus haut).
+HSTAT_DL50_COLONNES_MOTIFS <- c(
+  colMorts = "mort|dead|deces|tue|kill|abattu|knock|^kd",
+  colDose  = "dose|conc|ppm|^cl$|^dl$|^c$|^d$|mg|g/l|ml/l",
+  colN     = "effectif|teste|tested|expose|total|nombre|^nb|^n$|^n[_. ]|individu|insecte")
+
+.hstat_dl50_colonnes_proposees <- function(noms) {
+  noms <- as.character(noms %||% character(0))
+  cle <- tolower(hstat_sans_accents(noms))
+  vivant <- grepl("vivant|surviv|alive", cle)
+  pris <- character(0)
+  out <- stats::setNames(rep(NA_character_, 3L), c("colDose", "colN", "colMorts"))
+  for (r in names(HSTAT_DL50_COLONNES_MOTIFS)) {
+    ok <- grepl(HSTAT_DL50_COLONNES_MOTIFS[[r]], cle) & !vivant & !noms %in% pris
+    if (any(ok)) { out[[r]] <- noms[which(ok)[1]]; pris <- c(pris, out[[r]]) }
+  }
+  for (r in names(out)[is.na(out)]) {
+    reste <- setdiff(noms, pris)
+    if (length(reste)) { out[[r]] <- reste[1]; pris <- c(pris, reste[1]) }
+  }
   out
 }
 
@@ -3261,7 +3294,11 @@ mod_dl50_ui <- function(id) {
     shiny::fluidRow(
       shinydashboard::box(
         title = shiny::tagList(shiny::icon("bug"), " Grandeur étudiée"),
+        # REPLIEE PAR DEFAUT, a la demande : le cas courant est une DL50 en
+        # dose, et la boite poussait la saisie hors de l'ecran. Repliee, ses
+        # reglages gardent leur valeur (mortalite, dose) et s'ouvrent au clic.
         status = "primary", width = 12, solidHeader = TRUE,
+        collapsible = TRUE, collapsed = TRUE,
         shiny::fluidRow(
           shiny::column(4,
             shiny::selectInput(ns("reponse"), "Réponse mesurée",
@@ -4203,9 +4240,14 @@ mod_dl50_server <- function(id, values) {
       d <- donnees()
       shiny::req(is.data.frame(d))
       num <- names(d)[vapply(d, is.numeric, logical(1))]
+      # Une selection qui existe encore est gardee ; sinon -- premier
+      # chargement, ou nouvelle feuille dont les colonnes ont d'autres noms --
+      # on propose une colonne par role plutot que de laisser la liste vide.
+      prop <- .hstat_dl50_colonnes_proposees(num)
       for (id2 in c("colDose", "colN", "colMorts"))
         shiny::updateSelectInput(session, id2, choices = num,
-                                 selected = shiny::isolate(input[[id2]]))
+          selected = hstat_garder_choix(shiny::isolate(input[[id2]]), num,
+                                        defaut = prop[[id2]]))
     })
 
     # LA LISTE DE REGROUPEMENT N'OFFRE PAS LES TROIS COLONNES DE MESURE.
@@ -4500,7 +4542,8 @@ mod_dl50_server <- function(id, values) {
                      c("selMethode", "methode"), c("selUnite", "unite"),
                      c("selMa1", "matiere1"), c("selMa2", "matiere2")))
         shiny::updateSelectizeInput(session, p[1], choices = val(p[2]),
-          selected = shiny::isolate(input[[p[1]]]), server = FALSE)
+          selected = hstat_garder_choix(shiny::isolate(input[[p[1]]]), val(p[2])),
+          server = FALSE)
     })
 
     shiny::observeEvent(input$selValider, {
@@ -4648,11 +4691,9 @@ mod_dl50_server <- function(id, values) {
                  sprintf("%.2f %%", 100 * f$c),
                  sprintf(" (témoin : %.2f %%)", 100 * f$c_temoin)),
         {
-          mc <- hstat_dl50_corrigees(f)
-          shiny::p(shiny::strong(tr(voc_fit()$corrigee_titre)), " ",
-                   paste(sprintf("%s : %.2f %%",
-                                 trimws(formatC(mc$Dose, format = "g", digits = 4)),
-                                 mc$Mortalite_corrigee), collapse = " ; "))
+          tc <- hstat_dl50_temoin_corrige(f)
+          shiny::p(shiny::strong(tr(paste0(voc_fit()$temoin_corrige, " :"))), " ",
+                   if (is.finite(tc)) sprintf("%.2f %%", tc) else "—")
         },
         shiny::p(shiny::strong(tr("Test d'ajustement :")), " ",
                  sprintf("Chi-2 = %.3f, ddl = %d, p = %.4f", f$chi2, f$ddl, f$p_chi2),
@@ -4686,13 +4727,7 @@ mod_dl50_server <- function(id, values) {
         # ensemble, et l'unite declaree le dit.
         lig(tr("Mortalité naturelle (c)"), 100 * f$c, 100 * sqrt(f$Vh[3, 3]), "%"),
         lig(tr("Mortalité naturelle du témoin"), 100 * f$c_temoin, NA_real_, "%"),
-        {
-          mc <- hstat_dl50_corrigees(f)
-          do.call(rbind, lapply(seq_len(nrow(mc)), function(i)
-            lig(trf(voc_fit()$corrigee,
-                    trimws(formatC(mc$Dose[i], format = "g", digits = 4))),
-                mc$Mortalite_corrigee[i], NA_real_, "%")))
-        },
+        lig(tr(voc_fit()$temoin_corrige), hstat_dl50_temoin_corrige(f), NA_real_, "%"),
         lig(tr("Écart-type des tolérances (1/b)"), sigma, NA_real_, tr(voc_fit()$log10)),
         lig(tr("Covariance a-b (Vab)"), f$Vh[1, 2]),
         lig(tr("Covariance a-c (Vac)"), f$Vh[1, 3]),

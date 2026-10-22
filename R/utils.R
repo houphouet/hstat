@@ -6246,7 +6246,28 @@ hstat_refus <- function(msg)
 # sert TOUTES les sessions. La borne haute est celle que l'interface declare,
 # et un test verifie que les deux sont les memes : deux chiffres qui ne se
 # parlent pas finissent par diverger.
+# -- Une selection reconduite sur de nouvelles donnees -------------------------
+# Un selecteur de colonnes rempli depuis le jeu de travail reconduit souvent la
+# selection precedente (`selected = isolate(input$x)`), pour ne pas la perdre a
+# chaque recalcul. Mais apres le chargement d'une AUTRE feuille ou d'un autre
+# fichier, cette colonne n'existe plus : `updateSelectInput()` recoit un
+# `selected` absent des choix, et la liste reste VIDE -- signale a l'ecran sur
+# la DL50, ou il fallait reprendre les trois colonnes a la main sans que rien
+# ne dise pourquoi elles avaient disparu.
+#
+# On garde ce qui existe encore ; sinon on retombe sur le defaut, lui aussi
+# rapproche des choix (un defaut absent ne vaut pas mieux qu'une selection
+# perimee). Les choix peuvent etre nommes ou groupes : on compare les VALEURS.
+hstat_garder_choix <- function(courant, choix, defaut = NULL) {
+  v <- unname(as.character(unlist(choix, use.names = FALSE)))
+  k <- intersect(as.character(courant), v)
+  if (length(k)) return(k)
+  d <- intersect(as.character(defaut), v)
+  if (length(d)) d else NULL
+}
+
 hstat_borne_client <- function(x, defaut, min, max) {
+
   v <- hstat_finite(x, defaut)
   min(max(v, min), max)
 }

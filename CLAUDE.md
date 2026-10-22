@@ -10240,16 +10240,66 @@ une sonde qui lit `data$label` rend « aucune équation » sur une figure qui en
 porte une. Il exige la position sous la droite et deux tailles différentes pour
 deux réglages.
 
-### La mortalité corrigée dans « Paramètres de la régression »
+### La mortalité corrigée dans « Paramètres de la régression » : celle du témoin
 
-C'est le chiffre que la droite de Henry ajuste, et il ne vivait que dans le
-détail par dose. `hstat_dl50_corrigees()` le rend par dose, corrigé par la
-mortalité naturelle **retenue par l'ajustement** — la même `c` que les doses
-létales, pas celle du témoin seul quand la méthode l'estime. Une ligne par dose
-dans le tableau (donc dans les exports), une phrase dans le résumé. Une valeur
-négative reste négative : la borner à zéro masquerait une dose qui tue moins que
-le témoin. Le test exige que la correction soit **discernable** de la mortalité
-observée, sans quoi il ne distinguerait pas les deux.
+Elle y est d'abord entrée **dose par dose** ; ces lignes ont été retirées à la
+demande — le détail par dose les porte déjà, et le tableau des paramètres ne
+doit tenir que des grandeurs de l'ajustement. Reste **la mortalité corrigée du
+témoin** (`hstat_dl50_temoin_corrige()`), corrigée par la mortalité naturelle
+**retenue** par l'ajustement : `(p0 − c) / (1 − c)`, la même `c` que les doses
+létales.
+
+Elle vaut **0 sous Abbott**, où `c` est le témoin lui-même, et s'en écarte sous
+EM, où `c` est estimée sur tout l'essai : c'est l'écart entre ce que le témoin a
+montré et ce que le modèle a retenu. Le test exige les deux, sans quoi il ne
+distinguerait pas la formule d'une constante. Sans témoin ou à `c = 1`, elle
+vaut `NA`, jamais zéro — qui se lirait « témoin conforme ».
+
+### « Grandeur étudiée » est repliée par défaut
+
+Demandé à l'écran : la boîte poussait la saisie hors de l'écran pour le cas
+courant, une DL50 en dose. Elle n'est **pas** supprimée — elle porte le choix du
+knock-down (KD50, KT50) et celui de la DL ou de la CL, qui disparaîtraient avec
+elle. Repliée, ses réglages existent et gardent leur valeur par défaut
+(mortalité, dose) ; le test vérifie les deux.
+
+## Une nouvelle feuille chargée ne vide plus les listes de colonnes
+
+Signalé à l'écran : dans la DL50, après le chargement d'une **autre feuille** du
+classeur, « D'où viennent les données » ne proposait plus rien de sélectionné —
+les trois listes (doses, effectifs, morts) restaient vides.
+
+Mesuré au navigateur, la cause est double. Les listes se **remplissaient**
+bien des nouvelles colonnes, mais :
+
+1. **rien n'y était jamais sélectionné**, même au premier chargement : la
+   sélection reprenait `isolate(input$colDose)`, `NULL` au départ ;
+2. après une nouvelle feuille, elle reprenait la colonne **précédente**, absente
+   des nouveaux choix : `updateSelectInput()` reçoit alors un `selected`
+   inconnu, et la liste reste **vide**.
+
+`hstat_garder_choix(courant, choix, defaut)` (`R/utils.R`) porte la règle : ce
+qui existe encore est gardé, sinon le défaut — lui aussi rapproché des choix —,
+sinon rien. `%||% defaut`, l'idiome d'avant, ne rattrape que `NULL` : une valeur
+**périmée** n'est pas `NULL`, elle passait.
+
+La DL50 **propose** désormais une colonne par rôle
+(`.hstat_dl50_colonnes_proposees()`), d'après son nom d'abord (« Concentration »,
+« Effectif testé », « Morts_48h »), puis dans l'ordre des colonnes. Une colonne
+de **survivants** n'est jamais proposée pour les morts : c'est l'inversion déjà
+documentée plus haut.
+
+Même défaut, même remède, partout où il existait : mesures répétées (sujet,
+facteurs intra et inter), seuils d'efficacité (traitements, témoin, mesures,
+répétition), atelier de codage (question ouverte, document, code du
+dictionnaire) et critères de sélection des essais DL50. Un balayage par
+l'analyseur barre le retour de `selected = isolate(input$x)` nu ou suivi de
+`%||%`.
+
+Le test du module relève les messages de mise à jour à la **racine** de la
+session : sous `testServer()`, la session d'un module est un mandataire qui
+refuse l'affectation (`session$rootScope()$sendInputMessage <- …`). Il a été
+vérifié comme échouant sur l'ancien code (six assertions).
 
 ### La DL10 extrapolée ne sort plus du cadre
 
