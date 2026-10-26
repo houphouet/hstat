@@ -155,21 +155,6 @@ ui <- shinydashboard::dashboardPage(
         shiny::tags$span(class = "seg", id = "hstatLangEn",
           onclick = "window.hstatSetLangue && hstatSetLangue('en');this.classList.add('active');document.getElementById('hstatLangFr').classList.remove('active');",
           "EN"))),
-    # Separateur decimal des fichiers telecharges. Meme forme que la langue :
-    # deux segments, parce que c'est un choix binaire qui doit rester visible.
-    # La fenetre qui precede chaque telechargement le reprend ; ici on le
-    # retrouve apres avoir coche « Ne plus demander ».
-    shiny::tags$li(class = "dropdown",
-      shiny::div(class = "hstat-theme-toggle hstat-dec-bascule",
-        title = "Séparateur décimal des fichiers téléchargés",
-        shiny::tags$span(class = "seg active", id = "hstatDecPoint",
-          `data-hstat-notranslate` = NA,
-          onclick = "window.hstatSetDecimale && hstatSetDecimale('.');",
-          "1.5"),
-        shiny::tags$span(class = "seg", id = "hstatDecVirgule",
-          `data-hstat-notranslate` = NA,
-          onclick = "window.hstatSetDecimale && hstatSetDecimale(',');",
-          "1,5"))),
     shiny::tags$li(class = "dropdown",
       shiny::div(class = "hstat-theme-toggle",
         shiny::tags$span(class = "seg active", id = "hstatThemeLight",

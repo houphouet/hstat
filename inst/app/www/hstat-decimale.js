@@ -18,17 +18,16 @@
       se fait ici, cellule par cellule (`hstatDecimaleCellule`), selon la meme
       regle que `hstat_decimale_texte()` cote R.
 
-   « Ne plus demander » vaut pour la visite (sessionStorage) : le choix reste
-   ensuite modifiable dans le bandeau, et la question revient a la visite
-   suivante plutot que de disparaitre pour toujours sans qu'on sache ou la
-   retrouver.
+   La fenetre est le SEUL endroit ou le choix se fait : ni bandeau, ni
+   selecteur dans les blocs d'export. Elle revient donc a chaque
+   telechargement, pre-cochee sur le dernier choix (localStorage) : un clic, ou
+   Entree, suffit a confirmer.
    =========================================================================== */
 
 (function () {
   "use strict";
 
   var CLE_CHOIX    = "hstat.decimale";
-  var CLE_DEMANDER = "hstat.decimale.demander";
   var ATTENTE_MS   = 3000;
 
   function lire(stock, cle, defaut) {
@@ -107,21 +106,9 @@
     });
   }
 
-  function marquerBandeau() {
-    var p = document.getElementById("hstatDecPoint");
-    var v = document.getElementById("hstatDecVirgule");
-    if (p) p.classList.toggle("active", choix === ".");
-    if (v) v.classList.toggle("active", choix === ",");
-    // Les selecteurs des blocs d'export lisent l'etat sur <body> par la feuille
-    // de style : un bloc rendu plus tard (renderUI) s'affiche juste sans qu'il
-    // faille le reparcourir.
-    if (document.body) document.body.setAttribute("data-hstat-decimale", choix);
-  }
-
   window.hstatSetDecimale = function (v) {
     choix = v === "," ? "," : ".";
     ecrire("localStorage", CLE_CHOIX, choix);
-    marquerBandeau();
     envoyer();
   };
 
@@ -185,14 +172,6 @@
     note.className = "hstat-dec-note";
     note.textContent = "Avec la virgule, les colonnes d'un CSV sont séparées par un point-virgule, et les nombres d'un classeur Excel sont écrits avec la virgule quels que soient les réglages d'Excel. Ils y entrent comme du texte : « Convertir en nombre » les rend calculables.";
 
-    var plus = document.createElement("label");
-    plus.className = "hstat-dec-plus";
-    var cb = document.createElement("input");
-    cb.type = "checkbox";
-    var cbt = document.createElement("span");
-    cbt.textContent = "Ne plus demander pendant cette visite";
-    plus.appendChild(cb); plus.appendChild(cbt);
-
     var actions = document.createElement("div");
     actions.className = "hstat-dec-actions";
     var annuler = document.createElement("button");
@@ -204,19 +183,23 @@
     actions.appendChild(annuler); actions.appendChild(ok);
 
     boite.appendChild(h); boite.appendChild(p); boite.appendChild(opts);
-    boite.appendChild(note); boite.appendChild(plus); boite.appendChild(actions);
+    boite.appendChild(note); boite.appendChild(actions);
     fond.appendChild(boite);
     document.body.appendChild(fond);
 
     annuler.onclick = function () { fermer(fond); };
     fond.addEventListener("click", function (ev) { if (ev.target === fond) fermer(fond); });
-    fond.__echap = function (ev) { if (ev.key === "Escape") fermer(fond); };
+    fond.__echap = function (ev) {
+      if (ev.key === "Escape") fermer(fond);
+      else if (ev.key === "Enter" && document.activeElement !== annuler) {
+        ev.preventDefault(); ok.onclick();
+      }
+    };
     document.addEventListener("keydown", fond.__echap, true);
 
     ok.onclick = function () {
       var r = boite.querySelector("input[type=radio]:checked");
       window.hstatSetDecimale(r ? r.value : choix);
-      if (cb.checked) ecrire("sessionStorage", CLE_DEMANDER, "0");
       fermer(fond);
       lancer();
     };
@@ -226,22 +209,9 @@
   // ------------------------------------------------------------ interception
   function relancer(el) { el.__hstatDecOk = true; el.click(); }
 
-  // Le bloc qui porte le bouton porte-t-il aussi son selecteur ? Alors le choix
-  // est sous les yeux de l'utilisateur, juste a cote du format : le redemander
-  // dans une fenetre serait une question deja posee.
-  function selecteurVoisin(el) {
-    var bloc = el.closest(".box, .modal-content, .tab-pane, .well");
-    return !!(bloc && bloc.querySelector(".hstat-dec-choix"));
-  }
-
   document.addEventListener("click", function (ev) {
     var cible = ev.target && ev.target.closest ? ev.target : null;
     if (!cible) return;
-    var seg = cible.closest("[data-hstat-dec]");
-    if (seg) {
-      window.hstatSetDecimale(seg.getAttribute("data-hstat-dec"));
-      return;
-    }
     var lien = cible.closest("a.shiny-download-link");
     var bouton = lien ? null : cible.closest(".buttons-csv, .buttons-excel");
     var el = lien || bouton;
@@ -255,17 +225,9 @@
       ? function () { quandServeurPret(function () { relancer(el); }); }
       : function () { relancer(el); };
 
-    var demande = lire("sessionStorage", CLE_DEMANDER, "1") !== "0" &&
-                  !selecteurVoisin(el);
-    if (!demande && (bouton || serveur === choix)) return;
-
     ev.preventDefault();
     ev.stopPropagation();
     ev.stopImmediatePropagation();
-    if (demande) demander(lancer); else lancer();
+    demander(lancer);
   }, true);
-
-  if (document.readyState === "loading")
-    document.addEventListener("DOMContentLoaded", marquerBandeau);
-  else marquerBandeau();
 })();
