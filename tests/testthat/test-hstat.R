@@ -23308,3 +23308,79 @@ test_that("les filtres numeriques de DT recoivent le greffon jQuery de noUiSlide
   # Copie juste (CRAN) : rien n'est ajoute.
   expect_false("nouislider" %in% noms(hstat_reparer_deps(ui, nouislider_casse = FALSE)))
 })
+
+test_that("le catalogue multivarie ecrit la categorie que lisent les panneaux", {
+  # LE DEFAUT QUE CE TEST GARDE, signale a l'ecran : les analyses qualitatives
+  # et mixtes s'affichaient sans aucun reglage. Leurs boites vivent dans des
+  # `conditionalPanel(condition = "input.mv_category == 'quali'")` ; seul le
+  # catalogue peut changer cette entree, et la ligne qui l'ecrivait avait ete
+  # retiree comme « fil mort » -- aucun observateur SERVEUR ne la lisait. Elle
+  # etait lue par le NAVIGATEUR. La categorie restait « quanti », les panneaux
+  # restaient masques, et leurs sorties suspendues ne se rendaient jamais.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  ux <- paste(readLines(file.path(root, "inst", "app", "UX.R"), encoding = "UTF-8"),
+              collapse = "\n")
+  i <- regexpr("function selectMethod(title, cat){", ux, fixed = TRUE)
+  expect_gt(i, 0L)
+  corps <- substr(ux, i, i + 600L)
+  expect_true(grepl("Shiny.setInputValue('mv_category', cat", corps, fixed = TRUE))
+  # Une valeur d'evenement ne reste pas dans `input` : un panneau conditionnel
+  # relu plus tard ne la verrait plus.
+  expect_false(grepl("setInputValue('mv_category', cat, {priority", corps, fixed = TRUE))
+  # Chaque categorie du catalogue a son panneau, et reciproquement. Les items
+  # quantitatifs ne la nomment pas : c'est la valeur par defaut de
+  # `.mv_cat_item()`.
+  cats <- regmatches(ux, gregexpr('"(quali|mixte)"\\)', ux))[[1]]
+  cats <- unique(c("quanti", gsub('[")]', "", cats)))
+  conds <- unique(sub(".*'(\\w+)'.*", "\\1",
+                      regmatches(ux, gregexpr("input\\.mv_category == '\\w+'", ux))[[1]]))
+  expect_setequal(cats, c("quanti", "quali", "mixte"))
+  expect_setequal(conds, cats)
+})
+
+test_that("l'AFC de deux variables independantes le dit au lieu de lever", {
+  # Un plan croise equilibre (laine x tension de `warpbreaks`, 9 par case) a
+  # une inertie NULLE : les parts de variance des axes valent 0/0 = NaN, et
+  # `if (dim12 >= 70)` levait « missing value where TRUE/FALSE needed » --
+  # affiche tel quel, en anglais, a la place des metriques.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  skip_if_not_installed("shinydashboard")
+  skip_if_not_installed("DT")
+  skip_if_not_installed("FactoMineR")
+  e <- new.env(parent = globalenv())
+  monte <- tryCatch({
+    suppressMessages(suppressWarnings({
+      socle <- file.path(root, "R")
+      for (f in c(file.path(socle, "utils.R"),
+                  list.files(socle, pattern = "^mod_.*[.]R$", full.names = TRUE)))
+        sys.source(f, e)
+      hstat_installer_replis_ui(e)
+      assign("em", shiny::em, envir = e)
+      assign("margin", ggplot2::margin, envir = e)
+      old <- setwd(file.path(root, "inst", "app")); on.exit(setwd(old), add = TRUE)
+      sys.source("UX.R", e)
+      sys.source("app_server.R", e)
+    }))
+    TRUE
+  }, error = function(err) conditionMessage(err))
+  skip_if(!isTRUE(monte), paste("montage du serveur impossible :", monte))
+  texte <- function(x) gsub("[[:space:]]+", " ", gsub("<[^>]*>", " ",
+                            paste(as.character(x), collapse = " ")))
+  shiny::testServer(get("server", envir = e), {
+    session$setInputs(rDataName = "warpbreaks", loadRData = 1)
+    session$setInputs(mv_afc_row = "wool", mv_afc_col = "tension", mv_afc_run = 1)
+    m <- texte(output$mv_afc_metrics)
+    expect_false(grepl("missing value", m, fixed = TRUE))
+    expect_true(grepl("exactement indépendantes", m, fixed = TRUE))
+    expect_true(grepl("wool", m, fixed = TRUE))
+    # Et l'AFC d'un tableau associe rend bien ses metriques : sans cette
+    # moitie, une AFC qui refuserait tout passerait aussi.
+    session$setInputs(rDataName = "esoph", loadRData = 2)
+    session$setInputs(mv_afc_row = "agegp", mv_afc_col = "alcgp", mv_afc_run = 2)
+    m2 <- texte(output$mv_afc_metrics)
+    expect_true(grepl("Cramér", m2, fixed = TRUE))
+    expect_false(grepl("indépendantes", m2, fixed = TRUE))
+  })
+})
