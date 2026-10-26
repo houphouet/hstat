@@ -10495,3 +10495,34 @@ juste, n'est pas touchée.
 Vérifié au navigateur. La console est vide sur les vingt-deux onglets, avec le
 jeu normal comme avec le jeu hostile. Seize curseurs sont rendus dans l'onglet
 Filtrage, et en déplacer un filtre bien le tableau (1 ligne sur 60).
+
+## Un fil « mort » pour le serveur peut être lu par le navigateur
+
+Signalé à l'écran : les analyses multivariées **qualitatives et mixtes**
+(ACM, AFC, k-modes, LCA, régression logistique, AFDM, AFM, k-prototypes)
+s'affichaient sans aucun réglage — ni variables, ni métriques.
+
+Leurs boîtes vivent dans des `conditionalPanel(condition =
+"input.mv_category == 'quali'")`, et seul le catalogue change cette entrée.
+L'écriture `Shiny.setInputValue('mv_category', cat)` avait été retirée en 1.6.2
+comme **fil mort** : aucun observateur **serveur** ne la lisait. Elle était lue
+par le **navigateur**. La catégorie restait « quanti », les deux panneaux
+restaient masqués, et leurs sorties, suspendues, ne se rendaient jamais.
+
+Règle : avant de déclarer une entrée morte, chercher aussi `input.<id>` dans
+les conditions des `conditionalPanel` et dans le JavaScript. Un test exige que
+`selectMethod()` écrive la catégorie, sans `priority: 'event'` — une valeur
+d'événement ne reste pas dans `input`, et un panneau relu plus tard ne la
+verrait plus.
+
+### L'AFC de deux variables indépendantes n'a pas d'axe
+
+Trouvé en relançant les analyses une fois les panneaux revenus : croiser les
+deux facteurs d'un plan **équilibré** (traitement × bloc) donne une inertie
+**nulle**. Les parts de variance des axes valent alors 0/0, et
+`if (dim12 >= 70)` levait « missing value where TRUE/FALSE needed », affiché
+tel quel à la place des métriques. Ce n'est pas une erreur, c'est un résultat :
+l'AFC le dit et nomme les deux variables.
+
+Au passage, les quatorze analyses rendaient `conditionMessage(e)` brut en cas
+d'échec : elles passent par `hstat_err_fr()`, comme le reste de l'application.

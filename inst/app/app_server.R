@@ -6861,7 +6861,7 @@ server <- function(input, output, session) {
           exports = list(Metriques = metrics,
             Centres = data.frame(Cluster = seq_len(k), round(km$centers,4), check.names = FALSE),
             Effectifs = data.frame(Cluster = seq_len(k), Effectif = km$size)))
-      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+      }, error = function(e) list(ok = FALSE, error = hstat_err_fr(e)))
     })
   })
 
@@ -7050,7 +7050,7 @@ server <- function(input, output, session) {
           exports = list(Metriques = metrics,
             Saturations = data.frame(Variable = rownames(load), round(load,4), check.names = FALSE),
             Communautes = comm_df))
-      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+      }, error = function(e) list(ok = FALSE, error = hstat_err_fr(e)))
     })
   })
 
@@ -7176,7 +7176,7 @@ server <- function(input, output, session) {
           exports = list(Metriques = metrics,
             Saturations = data.frame(Facteur = lt$Facteur, Indicateur = lt$Indicateur,
               Charge_std = round(lt$Charge_std,4), p_value = round(lt$p_value,4))))
-      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+      }, error = function(e) list(ok = FALSE, error = hstat_err_fr(e)))
     })
   })
 
@@ -7379,7 +7379,7 @@ server <- function(input, output, session) {
             Classification_paires = data.frame(cls[, c("Var1","Var2","Trait1","Trait2",
                                                        "Methode1","Methode2","Zone")],
                                                r = round(cls$r, 4))))
-      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+      }, error = function(e) list(ok = FALSE, error = hstat_err_fr(e)))
     })
   })
 
@@ -7525,7 +7525,7 @@ server <- function(input, output, session) {
           summary = c("=== Régression PLS ===",
             paste(utils::capture.output(summary(fit)), collapse="\n")),
           plotfn = plotfn, exports = exports)
-      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+      }, error = function(e) list(ok = FALSE, error = hstat_err_fr(e)))
     })
   })
 
@@ -7610,7 +7610,7 @@ server <- function(input, output, session) {
               mv_gg_theme()
           },
           exports = list(Metriques = metrics, Coefficients = coef_df))
-      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+      }, error = function(e) list(ok = FALSE, error = hstat_err_fr(e)))
     })
   })
 
@@ -7632,6 +7632,15 @@ server <- function(input, output, session) {
         ca <- FactoMineR::CA(tab, graph = FALSE)
         eig <- ca$eig
         inertia <- sum(eig[,1])
+        # Inertie nulle : les deux variables sont exactement independantes (le
+        # cas d'un plan croise equilibre, Traitement x Bloc). Les axes n'ont
+        # alors aucune part de variance (0/0 = NaN), et `dim12 >= 70` levait
+        # « missing value where TRUE/FALSE needed ». Ce n'est pas une erreur,
+        # c'est un resultat : on le dit.
+        if (!is.finite(inertia) || inertia <= 1e-12)
+          return(list(ok = FALSE, error = trf(
+            "« %s » et « %s » sont exactement indépendantes (inertie nulle, khi² = 0) : l'AFC n'a aucun axe à extraire. C'est le cas d'un plan croisé équilibré ; choisissez deux variables qui peuvent être associées.",
+            rv, cv)))
         cramer <- sqrt(chi$statistic / (sum(tab) * (min(dim(tab)) - 1)))
         exp_low <- mean(chi$expected < 5) * 100
         dim12 <- sum(eig[1:min(2,nrow(eig)),2])
@@ -7706,7 +7715,7 @@ server <- function(input, output, session) {
           },
           exports = list(Metriques = metrics, Valeurs_propres = eig_df,
             Table = as.data.frame.matrix(tab)))
-      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+      }, error = function(e) list(ok = FALSE, error = hstat_err_fr(e)))
     })
   })
 
@@ -7840,7 +7849,7 @@ server <- function(input, output, session) {
           exports = list(Metriques = metrics, Valeurs_propres = eig_df,
             Modalites = data.frame(Modalite = rownames(mca$var$contrib),
                                    round(mca$var$contrib,3), check.names = FALSE)))
-      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+      }, error = function(e) list(ok = FALSE, error = hstat_err_fr(e)))
     })
   })
 
@@ -7919,7 +7928,7 @@ server <- function(input, output, session) {
           exports = list(Metriques = metrics,
             Modes = data.frame(Cluster = seq_len(k), km$modes, check.names = FALSE),
             Effectifs = sz_df))
-      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+      }, error = function(e) list(ok = FALSE, error = hstat_err_fr(e)))
     })
   })
 
@@ -7998,7 +8007,7 @@ server <- function(input, output, session) {
               mv_gg_theme() + ggplot2::theme(legend.position = "none")
           },
           exports = list(Metriques = metrics, Effectifs = cl_df))
-      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+      }, error = function(e) list(ok = FALSE, error = hstat_err_fr(e)))
     })
   })
 
@@ -8140,7 +8149,7 @@ server <- function(input, output, session) {
         list(ok = TRUE, render = render, metrics = metrics, note = note,
           summary = c("=== Régression logistique ===", summ),
           plotfn = plotfn, exports = exports)
-      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+      }, error = function(e) list(ok = FALSE, error = hstat_err_fr(e)))
     })
   })
 
@@ -8258,7 +8267,7 @@ server <- function(input, output, session) {
             mv_add_labels(p, ic, "Dim1", "Dim2", "label")
           },
           exports = list(Metriques = metrics, Valeurs_propres = eig_df))
-      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+      }, error = function(e) list(ok = FALSE, error = hstat_err_fr(e)))
     })
   })
 
@@ -8359,7 +8368,7 @@ server <- function(input, output, session) {
             mv_add_labels(p, ic, "Dim1", "Dim2", "label")
           },
           exports = list(Metriques = metrics, Valeurs_propres = eig_df))
-      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+      }, error = function(e) list(ok = FALSE, error = hstat_err_fr(e)))
     })
   })
 
@@ -8438,7 +8447,7 @@ server <- function(input, output, session) {
               mv_gg_theme() + ggplot2::theme(legend.position = "none")
           },
           exports = list(Metriques = metrics, Effectifs = sz_df))
-      }, error = function(e) list(ok = FALSE, error = conditionMessage(e)))
+      }, error = function(e) list(ok = FALSE, error = hstat_err_fr(e)))
     })
   })
 

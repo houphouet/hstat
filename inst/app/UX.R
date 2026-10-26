@@ -879,6 +879,10 @@ ui <- shinydashboard::dashboardPage(
 
                   function catLabel(cat){ return cat==='quali' ? 'QUALITATIVE' : (cat==='mixte' ? 'MIXTE' : 'QUANTITATIVE'); }
                   function selectMethod(title, cat){
+                    // LU PAR LES conditionalPanel (input.mv_category), PAS PAR LE SERVEUR.
+                    // Sans cette ecriture, les categories qualitative et mixte restent
+                    // masquees : leurs controles ne se rendent jamais.
+                    if(cat && window.Shiny && Shiny.setInputValue){ Shiny.setInputValue('mv_category', cat); }
                     document.querySelectorAll('.mv-cat-item').forEach(function(it){ it.classList.remove('active'); });
                     var col=colRoot(); if(col) col.classList.add('has-selection');
                     // En-tete de methode facon maquette
