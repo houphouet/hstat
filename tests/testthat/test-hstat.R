@@ -23382,5 +23382,41 @@ test_that("l'AFC de deux variables independantes le dit au lieu de lever", {
     m2 <- texte(output$mv_afc_metrics)
     expect_true(grepl("Cramér", m2, fixed = TRUE))
     expect_false(grepl("indépendantes", m2, fixed = TRUE))
+
+    # SIGNALÉ À L'ÉCRAN : `HairEyeColor`, déplié en format long, porte une
+    # ligne par croisement et ses effectifs dans « Freq ». Comptées par lignes,
+    # Hair x Eye vaut 2 partout -- l'indépendance annoncée était un artefact.
+    session$setInputs(rDataName = "HairEyeColor", loadRData = 3)
+    session$setInputs(mv_afc_row = "Hair", mv_afc_col = "Eye",
+                      mv_afc_poids = "__aucun__", mv_afc_run = 3)
+    m3 <- texte(output$mv_afc_metrics)
+    expect_true(grepl("Freq", m3, fixed = TRUE))       # la cause est nommée
+    session$setInputs(mv_afc_poids = "Freq", mv_afc_run = 4)
+    m4 <- texte(output$mv_afc_metrics)
+    expect_true(grepl("Cramér", m4, fixed = TRUE))
+    expect_false(grepl("indépendantes", m4, fixed = TRUE))
   })
+})
+
+test_that("la table de contingence lit une colonne d'effectifs", {
+  d <- as.data.frame(HairEyeColor)
+  # Par lignes : 2 partout, l'artefact signalé.
+  t0 <- hstat_table_contingence(d, "Hair", "Eye")$table
+  expect_true(all(t0 == 2))
+  # Par effectifs : la vraie table, celle de R, case pour case.
+  t1 <- hstat_table_contingence(d, "Hair", "Eye", "Freq")
+  ref <- apply(HairEyeColor, c(1, 2), sum)
+  expect_equal(unname(unclass(t1$table)), unname(unclass(ref[rownames(t1$table), colnames(t1$table)])))
+  expect_true(any(grepl("Freq", t1$notes, fixed = TRUE)))
+  expect_lt(suppressWarnings(stats::chisq.test(t1$table))$p.value, 1e-10)
+  # La proposition se fait sur le NOM, jamais sur des valeurs entières.
+  expect_identical(hstat_effectif_propose(d), "Freq")
+  expect_null(hstat_effectif_propose(data.frame(Age = 1:3, Groupe = c("a", "b", "c"))))
+  # Un effectif négatif est écarté et compté, une colonne absente refusée.
+  d2 <- d; d2$Freq[1] <- -5
+  r2 <- hstat_table_contingence(d2, "Hair", "Eye", "Freq")
+  expect_true(any(grepl("négatif", r2$notes, fixed = TRUE)))
+  expect_false(hstat_table_contingence(d, "Hair", "Eye", "Inconnue")$ok)
+  # « Aucune » vaut l'absence de colonne.
+  expect_identical(hstat_table_contingence(d, "Hair", "Eye", "__aucun__")$poids, NULL)
 })

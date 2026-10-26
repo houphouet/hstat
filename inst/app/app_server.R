@@ -6406,7 +6406,15 @@ server <- function(input, output, session) {
           shiny::column(6, shiny::selectInput("mv_afc_row", shiny::tagList(shiny::icon("grip-lines"), " Variable-ligne :"),
                                 choices = cc)),
           shiny::column(6, shiny::selectInput("mv_afc_col", shiny::tagList(shiny::icon("grip-lines-vertical"), " Variable-colonne :"),
-                                choices = cc, selected = if (length(cc) > 1) cc[2] else cc[1])))), mv_disp_box("mv_afc"))
+                                choices = cc, selected = if (length(cc) > 1) cc[2] else cc[1]))),
+        # Un tableau deja agrege porte ses effectifs dans une colonne : compter
+        # ses lignes rendrait une independance parfaite. Proposee d'apres son nom.
+        shiny::selectInput("mv_afc_poids", shiny::tagList(shiny::icon("weight-hanging"), " Colonne d'effectifs (facultatif) :"),
+                           choices = c(stats::setNames("__aucun__", tr("(aucune : une ligne = une observation)")),
+                                       stats::setNames(mv_num_cols(), mv_num_cols())),
+                           selected = hstat_effectif_propose(mv_data()) %||% "__aucun__"),
+        shiny::helpText(tr("À renseigner quand chaque ligne est un croisement déjà compté (colonne Freq, effectif, n…) : sans elle, chaque ligne compterait pour un seul individu."))),
+      mv_disp_box("mv_afc"))
   })
 
   output$mv_mca_controls <- shiny::renderUI({
@@ -7624,7 +7632,9 @@ server <- function(input, output, session) {
         d <- mv_data(); rv <- input$mv_afc_row; cv <- input$mv_afc_col
         if (is.null(rv) || is.null(cv) || rv == cv)
           return(list(ok = FALSE, error = "Choisissez deux variables qualitatives différentes."))
-        tab <- table(d[[rv]], d[[cv]])
+        ct <- hstat_table_contingence(d, rv, cv, input$mv_afc_poids)
+        if (!isTRUE(ct$ok)) return(list(ok = FALSE, error = ct$msg))
+        tab <- ct$table
         tab <- tab[rowSums(tab) > 0, colSums(tab) > 0, drop = FALSE]
         if (nrow(tab) < 2 || ncol(tab) < 2)
           return(list(ok = FALSE, error = "Table de contingence insuffisante (>=2x2 requise)."))
@@ -7637,10 +7647,14 @@ server <- function(input, output, session) {
         # alors aucune part de variance (0/0 = NaN), et `dim12 >= 70` levait
         # « missing value where TRUE/FALSE needed ». Ce n'est pas une erreur,
         # c'est un resultat : on le dit.
-        if (!is.finite(inertia) || inertia <= 1e-12)
-          return(list(ok = FALSE, error = trf(
+        if (!is.finite(inertia) || inertia <= 1e-12) {
+          eff <- hstat_effectif_propose(d)
+          return(list(ok = FALSE, error = if (is.null(ct$poids) && !is.null(eff)) trf(
+            "« %s » et « %s » sont exactement indépendantes si chaque ligne compte pour une observation. Le fichier porte une colonne « %s » : si elle contient les effectifs de chaque croisement, choisissez-la comme colonne d'effectifs.",
+            rv, cv, eff) else trf(
             "« %s » et « %s » sont exactement indépendantes (inertie nulle, khi² = 0) : l'AFC n'a aucun axe à extraire. C'est le cas d'un plan croisé équilibré ; choisissez deux variables qui peuvent être associées.",
             rv, cv)))
+        }
         cramer <- sqrt(chi$statistic / (sum(tab) * (min(dim(tab)) - 1)))
         exp_low <- mean(chi$expected < 5) * 100
         dim12 <- sum(eig[1:min(2,nrow(eig)),2])
@@ -7691,7 +7705,7 @@ server <- function(input, output, session) {
             mv_section_header("Valeurs propres par axe", "#6c757d", "layer-group"),
             mv_data_table(eig_df, "#6c757d")))
         list(ok = TRUE, render = render, metrics = metrics,
-          note = paste0("AFC : table ", nrow(tab), "x", ncol(tab), "."),
+          note = paste(c(paste0("AFC : table ", nrow(tab), "x", ncol(tab), "."), ct$notes), collapse = " "),
           summary = c("=== Analyse Factorielle des Correspondances ===",
             trf("Variables : %s (lignes) x %s (colonnes)", rv, cv),
             "", "Valeurs propres :", paste(utils::capture.output(round(eig,4)), collapse="\n")),
