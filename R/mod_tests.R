@@ -6121,7 +6121,7 @@ mod_tests_server <- function(id, values) {
     
     g <- g + ggplot2::labs(title = titre) +
       ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", size = 15, hjust = 0.5),
-            plot.subtitle = ggplot2::element_text(size = 11, hjust = 0.5, color = "#555"))
+            plot.subtitle = ggplot2::element_text(size = 11, hjust = 0.5, color = "#555555"))
     
     values$chiSqPlotObj <- g
     g
@@ -6591,7 +6591,7 @@ mod_tests_server <- function(id, values) {
       } else "?"
       
       bg_col <- if (!is.na(p_val) && p_val < 0.05) "#e8f5e9" else "#fafafa"
-      p_col  <- if (!is.na(p_val) && p_val < 0.05) "#2e7d32" else "#666"
+      p_col  <- if (!is.na(p_val) && p_val < 0.05) "#2e7d32" else "#666666"
       
       shiny::tags$tr(
         style = paste0("background:", bg_col, "; border-bottom:1px solid #e0e0e0;"),
@@ -7373,7 +7373,7 @@ mod_tests_server <- function(id, values) {
     if (all(is.na(d$Estimation))) d$Estimation <- NULL
     DT::datatable(d, options = list(pageLength = 15, scrollX = TRUE), rownames = FALSE) %>%
       DT::formatStyle("Significatif",
-                  backgroundColor = DT::styleEqual(c("Oui", "n.s."), c("#c8e6c9", "#fff")),
+                  backgroundColor = DT::styleEqual(c("Oui", "n.s."), c("#c8e6c9", "#ffffff")),
                   fontWeight = DT::styleEqual("Oui", "bold"))
   })
   

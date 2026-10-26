@@ -10420,6 +10420,45 @@ Quatre décisions, chacune testée :
 Le blocage de sélection signalé, lui, ne s'est pas reproduit : `Freq` se
 présélectionne et se choisit au clic, mesuré au navigateur.
 
+## La légende d'un graphique multivarié se modifie
+
+Demandé à l'écran, sur l'AFC : la légende disait « Type », « Colonne »,
+« Ligne » — les mots du code. Les dix-sept graphiques multivariés (les quatorze
+du catalogue et les trois historiques, ACP, HCPC, AFD) portent désormais le
+titre de la légende (ou son masquage), le renommage de ses éléments et les
+tailles du titre et du texte. La position existait déjà.
+
+`hstat_legende_ui()` déclare, `hstat_legende_depuis()` lit et
+`hstat_legende_appliquer()` (`R/utils.R`) applique, sur le graphique **déjà
+construit** — comme le titre et les libellés d'axes de `mv_habille()`. Aucune
+analyse n'a à les connaître.
+
+Trois décisions, chacune testée :
+
+1. **Le renommage passe par les libellés de l'échelle, jamais par les
+   données.** Couleurs, formes et ordre ne bougent pas, et une palette choisie
+   avant (Set1…) survit : l'échelle existante est **clonée** puis complétée,
+   jamais remplacée par une neuve, qui reprendrait la teinte par défaut.
+2. **Toutes les échelles reçoivent le même titre et les mêmes libellés** :
+   ggplot fusionne alors couleur et forme en **une** légende, comme avant —
+   deux titres différents la scinderaient en deux.
+3. **« ancien = nouveau », coupé au premier « = »** : un nouveau libellé peut
+   en contenir un, et une ligne incomplète ne renomme rien.
+
+Le test de l'AFC passe par `mv_habille()`, le chemin du graphique tracé : une
+mutation qui retire le branchement le fait échouer, alors que le test de l'aide
+seule passerait encore.
+
+### Une couleur s'écrit en six chiffres hexadécimaux
+
+Trouvé en vérifiant ce lot au navigateur : le graphique de l'AFC ne se
+dessinait **pas du tout** sur ce conteneur — « Malformed colour string `#bbb` ».
+`#bbb` est du CSS valide, mais farver, qui décode les couleurs de ggplot2, ne
+l'accepte que dans ses versions récentes : sur une installation plus ancienne,
+le graphique entier tombe pour la couleur d'un trait d'axe. Les dix-neuf
+couleurs à trois chiffres des sources sont écrites en six, et un test balaie
+les chaînes de l'analyseur pour en barrer le retour.
+
 ## La validité d'un essai DL50 se juge sur des seuils choisis
 
 Demandé à l'écran : préciser le ou les seuils de mortalité du témoin et en
