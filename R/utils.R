@@ -6258,6 +6258,49 @@ hstat_refus <- function(msg)
 # On garde ce qui existe encore ; sinon on retombe sur le defaut, lui aussi
 # rapproche des choix (un defaut absent ne vaut pas mieux qu'une selection
 # perimee). Les choix peuvent etre nommes ou groupes : on compare les VALEURS.
+# ---- Table de contingence d'une AFC : une ligne n'est pas toujours UN individu --
+# Un tableau deja agrege (une ligne par croisement, l'effectif dans une colonne :
+# `as.data.frame(HairEyeColor)`, un export de tableur croise) porte ses effectifs
+# dans une colonne. Les compter par lignes rend 2 dans chaque case de Hair x Eye,
+# donc une independance parfaite -- alors que les vrais effectifs donnent
+# p = 2e-25. Un resultat plausible et faux : la colonne d'effectifs se declare.
+HSTAT_EFFECTIF_NOMS <- c("freq", "frequence", "effectif", "effectifs", "n",
+                         "count", "counts", "nombre", "nb", "poids", "weight")
+
+# Propose la colonne d'effectifs d'apres son nom, jamais d'apres ses valeurs :
+# une mesure entiere (age, rendement arrondi) n'est pas un effectif.
+hstat_effectif_propose <- function(d) {
+  if (!is.data.frame(d) || !ncol(d)) return(NULL)
+  num <- names(d)[vapply(d, is.numeric, logical(1))]
+  cle <- tolower(hstat_sans_accents(num))
+  hit <- num[cle %in% HSTAT_EFFECTIF_NOMS]
+  if (length(hit)) hit[1] else NULL
+}
+
+hstat_table_contingence <- function(d, ligne, colonne, poids = NULL) {
+  if (!is.null(poids) && (!nzchar(poids) || identical(poids, "__aucun__"))) poids <- NULL
+  r <- d[[ligne]]; k <- d[[colonne]]
+  if (is.null(r) || is.null(k))
+    return(list(ok = FALSE, msg = tr("Variable absente des données.")))
+  w <- if (is.null(poids)) rep(1, nrow(d)) else suppressWarnings(as.numeric(d[[poids]]))
+  if (is.null(w) || length(w) != nrow(d))
+    return(list(ok = FALSE, msg = trf("Colonne d'effectifs « %s » absente des données.", poids)))
+  ok <- !is.na(r) & !is.na(k) & is.finite(w)
+  neg <- ok & w < 0
+  ok <- ok & w >= 0
+  ecartees <- sum(!ok)
+  tab <- tapply(w[ok], list(factor(r[ok]), factor(k[ok])), sum)
+  tab[is.na(tab)] <- 0
+  tab <- as.table(tab)
+  names(dimnames(tab)) <- c(ligne, colonne)
+  notes <- character(0)
+  if (!is.null(poids)) notes <- c(notes, trf(
+    "Effectifs lus dans la colonne « %s » : chaque ligne compte pour sa valeur, pas pour un individu.", poids))
+  if (sum(neg)) notes <- c(notes, trf("%d ligne(s) d'effectif négatif écartée(s).", sum(neg)))
+  if (ecartees > sum(neg)) notes <- c(notes, trf("%d ligne(s) incomplète(s) écartée(s).", ecartees - sum(neg)))
+  list(ok = TRUE, table = tab, poids = poids, notes = notes)
+}
+
 hstat_garder_choix <- function(courant, choix, defaut = NULL) {
   v <- unname(as.character(unlist(choix, use.names = FALSE)))
   k <- intersect(as.character(courant), v)

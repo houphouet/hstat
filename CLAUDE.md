@@ -10526,3 +10526,19 @@ l'AFC le dit et nomme les deux variables.
 
 Au passage, les quatorze analyses rendaient `conditionMessage(e)` brut en cas
 d'échec : elles passent par `hstat_err_fr()`, comme le reste de l'application.
+
+### Une ligne n'est pas toujours un individu : la colonne d'effectifs de l'AFC
+
+Signalé à l'écran, sur `HairEyeColor` chargé depuis R : l'AFC de Hair × Eye
+annonçait « exactement indépendantes ». Le jeu, déplié en format long, porte
+**une ligne par croisement** et ses effectifs dans `Freq` ; compter les lignes
+rend 2 dans chaque case, donc une indépendance parfaite — alors que les vrais
+effectifs donnent p = 2 × 10⁻²⁵. Le message d'inertie nulle de 1.25.3 était
+juste sur la table qu'il voyait, et faux sur les données.
+
+`hstat_table_contingence()` construit la table, avec une **colonne d'effectifs**
+facultative ; `hstat_effectif_propose()` la présélectionne d'après son **nom**
+(`HSTAT_EFFECTIF_NOMS` : Freq, effectif, n…), jamais d'après ses valeurs — une
+mesure entière n'est pas un effectif. Un effectif négatif est écarté et compté,
+et la note sous l'analyse dit d'où viennent les effectifs. Quand l'inertie est
+nulle sans pondération alors qu'une telle colonne existe, le refus la **nomme**.
