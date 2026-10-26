@@ -2512,6 +2512,128 @@ viz_detect_x_type <- function(x) {
 # controles gris se lit mal : chaque famille porte donc sa couleur, la meme sur
 # le liseré, l'icone et le titre. La teinte de fond reste tres pale -- ce sont
 # des reglages, pas des alertes.
+# -- La legende d'un graphique multivarie se modifie --------------------------
+# Demande a l'ecran sur l'AFC : la legende disait « Type » / « Colonne » /
+# « Ligne », les mots du code, la ou l'utilisateur veut lire « Variable » /
+# « Couleur des yeux » / « Couleur des cheveux ». Le titre, le libelle de chaque
+# element et les deux tailles se reglent ; la position et le masquage
+# existaient deja.
+#
+# Les reglages se posent sur le graphique DEJA CONSTRUIT, comme le titre et les
+# libelles d'axes (`mv_habille`) : aucune analyse n'a a les connaitre, et une
+# analyse ajoutee demain en profite sans une ligne de plus.
+
+# « ancien = nouveau », une ligne par element. Une ligne sans « = », un ancien
+# ou un nouveau vide ne renomme rien : on n'invente pas de libelle. Le PREMIER
+# « = » coupe, si bien qu'un nouveau libelle peut lui-meme en contenir un.
+hstat_legende_etiquettes <- function(txt) {
+  if (is.null(txt) || !length(txt)) return(character(0))
+  l <- unlist(strsplit(paste(as.character(txt), collapse = "\n"), "\r?\n"))
+  l <- l[grepl("=", l, fixed = TRUE)]
+  if (!length(l)) return(character(0))
+  pos <- regexpr("=", l, fixed = TRUE)
+  anc <- trimws(substr(l, 1, pos - 1))
+  nou <- trimws(substr(l, pos + 1, nchar(l)))
+  ok  <- nzchar(anc) & nzchar(nou)
+  stats::setNames(nou[ok], anc[ok])
+}
+
+# Le renommage passe par les LIBELLES de l'echelle, jamais par les donnees : la
+# couleur, la forme et l'ordre des elements ne bougent pas, seul le texte lu
+# change. Composer avec les libelles deja poses : une echelle qui en portait
+# (une fonction, un vecteur nomme) garde les siens pour ce qu'on ne renomme pas.
+.hstat_legende_libelles <- function(ancien, ren) {
+  force(ancien); force(ren)
+  function(x) {
+    base <- if (is.function(ancien)) ancien(x)
+            else if (is.null(ancien) || inherits(ancien, "waiver")) x
+            else if (!is.null(names(ancien)) && all(as.character(x) %in% names(ancien)))
+              unname(ancien[as.character(x)])
+            else if (length(ancien) == length(x)) ancien
+            else x
+    base <- as.character(base)
+    cle <- as.character(x)
+    i <- match(cle, names(ren))
+    base[!is.na(i)] <- unname(ren[i[!is.na(i)]])
+    base
+  }
+}
+
+# Applique les reglages de legende a un ggplot. Seules les echelles
+# NON positionnelles et DISCRETES sont touchees : une legende de couleur
+# continue n'a pas d'elements a renommer, et les axes ne sont pas une legende.
+# Toutes recoivent le meme titre et les memes libelles : ggplot fusionne alors
+# couleur et forme en UNE legende, comme avant -- deux titres differents la
+# scinderaient en deux.
+hstat_legende_appliquer <- function(p, titre = NULL, masquer_titre = FALSE,
+                                    etiquettes = character(0),
+                                    taille_titre = NA, taille_texte = NA) {
+  if (!inherits(p, "ggplot")) return(p)
+  titre <- if (is.null(titre)) "" else trimws(as.character(titre)[1])
+  if (is.na(titre)) titre <- ""
+  if (nzchar(titre) || length(etiquettes)) {
+    b <- tryCatch(suppressWarnings(suppressMessages(ggplot2::ggplot_build(p))),
+                  error = function(e) NULL)
+    if (!is.null(b)) {
+      pos <- c("x", "y", "xmin", "xmax", "ymin", "ymax", "xend", "yend",
+               "xintercept", "yintercept", "lower", "upper", "middle")
+      for (s in b$plot$scales$scales) {
+        if (any(s$aesthetics %in% pos)) next
+        cl <- s$clone()
+        if (nzchar(titre)) cl$name <- titre
+        if (length(etiquettes) && isTRUE(cl$is_discrete()))
+          cl$labels <- .hstat_legende_libelles(s$labels, etiquettes)
+        p <- suppressMessages(p + cl)
+      }
+    }
+  }
+  th <- list()
+  if (isTRUE(masquer_titre)) th$legend.title <- ggplot2::element_blank()
+  else if (is.finite(suppressWarnings(as.numeric(taille_titre))[1]))
+    th$legend.title <- ggplot2::element_text(size = as.numeric(taille_titre)[1])
+  if (is.finite(suppressWarnings(as.numeric(taille_texte))[1]))
+    th$legend.text <- ggplot2::element_text(size = as.numeric(taille_texte)[1])
+  if (length(th)) p <- p + do.call(ggplot2::theme, th)
+  p
+}
+
+# Les reglages, declares une fois : les deux familles de graphiques
+# multivaries (catalogue et historiques) les portent sous les memes suffixes.
+hstat_legende_ui <- function(prefix) {
+  shiny::tagList(
+    shiny::fluidRow(
+      shiny::column(8, shiny::textInput(paste0(prefix, "_legtitre"), "Titre de la légende",
+                                        placeholder = "Titre automatique")),
+      shiny::column(4, shiny::div(style = "margin-top:24px;",
+        shiny::checkboxInput(paste0(prefix, "_legsanstitre"), "Masquer le titre", FALSE)))),
+    shiny::textAreaInput(paste0(prefix, "_legetiq"), "Renommer les éléments de la légende",
+                         rows = 3, placeholder = "Colonne = Couleur des yeux\nLigne = Couleur des cheveux"),
+    shiny::tags$small(style = "color:#6b7280;",
+      "Une ligne par élément : le libellé affiché, un signe égal, le nouveau libellé. Les couleurs et les formes ne changent pas."),
+    shiny::fluidRow(
+      shiny::column(6, shiny::numericInput(paste0(prefix, "_legtitresz"), "Taille du titre (pt)",
+                                           value = NULL, min = 6, max = 30, step = 1)),
+      shiny::column(6, shiny::numericInput(paste0(prefix, "_legtextesz"), "Taille des éléments (pt)",
+                                           value = NULL, min = 6, max = 30, step = 1))),
+    shiny::tags$small(style = "color:#6b7280;", "Taille vide : celle du thème."))
+}
+
+# Lit les reglages ci-dessus et les applique. `lire` rend la valeur d'un suffixe
+# (input[[paste0(prefix, "_", suffixe)]]) : les deux familles de graphiques
+# n'y accedent pas de la meme facon.
+hstat_legende_depuis <- function(p, lire) {
+  borne <- function(v) {
+    v <- suppressWarnings(as.numeric(v))[1]
+    if (length(v) && is.finite(v)) min(max(v, 6), 30) else NA
+  }
+  hstat_legende_appliquer(p,
+    titre         = lire("legtitre"),
+    masquer_titre = isTRUE(lire("legsanstitre")),
+    etiquettes    = hstat_legende_etiquettes(lire("legetiq")),
+    taille_titre  = borne(lire("legtitresz")),
+    taille_texte  = borne(lire("legtextesz")))
+}
+
 # Reglages de forme communs aux analyses multivariees historiques (ACP, HCPC,
 # AFD). Elles avaient deja titre et libelles d'axes ; le theme, le sous-titre,
 # la position de la legende et la grille manquaient a toutes.
@@ -2532,7 +2654,8 @@ hstat_mv_forme_ui <- function(prefix, titre = "Apparence du graphique") {
                     "Masquée" = "none"), selected = "gg")),
       shiny::column(6, shiny::selectInput(paste0(prefix, "_grid"), "Grille",
         choices = c("Par défaut (ggplot2)" = "gg", "Principale seule" = "majeure",
-                    "Aucune" = "sans"), selected = "gg"))))
+                    "Aucune" = "sans"), selected = "gg"))),
+    hstat_legende_ui(prefix))
 }
 
 # Les teintes des cartes d'options se DECLARENT, elles ne se choisissent pas

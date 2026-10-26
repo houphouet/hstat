@@ -851,7 +851,7 @@ server <- function(input, output, session) {
     if (identical(gr, "sans")) p <- p + ggplot2::theme(panel.grid = ggplot2::element_blank())
     else if (identical(gr, "majeure"))
       p <- p + ggplot2::theme(panel.grid.minor = ggplot2::element_blank())
-    p
+    hstat_legende_depuis(p, function(suffix) input[[paste0(prefix, "_", suffix)]])
   }
 
   # LA TAILLE PHYSIQUE EST L'ETAT, LES PIXELS N'EN SONT QUE L'AFFICHAGE
@@ -1716,7 +1716,7 @@ server <- function(input, output, session) {
                      txt  = "Indice de saturation (|corrélation|) : corrélation absolue entre la variable et les axes affichés. Proche de 1 = variable fortement liée au plan, proche de 0 = variable indépendante du plan.",
                      col  = "#4a148c", icon = "link"
                    ),
-                   list(txt = "", col = "#555", icon = "info-circle")
+                   list(txt = "", col = "#555555", icon = "info-circle")
     )
     # DIRE QUELLE FAMILLE PORTE LA COULEUR. Sur un biplot, le degrade se pose
     # sur les individus ou sur les variables selon la metrique ; sans cette
@@ -2387,7 +2387,7 @@ server <- function(input, output, session) {
       mv_ggtheme("pcaScree") +
       ggplot2::theme(
         plot.title    = element_markdown(hjust = 0.5, face = "bold", size = 14, color = "#2c3e50"),
-        plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555", size = 11),
+        plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555555", size = 11),
         legend.position = "bottom",
         panel.grid.minor = ggplot2::element_blank(),
         axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)
@@ -2470,7 +2470,7 @@ server <- function(input, output, session) {
       mv_ggtheme("pcaParallel") +
       ggplot2::theme(
         plot.title    = element_markdown(hjust = 0.5, face = "bold", size = 14, color = "#2c3e50"),
-        plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555", size = 11),
+        plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555555", size = 11),
         legend.position = "bottom",
         panel.grid.minor = ggplot2::element_blank()
       )
@@ -2662,7 +2662,7 @@ server <- function(input, output, session) {
       mv_ggtheme("pcaCTR") +
       ggplot2::theme(
         plot.title    = element_markdown(hjust = 0.5, face = "bold", size = 13, color = "#2c3e50"),
-        plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555", size = 10),
+        plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555555", size = 10),
         legend.position = "bottom",
         panel.grid.minor = ggplot2::element_blank()
       )
@@ -3534,7 +3534,7 @@ server <- function(input, output, session) {
       mv_ggtheme("hcpcHeights") +
       ggplot2::theme(
         plot.title       = element_markdown(hjust = 0.5, face = "bold", size = 13, color = "#2c3e50"),
-        plot.subtitle    = ggplot2::element_text(hjust = 0.5, color = "#555", size = 10),
+        plot.subtitle    = ggplot2::element_text(hjust = 0.5, color = "#555555", size = 10),
         legend.position  = "bottom",
         panel.grid.minor = ggplot2::element_blank()
       )
@@ -4764,7 +4764,7 @@ server <- function(input, output, session) {
              x = x_label, y = y_label) +
         ggplot2::theme(
           plot.title    = element_markdown(hjust = 0.5, face = "bold", size = 13),
-          plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555", size = 10),
+          plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555555", size = 10),
           legend.position  = "right",
           legend.title     = ggplot2::element_text(size = 10, face = "bold"),
           panel.grid.minor = ggplot2::element_blank()
@@ -4805,7 +4805,7 @@ server <- function(input, output, session) {
         mv_ggtheme("afdVar") +
         ggplot2::theme(
           plot.title    = element_markdown(hjust = 0.5, face = "bold", size = 13),
-          plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555", size = 10),
+          plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555555", size = 10),
           legend.position  = "right",
           legend.title     = ggplot2::element_text(size = 10, face = "bold"),
           panel.grid.minor = ggplot2::element_blank()
@@ -5100,7 +5100,7 @@ server <- function(input, output, session) {
                                         lapply(seq_len(ncol(structure_matrix)), function(j) {
                                           v   <- structure_matrix[i, j]
                                           av  <- abs(v)
-                                          col <- if (av >= .7) "#3a5f7d" else if (av >= .4) "#4a7fa5" else "#888"
+                                          col <- if (av >= .7) "#3a5f7d" else if (av >= .4) "#4a7fa5" else "#888888"
                                           fw  <- if (av >= .4) "bold" else "normal"
                                           shiny::tags$td(style = paste0(
                                             "padding:7px 10px; border:1px solid #dee2e6;",
@@ -5682,7 +5682,8 @@ server <- function(input, output, session) {
                                 choices = c("Par défaut (ggplot2)" = "gg",
                                             "Principale seule" = "majeure",
                                             "Aucune" = "sans"),
-                                selected = "gg")))),
+                                selected = "gg"))),
+        hstat_legende_ui(prefix)),
       .hstat_opt_section(
         "Taille du fichier exporté", "download", "#2c3e50", "#eef1f4",
         shiny::fluidRow(
@@ -5896,7 +5897,7 @@ server <- function(input, output, session) {
       ggplot2::theme_minimal(base_size = txt_sz) +
         ggplot2::theme(
           plot.title    = ggplot2::element_text(hjust = 0.5, face = "bold", size = txt_sz + 2, color = "#2c3e50"),
-          plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555", size = txt_sz - 1),
+          plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555555", size = txt_sz - 1),
           axis.title = ggplot2::element_text(size = txt_sz, face = face_txt),
           axis.text  = ggplot2::element_text(size = txt_sz - 1, face = face_txt),
           legend.text = ggplot2::element_text(size = txt_sz - 1),
@@ -5941,7 +5942,7 @@ server <- function(input, output, session) {
                 x = txt("xlab"), y = txt("ylab"))
     lab <- lab[!vapply(lab, is.null, logical(1))]
     if (length(lab)) p <- p + do.call(ggplot2::labs, lab)
-    p
+    hstat_legende_depuis(p, function(suffix) .mv_loc(suffix, NULL))
   }
 
   # Tailles accessibles aux plotfns (locales par methode, sinon globales)
@@ -5998,7 +5999,7 @@ server <- function(input, output, session) {
   }
 
   mv_empty_plot <- function(msg = "Lancez l'analyse pour afficher le graphique.") {
-    ggplot2::ggplot() + ggplot2::annotate("text", x = 0, y = 0, label = msg, size = 5, color = "#888") +
+    ggplot2::ggplot() + ggplot2::annotate("text", x = 0, y = 0, label = msg, size = 5, color = "#888888") +
       ggplot2::theme_void()
   }
 
@@ -7740,8 +7741,8 @@ server <- function(input, output, session) {
             "", "Valeurs propres :", paste(utils::capture.output(round(eig,4)), collapse="\n")),
           plotfn = function() {
             ggplot2::ggplot(biplot, ggplot2::aes(Dim1, Dim2, color = Type, label = Label)) +
-              ggplot2::geom_hline(yintercept = 0, color = "#bbb", linewidth = .4) +
-              ggplot2::geom_vline(xintercept = 0, color = "#bbb", linewidth = .4) +
+              ggplot2::geom_hline(yintercept = 0, color = "#bbbbbb", linewidth = .4) +
+              ggplot2::geom_vline(xintercept = 0, color = "#bbbbbb", linewidth = .4) +
               ggplot2::geom_point(ggplot2::aes(shape = Type), size = mv_pt_size()) +
               # Lignes = individus, colonnes = variables : chaque famille suit
               # son propre reglage de taille de label (en points).
@@ -7879,8 +7880,8 @@ server <- function(input, output, session) {
             }
             # Repli sans factoextra : plan des modalités
             ggplot2::ggplot(vc, ggplot2::aes(Dim1, Dim2, label = Modalite)) +
-              ggplot2::geom_hline(yintercept = 0, color = "#bbb", linewidth = .4) +
-              ggplot2::geom_vline(xintercept = 0, color = "#bbb", linewidth = .4) +
+              ggplot2::geom_hline(yintercept = 0, color = "#bbbbbb", linewidth = .4) +
+              ggplot2::geom_vline(xintercept = 0, color = "#bbbbbb", linewidth = .4) +
               ggplot2::geom_point(size = mv_pt_size(), color = "#6a1b9a") +
               ggplot2::geom_text(vjust = -0.8, color = "#2c3e50",
                         size = hstat_lbl_pt2gg(input$mv_mca_lblszvar %||% mv_lbl_pt_var())) +
@@ -8122,7 +8123,7 @@ server <- function(input, output, session) {
             TPR = c(0, cumsum(rev(yo))/sum(yo)))
           plotfn <- function() {
             ggplot2::ggplot(roc_df, ggplot2::aes(FPR, TPR)) +
-              ggplot2::geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "#999") +
+              ggplot2::geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "#999999") +
               ggplot2::geom_line(color = "#6a1b9a", linewidth = 1.1) +
               labs(title = "Régression logistique — courbe ROC",
                    subtitle = paste0("AUC = ", if (is.na(auc)) "n/d" else round(auc,3)),
@@ -8300,8 +8301,8 @@ server <- function(input, output, session) {
               return(pp)
             }
             p <- ggplot2::ggplot(ic, ggplot2::aes(Dim1, Dim2)) +
-              ggplot2::geom_hline(yintercept = 0, color = "#bbb", linewidth = .4) +
-              ggplot2::geom_vline(xintercept = 0, color = "#bbb", linewidth = .4) +
+              ggplot2::geom_hline(yintercept = 0, color = "#bbbbbb", linewidth = .4) +
+              ggplot2::geom_vline(xintercept = 0, color = "#bbbbbb", linewidth = .4) +
               ggplot2::geom_point(size = mv_pt_size(), alpha = .7, color = "#00695c") +
               labs(title = "AFDM -- projection des individus", subtitle = sub_t,
                    x = paste0("Dim 1 (", round(eig[1,2],1), " %)"),
@@ -8401,8 +8402,8 @@ server <- function(input, output, session) {
                                 group_values = grp_vals)
             if (!is.null(pp)) return(pp)
             p <- ggplot2::ggplot(ic, ggplot2::aes(Dim1, Dim2)) +
-              ggplot2::geom_hline(yintercept = 0, color = "#bbb", linewidth = .4) +
-              ggplot2::geom_vline(xintercept = 0, color = "#bbb", linewidth = .4) +
+              ggplot2::geom_hline(yintercept = 0, color = "#bbbbbb", linewidth = .4) +
+              ggplot2::geom_vline(xintercept = 0, color = "#bbbbbb", linewidth = .4) +
               ggplot2::geom_point(size = mv_pt_size(), alpha = .7, color = "#00695c") +
               labs(title = "AFM -- projection des individus", subtitle = sub_t,
                    x = paste0("Dim 1 (", round(eig[1,2],1), " %)"),

@@ -23405,7 +23405,78 @@ test_that("l'AFC de deux variables independantes le dit au lieu de lever", {
     m5 <- texte(output$mv_afc_metrics)
     expect_true(grepl("Cramér", m5, fixed = TRUE))
     expect_true(grepl("5x4", m5, fixed = TRUE))
+
+    # La legende de l'AFC se renomme depuis le panneau d'affichage : le
+    # reglage atteint bien le graphique trace (mv_habille), pas seulement
+    # l'aide qui l'applique.
+    session$setInputs(mv_afc_legtitre = "Variable",
+                      mv_afc_legetiq = "Ligne = Age\nColonne = Sexe")
+    mv_active_prefix("mv_afc")
+    pa <- mv_habille(mv_res[["afc"]]$plotfn())
+    mv_active_prefix(NULL)
+    sc <- Filter(function(s) "colour" %in% s$aesthetics,
+                 ggplot2::ggplot_build(pa)$plot$scales$scales)[[1]]
+    expect_identical(sc$name, "Variable")
+    expect_setequal(sc$get_labels(), c("Age", "Sexe"))
   })
+})
+
+test_that("la legende d'un graphique multivarie se renomme sans toucher aux couleurs", {
+  skip_if_not_installed("ggplot2")
+  et <- hstat_legende_etiquettes("Colonne = Couleur des yeux\nLigne = A = B\nsans egal\n = vide\nvide =")
+  # Le premier « = » coupe ; une ligne incomplete ne renomme rien.
+  expect_identical(et, c(Colonne = "Couleur des yeux", Ligne = "A = B"))
+  expect_identical(hstat_legende_etiquettes(NULL), character(0))
+
+  d <- data.frame(x = 1:4, y = c(1, 2, 1, 2), Type = c("Ligne", "Ligne", "Colonne", "Colonne"))
+  p <- ggplot2::ggplot(d, ggplot2::aes(x, y, colour = Type)) +
+    ggplot2::geom_point(ggplot2::aes(shape = Type))
+  q <- hstat_legende_appliquer(p, "Variable", FALSE, et, 14, 9)
+  b <- ggplot2::ggplot_build(q)
+  leg <- Filter(function(s) any(s$aesthetics %in% c("colour", "shape")), b$plot$scales$scales)
+  expect_length(leg, 2L)
+  for (s in leg) {
+    expect_identical(s$name, "Variable")
+    expect_identical(s$get_labels(), c("Couleur des yeux", "A = B"))
+  }
+  # Les couleurs ne bougent pas : seul le texte lu change.
+  expect_identical(b$data[[1]]$colour, ggplot2::ggplot_build(p)$data[[1]]$colour)
+  # Couleur et forme gardent le meme titre : UNE legende, pas deux.
+  g <- ggplot2::ggplotGrob(q)
+  expect_equal(sum(grepl("^guide-box", g$layout$name) &
+                   !vapply(g$grobs, inherits, logical(1), "zeroGrob")), 1L)
+  expect_equal(q$theme$legend.title$size, 14)
+  expect_equal(q$theme$legend.text$size, 9)
+  # Une palette choisie avant survit au renommage.
+  p2 <- p + ggplot2::scale_colour_brewer(palette = "Set1")
+  q2 <- hstat_legende_appliquer(p2, "", FALSE, et)
+  expect_identical(ggplot2::ggplot_build(q2)$data[[1]]$colour,
+                   ggplot2::ggplot_build(p2)$data[[1]]$colour)
+  # Masquer le titre l'efface ; rien de demande ne change rien.
+  expect_s3_class(hstat_legende_appliquer(p, masquer_titre = TRUE)$theme$legend.title,
+                  "element_blank")
+  expect_identical(hstat_legende_appliquer(p), p)
+  # Une taille aberrante est ramenee dans [6 ; 30] par la lecture.
+  lire <- function(v) function(s) switch(s, legtextesz = v, NULL)
+  expect_equal(hstat_legende_depuis(p, lire(500))$theme$legend.text$size, 30)
+  expect_null(hstat_legende_depuis(p, lire(NA))$theme$legend.text)
+  # Les deux familles de graphiques multivaries portent les reglages.
+  expect_true(grepl("_legetiq", as.character(hstat_mv_forme_ui("pcaPlot")), fixed = TRUE))
+})
+
+test_that("aucune couleur n'est ecrite en trois chiffres hexadecimaux", {
+  # `#bbb` est du CSS valide, mais farver -- qui decode les couleurs de
+  # ggplot2 -- ne l'accepte que depuis peu : avant, « Malformed colour string »
+  # et le graphique ENTIER ne se dessine pas. Les axes de l'AFC tombaient ainsi.
+  fichiers <- .hstat_sources_app()
+  skip_if(!length(fichiers))
+  fautes <- character(0)
+  for (f in fichiers) {
+    pd <- utils::getParseData(parse(f, keep.source = TRUE, encoding = "UTF-8"))
+    ch <- pd$text[pd$token == "STR_CONST"]
+    fautes <- c(fautes, paste0(basename(f), ":", ch[grepl('^["\']#[0-9a-fA-F]{3}["\']$', ch)]))
+  }
+  expect_identical(fautes[!grepl(":$", fautes)], character(0))
 })
 
 test_that("une table de contingence deja construite se lit telle quelle", {
