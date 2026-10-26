@@ -10449,6 +10449,20 @@ Le test de l'AFC passe par `mv_habille()`, le chemin du graphique tracé : une
 mutation qui retire le branchement le fait échouer, alors que le test de l'aide
 seule passerait encore.
 
+### Une carte factorielle se centre sur son origine
+
+Demandé à l'écran. ggplot cadre sur les données : l'origine d'une carte — le
+centre de gravité des profils — tombe alors près d'un bord, et les deux moitiés
+d'un axe paraissent inégales. La case « Centrer le graphique sur l'origine
+(0, 0) », à côté des réglages de légende, étend chaque axe **continu**
+symétriquement autour de zéro (`hstat_centrer_origine()`), avec 10 % de marge
+au-delà du point le plus éloigné : son étiquette tient alors dans le cadre.
+
+Par `expand_limits()`, jamais par `coord_cartesian()` : le second remplacerait
+le `coord_fixed()` d'une carte et changerait son rapport d'aspect. Un axe
+discret n'a pas d'origine et n'est pas touché. Le test exige que le cadrage
+d'avant **ne soit pas** déjà centré, sans quoi l'assertion ne garderait rien.
+
 ### Une couleur s'écrit en six chiffres hexadécimaux
 
 Trouvé en vérifiant ce lot au navigateur : le graphique de l'AFC ne se

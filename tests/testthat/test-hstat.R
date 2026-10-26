@@ -23418,6 +23418,15 @@ test_that("l'AFC de deux variables independantes le dit au lieu de lever", {
                  ggplot2::ggplot_build(pa)$plot$scales$scales)[[1]]
     expect_identical(sc$name, "Variable")
     expect_setequal(sc$get_labels(), c("Age", "Sexe"))
+
+    # Le centrage atteint lui aussi le graphique trace.
+    session$setInputs(mv_afc_centre = TRUE)
+    mv_active_prefix("mv_afc")
+    pc <- mv_habille(mv_res[["afc"]]$plotfn())
+    mv_active_prefix(NULL)
+    pp <- ggplot2::ggplot_build(pc)$layout$panel_params[[1]]
+    expect_equal(sum(pp$x.range), 0, tolerance = 1e-6)
+    expect_equal(sum(pp$y.range), 0, tolerance = 1e-6)
   })
 })
 
@@ -23462,6 +23471,34 @@ test_that("la legende d'un graphique multivarie se renomme sans toucher aux coul
   expect_null(hstat_legende_depuis(p, lire(NA))$theme$legend.text)
   # Les deux familles de graphiques multivaries portent les reglages.
   expect_true(grepl("_legetiq", as.character(hstat_mv_forme_ui("pcaPlot")), fixed = TRUE))
+})
+
+test_that("une carte factorielle se centre sur son origine sans changer d'aspect", {
+  skip_if_not_installed("ggplot2")
+  d <- data.frame(x = c(0.5, 2, 3), y = c(-4, -1, 1), g = c("a", "b", "c"))
+  p <- ggplot2::ggplot(d, ggplot2::aes(x, y)) + ggplot2::geom_point() + ggplot2::coord_fixed()
+  q <- hstat_centrer_origine(p)
+  pp <- ggplot2::ggplot_build(q)$layout$panel_params[[1]]
+  # Les deux axes s'etendent symetriquement : l'origine est au milieu.
+  expect_equal(sum(pp$x.range), 0, tolerance = 1e-9)
+  expect_equal(sum(pp$y.range), 0, tolerance = 1e-9)
+  expect_equal(max(pp$x.range), 3.3 + 0.05 * 6.6, tolerance = 1e-9)
+  # Le cadrage d'avant ne l'etait pas : sans quoi l'assertion ne garderait rien.
+  p0 <- ggplot2::ggplot_build(p)$layout$panel_params[[1]]
+  expect_false(isTRUE(all.equal(sum(p0$x.range), 0)))
+  # coord_fixed survit : expand_limits n'efface pas le systeme de coordonnees.
+  expect_s3_class(q$coordinates, "CoordFixed")
+  # Un axe discret n'a pas d'origine : il n'est pas touche, et rien ne leve.
+  pd <- ggplot2::ggplot(d, ggplot2::aes(g, y)) + ggplot2::geom_point()
+  bd <- ggplot2::ggplot_build(hstat_centrer_origine(pd))$layout$panel_params[[1]]
+  expect_equal(sum(bd$y.range), 0, tolerance = 1e-9)
+  expect_identical(bd$x$get_labels(), c("a", "b", "c"))
+  # La lecture ne centre que sur demande.
+  lire <- function(v) function(s) switch(s, centre = v, NULL)
+  expect_identical(hstat_legende_depuis(p, lire(FALSE)), p)
+  pc <- ggplot2::ggplot_build(hstat_legende_depuis(p, lire(TRUE)))$layout$panel_params[[1]]
+  expect_equal(sum(pc$x.range), 0, tolerance = 1e-9)
+  expect_true(grepl("_centre", as.character(hstat_legende_ui("mv_afc")), fixed = TRUE))
 })
 
 test_that("aucune couleur n'est ecrite en trois chiffres hexadecimaux", {
