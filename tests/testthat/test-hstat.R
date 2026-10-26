@@ -23418,6 +23418,15 @@ test_that("l'AFC de deux variables independantes le dit au lieu de lever", {
                  ggplot2::ggplot_build(pa)$plot$scales$scales)[[1]]
     expect_identical(sc$name, "Variable")
     expect_setequal(sc$get_labels(), c("Age", "Sexe"))
+
+    # Le centrage atteint lui aussi le graphique trace.
+    session$setInputs(mv_afc_centre = TRUE)
+    mv_active_prefix("mv_afc")
+    pc <- mv_habille(mv_res[["afc"]]$plotfn())
+    mv_active_prefix(NULL)
+    pp <- ggplot2::ggplot_build(pc)$layout$panel_params[[1]]
+    expect_equal(sum(pp$x.range), 0, tolerance = 1e-6)
+    expect_equal(sum(pp$y.range), 0, tolerance = 1e-6)
   })
 })
 
@@ -23462,6 +23471,35 @@ test_that("la legende d'un graphique multivarie se renomme sans toucher aux coul
   expect_null(hstat_legende_depuis(p, lire(NA))$theme$legend.text)
   # Les deux familles de graphiques multivaries portent les reglages.
   expect_true(grepl("_legetiq", as.character(hstat_mv_forme_ui("pcaPlot")), fixed = TRUE))
+})
+
+test_that("une carte factorielle se centre sur son origine sans changer d'aspect", {
+  skip_if_not_installed("ggplot2")
+  d <- data.frame(x = c(0.5, 2, 3), y = c(-4, -1, 1), g = c("a", "b", "c"))
+  p <- ggplot2::ggplot(d, ggplot2::aes(x, y)) + ggplot2::geom_point() + ggplot2::coord_fixed()
+  q <- hstat_centrer_origine(p)
+  pp <- ggplot2::ggplot_build(q)$layout$panel_params[[1]]
+  # Les deux axes s'etendent symetriquement : l'origine est au milieu.
+  expect_equal(sum(pp$x.range), 0, tolerance = 1e-9)
+  expect_equal(sum(pp$y.range), 0, tolerance = 1e-9)
+  expect_equal(max(pp$x.range), 3.3 + 0.05 * 6.6, tolerance = 1e-9)
+  # Le cadrage d'avant ne l'etait pas : sans quoi l'assertion ne garderait rien.
+  p0 <- ggplot2::ggplot_build(p)$layout$panel_params[[1]]
+  expect_false(isTRUE(all.equal(sum(p0$x.range), 0)))
+  # coord_fixed survit : expand_limits n'efface pas le systeme de coordonnees.
+  # Lu par son rapport, pas par sa classe : ggplot2 4 en fait un CoordCartesian.
+  expect_equal(q$coordinates$ratio, 1)
+  # Un axe discret n'a pas d'origine : il n'est pas touche, et rien ne leve.
+  pd <- ggplot2::ggplot(d, ggplot2::aes(g, y)) + ggplot2::geom_point()
+  bd <- ggplot2::ggplot_build(hstat_centrer_origine(pd))$layout$panel_params[[1]]
+  expect_equal(sum(bd$y.range), 0, tolerance = 1e-9)
+  expect_identical(bd$x$get_labels(), c("a", "b", "c"))
+  # La lecture ne centre que sur demande.
+  lire <- function(v) function(s) switch(s, centre = v, NULL)
+  expect_identical(hstat_legende_depuis(p, lire(FALSE)), p)
+  pc <- ggplot2::ggplot_build(hstat_legende_depuis(p, lire(TRUE)))$layout$panel_params[[1]]
+  expect_equal(sum(pc$x.range), 0, tolerance = 1e-9)
+  expect_true(grepl("_centre", as.character(hstat_legende_ui("mv_afc")), fixed = TRUE))
 })
 
 test_that("aucune couleur n'est ecrite en trois chiffres hexadecimaux", {
@@ -23532,4 +23570,33 @@ test_that("la table de contingence lit une colonne d'effectifs", {
   expect_false(hstat_table_contingence(d, "Hair", "Eye", "Inconnue")$ok)
   # « Aucune » vaut l'absence de colonne.
   expect_identical(hstat_table_contingence(d, "Hair", "Eye", "__aucun__")$poids, NULL)
+})
+
+test_that("un tableau croise deplie se compte comme xtabs(Freq ~ X + Y)", {
+  # Une ligne par croisement, l'effectif dans Freq : compter les lignes rendrait
+  # 6 dans chaque case (les 6 departements), donc une independance parfaite.
+  df <- as.data.frame(UCBAdmissions)
+  ref <- xtabs(Freq ~ Gender + Admit, data = df)
+  r <- hstat_q_nominal_bivariate(df$Gender, df$Admit, "Gender", "Admit",
+                                 poids = df$Freq, poids_nom = "Freq")
+  expect_true(isTRUE(r$ok))
+  tc <- r$tables[["Table de contingence"]]
+  expect_equal(sum(tc[, -1]), sum(ref))
+  m <- as.matrix(tc[, colnames(ref)]); rownames(m) <- tc[[1]]
+  expect_equal(m[rownames(ref), , drop = FALSE], unclass(ref)[, , drop = FALSE], ignore_attr = TRUE)
+  chi <- suppressWarnings(stats::chisq.test(ref, correct = FALSE))$statistic
+  expect_true(any(grepl(format(round(unname(chi), 2), nsmall = 2), unlist(r$metrics), fixed = TRUE)) ||
+              any(abs(suppressWarnings(as.numeric(unlist(r$metrics))) - unname(chi)) < 0.01, na.rm = TRUE))
+  expect_true(grepl("Freq", r$notes, fixed = TRUE))
+  # Sans la colonne d'effectifs, la meme table compte des lignes : 6 partout.
+  r0 <- hstat_q_nominal_bivariate(df$Gender, df$Admit, "Gender", "Admit")
+  expect_true(all(as.matrix(r0$tables[["Table de contingence"]][, c("Admitted", "Rejected")]) == 6))
+  # Un effectif negatif est ecarte et compte.
+  w <- df$Freq; w[1] <- -5
+  rn <- hstat_q_nominal_bivariate(df$Gender, df$Admit, poids = w, poids_nom = "Freq")
+  expect_true(grepl("négatif", rn$notes, fixed = TRUE))
+  # Le module propose Freq d'office.
+  expect_identical(hstat_effectif_propose(df), "Freq")
+  expect_true(grepl("nom_poids_ui", paste(deparse(body(mod_qualitative_ui)), collapse = ""), fixed = TRUE) ||
+              grepl("nom_poids_ui", as.character(mod_qualitative_ui("q")), fixed = TRUE))
 })

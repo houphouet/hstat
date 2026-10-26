@@ -2615,7 +2615,35 @@ hstat_legende_ui <- function(prefix) {
                                            value = NULL, min = 6, max = 30, step = 1)),
       shiny::column(6, shiny::numericInput(paste0(prefix, "_legtextesz"), "Taille des éléments (pt)",
                                            value = NULL, min = 6, max = 30, step = 1))),
-    shiny::tags$small(style = "color:#6b7280;", "Taille vide : celle du thème."))
+    shiny::tags$small(style = "color:#6b7280;", "Taille vide : celle du thème."),
+    shiny::checkboxInput(paste0(prefix, "_centre"), "Centrer le graphique sur l'origine (0, 0)", FALSE))
+}
+
+# Une carte factorielle se lit par rapport a son origine : c'est le centre de
+# gravite des profils. ggplot cadre sur les donnees, si bien que l'origine peut
+# tomber pres d'un bord et que les deux moities d'un axe paraissent inegales.
+# On etend chaque axe CONTINU symetriquement autour de zero -- par
+# `expand_limits()`, qui ajoute des bornes sans remplacer le systeme de
+# coordonnees (un `coord_cartesian()` effacerait le `coord_fixed()` d'une carte
+# et changerait son rapport d'aspect). Un axe discret n'a pas d'origine : il
+# n'est pas touche.
+hstat_centrer_origine <- function(p) {
+  if (!inherits(p, "ggplot")) return(p)
+  sc <- tryCatch(ggplot2::layer_scales(p), error = function(e) NULL)
+  if (is.null(sc)) return(p)
+  demi <- function(s) {
+    if (is.null(s) || !inherits(s, "ScaleContinuous")) return(NA_real_)
+    r <- suppressWarnings(as.numeric(s$range$range))
+    r <- r[is.finite(r)]
+    # 10 % au-dela du point le plus eloigne : son etiquette tient dans le cadre.
+    if (!length(r)) NA_real_ else 1.1 * max(abs(r))
+  }
+  mx <- demi(sc$x); my <- demi(sc$y)
+  lim <- list()
+  if (is.finite(mx) && mx > 0) lim$x <- c(-mx, mx)
+  if (is.finite(my) && my > 0) lim$y <- c(-my, my)
+  if (!length(lim)) return(p)
+  p + do.call(ggplot2::expand_limits, lim)
 }
 
 # Lit les reglages ci-dessus et les applique. `lire` rend la valeur d'un suffixe
@@ -2626,12 +2654,14 @@ hstat_legende_depuis <- function(p, lire) {
     v <- suppressWarnings(as.numeric(v))[1]
     if (length(v) && is.finite(v)) min(max(v, 6), 30) else NA
   }
-  hstat_legende_appliquer(p,
+  p <- hstat_legende_appliquer(p,
     titre         = lire("legtitre"),
     masquer_titre = isTRUE(lire("legsanstitre")),
     etiquettes    = hstat_legende_etiquettes(lire("legetiq")),
     taille_titre  = borne(lire("legtitresz")),
     taille_texte  = borne(lire("legtextesz")))
+  if (isTRUE(lire("centre"))) p <- hstat_centrer_origine(p)
+  p
 }
 
 # Reglages de forme communs aux analyses multivariees historiques (ACP, HCPC,
