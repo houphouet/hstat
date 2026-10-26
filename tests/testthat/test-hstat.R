@@ -23487,7 +23487,8 @@ test_that("une carte factorielle se centre sur son origine sans changer d'aspect
   p0 <- ggplot2::ggplot_build(p)$layout$panel_params[[1]]
   expect_false(isTRUE(all.equal(sum(p0$x.range), 0)))
   # coord_fixed survit : expand_limits n'efface pas le systeme de coordonnees.
-  expect_s3_class(q$coordinates, "CoordFixed")
+  # Lu par son rapport, pas par sa classe : ggplot2 4 en fait un CoordCartesian.
+  expect_equal(q$coordinates$ratio, 1)
   # Un axe discret n'a pas d'origine : il n'est pas touche, et rien ne leve.
   pd <- ggplot2::ggplot(d, ggplot2::aes(g, y)) + ggplot2::geom_point()
   bd <- ggplot2::ggplot_build(hstat_centrer_origine(pd))$layout$panel_params[[1]]
