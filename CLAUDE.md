@@ -8073,42 +8073,33 @@ tableur réglé à la française lit « 1.5 » comme du texte ou une date ; un t
 anglais lit « 1,5 » comme deux colonnes. Aucun des deux n'est juste pour tout
 le monde : c'est un réglage, et il appartient à l'utilisateur.
 
-### Une fenêtre avant chaque fichier, un réglage dans le bandeau
+### Une fenêtre avant chaque fichier, et nulle part ailleurs
 
 `www/hstat-decimale.js` intercepte **tous** les téléchargements — les liens
 Shiny (`a.shiny-download-link`) et les boutons CSV/Excel de DataTables — et
-demande : virgule ou point. « Ne plus demander » vaut pour la **visite**
-(`sessionStorage`) ; le choix, lui, se retrouve et se change dans le bandeau
-(segments « 1.5 | 1,5 », à côté de la langue). Une question qui disparaîtrait
-pour toujours sans dire où la retrouver serait un réglage perdu.
+demande : virgule ou point. **C'est le seul endroit où le choix se fait.**
+
+Il a d'abord vécu en trois endroits : la fenêtre, une bascule « 1.5 | 1,5 »
+dans le bandeau, et un sélecteur sous la liste des formats de chacun des
+dix-sept blocs d'export (34 dans la page rendue), avec une case « Ne plus
+demander » pour la visite. Demandé à l'écran : le retirer de l'interface, pour
+qu'il n'apparaisse **que** pendant le téléchargement. Bandeau, sélecteurs
+(`hstat_decimale_ui()`) et case ont disparu.
+
+Conséquence assumée, et c'est elle qui rend la fenêtre supportable : elle
+revient à **chaque** téléchargement. Une case « Ne plus demander » sans aucun
+autre endroit où changer le choix rendrait le réglage définitif jusqu'au
+rechargement. La fenêtre est donc **pré-cochée sur le dernier choix**
+(`localStorage`) et **Entrée** la confirme — sauf quand le focus est sur
+« Annuler », où Entrée annule.
 
 **Le défaut reste le point** : c'est la sortie d'avant, au caractère près. Un
 test compare le CSV au point à celui de `write.csv()` octet pour octet — aucun
 export existant ne change sans que l'utilisateur le demande.
 
-### Et un sélecteur dans chaque bloc d'export, à côté du format
-
-Redemandé sur la PR : le choix doit vivre **là où l'on choisit le fichier**.
-`hstat_format_input()` pose désormais, sous la liste des formats, le sélecteur
-`hstat_decimale_ui()` — les dix-sept blocs d'export d'image en héritent sans
-qu'aucun ait à y penser, exactement comme ils héritent du catalogue des formats.
-Mesuré dans la page rendue : **34** sélecteurs.
-
-**Ce n'est pas une entrée Shiny, et c'est la décision qui compte.** Dix-sept
-entrées pour un même réglage pourraient se contredire : l'export lirait l'une
-pendant que l'utilisateur regarde l'autre — « deux réglages pour un même
-trait ». Ce sont des boutons que `hstat-decimale.js` relie au **choix unique** de
-la session ; cliquer l'un met à jour tous les autres et le bandeau.
-
-**L'état se lit sur `body[data-hstat-decimale]`, par la feuille de style.** Un
-bloc construit plus tard par `renderUI` (les vingt-trois exports multivariés)
-s'affiche donc juste sans que le script ait à le reparcourir.
-
-**La fenêtre ne se rouvre pas devant un choix déjà visible.** Un téléchargement
-dont la boîte porte un sélecteur part sans question — le choix est sous les yeux,
-juste à côté du format ; les autres (tableaux, boutons DataTables) gardent la
-fenêtre. Mesuré au navigateur : figure du bloc descriptif sans fenêtre et avec
-`0,05` sur l'axe, CSV de la boîte voisine avec la fenêtre.
+Un test barre le retour du sélecteur dans `hstat_format_input()` et dans le kit
+d'export, de la bascule dans `UX.R`, de `sessionStorage` dans le script, et des
+règles de style correspondantes.
 
 ### Le choix voyage par le websocket, le fichier par HTTP
 
@@ -10400,6 +10391,34 @@ Note de méthode : le premier balayage des lectures signalait `pcaComponents` et
 `valueLabelDigits` encore « non bornés » — à tort : les lignes trouvées ne
 faisaient que nommer l'entrée dans une liste de dépendances. Une assertion qui
 compte une dépendance comme une lecture crie au loup, et finit désactivée.
+
+## L'AFC lit aussi une table de contingence déjà construite
+
+Signalé à l'écran : « je n'arrive pas à sélectionner la table de contingence ».
+L'AFC n'acceptait que **deux variables qualitatives** — une ligne par
+observation, ou par croisement avec une colonne d'effectifs. Or un tableau
+croisé sorti d'un tableur a la forme inverse : une ligne par modalité de la
+première variable, **une colonne d'effectifs par modalité de la seconde**.
+C'est la forme d'entrée naturelle de l'AFC, et il fallait la déplier d'abord.
+
+« Forme des données » offre les deux. `hstat_table_contingence_large()`
+(`R/utils.R`) lit la seconde, et rend la même forme que
+`hstat_table_contingence()` : le reste de l'analyse n'en sait rien. La table
+est proposée d'office quand le fichier n'a pas deux variables qualitatives à
+croiser mais porte des colonnes numériques (`VADeaths`).
+
+Quatre décisions, chacune testée :
+
+1. **Une case vide est un zéro**, et c'est compté : une table de contingence
+   n'a pas de case manquante, seulement des croisements jamais observés.
+2. **Un effectif négatif refuse la table**, colonne nommée ; une colonne de
+   texte aussi.
+3. **Deux lignes de même étiquette s'additionnent**, et c'est dit.
+4. **La colonne d'étiquettes n'est jamais un effectif**, même cochée parmi les
+   colonnes d'effectifs.
+
+Le blocage de sélection signalé, lui, ne s'est pas reproduit : `Freq` se
+présélectionne et se choisit au clic, mesuré au navigateur.
 
 ## La validité d'un essai DL50 se juge sur des seuils choisis
 

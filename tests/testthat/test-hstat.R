@@ -21130,8 +21130,10 @@ test_that("le choix est demande avant le telechargement, et accuse par le serveu
   srv <- lire("inst", "app", "app_server.R")
   js  <- lire("inst", "app", "www", "hstat-decimale.js")
   expect_true(grepl('hstat_asset("hstat-decimale.js")', ux, fixed = TRUE))
-  for (id in c("hstatDecPoint", "hstatDecVirgule"))
-    expect_true(grepl(id, ux, fixed = TRUE), info = id)
+  # Le choix se fait dans la fenetre, et NULLE PART ailleurs : plus de bascule
+  # dans le bandeau.
+  for (id in c("hstatDecPoint", "hstatDecVirgule", "hstatSetDecimale"))
+    expect_false(grepl(id, ux, fixed = TRUE), info = id)
   # Le serveur range le choix ET l'accuse : sans l'accuse, le fichier partirait
   # avant le choix, qui voyage par un autre canal.
   expect_true(grepl("observeEvent(input$hstat_decimale", srv, fixed = TRUE))
@@ -21184,19 +21186,17 @@ process.stdout.write(JSON.stringify(out));
   expect_identical(r$point, "1.5")
 })
 
-test_that("chaque bloc d'export porte le selecteur du separateur, a cote du format", {
+test_that("le separateur decimal se demande au telechargement, et nulle part ailleurs", {
+  # Demande a l'ecran : le choix n'apparait QUE dans la fenetre qui precede un
+  # telechargement. Ni selecteur dans les blocs d'export, ni bascule dans le
+  # bandeau, ni « Ne plus demander » qui ferait disparaitre la question sans
+  # laisser d'endroit ou la retrouver.
   h <- as.character(hstat_format_input("x_fmt", "Format"))
-  # Les deux choix, chacun relie au choix unique par son attribut -- et AUCUNE
-  # entree Shiny : dix-sept entrees pour un meme reglage pourraient se
-  # contredire, l'export lisant l'une pendant qu'on regarde l'autre.
-  expect_true(grepl('data-hstat-dec=","', h, fixed = TRUE))
-  expect_true(grepl('data-hstat-dec="."', h, fixed = TRUE))
-  expect_true(grepl("hstat-dec-choix", h, fixed = TRUE))
-  expect_false(grepl("action-button", h, fixed = TRUE))
+  expect_false(grepl("hstat-dec", h, fixed = TRUE))
   expect_equal(lengths(regmatches(h, gregexpr("<select", h))), 1L)
-  # Le kit d'export partage le porte donc aussi.
   k <- as.character(hstat_export_plot_ui(shiny::NS("m"), "g"))
-  expect_true(grepl("hstat-dec-choix", k, fixed = TRUE))
+  expect_false(grepl("hstat-dec", k, fixed = TRUE))
+  expect_false(exists("hstat_decimale_ui"))
 
   root <- .hstat_repo_root()
   skip_if(is.na(root))
@@ -21204,13 +21204,13 @@ test_that("chaque bloc d'export porte le selecteur du separateur, a cote du form
                                         encoding = "UTF-8"), collapse = "\n")
   js  <- lire("inst", "app", "www", "hstat-decimale.js")
   css <- lire("inst", "app", "www", "hstat-theme.css")
-  # Le clic sur un segment regle le choix ; l'etat se lit sur <body>, si bien
-  # qu'un bloc rendu plus tard s'affiche juste ; et un bouton dont le bloc
-  # porte deja le selecteur ne redemande pas dans une fenetre.
-  for (x in c("[data-hstat-dec]", "data-hstat-decimale", "selecteurVoisin"))
-    expect_true(grepl(x, js, fixed = TRUE), info = x)
-  expect_true(grepl('body[data-hstat-decimale=","] .hstat-dec-seg[data-hstat-dec=","]',
-                    css, fixed = TRUE))
+  for (x in c("[data-hstat-dec]", "selecteurVoisin", "sessionStorage",
+              "Ne plus demander"))
+    expect_false(grepl(x, js, fixed = TRUE), info = x)
+  # Chaque telechargement intercepte passe par la fenetre, sans condition.
+  expect_true(grepl("demander(lancer);\n  }, true);", js, fixed = TRUE))
+  for (x in c(".hstat-dec-seg", ".hstat-dec-choix", ".hstat-dec-plus"))
+    expect_false(grepl(x, css, fixed = TRUE), info = x)
 })
 
 test_that("la diversité bêta et Baselga se calculent par produits matriciels, à l'identique de la définition par paire", {
@@ -23395,7 +23395,49 @@ test_that("l'AFC de deux variables independantes le dit au lieu de lever", {
     m4 <- texte(output$mv_afc_metrics)
     expect_true(grepl("Cramér", m4, fixed = TRUE))
     expect_false(grepl("indépendantes", m4, fixed = TRUE))
+
+    # Une table de contingence DEJA CONSTRUITE (VADeaths : une colonne par
+    # modalite) se lit telle quelle, sans etre depliee d'abord.
+    session$setInputs(rDataName = "VADeaths", loadRData = 4)
+    session$setInputs(mv_afc_forme = "table", mv_afc_etiq = "Nom",
+                      mv_afc_cols = c("Rural Male", "Rural Female", "Urban Male", "Urban Female"),
+                      mv_afc_run = 5)
+    m5 <- texte(output$mv_afc_metrics)
+    expect_true(grepl("Cramér", m5, fixed = TRUE))
+    expect_true(grepl("5x4", m5, fixed = TRUE))
   })
+})
+
+test_that("une table de contingence deja construite se lit telle quelle", {
+  ref <- apply(HairEyeColor, c(1, 2), sum)
+  d <- data.frame(Cheveux = rownames(ref), unclass(ref), check.names = FALSE)
+  r <- hstat_table_contingence_large(d, "Cheveux", colnames(ref))
+  expect_true(r$ok)
+  expect_equal(unclass(r$table), ref, ignore_attr = TRUE)
+  expect_identical(dimnames(r$table)[[1]], rownames(ref))
+  # La colonne d'etiquettes, meme cochee parmi les effectifs, n'en est pas une.
+  r2 <- hstat_table_contingence_large(d, "Cheveux", names(d))
+  expect_identical(colnames(r2$table), colnames(ref))
+  # Une case vide est un croisement jamais observe : zero, et c'est dit.
+  d3 <- d; d3$Blue[1] <- NA
+  r3 <- hstat_table_contingence_large(d3, "Cheveux", colnames(ref))
+  expect_equal(r3$table[1, "Blue"], 0)
+  expect_true(any(grepl("vide", r3$notes)))
+  # Deux lignes de meme etiquette s'additionnent.
+  d4 <- d; d4$Cheveux[2] <- d4$Cheveux[1]
+  r4 <- hstat_table_contingence_large(d4, "Cheveux", colnames(ref))
+  expect_equal(nrow(r4$table), 3L)
+  expect_equal(unname(r4$table[1, ]), unname(ref[1, ] + ref[2, ]))
+  # Refus nommes : un effectif negatif, une colonne de texte, une seule colonne.
+  d5 <- d; d5$Hazel[3] <- -1
+  expect_match(hstat_table_contingence_large(d5, "Cheveux", colnames(ref))$msg, "Hazel")
+  d6 <- d; d6$Green <- as.character(d6$Green)
+  expect_match(hstat_table_contingence_large(d6, "Cheveux", colnames(ref))$msg, "Green")
+  expect_false(hstat_table_contingence_large(d, "Cheveux", "Brown")$ok)
+  # Sans colonne d'etiquettes, les noms de lignes nomment les lignes.
+  rownames(d) <- d$Cheveux
+  r7 <- hstat_table_contingence_large(d[-1], "__lignes__", colnames(ref))
+  expect_identical(dimnames(r7$table)[[1]], rownames(ref))
 })
 
 test_that("la table de contingence lit une colonne d'effectifs", {

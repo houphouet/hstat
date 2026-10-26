@@ -3279,33 +3279,11 @@ HSTAT_FORMATS_IMG <- c(
 # ce qui permettait a chaque appel d'inventer sa propre liste.
 hstat_format_input <- function(id, label = "Format", selected = "png",
                                width = NULL) {
-  # Le separateur decimal vit A COTE DU FORMAT, dans chaque bloc d'export : on
-  # le regle la ou l'on choisit le fichier. Poser le selecteur ici plutot que
-  # dans chacun des dix-sept blocs garantit qu'aucun ne l'oublie.
-  shiny::tagList(
-    shiny::selectInput(id, label, choices = HSTAT_FORMATS_IMG,
-                       selected = selected, width = width),
-    hstat_decimale_ui())
-}
-
-# Selecteur du separateur decimal d'un bloc d'export.
-#
-# CE N'EST PAS UNE ENTREE SHINY, et c'est voulu. Il y en a un par bloc, et ils
-# reglent tous LE MEME choix : dix-sept entrees distinctes pourraient se
-# contredire, et l'export lirait l'une pendant que l'utilisateur regarde
-# l'autre. Ce sont des boutons que www/hstat-decimale.js relie au choix unique
-# de la session ; leur etat se lit sur `body[data-hstat-decimale]`, si bien
-# qu'un bloc construit plus tard (renderUI) s'affiche juste sans qu'on y pense.
-hstat_decimale_ui <- function() {
-  seg <- function(dec, texte, titre)
-    shiny::tags$button(type = "button", class = "hstat-dec-seg",
-                       `data-hstat-dec` = dec, title = titre,
-                       `aria-label` = titre, texte)
-  shiny::div(class = "hstat-dec-choix form-group",
-    shiny::tags$label(class = "control-label", "Séparateur décimal"),
-    shiny::div(class = "hstat-dec-segments", role = "group",
-      seg(",", "1,5", "Virgule décimale"),
-      seg(".", "1.5", "Point décimal")))
+  # Le separateur decimal n'est PAS pose ici : il se demande dans la fenetre
+  # qui precede chaque telechargement (www/hstat-decimale.js), et nulle part
+  # ailleurs dans l'interface.
+  shiny::selectInput(id, label, choices = HSTAT_FORMATS_IMG,
+                     selected = selected, width = width)
 }
 
 # Champ de resolution. Pas d'argument `max` : le plafond est celui de
@@ -6299,6 +6277,55 @@ hstat_table_contingence <- function(d, ligne, colonne, poids = NULL) {
   if (sum(neg)) notes <- c(notes, trf("%d ligne(s) d'effectif négatif écartée(s).", sum(neg)))
   if (ecartees > sum(neg)) notes <- c(notes, trf("%d ligne(s) incomplète(s) écartée(s).", ecartees - sum(neg)))
   list(ok = TRUE, table = tab, poids = poids, notes = notes)
+}
+
+# -- Une table de contingence DEJA CONSTRUITE (format large) ------------------
+# Une ligne par modalite de la variable-ligne, une colonne NUMERIQUE par
+# modalite de la variable-colonne, les effectifs dans les cases : c'est la forme
+# d'un tableau croise sorti d'un tableur, et la forme d'entree naturelle de
+# l'AFC. La relire en « deux variables » obligerait a la deplier d'abord.
+#
+# `etiquettes` : la colonne qui nomme les lignes, ou "__lignes__" pour les noms
+# de lignes du tableau. Une case vide est un zero (une table de contingence
+# n'a pas de case manquante : c'est un croisement jamais observe), et c'est
+# compte. Un effectif negatif ne l'est pas : la table est refusee, colonne
+# nommee. Deux lignes de meme etiquette sont additionnees, et c'est dit.
+hstat_table_contingence_large <- function(d, etiquettes = "__lignes__", colonnes) {
+  colonnes <- intersect(as.character(colonnes), names(d))
+  if (!is.null(etiquettes) && !identical(etiquettes, "__lignes__"))
+    colonnes <- setdiff(colonnes, etiquettes)
+  if (length(colonnes) < 2)
+    return(list(ok = FALSE, msg = tr("Choisissez au moins deux colonnes d'effectifs : une par modalité de la variable-colonne.")))
+  non_num <- colonnes[!vapply(d[colonnes], is.numeric, logical(1))]
+  if (length(non_num))
+    return(list(ok = FALSE, msg = trf("Colonne(s) non numérique(s) : %s. Les cases d'une table de contingence sont des effectifs.",
+                                      paste(non_num, collapse = ", "))))
+  m <- as.matrix(d[colonnes])
+  neg <- colonnes[colSums(m < 0, na.rm = TRUE) > 0]
+  if (length(neg))
+    return(list(ok = FALSE, msg = trf("Effectif négatif dans : %s. Une table de contingence ne compte que des effectifs positifs ou nuls.",
+                                      paste(neg, collapse = ", "))))
+  if (is.null(etiquettes) || identical(etiquettes, "__lignes__")) {
+    lab <- rownames(d); nom <- tr("Lignes")
+  } else {
+    if (is.null(d[[etiquettes]]))
+      return(list(ok = FALSE, msg = tr("Variable absente des données.")))
+    lab <- as.character(d[[etiquettes]]); nom <- etiquettes
+  }
+  lab[is.na(lab) | !nzchar(trimws(lab))] <- tr("(sans nom)")
+  notes <- character(0)
+  vides <- sum(is.na(m))
+  if (vides) notes <- c(notes, trf("%d case(s) vide(s) comptée(s) comme zéro.", vides))
+  m[is.na(m)] <- 0
+  if (anyDuplicated(lab)) {
+    notes <- c(notes, trf("%d ligne(s) de même étiquette additionnée(s).", sum(duplicated(lab))))
+    m <- rowsum(m, factor(lab, levels = unique(lab)))
+  } else rownames(m) <- lab
+  tab <- as.table(m)
+  names(dimnames(tab)) <- c(nom, tr("Colonnes"))
+  notes <- c(notes, trf("Table de contingence lue telle quelle : %d ligne(s) x %d colonne(s).",
+                        nrow(tab), ncol(tab)))
+  list(ok = TRUE, table = tab, poids = NULL, notes = notes, ligne = nom, colonne = tr("Colonnes"))
 }
 
 hstat_garder_choix <- function(courant, choix, defaut = NULL) {

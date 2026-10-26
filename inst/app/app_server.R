@@ -6399,8 +6399,28 @@ server <- function(input, output, session) {
 
   output$mv_afc_controls <- shiny::renderUI({
     shiny::req(mv_data())
-    cc <- mv_cat_cols()
+    cc <- mv_cat_cols(); nc <- mv_num_cols()
+    # Deux formes d'entree, et aucune ne se devine a coup sur : on propose la
+    # table deja construite quand le fichier n'a pas deux variables
+    # qualitatives a croiser mais porte des colonnes d'effectifs.
+    forme0 <- if (length(cc) < 2 && length(nc) >= 2) "table" else "long"
     shiny::tagList(
+      mv_opt_box(shiny::h5(shiny::icon("table"), " Forme des données"),
+        shiny::radioButtons("mv_afc_forme", NULL,
+          choices = stats::setNames(c("long", "table"),
+            c(tr("Deux variables qualitatives (une ligne par observation ou par croisement)"),
+              tr("Table de contingence déjà construite (une colonne d'effectifs par modalité)"))),
+          selected = forme0)),
+      shiny::conditionalPanel("input.mv_afc_forme == 'table'",
+        mv_opt_box(shiny::h5(shiny::icon("table-cells"), " Table de contingence"),
+          shiny::selectInput("mv_afc_etiq", shiny::tagList(shiny::icon("tag"), " Colonne qui nomme les lignes :"),
+            choices = c(stats::setNames("__lignes__", tr("(noms de lignes du tableau)")),
+                        stats::setNames(cc, cc)),
+            selected = if (length(cc)) cc[1] else "__lignes__"),
+          shiny::selectizeInput("mv_afc_cols", shiny::tagList(shiny::icon("table-columns"), " Colonnes d'effectifs (une par modalité) :"),
+            choices = nc, selected = nc, multiple = TRUE),
+          shiny::helpText(tr("Chaque case porte l'effectif du croisement : la ligne est une modalité de la première variable, la colonne une modalité de la seconde.")))),
+      shiny::conditionalPanel("input.mv_afc_forme != 'table'",
       mv_opt_box(shiny::h5(shiny::icon("shapes"), " Deux variables qualitatives"),
         shiny::fluidRow(
           shiny::column(6, shiny::selectInput("mv_afc_row", shiny::tagList(shiny::icon("grip-lines"), " Variable-ligne :"),
@@ -6413,7 +6433,7 @@ server <- function(input, output, session) {
                            choices = c(stats::setNames("__aucun__", tr("(aucune : une ligne = une observation)")),
                                        stats::setNames(mv_num_cols(), mv_num_cols())),
                            selected = hstat_effectif_propose(mv_data()) %||% "__aucun__"),
-        shiny::helpText(tr("À renseigner quand chaque ligne est un croisement déjà compté (colonne Freq, effectif, n…) : sans elle, chaque ligne compterait pour un seul individu."))),
+        shiny::helpText(tr("À renseigner quand chaque ligne est un croisement déjà compté (colonne Freq, effectif, n…) : sans elle, chaque ligne compterait pour un seul individu.")))),
       mv_disp_box("mv_afc"))
   })
 
@@ -7629,11 +7649,20 @@ server <- function(input, output, session) {
   shiny::observeEvent(input$mv_afc_run, {
     mv_res[["afc"]] <- local({
       tryCatch({
-        d <- mv_data(); rv <- input$mv_afc_row; cv <- input$mv_afc_col
-        if (is.null(rv) || is.null(cv) || rv == cv)
-          return(list(ok = FALSE, error = "Choisissez deux variables qualitatives différentes."))
-        ct <- hstat_table_contingence(d, rv, cv, input$mv_afc_poids)
-        if (!isTRUE(ct$ok)) return(list(ok = FALSE, error = ct$msg))
+        d <- mv_data()
+        en_table <- identical(input$mv_afc_forme, "table")
+        if (en_table) {
+          ct <- hstat_table_contingence_large(d, input$mv_afc_etiq %||% "__lignes__",
+                                              input$mv_afc_cols)
+          if (!isTRUE(ct$ok)) return(list(ok = FALSE, error = ct$msg))
+          rv <- ct$ligne; cv <- ct$colonne
+        } else {
+          rv <- input$mv_afc_row; cv <- input$mv_afc_col
+          if (is.null(rv) || is.null(cv) || rv == cv)
+            return(list(ok = FALSE, error = "Choisissez deux variables qualitatives différentes."))
+          ct <- hstat_table_contingence(d, rv, cv, input$mv_afc_poids)
+          if (!isTRUE(ct$ok)) return(list(ok = FALSE, error = ct$msg))
+        }
         tab <- ct$table
         tab <- tab[rowSums(tab) > 0, colSums(tab) > 0, drop = FALSE]
         if (nrow(tab) < 2 || ncol(tab) < 2)
@@ -7649,7 +7678,7 @@ server <- function(input, output, session) {
         # c'est un resultat : on le dit.
         if (!is.finite(inertia) || inertia <= 1e-12) {
           eff <- hstat_effectif_propose(d)
-          return(list(ok = FALSE, error = if (is.null(ct$poids) && !is.null(eff)) trf(
+          return(list(ok = FALSE, error = if (!en_table && is.null(ct$poids) && !is.null(eff)) trf(
             "« %s » et « %s » sont exactement indépendantes si chaque ligne compte pour une observation. Le fichier porte une colonne « %s » : si elle contient les effectifs de chaque croisement, choisissez-la comme colonne d'effectifs.",
             rv, cv, eff) else trf(
             "« %s » et « %s » sont exactement indépendantes (inertie nulle, khi² = 0) : l'AFC n'a aucun axe à extraire. C'est le cas d'un plan croisé équilibré ; choisissez deux variables qui peuvent être associées.",
