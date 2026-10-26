@@ -759,11 +759,33 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
 # ===========================================================================
 # ANALYSE NOMINALE -- deux variables (table de contingence + association)
 # ===========================================================================
-hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y") {
-  d <- data.frame(x = as.character(x), y = as.character(y), stringsAsFactors = FALSE)
-  d <- d[!is.na(d$x) & !is.na(d$y) & nzchar(trimws(d$x)) & nzchar(trimws(d$y)), ]
-  if (nrow(d) < 3) return(list(ok = FALSE, notes = "Trop peu de données appariées."))
-  tab <- table(d$x, d$y)
+# `poids` : une colonne d'effectifs facultative. Un tableau croisé déplié en
+# format long (une ligne par croisement, l'effectif dans « Freq ») se compte
+# alors comme `xtabs(Freq ~ X + Y)` : chaque ligne pèse sa valeur. Compter les
+# lignes rendrait 1 dans chaque case, donc une indépendance parfaite.
+hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y",
+                                      poids = NULL, poids_nom = NULL) {
+  w <- if (is.null(poids)) rep(1, length(x)) else suppressWarnings(as.numeric(poids))
+  if (length(w) != length(x))
+    return(list(ok = FALSE, notes = tr("La colonne d'effectifs n'a pas la longueur des données.")))
+  d <- data.frame(x = as.character(x), y = as.character(y), w = w, stringsAsFactors = FALSE)
+  d <- d[!is.na(d$x) & !is.na(d$y) & nzchar(trimws(d$x)) & nzchar(trimws(d$y)), , drop = FALSE]
+  notes_poids <- character(0)
+  if (!is.null(poids)) {
+    neg <- sum(is.finite(d$w) & d$w < 0)
+    vide <- sum(!is.finite(d$w))
+    d <- d[is.finite(d$w) & d$w >= 0, , drop = FALSE]
+    notes_poids <- trf("Effectifs lus dans la colonne « %s » : chaque ligne compte pour sa valeur, pas pour un individu.",
+                       poids_nom %||% "?")
+    if (neg) notes_poids <- c(notes_poids, trf("%d ligne(s) d'effectif négatif écartée(s).", neg))
+    if (vide) notes_poids <- c(notes_poids, trf("%d ligne(s) sans effectif lisible écartée(s).", vide))
+  }
+  if (sum(d$w) < 3) return(list(ok = FALSE, notes = "Trop peu de données appariées."))
+  tab <- if (is.null(poids)) table(d$x, d$y) else {
+    m <- tapply(d$w, list(d$x, d$y), sum)
+    m[is.na(m)] <- 0
+    as.table(m)
+  }
   if (nrow(tab) < 2 || ncol(tab) < 2)
     return(list(ok = FALSE, notes = "Chaque variable doit avoir au moins 2 modalités."))
 
@@ -970,7 +992,7 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y") {
                       "Carte des résidus" = plot_heat),
        interpretation = interp,
        console = console,
-       notes = trf("%d observations appariées analysées.", n))
+       notes = paste(c(trf("%d observations appariées analysées.", n), notes_poids), collapse = " "))
 }
 
 # ===========================================================================
@@ -2259,7 +2281,8 @@ mod_qualitative_ui <- function(id) {
             shiny::conditionalPanel(sprintf("input['%s'] != 'multi'", ns("nom_mode")),
               shiny::uiOutput(ns("nom_var1_ui"))),
             shiny::conditionalPanel(sprintf("input['%s'] == 'bi'", ns("nom_mode")),
-              shiny::uiOutput(ns("nom_var2_ui"))),
+              shiny::uiOutput(ns("nom_var2_ui")),
+              shiny::uiOutput(ns("nom_poids_ui"))),
             shiny::conditionalPanel(sprintf("input['%s'] == 'gof'", ns("nom_mode")),
               shiny::div(style = "background:#eef7ee;border-left:3px solid #27ae60;padding:6px 10px;margin-bottom:8px;font-size:12px;",
                 shiny::icon("info-circle"),
@@ -2537,6 +2560,18 @@ mod_qualitative_server <- function(id, values) {
       shiny::selectInput(ns("gof_x"), "Facteur étudié (X, groupes)", choices = ch)
     })
     output$nom_var2_ui <- shiny::renderUI(shiny::selectInput(ns("nom_var2"), "Variable 2 (croisement)", choices = col_names()))
+    # Colonne d'effectifs : proposée d'après son nom (Freq, effectif, n...),
+    # jamais d'après ses valeurs -- une mesure entière n'est pas un effectif.
+    output$nom_poids_ui <- shiny::renderUI({
+      d <- get_data()
+      num <- names(d)[vapply(d, is.numeric, logical(1))]
+      shiny::tagList(
+        shiny::selectInput(ns("nom_poids"), "Colonne d'effectifs (facultatif)",
+                           choices = c("(aucune : une ligne = un individu)" = "__aucun__", num),
+                           selected = hstat_effectif_propose(d) %||% "__aucun__"),
+        shiny::tags$small(style = "color:#7f8c8d;",
+          "Avec une colonne d'effectifs, la table se construit comme xtabs(Freq ~ Variable1 + Variable2) : chaque ligne compte pour sa valeur."))
+    })
     output$gof_levels_hint <- shiny::renderUI({
       d <- get_data(); v <- input$nom_var1
       if (is.null(v) || !(v %in% names(d))) return(NULL)
@@ -2738,7 +2773,10 @@ mod_qualitative_server <- function(id, values) {
             hstat_q_nominal_univariate(d[[input$nom_var1]], input$nom_var1)
           } else if (mode == "bi") {
             shiny::validate(shiny::need(input$nom_var1 %in% names(d) && input$nom_var2 %in% names(d), "Choisissez 2 variables."))
-            hstat_q_nominal_bivariate(d[[input$nom_var1]], d[[input$nom_var2]], input$nom_var1, input$nom_var2)
+            pw <- input$nom_poids
+            pw <- if (is.null(pw) || identical(pw, "__aucun__") || !(pw %in% names(d))) NULL else pw
+            hstat_q_nominal_bivariate(d[[input$nom_var1]], d[[input$nom_var2]], input$nom_var1, input$nom_var2,
+                                      poids = if (is.null(pw)) NULL else d[[pw]], poids_nom = pw)
           } else {
             if ((input$multi_fmt %||% "binary") == "binary") {
               shiny::validate(shiny::need(length(input$multi_cols) >= 2, "Choisissez au moins 2 colonnes binaires."))

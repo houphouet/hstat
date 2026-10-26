@@ -10463,6 +10463,17 @@ le `coord_fixed()` d'une carte et changerait son rapport d'aspect. Un axe
 discret n'a pas d'origine et n'est pas touché. Le test exige que le cadrage
 d'avant **ne soit pas** déjà centré, sans quoi l'assertion ne garderait rien.
 
+### Le tableau croisé qualitatif lit lui aussi une colonne d'effectifs
+
+Demandé à l'écran : que `xtabs(Freq ~ Gender + Admit, data = df)` fonctionne.
+L'analyse qualitative « Tableaux croisés (2 variables) » comptait les lignes ;
+sur `UCBAdmissions` déplié, chaque case valait 6 (les six départements), donc
+une indépendance parfaite. `hstat_q_nominal_bivariate()` prend désormais
+`poids` : chaque ligne pèse sa valeur, comme dans l'AFC. La colonne est
+proposée d'après son nom (`hstat_effectif_propose()`), un effectif négatif ou
+illisible est écarté et compté, et la note dit d'où viennent les effectifs.
+Les modalités restent triées par ordre alphabétique, comme avant.
+
 ### Une couleur s'écrit en six chiffres hexadécimaux
 
 Trouvé en vérifiant ce lot au navigateur : le graphique de l'AFC ne se
