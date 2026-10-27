@@ -23716,13 +23716,13 @@ test_that("les effets simples se lisent à chaque niveau, l'interaction se nomme
   p <- stats::setNames(at[["Pr(>F)"]], rownames(at))
   expect_lt(p[["Temps:Dose"]], 0.05)
   ph <- hstat_rm_posthoc(m, c("Temps", "Dose"), "Groupe", variable = "Y", p_effets = p)
-  expect_setequal(unique(ph$Role), c("Période", "Traitement", "Effet simple"))
+  expect_setequal(unique(ph$Role), c("Intra", "Inter", "Effet simple"))
   es <- ph[ph$Role == "Effet simple" & ph$Facteur == "Temps", ]
   expect_setequal(unique(es$Condition), c("Dose = D0", "Dose = D1", "Groupe = A", "Groupe = B"))
   # Trois paires de Temps a chaque niveau de Dose.
   expect_equal(sum(es$Condition == "Dose = D1"), 3L)
   # L'effet simple differe de l'effet principal : c'est ce qu'il apporte.
-  pr <- ph[ph$Role == "Période" & ph$Facteur == "Temps" & ph$Comparaison == "T1 - T3", "Estimation"]
+  pr <- ph[ph$Role == "Intra" & ph$Facteur == "Temps" & ph$Comparaison == "T1 - T3", "Estimation"]
   s1 <- es[es$Condition == "Dose = D1" & es$Comparaison == "T1 - T3", "Estimation"]
   expect_false(isTRUE(all.equal(pr, s1)))
   notes <- attr(ph, "notes")

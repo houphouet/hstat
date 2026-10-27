@@ -16569,11 +16569,15 @@ hstat_rm_aleatoire <- function(sujet, within, d) {
 # facteur a chaque niveau de chacun des autres. `p_effets` porte les p-values
 # de la table d'ANOVA (noms de termes), pour signaler les interactions
 # significatives : c'est la que les effets principaux cessent de se lire.
+# Les libelles de role viennent du module, qui les affiche : ecrits ici, ils
+# porteraient un accent que le balayage des noms de colonnes confondrait avec
+# un symbole non accentue du socle.
 hstat_rm_posthoc <- function(modele, within, between = character(0),
                              interactions = "complet", adj = "holm",
-                             alpha = 0.05, variable = "", p_effets = NULL) {
+                             alpha = 0.05, variable = "", p_effets = NULL,
+                             roles = c(intra = "Intra", inter = "Inter")) {
   facteurs <- c(within, between)
-  role <- function(f) if (f %in% within) "Période" else "Traitement"
+  role <- function(f) if (f %in% within) roles[["intra"]] else roles[["inter"]]
   lignes <- list()
   ajoute <- function(ph, f, role_txt, condition) {
     if (is.null(ph) || nrow(ph) == 0) return()

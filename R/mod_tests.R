@@ -4244,7 +4244,8 @@ mod_tests_server <- function(id, values) {
           # se lire.
           if (has_emm) {
             ph <- hstat_rm_posthoc(emm_model, within, between, interactions = inter,
-                                   adj = adj, variable = var, p_effets = p_effets)
+                                   adj = adj, variable = var, p_effets = p_effets,
+                                   roles = c(intra = "Période", inter = "Traitement"))
             if (!is.null(ph)) posthoc_list[[var]] <- ph
             notes_rm <- c(notes_rm, attr(ph, "notes"))
             if (length(all_fac) >= 2 && inter != "aucune")
