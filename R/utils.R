@@ -16507,3 +16507,157 @@ hstat_ecrire_cellule <- function(d, ligne, colonne, valeur) {
   d[ligne, colonne] <- valeur
   d
 }
+
+## ---------------------------------------------------------------------------
+##  ANOVA a mesures repetees a plusieurs facteurs : termes, strates, post-hoc
+## ---------------------------------------------------------------------------
+##  Le modele portait deja le plan factoriel complet (`A * B`), mais trois
+##  choses manquaient pour lire un plan a plusieurs facteurs :
+##
+##  1. CHOISIR LES INTERACTIONS. A trois facteurs, l'interaction d'ordre 3
+##     coute des degres de liberte et se lit mal ; on doit pouvoir s'arreter a
+##     l'ordre 2, ou aux effets principaux.
+##  2. LES STRATES D'ERREUR. Avec deux facteurs intra-sujet ou plus, l'ANOVA a
+##     mesures repetees teste chaque effet intra contre SA strate (sujet x A,
+##     sujet x B...). Un seul `(1 | sujet)` les met toutes en commun : les ddl
+##     des effets intra sont gonfles, et leurs p-values trop petites.
+##  3. LES EFFETS SIMPLES. Quand l'interaction est significative, comparer les
+##     niveaux de A en moyennant sur B ne decrit aucune condition reelle :
+##     l'effet de A depend de B, et c'est A a chaque niveau de B qu'il faut lire.
+
+HSTAT_RM_INTERACTIONS <- c(
+  "Factoriel complet (toutes les interactions)" = "complet",
+  "Interactions d'ordre 2 seulement"            = "ordre2",
+  "Effets principaux seuls (sans interaction)"  = "aucune")
+
+# Partie fixe de la formule. Une valeur inconnue retombe sur le plan complet,
+# le comportement d'avant : un reglage de travers ne retire pas d'interaction.
+hstat_rm_termes <- function(facteurs, interactions = "complet") {
+  bt <- paste0("`", facteurs, "`")
+  if (length(bt) < 2) return(bt)
+  switch(as.character(interactions %||% "complet")[1],
+         aucune = paste(bt, collapse = " + "),
+         ordre2 = if (length(bt) == 2) paste(bt, collapse = " * ")
+                  else paste0("(", paste(bt, collapse = " + "), ")^2"),
+         paste(bt, collapse = " * "))
+}
+
+# Partie aleatoire : le sujet, puis une strate par combinaison STRICTE de
+# facteurs intra (sujet x A, sujet x B, sujet x A x B a trois facteurs...),
+# exactement les strates d'erreur de l'ANOVA a mesures repetees classique.
+# La combinaison complete n'est pas posee : c'est la residuelle. Une strate qui
+# compte autant de niveaux que d'observations n'est pas identifiable (lmer
+# refuse) et n'est pas posee non plus.
+hstat_rm_aleatoire <- function(sujet, within, d) {
+  s <- paste0("`", sujet, "`")
+  termes <- paste0("(1 | ", s, ")")
+  k <- length(within)
+  if (k >= 2) {
+    for (taille in seq_len(k - 1)) {
+      for (cmb in utils::combn(within, taille, simplify = FALSE)) {
+        niv <- nlevels(interaction(d[c(sujet, cmb)], drop = TRUE))
+        if (niv < nrow(d))
+          termes <- c(termes, paste0("(1 | ", paste(c(s, paste0("`", cmb, "`")),
+                                                    collapse = ":"), ")"))
+      }
+    }
+  }
+  paste(termes, collapse = " + ")
+}
+
+# Comparaisons par paires : effets principaux, puis effets simples de chaque
+# facteur a chaque niveau de chacun des autres. `p_effets` porte les p-values
+# de la table d'ANOVA (noms de termes), pour signaler les interactions
+# significatives : c'est la que les effets principaux cessent de se lire.
+# Les libelles de role viennent du module, qui les affiche : ecrits ici, ils
+# porteraient un accent que le balayage des noms de colonnes confondrait avec
+# un symbole non accentue du socle.
+hstat_rm_posthoc <- function(modele, within, between = character(0),
+                             interactions = "complet", adj = "holm",
+                             alpha = 0.05, variable = "", p_effets = NULL,
+                             roles = c(intra = "Intra", inter = "Inter")) {
+  facteurs <- c(within, between)
+  role <- function(f) if (f %in% within) roles[["intra"]] else roles[["inter"]]
+  lignes <- list()
+  ajoute <- function(ph, f, role_txt, condition) {
+    if (is.null(ph) || nrow(ph) == 0) return()
+    pcol <- if ("p.value" %in% colnames(ph)) "p.value" else utils::tail(colnames(ph), 1)
+    ecol <- if ("estimate" %in% colnames(ph)) "estimate" else colnames(ph)[2]
+    p <- ph[[pcol]]
+    lignes[[length(lignes) + 1L]] <<- data.frame(
+      Variable = variable, Role = role_txt, Facteur = f,
+      Condition = condition, Comparaison = as.character(ph[[1]]),
+      Estimation = round(ph[[ecol]], 4), p_value = round(p, 5),
+      Significatif = ifelse(!is.na(p) & p < alpha, "Oui", "n.s."),
+      stringsAsFactors = FALSE)
+  }
+  emm_paires <- function(...) tryCatch(suppressMessages(as.data.frame(
+    emmeans::contrast(emmeans::emmeans(modele, ...), method = "pairwise",
+                      adjust = adj))), error = function(e) NULL)
+  for (f in facteurs) ajoute(emm_paires(specs = f), f, role(f), "")
+
+  avec_inter <- length(facteurs) >= 2 &&
+    !identical(as.character(interactions %||% "complet")[1], "aucune")
+  if (avec_inter) {
+    for (f1 in facteurs) for (f2 in setdiff(facteurs, f1)) {
+      ph <- emm_paires(specs = f1, by = f2)
+      if (is.null(ph) || !f2 %in% colnames(ph)) next
+      for (niv in unique(as.character(ph[[f2]]))) {
+        sel <- ph[as.character(ph[[f2]]) == niv, , drop = FALSE]
+        ajoute(sel, f1, "Effet simple", paste0(f2, " = ", niv))
+      }
+    }
+  }
+  res <- if (length(lignes)) do.call(rbind, lignes) else NULL
+
+  # Les interactions significatives se nomment : sans elles, on lirait les
+  # effets principaux comme si l'effet de chaque facteur ne dependait pas des
+  # autres.
+  notes <- character(0)
+  if (length(p_effets)) {
+    noms <- gsub("`", "", names(p_effets))
+    for (i in seq_along(p_effets)) {
+      parts <- strsplit(noms[i], ":", fixed = TRUE)[[1]]
+      p <- p_effets[[i]]
+      if (length(parts) >= 2 && is.finite(p) && p < alpha)
+        notes <- c(notes, trf(
+          "L'interaction %s est significative (p = %s) : l'effet de chaque facteur dépend du niveau des autres. Lisez les effets simples ; les comparaisons d'un facteur seul moyennent sur les autres.",
+          paste(parts, collapse = " × "), format.pval(p, digits = 3)))
+    }
+  }
+  attr(res, "notes") <- notes
+  res
+}
+
+# Moyennes ajustees par combinaison des deux premiers facteurs, pour le
+# graphique d'interaction. Le premier facteur intra porte l'axe X : c'est le
+# temps, dans l'usage courant d'un plan a mesures repetees.
+hstat_rm_moyennes <- function(modele, f1, f2, variable = "") {
+  em <- tryCatch(suppressMessages(as.data.frame(
+    emmeans::emmeans(modele, specs = c(f1, f2)))), error = function(e) NULL)
+  if (is.null(em) || nrow(em) == 0) return(NULL)
+  lo <- intersect(c("lower.CL", "asymp.LCL"), colnames(em))[1]
+  hi <- intersect(c("upper.CL", "asymp.UCL"), colnames(em))[1]
+  data.frame(Variable = variable, X = em[[f1]], Groupe = em[[f2]],
+             Moyenne = em$emmean,
+             Bas = if (!is.na(lo)) em[[lo]] else NA_real_,
+             Haut = if (!is.na(hi)) em[[hi]] else NA_real_,
+             stringsAsFactors = FALSE)
+}
+
+hstat_rm_graphique_interaction <- function(d, f1, f2, theme = NULL) {
+  if (is.null(d) || nrow(d) == 0) return(NULL)
+  dodge <- ggplot2::position_dodge(width = 0.15)
+  p <- ggplot2::ggplot(d, ggplot2::aes(x = .data$X, y = .data$Moyenne,
+                                       colour = .data$Groupe, group = .data$Groupe)) +
+    ggplot2::geom_line(position = dodge, linewidth = 0.8) +
+    ggplot2::geom_point(position = dodge, size = 2.4)
+  if (any(is.finite(d$Bas)))
+    p <- p + ggplot2::geom_errorbar(ggplot2::aes(ymin = .data$Bas, ymax = .data$Haut),
+                                    width = 0.12, position = dodge)
+  if (length(unique(d$Variable)) > 1)
+    p <- p + ggplot2::facet_wrap(ggplot2::vars(.data$Variable), scales = "free_y")
+  p + ggplot2::labs(x = f1, y = tr("Moyenne ajustée (IC 95 %)"), colour = f2,
+                    title = trf("Interaction %s × %s", f1, f2)) +
+    (theme %||% ggplot2::theme_minimal())
+}

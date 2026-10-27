@@ -92,6 +92,12 @@ mod_tests_ui <- function(id) {
                                                choices = c("Modèle mixte (lmer)" = "mixed",
                                                            "afex (aov classique)" = "afex"),
                                                selected = "mixed"),
+                                   shiny::selectInput(ns("rmInteractions"), "Interactions entre facteurs :",
+                                               choices = HSTAT_RM_INTERACTIONS,
+                                               selected = "complet"),
+                                   shiny::div(style = "font-size:10px; color:#7f8c8d; margin:-2px 0 6px 0;",
+                                       shiny::icon("circle-info"),
+                                       shiny::span(" Période et Traitement se croisent : leurs interactions sont testées, puis lues par les effets simples (un facteur à chaque niveau des autres). Le moteur afex ajuste toujours le plan factoriel complet.")),
                                    shiny::selectInput(ns("rmNonParam"), "Test non paramétrique :",
                                                choices = c("Friedman (1 facteur intra)"      = "friedman",
                                                            "Durbin (plans incomplets)"       = "durbin",
@@ -1623,7 +1629,17 @@ mod_posthoc_ui <- function(id) {
                       shiny::uiOutput(ns("rmPostHocInfo")),
                       withSpinner(DT::DTOutput(ns("rmPostHocTable")), color = "#00897b"),
                       shiny::br(),
-                      shiny::downloadButton(ns("downloadRMPostHoc"), "Télécharger (Excel)", class = "btn-success")
+                      shiny::downloadButton(ns("downloadRMPostHoc"), "Télécharger (Excel)", class = "btn-success"),
+                      shiny::conditionalPanel(
+                        ns = ns,
+                        condition = "output.hasRMInteraction",
+                        shiny::hr(),
+                        shiny::h5(shiny::tagList(shiny::icon("chart-line"), " Graphique d'interaction"),
+                                  style = "color:#00695c; font-weight:bold;"),
+                        shiny::div(style = "font-size:11px; color:#546e7a; margin-bottom:6px;",
+                            "Moyennes ajustées des deux premiers facteurs, avec leur intervalle de confiance à 95 %. Des lignes non parallèles traduisent une interaction."),
+                        withSpinner(shiny::plotOutput(ns("rmInteractionPlot"), height = "420px"), color = "#00897b"),
+                        hstat_export_plot_ui(ns, "rmInter", width = 8, height = 5))
                     )
                   )
                 )
@@ -4093,6 +4109,8 @@ mod_tests_server <- function(id, values) {
     between <- input$rmBetween
     engine <- input$rmEngine %||% "mixed"
     adj    <- input$rmPostHocAdjust %||% "holm"
+    inter  <- as.character(input$rmInteractions %||% "complet")[1]
+    if (!inter %in% HSTAT_RM_INTERACTIONS) inter <- "complet"
     
     if (is.null(subj) || !nzchar(subj) || !subj %in% names(df)) {
       shiny::showNotification("Sélectionnez une variable « Sujet / identifiant » (panneau « Mesures répétées »).",
@@ -4114,9 +4132,16 @@ mod_tests_server <- function(id, values) {
     }
     has_emm <- requireNamespace("emmeans", quietly = TRUE)
     
+    if (engine == "afex" && inter != "complet" && length(c(within, between)) >= 2)
+      shiny::showNotification(
+        "Le moteur afex ajuste toujours le plan factoriel complet : choisissez le modèle mixte pour retirer des interactions.",
+        type = "warning", duration = 8)
+    
     results_list <- list()
     model_list   <- list()
     posthoc_list <- list()
+    moyennes_list <- list()
+    notes_rm     <- character(0)
     bt <- function(x) paste0("`", x, "`")
     
     shiny::withProgress(message = "ANOVA à mesures répétées...", value = 0.2, {
@@ -4151,7 +4176,8 @@ mod_tests_server <- function(id, values) {
           dsub <- dsub[stats::complete.cases(dsub), ]
           if (nrow(dsub) < 3) { shiny::showNotification(trf("rmANOVA (%s) : trop peu de données.", var), type = "warning"); next }
           
-          fixed <- paste(sapply(all_fac, bt), collapse = " * ")
+          fixed <- hstat_rm_termes(all_fac, if (engine == "afex") "complet" else inter)
+          p_effets <- NULL
           
           if (engine == "afex") {
             # afex::aov_ez : ANOVA classique avec correction de sphericite (GG).
@@ -4175,9 +4201,17 @@ mod_tests_server <- function(id, values) {
             }
             model_list[[var]] <- mod$aov %||% mod
             emm_model <- mod  # afex object marche avec emmeans
+            p_effets <- stats::setNames(atab[[if ("Pr(>F)" %in% colnames(atab)) "Pr(>F)" else ncol(atab)]],
+                                        rownames(atab))
           } else {
-            # Moteur mixte : var ~ within*between + (1|sujet). lmerTest -> p-values.
-            form <- stats::as.formula(paste0(bt(var), " ~ ", fixed, " + (1 | ", bt(subj), ")"))
+            # Moteur mixte : effets fixes choisis + une strate d'erreur par
+            # combinaison de facteurs intra (sujet, sujet x A, sujet x B...),
+            # celles de l'ANOVA a mesures repetees classique. Un seul
+            # `(1 | sujet)` les mettait en commun : avec deux facteurs intra, les
+            # ddl des effets intra etaient gonfles et leurs p-values trop
+            # petites. lmerTest -> p-values (Satterthwaite).
+            form <- stats::as.formula(paste0(bt(var), " ~ ", fixed, " + ",
+                                             hstat_rm_aleatoire(subj, within, dsub)))
             mod <- if (requireNamespace("lmerTest", quietly = TRUE)) lmerTest::lmer(form, data = dsub)
                    else lme4::lmer(form, data = dsub)
             # Table d'ANOVA de type III (Satterthwaite) si lmerTest.
@@ -4199,32 +4233,23 @@ mod_tests_server <- function(id, values) {
             }
             model_list[[var]] <- mod
             emm_model <- mod
+            if (!is.null(atab) && "Pr(>F)" %in% colnames(atab))
+              p_effets <- stats::setNames(atab[["Pr(>F)"]], rownames(atab))
           }
           shiny::incProgress(0.4 / max(length(input$responseVar), 1))
           
-          # --- Post-hoc : comparaisons par paires (emmeans) sur chaque facteur ---
+          # --- Post-hoc : effets principaux, puis effets simples de chaque
+          # facteur a chaque niveau des autres (emmeans). Les interactions
+          # significatives sont nommees : les effets principaux y cessent de
+          # se lire.
           if (has_emm) {
-            for (f in all_fac) {
-              ph <- tryCatch({
-                emm <- emmeans::emmeans(emm_model, specs = f)
-                pr  <- emmeans::contrast(emm, method = "pairwise", adjust = adj)
-                as.data.frame(pr)
-              }, error = function(e) NULL)
-              if (!is.null(ph) && nrow(ph) > 0) {
-                pcol <- if ("p.value" %in% colnames(ph)) "p.value" else utils::tail(colnames(ph), 1)
-                ecol <- if ("estimate" %in% colnames(ph)) "estimate" else colnames(ph)[2]
-                role <- if (f %in% within) "Période" else "Traitement"
-                for (i in seq_len(nrow(ph))) {
-                  posthoc_list[[paste(var, f, i, sep = "_")]] <- data.frame(
-                    Variable = var, Role = role, Facteur = f,
-                    Comparaison = as.character(ph[[1]][i]),
-                    Estimation = round(ph[i, ecol], 4),
-                    p_value = round(ph[i, pcol], 5),
-                    Significatif = if (!is.na(ph[i, pcol]) && ph[i, pcol] < 0.05) "Oui" else "n.s.",
-                    stringsAsFactors = FALSE)
-                }
-              }
-            }
+            ph <- hstat_rm_posthoc(emm_model, within, between, interactions = inter,
+                                   adj = adj, variable = var, p_effets = p_effets,
+                                   roles = c(intra = "Période", inter = "Traitement"))
+            if (!is.null(ph)) posthoc_list[[var]] <- ph
+            notes_rm <- c(notes_rm, attr(ph, "notes"))
+            if (length(all_fac) >= 2 && inter != "aucune")
+              moyennes_list[[var]] <- hstat_rm_moyennes(emm_model, all_fac[1], all_fac[2], var)
           }
         }
         
@@ -4238,8 +4263,14 @@ mod_tests_server <- function(id, values) {
           }
           values$rmPostHocData <- if (length(posthoc_list) > 0) do.call(rbind, posthoc_list) else NULL
           values$rmPostHocMethod <- paste0("rmANOVA (", engine, "), ajustement ", adj)
+          values$rmPostHocNotes  <- unique(notes_rm)
+          values$rmInteractionData <- if (length(moyennes_list) > 0)
+            list(d = do.call(rbind, moyennes_list), f1 = all_fac[1], f2 = all_fac[2]) else NULL
           shiny::showNotification(trf("ANOVA à mesures répétées (%s) sur %d variable(s).", engine, length(model_list)),
                            type = "message", duration = 5)
+          if (length(notes_rm) > 0)
+            shiny::showNotification(paste(unique(notes_rm), collapse = " "),
+                                    type = "warning", duration = 12)
         } else {
           shiny::showNotification("Aucun résultat rmANOVA généré.", type = "warning")
         }
@@ -4376,6 +4407,8 @@ mod_tests_server <- function(id, values) {
           values$testResultsDF   <- do.call(rbind, results_list)
           values$currentTestType <- "nonparametric"
           values$rmPostHocData <- if (length(posthoc_list) > 0) do.call(rbind, posthoc_list) else NULL
+          values$rmPostHocNotes  <- NULL
+          values$rmInteractionData <- NULL
           values$rmPostHocMethod <- paste0(switch(method, friedman = "Friedman/Conover",
                                                   durbin = "Durbin", art = "ART"), ", ajustement ", adj)
           shiny::showNotification(trf("Test non paramétrique répété (%s) terminé.", method),
@@ -7361,10 +7394,28 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$rmPostHocData)
     meth <- values$rmPostHocMethod %||% "—"
     n_sig <- sum(values$rmPostHocData$Significatif == "Oui", na.rm = TRUE)
-    shiny::div(style = "font-size:12px; color:#00695c; margin-bottom:8px;",
-        shiny::tags$b("Méthode : "), meth, " — ",
-        shiny::tags$b(n_sig), " comparaison(s) significative(s) sur ", nrow(values$rmPostHocData), ".")
+    shiny::tagList(
+      shiny::div(style = "font-size:12px; color:#00695c; margin-bottom:8px;",
+          shiny::tags$b("Méthode : "), meth, " — ",
+          shiny::tags$b(n_sig), " comparaison(s) significative(s) sur ", nrow(values$rmPostHocData), "."),
+      lapply(values$rmPostHocNotes, function(n)
+        shiny::div(style = "background:#fff3e0; border-left:4px solid #ef6c00; padding:6px 10px; margin-bottom:8px; font-size:12px;",
+                   shiny::icon("triangle-exclamation"), " ", n)))
   })
+  
+  # --- Graphique d'interaction (moyennes ajustees des deux premiers facteurs) ---
+  output$hasRMInteraction <- shiny::reactive(!is.null(values$rmInteractionData))
+  shiny::outputOptions(output, "hasRMInteraction", suspendWhenHidden = FALSE)
+  rm_interaction_plot <- shiny::reactive({
+    ri <- values$rmInteractionData
+    shiny::req(ri)
+    hstat_rm_graphique_interaction(ri$d, ri$f1, ri$f2,
+                                   theme = hstat_export_theme(input, "rmInter"))
+  })
+  output$rmInteractionPlot <- shiny::renderPlot(rm_interaction_plot())
+  output$rmInterDl <- hstat_export_plot_handler(input, "rmInter",
+                                                function() rm_interaction_plot(),
+                                                fname = "interaction_mesures_repetees")
   
   output$rmPostHocTable <- DT::renderDT({
     shiny::req(values$rmPostHocData)

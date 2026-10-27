@@ -10649,3 +10649,34 @@ désormais ». Trois décisions, chacune testée :
 
 Un fichier de défaut porteur d'une valeur inconnue ne vaut pas un choix : on
 redemande plutôt que d'ouvrir là où personne ne l'a demandé.
+
+## ANOVA à mesures répétées à plusieurs facteurs : strates, interactions, effets simples
+
+Demandé à l'écran : prendre en compte plusieurs facteurs et leurs interactions.
+Le modèle croisait déjà les facteurs (`A * B`) ; trois choses manquaient, et la
+première faussait les résultats.
+
+**Un seul `(1 | sujet)` mettait toutes les strates d'erreur en commun.** Avec
+deux facteurs intra-sujet, l'ANOVA à mesures répétées teste chaque effet contre
+**sa** strate (sujet × A, sujet × B). Mesuré sur un essai à deux facteurs intra :
+l'interaction sortait à F = 0,56 sur 55 ddl avec l'ancien modèle, contre
+F = 5,91 sur 22 ddl pour afex — la même conclusion inversée.
+`hstat_rm_aleatoire()` pose une strate par combinaison stricte de facteurs intra
+(la combinaison complète est la résiduelle, une strate non identifiable n'est
+pas posée), et le modèle mixte reproduit afex à 1e-3 près sur F et les ddl. Une
+variance de strate estimée nulle (ajustement singulier) est mise en commun avec
+la résiduelle : c'est l'estimation REML, pas un défaut.
+
+**Les interactions se choisissent** (`HSTAT_RM_INTERACTIONS`) : plan complet
+(défaut, le comportement d'avant), ordre 2, effets principaux seuls. afex ajuste
+toujours le plan complet, et on le dit quand un autre choix est demandé.
+
+**Les effets simples se lisent à chaque niveau des autres facteurs**
+(`hstat_rm_posthoc()`, `emmeans(..., by = )`) : quand l'interaction est
+significative, la comparaison d'un facteur seul moyenne sur les autres et ne
+décrit aucune condition réelle. Une interaction significative est **nommée** au
+-dessus du tableau, et un graphique d'interaction (moyennes ajustées ± IC 95 %
+des deux premiers facteurs) se télécharge par le kit d'export.
+
+Le test exige l'égalité avec afex **et** l'écart de l'ancien modèle : sans la
+seconde moitié, il passerait aussi sur le code d'avant.

@@ -23648,3 +23648,126 @@ test_that("run_hstat demande ou ouvrir, retient le defaut sur demande seulement"
   expect_true(is.function(l))
   expect_null(e$.hstat_ouverture_lanceur(NA_character_, rs))
 })
+
+# ==============================================================================
+#  ANOVA a mesures repetees a plusieurs facteurs : interactions et strates
+# ==============================================================================
+.rm_essai_2intra <- function(graine = 3) {
+  set.seed(graine)
+  d <- expand.grid(Sujet = factor(1:12), Temps = factor(c("T1", "T2", "T3")),
+                   Dose = factor(c("D0", "D1")))
+  d$Groupe <- factor(ifelse(as.integer(d$Sujet) <= 6, "A", "B"))
+  d$Y <- 10 + rnorm(12, 0, 2)[d$Sujet] +
+    rnorm(36, 0, 1.5)[interaction(d$Sujet, d$Temps)] +
+    rnorm(24, 0, 1.5)[interaction(d$Sujet, d$Dose)] +
+    0.8 * as.integer(d$Temps) * (d$Dose == "D1") + rnorm(nrow(d), 0, 0.5)
+  d
+}
+
+test_that("les interactions se choisissent, le plan complet reste le défaut", {
+  f3 <- c("Temps", "Dose", "Groupe")
+  expect_identical(hstat_rm_termes(f3), "`Temps` * `Dose` * `Groupe`")
+  expect_identical(hstat_rm_termes(f3, "ordre2"), "(`Temps` + `Dose` + `Groupe`)^2")
+  expect_identical(hstat_rm_termes(f3, "aucune"), "`Temps` + `Dose` + `Groupe`")
+  expect_identical(hstat_rm_termes(f3, "inconnu"), hstat_rm_termes(f3))
+  expect_identical(hstat_rm_termes("Temps", "aucune"), "`Temps`")
+  # Ordre 2 : aucune interaction d'ordre 3 dans le modele.
+  lab <- attr(stats::terms(stats::as.formula(paste("y ~", hstat_rm_termes(f3, "ordre2")))),
+              "term.labels")
+  expect_false(any(lengths(strsplit(lab, ":")) > 2))
+  expect_true(any(lengths(strsplit(lab, ":")) == 2))
+})
+
+test_that("deux facteurs intra : chaque effet est testé contre sa strate, comme afex", {
+  skip_if_not_installed("lmerTest")
+  skip_if_not_installed("afex")
+  d <- .rm_essai_2intra()
+  ra <- hstat_rm_aleatoire("Sujet", c("Temps", "Dose"), d)
+  expect_match(ra, "(1 | `Sujet`:`Temps`)", fixed = TRUE)
+  expect_match(ra, "(1 | `Sujet`:`Dose`)", fixed = TRUE)
+  # La strate complete est la residuelle : elle n'est pas posee.
+  expect_false(grepl("`Temps`:`Dose`", ra, fixed = TRUE))
+  m <- suppressMessages(lmerTest::lmer(stats::as.formula(paste(
+    "Y ~", hstat_rm_termes(c("Temps", "Dose")), "+", ra)), data = d))
+  at <- as.data.frame(stats::anova(m))
+  a <- suppressMessages(afex::aov_ez("Sujet", "Y", d, within = c("Temps", "Dose"),
+                                     anova_table = list(correction = "none")))$anova_table
+  for (eff in c("Temps", "Dose", "Temps:Dose")) {
+    expect_equal(at[eff, "F value"], a[eff, "F"], tolerance = 1e-3, info = eff)
+    expect_equal(at[eff, "DenDF"], a[eff, "den Df"], tolerance = 1e-2, info = eff)
+  }
+  # Le modele d'avant -- un seul (1 | sujet) -- ne les reproduit PAS : sans
+  # cette moitie, l'assertion passerait aussi sur l'ancien code.
+  m0 <- lmerTest::lmer(Y ~ Temps * Dose + (1 | Sujet), data = d)
+  a0 <- as.data.frame(stats::anova(m0))
+  expect_gt(abs(a0["Temps:Dose", "F value"] - a["Temps:Dose", "F"]), 1)
+  # Un seul facteur intra : rien de plus que le sujet.
+  expect_identical(hstat_rm_aleatoire("Sujet", "Temps", d), "(1 | `Sujet`)")
+})
+
+test_that("les effets simples se lisent à chaque niveau, l'interaction se nomme", {
+  skip_if_not_installed("lmerTest")
+  skip_if_not_installed("emmeans")
+  d <- .rm_essai_2intra()
+  m <- suppressMessages(lmerTest::lmer(stats::as.formula(paste(
+    "Y ~", hstat_rm_termes(c("Temps", "Dose", "Groupe")), "+",
+    hstat_rm_aleatoire("Sujet", c("Temps", "Dose"), d))), data = d))
+  at <- as.data.frame(stats::anova(m))
+  p <- stats::setNames(at[["Pr(>F)"]], rownames(at))
+  expect_lt(p[["Temps:Dose"]], 0.05)
+  ph <- hstat_rm_posthoc(m, c("Temps", "Dose"), "Groupe", variable = "Y", p_effets = p)
+  expect_setequal(unique(ph$Role), c("Intra", "Inter", "Effet simple"))
+  es <- ph[ph$Role == "Effet simple" & ph$Facteur == "Temps", ]
+  expect_setequal(unique(es$Condition), c("Dose = D0", "Dose = D1", "Groupe = A", "Groupe = B"))
+  # Trois paires de Temps a chaque niveau de Dose.
+  expect_equal(sum(es$Condition == "Dose = D1"), 3L)
+  # L'effet simple differe de l'effet principal : c'est ce qu'il apporte.
+  pr <- ph[ph$Role == "Intra" & ph$Facteur == "Temps" & ph$Comparaison == "T1 - T3", "Estimation"]
+  s1 <- es[es$Condition == "Dose = D1" & es$Comparaison == "T1 - T3", "Estimation"]
+  expect_false(isTRUE(all.equal(pr, s1)))
+  notes <- attr(ph, "notes")
+  expect_length(notes, 1L)
+  expect_match(notes, "Temps")
+  expect_match(notes, "Dose")
+  # Sans interaction dans le modele, pas d'effet simple.
+  ph0 <- hstat_rm_posthoc(m, c("Temps", "Dose"), "Groupe", interactions = "aucune")
+  expect_false("Effet simple" %in% ph0$Role)
+  # Moyennes et graphique d'interaction.
+  mo <- hstat_rm_moyennes(m, "Temps", "Dose", "Y")
+  expect_equal(nrow(mo), 6L)
+  expect_true(all(mo$Bas < mo$Moyenne & mo$Moyenne < mo$Haut))
+  g <- hstat_rm_graphique_interaction(mo, "Temps", "Dose")
+  expect_s3_class(g, "ggplot")
+  expect_silent(ggplot2::ggplot_build(g))
+})
+
+test_that("le module teste les interactions et publie effets simples et graphique", {
+  skip_if_not_installed("shiny")
+  skip_if_not_installed("lmerTest")
+  skip_if_not_installed("emmeans")
+  d <- .rm_essai_2intra()
+  shiny::testServer(mod_tests_server, args = list(
+    values = do.call(shiny::reactiveValues, hstat_valeurs_initiales())), {
+    values$filteredData <- d
+    session$setInputs(responseVar = "Y", factorVar = "Temps", rmSubject = "Sujet",
+                      rmWithin = c("Temps", "Dose"), rmBetween = "Groupe",
+                      rmEngine = "mixed", rmInteractions = "complet",
+                      rmPostHocAdjust = "holm")
+    session$setInputs(testRMAnova = 1)
+    r <- values$testResultsDF
+    expect_true(all(c("Temps:Dose", "Temps:Dose:Groupe") %in% gsub("`", "", r$Facteur)))
+    expect_true("Effet simple" %in% values$rmPostHocData$Role)
+    expect_false(is.null(values$rmInteractionData))
+    expect_true(length(values$rmPostHocNotes) >= 1)
+    # Ordre 2 : l'interaction triple quitte la table.
+    session$setInputs(rmInteractions = "ordre2", testRMAnova = 2)
+    f <- gsub("`", "", values$testResultsDF$Facteur)
+    expect_true("Temps:Dose" %in% f)
+    expect_false("Temps:Dose:Groupe" %in% f)
+    # Effets principaux seuls : ni interaction, ni effet simple, ni graphique.
+    session$setInputs(rmInteractions = "aucune", testRMAnova = 3)
+    expect_false(any(grepl(":", values$testResultsDF$Facteur)))
+    expect_false("Effet simple" %in% values$rmPostHocData$Role)
+    expect_null(values$rmInteractionData)
+  })
+})
