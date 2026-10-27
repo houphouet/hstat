@@ -23811,7 +23811,8 @@ test_that("visualisation : barres groupées sur l'axe Y2, courbes à barres d'er
     session$setInputs(enableDualAxis = TRUE, vizY2Vars = c("Tmax_mai", "HR_mai"),
                       vizY2Type = "bar", vizErrorBars = "se", vizErrorWidth = 0.3)
     p <- createPlot()
-    geoms <- vapply(p$layers, function(l) class(l$geom)[1], "")
+    # unname() : ggplot2 récent nomme ses couches ("geom_col").
+    geoms <- unname(vapply(p$layers, function(l) class(l$geom)[1], ""))
     # UNE couche de barres, posée SOUS les courbes.
     expect_identical(sum(geoms == "GeomCol"), 1L)
     expect_identical(geoms[1], "GeomCol")
