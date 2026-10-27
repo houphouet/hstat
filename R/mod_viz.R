@@ -1023,6 +1023,26 @@ mod_viz_ui <- function(id) {
                           )
                         ),
                         
+                        # Barres d'erreur : sur les courbes de Y1 (type « Courbe ») et sur
+                        # les courbes de l'axe secondaire. Un seul reglage pour les deux :
+                        # deux reglages pour une meme figure finiraient par se contredire.
+                        shiny::conditionalPanel(
+              ns = ns,
+                          condition = "input.vizType == 'line' || input.enableDualAxis == true",
+                          shiny::div(
+                            style = "margin-top: 10px; padding: 12px; background-color: #ede7f6; border-radius: 6px; border-left: 3px solid #673ab7;",
+                            shiny::h6(shiny::tagList(shiny::icon("arrows-alt-v"), " Barres d'erreur des courbes"),
+                               style = "color: #4527a0; font-weight: bold; margin-top: 0; font-size: 12px;"),
+                            shiny::selectInput(ns("vizErrorBars"), NULL,
+                                               choices = HSTAT_VIZ_ERREURS, selected = "aucune"),
+                            shiny::sliderInput(ns("vizErrorWidth"), "Largeur des capuchons :",
+                                               min = 0, max = 1, value = 0.3, step = 0.05),
+                            shiny::helpText(style = "font-size: 11px; color: #666;",
+                                     shiny::icon("info-circle"),
+                                     " Calculées sur les répétitions de chaque abscisse, autour de la moyenne. Laissez l'agrégation décochée : la courbe passe alors elle-même par les moyennes.")
+                          )
+                        ),
+                        
                         shiny::conditionalPanel(
               ns = ns,
                           condition = "input.vizType == 'line' || input.vizType == 'area'",
@@ -1304,13 +1324,13 @@ mod_viz_server <- function(id, values) {
       ))
     }
     
-    default_colors <- c("#2196F3","#4CAF50","#9C27B0","#FF5722","#00BCD4",
-                        "#FFC107","#E91E63","#607D8B","#795548","#009688")
+    # Les couleurs de depart sont celles de ggplot2 (scale_colour_hue).
+    default_colors <- hstat_couleurs_series(length(num_y_vars))
     
     color_pickers <- lapply(seq_along(num_y_vars), function(i) {
       v      <- num_y_vars[i]
       col_id <- paste0("curveColor_", make.names(v))
-      col_def <- default_colors[((i - 1L) %% length(default_colors)) + 1L]
+      col_def <- default_colors[i]
       shiny::div(
         style = "display:flex; align-items:center; gap:8px; margin-bottom:5px;",
         shiny::div(
@@ -2511,6 +2531,33 @@ mod_viz_server <- function(id, values) {
     return(p)
   }
   
+  # Resume moyenne +/- erreur d'une courbe, ou NULL quand aucune barre n'est
+  # demandee ou calculable. Les barres entourent la MOYENNE : sous une
+  # agregation par mediane, somme ou maximum, la courbe ne passerait pas par
+  # leur centre -- on refuse et on le dit.
+  erreurs_courbe <- function(data, x_var, y_var, color_var = NULL) {
+    type <- input$vizErrorBars %||% "aucune"
+    if (identical(type, "aucune") || !y_var %in% names(data)) return(NULL)
+    if (isTRUE(input$useAggregation) && !identical(input$aggFunction %||% "mean", "mean")) {
+      shiny::showNotification(
+        "Barres d'erreur : elles entourent la moyenne. Choisissez la moyenne comme agrégation, ou décochez l'agrégation.",
+        type = "warning", duration = 6, id = session$ns("vizErreurAgg"))
+      return(NULL)
+    }
+    groupes <- c(color_var, if (!is.null(input$vizFacetVar) && input$vizFacetVar != "Aucun")
+      input$vizFacetVar)
+    r <- tryCatch(hstat_viz_resume_erreur(data, x_var, y_var, groupes, type),
+                  error = function(e) NULL)
+    if (is.null(r) || !nrow(r)) return(NULL)
+    if (!any(is.finite(r$.bas))) {
+      shiny::showNotification(
+        "Barres d'erreur : aucune abscisse ne porte deux valeurs ou plus. Elles se calculent sur les répétitions ; si l'agrégation est cochée, décochez-la.",
+        type = "warning", duration = 7, id = session$ns("vizErreurRep"))
+      return(NULL)
+    }
+    r
+  }
+
   create_line_plot <- function(data, x_var, y_var, color_var = NULL) {
     connect_na  <- isTRUE(input$lineConnectNA)
     show_na_mk  <- isTRUE(input$lineShowNAMarker)
@@ -2525,9 +2572,26 @@ mod_viz_server <- function(id, values) {
       if (x_is_date || x_is_numeric) data[order(data[[x_var]], na.last=TRUE), , drop = FALSE]
       else data
     }, error=function(e) data)
+    # Barres d'erreur : la courbe passe par la MOYENNE de chaque abscisse, et
+    # la barre se calcule sur ses repetitions. Sans repetition, aucune barre
+    # n'est calculable : on le dit plutot que de tracer des barres nulles.
+    err_df <- erreurs_courbe(data, x_var, y_var, color_var)
+    if (!is.null(err_df)) data <- err_df
     data_line <- if (connect_na) data[!is.na(data[[y_var]]), , drop = FALSE] else data
     data_pts  <- data[!is.na(data[[y_var]]), , drop = FALSE]
     p <- ggplot2::ggplot(data_line, ggplot2::aes(x=.data[[x_var]], y=.data[[y_var]]))
+    if (!is.null(err_df)) {
+      larg <- hstat_largeur_erreur(err_df[[x_var]], input$vizErrorWidth %||% 0.3)
+      p <- p + if (!is.null(color_var) && color_var %in% names(err_df))
+        ggplot2::geom_errorbar(data = err_df, inherit.aes = FALSE,
+          ggplot2::aes(x = .data[[x_var]], ymin = .data$.bas, ymax = .data$.haut,
+                       color = .data[[color_var]]),
+          width = larg, linewidth = 0.5, na.rm = TRUE, show.legend = FALSE)
+      else
+        ggplot2::geom_errorbar(data = err_df, inherit.aes = FALSE,
+          ggplot2::aes(x = .data[[x_var]], ymin = .data$.bas, ymax = .data$.haut),
+          color = fixed_color, width = larg, linewidth = 0.5, na.rm = TRUE)
+    }
     if (!is.null(color_var)) {
       p <- p + ggplot2::geom_line(ggplot2::aes(color=.data[[color_var]], group=.data[[color_var]]),
                          linewidth=lw, na.rm=TRUE)
@@ -3213,6 +3277,8 @@ mod_viz_server <- function(id, values) {
     input$y2AxisBreakStep
     input$y2CurveWidth
     input$vizY2Type
+    input$vizErrorBars
+    input$vizErrorWidth
     input$plotMarginTop
     input$plotMarginRight
     input$plotMarginBottom
@@ -3387,20 +3453,28 @@ mod_viz_server <- function(id, values) {
         y1_vals  <- if ("Value" %in% names(data)) data[["Value"]] else data[[y_var]]
         y1_min   <- min(y1_vals, na.rm = TRUE)
         y1_max   <- max(y1_vals, na.rm = TRUE)
+        # Des barres (ou des aires) sur l'axe secondaire partent de ZERO : les
+        # deux axes doivent alors faire coincider leur zero, sinon la barre
+        # part du zero de l'axe gauche, qui n'est pas celui de son axe, et sa
+        # hauteur ne se lit plus sur l'axe droit.
+        y2_part_de_zero <- (input$vizY2Type %||% "line") %in% c("bar", "area")
+        if (y2_part_de_zero) y1_min <- min(0, y1_min)
         y1_range <- y1_max - y1_min
         if (!is.finite(y1_range) || y1_range == 0) y1_range <- 1
         
-        default_colors <- c("#2196F3","#4CAF50","#9C27B0","#FF5722","#00BCD4",
-                            "#FFC107","#E91E63","#607D8B","#795548","#009688")
-        
         all_y_vars <- if (!is.null(values$yVarNames)) values$yVarNames else y_var
         y1_vars    <- setdiff(all_y_vars, y2_active_vars)
+        # Couleurs de ggplot2, rangees dans l'ordre de selection des Y : la
+        # meme serie garde la meme couleur que ce que son selecteur propose.
+        default_colors <- hstat_couleurs_series(length(all_y_vars))
         
         get_curve_color <- function(var_name, idx) {
           col_id   <- paste0("curveColor_", make.names(var_name))
           user_col <- input[[col_id]]
           if (!is.null(user_col) && nchar(trimws(user_col)) > 0) return(user_col)
-          default_colors[((idx - 1L) %% length(default_colors)) + 1L]
+          pos <- match(var_name, all_y_vars)
+          if (is.na(pos)) pos <- idx
+          default_colors[((pos - 1L) %% max(1L, length(default_colors))) + 1L]
         }
         
         y1_color_map <- stats::setNames(
@@ -3468,6 +3542,7 @@ mod_viz_server <- function(id, values) {
         } else {
           if (!is.finite(y2_global_min)) y2_global_min <- 0
           if (!is.finite(y2_global_max)) y2_global_max <- 1
+          if (y2_part_de_zero) y2_global_min <- min(0, y2_global_min)
           if (y2_global_max == y2_global_min) y2_global_max <- y2_global_min + 1
           
           user_y2_min <- if (!is.null(input$y2AxisMin) && !is.na(input$y2AxisMin)) input$y2AxisMin else y2_global_min
@@ -3481,6 +3556,12 @@ mod_viz_server <- function(id, values) {
                                         sf = sf, off = off)
           
           y2_lw <- input$y2CurveWidth %||% 1.2
+          y2_barres <- list()
+          y2_err_type <- input$vizErrorBars %||% "aucune"
+          y2_err_ok <- !identical(y2_err_type, "aucune") &&
+            y2_type %in% c("line", "points_line") &&
+            !(isTRUE(input$useAggregation) && !identical(input$aggFunction %||% "mean", "mean"))
+          y2_err_vu <- FALSE
           
           for (i in seq_along(names(y2_traces))) {
             yv <- names(y2_traces)[i]
@@ -3488,6 +3569,28 @@ mod_viz_server <- function(id, values) {
             d2$.y2_scaled <- d2$.y2_raw * sf + off
             col_y2 <- get_curve_color(yv, y2_idx_start + i - 1L)
             y2_color_map[[yv]] <- col_y2
+            
+            # Barres d'erreur de l'axe secondaire : calculees sur les valeurs
+            # BRUTES de chaque abscisse, puis portees a l'echelle de l'axe
+            # gauche comme la courbe (une erreur-type se multiplie par sf).
+            if (y2_err_ok) {
+              re <- tryCatch(hstat_viz_resume_erreur(raw_full, x_var, yv, NULL, y2_err_type),
+                             error = function(e) NULL)
+              if (!is.null(re) && any(is.finite(re$.bas))) {
+                y2_err_vu <- TRUE
+                if (x_is_date && !inherits(re[[x_var]], c("Date","POSIXct","POSIXlt")))
+                  re[[x_var]] <- as.Date(re[[x_var]], origin = "1970-01-01")
+                re$.bas  <- re$.bas  * sf + off
+                re$.haut <- re$.haut * sf + off
+                re$.curve_label <- yv
+                p <- p + ggplot2::geom_errorbar(
+                  data = re, inherit.aes = FALSE,
+                  ggplot2::aes(x = .data[[x_var]], ymin = .data$.bas, ymax = .data$.haut,
+                               color = .data$.curve_label),
+                  width = hstat_largeur_erreur(re[[x_var]], input$vizErrorWidth %||% 0.3),
+                  linewidth = 0.5, na.rm = TRUE, show.legend = FALSE)
+              }
+            }
             
             # CRITIQUE : inherit.aes = FALSE sur TOUS les geoms Y2
             # evite que ggplotly cherche les aes du plot principal (ex: Value)
@@ -3547,12 +3650,8 @@ mod_viz_server <- function(id, values) {
                       color = .data$.curve_label, group = .data$.curve_label),
                   linewidth = y2_lw * 0.8, na.rm = TRUE, show.legend = FALSE)
             } else if (y2_type == "bar") {
-              p <- p + ggplot2::geom_col(
-                data = d2, inherit.aes = FALSE,
-                ggplot2::aes(x = .data[[x_var]], y = .data$.y2_scaled,
-                    fill = .data$.curve_label, group = .data$.curve_label),
-                alpha = 0.7, width = 0.7, position = "dodge",
-                na.rm = TRUE, show.legend = TRUE)
+              # Posees ensemble apres la boucle (hstat_barres_groupees).
+              y2_barres[[yv]] <- d2
             } else if (y2_type == "box") {
               p <- p + ggplot2::geom_boxplot(
                 data = d2, inherit.aes = FALSE,
@@ -3598,6 +3697,22 @@ mod_viz_server <- function(id, values) {
             }
           }
         }
+        
+        # Les barres de l'axe secondaire se posent en UNE couche, cote a cote,
+        # et SOUS les courbes : posees par-dessus, elles masqueraient les
+        # courbes et leurs barres d'erreur, qui sont ce qu'on vient lire.
+        if (exists("y2_barres", inherits = FALSE) && length(y2_barres)) {
+          couche <- hstat_barres_groupees(y2_barres, x_var)
+          if (!is.null(couche)) {
+            p <- p + couche
+            nl <- length(p$layers)
+            p$layers <- c(p$layers[nl], p$layers[-nl])
+          }
+        }
+        if (exists("y2_err_ok", inherits = FALSE) && isTRUE(y2_err_ok) && !isTRUE(y2_err_vu))
+          shiny::showNotification(
+            "Barres d'erreur de l'axe secondaire : aucune abscisse ne porte deux valeurs ou plus.",
+            type = "warning", duration = 6, id = session$ns("vizErreurY2"))
         
         all_color_map <- c(y1_color_map, unlist(y2_color_map))
         if (length(all_color_map) > 0) {
@@ -3688,8 +3803,7 @@ mod_viz_server <- function(id, values) {
           if (k %in% all_keys) lm_full[[k]] <- as.character(legend_map[[k]])
         }
         
-        default_pal <- c("#2196F3","#4CAF50","#9C27B0","#FF5722","#00BCD4",
-                         "#FFC107","#E91E63","#607D8B","#795548","#009688")
+        default_pal <- hstat_couleurs_series(max(1L, length(all_keys)))
         color_vals  <- stats::setNames(
           vapply(seq_along(all_keys), function(i) {
             k <- all_keys[i]

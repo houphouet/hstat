@@ -16661,3 +16661,96 @@ hstat_rm_graphique_interaction <- function(d, f1, f2, theme = NULL) {
                     title = trf("Interaction %s × %s", f1, f2)) +
     (theme %||% ggplot2::theme_minimal())
 }
+
+# ---------------------------------------------------------------------------
+# Barres groupees et courbes a barres d'erreur, dans les couleurs de ggplot2
+# ---------------------------------------------------------------------------
+
+# Les couleurs par defaut de ggplot2 : celles que `scale_colour_hue()` pose
+# d'elle-meme. Les selecteurs de couleur des series partent de la, et une
+# serie sans choix explicite les retrouve -- la palette d'origine de ggplot2,
+# pas une palette maison qu'il faudrait defaire avant de faire.
+hstat_couleurs_series <- function(n) {
+  n <- suppressWarnings(as.integer(n))
+  if (length(n) != 1L || is.na(n) || n < 1L) return(character(0))
+  scales::hue_pal()(n)
+}
+
+# Ce que portent les barres d'erreur. Elles entourent toujours la MOYENNE :
+# une erreur-type autour d'une mediane ne veut rien dire.
+HSTAT_VIZ_ERREURS <- c(
+  "Aucune"                                    = "aucune",
+  "Erreur-type (moyenne ± SE)"           = "se",
+  "Écart-type (moyenne ± SD)"       = "sd",
+  "Intervalle de confiance à 95 %"       = "ic95"
+)
+
+# Moyenne et barre d'erreur par abscisse (et par serie, et par facette).
+# Une abscisse d'une seule valeur garde sa moyenne et n'a PAS de barre : un
+# ecart-type d'une observation n'existe pas, et une barre nulle se lirait
+# « aucune variabilite », ce qui est un resultat.
+hstat_viz_resume_erreur <- function(d, x, y, groupes = NULL, type = "se") {
+  type <- if (length(type) == 1L && type %in% HSTAT_VIZ_ERREURS) type else "se"
+  groupes <- intersect(setdiff(unique(groupes), c(x, y)), names(d))
+  cles <- c(x, groupes)
+  d <- d[!is.na(d[[x]]), , drop = FALSE]
+  v <- suppressWarnings(as.numeric(d[[y]]))
+  ok <- is.finite(v)
+  d <- d[ok, cles, drop = FALSE]
+  d$.v <- v[ok]
+  if (!nrow(d)) {
+    vide <- d[0, cles, drop = FALSE]
+    vide[[y]] <- numeric(0); vide$.bas <- numeric(0)
+    vide$.haut <- numeric(0); vide$.n <- integer(0)
+    return(vide)
+  }
+  r <- d %>%
+    dplyr::group_by(dplyr::across(dplyr::all_of(cles))) %>%
+    dplyr::summarise(.moy = mean(.data$.v), .et = stats::sd(.data$.v),
+                     .n = dplyr::n(), .groups = "drop") %>%
+    as.data.frame(stringsAsFactors = FALSE)
+  demi <- switch(type,
+    aucune = rep(NA_real_, nrow(r)),
+    sd     = r$.et,
+    se     = r$.et / sqrt(r$.n),
+    ic95   = suppressWarnings(stats::qt(0.975, pmax(r$.n - 1, 1))) * r$.et / sqrt(r$.n))
+  demi[r$.n < 2] <- NA_real_
+  r[[y]]  <- r$.moy
+  r$.bas  <- r$.moy - demi
+  r$.haut <- r$.moy + demi
+  r[, c(cles, y, ".bas", ".haut", ".n"), drop = FALSE]
+}
+
+# Largeur d'une barre d'erreur, en unites de l'axe X. Sur un axe de dates,
+# 0,2 vaut 0,2 JOUR : la barre serait invisible entre deux annees. On la
+# rapporte donc au plus petit ecart entre deux abscisses, comme ggplot le
+# fait pour la largeur d'une barre.
+hstat_largeur_erreur <- function(x, part = 0.3) {
+  part <- suppressWarnings(as.numeric(part))
+  if (length(part) != 1L || !is.finite(part) || part <= 0) part <- 0.3
+  if (is.factor(x) || is.character(x) || is.logical(x)) return(part)
+  u <- sort(unique(suppressWarnings(as.numeric(x))))
+  u <- u[is.finite(u)]
+  if (length(u) < 2L) return(part)
+  part * min(diff(u))
+}
+
+# Les barres de plusieurs series portees sur l'axe secondaire se posent en
+# UNE couche, decalees cote a cote. Une couche par serie les superposait :
+# chaque couche ne decale que ses propres barres, et la derniere recouvrait
+# toutes les autres a la meme abscisse.
+hstat_barres_groupees <- function(traces, x, y = ".y2_scaled",
+                                  serie = ".curve_label", alpha = 1) {
+  traces <- Filter(function(t) is.data.frame(t) && nrow(t) > 0 &&
+                     all(c(x, y, serie) %in% names(t)), traces)
+  if (!length(traces)) return(NULL)
+  d <- do.call(rbind, lapply(traces, function(t) t[, c(x, y, serie), drop = FALSE]))
+  d[[serie]] <- factor(d[[serie]], levels = unique(names(traces) %||% d[[serie]]))
+  ggplot2::geom_col(
+    data = d, inherit.aes = FALSE,
+    ggplot2::aes(x = .data[[x]], y = .data[[y]], fill = .data[[serie]]),
+    position = ggplot2::position_dodge(), alpha = alpha,
+    # NA et non TRUE : TRUE forcerait la couche dans TOUTES les legendes, et
+    # chaque cle de courbe porterait un carre gris de barre.
+    na.rm = TRUE, show.legend = NA)
+}

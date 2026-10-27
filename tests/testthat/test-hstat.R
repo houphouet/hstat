@@ -23771,3 +23771,74 @@ test_that("le module teste les interactions et publie effets simples et graphiqu
     expect_null(values$rmInteractionData)
   })
 })
+
+# ---------------------------------------------------------------------------
+# Barres groupées + courbes à barres d'erreur, dans les couleurs de ggplot2
+# ---------------------------------------------------------------------------
+test_that("visualisation : barres groupées sur l'axe Y2, courbes à barres d'erreur, couleurs ggplot2", {
+  # Couleurs : exactement celles de scale_colour_hue().
+  expect_identical(hstat_couleurs_series(3), scales::hue_pal()(3))
+  expect_length(hstat_couleurs_series(0), 0L)
+
+  # Résumé : moyenne, barre d'erreur sur les répétitions, aucune barre sans
+  # répétition (un écart-type d'une valeur n'existe pas).
+  d0 <- data.frame(x = c(1, 1, 1, 2), y = c(1, 2, 3, 5), g = "a")
+  r <- hstat_viz_resume_erreur(d0, "x", "y", "g", "se")
+  expect_equal(r$y, c(2, 5))
+  expect_equal(r$.haut[1] - r$y[1], 1 / sqrt(3))
+  expect_true(is.na(r$.bas[2]))
+  r_sd <- hstat_viz_resume_erreur(d0, "x", "y", NULL, "sd")
+  expect_equal(r_sd$.haut[1] - r_sd$y[1], 1)
+  r_ic <- hstat_viz_resume_erreur(d0, "x", "y", NULL, "ic95")
+  expect_equal(r_ic$.haut[1] - r_ic$y[1], stats::qt(0.975, 2) / sqrt(3))
+  # Une barre d'erreur se rapporte à l'écart entre abscisses (des années).
+  expect_equal(hstat_largeur_erreur(c(2013, 2014, 2016), 0.3), 0.3)
+  expect_equal(hstat_largeur_erreur(as.Date(c("2020-01-01", "2021-01-01")), 0.5),
+               0.5 * 366)
+
+  set.seed(1)
+  an <- rep(2013:2016, each = 3)
+  d <- data.frame(Annee = an,
+                  WF_mai  = 10 + (an - 2013) * 2 + stats::rnorm(12),
+                  WF_juin = 14 + (an - 2013) * 2 + stats::rnorm(12),
+                  Tmax_mai = 38 + stats::rnorm(12), HR_mai = 20 + stats::rnorm(12, 0, 3))
+  vals <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d,
+                                storedLevelLabels = list(), customXOrder = NULL)
+  shiny::testServer(mod_viz_server, args = list(values = vals), {
+    session$setInputs(vizXVar = "Annee", xVarType = "numeric",
+                      vizYVar = c("WF_mai", "WF_juin", "Tmax_mai", "HR_mai"),
+                      vizType = "line", useAggregation = FALSE, showPoints = TRUE)
+    session$setInputs(enableDualAxis = TRUE, vizY2Vars = c("Tmax_mai", "HR_mai"),
+                      vizY2Type = "bar", vizErrorBars = "se", vizErrorWidth = 0.3)
+    p <- createPlot()
+    # unname() : ggplot2 récent nomme ses couches ("geom_col").
+    geoms <- unname(vapply(p$layers, function(l) class(l$geom)[1], ""))
+    # UNE couche de barres, posée SOUS les courbes.
+    expect_identical(sum(geoms == "GeomCol"), 1L)
+    expect_identical(geoms[1], "GeomCol")
+    b <- ggplot2::ggplot_build(p)
+    barres <- b$data[[1]]
+    # Côte à côte : à une même année, deux barres qui ne se recouvrent pas.
+    expect_identical(nrow(barres), 8L)
+    expect_identical(length(unique(barres$xmin)), 8L)
+    expect_true(all(barres$ymin == 0))
+    # Le zéro de l'axe droit est celui de l'axe gauche.
+    sec <- p$scales$get_scales("y")$secondary.axis
+    expect_equal(sec$trans(0), 0, tolerance = 1e-8)
+    # Couleurs ggplot2, dans l'ordre de sélection des Y.
+    hue <- scales::hue_pal()(4)
+    expect_setequal(unique(barres$fill), hue[3:4])
+    err <- b$data[[which(geoms == "GeomErrorbar")[1]]]
+    expect_setequal(unique(err$colour), hue[1:2])
+    # La barre d'erreur entoure la moyenne des trois répétitions.
+    m13 <- mean(d$WF_mai[d$Annee == 2013])
+    e13 <- err[err$x == 2013 & err$colour == hue[1], ]
+    expect_equal((e13$ymin + e13$ymax) / 2, m13, tolerance = 1e-8)
+    # Et la courbe passe par ces moyennes : un point par année, pas un par
+    # répétition (une courbe en zigzag entre répétitions ne se lit pas).
+    ligne <- b$data[[which(geoms == "GeomLine")[1]]]
+    l1 <- ligne[ligne$colour == hue[1], ]
+    expect_identical(nrow(l1), 4L)
+    expect_equal(l1$y[l1$x == 2013], m13, tolerance = 1e-8)
+  })
+})
