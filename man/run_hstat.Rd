@@ -4,11 +4,17 @@
 \alias{run_hstat}
 \title{Launch the HStat Shiny Application}
 \usage{
-run_hstat(..., install_missing = TRUE)
+run_hstat(..., ouverture = NULL, install_missing = TRUE)
 }
 \arguments{
 \item{...}{Additional arguments passed to \code{\link[shiny]{runApp}}
-(e.g. \code{launch.browser}, \code{port}).}
+(e.g. \code{port}). Passing \code{launch.browser} bypasses the choice
+of where to open.}
+
+\item{ouverture}{Where to open the app. \code{NULL} (default) uses the
+stored default, or asks when there is none. \code{"navigateur"} opens in
+the web browser and \code{"shiny"} in the RStudio Shiny window, this time
+only. \code{"demander"} forgets the stored default and asks again.}
 
 \item{install_missing}{Logical; if \code{TRUE} (default) missing package
 dependencies are installed before the app is launched. Set to \code{FALSE}
@@ -19,10 +25,15 @@ provisioned separately).}
 No return value. Called for its side effect of launching the app.
 }
 \description{
-Starts the HStat interactive statistical analysis application in your
-default web browser. On first launch, any missing package dependencies are
-installed automatically (an internet connection is required the first time
-only).
+Starts the HStat interactive statistical analysis application. On first
+launch, any missing package dependencies are installed automatically (an
+internet connection is required the first time only).
+
+In an interactive session, HStat asks where to open: in the web browser or
+in the RStudio Shiny window. The answer can be kept as the default, stored
+in \code{tools::R_user_dir("HStat", "config")}; HStat then opens there
+without asking. \code{run_hstat(ouverture = "demander")} forgets the
+stored default and asks again.
 }
 \examples{
 if (interactive()) {

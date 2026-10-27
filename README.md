@@ -20,7 +20,10 @@ library(HStat)
 run_hstat()
 ```
 
-The app opens in your browser. Missing packages are installed on first run.
+On first run, HStat asks whether to open in your browser or in the RStudio
+Shiny window, and can keep the answer as the default
+(`run_hstat(ouverture = "demander")` asks again). Missing packages are
+installed on first run.
 No minimum R version is declared; CI runs the suite on the current release.
 
 ---
@@ -291,7 +294,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.29.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.30.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -299,7 +302,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 1.29.0},
+  note   = {Version 1.30.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

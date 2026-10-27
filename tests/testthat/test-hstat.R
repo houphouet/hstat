@@ -23600,3 +23600,51 @@ test_that("un tableau croise deplie se compte comme xtabs(Freq ~ X + Y)", {
   expect_true(grepl("nom_poids_ui", paste(deparse(body(mod_qualitative_ui)), collapse = ""), fixed = TRUE) ||
               grepl("nom_poids_ui", as.character(mod_qualitative_ui("q")), fixed = TRUE))
 })
+
+test_that("run_hstat demande ou ouvrir, retient le defaut sur demande seulement", {
+  root <- .hstat_repo_root()
+  e <- new.env(parent = globalenv())
+  assign("%||%", function(x, y) if (is.null(x) || length(x) == 0) y else x, envir = e)
+  sys.source(file.path(root, "R", "run_hstat.R"), envir = e, keep.source = FALSE)
+  fic <- file.path(tempfile("hstat_ouv"), "config", "ouverture.txt")
+  on.exit(unlink(dirname(dirname(fic)), recursive = TRUE), add = TRUE)
+  res <- function(...) e$.hstat_ouverture_resoudre(fichier = fic, ...)
+  rep <- function(i) function() e$.hstat_ouverture_demander(choix = function(...) i)
+
+  # Choix 1 / 2 : cette fois seulement, RIEN n'est ecrit sur disque.
+  expect_identical(res(interactif = TRUE, demander = rep(1)), "navigateur")
+  expect_identical(res(interactif = TRUE, demander = rep(2)), "shiny")
+  expect_false(file.exists(fic))
+
+  # Choix 4 : la fenetre Shiny devient le defaut, et n'est plus redemandee.
+  expect_message(res(interactif = TRUE, demander = rep(4)), "demander")
+  expect_identical(readLines(fic), "shiny")
+  expect_identical(res(interactif = TRUE, demander = function() stop("redemande")), "shiny")
+
+  # Un argument explicite vaut pour cette fois, sans toucher au defaut.
+  expect_identical(res(ouverture = "navigateur", interactif = TRUE), "navigateur")
+  expect_identical(readLines(fic), "shiny")
+
+  # « demander » oublie le defaut ; annuler (0) n'impose rien.
+  expect_true(is.na(res(ouverture = "demander", interactif = TRUE, demander = rep(0))))
+  expect_false(file.exists(fic))
+
+  # Hors session interactive : ni question, ni choix.
+  expect_true(is.na(res(interactif = FALSE, demander = function() stop("question"))))
+
+  # Un fichier porteur d'une valeur inconnue ne vaut pas un choix.
+  dir.create(dirname(fic), recursive = TRUE, showWarnings = FALSE)
+  writeLines("chrome", fic)
+  expect_true(is.na(e$.hstat_ouverture_lire(fic)))
+
+  # Lanceurs : ceux de RStudio quand ils existent, sinon le navigateur.
+  fen <- function(url) "fenetre"; ext <- function(url) "externe"
+  rs <- function(nom) switch(nom, .rs.invokeShinyWindowViewer = fen,
+                             .rs.invokeShinyWindowExternal = ext, NULL)
+  expect_identical(e$.hstat_ouverture_lanceur("shiny", rs), fen)
+  expect_identical(e$.hstat_ouverture_lanceur("navigateur", rs), ext)
+  sans <- function(nom) NULL
+  expect_message(l <- e$.hstat_ouverture_lanceur("shiny", sans), "RStudio")
+  expect_true(is.function(l))
+  expect_null(e$.hstat_ouverture_lanceur(NA_character_, rs))
+})
