@@ -10680,3 +10680,40 @@ des deux premiers facteurs) se télécharge par le kit d'export.
 
 Le test exige l'égalité avec afex **et** l'écart de l'ancien modèle : sans la
 seconde moitié, il passerait aussi sur le code d'avant.
+
+## Visualisation : barres groupées sur l'axe Y2, courbes à barres d'erreur
+
+Demandé à l'écran, figure de publication à l'appui : des températures et des
+humidités en barres sur l'axe droit, des effectifs d'insectes en courbes à
+barres d'erreur sur l'axe gauche, une série par mois — dans les couleurs par
+défaut de ggplot2. L'axe secondaire existait ; trois choses manquaient.
+
+1. **Les barres de l'axe Y2 se superposaient.** Une couche par série : chaque
+   couche ne décale que ses propres barres, et la dernière recouvrait les
+   autres à la même abscisse. `hstat_barres_groupees()` les pose en **une**
+   couche décalée, **sous** les courbes — posées par-dessus, elles masquaient
+   ce qu'on vient lire. Et son `show.legend = NA`, pas `TRUE` : `TRUE` force la
+   couche dans toutes les légendes, et chaque clé de courbe portait un carré
+   gris.
+2. **Une barre partait du zéro de l'autre axe.** L'axe droit est une
+   transformation affine de l'axe gauche, calée sur les minima des deux. Des
+   barres (ou des aires) sur l'axe droit imposent que les deux zéros
+   coïncident : sans cela la barre part du zéro gauche, et sa hauteur ne se lit
+   plus sur son axe. Le test exige `trans(0) == 0`.
+3. **Les barres d'erreur n'existaient sur aucune courbe.** `vizErrorBars`
+   (erreur-type, écart-type, IC 95 %) vaut pour les courbes de Y1 **et** de
+   l'axe secondaire : un seul réglage, deux finiraient par se contredire.
+   `hstat_viz_resume_erreur()` calcule sur les **répétitions** de chaque
+   abscisse et la courbe passe par leurs moyennes — un point par abscisse,
+   plus le zigzag d'une répétition à l'autre. Une abscisse d'une seule valeur
+   n'a **pas** de barre (un écart-type d'une valeur n'existe pas, une barre
+   nulle se lirait « aucune variabilité »). Les barres entourent la
+   **moyenne** : sous une agrégation par médiane ou somme, on refuse et on le
+   dit. Leur largeur se rapporte au plus petit écart entre abscisses
+   (`hstat_largeur_erreur()`) : 0,2 sur un axe de dates vaut 0,2 jour.
+
+**Les couleurs par défaut sont celles de ggplot2** (`hstat_couleurs_series()`,
+c'est-à-dire `scales::hue_pal()`), là où l'axe double et les étiquettes de
+légende posaient une palette maison. Les sélecteurs de couleur de chaque série
+en partent ; une série sans choix explicite les retrouve, dans l'ordre de
+sélection des Y.
