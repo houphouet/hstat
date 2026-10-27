@@ -10625,3 +10625,27 @@ facultative ; `hstat_effectif_propose()` la présélectionne d'après son **nom*
 mesure entière n'est pas un effectif. Un effectif négatif est écarté et compté,
 et la note sous l'analyse dit d'où viennent les effectifs. Quand l'inertie est
 nulle sans pondération alors qu'une telle colonne existe, le refus la **nomme**.
+
+## Navigateur ou fenêtre Shiny : la question se pose au lancement
+
+Demandé à l'écran : choisir, à l'ouverture, si HStat s'ouvre dans le
+navigateur ou dans la fenêtre Shiny de RStudio, et pouvoir en faire le défaut.
+La question ne peut se poser **qu'avant** que l'application existe : elle vit
+donc dans `run_hstat()`, à la console (`utils::menu`), et non dans l'interface.
+
+Quatre réponses — navigateur ou fenêtre, « cette fois » ou « par défaut
+désormais ». Trois décisions, chacune testée :
+
+1. **Rien n'est écrit sans accord.** Le défaut n'est déposé dans
+   `tools::R_user_dir("HStat", "config")` que sur les réponses 3 et 4 ;
+   `run_hstat(ouverture = "demander")` l'oublie et repose la question.
+2. **Hors session interactive, on ne choisit rien** : Shiny garde son propre
+   comportement, et un `launch.browser` passé explicitement l'emporte toujours.
+3. **Les lanceurs sont ceux de RStudio** (`.rs.invokeShinyWindowViewer`,
+   `.rs.invokeShinyWindowExternal`) : ce sont ceux de son bouton « Run App »,
+   et ils traversent le mandataire de RStudio Server, ce que `browseURL()` sur
+   une adresse locale ne sait pas faire. Hors RStudio, la fenêtre Shiny
+   n'existe pas : on ouvre le navigateur, **et on le dit**.
+
+Un fichier de défaut porteur d'une valeur inconnue ne vaut pas un choix : on
+redemande plutôt que d'ouvrir là où personne ne l'a demandé.

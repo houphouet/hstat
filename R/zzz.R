@@ -20,7 +20,8 @@
 
   msg <- paste0(
     "HStat ", vers, " charge.\n",
-    "Pour lancer l'application : run_hstat()\n\n",
+    "Pour lancer l'application : run_hstat()\n",
+    "Navigateur ou fen\u00eatre Shiny : run_hstat(ouverture = \"demander\")\n\n",
     "Si HStat vous est utile, merci de le citer :\n",
     if (!is.na(cit))
       paste0(paste(strwrap(cit, width = 78, indent = 2, exdent = 2),
