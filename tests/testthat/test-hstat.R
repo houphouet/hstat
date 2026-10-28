@@ -23842,3 +23842,40 @@ test_that("visualisation : barres groupées sur l'axe Y2, courbes à barres d'er
     expect_equal(l1$y[l1$x == 2013], m13, tolerance = 1e-8)
   })
 })
+
+# ---------------------------------------------------------------------------
+# DL50 : une feuille dont les nombres sont écrits en texte reste exploitable
+# ---------------------------------------------------------------------------
+test_that("DL50 : les colonnes de nombres écrits en texte sont offertes et lues", {
+  # Une feuille Excel lue avec une cellule « 0,5 » ou « - » : readxl rend la
+  # colonne en TEXTE. Avant, les trois listes restaient vides.
+  d2 <- data.frame(Traitement = c("T", "A", "A", "A", "A"),
+                   Conc = c("0", "0,5", "1", "2", "4"),
+                   Effectif = c("20", "20", "20", "20", "20"),
+                   Morts = c("1", "4", "9", "14", "-"),
+                   stringsAsFactors = FALSE)
+  expect_identical(.hstat_dl50_colonnes_numeriques(d2), c("Conc", "Effectif", "Morts"))
+  expect_equal(.hstat_dl50_nombres(d2$Conc), c(0, 0.5, 1, 2, 4))
+  r <- hstat_dl50_depuis_donnees(d2, "Conc", "Effectif", "Morts")
+  expect_true(r$ok)
+  expect_equal(r$essais[[1]]$doses$dose, c(0.5, 1, 2))
+
+  # Passage d'une feuille numérique à cette feuille : les listes se remplissent.
+  d1 <- data.frame(Dose = c(0, 1, 2, 4), N = 20, Morts = c(0, 5, 10, 15))
+  vals <- shiny::reactiveValues(data = d1, cleanData = d1, filteredData = d1)
+  envoyes <- list()
+  shiny::testServer(mod_dl50_server, args = list(values = vals), {
+    racine <- session$rootScope()
+    racine$sendInputMessage <- function(inputId, message)
+      envoyes[[sub("^.*-", "", inputId)]] <<- message
+    session$flushReact()
+    vals$data <- d2; vals$cleanData <- d2; vals$filteredData <- d2
+    session$flushReact()
+    # Les choix partent en balises <option value="…"> : on relit leurs valeurs.
+    html <- paste(as.character(envoyes$colDose$options), collapse = "")
+    choix <- gsub('^value="|"$', "", regmatches(html, gregexpr('value="[^"]*"', html))[[1]])
+    expect_setequal(choix, c("Conc", "Effectif", "Morts"))
+    expect_identical(envoyes$colDose$value, "Conc")
+    expect_identical(envoyes$colMorts$value, "Morts")
+  })
+})

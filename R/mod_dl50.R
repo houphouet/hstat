@@ -885,6 +885,43 @@ HSTAT_DL50_COLONNES_MOTIFS <- c(
   out
 }
 
+# LES NOMBRES ECRITS EN TEXTE SONT DES NOMBRES.
+#
+# Signale a l'ecran : apres le passage d'une feuille Excel a une autre, les
+# trois listes de colonnes restaient VIDES. Elles n'offraient que les colonnes
+# de type numerique, or readxl lit une colonne en texte des qu'une seule de
+# ses cellules l'est (« 0,5 » saisi avec la virgule, « - » pour une absence).
+# La feuille portait bien ses doses, et le module ne les voyait pas.
+#
+# Une colonne compte donc comme numerique si `hstat_as_numeric_fr()` la lit :
+# virgule decimale et espaces de milliers compris, 90 % au moins de valeurs
+# lisibles -- une colonne de noms de traitement n'est pas offerte.
+#
+# Les marques d'absence usuelles (« - », « NA », « nd »…) valent une case
+# vide : elles ne disent pas que la colonne est du texte, et les compter
+# contre le seuil de 90 % refusait une colonne de morts portant un seul « - ».
+HSTAT_DL50_ABSENCES <- c("-", "\u2013", "\u2014", ".", "na", "n/a", "nd", "n.d.", "nan")
+
+.hstat_dl50_sans_absences <- function(x) {
+  ch <- trimws(as.character(x))
+  ch[tolower(ch) %in% HSTAT_DL50_ABSENCES] <- NA_character_
+  ch
+}
+
+.hstat_dl50_nombres <- function(x) {
+  if (is.numeric(x)) return(as.numeric(x))
+  ch <- .hstat_dl50_sans_absences(x)
+  hstat_as_numeric_fr(ch) %||% suppressWarnings(as.numeric(ch))
+}
+
+.hstat_dl50_colonnes_numeriques <- function(d) {
+  if (!is.data.frame(d) || !ncol(d)) return(character(0))
+  names(d)[vapply(d, function(x)
+    is.numeric(x) || (!is.logical(x) &&
+                        !is.null(hstat_as_numeric_fr(.hstat_dl50_sans_absences(x)))),
+    logical(1))]
+}
+
 # LES CHOIX DE LA LISTE DE REGROUPEMENT.
 #
 # La regle vit ici et non dans l'observateur : ce qui est pose dans un
@@ -2397,9 +2434,9 @@ hstat_dl50_depuis_donnees <- function(df, col_dose, col_effectif, col_morts,
         "La colonne de regroupement « %s » est déjà celle des morts : les doses seraient découpées par une mesure, et aucune droite ne serait calculable. Choisissez « (aucune) », ou une colonne qui distingue les essais (site, répétition, matière active).",
       groupe)))
   d <- data.frame(
-    dose = suppressWarnings(as.numeric(df[[col_dose]])),
-    n    = suppressWarnings(as.numeric(df[[col_effectif]])),
-    x    = suppressWarnings(as.numeric(df[[col_morts]])),
+    dose = .hstat_dl50_nombres(df[[col_dose]]),
+    n    = .hstat_dl50_nombres(df[[col_effectif]]),
+    x    = .hstat_dl50_nombres(df[[col_morts]]),
     stringsAsFactors = FALSE)
   d$essai <- if (!is.null(groupe)) as.character(df[[groupe]]) else rep(titre, nrow(d))
   d <- d[stats::complete.cases(d[c("dose", "n", "x")]), , drop = FALSE]
@@ -4324,7 +4361,14 @@ mod_dl50_server <- function(id, values) {
     shiny::observe({
       d <- donnees()
       shiny::req(is.data.frame(d))
-      num <- names(d)[vapply(d, is.numeric, logical(1))]
+      # Une colonne de nombres ECRITS EN TEXTE compte comme numerique : une
+      # feuille Excel dont une seule cellule porte « 0,5 » ou « - » est lue en
+      # texte par readxl, et la liste restait vide sans un mot.
+      num <- .hstat_dl50_colonnes_numeriques(d)
+      if (!length(num))
+        shiny::showNotification(
+          "Aucune colonne de nombres dans les données chargées : vérifiez que la feuille choisie porte bien les doses, les effectifs et les morts, et que son en-tête est sur la première ligne.",
+          type = "warning", duration = 10, id = session$ns("dl50SansNombre"))
       # Une selection qui existe encore est gardee ; sinon -- premier
       # chargement, ou nouvelle feuille dont les colonnes ont d'autres noms --
       # on propose une colonne par role plutot que de laisser la liste vide.
