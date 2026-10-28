@@ -23113,6 +23113,13 @@ test_that("la DL50 propose une colonne par role d'apres son nom", {
   p <- .hstat_dl50_colonnes_proposees(c("V1", "V2", "V3"))
   expect_identical(unname(p), c("V1", "V2", "V3"))
   expect_length(unique(.hstat_dl50_colonnes_proposees(c("Conc", "Dose", "N", "Morts"))), 3L)
+  # Le knock-down range AVANT les morts dans la fiche : les morts l'emportent
+  # quand même. Seul, il reste un repli.
+  p <- .hstat_dl50_colonnes_proposees(c("Concentration", "Total Insecte utilisé",
+    "Vivants_24h", "Knock-down_24h", "Morts_24h"))
+  expect_identical(unname(p), c("Concentration", "Total Insecte utilisé", "Morts_24h"))
+  p <- .hstat_dl50_colonnes_proposees(c("Dose", "N", "Knock-down_60min"))
+  expect_identical(unname(p[["colMorts"]]), "Knock-down_60min")
 })
 
 test_that("une nouvelle feuille chargee remplit les colonnes de la DL50 au lieu de les vider", {

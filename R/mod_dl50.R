@@ -863,8 +863,14 @@ hstat_dl50_essai <- function(dose, effectif, morts, temoin_n = 0, temoin_morts =
 #
 # Les morts d'abord, et jamais une colonne de survivants : la prendre pour les
 # morts retourne la reponse (defaut documente plus haut).
-HSTAT_DL50_COLONNES_MOTIFS <- c(
-  colMorts = "mort|dead|deces|tue|kill|abattu|knock|^kd",
+#
+# Chaque role porte ses motifs PAR ORDRE DE PRIORITE. Signale a l'ecran : une
+# fiche qui range « Knock-down_24h » avant « Morts_24h » faisait proposer le
+# knock-down comme colonne des morts -- un motif unique prend la premiere
+# colonne qui le rencontre, dans l'ordre du fichier. Les morts passent donc
+# avant l'abattement, qui n'est qu'un repli.
+HSTAT_DL50_COLONNES_MOTIFS <- list(
+  colMorts = c("mort|dead|deces|tue|kill", "abattu|knock|^kd"),
   colDose  = "dose|conc|ppm|^cl$|^dl$|^c$|^d$|mg|g/l|ml/l",
   colN     = "effectif|teste|tested|expose|total|nombre|^nb|^n$|^n[_. ]|individu|insecte")
 
@@ -875,8 +881,10 @@ HSTAT_DL50_COLONNES_MOTIFS <- c(
   pris <- character(0)
   out <- stats::setNames(rep(NA_character_, 3L), c("colDose", "colN", "colMorts"))
   for (r in names(HSTAT_DL50_COLONNES_MOTIFS)) {
-    ok <- grepl(HSTAT_DL50_COLONNES_MOTIFS[[r]], cle) & !vivant & !noms %in% pris
-    if (any(ok)) { out[[r]] <- noms[which(ok)[1]]; pris <- c(pris, out[[r]]) }
+    for (motif in HSTAT_DL50_COLONNES_MOTIFS[[r]]) {
+      ok <- grepl(motif, cle) & !vivant & !noms %in% pris
+      if (any(ok)) { out[[r]] <- noms[which(ok)[1]]; pris <- c(pris, out[[r]]); break }
+    }
   }
   for (r in names(out)[is.na(out)]) {
     reste <- setdiff(noms, pris)

@@ -10737,3 +10737,12 @@ notification le dit au lieu de laisser trois listes vides sans un mot.
 la session **avant** de lire : une feuille illisible effaçait les données déjà
 en place, et chaque onglet se vidait sans dire pourquoi. La lecture précède
 désormais la fermeture de l'ancienne connexion, le vidage du cache et la purge.
+
+### Les morts avant le knock-down
+
+Mesuré sur la fiche signalée (« Répétition, Concentration, Total Insecte
+utilisé, Vivants_24h, Knock-down_24h, Morts_24h… ») : la colonne proposée pour
+les morts était **« Knock-down_24h »**. Un motif unique prend la première
+colonne qui le rencontre dans l'ordre du fichier, et le knock-down y précède
+les morts. `HSTAT_DL50_COLONNES_MOTIFS` porte désormais ses motifs **par ordre
+de priorité** : les morts d'abord, l'abattement seulement en repli.
