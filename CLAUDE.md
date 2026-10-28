@@ -10717,3 +10717,32 @@ c'est-à-dire `scales::hue_pal()`), là où l'axe double et les étiquettes de
 légende posaient une palette maison. Les sélecteurs de couleur de chaque série
 en partent ; une série sans choix explicite les retrouve, dans l'ordre de
 sélection des Y.
+
+## Une feuille dont les nombres sont écrits en texte
+
+Signalé à l'écran : après le passage d'une feuille Excel à une autre, les trois
+listes de colonnes de la DL50 restaient **vides**. Elles n'offraient que les
+colonnes de type numérique, or readxl lit une colonne en **texte** dès qu'une
+seule de ses cellules l'est — « 0,5 » saisi avec la virgule, « - » pour une
+absence. La feuille portait ses doses, et le module ne les voyait pas.
+
+`.hstat_dl50_colonnes_numeriques()` offre toute colonne que
+`hstat_as_numeric_fr()` sait lire, et `.hstat_dl50_nombres()` la convertit au
+calcul. Les marques d'absence usuelles (`HSTAT_DL50_ABSENCES` : « - », « NA »,
+« nd »…) valent une case vide : comptées contre le seuil de 90 %, un seul « - »
+refusait une colonne de morts. Quand aucune colonne n'est lisible, une
+notification le dit au lieu de laisser trois listes vides sans un mot.
+
+**La lecture d'abord, la purge ensuite.** Le chargement d'un fichier purgeait
+la session **avant** de lire : une feuille illisible effaçait les données déjà
+en place, et chaque onglet se vidait sans dire pourquoi. La lecture précède
+désormais la fermeture de l'ancienne connexion, le vidage du cache et la purge.
+
+### Les morts avant le knock-down
+
+Mesuré sur la fiche signalée (« Répétition, Concentration, Total Insecte
+utilisé, Vivants_24h, Knock-down_24h, Morts_24h… ») : la colonne proposée pour
+les morts était **« Knock-down_24h »**. Un motif unique prend la première
+colonne qui le rencontre dans l'ordre du fichier, et le knock-down y précède
+les morts. `HSTAT_DL50_COLONNES_MOTIFS` porte désormais ses motifs **par ordre
+de priorité** : les morts d'abord, l'abattement seulement en repli.

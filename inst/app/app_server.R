@@ -335,32 +335,35 @@ server <- function(input, output, session) {
       return(invisible(NULL))
     }
     tryCatch({
-      # Fermer une eventuelle connexion DuckDB precedente
-      if (!is.null(values$dbCon)) {
-        hstat_duckdb_close(values$dbCon)
-        values$dbCon <- NULL
-      }
       res <- NULL
       shiny::withProgress(message = 'Chargement des données', value = 0, {
         shiny::incProgress(0.2, detail = "Analyse du fichier")
-        hstat_cache_clear()   # vide le cache d'agregations du fichier precedent
-        # DE NOUVELLES DONNEES, DE NOUVELLES VARIABLES : tout ce que la session
-        # portait se rapporte au fichier PRECEDENT. Sans cette remise a zero,
-        # les resultats, les selections de variables et le journal de l'ancien
-        # fichier survivaient au nouveau -- on lisait des tableaux et des
-        # recommandations portant sur des colonnes qui n'existent plus.
-        # Elle a lieu AVANT la lecture : les affectations qui suivent doivent
-        # etre les dernieres.
-        .hstat_purger_session()
         thr <- (input$bigDataThreshold %||% 500) * 1024^2
         smp <- as.integer(hstat_borne_client(input$sampleSize, HSTAT_SAMPLE_SIZE, 1000, 10000000))
         shiny::incProgress(0.3, detail = "Lecture")
+        # LA LECTURE D'ABORD, LA PURGE ENSUITE. Purger avant de lire effacait
+        # les donnees en place meme quand la lecture echouait (feuille
+        # illisible, fichier corrompu) : la session restait sans donnees, et
+        # chaque onglet se vidait sans dire pourquoi.
         res <- hstat_load_data(
           path = fichier_actif()$datapath, kind = kind,
           header = input$header %||% TRUE, sep = input$sep %||% ",",
           sheet = input$sheet %||% 1,
           threshold = thr, sample_size = smp)
         shiny::incProgress(0.8, detail = "Préparation")
+        # Fermer une eventuelle connexion DuckDB precedente
+        if (!is.null(values$dbCon)) {
+          hstat_duckdb_close(values$dbCon)
+          values$dbCon <- NULL
+        }
+        hstat_cache_clear()   # vide le cache d'agregations du fichier precedent
+        # DE NOUVELLES DONNEES, DE NOUVELLES VARIABLES : tout ce que la session
+        # portait se rapporte au fichier PRECEDENT. Sans cette remise a zero,
+        # les resultats, les selections de variables et le journal de l'ancien
+        # fichier survivaient au nouveau -- on lisait des tableaux et des
+        # recommandations portant sur des colonnes qui n'existent plus.
+        # Elle precede les affectations : celles-ci doivent etre les dernieres.
+        .hstat_purger_session()
 
         values$data        <- res$data
         values$cleanData   <- res$data
