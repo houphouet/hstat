@@ -24021,3 +24021,55 @@ test_that("le graphique DL50 sans essai reste une image, jamais du texte", {
   expect_false(hstat_ecrire_image(f, NULL, "png", 4, 3, 72, echec = "motif"))
   expect_identical(readBin(f, "raw", 4), as.raw(c(0x89, 0x50, 0x4e, 0x47)))
 })
+
+test_that("DL50 : les niveaux de la legende se renomment, et chaque essai chiffre ses DL", {
+  skip_if_not_installed("shiny")
+  skip_if_not_installed("ggplot2")
+  # Demande a l'ecran : « Essai », « Essai 1 » ne disent pas quel insecticide
+  # est lequel, et les DL10/50/90 n'etaient chiffrees que pour un essai seul.
+  e1 <- hstat_dl50_essai(c(.01, .03, .1, .3, 1, 3), 40, c(2, 6, 12, 22, 30, 37), 40, 1)
+  e2 <- hstat_dl50_essai(c(.1, .3, 1, 3, 10, 30), 40, c(3, 7, 14, 22, 31, 38), 40, 2)
+  f <- list(hstat_dl50_ajuste(e1, "em"), hstat_dl50_ajuste(e2, "em"))
+  expect_identical(hstat_dl50_noms_essais(f), c("Essai", "Essai 1"))
+
+  niveaux <- function(p) {
+    l <- Filter(function(l) inherits(l$geom, "GeomLine"), p$layers)[[1]]
+    sort(unique(as.character(l$data$Essai)))
+  }
+  # Le renommage porte sur toutes les couches, un champ vide garde le nom.
+  p <- hstat_dl50_graphique(f, list(type = "reponse", annot_dl = c(10, 50, 90),
+         legende_noms = c(Essai = "Cyperméthrine", "Essai 1" = "")))
+  expect_identical(niveaux(p), sort(c("Cyperméthrine", "Essai 1")))
+  # Deux essais renommes pareil restent deux niveaux : les fondre melangerait
+  # leurs couleurs.
+  p2 <- hstat_dl50_graphique(f, list(type = "reponse",
+          legende_noms = c(Essai = "X", "Essai 1" = "X")))
+  expect_length(niveaux(p2), 2L)
+
+  # Une etiquette par DL et par essai, a la couleur de l'essai.
+  et <- Filter(function(l) inherits(l$geom, c("GeomLabelRepel", "GeomLabel")), p$layers)
+  expect_length(et, 1L)
+  d <- et[[1]]$data
+  expect_equal(nrow(d), 6L)
+  expect_setequal(d$Essai, c("Cyperméthrine", "Essai 1"))
+  expect_true(all(grepl("^DL(10|50|90) = ", d$etiq)))
+  expect_true("colour" %in% names(et[[1]]$mapping))
+  expect_s3_class(ggplot2::ggplot_build(p), "ggplot_built")
+
+  # Le module lit les champs de renommage et les passe a la figure.
+  dd <- data.frame(Lot = rep(c("A", "B"), each = 7),
+                   Dose = rep(c(0, 0.01, 0.03, 0.1, 0.3, 1, 3), 2),
+                   N = 40, Morts = c(1, 2, 6, 12, 22, 30, 37, 2, 1, 3, 7, 14, 22, 31))
+  vals <- shiny::reactiveValues(data = dd, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  shiny::testServer(mod_dl50_server, args = list(values = vals), {
+    session$setInputs(source = "fichier", colDose = "Dose", colN = "N",
+                      colMorts = "Morts", colEssai = "Lot", importerDonnees = 1,
+                      methode = "em", alpha = 0.05, gTous = TRUE, gType = "reponse")
+    n <- noms_graphe()
+    expect_length(n, 2L)
+    session$setInputs(gLegNom_2 = "Deltaméthrine")
+    expect_identical(unname(graphe_opt()$legende_noms), c("", "Deltaméthrine"))
+    expect_true("Deltaméthrine" %in% niveaux(graphe()))
+  })
+})
