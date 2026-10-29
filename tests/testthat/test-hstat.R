@@ -20336,13 +20336,18 @@ test_that("les reglages du rendu sont declares, lus et employes", {
   expect_null(.hstat_dl50_equation(hstat_dl50_graphique(list(f), list(modele = FALSE))))
 })
 
-test_that("a plusieurs essais, chacun a sa DL50 et aucune etiquette ne se recouvre", {
+test_that("a plusieurs essais, chacun a sa DL50 et sa propre etiquette", {
   skip_if_not_installed("ggplot2")
   fa <- hstat_dl50_ajuste(hstat_dl50_essai(c(0.05, 0.1, 0.2, 0.5, 1, 2), 30,
                                            c(1, 3, 9, 18, 25, 29), 30, 2, titre = "A"))
   p <- hstat_dl50_graphique(list(fa, .hstat_dl50_fit_b()), list(type = "reponse"))
   g <- .hstat_dl50_couches(p)
-  expect_false("GeomLabel" %in% g)
+  # Une etiquette par essai, a sa couleur -- par ggrepel s'il est installe,
+  # par geom_label sinon : l'assertion ne doit pas dependre de l'environnement.
+  e <- which(vapply(p$layers, function(l)
+    inherits(l$geom, "GeomLabel") || inherits(l$geom, "GeomLabelRepel"), logical(1)))
+  expect_length(e, 1L)
+  expect_equal(nrow(p$layers[[e]]$data), 2L)
   expect_null(.hstat_dl50_equation(p))
   # Un losange par essai, et plus de barre d'intervalle.
   expect_false("GeomErrorbar" %in% g)
