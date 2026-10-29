@@ -2728,6 +2728,9 @@ HSTAT_DL50_OPT_DEFAUT <- list(
   grad_y_taille = 10, grad_y_style = "plain",
   legende_pos = "right", legende_taille = 10, legende_titre_taille = 11,
   legende_titre = "",
+  # Les niveaux de la legende se renomment : vecteur nomme, ancien nom -> nouveau.
+  # Une entree vide garde le nom de l'essai.
+  legende_noms = character(0),
   point_taille = 2.4, point_forme = "16", point_opacite = 1,
   droite_epaisseur = 0.9, droite_type = "solid",
   courbe_epaisseur = 0.6, courbe_type = "dashed",
@@ -2837,16 +2840,39 @@ HSTAT_DL50_OPT_DEFAUT <- list(
   sort(unique(v[is.finite(v) & v %in% HSTAT_DL50_SEUILS]))
 }
 
+# Les noms que la legende porte par defaut, un par essai AJUSTE, dans l'ordre de
+# la figure. L'interface en tire un champ par essai pour les renommer : les
+# calculer a deux endroits ferait proposer de renommer un essai que la figure
+# n'affiche pas, ou sous un autre nom.
+hstat_dl50_noms_essais <- function(fits) {
+  fits <- Filter(function(f) isTRUE(f$ok), fits)
+  if (!length(fits)) return(character(0))
+  nom <- vapply(fits, function(f) {
+    t <- f$essai$titre
+    if (length(t) && nzchar(t)) t else tr("Essai")
+  }, character(1))
+  make.unique(nom, sep = " ")
+}
+
+# RENOMMER UN NIVEAU DE LA LEGENDE, demande a l'ecran : « Essai », « Essai 1 »
+# ne disent pas quel insecticide est lequel. Le renommage porte sur le nom de
+# l'essai DANS LA FIGURE, avant toute couche : courbe, bande, points, losanges et
+# etiquettes le suivent ensemble. Deux essais renommes pareil restent deux
+# niveaux (`make.unique`) : les fondre melangerait leurs couleurs et ferait lire
+# un seul essai la ou il y en a deux.
+.hstat_dl50_renommer <- function(nom, noms) {
+  if (!length(noms) || is.null(names(noms))) return(nom)
+  nv <- trimws(as.character(noms[nom]))
+  nv[is.na(nv)] <- ""
+  make.unique(ifelse(nzchar(nv), nv, nom), sep = " ")
+}
+
 hstat_dl50_graphique <- function(fits, opt = list()) {
   o <- .hstat_dl50_opt(opt)
   moderne <- !identical(as.character(o$style %||% "moderne")[1], "classique")
   fits <- Filter(function(f) isTRUE(f$ok), fits)
   if (!length(fits)) return(NULL)
-  nom <- vapply(fits, function(f) {
-    t <- f$essai$titre
-    if (length(t) && nzchar(t)) t else tr("Essai")
-  }, character(1))
-  nom <- make.unique(nom, sep = " ")
+  nom <- .hstat_dl50_renommer(hstat_dl50_noms_essais(fits), o$legende_noms)
   voc <- hstat_dl50_vocab(fits[[1]])
   reponse <- identical(as.character(o$type %||% "probit")[1], "reponse")
   # L'ECHELLE DE L'AXE DES DOSES. Toutes les abscisses sont calculees en
@@ -3135,9 +3161,9 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
   # signale) : la barre traversait tout le cadre et ne disait rien qu'on ne
   # lise deja sur la bande. L'intervalle reste au tableau, qui fait foi.
   #
-  # A plusieurs essais, chacun a son losange, a sa couleur ;
-  # l'etiquette chiffree ne se pose que pour un essai -- six etiquettes se
-  # recouvriraient, et le tableau les porte toutes.
+  # A plusieurs essais, chacun a son losange et ses etiquettes, a sa couleur ;
+  # les lignes de rappel ne se posent que pour un essai -- six faisceaux de
+  # pointilles vers les axes se croiseraient.
   #
   # LES DOSES LETALES CHIFFREES SE CHOISISSENT : DL10, DL50, DL90, une, deux ou
   # les trois. Demande a l'ecran. Et elles ne dependent plus du style : en
@@ -3160,8 +3186,46 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
                  dose = d$Dose,
                  stringsAsFactors = FALSE)
     }))
-    if (!is.null(dl)) dl <- dl[dl$x >= xr[1] & dl$x <= xr[2] &
-                                 dl$y >= ylim[1] & dl$y <= ylim[2], , drop = FALSE]
+    # UNE DL HORS DU CADRE SE NOMME, ELLE NE DISPARAIT PAS. Signale a l'ecran :
+    # DL10 cochee, et rien sur la figure. Le cadre s'etend aux DL demandees dans
+    # la limite de deux decades au-dela des doses testees ; plus loin -- pente
+    # faible, la DL10 tombe a 1e-8 -- elle ne repose que sur le prolongement de
+    # la droite, et l'y suivre ecraserait l'essai en un point. Elle est donc
+    # chiffree AU BORD du cadre, du cote ou elle se trouve.
+    dehors <- NULL
+    if (!is.null(dl)) {
+      dans <- dl$x >= xr[1] & dl$x <= xr[2] & dl$y >= ylim[1] & dl$y <= ylim[2]
+      dehors <- dl[!dans & is.finite(dl$x) & (dl$x < xr[1] | dl$x > xr[2]), ,
+                   drop = FALSE]
+      dl <- dl[dans, , drop = FALSE]
+    }
+    u <- hstat_dl50_unite(fits[[1]])
+    etiq_de <- function(d) vapply(seq_len(nrow(d)), function(k)
+      sprintf("%s%s = %s%s", hstat_dl50_prefixe(fits[[1]]),
+              trimws(formatC(d$seuil[k], format = "g", digits = 4)),
+              .hstat_dl50_nb(d$dose[k]), if (nzchar(u)) paste0(" ", u) else ""),
+      character(1))
+    if (!is.null(dehors) && nrow(dehors)) {
+      gauche <- dehors$x < xr[1]
+      # Le chiffre seul, a la demande : pas de mention « hors du cadre ».
+      dehors$etiq <- etiq_de(dehors)
+      dehors$xb <- ifelse(gauche, xr[1] + 0.01 * diff(xr), xr[2] - 0.01 * diff(xr))
+      # Sous le trait du repere : son etiquette « DL10 » est posee au-dessus, au
+      # meme bord du cadre, et les deux se recouvriraient.
+      dehors$yb <- pmin(pmax(dehors$y - 0.035 * diff(ylim), ylim[1] + 0.04 * diff(ylim)),
+                        ylim[2] - 0.04 * diff(ylim))
+      dehors$hj <- ifelse(gauche, 0, 1)
+      taille_h <- max(2.6, o$grad_y_taille / 3.2)
+      p <- p + if (multiple)
+        ggplot2::geom_label(data = dehors,
+          ggplot2::aes(x = .data$xb, y = .data$yb, label = .data$etiq,
+                       hjust = .data$hj, colour = .data$Essai),
+          size = taille_h, fill = "#ffffffe6", show.legend = FALSE)
+      else ggplot2::geom_label(data = dehors,
+          ggplot2::aes(x = .data$xb, y = .data$yb, label = .data$etiq,
+                       hjust = .data$hj),
+          size = taille_h, fill = "#ffffffe6", colour = "#111827")
+    }
     if (!is.null(dl) && nrow(dl)) {
       if (!multiple) {
         # Lignes de rappel : de chaque DL vers l'axe des doses et vers celui
@@ -3180,13 +3244,31 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
           show.legend = FALSE)
       else ggplot2::geom_point(data = dl, ggplot2::aes(x = .data$x, y = .data$y),
           shape = 23, size = 3.4, fill = "#ffffff", colour = "#111827", stroke = 0.9)
-      if (!multiple) {
-        u <- hstat_dl50_unite(fits[[1]])
-        etiq <- vapply(seq_len(nrow(dl)), function(k)
-          sprintf("%s%s = %s%s", hstat_dl50_prefixe(fits[[1]]),
-              trimws(formatC(dl$seuil[k], format = "g", digits = 4)),
-              .hstat_dl50_nb(dl$dose[k]), if (nzchar(u)) paste0(" ", u) else ""),
-          character(1))
+      etiq <- etiq_de(dl)
+      if (multiple) {
+        # LES DL DE CHAQUE ESSAI SE CHIFFRENT AUSSI, demande a l'ecran. Une
+        # etiquette par losange, a la couleur de son essai : c'est la couleur
+        # qui dit de quel essai parle le chiffre. Plusieurs essais posent
+        # jusqu'a dix-huit etiquettes : ggrepel les ecarte les unes des autres
+        # et les relie a leur losange ; sans lui, elles s'alternent de part et
+        # d'autre de la courbe, ce qui suffit a deux ou trois essais.
+        dl$etiq <- etiq
+        taille <- max(2.6, o$grad_y_taille / 3.2)
+        p <- p + if (requireNamespace("ggrepel", quietly = TRUE))
+          ggrepel::geom_label_repel(data = dl,
+            ggplot2::aes(x = .data$x, y = .data$y, label = .data$etiq,
+                         colour = .data$Essai),
+            size = taille, fill = "#ffffffe6",
+            min.segment.length = 0, box.padding = 0.5, seed = 1,
+            max.overlaps = Inf, show.legend = FALSE)
+        else {
+          haut <- rep_len(c(1, -1), nrow(dl))
+          ggplot2::geom_label(data = dl,
+            ggplot2::aes(x = .data$x, y = .data$y + haut * diff(ylim) * 0.06,
+                         label = .data$etiq, colour = .data$Essai),
+            size = taille, fill = "#ffffffe6", show.legend = FALSE)
+        }
+      } else {
         # L'etiquette se pose la ou la courbe NE PASSE PAS. Elle monte : au-dela
         # de la DL elle est au-dessus, en deca au-dessous. La place libre est
         # donc en bas a droite, ou en haut a gauche quand la DL est deja dans
@@ -3421,8 +3503,6 @@ mod_dl50_ui <- function(id) {
                                choices = HSTAT_DL50_REPONSES, selected = "mortalite"),
             shiny::conditionalPanel(
               condition = sprintf("input['%s'] != 'kt'", ns("reponse")),
-              shiny::radioButtons(ns("exposition"), "Ce qui varie d'un lot à l'autre",
-                                  choices = HSTAT_DL50_GRANDEURS, selected = "dose"),
               shiny::helpText("DL ou KD : dose appliquée à chaque individu (application topique, ingestion, injection). CL ou KC : concentration du milieu d'exposition (eau, air, support imprégné). Le calcul est le même, le nom publié change.")),
             shiny::conditionalPanel(
               condition = sprintf("input['%s'] == 'kd'", ns("reponse")),
@@ -3440,6 +3520,19 @@ mod_dl50_ui <- function(id) {
                   shiny::tags$li(shiny::HTML("<b>KT50</b> (et KT95) : temps d'exposition nécessaire pour abattre 50 % (ou 95 %) des individus à une concentration fixée — tube OMS, test en bouteille CDC, test en cône. C'est l'indicateur de surveillance de la <b>résistance de type kdr</b> (mutation du canal sodium) : un KT50 qui s'allonge par rapport à une souche sensible de référence signale la résistance, souvent avant que la mortalité à 24 h ne baisse. Le rapport KT50 de la souche / KT50 de la référence se lit dans l'onglet de comparaison, comme un rapport de résistance.")),
                   shiny::tags$li(shiny::HTML("<b>DL50 / CL50</b> : dose ou concentration qui <b>tue</b> 50 % des individus, lue après une période de récupération (24 h en général)."))),
                 shiny::p(shiny::HTML("Le knock-down ne remplace pas la mortalité : un insecte abattu peut se relever. Les deux se publient ensemble, et un écart entre un KD rapide et une mortalité faible est en lui-même un résultat. Le calcul est le même — régression probit sur le logarithme de la dose ou du temps (Finney, 1971), intervalles de Fieller, correction du témoin — seuls les noms changent.")))))))),
+
+    # LE NOM PUBLIE -- DL ou CL -- RESTE VISIBLE. Demande a l'ecran : « je dois
+    # pouvoir remplacer DL50 par CL50 ». Le choix existait, mais dans la boite
+    # « Grandeur etudiee », repliee par defaut : un reglage qu'on ne trouve pas
+    # n'existe pas. Il vit donc hors de la boite, sur une ligne, au-dessus des
+    # onglets qu'il renomme tous (tableaux, verdict, figure, rapport .PRN).
+    shiny::conditionalPanel(
+      condition = sprintf("input['%s'] != 'kt'", ns("reponse")),
+      shiny::div(style = "margin:-6px 0 6px 2px;",
+        shiny::radioButtons(ns("exposition"),
+                            "Ce qui varie d'un lot à l'autre (nom publié : DL ou CL)",
+                            choices = HSTAT_DL50_GRANDEURS, selected = "dose",
+                            inline = TRUE))),
 
     shiny::tabsetPanel(
       id = ns("dl50Tabs"),
@@ -3899,6 +3992,9 @@ mod_dl50_ui <- function(id) {
                   colourInput(ns("gCouleur"), "Couleur (un seul essai)",
                                             value = "#2e86c1"),
                   shiny::textInput(ns("gLegendeTitre"), "Titre de la légende"),
+                  # Un champ par essai trace, pour renommer son niveau dans la
+                  # legende : construit sur les essais reellement ajustes.
+                  shiny::uiOutput(ns("gLegendeNomsUI")),
                   shiny::fluidRow(
                     shiny::column(4, shiny::selectInput(ns("gLegendePos"),
                       "Position de la légende", choices = HSTAT_DL50_LEGENDE,
@@ -5101,6 +5197,32 @@ mod_dl50_server <- function(id, values) {
         reponse = cle_reponse()))
     })
 
+    # RENOMMER LES NIVEAUX DE LA LEGENDE. Un champ par essai, vide par defaut :
+    # le nom de l'essai s'affiche en indication, et un champ vide le garde. La
+    # saisie survit a la reconstruction (nouvel alpha, nouvelle methode) tant que
+    # l'essai reste a la meme place. Il n'y a de legende qu'a plusieurs essais :
+    # a un seul, le champ serait un reglage que l'image ignore.
+    noms_graphe <- shiny::reactive(hstat_dl50_noms_essais(fits_graphe()))
+    output$gLegendeNomsUI <- shiny::renderUI({
+      n <- noms_graphe()
+      if (length(n) < 2L) return(NULL)
+      shiny::tagList(
+        shiny::tags$label(tr("Niveaux de la légende (vide = nom de l'essai)")),
+        lapply(seq_along(n), function(i) {
+          id <- paste0("gLegNom_", i)
+          shiny::textInput(ns(id), label = NULL,
+                           value = shiny::isolate(input[[id]]) %||% "",
+                           placeholder = n[i])
+        }))
+    })
+    legende_noms <- shiny::reactive({
+      n <- noms_graphe()
+      if (length(n) < 2L) return(character(0))
+      stats::setNames(vapply(seq_along(n), function(i)
+        trimws(as.character(input[[paste0("gLegNom_", i)]] %||% "")[1]),
+        character(1)), n)
+    })
+
     # TOUS les reglages sont lus ICI, dans le reactif qui construit l'image :
     # un reglage que le reactif n'observe pas se change sans que rien ne bouge
     # a l'ecran, et l'utilisateur conclut que le bouton ne marche pas.
@@ -5140,6 +5262,7 @@ mod_dl50_server <- function(id, values) {
         legende_taille = nb("gLegendeTaille", 10),
         legende_titre_taille = nb("gLegendeTitreTaille", 11),
         legende_titre = input$gLegendeTitre %||% "",
+        legende_noms = legende_noms(),
         point_taille = nb("gPointTaille", 2.4),
         point_forme = input$gPointForme %||% "16",
         point_opacite = nb("gPointOpacite", 1),

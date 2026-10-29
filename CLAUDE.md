@@ -10775,3 +10775,48 @@ les morts était **« Knock-down_24h »**. Un motif unique prend la première
 colonne qui le rencontre dans l'ordre du fichier, et le knock-down y précède
 les morts. `HSTAT_DL50_COLONNES_MOTIFS` porte désormais ses motifs **par ordre
 de priorité** : les morts d'abord, l'abattement seulement en repli.
+
+### Plusieurs essais : la légende se renomme, chaque essai chiffre ses DL
+
+Demandé à l'écran, figure à deux essais à l'appui : la légende disait « Essai »
+et « Essai 1 », et les DL10/50/90 n'étaient chiffrées que pour un essai seul —
+à plusieurs, seuls les losanges restaient, sans valeur.
+
+**Les niveaux de la légende se renomment**, un champ par essai tracé
+(`gLegNom_<i>`), vide par défaut : le nom de l'essai s'affiche en indication et
+un champ vide le garde. `hstat_dl50_noms_essais()` donne les noms par défaut —
+la figure et l'interface lisent la même fonction, sans quoi on proposerait de
+renommer un essai que la figure n'affiche pas. Le renommage porte sur le nom de
+l'essai **avant** toute couche : courbe, bande, points, losanges et étiquettes
+suivent ensemble. Deux essais renommés pareil restent deux niveaux
+(`make.unique`) : les fondre mêlerait leurs couleurs. Le champ n'existe qu'à
+plusieurs essais — à un seul il n'y a pas de légende, et ce serait un réglage
+que l'image ignore.
+
+**Chaque losange porte son étiquette**, à la couleur de son essai : c'est la
+couleur qui dit de quel essai parle le chiffre. Jusqu'à dix-huit étiquettes :
+ggrepel les écarte et les relie à leur losange ; sans lui, elles s'alternent de
+part et d'autre de la courbe. Les lignes de rappel vers les axes restent
+réservées à l'essai seul — six faisceaux de pointillés se croiseraient.
+
+### DL ou CL se choisit à vue, et une DL hors du cadre se chiffre au bord
+
+Signalé à l'écran : « je dois pouvoir remplacer DL50 par CL50 », et « la DL10
+ne s'affiche pas ».
+
+**Le choix DL / CL existait, mais personne ne le trouvait** : il vivait dans la
+boîte « Grandeur étudiée », repliée par défaut. Un réglage qu'on ne trouve pas
+n'existe pas. Le bouton radio `exposition` est sorti de la boîte et posé sur une
+ligne au-dessus des onglets ; il renomme tout — tableaux, verdict, figure,
+cases des DL chiffrées, rapport `.PRN`. La boîte garde l'aide, et reste repliée.
+Le test passe par l'arbre : aucun ancêtre `collapsed-box`.
+
+**La DL10 tombait hors du cadre, en silence.** À pente faible (0,33 sur l'essai
+signalé) elle vaut 2 × 10⁻⁸, quatre décades sous la plus faible dose — au-delà
+des deux décades dont le cadre s'étend pour suivre les DL demandées. Le filtre
+des losanges la retirait sans un mot. Elle est désormais chiffrée **au bord du
+cadre**, du côté où elle se trouve, à la hauteur de son repère et juste sous
+son trait (l'étiquette « DL10 » du repère est posée au-dessus). Le libellé ne
+porte que le chiffre — la mention « hors du cadre, extrapolée » a été retirée
+à la demande.
+
