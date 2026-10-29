@@ -24113,3 +24113,12 @@ test_that("DL50 : le choix DL ou CL est visible, et une DL hors du cadre se nomm
   expect_true(lab[[1]]$data$xb >= xr[1] && lab[[1]]$data$xb < mean(xr))
   expect_true(lab[[1]]$data$hj == 0)
 })
+
+test_that("DL50 : les trois doses letales sont chiffrees d'office sur la figure", {
+  # Demande a l'ecran : cochees une a une, la DL10 et la DL90 paraissaient
+  # absentes de la figure. Le test lit l'interface RENDUE, pas son source.
+  html <- as.character(mod_dl50_ui("dl50"))
+  m <- regmatches(html, gregexpr('<input type="checkbox" name="dl50-gAnnotDL"[^>]*>', html))[[1]]
+  expect_length(m, 3L)
+  expect_true(all(grepl("checked", m, fixed = TRUE)))
+})
