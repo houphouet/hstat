@@ -80,7 +80,7 @@
 # optimum meilleur sur tous les essais essayes.
 HSTAT_DL50_CONVERGENCE <- c(
   "Rapide — la vraisemblance la plus haute (défaut)" = "rapide",
-  "Chemin de WIN DL — comparaison chiffre pour chiffre" = "windl")
+  "Chemin lent — départ à mortalité naturelle non nulle" = "windl")
 
 # Chiffres significatifs A L'AFFICHAGE. Les exports gardent la precision
 # complete : arrondir une donnee exportee la ferait diverger du calcul.
@@ -148,7 +148,7 @@ HSTAT_DL50_SATURATION <- 0.90
 HSTAT_DL50_METHODES <- c(
   "Maximum de vraisemblance sur tout l'essai (EM)"     = "em",
   "Mortalité naturelle du seul témoin (Abbott)"        = "abbott",
-  "Mortalité naturelle fixée à zéro (hors WIN DL)"     = "nulle")
+  "Mortalité naturelle fixée à zéro"                     = "nulle")
 
 HSTAT_DL50_SCENARIOS <- c(
   "Mortalité naturelle propre à chaque essai (hétérogène, estimée)"   = "heterogene",
@@ -1360,7 +1360,7 @@ hstat_dl50_libelle_echelle <- function(base, echelle, reponse = "mortalite") {
 # les alertes, et le `<span>` est ce qui la fait tenir ici.
 hstat_dl50_note_echelle <- function() {
   shiny::helpText(
-    shiny::span(tr("L'erreur-type et l'écart-type sont donnés sur le log10 de la dose (ceux que publie WIN DL) et en unité de dose. Ces derniers se déduisent des premiers par la delta-méthode, s(DL) = ln(10) × DL × s(log10 DL) : une approximation, d'autant moins fidèle que s(log10) est grand. L'intervalle de confiance publié à côté reste celui de Fieller, calculé sur le log10 : c'est lui qui fait foi.")),
+    shiny::span(tr("L'erreur-type et l'écart-type sont donnés sur le log10 de la dose et en unité de dose. Ces derniers se déduisent des premiers par la delta-méthode, s(DL) = ln(10) × DL × s(log10 DL) : une approximation, d'autant moins fidèle que s(log10) est grand. L'intervalle de confiance publié à côté reste celui de Fieller, calculé sur le log10 : c'est lui qui fait foi.")),
     " ",
     shiny::span(tr("Sur la DL50, 10^(log10 DL50 ± 1/b) rend la dose à un probit de plus et de moins, soit la DL84,1 et la DL15,9 : l'écart-type décrit la dispersion des sensibilités dans la population, il ne diminue pas quand on teste plus d'individus.")))
 }
@@ -2153,7 +2153,7 @@ hstat_dl50_fusion <- function(essais, alpha = 0.05) {
 }
 
 .hstat_dl50_msg_trop_gros <- function()
-  trf("Fichier trop volumineux pour un fichier natif de WIN DL (plus de %d Ko) : un essai de %d doses tient en quelques kilo-octets. Vérifiez qu'il s'agit du bon fichier.",
+  trf("Fichier trop volumineux pour un fichier d'essai (plus de %d Ko) : un essai de %d doses tient en quelques kilo-octets. Vérifiez qu'il s'agit du bon fichier.",
       as.integer(HSTAT_DL50_FICHIER_MAX / 1024), HSTAT_DL50_DOSES_MAX)
 
 .hstat_dl50_lignes <- function(chemin) {
@@ -2187,7 +2187,7 @@ hstat_dl50_lire_windl <- function(chemin) {
   L <- .hstat_dl50_lignes(chemin)
   if (!length(L)) return(echec(tr("Fichier vide ou illisible.")))
   if (length(L) < 6L)
-    return(echec(tr("Fichier trop court pour être un essai WIN DL : il faut l'en-tête, le titre, l'unité, le témoin et au moins une dose.")))
+    return(echec(tr("Fichier trop court pour être un fichier d'essai : il faut l'en-tête, le titre, l'unité, le témoin et au moins une dose.")))
 
   # Ligne 1 : dix champs separes par les octets de controle ramenes ci-dessus a
   # 0x1F. Le manuel les figure par « _ » : on accepte les deux.
@@ -2295,7 +2295,7 @@ hstat_dl50_prn <- function(fit, nom_fichier = "") {
         names(HSTAT_DL50_METHODES)[match(fit$methode, HSTAT_DL50_METHODES)]),
     tr("Résultats de la régression :"),
     if (fit$converge)
-      trf("  ** Convergence atteinte après %d itérations de HStat (écart absolu sur log-vraisemblance < 1e-5 ; le compte dépend de l'algorithme et ne se compare pas à celui de WIN DL)",
+      trf("  ** Convergence atteinte après %d itérations de HStat (écart absolu sur log-vraisemblance < 1e-5 ; le compte dépend de l'algorithme)",
           fit$iterations)
     else trf("  ** Convergence NON atteinte après %d itérations", fit$iterations),
     tr("Paramètres statistiques de la régression :"),
@@ -2379,7 +2379,7 @@ hstat_dl50_coller <- function(txt) {
     return(echec(tr("Le collage ne contient que des en-têtes : il manque les lignes de données.")))
 
   if (length(lignes) > HSTAT_SAISIE_MAX)
-    return(echec(trf("Le collage compte %d lignes : le tableau de saisie en accepte %d au plus. Un essai de WIN DL porte au plus %d doses ; les répétitions d'une même dose sont regroupées d'office.",
+    return(echec(trf("Le collage compte %d lignes : le tableau de saisie en accepte %d au plus. Un essai porte au plus %d doses ; les répétitions d'une même dose sont regroupées d'office.",
                      length(lignes), HSTAT_SAISIE_MAX, HSTAT_DL50_DOSES_MAX)))
   mat <- lapply(lignes, decoupe)
   larg <- vapply(mat, length, integer(1))
@@ -3596,7 +3596,7 @@ mod_dl50_ui <- function(id) {
 
             shiny::conditionalPanel(
               condition = sprintf("input['%s'] == 'windl'", ns("source")),
-              shiny::fileInput(ns("fichierWindl"), "Fichier d'essai WIN DL",
+              shiny::fileInput(ns("fichierWindl"), "Fichier d'essai (.TXT)",
                                multiple = TRUE, accept = c(".txt", ".TXT", ".dat")),
               shiny::helpText("Les fichiers de la version DOS comme de la version",
                               " Windows se lisent : encodage CP437, séparateurs de",
@@ -3710,10 +3710,8 @@ mod_dl50_ui <- function(id) {
                                 value = 0.05, min = 0.001, max = 0.2, step = 0.01),
             shiny::radioButtons(ns("chemin"), "Chemin de convergence",
                                 choices = HSTAT_DL50_CONVERGENCE, selected = "rapide"),
-            shiny::helpText("Le chemin de WIN DL part d'une mortalité naturelle",
-                            " non nulle et rampe vers l'optimum : il rapproche des",
-                            " chiffres publiés par le logiciel (écart médian divisé",
-                            " par 3), mais s'arrête avant le maximum de",
+            shiny::helpText("Le chemin lent part d'une mortalité naturelle",
+                            " non nulle et rampe vers l'optimum : il s'arrête avant le maximum de",
                             " vraisemblance et demande beaucoup plus d'itérations —",
                             " sur un essai à réponse plate, cent n'y suffisent pas."),
             shiny::numericInput(ns("chiffres"), "Chiffres significatifs affichés",
@@ -3777,9 +3775,9 @@ mod_dl50_ui <- function(id) {
             shiny::br(),
             shiny::downloadButton(ns("dlCsv"), " Télécharger (CSV)", class = "btn-sm"),
             shiny::downloadButton(ns("dlXlsx"), " Télécharger (Excel)", class = "btn-sm"),
-            shiny::downloadButton(ns("dlPrn"), " Rapport .PRN (format WIN DL)",
+            shiny::downloadButton(ns("dlPrn"), " Rapport (.PRN)",
                                   class = "btn-sm"),
-            shiny::downloadButton(ns("dlTxt"), " Essai .TXT (format WIN DL)",
+            shiny::downloadButton(ns("dlTxt"), " Essai (.TXT)",
                                   class = "btn-sm")))),
 
       # ------------------------------------------------------------------
@@ -4165,7 +4163,7 @@ mod_dl50_ui <- function(id) {
                              accept = c(".txt", ".TXT")),
             shiny::downloadButton(ns("listeDl"), " Exporter la liste (.TXT)",
                                   class = "btn-sm"),
-            shiny::helpText("Format de WIN DL : une valeur par ligne, marqueur de",
+            shiny::helpText("Une valeur par ligne, marqueur de",
                             " fin de fichier compris.")),
 
           shinydashboard::box(
@@ -4518,7 +4516,7 @@ mod_dl50_server <- function(id, values) {
       libre <- HSTAT_DL50_ESSAIS_MAX - length(cur)
       if (libre <= 0) {
         shiny::showNotification(
-          trf("Six essais sont déjà en mémoire : retirez-en un avant d'en ajouter (limite de WIN DL, %d).",
+          trf("Six essais sont déjà en mémoire : retirez-en un avant d'en ajouter (limite : %d).",
               HSTAT_DL50_ESSAIS_MAX), type = "warning", duration = 8)
         return(invisible(FALSE))
       }
@@ -4627,7 +4625,7 @@ mod_dl50_server <- function(id, values) {
         shiny::showNotification(paste(refus, collapse = " — "),
                                 type = "warning", duration = 12)
       if (length(lus))
-        shiny::showNotification(trf("%d fichier(s) WIN DL lu(s).", length(lus)),
+        shiny::showNotification(trf("%d fichier(s) d'essai lu(s).", length(lus)),
                                 type = "message", duration = 6)
     })
 
@@ -4649,7 +4647,7 @@ mod_dl50_server <- function(id, values) {
     output$listeEssais <- shiny::renderUI({
       cur <- essais()
       if (!length(cur))
-        return(shiny::helpText(tr("Aucun essai en mémoire. Saisissez des doses, importez le jeu de données ou ouvrez un fichier WIN DL.")))
+        return(shiny::helpText(tr("Aucun essai en mémoire. Saisissez des doses, importez le jeu de données ou ouvrez un fichier d'essai.")))
       shiny::tags$ul(style = "padding-left:18px;margin-bottom:0;",
         lapply(seq_along(cur), function(i) {
           e <- cur[[i]]
