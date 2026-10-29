@@ -8210,6 +8210,35 @@ Les graphiques **de base**, tracés par une fonction, passent par
 `options(OutDec = ",")`, que leurs axes lisent d'eux-mêmes ; l'option est rendue
 à sa valeur à la sortie, et un test le vérifie.
 
+### Un lien de téléchargement ne s'enregistre plus à l'aveugle
+
+Signalé à l'écran : le graphique de la DL50 arrivait sous le nom
+**`dl50-gDl.htm`**. Le serveur, lui, produisait bien le PNG — mesuré au
+navigateur. Ce nom est la signature d'une réponse **« 404 Not Found »** en HTML :
+le lien pointait vers une session qui n'existait plus (veille, serveur
+redémarré), et le navigateur enregistrait la page d'erreur sous le nom du lien.
+La fenêtre Shiny de RStudio ignore en outre le nom envoyé par le serveur.
+
+`hstat-decimale.js`, qui interceptait déjà chaque lien pour le choix du
+séparateur, **demande désormais le fichier par `fetch`** et ne l'enregistre que
+si la réponse vaut 200 **et** annonce un nom (`Content-Disposition`). Sinon il
+dit pourquoi : session expirée (404), serveur en échec, connexion coupée. Un nom
+non ASCII passe chez Shiny par une redirection où l'en-tête ne dit que
+« attachment » : il est alors lu dans le dernier segment de l'adresse. Le test
+exécute le script sous `node` sur les six cas.
+
+Deux défauts voisins, trouvés en reproduisant la veille :
+
+- **Les essais de la DL50 repartaient vides après une reconnexion** : c'est un
+  `reactiveVal` local au module, que la reprise de session n'atteignait pas. Il
+  est rangé dans `values$dl50Essais` — déposé et repris comme `customXLevels` —
+  et `HSTAT_VALEURS_PERSISTANTES` l'écarte de la remise à zéro : un chargement
+  de fichier ne le vidait pas avant, il ne le vide pas davantage. Une session
+  qui ne porte que des essais (saisis, sans fichier) est elle aussi déposée
+  (`hstat_session_a_garder()`).
+- **Sans essai, le graphique écrivait du texte sous l'extension `.png`.** Il
+  passe par l'image de secours de `hstat_ecrire_image()`, qui porte le motif.
+
 ### Ce qui garde le point, délibérément
 
 Le **fichier d'essai WIN DL** (`dlTxt`) est le format natif que le logiciel

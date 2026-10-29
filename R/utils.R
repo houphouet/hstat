@@ -666,6 +666,22 @@ hstat_vider_valeurs <- function(rv, sauf = character(0)) {
   invisible(noms)
 }
 
+# Ce qu'une remise a zero ne vide PAS : les essais de la DL50 ne dependent pas
+# du jeu de travail (saisie, collage, fichier WIN DL) ; on charge justement une
+# autre feuille pour comparer deux insecticides. Le module les gardait deja
+# dans un `reactiveVal` local, que la purge n'atteignait pas : les ranger dans
+# `values` pour survivre a une veille ne doit pas changer ce comportement.
+HSTAT_VALEURS_PERSISTANTES <- c("dl50Essais")
+
+# Une session merite d'etre deposee si elle porte des donnees OU des essais
+# de DL50 : ces derniers se saisissent sans aucun fichier charge.
+hstat_session_a_garder <- function(values) {
+  if (!is.null(shiny::isolate(values$data))) return(TRUE)
+  e <- shiny::isolate(values$dl50Essais)
+  if (inherits(e, "reactiveVal")) e <- shiny::isolate(e())
+  length(e) > 0
+}
+
 hstat_reinitialiser_valeurs <- function(values) {
   init <- hstat_valeurs_initiales()
   # LE COMPTEUR DE REMISE A ZERO EST MONOTONE. Les modules l'observent pour
@@ -676,7 +692,7 @@ hstat_reinitialiser_valeurs <- function(values) {
   # Tout est vide d'abord -- y compris les champs crees en cours de session par
   # un module, qui ne figurent pas dans la liste initiale --, puis les valeurs
   # de depart sont reposees. Dans cet ordre, un `reactiveVal` garde son objet.
-  hstat_vider_valeurs(values)
+  hstat_vider_valeurs(values, sauf = HSTAT_VALEURS_PERSISTANTES)
   for (nm in names(init)) values[[nm]] <- init[[nm]]
   values$resetSignal <- sig
   invisible(sig)

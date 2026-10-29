@@ -206,6 +206,85 @@
     ok.focus();
   }
 
+  // ------------------------------------------------------- telechargement
+  // UN LIEN SHINY NE TELECHARGE PAS DIRECTEMENT. Le navigateur enregistre ce
+  // que le serveur renvoie, quoi que ce soit : une session expiree (veille,
+  // serveur redemarre) repond « 404 Not Found » en HTML, et l'utilisateur
+  // recevait `dl50-gDl.htm` -- le nom du lien, l'extension de la page
+  // d'erreur -- en croyant tenir son graphique. La fenetre Shiny de RStudio
+  // ignore par ailleurs le nom de fichier envoye par le serveur.
+  //
+  // Le fichier est donc demande ICI (fetch), et n'est enregistre que si le
+  // serveur l'a bien produit : reponse 200 ET nom de fichier annonce. Sinon on
+  // dit pourquoi, au lieu d'enregistrer une page d'erreur.
+  function nomAnnonce(res) {
+    var cd = res.headers.get("Content-Disposition") || "";
+    var m = /filename\*\s*=\s*[^']*''([^;]+)/i.exec(cd);
+    if (m) { try { return decodeURIComponent(m[1].trim().replace(/^"|"$/g, "")); } catch (e) {} }
+    m = /filename\s*=\s*"((?:[^"\\]|\\.)*)"/i.exec(cd) || /filename\s*=\s*([^;]+)/i.exec(cd);
+    if (m) return m[1].replace(/\\(.)/g, "$1").trim();
+    // Un nom non ASCII passe par une redirection : il est alors le dernier
+    // segment de l'adresse (`.../download/<sortie>/<nom>`), et l'en-tete ne
+    // dit que « attachment ».
+    if (/^attachment/i.test(cd)) {
+      var seg = (res.url || "").split("?")[0].split("/");
+      if (seg.length > 1 && seg[seg.length - 2] !== "download") {
+        try { return decodeURIComponent(seg[seg.length - 1]); } catch (e) {}
+      }
+    }
+    return null;
+  }
+
+  function signaler(msg) {
+    var n = window.Shiny && window.Shiny.notifications;
+    if (n && typeof n.show === "function") {
+      var t = document.createElement("span");
+      t.textContent = msg;               // echappe : `html` est insere tel quel
+      n.show({ html: t.outerHTML, type: "error", duration: 12000 });
+      return;
+    }
+    window.alert(msg);
+  }
+
+  function enregistrer(blob, nom) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = nom; a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.parentNode && a.parentNode.removeChild(a); }, 60000);
+  }
+
+  var MSG_SESSION = "Le téléchargement a échoué : la session du serveur n'existe plus (veille de l'ordinateur ou serveur redémarré). Rechargez la page, puis relancez l'analyse.";
+  var MSG_CONNEXION = "Le téléchargement a échoué : la connexion au serveur est interrompue. Attendez la reconnexion ou rechargez la page.";
+  var MSG_SERVEUR = "Le téléchargement a échoué : le serveur n'a pas pu produire le fichier. Vérifiez que l'analyse a bien été lancée.";
+
+  function telecharger(el) {
+    var href = el.getAttribute("href") || "";
+    if (!window.fetch || !window.Blob || !window.URL || !URL.createObjectURL) {
+      relancer(el); return;
+    }
+    // Un lien encore vide n'a pas recu son adresse : la sortie n'est pas
+    // rendue, ou la session n'est pas (re)connectee.
+    if (!href || href === "#") { signaler(MSG_CONNEXION); return; }
+    var url;
+    try { url = new URL(href, document.baseURI).href; } catch (e) { relancer(el); return; }
+    el.classList.add("hstat-dl-encours");
+    fetch(url, { credentials: "same-origin" }).then(function (res) {
+      var nom = res.ok ? nomAnnonce(res) : null;
+      if (!nom) {
+        signaler(res.status === 404 ? MSG_SESSION : MSG_SERVEUR);
+        return null;
+      }
+      return res.blob().then(function (b) { enregistrer(b, nom); });
+    }).catch(function () {
+      signaler(MSG_CONNEXION);
+    }).then(function () {
+      el.classList.remove("hstat-dl-encours");
+    });
+  }
+  window.hstatTelecharger = telecharger;
+
   // ------------------------------------------------------------ interception
   function relancer(el) { el.__hstatDecOk = true; el.click(); }
 
@@ -222,7 +301,7 @@
     // Le lien Shiny doit attendre que le serveur connaisse le choix ; le bouton
     // DataTables lit `choix` au clic, il n'attend rien.
     var lancer = lien
-      ? function () { quandServeurPret(function () { relancer(el); }); }
+      ? function () { quandServeurPret(function () { telecharger(el); }); }
       : function () { relancer(el); };
 
     ev.preventDefault();

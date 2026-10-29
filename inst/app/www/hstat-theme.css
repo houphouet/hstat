@@ -486,6 +486,8 @@ a { color: var(--accent); }
 /* ---- Separateur decimal des telechargements (www/hstat-decimale.js) ----
    La fenetre se pose au-dessus de tout, y compris des modales de Shiny
    (z-index 1050) : elle precede un telechargement lance DEPUIS l'une d'elles. */
+/* Un telechargement en cours : le fichier est demande par fetch (hstat-decimale.js). */
+.shiny-download-link.hstat-dl-encours { cursor: progress; opacity: .65; pointer-events: none; }
 .hstat-dec-fond {
   position: fixed; inset: 0; z-index: 2000;
   background: rgba(15, 20, 28, .45);
