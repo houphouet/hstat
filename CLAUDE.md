@@ -10820,3 +10820,13 @@ son trait (l'étiquette « DL10 » du repère est posée au-dessus). Le libellé
 porte que le chiffre — la mention « hors du cadre, extrapolée » a été retirée
 à la demande.
 
+
+#### Les trois doses létales d'office, et lisibles
+
+Signalé à l'écran après la fusion : « les DL10, DL50 et DL90 ne sont pas
+chiffrées pour chaque essai ». Elles l'étaient — à condition de cocher DL10 et
+DL90, la case n'en portant que la DL50 par défaut. Un réglage qu'il faut
+découvrir pour obtenir ce qu'on a demandé se lit comme une demande ignorée. Les
+trois sont cochées d'office ; le test lit l'interface **rendue** et a été
+vérifié comme échouant sur l'ancien défaut. Les étiquettes de plusieurs essais
+prennent la taille de celle d'un essai seul : à 2,6 mm elles se lisaient à peine.

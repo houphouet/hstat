@@ -3215,7 +3215,7 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
       dehors$yb <- pmin(pmax(dehors$y - 0.035 * diff(ylim), ylim[1] + 0.04 * diff(ylim)),
                         ylim[2] - 0.04 * diff(ylim))
       dehors$hj <- ifelse(gauche, 0, 1)
-      taille_h <- max(2.6, o$grad_y_taille / 3.2)
+      taille_h <- max(3, o$grad_y_taille / 2.8)
       p <- p + if (multiple)
         ggplot2::geom_label(data = dehors,
           ggplot2::aes(x = .data$xb, y = .data$yb, label = .data$etiq,
@@ -3253,7 +3253,9 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
         # et les relie a leur losange ; sans lui, elles s'alternent de part et
         # d'autre de la courbe, ce qui suffit a deux ou trois essais.
         dl$etiq <- etiq
-        taille <- max(2.6, o$grad_y_taille / 3.2)
+        # Meme taille que l'etiquette d'un essai seul : a 2,6 mm, elles se
+        # lisaient a peine sur la figure affichee, et pas du tout a l'export.
+        taille <- max(3, o$grad_y_taille / 2.8)
         p <- p + if (requireNamespace("ggrepel", quietly = TRUE))
           ggrepel::geom_label_repel(data = dl,
             ggplot2::aes(x = .data$x, y = .data$y, label = .data$etiq,
@@ -4011,7 +4013,10 @@ mod_dl50_ui <- function(id) {
                   shiny::checkboxGroupInput(ns("gAnnotDL"), "Doses létales chiffrées sur la figure",
                                             choices = c("DL10" = "10", "DL50" = "50",
                                                         "DL90" = "90"),
-                                            selected = "50", inline = TRUE),
+                                            # Les trois d'office, demande a l'ecran :
+                                            # cochees une a une, la DL10 et la DL90
+                                            # paraissaient absentes de la figure.
+                                            selected = c("10", "50", "90"), inline = TRUE),
                   shiny::checkboxInput(ns("gModele"), "Équation du modèle et ajustement sous la droite (un essai)", TRUE),
                   shiny::conditionalPanel(
                     condition = sprintf("input['%s']", ns("gModele")),
