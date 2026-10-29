@@ -6059,7 +6059,11 @@ test_that("creation et reinitialisation partagent la meme liste", {
   # Et vide en plus ce qu'un module aurait cree en cours de session -- y
   # compris les `reactiveVal`, que `hstat_vider_valeurs()` remet a NULL EN LES
   # APPELANT plutot qu'en les detruisant.
-  expect_true(grepl("hstat_vider_valeurs(values)", socle, fixed = TRUE))
+  # Seuls les champs de `HSTAT_VALEURS_PERSISTANTES` (les essais de DL50, qui
+  # ne dependent pas du jeu de travail) y echappent.
+  expect_true(grepl("hstat_vider_valeurs(values, sauf = HSTAT_VALEURS_PERSISTANTES)",
+                    socle, fixed = TRUE))
+  expect_identical(HSTAT_VALEURS_PERSISTANTES, "dl50Essais")
   expect_true(grepl("setdiff(names(shiny::isolate(shiny::reactiveValuesToList(rv))), sauf)",
                     socle, fixed = TRUE))
   # L'ancienne enumeration a la main a bien disparu
@@ -23885,4 +23889,135 @@ test_that("DL50 : les colonnes de nombres écrits en texte sont offertes et lues
     expect_identical(envoyes$colDose$value, "Conc")
     expect_identical(envoyes$colMorts$value, "Morts")
   })
+})
+
+test_that("un telechargement qui echoue n'enregistre jamais la page d'erreur", {
+  # Signale a l'ecran : le graphique DL50 arrivait sous le nom `dl50-gDl.htm`.
+  # C'est la page « 404 Not Found » d'une session expiree (veille, serveur
+  # redemarre), que le navigateur enregistrait sous le nom du lien. Le fichier
+  # est desormais demande par fetch, et n'est enregistre que si le serveur l'a
+  # produit : reponse 200 ET nom de fichier annonce.
+  root <- .hstat_repo_root()
+  skip_if(is.na(root))
+  node <- .hstat_node()
+  skip_if(is.na(node), "node absent")
+  js <- file.path(root, "inst", "app", "www", "hstat-decimale.js")
+  banc <- tempfile(fileext = ".js")
+  writeLines(r"---(var fs = require("fs"), vm = require("vm");
+var enregistres = [], messages = [], classes = [];
+function St() { return { getItem: function () { return null; }, setItem: function () {} }; }
+var doc = { readyState: "complete", baseURI: "http://h/app/",
+  addEventListener: function () {}, removeEventListener: function () {},
+  getElementById: function () { return null; },
+  body: { appendChild: function () {} },
+  createElement: function (tag) {
+    var e = { style: {}, textContent: "", click: function () { enregistres.push(this.download); } };
+    Object.defineProperty(e, "outerHTML", { get: function () {
+      return "<" + tag + ">" + String(this.textContent).replace(/&/g, "&amp;").replace(/</g, "&lt;") +
+             "</" + tag + ">"; } });
+    return e; } };
+var REP = {
+  "ok": { status: 200, url: "http://h/app/session/a/download/x?w=",
+          cd: 'attachment; filename="dl50_henry.png"' },
+  "accent": { status: 200, url: "http://h/app/session/a/download/x/r%C3%A9sultat%20%C3%A9t%C3%A9.csv",
+              cd: "attachment" },
+  "expiree": { status: 404, url: "", cd: null },
+  "panne": { status: 500, url: "", cd: null },
+  "sansnom": { status: 200, url: "http://h/app/session/a/download/x?w=", cd: null } };
+var w = { localStorage: St(), sessionStorage: St(), document: doc, setTimeout: function () {},
+  Blob: function () {},
+  URL: function (h, b) { this.href = b + h; },
+  fetch: function (u) {
+    var k = u.split("/").pop();
+    if (k === "coupure") return Promise.reject(new Error("reseau"));
+    var r = REP[k];
+    return Promise.resolve({ ok: r.status >= 200 && r.status < 300, status: r.status, url: r.url,
+      headers: { get: function () { return r.cd; } },
+      blob: function () { return Promise.resolve({}); } }); },
+  Shiny: { notifications: { show: function (o) { messages.push(o.html); } } } };
+w.URL.createObjectURL = function () { return "blob:x"; };
+w.URL.revokeObjectURL = function () {};
+w.window = w;
+vm.createContext(w);
+vm.runInContext(fs.readFileSync(process.argv[2], "utf8"), w);
+var cas = ["ok", "accent", "expiree", "panne", "sansnom", "coupure"], res = {};
+var lien = function (k) { return { getAttribute: function () { return k; },
+  classList: { add: function (c) { classes.push("+" + c); }, remove: function (c) { classes.push("-" + c); } } }; };
+var i = 0;
+(function suivant() {
+  if (i === cas.length) { process.stdout.write(JSON.stringify(res)); return; }
+  var k = cas[i++]; enregistres = []; messages = [];
+  w.hstatTelecharger(lien(k));
+  setTimeout(function () { res[k] = { fichiers: enregistres, messages: messages }; suivant(); }, 20);
+})();
+)---", banc)
+  s <- system2(node, c(shQuote(banc), shQuote(js)), stdout = TRUE, stderr = TRUE)
+  Encoding(s) <- "UTF-8"
+  r <- jsonlite::fromJSON(paste(s, collapse = ""), simplifyVector = FALSE)
+  expect_identical(unlist(r$ok$fichiers), "dl50_henry.png")
+  expect_length(r$ok$messages, 0)
+  # Un nom accentue arrive par une redirection : il est lu dans l'adresse.
+  expect_identical(unlist(r$accent$fichiers), "résultat été.csv")
+  # Les echecs : RIEN n'est enregistre, et la cause est dite.
+  for (k in c("expiree", "panne", "sansnom", "coupure")) {
+    expect_length(r[[k]]$fichiers, 0)
+    expect_length(r[[k]]$messages, 1)
+  }
+  expect_match(r$expiree$messages[[1]], "session du serveur n'existe plus", fixed = TRUE)
+  expect_match(r$panne$messages[[1]], "n'a pas pu produire", fixed = TRUE)
+  expect_match(r$coupure$messages[[1]], "connexion au serveur", fixed = TRUE)
+  # Le message passe par `textContent` : un nom de colonne dans un motif ne
+  # deviendrait pas du balisage.
+  expect_match(r$expiree$messages[[1]], "^<span>")
+
+  # Les liens Shiny passent par ce chemin ; les boutons de DataTables, qui
+  # ecrivent dans le navigateur, gardent le leur.
+  src <- paste(readLines(js, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("quandServeurPret(function () { telecharger(el); })", src, fixed = TRUE))
+  for (m in c("Le téléchargement a échoué : la session du serveur n'existe plus (veille de l'ordinateur ou serveur redémarré). Rechargez la page, puis relancez l'analyse.",
+              "Le téléchargement a échoué : la connexion au serveur est interrompue. Attendez la reconnexion ou rechargez la page.",
+              "Le téléchargement a échoué : le serveur n'a pas pu produire le fichier. Vérifiez que l'analyse a bien été lancée.")) {
+    expect_true(grepl(m, src, fixed = TRUE), info = m)
+    expect_false(is.na(tr(m, lang = "en")) || identical(tr(m, lang = "en"), m), info = m)
+  }
+})
+
+test_that("les essais DL50 survivent a une veille et a un chargement de fichier", {
+  # Apres une reconnexion, le module repartait d'un magasin vide : le graphique
+  # telecharge ne portait plus que le motif « aucun essai ajustable ».
+  shiny::isolate({
+    v <- shiny::reactiveValues(data = NULL)
+    expect_false(hstat_session_a_garder(v))
+    v$dl50Essais <- shiny::reactiveVal(list(E1 = list(titre = "E1")))
+    expect_true(hstat_session_a_garder(v))
+
+    # Le chargement d'un autre fichier ne les vide pas.
+    hstat_reinitialiser_valeurs(v)
+    expect_identical(names(v$dl50Essais()), "E1")
+
+    # Deposes puis repris : la NOUVELLE session les recoit dans son propre
+    # `reactiveVal`, celui que son module observe.
+    cliche <- hstat_session_cliche(v)
+    neuf <- shiny::reactiveVal(list())
+    v2 <- shiny::reactiveValues(dl50Essais = neuf)
+    hstat_session_restaurer(v2, cliche, sauf = "resetSignal")
+    expect_identical(names(neuf()), "E1")
+  })
+  # Le module range bien son magasin dans `values`.
+  shiny::testServer(mod_dl50_server, args = list(values = shiny::reactiveValues()), {
+    expect_true(inherits(shiny::isolate(values$dl50Essais), "reactiveVal"))
+  })
+})
+
+test_that("le graphique DL50 sans essai reste une image, jamais du texte", {
+  # Du texte ecrit sous l'extension `.png` ne s'ouvre dans aucun logiciel.
+  src <- paste(deparse(body(mod_dl50_server)), collapse = "\n")
+  i <- regexpr("output$gDl <- shiny::downloadHandler", src, fixed = TRUE)
+  expect_true(i > 0)
+  bloc <- substr(src, i, i + 2500)
+  expect_false(grepl("writeLines", bloc, fixed = TRUE))
+  expect_false(grepl("!is.null(p) && hstat_ecrire_image", bloc, fixed = TRUE))
+  f <- tempfile(fileext = ".png")
+  expect_false(hstat_ecrire_image(f, NULL, "png", 4, 3, 72, echec = "motif"))
+  expect_identical(readBin(f, "raw", 4), as.raw(c(0x89, 0x50, 0x4e, 0x47)))
 })

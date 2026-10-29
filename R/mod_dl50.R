@@ -4182,6 +4182,14 @@ mod_dl50_server <- function(id, values) {
 
     # -- Le magasin d'essais ------------------------------------------------
     essais <- shiny::reactiveVal(list())
+    # LE MAGASIN SURVIT A UNE VEILLE. La reprise de Shiny ouvre une session
+    # neuve, et ce `reactiveVal` local repartait vide : le graphique et les
+    # tableaux telecharges apres la veille ne portaient plus rien. Range dans
+    # `values`, il est depose avec la session et repris en l'appelant
+    # (`hstat_session_restaurer()`), comme `customXLevels`. Un chargement de
+    # fichier ne le vide pas : les essais sont independants du jeu de travail
+    # (`HSTAT_VALEURS_PERSISTANTES`).
+    if (!is.null(values)) values$dl50Essais <- essais
     saisie <- shiny::reactiveVal(
       data.frame(Dose = rep(NA_real_, 5), Effectif = rep(NA_real_, 5),
                  Morts = rep(NA_real_, 5), stringsAsFactors = FALSE))
@@ -5241,10 +5249,14 @@ mod_dl50_server <- function(id, values) {
           shiny::showNotification(d$note, type = "warning", duration = 8)
         fmt <- hstat_img_fmt(input$gFmt %||% "png")
         # Un `stop()` ne laisserait AUCUN fichier : Shiny renverrait sa page
-        # d'erreur, que le navigateur enregistrerait sous le nom demande. On
-        # croit tenir une image, on ouvre du HTML.
-        ok <- !is.null(p) && hstat_ecrire_image(
+        # d'erreur, que le navigateur enregistrerait sous le nom demande. Sans
+        # essai ajustable (session reprise apres une veille, essai retire),
+        # le fichier reste une IMAGE valide portant le motif : du texte sous
+        # l'extension `.png` ne s'ouvrirait dans aucun logiciel.
+        motif <- tr("Export impossible : aucun essai ajustable, ou dimensions trop grandes. Réduisez la taille ou le DPI, ou choisissez un format vectoriel (SVG, PDF).")
+        ok <- hstat_ecrire_image(
           file, p, fmt, d$width_in, d$height_in, d$dpi,
+          echec = if (is.null(p)) motif,
           qualite = .hstat_num1(input$gQualite, 95),
           compression = input$gCompression %||% "lzw")
         if (isTRUE(ok))
@@ -5252,13 +5264,8 @@ mod_dl50_server <- function(id, values) {
             trf("Graphique exporté : %s, %s × %s pixels à %s DPI.",
                 toupper(fmt), d$width_out, d$height_out, d$dpi),
             type = "message", duration = 6)
-        else {
-          writeLines(tr("Export impossible : aucun essai ajustable, ou dimensions trop grandes. Réduisez la taille ou le DPI, ou choisissez un format vectoriel (SVG, PDF)."),
-                     file)
-          shiny::showNotification(
-            tr("Export impossible : aucun essai ajustable, ou dimensions trop grandes. Réduisez la taille ou le DPI, ou choisissez un format vectoriel (SVG, PDF)."),
-            type = "error", duration = 10)
-        }
+        else
+          shiny::showNotification(motif, type = "error", duration = 10)
       })
 
     # -- Comparaison et fusion ---------------------------------------------

@@ -656,10 +656,10 @@ server <- function(input, output, session) {
 
   session$onSessionEnded(function() {
     shiny::isolate({
-      # Une session qui porte des donnees est DEPOSEE, et sa connexion DuckDB
-      # avec elle : la fermer ici rendrait l'etat repris inutilisable. C'est le
-      # depot qui la fermera s'il expire sans reprise.
-      garde <- !is.null(.hstat_cle_session) && !is.null(values$data)
+      # Une session qui porte des donnees (ou des essais de DL50) est DEPOSEE,
+      # et sa connexion DuckDB avec elle : la fermer ici rendrait l'etat repris
+      # inutilisable. C'est le depot qui la fermera s'il expire sans reprise.
+      garde <- !is.null(.hstat_cle_session) && hstat_session_a_garder(values)
       if (garde) {
         con <- values$dbCon
         garde <- hstat_session_deposer(
