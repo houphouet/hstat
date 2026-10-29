@@ -987,7 +987,7 @@ HSTAT_DL50_ABSENCES <- c("-", "\u2013", "\u2014", ".", "na", "n/a", "nd", "n.d."
   if (!nrow(d))
     return(tr("Aucune dose saisie : il faut au moins trois doses donnant des mortalités intermédiaires."))
   if (nrow(d) > HSTAT_DL50_DOSES_MAX)
-    return(trf("Trop de doses (%d) : la limite est de %d, comme dans WIN DL.",
+    return(trf("Trop de doses (%d) : la limite est de %d.",
                nrow(d), HSTAT_DL50_DOSES_MAX))
   if (any(!is.finite(d$dose) | d$dose <= 0))
     return(tr("Dose nulle ou négative : l'analyse passe par le logarithme de la dose, le témoin se saisit à part."))
@@ -1837,7 +1837,7 @@ hstat_dl50_comparaison <- function(essais,
   if (length(essais) < 2L)
     return(vide(tr("La comparaison demande au moins deux essais.")))
   if (length(essais) > HSTAT_DL50_ESSAIS_MAX)
-    return(vide(trf("Comparaison limitée à %d essais, comme dans WIN DL.",
+    return(vide(trf("Comparaison limitée à %d essais.",
                     HSTAT_DL50_ESSAIS_MAX)))
   for (e in essais) {
     m <- .hstat_dl50_valide(e)
@@ -1851,7 +1851,7 @@ hstat_dl50_comparaison <- function(essais,
   # le logiciel.
   total <- sum(vapply(essais, function(e) nrow(e$doses), integer(1)))
   if (total > HSTAT_DL50_DOSES_MAX)
-    return(vide(trf("Les %d essais totalisent %d doses : la limite du module de comparaison est de %d, comme dans WIN DL.",
+    return(vide(trf("Les %d essais totalisent %d doses : la limite du module de comparaison est de %d.",
                     length(essais), total, HSTAT_DL50_DOSES_MAX)))
   # Le scenario a mortalite nulle n'a de sens que si AUCUN essai n'a observe de
   # mortalite dans son temoin : le manuel l'ecrit, et fixer c a zero devant un
@@ -1944,7 +1944,7 @@ hstat_dl50_puissance <- function(essais, reference = 1,
   if (length(essais) < 2L)
     return(vide(tr("Le rapport de puissance demande au moins deux essais : c'est un rapport.")))
   if (length(essais) > HSTAT_DL50_ESSAIS_MAX)
-    return(vide(trf("Comparaison limitée à %d essais, comme dans WIN DL.",
+    return(vide(trf("Comparaison limitée à %d essais.",
                     HSTAT_DL50_ESSAIS_MAX)))
   for (e in essais) {
     m <- .hstat_dl50_valide(e)
@@ -3483,8 +3483,7 @@ mod_dl50_ui <- function(id) {
         # noeud de texte, qu'aucune entree du dictionnaire ne couvrait -- le
         # bandeau restait en francais dans une interface anglaise.
         paste("Régression probit dose-mortalité (droite de Henry), doses létales",
-              "et intervalles, d'après le modèle de Finney tel que le logiciel",
-              "WIN DL du CIRAD l'applique. La mortalité naturelle est estimée par",
+              "et intervalles, d'après le modèle de Finney. La mortalité naturelle est estimée par",
               "maximum de vraisemblance sur l'ensemble de l'essai, ou par la",
               "formule d'Abbott sur le seul témoin."))),
 
@@ -3551,7 +3550,7 @@ mod_dl50_ui <- function(id) {
               choiceNames = list(
                 shiny::HTML("<b>Saisie directe</b> <small style='color:#7f8c8d;'>(doses, effectifs, morts)</small>"),
                 shiny::HTML("<b>Jeu de données chargé</b> <small style='color:#7f8c8d;'>(CSV, Excel, SPSS…)</small>"),
-                shiny::HTML("<b>Fichier WIN DL</b> <small style='color:#7f8c8d;'>(.TXT natif)</small>")),
+                shiny::HTML("<b>Fichier</b> <small style='color:#7f8c8d;'>(.TXT)</small>")),
               choiceValues = list("manual", "dataset", "windl"), selected = "manual"),
 
             # CE QU'IL FAUT POUR CALCULER, dit avant de saisir plutot qu'en
@@ -3564,7 +3563,7 @@ mod_dl50_ui <- function(id) {
               shiny::tags$ul(style = "margin:6px 0 0 0;padding-left:18px;",
                 shiny::tags$li("les doses, l'effectif testé et les morts de chaque dose ;"),
                 shiny::tags$li("l'effectif et les morts du lot témoin (0 et 0 s'il n'y en a pas) ;"),
-                shiny::tags$li(shiny::HTML("<b>trois doses au moins</b> dont la mortalité corrigée ne soit ni 0 % ni 100 % — en deçà, la droite n'est pas déterminée et le calcul est refusé, comme dans WIN DL."))),
+                shiny::tags$li(shiny::HTML("<b>trois doses au moins</b> dont la mortalité corrigée ne soit ni 0 % ni 100 % — en deçà, la droite n'est pas déterminée et le calcul est refusé."))),
               shiny::HTML("La <i>fiche de l'essai</i> ci-contre est facultative : elle identifie l'essai, elle ne change aucun calcul.")),
 
             shiny::conditionalPanel(
@@ -3661,8 +3660,8 @@ mod_dl50_ui <- function(id) {
             shiny::actionButton(ns("enregistrer"),
               shiny::tagList(shiny::icon("floppy-disk"), " Enregistrer cet essai"),
               class = "btn-primary"),
-            shiny::helpText("Les doses identiques sont regroupées et les doses triées,",
-                            " comme dans WIN DL : deux lignes à la même dose sont deux",
+            shiny::helpText("Les doses identiques sont regroupées et les doses triées :",
+                            " deux lignes à la même dose sont deux",
                             " répétitions du même point."),
             shiny::hr(),
             .hstat_opt_carte("Coller depuis un tableur", "clipboard", "sarcelle",
@@ -3694,12 +3693,7 @@ mod_dl50_ui <- function(id) {
             # forme de refus, sans savoir d'ou elles venaient ni si elles
             # tenaient a HStat.
             shiny::helpText(
-              trf(paste("Deux limites héritées de WIN DL, reprises pour rester",
-                        "comparable avec lui : %d essais en mémoire au plus —",
-                        "c'est ce que sa fenêtre de comparaison accepte — et %d",
-                        "doses par essai. Aucune ne tient à HStat ; elles ne",
-                        "gênent pas un bioessai courant, qui compte cinq à huit",
-                        "doses."),
+              trf("%d essais en mémoire au plus, et %d doses par essai.",
                   HSTAT_DL50_ESSAIS_MAX, HSTAT_DL50_DOSES_MAX))))),
 
       # ------------------------------------------------------------------
