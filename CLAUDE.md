@@ -10799,3 +10799,24 @@ ggrepel les écarte et les relie à leur losange ; sans lui, elles s'alternent d
 part et d'autre de la courbe. Les lignes de rappel vers les axes restent
 réservées à l'essai seul — six faisceaux de pointillés se croiseraient.
 
+### DL ou CL se choisit à vue, et une DL hors du cadre se chiffre au bord
+
+Signalé à l'écran : « je dois pouvoir remplacer DL50 par CL50 », et « la DL10
+ne s'affiche pas ».
+
+**Le choix DL / CL existait, mais personne ne le trouvait** : il vivait dans la
+boîte « Grandeur étudiée », repliée par défaut. Un réglage qu'on ne trouve pas
+n'existe pas. Le bouton radio `exposition` est sorti de la boîte et posé sur une
+ligne au-dessus des onglets ; il renomme tout — tableaux, verdict, figure,
+cases des DL chiffrées, rapport `.PRN`. La boîte garde l'aide, et reste repliée.
+Le test passe par l'arbre : aucun ancêtre `collapsed-box`.
+
+**La DL10 tombait hors du cadre, en silence.** À pente faible (0,33 sur l'essai
+signalé) elle vaut 2 × 10⁻⁸, quatre décades sous la plus faible dose — au-delà
+des deux décades dont le cadre s'étend pour suivre les DL demandées. Le filtre
+des losanges la retirait sans un mot. Elle est désormais chiffrée **au bord du
+cadre**, du côté où elle se trouve, à la hauteur de son repère et juste sous
+son trait (l'étiquette « DL10 » du repère est posée au-dessus). Le libellé ne
+porte que le chiffre — la mention « hors du cadre, extrapolée » a été retirée
+à la demande.
+

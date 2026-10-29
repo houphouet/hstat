@@ -24065,11 +24065,46 @@ test_that("DL50 : les niveaux de la legende se renomment, et chaque essai chiffr
   shiny::testServer(mod_dl50_server, args = list(values = vals), {
     session$setInputs(source = "fichier", colDose = "Dose", colN = "N",
                       colMorts = "Morts", colEssai = "Lot", importerDonnees = 1,
-                      methode = "em", alpha = 0.05, gTous = TRUE, gType = "reponse")
+                      methode = "em", alpha = 0.05, gTous = TRUE, gType = "reponse",
+                      gDroite = TRUE)
     n <- noms_graphe()
     expect_length(n, 2L)
     session$setInputs(gLegNom_2 = "Deltaméthrine")
     expect_identical(unname(graphe_opt()$legende_noms), c("", "Deltaméthrine"))
     expect_true("Deltaméthrine" %in% niveaux(graphe()))
   })
+})
+
+test_that("DL50 : le choix DL ou CL est visible, et une DL hors du cadre se nomme", {
+  skip_if_not_installed("shiny")
+  skip_if_not_installed("shinydashboard")
+  skip_if_not_installed("ggplot2")
+  # Signale a l'ecran : « je dois pouvoir remplacer DL50 par CL50 ». Le choix
+  # vivait dans la boite « Grandeur etudiee », repliee par defaut.
+  ui <- mod_dl50_ui("dl50")
+  pe <- .hstat_ancetres(ui, "^dl50-exposition$")
+  expect_length(pe, 1L)
+  expect_false(any(grepl("collapsed-box", pe[[1]])))
+
+  # Le nom suit le choix, sur la figure comme ailleurs.
+  d <- c(3e-5, 1.2e-4, 6e-4, 3e-3, 1.5e-2, 8e-2, 0.4, 2, 10, 50)
+  e <- hstat_dl50_essai(d, 40, c(8, 11, 38, 34, 38, 30, 36, 34, 33, 40), 36, 2)
+  fc <- hstat_dl50_ajuste(e, "abbott", reponse = "mortalite_c")
+  expect_identical(hstat_dl50_prefixe(fc), "CL")
+
+  # Signale a l'ecran : DL10 cochee, et rien sur la figure. A pente faible elle
+  # tombe quatre decades sous la plus faible dose, au-dela de l'extension du
+  # cadre : elle se chiffre AU BORD, par son seul chiffre (sans mention
+  # « hors du cadre », a la demande).
+  dl <- hstat_dl50_doses_letales(fc, 10)
+  expect_lt(dl$Log_dose, log10(min(d)) - 2)
+  p <- hstat_dl50_graphique(list(fc), list(type = "reponse", annot_dl = c(10, 50, 90)))
+  lab <- Filter(function(l) inherits(l$geom, "GeomLabel") &&
+                  "etiq" %in% names(l$data), p$layers)
+  expect_length(lab, 1L)
+  expect_match(lab[[1]]$data$etiq, "^CL10 = [0-9.e+-]+$")
+  # Posee dans le cadre, au bord gauche.
+  xr <- ggplot2::ggplot_build(p)$layout$panel_params[[1]]$x.range
+  expect_true(lab[[1]]$data$xb >= xr[1] && lab[[1]]$data$xb < mean(xr))
+  expect_true(lab[[1]]$data$hj == 0)
 })

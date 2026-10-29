@@ -3186,8 +3186,46 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
                  dose = d$Dose,
                  stringsAsFactors = FALSE)
     }))
-    if (!is.null(dl)) dl <- dl[dl$x >= xr[1] & dl$x <= xr[2] &
-                                 dl$y >= ylim[1] & dl$y <= ylim[2], , drop = FALSE]
+    # UNE DL HORS DU CADRE SE NOMME, ELLE NE DISPARAIT PAS. Signale a l'ecran :
+    # DL10 cochee, et rien sur la figure. Le cadre s'etend aux DL demandees dans
+    # la limite de deux decades au-dela des doses testees ; plus loin -- pente
+    # faible, la DL10 tombe a 1e-8 -- elle ne repose que sur le prolongement de
+    # la droite, et l'y suivre ecraserait l'essai en un point. Elle est donc
+    # chiffree AU BORD du cadre, du cote ou elle se trouve.
+    dehors <- NULL
+    if (!is.null(dl)) {
+      dans <- dl$x >= xr[1] & dl$x <= xr[2] & dl$y >= ylim[1] & dl$y <= ylim[2]
+      dehors <- dl[!dans & is.finite(dl$x) & (dl$x < xr[1] | dl$x > xr[2]), ,
+                   drop = FALSE]
+      dl <- dl[dans, , drop = FALSE]
+    }
+    u <- hstat_dl50_unite(fits[[1]])
+    etiq_de <- function(d) vapply(seq_len(nrow(d)), function(k)
+      sprintf("%s%s = %s%s", hstat_dl50_prefixe(fits[[1]]),
+              trimws(formatC(d$seuil[k], format = "g", digits = 4)),
+              .hstat_dl50_nb(d$dose[k]), if (nzchar(u)) paste0(" ", u) else ""),
+      character(1))
+    if (!is.null(dehors) && nrow(dehors)) {
+      gauche <- dehors$x < xr[1]
+      # Le chiffre seul, a la demande : pas de mention « hors du cadre ».
+      dehors$etiq <- etiq_de(dehors)
+      dehors$xb <- ifelse(gauche, xr[1] + 0.01 * diff(xr), xr[2] - 0.01 * diff(xr))
+      # Sous le trait du repere : son etiquette « DL10 » est posee au-dessus, au
+      # meme bord du cadre, et les deux se recouvriraient.
+      dehors$yb <- pmin(pmax(dehors$y - 0.035 * diff(ylim), ylim[1] + 0.04 * diff(ylim)),
+                        ylim[2] - 0.04 * diff(ylim))
+      dehors$hj <- ifelse(gauche, 0, 1)
+      taille_h <- max(2.6, o$grad_y_taille / 3.2)
+      p <- p + if (multiple)
+        ggplot2::geom_label(data = dehors,
+          ggplot2::aes(x = .data$xb, y = .data$yb, label = .data$etiq,
+                       hjust = .data$hj, colour = .data$Essai),
+          size = taille_h, fill = "#ffffffe6", show.legend = FALSE)
+      else ggplot2::geom_label(data = dehors,
+          ggplot2::aes(x = .data$xb, y = .data$yb, label = .data$etiq,
+                       hjust = .data$hj),
+          size = taille_h, fill = "#ffffffe6", colour = "#111827")
+    }
     if (!is.null(dl) && nrow(dl)) {
       if (!multiple) {
         # Lignes de rappel : de chaque DL vers l'axe des doses et vers celui
@@ -3206,12 +3244,7 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
           show.legend = FALSE)
       else ggplot2::geom_point(data = dl, ggplot2::aes(x = .data$x, y = .data$y),
           shape = 23, size = 3.4, fill = "#ffffff", colour = "#111827", stroke = 0.9)
-      u <- hstat_dl50_unite(fits[[1]])
-      etiq <- vapply(seq_len(nrow(dl)), function(k)
-        sprintf("%s%s = %s%s", hstat_dl50_prefixe(fits[[1]]),
-            trimws(formatC(dl$seuil[k], format = "g", digits = 4)),
-            .hstat_dl50_nb(dl$dose[k]), if (nzchar(u)) paste0(" ", u) else ""),
-        character(1))
+      etiq <- etiq_de(dl)
       if (multiple) {
         # LES DL DE CHAQUE ESSAI SE CHIFFRENT AUSSI, demande a l'ecran. Une
         # etiquette par losange, a la couleur de son essai : c'est la couleur
@@ -3470,8 +3503,6 @@ mod_dl50_ui <- function(id) {
                                choices = HSTAT_DL50_REPONSES, selected = "mortalite"),
             shiny::conditionalPanel(
               condition = sprintf("input['%s'] != 'kt'", ns("reponse")),
-              shiny::radioButtons(ns("exposition"), "Ce qui varie d'un lot à l'autre",
-                                  choices = HSTAT_DL50_GRANDEURS, selected = "dose"),
               shiny::helpText("DL ou KD : dose appliquée à chaque individu (application topique, ingestion, injection). CL ou KC : concentration du milieu d'exposition (eau, air, support imprégné). Le calcul est le même, le nom publié change.")),
             shiny::conditionalPanel(
               condition = sprintf("input['%s'] == 'kd'", ns("reponse")),
@@ -3489,6 +3520,19 @@ mod_dl50_ui <- function(id) {
                   shiny::tags$li(shiny::HTML("<b>KT50</b> (et KT95) : temps d'exposition nécessaire pour abattre 50 % (ou 95 %) des individus à une concentration fixée — tube OMS, test en bouteille CDC, test en cône. C'est l'indicateur de surveillance de la <b>résistance de type kdr</b> (mutation du canal sodium) : un KT50 qui s'allonge par rapport à une souche sensible de référence signale la résistance, souvent avant que la mortalité à 24 h ne baisse. Le rapport KT50 de la souche / KT50 de la référence se lit dans l'onglet de comparaison, comme un rapport de résistance.")),
                   shiny::tags$li(shiny::HTML("<b>DL50 / CL50</b> : dose ou concentration qui <b>tue</b> 50 % des individus, lue après une période de récupération (24 h en général)."))),
                 shiny::p(shiny::HTML("Le knock-down ne remplace pas la mortalité : un insecte abattu peut se relever. Les deux se publient ensemble, et un écart entre un KD rapide et une mortalité faible est en lui-même un résultat. Le calcul est le même — régression probit sur le logarithme de la dose ou du temps (Finney, 1971), intervalles de Fieller, correction du témoin — seuls les noms changent.")))))))),
+
+    # LE NOM PUBLIE -- DL ou CL -- RESTE VISIBLE. Demande a l'ecran : « je dois
+    # pouvoir remplacer DL50 par CL50 ». Le choix existait, mais dans la boite
+    # « Grandeur etudiee », repliee par defaut : un reglage qu'on ne trouve pas
+    # n'existe pas. Il vit donc hors de la boite, sur une ligne, au-dessus des
+    # onglets qu'il renomme tous (tableaux, verdict, figure, rapport .PRN).
+    shiny::conditionalPanel(
+      condition = sprintf("input['%s'] != 'kt'", ns("reponse")),
+      shiny::div(style = "margin:-6px 0 6px 2px;",
+        shiny::radioButtons(ns("exposition"),
+                            "Ce qui varie d'un lot à l'autre (nom publié : DL ou CL)",
+                            choices = HSTAT_DL50_GRANDEURS, selected = "dose",
+                            inline = TRUE))),
 
     shiny::tabsetPanel(
       id = ns("dl50Tabs"),
