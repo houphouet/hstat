@@ -3550,7 +3550,7 @@ mod_dl50_ui <- function(id) {
               choiceNames = list(
                 shiny::HTML("<b>Saisie directe</b> <small style='color:#7f8c8d;'>(doses, effectifs, morts)</small>"),
                 shiny::HTML("<b>Jeu de données chargé</b> <small style='color:#7f8c8d;'>(CSV, Excel, SPSS…)</small>"),
-                shiny::HTML("<b>Fichier</b> <small style='color:#7f8c8d;'>(.TXT)</small>")),
+                shiny::HTML("<b>Fichier d'essai</b> <small style='color:#7f8c8d;'>(.TXT)</small>")),
               choiceValues = list("manual", "dataset", "windl"), selected = "manual"),
 
             # CE QU'IL FAUT POUR CALCULER, dit avant de saisir plutot qu'en
@@ -3598,9 +3598,8 @@ mod_dl50_ui <- function(id) {
               condition = sprintf("input['%s'] == 'windl'", ns("source")),
               shiny::fileInput(ns("fichierWindl"), "Fichier d'essai (.TXT)",
                                multiple = TRUE, accept = c(".txt", ".TXT", ".dat")),
-              shiny::helpText("Les fichiers de la version DOS comme de la version",
-                              " Windows se lisent : encodage CP437, séparateurs de",
-                              " champ invisibles, marqueur de fin de fichier."))),
+              shiny::helpText("Encodage CP437, séparateurs de champ invisibles et",
+                              " marqueur de fin de fichier sont reconnus."))),
 
           shinydashboard::box(
             title = shiny::tagList(shiny::icon("vial"), " Fiche de l'essai (facultative)"),
@@ -3688,10 +3687,8 @@ mod_dl50_ui <- function(id) {
             shiny::actionButton(ns("retirer"),
               shiny::tagList(shiny::icon("trash"), " Retirer cet essai"),
               class = "btn-sm btn-danger"),
-            # LES DEUX LIMITES SONT CELLES DE WIN DL, ET ELLES SE DISENT.
-            # Elles etaient appliquees en silence : on les rencontrait sous
-            # forme de refus, sans savoir d'ou elles venaient ni si elles
-            # tenaient a HStat.
+            # LES DEUX LIMITES SE DISENT. Elles etaient appliquees en silence :
+            # on les rencontrait sous forme de refus, sans les avoir vues.
             shiny::helpText(
               trf("%d essais en mémoire au plus, et %d doses par essai.",
                   HSTAT_DL50_ESSAIS_MAX, HSTAT_DL50_DOSES_MAX))))),
@@ -3711,7 +3708,9 @@ mod_dl50_ui <- function(id) {
             shiny::radioButtons(ns("chemin"), "Chemin de convergence",
                                 choices = HSTAT_DL50_CONVERGENCE, selected = "rapide"),
             shiny::helpText("Le chemin lent part d'une mortalité naturelle",
-                            " non nulle et rampe vers l'optimum : il s'arrête avant le maximum de",
+                            " non nulle et rampe vers l'optimum : il rapproche des",
+                            " chiffres de référence publiés (écart médian divisé",
+                            " par 3), mais s'arrête avant le maximum de",
                             " vraisemblance et demande beaucoup plus d'itérations —",
                             " sur un essai à réponse plate, cent n'y suffisent pas."),
             shiny::numericInput(ns("chiffres"), "Chiffres significatifs affichés",
@@ -4516,7 +4515,7 @@ mod_dl50_server <- function(id, values) {
       libre <- HSTAT_DL50_ESSAIS_MAX - length(cur)
       if (libre <= 0) {
         shiny::showNotification(
-          trf("Six essais sont déjà en mémoire : retirez-en un avant d'en ajouter (limite : %d).",
+          trf("%d essais sont déjà en mémoire, le maximum : retirez-en un avant d'en ajouter.",
               HSTAT_DL50_ESSAIS_MAX), type = "warning", duration = 8)
         return(invisible(FALSE))
       }

@@ -3119,7 +3119,8 @@ Mais il **coûte** : sur un essai à réponse plate, il ne converge plus en cent
 itérations là où le départ nul aboutit en trois. C'est pourquoi il est
 **proposé, et non imposé** — le défaut reste le chemin rapide, qui atteint un
 optimum meilleur sur tous les essais essayés. Le réglage « Chemin de
-convergence » ouvre l'autre à qui veut comparer chiffre pour chiffre.
+convergence » ouvre l'autre — affiché « Chemin lent » — à qui veut comparer
+chiffre pour chiffre.
 
 Les deux restent d'ailleurs dans l'enveloppe de conformité : l'écart porte sur
 le sixième chiffre, pas sur un résultat.
@@ -3575,8 +3576,21 @@ après coup.
 
 Les deux limites (**6 essais**, **100 doses**) sont celles de WIN DL, reprises
 pour rester comparable. Elles étaient appliquées en silence : on les rencontrait
-sous forme de refus, sans savoir d'où elles venaient ni si elles tenaient à
-HStat. Elles sont maintenant nommées et attribuées.
+sous forme de refus. Elles sont maintenant écrites sous la liste des essais —
+sans leur origine, voir plus bas.
+
+### L'interface ne nomme pas WIN DL
+
+Demandé à l'écran : aucun libellé, aide, bouton, notification ni message de
+refus ne cite le logiciel. La source de données s'appelle « Fichier d'essai
+(.TXT) », les exports « Rapport (.PRN) » et « Essai (.TXT) », le second chemin
+de convergence « Chemin lent ». Ce que la référence justifiait se dit sans elle
+(« rapproche des chiffres de référence publiés »), sinon une option ne se
+présenterait plus que par ses défauts.
+
+Le nom reste là où l'utilisateur ne le lit pas : commentaires du code, noms de
+tests, identifiants internes (`windl`, `hstat_dl50_lire_windl`) et cette
+documentation, qui en a besoin pour expliquer les conventions reprises.
 
 ### Le compte d'itérations ne se compare pas
 
@@ -3589,8 +3603,8 @@ La cause est mesurée : la mortalité naturelle y vaut exactement zéro, et HSta
 part de la valeur du témoin — ici 0/25, donc zéro. L'étape [E] rend alors des
 poids nuls et `c` ne bouge plus. WIN DL, lui, rampe vers cette borne.
 Reproduire son compte demanderait de **ralentir délibérément** l'algorithme pour
-une valeur d'affichage. Le libellé dit donc de qui est le compte, plutôt que de
-laisser croire à un désaccord.
+une valeur d'affichage. Le rapport dit donc que le compte dépend de
+l'algorithme, plutôt que de laisser croire à un désaccord.
 
 ### Les quatre tests de comparaison : confrontés au manuel, pas à des chiffres
 
