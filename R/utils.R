@@ -2544,14 +2544,18 @@ viz_detect_x_type <- function(x) {
 # « = » coupe, si bien qu'un nouveau libelle peut lui-meme en contenir un.
 hstat_legende_etiquettes <- function(txt) {
   if (is.null(txt) || !length(txt)) return(character(0))
-  l <- unlist(strsplit(paste(as.character(txt), collapse = "\n"), "\r?\n"))
+  # Borne : 200 lignes de libelles bornes, c'est-a-dire plus qu'aucune legende
+  # n'en porte, et rien de ce qu'un message forge pourrait faire mettre en page.
+  txt <- hstat_texte_client(paste(as.character(txt), collapse = "\n"),
+                            max = 200L * (HSTAT_TEXTE_CLIENT_MAX + 4L))
+  l <- utils::head(unlist(strsplit(txt, "\r?\n")), 200L)
   l <- l[grepl("=", l, fixed = TRUE)]
   if (!length(l)) return(character(0))
   pos <- regexpr("=", l, fixed = TRUE)
   anc <- trimws(substr(l, 1, pos - 1))
   nou <- trimws(substr(l, pos + 1, nchar(l)))
   ok  <- nzchar(anc) & nzchar(nou)
-  stats::setNames(nou[ok], anc[ok])
+  stats::setNames(substr(nou[ok], 1L, HSTAT_TEXTE_CLIENT_MAX), anc[ok])
 }
 
 # Le renommage passe par les LIBELLES de l'echelle, jamais par les donnees : la
@@ -6503,6 +6507,19 @@ hstat_garder_choix <- function(courant, choix, defaut = NULL) {
   if (length(k)) return(k)
   d <- intersect(as.character(defaut), v)
   if (length(d)) d else NULL
+}
+
+# Un TEXTE venu du navigateur, borne en longueur. Un champ de saisie affiche
+# sa longueur, il ne la garantit pas : un message forge porte un libelle d'un
+# megaoctet, et c'est le RENDU qui le paie -- le texte d'une figure est mis en
+# page caractere par caractere, dans le processus qui sert toutes les sessions.
+# On rend une seule chaine, jamais NA, coupee a `max` caracteres.
+HSTAT_TEXTE_CLIENT_MAX <- 500L
+hstat_texte_client <- function(x, max = HSTAT_TEXTE_CLIENT_MAX) {
+  v <- if (is.null(x) || !length(x)) "" else as.character(x)[1]
+  if (is.na(v)) v <- ""
+  if (is.na(nchar(v, type = "chars", allowNA = TRUE))) return("")
+  substr(v, 1L, max)
 }
 
 hstat_borne_client <- function(x, defaut, min, max) {
@@ -11457,6 +11474,23 @@ hstat_reparer_deps <- function(ui, nouislider_casse = .hstat_nouislider_casse())
   htmltools::attachDependencies(ui, corrigees, append = TRUE)
 }
 
+# EN-TETES DE SECURITE DE LA PAGE, ce que l'interface permet sans se casser.
+# Une politique de contenu stricte interdirait les scripts ecrits dans la page,
+# dont l'interface depend : on ne pose que les directives qu'elle respecte
+# deja. `object-src 'none'` ferme les greffons (Flash, applets) qu'aucun
+# onglet n'emploie ; `base-uri 'self'` empeche une balise <base> injectee de
+# detourner toutes les adresses relatives ; `form-action 'self'` empeche un
+# formulaire injecte d'envoyer une saisie ailleurs. `frame-ancestors` n'est
+# PAS pose : HStat s'integre dans des pages tierces (iframe), et l'interdire
+# fermerait ces integrations.
+#
+# `nosniff` interdit au navigateur de lire un fichier telecharge comme un
+# script ; le referent ne quitte plus l'application avec son adresse entiere.
+HSTAT_ENTETES_SECURITE <- list(
+  `Content-Security-Policy` = "object-src 'none'; base-uri 'self'; form-action 'self'",
+  `X-Content-Type-Options`  = "nosniff",
+  `Referrer-Policy`         = "strict-origin-when-cross-origin")
+
 # ---------------------------------------------------------------------------
 # La page se serialise a la demande, une fois, et ses erreurs se levent
 # ---------------------------------------------------------------------------
@@ -11523,7 +11557,8 @@ hstat_ui_en_cache <- function(ui, prechauffer = TRUE) {
     later::later(function() tryCatch(serialiser("normal"), error = function(e) NULL))
   f <- function(req) {
     page <- serialiser(cle_courante())
-    entetes <- list(ETag = page$etag, `Cache-Control` = "no-cache")
+    entetes <- c(list(ETag = page$etag, `Cache-Control` = "no-cache"),
+                 HSTAT_ENTETES_SECURITE)
     if (identical(req$HTTP_IF_NONE_MATCH, page$etag))
       return(shiny::httpResponse(304L, content = "", headers = entetes))
     shiny::httpResponse(200L, content = page$html, headers = entetes)

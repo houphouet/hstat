@@ -5215,7 +5215,7 @@ mod_dl50_server <- function(id, values) {
       n <- noms_graphe()
       if (length(n) < 2L) return(character(0))
       stats::setNames(vapply(seq_along(n), function(i)
-        trimws(as.character(input[[paste0("gLegNom_", i)]] %||% "")[1]),
+        trimws(hstat_texte_client(input[[paste0("gLegNom_", i)]])),
         character(1)), n)
     })
 
