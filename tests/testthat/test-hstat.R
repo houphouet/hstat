@@ -2691,8 +2691,13 @@ test_that("adresses et modeles par defaut, modifiables", {
   # 127.0.0.1 et non localhost : on veut que ce soit visiblement la machine
   # de l'utilisateur, et rien d'autre.
   expect_true(grepl("^http://127\\.0\\.0\\.1:8080$", hstat_ai_url("local")))
+  # Une machine du reseau prive est refusee par defaut (le serveur appelle a la
+  # place du visiteur), et s'ouvre par une option de l'exploitant.
+  expect_equal(hstat_ai_url("local", "http://192.168.1.5:8080/"), "")
+  op <- options(hstat.ai.reseau_prive = TRUE)
   expect_equal(hstat_ai_url("local", "http://192.168.1.5:8080/"),
                "http://192.168.1.5:8080")
+  options(op)
   expect_equal(hstat_ai_url("local", "   "), "http://127.0.0.1:8080")
   # Une adresse saisie l'emporte toujours : un service qui demenage ne doit pas
   # obliger a rouvrir le code.
@@ -24121,4 +24126,71 @@ test_that("DL50 : les trois doses letales sont chiffrees d'office sur la figure"
   m <- regmatches(html, gregexpr('<input type="checkbox" name="dl50-gAnnotDL"[^>]*>', html))[[1]]
   expect_length(m, 3L)
   expect_true(all(grepl("checked", m, fixed = TRUE)))
+})
+
+
+test_that("un service d'IA ne sert pas de relais vers le reseau interne", {
+  # Le serveur appelle a la place du visiteur : l'adresse de metadonnees du
+  # nuage rend des identifiants, et aucun service d'IA n'y vit.
+  refusees <- c("http://169.254.169.254/latest", "http://[fe80::1]:80",
+                "http://metadata.google.internal/x", "http://10.0.0.5:8080",
+                "http://172.20.1.1", "http://100.64.0.1", "http://[fd00::1]",
+                "http://0.0.0.0:8080", "http://[::ffff:169.254.169.254]",
+                # formes non canoniques de 169.254.169.254, que curl accepte
+                "http://2852039166", "http://0xa9fea9fe", "http://0251.0376.0251.0376",
+                "http://169.254.43518")
+  for (u in refusees) expect_identical(hstat_ai_url("local", u), "", info = u)
+  # Cette machine reste permise : c'est le serveur local, gratuit et hors ligne.
+  for (u in c("http://127.0.0.1:8080", "http://localhost:11434", "http://[::1]:8080"))
+    expect_identical(hstat_ai_url("local", u), u, info = u)
+  expect_identical(hstat_ai_url("chatgpt", "https://api.example.org/v1"),
+                   "https://api.example.org/v1")
+  # L'option de l'exploitant ouvre le reseau prive, JAMAIS les metadonnees.
+  op <- options(hstat.ai.reseau_prive = TRUE)
+  expect_identical(hstat_ai_url("local", "http://10.0.0.5:8080"), "http://10.0.0.5:8080")
+  expect_identical(hstat_ai_url("local", "http://169.254.169.254"), "")
+  options(op)
+  # L'envoi refuse avant tout reseau, et le motif nomme les adresses bloquees.
+  e <- .hstat_ai_post("http://169.254.169.254/v1/messages", list())
+  expect_s3_class(e, "error")
+  expect_match(conditionMessage(e), "interne", fixed = TRUE)
+  # Un nom qui se resout vers une adresse interdite est refuse a l'appel.
+  skip_if_not_installed("curl")
+  expect_true(.hstat_ai_dns_ok("http://localhost:8080"))
+  expect_false(.hstat_ai_dns_ok("http://169.254.169.254"))
+  # Aucune redirection n'est suivie : un 302 ramenerait l'appel la ou la
+  # verification l'a refuse.
+  skip_if_not_installed("httr")
+  expect_identical(.hstat_ai_sans_redirection()$options$followlocation, 0L)
+})
+
+test_that("la page porte ses en-tetes de securite, et rien qui casse l'interface", {
+  f <- hstat_ui_en_cache(shiny::fluidPage(shiny::tags$p("x")), prechauffer = FALSE)
+  for (r in list(f(list()), f(list(HTTP_IF_NONE_MATCH = f(list())$headers$ETag)))) {
+    csp <- r$headers$`Content-Security-Policy`
+    expect_match(csp, "object-src 'none'", fixed = TRUE)
+    expect_match(csp, "base-uri 'self'", fixed = TRUE)
+    expect_match(csp, "form-action 'self'", fixed = TRUE)
+    # L'interface depend de scripts ecrits dans la page, et elle s'integre en
+    # iframe : ni script-src ni frame-ancestors ne doivent etre poses.
+    expect_false(grepl("script-src|default-src|frame-ancestors", csp))
+    expect_identical(r$headers$`X-Content-Type-Options`, "nosniff")
+    expect_identical(r$headers$`Referrer-Policy`, "strict-origin-when-cross-origin")
+  }
+})
+
+test_that("un texte venu du navigateur est borne avant d'etre mis en page", {
+  expect_identical(hstat_texte_client(NULL), "")
+  expect_identical(hstat_texte_client(NA), "")
+  expect_identical(hstat_texte_client(c("a", "b")), "a")
+  long <- strrep("x", 1e6)
+  expect_identical(nchar(hstat_texte_client(long)), HSTAT_TEXTE_CLIENT_MAX)
+  # Les libelles de legende : nombre de lignes et longueur bornes.
+  e <- hstat_legende_etiquettes(paste(sprintf("n%d = %s", 1:5000, strrep("y", 2000)),
+                                      collapse = "\n"))
+  expect_lte(length(e), 200L)
+  expect_true(all(nchar(e) <= HSTAT_TEXTE_CLIENT_MAX))
+  # Une saisie ordinaire passe intacte.
+  expect_identical(hstat_legende_etiquettes("A = Témoin\nB = Traité = 2"),
+                   c(A = "Témoin", B = "Traité = 2"))
 })

@@ -10844,3 +10844,60 @@ découvrir pour obtenir ce qu'on a demandé se lit comme une demande ignorée. L
 trois sont cochées d'office ; le test lit l'interface **rendue** et a été
 vérifié comme échouant sur l'ancien défaut. Les étiquettes de plusieurs essais
 prennent la taille de celle d'un essai seul : à 2,6 mm elles se lisaient à peine.
+
+## Audit 1.33.7 : trois risques résiduels fermés dans le code
+
+Mené sur toute l'application en 1.33.6 : exécution de code, injection de
+balisage, expressions régulières, fichiers téléversés, services d'IA, reprise
+de session. Aucune faille exploitable ; trois risques signalés comme résiduels
+se sont révélés corrigeables côté application.
+
+### Un service d'IA ne sert plus de relais vers le réseau interne
+
+L'adresse est saisie par le visiteur, et c'est le **serveur** qui appelle. Sur
+un serveur partagé, le processus R devenait un relais vers ce que le visiteur
+ne joint pas lui-même — au premier chef l'adresse de métadonnées du nuage
+(169.254.169.254), qui rend des identifiants. `.hstat_ai_classe_hote()` range
+l'hôte en cinq classes et `.hstat_ai_classe_permise()` tranche :
+
+| Classe | Exemples | Règle |
+|---|---|---|
+| lien local, métadonnées | 169.254/16, fe80::/10, `metadata.google.internal` | **toujours** refusée |
+| non canonique | `2852039166`, `0xa9fea9fe`, `0251.0376.0251.0376` | **toujours** refusée — curl lit les trois comme 169.254.169.254 |
+| réseau privé | 10/8, 172.16/12, 192.168/16, 100.64/10, fc00::/7, 0/8 | refusée, sauf `options(hstat.ai.reseau_prive = TRUE)` |
+| cette machine | 127/8, ::1, `localhost` | **permise** : c'est le serveur local, gratuit et hors ligne |
+| nom public | `api.openai.com` | permis, puis jugé sur ses adresses |
+
+Un **nom** se juge sur ce qu'il désigne, au moment de l'appel
+(`.hstat_ai_dns_ok()`, par `curl::nslookup`) : un nom public peut pointer sur
+l'adresse de métadonnées. Et **aucune redirection n'est suivie** : un 302
+ramènerait l'appel là où la vérification l'a refusé.
+
+Ce qui reste hors de portée, et il faut le dire : le **rebond DNS** — un nom
+qui change d'adresse entre la vérification et l'appel. C'est l'affaire du
+pare-feu du serveur.
+
+Une assertion existante a changé de sens, et c'est voulu : `192.168.1.5` était
+accepté, il est refusé par défaut et rouvert par l'option.
+
+### La page porte des en-têtes de sécurité
+
+`HSTAT_ENTETES_SECURITE`, posés par `hstat_ui_en_cache()` : une politique de
+contenu limitée à ce que l'interface respecte déjà (`object-src 'none'`,
+`base-uri 'self'`, `form-action 'self'`), `nosniff` et une politique de
+référent. **Ni `script-src` ni `frame-ancestors`** : l'interface dépend de
+scripts écrits dans la page, et elle s'intègre en iframe. Le test l'exige.
+
+### Un texte venu du navigateur se borne avant d'être mis en page
+
+`hstat_texte_client()` rend une seule chaîne, jamais `NA`, coupée à
+`HSTAT_TEXTE_CLIENT_MAX` (500) caractères. Le coût d'un libellé forgé d'un
+mégaoctet n'est pas sa lecture mais son **rendu** : le texte d'une figure se
+met en page caractère par caractère, dans le processus qui sert toutes les
+sessions. Les libellés de légende (renommage multivarié, noms d'essais de la
+DL50) y passent ; le renommage est aussi borné à 200 lignes.
+
+La taille du message lui-même, analysé par httpuv avant tout code de
+l'application, ne se borne pas depuis R : c'est le serveur frontal qui le
+peut. Le plafond de téléversement, lui, se règle déjà par
+`HSTAT_MAX_UPLOAD_MB`.

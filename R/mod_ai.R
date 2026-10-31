@@ -174,10 +174,95 @@ hstat_ai_url <- function(engine = "local", url = NULL) {
 # et ni espace ni identifiant (`http://user@hote`) dans la partie hote.
 .hstat_ai_url_ok <- function(u) {
   isTRUE(grepl("^https?://[^[:space:]/?#@]+([/?#][^[:space:]]*)?$", u,
-               ignore.case = TRUE))
+               ignore.case = TRUE)) &&
+    .hstat_ai_classe_permise(.hstat_ai_classe_hote(.hstat_ai_hote(u)))
 }
 
-HSTAT_AI_URL_REFUS <- "Adresse du service refusée : seules les adresses http:// et https:// sont acceptées."
+HSTAT_AI_URL_REFUS <- "Adresse du service refusée : seules les adresses http:// et https:// d'un service public ou de cette machine sont acceptées (réseau interne et adresses de métadonnées bloqués)."
+HSTAT_AI_URL_INTERNE <- "Adresse du service refusée : ce nom désigne une machine du réseau interne ou une adresse de métadonnées."
+
+# L'ADRESSE EST SAISIE PAR LE VISITEUR, ET C'EST LE SERVEUR QUI APPELLE. Sur un
+# serveur partage, la laisser libre fait du processus R un relais vers ce que
+# le visiteur ne peut pas joindre lui-meme : le service de metadonnees du
+# nuage (169.254.169.254, qui rend des identifiants), les machines du reseau
+# interne, l'administration d'un routeur. Trois classes, une regle chacune :
+#
+# - lien local et metadonnees : TOUJOURS refuses. Aucun service d'IA n'y vit ;
+# - reseau prive (10/8, 172.16/12, 192.168/16, 100.64/10, fc00::/7, 0/8) :
+#   refuse, sauf `options(hstat.ai.reseau_prive = TRUE)` pour qui sert ses
+#   modeles sur une autre machine de son reseau ;
+# - cette machine (127/8, ::1, localhost) : PERMISE. C'est le serveur local
+#   gratuit et hors ligne, la seule offre sans cle ; le bloquer la fermerait.
+#
+# Une adresse IP ecrite autrement que sous sa forme canonique (« 2852039166 »,
+# « 0xA9FEA9FE », « 0251.0376.0251.0376 ») est refusee : curl les accepte
+# toutes, et chacune vaut 169.254.169.254.
+.hstat_ai_hote <- function(u) {
+  h <- sub("^https?://([^/?#]*).*$", "\\1", as.character(u)[1], ignore.case = TRUE)
+  h <- if (startsWith(h, "[")) sub("^\\[([^]]*)\\].*$", "\\1", h)
+       else sub(":[0-9]*$", "", h)
+  tolower(sub("\\.$", "", h))
+}
+
+.hstat_ai_classe_ipv4 <- function(o) {
+  o <- as.integer(o)
+  if (o[1] == 127L) "boucle"
+  else if (o[1] == 169L && o[2] == 254L) "lien_local"
+  else if (o[1] %in% c(0L, 10L) ||
+           (o[1] == 172L && o[2] >= 16L && o[2] <= 31L) ||
+           (o[1] == 192L && o[2] == 168L) ||
+           (o[1] == 100L && o[2] >= 64L && o[2] <= 127L)) "prive"
+  else "public"
+}
+
+.hstat_ai_classe_hote <- function(h) {
+  if (is.na(h) || !nzchar(h)) return("non_canonique")
+  if (grepl(":", h, fixed = TRUE)) {                       # IPv6
+    if (h %in% c("::1", "0:0:0:0:0:0:0:1")) return("boucle")
+    if (h == "::") return("prive")
+    v4 <- regmatches(h, regexpr("[0-9]+(\\.[0-9]+){3}$", h))
+    if (length(v4) && grepl("^::ffff:", h)) return(.hstat_ai_classe_hote(v4))
+    if (grepl("^fe[89ab]", h)) return("lien_local")
+    if (grepl("^f[cd]", h)) return("prive")
+    return("public")
+  }
+  if (grepl("^[0-9.]+$|^0x[0-9a-f.]+$", h)) {                        # IPv4, ou son deguisement
+    o <- strsplit(h, ".", fixed = TRUE)[[1]]
+    if (length(o) != 4L || any(!grepl("^(0|[1-9][0-9]{0,2})$", o)) ||
+        any(as.integer(o) > 255L)) return("non_canonique")
+    return(.hstat_ai_classe_ipv4(o))
+  }
+  if (h == "localhost" || endsWith(h, ".localhost")) return("boucle")
+  if (h %in% c("metadata", "metadata.google.internal", "instance-data") ||
+      endsWith(h, ".metadata.google.internal")) return("lien_local")
+  "nom"
+}
+
+.hstat_ai_classe_permise <- function(classe) {
+  classe %in% c("boucle", "public", "nom") ||
+    (identical(classe, "prive") && isTRUE(getOption("hstat.ai.reseau_prive", FALSE)))
+}
+
+# Un NOM se juge sur les adresses qu'il designe, au moment de l'appel : un nom
+# public peut pointer sur 169.254.169.254. Sans `curl` ou sans reponse DNS on
+# laisse passer -- la requete echouera d'elle-meme, faute de pouvoir joindre
+# l'hote. Ce controle ne ferme pas le rebond DNS (un nom qui change d'adresse
+# entre la verification et l'appel) : c'est l'affaire du pare-feu du serveur.
+.hstat_ai_dns_ok <- function(u) {
+  h <- .hstat_ai_hote(u)
+  if (!identical(.hstat_ai_classe_hote(h), "nom")) return(.hstat_ai_url_ok(u))
+  if (!requireNamespace("curl", quietly = TRUE)) return(TRUE)
+  ips <- tryCatch(curl::nslookup(h, multiple = TRUE, error = FALSE),
+                  error = function(e) NULL)
+  if (!length(ips)) return(TRUE)
+  all(vapply(ips, function(ip) .hstat_ai_classe_permise(.hstat_ai_classe_hote(tolower(ip))),
+             logical(1)))
+}
+
+# Une redirection ramenerait l'appel la ou la verification l'a refuse : un
+# service public peut repondre 302 vers l'adresse de metadonnees. Aucun
+# fournisseur ne redirige ses points d'API, on ne suit donc rien.
+.hstat_ai_sans_redirection <- function() httr::config(followlocation = 0L)
 
 # Modele : celui saisi, sinon celui du fournisseur.
 hstat_ai_modele <- function(engine = "local", model = NULL) {
@@ -200,8 +285,9 @@ hstat_ai_openai_models <- function(url = NULL, api_key = NULL, timeout = 5,
   hdr <- if (!is.null(api_key) && nzchar(api_key))
     httr::add_headers(Authorization = paste("Bearer", api_key)) else NULL
   u <- hstat_ai_url(engine, url)
-  if (!nzchar(u)) return(character(0))
-  args <- list(paste0(u, "/models"), httr::timeout(timeout))
+  if (!nzchar(u) || !.hstat_ai_dns_ok(u)) return(character(0))
+  args <- list(paste0(u, "/models"), httr::timeout(timeout),
+               .hstat_ai_sans_redirection())
   if (!is.null(hdr)) args <- append(args, list(hdr), after = 1)
   res <- tryCatch(do.call(httr::GET, args), error = function(e) NULL)
   if (is.null(res) || httr::status_code(res) >= 300) return(character(0))
@@ -286,9 +372,10 @@ hstat_ai_available <- function(explicit = NULL) {
 
 .hstat_ai_post <- function(url, body, headers = NULL, timeout = 600) {
   if (!.hstat_ai_url_ok(url)) return(simpleError(tr(HSTAT_AI_URL_REFUS)))
+  if (!.hstat_ai_dns_ok(url)) return(simpleError(tr(HSTAT_AI_URL_INTERNE)))
   args <- list(url,
                body = jsonlite::toJSON(body, auto_unbox = TRUE, null = "null"),
-               encode = "raw", httr::timeout(timeout))
+               encode = "raw", httr::timeout(timeout), .hstat_ai_sans_redirection())
   hdr <- c(`content-type` = "application/json", headers)
   args <- append(args, list(do.call(httr::add_headers, as.list(hdr))), after = 1)
   tryCatch(do.call(httr::POST, args), error = function(e) e)

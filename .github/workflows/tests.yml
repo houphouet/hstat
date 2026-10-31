@@ -270,7 +270,7 @@ jobs:
           # sautes. On les veut donc presents, mais leur echec d'installation
           # ne doit pas faire tomber la CI.
           souhaites <- c("ggplot2", "ggrepel", "DT", "dplyr", "FactoMineR",
-                         "openxlsx", "jsonlite", "httr", "car", "svglite",
+                         "openxlsx", "jsonlite", "httr", "curl", "car", "svglite",
                          "scales", "base64enc", "readxl", "writexl",
                          # ggtext arrivait lui aussi par dependance
                          # transitive. Sept modules l'appellent pour leurs
