@@ -24272,9 +24272,10 @@ test_that("Solution mère : la série suit la convention de rang du protocole", 
   expect_false(is.null(attr(hstat_mere_serie(1, 1000, 1, 4, 10), "motif")))
 })
 
-test_that("Solution mère : calculée dans Doses & dilutions, appliquée à l'essai DL50", {
-  # Le calcul vit dans « Doses & dilutions » ; les deux boutons déposent une
-  # demande dans l'état partagé, que le module DL50 applique puis efface.
+test_that("Solution mère : calculée dans Doses & dilutions, sans toucher à l'essai DL50", {
+  # Demandé à l'écran : le calcul de la solution mère n'agit PAS sur l'essai
+  # DL50/CL50 et ne remplit pas son tableau de saisie. Ni bouton, ni état
+  # partagé : les deux modules sont indépendants.
   vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
                                 resetSignal = 0L)
   shiny::testServer(mod_dosage_server, args = list(values = vals), {
@@ -24283,28 +24284,16 @@ test_that("Solution mère : calculée dans Doses & dilutions, appliquée à l'es
                       mereN = 3, mereVf = 10, mereVmin = 0.01,
                       mereMerePremier = TRUE)
     expect_equal(round(mere_calc()$m_pese, 2), 52.63)
-    session$setInputs(mereReporter = 1)
-    m <- shiny::isolate(vals$mereVersDl50)
-    expect_identical(m$action, "reporter")
-    expect_equal(m$niveaux, c(250, 500, 1000))
-    # Le type de test fixe le nom publié : un trempage est une CL.
+    expect_equal(mere_serie()$Niveau, c(1000, 500, 250))
     expect_identical(HSTAT_MERE_TESTS[[mere_test()]]$grandeur, "concentration")
     expect_identical(HSTAT_MERE_TESTS$topique$grandeur, "dose")
   })
-  # Le module de dosage ne porte plus l'onglet dans le DL50.
+  expect_false("mereVersDl50" %in% names(shiny::isolate(shiny::reactiveValuesToList(vals))))
+  ui_dosage <- paste(as.character(mod_dosage_ui("dosage")), collapse = "")
+  expect_true(grepl("dosage-mereTest", ui_dosage, fixed = TRUE))
+  expect_false(grepl("mereAppliquer|mereReporter", ui_dosage))
   expect_false(grepl("mereTest", paste(as.character(mod_dl50_ui("dl50")), collapse = "")))
-  expect_true(grepl("dosage-mereTest", paste(as.character(mod_dosage_ui("dosage")), collapse = "")))
-
-  shiny::testServer(mod_dl50_server, args = list(values = vals), {
-    session$flushReact()
-    expect_equal(saisie()$Dose, c(250, 500, 1000))
-    expect_equal(saisie()$Effectif, rep(40, 3))
-    expect_true(all(is.na(saisie()$Morts)))
-    # La demande est EFFACÉE : une reprise de session ne la rejoue pas.
-    expect_null(shiny::isolate(vals$mereVersDl50))
-    # Une demande forgée (test inconnu) ne touche à rien.
-    vals$mereVersDl50 <- list(action = "reporter", test = "xx", niveaux = 1)
-    session$flushReact()
-    expect_equal(saisie()$Dose, c(250, 500, 1000))
-  })
+  # Le code du module DL50 ne lit rien de la solution mère.
+  src_dl50 <- .hstat_code_lignes(.hstat_module_path("mod_dl50.R"))
+  expect_false(any(grepl("mereVersDl50|HSTAT_MERE_", src_dl50)))
 })

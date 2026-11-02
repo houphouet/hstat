@@ -10979,12 +10979,11 @@ Quatre décisions, chacune testée :
    pesée serait plus petite que la masse active visée, sans un signe.
    Une formulation liquide en % m/m exige sa densité : un % m/m n'est pas des
    g/L.
-4. **Appliquer le type de test ne touche que l'essai** : nom publié (DL ou
-   CL), unité et méthode de la fiche, seuil de rejet du témoin à 10 % — la
-   règle des trois protocoles. Le report des niveaux remplit la saisie avec
-   l'effectif du protocole (répétitions × individus) et laisse les morts vides.
+4. **Le type de test ne touche pas à l'essai.** Sa fiche dit le nom publié
+   (DL ou CL), l'unité, le solvant, l'effectif et le seuil de rejet du témoin ;
+   rien n'en est reporté dans le module DL50/CL50 (voir plus bas).
 
-### Le calcul vit dans « Doses & dilutions », l'essai dans DL50/CL50
+### Le calcul vit dans « Doses & dilutions », et l'essai n'en reçoit rien
 
 Demandé à l'écran : l'onglet est passé du module DL50/CL50 à « Doses &
 dilutions ». C'est sa place — la solution mère se prépare **avant** l'essai,
@@ -10992,12 +10991,10 @@ comme les dilutions — et les fonctions ont quitté le préfixe `dl50` :
 `hstat_mere_topique()`, `hstat_mere_concentration()`, `hstat_mere_tube()`,
 `hstat_mere_serie()`, `hstat_mere_tube_preleve()`, dans `R/mod_dosage.R`.
 
-Les deux boutons agissent pourtant sur l'essai, qui vit dans un **autre
-module**. La demande passe par l'état partagé : le dosage dépose
-`values$mereVersDl50` (action, type de test, niveaux), le module DL50 l'applique
-— nom publié, unité, méthode, seuil de rejet, ou niveaux reportés dans la
-saisie — puis l'**efface**. Effacée, une seconde demande identique se déclenche
-encore (un `reactiveValues` ne réinvalide pas sur une valeur identique), et une
-reprise de session ne la rejoue pas sur la saisie qu'on vient de remplir. Une
-demande dont le type de test est inconnu ne touche à rien. Le test passe par les
-deux serveurs, l'un après l'autre, sur le même `values`.
+Deux boutons y ont d'abord porté le type de test et les niveaux vers l'essai
+DL50/CL50 (nom publié, unité, méthode, seuil de rejet, tableau de saisie), par
+l'état partagé `values$mereVersDl50`. **Ils ont été retirés à la demande** :
+le calcul de la solution mère n'agit pas sur l'essai et ne remplit pas son
+tableau de saisie. Les deux modules sont indépendants, et un test le garde —
+aucun de ces boutons dans l'interface, aucun `mereVersDl50` écrit, et le code
+du module DL50 ne nomme ni ce champ ni `HSTAT_MERE_*`.
