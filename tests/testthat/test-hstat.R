@@ -9615,7 +9615,7 @@ test_that("les fichiers statiques portent la version, sinon le cache ment", {
   # `src = "..."`) et non le nom du fichier, qui figure aussi -- legitimement --
   # a l'interieur de hstat_asset().
   for (f in c("hstat-theme.css", "hstat-session.js", "hstat-i18n.js",
-              "hstat-decimale.js")) {
+              "hstat-decimale.js", "hstat-menu.js")) {
     for (attr in c("href", "src"))
       expect_false(grepl(sprintf('%s = "%s"', attr, f), ux, fixed = TRUE),
                    label = paste("appel direct :", attr, f))
@@ -24193,4 +24193,32 @@ test_that("un texte venu du navigateur est borne avant d'etre mis en page", {
   # Une saisie ordinaire passe intacte.
   expect_identical(hstat_legende_etiquettes("A = Témoin\nB = Traité = 2"),
                    c(A = "Témoin", B = "Traité = 2"))
+})
+
+test_that("Barre latérale : les sections 1 à 5 se replient, « 6. À propos » non", {
+  root <- .hstat_repo_root()
+  ux <- readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE, encoding = "UTF-8")
+  titres <- grep('tags\\$li\\(class = "header"', ux, value = TRUE)
+  expect_length(titres, 6L)
+  repli <- grepl("`data-hstat-repli` = \"1\"", titres, fixed = TRUE)
+  # Les cinq premières sections portent le marqueur, la sixième (À propos) non.
+  expect_identical(repli, c(rep(TRUE, 5L), FALSE))
+  expect_true(grepl("propos", titres[6]))
+  ux1 <- paste(ux, collapse = "\n")
+  expect_true(grepl('hstat_asset("hstat-menu.js")', ux1, fixed = TRUE))
+
+  js <- paste(readLines(file.path(root, "inst", "app", "www", "hstat-menu.js"),
+                        warn = FALSE), collapse = "\n")
+  # Le masquage est posé par le script, jamais par la feuille de style : si le
+  # script ne se charge pas, le menu doit rester visible.
+  css <- paste(readLines(file.path(root, "inst", "app", "www", "hstat-theme.css"),
+                         warn = FALSE), collapse = "\n")
+  expect_false(grepl("hstat-repli-item[^{]*\\{[^}]*display:\\s*none", css))
+  # Piège constaté : jQuery lit l'attribut data-hstat-repli="1" comme la donnée
+  # `hstatRepli`. S'en servir de marqueur d'initialisation faisait croire chaque
+  # section déjà prête, et rien n'était replié.
+  expect_false(grepl('.data("hstatRepli"', js, fixed = TRUE))
+  # Survol (déroulé passager), clic (épinglé), clavier, et mémoire de l'état.
+  for (m in c("mouseenter", "mouseleave", '"click"', "keydown", "localStorage"))
+    expect_true(grepl(m, js, fixed = TRUE), label = m)
 })

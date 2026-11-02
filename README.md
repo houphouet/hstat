@@ -243,6 +243,7 @@ consistency check, then the full suite.
 │   │       ├── hstat-decimale.js   # comma/point decimal separator asked before each download
 │   │       ├── hstat-favicon.svg   # tab icon; without it, a 404 on every visit
 │   │       ├── hstat-i18n.js       # FR/EN toggle applied to the rendered text
+│   │       ├── hstat-menu.js       # sidebar sections that unfold on hover and stay open on click
 │   │       ├── hstat-session.js    # session persistence: reconnect banner, keep-alive
 │   │       ├── hstat-theme.css
 │   │       ├── lib
@@ -300,7 +301,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.34.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.35.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -308,7 +309,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 1.34.0},
+  note   = {Version 1.35.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```
