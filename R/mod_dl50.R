@@ -91,7 +91,7 @@ HSTAT_DL50_ITMAX_MAX  <- 5000L   # garde-fou : au-dela, c'est le modele qui cloc
 HSTAT_DL50_ITMAX_NR   <- 50L     # Newton-Raphson emboite (WIN DL : 50)
 HSTAT_DL50_TOL        <- 1e-5    # ecart absolu sur la log-vraisemblance
 HSTAT_DL50_DOSES_MAX  <- 100L    # limite de WIN DL
-HSTAT_DL50_ESSAIS_MAX <- 6L      # limite de WIN DL
+HSTAT_DL50_ESSAIS_MAX <- 10L     # WIN DL en gardait 6 ; porte a 10 a la demande
 HSTAT_DL50_MIN_UTILES <- 3L      # doses a mortalite corrigee strictement entre 0 et 1
 # COMBIEN DE VALEURS UNE LISTE SAISIE PEUT DEMANDER (seuils de DL, doses a
 # evaluer, mortalites visees). Ces listes viennent d'un champ de TEXTE : rien
@@ -3549,9 +3549,8 @@ mod_dl50_ui <- function(id) {
             shiny::radioButtons(ns("source"), "Source des données",
               choiceNames = list(
                 shiny::HTML("<b>Saisie directe</b> <small style='color:#7f8c8d;'>(doses, effectifs, morts)</small>"),
-                shiny::HTML("<b>Jeu de données chargé</b> <small style='color:#7f8c8d;'>(CSV, Excel, SPSS…)</small>"),
-                shiny::HTML("<b>Fichier d'essai</b> <small style='color:#7f8c8d;'>(.TXT)</small>")),
-              choiceValues = list("manual", "dataset", "windl"), selected = "manual"),
+                shiny::HTML("<b>Jeu de données chargé</b> <small style='color:#7f8c8d;'>(CSV, Excel, SPSS…)</small>")),
+              choiceValues = list("manual", "dataset"), selected = "manual"),
 
             # CE QU'IL FAUT POUR CALCULER, dit avant de saisir plutot qu'en
             # refus apres coup. Le seuil des trois doses utiles est la regle de
@@ -3592,14 +3591,7 @@ mod_dl50_ui <- function(id) {
                               " dans la régression."),
               shiny::actionButton(ns("importerDonnees"),
                 shiny::tagList(shiny::icon("table"), " Charger depuis le jeu de données"),
-                class = "btn-primary btn-block")),
-
-            shiny::conditionalPanel(
-              condition = sprintf("input['%s'] == 'windl'", ns("source")),
-              shiny::fileInput(ns("fichierWindl"), "Fichier d'essai (.TXT)",
-                               multiple = TRUE, accept = c(".txt", ".TXT", ".dat")),
-              shiny::helpText("Encodage CP437, séparateurs de champ invisibles et",
-                              " marqueur de fin de fichier sont reconnus."))),
+                class = "btn-primary btn-block"))),
 
           shinydashboard::box(
             title = shiny::tagList(shiny::icon("vial"), " Fiche de l'essai (facultative)"),
@@ -3634,7 +3626,11 @@ mod_dl50_ui <- function(id) {
         shiny::fluidRow(
           shinydashboard::box(
             title = shiny::tagList(shiny::icon("table-list"), " Doses et mortalités"),
+            # REPLIEES PAR DEFAUT, a la demande : la saisie directe n'est qu'une
+            # des deux sources, et la boite poussait hors de l'ecran le choix de
+            # la source et la liste des essais.
             status = "primary", width = 8, solidHeader = TRUE,
+            collapsible = TRUE, collapsed = TRUE,
             shiny::fluidRow(
               shiny::column(4, shiny::numericInput(ns("temoinN"),
                 "Témoin : individus testés", value = 0, min = 0, step = 1)),
@@ -3663,7 +3659,10 @@ mod_dl50_ui <- function(id) {
                             " deux lignes à la même dose sont deux",
                             " répétitions du même point."),
             shiny::hr(),
-            .hstat_opt_carte("Coller depuis un tableur", "clipboard", "sarcelle",
+            shinydashboard::box(
+              title = shiny::tagList(shiny::icon("clipboard"), " Coller depuis un tableur"),
+              status = "info", width = NULL, solidHeader = TRUE,
+              collapsible = TRUE, collapsed = TRUE,
               shiny::helpText("Copiez trois colonnes — dose, effectif testé, morts —",
                               " et collez-les ici. La ligne d'en-tête est reconnue et",
                               " ignorée ; la virgule décimale d'un tableur français",
@@ -3680,7 +3679,11 @@ mod_dl50_ui <- function(id) {
 
           shinydashboard::box(
             title = shiny::tagList(shiny::icon("layer-group"), " Essais en mémoire"),
+            # REPLIEE TANT QU'ELLE EST VIDE, depliee des que des essais y entrent
+            # (observateur `deplier_essais`) : vide, elle n'avait rien a montrer.
+            id = ns("boiteEssais"),
             status = "success", width = 4, solidHeader = TRUE,
+            collapsible = TRUE, collapsed = TRUE,
             shiny::uiOutput(ns("listeEssais")),
             shiny::hr(),
             shiny::selectInput(ns("essaiActif"), "Essai analysé", choices = NULL),
@@ -4596,36 +4599,20 @@ mod_dl50_server <- function(id, values) {
       }
     })
 
-    shiny::observeEvent(input$fichierWindl, {
-      f <- input$fichierWindl
-      shiny::req(f)
-      lus <- list(); refus <- character(0)
-      # La memoire ne garde que six essais : lire mille fichiers pour en jeter
-      # neuf cent quatre-vingt-quatorze ne coute que du temps de processus --
-      # celui de toutes les sessions. On lit les six premiers, et on le dit.
-      if (nrow(f) > HSTAT_DL50_ESSAIS_MAX) {
-        refus <- trf("%d fichier(s) au-delà des %d premiers n'ont pas été lus : la mémoire garde %d essais au plus.",
-                     nrow(f) - HSTAT_DL50_ESSAIS_MAX, HSTAT_DL50_ESSAIS_MAX,
-                     HSTAT_DL50_ESSAIS_MAX)
-        f <- f[seq_len(HSTAT_DL50_ESSAIS_MAX), , drop = FALSE]
-      }
-      for (i in seq_len(nrow(f))) {
-        r <- hstat_dl50_lire_windl(f$datapath[i])
-        # Le nom du fichier est celui de l'utilisateur, pas le chemin temporaire
-        # de Shiny : afficher `0a1b2c.txt` ne lui dirait rien.
-        if (isTRUE(r$ok)) {
-          e <- r$essai
-          if (!nzchar(e$titre)) e$titre <- f$name[i]
-          lus[[length(lus) + 1L]] <- e
-        } else refus <- c(refus, trf("%s : %s", f$name[i], r$message))
-      }
-      if (length(lus)) .ajouter(lus)
-      if (length(refus))
-        shiny::showNotification(paste(refus, collapse = " — "),
-                                type = "warning", duration = 12)
-      if (length(lus))
-        shiny::showNotification(trf("%d fichier(s) d'essai lu(s).", length(lus)),
-                                type = "message", duration = 6)
+    # LA BOITE DES ESSAIS SE DEPLIE QUAND ELLE CESSE D'ETRE VIDE. Elle est
+    # repliee au demarrage ; un essai enregistre ou importe doit pourtant se
+    # voir sans chercher ou il est passe. On ne la deplie qu'au passage de
+    # vide a non vide : la replier ensuite reste un choix de l'utilisateur.
+    nb_essais_avant <- 0L
+    shiny::observeEvent(length(essais()), {
+      n <- length(essais())
+      if (n > 0L && nb_essais_avant == 0L && requireNamespace("shinyjs", quietly = TRUE))
+        shinyjs::runjs(sprintf(paste0(
+          "(function(){var b=$('#%s').closest('.box');",
+          "if(b.hasClass('collapsed-box'))",
+          "b.find('[data-widget=\"collapse\"]').first().click();})();"),
+          session$ns("boiteEssais")))
+      nb_essais_avant <<- n
     })
 
     shiny::observeEvent(input$retirer, {
@@ -4646,7 +4633,7 @@ mod_dl50_server <- function(id, values) {
     output$listeEssais <- shiny::renderUI({
       cur <- essais()
       if (!length(cur))
-        return(shiny::helpText(tr("Aucun essai en mémoire. Saisissez des doses, importez le jeu de données ou ouvrez un fichier d'essai.")))
+        return(shiny::helpText(tr("Aucun essai en mémoire. Saisissez des doses ou importez le jeu de données.")))
       shiny::tags$ul(style = "padding-left:18px;margin-bottom:0;",
         lapply(seq_along(cur), function(i) {
           e <- cur[[i]]
