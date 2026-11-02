@@ -265,7 +265,7 @@ consistency check, then the full suite.
 │   ├── mod_diversity.R             # indices de diversité écologique (α, β, seuils)
 │   ├── mod_dl.R
 │   ├── mod_dl50.R                  # DL50/CL50 : régression probit dose-mortalité
-│   ├── mod_dosage.R                # doses à l'hectare et solutions filles
+│   ├── mod_dosage.R                # doses à l'hectare, solutions filles, solution mère
 │   ├── mod_epidemio.R              # épidémiologie : DLNM, taux, risque, survie, SMR, ROC
 │   ├── mod_explore.R
 │   ├── mod_filter.R
@@ -301,7 +301,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.35.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.36.1. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -309,7 +309,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 1.35.0},
+  note   = {Version 1.36.1},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

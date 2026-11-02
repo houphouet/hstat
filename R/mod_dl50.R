@@ -4465,6 +4465,48 @@ mod_dl50_server <- function(id, values) {
       data.frame(Dose = rep(NA_real_, 5), Effectif = rep(NA_real_, 5),
                  Morts = rep(NA_real_, 5), stringsAsFactors = FALSE)))
 
+    # -- La solution mere, preparee dans « Doses & dilutions » ----------------
+    # Le module de dosage depose sa demande dans l'etat partage ; elle est
+    # appliquee ici puis EFFACEE, pour qu'une seconde demande identique se
+    # declenche encore et qu'une reprise de session ne la rejoue pas.
+    # Un champ adosse a une liste garde ses choix ; la valeur proposee y est
+    # ajoutee.
+    .mere_champ <- function(nm, valeur) {
+      id <- paste0("ch_", nm)
+      if (nm %in% names(HSTAT_DL50_CHAMPS_LISTE)) {
+        ch <- unique(c(listes()[[HSTAT_DL50_CHAMPS_LISTE[[nm]]]], valeur))
+        shiny::updateSelectizeInput(session, id, choices = ch[nzchar(ch)],
+                                    selected = valeur, server = FALSE)
+      } else shiny::updateTextInput(session, id, value = valeur)
+    }
+    shiny::observeEvent(values$mereVersDl50, {
+      m <- values$mereVersDl50
+      values$mereVersDl50 <- NULL
+      tt <- if (is.list(m) && length(m$test) == 1L &&
+                m$test %in% names(HSTAT_MERE_TESTS)) HSTAT_MERE_TESTS[[m$test]]
+      if (is.null(tt)) return()
+      if (identical(m$action, "reporter")) {
+        niv <- suppressWarnings(as.numeric(m$niveaux))
+        niv <- utils::head(niv[is.finite(niv) & niv > 0], HSTAT_SAISIE_MAX)
+        if (!length(niv)) return()
+        saisie(data.frame(Dose = signif(niv, 6),
+                          Effectif = rep(tt$repetitions * tt$individus, length(niv)),
+                          Morts = NA_real_, stringsAsFactors = FALSE))
+        shiny::showNotification(
+          trf("%d niveau(x) reporté(s) dans la saisie du module DL50/CL50, avec %d individus chacun. Saisissez les morts après lecture.",
+              length(niv), tt$repetitions * tt$individus),
+          type = "message", duration = 8)
+      } else {
+        shiny::updateRadioButtons(session, "exposition", selected = tt$grandeur)
+        shiny::updateNumericInput(session, "temoinSeuilRejet", value = tt$seuil_rejet)
+        .mere_champ("unite", tt$unite)
+        .mere_champ("methode", tr(tt$methode))
+        shiny::showNotification(
+          trf("Type de test appliqué à l'essai du module DL50/CL50 : %s.", tr(tt$libelle)),
+          type = "message", duration = 6)
+      }
+    })
+
     # -- Les colonnes du jeu de travail ------------------------------------
     donnees <- shiny::reactive({
       values$filteredData %||% values$cleanData %||% values$data
