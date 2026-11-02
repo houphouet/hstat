@@ -3452,219 +3452,6 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
 }
 
 # =============================================================================
-#  SOLUTION MERE : LES TROIS TYPES DE TEST DES PROTOCOLES DU PROGRAMME COTON
-# =============================================================================
-#  Le type de test decide de la GRANDEUR publiee et de la formule de la mere :
-#
-#  | Test                          | Grandeur      | Unite du niveau | Mere          |
-#  |-------------------------------|---------------|-----------------|---------------|
-#  | application topique           | dose (DL)     | µg/g            | Q en µg       |
-#  | trempage de disques (IRAC 035)| concentration | mg/L            | m en mg       |
-#  | tubes impregnes (vial test)   | concentration | µg/tube         | Q en mg       |
-#
-#  Les formules sont celles des protocoles, reprises a l'identique et ECRITES
-#  UNE FOIS : l'ecran les affiche a cote de chaque resultat, comme dans le
-#  module Doses & dilutions. Un chiffre de pesee qu'on ne peut pas refaire a
-#  la main ne sera pas pese, il sera recalcule.
-#
-#  Le calcul vit ici, hors du serveur, pour etre teste : une pesee fausse ne
-#  leve rien, elle rend une serie entiere decalee d'un facteur constant.
-HSTAT_DL50_TESTS <- list(
-  topique = list(
-    libelle   = "Application topique (dose par masse corporelle) — DL",
-    grandeur  = "dose", unite = "µg/g", methode = "Application topique",
-    protocole = "Test d'application topique — chenilles carpophages, matière active de grade technique",
-    solvant   = "Acétone", repetitions = 4L, individus = 10L, niveaux = 8L,
-    mere_premier = FALSE, seuil_rejet = 10, lectures = "24 h, 48 h et 72 h"),
-  disque = list(
-    libelle   = "Trempage de disques foliaires, IRAC 035 (concentration) — CL",
-    grandeur  = "concentration", unite = "mg/L",
-    methode   = "Trempage de disques foliaires (IRAC 035)",
-    protocole = "Protocole IRAC 035, CNRA Bouaké — jassides (nymphes N3 et adultes)",
-    solvant   = "Selon la formulation", repetitions = 4L, individus = 10L,
-    niveaux = 6L, mere_premier = TRUE, seuil_rejet = 10,
-    lectures  = "24 h, 48 h, 72 h, 96 h et 120 h"),
-  tube = list(
-    libelle   = "Tubes imprégnés, vial test au champ (quantité par tube) — CL",
-    grandeur  = "concentration", unite = "µg/tube",
-    methode   = "Tubes imprégnés (vial test)",
-    protocole = "Surveillance de la résistance au champ de H. armigera aux pyréthrinoïdes",
-    solvant   = "Acétone", repetitions = 1L, individus = 30L,
-    niveaux = 2L, mere_premier = FALSE, seuil_rejet = 10,
-    lectures  = "24 h (et si possible 48 h)"))
-
-# Les choix du selecteur, derives du catalogue : une liste recopiee finirait
-# par diverger.
-HSTAT_DL50_TESTS_CHOIX <- stats::setNames(
-  names(HSTAT_DL50_TESTS), vapply(HSTAT_DL50_TESTS, `[[`, "", "libelle"))
-
-# Formulations : ce que porte l'etiquette decide de la conversion.
-HSTAT_DL50_PRODUITS <- c(
-  "Matière active technique (pureté en %)"              = "technique",
-  "Formulation liquide en g/L de matière active"         = "liquide_gl",
-  "Formulation solide en % massique (m/m)"               = "solide_pct",
-  "Formulation liquide en % massique (m/m) + densité"    = "liquide_pct")
-
-HSTAT_DL50_FORMULES_MERE <- c(
-  topique     = "Q (µg) = D (µg/g) × x (g) × V (µL) × 100 ÷ [a (µL) × P (%)]",
-  topique_c   = "Concentration de la mère (µg m.a./µL) = D (µg/g) × x (g) ÷ a (µL)",
-  technique   = "m (mg) = C (mg/mL) × V (mL) ÷ (P / 100)",
-  controle    = "C réelle (mg/mL) = m (mg) × (P / 100) ÷ V final (mL)",
-  liquide_gl  = "Volume de formulation (mL) = C (mg/mL) × V (mL) ÷ Teneur (g/L), car 1 g/L = 1 mg/mL",
-  solide_pct  = "m formulation (mg) = m matière active cible (mg) ÷ (P / 100)",
-  liquide_pct = "Volume de formulation (mL) = m formulation (mg) ÷ [densité (g/mL) × 1000]",
-  tube        = "Q (mg) = C (mg) × 100 ÷ P (%) ; concentration de la mère (mg/mL) = C (mg) ÷ V (mL)",
-  tube_q      = "Quantité par tube (µg) = C mère (mg/mL) × Vi (mL) ÷ V fiole (mL) × V tube (mL) × 1000",
-  tube_vi     = "Vi (mL) = Quantité par tube (µg) × V fiole (mL) ÷ [C mère (mg/mL) × V tube (mL) × 1000]",
-  dilution    = "Ci × Vi = Cf × Vf, d'où Vi = Cf × Vf ÷ Ci",
-  serie       = "Cf (rang i) = C mère ÷ k^(i − 1)",
-  serie_filles = "Cf (rang i) = C mère ÷ k^i",
-  abbott      = "Mortalité corrigée (%) = 100 × (mortalité traitement − mortalité témoin) ÷ (100 − mortalité témoin)")
-
-# Un nombre strictement positif et fini, ou NA. Une pesee ne se fait pas sur
-# une valeur nulle, negative ou manquante.
-.hstat_dl50_pos <- function(x) {
-  v <- suppressWarnings(as.numeric(x)[1])
-  if (length(v) == 1L && is.finite(v) && v > 0) v else NA_real_
-}
-
-# La purete est un pourcentage de ]0 ; 100] : au-dela, c'est une faute de
-# frappe, et la masse pesee serait plus PETITE que la masse active visee.
-.hstat_dl50_purete <- function(P) {
-  v <- .hstat_dl50_pos(P)
-  if (is.finite(v) && v <= 100) v else NA_real_
-}
-
-.hstat_dl50_refus_mere <- function(motif) list(ok = FALSE, motif = motif)
-
-# -- Application topique --------------------------------------------------------
-# D : dose cible (µg/g) ; x : masse moyenne de l'insecte (g, pesee de 10
-# chenilles) ; V : volume final de la mere (µL) ; a : volume applique par
-# insecte (µL) ; P : purete (%).
-hstat_dl50_mere_topique <- function(D, x, V, a = 1, P) {
-  D <- .hstat_dl50_pos(D); x <- .hstat_dl50_pos(x)
-  V <- .hstat_dl50_pos(V); a <- .hstat_dl50_pos(a)
-  P <- .hstat_dl50_purete(P)
-  if (anyNA(c(D, x, V, a)))
-    return(.hstat_dl50_refus_mere(tr("La dose, la masse de l'insecte, le volume de la mère et le volume appliqué doivent être des nombres strictement positifs.")))
-  if (is.na(P))
-    return(.hstat_dl50_refus_mere(tr("La pureté doit être comprise entre 0 (exclu) et 100 %.")))
-  Q <- D * x * V * 100 / (a * P)
-  list(ok = TRUE, Q_ug = Q, Q_mg = Q / 1000,
-       c_mere = D * x / a,            # µg de matiere active par µL
-       dose_individu = D * x,         # µg deposes sur chaque insecte
-       niveau_haut = D)
-}
-
-# -- Concentration (trempage de disques, IRAC 035) ------------------------------
-# C : concentration visee de la mere (mg/mL) ; V : volume final (mL).
-# `P` est la purete (technique) ou la teneur massique (formulations en % m/m) ;
-# `teneur` la teneur en g/L d'une formulation liquide ; `densite` en g/mL.
-hstat_dl50_mere_concentration <- function(C, V, produit = "technique", P = NA,
-                                          teneur = NA, densite = NA) {
-  produit <- if (length(produit) && produit[1] %in% HSTAT_DL50_PRODUITS)
-    produit[1] else "technique"
-  C <- .hstat_dl50_pos(C); V <- .hstat_dl50_pos(V)
-  if (anyNA(c(C, V)))
-    return(.hstat_dl50_refus_mere(tr("La concentration visée et le volume final doivent être des nombres strictement positifs.")))
-  m_ma <- C * V                       # mg de matiere active pure
-  res <- list(ok = TRUE, produit = produit, m_ma = m_ma, c_mere = C,
-              niveau_haut = C * 1000) # mg/L
-  if (identical(produit, "liquide_gl")) {
-    t <- .hstat_dl50_pos(teneur)
-    if (is.na(t))
-      return(.hstat_dl50_refus_mere(tr("La teneur de la formulation (g/L) doit être un nombre strictement positif.")))
-    res$v_formulation <- m_ma / t     # mL, car 1 g/L = 1 mg/mL
-    return(res)
-  }
-  P <- .hstat_dl50_purete(P)
-  if (is.na(P))
-    return(.hstat_dl50_refus_mere(tr("La pureté doit être comprise entre 0 (exclu) et 100 %.")))
-  res$m_pese <- m_ma / (P / 100)      # mg de produit a peser
-  res$c_reelle <- res$m_pese * (P / 100) / V
-  if (identical(produit, "liquide_pct")) {
-    d <- .hstat_dl50_pos(densite)
-    if (is.na(d))
-      return(.hstat_dl50_refus_mere(tr("Une formulation liquide en % massique demande sa densité (g/mL) pour passer de la masse au volume.")))
-    res$v_formulation <- res$m_pese / (d * 1000)
-  }
-  res
-}
-
-# -- Tubes impregnes (vial test) ------------------------------------------------
-# C : masse de matiere active pure dans la mere (mg) ; V : volume d'acetone
-# (mL) ; P : purete (%). Exemple du protocole : 12 mg, 90 % -> 13,3333 mg dans
-# 10 mL, soit 1,2 mg/mL.
-hstat_dl50_mere_tube <- function(C, V, P) {
-  C <- .hstat_dl50_pos(C); V <- .hstat_dl50_pos(V)
-  P <- .hstat_dl50_purete(P)
-  if (anyNA(c(C, V)))
-    return(.hstat_dl50_refus_mere(tr("La quantité de matière active et le volume d'acétone doivent être des nombres strictement positifs.")))
-  if (is.na(P))
-    return(.hstat_dl50_refus_mere(tr("La pureté doit être comprise entre 0 (exclu) et 100 %.")))
-  list(ok = TRUE, Q_mg = C * 100 / P, c_mere = C / V)
-}
-
-# Quantite deposee dans un tube, et son inverse : le volume a prelever dans
-# la mere pour la fiole. 1 mL de mere a 1,2 mg/mL dans 100 mL, 0,5 mL par
-# tube -> 6 µg ; 5 mL -> 30 µg (tubes rouges et noirs du protocole).
-hstat_dl50_tube_quantite <- function(c_mere, v_preleve, v_fiole, v_tube)
-  c_mere * v_preleve / v_fiole * v_tube * 1000
-
-hstat_dl50_tube_preleve <- function(q, c_mere, v_fiole, v_tube) {
-  q <- suppressWarnings(as.numeric(q))
-  ok <- is.finite(q) & q > 0
-  c_mere <- .hstat_dl50_pos(c_mere); v_fiole <- .hstat_dl50_pos(v_fiole)
-  v_tube <- .hstat_dl50_pos(v_tube)
-  if (!any(ok) || anyNA(c(c_mere, v_fiole, v_tube)))
-    return(data.frame(Quantite = numeric(0), Volume_mere = numeric(0),
-                      Solvant = numeric(0), Possible = logical(0)))
-  q <- q[ok]
-  vi <- q * v_fiole / (c_mere * v_tube * 1000)
-  # Un prelevement plus grand que la fiole n'est pas une dilution : la mere
-  # est trop faible pour cette quantite, et on le dit au lieu d'un solvant
-  # negatif.
-  data.frame(Quantite = q, Volume_mere = vi, Solvant = v_fiole - vi,
-             Possible = vi <= v_fiole, stringsAsFactors = FALSE)
-}
-
-# -- La serie des solutions filles ----------------------------------------------
-# Rang i : Cf = C mere / k^(i-1) quand la mere est le premier niveau teste
-# (formule du protocole IRAC 035) ; Cf = C mere / k^i quand les filles seules
-# sont testees (« huit doses de solutions filles », application topique).
-# `niveau_haut` porte la grandeur publiee (µg/g, mg/L) : elle suit le meme
-# facteur que la concentration, une dilution ne change que le rapport.
-# Vi se lit TOUJOURS sur la mere -- la regle du module Doses & dilutions.
-hstat_dl50_serie <- function(c_mere, niveau_haut, k, n, v_final,
-                             mere_premier = TRUE, v_min = NA) {
-  c_mere <- .hstat_dl50_pos(c_mere); niveau_haut <- .hstat_dl50_pos(niveau_haut)
-  k <- suppressWarnings(as.numeric(k)[1]); v_final <- .hstat_dl50_pos(v_final)
-  n <- suppressWarnings(as.integer(n)[1])
-  vide <- data.frame(Rang = integer(0), Facteur = numeric(0), Niveau = numeric(0),
-                     Concentration = numeric(0), Volume_mere = numeric(0),
-                     Solvant = numeric(0), Pipetable = logical(0))
-  if (anyNA(c(c_mere, niveau_haut, v_final)) || !is.finite(k) || k <= 1 ||
-      is.na(n) || n < 1L)
-    return(structure(vide, motif = tr("La série demande une concentration mère, un volume final positifs, un coefficient de dilution supérieur à 1 et au moins un niveau.")))
-  n <- min(n, 20L)
-  i <- seq_len(n)
-  expo <- if (isTRUE(mere_premier)) i - 1L else i
-  f <- k^expo
-  vi <- v_final / f
-  vm <- suppressWarnings(as.numeric(v_min)[1])
-  d <- data.frame(Rang = i, Facteur = f, Niveau = niveau_haut / f,
-                  Concentration = c_mere / f, Volume_mere = vi,
-                  Solvant = v_final - vi,
-                  Pipetable = if (is.finite(vm) && vm > 0) vi >= vm else TRUE)
-  # Un prelevement sous la plage de la micropipette est imprecis : le
-  # protocole IRAC 035 demande alors une dilution intermediaire validee.
-  if (!all(d$Pipetable))
-    attr(d, "avertissement") <- trf("%d niveau(x) demande(nt) un prélèvement inférieur à %s : préparez une dilution intermédiaire validée plutôt qu'un prélèvement imprécis.",
-                                    sum(!d$Pipetable), format(vm))
-  d
-}
-
-# =============================================================================
 #  INTERFACE
 # =============================================================================
 #  Cinq onglets, qui reprennent les fenetres de WIN DL : la fiche d'essai, les
@@ -3908,86 +3695,6 @@ mod_dl50_ui <- function(id) {
             shiny::helpText(
               trf("%d essais en mémoire au plus, et %d doses par essai.",
                   HSTAT_DL50_ESSAIS_MAX, HSTAT_DL50_DOSES_MAX))))),
-
-      # ------------------------------------------------------------------
-      # LA SOLUTION MERE SE PREPARE AVANT L'ESSAI, et le type de test decide
-      # de sa formule comme de la grandeur publiee (DL ou CL). Les formules
-      # sont celles des protocoles, affichees a cote de chaque chiffre.
-      shiny::tabPanel(
-        shiny::tagList(shiny::icon("flask"), " Solution mère"),
-        shiny::div(style = "padding-top:14px;"),
-        shiny::fluidRow(
-          shinydashboard::box(
-            title = shiny::tagList(shiny::icon("vial"), " Type de test"),
-            status = "primary", width = 4, solidHeader = TRUE,
-            shiny::selectInput(ns("mereTest"), "Type de test",
-                               choices = HSTAT_DL50_TESTS_CHOIX, selected = "topique"),
-            shiny::uiOutput(ns("mereTestFiche")),
-            shiny::actionButton(ns("mereAppliquer"), "Appliquer ce type de test à l'essai",
-                                icon = shiny::icon("check"), class = "btn-primary",
-                                style = "width:100%;margin-top:8px;"),
-            shiny::helpText("Fixe le nom publié (DL ou CL), l'unité et la méthode de la fiche d'essai, et le seuil de rejet du témoin à 10 %.")),
-          shinydashboard::box(
-            title = shiny::tagList(shiny::icon("scale-balanced"), " Calcul de la solution mère"),
-            status = "info", width = 8, solidHeader = TRUE,
-            shiny::conditionalPanel(
-              condition = sprintf("input['%s'] == 'topique'", ns("mereTest")),
-              shiny::fluidRow(
-                shiny::column(4, shiny::numericInput(ns("mereTopD"), "Dose cible D (µg/g)", value = 1, min = 0)),
-                shiny::column(4, shiny::numericInput(ns("mereTopX"), "Masse moyenne de l'insecte x (g)", value = 0.05, min = 0)),
-                shiny::column(4, shiny::numericInput(ns("mereTopP"), "Pureté P (%)", value = 95, min = 0, max = 100))),
-              shiny::fluidRow(
-                shiny::column(4, shiny::numericInput(ns("mereTopV"), "Volume final de la mère V (mL)", value = 50, min = 0)),
-                shiny::column(4, shiny::numericInput(ns("mereTopA"), "Volume appliqué par insecte a (µL)", value = 1, min = 0))),
-              shiny::helpText("La masse moyenne x s'obtient en pesant 10 chenilles. Le volume V est saisi en mL et converti en µL dans la formule.")),
-            shiny::conditionalPanel(
-              condition = sprintf("input['%s'] == 'disque'", ns("mereTest")),
-              shiny::fluidRow(
-                shiny::column(6, shiny::selectInput(ns("mereProduit"), "Produit utilisé",
-                                                    choices = HSTAT_DL50_PRODUITS, selected = "technique")),
-                shiny::column(3, shiny::numericInput(ns("mereDisC"), "Concentration de la mère C (mg/mL)", value = 1, min = 0)),
-                shiny::column(3, shiny::numericInput(ns("mereDisV"), "Volume final V (mL)", value = 50, min = 0))),
-              shiny::fluidRow(
-                shiny::conditionalPanel(
-                  condition = sprintf("input['%s'] != 'liquide_gl'", ns("mereProduit")),
-                  shiny::column(4, shiny::numericInput(ns("mereDisP"), "Pureté ou teneur P (%)", value = 95, min = 0, max = 100))),
-                shiny::conditionalPanel(
-                  condition = sprintf("input['%s'] == 'liquide_gl'", ns("mereProduit")),
-                  shiny::column(4, shiny::numericInput(ns("mereDisTeneur"), "Teneur de la formulation (g/L)", value = 100, min = 0))),
-                shiny::conditionalPanel(
-                  condition = sprintf("input['%s'] == 'liquide_pct'", ns("mereProduit")),
-                  shiny::column(4, shiny::numericInput(ns("mereDisDensite"), "Densité de la formulation (g/mL)", value = 1, min = 0)))),
-              shiny::helpText("Ne pas assimiler un % m/m à des g/L sans la densité. Le solvant est ajouté jusqu'au volume final, sans confondre volume de solvant ajouté et volume final.")),
-            shiny::conditionalPanel(
-              condition = sprintf("input['%s'] == 'tube'", ns("mereTest")),
-              shiny::fluidRow(
-                shiny::column(4, shiny::numericInput(ns("mereTubC"), "Matière active pure dans la mère C (mg)", value = 12, min = 0)),
-                shiny::column(4, shiny::numericInput(ns("mereTubV"), "Volume d'acétone V (mL)", value = 10, min = 0)),
-                shiny::column(4, shiny::numericInput(ns("mereTubP"), "Pureté P (%)", value = 90, min = 0, max = 100)))),
-            shiny::uiOutput(ns("mereResultat")))),
-        shiny::fluidRow(
-          shinydashboard::box(
-            title = shiny::tagList(shiny::icon("layer-group"), " Solutions filles"),
-            status = "success", width = 12, solidHeader = TRUE,
-            shiny::conditionalPanel(
-              condition = sprintf("input['%s'] != 'tube'", ns("mereTest")),
-              shiny::fluidRow(
-                shiny::column(3, shiny::numericInput(ns("mereK"), "Coefficient de dilution k", value = 2, min = 1)),
-                shiny::column(3, shiny::numericInput(ns("mereN"), "Nombre de niveaux", value = 8, min = 1, max = 20)),
-                shiny::column(3, shiny::numericInput(ns("mereVf"), "Volume final de chaque fille (mL)", value = 10, min = 0)),
-                shiny::column(3, shiny::numericInput(ns("mereVmin"), "Plus petit volume pipetable (mL)", value = 0.01, min = 0))),
-              shiny::checkboxInput(ns("mereMerePremier"), "La solution mère est le premier niveau testé (rang 1)", value = FALSE)),
-            shiny::conditionalPanel(
-              condition = sprintf("input['%s'] == 'tube'", ns("mereTest")),
-              shiny::fluidRow(
-                shiny::column(4, shiny::textInput(ns("mereTubQ"), "Quantités par tube (µg), séparées par « ; »", value = "6 ; 30")),
-                shiny::column(4, shiny::numericInput(ns("mereTubFiole"), "Volume de la fiole (mL)", value = 100, min = 0)),
-                shiny::column(4, shiny::numericInput(ns("mereTubTube"), "Volume déposé par tube (mL)", value = 0.5, min = 0)))),
-            shiny::uiOutput(ns("mereSerieNote")),
-            DT::DTOutput(ns("mereSerie")),
-            shiny::actionButton(ns("mereReporter"), "Reporter ces niveaux dans la saisie de l'essai",
-                                icon = shiny::icon("share"), class = "btn-success",
-                                style = "margin-top:10px;")))),
 
       # ------------------------------------------------------------------
       shiny::tabPanel(
@@ -4758,148 +4465,12 @@ mod_dl50_server <- function(id, values) {
       data.frame(Dose = rep(NA_real_, 5), Effectif = rep(NA_real_, 5),
                  Morts = rep(NA_real_, 5), stringsAsFactors = FALSE)))
 
-    # -- La solution mere ------------------------------------------------------
-    # Le type de test choisi propose ses valeurs du protocole (nombre de
-    # niveaux, mere comprise ou non) ; elles restent modifiables. Un nom
-    # inconnu retombe sur l'application topique plutot que de lever.
-    mere_test <- shiny::reactive({
-      t <- input$mereTest %||% "topique"
-      if (length(t) && t[1] %in% names(HSTAT_DL50_TESTS)) t[1] else "topique"
-    })
-    shiny::observeEvent(mere_test(), {
-      tt <- HSTAT_DL50_TESTS[[mere_test()]]
-      shiny::updateNumericInput(session, "mereN", value = tt$niveaux)
-      shiny::updateCheckboxInput(session, "mereMerePremier", value = isTRUE(tt$mere_premier))
-    }, ignoreInit = TRUE)
-
-    output$mereTestFiche <- shiny::renderUI({
-      tt <- HSTAT_DL50_TESTS[[mere_test()]]
-      nom <- if (identical(tt$grandeur, "dose")) tr("Nom publié : DL10, DL50, DL90 (dose).")
-             else tr("Nom publié : CL10, CL50, CL90 (concentration).")
-      shiny::div(style = "font-size:0.92em;",
-        shiny::p(shiny::strong(tr(tt$protocole))),
-        shiny::tags$ul(
-          shiny::tags$li(nom),
-          shiny::tags$li(trf("Unité des niveaux : %s", tt$unite)),
-          shiny::tags$li(trf("Solvant : %s", tr(tt$solvant))),
-          shiny::tags$li(trf("%d répétition(s) de %d individus par niveau", tt$repetitions, tt$individus)),
-          shiny::tags$li(trf("Lectures : %s", tr(tt$lectures))),
-          shiny::tags$li(trf("Essai invalide si la mortalité du témoin dépasse %s %%", format(tt$seuil_rejet)))))
-    })
-
-    mere_calc <- shiny::reactive({
-      switch(mere_test(),
-        topique = hstat_dl50_mere_topique(
-          D = input$mereTopD, x = input$mereTopX,
-          V = .hstat_num1(input$mereTopV, NA) * 1000,   # mL -> µL
-          a = input$mereTopA, P = input$mereTopP),
-        disque = hstat_dl50_mere_concentration(
-          C = input$mereDisC, V = input$mereDisV,
-          produit = input$mereProduit %||% "technique",
-          P = input$mereDisP, teneur = input$mereDisTeneur,
-          densite = input$mereDisDensite),
-        tube = hstat_dl50_mere_tube(C = input$mereTubC, V = input$mereTubV,
-                                    P = input$mereTubP))
-    })
-
-    .mere_ligne <- function(libelle, valeur, formule) shiny::tags$tr(
-      shiny::tags$td(libelle), shiny::tags$td(shiny::strong(valeur)),
-      shiny::tags$td(shiny::tags$code(tr(formule))))
-
-    output$mereResultat <- shiny::renderUI({
-      r <- mere_calc()
-      if (!isTRUE(r$ok))
-        return(shiny::div(class = "alert alert-warning", r$motif))
-      FM <- HSTAT_DL50_FORMULES_MERE
-      lignes <- switch(mere_test(),
-        topique = list(
-          .mere_ligne(tr("Matière active technique à peser"),
-                      trf("%s µg (%s mg)", hstat_fmt_nb(r$Q_ug, 2), hstat_fmt_nb(r$Q_mg, 4)), FM[["topique"]]),
-          .mere_ligne(tr("Concentration de la mère"),
-                      trf("%s µg m.a./µL", hstat_fmt_nb(r$c_mere, 6)), FM[["topique_c"]]),
-          .mere_ligne(tr("Quantité déposée sur chaque insecte"),
-                      paste(hstat_fmt_nb(r$dose_individu, 6), "µg"), "D × x")),
-        disque = c(
-          list(.mere_ligne(tr("Matière active pure dans la mère"),
-                           paste(hstat_fmt_nb(r$m_ma, 4), "mg"), "C × V")),
-          if (!is.null(r$m_pese)) list(
-            .mere_ligne(tr("Produit à peser"), paste(hstat_fmt_nb(r$m_pese, 4), "mg"),
-                        if (identical(r$produit, "technique")) FM[["technique"]] else FM[["solide_pct"]]),
-            .mere_ligne(tr("Concentration réelle (contrôle)"),
-                        paste(hstat_fmt_nb(r$c_reelle, 6), "mg/mL"), FM[["controle"]])),
-          if (!is.null(r$v_formulation)) list(
-            .mere_ligne(tr("Volume de formulation à prélever"),
-                        paste(hstat_fmt_nb(r$v_formulation, 4), "mL"),
-                        if (identical(r$produit, "liquide_gl")) FM[["liquide_gl"]] else FM[["liquide_pct"]])),
-          list(.mere_ligne(tr("Concentration de la mère"),
-                           trf("%s mg/mL, soit %s mg/L", hstat_fmt_nb(r$c_mere, 6),
-                               hstat_fmt_nb(r$niveau_haut, 4)), "1 mg/mL = 1 000 mg/L"))),
-        tube = list(
-          .mere_ligne(tr("Matière active technique à peser"),
-                      paste(hstat_fmt_nb(r$Q_mg, 4), "mg"), FM[["tube"]]),
-          .mere_ligne(tr("Concentration de la mère"),
-                      paste(hstat_fmt_nb(r$c_mere, 6), "mg/mL"), "C ÷ V")))
-      shiny::tags$table(class = "table table-condensed",
-        shiny::tags$thead(shiny::tags$tr(shiny::tags$th(tr("Grandeur")),
-          shiny::tags$th(tr("Valeur")), shiny::tags$th(tr("Formule")))),
-        do.call(shiny::tags$tbody, lignes))
-    })
-
-    mere_serie <- shiny::reactive({
-      r <- mere_calc()
-      if (!isTRUE(r$ok)) return(NULL)
-      if (identical(mere_test(), "tube"))
-        return(hstat_dl50_tube_preleve(
-          hstat_as_numeric_fr(strsplit(input$mereTubQ %||% "", "[;\n]+")[[1]]),
-          r$c_mere, input$mereTubFiole, input$mereTubTube))
-      hstat_dl50_serie(r$c_mere, r$niveau_haut, input$mereK,
-                       hstat_borne_client(input$mereN, 8, 1, 20),
-                       input$mereVf, isTRUE(input$mereMerePremier), input$mereVmin)
-    })
-
-    output$mereSerieNote <- shiny::renderUI({
-      d <- mere_serie()
-      if (is.null(d)) return(NULL)
-      txt <- if (identical(mere_test(), "tube")) {
-        c(HSTAT_DL50_FORMULES_MERE[["tube_vi"]],
-          if (nrow(d) && !all(d$Possible))
-            tr("Certaines quantités demandent un prélèvement plus grand que la fiole : la mère est trop faible pour elles."),
-          if (!nrow(d)) tr("Saisissez au moins une quantité par tube positive."))
-      } else c(HSTAT_DL50_FORMULES_MERE[[if (isTRUE(input$mereMerePremier)) "serie" else "serie_filles"]],
-               HSTAT_DL50_FORMULES_MERE[["dilution"]],
-               attr(d, "motif"), attr(d, "avertissement"))
-      shiny::div(style = "font-size:0.92em;margin-bottom:6px;",
-                 lapply(txt, function(x) shiny::div(shiny::tags$code(tr(x)))))
-    })
-
-    output$mereSerie <- DT::renderDT({
-      d <- mere_serie()
-      shiny::req(!is.null(d), nrow(d) > 0)
-      u <- HSTAT_DL50_TESTS[[mere_test()]]$unite
-      if (identical(mere_test(), "tube")) {
-        aff <- data.frame(d$Quantite, round(d$Volume_mere, 4), round(d$Solvant, 4),
-                          ifelse(d$Possible, "\u2713", "\u2717"))
-        names(aff) <- c(trf("Quantité par tube (%s)", u), tr("Mère à prélever (mL)"),
-                        tr("Acétone pour compléter la fiole (mL)"), tr("Réalisable"))
-      } else {
-        aff <- data.frame(d$Rang, signif(d$Facteur, 6), signif(d$Niveau, 6),
-                          signif(d$Concentration, 6), round(d$Volume_mere, 4),
-                          round(d$Solvant, 4),
-                          ifelse(d$Pipetable, "\u2713", "\u2717"))
-        names(aff) <- c(tr("Rang"), tr("Facteur k^j"), trf("Niveau (%s)", u),
-                        if (identical(mere_test(), "topique")) tr("Concentration (µg/µL)")
-                        else tr("Concentration (mg/mL)"),
-                        tr("Mère à prélever (mL)"), tr("Solvant à ajouter (mL)"),
-                        tr("Pipetable"))
-      }
-      DT::datatable(aff, rownames = FALSE, extensions = "Buttons",
-                    options = list(dom = "Bt", pageLength = 50, ordering = FALSE,
-                                   buttons = .hstat_dt_buttons("solution_mere")))
-    })
-
-    # Le type de test se reporte sur l'essai : nom publie, unite et methode de
-    # la fiche, seuil de rejet du temoin. Un champ adosse a une liste garde ses
-    # choix ; la valeur proposee y est ajoutee.
+    # -- La solution mere, preparee dans « Doses & dilutions » ----------------
+    # Le module de dosage depose sa demande dans l'etat partage ; elle est
+    # appliquee ici puis EFFACEE, pour qu'une seconde demande identique se
+    # declenche encore et qu'une reprise de session ne la rejoue pas.
+    # Un champ adosse a une liste garde ses choix ; la valeur proposee y est
+    # ajoutee.
     .mere_champ <- function(nm, valeur) {
       id <- paste0("ch_", nm)
       if (nm %in% names(HSTAT_DL50_CHAMPS_LISTE)) {
@@ -4908,33 +4479,32 @@ mod_dl50_server <- function(id, values) {
                                     selected = valeur, server = FALSE)
       } else shiny::updateTextInput(session, id, value = valeur)
     }
-    shiny::observeEvent(input$mereAppliquer, {
-      tt <- HSTAT_DL50_TESTS[[mere_test()]]
-      shiny::updateRadioButtons(session, "exposition", selected = tt$grandeur)
-      shiny::updateNumericInput(session, "temoinSeuilRejet", value = tt$seuil_rejet)
-      .mere_champ("unite", tt$unite)
-      .mere_champ("methode", tr(tt$methode))
-      shiny::showNotification(
-        trf("Type de test appliqué : %s.", tr(tt$libelle)), type = "message", duration = 6)
-    })
-
-    shiny::observeEvent(input$mereReporter, {
-      d <- mere_serie()
-      if (is.null(d) || !nrow(d)) {
-        shiny::showNotification(tr("Aucun niveau à reporter : complétez d'abord le calcul de la solution mère."),
-                                type = "warning", duration = 6)
-        return()
+    shiny::observeEvent(values$mereVersDl50, {
+      m <- values$mereVersDl50
+      values$mereVersDl50 <- NULL
+      tt <- if (is.list(m) && length(m$test) == 1L &&
+                m$test %in% names(HSTAT_MERE_TESTS)) HSTAT_MERE_TESTS[[m$test]]
+      if (is.null(tt)) return()
+      if (identical(m$action, "reporter")) {
+        niv <- suppressWarnings(as.numeric(m$niveaux))
+        niv <- utils::head(niv[is.finite(niv) & niv > 0], HSTAT_SAISIE_MAX)
+        if (!length(niv)) return()
+        saisie(data.frame(Dose = signif(niv, 6),
+                          Effectif = rep(tt$repetitions * tt$individus, length(niv)),
+                          Morts = NA_real_, stringsAsFactors = FALSE))
+        shiny::showNotification(
+          trf("%d niveau(x) reporté(s) dans la saisie du module DL50/CL50, avec %d individus chacun. Saisissez les morts après lecture.",
+              length(niv), tt$repetitions * tt$individus),
+          type = "message", duration = 8)
+      } else {
+        shiny::updateRadioButtons(session, "exposition", selected = tt$grandeur)
+        shiny::updateNumericInput(session, "temoinSeuilRejet", value = tt$seuil_rejet)
+        .mere_champ("unite", tt$unite)
+        .mere_champ("methode", tr(tt$methode))
+        shiny::showNotification(
+          trf("Type de test appliqué à l'essai du module DL50/CL50 : %s.", tr(tt$libelle)),
+          type = "message", duration = 6)
       }
-      tt <- HSTAT_DL50_TESTS[[mere_test()]]
-      niveaux <- if (identical(mere_test(), "tube")) d$Quantite[d$Possible] else d$Niveau
-      niveaux <- utils::head(sort(niveaux), HSTAT_SAISIE_MAX)
-      saisie(data.frame(Dose = signif(niveaux, 6),
-                        Effectif = rep(tt$repetitions * tt$individus, length(niveaux)),
-                        Morts = NA_real_, stringsAsFactors = FALSE))
-      shiny::showNotification(
-        trf("%d niveau(x) reporté(s) dans la saisie, avec %d individus chacun. Saisissez les morts après lecture.",
-            length(niveaux), tt$repetitions * tt$individus),
-        type = "message", duration = 8)
     })
 
     # -- Les colonnes du jeu de travail ------------------------------------

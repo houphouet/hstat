@@ -10948,7 +10948,8 @@ rien n'était replié. Le marqueur est une classe (`hstat-repli-pret`).
 Demandé à l'écran, protocoles à l'appui : récupérer les formules de trois
 protocoles du Programme coton et préciser, dans le module DL50/CL50, le type de
 test qui détermine les doses ou les concentrations de la solution mère.
-L'onglet « Solution mère » les porte, et `HSTAT_DL50_TESTS` les déclare une
+L'onglet « Solution mère » les porte — dans **« Doses & dilutions »**, voir
+plus bas —, et `HSTAT_MERE_TESTS` les déclare une
 fois — le sélecteur, la fiche du test et le report vers l'essai en dérivent.
 
 | Test | Grandeur publiée | Unité des niveaux | Formule de la mère |
@@ -10960,7 +10961,7 @@ fois — le sélecteur, la fiche du test et le report vers l'essai en dérivent.
 Les exemples des protocoles sont retrouvés au chiffre près, et le test les
 porte : 52,63 mg pour 1 mg/mL dans 50 mL à 95 % ; 13,3333 mg dans 10 mL, soit
 1,2 mg/mL ; 1 mL puis 5 mL dans une fiole de 100 mL, 0,5 mL par tube → 6 et
-30 µg. Les formules sont écrites une fois (`HSTAT_DL50_FORMULES_MERE`) et
+30 µg. Les formules sont écrites une fois (`HSTAT_MERE_FORMULES`) et
 affichées à côté de chaque chiffre : une pesée qu'on ne peut pas refaire à la
 main sera recalculée, pas pesée.
 
@@ -10972,7 +10973,7 @@ Quatre décisions, chacune testée :
    première est déjà diluée. La case « La solution mère est le premier niveau
    testé » porte ce choix, et le type de test la pose à sa valeur.
 2. **Le prélèvement se lit toujours sur la mère** (Vi = Cf·Vf ÷ C mère), la
-   règle du module Doses & dilutions. Sous le plus petit volume pipetable, le
+   règle de la gamme de dilutions du même module. Sous le plus petit volume pipetable, le
    protocole IRAC demande une dilution intermédiaire validée : on le dit.
 3. **Une pureté hors de ]0 ; 100] est refusée** : au-delà de 100, la masse
    pesée serait plus petite que la masse active visée, sans un signe.
@@ -10982,3 +10983,21 @@ Quatre décisions, chacune testée :
    CL), unité et méthode de la fiche, seuil de rejet du témoin à 10 % — la
    règle des trois protocoles. Le report des niveaux remplit la saisie avec
    l'effectif du protocole (répétitions × individus) et laisse les morts vides.
+
+### Le calcul vit dans « Doses & dilutions », l'essai dans DL50/CL50
+
+Demandé à l'écran : l'onglet est passé du module DL50/CL50 à « Doses &
+dilutions ». C'est sa place — la solution mère se prépare **avant** l'essai,
+comme les dilutions — et les fonctions ont quitté le préfixe `dl50` :
+`hstat_mere_topique()`, `hstat_mere_concentration()`, `hstat_mere_tube()`,
+`hstat_mere_serie()`, `hstat_mere_tube_preleve()`, dans `R/mod_dosage.R`.
+
+Les deux boutons agissent pourtant sur l'essai, qui vit dans un **autre
+module**. La demande passe par l'état partagé : le dosage dépose
+`values$mereVersDl50` (action, type de test, niveaux), le module DL50 l'applique
+— nom publié, unité, méthode, seuil de rejet, ou niveaux reportés dans la
+saisie — puis l'**efface**. Effacée, une seconde demande identique se déclenche
+encore (un `reactiveValues` ne réinvalide pas sur une valeur identique), et une
+reprise de session ne la rejoue pas sur la saisie qu'on vient de remplir. Une
+demande dont le type de test est inconnu ne touche à rien. Le test passe par les
+deux serveurs, l'un après l'autre, sur le même `values`.
