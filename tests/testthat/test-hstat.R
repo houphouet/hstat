@@ -24222,3 +24222,71 @@ test_that("Barre latérale : les sections 1 à 5 se replient, « 6. À propos »
   for (m in c("mouseenter", "mouseleave", '"click"', "keydown", "localStorage"))
     expect_true(grepl(m, js, fixed = TRUE), label = m)
 })
+
+test_that("Solution mère : les formules des trois protocoles rendent leurs exemples", {
+  # Application topique : Q = D·x·V·100 / (a·P), V en µL.
+  r <- hstat_dl50_mere_topique(D = 1, x = 0.05, V = 50000, a = 1, P = 95)
+  expect_true(r$ok)
+  expect_equal(r$Q_ug, 1 * 0.05 * 50000 * 100 / (1 * 95))
+  expect_equal(r$c_mere, 0.05)
+  # La purete corrige vers le HAUT : la masse pesee depasse la masse active.
+  expect_gt(r$Q_ug, 1 * 0.05 * 50000)
+  # IRAC 035 : 1 mg/mL dans 50 mL a 95 % -> 52,63 mg, controle = C visee.
+  m <- hstat_dl50_mere_concentration(C = 1, V = 50, produit = "technique", P = 95)
+  expect_equal(round(m$m_pese, 2), 52.63)
+  expect_equal(m$c_reelle, 1)
+  expect_equal(m$niveau_haut, 1000)                    # mg/L
+  # Formulation liquide en g/L : 1 g/L = 1 mg/mL.
+  l <- hstat_dl50_mere_concentration(C = 1, V = 50, produit = "liquide_gl", teneur = 100)
+  expect_equal(l$v_formulation, 0.5)
+  # % m/m liquide : la densite est exigee, et elle change le volume.
+  expect_false(hstat_dl50_mere_concentration(1, 50, "liquide_pct", P = 50)$ok)
+  lp <- hstat_dl50_mere_concentration(1, 50, "liquide_pct", P = 50, densite = 1.25)
+  expect_equal(lp$m_pese, 100); expect_equal(lp$v_formulation, 0.08)
+  # Vial test : 12 mg a 90 % -> 13,3333 mg dans 10 mL, soit 1,2 mg/mL ;
+  # 1 mL puis 5 mL dans 100 mL, 0,5 mL par tube -> 6 et 30 µg.
+  t <- hstat_dl50_mere_tube(C = 12, V = 10, P = 90)
+  expect_equal(round(t$Q_mg, 4), 13.3333); expect_equal(t$c_mere, 1.2)
+  expect_equal(hstat_dl50_tube_quantite(1.2, c(1, 5), 100, 0.5), c(6, 30))
+  v <- hstat_dl50_tube_preleve(c(6, 30), 1.2, 100, 0.5)
+  expect_equal(v$Volume_mere, c(1, 5)); expect_equal(v$Solvant, c(99, 95))
+  expect_false(hstat_dl50_tube_preleve(1e6, 1.2, 100, 0.5)$Possible)
+  # Purete hors de ]0 ; 100] : refus, jamais une masse plus petite que l'active.
+  for (P in c(0, -5, 120, NA)) expect_false(hstat_dl50_mere_tube(12, 10, P)$ok)
+})
+
+test_that("Solution mère : la série suit la convention de rang du protocole", {
+  # IRAC 035 : Cf = C mère / k^(i-1) -- la mère est le rang 1.
+  a <- hstat_dl50_serie(1, 1000, 2, 4, 10, mere_premier = TRUE)
+  expect_equal(a$Concentration, c(1, 0.5, 0.25, 0.125))
+  expect_equal(a$Niveau, c(1000, 500, 250, 125))
+  expect_equal(a$Volume_mere, c(10, 5, 2.5, 1.25))
+  # Huit filles seules (application topique) : la première est déjà diluée.
+  b <- hstat_dl50_serie(1, 1000, 2, 8, 10, mere_premier = FALSE)
+  expect_equal(nrow(b), 8L); expect_equal(b$Concentration[1], 0.5)
+  # Un prélèvement sous la micropipette demande une dilution intermédiaire.
+  p <- hstat_dl50_serie(1, 1000, 10, 6, 10, mere_premier = TRUE, v_min = 0.01)
+  expect_false(all(p$Pipetable)); expect_false(is.null(attr(p, "avertissement")))
+  # Coefficient de 1 ou moins : refus nommé, pas une série constante.
+  expect_equal(nrow(hstat_dl50_serie(1, 1000, 1, 4, 10)), 0L)
+  expect_false(is.null(attr(hstat_dl50_serie(1, 1000, 1, 4, 10), "motif")))
+})
+
+test_that("Solution mère : le type de test s'applique à l'essai et ses niveaux à la saisie", {
+  vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  shiny::testServer(mod_dl50_server, args = list(values = vals), {
+    session$setInputs(mereTest = "disque", mereDisC = 1, mereDisV = 50,
+                      mereProduit = "technique", mereDisP = 95, mereK = 2,
+                      mereN = 3, mereVf = 10, mereVmin = 0.01,
+                      mereMerePremier = TRUE)
+    expect_equal(round(mere_calc()$m_pese, 2), 52.63)
+    session$setInputs(mereReporter = 1)
+    expect_equal(saisie()$Dose, c(250, 500, 1000))
+    expect_equal(saisie()$Effectif, rep(40, 3))
+    expect_true(all(is.na(saisie()$Morts)))
+    # Le type de test fixe le nom publié : un trempage est une CL.
+    expect_identical(HSTAT_DL50_TESTS[[mere_test()]]$grandeur, "concentration")
+    expect_identical(HSTAT_DL50_TESTS$topique$grandeur, "dose")
+  })
+})

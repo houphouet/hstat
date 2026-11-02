@@ -10942,3 +10942,43 @@ Piège constaté, et il ne lève rien : jQuery lit l'attribut
 `data-hstat-repli="1"` comme la donnée `hstatRepli`. La première version s'en
 servait de marqueur d'initialisation — chaque section se croyait déjà prête, et
 rien n'était replié. Le marqueur est une classe (`hstat-repli-pret`).
+
+## La solution mère se calcule selon le type de test
+
+Demandé à l'écran, protocoles à l'appui : récupérer les formules de trois
+protocoles du Programme coton et préciser, dans le module DL50/CL50, le type de
+test qui détermine les doses ou les concentrations de la solution mère.
+L'onglet « Solution mère » les porte, et `HSTAT_DL50_TESTS` les déclare une
+fois — le sélecteur, la fiche du test et le report vers l'essai en dérivent.
+
+| Test | Grandeur publiée | Unité des niveaux | Formule de la mère |
+|---|---|---|---|
+| Application topique (chenilles) | dose — DL | µg/g | Q (µg) = D·x·V·100 ÷ (a·P) |
+| Trempage de disques, IRAC 035 (jassides) | concentration — CL | mg/L | m (mg) = C·V ÷ (P/100) |
+| Tubes imprégnés, vial test (H. armigera) | concentration — CL | µg/tube | Q (mg) = C·100 ÷ P |
+
+Les exemples des protocoles sont retrouvés au chiffre près, et le test les
+porte : 52,63 mg pour 1 mg/mL dans 50 mL à 95 % ; 13,3333 mg dans 10 mL, soit
+1,2 mg/mL ; 1 mL puis 5 mL dans une fiole de 100 mL, 0,5 mL par tube → 6 et
+30 µg. Les formules sont écrites une fois (`HSTAT_DL50_FORMULES_MERE`) et
+affichées à côté de chaque chiffre : une pesée qu'on ne peut pas refaire à la
+main sera recalculée, pas pesée.
+
+Quatre décisions, chacune testée :
+
+1. **La convention de rang est celle du protocole, et elle change le premier
+   niveau.** IRAC 035 écrit Cf = C mère ÷ k^(i−1) : la mère est le rang 1.
+   L'application topique teste « huit doses de solutions filles » : la
+   première est déjà diluée. La case « La solution mère est le premier niveau
+   testé » porte ce choix, et le type de test la pose à sa valeur.
+2. **Le prélèvement se lit toujours sur la mère** (Vi = Cf·Vf ÷ C mère), la
+   règle du module Doses & dilutions. Sous le plus petit volume pipetable, le
+   protocole IRAC demande une dilution intermédiaire validée : on le dit.
+3. **Une pureté hors de ]0 ; 100] est refusée** : au-delà de 100, la masse
+   pesée serait plus petite que la masse active visée, sans un signe.
+   Une formulation liquide en % m/m exige sa densité : un % m/m n'est pas des
+   g/L.
+4. **Appliquer le type de test ne touche que l'essai** : nom publié (DL ou
+   CL), unité et méthode de la fiche, seuil de rejet du témoin à 10 % — la
+   règle des trois protocoles. Le report des niveaux remplit la saisie avec
+   l'effectif du protocole (répétitions × individus) et laisse les morts vides.
