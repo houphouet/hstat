@@ -672,3 +672,19 @@ table.dataTable.hstat-fixedcols td { vertical-align: middle; }
      coupee sans avoir rien demande. */
   input, select, textarea, .form-control { font-size: 16px; }
 }
+
+/* ===================== SECTIONS REPLIABLES DE LA BARRE LATÉRALE =====================
+   Le titre d'une section 1 à 5 se déroule au survol et reste ouvert au clic
+   (hstat-menu.js). Le chevron dit l'état ; la section épinglée s'éclaire. */
+.skin-blue .sidebar-menu > li.header[data-hstat-repli] {
+  cursor: pointer; user-select: none; position: relative; padding-right: 30px;
+  transition: color .15s;
+}
+.skin-blue .sidebar-menu > li.header[data-hstat-repli]::after {
+  content: "\25B8"; position: absolute; right: 16px; bottom: 7px;
+  font-size: 11px; line-height: 1; transition: transform .2s;
+}
+.skin-blue .sidebar-menu > li.header[data-hstat-repli].hstat-ouvert::after { transform: rotate(90deg); }
+.skin-blue .sidebar-menu > li.header[data-hstat-repli]:hover,
+.skin-blue .sidebar-menu > li.header[data-hstat-repli]:focus-visible { color: #b8c7ce !important; outline: none; }
+.skin-blue .sidebar-menu > li.header[data-hstat-repli].hstat-epingle { color: #8aa4af !important; }

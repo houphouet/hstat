@@ -177,15 +177,15 @@ ui <- shinydashboard::dashboardPage(
     width = 300,
     shinydashboard::sidebarMenu(
       id = "tabs",
-      shiny::tags$li(class = "header", "1. Préparation des données"),
+      shiny::tags$li(class = "header", `data-hstat-repli` = "1", "1. Préparation des données"),
       shinydashboard::menuItem("Chargement", tabName = "load", icon = shiny::icon("upload")),
       shinydashboard::menuItem("Exploration", tabName = "explore", icon = shiny::icon("binoculars")),
       shinydashboard::menuItem("Nettoyage", tabName = "clean", icon = shiny::icon("broom")),
       shinydashboard::menuItem("Filtrage", tabName = "filter", icon = shiny::icon("filter")),
-      shiny::tags$li(class = "header", "2. Description"),
+      shiny::tags$li(class = "header", `data-hstat-repli` = "1", "2. Description"),
       shinydashboard::menuItem("Analyses descriptives", tabName = "descriptive", icon = shiny::icon("chart-bar")),
       shinydashboard::menuItem("Visualisation des données", tabName = "visualization", icon = shiny::icon("chart-line")),
-      shiny::tags$li(class = "header", "3. Relations & inférence"),
+      shiny::tags$li(class = "header", `data-hstat-repli` = "1", "3. Relations & inférence"),
       shinydashboard::menuItem("Corrélations", tabName = "corrélation", icon = shiny::icon("link")),
       shinydashboard::menuItem("Tests statistiques", tabName = "tests", icon = shiny::icon("calculator")),
       shinydashboard::menuItem("Comparaisons post-hoc", tabName = "multiple", icon = shiny::icon("sort-amount-down")),
@@ -196,11 +196,11 @@ ui <- shinydashboard::dashboardPage(
       shinydashboard::menuItem("Diversité écologique", tabName = "diversity", icon = shiny::icon("leaf")),
       shinydashboard::menuItem("Épidémiologie", tabName = "epidemio", icon = shiny::icon("virus-covid")),
       shinydashboard::menuItem("DL50 / CL50", tabName = "dl50", icon = shiny::icon("skull-crossbones")),
-      shiny::tags$li(class = "header", "4. Modélisation & prédiction"),
+      shiny::tags$li(class = "header", `data-hstat-repli` = "1", "4. Modélisation & prédiction"),
       shinydashboard::menuItem("Séries temporelles", tabName = "timeseries", icon = shiny::icon("clock")),
       shinydashboard::menuItem("Machine Learning", tabName = "ml", icon = shiny::icon("robot")),
       shinydashboard::menuItem("Deep Learning", tabName = "dl", icon = shiny::icon("brain")),
-      shiny::tags$li(class = "header", "5. Planification & outils"),
+      shiny::tags$li(class = "header", `data-hstat-repli` = "1", "5. Planification & outils"),
       shinydashboard::menuItem("Plan & Puissance", tabName = "design", icon = shiny::icon("flask")),
       shinydashboard::menuItem("Doses & dilutions", tabName = "dosage", icon = shiny::icon("flask-vial")),
       shiny::tags$li(class = "header", "6. À propos"),
@@ -241,6 +241,10 @@ ui <- shinydashboard::dashboardPage(
       # Separateur decimal des telechargements : la fenetre qui le demande avant
       # chaque fichier, et la conversion des exports de DataTables.
       shiny::tags$script(src = hstat_asset("hstat-decimale.js")),
+      # Sections repliables de la barre laterale : 1 a 5 se deplient au survol
+      # de leur titre et restent ouvertes au clic. « 6. A propos » ne porte pas
+      # `data-hstat-repli` et reste toujours deplie.
+      shiny::tags$script(src = hstat_asset("hstat-menu.js")),
       # Dictionnaire de traduction. Il est servi en RESSOURCE STATIQUE
       # estampillee de la version, non plus ecrit en clair dans la page :
       # 476 Ko y etaient renvoyes a chaque ouverture (160 Ko apres gzip, la

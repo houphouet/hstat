@@ -10916,3 +10916,29 @@ La taille du message lui-même, analysé par httpuv avant tout code de
 l'application, ne se borne pas depuis R : c'est le serveur frontal qui le
 peut. Le plafond de téléversement, lui, se règle déjà par
 `HSTAT_MAX_UPLOAD_MB`.
+
+## La barre latérale se replie par section
+
+Demandé à l'écran : les modules des sections 1 à 5 sont masqués ; le survol du
+titre de section les déroule le temps du passage, le clic les garde ouverts
+(un second clic les replie). « 6. À propos » reste toujours déplié.
+
+Le marqueur est déclaratif, dans `UX.R` (`data-hstat-repli = "1"` sur le
+titre) ; `www/hstat-menu.js` regroupe les entrées qui suivent chaque titre
+jusqu'au suivant. La structure du menu reste **plate** — l'imbriquer
+changerait l'arbre que lisent les tests d'ordre du menu et le pilotage des
+onglets par shinydashboard.
+
+Trois décisions :
+
+1. **Le masquage est posé par le script, jamais par la feuille de style** : si
+   le script ne se charge pas, le menu reste visible au lieu de disparaître.
+2. **Un délai de 250 ms avant de replier** au départ du pointeur : sans lui, le
+   passage du titre aux entrées refermerait la section sous le curseur.
+3. **L'état épinglé survit au rechargement** (`localStorage`), et le titre se
+   pilote au clavier (Entrée, Espace).
+
+Piège constaté, et il ne lève rien : jQuery lit l'attribut
+`data-hstat-repli="1"` comme la donnée `hstatRepli`. La première version s'en
+servait de marqueur d'initialisation — chaque section se croyait déjà prête, et
+rien n'était replié. Le marqueur est une classe (`hstat-repli-pret`).
