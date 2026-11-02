@@ -3574,10 +3574,25 @@ dit désormais le minimum — doses, effectifs, morts, témoin, et **trois doses
 moins** de mortalité corrigée intermédiaire — avant la saisie plutôt qu'en refus
 après coup.
 
-Les deux limites (**6 essais**, **100 doses**) sont celles de WIN DL, reprises
-pour rester comparable. Elles étaient appliquées en silence : on les rencontrait
-sous forme de refus. Elles sont maintenant écrites sous la liste des essais —
-sans leur origine, voir plus bas.
+Les deux limites venaient de WIN DL (**6 essais**, **100 doses**). La première
+est passée à **10 essais** à la demande ; la seconde reste celle du logiciel.
+Elles étaient appliquées en silence : on les rencontrait sous forme de refus.
+Elles sont maintenant écrites sous la liste des essais — sans leur origine,
+voir plus bas.
+
+### Trois boîtes repliées, et l'import .TXT retiré de l'interface
+
+Demandé à l'écran. « Doses et mortalités », « Coller depuis un tableur » (devenu
+une boîte imbriquée) et « Essais en mémoire » s'ouvrent repliées. La troisième
+se **déplie d'elle-même** au passage de vide à non vide (observateur sur
+`length(essais())`, `shinyjs::runjs` sur `ns("boiteEssais")`) : un essai
+enregistré doit se voir sans chercher où il est passé. Elle ne se redéplie pas
+ensuite : la replier reste un choix de l'utilisateur.
+
+La source « Fichier d'essai (.TXT) » est retirée, avec son observateur — un
+`observeEvent` dont l'entrée n'est plus déclarée ne se déclenche jamais. Le
+lecteur `hstat_dl50_lire_windl()` reste au socle : l'export « Essai (.TXT) »
+écrit ce format, et les tests vérifient l'aller-retour.
 
 ### L'interface ne nomme pas WIN DL
 
