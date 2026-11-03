@@ -1068,11 +1068,7 @@ mod_dosage_ui <- function(id) {
             status = "primary", width = 4, solidHeader = TRUE,
             shiny::selectInput(ns("mereTest"), "Type de test",
                                choices = HSTAT_MERE_TESTS_CHOIX, selected = "topique"),
-            shiny::uiOutput(ns("mereTestFiche")),
-            shiny::actionButton(ns("mereAppliquer"), "Appliquer ce type de test à l'essai DL50/CL50",
-                                icon = shiny::icon("check"), class = "btn-primary",
-                                style = "width:100%;margin-top:8px;"),
-            shiny::helpText("Dans le module DL50/CL50 : fixe le nom publié (DL ou CL), l'unité et la méthode de la fiche d'essai, et le seuil de rejet du témoin à 10 %.")),
+            shiny::uiOutput(ns("mereTestFiche"))),
           shinydashboard::box(
             title = shiny::tagList(shiny::icon("scale-balanced"), " Calcul de la solution mère"),
             status = "info", width = 8, solidHeader = TRUE,
@@ -1130,10 +1126,7 @@ mod_dosage_ui <- function(id) {
                 shiny::column(4, shiny::numericInput(ns("mereTubFiole"), "Volume de la fiole (mL)", value = 100, min = 0)),
                 shiny::column(4, shiny::numericInput(ns("mereTubTube"), "Volume déposé par tube (mL)", value = 0.5, min = 0)))),
             shiny::uiOutput(ns("mereSerieNote")),
-            DT::DTOutput(ns("mereSerie")),
-            shiny::actionButton(ns("mereReporter"), "Reporter ces niveaux dans la saisie de l'essai DL50/CL50",
-                                icon = shiny::icon("share"), class = "btn-success",
-                                style = "margin-top:10px;"))))
+            DT::DTOutput(ns("mereSerie")))))
     ))
 }
 
@@ -1553,26 +1546,5 @@ mod_dosage_server <- function(id, values) {
                                    buttons = .hstat_dt_buttons("solution_mere")))
     })
 
-    # Les deux boutons agissent sur l'essai du module DL50/CL50, qui vit dans
-    # un autre module : la demande passe par l'etat partage de la session, et
-    # c'est le module DL50 qui l'applique puis l'efface (`values$mereVersDl50`).
-    .vers_dl50 <- function(action, niveaux = NULL) {
-      tt <- HSTAT_MERE_TESTS[[mere_test()]]
-      values$mereVersDl50 <- list(action = action, test = mere_test(),
-                                  niveaux = niveaux,
-                                  effectif = tt$repetitions * tt$individus)
-    }
-    shiny::observeEvent(input$mereAppliquer, .vers_dl50("appliquer"))
-
-    shiny::observeEvent(input$mereReporter, {
-      d <- mere_serie()
-      if (is.null(d) || !nrow(d)) {
-        shiny::showNotification(tr("Aucun niveau à reporter : complétez d'abord le calcul de la solution mère."),
-                                type = "warning", duration = 6)
-        return()
-      }
-      niveaux <- if (identical(mere_test(), "tube")) d$Quantite[d$Possible] else d$Niveau
-      .vers_dl50("reporter", utils::head(sort(niveaux), HSTAT_SAISIE_MAX))
-    })
   })
 }
