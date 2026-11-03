@@ -18209,7 +18209,7 @@ test_that("les fenetres de retard sont une option, et decochees elles ne posent 
   })
 })
 
-test_that("les cinq modules d'application demandes vivent sous « 3. Relations & inférence »", {
+test_that("les cinq modules d'application demandes vivent sous « 3. Analyses statistiques »", {
   skip_if_not_installed("shinydashboard")
   skip_if_not_installed("htmltools")
   root <- .hstat_repo_root()
@@ -18238,7 +18238,7 @@ test_that("les cinq modules d'application demandes vivent sous « 3. Relations &
     expect_true(p > 0, label = motif)
     as.integer(p)
   }
-  h3 <- pos("3. Relations &amp; inf")
+  h3 <- pos("3. Analyses statistiques")
   h4 <- pos("4. Mod")
   expect_true(h3 < h4)
   for (tab in c("yield", "threshold", "diversity", "epidemio", "dl50")) {

@@ -182,10 +182,10 @@ ui <- shinydashboard::dashboardPage(
       shinydashboard::menuItem("Exploration", tabName = "explore", icon = shiny::icon("binoculars")),
       shinydashboard::menuItem("Nettoyage", tabName = "clean", icon = shiny::icon("broom")),
       shinydashboard::menuItem("Filtrage", tabName = "filter", icon = shiny::icon("filter")),
-      shiny::tags$li(class = "header", `data-hstat-repli` = "1", "2. Description"),
+      shiny::tags$li(class = "header", `data-hstat-repli` = "1", "2. Analyse descriptive"),
       shinydashboard::menuItem("Analyses descriptives", tabName = "descriptive", icon = shiny::icon("chart-bar")),
       shinydashboard::menuItem("Visualisation des données", tabName = "visualization", icon = shiny::icon("chart-line")),
-      shiny::tags$li(class = "header", `data-hstat-repli` = "1", "3. Relations & inférence"),
+      shiny::tags$li(class = "header", `data-hstat-repli` = "1", "3. Analyses statistiques"),
       shinydashboard::menuItem("Corrélations", tabName = "corrélation", icon = shiny::icon("link")),
       shinydashboard::menuItem("Tests statistiques", tabName = "tests", icon = shiny::icon("calculator")),
       shinydashboard::menuItem("Comparaisons post-hoc", tabName = "multiple", icon = shiny::icon("sort-amount-down")),
@@ -742,7 +742,7 @@ ui <- shinydashboard::dashboardPage(
       # ---- Visualisation des données ----
       shinydashboard::tabItem(tabName = "visualization",
               mod_viz_ui("visualization")),
-      # ---- 3. Relations & inférence : Corrélations -> Tests -> Post-hoc -> Multivariées ----
+      # ---- 3. Analyses statistiques : Corrélations -> Tests -> Post-hoc -> Multivariées ----
       mod_correlation_ui("corrélation"),
       mod_tests_ui("tests"),
       mod_posthoc_ui("tests"),

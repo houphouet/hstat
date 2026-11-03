@@ -119,13 +119,13 @@ h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(-
 .skin-blue .sidebar-menu > li.header {
   background: #1a2226 !important;
   color: #4b646f !important;
-  font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+  font-size: 14.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase;
   padding: 16px 16px 7px;
 }
 .skin-blue .sidebar-menu > li > a {
   color: #b8c7ce !important;
   border-left: 3px solid transparent;
-  font-size: 13.5px;
+  font-size: 17.5px;
   padding: 10px 14px;
 }
 .skin-blue .sidebar-menu > li > a > .fa,
@@ -682,7 +682,7 @@ table.dataTable.hstat-fixedcols td { vertical-align: middle; }
 }
 .skin-blue .sidebar-menu > li.header[data-hstat-repli]::after {
   content: "\25B8"; position: absolute; right: 16px; bottom: 7px;
-  font-size: 11px; line-height: 1; transition: transform .2s;
+  font-size: 15px; line-height: 1; transition: transform .2s;
 }
 .skin-blue .sidebar-menu > li.header[data-hstat-repli].hstat-ouvert::after { transform: rotate(90deg); }
 .skin-blue .sidebar-menu > li.header[data-hstat-repli]:hover,
