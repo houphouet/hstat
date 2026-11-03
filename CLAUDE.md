@@ -10947,7 +10947,7 @@ rien n'était replié. Le marqueur est une classe (`hstat-repli-pret`).
 
 Demandé à l'écran : le texte de la barre latérale gagne 4 px — titres de section
 14,5 px (10,5 avant), entrées 17,5 px (13,5), chevron 15 px (11). Deux sections
-changent de nom : « 2. Analyse descriptive » (« Description ») et « 3. Analyses
+changent de nom : « 2. Analyses descriptives » (« Description ») et « 3. Analyses
 statistiques » (« Relations & inférence »). La clé du dictionnaire est la
 chaîne française : l'ancienne entrée est remplacée, pas laissée orpheline.
 
