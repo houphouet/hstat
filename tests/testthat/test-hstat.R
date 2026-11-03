@@ -10214,7 +10214,10 @@ test_that("dose et grammage sont exactement reciproques", {
 test_that("une unite inconnue ne vaut jamais 1 par defaut", {
   # Un facteur muet rendrait un resultat mille fois trop grand sans le moindre
   # signe : c'est la faute la plus couteuse que ce module puisse commettre.
-  expect_true(is.na(hstat_conc_vers_ref(400, "g/hL")))
+  # « g/hL » etait l'unite inconnue de ce test ; c'est desormais une vraie
+  # unite (le gramme par hectolitre de la viticulture) : 400 g/hL = 4 g/L.
+  expect_true(is.na(hstat_conc_vers_ref(400, "g/xx")))
+  expect_equal(hstat_conc_vers_ref(400, "g/hL"), 4)
   expect_true(is.na(hstat_dose_vers_ref(250, "mL")))
   expect_true(is.na(hstat_dose_depuis_ref(1, "inconnue")))
   # Et les conversions connues sont justes.
@@ -10224,7 +10227,7 @@ test_that("une unite inconnue ne vaut jamais 1 par defaut", {
 })
 
 test_that("le bilan de dose refuse ce qu'il ne peut pas calculer, en le nommant", {
-  for (cas in list(list(400 * 0, "g/L"), list(NA, "g/L"), list(400, "g/hL"))) {
+  for (cas in list(list(400 * 0, "g/L"), list(NA, "g/L"), list(400, "g/xx"))) {
     r <- hstat_dose_bilan("dose", 250, "mL/ha", cas[[1]], cas[[2]])
     expect_equal(nrow(r), 0L)
     expect_true(nzchar(attr(r, "message")))
@@ -10233,6 +10236,190 @@ test_that("le bilan de dose refuse ce qu'il ne peut pas calculer, en le nommant"
   r <- hstat_dose_bilan("dose", 0, "mL/ha", 400, "g/L")
   expect_equal(nrow(r), 0L)
   expect_true(grepl("saisissez", attr(r, "message"), fixed = TRUE))
+})
+
+test_that("unites : un seul catalogue, des facteurs justes, des allers-retours exacts", {
+  # Aucune unite en double, aucun facteur muet : une unite nommee deux fois
+  # ou un facteur NA rendrait une conversion fausse sans le moindre signe.
+  expect_equal(anyDuplicated(HSTAT_UNITES$unite), 0L)
+  expect_true(all(is.finite(HSTAT_UNITES$facteur) & HSTAT_UNITES$facteur > 0))
+  expect_true(all(HSTAT_UNITES$base %in% c("g", "L", "ha", "L/ha", "kg/ha",
+                                            "g/L", "g/kg", "mol/L")))
+  # Les tables d'avant DERIVENT du catalogue : elles ne peuvent plus diverger.
+  du <- HSTAT_UNITES[HSTAT_UNITES$categorie == "dose", ]
+  expect_equal(unname(HSTAT_DOSE_UNITES[du$unite]), du$facteur)
+  # Toutes les familles demandees sont la.
+  for (u in c("µg", "mg", "g", "kg", "lb", "µL", "mL", "L", "hL", "gal (US)",
+              "m²", "a", "ha", "acre", "mL/ha", "L/ha", "g/ha", "kg/ha", "q/ha",
+              "mL/100 m²", "lb/acre", "g/L", "mg/L", "µg/mL", "%", "ppm",
+              "g/kg", "% m/m", "mg/kg", "mol/L", "mM"))
+    expect_false(is.null(hstat_unite_info(u)), info = u)
+
+  # Des facteurs JUSTES, verifies sur leur definition.
+  cv <- function(x, a, b, ...) hstat_unite_convertir(x, a, b, ...)[1]
+  expect_equal(cv(1, "gal (US)", "L"), 3.785411784)
+  expect_equal(cv(1, "lb", "g"), 453.59237)
+  expect_equal(cv(1, "acre", "m²"), 4046.8564224)
+  expect_equal(cv(1, "L/ha", "mL/ha"), 1000)
+  expect_equal(cv(1, "q/ha", "kg/ha"), 100)
+  expect_equal(cv(1, "lb/acre", "kg/ha"), 453.59237 / 1000 / 0.40468564224)
+  expect_equal(cv(1, "mL/100 m²", "L/ha"), 0.1)       # 1 mL x 100 = 100 mL/ha
+  expect_equal(cv(1, "mg/mL", "g/L"), 1)
+  expect_equal(cv(1, "µg/mL", "ppm"), 1)
+  expect_equal(cv(1, "%", "g/L"), 10)
+  expect_equal(cv(1, "% m/m", "g/kg"), 10)
+  expect_equal(cv(5, "mM", "mol/L"), 0.005)
+
+  # L'aller-retour est exact pour toute paire d'une meme base : c'est ce qui
+  # garde un facteur ecrit de travers d'un seul cote.
+  for (b in unique(HSTAT_UNITES$base)) {
+    u <- HSTAT_UNITES$unite[HSTAT_UNITES$base == b]
+    for (x in u) for (y in u)
+      expect_equal(cv(cv(3.7, x, y), y, x), 3.7, info = paste(x, y))
+  }
+})
+
+test_that("unites : un pont entre familles demande sa grandeur, et le dit", {
+  cv <- function(...) hstat_unite_convertir(...)
+  # Sans masse volumique, une masse ne devient pas un volume : NA ET le motif.
+  for (p in list(c("L", "g"), c("L/ha", "kg/ha"), c("g/kg", "g/L"))) {
+    r <- cv(1, p[1], p[2])
+    expect_true(is.na(r), info = paste(p, collapse = ">"))
+    expect_true(grepl("masse volumique", attr(r, "motif")), info = paste(p, collapse = ">"))
+  }
+  # Avec elle, les ponts sont justes -- et dans les deux sens.
+  expect_equal(cv(1, "L", "g", densite = 1.2)[1], 1200)
+  expect_equal(cv(1200, "g", "L", densite = 1.2)[1], 1)
+  expect_equal(cv(2, "L/ha", "kg/ha", densite = 1.1)[1], 2.2)
+  expect_equal(cv(400, "g/kg", "g/L", densite = 1.2)[1], 480)
+  # Une concentration molaire demande la masse molaire, et parfois les deux.
+  r <- cv(0.01, "mol/L", "g/L")
+  expect_true(is.na(r)); expect_true(grepl("masse molaire", attr(r, "motif")))
+  expect_equal(cv(0.01, "mol/L", "g/L", masse_molaire = 180)[1], 1.8)
+  expect_equal(cv(10, "mM", "mg/L", masse_molaire = 180)[1], 1800)
+  expect_equal(cv(1.8, "g/L", "mmol/L", masse_molaire = 180)[1], 10)
+  expect_equal(cv(0.01, "mol/L", "g/kg", densite = 1.2, masse_molaire = 180)[1], 1.5)
+  expect_true(is.na(cv(0.01, "mol/L", "g/kg", masse_molaire = 180)))
+  # Deux grandeurs differentes ne se convertissent jamais.
+  r <- cv(1, "L", "ha")
+  expect_true(is.na(r)); expect_true(grepl("même grandeur", attr(r, "motif")))
+  expect_true(grepl("inconnue", attr(cv(1, "L", "pinte"), "motif")))
+  # Une masse volumique nulle, negative ou vide ne vaut pas 1.
+  for (rho in list(0, -1, NA, "", NULL))
+    expect_true(is.na(cv(1, "L", "g", densite = rho)))
+})
+
+test_that("bilan de dose : chaque grandeur se saisit dans son unite", {
+  # La reference : 250 mL/ha a 400 g/L, 60 L/ha, 2 ha, cuve de 15 L.
+  ref <- hstat_dose_bilan("dose", 250, "mL/ha", 400, "g/L",
+                          volume_bouillie = 60, superficie = 2, volume_cuve = 15)
+  # Les MEMES grandeurs, ecrites autrement, rendent les memes chiffres.
+  alt <- hstat_dose_bilan("dose", 0.25, "L/ha", 0.4, "g/mL",
+                          volume_bouillie = 6, unite_bouillie = "mL/m²",
+                          superficie = 20000, unite_superficie = "m²",
+                          volume_cuve = 1500, unite_cuve = "cL")
+  expect_equal(alt$Valeur[-1], ref$Valeur[-1])
+  # La superficie s'ecrit dans l'unite saisie.
+  expect_true(any(grepl("20 000 m²", alt$Grandeur, fixed = TRUE)))
+  # Le grammage se saisit dans une masse par surface.
+  g <- hstat_dose_bilan("grammage", 0.1, "kg/ha", 400, "g/L", volume_bouillie = 60,
+                        superficie = 2, volume_cuve = 15)
+  expect_equal(g$Valeur, ref$Valeur)
+  r <- hstat_dose_bilan("grammage", 100, "L/ha", 400, "g/L")
+  expect_equal(nrow(r), 0L); expect_true(grepl("grammage", attr(r, "message")))
+
+  # Une dose en VOLUME d'un produit en g/kg demande la masse volumique : sans
+  # elle, refus nomme ; avec elle, 0,25 L x 1,2 kg/L x 400 g/kg = 120 g/ha.
+  r <- hstat_dose_bilan("dose", 250, "mL/ha", 400, "g/kg")
+  expect_equal(nrow(r), 0L); expect_true(grepl("masse volumique", attr(r, "message")))
+  r <- hstat_dose_bilan("dose", 250, "mL/ha", 400, "g/kg", densite = 1.2)
+  expect_equal(r$Valeur[2], 120)
+  # Une concentration molaire demande la masse molaire.
+  r <- hstat_dose_bilan("dose", 1, "L/ha", 0.5, "mol/L")
+  expect_equal(nrow(r), 0L); expect_true(grepl("masse molaire", attr(r, "message")))
+  r <- hstat_dose_bilan("dose", 1, "L/ha", 0.5, "mol/L", masse_molaire = 200)
+  expect_equal(r$Valeur[2], 100)
+
+  # LA CONVERSION AJOUTE UNE LIGNE, JUSTE APRES SON ORIGINALE.
+  c2 <- hstat_dose_bilan("dose", 250, "mL/ha", 400, "g/L", volume_bouillie = 60,
+                         sortie_dose = "L/ha", sortie_grammage = "kg/ha")
+  expect_equal(nrow(c2), nrow(ref) + 2L)
+  expect_equal(c2$Valeur[1], 250)                       # l'originale reste
+  expect_true(grepl("convertie (L/ha)", c2$Grandeur[2], fixed = TRUE))
+  expect_equal(c2$Valeur[2], 0.25)
+  expect_true(grepl("Grammage converti (kg/ha)", c2$Grandeur[4], fixed = TRUE))
+  expect_equal(c2$Valeur[4], 0.1)
+  expect_true(grepl("Conversion : 1 mL/ha", c2$Formule[2], fixed = TRUE))
+  # Une conversion impossible garde sa ligne, avec le motif.
+  c3 <- hstat_dose_bilan("dose", 250, "mL/ha", 400, "g/L", sortie_dose = "kg/ha")
+  expect_true(is.na(c3$Valeur[2]))
+  expect_true(grepl("masse volumique", c3$Formule[2]))
+})
+
+test_that("dilutions : un total en g/L ne se forme pas sans pont, et se dit", {
+  base <- data.frame(Produit = "P", Matiere_active = c("a", "b"),
+                     Concentration_mere = c(100, 50), Unite = c("g/L", "g/kg"),
+                     Coefficient = 10, Nb_filles = 2, Volume_final = 100,
+                     Unite_volume = "mL", stringsAsFactors = FALSE)
+  r <- hstat_dilution_calcul(base)
+  # Sans masse volumique, le g/kg n'est pas pris pour un g/L : total NA, dit.
+  expect_true(all(is.na(r$Concentration_totale_g_L)))
+  expect_true(grepl("masse volumique", attr(r, "avertissement")))
+  # Avec elle, rang 1 : 10 g/L + 5 g/kg x 1,2 = 16 g/L.
+  base$Densite <- 1.2
+  r <- hstat_dilution_calcul(base)
+  expect_equal(r$Concentration_totale_g_L[r$Rang == 1 & !is.na(r$Concentration_totale_g_L)], 16)
+  expect_true("Densite" %in% names(r))
+  # Molaire, avec sa masse molaire.
+  m <- data.frame(Produit = "Q", Matiere_active = "c", Concentration_mere = 0.1,
+                  Unite = "mol/L", Coefficient = 10, Nb_filles = 1, Volume_final = 50,
+                  Unite_volume = "mL", Masse_molaire = 200, stringsAsFactors = FALSE)
+  rm <- hstat_dilution_calcul(m)
+  expect_equal(rm$Concentration_totale_g_L[1], 2)       # 0,01 mol/L x 200 g/mol
+  # La conversion des concentrations AJOUTE ses colonnes, apres l'originale.
+  cc <- hstat_dilution_convertir(rm, unite_conc = "mg/L")
+  nm <- names(cc)
+  expect_equal(match("Concentration_fille_conv", nm), match("Concentration_fille", nm) + 1L)
+  expect_equal(cc$Concentration_fille_conv[1], 2000)
+  expect_equal(cc$Concentration_fille[1], 0.01)
+  expect_equal(cc$Unite_conc_conv[1], "mg/L")
+  # Une unite de conversion inconnue ne touche a rien.
+  expect_identical(hstat_dilution_convertir(rm, unite_conc = "xx"), rm)
+})
+
+test_that("convertisseur : une ligne par unite, motif quand le pont manque", {
+  t <- hstat_unite_table(1, "L")
+  expect_true(all(c("mL", "g", "gal (US)") %in% t$Unite))
+  expect_equal(t$Valeur[t$Unite == "mL"], 1000)
+  expect_true(is.na(t$Valeur[t$Unite == "g"]))
+  expect_true(grepl("masse volumique", t$Conversion[t$Unite == "g"]))
+  t <- hstat_unite_table(1, "L", densite = 1.1)
+  expect_equal(t$Valeur[t$Unite == "g"], 1100)
+  expect_equal(nrow(hstat_unite_table(NA, "L")), 0L)
+  expect_true(nzchar(attr(hstat_unite_table(1, "zz"), "message")))
+  # Une surface ne propose que des surfaces.
+  expect_true(all(hstat_unite_table(1, "ha")$Groupe == "Surfaces"))
+})
+
+test_that("solution mere : les valeurs saisies dans une autre unite donnent la meme pesee", {
+  vals <- shiny::reactiveValues()
+  shiny::testServer(mod_dosage_server, args = list(values = vals), {
+    session$setInputs(mereTest = "topique", mereTopD = 1, mereTopDUnite = "µg/g",
+                      mereTopX = 0.05, mereTopXUnite = "g", mereTopV = 50,
+                      mereTopVUnite = "mL", mereTopA = 1, mereTopAUnite = "µL",
+                      mereTopP = 95)
+    q1 <- mere_calc()$Q_ug
+    # Les memes grandeurs ecrites en mg/kg, mg, L et nL.
+    session$setInputs(mereTopDUnite = "mg/kg", mereTopX = 50, mereTopXUnite = "mg",
+                      mereTopV = 0.05, mereTopVUnite = "L", mereTopA = 1000,
+                      mereTopAUnite = "nL")
+    expect_equal(mere_calc()$Q_ug, q1)
+    expect_equal(q1, 1 * 0.05 * 50000 * 100 / (1 * 95))
+    # Le convertisseur suit la grandeur choisie.
+    session$setInputs(convCategorie = "concentration", convUnite = "%", convValeur = 2)
+    d <- conv_res()
+    expect_equal(d$Valeur[d$Unite == "g/L"], 20)
+  })
 })
 
 test_that("un nombre affiche ne ment ni sur zero ni sur ses entiers", {

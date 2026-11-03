@@ -11025,3 +11025,56 @@ le calcul de la solution mère n'agit pas sur l'essai et ne remplit pas son
 tableau de saisie. Les deux modules sont indépendants, et un test le garde —
 aucun de ces boutons dans l'interface, aucun `mereVersDl50` écrit, et le code
 du module DL50 ne nomme ni ce champ ni `HSTAT_MERE_*`.
+
+## Doses & dilutions : un catalogue d'unités, et un pont ne se devine pas
+
+Demandé à l'écran : « toutes les unités de doses, de concentrations, de volumes,
+de masses », en tenant compte des conversions possibles. `HSTAT_UNITES`
+(`R/mod_dosage.R`) les déclare **une fois** — unité, catégorie, base, facteur,
+groupe — et tout en dérive : les sélecteurs groupés (`hstat_unites_choix()`),
+les tables d'avant (`HSTAT_DOSE_UNITES`, `HSTAT_CONC_UNITES`, `HSTAT_VOL_UNITES`,
+désormais **dérivées**) et la seule porte de conversion, `hstat_unite_convertir()`.
+
+| Catégorie | Bases | Pont entre bases |
+|---|---|---|
+| masse, volume | g, L | masse volumique |
+| dose à la surface | kg/ha, L/ha | masse volumique |
+| concentration | g/L (m/v), g/kg (m/m), mol/L | masse volumique, masse molaire |
+| surface | ha | — |
+
+Les doses composées sont **bâties** depuis les tables de masse, de volume et de
+surface (le gallon et la livre ne s'écrivent qu'une fois) ; on ne croise que ce
+qui figure sur une étiquette ou un protocole — « t/m² » n'existe nulle part.
+
+Quatre décisions, chacune testée :
+
+1. **Un pont ne vaut jamais 1 par défaut.** 400 g/kg ne sont 400 g/L qu'à
+   densité 1 : faux de 20 % sur une formulation à 1,2, sans un signe. Sans la
+   masse volumique (ou la masse molaire), la conversion rend NA **et nomme la
+   grandeur qui manque** (attribut `motif`). La version d'avant additionnait
+   des g/kg à des g/L dans le total des dilutions : ce total est désormais NA
+   pour le produit concerné, et un avertissement le dit.
+2. **« % » reste le pour-cent des étiquettes** (m/v, 10 g/L) et « ppm » celui
+   des solutions aqueuses (mg/L) ; leurs versions massiques s'écrivent
+   « % m/m » et « ppm m/m ». Deux sens sous un même nom feraient une erreur
+   d'un facteur égal à la densité.
+3. **La conversion ajoute, elle ne remplace pas** : la dose et le grammage
+   convertis sont des lignes posées juste après leur originale, avec le
+   facteur pour formule ; les concentrations converties des dilutions, des
+   colonnes `_conv` après les leurs. Une conversion impossible garde sa ligne,
+   motif à l'appui.
+4. **Chaque grandeur se saisit dans son unité et se ramène à celle du
+   calcul** : bouillie (volume par surface), superficie, cuve, grammage ; et
+   dans « Solution mère », chaque champ du protocole porte son unité — les
+   formules et les résultats restent dans les unités du protocole, au chiffre
+   près. Le test vérifie que les mêmes grandeurs écrites autrement donnent les
+   mêmes chiffres, et que l'aller-retour est exact pour toute paire d'une même
+   base.
+
+L'onglet **« Convertisseur d'unités »** rend une valeur dans toutes les unités
+de sa grandeur (masses et volumes ensemble pour une quantité de produit), avec
+le facteur ou le motif sur chaque ligne. Il lit le même catalogue que les
+calculs : une table recopiée ici finirait par les contredire.
+
+Une assertion d'avant a changé : « g/hL » y servait d'unité **inconnue** ; c'est
+désormais une vraie unité (400 g/hL = 4 g/L), et le test emploie « g/xx ».
