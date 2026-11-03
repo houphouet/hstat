@@ -7809,7 +7809,10 @@ une liste vide, pas `HSTAT_EPI_FENETRES` : y retomber poserait les tableaux que
 l'utilisateur vient de retirer, et la case serait un réglage que l'application
 ignore — exactement ce que ce dépôt corrige ailleurs.
 
-### Cinq modules d'application rejoignent « 3. Relations & inférence »
+### Cinq modules d'application rejoignent « 3. Analyses statistiques »
+
+La section s'appelait alors « 3. Relations & inférence » ; elle a été renommée
+en 1.36.3 (voir « La barre latérale se lit sans plisser les yeux »).
 
 Rendement/Gain de rendement, Seuils d'efficacité, Diversité écologique,
 Épidémiologie et DL50/CL50 quittent « 5. Planification & outils ». Ce sont des
@@ -10953,6 +10956,19 @@ chaîne française : l'ancienne entrée est remplacée, pas laissée orpheline.
 
 L'espacement des lettres des titres passe de 0,07 à 0,02 em : à 14,5 px,
 « 4. MODÉLISATION & PRÉDICTION » touchait son chevron (mesuré au navigateur).
+
+Ce resserrement ne tient que pour la police mesurée : il restait 4 px de marge
+sous Linux, et une police système plus large (Windows, macOS) faisait passer le
+titre sous le chevron. AdminLTE pose `white-space: nowrap` et
+`overflow: hidden` sur les titres ; ils reviennent désormais à la ligne, et le
+`padding-right` réserve la place du chevron quelle que soit la police.
+
+L'entrée regroupée sous « 2. Analyses descriptives » s'appelait elle aussi
+« Analyses descriptives » : le titre et son premier élément se lisaient comme
+un seul. Elle devient « Statistiques descriptives », qui est d'ailleurs sa
+traduction anglaise (« Descriptive statistics ») — un terme, un mot. Un test
+garde les libellés, les tailles et le retour à la ligne ; il a été vérifié
+comme échouant quand on retire ce dernier.
 
 ## La solution mère se calcule selon le type de test
 

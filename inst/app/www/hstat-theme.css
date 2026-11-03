@@ -121,6 +121,11 @@ h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(-
   color: #4b646f !important;
   font-size: 14.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase;
   padding: 16px 16px 7px;
+  /* AdminLTE pose white-space:nowrap + overflow:hidden : un titre plus large
+     que sa place passerait sous le chevron ou serait coupe. Il revient a la
+     ligne, et le padding-right reserve la place du chevron quelle que soit la
+     police du systeme. */
+  white-space: normal; overflow: visible;
 }
 .skin-blue .sidebar-menu > li > a {
   color: #b8c7ce !important;
