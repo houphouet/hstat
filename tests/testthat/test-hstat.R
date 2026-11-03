@@ -18254,6 +18254,50 @@ test_that("les cinq modules d'application demandes vivent sous « 3. Analyses st
   }
 })
 
+test_that("la barre laterale : libelles des sections, taille du texte et titres qui reviennent a la ligne", {
+  root <- .hstat_repo_root()
+  ux <- paste(readLines(file.path(root, "inst", "app", "UX.R"), encoding = "UTF-8"),
+              collapse = "\n")
+  # Le titre de section et l'entree qu'il regroupe ne portent pas le meme nom :
+  # « ANALYSES DESCRIPTIVES » au-dessus de « Analyses descriptives » se lit
+  # comme un seul element, et le titre ne decrit plus le groupe.
+  expect_true(grepl('"2. Analyses descriptives"', ux, fixed = TRUE))
+  expect_true(grepl('"3. Analyses statistiques"', ux, fixed = TRUE))
+  expect_true(grepl('menuItem("Statistiques descriptives", tabName = "descriptive"',
+                    ux, fixed = TRUE))
+  expect_false(grepl('menuItem("Analyses descriptives"', ux, fixed = TRUE))
+
+  # Un terme, un mot : le titre et l'entree se traduisent differemment, et
+  # chacun est au dictionnaire.
+  d <- hstat_i18n_load()
+  en <- function(fr) d$en[match(fr, d$fr)]
+  expect_equal(en("2. Analyses descriptives"), "2. Descriptive analyses")
+  expect_equal(en("3. Analyses statistiques"), "3. Statistical analyses")
+  expect_equal(en("Statistiques descriptives"), "Descriptive statistics")
+
+  css <- paste(readLines(file.path(root, "inst", "app", "www", "hstat-theme.css"),
+                         encoding = "UTF-8"), collapse = "\n")
+  regle <- function(sel) {
+    i <- regexpr(sel, css, fixed = TRUE)
+    expect_true(i > 0, label = sel)
+    reste <- substring(css, i)
+    substring(reste, 1, regexpr("}", reste, fixed = TRUE))
+  }
+  tete <- regle(".skin-blue .sidebar-menu > li.header {")
+  entree <- regle(".skin-blue .sidebar-menu > li > a {")
+  chevron <- regle(".skin-blue .sidebar-menu > li.header[data-hstat-repli]::after {")
+  # Le texte agrandi de 4 px, demande a l'ecran.
+  expect_match(tete, "font-size: 14.5px", fixed = TRUE)
+  expect_match(entree, "font-size: 17.5px", fixed = TRUE)
+  expect_match(chevron, "font-size: 15px", fixed = TRUE)
+  # AdminLTE pose nowrap + overflow:hidden sur les titres : un titre plus large
+  # que sa place (police plus large sous Windows ou macOS) passerait sous le
+  # chevron ou serait coupe. Il doit revenir a la ligne.
+  expect_match(tete, "white-space: normal", fixed = TRUE)
+  expect_match(tete, "overflow: visible", fixed = TRUE)
+  expect_false(grepl("letter-spacing: 0.07em", tete, fixed = TRUE))
+})
+
 test_that("les familles ajoutees au kit agissent, et le pas refuse un axe discret", {
   skip_if_not_installed("ggplot2")
   o <- list(familles = c("styles", "angles", "legende", "bornes", "pas"),

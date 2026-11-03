@@ -183,7 +183,7 @@ ui <- shinydashboard::dashboardPage(
       shinydashboard::menuItem("Nettoyage", tabName = "clean", icon = shiny::icon("broom")),
       shinydashboard::menuItem("Filtrage", tabName = "filter", icon = shiny::icon("filter")),
       shiny::tags$li(class = "header", `data-hstat-repli` = "1", "2. Analyses descriptives"),
-      shinydashboard::menuItem("Analyses descriptives", tabName = "descriptive", icon = shiny::icon("chart-bar")),
+      shinydashboard::menuItem("Statistiques descriptives", tabName = "descriptive", icon = shiny::icon("chart-bar")),
       shinydashboard::menuItem("Visualisation des données", tabName = "visualization", icon = shiny::icon("chart-line")),
       shiny::tags$li(class = "header", `data-hstat-repli` = "1", "3. Analyses statistiques"),
       shinydashboard::menuItem("Corrélations", tabName = "corrélation", icon = shiny::icon("link")),
