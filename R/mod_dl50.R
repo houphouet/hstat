@@ -324,9 +324,9 @@ hstat_dl50_temoin_corrige <- function(fit) {
 # LA VALIDITE DE L'ESSAI SE JUGE SUR LE TEMOIN, ET LES SEUILS SONT CEUX DE
 # L'UTILISATEUR. L'usage le plus repandu (OMS, tests de sensibilite des
 # vecteurs) : moins de 5 % de mortalite dans le temoin, l'essai est valide sans
-# correction ; de 5 a 20 %, il est valide apres correction d'Abbott ; au-dela
-# de 20 %, il est a refaire. D'autres protocoles posent 10 % ou un seul seuil :
-# les deux bornes se reglent, et une borne absente (NA) n'est pas appliquee.
+# correction ; au-dela, il est valide apres correction d'Abbott ; au-dela du
+# seuil de rejet -- 10 % au plus --, il est a refaire. Les deux bornes se
+# reglent ; un seuil de correction absent (NA) n'est pas applique.
 #
 # `base` dit sur quoi l'on compare : la mortalite OBSERVEE du temoin (l'usage)
 # ou la mortalite CORRIGEE par la mortalite naturelle retenue par
@@ -341,7 +341,15 @@ HSTAT_DL50_VALIDITE_ETATS <- c(valide = "Essai valide sans correction",
                                invalide = "Essai non valide, à refaire",
                                indeterminable = "Validité non jugée")
 
-hstat_dl50_validite <- function(fit, seuil_correction = 5, seuil_rejet = 20,
+# LE SEUIL DE REJET NE DEPASSE PAS 10 %. Demande a l'ecran : au-dela, un temoin
+# trop charge rend la correction d'Abbott peu fiable, et l'essai doit etre
+# refait. Un seuil saisi plus haut est ramene a 10, un seuil vide vaut 10 --
+# l'absence de seuil de rejet laisserait passer n'importe quel temoin. Le seuil
+# de correction, lui, ne peut pas depasser celui de rejet.
+HSTAT_DL50_SEUIL_REJET_MAX <- 10
+
+hstat_dl50_validite <- function(fit, seuil_correction = 5,
+                                seuil_rejet = HSTAT_DL50_SEUIL_REJET_MAX,
                                 base = c("observee", "corrigee")) {
   base <- if (length(base) && base[1] %in% HSTAT_DL50_VALIDITE_BASES) base[1] else "observee"
   s1 <- suppressWarnings(as.numeric(seuil_correction)[1])
@@ -349,6 +357,8 @@ hstat_dl50_validite <- function(fit, seuil_correction = 5, seuil_rejet = 20,
   if (!length(s1) || !is.finite(s1)) s1 <- NA_real_
   if (!length(s2) || !is.finite(s2)) s2 <- NA_real_
   if (is.finite(s1) && is.finite(s2) && s1 > s2) { t <- s1; s1 <- s2; s2 <- t }
+  if (!is.finite(s2) || s2 > HSTAT_DL50_SEUIL_REJET_MAX) s2 <- HSTAT_DL50_SEUIL_REJET_MAX
+  if (is.finite(s1) && s1 > s2) s1 <- s2
   res <- function(etat, valeur, texte)
     list(etat = etat, valeur = valeur, base = base,
          seuil_correction = s1, seuil_rejet = s2, texte = texte)
@@ -3733,15 +3743,17 @@ mod_dl50_ui <- function(id) {
             shiny::h5(shiny::icon("clipboard-check"), " Validité de l'essai (témoin)"),
             shiny::radioButtons(ns("temoinBase"), "Mortalité comparée aux seuils",
                                 choices = HSTAT_DL50_VALIDITE_BASES, selected = "observee"),
+            # 10 = HSTAT_DL50_SEUIL_REJET_MAX, ecrit en clair : le test qui
+            # confronte chaque borne serveur a celle du champ lit des litteraux.
             shiny::numericInput(ns("temoinSeuilCorr"), "Seuil de correction (%)",
-                                value = 5, min = 0, max = 100, step = 1),
+                                value = 5, min = 0, max = 10, step = 1),
             shiny::numericInput(ns("temoinSeuilRejet"), "Seuil de rejet (%)",
-                                value = 20, min = 0, max = 100, step = 1),
+                                value = 10, min = 0, max = 10, step = 1),
             shiny::helpText(paste0(
               "Sous le seuil de correction, l'essai est valide sans correction ;",
               " entre les deux, il est valide après correction d'Abbott ; au-delà",
-              " du seuil de rejet, il est à refaire (usage OMS : 5 % et 20 %).",
-              " Videz un champ pour n'appliquer qu'un seul seuil.")),
+              " du seuil de rejet, il est à refaire. Le seuil de rejet ne dépasse",
+              " pas 10 % : une valeur plus haute ou un champ vide valent 10 %.")),
             shiny::actionButton(ns("testAbbott"),
               shiny::tagList(shiny::icon("scale-balanced"), " Abbott ou EM ?"),
               class = "btn-default btn-block"),
@@ -4910,8 +4922,8 @@ mod_dl50_server <- function(id, values) {
       f <- fit()
       if (is.null(f)) return(NULL)
       hstat_dl50_validite(f,
-        seuil_correction = hstat_borne_client(input$temoinSeuilCorr, NA_real_, 0, 100),
-        seuil_rejet = hstat_borne_client(input$temoinSeuilRejet, NA_real_, 0, 100),
+        seuil_correction = hstat_borne_client(input$temoinSeuilCorr, NA_real_, 0, 10),
+        seuil_rejet = hstat_borne_client(input$temoinSeuilRejet, 10, 0, 10),
         base = input$temoinBase %||% "observee")
     })
 

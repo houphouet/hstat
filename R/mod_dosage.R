@@ -66,8 +66,8 @@
 .HSTAT_U_MASSE <- c("ng" = 1e-9, "µg" = 1e-6, "mg" = 1e-3, "cg" = 1e-2, "g" = 1,
                     "kg" = 1e3, "q" = 1e5, "t" = 1e6,
                     "oz" = 28.349523125, "lb" = 453.59237)
-.HSTAT_U_VOLUME <- c("nL" = 1e-9, "µL" = 1e-6, "mL" = 1e-3, "cL" = 1e-2, "dL" = 0.1,
-                     "L" = 1, "hL" = 100, "m³" = 1000,
+.HSTAT_U_VOLUME <- c("nl" = 1e-9, "µl" = 1e-6, "ml" = 1e-3, "cl" = 1e-2, "dl" = 0.1,
+                     "l" = 1, "hl" = 100, "m³" = 1000,
                      "fl oz (US)" = 0.0295735295625, "gal (US)" = 3.785411784,
                      "gal (UK)" = 4.54609)
 .HSTAT_U_SURFACE <- c("m²" = 1e-4, "100 m²" = 1e-2, "a" = 1e-2, "ha" = 1,
@@ -89,28 +89,28 @@
 HSTAT_UNITES <- rbind(
   .hstat_unites_bloc("masse", "g", "Masses", .HSTAT_U_MASSE,
                      c("q" = "q (quintal)", "t" = "t (tonne)")),
-  .hstat_unites_bloc("volume", "L", "Volumes", .HSTAT_U_VOLUME),
+  .hstat_unites_bloc("volume", "l", "Volumes", .HSTAT_U_VOLUME),
   .hstat_unites_bloc("surface", "ha", "Surfaces", .HSTAT_U_SURFACE,
                      c("a" = "a (are)")),
-  .hstat_unites_bloc("dose", "L/ha", "Produit liquide (volume par surface)",
-    .hstat_unites_doses(c("µL/m²", "mL/m²", "mL/100 m²", "L/100 m²", "mL/a", "L/a",
-                          "mL/ha", "cL/ha", "L/ha", "hL/ha", "fl oz/acre", "gal/acre"),
+  .hstat_unites_bloc("dose", "l/ha", "Produit liquide (volume par surface)",
+    .hstat_unites_doses(c("µl/m²", "ml/m²", "ml/100 m²", "l/100 m²", "ml/a", "l/a",
+                          "ml/ha", "cl/ha", "l/ha", "hl/ha", "fl oz/acre", "gal/acre"),
                         1, .HSTAT_U_VOLUME)),
   .hstat_unites_bloc("dose", "kg/ha", "Produit solide (masse par surface)",
     .hstat_unites_doses(c("mg/m²", "g/m²", "g/100 m²", "kg/100 m²", "g/a", "kg/a",
                           "mg/ha", "g/ha", "kg/ha", "q/ha", "t/ha", "oz/acre", "lb/acre"),
                         1000, .HSTAT_U_MASSE)),
-  .hstat_unites_bloc("concentration", "g/L", "Masse par volume (m/v)",
-    c("ng/L" = 1e-9, "µg/L" = 1e-6, "mg/L" = 1e-3, "g/L" = 1, "g/hL" = 1e-2,
-      "kg/L" = 1e3, "g/m³" = 1e-3, "kg/m³" = 1, "ng/mL" = 1e-6, "µg/mL" = 1e-3,
-      "mg/mL" = 1, "g/mL" = 1e3, "µg/µL" = 1, "mg/dL" = 1e-2, "%" = 10,
+  .hstat_unites_bloc("concentration", "g/l", "Masse par volume (m/v)",
+    c("ng/l" = 1e-9, "µg/l" = 1e-6, "mg/l" = 1e-3, "g/l" = 1, "g/hl" = 1e-2,
+      "kg/l" = 1e3, "g/m³" = 1e-3, "kg/m³" = 1, "ng/ml" = 1e-6, "µg/ml" = 1e-3,
+      "mg/ml" = 1, "g/ml" = 1e3, "µg/µl" = 1, "mg/dl" = 1e-2, "%" = 10,
       "ppm" = 1e-3, "ppb" = 1e-6),
-    c("%" = "% (m/v, g/100 mL)", "ppm" = "ppm (mg/L)", "ppb" = "ppb (µg/L)")),
+    c("%" = "% (m/v, g/100 ml)", "ppm" = "ppm (mg/l)", "ppb" = "ppb (µg/l)")),
   .hstat_unites_bloc("concentration", "g/kg", "Masse par masse (m/m)",
     c("ng/g" = 1e-6, "µg/kg" = 1e-6, "mg/kg" = 1e-3, "g/kg" = 1, "µg/g" = 1e-3,
       "mg/g" = 1, "% m/m" = 10, "ppm m/m" = 1e-3, "ppb m/m" = 1e-6)),
-  .hstat_unites_bloc("concentration", "mol/L", "Molaire (quantité de matière par volume)",
-    c("mol/L" = 1, "mmol/L" = 1e-3, "µmol/L" = 1e-6, "nmol/L" = 1e-9,
+  .hstat_unites_bloc("concentration", "mol/l", "Molaire (quantité de matière par volume)",
+    c("mol/l" = 1, "mmol/l" = 1e-3, "µmol/l" = 1e-6, "nmol/l" = 1e-9,
       "M" = 1, "mM" = 1e-3, "µM" = 1e-6, "nM" = 1e-9)))
 rownames(HSTAT_UNITES) <- NULL
 
@@ -161,8 +161,23 @@ hstat_unites_choix <- function(categorie, base = NULL) {
   if (length(v) == 1L && is.finite(v) && v > 0) v else NA_real_
 }
 
+# LE LITRE S'ECRIT « l », A LA DEMANDE : ml, µl, g/l, l/ha, mol/l. Les
+# ecritures en « L » majuscule restent comprises -- un tableau de dilutions
+# enregistre, un fichier colle ou un appel existant les portent encore --, et
+# sont ramenees a leur cle avant toute recherche. Seules les lettres d'unite
+# changent : « M », « mM » (molaire) et les noms qui contiennent un L dans un
+# mot ne sont pas touches.
+.HSTAT_UNITE_L <- "(?<![A-Za-z\u00C0-\u00FF_'])([n\u00B5mcdhk]?)L(?![A-Za-z\u00C0-\u00FF_'])"
+.hstat_unite_cle <- function(u) {
+  u <- as.character(u)
+  if (!length(u)) return(u)
+  hors <- !is.na(u) & !(u %in% HSTAT_UNITES$unite)
+  u[hors] <- gsub(.HSTAT_UNITE_L, "\\1l", u[hors], perl = TRUE)
+  u
+}
+
 hstat_unite_info <- function(u) {
-  u <- as.character(u)[1]
+  u <- .hstat_unite_cle(as.character(u)[1])[1]
   if (is.na(u) || !nzchar(u)) return(NULL)
   i <- match(u, HSTAT_UNITES$unite)
   if (is.na(i)) NULL else HSTAT_UNITES[i, , drop = FALSE]
@@ -189,23 +204,23 @@ hstat_unite_convertir <- function(valeur, de, vers, densite = NA, masse_molaire 
   rho <- .hstat_unite_pos(densite)
   M   <- .hstat_unite_pos(masse_molaire)
   manque_rho <- function()
-    rate(trf("Passer de %s à %s demande la masse volumique du produit (kg/L, soit g/mL) : renseignez-la.",
+    rate(trf("Passer de %s à %s demande la masse volumique du produit (kg/l, soit g/ml) : renseignez-la.",
              a$unite, b$unite))
   manque_M <- function()
     rate(trf("Passer de %s à %s demande la masse molaire de la matière active (g/mol) : renseignez-la.",
              a$unite, b$unite))
   pont <- paste(a$base, b$base, sep = ">")
   y <- switch(pont,
-    "g>L"         = if (is.na(rho)) return(manque_rho()) else x / (rho * 1000),
-    "L>g"         = if (is.na(rho)) return(manque_rho()) else x * rho * 1000,
-    "L/ha>kg/ha"  = if (is.na(rho)) return(manque_rho()) else x * rho,
-    "kg/ha>L/ha"  = if (is.na(rho)) return(manque_rho()) else x / rho,
-    "g/kg>g/L"    = if (is.na(rho)) return(manque_rho()) else x * rho,
-    "g/L>g/kg"    = if (is.na(rho)) return(manque_rho()) else x / rho,
-    "mol/L>g/L"   = if (is.na(M)) return(manque_M()) else x * M,
-    "g/L>mol/L"   = if (is.na(M)) return(manque_M()) else x / M,
-    "mol/L>g/kg"  = if (is.na(M)) return(manque_M()) else if (is.na(rho)) return(manque_rho()) else x * M / rho,
-    "g/kg>mol/L"  = if (is.na(M)) return(manque_M()) else if (is.na(rho)) return(manque_rho()) else x * rho / M,
+    "g>l"         = if (is.na(rho)) return(manque_rho()) else x / (rho * 1000),
+    "l>g"         = if (is.na(rho)) return(manque_rho()) else x * rho * 1000,
+    "l/ha>kg/ha"  = if (is.na(rho)) return(manque_rho()) else x * rho,
+    "kg/ha>l/ha"  = if (is.na(rho)) return(manque_rho()) else x / rho,
+    "g/kg>g/l"    = if (is.na(rho)) return(manque_rho()) else x * rho,
+    "g/l>g/kg"    = if (is.na(rho)) return(manque_rho()) else x / rho,
+    "mol/l>g/l"   = if (is.na(M)) return(manque_M()) else x * M,
+    "g/l>mol/l"   = if (is.na(M)) return(manque_M()) else x / M,
+    "mol/l>g/kg"  = if (is.na(M)) return(manque_M()) else if (is.na(rho)) return(manque_rho()) else x * M / rho,
+    "g/kg>mol/l"  = if (is.na(M)) return(manque_M()) else if (is.na(rho)) return(manque_rho()) else x * rho / M,
     NULL)
   if (is.null(y))
     return(rate(trf("Conversion impossible : %s et %s ne mesurent pas la même grandeur.",
@@ -242,16 +257,16 @@ hstat_unite_table <- function(valeur, de, densite = NA, masse_molaire = NA) {
 # EXPORTEES avec les resultats : c'est le meme texte, il n'a donc pas deux
 # versions qui pourraient diverger.
 HSTAT_DOSE_FORMULES <- c(
-  grammage   = "Grammage (g m.a./ha) = Dose (L ou kg/ha) × Concentration (g/L ou g/kg)",
-  dose       = "Dose (L ou kg/ha) = Grammage (g m.a./ha) ÷ Concentration (g/L ou g/kg)",
-  conc_bouil = "Concentration de la bouillie (g m.a./L) = Grammage (g m.a./ha) ÷ Volume de bouillie (L/ha)",
-  dose_bouil = "Dose dans la bouillie (mL ou g de produit/L) = Dose (mL ou g/ha) ÷ Volume de bouillie (L/ha)",
+  grammage   = "Grammage (g m.a./ha) = Dose (l ou kg/ha) × Concentration (g/l ou g/kg)",
+  dose       = "Dose (l ou kg/ha) = Grammage (g m.a./ha) ÷ Concentration (g/l ou g/kg)",
+  conc_bouil = "Concentration de la bouillie (g m.a./l) = Grammage (g m.a./ha) ÷ Volume de bouillie (l/ha)",
+  dose_bouil = "Dose dans la bouillie (ml ou g de produit/l) = Dose (ml ou g/ha) ÷ Volume de bouillie (l/ha)",
   total_prod = "Quantité totale de produit = Dose (par ha) × Superficie (ha)",
   total_ma   = "Quantité totale de matière active = Grammage (g/ha) × Superficie (ha)",
-  total_eau  = "Volume d'eau total = Volume de bouillie (L/ha) × Superficie (ha)",
-  par_cuve   = "Produit par cuve = Dose (par ha) × (Volume de cuve (L) ÷ Volume de bouillie (L/ha))",
-  nb_cuves   = "Nombre de cuves = Volume d'eau total (L) ÷ Volume de cuve (L)",
-  surf_cuve  = "Surface par cuve (ha) = Volume de cuve (L) ÷ Volume de bouillie (L/ha)",
+  total_eau  = "Volume d'eau total = Volume de bouillie (l/ha) × Superficie (ha)",
+  par_cuve   = "Produit par cuve = Dose (par ha) × (Volume de cuve (l) ÷ Volume de bouillie (l/ha))",
+  nb_cuves   = "Nombre de cuves = Volume d'eau total (l) ÷ Volume de cuve (l)",
+  surf_cuve  = "Surface par cuve (ha) = Volume de cuve (l) ÷ Volume de bouillie (l/ha)",
   conservation = "Conservation de la matière : Vi × Ci = Vf × Cf (Vi prélevé dans la mère, Ci = concentration mère)",
   c_fille    = "Concentration de la fille n (Cf) = Concentration de la fille n−1 ÷ Coefficient de dilution",
   c_fille_n  = "soit Concentration de la fille n = Concentration mère ÷ Coefficient^n",
@@ -268,7 +283,7 @@ HSTAT_DOSE_FORMULES <- c(
 # rendrait un resultat mille fois trop grand sans le moindre signe. On rend
 # NA, et l'appelant le nomme.
 .hstat_dose_facteur <- function(unite, table) {
-  u <- as.character(unite)[1]
+  u <- .hstat_unite_cle(as.character(unite)[1])[1]
   if (is.na(u) || !nzchar(u) || !(u %in% names(table))) return(NA_real_)
   unname(table[[u]])
 }
@@ -282,7 +297,7 @@ hstat_dose_vers_ref <- function(valeur, unite)
 hstat_conc_vers_ref <- function(valeur, unite, masse_molaire = NA) {
   v <- suppressWarnings(as.numeric(valeur)[1]) * .hstat_dose_facteur(unite, HSTAT_CONC_UNITES)
   b <- hstat_unite_info(unite)
-  if (!is.null(b) && identical(b$base, "mol/L")) v <- v * .hstat_unite_pos(masse_molaire)
+  if (!is.null(b) && identical(b$base, "mol/l")) v <- v * .hstat_unite_pos(masse_molaire)
   v
 }
 
@@ -345,8 +360,8 @@ hstat_dose_bilan <- function(sens = c("dose", "grammage"),
                              volume_cuve = NA_real_,
                              produit = "", matiere = "",
                              densite = NA_real_, masse_molaire = NA_real_,
-                             unite_bouillie = "L/ha", unite_superficie = "ha",
-                             unite_cuve = "L",
+                             unite_bouillie = "l/ha", unite_superficie = "ha",
+                             unite_cuve = "l",
                              sortie_dose = NULL, sortie_grammage = NULL) {
   sens <- match.arg(sens)
   vide <- function(motif) {
@@ -375,17 +390,17 @@ hstat_dose_bilan <- function(sens = c("dose", "grammage"),
   if (sens == "dose") {
     di <- hstat_unite_info(unite_valeur)
     if (is.null(di) || !identical(di$categorie, "dose"))
-      return(vide(tr("Unité de dose inconnue : choisissez une quantité de produit par surface (mL/ha, L/ha, g/ha, kg/ha…).")))
+      return(vide(tr("Unité de dose inconnue : choisissez une quantité de produit par surface (ml/ha, l/ha, g/ha, kg/ha…).")))
     base_dose <- di$base
   } else {
-    base_dose <- if (identical(ci$base, "g/kg")) "kg/ha" else "L/ha"
+    base_dose <- if (identical(ci$base, "g/kg")) "kg/ha" else "l/ha"
   }
   # La concentration se ramene a des grammes PAR UNITE DE PRODUIT DOSE : par
   # litre pour une dose en volume, par kilogramme pour une dose en masse. Le
   # passage de l'un a l'autre demande la masse volumique, une concentration
   # molaire la masse molaire -- et leur absence se dit, elle ne vaut pas 1.
   conc <- hstat_unite_convertir(c_val, ci$unite,
-                                if (identical(base_dose, "L/ha")) "g/L" else "g/kg",
+                                if (identical(base_dose, "l/ha")) "g/l" else "g/kg",
                                 densite, masse_molaire)
   if (!isTRUE(is.finite(conc)))
     return(vide(attr(conc, "motif") %||%
@@ -405,7 +420,7 @@ hstat_dose_bilan <- function(sens = c("dose", "grammage"),
     # On rend la dose dans une unite lisible : le litre au-dela de 1, le
     # millilitre en dessous. Une dose de 0,0004 L/ha ne se lit pas.
     u_dose <- if (identical(base_dose, "kg/ha")) { if (dose_ref >= 1) "kg/ha" else "g/ha" }
-              else if (dose_ref >= 1) "L/ha" else "mL/ha"
+              else if (dose_ref >= 1) "l/ha" else "ml/ha"
     dose_aff <- hstat_dose_depuis_ref(dose_ref, u_dose)
   }
 
@@ -420,14 +435,14 @@ hstat_dose_bilan <- function(sens = c("dose", "grammage"),
   u_surf <- if (is.null(hstat_unite_info(unite_superficie))) "ha" else as.character(unite_superficie)[1]
   surf <- conv_pos(superficie, u_surf, "ha")
   if (!isTRUE(is.finite(surf))) { surf <- 1; surf_saisie <- 1; u_surf <- "ha" }
-  vb   <- conv_pos(volume_bouillie, unite_bouillie, "L/ha")
-  cuve <- conv_pos(volume_cuve, unite_cuve, "L")
+  vb   <- conv_pos(volume_bouillie, unite_bouillie, "l/ha")
+  cuve <- conv_pos(volume_cuve, unite_cuve, "l")
   a_vb   <- isTRUE(is.finite(vb)) && vb > 0
   a_cuve <- a_vb && isTRUE(is.finite(cuve)) && cuve > 0
 
-  liq   <- identical(base_dose, "L/ha")
-  u_pet <- if (liq) "mL/ha" else "g/ha"          # petite unite du produit
-  u_tot <- if (liq) "L" else "kg"
+  liq   <- identical(base_dose, "l/ha")
+  u_pet <- if (liq) "ml/ha" else "g/ha"          # petite unite du produit
+  u_tot <- if (liq) "l" else "kg"
 
   # Bouillie : la ou se joue l'erreur de terrain. Sans volume declare, ces
   # lignes n'ont pas de valeur -- elles restent NA plutot que de sortir un
@@ -446,12 +461,12 @@ hstat_dose_bilan <- function(sens = c("dose", "grammage"),
     Grandeur = c(
       trf("Dose de produit commercial (%s)", u_dose),
       "Grammage de matière active (g m.a./ha)",
-      "Concentration de la bouillie (g m.a./L)",
-      trf("Dose dans la bouillie (%s de produit/L)", if (liq) "mL" else "g"),
+      "Concentration de la bouillie (g m.a./l)",
+      trf("Dose dans la bouillie (%s de produit/l)", if (liq) "ml" else "g"),
       trf("Quantité totale de produit pour %s (%s)", s_aff, u_tot),
       trf("Quantité totale de matière active pour %s (g)", s_aff),
-      trf("Volume d'eau total pour %s (L)", s_aff),
-      trf("Produit par cuve (%s)", if (liq) "mL" else "g"),
+      trf("Volume d'eau total pour %s (l)", s_aff),
+      trf("Produit par cuve (%s)", if (liq) "ml" else "g"),
       "Nombre de cuves",
       "Surface traitée par cuve (ha)"),
     Valeur = c(dose_aff, grammage, conc_bouillie, dose_bouillie,
@@ -476,8 +491,10 @@ hstat_dose_bilan <- function(sens = c("dose", "grammage"),
   # volumique absente) garde sa ligne, motif a l'appui, plutot que de
   # disparaitre.
   ajoute_conv <- function(res, apres, valeur, de, vers, gabarit) {
-    if (is.null(vers) || !nzchar(vers[1]) || identical(vers[1], de)) return(res)
-    if (is.null(hstat_unite_info(vers[1]))) return(res)
+    if (is.null(vers) || !nzchar(vers[1])) return(res)
+    vi <- hstat_unite_info(vers[1])
+    if (is.null(vi) || identical(vi$unite, de)) return(res)
+    vers <- vi$unite                          # la cle, ecrite en « l »
     r <- hstat_unite_convertir(valeur, de, vers[1], densite, masse_molaire)
     f <- hstat_unite_convertir(1, de, vers[1], densite, masse_molaire)
     ligne <- data.frame(
@@ -559,11 +576,11 @@ hstat_dilution_table_vide <- function(n = 3) {
     Matiere_active       = rep("", n),
     Concentration_mere   = rep(NA_real_, n),
     Concentration_depart = rep(NA_real_, n),
-    Unite                = rep("g/L", n),
+    Unite                = rep("g/l", n),
     Coefficient          = rep(NA_real_, n),
     Nb_filles            = rep(1, n),
     Volume_final         = rep(NA_real_, n),
-    Unite_volume         = rep("L", n),
+    Unite_volume         = rep("l", n),
     Densite              = rep(NA_real_, n),
     Masse_molaire        = rep(NA_real_, n),
     stringsAsFactors     = FALSE)
@@ -661,13 +678,13 @@ hstat_dilution_calcul <- function(df) {
   fac <- vapply(d$Unite, function(u) .hstat_dose_facteur(u, HSTAT_CONC_UNITES),
                 numeric(1), USE.NAMES = FALSE)
   if (any(!is.finite(fac)))
-    return(vide(trf("Unité de concentration inconnue : %s. Choisissez une unité de la liste (g/L, mg/L, %%, ppm, mol/L…).",
+    return(vide(trf("Unité de concentration inconnue : %s. Choisissez une unité de la liste (g/l, mg/l, %%, ppm, mol/l…).",
                     paste(unique(d$Unite[!is.finite(fac)]), collapse = ", "))))
 
   fac_v <- vapply(d$Unite_volume, function(u) .hstat_dose_facteur(u, HSTAT_VOL_UNITES),
                   numeric(1), USE.NAMES = FALSE)
   if (any(!is.finite(fac_v)))
-    return(vide(trf("Unité de volume inconnue : %s. Choisissez une unité de la liste (µL, mL, L…).",
+    return(vide(trf("Unité de volume inconnue : %s. Choisissez une unité de la liste (µl, ml, l…).",
                     paste(unique(d$Unite_volume[!is.finite(fac_v)]), collapse = ", "))))
 
   d$.fac   <- fac
@@ -752,7 +769,7 @@ hstat_dilution_calcul <- function(df) {
   # g/L -- ce que faisait la version d'avant pour g/kg -- rendait un total
   # faux de l'ecart de densite, sans le moindre signe.
   g_l <- vapply(seq_len(nrow(d)), function(i)
-    hstat_unite_convertir(d$Concentration_fille[i], d$Unite[i], "g/L",
+    hstat_unite_convertir(d$Concentration_fille[i], d$Unite[i], "g/l",
                           d$Densite[i], d$Masse_molaire[i])[1], numeric(1))
   cle <- paste(d$Produit, d$Rang, sep = "\u001f")
   totaux <- tapply(g_l, cle, sum)                 # un NA garde le total a NA
@@ -804,10 +821,10 @@ hstat_dilution_calcul <- function(df) {
   minuscule <- unique(d$Produit[is.finite(ml) & ml < HSTAT_DILUTION_MIN_ML])
   avert <- c(
     if (length(minuscule)) trf(
-      "Volume à prélever inférieur à %s mL pour : %s. Un tel prélèvement ne se mesure pas à la pipette : augmentez le volume final, réduisez le coefficient de dilution ou préparez la gamme en plusieurs étapes.",
+      "Volume à prélever inférieur à %s ml pour : %s. Un tel prélèvement ne se mesure pas à la pipette : augmentez le volume final, réduisez le coefficient de dilution ou préparez la gamme en plusieurs étapes.",
       hstat_fmt_nb(HSTAT_DILUTION_MIN_ML, 3), paste(minuscule, collapse = ", ")),
     if (length(sans_total)) trf(
-      "Concentration totale non calculée pour : %s. Additionner des matières actives demande de les ramener en g/L : renseignez la masse volumique de la mère (unités m/m) ou la masse molaire (unités molaires).",
+      "Concentration totale non calculée pour : %s. Additionner des matières actives demande de les ramener en g/l : renseignez la masse volumique de la mère (unités m/m) ou la masse molaire (unités molaires).",
       paste(sans_total, collapse = ", ")))
   if (length(avert)) attr(res, "avertissement") <- paste(avert, collapse = " ")
   res
@@ -833,9 +850,9 @@ HSTAT_DILUTION_LIBELLES <- c(
   Unite_volume              = "Unité de volume",
   Volume_a_prelever         = "Volume à prélever dans la mère (Vi)",
   Volume_eau_a_ajouter      = "Eau à ajouter (Vf − Vi)",
-  Concentration_totale_g_L  = "Concentration totale de la fille (g/L)",
+  Concentration_totale_g_L  = "Concentration totale de la fille (g/l)",
   Volume_mere_requis        = "Solution mère nécessaire (total)",
-  Densite                   = "Masse volumique de la mère (kg/L)",
+  Densite                   = "Masse volumique de la mère (kg/l)",
   Masse_molaire             = "Masse molaire (g/mol)",
   Unite_conc_conv           = "Unité de concentration convertie",
   Concentration_mere_conv   = "Concentration mère convertie",
@@ -925,6 +942,22 @@ HSTAT_DILUTION_CONC_COLS <- c("Concentration_mere", "Concentration_precedente",
 # l'emploie aussi, et deux copies d'une aide de cinq lignes finissent par
 # diverger sur le cas limite -- ici, la colonne « apres » introuvable.
 
+# Le tableau des solutions filles decoupe par produit, une entree par produit
+# dans l'ordre du tableau, chacune relabellisee comme a l'ecran. Le nom de la
+# feuille est celui du produit : l'ecrivain de classeurs le nettoie (caracteres
+# interdits par Excel, 31 caracteres) et distingue deux noms devenus egaux.
+hstat_dilution_feuilles <- function(d) {
+  if (!is.data.frame(d) || !nrow(d) || !"Produit" %in% names(d)) return(list())
+  p <- as.character(d$Produit)
+  p[is.na(p) | !nzchar(trimws(p))] <- tr("Produit sans nom")
+  niv <- unique(p)
+  stats::setNames(lapply(niv, function(x) {
+    s <- d[p == x, , drop = FALSE]
+    rownames(s) <- NULL
+    hstat_dilution_affichage(s)
+  }), niv)
+}
+
 hstat_dilution_affichage <- function(d) {
   if (!is.data.frame(d) || !nrow(d)) return(d)
   nm  <- names(d)
@@ -972,15 +1005,15 @@ HSTAT_MERE_TESTS <- list(
     libelle   = "Application topique (dose par masse corporelle) — DL",
     grandeur  = "dose", unite = "µg/g", methode = "Application topique",
     protocole = "Test d'application topique — chenilles carpophages, matière active de grade technique",
-    solvant   = "Acétone", repetitions = 4L, individus = 10L, niveaux = 8L,
-    mere_premier = FALSE, seuil_rejet = 10, lectures = "24 h, 48 h et 72 h"),
+    solvant   = "Acétone", repetitions = 4L, individus = 10L, seuil_rejet = 10,
+    lectures = "24 h, 48 h et 72 h"),
   disque = list(
     libelle   = "Trempage de disques foliaires, IRAC 035 (concentration) — CL",
-    grandeur  = "concentration", unite = "mg/L",
+    grandeur  = "concentration", unite = "mg/l",
     methode   = "Trempage de disques foliaires (IRAC 035)",
     protocole = "Protocole IRAC 035, CNRA Bouaké — jassides (nymphes N3 et adultes)",
     solvant   = "Selon la formulation", repetitions = 4L, individus = 10L,
-    niveaux = 6L, mere_premier = TRUE, seuil_rejet = 10,
+    seuil_rejet = 10,
     lectures  = "24 h, 48 h, 72 h, 96 h et 120 h"),
   tube = list(
     libelle   = "Tubes imprégnés, vial test au champ (quantité par tube) — CL",
@@ -988,7 +1021,7 @@ HSTAT_MERE_TESTS <- list(
     methode   = "Tubes imprégnés (vial test)",
     protocole = "Surveillance de la résistance au champ de H. armigera aux pyréthrinoïdes",
     solvant   = "Acétone", repetitions = 1L, individus = 30L,
-    niveaux = 2L, mere_premier = FALSE, seuil_rejet = 10,
+    seuil_rejet = 10,
     lectures  = "24 h (et si possible 48 h)"))
 
 # Les choix du selecteur, derives du catalogue : une liste recopiee finirait
@@ -999,24 +1032,19 @@ HSTAT_MERE_TESTS_CHOIX <- stats::setNames(
 # Formulations : ce que porte l'etiquette decide de la conversion.
 HSTAT_MERE_PRODUITS <- c(
   "Matière active technique (pureté en %)"              = "technique",
-  "Formulation liquide en g/L de matière active"         = "liquide_gl",
+  "Formulation liquide en g/l de matière active"         = "liquide_gl",
   "Formulation solide en % massique (m/m)"               = "solide_pct",
   "Formulation liquide en % massique (m/m) + densité"    = "liquide_pct")
 
 HSTAT_MERE_FORMULES <- c(
-  topique     = "Q (µg) = D (µg/g) × x (g) × V (µL) × 100 ÷ [a (µL) × P (%)]",
-  topique_c   = "Concentration de la mère (µg m.a./µL) = D (µg/g) × x (g) ÷ a (µL)",
-  technique   = "m (mg) = C (mg/mL) × V (mL) ÷ (P / 100)",
-  controle    = "C réelle (mg/mL) = m (mg) × (P / 100) ÷ V final (mL)",
-  liquide_gl  = "Volume de formulation (mL) = C (mg/mL) × V (mL) ÷ Teneur (g/L), car 1 g/L = 1 mg/mL",
+  topique     = "Q (µg) = D (µg/g) × x (g) × V (µl) × 100 ÷ [a (µl) × P (%)]",
+  topique_c   = "Concentration de la mère (µg m.a./µl) = D (µg/g) × x (g) ÷ a (µl)",
+  technique   = "m (mg) = C (mg/ml) × V (ml) ÷ (P / 100)",
+  controle    = "C réelle (mg/ml) = m (mg) × (P / 100) ÷ V final (ml)",
+  liquide_gl  = "Volume de formulation (ml) = C (mg/ml) × V (ml) ÷ Teneur (g/l), car 1 g/l = 1 mg/ml",
   solide_pct  = "m formulation (mg) = m matière active cible (mg) ÷ (P / 100)",
-  liquide_pct = "Volume de formulation (mL) = m formulation (mg) ÷ [densité (g/mL) × 1000]",
-  tube        = "Q (mg) = C (mg) × 100 ÷ P (%) ; concentration de la mère (mg/mL) = C (mg) ÷ V (mL)",
-  tube_q      = "Quantité par tube (µg) = C mère (mg/mL) × Vi (mL) ÷ V fiole (mL) × V tube (mL) × 1000",
-  tube_vi     = "Vi (mL) = Quantité par tube (µg) × V fiole (mL) ÷ [C mère (mg/mL) × V tube (mL) × 1000]",
-  dilution    = "Ci × Vi = Cf × Vf, d'où Vi = Cf × Vf ÷ Ci",
-  serie       = "Cf (rang i) = C mère ÷ k^(i − 1)",
-  serie_filles = "Cf (rang i) = C mère ÷ k^i",
+  liquide_pct = "Volume de formulation (ml) = m formulation (mg) ÷ [densité (g/ml) × 1000]",
+  tube        = "Q (mg) = C (mg) × 100 ÷ P (%) ; concentration de la mère (mg/ml) = C (mg) ÷ V (ml)",
   abbott      = "Mortalité corrigée (%) = 100 × (mortalité traitement − mortalité témoin) ÷ (100 − mortalité témoin)")
 
 # Un nombre strictement positif et fini, ou NA. Une pesee ne se fait pas sur
@@ -1071,7 +1099,7 @@ hstat_mere_concentration <- function(C, V, produit = "technique", P = NA,
   if (identical(produit, "liquide_gl")) {
     t <- .hstat_mere_pos(teneur)
     if (is.na(t))
-      return(.hstat_mere_refus(tr("La teneur de la formulation (g/L) doit être un nombre strictement positif.")))
+      return(.hstat_mere_refus(tr("La teneur de la formulation (g/l) doit être un nombre strictement positif.")))
     res$v_formulation <- m_ma / t     # mL, car 1 g/L = 1 mg/mL
     return(res)
   }
@@ -1083,7 +1111,7 @@ hstat_mere_concentration <- function(C, V, produit = "technique", P = NA,
   if (identical(produit, "liquide_pct")) {
     d <- .hstat_mere_pos(densite)
     if (is.na(d))
-      return(.hstat_mere_refus(tr("Une formulation liquide en % massique demande sa densité (g/mL) pour passer de la masse au volume.")))
+      return(.hstat_mere_refus(tr("Une formulation liquide en % massique demande sa densité (g/ml) pour passer de la masse au volume.")))
     res$v_formulation <- res$m_pese / (d * 1000)
   }
   res
@@ -1101,66 +1129,6 @@ hstat_mere_tube <- function(C, V, P) {
   if (is.na(P))
     return(.hstat_mere_refus(tr("La pureté doit être comprise entre 0 (exclu) et 100 %.")))
   list(ok = TRUE, Q_mg = C * 100 / P, c_mere = C / V)
-}
-
-# Quantite deposee dans un tube, et son inverse : le volume a prelever dans
-# la mere pour la fiole. 1 mL de mere a 1,2 mg/mL dans 100 mL, 0,5 mL par
-# tube -> 6 µg ; 5 mL -> 30 µg (tubes rouges et noirs du protocole).
-hstat_mere_tube_quantite <- function(c_mere, v_preleve, v_fiole, v_tube)
-  c_mere * v_preleve / v_fiole * v_tube * 1000
-
-hstat_mere_tube_preleve <- function(q, c_mere, v_fiole, v_tube) {
-  q <- suppressWarnings(as.numeric(q))
-  ok <- is.finite(q) & q > 0
-  c_mere <- .hstat_mere_pos(c_mere); v_fiole <- .hstat_mere_pos(v_fiole)
-  v_tube <- .hstat_mere_pos(v_tube)
-  if (!any(ok) || anyNA(c(c_mere, v_fiole, v_tube)))
-    return(data.frame(Quantite = numeric(0), Volume_mere = numeric(0),
-                      Solvant = numeric(0), Possible = logical(0)))
-  q <- q[ok]
-  vi <- q * v_fiole / (c_mere * v_tube * 1000)
-  # Un prelevement plus grand que la fiole n'est pas une dilution : la mere
-  # est trop faible pour cette quantite, et on le dit au lieu d'un solvant
-  # negatif.
-  data.frame(Quantite = q, Volume_mere = vi, Solvant = v_fiole - vi,
-             Possible = vi <= v_fiole, stringsAsFactors = FALSE)
-}
-
-# -- La serie des solutions filles ----------------------------------------------
-# Rang i : Cf = C mere / k^(i-1) quand la mere est le premier niveau teste
-# (formule du protocole IRAC 035) ; Cf = C mere / k^i quand les filles seules
-# sont testees (« huit doses de solutions filles », application topique).
-# `niveau_haut` porte la grandeur publiee (µg/g, mg/L) : elle suit le meme
-# facteur que la concentration, une dilution ne change que le rapport.
-# Vi se lit TOUJOURS sur la mere -- la regle de la gamme de dilutions
-# de ce module.
-hstat_mere_serie <- function(c_mere, niveau_haut, k, n, v_final,
-                             mere_premier = TRUE, v_min = NA) {
-  c_mere <- .hstat_mere_pos(c_mere); niveau_haut <- .hstat_mere_pos(niveau_haut)
-  k <- suppressWarnings(as.numeric(k)[1]); v_final <- .hstat_mere_pos(v_final)
-  n <- suppressWarnings(as.integer(n)[1])
-  vide <- data.frame(Rang = integer(0), Facteur = numeric(0), Niveau = numeric(0),
-                     Concentration = numeric(0), Volume_mere = numeric(0),
-                     Solvant = numeric(0), Pipetable = logical(0))
-  if (anyNA(c(c_mere, niveau_haut, v_final)) || !is.finite(k) || k <= 1 ||
-      is.na(n) || n < 1L)
-    return(structure(vide, motif = tr("La série demande une concentration mère, un volume final positifs, un coefficient de dilution supérieur à 1 et au moins un niveau.")))
-  n <- min(n, 20L)
-  i <- seq_len(n)
-  expo <- if (isTRUE(mere_premier)) i - 1L else i
-  f <- k^expo
-  vi <- v_final / f
-  vm <- suppressWarnings(as.numeric(v_min)[1])
-  d <- data.frame(Rang = i, Facteur = f, Niveau = niveau_haut / f,
-                  Concentration = c_mere / f, Volume_mere = vi,
-                  Solvant = v_final - vi,
-                  Pipetable = if (is.finite(vm) && vm > 0) vi >= vm else TRUE)
-  # Un prelevement sous la plage de la micropipette est imprecis : le
-  # protocole IRAC 035 demande alors une dilution intermediaire validee.
-  if (!all(d$Pipetable))
-    attr(d, "avertissement") <- trf("%d niveau(x) demande(nt) un prélèvement inférieur à %s : préparez une dilution intermédiaire validée plutôt qu'un prélèvement imprécis.",
-                                    sum(!d$Pipetable), format(vm))
-  d
 }
 
 
@@ -1205,19 +1173,19 @@ mod_dosage_ui <- function(id) {
               shiny::column(7, shiny::numericInput(ns("doseConc"),
                 "Concentration en matière active", value = 400, min = 0, step = 1)),
               shiny::column(5, shiny::selectInput(ns("doseConcUnite"), "Unité",
-                choices = hstat_unites_choix("concentration"), selected = "g/L"))),
+                choices = hstat_unites_choix("concentration"), selected = "g/l"))),
             # Les deux ponts entre familles d'unites. Facultatifs : ils ne
             # servent que si la dose et la concentration ne parlent pas de la
             # meme chose (mL/ha et g/kg), ou si la concentration est molaire.
             shiny::fluidRow(
               shiny::column(6, shiny::numericInput(ns("doseDensite"),
-                "Masse volumique du produit (kg/L)", value = NULL, min = 0, step = 0.01)),
+                "Masse volumique du produit (kg/l)", value = NULL, min = 0, step = 0.01)),
               shiny::column(6, shiny::numericInput(ns("doseMasseMol"),
                 "Masse molaire de la m.a. (g/mol)", value = NULL, min = 0, step = 0.1))),
-            shiny::helpText("Facultatives. La masse volumique (= densité, en g/mL) relie une",
+            shiny::helpText("Facultatives. La masse volumique (= densité, en g/ml) relie une",
                             " dose en volume à une concentration en masse par masse",
                             " (g/kg, % m/m) ; la masse molaire relie une concentration",
-                            " molaire (mol/L, mM) à des grammes."),
+                            " molaire (mol/l, mM) à des grammes."),
 
             shiny::hr(),
             shiny::radioButtons(ns("doseSens"), "Ce que vous connaissez",
@@ -1232,7 +1200,7 @@ mod_dosage_ui <- function(id) {
                 shiny::column(7, shiny::numericInput(ns("doseValeur"),
                   "Dose homologuée", value = 250, min = 0, step = 1)),
                 shiny::column(5, shiny::selectInput(ns("doseUnite"), "Unité",
-                  choices = hstat_unites_choix("dose"), selected = "mL/ha")))),
+                  choices = hstat_unites_choix("dose"), selected = "ml/ha")))),
             shiny::conditionalPanel(
               condition = sprintf("input['%s'] == 'grammage'", ns("doseSens")),
               shiny::fluidRow(
@@ -1257,7 +1225,7 @@ mod_dosage_ui <- function(id) {
               shiny::column(7, shiny::numericInput(ns("doseBouillie"),
                 "Volume de bouillie", value = 60, min = 0, step = 5)),
               shiny::column(5, shiny::selectInput(ns("doseBouillieUnite"), "Unité",
-                choices = hstat_unites_choix("dose", "L/ha"), selected = "L/ha"))),
+                choices = hstat_unites_choix("dose", "l/ha"), selected = "l/ha"))),
             shiny::helpText("L'eau apportée à la surface. Elle ne change pas le grammage,",
                             " seulement la concentration de ce qu'il y a dans la cuve."),
             shiny::fluidRow(
@@ -1269,7 +1237,7 @@ mod_dosage_ui <- function(id) {
               shiny::column(7, shiny::numericInput(ns("doseCuve"),
                 "Volume de la cuve ou du pulvérisateur", value = 15, min = 0, step = 1)),
               shiny::column(5, shiny::selectInput(ns("doseCuveUnite"), "Unité",
-                choices = hstat_unites_choix("volume"), selected = "L"))),
+                choices = hstat_unites_choix("volume"), selected = "l"))),
             shiny::helpText("Facultatif. Renseigné, il donne la quantité de produit",
                             " par cuve et le nombre de cuves à préparer.")),
 
@@ -1293,8 +1261,71 @@ mod_dosage_ui <- function(id) {
                                   class = "btn-sm")))),
 
       # ------------------------------------------------------------------
+      # LA SOLUTION MERE SE PREPARE AVANT L'ESSAI, et le type de test decide
+      # de sa formule comme de la grandeur publiee (DL ou CL). Les formules
+      # sont celles des protocoles, affichees a cote de chaque chiffre.
       shiny::tabPanel(
-        shiny::tagList(shiny::icon("vials"), " Solutions filles (dilutions)"),
+        shiny::tagList(shiny::icon("flask"), " Solution mère"), value = "mere",
+        shiny::div(style = "padding-top:14px;"),
+        shiny::fluidRow(
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("vial"), " Type de test"),
+            status = "primary", width = 4, solidHeader = TRUE,
+            shiny::selectInput(ns("mereTest"), "Type de test",
+                               choices = HSTAT_MERE_TESTS_CHOIX, selected = "topique"),
+            shiny::uiOutput(ns("mereTestFiche"))),
+          shinydashboard::box(
+            title = shiny::tagList(shiny::icon("scale-balanced"), " Calcul de la solution mère"),
+            status = "info", width = 8, solidHeader = TRUE,
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s'] == 'topique'", ns("mereTest")),
+              shiny::fluidRow(
+                shiny::column(4, .hstat_mere_champ(ns, "mereTopD", "Dose cible D", 1, "concentration", "g/kg", "µg/g")),
+                shiny::column(4, .hstat_mere_champ(ns, "mereTopX", "Masse moyenne de l'insecte x", 0.05, "masse", NULL, "g")),
+                shiny::column(4, shiny::numericInput(ns("mereTopP"), "Pureté P (%)", value = 95, min = 0, max = 100))),
+              shiny::fluidRow(
+                shiny::column(4, .hstat_mere_champ(ns, "mereTopV", "Volume final de la mère V", 50, "volume", NULL, "ml")),
+                shiny::column(4, .hstat_mere_champ(ns, "mereTopA", "Volume appliqué par insecte a", 1, "volume", NULL, "µl"))),
+              shiny::helpText("La masse moyenne x s'obtient en pesant 10 chenilles. Chaque valeur se saisit dans l'unité choisie à côté d'elle ; les formules et les résultats restent dans les unités du protocole.")),
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s'] == 'disque'", ns("mereTest")),
+              shiny::fluidRow(
+                shiny::column(6, shiny::selectInput(ns("mereProduit"), "Produit utilisé",
+                                                    choices = HSTAT_MERE_PRODUITS, selected = "technique")),
+                shiny::column(3, .hstat_mere_champ(ns, "mereDisC", "Concentration de la mère C", 1, "concentration", "g/l", "mg/ml")),
+                shiny::column(3, .hstat_mere_champ(ns, "mereDisV", "Volume final V", 50, "volume", NULL, "ml"))),
+              shiny::fluidRow(
+                shiny::conditionalPanel(
+                  condition = sprintf("input['%s'] != 'liquide_gl'", ns("mereProduit")),
+                  shiny::column(4, shiny::numericInput(ns("mereDisP"), "Pureté ou teneur P (%)", value = 95, min = 0, max = 100))),
+                shiny::conditionalPanel(
+                  condition = sprintf("input['%s'] == 'liquide_gl'", ns("mereProduit")),
+                  shiny::column(4, .hstat_mere_champ(ns, "mereDisTeneur", "Teneur de la formulation", 100, "concentration", "g/l", "g/l"))),
+                shiny::conditionalPanel(
+                  condition = sprintf("input['%s'] == 'liquide_pct'", ns("mereProduit")),
+                  shiny::column(4, shiny::numericInput(ns("mereDisDensite"), "Densité de la formulation (g/ml)", value = 1, min = 0)))),
+              shiny::helpText("Ne pas assimiler un % m/m à des g/l sans la densité. Le solvant est ajouté jusqu'au volume final, sans confondre volume de solvant ajouté et volume final.")),
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s'] == 'tube'", ns("mereTest")),
+              shiny::fluidRow(
+                shiny::column(4, .hstat_mere_champ(ns, "mereTubC", "Matière active pure dans la mère C", 12, "masse", NULL, "mg")),
+                shiny::column(4, .hstat_mere_champ(ns, "mereTubV", "Volume d'acétone V", 10, "volume", NULL, "ml")),
+                shiny::column(4, shiny::numericInput(ns("mereTubP"), "Pureté P (%)", value = 90, min = 0, max = 100)))),
+            shiny::uiOutput(ns("mereResultat")),
+            # La gamme se prepare dans l'onglet des dilutions, qui sait deja
+            # tout faire : prelevement dans la mere, eau a ajouter, besoin en
+            # solution mere, plusieurs produits. Une seconde gamme ici en
+            # aurait fait deux, et c'est la copie oubliee qui ment.
+            shiny::actionButton(ns("mereVersDilution"),
+              shiny::tagList(shiny::icon("share"),
+                             " Utiliser cette solution mère dans « Solutions filles (dilutions) »"),
+              class = "btn-primary"),
+            shiny::helpText("La concentration calculée est reprise comme concentration",
+                            " mère d'une gamme de dilutions, en mg/ml.")))),
+
+      # ------------------------------------------------------------------
+      shiny::tabPanel(
+        shiny::tagList(shiny::icon("vials"), " Solutions filles (dilutions)"), value = "dilution",
         shiny::div(style = "padding-top:14px;"),
 
         shiny::fluidRow(
@@ -1308,17 +1339,17 @@ mod_dosage_ui <- function(id) {
                 "Nombre de matières actives", value = 1, min = 1, max = 10, step = 1)),
               shiny::column(6, shiny::selectInput(ns("dilUnite"),
                 "Unité de concentration", choices = hstat_unites_choix("concentration"),
-                selected = "g/L"))),
+                selected = "g/l"))),
             shiny::numericInput(ns("dilDensite"),
-              "Masse volumique de la solution mère (kg/L, facultative)",
+              "Masse volumique de la solution mère (kg/l, facultative)",
               value = NULL, min = 0, step = 0.01),
             shiny::helpText("Une concentration mère par matière active : c'est ce qui",
                             " permet de détailler chaque fille et d'en donner la",
                             " concentration totale."),
             shiny::uiOutput(ns("dilMaUi")),
             shiny::helpText(shiny::strong("Masse volumique et masse molaire : facultatives."),
-                            " Elles ramènent en g/L une concentration en masse par masse",
-                            " (g/kg, % m/m) ou molaire (mol/L, mM) : c'est ce qui permet de",
+                            " Elles ramènent en g/l une concentration en masse par masse",
+                            " (g/kg, % m/m) ou molaire (mol/l, mM) : c'est ce qui permet de",
                             " sommer les matières actives et de convertir les concentrations."),
             shiny::helpText(shiny::strong("Concentration de départ : facultative."),
                             " Laissée vide, la première fille vaut la mère divisée par",
@@ -1333,7 +1364,7 @@ mod_dosage_ui <- function(id) {
             shiny::fluidRow(
               shiny::column(7, shiny::selectInput(ns("dilSource"), "Valeur à reprendre",
                 choices = c("Concentration du produit commercial" = "conc_produit",
-                            "Concentration de la bouillie (g m.a./L)" = "conc_bouillie",
+                            "Concentration de la bouillie (g m.a./l)" = "conc_bouillie",
                             "Grammage à l'hectare (g m.a./ha)" = "grammage"),
                 selected = "conc_bouillie")),
               shiny::column(5, shiny::div(style = "margin-top:26px;",
@@ -1354,7 +1385,7 @@ mod_dosage_ui <- function(id) {
               shiny::column(7, shiny::numericInput(ns("dilVf"),
                 "Volume final de chaque fille (Vf)", value = 100, min = 0, step = 10)),
               shiny::column(5, shiny::selectInput(ns("dilVfUnite"), "Unité",
-                choices = hstat_unites_choix("volume"), selected = "mL"))),
+                choices = hstat_unites_choix("volume"), selected = "ml"))),
             shiny::hr(),
             # Deux reglages d'AFFICHAGE : ils ne changent aucun calcul, ils
             # changent ce qu'on peut en lire.
@@ -1369,7 +1400,7 @@ mod_dosage_ui <- function(id) {
                             " chacune dans sa colonne et avec son unité."),
             shiny::numericInput(ns("dilDecimales"), "Chiffres après la virgule",
               value = 4, min = 0, max = HSTAT_DEC_MAX, step = 1),
-            shiny::helpText("Une gamme profonde descend vite : au 1/10 depuis 100 g/L,",
+            shiny::helpText("Une gamme profonde descend vite : au 1/10 depuis 100 g/l,",
                             " la 5e fille vaut 0,001. Au-delà de 15 décimales un nombre",
                             " à virgule flottante ne porte plus d'information ;",
                             " une valeur trop petite pour l'affichage choisi passe",
@@ -1429,82 +1460,6 @@ mod_dosage_ui <- function(id) {
                                   class = "btn-sm")))),
 
       # ------------------------------------------------------------------
-      # LA SOLUTION MERE SE PREPARE AVANT L'ESSAI, et le type de test decide
-      # de sa formule comme de la grandeur publiee (DL ou CL). Les formules
-      # sont celles des protocoles, affichees a cote de chaque chiffre.
-      shiny::tabPanel(
-        shiny::tagList(shiny::icon("flask"), " Solution mère"),
-        shiny::div(style = "padding-top:14px;"),
-        shiny::fluidRow(
-          shinydashboard::box(
-            title = shiny::tagList(shiny::icon("vial"), " Type de test"),
-            status = "primary", width = 4, solidHeader = TRUE,
-            shiny::selectInput(ns("mereTest"), "Type de test",
-                               choices = HSTAT_MERE_TESTS_CHOIX, selected = "topique"),
-            shiny::uiOutput(ns("mereTestFiche"))),
-          shinydashboard::box(
-            title = shiny::tagList(shiny::icon("scale-balanced"), " Calcul de la solution mère"),
-            status = "info", width = 8, solidHeader = TRUE,
-            shiny::conditionalPanel(
-              condition = sprintf("input['%s'] == 'topique'", ns("mereTest")),
-              shiny::fluidRow(
-                shiny::column(4, .hstat_mere_champ(ns, "mereTopD", "Dose cible D", 1, "concentration", "g/kg", "µg/g")),
-                shiny::column(4, .hstat_mere_champ(ns, "mereTopX", "Masse moyenne de l'insecte x", 0.05, "masse", NULL, "g")),
-                shiny::column(4, shiny::numericInput(ns("mereTopP"), "Pureté P (%)", value = 95, min = 0, max = 100))),
-              shiny::fluidRow(
-                shiny::column(4, .hstat_mere_champ(ns, "mereTopV", "Volume final de la mère V", 50, "volume", NULL, "mL")),
-                shiny::column(4, .hstat_mere_champ(ns, "mereTopA", "Volume appliqué par insecte a", 1, "volume", NULL, "µL"))),
-              shiny::helpText("La masse moyenne x s'obtient en pesant 10 chenilles. Chaque valeur se saisit dans l'unité choisie à côté d'elle ; les formules et les résultats restent dans les unités du protocole.")),
-            shiny::conditionalPanel(
-              condition = sprintf("input['%s'] == 'disque'", ns("mereTest")),
-              shiny::fluidRow(
-                shiny::column(6, shiny::selectInput(ns("mereProduit"), "Produit utilisé",
-                                                    choices = HSTAT_MERE_PRODUITS, selected = "technique")),
-                shiny::column(3, .hstat_mere_champ(ns, "mereDisC", "Concentration de la mère C", 1, "concentration", "g/L", "mg/mL")),
-                shiny::column(3, .hstat_mere_champ(ns, "mereDisV", "Volume final V", 50, "volume", NULL, "mL"))),
-              shiny::fluidRow(
-                shiny::conditionalPanel(
-                  condition = sprintf("input['%s'] != 'liquide_gl'", ns("mereProduit")),
-                  shiny::column(4, shiny::numericInput(ns("mereDisP"), "Pureté ou teneur P (%)", value = 95, min = 0, max = 100))),
-                shiny::conditionalPanel(
-                  condition = sprintf("input['%s'] == 'liquide_gl'", ns("mereProduit")),
-                  shiny::column(4, .hstat_mere_champ(ns, "mereDisTeneur", "Teneur de la formulation", 100, "concentration", "g/L", "g/L"))),
-                shiny::conditionalPanel(
-                  condition = sprintf("input['%s'] == 'liquide_pct'", ns("mereProduit")),
-                  shiny::column(4, shiny::numericInput(ns("mereDisDensite"), "Densité de la formulation (g/mL)", value = 1, min = 0)))),
-              shiny::helpText("Ne pas assimiler un % m/m à des g/L sans la densité. Le solvant est ajouté jusqu'au volume final, sans confondre volume de solvant ajouté et volume final.")),
-            shiny::conditionalPanel(
-              condition = sprintf("input['%s'] == 'tube'", ns("mereTest")),
-              shiny::fluidRow(
-                shiny::column(4, .hstat_mere_champ(ns, "mereTubC", "Matière active pure dans la mère C", 12, "masse", NULL, "mg")),
-                shiny::column(4, .hstat_mere_champ(ns, "mereTubV", "Volume d'acétone V", 10, "volume", NULL, "mL")),
-                shiny::column(4, shiny::numericInput(ns("mereTubP"), "Pureté P (%)", value = 90, min = 0, max = 100)))),
-            shiny::uiOutput(ns("mereResultat")))),
-        shiny::fluidRow(
-          shinydashboard::box(
-            title = shiny::tagList(shiny::icon("layer-group"), " Solutions filles"),
-            status = "success", width = 12, solidHeader = TRUE,
-            shiny::conditionalPanel(
-              condition = sprintf("input['%s'] != 'tube'", ns("mereTest")),
-              shiny::fluidRow(
-                shiny::column(3, shiny::numericInput(ns("mereK"), "Coefficient de dilution k", value = 2, min = 1)),
-                shiny::column(3, shiny::numericInput(ns("mereN"), "Nombre de niveaux", value = 8, min = 1, max = 20)),
-                shiny::column(3, .hstat_mere_champ(ns, "mereVf", "Volume final de chaque fille", 10, "volume", NULL, "mL")),
-                shiny::column(3, .hstat_mere_champ(ns, "mereVmin", "Plus petit volume pipetable", 0.01, "volume", NULL, "mL"))),
-              shiny::checkboxInput(ns("mereMerePremier"), "La solution mère est le premier niveau testé (rang 1)", value = FALSE)),
-            shiny::conditionalPanel(
-              condition = sprintf("input['%s'] == 'tube'", ns("mereTest")),
-              shiny::fluidRow(
-                shiny::column(4, shiny::fluidRow(
-                  shiny::column(7, shiny::textInput(ns("mereTubQ"), "Quantités par tube, séparées par « ; »", value = "6 ; 30")),
-                  shiny::column(5, shiny::selectInput(ns("mereTubQUnite"), "Unité",
-                    choices = hstat_unites_choix("masse"), selected = "µg")))),
-                shiny::column(4, .hstat_mere_champ(ns, "mereTubFiole", "Volume de la fiole", 100, "volume", NULL, "mL")),
-                shiny::column(4, .hstat_mere_champ(ns, "mereTubTube", "Volume déposé par tube", 0.5, "volume", NULL, "mL")))),
-            shiny::uiOutput(ns("mereSerieNote")),
-            DT::DTOutput(ns("mereSerie"))))),
-
-      # ------------------------------------------------------------------
       # LE CONVERTISSEUR : une valeur, toutes ses ecritures. Il lit le meme
       # catalogue que les trois autres onglets -- une table de conversion
       # recopiee ici finirait par contredire celle des calculs.
@@ -1521,14 +1476,14 @@ mod_dosage_ui <- function(id) {
               shiny::column(7, shiny::numericInput(ns("convValeur"), "Valeur",
                                                    value = 1, min = 0)),
               shiny::column(5, shiny::selectInput(ns("convUnite"), "Unité",
-                choices = hstat_unites_choix(c("masse", "volume")), selected = "L"))),
+                choices = hstat_unites_choix(c("masse", "volume")), selected = "l"))),
             shiny::numericInput(ns("convDensite"),
-              "Masse volumique du produit (kg/L, facultative)", value = NULL, min = 0, step = 0.01),
+              "Masse volumique du produit (kg/l, facultative)", value = NULL, min = 0, step = 0.01),
             shiny::numericInput(ns("convMasseMol"),
               "Masse molaire de la matière active (g/mol, facultative)", value = NULL,
               min = 0, step = 0.1),
             shiny::helpText("Une masse ne devient un volume — une dose en kg/ha une dose en",
-                            " L/ha, une concentration m/m une concentration m/v — qu'avec la",
+                            " l/ha, une concentration m/m une concentration m/v — qu'avec la",
                             " masse volumique du produit. Une concentration molaire ne devient",
                             " des grammes qu'avec la masse molaire. Sans elles, la conversion",
                             " est refusée et dit ce qui manque : une valeur de 1 posée par",
@@ -1564,10 +1519,10 @@ mod_dosage_server <- function(id, values) {
       hstat_dose_bilan(
         sens            = sens,
         valeur          = if (identical(sens, "dose")) input$doseValeur else input$doseGrammage,
-        unite_valeur    = if (identical(sens, "dose")) (input$doseUnite %||% "mL/ha")
+        unite_valeur    = if (identical(sens, "dose")) (input$doseUnite %||% "ml/ha")
                           else (input$doseGrammageUnite %||% "g/ha"),
         concentration   = input$doseConc,
-        unite_concentration = input$doseConcUnite %||% "g/L",
+        unite_concentration = input$doseConcUnite %||% "g/l",
         volume_bouillie = input$doseBouillie,
         superficie      = input$doseSurface,
         volume_cuve     = input$doseCuve,
@@ -1575,9 +1530,9 @@ mod_dosage_server <- function(id, values) {
         matiere         = input$doseMatiere %||% "",
         densite         = input$doseDensite,
         masse_molaire   = input$doseMasseMol,
-        unite_bouillie  = input$doseBouillieUnite %||% "L/ha",
+        unite_bouillie  = input$doseBouillieUnite %||% "l/ha",
         unite_superficie = input$doseSurfaceUnite %||% "ha",
-        unite_cuve      = input$doseCuveUnite %||% "L",
+        unite_cuve      = input$doseCuveUnite %||% "l",
         sortie_dose     = input$doseSortieDose %||% "",
         sortie_grammage = input$doseSortieGrammage %||% "")
     })
@@ -1625,14 +1580,14 @@ mod_dosage_server <- function(id, values) {
     shiny::observeEvent(input$convCategorie, {
       cats <- .conv_cats(input$convCategorie)
       dispo <- .hstat_unites_de(cats)$unite
-      defaut <- switch(input$convCategorie %||% "quantite", quantite = "L",
-                       surface = "ha", dose = "L/ha", concentration = "g/L", dispo[1])
+      defaut <- switch(input$convCategorie %||% "quantite", quantite = "l",
+                       surface = "ha", dose = "l/ha", concentration = "g/l", dispo[1])
       shiny::updateSelectInput(session, "convUnite", choices = hstat_unites_choix(cats),
         selected = hstat_garder_choix(shiny::isolate(input$convUnite), dispo, defaut))
     }, ignoreInit = TRUE)
 
     conv_res <- shiny::reactive({
-      hstat_unite_table(input$convValeur, input$convUnite %||% "L",
+      hstat_unite_table(input$convValeur, input$convUnite %||% "l",
                         input$convDensite, input$convMasseMol)
     })
     output$convMessage <- shiny::renderUI(bandeau(attr(conv_res(), "message")))
@@ -1666,9 +1621,17 @@ mod_dosage_server <- function(id, values) {
     # Une unite MOLAIRE ajoute une colonne : la masse molaire, propre a chaque
     # matiere active. Offerte pour une unite en g/L, elle serait un reglage
     # que le calcul ignore.
-    dil_molaire <- shiny::reactive({
-      b <- hstat_unite_info(input$dilUnite %||% "g/L")
-      !is.null(b) && identical(b$base, "mol/L")
+    #
+    # Un reactiveVal, pas un reactive : il ne change -- et ne fait reconstruire
+    # les champs -- que si l'on passe d'une unite massique a une unite molaire.
+    # Un reactive se reinvaliderait a CHAQUE changement d'unite, et la
+    # reconstruction relirait les champs avant que la valeur reprise de la
+    # solution mere n'y soit posee : elle serait effacee.
+    dil_molaire <- shiny::reactiveVal(FALSE)
+    shiny::observe({
+      b <- hstat_unite_info(input$dilUnite %||% "g/l")
+      v <- !is.null(b) && identical(b$base, "mol/l")
+      if (!identical(v, shiny::isolate(dil_molaire()))) dil_molaire(v)
     })
     output$dilMaUi <- shiny::renderUI({
       n <- max(1L, min(10L, as.integer(.hstat_num1(input$dilNbMa, 1))))
@@ -1695,6 +1658,10 @@ mod_dosage_server <- function(id, values) {
             value = if (is.null(mm)) NA_real_ else mm, min = 0, step = 0.1)))
       })
     })
+    # Rendu meme quand l'onglet est cache : la solution mere y depose sa
+    # concentration depuis l'onglet voisin, et un champ qui n'existe pas encore
+    # ne recoit pas la mise a jour.
+    shiny::outputOptions(output, "dilMaUi", suspendWhenHidden = FALSE)
 
     # -- Reprise du calcul de dose ----------------------------------------
     # L'utilisateur a deja saisi son produit dans l'onglet precedent : lui
@@ -1712,13 +1679,13 @@ mod_dosage_server <- function(id, values) {
       # Le volume de bouillie se saisit dans l'unite choisie : il est ramene
       # au litre par hectare avant de diviser le grammage.
       vb  <- hstat_unite_convertir(.hstat_num1(input$doseBouillie, NA_real_),
-                                   input$doseBouillieUnite %||% "L/ha", "L/ha")[1]
+                                   input$doseBouillieUnite %||% "l/ha", "l/ha")[1]
       val <- switch(src,
         conc_produit  = .hstat_num1(input$doseConc, NA_real_),
         grammage      = attr(d, "grammage"),
         conc_bouillie = if (isTRUE(is.finite(vb)) && vb > 0)
                           attr(d, "grammage") / vb else NA_real_)
-      unite <- if (identical(src, "conc_produit")) (input$doseConcUnite %||% "g/L") else "g/L"
+      unite <- if (identical(src, "conc_produit")) (input$doseConcUnite %||% "g/l") else "g/l"
       if (!isTRUE(is.finite(val))) {
         shiny::showNotification(
           tr("Valeur non calculable : renseignez le volume de bouillie dans l'onglet « Dose et grammage à l'hectare »."),
@@ -1772,11 +1739,11 @@ mod_dosage_server <- function(id, values) {
         Matiere_active       = mas,
         Concentration_mere   = cnc,
         Concentration_depart = dep,
-        Unite                = rep(input$dilUnite %||% "g/L", n),
+        Unite                = rep(input$dilUnite %||% "g/l", n),
         Coefficient          = rep(.hstat_num1(input$dilCoef, NA_real_), n),
         Nb_filles            = rep(.hstat_num1(input$dilNb, 1), n),
         Volume_final         = rep(.hstat_num1(input$dilVf, NA_real_), n),
-        Unite_volume         = rep(input$dilVfUnite %||% "mL", n),
+        Unite_volume         = rep(input$dilVfUnite %||% "ml", n),
         Densite              = rep(.hstat_num1(input$dilDensite, NA_real_), n),
         Masse_molaire        = if (dil_molaire()) vapply(seq_len(n), function(i)
                                  .hstat_num1(input[[paste0("dilMaMol", i)]], NA_real_),
@@ -1845,7 +1812,7 @@ mod_dosage_server <- function(id, values) {
                      bandeau(attr(dilution(), "avertissement")))
     })
 
-    dil_affiche <- shiny::reactive({
+    dil_forme <- shiny::reactive({
       d <- dilution()
       if (!is.data.frame(d) || !nrow(d)) return(NULL)
       # La conversion vient AVANT la mise en forme : convertir des chaines
@@ -1857,7 +1824,11 @@ mod_dosage_server <- function(id, values) {
                          as.integer(.hstat_num1(input$dilDecimales, 4))))
       num <- vapply(d, is.numeric, logical(1))
       d[num] <- lapply(d[num], function(x) hstat_fmt_nb(x, dec))
-      hstat_dilution_affichage(d)
+      d
+    })
+    dil_affiche <- shiny::reactive({
+      d <- dil_forme()
+      if (is.null(d)) NULL else hstat_dilution_affichage(d)
     })
 
     output$dilTable <- DT::renderDT({
@@ -1871,12 +1842,15 @@ mod_dosage_server <- function(id, values) {
 
     # Les formules partent AVEC les resultats : un fichier de dilutions sans
     # ses formules oblige a rouvrir l'application pour savoir ce qu'il dit.
+    # UNE FEUILLE PAR PRODUIT : la gamme d'un produit se prepare a part, et un
+    # classeur ou trois produits s'enchainent sur une seule feuille oblige a
+    # trier avant de peser. Les formules suivent sur leur propre feuille.
     dil_tables <- function() {
-      d <- dil_affiche()
+      d <- dil_forme()
       if (is.null(d)) return(NULL)
-      list("Solutions_filles" = d,
-           "Formules" = data.frame(Formule = attr(dilution(), "formules"),
-                                   stringsAsFactors = FALSE))
+      c(hstat_dilution_feuilles(d),
+        list("Formules" = data.frame(Formule = attr(dilution(), "formules"),
+                                     stringsAsFactors = FALSE)))
     }
     output$dilDlCsv  <- hstat_csv_handler(dil_tables, "solutions_filles")
     output$dilDlXlsx <- hstat_classeur_handler(dil_tables, "solutions_filles")
@@ -1887,18 +1861,12 @@ mod_dosage_server <- function(id, values) {
     }, ignoreInit = TRUE)
 
     # -- La solution mere ------------------------------------------------------
-    # Le type de test choisi propose ses valeurs du protocole (nombre de
-    # niveaux, mere comprise ou non) ; elles restent modifiables. Un nom
-    # inconnu retombe sur l'application topique plutot que de lever.
+    # Un nom de test inconnu retombe sur l'application topique plutot que de
+    # lever.
     mere_test <- shiny::reactive({
       t <- input$mereTest %||% "topique"
       if (length(t) && t[1] %in% names(HSTAT_MERE_TESTS)) t[1] else "topique"
     })
-    shiny::observeEvent(mere_test(), {
-      tt <- HSTAT_MERE_TESTS[[mere_test()]]
-      shiny::updateNumericInput(session, "mereN", value = tt$niveaux)
-      shiny::updateCheckboxInput(session, "mereMerePremier", value = isTRUE(tt$mere_premier))
-    }, ignoreInit = TRUE)
 
     output$mereTestFiche <- shiny::renderUI({
       tt <- HSTAT_MERE_TESTS[[mere_test()]]
@@ -1927,15 +1895,15 @@ mod_dosage_server <- function(id, values) {
       switch(mere_test(),
         topique = hstat_mere_topique(
           D = .mere_val("mereTopD", "µg/g"), x = .mere_val("mereTopX", "g"),
-          V = .mere_val("mereTopV", "µL"),
-          a = .mere_val("mereTopA", "µL"), P = input$mereTopP),
+          V = .mere_val("mereTopV", "µl"),
+          a = .mere_val("mereTopA", "µl"), P = input$mereTopP),
         disque = hstat_mere_concentration(
-          C = .mere_val("mereDisC", "mg/mL"), V = .mere_val("mereDisV", "mL"),
+          C = .mere_val("mereDisC", "mg/ml"), V = .mere_val("mereDisV", "ml"),
           produit = input$mereProduit %||% "technique",
-          P = input$mereDisP, teneur = .mere_val("mereDisTeneur", "g/L"),
+          P = input$mereDisP, teneur = .mere_val("mereDisTeneur", "g/l"),
           densite = input$mereDisDensite),
         tube = hstat_mere_tube(C = .mere_val("mereTubC", "mg"),
-                               V = .mere_val("mereTubV", "mL"),
+                               V = .mere_val("mereTubV", "ml"),
                                P = input$mereTubP))
     })
 
@@ -1953,7 +1921,7 @@ mod_dosage_server <- function(id, values) {
           .mere_ligne(tr("Matière active technique à peser"),
                       trf("%s µg (%s mg)", hstat_fmt_nb(r$Q_ug, 2), hstat_fmt_nb(r$Q_mg, 4)), FM[["topique"]]),
           .mere_ligne(tr("Concentration de la mère"),
-                      trf("%s µg m.a./µL", hstat_fmt_nb(r$c_mere, 6)), FM[["topique_c"]]),
+                      trf("%s µg m.a./µl", hstat_fmt_nb(r$c_mere, 6)), FM[["topique_c"]]),
           .mere_ligne(tr("Quantité déposée sur chaque insecte"),
                       paste(hstat_fmt_nb(r$dose_individu, 6), "µg"), "D × x")),
         disque = c(
@@ -1963,78 +1931,45 @@ mod_dosage_server <- function(id, values) {
             .mere_ligne(tr("Produit à peser"), paste(hstat_fmt_nb(r$m_pese, 4), "mg"),
                         if (identical(r$produit, "technique")) FM[["technique"]] else FM[["solide_pct"]]),
             .mere_ligne(tr("Concentration réelle (contrôle)"),
-                        paste(hstat_fmt_nb(r$c_reelle, 6), "mg/mL"), FM[["controle"]])),
+                        paste(hstat_fmt_nb(r$c_reelle, 6), "mg/ml"), FM[["controle"]])),
           if (!is.null(r$v_formulation)) list(
             .mere_ligne(tr("Volume de formulation à prélever"),
-                        paste(hstat_fmt_nb(r$v_formulation, 4), "mL"),
+                        paste(hstat_fmt_nb(r$v_formulation, 4), "ml"),
                         if (identical(r$produit, "liquide_gl")) FM[["liquide_gl"]] else FM[["liquide_pct"]])),
           list(.mere_ligne(tr("Concentration de la mère"),
-                           trf("%s mg/mL, soit %s mg/L", hstat_fmt_nb(r$c_mere, 6),
-                               hstat_fmt_nb(r$niveau_haut, 4)), "1 mg/mL = 1 000 mg/L"))),
+                           trf("%s mg/ml, soit %s mg/l", hstat_fmt_nb(r$c_mere, 6),
+                               hstat_fmt_nb(r$niveau_haut, 4)), "1 mg/ml = 1 000 mg/l"))),
         tube = list(
           .mere_ligne(tr("Matière active technique à peser"),
                       paste(hstat_fmt_nb(r$Q_mg, 4), "mg"), FM[["tube"]]),
           .mere_ligne(tr("Concentration de la mère"),
-                      paste(hstat_fmt_nb(r$c_mere, 6), "mg/mL"), "C ÷ V")))
+                      paste(hstat_fmt_nb(r$c_mere, 6), "mg/ml"), "C ÷ V")))
       shiny::tags$table(class = "table table-condensed",
         shiny::tags$thead(shiny::tags$tr(shiny::tags$th(tr("Grandeur")),
           shiny::tags$th(tr("Valeur")), shiny::tags$th(tr("Formule")))),
         do.call(shiny::tags$tbody, lignes))
     })
 
-    mere_serie <- shiny::reactive({
+    # LA CONCENTRATION DE LA MERE PART VERS LES DILUTIONS. Les trois protocoles
+    # la rendent dans la meme grandeur : mg/mL pour le trempage et le vial
+    # test, µg/µL pour l'application topique -- c'est la meme chose (1 µg/µL
+    # = 1 mg/mL). Elle entre donc en mg/mL, sans conversion a deviner.
+    shiny::observeEvent(input$mereVersDilution, {
       r <- mere_calc()
-      if (!isTRUE(r$ok)) return(NULL)
-      if (identical(mere_test(), "tube"))
-        return(hstat_mere_tube_preleve(
-          hstat_unite_convertir(
-            hstat_as_numeric_fr(strsplit(input$mereTubQ %||% "", "[;\n]+")[[1]]),
-            input$mereTubQUnite %||% "µg", "µg"),
-          r$c_mere, .mere_val("mereTubFiole", "mL"), .mere_val("mereTubTube", "mL")))
-      hstat_mere_serie(r$c_mere, r$niveau_haut, input$mereK,
-                       hstat_borne_client(input$mereN, 8, 1, 20),
-                       .mere_val("mereVf", "mL"), isTRUE(input$mereMerePremier),
-                       .mere_val("mereVmin", "mL"))
-    })
-
-    output$mereSerieNote <- shiny::renderUI({
-      d <- mere_serie()
-      if (is.null(d)) return(NULL)
-      txt <- if (identical(mere_test(), "tube")) {
-        c(HSTAT_MERE_FORMULES[["tube_vi"]],
-          if (nrow(d) && !all(d$Possible))
-            tr("Certaines quantités demandent un prélèvement plus grand que la fiole : la mère est trop faible pour elles."),
-          if (!nrow(d)) tr("Saisissez au moins une quantité par tube positive."))
-      } else c(HSTAT_MERE_FORMULES[[if (isTRUE(input$mereMerePremier)) "serie" else "serie_filles"]],
-               HSTAT_MERE_FORMULES[["dilution"]],
-               attr(d, "motif"), attr(d, "avertissement"))
-      shiny::div(style = "font-size:0.92em;margin-bottom:6px;",
-                 lapply(txt, function(x) shiny::div(shiny::tags$code(tr(x)))))
-    })
-
-    output$mereSerie <- DT::renderDT({
-      d <- mere_serie()
-      shiny::req(!is.null(d), nrow(d) > 0)
-      u <- HSTAT_MERE_TESTS[[mere_test()]]$unite
-      if (identical(mere_test(), "tube")) {
-        aff <- data.frame(d$Quantite, round(d$Volume_mere, 4), round(d$Solvant, 4),
-                          ifelse(d$Possible, "\u2713", "\u2717"))
-        names(aff) <- c(trf("Quantité par tube (%s)", u), tr("Mère à prélever (mL)"),
-                        tr("Acétone pour compléter la fiole (mL)"), tr("Réalisable"))
-      } else {
-        aff <- data.frame(d$Rang, signif(d$Facteur, 6), signif(d$Niveau, 6),
-                          signif(d$Concentration, 6), round(d$Volume_mere, 4),
-                          round(d$Solvant, 4),
-                          ifelse(d$Pipetable, "\u2713", "\u2717"))
-        names(aff) <- c(tr("Rang"), tr("Facteur k^j"), trf("Niveau (%s)", u),
-                        if (identical(mere_test(), "topique")) tr("Concentration (µg/µL)")
-                        else tr("Concentration (mg/mL)"),
-                        tr("Mère à prélever (mL)"), tr("Solvant à ajouter (mL)"),
-                        tr("Pipetable"))
+      if (!isTRUE(r$ok) || !isTRUE(is.finite(r$c_mere)) || r$c_mere <= 0) {
+        shiny::showNotification(
+          tr("La solution mère n'est pas calculée : complétez ses valeurs avant de la reprendre."),
+          type = "warning", duration = 8)
+        return()
       }
-      DT::datatable(aff, rownames = FALSE, extensions = "Buttons",
-                    options = list(dom = "Bt", pageLength = 50, ordering = FALSE,
-                                   buttons = .hstat_dt_buttons("solution_mere")))
+      shiny::updateSelectInput(session, "dilUnite", selected = "mg/ml")
+      shiny::updateNumericInput(session, "dilNbMa", value = 1)
+      shiny::updateNumericInput(session, "dilMaConc1", value = signif(r$c_mere, 8))
+      shiny::updateTabsetPanel(session, "dosageTabs", selected = "dilution")
+      shiny::showNotification(
+        trf("Solution mère reprise dans « Solutions filles (dilutions) » : %s mg/ml.",
+            hstat_fmt_nb(r$c_mere, 6)),
+        type = "message", duration = 8)
     })
 
   })

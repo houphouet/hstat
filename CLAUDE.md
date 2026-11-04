@@ -11078,3 +11078,62 @@ calculs : une table recopiée ici finirait par les contredire.
 
 Une assertion d'avant a changé : « g/hL » y servait d'unité **inconnue** ; c'est
 désormais une vraie unité (400 g/hL = 4 g/L), et le test emploie « g/xx ».
+
+### Le litre s'écrit « l »
+
+Demandé à l'écran, pour toute l'application : ml, µl, g/l, l/ha, mol/l. La
+règle tient dans une expression, `.HSTAT_UNITE_L` (`R/mod_dosage.R`) : un « L »
+seul ou précédé d'un préfixe d'unité (n, µ, m, c, d, h, k), qui n'est ni dans un
+mot ni suivi d'une apostrophe. Elle a été appliquée **aux chaînes des sources
+par l'analyseur**, jamais au texte du fichier : `4L`, `10L` sont des entiers R,
+et une substitution textuelle les aurait cassés sans que rien ne lève. Les
+seules chaînes du litre étaient dans « Doses & dilutions » ; restent en « L »
+ce qui n'est pas une unité (L-BFGS-B, des initiales d'auteurs, un motif `\L`).
+Le dictionnaire suit, clé française et traduction : la clé **est** la chaîne.
+
+**Les écritures en « L » restent comprises.** `.hstat_unite_cle()` les ramène
+à leur clé avant toute recherche : un tableau de dilutions enregistré, un appel
+existant ou un fichier collé les portent encore. `M` et `mM` (molaire) ne
+bougent pas. Un test balaie les chaînes de l'application et barre le retour du
+« L » ; un libellé de conversion porte la **clé** de l'unité, jamais
+l'écriture saisie.
+
+### La solution mère précède les filles, et sa concentration y passe
+
+Demandé à l'écran : l'onglet « Solution mère » vient avant « Solutions filles
+(dilutions) », et sa boîte « Solutions filles » est **retirée** — la gamme se
+prépare dans l'onglet des dilutions, qui sait déjà prélever dans la mère,
+compter l'eau, sommer le besoin en mère et traiter plusieurs produits. Deux
+gammes en deux endroits, c'est la copie oubliée qui ment. Partis avec elle :
+`hstat_mere_serie()`, `hstat_mere_tube_preleve()`, `hstat_mere_tube_quantite()`
+et leurs formules.
+
+Le bouton « Utiliser cette solution mère… » reprend la concentration calculée
+comme concentration mère, en **mg/ml** : les trois protocoles la rendent dans
+cette grandeur (1 µg/µl = 1 mg/ml), sans conversion à deviner. Deux pièges,
+tous deux évités par construction :
+
+1. **Le champ cible vit dans un onglet caché**, construit par un `renderUI`
+   suspendu tant qu'on ne l'a pas ouvert : une mise à jour envoyée à un champ
+   qui n'existe pas se perd. `dilMaUi` est donc rendu même caché.
+2. **Changer d'unité reconstruisait les champs**, et la reconstruction relisait
+   leur valeur avant que la concentration reprise n'y soit posée. Le drapeau
+   « unité molaire » est un `reactiveVal` qui ne change — et ne fait
+   reconstruire — que si l'on passe du massique au molaire.
+
+### Une feuille par produit
+
+Le téléchargement des solutions filles porte **une feuille par produit**
+(`hstat_dilution_feuilles()`), puis celle des formules : la gamme d'un produit
+se prépare à part. L'écran garde un seul tableau. Les noms de feuille passent
+par l'écrivain de classeurs, qui nettoie ce qu'Excel refuse.
+
+### Le seuil de rejet du témoin ne dépasse pas 10 %
+
+Demandé à l'écran pour la DL50/CL50. `HSTAT_DL50_SEUIL_REJET_MAX` (10) : un
+seuil saisi plus haut est ramené à 10, un champ vide vaut 10 — sans seuil de
+rejet, n'importe quel témoin passerait — et le seuil de correction ne dépasse
+pas celui de rejet. Le test pose un témoin à 12,2 % : rejeté sous la règle,
+accepté sous un seuil de 20 %. Sur un témoin à 10 % les deux codes rendraient
+le même verdict.
+
