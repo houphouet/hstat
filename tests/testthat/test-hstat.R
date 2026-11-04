@@ -10082,9 +10082,11 @@ test_that("une colonne creee et une colonne lue portent le meme nom", {
   # d'axe de la figure. Verifie : aucune lecture accentuee (`$Sensibilité`,
   # `[["Spécificité"]]`) n'existe dans le depot -- la figure lit bien
   # `.data[["Sensibilite"]]`.
+  # « µl » est le microlitre (Doses & dilutions) : le symbole `ul` qu'il
+  # rencontre est la balise HTML `tags$ul`, pas une colonne.
   connus <- c("Observé", "Prédit", "Modalité", "Résidu", "Thème", "Fréquence",
               "Méthode", "Interprétation", "Métrique", "Unité", "Répétition",
-              "Espèce", "Relevé", "Sensibilité", "Spécificité")
+              "Espèce", "Relevé", "Sensibilité", "Spécificité", "µl")
   fautifs <- fautifs[!grepl(paste0("chaine (", paste(connus, collapse = "|"),
                                    ") "), fautifs)]
   expect_equal(fautifs, character(0))
@@ -10243,8 +10245,8 @@ test_that("unites : un seul catalogue, des facteurs justes, des allers-retours e
   # ou un facteur NA rendrait une conversion fausse sans le moindre signe.
   expect_equal(anyDuplicated(HSTAT_UNITES$unite), 0L)
   expect_true(all(is.finite(HSTAT_UNITES$facteur) & HSTAT_UNITES$facteur > 0))
-  expect_true(all(HSTAT_UNITES$base %in% c("g", "L", "ha", "L/ha", "kg/ha",
-                                            "g/L", "g/kg", "mol/L")))
+  expect_true(all(HSTAT_UNITES$base %in% c("g", "l", "ha", "l/ha", "kg/ha",
+                                            "g/l", "g/kg", "mol/l")))
   # Les tables d'avant DERIVENT du catalogue : elles ne peuvent plus diverger.
   du <- HSTAT_UNITES[HSTAT_UNITES$categorie == "dose", ]
   expect_equal(unname(HSTAT_DOSE_UNITES[du$unite]), du$facteur)
@@ -10345,11 +10347,11 @@ test_that("bilan de dose : chaque grandeur se saisit dans son unite", {
                          sortie_dose = "L/ha", sortie_grammage = "kg/ha")
   expect_equal(nrow(c2), nrow(ref) + 2L)
   expect_equal(c2$Valeur[1], 250)                       # l'originale reste
-  expect_true(grepl("convertie (L/ha)", c2$Grandeur[2], fixed = TRUE))
+  expect_true(grepl("convertie (l/ha)", c2$Grandeur[2], fixed = TRUE))
   expect_equal(c2$Valeur[2], 0.25)
   expect_true(grepl("Grammage converti (kg/ha)", c2$Grandeur[4], fixed = TRUE))
   expect_equal(c2$Valeur[4], 0.1)
-  expect_true(grepl("Conversion : 1 mL/ha", c2$Formule[2], fixed = TRUE))
+  expect_true(grepl("Conversion : 1 ml/ha", c2$Formule[2], fixed = TRUE))
   # Une conversion impossible garde sa ligne, avec le motif.
   c3 <- hstat_dose_bilan("dose", 250, "mL/ha", 400, "g/L", sortie_dose = "kg/ha")
   expect_true(is.na(c3$Valeur[2]))
@@ -10382,15 +10384,15 @@ test_that("dilutions : un total en g/L ne se forme pas sans pont, et se dit", {
   expect_equal(match("Concentration_fille_conv", nm), match("Concentration_fille", nm) + 1L)
   expect_equal(cc$Concentration_fille_conv[1], 2000)
   expect_equal(cc$Concentration_fille[1], 0.01)
-  expect_equal(cc$Unite_conc_conv[1], "mg/L")
+  expect_equal(cc$Unite_conc_conv[1], "mg/l")
   # Une unite de conversion inconnue ne touche a rien.
   expect_identical(hstat_dilution_convertir(rm, unite_conc = "xx"), rm)
 })
 
 test_that("convertisseur : une ligne par unite, motif quand le pont manque", {
   t <- hstat_unite_table(1, "L")
-  expect_true(all(c("mL", "g", "gal (US)") %in% t$Unite))
-  expect_equal(t$Valeur[t$Unite == "mL"], 1000)
+  expect_true(all(c("ml", "g", "gal (US)") %in% t$Unite))
+  expect_equal(t$Valeur[t$Unite == "ml"], 1000)
   expect_true(is.na(t$Valeur[t$Unite == "g"]))
   expect_true(grepl("masse volumique", t$Conversion[t$Unite == "g"]))
   t <- hstat_unite_table(1, "L", densite = 1.1)
@@ -10418,7 +10420,7 @@ test_that("solution mere : les valeurs saisies dans une autre unite donnent la m
     # Le convertisseur suit la grandeur choisie.
     session$setInputs(convCategorie = "concentration", convUnite = "%", convValeur = 2)
     d <- conv_res()
-    expect_equal(d$Valeur[d$Unite == "g/L"], 20)
+    expect_equal(d$Valeur[d$Unite == "g/l"], 20)
   })
 })
 
@@ -10451,10 +10453,10 @@ test_that("le microlitre est une unite de volume, et les volumes se convertissen
   # Le microlitre manquait, et c'est l'unite de la paillasse : une gamme au
   # 1/10 depuis 100 mL descend a 0,01 mL des le quatrieme etage -- illisible,
   # alors que 10 uL se pipette.
-  expect_true("µL" %in% names(HSTAT_VOL_UNITES))
-  expect_equal(unname(HSTAT_VOL_UNITES[["µL"]]), 1e-6)
+  expect_true("µl" %in% names(HSTAT_VOL_UNITES))
+  expect_equal(unname(HSTAT_VOL_UNITES[["µl"]]), 1e-6)
   # Les facteurs sont des LITRES : mille microlitres font un millilitre.
-  expect_equal(HSTAT_VOL_UNITES[["mL"]] / HSTAT_VOL_UNITES[["µL"]], 1000)
+  expect_equal(HSTAT_VOL_UNITES[["ml"]] / HSTAT_VOL_UNITES[["µl"]], 1000)
 
   d <- data.frame(
     Produit = "A", Matiere_active = "ma1", Concentration_mere = 100,
@@ -21712,10 +21714,10 @@ test_that("dose depuis un grammage : un produit solide se dose en masse", {
   r <- hstat_dose_bilan("grammage", 150, "g/ha", 750, "g/kg", 200, 2, 400)
   expect_true(attr(r, "unite") %in% c("g/ha", "kg/ha"))
   expect_true(any(grepl("(g/ha)", r$Grandeur, fixed = TRUE)))
-  expect_false(any(grepl("mL", r$Grandeur, fixed = TRUE)))
+  expect_false(any(grepl("ml", r$Grandeur, fixed = TRUE)))
   # Le liquide garde ses unités de volume.
   l <- hstat_dose_bilan("grammage", 150, "g/ha", 750, "g/L", 200, 2, 400)
-  expect_true(attr(l, "unite") %in% c("mL/ha", "L/ha"))
+  expect_true(attr(l, "unite") %in% c("ml/ha", "l/ha"))
 })
 
 test_that("survie : une variable continue n'est pas un facteur de groupement", {
@@ -23416,23 +23418,39 @@ test_that("la validite d'un essai DL50 se juge sur les seuils du temoin choisis 
   doses <- c(0.00848, 0.0163, 0.03423, 0.05053, 0.08476)
   essai <- function(x0) hstat_dl50_essai(doses, rep(90, 5), c(30, 43, 62, 75, 82), 90, x0)
   f <- function(x0, m = "em") hstat_dl50_ajuste(essai(x0), m)
-  # 3 / 90 = 3,3 % ; 9 / 90 = 10 % ; 27 / 90 = 30 %
+  # 3 / 90 = 3,3 % ; 6 / 90 = 6,7 % ; 9 / 90 = 10 % ; 11 / 90 = 12,2 % ; 27 / 90 = 30 %
   expect_identical(hstat_dl50_validite(f(3))$etat, "valide")
   expect_identical(hstat_dl50_validite(f(9))$etat, "valide_corrige")
   expect_identical(hstat_dl50_validite(f(27))$etat, "invalide")
-  # Les deux cotes de chaque frontiere, sur la meme mortalite de 10 %.
-  f9 <- f(9)
-  expect_identical(hstat_dl50_validite(f9, 10.01, 20)$etat, "valide")
-  expect_identical(hstat_dl50_validite(f9, 10, 20)$etat, "valide_corrige")
+  # Les deux cotes de chaque frontiere.
+  f6 <- f(6); f9 <- f(9)
+  expect_identical(hstat_dl50_validite(f6, 6.7, 10)$etat, "valide")
+  expect_identical(hstat_dl50_validite(f6, 6.6, 10)$etat, "valide_corrige")
   expect_identical(hstat_dl50_validite(f9, 5, 9.99)$etat, "invalide")
   expect_identical(hstat_dl50_validite(f9, 5, 10)$etat, "valide_corrige")
-  # Seuils inverses : remis dans l'ordre, pas un verdict absurde.
+  # LE SEUIL DE REJET NE DEPASSE PAS 10 %. Un temoin a 12,2 % passait sous un
+  # seuil de 20 % ; ramene a 10, il est rejete. C'est l'assertion qui distingue
+  # les deux codes : sur un temoin a 10 % ils rendraient le meme verdict.
+  f11 <- f(11)
+  expect_identical(hstat_dl50_validite(f11, 5, 20)$etat, "invalide")
+  expect_identical(hstat_dl50_validite(f11, 5, 20)$seuil_rejet, HSTAT_DL50_SEUIL_REJET_MAX)
+  expect_identical(HSTAT_DL50_SEUIL_REJET_MAX, 10)
+  # Un seuil de rejet vide vaut 10 : un temoin ne passe jamais sans seuil.
+  expect_identical(hstat_dl50_validite(f11, NA, NA)$etat, "invalide")
+  expect_identical(hstat_dl50_validite(f9, NA, NA)$etat, "valide")
+  # Seuils inverses : remis dans l'ordre, puis le rejet ramene a 10.
   v <- hstat_dl50_validite(f9, 20, 5)
-  expect_identical(c(v$seuil_correction, v$seuil_rejet), c(5, 20))
-  # Un seul seuil s'applique seul ; aucun seuil, aucun verdict.
+  expect_identical(c(v$seuil_correction, v$seuil_rejet), c(5, 10))
+  # Le seuil de correction ne depasse pas celui de rejet.
+  expect_identical(hstat_dl50_validite(f9, 15, 30)$seuil_correction, 10)
+  # Un seul seuil s'applique seul.
   expect_identical(hstat_dl50_validite(f9, NA, 8)$etat, "invalide")
   expect_identical(hstat_dl50_validite(f9, NA, 15)$etat, "valide")
-  expect_identical(hstat_dl50_validite(f9, NA, NA)$etat, "indeterminable")
+  # L'interface plafonne les deux champs a 10.
+  ui0 <- as.character(mod_dl50_ui("dl50"))
+  champ <- regmatches(ui0, regexpr('<input id="dl50-temoinSeuilRejet"[^>]*>', ui0))
+  expect_true(grepl('max="10"', champ, fixed = TRUE))
+  expect_true(grepl('value="10"', champ, fixed = TRUE))
   # La base change la valeur comparee : sous Abbott, la mortalite corrigee
   # du temoin vaut 0 -- l'essai a 30 % est valide sur elle, pas sur l'observee.
   ab <- f(27, "abbott")
@@ -24478,29 +24496,78 @@ test_that("Solution mère : les formules des trois protocoles rendent leurs exem
   # 1 mL puis 5 mL dans 100 mL, 0,5 mL par tube -> 6 et 30 µg.
   t <- hstat_mere_tube(C = 12, V = 10, P = 90)
   expect_equal(round(t$Q_mg, 4), 13.3333); expect_equal(t$c_mere, 1.2)
-  expect_equal(hstat_mere_tube_quantite(1.2, c(1, 5), 100, 0.5), c(6, 30))
-  v <- hstat_mere_tube_preleve(c(6, 30), 1.2, 100, 0.5)
-  expect_equal(v$Volume_mere, c(1, 5)); expect_equal(v$Solvant, c(99, 95))
-  expect_false(hstat_mere_tube_preleve(1e6, 1.2, 100, 0.5)$Possible)
   # Purete hors de ]0 ; 100] : refus, jamais une masse plus petite que l'active.
   for (P in c(0, -5, 120, NA)) expect_false(hstat_mere_tube(12, 10, P)$ok)
 })
 
-test_that("Solution mère : la série suit la convention de rang du protocole", {
-  # IRAC 035 : Cf = C mère / k^(i-1) -- la mère est le rang 1.
-  a <- hstat_mere_serie(1, 1000, 2, 4, 10, mere_premier = TRUE)
-  expect_equal(a$Concentration, c(1, 0.5, 0.25, 0.125))
-  expect_equal(a$Niveau, c(1000, 500, 250, 125))
-  expect_equal(a$Volume_mere, c(10, 5, 2.5, 1.25))
-  # Huit filles seules (application topique) : la première est déjà diluée.
-  b <- hstat_mere_serie(1, 1000, 2, 8, 10, mere_premier = FALSE)
-  expect_equal(nrow(b), 8L); expect_equal(b$Concentration[1], 0.5)
-  # Un prélèvement sous la micropipette demande une dilution intermédiaire.
-  p <- hstat_mere_serie(1, 1000, 10, 6, 10, mere_premier = TRUE, v_min = 0.01)
-  expect_false(all(p$Pipetable)); expect_false(is.null(attr(p, "avertissement")))
-  # Coefficient de 1 ou moins : refus nommé, pas une série constante.
-  expect_equal(nrow(hstat_mere_serie(1, 1000, 1, 4, 10)), 0L)
-  expect_false(is.null(attr(hstat_mere_serie(1, 1000, 1, 4, 10), "motif")))
+test_that("Doses & dilutions : la mère avant les filles, et sa concentration y passe", {
+  ui <- paste(as.character(mod_dosage_ui("dosage")), collapse = "")
+  # L'onglet « Solution mère » précède « Solutions filles (dilutions) ».
+  expect_lt(regexpr("Solution mère", ui, fixed = TRUE),
+            regexpr("Solutions filles (dilutions)", ui, fixed = TRUE))
+  # La gamme ne se prépare plus dans l'onglet de la mère : un seul endroit.
+  for (id in c("mereK", "mereN", "mereVf", "mereVmin", "mereMerePremier",
+               "mereTubQ", "mereTubFiole", "mereTubTube", "mereSerie"))
+    expect_false(grepl(paste0('"dosage-', id, '"'), ui, fixed = TRUE), info = id)
+  expect_true(grepl('"dosage-mereVersDilution"', ui, fixed = TRUE))
+  vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  shiny::testServer(mod_dosage_server, args = list(values = vals), {
+    envoyes <- list()
+    racine <- session$rootScope()
+    racine$sendInputMessage <- function(id, msg) envoyes[[length(envoyes) + 1L]] <<- list(id = id, msg = msg)
+    # Topique : 1 µg/g, 0,05 g, 1 µl -> 0,05 µg/µl, soit 0,05 mg/ml.
+    session$setInputs(mereTest = "topique", mereTopD = 1, mereTopX = 0.05,
+                      mereTopV = 50, mereTopA = 1, mereTopP = 95)
+    session$setInputs(mereVersDilution = 1)
+    ids <- vapply(envoyes, `[[`, "", "id")
+    expect_true("dilMaConc1" %in% ids)
+    expect_equal(as.numeric(envoyes[[match("dilMaConc1", ids)]]$msg$value), 0.05)
+    expect_identical(envoyes[[match("dilUnite", ids)]]$msg$value, "mg/ml")
+  })
+})
+
+test_that("Solutions filles : une feuille par produit dans le fichier téléchargé", {
+  d <- data.frame(Produit = c("A", "A", "B", "C"), Matiere_active = c("a1", "a2", "b", "c"),
+                  Concentration_mere = c(100, 50, 10, 1), Unite = "g/l",
+                  Coefficient = 10, Nb_filles = 1, Volume_final = 100,
+                  Unite_volume = "ml", stringsAsFactors = FALSE)
+  r <- hstat_dilution_calcul(d)
+  f <- hstat_dilution_feuilles(r)
+  expect_identical(names(f), c("A", "B", "C"))
+  expect_equal(vapply(f, nrow, 1L), c(A = 2L, B = 1L, C = 1L))
+  # Chaque feuille est relabellisée comme à l'écran, et ne porte que son produit.
+  expect_true("Produit" %in% names(f$B))
+  expect_true(all(f$A$Produit == "A"))
+  expect_identical(hstat_dilution_feuilles(data.frame()), list())
+  # Le classeur écrit bien une feuille par produit, plus les formules.
+  fic <- tempfile(fileext = ".xlsx")
+  hstat_ecrire_classeur(fic, c(f, list(Formules = data.frame(F = "x"))))
+  expect_identical(openxlsx::getSheetNames(fic), c("A", "B", "C", "Formules"))
+})
+
+test_that("le litre s'écrit « l » dans toute l'application", {
+  # Demandé à l'écran : ml, µl, g/l, l/ha. Aucune chaîne de l'application
+  # n'écrit plus le litre en « L » -- la règle de .HSTAT_UNITE_L, appliquée aux
+  # chaînes des sources par l'analyseur, hors commentaires.
+  rx <- .HSTAT_UNITE_L
+  fautifs <- character(0)
+  for (f in .hstat_sources_app()) {
+    pd <- utils::getParseData(parse(f, keep.source = TRUE))
+    v <- pd$text[pd$token == "STR_CONST"]
+    v <- vapply(v, function(x) tryCatch(eval(parse(text = x)), error = function(e) ""), "")
+    v <- v[grepl(rx, v, perl = TRUE)]
+    # Ce qui n'est pas une unité : un motif, un algorithme, des initiales.
+    v <- v[!grepl("^\\\\L|BFGS|\\\\p\\{L\\}|PARKER|DICE|\\(\\?<!", v)]
+    if (length(v)) fautifs <- c(fautifs, paste(basename(f), v))
+  }
+  expect_identical(fautifs, character(0))
+  # Les écritures en « L » restent comprises : un fichier ancien se relit.
+  expect_identical(.hstat_unite_cle(c("mL", "g/L", "mol/L", "M", "mM")),
+                   c("ml", "g/l", "mol/l", "M", "mM"))
+  expect_equal(hstat_unite_convertir(1, "L/ha", "mL/ha")[1], 1000)
+  expect_true(all(grepl("l", names(HSTAT_VOL_UNITES)[names(HSTAT_VOL_UNITES) != "m³"]) |
+                  grepl("gal|oz", names(HSTAT_VOL_UNITES)[names(HSTAT_VOL_UNITES) != "m³"])))
 })
 
 test_that("Solution mère : calculée dans Doses & dilutions, sans toucher à l'essai DL50", {
@@ -24511,11 +24578,8 @@ test_that("Solution mère : calculée dans Doses & dilutions, sans toucher à l'
                                 resetSignal = 0L)
   shiny::testServer(mod_dosage_server, args = list(values = vals), {
     session$setInputs(mereTest = "disque", mereDisC = 1, mereDisV = 50,
-                      mereProduit = "technique", mereDisP = 95, mereK = 2,
-                      mereN = 3, mereVf = 10, mereVmin = 0.01,
-                      mereMerePremier = TRUE)
+                      mereProduit = "technique", mereDisP = 95)
     expect_equal(round(mere_calc()$m_pese, 2), 52.63)
-    expect_equal(mere_serie()$Niveau, c(1000, 500, 250))
     expect_identical(HSTAT_MERE_TESTS[[mere_test()]]$grandeur, "concentration")
     expect_identical(HSTAT_MERE_TESTS$topique$grandeur, "dose")
   })
@@ -24527,4 +24591,26 @@ test_that("Solution mère : calculée dans Doses & dilutions, sans toucher à l'
   # Le code du module DL50 ne lit rien de la solution mère.
   src_dl50 <- .hstat_code_lignes(.hstat_module_path("mod_dl50.R"))
   expect_false(any(grepl("mereVersDl50|HSTAT_MERE_", src_dl50)))
+})
+
+test_that("le message d'un widget en erreur reprend sa place dans le flux", {
+  # htmlwidgets pose le message en position absolue, a la hauteur du widget
+  # masque : sous un tableau vide, il recouvrait la note qui suit.
+  css <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app", "www",
+                                   "hstat-theme.css"), warn = FALSE), collapse = "\n")
+  regle <- regmatches(css, regexpr("\\.html-widget-output \\+ \\.htmlwidgets-error \\{[^}]*\\}", css))
+  expect_length(regle, 1L)
+  expect_match(regle, "position: static !important")
+  expect_match(regle, "height: auto !important")
+})
+
+test_that("Solutions filles : la gamme est plus large que les formules", {
+  src <- paste(readLines(.hstat_module_path("mod_dosage.R"), warn = FALSE), collapse = "\n")
+  apres <- substr(src, regexpr('value = "dilution"', src, fixed = TRUE), nchar(src))
+  w <- function(titre) {
+    j <- regexpr(titre, apres, fixed = TRUE)
+    as.integer(sub("(?s).*?width = ([0-9]+).*", "\\1", substr(apres, j, j + 200), perl = TRUE))
+  }
+  expect_equal(w(" La gamme à préparer"), 4L)
+  expect_equal(w(" Formules employées"), 3L)
 })
