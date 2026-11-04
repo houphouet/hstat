@@ -24614,3 +24614,33 @@ test_that("Solutions filles : la gamme est plus large que les formules", {
   expect_equal(w(" La gamme à préparer"), 4L)
   expect_equal(w(" Formules employées"), 3L)
 })
+
+test_that("DL50 : chaque ligne du texte du modele se montre ou se masque", {
+  skip_if_not_installed("ggplot2")
+  f <- hstat_dl50_ajuste(.hstat_dl50_essai_ref(), "em")
+  # Le texte du modele : la couche de texte qui porte l'une de ses lignes.
+  eq <- function(lg) {
+    p <- hstat_dl50_graphique(list(f), list(modele_lignes = lg))
+    txt <- unlist(lapply(p$layers, function(l)
+      if (inherits(l$geom, "GeomText")) as.character(l$aes_params$label)))
+    txt <- txt[grepl("Y = |χ²|%", txt)]
+    if (length(txt)) txt[1] else NULL
+  }
+  tout <- eq(HSTAT_DL50_MODELE_LIGNES)
+  expect_true(grepl("Y = ", tout, fixed = TRUE))
+  expect_true(grepl("χ² = ", tout, fixed = TRUE))
+  sans_khi2 <- eq(c("equation", "naturelle"))
+  expect_true(grepl("Y = ", sans_khi2, fixed = TRUE))
+  expect_false(grepl("χ²", sans_khi2, fixed = TRUE))
+  seul_khi2 <- eq("khi2")
+  expect_true(grepl("χ² = ", seul_khi2, fixed = TRUE))
+  expect_false(grepl("Y = ", seul_khi2, fixed = TRUE))
+  # Aucune ligne cochee : aucun texte, pas le defaut.
+  expect_null(eq(character(0)))
+  # L'interface porte le choix des lignes, et le serveur le lit.
+  h <- as.character(mod_dl50_ui("dl50"))
+  expect_true(grepl('id="dl50-gModeleLignes"', h, fixed = TRUE))
+  src <- paste(readLines(.hstat_module_path("mod_dl50.R"), warn = FALSE), collapse = "\n")
+  expect_true(grepl("modele_lignes = intersect(", src, fixed = TRUE))
+  expect_true(grepl("input$gModeleLignes", src, fixed = TRUE))
+})
