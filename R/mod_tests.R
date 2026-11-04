@@ -999,6 +999,14 @@ mod_posthoc_ui <- function(id) {
                                       shiny::div(class = "hstat-table-scroll",
                                           DT::DTOutput(ns("mainEffectsTable"))),
                                       shiny::br(),
+                                      shiny::h4(shiny::icon("table-list"), " Synthèse : moyenne ± écart-type et groupe"),
+                                      shiny::div(class = "hstat-table-scroll",
+                                          shiny::uiOutput(ns("syntheseEtTables"))),
+                                      shiny::h4(shiny::icon("table-list"), " Synthèse : moyenne ± erreur-type et groupe"),
+                                      shiny::div(class = "hstat-table-scroll",
+                                          shiny::uiOutput(ns("syntheseEsTables"))),
+                                      shiny::helpText("Sous chaque variable : degrés de liberté, statistique du test global (F : ANOVA, W : ANOVA de Welch, H : Kruskal-Wallis), effectif N et probabilité P. Les deux synthèses partent aussi dans le classeur Excel, une feuille chacune."),
+                                      shiny::br(),
                                       shiny::downloadButton(ns("downloadMainEffects"), 
                                                      "Télécharger effets principaux (.xlsx)", 
                                                      class = "btn-success", 
@@ -6955,7 +6963,11 @@ mod_tests_server <- function(id, values) {
                 # invisible : on publiait des lettres sans savoir si l'analyse
                 # d'ensemble les autorisait.
                 Test_global = omni$test %||% NA_character_,
-                p_global = omni$p
+                p_global = omni$p,
+                # LA STATISTIQUE ET SES DDL VOYAGENT AUSSI : la synthese les
+                # ecrit sous chaque colonne de variable (F, W ou H, ddl, N, P).
+                Statistique_globale = omni$statistique %||% NA_real_,
+                ddl_global = omni$ddl %||% NA_character_
               )
             
             multi_results_list[[paste(var, fvar, "main", sep = "_")]] <- res
@@ -7795,6 +7807,33 @@ mod_tests_server <- function(id, values) {
       )
   })
   
+  # SYNTHESE « comme dans un article » : une table par facteur. Un renderUI de
+  # tableaux statiques -- jamais un renderDT appele a la main, qui leve faute
+  # de session (piege deja documente).
+  .synthese_ui <- function(dispersion) {
+    shiny::req(values$multiResultsMain)
+    tabs <- hstat_posthoc_synthese(values$multiResultsMain, dispersion,
+      hstat_dec_affichage(input$multiRoundResults, input$multiDecimals))
+    if (!length(tabs)) return(shiny::helpText("Aucun effet principal à résumer."))
+    shiny::tagList(lapply(tabs, function(t) {
+      n_niv <- nrow(t) - 4L
+      entete <- shiny::tags$tr(lapply(names(t), function(n)
+        shiny::tags$th(n, style = "padding:4px 10px;border-bottom:2px solid #555;")))
+      lignes <- lapply(seq_len(nrow(t)), function(i) {
+        st <- if (i == n_niv + 1L) "border-top:1px solid #555;" else ""
+        shiny::tags$tr(lapply(seq_along(t), function(j) {
+          cell <- t[i, j]
+          if (j == 1L) shiny::tags$td(shiny::tags$b(cell), style = paste0("padding:4px 10px;", st))
+          else shiny::tags$td(cell, style = paste0("padding:4px 10px;text-align:center;", st))
+        }))
+      })
+      shiny::tags$table(class = "table table-condensed", style = "width:auto;margin-bottom:18px;",
+        shiny::tags$thead(entete), shiny::tags$tbody(lignes))
+    }))
+  }
+  output$syntheseEtTables <- shiny::renderUI(.synthese_ui("ecart_type"))
+  output$syntheseEsTables <- shiny::renderUI(.synthese_ui("erreur_type"))
+
   output$simpleEffectsTable <- DT::renderDT({
     shiny::req(values$multiResultsMain)
     
@@ -9077,7 +9116,9 @@ mod_tests_server <- function(id, values) {
   output$downloadMainEffects <- hstat_classeur_handler(function() {
     d <- values$multiResultsMain
     if (is.null(d)) return(NULL)
-    list("Effets_principaux" = d[d$Type == "main", ])
+    c(list("Effets_principaux" = d[d$Type == "main", ]),
+      hstat_posthoc_synthese_feuilles(d, hstat_dec_affichage(
+        input$multiRoundResults, input$multiDecimals)))
   }, "effets_principaux", "Effets principaux")
   
   output$downloadSimpleEffects <- hstat_classeur_handler(function() {
@@ -9089,9 +9130,11 @@ mod_tests_server <- function(id, values) {
   output$downloadAllResults <- hstat_classeur_handler(function() {
     d <- values$multiResultsMain
     if (is.null(d)) return(NULL)
-    hstat_tables_non_vides(list(
+    hstat_tables_non_vides(c(list(
       "Effets_principaux" = d[d$Type == "main", ],
-      "Effets_simples"    = d[d$Type == "simple_effect", ]))
+      "Effets_simples"    = d[d$Type == "simple_effect", ]),
+      hstat_posthoc_synthese_feuilles(d, hstat_dec_affichage(
+        input$multiRoundResults, input$multiDecimals))))
   }, "analyse_complete", "Analyse complète")
   
   output$downloadMultiPlot <- shiny::downloadHandler(

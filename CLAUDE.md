@@ -2759,6 +2759,31 @@ incalculable ne prouve rien, ni dans un sens ni dans l'autre. On laisse alors
 les lettres, et on le dit — la règle du dépôt, ne jamais brancher sur une
 statistique non calculable.
 
+### La synthèse post-hoc se lit comme un tableau d'article
+
+Demandé à l'écran, croquis à l'appui : une ligne par modalité, une colonne par
+variable, « moyenne ± dispersion groupe » dans chaque case, puis sous chaque
+colonne le **test global** — ddl, statistique, N, P. Deux synthèses, l'une à
+l'écart-type, l'autre à l'erreur-type, affichées sous le tableau des effets
+principaux et écrites au classeur (`Moyenne_ET_groupe`, `Moyenne_ES_groupe`,
+suffixées du facteur quand il y en a plusieurs).
+
+`hstat_posthoc_synthese()` (`R/utils.R`) compose ; le module ne fait que lire.
+La statistique et ses ddl voyagent désormais avec chaque ligne de résultat
+(`Statistique_globale`, `ddl_global`), comme le test et sa p-value.
+
+Trois décisions, chacune testée :
+
+1. **Le symbole suit le test** (`HSTAT_POSTHOC_SYMBOLES`) : F pour l'ANOVA de
+   Fisher, W pour celle de Welch, H pour Kruskal-Wallis. Quand deux colonnes ne
+   portent pas le même test, l'étiquette les nomme tous et chaque case dit le
+   sien — « F » sous un Kruskal-Wallis serait un chiffre juste sous un nom faux.
+2. **Seuls les effets principaux y entrent** : un effet simple a son propre test
+   global, par niveau du facteur fixé, et n'a pas sa place sous une colonne
+   commune.
+3. **La précision est celle de l'affichage** (`hstat_dec_affichage()`), la même
+   que le tableau voisin ; un groupe absent laisse la case sans « NA ».
+
 ### Les deux tests de Welch, et l'application en exécutait un sous un faux nom
 
 `stats::t.test()` est **Welch par défaut** (`var.equal = FALSE`). Le bouton

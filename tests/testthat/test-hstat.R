@@ -24644,3 +24644,74 @@ test_that("DL50 : chaque ligne du texte du modele se montre ou se masque", {
   expect_true(grepl("modele_lignes = intersect(", src, fixed = TRUE))
   expect_true(grepl("input$gModeleLignes", src, fixed = TRUE))
 })
+
+test_that("Post-hoc : la synthese porte moyenne ± dispersion groupe, puis ddl, statistique, N et P", {
+  set.seed(1)
+  df <- data.frame(A = rep(paste0("A", 1:5), each = 4),
+                   V1 = stats::rnorm(20, rep(1:5, each = 4)),
+                   V2 = stats::rnorm(20))
+  ligne <- function(v, param) {
+    o <- hstat_omnibus(df, v, "A", parametric = param)
+    s <- stats::aggregate(df[[v]], list(A = df$A),
+                          function(x) c(m = mean(x), s = stats::sd(x), n = length(x)))
+    data.frame(A = s$A, Moyenne = s$x[, 1], Ecart_type = s$x[, 2], N = s$x[, 3],
+               Erreur_type = s$x[, 2] / sqrt(s$x[, 3]),
+               groups = c("a", "ab", "b", NA, "c"), Variable = v, Facteur = "A",
+               Type = "main", Test_global = o$test, p_global = o$p,
+               Statistique_globale = o$statistique, ddl_global = o$ddl)
+  }
+  d <- rbind(ligne("V1", TRUE), ligne("V2", TRUE))
+  et <- hstat_posthoc_synthese(d, "ecart_type", 2)$A
+  es <- hstat_posthoc_synthese(d, "erreur_type", 2)$A
+  expect_equal(et$A, c(paste0("A", 1:5), "ddl", "F", "N", "P"))
+  expect_equal(names(et), c("A", "V1", "V2"))
+  # La dispersion change, la moyenne et le groupe non.
+  expect_match(et$V1[1], "^[0-9.]+ ± [0-9.]+ a$")
+  expect_false(identical(et$V1[1:5], es$V1[1:5]))
+  expect_equal(sub(" ±.*", "", et$V1[1:5]), sub(" ±.*", "", es$V1[1:5]))
+  # Un groupe absent ne laisse pas « NA » dans la case.
+  expect_false(grepl("NA", et$V1[4]))
+  # Les quatre lignes du test, lues sur l'ANOVA elle-meme.
+  a <- summary(stats::aov(V1 ~ A, df))[[1]]
+  expect_equal(et$V1[6], paste0(a$Df[1], ", ", a$Df[2]))
+  expect_equal(et$V1[7], formatC(a[["F value"]][1], format = "f", digits = 2))
+  expect_equal(et$V1[8], "20")
+  expect_equal(et$V1[9], if (a[["Pr(>F)"]][1] < 0.001) "< 0.001" else
+    formatC(round(a[["Pr(>F)"]][1], 3), format = "f", digits = 3))
+  # Le symbole suit le test : Kruskal-Wallis donne H, et deux tests differents
+  # font porter son symbole a chaque case.
+  d2 <- rbind(ligne("V1", TRUE), ligne("V2", FALSE))
+  t2 <- hstat_posthoc_synthese(d2, "ecart_type", 2)$A
+  expect_equal(t2$A[7], "F / H")
+  expect_match(t2$V2[7], "^H = ")
+  expect_equal(HSTAT_POSTHOC_SYMBOLES[["ANOVA de Welch"]], "W")
+  # Les effets simples n'y entrent pas.
+  d3 <- d; d3$Type[d3$Variable == "V2"] <- "simple_effect"
+  expect_equal(names(hstat_posthoc_synthese(d3, "ecart_type")$A), c("A", "V1"))
+  # Deux feuilles, une par dispersion ; suffixees du facteur s'il y en a plusieurs.
+  expect_equal(names(hstat_posthoc_synthese_feuilles(d)),
+               c("Moyenne_ET_groupe", "Moyenne_ES_groupe"))
+  d4 <- d; d4$B <- d4$A; d4$Facteur[d4$Variable == "V2"] <- "B"
+  expect_setequal(names(hstat_posthoc_synthese_feuilles(d4)),
+                  c("Moyenne_ET_groupe_A", "Moyenne_ET_groupe_B",
+                    "Moyenne_ES_groupe_A", "Moyenne_ES_groupe_B"))
+  # LES COLONNES PORTENT LES NOMS EXACTS choisis a l'analyse, a l'ecran comme
+  # dans le classeur : espaces, accents et parentheses compris.
+  dn <- data.frame(`Traitement fongicide` = c("T1", "T2"), Moyenne = c(1, 2),
+                   Ecart_type = 1, Erreur_type = 0.5, N = 3, groups = c("a", "b"),
+                   Variable = "Hauteur des plants (cm)", Facteur = "Traitement fongicide",
+                   Type = "main", Test_global = "ANOVA", p_global = 0.01,
+                   Statistique_globale = 5, ddl_global = "1 , 4", check.names = FALSE)
+  noms <- c("Traitement fongicide", "Hauteur des plants (cm)")
+  expect_equal(names(hstat_posthoc_synthese(dn)[[1]]), noms)
+  f <- tempfile(fileext = ".xlsx")
+  hstat_ecrire_classeur(f, hstat_posthoc_synthese_feuilles(dn))
+  expect_equal(names(openxlsx::read.xlsx(f, 1, check.names = FALSE, sep.names = " ")), noms)
+  # Le module stocke la statistique et ses ddl, et les ecrit au classeur.
+  src <- paste(readLines(.hstat_module_path("mod_tests.R"), warn = FALSE), collapse = "\n")
+  expect_true(grepl("Statistique_globale = omni$statistique", src, fixed = TRUE))
+  expect_true(grepl("ddl_global = omni$ddl", src, fixed = TRUE))
+  expect_equal(lengths(regmatches(src, gregexpr("hstat_posthoc_synthese_feuilles(d,", src, fixed = TRUE))), 2L)
+  expect_true(grepl('ns("syntheseEtTables")', src, fixed = TRUE))
+  expect_true(grepl('ns("syntheseEsTables")', src, fixed = TRUE))
+})

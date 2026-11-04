@@ -5336,6 +5336,95 @@ hstat_dec_affichage <- function(round_on, decimals = 2) {
   out
 }
 
+# SYNTHESE POST-HOC « comme dans un article » : une ligne par modalite, une
+# colonne par variable, « moyenne ± dispersion groupe » dans chaque case, puis
+# le test global sous chaque colonne -- ddl, statistique, N et P.
+#
+# LE SYMBOLE SUIT LE TEST, jamais une etiquette fixe : F pour l'ANOVA de
+# Fisher, W pour celle de Welch (sa statistique a d'autres ddl, fractionnaires),
+# H pour Kruskal-Wallis. Ecrire « F » sous un Kruskal-Wallis publierait un
+# chiffre juste sous un nom faux.
+HSTAT_POSTHOC_SYMBOLES <- c("ANOVA" = "F", "ANOVA de Welch" = "W",
+                            "Kruskal-Wallis" = "H")
+
+.hstat_synth_p <- function(p) {
+  p <- suppressWarnings(as.numeric(p))
+  ifelse(!is.finite(p), "",
+         ifelse(p < 0.001, "< 0.001", formatC(round(p, 3), format = "f", digits = 3)))
+}
+
+# Une table par facteur. `dispersion` choisit l'ecart-type ou l'erreur-type ;
+# `dec` est la precision d'affichage (NA = pleine precision, comme `.hstat_pm`).
+# Ne lit que les effets PRINCIPAUX : un effet simple a son propre test global,
+# par niveau du facteur fixe, et n'a pas sa place sous une colonne commune.
+hstat_posthoc_synthese <- function(d, dispersion = c("ecart_type", "erreur_type"),
+                                   dec = NA_integer_) {
+  dispersion <- match.arg(dispersion)
+  col_disp <- if (dispersion == "ecart_type") "Ecart_type" else "Erreur_type"
+  if (!is.data.frame(d) || !NROW(d) || !all(c("Type", "Facteur", "Variable",
+      "Moyenne", col_disp) %in% names(d))) return(list())
+  d <- d[!is.na(d$Type) & d$Type == "main", , drop = FALSE]
+  if (!NROW(d)) return(list())
+  dec_stat <- if (is.na(suppressWarnings(as.integer(dec[1])))) 2L else
+    max(0L, as.integer(dec[1]))
+  out <- list()
+  for (f in unique(as.character(d$Facteur))) {
+    sub <- d[as.character(d$Facteur) == f, , drop = FALSE]
+    if (!f %in% names(sub)) next
+    niv  <- unique(as.character(sub[[f]]))
+    niv  <- niv[!is.na(niv)]
+    vars <- unique(as.character(sub$Variable))
+    if (!length(niv) || !length(vars)) next
+    # Les quatre lignes du test : etiquette commune, sauf quand les colonnes
+    # ne portent pas le meme test -- chaque case dit alors son symbole.
+    tests <- vapply(vars, function(v) {
+      t <- sub$Test_global[as.character(sub$Variable) == v][1]
+      if (is.null(t) || is.na(t)) NA_character_ else as.character(t)
+    }, character(1))
+    sym <- unname(HSTAT_POSTHOC_SYMBOLES[tests])
+    sym_uniq <- unique(sym[!is.na(sym)])
+    lab_stat <- if (length(sym_uniq) == 1L) sym_uniq else
+      if (length(sym_uniq)) paste(sym_uniq, collapse = " / ") else tr("Statistique")
+    tab <- data.frame(x = c(niv, tr("ddl"), lab_stat, "N", "P"),
+                      stringsAsFactors = FALSE, check.names = FALSE)
+    names(tab) <- f
+    for (k in seq_along(vars)) {
+      v <- vars[k]
+      sv <- sub[as.character(sub$Variable) == v, , drop = FALSE]
+      grp <- if ("groups" %in% names(sv)) as.character(sv$groups) else NULL
+      if (!is.null(grp)) grp[is.na(grp)] <- ""
+      cases <- trimws(.hstat_pm(sv$Moyenne, sv[[col_disp]], grp, dec))
+      cellule <- cases[match(niv, as.character(sv[[f]]))]
+      cellule[is.na(cellule)] <- ""
+      stat <- suppressWarnings(as.numeric(sv$Statistique_globale[1] %||% NA))
+      stat_txt <- if (is.finite(stat)) formatC(round(stat, dec_stat),
+                                               format = "f", digits = dec_stat) else ""
+      if (nzchar(stat_txt) && length(sym_uniq) > 1L && !is.na(sym[k]))
+        stat_txt <- paste(sym[k], "=", stat_txt)
+      ddl <- as.character(sv$ddl_global[1] %||% NA)
+      ddl <- if (is.na(ddl)) "" else gsub("\\s*,\\s*", ", ", trimws(ddl))
+      n <- sum(suppressWarnings(as.numeric(sv$N)), na.rm = TRUE)
+      tab[[v]] <- c(cellule, ddl, stat_txt,
+                    if (n > 0) format(n) else "", .hstat_synth_p(sv$p_global[1]))
+    }
+    out[[f]] <- tab
+  }
+  out
+}
+
+# Les feuilles du classeur : une par dispersion, suffixee du facteur quand il y
+# en a plusieurs.
+hstat_posthoc_synthese_feuilles <- function(d, dec = NA_integer_) {
+  et <- hstat_posthoc_synthese(d, "ecart_type", dec)
+  es <- hstat_posthoc_synthese(d, "erreur_type", dec)
+  if (!length(et)) return(list())
+  suf <- function(f) if (length(et) > 1L) paste0("_", f) else ""
+  res <- list()
+  for (f in names(et)) res[[paste0("Moyenne_ET_groupe", suf(f))]] <- et[[f]]
+  for (f in names(es)) res[[paste0("Moyenne_ES_groupe", suf(f))]] <- es[[f]]
+  res
+}
+
 round_numeric_df <- function(df, round_on, decimals = 2) {
   if (is.null(df) || !is.data.frame(df)) return(df)
   dec <- hstat_dec_affichage(round_on, decimals)
