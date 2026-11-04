@@ -2720,13 +2720,16 @@ HSTAT_DL50_NIVEAUX <- c("Celui du risque α de l'analyse" = "alpha",
                         "80 %" = "0.8", "90 %" = "0.9", "95 %" = "0.95",
                         "99 %" = "0.99")
 
+# Les lignes du texte du modele posees sur la figure, chacune se masque.
+HSTAT_DL50_MODELE_LIGNES <- c("equation", "khi2", "naturelle")
+
 HSTAT_DL50_OPT_DEFAUT <- list(
   type = "probit", echelle_x = "log",
   # `annot_dl` porte les SEUILS chiffres sur la figure (10, 50, 90). Un
   # booleen y reste accepte -- VRAI vaut la DL50 seule, FAUX aucune -- pour
   # qu'un appel ecrit avant ne change pas de sens.
   style = "moderne", barres = TRUE, annot_dl = 50, modele = TRUE,
-  modele_taille = 10,
+  modele_taille = 10, modele_lignes = c("equation", "khi2", "naturelle"),
   bande_type = "droite", bande_niveau = "alpha",
   logticks = TRUE,
   points = TRUE, courbe = FALSE, droite = TRUE, bande = TRUE, reperes = TRUE,
@@ -3304,18 +3307,28 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
   # seulement : plusieurs equations dans le cadre se recouvriraient.
   # Comme les DL chiffrees, l'equation ne depend pas du style, et sa taille se
   # regle (en points, convertie en millimetres pour ggplot).
+  eq <- ""
   if (isTRUE(o$modele) && !multiple) {
     f <- fits[[1]]
     meth <- names(HSTAT_DL50_METHODES)[match(f$methode, HSTAT_DL50_METHODES)]
-    eq <- paste(
-      trf(hstat_dl50_vocab(f)$equation, .hstat_dl50_nb(f$a), .hstat_dl50_nb(f$b)),
-      trf("χ² = %s (ddl = %d, p = %s)",
-          formatC(f$chi2, format = "f", digits = 2), as.integer(f$ddl),
-          formatC(f$p_chi2, format = "f", digits = 3)),
-      trf(hstat_dl50_vocab(f)$naturelle,
-          formatC(100 * f$c, format = "f", digits = 1),
-          if (length(meth) && !is.na(meth)) tr(meth) else f$methode),
-      sep = "\n")
+    # CHAQUE LIGNE SE MONTRE OU SE MASQUE (demande a l'ecran) : l'equation,
+    # le chi2 de l'ajustement, la mortalite naturelle et la methode. Une liste
+    # vide n'ecrit rien -- c'est une demande, pas une absence de reglage.
+    lg <- if (is.null(o$modele_lignes)) HSTAT_DL50_MODELE_LIGNES else o$modele_lignes
+    eq <- c(
+      if ("equation" %in% lg)
+        trf(hstat_dl50_vocab(f)$equation, .hstat_dl50_nb(f$a), .hstat_dl50_nb(f$b)),
+      if ("khi2" %in% lg)
+        trf("χ² = %s (ddl = %d, p = %s)",
+            formatC(f$chi2, format = "f", digits = 2), as.integer(f$ddl),
+            formatC(f$p_chi2, format = "f", digits = 3)),
+      if ("naturelle" %in% lg)
+        trf(hstat_dl50_vocab(f)$naturelle,
+            formatC(100 * f$c, format = "f", digits = 1),
+            if (length(meth) && !is.na(meth)) tr(meth) else f$methode))
+    eq <- if (length(eq)) paste(eq, collapse = "\n") else ""
+  }
+  if (isTRUE(o$modele) && !multiple && nzchar(eq)) {
     # La methode sur sa propre ligne : accolee a la mortalite naturelle, la
     # ligne debordait du cadre (mesure au navigateur).
     eq <- gsub("   ·   ", "\n", eq, fixed = TRUE)
@@ -4023,9 +4036,14 @@ mod_dl50_ui <- function(id) {
                                             # cochees une a une, la DL10 et la DL90
                                             # paraissaient absentes de la figure.
                                             selected = c("10", "50", "90"), inline = TRUE),
-                  shiny::checkboxInput(ns("gModele"), "Équation du modèle et ajustement sous la droite (un essai)", TRUE),
+                  shiny::checkboxInput(ns("gModele"), "Afficher le texte du modèle sur le graphique (un essai)", TRUE),
                   shiny::conditionalPanel(
                     condition = sprintf("input['%s']", ns("gModele")),
+                    shiny::checkboxGroupInput(ns("gModeleLignes"), "Lignes affichées",
+                      choices = c("Équation de la droite" = "equation",
+                                  "Khi² de l'ajustement (ddl, p)" = "khi2",
+                                  "Mortalité naturelle et méthode" = "naturelle"),
+                      selected = HSTAT_DL50_MODELE_LIGNES),
                     shiny::numericInput(ns("gModeleTaille"), "Taille de l'équation (pt)",
                                         value = 10, min = 4, max = 30, step = 0.5)),
                   shiny::checkboxInput(ns("gRepereEtiq"), "Étiqueter les repères", TRUE),
@@ -5234,6 +5252,9 @@ mod_dl50_server <- function(id, values) {
         bande_type = input$gBandeType %||% "droite",
         bande_niveau = input$gBandeNiveau %||% "alpha",
         modele = isTRUE(input$gModele),
+        # Toutes decochees rendent NULL : aucune ligne demandee, pas le defaut.
+        modele_lignes = intersect(if (is.null(input$gModeleLignes)) character(0) else input$gModeleLignes,
+                                  HSTAT_DL50_MODELE_LIGNES),
         modele_taille = nb("gModeleTaille", 10), logticks = isTRUE(input$gLogticks),
         points = isTRUE(input$gPoints), courbe = isTRUE(input$gCourbe),
         droite = isTRUE(input$gDroite), bande = isTRUE(input$gBande),

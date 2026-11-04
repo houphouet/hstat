@@ -11153,3 +11153,19 @@ lieu de la recouvrir. Elle vaut pour les ~110 `validate()` posés dans des
 Même lot, demandé à l'écran : dans « Solutions filles (dilutions) », la boîte
 « La gamme à préparer » passe en largeur 4 et « Formules employées » en
 largeur 3.
+
+### Le texte du modèle se montre ligne par ligne
+
+Demandé à l'écran : afficher ou masquer, sur la figure de la DL50/CL50, le texte
+qui porte le khi², la mortalité naturelle, etc. La case générale existait sous
+un libellé qui ne nommait que l'équation (« Équation du modèle et ajustement
+sous la droite »), si bien qu'on ne savait pas qu'elle portait aussi le khi² ;
+elle s'appelle désormais « Afficher le texte du modèle sur le graphique », et
+une case par ligne (`gModeleLignes`, `HSTAT_DL50_MODELE_LIGNES`) choisit ce
+qui s'écrit : équation, khi² de l'ajustement, mortalité naturelle et méthode.
+
+Toutes les lignes décochées n'écrivent **rien** : c'est une demande, pas
+l'absence d'un réglage. Le `%||%` du dépôt traite un vecteur **vide** comme
+`NULL` — il aurait fait retomber `character(0)` sur les trois lignes par défaut.
+La lecture passe donc par `is.null()`, et le test exige qu'aucune ligne cochée
+ne rende aucun texte.
