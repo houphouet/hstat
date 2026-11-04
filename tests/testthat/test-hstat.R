@@ -24592,3 +24592,25 @@ test_that("Solution mère : calculée dans Doses & dilutions, sans toucher à l'
   src_dl50 <- .hstat_code_lignes(.hstat_module_path("mod_dl50.R"))
   expect_false(any(grepl("mereVersDl50|HSTAT_MERE_", src_dl50)))
 })
+
+test_that("le message d'un widget en erreur reprend sa place dans le flux", {
+  # htmlwidgets pose le message en position absolue, a la hauteur du widget
+  # masque : sous un tableau vide, il recouvrait la note qui suit.
+  css <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app", "www",
+                                   "hstat-theme.css"), warn = FALSE), collapse = "\n")
+  regle <- regmatches(css, regexpr("\\.html-widget-output \\+ \\.htmlwidgets-error \\{[^}]*\\}", css))
+  expect_length(regle, 1L)
+  expect_match(regle, "position: static !important")
+  expect_match(regle, "height: auto !important")
+})
+
+test_that("Solutions filles : la gamme est plus large que les formules", {
+  src <- paste(readLines(.hstat_module_path("mod_dosage.R"), warn = FALSE), collapse = "\n")
+  apres <- substr(src, regexpr('value = "dilution"', src, fixed = TRUE), nchar(src))
+  w <- function(titre) {
+    j <- regexpr(titre, apres, fixed = TRUE)
+    as.integer(sub("(?s).*?width = ([0-9]+).*", "\\1", substr(apres, j, j + 200), perl = TRUE))
+  }
+  expect_equal(w(" La gamme à préparer"), 4L)
+  expect_equal(w(" Formules employées"), 3L)
+})

@@ -1374,7 +1374,7 @@ mod_dosage_ui <- function(id) {
 
           shinydashboard::box(
             title = shiny::tagList(shiny::icon("layer-group"), " La gamme à préparer"),
-            status = "info", width = 3, solidHeader = TRUE,
+            status = "info", width = 4, solidHeader = TRUE,
             shiny::numericInput(ns("dilCoef"), "Coefficient de dilution",
                                 value = 10, min = 1, step = 1),
             shiny::helpText("10 signifie une dilution au 1/10 : chaque fille est dix",
@@ -1414,7 +1414,7 @@ mod_dosage_ui <- function(id) {
 
           shinydashboard::box(
             title = shiny::tagList(shiny::icon("square-root-variable"), " Formules employées"),
-            status = "warning", width = 4, solidHeader = TRUE, collapsible = TRUE,
+            status = "warning", width = 3, solidHeader = TRUE, collapsible = TRUE,
             .hstat_dose_bloc_formule(unname(HSTAT_DOSE_FORMULES[
               c("conservation", "c_fille", "c_fille_n", "v_preleve", "v_eau",
                 "v_mere", "c_totale")])),

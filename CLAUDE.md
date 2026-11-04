@@ -11137,3 +11137,19 @@ pas celui de rejet. Le test pose un témoin à 12,2 % : rejeté sous la règle,
 accepté sous un seuil de 20 %. Sur un témoin à 10 % les deux codes rendraient
 le même verdict.
 
+
+### Le message d'un tableau vide ne recouvre plus la note qui suit
+
+Signalé à l'écran, dans « Une mortalité, quelle dose ? » : le motif d'un tableau
+DT vide (« Aucune mortalité exploitable… ») et la note placée dessous
+s'écrivaient l'un sur l'autre. htmlwidgets pose son message d'erreur **en
+position absolue**, à la hauteur du widget masqué — une vingtaine de pixels
+pour un tableau vide —, et un message de deux lignes déborde sur ce qui suit.
+La règle `.html-widget-output + .htmlwidgets-error` de `hstat-theme.css` le
+remet dans le flux (`position: static`, `height: auto`) : il pousse la note au
+lieu de la recouvrir. Elle vaut pour les ~110 `validate()` posés dans des
+`renderDT` et `renderPlotly` de l'application, pas pour ce seul tableau.
+
+Même lot, demandé à l'écran : dans « Solutions filles (dilutions) », la boîte
+« La gamme à préparer » passe en largeur 4 et « Formules employées » en
+largeur 3.
