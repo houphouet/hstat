@@ -24685,16 +24685,22 @@ test_that("Post-hoc : la synthese porte moyenne ± dispersion groupe, puis ddl, 
   expect_equal(t2$A[7], "F / H")
   expect_match(t2$V2[7], "^H = ")
   expect_equal(HSTAT_POSTHOC_SYMBOLES[["ANOVA de Welch"]], "W")
-  # Les effets simples n'y entrent pas.
-  d3 <- d; d3$Type[d3$Variable == "V2"] <- "simple_effect"
-  expect_equal(names(hstat_posthoc_synthese(d3, "ecart_type")$A), c("A", "V1"))
-  # Deux feuilles, une par dispersion ; suffixees du facteur s'il y en a plusieurs.
+  # LES EFFETS SIMPLES ONT LEUR TABLE, apres les effets principaux : leurs
+  # modalites vivent sous le facteur TESTE, ecrit avant « | ».
+  se <- d; se$Type <- "simple_effect"; se$Facteur <- "A | B=b1"
+  se$Moyenne <- se$Moyenne + 100
+  tabs <- hstat_posthoc_synthese(rbind(se, d), "ecart_type", 2)
+  expect_equal(names(tabs), c("A", "A | B=b1"))
+  expect_equal(names(tabs[[2]]), c("A | B=b1", "V1", "V2"))
+  expect_match(tabs[[2]]$V1[1], "^10[0-9][.]")
+  # Une feuille par dispersion ; plusieurs tables y sont empilees, chacune sous
+  # son intitule, les colonnes gardant le nom exact des variables.
   expect_equal(names(hstat_posthoc_synthese_feuilles(d)),
                c("Moyenne_ET_groupe", "Moyenne_ES_groupe"))
-  d4 <- d; d4$B <- d4$A; d4$Facteur[d4$Variable == "V2"] <- "B"
-  expect_setequal(names(hstat_posthoc_synthese_feuilles(d4)),
-                  c("Moyenne_ET_groupe_A", "Moyenne_ET_groupe_B",
-                    "Moyenne_ES_groupe_A", "Moyenne_ES_groupe_B"))
+  fe <- hstat_posthoc_synthese_feuilles(rbind(se, d))$Moyenne_ET_groupe
+  expect_equal(names(fe)[-1], c("V1", "V2"))
+  expect_true(all(c("A", "A | B=b1") %in% fe[[1]]))
+  expect_equal(nrow(fe), 2 * 10 + 1)
   # LES COLONNES PORTENT LES NOMS EXACTS choisis a l'analyse, a l'ecran comme
   # dans le classeur : espaces, accents et parentheses compris.
   dn <- data.frame(`Traitement fongicide` = c("T1", "T2"), Moyenne = c(1, 2),
@@ -24711,7 +24717,122 @@ test_that("Post-hoc : la synthese porte moyenne ± dispersion groupe, puis ddl, 
   src <- paste(readLines(.hstat_module_path("mod_tests.R"), warn = FALSE), collapse = "\n")
   expect_true(grepl("Statistique_globale = omni$statistique", src, fixed = TRUE))
   expect_true(grepl("ddl_global = omni$ddl", src, fixed = TRUE))
-  expect_equal(lengths(regmatches(src, gregexpr("hstat_posthoc_synthese_feuilles(d,", src, fixed = TRUE))), 2L)
+  expect_equal(lengths(regmatches(src, gregexpr("hstat_posthoc_synthese_feuilles(d", src, fixed = TRUE))), 2L)
   expect_true(grepl('ns("syntheseEtTables")', src, fixed = TRUE))
   expect_true(grepl('ns("syntheseEsTables")', src, fixed = TRUE))
+})
+
+test_that("Synthese des tests a deux modalites, a une norme et apparies", {
+  set.seed(2)
+  df <- data.frame(G = rep(c("T1", "T2"), each = 6),
+                   Y = c(stats::rnorm(6, 10), stats::rnorm(6, 14)),
+                   Z = stats::rnorm(12))
+  tt <- stats::t.test(Y ~ G, df)
+  res <- data.frame(Test = "Test t de Welch", Variable = "Y", Facteur = "G",
+                    Statistique = unname(tt$statistic), ddl = hstat_ddl_fmt(tt$parameter),
+                    p_value = tt$p.value)
+  d <- hstat_synthese_groupes(df, c("Y", "Z"), "G", res, "t")
+  t1 <- hstat_posthoc_synthese(d, "ecart_type", 2)$G
+  # Z n'a pas de ligne de resultat : elle n'entre pas.
+  expect_equal(names(t1), c("G", "Y"))
+  expect_equal(t1$G, c("T1", "T2", "ddl", "t", "N", "P"))
+  # Significatif : la plus grande moyenne prend « a ».
+  expect_match(t1$Y[2], " a$"); expect_match(t1$Y[1], " b$")
+  expect_equal(t1$Y[5], "12")
+  expect_equal(t1$Y[4], formatC(unname(tt$statistic), format = "f", digits = 2))
+  # Non significatif : « a » partout ; non calculable : aucune lettre.
+  expect_equal(.hstat_lettres_deux(c(1, 2), 0.4), c("a", "a"))
+  expect_true(all(is.na(.hstat_lettres_deux(c(1, 2), NA))))
+  expect_true(all(is.na(.hstat_lettres_deux(c(1, 2, 3), 0.01))))
+  # A trois modalites, pas de lettre : c'est le post-hoc qui les donne.
+  df3 <- rbind(df, data.frame(G = "T3", Y = stats::rnorm(6, 20), Z = 0))
+  r3 <- data.frame(Variable = "Y", Facteur = "G", Statistique = 5, ddl = "2 , 15",
+                   p_value = 0.001)
+  d3 <- hstat_synthese_groupes(df3, "Y", "G", r3, "H")
+  expect_true(all(is.na(d3$groups)))
+  # L'ANOVA a plusieurs facteurs : N compte les lignes ou TOUS les facteurs
+  # sont renseignes.
+  dfa <- df; dfa$B <- rep(c("b1", "b2", NA), 4)
+  ra <- data.frame(Variable = "Y", Facteur = c("G", "B"), Statistique = c(3, 1),
+                   ddl = "1 , 5", p_value = c(0.02, 0.4))
+  da <- hstat_synthese_groupes(dfa, "Y", c("G", "B"), ra, "F", cas_complets = c("G", "B"))
+  ta <- hstat_posthoc_synthese(da, "ecart_type", 2)
+  expect_equal(names(ta), c("G", "B"))
+  expect_equal(ta$G$Y[5], "8")
+
+  # Comparaison a une norme : l'echantillon, puis la reference seule.
+  x <- c(11, 12, 13, 12, 11, 13)
+  r <- hstat_ref_test(x, mu = 10, method = "ttest")
+  dr <- hstat_synthese_reference(x, "Y", r$reference, r$statistic,
+                                 hstat_ddl_fmt(r$parameter), r$p.value, "t")
+  tr1 <- hstat_posthoc_synthese(dr, "ecart_type", 2)[[1]]
+  expect_equal(tr1$Y[2], "10.00 b")
+  expect_match(tr1$Y[1], "^12.00 ± [0-9.]+ a$")
+  expect_equal(tr1$Y[3], "5"); expect_equal(tr1$Y[5], "6")
+  # TOST : pas de lettre (un p petit y conclut a l'equivalence).
+  dt <- hstat_synthese_reference(x, "Y", 10, 2, "5", 0.001, "t", lettres = FALSE)
+  expect_true(all(is.na(dt$groups)))
+
+  # Apparie : une ligne par condition, N compte les PAIRES.
+  a <- c(5, 6, 7, 8); b <- c(6, 8, 9, 10)
+  tp <- stats::t.test(b, a, paired = TRUE)
+  dp <- hstat_synthese_apparie(a, b, c("Avant", "Après"), "Y", tp$statistic,
+                               hstat_ddl_fmt(tp$parameter), tp$p.value, "t")
+  tp1 <- hstat_posthoc_synthese(dp, "erreur_type", 2)[[1]]
+  expect_equal(tp1[[1]], c("Avant", "Après", "ddl", "t", "N", "P"))
+  expect_equal(tp1$Y[5], "4")
+  expect_match(tp1$Y[1], paste0("^6.50 ± ", formatC(stats::sd(a) / 2, format = "f", digits = 2)))
+
+  # Le module pose la synthese pour chaque famille, et la masque quand le
+  # tableau affiche ne la concerne plus.
+  src <- paste(readLines(.hstat_module_path("mod_tests.R"), warn = FALSE), collapse = "\n")
+  for (sym in c('"t"))', '"U"))', '"H"))', '"W"))', '"F",'))
+    expect_true(grepl(paste0("values$testResultsDF, ", sym), src, fixed = TRUE), info = sym)
+  expect_true(grepl("identical(s$pour, values$testResultsDF)", src, fixed = TRUE))
+  expect_true(grepl("hstat_synthese_reference(", src, fixed = TRUE))
+  expect_true(grepl("hstat_synthese_apparie(", src, fixed = TRUE))
+  expect_true(grepl("hstat_posthoc_synthese_feuilles(.synthese_courante())", src, fixed = TRUE))
+  expect_true(grepl('ns("testSyntheseEt")', src, fixed = TRUE))
+})
+
+test_that("Module des tests : la synthese suit le test lance, et se masque apres un autre", {
+  skip_if_not_installed("car")
+  set.seed(3)
+  d <- data.frame(Traitement = rep(c("T1", "T2", "T3"), each = 6),
+                  Rendement = stats::rnorm(18, rep(c(10, 12, 16), each = 6)),
+                  Hauteur = stats::rnorm(18, 50, 5))
+  d2 <- d[d$Traitement != "T3", ]
+  vals <- shiny::reactiveValues(data = d2, cleanData = d2, filteredData = d2)
+  shiny::testServer(mod_tests_server, args = list(values = vals), {
+    session$setInputs(responseVar = c("Rendement", "Hauteur"), factorVar = "Traitement")
+    session$setInputs(testTStudent = 1)
+    s <- .synthese_courante()
+    expect_false(is.null(s))
+    t <- hstat_posthoc_synthese(s, "ecart_type", 2)$Traitement
+    # Les colonnes portent les noms exacts des variables choisies.
+    expect_equal(names(t), c("Traitement", "Rendement", "Hauteur"))
+    expect_equal(t$Traitement[4], "t")
+    expect_equal(t$Rendement[5], "12")
+    # Un test qui ne produit pas de synthese la masque : elle ne parle plus
+    # de ce qu'on voit.
+    session$setInputs(testNormalityRaw = 1)
+    expect_null(.synthese_courante())
+    # Comparaison a une norme.
+    session$setInputs(refValue = 10, refAlt = "two.sided", refConf = 0.95)
+    session$setInputs(testRefT = 1)
+    r <- hstat_posthoc_synthese(.synthese_courante(), "ecart_type", 2)[[1]]
+    expect_equal(r[[1]][1:2], c("Échantillon observé", "Valeur de référence"))
+  })
+  vals3 <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d)
+  shiny::testServer(mod_tests_server, args = list(values = vals3), {
+    session$setInputs(responseVar = "Rendement", factorVar = "Traitement",
+                      interaction = FALSE)
+    session$setInputs(testANOVA = 1)
+    t <- hstat_posthoc_synthese(.synthese_courante(), "ecart_type", 2)$Traitement
+    expect_equal(t$Traitement, c("T1", "T2", "T3", "ddl", "F", "N", "P"))
+    a <- summary(stats::aov(Rendement ~ Traitement, d))[[1]]
+    expect_equal(t$Rendement[6], "18")
+    expect_equal(t$Rendement[5], formatC(a[["F value"]][1], format = "f", digits = 2))
+    expect_equal(t$Rendement[4], "2, 15")
+  })
 })
