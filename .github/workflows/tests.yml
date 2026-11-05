@@ -304,6 +304,10 @@ jobs:
                          # precisement la raison de le nommer : ce qui n'est pas
                          # declare n'est pas garanti.
                          "dlnm", "survival", "later",
+                         # remotes : run_hstat() s'en sert pour se mettre a
+                         # jour depuis GitHub ; ses appels doivent rester
+                         # verifiables.
+                         "remotes",
                          # duckdb, lmerTest, sandwich : SIX tests les exigent
                          # -- quatre sur le chemin hors-memoire, un sur le
                          # bouton LMM qui doit imposer la gaussienne, un sur la
