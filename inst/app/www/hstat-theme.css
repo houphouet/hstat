@@ -311,6 +311,30 @@ table.dataTable thead th {
 table.dataTable tbody td { color: var(--ink); border-color: var(--line) !important; }
 table.dataTable.stripe tbody tr.odd,
 table.dataTable.display tbody tr.odd { background: var(--stripe); }
+
+/* Les tables de synthese (HTML statique, pas DT) prennent le meme habit que
+   les tableaux DT : en-tete gris, lignes alternees, cases bordees. La case
+   d'une modalite porte la couleur de son groupe, en ligne (style), comme la
+   colonne « groups » des effets principaux. */
+table.hstat-synthese {
+  width: auto; min-width: 60%; margin-bottom: 20px;
+  border-collapse: collapse; border: 1px solid var(--line);
+}
+table.hstat-synthese thead th {
+  background: var(--bg); color: var(--ink2);
+  font-size: 12.5px; font-weight: 700; text-align: center;
+  padding: 10px 14px; border: 1px solid var(--line);
+  border-bottom: 2px solid var(--line2);
+}
+table.hstat-synthese thead th:first-child { text-align: left; }
+table.hstat-synthese tbody td {
+  color: var(--ink); padding: 10px 14px; text-align: center;
+  border: 1px solid var(--line); vertical-align: middle;
+}
+table.hstat-synthese tbody tr:nth-child(odd) { background: var(--stripe); }
+table.hstat-synthese td.hstat-synthese-modalite { text-align: left; font-weight: 600; }
+table.hstat-synthese td.hstat-synthese-groupe { font-weight: 700; }
+table.hstat-synthese tr.hstat-synthese-test td { border-top: 2px solid var(--line2); }
 .dataTables_wrapper .dataTables_filter input,
 .dataTables_wrapper .dataTables_length select {
   background: var(--paper); color: var(--ink); border: 1px solid var(--line2); border-radius: 6px;

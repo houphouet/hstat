@@ -3488,7 +3488,12 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
 #  rejoint la liste au moment de l'enregistrement.
 .hstat_dl50_champ_ui <- function(ns, nm, largeur = 6) {
   shiny::column(largeur,
-    if (nm %in% names(HSTAT_DL50_CHAMPS_LISTE))
+    # Les matieres actives puisent dans la liste commune a l'application
+    # (`hstat_ma_catalogue()`), filtree a la frappe, ajouts permis.
+    if (identical(unname(HSTAT_DL50_CHAMPS_LISTE[nm]), "matiere"))
+      hstat_ma_input(ns(paste0("ch_", nm)), HSTAT_DL50_CHAMPS[[nm]],
+                     saisies = hstat_ma_catalogue())
+    else if (nm %in% names(HSTAT_DL50_CHAMPS_LISTE))
       shiny::selectizeInput(ns(paste0("ch_", nm)), HSTAT_DL50_CHAMPS[[nm]],
                             choices = NULL, selected = NULL, multiple = FALSE,
                             options = list(create = TRUE, persist = FALSE,
@@ -4692,11 +4697,19 @@ mod_dl50_server <- function(id, values) {
       for (nm in names(HSTAT_DL50_CHAMPS_LISTE)) {
         id <- paste0("ch_", nm)
         cur <- shiny::isolate(input[[id]]) %||% ""
-        ch <- unique(c(L[[HSTAT_DL50_CHAMPS_LISTE[[nm]]]], cur))
+        ch <- unique(c(
+          if (identical(HSTAT_DL50_CHAMPS_LISTE[[nm]], "matiere")) hstat_ma_catalogue(),
+          L[[HSTAT_DL50_CHAMPS_LISTE[[nm]]]], cur))
         ch <- ch[nzchar(ch)]
         shiny::updateSelectizeInput(session, id, choices = ch, selected = cur,
                                     server = FALSE)
       }
+    })
+
+    # Une matiere active tapee hors liste rejoint la liste commune, gardee
+    # d'une session a l'autre -- la meme que dans « Doses & dilutions ».
+    shiny::observe({
+      hstat_ma_retenir(c(input$ch_matiere1, input$ch_matiere2))
     })
 
     shiny::observe({
@@ -4713,6 +4726,7 @@ mod_dl50_server <- function(id, values) {
       avant <- length(L[[nm]])
       L[[nm]] <- hstat_dl50_liste_ajouter(L[[nm]], v)
       listes(L)
+      if (identical(nm, "matiere")) hstat_ma_retenir(v)
       shiny::updateTextInput(session, "listeValeur", value = "")
       # Le doublon n'est pas une erreur, mais le taire ferait croire a un ajout.
       shiny::showNotification(

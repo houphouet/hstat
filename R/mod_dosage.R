@@ -1011,7 +1011,7 @@ HSTAT_MERE_TESTS <- list(
     libelle   = "Trempage de disques foliaires, IRAC 035 (concentration) — CL",
     grandeur  = "concentration", unite = "mg/l",
     methode   = "Trempage de disques foliaires (IRAC 035)",
-    protocole = "Protocole IRAC 035, CNRA Bouaké — jassides (nymphes N3 et adultes)",
+    protocole = "Protocole IRAC 015, 016 et 035",
     solvant   = "Selon la formulation", repetitions = 4L, individus = 10L,
     seuil_rejet = 10,
     lectures  = "24 h, 48 h, 72 h, 96 h et 120 h"),
@@ -1135,6 +1135,113 @@ hstat_mere_tube <- function(C, V, P) {
 # Un champ du protocole et son unite. La valeur se saisit dans l'unite choisie,
 # et le serveur la ramene a celle de la formule (`.mere_val()`) : la formule
 # affichee reste celle du protocole, au chiffre pres.
+# -- Matieres actives : une liste a choisir, et la saisie libre reste permise --
+#
+# Les noms se tapent a chaque essai, et une orthographe qui varie
+# (« Lambda cyhalothrin », « lambda-cyhalothrin ») fait deux produits la ou il
+# n'y en a qu'un -- dans le tableau des dilutions, deux lignes qui ne se
+# regroupent pas. Le champ propose donc une liste, filtree a mesure qu'on
+# tape, et accepte un nom absent de la liste.
+#
+# LA LISTE EST CELLE FOURNIE PAR L'UTILISATEUR (matieres actives du coton
+# homologuees, liste CSP), recopiee telle quelle et dans son ordre : noms
+# communs internationaux, sans traduction ni correction. Elle n'entre pas au
+# dictionnaire -- un nom de matiere active est une donnee, pas un libelle.
+HSTAT_MATIERES_ACTIVES <- c(
+  "2,4-D (amine salt)", "Abamectin", "Acetamiprid", "Alpha-cypermethrin",
+  "Ametryn", "Azadirachtin", "Azoxystrobin", "Bacillus thuringiensis",
+  "Bacillus thuringiensis subsp. kurstaki",
+  "Bacillus thuringiensis subsp. kurstaki strain EG2348",
+  "Bacillus thuringiensis subsp. kurstaki strain PB54", "Beauveria bassiana",
+  "Beta-cyfluthrin", "Beta-cypermethrin", "Bifenazate", "Bifenthrin",
+  "Buprofezin", "Butachlor", "Cadusafos", "Capsicum oleoresin", "Cartap",
+  "Chlorantraniliprole", "Chlorimuron-ethyl", "Chlorpyrifos", "Clethodim",
+  "Cyantraniliprole", "Cyfluthrin", "Cyhalodiamide", "Cypermethrin",
+  "Deltamethrin", "Diafenthiuron", "Diamine", "Difenoconazole",
+  "Diflubenzuron", "Diflufenican", "Dimethoate", "Dinotefuran", "Diuron",
+  "Emamectin", "Emamectin benzoate", "Etoxazole", "Flonicamid",
+  "Fluazifop-P-butyl", "Flubendiamide", "Fludioxonil", "Flufenacet",
+  "Fluometuron", "Flupyradifurone", "Fluxametamide", "Garlic oil",
+  "Glyphosate", "Glyphosate-isopropylamine", "Haloxyfop-P-ethyl",
+  "Haloxyfop-P-methyl", "Helicoverpa armigera nucleopolyhedrovirus",
+  "Helicoverpa armigera single nucleopolyhedrovirus (HearSPNV)",
+  "Imidacloprid", "Indoxacarb", "Isaria fumosorosea strain FE9901",
+  "Isocycloseram", "Karanja oil", "Karanjin", "Lambda-cyhalothrin",
+  "Lufenuron", "Malathion", "Mepiquat chloride", "Mesotrione", "Metalaxyl",
+  "Metalaxyl-M", "Metamifop", "Metolachlor", "Nicosulfuron", "Nitenpyram",
+  "Novaluron", "Orange oil", "Oxymatrine", "Pencycuron", "Pendimethalin",
+  "Penoxsulam", "Permethrin", "Profenofos", "Prometryn", "Propaquizafop",
+  "Propiconazole", "Pyridines", "Pyriproxyfen", "Pyrithiobac-sodium",
+  "Pyroxasulfuron", "Quinalphos", "Quizalofop-P-ethyl", "Quizalofop-P-tefuryl",
+  "Rimsulfuron", "S-metolachlor", "Spinetoram", "Spinosad", "Spiromesifen",
+  "Spirotetramat", "Sulfoxaflor", "Tebuconazole", "Teflubenzuron",
+  "Terbuthylazine", "Terbutryn", "Thiacloprid", "Thiamethoxam", "Thidiazuron",
+  "Thiram", "Tolfenpyrad", "Trifloxysulfuron", "Trifloxysulfuron-sodium")
+
+# Les ajouts de l'utilisateur, gardes d'une session a l'autre. Le fichier se
+# lit et s'ecrit dans le dossier de donnees de l'utilisateur, un nom par ligne
+# : il se corrige a la main (une faute de frappe enregistree se retire en
+# supprimant sa ligne). `options(hstat.ma.fichier = NA)` coupe l'enregistrement.
+hstat_ma_fichier <- function() {
+  f <- getOption("hstat.ma.fichier")
+  if (!is.null(f)) return(if (is.na(f[1])) NA_character_ else as.character(f[1]))
+  # Sous testthat, jamais le dossier reel de l'utilisateur : une suite qui
+  # tape un nom hors liste l'y ecrirait a chaque passe.
+  if (identical(Sys.getenv("TESTTHAT"), "true")) return(NA_character_)
+  file.path(tools::R_user_dir("HStat", "data"), "matieres_actives_ajoutees.txt")
+}
+
+hstat_ma_ajoutees <- function(fichier = hstat_ma_fichier()) {
+  if (is.na(fichier) || !file.exists(fichier)) return(character(0))
+  v <- tryCatch(readLines(fichier, warn = FALSE, encoding = "UTF-8"),
+                error = function(e) character(0))
+  v <- trimws(enc2utf8(v))
+  # Borne : un fichier demesure ne doit pas alourdir chaque liste deroulante.
+  utils::head(unique(v[nzchar(v)]), 1000L)
+}
+
+# La liste complete proposee partout ou l'on saisit une matiere active : celle
+# fournie, puis les ajouts enregistres. Une seule definition -- la dose, les
+# dilutions, leur tableau et la fiche d'essai DL50 la lisent tous.
+hstat_ma_catalogue <- function(fichier = hstat_ma_fichier())
+  unique(c(HSTAT_MATIERES_ACTIVES, hstat_ma_ajoutees(fichier)))
+
+# Retient les noms tapes hors liste : rend ceux qui sont reellement nouveaux,
+# enregistres ou non, et l'annonce. Partage par les deux modules qui saisissent
+# une matiere active.
+hstat_ma_retenir <- function(noms, connus = character(0)) {
+  noms <- trimws(as.character(noms)); noms <- noms[!is.na(noms) & nzchar(noms)]
+  neuf <- unique(noms[!tolower(noms) %in% tolower(c(HSTAT_MATIERES_ACTIVES, connus))])
+  if (!length(neuf)) return(character(0))
+  ajout <- hstat_ma_ajouter(neuf)
+  if (length(ajout) && !is.null(shiny::getDefaultReactiveDomain()))
+    shiny::showNotification(trf("Ajouté à la liste des matières actives : %s",
+                                paste(ajout, collapse = " ; ")),
+                            type = "message", duration = 5)
+  neuf
+}
+
+# Ajoute ce qui est NOUVEAU, une ligne par nom. Un nom deja dans la liste ou
+# deja ajoute (casse comprise) ne s'ajoute pas deux fois : « deltamethrin »
+# a cote de « Deltamethrin » est precisement le doublon que la liste existe
+# pour eviter. Rend les noms reellement ajoutes.
+hstat_ma_ajouter <- function(noms, fichier = hstat_ma_fichier()) {
+  noms <- trimws(as.character(noms)); noms <- noms[!is.na(noms) & nzchar(noms)]
+  noms <- substr(noms, 1L, 120L)
+  connus <- tolower(c(HSTAT_MATIERES_ACTIVES, hstat_ma_ajoutees(fichier)))
+  neufs <- unique(noms[!tolower(noms) %in% connus])
+  neufs <- neufs[!duplicated(tolower(neufs))]
+  if (!length(neufs) || is.na(fichier)) return(neufs)
+  ok <- tryCatch({
+    dir.create(dirname(fichier), recursive = TRUE, showWarnings = FALSE)
+    con <- file(fichier, open = "a", encoding = "UTF-8")
+    on.exit(close(con))
+    writeLines(neufs, con)
+    TRUE
+  }, error = function(e) FALSE)
+  if (isTRUE(ok)) neufs else character(0)
+}
+
 .hstat_mere_champ <- function(ns, id, libelle, valeur, categorie, base, unite) {
   shiny::fluidRow(
     shiny::column(7, shiny::numericInput(ns(id), libelle, value = valeur, min = 0)),
@@ -1167,8 +1274,8 @@ mod_dosage_ui <- function(id) {
             status = "primary", width = 4, solidHeader = TRUE,
             shiny::textInput(ns("doseProduit"), "Nom commercial du produit",
                              placeholder = "ex : Cypercal 50 EC"),
-            shiny::textInput(ns("doseMatiere"), "Matière active",
-                             placeholder = "ex : Cyperméthrine"),
+            hstat_ma_input(ns("doseMatiere"), "Matière active",
+                           placeholder = "ex : Cypermethrin"),
             shiny::fluidRow(
               shiny::column(7, shiny::numericInput(ns("doseConc"),
                 "Concentration en matière active", value = 400, min = 0, step = 1)),
@@ -1437,6 +1544,17 @@ mod_dosage_ui <- function(id) {
               " et le volume final sont ceux du produit — ils sont donc identiques",
               " sur toutes ses lignes."),
             DT::DTOutput(ns("dilSaisie")),
+            # Le champ d'edition de la colonne « Matiere active » recoit la
+            # liste des matieres actives en suggestions (`list`), a l'instant
+            # ou DT le cree. Delegue sur le document, en jQuery : DT recree
+            # le champ a chaque double-clic.
+            shiny::uiOutput(ns("maListeUi")),
+            shiny::tags$script(shiny::HTML(sprintf(
+              "$(document).on('focusin', '#%s td input[type=text]', function() {
+                 var td = $(this).closest('td')[0];
+                 if (td && td.cellIndex === %d) this.setAttribute('list', '%s');
+               });", ns("dilSaisie"), match("Matiere_active", HSTAT_DILUTION_COLS) - 1L,
+              ns("maListe")))),
             shiny::br(),
             shiny::actionButton(ns("dilCalculer"),
               shiny::tagList(shiny::icon("calculator"), " Calculer les solutions filles"),
@@ -1511,6 +1629,49 @@ mod_dosage_server <- function(id, values) {
       if (is.null(motif) || !nzchar(motif)) return(NULL)
       shiny::div(class = "callout callout-warning", style = "padding:10px 14px;",
                  shiny::icon("triangle-exclamation"), " ", motif)
+    }
+
+    # -- Matieres actives saisies hors catalogue ---------------------------
+    # Un nom tape dans un champ est propose dans tous les autres : la meme
+    # matiere active ne se retape pas d'un onglet a l'autre, ni d'une ligne a
+    # la suivante.
+    ma_saisies <- shiny::reactiveVal(hstat_ma_ajoutees())
+    .ma_ids <- function() c("doseMatiere", paste0("dilMaNom", seq_len(10L)))
+    shiny::observe({
+      v <- unlist(lapply(.ma_ids(), function(id) input[[id]]), use.names = FALSE)
+      .ma_retenir(v)
+    })
+    .ma_retenir <- function(v) {
+      neuf <- hstat_ma_retenir(v, shiny::isolate(ma_saisies()))
+      if (length(neuf)) ma_saisies(c(shiny::isolate(ma_saisies()), neuf))
+    }
+    # La liste de suggestions de la colonne « Matiere active » du tableau des
+    # produits : DT n'a pas de liste deroulante en cellule, mais son champ
+    # d'edition est un <input> ordinaire, auquel le navigateur sait proposer
+    # un <datalist>. Elle suit les ajouts de la session.
+    output$maListeUi <- shiny::renderUI(
+      shiny::tags$datalist(id = ns("maListe"),
+        lapply(unique(c(HSTAT_MATIERES_ACTIVES, ma_saisies())),
+               function(x) shiny::tags$option(value = x))))
+    shiny::outputOptions(output, "maListeUi", suspendWhenHidden = FALSE)
+    # Les choix des champs deja affiches suivent ; chacun garde sa valeur.
+    shiny::observeEvent(ma_saisies(), {
+      choix <- unique(c(HSTAT_MATIERES_ACTIVES, ma_saisies()))
+      for (id in .ma_ids()) {
+        cur <- input[[id]]
+        if (is.null(cur)) next
+        shiny::updateSelectizeInput(session, id, choices = c("", choix),
+                                    selected = cur)
+      }
+    }, ignoreInit = TRUE)
+    # Poser une valeur (reprise depuis un autre onglet) : elle entre d'abord
+    # dans les choix, sans quoi selectize refuserait une valeur inconnue.
+    .ma_poser <- function(id, valeur) {
+      valeur <- trimws(as.character(valeur %||% ""))[1]
+      if (is.na(valeur)) valeur <- ""
+      choix <- unique(c(HSTAT_MATIERES_ACTIVES, ma_saisies(),
+                        if (nzchar(valeur)) valeur))
+      shiny::updateSelectizeInput(session, id, choices = c("", choix), selected = valeur)
     }
 
     # ---------------------------------------------------------------- dose
@@ -1642,9 +1803,10 @@ mod_dosage_server <- function(id, values) {
         dep <- shiny::isolate(input[[paste0("dilMaDep", i)]])
         mm  <- shiny::isolate(input[[paste0("dilMaMol", i)]])
         shiny::fluidRow(
-          shiny::column(if (mol) 4 else 5, shiny::textInput(ns(paste0("dilMaNom", i)),
-            if (i == 1L) "Matière active" else NULL, value = nom,
-            placeholder = if (i == 1L) "ex : Lambda-cyhalothrine" else NULL)),
+          shiny::column(if (mol) 4 else 5, hstat_ma_input(ns(paste0("dilMaNom", i)),
+            if (i == 1L) "Matière active" else NULL, selected = nom,
+            saisies = shiny::isolate(ma_saisies()),
+            placeholder = if (i == 1L) "ex : Lambda-cyhalothrin" else NULL)),
           shiny::column(if (mol) 3 else 4, shiny::numericInput(ns(paste0("dilMaConc", i)),
             if (i == 1L) "Concentration mère" else NULL,
             value = if (is.null(cnc)) NA_real_ else cnc, min = 0, step = 1)),
@@ -1695,7 +1857,7 @@ mod_dosage_server <- function(id, values) {
       shiny::updateTextInput(session, "dilProduit", value = attr(d, "produit"))
       shiny::updateSelectInput(session, "dilUnite", selected = unite)
       shiny::updateNumericInput(session, "dilNbMa", value = 1)
-      shiny::updateTextInput(session, "dilMaNom1", value = attr(d, "matiere"))
+      .ma_poser("dilMaNom1", attr(d, "matiere"))
       shiny::updateNumericInput(session, "dilMaConc1", value = round(val, 6))
       # Le grammage est une quantite A L'HECTARE, pas une concentration : le
       # reprendre tel quel comme concentration mere est un choix de
@@ -1798,6 +1960,7 @@ mod_dosage_server <- function(id, values) {
       j <- hstat_indice_client(info$col + 1L, ncol(d))   # `rownames = FALSE` decale d'un
       if (is.na(i) || is.na(j) || length(info$value) != 1L) return()
       v <- info$value
+      if (identical(names(d)[j], "Matiere_active")) .ma_retenir(v)
       d[i, j] <- if (is.numeric(d[[j]]))
         suppressWarnings(as.numeric(gsub(",", ".", v, fixed = TRUE))) else as.character(v)
       saisie(d)
@@ -1925,10 +2088,12 @@ mod_dosage_server <- function(id, values) {
           .mere_ligne(tr("Quantité déposée sur chaque insecte"),
                       paste(hstat_fmt_nb(r$dose_individu, 6), "µg"), "D × x")),
         disque = c(
-          list(.mere_ligne(tr("Matière active pure dans la mère"),
-                           paste(hstat_fmt_nb(r$m_ma, 4), "mg"), "C × V")),
+          # La matiere active pure (C × V) n'est pas une ligne : on ne la pese
+          # pas, et elle se lisait comme la quantite a peser. Le produit de
+          # grade technique se nomme par son grade.
           if (!is.null(r$m_pese)) list(
-            .mere_ligne(tr("Produit à peser"), paste(hstat_fmt_nb(r$m_pese, 4), "mg"),
+            .mere_ligne(if (identical(r$produit, "technique")) tr("Grade technique")
+                        else tr("Produit à peser"), paste(hstat_fmt_nb(r$m_pese, 4), "mg"),
                         if (identical(r$produit, "technique")) FM[["technique"]] else FM[["solide_pct"]]),
             .mere_ligne(tr("Concentration réelle (contrôle)"),
                         paste(hstat_fmt_nb(r$c_reelle, 6), "mg/ml"), FM[["controle"]])),
