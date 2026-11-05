@@ -17,12 +17,6 @@
 #'   stored default, or asks when there is none. \code{"navigateur"} opens in
 #'   the web browser and \code{"shiny"} in the RStudio Shiny window, this time
 #'   only. \code{"demander"} forgets the stored default and asks again.
-#' @param mise_a_jour What to do when a newer HStat is published on GitHub.
-#'   \code{"auto"} (default) installs it and relaunches the new version,
-#'   \code{"demander"} asks first, \code{"non"} skips the check. The default
-#'   can be set with \code{options(hstat.mise_a_jour = "non")}. The check
-#'   runs in interactive sessions only, and gives up silently after a few
-#'   seconds without network.
 #' @param install_missing Logical; if \code{TRUE} (default) missing package
 #'   dependencies are installed before the app is launched. Set to
 #'   \code{FALSE} to skip installation (e.g. on a managed server where
@@ -36,29 +30,7 @@
 #' }
 #'
 #' @export
-run_hstat <- function(..., ouverture = NULL, mise_a_jour = NULL,
-                      install_missing = TRUE) {
-  # --- Mise a jour depuis GitHub, AVANT tout le reste ----------------------
-  # Une version installee pendant que l'ancienne reste chargee rend la base
-  # paresseuse de l'ancienne illisible (« lazy-load database is corrupt ») :
-  # apres l'installation on ne touche plus a rien de l'ancien espace de noms,
-  # on le decharge et on rappelle la NOUVELLE run_hstat().
-  if (isTRUE(.hstat_maj_verifier(mise_a_jour))) {
-    relance <- tryCatch({
-      base::unloadNamespace("HStat")
-      f <- base::getExportedValue("HStat", "run_hstat")
-      base::attachNamespace("HStat")
-      f
-    }, error = function(e) NULL)
-    if (is.null(relance)) {
-      base::message("HStat a \u00e9t\u00e9 mis \u00e0 jour. Red\u00e9marrez R ",
-                    "(Session > Restart R) puis relancez run_hstat().")
-      return(invisible(NULL))
-    }
-    return(relance(..., ouverture = ouverture, mise_a_jour = "non",
-                   install_missing = install_missing))
-  }
-
+run_hstat <- function(..., ouverture = NULL, install_missing = TRUE) {
   app_dir <- system.file("app", package = "HStat")
 
   if (app_dir == "") {
@@ -247,88 +219,4 @@ HSTAT_OUVERTURES <- c(navigateur = "Navigateur web",
   pkgs <- setdiff(unique(pkgs), c("stats", "utils", "methods", "grDevices",
                                   "graphics", "tools", "grid", "base"))
   if (length(pkgs) < 5) fallback else pkgs
-}
-
-## ---------------------------------------------------------------------------
-##  Mise a jour depuis GitHub
-## ---------------------------------------------------------------------------
-##  La reference est le champ `Version:` du DESCRIPTION de la branche
-##  principale : c'est la source unique du numero (regle du depot), et elle
-##  monte a chaque modification. On ne met a jour que vers une version
-##  STRICTEMENT plus recente : une installation locale en avance (developpement)
-##  n'est jamais ramenee en arriere.
-##
-##  Hors session interactive on ne verifie rien : sur un serveur, une
-##  installation au demarrage changerait le code sous les autres sessions.
-
-HSTAT_DEPOT <- "houphouet/hstat"
-HSTAT_MAJ_URL <- "https://raw.githubusercontent.com/houphouet/hstat/main/DESCRIPTION"
-HSTAT_MAJ_MODES <- c("auto", "demander", "non")
-HSTAT_MAJ_DELAI <- 5
-
-# Le numero publie, ou NULL : sans reseau, un depot injoignable ou un fichier
-# illisible ne doivent ni lever ni bloquer le lancement.
-.hstat_version_distante <- function(url = HSTAT_MAJ_URL, delai = HSTAT_MAJ_DELAI) {
-  ancien <- options(timeout = delai)
-  on.exit(options(ancien), add = TRUE)
-  txt <- tryCatch(suppressWarnings(readLines(url, warn = FALSE)),
-                  error = function(e) NULL)
-  .hstat_version_lire(txt)
-}
-
-.hstat_version_lire <- function(txt) {
-  if (!is.character(txt) || !length(txt)) return(NULL)
-  v <- sub("^Version:[[:space:]]*", "", grep("^Version:", txt, value = TRUE)[1])
-  if (is.na(v)) return(NULL)
-  tryCatch(package_version(trimws(v)), error = function(e) NULL)
-}
-
-.hstat_version_locale <- function() {
-  tryCatch(utils::packageVersion("HStat"), error = function(e) NULL)
-}
-
-# `upgrade = "never"` : la mise a jour de HStat ne doit pas relancer celle de
-# cent dependances sans qu'on l'ait demande ; celles qui manquent sont
-# installees ensuite par run_hstat() comme au premier lancement.
-.hstat_maj_installer <- function(depot = HSTAT_DEPOT) {
-  if (!requireNamespace("remotes", quietly = TRUE)) {
-    ok <- tryCatch({ utils::install.packages("remotes"); TRUE },
-                   error = function(e) FALSE)
-    if (!ok || !requireNamespace("remotes", quietly = TRUE)) return(FALSE)
-  }
-  isTRUE(tryCatch({
-    remotes::install_github(depot, upgrade = "never", quiet = TRUE)
-    TRUE
-  }, error = function(e) {
-    message("La mise \u00e0 jour de HStat a \u00e9chou\u00e9 : ", conditionMessage(e))
-    FALSE
-  }))
-}
-
-.hstat_maj_demander <- function(locale, distante, choix = utils::menu) {
-  i <- choix(c("Mettre \u00e0 jour maintenant", "Pas cette fois"),
-             title = sprintf("HStat %s est disponible (install\u00e9e : %s).",
-                             distante, locale))
-  identical(as.integer(i), 1L)
-}
-
-# TRUE si une nouvelle version vient d'etre installee.
-.hstat_maj_verifier <- function(mode = NULL, interactif = interactive(),
-                                distante = .hstat_version_distante,
-                                locale = .hstat_version_locale,
-                                installer = .hstat_maj_installer,
-                                demander = .hstat_maj_demander) {
-  mode <- mode %||% getOption("hstat.mise_a_jour", "auto")
-  if (!is.character(mode) || length(mode) != 1L || !mode %in% HSTAT_MAJ_MODES)
-    mode <- "auto"
-  if (mode == "non" || !isTRUE(interactif)) return(FALSE)
-  loc <- locale()
-  if (is.null(loc)) return(FALSE)
-  dis <- distante()
-  if (is.null(dis) || dis <= loc) return(FALSE)
-  if (mode == "demander" && !isTRUE(demander(loc, dis))) return(FALSE)
-  message(sprintf("HStat : mise \u00e0 jour %s -> %s...", loc, dis))
-  ok <- installer()
-  if (ok) message(sprintf("HStat %s install\u00e9e.", dis))
-  ok
 }

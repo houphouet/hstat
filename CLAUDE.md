@@ -10818,40 +10818,14 @@ désormais ». Trois décisions, chacune testée :
 Un fichier de défaut porteur d'une valeur inconnue ne vaut pas un choix : on
 redemande plutôt que d'ouvrir là où personne ne l'a demandé.
 
-## `run_hstat()` se met à jour depuis GitHub
+## `run_hstat()` ne se met plus à jour tout seul
 
-Demandé à l'écran : au lancement, s'il existe une mise à jour, l'installer
-d'elle-même. `.hstat_maj_verifier()` lit le champ `Version:` du
-`DESCRIPTION` de la branche principale (la source unique du numéro), le
-compare à la version installée et, s'il est **strictement** plus récent,
-réinstalle par `remotes::install_github(upgrade = "never")` — les dépendances
-manquantes restent installées ensuite, comme au premier lancement.
-
-Quatre décisions, chacune testée :
-
-1. **On relance la nouvelle version, jamais l'ancienne.** Installer un paquet
-   pendant que l'ancien reste chargé remplace sa base paresseuse sur disque :
-   l'objet suivant lu dans l'ancien espace de noms lève « lazy-load database
-   is corrupt ». Après l'installation, `run_hstat()` ne touche donc plus à
-   rien de l'ancien espace de noms : il le décharge, prend la **nouvelle**
-   `run_hstat()` par `getExportedValue()`, la rattache et la rappelle avec
-   `mise_a_jour = "non"`. Vérifié sur un paquet qui se réinstalle pendant
-   qu'il tourne : c'est le code de la nouvelle version qui répond. Si le
-   déchargement échoue, on dit de redémarrer R plutôt que de lancer un code
-   mi-ancien mi-nouveau.
-2. **Jamais vers le bas, et comparé en versions.** Une installation locale en
-   avance (développement) n'est pas ramenée en arrière, et « 1.10.0 » dépasse
-   « 1.9.0 » — une comparaison de chaînes dirait l'inverse.
-3. **Sans réseau, rien ne bloque.** Le dépôt est lu avec un délai de
-   `HSTAT_MAJ_DELAI` (5 s) ; injoignable ou illisible, il rend `NULL` et le
-   lancement continue. Une installation qui échoue est dite, et n'est pas
-   annoncée comme une mise à jour.
-4. **En session interactive seulement.** Sur un serveur, une installation au
-   démarrage changerait le code sous les autres sessions. `mise_a_jour =
-   "demander"` pose la question, `"non"` ou
-   `options(hstat.mise_a_jour = "non")` coupent la vérification.
-
-`remotes` entre dans les `Suggests` : il est installé à la demande s'il manque.
+La vérification au lancement (lecture du `DESCRIPTION` de la branche
+principale, réinstallation par `remotes::install_github()`, relance de la
+nouvelle version) a été **retirée à la demande**, avec l'argument
+`mise_a_jour`, l'option `hstat.mise_a_jour`, son test et `remotes` des
+`Suggests` et de la liste de la CI. Une mise à jour se fait à la main :
+`remotes::install_github("houphouet/hstat")`, puis redémarrer R.
 
 ## ANOVA à mesures répétées à plusieurs facteurs : strates, interactions, effets simples
 

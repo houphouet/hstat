@@ -19494,7 +19494,7 @@ test_that("la graine du LSTM ecrite dans les details est celle qui est posee", {
 .hstat_pkgs_appeles <- function() {
   out <- character(0)
   # `run_hstat.R` n'est pas une source de l'application, mais c'est du code du
-  # paquet : ses appels (`remotes::`, `shiny::runApp`) doivent etre declares.
+  # paquet : ses appels (`shiny::runApp`, `utils::menu`) doivent etre declares.
   sources <- .hstat_sources_app()
   rh <- file.path(dirname(sources[grepl("utils[.]R$", sources)][1]), "run_hstat.R")
   if (file.exists(rh)) sources <- c(sources, rh)
@@ -23924,61 +23924,6 @@ test_that("run_hstat demande ou ouvrir, retient le defaut sur demande seulement"
   expect_null(e$.hstat_ouverture_lanceur(NA_character_, rs))
 })
 
-test_that("run_hstat met a jour vers une version STRICTEMENT plus recente, et la relance", {
-  root <- .hstat_repo_root()
-  e <- new.env(parent = globalenv())
-  assign("%||%", function(x, y) if (is.null(x) || length(x) == 0) y else x, envir = e)
-  sys.source(file.path(root, "R", "run_hstat.R"), envir = e, keep.source = FALSE)
-  pv <- package_version
-  n <- 0L
-  inst <- function() { n <<- n + 1L; TRUE }
-  maj <- function(loc, dis, ...) e$.hstat_maj_verifier(
-    interactif = TRUE, locale = function() loc, distante = function() dis,
-    installer = inst, ...)
-
-  # Plus recente : installee. Egale ou plus ancienne (developpement) : jamais.
-  expect_true(suppressMessages(maj(pv("1.42.0"), pv("1.43.0"))))
-  expect_false(maj(pv("1.43.0"), pv("1.43.0")))
-  expect_false(maj(pv("1.44.0"), pv("1.43.0")))
-  # Comparaison de versions, pas de chaines : « 1.10.0 » depasse « 1.9.0 ».
-  expect_true(suppressMessages(maj(pv("1.9.0"), pv("1.10.0"))))
-  expect_identical(n, 2L)
-
-  # Sans reseau ou paquet non installe : rien, sans lever.
-  expect_false(maj(pv("1.0.0"), NULL))
-  expect_false(maj(NULL, pv("9.0.0")))
-  # « non », ou session non interactive : on ne regarde meme pas le depot.
-  boom <- function() stop("depot consulte")
-  expect_false(e$.hstat_maj_verifier("non", TRUE, distante = boom))
-  expect_false(e$.hstat_maj_verifier("auto", FALSE, distante = boom))
-  # « demander » : un refus n'installe rien ; un mode inconnu vaut « auto ».
-  expect_false(maj(pv("1.0.0"), pv("2.0.0"), mode = "demander",
-                   demander = function(...) FALSE))
-  expect_true(suppressMessages(maj(pv("1.0.0"), pv("2.0.0"), mode = "xx")))
-  # Une installation qui echoue n'est pas annoncee comme une mise a jour.
-  expect_false(suppressMessages(e$.hstat_maj_verifier(
-    interactif = TRUE, locale = function() pv("1.0.0"),
-    distante = function() pv("2.0.0"), installer = function() FALSE)))
-
-  # Le numero se lit dans le DESCRIPTION publie ; un fichier illisible rend NULL.
-  expect_identical(e$.hstat_version_lire(c("Package: HStat", "Version: 1.43.0")),
-                   pv("1.43.0"))
-  expect_null(e$.hstat_version_lire(c("Package: HStat")))
-  expect_null(e$.hstat_version_lire(NULL))
-  expect_null(e$.hstat_version_lire("Version: pas un numero"))
-  # Un depot injoignable rend NULL dans le delai, sans lever.
-  expect_null(e$.hstat_version_distante("http://127.0.0.1:9/DESCRIPTION", delai = 2))
-
-  # Apres l'installation, run_hstat() se relance par la NOUVELLE fonction
-  # (l'ancien espace de noms est decharge) : sinon la base paresseuse de
-  # l'ancienne version, remplacee sur disque, devient illisible.
-  corps <- paste(deparse(body(e$run_hstat)), collapse = "\n")
-  expect_match(corps, "unloadNamespace(\"HStat\")", fixed = TRUE)
-  expect_match(corps, "getExportedValue(\"HStat\", \"run_hstat\")", fixed = TRUE)
-  expect_match(corps, "mise_a_jour = \"non\"", fixed = TRUE)
-  expect_lt(regexpr(".hstat_maj_verifier", corps, fixed = TRUE),
-            regexpr(".hstat_required_packages", corps, fixed = TRUE))
-})
 
 # ==============================================================================
 #  ANOVA a mesures repetees a plusieurs facteurs : interactions et strates
