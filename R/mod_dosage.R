@@ -1044,7 +1044,8 @@ HSTAT_MERE_FORMULES <- c(
   liquide_gl  = "Volume de formulation (ml) = C (mg/ml) × V (ml) ÷ Teneur (g/l), car 1 g/l = 1 mg/ml",
   solide_pct  = "m formulation (mg) = m matière active cible (mg) ÷ (P / 100)",
   liquide_pct = "Volume de formulation (ml) = m formulation (mg) ÷ [densité (g/ml) × 1000]",
-  tube        = "Q (mg) = C (mg) × 100 ÷ P (%) ; concentration de la mère (mg/ml) = C (mg) ÷ V (ml)",
+  tube        = "Q (mg) = C (mg) × V (ml) ÷ v (ml) × 100 ÷ P (%)",
+  tube_c      = "Concentration de la mère (mg/ml) = C (mg) ÷ v (ml)",
   abbott      = "Mortalité corrigée (%) = 100 × (mortalité traitement − mortalité témoin) ÷ (100 − mortalité témoin)")
 
 # Un nombre strictement positif et fini, ou NA. Une pesee ne se fait pas sur
@@ -1118,17 +1119,21 @@ hstat_mere_concentration <- function(C, V, produit = "technique", P = NA,
 }
 
 # -- Tubes impregnes (vial test) ------------------------------------------------
-# C : masse de matiere active pure dans la mere (mg) ; V : volume d'acetone
-# (mL) ; P : purete (%). Exemple du protocole : 12 mg, 90 % -> 13,3333 mg dans
-# 10 mL, soit 1,2 mg/mL.
-hstat_mere_tube <- function(C, V, P) {
-  C <- .hstat_mere_pos(C); V <- .hstat_mere_pos(V)
+# C : quantite de matiere active par flacon (mg) ; v : volume de solution
+# depose dans chaque flacon (mL) ; V : volume total de solution a preparer
+# (mL) ; P : purete (%). La mere contient C dans v, donc C × V / v dans V, et
+# la purete corrige vers le haut. Exemple : 0,6 mg par flacon de 0,5 mL,
+# 10 mL a preparer, 90 % -> 12 mg actifs, 13,3333 mg a peser, 1,2 mg/mL.
+hstat_mere_tube <- function(C, v, V, P) {
+  C <- .hstat_mere_pos(C); v <- .hstat_mere_pos(v); V <- .hstat_mere_pos(V)
   P <- .hstat_mere_purete(P)
-  if (anyNA(c(C, V)))
-    return(.hstat_mere_refus(tr("La quantité de matière active et le volume d'acétone doivent être des nombres strictement positifs.")))
+  if (anyNA(c(C, v, V)))
+    return(.hstat_mere_refus(tr("La quantité de matière active par flacon, le volume de solution par flacon et le volume total doivent être des nombres strictement positifs.")))
   if (is.na(P))
     return(.hstat_mere_refus(tr("La pureté doit être comprise entre 0 (exclu) et 100 %.")))
-  list(ok = TRUE, Q_mg = C * 100 / P, c_mere = C / V)
+  pure <- C * V / v
+  list(ok = TRUE, Q_mg = pure * 100 / P, pure_mg = pure, c_mere = C / v,
+       flacons = V / v)
 }
 
 
@@ -1460,9 +1465,11 @@ mod_dosage_ui <- function(id) {
             shiny::conditionalPanel(
               condition = sprintf("input['%s'] == 'tube'", ns("mereTest")),
               shiny::fluidRow(
-                shiny::column(4, .hstat_mere_champ(ns, "mereTubC", "Matière active pure dans la mère C", 12, "masse", NULL, "mg")),
-                shiny::column(4, .hstat_mere_champ(ns, "mereTubV", "Volume d'acétone V", 10, "volume", NULL, "ml")),
-                shiny::column(4, shiny::numericInput(ns("mereTubP"), "Pureté P (%)", value = 90, min = 0, max = 100)))),
+                shiny::column(6, .hstat_mere_champ(ns, "mereTubC", "Quantité de matière active par flacon C", 6, "masse", NULL, "µg")),
+                shiny::column(6, .hstat_mere_champ(ns, "mereTubVflacon", "Volume de solution par flacon v", 0.5, "volume", NULL, "ml"))),
+              shiny::fluidRow(
+                shiny::column(6, .hstat_mere_champ(ns, "mereTubV", "Volume total de solution à préparer V", 100, "volume", NULL, "ml")),
+                shiny::column(6, shiny::numericInput(ns("mereTubP"), "Pureté P (%)", value = 90, min = 0, max = 100)))),
             shiny::uiOutput(ns("mereResultat")),
             # La gamme se prepare dans l'onglet des dilutions, qui sait deja
             # tout faire : prelevement dans la mere, eau a ajouter, besoin en
@@ -2115,6 +2122,7 @@ mod_dosage_server <- function(id, values) {
           P = input$mereDisP, teneur = .mere_val("mereDisTeneur", "g/l"),
           densite = input$mereDisDensite),
         tube = hstat_mere_tube(C = .mere_val("mereTubC", "mg"),
+                               v = .mere_val("mereTubVflacon", "ml"),
                                V = .mere_val("mereTubV", "ml"),
                                P = input$mereTubP))
     })
@@ -2156,8 +2164,10 @@ mod_dosage_server <- function(id, values) {
         tube = list(
           .mere_ligne(tr("Matière active technique à peser"),
                       paste(hstat_fmt_nb(r$Q_mg, 4), "mg"), FM[["tube"]]),
+          .mere_ligne(tr("Nombre de flacons traités"),
+                      hstat_fmt_nb(r$flacons, 2), "V ÷ v"),
           .mere_ligne(tr("Concentration de la mère"),
-                      paste(hstat_fmt_nb(r$c_mere, 6), "mg/ml"), "C ÷ V")))
+                      paste(hstat_fmt_nb(r$c_mere, 6), "mg/ml"), FM[["tube_c"]])))
       shiny::tags$table(class = "table table-condensed",
         shiny::tags$thead(shiny::tags$tr(shiny::tags$th(tr("Grandeur")),
           shiny::tags$th(tr("Valeur")), shiny::tags$th(tr("Formule")))),

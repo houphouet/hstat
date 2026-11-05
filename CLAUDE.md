@@ -11125,7 +11125,7 @@ fois — le sélecteur, la fiche du test et le report vers l'essai en dérivent.
 |---|---|---|---|
 | Application topique (chenilles) | dose — DL | µg/g | Q (µg) = D·x·V·100 ÷ (a·P) |
 | Trempage de disques, IRAC 035 (jassides) | concentration — CL | mg/L | m (mg) = C·V ÷ (P/100) |
-| Tubes imprégnés, vial test (H. armigera) | concentration — CL | µg/tube | Q (mg) = C·100 ÷ P |
+| Tubes imprégnés, vial test (H. armigera) | concentration — CL | µg/tube | Q (mg) = C·V·100 ÷ (v·P) |
 
 Les exemples des protocoles sont retrouvés au chiffre près, et le test les
 porte : 52,63 mg pour 1 mg/mL dans 50 mL à 95 % ; 13,3333 mg dans 10 mL, soit
@@ -11424,3 +11424,26 @@ Trois défauts, trouvés en relisant le lot précédent :
 
 `hstat_ma_choix()` compose la liste proposée **une fois** : elle était
 recomposée en cinq endroits.
+
+### Vial test : la mère se calcule depuis la quantité par flacon
+
+Demandé à l'écran. Le champ « Matière active pure dans la mère C » obligeait à
+faire de tête le calcul qu'on vient demander. Le protocole donne ce qu'on veut
+**par flacon** : la mère se calcule donc depuis quatre grandeurs —
+`hstat_mere_tube(C, v, V, P)` :
+
+| Champ | Symbole |
+|---|---|
+| Quantité de matière active par flacon | C (mg, saisie en µg par défaut) |
+| Volume de solution par flacon | v (ml) |
+| Volume total de solution à préparer | V (ml) |
+| Pureté | P (%) |
+
+```
+Q (mg) = C × V ÷ v × 100 ÷ P        concentration de la mère (mg/ml) = C ÷ v
+```
+
+Le nombre de flacons traités (V ÷ v) est affiché à côté : c'est ce qui dit si le
+volume préparé suffit. Le test exige que V et v jouent des rôles **opposés**
+(doubler V double la pesée, doubler v la divise par deux) : une formule qui les
+confondrait passerait sinon l'exemple chiffré.

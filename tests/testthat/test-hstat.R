@@ -24553,12 +24553,18 @@ test_that("Solution mère : les formules des trois protocoles rendent leurs exem
   expect_false(hstat_mere_concentration(1, 50, "liquide_pct", P = 50)$ok)
   lp <- hstat_mere_concentration(1, 50, "liquide_pct", P = 50, densite = 1.25)
   expect_equal(lp$m_pese, 100); expect_equal(lp$v_formulation, 0.08)
-  # Vial test : 12 mg a 90 % -> 13,3333 mg dans 10 mL, soit 1,2 mg/mL ;
-  # 1 mL puis 5 mL dans 100 mL, 0,5 mL par tube -> 6 et 30 µg.
-  t <- hstat_mere_tube(C = 12, V = 10, P = 90)
+  # Vial test : 0,6 mg par flacon de 0,5 mL, 10 mL a preparer, 90 %
+  # -> 12 mg actifs, 13,3333 mg a peser, 1,2 mg/mL, 20 flacons.
+  t <- hstat_mere_tube(C = 0.6, v = 0.5, V = 10, P = 90)
   expect_equal(round(t$Q_mg, 4), 13.3333); expect_equal(t$c_mere, 1.2)
+  expect_equal(t$pure_mg, 12); expect_equal(t$flacons, 20)
+  # Le volume total et le volume par flacon ne jouent pas le meme role :
+  # doubler V double la pesee, doubler v la divise par deux.
+  expect_equal(hstat_mere_tube(0.6, 0.5, 20, 90)$Q_mg, 2 * t$Q_mg)
+  expect_equal(hstat_mere_tube(0.6, 1, 10, 90)$Q_mg, t$Q_mg / 2)
   # Purete hors de ]0 ; 100] : refus, jamais une masse plus petite que l'active.
-  for (P in c(0, -5, 120, NA)) expect_false(hstat_mere_tube(12, 10, P)$ok)
+  for (P in c(0, -5, 120, NA)) expect_false(hstat_mere_tube(0.6, 0.5, 10, P)$ok)
+  for (v in c(0, -1, NA)) expect_false(hstat_mere_tube(0.6, v, 10, 90)$ok)
 })
 
 test_that("Doses & dilutions : la mère avant les filles, et sa concentration y passe", {
