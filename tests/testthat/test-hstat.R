@@ -25045,7 +25045,7 @@ test_that("Solution mere : le grade technique se nomme, la m.a. pure ne s'affich
     h2 <- as.character(output$mereResultat$html)
     expect_false(grepl("Grade technique", h2, fixed = TRUE))
   })
-  expect_identical(HSTAT_MERE_TESTS$disque$protocole, "Protocole IRAC 035")
+  expect_identical(HSTAT_MERE_TESTS$disque$protocole, "Protocole IRAC 015, 016 et 035")
 })
 
 test_that("Doses & dilutions : la matiere active se choisit dans une liste, ou se tape", {
@@ -25094,5 +25094,44 @@ test_that("Doses & dilutions : la matiere active se choisit dans une liste, ou s
   on.exit(options(ancien), add = TRUE)
   shiny::testServer(mod_dosage_server, args = list(values = vals), {
     expect_true("Neem maison" %in% ma_saisies())
+  })
+})
+
+test_that("Matiere active : la meme liste partout ou l'on en saisit une", {
+  # Fiche d'essai DL50 : les deux matieres actives puisent dans la liste.
+  ui50 <- paste(as.character(mod_dl50_ui("dl50")), collapse = "")
+  for (id in c("dl50-ch_matiere1", "dl50-ch_matiere2")) {
+    i <- regexpr(paste0('id="', id, '"><option'), ui50, fixed = TRUE)
+    expect_true(i > 0)
+    bloc <- substr(ui50, i, i + 20000)
+    expect_match(bloc, '<option value="Deltamethrin">', fixed = TRUE)
+    expect_match(bloc, '"createOnBlur":true', fixed = TRUE)
+  }
+  # Les autres champs de la fiche gardent leur propre vocabulaire.
+  j <- regexpr('id="dl50-ch_espece">', ui50, fixed = TRUE)
+  expect_true(j > 0)
+  expect_false(grepl("Deltamethrin", substr(ui50, j, j + 600), fixed = TRUE))
+  # Le tableau des produits : la colonne « Matiere active » recoit la liste en
+  # suggestions, a l'index de sa colonne (rownames = FALSE).
+  ud <- paste(as.character(mod_dosage_ui("dosage")), collapse = "")
+  expect_match(ud, "dosage-maListeUi", fixed = TRUE)
+  expect_match(ud, sprintf("td.cellIndex === %d) this.setAttribute('list', 'dosage-maListe')",
+                           match("Matiere_active", HSTAT_DILUTION_COLS) - 1L), fixed = TRUE)
+  expect_identical(names(hstat_dilution_table_vide(1L))[match("Matiere_active",
+                   HSTAT_DILUTION_COLS)], "Matiere_active")
+  vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  shiny::testServer(mod_dosage_server, args = list(values = vals), {
+    h <- as.character(output$maListeUi$html)
+    expect_match(h, '<datalist id="[^"]*-maListe">')
+    expect_match(h, '<option value="2,4-D (amine salt)"></option>', fixed = TRUE)
+    # Un nom tape dans la cellule rejoint la liste de la session.
+    session$setInputs(dilLigne = 1)
+    expect_gte(nrow(saisie()), 1L)
+    j <- match("Matiere_active", names(saisie()))
+    session$setInputs(dilSaisie_cell_edit = list(row = 1L, col = j - 1L,
+                                                 value = "Huile de neem"))
+    expect_identical(saisie()$Matiere_active[1], "Huile de neem")
+    expect_true("Huile de neem" %in% ma_saisies())
   })
 })

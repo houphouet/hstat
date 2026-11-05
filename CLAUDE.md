@@ -11336,7 +11336,8 @@ Sous « Matière active technique (pureté en %) », la ligne « Produit à pese
 devient **« Grade technique »** ; une formulation solide garde « Produit à
 peser ». La ligne « Matière active pure dans la mère » (C × V) est retirée :
 on ne la pèse pas, et elle se lisait comme la quantité à peser. Le protocole
-du trempage de disques s'écrit « Protocole IRAC 035 ».
+du trempage de disques s'écrit « Protocole IRAC 035 » (puis « IRAC 015, 016
+et 035 », voir plus bas).
 
 ### La matière active se choisit dans une liste, et la liste s'enrichit
 
@@ -11369,5 +11370,29 @@ Une valeur posée depuis un autre onglet (reprise du calcul de dose) passe par
 `.ma_poser()`, qui l'ajoute aux choix **avant** de la sélectionner : selectize
 refuse une valeur qu'il ne connaît pas, et le champ resterait vide.
 
-Hors du champ : la colonne « Matière active » du tableau éditable des produits
-saisis reste une cellule de texte — DT n'a pas de liste déroulante en cellule.
+#### Partout où l'on saisit une matière active
+
+Demandé à l'écran : la liste s'applique **dans toute l'application**. Trois
+sites, une seule source (`hstat_ma_catalogue()` : la liste fournie, puis les
+ajouts enregistrés) et une seule règle d'ajout (`hstat_ma_retenir()`) :
+
+| Site | Comment |
+|---|---|
+| Doses & dilutions, champs « Matière active » | `hstat_ma_input()` |
+| Fiche d'essai DL50, « Matière active n°1 / n°2 » | `hstat_ma_input()`, à la place du vocabulaire propre de la fiche |
+| Tableau éditable des produits saisis | un `<datalist>` posé sur le champ d'édition de DT |
+
+**DT n'a pas de liste déroulante en cellule**, mais son champ d'édition est un
+`<input type="text">` ordinaire, et le navigateur sait lui proposer un
+`<datalist>`. Le script pose l'attribut `list` à l'instant où DT crée le champ
+(`focusin` délégué en jQuery : DT recrée le champ à chaque double-clic), et
+seulement sur la colonne `Matiere_active` — son index se lit dans
+`HSTAT_DILUTION_COLS`, jamais en dur. Vérifié au navigateur : 109 suggestions
+sur la cellule. Un nom tapé dans la cellule rejoint la liste comme les autres.
+
+Les **critères de sélection** des essais DL50 (`selMa1`, `selMa2`) ne prennent
+**pas** la liste : ils ne proposent que les matières actives des essais
+chargés, et offrir un nom absent du fonds ne peut que rendre zéro essai.
+
+Le protocole du trempage de disques s'écrit désormais « Protocole IRAC 015,
+016 et 035 ».

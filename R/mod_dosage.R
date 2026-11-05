@@ -1011,7 +1011,7 @@ HSTAT_MERE_TESTS <- list(
     libelle   = "Trempage de disques foliaires, IRAC 035 (concentration) — CL",
     grandeur  = "concentration", unite = "mg/l",
     methode   = "Trempage de disques foliaires (IRAC 035)",
-    protocole = "Protocole IRAC 035",
+    protocole = "Protocole IRAC 015, 016 et 035",
     solvant   = "Selon la formulation", repetitions = 4L, individus = 10L,
     seuil_rejet = 10,
     lectures  = "24 h, 48 h, 72 h, 96 h et 120 h"),
@@ -1198,6 +1198,27 @@ hstat_ma_ajoutees <- function(fichier = hstat_ma_fichier()) {
   v <- trimws(enc2utf8(v))
   # Borne : un fichier demesure ne doit pas alourdir chaque liste deroulante.
   utils::head(unique(v[nzchar(v)]), 1000L)
+}
+
+# La liste complete proposee partout ou l'on saisit une matiere active : celle
+# fournie, puis les ajouts enregistres. Une seule definition -- la dose, les
+# dilutions, leur tableau et la fiche d'essai DL50 la lisent tous.
+hstat_ma_catalogue <- function(fichier = hstat_ma_fichier())
+  unique(c(HSTAT_MATIERES_ACTIVES, hstat_ma_ajoutees(fichier)))
+
+# Retient les noms tapes hors liste : rend ceux qui sont reellement nouveaux,
+# enregistres ou non, et l'annonce. Partage par les deux modules qui saisissent
+# une matiere active.
+hstat_ma_retenir <- function(noms, connus = character(0)) {
+  noms <- trimws(as.character(noms)); noms <- noms[!is.na(noms) & nzchar(noms)]
+  neuf <- unique(noms[!tolower(noms) %in% tolower(c(HSTAT_MATIERES_ACTIVES, connus))])
+  if (!length(neuf)) return(character(0))
+  ajout <- hstat_ma_ajouter(neuf)
+  if (length(ajout) && !is.null(shiny::getDefaultReactiveDomain()))
+    shiny::showNotification(trf("Ajouté à la liste des matières actives : %s",
+                                paste(ajout, collapse = " ; ")),
+                            type = "message", duration = 5)
+  neuf
 }
 
 # Ajoute ce qui est NOUVEAU, une ligne par nom. Un nom deja dans la liste ou
@@ -1523,6 +1544,17 @@ mod_dosage_ui <- function(id) {
               " et le volume final sont ceux du produit — ils sont donc identiques",
               " sur toutes ses lignes."),
             DT::DTOutput(ns("dilSaisie")),
+            # Le champ d'edition de la colonne « Matiere active » recoit la
+            # liste des matieres actives en suggestions (`list`), a l'instant
+            # ou DT le cree. Delegue sur le document, en jQuery : DT recree
+            # le champ a chaque double-clic.
+            shiny::uiOutput(ns("maListeUi")),
+            shiny::tags$script(shiny::HTML(sprintf(
+              "$(document).on('focusin', '#%s td input[type=text]', function() {
+                 var td = $(this).closest('td')[0];
+                 if (td && td.cellIndex === %d) this.setAttribute('list', '%s');
+               });", ns("dilSaisie"), match("Matiere_active", HSTAT_DILUTION_COLS) - 1L,
+              ns("maListe")))),
             shiny::br(),
             shiny::actionButton(ns("dilCalculer"),
               shiny::tagList(shiny::icon("calculator"), " Calculer les solutions filles"),
@@ -1607,17 +1639,21 @@ mod_dosage_server <- function(id, values) {
     .ma_ids <- function() c("doseMatiere", paste0("dilMaNom", seq_len(10L)))
     shiny::observe({
       v <- unlist(lapply(.ma_ids(), function(id) input[[id]]), use.names = FALSE)
-      v <- trimws(as.character(v)); v <- v[!is.na(v) & nzchar(v)]
-      neuf <- setdiff(v, c(HSTAT_MATIERES_ACTIVES, shiny::isolate(ma_saisies())))
-      if (length(neuf)) {
-        ma_saisies(c(shiny::isolate(ma_saisies()), neuf))
-        ajout <- hstat_ma_ajouter(neuf)
-        if (length(ajout))
-          shiny::showNotification(trf("Ajouté à la liste des matières actives : %s",
-                                      paste(ajout, collapse = " ; ")),
-                                  type = "message", duration = 5)
-      }
+      .ma_retenir(v)
     })
+    .ma_retenir <- function(v) {
+      neuf <- hstat_ma_retenir(v, shiny::isolate(ma_saisies()))
+      if (length(neuf)) ma_saisies(c(shiny::isolate(ma_saisies()), neuf))
+    }
+    # La liste de suggestions de la colonne « Matiere active » du tableau des
+    # produits : DT n'a pas de liste deroulante en cellule, mais son champ
+    # d'edition est un <input> ordinaire, auquel le navigateur sait proposer
+    # un <datalist>. Elle suit les ajouts de la session.
+    output$maListeUi <- shiny::renderUI(
+      shiny::tags$datalist(id = ns("maListe"),
+        lapply(unique(c(HSTAT_MATIERES_ACTIVES, ma_saisies())),
+               function(x) shiny::tags$option(value = x))))
+    shiny::outputOptions(output, "maListeUi", suspendWhenHidden = FALSE)
     # Les choix des champs deja affiches suivent ; chacun garde sa valeur.
     shiny::observeEvent(ma_saisies(), {
       choix <- unique(c(HSTAT_MATIERES_ACTIVES, ma_saisies()))
@@ -1924,6 +1960,7 @@ mod_dosage_server <- function(id, values) {
       j <- hstat_indice_client(info$col + 1L, ncol(d))   # `rownames = FALSE` decale d'un
       if (is.na(i) || is.na(j) || length(info$value) != 1L) return()
       v <- info$value
+      if (identical(names(d)[j], "Matiere_active")) .ma_retenir(v)
       d[i, j] <- if (is.numeric(d[[j]]))
         suppressWarnings(as.numeric(gsub(",", ".", v, fixed = TRUE))) else as.character(v)
       saisie(d)
