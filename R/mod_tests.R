@@ -2853,7 +2853,10 @@ mod_tests_server <- function(id, values) {
           values$filteredData[[var]], var, res$reference, res$statistic,
           if (is.na(res$parameter)) NA else hstat_ddl_fmt(res$parameter), res$p.value,
           symbole = switch(method, ztest = "z", wilcoxon = "V", sign = "S", "t"),
-          lettres = method != "tost")
+          # Les lettres ne se posent que pour un test sur la MOYENNE (t, z) : le
+          # Wilcoxon signe et le test du signe portent sur la mediane, et des
+          # lettres tirees de la moyenne pourraient dire l'inverse du test.
+          lettres = method %in% c("ttest", "ztest"))
       if (!is.na(res$note)) notes <- c(notes, res$note)
     }
     .push_ref_results(rows, details, notes)
@@ -3086,7 +3089,8 @@ mod_tests_server <- function(id, values) {
         stringsAsFactors = FALSE)
       synth[[k]] <- hstat_synthese_apparie(p$a, p$b, p$niveaux, j$etiquette,
         res$statistic, if (is.na(res$parameter)) NA else hstat_ddl_fmt(res$parameter),
-        res$p.value, switch(methode, wilcoxon = "V", signe = "S", "t"))
+        res$p.value, switch(methode, wilcoxon = "V", signe = "S", "t"),
+        lettres = methode == "t")
       ic <- if (is.na(res$conf.low) && is.na(res$conf.high)) "-"
             else sprintf("[%s ; %s]",
                          if (is.finite(res$conf.low)) signif(res$conf.low, 5) else "-Inf",
@@ -3457,7 +3461,10 @@ mod_tests_server <- function(id, values) {
         model_list[[var]] <- model
         
         for (i in 1:(nrow(anova_table) - 1)) {
-          effect_name <- rownames(anova_table)[i]
+          # `summary(aov)` garde les accents graves d'un nom non syntaxique
+          # (« `Type sol` ») et remplit d'espaces : le nom affiche et celui que
+          # la synthese rapproche du facteur doivent etre le nom de la colonne.
+          effect_name <- gsub("`", "", trimws(rownames(anova_table)[i]), fixed = TRUE)
           results_list[[paste(var, effect_name, sep = "_")]] <- data.frame(
             Test = "ANOVA",
             Variable = var,
@@ -7019,6 +7026,11 @@ mod_tests_server <- function(id, values) {
                 # restituer, et l'export comme le rapport ne portaient plus
                 # qu'une moyenne a deux decimales. L'arrondi appartient a
                 # l'affichage (`round_numeric_df`), pas au calcul.
+                # LES MODALITES SONT COPIEES AVANT LES COLONNES INTERNES : un
+                # facteur nomme « Type », « Variable » ou « Facteur » serait
+                # sinon ecrase deux lignes plus bas, et la synthese lirait
+                # « main » a la place des niveaux.
+                hstat_modalite = as.character(.data[[fvar]]),
                 `Moyenne±Ecart_type` = .hstat_pm(Moyenne, Ecart_type, groups, .dec_aff),
                 `Moyenne±Erreur_type` = .hstat_pm(Moyenne, Erreur_type, groups, .dec_aff),
                 Variable = var,
@@ -7129,6 +7141,7 @@ mod_tests_server <- function(id, values) {
                 if (!is.null(res) && nrow(res) > 0) {
                   res <- tryCatch(res %>%
                                     dplyr::mutate(
+                                      hstat_modalite = as.character(.data[[fvar1]]),
                                       Moyenne = as.numeric(Moyenne),
                                       Ecart_type = as.numeric(Ecart_type),
                                       Erreur_type = as.numeric(Erreur_type),
@@ -7164,6 +7177,7 @@ mod_tests_server <- function(id, values) {
                 if (!is.null(res) && nrow(res) > 0) {
                   res <- tryCatch(res %>%
                                     dplyr::mutate(
+                                      hstat_modalite = as.character(.data[[fvar2]]),
                                       Moyenne = as.numeric(Moyenne),
                                       Ecart_type = as.numeric(Ecart_type),
                                       Erreur_type = as.numeric(Erreur_type),
@@ -9167,7 +9181,8 @@ mod_tests_server <- function(id, values) {
   output$downloadMainEffects <- hstat_classeur_handler(function() {
     d <- values$multiResultsMain
     if (is.null(d)) return(NULL)
-    c(list("Effets_principaux" = d[d$Type == "main", ]),
+    d_exp <- d[, setdiff(names(d), "hstat_modalite"), drop = FALSE]
+    c(list("Effets_principaux" = d_exp[d_exp$Type == "main", ]),
       hstat_posthoc_synthese_feuilles(d[d$Type == "main", ], hstat_dec_affichage(
         input$multiRoundResults, input$multiDecimals)))
   }, "effets_principaux", "Effets principaux")
@@ -9175,15 +9190,17 @@ mod_tests_server <- function(id, values) {
   output$downloadSimpleEffects <- hstat_classeur_handler(function() {
     d <- values$multiResultsMain
     if (is.null(d)) return(NULL)
+    d <- d[, setdiff(names(d), "hstat_modalite"), drop = FALSE]
     list("Effets_simples" = d[d$Type == "simple_effect", ])
   }, "effets_simples", "Effets simples")
   
   output$downloadAllResults <- hstat_classeur_handler(function() {
     d <- values$multiResultsMain
     if (is.null(d)) return(NULL)
+    d_exp <- d[, setdiff(names(d), "hstat_modalite"), drop = FALSE]
     hstat_tables_non_vides(c(list(
-      "Effets_principaux" = d[d$Type == "main", ],
-      "Effets_simples"    = d[d$Type == "simple_effect", ]),
+      "Effets_principaux" = d_exp[d_exp$Type == "main", ],
+      "Effets_simples"    = d_exp[d_exp$Type == "simple_effect", ]),
       hstat_posthoc_synthese_feuilles(d, hstat_dec_affichage(
         input$multiRoundResults, input$multiDecimals))))
   }, "analyse_complete", "Analyse complète")
@@ -9274,7 +9291,8 @@ mod_tests_server <- function(id, values) {
       openxlsx::addWorksheet(wb, "Resume_par_variable")
       openxlsx::writeData(wb, "Resume_par_variable", hstat_decimale_classeur(var_summary))
       openxlsx::addWorksheet(wb, "Données_completes")
-      openxlsx::writeData(wb, "Données_completes", hstat_decimale_classeur(values$multiResultsMain))
+      openxlsx::writeData(wb, "Données_completes", hstat_decimale_classeur(
+        values$multiResultsMain[, setdiff(names(values$multiResultsMain), "hstat_modalite"), drop = FALSE]))
       openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
     })
   )
