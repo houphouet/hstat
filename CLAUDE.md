@@ -2825,6 +2825,33 @@ Quatre décisions, chacune testée :
    « Valeur de référence », « Mesure appariée » — « Échantillon » ou « Mesure »
    seuls seraient des modalités plausibles d'un fichier.
 
+#### Le coefficient de variation de l'essai, juste avant le ddl
+
+Demandé à l'écran. Chaque colonne porte une ligne **CV (%)** entre les
+modalités et le ddl :
+
+```
+CV (%) = √( Σ (nᵢ − 1) sᵢ² / Σ (nᵢ − 1) ) / |moyenne générale| × 100
+```
+
+C'est √CMe / moyenne de l'ANOVA à un facteur — le CV que publie un essai, et
+celui de `agricolae::cv.model`, retrouvé au chiffre près. Ce n'est **ni** la
+moyenne des CV par modalité **ni** l'écart-type de toutes les valeurs : ce
+dernier compte l'effet du traitement comme de la variabilité.
+
+Trois décisions, chacune testée :
+
+1. **Il est le même sous l'écart-type et sous l'erreur-type** : il décrit les
+   données, pas la dispersion affichée. Sans écart-type dans le résultat, il se
+   reconstitue par ES × √n.
+2. **La moyenne générale est pondérée par les effectifs.** Le test pose des
+   effectifs inégaux, seul cas où la variance mise en commun et la moyenne
+   pondérée se distinguent de leurs versions naïves — sans quoi l'assertion
+   passerait aussi sur une formule fausse.
+3. **Une ligne sans dispersion n'y entre pas** (la valeur de référence d'un
+   test à une norme : le CV est alors celui de l'échantillon), et une moyenne
+   générale nulle laisse la case vide plutôt que d'écrire l'infini.
+
 #### Quatre défauts relevés à la revue, chacun testé
 
 1. **Un nom de facteur non syntaxique.** `summary(aov)` écrit « `` `Type sol` `` »,
