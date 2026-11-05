@@ -24503,19 +24503,24 @@ test_that("Solution mère : les formules des trois protocoles rendent leurs exem
   expect_false(hstat_mere_concentration(1, 50, "liquide_pct", P = 50)$ok)
   lp <- hstat_mere_concentration(1, 50, "liquide_pct", P = 50, densite = 1.25)
   expect_equal(lp$m_pese, 100); expect_equal(lp$v_formulation, 0.08)
-  # Vial test : Q = C × 100 / P, concentration de la mere = C × V,
-  # flacons = V / v. 12 mg a 90 % -> 13,3333 mg ; 12 mg × 10 ml -> 120.
-  t <- hstat_mere_tube(C = 12, v = 0.5, V = 10, P = 90)
-  expect_equal(round(t$Q_mg, 4), 13.3333); expect_equal(t$c_mere, 120)
-  expect_equal(t$flacons, 20)
-  # La pesee ne depend ni de V ni de v ; la concentration suit V, pas v.
-  expect_equal(hstat_mere_tube(12, 0.5, 20, 90)$Q_mg, t$Q_mg)
-  expect_equal(hstat_mere_tube(12, 1, 10, 90)$Q_mg, t$Q_mg)
-  expect_equal(hstat_mere_tube(12, 0.5, 20, 90)$c_mere, 2 * t$c_mere)
-  expect_equal(hstat_mere_tube(12, 1, 10, 90)$c_mere, t$c_mere)
+  # Vial test, exemple de la fiche de laboratoire : C = 40 mg/l (40 µg/ml),
+  # P = 97,5 % -> Q = 40 × 100 / 97,5 = 41,0256 mg pour 1 l, 4,10256 mg
+  # pour 100 ml. La pesee suit le volume prepare.
+  t <- hstat_mere_tube(C = 40, v = 1, V = 1000, P = 97.5, Vprep = 100)
+  expect_equal(round(t$Q_mg, 4), 41.0256)
+  expect_equal(round(t$Q_prep, 5), 4.10256)
+  expect_equal(hstat_mere_tube(40, 1, 100, 97.5)$Q_mg, t$Q_prep)
+  # La concentration de la mere est C ; un flacon de 1 ml porte 40 µg.
+  expect_equal(t$c_mgl, 40); expect_equal(t$c_mere, 0.04)
+  expect_equal(t$flacon_ug, 40); expect_equal(t$flacons, 1000)
+  # Sans volume de conversion, pas de ligne convertie.
+  expect_true(is.na(hstat_mere_tube(40, 1, 1000, 97.5)$Q_prep))
+  # La purete corrige vers le HAUT, et v ne change pas la pesee.
+  expect_gt(t$Q_mg, 40)
+  expect_equal(hstat_mere_tube(40, 0.5, 1000, 97.5)$Q_mg, t$Q_mg)
   # Purete hors de ]0 ; 100] : refus, jamais une masse plus petite que l'active.
-  for (P in c(0, -5, 120, NA)) expect_false(hstat_mere_tube(12, 0.5, 10, P)$ok)
-  for (v in c(0, -1, NA)) expect_false(hstat_mere_tube(12, v, 10, 90)$ok)
+  for (P in c(0, -5, 120, NA)) expect_false(hstat_mere_tube(40, 1, 1000, P)$ok)
+  for (v in c(0, -1, NA)) expect_false(hstat_mere_tube(40, v, 1000, 97.5)$ok)
 })
 
 test_that("Doses & dilutions : la mère avant les filles, et sa concentration y passe", {
@@ -25145,5 +25150,24 @@ test_that("Matiere active : la meme liste partout ou l'on en saisit une", {
                                                  value = "Huile de neem"))
     expect_identical(saisie()$Matiere_active[1], "Huile de neem")
     expect_true("Huile de neem" %in% ma_saisies())
+  })
+})
+
+test_that("Vial test : libelles de la solution mere et pesee convertie au volume prepare", {
+  vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  shiny::testServer(mod_dosage_server, args = list(values = vals), {
+    session$setInputs(mereTest = "tube", mereTubC = 40, mereTubCUnite = "µg/ml",
+                      mereTubVflacon = 1, mereTubVflaconUnite = "ml",
+                      mereTubV = 1, mereTubVUnite = "l", mereTubP = 97.5,
+                      mereTubVprep = 100, mereTubVprepUnite = "ml")
+    h <- as.character(output$mereResultat$html)
+    expect_match(h, "Concentration de la solution mère", fixed = TRUE)
+    expect_false(grepl("Concentration de la mère", h, fixed = TRUE))
+    expect_match(h, "Nombre de flacons à traiter", fixed = TRUE)
+    expect_match(h, "41.0256 mg pour 1 l", fixed = TRUE)
+    expect_match(h, "4.10256 mg pour 100 ml", fixed = TRUE)
+    expect_match(h, "40 µg", fixed = TRUE)
+    expect_match(h, "40 mg/l, soit 0.04 mg/ml", fixed = TRUE)
   })
 })

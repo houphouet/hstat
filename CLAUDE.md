@@ -11099,7 +11099,7 @@ fois — le sélecteur, la fiche du test et le report vers l'essai en dérivent.
 |---|---|---|---|
 | Application topique (chenilles) | dose — DL | µg/g | Q (µg) = D·x·V·100 ÷ (a·P) |
 | Trempage de disques, IRAC 035 (jassides) | concentration — CL | mg/L | m (mg) = C·V ÷ (P/100) |
-| Tubes imprégnés, vial test (H. armigera) | concentration — CL | µg/tube | Q (mg) = C·100 ÷ P |
+| Tubes imprégnés, vial test (H. armigera) | concentration — CL | µg/tube | Q (mg) = C·V·100 ÷ P |
 
 Les exemples des protocoles sont retrouvés au chiffre près, et le test les
 porte : 52,63 mg pour 1 mg/mL dans 50 mL à 95 % ; 13,3333 mg dans 10 mL, soit
@@ -11399,23 +11399,24 @@ Trois défauts, trouvés en relisant le lot précédent :
 `hstat_ma_choix()` compose la liste proposée **une fois** : elle était
 recomposée en cinq endroits.
 
-### Vial test : la mère se calcule depuis la quantité par flacon
+### Vial test : la pesée suit la concentration et le volume préparé
 
-Demandé à l'écran. Le champ « Matière active pure dans la mère C » devient
-« Quantité de matière active par flacon C », et deux champs s'y ajoutent :
-volume de solution par flacon v et volume total à préparer V. Les formules
-sont celles que l'utilisateur a données — `hstat_mere_tube(C, v, V, P)` :
+Corrigé d'après la fiche de laboratoire de l'utilisateur, après trois
+formulations successives (C par flacon, Q × V, C × nombre de flacons). C est
+une **concentration** — 40 mg/l, soit 40 µg/ml —, et la pesée suit le volume
+préparé — `hstat_mere_tube(C, v, V, P, Vprep)` :
 
 ```
-Q (mg) = C (mg) × 100 ÷ P (%)
-Concentration de la mère (mg/ml) = C (mg) × V (ml)
-Nombre de flacons traités = V ÷ v
+Q (mg) = C (mg/l) × V (l) × 100 ÷ P (%)
+Concentration de la solution mère = C
+Quantité par flacon (µg) = C (mg/l) × v (ml)
+Nombre de flacons à traiter = V ÷ v
 ```
 
-Une première version écrivait Q = C × V ÷ v × 100 ÷ P et C ÷ v pour la
-concentration ; corrigée à la demande. La pesée ne dépend donc ni de V ni de
-v, la concentration suit V et non v, et v ne sert qu'au nombre de flacons :
-le test vérifie les trois.
+Exemple de la fiche, testé : C = 40 mg/l, P = 97,5 % → 41,0256 mg pour 1 l,
+4,10256 mg pour 100 ml. Le champ « Convertir la masse à peser pour un volume
+de » donne la pesée pour un autre volume, à la même concentration. La
+concentration envoyée aux dilutions est C en mg/ml (0,04 mg/ml).
 
 ### Les deux synthèses ont chacune leur onglet
 
