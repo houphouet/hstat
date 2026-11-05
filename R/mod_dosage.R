@@ -1044,8 +1044,8 @@ HSTAT_MERE_FORMULES <- c(
   liquide_gl  = "Volume de formulation (ml) = C (mg/ml) × V (ml) ÷ Teneur (g/l), car 1 g/l = 1 mg/ml",
   solide_pct  = "m formulation (mg) = m matière active cible (mg) ÷ (P / 100)",
   liquide_pct = "Volume de formulation (ml) = m formulation (mg) ÷ [densité (g/ml) × 1000]",
-  tube        = "Q (mg) = C (mg) × V (ml) ÷ v (ml) × 100 ÷ P (%)",
-  tube_c      = "Concentration de la mère (mg/ml) = C (mg) ÷ v (ml)",
+  tube        = "Q (mg) = C (mg) × 100 ÷ P (%)",
+  tube_c      = "Concentration de la mère (mg/ml) = C (mg) × V (ml)",
   abbott      = "Mortalité corrigée (%) = 100 × (mortalité traitement − mortalité témoin) ÷ (100 − mortalité témoin)")
 
 # Un nombre strictement positif et fini, ou NA. Une pesee ne se fait pas sur
@@ -1121,9 +1121,9 @@ hstat_mere_concentration <- function(C, V, produit = "technique", P = NA,
 # -- Tubes impregnes (vial test) ------------------------------------------------
 # C : quantite de matiere active par flacon (mg) ; v : volume de solution
 # depose dans chaque flacon (mL) ; V : volume total de solution a preparer
-# (mL) ; P : purete (%). La mere contient C dans v, donc C × V / v dans V, et
-# la purete corrige vers le haut. Exemple : 0,6 mg par flacon de 0,5 mL,
-# 10 mL a preparer, 90 % -> 12 mg actifs, 13,3333 mg a peser, 1,2 mg/mL.
+# (mL) ; P : purete (%). Formules de l'utilisateur : la masse a peser ne
+# depend que de C et de P (Q = C × 100 / P), la concentration de la mere vaut
+# C × V ; v ne sert qu'au nombre de flacons traites (V / v).
 hstat_mere_tube <- function(C, v, V, P) {
   C <- .hstat_mere_pos(C); v <- .hstat_mere_pos(v); V <- .hstat_mere_pos(V)
   P <- .hstat_mere_purete(P)
@@ -1131,9 +1131,7 @@ hstat_mere_tube <- function(C, v, V, P) {
     return(.hstat_mere_refus(tr("La quantité de matière active par flacon, le volume de solution par flacon et le volume total doivent être des nombres strictement positifs.")))
   if (is.na(P))
     return(.hstat_mere_refus(tr("La pureté doit être comprise entre 0 (exclu) et 100 %.")))
-  pure <- C * V / v
-  list(ok = TRUE, Q_mg = pure * 100 / P, pure_mg = pure, c_mere = C / v,
-       flacons = V / v)
+  list(ok = TRUE, Q_mg = C * 100 / P, c_mere = C * V, flacons = V / v)
 }
 
 

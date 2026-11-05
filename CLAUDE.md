@@ -11099,7 +11099,7 @@ fois — le sélecteur, la fiche du test et le report vers l'essai en dérivent.
 |---|---|---|---|
 | Application topique (chenilles) | dose — DL | µg/g | Q (µg) = D·x·V·100 ÷ (a·P) |
 | Trempage de disques, IRAC 035 (jassides) | concentration — CL | mg/L | m (mg) = C·V ÷ (P/100) |
-| Tubes imprégnés, vial test (H. armigera) | concentration — CL | µg/tube | Q (mg) = C·V·100 ÷ (v·P) |
+| Tubes imprégnés, vial test (H. armigera) | concentration — CL | µg/tube | Q (mg) = C·100 ÷ P |
 
 Les exemples des protocoles sont retrouvés au chiffre près, et le test les
 porte : 52,63 mg pour 1 mg/mL dans 50 mL à 95 % ; 13,3333 mg dans 10 mL, soit
@@ -11401,23 +11401,37 @@ recomposée en cinq endroits.
 
 ### Vial test : la mère se calcule depuis la quantité par flacon
 
-Demandé à l'écran. Le champ « Matière active pure dans la mère C » obligeait à
-faire de tête le calcul qu'on vient demander. Le protocole donne ce qu'on veut
-**par flacon** : la mère se calcule donc depuis quatre grandeurs —
-`hstat_mere_tube(C, v, V, P)` :
-
-| Champ | Symbole |
-|---|---|
-| Quantité de matière active par flacon | C (mg, saisie en µg par défaut) |
-| Volume de solution par flacon | v (ml) |
-| Volume total de solution à préparer | V (ml) |
-| Pureté | P (%) |
+Demandé à l'écran. Le champ « Matière active pure dans la mère C » devient
+« Quantité de matière active par flacon C », et deux champs s'y ajoutent :
+volume de solution par flacon v et volume total à préparer V. Les formules
+sont celles que l'utilisateur a données — `hstat_mere_tube(C, v, V, P)` :
 
 ```
-Q (mg) = C × V ÷ v × 100 ÷ P        concentration de la mère (mg/ml) = C ÷ v
+Q (mg) = C (mg) × 100 ÷ P (%)
+Concentration de la mère (mg/ml) = C (mg) × V (ml)
+Nombre de flacons traités = V ÷ v
 ```
 
-Le nombre de flacons traités (V ÷ v) est affiché à côté : c'est ce qui dit si le
-volume préparé suffit. Le test exige que V et v jouent des rôles **opposés**
-(doubler V double la pesée, doubler v la divise par deux) : une formule qui les
-confondrait passerait sinon l'exemple chiffré.
+Une première version écrivait Q = C × V ÷ v × 100 ÷ P et C ÷ v pour la
+concentration ; corrigée à la demande. La pesée ne dépend donc ni de V ni de
+v, la concentration suit V et non v, et v ne sert qu'au nombre de flacons :
+le test vérifie les trois.
+
+### Les deux synthèses ont chacune leur onglet
+
+Demandé à l'écran : l'onglet « Synthèse » des comparaisons multiples devient
+**deux** onglets, « Synthèse : écart-type » puis « Synthèse : erreur-type »,
+entre « Graphiques » et « Rapport », chacun ne portant que sa table. Les
+synthèses ne s'affichent plus sous la boîte « Résultats des tests » ; celles
+des tests sans post-hoc (t, Wilcoxon, ANOVA, Kruskal-Wallis, norme, apparié)
+restent calculées et partent au classeur Excel, une feuille chacune.
+
+### La mortalité du témoin s'alerte dès 10 %
+
+Demandé à l'écran : `HSTAT_DL50_TEMOIN_MAX` passe de 20 % à **10 %**. C'est le
+seuil cité dans le message de refus (« bien au-delà des 10 % que la correction
+d'Abbott supporte »), dans l'alerte du verdict et dans les causes mesurées
+(`.hstat_dl50_causes`) ; il rejoint le plafond du seuil de rejet
+(`HSTAT_DL50_SEUIL_REJET_MAX`). Les mentions de 20 % plus haut dans ce fichier
+décrivent l'état d'avant. Le test exige qu'un témoin à 15 % soit signalé : à
+20 %, il ne l'était pas.
