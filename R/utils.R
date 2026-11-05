@@ -17169,8 +17169,7 @@ hstat_ma_input <- function(id, label, selected = "", saisies = character(0),
                            placeholder = NULL) {
   selected <- trimws(as.character(selected %||% ""))[1]
   if (is.na(selected)) selected <- ""
-  choix <- unique(c(HSTAT_MATIERES_ACTIVES, saisies, if (nzchar(selected)) selected))
-  choix <- choix[!is.na(choix) & nzchar(choix)]
+  choix <- hstat_ma_choix(c(saisies, selected))
   shiny::selectizeInput(id, label, choices = c("", choix), selected = selected,
     # `delimiter` : par defaut la virgule, qui couperait « 2,4-D (amine salt) »
     # en deux entrees a la creation. Un caractere qu'aucun nom ne porte.

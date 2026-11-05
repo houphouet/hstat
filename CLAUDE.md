@@ -11396,3 +11396,31 @@ chargés, et offrir un nom absent du fonds ne peut que rendre zéro essai.
 
 Le protocole du trempage de disques s'écrit désormais « Protocole IRAC 015,
 016 et 035 ».
+
+#### Revue 1.45.1 : le fichier des ajouts, et deux listes qui ne se voyaient pas
+
+Trois défauts, trouvés en relisant le lot précédent :
+
+1. **Le fichier des ajouts était inscriptible par tout visiteur.** Sur un
+   serveur partagé, `R_user_dir` est commun à toutes les sessions : un client
+   modifié y écrivait ce qu'il voulait, sans plafond, retours à la ligne
+   compris, et ses noms apparaissaient chez tous les autres. La persistance
+   n'a donc lieu **qu'en session interactive** (comme la mise à jour de
+   `run_hstat()`), ou sur `options(hstat.ma.fichier = …)` explicite ; le
+   fichier est plafonné à `HSTAT_MA_AJOUTS_MAX` (1000) noms, un appel n'en
+   retient que `HSTAT_MA_PAR_APPEL` (20), et `.hstat_ma_nettoyer()` retire les
+   caractères de contrôle.
+2. **Un nom enregistré n'était jamais proposé dans le champ de la dose.** Ce
+   champ est construit avec la seule liste fournie, et l'observateur qui y
+   pose les ajouts portait `ignoreInit = TRUE`. Il se déclenche désormais aussi
+   à l'apparition du champ (`is.null(input$doseMatiere)`). Le test d'avant ne
+   lisait que l'état interne et passait sur le défaut ; il lit maintenant le
+   message envoyé au navigateur, et une mutation qui remet l'ancien
+   déclencheur le fait échouer.
+3. **Les deux modules ne se voyaient pas.** Un nom ajouté dans « Doses &
+   dilutions » n'apparaissait dans la fiche DL50 qu'au rechargement.
+   `hstat_ma_session()` range les ajouts de la session dans
+   `session$userData`, que les deux modules partagent.
+
+`hstat_ma_choix()` compose la liste proposée **une fois** : elle était
+recomposée en cinq endroits.
