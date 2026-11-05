@@ -5376,6 +5376,11 @@ hstat_posthoc_synthese <- function(d, dispersion = c("ecart_type", "erreur_type"
     # avant « | » dans son libelle.
     colf <- if (identical(sub$Type[1], "simple_effect"))
       trimws(sub(" \\| .*$", "", f)) else f
+    # Les modalites se lisent sur `hstat_modalite` quand elle existe : un
+    # facteur nomme « Type », « Variable » ou « N » partage son nom avec une
+    # colonne interne, qui l'ecrase.
+    colf <- if ("hstat_modalite" %in% names(sub) &&
+                any(!is.na(sub$hstat_modalite))) "hstat_modalite" else colf
     if (!colf %in% names(sub)) next
     niv  <- unique(as.character(sub[[colf]]))
     niv  <- niv[!is.na(niv)]
@@ -5455,8 +5460,9 @@ hstat_posthoc_synthese <- function(d, dispersion = c("ecart_type", "erreur_type"
                               symbole, n_test = NA_real_, lettres = TRUE) {
   m <- suppressWarnings(as.numeric(m)); s <- suppressWarnings(as.numeric(s))
   n <- suppressWarnings(as.numeric(n))
-  b <- data.frame(x = as.character(lignes), stringsAsFactors = FALSE)
-  names(b) <- facteur
+  # Les modalites vont dans `hstat_modalite`, jamais dans une colonne nommee
+  # d'apres le facteur : « Type » ou « N » seraient ecrases juste en dessous.
+  b <- data.frame(hstat_modalite = as.character(lignes), stringsAsFactors = FALSE)
   b$Moyenne <- m
   b$Ecart_type <- s
   b$Erreur_type <- ifelse(is.finite(n) & n > 1, s / sqrt(n), NA_real_)
@@ -5477,17 +5483,20 @@ hstat_posthoc_synthese <- function(d, dispersion = c("ecart_type", "erreur_type"
 .hstat_synth_empiler <- function(blocs) {
   blocs <- Filter(function(b) is.data.frame(b) && NROW(b), blocs)
   if (!length(blocs)) return(NULL)
-  cols <- unique(unlist(lapply(blocs, names)))
-  do.call(rbind, lapply(blocs, function(b) {
-    for (c in setdiff(cols, names(b))) b[[c]] <- NA
-    b[, cols, drop = FALSE]
-  }))
+  as.data.frame(dplyr::bind_rows(blocs))
 }
 
 # Modalites lues comme le font les tests : une date par son ecriture ISO.
+# Un facteur numerique (doses, annees) garde l'ordre des NOMBRES : en texte,
+# « 10 » passerait avant « 2 ».
 .hstat_synth_niveaux <- function(x) {
   if (inherits(x, c("Date", "POSIXct", "POSIXlt"))) x <- format(x, "%Y-%m-%d")
-  if (is.factor(x)) droplevels(x) else factor(as.character(x))
+  if (is.factor(x)) return(droplevels(x))
+  if (is.numeric(x)) {
+    u <- sort(unique(x[!is.na(x)]))
+    return(factor(as.character(x), levels = unique(as.character(u))))
+  }
+  factor(as.character(x))
 }
 
 # Tests a groupes (t, Wilcoxon-Mann-Whitney, ANOVA, Welch, Kruskal-Wallis) :
@@ -5504,19 +5513,19 @@ hstat_synthese_groupes <- function(df, vars, fvars, res, symbole,
   for (f in intersect(fvars, names(df))) {
     g <- .hstat_synth_niveaux(df[[f]])
     for (v in intersect(vars, names(df))) {
-      r <- res[as.character(res$Variable) == v &
-                 trimws(as.character(res$Facteur)) == f, , drop = FALSE]
+      fac_res <- gsub("`", "", trimws(as.character(res$Facteur)), fixed = TRUE)
+      r <- res[as.character(res$Variable) == v & fac_res == f, , drop = FALSE]
       if (!NROW(r)) next
       y <- suppressWarnings(as.numeric(df[[v]]))
       ok <- is.finite(y) & !is.na(g) & garde
       if (!any(ok)) next
       gg <- droplevels(g[ok]); yy <- y[ok]
       niv <- levels(gg)
-      m <- vapply(niv, function(l) mean(yy[gg == l]), numeric(1))
-      sdv <- vapply(niv, function(l) {
-        z <- yy[gg == l]; if (length(z) > 1) stats::sd(z) else NA_real_
-      }, numeric(1))
-      n <- vapply(niv, function(l) sum(gg == l), numeric(1))
+      # Un seul passage groupe par statistique, pas un sous-ensemble par niveau.
+      n <- as.numeric(tabulate(gg, nbins = length(niv)))
+      m <- as.numeric(tapply(yy, gg, mean))
+      sdv <- as.numeric(tapply(yy, gg, stats::sd))
+      sdv[n < 2] <- NA_real_
       blocs[[length(blocs) + 1L]] <- .hstat_synth_bloc(
         f, niv, m, sdv, n, v, r$Statistique[1], r$ddl[1], r$p_value[1], symbole,
         lettres = length(niv) == 2L)
@@ -5540,14 +5549,15 @@ hstat_synthese_reference <- function(x, var, reference, stat, ddl, p, symbole,
 }
 
 # Deux mesures appariees : une ligne par condition, N compte les PAIRES.
-hstat_synthese_apparie <- function(a, b, noms, var, stat, ddl, p, symbole) {
+hstat_synthese_apparie <- function(a, b, noms, var, stat, ddl, p, symbole,
+                                   lettres = TRUE) {
   a <- suppressWarnings(as.numeric(a)); b <- suppressWarnings(as.numeric(b))
   ok <- is.finite(a) & is.finite(b); a <- a[ok]; b <- b[ok]
   if (length(a) < 1L) return(NULL)
   sdx <- function(z) if (length(z) > 1) stats::sd(z) else NA_real_
   .hstat_synth_bloc(tr("Mesure appariée"), noms, c(mean(a), mean(b)), c(sdx(a), sdx(b)),
                     c(length(a), length(b)), var, stat, ddl, p, symbole,
-                    n_test = length(a))
+                    n_test = length(a), lettres = lettres)
 }
 
 # Les tables de synthese en HTML statique. Un renderUI de tableaux -- jamais un

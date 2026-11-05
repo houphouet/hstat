@@ -2765,8 +2765,9 @@ Demandé à l'écran, croquis à l'appui : une ligne par modalité, une colonne 
 variable, « moyenne ± dispersion groupe » dans chaque case, puis sous chaque
 colonne le **test global** — ddl, statistique, N, P. Deux synthèses, l'une à
 l'écart-type, l'autre à l'erreur-type, affichées sous le tableau des effets
-principaux et écrites au classeur (`Moyenne_ET_groupe`, `Moyenne_ES_groupe`,
-suffixées du facteur quand il y en a plusieurs).
+principaux et écrites au classeur : une feuille par dispersion
+(`Moyenne_ET_groupe`, `Moyenne_ES_groupe`), où plusieurs tables s'empilent,
+chacune sous son intitulé.
 
 `hstat_posthoc_synthese()` (`R/utils.R`) compose ; le module ne fait que lire.
 La statistique et ses ddl voyagent désormais avec chaque ligne de résultat
@@ -2808,7 +2809,10 @@ Quatre décisions, chacune testée :
 1. **Sans post-hoc, la lettre vient du test** : « a / b » s'il est
    significatif (la plus grande valeur prend « a »), « a » partout sinon, rien
    s'il n'est pas calculable. Seulement à **deux** lignes : au-delà, c'est le
-   post-hoc qui les donne. Ni pour le TOST (un p petit y conclut à
+   post-hoc qui les donne. Seulement pour un test sur la **moyenne** (t, z) :
+   le Wilcoxon signé et le test du signe portent sur la médiane, et une lettre
+   tirée de la moyenne pourrait dire l'inverse du test sur un échantillon
+   asymétrique. Ni pour le TOST (un p petit y conclut à
    l'équivalence), ni pour la conformité d'une variance, qui n'a pas de
    synthèse (sa référence est une variance, pas une moyenne).
 2. **N est l'effectif du test** : des paires comptent une fois, et l'ANOVA à
@@ -2820,6 +2824,20 @@ Quatre décisions, chacune testée :
 4. **Un libellé de ligne n'est pas un mot seul** : « Échantillon observé »,
    « Valeur de référence », « Mesure appariée » — « Échantillon » ou « Mesure »
    seuls seraient des modalités plausibles d'un fichier.
+
+#### Quatre défauts relevés à la revue, chacun testé
+
+1. **Un nom de facteur non syntaxique.** `summary(aov)` écrit « `` `Type sol` `` »,
+   accents graves compris : le rapprochement avec le facteur ne collait jamais,
+   et la synthèse de l'ANOVA disparaissait sans un mot. L'effet est désormais
+   nommé comme la colonne — dans le tableau de résultats aussi.
+2. **Un facteur nommé comme une colonne interne** (« Type », « Variable »,
+   « N »…) était écrasé par elle, et la synthèse affichait « main » à la place
+   des modalités. Elles voyagent dans `hstat_modalite`, copiée **avant** les
+   colonnes internes, et retirée des exports.
+3. **Un facteur numérique** (doses, années) garde l'ordre des nombres : en
+   texte, « 10 » passait avant « 2 ».
+4. **Les lettres ne viennent que d'un test sur la moyenne** (voir plus haut).
 
 ### Les deux tests de Welch, et l'application en exécutait un sous un faux nom
 

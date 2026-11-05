@@ -24836,3 +24836,60 @@ test_that("Module des tests : la synthese suit le test lance, et se masque apres
     expect_equal(t$Rendement[4], "2, 15")
   })
 })
+
+test_that("Synthese : nom non syntaxique, facteur nomme comme une colonne interne, ordre numerique, lettres sur la moyenne", {
+  # 1. ANOVA sur un facteur dont le nom porte un espace : summary(aov) garde
+  # les accents graves, et le rapprochement doit les ignorer.
+  set.seed(5)
+  d <- data.frame(y = stats::rnorm(12), check.names = FALSE)
+  d[["Type sol"]] <- rep(c("a", "b", "c"), 4)
+  a <- summary(stats::aov(stats::as.formula("`y` ~ `Type sol`"), d))[[1]]
+  expect_true(grepl("`", rownames(a)[1], fixed = TRUE))
+  res <- data.frame(Variable = "y", Facteur = rownames(a)[1], Statistique = a[["F value"]][1],
+                    ddl = "2 , 9", p_value = a[["Pr(>F)"]][1])
+  s <- hstat_synthese_groupes(d, "y", "Type sol", res, "F")
+  expect_false(is.null(s))
+  expect_equal(names(hstat_posthoc_synthese(s)), "Type sol")
+  src <- paste(readLines(.hstat_module_path("mod_tests.R"), warn = FALSE), collapse = "\n")
+  expect_true(grepl('effect_name <- gsub("`", "", trimws(rownames(anova_table)[i]), fixed = TRUE)',
+                    src, fixed = TRUE))
+
+  # 2. Un facteur nomme « Type » (ou « N ») n'est pas ecrase par les colonnes
+  # internes : les modalites restent les siennes.
+  for (nom in c("Type", "N", "Variable", "groups")) {
+    df <- data.frame(Y = c(1, 2, 3, 10, 11, 12))
+    df[[nom]] <- rep(c("sec", "humide"), each = 3)
+    r <- data.frame(Variable = "Y", Facteur = nom, Statistique = 5, ddl = "4",
+                    p_value = 0.001)
+    t <- hstat_posthoc_synthese(hstat_synthese_groupes(df, "Y", nom, r, "t"), "ecart_type", 2)[[1]]
+    expect_equal(names(t)[1], nom, info = nom)
+    expect_equal(t[[1]][1:2], c("humide", "sec"), info = nom)
+    expect_match(t$Y[1], "^11.00 ± 1.00 a$", info = nom)
+  }
+  # Post-hoc : la colonne interne porte les modalites meme quand le facteur
+  # s'appelle « Type ».
+  ph <- data.frame(hstat_modalite = c("x1", "x2"), Type = "main", Variable = "Y",
+                   Facteur = "Type", Moyenne = c(1, 2), Ecart_type = 1, Erreur_type = 0.5,
+                   N = 3, groups = c("a", "b"), Test_global = "ANOVA", p_global = 0.01,
+                   Statistique_globale = 9, ddl_global = "1 , 4")
+  expect_equal(hstat_posthoc_synthese(ph)[[1]][[1]][1:2], c("x1", "x2"))
+  expect_true(grepl("hstat_modalite = as.character(.data[[fvar]])", src, fixed = TRUE))
+  expect_true(grepl("hstat_modalite = as.character(.data[[fvar1]])", src, fixed = TRUE))
+  expect_true(grepl("hstat_modalite = as.character(.data[[fvar2]])", src, fixed = TRUE))
+  # Et elle ne part pas dans les exports.
+  expect_gte(lengths(regmatches(src, gregexpr('setdiff(names(d), "hstat_modalite")', src, fixed = TRUE))), 3L)
+
+  # 3. Un facteur numerique garde l'ordre des nombres.
+  dn <- data.frame(Dose = rep(c(10, 2, 20, 5), each = 3), Y = 1:12)
+  rn <- data.frame(Variable = "Y", Facteur = "Dose", Statistique = 3, ddl = "3", p_value = 0.02)
+  tn <- hstat_posthoc_synthese(hstat_synthese_groupes(dn, "Y", "Dose", rn, "H"))[[1]]
+  expect_equal(tn$Dose[1:4], c("2", "5", "10", "20"))
+
+  # 4. Pas de lettre tiree de la moyenne pour un test sur la mediane : le
+  # module ne les demande que pour t et z, et le t apparie.
+  expect_true(grepl('lettres = method %in% c("ttest", "ztest")', src, fixed = TRUE))
+  expect_true(grepl('lettres = methode == "t"', src, fixed = TRUE))
+  dp <- hstat_synthese_apparie(c(1, 2, 3), c(5, 6, 9), c("A", "B"), "Y", 2, "2", 0.01, "V",
+                               lettres = FALSE)
+  expect_true(all(is.na(dp$groups)))
+})
