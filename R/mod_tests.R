@@ -753,9 +753,9 @@ mod_tests_ui <- function(id) {
                       DT::DTOutput(ns("testResultsDF")),
                       shiny::conditionalPanel(ns = ns, condition = "output.hasTestSynthese",
                         shiny::br(),
-                        shiny::h4(shiny::icon("table-list"), " Synthèse : moyenne ± écart-type et groupe"),
+                        shiny::h4(shiny::icon("table-list"), " Synthèse : écart-type"),
                         shiny::div(class = "hstat-table-scroll", shiny::uiOutput(ns("testSyntheseEt"))),
-                        shiny::h4(shiny::icon("table-list"), " Synthèse : moyenne ± erreur-type et groupe"),
+                        shiny::h4(shiny::icon("table-list"), " Synthèse : erreur-type"),
                         shiny::div(class = "hstat-table-scroll", shiny::uiOutput(ns("testSyntheseEs"))),
                         shiny::helpText("Sous chaque variable : degrés de liberté, statistique du test (t : Student ou Welch, U : Mann-Whitney, F : ANOVA, W : ANOVA de Welch, H : Kruskal-Wallis, z, V : Wilcoxon signé, S : test du signe), effectif N et probabilité P. À deux modalités, la lettre vient du test lui-même. Les deux synthèses partent aussi dans le classeur Excel, une feuille chacune.")),
                       shiny::br(),
@@ -1006,14 +1006,6 @@ mod_posthoc_ui <- function(id) {
                                       shiny::div(class = "hstat-table-scroll",
                                           DT::DTOutput(ns("mainEffectsTable"))),
                                       shiny::br(),
-                                      shiny::h4(shiny::icon("table-list"), " Synthèse : moyenne ± écart-type et groupe"),
-                                      shiny::div(class = "hstat-table-scroll",
-                                          shiny::uiOutput(ns("syntheseEtTables"))),
-                                      shiny::h4(shiny::icon("table-list"), " Synthèse : moyenne ± erreur-type et groupe"),
-                                      shiny::div(class = "hstat-table-scroll",
-                                          shiny::uiOutput(ns("syntheseEsTables"))),
-                                      shiny::helpText("Sous chaque variable : degrés de liberté, statistique du test global (F : ANOVA, W : ANOVA de Welch, H : Kruskal-Wallis), effectif N et probabilité P. Les effets simples suivent les effets principaux, une table par niveau du facteur fixé. Les deux synthèses partent aussi dans le classeur Excel, une feuille chacune."),
-                                      shiny::br(),
                                       shiny::downloadButton(ns("downloadMainEffects"), 
                                                      "Télécharger effets principaux (.xlsx)", 
                                                      class = "btn-success", 
@@ -1166,7 +1158,28 @@ mod_posthoc_ui <- function(id) {
                                     )
                                   ),
                                 
-                                  # ONGLET 4 : Rapport complet 
+                                  # ONGLET 4 : Synthese « comme dans un article », entre les
+                                  # graphiques et le rapport. Une table par facteur, les
+                                  # cases colorees par groupe comme la colonne « groups ».
+                                
+                                  shiny::tabPanel(
+                                    title = shiny::div(shiny::icon("table-list"), " Synthèse"),
+                                    value = "synthese",
+                                    shiny::br(),
+                                    shiny::conditionalPanel(
+                                      ns = ns,
+                                      condition = "output.showPosthocResults",
+                                      shiny::h4(shiny::icon("table-list"), " Synthèse : écart-type"),
+                                      shiny::div(class = "hstat-table-scroll",
+                                          shiny::uiOutput(ns("syntheseEtTables"))),
+                                      shiny::h4(shiny::icon("table-list"), " Synthèse : erreur-type"),
+                                      shiny::div(class = "hstat-table-scroll",
+                                          shiny::uiOutput(ns("syntheseEsTables"))),
+                                      shiny::helpText("Chaque case : moyenne ± dispersion et groupe, la case colorée par son groupe. Sous chaque variable : coefficient de variation, degrés de liberté, statistique du test global (F : ANOVA, W : ANOVA de Welch, H : Kruskal-Wallis), effectif N et probabilité P. Les effets simples suivent les effets principaux, une table par niveau du facteur fixé. Les deux synthèses partent aussi dans le classeur Excel, une feuille chacune.")
+                                    )
+                                  ),
+                                
+                                  # ONGLET 5 : Rapport complet 
                                 
                                   shiny::tabPanel(
                                     title = shiny::div(shiny::icon("file-alt"), " Rapport"),
@@ -7880,8 +7893,8 @@ mod_tests_server <- function(id, values) {
       DT::formatStyle(
         'groups',
         backgroundColor = DT::styleEqual(
-          unique(main_data$groups),
-          grDevices::rainbow(length(unique(main_data$groups)), alpha = 0.3)
+          names(hstat_groupes_couleurs(main_data$groups)),
+          unname(hstat_groupes_couleurs(main_data$groups))
         ),
         fontWeight = 'bold'
       )
@@ -7892,9 +7905,14 @@ mod_tests_server <- function(id, values) {
   # de session (piege deja documente).
   .synthese_ui <- function(dispersion) {
     shiny::req(values$multiResultsMain)
-    tabs <- hstat_posthoc_synthese(values$multiResultsMain, dispersion,
+    d <- values$multiResultsMain
+    tabs <- hstat_posthoc_synthese(d, dispersion,
       hstat_dec_affichage(input$multiRoundResults, input$multiDecimals))
-    hstat_synthese_html(tabs)
+    # La palette des effets principaux d'abord, dans l'ordre du tableau DT :
+    # un groupe garde la meme couleur d'un onglet a l'autre.
+    coul <- if ("groups" %in% names(d))
+      hstat_groupes_couleurs(d$groups[d$Type == "main"], d$groups) else NULL
+    hstat_synthese_html(tabs, coul)
   }
   output$syntheseEtTables <- shiny::renderUI(.synthese_ui("ecart_type"))
   output$syntheseEsTables <- shiny::renderUI(.synthese_ui("erreur_type"))

@@ -24986,3 +24986,113 @@ test_that("Synthese : le CV (%) de l'essai precede le ddl, le meme sous ET et ES
   d0 <- d; d0$Moyenne <- c(-5, 0, 4)  # 4 x -5 + 6 x 0 + 5 x 4 = 0
   expect_equal(hstat_posthoc_synthese(d0, "ecart_type", 2)[[1]]$Y[4], "")
 })
+
+test_that("Synthese : son propre onglet entre Graphiques et Rapport, cases colorees par groupe", {
+  # Le groupe de chaque case voyage a part, et la case prend la couleur que
+  # la colonne « groups » des effets principaux donne a ce groupe.
+  d <- data.frame(Type = "main", Facteur = "G", Variable = "Y",
+                  G = c("t1", "t2", "t3"), Moyenne = c(10, 14, 20),
+                  Ecart_type = c(1, 2, 3), Erreur_type = c(0.5, 1, 1.5),
+                  N = 4, groups = c("a", "ab", "b"), p_global = 0.01,
+                  Statistique_globale = 9, ddl_global = "2, 9",
+                  Test_global = "ANOVA", stringsAsFactors = FALSE)
+  tabs <- hstat_posthoc_synthese(d, "ecart_type", 2)
+  expect_identical(as.vector(attr(tabs[[1]], "groupes")), c("a", "ab", "b"))
+  coul <- hstat_groupes_couleurs(d$groups)
+  expect_identical(names(coul), c("a", "ab", "b"))
+  expect_identical(unname(coul), grDevices::rainbow(3, alpha = 0.3))
+  html <- as.character(hstat_synthese_html(tabs, coul))
+  expect_match(html, "hstat-synthese", fixed = TRUE)
+  for (k in seq_along(coul))
+    expect_match(html, paste0("background-color:", coul[[k]]), fixed = TRUE)
+  # Les lignes du test (CV, ddl...) ne sont pas colorees : trois cases, pas plus.
+  expect_identical(lengths(regmatches(html, gregexpr("background-color", html))), 3L)
+  # Un groupe des seuls effets simples ne change pas les couleurs principales.
+  c2 <- hstat_groupes_couleurs(d$groups, c("a", "c"))
+  expect_identical(c2[c("a", "ab", "b")], coul)
+  expect_true("c" %in% names(c2) && !c2[["c"]] %in% coul)
+  # L'onglet : apres Graphiques, avant Rapport ; et plus dans les effets principaux.
+  ui <- paste(as.character(mod_posthoc_ui("tests")), collapse = "")
+  p_graph <- regexpr('data-value="plots"', ui, fixed = TRUE)
+  p_syn <- regexpr('data-value="synthese"', ui, fixed = TRUE)
+  p_rap <- regexpr('data-value="report"', ui, fixed = TRUE)
+  expect_true(p_syn > 0 && p_rap > p_syn)
+  expect_true(p_graph < p_syn)
+  p_main <- regexpr('data-value="mainEffects"', ui, fixed = TRUE)
+  expect_true(regexpr("tests-syntheseEtTables", ui, fixed = TRUE) > p_syn)
+  expect_match(ui, "Synthèse : écart-type", fixed = TRUE)
+  expect_match(ui, "Synthèse : erreur-type", fixed = TRUE)
+  expect_false(grepl("moyenne ± écart-type et groupe", ui, fixed = TRUE))
+  expect_true(p_main > 0 && p_main < p_syn)
+  # La boite « Resultats des tests » prend les memes titres.
+  ut <- paste(as.character(mod_tests_ui("tests")), collapse = "")
+  expect_match(ut, "Synthèse : écart-type", fixed = TRUE)
+  expect_false(grepl("moyenne ± erreur-type et groupe", ut, fixed = TRUE))
+})
+
+test_that("Solution mere : le grade technique se nomme, la m.a. pure ne s'affiche plus", {
+  vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  shiny::testServer(mod_dosage_server, args = list(values = vals), {
+    session$setInputs(mereTest = "disque", mereDisC = 1, mereDisV = 50,
+                      mereProduit = "technique", mereDisP = 95)
+    h <- as.character(output$mereResultat$html)
+    expect_match(h, "Grade technique", fixed = TRUE)
+    expect_false(grepl("Produit à peser", h, fixed = TRUE))
+    expect_false(grepl("Matière active pure dans la mère", h, fixed = TRUE))
+    # Une formulation solide garde « Produit a peser ».
+    session$setInputs(mereProduit = "solide_pct")
+    h2 <- as.character(output$mereResultat$html)
+    expect_false(grepl("Grade technique", h2, fixed = TRUE))
+  })
+  expect_identical(HSTAT_MERE_TESTS$disque$protocole, "Protocole IRAC 035")
+})
+
+test_that("Doses & dilutions : la matiere active se choisit dans une liste, ou se tape", {
+  # La liste fournie (109 noms, CSP coton), telle quelle et dans son ordre.
+  expect_length(HSTAT_MATIERES_ACTIVES, 109L)
+  expect_identical(HSTAT_MATIERES_ACTIVES[c(1, 30, 109)],
+                   c("2,4-D (amine salt)", "Deltamethrin", "Trifloxysulfuron-sodium"))
+  expect_false(anyDuplicated(HSTAT_MATIERES_ACTIVES) > 0)
+  ui <- paste(as.character(mod_dosage_ui("dosage")), collapse = "")
+  # Le champ de la dose est une liste qui accepte la saisie libre.
+  expect_match(ui, 'id="dosage-doseMatiere"', fixed = TRUE)
+  expect_false(grepl('<input id="dosage-doseMatiere" type="text"', ui, fixed = TRUE))
+  w <- hstat_ma_input("x", "Matière active", selected = "Produit maison")
+  h <- paste(as.character(w), collapse = "")
+  expect_match(h, '"create":true', fixed = TRUE)
+  expect_match(h, '"createOnBlur":true', fixed = TRUE)
+  # Un nom de la liste porte une virgule : elle ne doit pas couper l'entree.
+  expect_false(grepl('"delimiter":","', h, fixed = TRUE))
+  # Un nom hors catalogue reste choisi : sinon le champ se viderait.
+  expect_match(h, '<option value="Produit maison" selected>', fixed = TRUE)
+  # Les champs des dilutions passent par la meme aide, et un nom tape dans un
+  # champ est propose dans les autres.
+  src <- paste(readLines(.hstat_module_path("mod_dosage.R"), warn = FALSE), collapse = "\n")
+  expect_match(src, 'hstat_ma_input(ns(paste0("dilMaNom", i))', fixed = TRUE)
+  expect_false(grepl('textInput(ns("doseMatiere")', src, fixed = TRUE))
+  expect_false(grepl('updateTextInput(session, "dilMaNom', src, fixed = TRUE))
+  vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  shiny::testServer(mod_dosage_server, args = list(values = vals), {
+    session$setInputs(doseMatiere = "Extrait de neem maison")
+    expect_true("Extrait de neem maison" %in% ma_saisies())
+    session$setInputs(doseMatiere = "Deltamethrin")
+    expect_false("Deltamethrin" %in% ma_saisies())
+  })
+  # Les ajouts se gardent d'une session a l'autre, sans doublon de casse.
+  f <- tempfile(fileext = ".txt")
+  expect_identical(hstat_ma_ajouter(c("Neem maison", "deltamethrin", "neem maison"), f),
+                   "Neem maison")
+  expect_identical(hstat_ma_ajoutees(f), "Neem maison")
+  expect_identical(hstat_ma_ajouter("Neem maison", f), character(0))
+  expect_identical(hstat_ma_ajoutees(f), "Neem maison")
+  # Sous testthat, rien n'est ecrit dans le dossier reel de l'utilisateur.
+  expect_true(is.na(hstat_ma_fichier()))
+  # Le fichier ajoute est relu par la session suivante.
+  ancien <- options(hstat.ma.fichier = f)
+  on.exit(options(ancien), add = TRUE)
+  shiny::testServer(mod_dosage_server, args = list(values = vals), {
+    expect_true("Neem maison" %in% ma_saisies())
+  })
+})

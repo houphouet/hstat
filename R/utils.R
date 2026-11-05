@@ -5440,6 +5440,10 @@ hstat_posthoc_synthese <- function(d, dispersion = c("ecart_type", "erreur_type"
     tab <- data.frame(x = c(niv, HSTAT_SYNTH_CV, tr("ddl"), lab_stat, "N", "P"),
                       stringsAsFactors = FALSE, check.names = FALSE)
     names(tab) <- f
+    # Le groupe de chaque case, a part : la mise en page le colore, et le
+    # relire dans la chaine « moyenne ± dispersion groupe » le confondrait
+    # avec un nombre.
+    groupes <- matrix("", length(niv), length(vars))
     for (k in seq_along(vars)) {
       v <- vars[k]
       sv <- sub[as.character(sub$Variable) == v, , drop = FALSE]
@@ -5456,6 +5460,11 @@ hstat_posthoc_synthese <- function(d, dispersion = c("ecart_type", "erreur_type"
           if (is.null(grp)) "" else grp[seule]))
       cellule <- cases[match(niv, as.character(sv[[colf]]))]
       cellule[is.na(cellule)] <- ""
+      if (!is.null(grp)) {
+        gk <- grp[match(niv, as.character(sv[[colf]]))]
+        gk[is.na(gk)] <- ""
+        groupes[, k] <- trimws(gk)
+      }
       stat <- suppressWarnings(as.numeric(sv$Statistique_globale[1] %||% NA))
       stat_txt <- if (is.finite(stat)) formatC(round(stat, dec_stat),
                                                format = "f", digits = dec_stat) else ""
@@ -5471,6 +5480,7 @@ hstat_posthoc_synthese <- function(d, dispersion = c("ecart_type", "erreur_type"
       tab[[v]] <- c(cellule, .hstat_synth_cv_txt(sv, dec_stat), ddl, stat_txt,
                     if (n > 0) format(n) else "", .hstat_synth_p(sv$p_global[1]))
     }
+    attr(tab, "groupes") <- groupes
     out[[f]] <- tab
   }
   out
@@ -5596,24 +5606,54 @@ hstat_synthese_apparie <- function(a, b, noms, var, stat, ddl, p, symbole,
                     n_test = length(a), lettres = lettres)
 }
 
+# Une couleur par groupe de lettres, la meme regle que la colonne « groups » du
+# tableau des effets principaux : arc-en-ciel translucide dans l'ordre
+# d'apparition. Le tableau et la synthese en derivent tous deux -- deux
+# palettes recopiees finiraient par donner deux couleurs a un meme groupe.
+#
+# `en_plus` : groupes qui n'apparaissent qu'ailleurs (effets simples). Ils
+# prennent un second arc-en-ciel, plus pale, APRES la palette principale : les
+# melanger a la premiere changerait la couleur d'un groupe deja affiche.
+hstat_groupes_couleurs <- function(g, en_plus = NULL) {
+  net <- function(x) { x <- unique(trimws(as.character(x))); x[!is.na(x) & nzchar(x)] }
+  g <- net(g)
+  out <- if (length(g)) stats::setNames(grDevices::rainbow(length(g), alpha = 0.3), g) else character(0)
+  e <- setdiff(net(en_plus), g)
+  if (length(e))
+    out <- c(out, stats::setNames(grDevices::rainbow(length(e), s = 0.45, alpha = 0.3), e))
+  out
+}
+
 # Les tables de synthese en HTML statique. Un renderUI de tableaux -- jamais un
 # renderDT appele a la main, qui leve faute de session. Le texte passe par
 # htmltools, donc echappe : les noms viennent du fichier.
-hstat_synthese_html <- function(tabs) {
+#
+# Le style est celui des tableaux DT de l'application (`hstat-synthese`, dans
+# la feuille de style) : en-tete gris, lignes alternees, et la case d'une
+# modalite COLOREE par son groupe -- la lecture des lettres se fait d'un coup
+# d'oeil, comme dans la colonne « groups » des effets principaux.
+hstat_synthese_html <- function(tabs, couleurs = NULL) {
   if (!length(tabs)) return(shiny::helpText(tr("Aucun résultat à résumer.")))
+  if (is.null(couleurs))
+    couleurs <- hstat_groupes_couleurs(unlist(lapply(tabs, function(t)
+      as.vector(attr(t, "groupes")))))
   shiny::tagList(lapply(tabs, function(t) {
     n_niv <- nrow(t) - 5L
-    entete <- shiny::tags$tr(lapply(names(t), function(n)
-      shiny::tags$th(n, style = "padding:4px 10px;border-bottom:2px solid #555;")))
+    grp <- attr(t, "groupes")
+    entete <- shiny::tags$tr(lapply(names(t), function(n) shiny::tags$th(n)))
     lignes <- lapply(seq_len(nrow(t)), function(i) {
-      st <- if (i == n_niv + 1L) "border-top:1px solid #555;" else ""
-      shiny::tags$tr(lapply(seq_along(t), function(j) {
+      cls <- if (i == n_niv + 1L) "hstat-synthese-test" else NULL
+      shiny::tags$tr(class = cls, lapply(seq_along(t), function(j) {
         cell <- t[i, j]
-        if (j == 1L) shiny::tags$td(shiny::tags$b(cell), style = paste0("padding:4px 10px;", st))
-        else shiny::tags$td(cell, style = paste0("padding:4px 10px;text-align:center;", st))
+        if (j == 1L) return(shiny::tags$td(class = "hstat-synthese-modalite", cell))
+        g <- if (i <= n_niv && is.matrix(grp) && ncol(grp) >= j - 1L)
+          grp[i, j - 1L] else ""
+        coul <- if (nzchar(g) && g %in% names(couleurs)) couleurs[[g]] else NA
+        shiny::tags$td(cell, class = if (!is.na(coul)) "hstat-synthese-groupe",
+                       style = if (!is.na(coul)) paste0("background-color:", coul, ";"))
       }))
     })
-    shiny::tags$table(class = "table table-condensed", style = "width:auto;margin-bottom:18px;",
+    shiny::tags$table(class = "table hstat-synthese",
       shiny::tags$thead(entete), shiny::tags$tbody(lignes))
   }))
 }
@@ -17114,4 +17154,28 @@ hstat_barres_groupees <- function(traces, x, y = ".y2_scaled",
     # NA et non TRUE : TRUE forcerait la couche dans TOUTES les legendes, et
     # chaque cle de courbe porterait un carre gris de barre.
     na.rm = TRUE, show.legend = NA)
+}
+
+# Vit dans le socle et non dans `mod_dosage.R` : c'est un constructeur de
+# widget a identifiant libre, comme `hstat_format_input()`, et l'appelant
+# fournit `ns(...)`. La liste elle-meme (`HSTAT_MATIERES_ACTIVES`) reste dans
+# le module.
+# Le champ : une liste deroulante qui filtre a la frappe et accepte le nom
+# tape (`create`). `createOnBlur` : quitter le champ garde ce qui a ete tape,
+# sinon un nom absent du catalogue s'effacerait au premier clic ailleurs.
+# Le nom deja saisi est remis dans les choix, sinon la liste ne le connaitrait
+# pas et le champ se viderait.
+hstat_ma_input <- function(id, label, selected = "", saisies = character(0),
+                           placeholder = NULL) {
+  selected <- trimws(as.character(selected %||% ""))[1]
+  if (is.na(selected)) selected <- ""
+  choix <- unique(c(HSTAT_MATIERES_ACTIVES, saisies, if (nzchar(selected)) selected))
+  choix <- choix[!is.na(choix) & nzchar(choix)]
+  shiny::selectizeInput(id, label, choices = c("", choix), selected = selected,
+    # `delimiter` : par defaut la virgule, qui couperait « 2,4-D (amine salt) »
+    # en deux entrees a la creation. Un caractere qu'aucun nom ne porte.
+    options = list(create = TRUE, createOnBlur = TRUE, persist = FALSE,
+                   delimiter = "\u001f",
+                   maxOptions = 500, placeholder = placeholder %||% "",
+                   render = I("{option_create: function(d, e) { return '<div class=\"create\">+ <strong>' + e(d.input) + '</strong></div>'; }}")))
 }

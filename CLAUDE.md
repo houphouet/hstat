@@ -11311,3 +11311,63 @@ l'absence d'un réglage. Le `%||%` du dépôt traite un vecteur **vide** comme
 `NULL` — il aurait fait retomber `character(0)` sur les trois lignes par défaut.
 La lecture passe donc par `is.null()`, et le test exige qu'aucune ligne cochée
 ne rende aucun texte.
+
+### La synthèse a son onglet, et ses cases portent la couleur du groupe
+
+Demandé à l'écran : les synthèses post-hoc quittent le bas de « Effets
+principaux » pour un onglet **« Synthèse »** de « Résultats et
+visualisations », entre « Graphiques » et « Rapport ». Elles s'intitulent
+« Synthèse : écart-type » et « Synthèse : erreur-type » (la boîte « Résultats
+des tests » prend les mêmes titres).
+
+Le tableau prend l'habit des tableaux DT (`table.hstat-synthese`, dans la
+feuille de style), et **chaque case d'une modalité prend la couleur de son
+groupe**. `hstat_posthoc_synthese()` range le groupe de chaque case à part
+(`attr(tab, "groupes")`) : le relire dans « 5.50 ± 0.58 bc » le confondrait
+avec un nombre. `hstat_groupes_couleurs()` est la palette **unique** — la
+colonne « groups » du tableau DT et la synthèse la lisent toutes deux, sinon un
+même groupe aurait deux couleurs d'un onglet à l'autre. Les groupes propres aux
+effets simples prennent un second arc-en-ciel, plus pâle, **après** la palette
+principale : les y mêler changerait la couleur d'un groupe déjà affiché.
+
+### Solution mère : le grade technique se nomme
+
+Sous « Matière active technique (pureté en %) », la ligne « Produit à peser »
+devient **« Grade technique »** ; une formulation solide garde « Produit à
+peser ». La ligne « Matière active pure dans la mère » (C × V) est retirée :
+on ne la pèse pas, et elle se lisait comme la quantité à peser. Le protocole
+du trempage de disques s'écrit « Protocole IRAC 035 ».
+
+### La matière active se choisit dans une liste, et la liste s'enrichit
+
+`HSTAT_MATIERES_ACTIVES` (`R/mod_dosage.R`) est la liste fournie par
+l'utilisateur — 109 matières actives du coton (liste CSP), **recopiée telle
+quelle**, noms communs internationaux, dans son ordre. Elle n'entre pas au
+dictionnaire : un nom de matière active est une donnée, pas un libellé.
+
+`hstat_ma_input()` (`R/utils.R`, comme `hstat_format_input()` : un constructeur
+à identifiant libre que le test du namespace des modules prendrait pour fautif)
+remplace les `textInput` des deux champs « Matière active »
+(dose à l'hectare, et chaque ligne des solutions filles) : une liste qui filtre
+à la frappe et **accepte un nom absent** (`create`). Trois points, chacun
+testé :
+
+1. **`createOnBlur`** : quitter le champ garde ce qui a été tapé ; sinon un nom
+   hors liste s'effaçait au premier clic ailleurs.
+2. **`delimiter`** n'est plus la virgule : « 2,4-D (amine salt) » serait coupé
+   en deux entrées à la création.
+3. **Un nom tapé hors liste est proposé dans tous les champs**, et **gardé
+   d'une session à l'autre** (`hstat_ma_ajouter()`, un nom par ligne dans
+   `tools::R_user_dir("HStat", "data")/matieres_actives_ajoutees.txt`). Un
+   doublon de casse n'est pas ajouté : « deltamethrin » à côté de
+   « Deltamethrin » est le doublon que la liste existe pour éviter. Une faute
+   enregistrée se retire en supprimant sa ligne ;
+   `options(hstat.ma.fichier = NA)` coupe l'enregistrement, et sous testthat
+   rien n'est jamais écrit dans le dossier réel.
+
+Une valeur posée depuis un autre onglet (reprise du calcul de dose) passe par
+`.ma_poser()`, qui l'ajoute aux choix **avant** de la sélectionner : selectize
+refuse une valeur qu'il ne connaît pas, et le champ resterait vide.
+
+Hors du champ : la colonne « Matière active » du tableau éditable des produits
+saisis reste une cellule de texte — DT n'a pas de liste déroulante en cellule.
