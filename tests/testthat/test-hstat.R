@@ -24503,11 +24503,19 @@ test_that("Solution mère : les formules des trois protocoles rendent leurs exem
   expect_false(hstat_mere_concentration(1, 50, "liquide_pct", P = 50)$ok)
   lp <- hstat_mere_concentration(1, 50, "liquide_pct", P = 50, densite = 1.25)
   expect_equal(lp$m_pese, 100); expect_equal(lp$v_formulation, 0.08)
-  # Vial test : Q = C × 100 / P, concentration de la mere = C × V,
-  # flacons = V / v. 12 mg a 90 % -> 13,3333 mg ; 12 mg × 10 ml -> 120.
+  # Vial test : Q = C × 100 / P (pour 1 l), concentration de la solution
+  # mere = Q × V, flacons = V / v. 12 mg a 90 % -> 13,3333 mg ; Q × 10 ml.
   t <- hstat_mere_tube(C = 12, v = 0.5, V = 10, P = 90)
-  expect_equal(round(t$Q_mg, 4), 13.3333); expect_equal(t$c_mere, 120)
+  expect_equal(round(t$Q_mg, 4), 13.3333); expect_equal(t$c_mere, t$Q_mg * 10)
   expect_equal(t$flacons, 20)
+  # La concentration lit Q, pas C : la purete la deplace.
+  expect_false(isTRUE(all.equal(t$c_mere, 12 * 10)))
+  # Q vaut pour 1 l : 41,0256 mg pour 1 l donnent 4,10256 mg pour 100 ml.
+  q <- hstat_mere_tube(C = 40, v = 0.5, V = 1000, P = 97.5, Vprep = 100)
+  expect_equal(round(q$Q_mg, 4), 41.0256)
+  expect_equal(q$Q_prep, q$Q_mg / 10)
+  expect_equal(hstat_mere_tube(40, 0.5, 1000, 97.5)$Q_prep, q$Q_mg)
+  expect_true(is.na(hstat_mere_tube(40, 0.5, 1000, 97.5, Vprep = NA)$Q_prep))
   # La pesee ne depend ni de V ni de v ; la concentration suit V, pas v.
   expect_equal(hstat_mere_tube(12, 0.5, 20, 90)$Q_mg, t$Q_mg)
   expect_equal(hstat_mere_tube(12, 1, 10, 90)$Q_mg, t$Q_mg)
@@ -25145,5 +25153,22 @@ test_that("Matiere active : la meme liste partout ou l'on en saisit une", {
                                                  value = "Huile de neem"))
     expect_identical(saisie()$Matiere_active[1], "Huile de neem")
     expect_true("Huile de neem" %in% ma_saisies())
+  })
+})
+
+test_that("Vial test : libelles de la solution mere et pesee convertie au volume prepare", {
+  vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  shiny::testServer(mod_dosage_server, args = list(values = vals), {
+    session$setInputs(mereTest = "tube", mereTubC = 40, mereTubCUnite = "mg",
+                      mereTubVflacon = 0.5, mereTubVflaconUnite = "ml",
+                      mereTubV = 1, mereTubVUnite = "l", mereTubP = 97.5,
+                      mereTubVprep = 100, mereTubVprepUnite = "ml")
+    h <- as.character(output$mereResultat$html)
+    expect_match(h, "Concentration de la solution mère", fixed = TRUE)
+    expect_false(grepl("Concentration de la mère", h, fixed = TRUE))
+    expect_match(h, "Nombre de flacons à traiter", fixed = TRUE)
+    expect_match(h, "41.0256 mg pour 1 l", fixed = TRUE)
+    expect_match(h, "4.10256 mg pour 100 ml", fixed = TRUE)
   })
 })

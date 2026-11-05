@@ -11407,10 +11407,17 @@ volume de solution par flacon v et volume total à préparer V. Les formules
 sont celles que l'utilisateur a données — `hstat_mere_tube(C, v, V, P)` :
 
 ```
-Q (mg) = C (mg) × 100 ÷ P (%)
-Concentration de la mère (mg/ml) = C (mg) × V (ml)
-Nombre de flacons traités = V ÷ v
+Q (mg) = C (mg) × 100 ÷ P (%)                      (pour 1 l)
+Concentration de la solution mère (mg/ml) = Q (mg) × V (ml)
+Nombre de flacons à traiter = V ÷ v
+Q (volume) = Q (mg) × volume à préparer (ml) ÷ 1000 ml
 ```
+
+La concentration lit **Q**, pas C : demandé à l'écran, « la valeur exacte de
+Q n'est pas utilisée ». Q vaut pour **un litre** ; le champ « Convertir la
+masse à peser pour un volume de » la ramène au volume réellement préparé
+(41,0256 mg pour 1 l → 4,10256 mg pour 100 ml), sur une ligne à part, la
+pesée pour 1 l restant affichée.
 
 Une première version écrivait Q = C × V ÷ v × 100 ÷ P et C ÷ v pour la
 concentration ; corrigée à la demande. La pesée ne dépend donc ni de V ni de
