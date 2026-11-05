@@ -342,6 +342,20 @@ hstat_fmt_nb <- function(x, dec = 2) {
   out
 }
 
+# LES CHIFFRES COMPLETS : la masse a peser et la concentration de la mere ne
+# s'arrondissent pas. C'est la valeur que l'on recopie sur la fiche de pesee,
+# et un arrondi a l'ecran (41,0256 au lieu de 41,025641025641) obligerait a
+# refaire le calcul pour retrouver ce que le calcul a donne. Quinze chiffres
+# significatifs : la precision d'un double, au-dela de laquelle on n'ecrirait
+# que du bruit d'arrondi binaire (0,1 + 0,2 sort 0,3). Pas de notation
+# scientifique : « 0.00001 » se recopie, « 1e-05 » se relit.
+hstat_fmt_complet <- function(x) {
+  v <- suppressWarnings(as.numeric(x))
+  out <- trimws(formatC(v, digits = 15, format = "fg", big.mark = " "))
+  out[!is.finite(v)] <- NA_character_
+  out
+}
+
 # ---------------------------------------------------------------------------
 #  1 et 2. Dose <-> grammage
 # ---------------------------------------------------------------------------
@@ -2137,8 +2151,8 @@ mod_dosage_server <- function(id, values) {
                                Vprep = .mere_val("mereTubVprep", "ml")))
     })
 
-    # Six chiffres significatifs : la pesee convertie garde la precision de
-    # celle pour 1 l (41,0256 -> 4,10256), sans decimales en trop.
+    # Six chiffres significatifs pour la quantite par flacon. La masse a peser
+    # et la concentration de la mere, elles, passent par hstat_fmt_complet().
     .sig6 <- function(x) hstat_fmt_nb(signif(x, 6), 10)
 
     .mere_ligne <- function(libelle, valeur, formule) shiny::tags$tr(
@@ -2153,9 +2167,9 @@ mod_dosage_server <- function(id, values) {
       lignes <- switch(mere_test(),
         topique = list(
           .mere_ligne(tr("Matière active technique à peser"),
-                      trf("%s µg (%s mg)", hstat_fmt_nb(r$Q_ug, 2), hstat_fmt_nb(r$Q_mg, 4)), FM[["topique"]]),
+                      trf("%s µg (%s mg)", hstat_fmt_complet(r$Q_ug), hstat_fmt_complet(r$Q_mg)), FM[["topique"]]),
           .mere_ligne(tr("Concentration de la solution mère"),
-                      trf("%s µg m.a./µl", hstat_fmt_nb(r$c_mere, 6)), FM[["topique_c"]]),
+                      trf("%s µg m.a./µl", hstat_fmt_complet(r$c_mere)), FM[["topique_c"]]),
           .mere_ligne(tr("Quantité déposée sur chaque insecte"),
                       paste(hstat_fmt_nb(r$dose_individu, 6), "µg"), "D × x")),
         disque = c(
@@ -2164,7 +2178,7 @@ mod_dosage_server <- function(id, values) {
           # grade technique se nomme par son grade.
           if (!is.null(r$m_pese)) list(
             .mere_ligne(if (identical(r$produit, "technique")) tr("Grade technique")
-                        else tr("Produit à peser"), paste(hstat_fmt_nb(r$m_pese, 4), "mg"),
+                        else tr("Produit à peser"), paste(hstat_fmt_complet(r$m_pese), "mg"),
                         if (identical(r$produit, "technique")) FM[["technique"]] else FM[["solide_pct"]]),
             .mere_ligne(tr("Concentration réelle (contrôle)"),
                         paste(hstat_fmt_nb(r$c_reelle, 6), "mg/ml"), FM[["controle"]])),
@@ -2173,16 +2187,16 @@ mod_dosage_server <- function(id, values) {
                         paste(hstat_fmt_nb(r$v_formulation, 4), "ml"),
                         if (identical(r$produit, "liquide_gl")) FM[["liquide_gl"]] else FM[["liquide_pct"]])),
           list(.mere_ligne(tr("Concentration de la solution mère"),
-                           trf("%s mg/ml, soit %s mg/l", hstat_fmt_nb(r$c_mere, 6),
-                               hstat_fmt_nb(r$niveau_haut, 4)), "1 mg/ml = 1 000 mg/l"))),
+                           trf("%s mg/ml, soit %s mg/l", hstat_fmt_complet(r$c_mere),
+                               hstat_fmt_complet(r$niveau_haut)), "1 mg/ml = 1 000 mg/l"))),
         tube = list(
           .mere_ligne(tr("Matière active technique à peser"),
-                      trf("%s mg pour %s %s", .sig6(r$Q_mg),
+                      trf("%s mg pour %s %s", hstat_fmt_complet(r$Q_mg),
                           hstat_fmt_nb(.hstat_num1(input$mereTubV, NA_real_), 4),
                           input$mereTubVUnite %||% "l"), FM[["tube"]]),
           if (is.finite(r$Q_prep)) .mere_ligne(
             tr("Matière active technique à peser (volume converti)"),
-            trf("%s mg pour %s %s", .sig6(r$Q_prep),
+            trf("%s mg pour %s %s", hstat_fmt_complet(r$Q_prep),
                 hstat_fmt_nb(.hstat_num1(input$mereTubVprep, NA_real_), 4),
                 input$mereTubVprepUnite %||% "ml"), FM[["tube_prep"]]),
           .mere_ligne(tr("Quantité de matière active par flacon"),
@@ -2190,7 +2204,7 @@ mod_dosage_server <- function(id, values) {
           .mere_ligne(tr("Nombre de flacons à traiter"),
                       hstat_fmt_nb(r$flacons, 2), "V ÷ v"),
           .mere_ligne(tr("Concentration de la solution mère"),
-                      trf("%s mg/l, soit %s mg/ml", .sig6(r$c_mgl), .sig6(r$c_mere)),
+                      trf("%s mg/l, soit %s mg/ml", hstat_fmt_complet(r$c_mgl), hstat_fmt_complet(r$c_mere)),
                       FM[["tube_c"]])))
       shiny::tags$table(class = "table table-condensed",
         shiny::tags$thead(shiny::tags$tr(shiny::tags$th(tr("Grandeur")),
@@ -2212,11 +2226,11 @@ mod_dosage_server <- function(id, values) {
       }
       shiny::updateSelectInput(session, "dilUnite", selected = "mg/ml")
       shiny::updateNumericInput(session, "dilNbMa", value = 1)
-      shiny::updateNumericInput(session, "dilMaConc1", value = signif(r$c_mere, 8))
+      shiny::updateNumericInput(session, "dilMaConc1", value = r$c_mere)
       shiny::updateTabsetPanel(session, "dosageTabs", selected = "dilution")
       shiny::showNotification(
         trf("Solution mère reprise dans « Solutions filles (dilutions) » : %s mg/ml.",
-            hstat_fmt_nb(r$c_mere, 6)),
+            hstat_fmt_complet(r$c_mere)),
         type = "message", duration = 8)
     })
 

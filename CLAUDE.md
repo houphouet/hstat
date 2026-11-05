@@ -11436,3 +11436,16 @@ d'Abbott supporte »), dans l'alerte du verdict et dans les causes mesurées
 (`HSTAT_DL50_SEUIL_REJET_MAX`). Les mentions de 20 % plus haut dans ce fichier
 décrivent l'état d'avant. Le test exige qu'un témoin à 15 % soit signalé : à
 20 %, il ne l'était pas.
+
+### La masse à peser et la concentration de la mère ne s'arrondissent pas
+
+Demandé à l'écran : « donne les chiffres complets ». La masse à peser (grade
+technique, produit, matière active technique) et la concentration de la
+solution mère sortaient arrondies — 41,0256 mg, 52,63 mg — alors que c'est la
+valeur que l'on recopie sur la fiche de pesée. `hstat_fmt_complet()`
+(`R/mod_dosage.R`) les écrit à **quinze chiffres significatifs**, la précision
+d'un double : au-delà ne resterait que le bruit binaire (0,1 + 0,2 sort 0,3).
+Sans notation scientifique — « 0.00001 » se recopie. Les trois protocoles la
+prennent (topique, trempage, vial test), la notification de reprise aussi, et
+la concentration envoyée aux dilutions n'est plus arrondie à huit chiffres.
+La quantité par flacon et les volumes gardent leur arrondi.
