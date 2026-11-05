@@ -24663,7 +24663,7 @@ test_that("Post-hoc : la synthese porte moyenne ± dispersion groupe, puis ddl, 
   d <- rbind(ligne("V1", TRUE), ligne("V2", TRUE))
   et <- hstat_posthoc_synthese(d, "ecart_type", 2)$A
   es <- hstat_posthoc_synthese(d, "erreur_type", 2)$A
-  expect_equal(et$A, c(paste0("A", 1:5), "ddl", "F", "N", "P"))
+  expect_equal(et$A, c(paste0("A", 1:5), "CV (%)", "ddl", "F", "N", "P"))
   expect_equal(names(et), c("A", "V1", "V2"))
   # La dispersion change, la moyenne et le groupe non.
   expect_match(et$V1[1], "^[0-9.]+ ± [0-9.]+ a$")
@@ -24673,17 +24673,17 @@ test_that("Post-hoc : la synthese porte moyenne ± dispersion groupe, puis ddl, 
   expect_false(grepl("NA", et$V1[4]))
   # Les quatre lignes du test, lues sur l'ANOVA elle-meme.
   a <- summary(stats::aov(V1 ~ A, df))[[1]]
-  expect_equal(et$V1[6], paste0(a$Df[1], ", ", a$Df[2]))
-  expect_equal(et$V1[7], formatC(a[["F value"]][1], format = "f", digits = 2))
-  expect_equal(et$V1[8], "20")
-  expect_equal(et$V1[9], if (a[["Pr(>F)"]][1] < 0.001) "< 0.001" else
+  expect_equal(et$V1[7], paste0(a$Df[1], ", ", a$Df[2]))
+  expect_equal(et$V1[8], formatC(a[["F value"]][1], format = "f", digits = 2))
+  expect_equal(et$V1[9], "20")
+  expect_equal(et$V1[10], if (a[["Pr(>F)"]][1] < 0.001) "< 0.001" else
     formatC(round(a[["Pr(>F)"]][1], 3), format = "f", digits = 3))
   # Le symbole suit le test : Kruskal-Wallis donne H, et deux tests differents
   # font porter son symbole a chaque case.
   d2 <- rbind(ligne("V1", TRUE), ligne("V2", FALSE))
   t2 <- hstat_posthoc_synthese(d2, "ecart_type", 2)$A
-  expect_equal(t2$A[7], "F / H")
-  expect_match(t2$V2[7], "^H = ")
+  expect_equal(t2$A[8], "F / H")
+  expect_match(t2$V2[8], "^H = ")
   expect_equal(HSTAT_POSTHOC_SYMBOLES[["ANOVA de Welch"]], "W")
   # LES EFFETS SIMPLES ONT LEUR TABLE, apres les effets principaux : leurs
   # modalites vivent sous le facteur TESTE, ecrit avant « | ».
@@ -24700,7 +24700,7 @@ test_that("Post-hoc : la synthese porte moyenne ± dispersion groupe, puis ddl, 
   fe <- hstat_posthoc_synthese_feuilles(rbind(se, d))$Moyenne_ET_groupe
   expect_equal(names(fe)[-1], c("V1", "V2"))
   expect_true(all(c("A", "A | B=b1") %in% fe[[1]]))
-  expect_equal(nrow(fe), 2 * 10 + 1)
+  expect_equal(nrow(fe), 2 * 11 + 1)
   # LES COLONNES PORTENT LES NOMS EXACTS choisis a l'analyse, a l'ecran comme
   # dans le classeur : espaces, accents et parentheses compris.
   dn <- data.frame(`Traitement fongicide` = c("T1", "T2"), Moyenne = c(1, 2),
@@ -24735,11 +24735,11 @@ test_that("Synthese des tests a deux modalites, a une norme et apparies", {
   t1 <- hstat_posthoc_synthese(d, "ecart_type", 2)$G
   # Z n'a pas de ligne de resultat : elle n'entre pas.
   expect_equal(names(t1), c("G", "Y"))
-  expect_equal(t1$G, c("T1", "T2", "ddl", "t", "N", "P"))
+  expect_equal(t1$G, c("T1", "T2", "CV (%)", "ddl", "t", "N", "P"))
   # Significatif : la plus grande moyenne prend « a ».
   expect_match(t1$Y[2], " a$"); expect_match(t1$Y[1], " b$")
-  expect_equal(t1$Y[5], "12")
-  expect_equal(t1$Y[4], formatC(unname(tt$statistic), format = "f", digits = 2))
+  expect_equal(t1$Y[6], "12")
+  expect_equal(t1$Y[5], formatC(unname(tt$statistic), format = "f", digits = 2))
   # Non significatif : « a » partout ; non calculable : aucune lettre.
   expect_equal(.hstat_lettres_deux(c(1, 2), 0.4), c("a", "a"))
   expect_true(all(is.na(.hstat_lettres_deux(c(1, 2), NA))))
@@ -24758,7 +24758,7 @@ test_that("Synthese des tests a deux modalites, a une norme et apparies", {
   da <- hstat_synthese_groupes(dfa, "Y", c("G", "B"), ra, "F", cas_complets = c("G", "B"))
   ta <- hstat_posthoc_synthese(da, "ecart_type", 2)
   expect_equal(names(ta), c("G", "B"))
-  expect_equal(ta$G$Y[5], "8")
+  expect_equal(ta$G$Y[6], "8")
 
   # Comparaison a une norme : l'echantillon, puis la reference seule.
   x <- c(11, 12, 13, 12, 11, 13)
@@ -24768,7 +24768,7 @@ test_that("Synthese des tests a deux modalites, a une norme et apparies", {
   tr1 <- hstat_posthoc_synthese(dr, "ecart_type", 2)[[1]]
   expect_equal(tr1$Y[2], "10.00 b")
   expect_match(tr1$Y[1], "^12.00 ± [0-9.]+ a$")
-  expect_equal(tr1$Y[3], "5"); expect_equal(tr1$Y[5], "6")
+  expect_equal(tr1$Y[4], "5"); expect_equal(tr1$Y[6], "6")
   # TOST : pas de lettre (un p petit y conclut a l'equivalence).
   dt <- hstat_synthese_reference(x, "Y", 10, 2, "5", 0.001, "t", lettres = FALSE)
   expect_true(all(is.na(dt$groups)))
@@ -24779,8 +24779,8 @@ test_that("Synthese des tests a deux modalites, a une norme et apparies", {
   dp <- hstat_synthese_apparie(a, b, c("Avant", "Après"), "Y", tp$statistic,
                                hstat_ddl_fmt(tp$parameter), tp$p.value, "t")
   tp1 <- hstat_posthoc_synthese(dp, "erreur_type", 2)[[1]]
-  expect_equal(tp1[[1]], c("Avant", "Après", "ddl", "t", "N", "P"))
-  expect_equal(tp1$Y[5], "4")
+  expect_equal(tp1[[1]], c("Avant", "Après", "CV (%)", "ddl", "t", "N", "P"))
+  expect_equal(tp1$Y[6], "4")
   expect_match(tp1$Y[1], paste0("^6.50 ± ", formatC(stats::sd(a) / 2, format = "f", digits = 2)))
 
   # Le module pose la synthese pour chaque famille, et la masque quand le
@@ -24811,8 +24811,8 @@ test_that("Module des tests : la synthese suit le test lance, et se masque apres
     t <- hstat_posthoc_synthese(s, "ecart_type", 2)$Traitement
     # Les colonnes portent les noms exacts des variables choisies.
     expect_equal(names(t), c("Traitement", "Rendement", "Hauteur"))
-    expect_equal(t$Traitement[4], "t")
-    expect_equal(t$Rendement[5], "12")
+    expect_equal(t$Traitement[5], "t")
+    expect_equal(t$Rendement[6], "12")
     # Un test qui ne produit pas de synthese la masque : elle ne parle plus
     # de ce qu'on voit.
     session$setInputs(testNormalityRaw = 1)
@@ -24829,11 +24829,11 @@ test_that("Module des tests : la synthese suit le test lance, et se masque apres
                       interaction = FALSE)
     session$setInputs(testANOVA = 1)
     t <- hstat_posthoc_synthese(.synthese_courante(), "ecart_type", 2)$Traitement
-    expect_equal(t$Traitement, c("T1", "T2", "T3", "ddl", "F", "N", "P"))
+    expect_equal(t$Traitement, c("T1", "T2", "T3", "CV (%)", "ddl", "F", "N", "P"))
     a <- summary(stats::aov(Rendement ~ Traitement, d))[[1]]
-    expect_equal(t$Rendement[6], "18")
-    expect_equal(t$Rendement[5], formatC(a[["F value"]][1], format = "f", digits = 2))
-    expect_equal(t$Rendement[4], "2, 15")
+    expect_equal(t$Rendement[7], "18")
+    expect_equal(t$Rendement[6], formatC(a[["F value"]][1], format = "f", digits = 2))
+    expect_equal(t$Rendement[5], "2, 15")
   })
 })
 
@@ -24892,4 +24892,36 @@ test_that("Synthese : nom non syntaxique, facteur nomme comme une colonne intern
   dp <- hstat_synthese_apparie(c(1, 2, 3), c(5, 6, 9), c("A", "B"), "Y", 2, "2", 0.01, "V",
                                lettres = FALSE)
   expect_true(all(is.na(dp$groups)))
+})
+
+test_that("Synthese : le CV (%) de l'essai precede le ddl, le meme sous ET et ES", {
+  set.seed(7)
+  df <- data.frame(G = rep(c("a", "b", "c"), c(4, 6, 5)),
+                   Y = c(rnorm(4, 10, 1), rnorm(6, 14, 3), rnorm(5, 20, 0.5)))
+  a <- summary(stats::aov(Y ~ G, df))[[1]]
+  res <- data.frame(Variable = "Y", Facteur = "G", Statistique = a$`F value`[1],
+                    ddl = "2, 12", p_value = a$`Pr(>F)`[1])
+  d <- hstat_synthese_groupes(df, "Y", "G", res, "F")
+  et <- hstat_posthoc_synthese(d, "ecart_type", 3)[[1]]
+  es <- hstat_posthoc_synthese(d, "erreur_type", 3)[[1]]
+  expect_equal(et$G[4:5], c("CV (%)", "ddl"))
+  # Effectifs INEGAUX : la variance mise en commun (sqrt(CMe)) se distingue
+  # alors de la moyenne des ecarts-types, et la moyenne generale ponderee de
+  # la moyenne des moyennes.
+  cv <- sqrt(a$`Mean Sq`[2]) / mean(df$Y) * 100
+  expect_equal(as.numeric(et$Y[4]), round(cv, 3))
+  s <- tapply(df$Y, df$G, sd); m <- tapply(df$Y, df$G, mean)
+  expect_false(isTRUE(all.equal(round(mean(s) / mean(m) * 100, 3), round(cv, 3))))
+  expect_equal(es$Y[4], et$Y[4])
+  if (requireNamespace("agricolae", quietly = TRUE))
+    expect_equal(as.numeric(et$Y[4]),
+                 round(agricolae::cv.model(stats::aov(Y ~ G, df)), 3))
+  # Une valeur de reference sans dispersion n'entre pas : CV de l'echantillon.
+  x <- c(11, 12, 13, 12, 12)
+  dr <- hstat_synthese_reference(x, "Y", 10, 4, "4", 0.01, "t")
+  tr1 <- hstat_posthoc_synthese(dr, "ecart_type", 2)[[1]]
+  expect_equal(tr1$Y[3], formatC(sd(x) / mean(x) * 100, format = "f", digits = 2))
+  # Moyenne generale nulle : case vide, jamais Inf.
+  d0 <- d; d0$Moyenne <- c(-5, 0, 4)  # 4 x -5 + 6 x 0 + 5 x 4 = 0
+  expect_equal(hstat_posthoc_synthese(d0, "ecart_type", 2)[[1]]$Y[4], "")
 })

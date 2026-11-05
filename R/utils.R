@@ -5347,6 +5347,42 @@ hstat_dec_affichage <- function(round_on, decimals = 2) {
 HSTAT_POSTHOC_SYMBOLES <- c("ANOVA" = "F", "ANOVA de Welch" = "W",
                             "Kruskal-Wallis" = "H")
 
+# LE COEFFICIENT DE VARIATION D'UNE COLONNE est celui de l'essai : l'ecart-type
+# INTRA-GROUPE mis en commun, rapporte a la moyenne generale,
+#
+#   CV (%) = sqrt( sum((n_i - 1) s_i^2) / sum(n_i - 1) ) / |moyenne generale| x 100
+#
+# soit sqrt(CMe) / moyenne de l'ANOVA a un facteur (`agricolae::cv.model`), sur
+# les groupes de la table. Il est le meme sous l'ecart-type et sous
+# l'erreur-type : c'est une propriete des donnees, pas de la dispersion
+# affichee. La moyenne generale est ponderee par les effectifs. Une ligne sans
+# dispersion (la valeur de reference d'un test a une norme) n'y entre pas.
+# Moyenne nulle ou rien a mettre en commun -> case vide, jamais un nombre faux.
+HSTAT_SYNTH_CV <- "CV (%)"
+
+.hstat_synth_cv <- function(sv) {
+  m <- suppressWarnings(as.numeric(sv$Moyenne))
+  n <- suppressWarnings(as.numeric(sv$N %||% rep(NA_real_, length(m))))
+  s <- if ("Ecart_type" %in% names(sv)) suppressWarnings(as.numeric(sv$Ecart_type)) else
+    rep(NA_real_, length(m))
+  if ("Erreur_type" %in% names(sv)) {
+    es <- suppressWarnings(as.numeric(sv$Erreur_type))
+    manque <- !is.finite(s) & is.finite(es) & is.finite(n)
+    s[manque] <- es[manque] * sqrt(n[manque])
+  }
+  ok <- is.finite(m) & is.finite(s) & is.finite(n) & n > 1
+  if (!any(ok)) return(NA_real_)
+  ddl <- sum(n[ok] - 1)
+  mg <- sum(n[ok] * m[ok]) / sum(n[ok])
+  if (!is.finite(mg) || mg == 0 || ddl <= 0) return(NA_real_)
+  sqrt(sum((n[ok] - 1) * s[ok]^2) / ddl) / abs(mg) * 100
+}
+
+.hstat_synth_cv_txt <- function(sv, dec) {
+  cv <- .hstat_synth_cv(sv)
+  if (is.finite(cv)) formatC(round(cv, dec), format = "f", digits = dec) else ""
+}
+
 .hstat_synth_p <- function(p) {
   p <- suppressWarnings(as.numeric(p))
   ifelse(!is.finite(p), "",
@@ -5401,7 +5437,7 @@ hstat_posthoc_synthese <- function(d, dispersion = c("ecart_type", "erreur_type"
     sym_uniq <- unique(sym[!is.na(sym)])
     lab_stat <- if (length(sym_uniq) == 1L) sym_uniq else
       if (length(sym_uniq)) paste(sym_uniq, collapse = " / ") else tr("Statistique")
-    tab <- data.frame(x = c(niv, tr("ddl"), lab_stat, "N", "P"),
+    tab <- data.frame(x = c(niv, HSTAT_SYNTH_CV, tr("ddl"), lab_stat, "N", "P"),
                       stringsAsFactors = FALSE, check.names = FALSE)
     names(tab) <- f
     for (k in seq_along(vars)) {
@@ -5432,7 +5468,7 @@ hstat_posthoc_synthese <- function(d, dispersion = c("ecart_type", "erreur_type"
       n_t <- if ("N_test" %in% names(sv)) suppressWarnings(as.numeric(sv$N_test[1])) else NA
       n <- if (isTRUE(is.finite(n_t))) n_t else
         sum(suppressWarnings(as.numeric(sv$N)), na.rm = TRUE)
-      tab[[v]] <- c(cellule, ddl, stat_txt,
+      tab[[v]] <- c(cellule, .hstat_synth_cv_txt(sv, dec_stat), ddl, stat_txt,
                     if (n > 0) format(n) else "", .hstat_synth_p(sv$p_global[1]))
     }
     out[[f]] <- tab
@@ -5566,7 +5602,7 @@ hstat_synthese_apparie <- function(a, b, noms, var, stat, ddl, p, symbole,
 hstat_synthese_html <- function(tabs) {
   if (!length(tabs)) return(shiny::helpText(tr("Aucun résultat à résumer.")))
   shiny::tagList(lapply(tabs, function(t) {
-    n_niv <- nrow(t) - 4L
+    n_niv <- nrow(t) - 5L
     entete <- shiny::tags$tr(lapply(names(t), function(n)
       shiny::tags$th(n, style = "padding:4px 10px;border-bottom:2px solid #555;")))
     lignes <- lapply(seq_len(nrow(t)), function(i) {
