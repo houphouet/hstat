@@ -25165,9 +25165,33 @@ test_that("Vial test : libelles de la solution mere et pesee convertie au volume
     expect_match(h, "Concentration de la solution mère", fixed = TRUE)
     expect_false(grepl("Concentration de la mère", h, fixed = TRUE))
     expect_match(h, "Nombre de flacons à traiter", fixed = TRUE)
-    expect_match(h, "41.0256 mg pour 1 l", fixed = TRUE)
-    expect_match(h, "4.10256 mg pour 100 ml", fixed = TRUE)
+    # Chiffres complets : la pesee se recopie telle que le calcul la donne.
+    expect_match(h, "41.025641025641 mg pour 1 l", fixed = TRUE)
+    expect_match(h, "4.1025641025641 mg pour 100 ml", fixed = TRUE)
+    expect_false(grepl("41.0256 mg", h, fixed = TRUE))
     expect_match(h, "40 µg", fixed = TRUE)
     expect_match(h, "40 mg/l, soit 0.04 mg/ml", fixed = TRUE)
+  })
+})
+
+test_that("Solution mere : masse a peser et concentration en chiffres complets", {
+  expect_identical(hstat_fmt_complet(40 * 100 / 97.5), "41.025641025641")
+  expect_identical(hstat_fmt_complet(0.1 + 0.2), "0.3")
+  expect_identical(hstat_fmt_complet(1e-5), "0.00001")
+  expect_identical(hstat_fmt_complet(1234567.891), "1 234 567.891")
+  expect_true(is.na(hstat_fmt_complet(NA)))
+  vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  shiny::testServer(mod_dosage_server, args = list(values = vals), {
+    # IRAC 035 : 1 mg/ml dans 50 ml a 95 % -> 52,631578947368 mg, pas 52,6316.
+    session$setInputs(mereTest = "disque", mereProduit = "technique",
+                      mereDisC = 1, mereDisCUnite = "mg/ml",
+                      mereDisV = 50, mereDisVUnite = "ml", mereDisP = 95)
+    m <- mere_calc()
+    expect_true(isTRUE(m$ok))
+    expect_identical(hstat_fmt_complet(m$m_pese), "52.6315789473684")
+    h <- as.character(output$mereResultat$html)
+    expect_match(h, paste(hstat_fmt_complet(m$m_pese), "mg"), fixed = TRUE)
+    expect_gt(nchar(hstat_fmt_complet(m$m_pese)), 8L)
   })
 })
