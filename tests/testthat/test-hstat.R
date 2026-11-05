@@ -24983,10 +24983,19 @@ test_that("Synthese : son propre onglet entre Graphiques et Rapport, cases color
   expect_true(p_main > 0 && p_main < p_graph && p_graph < p_et &&
               p_et < p_es && p_es < p_rap)
   expect_false(grepl('data-value="synthese"', ui, fixed = TRUE))
-  p_out_et <- regexpr("tests-syntheseEtTables", ui, fixed = TRUE)
-  p_out_es <- regexpr("tests-syntheseEsTables", ui, fixed = TRUE)
-  expect_true(p_out_et > p_et && p_out_et < p_es)
-  expect_true(p_out_es > p_es && p_out_es < p_rap)
+  # Chaque onglet ne porte que sa table : on lit le CONTENU du panneau (les
+  # en-tetes d'onglets precedent tous les contenus dans la page).
+  panneau <- function(v) {
+    m <- regexpr(paste0('(?s)class="tab-pane[^"]*" data-value="', v, '".*?(?=<div class="tab-pane)'),
+                 ui, perl = TRUE)
+    expect_true(m > 0, info = v)
+    regmatches(ui, m)
+  }
+  et <- panneau("syntheseEt"); es <- panneau("syntheseEs")
+  expect_match(et, "tests-syntheseEtTables", fixed = TRUE)
+  expect_false(grepl("tests-syntheseEsTables", et, fixed = TRUE))
+  expect_match(es, "tests-syntheseEsTables", fixed = TRUE)
+  expect_false(grepl("tests-syntheseEtTables", es, fixed = TRUE))
   expect_match(ui, "Synthèse : écart-type", fixed = TRUE)
   expect_match(ui, "Synthèse : erreur-type", fixed = TRUE)
   expect_false(grepl("moyenne ± écart-type et groupe", ui, fixed = TRUE))
