@@ -25092,8 +25092,49 @@ test_that("Doses & dilutions : la matiere active se choisit dans une liste, ou s
   # Le fichier ajoute est relu par la session suivante.
   ancien <- options(hstat.ma.fichier = f)
   on.exit(options(ancien), add = TRUE)
+  envoyes <- list()
   shiny::testServer(mod_dosage_server, args = list(values = vals), {
     expect_true("Neem maison" %in% ma_saisies())
+    # Et le champ de la dose le PROPOSE : un nom enregistre absent de sa liste
+    # passait le test d'avant, qui ne lisait que l'etat interne.
+    racine <- session$rootScope()
+    racine$sendInputMessage <- function(inputId, message)
+      envoyes[[sub("^.*-", "", inputId)]] <<- message
+    session$setInputs(doseMatiere = "")
+    expect_match(as.character(envoyes$doseMatiere$options),
+                 '<option value="Neem maison">', fixed = TRUE)
+    # La liste de la session est commune aux deux modules.
+    expect_identical(hstat_ma_session(session), ma_saisies)
+  })
+})
+
+test_that("Matiere active : un nom venu du navigateur est nettoye et borne", {
+  f <- tempfile(fileext = ".txt")
+  # Un retour a la ligne ne fait pas deux entrees du fichier.
+  expect_identical(hstat_ma_ajouter("Neem\nInjecte", f), "Neem Injecte")
+  expect_identical(hstat_ma_ajoutees(f), "Neem Injecte")
+  # Au plafond, le fichier ne grossit plus.
+  writeLines(sprintf("MA %04d", seq_len(HSTAT_MA_AJOUTS_MAX)), f)
+  expect_identical(hstat_ma_ajouter("Encore une", f), character(0))
+  expect_length(hstat_ma_ajoutees(f), HSTAT_MA_AJOUTS_MAX)
+  # Un vecteur forge ne retient que HSTAT_MA_PAR_APPEL noms.
+  ancien <- options(hstat.ma.fichier = NA)
+  on.exit(options(ancien), add = TRUE)
+  expect_length(hstat_ma_retenir(sprintf("X%d", 1:500)), HSTAT_MA_PAR_APPEL)
+  # Hors session interactive (serveur partage), rien n'est persiste par defaut.
+  options(hstat.ma.fichier = NULL)
+  expect_true(is.na(hstat_ma_fichier()))
+  # Un nom ajoute dans Doses & dilutions est propose dans la fiche DL50.
+  vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL)
+  envoyes <- list()
+  shiny::testServer(mod_dl50_server, args = list(values = vals), {
+    racine <- session$rootScope()
+    racine$sendInputMessage <- function(inputId, message)
+      envoyes[[sub("^.*-", "", inputId)]] <<- message
+    hstat_ma_session(session)("Huile de neem")
+    session$flushReact()
+    expect_match(as.character(envoyes$ch_matiere1$options),
+                 '<option value="Huile de neem">', fixed = TRUE)
   })
 })
 

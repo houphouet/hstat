@@ -4692,13 +4692,17 @@ mod_dl50_server <- function(id, values) {
     # Les champs de la fiche puisent dans les listes, sans perdre ce qui y est
     # deja tape : `create = TRUE` accepte une valeur nouvelle, et la relire
     # avant de reconstruire les choix evite de l'effacer sous le curseur.
+    # Les ajouts de matieres actives de la session, communs avec « Doses &
+    # dilutions » : un nom tape la-bas est propose ici aussitot.
+    ma_ajouts <- hstat_ma_session(session)
     shiny::observe({
       L <- listes()
+      ma <- ma_ajouts()
       for (nm in names(HSTAT_DL50_CHAMPS_LISTE)) {
         id <- paste0("ch_", nm)
         cur <- shiny::isolate(input[[id]]) %||% ""
         ch <- unique(c(
-          if (identical(HSTAT_DL50_CHAMPS_LISTE[[nm]], "matiere")) hstat_ma_catalogue(),
+          if (identical(HSTAT_DL50_CHAMPS_LISTE[[nm]], "matiere")) hstat_ma_choix(ma),
           L[[HSTAT_DL50_CHAMPS_LISTE[[nm]]]], cur))
         ch <- ch[nzchar(ch)]
         shiny::updateSelectizeInput(session, id, choices = ch, selected = cur,
@@ -4708,9 +4712,11 @@ mod_dl50_server <- function(id, values) {
 
     # Une matiere active tapee hors liste rejoint la liste commune, gardee
     # d'une session a l'autre -- la meme que dans « Doses & dilutions ».
-    shiny::observe({
-      hstat_ma_retenir(c(input$ch_matiere1, input$ch_matiere2))
-    })
+    .ma_retenir <- function(v) {
+      neuf <- hstat_ma_retenir(v, shiny::isolate(ma_ajouts()))
+      if (length(neuf)) ma_ajouts(c(shiny::isolate(ma_ajouts()), neuf))
+    }
+    shiny::observe(.ma_retenir(c(input$ch_matiere1, input$ch_matiere2)))
 
     shiny::observe({
       L <- listes()
@@ -4726,7 +4732,7 @@ mod_dl50_server <- function(id, values) {
       avant <- length(L[[nm]])
       L[[nm]] <- hstat_dl50_liste_ajouter(L[[nm]], v)
       listes(L)
-      if (identical(nm, "matiere")) hstat_ma_retenir(v)
+      if (identical(nm, "matiere")) .ma_retenir(v)
       shiny::updateTextInput(session, "listeValeur", value = "")
       # Le doublon n'est pas une erreur, mais le taire ferait croire a un ajout.
       shiny::showNotification(

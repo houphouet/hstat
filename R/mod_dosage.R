@@ -1182,35 +1182,76 @@ HSTAT_MATIERES_ACTIVES <- c(
 # lit et s'ecrit dans le dossier de donnees de l'utilisateur, un nom par ligne
 # : il se corrige a la main (une faute de frappe enregistree se retire en
 # supprimant sa ligne). `options(hstat.ma.fichier = NA)` coupe l'enregistrement.
+#
+# EN SESSION INTERACTIVE SEULEMENT, comme la mise a jour de `run_hstat()`. Sur
+# un serveur partage, le fichier serait commun a tous les visiteurs : n'importe
+# lequel, avec un client modifie, y ecrirait ce qu'il veut, et ses noms
+# apparaitraient dans les listes de tous les autres. Les ajouts y restent ceux
+# de la session ; une option `hstat.ma.fichier` explicite les rend persistants
+# en connaissance de cause.
 hstat_ma_fichier <- function() {
   f <- getOption("hstat.ma.fichier")
   if (!is.null(f)) return(if (is.na(f[1])) NA_character_ else as.character(f[1]))
   # Sous testthat, jamais le dossier reel de l'utilisateur : une suite qui
   # tape un nom hors liste l'y ecrirait a chaque passe.
-  if (identical(Sys.getenv("TESTTHAT"), "true")) return(NA_character_)
+  if (identical(Sys.getenv("TESTTHAT"), "true") || !interactive()) return(NA_character_)
   file.path(tools::R_user_dir("HStat", "data"), "matieres_actives_ajoutees.txt")
 }
 
+# Plafond des ajouts : au-dela, rien ne s'ecrit plus. Un vocabulaire de
+# matieres actives n'a pas mille entrees de plus que la liste fournie ; un
+# fichier qui les atteint est un fichier pollue, et chaque liste deroulante
+# le porterait en entier.
+HSTAT_MA_AJOUTS_MAX <- 1000L
+
 hstat_ma_ajoutees <- function(fichier = hstat_ma_fichier()) {
   if (is.na(fichier) || !file.exists(fichier)) return(character(0))
-  v <- tryCatch(readLines(fichier, warn = FALSE, encoding = "UTF-8"),
+  # `n` : on ne lit pas plus que ce qu'on gardera.
+  v <- tryCatch(readLines(fichier, n = HSTAT_MA_AJOUTS_MAX, warn = FALSE,
+                          encoding = "UTF-8"),
                 error = function(e) character(0))
   v <- trimws(enc2utf8(v))
-  # Borne : un fichier demesure ne doit pas alourdir chaque liste deroulante.
-  utils::head(unique(v[nzchar(v)]), 1000L)
+  unique(v[nzchar(v)])
+}
+
+# Les choix proposes : la liste fournie, puis les ajouts. UNE seule
+# composition -- le champ, la liste de suggestions du tableau, les mises a
+# jour des champs deja affiches et la fiche DL50 la lisent tous.
+hstat_ma_choix <- function(ajouts = character(0)) {
+  ch <- unique(c(HSTAT_MATIERES_ACTIVES, as.character(ajouts)))
+  ch[!is.na(ch) & nzchar(ch)]
 }
 
 # La liste complete proposee partout ou l'on saisit une matiere active : celle
-# fournie, puis les ajouts enregistres. Une seule definition -- la dose, les
-# dilutions, leur tableau et la fiche d'essai DL50 la lisent tous.
+# fournie, puis les ajouts enregistres.
 hstat_ma_catalogue <- function(fichier = hstat_ma_fichier())
-  unique(c(HSTAT_MATIERES_ACTIVES, hstat_ma_ajoutees(fichier)))
+  hstat_ma_choix(hstat_ma_ajoutees(fichier))
+
+# Un nom venu du navigateur : une ligne, sans caractere de controle (un retour
+# a la ligne ferait deux entrees du fichier), et borne en longueur.
+.hstat_ma_nettoyer <- function(noms) {
+  noms <- gsub("[[:cntrl:]]+", " ", as.character(noms))
+  noms <- substr(trimws(noms), 1L, 120L)
+  noms[!is.na(noms) & nzchar(noms)]
+}
+
+# Les ajouts de la SESSION, partages par les deux modules qui saisissent une
+# matiere active : un nom tape dans « Doses & dilutions » est propose aussitot
+# dans la fiche d'essai DL50, et l'inverse. Range dans `session$userData`, que
+# les sessions de module partagent avec la session racine.
+hstat_ma_session <- function(session) {
+  ud <- session$userData
+  if (is.null(ud$hstat_ma)) ud$hstat_ma <- shiny::reactiveVal(hstat_ma_ajoutees())
+  ud$hstat_ma
+}
 
 # Retient les noms tapes hors liste : rend ceux qui sont reellement nouveaux,
 # enregistres ou non, et l'annonce. Partage par les deux modules qui saisissent
-# une matiere active.
+# une matiere active. Un appel n'en retient que `HSTAT_MA_PAR_APPEL` : un
+# vecteur forge de mille valeurs n'en fait pas mille entrees.
+HSTAT_MA_PAR_APPEL <- 20L
 hstat_ma_retenir <- function(noms, connus = character(0)) {
-  noms <- trimws(as.character(noms)); noms <- noms[!is.na(noms) & nzchar(noms)]
+  noms <- utils::head(.hstat_ma_nettoyer(noms), HSTAT_MA_PAR_APPEL)
   neuf <- unique(noms[!tolower(noms) %in% tolower(c(HSTAT_MATIERES_ACTIVES, connus))])
   if (!length(neuf)) return(character(0))
   ajout <- hstat_ma_ajouter(neuf)
@@ -1226,12 +1267,16 @@ hstat_ma_retenir <- function(noms, connus = character(0)) {
 # a cote de « Deltamethrin » est precisement le doublon que la liste existe
 # pour eviter. Rend les noms reellement ajoutes.
 hstat_ma_ajouter <- function(noms, fichier = hstat_ma_fichier()) {
-  noms <- trimws(as.character(noms)); noms <- noms[!is.na(noms) & nzchar(noms)]
-  noms <- substr(noms, 1L, 120L)
-  connus <- tolower(c(HSTAT_MATIERES_ACTIVES, hstat_ma_ajoutees(fichier)))
+  noms <- .hstat_ma_nettoyer(noms)
+  deja <- hstat_ma_ajoutees(fichier)
+  connus <- tolower(c(HSTAT_MATIERES_ACTIVES, deja))
   neufs <- unique(noms[!tolower(noms) %in% connus])
   neufs <- neufs[!duplicated(tolower(neufs))]
   if (!length(neufs) || is.na(fichier)) return(neufs)
+  # Au plafond, le fichier ne grossit plus : les ajouts restent ceux de la
+  # session.
+  neufs <- utils::head(neufs, max(0L, HSTAT_MA_AJOUTS_MAX - length(deja)))
+  if (!length(neufs)) return(character(0))
   ok <- tryCatch({
     dir.create(dirname(fichier), recursive = TRUE, showWarnings = FALSE)
     con <- file(fichier, open = "a", encoding = "UTF-8")
@@ -1635,7 +1680,7 @@ mod_dosage_server <- function(id, values) {
     # Un nom tape dans un champ est propose dans tous les autres : la meme
     # matiere active ne se retape pas d'un onglet a l'autre, ni d'une ligne a
     # la suivante.
-    ma_saisies <- shiny::reactiveVal(hstat_ma_ajoutees())
+    ma_saisies <- hstat_ma_session(session)
     .ma_ids <- function() c("doseMatiere", paste0("dilMaNom", seq_len(10L)))
     shiny::observe({
       v <- unlist(lapply(.ma_ids(), function(id) input[[id]]), use.names = FALSE)
@@ -1651,26 +1696,30 @@ mod_dosage_server <- function(id, values) {
     # un <datalist>. Elle suit les ajouts de la session.
     output$maListeUi <- shiny::renderUI(
       shiny::tags$datalist(id = ns("maListe"),
-        lapply(unique(c(HSTAT_MATIERES_ACTIVES, ma_saisies())),
+        lapply(hstat_ma_choix(ma_saisies()),
                function(x) shiny::tags$option(value = x))))
     shiny::outputOptions(output, "maListeUi", suspendWhenHidden = FALSE)
     # Les choix des champs deja affiches suivent ; chacun garde sa valeur.
-    shiny::observeEvent(ma_saisies(), {
-      choix <- unique(c(HSTAT_MATIERES_ACTIVES, ma_saisies()))
+    # PAS `ignoreInit` : le premier passage pose les ajouts d'une session
+    # precedente sur le champ de la dose, construit avec la seule liste
+    # fournie -- sans lui, un nom enregistre n'y serait jamais propose.
+    # L'apparition du champ de la dose (premier message du navigateur) relance
+    # aussi la mise a jour : un champ encore absent ne recoit rien.
+    shiny::observeEvent(list(ma_saisies(), is.null(input$doseMatiere)), {
+      choix <- hstat_ma_choix(ma_saisies())
       for (id in .ma_ids()) {
-        cur <- input[[id]]
+        cur <- shiny::isolate(input[[id]])
         if (is.null(cur)) next
         shiny::updateSelectizeInput(session, id, choices = c("", choix),
                                     selected = cur)
       }
-    }, ignoreInit = TRUE)
+    })
     # Poser une valeur (reprise depuis un autre onglet) : elle entre d'abord
     # dans les choix, sans quoi selectize refuserait une valeur inconnue.
     .ma_poser <- function(id, valeur) {
       valeur <- trimws(as.character(valeur %||% ""))[1]
       if (is.na(valeur)) valeur <- ""
-      choix <- unique(c(HSTAT_MATIERES_ACTIVES, ma_saisies(),
-                        if (nzchar(valeur)) valeur))
+      choix <- hstat_ma_choix(c(ma_saisies(), valeur))
       shiny::updateSelectizeInput(session, id, choices = c("", choix), selected = valeur)
     }
 
