@@ -1045,7 +1045,7 @@ HSTAT_MERE_FORMULES <- c(
   solide_pct  = "m formulation (mg) = m matière active cible (mg) ÷ (P / 100)",
   liquide_pct = "Volume de formulation (ml) = m formulation (mg) ÷ [densité (g/ml) × 1000]",
   tube        = "Q (mg) = C (mg) × 100 ÷ P (%)",
-  tube_c      = "Concentration de la solution mère (mg/ml) = Q (mg) × V (ml)",
+  tube_c      = "Concentration de la solution mère (mg/ml) = C (mg) × Nombre de flacons à traiter",
   tube_prep   = "Q (volume) = Q (mg) × volume à préparer (ml) ÷ 1000 ml",
   abbott      = "Mortalité corrigée (%) = 100 × (mortalité traitement − mortalité témoin) ÷ (100 − mortalité témoin)")
 
@@ -1124,8 +1124,8 @@ hstat_mere_concentration <- function(C, V, produit = "technique", P = NA,
 # depose dans chaque flacon (mL) ; V : volume total de solution a preparer
 # (mL) ; P : purete (%). Formules de l'utilisateur : la masse a peser ne
 # depend que de C et de P (Q = C × 100 / P) et vaut pour UN LITRE ; la
-# concentration de la solution mere vaut Q × V ; v ne sert qu'au nombre de
-# flacons a traiter (V / v). `Vprep` (mL) convertit la pesee : Q pour 1 l
+# concentration de la solution mere vaut C × nombre de flacons a traiter
+# (V / v) -- pas C × V, qui ferait dependre le chiffre de l'unite de V. `Vprep` (mL) convertit la pesee : Q pour 1 l
 # devient Q × Vprep / 1000 pour le volume reellement prepare.
 hstat_mere_tube <- function(C, v, V, P, Vprep = 1000) {
   C <- .hstat_mere_pos(C); v <- .hstat_mere_pos(v); V <- .hstat_mere_pos(V)
@@ -1136,7 +1136,7 @@ hstat_mere_tube <- function(C, v, V, P, Vprep = 1000) {
     return(.hstat_mere_refus(tr("La pureté doit être comprise entre 0 (exclu) et 100 %.")))
   Q <- C * 100 / P
   Vprep <- .hstat_mere_pos(Vprep)
-  list(ok = TRUE, Q_mg = Q, c_mere = Q * V, flacons = V / v,
+  list(ok = TRUE, Q_mg = Q, c_mere = C * V / v, flacons = V / v,
        Q_prep = if (is.na(Vprep)) NA_real_ else Q * Vprep / 1000)
 }
 

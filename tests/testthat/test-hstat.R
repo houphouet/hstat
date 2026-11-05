@@ -24504,23 +24504,24 @@ test_that("Solution mère : les formules des trois protocoles rendent leurs exem
   lp <- hstat_mere_concentration(1, 50, "liquide_pct", P = 50, densite = 1.25)
   expect_equal(lp$m_pese, 100); expect_equal(lp$v_formulation, 0.08)
   # Vial test : Q = C × 100 / P (pour 1 l), concentration de la solution
-  # mere = Q × V, flacons = V / v. 12 mg a 90 % -> 13,3333 mg ; Q × 10 ml.
+  # mere = C × nombre de flacons a traiter (V / v). 12 mg × 20 flacons.
   t <- hstat_mere_tube(C = 12, v = 0.5, V = 10, P = 90)
-  expect_equal(round(t$Q_mg, 4), 13.3333); expect_equal(t$c_mere, t$Q_mg * 10)
-  expect_equal(t$flacons, 20)
-  # La concentration lit Q, pas C : la purete la deplace.
+  expect_equal(round(t$Q_mg, 4), 13.3333); expect_equal(t$flacons, 20)
+  expect_equal(t$c_mere, 12 * 20)
+  # Pas C × V : le meme volume ecrit autrement ne change pas le chiffre, et
+  # doubler v (deux fois moins de flacons) divise la concentration par deux.
   expect_false(isTRUE(all.equal(t$c_mere, 12 * 10)))
+  expect_equal(hstat_mere_tube(12, 1, 10, 90)$c_mere, t$c_mere / 2)
   # Q vaut pour 1 l : 41,0256 mg pour 1 l donnent 4,10256 mg pour 100 ml.
   q <- hstat_mere_tube(C = 40, v = 0.5, V = 1000, P = 97.5, Vprep = 100)
   expect_equal(round(q$Q_mg, 4), 41.0256)
   expect_equal(q$Q_prep, q$Q_mg / 10)
   expect_equal(hstat_mere_tube(40, 0.5, 1000, 97.5)$Q_prep, q$Q_mg)
   expect_true(is.na(hstat_mere_tube(40, 0.5, 1000, 97.5, Vprep = NA)$Q_prep))
-  # La pesee ne depend ni de V ni de v ; la concentration suit V, pas v.
+  # La pesee ne depend ni de V ni de v ; la concentration suit le nombre de flacons.
   expect_equal(hstat_mere_tube(12, 0.5, 20, 90)$Q_mg, t$Q_mg)
   expect_equal(hstat_mere_tube(12, 1, 10, 90)$Q_mg, t$Q_mg)
   expect_equal(hstat_mere_tube(12, 0.5, 20, 90)$c_mere, 2 * t$c_mere)
-  expect_equal(hstat_mere_tube(12, 1, 10, 90)$c_mere, t$c_mere)
   # Purete hors de ]0 ; 100] : refus, jamais une masse plus petite que l'active.
   for (P in c(0, -5, 120, NA)) expect_false(hstat_mere_tube(12, 0.5, 10, P)$ok)
   for (v in c(0, -1, NA)) expect_false(hstat_mere_tube(12, v, 10, 90)$ok)

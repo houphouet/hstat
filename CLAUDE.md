@@ -11408,13 +11408,14 @@ sont celles que l'utilisateur a données — `hstat_mere_tube(C, v, V, P)` :
 
 ```
 Q (mg) = C (mg) × 100 ÷ P (%)                      (pour 1 l)
-Concentration de la solution mère (mg/ml) = Q (mg) × V (ml)
+Concentration de la solution mère (mg/ml) = C (mg) × Nombre de flacons à traiter
 Nombre de flacons à traiter = V ÷ v
 Q (volume) = Q (mg) × volume à préparer (ml) ÷ 1000 ml
 ```
 
-La concentration lit **Q**, pas C : demandé à l'écran, « la valeur exacte de
-Q n'est pas utilisée ». Q vaut pour **un litre** ; le champ « Convertir la
+La concentration s'est d'abord écrite C × V, puis Q × V ; elle est désormais
+**C × nombre de flacons à traiter** (V ÷ v), à la demande : V seul ferait
+dépendre le chiffre de l'unité choisie pour V, un biais. Q vaut pour **un litre** ; le champ « Convertir la
 masse à peser pour un volume de » la ramène au volume réellement préparé
 (41,0256 mg pour 1 l → 4,10256 mg pour 100 ml), sur une ligne à part, la
 pesée pour 1 l restant affichée.
