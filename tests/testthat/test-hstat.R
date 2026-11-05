@@ -24498,18 +24498,19 @@ test_that("Solution mère : les formules des trois protocoles rendent leurs exem
   expect_false(hstat_mere_concentration(1, 50, "liquide_pct", P = 50)$ok)
   lp <- hstat_mere_concentration(1, 50, "liquide_pct", P = 50, densite = 1.25)
   expect_equal(lp$m_pese, 100); expect_equal(lp$v_formulation, 0.08)
-  # Vial test : 0,6 mg par flacon de 0,5 mL, 10 mL a preparer, 90 %
-  # -> 12 mg actifs, 13,3333 mg a peser, 1,2 mg/mL, 20 flacons.
-  t <- hstat_mere_tube(C = 0.6, v = 0.5, V = 10, P = 90)
-  expect_equal(round(t$Q_mg, 4), 13.3333); expect_equal(t$c_mere, 1.2)
-  expect_equal(t$pure_mg, 12); expect_equal(t$flacons, 20)
-  # Le volume total et le volume par flacon ne jouent pas le meme role :
-  # doubler V double la pesee, doubler v la divise par deux.
-  expect_equal(hstat_mere_tube(0.6, 0.5, 20, 90)$Q_mg, 2 * t$Q_mg)
-  expect_equal(hstat_mere_tube(0.6, 1, 10, 90)$Q_mg, t$Q_mg / 2)
+  # Vial test : Q = C × 100 / P, concentration de la mere = C × V,
+  # flacons = V / v. 12 mg a 90 % -> 13,3333 mg ; 12 mg × 10 ml -> 120.
+  t <- hstat_mere_tube(C = 12, v = 0.5, V = 10, P = 90)
+  expect_equal(round(t$Q_mg, 4), 13.3333); expect_equal(t$c_mere, 120)
+  expect_equal(t$flacons, 20)
+  # La pesee ne depend ni de V ni de v ; la concentration suit V, pas v.
+  expect_equal(hstat_mere_tube(12, 0.5, 20, 90)$Q_mg, t$Q_mg)
+  expect_equal(hstat_mere_tube(12, 1, 10, 90)$Q_mg, t$Q_mg)
+  expect_equal(hstat_mere_tube(12, 0.5, 20, 90)$c_mere, 2 * t$c_mere)
+  expect_equal(hstat_mere_tube(12, 1, 10, 90)$c_mere, t$c_mere)
   # Purete hors de ]0 ; 100] : refus, jamais une masse plus petite que l'active.
-  for (P in c(0, -5, 120, NA)) expect_false(hstat_mere_tube(0.6, 0.5, 10, P)$ok)
-  for (v in c(0, -1, NA)) expect_false(hstat_mere_tube(0.6, v, 10, 90)$ok)
+  for (P in c(0, -5, 120, NA)) expect_false(hstat_mere_tube(12, 0.5, 10, P)$ok)
+  for (v in c(0, -1, NA)) expect_false(hstat_mere_tube(12, v, 10, 90)$ok)
 })
 
 test_that("Doses & dilutions : la mère avant les filles, et sa concentration y passe", {
@@ -24804,7 +24805,11 @@ test_that("Synthese des tests a deux modalites, a une norme et apparies", {
   expect_true(grepl("hstat_synthese_reference(", src, fixed = TRUE))
   expect_true(grepl("hstat_synthese_apparie(", src, fixed = TRUE))
   expect_true(grepl("hstat_posthoc_synthese_feuilles(.synthese_courante())", src, fixed = TRUE))
-  expect_true(grepl('ns("testSyntheseEt")', src, fixed = TRUE))
+  # Elle ne s'affiche plus sous « Resultats des tests » : elle part au classeur.
+  expect_false(grepl('ns("testSyntheseEt")', src, fixed = TRUE))
+  ut <- paste(as.character(mod_tests_ui("tests")), collapse = "")
+  expect_false(grepl("Synthèse : écart-type", ut, fixed = TRUE))
+  expect_false(grepl("Synthèse : erreur-type", ut, fixed = TRUE))
 })
 
 test_that("Module des tests : la synthese suit le test lance, et se masque apres un autre", {
@@ -24962,23 +24967,24 @@ test_that("Synthese : son propre onglet entre Graphiques et Rapport, cases color
   c2 <- hstat_groupes_couleurs(d$groups, c("a", "c"))
   expect_identical(c2[c("a", "ab", "b")], coul)
   expect_true("c" %in% names(c2) && !c2[["c"]] %in% coul)
-  # L'onglet : apres Graphiques, avant Rapport ; et plus dans les effets principaux.
+  # Deux onglets, apres Graphiques et avant Rapport : l'ecart-type puis
+  # l'erreur-type, chacun ne portant que sa synthese.
   ui <- paste(as.character(mod_posthoc_ui("tests")), collapse = "")
   p_graph <- regexpr('data-value="plots"', ui, fixed = TRUE)
-  p_syn <- regexpr('data-value="synthese"', ui, fixed = TRUE)
+  p_et <- regexpr('data-value="syntheseEt"', ui, fixed = TRUE)
+  p_es <- regexpr('data-value="syntheseEs"', ui, fixed = TRUE)
   p_rap <- regexpr('data-value="report"', ui, fixed = TRUE)
-  expect_true(p_syn > 0 && p_rap > p_syn)
-  expect_true(p_graph < p_syn)
   p_main <- regexpr('data-value="mainEffects"', ui, fixed = TRUE)
-  expect_true(regexpr("tests-syntheseEtTables", ui, fixed = TRUE) > p_syn)
+  expect_true(p_main > 0 && p_main < p_graph && p_graph < p_et &&
+              p_et < p_es && p_es < p_rap)
+  expect_false(grepl('data-value="synthese"', ui, fixed = TRUE))
+  p_out_et <- regexpr("tests-syntheseEtTables", ui, fixed = TRUE)
+  p_out_es <- regexpr("tests-syntheseEsTables", ui, fixed = TRUE)
+  expect_true(p_out_et > p_et && p_out_et < p_es)
+  expect_true(p_out_es > p_es && p_out_es < p_rap)
   expect_match(ui, "Synthèse : écart-type", fixed = TRUE)
   expect_match(ui, "Synthèse : erreur-type", fixed = TRUE)
   expect_false(grepl("moyenne ± écart-type et groupe", ui, fixed = TRUE))
-  expect_true(p_main > 0 && p_main < p_syn)
-  # La boite « Resultats des tests » prend les memes titres.
-  ut <- paste(as.character(mod_tests_ui("tests")), collapse = "")
-  expect_match(ut, "Synthèse : écart-type", fixed = TRUE)
-  expect_false(grepl("moyenne ± erreur-type et groupe", ut, fixed = TRUE))
 })
 
 test_that("Solution mere : le grade technique se nomme, la m.a. pure ne s'affiche plus", {

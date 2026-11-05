@@ -751,13 +751,8 @@ mod_tests_ui <- function(id) {
                       # successifs se ressemblent assez pour qu'on s'y trompe.
                       shiny::uiOutput(ns("testResultsBadge")),
                       DT::DTOutput(ns("testResultsDF")),
-                      shiny::conditionalPanel(ns = ns, condition = "output.hasTestSynthese",
-                        shiny::br(),
-                        shiny::h4(shiny::icon("table-list"), " Synthèse : écart-type"),
-                        shiny::div(class = "hstat-table-scroll", shiny::uiOutput(ns("testSyntheseEt"))),
-                        shiny::h4(shiny::icon("table-list"), " Synthèse : erreur-type"),
-                        shiny::div(class = "hstat-table-scroll", shiny::uiOutput(ns("testSyntheseEs"))),
-                        shiny::helpText("Sous chaque variable : degrés de liberté, statistique du test (t : Student ou Welch, U : Mann-Whitney, F : ANOVA, W : ANOVA de Welch, H : Kruskal-Wallis, z, V : Wilcoxon signé, S : test du signe), effectif N et probabilité P. À deux modalités, la lettre vient du test lui-même. Les deux synthèses partent aussi dans le classeur Excel, une feuille chacune.")),
+                      # Les synthèses ne s'affichent plus ici, à la demande :
+                      # elles partent au classeur Excel, une feuille chacune.
                       shiny::br(),
                       shiny::downloadButton(ns("downloadTestsExcel"), "Télécharger les résultats (Excel)", class = "btn-info"))
                 )
@@ -1163,16 +1158,25 @@ mod_posthoc_ui <- function(id) {
                                   # cases colorees par groupe comme la colonne « groups ».
                                 
                                   shiny::tabPanel(
-                                    title = shiny::div(shiny::icon("table-list"), " Synthèse"),
-                                    value = "synthese",
+                                    title = shiny::div(shiny::icon("table-list"), " Synthèse : écart-type"),
+                                    value = "syntheseEt",
                                     shiny::br(),
                                     shiny::conditionalPanel(
                                       ns = ns,
                                       condition = "output.showPosthocResults",
-                                      shiny::h4(shiny::icon("table-list"), " Synthèse : écart-type"),
                                       shiny::div(class = "hstat-table-scroll",
                                           shiny::uiOutput(ns("syntheseEtTables"))),
-                                      shiny::h4(shiny::icon("table-list"), " Synthèse : erreur-type"),
+                                      shiny::helpText("Chaque case : moyenne ± dispersion et groupe, la case colorée par son groupe. Sous chaque variable : coefficient de variation, degrés de liberté, statistique du test global (F : ANOVA, W : ANOVA de Welch, H : Kruskal-Wallis), effectif N et probabilité P. Les effets simples suivent les effets principaux, une table par niveau du facteur fixé. Les deux synthèses partent aussi dans le classeur Excel, une feuille chacune.")
+                                    )
+                                  ),
+
+                                  shiny::tabPanel(
+                                    title = shiny::div(shiny::icon("table-list"), " Synthèse : erreur-type"),
+                                    value = "syntheseEs",
+                                    shiny::br(),
+                                    shiny::conditionalPanel(
+                                      ns = ns,
+                                      condition = "output.showPosthocResults",
                                       shiny::div(class = "hstat-table-scroll",
                                           shiny::uiOutput(ns("syntheseEsTables"))),
                                       shiny::helpText("Chaque case : moyenne ± dispersion et groupe, la case colorée par son groupe. Sous chaque variable : coefficient de variation, degrés de liberté, statistique du test global (F : ANOVA, W : ANOVA de Welch, H : Kruskal-Wallis), effectif N et probabilité P. Les effets simples suivent les effets principaux, une table par niveau du facteur fixé. Les deux synthèses partent aussi dans le classeur Excel, une feuille chacune.")
@@ -5185,16 +5189,6 @@ mod_tests_server <- function(id, values) {
         !identical(s$pour, values$testResultsDF)) return(NULL)
     s$d
   }
-  output$hasTestSynthese <- shiny::reactive(!is.null(.synthese_courante()))
-  shiny::outputOptions(output, "hasTestSynthese", suspendWhenHidden = FALSE)
-  output$testSyntheseEt <- shiny::renderUI({
-    d <- .synthese_courante(); shiny::req(d)
-    hstat_synthese_html(hstat_posthoc_synthese(d, "ecart_type"))
-  })
-  output$testSyntheseEs <- shiny::renderUI({
-    d <- .synthese_courante(); shiny::req(d)
-    hstat_synthese_html(hstat_posthoc_synthese(d, "erreur_type"))
-  })
 
   output$testResultsDF <- DT::renderDT({
     shiny::req(values$testResultsDF)
