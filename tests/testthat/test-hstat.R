@@ -12443,7 +12443,7 @@ test_that("un modele contraint ne peut pas depasser le modele libre", {
 })
 
 test_that("une mortalite temoin elevee est signalee, sans bloquer le calcul", {
-  # Au-dela d'environ 20 %, la correction d'Abbott devient peu fiable et
+  # Au-dela de 10 %, la correction d'Abbott devient peu fiable et
   # l'usage veut qu'on refasse l'essai (Finney). C'est un defaut de conduite
   # d'essai, pas de saisie : le dire suffit.
   haut <- hstat_dl50_essai(c(0.00848, 0.0163, 0.03423, 0.05053, 0.08476),
@@ -12452,6 +12452,11 @@ test_that("une mortalite temoin elevee est signalee, sans bloquer le calcul", {
   expect_true(isTRUE(f$ok))                 # le calcul continue
   expect_true(f$temoin_eleve)
   expect_gt(f$c_temoin, HSTAT_DL50_TEMOIN_MAX)
+  # Le seuil est 10 %, pas 20 % : un temoin a 15 % est deja signale.
+  expect_equal(HSTAT_DL50_TEMOIN_MAX, 0.10)
+  f15 <- hstat_dl50_ajuste(hstat_dl50_essai(c(0.00848, 0.0163, 0.03423, 0.05053, 0.08476),
+                           rep(90, 5), c(30, 43, 62, 75, 82), 100, 15), "abbott")
+  expect_true(isTRUE(f15$ok)); expect_true(f15$temoin_eleve)
   al <- hstat_dl50_verdict(f)$alertes
   expect_true(any(grepl("témoin élevée", al, fixed = TRUE)))
 

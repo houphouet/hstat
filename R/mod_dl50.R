@@ -116,7 +116,7 @@ HSTAT_DL50_LISTE_MAX <- 5000L
 # Au-dela, la correction d'ABBOTT devient peu fiable et l'usage veut qu'on
 # refasse l'essai (FINNEY, 1971). Ce n'est pas une erreur de saisie : c'est un
 # defaut de conduite d'essai, et le dire suffit -- le calcul continue.
-HSTAT_DL50_TEMOIN_MAX <- 0.20
+HSTAT_DL50_TEMOIN_MAX <- 0.10
 
 # L'AMPLITUDE AU-DELA DE LAQUELLE UNE MORTALITE DECROISSANTE EST UNE INVERSION.
 #
@@ -1611,8 +1611,8 @@ hstat_dl50_dose_pour <- function(fit, mortalite) {
 }
 
 # `alerte_temoin = FALSE` : le module juge la validite du temoin sur les
-# seuils de l'utilisateur (hstat_dl50_validite) ; l'alerte au seuil fixe de
-# 20 % y contredirait un seuil choisi a 10 %.
+# seuils de l'utilisateur (hstat_dl50_validite) ; une alerte au seuil fixe y
+# contredirait un seuil de rejet choisi plus bas.
 hstat_dl50_verdict <- function(fit, seuils = HSTAT_DL50_SEUILS, alerte_temoin = TRUE) {
   if (!isTRUE(fit$ok)) return(NULL)
   dl <- hstat_dl50_doses_letales(fit, seuils)

@@ -11425,3 +11425,13 @@ entre « Graphiques » et « Rapport », chacun ne portant que sa table. Les
 synthèses ne s'affichent plus sous la boîte « Résultats des tests » ; celles
 des tests sans post-hoc (t, Wilcoxon, ANOVA, Kruskal-Wallis, norme, apparié)
 restent calculées et partent au classeur Excel, une feuille chacune.
+
+### La mortalité du témoin s'alerte dès 10 %
+
+Demandé à l'écran : `HSTAT_DL50_TEMOIN_MAX` passe de 20 % à **10 %**. C'est le
+seuil cité dans le message de refus (« bien au-delà des 10 % que la correction
+d'Abbott supporte »), dans l'alerte du verdict et dans les causes mesurées
+(`.hstat_dl50_causes`) ; il rejoint le plafond du seuil de rejet
+(`HSTAT_DL50_SEUIL_REJET_MAX`). Les mentions de 20 % plus haut dans ce fichier
+décrivent l'état d'avant. Le test exige qu'un témoin à 15 % soit signalé : à
+20 %, il ne l'était pas.
