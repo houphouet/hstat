@@ -2759,6 +2759,68 @@ incalculable ne prouve rien, ni dans un sens ni dans l'autre. On laisse alors
 les lettres, et on le dit — la règle du dépôt, ne jamais brancher sur une
 statistique non calculable.
 
+### La synthèse post-hoc se lit comme un tableau d'article
+
+Demandé à l'écran, croquis à l'appui : une ligne par modalité, une colonne par
+variable, « moyenne ± dispersion groupe » dans chaque case, puis sous chaque
+colonne le **test global** — ddl, statistique, N, P. Deux synthèses, l'une à
+l'écart-type, l'autre à l'erreur-type, affichées sous le tableau des effets
+principaux et écrites au classeur (`Moyenne_ET_groupe`, `Moyenne_ES_groupe`,
+suffixées du facteur quand il y en a plusieurs).
+
+`hstat_posthoc_synthese()` (`R/utils.R`) compose ; le module ne fait que lire.
+La statistique et ses ddl voyagent désormais avec chaque ligne de résultat
+(`Statistique_globale`, `ddl_global`), comme le test et sa p-value.
+
+Trois décisions, chacune testée :
+
+1. **Le symbole suit le test** (`HSTAT_POSTHOC_SYMBOLES`) : F pour l'ANOVA de
+   Fisher, W pour celle de Welch, H pour Kruskal-Wallis. Quand deux colonnes ne
+   portent pas le même test, l'étiquette les nomme tous et chaque case dit le
+   sien — « F » sous un Kruskal-Wallis serait un chiffre juste sous un nom faux.
+2. **Les effets simples ont leur table**, après les effets principaux : un effet
+   simple a son propre test global (le facteur testé à l'intérieur d'un niveau
+   du facteur fixé, calculé sur ce sous-tableau), donc sa propre table,
+   intitulée « Facteur testé | Facteur fixé=niveau ». Dans le classeur, toutes
+   les tables d'une dispersion tiennent dans **une** feuille, chacune sous son
+   intitulé ; les colonnes gardent le nom exact des variables.
+3. **La précision est celle de l'affichage** (`hstat_dec_affichage()`), la même
+   que le tableau voisin ; un groupe absent laisse la case sans « NA ».
+
+#### Et les tests sans post-hoc : deux modalités, une norme, deux mesures appariées
+
+La même synthèse sous la boîte « Résultats des tests », et au classeur. Trois
+constructeurs (`hstat_synthese_groupes()`, `hstat_synthese_reference()`,
+`hstat_synthese_apparie()`) rendent un bloc **au format des résultats
+post-hoc** : `hstat_posthoc_synthese()` le lit sans savoir d'où il vient.
+
+| Test | Lignes | Symbole |
+|---|---|---|
+| t de Student, t de Welch | les deux modalités | t |
+| Wilcoxon-Mann-Whitney | les deux modalités | U (R l'appelle W, qui désigne ici Welch) |
+| ANOVA (un ou plusieurs facteurs) | une table par facteur | F |
+| ANOVA de Welch, Kruskal-Wallis | les modalités | W, H |
+| à une norme (t, z, Wilcoxon signé, signe, TOST) | échantillon, valeur de référence | t, z, V, S, t |
+| apparié (t, Wilcoxon, signe) | les deux mesures | t, V, S |
+
+Quatre décisions, chacune testée :
+
+1. **Sans post-hoc, la lettre vient du test** : « a / b » s'il est
+   significatif (la plus grande valeur prend « a »), « a » partout sinon, rien
+   s'il n'est pas calculable. Seulement à **deux** lignes : au-delà, c'est le
+   post-hoc qui les donne. Ni pour le TOST (un p petit y conclut à
+   l'équivalence), ni pour la conformité d'une variance, qui n'a pas de
+   synthèse (sa référence est une variance, pas une moyenne).
+2. **N est l'effectif du test** : des paires comptent une fois, et l'ANOVA à
+   plusieurs facteurs ne compte que les lignes où tous les facteurs sont
+   renseignés (`cas_complets`), celles que le modèle a vues.
+3. **La synthèse est posée avec le tableau qu'elle résume** (`pour`). Un test
+   qui n'en produit pas — régression, normalité — laisse l'ancienne en
+   mémoire, et c'est la comparaison au tableau courant qui la masque.
+4. **Un libellé de ligne n'est pas un mot seul** : « Échantillon observé »,
+   « Valeur de référence », « Mesure appariée » — « Échantillon » ou « Mesure »
+   seuls seraient des modalités plausibles d'un fichier.
+
 ### Les deux tests de Welch, et l'application en exécutait un sous un faux nom
 
 `stats::t.test()` est **Welch par défaut** (`var.equal = FALSE`). Le bouton

@@ -5336,6 +5336,270 @@ hstat_dec_affichage <- function(round_on, decimals = 2) {
   out
 }
 
+# SYNTHESE POST-HOC « comme dans un article » : une ligne par modalite, une
+# colonne par variable, « moyenne ± dispersion groupe » dans chaque case, puis
+# le test global sous chaque colonne -- ddl, statistique, N et P.
+#
+# LE SYMBOLE SUIT LE TEST, jamais une etiquette fixe : F pour l'ANOVA de
+# Fisher, W pour celle de Welch (sa statistique a d'autres ddl, fractionnaires),
+# H pour Kruskal-Wallis. Ecrire « F » sous un Kruskal-Wallis publierait un
+# chiffre juste sous un nom faux.
+HSTAT_POSTHOC_SYMBOLES <- c("ANOVA" = "F", "ANOVA de Welch" = "W",
+                            "Kruskal-Wallis" = "H")
+
+.hstat_synth_p <- function(p) {
+  p <- suppressWarnings(as.numeric(p))
+  ifelse(!is.finite(p), "",
+         ifelse(p < 0.001, "< 0.001", formatC(round(p, 3), format = "f", digits = 3)))
+}
+
+# Une table par facteur. `dispersion` choisit l'ecart-type ou l'erreur-type ;
+# `dec` est la precision d'affichage (NA = pleine precision, comme `.hstat_pm`).
+# Les effets PRINCIPAUX d'abord, puis les EFFETS SIMPLES : chacun a son propre
+# test global (le facteur teste a l'interieur d'un niveau du facteur fixe), donc
+# sa propre table, intitulee « Facteur teste | Facteur fixe=niveau ».
+hstat_posthoc_synthese <- function(d, dispersion = c("ecart_type", "erreur_type"),
+                                   dec = NA_integer_) {
+  dispersion <- match.arg(dispersion)
+  col_disp <- if (dispersion == "ecart_type") "Ecart_type" else "Erreur_type"
+  if (!is.data.frame(d) || !NROW(d) || !all(c("Type", "Facteur", "Variable",
+      "Moyenne", col_disp) %in% names(d))) return(list())
+  d <- d[!is.na(d$Type) & d$Type %in% c("main", "simple_effect"), , drop = FALSE]
+  if (!NROW(d)) return(list())
+  d <- d[order(d$Type != "main"), , drop = FALSE]
+  dec_stat <- if (is.na(suppressWarnings(as.integer(dec[1])))) 2L else
+    max(0L, as.integer(dec[1]))
+  out <- list()
+  for (f in unique(as.character(d$Facteur))) {
+    sub <- d[as.character(d$Facteur) == f, , drop = FALSE]
+    # Un effet simple range ses modalites sous le nom du facteur TESTE, ecrit
+    # avant « | » dans son libelle.
+    colf <- if (identical(sub$Type[1], "simple_effect"))
+      trimws(sub(" \\| .*$", "", f)) else f
+    if (!colf %in% names(sub)) next
+    niv  <- unique(as.character(sub[[colf]]))
+    niv  <- niv[!is.na(niv)]
+    vars <- unique(as.character(sub$Variable))
+    if (!length(niv) || !length(vars)) next
+    # Les quatre lignes du test : etiquette commune, sauf quand les colonnes
+    # ne portent pas le meme test -- chaque case dit alors son symbole.
+    # Le symbole se lit sur la colonne `Symbole` quand l'appelant l'a pose
+    # (tests a deux modalites, a une norme, apparies) ; sinon sur le nom du test.
+    sym <- vapply(vars, function(v) {
+      sv <- sub[as.character(sub$Variable) == v, , drop = FALSE]
+      if ("Symbole" %in% names(sv) && !is.na(sv$Symbole[1])) return(as.character(sv$Symbole[1]))
+      t <- if ("Test_global" %in% names(sv)) sv$Test_global[1] else NA
+      if (is.null(t) || is.na(t)) NA_character_ else
+        unname(HSTAT_POSTHOC_SYMBOLES[as.character(t)])
+    }, character(1))
+    sym <- unname(sym)
+    sym_uniq <- unique(sym[!is.na(sym)])
+    lab_stat <- if (length(sym_uniq) == 1L) sym_uniq else
+      if (length(sym_uniq)) paste(sym_uniq, collapse = " / ") else tr("Statistique")
+    tab <- data.frame(x = c(niv, tr("ddl"), lab_stat, "N", "P"),
+                      stringsAsFactors = FALSE, check.names = FALSE)
+    names(tab) <- f
+    for (k in seq_along(vars)) {
+      v <- vars[k]
+      sv <- sub[as.character(sub$Variable) == v, , drop = FALSE]
+      grp <- if ("groups" %in% names(sv)) as.character(sv$groups) else NULL
+      if (!is.null(grp)) grp[is.na(grp)] <- ""
+      cases <- trimws(.hstat_pm(sv$Moyenne, sv[[col_disp]], grp, dec))
+      # Une valeur sans dispersion -- la reference d'un test a une norme -- se
+      # lit seule : « 12 » et non « NA ».
+      seule <- !is.na(suppressWarnings(as.numeric(sv$Moyenne))) &
+        is.na(suppressWarnings(as.numeric(sv[[col_disp]])))
+      if (any(seule))
+        cases[seule] <- trimws(paste(sub(" \u00b1 .*$", "",
+          .hstat_pm(sv$Moyenne[seule], 0, NULL, dec)),
+          if (is.null(grp)) "" else grp[seule]))
+      cellule <- cases[match(niv, as.character(sv[[colf]]))]
+      cellule[is.na(cellule)] <- ""
+      stat <- suppressWarnings(as.numeric(sv$Statistique_globale[1] %||% NA))
+      stat_txt <- if (is.finite(stat)) formatC(round(stat, dec_stat),
+                                               format = "f", digits = dec_stat) else ""
+      if (nzchar(stat_txt) && length(sym_uniq) > 1L && !is.na(sym[k]))
+        stat_txt <- paste(sym[k], "=", stat_txt)
+      ddl <- as.character(sv$ddl_global[1] %||% NA)
+      ddl <- if (is.na(ddl)) "" else gsub("\\s*,\\s*", ", ", trimws(ddl))
+      # N est l'effectif DU TEST : la somme des groupes, sauf quand l'appelant
+      # le pose (des paires comptent une fois, pas deux).
+      n_t <- if ("N_test" %in% names(sv)) suppressWarnings(as.numeric(sv$N_test[1])) else NA
+      n <- if (isTRUE(is.finite(n_t))) n_t else
+        sum(suppressWarnings(as.numeric(sv$N)), na.rm = TRUE)
+      tab[[v]] <- c(cellule, ddl, stat_txt,
+                    if (n > 0) format(n) else "", .hstat_synth_p(sv$p_global[1]))
+    }
+    out[[f]] <- tab
+  }
+  out
+}
+
+# LES TESTS QUI COMPARENT DEUX MODALITES, UNE VALEUR A UNE NORME, OU DEUX
+# MESURES APPARIEES prennent la meme synthese. Ils n'ont pas de post-hoc : la
+# lettre se deduit du test lui-meme -- « a » et « b » quand il est
+# significatif (la plus grande valeur prend « a »), « a » partout sinon, rien
+# quand il n'est pas calculable. On ne branche jamais sur une p-value NA.
+.hstat_lettres_deux <- function(m, p) {
+  m <- suppressWarnings(as.numeric(m))
+  if (length(m) != 2L || any(!is.finite(m))) return(rep(NA_character_, length(m)))
+  switch(hstat_p_verdict(p),
+    "significatif" = if (m[1] >= m[2]) c("a", "b") else c("b", "a"),
+    "non significatif" = c("a", "a"),
+    rep(NA_character_, 2L))
+}
+
+# Un bloc au format des resultats post-hoc : `hstat_posthoc_synthese()` le lit
+# sans savoir d'ou il vient.
+.hstat_synth_bloc <- function(facteur, lignes, m, s, n, var, stat, ddl, p,
+                              symbole, n_test = NA_real_, lettres = TRUE) {
+  m <- suppressWarnings(as.numeric(m)); s <- suppressWarnings(as.numeric(s))
+  n <- suppressWarnings(as.numeric(n))
+  b <- data.frame(x = as.character(lignes), stringsAsFactors = FALSE)
+  names(b) <- facteur
+  b$Moyenne <- m
+  b$Ecart_type <- s
+  b$Erreur_type <- ifelse(is.finite(n) & n > 1, s / sqrt(n), NA_real_)
+  b$N <- n
+  b$groups <- if (isTRUE(lettres)) .hstat_lettres_deux(m, p) else NA_character_
+  b$Variable <- var
+  b$Facteur <- facteur
+  b$Type <- "main"
+  b$Symbole <- symbole
+  b$p_global <- suppressWarnings(as.numeric(p[1]))
+  b$Statistique_globale <- suppressWarnings(as.numeric(stat[1]))
+  b$ddl_global <- if (is.null(ddl) || !length(ddl) || is.na(ddl[1])) NA_character_ else as.character(ddl[1])
+  b$N_test <- suppressWarnings(as.numeric(n_test[1]))
+  b
+}
+
+# Empile des blocs qui ne portent pas tous la meme colonne de modalites.
+.hstat_synth_empiler <- function(blocs) {
+  blocs <- Filter(function(b) is.data.frame(b) && NROW(b), blocs)
+  if (!length(blocs)) return(NULL)
+  cols <- unique(unlist(lapply(blocs, names)))
+  do.call(rbind, lapply(blocs, function(b) {
+    for (c in setdiff(cols, names(b))) b[[c]] <- NA
+    b[, cols, drop = FALSE]
+  }))
+}
+
+# Modalites lues comme le font les tests : une date par son ecriture ISO.
+.hstat_synth_niveaux <- function(x) {
+  if (inherits(x, c("Date", "POSIXct", "POSIXlt"))) x <- format(x, "%Y-%m-%d")
+  if (is.factor(x)) droplevels(x) else factor(as.character(x))
+}
+
+# Tests a groupes (t, Wilcoxon-Mann-Whitney, ANOVA, Welch, Kruskal-Wallis) :
+# une ligne par modalite, le test lu dans le tableau de resultats. Les lettres
+# ne sont posees qu'a DEUX modalites : au-dela, c'est le post-hoc qui les donne.
+hstat_synthese_groupes <- function(df, vars, fvars, res, symbole,
+                                   cas_complets = character(0)) {
+  if (!is.data.frame(df) || !is.data.frame(res)) return(NULL)
+  # Les lignes que le modele a vues : un facteur manquant les ecarte de l'ANOVA
+  # a plusieurs facteurs, il doit les ecarter de N aussi.
+  garde <- rep(TRUE, NROW(df))
+  for (cc in intersect(cas_complets, names(df))) garde <- garde & !is.na(df[[cc]])
+  blocs <- list()
+  for (f in intersect(fvars, names(df))) {
+    g <- .hstat_synth_niveaux(df[[f]])
+    for (v in intersect(vars, names(df))) {
+      r <- res[as.character(res$Variable) == v &
+                 trimws(as.character(res$Facteur)) == f, , drop = FALSE]
+      if (!NROW(r)) next
+      y <- suppressWarnings(as.numeric(df[[v]]))
+      ok <- is.finite(y) & !is.na(g) & garde
+      if (!any(ok)) next
+      gg <- droplevels(g[ok]); yy <- y[ok]
+      niv <- levels(gg)
+      m <- vapply(niv, function(l) mean(yy[gg == l]), numeric(1))
+      sdv <- vapply(niv, function(l) {
+        z <- yy[gg == l]; if (length(z) > 1) stats::sd(z) else NA_real_
+      }, numeric(1))
+      n <- vapply(niv, function(l) sum(gg == l), numeric(1))
+      blocs[[length(blocs) + 1L]] <- .hstat_synth_bloc(
+        f, niv, m, sdv, n, v, r$Statistique[1], r$ddl[1], r$p_value[1], symbole,
+        lettres = length(niv) == 2L)
+    }
+  }
+  .hstat_synth_empiler(blocs)
+}
+
+# Comparaison a une norme : l'echantillon, puis la valeur de reference.
+# `lettres = FALSE` pour le TOST (un p petit y conclut a l'EQUIVALENCE) et pour
+# la variance (on n'y compare pas une moyenne).
+hstat_synthese_reference <- function(x, var, reference, stat, ddl, p, symbole,
+                                     lettres = TRUE, libelle_ref = tr("Valeur de référence")) {
+  x <- suppressWarnings(as.numeric(x)); x <- x[is.finite(x)]
+  if (length(x) < 1L) return(NULL)
+  .hstat_synth_bloc(tr("Comparaison à la norme"), c(tr("Échantillon observé"), libelle_ref),
+                    c(mean(x), reference),
+                    c(if (length(x) > 1) stats::sd(x) else NA_real_, NA_real_),
+                    c(length(x), NA_real_), var, stat, ddl, p, symbole,
+                    n_test = length(x), lettres = lettres)
+}
+
+# Deux mesures appariees : une ligne par condition, N compte les PAIRES.
+hstat_synthese_apparie <- function(a, b, noms, var, stat, ddl, p, symbole) {
+  a <- suppressWarnings(as.numeric(a)); b <- suppressWarnings(as.numeric(b))
+  ok <- is.finite(a) & is.finite(b); a <- a[ok]; b <- b[ok]
+  if (length(a) < 1L) return(NULL)
+  sdx <- function(z) if (length(z) > 1) stats::sd(z) else NA_real_
+  .hstat_synth_bloc(tr("Mesure appariée"), noms, c(mean(a), mean(b)), c(sdx(a), sdx(b)),
+                    c(length(a), length(b)), var, stat, ddl, p, symbole,
+                    n_test = length(a))
+}
+
+# Les tables de synthese en HTML statique. Un renderUI de tableaux -- jamais un
+# renderDT appele a la main, qui leve faute de session. Le texte passe par
+# htmltools, donc echappe : les noms viennent du fichier.
+hstat_synthese_html <- function(tabs) {
+  if (!length(tabs)) return(shiny::helpText(tr("Aucun résultat à résumer.")))
+  shiny::tagList(lapply(tabs, function(t) {
+    n_niv <- nrow(t) - 4L
+    entete <- shiny::tags$tr(lapply(names(t), function(n)
+      shiny::tags$th(n, style = "padding:4px 10px;border-bottom:2px solid #555;")))
+    lignes <- lapply(seq_len(nrow(t)), function(i) {
+      st <- if (i == n_niv + 1L) "border-top:1px solid #555;" else ""
+      shiny::tags$tr(lapply(seq_along(t), function(j) {
+        cell <- t[i, j]
+        if (j == 1L) shiny::tags$td(shiny::tags$b(cell), style = paste0("padding:4px 10px;", st))
+        else shiny::tags$td(cell, style = paste0("padding:4px 10px;text-align:center;", st))
+      }))
+    })
+    shiny::tags$table(class = "table table-condensed", style = "width:auto;margin-bottom:18px;",
+      shiny::tags$thead(entete), shiny::tags$tbody(lignes))
+  }))
+}
+
+# Plusieurs tables dans UNE feuille : chacune sous une ligne qui porte son
+# intitule, separees d'une ligne vide. Les colonnes portent les noms EXACTS des
+# variables ; une table seule garde son en-tete tel quel.
+.hstat_synth_empiler_feuille <- function(tabs) {
+  if (length(tabs) == 1L) return(tabs[[1]])
+  vars <- unique(unlist(lapply(tabs, function(t) names(t)[-1])))
+  cols <- c(tr("Facteur / modalité"), vars)
+  vide <- function(n) as.data.frame(matrix("", n, length(cols),
+    dimnames = list(NULL, cols)), stringsAsFactors = FALSE, check.names = FALSE)
+  blocs <- lapply(seq_along(tabs), function(i) {
+    t <- tabs[[i]]
+    titre <- vide(1L); titre[1, 1] <- names(t)[1]
+    corps <- vide(nrow(t)); corps[, 1] <- t[[1]]
+    for (v in names(t)[-1]) corps[[v]] <- t[[v]]
+    rbind(titre, corps, if (i < length(tabs)) vide(1L))
+  })
+  do.call(rbind, blocs)
+}
+
+# Les feuilles du classeur : une par dispersion, toutes les tables dedans.
+hstat_posthoc_synthese_feuilles <- function(d, dec = NA_integer_) {
+  et <- hstat_posthoc_synthese(d, "ecart_type", dec)
+  es <- hstat_posthoc_synthese(d, "erreur_type", dec)
+  if (!length(et)) return(list())
+  list(Moyenne_ET_groupe = .hstat_synth_empiler_feuille(et),
+       Moyenne_ES_groupe = .hstat_synth_empiler_feuille(es))
+}
+
 round_numeric_df <- function(df, round_on, decimals = 2) {
   if (is.null(df) || !is.data.frame(df)) return(df)
   dec <- hstat_dec_affichage(round_on, decimals)

@@ -751,6 +751,13 @@ mod_tests_ui <- function(id) {
                       # successifs se ressemblent assez pour qu'on s'y trompe.
                       shiny::uiOutput(ns("testResultsBadge")),
                       DT::DTOutput(ns("testResultsDF")),
+                      shiny::conditionalPanel(ns = ns, condition = "output.hasTestSynthese",
+                        shiny::br(),
+                        shiny::h4(shiny::icon("table-list"), " Synthèse : moyenne ± écart-type et groupe"),
+                        shiny::div(class = "hstat-table-scroll", shiny::uiOutput(ns("testSyntheseEt"))),
+                        shiny::h4(shiny::icon("table-list"), " Synthèse : moyenne ± erreur-type et groupe"),
+                        shiny::div(class = "hstat-table-scroll", shiny::uiOutput(ns("testSyntheseEs"))),
+                        shiny::helpText("Sous chaque variable : degrés de liberté, statistique du test (t : Student ou Welch, U : Mann-Whitney, F : ANOVA, W : ANOVA de Welch, H : Kruskal-Wallis, z, V : Wilcoxon signé, S : test du signe), effectif N et probabilité P. À deux modalités, la lettre vient du test lui-même. Les deux synthèses partent aussi dans le classeur Excel, une feuille chacune.")),
                       shiny::br(),
                       shiny::downloadButton(ns("downloadTestsExcel"), "Télécharger les résultats (Excel)", class = "btn-info"))
                 )
@@ -998,6 +1005,14 @@ mod_posthoc_ui <- function(id) {
                                       ),
                                       shiny::div(class = "hstat-table-scroll",
                                           DT::DTOutput(ns("mainEffectsTable"))),
+                                      shiny::br(),
+                                      shiny::h4(shiny::icon("table-list"), " Synthèse : moyenne ± écart-type et groupe"),
+                                      shiny::div(class = "hstat-table-scroll",
+                                          shiny::uiOutput(ns("syntheseEtTables"))),
+                                      shiny::h4(shiny::icon("table-list"), " Synthèse : moyenne ± erreur-type et groupe"),
+                                      shiny::div(class = "hstat-table-scroll",
+                                          shiny::uiOutput(ns("syntheseEsTables"))),
+                                      shiny::helpText("Sous chaque variable : degrés de liberté, statistique du test global (F : ANOVA, W : ANOVA de Welch, H : Kruskal-Wallis), effectif N et probabilité P. Les effets simples suivent les effets principaux, une table par niveau du facteur fixé. Les deux synthèses partent aussi dans le classeur Excel, une feuille chacune."),
                                       shiny::br(),
                                       shiny::downloadButton(ns("downloadMainEffects"), 
                                                      "Télécharger effets principaux (.xlsx)", 
@@ -2698,6 +2713,8 @@ mod_tests_server <- function(id, values) {
       # savoir lequel des deux a tourne : Games-Howell est celui de Welch,
       # et le comparer a l'ANOVA de Fisher effacerait un resultat vrai.
       values$currentTestVariances <- if (isTRUE(var_equal)) "egales" else "inegales"
+      .poser_synthese(hstat_synthese_groupes(values$filteredData, input$responseVar,
+        input$factorVar[1], values$testResultsDF, "t"))
     } else {
       shiny::showNotification(
         if (length(motifs_refus))
@@ -2755,6 +2772,10 @@ mod_tests_server <- function(id, values) {
       values$normalityResults <- NULL
       values$homogeneityResults <- NULL
       values$currentTestType <- "non-parametric"
+      # R nomme W la statistique de Mann-Whitney ; la notation internationale
+      # l'ecrit U, et W designe ailleurs l'ANOVA de Welch.
+      .poser_synthese(hstat_synthese_groupes(values$filteredData, input$responseVar,
+        input$factorVar[1], values$testResultsDF, "U"))
     } else {
       shiny::showNotification("Aucun résultat Wilcoxon généré", type = "warning")
     }
@@ -2807,7 +2828,7 @@ mod_tests_server <- function(id, values) {
                              "strictement positive."), type = "error")
       return()
     }
-    rows <- list(); details <- list(); notes <- character(0)
+    rows <- list(); details <- list(); notes <- character(0); synth <- list()
     for (var in input$responseVar) {
       res <- tryCatch(
         hstat_ref_test(values$filteredData[[var]], mu = mu, method = method,
@@ -2825,9 +2846,18 @@ mod_tests_server <- function(id, values) {
       }
       rows[[var]] <- hstat_ref_result_row(res, var)
       details[[var]] <- .ref_detail_row(res, var)
+      # La conformite d'une VARIANCE ne se resume pas en « moyenne ±
+      # dispersion » : sa reference est une variance. Pas de synthese pour elle.
+      if (method != "variance")
+        synth[[var]] <- hstat_synthese_reference(
+          values$filteredData[[var]], var, res$reference, res$statistic,
+          if (is.na(res$parameter)) NA else hstat_ddl_fmt(res$parameter), res$p.value,
+          symbole = switch(method, ztest = "z", wilcoxon = "V", sign = "S", "t"),
+          lettres = method != "tost")
       if (!is.na(res$note)) notes <- c(notes, res$note)
     }
     .push_ref_results(rows, details, notes)
+    if (length(rows)) .poser_synthese(.hstat_synth_empiler(synth))
   }
 
   # Ligne du tableau de detail (une par variable testee).
@@ -3036,7 +3066,7 @@ mod_tests_server <- function(id, values) {
                         facteur = tr("Deux colonnes (une ligne par unité)"), paires = p)
     }
 
-    rows <- list(); details <- list(); notes <- character(0)
+    rows <- list(); details <- list(); notes <- character(0); synth <- list()
     for (k in seq_along(jeux)) {
       j <- jeux[[k]]; p <- j$paires
       res <- if (inherits(p, "error")) hstat_err_fr(p) else tryCatch(
@@ -3054,6 +3084,9 @@ mod_tests_server <- function(id, values) {
         ddl = if (is.na(res$parameter)) NA_real_ else hstat_ddl_fmt(res$parameter),
         p_value = res$p.value, Interpretation = res$interpretation,
         stringsAsFactors = FALSE)
+      synth[[k]] <- hstat_synthese_apparie(p$a, p$b, p$niveaux, j$etiquette,
+        res$statistic, if (is.na(res$parameter)) NA else hstat_ddl_fmt(res$parameter),
+        res$p.value, switch(methode, wilcoxon = "V", signe = "S", "t"))
       ic <- if (is.na(res$conf.low) && is.na(res$conf.high)) "-"
             else sprintf("[%s ; %s]",
                          if (is.finite(res$conf.low)) signif(res$conf.low, 5) else "-Inf",
@@ -3104,6 +3137,7 @@ mod_tests_server <- function(id, values) {
     values$normalityResults   <- NULL
     values$homogeneityResults <- NULL
     values$currentTestType    <- "paired"
+    .poser_synthese(.hstat_synth_empiler(synth))
     ps <- vapply(rows, function(r) r$p_value[1], numeric(1))
     shiny::showNotification(
       trf("%d test(s) apparié(s) : %d différence(s) significative(s).",
@@ -3192,6 +3226,8 @@ mod_tests_server <- function(id, values) {
       values$normalityResults <- NULL
       values$homogeneityResults <- NULL
       values$currentTestType <- "non-parametric"
+      .poser_synthese(hstat_synthese_groupes(values$filteredData, input$responseVar,
+        fvar_kw, values$testResultsDF, "H"))
     } else {
       shiny::showNotification("Aucun résultat Kruskal-Wallis généré", type = "warning")
     }
@@ -3366,6 +3402,8 @@ mod_tests_server <- function(id, values) {
       values$testResultsDF <- do.call(rbind, results_list)
       values$currentTestType <- "parametric"
       values$currentTestVariances <- "inegales"
+      .poser_synthese(hstat_synthese_groupes(df, input$responseVar, fvar,
+        values$testResultsDF, "W"))
       if (length(motifs))
         shiny::showNotification(
           trf("ANOVA de Welch : %s", paste(unique(motifs), collapse = " ; ")),
@@ -3468,6 +3506,11 @@ mod_tests_server <- function(id, values) {
         values$currentValidationVar <- 1
         values$currentTestType <- "parametric"
       values$currentTestVariances <- "egales"
+        # Les memes lignes que le modele : celles ou la reponse ET tous les
+        # facteurs sont renseignes, sinon N ne serait pas celui du test.
+        .poser_synthese(hstat_synthese_groupes(df, input$responseVar,
+          input$factorVar, values$testResultsDF, "F",
+          cas_complets = input$factorVar))
       } else {
         shiny::showNotification("Aucun résultat ANOVA généré", type = "warning")
       }
@@ -5109,6 +5152,30 @@ mod_tests_server <- function(id, values) {
     dt
   })
   
+  # SYNTHESE DES TESTS DE COMPARAISON. Elle est posee AVEC le tableau qu'elle
+  # resume : un test qui n'en produit pas (regression, normalite...) laisse
+  # l'ancienne synthese en memoire, et c'est la comparaison au tableau courant
+  # qui la masque -- elle ne parle plus de ce qu'on voit.
+  .poser_synthese <- function(d) {
+    values$testSynthese <- list(d = d, pour = values$testResultsDF)
+  }
+  .synthese_courante <- function() {
+    s <- values$testSynthese
+    if (is.null(s) || is.null(s$d) || !NROW(s$d) ||
+        !identical(s$pour, values$testResultsDF)) return(NULL)
+    s$d
+  }
+  output$hasTestSynthese <- shiny::reactive(!is.null(.synthese_courante()))
+  shiny::outputOptions(output, "hasTestSynthese", suspendWhenHidden = FALSE)
+  output$testSyntheseEt <- shiny::renderUI({
+    d <- .synthese_courante(); shiny::req(d)
+    hstat_synthese_html(hstat_posthoc_synthese(d, "ecart_type"))
+  })
+  output$testSyntheseEs <- shiny::renderUI({
+    d <- .synthese_courante(); shiny::req(d)
+    hstat_synthese_html(hstat_posthoc_synthese(d, "erreur_type"))
+  })
+
   output$testResultsDF <- DT::renderDT({
     shiny::req(values$testResultsDF)
     
@@ -5785,8 +5852,9 @@ mod_tests_server <- function(id, values) {
       validation$Homogeneity_p <- sapply(values$homogeneityResults,
                                          function(x) x$`Pr(>F)`[1] %||% NA)
     }
-    hstat_tables_non_vides(list("Résultats" = values$testResultsDF,
-                                "Validation" = validation))
+    hstat_tables_non_vides(c(list("Résultats" = values$testResultsDF,
+                                  "Validation" = validation),
+                             hstat_posthoc_synthese_feuilles(.synthese_courante())))
   }, "resultats_tests", "Tests statistiques")
   
   # Module Chi² / Multinomial -- Tests du Khi², comparaisons paires, graphiques
@@ -6527,11 +6595,13 @@ mod_tests_server <- function(id, values) {
       # modalites en a / ab / b contredit l'analyse. Le test global est ici
       # celui de l'effet simple -- calcule sur df_subset, pas sur le tableau
       # entier : c'est le sous-groupe qui est compare.
+      # Le test global de l'effet simple est calcule dans tous les cas : la
+      # synthese l'ecrit sous chaque colonne, protection cochee ou non.
+      omni_se <- hstat_omnibus(
+        df_subset, var, factor1,
+        parametric = identical(test_type, "param"),
+        variances = hstat_omnibus_variances(test_method))
       if (isTRUE(input$multiProtege %||% TRUE) && "groups" %in% names(groups)) {
-        omni_se <- hstat_omnibus(
-          df_subset, var, factor1,
-          parametric = identical(test_type, "param"),
-          variances = hstat_omnibus_variances(test_method))
         lt_se <- hstat_cld_proteger(groups$groups, omni_se$p, test = omni_se$test)
         if (isTRUE(attr(lt_se, "protege"))) groups$groups <- as.character(lt_se)
       }
@@ -6550,6 +6620,10 @@ mod_tests_server <- function(id, values) {
       res <- merge(desc, groups, by = factor1, all.x = TRUE)
       res[[factor2]] <- level
       res$groups[is.na(res$groups)] <- "a"
+      res$Test_global <- omni_se$test %||% NA_character_
+      res$p_global <- omni_se$p
+      res$Statistique_globale <- omni_se$statistique %||% NA_real_
+      res$ddl_global <- omni_se$ddl %||% NA_character_
       
       return(res)
       
@@ -6955,7 +7029,11 @@ mod_tests_server <- function(id, values) {
                 # invisible : on publiait des lettres sans savoir si l'analyse
                 # d'ensemble les autorisait.
                 Test_global = omni$test %||% NA_character_,
-                p_global = omni$p
+                p_global = omni$p,
+                # LA STATISTIQUE ET SES DDL VOYAGENT AUSSI : la synthese les
+                # ecrit sous chaque colonne de variable (F, W ou H, ddl, N, P).
+                Statistique_globale = omni$statistique %||% NA_real_,
+                ddl_global = omni$ddl %||% NA_character_
               )
             
             multi_results_list[[paste(var, fvar, "main", sep = "_")]] <- res
@@ -7795,6 +7873,18 @@ mod_tests_server <- function(id, values) {
       )
   })
   
+  # SYNTHESE « comme dans un article » : une table par facteur. Un renderUI de
+  # tableaux statiques -- jamais un renderDT appele a la main, qui leve faute
+  # de session (piege deja documente).
+  .synthese_ui <- function(dispersion) {
+    shiny::req(values$multiResultsMain)
+    tabs <- hstat_posthoc_synthese(values$multiResultsMain, dispersion,
+      hstat_dec_affichage(input$multiRoundResults, input$multiDecimals))
+    hstat_synthese_html(tabs)
+  }
+  output$syntheseEtTables <- shiny::renderUI(.synthese_ui("ecart_type"))
+  output$syntheseEsTables <- shiny::renderUI(.synthese_ui("erreur_type"))
+
   output$simpleEffectsTable <- DT::renderDT({
     shiny::req(values$multiResultsMain)
     
@@ -9077,7 +9167,9 @@ mod_tests_server <- function(id, values) {
   output$downloadMainEffects <- hstat_classeur_handler(function() {
     d <- values$multiResultsMain
     if (is.null(d)) return(NULL)
-    list("Effets_principaux" = d[d$Type == "main", ])
+    c(list("Effets_principaux" = d[d$Type == "main", ]),
+      hstat_posthoc_synthese_feuilles(d[d$Type == "main", ], hstat_dec_affichage(
+        input$multiRoundResults, input$multiDecimals)))
   }, "effets_principaux", "Effets principaux")
   
   output$downloadSimpleEffects <- hstat_classeur_handler(function() {
@@ -9089,9 +9181,11 @@ mod_tests_server <- function(id, values) {
   output$downloadAllResults <- hstat_classeur_handler(function() {
     d <- values$multiResultsMain
     if (is.null(d)) return(NULL)
-    hstat_tables_non_vides(list(
+    hstat_tables_non_vides(c(list(
       "Effets_principaux" = d[d$Type == "main", ],
-      "Effets_simples"    = d[d$Type == "simple_effect", ]))
+      "Effets_simples"    = d[d$Type == "simple_effect", ]),
+      hstat_posthoc_synthese_feuilles(d, hstat_dec_affichage(
+        input$multiRoundResults, input$multiDecimals))))
   }, "analyse_complete", "Analyse complète")
   
   output$downloadMultiPlot <- shiny::downloadHandler(
