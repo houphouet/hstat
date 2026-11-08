@@ -49,9 +49,7 @@ run_hstat <- function(..., ouverture = NULL, install_missing = TRUE) {
 
   # --- Installation prealable de TOUTES les dependances -------------------
   # C'est indispensable : HStat.R construit l'interface (dashboardPage,
-  # dropdownMenu, pickerInput, ...) des le sourcage. Si un seul de ces
-  # paquets manque, la construction de `ui` echoue, shinyApp() n'est jamais
-  # atteint, et Shiny affiche le trompeur "No UI defined".
+  # dropdownMenu, pickerInput, ...) des le sourcage.
   if (isTRUE(install_missing)) {
     deps <- .hstat_required_packages()
     missing_pkgs <- deps[!vapply(deps, function(p)
@@ -98,16 +96,10 @@ run_hstat <- function(..., ouverture = NULL, install_missing = TRUE) {
   do.call(shiny::runApp, c(list(app_dir), args))
 }
 
-## ---------------------------------------------------------------------------
-##  Ou ouvrir l'application : navigateur ou fenetre Shiny de RStudio
-## ---------------------------------------------------------------------------
-##  La question se pose une fois, et la reponse peut devenir le defaut. Elle
-##  n'est ECRITE sur disque que si l'utilisateur le demande (choix 3 ou 4) :
-##  rien n'est depose dans son dossier de configuration sans son accord.
-##  `run_hstat(ouverture = "demander")` oublie le defaut et repose la question.
-##
-##  Hors session interactive on ne demande rien et on ne choisit rien : Shiny
-##  garde alors son propre comportement (aucune ouverture sous Rscript).
+# ---------------------------------------------------------------------------
+# Ou ouvrir l'application : navigateur ou fenetre Shiny de RStudio
+# ---------------------------------------------------------------------------
+# La question se pose une fois, et la reponse peut devenir le defaut.
 
 HSTAT_OUVERTURES <- c(navigateur = "Navigateur web",
                       shiny      = "Fen\u00eatre Shiny de RStudio")
@@ -200,8 +192,7 @@ HSTAT_OUVERTURES <- c(navigateur = "Navigateur web",
 
 
 # Liste des dependances requises, lue depuis inst/app/Utils.R (source unique de
-# verite) pour rester synchronisee avec l'application. Repli sur une liste
-# minimale si l'extraction echoue.
+# verite) pour rester synchronisee avec l'application.
 .hstat_required_packages <- function() {
   utils_file <- system.file("app", "Utils.R", package = "HStat")
   fallback <- c("shiny", "shinydashboard", "shinyWidgets", "shinyjs", "DT",

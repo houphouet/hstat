@@ -3,59 +3,14 @@
 # Moteur d'inference partage
 # ---------------------------------------------------------------------------
 # Un seul role : parler aux fournisseurs de modeles de langue, pour les modules
-# qui en ont besoin. Aujourd'hui c'est l'atelier de codage CAQDAS
-# (`mod_coding.R`), qui propose de pre-remplir un livre de codes et de
-# pre-coder un corpus.
-#
-# Ce fichier ne DECIDE rien et n'INTERPRETE rien : il transporte une invite et
-# rend une reponse. Le choix de la methode, la lecture des resultats et leur
-# redaction restent a l'analyste, qui en demeure responsable.
-#
-# L'onglet « Interpretation & aide a la decision » a ete retire (voir
-# CLAUDE.md) : avec lui sont partis le registre de capture, le profil des
-# variables, la recommandation deterministe, le diagnostic de qualite, le
-# journal de reproductibilite et le rapport automatique. Ce qui reste ici est
-# exactement ce dont `mod_coding.R` se sert.
+# qui en ont besoin.
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
 # 10. ASSISTANT DE CODAGE - UNE TABLE DE FOURNISSEURS, TROIS PROTOCOLES
 # ---------------------------------------------------------------------------
 # L'assistance doit pouvoir tourner GRATUITEMENT et SANS CONNEXION : c'est la
-# raison d'etre du moteur "auto", et c'est pourquoi il reste le defaut. Les
-# services en ligne sont ensuite proposes sur un pied d'egalite, Claude n'ayant
-# aucun privilege.
-#
-#   "auto"   Thematisation statistique, sans aucun modele de langue. Tourne
-#            dans le processus R, instantanement, sans rien installer et sans
-#            reseau. Seul moteur garanti disponible partout, donc seul defaut
-#            acceptable : une fonctionnalite facturee a l'usage ne doit jamais
-#            devenir le chemin par defaut d'un utilisateur qui n'a rien demande.
-#
-#   "local"  Serveur d'inference sur la machine de l'utilisateur (llama.cpp,
-#            LM Studio, vLLM, Jan...), parlant le protocole d'OpenAI. Gratuit,
-#            hors ligne, aucune donnee ne quitte la machine.
-#
-#   les API  Claude, ChatGPT, DeepSeek, Gemini, GitHub Models (Copilot), Kimi.
-#            Payantes, en ligne, et jamais choisies d'office.
-#
-# TOUT le reste du code derive de HSTAT_AI_FOURNISSEURS : la liste de choix,
-# le diagnostic, l'aiguillage, l'interface. Ajouter un service, c'est ajouter
-# une ligne -- et un service qui parle le protocole d'OpenAI (la plupart) ne
-# demande aucun code.
-#
-# Le support d'Ollama a ete retire. Son protocole lui etait propre (/api/chat,
-# /api/tags, `format: "json"`), il portait son propre constructeur de corps de
-# requete et son propre lecteur de reponse ; un serveur local compatible OpenAI
-# rend le meme service par le chemin commun.
-#
-# R n'ayant de SDK pour aucun de ces services, tout passe par {httr} +
-# {jsonlite}, gardes en Suggests : sans eux, le moteur "auto" reste pleinement
-# fonctionnel.
-#
-# Les adresses et les modeles sont des VALEURS PAR DEFAUT, modifiables dans
-# l'interface : un service qui change d'adresse ou de modele ne doit pas
-# obliger a rouvrir le code.
+# raison d'etre du moteur "auto", et c'est pourquoi il reste le defaut.
 # ---------------------------------------------------------------------------
 
 HSTAT_AI_FOURNISSEURS <- list(
@@ -86,11 +41,7 @@ HSTAT_AI_FOURNISSEURS <- list(
     modele = "gemini-2.0-flash", paye = TRUE, cle_url = "aistudio.google.com/apikey"),
   copilot = list(
     # Variable DEDIEE, et surtout pas GITHUB_TOKEN : celle-ci est presente sur
-    # quantite de postes et dans toutes les integrations continues. La lire
-    # d'office enverrait un jeton ambiant chez un tiers sans que l'utilisateur
-    # l'ait voulu -- constate ici meme, ou le moteur s'annoncait « disponible »
-    # avec le jeton du conteneur. Une cle ne doit servir qu'a ce qu'on a
-    # explicitement demande.
+    # quantite de postes et dans toutes les integrations continues.
     label = "GitHub Models (Copilot)", protocole = "openai",
     cle_env = "GITHUB_MODELS_TOKEN", url = "https://models.github.ai/inference",
     modele = "openai/gpt-4o", paye = TRUE, cle_url = "github.com/settings/tokens"),
@@ -117,24 +68,6 @@ HSTAT_AI_MODEL <- HSTAT_AI_FOURNISSEURS$claude$modele   # retro-compatibilite
 
 # Cle d'API : celle saisie dans l'interface, sinon la variable d'environnement
 # PROPRE AU SERVICE. Une cle OpenAI ne doit pas servir a appeler DeepSeek.
-#
-# UNE CLE D'AMBIANCE NE SUIT PAS UNE ADRESSE CHANGEE. C'est le prolongement de
-# la regle deja ecrite pour GITHUB_TOKEN -- « une cle n'est jamais ambiante » --
-# et il fallait l'etendre, parce que deux decisions justes se combinaient mal :
-# l'adresse du service est un champ TEXTE LIBRE (un service qui demenage ne doit
-# pas obliger a rouvrir le code), et le champ de cle INVITE a rester vide pour
-# que la variable d'environnement serve. Les deux se resolvaient
-# independamment.
-#
-# Sur un deploiement partage -- shinyapps.io, Posit Connect, Shiny Server, ceux
-# que le README prevoit -- l'exploitant pose la cle dans l'environnement du
-# serveur. N'importe quel visiteur choisissait alors le moteur, laissait la cle
-# vide, remplacait l'adresse par la sienne, et recevait la cle du serveur dans
-# l'en-tete `x-api-key`. Constate ici meme, avec un serveur de capture.
-#
-# La cle SAISIE, elle, part toujours ou son proprietaire l'envoie : c'est la
-# sienne, et le pouvoir de deplacer l'adresse reste entier. Seul le repli
-# ambiant est retire quand l'adresse quitte celle du fournisseur.
 hstat_ai_key <- function(engine = "claude", explicit = NULL, url = NULL) {
   k <- if (is.null(explicit)) "" else trimws(as.character(explicit)[1])
   if (is.na(k) || !nzchar(k)) {
@@ -145,24 +78,13 @@ hstat_ai_key <- function(engine = "claude", explicit = NULL, url = NULL) {
   if (is.na(k)) "" else k
 }
 
-# L'adresse retenue est-elle celle que le fournisseur declare ? La comparaison
-# porte sur l'adresse RESOLUE des deux cotes, pour qu'une barre finale ou un
-# champ vide ne comptent pas comme un changement -- sinon le repli sauterait
-# dans le cas ordinaire, qui est justement celui qu'il sert.
+# L'adresse retenue est-elle celle que le fournisseur declare ?
 hstat_ai_url_attendue <- function(engine = "claude", url = NULL) {
   identical(hstat_ai_url(engine, url),
             hstat_ai_url(engine, NULL))
 }
 
 # Adresse de base : celle saisie, sinon celle du fournisseur.
-#
-# SEULS http:// ET https:// SONT ACCEPTES, et c'est une garde de securite.
-# L'adresse est saisie dans le navigateur, et `httr` passe par curl, qui
-# ouvre aussi `file://`, `ftp://`, `gopher://` ou `dict://` : un visiteur
-# d'un serveur partage faisait lire au processus R un fichier du disque, ou
-# parler un autre protocole a un service interne. Une adresse refusee rend la
-# chaine VIDE, que `.hstat_ai_url_ok()` refuse a son tour au moment de
-# l'appel -- jamais un repli silencieux sur l'adresse du fournisseur.
 hstat_ai_url <- function(engine = "local", url = NULL) {
   u <- if (is.null(url)) "" else trimws(as.character(url)[1])
   if (is.na(u) || !nzchar(u)) u <- hstat_ai_fournisseur(engine)$url
@@ -181,22 +103,7 @@ hstat_ai_url <- function(engine = "local", url = NULL) {
 HSTAT_AI_URL_REFUS <- "Adresse du service refusée : seules les adresses http:// et https:// d'un service public ou de cette machine sont acceptées (réseau interne et adresses de métadonnées bloqués)."
 HSTAT_AI_URL_INTERNE <- "Adresse du service refusée : ce nom désigne une machine du réseau interne ou une adresse de métadonnées."
 
-# L'ADRESSE EST SAISIE PAR LE VISITEUR, ET C'EST LE SERVEUR QUI APPELLE. Sur un
-# serveur partage, la laisser libre fait du processus R un relais vers ce que
-# le visiteur ne peut pas joindre lui-meme : le service de metadonnees du
-# nuage (169.254.169.254, qui rend des identifiants), les machines du reseau
-# interne, l'administration d'un routeur. Trois classes, une regle chacune :
-#
-# - lien local et metadonnees : TOUJOURS refuses. Aucun service d'IA n'y vit ;
-# - reseau prive (10/8, 172.16/12, 192.168/16, 100.64/10, fc00::/7, 0/8) :
-#   refuse, sauf `options(hstat.ai.reseau_prive = TRUE)` pour qui sert ses
-#   modeles sur une autre machine de son reseau ;
-# - cette machine (127/8, ::1, localhost) : PERMISE. C'est le serveur local
-#   gratuit et hors ligne, la seule offre sans cle ; le bloquer la fermerait.
-#
-# Une adresse IP ecrite autrement que sous sa forme canonique (« 2852039166 »,
-# « 0xA9FEA9FE », « 0251.0376.0251.0376 ») est refusee : curl les accepte
-# toutes, et chacune vaut 169.254.169.254.
+# L'ADRESSE EST SAISIE PAR LE VISITEUR, ET C'EST LE SERVEUR QUI APPELLE.
 .hstat_ai_hote <- function(u) {
   h <- sub("^https?://([^/?#]*).*$", "\\1", as.character(u)[1], ignore.case = TRUE)
   h <- if (startsWith(h, "[")) sub("^\\[([^]]*)\\].*$", "\\1", h)
@@ -244,10 +151,7 @@ HSTAT_AI_URL_INTERNE <- "Adresse du service refusée : ce nom désigne une machi
 }
 
 # Un NOM se juge sur les adresses qu'il designe, au moment de l'appel : un nom
-# public peut pointer sur 169.254.169.254. Sans `curl` ou sans reponse DNS on
-# laisse passer -- la requete echouera d'elle-meme, faute de pouvoir joindre
-# l'hote. Ce controle ne ferme pas le rebond DNS (un nom qui change d'adresse
-# entre la verification et l'appel) : c'est l'affaire du pare-feu du serveur.
+# public peut pointer sur 169.254.169.254.
 .hstat_ai_dns_ok <- function(u) {
   h <- .hstat_ai_hote(u)
   if (!identical(.hstat_ai_classe_hote(h), "nom")) return(.hstat_ai_url_ok(u))
@@ -260,8 +164,7 @@ HSTAT_AI_URL_INTERNE <- "Adresse du service refusée : ce nom désigne une machi
 }
 
 # Une redirection ramenerait l'appel la ou la verification l'a refuse : un
-# service public peut repondre 302 vers l'adresse de metadonnees. Aucun
-# fournisseur ne redirige ses points d'API, on ne suit donc rien.
+# service public peut repondre 302 vers l'adresse de metadonnees.
 .hstat_ai_sans_redirection <- function() httr::config(followlocation = 0L)
 
 # Modele : celui saisi, sinon celui du fournisseur.
@@ -277,8 +180,6 @@ hstat_ai_modele <- function(engine = "local", model = NULL) {
 }
 
 # Modeles annonces par un service parlant le protocole d'OpenAI (GET /models).
-# Vecteur vide si le serveur n'est pas joignable : l'interface saura alors dire
-# quoi faire plutot que d'offrir une liste vide sans explication.
 hstat_ai_openai_models <- function(url = NULL, api_key = NULL, timeout = 5,
                                    engine = "local") {
   if (!.hstat_ai_http_ok()) return(character(0))
@@ -331,9 +232,7 @@ hstat_ai_status <- function(engine = "auto", url = NULL, model = NULL,
                   paste(sprintf('"%s"', gsub("[{}]", "", miss)), collapse = ", "))))
   }
 
-  # Un service en ligne exige une cle. On NOMME le service, sa variable
-  # d'environnement et l'endroit ou l'obtenir : « cle absente » tout court
-  # laisse l'utilisateur sans geste a faire.
+  # Un service en ligne exige une cle.
   if (nzchar(f$cle_env)) {
     if (!nzchar(hstat_ai_key(engine, api_key, url)))
       return(list(ok = FALSE,
@@ -415,9 +314,8 @@ hstat_ai_available <- function(explicit = NULL) {
   hdr <- if (!is.null(api_key) && nzchar(api_key))
     c(Authorization = paste("Bearer", api_key)) else NULL
 
-  # L'adresse porte deja le prefixe de version quand le service en a un
-  # (/v1 chez OpenAI, DeepSeek, Kimi ; rien chez GitHub Models). Le chemin
-  # ajoute ici est donc le seul point commun : /chat/completions.
+  # L'adresse porte deja le prefixe de version quand le service en a un (/v1
+  # chez OpenAI, DeepSeek, Kimi ; rien chez GitHub Models).
   send <- function(with_json)
     .hstat_ai_post(paste0(u, "/chat/completions"), mk(with_json), hdr, timeout)
 
@@ -534,13 +432,7 @@ hstat_ai_available <- function(explicit = NULL) {
 }
 
 # Reglages du moteur choisi, construits a partir de la table : l'interface n'a
-# plus a connaitre les services un par un. Sept `conditionalPanel` en dur
-# devenaient faux des qu'on ajoutait une ligne a la table -- ce qui est
-# precisement ce qu'on veut pouvoir faire.
-#
-# Les identifiants sont prefixes parce que les deux onglets qui s'en servent
-# nomment leurs champs differemment (`url` ici, `ai_url` dans l'atelier de
-# codage) : le prefixe evite d'avoir a renommer les champs existants.
+# plus a connaitre les services un par un.
 hstat_ai_reglages_ui <- function(ns, engine, prefixe = "") {
   f  <- hstat_ai_fournisseur(engine)
   id <- function(x) ns(paste0(prefixe, x))
@@ -561,16 +453,6 @@ hstat_ai_reglages_ui <- function(ns, engine, prefixe = "") {
               f$cle_url %||% tr("le site du fournisseur")))),
     shiny::textInput(id("url"), "Adresse du service", value = f$url),
     # CE QUI SORT DE LA MACHINE SE DIT, ET AU MOMENT DU CHOIX.
-    #
-    # Le moteur « auto » annonce en vert qu'il ne transmet rien. Les autres ne
-    # disaient rien du tout : l'utilisateur lisait « service payant, en ligne »
-    # -- ce qui parle du COUT -- et devait deviner ce qui part. L'asymetrie
-    # etait le probleme : le cas rassurant etait nomme, le cas engageant non.
-    #
-    # Le texte vaut pour les deux adresses possibles, celle d'un tiers comme
-    # celle d'un serveur local, parce que le champ juste au-dessus est
-    # librement modifiable : une note qui ne parlerait que du tiers mentirait
-    # des que l'adresse change.
     shiny::div(
       style = "background:#fef9e7;border-left:3px solid #f39c12;padding:8px 12px;font-size:12px;margin-bottom:10px;",
       shiny::icon("triangle-exclamation"), " ",
@@ -585,25 +467,13 @@ hstat_ai_reglages_ui <- function(ns, engine, prefixe = "") {
                      placeholder = paste("ex.", .hstat_ai_ex(f))))
 }
 
-# LE BOUTON « TESTER LA CONNEXION » N'EST PLUS POSE ICI. Il l'etait sous le nom
-# `<prefixe>ping`, et l'onglet d'aide a la decision -- le seul appelant a
-# prefixe vide -- a disparu : `input$ping` n'etait plus lu par personne.
-#
-# Le retirer ferme aussi un defaut latent que l'orphelin cachait. L'atelier de
-# codage declare DEJA son propre `ai_ping` dans son interface statique ; le
-# helper, appele avec le prefixe « ai_ », en posait un SECOND du meme
-# identifiant. Deux elements pour un meme id, c'est un HTML invalide et un
-# `updateActionButton()` qui n'en atteindrait qu'un.
+# LE BOUTON « TESTER LA CONNEXION » N'EST PLUS POSE ICI.
 
 # Exemple de modele affiche en filigrane, quand le fournisseur n'en impose pas.
 .hstat_ai_ex <- function(f) if (nzchar(f$modele)) f$modele else "le nom du modèle servi"
 
 # Aiguillage sur le PROTOCOLE, pas sur le nom du service : ajouter un service
 # qui parle celui d'OpenAI ne demande alors aucune ligne ici.
-#
-# `engine = "auto"` par defaut. C'est le seul moteur garanti disponible, et
-# surtout le seul gratuit : une API facturee a l'usage ne doit jamais devenir
-# le chemin par defaut d'un utilisateur qui n'a rien demande. Un test le garde.
 hstat_ai_call <- function(prompt, system = NULL, engine = "auto",
                           url = NULL, model = NULL,
                           api_key = NULL, max_tokens = 8000L, json = TRUE,

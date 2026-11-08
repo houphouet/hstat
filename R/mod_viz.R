@@ -63,10 +63,8 @@ mod_viz_ui <- function(id) {
                       shiny::icon("info-circle", style = "color: #17a2b8;"),
                       "Le mode 'Auto' détecte automatiquement le type optimal pour votre variable."
                     ),
-                    # Une seule position pour toute la colonne : la variable Y se
-                    # lit d'ensemble, sans le detail des niveaux de X. Offerte
-                    # la seulement ou X est un axe de categories : sur un
-                    # histogramme ou une densite, X EST la mesure.
+                    # Une seule position pour toute la colonne : la variable Y
+                    # se lit d'ensemble, sans le detail des niveaux de X.
                     shiny::conditionalPanel(
                       ns = ns,
                       condition = sprintf("[%s].indexOf(input.vizType) >= 0",
@@ -129,14 +127,10 @@ mod_viz_ui <- function(id) {
                         style = "color: #2196F3; font-weight: bold; margin-top: 0; font-size: 15px;"
                       ),
                       # LA LISTE VIENT DU CATALOGUE, elle n'est pas recopiee
-                      # ici : six entrees y figuraient contre onze reconnues, et
-                      # « 20 octobre 2026 » n'etait donc offert nulle part --
-                      # on pouvait ecrire une date qu'on ne savait pas relire.
-                      #
-                      # « Automatique » est le DEFAUT parce que le contraire
-                      # etait muet : un fichier ISO lu en « MM/JJ/AAAA (US) »
-                      # rendait NA partout et le graphique sortait vide, sans
-                      # que rien ne renvoie au reglage fautif.
+                      # ici : six entrees y figuraient contre onze reconnues,
+                      # et « 20 octobre 2026 » n'etait donc offert nulle part
+                      # -- on pouvait ecrire une date qu'on ne savait pas
+                      # relire.
                       shiny::selectInput(ns("xDateFormat"),
                         shiny::tagList(shiny::icon("file-import"), " Format des données source :"),
                         choices = c(
@@ -299,8 +293,7 @@ mod_viz_ui <- function(id) {
                     ),
 
                     # DIAGRAMME VOLCAN : X porte l'ampleur de l'effet, Y la
-                    # p-value. Les deux seuils se reglent ici, a cote du type,
-                    # parce qu'ils decident de la classe de chaque point.
+                    # p-value.
                     shiny::conditionalPanel(
                       ns = ns,
                       condition = "input.vizType == 'volcano'",
@@ -401,7 +394,6 @@ mod_viz_ui <- function(id) {
                 
                 # « Exporter le graphique » vit dans la colonne de la figure,
                 # juste dessous : on regle l'export la ou l'on regarde l'image.
-                # `width = NULL` : la colonne porte deja la largeur.
                 shiny::column(width = 8,
                 shinydashboard::box(
                   title = shiny::tagList(shiny::icon("chart-area"), " Graphique "),
@@ -440,11 +432,7 @@ mod_viz_ui <- function(id) {
                             "Mise à jour auto"
                           )
                         ),
-                        # L'heure vient du SERVEUR, au rendu du graphique. Ecrite
-                        # ici, elle etait figee a la construction de l'interface --
-                        # mise en cache au demarrage --, si bien que la page
-                        # annoncait pour « derniere mise a jour » l'heure de
-                        # demarrage du serveur, quoi qu'on trace ensuite.
+                        # L'heure vient du SERVEUR, au rendu du graphique.
                         shiny::div(
                           style = "font-size: 12px; color: #666;",
                           shiny::textOutput(ns("lastUpdateTime"), inline = TRUE)
@@ -564,9 +552,7 @@ mod_viz_ui <- function(id) {
                             min = 8, max = 18, value = 11, step = 1
                           ),
                           # UN TITRE PLUS LONG QUE SON AXE DEBORDE et se fait
-                          # rogner a l'export. Sur un intitule explicite --
-                          # « Rendement moyen par parcelle en t/ha » -- c'est le
-                          # cas normal, pas le cas rare.
+                          # rogner a l'export.
                           hstat_axe_titre_ui(ns, "viz")
                         ),
                         
@@ -872,12 +858,7 @@ mod_viz_ui <- function(id) {
                            style = "color: #ff9800; font-weight: bold; border-bottom: 3px solid #ff9800; padding-bottom: 10px; margin-top: 0;"),
 
                         # LE MODAL DE PERSONNALISATION RAPIDE EXISTAIT SANS
-                        # BOUTON POUR L'OUVRIR. Il regroupe les six reglages
-                        # qu'on retouche le plus souvent -- titres, tailles,
-                        # position de legende -- et son bouton « Appliquer »
-                        # ecrit dans les vrais champs ci-dessous. Il fait donc
-                        # gagner le parcours de tout le panneau, ce qui est sa
-                        # raison d'etre.
+                        # BOUTON POUR L'OUVRIR.
                         shiny::actionButton(ns("customizePlot"),
                           "Personnalisation rapide", icon = shiny::icon("paint-brush"),
                           class = "btn-warning btn-block"),
@@ -934,9 +915,7 @@ mod_viz_ui <- function(id) {
                           ),
                           # PAS DE BOUTON « APERCU » : le theme est lu par le
                           # reactif du graphique, il s'applique donc a la
-                          # seconde ou on le choisit. Le bouton n'etait relie a
-                          # rien, et un bouton inerte a cote d'un reglage qui
-                          # marche fait croire que le reglage attend un clic.
+                          # seconde ou on le choisit.
                           shiny::helpText(shiny::icon("bolt"),
                                    " Le thème s'applique immédiatement.",
                                    style = "margin-top:6px; color:#7f8c8d; font-size:12px;")
@@ -1023,9 +1002,8 @@ mod_viz_ui <- function(id) {
                           )
                         ),
                         
-                        # Barres d'erreur : sur les courbes de Y1 (type « Courbe ») et sur
-                        # les courbes de l'axe secondaire. Un seul reglage pour les deux :
-                        # deux reglages pour une meme figure finiraient par se contredire.
+                        # Barres d'erreur : sur les courbes de Y1 (type «
+                        # Courbe ») et sur les courbes de l'axe secondaire.
                         shiny::conditionalPanel(
               ns = ns,
                           condition = "input.vizType == 'line' || input.enableDualAxis == true",
@@ -1137,13 +1115,6 @@ mod_viz_ui <- function(id) {
                 shiny::tags$script(src = "Sortable.min.js"),
                 
                 # LE JAVASCRIPT D'UN MODULE DOIT PORTER LE PREFIXE DU MODULE.
-                # `Shiny.setInputValue('xLevelOrder', ...)` posait l'entree SANS
-                # prefixe, alors que le serveur ecoute `input$xLevelOrder`,
-                # c'est-a-dire « viz-xLevelOrder » : le reordonnancement des
-                # categories par glisser-deposer n'arrivait jamais. Meme cause
-                # pour la comparaison `event.target.id === 'xOrderEditor'`, que
-                # le vrai identifiant « viz-xOrderEditor » ne satisfait jamais :
-                # Sortable n'etait plus re-arme apres un redessin de la liste.
                 shiny::tags$script(shiny::HTML(sprintf("
     $(document).ready(function() {
       // Fonction pour initialiser Sortable (recrée toujours une instance fraiche)
@@ -1325,9 +1296,7 @@ mod_viz_server <- function(id, values) {
           style = "flex:1; font-size:12px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;",
           shiny::tags$b(v)
         ),
-        # QUATRIEME OCCURRENCE DU MEME DEFAUT. Non namespace, ce selecteur de
-        # couleur n'atteignait jamais `input[[col_id]]` : chaque courbe gardait
-        # sa couleur par defaut, quoi qu'on choisisse.
+        # QUATRIEME OCCURRENCE DU MEME DEFAUT.
         colourInput(ns(col_id), label = NULL, value = col_def,
                     showColour = "background", palette = "square")
       )
@@ -1516,10 +1485,7 @@ mod_viz_server <- function(id, values) {
     }
   })
   
-  # Plafond de niveaux leve a la demande. Il se REFERME au changement de
-  # variable X : cinquante etiquettes acceptees sur une colonne ne disent rien
-  # de la suivante, et garder le plafond leve ferait construire mille champs
-  # sans que personne l'ait demande.
+  # Plafond de niveaux leve a la demande.
   tous_niveaux <- shiny::reactiveVal(FALSE)
   shiny::observeEvent(input$showAllLevels, tous_niveaux(TRUE))
   shiny::observeEvent(input$vizXVar, tous_niveaux(FALSE), ignoreInit = TRUE)
@@ -1551,8 +1517,6 @@ mod_viz_server <- function(id, values) {
     }
     
     # LE PLAFOND EST LEVABLE, ET LE BOUTON QUI LE PROMET DOIT LE FAIRE.
-    # « Afficher quand même » n'etait relie a rien : on annoncait une issue,
-    # le clic ne produisait rien, et l'utilisateur restait devant son refus.
     if(length(unique_vals) > 50 && !isTRUE(tous_niveaux())) {
       return(shiny::div(
         shiny::p(paste("Trop de valeurs uniques (", length(unique_vals), "). ", 
@@ -1594,13 +1558,9 @@ mod_viz_server <- function(id, values) {
                         shiny::div(style = "font-size: 11px; color: #666; margin-bottom: 2px;",
                             paste("Original :", lvl)),
                         # CREE HORS DU NAMESPACE DU MODULE, ce champ n'existait
-                        # pour personne : `input[["xLevel_Alpha"]]` lit
-                        # « visualization-xLevel_Alpha », le widget portait
-                        # « xLevel_Alpha ». « Appliquer » ne faisait donc RIEN,
-                        # sans un mot -- et avec lui tombaient le prefixe, le
-                        # suffixe, la casse et la remise a zero, qui lisent tous
-                        # les memes champs. Mesure au navigateur : trois champs,
-                        # zero prefixe, zero notification au clic.
+                        # pour personne : `input[["xLevel_Alpha"]]` lit «
+                        # visualization-xLevel_Alpha », le widget portait «
+                        # xLevel_Alpha ».
                         shiny::textInput(
                           inputId = ns(paste0("xLevel_", make.names(lvl))),
                           label = NULL,
@@ -1632,10 +1592,7 @@ mod_viz_server <- function(id, values) {
     )
   })
   
-  # LE BOUTON LE PLUS VISIBLE DE L'ONGLET NE FAISAIT RIEN. « Actualiser le
-  # graphique », pleine largeur et en vert, n'etait relie a aucun observateur :
-  # le graphique est reactif, mais un utilisateur qui doute a besoin que le
-  # geste ait un effet -- et un bouton inerte fait douter de tout le reste.
+  # LE BOUTON LE PLUS VISIBLE DE L'ONGLET NE FAISAIT RIEN.
   shiny::observeEvent(input$refreshPlot, {
     values$plotUpdateTrigger <- stats::runif(1)
     shiny::showNotification(tr("Graphique actualisé."), type = "message", duration = 2)
@@ -1908,12 +1865,7 @@ mod_viz_server <- function(id, values) {
     if(!is.null(input$xLevelOrder) && length(input$xLevelOrder) > 0) {
       values$customXOrder <- input$xLevelOrder
       # UN OBSERVATEUR QUI SE REPROGRAMME NE SE REVEILLE JAMAIS SEUL : un
-      # `invalidateLater` vivait ici, et c'etait une boucle infinie. L'observateur
-      # se relancait toutes les 50 ms, reecrivait un `plotUpdateTrigger` neuf, et
-      # le graphique se reconstruisait vingt fois par seconde jusqu'a la fin de
-      # la session. Sur un glisser-deposer, le nouvel ordre s'appliquait bien --
-      # puis l'ecran ne se stabilisait plus, ce qui se lit exactement comme
-      # « le changement ne s'applique pas ».
+      # `invalidateLater` vivait ici, et c'etait une boucle infinie.
       values$plotUpdateTrigger <- stats::runif(1)
     }
   })
@@ -2027,11 +1979,6 @@ mod_viz_server <- function(id, values) {
     shiny::req(values$filteredData, input$vizXVar, input$vizYVar)
     
     # Forcer la réactivité à l'ordre et aux étiquettes des niveaux.
-    #
-    # PAS de dépendance sur ce qui n'habille que la figure -- thème, format
-    # d'affichage des dates, titre du second axe. Le réactif du graphique les
-    # lit déjà ; les poser ici faisait refaire toute la préparation des données
-    # (agrégation comprise) à CHAQUE LETTRE tapée dans le titre du second axe.
     values$customXOrder
     values$storedLevelLabels
     values$plotUpdateTrigger
@@ -2055,9 +2002,7 @@ mod_viz_server <- function(id, values) {
       }
     } else input$xVarType
     
-    # TOUTE LA COLONNE EN UNE POSITION. Pose ici, avant la lecture des dates et
-    # des nombres : la colonne n'est plus qu'un facteur a un niveau, le nom de
-    # la colonne, et aucune conversion ne doit s'y appliquer.
+    # TOUTE LA COLONNE EN UNE POSITION.
     if (hstat_viz_x_regroupe(input$xRegrouper, input$vizType) &&
         x_var %in% names(data)) {
       data[[x_var]] <- factor(rep(x_var, nrow(data)), levels = x_var)
@@ -2109,8 +2054,7 @@ mod_viz_server <- function(id, values) {
     
     # Nuage de points / X numerique : convertir reellement la colonne quand le
     # type retenu est "numeric" mais que la colonne est stockee en texte
-    # (decimales a virgule, espaces). Sans cela, ggplot traite X comme discret
-    # et le nuage de points quantitatif est impossible.
+    # (decimales a virgule, espaces).
     if (x_type == "numeric" && !is.null(x_var) && x_var %in% names(data) &&
         !is.numeric(data[[x_var]]) &&
         !inherits(data[[x_var]], c("Date", "POSIXct", "POSIXlt"))) {
@@ -2148,17 +2092,14 @@ mod_viz_server <- function(id, values) {
                      error = function(e) NULL)
       if (!is.null(lu) && length(lu$dates) == nrow(data) && lu$n_ok > 0) {
         data[[x_var]] <- lu$dates
-        # CE QUI A ETE LU SE DIT. Un repli silencieux vers un autre format
-        # serait la meme faute a l'envers : l'axe changerait de sens sans que
-        # personne ne sache pourquoi.
+        # CE QUI A ETE LU SE DIT.
         if (isTRUE(lu$auto))
           shiny::showNotification(
             trf("Dates lues au format « %s » : le format déclaré ne convenait pas à cette colonne.",
                 hstat_date_fmt_label(lu$format)),
             type = "message", duration = 6, id = session$ns("vizDateAuto"))
         # DEUX LECTURES POSSIBLES, ET AUCUNE N'EST PLUS JUSTE : « 01/02/2026 »
-        # est le 1er fevrier ou le 2 janvier. On tranche pour pouvoir tracer,
-        # et on le dit -- seul l'utilisateur sait d'ou vient son fichier.
+        # est le 1er fevrier ou le 2 janvier.
         if (length(lu$ambigu) > 1L)
           shiny::showNotification(
             trf("Dates ambiguës : « %s » se lit aussi en %s. Le jour et le mois ne se distinguent pas dans cette colonne ; imposez le format source si la lecture retenue n'est pas la vôtre.",
@@ -2188,14 +2129,11 @@ mod_viz_server <- function(id, values) {
         y1_vars   <- setdiff(y_vars, y2_vars)
 
         # pivot_longer empile les Y dans UNE colonne : elles doivent partager
-        # un type. La variable d'axe X choisie aussi en Y (une date, p. ex.)
-        # levait « Can't combine `Semaine` <date> and `ch_Hel` <double> », et
-        # l'erreur emportait tout le graphique. Ce qui est ecarte est nomme.
+        # un type.
         tri       <- hstat_y_multi_valides(data, y1_vars, x_var)
         valid_y1  <- tri$gardees
-        # `id` : plotData() est relu par plusieurs sorties, le meme avertissement
-        # s'empilait deux fois. Un identifiant fixe le remplace au lieu de le
-        # repeter.
+        # `id` : plotData() est relu par plusieurs sorties, le meme
+        # avertissement s'empilait deux fois.
         if (length(tri$ecartees))
           shiny::showNotification(
             trf("Variables Y ignorées (%s) : %s. Un graphique multi-courbes empile les Y dans une seule mesure, elles doivent être de même nature.",
@@ -2520,9 +2458,7 @@ mod_viz_server <- function(id, values) {
   }
   
   # Resume moyenne +/- erreur d'une courbe, ou NULL quand aucune barre n'est
-  # demandee ou calculable. Les barres entourent la MOYENNE : sous une
-  # agregation par mediane, somme ou maximum, la courbe ne passerait pas par
-  # leur centre -- on refuse et on le dit.
+  # demandee ou calculable.
   erreurs_courbe <- function(data, x_var, y_var, color_var = NULL) {
     type <- input$vizErrorBars %||% "aucune"
     if (identical(type, "aucune") || !y_var %in% names(data)) return(NULL)
@@ -2561,8 +2497,7 @@ mod_viz_server <- function(id, values) {
       else data
     }, error=function(e) data)
     # Barres d'erreur : la courbe passe par la MOYENNE de chaque abscisse, et
-    # la barre se calcule sur ses repetitions. Sans repetition, aucune barre
-    # n'est calculable : on le dit plutot que de tracer des barres nulles.
+    # la barre se calcule sur ses repetitions.
     err_df <- erreurs_courbe(data, x_var, y_var, color_var)
     if (!is.null(err_df)) data <- err_df
     data_line <- if (connect_na) data[!is.na(data[[y_var]]), , drop = FALSE] else data
@@ -2673,15 +2608,7 @@ mod_viz_server <- function(id, values) {
     return(p)
   }
   
-  # UN AXE X CONTINU NE FAIT PAS DE GROUPES TOUT SEUL. Une boite ou un violon
-  # dont l'abscisse est une DATE groupe par la valeur discrete de x -- et une
-  # date n'en a pas : ggplot tracait UNE seule boite melangeant toutes les
-  # dates (mesure : 4 dates de 3 mesures -> 1 boite), en avertissant
-  # « did you forget aes(group = ...) ». On groupe donc par la date, et par
-  # la couleur avec elle quand il y en a une : sans l'interaction, les
-  # boites de deux couleurs d'une meme date se fondraient en une.
-  # Un X numerique n'est groupe que s'il porte peu de valeurs distinctes : un
-  # nuage de 500 abscisses donnerait 500 boites d'une observation.
+  # UN AXE X CONTINU NE FAIT PAS DE GROUPES TOUT SEUL.
   .groupe_x_continu <- function(data, x_var, color_var = NULL) {
     x <- data[[x_var]]
     continu <- inherits(x, c("Date", "POSIXct", "POSIXlt")) ||
@@ -2700,11 +2627,7 @@ mod_viz_server <- function(id, values) {
     p <- ggplot2::ggplot(data, ggplot2::aes(x = .data[[x_var]], y = .data[[y_var]]))
     
     # NB capuchons de moustache : ils sont ajoutes UNIQUEMENT a l'export
-    # (hstat_add_whisker_caps dans le telechargement). A l'ecran, plotly
-    # dessine ses propres capuchons ; une couche errorbar ici deviendrait des
-    # traces desalignees apres conversion ggplotly.
-    # Points aberrants : si le jitter est affiche, on masque ceux du boxplot
-    # pour eviter leur affichage en double (points noirs + points gris).
+    # (hstat_add_whisker_caps dans le telechargement).
     out_shape <- if (isTRUE(input$showOutliers)) NA else 16
     grp <- .groupe_x_continu(data, x_var, color_var)
     if(!is.null(color_var)) {
@@ -3280,12 +3203,7 @@ mod_viz_server <- function(id, values) {
     x_var <- input$vizXVar
     viz_type <- input$vizType
 
-    # Filet de securite : le jeu prepare doit rester un tableau. Un tableau a
-    # une seule colonne (X et Y identiques, ou Y renommee par l'agregation)
-    # retombait en vecteur au premier filtrage de lignes, et ggplot rendait
-    # « dim(data) must return an <integer> of length 2 » -- message qui
-    # n'apprend rien a l'utilisateur. Les sous-ensembles passent desormais par
-    # drop = FALSE ; ce garde-fou nomme le cas restant (variable absente).
+    # Filet de securite : le jeu prepare doit rester un tableau.
     if (!is.data.frame(data)) {
       shiny::showNotification(
         "Les données du graphique ne forment pas un tableau : resélectionnez les variables X et Y.",
@@ -3361,40 +3279,10 @@ mod_viz_server <- function(id, values) {
     # d'affichage sur l'axe » ne faisait rien sur un nuage de points -- l'axe
     # sortait « Aug / Sep / Oct », les graduations automatiques de ggplot, en
     # anglais, alors que MM-JJ etait demande.
-    #
-    # La cause n'etait pas dans l'echelle : `viz_get_x_scale()` est juste, et le
-    # rendait deja. Elle etait dans sa POSE. Chaque constructeur devait
-    # l'ajouter lui-meme, et TROIS sur quatorze le faisaient (courbe et les deux
-    # saisonniers). Les onze autres -- nuage de points, barres, aire, boite,
-    # violon, histogramme, densite, carte de chaleur, camembert, anneau,
-    # treemap -- ne posaient rien. C'est la derive que ce depot corrige partout
-    # ailleurs : une regle recopiee finit par diverger, et c'est la copie
-    # oubliee qui ment. Ici elle mentait sur onze types.
-    #
-    # Et le format de date n'etait pas seul a tomber : le RENOMMAGE des
-    # etiquettes et l'ORDRE personnalise voyagent par la meme fonction.
-    #
-    # Elle est donc posee au point de passage commun, ou aucun type ne peut
-    # l'oublier. Deux reserves, chacune necessaire :
-    #
-    # 1. LES TYPES SANS AXE X CARTESIEN sont exclus. Un camembert, un anneau et
-    #    un treemap n'ont pas d'axe des abscisses : y poser une echelle ne
-    #    reglerait rien et pourrait defaire leur systeme de coordonnees.
-    # 2. ON NE POSE RIEN SI LE CONSTRUCTEUR L'A DEJA FAIT. Deux echelles ne
-    #    s'ajoutent pas : la seconde REMPLACE la premiere en avertissant. Les
-    #    trois constructeurs qui posent la leur travaillent sur un tableau
-    #    temporaire propre a leur transformation (`tmp_df_scale`) ; la remplacer
-    #    par une echelle batie sur `data` changerait leurs graduations sans
-    #    qu'on l'ait demande.
+    # 1. LES TYPES SANS AXE X CARTESIEN sont exclus.
+    # 2. ON NE POSE RIEN SI LE CONSTRUCTEUR L'A DEJA FAIT.
     # 3. L'ECHELLE SE BATIT SUR CE QUE LA FIGURE PORTE, pas sur la colonne
-    #    d'origine. Piege rencontre en posant ce bloc, et il est net : les
-    #    barres passent X en FACTEUR, l'histogramme et la densite le ramenent a
-    #    un tableau d'effectifs dont X est du CARACTERE. Une `scale_x_date`
-    #    batie sur `data[[x_var]]` -- encore une Date a ce stade -- y levait
-    #    « transform_date() works with objects of class <Date> only » et faisait
-    #    tomber trois types qui, avant, s'affichaient. C'est la meme lecon que
-    #    la mesure du cadre carre : ce qu'on regarde doit etre ce qui peut
-    #    casser. On lit donc `p$data`, les donnees reellement attachees.
+    # d'origine.
     x_scale_src <- if (is.data.frame(p$data) && x_var %in% names(p$data))
       p$data[[x_var]] else data[[x_var]]
     # 4. LE VOLCAN EN EST EXCLU : sur un X numerique, l'echelle pose une
@@ -4403,9 +4291,7 @@ mod_viz_server <- function(id, values) {
       dpi <- as.integer(max(300, min(20000, dpi)))
       
       # LA RESOLUTION NE DOIT PAS RETRECIR LA FIGURE : la taille physique est
-      # fixe, le DPI ne multiplie que la finesse. Le calcul est partage avec le
-      # panneau qui l'annonce (hstat_viz_export_dims), sans quoi les deux
-      # divergeraient a la premiere correction.
+      # fixe, le DPI ne multiplie que la finesse.
       dims <- hstat_viz_export_dims(dpi)
       w <- dims$width; h <- dims$height
 
@@ -4420,9 +4306,6 @@ mod_viz_server <- function(id, values) {
       
       # La qualite JPEG et la compression TIFF sont proposees a l'utilisateur :
       # elles etaient declarees dans l'interface et n'etaient LUES nulle part.
-      # Un reglage qu'on deplace sans effet est pire qu'un reglage absent --
-      # on croit avoir agi. Ce sont des reglages de FORMAT : ils sont passes a
-      # l'ecrivain commun, qui seul ouvre un peripherique dans l'application.
       hstat_ecrire_image(temp_file, p, fmt, w, h, dpi,
                          qualite = as.integer(hstat_finite(input$jpegQuality, 95)),
                          compression = input$tiffCompression %||% "lzw")
@@ -4595,11 +4478,7 @@ mod_viz_server <- function(id, values) {
     
     # ggplotly convertit geom_boxplot en traces plotly natives SANS reporter le
     # "dodge" de ggplot : boites superposees quand il y a PLUSIEURS boites par
-    # categorie x. boxmode = "group" corrige ce cas, mais NE DOIT PAS etre
-    # applique quand chaque trace n'a qu'une categorie (fill = X ou couleur =
-    # X) : plotly reserverait alors un "slot" par trace et decalerait les
-    # boites hors de l'axe (points de jitter desaxes). On ne l'applique donc
-    # que si la variable de couleur est distincte de X (ou multi-Y en long).
+    # categorie x.
     grouped_box <- identical(viz_type, "box") && (
       isTRUE(values$multipleY) ||
       (!is.null(input$vizColorVar) && input$vizColorVar != "Aucun" &&

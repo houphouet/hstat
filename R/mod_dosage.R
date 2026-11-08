@@ -3,54 +3,16 @@
 # -----------------------------------------------------------------------------
 #  Trois calculs que tout essai phytosanitaire refait a la main, sur un coin de
 #  table, a chaque campagne :
-#
-#   1. la DOSE de produit commercial a apporter, connaissant le grammage de
-#      matiere active vise a l'hectare ;
-#   2. le GRAMMAGE reellement apporte, connaissant la dose homologuee -- et ce
-#      que cela donne dans la cuve, puisque c'est la que se fait l'erreur ;
-#   3. les solutions FILLES obtenues d'une solution mere par un coefficient de
-#      dilution, avec le volume a prelever et l'eau a ajouter.
-#
-#  Les trois reposent sur deux egalites, et sur rien d'autre :
-#
-#      grammage = dose x concentration            (conservation de la matiere)
-#      C_mere x V_preleve = C_fille x V_final     (conservation du solute)
-#
-#  D'ou une regle de conduite pour tout ce fichier : CHAQUE resultat porte la
-#  formule qui l'a produit. Un chiffre de dose qu'on ne peut pas refaire a la
-#  main ne sera pas applique au champ -- il sera recalcule, et c'est le
-#  recalcul qui fera foi.
+# 1. la DOSE de produit commercial a apporter, connaissant le grammage de
+# matiere active vise a l'hectare ;
+# 2. le GRAMMAGE reellement apporte, connaissant la dose homologuee -- et ce
+# que cela donne dans la cuve, puisque c'est la que se fait l'erreur ;
+# 3. les solutions FILLES obtenues d'une solution mere par un coefficient de
+# dilution, avec le volume a prelever et l'eau a ajouter.
 # =============================================================================
 
 # --- Unites -----------------------------------------------------------------
 #  UN SEUL CATALOGUE, D'OU DERIVENT TOUTES LES LISTES DU MODULE.
-#
-#  Chaque unite porte sa CATEGORIE (ce qu'elle mesure), sa BASE (l'unite de
-#  reference de sa famille) et son FACTEUR vers cette base. Une conversion
-#  entre deux unites de meme base est une multiplication et une division ; un
-#  tableau deux a deux aurait des centaines de cases, et une faute de frappe
-#  y fausserait un chemin sans toucher les autres -- la regle deja posee pour
-#  les unites de rendement.
-#
-#  Les bases, et ce qui fait passer de l'une a l'autre :
-#
-#  | Categorie     | Bases           | Pont                                   |
-#  |---------------|-----------------|----------------------------------------|
-#  | masse, volume | g, L            | masse volumique : g = L x rho x 1000   |
-#  | dose          | kg/ha, L/ha     | masse volumique : kg/ha = L/ha x rho   |
-#  | concentration | g/L, g/kg, mol/L| rho : g/L = g/kg x rho ; M : g/L = mol/L x M |
-#  | surface       | ha              | --                                     |
-#
-#  UN PONT NE SE DEVINE PAS. Une masse et un volume ne se convertissent qu'avec
-#  la masse volumique du produit ; une concentration molaire qu'avec la masse
-#  molaire de la matiere active. Sans elle, la conversion rend NA ET LE DIT --
-#  poser une masse volumique de 1 par defaut rendrait 400 g/kg egal a 400 g/L,
-#  faux de 20 % sur une formulation de densite 1,2, et sans le moindre signe.
-#
-#  Le pour-cent nu reste celui des etiquettes phytosanitaires : masse/volume,
-#  1 % = 1 g pour 100 mL = 10 g/L. Le pour-cent massique est une autre unite,
-#  et il s'ecrit « % m/m ». De meme « ppm » est la convention des solutions
-#  aqueuses (1 ppm = 1 mg/L) ; sa version massique s'ecrit « ppm m/m ».
 .hstat_unites_bloc <- function(categorie, base, groupe, facteurs, libelles = NULL) {
   u <- names(facteurs)
   lib <- u
@@ -73,10 +35,7 @@
 .HSTAT_U_SURFACE <- c("m²" = 1e-4, "100 m²" = 1e-2, "a" = 1e-2, "ha" = 1,
                       "km²" = 100, "acre" = 0.40468564224)
 
-# Une dose est une quantite de produit par surface. On ne croise pas toutes les
-# quantites avec toutes les surfaces -- « t/m² » n'existe sur aucune etiquette --
-# mais celles qu'on trouve reellement sur un emballage, une notice ou un
-# protocole. Les unites anglo-saxonnes (fl oz, gal, oz, lb) vont a l'acre.
+# Une dose est une quantite de produit par surface.
 .hstat_unites_doses <- function(paires, base_num, table_num) {
   num <- vapply(strsplit(paires, "/", fixed = TRUE), `[`, "", 1)
   srf <- vapply(strsplit(paires, "/", fixed = TRUE), `[`, "", 2)
@@ -132,17 +91,12 @@ HSTAT_UNITES_CATEGORIES <- c(
 
 # Les tables nommees d'avant, DERIVEES du catalogue : elles restent la forme
 # que lisent les appels existants, et ne peuvent plus diverger de lui.
-#  - HSTAT_DOSE_UNITES : facteur vers L/ha (liquide) ou kg/ha (solide) ;
-#  - HSTAT_CONC_UNITES : facteur vers g/L, g/kg ou mol/L selon la famille ;
-#  - HSTAT_VOL_UNITES  : facteur vers le litre.
 HSTAT_DOSE_UNITES <- .hstat_unites_vecteur("dose")
 HSTAT_CONC_UNITES <- .hstat_unites_vecteur("concentration")
 HSTAT_VOL_UNITES  <- .hstat_unites_vecteur("volume")
 
 # Choix d'un selecteur, groupes par famille : une liste de quarante unites a
 # plat ne se parcourt pas, et c'est le groupe qui dit ce que l'unite mesure.
-# `trf()`/`tr()` ne sont PAS appeles ici : le libelle d'un groupe est traduit
-# par le dictionnaire du navigateur, comme toute option.
 hstat_unites_choix <- function(categorie, base = NULL) {
   u <- .hstat_unites_de(categorie)
   if (!is.null(base)) u <- u[u$base %in% base, , drop = FALSE]
@@ -159,12 +113,7 @@ hstat_unites_choix <- function(categorie, base = NULL) {
   if (length(v) == 1L && is.finite(v) && v > 0) v else NA_real_
 }
 
-# LE LITRE S'ECRIT « l », A LA DEMANDE : ml, µl, g/l, l/ha, mol/l. Les
-# ecritures en « L » majuscule restent comprises -- un tableau de dilutions
-# enregistre, un fichier colle ou un appel existant les portent encore --, et
-# sont ramenees a leur cle avant toute recherche. Seules les lettres d'unite
-# changent : « M », « mM » (molaire) et les noms qui contiennent un L dans un
-# mot ne sont pas touches.
+# LE LITRE S'ECRIT « l », A LA DEMANDE : ml, µl, g/l, l/ha, mol/l.
 .HSTAT_UNITE_L <- "(?<![A-Za-z\u00C0-\u00FF_'])([n\u00B5mcdhk]?)L(?![A-Za-z\u00C0-\u00FF_'])"
 .hstat_unite_cle <- function(u) {
   u <- as.character(u)
@@ -184,10 +133,8 @@ hstat_unite_info <- function(u) {
 # -----------------------------------------------------------------------------
 #  hstat_unite_convertir() -- la seule porte de conversion du module
 # -----------------------------------------------------------------------------
-#  `densite` est la MASSE VOLUMIQUE du produit en kg/L (soit g/mL), `masse_molaire`
-#  celle de la matiere active en g/mol. L'une et l'autre ne servent qu'a passer
-#  d'une base a l'autre ; sans elles le pont est refuse, et le motif nomme la
-#  grandeur qui manque (attribut « motif »).
+# `densite` est la MASSE VOLUMIQUE du produit en kg/L (soit g/mL),
+# `masse_molaire` celle de la matiere active en g/mol.
 hstat_unite_convertir <- function(valeur, de, vers, densite = NA, masse_molaire = NA) {
   v <- suppressWarnings(as.numeric(valeur))
   rate <- function(motif) structure(rep(NA_real_, length(v)), motif = motif)
@@ -251,9 +198,7 @@ hstat_unite_table <- function(valeur, de, densite = NA, masse_molaire = NA) {
              stringsAsFactors = FALSE)
 }
 
-# Les formules, ecrites une fois. Elles sont AFFICHEES a l'utilisateur et
-# EXPORTEES avec les resultats : c'est le meme texte, il n'a donc pas deux
-# versions qui pourraient diverger.
+# Les formules, ecrites une fois.
 HSTAT_DOSE_FORMULES <- c(
   grammage   = "Grammage (g m.a./ha) = Dose (l ou kg/ha) × Concentration (g/l ou g/kg)",
   dose       = "Dose (l ou kg/ha) = Grammage (g m.a./ha) ÷ Concentration (g/l ou g/kg)",
@@ -278,8 +223,7 @@ HSTAT_DOSE_FORMULES <- c(
 #  Conversions : une seule porte d'entree
 # ---------------------------------------------------------------------------
 # Une unite inconnue ne doit JAMAIS valoir 1 par defaut : un facteur muet
-# rendrait un resultat mille fois trop grand sans le moindre signe. On rend
-# NA, et l'appelant le nomme.
+# rendrait un resultat mille fois trop grand sans le moindre signe.
 .hstat_dose_facteur <- function(unite, table) {
   u <- .hstat_unite_cle(as.character(unite)[1])[1]
   if (is.na(u) || !nzchar(u) || !(u %in% names(table))) return(NA_real_)
@@ -289,9 +233,7 @@ HSTAT_DOSE_FORMULES <- c(
 hstat_dose_vers_ref <- function(valeur, unite)
   suppressWarnings(as.numeric(valeur)[1]) * .hstat_dose_facteur(unite, HSTAT_DOSE_UNITES)
 
-# La concentration ramenee a sa base (g/L, g/kg ou mol/L). Avec la masse
-# molaire, une concentration molaire est rendue en g/L : sans elle, NA --
-# des moles ne s'additionnent pas a des grammes.
+# La concentration ramenee a sa base (g/L, g/kg ou mol/L).
 hstat_conc_vers_ref <- function(valeur, unite, masse_molaire = NA) {
   v <- suppressWarnings(as.numeric(valeur)[1]) * .hstat_dose_facteur(unite, HSTAT_CONC_UNITES)
   b <- hstat_unite_info(unite)
@@ -309,20 +251,8 @@ hstat_dose_depuis_ref <- function(valeur, unite) {
 
 # Nombre lisible : `dec` decimales au plus, sans zeros inutiles. `format()`
 # rendrait « 1.5e+05 » sur une grande surface, illisible sur une etiquette.
-#
-# DEUX DEFAUTS CORRIGES ICI, tous deux silencieux.
-#
-# 1. LE RETRAIT DES ZEROS MANGEAIT LES ENTIERS. `sub("\\.?0+$", "")` ne demande
-#    pas de point : a zero decimale, « 1 000 » ressortait « 1 ». Le motif exige
-#    donc desormais un point, en deux passes -- les zeros APRES un chiffre
-#    significatif, puis une partie decimale entierement nulle.
-#
-# 2. UNE VALEUR NON NULLE QUI S'ARRONDIT A ZERO S'AFFICHAIT « 0 ». Sur une
-#    gamme de dilution c'est le cas NORMAL, pas le cas rare : au 1/10 depuis
-#    100 g/L, la cinquieme fille vaut 1e-3 et la septieme 1e-5. A quatre
-#    decimales, l'ecran annoncait une concentration NULLE pour une solution
-#    qui en a une. On bascule ces valeurs en notation scientifique : c'est
-#    l'ecriture des chimistes, et elle dit la verite.
+# 1. LE RETRAIT DES ZEROS MANGEAIT LES ENTIERS.
+# 2. UNE VALEUR NON NULLE QUI S'ARRONDIT A ZERO S'AFFICHAIT « 0 ».
 hstat_fmt_nb <- function(x, dec = 2) {
   v <- suppressWarnings(as.numeric(x))
   dec <- max(0L, as.integer(dec))
@@ -339,12 +269,7 @@ hstat_fmt_nb <- function(x, dec = 2) {
 }
 
 # LES CHIFFRES COMPLETS : la masse a peser et la concentration de la mere ne
-# s'arrondissent pas. C'est la valeur que l'on recopie sur la fiche de pesee,
-# et un arrondi a l'ecran (41,0256 au lieu de 41,025641025641) obligerait a
-# refaire le calcul pour retrouver ce que le calcul a donne. Quinze chiffres
-# significatifs : la precision d'un double, au-dela de laquelle on n'ecrirait
-# que du bruit d'arrondi binaire (0,1 + 0,2 sort 0,3). Pas de notation
-# scientifique : « 0.00001 » se recopie, « 1e-05 » se relit.
+# s'arrondissent pas.
 hstat_fmt_complet <- function(x) {
   v <- suppressWarnings(as.numeric(x))
   out <- trimws(formatC(v, digits = 15, format = "fg", big.mark = " "))
@@ -355,12 +280,9 @@ hstat_fmt_complet <- function(x) {
 # ---------------------------------------------------------------------------
 #  1 et 2. Dose <-> grammage
 # ---------------------------------------------------------------------------
-#  `sens` dit ce que l'utilisateur CONNAIT :
-#    "dose"     -- il connait la dose homologuee, il cherche le grammage ;
-#    "grammage" -- il connait le grammage vise, il cherche la dose.
-#
-#  Le reste (bouillie, cuve, superficie) se deduit de l'un comme de l'autre :
-#  ce sont les memes multiplications, elles n'ont pas a etre ecrites deux fois.
+# `sens` dit ce que l'utilisateur CONNAIT : "dose" -- il connait la dose
+# homologuee, il cherche le grammage ; "grammage" -- il connait le grammage
+# vise, il cherche la dose.
 # ---------------------------------------------------------------------------
 hstat_dose_bilan <- function(sens = c("dose", "grammage"),
                              valeur, unite_valeur,
@@ -396,7 +318,6 @@ hstat_dose_bilan <- function(sens = c("dose", "grammage"),
   # L'ETAT DU PRODUIT -- liquide (dose en volume) ou solide (dose en masse) --
   # se lit sur l'unite de DOSE quand on la donne, sur l'unite de CONCENTRATION
   # sinon : en g/kg ou % m/m le produit est solide, sa dose se donne en masse.
-  # L'ecrire en mL/ha rendait une dose de granules a mesurer a l'eprouvette.
   if (sens == "dose") {
     di <- hstat_unite_info(unite_valeur)
     if (is.null(di) || !identical(di$categorie, "dose"))
@@ -406,9 +327,7 @@ hstat_dose_bilan <- function(sens = c("dose", "grammage"),
     base_dose <- if (identical(ci$base, "g/kg")) "kg/ha" else "l/ha"
   }
   # La concentration se ramene a des grammes PAR UNITE DE PRODUIT DOSE : par
-  # litre pour une dose en volume, par kilogramme pour une dose en masse. Le
-  # passage de l'un a l'autre demande la masse volumique, une concentration
-  # molaire la masse molaire -- et leur absence se dit, elle ne vaut pas 1.
+  # litre pour une dose en volume, par kilogramme pour une dose en masse.
   conc <- hstat_unite_convertir(c_val, ci$unite,
                                 if (identical(base_dose, "l/ha")) "g/l" else "g/kg",
                                 densite, masse_molaire)
@@ -454,9 +373,7 @@ hstat_dose_bilan <- function(sens = c("dose", "grammage"),
   u_pet <- if (liq) "ml/ha" else "g/ha"          # petite unite du produit
   u_tot <- if (liq) "l" else "kg"
 
-  # Bouillie : la ou se joue l'erreur de terrain. Sans volume declare, ces
-  # lignes n'ont pas de valeur -- elles restent NA plutot que de sortir un
-  # zero qu'on prendrait pour une mesure.
+  # Bouillie : la ou se joue l'erreur de terrain.
   conc_bouillie <- if (a_vb) grammage / vb else NA_real_
   dose_bouillie <- if (a_vb) hstat_dose_depuis_ref(dose_ref / vb, u_pet) else NA_real_
   eau_totale    <- if (a_vb) vb * surf else NA_real_
@@ -496,10 +413,7 @@ hstat_dose_bilan <- function(sens = c("dose", "grammage"),
     stringsAsFactors = FALSE)
 
   # LA CONVERSION AJOUTE, ELLE NE REMPLACE PAS -- la regle des dilutions et des
-  # rendements. La ligne convertie se pose JUSTE APRES son originale, avec le
-  # facteur employe en guise de formule ; une conversion impossible (masse
-  # volumique absente) garde sa ligne, motif a l'appui, plutot que de
-  # disparaitre.
+  # rendements.
   ajoute_conv <- function(res, apres, valeur, de, vers, gabarit) {
     if (is.null(vers) || !nzchar(vers[1])) return(res)
     vi <- hstat_unite_info(vers[1])
@@ -535,49 +449,21 @@ hstat_dose_bilan <- function(sens = c("dose", "grammage"),
 # ---------------------------------------------------------------------------
 #  3. Dilutions : solutions filles a partir d'une solution mere
 # ---------------------------------------------------------------------------
-#  L'unite de saisie est le couple (produit, matiere active) : un produit a
-#  plusieurs matieres actives occupe plusieurs lignes. C'est ce qui permet de
-#  detailler la concentration fille de CHAQUE matiere active tout en donnant
-#  la concentration totale de la solution -- la question posee.
-#
-#  Le coefficient de dilution, le volume final et le NOMBRE DE FILLES
-#  appartiennent au PRODUIT, pas a la matiere active : deux lignes du meme
-#  produit qui les contrediraient decriraient deux preparations differentes.
-#  On le refuse en nommant le produit, plutot que de retenir l'une des deux
-#  valeurs au hasard.
-#
-#  UNE GAMME, ET LE PRELEVEMENT SE FAIT TOUJOURS DANS LA MERE :
-#
-#    C_n = C_(n-1) / k = C_mere / k^n        (chaque fille depuis la precedente)
-#    V_preleve_n x C_mere = V_final x C_n    (conservation de la matiere)
-#      d'ou  V_preleve_n = V_final / k^n
-#
-#  Le volume final est celui que l'utilisateur declare : c'est le volume de
-#  CHAQUE fille, et le volume a prelever s'en deduit. Rien n'est preleve dans
-#  une fille -- on revient a la mere a chaque etage, ce qui evite qu'une
-#  erreur de pipetage se propage a toute la gamme.
-#
-#  Le piege de la methode est a l'autre bout : le volume a prelever est divise
-#  par k a chaque etage et devient vite impipetable (100 mL au 1/10 donnent
-#  0,001 mL au cinquieme etage). Le module le SIGNALE au lieu de rendre un
-#  nombre que personne ne peut mesurer.
+# L'unite de saisie est le couple (produit, matiere active) : un produit a
+# plusieurs matieres actives occupe plusieurs lignes.
 # ---------------------------------------------------------------------------
 HSTAT_DILUTION_COLS <- c("Produit", "Matiere_active", "Concentration_mere",
                          "Unite", "Coefficient", "Volume_final", "Unite_volume")
 
 # Le nombre de filles est FACULTATIF : absent, il vaut 1, ce qui redonne
-# exactement le comportement d'avant la gamme. Un appel existant continue
-# donc de rendre ce qu'il rendait.
+# exactement le comportement d'avant la gamme.
 HSTAT_DILUTION_NB_MAX <- 50L
 
-# En dessous, le prelevement ne se mesure plus a la pipette. Ce n'est pas une
-# erreur de calcul : c'est un plan de gamme irrealisable, et il vaut mieux le
-# dire avant la paillasse qu'apres.
+# En dessous, le prelevement ne se mesure plus a la pipette.
 HSTAT_DILUTION_MIN_ML <- 0.01
 
 # Au-dela, un nombre a virgule flottante double ne porte plus d'information :
-# afficher une seizieme decimale, ce serait inventer de la precision. La borne
-# est donc une VERITE de la representation, pas un choix d'interface.
+# afficher une seizieme decimale, ce serait inventer de la precision.
 HSTAT_DEC_MAX <- 15L
 
 hstat_dilution_table_vide <- function(n = 3) {
@@ -621,9 +507,7 @@ hstat_dilution_calcul <- function(df) {
   d$Nb_filles[!is.finite(d$Nb_filles)] <- 1
 
   # LA CONCENTRATION DE DEPART EST FACULTATIVE, et c'est tout son interet : une
-  # gamme ne commence pas toujours a C_mere/k. Absente, le premier etage vaut
-  # le coefficient courant et le calcul est EXACTEMENT celui d'avant -- un
-  # tableau existant continue donc de rendre ce qu'il rendait.
+  # gamme ne commence pas toujours a C_mere/k.
   d$Concentration_depart <- if ("Concentration_depart" %in% names(df))
     suppressWarnings(as.numeric(df$Concentration_depart)) else rep(NA_real_, nrow(d))
 
@@ -652,8 +536,6 @@ hstat_dilution_calcul <- function(df) {
                     paste(unique(d$Produit[mauvaise_c]), collapse = ", "))))
 
   # Un coefficient inferieur a 1 CONCENTRE la solution au lieu de la diluer.
-  # C'est presque toujours une inversion de saisie (0,1 pour 10) : on le dit
-  # au lieu de rendre un volume a prelever superieur au volume final.
   mauvais_k <- !is.finite(d$Coefficient) | d$Coefficient < 1
   if (any(mauvais_k))
     return(vide(trf("Coefficient de dilution absent ou inférieur à 1 pour : %s. Un coefficient de 10 signifie une dilution au 1/10 ; une valeur inférieure à 1 concentrerait la solution.",
@@ -702,21 +584,8 @@ hstat_dilution_calcul <- function(df) {
   d <- d[order(d$Produit, d$Matiere_active), , drop = FALSE]
 
   # -- Le PREMIER etage, quand l'utilisateur le fixe -------------------------
-  #  Donner la concentration de la premiere fille revient a fixer le
-  #  coefficient du PREMIER etage : k1 = C_mere / C_depart. Les etages suivants
-  #  gardent le coefficient courant.
-  #
-  #  UNE DILUTION EST UN GESTE UNIQUE SUR LA SOLUTION MERE : elle divise TOUTES
-  #  les matieres actives par le meme nombre. Une concentration de depart est
-  #  donc saisie par matiere active -- c'est une concentration de celle-ci --
-  #  mais le k1 qu'elle implique appartient au PRODUIT. Deux matieres actives
-  #  qui en impliqueraient deux differents decriraient deux gestes differents
-  #  sur le meme flacon : on le refuse en nommant le produit.
-  #
-  #  La tolerance est RELATIVE et lache (0,1 %) : les concentrations sont
-  #  saisies a la main et souvent arrondies (33,3 pour 5 et 3,33 pour 0,5
-  #  donnent 10,009 et 10). Une vraie erreur de saisie, elle, se compte en
-  #  dizaines de pour-cent.
+  # Donner la concentration de la premiere fille revient a fixer le coefficient
+  # du PREMIER etage : k1 = C_mere / C_depart.
   k1_par_produit <- function(sp) {
     dep <- sp$Concentration_depart
     ok  <- is.finite(dep) & is.finite(sp$Concentration_mere) & sp$Concentration_mere > 0
@@ -740,10 +609,9 @@ hstat_dilution_calcul <- function(df) {
     contradictoire = trf("Concentrations de départ contradictoires pour : %s. Une dilution divise toutes les matières actives d'un flacon par le même nombre : les concentrations de départ doivent être dans le même rapport que les concentrations mères.", p))
 
   # -- La gamme : une fille par rang, pour chaque matiere active ------------
-  #  C_n = C_1 / k^(n-1) = C_mere / (k1 x k^(n-1)), et le prelevement se fait
-  #  TOUJOURS dans la mere : V_preleve_n x C_mere = V_final x C_n, d'ou
-  #  V_preleve_n = V_final x C_n / C_mere. Sans concentration de depart,
-  #  k1 = k et l'on retrouve exactement C_mere / k^n et V_final / k^n.
+  # C_n = C_1 / k^(n-1) = C_mere / (k1 x k^(n-1)), et le prelevement se fait
+  # TOUJOURS dans la mere : V_preleve_n x C_mere = V_final x C_n, d'ou
+  # V_preleve_n = V_final x C_n / C_mere.
   morceaux <- list()
   emploie_depart <- FALSE
   for (p in unique(d$Produit)) {
@@ -773,11 +641,6 @@ hstat_dilution_calcul <- function(df) {
 
   # La concentration ramenee a g/L rend les matieres actives ADDITIONNABLES :
   # sommer des pour-cent et des mg/L donnerait un total qui ne veut rien dire.
-  # Une unite m/m (g/kg, % m/m) ne devient des g/L qu'avec la masse volumique
-  # de la mere, une unite molaire qu'avec la masse molaire : sans elles, le
-  # total de CE produit n'est pas calcule, et on le dit. Les traiter comme des
-  # g/L -- ce que faisait la version d'avant pour g/kg -- rendait un total
-  # faux de l'ecart de densite, sans le moindre signe.
   g_l <- vapply(seq_len(nrow(d)), function(i)
     hstat_unite_convertir(d$Concentration_fille[i], d$Unite[i], "g/l",
                           d$Densite[i], d$Masse_molaire[i])[1], numeric(1))
@@ -787,18 +650,14 @@ hstat_dilution_calcul <- function(df) {
   sans_total <- unique(d$Produit[!is.finite(g_l)])
 
   # Ce que la MERE doit fournir : la somme de tous les prelevements, puisqu'ils
-  # viennent tous d'elle. « Ai-je assez de solution mere ? » est la premiere
-  # question qu'on se pose devant une gamme, et la seule qu'on ne puisse pas
-  # rattraper une fois la paillasse installee.
+  # viennent tous d'elle.
   v_mere <- tapply(ifelse(!duplicated(cle), d$Volume_a_prelever, 0),
                    d$Produit, sum, na.rm = TRUE)
 
   d <- d[order(d$Produit, d$Rang, d$Matiere_active), , drop = FALSE]
   # Le volume a prelever, l'eau a ajouter et la concentration totale
   # appartiennent au couple (PRODUIT, RANG) : les repeter sur chaque matiere
-  # active ferait croire qu'il faut prelever autant de fois. Ils ne figurent
-  # donc que sur la premiere ligne -- apres le tri, sans quoi ce ne serait
-  # pas la bonne.
+  # active ferait croire qu'il faut prelever autant de fois.
   cle <- paste(d$Produit, d$Rang, sep = "\u001f")
   suivante <- duplicated(cle)
   for (k2 in c("Volume_a_prelever", "Volume_eau_a_ajouter", "Concentration_totale_g_L"))
@@ -809,8 +668,7 @@ hstat_dilution_calcul <- function(df) {
     unname(v_mere[unique(d$Produit)])
 
   # La colonne de depart DISPARAIT quand personne ne s'en sert : une colonne
-  # vide fait croire a une information absente. Meme regle que « Groupe » et
-  # « Variable » dans le calcul d'efficacite.
+  # vide fait croire a une information absente.
   cols <- c("Produit", "Matiere_active", "Concentration_mere",
             if (emploie_depart) "Concentration_depart", "Unite",
             if (any(is.finite(d$Densite))) "Densite",
@@ -842,9 +700,7 @@ hstat_dilution_calcul <- function(df) {
 
 # Les noms de colonne sont des IDENTIFIANTS -- le code y accede par
 # `res$Volume_a_prelever`, et un nom accentue casserait cet acces sur une
-# machine hors UTF-8. Ils sont donc relabellises a l'AFFICHAGE, ici et dans
-# l'export : les deux, sinon le fichier telecharge garde l'orthographe que
-# l'ecran vient de corriger.
+# machine hors UTF-8.
 HSTAT_DILUTION_LIBELLES <- c(
   Produit                   = "Produit",
   Matiere_active            = "Matière active",
@@ -868,9 +724,7 @@ HSTAT_DILUTION_LIBELLES <- c(
   Concentration_mere_conv   = "Concentration mère convertie",
   Concentration_precedente_conv = "Concentration précédente convertie",
   Concentration_fille_conv  = "Concentration fille convertie",
-  # Les colonnes de conversion. Elles ne remplacent pas leurs originales, elles
-  # les accompagnent : le libellé doit donc dire « converti » sans ambiguïté,
-  # sans quoi deux colonnes de volume côte à côte se confondraient.
+  # Les colonnes de conversion.
   Unite_volume_conv         = "Unité convertie",
   Volume_final_conv         = "Volume final converti",
   Volume_a_prelever_conv    = "Volume à prélever converti",
@@ -878,16 +732,6 @@ HSTAT_DILUTION_LIBELLES <- c(
   Volume_mere_requis_conv   = "Solution mère nécessaire convertie")
 
 # Volumes ramenes a UNE unite commune.
-#
-# Chaque produit garde SON unite de saisie, ce qui est juste a la saisie et
-# illisible au resultat : deux produits declares l'un en litres et l'autre en
-# millilitres donnent une colonne « volume à prélever » ou 0,1 et 100 designent
-# la meme chose. La conversion rend la colonne comparable -- et c'est elle qui
-# donne son interet au microlitre, l'unite dans laquelle une gamme profonde
-# cesse d'etre une suite de zeros.
-#
-# `unite` vaut NULL ou "" pour ne rien convertir : c'est une OPTION, le defaut
-# reste l'unite de saisie.
 HSTAT_DILUTION_VOL_COLS <- c("Volume_final", "Volume_a_prelever",
                              "Volume_eau_a_ajouter", "Volume_mere_requis")
 
@@ -905,14 +749,7 @@ hstat_dilution_convertir <- function(d, unite = NULL, unite_conc = NULL) {
   ok <- is.finite(depuis) & depuis > 0
   if (!any(ok)) return(d)
 
-  # LA CONVERSION AJOUTE, ELLE NE REMPLACE PAS. Une premiere version ecrasait
-  # la valeur saisie : l'utilisateur qui avait tape « 100 mL » ne le retrouvait
-  # plus nulle part, et ne pouvait plus verifier ce qu'il avait entre. Or c'est
-  # la premiere chose qu'on relit devant une paillasse -- la valeur convertie
-  # sert au geste, la valeur saisie sert au controle.
-  #
-  # Chaque colonne convertie est posee JUSTE APRES son originale : l'oeil
-  # apparie les deux sans avoir a traverser le tableau.
+  # LA CONVERSION AJOUTE, ELLE NE REMPLACE PAS.
   for (k in intersect(HSTAT_DILUTION_VOL_COLS, names(d))) {
     v <- rep(NA_real_, nrow(d))
     v[ok] <- d[[k]][ok] * depuis[ok] / vers
@@ -927,9 +764,7 @@ hstat_dilution_convertir <- function(d, unite = NULL, unite_conc = NULL) {
 
 # Les concentrations converties, sur le meme principe que les volumes : chaque
 # colonne convertie suit son originale, et l'unite convertie est une colonne a
-# part. Le pont entre familles (m/v, m/m, molaire) passe par la masse volumique
-# et la masse molaire de la ligne : une ligne qui ne les porte pas garde une
-# case vide plutot qu'un chiffre faux.
+# part.
 HSTAT_DILUTION_CONC_COLS <- c("Concentration_mere", "Concentration_precedente",
                               "Concentration_fille")
 
@@ -953,9 +788,7 @@ HSTAT_DILUTION_CONC_COLS <- c("Concentration_mere", "Concentration_precedente",
 # diverger sur le cas limite -- ici, la colonne « apres » introuvable.
 
 # Le tableau des solutions filles decoupe par produit, une entree par produit
-# dans l'ordre du tableau, chacune relabellisee comme a l'ecran. Le nom de la
-# feuille est celui du produit : l'ecrivain de classeurs le nettoie (caracteres
-# interdits par Excel, 31 caracteres) et distingue deux noms devenus egaux.
+# dans l'ordre du tableau, chacune relabellisee comme a l'ecran.
 hstat_dilution_feuilles <- function(d) {
   if (!is.data.frame(d) || !nrow(d) || !"Produit" %in% names(d)) return(list())
   p <- as.character(d$Produit)
@@ -980,9 +813,8 @@ hstat_dilution_affichage <- function(d) {
 # =============================================================================
 #  INTERFACE
 # =============================================================================
-#  Deux onglets, parce que ce sont deux questions distinctes : ce qu'on apporte
-#  a l'hectare, et ce qu'on prepare au laboratoire. Les melanger sur un meme
-#  ecran obligerait a lire des champs qui ne servent pas au calcul en cours.
+# Deux onglets, parce que ce sont deux questions distinctes : ce qu'on apporte
+# a l'hectare, et ce qu'on prepare au laboratoire.
 
 .hstat_dose_bloc_formule <- function(txt) {
   shiny::div(
@@ -996,20 +828,6 @@ hstat_dilution_affichage <- function(d) {
 #  SOLUTION MERE : LES TROIS TYPES DE TEST DES PROTOCOLES DU PROGRAMME COTON
 # =============================================================================
 #  Le type de test decide de la GRANDEUR publiee et de la formule de la mere :
-#
-#  | Test                          | Grandeur      | Unite du niveau | Mere          |
-#  |-------------------------------|---------------|-----------------|---------------|
-#  | application topique           | dose (DL)     | µg/g            | Q en µg       |
-#  | trempage de disques (IRAC 035)| concentration | mg/L            | m en mg       |
-#  | tubes impregnes (vial test)   | concentration | µg/tube         | Q en mg       |
-#
-#  Les formules sont celles des protocoles, reprises a l'identique et ECRITES
-#  UNE FOIS : l'ecran les affiche a cote de chaque resultat, comme pour les
-#  doses et les dilutions de ce module. Un chiffre de pesee qu'on ne peut pas refaire a
-#  la main ne sera pas pese, il sera recalcule.
-#
-#  Le calcul vit ici, hors du serveur, pour etre teste : une pesee fausse ne
-#  leve rien, elle rend une serie entiere decalee d'un facteur constant.
 HSTAT_MERE_TESTS <- list(
   topique = list(
     libelle   = "Application topique (dose par masse corporelle) — DL",
@@ -1095,10 +913,9 @@ hstat_mere_topique <- function(D, x, V, a = 1, P) {
        niveau_haut = D)
 }
 
-# -- Concentration (trempage de disques, IRAC 035) ------------------------------
-# C : concentration visee de la mere (mg/mL) ; V : volume final (mL).
-# `P` est la purete (technique) ou la teneur massique (formulations en % m/m) ;
-# `teneur` la teneur en g/L d'une formulation liquide ; `densite` en g/mL.
+# -- Concentration (trempage de disques, IRAC 035)
+# ------------------------------ C : concentration visee de la mere (mg/mL) ; V
+# : volume final (mL).
 hstat_mere_concentration <- function(C, V, produit = "technique", P = NA,
                                           teneur = NA, densite = NA) {
   produit <- if (length(produit) && produit[1] %in% HSTAT_MERE_PRODUITS)
@@ -1130,14 +947,10 @@ hstat_mere_concentration <- function(C, V, produit = "technique", P = NA,
   res
 }
 
-# -- Tubes impregnes (vial test) ------------------------------------------------
-# C : concentration de matiere active de la solution (mg/l, soit µg/ml) ;
-# V : volume de solution a preparer (ml) ; P : purete (%) ; v : volume depose
-# dans chaque flacon (ml). Exemple de la fiche de laboratoire : C = 40 mg/l
-# (40 µg/ml), P = 97,5 % -> Q = 40 × 100 / 97,5 = 41,0256 mg pour 1 l, soit
-# 4,10256 mg pour 100 ml. La masse a peser SUIT le volume prepare : c'est
-# C × V qui donne la matiere active, la purete corrige vers le haut.
-# `Vprep` (ml) convertit la pesee pour un autre volume que V.
+# -- Tubes impregnes (vial test)
+# ------------------------------------------------ C : concentration de matiere
+# active de la solution (mg/l, soit µg/ml) ; V : volume de solution a preparer
+# (ml) ; P : purete (%) ; v : volume depose dans chaque flacon (ml).
 hstat_mere_tube <- function(C, v, V, P, Vprep = NA) {
   C <- .hstat_mere_pos(C); v <- .hstat_mere_pos(v); V <- .hstat_mere_pos(V)
   P <- .hstat_mere_purete(P)
@@ -1153,21 +966,7 @@ hstat_mere_tube <- function(C, v, V, P, Vprep = NA) {
 }
 
 
-# Un champ du protocole et son unite. La valeur se saisit dans l'unite choisie,
-# et le serveur la ramene a celle de la formule (`.mere_val()`) : la formule
-# affichee reste celle du protocole, au chiffre pres.
-# -- Matieres actives : une liste a choisir, et la saisie libre reste permise --
-#
-# Les noms se tapent a chaque essai, et une orthographe qui varie
-# (« Lambda cyhalothrin », « lambda-cyhalothrin ») fait deux produits la ou il
-# n'y en a qu'un -- dans le tableau des dilutions, deux lignes qui ne se
-# regroupent pas. Le champ propose donc une liste, filtree a mesure qu'on
-# tape, et accepte un nom absent de la liste.
-#
-# LA LISTE EST CELLE FOURNIE PAR L'UTILISATEUR (matieres actives du coton
-# homologuees, liste CSP), recopiee telle quelle et dans son ordre : noms
-# communs internationaux, sans traduction ni correction. Elle n'entre pas au
-# dictionnaire -- un nom de matiere active est une donnee, pas un libelle.
+# Un champ du protocole et son unite.
 HSTAT_MATIERES_ACTIVES <- c(
   "2,4-D (amine salt)", "Abamectin", "Acetamiprid", "Alpha-cypermethrin",
   "Ametryn", "Azadirachtin", "Azoxystrobin", "Bacillus thuringiensis",
@@ -1199,17 +998,7 @@ HSTAT_MATIERES_ACTIVES <- c(
   "Terbuthylazine", "Terbutryn", "Thiacloprid", "Thiamethoxam", "Thidiazuron",
   "Thiram", "Tolfenpyrad", "Trifloxysulfuron", "Trifloxysulfuron-sodium")
 
-# Les ajouts de l'utilisateur, gardes d'une session a l'autre. Le fichier se
-# lit et s'ecrit dans le dossier de donnees de l'utilisateur, un nom par ligne
-# : il se corrige a la main (une faute de frappe enregistree se retire en
-# supprimant sa ligne). `options(hstat.ma.fichier = NA)` coupe l'enregistrement.
-#
-# EN SESSION INTERACTIVE SEULEMENT, comme la mise a jour de `run_hstat()`. Sur
-# un serveur partage, le fichier serait commun a tous les visiteurs : n'importe
-# lequel, avec un client modifie, y ecrirait ce qu'il veut, et ses noms
-# apparaitraient dans les listes de tous les autres. Les ajouts y restent ceux
-# de la session ; une option `hstat.ma.fichier` explicite les rend persistants
-# en connaissance de cause.
+# Les ajouts de l'utilisateur, gardes d'une session a l'autre.
 hstat_ma_fichier <- function() {
   f <- getOption("hstat.ma.fichier")
   if (!is.null(f)) return(if (is.na(f[1])) NA_character_ else as.character(f[1]))
@@ -1219,10 +1008,7 @@ hstat_ma_fichier <- function() {
   file.path(tools::R_user_dir("HStat", "data"), "matieres_actives_ajoutees.txt")
 }
 
-# Plafond des ajouts : au-dela, rien ne s'ecrit plus. Un vocabulaire de
-# matieres actives n'a pas mille entrees de plus que la liste fournie ; un
-# fichier qui les atteint est un fichier pollue, et chaque liste deroulante
-# le porterait en entier.
+# Plafond des ajouts : au-dela, rien ne s'ecrit plus.
 HSTAT_MA_AJOUTS_MAX <- 1000L
 
 hstat_ma_ajoutees <- function(fichier = hstat_ma_fichier()) {
@@ -1235,9 +1021,7 @@ hstat_ma_ajoutees <- function(fichier = hstat_ma_fichier()) {
   unique(v[nzchar(v)])
 }
 
-# Les choix proposes : la liste fournie, puis les ajouts. UNE seule
-# composition -- le champ, la liste de suggestions du tableau, les mises a
-# jour des champs deja affiches et la fiche DL50 la lisent tous.
+# Les choix proposes : la liste fournie, puis les ajouts.
 hstat_ma_choix <- function(ajouts = character(0)) {
   ch <- unique(c(HSTAT_MATIERES_ACTIVES, as.character(ajouts)))
   ch[!is.na(ch) & nzchar(ch)]
@@ -1258,8 +1042,7 @@ hstat_ma_catalogue <- function(fichier = hstat_ma_fichier())
 
 # Les ajouts de la SESSION, partages par les deux modules qui saisissent une
 # matiere active : un nom tape dans « Doses & dilutions » est propose aussitot
-# dans la fiche d'essai DL50, et l'inverse. Range dans `session$userData`, que
-# les sessions de module partagent avec la session racine.
+# dans la fiche d'essai DL50, et l'inverse.
 hstat_ma_session <- function(session) {
   ud <- session$userData
   if (is.null(ud$hstat_ma)) ud$hstat_ma <- shiny::reactiveVal(hstat_ma_ajoutees())
@@ -1267,9 +1050,7 @@ hstat_ma_session <- function(session) {
 }
 
 # Retient les noms tapes hors liste : rend ceux qui sont reellement nouveaux,
-# enregistres ou non, et l'annonce. Partage par les deux modules qui saisissent
-# une matiere active. Un appel n'en retient que `HSTAT_MA_PAR_APPEL` : un
-# vecteur forge de mille valeurs n'en fait pas mille entrees.
+# enregistres ou non, et l'annonce.
 HSTAT_MA_PAR_APPEL <- 20L
 hstat_ma_retenir <- function(noms, connus = character(0)) {
   noms <- utils::head(.hstat_ma_nettoyer(noms), HSTAT_MA_PAR_APPEL)
@@ -1283,10 +1064,7 @@ hstat_ma_retenir <- function(noms, connus = character(0)) {
   neuf
 }
 
-# Ajoute ce qui est NOUVEAU, une ligne par nom. Un nom deja dans la liste ou
-# deja ajoute (casse comprise) ne s'ajoute pas deux fois : « deltamethrin »
-# a cote de « Deltamethrin » est precisement le doublon que la liste existe
-# pour eviter. Rend les noms reellement ajoutes.
+# Ajoute ce qui est NOUVEAU, une ligne par nom.
 hstat_ma_ajouter <- function(noms, fichier = hstat_ma_fichier()) {
   noms <- .hstat_ma_nettoyer(noms)
   deja <- hstat_ma_ajoutees(fichier)
@@ -1327,10 +1105,7 @@ mod_dosage_ui <- function(id) {
               "dose qu'on ne peut pas refaire à la main sera de toute façon",
               "recalculé."))),
 
-    # L'ARRONDI EST UN CHOIX DE L'UTILISATEUR, jamais un defaut. Decochee, la
-    # case laisse chaque resultat a sa precision complete (hstat_fmt_complet) :
-    # c'est la valeur que l'on recopie sur une fiche de pesee. Un seul reglage
-    # pour les quatre onglets, comme dans les tests et les descriptives.
+    # L'ARRONDI EST UN CHOIX DE L'UTILISATEUR, jamais un defaut.
     shiny::div(style = "background-color: #e8f4f8; border-left: 4px solid #17a2b8; padding: 10px; margin-bottom: 12px;",
       shiny::fluidRow(
         shiny::column(4, shiny::checkboxInput(ns("dosArrondir"), "Arrondir les résultats", value = FALSE)),
@@ -1359,9 +1134,7 @@ mod_dosage_ui <- function(id) {
                 "Concentration en matière active", value = 400, min = 0, step = 1)),
               shiny::column(5, shiny::selectInput(ns("doseConcUnite"), "Unité",
                 choices = hstat_unites_choix("concentration"), selected = "g/l"))),
-            # Les deux ponts entre familles d'unites. Facultatifs : ils ne
-            # servent que si la dose et la concentration ne parlent pas de la
-            # meme chose (mL/ha et g/kg), ou si la concentration est molaire.
+            # Les deux ponts entre familles d'unites.
             shiny::fluidRow(
               shiny::column(6, shiny::numericInput(ns("doseDensite"),
                 "Masse volumique du produit (kg/l)", value = NULL, min = 0, step = 0.01)),
@@ -1446,9 +1219,8 @@ mod_dosage_ui <- function(id) {
                                   class = "btn-sm")))),
 
       # ------------------------------------------------------------------
-      # LA SOLUTION MERE SE PREPARE AVANT L'ESSAI, et le type de test decide
-      # de sa formule comme de la grandeur publiee (DL ou CL). Les formules
-      # sont celles des protocoles, affichees a cote de chaque chiffre.
+      # LA SOLUTION MERE SE PREPARE AVANT L'ESSAI, et le type de test decide de
+      # sa formule comme de la grandeur publiee (DL ou CL).
       shiny::tabPanel(
         shiny::tagList(shiny::icon("flask"), " Solution mère"), value = "mere",
         shiny::div(style = "padding-top:14px;"),
@@ -1504,8 +1276,7 @@ mod_dosage_ui <- function(id) {
             shiny::uiOutput(ns("mereResultat")),
             # La gamme se prepare dans l'onglet des dilutions, qui sait deja
             # tout faire : prelevement dans la mere, eau a ajouter, besoin en
-            # solution mere, plusieurs produits. Une seconde gamme ici en
-            # aurait fait deux, et c'est la copie oubliee qui ment.
+            # solution mere, plusieurs produits.
             shiny::actionButton(ns("mereVersDilution"),
               shiny::tagList(shiny::icon("share"),
                              " Utiliser cette solution mère dans « Solutions filles (dilutions) »"),
@@ -1626,8 +1397,7 @@ mod_dosage_ui <- function(id) {
             DT::DTOutput(ns("dilSaisie")),
             # Le champ d'edition de la colonne « Matiere active » recoit la
             # liste des matieres actives en suggestions (`list`), a l'instant
-            # ou DT le cree. Delegue sur le document, en jQuery : DT recree
-            # le champ a chaque double-clic.
+            # ou DT le cree.
             shiny::uiOutput(ns("maListeUi")),
             shiny::tags$script(shiny::HTML(sprintf(
               "$(document).on('focusin', '#%s td input[type=text]', function() {
@@ -1658,9 +1428,7 @@ mod_dosage_ui <- function(id) {
                                   class = "btn-sm")))),
 
       # ------------------------------------------------------------------
-      # LE CONVERTISSEUR : une valeur, toutes ses ecritures. Il lit le meme
-      # catalogue que les trois autres onglets -- une table de conversion
-      # recopiee ici finirait par contredire celle des calculs.
+      # LE CONVERTISSEUR : une valeur, toutes ses ecritures.
       shiny::tabPanel(
         shiny::tagList(shiny::icon("right-left"), " Convertisseur d'unités"),
         shiny::div(style = "padding-top:14px;"),
@@ -1703,10 +1471,9 @@ mod_dosage_ui <- function(id) {
 mod_dosage_server <- function(id, values) {
   shiny::moduleServer(id, function(input, output, session) {
 
-    # La mise en forme d'un resultat suit le reglage « Arrondir les resultats » :
-    # decoche (le defaut), la valeur est complete ; coche, elle est arrondie au
-    # nombre de decimales demande. Lu a chaque rendu, donc reactif.
-    # NULL quand l'arrondi n'est pas demande.
+    # La mise en forme d'un resultat suit le reglage « Arrondir les resultats »
+    # : decoche (le defaut), la valeur est complete ; coche, elle est arrondie
+    # au nombre de decimales demande.
     .dec <- function() {
       if (!isTRUE(input$dosArrondir)) return(NULL)
       max(0L, min(HSTAT_DEC_MAX, as.integer(.hstat_num1(input$dosDecimales, 2))))
@@ -1715,10 +1482,7 @@ mod_dosage_server <- function(id, values) {
       dec <- .dec()
       if (is.null(dec)) hstat_fmt_complet(x) else hstat_fmt_nb(x, dec)
     }
-    # LE FICHIER PORTE DES NOMBRES, PAS LEUR MISE EN FORME. Le texte de
-    # l'ecran porte un separateur de milliers (« 1 234.5 ») : exporte tel quel,
-    # un tableur le lit comme du texte et le separateur passe pour une
-    # decimale de plus. L'arrondi demande vaut aussi pour le fichier.
+    # LE FICHIER PORTE DES NOMBRES, PAS LEUR MISE EN FORME.
     .num_export <- function(d) {
       if (is.null(d)) return(NULL)
       dec <- .dec()
@@ -1761,11 +1525,6 @@ mod_dosage_server <- function(id, values) {
                function(x) shiny::tags$option(value = x))))
     shiny::outputOptions(output, "maListeUi", suspendWhenHidden = FALSE)
     # Les choix des champs deja affiches suivent ; chacun garde sa valeur.
-    # PAS `ignoreInit` : le premier passage pose les ajouts d'une session
-    # precedente sur le champ de la dose, construit avec la seule liste
-    # fournie -- sans lui, un nom enregistre n'y serait jamais propose.
-    # L'apparition du champ de la dose (premier message du navigateur) relance
-    # aussi la mise a jour : un champ encore absent ne recoit rien.
     shiny::observeEvent(list(ma_saisies(), is.null(input$doseMatiere)), {
       choix <- hstat_ma_choix(ma_saisies())
       for (id in .ma_ids()) {
@@ -1811,9 +1570,7 @@ mod_dosage_server <- function(id, values) {
     output$doseMessage <- shiny::renderUI(bandeau(attr(dose_res(), "message")))
 
     # Le tableau affiche porte les valeurs MISES EN FORME : une dose de
-    # 4.166666666667 mL/L ne se verse pas. Le fichier telecharge garde la
-    # meme mise en forme -- deux precisions differentes a l'ecran et dans le
-    # fichier feraient douter du calcul.
+    # 4.166666666667 mL/L ne se verse pas.
     dose_affiche <- shiny::reactive({
       d <- dose_res()
       if (!nrow(d)) return(NULL)
@@ -1883,23 +1640,12 @@ mod_dosage_server <- function(id, values) {
 
     # ------------------------------------------------------------ dilution
     # Le tableau part VIDE : les produits y sont deposes par le formulaire.
-    # Une ligne d'exemple prete a etre calculee ferait sortir un resultat que
-    # personne n'a demande.
     saisie <- shiny::reactiveVal(hstat_dilution_table_vide(0))
 
     # -- Une paire de champs par matiere active ----------------------------
     # Les valeurs deja saisies sont relues avant de reconstruire les champs :
     # sans cela, passer de 2 a 3 matieres actives effacerait les deux
     # premieres, ce qui est exactement le moment ou on ne veut pas ressaisir.
-    # Une unite MOLAIRE ajoute une colonne : la masse molaire, propre a chaque
-    # matiere active. Offerte pour une unite en g/L, elle serait un reglage
-    # que le calcul ignore.
-    #
-    # Un reactiveVal, pas un reactive : il ne change -- et ne fait reconstruire
-    # les champs -- que si l'on passe d'une unite massique a une unite molaire.
-    # Un reactive se reinvaliderait a CHAQUE changement d'unite, et la
-    # reconstruction relirait les champs avant que la valeur reprise de la
-    # solution mere n'y soit posee : elle serait effacee.
     dil_molaire <- shiny::reactiveVal(FALSE)
     shiny::observe({
       b <- hstat_unite_info(input$dilUnite %||% "g/l")
@@ -2066,8 +1812,6 @@ mod_dosage_server <- function(id, values) {
       info <- input$dilSaisie_cell_edit
       d <- saisie()
       # Le message vient du navigateur : une seule cellule EXISTANTE, ou rien.
-      # `row = -1` ecrasait sinon toutes les lignes sauf la premiere, et
-      # `row = 2e6` faisait grossir le tableau d'autant (hstat_indice_client).
       i <- hstat_indice_client(info$row, nrow(d))
       j <- hstat_indice_client(info$col + 1L, ncol(d))   # `rownames = FALSE` decale d'un
       if (is.na(i) || is.na(j) || length(info$value) != 1L) return()
@@ -2119,9 +1863,6 @@ mod_dosage_server <- function(id, values) {
 
     # Les formules partent AVEC les resultats : un fichier de dilutions sans
     # ses formules oblige a rouvrir l'application pour savoir ce qu'il dit.
-    # UNE FEUILLE PAR PRODUIT : la gamme d'un produit se prepare a part, et un
-    # classeur ou trois produits s'enchainent sur une seule feuille oblige a
-    # trier avant de peser. Les formules suivent sur leur propre feuille.
     dil_tables <- function() {
       d <- .num_export(dil_brut())
       if (is.null(d)) return(NULL)
@@ -2201,8 +1942,7 @@ mod_dosage_server <- function(id, values) {
                       paste(.fmt(r$dose_individu), "µg"), "D × x")),
         disque = c(
           # La matiere active pure (C × V) n'est pas une ligne : on ne la pese
-          # pas, et elle se lisait comme la quantite a peser. Le produit de
-          # grade technique se nomme par son grade.
+          # pas, et elle se lisait comme la quantite a peser.
           if (!is.null(r$m_pese)) list(
             .mere_ligne(if (identical(r$produit, "technique")) tr("Grade technique")
                         else tr("Produit à peser"), paste(.fmt(r$m_pese), "mg"),
@@ -2239,10 +1979,7 @@ mod_dosage_server <- function(id, values) {
         do.call(shiny::tags$tbody, lignes))
     })
 
-    # LA CONCENTRATION DE LA MERE PART VERS LES DILUTIONS. Les trois protocoles
-    # la rendent dans la meme grandeur : mg/mL pour le trempage et le vial
-    # test, µg/µL pour l'application topique -- c'est la meme chose (1 µg/µL
-    # = 1 mg/mL). Elle entre donc en mg/mL, sans conversion a deviner.
+    # LA CONCENTRATION DE LA MERE PART VERS LES DILUTIONS.
     shiny::observeEvent(input$mereVersDilution, {
       r <- mere_calc()
       if (!isTRUE(r$ok) || !isTRUE(is.finite(r$c_mere)) || r$c_mere <= 0) {

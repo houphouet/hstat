@@ -550,9 +550,7 @@ mod_clean_ui <- function(id) {
                         shiny::uiOutput(ns("outlierSummary")),
                         # Sortie DEDIEE : `renderTable()` appele depuis un
                         # renderUI ne produit qu'un conteneur vide, jamais
-                        # alimente. Le tableau des bornes ne s'affichait donc
-                        # jamais -- et la note en dessous expliquait des
-                        # « Bornes basse/haute » absentes de l'ecran.
+                        # alimente.
                         shiny::div(style = "overflow-x:auto; max-width:100%;",
                             shiny::tableOutput(ns("outlierTable"))),
                         shiny::uiOutput(ns("outlierNote")),
@@ -906,9 +904,7 @@ mod_clean_server <- function(id, values) {
   output$varTypeUI <- shiny::renderUI({
     shiny::req(values$data)
     cols <- names(values$data)
-    # IDs surs : indexes et namespaces (ns). Les noms de colonnes contenant des
-    # espaces ou des accents (ex. "Date de semis", "Société") produisaient sinon
-    # des identifiants HTML invalides qui empechaient l'affichage du module.
+    # IDs surs : indexes et namespaces (ns).
     shiny::tagList(
       shiny::div(class = "alert alert-info", 
           shiny::icon("info-circle"), 
@@ -1009,10 +1005,8 @@ mod_clean_server <- function(id, values) {
             } else if (type_input == "character") {
               data_temp[[col]] <- as.character(data_temp[[col]])
             } else if (type_input == "date") {
-              # `as.Date()` nu ne lit que l'ISO : « 20/10/2026 » y LEVE, et
-              # « 20 octobre 2026 » aussi. Une colonne datee a la francaise
-              # etait donc intypable, et le refus parlait d'un format de
-              # caractere sans jamais nommer la vraie cause.
+              # `as.Date()` nu ne lit que l'ISO : « 20/10/2026 » y LEVE, et «
+              # 20 octobre 2026 » aussi.
               lu <- hstat_date_auto(data_temp[[col]])
               if (lu$n_ok == 0)
                 stop(trf("Aucun format de date connu ne relit la colonne « %s » (essais : française, anglaise, ISO).", col),
@@ -1215,9 +1209,7 @@ mod_clean_server <- function(id, values) {
   })
 
   shiny::observeEvent(input$addVar, {
-    # Nom et valeur viennent du navigateur : une seule chaine, bornee. La
-    # valeur est recopiee sur chaque ligne -- un megaoctet force la-dessus
-    # occuperait le processus que partagent toutes les sessions.
+    # Nom et valeur viennent du navigateur : une seule chaine, bornee.
     nom    <- trimws(hstat_texte_client(input$newVarName))
     valeur <- hstat_texte_client(input$newVarValue)
     shiny::req(nzchar(nom))
@@ -1366,10 +1358,7 @@ mod_clean_server <- function(id, values) {
         shiny::showNotification(
           shiny::tagList(
             shiny::icon("exclamation-triangle"),
-            # LES ENFANTS TEXTE ADJACENTS NE FONT QU'UN SEUL NOEUD. Les
-            # morceaux et les valeurs se retrouvent fondus dans la meme chaine
-            # (« Formule incorrecte : le résultat a 3 valeur(s) au lieu de 10. »)
-            # qu'aucune cle ne peut couvrir : seul un gabarit le peut.
+            # LES ENFANTS TEXTE ADJACENTS NE FONT QU'UN SEUL NOEUD.
             trf(" Formule incorrecte : le résultat a %s valeur(s) au lieu de %s. ",
                 length(new_col), nrow(values$cleanData)),
             shiny::tags$br(),
@@ -1379,10 +1368,7 @@ mod_clean_server <- function(id, values) {
         return()
       }
       
-      # UNE VARIABLE CALCULEE NE REMPLACE JAMAIS UNE COLONNE DU FICHIER. Le nom
-      # d'une colonne existante ecrasait la mesure d'origine sous une
-      # notification de succes, et toutes les analyses suivantes portaient sur
-      # la formule. L'ajout d'une variable refuse deja un nom pris.
+      # UNE VARIABLE CALCULEE NE REMPLACE JAMAIS UNE COLONNE DU FICHIER.
       if (input$calcVarName %in% names(values$cleanData)) {
         shiny::showNotification(
           ui = shiny::tagList(shiny::icon("exclamation-triangle"),
@@ -1752,9 +1738,7 @@ mod_clean_server <- function(id, values) {
       " Bornes basse/haute = valeurs réelles extrêmes non aberrantes observées dans les données (convention des moustaches du boxplot).")
   })
 
-  # Detail des valeurs aberrantes : une ligne par valeur. Lu sur les MEMES
-  # reglages que le resume, au moment de la detection -- relire les champs
-  # en direct afficherait des lignes que le tableau voisin ne compte pas.
+  # Detail des valeurs aberrantes : une ligne par valeur.
   outlier_lignes <- shiny::reactiveVal(NULL)
   shiny::observeEvent(outlier_report(), {
     d <- values$cleanData
@@ -1831,8 +1815,7 @@ mod_clean_server <- function(id, values) {
             if (anyNA(b)) next
             # Correction : l'ancienne expression `keep & !out | is.na(x)`
             # re-gardait une ligne deja marquee aberrante des qu'une autre
-            # colonne etait NA (priorite de & sur |). Une valeur NA n'est
-            # simplement pas consideree comme aberrante pour cette colonne.
+            # colonne etait NA (priorite de & sur |).
             out <- !is.na(x) & (x < b[1] | x > b[2])
             keep <- keep & !out
           }
@@ -1860,10 +1843,7 @@ mod_clean_server <- function(id, values) {
   zero_message <- shiny::reactiveVal(NULL)
 
   # Les quatre messages de ce module decrivent un geste pose sur le fichier
-  # PRECEDENT : renommage, recodage, valeurs extremes, variables nulles. Ils
-  # restaient affiches sous un panneau qui parle desormais d'autres colonnes.
-  # `resetSignal` est incremente par les quatre gestes qui remettent la session
-  # a zero, chargement d'un nouveau fichier compris.
+  # PRECEDENT : renommage, recodage, valeurs extremes, variables nulles.
   shiny::observeEvent(values$resetSignal, {
     if ((values$resetSignal %||% 0) == 0) return()
     rename_msg(NULL); recode_msg(NULL); outlier_report(NULL); zero_message(NULL)
@@ -2000,8 +1980,7 @@ mod_clean_server <- function(id, values) {
     }
     # Les refus de saisie sont deja des phrases francaises actionnables : les
     # faire passer par hstat_err_fr() les ferait annoncer « message renvoye par
-    # R (non traduit) », ce qui est faux et deroutant. hstat_err_fr reste pour
-    # les erreurs qui viennent REELLEMENT de R, plus bas.
+    # R (non traduit) », ce qui est faux et deroutant.
     val <- NA_real_; saisie <- NULL
     if (action == "valeur") {
       val <- suppressWarnings(as.numeric(input$zeroRemplacement)[1])
@@ -2207,8 +2186,6 @@ mod_clean_server <- function(id, values) {
   # DOUBLONS -- reperer, supprimer, marquer, corriger
   # =========================================================================
   # Le calcul vit dans le socle (hstat_doublons) ; le module choisit et ecrit.
-  # Les ecritures passent par values$cleanData sans purge : comme le typage,
-  # le traitement des doublons derive du fichier courant, il ne le remplace pas.
   shiny::observeEvent(names(values$cleanData), {
     v <- names(values$cleanData)
     shiny::updateSelectizeInput(session, "dupCles", choices = v,
@@ -2263,9 +2240,6 @@ mod_clean_server <- function(id, values) {
   }
 
   # UNE CELLULE CORRIGEE DANS LE TABLEAU DES DOUBLONS S'ECRIT DANS LES DONNEES.
-  # La ligne et la colonne viennent du navigateur : bornees comme dans les
-  # trois tableaux de saisie, la ligne retrouvee par son NOM (pas sa position),
-  # la valeur ramenee au type de sa colonne.
   shiny::observeEvent(input$dupTable_cell_edit, {
     info <- input$dupTable_cell_edit
     r <- shiny::isolate(doublons())

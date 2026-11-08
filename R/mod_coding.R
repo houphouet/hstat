@@ -3,31 +3,22 @@
 # Atelier de codage qualitatif (CAQDAS) inspire de MAXQDA
 # ---------------------------------------------------------------------------
 # Trois familles de fonctionnalites, dans l'ordre du flux de travail MAXQDA :
-#
-#   1. LE CODAGE (thematisation)
-#      Lecture des reponses a l'ecran, selection d'un mot / d'une phrase / d'un
-#      paragraphe a la souris, glisser-deposer de cette selection sur un code,
-#      et application d'une etiquette coloree sur le segment de texte.
-#
-#   2. L'ANALYSE ET LE CROISEMENT
-#      Clic sur un code -> tous les extraits associes ; croisement du texte
-#      code avec les profils des repondants (ex. les critiques sur le prix
-#      emises par les « Moins de 25 ans »).
-#
-#   3. LA VISUALISATION ET LES RAPPORTS
-#      Nuage de mots, carte conceptuelle (equivalent MAXMaps) construite sur
-#      les cooccurrences de codes, matrices de croisement exportables en Excel.
-#
-#   + Un assistant d'intelligence artificielle OPTIONNEL (API Claude) qui
-#     propose un livre de codes a partir du corpus et pre-code les reponses.
-#
+# 1. LE CODAGE (thematisation) Lecture des reponses a l'ecran, selection d'un
+# mot / d'une phrase / d'un paragraphe a la souris, glisser-deposer de cette
+# selection sur un code, et application d'une etiquette coloree sur le segment
+# de texte.
+# 2. L'ANALYSE ET LE CROISEMENT Clic sur un code -> tous les extraits associes
+# ; croisement du texte code avec les profils des repondants (ex. les critiques
+# sur le prix emises par les « Moins de 25 ans »).
+# 3. LA VISUALISATION ET LES RAPPORTS Nuage de mots, carte conceptuelle
+# (equivalent MAXMaps) construite sur les cooccurrences de codes, matrices de
+# croisement exportables en Excel.
 # ---------------------------------------------------------------------------
-# CONVENTION DES BORNES DE SEGMENT
-# Les positions `start` / `end` sont exprimees en CARACTERES, avec une borne
-# de depart a 0 et une borne de fin EXCLUE : c'est exactement la convention de
-# `Range.toString().length` en JavaScript, ce qui evite toute conversion entre
-# le navigateur (qui capture la selection) et R (qui la stocke et la restitue).
-# Consequence : `substr()` cote R doit etre appele avec `start + 1`.
+# CONVENTION DES BORNES DE SEGMENT Les positions `start` / `end` sont exprimees
+# en CARACTERES, avec une borne de depart a 0 et une borne de fin EXCLUE :
+# c'est exactement la convention de `Range.toString().length` en JavaScript, ce
+# qui evite toute conversion entre le navigateur (qui capture la selection) et
+# R (qui la stocke et la restitue).
 # ===========================================================================
 
 
@@ -43,27 +34,9 @@ HSTAT_CODE_PALETTE <- c(
 )
 
 # Echappement HTML du texte des repondants avant injection dans le DOM.
-# L'implementation vit dans Utils.R : la meme porte sert au rapport et aux
-# reponses des modeles de langue.
 .hstat_code_esc <- function(x) hstat_html_escape(x)
 
 # UNE COULEUR N'EST PAS UNE CHAINE LIBRE, et elle entre dans du BALISAGE.
-#
-# Le surligneur monte son `<mark>` par `sprintf` et le rend par `HTML()` : ce
-# qui y entre n'est plus echappe par personne. Le texte du document, lui, passe
-# bien par `.hstat_code_esc()` -- mais la couleur y allait BRUTE. Une couleur
-# valant `#ff0000" onmouseover="alert(1)` sortait alors de l'attribut `style`
-# et deposait un gestionnaire d'evenement vivant sur l'element. Constate.
-#
-# Le vecteur realiste n'est pas la saisie : c'est le PROJET RECHARGE. Un livre
-# de codes arrive par `.rds` televerse, ou la couleur est une donnee comme une
-# autre -- on ouvre le projet d'un collegue, et le balisage part avec. (Le
-# repli de `colourInput` quand colourpicker manque est par ailleurs un champ
-# texte libre.)
-#
-# Les autres couleurs du module passent par `shiny::div(style = ...)`, ou
-# htmltools echappe l'attribut : elles n'ont jamais eu le defaut. Celle-ci
-# etait la seule a traverser `HTML()`.
 .hstat_code_hex <- function(hex, defaut = "#cccccc") {
   h <- as.character(hex)[1]
   if (is.na(h) || !grepl("^#?[0-9A-Fa-f]{6}$", h)) return(defaut)
@@ -108,13 +81,8 @@ hstat_code_slug <- function(label, existing = character(0)) {
 # 1. LIVRE DE CODES
 # ---------------------------------------------------------------------------
 
-# `keywords` : dictionnaire du code (mots-cles separes par des points-virgules).
-# C'est ce qui permet le codage automatique hors ligne, sans modele de langue.
-# `parent_id` : identifiant du code parent, "" a la racine. C'est le systeme de
-# codes HIERARCHIQUE de MAXQDA. Un livre de codes plat oblige a encoder la
-# hierarchie dans les libelles (« Prix - trop cher », « Prix - rapport
-# qualite »), ce qui interdit toute agregation : on ne peut plus demander
-# « combien de segments parlent du prix, tous sous-codes confondus ».
+# `keywords` : dictionnaire du code (mots-cles separes par des
+# points-virgules).
 hstat_code_new_codebook <- function() {
   data.frame(code_id = character(0), label = character(0), color = character(0),
              memo = character(0), keywords = character(0),
@@ -126,9 +94,7 @@ HSTAT_CODE_COLS <- c("code_id", "label", "color", "memo", "keywords",
                      "parent_id", "created")
 
 # Un projet enregistre avant l'arrivee du dictionnaire n'a pas la colonne
-# `keywords` ; un projet anterieur a la hierarchie n'a pas `parent_id`. On les
-# recree plutot que de refuser le fichier : un utilisateur ne doit jamais
-# perdre un codage parce que le format a evolue.
+# `keywords` ; un projet anterieur a la hierarchie n'a pas `parent_id`.
 hstat_code_migrate_codebook <- function(codebook) {
   if (is.null(codebook)) return(hstat_code_new_codebook())
   codebook <- as.data.frame(codebook, stringsAsFactors = FALSE)
@@ -143,8 +109,7 @@ hstat_code_migrate_codebook <- function(codebook) {
               !(codebook$parent_id %in% codebook$code_id)
   codebook$parent_id[orphelin] <- ""
   # Un cycle (A enfant de B, B enfant de A) ferait tourner l'affichage de
-  # l'arbre a l'infini. Il ne peut pas naitre de l'application, mais un fichier
-  # edite a la main, si.
+  # l'arbre a l'infini.
   codebook$parent_id[hstat_code_cycles(codebook)] <- ""
   codebook
 }
@@ -238,9 +203,7 @@ hstat_code_add <- function(codebook, label, color = NULL, memo = "",
   label <- trimws(as.character(label)[1])
   if (is.na(label) || !nzchar(label)) return(codebook)
   # Un meme libelle ne peut pas exister deux fois SOUS LE MEME PARENT : le
-  # codage deviendrait ambigu a la restitution. Sous deux parents differents,
-  # « Prix > Qualite » et « Service > Qualite » sont en revanche legitimes, et
-  # c'est meme tout l'interet de la hierarchie.
+  # codage deviendrait ambigu a la restitution.
   parent_id <- as.character(parent_id %||% "")[1]
   if (is.na(parent_id)) parent_id <- ""
   if (nzchar(parent_id) && !(parent_id %in% codebook$code_id)) parent_id <- ""
@@ -259,9 +222,7 @@ hstat_code_add <- function(codebook, label, color = NULL, memo = "",
     stringsAsFactors = FALSE))
 }
 
-# `avec_descendants = TRUE` supprime la branche entiere. Par defaut les
-# sous-codes sont REMONTES au parent du code supprime : supprimer « Prix » ne
-# doit pas emporter en silence le codage patiemment place sous ses sous-codes.
+# `avec_descendants = TRUE` supprime la branche entiere.
 hstat_code_remove <- function(codebook, code_id, avec_descendants = FALSE) {
   if (is.null(codebook) || nrow(codebook) == 0) return(hstat_code_new_codebook())
   codebook <- hstat_code_migrate_codebook(codebook)
@@ -322,21 +283,9 @@ hstat_code_color <- function(codebook, code_id) {
 # ---------------------------------------------------------------------------
 # 1 bis. MEMOS
 # ---------------------------------------------------------------------------
-# Le memo est l'outil par lequel l'analyste garde la trace de son raisonnement :
-# pourquoi ce code a ete cree, ce qui distingue deux sous-codes voisins, ce
-# qu'un entretien a d'atypique, l'hypothese qui se dessine. C'est la piece qui
-# transforme un codage en analyse — et c'est ce qu'un relecteur demande quand il
-# veut comprendre comment on est arrive la.
-#
-# Quatre cibles, comme dans MAXQDA :
-#   code      pourquoi ce code existe, ou passe sa frontiere
-#   document  ce que cet entretien a de particulier
-#   segment   ce que ce passage precis suggere
-#   libre     l'hypothese en cours, qui ne se rattache encore a rien
-#
-# Le memo de code existait deja comme colonne du livre de codes ; il y reste
-# (les projets enregistres en dependent) et `hstat_memo_sync_codes()` le reprend
-# ici pour que tout se retrouve au meme endroit.
+# Le memo est l'outil par lequel l'analyste garde la trace de son raisonnement
+# : pourquoi ce code a ete cree, ce qui distingue deux sous-codes voisins, ce
+# qu'un entretien a d'atypique, l'hypothese qui se dessine.
 
 HSTAT_MEMO_CIBLES <- c("Code" = "code", "Document" = "document",
                        "Segment" = "segment", "Libre" = "libre")
@@ -435,8 +384,7 @@ hstat_memo_search <- function(memos, motif) {
 }
 
 # Reprend dans le registre les memos portes par la colonne `memo` du livre de
-# codes. Sans cela, un projet ancien verrait ses memos de code disparaitre de la
-# nouvelle vue alors qu'ils sont toujours la.
+# codes.
 hstat_memo_sync_codes <- function(memos, codebook) {
   memos <- hstat_memo_migrate(memos)
   if (is.null(codebook) || !nrow(codebook)) return(memos)
@@ -452,9 +400,7 @@ hstat_memo_sync_codes <- function(memos, codebook) {
   memos
 }
 
-# Vue d'ensemble : combien de memos, et sur quoi. Un projet ou tous les memos
-# portent sur des codes et aucun sur les documents signale une analyse qui n'a
-# pas encore regarde ses entretiens un par un.
+# Vue d'ensemble : combien de memos, et sur quoi.
 hstat_memo_resume <- function(memos) {
   memos <- hstat_memo_migrate(memos)
   data.frame(
@@ -476,14 +422,7 @@ hstat_code_new_segments <- function() {
              stringsAsFactors = FALSE)
 }
 
-# Ajout d'un segment. Renvoie le tableau inchange si la selection est vide ou
-# si le MEME CODEUR a deja pose ce code sur ces bornes : un double-depot
-# accidentel ne doit pas gonfler les effectifs.
-#
-# LE CODEUR FAIT PARTIE DE L'IDENTITE DU SEGMENT. Sans lui dans le test de
-# doublon, deux codeurs qui etiquettent le meme passage a l'identique -- soit
-# l'accord parfait, le cas le plus courant -- voyaient le second codage
-# silencieusement ecarte, et l'accord inter-codeurs mesurait un corpus ampute.
+# Ajout d'un segment.
 hstat_seg_add <- function(segments, doc_id, code_id, start, end, text = "",
                           source = "manuel") {
   if (is.null(segments)) segments <- hstat_code_new_segments()
@@ -541,9 +480,7 @@ hstat_code_counts <- function(codebook, segments) {
     n_doc[i] <- if (is.null(s) || nrow(s) == 0) 0L else length(unique(s$doc_id))
   }
   # Effectifs CUMULES sur la branche : « combien de segments parlent du prix,
-  # tous sous-codes confondus ? » est la question que la hierarchie permet de
-  # poser, et un total qui ignorerait les sous-codes afficherait zero sur un
-  # code parent pourtant abondamment documente.
+  # tous sous-codes confondus ?
   cb <- hstat_code_migrate_codebook(codebook)
   cum_seg <- integer(nrow(cb)); cum_doc <- integer(nrow(cb))
   for (i in seq_len(nrow(cb))) {
@@ -564,9 +501,7 @@ hstat_code_counts <- function(codebook, segments) {
 # 3. RENDU DES ETIQUETTES COLOREES
 # ---------------------------------------------------------------------------
 # Le texte est decoupe aux bornes de TOUS les segments, puis chaque tranche est
-# coloree selon les codes qui la recouvrent. Ce decoupage par balayage gere
-# nativement les chevauchements : une tranche couverte par deux codes recoit un
-# degrade des deux couleurs, ce qu'un simple `gsub` de balises ne saurait faire.
+# coloree selon les codes qui la recouvrent.
 # ---------------------------------------------------------------------------
 hstat_code_highlight_html <- function(text, segs, codebook) {
   text <- as.character(text)[1]
@@ -616,9 +551,8 @@ hstat_code_highlight_html <- function(text, segs, codebook) {
 # ---------------------------------------------------------------------------
 # 4. CORPUS
 # ---------------------------------------------------------------------------
-# Une ligne du jeu de donnees = un document (une reponse a la question ouverte).
-# `row` conserve le numero de ligne d'origine : c'est lui qui permet ensuite de
-# rattacher un extrait au profil du repondant.
+# Une ligne du jeu de donnees = un document (une reponse a la question
+# ouverte).
 # ---------------------------------------------------------------------------
 hstat_code_docs <- function(df, text_var, min_char = 1) {
   if (is.null(df) || !nrow(df) || !(text_var %in% names(df)))
@@ -706,8 +640,7 @@ hstat_code_retrieve <- function(segments, codebook, docs, code_ids = NULL,
 # ---------------------------------------------------------------------------
 # `count = "segments"` compte les etiquettes posees (un repondant qui critique
 # trois fois le prix pese 3) ; `count = "documents"` compte les repondants
-# distincts (il pese 1). Les deux lectures sont legitimes, MAXQDA propose les
-# deux ; le choix est donc laisse a l'utilisateur.
+# distincts (il pese 1).
 # ---------------------------------------------------------------------------
 hstat_code_matrix <- function(segments, codebook, profile = NULL, var = NULL,
                               count = c("segments", "documents")) {
@@ -800,9 +733,7 @@ hstat_code_cooccurrence <- function(segments, codebook,
 # ---------------------------------------------------------------------------
 # Positionnement par MDS classique sur la dissimilarite deduite des
 # cooccurrences (indice cosinus) : deux codes souvent evoques ensemble se
-# retrouvent proches. `cmdscale()` vient de {stats}, aucune dependance de
-# graphe n'est requise. Repli sur un cercle quand le MDS n'est pas calculable
-# (moins de 3 codes, ou aucune cooccurrence).
+# retrouvent proches.
 # ---------------------------------------------------------------------------
 hstat_code_map_layout <- function(cooc, counts, seed = 42) {
   if (is.null(cooc) || nrow(cooc) < 2) return(NULL)
@@ -833,8 +764,6 @@ hstat_code_map_layout <- function(cooc, counts, seed = 42) {
 
 # Au plus trois graduations entieres : les legendes de taille et d'epaisseur
 # affichaient sinon une graduation par valeur entiere presente (8, 9, 10...).
-# `breaks` est retenu plutot que `n.breaks`, absent de scale_linewidth_*() dans
-# les versions de ggplot2 encore en circulation.
 .hstat_code_breaks3 <- function(x) {
   b <- unique(round(pretty(x, n = 3)))
   b <- b[b >= min(x) & b <= max(x)]
@@ -917,8 +846,7 @@ hstat_code_map_plot <- function(cooc, codebook, counts_df, min_weight = 1,
 # ---------------------------------------------------------------------------
 # Implementation autonome (spirale d'Archimede + test de collision par boites
 # englobantes) : aucune dependance supplementaire, et le resultat est
-# reproductible a graine fixee. Les paquets dedies (wordcloud, ggwordcloud) ne
-# figurent pas dans les dependances de HStat et ne sont pas garantis installes.
+# reproductible a graine fixee.
 # ---------------------------------------------------------------------------
 hstat_code_cloud_layout <- function(words, freq, max_words = 90,
                                     min_size = 3, max_size = 16, seed = 42) {
@@ -973,9 +901,7 @@ hstat_code_cloud_plot <- function(layout, palette = "default",
   if (!requireNamespace("ggplot2", quietly = TRUE)) return(NULL)
   if (is.null(layout) || !nrow(layout)) return(NULL)
 
-  # Les unites de la mise en page sont des « millimetres de texte ». On les
-  # remet a l'echelle de la zone de trace pour que la taille demandee et la
-  # taille rendue restent coherentes (ggplot2 exprime `size` en mm).
+  # Les unites de la mise en page sont des « millimetres de texte ».
   span <- max(diff(range(layout$x)) + max(nchar(layout$word) * layout$size * 0.62), 1)
   f <- min(1.6, target_width_mm / span)
 
@@ -1002,35 +928,23 @@ hstat_code_cloud_plot <- function(layout, palette = "default",
 # ---------------------------------------------------------------------------
 # Le moteur d'inference lui-meme (local / hors ligne / API) vit dans mod_ai.R :
 # il sert a TOUTES les analyses de HStat, pas seulement au codage qualitatif.
-# Ne restent ici que ce qui est propre a la thematisation : le moteur
-# statistique hors ligne et les invites adressees a un modele de langue.
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # 10 bis. MOTEUR HORS LIGNE : THEMATISATION STATISTIQUE + DICTIONNAIRE
 # ---------------------------------------------------------------------------
 # Aucun modele de langue, aucun reseau, aucune installation : tout se calcule
-# dans le processus R a partir du corpus lui-meme. C'est le seul moteur dont la
-# disponibilite est garantie, et il sert de socle aux deux autres puisque le
-# dictionnaire qu'il produit reste editable a la main.
-#
-# Principe : classification ascendante hierarchique des TERMES du corpus sur
-# leur cooccurrence dans les reponses (distance cosinus, methode de Ward). Deux
-# mots qui reviennent dans les memes reponses finissent dans le meme theme.
+# dans le processus R a partir du corpus lui-meme.
 # ---------------------------------------------------------------------------
 
-# Repli d'accents et passage en minuscules. Propriete essentielle : chartr() et
-# tolower() operent caractere par caractere, la LONGUEUR est donc preservee.
-# C'est ce qui permet de chercher un mot-cle sans accent dans un texte accentue
-# tout en gardant des positions de segment valides.
+# Repli d'accents et passage en minuscules.
 .hstat_code_fold <- function(x) {
   x <- tolower(as.character(x))
   hstat_sans_accents(x)
 }
 
-# Echappement pour une expression reguliere : tout ce qui n'est ni alphanumerique
-# ni espace est protege. Passer par une classe POSIX evite la classe de
-# caracteres invalide que produisait un echappement ecrit a la main.
+# Echappement pour une expression reguliere : tout ce qui n'est ni
+# alphanumerique ni espace est protege.
 .hstat_code_rx_escape <- function(x) gsub("([^[:alnum:][:space:]])", "\\\\\\1", x)
 
 hstat_code_keywords_of <- function(codebook, code_id) {
@@ -1044,8 +958,6 @@ hstat_code_keywords_of <- function(codebook, code_id) {
 }
 
 # Construit un livre de codes a partir du corpus.
-# Renvoie data.frame(label, memo, keywords) - le meme contrat que
-# hstat_ai_parse_codebook(), pour que l'interface traite les deux pareillement.
 hstat_code_auto_codebook <- function(texts, n_codes = 8, min_char = 4,
                                      min_docs = 2, max_terms = 60,
                                      max_df = 0.9, extra_stopwords = NULL) {
@@ -1121,9 +1033,7 @@ hstat_code_auto_codebook <- function(texts, n_codes = 8, min_char = 4,
 }
 
 # Bornes des phrases d'un texte, en convention JavaScript (debut a 0, fin
-# exclue), espaces de tete et de queue exclus. Sert au codage par dictionnaire :
-# etiqueter le mot seul donne des extraits inexploitables a la restitution, la
-# phrase qui le porte est l'unite de sens qu'un codeur humain retiendrait.
+# exclue), espaces de tete et de queue exclus.
 .hstat_code_sentences <- function(text) {
   n <- nchar(text)
   if (n == 0) return(NULL)
@@ -1136,9 +1046,7 @@ hstat_code_auto_codebook <- function(texts, n_codes = 8, min_char = 4,
   starts <- starts[keep]; ends <- ends[keep]
   if (!length(starts)) return(NULL)
   # Rognage des blancs et de la ponctuation de bordure, sans jamais sortir des
-  # bornes du texte. Classes POSIX obligatoires : dans une classe de caracteres,
-  # `\s` n'est pas une abreviation mais les deux caracteres « \ » et « s » —
-  # la version precedente rognait donc la lettre s en fin de phrase.
+  # bornes du texte.
   for (i in seq_along(starts)) {
     while (starts[i] < ends[i] &&
            grepl("^[[:space:]]$", substr(text, starts[i] + 1, starts[i] + 1)))
@@ -1153,9 +1061,7 @@ hstat_code_auto_codebook <- function(texts, n_codes = 8, min_char = 4,
 }
 
 # Codage automatique par dictionnaire : toute occurrence d'un mot-cle etiquette
-# la phrase qui la porte (ou le mot seul si `scope = "mot"`). Instantane,
-# deterministe, sans reseau — et applicable a TOUT le corpus, la ou un modele de
-# langue impose d'echantillonner.
+# la phrase qui la porte (ou le mot seul si `scope = "mot"`).
 hstat_code_lexical_apply <- function(docs, codebook, whole_word = TRUE,
                                      scope = c("phrase", "mot"),
                                      max_per_doc = 20L) {
@@ -1265,11 +1171,7 @@ hstat_ai_autocode_prompt <- function(docs, codebook) {
     '{"codages":[{"doc":"D00001","code":"Prix trop élevé","extrait":"c est beaucoup trop cher"}]}')
 }
 
-# Localisation d'un extrait dans un document. Trois passes, de la plus stricte
-# a la plus souple : le modele d'IA normalise souvent les espaces ou la casse,
-# ce qui ferait echouer une recherche purement litterale. Sert aussi de filet
-# de securite au codage manuel, quand les bornes renvoyees par le navigateur ne
-# correspondent pas au texte attendu.
+# Localisation d'un extrait dans un document.
 hstat_code_locate_quote <- function(text, quote) {
   text <- as.character(text)[1]; quote <- trimws(as.character(quote)[1])
   if (is.na(text) || is.na(quote) || !nzchar(quote) || !nzchar(text)) return(NULL)
@@ -1327,21 +1229,7 @@ hstat_ai_parse_autocode <- function(parsed, docs, codebook) {
 # 12. REQUETE DE CODAGE COMBINEE
 # ---------------------------------------------------------------------------
 # MAXQDA appelle cela « Complex Coding Query » : croiser deux ensembles de
-# codes pour repondre a « qui dit A ET B ? », « A sans B ? », « ou A et B
-# etiquettent-ils LE MEME passage ? ».
-#
-# LA PORTEE CHANGE LE SENS, ET DOIT DONC ETRE EXPLICITE.
-#   "document"  -> A et B dans la meme reponse, meme a dix lignes d'ecart.
-#                  Lecture thematique : deux themes coexistent chez la personne.
-#   "overlap"   -> A et B recouvrent le MEME passage. Lecture stricte : le
-#                  meme extrait porte les deux etiquettes.
-#   "proximite" -> A a moins de `distance` caracteres d'un segment de B. Entre
-#                  les deux : les idees se suivent sans se superposer.
-# Confondre les trois donne des effectifs tres differents pour la meme
-# question ; le resultat porte donc la portee employee en attribut.
-#
-# Le resultat est un tableau de SEGMENTS DE A (ceux qui satisfont la
-# condition), reutilisable tel quel par hstat_code_retrieve().
+# codes pour repondre a « qui dit A ET B ?
 # ---------------------------------------------------------------------------
 hstat_code_query <- function(segments, codebook, docs, codes_a, codes_b = NULL,
                              operateur = c("et", "ou", "sauf"),
@@ -1399,17 +1287,12 @@ hstat_code_query <- function(segments, codebook, docs, codes_a, codes_b = NULL,
 # ---------------------------------------------------------------------------
 # 13. CONCORDANCIER (KWIC -- Key Word In Context)
 # ---------------------------------------------------------------------------
-# Le mot recherche entoure de son contexte gauche et droit. C'est l'outil qui
-# precede le codage : on voit COMMENT un mot est employe avant de decider
-# quel code lui donner.
-#
-# DEUX PRECAUTIONS.
-#   1. Le motif de l'utilisateur est ECHAPPE par defaut (`regex = FALSE`) :
-#      taper « prix (cher) » ne doit pas lever « unmatched parenthesis » ni
-#      chercher un groupe de capture. Une regexp invalide en mode `regex =
-#      TRUE` rend zero ligne au lieu de faire tomber le panneau.
-#   2. Le contexte est coupe sur les BORNES DE MOTS quand c'est possible :
-#      trancher au milieu d'un mot rend la lecture penible.
+# Le mot recherche entoure de son contexte gauche et droit.
+# 1. Le motif de l'utilisateur est ECHAPPE par defaut (`regex = FALSE`) : taper
+# « prix (cher) » ne doit pas lever « unmatched parenthesis » ni chercher un
+# groupe de capture.
+# 2. Le contexte est coupe sur les BORNES DE MOTS quand c'est possible :
+# trancher au milieu d'un mot rend la lecture penible.
 # ---------------------------------------------------------------------------
 hstat_code_kwic <- function(docs, motif, fenetre = 40, regex = FALSE,
                             casse = FALSE, max_hits = 500) {
@@ -1470,13 +1353,8 @@ hstat_code_kwic <- function(docs, motif, fenetre = 40, regex = FALSE,
 # ---------------------------------------------------------------------------
 # 14. CODELINE -- portrait code d'un document
 # ---------------------------------------------------------------------------
-# MAXQDA montre un document comme une bande ou chaque code occupe la portion
-# de texte qu'il etiquette. On voit d'un coup d'oeil l'ordre du discours :
-# par quoi la personne commence, ce qui revient, ce qui ne vient qu'a la fin.
-#
-# La position est rendue en POURCENTAGE du document, pas en caracteres : deux
-# reponses de longueurs tres differentes deviennent comparables, ce qui est
-# tout l'interet de la representation.
+# MAXQDA montre un document comme une bande ou chaque code occupe la portion de
+# texte qu'il etiquette.
 # ---------------------------------------------------------------------------
 hstat_code_codeline <- function(segments, codebook, docs, doc_id) {
   vide <- data.frame(Code = character(0), Couleur = character(0),
@@ -1537,24 +1415,7 @@ hstat_code_codeline_plot <- function(cl, titre = "") {
 # ---------------------------------------------------------------------------
 # 15. ACCORD INTER-CODEURS
 # ---------------------------------------------------------------------------
-# Deux personnes codent le meme corpus ; on mesure leur accord. L'unite de
-# comparaison est le couple DOCUMENT x CODE : le codeur a-t-il, oui ou non,
-# pose ce code sur ce document ?
-#
-# POURQUOI PAS LE SEGMENT. Deux codeurs ne decoupent jamais aux memes bornes ;
-# comparer des segments exigerait un seuil de recouvrement arbitraire qui
-# ferait varier le resultat plus que le desaccord reel. Le couple
-# document x code est l'unite que MAXQDA propose par defaut, pour la meme
-# raison.
-#
-# KAPPA N'EST PAS TOUJOURS DEFINI, ET C'EST LE PIEGE. Si les deux codeurs
-# posent tout partout (ou rien nulle part), l'accord attendu par hasard vaut 1,
-# le denominateur 1 - pe s'annule et kappa rend NaN. Brancher dessus lèverait
-# « missing value where TRUE/FALSE needed ». On rend donc un VERDICT a quatre
-# etats, dont `indeterminable`, comme partout ailleurs dans l'application.
-#
-# Le pourcentage d'accord, lui, reste toujours calculable : c'est ce qu'on
-# affiche quand kappa se derobe.
+# Deux personnes codent le meme corpus ; on mesure leur accord.
 # ---------------------------------------------------------------------------
 hstat_code_accord <- function(segments, codebook, codeur_a, codeur_b,
                               docs = NULL) {
@@ -1660,9 +1521,7 @@ mod_coding_ui <- function(id) {
   }
   "
 
-  # Capture de la selection + glisser-deposer. Les gestionnaires sont poses sur
-  # `document` (delegation) car les puces de codes sont re-rendues a chaque
-  # modification du livre de codes : un binding direct serait perdu.
+  # Capture de la selection + glisser-deposer.
   js <- sprintf("
   (function(){
     var DOC = '%s', DROP = '%s', SEL = '%s', DEL = '%s', RMSEG = '%s';
@@ -1794,9 +1653,7 @@ mod_coding_ui <- function(id) {
             shiny::column(4, colourInput(ns("new_color"), NULL,
                                                        value = HSTAT_CODE_PALETTE[1],
                                                        showColour = "background"))),
-          # Code parent : c'est ce qui fait du livre de codes un ARBRE. Sans
-          # lui, la hierarchie finit encodee dans les libelles (« Prix - trop
-          # cher ») et aucune agregation par branche n'est plus possible.
+          # Code parent : c'est ce qui fait du livre de codes un ARBRE.
           shiny::uiOutput(ns("new_parent_ui")),
           shiny::actionButton(ns("add_code"), "Ajouter le code",
                               icon = shiny::icon("plus"), class = "btn-warning btn-block btn-sm"),
@@ -1823,10 +1680,7 @@ mod_coding_ui <- function(id) {
             shiny::column(6, shiny::uiOutput(ns("nav_ui")))),
           shiny::uiOutput(ns("doc_header")),
           # Le conteneur EST la sortie : son contenu textuel doit correspondre
-          # caractere pour caractere au texte du document. Un uiOutput imbrique
-          # dans un div ajoutait l'indentation du HTML genere (retour a la ligne
-          # + espaces) au debut du conteneur, decalant d'autant les positions
-          # renvoyees par la selection JavaScript.
+          # caractere pour caractere au texte du document.
           shiny::uiOutput(ns("docText"), class = "hstat-doc"),
           shiny::br(),
           shiny::div(class = "hstat-sel-box", shiny::uiOutput(ns("sel_info"))),
@@ -2139,8 +1993,7 @@ mod_coding_ui <- function(id) {
           # ---- Memos ----
           # Le memo est ce qui transforme un codage en analyse : pourquoi ce
           # code existe, ou passe sa frontiere, ce qu'un entretien a
-          # d'atypique. C'est aussi ce qu'un relecteur demande pour comprendre
-          # comment on est arrive la.
+          # d'atypique.
           shiny::tabPanel(shiny::tagList(shiny::icon("note-sticky"), " Mémos"),
             shiny::br(),
             shiny::div(style = "background:#eafaf1;border-left:5px solid #27ae60;padding:12px 16px;border-radius:6px;font-size:13px;",
@@ -2366,10 +2219,7 @@ mod_coding_server <- function(id, values) {
                                 type = "warning", duration = 4); return()
       }
       # La couleur n'est imposee que si l'utilisateur l'a lui-meme changee ;
-      # sinon le livre de codes choisit la prochaine teinte libre. On compare a
-      # la suggestion memorisee cote R plutot qu'a la valeur du widget : quand
-      # deux codes sont crees a la suite, l'aller-retour du selecteur n'est pas
-      # forcement revenu, et les deux codes heritaient de la meme couleur.
+      # sinon le livre de codes choisit la prochaine teinte libre.
       chosen <- input$new_color
       col <- if (is.null(chosen) ||
                  identical(tolower(chosen), tolower(rv$next_color))) NULL else chosen
@@ -2579,9 +2429,7 @@ mod_coding_server <- function(id, values) {
       shiny::selectInput(ns("new_parent"), NULL, choices = ch, selected = "")
     })
 
-    # Deplacer un code existant dans l'arbre. Le refus des cycles est assure
-    # par hstat_code_update() : on ne peut pas se retrouver avec une branche
-    # detachee de l'arbre, donc invisible.
+    # Deplacer un code existant dans l'arbre.
     output$move_code_ui <- shiny::renderUI({
       cb <- rv$codebook
       if (is.null(cb) || nrow(cb) < 2) return(NULL)
@@ -2618,9 +2466,7 @@ mod_coding_server <- function(id, values) {
       ev <- input$drop_event
       shiny::req(!is.null(ev), !is.null(ev$code))
       # Le message vient du navigateur : UN code, UNE borne de debut et UNE de
-      # fin. Un vecteur faisait lever `if()` (longueur > 1), donc fermer la
-      # session ; des bornes hors du texte s'enregistraient telles quelles
-      # (debut a -10^9) et faussaient la ligne de codage et l'export.
+      # fin.
       code <- as.character(ev$code)
       if (length(code) != 1L || !(code %in% rv$codebook$code_id)) return()
       d <- cur_doc()
@@ -3122,8 +2968,7 @@ mod_coding_server <- function(id, values) {
     output$dl_cloud <- shiny::downloadHandler(
       filename = function() sprintf("hstat_nuage_mots_%s.png", format(Sys.Date(), "%Y%m%d")),
       # `validate(need(...))` dans un downloadHandler interrompt le contenu :
-      # Shiny renvoie sa page d'erreur HTML, enregistree en « .png ». On ecrit
-      # toujours une image valide, portant le motif s'il y en a un.
+      # Shiny renvoie sa page d'erreur HTML, enregistree en « .png ».
       content = function(file)
         hstat_ecrire_image(file, tryCatch(cloud_gg(), error = function(e) NULL),
                            "png", 10, 7, 300,
@@ -3228,10 +3073,7 @@ mod_coding_server <- function(id, values) {
         return()
       }
 
-      # Le plafond du champ tient AUSSI cote serveur. Chaque reponse part chez un
-      # tiers payant a l'usage : un nombre forge enverrait le corpus entier, et
-      # un champ vide (NA) faisait tomber le bouton sur « missing value where
-      # TRUE/FALSE needed ».
+      # Le plafond du champ tient AUSSI cote serveur.
       n_max <- as.integer(hstat_borne_client(input$ai_maxdoc, 60, 5, 300))
       if (length(tx) > n_max) tx <- tx[round(seq(1, length(tx), length.out = n_max))]
       shiny::withProgress(message = "Le modèle analyse le corpus...", value = 0.4, {
@@ -3367,10 +3209,7 @@ mod_coding_server <- function(id, values) {
       box
     })
 
-    # La table des propositions vit dans sa PROPRE sortie. Un DT::renderDT()
-    # appele a la main depuis un renderUI echoue (« argument "name" is
-    # missing ») : une fonction de rendu attend la session et le nom de sortie
-    # que Shiny lui passe, elle ne s'invoque pas directement.
+    # La table des propositions vit dans sa PROPRE sortie.
     output$ai_table <- DT::renderDT({
       a <- rv$ai
       shiny::validate(shiny::need(!is.null(a) && !is.null(a$table),

@@ -14,8 +14,6 @@
 
 # Applique un style utilisateur (titres, tailles de police, gras/italique,
 # rotation, grille, axes/graduations en noir) à un ggplot déjà construit.
-# Base ggplot2 pure (pas de dépendance ggtext). Les champs titre/axes/légende
-# laissés vides conservent ceux du graphique. "opts" est une liste nommée.
 hstat_q_apply_style <- function(p, opts = list()) {
   if (is.null(p) || !inherits(p, "ggplot")) return(p)
   if (!requireNamespace("ggplot2", quietly = TRUE)) return(p)
@@ -62,10 +60,7 @@ hstat_q_apply_style <- function(p, opts = list()) {
 }
 
 # Applique une palette de couleurs choisie a un ggplot, quel que soit le
-# graphique (barres, camembert, nuage de mots, thèmes...). Detecte si l'echelle
-# de remplissage est continue (fill numerique -> degrade) ou discrete (fill
-# categoriel -> palette qualitative), et remplace aussi la couleur du texte
-# (nuage de mots). "default" laisse le graphique inchange.
+# graphique (barres, camembert, nuage de mots, thèmes...).
 hstat_q_apply_palette <- function(p, palette = "default",
                                   col_low = "#aed6f1", col_high = "#1f618d") {
   if (is.null(p) || !inherits(p, "ggplot") || identical(palette, "default")) return(p)
@@ -83,10 +78,7 @@ hstat_q_apply_palette <- function(p, palette = "default",
     is.numeric(var)
   }
 
-  # LE CATALOGUE COMMUN D'ABORD. Ce module tenait sa propre liste (bleu, vert,
-  # orange...) : les palettes se choisissent desormais dans la meme liste que
-  # partout ailleurs, et c'est `hstat_palette_couleurs()` qui interpole au-dela
-  # du plafond de RColorBrewer. Les anciens noms restent compris plus bas.
+  # LE CATALOGUE COMMUN D'ABORD.
   catalogue <- c(HSTAT_PALETTE_GG, HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE,
                  HSTAT_PALETTES_AUTRES)
   if (palette %in% catalogue) {
@@ -395,12 +387,9 @@ hstat_q_epitools_block <- function(tab2, kind = c("OR", "RR"), conf = 0.95) {
 }
 
 # ---------------------------------------------------------------------------
-# TEST CHI-DEUX D'AJUSTEMENT / MULTINOMIAL EXACT -- une variable nominale
-# Teste si la distribution observée des modalités suit des proportions
-# attendues (équiprobables par défaut, ou fournies par l'utilisateur).
-# method : "chisq" (khi-deux d'ajustement, Yates non applicable ici) ou
-#          "multinomial" (test exact : EMT si disponible, sinon Monte-Carlo
-#          par ordre de probabilité avec dmultinom, sans dépendance).
+# TEST CHI-DEUX D'AJUSTEMENT / MULTINOMIAL EXACT -- une variable nominale Teste
+# si la distribution observée des modalités suit des proportions attendues
+# (équiprobables par défaut, ou fournies par l'utilisateur).
 # ---------------------------------------------------------------------------
 # Version STRATIFIÉE du test d'adéquation : teste la distribution de Y (variable
 # analysée) séparément dans chaque modalité du facteur X, plus le test global.
@@ -582,9 +571,6 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
       if (expected_ok) "Tous les effectifs attendus >= 5 : le Khi-deux asymptotique est fiable."
       else "Effectifs attendus < 5 : se fier au Monte-Carlo ou au multinomial exact.",
       # LA NUANCE EST PORTEE PAR LA PHRASE ENTIERE, pas par un mot isole.
-      # « moyenne » vaut *medium* pour une taille d'effet mais *mean* en
-      # statistique : une meme cle dans le dictionnaire corromprait l'autre
-      # sens. Quatre phrases completes lèvent l'ambiguite.
       tr(if (cohen_w < 0.1)
            "Taille d'effet : négligeable (repères : 0,1 petite ; 0,3 moyenne ; 0,5 grande)."
          else if (cohen_w < 0.3)
@@ -750,10 +736,7 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
 # ===========================================================================
 # ANALYSE NOMINALE -- deux variables (table de contingence + association)
 # ===========================================================================
-# `poids` : une colonne d'effectifs facultative. Un tableau croisé déplié en
-# format long (une ligne par croisement, l'effectif dans « Freq ») se compte
-# alors comme `xtabs(Freq ~ X + Y)` : chaque ligne pèse sa valeur. Compter les
-# lignes rendrait 1 dans chaque case, donc une indépendance parfaite.
+# `poids` : une colonne d'effectifs facultative.
 hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y",
                                       poids = NULL, poids_nom = NULL) {
   w <- if (is.null(poids)) rep(1, length(x)) else suppressWarnings(as.numeric(poids))
@@ -878,10 +861,9 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y",
       "Variante normalisée entre 0 et ~0,71 (2x2) ; plus il est proche de 1, plus l'association est forte."),
     stringsAsFactors = FALSE)
 
-  # Interpretation de la force d'association (V de Cramer)
-  # Ces qualificatifs partent en ARGUMENTS de `trf()`, qui ne traduit jamais
-  # ses arguments de lui-meme -- c'est ce qui protege les valeurs de
-  # l'utilisateur. Le developpeur declare donc ici que ce sont des libelles.
+  # Interpretation de la force d'association (V de Cramer) Ces qualificatifs
+  # partent en ARGUMENTS de `trf()`, qui ne traduit jamais ses arguments de
+  # lui-meme -- c'est ce qui protege les valeurs de l'utilisateur.
   force <- tr(if (is.na(cramer_v)) "indéterminée" else if (cramer_v < 0.1) "négligeable" else
     if (cramer_v < 0.2) "faible" else if (cramer_v < 0.4) "modérée" else
     if (cramer_v < 0.6) "relativement forte" else "forte")
@@ -1494,14 +1476,11 @@ hstat_q_stopwords_fr <- function() {
 }
 
 # Racinisation (stemming) francaise legere -- suffixes courants, base R, sans
-# dependance. Objectif : rapprocher formes flechies d'un meme lemme (ex.
-# "moustiquaire"/"moustiquaires", "dorment"/"dormir"/"dort"). Applique le
-# suffixe le plus long qui laisse une racine >= 3 lettres.
+# dependance.
 hstat_q_stem_fr <- function(words) {
   # Chaque suffixe est associe a une longueur de racine MINIMALE : plus le
   # suffixe est ambigu (ex. "ant", "ent" pouvant appartenir a la racine comme
-  # dans "enfant"), plus la racine restante exigee est longue. Cela evite le
-  # sur-decoupage ("enfant" -> "enf").
+  # dans "enfant"), plus la racine restante exigee est longue.
   sufs <- list(
     c("issaient",4), c("issantes",4), c("issement",4), c("issements",4),
     c("issant",4), c("issante",4), c("issants",4), c("erions",4),
@@ -1612,14 +1591,9 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
   vocab <- names(wf)[wf >= max(2, ceiling(n_doc * 0.02))]   # termes pas trop rares
   vocab <- utils::head(vocab, 120)
   tdm <- sapply(toks, function(w) as.integer(vocab %in% w | vocab %in% unique(w)))
-  # UN VOCABULAIRE VIDE N'EST PAS UN CAS EXOTIQUE : le seuil de rarete ci-dessus
-  # (au moins deux occurrences) suffit a le produire des qu'une liste de mots
-  # vides un peu fournie retire les termes frequents. `sapply` rend alors une
-  # LISTE de vecteurs de longueur nulle -- donc sans `dim` --, et
-  # `matrix(., nrow = 0)` leve « data is too long » : tout l'onglet textuel
-  # tombe, y compris les frequences deja calculees plus haut, qui sont justes.
-  # On pose la matrice vide qu'il faut ; le reste du chemin la traverse (les
-  # themes sont deja gardes par `length(vocab) >= n_topics * 2`).
+  # UN VOCABULAIRE VIDE N'EST PAS UN CAS EXOTIQUE : le seuil de rarete
+  # ci-dessus (au moins deux occurrences) suffit a le produire des qu'une liste
+  # de mots vides un peu fournie retire les termes frequents.
   if (length(vocab) == 0L) tdm <- matrix(integer(0), nrow = 0L, ncol = n_doc)
   else if (is.null(dim(tdm))) tdm <- matrix(tdm, nrow = length(vocab))
   # comptage reel (frequence du terme dans le doc)
@@ -2009,12 +1983,9 @@ hstat_q_missing_summary <- function(df, vars = NULL, treat_blank_as_na = TRUE) {
 # ---------------------------------------------------------------------------
 # Odds Ratio (OR) et Risque Relatif (RR) sur tableaux 2x2
 # ---------------------------------------------------------------------------
-# Pour une table 2x2 :
-#                 Issue +      Issue -
-#   Exposé +        a            b
-#   Exposé -        c            d
-# OR = (a*d)/(b*c) ; RR = [a/(a+b)] / [c/(c+d)]
-# Correction de Haldane-Anscombe (+0.5) si une case est nulle.
+# Pour une table 2x2 : Issue + Issue - Exposé + a b Exposé - c d OR =
+# (a*d)/(b*c) ; RR = [a/(a+b)] / [c/(c+d)] Correction de Haldane-Anscombe
+# (+0.5) si une case est nulle.
 hstat_q_or_rr_2x2 <- function(a, b, c, d, conf = 0.95,
                               expo_pos = "Exposé +", expo_neg = "Exposé -",
                               issue_pos = "Issue +", issue_neg = "Issue -") {
@@ -2043,13 +2014,9 @@ hstat_q_or_rr_2x2 <- function(a, b, c, d, conf = 0.95,
        cells = c(a = a, b = b, c = c, d = d))
 }
 
-# Interprétation textuelle d'un OR ou d'un RR (sens + force + signification via IC)
-# `conf` n'est pas cosmétique : le niveau de confiance est RÉGLABLE (curseur de
-# 0,80 à 0,99) et il était écrit en dur à 95 % dans cette phrase. Un intervalle
-# calculé à 99 % ressortait donc annoncé « IC99% » par le tableau des mesures
-# et « IC95% » par la phrase d'interprétation, sur les MÊMES bornes. Deux
-# étiquettes contradictoires pour un seul intervalle, dans la phrase faite
-# précisément pour être recopiée dans un rapport.
+# Interprétation textuelle d'un OR ou d'un RR (sens + force + signification via
+# IC) `conf` n'est pas cosmétique : le niveau de confiance est RÉGLABLE
+# (curseur de 0,80 à 0,99) et il était écrit en dur à 95 % dans cette phrase.
 hstat_q_interpret_ratio <- function(value, lo, hi, kind = c("OR", "RR"),
                                    conf = 0.95) {
   kind <- match.arg(kind)
@@ -2372,13 +2339,10 @@ mod_qualitative_ui <- function(id) {
               shiny::conditionalPanel(sprintf("input['%s'] == 'miss'", ns("tools_mode")),
                 shiny::checkboxInput(ns("miss_blank"), "Compter aussi les chaînes vides / blancs comme manquants", value = TRUE))),
 
-            # --- RECODAGE DES MODALITES ---
-            # Le serveur portait les trois sorties (selecteur, editeur, message)
-            # et l'observateur `apply_recode`, mais AUCUNE n'etait posee dans
-            # l'interface : la fonctionnalite existait entierement et restait
-            # inatteignable. Elle a son propre bouton -- « Lancer l'analyse »
-            # plus bas produit un tableau, recoder MODIFIE les donnees, les deux
-            # gestes ne se confondent pas.
+            # --- RECODAGE DES MODALITES --- Le serveur portait les trois
+            # sorties (selecteur, editeur, message) et l'observateur
+            # `apply_recode`, mais AUCUNE n'etait posee dans l'interface : la
+            # fonctionnalite existait entierement et restait inatteignable.
             shiny::conditionalPanel(sprintf("input['%s'] == 'recode'", ns("tools_mode")),
               shiny::uiOutput(ns("recode_var_ui")),
               shiny::uiOutput(ns("recode_interface_ui")),
@@ -2464,13 +2428,6 @@ mod_qualitative_ui <- function(id) {
                     shiny::checkboxInput(ns("sty_black_axes"), "Axes en noir", value = FALSE),
                     shiny::checkboxInput(ns("sty_black_ticks"), "Graduations en noir", value = FALSE)))),
               # LA POLICE DE BASE RESTE HORS DU KIT ICI, et c'est un choix.
-              # Les quinze constructeurs de ce module posent chacun leur propre
-              # theme complet (`theme_minimal(base_size = 12)`) : un curseur
-              # pose apres coup ne toucherait que ce que ces themes ont laisse
-              # libre, c'est-a-dire presque rien. Offrir un reglage que l'image
-              # ignore est exactement le defaut que ce depot traque -- les
-              # tailles nommees (titre, axes, graduations, legende) sont, elles,
-              # deja reglables juste au-dessus.
               hstat_plot_extras_ui(ns, "sty_",
                                    familles = c("axe", "cles", "marges")),
               # LE KIT D'EXPORT COMMUN : theme, format, taille, DPI, qualite JPEG
@@ -2833,10 +2790,7 @@ mod_qualitative_server <- function(id, values) {
       p <- hstat_q_apply_palette(p, input$plot_palette %||% "default",
                                  input$plot_col_low %||% "#aed6f1",
                                  input$plot_col_high %||% "#1f618d")
-      # LE THEME DU KIT D'EXPORT. « Minimal » est celui que posent deja les
-      # constructeurs : on ne le repose pas, sans quoi un theme complet
-      # effacerait les retouches qu'ils lui ajoutent (legende masquee...). Un
-      # autre theme, choisi expressement, remplace le leur.
+      # LE THEME DU KIT D'EXPORT.
       th <- input$qDlTheme %||% "minimal"
       if (inherits(p, "ggplot") && !identical(th, "minimal"))
         p <- p + viz_get_theme(th, base_size = 12)
@@ -2859,8 +2813,7 @@ mod_qualitative_server <- function(id, values) {
         black_axes = input$sty_black_axes %||% FALSE,
         black_ticks = input$sty_black_ticks %||% FALSE)) +
         # LE KIT SE POSE EN DERNIER : un theme complet remplace tout ce qui
-        # precede. Ce point de passage est unique -- l'apercu comme le
-        # telechargement lisent `current_plot()`, ils ne peuvent pas diverger.
+        # precede.
         hstat_plot_extras_theme(
           hstat_plot_extras_lire(input, "sty_",
                                  familles = c("axe", "cles", "marges")))

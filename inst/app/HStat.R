@@ -16,11 +16,7 @@ local({
 source("Utils.R",  local = FALSE, encoding = "UTF-8")
 
 # Les modules ont rejoint le paquet (R/mod_*.R) : le pont les charge avec le
-# socle, dans un ordre qui n'a plus a etre tenu a la main. C'etait la contrainte
-# a lever -- `mod_coding.R` devait etre source avant `mod_qualitative.R`, un
-# test le gardait, et rien n'empechait un module ajoute plus tard de se glisser
-# au mauvais endroit. Ne restent ici que les deux fichiers qui AGISSENT au
-# chargement : `UX.R` construit `ui`, `app_server.R` definit `server`.
+# socle, dans un ordre qui n'a plus a etre tenu a la main.
 .hstat_ui_err <- NULL
 tryCatch(
   source("UX.R", local = FALSE, encoding = "UTF-8"),
@@ -61,14 +57,11 @@ if (!exists("server") || !is.function(server)) {
 ui <- hstat_reparer_deps(ui)
 
 # Serialisee a la demande, une fois, puis revalidee par empreinte : chaque
-# visite coutait sinon 4 a 5 s au processus R qui sert toutes les sessions. Une
-# erreur de serialisation se leve au lieu d'etre avalee (voir `hstat_ui_en_cache()`).
+# visite coutait sinon 4 a 5 s au processus R qui sert toutes les sessions.
 ui <- hstat_ui_en_cache(ui)
 
 # La premiere session compilait toute l'application sous les yeux du premier
-# visiteur -- et bloquait tous les autres pendant 28 s. La compilation et une
-# session fictive se font des que le processus est libre (voir
-# `hstat_prechauffer_session()`).
+# visiteur -- et bloquait tous les autres pendant 28 s.
 server <- hstat_prechauffer_session(server)
 
 shinyApp(ui, server)

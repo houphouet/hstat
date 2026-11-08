@@ -1,10 +1,6 @@
 #  Helpers UI -- Analyses multivariees etendues
 
-# `.hstat_scope_banner()` a rejoint le socle (`R/utils.R`). Il etait defini ICI
-# et appele par les UI de MODULE -- donc par du code du paquet, qui ne peut pas
-# voir une definition de l'application. Cela ne cassait rien parce que `UX.R`
-# est source avant que la moindre UI ne soit CONSTRUITE, mais la dependance
-# allait a l'envers : le paquet ne doit rien attendre de l'application.
+# `.hstat_scope_banner()` a rejoint le socle (`R/utils.R`).
 
 
 .mv_theme <- function(cat) {
@@ -123,11 +119,7 @@
 
 ui <- shinydashboard::dashboardPage(
   skin = "blue",
-  # LE TITRE DE L'ONGLET SE DECLARE, IL NE SE DEDUIT PAS DU BANDEAU. Sans lui,
-  # shinydashboard reprend le titre de l'en-tete -- qui est ici une grappe de
-  # balises -- et le SERIALISE dans <title> : l'onglet du navigateur, le
-  # signet et l'historique affichaient 270 caracteres de balisage brut au lieu
-  # d'un nom. Mesure dans la page rendue.
+  # LE TITRE DE L'ONGLET SE DECLARE, IL NE SE DEDUIT PAS DU BANDEAU.
   title = "HStat",
   shinydashboard::dashboardHeader(
     title = shiny::span(
@@ -144,9 +136,7 @@ ui <- shinydashboard::dashboardPage(
         shiny::numericInput("globalSeed", label = NULL, value = 123, min = 1, max = 1e9, step = 1, width = "78px")),
       shiny::actionButton("helpBtn", "Aide", icon = shiny::icon("question-circle"), class = "hstat-hdr-btn"),
       shiny::actionButton("resetBtn", "Réinitialiser", icon = shiny::icon("redo"), class = "hstat-hdr-btn hstat-hdr-btn-warn")),
-    # Bascule de langue. Meme forme que la bascule de theme : deux segments,
-    # pas de menu deroulant — c'est un choix binaire, consulte rarement mais
-    # qui doit rester visible.
+    # Bascule de langue.
     shiny::tags$li(class = "dropdown",
       shiny::div(class = "hstat-theme-toggle", `data-hstat-notranslate` = NA,
         shiny::tags$span(class = "seg active", id = "hstatLangFr",
@@ -214,12 +204,7 @@ ui <- shinydashboard::dashboardPage(
       shinyalert::useShinyalert(force = TRUE),
     shiny::tags$head(
       shiny::tags$meta(name = "viewport", content = "width=device-width, initial-scale=1, shrink-to-fit=no"),
-      # UNE ICONE DECLAREE EST UNE REQUETE EN MOINS. Sans `rel = "icon"`, le
-      # navigateur demande `/favicon.ico` de lui-meme, l'application n'en sert
-      # aucun, et CHAQUE visite inscrit un 404 dans la console -- ou il masque
-      # les vraies erreurs, exactement comme le polyfill de plotly et la
-      # dependance `strftime` deja corriges. L'onglet y gagne aussi son icone,
-      # seul repere quand vingt onglets sont ouverts sur un telephone.
+      # UNE ICONE DECLAREE EST UNE REQUETE EN MOINS.
       shiny::tags$link(rel = "icon", type = "image/svg+xml",
                        href = hstat_asset("hstat-favicon.svg")),
       # Feuille de theme HStat (polices IBM Plex LOCALES -> fonctionne hors-ligne).
@@ -233,8 +218,7 @@ ui <- shinydashboard::dashboardPage(
         "document.documentElement.setAttribute('lang','fr');")),
       # Persistance de la session : le voile gris de Shiny (« Disconnected from
       # the server ») est masque au profit d'un bandeau francais qui annonce
-      # l'etat et laisse reprendre la main. Un verrouillage d'ecran ne doit pas
-      # fermer l'application : seul l'utilisateur la ferme.
+      # l'etat et laisse reprendre la main.
       shiny::tags$style(shiny::HTML(
         "#shiny-disconnected-overlay{display:none !important;}")),
       shiny::tags$script(src = hstat_asset("hstat-session.js")),
@@ -242,18 +226,9 @@ ui <- shinydashboard::dashboardPage(
       # chaque fichier, et la conversion des exports de DataTables.
       shiny::tags$script(src = hstat_asset("hstat-decimale.js")),
       # Sections repliables de la barre laterale : 1 a 5 se deplient au survol
-      # de leur titre et restent ouvertes au clic. « 6. A propos » ne porte pas
-      # `data-hstat-repli` et reste toujours deplie.
+      # de leur titre et restent ouvertes au clic.
       shiny::tags$script(src = hstat_asset("hstat-menu.js")),
-      # Dictionnaire de traduction. Il est servi en RESSOURCE STATIQUE
-      # estampillee de la version, non plus ecrit en clair dans la page :
-      # 476 Ko y etaient renvoyes a chaque ouverture (160 Ko apres gzip, la
-      # moitie du transfert), y compris a un francophone qui ne les emploie
-      # pas. Le fichier est servi par l'application elle-meme : le bilingue
-      # fonctionne toujours hors ligne. La cle reste la chaine francaise, donc
-      # une chaine non traduite reste en francais.
-      # DOIT PRECEDER hstat-i18n.js, qui lit window.HSTAT_I18N des son
-      # chargement.
+      # Dictionnaire de traduction.
       hstat_i18n_script("en"),
       shiny::tags$script(src = hstat_asset("hstat-i18n.js")),
       # Copie de la citation dans le presse-papiers (API moderne + repli execCommand).
@@ -298,20 +273,8 @@ ui <- shinydashboard::dashboardPage(
           });
         })();
       ")),
-      # Les regles responsive vivent dans www/hstat-theme.css, section
-      # « RESPONSIVE ». Elles etaient ici, et l'escamotage de la barre laterale
-      # y etait code en dur a -230 px alors que la barre fait 300 : 70 px
-      # restaient poses sur le contenu, coupe a gauche sur tous les onglets.
-      # Une regle responsive dispersee en deux endroits finit par se
-      # contredire ; il n'y en a plus qu'un.
-      # Sur telephone, le menu est un TIROIR : il se referme des qu'on choisit
-      # une entree ou qu'on touche le contenu, comme partout ailleurs. Sans
-      # cela il reste ouvert PAR-DESSUS les resultats -- on ouvre le menu, on
-      # choisit un onglet, et l'on ne voit plus ce qu'on etait venu lire. Il
-      # faut alors retrouver le bouton, lui aussi recouvert.
-      #
-      # Les evenements de Shiny passent par jQuery : `$(document).on` et non
-      # `document.addEventListener`, qui ne les voit jamais.
+      # Les regles responsive vivent dans www/hstat-theme.css, section «
+      # RESPONSIVE ».
       shiny::tags$script(shiny::HTML("
         (function(){
           var TIROIR = 991;
@@ -559,21 +522,14 @@ ui <- shinydashboard::dashboardPage(
                     ),
                     shiny::actionButton("loadData", "Charger", class = "btn-success", icon = shiny::icon("upload")),
 
-                    # --- Jeux de donnees integres a R --------------------------------
-                    # REPLIE, a la demande : deplie, le bloc poussait hors de l'ecran
-                    # la fusion de fichiers pour qui charge son propre fichier. Le
-                    # titre, toujours visible, suffit a le signaler -- c'est la
-                    # disposition de la fusion juste en dessous, et pour la meme
-                    # raison. Le CATALOGUE se replie a son tour a l'interieur.
+                    # --- Jeux de donnees integres a R
+                    # -------------------------------- REPLIE, a la demande :
+                    # deplie, le bloc poussait hors de l'ecran la fusion de
+                    # fichiers pour qui charge son propre fichier.
                     shiny::tags$hr(style = "margin:18px 0 12px;"),
                     shiny::tags$details(
                       style = "margin:4px 0; padding:10px 14px; background:#f3f7ee; border:1px solid #cfe3bd; border-radius:8px;",
-                      # UN NOEUD DE TEXTE PAR CLE. Le traducteur du navigateur ne
-                      # remplace que des correspondances COMPLETES, et le DOM fond
-                      # toute suite de caracteres adjacents en un seul noeud : une
-                      # phrase ecrite en trois morceaux n'existe donc nulle part
-                      # comme chaine entiere, et aucune entree du dictionnaire ne
-                      # peut la couvrir. Chaque libelle est ecrit d'un tenant.
+                      # UN NOEUD DE TEXTE PAR CLE.
                       shiny::tags$summary(style = "cursor:pointer; font-weight:700; color:#4a7c2f; font-size:14px;",
                                     shiny::icon("database"),
                                     " Utiliser un jeu de données intégré à R"),
@@ -1031,8 +987,7 @@ ui <- shinydashboard::dashboardPage(
                         shiny::tagList(shiny::icon("chart-area"), " Graphiques"),
                         shiny::br(),
                         # Les dimensions d'origine de ggplot2 : 7 x 7 pouces,
-                        # carre. La regle et ses deux pieges sont ecrits une
-                        # seule fois, chez `hstat_carre_ui()`.
+                        # carre.
                         hstat_carre_ui("pcaPlot"),
                         shiny::hr(),
                                             shiny::div(style = "background-color:#eef2f5;border-left:4px solid #3c8dbc;padding:10px;margin:6px 0;",
@@ -1834,9 +1789,8 @@ ui <- shinydashboard::dashboardPage(
       )
     ),
     # Les options d'affichage des graphiques sont desormais propres a CHAQUE
-    # methode (boite "Options d'affichage des graphiques (optionnel)" rendue dans
-    # les controles de chaque analyse). On ne duplique donc plus de boite globale
-    # partagee ici, pour eviter le doublon.
+    # methode (boite "Options d'affichage des graphiques (optionnel)" rendue
+    # dans les controles de chaque analyse).
 
     # =================== CATEGORIE QUANTITATIVES ===================
     shiny::conditionalPanel(

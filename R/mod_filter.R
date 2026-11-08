@@ -116,11 +116,9 @@ mod_filter_server <- function(id, values) {
       shiny::textAreaInput(ns("rowSelection"), "Sélection de lignes :",
                     placeholder = "Exemples :\n1 à 10\n1,3,4,5,10,15,20\n1,3,4,5,10,15,20 à 30",
                     rows = 3),
-      # Le contenu d'un <code> n'est JAMAIS traduit par le navigateur (la balise
-      # est dans sa liste d'exclusion, et c'est voulu : on n'altere pas un
-      # extrait de code). Les exemples de syntaxe resteraient donc en francais.
-      # Le bloc passe par un gabarit traduit cote serveur, ou ils suivent la
-      # langue -- « 1 to 10 » en anglais, que l'analyseur accepte desormais.
+      # Le contenu d'un <code> n'est JAMAIS traduit par le navigateur (la
+      # balise est dans sa liste d'exclusion, et c'est voulu : on n'altere pas
+      # un extrait de code).
       shiny::helpText(shiny::HTML(trf(paste0(
         "<b>Formats acceptés :</b><br>",
         "- Plage : <code>1 à 10</code> ou <code>5-15</code><br>",

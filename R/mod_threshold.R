@@ -25,10 +25,8 @@ mod_threshold_ui <- function(id) {
                     ),
                     
                     # La source du graphique : le fichier charge, ou le tableau
-                    # d'efficacites calcule dans l'onglet « Calcul depuis un temoin ».
-                    # Sans ce choix, tracer les efficacites obligeait a REMPLACER le
-                    # jeu de travail puis a re-selectionner X et Y -- un detour qui
-                    # fait perdre le fichier d'origine pour un simple graphique.
+                    # d'efficacites calcule dans l'onglet « Calcul depuis un
+                    # temoin ».
                     shiny::radioButtons(ns("thresholdSource"),
                       shiny::tagList(shiny::icon("database"), " Source des données"),
                       choiceNames = list(
@@ -64,11 +62,10 @@ mod_threshold_ui <- function(id) {
                            style = "color:#2b2b2b; font-weight:600; margin:0; font-size:13px;")
                     ),
                     
-                    # AUCUNE BORNE. Le seuil etait bride a 0-100 : on ne pouvait
-                    # donc pas poser de repere sur une efficacite NEGATIVE (la
-                    # modalite fait moins bien que le temoin), ni au-dela de 100
-                    # sur un rapport qui le permet. Un repere qu'on ne peut pas
-                    # saisir est un repere qui n'existe pas.
+                    # AUCUNE BORNE. Le seuil etait bride a 0-100 : on ne
+                    # pouvait donc pas poser de repere sur une efficacite
+                    # NEGATIVE (la modalite fait moins bien que le temoin), ni
+                    # au-dela de 100 sur un rapport qui le permet.
                     shiny::numericInput(ns("thresholdValue"), 
                                  shiny::tagList(shiny::icon("percent"), " Valeur du seuil (%)"), 
                                  value = 80, step = 1),
@@ -94,8 +91,7 @@ mod_threshold_ui <- function(id) {
                                 selected = "solid"),
 
                     # L'etiquette qui porte la valeur du seuil se regle LA OU
-                    # la valeur se saisit. Sa taille vivait dans « Apparence &
-                    # options », deux onglets plus loin : on la cherchait ici.
+                    # la valeur se saisit.
                     shiny::div(style = "background:#fdeeec; border-left:4px solid #c0392b; border-radius:6px; padding:12px 14px; margin-bottom:14px;",
                         shiny::h6(shiny::icon("tag"), " Étiquette de la valeur sur le graphique",
                            style = "font-weight:700; color:#c0392b; margin:0 0 10px 0; text-transform:uppercase; letter-spacing:.4px; font-size:12px;"),
@@ -283,9 +279,8 @@ mod_threshold_ui <- function(id) {
                               condition = "input.thresholdBarColor == 'palette'",
                               # La liste vient du catalogue commun : celle qui
                               # vivait ici n'offrait AUCUNE palette non
-                              # plafonnee, et un essai a plus de huit
-                              # modalites y perdait ses dernieres barres en
-                              # gris.
+                              # plafonnee, et un essai a plus de huit modalites
+                              # y perdait ses dernieres barres en gris.
                               shiny::selectInput(ns("thresholdPalette"), "Choisir une palette :",
                                           choices = hstat_palettes_choix(),
                                           selected = unname(HSTAT_PALETTE_GG))
@@ -438,12 +433,8 @@ mod_threshold_ui <- function(id) {
                         shiny::h6(shiny::icon("arrows-alt-v"), " Limites de l'axe Y", 
                            style = "font-weight: bold; color: #2e7d32; margin-bottom: 10px;"),
                         
-                        # UNE EFFICACITE NEGATIVE EST UN RESULTAT -- la modalite fait
-                        # moins bien que le temoin. Le minimum valait 0 ET portait
-                        # `min = 0` : non seulement la barre negative sortait du
-                        # cadre, mais l'utilisateur ne POUVAIT PAS saisir la valeur
-                        # qui l'aurait ramenee. Le champ accepte donc le negatif,
-                        # et vide il laisse l'axe suivre les donnees.
+                        # UNE EFFICACITE NEGATIVE EST UN RESULTAT -- la
+                        # modalite fait moins bien que le temoin.
                         shiny::fluidRow(
                           shiny::column(6,
                                  shiny::numericInput(ns("thresholdYMin"), "Minimum (vide = auto) :",
@@ -600,9 +591,7 @@ mod_threshold_ui <- function(id) {
                     collapsible = TRUE, collapsed = TRUE,
 
                     shiny::uiOutput(ns("effResume")),
-                    # Deux lectures du meme calcul. « Une colonne par variable »
-                    # est le defaut : c'est elle qui alimente le selecteur
-                    # « Variable Y » et qui se reinjecte dans l'application.
+                    # Deux lectures du meme calcul.
                     shiny::radioButtons(ns("effPresentation"),
                                  shiny::tagList(shiny::icon("table-columns"), " Présentation du tableau"),
                                  choiceNames = list(
@@ -689,9 +678,7 @@ mod_threshold_server <- function(id, values) {
     threshold_values$legend_label_mapping <- NULL
     threshold_values$legend_label_styles <- NULL
     # Le tableau d'efficacites calcule sur le fichier PRECEDENT : il alimente
-    # `source_data()`, donc le graphique et les selecteurs. Sans cette ligne,
-    # les modalites de l'ancien essai restaient proposees apres un nouveau
-    # chargement.
+    # `source_data()`, donc le graphique et les selecteurs.
     eff_res(NULL)
     shiny::updateNumericInput(session, "thresholdValue", value = 80)
     shiny::updateTextInput(session, "thresholdPlotTitle", value = "")
@@ -706,8 +693,7 @@ mod_threshold_server <- function(id, values) {
   # CALCUL DE L'EFFICACITE DEPUIS UN TEMOIN (formule d'Abbott)
   # -------------------------------------------------------------------------
   # Le module tracait des courbes a partir d'une variable d'efficacite DEJA
-  # calculee ailleurs. Ici, elle est calculee dans l'application : on choisit
-  # la modalite temoin, et toutes les autres lui sont comparees en boucle.
+  # calculee ailleurs.
   # =========================================================================
   eff_res <- shiny::reactiveVal(NULL)
 
@@ -825,10 +811,7 @@ mod_threshold_server <- function(id, values) {
       else NULL)
   })
 
-  # Une colonne d'efficacite par variable mesuree. Sans cela, quinze variables
-  # sur onze modalites faisaient 165 lignes portant toutes la meme colonne
-  # « Efficacite » : le selecteur Y n'avait qu'un choix, et le graphique
-  # superposait quinze series sur onze positions.
+  # Une colonne d'efficacite par variable mesuree.
   eff_large <- shiny::reactive({
     r <- eff_res()
     if (is.null(r) || !NROW(r)) return(NULL)
@@ -836,8 +819,7 @@ mod_threshold_server <- function(id, values) {
   })
 
   # Tableau effectivement montre et telecharge : celui que l'utilisateur a sous
-  # les yeux. Deux boutons qui n'exportent pas ce qui est affiche seraient un
-  # piege.
+  # les yeux.
   eff_affiche <- shiny::reactive({
     if (identical(input$effPresentation %||% "large", "long")) eff_res()
     else eff_large()
@@ -881,8 +863,7 @@ mod_threshold_server <- function(id, values) {
     }))
 
   # « L'utilisateur doit pouvoir selectionner ce dataframe pour les autres
-  # operations » : le tableau devient le jeu de travail. On le dit clairement
-  # -- remplacer les donnees sans prevenir serait le pire des services.
+  # operations » : le tableau devient le jeu de travail.
   shiny::observeEvent(input$effUseAsData, {
     # Le tableau LARGE : c'est celui qui porte une variable par colonne, donc
     # le seul directement analysable par les autres onglets.
@@ -903,9 +884,7 @@ mod_threshold_server <- function(id, values) {
       type = "message", duration = 8)
   })
 
-  # Source du graphique. Le tableau d'efficacites est utilisable SANS remplacer
-  # le jeu de travail : le fichier d'origine reste disponible pour le reste de
-  # l'application.
+  # Source du graphique.
   source_data <- shiny::reactive({
     if (identical(input$thresholdSource %||% "donnees", "calcul")) {
       # Large : le selecteur « Variable Y » doit lister les variables mesurees,
@@ -919,8 +898,7 @@ mod_threshold_server <- function(id, values) {
     } else {
       # `values$filteredData`, PAS `source_data()` : la substitution mecanique
       # avait touche le corps du reactif lui-meme, qui s'appelait donc
-      # recursivement. R s'arretait sur « C stack usage is too close to the
-      # limit » et l'application ne demarrait plus.
+      # recursivement.
       values$filteredData
     }
   })
@@ -951,9 +929,8 @@ mod_threshold_server <- function(id, values) {
   .eff_defaut <- function(cols, souhait) {
     if (identical(input$thresholdSource %||% "donnees", "calcul")) {
       if (souhait %in% cols) return(souhait)
-      # Plusieurs variables mesurees : les colonnes s'appellent
-      # « Efficacite_<variable> ». On propose la premiere plutot que la
-      # premiere colonne venue, qui serait le nombre de repetitions.
+      # Plusieurs variables mesurees : les colonnes s'appellent «
+      # Efficacite_<variable> ».
       eff <- cols[startsWith(cols, HSTAT_EFF_PREFIXE)]
       if (length(eff)) return(eff[1])
     }
@@ -1440,9 +1417,8 @@ mod_threshold_server <- function(id, values) {
                                        input$thresholdBarBorderWidth)
 
         # Libelles de legende personnalises (mode Y simple) : la legende montre
-        # les niveaux (traitements) ; on lit l'editeur thresholdLegendItem_* pour
-        # renommer ces entrees independamment de l'axe X. 'levels(Treatment)' est
-        # deja relabelise par l'editeur d'axe X, donc on mappe a partir de ces
+        # les niveaux (traitements) ; on lit l'editeur thresholdLegendItem_*
+        # pour renommer ces entrees independamment de l'axe X.
         legend_levels <- levels(plot_data$Treatment)
         legend_labels <- sapply(legend_levels, function(lbl) {
           custom <- input[[paste0("thresholdLegendItem_", make.names(lbl))]]
@@ -1510,8 +1486,7 @@ mod_threshold_server <- function(id, values) {
         empile  <- is_multiple_y &&
                    identical(input$thresholdBarPosition %||% "dodge", "stack")
         # Barres empilees : une etiquette posee a la valeur de la serie
-        # mentirait, puisque les segments s'additionnent. On la place AU MILIEU
-        # de son segment, seul endroit ou elle designe ce qu'elle annonce.
+        # mentirait, puisque les segments s'additionnent.
         pos <- if (empile) list(y = plot_data$Efficacy, vjust = rep(0.5, NROW(plot_data)))
                else hstat_valeur_pos(plot_data$Efficacy,
                                      input$thresholdValuePosition %||% "dessus")
@@ -1621,10 +1596,8 @@ mod_threshold_server <- function(id, values) {
       
       # Graduations de l'axe Y : un pas demande, sinon le choix de ggplot.
       pas_y <- suppressWarnings(as.numeric(input$thresholdYBreakStep %||% NA)[1])
-      # `NA` sur une borne = « automatique » pour ggplot : ce cote suit alors les
-      # donnees. C'est le defaut, et c'est ce qui garantit qu'une efficacite
-      # NEGATIVE -- la modalite fait moins bien que le temoin, c'est un resultat
-      # -- reste visible. L'ancien defaut 0-100 la faisait sortir du cadre.
+      # `NA` sur une borne = « automatique » pour ggplot : ce cote suit alors
+      # les donnees.
       num1 <- function(x) {
         v <- suppressWarnings(as.numeric(x %||% NA)[1])
         if (isTRUE(is.finite(v))) v else NA_real_
@@ -1632,13 +1605,10 @@ mod_threshold_server <- function(id, values) {
       y_min <- num1(input$thresholdYMin)
       y_max <- num1(input$thresholdYMax)
       # Etendue REELLE de l'axe, bornes automatiques resolues : elle sert aux
-      # graduations. Zero y est toujours inclus -- c'est la reference de la
-      # formule d'Abbott, un cadre qui l'exclurait serait illisible.
+      # graduations.
       obs <- plot_data$Efficacy[is.finite(plot_data$Efficacy)]
-      # Le SEUIL entre dans l'etendue : c'est la ligne que ce module existe pour
-      # montrer. Sans lui, un seuil a 80 sur des efficacites allant de -60 a 45
-      # etait trace hors des graduations -- la ligne apparaissait, mais aucune
-      # graduation ne disait a quelle hauteur elle passait.
+      # Le SEUIL entre dans l'etendue : c'est la ligne que ce module existe
+      # pour montrer.
       etendue <- hstat_etendue_axe(obs, c(0, suppressWarnings(
         as.numeric(input$thresholdValue %||% NA)[1])))
       b_min <- if (is.na(y_min)) etendue[1] else y_min
@@ -1649,11 +1619,9 @@ mod_threshold_server <- function(id, values) {
       else ggplot2::scale_y_continuous(limits = c(y_min, y_max))
 
       # UNE EFFICACITE INDETERMINABLE NE TRACE AUCUNE BARRE, et rien ne le
-      # disait : l'axe gardait la place de la modalite, vide, et le seul
-      # signal partait dans la console de R (« Removed 1 row containing
-      # missing values »). L'utilisateur voyait un trou. La formule d'Abbott
-      # rend NA des que le temoin vaut zero -- c'est un cas normal, il se
-      # nomme.
+      # disait : l'axe gardait la place de la modalite, vide, et le seul signal
+      # partait dans la console de R (« Removed 1 row containing missing values
+      # »).
       absentes <- !is.finite(plot_data$Efficacy)
       if (any(absentes)) {
         qui <- unique(as.character(plot_data$Treatment[absentes]))
@@ -1663,9 +1631,7 @@ mod_threshold_server <- function(id, values) {
           type = "warning", duration = 10, id = session$ns("seuilSansValeur"))
       }
 
-      # Une barre hors des limites de l'axe DISPARAIT, avec son etiquette. Le
-      # decompte ne porte que sur les bornes REELLEMENT fixees : une borne
-      # automatique ne peut, par construction, rien exclure.
+      # Une barre hors des limites de l'axe DISPARAIT, avec son etiquette.
       hors <- sum(is.finite(plot_data$Efficacy) &
                   ((!is.na(y_min) & plot_data$Efficacy < y_min) |
                    (!is.na(y_max) & plot_data$Efficacy > y_max)))
@@ -1774,11 +1740,7 @@ mod_threshold_server <- function(id, values) {
                         color = ggplot2::guide_legend(ncol = 1, byrow = TRUE))
       }
       
-      # Mise en forme des etiquettes de l'axe X. Le style est retenu A PART
-      # (`x_label_styles`) : le graphique porte du plotmath, que ggsave rend
-      # correctement, mais que ggplotly DEPARSE -- l'axe affichait
-      # `bold("2SP(0,5)&2PV")` en toutes lettres a l'ecran. Le rendu
-      # interactif reprend donc les memes styles en HTML, que plotly comprend.
+      # Mise en forme des etiquettes de l'axe X.
       threshold_values$x_label_levels <- NULL
       threshold_values$x_label_styles <- NULL
       if(!is.null(label_styles) && length(label_styles) > 0) {
@@ -1871,10 +1833,7 @@ mod_threshold_server <- function(id, values) {
       config(responsive = TRUE)
 
     # LE SOUS-TITRE NE SURVIT PAS A ggplotly : la conversion le laisse
-    # simplement tomber. L'utilisateur en saisissait un, ne voyait rien a
-    # l'ecran, et le retrouvait dans le fichier telecharge -- soit le pire des
-    # deux mondes. On le remet donc en seconde ligne du titre plotly. Le texte
-    # vient de l'utilisateur : il est echappe avant d'entrer dans la balise.
+    # simplement tomber.
     sous <- trimws(input$thresholdSubtitle %||% "")
     if (nzchar(sous)) {
       titre <- p$labels$title %||% ""
@@ -1933,10 +1892,7 @@ mod_threshold_server <- function(id, values) {
         shiny::showNotification(dims$note, type = "warning", duration = 8)
 
       # Un seul chemin d'ecriture, et il garantit un fichier VALIDE du format
-      # demande. Les sept branches de ggsave qui vivaient ici pouvaient lever
-      # sans rien ecrire : Shiny renvoyait alors sa page d'erreur HTML, que le
-      # navigateur enregistrait sous le nom demande -- on croyait tenir un PNG,
-      # on ouvrait du HTML.
+      # demande.
       fmt <- hstat_img_fmt(input$thresholdExportFormat)
       ok  <- hstat_ecrire_image(file, threshold_values$current_plot, fmt,
                                 dims$width_in, dims$height_in, dims$dpi)
@@ -1956,8 +1912,7 @@ mod_threshold_server <- function(id, values) {
   )
 
   # L'apercu annonce les DEUX tailles : la mise en page demandee et les pixels
-  # reellement produits. Ne montrer que la premiere laissait croire qu'un DPI
-  # plus eleve ne changeait rien au fichier.
+  # reellement produits.
   output$exportSizeEstimate <- shiny::renderText({
     format <- input$thresholdExportFormat %||% "png"
     d <- hstat_export_dims(input$thresholdExportWidth,

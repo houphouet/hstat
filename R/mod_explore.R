@@ -320,10 +320,7 @@ mod_explore_server <- function(id, values) {
       trf("Distribution de %s", var)
     }
 
-    # On extrait UNIQUEMENT la variable a tracer dans un data.frame propre. Cela
-    # evite l'erreur "data must be uniquely named but has duplicate columns" quand
-    # le jeu de donnees contient des colonnes en double (p. ex. apres une fusion ou
-    # un CSV aux en-tetes dupliques), et garantit un nom de colonne unique.
+    # On extrait UNIQUEMENT la variable a tracer dans un data.frame propre.
     if (!var %in% names(data))
       stop(trf("La variable « %s » est introuvable.", var))
     col_idx <- which(names(data) == var)[1]      # 1re colonne portant ce nom
@@ -335,12 +332,7 @@ mod_explore_server <- function(id, values) {
     if (nrow(pdata) == 0)
       stop(trf("La variable « %s » ne contient aucune valeur numérique valide.", var))
 
-    # LA LEGENDE DIT CE QUE PORTE CHAQUE COUCHE. Les barres sont la densite
-    # OBSERVEE (effectifs ramenes a une aire de 1, pour partager l'axe avec la
-    # courbe) ; la courbe rouge est la densite ESTIMEE par noyau gaussien,
-    # c'est-a-dire une version lissee des barres, pas une loi normale ajustee.
-    # Sans legende, la courbe se lit couramment comme « la normale », ce qui
-    # fait conclure a tort sur la normalite.
+    # LA LEGENDE DIT CE QUE PORTE CHAQUE COUCHE.
     lab_hist <- tr("Histogramme : densité observée")
     lab_dens <- tr("Courbe rouge : densité lissée (noyau)")
     p <- ggplot2::ggplot(pdata, ggplot2::aes(x = .x)) +
@@ -395,9 +387,7 @@ mod_explore_server <- function(id, values) {
     )
   }) %>% shiny::debounce(500)
   
-  # LE GRAPHIQUE N'EST CONSTRUIT QU'UNE FOIS. L'apercu et le telechargement en
-  # montaient chacun leur exemplaire, avec les memes huit arguments : deux
-  # copies a tenir d'accord, et rien pour signaler qu'elles avaient diverge.
+  # LE GRAPHIQUE N'EST CONSTRUIT QU'UNE FOIS.
   dist_gg <- shiny::reactive({
     shiny::req(values$data, input$distVar)
     params <- distParams()

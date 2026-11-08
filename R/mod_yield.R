@@ -1,21 +1,8 @@
 # =============================================================================
 #  Module Shiny : GAIN DE RENDEMENT
 # -----------------------------------------------------------------------------
-#  Rendement (kg/ha) = masse recoltee (kg) / surface (ha)
-#  Gain (%)          = (rendement du traitement - rendement du non traite)
-#                      / rendement du non traite x 100
-#
-#  Le calcul lui-meme vit dans `Utils.R` (`hstat_rendement()`,
-#  `hstat_rdt_table()`, `hstat_rdt_gain()`, `hstat_rdt_complet()`) : c'est la
-#  seule facon de le tester sans demarrer Shiny, et c'est la regle du depot.
-#  Ce fichier ne fait que choisir, afficher et mettre en forme.
-#
-#  DEUX RENDEMENTS, DEUX GAINS, ET CE N'EST PAS UNE REDONDANCE. Le rendement
-#  GLOBAL rapporte la masse totale a la surface totale : il pondere chaque
-#  repetition par sa surface. Le rendement MOYEN traite chaque repetition a
-#  egalite. Ils coincident a surfaces egales et divergent sinon ; le module
-#  affiche les deux plutot que d'en choisir un a la place de l'utilisateur, et
-#  signale la divergence quand elle apparait.
+# Rendement (kg/ha) = masse recoltee (kg) / surface (ha) Gain (%) = (rendement
+# du traitement - rendement du non traite) / rendement du non traite x 100
 # =============================================================================
 
 # Mesures representables, et ce qu'elles portent en ordonnee.
@@ -28,14 +15,10 @@ HSTAT_RDT_MESURES <- c(
   "Gain de rendement cumulé (%)" = "Gain_somme")
 
 # Une mesure de GAIN se lit par rapport a zero : la ligne de reference n'est
-# pas une decoration, c'est l'axe de lecture. Une PERTE se lit de meme -- une
-# perte negative signifie que la modalite fait mieux que la reference.
+# pas une decoration, c'est l'axe de lecture.
 .hstat_rdt_est_gain <- function(mesure) grepl("^(Gain|Perte)_", mesure %||% "")
 
-# UN RENDEMENT RELATIF SE LIT PAR RAPPORT A 100, PAS A ZERO. 100 % veut dire
-# « aussi productif que la reference » : c'est cette ligne-la qui porte la
-# lecture, et poser le zero a sa place ferait lire un ecart de 80 points la ou
-# il y en a 20. Le repere est donc pose a 100 pour ces colonnes.
+# UN RENDEMENT RELATIF SE LIT PAR RAPPORT A 100, PAS A ZERO.
 .hstat_rdt_est_relatif <- function(mesure) grepl("^Relatif_", mesure %||% "")
 
 mod_yield_ui <- function(id) {
@@ -49,11 +32,7 @@ mod_yield_ui <- function(id) {
         title = shiny::tagList(shiny::icon("wheat-awn"), " Configuration de l'analyse"),
         status = "primary", width = 4, solidHeader = TRUE, collapsible = TRUE,
 
-        # LA RECOLTE SE PESE AVANT D'ETRE MISE EN FICHIER. Un essai de dix
-        # traitements sur trois blocs tient en trente lignes : exiger un CSV
-        # pour trente nombres oblige a ouvrir un tableur, a le nommer, a le
-        # relire -- pour un calcul de trois minutes. La saisie directe est
-        # celle de l'onglet DL50/CL50, et pour la meme raison.
+        # LA RECOLTE SE PESE AVANT D'ETRE MISE EN FICHIER.
         .hstat_opt_section(
           "Source des données", "database", "#2c3e50", "#eceff1",
           shiny::radioButtons(ns("yieldSource"), NULL,
@@ -78,10 +57,7 @@ mod_yield_ui <- function(id) {
           shiny::conditionalPanel(
             ns = ns, condition = "input.yieldSource == 'rendement'",
             shiny::uiOutput(ns("yieldRendementUI")),
-            # LE RENDEMENT GLOBAL PONDERE PAR LA SURFACE. Sans surface il
-            # n'est pas calculable -- sauf a declarer les surfaces egales,
-            # ce qui est le plan d'essai ordinaire. Les deux se declarent,
-            # aucun ne se devine.
+            # LE RENDEMENT GLOBAL PONDERE PAR LA SURFACE.
             shiny::checkboxInput(ns("yieldSurfacesEgales"),
               "Les répétitions portent des surfaces égales",
               value = TRUE),
@@ -112,21 +88,14 @@ mod_yield_ui <- function(id) {
 
         .hstat_opt_section(
           "Unité du rendement", "arrow-right-arrow-left", "#16a085", "#e8f8f4",
-          # UN AXE DE RENDEMENT SANS UNITE N'EST PAS UN RESULTAT. Quand le
-          # rendement est deja calcule, l'application ne peut pas la deviner :
-          # c'est l'utilisateur qui la DECLARE ici, et c'est elle qui titre
-          # l'axe et rend la conversion possible.
+          # UN AXE DE RENDEMENT SANS UNITE N'EST PAS UN RESULTAT.
           shiny::uiOutput(ns("yieldSortieNote")),
           shiny::selectInput(ns("yieldSortieMasse"), "Exprimer la masse en",
                       choices = names(HSTAT_RDT_MASSE), selected = "kilogramme (kg)"),
           shiny::selectInput(ns("yieldSortieSurface"), "Par unité de surface",
                       choices = names(HSTAT_RDT_SURFACE), selected = "hectare (ha)"),
           shiny::uiOutput(ns("yieldUniteApercu")),
-          # LA CONVERSION AJOUTE, ELLE NE REMPLACE PAS. C'est une OPTION : le
-          # tableau garde l'unite demandee ci-dessus, et gagne une colonne par
-          # mesure convertie. L'une sert a comparer avec un barème ou une
-          # publication, l'autre au contrôle -- et l'une sans l'autre oblige à
-          # refaire le calcul de tête.
+          # LA CONVERSION AJOUTE, ELLE NE REMPLACE PAS.
           shiny::checkboxInput(ns("yieldConvertir"),
                         "Convertir aussi le rendement dans une autre unité",
                         value = FALSE),
@@ -148,22 +117,14 @@ mod_yield_ui <- function(id) {
         ),
 
         # LES PERTES ONT LEUR PROPRE REFERENCE, ET ELLE N'EST PAS LE TEMOIN.
-        # Le gain se lit PAR RAPPORT AU NON TRAITE (ce que le traitement
-        # apporte) ; la perte se lit PAR RAPPORT A UNE PROTECTION (ce que l'on
-        # perd a ne pas l'appliquer). Les deux coexistent dans le meme essai et
-        # ne designent pas la meme modalite : confondre les deux selecteurs
-        # rendrait des pourcentages justes sous le mauvais nom.
         .hstat_opt_section(
           "Pertes de récolte", "arrow-trend-down", "#8e44ad", "#f4ecf7",
           shiny::uiOutput(ns("yieldRefPerteUI")),
           shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
                      "Chaque modalité est comparée à ces références. Un essai phytosanitaire en compte souvent deux : la protection poussée et la protection vulgarisée."),
           shiny::hr(style = "margin:10px 0;"),
-          # DEUX FACONS DE TENIR COMPTE DES REPETITIONS, DEUX QUESTIONS --
-          # le meme partage que les efficacites, et il porte le meme piege.
-          # « En commun » rend le chiffre du rapport ; « par repetition » rend
-          # une VARIABLE, avec sa dispersion, analysable par ANOVA ou
-          # comparaisons multiples.
+          # DEUX FACONS DE TENIR COMPTE DES REPETITIONS, DEUX QUESTIONS -- le
+          # meme partage que les efficacites, et il porte le meme piege.
           shiny::radioButtons(ns("yieldModePerte"), "Prise en compte des répétitions",
             choices = c("En commun — une perte par modalité" = "cumul",
                         "Par répétition — une perte dans chaque bloc" = "par_repetition"),
@@ -238,10 +199,7 @@ mod_yield_ui <- function(id) {
             title = shiny::tagList(shiny::icon("keyboard"), " Saisie"),
             value = "saisie",
             shiny::br(),
-            # UN SEUL ARGUMENT, PAS TROIS. Des enfants texte adjacents ne font
-            # qu'un seul noeud dans le DOM : le traducteur du navigateur, qui ne
-            # remplace que des correspondances entieres, ne verrait aucun des
-            # trois morceaux.
+            # UN SEUL ARGUMENT, PAS TROIS.
             shiny::helpText("Double-cliquez une cellule pour la modifier. La modalité est du texte, la masse et la surface des nombres ; la répétition est facultative."),
             DT::DTOutput(ns("yieldSaisie")),
             shiny::br(),
@@ -300,10 +258,6 @@ mod_yield_ui <- function(id) {
                                        "Sucettes (lollipop)" = "lollipop"),
                            selected = "bar"),
               # LA PALETTE PAR DEFAUT DE ggplot2 EST OFFERTE, ET EN PREMIER.
-              # C'est la seule qui ne PLAFONNE pas : les qualitatives de Brewer
-              # s'arretent a 8, 9 ou 12 couleurs, et au-dela ggplot avertit puis
-              # rend les modalites surnumeraires en GRIS. Un essai a quinze
-              # traitements n'a rien d'exotique en agronomie.
               shiny::selectInput(ns("yieldPalette"), "Palette de couleurs",
                           choices = c(list("Sans palette" = c("Couleur unique" = "unique")),
                                       hstat_palettes_choix()),
@@ -396,8 +350,7 @@ mod_yield_ui <- function(id) {
                                               choices = HSTAT_FONT_STYLES, selected = "bold"))),
                 # L'ETIQUETTE D'UNE VALEUR DEPEND DU SIGNE : un gain negatif
                 # descend sous l'axe, et un `vjust` fige ecrirait son etiquette
-                # du mauvais cote de la barre. `hstat_valeur_pos()` rend
-                # l'ordonnee ET le calage ensemble.
+                # du mauvais cote de la barre.
                 shiny::selectInput(ns("yieldValeursPos"), "Position",
                             choices = c("Au bout, à l'extérieur" = "dessus",
                                         "Au bout, à l'intérieur" = "dedans",
@@ -424,10 +377,7 @@ mod_yield_ui <- function(id) {
                                       "Non traité en premier" = "temoin"),
                           selected = "alpha"),
               # MASQUER N'EST PAS FILTRER, et la difference est le tout du
-              # reglage : aucun chiffre ne change. Les rendements, les gains et
-              # le tableau portent toujours TOUTES les modalites -- seule la
-              # figure en montre moins. Un filtre, lui, recalculerait les
-              # moyennes sur ce qui reste.
+              # reglage : aucun chiffre ne change.
               shiny::uiOutput(ns("yieldMasquerUI")),
               shiny::checkboxInput(ns("yieldLimites"), "Personnaliser les limites Y", value = FALSE),
               shiny::conditionalPanel(
@@ -440,16 +390,7 @@ mod_yield_ui <- function(id) {
               shiny::fluidRow(
                 shiny::column(6, shiny::checkboxInput(ns("yieldGrilleMaj"), "Grille principale", value = TRUE)),
                 shiny::column(6, shiny::checkboxInput(ns("yieldGrilleMin"), "Grille secondaire", value = FALSE))),
-              # UNE VALEUR NEGATIVE SE LIT PAR RAPPORT A ZERO. Sans le trait,
-              # un gain negatif se confond avec un petit gain positif, et un
-              # rendement negatif -- une correction, un solde -- ne se
-              # distingue plus d'un rendement faible. Le trait n'est donc pas
-              # reserve aux gains.
-              #
-              # UN SEUL REGLAGE POUR UNE SEULE LIGNE : le repere pointille et
-              # l'axe X pose sur le zero sont le MEME trait. Deux cases
-              # pourraient se contredire, et c'est la seconde -- invisible --
-              # qui finirait par mentir.
+              # UNE VALEUR NEGATIVE SE LIT PAR RAPPORT A ZERO.
               shiny::selectInput(ns("yieldZeroMode"), "Ligne du zéro",
                           choices = HSTAT_AXE_ZERO, selected = "reference"),
               shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
@@ -508,10 +449,7 @@ mod_yield_server <- function(id, values) {
     saisie <- shiny::reactiveVal(hstat_rdt_saisie_vide())
 
     # LA TABLE N'EST CONSTRUITE QU'UNE FOIS, et mise a jour ensuite par son
-    # proxy. Relire `saisie()` dans le rendu la reconstruirait a CHAQUE cellule
-    # modifiee : la cellule en cours d'edition est alors detruite sous le
-    # curseur. C'est l'idiome de l'onglet DL50/CL50, et le seul qui rende la
-    # saisie utilisable -- d'ou le `isolate()`.
+    # proxy.
     output$yieldSaisie <- DT::renderDT({
       DT::datatable(shiny::isolate(saisie()), rownames = FALSE,
                     editable = list(target = "cell"), selection = "none",
@@ -533,8 +471,7 @@ mod_yield_server <- function(id, values) {
       j <- hstat_indice_client(info$col + 1L, ncol(d))
       if (is.na(i) || is.na(j) || length(info$value) != 1L) return()
       # LA MODALITE ET LA REPETITION SONT DU TEXTE, la masse et la surface des
-      # nombres. Passer tout au meme convertisseur ferait disparaitre le nom du
-      # traitement des qu'il ne serait pas un nombre -- c'est-a-dire toujours.
+      # nombres.
       d[i, j] <- if (names(d)[j] %in% c("Masse", "Surface"))
         suppressWarnings(as.numeric(gsub(",", ".", info$value, fixed = TRUE)))
       else trimws(as.character(info$value))
@@ -554,9 +491,7 @@ mod_yield_server <- function(id, values) {
     })
     shiny::observeEvent(input$yieldVider, saisie(hstat_rdt_saisie_vide()))
 
-    # Le bouton ne calcule rien : il BASCULE LA SOURCE. Le calcul suit la
-    # source, et l'utilisateur qui vient de remplir le tableau ne doit pas
-    # avoir a remonter jusqu'au bouton radio pour voir son resultat.
+    # Le bouton ne calcule rien : il BASCULE LA SOURCE.
     shiny::observeEvent(input$yieldSaisieGo, {
       shiny::updateRadioButtons(session, "yieldSource", selected = "saisie")
       shiny::updateTabsetPanel(session, "yieldTabs", selected = "rendements")
@@ -593,9 +528,7 @@ mod_yield_server <- function(id, values) {
           trf("%d ligne(s) collée(s) ; la virgule y a été lue comme %s.",
               r$lignes, if (identical(r$decimale, ","))
                 tr("une décimale") else tr("un séparateur")),
-          # L'EN-TETE ECARTE SE DIT. Sa reconnaissance est une heuristique :
-          # taire la ligne sautee ferait disparaitre une observation en
-          # silence si elle n'en etait pas un.
+          # L'EN-TETE ECARTE SE DIT.
           if (isTRUE(r$entete))
             paste0(" ", tr("La première ligne a été lue comme un en-tête et écartée."))
           else ""),
@@ -606,9 +539,7 @@ mod_yield_server <- function(id, values) {
 
     saisie_utile <- shiny::reactive(hstat_rdt_saisie_propre(saisie()))
 
-    # LA SOURCE EST UN CHOIX, PAS UNE DEVINETTE. Basculer tout seul sur la
-    # saisie des qu'un fichier manque -- ou l'inverse -- ferait changer les
-    # chiffres sans que personne ait rien demande.
+    # LA SOURCE EST UN CHOIX, PAS UNE DEVINETTE.
     donnees <- shiny::reactive({
       if (identical(input$yieldSource %||% "fichier", "saisie"))
         return(saisie_utile())
@@ -705,20 +636,14 @@ mod_yield_server <- function(id, values) {
 
     output$yieldTemoinUI <- shiny::renderUI({
       m <- modalites()
-      # LE TEMOIN NE SE DEVINE PAS. Prendre la premiere modalite par ordre
-      # alphabetique donne un gain a toutes les autres sans que personne ait
-      # designe la reference : les chiffres sont alors faux ET vraisemblables.
-      # L'utilisateur choisit, et le calcul refuse tant qu'il n'a pas choisi.
+      # LE TEMOIN NE SE DEVINE PAS.
       shiny::selectInput(ns("yieldTemoin"), "Modalité non traitée (référence)",
                   choices = c("(à choisir)" = "", m), selected = "")
     })
 
     # LA REFERENCE DES PERTES NE SE DEVINE PAS NON PLUS, et il peut y en avoir
     # plusieurs : c'est ce qui rend les trois pertes usuelles calculables d'un
-    # seul geste (NT vs PP, NT vs PV, PV vs PP). La selection survit au
-    # recalcul mais seulement pour ce qui existe encore -- sans l'intersection,
-    # une modalite disparue du nouveau fichier resterait une reference active
-    # qu'aucune commande n'affiche.
+    # seul geste (NT vs PP, NT vs PV, PV vs PP).
     output$yieldRefPerteUI <- shiny::renderUI({
       m <- modalites()
       garde <- intersect(as.character(shiny::isolate(input$yieldRefPerte)), m)
@@ -817,15 +742,12 @@ mod_yield_server <- function(id, values) {
       }
       dec <- hstat_dec_affichage(input$yieldRound, input$yieldDecimals)
       arr <- function(x) if (is.na(dec)) format(x, digits = 7) else format(round(x, dec), nsmall = min(dec, 6))
-      # UN ZERO N'EST PAS UNE ABSENCE. `which.max` sur des gains tous nuls rend
-      # bien une modalite ; c'est `all(is.na(...))` qui doit decider, jamais
-      # une comparaison a zero.
+      # UN ZERO N'EST PAS UNE ABSENCE.
       meilleur <- if (!any(is.finite(r$Gain_moyen))) NA else r$Modalite[which.max(r$Gain_moyen)]
       shiny::fluidRow(
         carte("Modalités comparées", nrow(r), "#2980b9"),
-        # Sans les surfaces, le rendement GLOBAL n'est pas calculable : la carte
-        # porte alors le moyen, et le dit. Afficher « — » sous un titre qui
-        # promet un global laisserait croire a un calcul rate.
+        # Sans les surfaces, le rendement GLOBAL n'est pas calculable : la
+        # carte porte alors le moyen, et le dit.
         local({
           glob <- "Rendement_global" %in% names(r)
           col <- if (glob) r$Rendement_global else r$Rendement_moyen
@@ -884,14 +806,9 @@ mod_yield_server <- function(id, values) {
       else {
         m <- attr(r, "message_perte")
         if (!is.null(m) && nzchar(m)) lignes <- c(lignes, m)
-        # LES DEUX COLONNES SE PUBLIENT, ET IL FAUT DIRE POURQUOI. « 18 % de
-        # perte » et « 82 % du rendement de la reference » sont le meme
-        # resultat lu deux fois ; les confondre inverse la conclusion.
+        # LES DEUX COLONNES SE PUBLIENT, ET IL FAUT DIRE POURQUOI.
         lignes <- c(lignes, tr("La perte et le rendement relatif somment à 100 % : ce sont les deux lectures du même écart. Une perte négative signifie que la modalité fait mieux que sa référence — c'est un résultat, pas une erreur."))
-        # LE MODE EMPLOYE SE DIT. Les deux chiffres different -- la moyenne des
-        # pertes n'est pas la perte des moyennes -- et le tableau ne montre que
-        # l'un des deux : ne pas nommer lequel laisserait publier un chiffre
-        # pour l'autre.
+        # LE MODE EMPLOYE SE DIT.
         if (identical(attr(r, "mode_perte"), "par_repetition"))
           lignes <- c(lignes, tr("Mode « par répétition » : chaque modalité est comparée à la référence du même bloc, ce qui retire l'effet du bloc. Le tableau porte la moyenne de ces pertes, son écart-type et son erreur-type — la moyenne des pertes n'est pas la perte des moyennes, les deux répondent à deux questions."))
         else
@@ -918,9 +835,7 @@ mod_yield_server <- function(id, values) {
       DT::datatable(d, rownames = FALSE, options = list(pageLength = 15, scrollX = TRUE))
     })
 
-    # LE DETAIL EST CE QUI REND LES PERTES ANALYSABLES. Une perte par bloc,
-    # c'est une variable : elle se porte en ANOVA ou en comparaisons multiples,
-    # ce qu'une valeur unique par modalite ne permet pas.
+    # LE DETAIL EST CE QUI REND LES PERTES ANALYSABLES.
     pertes_detail <- shiny::reactive({
       r <- resultat()
       reps <- attr(r, "pertes_repetitions")
@@ -944,11 +859,8 @@ mod_yield_server <- function(id, values) {
 
     # ------------------------------------------------------------- graphique
     # L'ordre des modalites est un REGLAGE : trier par valeur fait ressortir le
-    # classement, l'ordre alphabetique permet de retrouver une modalite, et
-    # « non traite en premier » met la reference a gauche, la ou on la lit.
-    # Les reglages sont LUS PAR LE REACTIF et passes ici : lus dans l'aide, la
-    # dependance existe mais ne se voit pas a la lecture du reactif -- et c'est
-    # exactement ce qu'un balayage ne peut pas verifier.
+    # classement, l'ordre alphabetique permet de retrouver une modalite, et «
+    # non traite en premier » met la reference a gauche, la ou on la lit.
     ordonner <- function(d, mesure, ordre, nt) {
       niveaux <- switch(ordre,
         croissant   = d$Modalite[order(d[[mesure]], na.last = TRUE)],
@@ -959,14 +871,7 @@ mod_yield_server <- function(id, values) {
       d
     }
 
-    # UNE MESURE QU'ON NE PEUT PAS CALCULER NE S'OFFRE PAS. Sans les surfaces,
-    # `Rendement_global` n'existe pas : la proposer rendrait un graphique vide
-    # sans dire pourquoi -- et laisser le choix se figer dessus le rendrait
-    # vide APRES avoir marche, ce qui est pire.
-    # LE CATALOGUE DES MESURES EST EN PARTIE DYNAMIQUE : les colonnes de perte
-    # dependent des references choisies, et leurs libelles voyagent AVEC le
-    # tableau (`libelles_perte`). Les recopier ici ferait deux listes a tenir
-    # d'accord -- et c'est la copie oubliee qui ment.
+    # UNE MESURE QU'ON NE PEUT PAS CALCULER NE S'OFFRE PAS.
     mesures_dispo <- shiny::reactive({
       r <- resultat()
       dispo <- HSTAT_RDT_MESURES[HSTAT_RDT_MESURES %in% names(r)]
@@ -990,15 +895,7 @@ mod_yield_server <- function(id, values) {
                   choices = dispo, selected = sel, width = "100%")
     })
 
-    # LES MODALITES A MASQUER SE CHOISISSENT DANS CELLES QUI EXISTENT. Une
-    # liste ecrite a la main derivierait du jeu charge ; celle-ci est construite
-    # sur `resultat()`, donc un essai a onze traitements en propose onze.
-    #
-    # LA SELECTION SURVIT AU RECALCUL, mais seulement pour ce qui existe encore.
-    # Sans `isolate()`, lire l'entree ici ferait boucler le rendu sur sa propre
-    # ecriture ; sans l'intersection, une modalite disparue du nouveau fichier
-    # resterait masquee sans figurer nulle part -- un reglage actif que plus
-    # aucune commande n'affiche.
+    # LES MODALITES A MASQUER SE CHOISISSENT DANS CELLES QUI EXISTENT.
     output$yieldMasquerUI <- shiny::renderUI({
       r <- resultat()
       mods <- if (NROW(r)) unique(as.character(r$Modalite)) else character(0)
@@ -1018,8 +915,7 @@ mod_yield_server <- function(id, values) {
       if (!NROW(d)) return(NULL)
       # ON RETIRE AVANT D'ORDONNER : les niveaux du facteur sont alors ceux qui
       # restent, et « valeur croissante » classe ce qui est trace, pas ce qui a
-      # ete calcule. Poser le facteur d'abord laisserait sur l'axe la place vide
-      # de chaque modalite retiree.
+      # ete calcule.
       masque <- as.character(input$yieldMasquer %||% character(0))
       if (length(masque))
         d <- d[!(as.character(d$Modalite) %in% masque), , drop = FALSE]
@@ -1069,17 +965,7 @@ mod_yield_server <- function(id, values) {
         p <- p + ggplot2::geom_point(size = input$yieldPointSize %||% 4, alpha = alpha)
       }
 
-      # BARRES D'ERREUR : elles n'ont de sens que sur le rendement MOYEN. Les
-      # poser sur un rendement global ou un gain afficherait la dispersion
-      # d'une autre grandeur que celle qui est tracee.
-      #
-      # SEULE LA MOITIE SUPERIEURE EST TRACEE. Sur un graphique en barres, la
-      # moitie basse se superpose au remplissage : elle n'ajoute rien et
-      # encombre la valeur portee sur la barre. La demi-barre se monte en DEUX
-      # couches -- un segment pour la hampe, un `geom_errorbar` d'etendue nulle
-      # pour la seule coiffe du haut. Un `geom_errorbar` allant de la valeur au
-      # sommet poserait AUSSI une coiffe au pied : invisible sur une barre,
-      # elle barrerait le point d'un nuage ou d'une sucette.
+      # BARRES D'ERREUR : elles n'ont de sens que sur le rendement MOYEN.
       d$.hi <- NA_real_
       if (isTRUE(input$yieldErreurs) && identical(mesure, "Rendement_moyen") &&
           "Erreur_type" %in% names(d)) {
@@ -1096,16 +982,9 @@ mod_yield_server <- function(id, values) {
         }
       }
 
-      # LES VALEURS NEGATIVES SE REPRESENTENT COMME LES AUTRES, et il faut
-      # deux choses pour qu'elles se LISENT : le trait de zero, et un axe qui
-      # atteint zero. Sur un nuage de points dont toutes les valeurs sont
-      # negatives, ggplot cadre sur les donnees : la base de comparaison sort
-      # du champ et l'ampleur du recul devient invisible.
-      # UNE VALEUR EXACTEMENT NULLE NE DESSINE RIEN. Une barre de hauteur zero
-      # est invisible : le temoin, dont le gain vaut 0 PAR DEFINITION,
-      # disparaissait du graphique de gain alors qu'il en est la reference.
-      # La categorie restait sur l'axe, mais il n'y avait rien a voir -- ce
-      # qui se lit « pas de resultat » et non « egal a la reference ».
+      # LES VALEURS NEGATIVES SE REPRESENTENT COMME LES AUTRES, et il faut deux
+      # choses pour qu'elles se LISENT : le trait de zero, et un axe qui
+      # atteint zero.
       zeros <- d[is.finite(d$.val) & d$.val == 0, , drop = FALSE]
       if (NROW(zeros) && type %in% c("bar", "barh"))
         p <- p + ggplot2::geom_point(data = zeros, ggplot2::aes(y = 0),
@@ -1114,24 +993,18 @@ mod_yield_server <- function(id, values) {
       negatifs <- any(is.finite(d$.val) & d$.val < 0)
       # Le kit commun est lu ICI et non plus au moment du theme : pose sur le
       # zero, le trait de l'axe X doit porter LA COULEUR ET L'EPAISSEUR du
-      # trait d'axe. Un noir arbitraire en ferait un repere de plus a cote d'un
-      # cadre d'une autre couleur, au lieu du meme axe deplace.
+      # trait d'axe.
       extras <- hstat_plot_extras_lire(input, "yield")
       zmode <- input$yieldZeroMode %||% "reference"
       # LE REPERE POINTILLE GARDE SA RESERVE D'ORIGINE : sur une serie qui ne
-      # descend jamais sous zero, il double le bas du cadre sans rien apprendre.
-      # L'AXE POSE SUR LE ZERO, lui, n'est jamais retire : c'est une demande
-      # explicite, et il a un sens meme sans valeur negative -- c'est la que les
-      # barres prennent appui.
+      # descend jamais sous zero, il double le bas du cadre sans rien
+      # apprendre.
       if (identical(zmode, "reference") && !(gain || negatifs)) zmode <- "aucune"
       zero <- hstat_axe_zero(zmode, negatifs, extras$axe_col, extras$axe_ep)
       p <- p + zero$couches
       if (negatifs) p <- p + ggplot2::expand_limits(y = 0)
       # UN RENDEMENT RELATIF SE LIT PAR RAPPORT A 100, et l'etendue doit
-      # l'ATTEINDRE. Sur une serie entierement au-dessus de 100, ggplot cadre
-      # sur les donnees : la base de comparaison sort du champ et l'ampleur de
-      # l'ecart devient invisible -- exactement le defaut deja corrige sur le
-      # zero des gains negatifs.
+      # l'ATTEINDRE.
       if (relatif)
         p <- p + ggplot2::geom_hline(yintercept = 100, linetype = "dashed",
                                      colour = "#7f8c8d", linewidth = 0.5) +
@@ -1171,9 +1044,7 @@ mod_yield_server <- function(id, values) {
         bornes <- hstat_etendue_axe(c(d$.val, d$.hi, lim))
         brk <- hstat_graduations(bornes[1], bornes[2] + pas, pas) %||% ggplot2::waiver()
       }
-      # UNE SEULE ECHELLE Y. Deux `scale_y_continuous()` ne s'ajoutent pas : le
-      # second REMPLACE le premier en avertissant. Poser l'expansion a part des
-      # graduations effacerait donc l'une des deux, selon l'ordre d'ecriture.
+      # UNE SEULE ECHELLE Y.
       if (!identical(brk, ggplot2::waiver()) ||
           !identical(zero$expand, ggplot2::waiver()))
         p <- p + ggplot2::scale_y_continuous(breaks = brk, expand = zero$expand)
@@ -1183,8 +1054,7 @@ mod_yield_server <- function(id, values) {
       angle_x <- input$yieldAngleX %||% 45
       angle_y <- input$yieldAngleY %||% 0
       # Le kit commun (`extras`, lu plus haut) : cadre, marges, police de base,
-      # trait des axes et taille des cles. `police` part au THEME -- l'appliquer
-      # apres coup ne toucherait que ce que le theme vient de fixer.
+      # trait des axes et taille des cles.
       nt <- input$yieldTemoin %||% ""
       sous_auto <- if (gain && nzchar(nt))
         trf("Référence : %s (gain nul par définition)", nt) else NULL
@@ -1238,10 +1108,7 @@ mod_yield_server <- function(id, values) {
         hstat_plot_extras_theme(extras)
     })
 
-    # LE MOTIF D'UN GRAPHIQUE VIDE DOIT ETRE LE BON. « Vérifiez les colonnes »
-    # envoie chercher un défaut de saisie là où l'utilisateur a simplement tout
-    # masqué : il relirait ses colonnes sans jamais penser au réglage qu'il
-    # vient de poser.
+    # LE MOTIF D'UN GRAPHIQUE VIDE DOIT ETRE LE BON.
     motif_vide <- function() {
       r <- resultat()
       m <- input$yieldMesure %||% "Rendement_moyen"
@@ -1270,19 +1137,13 @@ mod_yield_server <- function(id, values) {
                           if (NROW(r)) as.character(r$Modalite) else character(0))
       nt <- input$yieldTemoin %||% ""
       lignes <- character(0)
-      # UNE BARRE ABSENTE SE NOMME. Une figure a laquelle il manque des
-      # modalites, sans rien qui le dise, se lit comme un essai qui n'en
-      # comptait pas davantage -- et c'est cette figure-la qui part au rapport.
-      # On dit aussi ce que le masquage NE fait pas : les moyennes, les gains et
-      # le tableau portent toujours toutes les modalites. Un filtre, lui,
-      # recalculerait.
+      # UNE BARRE ABSENTE SE NOMME.
       if (length(masque))
         lignes <- c(lignes, trf(
           "Modalités masquées sur la figure : %s. Les calculs et les tableaux les gardent toutes : masquer ne change aucun chiffre.",
           paste(masque, collapse = ", ")))
-      # Le sous-titre d'un graphique de gain NOMME le programme non traité comme
-      # référence. Masquer sa barre laisse donc une référence citée et absente :
-      # on le dit, plutôt que de laisser chercher la barre à zéro.
+      # Le sous-titre d'un graphique de gain NOMME le programme non traité
+      # comme référence.
       if (length(masque) && gain && nzchar(nt) && nt %in% masque)
         lignes <- c(lignes, trf(
           "Le programme non traité « %s » est masqué : sa barre de gain nul n'est plus sur la figure, alors que le sous-titre le cite toujours comme référence.",

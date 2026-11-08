@@ -1,18 +1,5 @@
-## Message affiche au chargement du package (library(HStat) / require(HStat)).
-## Propose immediatement a l'utilisateur comment citer HStat.
-##
-## La PHRASE DE CITATION N'EST PAS RECOPIEE ICI. Elle l'etait -- auteurs, titre,
-## version et adresse -- et elle avait DERIVE : ce message ne nommait qu'un
-## auteur sur deux quand `citation("HStat")` et le README en nommaient deux.
-## Tout vient donc de `hstat_citation("text")`, qui lit DESCRIPTION ; la version
-## et l'annee ne sont plus resolues une seconde fois ici non plus
-## (`hstat_version()` et `hstat_pkg_year()` le font, avertissement de
-## `packageDate()` neutralise compris -- il en emet un, et non une erreur,
-## quand le paquet n'est pas installe).
-##
-## `strwrap()` plutot qu'un retour a la ligne pose a la main : la phrase
-## s'allonge avec chaque auteur, et une coupe figee tomberait au mauvais
-## endroit des le troisieme.
+# Message affiche au chargement du package (library(HStat) / require(HStat)).
+# Propose immediatement a l'utilisateur comment citer HStat.
 
 .onAttach <- function(libname, pkgname) {
   vers <- hstat_version()
@@ -31,22 +18,11 @@
   packageStartupMessage(msg)
 }
 
-## ---------------------------------------------------------------------------
-##  Colonnes vues par ggplot2 et dplyr, declarees pour l'analyse statique
-## ---------------------------------------------------------------------------
-##  `aes(x = Efficacite)` designe une COLONNE, pas une variable de l'espace de
-##  noms. L'analyseur de `R CMD check` ne peut pas le savoir et rend « no
-##  visible binding for global variable » -- 112 fois ici. Les declarer eteint
-##  la note SANS masquer de vraie faute : une variable reellement absente
-##  serait toujours signalee, du moment qu'elle ne figure pas dans cette liste.
-##
-##  La liste est TIREE DE LA SORTIE DU CHECK, pas ecrite a la main : une liste
-##  devinee serait a la fois trop courte (note qui subsiste) et trop longue
-##  (vraie faute masquee).
-##
-##  Ce fichier est ecarte du chargement par le pont (`a_part` dans
-##  `inst/app/Utils.R`) : `utils::globalVariables()` n'a de sens qu'a la
-##  construction du paquet, et le socle doit rester inerte.
+# ---------------------------------------------------------------------------
+# Colonnes vues par ggplot2 et dplyr, declarees pour l'analyse statique
+# ---------------------------------------------------------------------------
+# `aes(x = Efficacite)` designe une COLONNE, pas une variable de l'espace de
+# noms.
 utils::globalVariables(c(
   ".X", ".Y", ".blocklab", ".data", ".fill", ".lab", ".ltxt", ".lx", ".ly",
   ".x", ".x0g", ".x1g", ".xb", ".xc", ".xmax", ".xmin", ".y", ".y2_sd",
