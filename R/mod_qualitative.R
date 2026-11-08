@@ -12,33 +12,6 @@
   substr(x, 1, 60)
 }
 
-# Écriture d'un classeur Excel (une feuille par élément nommé de `sheets`).
-# Utilise openxlsx si présent, sinon writexl ; repli CSV concaténé sinon.
-.write_xlsx <- function(sheets, file) {
-  # noms de feuilles uniques, <= 31 caractères, sans caractères interdits
-  nm <- vapply(names(sheets), function(s) gsub("[\\\\/\\[\\]:*?]", "_", substr(s, 1, 31)),
-               character(1))
-  nm <- make.unique(nm, sep = "_"); names(sheets) <- substr(nm, 1, 31)
-  if (requireNamespace("openxlsx", quietly = TRUE)) {
-    wb <- openxlsx::createWorkbook()
-    for (s in names(sheets)) {
-      openxlsx::addWorksheet(wb, s)
-      openxlsx::writeData(wb, s, hstat_decimale_classeur(sheets[[s]]))
-      openxlsx::setColWidths(wb, s, cols = seq_len(ncol(sheets[[s]])), widths = "auto")
-    }
-    openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-  } else if (requireNamespace("writexl", quietly = TRUE)) {
-    writexl::write_xlsx(lapply(sheets, hstat_decimale_classeur), path = file)
-  } else {
-    con <- file(file, open = "w", encoding = "UTF-8"); on.exit(close(con))
-    for (s in names(sheets)) {
-      writeLines(paste0("# ", s), con)
-      hstat_ecrire_csv(sheets[[s]], con, row.names = FALSE)
-      writeLines("", con)
-    }
-  }
-}
-
 # Applique un style utilisateur (titres, tailles de police, gras/italique,
 # rotation, grille, axes/graduations en noir) à un ggplot déjà construit.
 # Base ggplot2 pure (pas de dépendance ggtext). Les champs titre/axes/légende
@@ -108,6 +81,24 @@ hstat_q_apply_palette <- function(p, palette = "default",
     var <- tryCatch(rlang::eval_tidy(m, p$data), error = function(e) NULL)
     if (is.null(var)) return(NA)
     is.numeric(var)
+  }
+
+  # LE CATALOGUE COMMUN D'ABORD. Ce module tenait sa propre liste (bleu, vert,
+  # orange...) : les palettes se choisissent desormais dans la meme liste que
+  # partout ailleurs, et c'est `hstat_palette_couleurs()` qui interpole au-dela
+  # du plafond de RColorBrewer. Les anciens noms restent compris plus bas.
+  catalogue <- c(HSTAT_PALETTE_GG, HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE,
+                 HSTAT_PALETTES_AUTRES)
+  if (palette %in% catalogue) {
+    bornes <- hstat_palette_couleurs(palette, 9)[c(1, 9)]
+    fc <- is_continuous_aes(p, "fill"); cc <- is_continuous_aes(p, "colour")
+    suppressMessages({
+      if (isTRUE(fc)) p <- p + ggplot2::scale_fill_gradient(low = bornes[1], high = bornes[2])
+      else if (isFALSE(fc)) p <- p + hstat_scales_palette(palette, fill = TRUE, colour = FALSE)
+      if (isTRUE(cc)) p <- p + ggplot2::scale_colour_gradient(low = bornes[1], high = bornes[2])
+      else if (isFALSE(cc)) p <- p + hstat_scales_palette(palette, fill = FALSE, colour = TRUE)
+    })
+    return(p)
   }
 
   # Bornes de degrade + palette discrete (Brewer/viridis) pour chaque choix
@@ -569,9 +560,9 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
                  "Conditions (attendus >= 5)", "w de Cohen (taille d'effet)",
                  "V de Cramér (ajustement)"),
     Valeur = c(n, k, p0_lab, round(chi2, 3), as.integer(ddl),
-               format.pval(p_chi, digits = 3),
-               if (is.na(p_mc)) tr("non calculé") else format.pval(p_mc, digits = 3),
-               if (method == "multinomial") format.pval(p_multi, digits = 3) else NULL,
+               hstat_p_txt(p_chi),
+               if (is.na(p_mc)) tr("non calculé") else hstat_p_txt(p_mc),
+               if (method == "multinomial") hstat_p_txt(p_multi) else NULL,
                if (expected_ok) "Respectées" else "Non respectées",
                round(cohen_w, 3), round(v_gof, 3)),
     Interpretation = c(
@@ -659,7 +650,7 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
   interp <- c(
     trf("Test %s des proportions %s de \"%s\" : p = %s -- %s.",
             if (method == "multinomial") "multinomial exact" else tr("du Khi-deux d'ajustement"),
-            p0_lab, var_name, format.pval(p_final, digits = 3),
+            p0_lab, var_name, hstat_p_txt(p_final),
             if (!is.na(p_final) && p_final < 0.05)
               tr("la répartition observée diffère significativement de la répartition attendue")
             else tr("la répartition observée est compatible avec la répartition attendue")),
@@ -706,10 +697,10 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
     "", "Résidus de Pearson :",
     utils::capture.output(print(stats::setNames(round(resid_p, 4), names(tab)))),
     if (!is.na(p_mc)) c("", trf("Khi-deux Monte-Carlo (B = %d) : p-value = %s", B,
-                                    format.pval(p_mc, digits = 4))) else NULL,
+                                    hstat_p_txt(p_mc))) else NULL,
     if (method == "multinomial") c("",
       trf("Test multinomial exact -- %s", multi_meth),
-      sprintf("p-value = %s", format.pval(p_multi, digits = 4)),
+      sprintf("p-value = %s", hstat_p_txt(p_multi)),
       trf("Hypothèse nulle : proportions %s", p0_lab)) else NULL)
 
   gof_tables <- list("Observé vs attendu" = gof_df)
@@ -860,9 +851,9 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y",
                  "Conditions de Cochran (>=5)", "p-value (Fisher exact)",
                  "Coefficient phi", "V de Cramér", "IC95% du V de Cramér",
                  "Coefficient de contingence"),
-    Valeur = c(n, round(chi2, 3), ddl, format.pval(pval, digits = 3),
+    Valeur = c(n, round(chi2, 3), ddl, hstat_p_txt(pval),
                if (isTRUE(expected_ok)) "Respectées" else "Non respectées",
-               if (is.na(fisher_p)) tr("non calculé") else format.pval(fisher_p, digits = 3),
+               if (is.na(fisher_p)) tr("non calculé") else hstat_p_txt(fisher_p),
                round(phi, 3), round(cramer_v, 3),
                if (anyNA(v_ci)) tr("non calculé") else sprintf("[%.3f ; %.3f]", v_ci[1], v_ci[2]),
                round(contingency, 3)),
@@ -897,7 +888,7 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y",
   sig <- tr(if (!is.na(pval) && pval < 0.05) "significative" else "non significative")
   interp <- c(
     trf("Association %s entre %s et %s (Khi-deux = %.2f, ddl = %d, p = %s).",
-            sig, xname, yname, chi2, as.integer(ddl), format.pval(pval, digits = 3)),
+            sig, xname, yname, chi2, as.integer(ddl), hstat_p_txt(pval)),
     trf("Force de l'association (V de Cramér = %.3f) : %s.", cramer_v, force),
     if (!isTRUE(expected_ok))
       "Certains effectifs théoriques sont < 5 : le test exact de Fisher est plus fiable ici." else
@@ -1296,8 +1287,8 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     metrics <- data.frame(
       Metrique = c("Paires valides", "Rhô de Spearman", "p-value (Spearman)",
                    "Tau de Kendall", "p-value (Kendall)"),
-      Valeur = c(length(rx), round(unname(sp$estimate), 3), format.pval(sp$p.value, 3),
-                 round(unname(kd$estimate), 3), format.pval(kd$p.value, 3)),
+      Valeur = c(length(rx), round(unname(sp$estimate), 3), hstat_p_txt(sp$p.value),
+                 round(unname(kd$estimate), 3), hstat_p_txt(kd$p.value)),
       stringsAsFactors = FALSE)
     rho <- unname(sp$estimate); pval_sp <- sp$p.value; tau <- unname(kd$estimate)
     force <- tr(if (abs(rho) < 0.2) "très faible" else if (abs(rho) < 0.4) "faible" else
@@ -1306,11 +1297,11 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     signif_sp <- !is.na(pval_sp) && pval_sp < 0.05
     # Interprétation de la p-value (seuils usuels)
     pval_interp <- if (is.na(pval_sp)) tr("p-value non calculable.")
-      else if (pval_sp < 0.001) trf("p = %s < 0,001 : association très hautement significative.", format.pval(pval_sp, 3))
-      else if (pval_sp < 0.01)  trf("p = %s < 0,01 : association hautement significative.", format.pval(pval_sp, 3))
-      else if (pval_sp < 0.05)  trf("p = %s < 0,05 : association significative.", format.pval(pval_sp, 3))
-      else if (pval_sp < 0.10)  trf("p = %s : tendance non significative au seuil de 5 %% (marginale).", format.pval(pval_sp, 3))
-      else trf("p = %s >= 0,05 : association non significative.", format.pval(pval_sp, 3))
+      else if (pval_sp < 0.001) trf("p = %s < 0,001 : association très hautement significative.", hstat_p_txt(pval_sp))
+      else if (pval_sp < 0.01)  trf("p = %s < 0,01 : association hautement significative.", hstat_p_txt(pval_sp))
+      else if (pval_sp < 0.05)  trf("p = %s < 0,05 : association significative.", hstat_p_txt(pval_sp))
+      else if (pval_sp < 0.10)  trf("p = %s : tendance non significative au seuil de 5 %% (marginale).", hstat_p_txt(pval_sp))
+      else trf("p = %s >= 0,05 : association non significative.", hstat_p_txt(pval_sp))
     r2 <- round(100 * rho^2, 1)
     interp <- if (signif_sp) c(
       # --- Cas SIGNIFICATIF ---
@@ -1321,7 +1312,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
               xname, gname, if (rho > 0) "augmenter" else "diminuer"),
       trf("Le rho² suggère qu'environ %.1f %% de la variation des rangs est partagée entre les deux variables.", r2),
       trf("Le tau de Kendall (%.3f, p = %s) confirme la concordance des rangs ; il est plus robuste pour de petits échantillons.",
-              tau, format.pval(kd$p.value, 3)))
+              tau, hstat_p_txt(kd$p.value)))
     else c(
       # --- Cas NON SIGNIFICATIF ---
       trf("Corrélation ordinale NON significative entre « %s » et « %s » : rhô de Spearman = %.3f (%s, %s).",
@@ -1330,7 +1321,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
       trf("On ne peut pas conclure à une association monotone entre « %s » et « %s » : la relation observée (rhô = %.3f) est compatible avec le hasard.",
               xname, gname, rho),
       "Absence de significativité ne signifie pas absence de lien : un échantillon plus grand ou une relation non monotone pourraient changer la conclusion.",
-      trf("Le tau de Kendall (%.3f, p = %s) va dans le même sens.", tau, format.pval(kd$p.value, 3)))
+      trf("Le tau de Kendall (%.3f, p = %s) va dans le même sens.", tau, hstat_p_txt(kd$p.value)))
     console <- c(utils::capture.output(print(sp)), "",
                  utils::capture.output(print(kd)))
     plot_fn <- function() {
@@ -1389,9 +1380,9 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     Metrique = c("Test utilisé (rangs)", "Statistique", "p-value",
                  "Test de la médiane (Mood)", "p-value (médiane)",
                  "Médiane globale (rang)", "Nombre de groupes", "Effectif total"),
-    Valeur = c(test_name, round(stat_val, 3), format.pval(pval, 3),
+    Valeur = c(test_name, round(stat_val, 3), hstat_p_txt(pval),
                "Khi-deux d'homogénéité des médianes",
-               if (is.na(mood_p)) tr("non calculé") else format.pval(mood_p, 3),
+               if (is.na(mood_p)) tr("non calculé") else hstat_p_txt(mood_p),
                round(med_global, 2), ng, length(rx)),
     Interpretation = c(
       "Compare les rangs (positions) entre groupes -- adapté aux données ordinales.",
@@ -1409,10 +1400,10 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     stringsAsFactors = FALSE)
   sig <- if (!is.na(pval) && pval < 0.05) "significative" else "non significative"
   pval_txt <- if (is.na(pval)) "non calculable"
-    else if (pval < 0.001) trf("p = %s < 0,001 : différence très hautement significative.", format.pval(pval, 3))
-    else if (pval < 0.01)  trf("p = %s < 0,01 : différence hautement significative.", format.pval(pval, 3))
-    else if (pval < 0.05)  trf("p = %s < 0,05 : différence significative.", format.pval(pval, 3))
-    else trf("p = %s >= 0,05 : différence non significative.", format.pval(pval, 3))
+    else if (pval < 0.001) trf("p = %s < 0,001 : différence très hautement significative.", hstat_p_txt(pval))
+    else if (pval < 0.01)  trf("p = %s < 0,01 : différence hautement significative.", hstat_p_txt(pval))
+    else if (pval < 0.05)  trf("p = %s < 0,05 : différence significative.", hstat_p_txt(pval))
+    else trf("p = %s >= 0,05 : différence non significative.", hstat_p_txt(pval))
   # Groupe aux rangs les plus élevés / faibles
   hi_g <- summary_df$Groupe[which.max(summary_df$Rang_moyen)]
   lo_g <- summary_df$Groupe[which.min(summary_df$Rang_moyen)]
@@ -2428,12 +2419,9 @@ mod_qualitative_ui <- function(id) {
                 shiny::column(6, shiny::uiOutput(ns("graph_selector"))),
                 shiny::column(6,
                   shiny::selectInput(ns("plot_palette"), "Palette de couleurs",
-                    choices = c("Par défaut (du graphique)" = "default",
-                                "Bleu" = "blues", "Vert" = "greens",
-                                "Orange-Rouge" = "oranges", "Violet" = "purples",
-                                "Viridis" = "viridis", "Spectral" = "spectral",
-                                "Niveaux de gris" = "greys",
-                                "Personnalisée (2 couleurs)" = "custom"),
+                    choices = c(list("Par défaut (du graphique)" = "default"),
+                                hstat_palettes_choix(),
+                                list("Personnalisée (2 couleurs)" = "custom")),
                     selected = "default"))),
               shiny::conditionalPanel(
                 condition = sprintf("input['%s'] == 'custom'", ns("plot_palette")),
@@ -2485,19 +2473,10 @@ mod_qualitative_ui <- function(id) {
               # deja reglables juste au-dessus.
               hstat_plot_extras_ui(ns, "sty_",
                                    familles = c("axe", "cles", "marges")),
-              # Paramètres d'exportation de l'image (rapatriés des Tableaux croisés)
-              shiny::div(style = "background:#fff8f0;border-left:4px solid #e67e22;padding:12px;border-radius:6px;",
-                shiny::tags$strong(shiny::icon("image"), " Paramètres d'exportation de l'image"),
-                shiny::fluidRow(
-                  shiny::column(3, hstat_format_input(ns("dl_format"), "Format")),
-                  shiny::column(3, shiny::numericInput(ns("dl_width"), "Largeur (po)", value = 9, min = 3, max = 30, step = 0.5)),
-                  shiny::column(3, shiny::numericInput(ns("dl_height"), "Hauteur (po)", value = 6, min = 2, max = 24, step = 0.5)),
-                  shiny::column(3, hstat_dpi_input(ns("dl_dpi"), "Résolution (DPI)"))),
-                shiny::tags$small(class = "text-muted", shiny::icon("info-circle"),
-                  " PDF et SVG sont vectoriels (redimensionnables sans perte) ; le DPI ne s'y applique pas.")),
-              shiny::br(),
-              shiny::downloadButton(ns("dl_plot"), "Télécharger le graphique",
-                                    class = "btn-success")),
+              # LE KIT D'EXPORT COMMUN : theme, format, taille, DPI, qualite JPEG
+              # et compression TIFF, comme les autres graphiques.
+              hstat_export_plot_ui(ns, "qDl", width = 9, height = 6)),
+
             shiny::tabPanel(shiny::tagList(shiny::icon("list-ol"), " Métriques"), shiny::br(),
               DT::DTOutput(ns("metrics_table")),
               shiny::br(),
@@ -2854,6 +2833,13 @@ mod_qualitative_server <- function(id, values) {
       p <- hstat_q_apply_palette(p, input$plot_palette %||% "default",
                                  input$plot_col_low %||% "#aed6f1",
                                  input$plot_col_high %||% "#1f618d")
+      # LE THEME DU KIT D'EXPORT. « Minimal » est celui que posent deja les
+      # constructeurs : on ne le repose pas, sans quoi un theme complet
+      # effacerait les retouches qu'ils lui ajoutent (legende masquee...). Un
+      # autre theme, choisi expressement, remplace le leur.
+      th <- input$qDlTheme %||% "minimal"
+      if (inherits(p, "ggplot") && !identical(th, "minimal"))
+        p <- p + viz_get_theme(th, base_size = 12)
       # Mise en forme interactive : lit tous les curseurs sty_* -> re-rendu live
       hstat_q_apply_style(p, list(
         title = input$sty_title, xlab = input$sty_xlab, ylab = input$sty_ylab,
@@ -2882,23 +2868,9 @@ mod_qualitative_server <- function(id, values) {
     output$main_plot <- shiny::renderPlot({
       p <- current_plot(); shiny::req(!is.null(p)); p
     })
-    output$dl_plot <- shiny::downloadHandler(
-      # L'EXTENSION PASSE PAR LE NORMALISEUR, comme le contenu. C'est elle que
-      # Shiny traduit en type MIME : la laisser brute pouvait annoncer une
-      # extension que `hstat_ecrire_image()` n'ecrit pas (elle, elle normalise
-      # en interne). Dix-neuf exports sur vingt et un le faisaient deja.
-      filename = function() paste0("graphique_qualitatif_", Sys.Date(),
-                                   ".", hstat_img_fmt(input$dl_format)),
-      content = hstat_contenu_sur(function(file) {
-        # `req()` interrompait le telechargement SANS ecrire de fichier : Shiny
-        # renvoyait alors sa page d'erreur HTML sous le nom `.png`. L'ecrivain
-        # commun garantit un fichier valide, portant le motif le cas echeant.
-        p <- tryCatch(current_plot(), error = function(e) NULL)
-        hstat_ecrire_image(file, p, input$dl_format %||% "png",
-                           input$dl_width %||% 9, input$dl_height %||% 6,
-                           input$dl_dpi %||% 300,
-                           echec = "Aucun graphique à exporter : lancez d'abord l'analyse.")
-      }))
+    output$qDlDl <- hstat_export_plot_handler(input, "qDl",
+                                              function() current_plot(),
+                                              "graphique_qualitatif")
 
     # ---- Metriques ----
     output$metrics_table <- DT::renderDT({
@@ -2961,7 +2933,7 @@ mod_qualitative_server <- function(id, values) {
                                    "_", Sys.Date(), ".xlsx"),
       content = hstat_contenu_sur(function(file) {
         tb <- current_table(); shiny::req(!is.null(tb))
-        .write_xlsx(stats::setNames(list(tb), substr(input$which_table %||% "Tableau", 1, 31)), file)
+        hstat_ecrire_classeur(file, stats::setNames(list(tb), input$which_table %||% "Tableau"))
       }))
 
     output$dl_all_csv <- shiny::downloadHandler(
@@ -2997,7 +2969,7 @@ mod_qualitative_server <- function(id, values) {
         sheets <- list()
         if (!is.null(r$metrics)) sheets[["Métriques"]] <- r$metrics
         for (nm in names(r$tables)) sheets[[substr(nm, 1, 31)]] <- r$tables[[nm]]
-        .write_xlsx(sheets, file)
+        hstat_ecrire_classeur(file, sheets)
       }))
   })
 }

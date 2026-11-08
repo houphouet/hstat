@@ -120,7 +120,7 @@ required_packages <- c(
   "rcompanion", "EMT", "bestNormalize", "lme4", "lmerTest", "afex", "ARTool",
   "glmmTMB", "vegan", "heplots", "data.table", "patchwork", "lavaan", "pls",
   "klaR", "poLCA", "clustMixType", "nnet", "DBI", "duckdb", "htmltools",
-  "magrittr", "readxl", "rlang", "svglite", "writexl", "mice", "missForest",
+  "magrittr", "readxl", "rlang", "svglite", "mice", "missForest",
   "VIM"
 )
 
@@ -195,6 +195,36 @@ hstat_load_model_packages <- function(packages = hstat_model_packages) {
   v <- suppressWarnings(as.numeric(x[1]))
   if (length(v) == 0 || is.na(v) || !is.finite(v)) return(default)
   v
+}
+
+# FACTEUR D'INFLATION DE LA VARIANCE, d'un seul calcul. Le VIF d'une variable
+# est le terme diagonal de l'inverse de sa matrice de correlation : un
+# ajustement `lm()` par variable rend exactement le meme nombre, mais p fois,
+# sur tout le tableau -- et deux panneaux le relancaient a chaque clic de
+# selection. Les lignes incompletes sont ecartees comme le faisait `lm()` (ses
+# p modeles portent tous sur les memes colonnes). Une matrice singuliere --
+# variables exactement colineaires -- retombe sur la definition par
+# regression, qui rend Inf a chacune des variables en cause.
+hstat_vif <- function(df) {
+  df <- remove_zero_var_cols(as.data.frame(df))
+  p <- ncol(df)
+  if (p == 0) return(stats::setNames(numeric(0), character(0)))
+  if (p == 1) return(stats::setNames(Inf, names(df)))
+  cc <- df[stats::complete.cases(df), , drop = FALSE]
+  par_lm <- function() vapply(seq_len(p), function(i) {
+    y <- df[[i]]; x <- remove_zero_var_cols(df[, -i, drop = FALSE])
+    if (ncol(x) == 0) return(Inf)
+    r2 <- tryCatch(suppressWarnings(summary(stats::lm(y ~ ., data = x))$r.squared),
+                   error = function(e) NA_real_)
+    if (is.na(r2) || r2 >= 1) Inf else 1 / (1 - r2)
+  }, numeric(1))
+  v <- tryCatch({
+    R <- stats::cor(cc)
+    if (anyNA(R) || rcond(R) < 1e-12) NULL else diag(solve(R))
+  }, error = function(e) NULL)
+  if (is.null(v)) v <- par_lm()
+  v[!is.finite(v) | v > 1e12] <- Inf
+  stats::setNames(unname(v), names(df))
 }
 
 remove_zero_var_cols <- function(df) {
@@ -1696,6 +1726,32 @@ hstat_p_verdict <- function(p, alpha = 0.05) {
   if (p < alpha) "significatif" else "non significatif"
 }
 
+# Une seule écriture des p-values dans toute l'application. Une p-value nulle
+# n'existe pas : c'est la limite de la précision machine, écrite « < 2.2e-16 »
+# (la convention de R). Sous 1e-4, la notation scientifique garde l'ordre de
+# grandeur qu'un arrondi à quatre décimales écraserait en « 0.0000 ».
+hstat_p_txt <- function(p, digits = 4) {
+  p <- suppressWarnings(as.numeric(p))
+  vapply(p, function(x) {
+    if (!is.finite(x)) return(NA_character_)
+    if (x < 2.2e-16) return("< 2.2e-16")
+    if (x < 1e-4) return(formatC(x, format = "e", digits = 2))
+    formatC(x, format = "f", digits = digits)
+  }, character(1))
+}
+
+# Une seule échelle de significativité, et traduite. Elle existait en trois
+# copies (chi-deux des tests, qualitatif, multivarié) dont les paliers et les
+# mots différaient.
+hstat_p_niveau <- function(p) {
+  p <- suppressWarnings(as.numeric(p)[1])
+  if (!is.finite(p)) return(tr("Non calculable"))
+  if (p < 0.001) return(tr("Hautement significatif (p < 0.001)"))
+  if (p < 0.01)  return(tr("Très significatif (p < 0.01)"))
+  if (p < 0.05)  return(tr("Significatif (p < 0.05)"))
+  tr("Non significatif (p >= 0.05)")
+}
+
 interpret_test_results <- function(test_type, p_value, test_object = NULL) {
   if (is.na(p_value)) return(tr("Résultat non disponible", hstat_langue_session()))
   # `trf()` ne traduit JAMAIS ses arguments -- c'est ce qui protège les données
@@ -2710,8 +2766,7 @@ hstat_mv_forme_ui <- function(prefix, titre = "Apparence du graphique") {
     titre, "brush", "#8e44ad", "#f7f0fb",
     shiny::fluidRow(
       shiny::column(6, shiny::selectInput(paste0(prefix, "_theme"), "Thème",
-        choices = c("Par défaut (ggplot2)" = "gg",
-                    "HStat (minimal)" = "hstat", HSTAT_THEMES_GG),
+        choices = c(HSTAT_THEMES_MV, HSTAT_THEMES_GG),
         selected = "gg")),
       shiny::column(6, shiny::textInput(paste0(prefix, "_subtitle"), "Sous-titre",
                                         placeholder = "Optionnel"))),
@@ -3325,12 +3380,53 @@ HSTAT_PALETTES_DEGRADE <- c("Dégradé de bleus" = "Blues",
 # Liste de choix commune. La palette de ggplot2 vient EN TETE : c'est la seule
 # qui ne plafonne pas, donc le bon defaut quand on ignore combien il y aura de
 # modalites.
-hstat_palettes_choix <- function(degrades = TRUE) {
+hstat_palettes_choix <- function(degrades = TRUE, autres = TRUE) {
   ch <- list("Palette par défaut" = HSTAT_PALETTE_GG,
              "Teintes vives (groupes distincts)" = HSTAT_PALETTES_QUALI)
   if (isTRUE(degrades))
     ch[["Dégradés (valeurs ordonnées)"]] <- HSTAT_PALETTES_DEGRADE
+  if (isTRUE(autres))
+    ch[["Accessibles et monochromes"]] <- HSTAT_PALETTES_AUTRES
   ch
+}
+
+# Palettes hors RColorBrewer, declarees ICI et nulle part ailleurs : cinq
+# modules en tenaient chacun leur copie (viridis, gris, monochromes). Un nom
+# de couleur seul est une valeur de donnees plausible, d'ou « Monochrome bleu ».
+HSTAT_PALETTES_AUTRES <- c("Viridis (lisible par les daltoniens)" = "viridis",
+                           "Niveaux de gris" = "grey",
+                           "Monochrome bleu" = "mono_blue",
+                           "Monochrome vert" = "mono_green",
+                           "Monochrome rouge" = "mono_red",
+                           "Monochrome violet" = "mono_purple",
+                           "Monochrome orange" = "mono_orange",
+                           "Monochrome noir" = "mono_black")
+HSTAT_PALETTES_MONO <- c(mono_blue = "#2E86AB", mono_green = "#06A77D",
+                         mono_red = "#D62828", mono_purple = "#6A4C93",
+                         mono_orange = "#F77F00", mono_black = "#2C3E50")
+
+# n COULEURS POUR N'IMPORTE QUELLE PALETTE DU CATALOGUE. C'est le seul endroit
+# qui depasse le PLAFOND de RColorBrewer (8 a 12 couleurs selon la palette) :
+# au-dela, `brewer.pal()` avertit et rend ses couleurs maximales, si bien que
+# `brewer.pal(n, p)[seq_len(n)]` laissait des NA -- donc des barres grises sur
+# un essai a quinze modalites. On interpole la palette complete.
+# Un nom inconnu rend la palette de ggplot2, le seul defaut qui ne plafonne pas.
+hstat_palette_couleurs <- function(pal, n) {
+  n <- suppressWarnings(as.integer(n)[1])
+  if (is.na(n) || n <= 0L) return(character(0))
+  pal <- as.character(pal %||% "")[1]
+  if (is.na(pal)) pal <- ""
+  if (pal %in% c(HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE) &&
+      requireNamespace("RColorBrewer", quietly = TRUE)) {
+    mx <- RColorBrewer::brewer.pal.info[pal, "maxcolors"]
+    if (n <= mx) return(RColorBrewer::brewer.pal(max(3L, n), pal)[seq_len(n)])
+    return(grDevices::colorRampPalette(RColorBrewer::brewer.pal(mx, pal))(n))
+  }
+  if (identical(pal, "viridis")) return(grDevices::hcl.colors(n, "viridis"))
+  if (identical(pal, "grey")) return(grDevices::grey.colors(n, start = 0.3, end = 0.9))
+  if (pal %in% names(HSTAT_PALETTES_MONO))
+    return(grDevices::colorRampPalette(c("#FFFFFF", HSTAT_PALETTES_MONO[[pal]]))(n + 1L)[-1L])
+  scales::hue_pal()(n)
 }
 
 # Rend les echelles a ajouter au graphique, ou NULL quand il n'y a rien a poser.
@@ -3357,9 +3453,19 @@ hstat_scales_palette <- function(pal, fill = TRUE, colour = TRUE, ...) {
     if (isTRUE(colour)) out <- c(out, list(ggplot2::scale_colour_hue(...)))
     return(out)
   }
-  if (!pal %in% c(HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE)) return(NULL)
-  if (isTRUE(fill))   out <- c(out, list(ggplot2::scale_fill_brewer(palette = pal, ...)))
-  if (isTRUE(colour)) out <- c(out, list(ggplot2::scale_colour_brewer(palette = pal, ...)))
+  if (!pal %in% c(HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE,
+                  HSTAT_PALETTES_AUTRES)) return(NULL)
+  # Une echelle discrete dont la palette RECOIT le nombre de modalites : c'est
+  # ce qui lui permet d'interpoler au-dela du plafond de Brewer, la ou
+  # `scale_*_brewer()` rendait les modalites en trop en gris.
+  echelle <- function(aes) {
+    args <- list(aesthetics = aes,
+                 palette = function(n) hstat_palette_couleurs(pal, n), ...)
+    if (utils::packageVersion("ggplot2") < "3.5.0") args$scale_name <- "hstat"
+    do.call(ggplot2::discrete_scale, args)
+  }
+  if (isTRUE(fill))   out <- c(out, list(echelle("fill")))
+  if (isTRUE(colour)) out <- c(out, list(echelle("colour")))
   out
 }
 
@@ -3850,8 +3956,28 @@ HSTAT_THEMES_GG <- c("Minimal" = "minimal", "Classique" = "classic",
                      "Gris" = "gray", "Sombre" = "dark",
                      "Traits fins" = "linedraw", "Sans décor" = "void")
 
+# Les deux themes propres aux graphiques multivaries vivent ICI, avec les
+# autres : chacun en tenait une copie dans app_server.R, et « hstat » y
+# designait deux habillages differents selon le graphique.
+#   "gg"    -- theme_grey : ggplot2 tel qu'il dessine, la reference connue ;
+#   "hstat" -- titre centre, legende en bas, sans grille mineure.
+HSTAT_THEMES_MV <- c("Par défaut (ggplot2)" = "gg",
+                     "HStat (titre centré, légende en bas)" = "hstat")
+
 viz_get_theme <- function(theme_name = "minimal", base_size = 12) {
   switch(theme_name,
+         "gg"       = ggplot2::theme_grey(base_size = base_size),
+         "hstat"    = ggplot2::theme_minimal(base_size = base_size) +
+           ggplot2::theme(
+             plot.title    = ggplot2::element_text(hjust = 0.5, face = "bold",
+                                                   size = base_size + 2, colour = "#2c3e50"),
+             plot.subtitle = ggplot2::element_text(hjust = 0.5, colour = "#555555",
+                                                   size = base_size - 1),
+             axis.text     = ggplot2::element_text(size = base_size - 1),
+             legend.text   = ggplot2::element_text(size = base_size - 1),
+             legend.title  = ggplot2::element_text(size = base_size, face = "bold"),
+             legend.position  = "bottom",
+             panel.grid.minor = ggplot2::element_blank()),
          "minimal"  = ggplot2::theme_minimal( base_size = base_size),
          "classic"  = ggplot2::theme_classic( base_size = base_size),
          "bw"       = ggplot2::theme_bw(      base_size = base_size),
@@ -6012,12 +6138,12 @@ hstat_shapiro_groupes <- function(d, variables, facteurs,
   if (sig)
     sprintf(paste0("%s : l'écart à la référence (%s) est significatif ",
                    "(p = %s). La valeur observée (%s%s) est %s à la norme."),
-            label, format(mu), format.pval(p, digits = 3),
+            label, format(mu), hstat_p_txt(p),
             format(round(estimate, digits)), unit, sens)
   else
     sprintf(paste0("%s : aucun écart significatif à la référence (%s) ",
                    "(p = %s). Les données sont compatibles avec la norme."),
-            label, format(mu), format.pval(p, digits = 3))
+            label, format(mu), hstat_p_txt(p))
 }
 
 # Enveloppe de sortie commune.
@@ -6158,13 +6284,13 @@ hstat_ref_test <- function(x, mu = 0, method = "ttest",
     interp <- if (p < 0.05)
       sprintf(paste0("Équivalence démontrée (p = %s) : la moyenne observée (%s) ",
                      "est comprise dans la marge de +/- %s autour de la norme (%s)."),
-              format.pval(p, digits = 3), format(round(m, 4)), format(margin),
+              hstat_p_txt(p), format(round(m, 4)), format(margin),
               format(mu))
     else
       sprintf(paste0("Équivalence NON démontrée (p = %s) : on ne peut pas ",
                      "conclure que la moyenne observée (%s) reste dans la marge ",
                      "de +/- %s autour de la norme (%s)."),
-              format.pval(p, digits = 3), format(round(m, 4)), format(margin),
+              hstat_p_txt(p), format(round(m, 4)), format(margin),
               format(mu))
     return(.hstat_ref_out(
       "TOST (équivalence à la norme)",
@@ -6476,10 +6602,9 @@ hstat_test_apparie <- function(a, b, methode = c("t", "wilcoxon", "signe"),
   }
   verdict <- hstat_p_verdict(res$p.value)
   mesure <- if (methode == "t") tr("la différence moyenne") else tr("la différence médiane")
-  # format.pval() rend « <2e-16 » sous le seuil machine : « p = <2e-16 » se
-  # lirait mal. Le signe fait partie du texte de la p-value.
-  pf <- format.pval(res$p.value, digits = 3)
-  ptxt <- if (startsWith(pf, "<")) paste("p <", sub("^<\\s*", "", pf)) else paste("p =", pf)
+  # « p = < 2.2e-16 » se lirait mal : le signe fait partie du texte.
+  pf <- hstat_p_txt(res$p.value)
+  ptxt <- if (startsWith(pf, "<")) paste("p", pf) else paste("p =", pf)
   interp <- switch(verdict,
     # Deux phrases entieres et non un adjectif en argument : `trf()` ne traduit
     # pas ses arguments, et « supérieure à » ne se dit pas avec le meme ordre
@@ -11013,7 +11138,11 @@ hstat_ecrire_classeur <- function(file, tables, dec = hstat_decimale_session()) 
     if (nm %in% vus) nm <- hstat_feuille_nom(paste0(substr(nm, 1, 27), "_", i))
     vus <- c(vus, nm)
     openxlsx::addWorksheet(wb, nm)
-    openxlsx::writeData(wb, nm, hstat_decimale_classeur(as.data.frame(tables[[i]]), dec))
+    t <- as.data.frame(tables[[i]])
+    openxlsx::writeData(wb, nm, hstat_decimale_classeur(t, dec))
+    # Colonnes a la largeur de leur contenu : un extrait de texte code ou un
+    # libelle long se lit sans avoir a elargir chaque colonne a la main.
+    if (ncol(t)) openxlsx::setColWidths(wb, nm, cols = seq_len(ncol(t)), widths = "auto")
   }
   openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
   length(tables)
@@ -17094,7 +17223,7 @@ hstat_rm_posthoc <- function(modele, within, between = character(0),
       if (length(parts) >= 2 && is.finite(p) && p < alpha)
         notes <- c(notes, trf(
           "L'interaction %s est significative (p = %s) : l'effet de chaque facteur dépend du niveau des autres. Lisez les effets simples ; les comparaisons d'un facteur seul moyennent sur les autres.",
-          paste(parts, collapse = " × "), format.pval(p, digits = 3)))
+          paste(parts, collapse = " × "), hstat_p_txt(p)))
     }
   }
   attr(res, "notes") <- notes

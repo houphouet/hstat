@@ -1163,18 +1163,27 @@ test_that(".safe_name produit des noms de fichiers propres", {
   expect_equal(.safe_name(""), "tableau")
 })
 
-test_that(".write_xlsx écrit un classeur multi-feuilles valide", {
+test_that("hstat_ecrire_classeur écrit un classeur multi-feuilles valide", {
   skip_if_not(requireNamespace("openxlsx", quietly = TRUE))
   set.seed(1)
   r <- hstat_q_nominal_bivariate(sample(c("A","B"), 80, TRUE),
                                  sample(c("X","Y","Z"), 80, TRUE), "G", "R")
   sheets <- c(list("Métriques" = r$metrics), r$tables)
   f <- tempfile(fileext = ".xlsx")
-  .write_xlsx(sheets, f)
+  hstat_ecrire_classeur(f, sheets)
   expect_true(file.exists(f) && file.size(f) > 3000)
   sn <- openxlsx::getSheetNames(f)
   expect_equal(length(sn), length(sheets))
   expect_true(all(nchar(sn) <= 31))
+  # La copie du module qualitatif tronquait APRES `make.unique` : deux noms
+  # identiques a 31 caracteres pres redevenaient un doublon, et Excel refuse.
+  long <- strrep("x", 40)
+  f2 <- tempfile(fileext = ".xlsx")
+  hstat_ecrire_classeur(f2, stats::setNames(list(r$metrics, r$metrics),
+                                            c(paste0(long, "a"), paste0(long, "b"))))
+  sn2 <- openxlsx::getSheetNames(f2)
+  expect_length(unique(sn2), 2)
+  expect_false(exists(".write_xlsx"))
 })
 
 test_that("l'export image fonctionne dans tous les formats", {
@@ -8967,6 +8976,9 @@ test_that("chaque graphique exportable offre un choix de theme", {
     blocs <- grep("hstat_export_plot_ui\\(ns, \"", l, value = TRUE)
     if (!length(blocs)) next
     sans <- grep("theme\\s*=\\s*FALSE", blocs, value = TRUE)
+    # Un graphique de BASE R (diagnostics `plot(model)`) n'a pas de theme
+    # ggplot : le lui offrir donnerait un reglage que l'image ignore.
+    sans <- sans[!grepl('"diagExp"', sans, fixed = TRUE)]
     if (length(sans) && !any(grepl("hstat_plot_opts_ui\\(", l)))
       manquants <- c(manquants, sprintf("%s : %d bloc(s) sans theme et sans hstat_plot_opts_ui",
                                         basename(f), length(sans)))
@@ -9015,6 +9027,15 @@ test_that("un seul choisisseur de theme : viz_get_theme", {
     }
   }
   expect_equal(unique(fautifs), character(0))
+
+  # Les themes des graphiques multivaries (« gg », « hstat ») passent par le
+  # meme choisisseur : app_server.R en tenait DEUX copies en chaines
+  # `identical(choix, ...)`, que le balayage des `switch` ne voyait pas, et
+  # « hstat » y designait deux habillages differents.
+  srv <- readLines(file.path(root, "inst", "app", "app_server.R"), encoding = "UTF-8")
+  expect_false(any(grepl('identical\\(choix, "(gg|hstat)"\\)', srv)))
+  expect_false(isTRUE(all.equal(viz_get_theme("hstat", 11), viz_get_theme("minimal", 11))))
+  expect_true(isTRUE(all.equal(viz_get_theme("gg", 11), ggplot2::theme_grey(base_size = 11))))
 
   # Et les huit themes du catalogue sont tous rendus par `viz_get_theme()`.
   for (th in unname(HSTAT_THEMES_GG)) {
@@ -12930,9 +12951,11 @@ test_that("la palette par défaut de ggplot2 colore chaque modalité", {
                                   name = "Traitements")) lg <- lg + sc
   expect_equal(ggplot2::ggplot_build(lg)$plot$scales$scales[[1]]$name,
                "Traitements")
+  # Depuis 1.46.4, une palette Brewer est INTERPOLEE au-dela de son plafond :
+  # Set2 rend quinze teintes distinctes au lieu de huit et sept series grises.
   set2 <- teintes("Set2")
-  expect_equal(length(unique(set2[!is.na(set2)])), 8L)
-  expect_gt(sum(is.na(set2)), 0L)
+  expect_equal(length(unique(set2)), 15L)
+  expect_false(anyNA(set2))
 
   # UN NOM INCONNU NE POSE RIEN. Lui appliquer `scale_*_brewer()` ferait
   # avertir ggplot a chaque trace et rendrait un graphique gris ; ne rien poser
@@ -25225,4 +25248,22 @@ test_that("Doses et dilutions : aucun arrondi par defaut, l'arrondi est un choix
     session$setInputs(dosArrondir = TRUE, dosDecimales = 1)
     expect_false("0.001" %in% conv_affiche()$Valeur)
   })
+})
+
+test_that("une seule écriture des p-values et une seule échelle de significativité", {
+  expect_identical(hstat_p_txt(c(0.03456, 3e-5, 0, NA)),
+                   c("0.0346", "3.00e-05", "< 2.2e-16", NA))
+  expect_identical(hstat_p_txt(0.5, 2), "0.50")
+  expect_match(hstat_p_niveau(0.0005), "0.001")
+  expect_match(hstat_p_niveau(0.2), ">= 0.05")
+  expect_identical(hstat_p_niveau(NA), tr("Non calculable"))
+  # Les copies locales et format.pval() ne reviennent pas : trois écritures
+  # d'une même p-value finissaient par se contredire d'un onglet à l'autre.
+  src <- unlist(lapply(.hstat_sources_app(), function(f) {
+    if (!file.exists(f)) return(character(0))
+    pd <- utils::getParseData(parse(f, keep.source = TRUE))
+    pd$text[pd$token %in% c("SYMBOL_FUNCTION_CALL", "SYMBOL")]
+  }))
+  if (!length(src)) skip("sources indisponibles")
+  expect_false(any(src %in% c("format.pval", "fmt_p", "chi2_interp_p")))
 })

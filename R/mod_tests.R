@@ -382,9 +382,8 @@ mod_tests_ui <- function(id) {
                                             "Résidus standardisés" = "residus"),
                                 selected = "bar_v")),
                               shiny::column(3, shiny::selectInput(ns("chiSqPalette"), "Palette",
-                                choices = c("HStat (défaut)" = "default", "Set1" = "Set1",
-                                            "Set2" = "Set2", "Dark2" = "Dark2",
-                                            "Pastel1" = "Pastel1"),
+                                choices = c(list("HStat (défaut)" = "default"),
+                                            hstat_palettes_choix()),
                                 selected = "default")),
                               shiny::column(6, shiny::textInput(ns("chiSqGraphTitle"),
                                 "Titre du graphique", value = ""))),
@@ -774,7 +773,7 @@ mod_tests_ui <- function(id) {
                         ),
                         shiny::plotOutput(ns("modelDiagnostics"), height = "500px"),
                         shiny::br(),
-                        shiny::downloadButton(ns("downloadModelDiagnostics"), "Télécharger (PNG)", class = "btn-success"),
+                        hstat_export_plot_ui(ns, "diagExp", width = 10.67, height = 8, theme = FALSE),  # graphique de base R : aucun theme ggplot ne l'atteint (exception nommee dans les tests)
                         shiny::htmlOutput(ns("modelDiagnosticsInterpretation"))
                     ),
                     shinydashboard::box(title = "Résidus et validation", status = "info", width = 6, solidHeader = TRUE,
@@ -794,7 +793,7 @@ mod_tests_ui <- function(id) {
                           shiny::tabPanel("QQ-plot", 
                                    shiny::plotOutput(ns("qqPlotResiduals"), height = "320px"),
                                    shiny::br(),
-                                   shiny::downloadButton(ns("downloadQQPlot"), "Télécharger (PNG)", class = "btn-success"),
+                                   hstat_export_plot_ui(ns, "qqExp", width = 10, height = 8),
                                    shiny::htmlOutput(ns("qqPlotInterpretation"))),
                           shiny::tabPanel("Normalité", 
                                    shiny::verbatimTextOutput(ns("normalityResult")),
@@ -3014,7 +3013,7 @@ mod_tests_server <- function(id, values) {
   output$refTestDetails <- DT::renderDT({
     shiny::req(values$refTestDetails, identical(values$currentTestType, "reference"))
     d <- values$refTestDetails
-    d$p_value <- sapply(d$p_value, function(p) if (is.na(p)) NA_character_ else fmt_p(p))
+    d$p_value <- sapply(d$p_value, function(p) if (is.na(p)) NA_character_ else hstat_p_txt(p))
     DT::datatable(d, rownames = FALSE,
               options = list(dom = "t", scrollX = TRUE, pageLength = 25))
   })
@@ -3141,7 +3140,7 @@ mod_tests_server <- function(id, values) {
                               paste(utils::head(p$incomplets, 8), collapse = ", ")))
       if (isTRUE(is.finite(sw) && sw < 0.05))
         notes <- c(notes, trf("%s : les différences s'écartent de la normalité (Shapiro-Wilk p = %s) ; le Wilcoxon apparié ou le test du signe sont plus sûrs.",
-                              j$etiquette, format.pval(sw, digits = 3)))
+                              j$etiquette, hstat_p_txt(sw)))
     }
     if (!length(rows)) {
       shiny::showNotification("Aucun résultat généré.", type = "warning"); return()
@@ -3171,9 +3170,9 @@ mod_tests_server <- function(id, values) {
   output$pairedTestDetails <- DT::renderDT({
     shiny::req(values$pairedTestDetails, identical(values$currentTestType, "paired"))
     d <- values$pairedTestDetails
-    d$p_value <- vapply(d$p_value, function(p) if (is.na(p)) NA_character_ else fmt_p(p), character(1))
+    d$p_value <- vapply(d$p_value, function(p) if (is.na(p)) NA_character_ else hstat_p_txt(p), character(1))
     d$Normalite_diff_p <- vapply(d$Normalite_diff_p,
-      function(p) if (is.na(p)) "-" else fmt_p(p), character(1))
+      function(p) if (is.na(p)) "-" else hstat_p_txt(p), character(1))
     DT::datatable(d, rownames = FALSE,
               options = list(dom = "t", scrollX = TRUE, pageLength = 25))
   })
@@ -4779,7 +4778,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$manovaParamResults)
     df <- values$manovaParamResults
     for (col in c("p_Pillai", "p_Wilks", "p_Hotelling", "p_Roy")) {
-      if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
+      if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else hstat_p_txt(p))
     }
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     dt <- DT::datatable(df, options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
@@ -4811,7 +4810,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$manovaPermanovaResults)
     df <- values$manovaPermanovaResults
     if ("p_value" %in% names(df))
-      df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else fmt_p(p))
+      df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else hstat_p_txt(p))
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     DT::datatable(df, options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
   })
@@ -4820,7 +4819,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$manovaMardia)
     df <- values$manovaMardia
     for (col in c("p_Skewness", "p_Kurtosis")) {
-      if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
+      if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else hstat_p_txt(p))
     }
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     DT::datatable(df, options = list(dom = "t", scrollX = TRUE), rownames = FALSE)
@@ -4842,7 +4841,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$manovaBoxM)
     df <- values$manovaBoxM
     if ("p_value" %in% names(df))
-      df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else fmt_p(p))
+      df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else hstat_p_txt(p))
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     DT::datatable(df, options = list(dom = "t", scrollX = TRUE), rownames = FALSE)
   })
@@ -4883,7 +4882,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$manovaPermDisp)
     df <- values$manovaPermDisp
     if ("p_value" %in% names(df))
-      df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else fmt_p(p))
+      df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else hstat_p_txt(p))
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     DT::datatable(df, options = list(dom = "t", scrollX = TRUE), rownames = FALSE)
   })
@@ -5157,7 +5156,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$manovaSimpleEffects)
     df <- values$manovaSimpleEffects
     for (col in c("p_value", "p_adj")) {
-      if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
+      if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else hstat_p_txt(p))
     }
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     dt <- DT::datatable(df, options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
@@ -5207,7 +5206,7 @@ mod_tests_server <- function(id, values) {
     if ("p_value" %in% names(df)) {
       df$p_value <- sapply(df$p_value, function(p) {
         if (is.na(p) || !is.numeric(p)) return(p)
-        fmt_p(p)
+        hstat_p_txt(p)
       })
     }
     
@@ -5511,44 +5510,30 @@ mod_tests_server <- function(id, values) {
     })
   })
   
-  output$downloadModelDiagnostics <- shiny::downloadHandler(
-    filename = function() {
-      paste0("diagnostics_modèle_", Sys.Date(), ".png")
-    },
-    content = function(file) {
-      # Le peripherique, le chemin d'echec et l'image portant le motif etaient
-      # ecrits ici a la main. Ils vivent desormais chez `hstat_ecrire_image()` :
-      # ne reste que le DESSIN, qui est le seul propre a cet export.
-      model <- values$currentModel
-      dessin <- function() {
-        h <- stats::hatvalues(model)
-        if (all(h < 1e-10) || sum(h > 0) < 3) {
-          graphics::par(mfrow = c(1, 1))
-          plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
-          graphics::text(1, 1, "Ajustement parfait détecté\nLes diagnostics graphiques ne sont pas disponibles",
-               cex = 1.5, col = "red")
-        } else {
-          graphics::par(mfrow = c(2, 2))
-          plot(model, which = 1:4)
-        }
+  # LE KIT D'EXPORT COMMUN, pas un PNG impose : format, taille et DPI se
+  # choisissent comme pour les autres graphiques. Le dessin est une fonction
+  # (graphique de base) : l'ecrivain commun sait la tracer.
+  output$diagExpDl <- hstat_export_plot_handler(input, "diagExp", function() {
+    model <- values$currentModel
+    if (is.null(model)) return(NULL)
+    function() {
+      h <- stats::hatvalues(model)
+      if (all(h < 1e-10) || sum(h > 0) < 3) {
+        graphics::par(mfrow = c(1, 1))
+        plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
+        graphics::text(1, 1, tr("Ajustement parfait détecté\nLes diagnostics graphiques ne sont pas disponibles"),
+             cex = 1.5, col = "red")
+      } else {
+        graphics::par(mfrow = c(2, 2))
+        plot(model, which = 1:4)
       }
-      # 10,67 x 8 pouces a 300 DPI : exactement les 3200 x 2400 px d'avant.
-      hstat_ecrire_image(file, dessin, "png", 10.67, 8, 300)
     }
-  )
+  }, "diagnostics_modele")
   
-  output$downloadQQPlot <- shiny::downloadHandler(
-    filename = function() {
-      paste0("qqplot_residus_", Sys.Date(), ".png")
-    },
-    content = hstat_contenu_sur(function(file) {
-      # Meme principe que les diagnostics : le module construit le graphique,
-      # l'ecrivain commun se charge du fichier. Le motif d'indisponibilite est
-      # porte par `echec`, et sort en image valide au lieu d'un peripherique
-      # ouvert a la main dans chaque branche.
+  output$qqExpDl <- hstat_export_plot_handler(input, "qqExp", function() {
       motif <- NULL
       p <- tryCatch({
-        shiny::req(values$currentModel)
+        if (is.null(values$currentModel)) return(NULL)
         residuals_data <- stats::residuals(values$currentModel)
         residuals_data <- residuals_data[!is.na(residuals_data)]
 
@@ -5556,10 +5541,9 @@ mod_tests_server <- function(id, values) {
           # `<-` et non `<<-` : l'expression d'un tryCatch s'evalue dans le
           # cadre APPELANT, donc ici meme. C'est dans le GESTIONNAIRE, plus
           # bas, que `<<-` est indispensable.
-          motif <- "QQ-plot non disponible : les résidus sont constants ou trop peu nombreux."
-          return(NULL)
-        }
-
+          motif <- tr("QQ-plot non disponible : les résidus sont constants ou trop peu nombreux.")
+          NULL
+        } else {
         n <- length(residuals_data)
         theoretical_quantiles <- stats::qnorm(stats::ppoints(n))
         sample_quantiles <- sort(residuals_data)
@@ -5579,20 +5563,27 @@ mod_tests_server <- function(id, values) {
           ggplot2::geom_ribbon(ggplot2::aes(ymin = lower, ymax = upper), fill = "grey80", alpha = 0.5) +
           ggplot2::geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
           ggplot2::geom_point(shape = 1, size = 2) +
-          ggplot2::theme_minimal() +
+          viz_get_theme(input$qqExpTheme %||% "minimal", base_size = 11) +
           ggplot2::labs(title = "QQ-plot des résidus", 
                x = "Quantiles théoriques", 
                y = "Quantiles observés") +
           ggplot2::theme(plot.title = element_markdown(hjust = 0.5))
 
         p
+        }
       }, error = function(e) {
-        motif <<- hstat_err_fr(e, "QQ-plot des résidus")
+        motif <<- hstat_err_fr(e, tr("QQ-plot des résidus"))
         NULL
       })
-      hstat_ecrire_image(file, p, "png", 10, 8, 300, echec = motif)
-    })
-  )
+      # Le motif d'indisponibilite sort en image : une figure qui explique
+      # vaut mieux que le motif generique « lancez d'abord l'analyse ».
+      if (is.null(p) && !is.null(motif))
+        p <- function() {
+          plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
+          graphics::text(1, 1, motif, cex = 1.1, col = "red")
+        }
+      p
+  }, "qqplot_residus")
   
   output$qqPlotResiduals <- shiny::renderPlot({
     shiny::req(values$currentModel)
@@ -5874,22 +5865,6 @@ mod_tests_server <- function(id, values) {
     grDevices::colorRampPalette(cols)(n)
   }
   
-  # Formater une p-valeur sans l'arrondir à 0 quand elle est très faible
-  fmt_p <- function(p, digits = 6) {
-    if (is.na(p)) return("NA")
-    if (p == 0)   return("< 2.2e-16")
-    if (p < 1e-4) return(formatC(p, format = "e", digits = 3))
-    formatC(p, format = "f", digits = digits)
-  }
-  
-  chi2_interp_p <- function(p) {
-    if (is.na(p))   return("NA")
-    if (p < 0.001)  return("Hautement significatif (p < 0.001)")
-    if (p < 0.01)   return("Très significatif (p < 0.01)")
-    if (p < 0.05)   return("Significatif (p < 0.05)")
-    return("Non significatif (p >= 0.05)")
-  }
-  
   # Attribuer lettres de groupes (Bonferroni pairwise)
   chi2_group_letters <- function(modalites, observed, nb_paires, paires) {
     n  <- length(modalites)
@@ -6040,7 +6015,7 @@ mod_tests_server <- function(id, values) {
         Statistique = paste0(stat_name, " = ", ifelse(is.na(stat_val), "—", stat_val)),
         DL          = df_test,
         p_valeur    = p_val,
-        Interpretation = chi2_interp_p(p_val),
+        Interpretation = hstat_p_niveau(p_val),
         Variable_cat = col_cat,
         Variable_num = col_num,
         Type_donnee  = note_type,
@@ -6064,7 +6039,7 @@ mod_tests_server <- function(id, values) {
         Statistique    = ifelse(is.na(stat_val), NA_real_, as.numeric(stat_val)),
         ddl            = df_test,
         p_value        = p_val,
-        Interpretation = chi2_interp_p(p_val),
+        Interpretation = hstat_p_niveau(p_val),
         stringsAsFactors = FALSE
       )
       prev <- values$testResultsDF
@@ -6080,7 +6055,7 @@ mod_tests_server <- function(id, values) {
     })
     
     shiny::showNotification(
-      trf("Test %s terminé -- p = %s", toupper(methode), fmt_p(p_val)),
+      trf("Test %s terminé -- p = %s", toupper(methode), hstat_p_txt(p_val)),
       type = if (p_val < 0.05) "message" else "warning",
       duration = 5
     )
@@ -6101,15 +6076,12 @@ mod_tests_server <- function(id, values) {
     show_pval <- isTRUE(input$chiSqShowPval)
     
     n   <- nrow(fdf)
-    pal <- switch(palette_g,
-                  "default" = chi2_palette(n),
-                  "Set1"    = RColorBrewer::brewer.pal(max(3, n), "Set1")[seq_len(n)],
-                  "Set2"    = RColorBrewer::brewer.pal(max(3, n), "Set2")[seq_len(n)],
-                  "Dark2"   = RColorBrewer::brewer.pal(max(3, n), "Dark2")[seq_len(n)],
-                  "Pastel1" = RColorBrewer::brewer.pal(max(3, n), "Pastel1")[seq_len(n)],
-                  chi2_palette(n)
-    )
-    if (n > length(pal)) pal <- grDevices::colorRampPalette(pal)(n)
+    # `brewer.pal(max(3, n), p)[seq_len(n)]` laissait des NA au-dela du plafond
+    # de la palette (9 pour Set1) : les modalites en trop sortaient grises, et
+    # le rattrapage `n > length(pal)` ne voyait rien puisque la longueur etait
+    # bien n. Le catalogue commun interpole.
+    pal <- if (identical(palette_g, "default")) chi2_palette(n)
+           else hstat_palette_couleurs(palette_g, n)
     
     df_plot <- data.frame(
       modalite = factor(fdf$Modalite, levels = fdf$Modalite),
@@ -6119,7 +6091,7 @@ mod_tests_server <- function(id, values) {
     )
     
     sous_titre <- if (show_pval && !is.na(p_val))
-      paste0("p = ", fmt_p(p_val)) else NULL
+      paste0("p = ", hstat_p_txt(p_val)) else NULL
     
     lbl_fn <- function(val, grp) {
       s <- round(val, 2)
@@ -6275,7 +6247,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$chiSqResults, identical(values$currentTestType, "chisq"))
     d <- values$chiSqResults
     if ("p_value" %in% names(d))
-      d$p_value <- vapply(d$p_value, function(p) if (is.na(p)) NA_character_ else fmt_p(p),
+      d$p_value <- vapply(d$p_value, function(p) if (is.na(p)) NA_character_ else hstat_p_txt(p),
                           character(1))
     DT::datatable(d, rownames = FALSE,
                   options = list(dom = "t", scrollX = TRUE, pageLength = 25))
@@ -7315,7 +7287,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(entry$pairs)
     df <- entry$pairs
     for (col in c("p_value", "p_adj")) {
-      if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
+      if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else hstat_p_txt(p))
     }
     df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
     dt <- DT::datatable(df, options = list(scrollX = TRUE, pageLength = 15), rownames = FALSE)
@@ -7485,7 +7457,7 @@ mod_tests_server <- function(id, values) {
     df <- entry$pairs
     for (col in c("p_value", "p_adj")) {
       if (col %in% names(df))
-        df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
+        df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else hstat_p_txt(p))
     }
     df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
     
@@ -7557,7 +7529,7 @@ mod_tests_server <- function(id, values) {
                        options = list(dom = "t"), rownames = FALSE))
     for (col in c("p_value", "p_adj")) {
       if (col %in% names(df))
-        df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
+        df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else hstat_p_txt(p))
     }
     df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
     dt <- DT::datatable(df, options = list(pageLength = 25, scrollX = TRUE), rownames = FALSE)

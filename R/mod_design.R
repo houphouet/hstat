@@ -2211,10 +2211,7 @@ mod_design_ui <- function(id) {
               .sect("palette", "Couleurs"),
               shiny::fluidRow(
                 shiny::column(6, shiny::selectInput(ns("dsgPalette"), "Palette de couleurs",
-                  choices = c("Vif (défaut)" = "default", "Set2 (doux)" = "Set2",
-                              "Dark2" = "Dark2", "Paired" = "Paired",
-                              "Spectral" = "Spectral", "Niveaux de gris" = "grey",
-                              "Viridis" = "viridis")))
+                  choices = hstat_palettes_choix(), selected = "ggplot2"))
               ),
 
               # ===================== LÉGENDE ==========================
@@ -3234,20 +3231,11 @@ mod_design_server <- function(id, values) {
               else sprintf("Plan %s - randomisation (graine %s) - n=%d/parcelle",
                            toupper(t), input$dsgSeed %||% 123, nplot)
 
-      nlev <- length(unique(b$.fill))
-      pal  <- input$dsgPalette %||% "default"
-      fill_scale <- if (pal == "default") {
-        ggplot2::scale_fill_hue()
-      } else if (pal == "grey") {
-        ggplot2::scale_fill_grey(start = 0.3, end = 0.9)
-      } else if (pal == "viridis") {
-        ggplot2::scale_fill_viridis_d()
-      } else {
-        maxc <- switch(pal, "Set2" = 8, "Dark2" = 8, "Paired" = 12, "Spectral" = 11, 8)
-        cols <- grDevices::colorRampPalette(
-          RColorBrewer::brewer.pal(min(maxc, max(3, nlev)), pal))(nlev)
-        ggplot2::scale_fill_manual(values = cols)
-      }
+      pal  <- input$dsgPalette %||% "ggplot2"
+      if (identical(pal, "default")) pal <- "ggplot2"
+      # Le catalogue commun : il interpole au-dela du plafond de RColorBrewer,
+      # ce que ce module faisait a la main, avec sa propre table des plafonds.
+      fill_scale <- hstat_scales_palette(pal, fill = TRUE, colour = FALSE)[[1]]
 
       # ---- Rendu FACETTE pour split-plot, strip-plot et alpha (un panneau par
       # bloc/replique), conforme aux representations agronomiques de reference ----

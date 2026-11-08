@@ -834,9 +834,7 @@ server <- function(input, output, session) {
     choix <- (if (!is.null(prefix)) input[[paste0(prefix, "_theme")]] else NULL) %||%
              input$mv_theme %||% "gg"
     txt   <- .hstat_num1(input$mv_text_size, HSTAT_GG_BASE_SIZE)
-    if (identical(choix, "gg")) ggplot2::theme_grey(base_size = txt)
-    else if (identical(choix, "hstat")) ggplot2::theme_minimal(base_size = txt)
-    else viz_get_theme(choix, base_size = txt)
+    viz_get_theme(choix, base_size = txt)
   }
 
   # Reglages de forme des analyses HISTORIQUES, greffes sur le graphique deja
@@ -992,16 +990,7 @@ server <- function(input, output, session) {
         pca_data_nzv <- remove_zero_var_cols(pca_data)
         if (ncol(pca_data_nzv) < 2) {
           stats::setNames(rep(NA_real_, ncol(pca_data)), names(pca_data))
-        } else {
-          vv <- sapply(seq_len(ncol(pca_data_nzv)), function(i) {
-            y <- pca_data_nzv[[i]]
-            x <- remove_zero_var_cols(pca_data_nzv[, -i, drop = FALSE])
-            if (ncol(x) == 0) return(Inf)
-            r2 <- tryCatch(suppressWarnings(summary(stats::lm(y ~ ., data = x))$r.squared), error = function(e) NA)
-            if (is.na(r2) || r2 >= 1) Inf else 1 / (1 - r2)
-          })
-          stats::setNames(vv, names(pca_data_nzv))
-        }
+        } else hstat_vif(pca_data_nzv)
       } else {
         stats::setNames(rep(NA_real_, ncol(pca_data)), names(pca_data))
       }
@@ -1336,14 +1325,7 @@ server <- function(input, output, session) {
       }
     }
     if (ncol(pca_data) >= 3) {
-      pca_nzv <- remove_zero_var_cols(pca_data)
-      vif_v <- sapply(seq_len(ncol(pca_nzv)), function(i) {
-        y <- pca_nzv[[i]]; x <- remove_zero_var_cols(pca_nzv[,-i, drop=FALSE])
-        if (ncol(x) == 0) return(Inf)
-        r2 <- tryCatch(suppressWarnings(summary(stats::lm(y~., data=x))$r.squared), error=function(e) NA)
-        if (is.na(r2)||r2>=1) Inf else 1/(1-r2)
-      })
-      names(vif_v) <- names(pca_nzv)
+      vif_v <- hstat_vif(pca_data)
       to_remove <- unique(c(to_remove, names(vif_v[is.finite(vif_v) & vif_v > 10])))
     }
     
@@ -3972,14 +3954,7 @@ server <- function(input, output, session) {
     
     vif_vals <- tryCatch({
       if (ncol(afd_data) >= 3) {
-        afd_nzv <- remove_zero_var_cols(afd_data)
-        v <- sapply(seq_len(ncol(afd_nzv)), function(i) {
-          y <- afd_nzv[[i]]; x <- remove_zero_var_cols(afd_nzv[,-i, drop=FALSE])
-          if (ncol(x) == 0) return(Inf)
-          r2 <- tryCatch(suppressWarnings(summary(stats::lm(y~., data=x))$r.squared), error=function(e) NA)
-          if (is.na(r2)||r2>=1) Inf else 1/(1-r2)
-        })
-        stats::setNames(v, names(afd_nzv))
+        hstat_vif(afd_data)
       } else rep(NA, ncol(afd_data))
     }, error=function(e) rep(NA, ncol(afd_data)))
     
@@ -4041,14 +4016,7 @@ server <- function(input, output, session) {
     for (i in seq_len(nrow(R_mat))) for (j in seq_len(ncol(R_mat)))
       if (i<j && abs(R_mat[i,j])>0.9999) to_rem <- c(to_rem, colnames(R_mat)[j])
     if (ncol(afd_d)>=3) {
-      afd_d_nzv <- remove_zero_var_cols(afd_d)
-      vif_v <- sapply(seq_len(ncol(afd_d_nzv)), function(i) {
-        y <- afd_d_nzv[[i]]; x <- remove_zero_var_cols(afd_d_nzv[,-i,drop=FALSE])
-        if (ncol(x)==0) return(Inf)
-        r2 <- tryCatch(suppressWarnings(summary(stats::lm(y~.,data=x))$r.squared), error=function(e) NA)
-        if(is.na(r2)||r2>=1) Inf else 1/(1-r2)
-      })
-      names(vif_v) <- names(afd_d_nzv)
+      vif_v <- hstat_vif(afd_d)
       to_rem <- unique(c(to_rem, names(vif_v[is.finite(vif_v) & vif_v>10])))
     }
     new_vars <- setdiff(input$afdVars, to_rem)
@@ -5604,9 +5572,7 @@ server <- function(input, output, session) {
         shiny::tags$label(style = "color:#2c3e50;font-size:13px;font-weight:700;",
                    shiny::icon("palette"), " Palette de couleurs :"),
         shiny::selectInput(paste0(prefix, "_palette"), label = NULL,
-          choices = c("Par défaut (ggplot2)" = "default",
-                      "Set1" = "Set1", "Set2" = "Set2", "Dark2" = "Dark2",
-                      "Paired" = "Paired", "Viridis" = "viridis", "Plasma" = "plasma"),
+          choices = c(list("Par défaut (ggplot2)" = "default"), hstat_palettes_choix()),
           selected = "default"),
         shiny::fluidRow(
           shiny::column(6, shiny::sliderInput(paste0(prefix, "_ptsz"), "Taille des points",
@@ -5661,9 +5627,7 @@ server <- function(input, output, session) {
       .hstat_opt_section(
         "Thème, légende et grille", "brush", "#8e44ad", "#f7f0fb",
         shiny::selectInput(paste0(prefix, "_theme"), "Thème",
-                    choices = c("Par défaut (ggplot2)" = "gg",
-                                "HStat (titre centré, légende en bas)" = "hstat",
-                                HSTAT_THEMES_GG),
+                    choices = c(HSTAT_THEMES_MV, HSTAT_THEMES_GG),
                     selected = "gg"),
         shiny::fluidRow(
           shiny::column(6, shiny::selectInput(paste0(prefix, "_legendpos"), "Légende",
@@ -5705,9 +5669,7 @@ server <- function(input, output, session) {
         shiny::tags$label(style = "color:#2c3e50;font-size:13px;font-weight:700;",
                    shiny::icon("palette"), " Palette de couleurs :"),
         shiny::selectInput(paste0(prefix, "_palette"), label = NULL,
-          choices = c("Par défaut (ggplot2)" = "default",
-                      "Set1" = "Set1", "Set2" = "Set2", "Dark2" = "Dark2",
-                      "Paired" = "Paired", "Viridis" = "viridis", "Plasma" = "plasma"),
+          choices = c(list("Par défaut (ggplot2)" = "default"), hstat_palettes_choix()),
           selected = "default"),
         shiny::fluidRow(
           shiny::column(6, shiny::sliderInput(paste0(prefix, "_ptsz"), "Taille des points",
@@ -5877,31 +5839,16 @@ server <- function(input, output, session) {
   # veut. L'inverse oblige a defaire avant de faire.
   #
   # "gg" (defaut) : theme_grey(11), exactement ggplot2.
-  # "hstat"       : l'habillage precedent, conserve pour qui l'avait adopte.
+  # "hstat"       : titre centre, legende en bas (defini dans viz_get_theme).
   # les autres    : les themes de HSTAT_THEMES_GG, partages avec les autres
   #                 modules.
   mv_gg_theme <- function() {
     choix    <- .mv_loc("theme", input$mv_theme %||% "gg")
     txt_sz   <- .mv_loc("textsz", input$mv_text_size %||% HSTAT_GG_BASE_SIZE)
-    face_txt <- if (isTRUE(.mv_loc("bold", input$mv_bold_text))) "bold" else "plain"
     pos_leg  <- .mv_loc("legendpos", input$mv_legend_pos %||% "gg")
     grille   <- .mv_loc("grid", input$mv_grid %||% "gg")
 
-    base <- if (identical(choix, "hstat"))
-      ggplot2::theme_minimal(base_size = txt_sz) +
-        ggplot2::theme(
-          plot.title    = ggplot2::element_text(hjust = 0.5, face = "bold", size = txt_sz + 2, color = "#2c3e50"),
-          plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555555", size = txt_sz - 1),
-          axis.title = ggplot2::element_text(size = txt_sz, face = face_txt),
-          axis.text  = ggplot2::element_text(size = txt_sz - 1, face = face_txt),
-          legend.text = ggplot2::element_text(size = txt_sz - 1),
-          legend.title = ggplot2::element_text(size = txt_sz, face = "bold"),
-          legend.position = "bottom",
-          panel.grid.minor = ggplot2::element_blank(),
-          axis.text.x = ggplot2::element_text(angle = 0, hjust = 0.5)
-        )
-    else if (identical(choix, "gg")) ggplot2::theme_grey(base_size = txt_sz)
-    else viz_get_theme(choix, base_size = txt_sz)
+    base <- viz_get_theme(choix, base_size = txt_sz)
 
     # Reglages surajoutes SEULEMENT s'ils ont ete demandes : sans cela, le
     # theme choisi ne serait plus celui qu'on croit.
@@ -5972,24 +5919,16 @@ server <- function(input, output, session) {
 
   # Echelles de couleur choisies par l'utilisateur pour les graphiques multivaries
   # etendus. Renvoie une liste de scales (color + fill) a ajouter au ggplot.
+  # LE CATALOGUE COMMUN. Ce module tenait sa propre liste (Set1, Paired,
+  # plasma...) et posait `scale_*_brewer()`, qui rend en gris les modalites
+  # au-dela du plafond de la palette ; `hstat_scales_palette()` les interpole.
   mv_color_scale <- function(discrete = TRUE) {
     pal <- .mv_loc("palette", input$mv_palette %||% "default")
-    if (pal == "default") return(NULL)
-    if (discrete) {
-      switch(pal,
-        "Set1"    = list(ggplot2::scale_color_brewer(palette = "Set1"), ggplot2::scale_fill_brewer(palette = "Set1")),
-        "Set2"    = list(ggplot2::scale_color_brewer(palette = "Set2"), ggplot2::scale_fill_brewer(palette = "Set2")),
-        "Dark2"   = list(ggplot2::scale_color_brewer(palette = "Dark2"), ggplot2::scale_fill_brewer(palette = "Dark2")),
-        "Paired"  = list(ggplot2::scale_color_brewer(palette = "Paired"), ggplot2::scale_fill_brewer(palette = "Paired")),
-        "viridis" = list(ggplot2::scale_color_viridis_d(), ggplot2::scale_fill_viridis_d()),
-        "plasma"  = list(ggplot2::scale_color_viridis_d(option = "plasma"), ggplot2::scale_fill_viridis_d(option = "plasma")),
-        NULL)
-    } else {
-      switch(pal,
-        "viridis" = list(ggplot2::scale_color_viridis_c(), ggplot2::scale_fill_viridis_c()),
-        "plasma"  = list(ggplot2::scale_color_viridis_c(option = "plasma"), ggplot2::scale_fill_viridis_c(option = "plasma")),
-        NULL)
-    }
+    if (identical(pal, "default")) return(NULL)
+    if (discrete) return(hstat_scales_palette(pal, fill = TRUE, colour = TRUE))
+    bornes <- hstat_palette_couleurs(pal, 9)[c(1, 9)]
+    list(ggplot2::scale_colour_gradient(low = bornes[1], high = bornes[2]),
+         ggplot2::scale_fill_gradient(low = bornes[1], high = bornes[2]))
   }
 
   mv_empty_plot <- function(msg = "Lancez l'analyse pour afficher le graphique.") {
@@ -6923,7 +6862,7 @@ server <- function(input, output, session) {
                  "> 0,80 très bon ; 0,60-0,80 acceptable ; < 0,60 inadéquat",
                  if (st_kmo=="ok") "Données très adaptées" else if (st_kmo=="warn") "Adéquation acceptable" else "Données peu factorisables",
                  st_kmo),
-          mv_row("Test de Bartlett (p)", format.pval(bart$p.value, digits=3),
+          mv_row("Test de Bartlett (p)", hstat_p_txt(bart$p.value),
                  "p < 0,05 : corrélations exploitables",
                  if (st_bar=="ok") "Factorisation justifiée" else "Matrice proche de l'identité",
                  st_bar),
@@ -6960,7 +6899,7 @@ server <- function(input, output, session) {
         list(ok = TRUE, render = render, metrics = metrics,
           note = paste0("AFE : ", nf, " facteurs, rotation ", input$mv_efa_rot, "."),
           summary = c("=== Analyse Factorielle Exploratoire ===",
-            paste0("KMO = ", round(kmo,3), " | Bartlett p = ", format.pval(bart$p.value,digits=3)),
+            paste0("KMO = ", round(kmo,3), " | Bartlett p = ", hstat_p_txt(bart$p.value)),
             "", "Saturations :", paste(utils::capture.output(round(load,3)), collapse="\n"),
             "", "Communautés :", paste(utils::capture.output(round(comm,3)), collapse="\n")),
           plotfn = function() {
@@ -7554,7 +7493,7 @@ server <- function(input, output, session) {
                  "Plus élevé = meilleur (>= 0,50 bon, selon domaine)",
                  if (st_r2=="ok") "Bon pouvoir explicatif" else if (st_r2=="warn") "Pouvoir explicatif modéré" else "Pouvoir explicatif faible",
                  st_r2),
-          mv_row("Test F global (p)", format.pval(fp, digits=3),
+          mv_row("Test F global (p)", hstat_p_txt(fp),
                  "p < 0,05 : modèle globalement significatif",
                  if (st_f=="ok") "Modèle significatif" else "Modèle non significatif", st_f),
           mv_row("VIF maximal", if (is.na(vif_max)) "n/d" else round(vif_max,2),
@@ -7562,11 +7501,11 @@ server <- function(input, output, session) {
                  if (st_v=="ok") "Pas de multicolinéarité" else if (st_v=="warn") "Multicolinéarité modérée"
                    else if (st_v=="err") "Multicolinéarité problématique" else "Non applicable (1 prédicteur)",
                  st_v),
-          mv_row("Breusch-Pagan (p)", if (is.na(bp)) "n/d" else format.pval(bp,digits=3),
+          mv_row("Breusch-Pagan (p)", if (is.na(bp)) "n/d" else hstat_p_txt(bp),
                  "p > 0,05 : homoscédasticité respectée",
                  if (st_bp=="ok") "Variance des résidus constante" else "Hétéroscédasticité détectée",
                  st_bp),
-          mv_row("Shapiro-Wilk résidus (p)", if (is.na(sw)) "n/d" else format.pval(sw,digits=3),
+          mv_row("Shapiro-Wilk résidus (p)", if (is.na(sw)) "n/d" else hstat_p_txt(sw),
                  "p > 0,05 : normalité des résidus",
                  if (st_sw=="ok") "Résidus normaux" else "Écart à la normalité", st_sw),
           mv_row("Durbin-Watson", if (is.na(dw)) "n/d" else round(dw,2),
@@ -7658,7 +7597,7 @@ server <- function(input, output, session) {
         st_dim <- if (dim12 >= 70) "ok" else if (dim12 >= 50) "warn" else "err"
         st_cr  <- if (cramer >= .3) "ok" else if (cramer >= .1) "warn" else "err"
         metrics <- rbind(
-          mv_row("Test du Chi2 (p)", format.pval(chi$p.value, digits=3),
+          mv_row("Test du Chi2 (p)", hstat_p_txt(chi$p.value),
                  "p < 0,05 : association significative",
                  if (st_chi=="ok") "Association significative" else "Pas d'association détectée",
                  st_chi),
@@ -8072,7 +8011,7 @@ server <- function(input, output, session) {
             mv_row("Taux de bon classement", paste0(round(100*acc,1)," %"),
                    "Plus élevé = meilleur (à comparer au hasard)",
                    "Précision globale du modèle", "info"),
-            mv_row("Hosmer-Lemeshow (p)", if (is.na(hl_p)) "n/d" else format.pval(hl_p,digits=3),
+            mv_row("Hosmer-Lemeshow (p)", if (is.na(hl_p)) "n/d" else hstat_p_txt(hl_p),
                    "p > 0,05 : ajustement acceptable",
                    if (st_h=="ok") "Calibration acceptable" else "Mauvaise calibration", st_h),
             mv_row("AIC", round(aic,1),
