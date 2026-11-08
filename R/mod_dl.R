@@ -402,12 +402,6 @@ mod_dl_server <- function(id, values) {
            engine = "torch")
     }
 
-    # Depot du resultat du reseau de neurones pour l'aide a la decision.
-    shiny::observeEvent(dlfit(), {
-      f <- tryCatch(dlfit(), error = function(e) NULL)
-      if (is.null(f) || is.null(f$metrics)) return()
-    }, ignoreInit = TRUE)
-
     dlfit <- shiny::eventReactive(input$dlRun, {
       p <- prepare_dl()
       hidden <- parse_hidden(input$dlHidden)

@@ -705,7 +705,7 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
     utils::capture.output(print(stats::setNames(round(exp_eff, 4), names(tab)))),
     "", "Résidus de Pearson :",
     utils::capture.output(print(stats::setNames(round(resid_p, 4), names(tab)))),
-    if (!is.na(p_mc)) c("", sprintf("Khi-deux Monte-Carlo (B = %d) : p-value = %s", B,
+    if (!is.na(p_mc)) c("", trf("Khi-deux Monte-Carlo (B = %d) : p-value = %s", B,
                                     format.pval(p_mc, digits = 4))) else NULL,
     if (method == "multinomial") c("",
       trf("Test multinomial exact -- %s", multi_meth),
@@ -1305,12 +1305,12 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     sens <- tr(if (rho > 0) "positive (croissante)" else "négative (décroissante)")
     signif_sp <- !is.na(pval_sp) && pval_sp < 0.05
     # Interprétation de la p-value (seuils usuels)
-    pval_interp <- if (is.na(pval_sp)) "p-value non calculable."
+    pval_interp <- if (is.na(pval_sp)) tr("p-value non calculable.")
       else if (pval_sp < 0.001) trf("p = %s < 0,001 : association très hautement significative.", format.pval(pval_sp, 3))
-      else if (pval_sp < 0.01)  sprintf("p = %s < 0,01 : association hautement significative.", format.pval(pval_sp, 3))
-      else if (pval_sp < 0.05)  sprintf("p = %s < 0,05 : association significative.", format.pval(pval_sp, 3))
+      else if (pval_sp < 0.01)  trf("p = %s < 0,01 : association hautement significative.", format.pval(pval_sp, 3))
+      else if (pval_sp < 0.05)  trf("p = %s < 0,05 : association significative.", format.pval(pval_sp, 3))
       else if (pval_sp < 0.10)  trf("p = %s : tendance non significative au seuil de 5 %% (marginale).", format.pval(pval_sp, 3))
-      else sprintf("p = %s >= 0,05 : association non significative.", format.pval(pval_sp, 3))
+      else trf("p = %s >= 0,05 : association non significative.", format.pval(pval_sp, 3))
     r2 <- round(100 * rho^2, 1)
     interp <- if (signif_sp) c(
       # --- Cas SIGNIFICATIF ---
@@ -1339,7 +1339,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
         ggplot2::geom_jitter(data = function(d) hstat_sample_rows(d, notify = FALSE),
                              width = 0.15, height = 0.15, alpha = 0.5, color = "#2980b9") +
         ggplot2::geom_smooth(method = "lm", se = FALSE, color = "#c0392b") +
-        ggplot2::labs(title = sprintf("Relation ordinale : %s vs %s", xname, gname),
+        ggplot2::labs(title = trf("Relation ordinale : %s vs %s", xname, gname),
                       x = xname, y = gname) +
         ggplot2::theme_minimal(base_size = 12)
     }
@@ -1405,7 +1405,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
       else "p >= 0,05 : médianes compatibles entre groupes.",
       "Valeur de référence pour le test de la médiane.",
       trf("%d groupes comparés.", ng),
-      sprintf("%d observations valides.", length(rx))),
+      trf("%d observations valides.", length(rx))),
     stringsAsFactors = FALSE)
   sig <- if (!is.na(pval) && pval < 0.05) "significative" else "non significative"
   pval_txt <- if (is.na(pval)) "non calculable"
@@ -1726,16 +1726,20 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
   # --- Interpretation ---
   interp <- c(
     trf("Les mots les plus fréquents sont : %s.", paste(utils::head(freq_df$Mot, 5), collapse = ", ")),
-    sprintf("Richesse lexicale (TTR) = %.3f : %s.",
-            length(unique(all_words)) / length(all_words),
-            if (length(unique(all_words)) / length(all_words) > 0.6) "vocabulaire varie" else "vocabulaire répétitif / thèmes récurrents"),
+    # Deux phrases entieres : `trf()` ne traduit pas ses arguments, un verdict
+    # passe en `%s` resterait en francais dans une session anglaise.
+    if (length(unique(all_words)) / length(all_words) > 0.6)
+      trf("Richesse lexicale (TTR) = %.3f : vocabulaire varié.",
+          length(unique(all_words)) / length(all_words))
+    else trf("Richesse lexicale (TTR) = %.3f : vocabulaire répétitif / thèmes récurrents.",
+             length(unique(all_words)) / length(all_words)),
     trf("Tonalité dominante : %s (%.0f %% positif, %.0f %% négatif).",
             names(which.max(sent_tab)),
             sentiment_df$Pourcentage[sentiment_df$Tonalite=="Positif"],
             sentiment_df$Pourcentage[sentiment_df$Tonalite=="Négatif"]),
     if (!is.null(themes_df)) c(
       trf("%d thèmes dégagés par analyse sémantique latente (SVD) puis regroupement k-means :", n_topics),
-      sprintf("  - Thème %d : %s", seq_len(nrow(themes_df)), themes_df$Mots_cles))
+      trf("  - Thème %d : %s", seq_len(nrow(themes_df)), themes_df$Mots_cles))
       else "Trop peu de données pour une analyse thématique robuste (corpus insuffisant).")
 
   # --- Graphiques ---
@@ -2689,7 +2693,7 @@ mod_qualitative_server <- function(id, values) {
           shiny::tags$small(trf("%d modalités (mode menus). Saisissez la nouvelle valeur de chaque modalité.", length(lv))),
           lapply(seq_along(lv), function(i) {
             shiny::textInput(ns(paste0("recode_lvl_", i)),
-                             label = sprintf("« %s » devient :", lv[i]), value = lv[i])
+                             label = trf("« %s » devient :", lv[i]), value = lv[i])
           }))
       }
     })
@@ -2721,18 +2725,6 @@ mod_qualitative_server <- function(id, values) {
     })
 
     # ---- Calcul de l'analyse ----
-    # Depot du resultat qualitatif pour l'aide a la decision.
-    shiny::observeEvent(result(), {
-      r <- tryCatch(result(), error = function(e) NULL)
-      if (is.null(r) || isFALSE(r$ok)) return()
-      tabs <- if (!is.null(r$tables)) r$tables else list()
-      if (!is.null(r$metrics)) tabs <- c(list("Métriques" = r$metrics), tabs)
-      vars <- unique(unlist(lapply(
-        c("nom_var1", "nom_var2", "ord_var1", "ord_var2", "txt_var",
-          "orrr_expo", "orrr_issue", "tools_vars"),
-        function(id) input[[id]])))
-    }, ignoreInit = TRUE)
-
     result <- shiny::eventReactive(input$run, {
       d <- get_data()
       fam <- input$family %||% "nominal"

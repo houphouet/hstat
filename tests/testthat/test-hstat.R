@@ -5516,12 +5516,16 @@ test_that("une syntaxe de plage montree a l'utilisateur est une syntaxe acceptee
     for (k in parse(fichier, keep.source = FALSE)) v(k)
     trouve
   }
+  # UNE SEULE DEFINITION : les deux modules la reprennent par son nom. Leurs
+  # copies avaient derive (le Filtrage changeait toute lettre « a » en tiret).
   for (f in c(file.path("R", "mod_filter.R"), file.path("R", "mod_clean.R"))) {
     chemin <- file.path(root, f)
     skip_if_not(file.exists(chemin), f)
     def <- extraire(chemin, "parseRowSelection")
-    expect_false(is.null(def), info = f)
-    fn <- eval(def, envir = globalenv())
+    expect_identical(def, as.name("hstat_lignes_selection"), info = f)
+  }
+  for (f in "hstat_lignes_selection") {
+    fn <- hstat_lignes_selection
     expect_equal(sort(fn("1 \u00e0 10", 20)), 1:10, info = f)
     expect_equal(sort(fn("1 to 10", 20)), 1:10, info = f)
     expect_equal(sort(fn("1,3,5,10 to 12", 20)), c(1, 3, 5, 10, 11, 12), info = f)
@@ -5576,10 +5580,8 @@ test_that("le selecteur de lignes ne paie pas le carre du nombre de plages", {
   }
 
   MX <- 20000L
-  for (f in c(file.path("R", "mod_filter.R"), file.path("R", "mod_clean.R"))) {
-    chemin <- file.path(root, f)
-    skip_if_not(file.exists(chemin), f)
-    fn <- eval(extraire(chemin, "parseRowSelection"), envir = globalenv())
+  for (f in "hstat_lignes_selection") {
+    fn <- hstat_lignes_selection
 
     peu     <- paste(rep(paste0("1-", MX),  10), collapse = ",")
     beaucoup <- paste(rep(paste0("1-", MX), 100), collapse = ",")

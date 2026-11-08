@@ -424,7 +424,9 @@ hstat_memo_search <- function(memos, motif) {
   memos <- hstat_memo_migrate(memos)
   motif <- trimws(as.character(motif)[1] %||% "")
   if (!nzchar(motif) || !nrow(memos)) return(memos)
-  plat <- function(x) tolower(iconv(x, to = "ASCII//TRANSLIT") %||% tolower(x))
+  # Le repli d'accents passe par le socle : `iconv(…, "ASCII//TRANSLIT")` rend
+  # « 'e » sous macOS et NA sur un UTF-8 invalide, que `%||%` ne rattrape pas.
+  plat <- function(x) hstat_sans_accents(tolower(x))
   aiguille <- plat(motif)
   garde <- grepl(aiguille, plat(memos$titre), fixed = TRUE) |
            grepl(aiguille, plat(memos$texte), fixed = TRUE)
@@ -2326,9 +2328,9 @@ mod_coding_server <- function(id, values) {
     output$doc_header <- shiny::renderUI({
       dd <- docs(); d <- cur_doc()
       shiny::div(style = "margin-bottom:6px;font-size:12px;color:#7f8c8d;",
-        shiny::icon("hashtag"), sprintf(" Réponse %d / %d ", rv$cur, nrow(dd)),
+        shiny::icon("hashtag"), trf(" Réponse %d / %d ", rv$cur, nrow(dd)),
         shiny::tags$b(trf("(ligne %d du jeu de données)", d$row)),
-        sprintf(" - %d caractères", nchar(d$text)))
+        trf(" - %d caractères", nchar(d$text)))
     })
 
     # ------------------------------------------------- affichage du document
@@ -2845,7 +2847,7 @@ mod_coding_server <- function(id, values) {
       if (is.null(cl) || !nrow(cl)) return(NULL)
       shiny::div(class = "callout callout-info", style = "padding:8px 12px;",
         shiny::icon("chart-gantt"),
-        sprintf(" %d étiquette(s) sur %s caractères. ", nrow(cl),
+        trf(" %d étiquette(s) sur %s caractères. ", nrow(cl),
                 attr(cl, "n_char") %||% 0L),
         "La position est en pourcentage du document : deux réponses de longueurs",
         " différentes restent comparables.")

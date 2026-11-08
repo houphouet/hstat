@@ -605,13 +605,6 @@ mod_ml_server <- function(id, values) {
       list(res = res, p = p)
     })
 
-    # Depot de la comparaison de modeles pour l'aide a la decision.
-    shiny::observeEvent(comp_df(), {
-      df <- tryCatch(comp_df(), error = function(e) NULL)
-      if (is.null(df) || !NROW(df)) return()
-      p <- tryCatch(fits()$p, error = function(e) NULL)
-    }, ignoreInit = TRUE)
-
     comp_df <- shiny::reactive({
       f <- fits(); shiny::req(f)
       cls <- f$p$task == "classification"
@@ -647,7 +640,7 @@ mod_ml_server <- function(id, values) {
       if (nrow(d) == 0) return(NULL)
       cls <- fits()$p$task == "classification"
       shiny::div(class = "callout callout-info", style = "margin-top:10px;", shiny::icon("trophy"),
-          shiny::strong(sprintf(" Meilleur modèle : %s ", d[["Modèle"]][1])),
+          shiny::strong(trf(" Meilleur modèle : %s ", d[["Modèle"]][1])),
           if (cls) sprintf("(exactitude = %.3f). ", d[[2]][1])
           else sprintf("(RMSE = %s). ", format(d[[2]][1], big.mark = " ")),
           "Classement établi sur le jeu de test, jamais vu à l'entraînement.")
@@ -917,9 +910,13 @@ mod_ml_server <- function(id, values) {
       k <- max(2, min(15, as.integer(hstat_finite(input$clK, 3))))
       meth <- input$clMethod %||% "kmeans"
       set.seed(123)
+      # La matrice des distances sert a la CAH ET a la silhouette : une seule,
+      # O(n^2) en temps et en memoire (100 Mo a 5000 lignes).
+      dx <- NULL
+      dist_x <- function() { if (is.null(dx)) dx <<- stats::dist(x); dx }
       cl <- switch(meth,
         kmeans = stats::kmeans(x, centers = k, nstart = 20)$cluster,
-        hclust = stats::cutree(stats::hclust(stats::dist(x), method = "ward.D2"), k = k),
+        hclust = stats::cutree(stats::hclust(dist_x(), method = "ward.D2"), k = k),
         pam    = { if (!requireNamespace("cluster", quietly = TRUE))
                      stop("Package 'cluster' requis.")
                    cluster::pam(x, k = k)$clustering },
@@ -939,7 +936,8 @@ mod_ml_server <- function(id, values) {
       if (length(unique(cl[cl > 0])) >= 2 &&
           requireNamespace("cluster", quietly = TRUE)) {
         keep <- cl > 0
-        s <- cluster::silhouette(cl[keep], stats::dist(x[keep, , drop = FALSE]))
+        dk <- if (all(keep)) dist_x() else stats::dist(x[keep, , drop = FALSE])
+        s <- cluster::silhouette(cl[keep], dk)
         sil <- mean(s[, 3])
       }
       list(x = x, cl = cl, d0 = d0, sil = sil, meth = meth, k = k)

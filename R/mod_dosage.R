@@ -138,8 +138,6 @@ HSTAT_UNITES_CATEGORIES <- c(
 HSTAT_DOSE_UNITES <- .hstat_unites_vecteur("dose")
 HSTAT_CONC_UNITES <- .hstat_unites_vecteur("concentration")
 HSTAT_VOL_UNITES  <- .hstat_unites_vecteur("volume")
-HSTAT_MASSE_UNITES   <- .hstat_unites_vecteur("masse")
-HSTAT_SURFACE_UNITES <- .hstat_unites_vecteur("surface")
 
 # Choix d'un selecteur, groupes par famille : une liste de quarante unites a
 # plat ne se parcourt pas, et c'est le groupe qui dit ce que l'unite mesure.
@@ -301,8 +299,6 @@ hstat_conc_vers_ref <- function(valeur, unite, masse_molaire = NA) {
   v
 }
 
-hstat_vol_vers_ref <- function(valeur, unite)
-  suppressWarnings(as.numeric(valeur)[1]) * .hstat_dose_facteur(unite, HSTAT_VOL_UNITES)
 
 # Rendre une valeur de reference (L/ha ou kg/ha) dans l'unite demandee.
 hstat_dose_depuis_ref <- function(valeur, unite) {
@@ -1710,10 +1706,27 @@ mod_dosage_server <- function(id, values) {
     # La mise en forme d'un resultat suit le reglage « Arrondir les resultats » :
     # decoche (le defaut), la valeur est complete ; coche, elle est arrondie au
     # nombre de decimales demande. Lu a chaque rendu, donc reactif.
+    # NULL quand l'arrondi n'est pas demande.
+    .dec <- function() {
+      if (!isTRUE(input$dosArrondir)) return(NULL)
+      max(0L, min(HSTAT_DEC_MAX, as.integer(.hstat_num1(input$dosDecimales, 2))))
+    }
     .fmt <- function(x) {
-      if (!isTRUE(input$dosArrondir)) return(hstat_fmt_complet(x))
-      dec <- max(0L, min(HSTAT_DEC_MAX, as.integer(.hstat_num1(input$dosDecimales, 2))))
-      hstat_fmt_nb(x, dec)
+      dec <- .dec()
+      if (is.null(dec)) hstat_fmt_complet(x) else hstat_fmt_nb(x, dec)
+    }
+    # LE FICHIER PORTE DES NOMBRES, PAS LEUR MISE EN FORME. Le texte de
+    # l'ecran porte un separateur de milliers (« 1 234.5 ») : exporte tel quel,
+    # un tableur le lit comme du texte et le separateur passe pour une
+    # decimale de plus. L'arrondi demande vaut aussi pour le fichier.
+    .num_export <- function(d) {
+      if (is.null(d)) return(NULL)
+      dec <- .dec()
+      if (!is.null(dec)) {
+        num <- vapply(d, is.numeric, logical(1))
+        d[num] <- lapply(d[num], round, dec)
+      }
+      d
     }
     ns <- session$ns
 
@@ -1818,16 +1831,13 @@ mod_dosage_server <- function(id, values) {
                                    columnDefs = list(list(width = "46%", targets = 2))))
     })
 
-    hstat_export_table_handlers(output, "doseDl", function() dose_affiche(),
+    hstat_export_table_handlers(output, "doseDl", function() {
+                                  d <- dose_res()
+                                  if (!nrow(d)) return(NULL)
+                                  .num_export(data.frame(Grandeur = d$Grandeur, Valeur = d$Valeur, Formule = d$Formule,
+                                                         stringsAsFactors = FALSE))
+                                },
                                 "doses_a_l_hectare")
-
-    # L'assistance observe les resultats la ou ils sont deposes ; le module
-    # ne l'appelle pas, il se contente de remplir l'emplacement commun.
-    shiny::observeEvent(dose_res(), {
-      d <- dose_res()
-      if (!nrow(d)) return()
-      p <- trimws(input$doseProduit %||% "")
-    }, ignoreInit = TRUE)
 
     # ------------------------------------------------------- convertisseur
     # Les categories du selecteur, ramenees a celles du catalogue : une
@@ -1863,7 +1873,12 @@ mod_dosage_server <- function(id, values) {
                     colnames = c(tr("Famille"), tr("Unité"), tr("Valeur"), tr("Conversion")),
                     options = list(dom = "t", pageLength = 100, ordering = FALSE))
     })
-    hstat_export_table_handlers(output, "convDl", function() conv_affiche(),
+    hstat_export_table_handlers(output, "convDl", function() {
+                                  d <- conv_res()
+                                  if (!nrow(d)) return(NULL)
+                                  .num_export(data.frame(Groupe = d$Groupe, Unite = d$Unite, Valeur = d$Valeur, Conversion = d$Conversion,
+                                                         stringsAsFactors = FALSE))
+                                },
                                 "conversions_d_unites")
 
     # ------------------------------------------------------------ dilution
@@ -2072,14 +2087,18 @@ mod_dosage_server <- function(id, values) {
                      bandeau(attr(dilution(), "avertissement")))
     })
 
-    dil_forme <- shiny::reactive({
+    # La conversion vient AVANT la mise en forme : convertir des chaines
+    # deja arrondies perdrait les décimales que l'utilisateur vient de
+    # demander, et le nombre affiché ne serait plus celui du calcul.
+    dil_brut <- shiny::reactive({
       d <- dilution()
       if (!is.data.frame(d) || !nrow(d)) return(NULL)
-      # La conversion vient AVANT la mise en forme : convertir des chaines
-      # deja arrondies perdrait les décimales que l'utilisateur vient de
-      # demander, et le nombre affiché ne serait plus celui du calcul.
-      d <- hstat_dilution_convertir(d, input$dilConvVol %||% "",
-                                    input$dilConvConc %||% "")
+      hstat_dilution_convertir(d, input$dilConvVol %||% "",
+                               input$dilConvConc %||% "")
+    })
+    dil_forme <- shiny::reactive({
+      d <- dil_brut()
+      if (is.null(d)) return(NULL)
       num <- vapply(d, is.numeric, logical(1))
       d[num] <- lapply(d[num], .fmt)
       d
@@ -2104,7 +2123,7 @@ mod_dosage_server <- function(id, values) {
     # classeur ou trois produits s'enchainent sur une seule feuille oblige a
     # trier avant de peser. Les formules suivent sur leur propre feuille.
     dil_tables <- function() {
-      d <- dil_forme()
+      d <- .num_export(dil_brut())
       if (is.null(d)) return(NULL)
       c(hstat_dilution_feuilles(d),
         list("Formules" = data.frame(Formule = attr(dilution(), "formules"),
@@ -2112,11 +2131,6 @@ mod_dosage_server <- function(id, values) {
     }
     output$dilDlCsv  <- hstat_csv_handler(dil_tables, "solutions_filles")
     output$dilDlXlsx <- hstat_classeur_handler(dil_tables, "solutions_filles")
-
-    shiny::observeEvent(dilution(), {
-      d <- dilution()
-      if (!is.data.frame(d) || !nrow(d)) return()
-    }, ignoreInit = TRUE)
 
     # -- La solution mere ------------------------------------------------------
     # Un nom de test inconnu retombe sur l'application topique plutot que de

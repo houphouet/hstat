@@ -1894,12 +1894,6 @@ mod_correlation_server <- function(id, values) {
       out
     })
 
-    # Depot des tests de correlation pour l'aide a la decision.
-    shiny::observeEvent(cor_results(), {
-      res <- tryCatch(cor_results(), error = function(e) NULL)
-      if (is.null(res) || !NROW(res)) return()
-    }, ignoreInit = TRUE)
-
     output$corTestTable <- DT::renderDT({
       res <- cor_results()
       shiny::req(!is.null(res))
@@ -5480,8 +5474,7 @@ mod_tests_server <- function(id, values) {
     }, error = function(e) {
       graphics::par(mfrow = c(1, 1))
       plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
-      graphics::text(1, 1, paste("Erreur dans les diagnostics graphiques:\n", 
-                       substr(e$message, 1, 100), 
+      graphics::text(1, 1, paste(substr(hstat_err_fr(e, tr("Diagnostics graphiques")), 1, 160), 
                        "\n\nVoir les tests numériques ci-dessous"), 
            cex = 1, col = "red")
     })
@@ -5694,7 +5687,7 @@ mod_tests_server <- function(id, values) {
         hstat_shapiro(residuals_data)
       }
     }, error = function(e) {
-      cat("Erreur dans le test de normalité :", e$message, "\n")
+      cat(hstat_err_fr(e, tr("Test de normalité")), "\n")
     })
   })
   
@@ -5756,7 +5749,7 @@ mod_tests_server <- function(id, values) {
       car::leveneTest(residuals ~ fitted_group, data = test_data)
       
     }, error = function(e) {
-      cat("Erreur dans le test d'homogénéité :", e$message, "\n")
+      cat(hstat_err_fr(e, tr("Test d'homogénéité")), "\n")
     })
   })
   
@@ -5816,7 +5809,7 @@ mod_tests_server <- function(id, values) {
       lmtest::dwtest(values$currentModel)
       
     }, error = function(e) {
-      cat("Erreur dans le test de Durbin-Watson :", e$message, "\n")
+      cat(hstat_err_fr(e, tr("Test de Durbin-Watson")), "\n")
     })
   })
   
@@ -6371,119 +6364,7 @@ mod_tests_server <- function(id, values) {
     })
   )
   
-  # UI dynamique : renommage des modalités (labels niveaux X)
-  # UI info taille export (pixels calculés à partir de DPI x pouces)
-  # Helper : carte de renommage des modalités (niveaux X)
-  chi2_ph_level_map <- function(fdf) {
-    levs <- as.character(fdf$Modalite)
-    map  <- stats::setNames(levs, levs)
-    for (i in seq_along(levs)) {
-      val <- input[[paste0("chiSqPHLevel_", i)]]
-      if (!is.null(val) && nzchar(trimws(val))) map[levs[i]] <- trimws(val)
-    }
-    map
-  }
   
-  # Helper : construire le graphique PostHoc chi2 (réutilisé rendu + export)
-  build_chi2_ph_graph <- function(fdf, opts) {
-    type_g  <- opts$type_g
-    show_g  <- opts$show_g
-    show_v  <- opts$show_v
-    titre   <- opts$titre
-    sous_t  <- opts$sous_t
-    x_lab   <- opts$x_lab
-    y_lab   <- opts$y_lab
-    leg_tit <- opts$leg_tit
-    lev_map <- opts$lev_map
-    p_val   <- opts$p_val
-    show_p  <- opts$show_p
-    
-    pct_vals <- if ("Pct" %in% names(fdf)) fdf$Pct else
-      round(fdf$Valeur_test / sum(fdf$Valeur_test) * 100, 2)
-    
-    modalites_orig  <- as.character(fdf$Modalite)
-    modalites_label <- lev_map[modalites_orig]
-    
-    df_plot <- data.frame(
-      modalite = factor(modalites_label, levels = unique(modalites_label)),
-      pct      = pct_vals,
-      groupe   = fdf$Groupe,
-      stringsAsFactors = FALSE
-    )
-    
-    # Sous-titre : p-value automatique si cochée et non surchargée
-    if (show_p && !is.na(p_val) && (is.null(sous_t) || !nzchar(trimws(sous_t)))) {
-      sous_t <- paste0("p = ", fmt_p(p_val))
-    }
-    if (is.null(sous_t) || !nzchar(trimws(sous_t))) sous_t <- NULL
-    
-    if (is.null(titre) || !nzchar(trimws(titre))) {
-      titre <- if (type_g == "residus") "Résidus standardisés — PostHoc Chi²"
-      else "Distribution (%) — PostHoc Chi²"
-    }
-    if (is.null(y_lab) || !nzchar(trimws(y_lab))) {
-      y_lab <- if (type_g == "residus") "Résidu standardisé" else "Pourcentage (%)"
-    }
-    if (is.null(x_lab) || !nzchar(trimws(x_lab))) x_lab <- NULL
-    if (is.null(leg_tit) || !nzchar(trimws(leg_tit))) leg_tit <- NULL
-    
-    lbl_fn <- function(pct, grp) {
-      s <- paste0(round(pct, 1), "%")
-      if (show_g && !is.na(grp)) s <- paste0(s, "\n(", grp, ")")
-      s
-    }
-    
-    if (type_g == "bar_v") {
-      gg <- ggplot2::ggplot(df_plot, ggplot2::aes(x = modalite, y = pct, fill = modalite)) +
-        ggplot2::geom_col(width = 0.65, color = "white") +
-        ggplot2::labs(title = titre, subtitle = sous_t,
-             x = x_lab, y = y_lab, fill = leg_tit) +
-        ggplot2::theme_minimal(base_size = 13) +
-        ggplot2::theme(legend.position  = if (!is.null(leg_tit)) "right" else "none",
-              axis.text.x      = ggplot2::element_text(angle = 20, hjust = 1),
-              plot.title       = ggplot2::element_text(face = "bold", hjust = 0.5),
-              plot.subtitle    = ggplot2::element_text(hjust = 0.5))
-      if (show_v) gg <- gg +
-          ggplot2::geom_text(ggplot2::aes(label = lbl_fn(pct, groupe)), vjust = -0.4, size = 4, fontface = "bold")
-      gg
-      
-    } else if (type_g == "pie") {
-      lbl_pie <- paste0(df_plot$modalite,
-                        if (show_v) paste0("\n", round(df_plot$pct, 1), "%") else "",
-                        if (show_g) paste0("\n(", df_plot$groupe, ")") else "")
-      ggplot2::ggplot(df_plot, ggplot2::aes(x = "", y = pct, fill = modalite)) +
-        ggplot2::geom_col(width = 1, color = "white") + ggplot2::coord_polar("y") +
-        ggplot2::geom_text(ggplot2::aes(label = lbl_pie),
-                  position = ggplot2::position_stack(vjust = 0.5), size = 4, fontface = "bold") +
-        ggplot2::labs(title = titre, subtitle = sous_t, fill = leg_tit) +
-        ggplot2::theme_void(base_size = 13) +
-        ggplot2::theme(plot.title    = ggplot2::element_text(face = "bold", hjust = 0.5),
-              plot.subtitle = ggplot2::element_text(hjust = 0.5),
-              legend.title  = if (!is.null(leg_tit)) ggplot2::element_text(face = "bold") else ggplot2::element_blank())
-      
-    } else {
-      df_r <- data.frame(
-        modalite = factor(modalites_label, levels = unique(modalites_label)),
-        residu   = fdf$Residu_std,
-        couleur  = ifelse(fdf$Residu_std >  1.96, "Sur-représenté",
-                          ifelse(fdf$Residu_std < -1.96, "Sous-représenté", "Conforme"))
-      )
-      ggplot2::ggplot(df_r, ggplot2::aes(x = modalite, y = residu, fill = couleur)) +
-        ggplot2::geom_col(color = "white", width = 0.65) +
-        ggplot2::geom_hline(yintercept = c(-1.96, 1.96), linetype = "dashed",
-                   color = "red", linewidth = 0.8) +
-        ggplot2::geom_hline(yintercept = 0, color = "black", linewidth = 0.4) +
-        ggplot2::scale_fill_manual(values = c("Sur-représenté" = "#1565C0",
-                                     "Sous-représenté" = "#C62828",
-                                     "Conforme"              = "#9E9E9E")) +
-        ggplot2::labs(title = titre, subtitle = sous_t,
-             x = x_lab, y = y_lab, fill = leg_tit %||% "Statut") +
-        ggplot2::theme_minimal(base_size = 13) +
-        ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 20, hjust = 1),
-              plot.title    = ggplot2::element_text(face = "bold", hjust = 0.5),
-              plot.subtitle = ggplot2::element_text(hjust = 0.5))
-    }
-  }
   
   
   # ---- Comparaisons multiples PostHoc  ----

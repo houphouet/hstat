@@ -367,18 +367,6 @@ mod_timeseries_server <- function(id, values) {
     }
 
     # ---- Entraînement + comparaison ------------------------------------------
-    # Depot du resultat de prevision pour l'aide a la decision.
-    shiny::observeEvent(fits(), {
-      f <- tryCatch(fits(), error = function(e) NULL)
-      if (is.null(f)) return()
-      mets <- tryCatch(do.call(rbind, lapply(names(f), function(nm) {
-        r <- f[[nm]]
-        if (is.null(r) || isFALSE(r$ok) || is.null(r$metrics)) return(NULL)
-        cbind(Modele = nm, r$metrics)
-      })), error = function(e) NULL)
-      if (is.null(mets) || !NROW(mets)) return()
-    }, ignoreInit = TRUE)
-
     fits <- shiny::eventReactive(input$tsRun, {
       df <- values$cleanData
       shiny::validate(shiny::need(!is.null(df), "Chargez d'abord des données."),
@@ -643,7 +631,9 @@ mod_timeseries_server <- function(id, values) {
     })
 
     # Décomposition STL -----------------------------------------------------------
-    decomp_gg <- shiny::reactive({
+    # Le calcul ne depend que de l'ajustement ; la couleur du trait se lit a
+    # part, sans quoi chaque reglage de couleur refaisait la decomposition.
+    decomp_data <- shiny::reactive({
       f <- fits(); shiny::req(f)
       y <- f$y
       shiny::validate(shiny::need(stats::frequency(y) > 1 && length(y) >= 2 * stats::frequency(y),
@@ -657,7 +647,10 @@ mod_timeseries_server <- function(id, values) {
         data.frame(t = d$t, v = d$seasonal,  comp = "Saisonnalité"),
         data.frame(t = d$t, v = d$remainder, comp = "Résidu"))
       long$comp <- factor(long$comp, levels = unique(long$comp))
-      ggplot2::ggplot(long, ggplot2::aes(t, v)) +
+      long
+    })
+    decomp_gg <- shiny::reactive({
+      ggplot2::ggplot(decomp_data(), ggplot2::aes(t, v)) +
         ggplot2::geom_line(color = hstat_plot_opt(input, "tsO", "Col", "#2c7fb8"),
                            linewidth = 0.6) +
         ggplot2::facet_wrap(~comp, ncol = 1, scales = "free_y") +

@@ -781,78 +781,7 @@ mod_clean_server <- function(id, values) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-  # -- Helper : parser une selection de lignes (ex. "1-5, 8, 10-12") --
-  parseRowSelection <- function(selection_text, max_rows) {
-    if (is.null(selection_text) || nchar(trimws(selection_text)) == 0) {
-      stop("Veuillez entrer une sélection de lignes valide.")
-    }
-    
-    text <- trimws(selection_text)
-    text <- gsub("\\s+", " ", text)  
-    
-    # Remplacer différents formats de plage par un format uniforme.
-    # Correction : ne remplacer « a »/« à » que s'ils sont ENTRE deux chiffres
-    # (ex. « 1 a 5 »), sinon toute lettre a du texte etait transformee en tiret.
-    # « to » est accepte au meme titre : les exemples affiches sous le champ
-    # sont traduits, et une syntaxe montree doit etre une syntaxe acceptee.
-    text <- gsub("(?i)(?<=[0-9])\\s*(?:to|[a\u00e0])\\s*(?=[0-9])", "-", text, perl = TRUE)
-    
-    parts <- strsplit(text, ",")[[1]]
-    parts <- trimws(parts)
-    
-    # UN MASQUE, PAS UNE ACCUMULATION -- meme correction que `mod_filter.R`, et
-    # pour la meme raison : `c(all_rows, start:end)` en boucle recopie le
-    # vecteur a chaque tour, donc un cout QUADRATIQUE en nombre de plages, la
-    # ou le resultat est borne par `max_rows`. Chaque plage etant
-    # individuellement valide, aucune garde ne se declenche (mesure : 800
-    # plages valides = 237 s de gel contre 0,65 s ici, resultat identique).
-    vus <- logical(max_rows)
-    
-    for (part in parts) {
-      if (grepl("-", part)) {
-        # C'est une plage (ex: "1-10" ou "20-30")
-        range_parts <- strsplit(part, "-")[[1]]
-        range_parts <- trimws(range_parts)
-        
-        if (length(range_parts) != 2) {
-          stop(trf("Format de plage invalide : %s", part))
-        }
-        
-        start <- as.numeric(range_parts[1])
-        end <- as.numeric(range_parts[2])
-        
-        if (is.na(start) || is.na(end)) {
-          stop(paste("Plage invalide :", part))
-        }
-        
-        if (start > end) {
-          stop(trf("La ligne de début doit être <= ligne de fin dans : %s", part))
-        }
-        
-        if (start < 1 || end > max_rows) {
-          stop(paste("Plage hors limites :", part, "(min: 1, max:", max_rows, ")"))
-        }
-        
-        vus[start:end] <- TRUE
-        
-      } else {
-        row_num <- as.numeric(part)
-        
-        if (is.na(row_num)) {
-          stop(trf("Numéro de ligne invalide : %s", part))
-        }
-        
-        if (row_num < 1 || row_num > max_rows) {
-          stop(paste("Ligne hors limites :", row_num, "(min: 1, max:", max_rows, ")"))
-        }
-        
-        vus[row_num] <- TRUE
-      }
-    }
-    
-    # `which()` rend les indices deja tries et sans doublon.
-    return(which(vus))
-  }
+  parseRowSelection <- hstat_lignes_selection
 
   
   output$deleteRowsPreview <- shiny::renderUI({
@@ -1223,7 +1152,7 @@ mod_clean_server <- function(id, values) {
           if (is_ordinal) tr(" L'ordre ci-dessous = ordre du facteur ordinal.") else "")),
         lapply(seq_along(lv), function(i)
           shiny::textInput(ns(paste0("recodeLvl_", i)),
-                    label = sprintf("%s« %s » devient :",
+                    label = trf("%s« %s » devient :",
                                     if (is_ordinal) sprintf("(%d) ", i) else "", lv[i]),
                     value = lv[i])))
     }
@@ -1286,23 +1215,25 @@ mod_clean_server <- function(id, values) {
   })
 
   shiny::observeEvent(input$addVar, {
-    shiny::req(input$newVarName)
+    # Nom et valeur viennent du navigateur : une seule chaine, bornee. La
+    # valeur est recopiee sur chaque ligne -- un megaoctet force la-dessus
+    # occuperait le processus que partagent toutes les sessions.
+    nom    <- trimws(hstat_texte_client(input$newVarName))
+    valeur <- hstat_texte_client(input$newVarValue)
+    shiny::req(nzchar(nom))
     
-    if (input$newVarName %in% names(values$cleanData)) {
+    if (nom %in% names(values$cleanData)) {
       shiny::showNotification(
         ui = shiny::tagList(shiny::icon("exclamation-triangle"), " Cette variable existe déjà !"),
         type = "warning", 
         duration = 3
       )
-    } else if (input$newVarName == "") {
-      shiny::showNotification("Le nom de la variable ne peut pas être vide", 
-                       type = "error", duration = 3)
     } else {
-      values$cleanData[[input$newVarName]] <- rep(input$newVarValue, nrow(values$cleanData))
+      values$cleanData[[nom]] <- rep(valeur, nrow(values$cleanData))
       values$filteredData <- values$cleanData
       
       shiny::showNotification(
-        ui = shiny::tagList(shiny::icon("plus"), trf(" Variable ` %s ` ajoutée avec succès", input$newVarName)),
+        ui = shiny::tagList(shiny::icon("plus"), trf(" Variable ` %s ` ajoutée avec succès", nom)),
         type = "message", 
         duration = 3
       )
@@ -1448,6 +1379,18 @@ mod_clean_server <- function(id, values) {
         return()
       }
       
+      # UNE VARIABLE CALCULEE NE REMPLACE JAMAIS UNE COLONNE DU FICHIER. Le nom
+      # d'une colonne existante ecrasait la mesure d'origine sous une
+      # notification de succes, et toutes les analyses suivantes portaient sur
+      # la formule. L'ajout d'une variable refuse deja un nom pris.
+      if (input$calcVarName %in% names(values$cleanData)) {
+        shiny::showNotification(
+          ui = shiny::tagList(shiny::icon("exclamation-triangle"),
+                              trf(" La variable « %s » existe déjà : choisissez un autre nom.",
+                                  input$calcVarName)),
+          type = "warning", duration = 5)
+        return()
+      }
       values$cleanData[[input$calcVarName]] <- new_col
       values$filteredData <- values$cleanData
       
