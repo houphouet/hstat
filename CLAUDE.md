@@ -11449,3 +11449,16 @@ Sans notation scientifique — « 0.00001 » se recopie. Les trois protocoles la
 prennent (topique, trempage, vial test), la notification de reprise aussi, et
 la concentration envoyée aux dilutions n'est plus arrondie à huit chiffres.
 La quantité par flacon et les volumes gardent leur arrondi.
+
+### Doses & dilutions : l'arrondi se demande, il n'est plus posé d'office
+
+Demandé à l'écran : un bouton d'arrondi comme dans les autres modules, et plus
+aucun arrondi par défaut. La case « Arrondir les résultats » (`dosArrondir`,
+décochée) et son nombre de décimales (`dosDecimales`) vivent au-dessus des
+onglets et valent pour les quatre : dose à l'hectare, solution mère, solutions
+filles, convertisseur. Décochée, `.fmt()` rend la valeur complète
+(`hstat_fmt_complet()`, quinze chiffres significatifs) ; cochée, elle l'arrondit
+(`hstat_fmt_nb()`). Le réglage propre aux dilutions (`dilDecimales`, 4 décimales
+d'office) a disparu : deux réglages pour un même trait, c'est le second qui
+ment. Les facteurs de conversion écrits dans les formules sont eux aussi
+complets, et la concentration reprise dans un champ n'est plus arrondie.
