@@ -8976,6 +8976,9 @@ test_that("chaque graphique exportable offre un choix de theme", {
     blocs <- grep("hstat_export_plot_ui\\(ns, \"", l, value = TRUE)
     if (!length(blocs)) next
     sans <- grep("theme\\s*=\\s*FALSE", blocs, value = TRUE)
+    # Un graphique de BASE R (diagnostics `plot(model)`) n'a pas de theme
+    # ggplot : le lui offrir donnerait un reglage que l'image ignore.
+    sans <- sans[!grepl('"diagExp"', sans, fixed = TRUE)]
     if (length(sans) && !any(grepl("hstat_plot_opts_ui\\(", l)))
       manquants <- c(manquants, sprintf("%s : %d bloc(s) sans theme et sans hstat_plot_opts_ui",
                                         basename(f), length(sans)))
@@ -9024,6 +9027,15 @@ test_that("un seul choisisseur de theme : viz_get_theme", {
     }
   }
   expect_equal(unique(fautifs), character(0))
+
+  # Les themes des graphiques multivaries (« gg », « hstat ») passent par le
+  # meme choisisseur : app_server.R en tenait DEUX copies en chaines
+  # `identical(choix, ...)`, que le balayage des `switch` ne voyait pas, et
+  # « hstat » y designait deux habillages differents.
+  srv <- readLines(file.path(root, "inst", "app", "app_server.R"), encoding = "UTF-8")
+  expect_false(any(grepl('identical\\(choix, "(gg|hstat)"\\)', srv)))
+  expect_false(isTRUE(all.equal(viz_get_theme("hstat", 11), viz_get_theme("minimal", 11))))
+  expect_true(isTRUE(all.equal(viz_get_theme("gg", 11), ggplot2::theme_grey(base_size = 11))))
 
   # Et les huit themes du catalogue sont tous rendus par `viz_get_theme()`.
   for (th in unname(HSTAT_THEMES_GG)) {

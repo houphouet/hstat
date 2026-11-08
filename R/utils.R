@@ -2740,8 +2740,7 @@ hstat_mv_forme_ui <- function(prefix, titre = "Apparence du graphique") {
     titre, "brush", "#8e44ad", "#f7f0fb",
     shiny::fluidRow(
       shiny::column(6, shiny::selectInput(paste0(prefix, "_theme"), "Thème",
-        choices = c("Par défaut (ggplot2)" = "gg",
-                    "HStat (minimal)" = "hstat", HSTAT_THEMES_GG),
+        choices = c(HSTAT_THEMES_MV, HSTAT_THEMES_GG),
         selected = "gg")),
       shiny::column(6, shiny::textInput(paste0(prefix, "_subtitle"), "Sous-titre",
                                         placeholder = "Optionnel"))),
@@ -3880,8 +3879,28 @@ HSTAT_THEMES_GG <- c("Minimal" = "minimal", "Classique" = "classic",
                      "Gris" = "gray", "Sombre" = "dark",
                      "Traits fins" = "linedraw", "Sans décor" = "void")
 
+# Les deux themes propres aux graphiques multivaries vivent ICI, avec les
+# autres : chacun en tenait une copie dans app_server.R, et « hstat » y
+# designait deux habillages differents selon le graphique.
+#   "gg"    -- theme_grey : ggplot2 tel qu'il dessine, la reference connue ;
+#   "hstat" -- titre centre, legende en bas, sans grille mineure.
+HSTAT_THEMES_MV <- c("Par défaut (ggplot2)" = "gg",
+                     "HStat (titre centré, légende en bas)" = "hstat")
+
 viz_get_theme <- function(theme_name = "minimal", base_size = 12) {
   switch(theme_name,
+         "gg"       = ggplot2::theme_grey(base_size = base_size),
+         "hstat"    = ggplot2::theme_minimal(base_size = base_size) +
+           ggplot2::theme(
+             plot.title    = ggplot2::element_text(hjust = 0.5, face = "bold",
+                                                   size = base_size + 2, colour = "#2c3e50"),
+             plot.subtitle = ggplot2::element_text(hjust = 0.5, colour = "#555555",
+                                                   size = base_size - 1),
+             axis.text     = ggplot2::element_text(size = base_size - 1),
+             legend.text   = ggplot2::element_text(size = base_size - 1),
+             legend.title  = ggplot2::element_text(size = base_size, face = "bold"),
+             legend.position  = "bottom",
+             panel.grid.minor = ggplot2::element_blank()),
          "minimal"  = ggplot2::theme_minimal( base_size = base_size),
          "classic"  = ggplot2::theme_classic( base_size = base_size),
          "bw"       = ggplot2::theme_bw(      base_size = base_size),

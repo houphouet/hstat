@@ -834,9 +834,7 @@ server <- function(input, output, session) {
     choix <- (if (!is.null(prefix)) input[[paste0(prefix, "_theme")]] else NULL) %||%
              input$mv_theme %||% "gg"
     txt   <- .hstat_num1(input$mv_text_size, HSTAT_GG_BASE_SIZE)
-    if (identical(choix, "gg")) ggplot2::theme_grey(base_size = txt)
-    else if (identical(choix, "hstat")) ggplot2::theme_minimal(base_size = txt)
-    else viz_get_theme(choix, base_size = txt)
+    viz_get_theme(choix, base_size = txt)
   }
 
   # Reglages de forme des analyses HISTORIQUES, greffes sur le graphique deja
@@ -5631,9 +5629,7 @@ server <- function(input, output, session) {
       .hstat_opt_section(
         "Thème, légende et grille", "brush", "#8e44ad", "#f7f0fb",
         shiny::selectInput(paste0(prefix, "_theme"), "Thème",
-                    choices = c("Par défaut (ggplot2)" = "gg",
-                                "HStat (titre centré, légende en bas)" = "hstat",
-                                HSTAT_THEMES_GG),
+                    choices = c(HSTAT_THEMES_MV, HSTAT_THEMES_GG),
                     selected = "gg"),
         shiny::fluidRow(
           shiny::column(6, shiny::selectInput(paste0(prefix, "_legendpos"), "Légende",
@@ -5847,31 +5843,16 @@ server <- function(input, output, session) {
   # veut. L'inverse oblige a defaire avant de faire.
   #
   # "gg" (defaut) : theme_grey(11), exactement ggplot2.
-  # "hstat"       : l'habillage precedent, conserve pour qui l'avait adopte.
+  # "hstat"       : titre centre, legende en bas (defini dans viz_get_theme).
   # les autres    : les themes de HSTAT_THEMES_GG, partages avec les autres
   #                 modules.
   mv_gg_theme <- function() {
     choix    <- .mv_loc("theme", input$mv_theme %||% "gg")
     txt_sz   <- .mv_loc("textsz", input$mv_text_size %||% HSTAT_GG_BASE_SIZE)
-    face_txt <- if (isTRUE(.mv_loc("bold", input$mv_bold_text))) "bold" else "plain"
     pos_leg  <- .mv_loc("legendpos", input$mv_legend_pos %||% "gg")
     grille   <- .mv_loc("grid", input$mv_grid %||% "gg")
 
-    base <- if (identical(choix, "hstat"))
-      ggplot2::theme_minimal(base_size = txt_sz) +
-        ggplot2::theme(
-          plot.title    = ggplot2::element_text(hjust = 0.5, face = "bold", size = txt_sz + 2, color = "#2c3e50"),
-          plot.subtitle = ggplot2::element_text(hjust = 0.5, color = "#555555", size = txt_sz - 1),
-          axis.title = ggplot2::element_text(size = txt_sz, face = face_txt),
-          axis.text  = ggplot2::element_text(size = txt_sz - 1, face = face_txt),
-          legend.text = ggplot2::element_text(size = txt_sz - 1),
-          legend.title = ggplot2::element_text(size = txt_sz, face = "bold"),
-          legend.position = "bottom",
-          panel.grid.minor = ggplot2::element_blank(),
-          axis.text.x = ggplot2::element_text(angle = 0, hjust = 0.5)
-        )
-    else if (identical(choix, "gg")) ggplot2::theme_grey(base_size = txt_sz)
-    else viz_get_theme(choix, base_size = txt_sz)
+    base <- viz_get_theme(choix, base_size = txt_sz)
 
     # Reglages surajoutes SEULEMENT s'ils ont ete demandes : sans cela, le
     # theme choisi ne serait plus celui qu'on croit.

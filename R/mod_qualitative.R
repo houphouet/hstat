@@ -2458,19 +2458,10 @@ mod_qualitative_ui <- function(id) {
               # deja reglables juste au-dessus.
               hstat_plot_extras_ui(ns, "sty_",
                                    familles = c("axe", "cles", "marges")),
-              # Paramètres d'exportation de l'image (rapatriés des Tableaux croisés)
-              shiny::div(style = "background:#fff8f0;border-left:4px solid #e67e22;padding:12px;border-radius:6px;",
-                shiny::tags$strong(shiny::icon("image"), " Paramètres d'exportation de l'image"),
-                shiny::fluidRow(
-                  shiny::column(3, hstat_format_input(ns("dl_format"), "Format")),
-                  shiny::column(3, shiny::numericInput(ns("dl_width"), "Largeur (po)", value = 9, min = 3, max = 30, step = 0.5)),
-                  shiny::column(3, shiny::numericInput(ns("dl_height"), "Hauteur (po)", value = 6, min = 2, max = 24, step = 0.5)),
-                  shiny::column(3, hstat_dpi_input(ns("dl_dpi"), "Résolution (DPI)"))),
-                shiny::tags$small(class = "text-muted", shiny::icon("info-circle"),
-                  " PDF et SVG sont vectoriels (redimensionnables sans perte) ; le DPI ne s'y applique pas.")),
-              shiny::br(),
-              shiny::downloadButton(ns("dl_plot"), "Télécharger le graphique",
-                                    class = "btn-success")),
+              # LE KIT D'EXPORT COMMUN : theme, format, taille, DPI, qualite JPEG
+              # et compression TIFF, comme les autres graphiques.
+              hstat_export_plot_ui(ns, "qDl", width = 9, height = 6)),
+
             shiny::tabPanel(shiny::tagList(shiny::icon("list-ol"), " Métriques"), shiny::br(),
               DT::DTOutput(ns("metrics_table")),
               shiny::br(),
@@ -2827,6 +2818,13 @@ mod_qualitative_server <- function(id, values) {
       p <- hstat_q_apply_palette(p, input$plot_palette %||% "default",
                                  input$plot_col_low %||% "#aed6f1",
                                  input$plot_col_high %||% "#1f618d")
+      # LE THEME DU KIT D'EXPORT. « Minimal » est celui que posent deja les
+      # constructeurs : on ne le repose pas, sans quoi un theme complet
+      # effacerait les retouches qu'ils lui ajoutent (legende masquee...). Un
+      # autre theme, choisi expressement, remplace le leur.
+      th <- input$qDlTheme %||% "minimal"
+      if (inherits(p, "ggplot") && !identical(th, "minimal"))
+        p <- p + viz_get_theme(th, base_size = 12)
       # Mise en forme interactive : lit tous les curseurs sty_* -> re-rendu live
       hstat_q_apply_style(p, list(
         title = input$sty_title, xlab = input$sty_xlab, ylab = input$sty_ylab,
@@ -2855,23 +2853,9 @@ mod_qualitative_server <- function(id, values) {
     output$main_plot <- shiny::renderPlot({
       p <- current_plot(); shiny::req(!is.null(p)); p
     })
-    output$dl_plot <- shiny::downloadHandler(
-      # L'EXTENSION PASSE PAR LE NORMALISEUR, comme le contenu. C'est elle que
-      # Shiny traduit en type MIME : la laisser brute pouvait annoncer une
-      # extension que `hstat_ecrire_image()` n'ecrit pas (elle, elle normalise
-      # en interne). Dix-neuf exports sur vingt et un le faisaient deja.
-      filename = function() paste0("graphique_qualitatif_", Sys.Date(),
-                                   ".", hstat_img_fmt(input$dl_format)),
-      content = hstat_contenu_sur(function(file) {
-        # `req()` interrompait le telechargement SANS ecrire de fichier : Shiny
-        # renvoyait alors sa page d'erreur HTML sous le nom `.png`. L'ecrivain
-        # commun garantit un fichier valide, portant le motif le cas echeant.
-        p <- tryCatch(current_plot(), error = function(e) NULL)
-        hstat_ecrire_image(file, p, input$dl_format %||% "png",
-                           input$dl_width %||% 9, input$dl_height %||% 6,
-                           input$dl_dpi %||% 300,
-                           echec = "Aucun graphique à exporter : lancez d'abord l'analyse.")
-      }))
+    output$qDlDl <- hstat_export_plot_handler(input, "qDl",
+                                              function() current_plot(),
+                                              "graphique_qualitatif")
 
     # ---- Metriques ----
     output$metrics_table <- DT::renderDT({
