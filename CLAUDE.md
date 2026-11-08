@@ -11546,3 +11546,31 @@ git.
 
 Règle pour la suite : un commentaire dit **pourquoi** le code est ainsi, en
 une ou deux lignes ; le récit de la découverte va dans `CLAUDE.md`.
+
+## Statistiques de diffusion : anonymes, consenties, une fois par jour
+
+Demandé : suivre la diffusion mondiale de HStat sans donnée personnelle.
+`run_hstat()` envoie, **après accord**, un signal de lancement à GoatCounter
+(`HSTAT_STATS_SITE`, `https://hstat.goatcounter.com`, réglable par
+`options(hstat.statistiques.site = …)`) : `/lancement/<version>/<système>`,
+l'agent portant la version de R. Le pays est déduit par GoatCounter, qui ne
+stocke pas l'adresse IP ; ni identifiant, ni nom de fichier, ni donnée, ni
+résultat ne part.
+
+Quatre décisions, chacune testée :
+
+1. **Rien sans accord.** La politique du CRAN interdit d'envoyer des données
+   sans consentement : la question se pose une fois, en session interactive,
+   comme celle du navigateur. Hors session interactive (serveur déployé),
+   rien ne part. Une question annulée ne vaut ni oui ni non.
+2. **L'option l'emporte** : `options(hstat.statistiques = FALSE)` coupe tout,
+   quelle que soit la réponse mémorisée ; `run_hstat(statistiques = …)`
+   change la réponse.
+3. **Une fois par jour et par machine** : relancer dix fois ne fait pas dix
+   installations.
+4. **Le lancement n'attend jamais** : l'envoi part en tâche de fond (`curl`
+   multi relancé par `later`), et tout échec est muet. Sous testthat, rien ne
+   part.
+
+Ce qui ne peut pas se faire depuis le code : créer le compte GoatCounter au
+code `hstat`. Tant qu'il n'existe pas, les signaux sont simplement perdus.

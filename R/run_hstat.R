@@ -10,6 +10,13 @@
 #' without asking. \code{run_hstat(ouverture = "demander")} forgets the
 #' stored default and asks again.
 #'
+#' HStat can send an anonymous launch signal so that its spread can be
+#' followed: the HStat version, the operating system family and the R version.
+#' The country is deduced by the receiving service (GoatCounter) from the
+#' connection, whose address is not stored. No identifier, file name, data or
+#' result ever leaves the machine. HStat asks once, in an interactive
+#' session; nothing is sent without that agreement, at most once a day.
+#'
 #' @param ... Additional arguments passed to \code{\link[shiny]{runApp}}
 #'   (e.g. \code{port}). Passing \code{launch.browser} bypasses the choice
 #'   of where to open.
@@ -17,6 +24,10 @@
 #'   stored default, or asks when there is none. \code{"navigateur"} opens in
 #'   the web browser and \code{"shiny"} in the RStudio Shiny window, this time
 #'   only. \code{"demander"} forgets the stored default and asks again.
+#' @param statistiques \code{NULL} (default) uses the stored answer, or asks
+#'   once in an interactive session. \code{TRUE} or \code{FALSE} records a
+#'   new answer. \code{options(hstat.statistiques = FALSE)} turns the signal
+#'   off whatever the stored answer.
 #' @param install_missing Logical; if \code{TRUE} (default) missing package
 #'   dependencies are installed before the app is launched. Set to
 #'   \code{FALSE} to skip installation (e.g. on a managed server where
@@ -30,7 +41,8 @@
 #' }
 #'
 #' @export
-run_hstat <- function(..., ouverture = NULL, install_missing = TRUE) {
+run_hstat <- function(..., ouverture = NULL, statistiques = NULL,
+                      install_missing = TRUE) {
   app_dir <- system.file("app", package = "HStat")
 
   if (app_dir == "") {
@@ -90,6 +102,8 @@ run_hstat <- function(..., ouverture = NULL, install_missing = TRUE) {
     lanceur <- .hstat_ouverture_lanceur(.hstat_ouverture_resoudre(ouverture))
     if (!is.null(lanceur)) args$launch.browser <- lanceur
   }
+
+  if (.hstat_stats_consentement(statistiques)) .hstat_stats_envoyer()
 
   # runApp() sur un DOSSIER sert automatiquement le sous-dossier www/
   # (feuille de style + polices) et detecte app.R.
@@ -188,6 +202,136 @@ HSTAT_OUVERTURES <- c(navigateur = "Navigateur web",
   }
   trouver(".rs.invokeShinyWindowExternal") %||%
     function(url) utils::browseURL(url)
+}
+
+
+# ---------------------------------------------------------------------------
+# Statistiques de diffusion, anonymes et consenties
+# ---------------------------------------------------------------------------
+# Un signal par machine et par jour au plus : version de HStat, famille du
+# systeme, version de R. Le pays est deduit par GoatCounter, qui ne stocke pas
+# l'adresse. Rien n'est envoye sans accord : la politique du CRAN l'interdit.
+
+HSTAT_STATS_SITE <- "https://hstat.goatcounter.com"
+
+.hstat_stats_fichier <- function(nom = "statistiques.txt") {
+  d <- tryCatch(tools::R_user_dir("HStat", "config"), error = function(e) "")
+  if (!is.character(d) || length(d) != 1L || !nzchar(d)) return("")
+  file.path(d, nom)
+}
+
+.hstat_stats_lire <- function(fichier) {
+  if (!nzchar(fichier) || !file.exists(fichier)) return(NA)
+  v <- tryCatch(trimws(readLines(fichier, n = 1L, warn = FALSE)),
+                error = function(e) character(0))
+  if (length(v) == 1L && v %in% c("oui", "non")) identical(v, "oui") else NA
+}
+
+.hstat_stats_ecrire <- function(accord, fichier) {
+  if (!nzchar(fichier)) return(FALSE)
+  isTRUE(tryCatch({
+    dir.create(dirname(fichier), recursive = TRUE, showWarnings = FALSE)
+    writeLines(if (isTRUE(accord)) "oui" else "non", fichier)
+    TRUE
+  }, error = function(e) FALSE, warning = function(w) FALSE))
+}
+
+.hstat_stats_demander <- function(choix = utils::menu) {
+  message("HStat peut envoyer, au plus une fois par jour, un signal anonyme de ",
+          "lancement : version de HStat, syst\u00e8me et version de R. Le pays ",
+          "est d\u00e9duit par le service de statistiques, qui ne conserve pas ",
+          "l'adresse. Aucune donn\u00e9e, aucun r\u00e9sultat, aucun identifiant.")
+  i <- choix(c("Oui, aider \u00e0 suivre la diffusion de HStat",
+               "Non, ne rien envoyer"),
+             title = "Statistiques anonymes de diffusion")
+  if (!is.numeric(i) || length(i) != 1L || is.na(i) || !i %in% 1:2) return(NA)
+  i == 1L
+}
+
+# Vrai seulement sur un accord explicite. L'option l'emporte sur tout ; une
+# question annulee (0) ne vaut ni oui ni non : elle reviendra au lancement suivant.
+.hstat_stats_consentement <- function(statistiques = NULL,
+                                      interactif = interactive(),
+                                      demander = .hstat_stats_demander,
+                                      fichier = .hstat_stats_fichier()) {
+  opt <- getOption("hstat.statistiques")
+  if (isFALSE(opt)) return(FALSE)
+  if (!is.null(statistiques)) {
+    accord <- isTRUE(statistiques)
+    .hstat_stats_ecrire(accord, fichier)
+    message(if (accord) "Statistiques anonymes activ\u00e9es." else
+              "Statistiques anonymes d\u00e9sactiv\u00e9es.",
+            " Pour changer : run_hstat(statistiques = ", !accord, ")")
+    return(accord)
+  }
+  if (isTRUE(opt)) return(TRUE)
+  m <- .hstat_stats_lire(fichier)
+  if (!is.na(m)) return(m)
+  if (!isTRUE(interactif)) return(FALSE)
+  r <- demander()
+  if (is.na(r)) return(FALSE)
+  .hstat_stats_ecrire(r, fichier)
+  message("R\u00e9ponse m\u00e9moris\u00e9e. Pour changer : run_hstat(statistiques = ",
+          !r, ")")
+  r
+}
+
+.hstat_stats_systeme <- function(sys = Sys.info()[["sysname"]]) {
+  s <- tolower(sys %||% "")
+  if (grepl("windows", s)) "windows" else if (grepl("darwin", s)) "macos"
+  else if (grepl("linux", s)) "linux" else "autre"
+}
+
+# L'adresse ne porte que des valeurs du paquet et du systeme : rien de saisi.
+.hstat_stats_url <- function(version = hstat_version(),
+                             systeme = .hstat_stats_systeme(),
+                             site = getOption("hstat.statistiques.site",
+                                              HSTAT_STATS_SITE)) {
+  if (!is.character(site) || length(site) != 1L ||
+      !grepl("^https://[A-Za-z0-9.-]+$", site)) return(NA_character_)
+  version <- gsub("[^0-9.]", "", as.character(version))
+  chemin <- sprintf("/lancement/%s/%s", version, systeme)
+  sprintf("%s/count?p=%s&t=%s&rnd=%s", site,
+          utils::URLencode(chemin, reserved = TRUE),
+          utils::URLencode(paste("HStat", version), reserved = TRUE),
+          paste(sample(c(letters, 0:9), 8, TRUE), collapse = ""))
+}
+
+# Une fois par jour et par machine : relancer HStat dix fois ne fait pas dix
+# installations. L'envoi ne retarde jamais le lancement : il part en tache de
+# fond (curl multi, relance par later) et tout echec est muet.
+.hstat_stats_envoyer <- function(jour = format(Sys.Date()),
+                                 fichier = .hstat_stats_fichier("statistiques_dernier.txt"),
+                                 url = .hstat_stats_url()) {
+  if (identical(Sys.getenv("TESTTHAT"), "true") || is.na(url)) return(invisible(FALSE))
+  if (!requireNamespace("curl", quietly = TRUE) ||
+      !requireNamespace("later", quietly = TRUE)) return(invisible(FALSE))
+  if (nzchar(fichier) && file.exists(fichier) &&
+      identical(tryCatch(readLines(fichier, n = 1L, warn = FALSE),
+                         error = function(e) ""), jour)) return(invisible(FALSE))
+  tryCatch({
+    h <- curl::new_handle(timeout = 10, connecttimeout = 5, followlocation = FALSE,
+                          useragent = sprintf("HStat/%s (R %s; %s)",
+                                              hstat_version(),
+                                              paste(R.version$major, R.version$minor, sep = "."),
+                                              .hstat_stats_systeme()))
+    pool <- curl::new_pool()
+    curl::curl_fetch_multi(url, handle = h, pool = pool,
+      done = function(r) if (r$status_code < 400 && nzchar(fichier)) {
+        dir.create(dirname(fichier), recursive = TRUE, showWarnings = FALSE)
+        try(writeLines(jour, fichier), silent = TRUE)
+      },
+      fail = function(e) NULL)
+    tours <- 0L
+    pousser <- function() {
+      tours <<- tours + 1L
+      reste <- tryCatch(curl::multi_run(timeout = 0, pool = pool)$pending,
+                        error = function(e) 0L)
+      if (reste > 0L && tours < 60L) later::later(pousser, 0.25)
+    }
+    later::later(pousser, 0)
+    invisible(TRUE)
+  }, error = function(e) invisible(FALSE))
 }
 
 
