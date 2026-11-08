@@ -382,9 +382,8 @@ mod_tests_ui <- function(id) {
                                             "Résidus standardisés" = "residus"),
                                 selected = "bar_v")),
                               shiny::column(3, shiny::selectInput(ns("chiSqPalette"), "Palette",
-                                choices = c("HStat (défaut)" = "default", "Set1" = "Set1",
-                                            "Set2" = "Set2", "Dark2" = "Dark2",
-                                            "Pastel1" = "Pastel1"),
+                                choices = c(list("HStat (défaut)" = "default"),
+                                            hstat_palettes_choix()),
                                 selected = "default")),
                               shiny::column(6, shiny::textInput(ns("chiSqGraphTitle"),
                                 "Titre du graphique", value = ""))),
@@ -6093,15 +6092,12 @@ mod_tests_server <- function(id, values) {
     show_pval <- isTRUE(input$chiSqShowPval)
     
     n   <- nrow(fdf)
-    pal <- switch(palette_g,
-                  "default" = chi2_palette(n),
-                  "Set1"    = RColorBrewer::brewer.pal(max(3, n), "Set1")[seq_len(n)],
-                  "Set2"    = RColorBrewer::brewer.pal(max(3, n), "Set2")[seq_len(n)],
-                  "Dark2"   = RColorBrewer::brewer.pal(max(3, n), "Dark2")[seq_len(n)],
-                  "Pastel1" = RColorBrewer::brewer.pal(max(3, n), "Pastel1")[seq_len(n)],
-                  chi2_palette(n)
-    )
-    if (n > length(pal)) pal <- grDevices::colorRampPalette(pal)(n)
+    # `brewer.pal(max(3, n), p)[seq_len(n)]` laissait des NA au-dela du plafond
+    # de la palette (9 pour Set1) : les modalites en trop sortaient grises, et
+    # le rattrapage `n > length(pal)` ne voyait rien puisque la longueur etait
+    # bien n. Le catalogue commun interpole.
+    pal <- if (identical(palette_g, "default")) chi2_palette(n)
+           else hstat_palette_couleurs(palette_g, n)
     
     df_plot <- data.frame(
       modalite = factor(fdf$Modalite, levels = fdf$Modalite),

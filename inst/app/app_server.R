@@ -5572,9 +5572,7 @@ server <- function(input, output, session) {
         shiny::tags$label(style = "color:#2c3e50;font-size:13px;font-weight:700;",
                    shiny::icon("palette"), " Palette de couleurs :"),
         shiny::selectInput(paste0(prefix, "_palette"), label = NULL,
-          choices = c("Par défaut (ggplot2)" = "default",
-                      "Set1" = "Set1", "Set2" = "Set2", "Dark2" = "Dark2",
-                      "Paired" = "Paired", "Viridis" = "viridis", "Plasma" = "plasma"),
+          choices = c(list("Par défaut (ggplot2)" = "default"), hstat_palettes_choix()),
           selected = "default"),
         shiny::fluidRow(
           shiny::column(6, shiny::sliderInput(paste0(prefix, "_ptsz"), "Taille des points",
@@ -5671,9 +5669,7 @@ server <- function(input, output, session) {
         shiny::tags$label(style = "color:#2c3e50;font-size:13px;font-weight:700;",
                    shiny::icon("palette"), " Palette de couleurs :"),
         shiny::selectInput(paste0(prefix, "_palette"), label = NULL,
-          choices = c("Par défaut (ggplot2)" = "default",
-                      "Set1" = "Set1", "Set2" = "Set2", "Dark2" = "Dark2",
-                      "Paired" = "Paired", "Viridis" = "viridis", "Plasma" = "plasma"),
+          choices = c(list("Par défaut (ggplot2)" = "default"), hstat_palettes_choix()),
           selected = "default"),
         shiny::fluidRow(
           shiny::column(6, shiny::sliderInput(paste0(prefix, "_ptsz"), "Taille des points",
@@ -5923,24 +5919,16 @@ server <- function(input, output, session) {
 
   # Echelles de couleur choisies par l'utilisateur pour les graphiques multivaries
   # etendus. Renvoie une liste de scales (color + fill) a ajouter au ggplot.
+  # LE CATALOGUE COMMUN. Ce module tenait sa propre liste (Set1, Paired,
+  # plasma...) et posait `scale_*_brewer()`, qui rend en gris les modalites
+  # au-dela du plafond de la palette ; `hstat_scales_palette()` les interpole.
   mv_color_scale <- function(discrete = TRUE) {
     pal <- .mv_loc("palette", input$mv_palette %||% "default")
-    if (pal == "default") return(NULL)
-    if (discrete) {
-      switch(pal,
-        "Set1"    = list(ggplot2::scale_color_brewer(palette = "Set1"), ggplot2::scale_fill_brewer(palette = "Set1")),
-        "Set2"    = list(ggplot2::scale_color_brewer(palette = "Set2"), ggplot2::scale_fill_brewer(palette = "Set2")),
-        "Dark2"   = list(ggplot2::scale_color_brewer(palette = "Dark2"), ggplot2::scale_fill_brewer(palette = "Dark2")),
-        "Paired"  = list(ggplot2::scale_color_brewer(palette = "Paired"), ggplot2::scale_fill_brewer(palette = "Paired")),
-        "viridis" = list(ggplot2::scale_color_viridis_d(), ggplot2::scale_fill_viridis_d()),
-        "plasma"  = list(ggplot2::scale_color_viridis_d(option = "plasma"), ggplot2::scale_fill_viridis_d(option = "plasma")),
-        NULL)
-    } else {
-      switch(pal,
-        "viridis" = list(ggplot2::scale_color_viridis_c(), ggplot2::scale_fill_viridis_c()),
-        "plasma"  = list(ggplot2::scale_color_viridis_c(option = "plasma"), ggplot2::scale_fill_viridis_c(option = "plasma")),
-        NULL)
-    }
+    if (identical(pal, "default")) return(NULL)
+    if (discrete) return(hstat_scales_palette(pal, fill = TRUE, colour = TRUE))
+    bornes <- hstat_palette_couleurs(pal, 9)[c(1, 9)]
+    list(ggplot2::scale_colour_gradient(low = bornes[1], high = bornes[2]),
+         ggplot2::scale_fill_gradient(low = bornes[1], high = bornes[2]))
   }
 
   mv_empty_plot <- function(msg = "Lancez l'analyse pour afficher le graphique.") {

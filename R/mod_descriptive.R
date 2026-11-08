@@ -126,23 +126,7 @@ mod_descriptive_ui <- function(id) {
                                shiny::h6(shiny::icon("palette"), " Palette de couleurs", 
                                   style = "color: #6a1b9a; font-weight: bold; margin-bottom: 12px;"),
                                shiny::selectInput(ns("descPlotColorPalette"), NULL,
-                                           choices = list(
-                                             "Par défaut (ggplot2)" = "ggplot2",
-                                             "--- Palettes RColorBrewer ---" = "",
-                                             "Set1 (Multicolore vif)" = "Set1",
-                                             "Set2 (Multicolore doux)" = "Set2",
-                                             "Pastel1 (Pastel)" = "Pastel1",
-                                             "Dark2 (Foncé)" = "Dark2",
-                                             "--- Palette Viridis ---" = "",
-                                             "Viridis (Accessible)" = "viridis",
-                                             "--- Monochromatique ---" = "",
-                                             "Bleu" = "mono_blue",
-                                             "Vert" = "mono_green",
-                                             "Rouge" = "mono_red",
-                                             "Violet" = "mono_purple",
-                                             "Orange" = "mono_orange",
-                                             "Noir" = "mono_black"
-                                           ),
+                                           choices = hstat_palettes_choix(),
                                            selected = "ggplot2",
                                            width = "100%")
                              ),
@@ -665,31 +649,12 @@ mod_descriptive_server <- function(id, values) {
     if (is.null(color_palette)) color_palette <- "ggplot2"
     
     p <- if (input$descPlotFactor == "Aucun") {
-      hist_color <- switch(color_palette,
-                           "ggplot2" = "#3498db",
-                           "viridis" = "#440154",
-                           "Set1" = "#E41A1C",
-                           "Set2" = "#66C2A5",
-                           "Pastel1" = "#FBB4AE",
-                           "Dark2" = "#1B9E77",
-                           "mono_blue" = "#2E86AB",
-                           "mono_green" = "#06A77D",
-                           "mono_red" = "#D62828",
-                           "mono_purple" = "#6A4C93",
-                           "mono_orange" = "#F77F00",
-                           "mono_black" = "#2C3E50",
-                           "#3498db")
-      
-      density_color <- switch(color_palette,
-                              "ggplot2" = "#e74c3c",
-                              "viridis" = "#FDE724",
-                              "mono_blue" = "#1A5490",
-                              "mono_green" = "#048060",
-                              "mono_red" = "#9B1B1B",
-                              "mono_purple" = "#4A2C6A",
-                              "mono_orange" = "#C66300",
-                              "mono_black" = "#000000",
-                              "#e74c3c")
+      # Sans groupe, deux couleurs suffisent (barres, densite). La palette de
+      # ggplot2 garde les teintes historiques de ce graphique ; les autres
+      # viennent du catalogue commun.
+      cols2 <- if (identical(color_palette, "ggplot2")) c("#3498db", "#e74c3c")
+               else hstat_palette_couleurs(color_palette, 2)
+      hist_color <- cols2[1]; density_color <- cols2[2]
       
       ggplot2::ggplot(values$filteredData, ggplot2::aes(x = .data[[input$descPlotVar]])) +
         ggplot2::geom_histogram(ggplot2::aes(y = ggplot2::after_stat(density)), alpha = 0.7, fill = hist_color, bins = 30) +
@@ -788,26 +753,10 @@ mod_descriptive_server <- function(id, values) {
         ) +
         ggplot2::labs(title = plot_title, x = x_label, y = y_label)
       
-      if (color_palette == "ggplot2") {
-        base_plot
-      } else if (startsWith(color_palette, "mono_")) {
-        mono_color <- switch(color_palette,
-                             "mono_blue" = "#2E86AB",
-                             "mono_green" = "#06A77D",
-                             "mono_red" = "#D62828",
-                             "mono_purple" = "#6A4C93",
-                             "mono_orange" = "#F77F00",
-                             "mono_black" = "#2C3E50",
-                             "#2E86AB")
-        n_groups <- length(unique(values$filteredData[[input$descPlotFactor]]))
-        base_plot + ggplot2::scale_fill_manual(
-          values = grDevices::colorRampPalette(c("#FFFFFF", mono_color))(n_groups + 2)[2:(n_groups + 1)]
-        )
-      } else if (color_palette == "viridis") {
-        base_plot + ggplot2::scale_fill_viridis_d(option = "D")
-      } else {
-        base_plot + ggplot2::scale_fill_brewer(palette = color_palette)
-      }
+      # Le catalogue commun pose l'echelle -- et interpole au-dela du plafond
+      # de RColorBrewer, la ou `scale_fill_brewer()` rendait les modalites en
+      # trop en gris.
+      base_plot + hstat_scales_palette(color_palette, fill = TRUE, colour = FALSE)
     }
     
     # LE KIT SE POSE EN DERNIER : un theme complet remplace tout ce qui

@@ -83,6 +83,24 @@ hstat_q_apply_palette <- function(p, palette = "default",
     is.numeric(var)
   }
 
+  # LE CATALOGUE COMMUN D'ABORD. Ce module tenait sa propre liste (bleu, vert,
+  # orange...) : les palettes se choisissent desormais dans la meme liste que
+  # partout ailleurs, et c'est `hstat_palette_couleurs()` qui interpole au-dela
+  # du plafond de RColorBrewer. Les anciens noms restent compris plus bas.
+  catalogue <- c(HSTAT_PALETTE_GG, HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE,
+                 HSTAT_PALETTES_AUTRES)
+  if (palette %in% catalogue) {
+    bornes <- hstat_palette_couleurs(palette, 9)[c(1, 9)]
+    fc <- is_continuous_aes(p, "fill"); cc <- is_continuous_aes(p, "colour")
+    suppressMessages({
+      if (isTRUE(fc)) p <- p + ggplot2::scale_fill_gradient(low = bornes[1], high = bornes[2])
+      else if (isFALSE(fc)) p <- p + hstat_scales_palette(palette, fill = TRUE, colour = FALSE)
+      if (isTRUE(cc)) p <- p + ggplot2::scale_colour_gradient(low = bornes[1], high = bornes[2])
+      else if (isFALSE(cc)) p <- p + hstat_scales_palette(palette, fill = FALSE, colour = TRUE)
+    })
+    return(p)
+  }
+
   # Bornes de degrade + palette discrete (Brewer/viridis) pour chaque choix
   # Normalise un hex court (#abc -> #aabbcc) pour colorRampPalette
   norm_hex <- function(h) {
@@ -2401,12 +2419,9 @@ mod_qualitative_ui <- function(id) {
                 shiny::column(6, shiny::uiOutput(ns("graph_selector"))),
                 shiny::column(6,
                   shiny::selectInput(ns("plot_palette"), "Palette de couleurs",
-                    choices = c("Par défaut (du graphique)" = "default",
-                                "Bleu" = "blues", "Vert" = "greens",
-                                "Orange-Rouge" = "oranges", "Violet" = "purples",
-                                "Viridis" = "viridis", "Spectral" = "spectral",
-                                "Niveaux de gris" = "greys",
-                                "Personnalisée (2 couleurs)" = "custom"),
+                    choices = c(list("Par défaut (du graphique)" = "default"),
+                                hstat_palettes_choix(),
+                                list("Personnalisée (2 couleurs)" = "custom")),
                     selected = "default"))),
               shiny::conditionalPanel(
                 condition = sprintf("input['%s'] == 'custom'", ns("plot_palette")),

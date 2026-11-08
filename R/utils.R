@@ -3354,12 +3354,53 @@ HSTAT_PALETTES_DEGRADE <- c("Dégradé de bleus" = "Blues",
 # Liste de choix commune. La palette de ggplot2 vient EN TETE : c'est la seule
 # qui ne plafonne pas, donc le bon defaut quand on ignore combien il y aura de
 # modalites.
-hstat_palettes_choix <- function(degrades = TRUE) {
+hstat_palettes_choix <- function(degrades = TRUE, autres = TRUE) {
   ch <- list("Palette par défaut" = HSTAT_PALETTE_GG,
              "Teintes vives (groupes distincts)" = HSTAT_PALETTES_QUALI)
   if (isTRUE(degrades))
     ch[["Dégradés (valeurs ordonnées)"]] <- HSTAT_PALETTES_DEGRADE
+  if (isTRUE(autres))
+    ch[["Accessibles et monochromes"]] <- HSTAT_PALETTES_AUTRES
   ch
+}
+
+# Palettes hors RColorBrewer, declarees ICI et nulle part ailleurs : cinq
+# modules en tenaient chacun leur copie (viridis, gris, monochromes). Un nom
+# de couleur seul est une valeur de donnees plausible, d'ou « Monochrome bleu ».
+HSTAT_PALETTES_AUTRES <- c("Viridis (lisible par les daltoniens)" = "viridis",
+                           "Niveaux de gris" = "grey",
+                           "Monochrome bleu" = "mono_blue",
+                           "Monochrome vert" = "mono_green",
+                           "Monochrome rouge" = "mono_red",
+                           "Monochrome violet" = "mono_purple",
+                           "Monochrome orange" = "mono_orange",
+                           "Monochrome noir" = "mono_black")
+HSTAT_PALETTES_MONO <- c(mono_blue = "#2E86AB", mono_green = "#06A77D",
+                         mono_red = "#D62828", mono_purple = "#6A4C93",
+                         mono_orange = "#F77F00", mono_black = "#2C3E50")
+
+# n COULEURS POUR N'IMPORTE QUELLE PALETTE DU CATALOGUE. C'est le seul endroit
+# qui depasse le PLAFOND de RColorBrewer (8 a 12 couleurs selon la palette) :
+# au-dela, `brewer.pal()` avertit et rend ses couleurs maximales, si bien que
+# `brewer.pal(n, p)[seq_len(n)]` laissait des NA -- donc des barres grises sur
+# un essai a quinze modalites. On interpole la palette complete.
+# Un nom inconnu rend la palette de ggplot2, le seul defaut qui ne plafonne pas.
+hstat_palette_couleurs <- function(pal, n) {
+  n <- suppressWarnings(as.integer(n)[1])
+  if (is.na(n) || n <= 0L) return(character(0))
+  pal <- as.character(pal %||% "")[1]
+  if (is.na(pal)) pal <- ""
+  if (pal %in% c(HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE) &&
+      requireNamespace("RColorBrewer", quietly = TRUE)) {
+    mx <- RColorBrewer::brewer.pal.info[pal, "maxcolors"]
+    if (n <= mx) return(RColorBrewer::brewer.pal(max(3L, n), pal)[seq_len(n)])
+    return(grDevices::colorRampPalette(RColorBrewer::brewer.pal(mx, pal))(n))
+  }
+  if (identical(pal, "viridis")) return(grDevices::hcl.colors(n, "viridis"))
+  if (identical(pal, "grey")) return(grDevices::grey.colors(n, start = 0.3, end = 0.9))
+  if (pal %in% names(HSTAT_PALETTES_MONO))
+    return(grDevices::colorRampPalette(c("#FFFFFF", HSTAT_PALETTES_MONO[[pal]]))(n + 1L)[-1L])
+  scales::hue_pal()(n)
 }
 
 # Rend les echelles a ajouter au graphique, ou NULL quand il n'y a rien a poser.
@@ -3386,9 +3427,19 @@ hstat_scales_palette <- function(pal, fill = TRUE, colour = TRUE, ...) {
     if (isTRUE(colour)) out <- c(out, list(ggplot2::scale_colour_hue(...)))
     return(out)
   }
-  if (!pal %in% c(HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE)) return(NULL)
-  if (isTRUE(fill))   out <- c(out, list(ggplot2::scale_fill_brewer(palette = pal, ...)))
-  if (isTRUE(colour)) out <- c(out, list(ggplot2::scale_colour_brewer(palette = pal, ...)))
+  if (!pal %in% c(HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE,
+                  HSTAT_PALETTES_AUTRES)) return(NULL)
+  # Une echelle discrete dont la palette RECOIT le nombre de modalites : c'est
+  # ce qui lui permet d'interpoler au-dela du plafond de Brewer, la ou
+  # `scale_*_brewer()` rendait les modalites en trop en gris.
+  echelle <- function(aes) {
+    args <- list(aesthetics = aes,
+                 palette = function(n) hstat_palette_couleurs(pal, n), ...)
+    if (utils::packageVersion("ggplot2") < "3.5.0") args$scale_name <- "hstat"
+    do.call(ggplot2::discrete_scale, args)
+  }
+  if (isTRUE(fill))   out <- c(out, list(echelle("fill")))
+  if (isTRUE(colour)) out <- c(out, list(echelle("colour")))
   out
 }
 
