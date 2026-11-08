@@ -24,6 +24,14 @@ On first run, HStat asks whether to open in your browser or in the RStudio
 Shiny window, and can keep the answer as the default
 (`run_hstat(ouverture = "demander")` asks again). Missing packages are
 installed on first run.
+
+HStat also asks, once, whether it may send an anonymous launch signal so its
+worldwide spread can be followed: the HStat version, the operating system
+family and the R version, at most once a day. The country is deduced by the
+receiving service ([GoatCounter](https://www.goatcounter.com)), which does
+not store the address. No identifier, data or result ever leaves your
+machine. `run_hstat(statistiques = FALSE)` changes the answer, and
+`options(hstat.statistiques = FALSE)` turns it off whatever the answer.
 No minimum R version is declared; CI runs the suite on the current release.
 
 ---
@@ -301,7 +309,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.46.6. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.47.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -309,7 +317,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 1.46.6},
+  note   = {Version 1.47.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

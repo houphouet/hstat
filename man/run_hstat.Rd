@@ -4,7 +4,7 @@
 \alias{run_hstat}
 \title{Launch the HStat Shiny Application}
 \usage{
-run_hstat(..., ouverture = NULL, install_missing = TRUE)
+run_hstat(..., ouverture = NULL, statistiques = NULL, install_missing = TRUE)
 }
 \arguments{
 \item{...}{Additional arguments passed to \code{\link[shiny]{runApp}}
@@ -15,6 +15,11 @@ of where to open.}
 stored default, or asks when there is none. \code{"navigateur"} opens in
 the web browser and \code{"shiny"} in the RStudio Shiny window, this time
 only. \code{"demander"} forgets the stored default and asks again.}
+
+\item{statistiques}{\code{NULL} (default) uses the stored answer, or asks
+once in an interactive session. \code{TRUE} or \code{FALSE} records a
+new answer. \code{options(hstat.statistiques = FALSE)} turns the signal
+off whatever the stored answer.}
 
 \item{install_missing}{Logical; if \code{TRUE} (default) missing package
 dependencies are installed before the app is launched. Set to \code{FALSE}
@@ -34,6 +39,13 @@ in the RStudio Shiny window. The answer can be kept as the default, stored
 in \code{tools::R_user_dir("HStat", "config")}; HStat then opens there
 without asking. \code{run_hstat(ouverture = "demander")} forgets the
 stored default and asks again.
+
+HStat can send an anonymous launch signal so that its spread can be
+followed: the HStat version, the operating system family and the R version.
+The country is deduced by the receiving service (GoatCounter) from the
+connection, whose address is not stored. No identifier, file name, data or
+result ever leaves the machine. HStat asks once, in an interactive
+session; nothing is sent without that agreement, at most once a day.
 }
 \examples{
 if (interactive()) {
