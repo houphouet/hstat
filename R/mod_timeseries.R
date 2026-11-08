@@ -1,9 +1,7 @@
-#  Module Shiny : Modélisation en séries temporelles
-#  Naïf, dérive, moyennes, lissages exponentiels (SES/Holt/Holt-Winters), ETS,
-#  ARIMA/SARIMA (auto & manuel), TBATS, Thêta, STL+ETS, NNAR (réseau de
-#  neurones autorégressif) et Prophet (optionnel). Comparaison automatique,
-#  diagnostics des résidus, interprétations, simulateur de prévisions,
-#  exports tableaux (CSV/Excel) et images (PNG/JPG/TIFF/BMP/PDF/SVG, <= 20 000 DPI).
+# Module Shiny : Modélisation en séries temporelles Naïf, dérive, moyennes,
+# lissages exponentiels (SES/Holt/Holt-Winters), ETS, ARIMA/SARIMA (auto &
+# manuel), TBATS, Thêta, STL+ETS, NNAR (réseau de neurones autorégressif) et
+# Prophet (optionnel).
 
 # -- Catalogue des modèles ------------------------------------------------------
 .ts_catalog <- function() c(
@@ -46,10 +44,8 @@ mod_timeseries_ui <- function(id) {
                      selected = 12)),
             shiny::column(6, shiny::numericInput(ns("tsFreqCustom"),
                      "…ou fréquence libre", value = NULL, min = 1, step = 1))),
-          # « Horizon futur (h) » vivait ici, et AUCUN serveur ne le lisait : les
-          # previsions futures suivent « Horizon a simuler », plus bas. Deux
-          # reglages nommes « Horizon », dont un inerte -- l'utilisateur
-          # changeait celui-ci et la prevision ne bougeait pas.
+          # « Horizon futur (h) » vivait ici, et AUCUN serveur ne le lisait :
+          # les previsions futures suivent « Horizon a simuler », plus bas.
           shiny::fluidRow(
             shiny::column(6, shiny::numericInput(ns("tsTestN"), "Taille du jeu de test",
                                    value = 12, min = 2, step = 1))),
@@ -205,8 +201,7 @@ mod_timeseries_server <- function(id, values) {
         # UNE LIGNE SANS DATE N'A PAS DE PLACE DANS LA SERIE : `order()` range
         # les NA a la fin, si bien qu'une ligne datee « inconnue » au milieu du
         # fichier devenait la DERNIERE observation -- celle qui entre dans le
-        # jeu de test et fausse la precision publiee. Elle est ecartee, et
-        # comptee.
+        # jeu de test et fausse la precision publiee.
         if (!is.null(dts) && anyNA(dts)) {
           sans <- is.na(dts)
           shiny::showNotification(
@@ -503,12 +498,9 @@ mod_timeseries_server <- function(id, values) {
       fdf <- data.frame(t = tm, y = as.numeric(fc$mean))
       has_pi <- !is.null(fc$lower) && length(fc$lower) > 0
       if (has_pi) {
-        # `as.matrix()` sur les intervalles de `forecast` NE RETIRE PAS la classe
-        # `ts` des colonnes extraites : `class(lo[, 1])` vaut bien « ts ». ggplot
-        # ne sait pas choisir d'echelle pour ce type et le signalait a chaque
-        # trace de prevision (« Don't know how to automatically pick scale for
-        # object of type <ts> »). La courbe sortait quand meme, mais un
-        # avertissement permanent en console masque les vrais.
+        # `as.matrix()` sur les intervalles de `forecast` NE RETIRE PAS la
+        # classe `ts` des colonnes extraites : `class(lo[, 1])` vaut bien « ts
+        # ».
         lo <- as.matrix(fc$lower); up <- as.matrix(fc$upper)
         fdf$lo80 <- as.numeric(lo[, 1]); fdf$hi80 <- as.numeric(up[, 1])
         fdf$lo95 <- as.numeric(lo[, ncol(lo)])

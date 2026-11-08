@@ -1,25 +1,11 @@
 server <- function(input, output, session) {
 
   # ---------------------------------------------------------------------------
-  # PERSISTANCE DE LA SESSION
-  # Un verrouillage d'ecran, une mise en veille ou une coupure reseau passagere
-  # font tomber le websocket de Shiny. Sans cette autorisation, la session est
-  # DETRUITE cote serveur : l'utilisateur retrouve une page grise et a perdu ses
-  # donnees, ses filtres et ses analyses. Avec elle, l'etat est conserve et le
-  # navigateur peut reprendre la main (le bandeau de www/hstat-session.js s'en
-  # charge). Seul l'utilisateur ferme l'application.
-  #
-  # « force » et non TRUE : sans lui, Shiny n'active la reprise que derriere un
-  # serveur qui la gere (Connect, Shiny Server Pro). Or HStat tourne le plus
-  # souvent en local, cas ou le besoin est le plus fort.
+  # PERSISTANCE DE LA SESSION Un verrouillage d'ecran, une mise en veille ou
+  # une coupure reseau passagere font tomber le websocket de Shiny.
   try(session$allowReconnect("force"), silent = TRUE)
 
-  # Langue choisie dans le bandeau, signalee par www/hstat-i18n.js. Elle est
-  # rangee dans `session$userData` — donc propre a CET utilisateur — et lue par
-  # `hstat_langue_session()`. Les messages composes en R (erreurs, verdicts)
-  # suivent ainsi la langue sans qu'aucun de leurs ~70 points d'appel change.
-  # `langue_rv` porte le MEME etat sous forme reactive : les sorties le lisent
-  # par `hstat_langue_session()` et se recalculent dans la nouvelle langue.
+  # Langue choisie dans le bandeau, signalee par www/hstat-i18n.js.
   session$userData$langue_rv <- shiny::reactiveVal("fr")
   shiny::observeEvent(input$hstat_langue, {
     session$userData$langue <- if (identical(input$hstat_langue, "en")) "en" else "fr"
@@ -27,40 +13,27 @@ server <- function(input, output, session) {
   }, ignoreInit = FALSE)
 
   # Separateur decimal des fichiers telecharges, choisi dans le bandeau ou dans
-  # la fenetre qui precede chaque telechargement (www/hstat-decimale.js). Il est
-  # range dans `session$userData` et lu par `hstat_decimale_session()` -- donc
-  # par les ecrivains communs, sans qu'aucun export ait a le lire lui-meme.
-  #
-  # L'ACCUSE DE RECEPTION N'EST PAS UNE POLITESSE. Le telechargement part par une
-  # requete HTTP, le choix par le websocket : rien ne garantit que le second
-  # arrive avant la premiere. Le navigateur attend donc cet accuse avant de
-  # lancer le fichier, sans quoi il porterait le separateur d'avant.
+  # la fenetre qui precede chaque telechargement (www/hstat-decimale.js).
   shiny::observeEvent(input$hstat_decimale, {
     session$userData$decimale <- .hstat_decimale(input$hstat_decimale)
     session$sendCustomMessage("hstat-decimale-ok", session$userData$decimale)
   })
 
   # LES TERMES DU FICHIER DE L'UTILISATEUR NE SE TRADUISENT JAMAIS.
-  # On les envoie au navigateur a chaque changement de jeu de donnees : noms de
-  # colonnes et modalites qualitatives. Le traducteur refuse alors d'y toucher
-  # ou qu'ils apparaissent -- y compris dans un tableau ajoute plus tard, qui
-  # echapperait a toute annotation posee a la main.
   shiny::observe({
     d <- values$filteredData %||% values$data
     j <- tryCatch(hstat_i18n_termes_json(d), error = function(e) "[]")
     session$sendCustomMessage("hstat-termes-donnees", j)
   })
 
-  # Signal de maintien envoye par le navigateur. Il n'alimente aucun calcul :
-  # sa seule fonction est d'empecher une coupure pour inactivite. On le lit
-  # explicitement pour qu'il ne soit pas pris pour une entree oubliee.
+  # Il n'alimente aucun calcul : sa seule fonction est d'empecher une coupure
+  # pour inactivite.
   shiny::observeEvent(input$hstat_keepalive, {
     invisible(NULL)
   }, ignoreInit = TRUE)
 
   # Garde-fou a la fermeture : le navigateur ne demande confirmation que si des
-  # donnees sont chargees. Une confirmation qui s'affiche a chaque visite n'est
-  # plus lue, et protegerait une page vide.
+  # donnees sont chargees.
   shiny::observe({
     session$sendCustomMessage("hstat_travail",
                               list(actif = !is.null(values$data) && NROW(values$data) > 0))
@@ -72,8 +45,7 @@ server <- function(input, output, session) {
   })
   
   # L'etat initial vit dans Utils.R : la creation et la reinitialisation
-  # partagent la MEME liste. Un champ ajoute la-bas est cree ici et efface a la
-  # reinitialisation, sans qu'on ait a y penser deux fois.
+  # partagent la MEME liste.
   values <- do.call(shiny::reactiveValues, hstat_valeurs_initiales())
 
   # Indicateurs de lancement des analyses multivariees : chaque analyse ne
@@ -98,10 +70,7 @@ server <- function(input, output, session) {
   
   # ---- Aide et réinitialisation ----
   # `shinyalert` est un paquet OPTIONNEL (il figure parmi ceux dont l'absence
-  # est toleree au demarrage). Sans repli, `shinyalert()` levait une erreur
-  # avalee par l'observateur : le bouton « Reinitialiser » ne faisait alors
-  # RIEN, en silence. Une fonction essentielle ne peut pas dependre d'un
-  # paquet facultatif ; `modalDialog` fait partie de Shiny et est toujours la.
+  # est toleree au demarrage).
   .hstat_a_shinyalert <- isTRUE(requireNamespace("shinyalert", quietly = TRUE))
 
   shiny::observeEvent(input$helpBtn, {
@@ -116,12 +85,7 @@ server <- function(input, output, session) {
                             footer = shiny::modalButton("Fermer")))
   })
   
-  # LES RESULTATS MULTIVARIES NE VIVENT PAS DANS `values`. `mv_res` et
-  # `mv_launch` sont des `reactiveValues` propres a ce fichier : la remise a
-  # zero de `values` ne les touchait pas, et une ACP, une AFC ou une k-means
-  # calculee sur le fichier PRECEDENT restait affichee apres le chargement du
-  # suivant. Les quatre gestes qui remettent la session a zero passent donc par
-  # ici, pas par `hstat_reinitialiser_valeurs()` seul.
+  # LES RESULTATS MULTIVARIES NE VIVENT PAS DANS `values`.
   .hstat_purger_session <- function() {
     hstat_reinitialiser_valeurs(values)
     hstat_vider_valeurs(mv_res)
@@ -140,9 +104,7 @@ server <- function(input, output, session) {
 
           # `shinyjs::reset("file")` remet le widget a blanc mais `input$file`
           # garde sa valeur : la feuille Excel choisie et le bloc de
-          # combinaison de feuilles survivaient donc a la reinitialisation. On
-          # note le chemin a neutraliser, et tout ce qui derive du fichier le
-          # traite comme absent jusqu'a un NOUVEAU choix.
+          # combinaison de feuilles survivaient donc a la reinitialisation.
           values$fichierNeutralise <- shiny::isolate(input$file$datapath)
           tryCatch(shinyjs::reset("file"), error = function(e) NULL)
 
@@ -179,10 +141,6 @@ server <- function(input, output, session) {
   
   # ---- Chargement ----
   # LE fichier courant, et la seule porte par laquelle on y accede.
-  # `shinyjs::reset("file")` remet le widget a blanc mais `input$file` conserve
-  # sa valeur : tout ce qui en derivait — la feuille Excel choisie, le bloc de
-  # combinaison de feuilles, l'apercu — survivait a la reinitialisation. Le
-  # fichier neutralise est donc traite comme absent jusqu'a un NOUVEAU choix.
   fichier_actif <- shiny::reactive({
     f <- input$file
     if (is.null(f)) return(NULL)
@@ -191,9 +149,7 @@ server <- function(input, output, session) {
     f
   })
 
-  # Feuilles du classeur. Un classeur d'enquete porte souvent une feuille par
-  # annee, par site ou par vague : ne lire que la premiere revient a jeter le
-  # reste des donnees.
+  # Feuilles du classeur.
   excel_sheets_r <- shiny::reactive({
     f <- fichier_actif()
     if (is.null(f)) return(character(0))
@@ -206,10 +162,7 @@ server <- function(input, output, session) {
     shiny::tagList(
       shiny::selectInput("sheet", "Feuille Excel :", choices = sheets, selected = sheets[1]),
       # Le bloc est REPLIE : c'est l'utilisateur qui l'ouvre s'il veut combiner
-      # ses feuilles. Deplie d'office, il poussait hors de l'ecran le bouton
-      # « Charger » pour qui voulait seulement lire une feuille. Il ne
-      # s'affiche que lorsqu'il sert, c'est-a-dire quand le classeur compte plus
-      # d'une feuille, et son titre dit combien.
+      # ses feuilles.
       if (length(sheets) > 1) shiny::tags$details(
         style = "margin:4px 0 10px; padding:10px 14px; background:#eef7fb; border:1px solid #b6e0ef; border-radius:8px;",
         shiny::tags$summary(style = "cursor:pointer; font-weight:700; color:#1b6f8c; font-size:14px;",
@@ -305,9 +258,7 @@ server <- function(input, output, session) {
       values$data <- d; values$cleanData <- d; values$filteredData <- d
       values$dataMode <- "memory"
       # Le moteur de fusion parle de « fichiers » — c'est son vocabulaire, il
-      # sert d'abord a fusionner des fichiers. Ici ce sont des feuilles, et
-      # laisser « 3 fichiers » sous les yeux de quelqu'un qui vient d'en
-      # combiner trois d'un meme classeur serait deroutant.
+      # sert d'abord a fusionner des fichiers.
       msg <- paste(gsub("fichiers", "feuilles", gsub("fichier", "feuille", res$msg)),
                    trf("Feuilles combinées : %s.",
                            paste(r$names, collapse = ", ")))
@@ -341,10 +292,7 @@ server <- function(input, output, session) {
         thr <- (input$bigDataThreshold %||% 500) * 1024^2
         smp <- as.integer(hstat_borne_client(input$sampleSize, HSTAT_SAMPLE_SIZE, 1000, 10000000))
         shiny::incProgress(0.3, detail = "Lecture")
-        # LA LECTURE D'ABORD, LA PURGE ENSUITE. Purger avant de lire effacait
-        # les donnees en place meme quand la lecture echouait (feuille
-        # illisible, fichier corrompu) : la session restait sans donnees, et
-        # chaque onglet se vidait sans dire pourquoi.
+        # LA LECTURE D'ABORD, LA PURGE ENSUITE.
         res <- hstat_load_data(
           path = fichier_actif()$datapath, kind = kind,
           header = input$header %||% TRUE, sep = input$sep %||% ",",
@@ -358,11 +306,7 @@ server <- function(input, output, session) {
         }
         hstat_cache_clear()   # vide le cache d'agregations du fichier precedent
         # DE NOUVELLES DONNEES, DE NOUVELLES VARIABLES : tout ce que la session
-        # portait se rapporte au fichier PRECEDENT. Sans cette remise a zero,
-        # les resultats, les selections de variables et le journal de l'ancien
-        # fichier survivaient au nouveau -- on lisait des tableaux et des
-        # recommandations portant sur des colonnes qui n'existent plus.
-        # Elle precede les affectations : celles-ci doivent etre les dernieres.
+        # portait se rapporte au fichier PRECEDENT.
         .hstat_purger_session()
 
         values$data        <- res$data
@@ -401,16 +345,6 @@ server <- function(input, output, session) {
 
   # ---- Jeux de donnees integres a R ----
   # QUATRIEME PORTE D'IMPORT, donc quatrieme appel a `.hstat_purger_session()`.
-  # De nouvelles donnees, de nouvelles variables : sans cette remise a zero, les
-  # resultats, les selections de variables et le journal du fichier precedent
-  # survivraient a un jeu qui n'a aucune colonne en commun avec lui -- on lirait
-  # des tableaux portant sur des colonnes qui n'existent plus. Un test exige que
-  # les quatre portes l'appellent.
-  #
-  # Le fichier deja choisi n'est PAS neutralise : l'utilisateur peut vouloir y
-  # revenir, et le bouton « Charger » comme la combinaison de feuilles restent
-  # des gestes explicites. C'est la difference avec le bouton
-  # « Reinitialiser », qui efface tout par definition.
   r_data_msg <- shiny::reactiveVal(NULL)
 
   shiny::observeEvent(input$loadRData, {
@@ -418,16 +352,7 @@ server <- function(input, output, session) {
     # qui l'a montre : un chargement reussi prend 2,5 a 3,6 s mesurees -- le
     # temps de resoudre le nom, de purger la session et de reconstruire les
     # selecteurs de vingt et un modules --, et le clic ne donnait AUCUN signe
-    # pendant ce temps. Le chargement d'un fichier, lui, affiche sa barre
-    # depuis toujours : deux chemins d'import qui repondent differemment au
-    # meme geste, c'est l'utilisateur qui clique deux fois.
-    #
-    # `Progress$new()` ET NON `withProgress()`. Un seul indicateur couvre les
-    # deux etapes, la ou deux `withProgress` successifs en afficheraient deux ;
-    # et surtout, `withProgress` evalue son expression dans une FONCTION : le
-    # `return(invisible(NULL))` du refus en sortirait sans quitter
-    # l'observateur, et le chemin de succes s'executerait sur un refus. C'est
-    # exactement le piege deja documente pour `renderPlotly`.
+    # pendant ce temps.
     barre <- shiny::Progress$new(); on.exit(barre$close(), add = TRUE)
     barre$set(value = 0.1, message = "Chargement du jeu de données",
               detail = "Recherche du nom")
@@ -451,8 +376,7 @@ server <- function(input, output, session) {
       barre$set(value = 0.5, detail = "Remise à zéro de la session")
       .hstat_purger_session()
       # MEME FORME QUE `hstat_load_data()` : les affectations sont donc
-      # exactement celles du chargement d'un fichier. Deux jeux d'affectations
-      # differents auraient fini par diverger.
+      # exactement celles du chargement d'un fichier.
       values$data        <- res$data
       values$cleanData   <- res$data
       values$filteredData <- res$data
@@ -497,8 +421,7 @@ server <- function(input, output, session) {
 
   # Le catalogue n'est construit que SUR DEMANDE : parcourir les index de
   # donnees de tous les paquets installes coute 0,3 s et ne sert a rien a qui
-  # connait le nom qu'il veut. Le resultat est retenu par le socle, donc un
-  # second affichage est instantane.
+  # connait le nom qu'il veut.
   output$rDataCatalog <- DT::renderDT({
     shiny::req(isTRUE(input$rDataShowCat))
     cat_df <- tryCatch(hstat_donnees_r_catalogue(), error = function(e) NULL)
@@ -512,14 +435,9 @@ server <- function(input, output, session) {
   })
 
   # ---- Fusion de plusieurs fichiers ----
-  # Pour peupler les menus de cles, on ne lit que les EN-TETES (noms de colonnes),
-  # pas les donnees completes : lire 5 fichiers entiers en memoire des la selection
-  # pouvait saturer la memoire et fermer l'application. La lecture complete n'a lieu
-  # qu'au moment de la fusion (bouton Fusionner).
-  # Les en-tetes alimentent les selecteurs de cle. Ils doivent donc suivre
-  # exactement le meme depliage que `merge_frames_read()` : sinon les feuilles
-  # d'un classeur sont bien fusionnees, mais aucune de leurs colonnes n'est
-  # proposee comme cle — la jointure devient impossible a parametrer.
+  # Pour peupler les menus de cles, on ne lit que les EN-TETES (noms de
+  # colonnes), pas les donnees completes : lire 5 fichiers entiers en memoire
+  # des la selection pouvait saturer la memoire et fermer l'application.
   merge_headers_read <- shiny::reactive({
     mf <- tryCatch(merge_frames_read(), error = function(e) NULL)
     if (is.null(mf)) return(NULL)
@@ -536,8 +454,7 @@ server <- function(input, output, session) {
       base <- tools::file_path_sans_ext(fp$name[i])
       # Un classeur est DEPLIE en ses feuilles : deposer deux classeurs de
       # trois feuilles ici donnait deux tableaux au lieu de six, les autres
-      # feuilles etant ignorees en silence. Un seul classeur multi-feuilles
-      # suffit desormais a alimenter une fusion.
+      # feuilles etant ignorees en silence.
       feuilles <- hstat_excel_sheets(fp$datapath[i])
       if (length(feuilles) > 1) {
         r <- tryCatch(hstat_excel_read_sheets(fp$datapath[i], feuilles),
@@ -620,22 +537,9 @@ server <- function(input, output, session) {
 
   # Liberer la connexion DuckDB a la fermeture de la session, ET vider ce que
   # cette session a mis en cache.
-  #
-  # LE JETON EST CAPTE ICI, pas dans le rappel : `onSessionEnded` s'execute hors
-  # du domaine reactif, ou `.hstat_session_id()` retombe sur « hors-session » --
-  # `hstat_cache_clear()` nu n'y retirerait donc rien.
-  #
-  # Sans ce vidage, le cache d'agregations ne se purgeait qu'au CHARGEMENT d'un
-  # fichier : les entrees d'une session terminee restaient dans l'espace de noms
-  # du paquet, que le processus garde. Mesure sur quarante sessions portant
-  # chacune 5 Mo : +367 Mo retenus, rien de libere.
   .hstat_jeton_session <- tryCatch(as.character(session$token)[1],
                                    error = function(e) NULL)
-  # GARDE DE SESSION (voir `hstat_session_deposer()`, R/utils.R). Une veille ou
-  # un verrouillage coupe le websocket, et la reprise de Shiny ouvre une session
-  # NEUVE : sans ce depot, l'utilisateur retrouvait une page reconnectee et vide.
-  # La cle vient de l'onglet (www/hstat-session.js, sessionStorage) ; elle n'est
-  # retenue qu'une fois validee.
+  # GARDE DE SESSION (voir `hstat_session_deposer()`, R/utils.R).
   .hstat_cle_session <- NULL
   shiny::observeEvent(input$hstat_session_cle, {
     cle <- input$hstat_session_cle
@@ -674,10 +578,8 @@ server <- function(input, output, session) {
     hstat_cache_clear(.hstat_jeton_session)
   })
 
-  # Banniere de mode (memoire vs hors-memoire)
-  # Indicateur global : l'application est-elle en mode hors-memoire ?
-  # (utilise par les conditionalPanel "calculer sur le jeu complet" au niveau
-  # racine de l'UI ; chaque module definit aussi le sien pour ses propres panels)
+  # Banniere de mode (memoire vs hors-memoire) Indicateur global :
+  # l'application est-elle en mode hors-memoire ?
   output$hstatBigData <- shiny::reactive({
     identical(values$dataMode, "duckdb") && !is.null(values$dbCon)
   })
@@ -826,10 +728,7 @@ server <- function(input, output, session) {
   options(lifecycle_verbosity = "quiet")
   suppressMessages(suppressWarnings(library(ggplot2)))
   
-  # Theme des graphiques multivaries HISTORIQUES (ACP, HCPC, AFD). Ils
-  # passaient tous `ggtheme = theme_minimal()` en dur : le graphique ne
-  # s'affichait donc JAMAIS tel que ggplot2 le dessine, quoi qu'on choisisse.
-  # Le defaut est desormais ggplot2 lui-meme.
+  # Theme des graphiques multivaries HISTORIQUES (ACP, HCPC, AFD).
   mv_ggtheme <- function(prefix = NULL) {
     choix <- (if (!is.null(prefix)) input[[paste0(prefix, "_theme")]] else NULL) %||%
              input$mv_theme %||% "gg"
@@ -838,10 +737,7 @@ server <- function(input, output, session) {
   }
 
   # Reglages de forme des analyses HISTORIQUES, greffes sur le graphique deja
-  # construit : sous-titre, position de la legende, grille. Le titre et les
-  # libelles d'axes existaient deja, ces trois-la manquaient partout.
-  # Un objet qui n'est pas un ggplot (dendrogramme trace en base R) ressort
-  # inchange plutot que de faire tomber la sortie.
+  # construit : sous-titre, position de la legende, grille.
   mv_legacy <- function(p, prefix) {
     if (!inherits(p, "ggplot")) return(p)
     st <- trimws(as.character(input[[paste0(prefix, "_subtitle")]] %||% "")[1])
@@ -858,17 +754,7 @@ server <- function(input, output, session) {
   # LA TAILLE PHYSIQUE EST L'ETAT, LES PIXELS N'EN SONT QUE L'AFFICHAGE
   # ---------------------------------------------------------------------------
   # Un bloc d'export porte trois champs : resolution, largeur et hauteur en
-  # pixels. Ce que l'utilisateur regle en realite, c'est la taille de la figure
-  # sur le papier ; les pixels s'en deduisent (pixels = pouces x DPI).
-  #
-  # Tenir la taille physique ici, plutot que de la relire dans les champs a
-  # chaque fois, a deux consequences voulues :
-  #
-  #   - le recalcul des champs ne depend plus de leur valeur precedente ni de
-  #     l'ancienne resolution (voir mv_lier_dpi et hstat_px_pour_dpi) ;
-  #   - l'export fait pouces x DPI MEME SI l'affichage n'a pas suivi. Monter la
-  #     resolution monte alors la finesse dans tous les cas, ce qui est la
-  #     promesse faite a l'utilisateur.
+  # pixels.
   .mv_pouces <- new.env(parent = emptyenv())   # prefixe -> c(largeur, hauteur), en pouces
   .mv_ecrit  <- new.env(parent = emptyenv())   # prefixe -> c(l, h) que NOUS venons d'ecrire
 
@@ -883,11 +769,6 @@ server <- function(input, output, session) {
   }
 
   # Dimensions d'export d'un graphique multivarie, en POUCES.
-  #
-  # Ce qui existait ici derivait la taille du seul DPI, par paliers, et
-  # IGNORAIT les champs de largeur/hauteur affiches a cote : les regler ne
-  # faisait rien. Pire, le palier « > 300 DPI » REDUISAIT la figure de 10 % --
-  # demander plus de finesse rendait l'image plus petite sur le papier.
   mv_dims_export <- function(prefix, defaut_w_in = 10, defaut_h_in = 7.5) {
     po <- mv_pouces_export(prefix, defaut_w_in, defaut_h_in)
     list(dpi    = .hstat_num1(input[[paste0(prefix, "_dpi")]], 300),
@@ -895,12 +776,7 @@ server <- function(input, output, session) {
          height = po[2])
   }
   
-  # NOTE : `createPlotDownloadHandler()` vivait ici. Cette fabrique de
-  # gestionnaires de telechargement n'etait appelee NULLE PART -- les exports
-  # multivaries passent par mv_dims_export() et par le gestionnaire generique
-  # de mv_register(). Un helper mort portant un calcul de dimensions DIFFERENT
-  # de celui reellement employe est pire qu'absent : on le corrige en croyant
-  # corriger l'export.
+  # NOTE : `createPlotDownloadHandler()` vivait ici.
 
   
   
@@ -1138,17 +1014,8 @@ server <- function(input, output, session) {
   # ===========================================================================
   #  LES VARIABLES QUI N'APPRENNENT RIEN, NOMMEES ET CHOISIES UNE PAR UNE
   # ===========================================================================
-  #
   # Le panneau de colinearite repond a « ces deux variables disent la meme
-  # chose ». Celui-ci repond a l'autre question, qui n'etait posee nulle part :
-  # « cette variable dit-elle quelque chose SUR CE PLAN ? »
-  #
-  # Une fleche courte est une variable dont les axes affiches ne capturent
-  # presque rien -- on la lit pourtant comme les autres. Le tri se fait donc
-  # sur la qualite de representation (somme des cos2), du moins informatif au
-  # plus informatif, et le retrait reste un geste : on coche, on retire. Rien
-  # n'est ecarte d'office, exactement comme le temoin des gains ne se devine
-  # pas.
+  # chose ».
   pcaQualiteVar <- shiny::reactive({
     res <- pcaResultReactive()
     shiny::req(res)
@@ -1161,19 +1028,8 @@ server <- function(input, output, session) {
   })
 
   # LE PANNEAU SE SCINDE EN DEUX, ET CE N'EST PAS UN DETAIL DE MISE EN PAGE.
-  # Le cadre porte les COMMANDES (base de calcul, seuil, boutons) ; la liste
-  # porte ce qui DEPEND d'elles. Les garder ensemble ferait dependre le rendu
-  # du bouton radio de la valeur de ce meme bouton : chaque clic reconstruirait
-  # le widget sous le doigt de l'utilisateur -- le defaut deja corrige sur la
-  # table de saisie de l'onglet DL50.
   output$pcaLowInfoPanel <- shiny::renderUI({
-    # L'OUTIL EST OPTIONNEL, ET IL EST FERME PAR DEFAUT. Ce n'est pas un
-    # resultat de l'ACP : c'est un geste de tri que l'on vient chercher. Une
-    # boite qui s'ouvrirait d'elle-meme pousserait hors de l'ecran les
-    # reglages qu'on venait regler -- le defaut deja corrige sur les six boites
-    # vides de l'onglet multivarie. Le drapeau ferme aussi le CALCUL : les
-    # reactifs sont paresseux, `pcaQualiteVar()` n'est pas evalue tant que la
-    # case n'est pas cochee.
+    # L'OUTIL EST OPTIONNEL, ET IL EST FERME PAR DEFAUT.
     if (!isTRUE(input$pcaShowLowInfo)) return(NULL)
     res <- pcaResultReactive()
     if (is.null(res)) return(NULL)
@@ -1223,17 +1079,14 @@ server <- function(input, output, session) {
     base <- input$pcaLowInfoBase %||% "plan"
 
     # UNE MESURE QUI NE DISTINGUE RIEN NE DOIT PAS ETRE PRESENTEE COMME UN
-    # CLASSEMENT. Mesure : sur 5 variables et 5 composantes retenues, la somme
-    # des cos2 vaut EXACTEMENT 1 pour chacune -- les axes couvrent alors tout
-    # l'espace. Le tableau serait parfaitement lisible, et strictement plat.
+    # CLASSEMENT.
     espace_plein <- identical(base, "retenues") &&
       length(ax) >= NROW(qual) &&
       all(is.na(qual$Qualite) | abs(qual$Qualite - 1) < 1e-8)
 
-    # La selection survit au recalcul, mais seulement pour ce qui existe
-    # encore : sans l'intersection, une variable retiree resterait cochee sans
-    # figurer nulle part. `isolate()` empeche le rendu de boucler sur sa
-    # propre ecriture.
+    # La selection survit au recalcul, mais seulement pour ce qui existe encore
+    # : sans l'intersection, une variable retiree resterait cochee sans figurer
+    # nulle part.
     deja <- intersect(shiny::isolate(input$pcaLowInfoVars) %||% character(0),
                       qual$Variable)
 
@@ -1250,9 +1103,7 @@ server <- function(input, output, session) {
                              vapply(seq_len(NROW(qual)), etiquette, character(1)))
 
     shiny::tagList(
-      # LE SOUS-ESPACE FAIT PARTIE DU CHIFFRE, donc il est ecrit. Une variable
-      # mal representee sur le plan (1, 2) peut l'etre tres bien sur l'axe 3 :
-      # taire les axes employes ferait retirer une variable informative.
+      # LE SOUS-ESPACE FAIT PARTIE DU CHIFFRE, donc il est ecrit.
       shiny::tags$small(
         style = "color:#6c757d; display:block; margin:-4px 0 8px 0;",
         shiny::icon("info-circle"), " ",
@@ -1293,9 +1144,7 @@ server <- function(input, output, session) {
       return()
     }
     restantes <- setdiff(input$pcaVars %||% character(0), choisies)
-    # UNE ACP A BESOIN D'AU MOINS DEUX VARIABLES ACTIVES. Le meme garde-fou que
-    # le retrait automatique des colineaires, et pour la meme raison : mieux
-    # vaut refuser que rendre une analyse vide sans dire pourquoi.
+    # UNE ACP A BESOIN D'AU MOINS DEUX VARIABLES ACTIVES.
     if (length(restantes) < 2) {
       shiny::showNotification(
         tr("Impossible : une ACP demande au moins 2 variables actives. Décochez-en quelques-unes."),
@@ -1455,10 +1304,8 @@ server <- function(input, output, session) {
 
       if (!use_means) {
         fdata <- values$filteredData
-        # Variables ACTIVES : on ne garde que les colonnes NUMERIQUES parmi pcaVars.
-        # Toute variable categorielle selectionnee comme active est automatiquement
-        # basculee en variable qualitative supplementaire (evite l'erreur
-        # "The following variables are not quantitative").
+        # Variables ACTIVES : on ne garde que les colonnes NUMERIQUES parmi
+        # pcaVars.
         active_all <- input$pcaVars
         active_num <- active_all[vapply(fdata[, active_all, drop = FALSE], is.numeric, logical(1))]
         auto_quali <- setdiff(active_all, active_num)
@@ -1703,10 +1550,7 @@ server <- function(input, output, session) {
                    ),
                    list(txt = "", col = "#555555", icon = "info-circle")
     )
-    # DIRE QUELLE FAMILLE PORTE LA COULEUR. Sur un biplot, le degrade se pose
-    # sur les individus ou sur les variables selon la metrique ; sans cette
-    # ligne, l'utilisateur change de critere et voit changer une couleur sans
-    # savoir de quel cote regarder.
+    # DIRE QUELLE FAMILLE PORTE LA COULEUR.
     cible <- hstat_pca_cible_couleur(color_choice)
     sur_biplot <- identical(input$pcaPlotType %||% "var", "biplot")
     habille <- sur_biplot && isTRUE(input$pcaShowEllipses) &&
@@ -1926,10 +1770,7 @@ server <- function(input, output, session) {
     axis_x <- if (!is.null(input$pcaAxisX)) as.numeric(input$pcaAxisX) else 1
     axis_y <- if (!is.null(input$pcaAxisY)) as.numeric(input$pcaAxisY) else 2
 
-    # UN POINT QUI DISPARAIT SE NOMME. Une variable constante rend des
-    # coordonnees NaN : `factoextra` retire la fleche et l'ecrit dans la
-    # CONSOLE (« Removed 2 rows containing missing values »), pas a l'ecran.
-    # On voyait donc un cercle des correlations ampute sans savoir de quoi.
+    # UN POINT QUI DISPARAIT SE NOMME.
     .pca_signaler <- function(coord, quoi) {
       abs_ <- hstat_coord_incompletes(coord, c(axis_x, axis_y))
       if (length(abs_))
@@ -1958,13 +1799,7 @@ server <- function(input, output, session) {
       if (ax_x_s == ax_y_s) return(abs(cor_mat[, ax_x_s]))
       rowMeans(abs(cor_mat[, c(ax_x_s, ax_y_s), drop = FALSE]))
     }
-    # LE CHIFFRE ETAIT BON, LE NOM ETAIT FAUX. La legende annonce un « indice
-    # de saturation (|correlation|) » ; on rendait ici une somme de cos2,
-    # c'est-a-dire un CARRE. Pour un individu, le cos2 sur le plan est le carre
-    # du cosinus de l'angle qu'il fait avec lui : sa racine est donc bien
-    # l'analogue de la |correlation| d'une variable, et elle se lit sur la meme
-    # plage [0 ; 1] que celle des variables. Sans la racine, les deux familles
-    # portaient deux grandeurs differentes sous un seul mot.
+    # LE CHIFFRE ETAIT BON, LE NOM ETAIT FAUX.
     compute_sat_ind <- function(res, ax_x, ax_y) {
       cos2_mat <- res$ind$cos2
       n_dim    <- ncol(cos2_mat)
@@ -1988,11 +1823,9 @@ server <- function(input, output, session) {
     )
     
     # SUR UN BIPLOT, UNE SEULE FAMILLE PORTE LE DEGRADE, et laquelle depend de
-    # la metrique : la contribution repond a « quels points construisent
-    # l'axe » (les individus), le cos2 et la saturation a « ce plan
-    # represente-t-il bien cette mesure » (les variables). La regle est
-    # declaree une seule fois dans `R/utils.R` ; les deux appels a
-    # `fviz_pca_biplot` la lisent au meme endroit.
+    # la metrique : la contribution repond a « quels points construisent l'axe
+    # » (les individus), le cos2 et la saturation a « ce plan represente-t-il
+    # bien cette mesure » (les variables).
     cible_couleur <- hstat_pca_cible_couleur(color_choice)
     var_coloree   <- identical(cible_couleur, "var")
 
@@ -2015,9 +1848,8 @@ server <- function(input, output, session) {
                         repel = TRUE, max.overlaps = Inf, labelsize = lbl_var,
                         ggtheme = mv_ggtheme("pcaPlot"),
                         title = plot_title)
-      # Les labels des variables heritaient du degrade de couleur (contrib/cos2),
-      # rendant les noms clairs peu lisibles ("flous"). On force le TEXTE en noir
-      # et en gras, tout en gardant les fleches colorees par la metrique.
+      # Les labels des variables heritaient du degrade de couleur
+      # (contrib/cos2), rendant les noms clairs peu lisibles ("flous").
       p <- hstat_noircir_etiquettes(p)
       p <- hstat_apply_label_sizes(p, lbl_var)
     } else if (input$pcaPlotType == "ind") {
@@ -2031,9 +1863,7 @@ server <- function(input, output, session) {
       p <- hstat_apply_label_sizes(p, lbl_ind)
     } else {
       # Biplot : la famille designee par la metrique porte le degrade, l'autre
-      # prend une couleur neutre. Colorer les deux donnerait DEUX echelles sous
-      # UNE legende -- on comparerait alors la contribution d'un individu a
-      # celle d'une variable, qui ne sont pas la meme grandeur.
+      # prend une couleur neutre.
       p <- factoextra::fviz_pca_biplot(res.pca,
                            axes = c(axis_x, axis_y),
                            repel = TRUE, labelsize = lbl_ind, pointsize = pt_sz,
@@ -2044,9 +1874,7 @@ server <- function(input, output, session) {
                            title = plot_title)
       # Quand les fleches portent le degrade, leurs NOMS le portent aussi et
       # les teintes claires deviennent illisibles -- le defaut deja corrige sur
-      # le cercle des correlations. On force donc le texte en noir, comme le
-      # fait la branche « Variables », et seulement dans ce cas : l'appliquer
-      # quand les individus sont colores changerait leur rendu sans raison.
+      # le cercle des correlations.
       if (var_coloree) p <- hstat_noircir_etiquettes(p, n_cible = n_var_p, n_autre = n_ind_p)
       # Le biplot melange les deux familles de labels : on retaille apres coup
       # les calques de texte des variables, factoextra n'exposant qu'un seul
@@ -2084,9 +1912,7 @@ server <- function(input, output, session) {
         input$pcaPlotType %in% c("ind", "biplot")) {
       grp <- tryCatch(as.factor(values$filteredData[[input$pcaEllipseGroup]]), error = function(e) NULL)
       # Une ellipse de confiance suppose une covariance inversible DANS chaque
-      # groupe. Sans ce controle, ggpubr s'arretait sur « Computation failed in
-      # stat_conf_ellipse() ... valeur manquante la ou TRUE/FALSE est requis »,
-      # message qui ne nomme ni le groupe ni la cause.
+      # groupe.
       ell <- if (is.null(grp)) list(ok = FALSE, motif = NULL) else
         tryCatch({
           cm <- hstat_coord_mat(res.pca$ind$coord)
@@ -2394,8 +2220,7 @@ server <- function(input, output, session) {
     eigenvals_obs <- as.numeric(eig_mat[, 1])
     
     # FactoMineR peut renvoyer moins (ncp) ou un nombre de valeurs propres
-    # different de p (colonnes a variance nulle, etc.). On aligne tout sur
-    # le nombre commun de composantes pour eviter tout decalage de longueur.
+    # different de p (colonnes a variance nulle, etc.).
     n_pc <- min(length(eigenvals_obs), p)
     if (n_pc < 2)
       stop("Nombre de composantes insuffisant pour l'analyse parallèle (minimum 2).")
@@ -3130,10 +2955,7 @@ server <- function(input, output, session) {
   })
   
   # Reetiquette les individus d'un objet HCPC a partir d'une colonne source
-  # choisie par l'utilisateur (menu "Source des labels"). Sert a la fois au
-  # dendrogramme et a la carte des clusters : les deux representations utilisent
-  # ainsi la meme source de labels, choisie de facon independante de l'ACP.
-  # "rownames" (defaut) conserve les identifiants d'origine.
+  # choisie par l'utilisateur (menu "Source des labels").
   .hcpc_apply_label_source <- function(res.hcpc, source_col) {
     if (is.null(source_col) || identical(source_col, "rownames")) return(res.hcpc)
     fdata <- values$filteredData
@@ -3179,19 +3001,13 @@ server <- function(input, output, session) {
     n_clusters <- length(unique(res.hcpc$data.clust$clust))
     cluster_colors <- generate_distinct_colors(n_clusters)
     
-    # Taille des labels des feuilles : reglee en POINTS par l'utilisateur
-    # (12 a 24 pt). fviz_dend attend un facteur cex, ou cex = 1 correspond a la
-    # police de reference de 12 pt ; on impose ensuite la taille exacte sur les
-    # calques de texte du ggplot produit.
+    # Taille des labels des feuilles : reglee en POINTS par l'utilisateur (12 a
+    # 24 pt).
     n_individus <- nrow(res.hcpc$data.clust)
     dend_lbl_pt <- hstat_lbl_pt(input$hcpcLabelSize)
     cex_labels  <- hstat_lbl_pt2cex(input$hcpcLabelSize)
     # Largeur des branches : valeur du curseur PONDEREE par la densite du
-    # dendrogramme. Avec des centaines d'individus, les branches terminales sont
-    # separees de quelques pixels seulement : une largeur fixe les fait fusionner
-    # en aplats (branches "trop epaisses"). Le facteur reduit automatiquement la
-    # largeur quand les feuilles se densifient, tout en laissant le curseur
-    # piloter l'epaisseur globale.
+    # dendrogramme.
     dens_scale <- if (n_individus <= 100) 1
                   else if (n_individus <= 250) 0.6
                   else if (n_individus <= 500) 0.4
@@ -3254,11 +3070,10 @@ server <- function(input, output, session) {
         labs(caption = trf("Nombre de clusters : %s  --  Labels masqués (%s individus) : cochez « Afficher les labels » ou consultez les résultats détaillés.", n_clusters, n_individus))
     }
     
-    # Echantillonnage automatique des labels quand ils sont trop denses pour etre
-    # lisibles : au-dela de ~150 feuilles, chaque etiquette dispose de quelques
-    # pixels seulement et les textes se superposent quelle que soit leur taille.
-    # On n'affiche alors qu'un label sur k (k calcule pour viser ~120 labels
-    # visibles), regulierement espaces, et la note l'indique explicitement.
+    # Echantillonnage automatique des labels quand ils sont trop denses pour
+    # etre lisibles : au-dela de ~150 feuilles, chaque etiquette dispose de
+    # quelques pixels seulement et les textes se superposent quelle que soit
+    # leur taille.
     if (show_labels && n_individus > 150) {
       k <- ceiling(n_individus / 120)
       for (i in seq_along(p_dend$layers)) {
@@ -3344,9 +3159,7 @@ server <- function(input, output, session) {
     # Source des labels choisie par l'utilisateur (partagee avec le dendrogramme).
     res.hcpc <- .hcpc_apply_label_source(res.hcpc, input$hcpcLabelSource)
 
-    # Afficher des polygones convexes autour de chaque cluster. Les etiquettes
-    # individuelles sont masquees par defaut (illisibles au-dela de ~30 individus)
-    # et activables via hcpcShowLabels.
+    # Afficher des polygones convexes autour de chaque cluster.
     show_lab <- isTRUE(input$hcpcClusterShowLabels)
     hcpc_pt   <- if (!is.null(input$hcpcPointSize)) input$hcpcPointSize else HSTAT_GG_POINT_SIZE
     hcpc_txt  <- if (!is.null(input$hcpcAxisTextSize)) input$hcpcAxisTextSize else HSTAT_GG_BASE_SIZE
@@ -3690,19 +3503,6 @@ server <- function(input, output, session) {
       rand_indices <- numeric(n_boot)
       
       # LA GRAINE SE POSE AVANT LA BOUCLE, PAS DEDANS.
-      #
-      # `hstat_set_seed(input$globalSeed)` vivait a l'interieur : les trente
-      # sous-echantillons etaient donc trente copies du MEME tirage. Mesure :
-      # un seul tirage distinct sur cinq. Trois consequences, toutes muettes :
-      # l'ecart-type des indices de Rand valait 0 -- « parfaitement
-      # reproductible » -- la moyenne portait sur un seul echantillon, et le
-      # verdict affiche (« Excellente stabilite », « Faible stabilite ») ne
-      # decrivait qu'un tirage. Un bootstrap dont les replicats sont
-      # identiques ne mesure plus rien.
-      #
-      # Posee ici, la graine garde la reproductibilite -- deux sessions de meme
-      # graine rendent la meme suite -- et les trente tirages redeviennent
-      # differents entre eux, ce qui est tout l'objet de la methode.
       hstat_set_seed(input$globalSeed)
       for (b in 1:n_boot) {
         idx_b   <- sample(1:n, size = floor(n * prop), replace = FALSE)
@@ -4264,9 +4064,8 @@ server <- function(input, output, session) {
         
         # MASS::lda(CV = TRUE) rend la validation croisee « un contre tous »
         # d'un seul ajustement, la ou la boucle refaisait n ajustements et n
-        # copies du tableau -- des minutes sur quelques milliers de lignes, dans
-        # le processus que partagent toutes les sessions. La boucle ne sert plus
-        # que de repli, quand l'appel groupe echoue ou ecarte des lignes.
+        # copies du tableau -- des minutes sur quelques milliers de lignes,
+        # dans le processus que partagent toutes les sessions.
         cv_groupe <- tryCatch(withCallingHandlers(
           as.character(MASS::lda(afd_formula, data = afd_data, CV = TRUE)$class),
           warning = function(w) invokeRestart("muffleWarning")),
@@ -4535,12 +4334,6 @@ server <- function(input, output, session) {
     if (is.null(afd_predict) || is.null(afd_data) || !NROW(afd_data))
       stop("AFD : aucun ajustement disponible. Relancez l'analyse.")
     # LE GROUPE DOIT EXISTER DANS LES DONNEES, PAS SEULEMENT ETRE NOMME.
-    # `afd_data[[nom]]` rend NULL sur un nom absent, et affecter NULL a une
-    # colonne NE LA CREE PAS : `Groupe` restait introuvable, et l'erreur
-    # tombait bien plus loin, dans ggplot (« objet 'Groupe' introuvable »),
-    # sur une couche de densite qui n'y est pour rien. Le nom stocke peut ne
-    # plus designer une colonne des le moment ou le jeu de travail change.
-    # On retient donc le premier candidat REELLEMENT present.
     candidats <- c(afd_res$factor_name,
                    names(afd_data)[vapply(afd_data, is.factor, logical(1))],
                    names(afd_data)[ncol(afd_data)])
@@ -4567,8 +4360,7 @@ server <- function(input, output, session) {
     grp <- afd_data[[factor_name]]
     # Une projection peut compter moins de lignes que les donnees (individus
     # ecartes) : recoller un vecteur plus long leverait « replacement has n
-    # rows ». On refuse en le disant plutot que de laisser passer un
-    # appariement decale, qui rendrait un graphique plausible et faux.
+    # rows ».
     if (is.null(grp) || length(grp) != NROW(afd_df))
       stop("AFD : les groupes ne correspondent plus aux individus projetés. Relancez l'analyse.")
     afd_df$Groupe     <- grp
@@ -4783,11 +4575,7 @@ server <- function(input, output, session) {
     return(p_var)
   }
   
-  # UN REFUS SE LIT, UNE TRACE D'ERREUR NON. `stop()` dans un `renderPlot`
-  # affiche la pile rouge de R au milieu de l'onglet ; la meme phrase passee a
-  # `validate()` s'affiche comme un message. Le chemin du TELECHARGEMENT, lui,
-  # garde le `stop()` : `hstat_ecrire_image()` en fait le motif porte par
-  # l'image de secours, ce qui est exactement ce qu'il faut la-bas.
+  # UN REFUS SE LIT, UNE TRACE D'ERREUR NON.
   .afd_rendu <- function(expr) {
     p <- tryCatch(expr, error = function(e) conditionMessage(e))
     if (is.character(p)) shiny::validate(shiny::need(FALSE, p))
@@ -5247,13 +5035,7 @@ server <- function(input, output, session) {
   })
   # ---- Analyses multivariees etendues (quanti / quali / mixtes) ----
 
-  # L'INSTALLATION NE SE FAIT PAS DANS LE SERVEUR. Le bloc qui vivait ici
-  # tentait d'installer six paquets a CHAQUE session : hors ligne, chaque
-  # ouverture de l'application attendait l'expiration de la requete CRAN ; sur
-  # un serveur partage, la bibliotheque est le plus souvent en lecture seule, et
-  # deux sessions simultanees pouvaient y ecrire ensemble. Ces paquets sont
-  # desormais dans `hstat_model_packages` (Utils.R), installe une fois au
-  # demarrage.
+  # L'INSTALLATION NE SE FAIT PAS DANS LE SERVEUR.
   mv_has <- function(p) isTRUE(requireNamespace(p, quietly = TRUE))
 
   mv_res <- shiny::reactiveValues()
@@ -5283,11 +5065,8 @@ server <- function(input, output, session) {
     switch(choice %||% "contrib",
       "contrib" = "contrib", "cos2" = "cos2", "coord" = "coord", "contrib")
   }
-  # Dispatcher de visualisation factorielle (Variables / Individus / Biplot) avec
-  # coloration, communs a ACM / AFDM / AFM. 'kind' = "mca" | "famd" | "mfa".
-  # ptsz = taille des individus, arrsz = epaisseur des fleches de variables,
-  # lblsz / lblszvar = taille des labels (unite ggplot2) des INDIVIDUS et des
-  # VARIABLES / modalites, show_lab = afficher les labels des individus.
+  # Dispatcher de visualisation factorielle (Variables / Individus / Biplot)
+  # avec coloration, communs a ACM / AFDM / AFM.
   mv_factor_viz <- function(model, kind, plottype, colorby, title, subtitle,
                             ptsz = 2, arrsz = 0.6, lblsz = 4, lblszvar = NULL,
                             show_lab = FALSE,
@@ -5296,9 +5075,7 @@ server <- function(input, output, session) {
     axes <- as.integer(axes); if (length(axes) != 2 || any(is.na(axes))) axes <- c(1L, 2L)
     if (is.null(lblszvar)) lblszvar <- lblsz
     # Effectifs servant a distinguer, apres coup, les calques de texte des
-    # variables de ceux des individus sur un biplot. Chaque methode range ses
-    # coordonnees de variables ailleurs (modalites en ACM, quanti/quali en
-    # AFDM, groupes en AFM) : on collecte tous les effectifs candidats.
+    # variables de ceux des individus sur un biplot.
     n_ind_m <- tryCatch(nrow(model$ind$coord), error = function(e) NA_integer_)
     n_var_m <- unlist(lapply(
       list(model$var$coord, model$quanti.var$coord, model$quali.var$coord,
@@ -5326,13 +5103,8 @@ server <- function(input, output, session) {
     # ellipses de concentration. Les graphiques de variables gardent la metrique.
     cv_ind <- if (!is.null(grp)) grp else cv
     # Ellipses automatiques par groupe uniquement sur le trace des individus
-    # (le biplot melange individus et variables : addEllipses y est moins fiable).
-    # Meme controle que pour l'ACP : sans lui, un groupe de moins de trois
-    # individus -- ou aux coordonnees constantes, ou parfaitement alignees --
-    # faisait echouer stat_conf_ellipse() et le graphique perdait sa couche
-    # d'ellipses sans que rien n'en dise la raison.
-    # hstat_coord_mat : FactoMineR rend un VECTEUR nu des qu'il n'y a qu'un axe,
-    # et `coord[, i]` echoue alors sur « incorrect number of dimensions ».
+    # (le biplot melange individus et variables : addEllipses y est moins
+    # fiable).
     ell <- if (is.null(grp)) list(ok = FALSE, motif = NULL) else
       tryCatch({
         cm <- hstat_coord_mat(model$ind$coord)
@@ -5373,9 +5145,8 @@ server <- function(input, output, session) {
                        label = ind_lab, ggtheme = th)
             qv <- tryCatch(as.data.frame(hstat_coord_mat(model$quanti.var$coord)),
                            error = function(e) NULL)
-            # Le biplot superpose deux plans : il exige DEUX axes de chaque cote.
-            # Un modele reduit a une dimension n'en fournit qu'un, et
-            # `coord[, 2]` echouait ; on se rabat alors sur les seuls individus.
+            # Le biplot superpose deux plans : il exige DEUX axes de chaque
+            # cote.
             ind_co <- hstat_coord_mat(model$ind$coord)
             if (!is.null(qv) && ncol(qv) >= 2 && !is.null(ind_co) && ncol(ind_co) >= 2) {
               sc <- 0.9 * max(abs(range(c(ind_co[, 1], ind_co[, 2]))), na.rm = TRUE) /
@@ -5413,14 +5184,7 @@ server <- function(input, output, session) {
                        repel = TRUE, max.overlaps = Inf, pointsize = ptsz, labelsize = lblsz,
                        label = ind_lab, ggtheme = th),
           # Biplot AFM : factoextra N'A PAS de `fviz_mfa_biplot` -- pas plus
-          # que de `fviz_famd_biplot`, traite juste au-dessus. L'appel etait
-          # enferme dans un `tryCatch(error = NULL)` : choisir « biplot » sur
-          # une AFM rendait un graphique VIDE, sans un message. Le defaut
-          # n'existait qu'a l'ecran, jamais a la lecture ni a l'execution des
-          # tests ; c'est `R CMD check` qui l'a nomme.
-          #
-          # On le compose donc comme le biplot AFDM : individus colores, puis
-          # variables quantitatives en fleches noires.
+          # que de `fviz_famd_biplot`, traite juste au-dessus.
           {
             pind <- factoextra::fviz_mfa_ind(model, axes = axes, col.ind = cv_ind, gradient.cols = gc,
                        addEllipses = use_ellipse, ellipse.type = "confidence",
@@ -5470,9 +5234,8 @@ server <- function(input, output, session) {
       hstat_apply_label_sizes(p, lblszvar)
     else
       hstat_apply_label_sizes(p, lblsz, lblszvar, n_var_m, n_ind_m)
-    # Centrage : on rend les axes symetriques autour de l'origine (0,0) pour que
-    # le nuage ne soit pas tasse d'un cote. On lit les bornes effectives du plot
-    # (individus + fleches de variables) et on impose des limites symetriques.
+    # Centrage : on rend les axes symetriques autour de l'origine (0,0) pour
+    # que le nuage ne soit pas tasse d'un cote.
     p <- tryCatch({
       bld <- ggplot2::ggplot_build(p)
       xr <- bld$layout$panel_params[[1]]$x.range
@@ -5486,9 +5249,7 @@ server <- function(input, output, session) {
   }
 
   # Superpose des ellipses de concentration autour des individus d'une analyse
-  # factorielle (ACM / AFDM). 'prefix' = prefixe des inputs (ex. "mv_mca").
-  # 'group_values' = vecteur (longueur = nb individus actifs) servant a grouper
-  # les ellipses ; si NULL ou "__none__", une seule ellipse englobe tout.
+  # factorielle (ACM / AFDM).
   mv_add_ind_ellipses <- function(p, model, prefix, group_values = NULL) {
     if (is.null(p)) return(p)
     if (!isTRUE(input[[paste0(prefix, "_ellipse")]])) return(p)
@@ -5529,10 +5290,9 @@ server <- function(input, output, session) {
     }
     p
   }
-  # Boite "Options d'affichage des graphiques (optionnel)" COMPLETE et autonome,
-  # repliable, presente dans CHAQUE methode factorielle (ACM / AFDM / AFM).
-  # Chaque reglage a sa valeur par defaut alignee sur les reglages globaux, mais
-  # reste pilotable localement par methode.
+  # Boite "Options d'affichage des graphiques (optionnel)" COMPLETE et
+  # autonome, repliable, presente dans CHAQUE methode factorielle (ACM / AFDM /
+  # AFM).
   mv_viz_options_ui <- function(prefix) {
     shinydashboard::box(title = shiny::tagList(shiny::icon("sliders-h"), " Options d'affichage des graphiques (optionnel)"),
         status = "primary", width = 12, solidHeader = TRUE,
@@ -5607,12 +5367,6 @@ server <- function(input, output, session) {
 
   # Boite "Options d'affichage des graphiques (optionnel)" GENERIQUE pour les
   # methodes non factorielles (k-means, AFE, regressions, LCA, k-modes, etc.).
-  # Contient palette + tailles + texte gras + labels + export. Les inputs sont
-  # locaux a la methode (prefixe) avec repli sur les reglages globaux.
-  # Bloc commun aux boites d'options : ce qui manquait dans TOUTES les analyses
-  # multivariees -- titre, sous-titre, libelles d'axes, theme, position de la
-  # legende, grille -- et la taille d'export, dont les champs se recalculent au
-  # changement de resolution.
   mv_forme_box <- function(prefix, base_w_in = 10, base_h_in = 7.5) {
     shiny::tagList(
       .hstat_opt_section(
@@ -5811,10 +5565,7 @@ server <- function(input, output, session) {
                Seuil = seuil, Interpretation = interpretation,
                Statut = statut, stringsAsFactors = FALSE)
 
-  # Prefixe de la methode dont le graphique est en cours de rendu. IMPORTANT :
-  # ce N'EST PAS un reactiveVal (sinon lire+ecrire dans un renderPlot creerait une
-  # boucle d'invalidation infinie -> spinner bloque). On utilise une variable
-  # d'environnement simple, non reactive, posee juste avant l'appel a plotfn().
+  # Prefixe de la methode dont le graphique est en cours de rendu.
   .mv_prefix_env <- new.env(parent = emptyenv())
   .mv_prefix_env$cur <- NULL
   mv_active_prefix <- function(x) {
@@ -5832,16 +5583,6 @@ server <- function(input, output, session) {
   }
 
   # THEME : ggplot2 D'ABORD.
-  # Le module imposait son propre habillage (theme_minimal, titre centre en
-  # gras colore, legende en bas, grille secondaire retiree, base 12 pt). Un
-  # graphique doit d'abord s'afficher tel que ggplot2 le dessine -- c'est la
-  # reference que tout le monde connait -- et l'utilisateur s'en ecarte s'il le
-  # veut. L'inverse oblige a defaire avant de faire.
-  #
-  # "gg" (defaut) : theme_grey(11), exactement ggplot2.
-  # "hstat"       : titre centre, legende en bas (defini dans viz_get_theme).
-  # les autres    : les themes de HSTAT_THEMES_GG, partages avec les autres
-  #                 modules.
   mv_gg_theme <- function() {
     choix    <- .mv_loc("theme", input$mv_theme %||% "gg")
     txt_sz   <- .mv_loc("textsz", input$mv_text_size %||% HSTAT_GG_BASE_SIZE)
@@ -5867,10 +5608,7 @@ server <- function(input, output, session) {
     base
   }
   # Titres et libelles d'axes demandes par l'utilisateur, greffes sur le
-  # graphique DEJA construit. Aucune analyse n'a a les connaitre : une methode
-  # ajoutee plus tard en beneficie sans une ligne de plus. Un champ vide laisse
-  # le libelle calcule par l'analyse (axes, % de variance) -- l'effacer serait
-  # perdre une information que l'utilisateur n'a pas demande a perdre.
+  # graphique DEJA construit.
   mv_habille <- function(p) {
     if (!inherits(p, "ggplot")) return(p)
     txt <- function(suffix) {
@@ -5889,8 +5627,7 @@ server <- function(input, output, session) {
   # Tailles accessibles aux plotfns (locales par methode, sinon globales)
   mv_pt_size <- function() .mv_loc("ptsz", input$mv_point_size %||% HSTAT_GG_POINT_SIZE)
   # Tailles de labels : reglees en POINTS (12 a 24 pt) par l'utilisateur, une
-  # valeur pour les INDIVIDUS et une pour les VARIABLES / modalites. Les
-  # accesseurs renvoient directement l'unite ggplot2 (mm).
+  # valeur pour les INDIVIDUS et une pour les VARIABLES / modalites.
   mv_lbl_pt_ind  <- function() hstat_lbl_pt(.mv_loc("lblsz", input$mv_label_size))
   mv_lbl_pt_var  <- function() hstat_lbl_pt(.mv_loc("lblszvar", input$mv_label_size_var))
   mv_lbl_size     <- function() hstat_lbl_pt2gg(mv_lbl_pt_ind())
@@ -5917,11 +5654,8 @@ server <- function(input, output, session) {
     }
   }
 
-  # Echelles de couleur choisies par l'utilisateur pour les graphiques multivaries
-  # etendus. Renvoie une liste de scales (color + fill) a ajouter au ggplot.
-  # LE CATALOGUE COMMUN. Ce module tenait sa propre liste (Set1, Paired,
-  # plasma...) et posait `scale_*_brewer()`, qui rend en gris les modalites
-  # au-dela du plafond de la palette ; `hstat_scales_palette()` les interpole.
+  # Echelles de couleur choisies par l'utilisateur pour les graphiques
+  # multivaries etendus.
   mv_color_scale <- function(discrete = TRUE) {
     pal <- .mv_loc("palette", input$mv_palette %||% "default")
     if (identical(pal, "default")) return(NULL)
@@ -6010,9 +5744,7 @@ server <- function(input, output, session) {
             return()
           }
           # La largeur et la hauteur demandees etaient IGNOREES : le fichier
-          # sortait toujours carre, 9 pouces de cote. La taille physique retenue
-          # est desormais lue -- et non recalculee depuis les champs, pour que
-          # le fichier fasse pouces x DPI meme si l'affichage n'a pas suivi.
+          # sortait toujours carre, 9 pouces de cote.
           po   <- mv_pouces_export(paste0("mv_", kk), 10, 7.5)
           w_in <- po[1]
           h_in <- po[2]
@@ -6030,21 +5762,9 @@ server <- function(input, output, session) {
   # =========================================================================
   #  RESOLUTION : LA TAILLE SUIT, PARTOUT ET SANS EXCEPTION
   # -------------------------------------------------------------------------
-  #  Choisir 600 DPI sans toucher aux pixels ne changeait rien a la finesse :
-  #  la figure gardait la meme taille physique divisee par une resolution plus
-  #  grande, donc une image plus petite sur le papier. Les champs de largeur et
-  #  de hauteur se recalculent desormais a CHAQUE changement de resolution, a
-  #  taille physique constante -- ils disent alors exactement ce que le fichier
-  #  contiendra.
-  #
-  #  Le recalcul part de la TAILLE PHYSIQUE (.mv_pouces), jamais des pixels
-  #  affiches et d'une resolution precedente. La chaine « px x neuf / ancien »
-  #  qui vivait ici avait besoin de deux etats justes en meme temps : l'ancien
-  #  DPI retenu par le serveur, et les pixels tels que le navigateur les avait
-  #  deja renvoyes. Un panneau d'analyse reconstruit -- l'utilisateur revient
-  #  sur la fiche, recharge un fichier -- remet les champs a leur valeur
-  #  d'origine sans que l'ancien DPI change, et le maillon suivant repart d'une
-  #  valeur perimee. La taille physique ne depend ni de l'un ni de l'autre.
+  # Choisir 600 DPI sans toucher aux pixels ne changeait rien a la finesse : la
+  # figure gardait la meme taille physique divisee par une resolution plus
+  # grande, donc une image plus petite sur le papier.
 
   mv_lier_dpi <- function(prefix) {
     local({
@@ -6054,14 +5774,6 @@ server <- function(input, output, session) {
       iddpi <- paste0(pfx, "_dpi")
 
       # 1. L'utilisateur redimensionne : c'est lui qui fixe la taille physique.
-      #    `ignoreInit = FALSE` la releve des le premier passage, sur les
-      #    valeurs declarees dans l'interface -- rien n'est code en dur ici, et
-      #    un bloc dont les champs changeraient de defaut suit tout seul.
-      #
-      #    Nos propres ecritures reviennent par ce meme chemin : les ignorer est
-      #    indispensable. Un echo arrive en retard redefinirait sinon la taille
-      #    physique en divisant d'anciens pixels par la resolution DEJA changee,
-      #    et la figure retrecirait a chaque cran.
       shiny::observeEvent(list(input[[idw]], input[[idh]]), {
         w   <- .hstat_num1(input[[idw]], NA)
         h   <- .hstat_num1(input[[idh]], NA)
@@ -6077,9 +5789,7 @@ server <- function(input, output, session) {
       # 2. La resolution change : les champs disent les pixels produits.
       shiny::observeEvent(input[[iddpi]], {
         dpi <- .hstat_num1(input[[iddpi]], NA)
-        # Champ vide en cours de saisie : ne rien recalculer. Retomber sur une
-        # valeur par defaut redimensionnerait la figure a chaque effacement,
-        # sous les doigts de l'utilisateur.
+        # Champ vide en cours de saisie : ne rien recalculer.
         if (!isTRUE(is.finite(dpi)) || dpi <= 0) return()
         po <- .mv_pouces[[pfx]]
         if (is.null(po)) return()
@@ -6091,9 +5801,7 @@ server <- function(input, output, session) {
         shiny::updateNumericInput(session, idh, value = ph)
       }, ignoreInit = TRUE)
 
-      # 3. Ce que le fichier contiendra, ecrit sous les champs. Le lien entre la
-      #    resolution et la taille produite ne se voyait nulle part : il ne
-      #    restait qu'a le croire.
+      # 3. Ce que le fichier contiendra, ecrit sous les champs.
       output[[paste0(pfx, "_dimnote")]] <- shiny::renderUI({
         dpi <- .hstat_num1(input[[iddpi]], NA)
         w   <- .hstat_num1(input[[idw]], NA)
@@ -6113,9 +5821,7 @@ server <- function(input, output, session) {
   }
 
   # Les 14 analyses generiques (boites mv_disp_box / mv_viz_options_ui) et les
-  # 9 exports historiques (ACP, HCPC, AFD), declares dans UX.R. Aucune
-  # exception : c'est la demande, et c'est aussi la seule facon de ne pas
-  # laisser une analyse se comporter autrement que ses voisines.
+  # 9 exports historiques (ACP, HCPC, AFD), declares dans UX.R.
   MV_EXPORTS_DPI <- c(
     paste0("mv_", c("kmeans","efa","cfa","mtmm","pls","regmult","afc","mca",
                     "kmodes","lca","logit","famd","mfa","kproto")),
@@ -6201,9 +5907,7 @@ server <- function(input, output, session) {
   })
 
   # ---- MTMM : controles ------------------------------------------------------
-  # Chaque variable selectionnee mesure UN trait par UNE methode. L'affectation
-  # se fait soit automatiquement depuis le nom (format Trait<sep>Methode, coupe
-  # sur le DERNIER separateur), soit manuellement via une grille de saisie.
+  # Chaque variable selectionnee mesure UN trait par UNE methode.
   .mtmm_parse_name <- function(nm, sep) {
     # Coupe sur la DERNIERE occurrence LITTERALE du separateur (aucune regex :
     # robuste a tout separateur, y compris ".", "-", "|", etc.).
@@ -6814,15 +6518,7 @@ server <- function(input, output, session) {
           shiny::showNotification(trf("Variables ignorées (variance nulle ou NA) : %s", paste(names(X)[!keep], collapse = ", ")), type = "warning", duration = 5)
           X <- X[, keep, drop = FALSE]
         }
-        # LE RANG, PAS LE DETERMINANT. Deux colonnes qui se deduisent l'une de
-        # l'autre -- un total et ses parts, une mesure et la meme convertie --
-        # rendent la matrice de correlations singuliere. `psych::fa()` ne
-        # s'arrete pas pour autant : il imprime « Error in solve.default(r) »,
-        # « matrix is not invertible », bascule sur une PSEUDO-INVERSE et rend
-        # un tableau. L'utilisateur voit donc une pile d'erreurs a cote d'un
-        # resultat, sans savoir lequel croire.
-        # On retire les colonnes surnumeraires EN LES NOMMANT, et l'analyse
-        # porte alors sur une matrice reellement inversible.
+        # LE RANG, PAS LE DETERMINANT.
         col <- hstat_colineaires(X)
         if (length(col$redondantes)) {
           X <- X[, setdiff(names(X), col$redondantes), drop = FALSE]
@@ -6906,9 +6602,8 @@ server <- function(input, output, session) {
             if (identical(input$mv_efa_plot %||% "heat", "path")) {
               # ---- Diagramme des variables latentes (path diagram) ----
               # Facteurs latents (ellipses, a droite) relies aux variables
-              # observees (rectangles, a gauche) par des fleches dont l'epaisseur
-              # est proportionnelle a |saturation|. Seuls les liens |x| >= 0,30
-              # sont traces pour garder le schema lisible.
+              # observees (rectangles, a gauche) par des fleches dont
+              # l'epaisseur est proportionnelle a |saturation|.
               thr <- 0.30
               vars_n <- rownames(load); facs_n <- colnames(load)
               vdf <- data.frame(name = vars_n, x = 0,
@@ -6994,9 +6689,7 @@ server <- function(input, output, session) {
         d <- mv_data(); mdl <- input$mv_cfa_model
         if (is.null(mdl) || !nzchar(trimws(mdl)))
           return(list(ok = FALSE, error = "Renseignez la syntaxe du modèle de mesure."))
-        # lavaan ne supporte pas les noms avec espaces/parentheses. On remplace
-        # chaque nom de variable par un alias syntaxique (V1, V2, ...) dans le
-        # modele ET dans les donnees, en commencant par les noms les plus longs.
+        # lavaan ne supporte pas les noms avec espaces/parentheses.
         orig_names <- names(d)
         alias <- stats::setNames(paste0("V", seq_along(orig_names)), orig_names)
         d_safe <- d
@@ -7575,10 +7268,7 @@ server <- function(input, output, session) {
         eig <- ca$eig
         inertia <- sum(eig[,1])
         # Inertie nulle : les deux variables sont exactement independantes (le
-        # cas d'un plan croise equilibre, Traitement x Bloc). Les axes n'ont
-        # alors aucune part de variance (0/0 = NaN), et `dim12 >= 70` levait
-        # « missing value where TRUE/FALSE needed ». Ce n'est pas une erreur,
-        # c'est un resultat : on le dit.
+        # cas d'un plan croise equilibre, Traitement x Bloc).
         if (!is.finite(inertia) || inertia <= 1e-12) {
           eff <- hstat_effectif_propose(d)
           return(list(ok = FALSE, error = if (!en_table && is.null(ct$poids) && !is.null(eff)) trf(

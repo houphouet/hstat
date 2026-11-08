@@ -1,12 +1,8 @@
-#  Module Shiny : Machine Learning
-#  Supervisé (régression & classification, détection automatique de la tâche) :
-#  modèle linéaire/logistique, Ridge/Lasso/Elastic-Net (glmnet), arbre de
-#  décision (rpart), forêt aléatoire (randomForest), gradient boosting
-#  (xgboost), SVM (e1071), k plus proches voisins (kknn), Naïve Bayes (e1071),
-#  réseau de neurones à une couche (nnet).
-#  Non supervisé : k-means, CAH, PAM, DBSCAN, mélanges gaussiens (mclust).
-#  Métriques interprétées, importance des variables, ROC/matrice de confusion,
-#  simulateur de prédictions (saisie manuelle ou import), exports complets.
+# Module Shiny : Machine Learning Supervisé (régression & classification,
+# détection automatique de la tâche) : modèle linéaire/logistique,
+# Ridge/Lasso/Elastic-Net (glmnet), arbre de décision (rpart), forêt aléatoire
+# (randomForest), gradient boosting (xgboost), SVM (e1071), k plus proches
+# voisins (kknn), Naïve Bayes (e1071), réseau de neurones à une couche (nnet).
 
 .ml_catalog <- function() c(
   "Modèle linéaire / logistique"        = "lmglm",
@@ -20,11 +16,8 @@
   "Réseau de neurones 1 couche (nnet)"  = "nnet")
 
 # ---------------------------------------------------------------------------
-#  xgboost : l'interface xgboost::xgboost() a change d'API (data -> x,
-#  label -> y, 'params' supprime, 'verbose' non reconnu). L'appeler a l'ancienne
-#  faisait remonter une avalanche d'avertissements de depreciation a chaque
-#  ajustement (et deviendra une erreur). On passe donc par l'API stable
-#  xgb.train() + xgb.DMatrix(), identique d'une version a l'autre.
+# xgboost : l'interface xgboost::xgboost() a change d'API (data -> x, label ->
+# y, 'params' supprime, 'verbose' non reconnu).
 # ---------------------------------------------------------------------------
 .hstat_xgb_fit <- function(x, y, params, nrounds) {
   dm <- xgboost::xgb.DMatrix(as.matrix(x), label = as.numeric(y))
@@ -35,8 +28,7 @@
 
 # Normalise la sortie de predict() : selon la version de xgboost, un modele
 # multi:softprob renvoie soit un vecteur a plat (n * k), soit deja une matrice
-# n x k. On renvoie toujours une matrice n x k en multiclasse, un vecteur
-# numerique sinon.
+# n x k.
 .hstat_xgb_predict <- function(model, x, n_class = 1L) {
   pr <- suppressWarnings(stats::predict(model, as.matrix(x)))
   if (n_class > 2L) {

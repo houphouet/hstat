@@ -566,11 +566,7 @@ mod_descriptive_server <- function(id, values) {
   
   generate_desc_plot <- function() {
     shiny::req(values$filteredData, input$descPlotVar)
-    # UNE SELECTION SURVIT AU JEU DE DONNEES QU'ELLE DESIGNE. Apres un
-    # changement de fichier, le navigateur renvoie encore l'ancienne colonne :
-    # `.data[[input$descPlotVar]]` tombait alors sur « Column `ch_Hel` not
-    # found in `.data` », qui accuse les donnees pour un simple aller-retour en
-    # cours. On attend l'echo plutot que d'afficher un faux diagnostic.
+    # UNE SELECTION SURVIT AU JEU DE DONNEES QU'ELLE DESIGNE.
     fac <- input$descPlotFactor %||% "Aucun"
     shiny::req(hstat_cols_pretes(values$filteredData,
                                  c(input$descPlotVar,
@@ -649,9 +645,7 @@ mod_descriptive_server <- function(id, values) {
     if (is.null(color_palette)) color_palette <- "ggplot2"
     
     p <- if (input$descPlotFactor == "Aucun") {
-      # Sans groupe, deux couleurs suffisent (barres, densite). La palette de
-      # ggplot2 garde les teintes historiques de ce graphique ; les autres
-      # viennent du catalogue commun.
+      # Sans groupe, deux couleurs suffisent (barres, densite).
       cols2 <- if (identical(color_palette, "ggplot2")) c("#3498db", "#e74c3c")
                else hstat_palette_couleurs(color_palette, 2)
       hist_color <- cols2[1]; density_color <- cols2[2]
@@ -780,9 +774,7 @@ mod_descriptive_server <- function(id, values) {
     print(p)
   }, res = 96)
   
-  # L'export passe par le kit partage. La taille etait FIGEE a 9,8 x 7,1
-  # pouces : les curseurs voisins ne reglent que l'apercu a l'ecran, et rien
-  # n'agissait sur le fichier produit.
+  # L'export passe par le kit partage.
   output$descPlDl <- hstat_export_plot_handler(input, "descPl",
                        function() generate_desc_plot(), "graphique_descriptif")
   })

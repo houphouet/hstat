@@ -11532,3 +11532,17 @@ gabarits de la DL50 passent de `p = %.4f` à `p = %s`, clés du dictionnaire
 comprises. Un test barre le retour de `format.pval`, `fmt_p` et
 `chi2_interp_p` dans les sources.
 Le paquet `writexl` quitte `Suggests`, la liste d'installation et celle de la CI : il ne servait qu'à `.write_xlsx`.
+
+## Les commentaires disent la règle, l'historique vit ici
+
+Demandé à l'écran : les commentaires des sources avaient fini par raconter
+chaque correction — mesures, fausses pistes, « j'avais d'abord écrit… » —
+jusqu'à 31 % des lignes de `R/utils.R` et 30 % de `R/mod_dl50.R`. En 1.46.6,
+chaque bloc de commentaires est ramené à la phrase qui énonce la règle (et à
+la première phrase de chaque étape numérotée) : 12 600 lignes de commentaires
+deviennent environ 6 200, soit moins de 10 % des sources. Le code n'a pas
+changé d'une ligne ; le récit, lui, reste dans ce fichier et dans l'historique
+git.
+
+Règle pour la suite : un commentaire dit **pourquoi** le code est ainsi, en
+une ou deux lignes ; le récit de la découverte va dans `CLAUDE.md`.

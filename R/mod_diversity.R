@@ -3,16 +3,8 @@
 # ==============================================================================
 # Richesse observee et estimee, indices de diversite et d'equitabilite,
 # abondances, diversite beta, profils et rarefaction.
-#
-# LE MODULE NE CALCULE RIEN. Toutes les statistiques vivent dans `R/utils.R`
-# (`hstat_div_*`) : c'est la regle du depot, et elle se paie ici en clarte --
-# ce fichier choisit, affiche et met en forme, rien d'autre. Une statistique
-# posee dans un `observeEvent` ne serait pas testable, et `vegan` n'est pas
-# garanti present sur le poste de l'utilisateur.
 
-# Le catalogue des figures. Une SEULE sortie graphique, un seul bloc d'export,
-# un seul panneau d'options : huit `plotOutput` cote a cote auraient demande
-# huit blocs d'export a tenir d'accord, et c'est la copie oubliee qui ment.
+# Le catalogue des figures.
 HSTAT_DIV_GRAPHIQUES <- c(
   "Rangs-abondances (diagramme de Whittaker)" = "rang",
   "Abondance relative par espèce"             = "abondance",
@@ -24,15 +16,6 @@ HSTAT_DIV_GRAPHIQUES <- c(
   "Profil des nombres de Hill"                = "hill")
 
 # UNE ECHELLE CONTINUE NE SE REMPLACE PAS PAR UNE PALETTE QUALITATIVE.
-# La palette choisie par l'utilisateur est posee sur TOUTES les figures, ce qui
-# est juste tant que l'esthetique de groupe est discrete (une couleur par
-# releve, une par espece). La carte de chaleur, elle, remplit ses cases par une
-# VALEUR -- une dissimilarite entre 0 et 1 -- et porte donc sa propre echelle
-# continue. Lui poser `scale_fill_brewer` par-dessus fait lever ggplot sur
-# « Continuous value supplied to a discrete scale », et le graphique ne sort
-# pas du tout : mesure a l'ecran, sept figures sur huit s'affichaient.
-# La liste est declaree ici, a cote du catalogue : une neuvieme figure a
-# echelle continue s'y inscrit au lieu de retrouver le defaut.
 HSTAT_DIV_GRAPHIQUES_CONTINUS <- c("beta")
 
 # Les indices proposes au graphique « Indices par releve ». Declares une fois :
@@ -54,8 +37,7 @@ HSTAT_DIV_INDICES_TRACABLES <- c(
 
 # LE REGLAGE DES STADES EST LE MEME DANS LES DEUX FORMES : `ch_Cocc` peut tout
 # aussi bien etre une colonne (forme large) qu'une modalite de la colonne
-# d'especes (forme longue). Le declarer deux fois serait la copie oubliee qui
-# ment -- et c'est un reglage qui change la richesse.
+# d'especes (forme longue).
 .hstat_div_stades_ui <- function(ns) {
   shiny::tagList(
     shiny::checkboxInput(ns("divStades"),
@@ -80,9 +62,7 @@ mod_diversity_ui <- function(id) {
 
           .hstat_opt_section(
             "Forme du fichier", "table", "#16a085", "#e8f8f4",
-            # LE FORMAT SE DECLARE, IL NE S'INFERE PAS. Une fiche large dont la
-            # premiere colonne porte des noms d'especes serait lue a l'envers
-            # sans un mot, et tous les indices sortiraient plausibles et faux.
+            # LE FORMAT SE DECLARE, IL NE S'INFERE PAS.
             shiny::radioButtons(ns("divFormat"), NULL,
               choices = c("Long — une ligne par (relevé, espèce)" = "long",
                           "Large — une colonne par espèce"        = "large"),
@@ -97,10 +77,7 @@ mod_diversity_ui <- function(id) {
 
           .hstat_opt_section(
             "Base du logarithme", "calculator", "#8e44ad", "#f4ecf7",
-            # LA BASE FAIT PARTIE DU SEUIL, pas de l'affichage. La grille de
-            # Frontier est en bits, le cadrage de Magurran en nats : la meme
-            # valeur de H' y tombe dans deux classes differentes. Le verdict
-            # convertit avant de comparer, et le selecteur dit ce qui est lu.
+            # LA BASE FAIT PARTIE DU SEUIL, pas de l'affichage.
             shiny::selectInput(ns("divBase"), NULL,
               choices = HSTAT_DIV_BASES, selected = "2"),
             shiny::tags$small(style = "color:#6b7280;",
@@ -114,18 +91,10 @@ mod_diversity_ui <- function(id) {
         ),
 
         # LA BOITE D'OPTIONS N'EXISTE QUE QUAND IL Y A UNE FIGURE A REGLER.
-        # Construite d'emblee, elle pousse hors de l'ecran la seule chose que
-        # l'on vient regler -- le defaut deja corrige sur six boites ailleurs.
         shiny::conditionalPanel(
           ns = ns, condition = "output.hasDiv",
           shinydashboard::box(
-            # DEUX BOITES DU MEME NOM, C'EST UNE DE TROP. Celle-ci porte le
-            # CHOIX de la figure et ses parametres de calcul (indice trace,
-            # echelle, nombre d'especes, permutations) ; celle de la colonne de
-            # droite porte sa MISE EN FORME (titres, tailles, theme, marges).
-            # Sous un titre identique, qui cherche le theme ouvre celle-ci et ne
-            # le trouve pas -- le libelle qui promet ce que la carte ne porte
-            # pas, defaut que ce depot traque partout ailleurs.
+            # DEUX BOITES DU MEME NOM, C'EST UNE DE TROP.
             title = shiny::tagList(shiny::icon("sliders"), " Choix de la figure"),
             status = "primary", solidHeader = TRUE, width = 12, collapsible = TRUE,
             shiny::selectInput(ns("divGraphique"), "Graphique affiché",
@@ -309,13 +278,6 @@ mod_diversity_ui <- function(id) {
                     selected = "right")))),
             # LE MODULE PORTE SES PROPRES TAILLES (titre, titres d'axes,
             # graduations) : il ne les reprend pas du kit, qui n'en a qu'une.
-            # Tout le reste du vocabulaire de « Visualisation des donnees » lui
-            # arrive d'ici -- styles, inclinaisons des DEUX axes, bornes et pas
-            # de graduations -- plutot que d'etre recopie une treizieme fois.
-            #
-            # `divAngleX` et `divTitreStyle` ont disparu : le kit les porte sous
-            # `divXAngleX` et `divXStTitre`. Les garder en plus aurait donne
-            # DEUX reglages pour un meme trait, dont un seul agirait.
             hstat_plot_extras_ui(ns, "divX",
                                  familles = HSTAT_PLOT_EXTRAS_FAMILLES)
           )
@@ -359,9 +321,7 @@ mod_diversity_server <- function(id, values,
         shiny::tagList(
           # UN RELEVE EST SOUVENT DESIGNE PAR PLUSIEURS COLONNES : c'est le
           # croisement (traitement x periode x semaine) qui fait l'unite
-          # d'echantillonnage. N'en prendre qu'une agrege tout le reste sans un
-          # mot, et la beta-diversite compte alors trois releves la ou l'essai
-          # en porte quarante-cinq.
+          # d'echantillonnage.
           shiny::selectInput(ns("divSite"), "Colonnes identifiant le relevé (facultatif)",
             choices = cols, multiple = TRUE),
           shiny::tags$small(style = "color:#6b7280;",
@@ -448,9 +408,7 @@ mod_diversity_server <- function(id, values,
     })
 
     # ------------------------------------------------------------- AGREGATS
-    # Le peuplement TOTAL, toutes stations confondues. C'est la ligne que l'on
-    # interprete : les seuils de Frontier, de Pielou ou de Good portent sur un
-    # peuplement, pas sur la moyenne de plusieurs.
+    # Le peuplement TOTAL, toutes stations confondues.
     total_indices <- shiny::reactive({
       shiny::req(rv$mat)
       hstat_div_indices(colSums(rv$mat), input$divBase %||% "2")
@@ -480,15 +438,7 @@ mod_diversity_server <- function(id, values,
     })
 
     # ---------------------------------------------------------------- TABLES
-    # UN COMPTAGE N'A PAS DE DECIMALES. `formatRound` sur TOUTES les colonnes
-    # numeriques ecrivait « 392.000 individus » et « 12.000 especes » : on doute
-    # d'un entier affiche comme s'il avait trois decimales, et l'oeil cherche la
-    # partie fractionnaire qui le justifierait. C'est le defaut deja corrige sur
-    # le tableau de parametres de la DL50 (« 5.00000 degres de liberte »).
-    # Une colonne dont toutes les valeurs observees sont entieres est donc
-    # rendue SANS decimale ; les autres gardent la precision demandee. Le
-    # tableau EXPORTE, lui, reste numerique -- la mise en forme est un fait
-    # d'affichage, elle ne touche pas la donnee.
+    # UN COMPTAGE N'A PAS DE DECIMALES.
     .tab <- function(df, titre, digits = 4) {
       d <- DT::datatable(df, rownames = FALSE, filter = "top", extensions = "Buttons",
         options = list(pageLength = 15, scrollX = TRUE, dom = "Bfrtip",
@@ -656,13 +606,7 @@ mod_diversity_server <- function(id, values,
     })
 
     # -------------------------------------------------------------- GRAPHIQUE
-    # UNE SEULE FONCTION POUR HUIT FIGURES. L'apercu et le telechargement la
-    # lisent tous les deux : deux exemplaires du meme trace divergeraient a la
-    # premiere correction, et rien ne signalerait laquelle des deux ment.
-    # LES DEUX CALCULS COUTEUX VIVENT HORS DU REACTIF DU GRAPHIQUE. Celui-ci lit
-    # tous les reglages d'habillage -- titre, tailles, palette, opacite : sans
-    # cette separation, chaque lettre tapee dans le titre relancait jusqu'a
-    # mille permutations, dans le processus que partagent toutes les sessions.
+    # UNE SEULE FONCTION POUR HUIT FIGURES.
     rare_data <- shiny::reactive({
       shiny::req(rv$mat)
       m <- rv$mat
@@ -691,8 +635,7 @@ mod_diversity_server <- function(id, values,
 
         rang = {
           # Diagramme de Whittaker : les especes rangees de la plus abondante a
-          # la plus rare. La pente dit la dominance -- une droite raide signale
-          # un peuplement tenu par quelques especes.
+          # la plus rare.
           d <- hstat_div_abondance(m)
           d <- d[d$Abondance > 0, , drop = FALSE]
           d$Rang <- seq_len(nrow(d))
@@ -811,11 +754,7 @@ mod_diversity_server <- function(id, values,
 
       shiny::validate(shiny::need(!is.null(p), "Graphique inconnu."))
 
-      # LE KIT SE POSE EN DERNIER. Un theme complet remplace tout ce qui
-      # precede : pose avant celui du module, il serait efface sans un mot.
-      # LA LECTURE PORTE LES MEMES FAMILLES QUE LA DECLARATION : le defaut
-      # du kit n'en rend que quatre, et les cinq autres seraient declarees,
-      # deplacees, et sans effet.
+      # LE KIT SE POSE EN DERNIER.
       extras <- hstat_plot_extras_lire(input, "divX",
                                        familles = HSTAT_PLOT_EXTRAS_FAMILLES)
       titre  <- input$divTitre %||% ""
@@ -844,16 +783,9 @@ mod_diversity_server <- function(id, values,
         ggplot2::theme(
           # LE STYLE ET L'INCLINAISON VIENNENT DU KIT, posé juste après : on ne
           # fixe ici que ce que le kit ne porte pas -- les tailles nommées.
-          # Y redire une face ou un angle les figerait, et le réglage du kit
-          # se changerait sans que l'image bouge.
           plot.title = element_markdown(size = tsize, hjust = 0.5,
                                         face = extras$st_titre %||% "bold"),
-          # LE STYLE SE PASSE ICI, il ne s'herite pas. `axis.title.x` est un
-          # `element_textbox` qui fixe SA PROPRE face : le `axis.title` du kit
-          # est son PARENT, et un enfant qui declare la sienne n'herite rien.
-          # Le reglage etait donc declare, lu, applique au theme -- et l'image
-          # ne bougeait pas d'un octet. Mesure au navigateur : 20 814 octets
-          # avant et apres le changement de style.
+          # LE STYLE SE PASSE ICI, il ne s'herite pas.
           axis.title.x = hstat_axe_titre_lire(input, "div", size = asize,
                                               face = extras$st_axes %||% "plain",
                                               axe = "x"),
@@ -869,8 +801,7 @@ mod_diversity_server <- function(id, values,
             ggplot2::element_line() else ggplot2::element_blank()) +
         # `titre = FALSE` : le titre est pose ici en `element_markdown()`, et
         # ggplot refuse de lui fusionner un `element_text()` -- la figure
-        # entiere leverait. Le kit fournit la VALEUR du style, le module
-        # l'applique sur son propre element.
+        # entiere leverait.
         hstat_plot_extras_theme(extras, titre = FALSE)
       # LES BORNES ET LE PAS SONT DES ECHELLES, pas un theme : ils se posent
       # sur le graphique, jamais dans `theme()`.
