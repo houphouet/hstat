@@ -341,7 +341,6 @@ get_all_factor_candidates <- function(df, max_numeric_levels = 30) {
 # elle ne casse rien.
 # ===========================================================================
 
-HSTAT_LANGUES <- c("Français" = "fr", "English" = "en")
 
 # Le dictionnaire est cherche depuis le dossier de l'application, depuis la
 # racine du depot, et en remontant : la suite de tests tourne depuis
@@ -436,6 +435,17 @@ tr <- function(x, lang = hstat_langue_session(), dict = NULL) {
   out
 }
 
+# Echappement d'une chaine JSON. `fixed = TRUE` est indispensable : une barre
+# oblique inverse seule n'est pas une expression reguliere valide (« Trailing
+# backslash »), et les termes viennent du fichier de l'utilisateur.
+.hstat_json_esc <- function(s) {
+  s <- gsub("\\", "\\\\", s, fixed = TRUE)
+  s <- gsub("\"", "\\\"", s, fixed = TRUE)
+  s <- gsub("\r", "\\r", s, fixed = TRUE)
+  s <- gsub("\n", "\\n", s, fixed = TRUE)
+  gsub("\t", "\\t", s, fixed = TRUE)
+}
+
 # Dictionnaire serialise pour le navigateur. Sans jsonlite (Suggests), on
 # construit le JSON a la main — quelques echappements, et aucune dependance
 # imposee pour une fonctionnalite d'interface.
@@ -453,13 +463,7 @@ hstat_i18n_json <- function(lang = "en", path = hstat_i18n_path()) {
   # libelle d'interface « % colonne » doit continuer de partir.
   d <- d[!grepl(HSTAT_I18N_MARQUEUR, names(d))]
   if (!length(d)) return("{}")
-  esc <- function(s) {
-    s <- gsub("\\", "\\\\", s, fixed = TRUE)
-    s <- gsub("\"", "\\\"", s, fixed = TRUE)
-    s <- gsub("\r", "\\r", s, fixed = TRUE)
-    s <- gsub("\n", "\\n", s, fixed = TRUE)
-    gsub("\t", "\\t", s, fixed = TRUE)
-  }
+  esc <- .hstat_json_esc
   paste0("{", paste(sprintf("\"%s\":\"%s\"", esc(names(d)), esc(unname(d))),
                     collapse = ","), "}")
 }
@@ -1067,6 +1071,16 @@ hstat_part_equilibre <- function(sizes, seuil = 0.05) {
                  else if (part >= seuil) "ok" else "warn")
 }
 
+# Pastille de condition d'une analyse multivariee : verte, orange ou rouge.
+# Ecrite une fois -- trois copies mot pour mot vivaient dans app_server.R.
+.mv_badge <- function(ok, warn, label) {
+  st <- function(fond) paste0("display:inline-block;background:", fond,
+                              ";color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;")
+  if (ok)        shiny::div(style = st("#27ae60"), shiny::icon("check"), label)
+  else if (warn) shiny::div(style = st("#f39c12"), shiny::icon("exclamation-triangle"), label)
+  else           shiny::div(style = st("#e74c3c"), shiny::icon("times-circle"), label)
+}
+
 # Verdict a trois niveaux sur une statistique bornee. Renvoie « indeterminable »
 # et non une erreur quand la statistique n'a pas pu etre calculee : brancher sur
 # un NA ferait tomber toute la sortie (cf. hstat_p_verdict).
@@ -1234,7 +1248,6 @@ hstat_langue_session <- function() {
 #  raison : une option globale ferait basculer les exports de TOUS les
 #  utilisateurs d'un serveur partage. Hors Shiny, le point s'applique : c'est le
 #  comportement d'avant, et aucun appel existant ne change de sortie.
-HSTAT_DECIMALES <- c("Point (1.5)" = ".", "Virgule (1,5)" = ",")
 
 .hstat_decimale <- function(dec) {
   if (identical(as.character(dec)[1], ",")) "," else "."
@@ -1903,39 +1916,44 @@ hstat_glm_fit <- function(formula, data, family = stats::binomial(),
   list(fit = fit, note = hstat_glm_note(fit, warns, maxit))
 }
 
+# UN TEST QUI NE REJETTE PAS NE DEMONTRE RIEN. Shapiro-Wilk ou Levene a
+# p >= 0,05 dit que les donnees sont COMPATIBLES avec l'hypothese, pas qu'elle
+# est vraie : sur six valeurs, une distribution franchement asymetrique passe.
+# « La distribution est normale » se recopiait dans un rapport comme une
+# condition demontree. Les verdicts disent donc « non rejetee ».
 interpret_normality <- function(p_value) {
-  if (is.na(p_value)) return("Résultat non disponible")
+  if (is.na(p_value)) return(tr("Résultat non disponible"))
   if (p_value >= 0.05) {
-    return(trf("La distribution est normale (p = %s >= 0.05)", round(p_value, 8)))
+    trf("Normalité non rejetée (p = %s >= 0.05) : les données sont compatibles avec une loi normale.", round(p_value, 8))
   } else {
-    return(trf("La distribution n'est pas normale (p = %s < 0.05)", round(p_value, 8)))
+    trf("La distribution n'est pas normale (p = %s < 0.05)", round(p_value, 8))
   }
 }
 
 interpret_homogeneity <- function(p_value) {
-  if (is.na(p_value)) return("Résultat non disponible")
+  if (is.na(p_value)) return(tr("Résultat non disponible"))
   if (p_value >= 0.05) {
-    return(trf("Les variances sont homogènes (p = %s >= 0.05)", round(p_value, 8)))
+    trf("Homogénéité des variances non rejetée (p = %s >= 0.05) : les variances sont compatibles entre groupes.", round(p_value, 8))
   } else {
-    return(trf("Les variances ne sont pas homogènes (p = %s < 0.05)", round(p_value, 8)))
+    trf("Les variances ne sont pas homogènes (p = %s < 0.05)", round(p_value, 8))
   }
 }
 
 interpret_normality_resid <- function(p_value) {
-  if (is.na(p_value)) return("Test non applicable")
+  if (is.na(p_value)) return(tr("Test non applicable"))
   if (p_value > 0.05) {
-    return("Les résidus suivent une distribution normale (p > 0.05). Les conditions pour les tests paramétriques sont respectées.")
+    tr("Normalité des résidus non rejetée (p > 0.05) : les données sont compatibles avec les conditions des tests paramétriques.")
   } else {
-    return("Les résidus ne suivent pas une distribution normale (p < 0.05). Considérez l'utilisation de tests non-paramétriques.")
+    tr("Les résidus ne suivent pas une distribution normale (p < 0.05). Considérez l'utilisation de tests non-paramétriques.")
   }
 }
 
 interpret_homogeneity_resid <- function(p_value) {
-  if (is.na(p_value)) return("Test non applicable")
+  if (is.na(p_value)) return(tr("Test non applicable"))
   if (p_value > 0.05) {
-    return("Les variances sont homogènes (p > 0.05). Les conditions pour les tests paramétriques sont respectées.")
+    tr("Homogénéité des variances des résidus non rejetée (p > 0.05) : les données sont compatibles avec les conditions des tests paramétriques.")
   } else {
-    return("Les variances ne sont pas homogènes (p < 0.05). Utilisez des tests robustes à l'hétérogénéité des variances.")
+    tr("Les variances ne sont pas homogènes (p < 0.05). Utilisez des tests robustes à l'hétérogénéité des variances.")
   }
 }
 
@@ -3774,10 +3792,6 @@ hstat_etendue_axe <- function(valeurs, reperes = numeric(0)) {
   if (r[1] == r[2]) r + c(-0.5, 0.5) else r
 }
 
-hstat_pas_debut <- function(borne, pas) {
-  if (!isTRUE(is.finite(borne)) || !isTRUE(is.finite(pas)) || pas <= 0) return(borne)
-  floor(borne / pas) * pas
-}
 
 # UN PAS DE GRADUATION VIENT DU NAVIGATEUR, ET IL FIXE UN NOMBRE DE TRAITS.
 # `seq(debut, fin, by = pas)` en rend (fin - debut) / pas : un pas de 0,001 sur
@@ -6865,6 +6879,83 @@ hstat_garder_choix <- function(courant, choix, defaut = NULL) {
 # page caractere par caractere, dans le processus qui sert toutes les sessions.
 # On rend une seule chaine, jamais NA, coupee a `max` caracteres.
 HSTAT_TEXTE_CLIENT_MAX <- 500L
+# =============================================================================
+#  SELECTION DE LIGNES (« 1-5, 8, 10 a 12 »)
+# =============================================================================
+#  UNE SEULE DEFINITION. Filtrage et Nettoyage portaient chacun leur copie, et
+#  elles avaient derive : celle du Filtrage changeait TOUTE lettre « a » de la
+#  saisie en tiret, celle du Nettoyage seulement entre deux chiffres.
+hstat_lignes_selection <- function(selection_text, max_rows) {
+  if (is.null(selection_text) || nchar(trimws(selection_text)) == 0) {
+    stop("Veuillez entrer une sélection de lignes valide.")
+  }
+  
+  text <- trimws(selection_text)
+  text <- gsub("\\s+", " ", text)  
+  
+  # Remplacer différents formats de plage par un format uniforme.
+  # Correction : ne remplacer « a »/« à » que s'ils sont ENTRE deux chiffres
+  # (ex. « 1 a 5 »), sinon toute lettre a du texte etait transformee en tiret.
+  # « to » est accepte au meme titre : les exemples affiches sous le champ
+  # sont traduits, et une syntaxe montree doit etre une syntaxe acceptee.
+  text <- gsub("(?i)(?<=[0-9])\\s*(?:to|[a\u00e0])\\s*(?=[0-9])", "-", text, perl = TRUE)
+  
+  parts <- strsplit(text, ",")[[1]]
+  parts <- trimws(parts)
+  
+  # UN MASQUE, PAS UNE ACCUMULATION, et pour une raison mesuree : `c(all_rows, start:end)` en boucle recopie le
+  # vecteur a chaque tour, donc un cout QUADRATIQUE en nombre de plages, la
+  # ou le resultat est borne par `max_rows`. Chaque plage etant
+  # individuellement valide, aucune garde ne se declenche (mesure : 800
+  # plages valides = 237 s de gel contre 0,65 s ici, resultat identique).
+  vus <- logical(max_rows)
+  
+  for (part in parts) {
+    if (grepl("-", part)) {
+      # C'est une plage (ex: "1-10" ou "20-30")
+      range_parts <- strsplit(part, "-")[[1]]
+      range_parts <- trimws(range_parts)
+      
+      if (length(range_parts) != 2) {
+        stop(trf("Format de plage invalide : %s", part))
+      }
+      
+      start <- as.numeric(range_parts[1])
+      end <- as.numeric(range_parts[2])
+      
+      if (is.na(start) || is.na(end)) {
+        stop(paste("Plage invalide :", part))
+      }
+      
+      if (start > end) {
+        stop(trf("La ligne de début doit être <= ligne de fin dans : %s", part))
+      }
+      
+      if (start < 1 || end > max_rows) {
+        stop(paste("Plage hors limites :", part, "(min: 1, max:", max_rows, ")"))
+      }
+      
+      vus[start:end] <- TRUE
+      
+    } else {
+      row_num <- as.numeric(part)
+      
+      if (is.na(row_num)) {
+        stop(trf("Numéro de ligne invalide : %s", part))
+      }
+      
+      if (row_num < 1 || row_num > max_rows) {
+        stop(paste("Ligne hors limites :", row_num, "(min: 1, max:", max_rows, ")"))
+      }
+      
+      vus[row_num] <- TRUE
+    }
+  }
+  
+  # `which()` rend les indices deja tries et sans doublon.
+  return(which(vus))
+}
+
 hstat_texte_client <- function(x, max = HSTAT_TEXTE_CLIENT_MAX) {
   v <- if (is.null(x) || !length(x)) "" else as.character(x)[1]
   if (is.na(v)) v <- ""
@@ -7076,13 +7167,7 @@ hstat_i18n_termes_json <- function(df, ...) {
   # Meme echappement que hstat_i18n_json(). `fixed = TRUE` est indispensable :
   # une barre oblique inverse seule n'est pas une expression reguliere valide
   # (« Trailing backslash »), et le terme vient du fichier de l'utilisateur.
-  esc <- function(s) {
-    s <- gsub("\\", "\\\\", s, fixed = TRUE)
-    s <- gsub("\"", "\\\"", s, fixed = TRUE)
-    s <- gsub("\r", "\\r", s, fixed = TRUE)
-    s <- gsub("\n", "\\n", s, fixed = TRUE)
-    gsub("\t", "\\t", s, fixed = TRUE)
-  }
+  esc <- .hstat_json_esc
   paste0("[", paste(sprintf("\"%s\"", esc(t)), collapse = ","), "]")
 }
 
@@ -7443,14 +7528,6 @@ hstat_rdt_facteur <- function(unite, table) {
   NA_real_
 }
 
-# Conversion d'une grandeur d'une unite vers une autre, dans la meme famille.
-hstat_rdt_convertir <- function(x, de, vers, table) {
-  fd <- hstat_rdt_facteur(de, table)
-  fv <- hstat_rdt_facteur(vers, table)
-  x <- suppressWarnings(as.numeric(x))
-  if (is.na(fd) || is.na(fv) || fv == 0) return(rep(NA_real_, length(x)))
-  x * fd / fv
-}
 
 # Rendement, dans l'unite demandee.
 #
@@ -11303,7 +11380,7 @@ hstat_model_doc_ui <- function(id) {
   f <- hstat_model_doc(id)
   if (is.null(f)) return(NULL)
   shiny::div(class = "callout callout-info", style = "margin-top:8px;",
-      shiny::tags$p(shiny::icon("book"), shiny::strong(sprintf(" Fiche du modèle — %s", f$nom))),
+      shiny::tags$p(shiny::icon("book"), shiny::strong(trf(" Fiche du modèle — %s", f$nom))),
       shiny::tags$p(shiny::strong("Principe : "), f$principe),
       shiny::tags$p(shiny::strong("Objectif : "), f$objectif),
       shiny::tags$p(shiny::strong("Conditions d'application : "), f$conditions))
@@ -13073,13 +13150,16 @@ hstat_div_accumulation <- function(m, permutations = 100L, graine = 123L) {
   if (n < 1) return(NULL)
   hstat_set_seed(graine)
   acc <- matrix(NA_real_, permutations, n)
+  # Une espece est vue a partir du premier releve qui la porte : le cumul de
+  # presence est un maximum cumule par colonne. Vectorise par permutation --
+  # la double boucle scalaire faisait permutations x n tours interpretes
+  # (un million pour 1000 permutations sur 1000 releves). Memes tirages.
+  pres <- m > 0
   for (p in seq_len(permutations)) {
     ordre <- sample.int(n)
-    cum <- rep(0, ncol(m))
-    for (k in seq_len(n)) {
-      cum <- cum + m[ordre[k], ]
-      acc[p, k] <- sum(cum > 0)
-    }
+    vu <- apply(pres[ordre, , drop = FALSE], 2, cummax)
+    if (!is.matrix(vu)) vu <- matrix(vu, nrow = n)
+    acc[p, ] <- rowSums(vu)
   }
   data.frame(Releves = seq_len(n),
              Especes = colMeans(acc),
@@ -13525,15 +13605,6 @@ hstat_epi_ic_poisson <- function(x, conf = 0.95) {
   list(bas = bas, haut = haut, conf = conf)
 }
 
-# Un decompte se lit toujours avec son denominateur : le taux, et son intervalle,
-# heritent de l'exactitude du compte.
-hstat_epi_taux_ic <- function(x, temps, conf = 0.95, pour = 1) {
-  ic <- hstat_epi_ic_poisson(x, conf)
-  t <- suppressWarnings(as.numeric(temps))
-  t[!is.finite(t) | t <= 0] <- NA_real_
-  list(taux = x / t * pour, bas = ic$bas / t * pour, haut = ic$haut / t * pour,
-       conf = ic$conf)
-}
 
 # ===========================================================================
 #  DLNM -- surface exposition / retard / reponse

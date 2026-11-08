@@ -1231,18 +1231,6 @@ mod_viz_server <- function(id, values) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    # Depot des variables portees au graphique. Ici, et non dans le corps du
-    # module : les selecteurs sont namespaces, `input$vizXVar` n'existe qu'a
-    # l'interieur du moduleServer. Un graphique suggere une relation ;
-    # l'aide a la decision dit quel test la formaliserait.
-    shiny::observeEvent(list(input$vizXVar, input$vizYVar, input$vizType), {
-      d <- values$filteredData %||% values$data
-      if (is.null(d) || !NROW(d)) return()
-      vars <- intersect(unique(c(input$vizXVar, input$vizYVar)), names(d))
-      if (!length(vars)) return()
-      grp <- intersect(input$vizColorVar %||% character(0), names(d))
-    }, ignoreInit = TRUE)
-
   get_date_display_fmt <- function() {
     fmt <- input$xDateDisplayFormat %||% "%d-%m-%Y"
     if (viz_valid_date_fmt(fmt)) fmt else "%d-%m-%Y"

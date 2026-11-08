@@ -674,14 +674,6 @@ mod_threshold_server <- function(id, values) {
     legend_label_styles = NULL
   )
 
-  # Depot des donnees de seuils pour l'aide a la decision. Pose ICI, apres la
-  # creation de `threshold_values` : place plus haut, l'objet n'existe pas
-  # encore au moment ou l'observateur est enregistre.
-  shiny::observeEvent(threshold_values$plot_data, {
-    pd <- threshold_values$plot_data
-    if (is.null(pd) || !NROW(pd)) return()
-  }, ignoreInit = TRUE)
-
   # Reinitialisation globale : quand l'utilisateur clique sur "Réinitialiser" dans
   # l'en-tete de l'application, on remet ce module (Seuils d'efficacite) a zero :
   # etat interne efface et principaux controles visuels ramenes a leurs defauts.

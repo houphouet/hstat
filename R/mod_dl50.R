@@ -4885,8 +4885,7 @@ mod_dl50_server <- function(id, values) {
     fit <- shiny::reactive({
       e <- essai_actif()
       if (is.null(e)) return(NULL)
-      al <- .hstat_num1(input$alpha, 0.05)
-      al <- min(max(al, 0.001), 0.2)
+      al <- hstat_borne_client(input$alpha, 0.05, 0.001, 0.2)
       hstat_dl50_ajuste(e, input$methode %||% "em", alpha = al,
                         itmax = .hstat_num1(input$itmax, HSTAT_DL50_ITMAX),
                         chemin = input$chemin %||% "rapide",
@@ -4989,7 +4988,7 @@ mod_dl50_server <- function(id, values) {
                  sprintf("Y = %.5f + %.5f × %s", f$a, f$b, tr(voc_fit()$log10))),
         shiny::p(shiny::strong(tr("Mortalité naturelle estimée :")), " ",
                  sprintf("%.2f %%", 100 * f$c),
-                 sprintf(" (témoin : %.2f %%)", 100 * f$c_temoin)),
+                 trf(" (témoin : %.2f %%)", 100 * f$c_temoin)),
         {
           tc <- hstat_dl50_temoin_corrige(f)
           shiny::p(shiny::strong(tr(paste0(voc_fit()$temoin_corrige, " :"))), " ",
@@ -5218,7 +5217,7 @@ mod_dl50_server <- function(id, values) {
     fits_graphe <- shiny::reactive({
       cur <- essais_retenus()
       if (!length(cur)) return(list())
-      al <- min(max(.hstat_num1(input$alpha, 0.05), 0.001), 0.2)
+      al <- hstat_borne_client(input$alpha, 0.05, 0.001, 0.2)
       m <- input$methode %||% "em"
       choisis <- if (isTRUE(input$gTous)) cur else {
         e <- essai_actif()
@@ -5431,7 +5430,7 @@ mod_dl50_server <- function(id, values) {
     comparaison <- shiny::eventReactive(input$comparer, {
       cur <- essais_retenus()
       hstat_dl50_comparaison(unname(cur), input$scenario %||% "heterogene",
-                             alpha = min(max(.hstat_num1(input$alpha, 0.05), 0.001), 0.2))
+                             alpha = hstat_borne_client(input$alpha, 0.05, 0.001, 0.2))
     })
 
     output$messageComp <- shiny::renderUI({
@@ -5477,7 +5476,7 @@ mod_dl50_server <- function(id, values) {
       i <- match(input$puiRef %||% "", names(cur))
       hstat_dl50_puissance(unname(cur), reference = if (is.na(i)) 1L else i,
                            scenario = input$scenario %||% "heterogene",
-                           alpha = min(max(.hstat_num1(input$alpha, 0.05), 0.001), 0.2))
+                           alpha = hstat_borne_client(input$alpha, 0.05, 0.001, 0.2))
     })
 
     output$messagePui <- shiny::renderUI({
@@ -5525,7 +5524,7 @@ mod_dl50_server <- function(id, values) {
         return()
       }
       r <- hstat_dl50_fusion(unname(cur),
-                             alpha = min(max(.hstat_num1(input$alpha, 0.05), 0.001), 0.2))
+                             alpha = hstat_borne_client(input$alpha, 0.05, 0.001, 0.2))
       if (!isTRUE(r$ok)) {
         shiny::showNotification(r$message, type = "warning", duration = 12)
         return()
@@ -5629,11 +5628,5 @@ mod_dl50_server <- function(id, values) {
       d <- table_dose(); if (is.null(d)) NULL else list("Dose_par_mortalite" = d)
     }, "dl50_dose")
 
-    # -- L'assistance observe, elle n'instrumente pas -----------------------
-    shiny::observeEvent(fit(), {
-      f <- fit()
-      if (is.null(f) || !isTRUE(f$ok)) return()
-      dl <- doses_letales()
-    }, ignoreInit = TRUE)
   })
 }

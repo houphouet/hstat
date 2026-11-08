@@ -802,7 +802,7 @@ une borne, ggplot suit les données de ce côté), et le champ accepte le négat
 Zéro est **toujours** inclus dans l'étendue : c'est la référence de la formule
 d'Abbott, un cadre qui l'exclurait serait illisible.
 
-`hstat_pas_debut()` aligne les graduations sur le pas demandé : partir de la
+`hstat_graduations(aligner = TRUE)` aligne les graduations sur le pas demandé : partir de la
 borne brute donnait −37, −17, **3**, 23… et **zéro n'était pas gradué**, alors
 que c'est la seule graduation qui compte quand des valeurs sont négatives.
 Une ligne de référence à zéro s'ajoute quand des négatives existent.
@@ -11462,3 +11462,51 @@ filles, convertisseur. Décochée, `.fmt()` rend la valeur complète
 d'office) a disparu : deux réglages pour un même trait, c'est le second qui
 ment. Les facteurs de conversion écrits dans les formules sont eux aussi
 complets, et la concentration reprise dans un champ n'est plus arrondie.
+
+## Revue 1.46.1 : toute l'application, quatre angles
+
+Revue de code, de sécurité et de nettoyage menée sur l'ensemble des sources, pas
+sur un seul module. Ce qui a été corrigé :
+
+- **Une variable calculée n'écrase plus une colonne du fichier.** L'onglet
+  Nettoyage refusait un nom pris pour une variable constante, pas pour une
+  variable calculée : « Rendement » remplaçait la mesure d'origine sous une
+  notification de succès. Nom et valeur de la variable constante passent par
+  `hstat_texte_client()`.
+- **Un test qui ne rejette pas ne démontre rien.** `interpret_normality()` et
+  `interpret_homogeneity()` écrivaient « La distribution est normale » à
+  p ≥ 0,05 ; ils disent « non rejetée », et passent tous par `tr()`/`trf()`.
+- **Les exports de « Doses & dilutions » portent des nombres.** Ils recevaient
+  le texte de l'écran, séparateur de milliers compris (« 1 234.5 ») : un
+  tableur le lisait comme du texte. `.num_export()` rend les colonnes
+  numériques, arrondies seulement si l'utilisateur l'a demandé.
+- **Une seule sélection de lignes** : `hstat_lignes_selection()` remplace les
+  deux copies de Filtrage et Nettoyage, qui avaient dérivé.
+- **Code mort retiré** : onze observateurs de l'ancien onglet d'aide à la
+  décision (ils forçaient en plus l'évaluation de réactifs coûteux), la boucle
+  multivariée équivalente, deux aides de graphique du chi² post-hoc,
+  `.safe_book`, `kv_row`, `hstat_pas_debut`, `hstat_rdt_convertir`,
+  `hstat_epi_taux_ic`, `hstat_vol_vers_ref` et quatre constantes.
+- **Aides partagées** : `.hstat_json_esc()` (deux copies), `.mv_badge()` (trois
+  copies), `hstat_borne_client()` pour le risque α de la DL50 et trois nombres
+  de facteurs ou de composantes (un champ vidé envoyait NA),
+  `hstat_sans_accents()` dans la recherche de mémos (`iconv` rendait « 'e »
+  sous macOS et NA sur un UTF-8 invalide), `hstat_ecrire_classeur()` pour
+  l'export Excel multivarié (le nettoyage local écrivait « Donn_es » et faisait
+  lever deux noms identiques), `hstat_err_fr()` pour neuf messages d'erreur
+  bruts.
+- **Efficacité** : courbe d'accumulation vectorisée (mêmes tirages, même
+  résultat), validation croisée de l'AFD en un seul `lda(CV = TRUE)` au lieu de
+  n ajustements, distance de la CAH réutilisée par la silhouette, somme des
+  carrés intra de la HCPC sans boucle par individu, décomposition STL et
+  raréfaction/accumulation de la diversité sorties du réactif d'habillage.
+- **Traduction** : une vingtaine de phrases composées par `sprintf` passent par
+  `trf()`, et le verdict de richesse lexicale est écrit en deux phrases
+  entières.
+
+Laissé pour un lot à part, parce que chacun touche des valeurs affichées ou
+plusieurs modules : une seule échelle de p-values (`hstat_p_txt`), les cinq
+catalogues de palettes hors `hstat_scales_palette()`, les deux choisisseurs de
+thème multivariés, les blocs d'export d'image faits main (qualitatif,
+diagnostics du modèle), `.write_xlsx` du qualitatif, le VIF par `lm` répétés et
+le dépôt segment par segment du codage par dictionnaire.

@@ -604,7 +604,7 @@ server <- function(input, output, session) {
       merge_msg(list(ok = TRUE, msg = res$msg))
       shiny::showNotification(shiny::tagList(shiny::icon("check"), " ", res$msg), type = "message", duration = 5)
     }, error = function(e) {
-      merge_msg(list(ok = FALSE, msg = trf("Échec de la fusion : %s", conditionMessage(e))))
+      merge_msg(list(ok = FALSE, msg = hstat_err_fr(e, "Fusion")))
       shiny::showNotification(hstat_err_fr(e, "Fusion"),
                        type = "error", duration = 8)
     })
@@ -1594,7 +1594,7 @@ server <- function(input, output, session) {
                  "Réduisez le nombre de variables ou désactivez l'option 'Centrer/Réduire'."),
           type = "error", duration = 10)
       } else {
-        shiny::showNotification(trf("Erreur ACP : %s", msg), type = "error")
+        shiny::showNotification(hstat_err_fr(e, "ACP"), type = "error", duration = 10)
       }
       return(NULL)
     })
@@ -1760,11 +1760,7 @@ server <- function(input, output, session) {
     cond_p_min <- 2
     cond_p_rec <- 3
     
-    make_badge <- function(ok, warn, label) {
-      if (ok)   shiny::div(style="display:inline-block;background:#27ae60;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", shiny::icon("check"), label)
-      else if (warn) shiny::div(style="display:inline-block;background:#f39c12;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", shiny::icon("exclamation-triangle"), label)
-      else      shiny::div(style="display:inline-block;background:#e74c3c;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", shiny::icon("times-circle"), label)
-    }
+    make_badge <- .mv_badge
     
     n_ok   <- n_obs >= cond_n_rec
     n_warn <- !n_ok && n_obs >= cond_n_min
@@ -1826,11 +1822,7 @@ server <- function(input, output, session) {
     cond_n_min <- 2 * k
     cond_n_rec <- 10 * k
     
-    make_badge <- function(ok, warn, label) {
-      if (ok)   shiny::div(style="display:inline-block;background:#27ae60;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", shiny::icon("check"), label)
-      else if (warn) shiny::div(style="display:inline-block;background:#f39c12;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", shiny::icon("exclamation-triangle"), label)
-      else      shiny::div(style="display:inline-block;background:#e74c3c;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", shiny::icon("times-circle"), label)
-    }
+    make_badge <- .mv_badge
     
     n_ok   <- n_obs >= cond_n_rec
     n_warn <- !n_ok && n_obs >= cond_n_min
@@ -1896,11 +1888,7 @@ server <- function(input, output, session) {
     cond_p_min  <- 1
     cond_ratio  <- 10 * p_vars    # n/p >= 10
     
-    make_badge <- function(ok, warn, label) {
-      if (ok)   shiny::div(style="display:inline-block;background:#27ae60;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", shiny::icon("check"), label)
-      else if (warn) shiny::div(style="display:inline-block;background:#f39c12;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", shiny::icon("exclamation-triangle"), label)
-      else      shiny::div(style="display:inline-block;background:#e74c3c;color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;", shiny::icon("times-circle"), label)
-    }
+    make_badge <- .mv_badge
     
     n_ok_abs  <- n_obs > cond_n_abs
     n_ok_rec  <- n_obs >= cond_n_grp
@@ -2536,7 +2524,7 @@ server <- function(input, output, session) {
         return(invisible(NULL))
       }
       
-      n_factors <- max(1, min(input$pcaRotationNFactors, n_vars - 1, max(1, n_obs - 1)))
+      n_factors <- max(1, min(hstat_borne_client(input$pcaRotationNFactors, 2, 2, 10), n_vars - 1, max(1, n_obs - 1)))
       method    <- input$pcaRotationMethod
       
       R_mat <- safe_cor(pca_data_raw, use = "complete.obs")
@@ -2628,7 +2616,7 @@ server <- function(input, output, session) {
       cat("  - Les loadings |x| < 0,40 : contribution faible (souvent ignorée).\n")
       
     }, error = function(e) {
-      cat("Erreur lors de la rotation :", e$message, "\n")
+      cat(hstat_err_fr(e, tr("Rotation des facteurs")), "\n")
       cat("Conseil : Réduisez le nombre de facteurs ou changez de méthode de rotation.\n")
     })
   })
@@ -2858,7 +2846,7 @@ server <- function(input, output, session) {
         nc  <- length(idx)
         cm  <- colMeans(coords[idx, , drop = FALSE])
         SS_B <- SS_B + nc * sum((cm - grand_mean)^2)
-        for (i in idx) SS_W <- SS_W + sum((coords[i, ] - cm)^2)
+        SS_W <- SS_W + sum(sweep(coords[idx, , drop = FALSE], 2, cm)^2)
       }
       CH <- if (SS_W > 0) round((SS_B / (k - 1)) / (SS_W / (n - k)), 2) else NA
       
@@ -3587,9 +3575,7 @@ server <- function(input, output, session) {
         nc  <- length(idx)
         cm  <- colMeans(coords[idx, , drop = FALSE])
         SS_B <- SS_B + nc * sum((cm - grand_mean)^2)
-        for (i in idx) {
-          SS_W <- SS_W + sum((coords[i, ] - cm)^2)
-        }
+        SS_W <- SS_W + sum(sweep(coords[idx, , drop = FALSE], 2, cm)^2)
       }
       CH <- if (SS_W > 0) (SS_B / (k - 1)) / (SS_W / (n - k)) else NA
       CH <- round(CH, 2)
@@ -3784,7 +3770,7 @@ server <- function(input, output, session) {
     }, error = function(e) {
       shiny::div(style = "padding:10px; background:#f8d7da; border-radius:6px;",
           p(style = "margin:0; color:#721c24; font-size:12px;",
-            shiny::icon("exclamation-triangle"), " Erreur stabilité : ", e$message))
+            shiny::icon("exclamation-triangle"), " ", hstat_err_fr(e, tr("Stabilité de la classification"))))
     })
   })
   
@@ -4308,8 +4294,19 @@ server <- function(input, output, session) {
       if (!is.null(input$afdCrossValidation) && input$afdCrossValidation && !use_means) {
         factor_levels <- levels(afd_data[[input$afdFactor]])
         
+        # MASS::lda(CV = TRUE) rend la validation croisee « un contre tous »
+        # d'un seul ajustement, la ou la boucle refaisait n ajustements et n
+        # copies du tableau -- des minutes sur quelques milliers de lignes, dans
+        # le processus que partagent toutes les sessions. La boucle ne sert plus
+        # que de repli, quand l'appel groupe echoue ou ecarte des lignes.
+        cv_groupe <- tryCatch(withCallingHandlers(
+          as.character(MASS::lda(afd_formula, data = afd_data, CV = TRUE)$class),
+          warning = function(w) invokeRestart("muffleWarning")),
+          error = function(e) NULL)
         cv_predictions <- character(nrow(afd_data))
-        for (i in seq_len(nrow(afd_data))) {
+        if (length(cv_groupe) == nrow(afd_data)) {
+          cv_predictions <- ifelse(is.na(cv_groupe), "", cv_groupe)
+        } else for (i in seq_len(nrow(afd_data))) {
           train_data <- afd_data[-i, ]
           test_data  <- afd_data[i, , drop = FALSE]
           cv_pred_class <- tryCatch({
@@ -4350,7 +4347,7 @@ server <- function(input, output, session) {
           duration = 10
         )
       } else {
-        shiny::showNotification(trf("Erreur AFD : %s", err_msg), type = "error", duration = 10)
+        shiny::showNotification(hstat_err_fr(e, "AFD"), type = "error", duration = 10)
       }
       return(NULL)
     })
@@ -4904,12 +4901,6 @@ server <- function(input, output, session) {
       info_note <- function(text) {
         p(style = "font-size:13px; color:#5a6a7a; font-style:italic; margin:6px 0 0 0;", text)
       }
-      kv_row <- function(label, val) {
-        shiny::tags$tr(
-          shiny::tags$td(style = "padding:4px 10px 4px 0; color:#555; font-size:12px; white-space:nowrap;", label),
-          shiny::tags$td(style = "padding:4px 0; font-weight:bold; font-size:12px; color:#2c3e50;", val)
-        )
-      }
       
       acc_color <- if (accuracy >= .9) "#3a7d5c" else if (accuracy >= .8) "#4a7fa5" else if (accuracy >= .7) "#b07d2a" else "#c0392b"
       acc_interp <- if (accuracy >= .9) "Excellent -- la discrimination est quasi-parfaite."
@@ -5207,7 +5198,7 @@ server <- function(input, output, session) {
     }, error = function(e) {
       shiny::div(style = "padding:12px; background:#f8d7da; border-radius:6px;",
           p(style = "margin:0; color:#721c24;",
-            shiny::icon("exclamation-triangle"), " Erreur lors du rendu des métriques AFD : ", e$message))
+            shiny::icon("exclamation-triangle"), " ", hstat_err_fr(e, tr("Métriques de l'AFD"))))
     })
   })
   
@@ -6041,15 +6032,13 @@ server <- function(input, output, session) {
       filename = function() paste0("HStat_", key, "_", format(Sys.Date(), "%Y%m%d"), ".xlsx"),
       content = function(file) {
         r <- mv_res[[key]]
-        wb <- openxlsx::createWorkbook()
         exps <- if (!is.null(r) && !is.null(r$exports)) r$exports else
           list(Info = data.frame(Message = "Aucun résultat disponible"))
-        for (nm in names(exps)) {
-          sh <- substr(gsub("[^A-Za-z0-9_]", "_", nm), 1, 31)
-          openxlsx::addWorksheet(wb, sh)
-          openxlsx::writeData(wb, sh, hstat_decimale_classeur(exps[[nm]]))
-        }
-        openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+        # L'ecrivain commun nettoie ET distingue les noms de feuille : le
+        # nettoyage local changeait « Données » en « Donn_es », et deux noms
+        # identiques apres coup faisaient lever addWorksheet -- Shiny renvoyait
+        # alors sa page HTML sous le nom .xlsx.
+        hstat_ecrire_classeur(file, exps)
       })
     output[[paste0("mv_", key, "_dl_csv")]] <- shiny::downloadHandler(
       filename = function() paste0("HStat_", key, "_", format(Sys.Date(), "%Y%m%d"), ".csv"),
@@ -6195,38 +6184,9 @@ server <- function(input, output, session) {
     "hcpcCluster", "hcpcDend", "hcpcHeights", "afdInd", "afdVar")
   for (.pfx in MV_EXPORTS_DPI) mv_lier_dpi(.pfx)
 
-  # Libelles des analyses multivariees, pour l'onglet d'aide a la decision.
-  MV_LIBELLES <- c(
-    kmeans = "Classification k-means", efa = "Analyse factorielle exploratoire",
-    cfa = "Analyse factorielle confirmatoire", mtmm = "Matrice multitrait-multimethode",
-    pls = "Régression PLS", regmult = "Régression multiple",
-    afc = "Analyse factorielle des correspondances (AFC)",
-    mca = "Analyse des correspondances multiples (ACM)",
-    kmodes = "Classification k-modes", lca = "Analyse en classes latentes",
-    logit = "Régression logistique", famd = "Analyse factorielle de données mixtes (AFDM)",
-    mfa = "Analyse factorielle multiple (AFM)", kproto = "Classification k-prototypes")
-
   for (k in c("kmeans","efa","cfa","mtmm","pls","regmult","afc","mca",
               "kmodes","lca","logit","famd","mfa","kproto"))
     mv_register(k)
-
-  # Depot du resultat multivarie courant pour l'aide a la decision. Un
-  # observateur par cle plutot qu'un appel dans chacune des 14 analyses : le
-  # code de l'analyse n'a rien a savoir de l'assistance.
-  for (k in c("kmeans","efa","cfa","mtmm","pls","regmult","afc","mca",
-              "kmodes","lca","logit","famd","mfa","kproto")) {
-    local({
-      key <- k
-      shiny::observeEvent(mv_res[[key]], {
-        r <- mv_res[[key]]
-        if (is.null(r) || isFALSE(r$ok)) return()
-        vars <- unlist(lapply(paste0("mv_", key, c("_vars", "_x", "_y", "_num", "_quanti")),
-                              function(id) input[[id]]))
-        grp <- unlist(lapply(paste0("mv_", key, c("_group", "_cat", "_quali", "_facteur")),
-                             function(id) input[[id]]))
-      }, ignoreInit = TRUE)
-    })
-  }
 
   # ============================ CONTROLES =====================================
   mv_pick_num <- function(id, label, multiple = TRUE, selected = NULL) {
@@ -6937,7 +6897,7 @@ server <- function(input, output, session) {
         }
         # Le nombre de facteurs se compte sur les colonnes QUI RESTENT : le
         # champ a pu etre regle avant que la colinearite en retire.
-        nf <- max(1L, min(as.integer(input$mv_efa_nf %||% 2), ncol(X) - 1L))
+        nf <- max(1L, min(as.integer(hstat_borne_client(input$mv_efa_nf, 2, 1, 15)), ncol(X) - 1L))
         if (nrow(X) < 3*ncol(X))
           return(list(ok = FALSE, error = "Effectif trop faible pour une AFE fiable."))
         R <- stats::cor(X)
@@ -7441,7 +7401,7 @@ server <- function(input, output, session) {
         # Cap des composantes : <= nb predicteurs et marge pour la validation croisee
         max_comp <- max(1, min(length(xv), nrow(sub) - 1L))
         if (isTRUE(input$mv_pls_cv)) max_comp <- max(1, min(max_comp, nrow(sub) - 11L))
-        ncomp <- max(1, min(input$mv_pls_ncomp %||% 3, max_comp))
+        ncomp <- max(1, min(hstat_borne_client(input$mv_pls_ncomp, 3, 1, 15), max_comp))
         X <- as.matrix(sub[, xv, drop = FALSE])
         valid <- if (isTRUE(input$mv_pls_cv) && nrow(sub) >= 20) "CV" else "none"
 

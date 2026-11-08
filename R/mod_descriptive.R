@@ -322,13 +322,6 @@ mod_descriptive_server <- function(id, values) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    # Depot des statistiques descriptives pour l'aide a la decision. Ici, et non
-    # dans app_server.R : les selecteurs sont namespaces, `input$numVars`
-    # n'existe qu'a l'interieur de ce module.
-    shiny::observeEvent(values$descStats, {
-      df <- values$descStats
-      if (is.null(df) || !NROW(df)) return()
-    }, ignoreInit = TRUE)
   # ---- Analyse descriptives ----
   
   output$numVarSelect <- shiny::renderUI({

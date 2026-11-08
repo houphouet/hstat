@@ -1034,13 +1034,6 @@ hstat_agri_design <- function(type, factors, r = 3, seed = 123, k = NULL,
   # Les autres dispositifs (crd, fisher, lsd, factoriel, bib...) requierent agricolae.
   if (!requireNamespace("agricolae", quietly = TRUE))
     stop("Le package 'agricolae' est requis pour générer ce type de plan. Installez-le avec install.packages('agricolae').")
-  # Generateur robuste : agricolae renvoie parfois une closure (pas de generateur
-  # disponible pour la combinaison) au lieu d'un design -> message clair.
-  .safe_book <- function(res, label) {
-    if (is.null(res) || is.function(res) || is.null(res$book) || !is.data.frame(res$book))
-      stop(trf("%s : aucune configuration valide pour cette combinaison (nombre de traitements, taille de bloc k, répétitions). Essayez d'autres valeurs.", label))
-    res$book
-  }
   book <- switch(type,
     "crd" = agricolae::design.crd(trt = factors[[1]], r = r, seed = seed)$book,
     "fisher" = agricolae::design.rcbd(trt = factors[[1]], r = r, seed = seed)$book,

@@ -659,6 +659,26 @@ mod_diversity_server <- function(id, values,
     # UNE SEULE FONCTION POUR HUIT FIGURES. L'apercu et le telechargement la
     # lisent tous les deux : deux exemplaires du meme trace divergeraient a la
     # premiere correction, et rien ne signalerait laquelle des deux ment.
+    # LES DEUX CALCULS COUTEUX VIVENT HORS DU REACTIF DU GRAPHIQUE. Celui-ci lit
+    # tous les reglages d'habillage -- titre, tailles, palette, opacite : sans
+    # cette separation, chaque lettre tapee dans le titre relancait jusqu'a
+    # mille permutations, dans le processus que partagent toutes les sessions.
+    rare_data <- shiny::reactive({
+      shiny::req(rv$mat)
+      m <- rv$mat
+      do.call(rbind, lapply(seq_len(nrow(m)), function(i) {
+        cb <- hstat_div_courbe_rarefaction(m[i, ])
+        if (is.null(cb)) return(NULL)
+        cb$Releve <- rownames(m)[i]; cb
+      }))
+    })
+    accum_data <- shiny::reactive({
+      shiny::req(rv$mat)
+      perm <- as.integer(hstat_borne_client(input$divAccumPerm, 100, 10, 1000))
+      hstat_div_accumulation(rv$mat, permutations = perm,
+                             graine = hstat_finite(graine_globale(), 123))
+    })
+
     graphique <- shiny::reactive({
       shiny::req(rv$mat)
       m <- rv$mat
@@ -737,11 +757,7 @@ mod_diversity_server <- function(id, values,
         },
 
         rarefaction = {
-          d <- do.call(rbind, lapply(seq_len(nrow(m)), function(i) {
-            cb <- hstat_div_courbe_rarefaction(m[i, ])
-            if (is.null(cb)) return(NULL)
-            cb$Releve <- rownames(m)[i]; cb
-          }))
+          d <- rare_data()
           shiny::validate(shiny::need(!is.null(d) && nrow(d) > 0,
             "La raréfaction demande des effectifs entiers : elle compte des individus."))
           ggplot2::ggplot(d, ggplot2::aes(x = .data[["Individus"]], y = .data[["Especes"]],
@@ -752,9 +768,7 @@ mod_diversity_server <- function(id, values,
         },
 
         accumulation = {
-          perm <- as.integer(hstat_borne_client(input$divAccumPerm, 100, 10, 1000))
-          d <- hstat_div_accumulation(m, permutations = perm,
-                                      graine = hstat_finite(graine_globale(), 123))
+          d <- accum_data()
           shiny::validate(shiny::need(!is.null(d) && nrow(d) > 0,
             "La courbe d'accumulation demande au moins un relevé."))
           ggplot2::ggplot(d, ggplot2::aes(x = .data[["Releves"]], y = .data[["Especes"]])) +

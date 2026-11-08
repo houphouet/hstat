@@ -1443,12 +1443,5 @@ mod_yield_server <- function(id, values) {
         "</ul>")))
     })
 
-    # ---------------------------------------------------- capture pour l'IA
-    # Le registre est observe, pas instrumente : le module depose son resultat,
-    # l'onglet d'interpretation et le rapport le reprennent.
-    shiny::observeEvent(resultat(), {
-      r <- resultat()
-      if (!NROW(r)) return()
-    }, ignoreInit = TRUE)
   })
 }
