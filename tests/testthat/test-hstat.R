@@ -25195,3 +25195,32 @@ test_that("Solution mere : masse a peser et concentration en chiffres complets",
     expect_gt(nchar(hstat_fmt_complet(m$m_pese)), 8L)
   })
 })
+
+test_that("Doses et dilutions : aucun arrondi par defaut, l'arrondi est un choix", {
+  ui <- as.character(mod_dosage_ui("dosage"))
+  expect_match(ui, 'id="dosage-dosArrondir"', fixed = TRUE)
+  expect_false(grepl('id="dosage-dosArrondir" checked', ui, fixed = TRUE))
+  expect_false(grepl("dilDecimales", ui, fixed = TRUE))
+  vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  shiny::testServer(mod_dosage_server, args = list(values = vals), {
+    session$setInputs(mereTest = "tube", mereTubC = 40, mereTubCUnite = "mg/l",
+                      mereTubVflacon = 1, mereTubVflaconUnite = "ml",
+                      mereTubV = 1, mereTubVUnite = "l", mereTubP = 97.5,
+                      mereTubVprep = 100, mereTubVprepUnite = "ml")
+    h <- as.character(output$mereResultat$html)
+    expect_match(h, "41.025641025641 mg pour 1 l", fixed = TRUE)
+    # Coche, a deux decimales : la meme pesee, arrondie.
+    session$setInputs(dosArrondir = TRUE, dosDecimales = 2)
+    h <- as.character(output$mereResultat$html)
+    expect_match(h, "41.03 mg pour 1 l", fixed = TRUE)
+    expect_false(grepl("41.025641025641", h, fixed = TRUE))
+    # Le convertisseur suit le meme reglage.
+    session$setInputs(dosArrondir = FALSE, convCategorie = "quantite",
+                      convValeur = 1, convUnite = "g")
+    d <- conv_affiche()
+    expect_true("0.001" %in% d$Valeur)
+    session$setInputs(dosArrondir = TRUE, dosDecimales = 1)
+    expect_false("0.001" %in% conv_affiche()$Valeur)
+  })
+})

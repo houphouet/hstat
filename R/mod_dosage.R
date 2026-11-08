@@ -246,7 +246,7 @@ hstat_unite_table <- function(valeur, de, densite = NA, masse_molaire = NA) {
     r <- hstat_unite_convertir(v, a$unite, u$unite[i], densite, masse_molaire)
     val[i] <- r[1]
     f <- hstat_unite_convertir(1, a$unite, u$unite[i], densite, masse_molaire)[1]
-    note[i] <- if (is.finite(r[1])) trf("1 %s = %s %s", a$unite, hstat_fmt_nb(f, 6), u$unite[i])
+    note[i] <- if (is.finite(r[1])) trf("1 %s = %s %s", a$unite, hstat_fmt_complet(f), u$unite[i])
                else attr(r, "motif") %||% ""
   }
   data.frame(Groupe = u$groupe, Unite = u$libelle, Valeur = val, Conversion = note,
@@ -470,7 +470,7 @@ hstat_dose_bilan <- function(sens = c("dose", "grammage"),
 
   # La superficie est ecrite dans l'unite saisie : « pour 500 m² » se relit,
   # « pour 0.05 ha » oblige a refaire la conversion de tete.
-  s_aff <- paste(hstat_fmt_nb(surf_saisie), u_surf)
+  s_aff <- paste(hstat_fmt_complet(surf_saisie), u_surf)
   res <- data.frame(
     Grandeur = c(
       trf("Dose de produit commercial (%s)", u_dose),
@@ -514,7 +514,7 @@ hstat_dose_bilan <- function(sens = c("dose", "grammage"),
     ligne <- data.frame(
       Grandeur = trf(gabarit, vers[1]), Valeur = r[1],
       Formule = if (is.finite(r[1])) trf("Conversion : 1 %s = %s %s", de,
-                                         hstat_fmt_nb(f[1], 6), vers[1])
+                                         hstat_fmt_complet(f[1]), vers[1])
                 else attr(r, "motif") %||% "",
       stringsAsFactors = FALSE)
     i <- match(apres, res$Grandeur)
@@ -1331,6 +1331,18 @@ mod_dosage_ui <- function(id) {
               "dose qu'on ne peut pas refaire à la main sera de toute façon",
               "recalculé."))),
 
+    # L'ARRONDI EST UN CHOIX DE L'UTILISATEUR, jamais un defaut. Decochee, la
+    # case laisse chaque resultat a sa precision complete (hstat_fmt_complet) :
+    # c'est la valeur que l'on recopie sur une fiche de pesee. Un seul reglage
+    # pour les quatre onglets, comme dans les tests et les descriptives.
+    shiny::div(style = "background-color: #e8f4f8; border-left: 4px solid #17a2b8; padding: 10px; margin-bottom: 12px;",
+      shiny::fluidRow(
+        shiny::column(4, shiny::checkboxInput(ns("dosArrondir"), "Arrondir les résultats", value = FALSE)),
+        shiny::column(4, shiny::conditionalPanel(
+          ns = ns, condition = "input.dosArrondir == true",
+          shiny::numericInput(ns("dosDecimales"), "Décimales :", value = 2,
+                              min = 0, max = HSTAT_DEC_MAX, step = 1))))),
+
     shiny::tabsetPanel(
       id = ns("dosageTabs"),
 
@@ -1580,13 +1592,10 @@ mod_dosage_ui <- function(id) {
             shiny::helpText("Les résultats portent alors les ", shiny::strong("deux"),
                             " valeurs : celle que vous avez saisie et sa conversion,",
                             " chacune dans sa colonne et avec son unité."),
-            shiny::numericInput(ns("dilDecimales"), "Chiffres après la virgule",
-              value = 4, min = 0, max = HSTAT_DEC_MAX, step = 1),
             shiny::helpText("Une gamme profonde descend vite : au 1/10 depuis 100 g/l,",
-                            " la 5e fille vaut 0,001. Au-delà de 15 décimales un nombre",
-                            " à virgule flottante ne porte plus d'information ;",
-                            " une valeur trop petite pour l'affichage choisi passe",
-                            " automatiquement en notation scientifique."),
+                            " la 5e fille vaut 0,001. Les valeurs sont données en",
+                            " entier, sauf si vous cochez « Arrondir les résultats »",
+                            " en haut de la page."),
             shiny::hr(),
             shiny::actionButton(ns("dilAjouter"),
               shiny::tagList(shiny::icon("plus"), " Ajouter ce produit"),
@@ -1697,6 +1706,15 @@ mod_dosage_ui <- function(id) {
 # =============================================================================
 mod_dosage_server <- function(id, values) {
   shiny::moduleServer(id, function(input, output, session) {
+
+    # La mise en forme d'un resultat suit le reglage « Arrondir les resultats » :
+    # decoche (le defaut), la valeur est complete ; coche, elle est arrondie au
+    # nombre de decimales demande. Lu a chaque rendu, donc reactif.
+    .fmt <- function(x) {
+      if (!isTRUE(input$dosArrondir)) return(hstat_fmt_complet(x))
+      dec <- max(0L, min(HSTAT_DEC_MAX, as.integer(.hstat_num1(input$dosDecimales, 2))))
+      hstat_fmt_nb(x, dec)
+    }
     ns <- session$ns
 
     # -- Message d'echec, jamais un tableau vide sans explication -----------
@@ -1787,7 +1805,7 @@ mod_dosage_server <- function(id, values) {
       d <- dose_res()
       if (!nrow(d)) return(NULL)
       data.frame(Grandeur = d$Grandeur,
-                 Valeur   = hstat_fmt_nb(d$Valeur, 3),
+                 Valeur   = .fmt(d$Valeur),
                  Formule  = d$Formule, stringsAsFactors = FALSE)
     })
 
@@ -1835,7 +1853,7 @@ mod_dosage_server <- function(id, values) {
       d <- conv_res()
       if (!nrow(d)) return(NULL)
       data.frame(Groupe = d$Groupe, Unite = d$Unite,
-                 Valeur = hstat_fmt_nb(d$Valeur, 6), Conversion = d$Conversion,
+                 Valeur = .fmt(d$Valeur), Conversion = d$Conversion,
                  stringsAsFactors = FALSE)
     })
     output$convTable <- DT::renderDT({
@@ -1937,15 +1955,15 @@ mod_dosage_server <- function(id, values) {
       shiny::updateSelectInput(session, "dilUnite", selected = unite)
       shiny::updateNumericInput(session, "dilNbMa", value = 1)
       .ma_poser("dilMaNom1", attr(d, "matiere"))
-      shiny::updateNumericInput(session, "dilMaConc1", value = round(val, 6))
+      shiny::updateNumericInput(session, "dilMaConc1", value = val)
       # Le grammage est une quantite A L'HECTARE, pas une concentration : le
       # reprendre tel quel comme concentration mere est un choix de
       # l'utilisateur, il doit savoir ce qu'il vient de faire.
       shiny::showNotification(
         if (identical(src, "grammage"))
           trf("Grammage repris comme concentration mère : %s. Vérifiez l'unité — un grammage s'exprime par hectare, une concentration par litre.",
-              hstat_fmt_nb(val, 4))
-        else trf("Valeur reprise : %s %s.", hstat_fmt_nb(val, 4), unite),
+              .fmt(val))
+        else trf("Valeur reprise : %s %s.", .fmt(val), unite),
         type = "message", duration = 8)
     })
 
@@ -2062,10 +2080,8 @@ mod_dosage_server <- function(id, values) {
       # demander, et le nombre affiché ne serait plus celui du calcul.
       d <- hstat_dilution_convertir(d, input$dilConvVol %||% "",
                                     input$dilConvConc %||% "")
-      dec <- max(0L, min(HSTAT_DEC_MAX,
-                         as.integer(.hstat_num1(input$dilDecimales, 4))))
       num <- vapply(d, is.numeric, logical(1))
-      d[num] <- lapply(d[num], function(x) hstat_fmt_nb(x, dec))
+      d[num] <- lapply(d[num], .fmt)
       d
     })
     dil_affiche <- shiny::reactive({
@@ -2151,9 +2167,6 @@ mod_dosage_server <- function(id, values) {
                                Vprep = .mere_val("mereTubVprep", "ml")))
     })
 
-    # Six chiffres significatifs pour la quantite par flacon. La masse a peser
-    # et la concentration de la mere, elles, passent par hstat_fmt_complet().
-    .sig6 <- function(x) hstat_fmt_nb(signif(x, 6), 10)
 
     .mere_ligne <- function(libelle, valeur, formule) shiny::tags$tr(
       shiny::tags$td(libelle), shiny::tags$td(shiny::strong(valeur)),
@@ -2167,44 +2180,44 @@ mod_dosage_server <- function(id, values) {
       lignes <- switch(mere_test(),
         topique = list(
           .mere_ligne(tr("Matière active technique à peser"),
-                      trf("%s µg (%s mg)", hstat_fmt_complet(r$Q_ug), hstat_fmt_complet(r$Q_mg)), FM[["topique"]]),
+                      trf("%s µg (%s mg)", .fmt(r$Q_ug), .fmt(r$Q_mg)), FM[["topique"]]),
           .mere_ligne(tr("Concentration de la solution mère"),
-                      trf("%s µg m.a./µl", hstat_fmt_complet(r$c_mere)), FM[["topique_c"]]),
+                      trf("%s µg m.a./µl", .fmt(r$c_mere)), FM[["topique_c"]]),
           .mere_ligne(tr("Quantité déposée sur chaque insecte"),
-                      paste(hstat_fmt_nb(r$dose_individu, 6), "µg"), "D × x")),
+                      paste(.fmt(r$dose_individu), "µg"), "D × x")),
         disque = c(
           # La matiere active pure (C × V) n'est pas une ligne : on ne la pese
           # pas, et elle se lisait comme la quantite a peser. Le produit de
           # grade technique se nomme par son grade.
           if (!is.null(r$m_pese)) list(
             .mere_ligne(if (identical(r$produit, "technique")) tr("Grade technique")
-                        else tr("Produit à peser"), paste(hstat_fmt_complet(r$m_pese), "mg"),
+                        else tr("Produit à peser"), paste(.fmt(r$m_pese), "mg"),
                         if (identical(r$produit, "technique")) FM[["technique"]] else FM[["solide_pct"]]),
             .mere_ligne(tr("Concentration réelle (contrôle)"),
-                        paste(hstat_fmt_nb(r$c_reelle, 6), "mg/ml"), FM[["controle"]])),
+                        paste(.fmt(r$c_reelle), "mg/ml"), FM[["controle"]])),
           if (!is.null(r$v_formulation)) list(
             .mere_ligne(tr("Volume de formulation à prélever"),
-                        paste(hstat_fmt_nb(r$v_formulation, 4), "ml"),
+                        paste(.fmt(r$v_formulation), "ml"),
                         if (identical(r$produit, "liquide_gl")) FM[["liquide_gl"]] else FM[["liquide_pct"]])),
           list(.mere_ligne(tr("Concentration de la solution mère"),
-                           trf("%s mg/ml, soit %s mg/l", hstat_fmt_complet(r$c_mere),
-                               hstat_fmt_complet(r$niveau_haut)), "1 mg/ml = 1 000 mg/l"))),
+                           trf("%s mg/ml, soit %s mg/l", .fmt(r$c_mere),
+                               .fmt(r$niveau_haut)), "1 mg/ml = 1 000 mg/l"))),
         tube = list(
           .mere_ligne(tr("Matière active technique à peser"),
-                      trf("%s mg pour %s %s", hstat_fmt_complet(r$Q_mg),
-                          hstat_fmt_nb(.hstat_num1(input$mereTubV, NA_real_), 4),
+                      trf("%s mg pour %s %s", .fmt(r$Q_mg),
+                          .fmt(.hstat_num1(input$mereTubV, NA_real_)),
                           input$mereTubVUnite %||% "l"), FM[["tube"]]),
           if (is.finite(r$Q_prep)) .mere_ligne(
             tr("Matière active technique à peser (volume converti)"),
-            trf("%s mg pour %s %s", hstat_fmt_complet(r$Q_prep),
-                hstat_fmt_nb(.hstat_num1(input$mereTubVprep, NA_real_), 4),
+            trf("%s mg pour %s %s", .fmt(r$Q_prep),
+                .fmt(.hstat_num1(input$mereTubVprep, NA_real_)),
                 input$mereTubVprepUnite %||% "ml"), FM[["tube_prep"]]),
           .mere_ligne(tr("Quantité de matière active par flacon"),
-                      paste(.sig6(r$flacon_ug), "µg"), FM[["tube_flacon"]]),
+                      paste(.fmt(r$flacon_ug), "µg"), FM[["tube_flacon"]]),
           .mere_ligne(tr("Nombre de flacons à traiter"),
-                      hstat_fmt_nb(r$flacons, 2), "V ÷ v"),
+                      .fmt(r$flacons), "V ÷ v"),
           .mere_ligne(tr("Concentration de la solution mère"),
-                      trf("%s mg/l, soit %s mg/ml", hstat_fmt_complet(r$c_mgl), hstat_fmt_complet(r$c_mere)),
+                      trf("%s mg/l, soit %s mg/ml", .fmt(r$c_mgl), .fmt(r$c_mere)),
                       FM[["tube_c"]])))
       shiny::tags$table(class = "table table-condensed",
         shiny::tags$thead(shiny::tags$tr(shiny::tags$th(tr("Grandeur")),
@@ -2230,7 +2243,7 @@ mod_dosage_server <- function(id, values) {
       shiny::updateTabsetPanel(session, "dosageTabs", selected = "dilution")
       shiny::showNotification(
         trf("Solution mère reprise dans « Solutions filles (dilutions) » : %s mg/ml.",
-            hstat_fmt_complet(r$c_mere)),
+            .fmt(r$c_mere)),
         type = "message", duration = 8)
     })
 
