@@ -2993,9 +2993,9 @@ mod_coding_server <- function(id, values) {
       filename = function() sprintf("hstat_extraits_%s.xlsx", format(Sys.Date(), "%Y%m%d")),
       content = function(file) {
         df <- ret_df(); df$.seg_id <- NULL
-        # .write_xlsx() (mod_qualitative.R) assainit les noms d'onglets et
-        # sait se replier sur writexl ou le CSV si openxlsx manque.
-        .write_xlsx(list("Extraits codes" = df), file)
+        # hstat_ecrire_classeur() (R/utils.R) assainit les noms d'onglets et
+        # distingue deux noms identiques une fois tronques a 31 caracteres.
+        hstat_ecrire_classeur(file, list("Extraits codes" = df))
       })
 
     # ==================================================== MATRICE
@@ -3069,7 +3069,7 @@ mod_coding_server <- function(id, values) {
                                                 fileEncoding = "UTF-8"))
     output$dl_mat_xlsx <- shiny::downloadHandler(
       filename = function() sprintf("hstat_matrice_codes_%s.xlsx", format(Sys.Date(), "%Y%m%d")),
-      content = function(file) .write_xlsx(list("Matrice de croisement" = mat_df()), file))
+      content = function(file) hstat_ecrire_classeur(file, list("Matrice de croisement" = mat_df())))
 
     # ==================================================== NUAGE DE MOTS
     output$cloud_code_ui <- shiny::renderUI({
@@ -3166,8 +3166,8 @@ mod_coding_server <- function(id, values) {
       filename = function() sprintf("hstat_cooccurrences_%s.xlsx", format(Sys.Date(), "%Y%m%d")),
       content = function(file) {
         m <- cooc()
-        .write_xlsx(list("Cooccurrences" =
-                           data.frame(Code = rownames(m), m, check.names = FALSE)), file)
+        hstat_ecrire_classeur(file, list("Cooccurrences" =
+                           data.frame(Code = rownames(m), m, check.names = FALSE)))
       })
 
     # ================================= ASSISTANT DE CODAGE (3 moteurs)
@@ -3485,7 +3485,7 @@ mod_coding_server <- function(id, values) {
             if (is.null(m)) data.frame(Note = "Moins de deux codes")
             else data.frame(Code = rownames(m), m, check.names = FALSE)
           })
-        .write_xlsx(sheets, file)
+        hstat_ecrire_classeur(file, sheets)
       })
 
     output$dl_project <- shiny::downloadHandler(

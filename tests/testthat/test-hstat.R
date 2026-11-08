@@ -1163,18 +1163,27 @@ test_that(".safe_name produit des noms de fichiers propres", {
   expect_equal(.safe_name(""), "tableau")
 })
 
-test_that(".write_xlsx écrit un classeur multi-feuilles valide", {
+test_that("hstat_ecrire_classeur écrit un classeur multi-feuilles valide", {
   skip_if_not(requireNamespace("openxlsx", quietly = TRUE))
   set.seed(1)
   r <- hstat_q_nominal_bivariate(sample(c("A","B"), 80, TRUE),
                                  sample(c("X","Y","Z"), 80, TRUE), "G", "R")
   sheets <- c(list("Métriques" = r$metrics), r$tables)
   f <- tempfile(fileext = ".xlsx")
-  .write_xlsx(sheets, f)
+  hstat_ecrire_classeur(f, sheets)
   expect_true(file.exists(f) && file.size(f) > 3000)
   sn <- openxlsx::getSheetNames(f)
   expect_equal(length(sn), length(sheets))
   expect_true(all(nchar(sn) <= 31))
+  # La copie du module qualitatif tronquait APRES `make.unique` : deux noms
+  # identiques a 31 caracteres pres redevenaient un doublon, et Excel refuse.
+  long <- strrep("x", 40)
+  f2 <- tempfile(fileext = ".xlsx")
+  hstat_ecrire_classeur(f2, stats::setNames(list(r$metrics, r$metrics),
+                                            c(paste0(long, "a"), paste0(long, "b"))))
+  sn2 <- openxlsx::getSheetNames(f2)
+  expect_length(unique(sn2), 2)
+  expect_false(exists(".write_xlsx"))
 })
 
 test_that("l'export image fonctionne dans tous les formats", {

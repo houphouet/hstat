@@ -541,25 +541,12 @@ mod_descriptive_server <- function(id, values) {
     }
   )
   
-  output$downloadDescExcel <- shiny::downloadHandler(
-    filename = function() {
-      paste0("descriptives_", Sys.Date(), ".xlsx")
-    },
-    content = function(file) {
-      # openxlsx fait partie des packages requis ; repli propre si indisponible.
-      if (requireNamespace("openxlsx", quietly = TRUE)) {
-        openxlsx::write.xlsx(hstat_decimale_classeur(values$descStats), file)
-        shiny::showNotification("Fichier Excel téléchargé !", type = "message", duration = 3)
-      } else if (requireNamespace("writexl", quietly = TRUE)) {
-        writexl::write_xlsx(hstat_decimale_classeur(values$descStats), file)
-        shiny::showNotification("Fichier Excel téléchargé !", type = "message", duration = 3)
-      } else {
-        hstat_ecrire_csv(values$descStats, file, row.names = FALSE)
-        shiny::showNotification("Package Excel absent : export CSV fourni à la place.",
-                         type = "warning", duration = 5)
-      }
-    }
-  )
+  # L'ECRIVAIN COMMUN, pas une copie : le repli d'ici ecrivait du CSV dans un
+  # fichier nomme .xlsx, qu'Excel refusait d'ouvrir sans dire pourquoi.
+  output$downloadDescExcel <- hstat_classeur_handler(
+    function() if (is.null(values$descStats)) NULL else
+      list("Statistiques" = values$descStats),
+    "descriptives")
   
   output$descPlotVarSelect <- shiny::renderUI({
     shiny::req(values$filteredData)

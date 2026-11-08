@@ -12,33 +12,6 @@
   substr(x, 1, 60)
 }
 
-# Écriture d'un classeur Excel (une feuille par élément nommé de `sheets`).
-# Utilise openxlsx si présent, sinon writexl ; repli CSV concaténé sinon.
-.write_xlsx <- function(sheets, file) {
-  # noms de feuilles uniques, <= 31 caractères, sans caractères interdits
-  nm <- vapply(names(sheets), function(s) gsub("[\\\\/\\[\\]:*?]", "_", substr(s, 1, 31)),
-               character(1))
-  nm <- make.unique(nm, sep = "_"); names(sheets) <- substr(nm, 1, 31)
-  if (requireNamespace("openxlsx", quietly = TRUE)) {
-    wb <- openxlsx::createWorkbook()
-    for (s in names(sheets)) {
-      openxlsx::addWorksheet(wb, s)
-      openxlsx::writeData(wb, s, hstat_decimale_classeur(sheets[[s]]))
-      openxlsx::setColWidths(wb, s, cols = seq_len(ncol(sheets[[s]])), widths = "auto")
-    }
-    openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-  } else if (requireNamespace("writexl", quietly = TRUE)) {
-    writexl::write_xlsx(lapply(sheets, hstat_decimale_classeur), path = file)
-  } else {
-    con <- file(file, open = "w", encoding = "UTF-8"); on.exit(close(con))
-    for (s in names(sheets)) {
-      writeLines(paste0("# ", s), con)
-      hstat_ecrire_csv(sheets[[s]], con, row.names = FALSE)
-      writeLines("", con)
-    }
-  }
-}
-
 # Applique un style utilisateur (titres, tailles de police, gras/italique,
 # rotation, grille, axes/graduations en noir) à un ggplot déjà construit.
 # Base ggplot2 pure (pas de dépendance ggtext). Les champs titre/axes/légende
@@ -2961,7 +2934,7 @@ mod_qualitative_server <- function(id, values) {
                                    "_", Sys.Date(), ".xlsx"),
       content = hstat_contenu_sur(function(file) {
         tb <- current_table(); shiny::req(!is.null(tb))
-        .write_xlsx(stats::setNames(list(tb), substr(input$which_table %||% "Tableau", 1, 31)), file)
+        hstat_ecrire_classeur(file, stats::setNames(list(tb), input$which_table %||% "Tableau"))
       }))
 
     output$dl_all_csv <- shiny::downloadHandler(
@@ -2997,7 +2970,7 @@ mod_qualitative_server <- function(id, values) {
         sheets <- list()
         if (!is.null(r$metrics)) sheets[["Métriques"]] <- r$metrics
         for (nm in names(r$tables)) sheets[[substr(nm, 1, 31)]] <- r$tables[[nm]]
-        .write_xlsx(sheets, file)
+        hstat_ecrire_classeur(file, sheets)
       }))
   })
 }

@@ -992,16 +992,7 @@ server <- function(input, output, session) {
         pca_data_nzv <- remove_zero_var_cols(pca_data)
         if (ncol(pca_data_nzv) < 2) {
           stats::setNames(rep(NA_real_, ncol(pca_data)), names(pca_data))
-        } else {
-          vv <- sapply(seq_len(ncol(pca_data_nzv)), function(i) {
-            y <- pca_data_nzv[[i]]
-            x <- remove_zero_var_cols(pca_data_nzv[, -i, drop = FALSE])
-            if (ncol(x) == 0) return(Inf)
-            r2 <- tryCatch(suppressWarnings(summary(stats::lm(y ~ ., data = x))$r.squared), error = function(e) NA)
-            if (is.na(r2) || r2 >= 1) Inf else 1 / (1 - r2)
-          })
-          stats::setNames(vv, names(pca_data_nzv))
-        }
+        } else hstat_vif(pca_data_nzv)
       } else {
         stats::setNames(rep(NA_real_, ncol(pca_data)), names(pca_data))
       }
@@ -1336,14 +1327,7 @@ server <- function(input, output, session) {
       }
     }
     if (ncol(pca_data) >= 3) {
-      pca_nzv <- remove_zero_var_cols(pca_data)
-      vif_v <- sapply(seq_len(ncol(pca_nzv)), function(i) {
-        y <- pca_nzv[[i]]; x <- remove_zero_var_cols(pca_nzv[,-i, drop=FALSE])
-        if (ncol(x) == 0) return(Inf)
-        r2 <- tryCatch(suppressWarnings(summary(stats::lm(y~., data=x))$r.squared), error=function(e) NA)
-        if (is.na(r2)||r2>=1) Inf else 1/(1-r2)
-      })
-      names(vif_v) <- names(pca_nzv)
+      vif_v <- hstat_vif(pca_data)
       to_remove <- unique(c(to_remove, names(vif_v[is.finite(vif_v) & vif_v > 10])))
     }
     
@@ -3972,14 +3956,7 @@ server <- function(input, output, session) {
     
     vif_vals <- tryCatch({
       if (ncol(afd_data) >= 3) {
-        afd_nzv <- remove_zero_var_cols(afd_data)
-        v <- sapply(seq_len(ncol(afd_nzv)), function(i) {
-          y <- afd_nzv[[i]]; x <- remove_zero_var_cols(afd_nzv[,-i, drop=FALSE])
-          if (ncol(x) == 0) return(Inf)
-          r2 <- tryCatch(suppressWarnings(summary(stats::lm(y~., data=x))$r.squared), error=function(e) NA)
-          if (is.na(r2)||r2>=1) Inf else 1/(1-r2)
-        })
-        stats::setNames(v, names(afd_nzv))
+        hstat_vif(afd_data)
       } else rep(NA, ncol(afd_data))
     }, error=function(e) rep(NA, ncol(afd_data)))
     
@@ -4041,14 +4018,7 @@ server <- function(input, output, session) {
     for (i in seq_len(nrow(R_mat))) for (j in seq_len(ncol(R_mat)))
       if (i<j && abs(R_mat[i,j])>0.9999) to_rem <- c(to_rem, colnames(R_mat)[j])
     if (ncol(afd_d)>=3) {
-      afd_d_nzv <- remove_zero_var_cols(afd_d)
-      vif_v <- sapply(seq_len(ncol(afd_d_nzv)), function(i) {
-        y <- afd_d_nzv[[i]]; x <- remove_zero_var_cols(afd_d_nzv[,-i,drop=FALSE])
-        if (ncol(x)==0) return(Inf)
-        r2 <- tryCatch(suppressWarnings(summary(stats::lm(y~.,data=x))$r.squared), error=function(e) NA)
-        if(is.na(r2)||r2>=1) Inf else 1/(1-r2)
-      })
-      names(vif_v) <- names(afd_d_nzv)
+      vif_v <- hstat_vif(afd_d)
       to_rem <- unique(c(to_rem, names(vif_v[is.finite(vif_v) & vif_v>10])))
     }
     new_vars <- setdiff(input$afdVars, to_rem)

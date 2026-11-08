@@ -197,6 +197,36 @@ hstat_load_model_packages <- function(packages = hstat_model_packages) {
   v
 }
 
+# FACTEUR D'INFLATION DE LA VARIANCE, d'un seul calcul. Le VIF d'une variable
+# est le terme diagonal de l'inverse de sa matrice de correlation : un
+# ajustement `lm()` par variable rend exactement le meme nombre, mais p fois,
+# sur tout le tableau -- et deux panneaux le relancaient a chaque clic de
+# selection. Les lignes incompletes sont ecartees comme le faisait `lm()` (ses
+# p modeles portent tous sur les memes colonnes). Une matrice singuliere --
+# variables exactement colineaires -- retombe sur la definition par
+# regression, qui rend Inf a chacune des variables en cause.
+hstat_vif <- function(df) {
+  df <- remove_zero_var_cols(as.data.frame(df))
+  p <- ncol(df)
+  if (p == 0) return(stats::setNames(numeric(0), character(0)))
+  if (p == 1) return(stats::setNames(Inf, names(df)))
+  cc <- df[stats::complete.cases(df), , drop = FALSE]
+  par_lm <- function() vapply(seq_len(p), function(i) {
+    y <- df[[i]]; x <- remove_zero_var_cols(df[, -i, drop = FALSE])
+    if (ncol(x) == 0) return(Inf)
+    r2 <- tryCatch(suppressWarnings(summary(stats::lm(y ~ ., data = x))$r.squared),
+                   error = function(e) NA_real_)
+    if (is.na(r2) || r2 >= 1) Inf else 1 / (1 - r2)
+  }, numeric(1))
+  v <- tryCatch({
+    R <- stats::cor(cc)
+    if (anyNA(R) || rcond(R) < 1e-12) NULL else diag(solve(R))
+  }, error = function(e) NULL)
+  if (is.null(v)) v <- par_lm()
+  v[!is.finite(v) | v > 1e12] <- Inf
+  stats::setNames(unname(v), names(df))
+}
+
 remove_zero_var_cols <- function(df) {
   if (is.null(df) || !is.data.frame(df) || ncol(df) == 0) return(df)
   keep <- sapply(df, function(x) {
@@ -11013,7 +11043,11 @@ hstat_ecrire_classeur <- function(file, tables, dec = hstat_decimale_session()) 
     if (nm %in% vus) nm <- hstat_feuille_nom(paste0(substr(nm, 1, 27), "_", i))
     vus <- c(vus, nm)
     openxlsx::addWorksheet(wb, nm)
-    openxlsx::writeData(wb, nm, hstat_decimale_classeur(as.data.frame(tables[[i]]), dec))
+    t <- as.data.frame(tables[[i]])
+    openxlsx::writeData(wb, nm, hstat_decimale_classeur(t, dec))
+    # Colonnes a la largeur de leur contenu : un extrait de texte code ou un
+    # libelle long se lit sans avoir a elargir chaque colonne a la main.
+    if (ncol(t)) openxlsx::setColWidths(wb, nm, cols = seq_len(ncol(t)), widths = "auto")
   }
   openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
   length(tables)
