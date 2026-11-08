@@ -120,7 +120,7 @@ required_packages <- c(
   "rcompanion", "EMT", "bestNormalize", "lme4", "lmerTest", "afex", "ARTool",
   "glmmTMB", "vegan", "heplots", "data.table", "patchwork", "lavaan", "pls",
   "klaR", "poLCA", "clustMixType", "nnet", "DBI", "duckdb", "htmltools",
-  "magrittr", "readxl", "rlang", "svglite", "writexl", "mice", "missForest",
+  "magrittr", "readxl", "rlang", "svglite", "mice", "missForest",
   "VIM"
 )
 
@@ -1724,6 +1724,32 @@ hstat_p_verdict <- function(p, alpha = 0.05) {
   p <- suppressWarnings(as.numeric(p)[1])
   if (!is.finite(p)) return("indeterminable")
   if (p < alpha) "significatif" else "non significatif"
+}
+
+# Une seule écriture des p-values dans toute l'application. Une p-value nulle
+# n'existe pas : c'est la limite de la précision machine, écrite « < 2.2e-16 »
+# (la convention de R). Sous 1e-4, la notation scientifique garde l'ordre de
+# grandeur qu'un arrondi à quatre décimales écraserait en « 0.0000 ».
+hstat_p_txt <- function(p, digits = 4) {
+  p <- suppressWarnings(as.numeric(p))
+  vapply(p, function(x) {
+    if (!is.finite(x)) return(NA_character_)
+    if (x < 2.2e-16) return("< 2.2e-16")
+    if (x < 1e-4) return(formatC(x, format = "e", digits = 2))
+    formatC(x, format = "f", digits = digits)
+  }, character(1))
+}
+
+# Une seule échelle de significativité, et traduite. Elle existait en trois
+# copies (chi-deux des tests, qualitatif, multivarié) dont les paliers et les
+# mots différaient.
+hstat_p_niveau <- function(p) {
+  p <- suppressWarnings(as.numeric(p)[1])
+  if (!is.finite(p)) return(tr("Non calculable"))
+  if (p < 0.001) return(tr("Hautement significatif (p < 0.001)"))
+  if (p < 0.01)  return(tr("Très significatif (p < 0.01)"))
+  if (p < 0.05)  return(tr("Significatif (p < 0.05)"))
+  tr("Non significatif (p >= 0.05)")
 }
 
 interpret_test_results <- function(test_type, p_value, test_object = NULL) {
@@ -6112,12 +6138,12 @@ hstat_shapiro_groupes <- function(d, variables, facteurs,
   if (sig)
     sprintf(paste0("%s : l'écart à la référence (%s) est significatif ",
                    "(p = %s). La valeur observée (%s%s) est %s à la norme."),
-            label, format(mu), format.pval(p, digits = 3),
+            label, format(mu), hstat_p_txt(p),
             format(round(estimate, digits)), unit, sens)
   else
     sprintf(paste0("%s : aucun écart significatif à la référence (%s) ",
                    "(p = %s). Les données sont compatibles avec la norme."),
-            label, format(mu), format.pval(p, digits = 3))
+            label, format(mu), hstat_p_txt(p))
 }
 
 # Enveloppe de sortie commune.
@@ -6258,13 +6284,13 @@ hstat_ref_test <- function(x, mu = 0, method = "ttest",
     interp <- if (p < 0.05)
       sprintf(paste0("Équivalence démontrée (p = %s) : la moyenne observée (%s) ",
                      "est comprise dans la marge de +/- %s autour de la norme (%s)."),
-              format.pval(p, digits = 3), format(round(m, 4)), format(margin),
+              hstat_p_txt(p), format(round(m, 4)), format(margin),
               format(mu))
     else
       sprintf(paste0("Équivalence NON démontrée (p = %s) : on ne peut pas ",
                      "conclure que la moyenne observée (%s) reste dans la marge ",
                      "de +/- %s autour de la norme (%s)."),
-              format.pval(p, digits = 3), format(round(m, 4)), format(margin),
+              hstat_p_txt(p), format(round(m, 4)), format(margin),
               format(mu))
     return(.hstat_ref_out(
       "TOST (équivalence à la norme)",
@@ -6576,10 +6602,9 @@ hstat_test_apparie <- function(a, b, methode = c("t", "wilcoxon", "signe"),
   }
   verdict <- hstat_p_verdict(res$p.value)
   mesure <- if (methode == "t") tr("la différence moyenne") else tr("la différence médiane")
-  # format.pval() rend « <2e-16 » sous le seuil machine : « p = <2e-16 » se
-  # lirait mal. Le signe fait partie du texte de la p-value.
-  pf <- format.pval(res$p.value, digits = 3)
-  ptxt <- if (startsWith(pf, "<")) paste("p <", sub("^<\\s*", "", pf)) else paste("p =", pf)
+  # « p = < 2.2e-16 » se lirait mal : le signe fait partie du texte.
+  pf <- hstat_p_txt(res$p.value)
+  ptxt <- if (startsWith(pf, "<")) paste("p", pf) else paste("p =", pf)
   interp <- switch(verdict,
     # Deux phrases entieres et non un adjectif en argument : `trf()` ne traduit
     # pas ses arguments, et « supérieure à » ne se dit pas avec le meme ordre
@@ -17198,7 +17223,7 @@ hstat_rm_posthoc <- function(modele, within, between = character(0),
       if (length(parts) >= 2 && is.finite(p) && p < alpha)
         notes <- c(notes, trf(
           "L'interaction %s est significative (p = %s) : l'effet de chaque facteur dépend du niveau des autres. Lisez les effets simples ; les comparaisons d'un facteur seul moyennent sur les autres.",
-          paste(parts, collapse = " × "), format.pval(p, digits = 3)))
+          paste(parts, collapse = " × "), hstat_p_txt(p)))
     }
   }
   attr(res, "notes") <- notes

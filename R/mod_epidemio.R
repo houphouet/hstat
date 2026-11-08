@@ -740,7 +740,7 @@ mod_epidemio_server <- function(id, values) {
         w <- tryCatch(hstat_epi_dlnm_wald(courant()), error = function(e) NULL)
         if (!is.null(w))
           l <- paste(l, trf("| test global de la surface : χ² = %.2f (%d ddl), p = %s — %s",
-                            w$chi2, w$ddl, format.pval(w$p, digits = 3), w$verdict))
+                            w$chi2, w$ddl, hstat_p_txt(w$p), w$verdict))
       }
       if (is.null(l)) return(NULL)
       shiny::div(class = "hstat-interpretation", shiny::HTML(hstat_html_escape(l)))

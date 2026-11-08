@@ -1635,10 +1635,10 @@ hstat_dl50_verdict <- function(fit, seuils = HSTAT_DL50_SEUILS, alerte_temoin = 
     ajustement = if (!isTRUE(fit$informatif))
         tr("Ajustement non testable : autant de doses que de paramètres estimés, il ne reste aucun degré de liberté résiduel.")
       else switch(hstat_p_verdict(fit$p_chi2),
-        significatif = trf("Ajustement rejeté à 5 %% (Chi-2 = %.3f, ddl = %d, p = %.4f) : facteur d'hétérogénéité %.3f appliqué aux variances.",
-                           fit$chi2, fit$ddl, fit$p_chi2, fit$facteur),
-        `non significatif` = trf("Ajustement probit légitime (Chi-2 = %.3f, ddl = %d, p = %.4f).",
-                                 fit$chi2, fit$ddl, fit$p_chi2),
+        significatif = trf("Ajustement rejeté à 5 %% (Chi-2 = %.3f, ddl = %d, p = %s) : facteur d'hétérogénéité %.3f appliqué aux variances.",
+                           fit$chi2, fit$ddl, hstat_p_txt(fit$p_chi2), fit$facteur),
+        `non significatif` = trf("Ajustement probit légitime (Chi-2 = %.3f, ddl = %d, p = %s).",
+                                 fit$chi2, fit$ddl, hstat_p_txt(fit$p_chi2)),
         tr("Test d'ajustement non calculable.")),
     alertes = c(
       # LES COMPTAGES D'UN KT50 NE SONT PAS INDEPENDANTS. On lit le meme lot a
@@ -2105,8 +2105,8 @@ hstat_dl50_fusion <- function(essais, alpha = 0.05) {
   p <- stats::pchisq(chi2, ddl, lower.tail = FALSE)
   if (identical(hstat_p_verdict(p, alpha), "significatif"))
     return(list(ok = FALSE, chi2 = chi2, ddl = ddl, p = p, c_fixe = fixe_c,
-                message = trf("Test d'identité des essais significatif (Chi-2 = %.3f, ddl = %d, p = %.4f) : les essais diffèrent, les fusionner masquerait cette différence.",
-                              chi2, ddl, p)))
+                message = trf("Test d'identité des essais significatif (Chi-2 = %.3f, ddl = %d, p = %s) : les essais diffèrent, les fusionner masquerait cette différence.",
+                              chi2, ddl, hstat_p_txt(p))))
   ess <- hstat_dl50_essai(
     ag$dose, ag$n, ag$x,
     temoin_n = sum(vapply(essais, function(e) e$n0, numeric(1))),
@@ -2114,8 +2114,8 @@ hstat_dl50_fusion <- function(essais, alpha = 0.05) {
     titre = trf("Fusion de %d essais", length(essais)),
     champs = essais[[1]]$champs)
   list(ok = TRUE, essai = ess, chi2 = chi2, ddl = ddl, p = p, c_fixe = fixe_c,
-       message = trf("Test d'identité non significatif (Chi-2 = %.3f, ddl = %d, p = %.4f) : la fusion est légitime.",
-                     chi2, ddl, p))
+       message = trf("Test d'identité non significatif (Chi-2 = %.3f, ddl = %d, p = %s) : la fusion est légitime.",
+                     chi2, ddl, hstat_p_txt(p)))
 }
 
 # =============================================================================
@@ -4995,7 +4995,7 @@ mod_dl50_server <- function(id, values) {
                    if (is.finite(tc)) sprintf("%.2f %%", tc) else "—")
         },
         shiny::p(shiny::strong(tr("Test d'ajustement :")), " ",
-                 sprintf("Chi-2 = %.3f, ddl = %d, p = %.4f", f$chi2, f$ddl, f$p_chi2),
+                 sprintf("Chi-2 = %.3f, ddl = %d, p = %s", f$chi2, f$ddl, hstat_p_txt(f$p_chi2)),
                  " — ", switch(v,
                    significatif = trf("ajustement rejeté à 5 %% : facteur d'hétérogénéité %.3f appliqué aux variances, quantile de Student retenu.",
                                       f$facteur),
@@ -5208,7 +5208,7 @@ mod_dl50_server <- function(id, values) {
       if (!isTRUE(r$ok)) return(bandeau(r$message))
       shiny::div(style = "margin-top:10px;",
         shiny::p(sprintf("c (EM) = %.4f — c (Abbott) = %.4f", r$c_em, r$c_abbott)),
-        shiny::p(sprintf("Chi-2 = %.4f, ddl = %d, p = %.4f", r$chi2, r$ddl, r$p)),
+        shiny::p(sprintf("Chi-2 = %.4f, ddl = %d, p = %s", r$chi2, r$ddl, hstat_p_txt(r$p))),
         bandeau(r$conseil, if (identical(r$verdict, "significatif"))
           "warning" else "info"))
     })
@@ -5489,8 +5489,8 @@ mod_dl50_server <- function(id, values) {
           shiny::strong(trf("Référence : %s.", attr(r, "reference"))), " ",
           trf("Pente commune : %.4f.", attr(r, "pente_commune")), " ",
           if (!is.na(pa$Chi2))
-            trf("Parallélisme : Chi-2 = %.3f, ddl = %d, p = %.4f — %s",
-                pa$Chi2, pa$DDL, pa$p, pa$Conclusion)
+            trf("Parallélisme : Chi-2 = %.3f, ddl = %d, p = %s — %s",
+                pa$Chi2, pa$DDL, hstat_p_txt(pa$p), pa$Conclusion)
           else pa$Conclusion))
     })
 

@@ -6862,7 +6862,7 @@ server <- function(input, output, session) {
                  "> 0,80 très bon ; 0,60-0,80 acceptable ; < 0,60 inadéquat",
                  if (st_kmo=="ok") "Données très adaptées" else if (st_kmo=="warn") "Adéquation acceptable" else "Données peu factorisables",
                  st_kmo),
-          mv_row("Test de Bartlett (p)", format.pval(bart$p.value, digits=3),
+          mv_row("Test de Bartlett (p)", hstat_p_txt(bart$p.value),
                  "p < 0,05 : corrélations exploitables",
                  if (st_bar=="ok") "Factorisation justifiée" else "Matrice proche de l'identité",
                  st_bar),
@@ -6899,7 +6899,7 @@ server <- function(input, output, session) {
         list(ok = TRUE, render = render, metrics = metrics,
           note = paste0("AFE : ", nf, " facteurs, rotation ", input$mv_efa_rot, "."),
           summary = c("=== Analyse Factorielle Exploratoire ===",
-            paste0("KMO = ", round(kmo,3), " | Bartlett p = ", format.pval(bart$p.value,digits=3)),
+            paste0("KMO = ", round(kmo,3), " | Bartlett p = ", hstat_p_txt(bart$p.value)),
             "", "Saturations :", paste(utils::capture.output(round(load,3)), collapse="\n"),
             "", "Communautés :", paste(utils::capture.output(round(comm,3)), collapse="\n")),
           plotfn = function() {
@@ -7493,7 +7493,7 @@ server <- function(input, output, session) {
                  "Plus élevé = meilleur (>= 0,50 bon, selon domaine)",
                  if (st_r2=="ok") "Bon pouvoir explicatif" else if (st_r2=="warn") "Pouvoir explicatif modéré" else "Pouvoir explicatif faible",
                  st_r2),
-          mv_row("Test F global (p)", format.pval(fp, digits=3),
+          mv_row("Test F global (p)", hstat_p_txt(fp),
                  "p < 0,05 : modèle globalement significatif",
                  if (st_f=="ok") "Modèle significatif" else "Modèle non significatif", st_f),
           mv_row("VIF maximal", if (is.na(vif_max)) "n/d" else round(vif_max,2),
@@ -7501,11 +7501,11 @@ server <- function(input, output, session) {
                  if (st_v=="ok") "Pas de multicolinéarité" else if (st_v=="warn") "Multicolinéarité modérée"
                    else if (st_v=="err") "Multicolinéarité problématique" else "Non applicable (1 prédicteur)",
                  st_v),
-          mv_row("Breusch-Pagan (p)", if (is.na(bp)) "n/d" else format.pval(bp,digits=3),
+          mv_row("Breusch-Pagan (p)", if (is.na(bp)) "n/d" else hstat_p_txt(bp),
                  "p > 0,05 : homoscédasticité respectée",
                  if (st_bp=="ok") "Variance des résidus constante" else "Hétéroscédasticité détectée",
                  st_bp),
-          mv_row("Shapiro-Wilk résidus (p)", if (is.na(sw)) "n/d" else format.pval(sw,digits=3),
+          mv_row("Shapiro-Wilk résidus (p)", if (is.na(sw)) "n/d" else hstat_p_txt(sw),
                  "p > 0,05 : normalité des résidus",
                  if (st_sw=="ok") "Résidus normaux" else "Écart à la normalité", st_sw),
           mv_row("Durbin-Watson", if (is.na(dw)) "n/d" else round(dw,2),
@@ -7597,7 +7597,7 @@ server <- function(input, output, session) {
         st_dim <- if (dim12 >= 70) "ok" else if (dim12 >= 50) "warn" else "err"
         st_cr  <- if (cramer >= .3) "ok" else if (cramer >= .1) "warn" else "err"
         metrics <- rbind(
-          mv_row("Test du Chi2 (p)", format.pval(chi$p.value, digits=3),
+          mv_row("Test du Chi2 (p)", hstat_p_txt(chi$p.value),
                  "p < 0,05 : association significative",
                  if (st_chi=="ok") "Association significative" else "Pas d'association détectée",
                  st_chi),
@@ -8011,7 +8011,7 @@ server <- function(input, output, session) {
             mv_row("Taux de bon classement", paste0(round(100*acc,1)," %"),
                    "Plus élevé = meilleur (à comparer au hasard)",
                    "Précision globale du modèle", "info"),
-            mv_row("Hosmer-Lemeshow (p)", if (is.na(hl_p)) "n/d" else format.pval(hl_p,digits=3),
+            mv_row("Hosmer-Lemeshow (p)", if (is.na(hl_p)) "n/d" else hstat_p_txt(hl_p),
                    "p > 0,05 : ajustement acceptable",
                    if (st_h=="ok") "Calibration acceptable" else "Mauvaise calibration", st_h),
             mv_row("AIC", round(aic,1),

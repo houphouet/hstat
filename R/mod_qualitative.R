@@ -560,9 +560,9 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
                  "Conditions (attendus >= 5)", "w de Cohen (taille d'effet)",
                  "V de Cramér (ajustement)"),
     Valeur = c(n, k, p0_lab, round(chi2, 3), as.integer(ddl),
-               format.pval(p_chi, digits = 3),
-               if (is.na(p_mc)) tr("non calculé") else format.pval(p_mc, digits = 3),
-               if (method == "multinomial") format.pval(p_multi, digits = 3) else NULL,
+               hstat_p_txt(p_chi),
+               if (is.na(p_mc)) tr("non calculé") else hstat_p_txt(p_mc),
+               if (method == "multinomial") hstat_p_txt(p_multi) else NULL,
                if (expected_ok) "Respectées" else "Non respectées",
                round(cohen_w, 3), round(v_gof, 3)),
     Interpretation = c(
@@ -650,7 +650,7 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
   interp <- c(
     trf("Test %s des proportions %s de \"%s\" : p = %s -- %s.",
             if (method == "multinomial") "multinomial exact" else tr("du Khi-deux d'ajustement"),
-            p0_lab, var_name, format.pval(p_final, digits = 3),
+            p0_lab, var_name, hstat_p_txt(p_final),
             if (!is.na(p_final) && p_final < 0.05)
               tr("la répartition observée diffère significativement de la répartition attendue")
             else tr("la répartition observée est compatible avec la répartition attendue")),
@@ -697,10 +697,10 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
     "", "Résidus de Pearson :",
     utils::capture.output(print(stats::setNames(round(resid_p, 4), names(tab)))),
     if (!is.na(p_mc)) c("", trf("Khi-deux Monte-Carlo (B = %d) : p-value = %s", B,
-                                    format.pval(p_mc, digits = 4))) else NULL,
+                                    hstat_p_txt(p_mc))) else NULL,
     if (method == "multinomial") c("",
       trf("Test multinomial exact -- %s", multi_meth),
-      sprintf("p-value = %s", format.pval(p_multi, digits = 4)),
+      sprintf("p-value = %s", hstat_p_txt(p_multi)),
       trf("Hypothèse nulle : proportions %s", p0_lab)) else NULL)
 
   gof_tables <- list("Observé vs attendu" = gof_df)
@@ -851,9 +851,9 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y",
                  "Conditions de Cochran (>=5)", "p-value (Fisher exact)",
                  "Coefficient phi", "V de Cramér", "IC95% du V de Cramér",
                  "Coefficient de contingence"),
-    Valeur = c(n, round(chi2, 3), ddl, format.pval(pval, digits = 3),
+    Valeur = c(n, round(chi2, 3), ddl, hstat_p_txt(pval),
                if (isTRUE(expected_ok)) "Respectées" else "Non respectées",
-               if (is.na(fisher_p)) tr("non calculé") else format.pval(fisher_p, digits = 3),
+               if (is.na(fisher_p)) tr("non calculé") else hstat_p_txt(fisher_p),
                round(phi, 3), round(cramer_v, 3),
                if (anyNA(v_ci)) tr("non calculé") else sprintf("[%.3f ; %.3f]", v_ci[1], v_ci[2]),
                round(contingency, 3)),
@@ -888,7 +888,7 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y",
   sig <- tr(if (!is.na(pval) && pval < 0.05) "significative" else "non significative")
   interp <- c(
     trf("Association %s entre %s et %s (Khi-deux = %.2f, ddl = %d, p = %s).",
-            sig, xname, yname, chi2, as.integer(ddl), format.pval(pval, digits = 3)),
+            sig, xname, yname, chi2, as.integer(ddl), hstat_p_txt(pval)),
     trf("Force de l'association (V de Cramér = %.3f) : %s.", cramer_v, force),
     if (!isTRUE(expected_ok))
       "Certains effectifs théoriques sont < 5 : le test exact de Fisher est plus fiable ici." else
@@ -1287,8 +1287,8 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     metrics <- data.frame(
       Metrique = c("Paires valides", "Rhô de Spearman", "p-value (Spearman)",
                    "Tau de Kendall", "p-value (Kendall)"),
-      Valeur = c(length(rx), round(unname(sp$estimate), 3), format.pval(sp$p.value, 3),
-                 round(unname(kd$estimate), 3), format.pval(kd$p.value, 3)),
+      Valeur = c(length(rx), round(unname(sp$estimate), 3), hstat_p_txt(sp$p.value),
+                 round(unname(kd$estimate), 3), hstat_p_txt(kd$p.value)),
       stringsAsFactors = FALSE)
     rho <- unname(sp$estimate); pval_sp <- sp$p.value; tau <- unname(kd$estimate)
     force <- tr(if (abs(rho) < 0.2) "très faible" else if (abs(rho) < 0.4) "faible" else
@@ -1297,11 +1297,11 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     signif_sp <- !is.na(pval_sp) && pval_sp < 0.05
     # Interprétation de la p-value (seuils usuels)
     pval_interp <- if (is.na(pval_sp)) tr("p-value non calculable.")
-      else if (pval_sp < 0.001) trf("p = %s < 0,001 : association très hautement significative.", format.pval(pval_sp, 3))
-      else if (pval_sp < 0.01)  trf("p = %s < 0,01 : association hautement significative.", format.pval(pval_sp, 3))
-      else if (pval_sp < 0.05)  trf("p = %s < 0,05 : association significative.", format.pval(pval_sp, 3))
-      else if (pval_sp < 0.10)  trf("p = %s : tendance non significative au seuil de 5 %% (marginale).", format.pval(pval_sp, 3))
-      else trf("p = %s >= 0,05 : association non significative.", format.pval(pval_sp, 3))
+      else if (pval_sp < 0.001) trf("p = %s < 0,001 : association très hautement significative.", hstat_p_txt(pval_sp))
+      else if (pval_sp < 0.01)  trf("p = %s < 0,01 : association hautement significative.", hstat_p_txt(pval_sp))
+      else if (pval_sp < 0.05)  trf("p = %s < 0,05 : association significative.", hstat_p_txt(pval_sp))
+      else if (pval_sp < 0.10)  trf("p = %s : tendance non significative au seuil de 5 %% (marginale).", hstat_p_txt(pval_sp))
+      else trf("p = %s >= 0,05 : association non significative.", hstat_p_txt(pval_sp))
     r2 <- round(100 * rho^2, 1)
     interp <- if (signif_sp) c(
       # --- Cas SIGNIFICATIF ---
@@ -1312,7 +1312,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
               xname, gname, if (rho > 0) "augmenter" else "diminuer"),
       trf("Le rho² suggère qu'environ %.1f %% de la variation des rangs est partagée entre les deux variables.", r2),
       trf("Le tau de Kendall (%.3f, p = %s) confirme la concordance des rangs ; il est plus robuste pour de petits échantillons.",
-              tau, format.pval(kd$p.value, 3)))
+              tau, hstat_p_txt(kd$p.value)))
     else c(
       # --- Cas NON SIGNIFICATIF ---
       trf("Corrélation ordinale NON significative entre « %s » et « %s » : rhô de Spearman = %.3f (%s, %s).",
@@ -1321,7 +1321,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
       trf("On ne peut pas conclure à une association monotone entre « %s » et « %s » : la relation observée (rhô = %.3f) est compatible avec le hasard.",
               xname, gname, rho),
       "Absence de significativité ne signifie pas absence de lien : un échantillon plus grand ou une relation non monotone pourraient changer la conclusion.",
-      trf("Le tau de Kendall (%.3f, p = %s) va dans le même sens.", tau, format.pval(kd$p.value, 3)))
+      trf("Le tau de Kendall (%.3f, p = %s) va dans le même sens.", tau, hstat_p_txt(kd$p.value)))
     console <- c(utils::capture.output(print(sp)), "",
                  utils::capture.output(print(kd)))
     plot_fn <- function() {
@@ -1380,9 +1380,9 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     Metrique = c("Test utilisé (rangs)", "Statistique", "p-value",
                  "Test de la médiane (Mood)", "p-value (médiane)",
                  "Médiane globale (rang)", "Nombre de groupes", "Effectif total"),
-    Valeur = c(test_name, round(stat_val, 3), format.pval(pval, 3),
+    Valeur = c(test_name, round(stat_val, 3), hstat_p_txt(pval),
                "Khi-deux d'homogénéité des médianes",
-               if (is.na(mood_p)) tr("non calculé") else format.pval(mood_p, 3),
+               if (is.na(mood_p)) tr("non calculé") else hstat_p_txt(mood_p),
                round(med_global, 2), ng, length(rx)),
     Interpretation = c(
       "Compare les rangs (positions) entre groupes -- adapté aux données ordinales.",
@@ -1400,10 +1400,10 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
     stringsAsFactors = FALSE)
   sig <- if (!is.na(pval) && pval < 0.05) "significative" else "non significative"
   pval_txt <- if (is.na(pval)) "non calculable"
-    else if (pval < 0.001) trf("p = %s < 0,001 : différence très hautement significative.", format.pval(pval, 3))
-    else if (pval < 0.01)  trf("p = %s < 0,01 : différence hautement significative.", format.pval(pval, 3))
-    else if (pval < 0.05)  trf("p = %s < 0,05 : différence significative.", format.pval(pval, 3))
-    else trf("p = %s >= 0,05 : différence non significative.", format.pval(pval, 3))
+    else if (pval < 0.001) trf("p = %s < 0,001 : différence très hautement significative.", hstat_p_txt(pval))
+    else if (pval < 0.01)  trf("p = %s < 0,01 : différence hautement significative.", hstat_p_txt(pval))
+    else if (pval < 0.05)  trf("p = %s < 0,05 : différence significative.", hstat_p_txt(pval))
+    else trf("p = %s >= 0,05 : différence non significative.", hstat_p_txt(pval))
   # Groupe aux rangs les plus élevés / faibles
   hi_g <- summary_df$Groupe[which.max(summary_df$Rang_moyen)]
   lo_g <- summary_df$Groupe[which.min(summary_df$Rang_moyen)]

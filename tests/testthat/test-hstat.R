@@ -12951,9 +12951,11 @@ test_that("la palette par défaut de ggplot2 colore chaque modalité", {
                                   name = "Traitements")) lg <- lg + sc
   expect_equal(ggplot2::ggplot_build(lg)$plot$scales$scales[[1]]$name,
                "Traitements")
+  # Depuis 1.46.4, une palette Brewer est INTERPOLEE au-dela de son plafond :
+  # Set2 rend quinze teintes distinctes au lieu de huit et sept series grises.
   set2 <- teintes("Set2")
-  expect_equal(length(unique(set2[!is.na(set2)])), 8L)
-  expect_gt(sum(is.na(set2)), 0L)
+  expect_equal(length(unique(set2)), 15L)
+  expect_false(anyNA(set2))
 
   # UN NOM INCONNU NE POSE RIEN. Lui appliquer `scale_*_brewer()` ferait
   # avertir ggplot a chaque trace et rendrait un graphique gris ; ne rien poser
@@ -25246,4 +25248,22 @@ test_that("Doses et dilutions : aucun arrondi par defaut, l'arrondi est un choix
     session$setInputs(dosArrondir = TRUE, dosDecimales = 1)
     expect_false("0.001" %in% conv_affiche()$Valeur)
   })
+})
+
+test_that("une seule écriture des p-values et une seule échelle de significativité", {
+  expect_identical(hstat_p_txt(c(0.03456, 3e-5, 0, NA)),
+                   c("0.0346", "3.00e-05", "< 2.2e-16", NA))
+  expect_identical(hstat_p_txt(0.5, 2), "0.50")
+  expect_match(hstat_p_niveau(0.0005), "0.001")
+  expect_match(hstat_p_niveau(0.2), ">= 0.05")
+  expect_identical(hstat_p_niveau(NA), tr("Non calculable"))
+  # Les copies locales et format.pval() ne reviennent pas : trois écritures
+  # d'une même p-value finissaient par se contredire d'un onglet à l'autre.
+  src <- unlist(lapply(.hstat_sources_app(), function(f) {
+    if (!file.exists(f)) return(character(0))
+    pd <- utils::getParseData(parse(f, keep.source = TRUE))
+    pd$text[pd$token %in% c("SYMBOL_FUNCTION_CALL", "SYMBOL")]
+  }))
+  if (!length(src)) skip("sources indisponibles")
+  expect_false(any(src %in% c("format.pval", "fmt_p", "chi2_interp_p")))
 })

@@ -271,7 +271,7 @@ jobs:
           # ne doit pas faire tomber la CI.
           souhaites <- c("ggplot2", "ggrepel", "DT", "dplyr", "FactoMineR",
                          "openxlsx", "jsonlite", "httr", "curl", "car", "svglite",
-                         "scales", "base64enc", "readxl", "writexl",
+                         "scales", "base64enc", "readxl",
                          # ggtext arrivait lui aussi par dependance
                          # transitive. Sept modules l'appellent pour leurs
                          # titres d'axe ; son absence ne fait plus tomber le

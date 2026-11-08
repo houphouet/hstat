@@ -3013,7 +3013,7 @@ mod_tests_server <- function(id, values) {
   output$refTestDetails <- DT::renderDT({
     shiny::req(values$refTestDetails, identical(values$currentTestType, "reference"))
     d <- values$refTestDetails
-    d$p_value <- sapply(d$p_value, function(p) if (is.na(p)) NA_character_ else fmt_p(p))
+    d$p_value <- sapply(d$p_value, function(p) if (is.na(p)) NA_character_ else hstat_p_txt(p))
     DT::datatable(d, rownames = FALSE,
               options = list(dom = "t", scrollX = TRUE, pageLength = 25))
   })
@@ -3140,7 +3140,7 @@ mod_tests_server <- function(id, values) {
                               paste(utils::head(p$incomplets, 8), collapse = ", ")))
       if (isTRUE(is.finite(sw) && sw < 0.05))
         notes <- c(notes, trf("%s : les différences s'écartent de la normalité (Shapiro-Wilk p = %s) ; le Wilcoxon apparié ou le test du signe sont plus sûrs.",
-                              j$etiquette, format.pval(sw, digits = 3)))
+                              j$etiquette, hstat_p_txt(sw)))
     }
     if (!length(rows)) {
       shiny::showNotification("Aucun résultat généré.", type = "warning"); return()
@@ -3170,9 +3170,9 @@ mod_tests_server <- function(id, values) {
   output$pairedTestDetails <- DT::renderDT({
     shiny::req(values$pairedTestDetails, identical(values$currentTestType, "paired"))
     d <- values$pairedTestDetails
-    d$p_value <- vapply(d$p_value, function(p) if (is.na(p)) NA_character_ else fmt_p(p), character(1))
+    d$p_value <- vapply(d$p_value, function(p) if (is.na(p)) NA_character_ else hstat_p_txt(p), character(1))
     d$Normalite_diff_p <- vapply(d$Normalite_diff_p,
-      function(p) if (is.na(p)) "-" else fmt_p(p), character(1))
+      function(p) if (is.na(p)) "-" else hstat_p_txt(p), character(1))
     DT::datatable(d, rownames = FALSE,
               options = list(dom = "t", scrollX = TRUE, pageLength = 25))
   })
@@ -4778,7 +4778,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$manovaParamResults)
     df <- values$manovaParamResults
     for (col in c("p_Pillai", "p_Wilks", "p_Hotelling", "p_Roy")) {
-      if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
+      if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else hstat_p_txt(p))
     }
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     dt <- DT::datatable(df, options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
@@ -4810,7 +4810,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$manovaPermanovaResults)
     df <- values$manovaPermanovaResults
     if ("p_value" %in% names(df))
-      df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else fmt_p(p))
+      df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else hstat_p_txt(p))
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     DT::datatable(df, options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
   })
@@ -4819,7 +4819,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$manovaMardia)
     df <- values$manovaMardia
     for (col in c("p_Skewness", "p_Kurtosis")) {
-      if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
+      if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else hstat_p_txt(p))
     }
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     DT::datatable(df, options = list(dom = "t", scrollX = TRUE), rownames = FALSE)
@@ -4841,7 +4841,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$manovaBoxM)
     df <- values$manovaBoxM
     if ("p_value" %in% names(df))
-      df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else fmt_p(p))
+      df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else hstat_p_txt(p))
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     DT::datatable(df, options = list(dom = "t", scrollX = TRUE), rownames = FALSE)
   })
@@ -4882,7 +4882,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$manovaPermDisp)
     df <- values$manovaPermDisp
     if ("p_value" %in% names(df))
-      df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else fmt_p(p))
+      df$p_value <- sapply(df$p_value, function(p) if (is.na(p)) NA else hstat_p_txt(p))
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     DT::datatable(df, options = list(dom = "t", scrollX = TRUE), rownames = FALSE)
   })
@@ -5156,7 +5156,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$manovaSimpleEffects)
     df <- values$manovaSimpleEffects
     for (col in c("p_value", "p_adj")) {
-      if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
+      if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else hstat_p_txt(p))
     }
     df <- round_numeric_df(df, input$testsRoundResults, input$testsDecimals)
     dt <- DT::datatable(df, options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
@@ -5206,7 +5206,7 @@ mod_tests_server <- function(id, values) {
     if ("p_value" %in% names(df)) {
       df$p_value <- sapply(df$p_value, function(p) {
         if (is.na(p) || !is.numeric(p)) return(p)
-        fmt_p(p)
+        hstat_p_txt(p)
       })
     }
     
@@ -5865,22 +5865,6 @@ mod_tests_server <- function(id, values) {
     grDevices::colorRampPalette(cols)(n)
   }
   
-  # Formater une p-valeur sans l'arrondir à 0 quand elle est très faible
-  fmt_p <- function(p, digits = 6) {
-    if (is.na(p)) return("NA")
-    if (p == 0)   return("< 2.2e-16")
-    if (p < 1e-4) return(formatC(p, format = "e", digits = 3))
-    formatC(p, format = "f", digits = digits)
-  }
-  
-  chi2_interp_p <- function(p) {
-    if (is.na(p))   return("NA")
-    if (p < 0.001)  return("Hautement significatif (p < 0.001)")
-    if (p < 0.01)   return("Très significatif (p < 0.01)")
-    if (p < 0.05)   return("Significatif (p < 0.05)")
-    return("Non significatif (p >= 0.05)")
-  }
-  
   # Attribuer lettres de groupes (Bonferroni pairwise)
   chi2_group_letters <- function(modalites, observed, nb_paires, paires) {
     n  <- length(modalites)
@@ -6031,7 +6015,7 @@ mod_tests_server <- function(id, values) {
         Statistique = paste0(stat_name, " = ", ifelse(is.na(stat_val), "—", stat_val)),
         DL          = df_test,
         p_valeur    = p_val,
-        Interpretation = chi2_interp_p(p_val),
+        Interpretation = hstat_p_niveau(p_val),
         Variable_cat = col_cat,
         Variable_num = col_num,
         Type_donnee  = note_type,
@@ -6055,7 +6039,7 @@ mod_tests_server <- function(id, values) {
         Statistique    = ifelse(is.na(stat_val), NA_real_, as.numeric(stat_val)),
         ddl            = df_test,
         p_value        = p_val,
-        Interpretation = chi2_interp_p(p_val),
+        Interpretation = hstat_p_niveau(p_val),
         stringsAsFactors = FALSE
       )
       prev <- values$testResultsDF
@@ -6071,7 +6055,7 @@ mod_tests_server <- function(id, values) {
     })
     
     shiny::showNotification(
-      trf("Test %s terminé -- p = %s", toupper(methode), fmt_p(p_val)),
+      trf("Test %s terminé -- p = %s", toupper(methode), hstat_p_txt(p_val)),
       type = if (p_val < 0.05) "message" else "warning",
       duration = 5
     )
@@ -6107,7 +6091,7 @@ mod_tests_server <- function(id, values) {
     )
     
     sous_titre <- if (show_pval && !is.na(p_val))
-      paste0("p = ", fmt_p(p_val)) else NULL
+      paste0("p = ", hstat_p_txt(p_val)) else NULL
     
     lbl_fn <- function(val, grp) {
       s <- round(val, 2)
@@ -6263,7 +6247,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(values$chiSqResults, identical(values$currentTestType, "chisq"))
     d <- values$chiSqResults
     if ("p_value" %in% names(d))
-      d$p_value <- vapply(d$p_value, function(p) if (is.na(p)) NA_character_ else fmt_p(p),
+      d$p_value <- vapply(d$p_value, function(p) if (is.na(p)) NA_character_ else hstat_p_txt(p),
                           character(1))
     DT::datatable(d, rownames = FALSE,
                   options = list(dom = "t", scrollX = TRUE, pageLength = 25))
@@ -7303,7 +7287,7 @@ mod_tests_server <- function(id, values) {
     shiny::req(entry$pairs)
     df <- entry$pairs
     for (col in c("p_value", "p_adj")) {
-      if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
+      if (col %in% names(df)) df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else hstat_p_txt(p))
     }
     df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
     dt <- DT::datatable(df, options = list(scrollX = TRUE, pageLength = 15), rownames = FALSE)
@@ -7473,7 +7457,7 @@ mod_tests_server <- function(id, values) {
     df <- entry$pairs
     for (col in c("p_value", "p_adj")) {
       if (col %in% names(df))
-        df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
+        df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else hstat_p_txt(p))
     }
     df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
     
@@ -7545,7 +7529,7 @@ mod_tests_server <- function(id, values) {
                        options = list(dom = "t"), rownames = FALSE))
     for (col in c("p_value", "p_adj")) {
       if (col %in% names(df))
-        df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else fmt_p(p))
+        df[[col]] <- sapply(df[[col]], function(p) if (is.na(p)) NA else hstat_p_txt(p))
     }
     df <- round_numeric_df(df, input$multiRoundResults, input$multiDecimals)
     dt <- DT::datatable(df, options = list(pageLength = 25, scrollX = TRUE), rownames = FALSE)

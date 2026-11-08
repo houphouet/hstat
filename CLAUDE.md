@@ -11510,3 +11510,25 @@ catalogues de palettes hors `hstat_scales_palette()`, les deux choisisseurs de
 thème multivariés, les blocs d'export d'image faits main (qualitatif,
 diagnostics du modèle), `.write_xlsx` du qualitatif, le VIF par `lm` répétés et
 le dépôt segment par segment du codage par dictionnaire.
+
+## Les six chantiers laissés par la revue 1.46.1
+
+Chacun remplace plusieurs copies par une seule porte, sans changer ce qu'une
+analyse calcule.
+
+| Version | Chantier | Porte unique |
+|---|---|---|
+| 1.46.2 | VIF par `lm` répétés (quatre copies) | `hstat_vif()` : `diag(solve(cor))`, repli par `lm` si la corrélation est singulière ; même valeurs au chiffre près, `Inf` sur une colonne dupliquée |
+| 1.46.2 | `.write_xlsx` du qualitatif | `hstat_ecrire_classeur()`, qui ajuste désormais la largeur des colonnes |
+| 1.46.3 | deux choisisseurs de thème multivariés | `viz_get_theme()` connaît `"gg"` et `"hstat"` (`HSTAT_THEMES_MV`) |
+| 1.46.3 | exports d'image faits main (diagnostics, QQ-plot, qualitatif) | `hstat_export_plot_ui()` / `hstat_export_plot_handler()` |
+| 1.46.4 | cinq catalogues de palettes | `hstat_palettes_choix()`, `hstat_palette_couleurs()`, `hstat_scales_palette()` : une palette Brewer est interpolée au-delà de son plafond au lieu de rendre des séries grises |
+| 1.46.5 | trois écritures de p-value et trois échelles de significativité | `hstat_p_txt()` et `hstat_p_niveau()` |
+
+**Une p-value nulle n'existe pas** : `hstat_p_txt()` écrit « < 2.2e-16 » sous
+la précision machine, et la notation scientifique sous 1e-4 — quatre décimales
+fixes écraseraient « 3e-10 » en « 0.0000 », qui se lit « p nulle ». Les
+gabarits de la DL50 passent de `p = %.4f` à `p = %s`, clés du dictionnaire
+comprises. Un test barre le retour de `format.pval`, `fmt_p` et
+`chi2_interp_p` dans les sources.
+Le paquet `writexl` quitte `Suggests`, la liste d'installation et celle de la CI : il ne servait qu'à `.write_xlsx`.
