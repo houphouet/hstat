@@ -11621,3 +11621,35 @@ points communs :
 
 Le rôle de bouton des titres de section du menu passe sur un `<span>`
 intérieur : un `<li>` de liste ne peut porter que `listitem`.
+
+## ACP : une modalité trop petite n'emporte plus les ellipses des autres
+
+Signalé à l'écran, figure à l'appui : ellipses demandées, groupes sur une
+variable qualitative à plusieurs individus par modalité — et la figure
+ressortait colorée par **contribution**, sans un groupe ni une ellipse.
+
+La garde `hstat_ellipse_ok()` rend `ok = FALSE` dès qu'**une** modalité compte
+moins de trois individus (ou des points alignés). L'ACP la lisait comme
+« aucun groupe exploitable » et abandonnait **tout** le regroupement : un seul
+site isolé suffisait à perdre les ellipses de tous les autres. Le cas est
+courant — un fichier d'enquête porte toujours une localité moins représentée.
+Les analyses multivariées du catalogue (`mv_add_ind_ellipses`) faisaient déjà
+la part des choses ; l'ACP historique non.
+
+Les individus restent désormais colorés par groupe, et chaque groupe
+exploitable reçoit son ellipse ; les autres sont nommés dans la notification.
+Les ellipses ne viennent plus de factoextra — `addEllipses = TRUE` lève sur un
+groupe dégénéré et emportait la couche entière — mais de
+`hstat_ellipses_confiance()` (`R/utils.R`), qui trace la même ellipse de
+confiance de la moyenne (centre + √χ²₂(niveau) · chol(Σ/n)), groupe par groupe.
+Le test la confronte à `ggpubr::stat_conf_ellipse`, la fonction qu'appelle
+factoextra : même étendue à 10⁻³ près. La légende porte le nom de la variable
+au lieu de « Groups ».
+
+Vérifié sur `iris`, puis sur `iris` dont une espèce ne garde que deux
+individus : avant, aucune ellipse ; après, deux ellipses et trois couleurs.
+
+Le test qui garde ce correctif calcule ses coordonnées par `stats::prcomp()`,
+pas par FactoMineR : `R CMD check` ne l'installe pas, et la garde comme les
+ellipses ne dépendent que des coordonnées. Un test qui exige un paquet sans
+`skip_if_not_installed()` fait échouer le check sur l'environnement.
