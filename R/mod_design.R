@@ -105,7 +105,7 @@ hstat_gpower <- function(test, analysis, effect = NULL, effect2 = NULL,
   zcrit <- stats::qnorm(1 - alpha / ifelse(alt == "two.sided", 2, 1))
 
   tryCatch({
-    # ---- Famille des moyennes (t) ----
+    # Famille des moyennes (t)
     if (test %in% c("t_two", "mwu", "t_generic")) {
       r <- pwr::pwr.t.test(n = na, d = ea, sig.level = alpha, power = pa,
                            type = "two.sample", alternative = alt)
@@ -167,7 +167,7 @@ hstat_gpower <- function(test, analysis, effect = NULL, effect2 = NULL,
            crit = res$crit, crit_lab = "z critique", df_lab = res$extra,
            power = res$power,
            note = "Régression de Poisson (Signorini 1991) : prédicteur continu standardise ; RR par écart-type.")
-    # ---- Famille F (ANOVA / ANCOVA / MANOVA / mesures repetees / regression) ----
+    # Famille F (ANOVA / ANCOVA / MANOVA / mesures repetees / regression)
     } else if (test == "anova_oneway") {
       g <- groups %||% k %||% 2
       r <- pwr::pwr.anova.test(k = g, n = na, f = ea, sig.level = alpha, power = pa)
@@ -190,7 +190,7 @@ hstat_gpower <- function(test, analysis, effect = NULL, effect2 = NULL,
            crit = gp$crit, crit_lab = "F critique",
            df_lab = sprintf("ddl num = %d ; ddl den = %d", gp$df1, gp$df2),
            power = gp$power)
-    # ---- Famille chi-deux ----
+    # Famille chi-deux
     } else if (test %in% c("gof", "chisq_generic")) {
       ddl <- k %||% df1 %||% 1
       r <- pwr::pwr.chisq.test(w = ea, N = na, df = ddl, sig.level = alpha, power = pa)
@@ -198,7 +198,7 @@ hstat_gpower <- function(test, analysis, effect = NULL, effect2 = NULL,
       list(effect = r$w, nper = NA, ntot = N, lambda = r$w^2 * N,
            crit = stats::qchisq(1 - alpha, ddl), crit_lab = "Chi2 critique",
            df_lab = sprintf("ddl = %d", ddl), power = r$power)
-    # ---- Famille z / proportions ----
+    # Famille z / proportions
     } else if (test %in% c("prop2", "mcnemar")) {
       r <- pwr::pwr.2p.test(h = ea, n = na, sig.level = alpha, power = pa, alternative = alt)
       nn <- ceiling(r$n)
@@ -1510,7 +1510,7 @@ hstat_design_analysis <- function(type, n_factors) {
       "white" else "#1a5276"
     n_per_block <- max(b$.x)
     band_breaks <- sort(unique(c(sub_breaks, main_breaks)))
-    # ---- Separations GEOMETRIQUES proportionnelles (correctif parcelles
+    # Separations GEOMETRIQUES proportionnelles (correctif parcelles
     # invisibles).
     gap  <- max(0, min(0.35, (suppressWarnings(as.numeric(cell_sep)) %||% 1) * 0.05))
     if (!is.finite(gap)) gap <- 0.05
@@ -1664,7 +1664,7 @@ hstat_design_analysis <- function(type, n_factors) {
     g <- g + ggplot2::coord_flip()
   }
 
-  # ---- Gradient(s) d'heterogeneite ---- Une direction EXPLICITE (haut->bas,
+  # Gradient(s) d'heterogeneite ---- Une direction EXPLICITE (haut->bas,
   # gauche->droite...) est rendue telle quelle.
   sens_inverse <- identical(grad_sens, "inverse")
   if (grad %in% HSTAT_DSG_GRAD_DIRECTIONS) {
@@ -1963,7 +1963,7 @@ mod_design_ui <- function(id) {
                            value = 1, min = 1, step = 1),
               shiny::numericInput(ns("dsgSeed"), "Graine (reproductibilité)", value = 123, min = 1, step = 1),
 
-              # --- Contraintes de terrain (optionnelles) -------------------------
+              # Contraintes de terrain (optionnelles)
               shiny::div(style = "border:2px solid #d35400; border-radius:8px; padding:10px 12px; margin:10px 0; background:#fef5ec;",
                 shiny::tags$label(style = "color:#a04000; font-weight:700;",
                            shiny::icon("triangle-exclamation"), " Contraintes de terrain (optionnel)"),
@@ -2011,7 +2011,7 @@ mod_design_ui <- function(id) {
           shinydashboard::box(title = shiny::tagList(shiny::icon("map"), " Graphique du dispositif (randomisation)"),
               status = "success", width = 12, solidHeader = TRUE,
 
-              # ===================== TITRES & AXES =====================
+              # TITRES & AXES
               .sect("heading", "Titres & axes"),
               shiny::fluidRow(
                 shiny::column(4, shiny::textInput(ns("dsgPlotTitle"), "Titre du graphique", value = "")),
@@ -2023,7 +2023,7 @@ mod_design_ui <- function(id) {
                                       min = 8, max = 24, value = 12, step = 1))
               ),
 
-              # ================ ÉTIQUETTES DES CELLULES ================
+              # ÉTIQUETTES DES CELLULES
               .sect("font", "Étiquettes des cellules (parcelles)"),
               shiny::fluidRow(
                 shiny::column(4, shiny::selectInput(ns("dsgLabelMode"), "Contenu de l'étiquette",
@@ -2041,14 +2041,14 @@ mod_design_ui <- function(id) {
                     value = FALSE)))
               ),
 
-              # ===================== COULEURS =========================
+              # COULEURS
               .sect("palette", "Couleurs"),
               shiny::fluidRow(
                 shiny::column(6, shiny::selectInput(ns("dsgPalette"), "Palette de couleurs",
                   choices = hstat_palettes_choix(), selected = "ggplot2"))
               ),
 
-              # ===================== LÉGENDE ==========================
+              # LÉGENDE
               .sect("tags", "Légende"),
               shiny::fluidRow(
                 shiny::column(4, shiny::selectInput(ns("dsgLegendOrder"), shiny::tagList(shiny::icon("sort"), " Ordre de la légende"),
@@ -2085,7 +2085,7 @@ mod_design_ui <- function(id) {
                   shiny::tagList(shiny::icon("tags"), " Afficher une légende séparée pour le Facteur 2"),
                   value = TRUE)))),
 
-              # ============ BLOCS & SÉPARATEURS =======================
+              # BLOCS & SÉPARATEURS
               .sect("border-all", "Blocs & séparateurs"),
               shiny::fluidRow(
                 shiny::column(4, shiny::sliderInput(ns("dsgCellSep"),
@@ -2120,17 +2120,17 @@ mod_design_ui <- function(id) {
                   "Numérotation des blocs : numéro de départ", value = "1"))
               ),
 
-              # ============ RANDOMISATION =============================
+              # RANDOMISATION
               .sect("random", "Randomisation"),
               shiny::fluidRow(
                 shiny::column(6, shiny::numericInput(ns("dsgRandTries"), "Itérations de randomisation",
                                        value = 200, min = 1, max = 2000, step = 50))
               ),
-              # ============ APERÇU DU DISPOSITIF ======================
+              # APERÇU DU DISPOSITIF
               .sect("map", "Aperçu du dispositif"),
               shiny::plotOutput(ns("dsgPlot"), height = "540px"),
               shiny::br(),
-              # ---- Réglages rapides de disposition (juste sous la figure) ----
+              # Réglages rapides de disposition (juste sous la figure)
               shiny::fluidRow(
                 shiny::column(4, shiny::selectInput(ns("dsgBlockOrient"),
                   shiny::tagList(shiny::icon("arrows-alt"), " Sens des blocs"),
@@ -2159,7 +2159,7 @@ mod_design_ui <- function(id) {
                     shiny::tagList(shiny::icon("th"), " Afficher chaque bloc en facette (avec son nom)"),
                     value = TRUE)))
               ),
-              # ============ GRADIENT D'HÉTÉROGÉNÉITÉ ================== Il vit
+              # GRADIENT D'HÉTÉROGÉNÉITÉ ================== Il vit
               # SOUS le « Sens des blocs ».
               .sect("arrows-alt", "Gradient d'hétérogénéité"),
               shiny::fluidRow(
@@ -2191,7 +2191,7 @@ mod_design_ui <- function(id) {
                   shiny::column(5, shiny::sliderInput(ns("dsgGradSize"), "Taille du texte",
                                         min = 2, max = 8, value = 3.5, step = 0.5)))),
 
-              # ============ EXPORT DE L'IMAGE =========================
+              # EXPORT DE L'IMAGE
               .sect("download", "Export de l'image"),
               # Le module porte deja sa taille de police d'axe (`dsgFontAxis`) :
               # il ne prend du kit que les trois familles qui lui manquaient.
@@ -2204,7 +2204,7 @@ mod_design_ui <- function(id) {
         )
       ),
 
-      # ================= ONGLET ENQUETE DE TERRAIN =================
+      # ONGLET ENQUETE DE TERRAIN
       shiny::tabPanel(shiny::tagList(shiny::icon("clipboard-check"), " Enquête de terrain"), value = "survey", shiny::br(),
         shiny::fluidRow(
           shinydashboard::box(title = shiny::tagList(shiny::icon("sliders"), " Paramètres de l'enquête"),
@@ -3035,7 +3035,7 @@ mod_design_server <- function(id, values) {
       if (identical(pal, "default")) pal <- "ggplot2"
       fill_scale <- hstat_scales_palette(pal, fill = TRUE, colour = FALSE)[[1]]
 
-      # ---- Rendu FACETTE pour split-plot, strip-plot et alpha (un panneau par
+      # Rendu FACETTE pour split-plot, strip-plot et alpha (un panneau par
       # bloc/replique), conforme aux representations agronomiques de reference ----
       if (t %in% c("split", "strip", "alpha", "splitsplit")) {
         # Orientation de l'empilement des blocs incomplets (meme logique que
@@ -3109,7 +3109,7 @@ mod_design_server <- function(id, values) {
         labs_map <- .block_labeller(b$block, input$dsgBlockPrefix %||% "Bloc",
                                     input$dsgBlockNames %||% "", input$dsgBlockStart %||% "1")
         b$.blocklab <- labs_map[as.character(b$block)]
-        # --- Deux reglages INDEPENDANTS --- 1) Le GRADIENT pilote la
+        # Deux reglages INDEPENDANTS --- 1) Le GRADIENT pilote la
         # disposition des blocs (empiles vs cote a cote) et leur sens de
         # numerotation.
         ug <- input$dsgGradient %||% "auto"
@@ -3322,7 +3322,7 @@ mod_design_server <- function(id, values) {
     output$dsgPlDl <- hstat_export_plot_handler(input, "dsgPl",
                         function() build_design_plot(), "dispositif")
 
-    # ================= ENQUETE DE TERRAIN =================
+    # ENQUETE DE TERRAIN
     sv_res <- shiny::eventReactive(input$svCalc, {
       pop <- input$svPop %||% 0
       hstat_survey_size(

@@ -4,7 +4,7 @@ mod_dl_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
     shiny::tabsetPanel(id = ns("dlTabs"),
-      # ================= MLP (tabulaire) =================
+      # MLP (tabulaire)
       shiny::tabPanel(shiny::tagList(shiny::icon("brain"), " Réseau de neurones (MLP)"),
         shiny::div(style = "padding-top:12px;"),
         shiny::fluidRow(
@@ -84,7 +84,7 @@ mod_dl_ui <- function(id) {
                   DT::dataTableOutput(ns("dlSimBatch")),
                   hstat_export_table_ui(ns, "dlSimB"),
                   shiny::uiOutput(ns("dlSimBatchInterp"))))))),
-      # ================= LSTM (séquences) =================
+      # LSTM (séquences)
       shiny::tabPanel(shiny::tagList(shiny::icon("wave-square"), " LSTM (séquences, torch)"),
         shiny::div(style = "padding-top:12px;"),
         shiny::fluidRow(
@@ -237,7 +237,7 @@ mod_dl_server <- function(id, values) {
       if (length(v) == 0) c(16L, 8L) else utils::head(v, 6)
     }
 
-    # ---- Préparation : standardisation + encodage one-hot ----------------------
+    # Préparation : standardisation + encodage one-hot
     prepare_dl <- function() {
       df <- values$cleanData
       shiny::validate(shiny::need(!is.null(df), "Chargez d'abord des données."),
@@ -293,7 +293,7 @@ mod_dl_server <- function(id, values) {
            n_train = length(idx), n_test = n - length(idx))
     }
 
-    # ---- Entraînement neuralnet -------------------------------------------------
+    # Entraînement neuralnet
     fit_neuralnet <- function(p, hidden) {
       if (!requireNamespace("neuralnet", quietly = TRUE))
         stop("Le package 'neuralnet' est requis (install.packages(\"neuralnet\")).")
@@ -335,7 +335,7 @@ mod_dl_server <- function(id, values) {
            engine = "neuralnet")
     }
 
-    # ---- Entraînement torch (MLP) -------------------------------------------------
+    # Entraînement torch (MLP)
     fit_torch <- function(p, hidden) {
       if (!has_torch())
         stop("Bibliothèques torch non installées : utilisez le bouton de téléchargement ci-dessus (ou basculez sur le moteur neuralnet).")
@@ -412,7 +412,7 @@ mod_dl_server <- function(id, values) {
            metrics = mets, hidden = hidden)
     })
 
-    # ---- Diagnostic principal -----------------------------------------------------
+    # Diagnostic principal
     dl_gg <- shiny::reactive({
       f <- dlfit(); shiny::req(f)
       col <- hstat_plot_opt(input, "dlO", "Col", "#8e44ad")
@@ -458,7 +458,7 @@ mod_dl_server <- function(id, values) {
     output$dlPlDl <- hstat_export_plot_handler(input, "dlPl",
                        function() dl_gg(), "dl_diagnostic")
 
-    # ---- Métriques + interprétation --------------------------------------------------
+    # Métriques + interprétation
     output$dlMetrics <- DT::renderDataTable(
       DT::datatable(dlfit()$metrics, rownames = FALSE,
                     options = list(dom = "t", scrollX = TRUE)))
@@ -493,7 +493,7 @@ mod_dl_server <- function(id, values) {
             notes = "Un écart important entre performance d'entraînement et de test signale du surapprentissage : réduire les couches, augmenter les données ou la régularisation."))
     })
 
-    # ---- Architecture + courbe d'apprentissage -----------------------------------------
+    # Architecture + courbe d'apprentissage
     output$dlArch <- shiny::renderUI({
       f <- dlfit()
       shiny::div(class = "callout callout-info",
@@ -522,7 +522,7 @@ mod_dl_server <- function(id, values) {
     output$dlLoDl <- hstat_export_plot_handler(input, "dlLo",
                        function() dl_loss_gg(), "courbe_apprentissage")
 
-    # ---- Simulateur -----------------------------------------------------------------
+    # Simulateur
     output$dlSimForm <- shiny::renderUI({
       f <- tryCatch(dlfit(), error = function(e) NULL)
       if (is.null(f)) return(shiny::tags$em("Entraînez d'abord le réseau."))
@@ -594,7 +594,7 @@ mod_dl_server <- function(id, values) {
                        nrow(d), names(sort(table(pc), decreasing = TRUE))[1]))
     })
 
-    # ================= LSTM =================
+    # LSTM
     lstm_res <- shiny::eventReactive(input$lstmRun, {
       shiny::validate(shiny::need(has_torch(),
         "Bibliothèques torch non installées : utilisez le bouton de téléchargement ci-dessus."))

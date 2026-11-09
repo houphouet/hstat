@@ -1523,7 +1523,7 @@ mod_coding_ui <- function(id) {
   shiny::tagList(
     shiny::tags$head(shiny::tags$style(shiny::HTML(css))),
 
-    # ---- Bandeau d'aide ----
+    # Bandeau d'aide
     shiny::div(style = "background:#fdf3e3;border-left:5px solid #e67e22;padding:12px 16px;border-radius:6px;margin-bottom:12px;",
       shiny::tags$strong(shiny::icon("highlighter"), " Atelier de codage (thématisation)"),
       shiny::tags$ol(style = "margin:6px 0 0 0;padding-left:20px;font-size:13px;",
@@ -1533,7 +1533,7 @@ mod_coding_ui <- function(id) {
         shiny::tags$li("Le segment reçoit une étiquette colorée ; cliquez sur un code pour retrouver tous ses extraits."))),
 
     shiny::fluidRow(
-      # ------------------------------------------------ Livre de codes
+      # Livre de codes
       shiny::column(3,
         shinydashboard::box(width = 12, status = "warning", solidHeader = TRUE,
           title = shiny::tagList(shiny::icon("tags"), " Livre de codes"),
@@ -1561,7 +1561,7 @@ mod_coding_ui <- function(id) {
                               icon = shiny::icon("trash"), class = "btn-danger btn-xs btn-block"))
       ),
 
-      # ------------------------------------------------ Document
+      # Document
       shiny::column(6,
         shinydashboard::box(width = 12, status = "warning", solidHeader = TRUE,
           title = shiny::tagList(shiny::icon("file-lines"), " Réponse à coder"),
@@ -1588,7 +1588,7 @@ mod_coding_ui <- function(id) {
           shiny::tags$script(shiny::HTML(js)))
       ),
 
-      # ------------------------------------------------ Segments du document
+      # Segments du document
       shiny::column(3,
         shinydashboard::box(width = 12, status = "warning", solidHeader = TRUE,
           title = shiny::tagList(shiny::icon("list-check"), " Étiquettes de cette réponse"),
@@ -1598,14 +1598,14 @@ mod_coding_ui <- function(id) {
       )
     ),
 
-    # ------------------------------------------------ Analyses
+    # Analyses
     shiny::fluidRow(
       shinydashboard::box(width = 12, status = "warning", solidHeader = TRUE,
         title = shiny::tagList(shiny::icon("magnifying-glass-chart"),
                                " Analyse, croisement et rapports"),
         shiny::tabsetPanel(id = ns("codeTabs"),
 
-          # ---- Recuperation ----
+          # Recuperation
           shiny::tabPanel(shiny::tagList(shiny::icon("quote-left"), " Récupération"),
             shiny::br(),
             shiny::fluidRow(
@@ -1625,7 +1625,7 @@ mod_coding_ui <- function(id) {
                                                      class = "btn-success btn-sm btn-block",
                                                      icon = shiny::icon("file-excel"))))),
 
-          # ---- Requete combinee ----
+          # Requete combinee
           shiny::tabPanel(shiny::tagList(shiny::icon("code-branch"), " Requête combinée"),
             shiny::br(),
             shiny::fluidRow(
@@ -1649,7 +1649,7 @@ mod_coding_ui <- function(id) {
                                                      class = "btn-info btn-sm btn-block",
                                                      icon = shiny::icon("file-csv"))))),
 
-          # ---- Concordancier ----
+          # Concordancier
           shiny::tabPanel(shiny::tagList(shiny::icon("magnifying-glass"), " Concordancier"),
             shiny::br(),
             shiny::fluidRow(
@@ -1669,7 +1669,7 @@ mod_coding_ui <- function(id) {
                                                      class = "btn-info btn-sm btn-block",
                                                      icon = shiny::icon("file-csv"))))),
 
-          # ---- Portrait du document (codeline) ----
+          # Portrait du document (codeline)
           shiny::tabPanel(shiny::tagList(shiny::icon("chart-gantt"), " Portrait du document"),
             shiny::br(),
             shiny::fluidRow(
@@ -1679,7 +1679,7 @@ mod_coding_ui <- function(id) {
             shiny::br(),
             DT::DTOutput(ns("cl_table"))),
 
-          # ---- Accord inter-codeurs ----
+          # Accord inter-codeurs
           shiny::tabPanel(shiny::tagList(shiny::icon("user-group"), " Accord inter-codeurs"),
             shiny::br(),
             shiny::fluidRow(
@@ -1689,7 +1689,7 @@ mod_coding_ui <- function(id) {
             shiny::br(),
             shiny::tableOutput(ns("acc_table"))),
 
-          # ---- Matrice de croisement ----
+          # Matrice de croisement
           shiny::tabPanel(shiny::tagList(shiny::icon("table-cells"), " Matrice de croisement"),
             shiny::br(),
             shiny::fluidRow(
@@ -1713,7 +1713,7 @@ mod_coding_ui <- function(id) {
                                                      class = "btn-success btn-sm btn-block",
                                                      icon = shiny::icon("file-excel"))))),
 
-          # ---- Nuage de mots ----
+          # Nuage de mots
           shiny::tabPanel(shiny::tagList(shiny::icon("cloud"), " Nuage de mots"),
             shiny::br(),
             shiny::fluidRow(
@@ -1738,7 +1738,7 @@ mod_coding_ui <- function(id) {
             shiny::downloadButton(ns("dl_cloud"), "Télécharger le nuage (PNG)",
                                   class = "btn-success btn-sm")),
 
-          # ---- Carte conceptuelle ----
+          # Carte conceptuelle
           shiny::tabPanel(shiny::tagList(shiny::icon("diagram-project"), " Carte conceptuelle"),
             shiny::br(),
             shiny::fluidRow(
@@ -1762,7 +1762,7 @@ mod_coding_ui <- function(id) {
                                                      class = "btn-success btn-sm btn-block",
                                                      icon = shiny::icon("file-excel"))))),
 
-          # ---- Assistant de codage (trois moteurs) ----
+          # Assistant de codage (trois moteurs)
           shiny::tabPanel(shiny::tagList(shiny::icon("wand-magic-sparkles"), " Assistant de codage"),
             shiny::br(),
             shiny::div(style = "background:#eafaf1;border-left:5px solid #27ae60;padding:12px 16px;border-radius:6px;",
@@ -1778,7 +1778,7 @@ mod_coding_ui <- function(id) {
                 "supprimer une à une.")),
             shiny::br(),
 
-            # ---- Choix du moteur ----
+            # Choix du moteur
             shiny::fluidRow(
               shiny::column(5,
                 shiny::radioButtons(ns("ai_engine"), "Moteur",
@@ -1790,7 +1790,7 @@ mod_coding_ui <- function(id) {
                   "Les services en ligne comprennent mieux le sens, mais sont ",
                   "payants et reçoivent vos réponses.")),
 
-              # --- Reglages du moteur choisi, construits depuis la table ---
+              # Reglages du moteur choisi, construits depuis la table
               shiny::column(7,
                 shiny::uiOutput(ns("ai_reglages")),
                 shiny::conditionalPanel(sprintf("input['%s'] == 'auto'", ns("ai_engine")),
@@ -1849,7 +1849,7 @@ mod_coding_ui <- function(id) {
             shiny::uiOutput(ns("ai_result")),
             DT::DTOutput(ns("ai_table")),
 
-            # ---- Dictionnaire des codes ----
+            # Dictionnaire des codes
             shiny::hr(),
             shiny::div(style = "background:#fef9e7;border-left:5px solid #d4ac0d;padding:12px 16px;border-radius:6px;",
               shiny::tags$strong(shiny::icon("book"), " Dictionnaire des codes"),
@@ -1878,7 +1878,7 @@ mod_coding_ui <- function(id) {
             shiny::br(),
             DT::DTOutput(ns("dict_table"))),
 
-          # ---- Memos ---- Le memo est ce qui transforme un codage en analyse.
+          # Memos ---- Le memo est ce qui transforme un codage en analyse.
           shiny::tabPanel(shiny::tagList(shiny::icon("note-sticky"), " Mémos"),
             shiny::br(),
             shiny::div(style = "background:#eafaf1;border-left:5px solid #27ae60;padding:12px 16px;border-radius:6px;font-size:13px;",
@@ -1916,7 +1916,7 @@ mod_coding_ui <- function(id) {
                 shiny::downloadButton(ns("dl_memos"), "Télécharger les mémos (CSV)",
                                       class = "btn-info btn-sm")))),
 
-          # ---- Export / sauvegarde ----
+          # Export / sauvegarde
           shiny::tabPanel(shiny::tagList(shiny::icon("file-export"), " Export & sauvegarde"),
             shiny::br(),
             shiny::fluidRow(
@@ -1959,7 +1959,7 @@ mod_coding_server <- function(id, values) {
       # pour ne pas dependre de l'aller-retour du selecteur de couleur.
       next_color = HSTAT_CODE_PALETTE[1])
 
-    # ---------------------------------------------------------------- corpus
+    # corpus
     get_data <- shiny::reactive({
       d <- values$data
       shiny::validate(shiny::need(!is.null(d) && nrow(d) > 0,
@@ -2024,7 +2024,7 @@ mod_coding_server <- function(id, values) {
       dd[i, , drop = FALSE]
     })
 
-    # ---------------------------------------------------------- navigation
+    # navigation
     output$nav_ui <- shiny::renderUI({
       dd <- docs()
       shiny::req(nrow(dd) > 0)
@@ -2065,14 +2065,14 @@ mod_coding_server <- function(id, values) {
         trf(" - %d caractères", nchar(d$text)))
     })
 
-    # ------------------------------------------------- affichage du document
+    # affichage du document
     output$docText <- shiny::renderUI({
       d <- cur_doc()
       segs <- hstat_seg_for_doc(rv$segments, d$doc_id)
       shiny::HTML(hstat_code_highlight_html(d$text, segs, rv$codebook))
     })
 
-    # -------------------------------------------------------- selection JS
+    # selection JS
     shiny::observeEvent(input$sel_event, {
       rv$sel <- input$sel_event
     }, ignoreNULL = FALSE)
@@ -2090,7 +2090,7 @@ mod_coding_server <- function(id, values) {
         .hstat_code_esc(substr(s$text, 1, 220))))
     })
 
-    # ------------------------------------------------------ livre de codes
+    # livre de codes
     shiny::observeEvent(input$add_code, {
       lab <- trimws(input$new_code %||% "")
       if (!nzchar(lab)) {
@@ -2141,7 +2141,7 @@ mod_coding_server <- function(id, values) {
         type = "message", duration = 5)
     })
 
-    # ------------------------------------------------------------- memos La
+    # memos La
     # cible depend du type.
     output$memo_cible_ui <- shiny::renderUI({
       type <- input$memo_type %||% "libre"
@@ -2336,7 +2336,7 @@ mod_coding_server <- function(id, values) {
           type = "warning", duration = 8)
     })
 
-    # ------------------------------------------------------- depot d'un code
+    # depot d'un code
     shiny::observeEvent(input$drop_event, {
       ev <- input$drop_event
       shiny::req(!is.null(ev), !is.null(ev$code))
@@ -2382,7 +2382,7 @@ mod_coding_server <- function(id, values) {
                   substr(txt, 1, 60)), type = "message", duration = 3)
     })
 
-    # ---------------------------------------------- etiquettes du document
+    # etiquettes du document
     output$doc_segments <- shiny::renderUI({
       d <- cur_doc()
       s <- hstat_seg_for_doc(rv$segments, d$doc_id)
@@ -2432,7 +2432,7 @@ mod_coding_server <- function(id, values) {
         trf("%d étiquette(s), %d code(s)", nrow(rv$segments), nrow(rv$codebook)))
     })
 
-    # ==================================================== RECUPERATION
+    # RECUPERATION
     output$qry_a_ui <- shiny::renderUI({
       cb <- rv$codebook
       shiny::selectInput(ns("qry_a"), "Ensemble A",
@@ -2493,7 +2493,7 @@ mod_coding_server <- function(id, values) {
         hstat_ecrire_csv(df, file, row.names = FALSE, fileEncoding = "UTF-8")
       })
 
-    # ------------------------------------------------------ concordancier
+    # concordancier
     kwic_df <- shiny::reactive({
       hstat_code_kwic(docs(), input$kwic_motif,
                       fenetre = hstat_finite(input$kwic_fen, 45),
@@ -2539,7 +2539,7 @@ mod_coding_server <- function(id, values) {
       content = function(file)
         hstat_ecrire_csv(kwic_df(), file, row.names = FALSE, fileEncoding = "UTF-8"))
 
-    # -------------------------------------------------- portrait du document
+    # portrait du document
     output$cl_doc_ui <- shiny::renderUI({
       dd <- docs()
       s <- rv$segments
@@ -2587,7 +2587,7 @@ mod_coding_server <- function(id, values) {
                     escape = TRUE)
     })
 
-    # ---------------------------------------------------- accord inter-codeurs
+    # accord inter-codeurs
     codeurs <- shiny::reactive({
       s <- rv$segments
       if (!nrow(s)) return(character(0))
@@ -2716,7 +2716,7 @@ mod_coding_server <- function(id, values) {
         hstat_ecrire_classeur(file, list("Extraits codes" = df))
       })
 
-    # ==================================================== MATRICE
+    # MATRICE
     output$mat_var_ui <- shiny::renderUI({
       shiny::selectInput(ns("mat_var"), "Variable de profil (colonnes)",
         choices = c("(effectif total)" = "", profile_vars()), selected = "")
@@ -2789,7 +2789,7 @@ mod_coding_server <- function(id, values) {
       filename = function() sprintf("hstat_matrice_codes_%s.xlsx", format(Sys.Date(), "%Y%m%d")),
       content = function(file) hstat_ecrire_classeur(file, list("Matrice de croisement" = mat_df())))
 
-    # ==================================================== NUAGE DE MOTS
+    # NUAGE DE MOTS
     output$cloud_code_ui <- shiny::renderUI({
       cb <- rv$codebook
       if (nrow(cb) == 0) return(NULL)
@@ -2844,7 +2844,7 @@ mod_coding_server <- function(id, values) {
                            "png", 10, 7, 300,
                            echec = "Nuage indisponible : élargissez le corpus ou réduisez la taille du texte."))
 
-    # ==================================================== CARTE CONCEPTUELLE
+    # CARTE CONCEPTUELLE
     cooc <- shiny::reactive({
       hstat_code_cooccurrence(rv$segments, rv$codebook,
                               mode = input$map_mode %||% "document")
@@ -2885,7 +2885,7 @@ mod_coding_server <- function(id, values) {
                            data.frame(Code = rownames(m), m, check.names = FALSE)))
       })
 
-    # ================================= ASSISTANT DE CODAGE (3 moteurs) Les
+    # ASSISTANT DE CODAGE (3 moteurs) Les
     # reglages du moteur, rassembles une fois pour toutes.
     ai_opts <- shiny::reactive(list(
       engine  = input$ai_engine %||% "auto",
@@ -2918,7 +2918,7 @@ mod_coding_server <- function(id, values) {
             "rien installer, et tout le reste de l'atelier de codage est utilisable."))
     })
 
-    # ---- Etape 1 : proposer un livre de codes ----
+    # Etape 1 : proposer un livre de codes
     shiny::observeEvent(input$ai_codebook, {
       o <- ai_opts()
       st <- hstat_ai_status(o$engine, o$url, o$model, o$key)
@@ -2991,7 +2991,7 @@ mod_coding_server <- function(id, values) {
       shiny::showNotification(rv$ai$msg, type = "message", duration = 7)
     }
 
-    # ---- Etape 2 : pre-coder les reponses ----
+    # Etape 2 : pre-coder les reponses
     shiny::observeEvent(input$ai_autocode, {
       o <- ai_opts()
       st <- hstat_ai_status(o$engine, o$url, o$model, o$key)
@@ -3093,7 +3093,7 @@ mod_coding_server <- function(id, values) {
                     options = list(pageLength = 10, scrollX = TRUE, dom = "tip"))
     })
 
-    # ==================================================== DICTIONNAIRE
+    # DICTIONNAIRE
     output$dict_code_ui <- shiny::renderUI({
       cb <- rv$codebook
       shiny::selectInput(ns("dict_code"), "Code",
@@ -3169,7 +3169,7 @@ mod_coding_server <- function(id, values) {
         rownames = FALSE, options = list(pageLength = 10, scrollX = TRUE, dom = "tip"))
     })
 
-    # ==================================================== EXPORT / PROJET
+    # EXPORT / PROJET
     output$dl_report <- shiny::downloadHandler(
       filename = function() sprintf("hstat_rapport_codage_%s.xlsx", format(Sys.Date(), "%Y%m%d")),
       content = function(file) {

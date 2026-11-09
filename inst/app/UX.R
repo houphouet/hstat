@@ -307,7 +307,7 @@ ui <- shinydashboard::dashboardPage(
           attempt(10);
         });
       ")),
-      # ---- Polices professionnelles (locales, sans dependance reseau) ----
+      # Polices professionnelles (locales, sans dependance reseau)
       # Newsreader : serif editoriale a fort contraste -> titres.
       shiny::tags$style(shiny::HTML("
         @font-face { font-family:'Newsreader'; font-style:normal; font-weight:400;
@@ -328,7 +328,7 @@ ui <- shinydashboard::dashboardPage(
           font-display:swap; src:url('fonts/archivo-latin-700-normal.woff2') format('woff2'); }
       ")),
 
-      # ---- Typographie HStat (sans toucher aux couleurs natives de Shiny).
+      # Typographie HStat (sans toucher aux couleurs natives de Shiny).
       shiny::tags$style(shiny::HTML("
         /* -- Variables typographiques (alignees sur la maquette HStat) -- */
         :root {
@@ -481,7 +481,7 @@ ui <- shinydashboard::dashboardPage(
       "))
     ),
     shinydashboard::tabItems(
-      # ---- Chargement ----
+      # Chargement
       shinydashboard::tabItem(tabName = "load",
               shiny::fluidRow(
                 shinydashboard::box(title = "Charger données", status = "primary", width = 12, solidHeader = TRUE,
@@ -513,8 +513,8 @@ ui <- shinydashboard::dashboardPage(
                     ),
                     shiny::actionButton("loadData", "Charger", class = "btn-success", icon = shiny::icon("upload")),
 
-                    # --- Jeux de donnees integres a R
-                    # -------------------------------- REPLIE, a la demande.
+                    # Jeux de donnees integres a R
+                    # REPLIE, a la demande.
                     shiny::tags$hr(style = "margin:18px 0 12px;"),
                     shiny::tags$details(
                       style = "margin:4px 0; padding:10px 14px; background:#f3f7ee; border:1px solid #cfe3bd; border-radius:8px;",
@@ -547,7 +547,7 @@ ui <- shinydashboard::dashboardPage(
                             DT::DTOutput("rDataCatalog"))))
                     ),
 
-                    # --- Fusion de plusieurs fichiers (section integree au meme bloc) ---
+                    # Fusion de plusieurs fichiers (section integree au meme bloc)
                     shiny::tags$hr(style = "margin:18px 0 12px;"),
                     shiny::tags$details(
                       style = "margin:4px 0; padding:10px 14px; background:#eef7fb; border:1px solid #b6e0ef; border-radius:8px;",
@@ -665,33 +665,33 @@ ui <- shinydashboard::dashboardPage(
               )
       ),
       
-      # ---- Exploration ----
+      # Exploration
       
       shinydashboard::tabItem(tabName = "explore",
               mod_explore_ui("explore")
       ),
-      # ---- Nettoyage ----
+      # Nettoyage
       
       shinydashboard::tabItem(tabName = "clean",
               mod_clean_ui("clean")
       ),
-      # ---- Filtrage ----
+      # Filtrage
       
       shinydashboard::tabItem(tabName = "filter",
               mod_filter_ui("filter")
       ),
-      # ---- Analyse descriptives ----
+      # Analyse descriptives
       shinydashboard::tabItem(tabName = "descriptive",
               mod_descriptive_ui("descriptive")),
       
-      # ---- Visualisation des données ----
+      # Visualisation des données
       shinydashboard::tabItem(tabName = "visualization",
               mod_viz_ui("visualization")),
-      # ---- 3.
+      # 3. Analyses statistiques : Corrélations -> Tests -> Post-hoc -> Multivariées
       mod_correlation_ui("corrélation"),
       mod_tests_ui("tests"),
       mod_posthoc_ui("tests"),
-      # ---- Analyses multivariees ----
+      # Analyses multivariees
       
       shinydashboard::tabItem(tabName = "multivariate",
               shiny::tags$style(shiny::HTML("
@@ -1134,7 +1134,7 @@ ui <- shinydashboard::dashboardPage(
                                             shiny::div(style = "max-height: 300px; overflow-y: auto; font-size: 12px;",
                                                 shiny::verbatimTextOutput("pcaSummary")),
                                             shiny::hr(),
-                                            # ---- Export métriques ACP 
+                                            # Export métriques ACP
                                             shiny::div(style = "background: linear-gradient(135deg, #343a40 0%, #495057 100%); border-radius: 10px; padding: 18px; margin-top: 10px;",
                                                 shiny::h4(style = "color: white; font-weight: bold; margin-top: 0; text-align: center;",
                                                    shiny::icon("file-export"), " Export des métriques ACP"),
@@ -1365,7 +1365,7 @@ ui <- shinydashboard::dashboardPage(
                       shiny::tabPanel(
                         shiny::tagList(shiny::icon("microscope"), " Métriques"),
                         shiny::br(),
-                                            # ---- MÉTRIQUES DE VALIDATION HCPC 
+                                            # MÉTRIQUES DE VALIDATION HCPC
                                             shiny::div(style = "background-color: #eafaf1; border-left: 5px solid #27ae60; padding: 12px; margin: 15px 0 10px 0;",
                                                 shiny::h4(style = "color: #1e8449; font-weight: bold; margin-top: 0;",
                                                    shiny::icon("microscope"), " Métriques de validation de la classification"),
@@ -1436,7 +1436,7 @@ ui <- shinydashboard::dashboardPage(
                                                         shiny::verbatimTextOutput("hcpcSummary"))
                                                 )
                                             ),
-                                            # ---- Export métriques HCPC 
+                                            # Export métriques HCPC
                                             shiny::div(style = "background: linear-gradient(135deg, #0e6655 0%, #117a65 100%); border-radius: 10px; padding: 18px; margin-top: 20px;",
                                                 shiny::h4(style = "color: white; font-weight: bold; margin-top: 0; text-align: center;",
                                                    shiny::icon("file-export"), " Export des métriques HCPC / CAH"),
@@ -1734,7 +1734,7 @@ ui <- shinydashboard::dashboardPage(
                       shiny::tabPanel(
                         shiny::tagList(shiny::icon("cogs"), " Détails techniques"),
                         shiny::br(),
-                                            # ---- Export métriques AFD 
+                                            # Export métriques AFD
                                             shiny::div(style = "background: linear-gradient(135deg, #641e16 0%, #922b21 100%); border-radius: 10px; padding: 18px; margin-top: 10px;",
                                                 shiny::h4(style = "color: white; font-weight: bold; margin-top: 0; text-align: center;",
                                                    shiny::icon("file-export"), " Export des métriques AFD"),
@@ -1758,7 +1758,7 @@ ui <- shinydashboard::dashboardPage(
                 )
               ),
 
-              # ---- Analyses multivariees etendues ----
+              # Analyses multivariees etendues
   shiny::div(
     style = "margin-top:18px;",
 
@@ -1776,7 +1776,7 @@ ui <- shinydashboard::dashboardPage(
       )
     ),
 
-    # =================== CATEGORIE QUANTITATIVES ===================
+    # CATEGORIE QUANTITATIVES
     shiny::conditionalPanel(
       condition = "input.mv_category == 'quanti'",
       .mv_category_header("Analyses multivariées QUANTITATIVES",
@@ -1843,7 +1843,7 @@ ui <- shinydashboard::dashboardPage(
       ))
     ),
 
-    # =================== CATEGORIE QUALITATIVES ===================
+    # CATEGORIE QUALITATIVES
     shiny::conditionalPanel(
       condition = "input.mv_category == 'quali'",
       .mv_category_header("Analyses multivariées QUALITATIVES / CATÉGORIELLES",
@@ -1900,7 +1900,7 @@ ui <- shinydashboard::dashboardPage(
       ))
     ),
 
-    # =================== CATEGORIE MIXTES ===================
+    # CATEGORIE MIXTES
     shiny::conditionalPanel(
       condition = "input.mv_category == 'mixte'",
       .mv_category_header("Analyses multivariées MIXTES (quanti + quali)",
@@ -1940,11 +1940,11 @@ ui <- shinydashboard::dashboardPage(
                 )  # ferme mv-analyses-col
               )    # ferme mv-layout
       ),
-      # ---- 4.
+      # 4. Planification & outils : Plan & Puissance -> Seuils
       mod_design_ui("design"),
-      # ---- Analyses qualitatives d'enquete ----
+      # Analyses qualitatives d'enquete
       mod_qualitative_ui("qualitative"),
-      # ---- Seuils d'efficacité ----
+      # Seuils d'efficacité
       shinydashboard::tabItem(tabName = "timeseries",
               mod_timeseries_ui("timeseries")
       ),
@@ -1974,7 +1974,7 @@ ui <- shinydashboard::dashboardPage(
               mod_dl50_ui("dl50")
       ),
 
-      # ---- Citer HStat ----
+      # Citer HStat
       shinydashboard::tabItem(tabName = "cite",
         shiny::fluidRow(
           shinydashboard::box(

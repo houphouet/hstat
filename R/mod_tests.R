@@ -26,7 +26,7 @@ mod_tests_ui <- function(id) {
                                      )
                                    )
                                ),
-                               # --- Configuration du modele (generalise) mixte ---
+                               # Configuration du modele (generalise) mixte
                                shiny::div(style = "background-color:#e8f6f3; border-left:4px solid #16a085; padding:10px; margin-top:12px;",
                                    shiny::h6(shiny::tagList(shiny::icon("sitemap"), " Modèle mixte (GLMM)"),
                                       style = "color:#6c3483; margin-top:0; font-weight:bold;"),
@@ -66,7 +66,7 @@ mod_tests_ui <- function(id) {
                                        shiny::icon("circle-info"),
                                        " Effet aléatoire d'ordonnée à l'origine : ", shiny::tags$code("(1 | groupe)"), ".")
                                ),
-                               # --- Configuration ANOVA a mesures repetees ---
+                               # Configuration ANOVA a mesures repetees
                                shiny::div(style = "background-color:#e0f2f1; border-left:4px solid #00897b; padding:10px; margin-top:12px;",
                                    shiny::h6(shiny::tagList(shiny::icon("repeat"), " Mesures répétées (rmANOVA & non param.)"),
                                       style = "color:#00695c; margin-top:0; font-weight:bold;"),
@@ -108,7 +108,7 @@ mod_tests_ui <- function(id) {
                                                            "BH (FDR)" = "BH", "Tukey" = "tukey", "Aucun" = "none"),
                                                selected = "holm")
                                ),
-                               # --- Configuration des tests apparies --- Aucun
+                               # Configuration des tests apparies --- Aucun
                                # selecteur de colonne de plus.
                                shiny::div(style = "background-color:#fff8e1; border-left:4px solid #ef6c00; padding:10px; margin-top:12px;",
                                    shiny::h6(shiny::tagList(shiny::icon("link"), " Données appariées"),
@@ -170,8 +170,8 @@ mod_tests_ui <- function(id) {
                                        shiny::HTML(tr("Le modèle linéaire mixte est la réponse gaussienne à lien identité : le bouton LMM impose les deux et ne lit ni la famille ni le lien. Le bouton « (généralisé) mixte » ouvre les autres familles — comptages, proportions, données strictement positives."))),
                                    shiny::actionButton(ns("testRMAnova"), "ANOVA à mesures répétées",   class = "btn-success btn-block", icon = shiny::icon("repeat"))
                                ),
-                               # --- CHI-DEUX D'ADEQUATION
-                               # ------------------------------------ Place
+                               # CHI-DEUX D'ADEQUATION
+                               # Place
                                # SOUS les tests parametriques, dans leur
                                # colonne.
                                shiny::div(style = "border-left:4px solid #1565C0; padding-left:10px; margin-top:16px;",
@@ -216,7 +216,7 @@ mod_tests_ui <- function(id) {
                                    shiny::actionButton(ns("testPERMANOVA"),       "PERMANOVA (>= 2 réponses)",  class = "btn-primary btn-block", icon = shiny::icon("layer-group"))
                                ),
 
-                               # --- Comparaison a une valeur de reference
+                               # Comparaison a une valeur de reference
                                # (norme) ------------- Tests a UN echantillon.
                                shiny::div(style = "border-left:4px solid #6a1b9a; padding-left:10px; margin-top:16px;",
                                    shiny::h4(shiny::tagList(shiny::icon("bullseye"), " Comparaison à une norme"),
@@ -243,8 +243,8 @@ mod_tests_ui <- function(id) {
                                                     class = "btn-block", icon = shiny::icon("bullseye"),
                                                     style = "background:#8e44ad; color:#fff; border-color:#76398f;"))),
 
-                               # --- Reglages de la comparaison a une norme
-                               # -------------------- Places SOUS les boutons
+                               # Reglages de la comparaison a une norme
+                               # Places SOUS les boutons
                                # ci-dessus.
                                shiny::div(style = "border-left:4px solid #6a1b9a; padding-left:10px; margin-top:12px;",
                                    shiny::h4(shiny::tagList(shiny::icon("sliders-h"), " Réglages de la norme"),
@@ -1195,7 +1195,7 @@ mod_posthoc_ui <- function(id) {
                         shiny::icon("info-circle"),
                         " Toute la mise en forme du graphique post-hoc, de la palette à l'export."),
                     shiny::fluidRow(
-                      # ---- COL 1 : type, palette, barres d'erreur ----
+                      # COL 1 : type, palette, barres d'erreur
                       shiny::column(3,
                         .hstat_opt_section(
                           "Type et couleurs", "palette", "#8e44ad", "#f7f0fb",
@@ -1246,7 +1246,7 @@ mod_posthoc_ui <- function(id) {
                         )
                       ),
 
-                      # ---- COL 2 : textes ----
+                      # COL 2 : textes
                       shiny::column(3,
                         .hstat_opt_section(
                           "Titres et libellés", "heading", "#2980b9", "#eaf3fa",
@@ -1286,7 +1286,7 @@ mod_posthoc_ui <- function(id) {
                         )
                       ),
 
-                      # ---- COL 3 : tailles et styles ----
+                      # COL 3 : tailles et styles
                       shiny::column(3,
                         .hstat_opt_section(
                           "Tailles", "text-height", "#d35400", "#fdf2e9",
@@ -1331,7 +1331,7 @@ mod_posthoc_ui <- function(id) {
                         )
                       ),
 
-                      # ---- COL 4 : axes, legende, export ----
+                      # COL 4 : axes, legende, export
                       shiny::column(3,
                         .hstat_opt_section(
                           "Axes et ordre", "ruler-combined", "#16a085", "#e8f8f4",
@@ -1606,8 +1606,8 @@ mod_posthoc_ui <- function(id) {
       )
 }
 
-# ============================ TESTS DE CORRÉLATION
-# ============================ Page dédiée.
+# TESTS DE CORRÉLATION
+# Page dédiée.
 mod_correlation_ui <- function(id) {
   ns <- shiny::NS(id)
   shinydashboard::tabItem(tabName = "corrélation",
@@ -1861,7 +1861,7 @@ mod_correlation_server <- function(id, values) {
           shiny::tags$ul(items))
     })
 
-    # ---------- Matrice de Corrélation (deplacee depuis Exploration) ----------
+    # Matrice de Corrélation (deplacee depuis Exploration)
     output$corrVarSelect <- shiny::renderUI({
       shiny::req(values$data)
       num_cols <- names(values$data)[vapply(values$data, is.numeric, logical(1))]
@@ -1964,7 +1964,7 @@ mod_correlation_server <- function(id, values) {
         "spectral" = grDevices::colorRampPalette(c("#9E0142","#D53E4F","#F46D43","#FDAE61","#FEE08B","#FFFFBF","#E6F598","#ABDDA4","#66C2A5","#3288BD","#5E4FA2"))(200),
         NULL)
 
-      # ---- Rendu dédié au mode "une variable contre les autres" (matrice 1 x
+      # Rendu dédié au mode "une variable contre les autres" (matrice 1 x
       # N) ---- La matrice n'est pas carrée.
       if (focus_mode) {
         cp_args <- list(corr = cor_matrix, method = if (display == "number") "color" else display,
@@ -2810,7 +2810,7 @@ mod_tests_server <- function(id, values) {
   shiny::observeEvent(input$testRefVar,    .run_ref_quanti("variance", need_sigma = TRUE))
   shiny::observeEvent(input$testRefTOST,   .run_ref_quanti("tost", need_margin = TRUE))
 
-  # --- Proportion / taux vs référence ---------------------------------------
+  # Proportion / taux vs référence
   output$refPropVarSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
     df <- values$filteredData
@@ -3559,7 +3559,7 @@ mod_tests_server <- function(id, values) {
     })
   })
   
-  # --- Infobulle dynamique : type de donnees correspondant a la famille choisie ---
+  # Infobulle dynamique : type de donnees correspondant a la famille choisie
   output$glmmFamilyHelp <- shiny::renderUI({
     fam <- input$glmmFamily %||% "gaussian"
     info <- switch(fam,
@@ -3595,7 +3595,7 @@ mod_tests_server <- function(id, values) {
         shiny::div(style = "font-size:11px; color:#37474f; line-height:1.4;", info$txt))
   })
   
-  # --- Infobulle dynamique : quand utiliser la fonction de lien choisie ---
+  # Infobulle dynamique : quand utiliser la fonction de lien choisie
   output$glmmLinkHelp <- shiny::renderUI({
     lk  <- input$glmmLink %||% "auto"
     info <- switch(lk,
@@ -3634,7 +3634,7 @@ mod_tests_server <- function(id, values) {
             " Tous les liens ne sont pas compatibles avec toutes les familles (R renverra une erreur sinon)."))
   })
   
-  # --- Mise a jour des choix des selecteurs de mesures repetees (UI statique) ---
+  # Mise a jour des choix des selecteurs de mesures repetees (UI statique)
   shiny::observe({
     df <- values$filteredData %||% values$cleanData %||% values$data
     shiny::req(df)
@@ -3654,7 +3654,7 @@ mod_tests_server <- function(id, values) {
                          selected = hstat_garder_choix(shiny::isolate(input$rmBetween), fac_cols))
   })
   
-  # --- Selecteur COMPLET de la structure d'effets aleatoires du GLMM ---
+  # Selecteur COMPLET de la structure d'effets aleatoires du GLMM
   # Interface guidee.
   output$glmmRandomSelect <- shiny::renderUI({
     df <- values$filteredData %||% values$cleanData %||% values$data
@@ -3768,7 +3768,7 @@ mod_tests_server <- function(id, values) {
         paste0("`", resp, "` ~ ", fixed, " + ", rand))
   })
   
-  # --- Modele lineaire (generalise) mixte : lme4 ou glmmTMB --- UN SEUL
+  # Modele lineaire (generalise) mixte : lme4 ou glmmTMB --- UN SEUL
   # AJUSTEMENT, DEUX PORTES.
   .run_mixed <- function(lineaire = FALSE) {
     shiny::req(input$responseVar, input$factorVar)
@@ -3835,7 +3835,7 @@ mod_tests_server <- function(id, values) {
       }
     }
     
-    # --- Validation prealable : la famille est-elle compatible avec les
+    # Validation prealable : la famille est-elle compatible avec les
     # donnees ? --- Evite des messages d'erreur bruts de R (ex.
     fam_check <- function(var) {
       y <- suppressWarnings(as.numeric(df[[var]]))
@@ -4123,7 +4123,7 @@ mod_tests_server <- function(id, values) {
           }
           shiny::incProgress(0.4 / max(length(input$responseVar), 1))
           
-          # --- Post-hoc : effets principaux, puis effets simples de chaque
+          # Post-hoc : effets principaux, puis effets simples de chaque
           # facteur a chaque niveau des autres (emmeans).
           if (has_emm) {
             ph <- hstat_rm_posthoc(emm_model, within, between, interactions = inter,
@@ -5991,7 +5991,7 @@ mod_tests_server <- function(id, values) {
     g
   })
   
-  # ---------------------------------------------------------------- chi-deux
+  # chi-deux
   # LE SOUS-SYSTEME EXISTAIT EN ENTIER.
   HSTAT_TEST_FAMILLES <- c(
     "parametric"     = "Test paramétrique",
@@ -6115,7 +6115,7 @@ mod_tests_server <- function(id, values) {
     })
   )
   
-  # ---- Comparaisons multiples PostHoc  ----
+  # Comparaisons multiples PostHoc
   
   perform_simple_effect_posthoc <- function(df, var, factor1, factor2, level, test_type, test_method) {
     
@@ -7038,7 +7038,7 @@ mod_tests_server <- function(id, values) {
   })
   shiny::outputOptions(output, "hasMultivariatePosthoc", suspendWhenHidden = FALSE)
   
-  # --- PostHoc Mesures repetees : flag, info, tableau, telechargement ---
+  # PostHoc Mesures repetees : flag, info, tableau, telechargement
   output$hasRMPostHoc <- shiny::reactive({
     !is.null(values$rmPostHocData) && nrow(values$rmPostHocData) > 0
   })
@@ -7057,7 +7057,7 @@ mod_tests_server <- function(id, values) {
                    shiny::icon("triangle-exclamation"), " ", n)))
   })
   
-  # --- Graphique d'interaction (moyennes ajustees des deux premiers facteurs) ---
+  # Graphique d'interaction (moyennes ajustees des deux premiers facteurs)
   output$hasRMInteraction <- shiny::reactive(!is.null(values$rmInteractionData))
   shiny::outputOptions(output, "hasRMInteraction", suspendWhenHidden = FALSE)
   rm_interaction_plot <- shiny::reactive({

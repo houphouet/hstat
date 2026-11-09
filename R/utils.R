@@ -16,7 +16,7 @@
 #' @keywords internal
 "_PACKAGE"
 
-# --- Boutons d'export DT avec noms de fichiers propres -----------------------
+# Boutons d'export DT avec noms de fichiers propres
 
 .hstat_dt_buttons <- function(fname = "HStat_export") {
   fname <- gsub("[^A-Za-z0-9_.-]+", "_", as.character(fname))
@@ -143,7 +143,7 @@ hstat_load_model_packages <- function(packages = hstat_model_packages) {
 
 `%||%` <- function(x, y) if (is.null(x) || length(x) == 0) y else x
 
-# --- Gardes pour packages d'UI optionnels -----------------------------------
+# Gardes pour packages d'UI optionnels
 
 .hstat_has <- function(pkg) isTRUE(requireNamespace(pkg, quietly = TRUE))
 
@@ -484,7 +484,7 @@ hstat_valeurs_initiales <- function() {
     chiSqResults = NULL, chiSqFreqData = NULL, chiSqPostHocData = NULL,
     chiSqPlotObj = NULL,
     chiSqPGlobal = NULL,
-    # ---- Moteur de donnees (memoire / hors-memoire DuckDB) ----
+    # Moteur de donnees (memoire / hors-memoire DuckDB)
     dbCon = NULL, dbTable = NULL, dataMode = "memory",
     fullNrow = NULL, fullNcol = NULL, fullNA = NULL, isSampled = FALSE,
     sourceSize = NULL,
@@ -1559,7 +1559,7 @@ apply_variable_transformation <- function(x, method) {
   
   result <- switch(method,
                    
-                   # ── 1.
+                   # 1. Logarithme naturel
                    "log" = {
                      if (any(x_nona <= 0))
                        stop("log(x) requiert des valeurs strictement positives (x > 0).\n",
@@ -1568,7 +1568,7 @@ apply_variable_transformation <- function(x, method) {
                      log(x)
                    },
                    
-                   # ── 2. log(x+1) ───────────────────────────────────────────────────────────
+                   # 2. log(x+1)
                    "log1p" = {
                      if (any(x_nona < 0))
                        stop("log(x+1) requiert des valeurs >= 0 (x >= 0).\n",
@@ -1576,7 +1576,7 @@ apply_variable_transformation <- function(x, method) {
                      log1p(x)
                    },
                    
-                   # ── 3.
+                   # 3. Log base 10
                    "log10" = {
                      if (any(x_nona <= 0))
                        stop("log10(x) requiert des valeurs strictement positives (x > 0).\n",
@@ -1584,7 +1584,7 @@ apply_variable_transformation <- function(x, method) {
                      log10(x)
                    },
                    
-                   # ── 4.
+                   # 4. Racine carrée
                    "sqrt" = {
                      if (any(x_nona < 0))
                        stop("sqrt(x) requiert des valeurs >= 0.\n",
@@ -1593,12 +1593,12 @@ apply_variable_transformation <- function(x, method) {
                      sqrt(x)
                    },
                    
-                   # ── 5.
+                   # 5. Racine cubique
                    "cuberoot" = {
                      sign(x) * abs(x)^(1/3)
                    },
                    
-                   # ── 6.
+                   # 6. Box-Cox
                    "boxcox" = {
                      if (any(x_nona <= 0))
                        stop("Box-Cox requiert des valeurs strictement positives (x > 0).\n",
@@ -1616,7 +1616,7 @@ apply_variable_transformation <- function(x, method) {
                      x_trans
                    },
                    
-                   # ── 7.
+                   # 7. Yeo-Johnson
                    "yeojohnson" = {
                      yj_obj  <- bestNormalize::yeojohnson(x_nona, standardize = FALSE)
                      x_trans <- rep(NA_real_, length(x))
@@ -1626,7 +1626,7 @@ apply_variable_transformation <- function(x, method) {
                      x_trans
                    },
                    
-                   # ── 8.
+                   # 8. Arcsinus
                    "arcsin" = {
                      if (any(x_nona < 0 | x_nona > 1))
                        stop("asin(sqrt(x)) requiert des valeurs entre 0 et 1 (proportions/pourcentages en décimal).\n",
@@ -1635,7 +1635,7 @@ apply_variable_transformation <- function(x, method) {
                      asin(sqrt(x))
                    },
                    
-                   # ── 9.
+                   # 9. Logit
                    "logit" = {
                      if (any(x_nona <= 0 | x_nona >= 1))
                        stop("logit requiert des valeurs strictement entre 0 et 1 (0 et 1 exclus).\n",
@@ -4234,7 +4234,7 @@ HSTAT_POSTHOC_SYMBOLES <- c("ANOVA" = "F", "ANOVA de Welch" = "W",
                             "Kruskal-Wallis" = "H")
 
 # LE COEFFICIENT DE VARIATION D'UNE COLONNE est celui de l'essai : l'ecart-type
-# INTRA-GROUPE mis en commun, rapporte a la moyenne generale,
+# INTRA-GROUPE mis en commun, rapporte a la moyenne generale.
 HSTAT_SYNTH_CV <- "CV (%)"
 
 .hstat_synth_cv <- function(sv) {
@@ -4801,7 +4801,7 @@ hstat_shapiro_groupes <- function(d, variables, facteurs,
        interpretation = interpretation, note = note)
 }
 
-# --- Famille quantitative ----------------------------------------------------
+# Famille quantitative
 HSTAT_WILCOX_IC_MAX <- 20000L
 
 hstat_ref_test <- function(x, mu = 0, method = "ttest",
@@ -4946,7 +4946,7 @@ hstat_ref_test <- function(x, mu = 0, method = "ttest",
   stop("Méthode de comparaison à une référence inconnue : ", method)
 }
 
-# --- Famille categorielle ----------------------------------------------------
+# Famille categorielle
 # successes / n : effectif observe et effectif total.
 hstat_ref_prop_test <- function(successes, n, p0 = 0.5, method = "binom",
                                 alternative = c("two.sided", "greater", "less"),
@@ -5037,7 +5037,7 @@ HSTAT_APPARIE_METHODES <- c(t = "ttest", wilcoxon = "wilcoxon", signe = "sign")
   methode)
 
 # -- Construire les paires
-# ------------------------------------------------------ Deux formes de
+# Deux formes de
 # fichier, et aucune ne se devine.
 hstat_paires_large <- function(a, b) {
   a <- suppressWarnings(as.numeric(a)); b <- suppressWarnings(as.numeric(b))
@@ -5418,8 +5418,7 @@ hstat_refus <- function(msg)
   structure(class = c("hstat_refus", "error", "condition"),
             list(message = msg, call = NULL))
 
-# -- Une valeur venue du navigateur, bornee DES DEUX COTES
-# --------------------- UN PLAFOND D'INTERFACE NE PROTEGE RIEN..
+# -- Table de contingence d'une AFC : une ligne n'est pas toujours UN individu
 HSTAT_EFFECTIF_NOMS <- c("freq", "frequence", "effectif", "effectifs", "n",
                          "count", "counts", "nombre", "nb", "poids", "weight")
 
@@ -5577,6 +5576,8 @@ hstat_texte_client <- function(x, max = HSTAT_TEXTE_CLIENT_MAX) {
   substr(v, 1L, max)
 }
 
+# Une valeur venue du navigateur, bornee des deux cotes : un plafond d'interface
+# ne protege rien.
 hstat_borne_client <- function(x, defaut, min, max) {
 
   v <- hstat_finite(x, defaut)
@@ -7266,7 +7267,7 @@ hstat_read_any_mem <- function(path, sep = ",", name = NULL) {
 }
 
 # -- Moteur de fusion de plusieurs data.frames --------------------------------
-# type.
+# type : "inner"/"left"/"right"/"full" (jointures), "rows" (UNION), "cols" (cbind).
 
 # Noms des feuilles d'un classeur.
 hstat_excel_sheets <- function(path) {
@@ -7378,7 +7379,7 @@ hstat_merge_frames <- function(frames, type = "inner",
     return(list(ok = FALSE, data = NULL,
                 msg = "Les clés gauche et droite doivent avoir le même nombre de colonnes."))
 
-  # ---- Empilement de lignes (UNION) ----
+  # Empilement de lignes (UNION)
   if (type %in% c("rows", "union_distinct")) {
     # Valeur d'origine inscrite dans la colonne source.
     scol <- if (is.null(source_col) || !nzchar(trimws(source_col))) ".source" else trimws(source_col)
@@ -7421,7 +7422,7 @@ hstat_merge_frames <- function(frames, type = "inner",
                               length(frames), nrow(out), ncol(out))))
   }
 
-  # ---- Juxtaposition de colonnes ----
+  # Juxtaposition de colonnes
   if (type == "cols") {
     n <- max(vapply(frames, nrow, integer(1)))
     norm <- lapply(seq_along(frames), function(i) {
@@ -7440,7 +7441,7 @@ hstat_merge_frames <- function(frames, type = "inner",
                               length(frames), nrow(out), ncol(out))))
   }
 
-  # ---- Opérations ENSEMBLISTES sur les lignes (mêmes colonnes) ----
+  # Opérations ENSEMBLISTES sur les lignes (mêmes colonnes)
   if (type %in% c("intersect", "setdiff", "setdiff_right")) {
     a <- frames[[1]]; b <- frames[[2]]
     common <- intersect(names(a), names(b))
@@ -7459,7 +7460,7 @@ hstat_merge_frames <- function(frames, type = "inner",
       msg = trf("%s sur colonnes communes : %d lignes, %d colonnes.", lbl, nrow(out), ncol(out))))
   }
 
-  # ---- Jointure CROISÉE (produit cartésien, sans clé) ----
+  # Jointure CROISÉE (produit cartésien, sans clé)
   if (type == "cross") {
     # Garde-fou mémoire : le produit cartésien peut exploser.
     total_rows <- prod(vapply(frames, nrow, numeric(1)))
@@ -7486,7 +7487,7 @@ hstat_merge_frames <- function(frames, type = "inner",
     return(list(ok = FALSE, data = NULL,
                 msg = trf("Clé(s) « %s » absente(s) du 1er fichier.", paste(setdiff(kl, names(acc)), collapse = ", "))))
 
-  # ---- SEMI / ANTI jointures (filtrent le 1er ou le 2e, sans ajouter de colonnes) ----
+  # SEMI / ANTI jointures (filtrent le 1er ou le 2e, sans ajouter de colonnes)
   if (type %in% c("semi", "anti", "anti_right")) {
     b <- frames[[2]]
     kr2 <- if (all(kr %in% names(b))) kr else kl
@@ -7507,7 +7508,7 @@ hstat_merge_frames <- function(frames, type = "inner",
                     lbl, paste(kl, collapse = "+"), nrow(out), ncol(out))))
   }
 
-  # ---- MISE À JOUR / COALESCE : complète/remplace les valeurs du 1er par le 2e ----
+  # MISE À JOUR / COALESCE : complète/remplace les valeurs du 1er par le 2e
   if (type %in% c("update", "patch")) {
     b <- frames[[2]]
     kr2 <- if (all(kr %in% names(b))) kr else kl
@@ -7534,7 +7535,7 @@ hstat_merge_frames <- function(frames, type = "inner",
                     lbl, n_upd, length(shared))))
   }
 
-  # ---- Jointures classiques (inner/left/right/full), clés composites, enchaînées ----
+  # Jointures classiques (inner/left/right/full), clés composites, enchaînées
   if (!type %in% c("inner", "left", "right", "full"))
     return(list(ok = FALSE, data = NULL, msg = trf("Type de fusion inconnu : %s", type)))
   for (i in 2:length(frames)) {
@@ -7654,7 +7655,7 @@ hstat_load_data <- function(path, kind, header = TRUE, sep = ",",
                             sample_size = HSTAT_SAMPLE_SIZE) {
   size <- hstat_file_size(path)
 
-  # --- Formats toujours charges en memoire ---------------------------------
+  # Formats toujours charges en memoire
   if (kind == "excel") {
     df <- hstat_lire_excel(path, sheet = sheet %||% 1)
   } else if (kind == "sav") {
@@ -7664,7 +7665,7 @@ hstat_load_data <- function(path, kind, header = TRUE, sep = ",",
   } else if (kind == "rds") {
     df <- as.data.frame(hstat_lire_rds(path))
 
-  # --- CSV : memoire si petit, DuckDB si volumineux ------------------------
+  # CSV : memoire si petit, DuckDB si volumineux
   } else if (kind == "csv") {
     if (size <= threshold || !hstat_has_duckdb()) {
       df <- hstat_read_csv_mem(path, header = header, sep = sep)
@@ -7679,7 +7680,7 @@ hstat_load_data <- function(path, kind, header = TRUE, sep = ",",
                   kind = kind, size = size))
     }
 
-  # --- Parquet : DuckDB (materialise si petit, vue si volumineux) ----------
+  # Parquet : DuckDB (materialise si petit, vue si volumineux)
   } else if (kind == "parquet") {
     if (!hstat_has_duckdb()) stop("Le package 'duckdb' est requis pour lire le Parquet.")
     con <- hstat_duckdb_connect()
@@ -7696,7 +7697,7 @@ hstat_load_data <- function(path, kind, header = TRUE, sep = ",",
                   kind = kind, size = size))
     }
 
-  # --- DuckDB natif --------------------------------------------------------
+  # DuckDB natif
   } else if (kind == "duckdb") {
     op <- hstat_duckdb_open_file(path)
     total <- hstat_duckdb_nrow(op$con, op$table)
@@ -7710,7 +7711,7 @@ hstat_load_data <- function(path, kind, header = TRUE, sep = ",",
     stop("Format de fichier non pris en charge.")
   }
 
-  # --- Sortie mode memoire -------------------------------------------------
+  # Sortie mode memoire
   # Assainissement final.
   df <- hstat_df_to_utf8(df)
   list(data = df, mode = "memory", con = NULL, table = NULL,
@@ -7797,8 +7798,8 @@ hstat_donnees_r_convertir <- function(x, nom = "donnees") {
   rien <- function(motif) list(data = NULL, classe = cl, note = NULL, msg = motif)
   if (is.null(x)) return(rien(tr("objet vide")))
 
-  # --- serie temporelle
-  # ------------------------------------------------------- AVANT le test
+  # serie temporelle
+  # AVANT le test
   # `is.matrix`.
   if (inherits(x, "ts")) {
     tt <- as.numeric(stats::time(x))
@@ -7820,7 +7821,7 @@ hstat_donnees_r_convertir <- function(x, nom = "donnees") {
       note = trf("série temporelle (fréquence %s) dépliée en colonnes de temps et de valeurs", fr)))
   }
 
-  # --- data.frame -------------------------------------------------------------
+  # data.frame
   if (is.data.frame(x)) {
     rn <- .hstat_dr_noms_lignes(x)
     d <- as.data.frame(x)
@@ -7831,7 +7832,7 @@ hstat_donnees_r_convertir <- function(x, nom = "donnees") {
         trf("noms de lignes déplacés dans la colonne « %s »", HSTAT_DONNEES_R_COL)))
   }
 
-  # --- table de contingence, ou tableau a plus de deux dimensions -------------
+  # table de contingence, ou tableau a plus de deux dimensions
   if (inherits(x, "table") || (is.array(x) && length(dim(x)) > 2L)) {
     d <- as.data.frame(if (inherits(x, "table")) x else as.table(x),
                        stringsAsFactors = FALSE)
@@ -7839,7 +7840,7 @@ hstat_donnees_r_convertir <- function(x, nom = "donnees") {
       note = tr("table de contingence dépliée en format long (une ligne par croisement, effectif en colonne « Freq »)")))
   }
 
-  # --- matrice de distances ---------------------------------------------------
+  # matrice de distances
   if (inherits(x, "dist")) {
     m <- as.matrix(x)
     d <- .hstat_dr_avec_noms(as.data.frame(m), .hstat_dr_noms_lignes(m))
@@ -7847,7 +7848,7 @@ hstat_donnees_r_convertir <- function(x, nom = "donnees") {
       note = tr("matrice de distances dépliée en tableau carré")))
   }
 
-  # --- matrice ----------------------------------------------------------------
+  # matrice
   if (is.matrix(x)) {
     d <- as.data.frame(unclass(x))
     if (is.null(colnames(x))) names(d) <- paste0(nom, "_", seq_along(d))
@@ -7856,7 +7857,7 @@ hstat_donnees_r_convertir <- function(x, nom = "donnees") {
       note = tr("matrice convertie en tableau")))
   }
 
-  # --- liste ------------------------------------------------------------------
+  # liste
   if (is.list(x)) {
     lg <- vapply(x, function(e) if (is.atomic(e)) length(e) else -1L, integer(1))
     if (length(lg) && all(lg > 0L) && length(unique(lg)) == 1L) {
@@ -7873,7 +7874,7 @@ hstat_donnees_r_convertir <- function(x, nom = "donnees") {
                     nom, det)))
   }
 
-  # --- vecteur ----------------------------------------------------------------
+  # vecteur
   if (is.atomic(x) && length(x)) {
     d <- stats::setNames(data.frame(x, stringsAsFactors = FALSE), nom)
     d <- .hstat_dr_avec_noms(d, names(x))
@@ -7895,7 +7896,7 @@ hstat_donnees_r_convertir <- function(x, nom = "donnees") {
 }
 
 # -- « Vouliez-vous dire »
-# ----------------------------------------------------- Un refus qui ne propose
+# Un refus qui ne propose
 # rien laisse chercher.
 .hstat_dr_proches <- function(nom, noms, n = 6L) {
   if (!length(noms) || !nzchar(nom)) return(character(0))
@@ -8308,7 +8309,7 @@ hstat_confusion_df <- function(obs, pred) {
 }
 
 # -- Metriques de CLASSIFICATION avec interpretation
-# ---------------------------- prob.
+# prob : matrice/vecteur de probabilites (facultatif, pour l'AUC binaire).
 hstat_metrics_cls <- function(obs, pred, prob = NULL) {
   obs  <- factor(obs); pred <- factor(pred, levels = levels(obs))
   ok   <- !is.na(obs) & !is.na(pred)
@@ -8844,7 +8845,7 @@ hstat_align_newdata <- function(newdf, ref, vars) {
 
 hstat_model_doc <- function(id) {
   d <- list(
-    # ---- Series temporelles ----
+    # Series temporelles
     naive  = c("Naïf (dernière valeur)",
       "Chaque prévision reprend la dernière valeur observée.",
       "Servir de niveau de référence : tout modèle utile doit faire mieux.",
@@ -8921,7 +8922,7 @@ hstat_model_doc <- function(id) {
       "Modèle additif décomposable : tendance par morceaux + saisonnalités de Fourier + jours fériés, estime par optimisation bayésienne approchée.",
       "Séries d'activité (journalières/hebdomadaires) avec changements de tendance et effets calendaires.",
       "Nécessite une colonne de dates ; au moins plusieurs mois d'historique ; moins adapté aux séries très courtes ou hautement autocorrelees."),
-    # ---- Machine learning supervise ----
+    # Machine learning supervise
     lmglm = c("Modèle linéaire / logistique",
       "Combinaison linéaire des variables ; en classification, la probabilité passe par une fonction logistique.",
       "Référence interprétable : effets marginaux lisibles (coefficients).",
@@ -8958,7 +8959,7 @@ hstat_model_doc <- function(id) {
       "Perceptron à une couche cachée : combinaisons non linéaires apprises des variables.",
       "Capturer des interactions non linéaires simples.",
       "Variables standardisées (fait en interne) ; régler taille et decay ; risque de minima locaux."),
-    # ---- Clustering ----
+    # Clustering
     kmeans = c("k-means",
       "Alterne affectation de chaque point au centre le plus proche et recalcul des centres.",
       "Partitionner rapidement en k groupes compacts.",
@@ -8979,7 +8980,7 @@ hstat_model_doc <- function(id) {
       "Modèle probabiliste : les données proviennent d'un mélange de lois normales estimé par EM ; choix du modèle par BIC.",
       "Clustering souple (appartenance probabiliste) et formes elliptiques.",
       "Hypothèse de normalité par composante ; effectifs suffisants par groupe."),
-    # ---- Deep learning ----
+    # Deep learning
     dl_neuralnet = c("MLP (neuralnet)",
       "Perceptron multi-couches entraîne par retropropagation résiliente (rprop), 100 % R.",
       "Réseau profond simple, disponible sans aucune installation supplémentaire.",
@@ -9502,7 +9503,7 @@ hstat_installer_replis_ui <- function(envir = globalenv()) {
 # depot, et elle a une raison pratique.
 
 # -- LA BASE DU LOGARITHME N'EST PAS UN DETAIL D'AFFICHAGE
-# --------------------- `vegan::diversity()` calcule en logarithme NATUREL.
+# `vegan::diversity()` calcule en logarithme NATUREL.
 HSTAT_DIV_BASES <- c("bits (log2)" = "2", "nats (ln)" = "e", "décibels (log10)" = "10")
 
 .hstat_div_log <- function(x, base = "2") {
@@ -12120,7 +12121,7 @@ hstat_epi_figure_multi <- function(figure, res_list, mode = "facettes",
   mode <- if (identical(mode, "percentiles")) "percentiles" else "facettes"
   noms <- names(res_list)
 
-  # --- Effet cumule : une courbe exposition-reponse par exposition ---------
+  # Effet cumule : une courbe exposition-reponse par exposition
   if (identical(figure, "cumul")) {
     d <- do.call(rbind, lapply(noms, function(v) {
       p <- res_list[[v]]$pred
@@ -12161,7 +12162,7 @@ hstat_epi_figure_multi <- function(figure, res_list, mode = "facettes",
     return(g)
   }
 
-  # --- Structure temporelle : le RETARD est une grandeur commune ------------
+  # Structure temporelle : le RETARD est une grandeur commune
   if (identical(figure, "retard")) {
     d <- do.call(rbind, lapply(noms, function(v) {
       r <- res_list[[v]]; p <- r$pred
@@ -12188,7 +12189,7 @@ hstat_epi_figure_multi <- function(figure, res_list, mode = "facettes",
     return(g)
   }
 
-  # --- Carte de chaleur : facettes, chacune avec son echelle d'exposition ---
+  # Carte de chaleur : facettes, chacune avec son echelle d'exposition
   if (identical(figure, "carte")) {
     d <- do.call(rbind, lapply(noms, function(v) {
       p <- res_list[[v]]$pred
@@ -12210,7 +12211,7 @@ hstat_epi_figure_multi <- function(figure, res_list, mode = "facettes",
                     title = titre %||% tr("Surfaces exposition × retard")))
   }
 
-  # --- Coupes par retard : exposition en couleur, retard en facette ---------
+  # Coupes par retard : exposition en couleur, retard en facette
   if (identical(figure, "coupes")) {
     d <- do.call(rbind, lapply(noms, function(v) {
       r <- res_list[[v]]; p <- r$pred
